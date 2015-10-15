@@ -9,6 +9,28 @@ set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
 SET(TEST_CAMERA_SRC)
 SET(TEST_CAMERA_REQ_LIBS)
 
+# Platform specific libraries
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    find_library(IOKIT_FRAMEWORK IOKit)
+    find_library(COREFOUNDATION_FRAMEWORK CoreFoundation)
+    #find_library(QUARTZCORE QuartzCore)
+    find_library(APPKIT_FRAMEWORK AppKit)
+    #find_library(QTKIT QTKit)
+    #find_library(AVFOUNDATION AVFoundation)
+    #stdc++ ${QUARTZCORE} ${APPKIT_FRAMEWORK} ${QTKIT} ${AVFOUNDATION}
+    list(APPEND TEST_CAMERA_REQ_LIBS
+        ${COREFOUNDATION_FRAMEWORK}
+        ${IOKIT_FRAMEWORK}
+        ${APPKIT_FRAMEWORK})
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    #OpenCV extra dependencies: comctl32 gdi32 ole32 setupapi ws2_32 vfw32
+    #list(APPEND TEST_CAMERA_REQ_LIBS vfw32 comctl32)
+    IF(MINGW)
+        #list(APPEND TEST_CAMERA_REQ_LIBS stdc++)
+    ENDIF(MINGW)
+ELSE() #Linux
+ENDIF()
+
 # OpenCV
 FIND_PACKAGE(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIR})
