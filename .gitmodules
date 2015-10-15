@@ -1,0 +1,9 @@
+[submodule "thirdparty/opencv"]
+	path = thirdparty/opencv
+	url = https://github.com/Itseez/opencv.git
+[submodule "thirdparty/PS3EYEDriver"]
+	path = thirdparty/PS3EYEDriver
+	url = https://github.com/inspirit/PS3EYEDriver.git
+[submodule "thirdparty/libusb"]
+	path = thirdparty/libusb
+	url = https://github.com/libusb/libusb.git

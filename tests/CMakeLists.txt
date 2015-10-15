@@ -1,0 +1,50 @@
+cmake_minimum_required(VERSION 3.0)
+
+set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
+
+#
+# TEST_CAMERA
+#
+
+SET(TEST_CAMERA_SRC)
+SET(TEST_CAMERA_REQ_LIBS)
+
+# OpenCV
+FIND_PACKAGE(OpenCV REQUIRED)
+include_directories(${OpenCV_INCLUDE_DIR})
+list(APPEND TEST_CAMERA_REQ_LIBS ${OpenCV_LIBS})
+
+# PS3EYEDriver - only on Mac and Win64
+IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"
+    OR (${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND ${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8))
+    #PS3EYEDriver
+    include_directories(${ROOT_DIR}/thirdparty/PS3EYEDriver/src)
+    list(APPEND TEST_CAMERA_SRC ${ROOT_DIR}/thirdparty/PS3EYEDriver/src/ps3eye.cpp)
+    #Requires libusb
+    find_package(USB1 REQUIRED)
+    include_directories(${LIBUSB_INCLUDE_DIR})
+    list(APPEND TEST_CAMERA_REQ_LIBS ${LIBUSB_LIBRARIES})
+ENDIF()
+
+# CL EYE - only on Win32
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
+    AND NOT(${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8))
+    include_directories(${ROOT_DIR}/external/CLEYE)
+    find_path(CL_EYE_SDK_PATH bin/CLEyeMulticam.dll
+        HINTS ${ROOT_DIR}/thirdparty/CLEYE/)
+    IF(CL_EYE_SDK_PATH)
+        list(APPEND TEST_CAMERA_REQ_LIBS CLEyeMulticam)
+        file(COPY ${CL_EYE_SDK_PATH}/bin/CLEyeMulticam.dll
+            DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+        # XXX: If this crashes, disable compiler optimizations
+    ENDIF()
+
+    #TODO: The non multicam version. Maybe it does not require any includes/libs?
+ENDIF()
+
+# Our custom OpenCV VideoCapture classes
+include_directories(${CMAKE_CURRENT_LIST_DIR}/../psmoveservice/PSEye)
+list(APPEND TEST_CAMERA_SRC ${CMAKE_CURRENT_LIST_DIR}/../psmoveservice/PSEye/PSEyeVideoCapture.cpp)
+
+add_executable(test_camera ${CMAKE_CURRENT_LIST_DIR}/test_camera.cpp ${TEST_CAMERA_SRC})
+target_link_libraries(test_camera ${TEST_CAMERA_REQ_LIBS})
