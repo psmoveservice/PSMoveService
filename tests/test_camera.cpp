@@ -1,4 +1,3 @@
-#include "opencv2/opencv.hpp"
 #include "PSEyeVideoCapture.h"
 
 using namespace cv;

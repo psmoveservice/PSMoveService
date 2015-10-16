@@ -16,12 +16,13 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     #find_library(QUARTZCORE QuartzCore)
     find_library(APPKIT_FRAMEWORK AppKit)
     #find_library(QTKIT QTKit)
-    #find_library(AVFOUNDATION AVFoundation)
+    find_library(AVFOUNDATION AVFoundation)
     #stdc++ ${QUARTZCORE} ${APPKIT_FRAMEWORK} ${QTKIT} ${AVFOUNDATION}
     list(APPEND TEST_CAMERA_REQ_LIBS
         ${COREFOUNDATION_FRAMEWORK}
         ${IOKIT_FRAMEWORK}
-        ${APPKIT_FRAMEWORK})
+        ${APPKIT_FRAMEWORK}
+        ${AVFOUNDATION})
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     #OpenCV extra dependencies: comctl32 gdi32 ole32 setupapi ws2_32 vfw32
     #list(APPEND TEST_CAMERA_REQ_LIBS vfw32 comctl32)
@@ -32,6 +33,7 @@ ELSE() #Linux
 ENDIF()
 
 # OpenCV
+set(OpenCV_DIR ${ROOT_DIR}/thirdparty/opencv/build CACHE PATH "Path to local OpenCV source tree" FORCE)
 FIND_PACKAGE(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIR})
 list(APPEND TEST_CAMERA_REQ_LIBS ${OpenCV_LIBS})
@@ -46,6 +48,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"
     find_package(USB1 REQUIRED)
     include_directories(${LIBUSB_INCLUDE_DIR})
     list(APPEND TEST_CAMERA_REQ_LIBS ${LIBUSB_LIBRARIES})
+    set(HAVE_PS3EYE 1)
 ENDIF()
 
 # CL EYE - only on Win32
@@ -62,6 +65,8 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
     ENDIF()
 
     #TODO: The non multicam version. Maybe it does not require any includes/libs?
+    
+    set(HAVE_CLEYE 1)
 ENDIF()
 
 # Our custom OpenCV VideoCapture classes
