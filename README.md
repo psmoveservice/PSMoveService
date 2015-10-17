@@ -9,23 +9,13 @@ A background service that communicates with the psmove and stores pose and butto
 # Build Dependencies
 
 1. OpenCV
-    1. `cd thirdparty`
-    1. `cd opencv`
-    1. `mkdir build`
-    1. `cd build`
-    1. Run cmake
-        * Windows 32: `cmake .. -G "Visual Studio 12 Win64" -DBUILD_SHARED_LIBS=OFF -DBUILD_WITH_STATIC_CRT=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_TESTS=OFF -DBUILD_DOCS=OFF -DBUILD_opencv_apps=OFF -DBUILD_opencv_calib3d=ON -DBUILD_opencv_flann=ON -DBUILD_opencv_features2d=ON -DBUILD_opencv_objdetect=OFF -DBUILD_opencv_photo=OFF -DBUILD_opencv_ts=OFF -DBUILD_opencv_ml=OFF -DBUILD_opencv_video=OFF -DBUILD_opencv_java=OFF -DWITH_OPENEXR=OFF -DWITH_FFMPEG=OFF -DWITH_JASPER=OFF -DWITH_TIFF=OFF`
-        * Windows 64: `cmake .. -G "Visual Studio 12" -DBUILD_SHARED_LIBS=OFF -DBUILD_WITH_STATIC_CRT=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_TESTS=OFF -DBUILD_DOCS=OFF -DBUILD_opencv_apps=OFF -DBUILD_opencv_calib3d=ON -DBUILD_opencv_flann=ON -DBUILD_opencv_features2d=ON -DBUILD_opencv_objdetect=OFF -DBUILD_opencv_photo=OFF -DBUILD_opencv_ts=OFF -DBUILD_opencv_ml=OFF -DBUILD_opencv_video=OFF -DBUILD_opencv_java=OFF -DWITH_OPENEXR=OFF -DWITH_FFMPEG=OFF -DWITH_JASPER=OFF -DWITH_TIFF=OFF`
-        * Mac minimal: `cmake .. -DBUILD_SHARED_LIBS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_TESTS=OFF -DBUILD_DOCS=OFF -DBUILD_FAT_JAVA_LIB=OFF -DBUILD_PACKAGE=OFF -DBUILD_opencv_apps=OFF -DBUILD_opencv_calib3d=ON -DBUILD_opencv_flann=ON -DBUILD_opencv_features2d=OFF -DBUILD_opencv_objdetect=OFF -DBUILD_opencv_photo=OFF -DBUILD_opencv_shape=OFF -DBUILD_opencv_stitching=OFF -DBUILD_opencv_superres=OFF -DBUILD_opencv_ts=OFF -DBUILD_opencv_ml=ON -DBUILD_opencv_video=OFF -DBUILD_opencv_videostab=OFF -DBUILD_opencv_world=OFF -DBUILD_opencv_java=OFF -DWITH_OPENEXR=OFF -DWITH_FFMPEG=OFF -DWITH_JASPER=OFF -DWITH_TIFF=OFF`
-        * Mac simple: `cmake .. -DBUILD_SHARED_LIBS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_TESTS=OFF -DBUILD_DOCS=OFF -DBUILD_FAT_JAVA_LIB=OFF -DBUILD_PACKAGE=OFF`
-    1. Build
-        * Windows:
-            * Open the solution in psmoveapi\external\opencv\build\OpenCV.sln
-            * Change the target to Release x64 (at the top of the Visual Studio window).
-            * Build the solution (Press F7).
-        * Mac: `make`
-    1. `cd ..`
-    1. `cd ..`
+    * Windows
+        * Follow steps 1-4 found [here](https://github.com/MicrocontrollersAndMore/OpenCV_3_Windows_10_Installation_Tutorial/blob/master/Installation%20Cheat%20Sheet%201%20-%20OpenCV%203%20and%20C%2B%2B.pdf)
+        * TODO: cmake option to specify OpenCV search directory
+    * Mac
+        * Install [homebrew](http://brew.sh/)
+        * `brew tap homebrew/science`
+        * `brew install opencv`
 1. Optional: libusb
     * Only necessary for PS3EYEDriver (required on Mac and Windows 64-bit)
     * Windows:

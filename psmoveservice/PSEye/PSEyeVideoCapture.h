@@ -1,4 +1,5 @@
 #include "opencv2/opencv.hpp"
+#include "ps3eye.h"
 
 // defined in opencv/modules/videoio/src/precomp.hpp
 struct CvCapture
@@ -22,9 +23,8 @@ enum
 class PSEyeVideoCapture : public cv::VideoCapture {
 public:
     PSEyeVideoCapture(int camindex)
-    : cv::VideoCapture(camindex)
     {
-        // Only require super constructor
+        open(camindex);
     };
     
     bool open(int index);
@@ -91,6 +91,8 @@ public:
     virtual int getCaptureDomain() { return CV_CAP_MSMF; } // Return the type of the capture object: CV_CAP_VFW, etc...
 protected:
     void init();
-    int index, width, height, fourcc;
+    int index, width, height, widthStep;
     IplImage* frame;
+    ps3eye::PS3EYECam::PS3EYERef eye;
+    size_t size;
 };

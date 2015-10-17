@@ -33,7 +33,7 @@ ELSE() #Linux
 ENDIF()
 
 # OpenCV
-set(OpenCV_DIR ${ROOT_DIR}/thirdparty/opencv/build CACHE PATH "Path to local OpenCV source tree" FORCE)
+#set(OpenCV_DIR ${ROOT_DIR}/thirdparty/opencv/build CACHE PATH "Path to local OpenCV source tree" FORCE)
 FIND_PACKAGE(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIR})
 list(APPEND TEST_CAMERA_REQ_LIBS ${OpenCV_LIBS})
@@ -48,7 +48,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"
     find_package(USB1 REQUIRED)
     include_directories(${LIBUSB_INCLUDE_DIR})
     list(APPEND TEST_CAMERA_REQ_LIBS ${LIBUSB_LIBRARIES})
-    set(HAVE_PS3EYE 1)
+    add_definitions(-DHAVE_PS3EYE)
 ENDIF()
 
 # CL EYE - only on Win32
@@ -65,8 +65,7 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
     ENDIF()
 
     #TODO: The non multicam version. Maybe it does not require any includes/libs?
-    
-    set(HAVE_CLEYE 1)
+    add_definitions(-DHAVE_CLEYE)
 ENDIF()
 
 # Our custom OpenCV VideoCapture classes
