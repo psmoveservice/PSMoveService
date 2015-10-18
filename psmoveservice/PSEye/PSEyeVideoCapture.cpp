@@ -358,9 +358,61 @@ IplImage* PSEEYECaptureCAM_PS3EYE::retrieveFrame(int)
 
 double PSEEYECaptureCAM_PS3EYE::getProperty( int property_id ) const
 {
+    switch( property_id )
+    {
+        case CV_CAP_PROP_BRIGHTNESS:
+            //return eye->getBrightness();
+            return 0;
+        case CV_CAP_PROP_CONTRAST:
+            // default 37
+            // Seems to be related to gain. Higher value is noisier.
+            return eye->getContrast() / 255;
+        case CV_CAP_PROP_EXPOSURE:
+            // Default 120
+            return (double)eye->getExposure() / 255;
+        case CV_CAP_PROP_FPS:
+            return (double)eye->getFrameRate();
+        case CV_CAP_PROP_FRAME_HEIGHT:
+            return eye->getHeight();
+        case CV_CAP_PROP_FRAME_WIDTH:
+            return eye->getWidth();
+        case CV_CAP_PROP_GAIN:
+            // Default 20
+            return double(eye->getGain()) / 255;
+        case CV_CAP_PROP_HUE:
+            // Default 143
+            return double(eye->getHue()) * 180/255;
+    }
     return 0;
 }
 bool PSEEYECaptureCAM_PS3EYE::setProperty( int property_id, double value )
 {
-    return false;
+    if (!eye)
+    {
+        return false;
+    }
+    switch (property_id)
+    {
+        case CV_CAP_PROP_BRIGHTNESS:
+            return false;
+            //eye->setBrightness(round(value));
+            // While the internal value updates correctly, it doesn't seem to
+            // be affecting brightness. It's affecting hue.
+        case CV_CAP_PROP_CONTRAST:
+            // Seems to be affecting gain, not contrast
+            eye->setContrast(round(255 * value));
+        case CV_CAP_PROP_EXPOSURE:
+            eye->setExposure(round((255*value)));
+        case CV_CAP_PROP_FPS:
+            return false; //TODO: Modifying FPS probably requires resetting the camera
+        case CV_CAP_PROP_FRAME_HEIGHT:
+            return false; //TODO: Modifying frame size probably requires resetting the camera
+        case CV_CAP_PROP_FRAME_WIDTH:
+            return false;
+        case CV_CAP_PROP_GAIN:
+            eye->setGain(round(255 * value));
+        case CV_CAP_PROP_HUE:  // input expected 0-180; output expects 0-255
+            eye->setHue(255 * value / 180);
+    }
+    return true;
 }
