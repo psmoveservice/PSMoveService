@@ -17,8 +17,12 @@ int main(int, char**)
     {
         Mat frame;
         cap >> frame; // get a new frame from camera
-        imshow("result", frame);
-        if(waitKey(30) >= 0) break;
+        if (!frame.empty())
+        {
+            imshow("result", frame);
+            if(waitKey(30) >= 0) break;
+        }
+        
     }
     // the camera will be deinitialized automatically in VideoCapture destructor
     return 0;

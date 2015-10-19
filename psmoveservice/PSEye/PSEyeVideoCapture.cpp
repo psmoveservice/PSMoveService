@@ -322,12 +322,8 @@ bool PSEEYECaptureCAM_PS3EYE::open( int _index )
 
 bool PSEEYECaptureCAM_PS3EYE::grabFrame()
 {
-    // TODO: I don't like blocking until we get a frame.
-    while (!eye->isNewFrame())
-    {
-        ps3eye::PS3EYECam::updateDevices();
-    }
-    return true;
+    ps3eye::PS3EYECam::updateDevices();
+    return eye->isNewFrame();
 }
 
 IplImage* PSEEYECaptureCAM_PS3EYE::retrieveFrame(int)
