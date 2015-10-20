@@ -1,5 +1,6 @@
 #include "PSEyeVideoCapture.h"
 
+#ifdef HAVE_PS3EYE
 /**
  * Taken from the PS3EYEDriver OpenFrameworks example
  * written by Eugene Zatepyakin, MIT license
@@ -53,10 +54,14 @@ yuv422_to_bgr(const uint8_t *yuv_src, const int stride, uint8_t *dst, const int 
 }
 #undef _max
 #undef _saturate
+#endif
 
 bool PSEyeVideoCapture::open(int index)
 {
     if (isOpened()) release();
+
+	// Try to open a PS3EYE-specific camera capture
+
 #if !defined(CV_VERSION_EPOCH) || (CV_VERSION_EPOCH > 2)
     /* TODO: Consider using IVideoCapture
     icap = IVideoCapture_create(index);
@@ -68,6 +73,7 @@ bool PSEyeVideoCapture::open(int index)
     cap = pseyeCreateCameraCapture(index);
 #endif
     
+	// PS3EYE-specific camera capture if available, else default OpenCV object
     return isOpened() ? isOpened() : cv::VideoCapture::open(index);
 }
 
@@ -75,7 +81,7 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture(int index)
 {
     int pref = (index / 100) * 100;
     index -= pref;
-    CvCapture *capture = 0;
+    CvCapture *capture = 0; // no match
     
     switch (pref)
     {
@@ -88,6 +94,7 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture(int index)
             }
             
 #ifdef HAVE_CLEYE
+			/*
         case PSEYE_CAP_CLMULTI:
             if (!capture)
             {
@@ -97,6 +104,7 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture(int index)
             {
                 break;
             }
+			
             
         case PSEYE_CAP_CLEYE:
             if (!capture)
@@ -107,6 +115,7 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture(int index)
             {
                 break;
             }
+			*/
 #endif //HAVE_CLEYE
 
 #ifdef HAVE_PS3EYE
@@ -125,6 +134,7 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture(int index)
     return capture;
 }
 
+#ifdef HAVE_CLEYE
 /*
 CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLMULTI(int index)
 {
@@ -143,6 +153,7 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLMULTI(int index)
     return 0;
 }
 
+
 CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLEYE(int index)
 {
     PSEEYECaptureCAM_CLEYE* capture = new PSEEYECaptureCAM_CLEYE;
@@ -160,7 +171,9 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLEYE(int index)
     return 0;
 }
 */
+#endif
 
+#ifdef HAVE_PS3EYE
 CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_PS3EYE(int index)
 {
     PSEEYECaptureCAM_PS3EYE* capture = new PSEEYECaptureCAM_PS3EYE;
@@ -177,11 +190,13 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_PS3EYE(int index)
     delete capture;
     return 0;
 }
+#endif
 
 
 /*
  * PSEEYECaptureCAM_CLMULTI
  */
+#ifdef HAVE_CLEYE
 /*
 PSEEYECaptureCAM_CLMULTI::PSEEYECaptureCAM_CLMULTI():
 frame(NULL)
@@ -269,10 +284,12 @@ bool PSEEYECaptureCAM_CLEYE::setProperty( int property_id, double value )
     return false;
 }
 */
+#endif
 
 /*
  * PSEEYECaptureCAM_PS3EYE
  */
+#ifdef HAVE_PS3EYE
 PSEEYECaptureCAM_PS3EYE::PSEEYECaptureCAM_PS3EYE():
 frame(NULL)
 {
@@ -416,3 +433,4 @@ bool PSEEYECaptureCAM_PS3EYE::setProperty( int property_id, double value )
     }
     return true;
 }
+#endif
