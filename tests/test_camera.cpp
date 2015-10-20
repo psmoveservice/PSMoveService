@@ -13,9 +13,13 @@ int main(int, char**)
     {
         Mat frame;
         cap >> frame; // get a new frame from camera
-        imshow("result", frame);
-		int wk = waitKey(30);
-		
+		int wk = -1;
+		if (!frame.empty())
+		{
+			imshow("result", frame);
+			wk = waitKey(30);
+		}
+        
 		if (wk == 27)
 		{
 			break;
@@ -67,7 +71,6 @@ int main(int, char**)
 			val = cap.get(cap_prop);
 			std::cout << "Value of " << prop_str << " changed by " << val_diff << " to " << val << std::endl;
 		}
-		
     }
     // the camera will be deinitialized automatically in VideoCapture destructor
     return 0;
