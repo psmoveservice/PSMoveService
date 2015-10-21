@@ -2,12 +2,13 @@ cmake_minimum_required(VERSION 3.0)
 
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
 
-#
-# TEST_CAMERA
-#
+IF(MSVC)
+    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_DEBUG} /MT")
+    SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+ENDIF(MSVC)
 
-SET(TEST_CAMERA_SRC)
-SET(TEST_CAMERA_REQ_LIBS)
+# Common dependencies
+SET(PLATFORM_LIBS)
 
 # Platform specific libraries
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -18,19 +19,26 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     #find_library(QTKIT QTKit)
     find_library(AVFOUNDATION AVFoundation)
     #stdc++ ${QUARTZCORE} ${APPKIT_FRAMEWORK} ${QTKIT} ${AVFOUNDATION}
-    list(APPEND TEST_CAMERA_REQ_LIBS
+    list(APPEND PLATFORM_LIBS
         ${COREFOUNDATION_FRAMEWORK}
         ${IOKIT_FRAMEWORK}
         ${APPKIT_FRAMEWORK}
         ${AVFOUNDATION})
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     #OpenCV extra dependencies: comctl32 gdi32 ole32 setupapi ws2_32 vfw32
-    #list(APPEND TEST_CAMERA_REQ_LIBS vfw32 comctl32)
+    #list(APPEND PLATFORM_LIBS vfw32 comctl32)
     IF(MINGW)
-        #list(APPEND TEST_CAMERA_REQ_LIBS stdc++)
+        #list(APPEND PLATFORM_LIBS stdc++)
     ENDIF(MINGW)
 ELSE() #Linux
 ENDIF()
+
+#
+# TEST_CAMERA
+#
+
+SET(TEST_CAMERA_SRC)
+SET(TEST_CAMERA_REQ_LIBS)
 
 # OpenCV
 #set(OpenCV_DIR ${ROOT_DIR}/thirdparty/opencv/build CACHE PATH "Path to local OpenCV source tree" FORCE)
@@ -45,7 +53,9 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"
     OR (${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND ${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8))
     #PS3EYEDriver
     include_directories(${ROOT_DIR}/thirdparty/PS3EYEDriver/src)
-    list(APPEND TEST_CAMERA_SRC ${ROOT_DIR}/thirdparty/PS3EYEDriver/src/ps3eye.cpp)
+    list(APPEND TEST_CAMERA_SRC
+        ${ROOT_DIR}/thirdparty/PS3EYEDriver/src/ps3eye.h
+        ${ROOT_DIR}/thirdparty/PS3EYEDriver/src/ps3eye.cpp)
     #Requires libusb
     find_package(USB1 REQUIRED)
     include_directories(${LIBUSB_INCLUDE_DIR})
@@ -71,13 +81,44 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
 ENDIF()
 
 # Our custom OpenCV VideoCapture classes
-include_directories(${CMAKE_CURRENT_LIST_DIR}/../psmoveservice/PSEye)
-list(APPEND TEST_CAMERA_SRC ${CMAKE_CURRENT_LIST_DIR}/../psmoveservice/PSEye/PSEyeVideoCapture.cpp)
+include_directories(${ROOT_DIR}/psmoveservice/PSEye)
+list(APPEND TEST_CAMERA_SRC
+    ${ROOT_DIR}/psmoveservice/PSEye/PSEyeVideoCapture.h
+    ${ROOT_DIR}/psmoveservice/PSEye/PSEyeVideoCapture.cpp)
 
-IF(MSVC)
-	SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_DEBUG} /MT")
-	SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
-ENDIF(MSVC)
-
+# The test_camera app
 add_executable(test_camera ${CMAKE_CURRENT_LIST_DIR}/test_camera.cpp ${TEST_CAMERA_SRC})
-target_link_libraries(test_camera ${TEST_CAMERA_REQ_LIBS})
+target_link_libraries(test_camera ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS})
+
+#
+# Test Controller
+#
+
+SET(TEST_CTRLR_SRC)
+SET(TEST_CTRLR_REQ_LIBS)
+
+# Dependencies
+
+# hidapi
+include_directories(${ROOT_DIR}/thirdparty/hidapi/hidapi)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/windows/hid.c)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)
+ELSE()
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
+ENDIF()
+list(APPEND TEST_CTRLR_SRC ${HIDAPI_SRC})
+
+# PSMoveController
+include_directories(${ROOT_DIR}/psmoveservice/PSMoveController)
+list(APPEND TEST_CTRLR_SRC
+    ${CMAKE_CURRENT_LIST_DIR}/../psmoveservice/PSMoveController/PSMoveController.h
+    ${CMAKE_CURRENT_LIST_DIR}/../psmoveservice/PSMoveController/PSMoveController.cpp)
+
+# PSMoveDataFrame
+include_directories(${ROOT_DIR}/psmovedataframe)
+list(APPEND TEST_CTRLR_REQ_LIBS PSMoveDataFrame)
+
+add_executable(test_controller ${CMAKE_CURRENT_LIST_DIR}/test_controller.cpp ${TEST_CTRLR_SRC})
+target_link_libraries(test_controller ${PLATFORM_LIBS} ${TEST_CTRLR_REQ_LIBS})

@@ -2,9 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 
 #DEPENDENCIES
 
-#Boost
-#Boost/asio
-#Boost/application
-#Boost/type_index
-#protobuf
+#None so far
 
+set(frame_srcs_hdrs PSMoveDataFrame.h PSMoveDataFrame.cpp)
+add_library(PSMoveDataFrame STATIC ${frame_srcs_hdrs})
