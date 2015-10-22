@@ -12,8 +12,13 @@
 
 int main()
 {
+	std::cout << "Creating new PSMoveController..." << std::endl;
     PSMoveController psmove;
-    psmove.setRumbleValue(255);
+	if (psmove.isOpen())
+	{
+		std::cout << "Attempting to setRumbleValue(255)..." << std::endl;
+		psmove.setRumbleValue(255);
+	}
     
 #ifdef __GNUC__
     sleep(1); // one second

@@ -3,8 +3,17 @@ cmake_minimum_required(VERSION 3.0)
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
 
 IF(MSVC)
-    SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_DEBUG} /MT")
-    SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+    set(CompilerFlags
+        CMAKE_CXX_FLAGS
+        CMAKE_CXX_FLAGS_DEBUG
+        CMAKE_CXX_FLAGS_RELEASE
+        CMAKE_C_FLAGS
+        CMAKE_C_FLAGS_DEBUG
+        CMAKE_C_FLAGS_RELEASE
+        )
+    foreach(CompilerFlag ${CompilerFlags})
+      string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
+    endforeach()
 ENDIF(MSVC)
 
 # Common dependencies
@@ -26,7 +35,8 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         ${AVFOUNDATION})
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     #OpenCV extra dependencies: comctl32 gdi32 ole32 setupapi ws2_32 vfw32
-    #list(APPEND PLATFORM_LIBS vfw32 comctl32)
+    #setupapi required by hidapi
+    list(APPEND PLATFORM_LIBS setupapi)
     IF(MINGW)
         #list(APPEND PLATFORM_LIBS stdc++)
     ENDIF(MINGW)
@@ -99,17 +109,12 @@ SET(TEST_CTRLR_REQ_LIBS)
 
 # Dependencies
 
-# libusb - temporary while testing its enumeration in Windows
-find_package(USB1 REQUIRED)
-include_directories(${LIBUSB_INCLUDE_DIR})
-list(APPEND TEST_CTRLR_REQ_LIBS ${LIBUSB_LIBRARIES})
-
 # hidapi
 include_directories(${ROOT_DIR}/thirdparty/hidapi/hidapi)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/windows/hid.c)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)
 ELSE()
     set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
 ENDIF()

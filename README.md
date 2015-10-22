@@ -11,9 +11,9 @@ A background service that communicates with the psmove and stores pose and butto
 
 1. Compiler
     * Windows
-	    * Visual Studio 2013 is required by OpenCV 3.0.0 pre-compiled binaries.
+        * Visual Studio 2013 is required by OpenCV 3.0.0 pre-compiled binaries.
     * Mac
-	    * Tested with XCode/clang. gcc may work.
+        * Tested with XCode/clang. gcc may work.
 1. OpenCV
     * I am opting for a system install of opencv instead of project-specific.
     * Windows
@@ -25,14 +25,9 @@ A background service that communicates with the psmove and stores pose and butto
 1. Optional: libusb
     * Only necessary for PS3EYEDriver (required on Mac and Windows 64-bit)
     * Windows:
-        * Open psmoveapi\external\libusb-1.0\msvc\libusb_2013.sln
-        * Change the target to Release x64 (at the top of the Visual Studio window).
-        * Right-click on libusb-1.0 (static) and select Properties.
-        * In the properties Window, make sure the Platform is set to Active or All Platforms.
-        * In the properties Window, navigate to Configuration Properties > C/C++ > Code Generation
-        * Change "Runtime Library" to Multi-threaded DLL (/MD)
-        * Click OK
-        * Right-click on libusb-1.0 (static) and Build.
+        * Open PSMoveService\thirdparty\libusb\msvc\libusb_2013.sln
+        * For each combination of Release/Debug * Win32/x64, right-click on libusb-1.0 (static) and Build.
+        * Close this Visual Studio Solution.
     * Mac:
         * `cd thirdparty/libusb`
         * `./autogen.sh`
@@ -41,8 +36,8 @@ A background service that communicates with the psmove and stores pose and butto
         * `make`
 1. Optional: [CL Eye Driver](https://codelaboratories.com/products/eye/driver/)
     * Only necessary for Windows 32-bit if not using PS3EYEDriver
-	* Currently $2.99 USD (paypal or credit card)
-	* Platform SDK not necessary
+    * Currently $2.99 USD (paypal or credit card)
+    * Platform SDK not necessary
 
 # Make PSMoveService
 

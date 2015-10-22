@@ -104,98 +104,119 @@ struct PSMove_Data_In {
 int PSMoveController::s_nOpened = 0;
 
 PSMoveController::PSMoveController(int next_ith)
-: ledr(255), ledg(0), ledb(0), rumble(0)
+	: ledr(255), ledg(0), ledb(0), rumble(0), index(0)
 {
+	HIDDetails.handle = nullptr;
+	HIDDetails.handle_addr = nullptr;
+
+	std::cout << "Looking for PSMoveController(" << s_nOpened+next_ith << ")" << std::endl;
     struct hid_device_info *devs, *cur_dev;
     int count = 0;
     
     devs = hid_enumerate(PSMOVE_VID, PSMOVE_PID);
-    cur_dev = devs;
-    while (cur_dev) {
-        std::cout << "Found device path:" << cur_dev->path << std::endl;
-        std::wcout << "with serial_number:" << cur_dev->serial_number << std::endl;
-        
-        // On my Mac, with bluetooth, this yields
-        // Found device path:Bluetooth_054c_03d5_779732e8
-        // with serial_number:00-06-f7-97-32-e8
-        // On my Mac, with USB, this yields
-        // Found device path:USB_054c_03d5_14100000
-        // with serial_number:
-        
-#ifdef _WIN32
-        /**
-         * Windows Quirk: Each dev is enumerated 3 times.
-         * The one with "&col01#" in the path is the one we will get most of our data from. Only count this one.
-         * The one with "&col02#" in the path is the one we will get the bluetooth address from.
-         **/
-        if (strstr(cur_dev->path, "&col01#") == NULL) {
-            count--;
-        }
-#endif
-        
-        count++;
-        if (count == (s_nOpened + next_ith))
-        {
-            index = count;
-            HIDDetails.device_path = cur_dev->path;
-            HIDDetails.serial.assign(cur_dev->serial_number);
+	if (devs)
+	{
+		cur_dev = devs;
+		while (cur_dev) {
+			std::cout << "Found device path:" << cur_dev->path << std::endl;
+			std::wcout << "with serial_number:" << cur_dev->serial_number << std::endl;
+
+			// On my Mac, with bluetooth, this yields
+			// Found device path:Bluetooth_054c_03d5_779732e8
+			// with serial_number:00-06-f7-97-32-e8
+			// On my Mac, with USB, this yields
+			// Found device path:USB_054c_03d5_14100000
+			// with serial_number:
 
 #ifdef _WIN32
-            HIDDetails.device_path_addr = HIDDetails.device_path;  // TODO: verify this is a copy.
-            /*
-            size_t start_pos = HIDDetails.device_path_addr.find("&col01#");
-            HIDDetails.device_path_addr.replace(start_pos, 6, "&col02#");  // TODO: verify length
-            start_pos = HIDDetails.device_path_addr.find("&0000#");
-            HIDDetails.device_path_addr.replace(start_pos, 6, "&col02#""&0010#");  // TODO: verify length. Verify replacement.
-             */
-            HIDDetails.handle_addr = hid_open_path(HIDDetails.device_path_addr.c_str());
-            hid_set_nonblocking(HIDDetails.handle_addr, 1);
+			/**
+			* Windows Quirk: Each dev is enumerated 3 times.
+			* The one with "&col01#" in the path is the one we will get most of our data from. Only count this one.
+			* The one with "&col02#" in the path is the one we will get the bluetooth address from.
+			**/
+			if (strstr(cur_dev->path, "&col01#") == NULL) {
+				count--;
+			}
 #endif
-            
-            if (HIDDetails.serial.empty() && (!HIDDetails.device_path.empty()))
-            {
-                HIDDetails.handle = hid_open_path(HIDDetails.device_path.c_str());
-            }
-            else
-            {
-                HIDDetails.handle = hid_open(PSMOVE_VID, PSMOVE_PID, HIDDetails.serial.c_str());
-            }
-            hid_set_nonblocking(HIDDetails.handle, 1);
-            std::cout << "Opened!" << std::endl;
-            break;
-        }
-        else
-        {
-            cur_dev = cur_dev->next;
-        }
-        
-    }
-    hid_free_enumeration(devs);
-    
-    // Make the serial number the BT addr
-    // _psmove_read_btaddrs
-    
-    // If serial is still bad, maybe we have a disconnected controller still showing up in hidapi
-    
-    // Normalize serial
-    std::replace(HIDDetails.serial.begin(), HIDDetails.serial.end(), '-', ':');
-    std::transform(HIDDetails.serial.begin(), HIDDetails.serial.end(), HIDDetails.serial.begin(), ::tolower);
-    
-    // TODO: Other startup.
-    // Load calibration from file
-    
-    
-    s_nOpened++;
+
+			count++;
+			if (count == (s_nOpened + next_ith))
+			{
+				index = count;
+				HIDDetails.device_path = cur_dev->path;
+				HIDDetails.serial.assign(cur_dev->serial_number);
+
+#ifdef _WIN32
+				HIDDetails.device_path_addr = HIDDetails.device_path;  // TODO: verify this is a copy.
+				/*
+				size_t start_pos = HIDDetails.device_path_addr.find("&col01#");
+				HIDDetails.device_path_addr.replace(start_pos, 6, "&col02#");  // TODO: verify length
+				start_pos = HIDDetails.device_path_addr.find("&0000#");
+				HIDDetails.device_path_addr.replace(start_pos, 6, "&col02#""&0010#");  // TODO: verify length. Verify replacement.
+				*/
+				HIDDetails.handle_addr = hid_open_path(HIDDetails.device_path_addr.c_str());
+				hid_set_nonblocking(HIDDetails.handle_addr, 1);
+#endif
+
+				if (HIDDetails.serial.empty() && (!HIDDetails.device_path.empty()))
+				{
+					HIDDetails.handle = hid_open_path(HIDDetails.device_path.c_str());
+				}
+				else
+				{
+					HIDDetails.handle = hid_open(PSMOVE_VID, PSMOVE_PID, HIDDetails.serial.c_str());
+				}
+				hid_set_nonblocking(HIDDetails.handle, 1);
+				std::cout << "Opened!" << std::endl;
+				break;
+			}
+			else
+			{
+				cur_dev = cur_dev->next;
+			}
+
+		}
+		hid_free_enumeration(devs);
+
+		// Make the serial number the BT addr
+		// _psmove_read_btaddrs
+
+		// If serial is still bad, maybe we have a disconnected controller still showing up in hidapi
+
+		// Normalize serial
+		std::replace(HIDDetails.serial.begin(), HIDDetails.serial.end(), '-', ':');
+		std::transform(HIDDetails.serial.begin(), HIDDetails.serial.end(), HIDDetails.serial.begin(), ::tolower);
+
+		// TODO: Other startup.
+		// Load calibration from file
+
+		s_nOpened++;
+	}
+	else
+	{
+		std::cerr << "No PSMoveControllers found." << std::endl;
+	}
 }
 
 PSMoveController::~PSMoveController()
 {
-    hid_close(HIDDetails.handle);
-    if (HIDDetails.handle_addr)
+	if (isOpen())
+	{
+		hid_close(HIDDetails.handle);
+		s_nOpened--;
+	}
+	bool one = HIDDetails.handle_addr != nullptr;
+	bool two = HIDDetails.handle_addr != NULL;
+	if ((HIDDetails.handle_addr != nullptr) && (HIDDetails.handle_addr != NULL))
     {
         hid_close(HIDDetails.handle_addr);
     }
-    s_nOpened--;
+}
+
+bool
+PSMoveController::isOpen()
+{
+	return ((index > 0) && (HIDDetails.handle != nullptr) && (HIDDetails.handle != NULL));
 }
 
 psmovePosef
@@ -225,7 +246,7 @@ PSMoveController::writeDataOut()
 }
 
 void
-PSMoveController::setRumbleValue(uint8_t value)
+PSMoveController::setRumbleValue(unsigned char value)
 {
     rumble = value;
     writeDataOut();

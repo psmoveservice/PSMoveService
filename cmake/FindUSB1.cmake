@@ -40,41 +40,55 @@ ELSE (LIBUSB_INCLUDE_DIR AND LIBUSB_LIBRARIES)
     # Each of these puts the compiled library into a different folder
     # and that is also architecture-specific.
 
-    set(LIBUSB_LIB_SEARCH_PATH ${CMAKE_CURRENT_LIST_DIR}/thirdparty/libusb)
+    set(LIBUSB_LIB_SEARCH_PATH_RELEASE ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb)
+    set(LIBUSB_LIB_SEARCH_PATH_DEBUG ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb)
     IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         IF(MINGW)
-            set(LIBUSB_PLATFORM_PREFIX MinGW)
+            set(LIBUSB_PLATFORM_PREFIX MinGW)  # Does this get used?
+            #TODO: Add self-compiled folder for MinGW
             IF (${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8)
-                list(APPEND LIBUSB_LIB_SEARCH_PATH
-                    ${CMAKE_CURRENT_LIST_DIR}/thirdparty/libusb/MinGW64/static)
-                #TODO: Add self-compiled folder for MinGW
+                list(APPEND LIBUSB_LIB_SEARCH_PATH_RELEASE
+                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/MinGW64/static)
+                list(APPEND LIBUSB_LIB_SEARCH_PATH_DEBUG
+                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/MinGW64/static)
             ELSE()
-                list(APPEND LIBUSB_LIB_SEARCH_PATH
-                    ${CMAKE_CURRENT_LIST_DIR}/thirdparty/libusb/MinGW32/static)
-                #TODO: Add self-compiled folder for MinGW
+                list(APPEND LIBUSB_LIB_SEARCH_PATH_RELEASE
+                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/MinGW32/static)
+                list(APPEND LIBUSB_LIB_SEARCH_PATH_DEBUG
+                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/MinGW32/static)
             ENDIF()
-        ELSE()
+        ELSE() # MSVC?
+            set(LIBUSB_PLATFORM_PREFIX MS)  # Does this get used?
             IF (${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8)
-                list(APPEND LIBUSB_LIB_SEARCH_PATH
-                    ${CMAKE_CURRENT_LIST_DIR}/thirdparty/libusb/x64/Release/lib)
+                list(APPEND LIBUSB_LIB_SEARCH_PATH_RELEASE
+                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/x64/Release/lib)
+                list(APPEND LIBUSB_LIB_SEARCH_PATH_DEBUG
+                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/x64/Debug/lib)
             ELSE()
-                list(APPEND LIBUSB_LIB_SEARCH_PATH
+                list(APPEND LIBUSB_LIB_SEARCH_PATH_RELEASE
                     ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/Win32/Release/lib)
+                list(APPEND LIBUSB_LIB_SEARCH_PATH_DEBUG
+                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/Win32/Debug/lib)
             ENDIF()
-            set(LIBUSB_PLATFORM_PREFIX MS)
         ENDIF()
     ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-        list(APPEND LIBUSB_LIB_SEARCH_PATH
+        list(APPEND LIBUSB_LIB_SEARCH_PATH_RELEASE
+                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/libusb/.libs
+                    /usr/local/lib)
+        list(APPEND LIBUSB_LIB_SEARCH_PATH_DEBUG
                     ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/libusb/.libs
                     /usr/local/lib)
     ENDIF()
     
-    find_library(LIBUSB_LIBRARIES
-        NAMES
-            libusb-1.0.a libusb-1.0.lib libusb-1.0 usb-1.0 usb
-        PATHS
-            ${LIBUSB_LIB_SEARCH_PATH}
-    )
+    FIND_LIBRARY(LIBUSB_LIBRARY_RELEASE
+            NAMES libusb-1.0.a libusb-1.0.lib libusb-1.0 usb-1.0 usb
+            PATHS ${LIBUSB_LIB_SEARCH_PATH_RELEASE})
+    FIND_LIBRARY(LIBUSB_LIBRARY_DEBUG
+            NAMES libusb-1.0.a libusb-1.0.lib libusb-1.0 usb-1.0 usb
+            PATHS ${LIBUSB_LIB_SEARCH_PATH_DEBUG})
+    SET(LIBUSB_LIBRARIES
+        debug ${LIBUSB_LIBRARY_DEBUG}
+        optimized ${LIBUSB_LIBRARY_RELEASE})
 
   include(FindPackageHandleStandardArgs)
   FIND_PACKAGE_HANDLE_STANDARD_ARGS(LIBUSB DEFAULT_MSG LIBUSB_LIBRARIES LIBUSB_INCLUDE_DIR)

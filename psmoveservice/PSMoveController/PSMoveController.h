@@ -14,14 +14,14 @@ struct PSMoveHIDDetails {
 
 class PSMoveController {
 public:
-    PSMoveController(){ PSMoveController(1); }
-    PSMoveController(int next_ith);
+    PSMoveController(const int next_ith = 1);
     ~PSMoveController();
     
     psmovePosef getPose(int msec_time);             // Used for prediction
     psmovePosef getPose() { return getPose(0); }    // Latest but no prediction
     int getButtonState();                           // TODO: A real 'state'
-    void setRumbleValue(uint8_t value);
+    void setRumbleValue(unsigned char value);
+	bool isOpen();
     
     PSMoveDataFrame dataFrame;
     static int s_nOpened;
@@ -33,6 +33,6 @@ private:
     PSMoveHIDDetails HIDDetails;
     bool isBluetooth;
     int index;
-    uint8_t ledr, ledg, ledb; //0x00..0xff
-    uint8_t rumble; //0x00..0xff
+	unsigned char ledr, ledg, ledb; //0x00..0xff
+	unsigned char rumble; //0x00..0xff
 };
