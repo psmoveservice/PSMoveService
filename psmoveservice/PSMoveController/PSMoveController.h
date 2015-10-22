@@ -9,7 +9,7 @@ struct PSMoveHIDDetails {
     std::string device_path_addr; // only needed by Win > 8.1, otherwise ignored.
     hid_device *handle;
     hid_device *handle_addr; // only needed by Win > 8.1, otherwise ignored.
-    std::wstring serial;
+    std::wstring bt_addr;
 };
 
 class PSMoveController {

@@ -119,7 +119,14 @@ PSMoveController::PSMoveController(int next_ith)
 		cur_dev = devs;
 		while (cur_dev) {
 			std::cout << "Found device path:" << cur_dev->path << std::endl;
-			std::wcout << "with serial_number:" << cur_dev->serial_number << std::endl;
+			if (cur_dev->serial_number != NULL)
+			{
+				std::wcout << "with serial_number:" << cur_dev->serial_number << std::endl;
+			}
+			else
+			{
+				std::wcout << "with NULL serial_number" << std::endl;
+			}
 
 			// On my Mac, with bluetooth, this yields
 			// Found device path:Bluetooth_054c_03d5_779732e8
@@ -127,6 +134,13 @@ PSMoveController::PSMoveController(int next_ith)
 			// On my Mac, with USB, this yields
 			// Found device path:USB_054c_03d5_14100000
 			// with serial_number:
+
+			// On my Windows 10 box (different controller), with bluetooth
+			// Found device path:\\?\hid#{00001124-0000-1000-8000-00805f9b34fb}_vid&0002054c_pid&03d5&col01#9&456a2d2&2&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
+			// with serial_number:0006f718cdf3
+			// With USB
+			// Found device path:\\?\hid#vid_054c&pid_03d5&col01#6&7773e57&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
+			// with serial_number: (null)
 
 #ifdef _WIN32
 			/**
@@ -144,27 +158,26 @@ PSMoveController::PSMoveController(int next_ith)
 			{
 				index = count;
 				HIDDetails.device_path = cur_dev->path;
-				HIDDetails.serial.assign(cur_dev->serial_number);
 
 #ifdef _WIN32
 				HIDDetails.device_path_addr = HIDDetails.device_path;  // TODO: verify this is a copy.
-				/*
 				size_t start_pos = HIDDetails.device_path_addr.find("&col01#");
-				HIDDetails.device_path_addr.replace(start_pos, 6, "&col02#");  // TODO: verify length
+				HIDDetails.device_path_addr.replace(start_pos, 7, "&col02#");
 				start_pos = HIDDetails.device_path_addr.find("&0000#");
-				HIDDetails.device_path_addr.replace(start_pos, 6, "&col02#""&0010#");  // TODO: verify length. Verify replacement.
-				*/
+				HIDDetails.device_path_addr.replace(start_pos, 6, "&0001#");
+				std::cout << "HIDDetails.device_path_addr:" << HIDDetails.device_path_addr << std::endl;
 				HIDDetails.handle_addr = hid_open_path(HIDDetails.device_path_addr.c_str());
 				hid_set_nonblocking(HIDDetails.handle_addr, 1);
 #endif
 
-				if (HIDDetails.serial.empty() && (!HIDDetails.device_path.empty()))
+				// Open the device using the serial_number if available, else the path
+				if ((cur_dev->serial_number == NULL) && (!HIDDetails.device_path.empty()))
 				{
 					HIDDetails.handle = hid_open_path(HIDDetails.device_path.c_str());
 				}
 				else
 				{
-					HIDDetails.handle = hid_open(PSMOVE_VID, PSMOVE_PID, HIDDetails.serial.c_str());
+					HIDDetails.handle = hid_open(PSMOVE_VID, PSMOVE_PID, cur_dev->serial_number);
 				}
 				hid_set_nonblocking(HIDDetails.handle, 1);
 				std::cout << "Opened!" << std::endl;
@@ -178,14 +191,15 @@ PSMoveController::PSMoveController(int next_ith)
 		}
 		hid_free_enumeration(devs);
 
-		// Make the serial number the BT addr
-		// _psmove_read_btaddrs
+		// TODO: Get the bluetooth address
+		// See _psmove_read_btaddrs
+		HIDDetails.bt_addr.assign(cur_dev->serial_number);  // Only works on Mac when starting with BT-connected.
 
 		// If serial is still bad, maybe we have a disconnected controller still showing up in hidapi
 
-		// Normalize serial
-		std::replace(HIDDetails.serial.begin(), HIDDetails.serial.end(), '-', ':');
-		std::transform(HIDDetails.serial.begin(), HIDDetails.serial.end(), HIDDetails.serial.begin(), ::tolower);
+		// Normalize bt_addr
+		std::replace(HIDDetails.bt_addr.begin(), HIDDetails.bt_addr.end(), '-', ':');
+		std::transform(HIDDetails.bt_addr.begin(), HIDDetails.bt_addr.end(), HIDDetails.bt_addr.begin(), ::tolower);
 
 		// TODO: Other startup.
 		// Load calibration from file
