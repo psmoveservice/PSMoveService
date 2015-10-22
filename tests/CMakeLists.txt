@@ -99,6 +99,11 @@ SET(TEST_CTRLR_REQ_LIBS)
 
 # Dependencies
 
+# libusb - temporary while testing its enumeration in Windows
+find_package(USB1 REQUIRED)
+include_directories(${LIBUSB_INCLUDE_DIR})
+list(APPEND TEST_CTRLR_REQ_LIBS ${LIBUSB_LIBRARIES})
+
 # hidapi
 include_directories(${ROOT_DIR}/thirdparty/hidapi/hidapi)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")

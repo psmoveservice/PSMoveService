@@ -4,6 +4,7 @@ A background service that communicates with the psmove and stores pose and butto
 # Download
 
 `git clone --recursive https://github.com/cboulay/PSMoveService.git`
+
 `cd PSMoveService`
 
 # Build Dependencies
@@ -49,7 +50,7 @@ A background service that communicates with the psmove and stores pose and butto
 1. `cd build`
 1. Run cmake
     * Windows: `cmake .. -G "Visual Studio 12" -DOpenCV_DIR=C:\OpenCV-3.0.0\build`
-    * Mac: `cmake ..`
+    * Mac: `cmake .. - G Xcode`
 
 # Build PSMoveService
 
