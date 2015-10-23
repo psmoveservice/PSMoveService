@@ -26,8 +26,11 @@ struct PSMoveState {
 	PSMoveSensorTwoFrame accel;
 	PSMoveSensorTwoFrame gyro;
 	int mag[3]; // TODO: vec3
+
 	//TODO: oldTimestamp
 	//TODO: newTimestamp
+
+	int Sequence;
 };
 
 struct PSMoveHIDDetails {

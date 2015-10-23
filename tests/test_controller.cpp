@@ -37,6 +37,7 @@ int main()
 
 			int myw = 4;
 			std::cout << '\r' <<
+				"# " << std::setw(myw) << std::left << psmstate.Sequence <<
 				" A(1): " <<
 				std::setw(myw) << std::right << psmstate.accel.oldFrame[0] << "," <<
 				std::setw(myw) << std::right << psmstate.accel.oldFrame[1] << "," <<

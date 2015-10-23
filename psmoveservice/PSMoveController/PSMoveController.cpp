@@ -5,8 +5,6 @@
 #include <algorithm>
 #include <vector>
 
-
-
 #define PSMOVE_VID 0x054c
 #define PSMOVE_PID 0x03d5
 #define PSMOVE_BUFFER_SIZE 49 /* Buffer size for writing LEDs and reading sensor data */
@@ -91,53 +89,53 @@ struct PSMove_Data_Out {
     unsigned char _padding[PSMOVE_BUFFER_SIZE-7]; /* must be zero */
 };
 
-struct PSMove_Data_In {
-    unsigned char type;             /* message type, must be PSMove_Req_GetInput */
-    unsigned char buttons1;
-    unsigned char buttons2;
-    unsigned char buttons3;
-    unsigned char buttons4;
-    unsigned char trigger;          /* trigger value; 0..255 */
-    unsigned char trigger2;         /* trigger value, 2nd frame */
-    unsigned char _unk7;
-    unsigned char _unk8;
-    unsigned char _unk9;
-    unsigned char _unk10;
-    unsigned char timehigh;         /* high byte of timestamp */
-    unsigned char battery;          /* battery level; 0x05 = max, 0xEE = USB charging */
-    unsigned char aXlow;            /* low byte of accelerometer X value */
-    unsigned char aXhigh;           /* high byte of accelerometer X value */
-    unsigned char aYlow;
-    unsigned char aYhigh;
-    unsigned char aZlow;
-    unsigned char aZhigh;
-    unsigned char aXlow2;           /* low byte of accelerometer X value, 2nd frame */
-    unsigned char aXhigh2;          /* high byte of accelerometer X value, 2nd frame */
-    unsigned char aYlow2;
-    unsigned char aYhigh2;
-    unsigned char aZlow2;
-    unsigned char aZhigh2;
-    unsigned char gXlow;            /* low byte of gyro X value */
-    unsigned char gXhigh;           /* high byte of gyro X value */
-    unsigned char gYlow;
-    unsigned char gYhigh;
-    unsigned char gZlow;
-    unsigned char gZhigh;
-    unsigned char gXlow2;           /* low byte of gyro X value, 2nd frame */
-    unsigned char gXhigh2;          /* high byte of gyro X value, 2nd frame */
-    unsigned char gYlow2;
-    unsigned char gYhigh2;
-    unsigned char gZlow2;
-    unsigned char gZhigh2;
-    unsigned char temphigh;         /* temperature (bits 12-5) */
-    unsigned char templow_mXhigh;   /* temp (bits 4-1); magneto X (bits 12-9) */
-    unsigned char mXlow;            /* magnetometer X (bits 8-1) */
-    unsigned char mYhigh;           /* magnetometer Y (bits 12-5) */
-    unsigned char mYlow_mZhigh;     /* magnetometer: Y (bits 4-1), Z (bits 12-9) */
-    unsigned char mZlow;            /* magnetometer Z (bits 8-1) */
-    unsigned char timelow;          /* low byte of timestamp */
-    unsigned char extdata[PSMOVE_EXT_DATA_BUF_SIZE]; /* external device data (EXT port) */
-};
+typedef struct {
+	unsigned char type; /* message type, must be PSMove_Req_GetInput */
+	unsigned char buttons1;
+	unsigned char buttons2;
+	unsigned char buttons3;
+	unsigned char buttons4;
+	unsigned char trigger; /* trigger value; 0..255 */
+	unsigned char trigger2; /* trigger value, 2nd frame */
+	unsigned char _unk7;
+	unsigned char _unk8;
+	unsigned char _unk9;
+	unsigned char _unk10;
+	unsigned char timehigh; /* high byte of timestamp */
+	unsigned char battery; /* battery level; 0x05 = max, 0xEE = USB charging */
+	unsigned char aXlow; /* low byte of accelerometer X value */
+	unsigned char aXhigh; /* high byte of accelerometer X value */
+	unsigned char aYlow;
+	unsigned char aYhigh;
+	unsigned char aZlow;
+	unsigned char aZhigh;
+	unsigned char aXlow2; /* low byte of accelerometer X value, 2nd frame */
+	unsigned char aXhigh2; /* high byte of accelerometer X value, 2nd frame */
+	unsigned char aYlow2;
+	unsigned char aYhigh2;
+	unsigned char aZlow2;
+	unsigned char aZhigh2;
+	unsigned char gXlow; /* low byte of gyro X value */
+	unsigned char gXhigh; /* high byte of gyro X value */
+	unsigned char gYlow;
+	unsigned char gYhigh;
+	unsigned char gZlow;
+	unsigned char gZhigh;
+	unsigned char gXlow2; /* low byte of gyro X value, 2nd frame */
+	unsigned char gXhigh2; /* high byte of gyro X value, 2nd frame */
+	unsigned char gYlow2;
+	unsigned char gYhigh2;
+	unsigned char gZlow2;
+	unsigned char gZhigh2;
+	unsigned char temphigh; /* temperature (bits 12-5) */
+	unsigned char templow_mXhigh; /* temp (bits 4-1); magneto X (bits 12-9) */
+	unsigned char mXlow; /* magnetometer X (bits 8-1) */
+	unsigned char mYhigh; /* magnetometer Y (bits 12-5) */
+	unsigned char mYlow_mZhigh; /* magnetometer: Y (bits 4-1), Z (bits 12-9) */
+	unsigned char mZlow; /* magnetometer Z (bits 8-1) */
+	unsigned char timelow; /* low byte of timestamp */
+	unsigned char extdata[PSMOVE_EXT_DATA_BUF_SIZE]; /* external device data (EXT port) */
+} PSMove_Data_Input;
 
 int PSMoveController::s_nOpened = 0;
 
@@ -161,6 +159,7 @@ btAddrUcharToString(const unsigned char* addr_buff)
 PSMoveController::PSMoveController(int next_ith)
 	: index(0), ledr(255), ledg(0), ledb(0), rumble(0), lastButtons(0), lastState{}
 {
+	hid_init();
 	HIDDetails.handle = nullptr;
 	HIDDetails.handle_addr = nullptr;
 
@@ -222,15 +221,7 @@ PSMoveController::PSMoveController(int next_ith)
 				hid_set_nonblocking(HIDDetails.handle_addr, 1);
 #endif
 
-				// Open the device using the serial_number if available, else use the path
-				if ((cur_dev->serial_number == NULL) && (!HIDDetails.device_path.empty()))
-				{
-					HIDDetails.handle = hid_open_path(HIDDetails.device_path.c_str());
-				}
-				else
-				{
-					HIDDetails.handle = hid_open(PSMOVE_VID, PSMOVE_PID, cur_dev->serial_number);
-				}
+				HIDDetails.handle = hid_open_path(HIDDetails.device_path.c_str());
 				hid_set_nonblocking(HIDDetails.handle, 1);
 				s_nOpened++;
 				break;
@@ -273,6 +264,10 @@ PSMoveController::~PSMoveController()
     {
         hid_close(HIDDetails.handle_addr);
     }
+	if (s_nOpened == 0)
+	{
+		hid_exit();
+	}
 }
 
 bool
@@ -330,9 +325,10 @@ PSMoveController::readDataIn()
 	bool success = false;
 
 	// TODO: Rate-limiting
-	PSMove_Data_In input = PSMove_Data_In();
+	PSMove_Data_Input input = PSMove_Data_Input();
+	input.type = PSMove_Req_GetInput;
+		
 	int res = hid_read(HIDDetails.handle, (unsigned char*)(&(input)), sizeof(input));
-
 	if (res == sizeof(input))
 	{
 		success = true;
@@ -355,13 +351,12 @@ PSMoveController::readDataIn()
 
 		lastButtons = buttons;
 		
-
 		// Accel/Gyro/Mag data
 		char* data = (char *)(&input);
 		std::vector<int> dimensionOffset = { 0, 2, 4 };  // x, y, z
 
 		// Accelerometer
-		int sensorOffset = offsetof(PSMove_Data_In, aXlow);
+		int sensorOffset = offsetof(PSMove_Data_Input, aXlow);
 		int frameOffset = 0;
 		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
 		{
@@ -378,7 +373,7 @@ PSMoveController::readDataIn()
 		}
 
 		// Gyroscope
-		sensorOffset = offsetof(PSMove_Data_In, gXlow);
+		sensorOffset = offsetof(PSMove_Data_Input, gXlow);
 		frameOffset = 0;
 		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
 		{
@@ -408,7 +403,18 @@ PSMoveController::readDataIn()
 		newState.mag[1] = TWELVE_BIT_SIGNED((input.mYhigh << 4) | (input.mYlow_mZhigh & 0xF0) >> 4);
 		newState.mag[2] = TWELVE_BIT_SIGNED(((input.mYlow_mZhigh & 0x0F) << 8) | input.mZlow);
 
+		newState.Sequence = (input.buttons4 & 0x0F);
+
 		lastState = newState;
+	}
+	else
+	{
+		const wchar_t* hidapi_err = hid_error(HIDDetails.handle);
+		if (hidapi_err)
+		{
+			std::wcout << std::endl;
+			std::wcout << hidapi_err << std::endl;
+		}
 	}
 
 	return success;
