@@ -16,8 +16,9 @@ int main()
     PSMoveController psmove;
 	if (psmove.isOpen())
 	{
-		std::cout << "Attempting to setRumbleValue(255)..." << std::endl;
-		psmove.setRumbleValue(255);
+        int rumble = 100;
+		std::cout << "Attempting to setRumbleValue(" << rumble << ")..." << std::endl;
+		psmove.setRumbleValue(rumble);
 	}
     
 #ifdef __GNUC__

@@ -21,14 +21,15 @@ IF (LIBUSB_INCLUDE_DIR AND LIBUSB_LIBRARIES)
     set(LIBUSB_FOUND TRUE)
 
 ELSE (LIBUSB_INCLUDE_DIR AND LIBUSB_LIBRARIES)
+    set(LIBUSB_ROOT ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb)
     # Because we want to use the static library,
     # look locally only.
     find_path(LIBUSB_INCLUDE_DIR
         NAMES
             libusb.h
         PATHS 
-            ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/libusb
-            ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/libusb-1.0
+            ${LIBUSB_ROOT}/libusb
+            ${LIBUSB_ROOT}/libusb-1.0
             /usr/local/include
     )
     # There are 4 platform-specific ways we might get the libraries.
@@ -40,43 +41,43 @@ ELSE (LIBUSB_INCLUDE_DIR AND LIBUSB_LIBRARIES)
     # Each of these puts the compiled library into a different folder
     # and that is also architecture-specific.
 
-    set(LIBUSB_LIB_SEARCH_PATH_RELEASE ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb)
-    set(LIBUSB_LIB_SEARCH_PATH_DEBUG ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb)
+    set(LIBUSB_LIB_SEARCH_PATH_RELEASE ${LIBUSB_ROOT})
+    set(LIBUSB_LIB_SEARCH_PATH_DEBUG ${LIBUSB_ROOT})
     IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         IF(MINGW)
             set(LIBUSB_PLATFORM_PREFIX MinGW)  # Does this get used?
             #TODO: Add self-compiled folder for MinGW
             IF (${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8)
                 list(APPEND LIBUSB_LIB_SEARCH_PATH_RELEASE
-                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/MinGW64/static)
+                    ${LIBUSB_ROOT}/MinGW64/static)
                 list(APPEND LIBUSB_LIB_SEARCH_PATH_DEBUG
-                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/MinGW64/static)
+                    ${LIBUSB_ROOT}/MinGW64/static)
             ELSE()
                 list(APPEND LIBUSB_LIB_SEARCH_PATH_RELEASE
-                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/MinGW32/static)
+                    ${LIBUSB_ROOT}/MinGW32/static)
                 list(APPEND LIBUSB_LIB_SEARCH_PATH_DEBUG
-                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/MinGW32/static)
+                    ${LIBUSB_ROOT}/MinGW32/static)
             ENDIF()
         ELSE() # MSVC?
             set(LIBUSB_PLATFORM_PREFIX MS)  # Does this get used?
             IF (${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8)
                 list(APPEND LIBUSB_LIB_SEARCH_PATH_RELEASE
-                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/x64/Release/lib)
+                    ${LIBUSB_ROOT}/x64/Release/lib)
                 list(APPEND LIBUSB_LIB_SEARCH_PATH_DEBUG
-                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/x64/Debug/lib)
+                    ${LIBUSB_ROOT}/x64/Debug/lib)
             ELSE()
                 list(APPEND LIBUSB_LIB_SEARCH_PATH_RELEASE
-                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/Win32/Release/lib)
+                    ${LIBUSB_ROOT}/Win32/Release/lib)
                 list(APPEND LIBUSB_LIB_SEARCH_PATH_DEBUG
-                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/Win32/Debug/lib)
+                    ${LIBUSB_ROOT}/Win32/Debug/lib)
             ENDIF()
         ENDIF()
     ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         list(APPEND LIBUSB_LIB_SEARCH_PATH_RELEASE
-                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/libusb/.libs
+                    ${LIBUSB_ROOT}/libusb/.libs
                     /usr/local/lib)
         list(APPEND LIBUSB_LIB_SEARCH_PATH_DEBUG
-                    ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/libusb/libusb/.libs
+                    ${LIBUSB_ROOT}/libusb/.libs
                     /usr/local/lib)
     ENDIF()
     

@@ -9,6 +9,7 @@
 #define PSMOVE_BUFFER_SIZE 49 /* Buffer size for writing LEDs and reading sensor data */
 #define PSMOVE_EXT_DATA_BUF_SIZE 5
 #define PSMOVE_BTADDR_GET_SIZE 16
+#define PSMOVE_BTADDR_SIZE 6
 
 enum PSMove_Request_Type {
     PSMove_Req_GetInput = 0x01,
@@ -104,7 +105,7 @@ struct PSMove_Data_In {
 int PSMoveController::s_nOpened = 0;
 
 PSMoveController::PSMoveController(int next_ith)
-	: ledr(255), ledg(0), ledb(0), rumble(0), index(0)
+	: index(0), ledr(255), ledg(0), ledb(0), rumble(0)
 {
 	HIDDetails.handle = nullptr;
 	HIDDetails.handle_addr = nullptr;
@@ -191,15 +192,23 @@ PSMoveController::PSMoveController(int next_ith)
 		}
 		hid_free_enumeration(devs);
 
-		// TODO: Get the bluetooth address
-		// See _psmove_read_btaddrs
-		HIDDetails.bt_addr.assign(cur_dev->serial_number);  // Only works on Mac when starting with BT-connected.
-
-		// If serial is still bad, maybe we have a disconnected controller still showing up in hidapi
-
-		// Normalize bt_addr
-		std::replace(HIDDetails.bt_addr.begin(), HIDDetails.bt_addr.end(), '-', ':');
-		std::transform(HIDDetails.bt_addr.begin(), HIDDetails.bt_addr.end(), HIDDetails.bt_addr.begin(), ::tolower);
+		// Get the bluetooth address
+        std::string host;
+        std::string controller;
+        int success = getBTAddress(host, controller);
+        if (success)
+        {
+            std::cout << "Host: " << host << "; Controller: " << controller << std::endl;
+            HIDDetails.bt_addr.assign(controller);  // Only works on Mac when starting with BT-connected.
+            
+            // Normalize bt_addr
+            std::replace(HIDDetails.bt_addr.begin(), HIDDetails.bt_addr.end(), '-', ':');
+            std::transform(HIDDetails.bt_addr.begin(), HIDDetails.bt_addr.end(), HIDDetails.bt_addr.begin(), ::tolower);
+        }
+        else
+        {
+            // If serial is still bad, maybe we have a disconnected controller still showing up in hidapi
+        }
 
 		// TODO: Other startup.
 		// Load calibration from file
@@ -219,8 +228,6 @@ PSMoveController::~PSMoveController()
 		hid_close(HIDDetails.handle);
 		s_nOpened--;
 	}
-	bool one = HIDDetails.handle_addr != nullptr;
-	bool two = HIDDetails.handle_addr != NULL;
 	if ((HIDDetails.handle_addr != nullptr) && (HIDDetails.handle_addr != NULL))
     {
         hid_close(HIDDetails.handle_addr);
@@ -266,15 +273,39 @@ PSMoveController::setRumbleValue(unsigned char value)
     writeDataOut();
 }
 
-int
-PSMoveController::getBTAddress(PSMove_Data_BTAddr *host, PSMove_Data_BTAddr *controller)
+static std::string
+btAddrUcharToString(const unsigned char* addr_buff)
 {
-    unsigned char btg[PSMOVE_BTADDR_GET_SIZE];
+    const std::string format("%02x:%02x:%02x:%02x:%02x:%02x");
+    size_t btsize = snprintf( nullptr, 0, format.c_str(),
+                             (unsigned char)addr_buff[5],
+                             (unsigned char)addr_buff[4],
+                             (unsigned char)addr_buff[3],
+                             (unsigned char)addr_buff[2],
+                             (unsigned char)addr_buff[1],
+                             (unsigned char)addr_buff[0]) + 1;
+    std::unique_ptr<char[]> my_ptr( new char[ btsize ] );
+    snprintf( my_ptr.get(), btsize, format.c_str(),
+             (unsigned char)addr_buff[5],
+             (unsigned char)addr_buff[4],
+             (unsigned char)addr_buff[3],
+             (unsigned char)addr_buff[2],
+             (unsigned char)addr_buff[1],
+             (unsigned char)addr_buff[0]);
+    return std::string( my_ptr.get(), my_ptr.get() + btsize - 1 );
+}
+
+int
+PSMoveController::getBTAddress(std::string& host, std::string& controller)
+{
     int res;
+    int success = 0;
+    unsigned char btg[PSMOVE_BTADDR_GET_SIZE];
+    unsigned char ctrl_char_buff[PSMOVE_BTADDR_SIZE];
+    unsigned char host_char_buff[PSMOVE_BTADDR_SIZE];
     
     memset(btg, 0, sizeof(btg));
     btg[0] = PSMove_Req_GetBTAddr;
-    
     /* _WIN32 only has move->handle_addr for getting bluetooth address. */
     if (HIDDetails.handle_addr) {
         res = hid_get_feature_report(HIDDetails.handle_addr, btg, sizeof(btg));
@@ -283,14 +314,13 @@ PSMoveController::getBTAddress(PSMove_Data_BTAddr *host, PSMove_Data_BTAddr *con
     }
     
     if (res == sizeof(btg)) {
-        if (controller != NULL) {
-            memcpy(*controller, btg+1, 6);
-        }
-        if (host != NULL) {
-            memcpy(*host, btg+10, 6);
-        }
-        return 1;
+        
+        memcpy(host_char_buff, btg+10, PSMOVE_BTADDR_SIZE);
+        host = btAddrUcharToString(host_char_buff);
+        
+        memcpy(ctrl_char_buff, btg+1, PSMOVE_BTADDR_SIZE);
+        controller = btAddrUcharToString(ctrl_char_buff);
+        success = 1;
     }
-    
-    return 0;
+    return success;
 }
