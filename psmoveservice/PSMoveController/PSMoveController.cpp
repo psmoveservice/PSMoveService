@@ -3,6 +3,7 @@
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
+#include <vector>
 
 
 
@@ -16,6 +17,9 @@
 #define PSMOVE_BTADDR_GET_SIZE 16
 #endif
 #define PSMOVE_BTADDR_SIZE 6
+
+/* Decode 12-bit signed value (assuming two's complement) */
+#define TWELVE_BIT_SIGNED(x) (((x) & 0x800)?(-(((~(x)) & 0xFFF) + 1)):(x))
 
 enum PSMove_Request_Type {
     PSMove_Req_GetInput = 0x01,
@@ -47,6 +51,33 @@ enum PSMove_Request_Type {
      * https://github.com/thp/psmoveapi/issues/55
      **/
     PSMove_Req_SetLEDsPermanentUSB = 0xFA,
+};
+
+enum PSMove_Button {
+	// https://github.com/nitsch/moveonpc/wiki/Input-report
+	Btn_TRIANGLE = 1 << 4,	// Green triangle
+	Btn_CIRCLE = 1 << 5,	// Red circle
+	Btn_CROSS = 1 << 6,		// Blue cross
+	Btn_SQUARE = 1 << 7,	// Pink square
+	Btn_SELECT = 1 << 8,	// Select button, left side
+	Btn_START = 1 << 11,	// Start button, right side
+	Btn_PS = 1 << 16,		// PS button, front center
+	Btn_MOVE = 1 << 19,		// Move button, big front button
+	Btn_T = 1 << 20,		// Trigger, on the back
+
+#if 0
+	/* Not used for now - only on Sixaxis/DS3 or nav controller */
+	Btn_L2 = 1 << 0x00,
+	Btn_R2 = 1 << 0x01,
+	Btn_L1 = 1 << 0x02,
+	Btn_R1 = 1 << 0x03,
+	Btn_L3 = 1 << 0x09,
+	Btn_R3 = 1 << 0x0A,
+	Btn_UP = 1 << 0x0C,
+	Btn_RIGHT = 1 << 0x0D,
+	Btn_DOWN = 1 << 0x0E,
+	Btn_LEFT = 1 << 0x0F,
+#endif
 };
 
 struct PSMove_Data_Out {
@@ -110,8 +141,25 @@ struct PSMove_Data_In {
 
 int PSMoveController::s_nOpened = 0;
 
+static std::string
+btAddrUcharToString(const unsigned char* addr_buff)
+{
+	// http://stackoverflow.com/questions/11181251/saving-hex-values-to-a-c-string
+	std::ostringstream stream;
+	int buff_ind = 5;
+	for (buff_ind = 5; buff_ind >= 0; buff_ind--)
+	{
+		stream << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(addr_buff[buff_ind]);
+		if (buff_ind > 0)
+		{
+			stream << ":";
+		}
+	}
+	return stream.str();
+}
+
 PSMoveController::PSMoveController(int next_ith)
-	: index(0), ledr(255), ledg(0), ledb(0), rumble(0)
+	: index(0), ledr(255), ledg(0), ledb(0), rumble(0), lastButtons(0), lastState{}
 {
 	HIDDetails.handle = nullptr;
 	HIDDetails.handle_addr = nullptr;
@@ -233,6 +281,139 @@ PSMoveController::isOpen()
 	return ((index > 0) && (HIDDetails.handle != nullptr) && (HIDDetails.handle != NULL));
 }
 
+// Getters
+
+int
+PSMoveController::getBTAddress(std::string& host, std::string& controller)
+{
+	int res;
+	int success = 0;
+	unsigned char btg[PSMOVE_BTADDR_GET_SIZE];
+	unsigned char ctrl_char_buff[PSMOVE_BTADDR_SIZE];
+	unsigned char host_char_buff[PSMOVE_BTADDR_SIZE];
+
+	memset(btg, 0, sizeof(btg));
+	btg[0] = PSMove_Req_GetBTAddr;
+	/* _WIN32 only has move->handle_addr for getting bluetooth address. */
+	if (HIDDetails.handle_addr) {
+		res = hid_get_feature_report(HIDDetails.handle_addr, btg, sizeof(btg));
+	}
+	else {
+		res = hid_get_feature_report(HIDDetails.handle, btg, sizeof(btg));
+	}
+
+	if (res == sizeof(btg)) {
+
+		memcpy(host_char_buff, btg + 10, PSMOVE_BTADDR_SIZE);
+		host = btAddrUcharToString(host_char_buff);
+
+		memcpy(ctrl_char_buff, btg + 1, PSMOVE_BTADDR_SIZE);
+		controller = btAddrUcharToString(ctrl_char_buff);
+
+		success = 1;
+	}
+	return success;
+}
+
+/* Decode 16-bit signed value from data pointer and offset */
+int
+psmove_decode_16bit(char *data, int offset)
+{
+	unsigned char low = data[offset] & 0xFF;
+	unsigned char high = (data[offset + 1]) & 0xFF;
+	return (low | (high << 8)) - 0x8000;
+}
+
+bool
+PSMoveController::readDataIn()
+{
+	bool success = false;
+
+	// TODO: Rate-limiting
+	PSMove_Data_In input = PSMove_Data_In();
+	int res = hid_read(HIDDetails.handle, (unsigned char*)(&(input)), sizeof(input));
+
+	if (res == sizeof(input))
+	{
+		success = true;
+
+		// https://github.com/nitsch/moveonpc/wiki/Input-report
+		unsigned int buttons = (input.buttons2) | (input.buttons1 << 8) |
+			((input.buttons3 & 0x01) << 16) | ((input.buttons4 & 0xF0) << 13);
+
+		PSMoveState newState = PSMoveState();
+		newState.Triangle = ((lastButtons & Btn_TRIANGLE) << 1) + (buttons & Btn_TRIANGLE);
+		newState.Circle = ((lastButtons & Btn_CIRCLE) << 1) + (buttons & Btn_CIRCLE);
+		newState.Cross = ((lastButtons & Btn_CROSS) << 1) + (buttons & Btn_CROSS);
+		newState.Square = ((lastButtons & Btn_SQUARE) << 1) + (buttons & Btn_SQUARE);
+		newState.Select = ((lastButtons & Btn_SELECT) << 1) + (buttons & Btn_SELECT);
+		newState.Start = ((lastButtons & Btn_START) << 1) + (buttons & Btn_START);
+		newState.PS = ((lastButtons & Btn_PS) << 1) + (buttons & Btn_PS);
+		newState.Move = ((lastButtons & Btn_MOVE) << 1) + (buttons & Btn_MOVE);
+		newState.Trigger = (input.trigger + input.trigger2) / 2; // TODO: store each frame separately
+		//TODO newState.timestamp
+
+		lastButtons = buttons;
+		
+
+		// Accel/Gyro/Mag data
+		char* data = (char *)(&input);
+		std::vector<int> dimensionOffset = { 0, 2, 4 };  // x, y, z
+
+		// Accelerometer
+		int sensorOffset = offsetof(PSMove_Data_In, aXlow);
+		int frameOffset = 0;
+		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
+		{
+			int totalOffset = sensorOffset + frameOffset + dimensionOffset[d];
+			newState.accel.oldFrame[d] =
+				((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
+		}
+		frameOffset = 6;
+		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
+		{
+			int totalOffset = sensorOffset + frameOffset + dimensionOffset[d];
+			newState.accel.newFrame[d] =
+				((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
+		}
+
+		// Gyroscope
+		sensorOffset = offsetof(PSMove_Data_In, gXlow);
+		frameOffset = 0;
+		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
+		{
+			int totalOffset = sensorOffset + frameOffset + dimensionOffset[d];
+			newState.gyro.oldFrame[d] =
+				((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
+		}
+		frameOffset = 6;
+		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
+		{
+			int totalOffset = sensorOffset + frameOffset + dimensionOffset[d];
+			newState.gyro.newFrame[d] =
+				((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
+		}
+
+		/*
+		int gx = ((input.gXlow + input.gXlow2) + ((input.gXhigh + input.gXhigh2) << 8)) / 2 - 0x8000;
+		int gy = ((input.gYlow + input.gYlow2) + ((input.gYhigh + input.gYhigh2) << 8)) / 2 - 0x8000;
+		int gz = ((input.gZlow + input.gZlow2) + ((input.gZhigh + input.gZhigh2) << 8)) / 2 - 0x8000;
+
+		int ax = ((input.aXlow + input.aXlow2) + ((input.aXhigh + input.aXhigh2) << 8)) / 2 - 0x8000;
+		int ay = ((input.aYlow + input.aYlow2) + ((input.aYhigh + input.aYhigh2) << 8)) / 2 - 0x8000;
+		int az = ((input.aZlow + input.aZlow2) + ((input.aZhigh + input.aZhigh2) << 8)) / 2 - 0x8000;
+		*/
+
+		newState.mag[0] = TWELVE_BIT_SIGNED(((input.templow_mXhigh & 0x0F) << 8) | input.mXlow);
+		newState.mag[1] = TWELVE_BIT_SIGNED((input.mYhigh << 4) | (input.mYlow_mZhigh & 0xF0) >> 4);
+		newState.mag[2] = TWELVE_BIT_SIGNED(((input.mYlow_mZhigh & 0x0F) << 8) | input.mZlow);
+
+		lastState = newState;
+	}
+
+	return success;
+}
+
 psmovePosef
 PSMoveController::getPose(int msec_time)
 {
@@ -240,13 +421,16 @@ PSMoveController::getPose(int msec_time)
     return nullPose;
 }
 
-int
-PSMoveController::getButtonState()
+PSMoveState
+PSMoveController::getState()
 {
-    return 0;
+	readDataIn();
+    return lastState;
 }
 
-void
+// Setters
+
+bool
 PSMoveController::writeDataOut()
 {
     PSMove_Data_Out data_out = PSMove_Data_Out();  // 0-initialized
@@ -257,61 +441,56 @@ PSMoveController::writeDataOut()
     data_out.b = ledb;
     data_out.rumble = rumble;
     
-    hid_write(HIDDetails.handle, (unsigned char*)(&data_out),
+    int res = hid_write(HIDDetails.handle, (unsigned char*)(&data_out),
                         sizeof(data_out));
+	return (res == sizeof(data_out));
 }
 
-void
-PSMoveController::setRumbleValue(unsigned char value)
+bool
+PSMoveController::setLED(unsigned char r, unsigned char g, unsigned char b)
 {
-    rumble = value;
-    writeDataOut();
-}
-
-static std::string
-btAddrUcharToString(const unsigned char* addr_buff)
-{
-	// http://stackoverflow.com/questions/11181251/saving-hex-values-to-a-c-string
-	std::ostringstream stream;
-	int buff_ind = 5;
-	for (buff_ind = 5; buff_ind >= 0; buff_ind--)
+	bool success = true;
+	if ((ledr != r) || (ledg != g) || (ledb != b))
 	{
-		stream << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(addr_buff[buff_ind]);
-		if (buff_ind > 0)
-		{
-			stream << ":";
-		}
+		ledr = r;
+		ledg = g;
+		ledb = b;
+		success = writeDataOut();
 	}
-	return stream.str();
+	return success;
 }
 
-int
-PSMoveController::getBTAddress(std::string& host, std::string& controller)
+bool
+PSMoveController::setRumbleIntensity(unsigned char value)
 {
-    int res;
-    int success = 0;
-    unsigned char btg[PSMOVE_BTADDR_GET_SIZE];
-    unsigned char ctrl_char_buff[PSMOVE_BTADDR_SIZE];
-    unsigned char host_char_buff[PSMOVE_BTADDR_SIZE];
-    
-    memset(btg, 0, sizeof(btg));
-    btg[0] = PSMove_Req_GetBTAddr;
-    /* _WIN32 only has move->handle_addr for getting bluetooth address. */
-    if (HIDDetails.handle_addr) {
-        res = hid_get_feature_report(HIDDetails.handle_addr, btg, sizeof(btg));
-    } else {
-        res = hid_get_feature_report(HIDDetails.handle, btg, sizeof(btg));
-    }
-    
-    if (res == sizeof(btg)) {
-        
-        memcpy(host_char_buff, btg+10, PSMOVE_BTADDR_SIZE);
-        host = btAddrUcharToString(host_char_buff);
-        
-        memcpy(ctrl_char_buff, btg+1, PSMOVE_BTADDR_SIZE);
-        controller = btAddrUcharToString(ctrl_char_buff);
+	bool success = true;
+	if (rumble != value)
+	{
+		rumble = value;
+		success = writeDataOut();
+	}
+	return success;
+}
 
-        success = 1;
-    }
-    return success;
+bool
+PSMoveController::setLEDPWMFrequency(unsigned long freq)
+{
+	bool success = false;
+	if ((freq >= 733) && (freq <= 24e6) && (freq != ledpwmf))
+	{
+		unsigned char buf[7];
+		
+		memset(buf, 0, sizeof(buf));
+		buf[0] = PSMove_Req_SetLEDPWMFrequency;
+		buf[1] = 0x41;  /* magic value, report is ignored otherwise */
+		buf[2] = 0;     /* command byte, values 1..4 are internal frequency presets */
+		/* The 32-bit frequency value must be stored in Little-Endian byte order */
+		buf[3] = freq & 0xFF;
+		buf[4] = (freq >> 8) & 0xFF;
+		buf[5] = (freq >> 16) & 0xFF;
+		buf[6] = (freq >> 24) & 0xFF;
+		int res = hid_send_feature_report(HIDDetails.handle, buf, sizeof(buf));
+		success = (res == sizeof(buf));
+	}
+	return success;
 }
