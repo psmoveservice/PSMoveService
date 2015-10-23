@@ -16,7 +16,7 @@ int main()
     PSMoveController psmove;
 	if (psmove.isOpen())
 	{
-        int rumble = 100;
+        int rumble = 255;
 		std::cout << "Attempting to setRumbleValue(" << rumble << ")..." << std::endl;
 		psmove.setRumbleValue(rumble);
 	}

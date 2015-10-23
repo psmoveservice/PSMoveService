@@ -1,5 +1,7 @@
 #include "PSMoveController.h"
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 #include <algorithm>
 
 
@@ -8,7 +10,11 @@
 #define PSMOVE_PID 0x03d5
 #define PSMOVE_BUFFER_SIZE 49 /* Buffer size for writing LEDs and reading sensor data */
 #define PSMOVE_EXT_DATA_BUF_SIZE 5
+#ifdef _WIN32
+#define PSMOVE_BTADDR_GET_SIZE 17
+#else
 #define PSMOVE_BTADDR_GET_SIZE 16
+#endif
 #define PSMOVE_BTADDR_SIZE 6
 
 enum PSMove_Request_Type {
@@ -119,29 +125,29 @@ PSMoveController::PSMoveController(int next_ith)
 	{
 		cur_dev = devs;
 		while (cur_dev) {
-			std::cout << "Found device path:" << cur_dev->path << std::endl;
+			std::cout << "Found device path: " << cur_dev->path << std::endl;
 			if (cur_dev->serial_number != NULL)
 			{
-				std::wcout << "with serial_number:" << cur_dev->serial_number << std::endl;
+				std::wcout << "with serial_number: " << cur_dev->serial_number << std::endl;
 			}
 			else
 			{
 				std::wcout << "with NULL serial_number" << std::endl;
 			}
+			isBluetooth = (cur_dev->serial_number != NULL);
+			// On my Mac, using bluetooth,
+			// cur_dev->path = Bluetooth_054c_03d5_779732e8
+			// cur_dev->serial_number = 00-06-f7-97-32-e8
+			// On my Mac, using USB,
+			// cur_dev->path = USB_054c_03d5_14100000
+			// cur_dev->serial_number =   (NULL)
 
-			// On my Mac, with bluetooth, this yields
-			// Found device path:Bluetooth_054c_03d5_779732e8
-			// with serial_number:00-06-f7-97-32-e8
-			// On my Mac, with USB, this yields
-			// Found device path:USB_054c_03d5_14100000
-			// with serial_number:
-
-			// On my Windows 10 box (different controller), with bluetooth
-			// Found device path:\\?\hid#{00001124-0000-1000-8000-00805f9b34fb}_vid&0002054c_pid&03d5&col01#9&456a2d2&2&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
-			// with serial_number:0006f718cdf3
-			// With USB
-			// Found device path:\\?\hid#vid_054c&pid_03d5&col01#6&7773e57&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
-			// with serial_number: (null)
+			// On my Windows 10 box (different controller), using bluetooth
+			// cur_dev->path = \\?\hid#{00001124-0000-1000-8000-00805f9b34fb}_vid&0002054c_pid&03d5&col01#9&456a2d2&2&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
+			// cur_dev->serial_number = 0006f718cdf3
+			// Using USB
+			// cur_dev->path = \\?\hid#vid_054c&pid_03d5&col01#6&7773e57&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
+			// cur_dev->serial_number = (NULL)
 
 #ifdef _WIN32
 			/**
@@ -161,17 +167,14 @@ PSMoveController::PSMoveController(int next_ith)
 				HIDDetails.device_path = cur_dev->path;
 
 #ifdef _WIN32
-				HIDDetails.device_path_addr = HIDDetails.device_path;  // TODO: verify this is a copy.
-				size_t start_pos = HIDDetails.device_path_addr.find("&col01#");
-				HIDDetails.device_path_addr.replace(start_pos, 7, "&col02#");
-				start_pos = HIDDetails.device_path_addr.find("&0000#");
-				HIDDetails.device_path_addr.replace(start_pos, 6, "&0001#");
-				std::cout << "HIDDetails.device_path_addr:" << HIDDetails.device_path_addr << std::endl;
+				HIDDetails.device_path_addr = HIDDetails.device_path;
+				HIDDetails.device_path_addr.replace(HIDDetails.device_path_addr.find("&col01#"), 7, "&col02#");
+				HIDDetails.device_path_addr.replace(HIDDetails.device_path_addr.find("&0000#"), 6, "&0001#");
 				HIDDetails.handle_addr = hid_open_path(HIDDetails.device_path_addr.c_str());
 				hid_set_nonblocking(HIDDetails.handle_addr, 1);
 #endif
 
-				// Open the device using the serial_number if available, else the path
+				// Open the device using the serial_number if available, else use the path
 				if ((cur_dev->serial_number == NULL) && (!HIDDetails.device_path.empty()))
 				{
 					HIDDetails.handle = hid_open_path(HIDDetails.device_path.c_str());
@@ -181,7 +184,7 @@ PSMoveController::PSMoveController(int next_ith)
 					HIDDetails.handle = hid_open(PSMOVE_VID, PSMOVE_PID, cur_dev->serial_number);
 				}
 				hid_set_nonblocking(HIDDetails.handle, 1);
-				std::cout << "Opened!" << std::endl;
+				s_nOpened++;
 				break;
 			}
 			else
@@ -192,28 +195,18 @@ PSMoveController::PSMoveController(int next_ith)
 		}
 		hid_free_enumeration(devs);
 
-		// Get the bluetooth address
-        std::string host;
-        std::string controller;
-        int success = getBTAddress(host, controller);
-        if (success)
-        {
-            std::cout << "Host: " << host << "; Controller: " << controller << std::endl;
-            HIDDetails.bt_addr.assign(controller);  // Only works on Mac when starting with BT-connected.
-            
-            // Normalize bt_addr
-            std::replace(HIDDetails.bt_addr.begin(), HIDDetails.bt_addr.end(), '-', ':');
-            std::transform(HIDDetails.bt_addr.begin(), HIDDetails.bt_addr.end(), HIDDetails.bt_addr.begin(), ::tolower);
-        }
-        else
-        {
-            // If serial is still bad, maybe we have a disconnected controller still showing up in hidapi
-        }
-
-		// TODO: Other startup.
-		// Load calibration from file
-
-		s_nOpened++;
+		if (isOpen())  // Controller was opened and has an index
+		{
+			// Get the bluetooth address
+			std::string host;
+			int success = getBTAddress(host, HIDDetails.bt_addr);
+			if (!success)
+			{
+				// TODO: If serial is still bad, maybe we have a disconnected controller still showing up in hidapi
+			}
+			// TODO: Other startup.
+			// Load calibration from file
+		}
 	}
 	else
 	{
@@ -256,7 +249,9 @@ PSMoveController::getButtonState()
 void
 PSMoveController::writeDataOut()
 {
-    PSMove_Data_Out data_out;
+    PSMove_Data_Out data_out = PSMove_Data_Out();  // 0-initialized
+	data_out.type = PSMove_Req_SetLEDs;
+	data_out.rumble2 = 0x00;
     data_out.r = ledr;
     data_out.g = ledg;
     data_out.b = ledb;
@@ -276,23 +271,18 @@ PSMoveController::setRumbleValue(unsigned char value)
 static std::string
 btAddrUcharToString(const unsigned char* addr_buff)
 {
-    const std::string format("%02x:%02x:%02x:%02x:%02x:%02x");
-    size_t btsize = snprintf( nullptr, 0, format.c_str(),
-                             (unsigned char)addr_buff[5],
-                             (unsigned char)addr_buff[4],
-                             (unsigned char)addr_buff[3],
-                             (unsigned char)addr_buff[2],
-                             (unsigned char)addr_buff[1],
-                             (unsigned char)addr_buff[0]) + 1;
-    std::unique_ptr<char[]> my_ptr( new char[ btsize ] );
-    snprintf( my_ptr.get(), btsize, format.c_str(),
-             (unsigned char)addr_buff[5],
-             (unsigned char)addr_buff[4],
-             (unsigned char)addr_buff[3],
-             (unsigned char)addr_buff[2],
-             (unsigned char)addr_buff[1],
-             (unsigned char)addr_buff[0]);
-    return std::string( my_ptr.get(), my_ptr.get() + btsize - 1 );
+	// http://stackoverflow.com/questions/11181251/saving-hex-values-to-a-c-string
+	std::ostringstream stream;
+	int buff_ind = 5;
+	for (buff_ind = 5; buff_ind >= 0; buff_ind--)
+	{
+		stream << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(addr_buff[buff_ind]);
+		if (buff_ind > 0)
+		{
+			stream << ":";
+		}
+	}
+	return stream.str();
 }
 
 int
@@ -320,6 +310,7 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
         
         memcpy(ctrl_char_buff, btg+1, PSMOVE_BTADDR_SIZE);
         controller = btAddrUcharToString(ctrl_char_buff);
+
         success = 1;
     }
     return success;
