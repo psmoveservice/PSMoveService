@@ -19,11 +19,13 @@ int main()
 	{
 		PSMoveState psmstate = psmove.getState();
 
-		unsigned char r = 0;
+		unsigned char r = 255;
 		unsigned char g = 0;
 		unsigned char b = 0;
+        
+        psmove.setRumbleIntensity(255);
 
-		while (psmstate.Move == 0)
+		while (psmove.isBluetooth && psmstate.Move == 0)
 		{
 			psmstate = psmove.getState();
 			psmove.setRumbleIntensity(psmstate.Trigger);
@@ -58,7 +60,7 @@ int main()
 				std::flush;
 
 #ifdef __GNUC__
-			sleep(0.005); // 5 msec
+			sleep(0.100); // 100 msec
 #endif
 
 #ifdef _WIN32

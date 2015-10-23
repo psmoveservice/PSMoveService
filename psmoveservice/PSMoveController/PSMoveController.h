@@ -55,6 +55,7 @@ public:
     
     PSMoveDataFrame dataFrame;
     static int s_nOpened;                           // Total number of opened controllers
+    bool isBluetooth;
     
 private:
 	bool readDataIn();
@@ -62,7 +63,6 @@ private:
     bool writeDataOut();							// Setters will call this
     
     PSMoveHIDDetails HIDDetails;
-    bool isBluetooth;
     int index;
 	unsigned char ledr, ledg, ledb; 
 	unsigned char rumble;

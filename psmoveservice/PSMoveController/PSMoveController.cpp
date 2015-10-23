@@ -182,7 +182,7 @@ PSMoveController::PSMoveController(int next_ith)
 			{
 				std::wcout << "with NULL serial_number" << std::endl;
 			}
-			isBluetooth = (cur_dev->serial_number != NULL);
+			isBluetooth = ((cur_dev->serial_number != NULL) && (wcslen(cur_dev->serial_number) != 0));
 			// On my Mac, using bluetooth,
 			// cur_dev->path = Bluetooth_054c_03d5_779732e8
 			// cur_dev->serial_number = 00-06-f7-97-32-e8
