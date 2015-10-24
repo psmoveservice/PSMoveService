@@ -89,7 +89,7 @@ struct PSMove_Data_Out {
     unsigned char _padding[PSMOVE_BUFFER_SIZE-7]; /* must be zero */
 };
 
-typedef struct {
+struct PSMove_Data_Input {
 	unsigned char type; /* message type, must be PSMove_Req_GetInput */
 	unsigned char buttons1;
 	unsigned char buttons2;
@@ -135,7 +135,7 @@ typedef struct {
 	unsigned char mZlow; /* magnetometer Z (bits 8-1) */
 	unsigned char timelow; /* low byte of timestamp */
 	unsigned char extdata[PSMOVE_EXT_DATA_BUF_SIZE]; /* external device data (EXT port) */
-} PSMove_Data_Input;
+};
 
 int PSMoveController::s_nOpened = 0;
 
@@ -162,6 +162,9 @@ PSMoveController::PSMoveController(int next_ith)
 	hid_init();
 	HIDDetails.handle = nullptr;
 	HIDDetails.handle_addr = nullptr;
+    
+    inData = new PSMove_Data_Input;
+    inData->type = PSMove_Req_GetInput;
 
 	std::cout << "Looking for PSMoveController(" << s_nOpened+next_ith << ")" << std::endl;
     struct hid_device_info *devs, *cur_dev;
@@ -181,7 +184,7 @@ PSMoveController::PSMoveController(int next_ith)
 			{
 				std::wcout << "with NULL serial_number" << std::endl;
 			}
-			isBluetooth = ((cur_dev->serial_number != NULL) && (wcslen(cur_dev->serial_number) != 0));
+            isBluetooth = !((cur_dev->serial_number == NULL) || (wcslen(cur_dev->serial_number) == 0));
 			// On my Mac, using bluetooth,
 			// cur_dev->path = Bluetooth_054c_03d5_779732e8
 			// cur_dev->serial_number = 00-06-f7-97-32-e8
@@ -212,7 +215,6 @@ PSMoveController::PSMoveController(int next_ith)
 			{
 				index = count;
 				HIDDetails.device_path = cur_dev->path;
-
 #ifdef _WIN32
 				HIDDetails.device_path_addr = HIDDetails.device_path;
 				HIDDetails.device_path_addr.replace(HIDDetails.device_path_addr.find("&col01#"), 7, "&col02#");
@@ -220,9 +222,8 @@ PSMoveController::PSMoveController(int next_ith)
 				HIDDetails.handle_addr = hid_open_path(HIDDetails.device_path_addr.c_str());
 				hid_set_nonblocking(HIDDetails.handle_addr, 1);
 #endif
-
-				HIDDetails.handle = hid_open_path(HIDDetails.device_path.c_str());
-				hid_set_nonblocking(HIDDetails.handle, 1);
+                HIDDetails.handle = hid_open_path(HIDDetails.device_path.c_str());
+                hid_set_nonblocking(HIDDetails.handle, 1);
 				s_nOpened++;
 				break;
 			}
@@ -237,12 +238,22 @@ PSMoveController::PSMoveController(int next_ith)
 		if (isOpen())  // Controller was opened and has an index
 		{
 			// Get the bluetooth address
+#ifndef _WIN32
+            // On my Mac, getting the bt feature report when connected via
+            // bt crashes the controller. So we simply copy the serial number.
+            // It gets modified in getBTAddress.
+            // TODO: Copy this over anyway even in Windows. Check getBTAddress for handling windows serial_number.
+            std::wstring ws(cur_dev->serial_number);
+            std::string mbs(ws.begin(), ws.end());
+            HIDDetails.bt_addr = mbs;
+#endif
 			std::string host;
 			int success = getBTAddress(host, HIDDetails.bt_addr);
 			if (!success)
 			{
 				// TODO: If serial is still bad, maybe we have a disconnected controller still showing up in hidapi
 			}
+            
 			// TODO: Other startup.
 			// Load calibration from file
 		}
@@ -268,6 +279,7 @@ PSMoveController::~PSMoveController()
 	{
 		hid_exit();
 	}
+    delete inData;
 }
 
 bool
@@ -281,32 +293,68 @@ PSMoveController::isOpen()
 int
 PSMoveController::getBTAddress(std::string& host, std::string& controller)
 {
-	int res;
-	int success = 0;
-	unsigned char btg[PSMOVE_BTADDR_GET_SIZE];
-	unsigned char ctrl_char_buff[PSMOVE_BTADDR_SIZE];
-	unsigned char host_char_buff[PSMOVE_BTADDR_SIZE];
+    int success = 0;
 
-	memset(btg, 0, sizeof(btg));
-	btg[0] = PSMove_Req_GetBTAddr;
-	/* _WIN32 only has move->handle_addr for getting bluetooth address. */
-	if (HIDDetails.handle_addr) {
-		res = hid_get_feature_report(HIDDetails.handle_addr, btg, sizeof(btg));
-	}
-	else {
-		res = hid_get_feature_report(HIDDetails.handle, btg, sizeof(btg));
-	}
+    if (isBluetooth && !controller.empty())
+    {
+        std::replace(controller.begin(), controller.end(), '-', ':');
+        std::transform(controller.begin(), controller.end(), controller.begin(), ::tolower);
+        
+        //TODO: If the third entry is not : and length is PSMOVE_BTADDR_SIZE
+//        std::stringstream ss;
+//        ss << controller.substr(0, 2) << ":" << controller.substr(2, 2) <<
+//        ":" << controller.substr(4, 2) << ":" << controller.substr(6, 2) <<
+//        ":" << controller.substr(8, 2) << ":" << controller.substr(10, 2);
+//        controller = ss.str();
+        
+        success = 1;
+    }
+    else
+    {
+        int res;
+        
+        unsigned char btg[PSMOVE_BTADDR_GET_SIZE];
+        unsigned char ctrl_char_buff[PSMOVE_BTADDR_SIZE];
+        unsigned char host_char_buff[PSMOVE_BTADDR_SIZE];
 
-	if (res == sizeof(btg)) {
+        memset(btg, 0, sizeof(btg));
+        btg[0] = PSMove_Req_GetBTAddr;
+        /* _WIN32 only has move->handle_addr for getting bluetooth address. */
+        if (HIDDetails.handle_addr) {
+            res = hid_get_feature_report(HIDDetails.handle_addr, btg, sizeof(btg));
+        }
+        else {
+            res = hid_get_feature_report(HIDDetails.handle, btg, sizeof(btg));
+        }
 
-		memcpy(host_char_buff, btg + 10, PSMOVE_BTADDR_SIZE);
-		host = btAddrUcharToString(host_char_buff);
+        if (res == sizeof(btg)) {
 
-		memcpy(ctrl_char_buff, btg + 1, PSMOVE_BTADDR_SIZE);
-		controller = btAddrUcharToString(ctrl_char_buff);
+            memcpy(host_char_buff, btg + 10, PSMOVE_BTADDR_SIZE);
+            host = btAddrUcharToString(host_char_buff);
 
-		success = 1;
-	}
+            memcpy(ctrl_char_buff, btg + 1, PSMOVE_BTADDR_SIZE);
+            controller = btAddrUcharToString(ctrl_char_buff);
+
+            success = 1;
+        }
+        else
+        {
+            const wchar_t* hidapi_err;
+            if (HIDDetails.handle_addr)
+            {
+                hidapi_err = hid_error(HIDDetails.handle_addr);
+            }
+            else
+            {
+                hidapi_err = hid_error(HIDDetails.handle);
+            }
+            if (hidapi_err)
+            {
+                std::wcout << std::endl;
+                std::wcout << hidapi_err << std::endl;
+            }
+        }
+    }
 	return success;
 }
 
@@ -325,17 +373,15 @@ PSMoveController::readDataIn()
 	bool success = false;
 
 	// TODO: Rate-limiting
-	PSMove_Data_Input input = PSMove_Data_Input();
-	input.type = PSMove_Req_GetInput;
 		
-	int res = hid_read(HIDDetails.handle, (unsigned char*)(&(input)), sizeof(input));
-	if (res == sizeof(input))
+	int res = hid_read(HIDDetails.handle, (unsigned char*)inData, sizeof(PSMove_Data_Input));
+	if (res == sizeof(PSMove_Data_Input))
 	{
 		success = true;
 
 		// https://github.com/nitsch/moveonpc/wiki/Input-report
-		unsigned int buttons = (input.buttons2) | (input.buttons1 << 8) |
-			((input.buttons3 & 0x01) << 16) | ((input.buttons4 & 0xF0) << 13);
+		unsigned int buttons = (inData->buttons2) | (inData->buttons1 << 8) |
+			((inData->buttons3 & 0x01) << 16) | ((inData->buttons4 & 0xF0) << 13);
 
 		PSMoveState newState = PSMoveState();
 		newState.Triangle = ((lastButtons & Btn_TRIANGLE) << 1) + (buttons & Btn_TRIANGLE);
@@ -346,13 +392,13 @@ PSMoveController::readDataIn()
 		newState.Start = ((lastButtons & Btn_START) << 1) + (buttons & Btn_START);
 		newState.PS = ((lastButtons & Btn_PS) << 1) + (buttons & Btn_PS);
 		newState.Move = ((lastButtons & Btn_MOVE) << 1) + (buttons & Btn_MOVE);
-		newState.Trigger = (input.trigger + input.trigger2) / 2; // TODO: store each frame separately
+		newState.Trigger = (inData->trigger + inData->trigger2) / 2; // TODO: store each frame separately
 		//TODO newState.timestamp
 
 		lastButtons = buttons;
 		
 		// Accel/Gyro/Mag data
-		char* data = (char *)(&input);
+		char* data = (char *)inData;
 		std::vector<int> dimensionOffset = { 0, 2, 4 };  // x, y, z
 
 		// Accelerometer
@@ -399,11 +445,11 @@ PSMoveController::readDataIn()
 		int az = ((input.aZlow + input.aZlow2) + ((input.aZhigh + input.aZhigh2) << 8)) / 2 - 0x8000;
 		*/
 
-		newState.mag[0] = TWELVE_BIT_SIGNED(((input.templow_mXhigh & 0x0F) << 8) | input.mXlow);
-		newState.mag[1] = TWELVE_BIT_SIGNED((input.mYhigh << 4) | (input.mYlow_mZhigh & 0xF0) >> 4);
-		newState.mag[2] = TWELVE_BIT_SIGNED(((input.mYlow_mZhigh & 0x0F) << 8) | input.mZlow);
+		newState.mag[0] = TWELVE_BIT_SIGNED(((inData->templow_mXhigh & 0x0F) << 8) | inData->mXlow);
+		newState.mag[1] = TWELVE_BIT_SIGNED((inData->mYhigh << 4) | (inData->mYlow_mZhigh & 0xF0) >> 4);
+		newState.mag[2] = TWELVE_BIT_SIGNED(((inData->mYlow_mZhigh & 0x0F) << 8) | inData->mZlow);
 
-		newState.Sequence = (input.buttons4 & 0x0F);
+		newState.Sequence = (inData->buttons4 & 0x0F);
 
 		lastState = newState;
 	}

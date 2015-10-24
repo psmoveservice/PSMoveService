@@ -41,6 +41,8 @@ struct PSMoveHIDDetails {
     std::string bt_addr;
 };
 
+struct PSMove_Data_Input;  // Forward-declare so it can be referenced in a member variable.
+
 class PSMoveController {
 public:
     PSMoveController(const int next_ith = 1);       // next_ith beyond s_nOpened
@@ -72,4 +74,5 @@ private:
 	unsigned long ledpwmf;
 	unsigned int lastButtons;
 	PSMoveState lastState;
+    PSMove_Data_Input* inData;
 };

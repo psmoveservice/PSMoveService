@@ -3,12 +3,10 @@
 #include "PSMoveController.h"
 
 // For sleep
-#ifdef __GNUC__
-#include <unistd.h>
-#endif
-
 #ifdef _WIN32
 #include <cstdlib>
+#else
+#include <unistd.h>
 #endif
 
 int main()
@@ -60,14 +58,13 @@ int main()
 				std::setw(myw) << std::right << psmstate.mag[2] <<
 				std::flush;
 
-#ifdef __GNUC__
-			sleep(0.100); // 100 msec
-#endif
-
 #ifdef _WIN32
-			_sleep(5); // 5 msec
+			_sleep(50); // 50 msec
+#else
+            usleep(50000);
 #endif
 		}
+        std::cout << std::endl;
 	}
     
 
