@@ -450,6 +450,10 @@ PSMoveController::readDataIn()
 		newState.mag[2] = TWELVE_BIT_SIGNED(((inData->mYlow_mZhigh & 0x0F) << 8) | inData->mZlow);
 
 		newState.Sequence = (inData->buttons4 & 0x0F);
+        
+        newState.Battery = (enum PSMove_Battery_Level)(inData->battery);
+        
+        newState.TimeStamp = inData->timelow | (inData->timehigh << 8);
 
 		lastState = newState;
 	}
