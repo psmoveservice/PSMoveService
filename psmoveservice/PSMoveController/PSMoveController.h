@@ -2,15 +2,14 @@
 #include <string>
 #include "hidapi.h"
 
-/*! Battery charge level.
- * Charge level of the battery. Charging is indicated when the controller is
- * connected via USB, or when the controller is sitting in the charging dock.
- * In all other cases (Bluetooth, not in charging dock), the charge level is
- * indicated.
- *
- * Used by psmove_get_battery().
- **/
-enum PSMove_Battery_Level {
+enum PSMoveButtonState {
+    Button_UP = 0x01,
+    Button_PRESSED = 0x01,
+    Button_DOWN = 0x11,
+    Button_RELEASED = 0x10,
+};
+
+enum PSMoveBatteryLevel {
     Batt_MIN = 0x00, /*!< Battery is almost empty (< 20%) */
     Batt_20Percent = 0x01, /*!< Battery has at least 20% remaining */
     Batt_40Percent = 0x02, /*!< Battery has at least 40% remaining */
@@ -48,11 +47,11 @@ struct PSMoveState {
 
 	//TODO: oldTimestamp
 	//TODO: newTimestamp
-    unsigned int TimeStamp;
-
-	int Sequence;
     
-    enum PSMove_Battery_Level Battery;
+	int Sequence;
+    enum PSMoveBatteryLevel Battery;
+    unsigned int TimeStamp;
+    int TempRaw;
 };
 
 struct PSMoveHIDDetails {
@@ -74,6 +73,7 @@ public:
 	// TODO: Getters
 	psmovePosef getPose(int msec_time = 0);         // getPose msec_time in the future
 	PSMoveState getState();							//
+    float GetTempCelsius();
 
 	// Setters
 	bool setLED(unsigned char r, unsigned char g, unsigned char b); // 0x00..0xff

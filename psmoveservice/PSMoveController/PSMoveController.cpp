@@ -190,7 +190,7 @@ PSMoveController::PSMoveController(int next_ith)
 			// cur_dev->serial_number = 00-06-f7-97-32-e8
 			// On my Mac, using USB,
 			// cur_dev->path = USB_054c_03d5_14100000
-			// cur_dev->serial_number =   (NULL)
+			// cur_dev->serial_number = "" (not null, just empty)
 
 			// On my Windows 10 box (different controller), using bluetooth
 			// cur_dev->path = \\?\hid#{00001124-0000-1000-8000-00805f9b34fb}_vid&0002054c_pid&03d5&col01#9&456a2d2&2&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
@@ -242,7 +242,9 @@ PSMoveController::PSMoveController(int next_ith)
             // On my Mac, getting the bt feature report when connected via
             // bt crashes the controller. So we simply copy the serial number.
             // It gets modified in getBTAddress.
-            // TODO: Copy this over anyway even in Windows. Check getBTAddress for handling windows serial_number.
+            // TODO: Copy this over anyway even in Windows. Check getBTAddress
+            // comments for handling windows serial_number.
+            // Once done, we can remove the ifndef above.
             std::wstring ws(cur_dev->serial_number);
             std::string mbs(ws.begin(), ws.end());
             HIDDetails.bt_addr = mbs;
@@ -251,7 +253,8 @@ PSMoveController::PSMoveController(int next_ith)
 			int success = getBTAddress(host, HIDDetails.bt_addr);
 			if (!success)
 			{
-				// TODO: If serial is still bad, maybe we have a disconnected controller still showing up in hidapi
+				// TODO: If serial is still bad, maybe we have a disconnected
+                // controller still showing up in hidapi
 			}
             
 			// TODO: Other startup.
@@ -367,6 +370,12 @@ psmove_decode_16bit(char *data, int offset)
 	return (low | (high << 8)) - 0x8000;
 }
 
+inline int
+getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask)
+{
+    return (enum PSMoveBatteryLevel)((((lastButtons & buttonMask) > 0) << 1) + ((buttons & buttonMask)>0));
+}
+    
 bool
 PSMoveController::readDataIn()
 {
@@ -377,27 +386,26 @@ PSMoveController::readDataIn()
 	int res = hid_read(HIDDetails.handle, (unsigned char*)inData, sizeof(PSMove_Data_Input));
 	if (res == sizeof(PSMove_Data_Input))
 	{
-		success = true;
-
-		// https://github.com/nitsch/moveonpc/wiki/Input-report
+        // https://github.com/nitsch/moveonpc/wiki/Input-report
+        
+        
+        // Buttons
 		unsigned int buttons = (inData->buttons2) | (inData->buttons1 << 8) |
 			((inData->buttons3 & 0x01) << 16) | ((inData->buttons4 & 0xF0) << 13);
 
-		PSMoveState newState = PSMoveState();
-		newState.Triangle = ((lastButtons & Btn_TRIANGLE) << 1) + (buttons & Btn_TRIANGLE);
-		newState.Circle = ((lastButtons & Btn_CIRCLE) << 1) + (buttons & Btn_CIRCLE);
-		newState.Cross = ((lastButtons & Btn_CROSS) << 1) + (buttons & Btn_CROSS);
-		newState.Square = ((lastButtons & Btn_SQUARE) << 1) + (buttons & Btn_SQUARE);
-		newState.Select = ((lastButtons & Btn_SELECT) << 1) + (buttons & Btn_SELECT);
-		newState.Start = ((lastButtons & Btn_START) << 1) + (buttons & Btn_START);
-		newState.PS = ((lastButtons & Btn_PS) << 1) + (buttons & Btn_PS);
-		newState.Move = ((lastButtons & Btn_MOVE) << 1) + (buttons & Btn_MOVE);
-		newState.Trigger = (inData->trigger + inData->trigger2) / 2; // TODO: store each frame separately
-		//TODO newState.timestamp
-
+        lastState.Triangle = getButtonState(buttons, lastButtons, Btn_TRIANGLE);
+        lastState.Circle = getButtonState(buttons, lastButtons, Btn_CIRCLE);
+        lastState.Cross = getButtonState(buttons, lastButtons, Btn_CROSS);
+        lastState.Square = getButtonState(buttons, lastButtons, Btn_SQUARE);
+        lastState.Select = getButtonState(buttons, lastButtons, Btn_SELECT);
+        lastState.Start = getButtonState(buttons, lastButtons, Btn_START);
+        lastState.PS = getButtonState(buttons, lastButtons, Btn_PS);
+        lastState.Move = getButtonState(buttons, lastButtons, Btn_MOVE);
+		lastState.Trigger = (inData->trigger + inData->trigger2) / 2; // TODO: store each frame separately
 		lastButtons = buttons;
 		
-		// Accel/Gyro/Mag data
+        
+		// Sensors (Accel/Gyro/Mag)
 		char* data = (char *)inData;
 		std::vector<int> dimensionOffset = { 0, 2, 4 };  // x, y, z
 
@@ -407,14 +415,14 @@ PSMoveController::readDataIn()
 		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
 		{
 			int totalOffset = sensorOffset + frameOffset + dimensionOffset[d];
-			newState.accel.oldFrame[d] =
+			lastState.accel.oldFrame[d] =
 				((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
 		}
 		frameOffset = 6;
 		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
 		{
 			int totalOffset = sensorOffset + frameOffset + dimensionOffset[d];
-			newState.accel.newFrame[d] =
+			lastState.accel.newFrame[d] =
 				((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
 		}
 
@@ -424,14 +432,14 @@ PSMoveController::readDataIn()
 		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
 		{
 			int totalOffset = sensorOffset + frameOffset + dimensionOffset[d];
-			newState.gyro.oldFrame[d] =
+			lastState.gyro.oldFrame[d] =
 				((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
 		}
 		frameOffset = 6;
 		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
 		{
 			int totalOffset = sensorOffset + frameOffset + dimensionOffset[d];
-			newState.gyro.newFrame[d] =
+			lastState.gyro.newFrame[d] =
 				((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
 		}
 
@@ -445,17 +453,18 @@ PSMoveController::readDataIn()
 		int az = ((input.aZlow + input.aZlow2) + ((input.aZhigh + input.aZhigh2) << 8)) / 2 - 0x8000;
 		*/
 
-		newState.mag[0] = TWELVE_BIT_SIGNED(((inData->templow_mXhigh & 0x0F) << 8) | inData->mXlow);
-		newState.mag[1] = TWELVE_BIT_SIGNED((inData->mYhigh << 4) | (inData->mYlow_mZhigh & 0xF0) >> 4);
-		newState.mag[2] = TWELVE_BIT_SIGNED(((inData->mYlow_mZhigh & 0x0F) << 8) | inData->mZlow);
+		lastState.mag[0] = TWELVE_BIT_SIGNED(((inData->templow_mXhigh & 0x0F) << 8) | inData->mXlow);
+		lastState.mag[1] = TWELVE_BIT_SIGNED((inData->mYhigh << 4) | (inData->mYlow_mZhigh & 0xF0) >> 4);
+		lastState.mag[2] = TWELVE_BIT_SIGNED(((inData->mYlow_mZhigh & 0x0F) << 8) | inData->mZlow);
 
-		newState.Sequence = (inData->buttons4 & 0x0F);
         
-        newState.Battery = (enum PSMove_Battery_Level)(inData->battery);
+        // Other
+		lastState.Sequence = (inData->buttons4 & 0x0F);
+        lastState.Battery = (enum PSMoveBatteryLevel)(inData->battery);
+        lastState.TimeStamp = inData->timelow | (inData->timehigh << 8);
+        lastState.TempRaw = (inData->temphigh << 4) | ((inData->templow_mXhigh & 0xF0) >> 4);
         
-        newState.TimeStamp = inData->timelow | (inData->timehigh << 8);
-
-		lastState = newState;
+        success = true;
 	}
 	else
 	{
@@ -482,6 +491,38 @@ PSMoveController::getState()
 {
 	readDataIn();
     return lastState;
+}
+    
+float
+PSMoveController::GetTempCelsius()
+{
+    /**
+     * The Move uses this table in Debug mode. Even though the resulting values
+     * are not labeled "degree Celsius" in the Debug output, measurements
+     * indicate that it is close enough.
+     **/
+    static int const temperature_lookup[80] = {
+        0x1F6, 0x211, 0x22C, 0x249, 0x266, 0x284, 0x2A4, 0x2C4,
+        0x2E5, 0x308, 0x32B, 0x34F, 0x374, 0x399, 0x3C0, 0x3E8,
+        0x410, 0x439, 0x463, 0x48D, 0x4B8, 0x4E4, 0x510, 0x53D,
+        0x56A, 0x598, 0x5C6, 0x5F4, 0x623, 0x651, 0x680, 0x6AF,
+        0x6DE, 0x70D, 0x73C, 0x76B, 0x79A, 0x7C9, 0x7F7, 0x825,
+        0x853, 0x880, 0x8AD, 0x8D9, 0x905, 0x930, 0x95B, 0x985,
+        0x9AF, 0x9D8, 0xA00, 0xA28, 0xA4F, 0xA75, 0xA9B, 0xAC0,
+        0xAE4, 0xB07, 0xB2A, 0xB4B, 0xB6D, 0xB8D, 0xBAD, 0xBCB,
+        0xBEA, 0xC07, 0xC24, 0xC40, 0xC5B, 0xC75, 0xC8F, 0xCA8,
+        0xCC1, 0xCD8, 0xCF0, 0xD06, 0xD1C, 0xD31, 0xD46, 0xD5A,
+    };
+    
+    int i;
+    
+    for (i = 0; i < 80; i++) {
+        if (temperature_lookup[i] > lastState.TempRaw) {
+            return (float)(i - 10);
+        }
+    }
+    
+    return 70;
 }
 
 // Setters
