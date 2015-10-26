@@ -1,5 +1,5 @@
 # PSMoveService
-A background service that communicates with the psmove and stores pose and button data.
+A background service that communicates with the psmove and serves its pose and button states.
 
 # Download
 
@@ -22,8 +22,7 @@ A background service that communicates with the psmove and stores pose and butto
         * Install [homebrew](http://brew.sh/)
         * `brew tap homebrew/science`
         * `brew install opencv`
-1. Optional: libusb
-    * Only necessary for PS3EYEDriver (required on Mac and Windows 64-bit)
+1. libusb (Required on Mac and Windows 64-bit for PS3EYEDriver, Optional on Win32)
     * Windows:
         * Open PSMoveService\thirdparty\libusb\msvc\libusb_2013.sln
         * For each combination of Release/Debug * Win32/x64, right-click on libusb-1.0 (static) and Build.
@@ -53,9 +52,4 @@ A background service that communicates with the psmove and stores pose and butto
 
 1. Open <path_to_repo>\build\PSMoveService.sln
 1. Change to "Release" configuration
-1. Remove _DEBUG preprocessor definition
-    * TODO: Why is this happening?
-	* Rt-click on the project name, Open 'Properties'
-	* 'Configuration Properties' > 'C/C++' > Preprocessor
-	* Edit "Preprocessor Definitions" and delete _DEBUG
 1. Rt-click on the project and build

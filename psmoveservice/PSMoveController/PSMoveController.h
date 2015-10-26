@@ -1,12 +1,14 @@
 #include "PSMoveDataFrame.h"
 #include <string>
+#include <vector>
+#include <deque>
 #include "hidapi.h"
 
 enum PSMoveButtonState {
-    Button_UP = 0x01,
-    Button_PRESSED = 0x01,
-    Button_DOWN = 0x11,
-    Button_RELEASED = 0x10,
+    Button_UP = 0x01,       // Not pressed
+    Button_PRESSED = 0x01,  // Down for one frame only
+    Button_DOWN = 0x11,     // Down for >1 frame
+    Button_RELEASED = 0x10, // Up for one frame only
 };
 
 enum PSMoveBatteryLevel {
@@ -20,81 +22,77 @@ enum PSMoveBatteryLevel {
     Batt_CHARGING_DONE = 0xEF, /*!< Battery is fully charged (on charger) */
 };
 
-struct PSMoveSensorTwoFrame {
-	int oldFrame[3]; // TODO: vec3
-	int newFrame[3]; // TODO: vec3
-};
-
 struct PSMoveState {
-	// For each button,
-	// ==32 if currently down,
-	// ==64 if previously down,
-	// ==96 if currently AND previously down
-	unsigned int Triangle;
-	unsigned int Circle;
-	unsigned int Cross;
-	unsigned int Square;
-	unsigned int Select;
-	unsigned int Start;
-	unsigned int PS;
-	unsigned int Move;
+	PSMoveButtonState Triangle;
+	PSMoveButtonState Circle;
+	PSMoveButtonState Cross;
+	PSMoveButtonState Square;
+	PSMoveButtonState Select;
+	PSMoveButtonState Start;
+	PSMoveButtonState PS;
+	PSMoveButtonState Move;
 
 	unsigned char Trigger;  // 0-255. Average of last two frames.
 
-	PSMoveSensorTwoFrame accel;
-	PSMoveSensorTwoFrame gyro;
-	int mag[3]; // TODO: vec3
+    std::vector< std::vector<float> > Accel;    // Two frames of 3 dimensions
+    std::vector< std::vector<float> > Gyro;     // Two frames of 3 dimensions
+    std::vector<int> Mag;                       // One frame of 3 dimensions
 
-	//TODO: oldTimestamp
-	//TODO: newTimestamp
-    
-	int Sequence;
+    int Sequence;                               // 4-bit (1..16).
+                                                // Sometimes frames are dropped.
     enum PSMoveBatteryLevel Battery;
-    unsigned int TimeStamp;
+    unsigned int TimeStamp;                     // 16-bit (time since ?, units?)
+                                                // About 1150 between in-order frames.
     int TempRaw;
+    unsigned int AllButtons;                       // all-buttons, used to detect changes
+    
+    //TODO: high-precision timestamp. Need to do in hidapi?
 };
 
 struct PSMoveHIDDetails {
-    std::string device_path;
-    std::string device_path_addr; // only needed by Win > 8.1, otherwise ignored.
-    hid_device *handle;
-    hid_device *handle_addr; // only needed by Win > 8.1, otherwise ignored.
-    std::string bt_addr;
+    std::string Device_path;
+    hid_device *Handle;
+    std::string Device_path_addr; // only needed by Win > 8.1, otherwise ignored.
+    hid_device *Handle_addr; // only needed by Win > 8.1, otherwise ignored.
+    std::string Bt_addr;
 };
 
-struct PSMove_Data_Input;  // Forward-declare so it can be referenced in a member variable.
+struct PSMoveDataInput;  // See .cpp for full declaration
 
 class PSMoveController {
 public:
     PSMoveController(const int next_ith = 1);       // next_ith beyond s_nOpened
     ~PSMoveController();
-	bool isOpen();
+    bool isOpen();                                  // returns true if hidapi opened successfully
     
-	// TODO: Getters
-	psmovePosef getPose(int msec_time = 0);         // getPose msec_time in the future
-	PSMoveState getState();							//
-    float GetTempCelsius();
+	// Getters
+	psmovePosef getPose(int msec_time = 0);         // TODO: Move this to a TrackerAndSensorFusion class
+	const PSMoveState getState(int lookBack = 0);
+    float getTempCelsius();
 
 	// Setters
-	bool setLED(unsigned char r, unsigned char g, unsigned char b); // 0x00..0xff
+	bool setLED(unsigned char r, unsigned char g, unsigned char b); // 0x00..0xff. TODO: vec3
     bool setRumbleIntensity(unsigned char value);	// 0x00..0xff
 	bool setLEDPWMFrequency(unsigned long freq);	// 733..24e6
     
-    PSMoveDataFrame dataFrame;
     static int s_nOpened;                           // Total number of opened controllers
-    bool isBluetooth;
+    bool IsBluetooth;                               // true if valid serial number on device opening
     
 private:
-	bool readDataIn();
+    
+    bool readDataIn();                              // Called by Getters
     int getBTAddress(std::string& host, std::string& controller);
+    void loadCalibration();                         // Use USB or file if on BT
+    
     bool writeDataOut();							// Setters will call this
     
     PSMoveHIDDetails HIDDetails;
-    int index;
-	unsigned char ledr, ledg, ledb; 
-	unsigned char rumble;
-	unsigned long ledpwmf;
-	unsigned int lastButtons;
-	PSMoveState lastState;
-    PSMove_Data_Input* inData;
+    int Index;
+	unsigned char LedR, LedG, LedB;
+	unsigned char Rumble;
+	unsigned long LedPWMF;
+    std::deque<PSMoveState> ControllerStates;
+    PSMoveDataInput* InData;                      // Buffer to copy hidapi reports into
+    std::vector< std::vector< std::vector<float> > > Calibration;  // 2 sensors, 3 dimensions, k&b
+    PSMoveDataFrame DataFrame;                      // TODO: Move this to a TrackerAndSensorFusion class
 };

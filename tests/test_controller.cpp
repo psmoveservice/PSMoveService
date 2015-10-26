@@ -23,7 +23,7 @@ int main()
         
         psmove.setRumbleIntensity(255);
 
-		while (psmove.isBluetooth && psmstate.Move == 0)
+		while (psmove.IsBluetooth && psmstate.Move == 0)
 		{
 			psmstate = psmove.getState();
 			psmove.setRumbleIntensity(psmstate.Trigger);
@@ -37,31 +37,31 @@ int main()
 			std::cout << '\r' <<
 				"# " << std::setw(myw) << std::left << psmstate.Sequence <<
 				" A(1): " <<
-				std::setw(myw) << std::right << psmstate.accel.oldFrame[0] << "," <<
-				std::setw(myw) << std::right << psmstate.accel.oldFrame[1] << "," <<
-				std::setw(myw) << std::right << psmstate.accel.oldFrame[2] <<
+				std::setw(myw) << std::right << psmstate.Accel[0][0] << "," <<
+				std::setw(myw) << std::right << psmstate.Accel[0][1] << "," <<
+				std::setw(myw) << std::right << psmstate.Accel[0][2] <<
 				"; A(2): " <<
-				std::setw(myw) << std::right << psmstate.accel.newFrame[0] << "," <<
-				std::setw(myw) << std::right << psmstate.accel.newFrame[1] << "," <<
-				std::setw(myw) << std::right << psmstate.accel.newFrame[2] <<
+				std::setw(myw) << std::right << psmstate.Accel[1][0] << "," <<
+				std::setw(myw) << std::right << psmstate.Accel[1][1] << "," <<
+				std::setw(myw) << std::right << psmstate.Accel[1][2] <<
 				"; G(1): " <<
-				std::setw(myw) << std::right << psmstate.gyro.oldFrame[0] << "," <<
-				std::setw(myw) << std::right << psmstate.gyro.oldFrame[1] << "," <<
-				std::setw(myw) << std::right << psmstate.gyro.oldFrame[2] <<
+				std::setw(myw) << std::right << psmstate.Gyro[0][0] << "," <<
+				std::setw(myw) << std::right << psmstate.Gyro[0][1] << "," <<
+				std::setw(myw) << std::right << psmstate.Gyro[0][2] <<
 				"; G(2): " <<
-				std::setw(myw) << std::right << psmstate.gyro.newFrame[0] << "," <<
-				std::setw(myw) << std::right << psmstate.gyro.newFrame[1] << "," <<
-				std::setw(myw) << std::right << psmstate.gyro.newFrame[2] <<
+				std::setw(myw) << std::right << psmstate.Gyro[1][0] << "," <<
+				std::setw(myw) << std::right << psmstate.Gyro[1][1] << "," <<
+				std::setw(myw) << std::right << psmstate.Gyro[1][2] <<
 				"; M: " <<
-				std::setw(myw) << std::right << psmstate.mag[0] << "," <<
-				std::setw(myw) << std::right << psmstate.mag[1] << "," <<
-				std::setw(myw) << std::right << psmstate.mag[2] <<
+				std::setw(myw) << std::right << psmstate.Mag[0] << "," <<
+				std::setw(myw) << std::right << psmstate.Mag[1] << "," <<
+				std::setw(myw) << std::right << psmstate.Mag[2] <<
 				std::flush;
 
 #ifdef _WIN32
-			_sleep(50); // 50 msec
+			_sleep(5); // 5 msec
 #else
-            usleep(50000);
+            usleep(5000);
 #endif
 		}
         std::cout << std::endl;

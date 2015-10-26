@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <vector>
+#include <math.h>
 
 #define PSMOVE_VID 0x054c
 #define PSMOVE_PID 0x03d5
@@ -15,11 +16,14 @@
 #define PSMOVE_BTADDR_GET_SIZE 16
 #endif
 #define PSMOVE_BTADDR_SIZE 6
+#define PSMOVE_CALIBRATION_SIZE 49 /* Buffer size for calibration data */
+#define PSMOVE_CALIBRATION_BLOB_SIZE (PSMOVE_CALIBRATION_SIZE*3 - 2*2) /* Three blocks, minus header (2 bytes) for blocks 2,3 */
+#define PSMOVE_STATE_BUFFER_MAX 16
 
 /* Decode 12-bit signed value (assuming two's complement) */
 #define TWELVE_BIT_SIGNED(x) (((x) & 0x800)?(-(((~(x)) & 0xFFF) + 1)):(x))
 
-enum PSMove_Request_Type {
+enum PSMoveRequestType {
     PSMove_Req_GetInput = 0x01,
     PSMove_Req_SetLEDs = 0x02,
     PSMove_Req_SetLEDPWMFrequency = 0x03,
@@ -51,7 +55,7 @@ enum PSMove_Request_Type {
     PSMove_Req_SetLEDsPermanentUSB = 0xFA,
 };
 
-enum PSMove_Button {
+enum PSMoveButton {
 	// https://github.com/nitsch/moveonpc/wiki/Input-report
 	Btn_TRIANGLE = 1 << 4,	// Green triangle
 	Btn_CIRCLE = 1 << 5,	// Red circle
@@ -78,7 +82,7 @@ enum PSMove_Button {
 #endif
 };
 
-struct PSMove_Data_Out {
+struct PSMoveDataOutput {
     unsigned char type;     /* message type, must be PSMove_Req_SetLEDs */
     unsigned char _zero;    /* must be zero */
     unsigned char r;        /* red value, 0x00..0xff */
@@ -89,7 +93,7 @@ struct PSMove_Data_Out {
     unsigned char _padding[PSMOVE_BUFFER_SIZE-7]; /* must be zero */
 };
 
-struct PSMove_Data_Input {
+struct PSMoveDataInput {
 	unsigned char type; /* message type, must be PSMove_Req_GetInput */
 	unsigned char buttons1;
 	unsigned char buttons2;
@@ -157,14 +161,14 @@ btAddrUcharToString(const unsigned char* addr_buff)
 }
 
 PSMoveController::PSMoveController(int next_ith)
-	: index(0), ledr(255), ledg(0), ledb(0), rumble(0), lastButtons(0), lastState{}
+	: Index(0), LedR(255), LedG(0), LedB(0), Rumble(0)
 {
 	hid_init();
-	HIDDetails.handle = nullptr;
-	HIDDetails.handle_addr = nullptr;
+	HIDDetails.Handle = nullptr;
+	HIDDetails.Handle_addr = nullptr;
     
-    inData = new PSMove_Data_Input;
-    inData->type = PSMove_Req_GetInput;
+    InData = new PSMoveDataInput;
+    InData->type = PSMove_Req_GetInput;
 
 	std::cout << "Looking for PSMoveController(" << s_nOpened+next_ith << ")" << std::endl;
     struct hid_device_info *devs, *cur_dev;
@@ -184,7 +188,7 @@ PSMoveController::PSMoveController(int next_ith)
 			{
 				std::wcout << "with NULL serial_number" << std::endl;
 			}
-            isBluetooth = !((cur_dev->serial_number == NULL) || (wcslen(cur_dev->serial_number) == 0));
+            IsBluetooth = !((cur_dev->serial_number == NULL) || (wcslen(cur_dev->serial_number) == 0));
 			// On my Mac, using bluetooth,
 			// cur_dev->path = Bluetooth_054c_03d5_779732e8
 			// cur_dev->serial_number = 00-06-f7-97-32-e8
@@ -213,8 +217,8 @@ PSMoveController::PSMoveController(int next_ith)
 			count++;
 			if (count == (s_nOpened + next_ith))
 			{
-				index = count;
-				HIDDetails.device_path = cur_dev->path;
+				Index = count;
+				HIDDetails.Device_path = cur_dev->path;
 #ifdef _WIN32
 				HIDDetails.device_path_addr = HIDDetails.device_path;
 				HIDDetails.device_path_addr.replace(HIDDetails.device_path_addr.find("&col01#"), 7, "&col02#");
@@ -222,8 +226,8 @@ PSMoveController::PSMoveController(int next_ith)
 				HIDDetails.handle_addr = hid_open_path(HIDDetails.device_path_addr.c_str());
 				hid_set_nonblocking(HIDDetails.handle_addr, 1);
 #endif
-                HIDDetails.handle = hid_open_path(HIDDetails.device_path.c_str());
-                hid_set_nonblocking(HIDDetails.handle, 1);
+                HIDDetails.Handle = hid_open_path(HIDDetails.Device_path.c_str());
+                hid_set_nonblocking(HIDDetails.Handle, 1);
 				s_nOpened++;
 				break;
 			}
@@ -247,18 +251,20 @@ PSMoveController::PSMoveController(int next_ith)
             // Once done, we can remove the ifndef above.
             std::wstring ws(cur_dev->serial_number);
             std::string mbs(ws.begin(), ws.end());
-            HIDDetails.bt_addr = mbs;
+            HIDDetails.Bt_addr = mbs;
 #endif
 			std::string host;
-			int success = getBTAddress(host, HIDDetails.bt_addr);
+			int success = getBTAddress(host, HIDDetails.Bt_addr);
 			if (!success)
 			{
 				// TODO: If serial is still bad, maybe we have a disconnected
                 // controller still showing up in hidapi
 			}
             
-			// TODO: Other startup.
 			// Load calibration from file
+            loadCalibration();
+            
+            // TODO: Other startup.
 		}
 	}
 	else
@@ -271,24 +277,24 @@ PSMoveController::~PSMoveController()
 {
 	if (isOpen())
 	{
-		hid_close(HIDDetails.handle);
+		hid_close(HIDDetails.Handle);
 		s_nOpened--;
 	}
-	if ((HIDDetails.handle_addr != nullptr) && (HIDDetails.handle_addr != NULL))
+	if ((HIDDetails.Handle_addr != nullptr) && (HIDDetails.Handle_addr != NULL))
     {
-        hid_close(HIDDetails.handle_addr);
+        hid_close(HIDDetails.Handle_addr);
     }
 	if (s_nOpened == 0)
 	{
 		hid_exit();
 	}
-    delete inData;
+    delete InData;
 }
 
 bool
 PSMoveController::isOpen()
 {
-	return ((index > 0) && (HIDDetails.handle != nullptr) && (HIDDetails.handle != NULL));
+	return ((index > 0) && (HIDDetails.Handle != nullptr) && (HIDDetails.Handle != NULL));
 }
 
 // Getters
@@ -298,7 +304,7 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
 {
     int success = 0;
 
-    if (isBluetooth && !controller.empty())
+    if (IsBluetooth && !controller.empty())
     {
         std::replace(controller.begin(), controller.end(), '-', ':');
         std::transform(controller.begin(), controller.end(), controller.begin(), ::tolower);
@@ -323,11 +329,11 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
         memset(btg, 0, sizeof(btg));
         btg[0] = PSMove_Req_GetBTAddr;
         /* _WIN32 only has move->handle_addr for getting bluetooth address. */
-        if (HIDDetails.handle_addr) {
-            res = hid_get_feature_report(HIDDetails.handle_addr, btg, sizeof(btg));
+        if (HIDDetails.Handle_addr) {
+            res = hid_get_feature_report(HIDDetails.Handle_addr, btg, sizeof(btg));
         }
         else {
-            res = hid_get_feature_report(HIDDetails.handle, btg, sizeof(btg));
+            res = hid_get_feature_report(HIDDetails.Handle, btg, sizeof(btg));
         }
 
         if (res == sizeof(btg)) {
@@ -343,13 +349,13 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
         else
         {
             const wchar_t* hidapi_err;
-            if (HIDDetails.handle_addr)
+            if (HIDDetails.Handle_addr)
             {
-                hidapi_err = hid_error(HIDDetails.handle_addr);
+                hidapi_err = hid_error(HIDDetails.Handle_addr);
             }
             else
             {
-                hidapi_err = hid_error(HIDDetails.handle);
+                hidapi_err = hid_error(HIDDetails.Handle);
             }
             if (hidapi_err)
             {
@@ -359,6 +365,101 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
         }
     }
 	return success;
+}
+    
+static int
+decodeCalibration(char *data, int offset)
+{
+    unsigned char low = data[offset] & 0xFF;
+    unsigned char high = (data[offset+1]) & 0xFF;
+    return (low | (high << 8)) - 0x8000;
+}
+    
+void
+PSMoveController::loadCalibration()
+{
+    // The calibration provides a scale factor (k) and offset (b) to convert
+    // raw accelerometer and gyroscope readings into something more useful.
+    // https://github.com/nitsch/moveonpc/wiki/Calibration-data
+    
+    // Default values are pass-through (raw*1 + 0)
+    std::vector< std::vector<float> > a_xyz_kb = { {1, 0}, {1, 0}, {1, 0} };
+    std::vector< std::vector<float> > g_xyz_kb = { {1, 0}, {1, 0}, {1, 0} };
+    
+    // calibration data storage - loaded from file (if bluetooth) or usb
+    char usb_calibration[PSMOVE_CALIBRATION_BLOB_SIZE];
+    
+    // File pointer to calibration data file
+    
+    
+    if (IsBluetooth)
+    {
+        // TODO: Load the calibration data from file
+    }
+    else
+    {
+        // Load the calibration from the controller itself.
+        unsigned char hid_cal[PSMOVE_CALIBRATION_BLOB_SIZE];
+        unsigned char cal[PSMOVE_CALIBRATION_SIZE];
+        int res;
+        int x;
+        int dest_offset;
+        int src_offset;
+        for (x=0; x<3; x++) {
+            memset(cal, 0, sizeof(cal));
+            cal[0] = PSMove_Req_GetCalibration;
+            res = hid_get_feature_report(HIDDetails.Handle, cal, sizeof(cal));
+            if (cal[1] == 0x00) {
+                /* First block */
+                dest_offset = 0;
+                src_offset = 0;
+            } else if (cal[1] == 0x01) {
+                /* Second block */
+                dest_offset = PSMOVE_CALIBRATION_SIZE;
+                src_offset = 2;
+            } else if (cal[1] == 0x82) {
+                /* Third block */
+                dest_offset = 2*PSMOVE_CALIBRATION_SIZE - 2;
+                src_offset = 2;
+            }
+            memcpy(hid_cal+dest_offset, cal+src_offset,
+                   sizeof(cal)-src_offset);
+        }
+        memcpy(usb_calibration, hid_cal, sizeof(Calibration));
+        
+        // TODO: Save the calibration blob to file.
+        
+        
+        //TODO: Move the following out of if-else once we get file save/load working.
+        
+        // Convert the calibration blob into constant & offset for each accel dim.
+        std::vector< std::vector<int> > dim_lohi = { {1, 3}, {5, 4}, {2, 0} };
+        std::vector<int> res_lohi(2, 0);
+        int dim_ix = 0;
+        int lohi_ix = 0;
+        for (dim_ix = 0; dim_ix < 3; dim_ix++)
+        {
+            for (lohi_ix = 0; lohi_ix < 2; lohi_ix++)
+            {
+                res_lohi[lohi_ix] = decodeCalibration(usb_calibration, 0x04 + 6*dim_lohi[dim_ix][lohi_ix] + 2*dim_ix);
+            }
+            a_xyz_kb[dim_ix][0] = 2.f / (float)(res_lohi[1] - res_lohi[0]);
+            a_xyz_kb[dim_ix][1] = - (a_xyz_kb[dim_ix][0] * (float)res_lohi[0]) - 1.f;
+        }
+        
+        // Convert the calibration blob into constant for each gyro dim.
+        float factor = (float)(2.0 * M_PI * 80.0) / 60.0;
+        for (dim_ix = 0; dim_ix < 3; dim_ix++)
+        {
+            g_xyz_kb[dim_ix][0] = factor / (float)(decodeCalibration(usb_calibration, 0x46 + 10*dim_ix)
+                                                   - decodeCalibration(usb_calibration, 0x2a + 2*dim_ix));
+            // No offset for gyroscope
+        }
+
+        
+    }
+    
+        Calibration = {a_xyz_kb, g_xyz_kb};
 }
 
 /* Decode 16-bit signed value from data pointer and offset */
@@ -370,10 +471,10 @@ psmove_decode_16bit(char *data, int offset)
 	return (low | (high << 8)) - 0x8000;
 }
 
-inline int
+inline enum PSMoveButtonState
 getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask)
 {
-    return (enum PSMoveBatteryLevel)((((lastButtons & buttonMask) > 0) << 1) + ((buttons & buttonMask)>0));
+    return (enum PSMoveButtonState)((((lastButtons & buttonMask) > 0) << 1) + ((buttons & buttonMask)>0));
 }
     
 bool
@@ -383,98 +484,87 @@ PSMoveController::readDataIn()
 
 	// TODO: Rate-limiting
 		
-	int res = hid_read(HIDDetails.handle, (unsigned char*)inData, sizeof(PSMove_Data_Input));
-	if (res == sizeof(PSMove_Data_Input))
+	int res = hid_read(HIDDetails.Handle, (unsigned char*)InData, sizeof(PSMoveDataInput));
+	while (res == sizeof(PSMoveDataInput))
 	{
         // https://github.com/nitsch/moveonpc/wiki/Input-report
         
+        PSMoveState newState;
         
         // Buttons
-		unsigned int buttons = (inData->buttons2) | (inData->buttons1 << 8) |
-			((inData->buttons3 & 0x01) << 16) | ((inData->buttons4 & 0xF0) << 13);
+		newState.AllButtons = (InData->buttons2) | (InData->buttons1 << 8) |
+			((InData->buttons3 & 0x01) << 16) | ((InData->buttons4 & 0xF0) << 13);
+        
+        unsigned int lastButtons = ControllerStates.empty() ? 0 : ControllerStates.back().AllButtons;
 
-        lastState.Triangle = getButtonState(buttons, lastButtons, Btn_TRIANGLE);
-        lastState.Circle = getButtonState(buttons, lastButtons, Btn_CIRCLE);
-        lastState.Cross = getButtonState(buttons, lastButtons, Btn_CROSS);
-        lastState.Square = getButtonState(buttons, lastButtons, Btn_SQUARE);
-        lastState.Select = getButtonState(buttons, lastButtons, Btn_SELECT);
-        lastState.Start = getButtonState(buttons, lastButtons, Btn_START);
-        lastState.PS = getButtonState(buttons, lastButtons, Btn_PS);
-        lastState.Move = getButtonState(buttons, lastButtons, Btn_MOVE);
-		lastState.Trigger = (inData->trigger + inData->trigger2) / 2; // TODO: store each frame separately
-		lastButtons = buttons;
-		
+        newState.Triangle = getButtonState(newState.AllButtons, lastButtons, Btn_TRIANGLE);
+        newState.Circle = getButtonState(newState.AllButtons, lastButtons, Btn_CIRCLE);
+        newState.Cross = getButtonState(newState.AllButtons, lastButtons, Btn_CROSS);
+        newState.Square = getButtonState(newState.AllButtons, lastButtons, Btn_SQUARE);
+        newState.Select = getButtonState(newState.AllButtons, lastButtons, Btn_SELECT);
+        newState.Start = getButtonState(newState.AllButtons, lastButtons, Btn_START);
+        newState.PS = getButtonState(newState.AllButtons, lastButtons, Btn_PS);
+        newState.Move = getButtonState(newState.AllButtons, lastButtons, Btn_MOVE);
+		newState.Trigger = (InData->trigger + InData->trigger2) / 2; // TODO: store each frame separately
         
 		// Sensors (Accel/Gyro/Mag)
-		char* data = (char *)inData;
-		std::vector<int> dimensionOffset = { 0, 2, 4 };  // x, y, z
-
-		// Accelerometer
-		int sensorOffset = offsetof(PSMove_Data_Input, aXlow);
-		int frameOffset = 0;
-		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
-		{
-			int totalOffset = sensorOffset + frameOffset + dimensionOffset[d];
-			lastState.accel.oldFrame[d] =
-				((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
-		}
-		frameOffset = 6;
-		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
-		{
-			int totalOffset = sensorOffset + frameOffset + dimensionOffset[d];
-			lastState.accel.newFrame[d] =
-				((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
-		}
-
-		// Gyroscope
-		sensorOffset = offsetof(PSMove_Data_Input, gXlow);
-		frameOffset = 0;
-		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
-		{
-			int totalOffset = sensorOffset + frameOffset + dimensionOffset[d];
-			lastState.gyro.oldFrame[d] =
-				((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
-		}
-		frameOffset = 6;
-		for (std::vector<int>::size_type d = 0; d != dimensionOffset.size(); d++)
-		{
-			int totalOffset = sensorOffset + frameOffset + dimensionOffset[d];
-			lastState.gyro.newFrame[d] =
-				((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
-		}
-
-		/*
-		int gx = ((input.gXlow + input.gXlow2) + ((input.gXhigh + input.gXhigh2) << 8)) / 2 - 0x8000;
-		int gy = ((input.gYlow + input.gYlow2) + ((input.gYhigh + input.gYhigh2) << 8)) / 2 - 0x8000;
-		int gz = ((input.gZlow + input.gZlow2) + ((input.gZhigh + input.gZhigh2) << 8)) / 2 - 0x8000;
-
-		int ax = ((input.aXlow + input.aXlow2) + ((input.aXhigh + input.aXhigh2) << 8)) / 2 - 0x8000;
-		int ay = ((input.aYlow + input.aYlow2) + ((input.aYhigh + input.aYhigh2) << 8)) / 2 - 0x8000;
-		int az = ((input.aZlow + input.aZlow2) + ((input.aZhigh + input.aZhigh2) << 8)) / 2 - 0x8000;
-		*/
-
-		lastState.mag[0] = TWELVE_BIT_SIGNED(((inData->templow_mXhigh & 0x0F) << 8) | inData->mXlow);
-		lastState.mag[1] = TWELVE_BIT_SIGNED((inData->mYhigh << 4) | (inData->mYlow_mZhigh & 0xF0) >> 4);
-		lastState.mag[2] = TWELVE_BIT_SIGNED(((inData->mYlow_mZhigh & 0x0F) << 8) | inData->mZlow);
+		char* data = (char *)InData;
+        
+        // Do Accel and Gyro together.
+        std::vector< std::vector< std::vector<float> > > ag_12_xyz = { { {0, 0, 0}, {0, 0, 0} }, { {0, 0, 0}, {0, 0, 0} } };
+        std::vector<int> sensorOffsets = { offsetof(PSMoveDataInput, aXlow),
+            offsetof(PSMoveDataInput, gXlow) };
+        std::vector<int> frameOffsets = {0, 6};
+        std::vector<int>::size_type s_ix, f_ix;
+        int d_ix;
+        int totalOffset;
+        int val;
+        
+        for (s_ix = 0; s_ix != sensorOffsets.size(); s_ix++) //accel, gyro
+        {
+            for (f_ix = 0; f_ix != frameOffsets.size(); f_ix++) //old, new
+            {
+                for (d_ix = 0; d_ix < 3; d_ix++)  //x, y, z
+                {
+                    totalOffset = sensorOffsets[s_ix] + frameOffsets[f_ix] + 2*d_ix;
+                    val = ((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
+                    ag_12_xyz[s_ix][f_ix][d_ix] = (float)val*Calibration[s_ix][d_ix][0] + Calibration[s_ix][d_ix][1];
+                }
+            }
+        }
+        newState.Accel = ag_12_xyz[0];
+        newState.Gyro = ag_12_xyz[1];
+        
+        // Mag
+        newState.Mag = {0, 0, 0};
+		newState.Mag[0] = TWELVE_BIT_SIGNED(((InData->templow_mXhigh & 0x0F) << 8) | InData->mXlow);
+		newState.Mag[1] = TWELVE_BIT_SIGNED((InData->mYhigh << 4) | (InData->mYlow_mZhigh & 0xF0) >> 4);
+		newState.Mag[2] = TWELVE_BIT_SIGNED(((InData->mYlow_mZhigh & 0x0F) << 8) | InData->mZlow);
 
         
         // Other
-		lastState.Sequence = (inData->buttons4 & 0x0F);
-        lastState.Battery = (enum PSMoveBatteryLevel)(inData->battery);
-        lastState.TimeStamp = inData->timelow | (inData->timehigh << 8);
-        lastState.TempRaw = (inData->temphigh << 4) | ((inData->templow_mXhigh & 0xF0) >> 4);
+		newState.Sequence = (InData->buttons4 & 0x0F);
+        newState.Battery = (enum PSMoveBatteryLevel)(InData->battery);
+        newState.TimeStamp = InData->timelow | (InData->timehigh << 8);
+        newState.TempRaw = (InData->temphigh << 4) | ((InData->templow_mXhigh & 0xF0) >> 4);
+        
+        ControllerStates.push_back(newState);
         
         success = true;
+        
+        res = hid_read(HIDDetails.Handle, (unsigned char*)InData, sizeof(PSMoveDataInput));
 	}
-	else
+	if (res < 0)
 	{
-		const wchar_t* hidapi_err = hid_error(HIDDetails.handle);
-		if (hidapi_err)
-		{
-			std::wcout << std::endl;
-			std::wcout << hidapi_err << std::endl;
-		}
+		const wchar_t* hidapi_err = hid_error(HIDDetails.Handle);
+        std::wcout << std::endl;
+        std::wcout << hidapi_err << std::endl;
 	}
+    if (ControllerStates.size() > PSMOVE_STATE_BUFFER_MAX)
+    {
+        ControllerStates.erase(ControllerStates.begin(),
+                               ControllerStates.begin()+ControllerStates.size()-PSMOVE_STATE_BUFFER_MAX);
+    }
 
 	return success;
 }
@@ -486,16 +576,29 @@ PSMoveController::getPose(int msec_time)
     return nullPose;
 }
 
-PSMoveState
-PSMoveController::getState()
+const PSMoveState
+PSMoveController::getState(int lookBack)
 {
 	readDataIn();
-    return lastState;
+    if (ControllerStates.empty())
+    {
+        PSMoveState emptyState = PSMoveState();
+        emptyState.Accel = { {0, 0, 0}, {0, 0, 0} };
+        emptyState.Gyro = { {0, 0, 0}, {0, 0, 0} };
+        emptyState.Mag = {0, 0, 0};
+        return emptyState;  // Returns a null state.
+    }
+    else
+    {
+        lookBack = (lookBack < ControllerStates.size()) ? lookBack : ControllerStates.size();
+        return ControllerStates.at(ControllerStates.size() - lookBack - 1);
+    }
 }
     
 float
-PSMoveController::GetTempCelsius()
+PSMoveController::getTempCelsius()
 {
+    PSMoveState lastState = getState();
     /**
      * The Move uses this table in Debug mode. Even though the resulting values
      * are not labeled "degree Celsius" in the Debug output, measurements
@@ -530,15 +633,15 @@ PSMoveController::GetTempCelsius()
 bool
 PSMoveController::writeDataOut()
 {
-    PSMove_Data_Out data_out = PSMove_Data_Out();  // 0-initialized
+    PSMoveDataOutput data_out = PSMoveDataOutput();  // 0-initialized
 	data_out.type = PSMove_Req_SetLEDs;
 	data_out.rumble2 = 0x00;
-    data_out.r = ledr;
-    data_out.g = ledg;
-    data_out.b = ledb;
-    data_out.rumble = rumble;
+    data_out.r = LedR;
+    data_out.g = LedG;
+    data_out.b = LedB;
+    data_out.rumble = Rumble;
     
-    int res = hid_write(HIDDetails.handle, (unsigned char*)(&data_out),
+    int res = hid_write(HIDDetails.Handle, (unsigned char*)(&data_out),
                         sizeof(data_out));
 	return (res == sizeof(data_out));
 }
@@ -547,11 +650,11 @@ bool
 PSMoveController::setLED(unsigned char r, unsigned char g, unsigned char b)
 {
 	bool success = true;
-	if ((ledr != r) || (ledg != g) || (ledb != b))
+	if ((LedR != r) || (LedG != g) || (LedB != b))
 	{
-		ledr = r;
-		ledg = g;
-		ledb = b;
+		LedR = r;
+		LedG = g;
+		LedB = b;
 		success = writeDataOut();
 	}
 	return success;
@@ -561,9 +664,9 @@ bool
 PSMoveController::setRumbleIntensity(unsigned char value)
 {
 	bool success = true;
-	if (rumble != value)
+	if (Rumble != value)
 	{
-		rumble = value;
+		Rumble = value;
 		success = writeDataOut();
 	}
 	return success;
@@ -573,7 +676,7 @@ bool
 PSMoveController::setLEDPWMFrequency(unsigned long freq)
 {
 	bool success = false;
-	if ((freq >= 733) && (freq <= 24e6) && (freq != ledpwmf))
+	if ((freq >= 733) && (freq <= 24e6) && (freq != LedPWMF))
 	{
 		unsigned char buf[7];
 		
@@ -586,8 +689,9 @@ PSMoveController::setLEDPWMFrequency(unsigned long freq)
 		buf[4] = (freq >> 8) & 0xFF;
 		buf[5] = (freq >> 16) & 0xFF;
 		buf[6] = (freq >> 24) & 0xFF;
-		int res = hid_send_feature_report(HIDDetails.handle, buf, sizeof(buf));
+		int res = hid_send_feature_report(HIDDetails.Handle, buf, sizeof(buf));
 		success = (res == sizeof(buf));
+        LedPWMF = freq;
 	}
 	return success;
 }
