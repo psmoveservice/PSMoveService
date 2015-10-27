@@ -58,9 +58,9 @@ message(${OpenCV_INCLUDE_DIRS})
 include_directories(${OpenCV_INCLUDE_DIRS})
 list(APPEND TEST_CAMERA_REQ_LIBS ${OpenCV_LIBS})
 
-# PS3EYEDriver - only on Mac and Win64
+# PS3EYEDriver - only necessary on Mac and Win64, but can be used in Win32 (I think)
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"
-    OR (${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND ${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8))
+    OR (${CMAKE_SYSTEM_NAME} MATCHES "Windows"))
     #PS3EYEDriver
     include_directories(${ROOT_DIR}/thirdparty/PS3EYEDriver/src)
     list(APPEND TEST_CAMERA_SRC
