@@ -4,6 +4,9 @@
 #include <iomanip>
 #include <algorithm>
 #include <vector>
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#endif
 #include <math.h>
 
 #define PSMOVE_VID 0x054c
@@ -220,11 +223,11 @@ PSMoveController::PSMoveController(int next_ith)
 				Index = count;
 				HIDDetails.Device_path = cur_dev->path;
 #ifdef _WIN32
-				HIDDetails.device_path_addr = HIDDetails.device_path;
-				HIDDetails.device_path_addr.replace(HIDDetails.device_path_addr.find("&col01#"), 7, "&col02#");
-				HIDDetails.device_path_addr.replace(HIDDetails.device_path_addr.find("&0000#"), 6, "&0001#");
-				HIDDetails.handle_addr = hid_open_path(HIDDetails.device_path_addr.c_str());
-				hid_set_nonblocking(HIDDetails.handle_addr, 1);
+				HIDDetails.Device_path_addr = HIDDetails.Device_path;
+				HIDDetails.Device_path_addr.replace(HIDDetails.Device_path_addr.find("&col01#"), 7, "&col02#");
+				HIDDetails.Device_path_addr.replace(HIDDetails.Device_path_addr.find("&0000#"), 6, "&0001#");
+				HIDDetails.Handle_addr = hid_open_path(HIDDetails.Device_path_addr.c_str());
+				hid_set_nonblocking(HIDDetails.Handle_addr, 1);
 #endif
                 HIDDetails.Handle = hid_open_path(HIDDetails.Device_path.c_str());
                 hid_set_nonblocking(HIDDetails.Handle, 1);
@@ -294,7 +297,7 @@ PSMoveController::~PSMoveController()
 bool
 PSMoveController::isOpen()
 {
-	return ((index > 0) && (HIDDetails.Handle != nullptr) && (HIDDetails.Handle != NULL));
+	return ((Index > 0) && (HIDDetails.Handle != nullptr) && (HIDDetails.Handle != NULL));
 }
 
 // Getters
@@ -590,7 +593,7 @@ PSMoveController::getState(int lookBack)
     }
     else
     {
-        lookBack = (lookBack < ControllerStates.size()) ? lookBack : ControllerStates.size();
+        lookBack = (lookBack < (int)ControllerStates.size()) ? lookBack : ControllerStates.size();
         return ControllerStates.at(ControllerStates.size() - lookBack - 1);
     }
 }
