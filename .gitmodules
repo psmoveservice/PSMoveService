@@ -7,3 +7,13 @@
 [submodule "thirdparty/PS3EYEDriver"]
 	path = thirdparty/PS3EYEDriver
 	url = https://github.com/inspirit/PS3EYEDriver.git
+[submodule "thirdparty/type_index"]
+	path = thirdparty/type_index
+	url = https://github.com/boostorg/type_index.git
+[submodule "thirdparty/Boost.Application"]
+	path = thirdparty/Boost.Application
+	url = https://github.com/retf/Boost.Application.git
+	branch = 4.8
+[submodule "thirdparty/protobuf"]
+	path = thirdparty/protobuf
+	url = https://github.com/google/protobuf.git

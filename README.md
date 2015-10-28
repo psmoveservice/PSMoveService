@@ -28,7 +28,8 @@ A background service that communicates with the psmove and serves its pose and b
     * Windows
         * From [here](sourceforge.net/projects/boost/files/boost-binaries/1.59.0/),
         get boost_1_59_0-msvc-12.0-32.exe and/or -64.exe.
-        * Install.
+        * Install to a directory of your choice
+        * This path will be referred to BOOST_ROOT later
     * Mac
         * `brew install boost`
 1. libusb (Required on Mac and Windows 64-bit for PS3EYEDriver, Optional on Win32)
@@ -52,7 +53,7 @@ A background service that communicates with the psmove and serves its pose and b
 1. `mkdir build`
 1. `cd build`
 1. Run cmake
-    * Windows: `cmake .. -G "Visual Studio 12"
+    * Windows: `cmake .. -G "Visual Studio 12" -DOpenCV_DIR=C:\OpenCV-3.0.0\build -DBOOST_ROOT=C:\boost_1_59_0`
     * Mac: `cmake .. - G Xcode`
 
 # Build PSMoveService

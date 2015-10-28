@@ -96,7 +96,6 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ENDIF()
 set(OpenCV_STATIC ON)
 FIND_PACKAGE(OpenCV REQUIRED)
-message(${OpenCV_INCLUDE_DIRS})
 include_directories(${OpenCV_INCLUDE_DIRS})
 list(APPEND TEST_CAMERA_REQ_LIBS ${OpenCV_LIBS})
 
