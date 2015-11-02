@@ -1,5 +1,8 @@
+#include <string>
+
 class PSMoveConfig {
 public:
-    PSMoveConfig();
+    PSMoveConfig(const std::string &filenamebase);
     ~PSMoveConfig();
+    
 };
