@@ -3,6 +3,10 @@ cmake_minimum_required(VERSION 3.0)
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
 
 IF(MSVC)
+#I cannot remember which one, but one of our dependencies
+#links against static runtime, so we need our apps to link
+#against the static runtime too.
+#https://cmake.org/Wiki/CMake_FAQ#How_can_I_build_my_MSVC_application_with_a_static_runtime.3F
     set(CompilerFlags
         CMAKE_CXX_FLAGS
         CMAKE_CXX_FLAGS_DEBUG
@@ -57,10 +61,16 @@ SET(TEST_CONFIG_REQ_LIBS)
 #set(Boost_DEBUG 1)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(BOOST_ROOT "C:/local/boost_1_59_0")
+	set(BOOST_LIBRARYDIR "${BOOST_ROOT}/lib32-msvc-12.0")
 ENDIF()
-FIND_PACKAGE(Boost REQUIRED)
+SET          ( Boost_DEBUG                OFF  ) #Switch this and next to ON for help debugging Boost problems.
+SET          ( Boost_DETAILED_FAILURE_MSG OFF  )
+SET          ( Boost_USE_STATIC_LIBS      ON  )
+SET          ( Boost_USE_MULTITHREADED    ON  )
+SET          ( Boost_USE_STATIC_RUNTIME   ON )  #Not default. Because our app is linking against static runtime (see above).
+FIND_PACKAGE(Boost REQUIRED COMPONENTS filesystem system)
 include_directories(${Boost_INCLUDE_DIRS})
-#list(APPEND TEST_CONFIG_REQ_LIBS ${Boost_LIBRARIES})
+list(APPEND TEST_CONFIG_REQ_LIBS ${Boost_LIBRARIES})
 
 # Our custom ConfigManager classes
 # We are not including the PSMoveService project on purpose.

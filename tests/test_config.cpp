@@ -2,5 +2,6 @@
 
 int main()
 {
+	PSMoveConfig myConfig;
     return 0;
 }

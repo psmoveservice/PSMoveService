@@ -6,4 +6,4 @@
 	url = https://github.com/cboulay/hidapi.git
 [submodule "thirdparty/PS3EYEDriver"]
 	path = thirdparty/PS3EYEDriver
-	url = https://github.com/cboulay/PS3EYEDriver.git
+	url = https://github.com/inspirit/PS3EYEDriver.git
