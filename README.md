@@ -32,7 +32,21 @@ A background service that communicates with the psmove and serves its pose and b
         * This path will be referred to BOOST_ROOT later
     * Mac
         * `brew install boost`
-1. libusb (Required on Mac and Windows 64-bit for PS3EYEDriver, Optional on Win32)
+1. protobuf
+    * Windows        
+        * CD to thirdparty\protobuf
+        * mkdir install
+        * cd cmake
+        * mkdir build
+        * cd build
+        * mkdir msvc
+        * cd msvc
+        * cmake -G "Visual Studio 12 2013" -DCMAKE_INSTALL_PREFIX=../../../install -Dprotobuf_BUILD_TESTS=OFF ../..
+        * Open protobuf.sln
+        * Select Release|Win32 and Build > Rebuild Solution
+        * Build the "Install" project
+1. Optional: libusb
+    * Only necessary for PS3EYEDriver (required on Mac and Windows 64-bit)
     * Windows:
         * Open PSMoveService\thirdparty\libusb\msvc\libusb_2013.sln
         * For each combination of Release/Debug * Win32/x64, right-click on libusb-1.0 (static) and Build.

@@ -101,8 +101,9 @@ public:
     {
         return m_msg->ParseFromArray(&buf[HEADER_SIZE], buf.size() - HEADER_SIZE);
     }
+
 private:
-    // Encodes the side into a header at the beginning of buf
+    // Encodes the size into a header at the beginning of buf
     //
     void encode_header(data_buffer& buf, unsigned size) const
     {

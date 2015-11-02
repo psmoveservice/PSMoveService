@@ -2,14 +2,19 @@
 //#define BOOST_ALL_DYN_LINK
 #define BOOST_LIB_DIAGNOSTIC
 
+#include "NetworkManager.h"
+#include "RequestHandler.h"
+
 #include <boost/asio.hpp>
-
-#include <fstream>
-
 #include <boost/application.hpp>
 #include <boost/program_options.hpp>
+#include <fstream>
+#include <cstdio>
 
 using namespace boost;
+
+//-- constants -----
+const int PSMOVE_SERVER_PORT = 9512;
 
 //-- definitions -----
 class PSMoveService
@@ -19,20 +24,26 @@ public:
     {
         BOOST_APPLICATION_FEATURE_SELECT
 
-        //TODO: Remove thread and replace with this once I switch over to async io
-        //boost::shared_ptr<application::status> st = context.find<application::status>();
+        try 
+        {
+            std::shared_ptr<application::status> st = context.find<application::status>();
 
-        //while (st->state() != application::status::stoped)
-        //{
-        //    // application logic here
-        //    boost::this_thread::sleep(boost::posix_time::seconds(1));
-        //}
+            asio::io_service io_service;
+            RequestHandler request_handler;
+            NetworkManager network_manager(io_service, PSMOVE_SERVER_PORT, request_handler);
 
-        // launch a work thread
-        boost::thread thread(boost::bind(&PSMoveService::work_thread, this, &context));
+            while (st->state() != application::status::stoped)
+            {
+                // Process incoming networking requests
+                io_service.poll();
 
-        context.find<application::wait_for_termination_request>()->wait();
-        thread.join(); // the last connection need be served to app exit, comment this to exit quick
+                boost::this_thread::sleep(boost::posix_time::seconds(1));
+            }
+        }
+        catch (std::exception& e) 
+        {
+            std::cerr << e.what() << std::endl;
+        }
 
         return 0;
     }
@@ -50,69 +61,6 @@ public:
     bool resume(application::context& context)
     {
         return true;
-    }
-
-protected:
-
-    void work_thread(application::context* context)
-    {
-        BOOST_APPLICATION_FEATURE_SELECT
-
-        using boost::asio::ip::tcp;
-
-        shared_ptr<application::status> st = context->find<application::status>();
-
-        try
-        {
-            boost::asio::io_service io_service;
-            tcp::acceptor acceptor(io_service, tcp::endpoint(tcp::v4(), 9512));
-
-            for (;;)
-            {
-                if (st->state() == application::status::stoped)
-                {
-                    return;
-                }
-
-                boost::system::error_code error;
-
-                tcp::socket socket(io_service);
-                acceptor.accept(socket);
-
-                // our data is limited to 1024 bytes
-                char data[1024];
-
-                size_t length = socket.read_some(boost::asio::buffer(data), error);
-
-                if (error == boost::asio::error::eof)
-                    break; // Connection closed cleanly by peer.
-                else if (error)
-                    throw boost::system::system_error(error); // Some other error.
-
-                // resprogram_optionsnse (echo)
-                std::string message;
-
-                // detect pause state
-                if (st->state() == application::status::paused)
-                {
-                    message = "PSMoveService is paused, try again later!";
-                }
-                else
-                {
-                    // echo
-                    message = std::string(data, length);
-                }
-
-                boost::asio::write(
-                    socket, boost::asio::buffer(message),
-                    boost::asio::transfer_all(),
-                    error);
-            }
-        }
-        catch (std::exception& e)
-        {
-            std::cerr << e.what() << std::endl;
-        }
     }
 
 private:

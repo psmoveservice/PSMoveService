@@ -1,15 +1,9 @@
-//
-// db_server.cpp: DbServer implementation
-//
-// Eli Bendersky (eliben@gmail.com)
-// This code is in the public domain
-//
-#include "db_server.h"
+//-- includes -----
+#include "NetworkManager.h"
 #include "packedmessage.h"
-#include "stringdb.pb.h"
+#include "PSMoveDataFrame.pb.h"
 #include <cassert>
 #include <iostream>
-#include <map>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -19,36 +13,35 @@
 #include <boost/cstdint.hpp>
 #include <boost/enable_shared_from_this.hpp>
 
+//-- pre-declarations -----
 using namespace std;
 namespace asio = boost::asio;
 using asio::ip::tcp;
 using boost::uint8_t;
 
+class ClientConnection;
+typedef boost::shared_ptr<ClientConnection> ClientConnectionPtr;
 
+//-- constants -----
 #define DEBUG true
 
+//-- implementation -----
 
-typedef map<string, string> StringDatabase;
-
-
-// Database connection - handles a connection with a single client.
-// Create only through the DbConnection::create factory.
-//
-class DbConnection : public boost::enable_shared_from_this<DbConnection>
+// -ClientConnection-
+// Maintains TCP and UDP connection state to a single client.
+// Handles async socket callbacks on the connection.
+// Routes requests through the request handler
+class ClientConnection : public boost::enable_shared_from_this<ClientConnection>
 {
 public:
-    typedef boost::shared_ptr<DbConnection> Pointer;
-    typedef boost::shared_ptr<stringdb::Request> RequestPointer;
-    typedef boost::shared_ptr<stringdb::Response> ResponsePointer;
-
-    static Pointer create(asio::io_service& io_service, StringDatabase& db)
+    static ClientConnectionPtr create(asio::io_service& io_service, RequestHandler &request_handler)
     {
-        return Pointer(new DbConnection(io_service, db));
+        return ClientConnectionPtr(new ClientConnection(io_service, request_handler));
     }
 
-    tcp::socket& get_socket()
+    tcp::socket& get_tcp_socket()
     {
-        return m_socket;
+        return m_tcp_socket;
     }
 
     void start()
@@ -57,21 +50,23 @@ public:
     }
 
 private:
-    tcp::socket m_socket;
-    StringDatabase& m_db_ref;
+    RequestHandler &m_request_handler_ref;
+    tcp::socket m_tcp_socket;
     vector<uint8_t> m_readbuf;
-    PackedMessage<stringdb::Request> m_packed_request;
+    PackedMessage<PSMoveDataFrame::Request> m_packed_request;
 
-    DbConnection(asio::io_service& io_service, StringDatabase& db)
-        : m_socket(io_service), m_db_ref(db),
-        m_packed_request(boost::shared_ptr<stringdb::Request>(new stringdb::Request()))
+    ClientConnection(asio::io_service& io_service, RequestHandler &request_handler)
+        : m_request_handler_ref(request_handler)
+        , m_tcp_socket(io_service)
+        , m_packed_request(boost::shared_ptr<PSMoveDataFrame::Request>(new PSMoveDataFrame::Request()))
     {
     }
     
     void handle_read_header(const boost::system::error_code& error)
     {
         DEBUG && (cerr << "handle read " << error.message() << '\n');
-        if (!error) {
+        if (!error) 
+        {
             DEBUG && (cerr << "Got header!\n");
             DEBUG && (cerr << show_hex(m_readbuf) << endl);
             unsigned msg_len = m_packed_request.decode_header(m_readbuf);
@@ -83,7 +78,8 @@ private:
     void handle_read_body(const boost::system::error_code& error)
     {
         DEBUG && (cerr << "handle body " << error << '\n');
-        if (!error) {
+        if (!error) 
+        {
             DEBUG && (cerr << "Got body!\n");
             DEBUG && (cerr << show_hex(m_readbuf) << endl);
             handle_request();
@@ -97,23 +93,29 @@ private:
     //
     void handle_request()
     {
-        if (m_packed_request.unpack(m_readbuf)) {
-            RequestPointer req = m_packed_request.get_msg();
-            ResponsePointer resp = prepare_response(req);
+        if (m_packed_request.unpack(m_readbuf))
+        {
+            RequestPtr req = m_packed_request.get_msg();
+            ResponsePtr resp = prepare_response(req);
             
             vector<uint8_t> writebuf;
-            PackedMessage<stringdb::Response> resp_msg(resp);
+            PackedMessage<PSMoveDataFrame::Response> resp_msg(resp);
+
             resp_msg.pack(writebuf);
-            asio::write(m_socket, asio::buffer(writebuf));
+            asio::write(m_tcp_socket, asio::buffer(writebuf));
         }
     }
 
     void start_read_header()
     {
         m_readbuf.resize(HEADER_SIZE);
-        asio::async_read(m_socket, asio::buffer(m_readbuf),
-                boost::bind(&DbConnection::handle_read_header, shared_from_this(),
-                    asio::placeholders::error));
+        asio::async_read(
+            m_tcp_socket, 
+            asio::buffer(m_readbuf),
+            boost::bind(
+                &ClientConnection::handle_read_header, 
+                shared_from_this(),
+                asio::placeholders::error));
     }
 
     void start_read_body(unsigned msg_len)
@@ -124,97 +126,74 @@ private:
         //
         m_readbuf.resize(HEADER_SIZE + msg_len);
         asio::mutable_buffers_1 buf = asio::buffer(&m_readbuf[HEADER_SIZE], msg_len);
-        asio::async_read(m_socket, buf,
-                boost::bind(&DbConnection::handle_read_body, shared_from_this(),
-                    asio::placeholders::error));
+        asio::async_read(
+            m_tcp_socket, buf,
+            boost::bind(
+                &ClientConnection::handle_read_body, 
+                shared_from_this(),
+                asio::placeholders::error));
     }
 
-    ResponsePointer prepare_response(RequestPointer req)
+    ResponsePtr prepare_response(RequestPtr request)
     {
-        string value;
-        switch (req->type())
-        {
-            case stringdb::Request::GET_VALUE: 
-            {
-                StringDatabase::iterator i = m_db_ref.find(req->request_get_value().key());
-                value = i == m_db_ref.end() ? "" : i->second;
-                break; 
-            }
-            case stringdb::Request::SET_VALUE:
-                value = req->request_set_value().value();
-                m_db_ref[req->request_set_value().key()] = value;
-                break;
-            case stringdb::Request::COUNT_VALUES:
-            {
-                stringstream sstr;
-                sstr << m_db_ref.size();
-                value = sstr.str();
-                break;
-            }
-            default:
-                assert(0 && "Whoops, bad request!");
-                break;
-        }
-        ResponsePointer resp(new stringdb::Response);
-        resp->set_value(value);
-        return resp;
+        return m_request_handler_ref.handle_request(request);
     }
 };
 
-
-struct DbServer::DbServerImpl
+// -NetworkManagerImpl-
+// Internal implementation of the network manager.
+class NetworkManagerImpl
 {
-    tcp::acceptor acceptor;
-    StringDatabase db;
-
-    DbServerImpl(asio::io_service& io_service, unsigned port)
-        : acceptor(io_service, tcp::endpoint(tcp::v4(), port))
+public:
+    NetworkManagerImpl(asio::io_service& io_service, unsigned port, RequestHandler &requestHandler)
+        : request_handler_ref(requestHandler)
+        , tcp_acceptor(io_service, tcp::endpoint(tcp::v4(), port))
     {
         start_accept();
     }
 
+private:
+    RequestHandler &request_handler_ref;
+    tcp::acceptor tcp_acceptor;
+
     void start_accept()
     {
         // Create a new connection to handle a client. Passing a reference
-        // to db to each connection poses no problem since the server is 
+        // to a request handler to each connection poses no problem since the server is 
         // single-threaded.
-        //
-        DbConnection::Pointer new_connection = 
-            DbConnection::create(acceptor.io_service(), db);
+        ClientConnectionPtr new_connection = 
+            ClientConnection::create(tcp_acceptor.get_io_service(), request_handler_ref);
 
         // Asynchronously wait to accept a new client
         //
-        acceptor.async_accept(new_connection->get_socket(),
-            boost::bind(&DbServerImpl::handle_accept, this, new_connection,
-                asio::placeholders::error));
+        tcp_acceptor.async_accept(
+            new_connection->get_tcp_socket(),
+            boost::bind(&NetworkManagerImpl::handle_accept, this, new_connection, asio::placeholders::error));
     }
 
-    void handle_accept(DbConnection::Pointer connection,
-            const boost::system::error_code& error)
+    void handle_accept(ClientConnectionPtr connection, const boost::system::error_code& error)
     {
         // A new client has connected
         //
-        if (!error) {
+        if (!error)
+        {
             // Start the connection
-            //
             connection->start();
 
             // Accept another client
-            //
             start_accept();
         }
     }
 };
 
-
-DbServer::DbServer(asio::io_service& io_service, unsigned port)
-    : d(new DbServerImpl(io_service, port))
+// -NetworkManager-
+// Public interface to the psmove service network API
+NetworkManager::NetworkManager(asio::io_service& io_service, unsigned port, RequestHandler &requestHandler)
+    : implementation_ptr(new NetworkManagerImpl(io_service, port, requestHandler))
 {
 }
 
-
-DbServer::~DbServer()
+NetworkManager::~NetworkManager()
 {
+    delete implementation_ptr;
 }
-
-

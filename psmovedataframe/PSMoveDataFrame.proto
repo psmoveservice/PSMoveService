@@ -1,48 +1,127 @@
 //
-// stringdb.proto: protobuf definition file for the protocol
+// PSMoveDataFrame.proto: protobuf definition file for the protocol
 //
-// Eli Bendersky (eliben@gmail.com)
-// This code is in the public domain
+// Brendan Walker (brendan@millerwalker.net)
 //
-package stringdb;
+syntax = "proto3";
+package PSMoveDataFrame;
 
-
-// The request has a type and then the relevant optional field is 
-// filled.
-//
+// Reliable (TCP) requests that can issued to the PSMove Service
 message Request {
+    // Unique id for this request. 
+    // Used to keep track of which reponse is associated with which request
+    // when multiple requests are in-flight.
+    int32 request_id = 1;
+
+    // The request type determines which of the request structures is actually used
     enum RequestType {
-        GET_VALUE = 1;
-        SET_VALUE = 2;
-        COUNT_VALUES = 3;
+        GET_ACTIVE_PSMOVE_COUNT= 0;
+        ACQUIRE_PSMOVE = 1;
+        RELEASE_PSMOVE = 2;
+        SET_RUMBLE = 3;
+        CYCLE_TRACKING_COLOR = 4;
+        RESET_POSE = 5;
     }
+    RequestType type = 2;
 
-    required RequestType type = 1;
+    // No parameters for GET_ACTIVE_PSMOVE_COUNT
 
-    message RequestGetValue {
-        required string key = 1;
+    // Parameters for ACQUIRE_PSMOVE
+    // NOTE: ControllerDataFrame packets will start streaming to client upon receiving this request
+    message RequestAcquirePSMove {
+        int32 psmove_id = 1;
     }
-    optional RequestGetValue request_get_value = 21;
+    RequestAcquirePSMove request_acquire_psmove = 21;
 
-    message RequestSetValue {
-        required string key = 1;
-        required string value = 2;
+    // Parameters for RELEASE_PSMOVE
+    // NOTE: ControllerDataFrame packets will stop streaming to client upon receiving this request
+    message RequestReleasePSMove {
+        int32 psmove_id = 1;
     }
-    optional RequestSetValue request_set_value = 22;
+    RequestReleasePSMove request_release_psmove = 22;
 
-    message RequestCountValues {
-        
+    // Parameters for SET_RUMBLE
+    message RequestSetRumble {
+        int32 psmove_id = 1;
+        int32 rumble = 2; // [0,255]
     }
-    optional RequestCountValues request_count_values = 23;
+    RequestSetRumble request_rumble = 23;
+
+    // No parameters for CYCLE_TRACKING_COLOR
+
+    // No parameters for RESET_POSE
 }
 
-
-// The response is a simple string
-// For GET_VALUE, the value is returned (or empty string if no such value)
-// For SET_VALUE, the value is returned
-// For COUNT_VALUES, the count is returned as a string
-//
+// Reliable (TCP) responses to requests
 message Response {
-    required string value = 1;
+    // The response type
+    enum ResponseType {
+        GENERAL_RESULT= 0;
+        ACTIVE_PSMOVE_COUNT= 1;
+    }
+
+    enum ResultCode {
+        RESULT_OK= 0;
+        RESULT_ERROR= 1;
+    }
+
+    ResponseType type = 1;
+    int32 request_id = 2;
+
+    // Parameters for GENERAL_RESULT
+    message ResponseGeneral {
+        ResultCode code = 1;
+    }
+    ResponseGeneral response_general = 21;
+    
+    // Parameters for ACTIVE_PSMOVE_COUNT
+    message ResponseActivePSMoveCount {
+        int32 count = 1;
+    }
+    ResponseActivePSMoveCount response_psmove_count = 22;    
 }
 
+// Unreliable (UDP) controller data packet format
+message ControllerDataFrame
+{
+    // Monotonically increasing id.
+    // Used to throw out old data if it arrives out of order.
+    int32 sequence_num= 1;
+
+    // Controller status flags
+    bool IsConnected= 2;
+    bool IsTrackingEnabled= 3;
+    bool IsCurrentlyTracking= 4;
+
+    // Tracking position in the space of the HMD tracking camera
+    message Position {
+        float x = 1;
+        float y = 2;
+        float z = 3;
+    }
+    Position position = 5;
+
+    // Tracking orientation in the frame of the local magnetic field
+    message Orientation{
+        float x = 1;
+        float y = 2;
+        float z = 3;
+        float w = 4;
+    }
+    Orientation orientation = 6;
+
+    // Raw bitmask of which buttons are currently down
+    // Bit 4 = Green triangle button
+    // Bit 5 = Red circle button
+    // Bit 6 = Blue cross button
+    // Bit 7 = Pink square button
+    // Bit 8 = Select button, left side
+    // Bit 11 = Start button, right side
+    // Bit 16 = PS button, front center
+    // Bit 19 = Move Button, big front button
+    // Bit 20 = Trigger, on the back (set for non-zero analog value)
+    uint32 button_down_bitmask = 7;
+
+    // Trigger analog value [0,255]
+    int32 trigger_value = 8;
+}

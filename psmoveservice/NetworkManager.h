@@ -1,32 +1,25 @@
-//
-// db_server.h: DbServer interface
-//
-// Eli Bendersky (eliben@gmail.com)
-// This code is in the public domain
-//
-#ifndef DB_SERVER_H
-#define DB_SERVER_H
+#ifndef NETWORK_MANAGER_H
+#define NETWORK_MANAGER_H
 
 #include <boost/asio.hpp>
-#include <boost/shared_ptr.hpp>
+#include "RequestHandler.h"
 
-
-// Database server. The constructor starts it listening on the given
-// port with the given io_service.
-//
-class DbServer 
+// -Network Manager-
+// Maintains TCP/UDP connection state with PSMoveClients.
+// Routes requests to the given request handler.
+class NetworkManager 
 {
 public:
-    DbServer(boost::asio::io_service& io_service, unsigned port);
-    ~DbServer();
+    NetworkManager(boost::asio::io_service& io_service, unsigned port, RequestHandler &request_handler);
+    virtual ~NetworkManager();
 
 private:
-    DbServer();
-    void start_accept();
+    // Must use the overloaded constructor
+    NetworkManager();
 
-    struct DbServerImpl;
-    boost::scoped_ptr<DbServerImpl> d;
+    // private implementation - same lifetime as the NetworkManager
+    class NetworkManagerImpl *implementation_ptr;
 };
 
-#endif /* DB_SERVER_H */
+#endif  // NETWORK_MANAGER_H
 
