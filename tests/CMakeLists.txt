@@ -43,6 +43,36 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ELSE() #Linux
 ENDIF()
 
+
+#
+# TEST_CONFIGMANAGER
+#
+
+SET(TEST_CONFIG_SRC)
+SET(TEST_CONFIG_REQ_LIBS)
+
+# Dependencies
+
+# Boost
+#set(Boost_DEBUG 1)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set(BOOST_ROOT "C:/local/boost_1_59_0")
+ENDIF()
+FIND_PACKAGE(Boost REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+#list(APPEND TEST_CONFIG_REQ_LIBS ${Boost_LIBRARIES})
+
+# Our custom ConfigManager classes
+# We are not including the PSMoveService project on purpose.
+include_directories(${ROOT_DIR}/psmoveservice/PSMoveConfig)
+list(APPEND TEST_CONFIG_SRC
+    ${ROOT_DIR}/psmoveservice/PSMoveConfig/PSMoveConfig.h
+    ${ROOT_DIR}/psmoveservice/PSMoveConfig/PSMoveConfig.cpp)
+
+add_executable(test_config ${CMAKE_CURRENT_LIST_DIR}/test_config.cpp ${TEST_CONFIG_SRC})
+target_link_libraries(test_config ${PLATFORM_LIBS} ${TEST_CONFIG_REQ_LIBS})
+
+
 #
 # TEST_CAMERA
 #
@@ -51,7 +81,9 @@ SET(TEST_CAMERA_SRC)
 SET(TEST_CAMERA_REQ_LIBS)
 
 # OpenCV
-#set(OpenCV_DIR ${ROOT_DIR}/thirdparty/opencv/build CACHE PATH "Path to local OpenCV source tree" FORCE)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set(OpenCV_DIR "C:/OpenCV-3.0.0/build")# CACHE PATH "Path to OpenCV" FORCE)
+ENDIF()
 set(OpenCV_STATIC ON)
 FIND_PACKAGE(OpenCV REQUIRED)
 message(${OpenCV_INCLUDE_DIRS})
@@ -91,6 +123,7 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
 ENDIF()
 
 # Our custom OpenCV VideoCapture classes
+# We are not including the PSMoveService project on purpose.
 include_directories(${ROOT_DIR}/psmoveservice/PSEye)
 list(APPEND TEST_CAMERA_SRC
     ${ROOT_DIR}/psmoveservice/PSEye/PSEyeVideoCapture.h
@@ -99,6 +132,7 @@ list(APPEND TEST_CAMERA_SRC
 # The test_camera app
 add_executable(test_camera ${CMAKE_CURRENT_LIST_DIR}/test_camera.cpp ${TEST_CAMERA_SRC})
 target_link_libraries(test_camera ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS})
+
 
 #
 # Test Controller
@@ -121,6 +155,7 @@ ENDIF()
 list(APPEND TEST_CTRLR_SRC ${HIDAPI_SRC})
 
 # PSMoveController
+# We are not including the PSMoveService project on purpose.
 include_directories(${ROOT_DIR}/psmoveservice/PSMoveController)
 list(APPEND TEST_CTRLR_SRC
     ${CMAKE_CURRENT_LIST_DIR}/../psmoveservice/PSMoveController/PSMoveController.h

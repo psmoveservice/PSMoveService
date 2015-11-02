@@ -18,10 +18,19 @@ A background service that communicates with the psmove and serves its pose and b
     * I am opting for a system install of opencv instead of project-specific.
     * Windows
         * Follow steps 1-3 found [here](https://github.com/MicrocontrollersAndMore/OpenCV_3_Windows_10_Installation_Tutorial/blob/master/Installation%20Cheat%20Sheet%201%20-%20OpenCV%203%20and%20C%2B%2B.pdf)
+        * The CMake scripts assume you install to the default directory (C:\OpenCV-3.0.0).
+        If not, you will have to add a `-DOpenCV_DIR=<install dir>\build` flag to your cmake command.
     * Mac
         * Install [homebrew](http://brew.sh/)
         * `brew tap homebrew/science`
         * `brew install opencv`
+1. Boost
+    * Windows
+        * From [here](sourceforge.net/projects/boost/files/boost-binaries/1.59.0/),
+        get boost_1_59_0-msvc-12.0-32.exe and/or -64.exe.
+        * Install.
+    * Mac
+        * `brew install boost`
 1. libusb (Required on Mac and Windows 64-bit for PS3EYEDriver, Optional on Win32)
     * Windows:
         * Open PSMoveService\thirdparty\libusb\msvc\libusb_2013.sln
@@ -43,7 +52,7 @@ A background service that communicates with the psmove and serves its pose and b
 1. `mkdir build`
 1. `cd build`
 1. Run cmake
-    * Windows: `cmake .. -G "Visual Studio 12" -DOpenCV_DIR=C:\OpenCV-3.0.0\build`
+    * Windows: `cmake .. -G "Visual Studio 12"
     * Mac: `cmake .. - G Xcode`
 
 # Build PSMoveService
