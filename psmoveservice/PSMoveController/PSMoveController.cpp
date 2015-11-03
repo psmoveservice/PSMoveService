@@ -163,19 +163,19 @@ const boost::property_tree::ptree
 PSMoveControllerConfig::config2ptree()
 {
 	boost::property_tree::ptree pt;
-	pt.put("Calibration.Accel.X.k", Calibration.Accel.X.k);
-	pt.put("Calibration.Accel.X.b", Calibration.Accel.X.b);
-	pt.put("Calibration.Accel.Y.k", Calibration.Accel.Y.k);
-	pt.put("Calibration.Accel.Y.b", Calibration.Accel.Y.b);
-	pt.put("Calibration.Accel.Z.k", Calibration.Accel.Z.k);
-	pt.put("Calibration.Accel.Z.b", Calibration.Accel.Z.b);
-
-	pt.put("Calibration.Gyro.X.k", Calibration.Gyro.X.k);
-	pt.put("Calibration.Gyro.X.b", Calibration.Gyro.X.b);
-	pt.put("Calibration.Gyro.Y.k", Calibration.Gyro.Y.k);
-	pt.put("Calibration.Gyro.Y.b", Calibration.Gyro.Y.b);
-	pt.put("Calibration.Gyro.Z.k", Calibration.Gyro.Z.k);
-	pt.put("Calibration.Gyro.Z.b", Calibration.Gyro.Z.b);
+	
+	pt.put("Calibration.Accel.X.k", cal_ag_xyz_kb[0][0][0]);
+	pt.put("Calibration.Accel.X.b", cal_ag_xyz_kb[0][0][1]);
+	pt.put("Calibration.Accel.Y.k", cal_ag_xyz_kb[0][1][0]);
+	pt.put("Calibration.Accel.Y.b", cal_ag_xyz_kb[0][1][1]);
+	pt.put("Calibration.Accel.Z.k", cal_ag_xyz_kb[0][2][0]);
+	pt.put("Calibration.Accel.Z.b", cal_ag_xyz_kb[0][2][1]);
+	pt.put("Calibration.Gyro.X.k", cal_ag_xyz_kb[1][0][0]);
+	pt.put("Calibration.Gyro.X.b", cal_ag_xyz_kb[1][0][1]);
+	pt.put("Calibration.Gyro.Y.k", cal_ag_xyz_kb[1][1][0]);
+	pt.put("Calibration.Gyro.Y.b", cal_ag_xyz_kb[1][1][1]);
+	pt.put("Calibration.Gyro.Z.k", cal_ag_xyz_kb[1][2][0]);
+	pt.put("Calibration.Gyro.Z.b", cal_ag_xyz_kb[1][2][1]);
 
 	return pt;
 }
@@ -183,19 +183,19 @@ PSMoveControllerConfig::config2ptree()
 void
 PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 {
-	Calibration.Accel.X.k = pt.get<float>("Calibration.Accel.X.k", 1.0f);
-	Calibration.Accel.X.b = pt.get<float>("Calibration.Accel.X.b", 0.0f);
-	Calibration.Accel.Y.k = pt.get<float>("Calibration.Accel.Y.k", 1.0f);
-	Calibration.Accel.Y.b = pt.get<float>("Calibration.Accel.Y.b", 0.0f);
-	Calibration.Accel.Z.k = pt.get<float>("Calibration.Accel.Z.k", 1.0f);
-	Calibration.Accel.Z.b = pt.get<float>("Calibration.Accel.Z.b", 0.0f);
+	cal_ag_xyz_kb[0][0][0] = pt.get<float>("Calibration.Accel.X.k", 1.0f);
+	cal_ag_xyz_kb[0][0][1] = pt.get<float>("Calibration.Accel.X.b", 0.0f);
+	cal_ag_xyz_kb[0][1][0] = pt.get<float>("Calibration.Accel.Y.k", 1.0f);
+	cal_ag_xyz_kb[0][1][1] = pt.get<float>("Calibration.Accel.Y.b", 0.0f);
+	cal_ag_xyz_kb[0][2][0] = pt.get<float>("Calibration.Accel.Z.k", 1.0f);
+	cal_ag_xyz_kb[0][2][1] = pt.get<float>("Calibration.Accel.Z.b", 0.0f);
 
-	Calibration.Gyro.X.k = pt.get<float>("Calibration.Gyro.X.k", 1.0f);
-	Calibration.Gyro.X.b = pt.get<float>("Calibration.Gyro.X.b", 0.0f);
-	Calibration.Gyro.Y.k = pt.get<float>("Calibration.Gyro.Y.k", 1.0f);
-	Calibration.Gyro.Y.b = pt.get<float>("Calibration.Gyro.Y.b", 0.0f);
-	Calibration.Gyro.Z.k = pt.get<float>("Calibration.Gyro.Z.k", 1.0f);
-	Calibration.Gyro.Z.b = pt.get<float>("Calibration.Gyro.Z.b", 0.0f);
+	cal_ag_xyz_kb[1][0][0] = pt.get<float>("Calibration.Gyro.X.k", 1.0f);
+	cal_ag_xyz_kb[1][0][1] = pt.get<float>("Calibration.Gyro.X.b", 0.0f);
+	cal_ag_xyz_kb[1][1][0] = pt.get<float>("Calibration.Gyro.Y.k", 1.0f);
+	cal_ag_xyz_kb[1][1][1] = pt.get<float>("Calibration.Gyro.Y.b", 0.0f);
+	cal_ag_xyz_kb[1][2][0] = pt.get<float>("Calibration.Gyro.Z.k", 1.0f);
+	cal_ag_xyz_kb[1][2][1] = pt.get<float>("Calibration.Gyro.Z.b", 0.0f);
 }
 
 PSMoveController::PSMoveController(int next_ith)
@@ -434,8 +434,7 @@ PSMoveController::loadCalibration()
 	char usb_calibration[PSMOVE_CALIBRATION_BLOB_SIZE];
 
 	// Default values are pass-through (raw*1 + 0)
-	std::vector< std::vector<float> > a_xyz_kb = { { 1, 0 }, { 1, 0 }, { 1, 0 } };
-	std::vector< std::vector<float> > g_xyz_kb = { { 1, 0 }, { 1, 0 }, { 1, 0 } };
+	cfg.cal_ag_xyz_kb = { { { 1, 0 }, { 1, 0 }, { 1, 0 } }, { { 1, 0 }, { 1, 0 }, { 1, 0 } } };
 
     // Load the calibration from the controller itself.
     unsigned char hid_cal[PSMOVE_CALIBRATION_BLOB_SIZE];
@@ -464,7 +463,7 @@ PSMoveController::loadCalibration()
         memcpy(hid_cal+dest_offset, cal+src_offset,
                 sizeof(cal)-src_offset);
     }
-    memcpy(usb_calibration, hid_cal, sizeof(cfg.Calibration));
+	memcpy(usb_calibration, hid_cal, PSMOVE_CALIBRATION_BLOB_SIZE);
         
     // Convert the calibration blob into constant & offset for each accel dim.
     std::vector< std::vector<int> > dim_lohi = { {1, 3}, {5, 4}, {2, 0} };
@@ -477,32 +476,18 @@ PSMoveController::loadCalibration()
         {
             res_lohi[lohi_ix] = decodeCalibration(usb_calibration, 0x04 + 6*dim_lohi[dim_ix][lohi_ix] + 2*dim_ix);
         }
-        a_xyz_kb[dim_ix][0] = 2.f / (float)(res_lohi[1] - res_lohi[0]);
-        a_xyz_kb[dim_ix][1] = - (a_xyz_kb[dim_ix][0] * (float)res_lohi[0]) - 1.f;
+		cfg.cal_ag_xyz_kb[0][dim_ix][0] = 2.f / (float)(res_lohi[1] - res_lohi[0]);
+		cfg.cal_ag_xyz_kb[0][dim_ix][1] = -(cfg.cal_ag_xyz_kb[0][dim_ix][0] * (float)res_lohi[0]) - 1.f;
     }
         
     // Convert the calibration blob into constant for each gyro dim.
     float factor = (float)(2.0 * M_PI * 80.0) / 60.0;
     for (dim_ix = 0; dim_ix < 3; dim_ix++)
     {
-        g_xyz_kb[dim_ix][0] = factor / (float)(decodeCalibration(usb_calibration, 0x46 + 10*dim_ix)
+		cfg.cal_ag_xyz_kb[1][dim_ix][0] = factor / (float)(decodeCalibration(usb_calibration, 0x46 + 10 * dim_ix)
                                                 - decodeCalibration(usb_calibration, 0x2a + 2*dim_ix));
         // No offset for gyroscope
     }
-
-	cfg.Calibration.Accel.X.k = a_xyz_kb[0][0];
-	cfg.Calibration.Accel.X.b = a_xyz_kb[0][1];
-	cfg.Calibration.Accel.Y.k = a_xyz_kb[1][0];
-	cfg.Calibration.Accel.Y.b = a_xyz_kb[1][1];
-	cfg.Calibration.Accel.Z.k = a_xyz_kb[2][0];
-	cfg.Calibration.Accel.Z.b = a_xyz_kb[2][1];
-
-	cfg.Calibration.Gyro.X.k = g_xyz_kb[0][0];
-	cfg.Calibration.Gyro.X.b = g_xyz_kb[0][1];
-	cfg.Calibration.Gyro.Y.k = g_xyz_kb[1][0];
-	cfg.Calibration.Gyro.Y.b = g_xyz_kb[1][1];
-	cfg.Calibration.Gyro.Z.k = g_xyz_kb[2][0];
-	cfg.Calibration.Gyro.Z.b = g_xyz_kb[2][1];
 
 	cfg.save();
 }
@@ -555,21 +540,6 @@ PSMoveController::readDataIn()
 		// Sensors (Accel/Gyro/Mag)
 		char* data = (char *)InData;
 
-		// Copy calibration data into a container that is easy to loop over.
-		std::vector< std::vector< std::vector<float> > > cal_ag_xyz_kb = { { { 1, 0 }, { 1, 0 }, { 1, 0 } }, { { 1, 0 }, { 1, 0 }, { 1, 0 } } };
-		cal_ag_xyz_kb[0][0][0] = cfg.Calibration.Accel.X.k;
-		cal_ag_xyz_kb[0][0][1] = cfg.Calibration.Accel.X.b;
-		cal_ag_xyz_kb[0][1][0] = cfg.Calibration.Accel.Y.k;
-		cal_ag_xyz_kb[0][1][1] = cfg.Calibration.Accel.Y.b;
-		cal_ag_xyz_kb[0][2][0] = cfg.Calibration.Accel.Z.k;
-		cal_ag_xyz_kb[0][2][1] = cfg.Calibration.Accel.Z.b;
-		cal_ag_xyz_kb[1][0][0] = cfg.Calibration.Gyro.X.k;
-		cal_ag_xyz_kb[1][0][1] = cfg.Calibration.Gyro.X.b;
-		cal_ag_xyz_kb[1][1][0] = cfg.Calibration.Gyro.Y.k;
-		cal_ag_xyz_kb[1][1][1] = cfg.Calibration.Gyro.Y.b;
-		cal_ag_xyz_kb[1][2][0] = cfg.Calibration.Gyro.Z.k;
-		cal_ag_xyz_kb[1][2][1] = cfg.Calibration.Gyro.Z.b;
-
         // Do Accel and Gyro together.
         std::vector< std::vector< std::vector<float> > > ag_12_xyz = { { {0, 0, 0}, {0, 0, 0} }, { {0, 0, 0}, {0, 0, 0} } };
         std::vector<int> sensorOffsets = { offsetof(PSMoveDataInput, aXlow),
@@ -588,7 +558,7 @@ PSMoveController::readDataIn()
                 {
                     totalOffset = sensorOffsets[s_ix] + frameOffsets[f_ix] + 2*d_ix;
                     val = ((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
-					ag_12_xyz[s_ix][f_ix][d_ix] = (float)val*cal_ag_xyz_kb[s_ix][d_ix][0] + cal_ag_xyz_kb[s_ix][d_ix][1];
+					ag_12_xyz[s_ix][f_ix][d_ix] = (float)val*cfg.cal_ag_xyz_kb[s_ix][d_ix][0] + cfg.cal_ag_xyz_kb[s_ix][d_ix][1];
                 }
             }
         }

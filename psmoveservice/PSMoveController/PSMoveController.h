@@ -60,32 +60,17 @@ struct PSMoveHIDDetails {
 
 struct PSMoveDataInput;  // See .cpp for full declaration
 
-struct PSMoveKB {
-	float k = 1.0f;	// Slope
-	float b = 0.0f;	// Offset
-};
-
-struct PSMoveCalib
-{
-	PSMoveKB X;
-	PSMoveKB Y;
-	PSMoveKB Z;
-};
-
 class PSMoveControllerConfig : public PSMoveConfig
 {
 public:
 	PSMoveControllerConfig(const std::string &fnamebase = "PSMoveControllerConfig")
-		: PSMoveConfig(fnamebase){}
-
-	struct PSMoveControllerCalib
-	{
-		PSMoveCalib Accel;
-		PSMoveCalib Gyro;
-	} Calibration;
+		: PSMoveConfig(fnamebase),
+		cal_ag_xyz_kb(2, std::vector<std::vector<float>>(3, std::vector<float>(2, 0.f)))
+	{};
 
 	virtual const boost::property_tree::ptree config2ptree();
 	virtual void ptree2config(const boost::property_tree::ptree &pt);
+	std::vector<std::vector<std::vector<float>>> cal_ag_xyz_kb;
 };
 
 class PSMoveController {
