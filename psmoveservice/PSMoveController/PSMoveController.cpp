@@ -13,11 +13,7 @@
 #define PSMOVE_PID 0x03d5
 #define PSMOVE_BUFFER_SIZE 49 /* Buffer size for writing LEDs and reading sensor data */
 #define PSMOVE_EXT_DATA_BUF_SIZE 5
-#ifdef _WIN32
-#define PSMOVE_BTADDR_GET_SIZE 17
-#else
 #define PSMOVE_BTADDR_GET_SIZE 16
-#endif
 #define PSMOVE_BTADDR_SIZE 6
 #define PSMOVE_CALIBRATION_SIZE 49 /* Buffer size for calibration data */
 #define PSMOVE_CALIBRATION_BLOB_SIZE (PSMOVE_CALIBRATION_SIZE*3 - 2*2) /* Three blocks, minus header (2 bytes) for blocks 2,3 */
