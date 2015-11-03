@@ -1,8 +1,9 @@
 #include "PSMoveDataFrame.h"
+#include "PSMoveConfig.h"
+#include "hidapi.h"
 #include <string>
 #include <vector>
 #include <deque>
-#include "hidapi.h"
 
 enum PSMoveButtonState {
     Button_UP = 0x01,       // Not pressed
@@ -59,6 +60,34 @@ struct PSMoveHIDDetails {
 
 struct PSMoveDataInput;  // See .cpp for full declaration
 
+struct PSMoveKB {
+	float k = 1.0f;	// Slope
+	float b = 0.0f;	// Offset
+};
+
+struct PSMoveCalib
+{
+	PSMoveKB X;
+	PSMoveKB Y;
+	PSMoveKB Z;
+};
+
+class PSMoveControllerConfig : public PSMoveConfig
+{
+public:
+	PSMoveControllerConfig(const std::string &fnamebase = "PSMoveControllerConfig")
+		: PSMoveConfig(fnamebase){}
+
+	struct PSMoveControllerCalib
+	{
+		PSMoveCalib Accel;
+		PSMoveCalib Gyro;
+	} Calibration;
+
+	virtual const boost::property_tree::ptree config2ptree();
+	virtual void ptree2config(const boost::property_tree::ptree &pt);
+};
+
 class PSMoveController {
 public:
     PSMoveController(const int next_ith = 1);       // next_ith beyond s_nOpened
@@ -77,6 +106,7 @@ public:
     
     static int s_nOpened;                           // Total number of opened controllers
     bool IsBluetooth;                               // true if valid serial number on device opening
+	PSMoveControllerConfig cfg;
     
 private:
     
@@ -93,6 +123,5 @@ private:
 	unsigned long LedPWMF;
     std::deque<PSMoveState> ControllerStates;
     PSMoveDataInput* InData;                      // Buffer to copy hidapi reports into
-    std::vector< std::vector< std::vector<float> > > Calibration;  // 2 sensors, 3 dimensions, k&b
     PSMoveDataFrame DataFrame;                      // TODO: Move this to a TrackerAndSensorFusion class
 };

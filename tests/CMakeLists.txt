@@ -166,14 +166,17 @@ list(APPEND TEST_CTRLR_SRC ${HIDAPI_SRC})
 
 # PSMoveController
 # We are not including the PSMoveService project on purpose.
+include_directories(${ROOT_DIR}/psmoveservice/PSMoveConfig)
 include_directories(${ROOT_DIR}/psmoveservice/PSMoveController)
 list(APPEND TEST_CTRLR_SRC
-    ${CMAKE_CURRENT_LIST_DIR}/../psmoveservice/PSMoveController/PSMoveController.h
-    ${CMAKE_CURRENT_LIST_DIR}/../psmoveservice/PSMoveController/PSMoveController.cpp)
+	${ROOT_DIR}/psmoveservice/PSMoveConfig/PSMoveConfig.h
+	${ROOT_DIR}/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
+    ${ROOT_DIR}/psmoveservice/PSMoveController/PSMoveController.h
+    ${ROOT_DIR}/psmoveservice/PSMoveController/PSMoveController.cpp)
 
 # PSMoveDataFrame
 include_directories(${ROOT_DIR}/psmovedataframe)
-list(APPEND TEST_CTRLR_REQ_LIBS PSMoveDataFrame)
+list(APPEND TEST_CTRLR_REQ_LIBS PSMoveDataFrame ${Boost_LIBRARIES})
 
 add_executable(test_controller ${CMAKE_CURRENT_LIST_DIR}/test_controller.cpp ${TEST_CTRLR_SRC})
 target_link_libraries(test_controller ${PLATFORM_LIBS} ${TEST_CTRLR_REQ_LIBS})
