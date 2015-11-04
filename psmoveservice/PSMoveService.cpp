@@ -2,7 +2,7 @@
 //#define BOOST_ALL_DYN_LINK
 #define BOOST_LIB_DIAGNOSTIC
 
-#include "NetworkManager.h"
+#include "ServerNetworkManager.h"
 #include "RequestHandler.h"
 
 #include <boost/asio.hpp>
@@ -20,25 +20,45 @@ const int PSMOVE_SERVER_PORT = 9512;
 class PSMoveService
 {
 public:
+    PSMoveService() 
+        : config_path()
+        , request_handler()
+        , network_manager(PSMOVE_SERVER_PORT, request_handler)
+    {
+    }
+
     int operator()(application::context& context)
     {
         BOOST_APPLICATION_FEATURE_SELECT
 
+        // Attempt to start and run the service
         try 
         {
-            std::shared_ptr<application::status> st = context.find<application::status>();
-
-            asio::io_service io_service;
-            RequestHandler request_handler;
-            NetworkManager network_manager(io_service, PSMOVE_SERVER_PORT, request_handler);
-
-            while (st->state() != application::status::stoped)
+            if (startup())
             {
-                // Process incoming networking requests
-                io_service.poll();
+                std::shared_ptr<application::status> st = context.find<application::status>();
 
-                boost::this_thread::sleep(boost::posix_time::seconds(1));
+                while (st->state() != application::status::stoped)
+                {
+                    update();
+
+                    boost::this_thread::sleep(boost::posix_time::seconds(1));
+                }
             }
+            else
+            {
+                std::cerr << "Failed to startup the PSMove service" << std::endl;
+            }
+        }
+        catch (std::exception& e) 
+        {
+            std::cerr << e.what() << std::endl;
+        }
+
+        // Attempt to shutdown the service
+        try 
+        {
+           shutdown();
         }
         catch (std::exception& e) 
         {
@@ -64,12 +84,45 @@ public:
     }
 
 private:
+    bool startup()
+    {
+        bool success= true;
+
+        // Start listening for client connections
+        if (success)
+        {
+            if (!network_manager.startup())
+            {
+                std::cerr << "Failed to initialize the service network manager" << std::endl;
+                success= false;
+            }
+        }
+
+        return success;
+    }
+
+    void update()
+    {
+        // Process incoming/outgoing networking requests
+        network_manager.update();
+    }
+
+    void shutdown()
+    {
+        // Close all active network connections
+        network_manager.shutdown();
+    }
+
+private:
     filesystem::path config_path;
+    RequestHandler request_handler;
+    ServerNetworkManager network_manager;
 };
 
 //-- Entry program_optionsint ---
 int main(int argc, char *argv[])
 {
+    // used to select between std:: and boost:: namespaces
     BOOST_APPLICATION_FEATURE_SELECT
 
     try

@@ -1,5 +1,5 @@
 //-- includes -----
-#include "NetworkManager.h"
+#include "ServerNetworkManager.h"
 #include "packedmessage.h"
 #include "PSMoveDataFrame.pb.h"
 #include <cassert>
@@ -21,12 +21,12 @@ using boost::uint8_t;
 
 class ClientConnection;
 typedef boost::shared_ptr<ClientConnection> ClientConnectionPtr;
+typedef vector<ClientConnectionPtr>::iterator ClientConnectionIter;
 
 //-- constants -----
 #define DEBUG true
 
-//-- implementation -----
-
+//-- private implementation -----
 // -ClientConnection-
 // Maintains TCP and UDP connection state to a single client.
 // Handles async socket callbacks on the connection.
@@ -34,6 +34,12 @@ typedef boost::shared_ptr<ClientConnection> ClientConnectionPtr;
 class ClientConnection : public boost::enable_shared_from_this<ClientConnection>
 {
 public:
+    virtual ~ClientConnection()
+    {
+        // Socket should have been closed by this point
+        assert(!m_tcp_socket.is_open());
+    }
+
     static ClientConnectionPtr create(asio::io_service& io_service, RequestHandler &request_handler)
     {
         return ClientConnectionPtr(new ClientConnection(io_service, request_handler));
@@ -47,6 +53,22 @@ public:
     void start()
     {
         start_read_header();
+    }
+
+    void stop()
+    {
+        if (m_tcp_socket.is_open())
+        {
+            m_tcp_socket.shutdown(asio::socket_base::shutdown_both);
+
+            boost::system::error_code error;
+            m_tcp_socket.close(error);
+
+            if (error)
+            {
+                DEBUG && (cerr << "Problem closing the socket: " << error.value() << endl);
+            }
+        }
     }
 
 private:
@@ -95,11 +117,11 @@ private:
     {
         if (m_packed_request.unpack(m_readbuf))
         {
-            RequestPtr req = m_packed_request.get_msg();
-            ResponsePtr resp = prepare_response(req);
+            RequestPtr request = m_packed_request.get_msg();
+            ResponsePtr response = m_request_handler_ref.handle_request(request);
             
             vector<uint8_t> writebuf;
-            PackedMessage<PSMoveDataFrame::Response> resp_msg(resp);
+            PackedMessage<PSMoveDataFrame::Response> resp_msg(response);
 
             resp_msg.pack(writebuf);
             asio::write(m_tcp_socket, asio::buffer(writebuf));
@@ -133,43 +155,68 @@ private:
                 shared_from_this(),
                 asio::placeholders::error));
     }
-
-    ResponsePtr prepare_response(RequestPtr request)
-    {
-        return m_request_handler_ref.handle_request(request);
-    }
 };
 
 // -NetworkManagerImpl-
 // Internal implementation of the network manager.
-class NetworkManagerImpl
+class ServerNetworkManagerImpl
 {
 public:
-    NetworkManagerImpl(asio::io_service& io_service, unsigned port, RequestHandler &requestHandler)
+    ServerNetworkManagerImpl(unsigned port, RequestHandler &requestHandler)
         : request_handler_ref(requestHandler)
+        , io_service()
         , tcp_acceptor(io_service, tcp::endpoint(tcp::v4(), port))
+        , connections()
     {
-        start_accept();
+    }
+
+    virtual ~ServerNetworkManagerImpl()
+    {
+        // All connections should have been closed at this point
+        assert(connections.empty());
+    }
+
+    void start_accept()
+    {
+        // Create a new connection to handle a client. 
+        // Passing a reference to a request handler to each connection poses no problem 
+        // since the server is single-threaded.
+        ClientConnectionPtr new_connection = 
+            ClientConnection::create(tcp_acceptor.get_io_service(), request_handler_ref);
+
+        // Add the connection to the list
+        connections.push_back(new_connection);
+
+        // Asynchronously wait to accept a new client
+        tcp_acceptor.async_accept(
+            new_connection->get_tcp_socket(),
+            boost::bind(&ServerNetworkManagerImpl::handle_accept, this, new_connection, asio::placeholders::error));
+
+        // TODO: Add callbacks for client disconnects
+    }
+
+    void poll()
+    {
+        io_service.poll();
+    }
+
+    void close_all_connections()
+    {
+        for (ClientConnectionIter iter= connections.begin(); iter != connections.end(); ++iter)
+        {
+            ClientConnectionPtr clientConnection= *iter;
+
+            clientConnection->stop();
+        }
+
+        connections.clear();
     }
 
 private:
     RequestHandler &request_handler_ref;
+    asio::io_service io_service;
     tcp::acceptor tcp_acceptor;
-
-    void start_accept()
-    {
-        // Create a new connection to handle a client. Passing a reference
-        // to a request handler to each connection poses no problem since the server is 
-        // single-threaded.
-        ClientConnectionPtr new_connection = 
-            ClientConnection::create(tcp_acceptor.get_io_service(), request_handler_ref);
-
-        // Asynchronously wait to accept a new client
-        //
-        tcp_acceptor.async_accept(
-            new_connection->get_tcp_socket(),
-            boost::bind(&NetworkManagerImpl::handle_accept, this, new_connection, asio::placeholders::error));
-    }
+    vector<ClientConnectionPtr> connections;
 
     void handle_accept(ClientConnectionPtr connection, const boost::system::error_code& error)
     {
@@ -186,14 +233,30 @@ private:
     }
 };
 
-// -NetworkManager-
-// Public interface to the psmove service network API
-NetworkManager::NetworkManager(asio::io_service& io_service, unsigned port, RequestHandler &requestHandler)
-    : implementation_ptr(new NetworkManagerImpl(io_service, port, requestHandler))
+//-- public interface -----
+ServerNetworkManager::ServerNetworkManager(unsigned port, RequestHandler &requestHandler)
+    : implementation_ptr(new ServerNetworkManagerImpl(port, requestHandler))
 {
 }
 
-NetworkManager::~NetworkManager()
+bool ServerNetworkManager::startup()
+{
+    implementation_ptr->start_accept();
+
+    return true;
+}
+
+void ServerNetworkManager::update()
+{
+    implementation_ptr->poll();
+}
+
+void ServerNetworkManager::shutdown()
+{
+    implementation_ptr->close_all_connections();
+}
+
+ServerNetworkManager::~ServerNetworkManager()
 {
     delete implementation_ptr;
 }

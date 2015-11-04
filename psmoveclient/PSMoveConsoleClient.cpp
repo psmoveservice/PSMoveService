@@ -12,8 +12,10 @@
 //#define BOOST_ALL_DYN_LINK
 #define BOOST_LIB_DIAGNOSTIC
 
-#include <boost/asio.hpp>
+#include "ClientNetworkManager.h"
+#include "ResponseHandler.h"
 
+#include <boost/asio.hpp>
 #include <boost/application.hpp>
 #include <boost/program_options.hpp>
 
@@ -22,92 +24,121 @@ using namespace boost;
 class PSMoveConsoleClient
 {
 public:
-   int operator()(application::context& context)
-   {
+    PSMoveConsoleClient() 
+        : response_handler()
+        , network_manager("localhost", "9512", response_handler)
+    {
+    }
 
-      BOOST_APPLICATION_FEATURE_SELECT
+    int operator()(application::context& context)
+    {
+        BOOST_APPLICATION_FEATURE_SELECT
 
-      // recovery needed aspect
-      shared_ptr<application::args> myargs 
-         = context.find<application::args>();
+        // Attempt to start and run the client
+        try 
+        {
+            if (startup())
+            {
+                std::shared_ptr<application::status> st = context.find<application::status>();
 
-      using boost::asio::ip::tcp;
+                while (st->state() != application::status::stoped)
+                {
+                    update();
 
-      // define our simple installation schema options
-      program_options::options_description cli("client options");
-      cli.add_options()
-         ("help", "produce a help message")
-         (",s", program_options::value<std::string>()->default_value("test"), "string to send")
-         ;
+                    boost::this_thread::sleep(boost::posix_time::seconds(1));
+                }
+            }
+            else
+            {
+                std::cerr << "Failed to startup the PSMove Client" << std::endl;
+            }
+        }
+        catch (std::exception& e) 
+        {
+            std::cerr << e.what() << std::endl;
+        }
 
-      program_options::variables_map vm;
-      program_options::store(program_options::parse_command_line(myargs->argc(), myargs->argv(), cli), vm);
-
-      if (vm.count("help")) 
-      {
-         std::cout << cli << std::endl;
-         return 1;
-      }
-
-      std::string message_string = vm["-s"].as<std::string>();
-
-      if(message_string.size() > 1024)
-      {
-         std::cerr << "Message is too long!" << std::endl; 
-      }
-
-      std::cout 
-         << "We will send to server : " 
-         << message_string
-         << std::endl;
-
-      boost::system::error_code error;
-      boost::asio::io_service io_service;
-
-      tcp::resolver resolver(io_service);
-      tcp::resolver::query query(tcp::v4(), "localhost", "9512");
-      tcp::resolver::iterator iterator = resolver.resolve(query);
-
-      tcp::socket socket(io_service);
-      boost::asio::connect(socket, iterator);
-
-      boost::asio::write(socket, boost::asio::buffer(message_string), 
-               boost::asio::transfer_all(), error);
-
-      char reply[1024];
-      size_t reply_length = socket.read_some(boost::asio::buffer(reply), error);
-
-      std::cout << "Reply is: ";
-      std::cout.write(reply, reply_length);
-      std::cout << "\n";
+        // Attempt to shutdown the client
+        try 
+        {
+           shutdown();
+        }
+        catch (std::exception& e) 
+        {
+            std::cerr << e.what() << std::endl;
+        }
       
-      return 0;
+        return 0;
    }
 
+private:
+    bool startup()
+    {
+        bool success= true;
+
+        // Start listening for client connections
+        if (success)
+        {
+            if (!network_manager.startup())
+            {
+                std::cerr << "Failed to initialize the client network manager" << std::endl;
+                success= false;
+            }
+        }
+
+        return success;
+    }
+
+    void update()
+    {
+        // Process incoming/outgoing networking requests
+        network_manager.update();
+    }
+
+    void shutdown()
+    {
+        // Close all active network connections
+        network_manager.shutdown();
+    }
+
+private:
+    ResponseHandler response_handler;
+    ClientNetworkManager network_manager;
 }; // PSMoveConsoleClient class
 
 int main(int argc, char *argv[])
 {   
    BOOST_APPLICATION_FEATURE_SELECT
 
-   try 
-   {
-      PSMoveConsoleClient app;
-      application::context app_context;
+    try 
+    {
+        PSMoveConsoleClient app;
+        application::context app_context;
 
-      // aspects
+        program_options::variables_map vm;
+        program_options::options_description desc;
 
-      app_context.insert<application::args>(
-         make_shared<application::args>(argc, argv));
+        desc.add_options()
+            (",h", "Shows help.")
+            (",f", "Run as common application")
+            ("help", "produce a help message")
+            ;
 
-      // app instantiation
+        program_options::store(program_options::parse_command_line(argc, argv, desc), vm);
 
-      return application::launch<application::common>(app, app_context);
-   }
-   catch(boost::system::system_error& se)
-   {
-      std::cerr << se.what() << std::endl;
-      return 1;
-   }
+        if (vm.count("-h"))
+        {
+            std::cout << desc << std::endl;
+            return 0;
+        }
+
+        // app instantiation
+        return application::launch<application::common>(app, app_context);
+    }
+    catch(boost::system::system_error& se)
+    {
+        std::cerr << se.what() << std::endl;
+        return 1;
+    }
 }
 
