@@ -115,6 +115,34 @@ inline bool Response_ResultCode_Parse(
   return ::google::protobuf::internal::ParseNamedEnum<Response_ResultCode>(
     Response_ResultCode_descriptor(), name, value);
 }
+enum ControllerDataFrame_ButtonType {
+  ControllerDataFrame_ButtonType_TRIANGLE = 0,
+  ControllerDataFrame_ButtonType_CIRCLE = 1,
+  ControllerDataFrame_ButtonType_CROSS = 2,
+  ControllerDataFrame_ButtonType_SQUARE = 3,
+  ControllerDataFrame_ButtonType_SELECT = 4,
+  ControllerDataFrame_ButtonType_START = 5,
+  ControllerDataFrame_ButtonType_PS = 6,
+  ControllerDataFrame_ButtonType_MOVE = 7,
+  ControllerDataFrame_ButtonType_TRIGGER = 8,
+  ControllerDataFrame_ButtonType_ControllerDataFrame_ButtonType_INT_MIN_SENTINEL_DO_NOT_USE_ = ::google::protobuf::kint32min,
+  ControllerDataFrame_ButtonType_ControllerDataFrame_ButtonType_INT_MAX_SENTINEL_DO_NOT_USE_ = ::google::protobuf::kint32max
+};
+bool ControllerDataFrame_ButtonType_IsValid(int value);
+const ControllerDataFrame_ButtonType ControllerDataFrame_ButtonType_ButtonType_MIN = ControllerDataFrame_ButtonType_TRIANGLE;
+const ControllerDataFrame_ButtonType ControllerDataFrame_ButtonType_ButtonType_MAX = ControllerDataFrame_ButtonType_TRIGGER;
+const int ControllerDataFrame_ButtonType_ButtonType_ARRAYSIZE = ControllerDataFrame_ButtonType_ButtonType_MAX + 1;
+
+const ::google::protobuf::EnumDescriptor* ControllerDataFrame_ButtonType_descriptor();
+inline const ::std::string& ControllerDataFrame_ButtonType_Name(ControllerDataFrame_ButtonType value) {
+  return ::google::protobuf::internal::NameOfEnum(
+    ControllerDataFrame_ButtonType_descriptor(), value);
+}
+inline bool ControllerDataFrame_ButtonType_Parse(
+    const ::std::string& name, ControllerDataFrame_ButtonType* value) {
+  return ::google::protobuf::internal::ParseNamedEnum<ControllerDataFrame_ButtonType>(
+    ControllerDataFrame_ButtonType_descriptor(), name, value);
+}
 // ===================================================================
 
 class Request_RequestAcquirePSMove : public ::google::protobuf::Message {
@@ -1065,6 +1093,37 @@ class ControllerDataFrame : public ::google::protobuf::Message {
   typedef ControllerDataFrame_Position Position;
   typedef ControllerDataFrame_Orientation Orientation;
 
+  typedef ControllerDataFrame_ButtonType ButtonType;
+  static const ButtonType TRIANGLE = ControllerDataFrame_ButtonType_TRIANGLE;
+  static const ButtonType CIRCLE = ControllerDataFrame_ButtonType_CIRCLE;
+  static const ButtonType CROSS = ControllerDataFrame_ButtonType_CROSS;
+  static const ButtonType SQUARE = ControllerDataFrame_ButtonType_SQUARE;
+  static const ButtonType SELECT = ControllerDataFrame_ButtonType_SELECT;
+  static const ButtonType START = ControllerDataFrame_ButtonType_START;
+  static const ButtonType PS = ControllerDataFrame_ButtonType_PS;
+  static const ButtonType MOVE = ControllerDataFrame_ButtonType_MOVE;
+  static const ButtonType TRIGGER = ControllerDataFrame_ButtonType_TRIGGER;
+  static inline bool ButtonType_IsValid(int value) {
+    return ControllerDataFrame_ButtonType_IsValid(value);
+  }
+  static const ButtonType ButtonType_MIN =
+    ControllerDataFrame_ButtonType_ButtonType_MIN;
+  static const ButtonType ButtonType_MAX =
+    ControllerDataFrame_ButtonType_ButtonType_MAX;
+  static const int ButtonType_ARRAYSIZE =
+    ControllerDataFrame_ButtonType_ButtonType_ARRAYSIZE;
+  static inline const ::google::protobuf::EnumDescriptor*
+  ButtonType_descriptor() {
+    return ControllerDataFrame_ButtonType_descriptor();
+  }
+  static inline const ::std::string& ButtonType_Name(ButtonType value) {
+    return ControllerDataFrame_ButtonType_Name(value);
+  }
+  static inline bool ButtonType_Parse(const ::std::string& name,
+      ButtonType* value) {
+    return ControllerDataFrame_ButtonType_Parse(name, value);
+  }
+
   // accessors -------------------------------------------------------
 
   // optional int32 sequence_num = 1;
@@ -1809,6 +1868,11 @@ template <> struct is_proto_enum< ::PSMoveDataFrame::Response_ResultCode> : ::go
 template <>
 inline const EnumDescriptor* GetEnumDescriptor< ::PSMoveDataFrame::Response_ResultCode>() {
   return ::PSMoveDataFrame::Response_ResultCode_descriptor();
+}
+template <> struct is_proto_enum< ::PSMoveDataFrame::ControllerDataFrame_ButtonType> : ::google::protobuf::internal::true_type {};
+template <>
+inline const EnumDescriptor* GetEnumDescriptor< ::PSMoveDataFrame::ControllerDataFrame_ButtonType>() {
+  return ::PSMoveDataFrame::ControllerDataFrame_ButtonType_descriptor();
 }
 
 }  // namespace protobuf

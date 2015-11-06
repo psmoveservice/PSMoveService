@@ -179,3 +179,33 @@ list(APPEND TEST_CTRLR_REQ_LIBS PSMoveDataFrame ${Boost_LIBRARIES})
 
 add_executable(test_controller ${CMAKE_CURRENT_LIST_DIR}/test_controller.cpp ${TEST_CTRLR_SRC})
 target_link_libraries(test_controller ${PLATFORM_LIBS} ${TEST_CTRLR_REQ_LIBS})
+
+#
+# TEST_CONSOLE_CLIENT
+#
+
+set(TEST_CONSOLE_CLIENT_REQ_LIBS)
+
+include_directories(${ROOT_DIR}/psmovedataframe/)
+include_directories(${ROOT_DIR}/psmoveclient/)
+include_directories(${ROOT_DIR}/thirdparty/Boost.Application/include/)
+include_directories(${ROOT_DIR}/thirdparty/type_index/include/)
+include_directories(${ROOT_DIR}/thirdparty/protobuf/install/include)
+
+link_directories(${ROOT_DIR}/thirdparty/protobuf/install/lib)
+
+set(Boost_USE_STATIC_LIBS        ON) # only find static libs
+set(Boost_USE_MULTITHREADED      ON)
+set(Boost_USE_STATIC_RUNTIME     ON)
+find_package(Boost 1.59.0 REQUIRED COMPONENTS atomic chrono date_time filesystem program_options regex system thread)
+include_directories(${Boost_INCLUDE_DIRS})
+
+list(APPEND TEST_CONSOLE_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
+list(APPEND TEST_CONSOLE_CLIENT_REQ_LIBS PSMoveDataFrame)
+list(APPEND TEST_CONSOLE_CLIENT_REQ_LIBS PSMoveClient)
+
+add_executable(test_console_client test_console_client.cpp)
+target_link_libraries(test_console_client ${TEST_CONSOLE_CLIENT_REQ_LIBS})
+target_link_libraries(test_console_client debug libprotobufd)
+target_link_libraries(test_console_client optimized libprotobuf)
+

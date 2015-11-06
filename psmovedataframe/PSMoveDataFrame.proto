@@ -110,16 +110,21 @@ message ControllerDataFrame
     }
     Orientation orientation = 6;
 
+    // Button Index Bits
+    enum ButtonType {
+        TRIANGLE= 0;
+        CIRCLE= 1;
+        CROSS= 2;
+        SQUARE= 3;
+        SELECT= 4;
+        START= 5;
+        PS= 6;
+        MOVE= 7;
+        TRIGGER= 8;
+    }
+    
     // Raw bitmask of which buttons are currently down
-    // Bit 4 = Green triangle button
-    // Bit 5 = Red circle button
-    // Bit 6 = Blue cross button
-    // Bit 7 = Pink square button
-    // Bit 8 = Select button, left side
-    // Bit 11 = Start button, right side
-    // Bit 16 = PS button, front center
-    // Bit 19 = Move Button, big front button
-    // Bit 20 = Trigger, on the back (set for non-zero analog value)
+    // Buttons bits are indexed using the ButtonType enum
     uint32 button_down_bitmask = 7;
 
     // Trigger analog value [0,255]

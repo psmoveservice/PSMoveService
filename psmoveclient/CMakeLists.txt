@@ -25,11 +25,14 @@ IF(MSVC)
 ENDIF(MSVC)
 
 # Source files that are needed for both the shared and static library
-file(GLOB PSMOVECLIENT_SRC
+file(GLOB PSMOVECLIENT_LIBRARY_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.cpp"
 )
 
-add_executable(PSMoveConsoleClient ${PSMOVECLIENT_SRC})
-target_link_libraries(PSMoveConsoleClient ${PSMOVE_CLIENT_REQ_LIBS})
-target_link_libraries(PSMoveConsoleClient debug libprotobufd)
-target_link_libraries(PSMoveConsoleClient optimized libprotobuf)
+# Static library
+add_library(PSMoveClient STATIC ${PSMOVECLIENT_LIBRARY_SRC})
+target_link_libraries(PSMoveClient ${PSMOVE_CLIENT_REQ_LIBS})
+target_link_libraries(PSMoveClient debug libprotobufd)
+target_link_libraries(PSMoveClient optimized libprotobuf)
+set_target_properties(PSMoveClient PROPERTIES
+    COMPILE_FLAGS -DBUILDING_STATIC_LIBRARY)    

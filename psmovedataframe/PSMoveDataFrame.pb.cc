@@ -53,6 +53,7 @@ const ::google::protobuf::internal::GeneratedMessageReflection*
 const ::google::protobuf::Descriptor* ControllerDataFrame_Orientation_descriptor_ = NULL;
 const ::google::protobuf::internal::GeneratedMessageReflection*
   ControllerDataFrame_Orientation_reflection_ = NULL;
+const ::google::protobuf::EnumDescriptor* ControllerDataFrame_ButtonType_descriptor_ = NULL;
 
 }  // namespace
 
@@ -236,6 +237,7 @@ void protobuf_AssignDesc_PSMoveDataFrame_2eproto() {
       sizeof(ControllerDataFrame_Orientation),
       GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(ControllerDataFrame_Orientation, _internal_metadata_),
       GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(ControllerDataFrame_Orientation, _is_default_instance_));
+  ControllerDataFrame_ButtonType_descriptor_ = ControllerDataFrame_descriptor_->enum_type(0);
 }
 
 namespace {
@@ -329,7 +331,7 @@ void protobuf_AddDesc_PSMoveDataFrame_2eproto() {
     "vePSMoveCount\022\r\n\005count\030\001 \001(\005\";\n\014Response"
     "Type\022\022\n\016GENERAL_RESULT\020\000\022\027\n\023ACTIVE_PSMOV"
     "E_COUNT\020\001\"-\n\nResultCode\022\r\n\tRESULT_OK\020\000\022\020"
-    "\n\014RESULT_ERROR\020\001\"\234\003\n\023ControllerDataFrame"
+    "\n\014RESULT_ERROR\020\001\"\221\004\n\023ControllerDataFrame"
     "\022\024\n\014sequence_num\030\001 \001(\005\022\023\n\013IsConnected\030\002 "
     "\001(\010\022\031\n\021IsTrackingEnabled\030\003 \001(\010\022\033\n\023IsCurr"
     "entlyTracking\030\004 \001(\010\022\?\n\010position\030\005 \001(\0132-."
@@ -339,7 +341,10 @@ void protobuf_AddDesc_PSMoveDataFrame_2eproto() {
     "utton_down_bitmask\030\007 \001(\r\022\025\n\rtrigger_valu"
     "e\030\010 \001(\005\032+\n\010Position\022\t\n\001x\030\001 \001(\002\022\t\n\001y\030\002 \001("
     "\002\022\t\n\001z\030\003 \001(\002\0329\n\013Orientation\022\t\n\001x\030\001 \001(\002\022\t"
-    "\n\001y\030\002 \001(\002\022\t\n\001z\030\003 \001(\002\022\t\n\001w\030\004 \001(\002b\006proto3", 1519);
+    "\n\001y\030\002 \001(\002\022\t\n\001z\030\003 \001(\002\022\t\n\001w\030\004 \001(\002\"s\n\nButto"
+    "nType\022\014\n\010TRIANGLE\020\000\022\n\n\006CIRCLE\020\001\022\t\n\005CROSS"
+    "\020\002\022\n\n\006SQUARE\020\003\022\n\n\006SELECT\020\004\022\t\n\005START\020\005\022\006\n"
+    "\002PS\020\006\022\010\n\004MOVE\020\007\022\013\n\007TRIGGER\020\010b\006proto3", 1636);
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedFile(
     "PSMoveDataFrame.proto", &protobuf_RegisterTypes);
   Request::default_instance_ = new Request();
@@ -2635,6 +2640,41 @@ void Response::set_allocated_response_psmove_count(::PSMoveDataFrame::Response_R
 
 // ===================================================================
 
+const ::google::protobuf::EnumDescriptor* ControllerDataFrame_ButtonType_descriptor() {
+  protobuf_AssignDescriptorsOnce();
+  return ControllerDataFrame_ButtonType_descriptor_;
+}
+bool ControllerDataFrame_ButtonType_IsValid(int value) {
+  switch(value) {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+      return true;
+    default:
+      return false;
+  }
+}
+
+#ifndef _MSC_VER
+const ControllerDataFrame_ButtonType ControllerDataFrame::TRIANGLE;
+const ControllerDataFrame_ButtonType ControllerDataFrame::CIRCLE;
+const ControllerDataFrame_ButtonType ControllerDataFrame::CROSS;
+const ControllerDataFrame_ButtonType ControllerDataFrame::SQUARE;
+const ControllerDataFrame_ButtonType ControllerDataFrame::SELECT;
+const ControllerDataFrame_ButtonType ControllerDataFrame::START;
+const ControllerDataFrame_ButtonType ControllerDataFrame::PS;
+const ControllerDataFrame_ButtonType ControllerDataFrame::MOVE;
+const ControllerDataFrame_ButtonType ControllerDataFrame::TRIGGER;
+const ControllerDataFrame_ButtonType ControllerDataFrame::ButtonType_MIN;
+const ControllerDataFrame_ButtonType ControllerDataFrame::ButtonType_MAX;
+const int ControllerDataFrame::ButtonType_ARRAYSIZE;
+#endif  // _MSC_VER
 #ifndef _MSC_VER
 const int ControllerDataFrame_Position::kXFieldNumber;
 const int ControllerDataFrame_Position::kYFieldNumber;
