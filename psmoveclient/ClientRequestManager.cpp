@@ -1,93 +1,107 @@
 //-- includes -----
 #include "ClientRequestManager.h"
+#include "ClientNetworkManager.h"
 #include "PSMoveDataFrame.pb.h"
 #include <cassert>
+#include <map>
+#include <utility>
 
 //-- definitions -----
-struct ResponseContext
+struct RequestContext
 {
     RequestPtr request;
-    ResponsePtr response;
+    ClientRequestManager::response_callback callback;
 };
+typedef std::map<int, RequestContext> t_request_context_map;
+typedef std::map<int, RequestContext>::iterator t_request_context_map_iterator;
+typedef std::pair<int, RequestContext> t_id_request_context_pair;
 
-//-- prototypes -----
-static void handle_response__get_active_psmove_count(const ResponseContext &context);
-static void handle_response__general(const ResponseContext &context);
+class ClientRequestManagerImpl
+{
+public:
+    ClientRequestManagerImpl()
+        : m_pending_requests()
+        , m_next_request_id(0)
+    {
+    }
+
+    void send_request(RequestPtr request, ClientRequestManager::response_callback callback)
+    {
+        RequestContext context;
+
+        request->set_request_id(m_next_request_id);
+        ++m_next_request_id;
+
+        context.request= request;
+        context.callback= callback;
+
+        // Add the request to the pending request map.
+        // Requests should never be double registered.
+        assert(m_pending_requests.find(request->request_id()) == m_pending_requests.end());
+        m_pending_requests.insert(t_id_request_context_pair(request->request_id(), context));
+
+        // Send the request off to the network manager to get sent to the server
+        ClientNetworkManager::get_instance()->send_request(request);
+    }
+
+    void handle_request_canceled(RequestPtr request)
+    {
+        // Create a general canceled result
+        ResponsePtr response(new PSMoveDataFrame::Response);
+
+        response->set_type(PSMoveDataFrame::Response_ResponseType_GENERAL_RESULT);
+        response->set_request_id(request->request_id());
+        response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_CANCELED);
+
+        handle_response(response);
+    }
+
+    void handle_response(ResponsePtr response)
+    {
+        // Get the request awaiting completion
+        t_request_context_map_iterator pending_request_entry= m_pending_requests.find(response->request_id());
+        assert(pending_request_entry != m_pending_requests.end());
+
+        // The context holds everything a handler needs to evaluate a response
+        const RequestContext &context= pending_request_entry->second;
+
+        // Notify the callback of the response
+        if (!context.callback.empty())
+        {
+            context.callback(context.request, response);
+        }
+
+        // Remove the pending request from the map
+        m_pending_requests.erase(pending_request_entry);
+    }
+
+private:
+    t_request_context_map m_pending_requests;
+    int m_next_request_id;
+};
 
 //-- public methods -----
 ClientRequestManager::ClientRequestManager() 
-    : pending_requests()
 {
+    m_implementation_ptr = new ClientRequestManagerImpl();
 }
 
-void ClientRequestManager::register_pending_request(RequestPtr request)
+ClientRequestManager::~ClientRequestManager()
 {
-    // Requests should never be double registered
-    assert(pending_requests.find(request->request_id()) == pending_requests.end());
-    pending_requests.insert(t_id_request_pair(request->request_id(), request));
+    delete m_implementation_ptr;
+}
+
+void ClientRequestManager::send_request(RequestPtr request, ClientRequestManager::response_callback callback)
+{
+    m_implementation_ptr->send_request(request, callback);
 }
 
 void ClientRequestManager::handle_request_canceled(RequestPtr request)
 {
-    // Get the request awaiting completion
-    t_request_map_iterator pending_request_entry= pending_requests.find(request->request_id());
-    assert(pending_request_entry != pending_requests.end());
-
-    // Remove the pending request from the map
-    pending_requests.erase(pending_request_entry);
-
-    // TODO: Notify any other systems about the cancellation based on request type?
+    m_implementation_ptr->handle_request_canceled(request);
 }
 
 void ClientRequestManager::handle_response(ResponsePtr response)
 {
-    // Get the request awaiting completion
-    t_request_map_iterator pending_request_entry= pending_requests.find(response->request_id());
-    assert(pending_request_entry != pending_requests.end());
-
-    // The context holds everything a handler needs to evaluate a response
-    ResponseContext context;
-    context.request= pending_request_entry->second;
-    context.response= response;
-
-    // Evaluate the response
-    switch (response->type())
-    {
-        case PSMoveDataFrame::Response_ResponseType_ACTIVE_PSMOVE_COUNT:
-            handle_response__get_active_psmove_count(context);
-            break;
-        case PSMoveDataFrame::Response_ResponseType_GENERAL_RESULT:
-            handle_response__general(context);
-            break;
-        default:
-            assert(0 && "Whoops, bad response!");
-            break;
-    }
-
-    // Remove the pending request from the map
-    pending_requests.erase(pending_request_entry);
-}
-
-//-- private request handlers -----
-static void handle_response__get_active_psmove_count(
-    const ResponseContext &context)
-{
-    // TODO
-    int psmove_count= context.response->response_psmove_count().count();
-}
-
-static void handle_response__general(
-    const ResponseContext &context)
-{
-    // TODO
-    switch(context.response->response_general().code())
-    {
-    case PSMoveDataFrame::Response_ResultCode_RESULT_OK:
-        break;
-    case PSMoveDataFrame::Response_ResultCode_RESULT_ERROR:
-        break;
-    default:
-        assert(0 && "Whoops, bad response!");
-        break;
-    }
+    m_implementation_ptr->handle_response(response);
 }

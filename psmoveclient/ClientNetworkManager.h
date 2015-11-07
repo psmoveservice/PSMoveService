@@ -17,7 +17,7 @@ public:
 		IDataFrameEventListener *responseListener, IClientNetworkEventListener *netEventListener);
     virtual ~ClientNetworkManager();
 
-	static ClientNetworkManager *get_instance();
+	static ClientNetworkManager *get_instance() { return m_instance; }
 
     bool startup();
     void send_request(RequestPtr request);

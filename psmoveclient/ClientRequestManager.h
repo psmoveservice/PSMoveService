@@ -2,22 +2,26 @@
 #define REQUEST_MANAGER_H
 
 //-- includes -----
-#include "PSMoveDataFrame.pb.h"
 #include "DataFrameInterface.h"
+#include <boost/function.hpp>
 
 //-- definitions -----
 class ClientRequestManager : public IDataFrameEventListener
 {
 public:
-    ClientRequestManager();
+    typedef boost::function<void(RequestPtr, ResponsePtr)> response_callback;
 
-    void register_pending_request(RequestPtr request);
+    ClientRequestManager();
+    virtual ~ClientRequestManager();
+
+    void send_request(RequestPtr request, response_callback callback);
 
     virtual void handle_request_canceled(RequestPtr request) override;
     virtual void handle_response(ResponsePtr response) override;
 
 private:
-    t_request_map pending_requests;
+    // private implementation - same lifetime as the ClientRequestManager
+    class ClientRequestManagerImpl *m_implementation_ptr;
 };
 
 #endif  // REQUEST_MANAGER_H

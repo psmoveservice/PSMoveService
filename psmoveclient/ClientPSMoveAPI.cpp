@@ -2,207 +2,326 @@
 #include "ClientPSMoveAPI.h"
 #include "ClientRequestManager.h"
 #include "ClientNetworkManager.h"
+#include "ClientControllerView.h"
+#include "PSMoveDataFrame.pb.h"
 #include <iostream>
+#include <map>
 
-//-- public interface -----
+//-- typedefs -----
+typedef std::map<int, ClientControllerViewPtr> t_controller_view_map;
+typedef std::map<int, ClientControllerViewPtr>::iterator t_controller_view_map_iterator;
+typedef std::pair<int, ClientControllerViewPtr> t_id_controller_view_pair;
+
+//-- constants -----
+#define DEBUG true
+
+//-- internal implementation -----
 class ClientPSMoveAPIImpl : public IClientNetworkEventListener
 {
 public:
-	ClientPSMoveAPIImpl(const std::string &host, const std::string &port, ClientPSMoveAPI::event_callback callback)
-		: request_manager()
-		, network_manager(host, port, &request_manager, this)
-		, m_event_callback(callback)
-	{
-	}
+    ClientPSMoveAPIImpl(const std::string &host, const std::string &port, ClientPSMoveAPI::event_callback callback)
+        : m_request_manager()
+        , m_network_manager(host, port, &m_request_manager, this)
+        , m_event_callback(callback)
+        , m_controller_view_map()
+    {
+    }
 
-	// -- ClientPSMoveAPI System -----
-	bool startup()
-	{
-		bool success = true;
+    // -- ClientPSMoveAPI System -----
+    bool startup()
+    {
+        bool success = true;
 
-		// Attempt to connect to the server
-		if (success)
-		{
-			if (!network_manager.startup())
-			{
-				std::cerr << "Failed to initialize the client network manager" << std::endl;
-				success = false;
-			}
-		}
+        // Attempt to connect to the server
+        if (success)
+        {
+            if (!m_network_manager.startup())
+            {
+                DEBUG && (std::cerr << "Failed to initialize the client network manager" << std::endl);
+                success = false;
+            }
+        }
 
-		return success;
-	}
+        return success;
+    }
 
-	void update()
-	{
-		// Process incoming/outgoing networking requests
-		network_manager.update();
-	}
+    void update()
+    {
+        // Process incoming/outgoing networking requests
+        m_network_manager.update();
+    }
 
-	void shutdown()
-	{
-		// Close all active network connections
-		network_manager.shutdown();
-	}
+    void shutdown()
+    {
+        // Close all active network connections
+        m_network_manager.shutdown();
+    }
 
-	// -- ClientPSMoveAPI Requests -----
-	void get_controller_count(ClientPSMoveAPI::response_callback callback)
-	{
+    // -- ClientPSMoveAPI Requests -----
+    void get_controller_count(ClientPSMoveAPI::response_callback callback)
+    {
+        RequestPtr request(new PSMoveDataFrame::Request());
 
-	}
+        request->set_type(PSMoveDataFrame::Request_RequestType_GET_ACTIVE_PSMOVE_COUNT);
 
-	void acquire_controller_view(int controller_id, ClientControllerView *out_view, ClientPSMoveAPI::response_callback callback)
-	{
+        m_request_manager.send_request(request, callback);
+    }
 
-	}
+    ClientControllerViewPtr allocate_controller_view(int PSMoveID)
+    {
+        ClientControllerViewPtr view;
 
-	void release_controller_view(ClientControllerView *view, ClientPSMoveAPI::response_callback callback)
-	{
+        // Use the same view if one already exists for the given controller id
+        t_controller_view_map_iterator view_entry= m_controller_view_map.find(PSMoveID);
+        if (view_entry != m_controller_view_map.end())
+        {
+            view= view_entry->second;
+        }
+        else
+        {
+            // Create a new initialized controller view
+            view= ClientControllerViewPtr(new ClientControllerView(PSMoveID));
 
-	}
+            // Add it to the map of controller
+            m_controller_view_map.insert(t_id_controller_view_pair(PSMoveID, view));
+        }
 
-	void set_controller_rumble(ClientControllerView *view, float rumble_amount, ClientPSMoveAPI::response_callback callback)
-	{
+        // Keep track of how many clients are listening to this view
+        view->IncListenerCount();        
+        
+        return view;
+    }
 
-	}
+    void free_controller_view(ClientControllerViewPtr view)
+    {
+        t_controller_view_map_iterator view_entry= m_controller_view_map.find(view->GetPSMoveID());
+        assert(view_entry != m_controller_view_map.end());
 
-	void cycle_tracking_color(ClientControllerView *view, float rumble_amount, ClientPSMoveAPI::response_callback callback)
-	{
+        // Decrease the number of listeners to this view
+        view->DecListenerCount();
 
-	}
+        // If no one is listening to this controller anymore, free it from the map
+        if (view->GetListenerCount() <= 0)
+        {
+            m_controller_view_map.erase(view_entry);
+        }
+    }
 
-	void reset_pose(ClientControllerView *view, ClientPSMoveAPI::response_callback callback)
-	{
+    void start_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
+    {
+        // Tell the psmove service that we are acquiring this controller
+        RequestPtr request(new PSMoveDataFrame::Request());
+        request->set_type(PSMoveDataFrame::Request_RequestType_START_PSMOVE_DATA_STREAM);
+        request->mutable_request_start_psmove_data_stream()->set_psmove_id(view->GetPSMoveID());
 
-	}
+        m_request_manager.send_request(request, callback);
+    }
 
-	// IClientNetworkEventListener
-	virtual void handle_server_connection_opened() override
-	{
+    void stop_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
+    {
+        // Tell the psmove service that we are releasing this controller
+        RequestPtr request(new PSMoveDataFrame::Request());
+        request->set_type(PSMoveDataFrame::Request_RequestType_STOP_PSMOVE_DATA_STREAM);
+        request->mutable_request_stop_psmove_data_stream()->set_psmove_id(view->GetPSMoveID());
 
-	}
+        m_request_manager.send_request(request, callback);
+    }
 
-	virtual void handle_server_connection_open_failed(const boost::system::error_code& ec) override
-	{
+    void set_controller_rumble(ClientControllerViewPtr view, float rumble_amount, ClientPSMoveAPI::response_callback callback)
+    {
+        assert(m_controller_view_map.find(view->GetPSMoveID()) != m_controller_view_map.end());
 
-	}
+        // Tell the psmove service to set the rumble controller
+        // Internally rumble values are in the range [0, 255]
+        RequestPtr request(new PSMoveDataFrame::Request());
+        request->set_type(PSMoveDataFrame::Request_RequestType_SET_RUMBLE);
+        request->mutable_request_rumble()->set_psmove_id(view->GetPSMoveID());
+        request->mutable_request_rumble()->set_rumble(static_cast<int>(rumble_amount * 255.f));
 
-	virtual void handle_server_connection_closed() override
-	{
+        m_request_manager.send_request(request, callback);
+    }
 
-	}
+    void cycle_tracking_color(ClientControllerViewPtr view, float rumble_amount, ClientPSMoveAPI::response_callback callback)
+    {
+        assert(m_controller_view_map.find(view->GetPSMoveID()) != m_controller_view_map.end());
 
-	virtual void handle_server_connection_close_failed(const boost::system::error_code& ec) override
-	{
+        // Tell the psmove service to cycle the tracking color of the given controller
+        RequestPtr request(new PSMoveDataFrame::Request());
+        request->set_type(PSMoveDataFrame::Request_RequestType_CYCLE_TRACKING_COLOR);
+        request->mutable_cycle_tracking_color()->set_psmove_id(view->GetPSMoveID());
+        
+        m_request_manager.send_request(request, callback);
+    }
 
-	}
+    void reset_pose(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
+    {
+        // Tell the psmove service to set the current orientation of the given controller as the indentity pose
+        RequestPtr request(new PSMoveDataFrame::Request());
+        request->set_type(PSMoveDataFrame::Request_RequestType_RESET_POSE);
+        request->mutable_reset_pose()->set_psmove_id(view->GetPSMoveID());
+        
+        m_request_manager.send_request(request, callback);
+    }
 
-	virtual void handle_server_connection_socket_error(const boost::system::error_code& ec) override
-	{
-	}
+    // IClientNetworkEventListener
+    virtual void handle_server_connection_opened() override
+    {
+        DEBUG && (std::cout << "ClientPSMoveAPI - Connected to service" << std::endl);
+
+        if (!m_event_callback.empty())
+        {
+            m_event_callback(ClientPSMoveAPI::connectedToService);
+        }
+    }
+
+    virtual void handle_server_connection_open_failed(const boost::system::error_code& ec) override
+    {
+        DEBUG && (std::cerr << "ClientPSMoveAPI - Failed to connect to service: " << ec.message() << std::endl);
+
+        if (!m_event_callback.empty())
+        {
+            m_event_callback(ClientPSMoveAPI::failedToConnectToService);
+        }
+    }
+
+    virtual void handle_server_connection_closed() override
+    {
+        DEBUG && (std::cout << "ClientPSMoveAPI - Disconnected from service" << std::endl);
+
+        if (!m_event_callback.empty())
+        {
+            m_event_callback(ClientPSMoveAPI::disconnectedFromService);
+        }
+    }
+
+    virtual void handle_server_connection_close_failed(const boost::system::error_code& ec) override
+    {
+        DEBUG && (std::cerr << "ClientPSMoveAPI - Error disconnecting from service: " << ec.message() << std::endl);
+    }
+
+    virtual void handle_server_connection_socket_error(const boost::system::error_code& ec) override
+    {
+        DEBUG && (std::cerr << "ClientPSMoveAPI - Socket error: " << ec.message() << std::endl);
+    }
 
 private:
-	ClientRequestManager request_manager;
-	ClientNetworkManager network_manager;
-	ClientPSMoveAPI::event_callback m_event_callback;
+    ClientRequestManager m_request_manager;
+    ClientNetworkManager m_network_manager;
+    ClientPSMoveAPI::event_callback m_event_callback;
+    t_controller_view_map m_controller_view_map;
 };
 
 //-- ClientPSMoveAPI -----
 class ClientPSMoveAPIImpl *ClientPSMoveAPI::m_implementation_ptr = NULL;
 
 bool ClientPSMoveAPI::startup(
-	const std::string &host, 
-	const std::string &port, 
-	ClientPSMoveAPI::event_callback callback)
+    const std::string &host, 
+    const std::string &port, 
+    ClientPSMoveAPI::event_callback callback)
 {
-	bool success= true;
+    bool success= true;
 
-	if (ClientPSMoveAPI::m_implementation_ptr == NULL)
-	{
-		ClientPSMoveAPI::m_implementation_ptr = new ClientPSMoveAPIImpl(host, port, callback);
-		success= ClientPSMoveAPI::m_implementation_ptr->startup();
-	}
+    if (ClientPSMoveAPI::m_implementation_ptr == NULL)
+    {
+        ClientPSMoveAPI::m_implementation_ptr = new ClientPSMoveAPIImpl(host, port, callback);
+        success= ClientPSMoveAPI::m_implementation_ptr->startup();
+    }
 
-	return success;
+    return success;
 }
 
 void ClientPSMoveAPI::update()
 {
-	if (ClientPSMoveAPI::m_implementation_ptr != NULL)
-	{
-		ClientPSMoveAPI::m_implementation_ptr->update();
-	}
+    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->update();
+    }
 }
 
 void ClientPSMoveAPI::shutdown()
 {
-	if (ClientPSMoveAPI::m_implementation_ptr != NULL)
-	{
-		ClientPSMoveAPI::m_implementation_ptr->shutdown();
-		
-		delete ClientPSMoveAPI::m_implementation_ptr;
-		ClientPSMoveAPI::m_implementation_ptr = NULL;
-	}
+    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->shutdown();
+        
+        delete ClientPSMoveAPI::m_implementation_ptr;
+        ClientPSMoveAPI::m_implementation_ptr = NULL;
+    }
 }
 
 void ClientPSMoveAPI::get_controller_count(
-	ClientPSMoveAPI::response_callback callback)
+    ClientPSMoveAPI::response_callback callback)
 {
-	if (ClientPSMoveAPI::m_implementation_ptr != NULL)
-	{
-		ClientPSMoveAPI::m_implementation_ptr->get_controller_count(callback);
-	}
+    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->get_controller_count(callback);
+    }
 }
 
-void ClientPSMoveAPI::acquire_controller_view(
-	int controller_id, 
-	ClientControllerView *out_view, 
-	ClientPSMoveAPI::response_callback callback)
+ClientControllerViewPtr ClientPSMoveAPI::allocate_controller_view(int PSMoveID)
 {
-	if (ClientPSMoveAPI::m_implementation_ptr != NULL)
-	{
-		ClientPSMoveAPI::m_implementation_ptr->acquire_controller_view(controller_id, out_view, callback);
-	}
+    ClientControllerViewPtr view;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    {
+        view= ClientPSMoveAPI::m_implementation_ptr->allocate_controller_view(PSMoveID);
+    }
+
+    return view;
 }
 
-void ClientPSMoveAPI::release_controller_view(
-	ClientControllerView *view, 
-	ClientPSMoveAPI::response_callback callback)
+void ClientPSMoveAPI::free_controller_view(ClientControllerViewPtr view)
 {
-	if (ClientPSMoveAPI::m_implementation_ptr != NULL)
-	{
-		ClientPSMoveAPI::m_implementation_ptr->release_controller_view(view, callback);
-	}
+    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->free_controller_view(view);
+    }
+}
+
+void ClientPSMoveAPI::start_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
+{
+    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->start_controller_data_stream(view, callback);
+    }
+}
+
+void ClientPSMoveAPI::stop_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
+{
+    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->stop_controller_data_stream(view, callback);
+    }
 }
 
 void ClientPSMoveAPI::set_controller_rumble(
-	ClientControllerView *view, 
-	float rumble_amount, 
-	ClientPSMoveAPI::response_callback callback)
+    ClientControllerViewPtr view, 
+    float rumble_amount, 
+    ClientPSMoveAPI::response_callback callback)
 {
-	if (ClientPSMoveAPI::m_implementation_ptr != NULL)
-	{
-		ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount, callback);
-	}
+    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount, callback);
+    }
 }
 
 void ClientPSMoveAPI::cycle_tracking_color(
-	ClientControllerView *view, 
-	float rumble_amount, 
-	ClientPSMoveAPI::response_callback callback)
+    ClientControllerViewPtr view,
+    float rumble_amount, 
+    ClientPSMoveAPI::response_callback callback)
 {
-	if (ClientPSMoveAPI::m_implementation_ptr != NULL)
-	{
-		ClientPSMoveAPI::m_implementation_ptr->cycle_tracking_color(view, rumble_amount, callback);
-	}
+    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->cycle_tracking_color(view, rumble_amount, callback);
+    }
 }
 
 void ClientPSMoveAPI::reset_pose(
-	ClientControllerView *view, 
-	ClientPSMoveAPI::response_callback callback)
+    ClientControllerViewPtr view,
+    ClientPSMoveAPI::response_callback callback)
 {
-	if (ClientPSMoveAPI::m_implementation_ptr != NULL)
-	{
-		ClientPSMoveAPI::m_implementation_ptr->reset_pose(view, callback);
-	}
+    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->reset_pose(view, callback);
+    }
 }

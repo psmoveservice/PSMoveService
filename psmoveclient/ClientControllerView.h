@@ -2,6 +2,7 @@
 #define CLIENT_CONTROLLER_VIEW_H
 
 //-- includes -----
+#include <cassert>
 
 //-- pre-declarations -----
 struct PSMoveVector3;
@@ -47,6 +48,7 @@ class ClientControllerView
 private:
     int PSMoveID;
     int SequenceNum;
+    int ListenerCount;
 
     PSMovePose Pose;
 
@@ -71,12 +73,34 @@ private:
     unsigned char RumbleRequest;
 
 public:
-    ClientControllerView();
+    ClientControllerView(int PSMoveID);
 
     void Clear();
     void ApplyControllerDataFrame(const ControllerDataFrame *data_frame);
 
+    // Listener State
+    inline void IncListenerCount()
+    {
+        ++ListenerCount;
+    }
+
+    inline void DecListenerCount()
+    {
+        assert(ListenerCount > 0);
+        --ListenerCount;
+    }
+
+    inline int GetListenerCount() const
+    {
+        return ListenerCount;
+    }
+
     // Controller Data Accessors
+    inline int GetPSMoveID() const
+    {
+        return PSMoveID;
+    }
+
     inline bool IsValid() const
     {
         return PSMoveID != -1;

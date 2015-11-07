@@ -16,8 +16,8 @@ message Request {
     // The request type determines which of the request structures is actually used
     enum RequestType {
         GET_ACTIVE_PSMOVE_COUNT= 0;
-        ACQUIRE_PSMOVE = 1;
-        RELEASE_PSMOVE = 2;
+        START_PSMOVE_DATA_STREAM = 1;
+        STOP_PSMOVE_DATA_STREAM = 2;
         SET_RUMBLE = 3;
         CYCLE_TRACKING_COLOR = 4;
         RESET_POSE = 5;
@@ -26,19 +26,19 @@ message Request {
 
     // No parameters for GET_ACTIVE_PSMOVE_COUNT
 
-    // Parameters for ACQUIRE_PSMOVE
+    // Parameters for START_PSMOVE_DATA_STREAM
     // NOTE: ControllerDataFrame packets will start streaming to client upon receiving this request
-    message RequestAcquirePSMove {
+    message RequestStartPSMoveDataStream {
         int32 psmove_id = 1;
     }
-    RequestAcquirePSMove request_acquire_psmove = 21;
+    RequestStartPSMoveDataStream request_start_psmove_data_stream = 21;
 
-    // Parameters for RELEASE_PSMOVE
+    // Parameters for STOP_PSMOVE_DATA_STREAM
     // NOTE: ControllerDataFrame packets will stop streaming to client upon receiving this request
-    message RequestReleasePSMove {
+    message RequestStopPSMoveDataStream {
         int32 psmove_id = 1;
     }
-    RequestReleasePSMove request_release_psmove = 22;
+    RequestStopPSMoveDataStream request_stop_psmove_data_stream = 22;
 
     // Parameters for SET_RUMBLE
     message RequestSetRumble {
@@ -47,9 +47,17 @@ message Request {
     }
     RequestSetRumble request_rumble = 23;
 
-    // No parameters for CYCLE_TRACKING_COLOR
+    // Parameters for CYCLE_TRACKING_COLOR
+    message RequestCycleTrackingColor {
+        int32 psmove_id = 1;
+    }
+    RequestCycleTrackingColor cycle_tracking_color = 24;
 
-    // No parameters for RESET_POSE
+    // Parameters for RESET_POSE
+    message RequestResetPose {
+        int32 psmove_id = 1;
+    }
+    RequestResetPose reset_pose = 25;   
 }
 
 // Reliable (TCP) responses to requests
@@ -63,22 +71,18 @@ message Response {
     enum ResultCode {
         RESULT_OK= 0;
         RESULT_ERROR= 1;
+        RESULT_CANCELED= 2;
     }
 
     ResponseType type = 1;
     int32 request_id = 2;
-
-    // Parameters for GENERAL_RESULT
-    message ResponseGeneral {
-        ResultCode code = 1;
-    }
-    ResponseGeneral response_general = 21;
+    ResultCode result_code = 3;
     
     // Parameters for ACTIVE_PSMOVE_COUNT
     message ResponseActivePSMoveCount {
         int32 count = 1;
     }
-    ResponseActivePSMoveCount response_psmove_count = 22;    
+    ResponseActivePSMoveCount response_psmove_count = 21;    
 }
 
 // Unreliable (UDP) controller data packet format

@@ -3,8 +3,6 @@
 
 //-- includes -----
 #include <boost/shared_ptr.hpp>
-#include <map>
-#include <utility>
 
 //-- pre-declarations -----
 namespace PSMoveDataFrame
@@ -14,10 +12,6 @@ namespace PSMoveDataFrame
 };
 typedef boost::shared_ptr<PSMoveDataFrame::Request> RequestPtr;
 typedef boost::shared_ptr<PSMoveDataFrame::Response> ResponsePtr;
-
-typedef std::map<int, RequestPtr> t_request_map;
-typedef std::map<int, RequestPtr>::iterator t_request_map_iterator;
-typedef std::pair<int, RequestPtr> t_id_request_pair;
 
 //-- interface -----
 class IDataFrameEventListener

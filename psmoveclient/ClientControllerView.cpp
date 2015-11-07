@@ -12,15 +12,18 @@ const PSMoveQuaternion g_psmove_quaternion_identity= {1.f, 0.f, 0.f, 0.f};
 const PSMoveQuaternion *k_psmove_quaternion_identity= &g_psmove_quaternion_identity;
 
 //-- implementation -----
-ClientControllerView::ClientControllerView()
+ClientControllerView::ClientControllerView(int PSMoveID)
 {
     Clear();
+    this->PSMoveID= PSMoveID;
 }
 
 void ClientControllerView::Clear()
 {
     Pose.Clear();
     PSMoveID = -1;
+    ListenerCount= 0;
+
     IsConnected= false;
     IsTrackingEnabled= false;
     IsCurrentlyTracking= false;

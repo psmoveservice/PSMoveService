@@ -41,17 +41,18 @@ class ControllerDataFrame;
 class ControllerDataFrame_Orientation;
 class ControllerDataFrame_Position;
 class Request;
-class Request_RequestAcquirePSMove;
-class Request_RequestReleasePSMove;
+class Request_RequestCycleTrackingColor;
+class Request_RequestResetPose;
 class Request_RequestSetRumble;
+class Request_RequestStartPSMoveDataStream;
+class Request_RequestStopPSMoveDataStream;
 class Response;
 class Response_ResponseActivePSMoveCount;
-class Response_ResponseGeneral;
 
 enum Request_RequestType {
   Request_RequestType_GET_ACTIVE_PSMOVE_COUNT = 0,
-  Request_RequestType_ACQUIRE_PSMOVE = 1,
-  Request_RequestType_RELEASE_PSMOVE = 2,
+  Request_RequestType_START_PSMOVE_DATA_STREAM = 1,
+  Request_RequestType_STOP_PSMOVE_DATA_STREAM = 2,
   Request_RequestType_SET_RUMBLE = 3,
   Request_RequestType_CYCLE_TRACKING_COLOR = 4,
   Request_RequestType_RESET_POSE = 5,
@@ -97,12 +98,13 @@ inline bool Response_ResponseType_Parse(
 enum Response_ResultCode {
   Response_ResultCode_RESULT_OK = 0,
   Response_ResultCode_RESULT_ERROR = 1,
+  Response_ResultCode_RESULT_CANCELED = 2,
   Response_ResultCode_Response_ResultCode_INT_MIN_SENTINEL_DO_NOT_USE_ = ::google::protobuf::kint32min,
   Response_ResultCode_Response_ResultCode_INT_MAX_SENTINEL_DO_NOT_USE_ = ::google::protobuf::kint32max
 };
 bool Response_ResultCode_IsValid(int value);
 const Response_ResultCode Response_ResultCode_ResultCode_MIN = Response_ResultCode_RESULT_OK;
-const Response_ResultCode Response_ResultCode_ResultCode_MAX = Response_ResultCode_RESULT_ERROR;
+const Response_ResultCode Response_ResultCode_ResultCode_MAX = Response_ResultCode_RESULT_CANCELED;
 const int Response_ResultCode_ResultCode_ARRAYSIZE = Response_ResultCode_ResultCode_MAX + 1;
 
 const ::google::protobuf::EnumDescriptor* Response_ResultCode_descriptor();
@@ -145,32 +147,32 @@ inline bool ControllerDataFrame_ButtonType_Parse(
 }
 // ===================================================================
 
-class Request_RequestAcquirePSMove : public ::google::protobuf::Message {
+class Request_RequestStartPSMoveDataStream : public ::google::protobuf::Message {
  public:
-  Request_RequestAcquirePSMove();
-  virtual ~Request_RequestAcquirePSMove();
+  Request_RequestStartPSMoveDataStream();
+  virtual ~Request_RequestStartPSMoveDataStream();
 
-  Request_RequestAcquirePSMove(const Request_RequestAcquirePSMove& from);
+  Request_RequestStartPSMoveDataStream(const Request_RequestStartPSMoveDataStream& from);
 
-  inline Request_RequestAcquirePSMove& operator=(const Request_RequestAcquirePSMove& from) {
+  inline Request_RequestStartPSMoveDataStream& operator=(const Request_RequestStartPSMoveDataStream& from) {
     CopyFrom(from);
     return *this;
   }
 
   static const ::google::protobuf::Descriptor* descriptor();
-  static const Request_RequestAcquirePSMove& default_instance();
+  static const Request_RequestStartPSMoveDataStream& default_instance();
 
-  void Swap(Request_RequestAcquirePSMove* other);
+  void Swap(Request_RequestStartPSMoveDataStream* other);
 
   // implements Message ----------------------------------------------
 
-  inline Request_RequestAcquirePSMove* New() const { return New(NULL); }
+  inline Request_RequestStartPSMoveDataStream* New() const { return New(NULL); }
 
-  Request_RequestAcquirePSMove* New(::google::protobuf::Arena* arena) const;
+  Request_RequestStartPSMoveDataStream* New(::google::protobuf::Arena* arena) const;
   void CopyFrom(const ::google::protobuf::Message& from);
   void MergeFrom(const ::google::protobuf::Message& from);
-  void CopyFrom(const Request_RequestAcquirePSMove& from);
-  void MergeFrom(const Request_RequestAcquirePSMove& from);
+  void CopyFrom(const Request_RequestStartPSMoveDataStream& from);
+  void MergeFrom(const Request_RequestStartPSMoveDataStream& from);
   void Clear();
   bool IsInitialized() const;
 
@@ -185,7 +187,7 @@ class Request_RequestAcquirePSMove : public ::google::protobuf::Message {
   void SharedCtor();
   void SharedDtor();
   void SetCachedSize(int size) const;
-  void InternalSwap(Request_RequestAcquirePSMove* other);
+  void InternalSwap(Request_RequestStartPSMoveDataStream* other);
   private:
   inline ::google::protobuf::Arena* GetArenaNoVirtual() const {
     return _internal_metadata_.arena();
@@ -207,7 +209,7 @@ class Request_RequestAcquirePSMove : public ::google::protobuf::Message {
   ::google::protobuf::int32 psmove_id() const;
   void set_psmove_id(::google::protobuf::int32 value);
 
-  // @@protoc_insertion_point(class_scope:PSMoveDataFrame.Request.RequestAcquirePSMove)
+  // @@protoc_insertion_point(class_scope:PSMoveDataFrame.Request.RequestStartPSMoveDataStream)
  private:
 
   ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
@@ -219,36 +221,36 @@ class Request_RequestAcquirePSMove : public ::google::protobuf::Message {
   friend void protobuf_ShutdownFile_PSMoveDataFrame_2eproto();
 
   void InitAsDefaultInstance();
-  static Request_RequestAcquirePSMove* default_instance_;
+  static Request_RequestStartPSMoveDataStream* default_instance_;
 };
 // -------------------------------------------------------------------
 
-class Request_RequestReleasePSMove : public ::google::protobuf::Message {
+class Request_RequestStopPSMoveDataStream : public ::google::protobuf::Message {
  public:
-  Request_RequestReleasePSMove();
-  virtual ~Request_RequestReleasePSMove();
+  Request_RequestStopPSMoveDataStream();
+  virtual ~Request_RequestStopPSMoveDataStream();
 
-  Request_RequestReleasePSMove(const Request_RequestReleasePSMove& from);
+  Request_RequestStopPSMoveDataStream(const Request_RequestStopPSMoveDataStream& from);
 
-  inline Request_RequestReleasePSMove& operator=(const Request_RequestReleasePSMove& from) {
+  inline Request_RequestStopPSMoveDataStream& operator=(const Request_RequestStopPSMoveDataStream& from) {
     CopyFrom(from);
     return *this;
   }
 
   static const ::google::protobuf::Descriptor* descriptor();
-  static const Request_RequestReleasePSMove& default_instance();
+  static const Request_RequestStopPSMoveDataStream& default_instance();
 
-  void Swap(Request_RequestReleasePSMove* other);
+  void Swap(Request_RequestStopPSMoveDataStream* other);
 
   // implements Message ----------------------------------------------
 
-  inline Request_RequestReleasePSMove* New() const { return New(NULL); }
+  inline Request_RequestStopPSMoveDataStream* New() const { return New(NULL); }
 
-  Request_RequestReleasePSMove* New(::google::protobuf::Arena* arena) const;
+  Request_RequestStopPSMoveDataStream* New(::google::protobuf::Arena* arena) const;
   void CopyFrom(const ::google::protobuf::Message& from);
   void MergeFrom(const ::google::protobuf::Message& from);
-  void CopyFrom(const Request_RequestReleasePSMove& from);
-  void MergeFrom(const Request_RequestReleasePSMove& from);
+  void CopyFrom(const Request_RequestStopPSMoveDataStream& from);
+  void MergeFrom(const Request_RequestStopPSMoveDataStream& from);
   void Clear();
   bool IsInitialized() const;
 
@@ -263,7 +265,7 @@ class Request_RequestReleasePSMove : public ::google::protobuf::Message {
   void SharedCtor();
   void SharedDtor();
   void SetCachedSize(int size) const;
-  void InternalSwap(Request_RequestReleasePSMove* other);
+  void InternalSwap(Request_RequestStopPSMoveDataStream* other);
   private:
   inline ::google::protobuf::Arena* GetArenaNoVirtual() const {
     return _internal_metadata_.arena();
@@ -285,7 +287,7 @@ class Request_RequestReleasePSMove : public ::google::protobuf::Message {
   ::google::protobuf::int32 psmove_id() const;
   void set_psmove_id(::google::protobuf::int32 value);
 
-  // @@protoc_insertion_point(class_scope:PSMoveDataFrame.Request.RequestReleasePSMove)
+  // @@protoc_insertion_point(class_scope:PSMoveDataFrame.Request.RequestStopPSMoveDataStream)
  private:
 
   ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
@@ -297,7 +299,7 @@ class Request_RequestReleasePSMove : public ::google::protobuf::Message {
   friend void protobuf_ShutdownFile_PSMoveDataFrame_2eproto();
 
   void InitAsDefaultInstance();
-  static Request_RequestReleasePSMove* default_instance_;
+  static Request_RequestStopPSMoveDataStream* default_instance_;
 };
 // -------------------------------------------------------------------
 
@@ -386,6 +388,162 @@ class Request_RequestSetRumble : public ::google::protobuf::Message {
 };
 // -------------------------------------------------------------------
 
+class Request_RequestCycleTrackingColor : public ::google::protobuf::Message {
+ public:
+  Request_RequestCycleTrackingColor();
+  virtual ~Request_RequestCycleTrackingColor();
+
+  Request_RequestCycleTrackingColor(const Request_RequestCycleTrackingColor& from);
+
+  inline Request_RequestCycleTrackingColor& operator=(const Request_RequestCycleTrackingColor& from) {
+    CopyFrom(from);
+    return *this;
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor();
+  static const Request_RequestCycleTrackingColor& default_instance();
+
+  void Swap(Request_RequestCycleTrackingColor* other);
+
+  // implements Message ----------------------------------------------
+
+  inline Request_RequestCycleTrackingColor* New() const { return New(NULL); }
+
+  Request_RequestCycleTrackingColor* New(::google::protobuf::Arena* arena) const;
+  void CopyFrom(const ::google::protobuf::Message& from);
+  void MergeFrom(const ::google::protobuf::Message& from);
+  void CopyFrom(const Request_RequestCycleTrackingColor& from);
+  void MergeFrom(const Request_RequestCycleTrackingColor& from);
+  void Clear();
+  bool IsInitialized() const;
+
+  int ByteSize() const;
+  bool MergePartialFromCodedStream(
+      ::google::protobuf::io::CodedInputStream* input);
+  void SerializeWithCachedSizes(
+      ::google::protobuf::io::CodedOutputStream* output) const;
+  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
+  int GetCachedSize() const { return _cached_size_; }
+  private:
+  void SharedCtor();
+  void SharedDtor();
+  void SetCachedSize(int size) const;
+  void InternalSwap(Request_RequestCycleTrackingColor* other);
+  private:
+  inline ::google::protobuf::Arena* GetArenaNoVirtual() const {
+    return _internal_metadata_.arena();
+  }
+  inline void* MaybeArenaPtr() const {
+    return _internal_metadata_.raw_arena_ptr();
+  }
+  public:
+
+  ::google::protobuf::Metadata GetMetadata() const;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  // optional int32 psmove_id = 1;
+  void clear_psmove_id();
+  static const int kPsmoveIdFieldNumber = 1;
+  ::google::protobuf::int32 psmove_id() const;
+  void set_psmove_id(::google::protobuf::int32 value);
+
+  // @@protoc_insertion_point(class_scope:PSMoveDataFrame.Request.RequestCycleTrackingColor)
+ private:
+
+  ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
+  bool _is_default_instance_;
+  ::google::protobuf::int32 psmove_id_;
+  mutable int _cached_size_;
+  friend void  protobuf_AddDesc_PSMoveDataFrame_2eproto();
+  friend void protobuf_AssignDesc_PSMoveDataFrame_2eproto();
+  friend void protobuf_ShutdownFile_PSMoveDataFrame_2eproto();
+
+  void InitAsDefaultInstance();
+  static Request_RequestCycleTrackingColor* default_instance_;
+};
+// -------------------------------------------------------------------
+
+class Request_RequestResetPose : public ::google::protobuf::Message {
+ public:
+  Request_RequestResetPose();
+  virtual ~Request_RequestResetPose();
+
+  Request_RequestResetPose(const Request_RequestResetPose& from);
+
+  inline Request_RequestResetPose& operator=(const Request_RequestResetPose& from) {
+    CopyFrom(from);
+    return *this;
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor();
+  static const Request_RequestResetPose& default_instance();
+
+  void Swap(Request_RequestResetPose* other);
+
+  // implements Message ----------------------------------------------
+
+  inline Request_RequestResetPose* New() const { return New(NULL); }
+
+  Request_RequestResetPose* New(::google::protobuf::Arena* arena) const;
+  void CopyFrom(const ::google::protobuf::Message& from);
+  void MergeFrom(const ::google::protobuf::Message& from);
+  void CopyFrom(const Request_RequestResetPose& from);
+  void MergeFrom(const Request_RequestResetPose& from);
+  void Clear();
+  bool IsInitialized() const;
+
+  int ByteSize() const;
+  bool MergePartialFromCodedStream(
+      ::google::protobuf::io::CodedInputStream* input);
+  void SerializeWithCachedSizes(
+      ::google::protobuf::io::CodedOutputStream* output) const;
+  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
+  int GetCachedSize() const { return _cached_size_; }
+  private:
+  void SharedCtor();
+  void SharedDtor();
+  void SetCachedSize(int size) const;
+  void InternalSwap(Request_RequestResetPose* other);
+  private:
+  inline ::google::protobuf::Arena* GetArenaNoVirtual() const {
+    return _internal_metadata_.arena();
+  }
+  inline void* MaybeArenaPtr() const {
+    return _internal_metadata_.raw_arena_ptr();
+  }
+  public:
+
+  ::google::protobuf::Metadata GetMetadata() const;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  // optional int32 psmove_id = 1;
+  void clear_psmove_id();
+  static const int kPsmoveIdFieldNumber = 1;
+  ::google::protobuf::int32 psmove_id() const;
+  void set_psmove_id(::google::protobuf::int32 value);
+
+  // @@protoc_insertion_point(class_scope:PSMoveDataFrame.Request.RequestResetPose)
+ private:
+
+  ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
+  bool _is_default_instance_;
+  ::google::protobuf::int32 psmove_id_;
+  mutable int _cached_size_;
+  friend void  protobuf_AddDesc_PSMoveDataFrame_2eproto();
+  friend void protobuf_AssignDesc_PSMoveDataFrame_2eproto();
+  friend void protobuf_ShutdownFile_PSMoveDataFrame_2eproto();
+
+  void InitAsDefaultInstance();
+  static Request_RequestResetPose* default_instance_;
+};
+// -------------------------------------------------------------------
+
 class Request : public ::google::protobuf::Message {
  public:
   Request();
@@ -440,14 +598,16 @@ class Request : public ::google::protobuf::Message {
 
   // nested types ----------------------------------------------------
 
-  typedef Request_RequestAcquirePSMove RequestAcquirePSMove;
-  typedef Request_RequestReleasePSMove RequestReleasePSMove;
+  typedef Request_RequestStartPSMoveDataStream RequestStartPSMoveDataStream;
+  typedef Request_RequestStopPSMoveDataStream RequestStopPSMoveDataStream;
   typedef Request_RequestSetRumble RequestSetRumble;
+  typedef Request_RequestCycleTrackingColor RequestCycleTrackingColor;
+  typedef Request_RequestResetPose RequestResetPose;
 
   typedef Request_RequestType RequestType;
   static const RequestType GET_ACTIVE_PSMOVE_COUNT = Request_RequestType_GET_ACTIVE_PSMOVE_COUNT;
-  static const RequestType ACQUIRE_PSMOVE = Request_RequestType_ACQUIRE_PSMOVE;
-  static const RequestType RELEASE_PSMOVE = Request_RequestType_RELEASE_PSMOVE;
+  static const RequestType START_PSMOVE_DATA_STREAM = Request_RequestType_START_PSMOVE_DATA_STREAM;
+  static const RequestType STOP_PSMOVE_DATA_STREAM = Request_RequestType_STOP_PSMOVE_DATA_STREAM;
   static const RequestType SET_RUMBLE = Request_RequestType_SET_RUMBLE;
   static const RequestType CYCLE_TRACKING_COLOR = Request_RequestType_CYCLE_TRACKING_COLOR;
   static const RequestType RESET_POSE = Request_RequestType_RESET_POSE;
@@ -486,23 +646,23 @@ class Request : public ::google::protobuf::Message {
   ::PSMoveDataFrame::Request_RequestType type() const;
   void set_type(::PSMoveDataFrame::Request_RequestType value);
 
-  // optional .PSMoveDataFrame.Request.RequestAcquirePSMove request_acquire_psmove = 21;
-  bool has_request_acquire_psmove() const;
-  void clear_request_acquire_psmove();
-  static const int kRequestAcquirePsmoveFieldNumber = 21;
-  const ::PSMoveDataFrame::Request_RequestAcquirePSMove& request_acquire_psmove() const;
-  ::PSMoveDataFrame::Request_RequestAcquirePSMove* mutable_request_acquire_psmove();
-  ::PSMoveDataFrame::Request_RequestAcquirePSMove* release_request_acquire_psmove();
-  void set_allocated_request_acquire_psmove(::PSMoveDataFrame::Request_RequestAcquirePSMove* request_acquire_psmove);
+  // optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 21;
+  bool has_request_start_psmove_data_stream() const;
+  void clear_request_start_psmove_data_stream();
+  static const int kRequestStartPsmoveDataStreamFieldNumber = 21;
+  const ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream& request_start_psmove_data_stream() const;
+  ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream* mutable_request_start_psmove_data_stream();
+  ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream* release_request_start_psmove_data_stream();
+  void set_allocated_request_start_psmove_data_stream(::PSMoveDataFrame::Request_RequestStartPSMoveDataStream* request_start_psmove_data_stream);
 
-  // optional .PSMoveDataFrame.Request.RequestReleasePSMove request_release_psmove = 22;
-  bool has_request_release_psmove() const;
-  void clear_request_release_psmove();
-  static const int kRequestReleasePsmoveFieldNumber = 22;
-  const ::PSMoveDataFrame::Request_RequestReleasePSMove& request_release_psmove() const;
-  ::PSMoveDataFrame::Request_RequestReleasePSMove* mutable_request_release_psmove();
-  ::PSMoveDataFrame::Request_RequestReleasePSMove* release_request_release_psmove();
-  void set_allocated_request_release_psmove(::PSMoveDataFrame::Request_RequestReleasePSMove* request_release_psmove);
+  // optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 22;
+  bool has_request_stop_psmove_data_stream() const;
+  void clear_request_stop_psmove_data_stream();
+  static const int kRequestStopPsmoveDataStreamFieldNumber = 22;
+  const ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream& request_stop_psmove_data_stream() const;
+  ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream* mutable_request_stop_psmove_data_stream();
+  ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream* release_request_stop_psmove_data_stream();
+  void set_allocated_request_stop_psmove_data_stream(::PSMoveDataFrame::Request_RequestStopPSMoveDataStream* request_stop_psmove_data_stream);
 
   // optional .PSMoveDataFrame.Request.RequestSetRumble request_rumble = 23;
   bool has_request_rumble() const;
@@ -513,6 +673,24 @@ class Request : public ::google::protobuf::Message {
   ::PSMoveDataFrame::Request_RequestSetRumble* release_request_rumble();
   void set_allocated_request_rumble(::PSMoveDataFrame::Request_RequestSetRumble* request_rumble);
 
+  // optional .PSMoveDataFrame.Request.RequestCycleTrackingColor cycle_tracking_color = 24;
+  bool has_cycle_tracking_color() const;
+  void clear_cycle_tracking_color();
+  static const int kCycleTrackingColorFieldNumber = 24;
+  const ::PSMoveDataFrame::Request_RequestCycleTrackingColor& cycle_tracking_color() const;
+  ::PSMoveDataFrame::Request_RequestCycleTrackingColor* mutable_cycle_tracking_color();
+  ::PSMoveDataFrame::Request_RequestCycleTrackingColor* release_cycle_tracking_color();
+  void set_allocated_cycle_tracking_color(::PSMoveDataFrame::Request_RequestCycleTrackingColor* cycle_tracking_color);
+
+  // optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 25;
+  bool has_reset_pose() const;
+  void clear_reset_pose();
+  static const int kResetPoseFieldNumber = 25;
+  const ::PSMoveDataFrame::Request_RequestResetPose& reset_pose() const;
+  ::PSMoveDataFrame::Request_RequestResetPose* mutable_reset_pose();
+  ::PSMoveDataFrame::Request_RequestResetPose* release_reset_pose();
+  void set_allocated_reset_pose(::PSMoveDataFrame::Request_RequestResetPose* reset_pose);
+
   // @@protoc_insertion_point(class_scope:PSMoveDataFrame.Request)
  private:
 
@@ -520,9 +698,11 @@ class Request : public ::google::protobuf::Message {
   bool _is_default_instance_;
   ::google::protobuf::int32 request_id_;
   int type_;
-  ::PSMoveDataFrame::Request_RequestAcquirePSMove* request_acquire_psmove_;
-  ::PSMoveDataFrame::Request_RequestReleasePSMove* request_release_psmove_;
+  ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream* request_start_psmove_data_stream_;
+  ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream* request_stop_psmove_data_stream_;
   ::PSMoveDataFrame::Request_RequestSetRumble* request_rumble_;
+  ::PSMoveDataFrame::Request_RequestCycleTrackingColor* cycle_tracking_color_;
+  ::PSMoveDataFrame::Request_RequestResetPose* reset_pose_;
   mutable int _cached_size_;
   friend void  protobuf_AddDesc_PSMoveDataFrame_2eproto();
   friend void protobuf_AssignDesc_PSMoveDataFrame_2eproto();
@@ -530,84 +710,6 @@ class Request : public ::google::protobuf::Message {
 
   void InitAsDefaultInstance();
   static Request* default_instance_;
-};
-// -------------------------------------------------------------------
-
-class Response_ResponseGeneral : public ::google::protobuf::Message {
- public:
-  Response_ResponseGeneral();
-  virtual ~Response_ResponseGeneral();
-
-  Response_ResponseGeneral(const Response_ResponseGeneral& from);
-
-  inline Response_ResponseGeneral& operator=(const Response_ResponseGeneral& from) {
-    CopyFrom(from);
-    return *this;
-  }
-
-  static const ::google::protobuf::Descriptor* descriptor();
-  static const Response_ResponseGeneral& default_instance();
-
-  void Swap(Response_ResponseGeneral* other);
-
-  // implements Message ----------------------------------------------
-
-  inline Response_ResponseGeneral* New() const { return New(NULL); }
-
-  Response_ResponseGeneral* New(::google::protobuf::Arena* arena) const;
-  void CopyFrom(const ::google::protobuf::Message& from);
-  void MergeFrom(const ::google::protobuf::Message& from);
-  void CopyFrom(const Response_ResponseGeneral& from);
-  void MergeFrom(const Response_ResponseGeneral& from);
-  void Clear();
-  bool IsInitialized() const;
-
-  int ByteSize() const;
-  bool MergePartialFromCodedStream(
-      ::google::protobuf::io::CodedInputStream* input);
-  void SerializeWithCachedSizes(
-      ::google::protobuf::io::CodedOutputStream* output) const;
-  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
-  int GetCachedSize() const { return _cached_size_; }
-  private:
-  void SharedCtor();
-  void SharedDtor();
-  void SetCachedSize(int size) const;
-  void InternalSwap(Response_ResponseGeneral* other);
-  private:
-  inline ::google::protobuf::Arena* GetArenaNoVirtual() const {
-    return _internal_metadata_.arena();
-  }
-  inline void* MaybeArenaPtr() const {
-    return _internal_metadata_.raw_arena_ptr();
-  }
-  public:
-
-  ::google::protobuf::Metadata GetMetadata() const;
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  // optional .PSMoveDataFrame.Response.ResultCode code = 1;
-  void clear_code();
-  static const int kCodeFieldNumber = 1;
-  ::PSMoveDataFrame::Response_ResultCode code() const;
-  void set_code(::PSMoveDataFrame::Response_ResultCode value);
-
-  // @@protoc_insertion_point(class_scope:PSMoveDataFrame.Response.ResponseGeneral)
- private:
-
-  ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
-  bool _is_default_instance_;
-  int code_;
-  mutable int _cached_size_;
-  friend void  protobuf_AddDesc_PSMoveDataFrame_2eproto();
-  friend void protobuf_AssignDesc_PSMoveDataFrame_2eproto();
-  friend void protobuf_ShutdownFile_PSMoveDataFrame_2eproto();
-
-  void InitAsDefaultInstance();
-  static Response_ResponseGeneral* default_instance_;
 };
 // -------------------------------------------------------------------
 
@@ -743,7 +845,6 @@ class Response : public ::google::protobuf::Message {
 
   // nested types ----------------------------------------------------
 
-  typedef Response_ResponseGeneral ResponseGeneral;
   typedef Response_ResponseActivePSMoveCount ResponseActivePSMoveCount;
 
   typedef Response_ResponseType ResponseType;
@@ -773,6 +874,7 @@ class Response : public ::google::protobuf::Message {
   typedef Response_ResultCode ResultCode;
   static const ResultCode RESULT_OK = Response_ResultCode_RESULT_OK;
   static const ResultCode RESULT_ERROR = Response_ResultCode_RESULT_ERROR;
+  static const ResultCode RESULT_CANCELED = Response_ResultCode_RESULT_CANCELED;
   static inline bool ResultCode_IsValid(int value) {
     return Response_ResultCode_IsValid(value);
   }
@@ -808,19 +910,16 @@ class Response : public ::google::protobuf::Message {
   ::google::protobuf::int32 request_id() const;
   void set_request_id(::google::protobuf::int32 value);
 
-  // optional .PSMoveDataFrame.Response.ResponseGeneral response_general = 21;
-  bool has_response_general() const;
-  void clear_response_general();
-  static const int kResponseGeneralFieldNumber = 21;
-  const ::PSMoveDataFrame::Response_ResponseGeneral& response_general() const;
-  ::PSMoveDataFrame::Response_ResponseGeneral* mutable_response_general();
-  ::PSMoveDataFrame::Response_ResponseGeneral* release_response_general();
-  void set_allocated_response_general(::PSMoveDataFrame::Response_ResponseGeneral* response_general);
+  // optional .PSMoveDataFrame.Response.ResultCode result_code = 3;
+  void clear_result_code();
+  static const int kResultCodeFieldNumber = 3;
+  ::PSMoveDataFrame::Response_ResultCode result_code() const;
+  void set_result_code(::PSMoveDataFrame::Response_ResultCode value);
 
-  // optional .PSMoveDataFrame.Response.ResponseActivePSMoveCount response_psmove_count = 22;
+  // optional .PSMoveDataFrame.Response.ResponseActivePSMoveCount response_psmove_count = 21;
   bool has_response_psmove_count() const;
   void clear_response_psmove_count();
-  static const int kResponsePsmoveCountFieldNumber = 22;
+  static const int kResponsePsmoveCountFieldNumber = 21;
   const ::PSMoveDataFrame::Response_ResponseActivePSMoveCount& response_psmove_count() const;
   ::PSMoveDataFrame::Response_ResponseActivePSMoveCount* mutable_response_psmove_count();
   ::PSMoveDataFrame::Response_ResponseActivePSMoveCount* release_response_psmove_count();
@@ -833,8 +932,8 @@ class Response : public ::google::protobuf::Message {
   bool _is_default_instance_;
   int type_;
   ::google::protobuf::int32 request_id_;
-  ::PSMoveDataFrame::Response_ResponseGeneral* response_general_;
   ::PSMoveDataFrame::Response_ResponseActivePSMoveCount* response_psmove_count_;
+  int result_code_;
   mutable int _cached_size_;
   friend void  protobuf_AddDesc_PSMoveDataFrame_2eproto();
   friend void protobuf_AssignDesc_PSMoveDataFrame_2eproto();
@@ -1207,38 +1306,38 @@ class ControllerDataFrame : public ::google::protobuf::Message {
 // ===================================================================
 
 #if !PROTOBUF_INLINE_NOT_IN_HEADERS
-// Request_RequestAcquirePSMove
+// Request_RequestStartPSMoveDataStream
 
 // optional int32 psmove_id = 1;
-inline void Request_RequestAcquirePSMove::clear_psmove_id() {
+inline void Request_RequestStartPSMoveDataStream::clear_psmove_id() {
   psmove_id_ = 0;
 }
-inline ::google::protobuf::int32 Request_RequestAcquirePSMove::psmove_id() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.RequestAcquirePSMove.psmove_id)
+inline ::google::protobuf::int32 Request_RequestStartPSMoveDataStream::psmove_id() const {
+  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.RequestStartPSMoveDataStream.psmove_id)
   return psmove_id_;
 }
-inline void Request_RequestAcquirePSMove::set_psmove_id(::google::protobuf::int32 value) {
+inline void Request_RequestStartPSMoveDataStream::set_psmove_id(::google::protobuf::int32 value) {
   
   psmove_id_ = value;
-  // @@protoc_insertion_point(field_set:PSMoveDataFrame.Request.RequestAcquirePSMove.psmove_id)
+  // @@protoc_insertion_point(field_set:PSMoveDataFrame.Request.RequestStartPSMoveDataStream.psmove_id)
 }
 
 // -------------------------------------------------------------------
 
-// Request_RequestReleasePSMove
+// Request_RequestStopPSMoveDataStream
 
 // optional int32 psmove_id = 1;
-inline void Request_RequestReleasePSMove::clear_psmove_id() {
+inline void Request_RequestStopPSMoveDataStream::clear_psmove_id() {
   psmove_id_ = 0;
 }
-inline ::google::protobuf::int32 Request_RequestReleasePSMove::psmove_id() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.RequestReleasePSMove.psmove_id)
+inline ::google::protobuf::int32 Request_RequestStopPSMoveDataStream::psmove_id() const {
+  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.RequestStopPSMoveDataStream.psmove_id)
   return psmove_id_;
 }
-inline void Request_RequestReleasePSMove::set_psmove_id(::google::protobuf::int32 value) {
+inline void Request_RequestStopPSMoveDataStream::set_psmove_id(::google::protobuf::int32 value) {
   
   psmove_id_ = value;
-  // @@protoc_insertion_point(field_set:PSMoveDataFrame.Request.RequestReleasePSMove.psmove_id)
+  // @@protoc_insertion_point(field_set:PSMoveDataFrame.Request.RequestStopPSMoveDataStream.psmove_id)
 }
 
 // -------------------------------------------------------------------
@@ -1275,6 +1374,42 @@ inline void Request_RequestSetRumble::set_rumble(::google::protobuf::int32 value
 
 // -------------------------------------------------------------------
 
+// Request_RequestCycleTrackingColor
+
+// optional int32 psmove_id = 1;
+inline void Request_RequestCycleTrackingColor::clear_psmove_id() {
+  psmove_id_ = 0;
+}
+inline ::google::protobuf::int32 Request_RequestCycleTrackingColor::psmove_id() const {
+  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.RequestCycleTrackingColor.psmove_id)
+  return psmove_id_;
+}
+inline void Request_RequestCycleTrackingColor::set_psmove_id(::google::protobuf::int32 value) {
+  
+  psmove_id_ = value;
+  // @@protoc_insertion_point(field_set:PSMoveDataFrame.Request.RequestCycleTrackingColor.psmove_id)
+}
+
+// -------------------------------------------------------------------
+
+// Request_RequestResetPose
+
+// optional int32 psmove_id = 1;
+inline void Request_RequestResetPose::clear_psmove_id() {
+  psmove_id_ = 0;
+}
+inline ::google::protobuf::int32 Request_RequestResetPose::psmove_id() const {
+  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.RequestResetPose.psmove_id)
+  return psmove_id_;
+}
+inline void Request_RequestResetPose::set_psmove_id(::google::protobuf::int32 value) {
+  
+  psmove_id_ = value;
+  // @@protoc_insertion_point(field_set:PSMoveDataFrame.Request.RequestResetPose.psmove_id)
+}
+
+// -------------------------------------------------------------------
+
 // Request
 
 // optional int32 request_id = 1;
@@ -1305,78 +1440,78 @@ inline void Request::set_type(::PSMoveDataFrame::Request_RequestType value) {
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.Request.type)
 }
 
-// optional .PSMoveDataFrame.Request.RequestAcquirePSMove request_acquire_psmove = 21;
-inline bool Request::has_request_acquire_psmove() const {
-  return !_is_default_instance_ && request_acquire_psmove_ != NULL;
+// optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 21;
+inline bool Request::has_request_start_psmove_data_stream() const {
+  return !_is_default_instance_ && request_start_psmove_data_stream_ != NULL;
 }
-inline void Request::clear_request_acquire_psmove() {
-  if (GetArenaNoVirtual() == NULL && request_acquire_psmove_ != NULL) delete request_acquire_psmove_;
-  request_acquire_psmove_ = NULL;
+inline void Request::clear_request_start_psmove_data_stream() {
+  if (GetArenaNoVirtual() == NULL && request_start_psmove_data_stream_ != NULL) delete request_start_psmove_data_stream_;
+  request_start_psmove_data_stream_ = NULL;
 }
-inline const ::PSMoveDataFrame::Request_RequestAcquirePSMove& Request::request_acquire_psmove() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.request_acquire_psmove)
-  return request_acquire_psmove_ != NULL ? *request_acquire_psmove_ : *default_instance_->request_acquire_psmove_;
+inline const ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream& Request::request_start_psmove_data_stream() const {
+  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.request_start_psmove_data_stream)
+  return request_start_psmove_data_stream_ != NULL ? *request_start_psmove_data_stream_ : *default_instance_->request_start_psmove_data_stream_;
 }
-inline ::PSMoveDataFrame::Request_RequestAcquirePSMove* Request::mutable_request_acquire_psmove() {
+inline ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream* Request::mutable_request_start_psmove_data_stream() {
   
-  if (request_acquire_psmove_ == NULL) {
-    request_acquire_psmove_ = new ::PSMoveDataFrame::Request_RequestAcquirePSMove;
+  if (request_start_psmove_data_stream_ == NULL) {
+    request_start_psmove_data_stream_ = new ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream;
   }
-  // @@protoc_insertion_point(field_mutable:PSMoveDataFrame.Request.request_acquire_psmove)
-  return request_acquire_psmove_;
+  // @@protoc_insertion_point(field_mutable:PSMoveDataFrame.Request.request_start_psmove_data_stream)
+  return request_start_psmove_data_stream_;
 }
-inline ::PSMoveDataFrame::Request_RequestAcquirePSMove* Request::release_request_acquire_psmove() {
+inline ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream* Request::release_request_start_psmove_data_stream() {
   
-  ::PSMoveDataFrame::Request_RequestAcquirePSMove* temp = request_acquire_psmove_;
-  request_acquire_psmove_ = NULL;
+  ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream* temp = request_start_psmove_data_stream_;
+  request_start_psmove_data_stream_ = NULL;
   return temp;
 }
-inline void Request::set_allocated_request_acquire_psmove(::PSMoveDataFrame::Request_RequestAcquirePSMove* request_acquire_psmove) {
-  delete request_acquire_psmove_;
-  request_acquire_psmove_ = request_acquire_psmove;
-  if (request_acquire_psmove) {
+inline void Request::set_allocated_request_start_psmove_data_stream(::PSMoveDataFrame::Request_RequestStartPSMoveDataStream* request_start_psmove_data_stream) {
+  delete request_start_psmove_data_stream_;
+  request_start_psmove_data_stream_ = request_start_psmove_data_stream;
+  if (request_start_psmove_data_stream) {
     
   } else {
     
   }
-  // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.request_acquire_psmove)
+  // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.request_start_psmove_data_stream)
 }
 
-// optional .PSMoveDataFrame.Request.RequestReleasePSMove request_release_psmove = 22;
-inline bool Request::has_request_release_psmove() const {
-  return !_is_default_instance_ && request_release_psmove_ != NULL;
+// optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 22;
+inline bool Request::has_request_stop_psmove_data_stream() const {
+  return !_is_default_instance_ && request_stop_psmove_data_stream_ != NULL;
 }
-inline void Request::clear_request_release_psmove() {
-  if (GetArenaNoVirtual() == NULL && request_release_psmove_ != NULL) delete request_release_psmove_;
-  request_release_psmove_ = NULL;
+inline void Request::clear_request_stop_psmove_data_stream() {
+  if (GetArenaNoVirtual() == NULL && request_stop_psmove_data_stream_ != NULL) delete request_stop_psmove_data_stream_;
+  request_stop_psmove_data_stream_ = NULL;
 }
-inline const ::PSMoveDataFrame::Request_RequestReleasePSMove& Request::request_release_psmove() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.request_release_psmove)
-  return request_release_psmove_ != NULL ? *request_release_psmove_ : *default_instance_->request_release_psmove_;
+inline const ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream& Request::request_stop_psmove_data_stream() const {
+  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.request_stop_psmove_data_stream)
+  return request_stop_psmove_data_stream_ != NULL ? *request_stop_psmove_data_stream_ : *default_instance_->request_stop_psmove_data_stream_;
 }
-inline ::PSMoveDataFrame::Request_RequestReleasePSMove* Request::mutable_request_release_psmove() {
+inline ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream* Request::mutable_request_stop_psmove_data_stream() {
   
-  if (request_release_psmove_ == NULL) {
-    request_release_psmove_ = new ::PSMoveDataFrame::Request_RequestReleasePSMove;
+  if (request_stop_psmove_data_stream_ == NULL) {
+    request_stop_psmove_data_stream_ = new ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream;
   }
-  // @@protoc_insertion_point(field_mutable:PSMoveDataFrame.Request.request_release_psmove)
-  return request_release_psmove_;
+  // @@protoc_insertion_point(field_mutable:PSMoveDataFrame.Request.request_stop_psmove_data_stream)
+  return request_stop_psmove_data_stream_;
 }
-inline ::PSMoveDataFrame::Request_RequestReleasePSMove* Request::release_request_release_psmove() {
+inline ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream* Request::release_request_stop_psmove_data_stream() {
   
-  ::PSMoveDataFrame::Request_RequestReleasePSMove* temp = request_release_psmove_;
-  request_release_psmove_ = NULL;
+  ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream* temp = request_stop_psmove_data_stream_;
+  request_stop_psmove_data_stream_ = NULL;
   return temp;
 }
-inline void Request::set_allocated_request_release_psmove(::PSMoveDataFrame::Request_RequestReleasePSMove* request_release_psmove) {
-  delete request_release_psmove_;
-  request_release_psmove_ = request_release_psmove;
-  if (request_release_psmove) {
+inline void Request::set_allocated_request_stop_psmove_data_stream(::PSMoveDataFrame::Request_RequestStopPSMoveDataStream* request_stop_psmove_data_stream) {
+  delete request_stop_psmove_data_stream_;
+  request_stop_psmove_data_stream_ = request_stop_psmove_data_stream;
+  if (request_stop_psmove_data_stream) {
     
   } else {
     
   }
-  // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.request_release_psmove)
+  // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.request_stop_psmove_data_stream)
 }
 
 // optional .PSMoveDataFrame.Request.RequestSetRumble request_rumble = 23;
@@ -1416,22 +1551,78 @@ inline void Request::set_allocated_request_rumble(::PSMoveDataFrame::Request_Req
   // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.request_rumble)
 }
 
-// -------------------------------------------------------------------
-
-// Response_ResponseGeneral
-
-// optional .PSMoveDataFrame.Response.ResultCode code = 1;
-inline void Response_ResponseGeneral::clear_code() {
-  code_ = 0;
+// optional .PSMoveDataFrame.Request.RequestCycleTrackingColor cycle_tracking_color = 24;
+inline bool Request::has_cycle_tracking_color() const {
+  return !_is_default_instance_ && cycle_tracking_color_ != NULL;
 }
-inline ::PSMoveDataFrame::Response_ResultCode Response_ResponseGeneral::code() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Response.ResponseGeneral.code)
-  return static_cast< ::PSMoveDataFrame::Response_ResultCode >(code_);
+inline void Request::clear_cycle_tracking_color() {
+  if (GetArenaNoVirtual() == NULL && cycle_tracking_color_ != NULL) delete cycle_tracking_color_;
+  cycle_tracking_color_ = NULL;
 }
-inline void Response_ResponseGeneral::set_code(::PSMoveDataFrame::Response_ResultCode value) {
+inline const ::PSMoveDataFrame::Request_RequestCycleTrackingColor& Request::cycle_tracking_color() const {
+  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.cycle_tracking_color)
+  return cycle_tracking_color_ != NULL ? *cycle_tracking_color_ : *default_instance_->cycle_tracking_color_;
+}
+inline ::PSMoveDataFrame::Request_RequestCycleTrackingColor* Request::mutable_cycle_tracking_color() {
   
-  code_ = value;
-  // @@protoc_insertion_point(field_set:PSMoveDataFrame.Response.ResponseGeneral.code)
+  if (cycle_tracking_color_ == NULL) {
+    cycle_tracking_color_ = new ::PSMoveDataFrame::Request_RequestCycleTrackingColor;
+  }
+  // @@protoc_insertion_point(field_mutable:PSMoveDataFrame.Request.cycle_tracking_color)
+  return cycle_tracking_color_;
+}
+inline ::PSMoveDataFrame::Request_RequestCycleTrackingColor* Request::release_cycle_tracking_color() {
+  
+  ::PSMoveDataFrame::Request_RequestCycleTrackingColor* temp = cycle_tracking_color_;
+  cycle_tracking_color_ = NULL;
+  return temp;
+}
+inline void Request::set_allocated_cycle_tracking_color(::PSMoveDataFrame::Request_RequestCycleTrackingColor* cycle_tracking_color) {
+  delete cycle_tracking_color_;
+  cycle_tracking_color_ = cycle_tracking_color;
+  if (cycle_tracking_color) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.cycle_tracking_color)
+}
+
+// optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 25;
+inline bool Request::has_reset_pose() const {
+  return !_is_default_instance_ && reset_pose_ != NULL;
+}
+inline void Request::clear_reset_pose() {
+  if (GetArenaNoVirtual() == NULL && reset_pose_ != NULL) delete reset_pose_;
+  reset_pose_ = NULL;
+}
+inline const ::PSMoveDataFrame::Request_RequestResetPose& Request::reset_pose() const {
+  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.reset_pose)
+  return reset_pose_ != NULL ? *reset_pose_ : *default_instance_->reset_pose_;
+}
+inline ::PSMoveDataFrame::Request_RequestResetPose* Request::mutable_reset_pose() {
+  
+  if (reset_pose_ == NULL) {
+    reset_pose_ = new ::PSMoveDataFrame::Request_RequestResetPose;
+  }
+  // @@protoc_insertion_point(field_mutable:PSMoveDataFrame.Request.reset_pose)
+  return reset_pose_;
+}
+inline ::PSMoveDataFrame::Request_RequestResetPose* Request::release_reset_pose() {
+  
+  ::PSMoveDataFrame::Request_RequestResetPose* temp = reset_pose_;
+  reset_pose_ = NULL;
+  return temp;
+}
+inline void Request::set_allocated_reset_pose(::PSMoveDataFrame::Request_RequestResetPose* reset_pose) {
+  delete reset_pose_;
+  reset_pose_ = reset_pose;
+  if (reset_pose) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.reset_pose)
 }
 
 // -------------------------------------------------------------------
@@ -1484,44 +1675,21 @@ inline void Response::set_request_id(::google::protobuf::int32 value) {
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.Response.request_id)
 }
 
-// optional .PSMoveDataFrame.Response.ResponseGeneral response_general = 21;
-inline bool Response::has_response_general() const {
-  return !_is_default_instance_ && response_general_ != NULL;
+// optional .PSMoveDataFrame.Response.ResultCode result_code = 3;
+inline void Response::clear_result_code() {
+  result_code_ = 0;
 }
-inline void Response::clear_response_general() {
-  if (GetArenaNoVirtual() == NULL && response_general_ != NULL) delete response_general_;
-  response_general_ = NULL;
+inline ::PSMoveDataFrame::Response_ResultCode Response::result_code() const {
+  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Response.result_code)
+  return static_cast< ::PSMoveDataFrame::Response_ResultCode >(result_code_);
 }
-inline const ::PSMoveDataFrame::Response_ResponseGeneral& Response::response_general() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Response.response_general)
-  return response_general_ != NULL ? *response_general_ : *default_instance_->response_general_;
-}
-inline ::PSMoveDataFrame::Response_ResponseGeneral* Response::mutable_response_general() {
+inline void Response::set_result_code(::PSMoveDataFrame::Response_ResultCode value) {
   
-  if (response_general_ == NULL) {
-    response_general_ = new ::PSMoveDataFrame::Response_ResponseGeneral;
-  }
-  // @@protoc_insertion_point(field_mutable:PSMoveDataFrame.Response.response_general)
-  return response_general_;
-}
-inline ::PSMoveDataFrame::Response_ResponseGeneral* Response::release_response_general() {
-  
-  ::PSMoveDataFrame::Response_ResponseGeneral* temp = response_general_;
-  response_general_ = NULL;
-  return temp;
-}
-inline void Response::set_allocated_response_general(::PSMoveDataFrame::Response_ResponseGeneral* response_general) {
-  delete response_general_;
-  response_general_ = response_general;
-  if (response_general) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Response.response_general)
+  result_code_ = value;
+  // @@protoc_insertion_point(field_set:PSMoveDataFrame.Response.result_code)
 }
 
-// optional .PSMoveDataFrame.Response.ResponseActivePSMoveCount response_psmove_count = 22;
+// optional .PSMoveDataFrame.Response.ResponseActivePSMoveCount response_psmove_count = 21;
 inline bool Response::has_response_psmove_count() const {
   return !_is_default_instance_ && response_psmove_count_ != NULL;
 }
@@ -1827,6 +1995,8 @@ inline void ControllerDataFrame::set_trigger_value(::google::protobuf::int32 val
 }
 
 #endif  // !PROTOBUF_INLINE_NOT_IN_HEADERS
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------
