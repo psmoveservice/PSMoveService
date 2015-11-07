@@ -1,19 +1,7 @@
-// -----------------------------------------------------------------------------
-
-// Copyright 2011-2013 Renato Tegon Forti
-//
-// Distributed under the Boost Software License, Version 1.0. (See accompanying 
-// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-//
-
-// client.cpp : Defines the entry program_optionsint for the console application.
-//
-
 //#define BOOST_ALL_DYN_LINK
 #define BOOST_LIB_DIAGNOSTIC
 
-#include "ClientNetworkManager.h"
-#include "ResponseHandler.h"
+#include "ClientPSMoveAPI.h"
 
 #include <boost/asio.hpp>
 #include <boost/application.hpp>
@@ -25,8 +13,7 @@ class PSMoveConsoleClient
 {
 public:
     PSMoveConsoleClient() 
-        : response_handler()
-        , network_manager("localhost", "9512", response_handler)
+        : app_status()
     {
     }
 
@@ -39,9 +26,9 @@ public:
         {
             if (startup())
             {
-                std::shared_ptr<application::status> st = context.find<application::status>();
+				app_status = context.find<application::status>();
 
-                while (st->state() != application::status::stoped)
+				while (app_status->state() != application::status::stoped)
                 {
                     update();
 
@@ -72,14 +59,33 @@ public:
    }
 
 private:
+	// ClientPSMoveAPI
+	void handle_client_psmove_event(ClientPSMoveAPI::eClientPSMoveAPIEvent event_type)
+	{
+		switch (event_type)
+		{
+		case ClientPSMoveAPI::connectedToService:
+			//###bwalker $TODO Kick off request to get psmove controller count
+			break;
+		case ClientPSMoveAPI::disconnectedFromService:
+			app_status->state(application::status::stoped);
+			break;
+		default:
+			break;
+		}
+	}
+
+	// PSMoveConsoleClient
     bool startup()
     {
         bool success= true;
 
-        // Start listening for client connections
+        // Attempt to connect to the server
         if (success)
         {
-            if (!network_manager.startup())
+			if (!ClientPSMoveAPI::startup(
+					"localhost", "9512", 
+					boost::bind(&PSMoveConsoleClient::handle_client_psmove_event, this, _1)))
             {
                 std::cerr << "Failed to initialize the client network manager" << std::endl;
                 success= false;
@@ -92,19 +98,18 @@ private:
     void update()
     {
         // Process incoming/outgoing networking requests
-        network_manager.update();
+		ClientPSMoveAPI::update();
     }
 
     void shutdown()
     {
         // Close all active network connections
-        network_manager.shutdown();
+		ClientPSMoveAPI::shutdown();
     }
 
 private:
-    ResponseHandler response_handler;
-    ClientNetworkManager network_manager;
-}; // PSMoveConsoleClient class
+	std::shared_ptr<application::status> app_status;
+};
 
 int main(int argc, char *argv[])
 {   

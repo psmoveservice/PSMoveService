@@ -11,6 +11,12 @@ link_directories(${ROOT_DIR}/thirdparty/protobuf/install/lib)
 list(APPEND PSMOVEDATAFRAME_REQUIRED_DEBUG_LIBS libprotobufd)
 list(APPEND PSMOVEDATAFRAME_REQUIRED_OPTIMIZED_LIBS libprotobuf)
 
+set(Boost_USE_STATIC_LIBS        ON) # only find static libs
+set(Boost_USE_MULTITHREADED      ON)
+set(Boost_USE_STATIC_RUNTIME     ON)
+find_package(Boost 1.59.0 REQUIRED COMPONENTS atomic chrono date_time filesystem program_options regex system thread)
+include_directories(${Boost_INCLUDE_DIRS})
+
 # Source files that are needed for both the shared and static library
 file(GLOB PSMOVEDATAFRAME_LIBRARY_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.cc"

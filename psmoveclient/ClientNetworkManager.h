@@ -1,16 +1,23 @@
 #ifndef CLIENT_NETWORK_MANAGER_H
 #define CLIENT_NETWORK_MANAGER_H
 
-#include "ResponseHandler.h"
+//-- includes ----
+#include "DataFrameInterface.h"
+#include "ClientNetworkInterface.h"
 
+//-- definitions ------
 // -Server Network Manager-
 // Maintains TCP/UDP connection state with PSMoveService.
 // Routes requests to the given request handler.
 class ClientNetworkManager 
 {
 public:
-    ClientNetworkManager(const std::string &host, const std::string &port, ResponseHandler &responseHandler);
+    ClientNetworkManager(
+		const std::string &host, const std::string &port, 
+		IDataFrameEventListener *responseListener, IClientNetworkEventListener *netEventListener);
     virtual ~ClientNetworkManager();
+
+	static ClientNetworkManager *get_instance();
 
     bool startup();
     void send_request(RequestPtr request);
@@ -22,7 +29,11 @@ private:
     ClientNetworkManager();
 
     // private implementation - same lifetime as the ClientNetworkManager
-    class ClientNetworkManagerImpl *implementation_ptr;
+    class ClientNetworkManagerImpl *m_implementation_ptr;
+
+	// Singleton instance of the class
+	// Assigned in startup, cleared in teardown
+	static ClientNetworkManager *m_instance;
 };
 
 #endif  // CLIENT_NETWORK_MANAGER_H

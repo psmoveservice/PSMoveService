@@ -30,7 +30,11 @@ using boost::uint8_t;
 class ClientNetworkManagerImpl : public boost::enable_shared_from_this<ClientNetworkManagerImpl>
 {
 public:
-    ClientNetworkManagerImpl(const std::string &host, const std::string &port, ResponseHandler &requestHandler)
+	ClientNetworkManagerImpl(
+		const std::string &host, 
+		const std::string &port, 
+		IDataFrameEventListener *responseListener,
+		IClientNetworkEventListener *netEventListener)
         : m_server_host(host)
         , m_server_port(port)
 
@@ -47,7 +51,8 @@ public:
         , m_write_bufer()
         , m_packed_request()
 
-        , m_response_handler_ref(requestHandler)
+		, m_netEventListener(netEventListener)
+        , m_response_listener(responseListener)
         , m_pending_requests()
     {
     }
@@ -79,7 +84,11 @@ public:
         // drain any pending requests
         while (m_pending_requests.size() > 0)
         {
-            m_response_handler_ref.pending_request_canceled(m_pending_requests.front());
+			if (m_response_listener)
+			{
+				m_response_listener->handle_request_canceled(m_pending_requests.front());
+			}
+
             m_pending_requests.pop_front();
         }
 
@@ -94,7 +103,18 @@ public:
             if (error)
             {
                 DEBUG && (cerr << "Problem closing the socket: " << error.value() << endl);
+				if (m_netEventListener)
+				{
+					m_netEventListener->handle_server_connection_close_failed(error);
+				}
             }
+			else
+			{
+				if (m_netEventListener)
+				{
+					m_netEventListener->handle_server_connection_closed();
+				}
+			}
         }
 
         m_connection_stopped= true;
@@ -115,10 +135,14 @@ private:
             m_tcp_socket.async_connect(
                 endpoint_iter->endpoint(),
                 boost::bind(&ClientNetworkManagerImpl::handle_connect, this, _1, endpoint_iter));
-            // TODO: handle socket disconnection
         }
         else
         {
+			if (m_netEventListener)
+			{				
+				m_netEventListener->handle_server_connection_open_failed(boost::asio::error::host_unreachable);
+			}
+
             // There are no more endpoints to try. Shut down the client.
             stop();
             success= false;
@@ -141,6 +165,11 @@ private:
         {
             DEBUG && (std::cerr << "Connect timed out" << endl);
 
+			if (m_netEventListener)
+			{
+				m_netEventListener->handle_server_connection_open_failed(boost::asio::error::timed_out);
+			}
+
             // Try the next available endpoint.
             start_connect(++endpoint_iter);
         }
@@ -148,6 +177,11 @@ private:
         else if (ec)
         {
             DEBUG && (std::cerr << "Connect error: " << ec.message() << endl);
+
+			if (m_netEventListener)
+			{
+				m_netEventListener->handle_server_connection_open_failed(ec);
+			}
 
             // We need to close the socket used in the previous connection attempt
             // before starting a new one.
@@ -160,6 +194,11 @@ private:
         else
         {
             DEBUG && (std::cout << "Connected to " << endpoint_iter->endpoint() << endl);
+
+			if (m_netEventListener)
+			{
+				m_netEventListener->handle_server_connection_opened();
+			}
 
             // If there are any requests waiting 
             if (m_pending_requests.size() > 0)
@@ -201,6 +240,11 @@ private:
         }
         else
         {
+			if (m_netEventListener)
+			{
+				m_netEventListener->handle_server_connection_socket_error(error);
+			}
+
             DEBUG && (std::cerr << "Error on receive: " << error.message() << endl);
             stop();
         }
@@ -242,6 +286,11 @@ private:
         }
         else
         {
+			if (m_netEventListener)
+			{
+				m_netEventListener->handle_server_connection_socket_error(error);
+			}
+
             DEBUG && (cerr << "Error on receive: " << error.message() << endl);
             stop();
         }
@@ -263,10 +312,16 @@ private:
         {
             ResponsePtr response = m_packed_response.get_msg();
 
-            m_response_handler_ref.handle_response(response);
+            m_response_listener->handle_response(response);
         }
         else
         {
+			if (m_netEventListener)
+			{
+				//###bwalker $TODO pick a better error code that means "malformed data"
+				m_netEventListener->handle_server_connection_socket_error(boost::asio::error::message_size);
+			}
+
             DEBUG && (cerr << "Error malformed response" << endl);
             stop();
         }
@@ -320,8 +375,12 @@ private:
         }
         else
         {
-            DEBUG && (cerr << "Error on request send: " << ec.message() << endl);
+			if (m_netEventListener)
+			{
+				m_netEventListener->handle_server_connection_socket_error(ec);
+			}
 
+            DEBUG && (cerr << "Error on request send: " << ec.message() << endl);
             stop();
         }
     }
@@ -343,41 +402,49 @@ private:
     vector<uint8_t> m_write_bufer;
     PackedMessage<PSMoveDataFrame::Request> m_packed_request;
 
-    ResponseHandler &m_response_handler_ref;
+	IClientNetworkEventListener *m_netEventListener;
+	IDataFrameEventListener *m_response_listener;
     deque<RequestPtr> m_pending_requests;
 };
 
-// -NetworkManager-
+// -ClientNetworkManager-
 // Public interface to the psmove client network API
+ClientNetworkManager *ClientNetworkManager::m_instance = NULL;
+
 ClientNetworkManager::ClientNetworkManager(
     const std::string &host, 
     const std::string &port, 
-    ResponseHandler &responseHandler)
-    : implementation_ptr(new ClientNetworkManagerImpl(host, port, responseHandler))
+	IDataFrameEventListener *responseListener,
+	IClientNetworkEventListener *netEventListener)
+	: m_implementation_ptr(new ClientNetworkManagerImpl(host, port, responseListener, netEventListener))
 {
 }
 
 ClientNetworkManager::~ClientNetworkManager()
 {
-    delete implementation_ptr;
+	assert(m_instance);
+    delete m_implementation_ptr;
 }
 
 bool ClientNetworkManager::startup()
 {
-    return implementation_ptr->start();
+	m_instance= this;
+
+    return m_implementation_ptr->start();
 }
 
 void ClientNetworkManager::send_request(RequestPtr request)
 {
-    implementation_ptr->send_request(request);
+    m_implementation_ptr->send_request(request);
 }
 
 void ClientNetworkManager::update()
 {
-    implementation_ptr->poll();
+    m_implementation_ptr->poll();
 }
 
 void ClientNetworkManager::shutdown()
 {
-    implementation_ptr->stop();
+    m_implementation_ptr->stop();
+	m_instance = NULL;
 }

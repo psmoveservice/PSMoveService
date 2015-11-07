@@ -1,5 +1,5 @@
 //-- includes -----
-#include "ResponseHandler.h"
+#include "ClientRequestManager.h"
 #include "PSMoveDataFrame.pb.h"
 #include <cassert>
 
@@ -15,19 +15,19 @@ static void handle_response__get_active_psmove_count(const ResponseContext &cont
 static void handle_response__general(const ResponseContext &context);
 
 //-- public methods -----
-ResponseHandler::ResponseHandler() 
+ClientRequestManager::ClientRequestManager() 
     : pending_requests()
 {
 }
 
-void ResponseHandler::register_pending_request(RequestPtr request)
+void ClientRequestManager::register_pending_request(RequestPtr request)
 {
     // Requests should never be double registered
     assert(pending_requests.find(request->request_id()) == pending_requests.end());
     pending_requests.insert(t_id_request_pair(request->request_id(), request));
 }
 
-void ResponseHandler::pending_request_canceled(RequestPtr request)
+void ClientRequestManager::handle_request_canceled(RequestPtr request)
 {
     // Get the request awaiting completion
     t_request_map_iterator pending_request_entry= pending_requests.find(request->request_id());
@@ -39,7 +39,7 @@ void ResponseHandler::pending_request_canceled(RequestPtr request)
     // TODO: Notify any other systems about the cancellation based on request type?
 }
 
-void ResponseHandler::handle_response(ResponsePtr response)
+void ClientRequestManager::handle_response(ResponsePtr response)
 {
     // Get the request awaiting completion
     t_request_map_iterator pending_request_entry= pending_requests.find(response->request_id());
