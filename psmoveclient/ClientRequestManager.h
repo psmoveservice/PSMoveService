@@ -6,7 +6,7 @@
 #include <boost/function.hpp>
 
 //-- definitions -----
-class ClientRequestManager : public IDataFrameEventListener
+class ClientRequestManager : public IResponseListener
 {
 public:
     typedef boost::function<void(RequestPtr, ResponsePtr)> response_callback;

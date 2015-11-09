@@ -41,26 +41,22 @@ class ControllerDataFrame;
 class ControllerDataFrame_Orientation;
 class ControllerDataFrame_Position;
 class Request;
-class Request_RequestCycleTrackingColor;
 class Request_RequestResetPose;
 class Request_RequestSetRumble;
 class Request_RequestStartPSMoveDataStream;
 class Request_RequestStopPSMoveDataStream;
 class Response;
-class Response_ResponseActivePSMoveCount;
 
 enum Request_RequestType {
-  Request_RequestType_GET_ACTIVE_PSMOVE_COUNT = 0,
-  Request_RequestType_START_PSMOVE_DATA_STREAM = 1,
-  Request_RequestType_STOP_PSMOVE_DATA_STREAM = 2,
-  Request_RequestType_SET_RUMBLE = 3,
-  Request_RequestType_CYCLE_TRACKING_COLOR = 4,
-  Request_RequestType_RESET_POSE = 5,
+  Request_RequestType_START_PSMOVE_DATA_STREAM = 0,
+  Request_RequestType_STOP_PSMOVE_DATA_STREAM = 1,
+  Request_RequestType_SET_RUMBLE = 2,
+  Request_RequestType_RESET_POSE = 3,
   Request_RequestType_Request_RequestType_INT_MIN_SENTINEL_DO_NOT_USE_ = ::google::protobuf::kint32min,
   Request_RequestType_Request_RequestType_INT_MAX_SENTINEL_DO_NOT_USE_ = ::google::protobuf::kint32max
 };
 bool Request_RequestType_IsValid(int value);
-const Request_RequestType Request_RequestType_RequestType_MIN = Request_RequestType_GET_ACTIVE_PSMOVE_COUNT;
+const Request_RequestType Request_RequestType_RequestType_MIN = Request_RequestType_START_PSMOVE_DATA_STREAM;
 const Request_RequestType Request_RequestType_RequestType_MAX = Request_RequestType_RESET_POSE;
 const int Request_RequestType_RequestType_ARRAYSIZE = Request_RequestType_RequestType_MAX + 1;
 
@@ -76,13 +72,12 @@ inline bool Request_RequestType_Parse(
 }
 enum Response_ResponseType {
   Response_ResponseType_GENERAL_RESULT = 0,
-  Response_ResponseType_ACTIVE_PSMOVE_COUNT = 1,
   Response_ResponseType_Response_ResponseType_INT_MIN_SENTINEL_DO_NOT_USE_ = ::google::protobuf::kint32min,
   Response_ResponseType_Response_ResponseType_INT_MAX_SENTINEL_DO_NOT_USE_ = ::google::protobuf::kint32max
 };
 bool Response_ResponseType_IsValid(int value);
 const Response_ResponseType Response_ResponseType_ResponseType_MIN = Response_ResponseType_GENERAL_RESULT;
-const Response_ResponseType Response_ResponseType_ResponseType_MAX = Response_ResponseType_ACTIVE_PSMOVE_COUNT;
+const Response_ResponseType Response_ResponseType_ResponseType_MAX = Response_ResponseType_GENERAL_RESULT;
 const int Response_ResponseType_ResponseType_ARRAYSIZE = Response_ResponseType_ResponseType_MAX + 1;
 
 const ::google::protobuf::EnumDescriptor* Response_ResponseType_descriptor();
@@ -388,84 +383,6 @@ class Request_RequestSetRumble : public ::google::protobuf::Message {
 };
 // -------------------------------------------------------------------
 
-class Request_RequestCycleTrackingColor : public ::google::protobuf::Message {
- public:
-  Request_RequestCycleTrackingColor();
-  virtual ~Request_RequestCycleTrackingColor();
-
-  Request_RequestCycleTrackingColor(const Request_RequestCycleTrackingColor& from);
-
-  inline Request_RequestCycleTrackingColor& operator=(const Request_RequestCycleTrackingColor& from) {
-    CopyFrom(from);
-    return *this;
-  }
-
-  static const ::google::protobuf::Descriptor* descriptor();
-  static const Request_RequestCycleTrackingColor& default_instance();
-
-  void Swap(Request_RequestCycleTrackingColor* other);
-
-  // implements Message ----------------------------------------------
-
-  inline Request_RequestCycleTrackingColor* New() const { return New(NULL); }
-
-  Request_RequestCycleTrackingColor* New(::google::protobuf::Arena* arena) const;
-  void CopyFrom(const ::google::protobuf::Message& from);
-  void MergeFrom(const ::google::protobuf::Message& from);
-  void CopyFrom(const Request_RequestCycleTrackingColor& from);
-  void MergeFrom(const Request_RequestCycleTrackingColor& from);
-  void Clear();
-  bool IsInitialized() const;
-
-  int ByteSize() const;
-  bool MergePartialFromCodedStream(
-      ::google::protobuf::io::CodedInputStream* input);
-  void SerializeWithCachedSizes(
-      ::google::protobuf::io::CodedOutputStream* output) const;
-  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
-  int GetCachedSize() const { return _cached_size_; }
-  private:
-  void SharedCtor();
-  void SharedDtor();
-  void SetCachedSize(int size) const;
-  void InternalSwap(Request_RequestCycleTrackingColor* other);
-  private:
-  inline ::google::protobuf::Arena* GetArenaNoVirtual() const {
-    return _internal_metadata_.arena();
-  }
-  inline void* MaybeArenaPtr() const {
-    return _internal_metadata_.raw_arena_ptr();
-  }
-  public:
-
-  ::google::protobuf::Metadata GetMetadata() const;
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  // optional int32 psmove_id = 1;
-  void clear_psmove_id();
-  static const int kPsmoveIdFieldNumber = 1;
-  ::google::protobuf::int32 psmove_id() const;
-  void set_psmove_id(::google::protobuf::int32 value);
-
-  // @@protoc_insertion_point(class_scope:PSMoveDataFrame.Request.RequestCycleTrackingColor)
- private:
-
-  ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
-  bool _is_default_instance_;
-  ::google::protobuf::int32 psmove_id_;
-  mutable int _cached_size_;
-  friend void  protobuf_AddDesc_PSMoveDataFrame_2eproto();
-  friend void protobuf_AssignDesc_PSMoveDataFrame_2eproto();
-  friend void protobuf_ShutdownFile_PSMoveDataFrame_2eproto();
-
-  void InitAsDefaultInstance();
-  static Request_RequestCycleTrackingColor* default_instance_;
-};
-// -------------------------------------------------------------------
-
 class Request_RequestResetPose : public ::google::protobuf::Message {
  public:
   Request_RequestResetPose();
@@ -601,15 +518,12 @@ class Request : public ::google::protobuf::Message {
   typedef Request_RequestStartPSMoveDataStream RequestStartPSMoveDataStream;
   typedef Request_RequestStopPSMoveDataStream RequestStopPSMoveDataStream;
   typedef Request_RequestSetRumble RequestSetRumble;
-  typedef Request_RequestCycleTrackingColor RequestCycleTrackingColor;
   typedef Request_RequestResetPose RequestResetPose;
 
   typedef Request_RequestType RequestType;
-  static const RequestType GET_ACTIVE_PSMOVE_COUNT = Request_RequestType_GET_ACTIVE_PSMOVE_COUNT;
   static const RequestType START_PSMOVE_DATA_STREAM = Request_RequestType_START_PSMOVE_DATA_STREAM;
   static const RequestType STOP_PSMOVE_DATA_STREAM = Request_RequestType_STOP_PSMOVE_DATA_STREAM;
   static const RequestType SET_RUMBLE = Request_RequestType_SET_RUMBLE;
-  static const RequestType CYCLE_TRACKING_COLOR = Request_RequestType_CYCLE_TRACKING_COLOR;
   static const RequestType RESET_POSE = Request_RequestType_RESET_POSE;
   static inline bool RequestType_IsValid(int value) {
     return Request_RequestType_IsValid(value);
@@ -646,19 +560,19 @@ class Request : public ::google::protobuf::Message {
   ::PSMoveDataFrame::Request_RequestType type() const;
   void set_type(::PSMoveDataFrame::Request_RequestType value);
 
-  // optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 21;
+  // optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
   bool has_request_start_psmove_data_stream() const;
   void clear_request_start_psmove_data_stream();
-  static const int kRequestStartPsmoveDataStreamFieldNumber = 21;
+  static const int kRequestStartPsmoveDataStreamFieldNumber = 20;
   const ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream& request_start_psmove_data_stream() const;
   ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream* mutable_request_start_psmove_data_stream();
   ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream* release_request_start_psmove_data_stream();
   void set_allocated_request_start_psmove_data_stream(::PSMoveDataFrame::Request_RequestStartPSMoveDataStream* request_start_psmove_data_stream);
 
-  // optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 22;
+  // optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 21;
   bool has_request_stop_psmove_data_stream() const;
   void clear_request_stop_psmove_data_stream();
-  static const int kRequestStopPsmoveDataStreamFieldNumber = 22;
+  static const int kRequestStopPsmoveDataStreamFieldNumber = 21;
   const ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream& request_stop_psmove_data_stream() const;
   ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream* mutable_request_stop_psmove_data_stream();
   ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream* release_request_stop_psmove_data_stream();
@@ -673,19 +587,10 @@ class Request : public ::google::protobuf::Message {
   ::PSMoveDataFrame::Request_RequestSetRumble* release_request_rumble();
   void set_allocated_request_rumble(::PSMoveDataFrame::Request_RequestSetRumble* request_rumble);
 
-  // optional .PSMoveDataFrame.Request.RequestCycleTrackingColor cycle_tracking_color = 24;
-  bool has_cycle_tracking_color() const;
-  void clear_cycle_tracking_color();
-  static const int kCycleTrackingColorFieldNumber = 24;
-  const ::PSMoveDataFrame::Request_RequestCycleTrackingColor& cycle_tracking_color() const;
-  ::PSMoveDataFrame::Request_RequestCycleTrackingColor* mutable_cycle_tracking_color();
-  ::PSMoveDataFrame::Request_RequestCycleTrackingColor* release_cycle_tracking_color();
-  void set_allocated_cycle_tracking_color(::PSMoveDataFrame::Request_RequestCycleTrackingColor* cycle_tracking_color);
-
-  // optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 25;
+  // optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 24;
   bool has_reset_pose() const;
   void clear_reset_pose();
-  static const int kResetPoseFieldNumber = 25;
+  static const int kResetPoseFieldNumber = 24;
   const ::PSMoveDataFrame::Request_RequestResetPose& reset_pose() const;
   ::PSMoveDataFrame::Request_RequestResetPose* mutable_reset_pose();
   ::PSMoveDataFrame::Request_RequestResetPose* release_reset_pose();
@@ -701,7 +606,6 @@ class Request : public ::google::protobuf::Message {
   ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream* request_start_psmove_data_stream_;
   ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream* request_stop_psmove_data_stream_;
   ::PSMoveDataFrame::Request_RequestSetRumble* request_rumble_;
-  ::PSMoveDataFrame::Request_RequestCycleTrackingColor* cycle_tracking_color_;
   ::PSMoveDataFrame::Request_RequestResetPose* reset_pose_;
   mutable int _cached_size_;
   friend void  protobuf_AddDesc_PSMoveDataFrame_2eproto();
@@ -710,84 +614,6 @@ class Request : public ::google::protobuf::Message {
 
   void InitAsDefaultInstance();
   static Request* default_instance_;
-};
-// -------------------------------------------------------------------
-
-class Response_ResponseActivePSMoveCount : public ::google::protobuf::Message {
- public:
-  Response_ResponseActivePSMoveCount();
-  virtual ~Response_ResponseActivePSMoveCount();
-
-  Response_ResponseActivePSMoveCount(const Response_ResponseActivePSMoveCount& from);
-
-  inline Response_ResponseActivePSMoveCount& operator=(const Response_ResponseActivePSMoveCount& from) {
-    CopyFrom(from);
-    return *this;
-  }
-
-  static const ::google::protobuf::Descriptor* descriptor();
-  static const Response_ResponseActivePSMoveCount& default_instance();
-
-  void Swap(Response_ResponseActivePSMoveCount* other);
-
-  // implements Message ----------------------------------------------
-
-  inline Response_ResponseActivePSMoveCount* New() const { return New(NULL); }
-
-  Response_ResponseActivePSMoveCount* New(::google::protobuf::Arena* arena) const;
-  void CopyFrom(const ::google::protobuf::Message& from);
-  void MergeFrom(const ::google::protobuf::Message& from);
-  void CopyFrom(const Response_ResponseActivePSMoveCount& from);
-  void MergeFrom(const Response_ResponseActivePSMoveCount& from);
-  void Clear();
-  bool IsInitialized() const;
-
-  int ByteSize() const;
-  bool MergePartialFromCodedStream(
-      ::google::protobuf::io::CodedInputStream* input);
-  void SerializeWithCachedSizes(
-      ::google::protobuf::io::CodedOutputStream* output) const;
-  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
-  int GetCachedSize() const { return _cached_size_; }
-  private:
-  void SharedCtor();
-  void SharedDtor();
-  void SetCachedSize(int size) const;
-  void InternalSwap(Response_ResponseActivePSMoveCount* other);
-  private:
-  inline ::google::protobuf::Arena* GetArenaNoVirtual() const {
-    return _internal_metadata_.arena();
-  }
-  inline void* MaybeArenaPtr() const {
-    return _internal_metadata_.raw_arena_ptr();
-  }
-  public:
-
-  ::google::protobuf::Metadata GetMetadata() const;
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  // optional int32 count = 1;
-  void clear_count();
-  static const int kCountFieldNumber = 1;
-  ::google::protobuf::int32 count() const;
-  void set_count(::google::protobuf::int32 value);
-
-  // @@protoc_insertion_point(class_scope:PSMoveDataFrame.Response.ResponseActivePSMoveCount)
- private:
-
-  ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
-  bool _is_default_instance_;
-  ::google::protobuf::int32 count_;
-  mutable int _cached_size_;
-  friend void  protobuf_AddDesc_PSMoveDataFrame_2eproto();
-  friend void protobuf_AssignDesc_PSMoveDataFrame_2eproto();
-  friend void protobuf_ShutdownFile_PSMoveDataFrame_2eproto();
-
-  void InitAsDefaultInstance();
-  static Response_ResponseActivePSMoveCount* default_instance_;
 };
 // -------------------------------------------------------------------
 
@@ -845,11 +671,8 @@ class Response : public ::google::protobuf::Message {
 
   // nested types ----------------------------------------------------
 
-  typedef Response_ResponseActivePSMoveCount ResponseActivePSMoveCount;
-
   typedef Response_ResponseType ResponseType;
   static const ResponseType GENERAL_RESULT = Response_ResponseType_GENERAL_RESULT;
-  static const ResponseType ACTIVE_PSMOVE_COUNT = Response_ResponseType_ACTIVE_PSMOVE_COUNT;
   static inline bool ResponseType_IsValid(int value) {
     return Response_ResponseType_IsValid(value);
   }
@@ -916,15 +739,6 @@ class Response : public ::google::protobuf::Message {
   ::PSMoveDataFrame::Response_ResultCode result_code() const;
   void set_result_code(::PSMoveDataFrame::Response_ResultCode value);
 
-  // optional .PSMoveDataFrame.Response.ResponseActivePSMoveCount response_psmove_count = 21;
-  bool has_response_psmove_count() const;
-  void clear_response_psmove_count();
-  static const int kResponsePsmoveCountFieldNumber = 21;
-  const ::PSMoveDataFrame::Response_ResponseActivePSMoveCount& response_psmove_count() const;
-  ::PSMoveDataFrame::Response_ResponseActivePSMoveCount* mutable_response_psmove_count();
-  ::PSMoveDataFrame::Response_ResponseActivePSMoveCount* release_response_psmove_count();
-  void set_allocated_response_psmove_count(::PSMoveDataFrame::Response_ResponseActivePSMoveCount* response_psmove_count);
-
   // @@protoc_insertion_point(class_scope:PSMoveDataFrame.Response)
  private:
 
@@ -932,7 +746,6 @@ class Response : public ::google::protobuf::Message {
   bool _is_default_instance_;
   int type_;
   ::google::protobuf::int32 request_id_;
-  ::PSMoveDataFrame::Response_ResponseActivePSMoveCount* response_psmove_count_;
   int result_code_;
   mutable int _cached_size_;
   friend void  protobuf_AddDesc_PSMoveDataFrame_2eproto();
@@ -1225,57 +1038,63 @@ class ControllerDataFrame : public ::google::protobuf::Message {
 
   // accessors -------------------------------------------------------
 
-  // optional int32 sequence_num = 1;
+  // optional int32 psmove_id = 1;
+  void clear_psmove_id();
+  static const int kPsmoveIdFieldNumber = 1;
+  ::google::protobuf::int32 psmove_id() const;
+  void set_psmove_id(::google::protobuf::int32 value);
+
+  // optional int32 sequence_num = 2;
   void clear_sequence_num();
-  static const int kSequenceNumFieldNumber = 1;
+  static const int kSequenceNumFieldNumber = 2;
   ::google::protobuf::int32 sequence_num() const;
   void set_sequence_num(::google::protobuf::int32 value);
 
-  // optional bool IsConnected = 2;
+  // optional bool IsConnected = 3;
   void clear_isconnected();
-  static const int kIsConnectedFieldNumber = 2;
+  static const int kIsConnectedFieldNumber = 3;
   bool isconnected() const;
   void set_isconnected(bool value);
 
-  // optional bool IsTrackingEnabled = 3;
+  // optional bool IsTrackingEnabled = 4;
   void clear_istrackingenabled();
-  static const int kIsTrackingEnabledFieldNumber = 3;
+  static const int kIsTrackingEnabledFieldNumber = 4;
   bool istrackingenabled() const;
   void set_istrackingenabled(bool value);
 
-  // optional bool IsCurrentlyTracking = 4;
+  // optional bool IsCurrentlyTracking = 5;
   void clear_iscurrentlytracking();
-  static const int kIsCurrentlyTrackingFieldNumber = 4;
+  static const int kIsCurrentlyTrackingFieldNumber = 5;
   bool iscurrentlytracking() const;
   void set_iscurrentlytracking(bool value);
 
-  // optional .PSMoveDataFrame.ControllerDataFrame.Position position = 5;
+  // optional .PSMoveDataFrame.ControllerDataFrame.Position position = 6;
   bool has_position() const;
   void clear_position();
-  static const int kPositionFieldNumber = 5;
+  static const int kPositionFieldNumber = 6;
   const ::PSMoveDataFrame::ControllerDataFrame_Position& position() const;
   ::PSMoveDataFrame::ControllerDataFrame_Position* mutable_position();
   ::PSMoveDataFrame::ControllerDataFrame_Position* release_position();
   void set_allocated_position(::PSMoveDataFrame::ControllerDataFrame_Position* position);
 
-  // optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 6;
+  // optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 7;
   bool has_orientation() const;
   void clear_orientation();
-  static const int kOrientationFieldNumber = 6;
+  static const int kOrientationFieldNumber = 7;
   const ::PSMoveDataFrame::ControllerDataFrame_Orientation& orientation() const;
   ::PSMoveDataFrame::ControllerDataFrame_Orientation* mutable_orientation();
   ::PSMoveDataFrame::ControllerDataFrame_Orientation* release_orientation();
   void set_allocated_orientation(::PSMoveDataFrame::ControllerDataFrame_Orientation* orientation);
 
-  // optional uint32 button_down_bitmask = 7;
+  // optional uint32 button_down_bitmask = 8;
   void clear_button_down_bitmask();
-  static const int kButtonDownBitmaskFieldNumber = 7;
+  static const int kButtonDownBitmaskFieldNumber = 8;
   ::google::protobuf::uint32 button_down_bitmask() const;
   void set_button_down_bitmask(::google::protobuf::uint32 value);
 
-  // optional int32 trigger_value = 8;
+  // optional int32 trigger_value = 9;
   void clear_trigger_value();
-  static const int kTriggerValueFieldNumber = 8;
+  static const int kTriggerValueFieldNumber = 9;
   ::google::protobuf::int32 trigger_value() const;
   void set_trigger_value(::google::protobuf::int32 value);
 
@@ -1284,13 +1103,14 @@ class ControllerDataFrame : public ::google::protobuf::Message {
 
   ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
   bool _is_default_instance_;
+  ::google::protobuf::int32 psmove_id_;
   ::google::protobuf::int32 sequence_num_;
   bool isconnected_;
   bool istrackingenabled_;
   bool iscurrentlytracking_;
+  ::google::protobuf::uint32 button_down_bitmask_;
   ::PSMoveDataFrame::ControllerDataFrame_Position* position_;
   ::PSMoveDataFrame::ControllerDataFrame_Orientation* orientation_;
-  ::google::protobuf::uint32 button_down_bitmask_;
   ::google::protobuf::int32 trigger_value_;
   mutable int _cached_size_;
   friend void  protobuf_AddDesc_PSMoveDataFrame_2eproto();
@@ -1374,24 +1194,6 @@ inline void Request_RequestSetRumble::set_rumble(::google::protobuf::int32 value
 
 // -------------------------------------------------------------------
 
-// Request_RequestCycleTrackingColor
-
-// optional int32 psmove_id = 1;
-inline void Request_RequestCycleTrackingColor::clear_psmove_id() {
-  psmove_id_ = 0;
-}
-inline ::google::protobuf::int32 Request_RequestCycleTrackingColor::psmove_id() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.RequestCycleTrackingColor.psmove_id)
-  return psmove_id_;
-}
-inline void Request_RequestCycleTrackingColor::set_psmove_id(::google::protobuf::int32 value) {
-  
-  psmove_id_ = value;
-  // @@protoc_insertion_point(field_set:PSMoveDataFrame.Request.RequestCycleTrackingColor.psmove_id)
-}
-
-// -------------------------------------------------------------------
-
 // Request_RequestResetPose
 
 // optional int32 psmove_id = 1;
@@ -1440,7 +1242,7 @@ inline void Request::set_type(::PSMoveDataFrame::Request_RequestType value) {
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.Request.type)
 }
 
-// optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 21;
+// optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
 inline bool Request::has_request_start_psmove_data_stream() const {
   return !_is_default_instance_ && request_start_psmove_data_stream_ != NULL;
 }
@@ -1477,7 +1279,7 @@ inline void Request::set_allocated_request_start_psmove_data_stream(::PSMoveData
   // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.request_start_psmove_data_stream)
 }
 
-// optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 22;
+// optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 21;
 inline bool Request::has_request_stop_psmove_data_stream() const {
   return !_is_default_instance_ && request_stop_psmove_data_stream_ != NULL;
 }
@@ -1551,44 +1353,7 @@ inline void Request::set_allocated_request_rumble(::PSMoveDataFrame::Request_Req
   // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.request_rumble)
 }
 
-// optional .PSMoveDataFrame.Request.RequestCycleTrackingColor cycle_tracking_color = 24;
-inline bool Request::has_cycle_tracking_color() const {
-  return !_is_default_instance_ && cycle_tracking_color_ != NULL;
-}
-inline void Request::clear_cycle_tracking_color() {
-  if (GetArenaNoVirtual() == NULL && cycle_tracking_color_ != NULL) delete cycle_tracking_color_;
-  cycle_tracking_color_ = NULL;
-}
-inline const ::PSMoveDataFrame::Request_RequestCycleTrackingColor& Request::cycle_tracking_color() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.cycle_tracking_color)
-  return cycle_tracking_color_ != NULL ? *cycle_tracking_color_ : *default_instance_->cycle_tracking_color_;
-}
-inline ::PSMoveDataFrame::Request_RequestCycleTrackingColor* Request::mutable_cycle_tracking_color() {
-  
-  if (cycle_tracking_color_ == NULL) {
-    cycle_tracking_color_ = new ::PSMoveDataFrame::Request_RequestCycleTrackingColor;
-  }
-  // @@protoc_insertion_point(field_mutable:PSMoveDataFrame.Request.cycle_tracking_color)
-  return cycle_tracking_color_;
-}
-inline ::PSMoveDataFrame::Request_RequestCycleTrackingColor* Request::release_cycle_tracking_color() {
-  
-  ::PSMoveDataFrame::Request_RequestCycleTrackingColor* temp = cycle_tracking_color_;
-  cycle_tracking_color_ = NULL;
-  return temp;
-}
-inline void Request::set_allocated_cycle_tracking_color(::PSMoveDataFrame::Request_RequestCycleTrackingColor* cycle_tracking_color) {
-  delete cycle_tracking_color_;
-  cycle_tracking_color_ = cycle_tracking_color;
-  if (cycle_tracking_color) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.cycle_tracking_color)
-}
-
-// optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 25;
+// optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 24;
 inline bool Request::has_reset_pose() const {
   return !_is_default_instance_ && reset_pose_ != NULL;
 }
@@ -1623,24 +1388,6 @@ inline void Request::set_allocated_reset_pose(::PSMoveDataFrame::Request_Request
     
   }
   // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.reset_pose)
-}
-
-// -------------------------------------------------------------------
-
-// Response_ResponseActivePSMoveCount
-
-// optional int32 count = 1;
-inline void Response_ResponseActivePSMoveCount::clear_count() {
-  count_ = 0;
-}
-inline ::google::protobuf::int32 Response_ResponseActivePSMoveCount::count() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Response.ResponseActivePSMoveCount.count)
-  return count_;
-}
-inline void Response_ResponseActivePSMoveCount::set_count(::google::protobuf::int32 value) {
-  
-  count_ = value;
-  // @@protoc_insertion_point(field_set:PSMoveDataFrame.Response.ResponseActivePSMoveCount.count)
 }
 
 // -------------------------------------------------------------------
@@ -1687,43 +1434,6 @@ inline void Response::set_result_code(::PSMoveDataFrame::Response_ResultCode val
   
   result_code_ = value;
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.Response.result_code)
-}
-
-// optional .PSMoveDataFrame.Response.ResponseActivePSMoveCount response_psmove_count = 21;
-inline bool Response::has_response_psmove_count() const {
-  return !_is_default_instance_ && response_psmove_count_ != NULL;
-}
-inline void Response::clear_response_psmove_count() {
-  if (GetArenaNoVirtual() == NULL && response_psmove_count_ != NULL) delete response_psmove_count_;
-  response_psmove_count_ = NULL;
-}
-inline const ::PSMoveDataFrame::Response_ResponseActivePSMoveCount& Response::response_psmove_count() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Response.response_psmove_count)
-  return response_psmove_count_ != NULL ? *response_psmove_count_ : *default_instance_->response_psmove_count_;
-}
-inline ::PSMoveDataFrame::Response_ResponseActivePSMoveCount* Response::mutable_response_psmove_count() {
-  
-  if (response_psmove_count_ == NULL) {
-    response_psmove_count_ = new ::PSMoveDataFrame::Response_ResponseActivePSMoveCount;
-  }
-  // @@protoc_insertion_point(field_mutable:PSMoveDataFrame.Response.response_psmove_count)
-  return response_psmove_count_;
-}
-inline ::PSMoveDataFrame::Response_ResponseActivePSMoveCount* Response::release_response_psmove_count() {
-  
-  ::PSMoveDataFrame::Response_ResponseActivePSMoveCount* temp = response_psmove_count_;
-  response_psmove_count_ = NULL;
-  return temp;
-}
-inline void Response::set_allocated_response_psmove_count(::PSMoveDataFrame::Response_ResponseActivePSMoveCount* response_psmove_count) {
-  delete response_psmove_count_;
-  response_psmove_count_ = response_psmove_count;
-  if (response_psmove_count) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Response.response_psmove_count)
 }
 
 // -------------------------------------------------------------------
@@ -1836,7 +1546,21 @@ inline void ControllerDataFrame_Orientation::set_w(float value) {
 
 // ControllerDataFrame
 
-// optional int32 sequence_num = 1;
+// optional int32 psmove_id = 1;
+inline void ControllerDataFrame::clear_psmove_id() {
+  psmove_id_ = 0;
+}
+inline ::google::protobuf::int32 ControllerDataFrame::psmove_id() const {
+  // @@protoc_insertion_point(field_get:PSMoveDataFrame.ControllerDataFrame.psmove_id)
+  return psmove_id_;
+}
+inline void ControllerDataFrame::set_psmove_id(::google::protobuf::int32 value) {
+  
+  psmove_id_ = value;
+  // @@protoc_insertion_point(field_set:PSMoveDataFrame.ControllerDataFrame.psmove_id)
+}
+
+// optional int32 sequence_num = 2;
 inline void ControllerDataFrame::clear_sequence_num() {
   sequence_num_ = 0;
 }
@@ -1850,7 +1574,7 @@ inline void ControllerDataFrame::set_sequence_num(::google::protobuf::int32 valu
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.ControllerDataFrame.sequence_num)
 }
 
-// optional bool IsConnected = 2;
+// optional bool IsConnected = 3;
 inline void ControllerDataFrame::clear_isconnected() {
   isconnected_ = false;
 }
@@ -1864,7 +1588,7 @@ inline void ControllerDataFrame::set_isconnected(bool value) {
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.ControllerDataFrame.IsConnected)
 }
 
-// optional bool IsTrackingEnabled = 3;
+// optional bool IsTrackingEnabled = 4;
 inline void ControllerDataFrame::clear_istrackingenabled() {
   istrackingenabled_ = false;
 }
@@ -1878,7 +1602,7 @@ inline void ControllerDataFrame::set_istrackingenabled(bool value) {
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.ControllerDataFrame.IsTrackingEnabled)
 }
 
-// optional bool IsCurrentlyTracking = 4;
+// optional bool IsCurrentlyTracking = 5;
 inline void ControllerDataFrame::clear_iscurrentlytracking() {
   iscurrentlytracking_ = false;
 }
@@ -1892,7 +1616,7 @@ inline void ControllerDataFrame::set_iscurrentlytracking(bool value) {
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.ControllerDataFrame.IsCurrentlyTracking)
 }
 
-// optional .PSMoveDataFrame.ControllerDataFrame.Position position = 5;
+// optional .PSMoveDataFrame.ControllerDataFrame.Position position = 6;
 inline bool ControllerDataFrame::has_position() const {
   return !_is_default_instance_ && position_ != NULL;
 }
@@ -1929,7 +1653,7 @@ inline void ControllerDataFrame::set_allocated_position(::PSMoveDataFrame::Contr
   // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.ControllerDataFrame.position)
 }
 
-// optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 6;
+// optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 7;
 inline bool ControllerDataFrame::has_orientation() const {
   return !_is_default_instance_ && orientation_ != NULL;
 }
@@ -1966,7 +1690,7 @@ inline void ControllerDataFrame::set_allocated_orientation(::PSMoveDataFrame::Co
   // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.ControllerDataFrame.orientation)
 }
 
-// optional uint32 button_down_bitmask = 7;
+// optional uint32 button_down_bitmask = 8;
 inline void ControllerDataFrame::clear_button_down_bitmask() {
   button_down_bitmask_ = 0u;
 }
@@ -1980,7 +1704,7 @@ inline void ControllerDataFrame::set_button_down_bitmask(::google::protobuf::uin
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.ControllerDataFrame.button_down_bitmask)
 }
 
-// optional int32 trigger_value = 8;
+// optional int32 trigger_value = 9;
 inline void ControllerDataFrame::clear_trigger_value() {
   trigger_value_ = 0;
 }
@@ -1995,10 +1719,6 @@ inline void ControllerDataFrame::set_trigger_value(::google::protobuf::int32 val
 }
 
 #endif  // !PROTOBUF_INLINE_NOT_IN_HEADERS
-// -------------------------------------------------------------------
-
-// -------------------------------------------------------------------
-
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------

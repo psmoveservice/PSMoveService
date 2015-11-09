@@ -32,9 +32,6 @@ const ::google::protobuf::internal::GeneratedMessageReflection*
 const ::google::protobuf::Descriptor* Request_RequestSetRumble_descriptor_ = NULL;
 const ::google::protobuf::internal::GeneratedMessageReflection*
   Request_RequestSetRumble_reflection_ = NULL;
-const ::google::protobuf::Descriptor* Request_RequestCycleTrackingColor_descriptor_ = NULL;
-const ::google::protobuf::internal::GeneratedMessageReflection*
-  Request_RequestCycleTrackingColor_reflection_ = NULL;
 const ::google::protobuf::Descriptor* Request_RequestResetPose_descriptor_ = NULL;
 const ::google::protobuf::internal::GeneratedMessageReflection*
   Request_RequestResetPose_reflection_ = NULL;
@@ -42,9 +39,6 @@ const ::google::protobuf::EnumDescriptor* Request_RequestType_descriptor_ = NULL
 const ::google::protobuf::Descriptor* Response_descriptor_ = NULL;
 const ::google::protobuf::internal::GeneratedMessageReflection*
   Response_reflection_ = NULL;
-const ::google::protobuf::Descriptor* Response_ResponseActivePSMoveCount_descriptor_ = NULL;
-const ::google::protobuf::internal::GeneratedMessageReflection*
-  Response_ResponseActivePSMoveCount_reflection_ = NULL;
 const ::google::protobuf::EnumDescriptor* Response_ResponseType_descriptor_ = NULL;
 const ::google::protobuf::EnumDescriptor* Response_ResultCode_descriptor_ = NULL;
 const ::google::protobuf::Descriptor* ControllerDataFrame_descriptor_ = NULL;
@@ -68,13 +62,12 @@ void protobuf_AssignDesc_PSMoveDataFrame_2eproto() {
       "PSMoveDataFrame.proto");
   GOOGLE_CHECK(file != NULL);
   Request_descriptor_ = file->message_type(0);
-  static const int Request_offsets_[7] = {
+  static const int Request_offsets_[6] = {
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request, request_id_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request, type_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request, request_start_psmove_data_stream_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request, request_stop_psmove_data_stream_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request, request_rumble_),
-    GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request, cycle_tracking_color_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request, reset_pose_),
   };
   Request_reflection_ =
@@ -134,22 +127,7 @@ void protobuf_AssignDesc_PSMoveDataFrame_2eproto() {
       sizeof(Request_RequestSetRumble),
       GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request_RequestSetRumble, _internal_metadata_),
       GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request_RequestSetRumble, _is_default_instance_));
-  Request_RequestCycleTrackingColor_descriptor_ = Request_descriptor_->nested_type(3);
-  static const int Request_RequestCycleTrackingColor_offsets_[1] = {
-    GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request_RequestCycleTrackingColor, psmove_id_),
-  };
-  Request_RequestCycleTrackingColor_reflection_ =
-    ::google::protobuf::internal::GeneratedMessageReflection::NewGeneratedMessageReflection(
-      Request_RequestCycleTrackingColor_descriptor_,
-      Request_RequestCycleTrackingColor::default_instance_,
-      Request_RequestCycleTrackingColor_offsets_,
-      -1,
-      -1,
-      -1,
-      sizeof(Request_RequestCycleTrackingColor),
-      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request_RequestCycleTrackingColor, _internal_metadata_),
-      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request_RequestCycleTrackingColor, _is_default_instance_));
-  Request_RequestResetPose_descriptor_ = Request_descriptor_->nested_type(4);
+  Request_RequestResetPose_descriptor_ = Request_descriptor_->nested_type(3);
   static const int Request_RequestResetPose_offsets_[1] = {
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request_RequestResetPose, psmove_id_),
   };
@@ -166,11 +144,10 @@ void protobuf_AssignDesc_PSMoveDataFrame_2eproto() {
       GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Request_RequestResetPose, _is_default_instance_));
   Request_RequestType_descriptor_ = Request_descriptor_->enum_type(0);
   Response_descriptor_ = file->message_type(1);
-  static const int Response_offsets_[4] = {
+  static const int Response_offsets_[3] = {
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Response, type_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Response, request_id_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Response, result_code_),
-    GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Response, response_psmove_count_),
   };
   Response_reflection_ =
     ::google::protobuf::internal::GeneratedMessageReflection::NewGeneratedMessageReflection(
@@ -183,25 +160,11 @@ void protobuf_AssignDesc_PSMoveDataFrame_2eproto() {
       sizeof(Response),
       GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Response, _internal_metadata_),
       GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Response, _is_default_instance_));
-  Response_ResponseActivePSMoveCount_descriptor_ = Response_descriptor_->nested_type(0);
-  static const int Response_ResponseActivePSMoveCount_offsets_[1] = {
-    GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Response_ResponseActivePSMoveCount, count_),
-  };
-  Response_ResponseActivePSMoveCount_reflection_ =
-    ::google::protobuf::internal::GeneratedMessageReflection::NewGeneratedMessageReflection(
-      Response_ResponseActivePSMoveCount_descriptor_,
-      Response_ResponseActivePSMoveCount::default_instance_,
-      Response_ResponseActivePSMoveCount_offsets_,
-      -1,
-      -1,
-      -1,
-      sizeof(Response_ResponseActivePSMoveCount),
-      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Response_ResponseActivePSMoveCount, _internal_metadata_),
-      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(Response_ResponseActivePSMoveCount, _is_default_instance_));
   Response_ResponseType_descriptor_ = Response_descriptor_->enum_type(0);
   Response_ResultCode_descriptor_ = Response_descriptor_->enum_type(1);
   ControllerDataFrame_descriptor_ = file->message_type(2);
-  static const int ControllerDataFrame_offsets_[8] = {
+  static const int ControllerDataFrame_offsets_[9] = {
+    GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(ControllerDataFrame, psmove_id_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(ControllerDataFrame, sequence_num_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(ControllerDataFrame, isconnected_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(ControllerDataFrame, istrackingenabled_),
@@ -279,13 +242,9 @@ void protobuf_RegisterTypes(const ::std::string&) {
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
       Request_RequestSetRumble_descriptor_, &Request_RequestSetRumble::default_instance());
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
-      Request_RequestCycleTrackingColor_descriptor_, &Request_RequestCycleTrackingColor::default_instance());
-  ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
       Request_RequestResetPose_descriptor_, &Request_RequestResetPose::default_instance());
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
       Response_descriptor_, &Response::default_instance());
-  ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
-      Response_ResponseActivePSMoveCount_descriptor_, &Response_ResponseActivePSMoveCount::default_instance());
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
       ControllerDataFrame_descriptor_, &ControllerDataFrame::default_instance());
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
@@ -305,14 +264,10 @@ void protobuf_ShutdownFile_PSMoveDataFrame_2eproto() {
   delete Request_RequestStopPSMoveDataStream_reflection_;
   delete Request_RequestSetRumble::default_instance_;
   delete Request_RequestSetRumble_reflection_;
-  delete Request_RequestCycleTrackingColor::default_instance_;
-  delete Request_RequestCycleTrackingColor_reflection_;
   delete Request_RequestResetPose::default_instance_;
   delete Request_RequestResetPose_reflection_;
   delete Response::default_instance_;
   delete Response_reflection_;
-  delete Response_ResponseActivePSMoveCount::default_instance_;
-  delete Response_ResponseActivePSMoveCount_reflection_;
   delete ControllerDataFrame::default_instance_;
   delete ControllerDataFrame_reflection_;
   delete ControllerDataFrame_Position::default_instance_;
@@ -329,62 +284,52 @@ void protobuf_AddDesc_PSMoveDataFrame_2eproto() {
 
   ::google::protobuf::DescriptorPool::InternalAddGeneratedFile(
     "\n\025PSMoveDataFrame.proto\022\017PSMoveDataFrame"
-    "\"\372\006\n\007Request\022\022\n\nrequest_id\030\001 \001(\005\0222\n\004type"
+    "\"\300\005\n\007Request\022\022\n\nrequest_id\030\001 \001(\005\0222\n\004type"
     "\030\002 \001(\0162$.PSMoveDataFrame.Request.Request"
     "Type\022_\n request_start_psmove_data_stream"
-    "\030\025 \001(\01325.PSMoveDataFrame.Request.Request"
+    "\030\024 \001(\01325.PSMoveDataFrame.Request.Request"
     "StartPSMoveDataStream\022]\n\037request_stop_ps"
-    "move_data_stream\030\026 \001(\01324.PSMoveDataFrame"
+    "move_data_stream\030\025 \001(\01324.PSMoveDataFrame"
     ".Request.RequestStopPSMoveDataStream\022A\n\016"
     "request_rumble\030\027 \001(\0132).PSMoveDataFrame.R"
-    "equest.RequestSetRumble\022P\n\024cycle_trackin"
-    "g_color\030\030 \001(\01322.PSMoveDataFrame.Request."
-    "RequestCycleTrackingColor\022=\n\nreset_pose\030"
-    "\031 \001(\0132).PSMoveDataFrame.Request.RequestR"
-    "esetPose\0321\n\034RequestStartPSMoveDataStream"
-    "\022\021\n\tpsmove_id\030\001 \001(\005\0320\n\033RequestStopPSMove"
-    "DataStream\022\021\n\tpsmove_id\030\001 \001(\005\0325\n\020Request"
-    "SetRumble\022\021\n\tpsmove_id\030\001 \001(\005\022\016\n\006rumble\030\002"
-    " \001(\005\032.\n\031RequestCycleTrackingColor\022\021\n\tpsm"
-    "ove_id\030\001 \001(\005\032%\n\020RequestResetPose\022\021\n\tpsmo"
-    "ve_id\030\001 \001(\005\"\237\001\n\013RequestType\022\033\n\027GET_ACTIV"
-    "E_PSMOVE_COUNT\020\000\022\034\n\030START_PSMOVE_DATA_ST"
-    "REAM\020\001\022\033\n\027STOP_PSMOVE_DATA_STREAM\020\002\022\016\n\nS"
-    "ET_RUMBLE\020\003\022\030\n\024CYCLE_TRACKING_COLOR\020\004\022\016\n"
-    "\nRESET_POSE\020\005\"\220\003\n\010Response\0224\n\004type\030\001 \001(\016"
-    "2&.PSMoveDataFrame.Response.ResponseType"
-    "\022\022\n\nrequest_id\030\002 \001(\005\0229\n\013result_code\030\003 \001("
-    "\0162$.PSMoveDataFrame.Response.ResultCode\022"
-    "R\n\025response_psmove_count\030\025 \001(\01323.PSMoveD"
-    "ataFrame.Response.ResponseActivePSMoveCo"
-    "unt\032*\n\031ResponseActivePSMoveCount\022\r\n\005coun"
-    "t\030\001 \001(\005\";\n\014ResponseType\022\022\n\016GENERAL_RESUL"
-    "T\020\000\022\027\n\023ACTIVE_PSMOVE_COUNT\020\001\"B\n\nResultCo"
-    "de\022\r\n\tRESULT_OK\020\000\022\020\n\014RESULT_ERROR\020\001\022\023\n\017R"
-    "ESULT_CANCELED\020\002\"\221\004\n\023ControllerDataFrame"
-    "\022\024\n\014sequence_num\030\001 \001(\005\022\023\n\013IsConnected\030\002 "
-    "\001(\010\022\031\n\021IsTrackingEnabled\030\003 \001(\010\022\033\n\023IsCurr"
-    "entlyTracking\030\004 \001(\010\022\?\n\010position\030\005 \001(\0132-."
+    "equest.RequestSetRumble\022=\n\nreset_pose\030\030 "
+    "\001(\0132).PSMoveDataFrame.Request.RequestRes"
+    "etPose\0321\n\034RequestStartPSMoveDataStream\022\021"
+    "\n\tpsmove_id\030\001 \001(\005\0320\n\033RequestStopPSMoveDa"
+    "taStream\022\021\n\tpsmove_id\030\001 \001(\005\0325\n\020RequestSe"
+    "tRumble\022\021\n\tpsmove_id\030\001 \001(\005\022\016\n\006rumble\030\002 \001"
+    "(\005\032%\n\020RequestResetPose\022\021\n\tpsmove_id\030\001 \001("
+    "\005\"h\n\013RequestType\022\034\n\030START_PSMOVE_DATA_ST"
+    "REAM\020\000\022\033\n\027STOP_PSMOVE_DATA_STREAM\020\001\022\016\n\nS"
+    "ET_RUMBLE\020\002\022\016\n\nRESET_POSE\020\003\"\367\001\n\010Response"
+    "\0224\n\004type\030\001 \001(\0162&.PSMoveDataFrame.Respons"
+    "e.ResponseType\022\022\n\nrequest_id\030\002 \001(\005\0229\n\013re"
+    "sult_code\030\003 \001(\0162$.PSMoveDataFrame.Respon"
+    "se.ResultCode\"\"\n\014ResponseType\022\022\n\016GENERAL"
+    "_RESULT\020\000\"B\n\nResultCode\022\r\n\tRESULT_OK\020\000\022\020"
+    "\n\014RESULT_ERROR\020\001\022\023\n\017RESULT_CANCELED\020\002\"\244\004"
+    "\n\023ControllerDataFrame\022\021\n\tpsmove_id\030\001 \001(\005"
+    "\022\024\n\014sequence_num\030\002 \001(\005\022\023\n\013IsConnected\030\003 "
+    "\001(\010\022\031\n\021IsTrackingEnabled\030\004 \001(\010\022\033\n\023IsCurr"
+    "entlyTracking\030\005 \001(\010\022\?\n\010position\030\006 \001(\0132-."
     "PSMoveDataFrame.ControllerDataFrame.Posi"
-    "tion\022E\n\013orientation\030\006 \001(\01320.PSMoveDataFr"
+    "tion\022E\n\013orientation\030\007 \001(\01320.PSMoveDataFr"
     "ame.ControllerDataFrame.Orientation\022\033\n\023b"
-    "utton_down_bitmask\030\007 \001(\r\022\025\n\rtrigger_valu"
-    "e\030\010 \001(\005\032+\n\010Position\022\t\n\001x\030\001 \001(\002\022\t\n\001y\030\002 \001("
+    "utton_down_bitmask\030\010 \001(\r\022\025\n\rtrigger_valu"
+    "e\030\t \001(\005\032+\n\010Position\022\t\n\001x\030\001 \001(\002\022\t\n\001y\030\002 \001("
     "\002\022\t\n\001z\030\003 \001(\002\0329\n\013Orientation\022\t\n\001x\030\001 \001(\002\022\t"
     "\n\001y\030\002 \001(\002\022\t\n\001z\030\003 \001(\002\022\t\n\001w\030\004 \001(\002\"s\n\nButto"
     "nType\022\014\n\010TRIANGLE\020\000\022\n\n\006CIRCLE\020\001\022\t\n\005CROSS"
     "\020\002\022\n\n\006SQUARE\020\003\022\n\n\006SELECT\020\004\022\t\n\005START\020\005\022\006\n"
-    "\002PS\020\006\022\010\n\004MOVE\020\007\022\013\n\007TRIGGER\020\010b\006proto3", 1876);
+    "\002PS\020\006\022\010\n\004MOVE\020\007\022\013\n\007TRIGGER\020\010b\006proto3", 1556);
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedFile(
     "PSMoveDataFrame.proto", &protobuf_RegisterTypes);
   Request::default_instance_ = new Request();
   Request_RequestStartPSMoveDataStream::default_instance_ = new Request_RequestStartPSMoveDataStream();
   Request_RequestStopPSMoveDataStream::default_instance_ = new Request_RequestStopPSMoveDataStream();
   Request_RequestSetRumble::default_instance_ = new Request_RequestSetRumble();
-  Request_RequestCycleTrackingColor::default_instance_ = new Request_RequestCycleTrackingColor();
   Request_RequestResetPose::default_instance_ = new Request_RequestResetPose();
   Response::default_instance_ = new Response();
-  Response_ResponseActivePSMoveCount::default_instance_ = new Response_ResponseActivePSMoveCount();
   ControllerDataFrame::default_instance_ = new ControllerDataFrame();
   ControllerDataFrame_Position::default_instance_ = new ControllerDataFrame_Position();
   ControllerDataFrame_Orientation::default_instance_ = new ControllerDataFrame_Orientation();
@@ -392,10 +337,8 @@ void protobuf_AddDesc_PSMoveDataFrame_2eproto() {
   Request_RequestStartPSMoveDataStream::default_instance_->InitAsDefaultInstance();
   Request_RequestStopPSMoveDataStream::default_instance_->InitAsDefaultInstance();
   Request_RequestSetRumble::default_instance_->InitAsDefaultInstance();
-  Request_RequestCycleTrackingColor::default_instance_->InitAsDefaultInstance();
   Request_RequestResetPose::default_instance_->InitAsDefaultInstance();
   Response::default_instance_->InitAsDefaultInstance();
-  Response_ResponseActivePSMoveCount::default_instance_->InitAsDefaultInstance();
   ControllerDataFrame::default_instance_->InitAsDefaultInstance();
   ControllerDataFrame_Position::default_instance_->InitAsDefaultInstance();
   ControllerDataFrame_Orientation::default_instance_->InitAsDefaultInstance();
@@ -431,8 +374,6 @@ bool Request_RequestType_IsValid(int value) {
     case 1:
     case 2:
     case 3:
-    case 4:
-    case 5:
       return true;
     default:
       return false;
@@ -440,11 +381,9 @@ bool Request_RequestType_IsValid(int value) {
 }
 
 #ifndef _MSC_VER
-const Request_RequestType Request::GET_ACTIVE_PSMOVE_COUNT;
 const Request_RequestType Request::START_PSMOVE_DATA_STREAM;
 const Request_RequestType Request::STOP_PSMOVE_DATA_STREAM;
 const Request_RequestType Request::SET_RUMBLE;
-const Request_RequestType Request::CYCLE_TRACKING_COLOR;
 const Request_RequestType Request::RESET_POSE;
 const Request_RequestType Request::RequestType_MIN;
 const Request_RequestType Request::RequestType_MAX;
@@ -1125,214 +1064,6 @@ void Request_RequestSetRumble::InternalSwap(Request_RequestSetRumble* other) {
 // -------------------------------------------------------------------
 
 #ifndef _MSC_VER
-const int Request_RequestCycleTrackingColor::kPsmoveIdFieldNumber;
-#endif  // !_MSC_VER
-
-Request_RequestCycleTrackingColor::Request_RequestCycleTrackingColor()
-  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
-  SharedCtor();
-  // @@protoc_insertion_point(constructor:PSMoveDataFrame.Request.RequestCycleTrackingColor)
-}
-
-void Request_RequestCycleTrackingColor::InitAsDefaultInstance() {
-  _is_default_instance_ = true;
-}
-
-Request_RequestCycleTrackingColor::Request_RequestCycleTrackingColor(const Request_RequestCycleTrackingColor& from)
-  : ::google::protobuf::Message(),
-    _internal_metadata_(NULL) {
-  SharedCtor();
-  MergeFrom(from);
-  // @@protoc_insertion_point(copy_constructor:PSMoveDataFrame.Request.RequestCycleTrackingColor)
-}
-
-void Request_RequestCycleTrackingColor::SharedCtor() {
-    _is_default_instance_ = false;
-  _cached_size_ = 0;
-  psmove_id_ = 0;
-}
-
-Request_RequestCycleTrackingColor::~Request_RequestCycleTrackingColor() {
-  // @@protoc_insertion_point(destructor:PSMoveDataFrame.Request.RequestCycleTrackingColor)
-  SharedDtor();
-}
-
-void Request_RequestCycleTrackingColor::SharedDtor() {
-  if (this != default_instance_) {
-  }
-}
-
-void Request_RequestCycleTrackingColor::SetCachedSize(int size) const {
-  GOOGLE_SAFE_CONCURRENT_WRITES_BEGIN();
-  _cached_size_ = size;
-  GOOGLE_SAFE_CONCURRENT_WRITES_END();
-}
-const ::google::protobuf::Descriptor* Request_RequestCycleTrackingColor::descriptor() {
-  protobuf_AssignDescriptorsOnce();
-  return Request_RequestCycleTrackingColor_descriptor_;
-}
-
-const Request_RequestCycleTrackingColor& Request_RequestCycleTrackingColor::default_instance() {
-  if (default_instance_ == NULL) protobuf_AddDesc_PSMoveDataFrame_2eproto();
-  return *default_instance_;
-}
-
-Request_RequestCycleTrackingColor* Request_RequestCycleTrackingColor::default_instance_ = NULL;
-
-Request_RequestCycleTrackingColor* Request_RequestCycleTrackingColor::New(::google::protobuf::Arena* arena) const {
-  Request_RequestCycleTrackingColor* n = new Request_RequestCycleTrackingColor;
-  if (arena != NULL) {
-    arena->Own(n);
-  }
-  return n;
-}
-
-void Request_RequestCycleTrackingColor::Clear() {
-  psmove_id_ = 0;
-}
-
-bool Request_RequestCycleTrackingColor::MergePartialFromCodedStream(
-    ::google::protobuf::io::CodedInputStream* input) {
-#define DO_(EXPRESSION) if (!(EXPRESSION)) goto failure
-  ::google::protobuf::uint32 tag;
-  // @@protoc_insertion_point(parse_start:PSMoveDataFrame.Request.RequestCycleTrackingColor)
-  for (;;) {
-    ::std::pair< ::google::protobuf::uint32, bool> p = input->ReadTagWithCutoff(127);
-    tag = p.first;
-    if (!p.second) goto handle_unusual;
-    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
-      // optional int32 psmove_id = 1;
-      case 1: {
-        if (tag == 8) {
-          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
-                   ::google::protobuf::int32, ::google::protobuf::internal::WireFormatLite::TYPE_INT32>(
-                 input, &psmove_id_)));
-
-        } else {
-          goto handle_unusual;
-        }
-        if (input->ExpectAtEnd()) goto success;
-        break;
-      }
-
-      default: {
-      handle_unusual:
-        if (tag == 0 ||
-            ::google::protobuf::internal::WireFormatLite::GetTagWireType(tag) ==
-            ::google::protobuf::internal::WireFormatLite::WIRETYPE_END_GROUP) {
-          goto success;
-        }
-        DO_(::google::protobuf::internal::WireFormatLite::SkipField(input, tag));
-        break;
-      }
-    }
-  }
-success:
-  // @@protoc_insertion_point(parse_success:PSMoveDataFrame.Request.RequestCycleTrackingColor)
-  return true;
-failure:
-  // @@protoc_insertion_point(parse_failure:PSMoveDataFrame.Request.RequestCycleTrackingColor)
-  return false;
-#undef DO_
-}
-
-void Request_RequestCycleTrackingColor::SerializeWithCachedSizes(
-    ::google::protobuf::io::CodedOutputStream* output) const {
-  // @@protoc_insertion_point(serialize_start:PSMoveDataFrame.Request.RequestCycleTrackingColor)
-  // optional int32 psmove_id = 1;
-  if (this->psmove_id() != 0) {
-    ::google::protobuf::internal::WireFormatLite::WriteInt32(1, this->psmove_id(), output);
-  }
-
-  // @@protoc_insertion_point(serialize_end:PSMoveDataFrame.Request.RequestCycleTrackingColor)
-}
-
-::google::protobuf::uint8* Request_RequestCycleTrackingColor::SerializeWithCachedSizesToArray(
-    ::google::protobuf::uint8* target) const {
-  // @@protoc_insertion_point(serialize_to_array_start:PSMoveDataFrame.Request.RequestCycleTrackingColor)
-  // optional int32 psmove_id = 1;
-  if (this->psmove_id() != 0) {
-    target = ::google::protobuf::internal::WireFormatLite::WriteInt32ToArray(1, this->psmove_id(), target);
-  }
-
-  // @@protoc_insertion_point(serialize_to_array_end:PSMoveDataFrame.Request.RequestCycleTrackingColor)
-  return target;
-}
-
-int Request_RequestCycleTrackingColor::ByteSize() const {
-  int total_size = 0;
-
-  // optional int32 psmove_id = 1;
-  if (this->psmove_id() != 0) {
-    total_size += 1 +
-      ::google::protobuf::internal::WireFormatLite::Int32Size(
-        this->psmove_id());
-  }
-
-  GOOGLE_SAFE_CONCURRENT_WRITES_BEGIN();
-  _cached_size_ = total_size;
-  GOOGLE_SAFE_CONCURRENT_WRITES_END();
-  return total_size;
-}
-
-void Request_RequestCycleTrackingColor::MergeFrom(const ::google::protobuf::Message& from) {
-  if (GOOGLE_PREDICT_FALSE(&from == this)) MergeFromFail(__LINE__);
-  const Request_RequestCycleTrackingColor* source = 
-      ::google::protobuf::internal::DynamicCastToGenerated<const Request_RequestCycleTrackingColor>(
-          &from);
-  if (source == NULL) {
-    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
-  } else {
-    MergeFrom(*source);
-  }
-}
-
-void Request_RequestCycleTrackingColor::MergeFrom(const Request_RequestCycleTrackingColor& from) {
-  if (GOOGLE_PREDICT_FALSE(&from == this)) MergeFromFail(__LINE__);
-  if (from.psmove_id() != 0) {
-    set_psmove_id(from.psmove_id());
-  }
-}
-
-void Request_RequestCycleTrackingColor::CopyFrom(const ::google::protobuf::Message& from) {
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-void Request_RequestCycleTrackingColor::CopyFrom(const Request_RequestCycleTrackingColor& from) {
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-bool Request_RequestCycleTrackingColor::IsInitialized() const {
-
-  return true;
-}
-
-void Request_RequestCycleTrackingColor::Swap(Request_RequestCycleTrackingColor* other) {
-  if (other == this) return;
-  InternalSwap(other);
-}
-void Request_RequestCycleTrackingColor::InternalSwap(Request_RequestCycleTrackingColor* other) {
-  std::swap(psmove_id_, other->psmove_id_);
-  _internal_metadata_.Swap(&other->_internal_metadata_);
-  std::swap(_cached_size_, other->_cached_size_);
-}
-
-::google::protobuf::Metadata Request_RequestCycleTrackingColor::GetMetadata() const {
-  protobuf_AssignDescriptorsOnce();
-  ::google::protobuf::Metadata metadata;
-  metadata.descriptor = Request_RequestCycleTrackingColor_descriptor_;
-  metadata.reflection = Request_RequestCycleTrackingColor_reflection_;
-  return metadata;
-}
-
-
-// -------------------------------------------------------------------
-
-#ifndef _MSC_VER
 const int Request_RequestResetPose::kPsmoveIdFieldNumber;
 #endif  // !_MSC_VER
 
@@ -1546,7 +1277,6 @@ const int Request::kTypeFieldNumber;
 const int Request::kRequestStartPsmoveDataStreamFieldNumber;
 const int Request::kRequestStopPsmoveDataStreamFieldNumber;
 const int Request::kRequestRumbleFieldNumber;
-const int Request::kCycleTrackingColorFieldNumber;
 const int Request::kResetPoseFieldNumber;
 #endif  // !_MSC_VER
 
@@ -1561,7 +1291,6 @@ void Request::InitAsDefaultInstance() {
   request_start_psmove_data_stream_ = const_cast< ::PSMoveDataFrame::Request_RequestStartPSMoveDataStream*>(&::PSMoveDataFrame::Request_RequestStartPSMoveDataStream::default_instance());
   request_stop_psmove_data_stream_ = const_cast< ::PSMoveDataFrame::Request_RequestStopPSMoveDataStream*>(&::PSMoveDataFrame::Request_RequestStopPSMoveDataStream::default_instance());
   request_rumble_ = const_cast< ::PSMoveDataFrame::Request_RequestSetRumble*>(&::PSMoveDataFrame::Request_RequestSetRumble::default_instance());
-  cycle_tracking_color_ = const_cast< ::PSMoveDataFrame::Request_RequestCycleTrackingColor*>(&::PSMoveDataFrame::Request_RequestCycleTrackingColor::default_instance());
   reset_pose_ = const_cast< ::PSMoveDataFrame::Request_RequestResetPose*>(&::PSMoveDataFrame::Request_RequestResetPose::default_instance());
 }
 
@@ -1581,7 +1310,6 @@ void Request::SharedCtor() {
   request_start_psmove_data_stream_ = NULL;
   request_stop_psmove_data_stream_ = NULL;
   request_rumble_ = NULL;
-  cycle_tracking_color_ = NULL;
   reset_pose_ = NULL;
 }
 
@@ -1595,7 +1323,6 @@ void Request::SharedDtor() {
     delete request_start_psmove_data_stream_;
     delete request_stop_psmove_data_stream_;
     delete request_rumble_;
-    delete cycle_tracking_color_;
     delete reset_pose_;
   }
 }
@@ -1641,8 +1368,6 @@ void Request::Clear() {
   request_stop_psmove_data_stream_ = NULL;
   if (GetArenaNoVirtual() == NULL && request_rumble_ != NULL) delete request_rumble_;
   request_rumble_ = NULL;
-  if (GetArenaNoVirtual() == NULL && cycle_tracking_color_ != NULL) delete cycle_tracking_color_;
-  cycle_tracking_color_ = NULL;
   if (GetArenaNoVirtual() == NULL && reset_pose_ != NULL) delete reset_pose_;
   reset_pose_ = NULL;
 
@@ -1687,26 +1412,26 @@ bool Request::MergePartialFromCodedStream(
         } else {
           goto handle_unusual;
         }
-        if (input->ExpectTag(170)) goto parse_request_start_psmove_data_stream;
+        if (input->ExpectTag(162)) goto parse_request_start_psmove_data_stream;
         break;
       }
 
-      // optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 21;
-      case 21: {
-        if (tag == 170) {
+      // optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
+      case 20: {
+        if (tag == 162) {
          parse_request_start_psmove_data_stream:
           DO_(::google::protobuf::internal::WireFormatLite::ReadMessageNoVirtual(
                input, mutable_request_start_psmove_data_stream()));
         } else {
           goto handle_unusual;
         }
-        if (input->ExpectTag(178)) goto parse_request_stop_psmove_data_stream;
+        if (input->ExpectTag(170)) goto parse_request_stop_psmove_data_stream;
         break;
       }
 
-      // optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 22;
-      case 22: {
-        if (tag == 178) {
+      // optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 21;
+      case 21: {
+        if (tag == 170) {
          parse_request_stop_psmove_data_stream:
           DO_(::google::protobuf::internal::WireFormatLite::ReadMessageNoVirtual(
                input, mutable_request_stop_psmove_data_stream()));
@@ -1726,26 +1451,13 @@ bool Request::MergePartialFromCodedStream(
         } else {
           goto handle_unusual;
         }
-        if (input->ExpectTag(194)) goto parse_cycle_tracking_color;
+        if (input->ExpectTag(194)) goto parse_reset_pose;
         break;
       }
 
-      // optional .PSMoveDataFrame.Request.RequestCycleTrackingColor cycle_tracking_color = 24;
+      // optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 24;
       case 24: {
         if (tag == 194) {
-         parse_cycle_tracking_color:
-          DO_(::google::protobuf::internal::WireFormatLite::ReadMessageNoVirtual(
-               input, mutable_cycle_tracking_color()));
-        } else {
-          goto handle_unusual;
-        }
-        if (input->ExpectTag(202)) goto parse_reset_pose;
-        break;
-      }
-
-      // optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 25;
-      case 25: {
-        if (tag == 202) {
          parse_reset_pose:
           DO_(::google::protobuf::internal::WireFormatLite::ReadMessageNoVirtual(
                input, mutable_reset_pose()));
@@ -1791,16 +1503,16 @@ void Request::SerializeWithCachedSizes(
       2, this->type(), output);
   }
 
-  // optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 21;
+  // optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
   if (this->has_request_start_psmove_data_stream()) {
     ::google::protobuf::internal::WireFormatLite::WriteMessageMaybeToArray(
-      21, *this->request_start_psmove_data_stream_, output);
+      20, *this->request_start_psmove_data_stream_, output);
   }
 
-  // optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 22;
+  // optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 21;
   if (this->has_request_stop_psmove_data_stream()) {
     ::google::protobuf::internal::WireFormatLite::WriteMessageMaybeToArray(
-      22, *this->request_stop_psmove_data_stream_, output);
+      21, *this->request_stop_psmove_data_stream_, output);
   }
 
   // optional .PSMoveDataFrame.Request.RequestSetRumble request_rumble = 23;
@@ -1809,16 +1521,10 @@ void Request::SerializeWithCachedSizes(
       23, *this->request_rumble_, output);
   }
 
-  // optional .PSMoveDataFrame.Request.RequestCycleTrackingColor cycle_tracking_color = 24;
-  if (this->has_cycle_tracking_color()) {
-    ::google::protobuf::internal::WireFormatLite::WriteMessageMaybeToArray(
-      24, *this->cycle_tracking_color_, output);
-  }
-
-  // optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 25;
+  // optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 24;
   if (this->has_reset_pose()) {
     ::google::protobuf::internal::WireFormatLite::WriteMessageMaybeToArray(
-      25, *this->reset_pose_, output);
+      24, *this->reset_pose_, output);
   }
 
   // @@protoc_insertion_point(serialize_end:PSMoveDataFrame.Request)
@@ -1838,18 +1544,18 @@ void Request::SerializeWithCachedSizes(
       2, this->type(), target);
   }
 
-  // optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 21;
+  // optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
   if (this->has_request_start_psmove_data_stream()) {
     target = ::google::protobuf::internal::WireFormatLite::
       WriteMessageNoVirtualToArray(
-        21, *this->request_start_psmove_data_stream_, target);
+        20, *this->request_start_psmove_data_stream_, target);
   }
 
-  // optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 22;
+  // optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 21;
   if (this->has_request_stop_psmove_data_stream()) {
     target = ::google::protobuf::internal::WireFormatLite::
       WriteMessageNoVirtualToArray(
-        22, *this->request_stop_psmove_data_stream_, target);
+        21, *this->request_stop_psmove_data_stream_, target);
   }
 
   // optional .PSMoveDataFrame.Request.RequestSetRumble request_rumble = 23;
@@ -1859,18 +1565,11 @@ void Request::SerializeWithCachedSizes(
         23, *this->request_rumble_, target);
   }
 
-  // optional .PSMoveDataFrame.Request.RequestCycleTrackingColor cycle_tracking_color = 24;
-  if (this->has_cycle_tracking_color()) {
-    target = ::google::protobuf::internal::WireFormatLite::
-      WriteMessageNoVirtualToArray(
-        24, *this->cycle_tracking_color_, target);
-  }
-
-  // optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 25;
+  // optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 24;
   if (this->has_reset_pose()) {
     target = ::google::protobuf::internal::WireFormatLite::
       WriteMessageNoVirtualToArray(
-        25, *this->reset_pose_, target);
+        24, *this->reset_pose_, target);
   }
 
   // @@protoc_insertion_point(serialize_to_array_end:PSMoveDataFrame.Request)
@@ -1893,14 +1592,14 @@ int Request::ByteSize() const {
       ::google::protobuf::internal::WireFormatLite::EnumSize(this->type());
   }
 
-  // optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 21;
+  // optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
   if (this->has_request_start_psmove_data_stream()) {
     total_size += 2 +
       ::google::protobuf::internal::WireFormatLite::MessageSizeNoVirtual(
         *this->request_start_psmove_data_stream_);
   }
 
-  // optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 22;
+  // optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 21;
   if (this->has_request_stop_psmove_data_stream()) {
     total_size += 2 +
       ::google::protobuf::internal::WireFormatLite::MessageSizeNoVirtual(
@@ -1914,14 +1613,7 @@ int Request::ByteSize() const {
         *this->request_rumble_);
   }
 
-  // optional .PSMoveDataFrame.Request.RequestCycleTrackingColor cycle_tracking_color = 24;
-  if (this->has_cycle_tracking_color()) {
-    total_size += 2 +
-      ::google::protobuf::internal::WireFormatLite::MessageSizeNoVirtual(
-        *this->cycle_tracking_color_);
-  }
-
-  // optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 25;
+  // optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 24;
   if (this->has_reset_pose()) {
     total_size += 2 +
       ::google::protobuf::internal::WireFormatLite::MessageSizeNoVirtual(
@@ -1963,9 +1655,6 @@ void Request::MergeFrom(const Request& from) {
   if (from.has_request_rumble()) {
     mutable_request_rumble()->::PSMoveDataFrame::Request_RequestSetRumble::MergeFrom(from.request_rumble());
   }
-  if (from.has_cycle_tracking_color()) {
-    mutable_cycle_tracking_color()->::PSMoveDataFrame::Request_RequestCycleTrackingColor::MergeFrom(from.cycle_tracking_color());
-  }
   if (from.has_reset_pose()) {
     mutable_reset_pose()->::PSMoveDataFrame::Request_RequestResetPose::MergeFrom(from.reset_pose());
   }
@@ -1998,7 +1687,6 @@ void Request::InternalSwap(Request* other) {
   std::swap(request_start_psmove_data_stream_, other->request_start_psmove_data_stream_);
   std::swap(request_stop_psmove_data_stream_, other->request_stop_psmove_data_stream_);
   std::swap(request_rumble_, other->request_rumble_);
-  std::swap(cycle_tracking_color_, other->cycle_tracking_color_);
   std::swap(reset_pose_, other->reset_pose_);
   _internal_metadata_.Swap(&other->_internal_metadata_);
   std::swap(_cached_size_, other->_cached_size_);
@@ -2081,24 +1769,6 @@ void Request_RequestSetRumble::clear_rumble() {
 
 // -------------------------------------------------------------------
 
-// Request_RequestCycleTrackingColor
-
-// optional int32 psmove_id = 1;
-void Request_RequestCycleTrackingColor::clear_psmove_id() {
-  psmove_id_ = 0;
-}
- ::google::protobuf::int32 Request_RequestCycleTrackingColor::psmove_id() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.RequestCycleTrackingColor.psmove_id)
-  return psmove_id_;
-}
- void Request_RequestCycleTrackingColor::set_psmove_id(::google::protobuf::int32 value) {
-  
-  psmove_id_ = value;
-  // @@protoc_insertion_point(field_set:PSMoveDataFrame.Request.RequestCycleTrackingColor.psmove_id)
-}
-
-// -------------------------------------------------------------------
-
 // Request_RequestResetPose
 
 // optional int32 psmove_id = 1;
@@ -2147,7 +1817,7 @@ void Request::clear_type() {
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.Request.type)
 }
 
-// optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 21;
+// optional .PSMoveDataFrame.Request.RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
 bool Request::has_request_start_psmove_data_stream() const {
   return !_is_default_instance_ && request_start_psmove_data_stream_ != NULL;
 }
@@ -2184,7 +1854,7 @@ void Request::set_allocated_request_start_psmove_data_stream(::PSMoveDataFrame::
   // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.request_start_psmove_data_stream)
 }
 
-// optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 22;
+// optional .PSMoveDataFrame.Request.RequestStopPSMoveDataStream request_stop_psmove_data_stream = 21;
 bool Request::has_request_stop_psmove_data_stream() const {
   return !_is_default_instance_ && request_stop_psmove_data_stream_ != NULL;
 }
@@ -2258,44 +1928,7 @@ void Request::set_allocated_request_rumble(::PSMoveDataFrame::Request_RequestSet
   // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.request_rumble)
 }
 
-// optional .PSMoveDataFrame.Request.RequestCycleTrackingColor cycle_tracking_color = 24;
-bool Request::has_cycle_tracking_color() const {
-  return !_is_default_instance_ && cycle_tracking_color_ != NULL;
-}
-void Request::clear_cycle_tracking_color() {
-  if (GetArenaNoVirtual() == NULL && cycle_tracking_color_ != NULL) delete cycle_tracking_color_;
-  cycle_tracking_color_ = NULL;
-}
-const ::PSMoveDataFrame::Request_RequestCycleTrackingColor& Request::cycle_tracking_color() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Request.cycle_tracking_color)
-  return cycle_tracking_color_ != NULL ? *cycle_tracking_color_ : *default_instance_->cycle_tracking_color_;
-}
-::PSMoveDataFrame::Request_RequestCycleTrackingColor* Request::mutable_cycle_tracking_color() {
-  
-  if (cycle_tracking_color_ == NULL) {
-    cycle_tracking_color_ = new ::PSMoveDataFrame::Request_RequestCycleTrackingColor;
-  }
-  // @@protoc_insertion_point(field_mutable:PSMoveDataFrame.Request.cycle_tracking_color)
-  return cycle_tracking_color_;
-}
-::PSMoveDataFrame::Request_RequestCycleTrackingColor* Request::release_cycle_tracking_color() {
-  
-  ::PSMoveDataFrame::Request_RequestCycleTrackingColor* temp = cycle_tracking_color_;
-  cycle_tracking_color_ = NULL;
-  return temp;
-}
-void Request::set_allocated_cycle_tracking_color(::PSMoveDataFrame::Request_RequestCycleTrackingColor* cycle_tracking_color) {
-  delete cycle_tracking_color_;
-  cycle_tracking_color_ = cycle_tracking_color;
-  if (cycle_tracking_color) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Request.cycle_tracking_color)
-}
-
-// optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 25;
+// optional .PSMoveDataFrame.Request.RequestResetPose reset_pose = 24;
 bool Request::has_reset_pose() const {
   return !_is_default_instance_ && reset_pose_ != NULL;
 }
@@ -2343,7 +1976,6 @@ const ::google::protobuf::EnumDescriptor* Response_ResponseType_descriptor() {
 bool Response_ResponseType_IsValid(int value) {
   switch(value) {
     case 0:
-    case 1:
       return true;
     default:
       return false;
@@ -2352,7 +1984,6 @@ bool Response_ResponseType_IsValid(int value) {
 
 #ifndef _MSC_VER
 const Response_ResponseType Response::GENERAL_RESULT;
-const Response_ResponseType Response::ACTIVE_PSMOVE_COUNT;
 const Response_ResponseType Response::ResponseType_MIN;
 const Response_ResponseType Response::ResponseType_MAX;
 const int Response::ResponseType_ARRAYSIZE;
@@ -2381,218 +2012,9 @@ const Response_ResultCode Response::ResultCode_MAX;
 const int Response::ResultCode_ARRAYSIZE;
 #endif  // _MSC_VER
 #ifndef _MSC_VER
-const int Response_ResponseActivePSMoveCount::kCountFieldNumber;
-#endif  // !_MSC_VER
-
-Response_ResponseActivePSMoveCount::Response_ResponseActivePSMoveCount()
-  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
-  SharedCtor();
-  // @@protoc_insertion_point(constructor:PSMoveDataFrame.Response.ResponseActivePSMoveCount)
-}
-
-void Response_ResponseActivePSMoveCount::InitAsDefaultInstance() {
-  _is_default_instance_ = true;
-}
-
-Response_ResponseActivePSMoveCount::Response_ResponseActivePSMoveCount(const Response_ResponseActivePSMoveCount& from)
-  : ::google::protobuf::Message(),
-    _internal_metadata_(NULL) {
-  SharedCtor();
-  MergeFrom(from);
-  // @@protoc_insertion_point(copy_constructor:PSMoveDataFrame.Response.ResponseActivePSMoveCount)
-}
-
-void Response_ResponseActivePSMoveCount::SharedCtor() {
-    _is_default_instance_ = false;
-  _cached_size_ = 0;
-  count_ = 0;
-}
-
-Response_ResponseActivePSMoveCount::~Response_ResponseActivePSMoveCount() {
-  // @@protoc_insertion_point(destructor:PSMoveDataFrame.Response.ResponseActivePSMoveCount)
-  SharedDtor();
-}
-
-void Response_ResponseActivePSMoveCount::SharedDtor() {
-  if (this != default_instance_) {
-  }
-}
-
-void Response_ResponseActivePSMoveCount::SetCachedSize(int size) const {
-  GOOGLE_SAFE_CONCURRENT_WRITES_BEGIN();
-  _cached_size_ = size;
-  GOOGLE_SAFE_CONCURRENT_WRITES_END();
-}
-const ::google::protobuf::Descriptor* Response_ResponseActivePSMoveCount::descriptor() {
-  protobuf_AssignDescriptorsOnce();
-  return Response_ResponseActivePSMoveCount_descriptor_;
-}
-
-const Response_ResponseActivePSMoveCount& Response_ResponseActivePSMoveCount::default_instance() {
-  if (default_instance_ == NULL) protobuf_AddDesc_PSMoveDataFrame_2eproto();
-  return *default_instance_;
-}
-
-Response_ResponseActivePSMoveCount* Response_ResponseActivePSMoveCount::default_instance_ = NULL;
-
-Response_ResponseActivePSMoveCount* Response_ResponseActivePSMoveCount::New(::google::protobuf::Arena* arena) const {
-  Response_ResponseActivePSMoveCount* n = new Response_ResponseActivePSMoveCount;
-  if (arena != NULL) {
-    arena->Own(n);
-  }
-  return n;
-}
-
-void Response_ResponseActivePSMoveCount::Clear() {
-  count_ = 0;
-}
-
-bool Response_ResponseActivePSMoveCount::MergePartialFromCodedStream(
-    ::google::protobuf::io::CodedInputStream* input) {
-#define DO_(EXPRESSION) if (!(EXPRESSION)) goto failure
-  ::google::protobuf::uint32 tag;
-  // @@protoc_insertion_point(parse_start:PSMoveDataFrame.Response.ResponseActivePSMoveCount)
-  for (;;) {
-    ::std::pair< ::google::protobuf::uint32, bool> p = input->ReadTagWithCutoff(127);
-    tag = p.first;
-    if (!p.second) goto handle_unusual;
-    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
-      // optional int32 count = 1;
-      case 1: {
-        if (tag == 8) {
-          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
-                   ::google::protobuf::int32, ::google::protobuf::internal::WireFormatLite::TYPE_INT32>(
-                 input, &count_)));
-
-        } else {
-          goto handle_unusual;
-        }
-        if (input->ExpectAtEnd()) goto success;
-        break;
-      }
-
-      default: {
-      handle_unusual:
-        if (tag == 0 ||
-            ::google::protobuf::internal::WireFormatLite::GetTagWireType(tag) ==
-            ::google::protobuf::internal::WireFormatLite::WIRETYPE_END_GROUP) {
-          goto success;
-        }
-        DO_(::google::protobuf::internal::WireFormatLite::SkipField(input, tag));
-        break;
-      }
-    }
-  }
-success:
-  // @@protoc_insertion_point(parse_success:PSMoveDataFrame.Response.ResponseActivePSMoveCount)
-  return true;
-failure:
-  // @@protoc_insertion_point(parse_failure:PSMoveDataFrame.Response.ResponseActivePSMoveCount)
-  return false;
-#undef DO_
-}
-
-void Response_ResponseActivePSMoveCount::SerializeWithCachedSizes(
-    ::google::protobuf::io::CodedOutputStream* output) const {
-  // @@protoc_insertion_point(serialize_start:PSMoveDataFrame.Response.ResponseActivePSMoveCount)
-  // optional int32 count = 1;
-  if (this->count() != 0) {
-    ::google::protobuf::internal::WireFormatLite::WriteInt32(1, this->count(), output);
-  }
-
-  // @@protoc_insertion_point(serialize_end:PSMoveDataFrame.Response.ResponseActivePSMoveCount)
-}
-
-::google::protobuf::uint8* Response_ResponseActivePSMoveCount::SerializeWithCachedSizesToArray(
-    ::google::protobuf::uint8* target) const {
-  // @@protoc_insertion_point(serialize_to_array_start:PSMoveDataFrame.Response.ResponseActivePSMoveCount)
-  // optional int32 count = 1;
-  if (this->count() != 0) {
-    target = ::google::protobuf::internal::WireFormatLite::WriteInt32ToArray(1, this->count(), target);
-  }
-
-  // @@protoc_insertion_point(serialize_to_array_end:PSMoveDataFrame.Response.ResponseActivePSMoveCount)
-  return target;
-}
-
-int Response_ResponseActivePSMoveCount::ByteSize() const {
-  int total_size = 0;
-
-  // optional int32 count = 1;
-  if (this->count() != 0) {
-    total_size += 1 +
-      ::google::protobuf::internal::WireFormatLite::Int32Size(
-        this->count());
-  }
-
-  GOOGLE_SAFE_CONCURRENT_WRITES_BEGIN();
-  _cached_size_ = total_size;
-  GOOGLE_SAFE_CONCURRENT_WRITES_END();
-  return total_size;
-}
-
-void Response_ResponseActivePSMoveCount::MergeFrom(const ::google::protobuf::Message& from) {
-  if (GOOGLE_PREDICT_FALSE(&from == this)) MergeFromFail(__LINE__);
-  const Response_ResponseActivePSMoveCount* source = 
-      ::google::protobuf::internal::DynamicCastToGenerated<const Response_ResponseActivePSMoveCount>(
-          &from);
-  if (source == NULL) {
-    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
-  } else {
-    MergeFrom(*source);
-  }
-}
-
-void Response_ResponseActivePSMoveCount::MergeFrom(const Response_ResponseActivePSMoveCount& from) {
-  if (GOOGLE_PREDICT_FALSE(&from == this)) MergeFromFail(__LINE__);
-  if (from.count() != 0) {
-    set_count(from.count());
-  }
-}
-
-void Response_ResponseActivePSMoveCount::CopyFrom(const ::google::protobuf::Message& from) {
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-void Response_ResponseActivePSMoveCount::CopyFrom(const Response_ResponseActivePSMoveCount& from) {
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-bool Response_ResponseActivePSMoveCount::IsInitialized() const {
-
-  return true;
-}
-
-void Response_ResponseActivePSMoveCount::Swap(Response_ResponseActivePSMoveCount* other) {
-  if (other == this) return;
-  InternalSwap(other);
-}
-void Response_ResponseActivePSMoveCount::InternalSwap(Response_ResponseActivePSMoveCount* other) {
-  std::swap(count_, other->count_);
-  _internal_metadata_.Swap(&other->_internal_metadata_);
-  std::swap(_cached_size_, other->_cached_size_);
-}
-
-::google::protobuf::Metadata Response_ResponseActivePSMoveCount::GetMetadata() const {
-  protobuf_AssignDescriptorsOnce();
-  ::google::protobuf::Metadata metadata;
-  metadata.descriptor = Response_ResponseActivePSMoveCount_descriptor_;
-  metadata.reflection = Response_ResponseActivePSMoveCount_reflection_;
-  return metadata;
-}
-
-
-// -------------------------------------------------------------------
-
-#ifndef _MSC_VER
 const int Response::kTypeFieldNumber;
 const int Response::kRequestIdFieldNumber;
 const int Response::kResultCodeFieldNumber;
-const int Response::kResponsePsmoveCountFieldNumber;
 #endif  // !_MSC_VER
 
 Response::Response()
@@ -2603,7 +2025,6 @@ Response::Response()
 
 void Response::InitAsDefaultInstance() {
   _is_default_instance_ = true;
-  response_psmove_count_ = const_cast< ::PSMoveDataFrame::Response_ResponseActivePSMoveCount*>(&::PSMoveDataFrame::Response_ResponseActivePSMoveCount::default_instance());
 }
 
 Response::Response(const Response& from)
@@ -2620,7 +2041,6 @@ void Response::SharedCtor() {
   type_ = 0;
   request_id_ = 0;
   result_code_ = 0;
-  response_psmove_count_ = NULL;
 }
 
 Response::~Response() {
@@ -2630,7 +2050,6 @@ Response::~Response() {
 
 void Response::SharedDtor() {
   if (this != default_instance_) {
-    delete response_psmove_count_;
   }
 }
 
@@ -2668,10 +2087,7 @@ void Response::Clear() {
            ZR_HELPER_(last) - ZR_HELPER_(first) + sizeof(last));\
 } while (0)
 
-  ZR_(type_, request_id_);
-  result_code_ = 0;
-  if (GetArenaNoVirtual() == NULL && response_psmove_count_ != NULL) delete response_psmove_count_;
-  response_psmove_count_ = NULL;
+  ZR_(type_, result_code_);
 
 #undef ZR_HELPER_
 #undef ZR_
@@ -2684,7 +2100,7 @@ bool Response::MergePartialFromCodedStream(
   ::google::protobuf::uint32 tag;
   // @@protoc_insertion_point(parse_start:PSMoveDataFrame.Response)
   for (;;) {
-    ::std::pair< ::google::protobuf::uint32, bool> p = input->ReadTagWithCutoff(16383);
+    ::std::pair< ::google::protobuf::uint32, bool> p = input->ReadTagWithCutoff(127);
     tag = p.first;
     if (!p.second) goto handle_unusual;
     switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
@@ -2727,19 +2143,6 @@ bool Response::MergePartialFromCodedStream(
                    int, ::google::protobuf::internal::WireFormatLite::TYPE_ENUM>(
                  input, &value)));
           set_result_code(static_cast< ::PSMoveDataFrame::Response_ResultCode >(value));
-        } else {
-          goto handle_unusual;
-        }
-        if (input->ExpectTag(170)) goto parse_response_psmove_count;
-        break;
-      }
-
-      // optional .PSMoveDataFrame.Response.ResponseActivePSMoveCount response_psmove_count = 21;
-      case 21: {
-        if (tag == 170) {
-         parse_response_psmove_count:
-          DO_(::google::protobuf::internal::WireFormatLite::ReadMessageNoVirtual(
-               input, mutable_response_psmove_count()));
         } else {
           goto handle_unusual;
         }
@@ -2788,12 +2191,6 @@ void Response::SerializeWithCachedSizes(
       3, this->result_code(), output);
   }
 
-  // optional .PSMoveDataFrame.Response.ResponseActivePSMoveCount response_psmove_count = 21;
-  if (this->has_response_psmove_count()) {
-    ::google::protobuf::internal::WireFormatLite::WriteMessageMaybeToArray(
-      21, *this->response_psmove_count_, output);
-  }
-
   // @@protoc_insertion_point(serialize_end:PSMoveDataFrame.Response)
 }
 
@@ -2815,13 +2212,6 @@ void Response::SerializeWithCachedSizes(
   if (this->result_code() != 0) {
     target = ::google::protobuf::internal::WireFormatLite::WriteEnumToArray(
       3, this->result_code(), target);
-  }
-
-  // optional .PSMoveDataFrame.Response.ResponseActivePSMoveCount response_psmove_count = 21;
-  if (this->has_response_psmove_count()) {
-    target = ::google::protobuf::internal::WireFormatLite::
-      WriteMessageNoVirtualToArray(
-        21, *this->response_psmove_count_, target);
   }
 
   // @@protoc_insertion_point(serialize_to_array_end:PSMoveDataFrame.Response)
@@ -2848,13 +2238,6 @@ int Response::ByteSize() const {
   if (this->result_code() != 0) {
     total_size += 1 +
       ::google::protobuf::internal::WireFormatLite::EnumSize(this->result_code());
-  }
-
-  // optional .PSMoveDataFrame.Response.ResponseActivePSMoveCount response_psmove_count = 21;
-  if (this->has_response_psmove_count()) {
-    total_size += 2 +
-      ::google::protobuf::internal::WireFormatLite::MessageSizeNoVirtual(
-        *this->response_psmove_count_);
   }
 
   GOOGLE_SAFE_CONCURRENT_WRITES_BEGIN();
@@ -2886,9 +2269,6 @@ void Response::MergeFrom(const Response& from) {
   if (from.result_code() != 0) {
     set_result_code(from.result_code());
   }
-  if (from.has_response_psmove_count()) {
-    mutable_response_psmove_count()->::PSMoveDataFrame::Response_ResponseActivePSMoveCount::MergeFrom(from.response_psmove_count());
-  }
 }
 
 void Response::CopyFrom(const ::google::protobuf::Message& from) {
@@ -2916,7 +2296,6 @@ void Response::InternalSwap(Response* other) {
   std::swap(type_, other->type_);
   std::swap(request_id_, other->request_id_);
   std::swap(result_code_, other->result_code_);
-  std::swap(response_psmove_count_, other->response_psmove_count_);
   _internal_metadata_.Swap(&other->_internal_metadata_);
   std::swap(_cached_size_, other->_cached_size_);
 }
@@ -2930,24 +2309,6 @@ void Response::InternalSwap(Response* other) {
 }
 
 #if PROTOBUF_INLINE_NOT_IN_HEADERS
-// Response_ResponseActivePSMoveCount
-
-// optional int32 count = 1;
-void Response_ResponseActivePSMoveCount::clear_count() {
-  count_ = 0;
-}
- ::google::protobuf::int32 Response_ResponseActivePSMoveCount::count() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Response.ResponseActivePSMoveCount.count)
-  return count_;
-}
- void Response_ResponseActivePSMoveCount::set_count(::google::protobuf::int32 value) {
-  
-  count_ = value;
-  // @@protoc_insertion_point(field_set:PSMoveDataFrame.Response.ResponseActivePSMoveCount.count)
-}
-
-// -------------------------------------------------------------------
-
 // Response
 
 // optional .PSMoveDataFrame.Response.ResponseType type = 1;
@@ -2990,43 +2351,6 @@ void Response::clear_result_code() {
   
   result_code_ = value;
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.Response.result_code)
-}
-
-// optional .PSMoveDataFrame.Response.ResponseActivePSMoveCount response_psmove_count = 21;
-bool Response::has_response_psmove_count() const {
-  return !_is_default_instance_ && response_psmove_count_ != NULL;
-}
-void Response::clear_response_psmove_count() {
-  if (GetArenaNoVirtual() == NULL && response_psmove_count_ != NULL) delete response_psmove_count_;
-  response_psmove_count_ = NULL;
-}
-const ::PSMoveDataFrame::Response_ResponseActivePSMoveCount& Response::response_psmove_count() const {
-  // @@protoc_insertion_point(field_get:PSMoveDataFrame.Response.response_psmove_count)
-  return response_psmove_count_ != NULL ? *response_psmove_count_ : *default_instance_->response_psmove_count_;
-}
-::PSMoveDataFrame::Response_ResponseActivePSMoveCount* Response::mutable_response_psmove_count() {
-  
-  if (response_psmove_count_ == NULL) {
-    response_psmove_count_ = new ::PSMoveDataFrame::Response_ResponseActivePSMoveCount;
-  }
-  // @@protoc_insertion_point(field_mutable:PSMoveDataFrame.Response.response_psmove_count)
-  return response_psmove_count_;
-}
-::PSMoveDataFrame::Response_ResponseActivePSMoveCount* Response::release_response_psmove_count() {
-  
-  ::PSMoveDataFrame::Response_ResponseActivePSMoveCount* temp = response_psmove_count_;
-  response_psmove_count_ = NULL;
-  return temp;
-}
-void Response::set_allocated_response_psmove_count(::PSMoveDataFrame::Response_ResponseActivePSMoveCount* response_psmove_count) {
-  delete response_psmove_count_;
-  response_psmove_count_ = response_psmove_count;
-  if (response_psmove_count) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.Response.response_psmove_count)
 }
 
 #endif  // PROTOBUF_INLINE_NOT_IN_HEADERS
@@ -3685,6 +3009,7 @@ void ControllerDataFrame_Orientation::InternalSwap(ControllerDataFrame_Orientati
 // -------------------------------------------------------------------
 
 #ifndef _MSC_VER
+const int ControllerDataFrame::kPsmoveIdFieldNumber;
 const int ControllerDataFrame::kSequenceNumFieldNumber;
 const int ControllerDataFrame::kIsConnectedFieldNumber;
 const int ControllerDataFrame::kIsTrackingEnabledFieldNumber;
@@ -3718,6 +3043,7 @@ ControllerDataFrame::ControllerDataFrame(const ControllerDataFrame& from)
 void ControllerDataFrame::SharedCtor() {
     _is_default_instance_ = false;
   _cached_size_ = 0;
+  psmove_id_ = 0;
   sequence_num_ = 0;
   isconnected_ = false;
   istrackingenabled_ = false;
@@ -3774,12 +3100,12 @@ void ControllerDataFrame::Clear() {
            ZR_HELPER_(last) - ZR_HELPER_(first) + sizeof(last));\
 } while (0)
 
-  ZR_(sequence_num_, iscurrentlytracking_);
-  ZR_(button_down_bitmask_, trigger_value_);
+  ZR_(psmove_id_, button_down_bitmask_);
   if (GetArenaNoVirtual() == NULL && position_ != NULL) delete position_;
   position_ = NULL;
   if (GetArenaNoVirtual() == NULL && orientation_ != NULL) delete orientation_;
   orientation_ = NULL;
+  trigger_value_ = 0;
 
 #undef ZR_HELPER_
 #undef ZR_
@@ -3796,9 +3122,24 @@ bool ControllerDataFrame::MergePartialFromCodedStream(
     tag = p.first;
     if (!p.second) goto handle_unusual;
     switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
-      // optional int32 sequence_num = 1;
+      // optional int32 psmove_id = 1;
       case 1: {
         if (tag == 8) {
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::int32, ::google::protobuf::internal::WireFormatLite::TYPE_INT32>(
+                 input, &psmove_id_)));
+
+        } else {
+          goto handle_unusual;
+        }
+        if (input->ExpectTag(16)) goto parse_sequence_num;
+        break;
+      }
+
+      // optional int32 sequence_num = 2;
+      case 2: {
+        if (tag == 16) {
+         parse_sequence_num:
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
                    ::google::protobuf::int32, ::google::protobuf::internal::WireFormatLite::TYPE_INT32>(
                  input, &sequence_num_)));
@@ -3806,13 +3147,13 @@ bool ControllerDataFrame::MergePartialFromCodedStream(
         } else {
           goto handle_unusual;
         }
-        if (input->ExpectTag(16)) goto parse_IsConnected;
+        if (input->ExpectTag(24)) goto parse_IsConnected;
         break;
       }
 
-      // optional bool IsConnected = 2;
-      case 2: {
-        if (tag == 16) {
+      // optional bool IsConnected = 3;
+      case 3: {
+        if (tag == 24) {
          parse_IsConnected:
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
                    bool, ::google::protobuf::internal::WireFormatLite::TYPE_BOOL>(
@@ -3821,13 +3162,13 @@ bool ControllerDataFrame::MergePartialFromCodedStream(
         } else {
           goto handle_unusual;
         }
-        if (input->ExpectTag(24)) goto parse_IsTrackingEnabled;
+        if (input->ExpectTag(32)) goto parse_IsTrackingEnabled;
         break;
       }
 
-      // optional bool IsTrackingEnabled = 3;
-      case 3: {
-        if (tag == 24) {
+      // optional bool IsTrackingEnabled = 4;
+      case 4: {
+        if (tag == 32) {
          parse_IsTrackingEnabled:
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
                    bool, ::google::protobuf::internal::WireFormatLite::TYPE_BOOL>(
@@ -3836,13 +3177,13 @@ bool ControllerDataFrame::MergePartialFromCodedStream(
         } else {
           goto handle_unusual;
         }
-        if (input->ExpectTag(32)) goto parse_IsCurrentlyTracking;
+        if (input->ExpectTag(40)) goto parse_IsCurrentlyTracking;
         break;
       }
 
-      // optional bool IsCurrentlyTracking = 4;
-      case 4: {
-        if (tag == 32) {
+      // optional bool IsCurrentlyTracking = 5;
+      case 5: {
+        if (tag == 40) {
          parse_IsCurrentlyTracking:
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
                    bool, ::google::protobuf::internal::WireFormatLite::TYPE_BOOL>(
@@ -3851,39 +3192,39 @@ bool ControllerDataFrame::MergePartialFromCodedStream(
         } else {
           goto handle_unusual;
         }
-        if (input->ExpectTag(42)) goto parse_position;
+        if (input->ExpectTag(50)) goto parse_position;
         break;
       }
 
-      // optional .PSMoveDataFrame.ControllerDataFrame.Position position = 5;
-      case 5: {
-        if (tag == 42) {
+      // optional .PSMoveDataFrame.ControllerDataFrame.Position position = 6;
+      case 6: {
+        if (tag == 50) {
          parse_position:
           DO_(::google::protobuf::internal::WireFormatLite::ReadMessageNoVirtual(
                input, mutable_position()));
         } else {
           goto handle_unusual;
         }
-        if (input->ExpectTag(50)) goto parse_orientation;
+        if (input->ExpectTag(58)) goto parse_orientation;
         break;
       }
 
-      // optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 6;
-      case 6: {
-        if (tag == 50) {
+      // optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 7;
+      case 7: {
+        if (tag == 58) {
          parse_orientation:
           DO_(::google::protobuf::internal::WireFormatLite::ReadMessageNoVirtual(
                input, mutable_orientation()));
         } else {
           goto handle_unusual;
         }
-        if (input->ExpectTag(56)) goto parse_button_down_bitmask;
+        if (input->ExpectTag(64)) goto parse_button_down_bitmask;
         break;
       }
 
-      // optional uint32 button_down_bitmask = 7;
-      case 7: {
-        if (tag == 56) {
+      // optional uint32 button_down_bitmask = 8;
+      case 8: {
+        if (tag == 64) {
          parse_button_down_bitmask:
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
                    ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
@@ -3892,13 +3233,13 @@ bool ControllerDataFrame::MergePartialFromCodedStream(
         } else {
           goto handle_unusual;
         }
-        if (input->ExpectTag(64)) goto parse_trigger_value;
+        if (input->ExpectTag(72)) goto parse_trigger_value;
         break;
       }
 
-      // optional int32 trigger_value = 8;
-      case 8: {
-        if (tag == 64) {
+      // optional int32 trigger_value = 9;
+      case 9: {
+        if (tag == 72) {
          parse_trigger_value:
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
                    ::google::protobuf::int32, ::google::protobuf::internal::WireFormatLite::TYPE_INT32>(
@@ -3935,46 +3276,51 @@ failure:
 void ControllerDataFrame::SerializeWithCachedSizes(
     ::google::protobuf::io::CodedOutputStream* output) const {
   // @@protoc_insertion_point(serialize_start:PSMoveDataFrame.ControllerDataFrame)
-  // optional int32 sequence_num = 1;
+  // optional int32 psmove_id = 1;
+  if (this->psmove_id() != 0) {
+    ::google::protobuf::internal::WireFormatLite::WriteInt32(1, this->psmove_id(), output);
+  }
+
+  // optional int32 sequence_num = 2;
   if (this->sequence_num() != 0) {
-    ::google::protobuf::internal::WireFormatLite::WriteInt32(1, this->sequence_num(), output);
+    ::google::protobuf::internal::WireFormatLite::WriteInt32(2, this->sequence_num(), output);
   }
 
-  // optional bool IsConnected = 2;
+  // optional bool IsConnected = 3;
   if (this->isconnected() != 0) {
-    ::google::protobuf::internal::WireFormatLite::WriteBool(2, this->isconnected(), output);
+    ::google::protobuf::internal::WireFormatLite::WriteBool(3, this->isconnected(), output);
   }
 
-  // optional bool IsTrackingEnabled = 3;
+  // optional bool IsTrackingEnabled = 4;
   if (this->istrackingenabled() != 0) {
-    ::google::protobuf::internal::WireFormatLite::WriteBool(3, this->istrackingenabled(), output);
+    ::google::protobuf::internal::WireFormatLite::WriteBool(4, this->istrackingenabled(), output);
   }
 
-  // optional bool IsCurrentlyTracking = 4;
+  // optional bool IsCurrentlyTracking = 5;
   if (this->iscurrentlytracking() != 0) {
-    ::google::protobuf::internal::WireFormatLite::WriteBool(4, this->iscurrentlytracking(), output);
+    ::google::protobuf::internal::WireFormatLite::WriteBool(5, this->iscurrentlytracking(), output);
   }
 
-  // optional .PSMoveDataFrame.ControllerDataFrame.Position position = 5;
+  // optional .PSMoveDataFrame.ControllerDataFrame.Position position = 6;
   if (this->has_position()) {
     ::google::protobuf::internal::WireFormatLite::WriteMessageMaybeToArray(
-      5, *this->position_, output);
+      6, *this->position_, output);
   }
 
-  // optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 6;
+  // optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 7;
   if (this->has_orientation()) {
     ::google::protobuf::internal::WireFormatLite::WriteMessageMaybeToArray(
-      6, *this->orientation_, output);
+      7, *this->orientation_, output);
   }
 
-  // optional uint32 button_down_bitmask = 7;
+  // optional uint32 button_down_bitmask = 8;
   if (this->button_down_bitmask() != 0) {
-    ::google::protobuf::internal::WireFormatLite::WriteUInt32(7, this->button_down_bitmask(), output);
+    ::google::protobuf::internal::WireFormatLite::WriteUInt32(8, this->button_down_bitmask(), output);
   }
 
-  // optional int32 trigger_value = 8;
+  // optional int32 trigger_value = 9;
   if (this->trigger_value() != 0) {
-    ::google::protobuf::internal::WireFormatLite::WriteInt32(8, this->trigger_value(), output);
+    ::google::protobuf::internal::WireFormatLite::WriteInt32(9, this->trigger_value(), output);
   }
 
   // @@protoc_insertion_point(serialize_end:PSMoveDataFrame.ControllerDataFrame)
@@ -3983,48 +3329,53 @@ void ControllerDataFrame::SerializeWithCachedSizes(
 ::google::protobuf::uint8* ControllerDataFrame::SerializeWithCachedSizesToArray(
     ::google::protobuf::uint8* target) const {
   // @@protoc_insertion_point(serialize_to_array_start:PSMoveDataFrame.ControllerDataFrame)
-  // optional int32 sequence_num = 1;
+  // optional int32 psmove_id = 1;
+  if (this->psmove_id() != 0) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteInt32ToArray(1, this->psmove_id(), target);
+  }
+
+  // optional int32 sequence_num = 2;
   if (this->sequence_num() != 0) {
-    target = ::google::protobuf::internal::WireFormatLite::WriteInt32ToArray(1, this->sequence_num(), target);
+    target = ::google::protobuf::internal::WireFormatLite::WriteInt32ToArray(2, this->sequence_num(), target);
   }
 
-  // optional bool IsConnected = 2;
+  // optional bool IsConnected = 3;
   if (this->isconnected() != 0) {
-    target = ::google::protobuf::internal::WireFormatLite::WriteBoolToArray(2, this->isconnected(), target);
+    target = ::google::protobuf::internal::WireFormatLite::WriteBoolToArray(3, this->isconnected(), target);
   }
 
-  // optional bool IsTrackingEnabled = 3;
+  // optional bool IsTrackingEnabled = 4;
   if (this->istrackingenabled() != 0) {
-    target = ::google::protobuf::internal::WireFormatLite::WriteBoolToArray(3, this->istrackingenabled(), target);
+    target = ::google::protobuf::internal::WireFormatLite::WriteBoolToArray(4, this->istrackingenabled(), target);
   }
 
-  // optional bool IsCurrentlyTracking = 4;
+  // optional bool IsCurrentlyTracking = 5;
   if (this->iscurrentlytracking() != 0) {
-    target = ::google::protobuf::internal::WireFormatLite::WriteBoolToArray(4, this->iscurrentlytracking(), target);
+    target = ::google::protobuf::internal::WireFormatLite::WriteBoolToArray(5, this->iscurrentlytracking(), target);
   }
 
-  // optional .PSMoveDataFrame.ControllerDataFrame.Position position = 5;
+  // optional .PSMoveDataFrame.ControllerDataFrame.Position position = 6;
   if (this->has_position()) {
     target = ::google::protobuf::internal::WireFormatLite::
       WriteMessageNoVirtualToArray(
-        5, *this->position_, target);
+        6, *this->position_, target);
   }
 
-  // optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 6;
+  // optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 7;
   if (this->has_orientation()) {
     target = ::google::protobuf::internal::WireFormatLite::
       WriteMessageNoVirtualToArray(
-        6, *this->orientation_, target);
+        7, *this->orientation_, target);
   }
 
-  // optional uint32 button_down_bitmask = 7;
+  // optional uint32 button_down_bitmask = 8;
   if (this->button_down_bitmask() != 0) {
-    target = ::google::protobuf::internal::WireFormatLite::WriteUInt32ToArray(7, this->button_down_bitmask(), target);
+    target = ::google::protobuf::internal::WireFormatLite::WriteUInt32ToArray(8, this->button_down_bitmask(), target);
   }
 
-  // optional int32 trigger_value = 8;
+  // optional int32 trigger_value = 9;
   if (this->trigger_value() != 0) {
-    target = ::google::protobuf::internal::WireFormatLite::WriteInt32ToArray(8, this->trigger_value(), target);
+    target = ::google::protobuf::internal::WireFormatLite::WriteInt32ToArray(9, this->trigger_value(), target);
   }
 
   // @@protoc_insertion_point(serialize_to_array_end:PSMoveDataFrame.ControllerDataFrame)
@@ -4034,50 +3385,57 @@ void ControllerDataFrame::SerializeWithCachedSizes(
 int ControllerDataFrame::ByteSize() const {
   int total_size = 0;
 
-  // optional int32 sequence_num = 1;
+  // optional int32 psmove_id = 1;
+  if (this->psmove_id() != 0) {
+    total_size += 1 +
+      ::google::protobuf::internal::WireFormatLite::Int32Size(
+        this->psmove_id());
+  }
+
+  // optional int32 sequence_num = 2;
   if (this->sequence_num() != 0) {
     total_size += 1 +
       ::google::protobuf::internal::WireFormatLite::Int32Size(
         this->sequence_num());
   }
 
-  // optional bool IsConnected = 2;
+  // optional bool IsConnected = 3;
   if (this->isconnected() != 0) {
     total_size += 1 + 1;
   }
 
-  // optional bool IsTrackingEnabled = 3;
+  // optional bool IsTrackingEnabled = 4;
   if (this->istrackingenabled() != 0) {
     total_size += 1 + 1;
   }
 
-  // optional bool IsCurrentlyTracking = 4;
+  // optional bool IsCurrentlyTracking = 5;
   if (this->iscurrentlytracking() != 0) {
     total_size += 1 + 1;
   }
 
-  // optional .PSMoveDataFrame.ControllerDataFrame.Position position = 5;
+  // optional .PSMoveDataFrame.ControllerDataFrame.Position position = 6;
   if (this->has_position()) {
     total_size += 1 +
       ::google::protobuf::internal::WireFormatLite::MessageSizeNoVirtual(
         *this->position_);
   }
 
-  // optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 6;
+  // optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 7;
   if (this->has_orientation()) {
     total_size += 1 +
       ::google::protobuf::internal::WireFormatLite::MessageSizeNoVirtual(
         *this->orientation_);
   }
 
-  // optional uint32 button_down_bitmask = 7;
+  // optional uint32 button_down_bitmask = 8;
   if (this->button_down_bitmask() != 0) {
     total_size += 1 +
       ::google::protobuf::internal::WireFormatLite::UInt32Size(
         this->button_down_bitmask());
   }
 
-  // optional int32 trigger_value = 8;
+  // optional int32 trigger_value = 9;
   if (this->trigger_value() != 0) {
     total_size += 1 +
       ::google::protobuf::internal::WireFormatLite::Int32Size(
@@ -4104,6 +3462,9 @@ void ControllerDataFrame::MergeFrom(const ::google::protobuf::Message& from) {
 
 void ControllerDataFrame::MergeFrom(const ControllerDataFrame& from) {
   if (GOOGLE_PREDICT_FALSE(&from == this)) MergeFromFail(__LINE__);
+  if (from.psmove_id() != 0) {
+    set_psmove_id(from.psmove_id());
+  }
   if (from.sequence_num() != 0) {
     set_sequence_num(from.sequence_num());
   }
@@ -4152,6 +3513,7 @@ void ControllerDataFrame::Swap(ControllerDataFrame* other) {
   InternalSwap(other);
 }
 void ControllerDataFrame::InternalSwap(ControllerDataFrame* other) {
+  std::swap(psmove_id_, other->psmove_id_);
   std::swap(sequence_num_, other->sequence_num_);
   std::swap(isconnected_, other->isconnected_);
   std::swap(istrackingenabled_, other->istrackingenabled_);
@@ -4281,7 +3643,21 @@ void ControllerDataFrame_Orientation::clear_w() {
 
 // ControllerDataFrame
 
-// optional int32 sequence_num = 1;
+// optional int32 psmove_id = 1;
+void ControllerDataFrame::clear_psmove_id() {
+  psmove_id_ = 0;
+}
+ ::google::protobuf::int32 ControllerDataFrame::psmove_id() const {
+  // @@protoc_insertion_point(field_get:PSMoveDataFrame.ControllerDataFrame.psmove_id)
+  return psmove_id_;
+}
+ void ControllerDataFrame::set_psmove_id(::google::protobuf::int32 value) {
+  
+  psmove_id_ = value;
+  // @@protoc_insertion_point(field_set:PSMoveDataFrame.ControllerDataFrame.psmove_id)
+}
+
+// optional int32 sequence_num = 2;
 void ControllerDataFrame::clear_sequence_num() {
   sequence_num_ = 0;
 }
@@ -4295,7 +3671,7 @@ void ControllerDataFrame::clear_sequence_num() {
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.ControllerDataFrame.sequence_num)
 }
 
-// optional bool IsConnected = 2;
+// optional bool IsConnected = 3;
 void ControllerDataFrame::clear_isconnected() {
   isconnected_ = false;
 }
@@ -4309,7 +3685,7 @@ void ControllerDataFrame::clear_isconnected() {
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.ControllerDataFrame.IsConnected)
 }
 
-// optional bool IsTrackingEnabled = 3;
+// optional bool IsTrackingEnabled = 4;
 void ControllerDataFrame::clear_istrackingenabled() {
   istrackingenabled_ = false;
 }
@@ -4323,7 +3699,7 @@ void ControllerDataFrame::clear_istrackingenabled() {
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.ControllerDataFrame.IsTrackingEnabled)
 }
 
-// optional bool IsCurrentlyTracking = 4;
+// optional bool IsCurrentlyTracking = 5;
 void ControllerDataFrame::clear_iscurrentlytracking() {
   iscurrentlytracking_ = false;
 }
@@ -4337,7 +3713,7 @@ void ControllerDataFrame::clear_iscurrentlytracking() {
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.ControllerDataFrame.IsCurrentlyTracking)
 }
 
-// optional .PSMoveDataFrame.ControllerDataFrame.Position position = 5;
+// optional .PSMoveDataFrame.ControllerDataFrame.Position position = 6;
 bool ControllerDataFrame::has_position() const {
   return !_is_default_instance_ && position_ != NULL;
 }
@@ -4374,7 +3750,7 @@ void ControllerDataFrame::set_allocated_position(::PSMoveDataFrame::ControllerDa
   // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.ControllerDataFrame.position)
 }
 
-// optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 6;
+// optional .PSMoveDataFrame.ControllerDataFrame.Orientation orientation = 7;
 bool ControllerDataFrame::has_orientation() const {
   return !_is_default_instance_ && orientation_ != NULL;
 }
@@ -4411,7 +3787,7 @@ void ControllerDataFrame::set_allocated_orientation(::PSMoveDataFrame::Controlle
   // @@protoc_insertion_point(field_set_allocated:PSMoveDataFrame.ControllerDataFrame.orientation)
 }
 
-// optional uint32 button_down_bitmask = 7;
+// optional uint32 button_down_bitmask = 8;
 void ControllerDataFrame::clear_button_down_bitmask() {
   button_down_bitmask_ = 0u;
 }
@@ -4425,7 +3801,7 @@ void ControllerDataFrame::clear_button_down_bitmask() {
   // @@protoc_insertion_point(field_set:PSMoveDataFrame.ControllerDataFrame.button_down_bitmask)
 }
 
-// optional int32 trigger_value = 8;
+// optional int32 trigger_value = 9;
 void ControllerDataFrame::clear_trigger_value() {
   trigger_value_ = 0;
 }

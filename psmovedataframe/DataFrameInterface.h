@@ -7,14 +7,28 @@
 //-- pre-declarations -----
 namespace PSMoveDataFrame
 {
+    class ControllerDataFrame;
 	class Request;
 	class Response;
 };
+typedef boost::shared_ptr<PSMoveDataFrame::ControllerDataFrame> ControllerDataFramePtr;
 typedef boost::shared_ptr<PSMoveDataFrame::Request> RequestPtr;
 typedef boost::shared_ptr<PSMoveDataFrame::Response> ResponsePtr;
 
 //-- interface -----
-class IDataFrameEventListener
+class INotificationListener
+{
+public:
+    virtual void handle_notification(ResponsePtr response) = 0;
+};
+
+class IDataFrameListener
+{
+public:
+    virtual void handle_data_frame(ControllerDataFramePtr data_frame) = 0;
+};
+
+class IResponseListener
 {
 public:
 	virtual void handle_request_canceled(RequestPtr request) = 0;

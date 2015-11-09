@@ -13,11 +13,14 @@ class ClientNetworkManager
 {
 public:
     ClientNetworkManager(
-		const std::string &host, const std::string &port, 
-		IDataFrameEventListener *responseListener, IClientNetworkEventListener *netEventListener);
+        const std::string &host, const std::string &port, 
+        IDataFrameListener *dataFrameListener,
+        INotificationListener *notificationListener,
+        IResponseListener *responseListener,
+        IClientNetworkEventListener *netEventListener);
     virtual ~ClientNetworkManager();
 
-	static ClientNetworkManager *get_instance() { return m_instance; }
+    static ClientNetworkManager *get_instance() { return m_instance; }
 
     bool startup();
     void send_request(RequestPtr request);
@@ -31,9 +34,9 @@ private:
     // private implementation - same lifetime as the ClientNetworkManager
     class ClientNetworkManagerImpl *m_implementation_ptr;
 
-	// Singleton instance of the class
-	// Assigned in startup, cleared in teardown
-	static ClientNetworkManager *m_instance;
+    // Singleton instance of the class
+    // Assigned in startup, cleared in teardown
+    static ClientNetworkManager *m_instance;
 };
 
 #endif  // CLIENT_NETWORK_MANAGER_H

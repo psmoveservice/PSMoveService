@@ -7,7 +7,11 @@
 //-- pre-declarations -----
 struct PSMoveVector3;
 struct PSMoveQuaternion;
-class ControllerDataFrame;
+
+namespace PSMoveDataFrame
+{
+    class ControllerDataFrame;
+};
 
 //-- constants -----
 enum PSMoveButtonState {
@@ -76,7 +80,7 @@ public:
     ClientControllerView(int PSMoveID);
 
     void Clear();
-    void ApplyControllerDataFrame(const ControllerDataFrame *data_frame);
+    void ApplyControllerDataFrame(const PSMoveDataFrame::ControllerDataFrame *data_frame);
 
     // Listener State
     inline void IncListenerCount()
