@@ -1,6 +1,8 @@
 #include "PSEyeVideoCapture.h"
+#include <algorithm>
 
-using namespace cv;
+const std::vector<int> known_keys = {113, 97, 119, 115, 101, 100, 114, 102, 116, 103};
+// q, a, w, s, e, d, r, f, t, g
 
 int main(int, char**)
 {
@@ -8,61 +10,67 @@ int main(int, char**)
     if(!cap.isOpened())  // check if we succeeded
         return -1;
     
-    namedWindow("result",1);
+    cv::namedWindow("result",1);
     for(;;)
     {
-        Mat frame;
+        cv::Mat frame;
         cap >> frame; // get a new frame from camera
 		int wk = -1;
 		if (!frame.empty())
 		{
 			imshow("result", frame);
-			wk = waitKey(30);
+			wk = cv::waitKey(30);
 		}
         
-		if (wk == 27)
+        if (wk == 27)  // Escape
 		{
 			break;
 		}
-		else if (wk >= 0)
+		else if (std::find(known_keys.begin(), known_keys.end(), wk) != known_keys.end())
 		{
-			// q=119, w=101, e=114, r=116, t=121, y=97, a=115, s=100, d=102, f=103, g=104, g=27
-
 			int cap_prop = CV_CAP_PROP_EXPOSURE;
 			double val_diff = 0;
 			std::string prop_str("CV_CAP_PROP_EXPOSURE");
 			
 			// q/a for +/- exposure
-			if ((wk == 119) || (wk == 115))
+			if ((wk == 113) || (wk == 97))
 			{
 				cap_prop = CV_CAP_PROP_EXPOSURE;
 				prop_str = "CV_CAP_PROP_EXPOSURE";
-				val_diff = (wk == 119) ? 0.1 : -0.1;
+				val_diff = (wk == 113) ? 1 : -1;
 			}
 
 			// w/s for +/- contrast
-			if ((wk == 101) || (wk == 100))
+			if ((wk == 119) || (wk == 115))
 			{
 				cap_prop = CV_CAP_PROP_CONTRAST;
 				prop_str = "CV_CAP_PROP_CONTRAST";
-				val_diff = (wk == 101) ? 0.1 : -0.1;
+				val_diff = (wk == 119) ? 1 : -1;
 			}
 
 			// e/d for +/- contrast
-			if ((wk == 114) || (wk == 102))
+			if ((wk == 101) || (wk == 100))
 			{
 				cap_prop = CV_CAP_PROP_GAIN;
 				prop_str = "CV_CAP_PROP_GAIN";
-				val_diff = (wk == 114) ? 0.1 : -0.1;
+				val_diff = (wk == 101) ? 1 : -1;
 			}
 
 			// r/f for +/- contrast
-			if ((wk == 116) || (wk == 103))
+			if ((wk == 114) || (wk == 102))
 			{
 				cap_prop = CV_CAP_PROP_HUE;
 				prop_str = "CV_CAP_PROP_HUE";
-				val_diff = (wk == 116) ? 5 : 5;
+				val_diff = (wk == 114) ? 1 : -1;
 			}
+            
+            // t/g for +/- sharpness
+            if ((wk == 116) || (wk == 103))
+            {
+                cap_prop = CV_CAP_PROP_SHARPNESS;
+                prop_str = "CV_CAP_PROP_SHARPNESS";
+                val_diff = (wk == 116) ? 1 : -1;
+            }
 
 			double val = cap.get(cap_prop);
 			std::cout << "Value of " << prop_str << " was " << val << std::endl;
@@ -71,6 +79,10 @@ int main(int, char**)
 			val = cap.get(cap_prop);
 			std::cout << "Value of " << prop_str << " changed by " << val_diff << " to " << val << std::endl;
 		}
+        else if (wk > 0)
+        {
+            std::cout << "Unknown key has code " << wk << std::endl;
+        }
     }
     // the camera will be deinitialized automatically in VideoCapture destructor
     return 0;
