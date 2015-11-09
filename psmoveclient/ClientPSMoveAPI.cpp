@@ -16,12 +16,20 @@ typedef std::pair<int, ClientControllerViewPtr> t_id_controller_view_pair;
 #define DEBUG true
 
 //-- internal implementation -----
-class ClientPSMoveAPIImpl : public IClientNetworkEventListener
+class ClientPSMoveAPIImpl : 
+    public IDataFrameListener,
+    public INotificationListener,
+    public IClientNetworkEventListener
 {
 public:
     ClientPSMoveAPIImpl(const std::string &host, const std::string &port, ClientPSMoveAPI::event_callback callback)
         : m_request_manager()
-        , m_network_manager(host, port, &m_request_manager, this)
+        , m_network_manager(
+            host, port, 
+            this, // IDataFrameListener
+            this, // INotificationListener
+            &m_request_manager, // IResonseListener
+            this) // IClientNetworkEventListener
         , m_event_callback(callback)
         , m_controller_view_map()
     {
@@ -58,15 +66,6 @@ public:
     }
 
     // -- ClientPSMoveAPI Requests -----
-    void get_controller_count(ClientPSMoveAPI::response_callback callback)
-    {
-        RequestPtr request(new PSMoveDataFrame::Request());
-
-        request->set_type(PSMoveDataFrame::Request_RequestType_GET_ACTIVE_PSMOVE_COUNT);
-
-        m_request_manager.send_request(request, callback);
-    }
-
     ClientControllerViewPtr allocate_controller_view(int PSMoveID)
     {
         ClientControllerViewPtr view;
@@ -141,26 +140,36 @@ public:
         m_request_manager.send_request(request, callback);
     }
 
-    void cycle_tracking_color(ClientControllerViewPtr view, float rumble_amount, ClientPSMoveAPI::response_callback callback)
-    {
-        assert(m_controller_view_map.find(view->GetPSMoveID()) != m_controller_view_map.end());
-
-        // Tell the psmove service to cycle the tracking color of the given controller
-        RequestPtr request(new PSMoveDataFrame::Request());
-        request->set_type(PSMoveDataFrame::Request_RequestType_CYCLE_TRACKING_COLOR);
-        request->mutable_cycle_tracking_color()->set_psmove_id(view->GetPSMoveID());
-        
-        m_request_manager.send_request(request, callback);
-    }
-
     void reset_pose(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
     {
-        // Tell the psmove service to set the current orientation of the given controller as the indentity pose
+        // Tell the psmove service to set the current orientation of the given controller as the identity pose
         RequestPtr request(new PSMoveDataFrame::Request());
         request->set_type(PSMoveDataFrame::Request_RequestType_RESET_POSE);
         request->mutable_reset_pose()->set_psmove_id(view->GetPSMoveID());
         
         m_request_manager.send_request(request, callback);
+    }
+
+    // IDataFrameListener
+    virtual void handle_data_frame(ControllerDataFramePtr data_frame) override
+    {
+        t_controller_view_map_iterator view_entry= m_controller_view_map.find(data_frame->psmove_id());
+
+        if (view_entry != m_controller_view_map.end())
+        {
+            ClientControllerViewPtr view= view_entry->second;
+
+            view->ApplyControllerDataFrame(data_frame.get());
+        }
+    }
+
+    // INotificationListener
+    virtual void handle_notification(ResponsePtr notification) override
+    {
+        //###bwalker $TODO: controller connected
+        //###bwalker $TODO: controller disconnected
+        //###bwalker $TODO: tracker connected
+        //###bwalker $TODO: tracker disconnected
     }
 
     // IClientNetworkEventListener
@@ -249,15 +258,6 @@ void ClientPSMoveAPI::shutdown()
     }
 }
 
-void ClientPSMoveAPI::get_controller_count(
-    ClientPSMoveAPI::response_callback callback)
-{
-    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
-    {
-        ClientPSMoveAPI::m_implementation_ptr->get_controller_count(callback);
-    }
-}
-
 ClientControllerViewPtr ClientPSMoveAPI::allocate_controller_view(int PSMoveID)
 {
     ClientControllerViewPtr view;
@@ -302,17 +302,6 @@ void ClientPSMoveAPI::set_controller_rumble(
     if (ClientPSMoveAPI::m_implementation_ptr != NULL)
     {
         ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount, callback);
-    }
-}
-
-void ClientPSMoveAPI::cycle_tracking_color(
-    ClientControllerViewPtr view,
-    float rumble_amount, 
-    ClientPSMoveAPI::response_callback callback)
-{
-    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
-    {
-        ClientPSMoveAPI::m_implementation_ptr->cycle_tracking_color(view, rumble_amount, callback);
     }
 }
 

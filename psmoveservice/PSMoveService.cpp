@@ -3,7 +3,7 @@
 #define BOOST_LIB_DIAGNOSTIC
 
 #include "ServerNetworkManager.h"
-#include "RequestHandler.h"
+#include "ServerRequestHandler.h"
 
 #include <boost/asio.hpp>
 #include <boost/application.hpp>
@@ -115,7 +115,7 @@ private:
 
 private:
     filesystem::path config_path;
-    RequestHandler request_handler;
+    ServerRequestHandler request_handler;
     ServerNetworkManager network_manager;
 };
 

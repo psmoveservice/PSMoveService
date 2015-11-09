@@ -18,6 +18,7 @@
 using namespace std;
 namespace asio = boost::asio;
 using asio::ip::tcp;
+using asio::ip::udp;
 using boost::uint8_t;
 
 //-- constants -----
@@ -30,29 +31,38 @@ using boost::uint8_t;
 class ClientNetworkManagerImpl : public boost::enable_shared_from_this<ClientNetworkManagerImpl>
 {
 public:
-	ClientNetworkManagerImpl(
-		const std::string &host, 
-		const std::string &port, 
-		IDataFrameEventListener *responseListener,
-		IClientNetworkEventListener *netEventListener)
+    ClientNetworkManagerImpl(
+        const std::string &host, 
+        const std::string &port, 
+        IDataFrameListener *dataFrameListener,
+        INotificationListener *notificationListener,
+        IResponseListener *responseListener,
+        IClientNetworkEventListener *netEventListener)
         : m_server_host(host)
         , m_server_port(port)
 
         , m_io_service()
         , m_tcp_socket(m_io_service)
+        , m_udp_socket(m_io_service, udp::endpoint(udp::v4(), 0))
+        , m_udp_remote_endpoint()
         , m_connection_stopped(false)
-        , m_has_pending_read(false)
-        , m_has_pending_write(false)
-        , m_pending_response_count(0)
+        , m_has_pending_tcp_read(false)
+        , m_has_pending_tcp_write(false)
+        , m_has_pending_udp_read(false)
 
-        , m_read_buffer()
+        , m_response_read_buffer()
         , m_packed_response()
+
+        , m_data_frame_read_buffer()
+        , m_packed_data_frame()
     
         , m_write_bufer()
         , m_packed_request()
 
-		, m_netEventListener(netEventListener)
+        , m_data_frame_listener(dataFrameListener)
+        , m_notification_listener(notificationListener)
         , m_response_listener(responseListener)
+        , m_netEventListener(netEventListener)
         , m_pending_requests()
     {
     }
@@ -84,10 +94,10 @@ public:
         // drain any pending requests
         while (m_pending_requests.size() > 0)
         {
-			if (m_response_listener)
-			{
-				m_response_listener->handle_request_canceled(m_pending_requests.front());
-			}
+            if (m_response_listener)
+            {
+                m_response_listener->handle_request_canceled(m_pending_requests.front());
+            }
 
             m_pending_requests.pop_front();
         }
@@ -103,23 +113,23 @@ public:
             if (error)
             {
                 DEBUG && (cerr << "Problem closing the socket: " << error.value() << endl);
-				if (m_netEventListener)
-				{
-					m_netEventListener->handle_server_connection_close_failed(error);
-				}
+                if (m_netEventListener)
+                {
+                    m_netEventListener->handle_server_connection_close_failed(error);
+                }
             }
-			else
-			{
-				if (m_netEventListener)
-				{
-					m_netEventListener->handle_server_connection_closed();
-				}
-			}
+            else
+            {
+                if (m_netEventListener)
+                {
+                    m_netEventListener->handle_server_connection_closed();
+                }
+            }
         }
 
         m_connection_stopped= true;
-        m_has_pending_read= false;
-        m_has_pending_write= false;
+        m_has_pending_tcp_read= false;
+        m_has_pending_tcp_write= false;
     }
 
 private:
@@ -138,10 +148,10 @@ private:
         }
         else
         {
-			if (m_netEventListener)
-			{				
-				m_netEventListener->handle_server_connection_open_failed(boost::asio::error::host_unreachable);
-			}
+            if (m_netEventListener)
+            {
+                m_netEventListener->handle_server_connection_open_failed(boost::asio::error::host_unreachable);
+            }
 
             // There are no more endpoints to try. Shut down the client.
             stop();
@@ -165,10 +175,10 @@ private:
         {
             DEBUG && (std::cerr << "Connect timed out" << endl);
 
-			if (m_netEventListener)
-			{
-				m_netEventListener->handle_server_connection_open_failed(boost::asio::error::timed_out);
-			}
+            if (m_netEventListener)
+            {
+                m_netEventListener->handle_server_connection_open_failed(boost::asio::error::timed_out);
+            }
 
             // Try the next available endpoint.
             start_connect(++endpoint_iter);
@@ -178,10 +188,10 @@ private:
         {
             DEBUG && (std::cerr << "Connect error: " << ec.message() << endl);
 
-			if (m_netEventListener)
-			{
-				m_netEventListener->handle_server_connection_open_failed(ec);
-			}
+            if (m_netEventListener)
+            {
+                m_netEventListener->handle_server_connection_open_failed(ec);
+            }
 
             // We need to close the socket used in the previous connection attempt
             // before starting a new one.
@@ -193,12 +203,24 @@ private:
         // Otherwise we have successfully established a connection.
         else
         {
-            DEBUG && (std::cout << "Connected to " << endpoint_iter->endpoint() << endl);
+            tcp::endpoint tcp_remote_endpoint= endpoint_iter->endpoint();
 
-			if (m_netEventListener)
-			{
-				m_netEventListener->handle_server_connection_opened();
-			}
+            DEBUG && (std::cout << "Connected to " << tcp_remote_endpoint << endl);
+
+            // Create a corresponding remote endpoint udp data will be sent to
+            m_udp_remote_endpoint= udp::endpoint(tcp_remote_endpoint.address(), tcp_remote_endpoint.port());
+
+            if (m_netEventListener)
+            {
+                m_netEventListener->handle_server_connection_opened();
+            }
+
+            // Start listening for any incoming responses (TCP messages)
+            // NOTE: Responses that come independent of a request are a "notification"
+            start_read_response_header();
+
+            // Start listening for any incoming data frames (UDP messages)
+            start_read_data_frame_header();
 
             // If there are any requests waiting 
             if (m_pending_requests.size() > 0)
@@ -210,13 +232,13 @@ private:
 
     void start_read_response_header()
     {
-        if (!m_has_pending_read && m_pending_response_count > 0)
+        if (!m_has_pending_tcp_read)
         {
-            m_has_pending_read= true;
-            m_read_buffer.resize(HEADER_SIZE);
+            m_has_pending_tcp_read= true;
+            m_response_read_buffer.resize(HEADER_SIZE);
             asio::async_read(
                 m_tcp_socket, 
-                asio::buffer(m_read_buffer),
+                asio::buffer(m_response_read_buffer),
                 boost::bind(
                     &ClientNetworkManagerImpl::handle_read_response_header, 
                     shared_from_this(),
@@ -233,17 +255,17 @@ private:
         if (!error) 
         {
             DEBUG && (cout << "Got header!" << endl);
-            DEBUG && (cout << show_hex(m_read_buffer) << endl);
-            unsigned msg_len = m_packed_response.decode_header(m_read_buffer);
+            DEBUG && (cout << show_hex(m_response_read_buffer) << endl);
+            unsigned msg_len = m_packed_response.decode_header(m_response_read_buffer);
             DEBUG && (cout << msg_len << " bytes" << endl);
             start_read_response_body(msg_len);
         }
         else
         {
-			if (m_netEventListener)
-			{
-				m_netEventListener->handle_server_connection_socket_error(error);
-			}
+            if (m_netEventListener)
+            {
+                m_netEventListener->handle_server_connection_socket_error(error);
+            }
 
             DEBUG && (std::cerr << "Error on receive: " << error.message() << endl);
             stop();
@@ -252,12 +274,12 @@ private:
 
     void start_read_response_body(unsigned msg_len)
     {
-        assert(m_has_pending_read);
+        assert(m_has_pending_tcp_read);
 
         // m_read_buffer already contains the header in its first HEADER_SIZE bytes. 
         // Expand it to fit in the body as well, and start async read into the body.
-        m_read_buffer.resize(HEADER_SIZE + msg_len);
-        asio::mutable_buffers_1 buffer = asio::buffer(&m_read_buffer[HEADER_SIZE], msg_len);
+        m_response_read_buffer.resize(HEADER_SIZE + msg_len);
+        asio::mutable_buffers_1 buffer = asio::buffer(&m_response_read_buffer[HEADER_SIZE], msg_len);
         asio::async_read(
             m_tcp_socket, 
             buffer,
@@ -276,20 +298,20 @@ private:
         if (!error) 
         {
             DEBUG && (cout << "Got body!\n");
-            DEBUG && (cout << show_hex(m_read_buffer) << endl);
+            DEBUG && (cout << show_hex(m_response_read_buffer) << endl);
 
             // Process the response now that we have received all of it
             handle_response_received();
 
-            // Start reading the next incoming request
+            // Start reading the next incoming response
             start_read_response_header();
         }
         else
         {
-			if (m_netEventListener)
-			{
-				m_netEventListener->handle_server_connection_socket_error(error);
-			}
+            if (m_netEventListener)
+            {
+                m_netEventListener->handle_server_connection_socket_error(error);
+            }
 
             DEBUG && (cerr << "Error on receive: " << error.message() << endl);
             stop();
@@ -301,26 +323,30 @@ private:
     void handle_response_received()
     {
         // No longer is there a pending read
-        m_has_pending_read= false;
-
-        // One less response we are expecting
-        m_pending_response_count--;
-        assert(m_pending_response_count >= 0);
+        m_has_pending_tcp_read= false;
 
         // Parse the response buffer
-        if (m_packed_response.unpack(m_read_buffer))
+        if (m_packed_response.unpack(m_response_read_buffer))
         {
             ResponsePtr response = m_packed_response.get_msg();
 
-            m_response_listener->handle_response(response);
+            if (response->request_id() != -1)
+            {
+                m_response_listener->handle_response(response);
+            }
+            else
+            {
+                // Responses without a request ID are notifications
+                m_notification_listener->handle_notification(response);
+            }
         }
         else
         {
-			if (m_netEventListener)
-			{
-				//###bwalker $TODO pick a better error code that means "malformed data"
-				m_netEventListener->handle_server_connection_socket_error(boost::asio::error::message_size);
-			}
+            if (m_netEventListener)
+            {
+                //###bwalker $TODO pick a better error code that means "malformed data"
+                m_netEventListener->handle_server_connection_socket_error(boost::asio::error::message_size);
+            }
 
             DEBUG && (cerr << "Error malformed response" << endl);
             stop();
@@ -340,8 +366,8 @@ private:
             m_packed_request.pack(m_write_bufer);
 
             // The queue should prevent us from writing more than one request as once
-            assert(!m_has_pending_write);
-            m_has_pending_write= true;
+            assert(!m_has_pending_tcp_write);
+            m_has_pending_tcp_write= true;
 
             // Start an asynchronous operation to send a heartbeat message.
             boost::asio::async_write(
@@ -359,13 +385,10 @@ private:
         if (!ec)
         {
             // no longer is there a pending write
-            m_has_pending_write= false;
+            m_has_pending_tcp_write= false;
 
             // Remove the request from the pending send queue not that it's sent
             m_pending_requests.pop_front();
-
-            // We now have one more response pending
-            m_pending_response_count++;
 
             // Start listening for the response
             start_read_response_header();
@@ -375,12 +398,127 @@ private:
         }
         else
         {
-			if (m_netEventListener)
-			{
-				m_netEventListener->handle_server_connection_socket_error(ec);
-			}
+            if (m_netEventListener)
+            {
+                m_netEventListener->handle_server_connection_socket_error(ec);
+            }
 
             DEBUG && (cerr << "Error on request send: " << ec.message() << endl);
+            stop();
+        }
+    }
+
+    void start_read_data_frame_header()
+    {
+        if (!m_has_pending_udp_read)
+        {
+            m_has_pending_udp_read= true;
+            m_data_frame_read_buffer.resize(HEADER_SIZE);
+            m_udp_socket.async_receive_from(
+                asio::buffer(m_data_frame_read_buffer),
+                m_udp_remote_endpoint,
+                boost::bind(
+                    &ClientNetworkManagerImpl::handle_read_data_frame_header, 
+                    shared_from_this(),
+                    asio::placeholders::error));
+        }
+    }
+
+    void handle_read_data_frame_header(const boost::system::error_code& error)
+    {
+        if (m_connection_stopped)
+            return;
+
+        DEBUG && (cout << "handle data frame read " << error.message() << endl);
+        if (!error) 
+        {
+            DEBUG && (cout << "Got data frame header!" << endl);
+            DEBUG && (cout << show_hex(m_data_frame_read_buffer) << endl);
+            unsigned msg_len = m_packed_data_frame.decode_header(m_data_frame_read_buffer);
+            DEBUG && (cout << msg_len << " bytes" << endl);
+            start_read_data_frame_body(msg_len);
+        }
+        else
+        {
+            if (m_netEventListener)
+            {
+                m_netEventListener->handle_server_connection_socket_error(error);
+            }
+
+            DEBUG && (std::cerr << "Error on receive: " << error.message() << endl);
+            stop();
+        }
+    }
+
+    void start_read_data_frame_body(unsigned msg_len)
+    {
+        assert(m_has_pending_udp_read);
+
+        // m_data_frame_read_buffer already contains the header in its first HEADER_SIZE bytes. 
+        // Expand it to fit in the body as well, and start async read into the body.
+        m_data_frame_read_buffer.resize(HEADER_SIZE + msg_len);
+        asio::mutable_buffers_1 buffer = asio::buffer(&m_data_frame_read_buffer[HEADER_SIZE], msg_len);
+        m_udp_socket.async_receive_from(
+            buffer,
+            m_udp_remote_endpoint,
+            boost::bind(
+                &ClientNetworkManagerImpl::handle_read_data_frame_body, 
+                shared_from_this(),
+                asio::placeholders::error));
+    }
+
+    void handle_read_data_frame_body(const boost::system::error_code& error)
+    {
+        if (m_connection_stopped)
+            return;
+
+        DEBUG && (cout << "handle data frame body " << error << endl);
+        if (!error) 
+        {
+            DEBUG && (cout << "Got data frame body!\n");
+            DEBUG && (cout << show_hex(m_data_frame_read_buffer) << endl);
+
+            // Process the data frame now that we have received all of it
+            handle_data_frame_received();
+
+            // Start reading the next incoming data frame
+            start_read_data_frame_header();
+        }
+        else
+        {
+            if (m_netEventListener)
+            {
+                m_netEventListener->handle_server_connection_socket_error(error);
+            }
+
+            DEBUG && (cerr << "Error on data frame receive: " << error.message() << endl);
+            stop();
+        }
+    }
+
+    // Called when enough data was read into m_data_frame_read_buffer for a complete data frame message. 
+    // Parse the data_frame and forward it on to the response handler.
+    void handle_data_frame_received()
+    {
+        // No longer is there a pending read
+        m_has_pending_udp_read= false;
+
+        // Parse the response buffer
+        if (m_packed_data_frame.unpack(m_data_frame_read_buffer))
+        {
+            ControllerDataFramePtr data_frame = m_packed_data_frame.get_msg();
+
+            m_data_frame_listener->handle_data_frame(data_frame);
+        }
+        else
+        {
+            if (m_netEventListener)
+            {
+                //###bwalker $TODO pick a better error code that means "malformed data"
+                m_netEventListener->handle_server_connection_socket_error(boost::asio::error::message_size);
+            }
+
+            DEBUG && (cerr << "Error malformed response" << endl);
             stop();
         }
     }
@@ -391,19 +529,27 @@ private:
 
     asio::io_service m_io_service;
     tcp::socket m_tcp_socket;
+    udp::socket m_udp_socket;
+    udp::endpoint m_udp_remote_endpoint;
     bool m_connection_stopped;
-    bool m_has_pending_read;
-    bool m_has_pending_write;
-    int m_pending_response_count;
+    bool m_has_pending_tcp_read;
+    bool m_has_pending_tcp_write;
+    bool m_has_pending_udp_read;
     
-    vector<uint8_t> m_read_buffer;
+    vector<uint8_t> m_response_read_buffer;
     PackedMessage<PSMoveDataFrame::Response> m_packed_response;
+
+    vector<uint8_t> m_data_frame_read_buffer;
+    PackedMessage<PSMoveDataFrame::ControllerDataFrame> m_packed_data_frame;
     
     vector<uint8_t> m_write_bufer;
     PackedMessage<PSMoveDataFrame::Request> m_packed_request;
 
-	IClientNetworkEventListener *m_netEventListener;
-	IDataFrameEventListener *m_response_listener;
+    IDataFrameListener *m_data_frame_listener;
+    INotificationListener *m_notification_listener;
+    IResponseListener *m_response_listener;
+    IClientNetworkEventListener *m_netEventListener;
+
     deque<RequestPtr> m_pending_requests;
 };
 
@@ -414,21 +560,30 @@ ClientNetworkManager *ClientNetworkManager::m_instance = NULL;
 ClientNetworkManager::ClientNetworkManager(
     const std::string &host, 
     const std::string &port, 
-	IDataFrameEventListener *responseListener,
-	IClientNetworkEventListener *netEventListener)
-	: m_implementation_ptr(new ClientNetworkManagerImpl(host, port, responseListener, netEventListener))
+    IDataFrameListener *dataFrameListener,
+    INotificationListener *notificationListener,
+    IResponseListener *responseListener,
+    IClientNetworkEventListener *netEventListener)
+    : m_implementation_ptr(
+        new ClientNetworkManagerImpl(
+            host, 
+            port, 
+            dataFrameListener,
+            notificationListener,
+            responseListener,
+            netEventListener))
 {
 }
 
 ClientNetworkManager::~ClientNetworkManager()
 {
-	assert(m_instance);
+    assert(m_instance == NULL);
     delete m_implementation_ptr;
 }
 
 bool ClientNetworkManager::startup()
 {
-	m_instance= this;
+    m_instance= this;
 
     return m_implementation_ptr->start();
 }
@@ -446,5 +601,5 @@ void ClientNetworkManager::update()
 void ClientNetworkManager::shutdown()
 {
     m_implementation_ptr->stop();
-	m_instance = NULL;
+    m_instance = NULL;
 }

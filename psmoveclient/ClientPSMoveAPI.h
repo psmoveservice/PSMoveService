@@ -30,11 +30,9 @@ public:
     static ClientControllerViewPtr allocate_controller_view(int PSMoveID);
     static void free_controller_view(ClientControllerViewPtr view);
 
-	static void get_controller_count(response_callback callback);
     static void start_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback);
     static void stop_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback);
 	static void set_controller_rumble(ClientControllerViewPtr view, float rumble_amount, response_callback callback);
-	static void cycle_tracking_color(ClientControllerViewPtr view, float rumble_amount, response_callback callback);
 	static void reset_pose(ClientControllerViewPtr view, response_callback callback);
 
 private:

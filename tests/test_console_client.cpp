@@ -68,9 +68,10 @@ private:
         case ClientPSMoveAPI::connectedToService:
             std::cout << "PSMoveConsoleClient - Connected to service" << std::endl;
 
-            // Kick off request to get psmove controller count
-            ClientPSMoveAPI::get_controller_count(
-                boost::bind(&PSMoveConsoleClient::handle_get_controller_count, this, _1, _2));
+            // Kick off request to start streaming data from the first controller
+            ClientPSMoveAPI::start_controller_data_stream(
+                0, 
+                boost::bind(&PSMoveConsoleClient::handle_acquire_controller, this, _1, _2));
             break;
         case ClientPSMoveAPI::failedToConnectToService:
             std::cout << "PSMoveConsoleClient - Failed to connect to service" << std::endl;
@@ -82,32 +83,6 @@ private:
             break;
         default:
             break;
-        }
-    }
-
-    void handle_get_controller_count(RequestPtr request, ResponsePtr response)
-    {
-        if (response->has_response_psmove_count())
-        {
-            int count= response->response_psmove_count().count();
-
-            if (count > 0)
-            {
-                std::cout << "PSMoveConsoleClient - controllers available: " << count << std::endl;
-                ClientPSMoveAPI::start_controller_data_stream(
-                    0, 
-                    boost::bind(&PSMoveConsoleClient::handle_acquire_controller, this, _1, _2));
-            }
-            else
-            {
-                std::cerr << "PSMoveConsoleClient - no controllers available" << std::endl;
-                app_status->state(application::status::stoped);
-            }
-        }
-        else
-        {
-            std::cerr << "PSMoveConsoleClient - failed to get controller count" << std::endl;
-            app_status->state(application::status::stoped);
         }
     }
 
