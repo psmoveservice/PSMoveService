@@ -218,6 +218,9 @@ list(APPEND TEST_CONSOLE_CLIENT_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_CONSOLE_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
 
 # Parent projects
+list(APPEND TEST_CONSOLE_CLIENT_INCL_DIRS 
+    ${ROOT_DIR}/psmovedataframe/
+    ${ROOT_DIR}/psmoveclient/)
 list(APPEND TEST_CONSOLE_CLIENT_REQ_LIBS PSMoveDataFrame PSMoveClient)
 
 add_executable(test_console_client test_console_client.cpp)
