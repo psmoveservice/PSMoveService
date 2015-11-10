@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
 project(PSMoveService VERSION 0.0.1)
-set(CMAKE_OSX_DEPLOYMENT_TARGET 10.10)
 
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 IF (NOT MSVC)
@@ -65,6 +64,7 @@ set(PROTOBUF_ORIG_FIND_LIBRARY_SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}") # Stor
 set(CMAKE_FIND_LIBRARY_SUFFIXES .a .lib .so .dylib .dll)  # Prefer static libs
 find_package(Protobuf REQUIRED)
 set(CMAKE_FIND_LIBRARY_SUFFIXES "${PROTOBUF_ORIG_FIND_LIBRARY_SUFFIXES}")  # Restore original
+include_directories(${CMAKE_BINARY_DIR}/psmovedataframe)  # This is where the .proto files are compiled to.
 
 # Step into the subdirectories
 add_subdirectory(psmovedataframe)
