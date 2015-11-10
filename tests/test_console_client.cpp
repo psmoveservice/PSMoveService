@@ -68,9 +68,12 @@ private:
         case ClientPSMoveAPI::connectedToService:
             std::cout << "PSMoveConsoleClient - Connected to service" << std::endl;
 
+            // Once created, updates will automatically get pushed into this view
+            controller_view= ClientPSMoveAPI::allocate_controller_view(0);
+
             // Kick off request to start streaming data from the first controller
             ClientPSMoveAPI::start_controller_data_stream(
-                0, 
+                controller_view, 
                 boost::bind(&PSMoveConsoleClient::handle_acquire_controller, this, _1, _2));
             break;
         case ClientPSMoveAPI::failedToConnectToService:
@@ -92,8 +95,7 @@ private:
         {
             std::cout << "PSMoveConsoleClient - Acquired controller 0" << std::endl;
 
-            // Once created, updates will automatically get pushed into this view
-            controller_view= ClientPSMoveAPI::allocate_controller_view(0);
+            // Updates will now automatically get pushed into the controller view
         }
         else
         {
