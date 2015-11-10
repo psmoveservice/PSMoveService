@@ -12,7 +12,6 @@
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/cstdint.hpp>
-#include <boost/enable_shared_from_this.hpp>
 
 //-- pre-declarations -----
 using namespace std;
@@ -28,7 +27,7 @@ using boost::uint8_t;
 
 // -ClientNetworkManagerImpl-
 // Internal implementation of the client network manager.
-class ClientNetworkManagerImpl : public boost::enable_shared_from_this<ClientNetworkManagerImpl>
+class ClientNetworkManagerImpl
 {
 public:
     ClientNetworkManagerImpl(
@@ -51,10 +50,10 @@ public:
         , m_has_pending_udp_read(false)
 
         , m_response_read_buffer()
-        , m_packed_response()
+        , m_packed_response(boost::shared_ptr<PSMoveDataFrame::Response>(new PSMoveDataFrame::Response()))
 
         , m_data_frame_read_buffer()
-        , m_packed_data_frame()
+        , m_packed_data_frame(boost::shared_ptr<PSMoveDataFrame::ControllerDataFrame>(new PSMoveDataFrame::ControllerDataFrame()))
     
         , m_write_bufer()
         , m_packed_request()
@@ -234,6 +233,7 @@ private:
     {
         if (!m_has_pending_tcp_read)
         {
+
             m_has_pending_tcp_read= true;
             m_response_read_buffer.resize(HEADER_SIZE);
             asio::async_read(
@@ -241,7 +241,7 @@ private:
                 asio::buffer(m_response_read_buffer),
                 boost::bind(
                     &ClientNetworkManagerImpl::handle_read_response_header, 
-                    shared_from_this(),
+                    this,
                     asio::placeholders::error));
         }
     }
@@ -258,7 +258,16 @@ private:
             DEBUG && (cout << show_hex(m_response_read_buffer) << endl);
             unsigned msg_len = m_packed_response.decode_header(m_response_read_buffer);
             DEBUG && (cout << msg_len << " bytes" << endl);
-            start_read_response_body(msg_len);
+
+            if (msg_len > 0)
+            {
+                start_read_response_body(msg_len);
+            }
+            else
+            {
+                // If there is no body, jump straight to the handle ready response body callback
+                handle_read_response_body(boost::system::error_code());
+            }
         }
         else
         {
@@ -275,6 +284,7 @@ private:
     void start_read_response_body(unsigned msg_len)
     {
         assert(m_has_pending_tcp_read);
+        assert(msg_len > 0);
 
         // m_read_buffer already contains the header in its first HEADER_SIZE bytes. 
         // Expand it to fit in the body as well, and start async read into the body.
@@ -285,7 +295,7 @@ private:
             buffer,
             boost::bind(
                 &ClientNetworkManagerImpl::handle_read_response_body, 
-                shared_from_this(),
+                this,
                 asio::placeholders::error));
     }
 
@@ -358,7 +368,7 @@ private:
         if (m_connection_stopped)
             return;
 
-        if (m_pending_requests.size() > 0)
+        if (m_pending_requests.size() > 0 && !m_has_pending_tcp_write)
         {
             RequestPtr request= m_pending_requests.front();
 
@@ -419,7 +429,7 @@ private:
                 m_udp_remote_endpoint,
                 boost::bind(
                     &ClientNetworkManagerImpl::handle_read_data_frame_header, 
-                    shared_from_this(),
+                    this,
                     asio::placeholders::error));
         }
     }
@@ -463,7 +473,7 @@ private:
             m_udp_remote_endpoint,
             boost::bind(
                 &ClientNetworkManagerImpl::handle_read_data_frame_body, 
-                shared_from_this(),
+                this,
                 asio::placeholders::error));
     }
 

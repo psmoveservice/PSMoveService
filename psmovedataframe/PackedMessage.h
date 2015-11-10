@@ -76,8 +76,18 @@ public:
 
         unsigned msg_size = m_msg->ByteSize();
         buf.resize(HEADER_SIZE + msg_size);
+
         encode_header(buf, msg_size);
-        return m_msg->SerializeToArray(&buf[HEADER_SIZE], msg_size);
+
+        if (msg_size > 0)
+        {
+            return m_msg->SerializeToArray(&buf[HEADER_SIZE], msg_size);
+        }
+        else
+        {
+            // no body to encode (i.e. just using message defaults)
+            return true;
+        }
     }
 
     // Given a buffer with the first HEADER_SIZE bytes representing the header,
@@ -99,7 +109,17 @@ public:
     //
     bool unpack(const data_buffer& buf)
     {
-        return m_msg->ParseFromArray(&buf[HEADER_SIZE], buf.size() - HEADER_SIZE);
+        m_msg->Clear();
+
+        if (buf.size() - HEADER_SIZE > 0)
+        {
+            return m_msg->ParseFromArray(&buf[HEADER_SIZE], buf.size() - HEADER_SIZE);
+        }
+        else
+        {
+            // no body to decode (i.e. just using message defaults)
+            return true;
+        }
     }
 
 private:
