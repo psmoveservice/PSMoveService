@@ -70,9 +70,9 @@ public:
     bool start()
     {
         tcp::resolver resolver(m_io_service);
-        tcp::resolver::iterator endpoint_iter= resolver.resolve(tcp::resolver::query(m_server_host, m_server_port));
+        tcp::resolver::iterator endpoint_iter= resolver.resolve(tcp::resolver::query(tcp::v4(), m_server_host, m_server_port));
 
-        m_connection_stopped= true;
+        m_connection_stopped= false;
         bool success= start_connect(endpoint_iter);
 
         return success;
