@@ -103,6 +103,9 @@ private:
 
     void update()
     {
+        //###bwalker $TODO This is here temporarily to pump UDP controller updates to the client
+        request_handler.update();
+
         // Process incoming/outgoing networking requests
         network_manager.update();
     }
