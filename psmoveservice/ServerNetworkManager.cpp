@@ -66,6 +66,13 @@ public:
     void start()
     {
         m_connection_stopped= false;
+
+        // Get the remote endpoint the tcp socket is connected to
+        tcp::endpoint tcp_remote_endpoint = m_tcp_socket.remote_endpoint();
+
+        // Create a corresponding remote endpoint udp data will be sent to
+        m_udp_remote_endpoint= udp::endpoint(tcp_remote_endpoint.address(), tcp_remote_endpoint.port());
+
         start_read_header();
     }
 
@@ -230,12 +237,6 @@ private:
         , m_has_pending_tcp_write(false)
         , m_has_pending_udp_write(false)
     {
-        // Get the remote endpoint the tcp socket is connected to
-        tcp::endpoint tcp_remote_endpoint = m_tcp_socket.remote_endpoint();
-
-        // Create a corresponding remote endpoint udp data will be sent to
-        m_udp_remote_endpoint= udp::endpoint(tcp_remote_endpoint.address(), tcp_remote_endpoint.port());
-
         next_connection_id++;
     }
 
