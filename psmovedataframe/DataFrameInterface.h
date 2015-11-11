@@ -4,6 +4,9 @@
 //-- includes -----
 #include <boost/shared_ptr.hpp>
 
+//-- constants -----
+#define MAX_DATA_FRAME_MESSAGE_SIZE 24
+ 
 //-- pre-declarations -----
 namespace PSMoveDataFrame
 {

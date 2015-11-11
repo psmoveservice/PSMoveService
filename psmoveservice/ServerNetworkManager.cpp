@@ -1,6 +1,7 @@
 //-- includes -----
 #include "ServerNetworkManager.h"
 #include "packedmessage.h"
+#include "DataFrameInterface.h"
 #include "PSMoveDataFrame.pb.h"
 #include <cassert>
 #include <iostream>
@@ -47,7 +48,7 @@ public:
 
     static ClientConnectionPtr create(
         asio::io_service& io_service_ref,
-        udp::socket& udp_socket_ref , 
+        udp::socket& udp_socket_ref, 
         ServerRequestHandler &request_handler_ref)
     {
         return ClientConnectionPtr(new ClientConnection(io_service_ref, udp_socket_ref, request_handler_ref));
@@ -67,13 +68,12 @@ public:
     {
         m_connection_stopped= false;
 
-        // Get the remote endpoint the tcp socket is connected to
-        tcp::endpoint tcp_remote_endpoint = m_tcp_socket.remote_endpoint();
+        // Send the connection ID to the client 
+        // so that it can send it back to us to establish a UDP connection
+        send_connection_info();
 
-        // Create a corresponding remote endpoint udp data will be sent to
-        m_udp_remote_endpoint= udp::endpoint(tcp_remote_endpoint.address(), tcp_remote_endpoint.port());
-
-        start_read_header();
+        // Wait for incoming requests from the client
+        start_tcp_read_request_header();
     }
 
     void stop()
@@ -96,6 +96,11 @@ public:
         m_has_pending_udp_write= false;
     }
 
+    void bind_udp_remote_endpoint(const udp::endpoint &connecting_remote_endpoint)
+    {
+        m_udp_remote_endpoint= connecting_remote_endpoint;
+    }
+
     bool has_pending_udp_write() const
     {
         return m_has_pending_udp_write;
@@ -106,12 +111,12 @@ public:
         return m_pending_dataframes.size() > 0;
     }
 
-    void add_response_to_write_queue(ResponsePtr response)
+    void add_tcp_response_to_write_queue(ResponsePtr response)
     {
         m_pending_responses.push_back(response);
     }
 
-    bool start_write_queued_response()
+    bool start_tcp_write_queued_response()
     {
         bool write_in_progress= false;
 
@@ -125,6 +130,10 @@ public:
 
                     m_packed_response.set_msg(response);
                     m_packed_response.pack(m_response_write_buffer);
+
+                    DEBUG && (cout << "start_tcp_write_queued_response() - Sending TCP response:\n");
+                    DEBUG && (cout << "  " << show_hex(m_response_write_buffer) << endl);
+                    DEBUG && (cout << m_packed_response.get_msg()->ByteSize() << " bytes" << endl);
 
                     // The queue should prevent us from writing more than one request as once
                     assert(!m_has_pending_tcp_write);
@@ -153,7 +162,7 @@ public:
         m_pending_dataframes.push_back(data_frame);
     }
 
-    bool start_write_queued_controller_data_frame()
+    bool start_udp_write_queued_controller_data_frame()
     {
         bool write_in_progress= false;
 
@@ -166,19 +175,30 @@ public:
                     ControllerDataFramePtr dataframe= m_pending_dataframes.front();
 
                     m_packed_dataframe.set_msg(dataframe);
-                    m_packed_dataframe.pack(m_dataframe_write_buffer);
+                    if (m_packed_dataframe.pack(m_dataframe_write_buffer, sizeof(m_dataframe_write_buffer)))
+                    {
+                        int msg_size= m_packed_dataframe.get_msg()->ByteSize();
 
-                    // The queue should prevent us from writing more than one data frame at once
-                    assert(!m_has_pending_udp_write);
-                    m_has_pending_udp_write= true;
-                    write_in_progress= true;
+                        DEBUG && (cout << "start_udp_write_queued_controller_data_frame() - Sending UDP DataFrame:" << endl);
+                        DEBUG && (cout << "  " << show_hex(m_dataframe_write_buffer, HEADER_SIZE+msg_size) << endl);
+                        DEBUG && (cout << msg_size << " bytes" << endl);
 
-                    // Start an asynchronous operation to send the data frame
-                    // NOTE: Even if the write completes immediate, the callback will only be called from io_service::poll()
-                    m_udp_socket_ref.async_send_to(
-                        boost::asio::buffer(m_dataframe_write_buffer),
-                        m_udp_remote_endpoint,
-                        boost::bind(&ClientConnection::handle_write_controller_data_frame_complete, this, _1));
+                        // The queue should prevent us from writing more than one data frame at once
+                        assert(!m_has_pending_udp_write);
+                        m_has_pending_udp_write= true;
+                        write_in_progress= true;
+
+                        // Start an asynchronous operation to send the data frame
+                        // NOTE: Even if the write completes immediate, the callback will only be called from io_service::poll()
+                        m_udp_socket_ref.async_send_to(
+                            boost::asio::buffer(m_dataframe_write_buffer, sizeof(m_dataframe_write_buffer)),
+                            m_udp_remote_endpoint,
+                            boost::bind(&ClientConnection::handle_udp_write_controller_data_frame_complete, this, _1));
+                    }
+                    else
+                    {
+                        DEBUG && (cout << "start_udp_write_queued_controller_data_frame() - DataFrame too big to fit in packet!" << endl);
+                    }
                 }
             }
             else
@@ -200,13 +220,13 @@ private:
     udp::socket &m_udp_socket_ref;
     udp::endpoint m_udp_remote_endpoint;
 
-    vector<uint8_t> m_read_buffer;
+    vector<uint8_t> m_request_read_buffer;
     PackedMessage<PSMoveDataFrame::Request> m_packed_request;
 
     vector<uint8_t> m_response_write_buffer;
     PackedMessage<PSMoveDataFrame::Response> m_packed_response;
 
-    vector<uint8_t> m_dataframe_write_buffer;
+    uint8_t m_dataframe_write_buffer[HEADER_SIZE+MAX_DATA_FRAME_MESSAGE_SIZE];
     PackedMessage<PSMoveDataFrame::ControllerDataFrame> m_packed_dataframe;
 
     deque<ResponsePtr> m_pending_responses;
@@ -225,7 +245,7 @@ private:
         , m_tcp_socket(io_service_ref)
         , m_udp_socket_ref(udp_socket_ref)
         , m_udp_remote_endpoint()
-        , m_read_buffer()
+        , m_request_read_buffer()
         , m_packed_request(boost::shared_ptr<PSMoveDataFrame::Request>(new PSMoveDataFrame::Request()))
         , m_response_write_buffer()
         , m_packed_response()
@@ -240,28 +260,45 @@ private:
         next_connection_id++;
     }
 
-    void start_read_header()
+    void send_connection_info()
     {
-        m_read_buffer.resize(HEADER_SIZE);
+        DEBUG && (cout << "send_connection_info() - Sending connection id to client: " << m_connection_id << endl);
+        ResponsePtr response(new PSMoveDataFrame::Response);
+
+        response->set_type(PSMoveDataFrame::Response_ResponseType_CONNECTION_INFO);
+        response->set_request_id(-1); // This is a notification (no corresponding request)
+        response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_OK);
+        response->mutable_result_connection_info()->set_tcp_connection_id(m_connection_id);
+
+        add_tcp_response_to_write_queue(response);
+        start_tcp_write_queued_response();
+    }
+
+    void start_tcp_read_request_header()
+    {
+        m_request_read_buffer.resize(HEADER_SIZE);
         asio::async_read(
             m_tcp_socket, 
-            asio::buffer(m_read_buffer),
+            asio::buffer(m_request_read_buffer),
             boost::bind(
-                &ClientConnection::handle_read_header, 
+                &ClientConnection::handle_tcp_read_request_header, 
                 shared_from_this(),
                 asio::placeholders::error));
     }
 
-    void handle_read_header(const boost::system::error_code& error)
+    void handle_tcp_read_request_header(const boost::system::error_code& error)
     {
-        DEBUG && (cerr << "handle read " << error.message() << '\n');
         if (!error) 
         {
-            DEBUG && (cerr << "Got header!\n");
-            DEBUG && (cerr << show_hex(m_read_buffer) << endl);
-            unsigned msg_len = m_packed_request.decode_header(m_read_buffer);
-            DEBUG && (cerr << msg_len << " bytes\n");
+            DEBUG && (cout << "handle_tcp_read_request_header() - Read request header:" << endl);
+            DEBUG && (cout << "  " << show_hex(m_request_read_buffer) << endl);
+            unsigned msg_len = m_packed_request.decode_header(m_request_read_buffer);
+            DEBUG && (cout << msg_len << "  Body Size =  bytes\n");
             start_read_body(msg_len);
+        }
+        else
+        {
+            DEBUG && (cerr << "handle_tcp_read_request_header() - Failed to read header: " << error.message() << endl);
         }
     }
 
@@ -271,8 +308,8 @@ private:
         // bytes. Expand it to fit in the body as well, and start async
         // read into the body.
         //
-        m_read_buffer.resize(HEADER_SIZE + msg_len);
-        asio::mutable_buffers_1 buf = asio::buffer(&m_read_buffer[HEADER_SIZE], msg_len);
+        m_request_read_buffer.resize(HEADER_SIZE + msg_len);
+        asio::mutable_buffers_1 buf = asio::buffer(&m_request_read_buffer[HEADER_SIZE], msg_len);
         asio::async_read(
             m_tcp_socket, buf,
             boost::bind(
@@ -286,10 +323,14 @@ private:
         DEBUG && (cerr << "handle body " << error << '\n');
         if (!error) 
         {
-            DEBUG && (cerr << "Got body!\n");
-            DEBUG && (cerr << show_hex(m_read_buffer) << endl);
+            DEBUG && (cout << "handle_tcp_read_request_header() - Read request body:" << endl);
+            DEBUG && (cout << "  " << show_hex(m_request_read_buffer) << endl);
             handle_request();
-            start_read_header();
+            start_tcp_read_request_header();
+        }
+        else
+        {
+            DEBUG && (cout << "handle_read_body() - Failed to read body: " << error.message() << endl);
         }
     }
 
@@ -299,13 +340,13 @@ private:
     //
     void handle_request()
     {
-        if (m_packed_request.unpack(m_read_buffer))
+        if (m_packed_request.unpack(m_request_read_buffer))
         {
             RequestPtr request = m_packed_request.get_msg();
             ResponsePtr response = m_request_handler_ref.handle_request(m_connection_id, request);
             
-            add_response_to_write_queue(response);
-            start_write_queued_response();
+            add_tcp_response_to_write_queue(response);
+            start_tcp_write_queued_response();
         }
     }
 
@@ -323,7 +364,7 @@ private:
             m_pending_responses.pop_front();
 
             // If there are more requests waiting to be sent, start sending the next one
-            start_write_queued_response();
+            start_tcp_write_queued_response();
         }
         else
         {
@@ -332,7 +373,7 @@ private:
         }
     }
 
-    void handle_write_controller_data_frame_complete(const boost::system::error_code& ec)
+    void handle_udp_write_controller_data_frame_complete(const boost::system::error_code& ec)
     {
         if (m_connection_stopped)
             return;
@@ -363,7 +404,7 @@ public:
         : request_handler_ref(requestHandler)
         , io_service()
         , tcp_acceptor(io_service, tcp::endpoint(tcp::v4(), port))
-        , udp_socket(io_service, udp::endpoint(udp::v4(), 0))
+        , udp_socket(io_service, udp::endpoint(udp::v4(), port))
         , connections()
     {
     }
@@ -374,8 +415,10 @@ public:
         assert(connections.empty());
     }
 
-    void start_accept()
+    void start_tcp_accept()
     {
+        DEBUG && (cout << "start_tcp_accept() - Start waiting for a new TCP connection"<< endl);
+
         // Create a new connection to handle a client. 
         // Passing a reference to a request handler to each connection poses no problem 
         // since the server is single-threaded.
@@ -386,12 +429,14 @@ public:
         t_id_client_connection_pair map_entry(new_connection->get_connection_id(), new_connection);
         connections.insert(map_entry);
 
-        // Asynchronously wait to accept a new client
+        // Asynchronously wait to accept a new tcp client
         tcp_acceptor.async_accept(
             new_connection->get_tcp_socket(),
-            boost::bind(&ServerNetworkManagerImpl::handle_accept, this, new_connection, asio::placeholders::error));
+            boost::bind(&ServerNetworkManagerImpl::handle_tcp_accept, this, new_connection, asio::placeholders::error));
 
-        // TODO: Add callbacks for client disconnects
+        // Asynchronously wait to accept a new udp clients
+        // These should always come after a tcp connection is accepted
+        start_udp_receive_connection_id();
     }
 
     void poll()
@@ -403,7 +448,7 @@ public:
         while (keep_polling && iteration_count < k_max_iteration_count)
         {
             // Start any pending writes on the UDP socket that can be started
-            start_queued_data_frame_write();
+            start_udp_queued_data_frame_write();
 
             // This call can execute any of the following callbacks:
             // * TCP request has finished reading
@@ -443,8 +488,8 @@ public:
         {
             ClientConnectionPtr connection= entry->second;
 
-            connection->add_response_to_write_queue(response);
-            connection->start_write_queued_response();
+            connection->add_tcp_response_to_write_queue(response);
+            connection->start_tcp_write_queued_response();
         }
     }
 
@@ -457,8 +502,8 @@ public:
         {
             ClientConnectionPtr connection= iter->second;
 
-            connection->add_response_to_write_queue(response);
-            connection->start_write_queued_response();
+            connection->add_tcp_response_to_write_queue(response);
+            connection->start_tcp_write_queued_response();
         }
     }
 
@@ -472,7 +517,7 @@ public:
 
             connection->add_controller_data_frame_to_write_queue(data_frame);
 
-            start_queued_data_frame_write();
+            start_udp_queued_data_frame_write();
         }
     }
 
@@ -489,30 +534,108 @@ private:
     // UDP socket shared amongst all of the client connections
     udp::socket udp_socket;
 
+    // The endpoint of the next connecting 
+    udp::endpoint udp_connecting_remote_endpoint;
+
+    // A pending udp request from the client
+    int m_udp_connection_id_read_buffer;
+
+    // A pending udp result sent to the client
+    bool m_udp_connection_result_write_buffer;
+
     // A mapping from connection_id -> ClientConnectionPtr
     t_client_connection_map connections;
 
-    void handle_accept(ClientConnectionPtr connection, const boost::system::error_code& error)
-    {
+    void handle_tcp_accept(ClientConnectionPtr connection, const boost::system::error_code& error)
+    {        
         // A new client has connected
         //
         if (!error)
         {
+            DEBUG && (cout << "handle_tcp_accept() - Accepting a new connection" << endl);
+
             // Start the connection
             connection->start();
 
             // Accept another client
-            start_accept();
+            start_tcp_accept();
+        }
+        else
+        {
+            DEBUG && (cout << "handle_tcp_accept() - Failed to accept new connection: " << error.message() << endl);
         }
     }
 
-    void start_queued_data_frame_write()
+    void start_udp_receive_connection_id()
+    {
+        DEBUG && (cout << "start_udp_receive_connection_id() - waiting for UDP connection id" << endl);
+
+        udp_socket.async_receive_from(
+            boost::asio::buffer(&m_udp_connection_id_read_buffer, sizeof(m_udp_connection_id_read_buffer)),
+            udp_connecting_remote_endpoint,
+            boost::bind(&ServerNetworkManagerImpl::handle_udp_read_connection_id, this, boost::asio::placeholders::error));
+    }
+
+    void handle_udp_read_connection_id(const boost::system::error_code& error)
+    {
+        if (!error) 
+        {
+            // Find the connection with the matching id
+            t_client_connection_map_iter iter= connections.find(m_udp_connection_id_read_buffer);
+
+            if (iter != connections.end())
+            {
+                DEBUG && (cout << "handle_udp_read_connection_id() - Found UDP client connected with matching connection_id: " << m_udp_connection_id_read_buffer << endl);
+                ClientConnectionPtr connection= iter->second;
+
+                // Associate this udp remote endpoint with the given connection id
+                connection->bind_udp_remote_endpoint(udp_connecting_remote_endpoint);
+
+                // Tell the client that this was a valid connection id
+                start_udp_send_connection_result(true);
+            }
+            else
+            {
+                DEBUG && (cerr << "Error: UDP client connected with INVALID connection_id: " << m_udp_connection_id_read_buffer << endl);
+
+                // Tell the client that this was an invalid connection id
+                start_udp_send_connection_result(false);
+            }
+        }
+        else
+        {
+            DEBUG && (cerr << "handle_udp_read_connection_id() - ERROR: Failed to receive UDP connection id: " << error.message() << '\n');
+        }
+    }
+
+    void start_udp_send_connection_result(bool success)
+    {
+        DEBUG && (cout << "start_udp_send_connection_result() - Send result: " << success << endl);
+        m_udp_connection_result_write_buffer= success;
+        udp_socket.async_send_to(
+            boost::asio::buffer(&m_udp_connection_result_write_buffer, sizeof(m_udp_connection_result_write_buffer)), 
+            udp_connecting_remote_endpoint,
+            boost::bind(&ServerNetworkManagerImpl::handle_udp_write_connection_result, this, boost::asio::placeholders::error));
+    }
+
+    void handle_udp_write_connection_result(const boost::system::error_code& error)
+    {
+        if (error) 
+        {
+            DEBUG && (cerr << "handle_udp_write_connection_result() - Failed to send UDP connection response: " << error.message() << '\n');
+        }
+
+        // Start waiting for the next connection result
+        start_udp_receive_connection_id();
+    }
+
+    void start_udp_queued_data_frame_write()
     {
         for (t_client_connection_map_iter iter= connections.begin(); iter != connections.end(); ++iter)
         {
             ClientConnectionPtr connection= iter->second;
 
-            if (connection->start_write_queued_controller_data_frame())
+            if (connection->start_udp_write_queued_controller_data_frame())
             {
                 // Don't start a write on any other connection until this one is finished 
                 break;
@@ -564,7 +687,7 @@ ServerNetworkManager::~ServerNetworkManager()
 bool ServerNetworkManager::startup()
 {
     m_instance= this;
-    implementation_ptr->start_accept();
+    implementation_ptr->start_tcp_accept();
 
     return true;
 }

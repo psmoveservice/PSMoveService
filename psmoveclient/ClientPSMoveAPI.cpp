@@ -166,10 +166,13 @@ public:
     // INotificationListener
     virtual void handle_notification(ResponsePtr notification) override
     {
+        assert(notification->request_id() == -1);
+
         //###bwalker $TODO: controller connected
         //###bwalker $TODO: controller disconnected
         //###bwalker $TODO: tracker connected
         //###bwalker $TODO: tracker disconnected
+        DEBUG && (std::cout << "ClientPSMoveAPI - Unknown notification type received: " << notification->type() << std::endl);
     }
 
     // IClientNetworkEventListener
@@ -217,7 +220,7 @@ private:
     ClientRequestManager m_request_manager;
     ClientNetworkManager m_network_manager;
     ClientPSMoveAPI::event_callback m_event_callback;
-    t_controller_view_map m_controller_view_map;
+    t_controller_view_map m_controller_view_map;    
 };
 
 //-- ClientPSMoveAPI -----

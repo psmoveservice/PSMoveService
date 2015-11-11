@@ -42,7 +42,9 @@ public:
 
         , m_io_service()
         , m_tcp_socket(m_io_service)
+        , m_tcp_connection_id(-1)
         , m_udp_socket(m_io_service, udp::endpoint(udp::v4(), 0))
+        , m_udp_server_endpoint()
         , m_udp_remote_endpoint()
         , m_connection_stopped(false)
         , m_has_pending_tcp_read(false)
@@ -72,7 +74,7 @@ public:
         tcp::resolver::iterator endpoint_iter= resolver.resolve(tcp::resolver::query(tcp::v4(), m_server_host, m_server_port));
 
         m_connection_stopped= false;
-        bool success= start_connect(endpoint_iter);
+        bool success= start_tcp_connect(endpoint_iter);
 
         return success;
     }
@@ -80,7 +82,7 @@ public:
     void send_request(RequestPtr request)
     {
         m_pending_requests.push_back(request);
-        start_write_request();
+        start_tcp_write_request();
     }
 
     void poll()
@@ -132,7 +134,7 @@ public:
     }
 
 private:
-    bool start_connect(tcp::resolver::iterator endpoint_iter)
+    bool start_tcp_connect(tcp::resolver::iterator endpoint_iter)
     {
         bool success= true;
 
@@ -143,24 +145,24 @@ private:
             // Start the asynchronous connect operation.
             m_tcp_socket.async_connect(
                 endpoint_iter->endpoint(),
-                boost::bind(&ClientNetworkManagerImpl::handle_connect, this, _1, endpoint_iter));
+                boost::bind(&ClientNetworkManagerImpl::handle_tcp_connect, this, _1, endpoint_iter));
         }
         else
         {
+            // There are no more endpoints to try. Shut down the client.
+            stop();
+            success= false;
+
             if (m_netEventListener)
             {
                 m_netEventListener->handle_server_connection_open_failed(boost::asio::error::host_unreachable);
             }
-
-            // There are no more endpoints to try. Shut down the client.
-            stop();
-            success= false;
         }
 
         return success;
     }
 
-    void handle_connect(
+    void handle_tcp_connect(
         const boost::system::error_code& ec,
         tcp::resolver::iterator endpoint_iter)
     {
@@ -172,7 +174,7 @@ private:
         // the timeout handler must have run first.
         if (!m_tcp_socket.is_open())
         {
-            DEBUG && (std::cerr << "Connect timed out" << endl);
+            DEBUG && (std::cerr << "TCP Connect timed out" << endl);
 
             if (m_netEventListener)
             {
@@ -180,12 +182,12 @@ private:
             }
 
             // Try the next available endpoint.
-            start_connect(++endpoint_iter);
+            start_tcp_connect(++endpoint_iter);
         }
         // Check if the connect operation failed before the deadline expired.
         else if (ec)
         {
-            DEBUG && (std::cerr << "Connect error: " << ec.message() << endl);
+            DEBUG && (std::cerr << "TCP Connect error: " << ec.message() << endl);
 
             if (m_netEventListener)
             {
@@ -197,39 +199,107 @@ private:
             m_tcp_socket.close();
 
             // Try the next available endpoint.
-            start_connect(++endpoint_iter);
+            start_tcp_connect(++endpoint_iter);
         }
         // Otherwise we have successfully established a connection.
         else
         {
-            tcp::endpoint tcp_remote_endpoint= endpoint_iter->endpoint();
+            tcp::endpoint tcp_endpoint= endpoint_iter->endpoint();
 
-            DEBUG && (std::cout << "Connected to " << tcp_remote_endpoint << endl);
+            DEBUG && (std::cout << "Connected to " << tcp_endpoint << endl);
 
-            // Create a corresponding remote endpoint udp data will be sent to
-            m_udp_remote_endpoint= udp::endpoint(tcp_remote_endpoint.address(), tcp_remote_endpoint.port());
+            // Create a corresponding endpoint udp data will be sent to
+            m_udp_server_endpoint= udp::endpoint(tcp_endpoint.address(), tcp_endpoint.port());
 
+            // Start listening for any incoming responses (TCP messages)
+            // NOTE: Responses that come independent of a request are a "notification"
+            start_tcp_read_response_header();
+        }
+    }
+
+    void handle_tcp_connection_info_notification(ResponsePtr notification)
+    {
+        assert(notification->type() == PSMoveDataFrame::Response_ResponseType_CONNECTION_INFO);
+
+        // Remember the connection id
+        m_tcp_connection_id= notification->result_connection_info().tcp_connection_id();
+
+        // Send the connection id back to the server over UDP
+        // to establish a UDP connected and associate it with the TCP connection
+        send_udp_connection_id();
+    }
+
+    void send_udp_connection_id()
+    {
+        DEBUG && (cerr << "Sending connection id to server over UDP: " << m_tcp_connection_id << '\n');
+        m_udp_socket.async_send_to(
+            boost::asio::buffer(&m_tcp_connection_id, sizeof(m_tcp_connection_id)), 
+            m_udp_server_endpoint,
+            boost::bind(&ClientNetworkManagerImpl::handle_udp_write_connection_id, this, boost::asio::placeholders::error));
+    }
+
+    void handle_udp_write_connection_id(const boost::system::error_code& error)
+    {
+        if (!error) 
+        {
+            DEBUG && (cerr << "Successfully sent UDP connection id: " << error.message() << '\n');
+
+            // Now wait for the response
+            //###bwalker $TODO timeout
+            m_udp_socket.async_receive_from(
+                boost::asio::buffer(&m_udp_connection_result_read_buffer, sizeof(m_udp_connection_result_read_buffer)),
+                m_udp_remote_endpoint,
+                boost::bind(&ClientNetworkManagerImpl::handle_udp_read_connection_result, this, boost::asio::placeholders::error));
+        }
+        else
+        {
+            DEBUG && (cerr << "Failed to send UDP connection id: " << error.message() << '\n');
+
+            // Try again...
+            //###bwalker $TODO timeout after a given number of attempts
+            send_udp_connection_id();
+        }
+    }
+
+    void handle_udp_read_connection_result(const boost::system::error_code& error)
+    {
+        if (error)
+        {
+            DEBUG && (std::cerr << "UDP Connect error: " << error.message() << endl);
+
+            if (m_netEventListener)
+            {
+                m_netEventListener->handle_server_connection_open_failed(error);
+            }
+        }
+        else if (m_udp_connection_result_read_buffer == false)
+        {
+            DEBUG && (std::cerr << "UDP Connect error: Invalid connection id " << endl);
+
+            if (m_netEventListener)
+            {
+                m_netEventListener->handle_server_connection_open_failed(boost::system::error_code());
+            }
+        }
+        else
+        {
+            DEBUG && (std::cout << "UDP Connect Success!" << endl);
+
+            // Start listening for any incoming data frames (UDP messages)
+            start_udp_read_data_frame();
+
+            // If there are any requests waiting, send them off
+            start_tcp_write_request();
+
+            // Tell the network event listener that we are finally all connected
             if (m_netEventListener)
             {
                 m_netEventListener->handle_server_connection_opened();
             }
-
-            // Start listening for any incoming responses (TCP messages)
-            // NOTE: Responses that come independent of a request are a "notification"
-            start_read_response_header();
-
-            // Start listening for any incoming data frames (UDP messages)
-            start_read_data_frame_header();
-
-            // If there are any requests waiting 
-            if (m_pending_requests.size() > 0)
-            {
-                start_write_request();
-            }
         }
     }
 
-    void start_read_response_header()
+    void start_tcp_read_response_header()
     {
         if (!m_has_pending_tcp_read)
         {
@@ -240,48 +310,47 @@ private:
                 m_tcp_socket, 
                 asio::buffer(m_response_read_buffer),
                 boost::bind(
-                    &ClientNetworkManagerImpl::handle_read_response_header, 
+                    &ClientNetworkManagerImpl::handle_tcp_read_response_header, 
                     this,
                     asio::placeholders::error));
         }
     }
 
-    void handle_read_response_header(const boost::system::error_code& error)
+    void handle_tcp_read_response_header(const boost::system::error_code& error)
     {
         if (m_connection_stopped)
             return;
 
-        DEBUG && (cout << "handle read " << error.message() << endl);
         if (!error) 
         {
-            DEBUG && (cout << "Got header!" << endl);
+            DEBUG && (cout << "handle_tcp_read_response_header() - Received Message Header:\n");
             DEBUG && (cout << show_hex(m_response_read_buffer) << endl);
             unsigned msg_len = m_packed_response.decode_header(m_response_read_buffer);
             DEBUG && (cout << msg_len << " bytes" << endl);
 
             if (msg_len > 0)
             {
-                start_read_response_body(msg_len);
+                start_tcp_read_response_body(msg_len);
             }
             else
             {
                 // If there is no body, jump straight to the handle ready response body callback
-                handle_read_response_body(boost::system::error_code());
+                handle_tcp_read_response_body(boost::system::error_code());
             }
         }
         else
         {
+            DEBUG && (std::cerr << "handle_tcp_read_response_header() - Error on receive: " << error.message() << endl);
+            stop();
+
             if (m_netEventListener)
             {
                 m_netEventListener->handle_server_connection_socket_error(error);
             }
-
-            DEBUG && (std::cerr << "Error on receive: " << error.message() << endl);
-            stop();
         }
     }
 
-    void start_read_response_body(unsigned msg_len)
+    void start_tcp_read_response_body(unsigned msg_len)
     {
         assert(m_has_pending_tcp_read);
         assert(msg_len > 0);
@@ -294,43 +363,42 @@ private:
             m_tcp_socket, 
             buffer,
             boost::bind(
-                &ClientNetworkManagerImpl::handle_read_response_body, 
+                &ClientNetworkManagerImpl::handle_tcp_read_response_body, 
                 this,
                 asio::placeholders::error));
     }
 
-    void handle_read_response_body(const boost::system::error_code& error)
+    void handle_tcp_read_response_body(const boost::system::error_code& error)
     {
         if (m_connection_stopped)
             return;
 
-        DEBUG && (cout << "handle body " << error << endl);
         if (!error) 
         {
-            DEBUG && (cout << "Got body!\n");
+            DEBUG && (cout << "handle_tcp_read_response_body() - Received Response Body:\n");
             DEBUG && (cout << show_hex(m_response_read_buffer) << endl);
 
             // Process the response now that we have received all of it
-            handle_response_received();
+            handle_tcp_response_received();
 
             // Start reading the next incoming response
-            start_read_response_header();
+            start_tcp_read_response_header();
         }
         else
         {
+            DEBUG && (cerr << "handle_tcp_read_response_body() - Error on receive: " << error.message() << endl);
+            stop();
+
             if (m_netEventListener)
             {
                 m_netEventListener->handle_server_connection_socket_error(error);
             }
-
-            DEBUG && (cerr << "Error on receive: " << error.message() << endl);
-            stop();
         }
     }
 
     // Called when enough data was read into m_readbuf for a complete response message. 
     // Parse the response and forward it on to the response handler.
-    void handle_response_received()
+    void handle_tcp_response_received()
     {
         // No longer is there a pending read
         m_has_pending_tcp_read= false;
@@ -345,25 +413,33 @@ private:
                 m_response_listener->handle_response(response);
             }
             else
-            {
-                // Responses without a request ID are notifications
-                m_notification_listener->handle_notification(response);
+            {                
+                if (response->type() == PSMoveDataFrame::Response_ResponseType_CONNECTION_INFO)
+                {
+                    // SPECIAL CASE: ConnectionInfo response sent at
+                    handle_tcp_connection_info_notification(response);
+                }
+                else
+                {
+                    // Responses without a request ID are notifications
+                    m_notification_listener->handle_notification(response);
+                }
             }
         }
         else
         {
+            DEBUG && (cerr << "handle_tcp_response_received() - Error malformed response" << endl);
+            stop();
+
             if (m_netEventListener)
             {
                 //###bwalker $TODO pick a better error code that means "malformed data"
                 m_netEventListener->handle_server_connection_socket_error(boost::asio::error::message_size);
             }
-
-            DEBUG && (cerr << "Error malformed response" << endl);
-            stop();
         }
     }
 
-    void start_write_request()
+    void start_tcp_write_request()
     {        
         if (m_connection_stopped)
             return;
@@ -383,11 +459,11 @@ private:
             boost::asio::async_write(
                 m_tcp_socket, 
                 boost::asio::buffer(m_write_bufer),
-                boost::bind(&ClientNetworkManagerImpl::handle_write_request_complete, this, _1));
+                boost::bind(&ClientNetworkManagerImpl::handle_tcp_write_request_complete, this, _1));
         }
     }
 
-    void handle_write_request_complete(const boost::system::error_code& ec)
+    void handle_tcp_write_request_complete(const boost::system::error_code& ec)
     {
         if (m_connection_stopped)
             return;
@@ -401,120 +477,80 @@ private:
             m_pending_requests.pop_front();
 
             // Start listening for the response
-            start_read_response_header();
+            start_tcp_read_response_header();
 
             // If there are more requests waiting to be sent, start sending the next one
-            start_write_request();
+            start_tcp_write_request();
         }
         else
         {
+            DEBUG && (cerr << "handle_tcp_write_request_complete() - Error on request send: " << ec.message() << endl);
+            stop();
+
             if (m_netEventListener)
             {
                 m_netEventListener->handle_server_connection_socket_error(ec);
             }
-
-            DEBUG && (cerr << "Error on request send: " << ec.message() << endl);
-            stop();
         }
     }
 
-    void start_read_data_frame_header()
+    void start_udp_read_data_frame()
     {
         if (!m_has_pending_udp_read)
         {
             m_has_pending_udp_read= true;
-            m_data_frame_read_buffer.resize(HEADER_SIZE);
             m_udp_socket.async_receive_from(
-                asio::buffer(m_data_frame_read_buffer),
-                m_udp_remote_endpoint,
+                asio::buffer(m_data_frame_read_buffer, sizeof(m_data_frame_read_buffer)),
+                m_udp_server_endpoint,
                 boost::bind(
-                    &ClientNetworkManagerImpl::handle_read_data_frame_header, 
+                    &ClientNetworkManagerImpl::handle_udp_read_data_frame, 
                     this,
                     asio::placeholders::error));
         }
     }
 
-    void handle_read_data_frame_header(const boost::system::error_code& error)
+    void handle_udp_read_data_frame(const boost::system::error_code& error)
     {
         if (m_connection_stopped)
             return;
 
-        DEBUG && (cout << "handle data frame read " << error.message() << endl);
-        if (!error) 
+        if (!error)
         {
-            DEBUG && (cout << "Got data frame header!" << endl);
-            DEBUG && (cout << show_hex(m_data_frame_read_buffer) << endl);
-            unsigned msg_len = m_packed_data_frame.decode_header(m_data_frame_read_buffer);
-            DEBUG && (cout << msg_len << " bytes" << endl);
-            start_read_data_frame_body(msg_len);
-        }
-        else
-        {
-            if (m_netEventListener)
-            {
-                m_netEventListener->handle_server_connection_socket_error(error);
-            }
-
-            DEBUG && (std::cerr << "Error on receive: " << error.message() << endl);
-            stop();
-        }
-    }
-
-    void start_read_data_frame_body(unsigned msg_len)
-    {
-        assert(m_has_pending_udp_read);
-
-        // m_data_frame_read_buffer already contains the header in its first HEADER_SIZE bytes. 
-        // Expand it to fit in the body as well, and start async read into the body.
-        m_data_frame_read_buffer.resize(HEADER_SIZE + msg_len);
-        asio::mutable_buffers_1 buffer = asio::buffer(&m_data_frame_read_buffer[HEADER_SIZE], msg_len);
-        m_udp_socket.async_receive_from(
-            buffer,
-            m_udp_remote_endpoint,
-            boost::bind(
-                &ClientNetworkManagerImpl::handle_read_data_frame_body, 
-                this,
-                asio::placeholders::error));
-    }
-
-    void handle_read_data_frame_body(const boost::system::error_code& error)
-    {
-        if (m_connection_stopped)
-            return;
-
-        DEBUG && (cout << "handle data frame body " << error << endl);
-        if (!error) 
-        {
-            DEBUG && (cout << "Got data frame body!\n");
-            DEBUG && (cout << show_hex(m_data_frame_read_buffer) << endl);
+            DEBUG && (cout << "handle_udp_read_data_frame_header() - Received DataFrame" << endl);
 
             // Process the data frame now that we have received all of it
-            handle_data_frame_received();
+            handle_udp_data_frame_received();
 
             // Start reading the next incoming data frame
-            start_read_data_frame_header();
+            start_udp_read_data_frame();
         }
         else
         {
+            DEBUG && (std::cerr << "handle_udp_read_data_frame_header() - Error on receive: " << error.message() << endl);
+            stop();
+
             if (m_netEventListener)
             {
                 m_netEventListener->handle_server_connection_socket_error(error);
             }
-
-            DEBUG && (cerr << "Error on data frame receive: " << error.message() << endl);
-            stop();
         }
     }
 
     // Called when enough data was read into m_data_frame_read_buffer for a complete data frame message. 
     // Parse the data_frame and forward it on to the response handler.
-    void handle_data_frame_received()
+    void handle_udp_data_frame_received()
     {
         // No longer is there a pending read
         m_has_pending_udp_read= false;
 
+        DEBUG && (cout << "handle_udp_data_frame_received() - Parsing DataFrame" << endl);
+        unsigned msg_len = m_packed_data_frame.decode_header(m_data_frame_read_buffer, sizeof(m_data_frame_read_buffer));
+        unsigned total_len= HEADER_SIZE+msg_len;
+        DEBUG && (cout << show_hex(m_data_frame_read_buffer, total_len) << endl);
+        DEBUG && (cout << msg_len << " bytes" << endl);
+
         // Parse the response buffer
-        if (m_packed_data_frame.unpack(m_data_frame_read_buffer))
+        if (m_packed_data_frame.unpack(m_data_frame_read_buffer, total_len))
         {
             ControllerDataFramePtr data_frame = m_packed_data_frame.get_msg();
 
@@ -522,14 +558,14 @@ private:
         }
         else
         {
+            DEBUG && (cerr << "handle_udp_data_frame_received() - Error malformed response" << endl);
+            stop();
+
             if (m_netEventListener)
             {
                 //###bwalker $TODO pick a better error code that means "malformed data"
                 m_netEventListener->handle_server_connection_socket_error(boost::asio::error::message_size);
             }
-
-            DEBUG && (cerr << "Error malformed response" << endl);
-            stop();
         }
     }
 
@@ -539,8 +575,13 @@ private:
 
     asio::io_service m_io_service;
     tcp::socket m_tcp_socket;
+    int m_tcp_connection_id;
+
     udp::socket m_udp_socket;
+    udp::endpoint m_udp_server_endpoint;
     udp::endpoint m_udp_remote_endpoint;
+    bool m_udp_connection_result_read_buffer;
+
     bool m_connection_stopped;
     bool m_has_pending_tcp_read;
     bool m_has_pending_tcp_write;
@@ -549,7 +590,7 @@ private:
     vector<uint8_t> m_response_read_buffer;
     PackedMessage<PSMoveDataFrame::Response> m_packed_response;
 
-    vector<uint8_t> m_data_frame_read_buffer;
+    uint8_t m_data_frame_read_buffer[HEADER_SIZE+MAX_DATA_FRAME_MESSAGE_SIZE];
     PackedMessage<PSMoveDataFrame::ControllerDataFrame> m_packed_data_frame;
     
     vector<uint8_t> m_write_bufer;

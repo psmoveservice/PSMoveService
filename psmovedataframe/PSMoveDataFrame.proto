@@ -9,7 +9,7 @@ package PSMoveDataFrame;
 // Reliable (TCP) requests that can issued to the PSMove Service
 message Request {
     // Unique id for this request. 
-    // Used to keep track of which reponse is associated with which request
+    // Used to keep track of which response is associated with which request
     // when multiple requests are in-flight.
     int32 request_id = 1;
 
@@ -21,7 +21,7 @@ message Request {
         RESET_POSE = 3;
     }
     RequestType type = 2;
-
+   
     // Parameters for START_PSMOVE_DATA_STREAM
     // NOTE: ControllerDataFrame packets will start streaming to client upon receiving this request
     message RequestStartPSMoveDataStream {
@@ -41,13 +41,13 @@ message Request {
         int32 psmove_id = 1;
         int32 rumble = 2; // [0,255]
     }
-    RequestSetRumble request_rumble = 23;
+    RequestSetRumble request_rumble = 22;
 
     // Parameters for RESET_POSE
     message RequestResetPose {
         int32 psmove_id = 1;
     }
-    RequestResetPose reset_pose = 24;   
+    RequestResetPose reset_pose = 23;   
 }
 
 // Reliable (TCP) responses to requests
@@ -55,6 +55,7 @@ message Response {
     // The response type
     enum ResponseType {
         GENERAL_RESULT= 0;
+        CONNECTION_INFO= 1;
     }
 
     enum ResultCode {
@@ -65,7 +66,16 @@ message Response {
 
     ResponseType type = 1;
     int32 request_id = 2; // the request id that spawned this response, -1 if this is a notification
-    ResultCode result_code = 3; 
+    ResultCode result_code = 3;
+    
+    // No Parameters for GENERAL_RESULT
+    
+    // Parameters for CONNECTION_INFO
+    // This is returned automatically when connecting via TCP
+    message ResultConnectionInfo {
+        int32 tcp_connection_id = 1;
+    }
+    ResultConnectionInfo result_connection_info = 20;
 }
 
 // Unreliable (UDP) controller data packet format

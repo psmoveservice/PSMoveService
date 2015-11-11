@@ -34,7 +34,7 @@ public:
         boost::posix_time::time_duration diff = now - m_last_publish_time;
 
         //###bwalker $TODO This is a hacky way to simulate controller data frame updates
-        if (diff.total_milliseconds() >= 16)
+        if (diff.total_milliseconds() >= 1000)
         {
             for (size_t psmove_id= 0; psmove_id < k_max_psmove_controllers; ++psmove_id)
             {
