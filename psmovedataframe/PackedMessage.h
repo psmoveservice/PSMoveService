@@ -110,7 +110,7 @@ public:
         if (!m_msg)
             return false;
 
-        unsigned msg_size = m_msg->ByteSize();
+        int msg_size = m_msg->ByteSize();
         if (HEADER_SIZE + msg_size < buf_size)
         {
             memset(buf, 0, buf_size);

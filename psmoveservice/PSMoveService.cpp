@@ -4,12 +4,14 @@
 
 #include "ServerNetworkManager.h"
 #include "ServerRequestHandler.h"
+#include "ServerLog.h"
 
 #include <boost/asio.hpp>
 #include <boost/application.hpp>
 #include <boost/program_options.hpp>
 #include <fstream>
 #include <cstdio>
+#include <string>
 
 using namespace boost;
 
@@ -128,6 +130,40 @@ int main(int argc, char *argv[])
     // used to select between std:: and boost:: namespaces
     BOOST_APPLICATION_FEATURE_SELECT
 
+    // Parse service options
+    program_options::variables_map options_map;
+    program_options::options_description desc;
+
+    desc.add_options()
+        ("help,h", "Shows help.")
+        (",f", "Run as common application")
+        ("log_level,l", program_options::value<std::string>(), "The level of logging to use: trace, debug, info, warning, error, fatal")
+        ;
+
+    try
+    {
+        program_options::store(program_options::parse_command_line(argc, argv, desc), options_map);
+    }
+    catch(boost::program_options::unknown_option &option)
+    {
+        std::cout << option.what() << std::endl;
+        std::cout << "Valid Options: " << std::endl;
+        std::cout << desc << std::endl;
+        return 0;
+    }
+
+    if (options_map.count("-h"))
+    {
+        std::cout << "Valid Options: " << std::endl;
+        std::cout << desc << std::endl;
+        return 0;
+    }
+
+    // initialize logging system
+    log_init(&options_map);
+
+    SERVER_LOG_INFO("main") << "Starting PSMoveService";
+
     try
     {
         PSMoveService app;
@@ -166,24 +202,7 @@ int main(int argc, char *argv[])
 
         // my common/server instantiation
 
-        program_options::variables_map vm;
-        program_options::options_description desc;
-
-        desc.add_options()
-            (",h", "Shows help.")
-            (",f", "Run as common application")
-            ("help", "produce a help message")
-            ;
-
-        program_options::store(program_options::parse_command_line(argc, argv, desc), vm);
-
-        if (vm.count("-h"))
-        {
-            std::cout << desc << std::endl;
-            return 0;
-        }
-
-        if (vm.count("-f"))
+        if (options_map.count("-f"))
         {
             return application::launch<application::common>(app, app_context);
         }
@@ -194,19 +213,21 @@ int main(int argc, char *argv[])
     }
     catch (boost::system::system_error& se)
     {
-        std::cerr << se.what() << std::endl;
+        SERVER_LOG_FATAL("main") << "Failed to start PSMoveService: " << se.what();
         return 1;
     }
     catch (std::exception &e)
     {
-        std::cerr << e.what() << std::endl;
+        SERVER_LOG_FATAL("main") << "Failed to start PSMoveService: " <<  e.what();
         return 1;
     }
     catch (...)
     {
-        std::cerr << "Unknown error." << std::endl;
+        SERVER_LOG_FATAL("main") << "Failed to start PSMoveService: Unknown error.";
         return 1;
     }
+
+    SERVER_LOG_INFO("main") << "Exiting PSMoveService";
 
     return 0;
 }

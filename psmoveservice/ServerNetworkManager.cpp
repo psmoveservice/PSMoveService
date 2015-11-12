@@ -1,5 +1,6 @@
 //-- includes -----
 #include "ServerNetworkManager.h"
+#include "ServerLog.h"
 #include "packedmessage.h"
 #include "DataFrameInterface.h"
 #include "PSMoveDataFrame.pb.h"
@@ -28,9 +29,6 @@ typedef boost::shared_ptr<ClientConnection> ClientConnectionPtr;
 typedef map<int, ClientConnectionPtr> t_client_connection_map;
 typedef map<int, ClientConnectionPtr>::iterator t_client_connection_map_iter;
 typedef std::pair<int, ClientConnectionPtr> t_id_client_connection_pair;
-
-//-- constants -----
-#define DEBUG true
 
 //-- private implementation -----
 // -ClientConnection-
@@ -66,6 +64,8 @@ public:
 
     void start()
     {
+        SERVER_LOG_INFO("ClientConnection::start") << "Starting client connection id " << m_connection_id;
+
         m_connection_stopped= false;
 
         // Send the connection ID to the client 
@@ -78,6 +78,8 @@ public:
 
     void stop()
     {
+        SERVER_LOG_INFO("ClientConnection::stop") << "Stopping client connection id " << m_connection_id;
+
         if (m_tcp_socket.is_open())
         {
             m_tcp_socket.shutdown(asio::socket_base::shutdown_both);
@@ -87,7 +89,7 @@ public:
 
             if (error)
             {
-                DEBUG && (cerr << "Problem closing the tcp socket: " << error.value() << endl);
+                SERVER_LOG_ERROR("ClientConnection::stop") << "Problem closing the tcp socket: " << error.value();
             }
         }
 
@@ -98,6 +100,11 @@ public:
 
     void bind_udp_remote_endpoint(const udp::endpoint &connecting_remote_endpoint)
     {
+        SERVER_LOG_DEBUG("ClientConnection::bind_udp_remote_endpoint") << "Binding connection_id " 
+            << m_connection_id << " to UDP remote endpoint " 
+            << connecting_remote_endpoint.address().to_string() << ":"
+            << connecting_remote_endpoint.port();
+
         m_udp_remote_endpoint= connecting_remote_endpoint;
     }
 
@@ -131,9 +138,9 @@ public:
                     m_packed_response.set_msg(response);
                     m_packed_response.pack(m_response_write_buffer);
 
-                    DEBUG && (cout << "start_tcp_write_queued_response() - Sending TCP response:\n");
-                    DEBUG && (cout << "  " << show_hex(m_response_write_buffer) << endl);
-                    DEBUG && (cout << m_packed_response.get_msg()->ByteSize() << " bytes" << endl);
+                    SERVER_LOG_INFO("ClientConnection::start_tcp_write_queued_response") << "Sending TCP response";
+                    SERVER_LOG_DEBUG("   ") << show_hex(m_response_write_buffer);
+                    SERVER_LOG_DEBUG("   ") << m_packed_response.get_msg()->ByteSize() << " bytes";
 
                     // The queue should prevent us from writing more than one request as once
                     assert(!m_has_pending_tcp_write);
@@ -179,9 +186,9 @@ public:
                     {
                         int msg_size= m_packed_dataframe.get_msg()->ByteSize();
 
-                        DEBUG && (cout << "start_udp_write_queued_controller_data_frame() - Sending UDP DataFrame:" << endl);
-                        DEBUG && (cout << "  " << show_hex(m_dataframe_write_buffer, HEADER_SIZE+msg_size) << endl);
-                        DEBUG && (cout << msg_size << " bytes" << endl);
+                        SERVER_LOG_INFO("ClientConnection::start_udp_write_queued_controller_data_frame") << "Sending UDP DataFrame";
+                        SERVER_LOG_DEBUG("   ") << show_hex(m_dataframe_write_buffer, HEADER_SIZE+msg_size);
+                        SERVER_LOG_DEBUG("   ") << msg_size << " bytes";
 
                         // The queue should prevent us from writing more than one data frame at once
                         assert(!m_has_pending_udp_write);
@@ -197,7 +204,8 @@ public:
                     }
                     else
                     {
-                        DEBUG && (cout << "start_udp_write_queued_controller_data_frame() - DataFrame too big to fit in packet!" << endl);
+                        SERVER_LOG_ERROR("ClientConnection::start_udp_write_queued_controller_data_frame") 
+                            << "DataFrame too big to fit in packet!";
                     }
                 }
             }
@@ -249,7 +257,6 @@ private:
         , m_packed_request(boost::shared_ptr<PSMoveDataFrame::Request>(new PSMoveDataFrame::Request()))
         , m_response_write_buffer()
         , m_packed_response()
-        , m_dataframe_write_buffer()
         , m_packed_dataframe()
         , m_pending_responses()
         , m_pending_dataframes()
@@ -257,12 +264,15 @@ private:
         , m_has_pending_tcp_write(false)
         , m_has_pending_udp_write(false)
     {
+        memset(m_dataframe_write_buffer, 0, sizeof(m_dataframe_write_buffer));
         next_connection_id++;
     }
 
     void send_connection_info()
     {
-        DEBUG && (cout << "send_connection_info() - Sending connection id to client: " << m_connection_id << endl);
+        SERVER_LOG_INFO("ClientConnection::send_connection_info") 
+            << "Sending connection id to client " << m_connection_id;
+
         ResponsePtr response(new PSMoveDataFrame::Response);
 
         response->set_type(PSMoveDataFrame::Response_ResponseType_CONNECTION_INFO);
@@ -276,6 +286,9 @@ private:
 
     void start_tcp_read_request_header()
     {
+        SERVER_LOG_DEBUG("ClientConnection::start_tcp_read_request_header") 
+            << "Start TCP header read on connection id to client " << m_connection_id;
+
         m_request_read_buffer.resize(HEADER_SIZE);
         asio::async_read(
             m_tcp_socket, 
@@ -290,20 +303,28 @@ private:
     {
         if (!error) 
         {
-            DEBUG && (cout << "handle_tcp_read_request_header() - Read request header:" << endl);
-            DEBUG && (cout << "  " << show_hex(m_request_read_buffer) << endl);
+            SERVER_LOG_DEBUG("ClientConnection::handle_tcp_read_request_header") 
+                << "Read TCP request header on connection id " << m_connection_id;
+            SERVER_LOG_DEBUG("    ") << show_hex(m_request_read_buffer);
+
             unsigned msg_len = m_packed_request.decode_header(m_request_read_buffer);
-            DEBUG && (cout << msg_len << "  Body Size =  bytes\n");
-            start_read_body(msg_len);
+
+            SERVER_LOG_DEBUG("    ") << "Body Size = " << msg_len << " bytes";
+
+            start_tcp_read_request_body(msg_len);
         }
         else
         {
-            DEBUG && (cerr << "handle_tcp_read_request_header() - Failed to read header: " << error.message() << endl);
+            SERVER_LOG_ERROR("ClientConnection::handle_tcp_read_request_header") 
+                << "Failed to read header on connection " << m_connection_id << ": " << error.message();
         }
     }
 
-    void start_read_body(unsigned msg_len)
+    void start_tcp_read_request_body(unsigned msg_len)
     {
+        SERVER_LOG_DEBUG("ClientConnection::start_tcp_read_request_body") 
+            << "Start TCP request body read on connection id to client " << m_connection_id;
+
         // m_readbuf already contains the header in its first HEADER_SIZE
         // bytes. Expand it to fit in the body as well, and start async
         // read into the body.
@@ -313,24 +334,26 @@ private:
         asio::async_read(
             m_tcp_socket, buf,
             boost::bind(
-                &ClientConnection::handle_read_body, 
+                &ClientConnection::handle_tcp_read_request_body, 
                 shared_from_this(),
                 asio::placeholders::error));
     }
 
-    void handle_read_body(const boost::system::error_code& error)
+    void handle_tcp_read_request_body(const boost::system::error_code& error)
     {
-        DEBUG && (cerr << "handle body " << error << '\n');
         if (!error) 
         {
-            DEBUG && (cout << "handle_tcp_read_request_header() - Read request body:" << endl);
-            DEBUG && (cout << "  " << show_hex(m_request_read_buffer) << endl);
-            handle_request();
+            SERVER_LOG_INFO("ClientConnection::handle_tcp_read_request_body") 
+                << "Read request body on connection" << m_connection_id;
+            SERVER_LOG_DEBUG("   ") << show_hex(m_request_read_buffer);
+
+            handle_tcp_request();
             start_tcp_read_request_header();
         }
         else
         {
-            DEBUG && (cout << "handle_read_body() - Failed to read body: " << error.message() << endl);
+            SERVER_LOG_ERROR("ClientConnection::handle_tcp_read_request_body") 
+                << "Failed to read body on connection " << m_connection_id << ": " << error.message();
         }
     }
 
@@ -338,15 +361,25 @@ private:
     // message. 
     // Parse the request, execute it and send back a response.
     //
-    void handle_request()
+    void handle_tcp_request()
     {
         if (m_packed_request.unpack(m_request_read_buffer))
         {
             RequestPtr request = m_packed_request.get_msg();
+
+            SERVER_LOG_DEBUG("ClientConnection::handle_tcp_request") 
+                << "Handle request type " << request->request_id() 
+                << " on connection id to client " << m_connection_id;
+
             ResponsePtr response = m_request_handler_ref.handle_request(m_connection_id, request);
             
             add_tcp_response_to_write_queue(response);
             start_tcp_write_queued_response();
+        }
+        else
+        {
+            SERVER_LOG_ERROR("ClientConnection::handle_tcp_request") 
+                << "Failed to parse request on connection " << m_connection_id;
         }
     }
 
@@ -357,6 +390,9 @@ private:
 
         if (!ec)
         {
+            SERVER_LOG_DEBUG("ClientConnection::handle_write_response_complete") 
+                << "Sent TCP response on connection id " << m_connection_id;
+
             // no longer is there a pending write
             m_has_pending_tcp_write= false;
 
@@ -368,7 +404,9 @@ private:
         }
         else
         {
-            DEBUG && (cerr << "Error on request send: " << ec.message() << endl);
+            SERVER_LOG_ERROR("ClientConnection::handle_write_response_complete") 
+                << "Error sending request on connection " << m_connection_id << ": " << ec.message();
+
             stop();
         }
     }
@@ -380,6 +418,9 @@ private:
 
         if (!ec)
         {
+            SERVER_LOG_TRACE("ClientConnection::handle_udp_write_controller_data_frame_complete") 
+                << "Sent UDP data frame on connection id " << m_connection_id;
+
             // no longer is there a pending write
             m_has_pending_udp_write= false;
 
@@ -388,7 +429,9 @@ private:
         }
         else
         {
-            DEBUG && (cerr << "Error on data frame send: " << ec.message() << endl);
+            SERVER_LOG_ERROR("ClientConnection::handle_udp_write_controller_data_frame_complete") 
+                << "Error sending data frame on connection " << m_connection_id << ": " << ec.message();
+
             stop();
         }
     }
@@ -417,7 +460,7 @@ public:
 
     void start_tcp_accept()
     {
-        DEBUG && (cout << "start_tcp_accept() - Start waiting for a new TCP connection"<< endl);
+        SERVER_LOG_DEBUG("ServerNetworkManager::start_tcp_accept") << "Start waiting for a new TCP connection";
 
         // Create a new connection to handle a client. 
         // Passing a reference to a request handler to each connection poses no problem 
@@ -467,6 +510,8 @@ public:
 
     void close_all_connections()
     {
+        SERVER_LOG_DEBUG("ServerNetworkManager::close_all_connections") << "Stopping all client connections";
+
         for (t_client_connection_map_iter iter= connections.begin(); iter != connections.end(); ++iter)
         {
             ClientConnectionPtr clientConnection= iter->second;
@@ -488,13 +533,26 @@ public:
         {
             ClientConnectionPtr connection= entry->second;
 
+            SERVER_LOG_DEBUG("ServerNetworkManager::send_notification") 
+                << "Sending response_type " << response->type() 
+                << " to connection " << connection_id;
+
             connection->add_tcp_response_to_write_queue(response);
             connection->start_tcp_write_queued_response();
+        }
+        else
+        {
+            SERVER_LOG_ERROR("ServerNetworkManager::send_notification") 
+                << "Can't send response_type " << response->type() 
+                << " to unknown connection " << connection_id;
         }
     }
 
     void send_notification_to_all_clients(ResponsePtr response)
     {
+        SERVER_LOG_DEBUG("ServerNetworkManager::send_notification") 
+            << "Sending response_type " << response->type() << "to all clients";
+
         // Notifications have an invalid response ID
         response->set_request_id(-1);
 
@@ -515,9 +573,17 @@ public:
         {
             ClientConnectionPtr connection= entry->second;
 
+            SERVER_LOG_TRACE("ServerNetworkManager::send_controller_data_frame") 
+                << "Sending data_frame to connection " << connection_id;
+
             connection->add_controller_data_frame_to_write_queue(data_frame);
 
             start_udp_queued_data_frame_write();
+        }
+        else
+        {
+            SERVER_LOG_ERROR("ServerNetworkManager::send_controller_data_frame") 
+                << "Can't send data_frame to unknown connection " << connection_id;
         }
     }
 
@@ -552,7 +618,7 @@ private:
         //
         if (!error)
         {
-            DEBUG && (cout << "handle_tcp_accept() - Accepting a new connection" << endl);
+            SERVER_LOG_DEBUG("ServerNetworkManager::handle_tcp_accept") << "Accepting a new connection";
 
             // Start the connection
             connection->start();
@@ -562,13 +628,14 @@ private:
         }
         else
         {
-            DEBUG && (cout << "handle_tcp_accept() - Failed to accept new connection: " << error.message() << endl);
+            SERVER_LOG_DEBUG("ServerNetworkManager::handle_tcp_accept") << 
+                "Failed to accept new connection: " << error.message();
         }
     }
 
     void start_udp_receive_connection_id()
     {
-        DEBUG && (cout << "start_udp_receive_connection_id() - waiting for UDP connection id" << endl);
+        SERVER_LOG_DEBUG("ServerNetworkManager::start_udp_receive_connection_id") << "waiting for UDP connection id";
 
         udp_socket.async_receive_from(
             boost::asio::buffer(&m_udp_connection_id_read_buffer, sizeof(m_udp_connection_id_read_buffer)),
@@ -585,7 +652,9 @@ private:
 
             if (iter != connections.end())
             {
-                DEBUG && (cout << "handle_udp_read_connection_id() - Found UDP client connected with matching connection_id: " << m_udp_connection_id_read_buffer << endl);
+                SERVER_LOG_DEBUG("ServerNetworkManager::start_udp_receive_connection_id") 
+                    << "Found UDP client connected with matching connection_id: " << m_udp_connection_id_read_buffer;
+
                 ClientConnectionPtr connection= iter->second;
 
                 // Associate this udp remote endpoint with the given connection id
@@ -596,7 +665,8 @@ private:
             }
             else
             {
-                DEBUG && (cerr << "Error: UDP client connected with INVALID connection_id: " << m_udp_connection_id_read_buffer << endl);
+                SERVER_LOG_ERROR("ServerNetworkManager::handle_udp_read_connection_id") 
+                    << "UDP client connected with INVALID connection_id: " << m_udp_connection_id_read_buffer;
 
                 // Tell the client that this was an invalid connection id
                 start_udp_send_connection_result(false);
@@ -604,13 +674,16 @@ private:
         }
         else
         {
-            DEBUG && (cerr << "handle_udp_read_connection_id() - ERROR: Failed to receive UDP connection id: " << error.message() << '\n');
+            SERVER_LOG_ERROR("ServerNetworkManager::handle_udp_read_connection_id") 
+                << "Failed to receive UDP connection id: "<< error.message();
         }
     }
 
     void start_udp_send_connection_result(bool success)
     {
-        DEBUG && (cout << "start_udp_send_connection_result() - Send result: " << success << endl);
+        SERVER_LOG_DEBUG("ServerNetworkManager::start_udp_send_connection_result") 
+            << "Send result: " << success;
+
         m_udp_connection_result_write_buffer= success;
         udp_socket.async_send_to(
             boost::asio::buffer(&m_udp_connection_result_write_buffer, sizeof(m_udp_connection_result_write_buffer)), 
@@ -622,7 +695,8 @@ private:
     {
         if (error) 
         {
-            DEBUG && (cerr << "handle_udp_write_connection_result() - Failed to send UDP connection response: " << error.message() << '\n');
+            SERVER_LOG_ERROR("ServerNetworkManager::handle_udp_write_connection_result") 
+                << "Failed to send UDP connection response: "<< error.message();
         }
 
         // Start waiting for the next connection result
@@ -637,6 +711,9 @@ private:
 
             if (connection->start_udp_write_queued_controller_data_frame())
             {
+                SERVER_LOG_TRACE("ServerNetworkManager::start_udp_queued_data_frame_write") 
+                    << "Send queued UDP data on connection id: " << iter->first;
+
                 // Don't start a write on any other connection until this one is finished 
                 break;
             }
