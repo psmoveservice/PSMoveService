@@ -24,6 +24,7 @@ public:
 
     void update();
     ResponsePtr handle_request(int connection_id, RequestPtr request);
+    void handle_client_connection_stopped(int connection_id);
 
 private:
     // private implementation - same lifetime as the ServerRequestHandler

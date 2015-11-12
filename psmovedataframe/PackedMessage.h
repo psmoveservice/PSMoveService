@@ -111,7 +111,7 @@ public:
             return false;
 
         int msg_size = m_msg->ByteSize();
-        if (HEADER_SIZE + msg_size < buf_size)
+        if ((int)HEADER_SIZE + msg_size < buf_size)
         {
             memset(buf, 0, buf_size);
             encode_header(buf, buf_size, msg_size);

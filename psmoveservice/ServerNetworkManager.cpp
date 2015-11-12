@@ -31,6 +31,12 @@ typedef map<int, ClientConnectionPtr>::iterator t_client_connection_map_iter;
 typedef std::pair<int, ClientConnectionPtr> t_id_client_connection_pair;
 
 //-- private implementation -----
+class IServerNetworkEventListener
+{
+public:
+	virtual void handle_client_connection_stopped(int connection_id) = 0;
+};
+
 // -ClientConnection-
 // Maintains TCP and UDP connection state to a single client.
 // Handles async socket callbacks on the connection.
@@ -45,11 +51,17 @@ public:
     }
 
     static ClientConnectionPtr create(
+        IServerNetworkEventListener* network_event_listener,
         asio::io_service& io_service_ref,
         udp::socket& udp_socket_ref, 
         ServerRequestHandler &request_handler_ref)
     {
-        return ClientConnectionPtr(new ClientConnection(io_service_ref, udp_socket_ref, request_handler_ref));
+        return ClientConnectionPtr(
+            new ClientConnection(
+                network_event_listener, 
+                io_service_ref, 
+                udp_socket_ref, 
+                request_handler_ref));
     }
 
     int get_connection_id() const
@@ -66,6 +78,7 @@ public:
     {
         SERVER_LOG_INFO("ClientConnection::start") << "Starting client connection id " << m_connection_id;
 
+        m_connection_started= true;
         m_connection_stopped= false;
 
         // Send the connection ID to the client 
@@ -96,6 +109,9 @@ public:
         m_connection_stopped= true;
         m_has_pending_tcp_write= false;
         m_has_pending_udp_write= false;
+
+        // Notify the parent network manager that this connection is going away
+        m_network_event_listener->handle_client_connection_stopped(m_connection_id);
     }
 
     void bind_udp_remote_endpoint(const udp::endpoint &connecting_remote_endpoint)
@@ -110,12 +126,12 @@ public:
 
     bool has_pending_udp_write() const
     {
-        return m_has_pending_udp_write;
+        return m_connection_started && m_has_pending_udp_write;
     }
 
     bool has_queued_controller_data_frames() const
     {
-        return m_pending_dataframes.size() > 0;
+        return m_connection_started && m_pending_dataframes.size() > 0;
     }
 
     void add_tcp_response_to_write_queue(ResponsePtr response)
@@ -173,7 +189,7 @@ public:
     {
         bool write_in_progress= false;
 
-        if (!m_connection_stopped)
+        if (m_connection_started && !m_connection_stopped)
         {
             if (!m_has_pending_udp_write)
             {
@@ -221,6 +237,8 @@ public:
 private:
     static int next_connection_id;
 
+    IServerNetworkEventListener* m_network_event_listener;
+
     int m_connection_id;
 
     ServerRequestHandler &m_request_handler_ref;
@@ -240,15 +258,18 @@ private:
     deque<ResponsePtr> m_pending_responses;
     deque<ControllerDataFramePtr> m_pending_dataframes;
     
+    bool m_connection_started;
     bool m_connection_stopped;
     bool m_has_pending_tcp_write;
     bool m_has_pending_udp_write;
 
     ClientConnection(
+        IServerNetworkEventListener *network_event_listener,
         asio::io_service& io_service_ref,
         udp::socket& udp_socket_ref , 
         ServerRequestHandler &request_handler_ref)
-        : m_connection_id(next_connection_id)
+        : m_network_event_listener(network_event_listener)
+        , m_connection_id(next_connection_id)
         , m_request_handler_ref(request_handler_ref)
         , m_tcp_socket(io_service_ref)
         , m_udp_socket_ref(udp_socket_ref)
@@ -260,6 +281,7 @@ private:
         , m_packed_dataframe()
         , m_pending_responses()
         , m_pending_dataframes()
+        , m_connection_started(false)
         , m_connection_stopped(false)
         , m_has_pending_tcp_write(false)
         , m_has_pending_udp_write(false)
@@ -317,6 +339,7 @@ private:
         {
             SERVER_LOG_ERROR("ClientConnection::handle_tcp_read_request_header") 
                 << "Failed to read header on connection " << m_connection_id << ": " << error.message();
+            stop();
         }
     }
 
@@ -354,6 +377,7 @@ private:
         {
             SERVER_LOG_ERROR("ClientConnection::handle_tcp_read_request_body") 
                 << "Failed to read body on connection " << m_connection_id << ": " << error.message();
+            stop();
         }
     }
 
@@ -380,6 +404,7 @@ private:
         {
             SERVER_LOG_ERROR("ClientConnection::handle_tcp_request") 
                 << "Failed to parse request on connection " << m_connection_id;
+            stop();
         }
     }
 
@@ -406,7 +431,6 @@ private:
         {
             SERVER_LOG_ERROR("ClientConnection::handle_write_response_complete") 
                 << "Error sending request on connection " << m_connection_id << ": " << ec.message();
-
             stop();
         }
     }
@@ -440,24 +464,29 @@ int ClientConnection::next_connection_id = 0;
 
 // -NetworkManagerImpl-
 // Internal implementation of the network manager.
-class ServerNetworkManagerImpl
+class ServerNetworkManagerImpl : public IServerNetworkEventListener
 {
 public:
     ServerNetworkManagerImpl(unsigned int port, ServerRequestHandler &requestHandler)
-        : request_handler_ref(requestHandler)
-        , io_service()
-        , tcp_acceptor(io_service, tcp::endpoint(tcp::v4(), port))
-        , udp_socket(io_service, udp::endpoint(udp::v4(), port))
-        , connections()
+        : m_request_handler_ref(requestHandler)
+        , m_io_service()
+        , m_tcp_acceptor(m_io_service, tcp::endpoint(tcp::v4(), port))
+        , m_udp_socket(m_io_service, udp::endpoint(udp::v4(), port))
+        , m_udp_connecting_remote_endpoint()
+        , m_udp_connection_id_read_buffer(-1)
+        , m_udp_connection_result_write_buffer(false)
+        , m_has_pending_udp_read(false)
+        , m_connections()
     {
     }
 
     virtual ~ServerNetworkManagerImpl()
     {
         // All connections should have been closed at this point
-        assert(connections.empty());
+        assert(m_connections.empty());
     }
 
+    //-- ServerNetworkManagerImpl ----
     void start_tcp_accept()
     {
         SERVER_LOG_DEBUG("ServerNetworkManager::start_tcp_accept") << "Start waiting for a new TCP connection";
@@ -466,14 +495,18 @@ public:
         // Passing a reference to a request handler to each connection poses no problem 
         // since the server is single-threaded.
         ClientConnectionPtr new_connection = 
-            ClientConnection::create(tcp_acceptor.get_io_service(), udp_socket, request_handler_ref);
+            ClientConnection::create(
+                this, 
+                m_tcp_acceptor.get_io_service(), 
+                m_udp_socket, 
+                m_request_handler_ref);
 
         // Add the connection to the list
         t_id_client_connection_pair map_entry(new_connection->get_connection_id(), new_connection);
-        connections.insert(map_entry);
+        m_connections.insert(map_entry);
 
         // Asynchronously wait to accept a new tcp client
-        tcp_acceptor.async_accept(
+        m_tcp_acceptor.async_accept(
             new_connection->get_tcp_socket(),
             boost::bind(&ServerNetworkManagerImpl::handle_tcp_accept, this, new_connection, asio::placeholders::error));
 
@@ -497,7 +530,7 @@ public:
             // * TCP request has finished reading
             // * TCP response has finished writing
             // * UDP data frame has finished writing
-            io_service.poll();
+            m_io_service.poll();
 
             // In the event that a UDP data frame write completed immediately,
             // we should start another UDP data frame write.
@@ -512,24 +545,42 @@ public:
     {
         SERVER_LOG_DEBUG("ServerNetworkManager::close_all_connections") << "Stopping all client connections";
 
-        for (t_client_connection_map_iter iter= connections.begin(); iter != connections.end(); ++iter)
+        // Stop all of the TCP connections
+        while (m_connections.size() > 0)
         {
+            t_client_connection_map_iter iter= m_connections.begin();
             ClientConnectionPtr clientConnection= iter->second;
 
+            // This should call handle_connection_stopped() which will remove
+            // this connection from the list
             clientConnection->stop();
         }
 
-        connections.clear();
+        // Close down the UDP connection
+        if (m_udp_socket.is_open())
+        {
+            m_udp_socket.shutdown(asio::socket_base::shutdown_both);
+
+            boost::system::error_code error;
+            m_udp_socket.close(error);
+
+            if (error)
+            {
+                SERVER_LOG_ERROR("ServerNetworkManager::close_all_connections") << "Problem closing the tcp socket: " << error.value();
+            }
+        }
+
+        m_connections.clear();
     }
 
     void send_notification(int connection_id, ResponsePtr response)
     {
-        t_client_connection_map_iter entry = connections.find(connection_id);
+        t_client_connection_map_iter entry = m_connections.find(connection_id);
 
         // Notifications have an invalid response ID
         response->set_request_id(-1);
         
-        if (entry != connections.end())
+        if (entry != m_connections.end())
         {
             ClientConnectionPtr connection= entry->second;
 
@@ -556,7 +607,7 @@ public:
         // Notifications have an invalid response ID
         response->set_request_id(-1);
 
-        for (t_client_connection_map_iter iter= connections.begin(); iter != connections.end(); ++iter)
+        for (t_client_connection_map_iter iter= m_connections.begin(); iter != m_connections.end(); ++iter)
         {
             ClientConnectionPtr connection= iter->second;
 
@@ -567,9 +618,9 @@ public:
 
     void send_controller_data_frame(int connection_id, ControllerDataFramePtr data_frame)
     {
-        t_client_connection_map_iter entry = connections.find(connection_id);
+        t_client_connection_map_iter entry = m_connections.find(connection_id);
 
-        if (entry != connections.end())
+        if (entry != m_connections.end())
         {
             ClientConnectionPtr connection= entry->second;
 
@@ -587,21 +638,35 @@ public:
         }
     }
 
+    // -- IServerNetworkEventListener ----
+	virtual void handle_client_connection_stopped(int connection_id) override
+    {
+        t_client_connection_map_iter entry = m_connections.find(connection_id);
+
+        if (entry != m_connections.end())
+        {
+            m_connections.erase(entry);
+        }
+
+        // Tell the request handler to clean up any state associated with this connection
+        m_request_handler_ref.handle_client_connection_stopped(connection_id);
+    }
+
 private:
     // Process and responds to incoming PSMoveService request
-    ServerRequestHandler &request_handler_ref;
+    ServerRequestHandler &m_request_handler_ref;
     
     // Core i/o functionality for TCP/UDP sockets
-    asio::io_service io_service;
+    asio::io_service m_io_service;
 
     // Handles waiting for and accepting new TCP connections
-    tcp::acceptor tcp_acceptor;
+    tcp::acceptor m_tcp_acceptor;
 
     // UDP socket shared amongst all of the client connections
-    udp::socket udp_socket;
+    udp::socket m_udp_socket;
 
     // The endpoint of the next connecting 
-    udp::endpoint udp_connecting_remote_endpoint;
+    udp::endpoint m_udp_connecting_remote_endpoint;
 
     // A pending udp request from the client
     int m_udp_connection_id_read_buffer;
@@ -609,9 +674,13 @@ private:
     // A pending udp result sent to the client
     bool m_udp_connection_result_write_buffer;
 
-    // A mapping from connection_id -> ClientConnectionPtr
-    t_client_connection_map connections;
+    // If true, we are already waiting for a client to send the connection id
+    bool m_has_pending_udp_read;
 
+    // A mapping from connection_id -> ClientConnectionPtr
+    t_client_connection_map m_connections;
+
+protected:
     void handle_tcp_accept(ClientConnectionPtr connection, const boost::system::error_code& error)
     {        
         // A new client has connected
@@ -622,35 +691,44 @@ private:
 
             // Start the connection
             connection->start();
-
-            // Accept another client
-            start_tcp_accept();
         }
         else
         {
             SERVER_LOG_DEBUG("ServerNetworkManager::handle_tcp_accept") << 
                 "Failed to accept new connection: " << error.message();
+
+            // Stop the failed connection
+            connection->stop();
         }
+
+        // Accept another client
+        start_tcp_accept();
     }
 
     void start_udp_receive_connection_id()
     {
-        SERVER_LOG_DEBUG("ServerNetworkManager::start_udp_receive_connection_id") << "waiting for UDP connection id";
+        if (!m_has_pending_udp_read)
+        {
+            SERVER_LOG_DEBUG("ServerNetworkManager::start_udp_receive_connection_id") << "waiting for UDP connection id";
 
-        udp_socket.async_receive_from(
-            boost::asio::buffer(&m_udp_connection_id_read_buffer, sizeof(m_udp_connection_id_read_buffer)),
-            udp_connecting_remote_endpoint,
-            boost::bind(&ServerNetworkManagerImpl::handle_udp_read_connection_id, this, boost::asio::placeholders::error));
+            m_has_pending_udp_read= true;
+            m_udp_socket.async_receive_from(
+                boost::asio::buffer(&m_udp_connection_id_read_buffer, sizeof(m_udp_connection_id_read_buffer)),
+                m_udp_connecting_remote_endpoint,
+                boost::bind(&ServerNetworkManagerImpl::handle_udp_read_connection_id, this, boost::asio::placeholders::error));
+        }
     }
 
     void handle_udp_read_connection_id(const boost::system::error_code& error)
     {
+        m_has_pending_udp_read= false;
+
         if (!error) 
         {
             // Find the connection with the matching id
-            t_client_connection_map_iter iter= connections.find(m_udp_connection_id_read_buffer);
+            t_client_connection_map_iter iter= m_connections.find(m_udp_connection_id_read_buffer);
 
-            if (iter != connections.end())
+            if (iter != m_connections.end())
             {
                 SERVER_LOG_DEBUG("ServerNetworkManager::start_udp_receive_connection_id") 
                     << "Found UDP client connected with matching connection_id: " << m_udp_connection_id_read_buffer;
@@ -658,7 +736,7 @@ private:
                 ClientConnectionPtr connection= iter->second;
 
                 // Associate this udp remote endpoint with the given connection id
-                connection->bind_udp_remote_endpoint(udp_connecting_remote_endpoint);
+                connection->bind_udp_remote_endpoint(m_udp_connecting_remote_endpoint);
 
                 // Tell the client that this was a valid connection id
                 start_udp_send_connection_result(true);
@@ -685,9 +763,9 @@ private:
             << "Send result: " << success;
 
         m_udp_connection_result_write_buffer= success;
-        udp_socket.async_send_to(
+        m_udp_socket.async_send_to(
             boost::asio::buffer(&m_udp_connection_result_write_buffer, sizeof(m_udp_connection_result_write_buffer)), 
-            udp_connecting_remote_endpoint,
+            m_udp_connecting_remote_endpoint,
             boost::bind(&ServerNetworkManagerImpl::handle_udp_write_connection_result, this, boost::asio::placeholders::error));
     }
 
@@ -705,7 +783,7 @@ private:
 
     void start_udp_queued_data_frame_write()
     {
-        for (t_client_connection_map_iter iter= connections.begin(); iter != connections.end(); ++iter)
+        for (t_client_connection_map_iter iter= m_connections.begin(); iter != m_connections.end(); ++iter)
         {
             ClientConnectionPtr connection= iter->second;
 
@@ -725,7 +803,7 @@ private:
         bool has_queued_write_ready_to_start= false;
         bool udp_socket_available= true;
 
-        for (t_client_connection_map_iter iter= connections.begin(); iter != connections.end(); ++iter)
+        for (t_client_connection_map_iter iter= m_connections.begin(); iter != m_connections.end(); ++iter)
         {
             ClientConnectionPtr connection= iter->second;
 
