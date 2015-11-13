@@ -2,6 +2,7 @@
 #define CLIENT_LOG_H
 
 //-- includes -----
+#include "ClientConfig.h"
 #include <streambuf>
 #include <ostream>
 #include <iostream>

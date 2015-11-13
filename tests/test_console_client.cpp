@@ -66,7 +66,7 @@ private:
         switch (event_type)
         {
         case ClientPSMoveAPI::connectedToService:
-            CLIENT_LOG_INFO("PSMoveConsoleClient") << "Connected to service" << std::endl;
+            std::cout << "PSMoveConsoleClient - Connected to service" << std::endl;
 
             // Once created, updates will automatically get pushed into this view
             controller_view= ClientPSMoveAPI::allocate_controller_view(0);
@@ -78,11 +78,11 @@ private:
                             std::placeholders::_1, std::placeholders::_2));
             break;
         case ClientPSMoveAPI::failedToConnectToService:
-            CLIENT_LOG_ERROR("PSMoveConsoleClient") << "Failed to connect to service" << std::endl;
+            std::cout << "PSMoveConsoleClient - Failed to connect to service" << std::endl;
             app_status->state(application::status::stoped);
             break;
         case ClientPSMoveAPI::disconnectedFromService:
-            CLIENT_LOG_ERROR("PSMoveConsoleClient") << "Disconnected from service" << std::endl;
+            std::cout << "PSMoveConsoleClient - Disconnected from service" << std::endl;
             app_status->state(application::status::stoped);
             break;
         default:
@@ -94,14 +94,14 @@ private:
     {
         if (response->result_code() == PSMoveDataFrame::Response_ResultCode_RESULT_OK)
         {
-            CLIENT_LOG_INFO("PSMoveConsoleClient") << "Acquired controller " 
+            std::cout << "PSMoveConsoleClient - Acquired controller " 
                 << request->request_start_psmove_data_stream().psmove_id() << std::endl;
 
             // Updates will now automatically get pushed into the controller view
         }
         else
         {
-            CLIENT_LOG_ERROR("PSMoveConsoleClient") << "failed to acquire controller "
+            std::cout << "PSMoveConsoleClient - failed to acquire controller "
                 << request->request_start_psmove_data_stream().psmove_id() << std::endl;
             app_status->state(application::status::stoped);
         }
@@ -119,7 +119,7 @@ private:
                     "localhost", "9512", 
                     std::bind(&PSMoveConsoleClient::handle_client_psmove_event, this, std::placeholders::_1)))
             {
-                CLIENT_LOG_ERROR("PSMoveConsoleClient") << "Failed to initialize the client network manager" << std::endl;
+                std::cout << "PSMoveConsoleClient - Failed to initialize the client network manager" << std::endl;
                 success= false;
             }
         }

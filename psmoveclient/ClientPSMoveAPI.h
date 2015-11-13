@@ -2,6 +2,7 @@
 #define CLIENT_PSMOVE_API_H
 
 //-- includes -----
+#include "ClientConfig.h"
 #include "ClientLog.h"
 #include "DataFrameInterface.h"
 #include <functional>
@@ -12,7 +13,7 @@ class ClientControllerView;
 typedef std::shared_ptr<ClientControllerView> ClientControllerViewPtr;
 
 //-- interface -----
-class ClientPSMoveAPI
+class CLIENTPSMOVEAPI ClientPSMoveAPI
 {
 public:
 	enum eClientPSMoveAPIEvent
