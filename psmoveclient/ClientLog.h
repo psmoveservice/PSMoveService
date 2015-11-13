@@ -37,7 +37,7 @@ public:
         : std::basic_ios<t_char, traits>(&m_sbuf)
         , std::basic_ostream<t_char, traits>(&m_sbuf)
     {
-        init(&m_sbuf);
+        this->init(&m_sbuf);
     }
 
 private:
