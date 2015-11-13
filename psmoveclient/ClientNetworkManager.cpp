@@ -21,9 +21,6 @@ using asio::ip::tcp;
 using asio::ip::udp;
 using boost::uint8_t;
 
-//-- constants -----
-#define DEBUG garbage
-
 //-- implementation -----
 
 // -ClientNetworkManagerImpl-
