@@ -98,6 +98,14 @@ private:
                 << request->request_start_psmove_data_stream().psmove_id() << std::endl;
 
             // Updates will now automatically get pushed into the controller view
+
+            if (controller_view->GetIsCurrentlyTracking())
+            {
+                PSMoveVector3 controller_position= controller_view->GetPosition();
+
+                std::cout << "Controller State: " << std::endl;
+                std::cout << "  Position (" << controller_position.x << ", " << controller_position.y << ", " << controller_position.z << ")" << std::endl;
+            }
         }
         else
         {

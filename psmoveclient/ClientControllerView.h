@@ -2,6 +2,7 @@
 #define CLIENT_CONTROLLER_VIEW_H
 
 //-- includes -----
+#include "ClientConfig.h"
 #include <cassert>
 
 //-- pre-declarations -----
@@ -47,7 +48,7 @@ struct PSMovePose
     }
 };
 
-class ClientControllerView
+class CLIENTPSMOVEAPI ClientControllerView
 {
 private:
     int PSMoveID;
