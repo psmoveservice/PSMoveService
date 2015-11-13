@@ -275,7 +275,7 @@ private:
         , m_udp_socket_ref(udp_socket_ref)
         , m_udp_remote_endpoint()
         , m_request_read_buffer()
-        , m_packed_request(boost::shared_ptr<PSMoveDataFrame::Request>(new PSMoveDataFrame::Request()))
+        , m_packed_request(std::shared_ptr<PSMoveDataFrame::Request>(new PSMoveDataFrame::Request()))
         , m_response_write_buffer()
         , m_packed_response()
         , m_packed_dataframe()

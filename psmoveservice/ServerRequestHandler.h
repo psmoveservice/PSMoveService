@@ -1,19 +1,7 @@
 #ifndef SERVER_REQUEST_HANDLER_H
 #define SERVER_REQUEST_HANDLER_H
 
-#include <boost/shared_ptr.hpp>
-#include "PSMoveDataFrame.pb.h"
-
-//-- pre-declarations -----
-namespace PSMoveDataFrame
-{
-    class ControllerDataFrame;
-    class Request;
-    class Response;
-};
-typedef boost::shared_ptr<PSMoveDataFrame::ControllerDataFrame> ControllerDataFramePtr;
-typedef boost::shared_ptr<PSMoveDataFrame::Request> RequestPtr;
-typedef boost::shared_ptr<PSMoveDataFrame::Response> ResponsePtr;
+#include "DataFrameInterface.h"
 
 // -ServerRequestHandler-
 class ServerRequestHandler 

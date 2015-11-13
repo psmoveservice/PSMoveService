@@ -50,9 +50,9 @@ public:
         , m_has_pending_udp_read(false)
 
         , m_response_read_buffer()
-        , m_packed_response(boost::shared_ptr<PSMoveDataFrame::Response>(new PSMoveDataFrame::Response()))
+        , m_packed_response(std::shared_ptr<PSMoveDataFrame::Response>(new PSMoveDataFrame::Response()))
 
-        , m_packed_data_frame(boost::shared_ptr<PSMoveDataFrame::ControllerDataFrame>(new PSMoveDataFrame::ControllerDataFrame()))
+        , m_packed_data_frame(std::shared_ptr<PSMoveDataFrame::ControllerDataFrame>(new PSMoveDataFrame::ControllerDataFrame()))
     
         , m_write_bufer()
         , m_packed_request()

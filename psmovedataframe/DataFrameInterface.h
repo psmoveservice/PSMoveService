@@ -2,7 +2,7 @@
 #define DATAFRAME_INTERFACE_H
 
 //-- includes -----
-#include <boost/shared_ptr.hpp>
+#include <memory>
 
 //-- constants -----
 #define MAX_DATA_FRAME_MESSAGE_SIZE 24
@@ -14,9 +14,9 @@ namespace PSMoveDataFrame
 	class Request;
 	class Response;
 };
-typedef boost::shared_ptr<PSMoveDataFrame::ControllerDataFrame> ControllerDataFramePtr;
-typedef boost::shared_ptr<PSMoveDataFrame::Request> RequestPtr;
-typedef boost::shared_ptr<PSMoveDataFrame::Response> ResponsePtr;
+typedef std::shared_ptr<PSMoveDataFrame::ControllerDataFrame> ControllerDataFramePtr;
+typedef std::shared_ptr<PSMoveDataFrame::Request> RequestPtr;
+typedef std::shared_ptr<PSMoveDataFrame::Response> ResponsePtr;
 
 //-- interface -----
 class INotificationListener

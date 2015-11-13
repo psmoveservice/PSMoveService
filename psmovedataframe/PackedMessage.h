@@ -12,7 +12,7 @@
 #include <cassert>
 #include <vector>
 #include <cstdio>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 #include <boost/cstdint.hpp>
 
 
@@ -60,7 +60,7 @@ template <class MessageType>
 class PackedMessage 
 {
 public:
-    typedef boost::shared_ptr<MessageType> MessagePointer;
+    typedef std::shared_ptr<MessageType> MessagePointer;
 
     PackedMessage(MessagePointer msg = MessagePointer())
         : m_msg(msg)
