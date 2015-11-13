@@ -1,5 +1,6 @@
 //-- includes -----
 #include "ClientNetworkManager.h"
+#include "ClientLog.h"
 #include "packedmessage.h"
 #include "PSMoveDataFrame.pb.h"
 #include <cassert>
@@ -21,7 +22,7 @@ using asio::ip::udp;
 using boost::uint8_t;
 
 //-- constants -----
-#define DEBUG true
+#define DEBUG garbage
 
 //-- implementation -----
 
@@ -54,7 +55,6 @@ public:
         , m_response_read_buffer()
         , m_packed_response(boost::shared_ptr<PSMoveDataFrame::Response>(new PSMoveDataFrame::Response()))
 
-        , m_data_frame_read_buffer()
         , m_packed_data_frame(boost::shared_ptr<PSMoveDataFrame::ControllerDataFrame>(new PSMoveDataFrame::ControllerDataFrame()))
     
         , m_write_bufer()
@@ -66,6 +66,7 @@ public:
         , m_netEventListener(netEventListener)
         , m_pending_requests()
     {
+        memset(m_data_frame_read_buffer, 0, sizeof(m_data_frame_read_buffer));
     }
 
     bool start()
@@ -113,7 +114,8 @@ public:
 
             if (error)
             {
-                DEBUG && (cerr << "Problem closing the socket: " << error.value() << endl);
+                CLIENT_LOG_ERROR("ClientNetworkManager::stop") << "Problem closing the socket: " << error.value() << std::endl;
+
                 if (m_netEventListener)
                 {
                     m_netEventListener->handle_server_connection_close_failed(error);
@@ -140,7 +142,7 @@ private:
 
         if (endpoint_iter != tcp::resolver::iterator())
         {
-            DEBUG && (cout << "Trying " << endpoint_iter->endpoint() << "..." << endl);
+            CLIENT_LOG_INFO("ClientNetworkManager::start_tcp_connect") << "Connecting to: " << endpoint_iter->endpoint() << "..." << std::endl;
 
             // Start the asynchronous connect operation.
             m_tcp_socket.async_connect(
@@ -174,7 +176,7 @@ private:
         // the timeout handler must have run first.
         if (!m_tcp_socket.is_open())
         {
-            DEBUG && (std::cerr << "TCP Connect timed out" << endl);
+            CLIENT_LOG_ERROR("ClientNetworkManager::handle_tcp_connect") << "TCP Connect timed out " << std::endl;
 
             if (m_netEventListener)
             {
@@ -187,7 +189,7 @@ private:
         // Check if the connect operation failed before the deadline expired.
         else if (ec)
         {
-            DEBUG && (std::cerr << "TCP Connect error: " << ec.message() << endl);
+            CLIENT_LOG_ERROR("ClientNetworkManager::handle_tcp_connect") << "TCP Connect error: " << ec.message() << std::endl;
 
             if (m_netEventListener)
             {
@@ -206,7 +208,7 @@ private:
         {
             tcp::endpoint tcp_endpoint= endpoint_iter->endpoint();
 
-            DEBUG && (std::cout << "Connected to " << tcp_endpoint << endl);
+            CLIENT_LOG_INFO("ClientNetworkManager::handle_tcp_connect") << "Connected to " << tcp_endpoint << std::endl;
 
             // Create a corresponding endpoint udp data will be sent to
             m_udp_server_endpoint= udp::endpoint(tcp_endpoint.address(), tcp_endpoint.port());
@@ -223,6 +225,9 @@ private:
 
         // Remember the connection id
         m_tcp_connection_id= notification->result_connection_info().tcp_connection_id();
+        
+        CLIENT_LOG_INFO("ClientNetworkManager::handle_tcp_connection_info_notification") 
+            << "Got connection_id: " << m_tcp_connection_id << std::endl;
 
         // Send the connection id back to the server over UDP
         // to establish a UDP connected and associate it with the TCP connection
@@ -231,7 +236,9 @@ private:
 
     void send_udp_connection_id()
     {
-        DEBUG && (cerr << "Sending connection id to server over UDP: " << m_tcp_connection_id << '\n');
+        CLIENT_LOG_INFO("ClientNetworkManager::send_udp_connection_id") 
+            << "Sending connection id to server over UDP: " << m_tcp_connection_id << std::endl;
+
         m_udp_socket.async_send_to(
             boost::asio::buffer(&m_tcp_connection_id, sizeof(m_tcp_connection_id)), 
             m_udp_server_endpoint,
@@ -242,7 +249,8 @@ private:
     {
         if (!error) 
         {
-            DEBUG && (cerr << "Successfully sent UDP connection id: " << error.message() << '\n');
+            CLIENT_LOG_INFO("ClientNetworkManager::handle_udp_write_connection_id") 
+                << "Successfully sent UDP connection id: " << error.message() << std::endl;
 
             // Now wait for the response
             //###bwalker $TODO timeout
@@ -253,7 +261,8 @@ private:
         }
         else
         {
-            DEBUG && (cerr << "Failed to send UDP connection id: " << error.message() << '\n');
+            CLIENT_LOG_ERROR("ClientNetworkManager::handle_udp_write_connection_id") 
+                << "Failed to send UDP connection id: " << error.message() << std::endl;
 
             // Try again...
             //###bwalker $TODO timeout after a given number of attempts
@@ -265,7 +274,8 @@ private:
     {
         if (error)
         {
-            DEBUG && (std::cerr << "UDP Connect error: " << error.message() << endl);
+            CLIENT_LOG_ERROR("ClientNetworkManager::handle_udp_read_connection_result") 
+                << "UDP Connect error: " << error.message() << std::endl;
 
             if (m_netEventListener)
             {
@@ -274,7 +284,8 @@ private:
         }
         else if (m_udp_connection_result_read_buffer == false)
         {
-            DEBUG && (std::cerr << "UDP Connect error: Invalid connection id " << endl);
+            CLIENT_LOG_ERROR("ClientNetworkManager::handle_udp_read_connection_result") 
+                << "UDP Connect error: Invalid connection id" << std::endl;
 
             if (m_netEventListener)
             {
@@ -283,7 +294,8 @@ private:
         }
         else
         {
-            DEBUG && (std::cout << "UDP Connect Success!" << endl);
+            CLIENT_LOG_INFO("ClientNetworkManager::handle_udp_read_connection_result") 
+                << "UDP Connect Success!" << std::endl;
 
             // Start listening for any incoming data frames (UDP messages)
             start_udp_read_data_frame();
@@ -303,7 +315,6 @@ private:
     {
         if (!m_has_pending_tcp_read)
         {
-
             m_has_pending_tcp_read= true;
             m_response_read_buffer.resize(HEADER_SIZE);
             asio::async_read(
@@ -323,10 +334,11 @@ private:
 
         if (!error) 
         {
-            DEBUG && (cout << "handle_tcp_read_response_header() - Received Message Header:\n");
-            DEBUG && (cout << show_hex(m_response_read_buffer) << endl);
+            CLIENT_LOG_INFO("ClientNetworkManager::handle_tcp_read_response_header") 
+                << "Received Message Header:" << std::endl;
+            CLIENT_LOG_DEBUG("    ") << show_hex(m_response_read_buffer) << std::endl;
             unsigned msg_len = m_packed_response.decode_header(m_response_read_buffer);
-            DEBUG && (cout << msg_len << " bytes" << endl);
+            CLIENT_LOG_DEBUG("    ") << msg_len << " bytes" << std::endl;
 
             if (msg_len > 0)
             {
@@ -340,7 +352,8 @@ private:
         }
         else
         {
-            DEBUG && (std::cerr << "handle_tcp_read_response_header() - Error on receive: " << error.message() << endl);
+            CLIENT_LOG_ERROR("ClientNetworkManager::handle_tcp_read_response_header") 
+                << "Error on receive: " << error.message() << std::endl;
             stop();
 
             if (m_netEventListener)
@@ -375,8 +388,9 @@ private:
 
         if (!error) 
         {
-            DEBUG && (cout << "handle_tcp_read_response_body() - Received Response Body:\n");
-            DEBUG && (cout << show_hex(m_response_read_buffer) << endl);
+            CLIENT_LOG_INFO("ClientNetworkManager::handle_tcp_read_response_body") 
+                << "Received Response Body:" << std::endl;
+            CLIENT_LOG_DEBUG("    ") << show_hex(m_response_read_buffer) << std::endl;
 
             // Process the response now that we have received all of it
             handle_tcp_response_received();
@@ -386,7 +400,8 @@ private:
         }
         else
         {
-            DEBUG && (cerr << "handle_tcp_read_response_body() - Error on receive: " << error.message() << endl);
+            CLIENT_LOG_ERROR("ClientNetworkManager::handle_tcp_read_response_body") 
+                << "Error on receive: " << error.message() << std::endl;
             stop();
 
             if (m_netEventListener)
@@ -410,10 +425,15 @@ private:
 
             if (response->request_id() != -1)
             {
+                CLIENT_LOG_INFO("ClientNetworkManager::handle_tcp_response_received") 
+                    << "Received response type " << response->type() << std::endl;
                 m_response_listener->handle_response(response);
             }
             else
-            {                
+            {
+                CLIENT_LOG_INFO("ClientNetworkManager::handle_tcp_response_received") 
+                    << "Received notification type " << response->type() << std::endl;
+
                 if (response->type() == PSMoveDataFrame::Response_ResponseType_CONNECTION_INFO)
                 {
                     // SPECIAL CASE: ConnectionInfo response sent at
@@ -428,7 +448,8 @@ private:
         }
         else
         {
-            DEBUG && (cerr << "handle_tcp_response_received() - Error malformed response" << endl);
+            CLIENT_LOG_ERROR("ClientNetworkManager::handle_tcp_response_received") 
+                << "Error malformed response" << std::endl;
             stop();
 
             if (m_netEventListener)
@@ -484,7 +505,8 @@ private:
         }
         else
         {
-            DEBUG && (cerr << "handle_tcp_write_request_complete() - Error on request send: " << ec.message() << endl);
+            CLIENT_LOG_ERROR("ClientNetworkManager::handle_tcp_write_request_complete") 
+                << "Error on request send: "  << ec.message() << std::endl;
             stop();
 
             if (m_netEventListener)
@@ -516,7 +538,7 @@ private:
 
         if (!error)
         {
-            DEBUG && (cout << "handle_udp_read_data_frame_header() - Received DataFrame" << endl);
+            CLIENT_LOG_TRACE("ClientNetworkManager::handle_udp_read_data_frame") << "Received DataFrame" << std::endl;
 
             // Process the data frame now that we have received all of it
             handle_udp_data_frame_received();
@@ -526,7 +548,8 @@ private:
         }
         else
         {
-            DEBUG && (std::cerr << "handle_udp_read_data_frame_header() - Error on receive: " << error.message() << endl);
+            CLIENT_LOG_ERROR("ClientNetworkManager::handle_tcp_write_request_complete") 
+                << "Error on receive: "  << error.message() << std::endl;
             stop();
 
             if (m_netEventListener)
@@ -543,11 +566,11 @@ private:
         // No longer is there a pending read
         m_has_pending_udp_read= false;
 
-        DEBUG && (cout << "handle_udp_data_frame_received() - Parsing DataFrame" << endl);
+        CLIENT_LOG_INFO("ClientNetworkManager::handle_udp_data_frame_received") << "Parsing DataFrame" << std::endl;
         unsigned msg_len = m_packed_data_frame.decode_header(m_data_frame_read_buffer, sizeof(m_data_frame_read_buffer));
         unsigned total_len= HEADER_SIZE+msg_len;
-        DEBUG && (cout << show_hex(m_data_frame_read_buffer, total_len) << endl);
-        DEBUG && (cout << msg_len << " bytes" << endl);
+        CLIENT_LOG_DEBUG("    ") << show_hex(m_data_frame_read_buffer, total_len) << std::endl;
+        CLIENT_LOG_DEBUG("    ") << msg_len << " bytes" << std::endl;
 
         // Parse the response buffer
         if (m_packed_data_frame.unpack(m_data_frame_read_buffer, total_len))
@@ -558,7 +581,7 @@ private:
         }
         else
         {
-            DEBUG && (cerr << "handle_udp_data_frame_received() - Error malformed response" << endl);
+            CLIENT_LOG_ERROR("ClientNetworkManager::handle_udp_data_frame_received") << "Error malformed response" << std::endl;
             stop();
 
             if (m_netEventListener)

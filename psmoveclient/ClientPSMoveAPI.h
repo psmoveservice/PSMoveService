@@ -2,12 +2,14 @@
 #define CLIENT_PSMOVE_API_H
 
 //-- includes -----
+#include "ClientLog.h"
 #include "DataFrameInterface.h"
-#include <boost/function.hpp>
+#include <functional>
+#include <memory>
 
 //-- pre-declarations -----
 class ClientControllerView;
-typedef boost::shared_ptr<ClientControllerView> ClientControllerViewPtr;
+typedef std::shared_ptr<ClientControllerView> ClientControllerViewPtr;
 
 //-- interface -----
 class ClientPSMoveAPI
@@ -20,10 +22,14 @@ public:
 		disconnectedFromService,
 	};
 
-	typedef boost::function<void(eClientPSMoveAPIEvent)> event_callback;
-    typedef boost::function<void(RequestPtr, ResponsePtr)> response_callback;
+	typedef std::function<void(eClientPSMoveAPIEvent)> event_callback;
+    typedef std::function<void(RequestPtr, ResponsePtr)> response_callback;
 
-	static bool startup(const std::string &host, const std::string &port, event_callback callback);
+	static bool startup(
+        const std::string &host, 
+        const std::string &port, 
+        event_callback callback,
+        e_log_severity_level log_level=_log_severity_level_info);
 	static void update();
 	static void shutdown();
 

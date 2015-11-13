@@ -66,7 +66,7 @@ private:
         switch (event_type)
         {
         case ClientPSMoveAPI::connectedToService:
-            std::cout << "PSMoveConsoleClient - Connected to service" << std::endl;
+            CLIENT_LOG_INFO("PSMoveConsoleClient") << "Connected to service" << std::endl;
 
             // Once created, updates will automatically get pushed into this view
             controller_view= ClientPSMoveAPI::allocate_controller_view(0);
@@ -74,14 +74,15 @@ private:
             // Kick off request to start streaming data from the first controller
             ClientPSMoveAPI::start_controller_data_stream(
                 controller_view, 
-                boost::bind(&PSMoveConsoleClient::handle_acquire_controller, this, _1, _2));
+                std::bind(&PSMoveConsoleClient::handle_acquire_controller, this, 
+                            std::placeholders::_1, std::placeholders::_2));
             break;
         case ClientPSMoveAPI::failedToConnectToService:
-            std::cout << "PSMoveConsoleClient - Failed to connect to service" << std::endl;
+            CLIENT_LOG_ERROR("PSMoveConsoleClient") << "Failed to connect to service" << std::endl;
             app_status->state(application::status::stoped);
             break;
         case ClientPSMoveAPI::disconnectedFromService:
-            std::cout << "PSMoveConsoleClient - Disconnected from service" << std::endl;
+            CLIENT_LOG_ERROR("PSMoveConsoleClient") << "Disconnected from service" << std::endl;
             app_status->state(application::status::stoped);
             break;
         default:
@@ -93,13 +94,15 @@ private:
     {
         if (response->result_code() == PSMoveDataFrame::Response_ResultCode_RESULT_OK)
         {
-            std::cout << "PSMoveConsoleClient - Acquired controller 0" << std::endl;
+            CLIENT_LOG_INFO("PSMoveConsoleClient") << "Acquired controller " 
+                << request->request_start_psmove_data_stream().psmove_id() << std::endl;
 
             // Updates will now automatically get pushed into the controller view
         }
         else
         {
-            std::cerr << "PSMoveConsoleClient - failed to acquire controller 0" << std::endl;
+            CLIENT_LOG_ERROR("PSMoveConsoleClient") << "failed to acquire controller "
+                << request->request_start_psmove_data_stream().psmove_id() << std::endl;
             app_status->state(application::status::stoped);
         }
     }
@@ -114,9 +117,9 @@ private:
         {
             if (!ClientPSMoveAPI::startup(
                     "localhost", "9512", 
-                    boost::bind(&PSMoveConsoleClient::handle_client_psmove_event, this, _1)))
+                    std::bind(&PSMoveConsoleClient::handle_client_psmove_event, this, std::placeholders::_1)))
             {
-                std::cerr << "Failed to initialize the client network manager" << std::endl;
+                CLIENT_LOG_ERROR("PSMoveConsoleClient") << "Failed to initialize the client network manager" << std::endl;
                 success= false;
             }
         }

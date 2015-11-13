@@ -12,9 +12,6 @@ typedef std::map<int, ClientControllerViewPtr> t_controller_view_map;
 typedef std::map<int, ClientControllerViewPtr>::iterator t_controller_view_map_iterator;
 typedef std::pair<int, ClientControllerViewPtr> t_id_controller_view_pair;
 
-//-- constants -----
-#define DEBUG true
-
 //-- internal implementation -----
 class ClientPSMoveAPIImpl : 
     public IDataFrameListener,
@@ -36,18 +33,25 @@ public:
     }
 
     // -- ClientPSMoveAPI System -----
-    bool startup()
+    bool startup(e_log_severity_level log_level)
     {
         bool success = true;
+
+        log_init(log_level);
 
         // Attempt to connect to the server
         if (success)
         {
             if (!m_network_manager.startup())
             {
-                DEBUG && (std::cerr << "Failed to initialize the client network manager" << std::endl);
+                CLIENT_LOG_ERROR("ClientPSMoveAPI") << "Failed to initialize the client network manager" << std::endl;
                 success = false;
             }
+        }
+
+        if (success)
+        {
+            CLIENT_LOG_INFO("ClientPSMoveAPI") << "Successfully initialized ClientPSMoveAPI" << std::endl;
         }
 
         return success;
@@ -108,6 +112,8 @@ public:
 
     void start_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
     {
+        CLIENT_LOG_INFO("start_controller_data_stream") << "requesting controller stream start for PSMoveID: " << view->GetPSMoveID() << std::endl;
+
         // Tell the psmove service that we are acquiring this controller
         RequestPtr request(new PSMoveDataFrame::Request());
         request->set_type(PSMoveDataFrame::Request_RequestType_START_PSMOVE_DATA_STREAM);
@@ -118,6 +124,8 @@ public:
 
     void stop_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
     {
+        CLIENT_LOG_INFO("stop_controller_data_stream") << "requesting controller stream stop for PSMoveID: " << view->GetPSMoveID() << std::endl;
+
         // Tell the psmove service that we are releasing this controller
         RequestPtr request(new PSMoveDataFrame::Request());
         request->set_type(PSMoveDataFrame::Request_RequestType_STOP_PSMOVE_DATA_STREAM);
@@ -128,6 +136,8 @@ public:
 
     void set_controller_rumble(ClientControllerViewPtr view, float rumble_amount, ClientPSMoveAPI::response_callback callback)
     {
+        CLIENT_LOG_INFO("set_controller_rumble") << "request set rumble to " << rumble_amount << " for PSMoveID: " << view->GetPSMoveID() << std::endl;
+
         assert(m_controller_view_map.find(view->GetPSMoveID()) != m_controller_view_map.end());
 
         // Tell the psmove service to set the rumble controller
@@ -142,6 +152,8 @@ public:
 
     void reset_pose(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
     {
+        CLIENT_LOG_INFO("set_controller_rumble") << "requesting pose reset for PSMoveID: " << view->GetPSMoveID() << std::endl;
+
         // Tell the psmove service to set the current orientation of the given controller as the identity pose
         RequestPtr request(new PSMoveDataFrame::Request());
         request->set_type(PSMoveDataFrame::Request_RequestType_RESET_POSE);
@@ -153,6 +165,8 @@ public:
     // IDataFrameListener
     virtual void handle_data_frame(ControllerDataFramePtr data_frame) override
     {
+        CLIENT_LOG_TRACE("handle_data_frame") << "received data frame for PSMoveID: " << data_frame->psmove_id() << std::endl;
+
         t_controller_view_map_iterator view_entry= m_controller_view_map.find(data_frame->psmove_id());
 
         if (view_entry != m_controller_view_map.end())
@@ -172,15 +186,15 @@ public:
         //###bwalker $TODO: controller disconnected
         //###bwalker $TODO: tracker connected
         //###bwalker $TODO: tracker disconnected
-        DEBUG && (std::cout << "ClientPSMoveAPI - Unknown notification type received: " << notification->type() << std::endl);
+        CLIENT_LOG_ERROR("handle_notification") << "Unknown notification type received: " << notification->type() << std::endl;
     }
 
     // IClientNetworkEventListener
     virtual void handle_server_connection_opened() override
     {
-        DEBUG && (std::cout << "ClientPSMoveAPI - Connected to service" << std::endl);
+        CLIENT_LOG_INFO("handle_server_connection_opened") << "Connected to service" << std::endl;
 
-        if (!m_event_callback.empty())
+        if (m_event_callback)
         {
             m_event_callback(ClientPSMoveAPI::connectedToService);
         }
@@ -188,9 +202,9 @@ public:
 
     virtual void handle_server_connection_open_failed(const boost::system::error_code& ec) override
     {
-        DEBUG && (std::cerr << "ClientPSMoveAPI - Failed to connect to service: " << ec.message() << std::endl);
+        CLIENT_LOG_ERROR("handle_server_connection_open_failed") << "Failed to connect to service: " << ec.message() << std::endl;
 
-        if (!m_event_callback.empty())
+        if (m_event_callback)
         {
             m_event_callback(ClientPSMoveAPI::failedToConnectToService);
         }
@@ -198,9 +212,9 @@ public:
 
     virtual void handle_server_connection_closed() override
     {
-        DEBUG && (std::cout << "ClientPSMoveAPI - Disconnected from service" << std::endl);
+        CLIENT_LOG_INFO("handle_server_connection_closed") << "Disconnected from service" << std::endl;
 
-        if (!m_event_callback.empty())
+        if (m_event_callback)
         {
             m_event_callback(ClientPSMoveAPI::disconnectedFromService);
         }
@@ -208,12 +222,12 @@ public:
 
     virtual void handle_server_connection_close_failed(const boost::system::error_code& ec) override
     {
-        DEBUG && (std::cerr << "ClientPSMoveAPI - Error disconnecting from service: " << ec.message() << std::endl);
+        CLIENT_LOG_ERROR("handle_server_connection_close_failed") << "Error disconnecting from service: " << ec.message() << std::endl;
     }
 
     virtual void handle_server_connection_socket_error(const boost::system::error_code& ec) override
     {
-        DEBUG && (std::cerr << "ClientPSMoveAPI - Socket error: " << ec.message() << std::endl);
+        CLIENT_LOG_ERROR("handle_server_connection_close_failed") << "Socket error: " << ec.message() << std::endl;
     }
 
 private:
@@ -229,14 +243,15 @@ class ClientPSMoveAPIImpl *ClientPSMoveAPI::m_implementation_ptr = NULL;
 bool ClientPSMoveAPI::startup(
     const std::string &host, 
     const std::string &port, 
-    ClientPSMoveAPI::event_callback callback)
+    ClientPSMoveAPI::event_callback callback,
+    e_log_severity_level log_level)
 {
     bool success= true;
 
     if (ClientPSMoveAPI::m_implementation_ptr == NULL)
     {
         ClientPSMoveAPI::m_implementation_ptr = new ClientPSMoveAPIImpl(host, port, callback);
-        success= ClientPSMoveAPI::m_implementation_ptr->startup();
+        success= ClientPSMoveAPI::m_implementation_ptr->startup(log_level);
     }
 
     return success;
