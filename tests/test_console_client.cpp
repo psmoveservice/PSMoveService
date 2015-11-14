@@ -1,39 +1,34 @@
-//#define BOOST_ALL_DYN_LINK
-#define BOOST_LIB_DIAGNOSTIC
-
 #include "ClientPSMoveAPI.h"
 #include "ClientControllerView.h"
-#include "PSMoveDataFrame.pb.h"
-#include <boost/asio.hpp>
-#include <boost/application.hpp>
-#include <boost/program_options.hpp>
 
-using namespace boost;
+#ifdef __linux
+#include <unistd.h>
+#endif
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 class PSMoveConsoleClient
 {
 public:
     PSMoveConsoleClient() 
-        : app_status()
+        : m_keepRunning(true)
+        , controller_view()
     {
     }
 
-    int operator()(application::context& context)
+    int run()
     {
-        BOOST_APPLICATION_FEATURE_SELECT
-
         // Attempt to start and run the client
         try 
         {
             if (startup())
             {
-                app_status = context.find<application::status>();
-
-                while (app_status->state() != application::status::stoped)
+                while (m_keepRunning)
                 {
                     update();
 
-                    boost::this_thread::sleep(boost::posix_time::seconds(1));
+                    sleep_millisecond(1);
                 }
             }
             else
@@ -60,6 +55,16 @@ public:
    }
 
 private:
+    void sleep_millisecond(int sleepMs)
+    {
+    #ifdef LINUX
+        usleep(sleepMs * 1000);
+    #endif
+    #ifdef WINDOWS
+        Sleep(sleepMs);
+    #endif
+    }
+
     // ClientPSMoveAPI
     void handle_client_psmove_event(ClientPSMoveAPI::eClientPSMoveAPIEvent event_type)
     {
@@ -68,62 +73,48 @@ private:
         case ClientPSMoveAPI::connectedToService:
             std::cout << "PSMoveConsoleClient - Connected to service" << std::endl;
 
-            // Kick off request to get psmove controller count
-            ClientPSMoveAPI::get_controller_count(
-                boost::bind(&PSMoveConsoleClient::handle_get_controller_count, this, _1, _2));
+            // Once created, updates will automatically get pushed into this view
+            controller_view= ClientPSMoveAPI::allocate_controller_view(0);
+
+            // Kick off request to start streaming data from the first controller
+            ClientPSMoveAPI::start_controller_data_stream(
+                controller_view, 
+                std::bind(&PSMoveConsoleClient::handle_acquire_controller, this, std::placeholders::_1));
             break;
         case ClientPSMoveAPI::failedToConnectToService:
             std::cout << "PSMoveConsoleClient - Failed to connect to service" << std::endl;
-            app_status->state(application::status::stoped);
+            m_keepRunning= false;
             break;
         case ClientPSMoveAPI::disconnectedFromService:
             std::cout << "PSMoveConsoleClient - Disconnected from service" << std::endl;
-            app_status->state(application::status::stoped);
+            m_keepRunning= false;
             break;
         default:
             break;
         }
     }
 
-    void handle_get_controller_count(RequestPtr request, ResponsePtr response)
+    void handle_acquire_controller(ClientPSMoveAPI::eClientPSMoveResultCode resultCode)
     {
-        if (response->has_response_psmove_count())
+        if (resultCode == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
         {
-            int count= response->response_psmove_count().count();
+            std::cout << "PSMoveConsoleClient - Acquired controller " 
+                << controller_view->GetPSMoveID() << std::endl;
 
-            if (count > 0)
+            // Updates will now automatically get pushed into the controller view
+
+            if (controller_view->GetIsCurrentlyTracking())
             {
-                std::cout << "PSMoveConsoleClient - controllers available: " << count << std::endl;
-                ClientPSMoveAPI::start_controller_data_stream(
-                    0, 
-                    boost::bind(&PSMoveConsoleClient::handle_acquire_controller, this, _1, _2));
-            }
-            else
-            {
-                std::cerr << "PSMoveConsoleClient - no controllers available" << std::endl;
-                app_status->state(application::status::stoped);
+                PSMoveVector3 controller_position= controller_view->GetPosition();
+
+                std::cout << "Controller State: " << std::endl;
+                std::cout << "  Position (" << controller_position.x << ", " << controller_position.y << ", " << controller_position.z << ")" << std::endl;
             }
         }
         else
         {
-            std::cerr << "PSMoveConsoleClient - failed to get controller count" << std::endl;
-            app_status->state(application::status::stoped);
-        }
-    }
-
-    void handle_acquire_controller(RequestPtr request, ResponsePtr response)
-    {
-        if (response->result_code() == PSMoveDataFrame::Response_ResultCode_RESULT_OK)
-        {
-            std::cout << "PSMoveConsoleClient - Acquired controller 0" << std::endl;
-
-            // Once created, updates will automatically get pushed into this view
-            controller_view= ClientPSMoveAPI::allocate_controller_view(0);
-        }
-        else
-        {
-            std::cerr << "PSMoveConsoleClient - failed to acquire controller 0" << std::endl;
-            app_status->state(application::status::stoped);
+            std::cout << "PSMoveConsoleClient - failed to acquire controller " << std::endl;
+            m_keepRunning= false;
         }
     }
 
@@ -137,9 +128,9 @@ private:
         {
             if (!ClientPSMoveAPI::startup(
                     "localhost", "9512", 
-                    boost::bind(&PSMoveConsoleClient::handle_client_psmove_event, this, _1)))
+                    std::bind(&PSMoveConsoleClient::handle_client_psmove_event, this, std::placeholders::_1)))
             {
-                std::cerr << "Failed to initialize the client network manager" << std::endl;
+                std::cout << "PSMoveConsoleClient - Failed to initialize the client network manager" << std::endl;
                 success= false;
             }
         }
@@ -167,43 +158,15 @@ private:
     }
 
 private:
-    std::shared_ptr<application::status> app_status;
+    bool m_keepRunning;
     ClientControllerViewPtr controller_view;
 };
 
 int main(int argc, char *argv[])
 {   
-   BOOST_APPLICATION_FEATURE_SELECT
+    PSMoveConsoleClient app;
 
-    try 
-    {
-        PSMoveConsoleClient app;
-        application::context app_context;
-
-        program_options::variables_map vm;
-        program_options::options_description desc;
-
-        desc.add_options()
-            (",h", "Shows help.")
-            (",f", "Run as common application")
-            ("help", "produce a help message")
-            ;
-
-        program_options::store(program_options::parse_command_line(argc, argv, desc), vm);
-
-        if (vm.count("-h"))
-        {
-            std::cout << desc << std::endl;
-            return 0;
-        }
-
-        // app instantiation
-        return application::launch<application::common>(app, app_context);
-    }
-    catch(boost::system::system_error& se)
-    {
-        std::cerr << se.what() << std::endl;
-        return 1;
-    }
+    // app instantiation
+    return app.run();
 }
 

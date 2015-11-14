@@ -9,55 +9,45 @@ package PSMoveDataFrame;
 // Reliable (TCP) requests that can issued to the PSMove Service
 message Request {
     // Unique id for this request. 
-    // Used to keep track of which reponse is associated with which request
+    // Used to keep track of which response is associated with which request
     // when multiple requests are in-flight.
     int32 request_id = 1;
 
     // The request type determines which of the request structures is actually used
     enum RequestType {
-        GET_ACTIVE_PSMOVE_COUNT= 0;
-        START_PSMOVE_DATA_STREAM = 1;
-        STOP_PSMOVE_DATA_STREAM = 2;
-        SET_RUMBLE = 3;
-        CYCLE_TRACKING_COLOR = 4;
-        RESET_POSE = 5;
+        START_PSMOVE_DATA_STREAM = 0;
+        STOP_PSMOVE_DATA_STREAM = 1;
+        SET_RUMBLE = 2;
+        RESET_POSE = 3;
     }
     RequestType type = 2;
-
-    // No parameters for GET_ACTIVE_PSMOVE_COUNT
-
+   
     // Parameters for START_PSMOVE_DATA_STREAM
     // NOTE: ControllerDataFrame packets will start streaming to client upon receiving this request
     message RequestStartPSMoveDataStream {
         int32 psmove_id = 1;
     }
-    RequestStartPSMoveDataStream request_start_psmove_data_stream = 21;
+    RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
 
     // Parameters for STOP_PSMOVE_DATA_STREAM
     // NOTE: ControllerDataFrame packets will stop streaming to client upon receiving this request
     message RequestStopPSMoveDataStream {
         int32 psmove_id = 1;
     }
-    RequestStopPSMoveDataStream request_stop_psmove_data_stream = 22;
+    RequestStopPSMoveDataStream request_stop_psmove_data_stream = 21;
 
     // Parameters for SET_RUMBLE
     message RequestSetRumble {
         int32 psmove_id = 1;
         int32 rumble = 2; // [0,255]
     }
-    RequestSetRumble request_rumble = 23;
-
-    // Parameters for CYCLE_TRACKING_COLOR
-    message RequestCycleTrackingColor {
-        int32 psmove_id = 1;
-    }
-    RequestCycleTrackingColor cycle_tracking_color = 24;
+    RequestSetRumble request_rumble = 22;
 
     // Parameters for RESET_POSE
     message RequestResetPose {
         int32 psmove_id = 1;
     }
-    RequestResetPose reset_pose = 25;   
+    RequestResetPose reset_pose = 23;   
 }
 
 // Reliable (TCP) responses to requests
@@ -65,7 +55,7 @@ message Response {
     // The response type
     enum ResponseType {
         GENERAL_RESULT= 0;
-        ACTIVE_PSMOVE_COUNT= 1;
+        CONNECTION_INFO= 1;
     }
 
     enum ResultCode {
@@ -75,27 +65,33 @@ message Response {
     }
 
     ResponseType type = 1;
-    int32 request_id = 2;
+    int32 request_id = 2; // the request id that spawned this response, -1 if this is a notification
     ResultCode result_code = 3;
     
-    // Parameters for ACTIVE_PSMOVE_COUNT
-    message ResponseActivePSMoveCount {
-        int32 count = 1;
+    // No Parameters for GENERAL_RESULT
+    
+    // Parameters for CONNECTION_INFO
+    // This is returned automatically when connecting via TCP
+    message ResultConnectionInfo {
+        int32 tcp_connection_id = 1;
     }
-    ResponseActivePSMoveCount response_psmove_count = 21;    
+    ResultConnectionInfo result_connection_info = 20;
 }
 
 // Unreliable (UDP) controller data packet format
 message ControllerDataFrame
 {
-    // Monotonically increasing id.
+    // The id of controller this data is for
+    int32 psmove_id= 1;
+    
+    // Monotonically increasing number.
     // Used to throw out old data if it arrives out of order.
-    int32 sequence_num= 1;
+    int32 sequence_num= 2;
 
     // Controller status flags
-    bool IsConnected= 2;
-    bool IsTrackingEnabled= 3;
-    bool IsCurrentlyTracking= 4;
+    bool IsConnected= 3;
+    bool IsTrackingEnabled= 4;
+    bool IsCurrentlyTracking= 5;
 
     // Tracking position in the space of the HMD tracking camera
     message Position {
@@ -103,7 +99,7 @@ message ControllerDataFrame
         float y = 2;
         float z = 3;
     }
-    Position position = 5;
+    Position position = 6;
 
     // Tracking orientation in the frame of the local magnetic field
     message Orientation{
@@ -112,7 +108,7 @@ message ControllerDataFrame
         float z = 3;
         float w = 4;
     }
-    Orientation orientation = 6;
+    Orientation orientation = 7;
 
     // Button Index Bits
     enum ButtonType {
@@ -129,8 +125,8 @@ message ControllerDataFrame
     
     // Raw bitmask of which buttons are currently down
     // Buttons bits are indexed using the ButtonType enum
-    uint32 button_down_bitmask = 7;
+    uint32 button_down_bitmask = 8;
 
     // Trigger analog value [0,255]
-    int32 trigger_value = 8;
+    int32 trigger_value = 9;
 }

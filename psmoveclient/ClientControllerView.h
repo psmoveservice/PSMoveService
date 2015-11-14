@@ -2,12 +2,17 @@
 #define CLIENT_CONTROLLER_VIEW_H
 
 //-- includes -----
+#include "ClientConfig.h"
 #include <cassert>
 
 //-- pre-declarations -----
 struct PSMoveVector3;
 struct PSMoveQuaternion;
-class ControllerDataFrame;
+
+namespace PSMoveDataFrame
+{
+    class ControllerDataFrame;
+};
 
 //-- constants -----
 enum PSMoveButtonState {
@@ -43,7 +48,7 @@ struct PSMovePose
     }
 };
 
-class ClientControllerView
+class CLIENTPSMOVEAPI ClientControllerView
 {
 private:
     int PSMoveID;
@@ -76,7 +81,7 @@ public:
     ClientControllerView(int PSMoveID);
 
     void Clear();
-    void ApplyControllerDataFrame(const ControllerDataFrame *data_frame);
+    void ApplyControllerDataFrame(const PSMoveDataFrame::ControllerDataFrame *data_frame);
 
     // Listener State
     inline void IncListenerCount()
