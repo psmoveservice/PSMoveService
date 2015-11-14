@@ -164,30 +164,6 @@ target_link_libraries(test_controller ${PLATFORM_LIBS} ${TEST_CTRLR_REQ_LIBS})
 #
 # TEST_CONSOLE_CLIENT
 #
-
-set(TEST_CONSOLE_CLIENT_INCL_DIRS)
-set(TEST_CONSOLE_CLIENT_REQ_LIBS)
-
-# Boost.Application and type_index are header only (?)
-list(APPEND TEST_CONSOLE_CLIENT_INCL_DIRS
-    ${ROOT_DIR}/thirdparty/Boost.Application/include/
-    ${ROOT_DIR}/thirdparty/type_index/include/)
-
-# Protobuf (already found in top-level CMakeLists)
-list(APPEND TEST_CONSOLE_CLIENT_INCL_DIRS ${PROTOBUF_INCLUDE_DIRS})
-list(APPEND TEST_CONSOLE_CLIENT_REQ_LIBS ${PROTOBUF_LIBRARIES})
-
-# Boost - TODO: Trim this list
-find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS atomic chrono date_time filesystem program_options regex system thread)
-list(APPEND TEST_CONSOLE_CLIENT_INCL_DIRS ${Boost_INCLUDE_DIRS})
-list(APPEND TEST_CONSOLE_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
-
-# Parent projects
-list(APPEND TEST_CONSOLE_CLIENT_INCL_DIRS 
-    ${ROOT_DIR}/psmovedataframe/
-    ${ROOT_DIR}/psmoveclient/)
-list(APPEND TEST_CONSOLE_CLIENT_REQ_LIBS PSMoveDataFrame PSMoveClient)
-
 add_executable(test_console_client test_console_client.cpp)
-target_include_directories(test_console_client PUBLIC ${TEST_CONSOLE_CLIENT_INCL_DIRS})
-target_link_libraries(test_console_client ${TEST_CONSOLE_CLIENT_REQ_LIBS})
+target_include_directories(test_console_client PUBLIC ${ROOT_DIR}/psmoveclient/)
+target_link_libraries(test_console_client PSMoveClient)

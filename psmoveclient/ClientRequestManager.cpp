@@ -1,6 +1,7 @@
 //-- includes -----
 #include "ClientRequestManager.h"
 #include "ClientNetworkManager.h"
+#include "DataFrameInterface.h"
 #include "PSMoveDataFrame.pb.h"
 #include <cassert>
 #include <map>
@@ -66,9 +67,27 @@ public:
         const RequestContext &context= pending_request_entry->second;
 
         // Notify the callback of the response
-        if (!context.callback.empty())
+        if (!context.callback)
         {
-            context.callback(context.request, response);
+            ClientPSMoveAPI::eClientPSMoveResultCode result;
+
+            // Translate internal result codes into public facing result codes
+            switch (response->result_code())
+            {
+            case PSMoveDataFrame::Response_ResultCode_RESULT_OK:
+                result= ClientPSMoveAPI::_clientPSMoveResultCode_ok;
+                break;
+            case PSMoveDataFrame::Response_ResultCode_RESULT_ERROR:
+                result= ClientPSMoveAPI::_clientPSMoveResultCode_error;
+                break;
+            case PSMoveDataFrame::Response_ResultCode_RESULT_CANCELED:
+                result= ClientPSMoveAPI::_clientPSMoveResultCode_canceled;
+                break;
+            default:
+                assert(false && "Unknown response result code");
+            }
+
+            context.callback(result);
         }
 
         // Remove the pending request from the map

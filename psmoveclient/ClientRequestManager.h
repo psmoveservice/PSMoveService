@@ -3,13 +3,14 @@
 
 //-- includes -----
 #include "DataFrameInterface.h"
-#include <boost/function.hpp>
+#include "ClientPSMoveAPI.h"
+#include <functional>
 
 //-- definitions -----
 class ClientRequestManager : public IResponseListener
 {
 public:
-    typedef boost::function<void(RequestPtr, ResponsePtr)> response_callback;
+    typedef std::function<void(ClientPSMoveAPI::eClientPSMoveResultCode)> response_callback;
 
     ClientRequestManager();
     virtual ~ClientRequestManager();

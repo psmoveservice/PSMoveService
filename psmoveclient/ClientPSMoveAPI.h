@@ -4,7 +4,6 @@
 //-- includes -----
 #include "ClientConfig.h"
 #include "ClientLog.h"
-#include "DataFrameInterface.h"
 #include <functional>
 #include <memory>
 
@@ -23,8 +22,15 @@ public:
 		disconnectedFromService,
 	};
 
+	enum eClientPSMoveResultCode
+	{
+		_clientPSMoveResultCode_ok,
+        _clientPSMoveResultCode_error,
+        _clientPSMoveResultCode_canceled
+	};
+
 	typedef std::function<void(eClientPSMoveAPIEvent)> event_callback;
-    typedef std::function<void(RequestPtr, ResponsePtr)> response_callback;
+    typedef std::function<void(eClientPSMoveResultCode ResultCode)> response_callback;
 
 	static bool startup(
         const std::string &host, 

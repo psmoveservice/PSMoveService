@@ -201,14 +201,13 @@ int main(int argc, char *argv[])
 #endif     
 
         // my common/server instantiation
-
-        if (options_map.count("-f"))
+        if (options_map.count("-d"))
         {
-            return application::launch<application::common>(app, app_context);
+            return application::launch<application::server>(app, app_context);
         }
         else
         {
-            return application::launch<application::server>(app, app_context);
+            return application::launch<application::common>(app, app_context);
         }
     }
     catch (boost::system::system_error& se)

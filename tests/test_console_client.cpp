@@ -1,39 +1,34 @@
-//#define BOOST_ALL_DYN_LINK
-#define BOOST_LIB_DIAGNOSTIC
-
 #include "ClientPSMoveAPI.h"
 #include "ClientControllerView.h"
-#include "PSMoveDataFrame.pb.h"
-#include <boost/asio.hpp>
-#include <boost/application.hpp>
-#include <boost/program_options.hpp>
 
-using namespace boost;
+#ifdef __linux
+#include <unistd.h>
+#endif
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 class PSMoveConsoleClient
 {
 public:
     PSMoveConsoleClient() 
-        : app_status()
+        : m_keepRunning(true)
+        , controller_view()
     {
     }
 
-    int operator()(application::context& context)
+    int run()
     {
-        BOOST_APPLICATION_FEATURE_SELECT
-
         // Attempt to start and run the client
         try 
         {
             if (startup())
             {
-                app_status = context.find<application::status>();
-
-                while (app_status->state() != application::status::stoped)
+                while (m_keepRunning)
                 {
                     update();
 
-                    boost::this_thread::sleep(boost::posix_time::seconds(1));
+                    sleep_millisecond(1);
                 }
             }
             else
@@ -60,6 +55,16 @@ public:
    }
 
 private:
+    void sleep_millisecond(int sleepMs)
+    {
+    #ifdef LINUX
+        usleep(sleepMs * 1000);
+    #endif
+    #ifdef WINDOWS
+        Sleep(sleepMs);
+    #endif
+    }
+
     // ClientPSMoveAPI
     void handle_client_psmove_event(ClientPSMoveAPI::eClientPSMoveAPIEvent event_type)
     {
@@ -74,28 +79,27 @@ private:
             // Kick off request to start streaming data from the first controller
             ClientPSMoveAPI::start_controller_data_stream(
                 controller_view, 
-                std::bind(&PSMoveConsoleClient::handle_acquire_controller, this, 
-                            std::placeholders::_1, std::placeholders::_2));
+                std::bind(&PSMoveConsoleClient::handle_acquire_controller, this, std::placeholders::_1));
             break;
         case ClientPSMoveAPI::failedToConnectToService:
             std::cout << "PSMoveConsoleClient - Failed to connect to service" << std::endl;
-            app_status->state(application::status::stoped);
+            m_keepRunning= false;
             break;
         case ClientPSMoveAPI::disconnectedFromService:
             std::cout << "PSMoveConsoleClient - Disconnected from service" << std::endl;
-            app_status->state(application::status::stoped);
+            m_keepRunning= false;
             break;
         default:
             break;
         }
     }
 
-    void handle_acquire_controller(RequestPtr request, ResponsePtr response)
+    void handle_acquire_controller(ClientPSMoveAPI::eClientPSMoveResultCode resultCode)
     {
-        if (response->result_code() == PSMoveDataFrame::Response_ResultCode_RESULT_OK)
+        if (resultCode == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
         {
             std::cout << "PSMoveConsoleClient - Acquired controller " 
-                << request->request_start_psmove_data_stream().psmove_id() << std::endl;
+                << controller_view->GetPSMoveID() << std::endl;
 
             // Updates will now automatically get pushed into the controller view
 
@@ -109,9 +113,8 @@ private:
         }
         else
         {
-            std::cout << "PSMoveConsoleClient - failed to acquire controller "
-                << request->request_start_psmove_data_stream().psmove_id() << std::endl;
-            app_status->state(application::status::stoped);
+            std::cout << "PSMoveConsoleClient - failed to acquire controller " << std::endl;
+            m_keepRunning= false;
         }
     }
 
@@ -155,43 +158,15 @@ private:
     }
 
 private:
-    std::shared_ptr<application::status> app_status;
+    bool m_keepRunning;
     ClientControllerViewPtr controller_view;
 };
 
 int main(int argc, char *argv[])
 {   
-   BOOST_APPLICATION_FEATURE_SELECT
+    PSMoveConsoleClient app;
 
-    try 
-    {
-        PSMoveConsoleClient app;
-        application::context app_context;
-
-        program_options::variables_map vm;
-        program_options::options_description desc;
-
-        desc.add_options()
-            (",h", "Shows help.")
-            (",f", "Run as common application")
-            ("help", "produce a help message")
-            ;
-
-        program_options::store(program_options::parse_command_line(argc, argv, desc), vm);
-
-        if (vm.count("-h"))
-        {
-            std::cout << desc << std::endl;
-            return 0;
-        }
-
-        // app instantiation
-        return application::launch<application::common>(app, app_context);
-    }
-    catch(boost::system::system_error& se)
-    {
-        std::cerr << se.what() << std::endl;
-        return 1;
-    }
+    // app instantiation
+    return app.run();
 }
 
