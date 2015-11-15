@@ -1,5 +1,6 @@
 //-- includes -----
 #include "ServerNetworkManager.h"
+#include "ServerRequestHandler.h"
 #include "ServerLog.h"
 #include "packedmessage.h"
 #include "DataFrameInterface.h"
@@ -467,9 +468,9 @@ int ClientConnection::next_connection_id = 0;
 class ServerNetworkManagerImpl : public IServerNetworkEventListener
 {
 public:
-    ServerNetworkManagerImpl(unsigned int port, ServerRequestHandler &requestHandler)
-        : m_request_handler_ref(requestHandler)
-        , m_io_service()
+    ServerNetworkManagerImpl(asio::io_service &io_service, unsigned int port, ServerRequestHandler &requestHandler)
+        : m_io_service(io_service)
+        , m_request_handler_ref(requestHandler)
         , m_tcp_acceptor(m_io_service, tcp::endpoint(tcp::v4(), port))
         , m_udp_socket(m_io_service, udp::endpoint(udp::v4(), port))
         , m_udp_connecting_remote_endpoint()
@@ -657,7 +658,7 @@ private:
     ServerRequestHandler &m_request_handler_ref;
     
     // Core i/o functionality for TCP/UDP sockets
-    asio::io_service m_io_service;
+    asio::io_service &m_io_service;
 
     // Handles waiting for and accepting new TCP connections
     tcp::acceptor m_tcp_acceptor;
@@ -828,8 +829,11 @@ protected:
 //-- public interface -----
 ServerNetworkManager *ServerNetworkManager::m_instance = NULL;
 
-ServerNetworkManager::ServerNetworkManager(unsigned port, ServerRequestHandler &requestHandler)
-    : implementation_ptr(new ServerNetworkManagerImpl(port, requestHandler))
+ServerNetworkManager::ServerNetworkManager(
+    boost::asio::io_service *io_service, 
+    unsigned port, 
+    ServerRequestHandler *requestHandler)
+    : implementation_ptr(new ServerNetworkManagerImpl(*io_service, port, *requestHandler))
 {
 }
 

@@ -12,6 +12,7 @@
 #include <fstream>
 #include <cstdio>
 #include <string>
+#include <signal.h>
 
 using namespace boost;
 
@@ -23,10 +24,19 @@ class PSMoveService
 {
 public:
     PSMoveService() 
-        : config_path()
-        , request_handler()
-        , network_manager(PSMOVE_SERVER_PORT, request_handler)
+        : m_io_service()
+        , m_signals(m_io_service)
+        , m_request_handler()
+        , m_network_manager(&m_io_service, PSMOVE_SERVER_PORT, &m_request_handler)
+        , m_status()
     {
+        // Register to handle the signals that indicate when the server should exit.
+        m_signals.add(SIGINT);
+        m_signals.add(SIGTERM);
+        #if defined(SIGQUIT)
+        m_signals.add(SIGQUIT);
+        #endif // defined(SIGQUIT)
+        m_signals.async_wait(boost::bind(&PSMoveService::handle_termination_signal, this));
     }
 
     int operator()(application::context& context)
@@ -38,9 +48,9 @@ public:
         {
             if (startup())
             {
-                std::shared_ptr<application::status> st = context.find<application::status>();
+                m_status = context.find<application::status>();
 
-                while (st->state() != application::status::stoped)
+                while (m_status->state() != application::status::stoped)
                 {
                     update();
 
@@ -93,7 +103,7 @@ private:
         // Start listening for client connections
         if (success)
         {
-            if (!network_manager.startup())
+            if (!m_network_manager.startup())
             {
                 std::cerr << "Failed to initialize the service network manager" << std::endl;
                 success= false;
@@ -106,22 +116,39 @@ private:
     void update()
     {
         //###bwalker $TODO This is here temporarily to pump UDP controller updates to the client
-        request_handler.update();
+        m_request_handler.update();
 
         // Process incoming/outgoing networking requests
-        network_manager.update();
+        m_network_manager.update();
     }
 
     void shutdown()
     {
         // Close all active network connections
-        network_manager.shutdown();
+        m_network_manager.shutdown();
     }
 
-private:
-    filesystem::path config_path;
-    ServerRequestHandler request_handler;
-    ServerNetworkManager network_manager;
+    void handle_termination_signal()
+    {
+        std::cerr << "Received termination signal. Stopping Service." << std::endl;
+        m_status->state(application::status::stoped);
+    }
+
+private:   
+    // The io_service used to perform asynchronous operations.
+    boost::asio::io_service m_io_service;
+
+    // The signal_set is used to register for process termination notifications.
+    boost::asio::signal_set m_signals;
+
+    // Generates responses from incoming requests sent to the network manager
+    ServerRequestHandler m_request_handler;
+
+    // Manages all TCP and UDP client connections
+    ServerNetworkManager m_network_manager;
+
+    // Whether the application should keep running or not
+    std::shared_ptr<application::status> m_status;
 };
 
 //-- Entry program_optionsint ---

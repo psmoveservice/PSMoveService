@@ -1,15 +1,26 @@
 #ifndef SERVER_NETWORK_MANAGER_H
 #define SERVER_NETWORK_MANAGER_H
 
-#include "ServerRequestHandler.h"
+//-- includes -----
+#include "DataFrameInterface.h"
 
+//-- pre-declarations -----
+class ServerRequestHandler;
+
+namespace boost {
+    namespace asio {
+        class io_service;
+    }
+}
+
+//-- definitions -----
 // -Server Network Manager-
 // Maintains TCP/UDP connection state with PSMoveClients.
 // Routes requests to the given request handler.
 class ServerNetworkManager 
 {
 public:
-    ServerNetworkManager(unsigned port, ServerRequestHandler &request_handler);
+    ServerNetworkManager(boost::asio::io_service *io_service, unsigned port, ServerRequestHandler *request_handler);
     virtual ~ServerNetworkManager();
 
     static ServerNetworkManager *get_instance() { return m_instance; }
