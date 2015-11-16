@@ -80,9 +80,10 @@ public:
     bool isOpen();                                  // returns true if hidapi opened successfully
     
 	// Getters
+    inline int getPSMoveID() const { return Index; }
 	psmovePosef getPose(int msec_time = 0);         // TODO: Move this to a TrackerAndSensorFusion class
-	const PSMoveState getState(int lookBack = 0);
     float getTempCelsius();
+    const PSMoveState getState(int lookBack = 0);
 
 	// Setters
 	bool setLED(unsigned char r, unsigned char g, unsigned char b); // 0x00..0xff. TODO: vec3
@@ -108,5 +109,5 @@ private:
 	unsigned long LedPWMF;
     std::deque<PSMoveState> ControllerStates;
     PSMoveDataInput* InData;                      // Buffer to copy hidapi reports into
-    PSMoveDataFrame DataFrame;                      // TODO: Move this to a TrackerAndSensorFusion class
+    PSMoveServerDataFrame DataFrame;                      // TODO: Move this to a TrackerAndSensorFusion class
 };

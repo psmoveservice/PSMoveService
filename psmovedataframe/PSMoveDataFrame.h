@@ -6,7 +6,7 @@ typedef struct psmovePosef_
     
 } psmovePosef;
 
-class PSMoveDataFrame {
+class PSMoveServerDataFrame {
 public:
     psmovePosef pose;
     // TODO: Button states

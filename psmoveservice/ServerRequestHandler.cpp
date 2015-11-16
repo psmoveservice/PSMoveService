@@ -1,15 +1,12 @@
 //-- includes -----
 #include "ServerRequestHandler.h"
+#include "ControllerManager.h"
 #include "ServerNetworkManager.h"
 #include "PSMoveDataFrame.pb.h"
 #include <cassert>
 #include <bitset>
 #include <map>
 #include <boost/shared_ptr.hpp>
-#include <boost/date_time/posix_time/posix_time_types.hpp>
-
-//-- constants -----
-static const size_t k_max_psmove_controllers= 5;
 
 //-- pre-declarations -----
 class ServerRequestHandlerImpl;
@@ -42,36 +39,11 @@ struct RequestContext
 class ServerRequestHandlerImpl
 {
 public:
-    ServerRequestHandlerImpl() 
-        : m_sequence_number(0)
+    ServerRequestHandlerImpl(ControllerManager &controllerManager) 
+        : m_controller_manager(controllerManager)
+        , m_sequence_number(0)
         , m_connection_state_map()
-        , m_last_publish_time()
     {
-    }
-
-    void update()
-    {
-        boost::posix_time::ptime now= boost::posix_time::second_clock::local_time();
-        boost::posix_time::time_duration diff = now - m_last_publish_time;
-
-        //###bwalker $TODO This is a hacky way to simulate controller data frame updates
-        if (diff.total_milliseconds() >= 1000)
-        {
-            for (t_connection_state_iter iter= m_connection_state_map.begin(); iter != m_connection_state_map.end(); ++iter)
-            {
-                RequestConnectionStatePtr connection_state= iter->second;
-
-                for (size_t psmove_id= 0; psmove_id < k_max_psmove_controllers; ++psmove_id)
-                {
-                    if (connection_state->active_controller_streams.test(psmove_id))
-                    {
-                        publish_controller_data_frame(connection_state->connection_id, psmove_id);
-                    }
-                }
-            }
-
-            m_last_publish_time= now;
-        }
     }
 
     ResponsePtr handle_request(int connection_id, RequestPtr request)
@@ -117,6 +89,26 @@ public:
         }
     }
 
+    void publish_controller_data_frame(ControllerDataFramePtr data_frame)
+    {
+        int psmove_id= data_frame->psmove_id();
+
+        // Notify any connections that care about the controller update
+        for (t_connection_state_iter iter= m_connection_state_map.begin(); iter != m_connection_state_map.end(); ++iter)
+        {
+            int connection_id= iter->first;
+            RequestConnectionStatePtr connection_state= iter->second;
+
+            for (size_t psmove_id= 0; psmove_id < k_max_psmove_controllers; ++psmove_id)
+            {
+                if (connection_state->active_controller_streams.test(psmove_id))
+                {
+                    ServerNetworkManager::get_instance()->send_controller_data_frame(connection_id, data_frame);
+                }
+            }
+        }
+    }
+
 protected:
     RequestConnectionStatePtr FindOrCreateConnectionState(int connection_id)
     {
@@ -138,45 +130,16 @@ protected:
         return connection_state;
     }
 
-    void publish_controller_data_frame(
-        int connection_id,
-        size_t psmove_id)
-    {
-        //###bwalker $TODO This is a hacky way to simulate controller data frame updates
-        ControllerDataFramePtr data_frame(new PSMoveDataFrame::ControllerDataFrame);
-
-        data_frame->set_psmove_id(static_cast<int>(psmove_id));
-        data_frame->set_sequence_num(m_sequence_number);
-        m_sequence_number++;
-        
-        data_frame->set_isconnected(true);
-        data_frame->set_iscurrentlytracking(true);
-        data_frame->set_istrackingenabled(true);
-
-        data_frame->mutable_orientation()->set_w(1.f);
-        data_frame->mutable_orientation()->set_x(0.f);
-        data_frame->mutable_orientation()->set_y(0.f);
-        data_frame->mutable_orientation()->set_z(0.f);
-
-        data_frame->mutable_position()->set_x(0.f);
-        data_frame->mutable_position()->set_y(0.f);
-        data_frame->mutable_position()->set_z(0.f);
-
-        data_frame->set_button_down_bitmask(0);
-        data_frame->set_trigger_value(0);
-
-        ServerNetworkManager::get_instance()->send_controller_data_frame(connection_id, data_frame);
-    }
-
     void handle_request__start_psmove_data_stream(
         const RequestContext &context, 
         PSMoveDataFrame::Response *response)
     {
-        // TODO
         size_t psmove_id= static_cast<size_t>(context.request->request_start_psmove_data_stream().psmove_id());
 
         if (psmove_id >= 0 && psmove_id < k_max_psmove_controllers)
         {
+            // The controller manager will always publish updates regardless of who is listening.
+            // All we have to do is keep track of which connections care about the updates.
             context.connection_state->active_controller_streams.set(psmove_id, true);
 
             response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_OK);
@@ -191,7 +154,6 @@ protected:
         const RequestContext &context,
         PSMoveDataFrame::Response *response)
     {
-        // TODO
         size_t psmove_id= static_cast<size_t>(context.request->request_start_psmove_data_stream().psmove_id());
 
         if (psmove_id >= 0 && psmove_id < k_max_psmove_controllers)
@@ -210,40 +172,65 @@ protected:
         const RequestContext &context,
         PSMoveDataFrame::Response *response)
     {
-        // TODO
-        response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_OK);
+        const int psmove_id= context.request->request_rumble().psmove_id();
+        const int rumble_amount= context.request->request_rumble().rumble();
+
+        if (m_controller_manager.setControllerRumble(psmove_id, rumble_amount))
+        {
+            response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_ERROR);
+        }
     }
 
     void handle_request__reset_pose(
         const RequestContext &context, 
         PSMoveDataFrame::Response *response)
     {
-        // TODO
-        response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_OK);
+        const int psmove_id= context.request->reset_pose().psmove_id();
+
+        if (m_controller_manager.resetPose(psmove_id))
+        {
+            response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_ERROR);
+        }
     }
 
 private:
-    //###bwalker $TODO This is a hacky way to simulate controller data frame updates
+    ControllerManager &m_controller_manager;
     int m_sequence_number;    
     t_connection_state_map m_connection_state_map;
-    boost::posix_time::ptime m_last_publish_time;
 };
 
 //-- public interface -----
-ServerRequestHandler::ServerRequestHandler()
-    : m_implementation_ptr(new ServerRequestHandlerImpl)
+ServerRequestHandler *ServerRequestHandler::m_instance = NULL;
+
+ServerRequestHandler::ServerRequestHandler(ControllerManager *controllerManager)
+    : m_implementation_ptr(new ServerRequestHandlerImpl(*controllerManager))
 {
 
 }
 
 ServerRequestHandler::~ServerRequestHandler()
 {
+    assert(m_instance == NULL);
     delete m_implementation_ptr;
 }
 
-void ServerRequestHandler::update()
+bool ServerRequestHandler::startup()
 {
-    m_implementation_ptr->update();
+    m_instance= this;
+    return true;
+}
+
+void ServerRequestHandler::shutdown()
+{
+    m_instance= NULL;
 }
 
 ResponsePtr ServerRequestHandler::handle_request(int connection_id, RequestPtr request)
@@ -254,4 +241,9 @@ ResponsePtr ServerRequestHandler::handle_request(int connection_id, RequestPtr r
 void ServerRequestHandler::handle_client_connection_stopped(int connection_id)
 {
     return m_implementation_ptr->handle_client_connection_stopped(connection_id);
+}
+
+void ServerRequestHandler::publish_controller_data_frame(ControllerDataFramePtr data_frame)
+{
+    return m_implementation_ptr->publish_controller_data_frame(data_frame);
 }

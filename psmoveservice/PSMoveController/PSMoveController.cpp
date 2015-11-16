@@ -607,7 +607,7 @@ PSMoveController::getPose(int msec_time)
 }
 
 const PSMoveState
-PSMoveController::getState(int lookBack)
+PSMoveController::getState(int lookBack) 
 {
 	readDataIn();
     if (ControllerStates.empty())

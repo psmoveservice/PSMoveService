@@ -4,6 +4,7 @@
 
 #include "ServerNetworkManager.h"
 #include "ServerRequestHandler.h"
+#include "ControllerManager.h"
 #include "ServerLog.h"
 
 #include <boost/asio.hpp>
@@ -26,7 +27,8 @@ public:
     PSMoveService() 
         : m_io_service()
         , m_signals(m_io_service)
-        , m_request_handler()
+        , m_controller_manager()
+        , m_request_handler(&m_controller_manager)
         , m_network_manager(&m_io_service, PSMOVE_SERVER_PORT, &m_request_handler)
         , m_status()
     {
@@ -110,13 +112,34 @@ private:
             }
         }
 
+        // Setup the request handler
+        if (success)
+        {
+            if (!m_request_handler.startup())
+            {
+                std::cerr << "Failed to initialize the service request handler" << std::endl;
+                success= false;
+            }
+        }
+
+        // Setup the controller manager
+        if (success)
+        {
+            if (!m_controller_manager.startup())
+            {
+                std::cerr << "Failed to initialize the controller manager" << std::endl;
+                success= false;
+            }
+        }
+
         return success;
     }
 
     void update()
     {
-        //###bwalker $TODO This is here temporarily to pump UDP controller updates to the client
-        m_request_handler.update();
+        // Update the list of active tracked controllers
+        // Send controller updates to the client
+        m_controller_manager.update();
 
         // Process incoming/outgoing networking requests
         m_network_manager.update();
@@ -124,6 +147,12 @@ private:
 
     void shutdown()
     {
+        // Disconnect any actively connected controllers
+        m_controller_manager.shutdown();
+
+        // Kill any pending request state
+        m_request_handler.shutdown();
+
         // Close all active network connections
         m_network_manager.shutdown();
     }
@@ -140,6 +169,9 @@ private:
 
     // The signal_set is used to register for process termination notifications.
     boost::asio::signal_set m_signals;
+
+    // Keep track of currently connected PSMove controllers
+    ControllerManager m_controller_manager;
 
     // Generates responses from incoming requests sent to the network manager
     ServerRequestHandler m_request_handler;
