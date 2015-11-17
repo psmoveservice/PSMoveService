@@ -48,7 +48,10 @@ public:
     virtual ~ClientConnection()
     {
         // Socket should have been closed by this point
-        assert(!m_tcp_socket.is_open());
+        if (m_tcp_socket.is_open())
+        {
+            SERVER_LOG_ERROR("~ClientConnection") << "Client connection " << m_connection_id << " deleted without calling stop()";
+        }
     }
 
     static ClientConnectionPtr create(
@@ -92,27 +95,34 @@ public:
 
     void stop()
     {
-        SERVER_LOG_INFO("ClientConnection::stop") << "Stopping client connection id " << m_connection_id;
-
-        if (m_tcp_socket.is_open())
+        if (!m_connection_stopped)
         {
-            m_tcp_socket.shutdown(asio::socket_base::shutdown_both);
+            SERVER_LOG_INFO("ClientConnection::stop") << "Stopping client connection id " << m_connection_id;
 
-            boost::system::error_code error;
-            m_tcp_socket.close(error);
-
-            if (error)
+            if (m_tcp_socket.is_open())
             {
-                SERVER_LOG_ERROR("ClientConnection::stop") << "Problem closing the tcp socket: " << error.value();
+                m_tcp_socket.shutdown(asio::socket_base::shutdown_both);
+
+                boost::system::error_code error;
+                m_tcp_socket.close(error);
+
+                if (error)
+                {
+                    SERVER_LOG_ERROR("ClientConnection::stop") << "Problem closing the tcp socket: " << error.value();
+                }
             }
+
+            m_connection_stopped= true;
+            m_has_pending_tcp_write= false;
+            m_has_pending_udp_write= false;
+
+            // Notify the parent network manager that this connection is going away
+            m_network_event_listener->handle_client_connection_stopped(m_connection_id);
         }
-
-        m_connection_stopped= true;
-        m_has_pending_tcp_write= false;
-        m_has_pending_udp_write= false;
-
-        // Notify the parent network manager that this connection is going away
-        m_network_event_listener->handle_client_connection_stopped(m_connection_id);
+        else
+        {
+            SERVER_LOG_WARNING("ClientConnection::stop") << "Client connection id " << m_connection_id << " already stopped. Ignoring stop request.";
+        }
     }
 
     void bind_udp_remote_endpoint(const udp::endpoint &connecting_remote_endpoint)
@@ -484,7 +494,10 @@ public:
     virtual ~ServerNetworkManagerImpl()
     {
         // All connections should have been closed at this point
-        assert(m_connections.empty());
+        if (!m_connections.empty())
+        {
+            SERVER_LOG_ERROR("~ServerNetworkManagerImpl") << "Network manager deleted while there were unclosed connections!";
+        }
     }
 
     //-- ServerNetworkManagerImpl ----
@@ -839,7 +852,11 @@ ServerNetworkManager::ServerNetworkManager(
 
 ServerNetworkManager::~ServerNetworkManager()
 {
-    assert(m_instance == NULL);
+    if (m_instance != NULL)
+    {
+        SERVER_LOG_ERROR("~ServerNetworkManager()") << "Network Manager deleted without shutdown() getting called first";
+    }
+
     delete implementation_ptr;
 }
 

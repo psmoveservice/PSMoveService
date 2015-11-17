@@ -3,6 +3,7 @@
 #include "ControllerManager.h"
 #include "ServerNetworkManager.h"
 #include "PSMoveProtocol.pb.h"
+#include "ServerLog.h"
 #include <cassert>
 #include <bitset>
 #include <map>
@@ -218,7 +219,11 @@ ServerRequestHandler::ServerRequestHandler(ControllerManager *controllerManager)
 
 ServerRequestHandler::~ServerRequestHandler()
 {
-    assert(m_instance == NULL);
+    if (m_instance != NULL)
+    {
+        SERVER_LOG_ERROR("~ServerRequestHandler") << "Request handler deleted without calling shutdown first!";
+    }
+
     delete m_implementation_ptr;
 }
 
