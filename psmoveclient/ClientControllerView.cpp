@@ -1,6 +1,6 @@
 //-- includes -----
 #include "ClientControllerView.h"
-#include "PSMoveDataFrame.pb.h"
+#include "PSMoveProtocol.pb.h"
 
 //-- pre-declarations -----
 
@@ -47,7 +47,7 @@ void ClientControllerView::Clear()
 }
 
 void ClientControllerView::ApplyControllerDataFrame(
-    const PSMoveDataFrame::ControllerDataFrame *data_frame)
+    const PSMoveProtocol::ControllerDataFrame *data_frame)
 {
     assert(data_frame->psmove_id() == PSMoveID);
 
@@ -69,15 +69,15 @@ void ClientControllerView::ApplyControllerDataFrame(
         this->Pose.Position.z= data_frame->position().z();
 
         unsigned int button_bitmask= data_frame->button_down_bitmask();
-        update_button_state(TriangleButton, button_bitmask, PSMoveDataFrame::ControllerDataFrame_ButtonType_TRIANGLE);
-        update_button_state(CircleButton, button_bitmask, PSMoveDataFrame::ControllerDataFrame_ButtonType_CIRCLE);
-        update_button_state(CrossButton, button_bitmask, PSMoveDataFrame::ControllerDataFrame_ButtonType_CROSS);
-        update_button_state(SquareButton, button_bitmask, PSMoveDataFrame::ControllerDataFrame_ButtonType_SQUARE);
-        update_button_state(SelectButton, button_bitmask, PSMoveDataFrame::ControllerDataFrame_ButtonType_SELECT);
-        update_button_state(StartButton, button_bitmask, PSMoveDataFrame::ControllerDataFrame_ButtonType_START);
-        update_button_state(PSButton, button_bitmask, PSMoveDataFrame::ControllerDataFrame_ButtonType_PS);
-        update_button_state(MoveButton, button_bitmask, PSMoveDataFrame::ControllerDataFrame_ButtonType_MOVE);
-        update_button_state(TriggerButton, button_bitmask, PSMoveDataFrame::ControllerDataFrame_ButtonType_TRIGGER);
+        update_button_state(TriangleButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_TRIANGLE);
+        update_button_state(CircleButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_CIRCLE);
+        update_button_state(CrossButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_CROSS);
+        update_button_state(SquareButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_SQUARE);
+        update_button_state(SelectButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_SELECT);
+        update_button_state(StartButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_START);
+        update_button_state(PSButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_PS);
+        update_button_state(MoveButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_MOVE);
+        update_button_state(TriggerButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_TRIGGER);
 
         this->PreviousTriggerValue= this->TriggerValue;
 

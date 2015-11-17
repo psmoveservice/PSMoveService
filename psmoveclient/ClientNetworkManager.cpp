@@ -2,7 +2,7 @@
 #include "ClientNetworkManager.h"
 #include "ClientLog.h"
 #include "packedmessage.h"
-#include "PSMoveDataFrame.pb.h"
+#include "PSMoveProtocol.pb.h"
 #include <cassert>
 #include <iostream>
 #include <string>
@@ -50,9 +50,9 @@ public:
         , m_has_pending_udp_read(false)
 
         , m_response_read_buffer()
-        , m_packed_response(std::shared_ptr<PSMoveDataFrame::Response>(new PSMoveDataFrame::Response()))
+        , m_packed_response(std::shared_ptr<PSMoveProtocol::Response>(new PSMoveProtocol::Response()))
 
-        , m_packed_data_frame(std::shared_ptr<PSMoveDataFrame::ControllerDataFrame>(new PSMoveDataFrame::ControllerDataFrame()))
+        , m_packed_data_frame(std::shared_ptr<PSMoveProtocol::ControllerDataFrame>(new PSMoveProtocol::ControllerDataFrame()))
     
         , m_write_bufer()
         , m_packed_request()
@@ -218,7 +218,7 @@ private:
 
     void handle_tcp_connection_info_notification(ResponsePtr notification)
     {
-        assert(notification->type() == PSMoveDataFrame::Response_ResponseType_CONNECTION_INFO);
+        assert(notification->type() == PSMoveProtocol::Response_ResponseType_CONNECTION_INFO);
 
         // Remember the connection id
         m_tcp_connection_id= notification->result_connection_info().tcp_connection_id();
@@ -431,7 +431,7 @@ private:
                 CLIENT_LOG_INFO("ClientNetworkManager::handle_tcp_response_received") 
                     << "Received notification type " << response->type() << std::endl;
 
-                if (response->type() == PSMoveDataFrame::Response_ResponseType_CONNECTION_INFO)
+                if (response->type() == PSMoveProtocol::Response_ResponseType_CONNECTION_INFO)
                 {
                     // SPECIAL CASE: ConnectionInfo response sent at
                     handle_tcp_connection_info_notification(response);
@@ -608,13 +608,13 @@ private:
     bool m_has_pending_udp_read;
     
     vector<uint8_t> m_response_read_buffer;
-    PackedMessage<PSMoveDataFrame::Response> m_packed_response;
+    PackedMessage<PSMoveProtocol::Response> m_packed_response;
 
     uint8_t m_data_frame_read_buffer[HEADER_SIZE+MAX_DATA_FRAME_MESSAGE_SIZE];
-    PackedMessage<PSMoveDataFrame::ControllerDataFrame> m_packed_data_frame;
+    PackedMessage<PSMoveProtocol::ControllerDataFrame> m_packed_data_frame;
     
     vector<uint8_t> m_write_bufer;
-    PackedMessage<PSMoveDataFrame::Request> m_packed_request;
+    PackedMessage<PSMoveProtocol::Request> m_packed_request;
 
     IDataFrameListener *m_data_frame_listener;
     INotificationListener *m_notification_listener;

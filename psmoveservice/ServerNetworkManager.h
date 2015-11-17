@@ -2,7 +2,7 @@
 #define SERVER_NETWORK_MANAGER_H
 
 //-- includes -----
-#include "DataFrameInterface.h"
+#include "PSMoveProtocolInterface.h"
 
 //-- pre-declarations -----
 class ServerRequestHandler;

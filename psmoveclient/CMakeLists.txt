@@ -17,9 +17,9 @@ find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS date_time regex system)
 list(APPEND PSMOVE_CLIENT_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND PSMOVE_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
 
-# PSMoveDataFrame
-include_directories(${ROOT_DIR}/psmovedataframe/)
-list(APPEND PSMOVE_CLIENT_REQ_LIBS PSMoveDataFrame)
+# PSMoveProtocol
+include_directories(${ROOT_DIR}/psmoveprotocol/)
+list(APPEND PSMOVE_CLIENT_REQ_LIBS PSMoveProtocol)
 
 # Source files that are needed for the shared library
 file(GLOB PSMOVECLIENT_LIBRARY_SRC

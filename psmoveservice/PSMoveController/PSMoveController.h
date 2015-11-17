@@ -109,5 +109,5 @@ private:
 	unsigned long LedPWMF;
     std::deque<PSMoveState> ControllerStates;
     PSMoveDataInput* InData;                      // Buffer to copy hidapi reports into
-    PSMoveServerDataFrame DataFrame;                      // TODO: Move this to a TrackerAndSensorFusion class
+    PSMoveDataFrame DataFrame;                      // TODO: Move this to a TrackerAndSensorFusion class
 };

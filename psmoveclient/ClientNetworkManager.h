@@ -2,7 +2,7 @@
 #define CLIENT_NETWORK_MANAGER_H
 
 //-- includes ----
-#include "DataFrameInterface.h"
+#include "PSMoveProtocolInterface.h"
 #include "ClientNetworkInterface.h"
 
 //-- definitions ------

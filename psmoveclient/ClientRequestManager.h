@@ -2,7 +2,7 @@
 #define REQUEST_MANAGER_H
 
 //-- includes -----
-#include "DataFrameInterface.h"
+#include "PSMoveProtocolInterface.h"
 #include "ClientPSMoveAPI.h"
 #include <functional>
 

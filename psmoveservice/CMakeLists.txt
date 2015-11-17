@@ -70,8 +70,8 @@ ELSE()
 ENDIF()
 
 # PSMoveDataFrame
-list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/psmovedataframe/)
-list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveDataFrame)
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/psmoveprotocol/)
+list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveProtocol)
 
 # TODO: Camera. See tests
 

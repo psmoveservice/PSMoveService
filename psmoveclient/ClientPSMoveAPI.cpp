@@ -3,7 +3,7 @@
 #include "ClientRequestManager.h"
 #include "ClientNetworkManager.h"
 #include "ClientControllerView.h"
-#include "PSMoveDataFrame.pb.h"
+#include "PSMoveProtocol.pb.h"
 #include <iostream>
 #include <map>
 
@@ -115,8 +115,8 @@ public:
         CLIENT_LOG_INFO("start_controller_data_stream") << "requesting controller stream start for PSMoveID: " << view->GetPSMoveID() << std::endl;
 
         // Tell the psmove service that we are acquiring this controller
-        RequestPtr request(new PSMoveDataFrame::Request());
-        request->set_type(PSMoveDataFrame::Request_RequestType_START_PSMOVE_DATA_STREAM);
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_START_PSMOVE_DATA_STREAM);
         request->mutable_request_start_psmove_data_stream()->set_psmove_id(view->GetPSMoveID());
 
         m_request_manager.send_request(request, callback);
@@ -127,8 +127,8 @@ public:
         CLIENT_LOG_INFO("stop_controller_data_stream") << "requesting controller stream stop for PSMoveID: " << view->GetPSMoveID() << std::endl;
 
         // Tell the psmove service that we are releasing this controller
-        RequestPtr request(new PSMoveDataFrame::Request());
-        request->set_type(PSMoveDataFrame::Request_RequestType_STOP_PSMOVE_DATA_STREAM);
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_STOP_PSMOVE_DATA_STREAM);
         request->mutable_request_stop_psmove_data_stream()->set_psmove_id(view->GetPSMoveID());
 
         m_request_manager.send_request(request, callback);
@@ -142,8 +142,8 @@ public:
 
         // Tell the psmove service to set the rumble controller
         // Internally rumble values are in the range [0, 255]
-        RequestPtr request(new PSMoveDataFrame::Request());
-        request->set_type(PSMoveDataFrame::Request_RequestType_SET_RUMBLE);
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_SET_RUMBLE);
         request->mutable_request_rumble()->set_psmove_id(view->GetPSMoveID());
         request->mutable_request_rumble()->set_rumble(static_cast<int>(rumble_amount * 255.f));
 
@@ -155,8 +155,8 @@ public:
         CLIENT_LOG_INFO("set_controller_rumble") << "requesting pose reset for PSMoveID: " << view->GetPSMoveID() << std::endl;
 
         // Tell the psmove service to set the current orientation of the given controller as the identity pose
-        RequestPtr request(new PSMoveDataFrame::Request());
-        request->set_type(PSMoveDataFrame::Request_RequestType_RESET_POSE);
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_RESET_POSE);
         request->mutable_reset_pose()->set_psmove_id(view->GetPSMoveID());
         
         m_request_manager.send_request(request, callback);

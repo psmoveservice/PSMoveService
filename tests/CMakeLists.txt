@@ -149,6 +149,12 @@ ELSE()
 ENDIF()
 list(APPEND TEST_CTRLR_SRC ${HIDAPI_SRC})
 
+# Boost
+# TODO: Eliminate boost::filesystem with C++14
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS filesystem system)
+list(APPEND TEST_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
+
 # PSMoveController
 # We are not including the PSMoveService target on purpose, because this only tests
 # a small part of the service and should not depend on the whole thing building.
@@ -161,9 +167,9 @@ list(APPEND TEST_CTRLR_SRC
     ${ROOT_DIR}/psmoveservice/PSMoveController/PSMoveController.h
     ${ROOT_DIR}/psmoveservice/PSMoveController/PSMoveController.cpp)
 
-# PSMoveDataFrame
-list(APPEND TEST_CTRLR_INCL_DIRS ${ROOT_DIR}/psmovedataframe)
-list(APPEND TEST_CTRLR_REQ_LIBS PSMoveDataFrame ${Boost_LIBRARIES})
+# psmoveprotocol
+list(APPEND TEST_CTRLR_INCL_DIRS ${ROOT_DIR}/psmoveprotocol)
+list(APPEND TEST_CTRLR_REQ_LIBS PSMoveProtocol)
 
 add_executable(test_controller ${CMAKE_CURRENT_LIST_DIR}/test_controller.cpp ${TEST_CTRLR_SRC})
 target_include_directories(test_controller PUBLIC ${TEST_CTRLR_INCL_DIRS})

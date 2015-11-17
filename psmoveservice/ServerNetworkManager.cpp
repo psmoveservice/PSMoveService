@@ -3,8 +3,8 @@
 #include "ServerRequestHandler.h"
 #include "ServerLog.h"
 #include "packedmessage.h"
-#include "DataFrameInterface.h"
-#include "PSMoveDataFrame.pb.h"
+#include "PSMoveProtocolInterface.h"
+#include "PSMoveProtocol.pb.h"
 #include <cassert>
 #include <iostream>
 #include <string>
@@ -248,13 +248,13 @@ private:
     udp::endpoint m_udp_remote_endpoint;
 
     vector<uint8_t> m_request_read_buffer;
-    PackedMessage<PSMoveDataFrame::Request> m_packed_request;
+    PackedMessage<PSMoveProtocol::Request> m_packed_request;
 
     vector<uint8_t> m_response_write_buffer;
-    PackedMessage<PSMoveDataFrame::Response> m_packed_response;
+    PackedMessage<PSMoveProtocol::Response> m_packed_response;
 
     uint8_t m_dataframe_write_buffer[HEADER_SIZE+MAX_DATA_FRAME_MESSAGE_SIZE];
-    PackedMessage<PSMoveDataFrame::ControllerDataFrame> m_packed_dataframe;
+    PackedMessage<PSMoveProtocol::ControllerDataFrame> m_packed_dataframe;
 
     deque<ResponsePtr> m_pending_responses;
     deque<ControllerDataFramePtr> m_pending_dataframes;
@@ -276,7 +276,7 @@ private:
         , m_udp_socket_ref(udp_socket_ref)
         , m_udp_remote_endpoint()
         , m_request_read_buffer()
-        , m_packed_request(std::shared_ptr<PSMoveDataFrame::Request>(new PSMoveDataFrame::Request()))
+        , m_packed_request(std::shared_ptr<PSMoveProtocol::Request>(new PSMoveProtocol::Request()))
         , m_response_write_buffer()
         , m_packed_response()
         , m_packed_dataframe()
@@ -296,11 +296,11 @@ private:
         SERVER_LOG_INFO("ClientConnection::send_connection_info") 
             << "Sending connection id to client " << m_connection_id;
 
-        ResponsePtr response(new PSMoveDataFrame::Response);
+        ResponsePtr response(new PSMoveProtocol::Response);
 
-        response->set_type(PSMoveDataFrame::Response_ResponseType_CONNECTION_INFO);
+        response->set_type(PSMoveProtocol::Response_ResponseType_CONNECTION_INFO);
         response->set_request_id(-1); // This is a notification (no corresponding request)
-        response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_OK);
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         response->mutable_result_connection_info()->set_tcp_connection_id(m_connection_id);
 
         add_tcp_response_to_write_queue(response);

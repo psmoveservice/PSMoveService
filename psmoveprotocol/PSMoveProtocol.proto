@@ -1,10 +1,10 @@
 //
-// PSMoveDataFrame.proto: protobuf definition file for the protocol
+// PSMoveProtocol.proto: protobuf definition file for the PSMove Service Protocol
 //
 // Brendan Walker (brendan@millerwalker.net)
 //
 syntax = "proto3";
-package PSMoveDataFrame;
+package PSMoveProtocol;
 
 // Reliable (TCP) requests that can issued to the PSMove Service
 message Request {

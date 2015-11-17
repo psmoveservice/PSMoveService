@@ -2,7 +2,7 @@
 #include "ServerRequestHandler.h"
 #include "ControllerManager.h"
 #include "ServerNetworkManager.h"
-#include "PSMoveDataFrame.pb.h"
+#include "PSMoveProtocol.pb.h"
 #include <cassert>
 #include <bitset>
 #include <map>
@@ -54,21 +54,21 @@ public:
         context.connection_state= FindOrCreateConnectionState(connection_id);
 
         // All responses track which request they came from
-        PSMoveDataFrame::Response *response= new PSMoveDataFrame::Response;
+        PSMoveProtocol::Response *response= new PSMoveProtocol::Response;
         response->set_request_id(request->request_id());
 
         switch (request->type())
         {
-            case PSMoveDataFrame::Request_RequestType_START_PSMOVE_DATA_STREAM:
+            case PSMoveProtocol::Request_RequestType_START_PSMOVE_DATA_STREAM:
                 handle_request__start_psmove_data_stream(context, response);
                 break;
-            case PSMoveDataFrame::Request_RequestType_STOP_PSMOVE_DATA_STREAM:
+            case PSMoveProtocol::Request_RequestType_STOP_PSMOVE_DATA_STREAM:
                 handle_request__stop_psmove_data_stream(context, response);
                 break;
-            case PSMoveDataFrame::Request_RequestType_SET_RUMBLE:
+            case PSMoveProtocol::Request_RequestType_SET_RUMBLE:
                 handle_request__set_rumble(context, response);
                 break;
-            case PSMoveDataFrame::Request_RequestType_RESET_POSE:
+            case PSMoveProtocol::Request_RequestType_RESET_POSE:
                 handle_request__reset_pose(context, response);
                 break;
             default:
@@ -132,7 +132,7 @@ protected:
 
     void handle_request__start_psmove_data_stream(
         const RequestContext &context, 
-        PSMoveDataFrame::Response *response)
+        PSMoveProtocol::Response *response)
     {
         size_t psmove_id= static_cast<size_t>(context.request->request_start_psmove_data_stream().psmove_id());
 
@@ -142,17 +142,17 @@ protected:
             // All we have to do is keep track of which connections care about the updates.
             context.connection_state->active_controller_streams.set(psmove_id, true);
 
-            response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_OK);
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else
         {
-            response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_ERROR);
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
 
     void handle_request__stop_psmove_data_stream(
         const RequestContext &context,
-        PSMoveDataFrame::Response *response)
+        PSMoveProtocol::Response *response)
     {
         size_t psmove_id= static_cast<size_t>(context.request->request_start_psmove_data_stream().psmove_id());
 
@@ -160,44 +160,44 @@ protected:
         {
             context.connection_state->active_controller_streams.set(psmove_id, false);
 
-            response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_OK);
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else
         {
-            response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_ERROR);
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
 
     void handle_request__set_rumble(
         const RequestContext &context,
-        PSMoveDataFrame::Response *response)
+        PSMoveProtocol::Response *response)
     {
         const int psmove_id= context.request->request_rumble().psmove_id();
         const int rumble_amount= context.request->request_rumble().rumble();
 
         if (m_controller_manager.setControllerRumble(psmove_id, rumble_amount))
         {
-            response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_OK);
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else
         {
-            response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_ERROR);
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
 
     void handle_request__reset_pose(
         const RequestContext &context, 
-        PSMoveDataFrame::Response *response)
+        PSMoveProtocol::Response *response)
     {
         const int psmove_id= context.request->reset_pose().psmove_id();
 
         if (m_controller_manager.resetPose(psmove_id))
         {
-            response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_OK);
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else
         {
-            response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_ERROR);
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
 

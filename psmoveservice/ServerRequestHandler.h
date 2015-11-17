@@ -2,7 +2,7 @@
 #define SERVER_REQUEST_HANDLER_H
 
 // -- includes -----
-#include "DataFrameInterface.h"
+#include "PSMoveProtocolInterface.h"
 
 // -- pre-declarations -----
 class ControllerManager;

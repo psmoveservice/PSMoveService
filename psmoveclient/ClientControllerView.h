@@ -9,7 +9,7 @@
 struct PSMoveVector3;
 struct PSMoveQuaternion;
 
-namespace PSMoveDataFrame
+namespace PSMoveProtocol
 {
     class ControllerDataFrame;
 };
@@ -81,7 +81,7 @@ public:
     ClientControllerView(int PSMoveID);
 
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveDataFrame::ControllerDataFrame *data_frame);
+    void ApplyControllerDataFrame(const PSMoveProtocol::ControllerDataFrame *data_frame);
 
     // Listener State
     inline void IncListenerCount()

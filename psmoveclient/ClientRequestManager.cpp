@@ -1,8 +1,8 @@
 //-- includes -----
 #include "ClientRequestManager.h"
 #include "ClientNetworkManager.h"
-#include "DataFrameInterface.h"
-#include "PSMoveDataFrame.pb.h"
+#include "PSMoveProtocolInterface.h"
+#include "PSMoveProtocol.pb.h"
 #include <cassert>
 #include <map>
 #include <utility>
@@ -48,11 +48,11 @@ public:
     void handle_request_canceled(RequestPtr request)
     {
         // Create a general canceled result
-        ResponsePtr response(new PSMoveDataFrame::Response);
+        ResponsePtr response(new PSMoveProtocol::Response);
 
-        response->set_type(PSMoveDataFrame::Response_ResponseType_GENERAL_RESULT);
+        response->set_type(PSMoveProtocol::Response_ResponseType_GENERAL_RESULT);
         response->set_request_id(request->request_id());
-        response->set_result_code(PSMoveDataFrame::Response_ResultCode_RESULT_CANCELED);
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_CANCELED);
 
         handle_response(response);
     }
@@ -74,13 +74,13 @@ public:
             // Translate internal result codes into public facing result codes
             switch (response->result_code())
             {
-            case PSMoveDataFrame::Response_ResultCode_RESULT_OK:
+            case PSMoveProtocol::Response_ResultCode_RESULT_OK:
                 result= ClientPSMoveAPI::_clientPSMoveResultCode_ok;
                 break;
-            case PSMoveDataFrame::Response_ResultCode_RESULT_ERROR:
+            case PSMoveProtocol::Response_ResultCode_RESULT_ERROR:
                 result= ClientPSMoveAPI::_clientPSMoveResultCode_error;
                 break;
-            case PSMoveDataFrame::Response_ResultCode_RESULT_CANCELED:
+            case PSMoveProtocol::Response_ResultCode_RESULT_CANCELED:
                 result= ClientPSMoveAPI::_clientPSMoveResultCode_canceled;
                 break;
             default:

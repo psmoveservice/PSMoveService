@@ -1,7 +1,7 @@
 //-- includes -----
 #include "ControllerManager.h"
 #include "ServerRequestHandler.h"
-#include "PSMoveDataFrame.pb.h"
+#include "PSMoveProtocol.pb.h"
 #include "PSMoveController.h"
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 
@@ -56,7 +56,7 @@ protected:
         PSMoveControllerPtr controller)
     {
         //###bwalker $TODO This is a hacky way to simulate controller data frame updates
-        ControllerDataFramePtr data_frame(new PSMoveDataFrame::ControllerDataFrame);
+        ControllerDataFramePtr data_frame(new PSMoveProtocol::ControllerDataFrame);
 
         //data_frame->set_psmove_id(controller->getPSMoveID());
         data_frame->set_psmove_id(0);
