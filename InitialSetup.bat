@@ -43,7 +43,7 @@ MSBuild.exe libusb_2013.sln /p:configuration=RELEASE /p:Platform="Win32" /t:Clea
 popd
 
 :: Generate the project files for PSMoveService
-call RunCMake.bat
+call GenerateProjectFiles.bat
 pause
 goto exit
 
