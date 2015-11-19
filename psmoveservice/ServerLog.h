@@ -25,7 +25,7 @@ extern boost::log::sources::severity_logger< boost::log::trivial::severity_level
 #define SERVER_LOG_FATAL(function_name) BOOST_LOG_SEV(*g_logger, boost::log::trivial::fatal) << function_name << " - "
 
 //-- interface -----
-void log_init(boost::program_options::variables_map *options);
+void log_init(boost::program_options::variables_map *options = nullptr);
 
 #endif  // SERVER_LOG_H
 

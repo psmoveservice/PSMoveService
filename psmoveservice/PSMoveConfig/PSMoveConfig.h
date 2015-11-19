@@ -1,3 +1,6 @@
+#ifndef PSMOVE_CONFIG_H
+#define PSMOVE_CONFIG_H
+
 #include <string>
 #include <boost/property_tree/ptree.hpp>
 
@@ -22,3 +25,4 @@ as well as implement config2ptree and ptree2config that use pt.put() and
 pt.get(), respectively, to convert between member variables and the
 property tree. See tests/test_config.cpp for an example.
 */
+#endif // PSMOVE_CONFIG_H

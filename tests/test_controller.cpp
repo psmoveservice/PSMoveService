@@ -1,6 +1,7 @@
 #include <iostream>
 #include <iomanip>
 #include "PSMoveController.h"
+#include "ServerLog.h"
 
 // For sleep
 #ifdef _WIN32
@@ -11,11 +12,23 @@
 
 int main()
 {
-	std::cout << "Creating new PSMoveController..." << std::endl;
-    PSMoveController psmove;
-	if (psmove.isOpen())
+    log_init();
+
+    if (hid_init() == -1)
+    {
+        std::cerr << "Failed to initialize hidapi" << std::endl;
+        return -1;
+    }
+
+    PSMoveController psmove(0);
+
+	std::cout << "Opening PSMoveController..." << std::endl;
+	if (psmove.open())
 	{
-		PSMoveState psmstate = psmove.getState();
+        PSMoveState psmstate;
+
+        psmove.readDataIn();
+        psmstate = psmove.getState();
 
 		unsigned char r = 255;
 		unsigned char g = 0;
@@ -23,9 +36,11 @@ int main()
         
         psmove.setRumbleIntensity(255);
 
-		while (psmove.IsBluetooth && psmstate.Move == 0)
+		while (psmove.getIsBluetooth() && psmstate.Move != Button_DOWN)
 		{
-			psmstate = psmove.getState();
+            psmove.readDataIn();
+            psmstate = psmove.getState();
+
 			psmove.setRumbleIntensity(psmstate.Trigger);
 
 			r = (r + 23) % 255;
@@ -65,9 +80,12 @@ int main()
 #endif
 		}
         std::cout << std::endl;
+
+        psmove.close();
 	}
     
-
+    // Tear-down hid api
+    hid_exit();
     
     return 0;
 }

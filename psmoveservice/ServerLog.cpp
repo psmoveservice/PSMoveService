@@ -1,5 +1,6 @@
 //-- includes -----
 #include "ServerLog.h"
+#include <boost/locale/generator.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks/text_file_backend.hpp>
 #include <boost/log/utility/setup/console.hpp>
@@ -18,21 +19,28 @@ void log_init(boost::program_options::variables_map *options)
 {
     boost::log::add_common_attributes();
 
+    // The sink will perform character code conversion as needed, according to the locale set with imbue()
+    std::locale loc = boost::locale::generator()("en_US.UTF-8");
+
+    boost::shared_ptr< boost::log::sinks::synchronous_sink< boost::log::sinks::text_ostream_backend > > console_sink = 
     boost::log::add_console_log
     (
         std::cout, boost::log::keywords::format = "[%TimeStamp%]: %Message%"
-    ); 
+    );
+    console_sink->imbue(loc);
 
+    boost::shared_ptr< boost::log::sinks::synchronous_sink< boost::log::sinks::text_file_backend > > file_sink = 
     boost::log::add_file_log
     (
         boost::log::keywords::file_name = "PSMoveService_%N.log",     /*< file name pattern >*/
         boost::log::keywords::rotation_size = 10 * 1024 * 1024,       /*< rotate files every 10 MiB... >*/
         boost::log::keywords::format = "[%TimeStamp%]: %Message%"     /*< log record format >*/
     );
+    file_sink->imbue(loc);
 
     boost::log::trivial::severity_level sev_level= boost::log::trivial::info;
 
-    if (options->count("log_level"))
+    if (options != nullptr && options->count("log_level"))
     {
         std::string log_level= (*options)["log_level"].as<std::string>();
 

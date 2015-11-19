@@ -16,10 +16,10 @@ namespace PSMoveProtocol
 
 //-- constants -----
 enum PSMoveButtonState {
-    PSMoveButton_UP = 0x00,       // Not pressed
-    PSMoveButton_PRESSED = 0x01,  // Down for one frame only
-    PSMoveButton_DOWN = 0x11,     // Down for >1 frame
-    PSMoveButton_RELEASED = 0x10, // Up for one frame only
+    PSMoveButton_UP = 0x00,       // (00b) Not pressed
+    PSMoveButton_PRESSED = 0x01,  // (01b) Down for one frame only
+    PSMoveButton_DOWN = 0x03,     // (11b) Down for >1 frame
+    PSMoveButton_RELEASED = 0x02, // (10b) Up for one frame only
 };
 
 extern const PSMoveVector3 *k_psmove_vector3_zero;

@@ -151,7 +151,7 @@ list(APPEND TEST_CTRLR_SRC ${HIDAPI_SRC})
 
 # Boost
 # TODO: Eliminate boost::filesystem with C++14
-FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS filesystem system)
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS chrono date_time filesystem log log_setup locale program_options system thread)
 list(APPEND TEST_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
 
@@ -159,9 +159,12 @@ list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
 # We are not including the PSMoveService target on purpose, because this only tests
 # a small part of the service and should not depend on the whole thing building.
 list(APPEND TEST_CTRLR_INCL_DIRS
+    ${ROOT_DIR}/psmoveservice/
     ${ROOT_DIR}/psmoveservice/PSMoveConfig
     ${ROOT_DIR}/psmoveservice/PSMoveController)
 list(APPEND TEST_CTRLR_SRC
+    ${ROOT_DIR}/psmoveservice/ServerLog.h
+    ${ROOT_DIR}/psmoveservice/ServerLog.cpp
     ${ROOT_DIR}/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
     ${ROOT_DIR}/psmoveservice/PSMoveController/PSMoveController.h
