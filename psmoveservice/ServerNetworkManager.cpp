@@ -213,7 +213,7 @@ public:
                     {
                         int msg_size= m_packed_dataframe.get_msg()->ByteSize();
 
-                        SERVER_LOG_INFO("ClientConnection::start_udp_write_queued_controller_data_frame") << "Sending UDP DataFrame";
+                        SERVER_LOG_DEBUG("ClientConnection::start_udp_write_queued_controller_data_frame") << "Sending UDP DataFrame";
                         SERVER_LOG_DEBUG("   ") << show_hex(m_dataframe_write_buffer, HEADER_SIZE+msg_size);
                         SERVER_LOG_DEBUG("   ") << msg_size << " bytes";
 

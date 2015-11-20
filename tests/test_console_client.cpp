@@ -1,5 +1,6 @@
 #include "ClientPSMoveAPI.h"
 #include "ClientControllerView.h"
+#include <chrono>
 
 #ifdef __linux
 #include <unistd.h>
@@ -7,6 +8,8 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+
+#define FPS_REPORT_DURATION 500 // ms
 
 class PSMoveConsoleClient
 {
@@ -135,6 +138,13 @@ private:
             }
         }
 
+        if (success)
+        {
+            last_report_fps_timestamp= 
+                std::chrono::duration_cast< std::chrono::milliseconds >( 
+                    std::chrono::system_clock::now().time_since_epoch() );
+        }
+
         return success;
     }
 
@@ -142,6 +152,20 @@ private:
     {
         // Process incoming/outgoing networking requests
         ClientPSMoveAPI::update();
+
+        if (controller_view)
+        {
+            std::chrono::milliseconds now= 
+                std::chrono::duration_cast< std::chrono::milliseconds >( 
+                    std::chrono::system_clock::now().time_since_epoch() );
+            std::chrono::milliseconds diff= now - last_report_fps_timestamp;
+
+            if (diff.count() > FPS_REPORT_DURATION)
+            {
+                std::cout << "PSMoveConsoleClient - DataFrame Update FPS: " << controller_view->GetDataFrameFPS() << "FPS" << std::endl;
+                last_report_fps_timestamp= now;
+            }
+        }
     }
 
     void shutdown()
@@ -160,6 +184,7 @@ private:
 private:
     bool m_keepRunning;
     ClientControllerViewPtr controller_view;
+    std::chrono::milliseconds last_report_fps_timestamp;
 };
 
 int main(int argc, char *argv[])

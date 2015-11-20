@@ -535,7 +535,7 @@ private:
 
         if (!error)
         {
-            CLIENT_LOG_TRACE("ClientNetworkManager::handle_udp_read_data_frame") << "Received DataFrame" << std::endl;
+            CLIENT_LOG_DEBUG("ClientNetworkManager::handle_udp_read_data_frame") << "Received DataFrame" << std::endl;
 
             // Process the data frame now that we have received all of it
             handle_udp_data_frame_received();
@@ -563,7 +563,7 @@ private:
         // No longer is there a pending read
         m_has_pending_udp_read= false;
 
-        CLIENT_LOG_INFO("ClientNetworkManager::handle_udp_data_frame_received") << "Parsing DataFrame" << std::endl;
+        CLIENT_LOG_DEBUG("ClientNetworkManager::handle_udp_data_frame_received") << "Parsing DataFrame" << std::endl;
         unsigned msg_len = m_packed_data_frame.decode_header(m_data_frame_read_buffer, sizeof(m_data_frame_read_buffer));
         unsigned total_len= HEADER_SIZE+msg_len;
         CLIENT_LOG_DEBUG("    ") << show_hex(m_data_frame_read_buffer, total_len) << std::endl;

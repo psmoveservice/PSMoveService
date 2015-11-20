@@ -1,6 +1,7 @@
 //-- includes -----
 #include "ClientControllerView.h"
 #include "PSMoveProtocol.pb.h"
+#include <chrono>
 
 //-- pre-declarations -----
 
@@ -44,12 +45,29 @@ void ClientControllerView::Clear()
 
     PreviousTriggerValue= 0;
     TriggerValue= 0;
+
+    data_frame_last_received_time= 
+        std::chrono::duration_cast< std::chrono::milliseconds >(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+    data_frame_average_fps= 0.f;
 }
 
 void ClientControllerView::ApplyControllerDataFrame(
     const PSMoveProtocol::ControllerDataFrame *data_frame)
 {
     assert(data_frame->psmove_id() == PSMoveID);
+
+    // Compute the data frame receive window statistics if we have received enough samples
+    {
+        long long now = 
+            std::chrono::duration_cast< std::chrono::milliseconds >(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+        float seconds= static_cast<float>(now - data_frame_last_received_time) / 1000.f;
+        float fps= 1.f / seconds;
+
+        data_frame_average_fps= (0.9f)*data_frame_average_fps + (0.1f)*fps;
+        data_frame_last_received_time= now;
+    }
 
     if (data_frame->sequence_num() > this->SequenceNum)
     {

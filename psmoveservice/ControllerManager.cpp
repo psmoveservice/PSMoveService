@@ -8,8 +8,8 @@
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 
 //-- constants -----
-static const int k_default_controller_reconnect_interval= 1000; // 1 seconds
-static const int k_default_controller_poll_interval= 16; // 16ms = 60fps
+static const int k_default_controller_reconnect_interval= 1000; // 1000ms
+static const int k_default_controller_poll_interval= 2; // 2ms
 
 //-- typedefs -----
 typedef std::shared_ptr<PSMoveController> PSMoveControllerPtr;
@@ -24,8 +24,8 @@ class ControllerManagerConfig : public PSMoveConfig
 public:
     ControllerManagerConfig(const std::string &fnamebase = "ControllerManagerConfig")
         : PSMoveConfig(fnamebase)
-        , controller_poll_interval(16)
-        , controller_reconnect_interval(1000)
+        , controller_poll_interval(k_default_controller_poll_interval)
+        , controller_reconnect_interval(k_default_controller_reconnect_interval)
     {};
 
     const boost::property_tree::ptree
@@ -43,7 +43,7 @@ public:
     ControllerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
     {
         controller_poll_interval = pt.get<int>("controller_poll_interval", k_default_controller_poll_interval);
-        controller_reconnect_interval = pt.get<int>("controller_reconnect_interval", controller_reconnect_interval);
+        controller_reconnect_interval = pt.get<int>("controller_reconnect_interval", k_default_controller_reconnect_interval);
     }
 
     int controller_poll_interval;
@@ -84,6 +84,7 @@ public:
         bool success= true;
 
         m_config = ControllerManagerConfigPtr(new ControllerManagerConfig);
+        m_config->load();
 
         // Initialize HIDAPI
         if (hid_init() == -1)
@@ -97,7 +98,7 @@ public:
 
     void update()
     {        
-        boost::posix_time::ptime now= boost::posix_time::second_clock::local_time();
+        boost::posix_time::ptime now= boost::posix_time::microsec_clock::local_time();
 
         // See if it's time to poll controllers for data
         boost::posix_time::time_duration poll_diff = now - m_last_poll_time;
@@ -122,6 +123,8 @@ public:
 
     void shutdown()
     {
+        m_config->save();
+
         // Close any controllers that were opened
         for (size_t controller_index = 0; controller_index < k_max_psmove_controllers; ++controller_index)
         {
@@ -342,7 +345,7 @@ protected:
         m_sequence_number++;
         
         data_frame->set_isconnected(true);
-        data_frame->set_iscurrentlytracking(true);
+        data_frame->set_iscurrentlytracking(false);
         data_frame->set_istrackingenabled(true);
 
         data_frame->mutable_orientation()->set_w(controller_pose.qw);

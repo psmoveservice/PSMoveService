@@ -77,6 +77,9 @@ private:
     unsigned char CurrentRumble;
     unsigned char RumbleRequest;
 
+    long long data_frame_last_received_time;
+    float data_frame_average_fps;
+
 public:
     ClientControllerView(int PSMoveID);
 
@@ -184,6 +187,12 @@ public:
     inline float GetTriggerValue() const
     {
         return GetIsConnected() ? ((float)TriggerValue / 255.f) : 0.f;
+    }
+    
+    // Statistics
+    inline float GetDataFrameFPS() const
+    {
+        return data_frame_average_fps;
     }
 };
 #endif // CLIENT_CONTROLLER_VIEW_H
