@@ -29,6 +29,7 @@
 
 # Build directories
 build*
+bin*
 
 # Local Scripts
 SetBuildVars.bat

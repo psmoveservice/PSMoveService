@@ -78,3 +78,10 @@ list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveProtocol)
 add_executable(PSMoveService ${PSMOVESERVICE_SRC})
 target_include_directories(PSMoveService PUBLIC ${PSMOVE_SERVICE_INCL_DIRS})
 target_link_libraries(PSMoveService ${PSMOVE_SERVICE_REQ_LIBS})
+
+# Copy the build to the bin folder    
+add_custom_command(TARGET PSMoveService POST_BUILD
+COMMAND ${CMAKE_COMMAND} -E copy_directory  
+    "$<TARGET_FILE_DIR:PSMoveService>" 
+    "${ROOT_DIR}/bin")
+

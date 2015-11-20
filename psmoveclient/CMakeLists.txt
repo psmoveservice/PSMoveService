@@ -32,3 +32,9 @@ target_include_directories(PSMoveClient PUBLIC ${PSMOVE_CLIENT_INCL_DIRS})
 target_link_libraries(PSMoveClient ${PSMOVE_CLIENT_REQ_LIBS})
 set_target_properties(PSMoveClient PROPERTIES
     COMPILE_FLAGS -DBUILDING_SHARED_LIBRARY)
+
+# Copy the build to the bin folder    
+add_custom_command(TARGET PSMoveClient POST_BUILD
+COMMAND ${CMAKE_COMMAND} -E copy_directory  
+    "$<TARGET_FILE_DIR:PSMoveClient>" 
+    "${ROOT_DIR}/bin")
