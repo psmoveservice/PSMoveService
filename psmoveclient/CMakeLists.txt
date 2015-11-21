@@ -33,8 +33,11 @@ target_link_libraries(PSMoveClient ${PSMOVE_CLIENT_REQ_LIBS})
 set_target_properties(PSMoveClient PROPERTIES
     COMPILE_FLAGS -DBUILDING_SHARED_LIBRARY)
 
-# Copy the build to the bin folder    
-add_custom_command(TARGET PSMoveClient POST_BUILD
-COMMAND ${CMAKE_COMMAND} -E copy_directory  
-    "$<TARGET_FILE_DIR:PSMoveClient>" 
-    "${ROOT_DIR}/bin")
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS PSMoveClient
+	RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
+	LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
+	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+ELSE() #Linux/Darwin
+ENDIF()

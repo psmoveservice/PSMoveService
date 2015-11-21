@@ -1,5 +1,4 @@
 //-- includes -----
-//#define BOOST_ALL_DYN_LINK
 #define BOOST_LIB_DIAGNOSTIC
 
 #include "ServerNetworkManager.h"
@@ -14,6 +13,11 @@
 #include <cstdio>
 #include <string>
 #include <signal.h>
+
+// provide setup example for windows service   
+#if defined(BOOST_WINDOWS_API)      
+#include "setup/windows/setup/service_setup.hpp"
+#endif
 
 using namespace boost;
 
@@ -35,9 +39,9 @@ public:
         // Register to handle the signals that indicate when the server should exit.
         m_signals.add(SIGINT);
         m_signals.add(SIGTERM);
-        #if defined(SIGQUIT)
+#if defined(SIGQUIT)
         m_signals.add(SIGQUIT);
-        #endif // defined(SIGQUIT)
+#endif // defined(SIGQUIT)
         m_signals.async_wait(boost::bind(&PSMoveService::handle_termination_signal, this));
     }
 
@@ -54,19 +58,22 @@ public:
 
                 while (m_status->state() != application::status::stoped)
                 {
-                    update();
+                    if (m_status->state() != application::status::paused)
+                    {
+                        update();
+                    }
 
                     boost::this_thread::sleep(boost::posix_time::milliseconds(1));
                 }
             }
             else
             {
-                std::cerr << "Failed to startup the PSMove service" << std::endl;
+                SERVER_LOG_FATAL("PSMoveService") << "Failed to startup the PSMove service";
             }
         }
         catch (std::exception& e) 
         {
-            std::cerr << e.what() << std::endl;
+            SERVER_LOG_FATAL("PSMoveService") << e.what();
         }
 
         // Attempt to shutdown the service
@@ -84,16 +91,34 @@ public:
 
     bool stop(application::context& context)
     {
+        if (m_status->state() != application::status::stoped)
+        {
+            SERVER_LOG_WARNING("PSMoveService") << "Received stop request. Stopping Service.";
+            m_status->state(application::status::stoped);
+        }
+
         return true;
     }
 
     bool pause(application::context& context)
     {
+        if (m_status->state() == application::status::running)
+        {
+            SERVER_LOG_WARNING("PSMoveService") << "Received pause request. Pausing Service.";
+            m_status->state(application::status::paused);
+        }
+
         return true;
     }
 
     bool resume(application::context& context)
     {
+        if (m_status->state() == application::status::paused)
+        {
+            SERVER_LOG_WARNING("PSMoveService") << "Received resume request. Resuming Service.";
+            m_status->state(application::status::running);
+        }
+
         return true;
     }
 
@@ -107,7 +132,7 @@ private:
         {
             if (!m_network_manager.startup())
             {
-                std::cerr << "Failed to initialize the service network manager" << std::endl;
+                SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the service network manager";
                 success= false;
             }
         }
@@ -117,7 +142,7 @@ private:
         {
             if (!m_request_handler.startup())
             {
-                std::cerr << "Failed to initialize the service request handler" << std::endl;
+                SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the service request handler";
                 success= false;
             }
         }
@@ -127,7 +152,7 @@ private:
         {
             if (!m_controller_manager.startup())
             {
-                std::cerr << "Failed to initialize the controller manager" << std::endl;
+                SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the controller manager";
                 success= false;
             }
         }
@@ -159,7 +184,7 @@ private:
 
     void handle_termination_signal()
     {
-        std::cerr << "Received termination signal. Stopping Service." << std::endl;
+        SERVER_LOG_WARNING("PSMoveService") << "Received termination signal. Stopping Service.";
         m_status->state(application::status::stoped);
     }
 
@@ -183,7 +208,96 @@ private:
     std::shared_ptr<application::status> m_status;
 };
 
-//-- Entry program_optionsint ---
+#if defined(BOOST_WINDOWS_API) 
+bool win32_service_management_action(
+    const program_options::variables_map &options_map)
+{
+    HMODULE hModule = GetModuleHandleW(NULL);
+    CHAR path[MAX_PATH];
+    GetModuleFileNameA(hModule, path, MAX_PATH);
+    std::string exe_full_path(path);
+
+    bool exit_program= false;
+
+    // Install the service
+    if (options_map.count("-i")) 
+    {
+        std::string service_options(" -d");
+
+        if (options_map.count("log_level"))
+        {
+            std::string log_level= options_map["log_level"].as<std::string>();
+
+            service_options+= " --log_level ";
+            service_options+= log_level;
+        }
+
+        boost::system::error_code ec;
+        application::example::install_windows_service(
+            application::setup_arg(options_map["name"].as<std::string>()), 
+            application::setup_arg(options_map["display"].as<std::string>()), 
+            application::setup_arg(options_map["description"].as<std::string>()), 
+            application::setup_arg(exe_full_path),
+            application::setup_arg(std::string("")), // username
+            application::setup_arg(std::string("")), // password
+            application::setup_arg(service_options)).install(ec);
+
+        std::cout << ec.message() << std::endl;
+
+        exit_program= true;
+    }
+    // Uninstall the service
+    else if (options_map.count("-u")) 
+    {
+        boost::system::error_code ec;
+        application::example::uninstall_windows_service(
+            application::setup_arg(options_map["name"].as<std::string>()), 
+            application::setup_arg(exe_full_path)).uninstall(ec);
+
+        std::cout << ec.message() << std::endl;
+
+        exit_program= true;
+    }
+    // Check the status of the service
+    else if (options_map.count("-c")) 
+    {
+        boost::system::error_code ec;
+        bool exist =
+            application::example::check_windows_service(
+                application::setup_arg(options_map["name"].as<std::string>())).exist(ec);
+
+        if(ec)
+        {
+            std::cout << ec.message() << std::endl;
+        }
+        else
+        {
+            if(exist)
+            {
+                std::cout 
+                    << "The service " 
+                    << options_map["name"].as<std::string>()
+                    <<  " is installed!" 
+                    << std::endl;
+            }
+            else
+            {
+                std::cout 
+                    << "The service " 
+                    << options_map["name"].as<std::string>()
+                    <<  " is NOT installed!" 
+                    << std::endl;
+            }
+        }
+
+        exit_program= true;
+    }
+
+    return exit_program;
+}
+#endif // defined(BOOST_WINDOWS_API) 
+
+//-- Entry Point ---
 int main(int argc, char *argv[])
 {
     // used to select between std:: and boost:: namespaces
@@ -193,12 +307,25 @@ int main(int argc, char *argv[])
     program_options::variables_map options_map;
     program_options::options_description desc;
 
+    // Extract the executable name
+    std::string exe_name = boost::filesystem::path(argv[0]).stem().string();
+
+    // Define the set of valid command line options
     desc.add_options()
         ("help,h", "Shows help.")
-        (",f", "Run as common application")
+        (",d", "Run as background daemon/service")
         ("log_level,l", program_options::value<std::string>(), "The level of logging to use: trace, debug, info, warning, error, fatal")
+#if defined(BOOST_WINDOWS_API) 
+        (",i", "install service")
+        (",u", "uninstall service")
+        (",c", "check service")
+        ("name", program_options::value<std::string>()->default_value(exe_name), "service name")
+        ("display", program_options::value<std::string>()->default_value("PSMove Service"), "service display name (optional, installation only)")
+        ("description", program_options::value<std::string>()->default_value("Manages PSMove controller and broadcasts state to clients"), "service description (optional, installation only)")
+#endif // defined(BOOST_WINDOWS_API) 
         ;
 
+    // Parse the command line
     try
     {
         program_options::store(program_options::parse_command_line(argc, argv, desc), options_map);
@@ -218,11 +345,20 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    #if defined(BOOST_WINDOWS_API)
+    // On Windows, make a modification to the service installation if requested
+    if (win32_service_management_action(options_map))
+    {
+        // Exit after completing the service management operation
+        return 0;
+    }
+    #endif // defined(BOOST_WINDOWS_API)
+
     // initialize logging system
     log_init(&options_map);
 
+    // Start the service app
     SERVER_LOG_INFO("main") << "Starting PSMoveService";
-
     try
     {
         PSMoveService app;
@@ -257,7 +393,7 @@ int main(int argc, char *argv[])
 
         app_context.insert<application::resume_handler>(
             make_shared<application::resume_handler_default_behaviour>(resume_callback));
-#endif     
+#endif // defined(BOOST_WINDOWS_API) 
 
         // my common/server instantiation
         if (options_map.count("-d"))

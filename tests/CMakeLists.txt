@@ -57,11 +57,14 @@ add_executable(test_config ${CMAKE_CURRENT_LIST_DIR}/test_config.cpp ${TEST_CONF
 target_include_directories(test_config PUBLIC ${TEST_CONFIG_INCL_DIRS})
 target_link_libraries(test_config ${PLATFORM_LIBS} ${TEST_CONFIG_REQ_LIBS})
 
-# Copy the build to the bin folder    
-add_custom_command(TARGET test_config POST_BUILD
-COMMAND ${CMAKE_COMMAND} -E copy_directory  
-    "$<TARGET_FILE_DIR:test_config>" 
-    "${ROOT_DIR}/bin")
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS test_config
+	RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
+	LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
+	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+ELSE() #Linux/Darwin
+ENDIF()
 
 #
 # TEST_CAMERA
@@ -132,11 +135,14 @@ add_executable(test_camera ${CMAKE_CURRENT_LIST_DIR}/test_camera.cpp ${TEST_CAME
 target_include_directories(test_camera PUBLIC ${TEST_CAMERA_INCL_DIRS})
 target_link_libraries(test_camera ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS})
 
-# Copy the build to the bin folder    
-add_custom_command(TARGET test_camera POST_BUILD
-COMMAND ${CMAKE_COMMAND} -E copy_directory  
-    "$<TARGET_FILE_DIR:test_camera>" 
-    "${ROOT_DIR}/bin")
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS test_camera
+	RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
+	LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
+	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+ELSE() #Linux/Darwin
+ENDIF()
 
 #
 # Test Controller
@@ -188,11 +194,14 @@ add_executable(test_controller ${CMAKE_CURRENT_LIST_DIR}/test_controller.cpp ${T
 target_include_directories(test_controller PUBLIC ${TEST_CTRLR_INCL_DIRS})
 target_link_libraries(test_controller ${PLATFORM_LIBS} ${TEST_CTRLR_REQ_LIBS})
 
-# Copy the build to the bin folder    
-add_custom_command(TARGET test_controller POST_BUILD
-COMMAND ${CMAKE_COMMAND} -E copy_directory  
-    "$<TARGET_FILE_DIR:test_controller>" 
-    "${ROOT_DIR}/bin")
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS test_controller
+	RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
+	LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
+	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+ELSE() #Linux/Darwin
+ENDIF()
 
 #
 # TEST_CONSOLE_CLIENT
@@ -201,8 +210,11 @@ add_executable(test_console_client test_console_client.cpp)
 target_include_directories(test_console_client PUBLIC ${ROOT_DIR}/psmoveclient/)
 target_link_libraries(test_console_client PSMoveClient)
 
-# Copy the build to the bin folder    
-add_custom_command(TARGET test_console_client POST_BUILD
-COMMAND ${CMAKE_COMMAND} -E copy_directory  
-    "$<TARGET_FILE_DIR:test_console_client>" 
-    "${ROOT_DIR}/bin")
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS test_console_client
+	RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
+	LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
+	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+ELSE() #Linux/Darwin
+ENDIF()

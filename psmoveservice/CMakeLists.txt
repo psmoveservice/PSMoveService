@@ -46,6 +46,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
 # Boost.Application and type_index are header only (?)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${ROOT_DIR}/thirdparty/Boost.Application/include/
+    ${ROOT_DIR}/thirdparty/Boost.Application/example/
     ${ROOT_DIR}/thirdparty/type_index/include/)
 
 # Protobuf (already found in top-level CMakeLists)
@@ -78,10 +79,13 @@ list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveProtocol)
 add_executable(PSMoveService ${PSMOVESERVICE_SRC})
 target_include_directories(PSMoveService PUBLIC ${PSMOVE_SERVICE_INCL_DIRS})
 target_link_libraries(PSMoveService ${PSMOVE_SERVICE_REQ_LIBS})
+set_target_properties(PSMoveService PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
 
-# Copy the build to the bin folder    
-add_custom_command(TARGET PSMoveService POST_BUILD
-COMMAND ${CMAKE_COMMAND} -E copy_directory  
-    "$<TARGET_FILE_DIR:PSMoveService>" 
-    "${ROOT_DIR}/bin")
-
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS PSMoveService
+	RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
+	LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
+	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+ELSE() #Linux/Darwin
+ENDIF()
