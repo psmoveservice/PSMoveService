@@ -167,7 +167,7 @@ list(APPEND TEST_CTRLR_SRC ${HIDAPI_SRC})
 
 # Boost
 # TODO: Eliminate boost::filesystem with C++14
-FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS chrono date_time filesystem log log_setup locale program_options system thread)
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS chrono date_time filesystem log log_setup program_options system thread)
 list(APPEND TEST_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
 

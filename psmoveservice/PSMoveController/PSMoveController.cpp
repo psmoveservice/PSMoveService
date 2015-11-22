@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <vector>
+#include <cstdlib>
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #endif
@@ -152,6 +153,8 @@ static std::string btAddrUcharToString(const unsigned char* addr_buff);
 static int decodeCalibration(char *data, int offset);
 static int psmove_decode_16bit(char *data, int offset);
 inline enum PSMoveButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
+inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size);
+static bool convert_wcs_to_mbs(const wchar_t *wc_string, char *out_mb_serial, const size_t mb_buffer_size);
 
 // -- public methods
 
@@ -217,9 +220,16 @@ const char *PSMoveDeviceEnumerator::get_path() const
     return (cur_dev != nullptr) ? cur_dev->path : nullptr;
 }
 
-const wchar_t *PSMoveDeviceEnumerator::get_serial_number() const
+bool PSMoveDeviceEnumerator::get_serial_number(char *out_mb_serial, const size_t mb_buffer_size) const
 {
-    return (cur_dev != nullptr) ? cur_dev->serial_number : nullptr;
+    bool success= false;
+
+    if (cur_dev != nullptr)
+    {
+        success= convert_wcs_to_mbs(cur_dev->serial_number, out_mb_serial, mb_buffer_size);
+    }
+
+    return success;
 }
 
 bool PSMoveDeviceEnumerator::is_valid() const
@@ -302,17 +312,19 @@ bool PSMoveController::open(
     }
     else
     {
-        const wchar_t *cur_dev_serial_number= enumerator.get_serial_number();
         const char *cur_dev_path= enumerator.get_path();
+        char cur_dev_serial_number[256];
 
         SERVER_LOG_INFO("PSMoveController::open") << "Opening PSMoveController(" << PSMove_ID << ")";
         SERVER_LOG_INFO("PSMoveController::open") << "  at device path: " << cur_dev_path;
-        if (cur_dev_serial_number != NULL)
+
+        if (enumerator.get_serial_number(cur_dev_serial_number, sizeof(cur_dev_serial_number)))
         {
             SERVER_LOG_INFO("PSMoveController::open") << "  with serial_number: " << cur_dev_serial_number;
         }
         else
         {
+            cur_dev_serial_number[0]= '\0';
             SERVER_LOG_INFO("PSMoveController::open") << "  with NULL serial_number";
         }
 
@@ -340,7 +352,7 @@ bool PSMoveController::open(
         // Using USB
         // cur_dev->path = \\?\hid#vid_054c&pid_03d5&col01#6&7773e57&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
         // cur_dev->serial_number = (NULL)
-        IsBluetooth = !((cur_dev_serial_number == nullptr) || (wcslen(cur_dev_serial_number) == 0));
+        IsBluetooth = !((cur_dev_serial_number == nullptr) || (strlen(cur_dev_serial_number) == 0));
 
         if (getIsOpen())  // Controller was opened and has an index
         {
@@ -429,7 +441,11 @@ PSMoveController::matchesDeviceEnumerator(const PSMoveDeviceEnumerator &enumerat
     const char *enumerator_path= enumerator.get_path();
     const char *dev_path= HIDDetails.Device_path.c_str();
 
+#ifdef _WIN32
+    return _stricmp(dev_path, enumerator_path) == 0;
+#else
     return stricmp(dev_path, enumerator_path) == 0;
+#endif
 }
 
 bool
@@ -487,19 +503,21 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
         }
         else
         {
-            const wchar_t* hidapi_err;
+            char hidapi_err_mbs[256];
+            bool valid_error_mesg= false;
+            
             if (HIDDetails.Handle_addr)
             {
-                hidapi_err = hid_error(HIDDetails.Handle_addr);
+                valid_error_mesg = hid_error_mbs(HIDDetails.Handle_addr, hidapi_err_mbs, sizeof(hidapi_err_mbs));
             }
             else
             {
-                hidapi_err = hid_error(HIDDetails.Handle);
+                valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
             }
 
-            if (hidapi_err)
+            if (valid_error_mesg)
             {
-                SERVER_LOG_ERROR("PSMoveController::getBTAddress") << "HID ERROR: " << hidapi_err;
+                SERVER_LOG_ERROR("PSMoveController::getBTAddress") << "HID ERROR: " << hidapi_err_mbs;
             }
         }
     }
@@ -602,10 +620,14 @@ PSMoveController::readDataIn()
             }
             else if (res < 0)
             {
-                const wchar_t* hidapi_err = hid_error(HIDDetails.Handle);
+                char hidapi_err_mbs[256];
+                bool valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
 
                 // Device no longer in valid state.
-                SERVER_LOG_ERROR("PSMoveController::readDataIn") << "HID ERROR: " << hidapi_err;
+                if (valid_error_mesg)
+                {
+                    SERVER_LOG_ERROR("PSMoveController::readDataIn") << "HID ERROR: " << hidapi_err_mbs;
+                }
                 result= PSMoveController::_ReadDataResultFailure;
 
                 // No more data available. Stop iterating.
@@ -859,4 +881,36 @@ inline enum PSMoveButtonState
 getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask)
 {
     return (enum PSMoveButtonState)((((lastButtons & buttonMask) > 0) << 1) + ((buttons & buttonMask)>0));
+}
+
+inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size)
+{
+    return convert_wcs_to_mbs(hid_error(dev), out_mb_error, mb_buffer_size);
+}
+
+static bool convert_wcs_to_mbs(const wchar_t *wc_string, char *out_mb_serial, const size_t mb_buffer_size)
+{
+    bool success= false;
+
+#ifdef _WIN32
+    size_t countConverted;
+    const wchar_t *wcsIndirectString = wc_string;
+    mbstate_t mbstate;
+
+    success= wcsrtombs_s(
+        &countConverted,
+        out_mb_serial,
+        mb_buffer_size,
+        &wcsIndirectString,
+        _TRUNCATE,
+        &mbstate) == 0;
+#else
+    success= 
+        std::wcstombs(
+            out_mb_serial, 
+            wc_string, 
+            mb_buffer_size) != static_cast<std::size_t>(-1);
+#endif
+
+    return success;
 }

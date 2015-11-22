@@ -100,7 +100,7 @@ public:
             int connection_id= iter->first;
             RequestConnectionStatePtr connection_state= iter->second;
 
-            for (size_t psmove_id= 0; psmove_id < k_max_psmove_controllers; ++psmove_id)
+            for (int psmove_id= 0; psmove_id < k_max_psmove_controllers; ++psmove_id)
             {
                 if (connection_state->active_controller_streams.test(psmove_id))
                 {
@@ -135,7 +135,7 @@ protected:
         const RequestContext &context, 
         PSMoveProtocol::Response *response)
     {
-        size_t psmove_id= static_cast<size_t>(context.request->request_start_psmove_data_stream().psmove_id());
+        int psmove_id= context.request->request_start_psmove_data_stream().psmove_id();
 
         if (psmove_id >= 0 && psmove_id < k_max_psmove_controllers)
         {
@@ -155,7 +155,7 @@ protected:
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        size_t psmove_id= static_cast<size_t>(context.request->request_start_psmove_data_stream().psmove_id());
+        int psmove_id= context.request->request_start_psmove_data_stream().psmove_id();
 
         if (psmove_id >= 0 && psmove_id < k_max_psmove_controllers)
         {

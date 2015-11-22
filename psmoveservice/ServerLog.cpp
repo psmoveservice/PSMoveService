@@ -1,6 +1,5 @@
 //-- includes -----
 #include "ServerLog.h"
-#include <boost/locale/generator.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks/text_file_backend.hpp>
 #include <boost/log/utility/setup/console.hpp>
@@ -9,6 +8,7 @@
 #include <boost/log/sources/record_ostream.hpp>
 #include <boost/program_options.hpp>
 #include <string>
+#include <clocale>
 
 //-- globals -----
 boost::log::sources::severity_logger< boost::log::trivial::severity_level > logger;
@@ -17,17 +17,15 @@ boost::log::sources::severity_logger< boost::log::trivial::severity_level > *g_l
 //-- public implementation -----
 void log_init(boost::program_options::variables_map *options)
 {
-    boost::log::add_common_attributes();
+    std::setlocale(LC_ALL, "en_US.utf8");
 
-    // The sink will perform character code conversion as needed, according to the locale set with imbue()
-    std::locale loc = boost::locale::generator()("en_US.UTF-8");
+    boost::log::add_common_attributes();
 
     boost::shared_ptr< boost::log::sinks::synchronous_sink< boost::log::sinks::text_ostream_backend > > console_sink = 
     boost::log::add_console_log
     (
         std::cout, boost::log::keywords::format = "[%TimeStamp%]: %Message%"
     );
-    console_sink->imbue(loc);
 
     boost::shared_ptr< boost::log::sinks::synchronous_sink< boost::log::sinks::text_file_backend > > file_sink = 
     boost::log::add_file_log
@@ -36,7 +34,6 @@ void log_init(boost::program_options::variables_map *options)
         boost::log::keywords::rotation_size = 10 * 1024 * 1024,       /*< rotate files every 10 MiB... >*/
         boost::log::keywords::format = "[%TimeStamp%]: %Message%"     /*< log record format >*/
     );
-    file_sink->imbue(loc);
 
     boost::log::trivial::severity_level sev_level= boost::log::trivial::info;
 

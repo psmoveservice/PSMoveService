@@ -4,7 +4,7 @@
 //-- includes -----
 
 //-- constants -----
-static const size_t k_max_psmove_controllers= 5;
+static const int k_max_psmove_controllers= 5;
 
 //-- definitions -----
 class ControllerManager 

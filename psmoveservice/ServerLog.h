@@ -26,6 +26,6 @@ extern boost::log::sources::severity_logger< boost::log::trivial::severity_level
 
 //-- interface -----
 void log_init(boost::program_options::variables_map *options = nullptr);
-
+ 
 #endif  // SERVER_LOG_H
 

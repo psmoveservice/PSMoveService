@@ -61,21 +61,20 @@ public:
         , m_last_poll_time()
     {
         // Allocate all of the controllers
-        for (size_t controller_index = 0; controller_index < k_max_psmove_controllers; ++controller_index)
+        for (int psmove_id = 0; psmove_id < k_max_psmove_controllers; ++psmove_id)
         {
-            int psmove_id= static_cast<int>(controller_index);
             PSMoveControllerPtr controller = PSMoveControllerPtr(new PSMoveController(psmove_id));
 
-            m_controllers[controller_index]= controller;
+            m_controllers[psmove_id]= controller;
         }
     }
 
     virtual ~ControllerManagerImpl()
     {
         // Deallocate the controllers
-        for (size_t controller_index = 0; controller_index < k_max_psmove_controllers; ++controller_index)
+        for (int psmove_id = 0; psmove_id < k_max_psmove_controllers; ++psmove_id)
         {
-            m_controllers[controller_index]= PSMoveControllerPtr();
+            m_controllers[psmove_id]= PSMoveControllerPtr();
         }        
     }
 
@@ -126,11 +125,11 @@ public:
         m_config->save();
 
         // Close any controllers that were opened
-        for (size_t controller_index = 0; controller_index < k_max_psmove_controllers; ++controller_index)
+        for (int psmove_id = 0; psmove_id < k_max_psmove_controllers; ++psmove_id)
         {
-            if (m_controllers[controller_index]->getIsOpen())
+            if (m_controllers[psmove_id]->getIsOpen())
             {
-                m_controllers[controller_index]->close();
+                m_controllers[psmove_id]->close();
             }
         }
 
@@ -151,9 +150,9 @@ public:
 protected:
     void poll_open_controllers()
     {
-        for (size_t controller_index = 0; controller_index < k_max_psmove_controllers; ++controller_index)
+        for (int psmove_id = 0; psmove_id < k_max_psmove_controllers; ++psmove_id)
         {
-            PSMoveControllerPtr &controller= m_controllers[controller_index];
+            PSMoveControllerPtr &controller= m_controllers[psmove_id];
 
             if (controller->getIsOpen())
             {
@@ -172,7 +171,7 @@ protected:
                 case PSMoveController::_ReadDataResultFailure:
                     {
                         SERVER_LOG_INFO("ControllerManagerImpl::poll_open_controllers") << 
-                            "Controller psmove_id " << controller_index << " closing due to failed read";
+                            "Controller psmove_id " << psmove_id << " closing due to failed read";
                         controller->close();
                         //###bwalker $TODO - Send notification to the client?
                     }
@@ -191,57 +190,57 @@ protected:
         // See if any controllers shuffled order OR if any new controllers were attached.
         // Migrate open controllers to a new temp list in the order
         // that they appear in the device enumerator.
-        size_t new_controller_index = 0;
+        int new_psmove_id = 0;
         for (PSMoveDeviceEnumerator enumerator; enumerator.is_valid(); enumerator.next())
         {
             // Find controller index for the controller with the matching device path
-            size_t controller_index= find_open_controller_index(enumerator);
+            int psmove_id= find_open_controller_psmove_id(enumerator);
 
             // Existing controller case (Most common)
-            if (controller_index != -1)
+            if (psmove_id != -1)
             {
                 // Fetch the controller from it's existing controller slot
-                PSMoveControllerPtr existingController= m_controllers[controller_index];
+                PSMoveControllerPtr existingController= m_controllers[psmove_id];
 
                 // See if an open controller changed order
-                if (new_controller_index != controller_index)
+                if (new_psmove_id != psmove_id)
                 {
                     // Update the psmove_id on the controller
-                    existingController->setPSMoveID(static_cast<int>(new_controller_index));
+                    existingController->setPSMoveID(static_cast<int>(new_psmove_id));
                     
                     SERVER_LOG_INFO("ControllerManagerImpl::reconnect_controllers") << 
-                        "Controller psmove_id " << controller_index << " moved to psmove_id " << new_controller_index;
+                        "Controller psmove_id " << psmove_id << " moved to psmove_id " << new_psmove_id;
                     //###bwalker $TODO - Send notification to the client?
                 }
 
                 // Move it to the new slot
-                temp_controllers_list[new_controller_index]= existingController;
+                temp_controllers_list[new_psmove_id]= existingController;
 
                 // Remove it from the previous list
-                m_controllers[controller_index]= PSMoveControllerPtr();
+                m_controllers[psmove_id]= PSMoveControllerPtr();
             }
             // New controller connected case
             else
             {
-                size_t controller_index= find_first_closed_controller_index();
+                int psmove_id= find_first_closed_controller_psmove_id();
 
-                if (controller_index != -1)
+                if (psmove_id != -1)
                 {
                     // Fetch the controller from it's existing controller slot
-                    PSMoveControllerPtr existingController= m_controllers[controller_index];
+                    PSMoveControllerPtr existingController= m_controllers[psmove_id];
 
                     // Move it to the new slot
-                    existingController->setPSMoveID(static_cast<int>(new_controller_index));
-                    temp_controllers_list[new_controller_index]= existingController;
+                    existingController->setPSMoveID(static_cast<int>(new_psmove_id));
+                    temp_controllers_list[new_psmove_id]= existingController;
 
                     // Remove it from the previous list
-                    m_controllers[controller_index]= PSMoveControllerPtr();
+                    m_controllers[psmove_id]= PSMoveControllerPtr();
 
                     // Attempt to open the controller
                     if (existingController->open(enumerator))
                     {
                         SERVER_LOG_INFO("ControllerManagerImpl::reconnect_controllers") << 
-                            "Controller psmove_id " << controller_index << " connected";
+                            "Controller psmove_id " << psmove_id << " connected";
                         //###bwalker $TODO - Send notification to the client?
                     }
                 }
@@ -252,15 +251,15 @@ protected:
                 }
             }
 
-            ++new_controller_index;
+            ++new_psmove_id;
         }
 
         // Step 2
         // Close any remaining open controllers not listed in the device enumerator.
         // Copy over any closed controllers to the temp.
-        for (size_t existing_controller_index = 0; existing_controller_index < k_max_psmove_controllers; ++existing_controller_index)
+        for (int existing_psmove_id = 0; existing_psmove_id < k_max_psmove_controllers; ++existing_psmove_id)
         {
-            PSMoveControllerPtr &existingController= m_controllers[existing_controller_index];
+            PSMoveControllerPtr &existingController= m_controllers[existing_psmove_id];
 
             if (existingController)
             {
@@ -271,63 +270,63 @@ protected:
                 if (existingController->getIsOpen())
                 {
                     SERVER_LOG_WARNING("ControllerManagerImpl::reconnect_controllers") << "Closing controller " 
-                        << existing_controller_index << " since it's no longer in the device list.";
+                        << existing_psmove_id << " since it's no longer in the device list.";
                     existingController->close();
                     //###bwalker $TODO - Send notification to the client?
                 }
 
                 // Move it to the new slot
-                existingController->setPSMoveID(static_cast<int>(new_controller_index));
-                temp_controllers_list[new_controller_index]= existingController;
-                ++new_controller_index;
+                existingController->setPSMoveID(static_cast<int>(new_psmove_id));
+                temp_controllers_list[new_psmove_id]= existingController;
+                ++new_psmove_id;
 
                 // Remove it from the previous list
-                m_controllers[existing_controller_index]= PSMoveControllerPtr();
+                m_controllers[existing_psmove_id]= PSMoveControllerPtr();
             }
         }
 
         // Step 3
         // Copy the temp controller list back over top the original list
-        for (size_t controller_index = 0; controller_index < k_max_psmove_controllers; ++controller_index)
+        for (int psmove_id = 0; psmove_id < k_max_psmove_controllers; ++psmove_id)
         {
-            m_controllers[controller_index]= temp_controllers_list[controller_index];
+            m_controllers[psmove_id]= temp_controllers_list[psmove_id];
         }
     }
     
-    size_t find_open_controller_index(const PSMoveDeviceEnumerator &enumerator)
+    int find_open_controller_psmove_id(const PSMoveDeviceEnumerator &enumerator)
     {
-        size_t result_controller_index= -1;
+        int result_psmove_id= -1;
 
-        for (size_t controller_index = 0; controller_index < k_max_psmove_controllers; ++controller_index)
+        for (int psmove_id = 0; psmove_id < k_max_psmove_controllers; ++psmove_id)
         {
-            PSMoveControllerPtr &controller= m_controllers[controller_index];
+            PSMoveControllerPtr &controller= m_controllers[psmove_id];
 
             if (controller && controller->getIsOpen() && controller->matchesDeviceEnumerator(enumerator))
             {
-                result_controller_index= controller_index;
+                result_psmove_id= psmove_id;
                 break;
             }
         }
         
-        return result_controller_index;
+        return result_psmove_id;
     }
 
-    size_t find_first_closed_controller_index()
+    int find_first_closed_controller_psmove_id()
     {
-        size_t result_controller_index= -1;
+        int result_psmove_id= -1;
 
-        for (size_t controller_index = 0; controller_index < k_max_psmove_controllers; ++controller_index)
+        for (int psmove_id = 0; psmove_id < k_max_psmove_controllers; ++psmove_id)
         {
-            PSMoveControllerPtr &controller= m_controllers[controller_index];
+            PSMoveControllerPtr &controller= m_controllers[psmove_id];
 
             if (controller && !controller->getIsOpen())
             {
-                result_controller_index= controller_index;
+                result_psmove_id= psmove_id;
                 break;
             }
         }
         
-        return result_controller_index;
+        return result_psmove_id;
     }
 
     void publish_controller_data_frame(
