@@ -101,14 +101,18 @@ public:
 
             if (m_tcp_socket.is_open())
             {
-                m_tcp_socket.shutdown(asio::socket_base::shutdown_both);
-
                 boost::system::error_code error;
-                m_tcp_socket.close(error);
 
+                m_tcp_socket.shutdown(asio::socket_base::shutdown_both, error);
                 if (error)
                 {
-                    SERVER_LOG_ERROR("ClientConnection::stop") << "Problem closing the tcp socket: " << error.value();
+                    SERVER_LOG_ERROR("ClientConnection::stop") << "Unable to shut down the tcp socket: " << error.value();
+                }
+
+                m_tcp_socket.close(error);
+                if (error)
+                {
+                    SERVER_LOG_ERROR("ClientConnection::stop") << "Unable to close the tcp socket: " << error.value();
                 }
             }
 
