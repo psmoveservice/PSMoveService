@@ -272,6 +272,8 @@ void ClientPSMoveAPI::shutdown()
         ClientPSMoveAPI::m_implementation_ptr->shutdown();
         
         delete ClientPSMoveAPI::m_implementation_ptr;
+        // The above line generates the following warning:
+        // "Delete called on 'class ClientPSMoveAPIImpl' that has virtual functions but non-virtual destructor"
         ClientPSMoveAPI::m_implementation_ptr = NULL;
     }
 }

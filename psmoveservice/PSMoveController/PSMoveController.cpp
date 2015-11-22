@@ -352,7 +352,7 @@ bool PSMoveController::open(
         // Using USB
         // cur_dev->path = \\?\hid#vid_054c&pid_03d5&col01#6&7773e57&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
         // cur_dev->serial_number = (NULL)
-        IsBluetooth = !((cur_dev_serial_number == nullptr) || (strlen(cur_dev_serial_number) == 0));
+        IsBluetooth = !((cur_dev_serial_number == NULL) || (strlen(cur_dev_serial_number) == 0));
 
         if (getIsOpen())  // Controller was opened and has an index
         {
@@ -364,8 +364,7 @@ bool PSMoveController::open(
             // TODO: Copy this over anyway even in Windows. Check getBTAddress
             // comments for handling windows serial_number.
             // Once done, we can remove the ifndef above.
-            std::wstring ws(cur_dev->serial_number);
-            std::string mbs(ws.begin(), ws.end());
+            std::string mbs(cur_dev_serial_number);
             HIDDetails.Bt_addr = mbs;
     #endif
             std::string host;
@@ -444,7 +443,7 @@ PSMoveController::matchesDeviceEnumerator(const PSMoveDeviceEnumerator &enumerat
 #ifdef _WIN32
     return _stricmp(dev_path, enumerator_path) == 0;
 #else
-    return stricmp(dev_path, enumerator_path) == 0;
+    return strcmp(dev_path, enumerator_path) == 0;
 #endif
 }
 

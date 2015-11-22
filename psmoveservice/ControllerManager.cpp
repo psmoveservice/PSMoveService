@@ -29,7 +29,7 @@ public:
     {};
 
     const boost::property_tree::ptree
-    ControllerManagerConfig::config2ptree()
+    config2ptree()
     {
         boost::property_tree::ptree pt;
     
@@ -40,7 +40,7 @@ public:
     }
 
     void
-    ControllerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
+    ptree2config(const boost::property_tree::ptree &pt)
     {
         controller_poll_interval = pt.get<int>("controller_poll_interval", k_default_controller_poll_interval);
         controller_reconnect_interval = pt.get<int>("controller_reconnect_interval", k_default_controller_reconnect_interval);
