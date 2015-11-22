@@ -63,7 +63,7 @@ public:
                         update();
                     }
 
-                    boost::this_thread::sleep(boost::posix_time::milliseconds(1));
+                    boost::this_thread::sleep(boost::posix_time::milliseconds(10));
                 }
             }
             else
