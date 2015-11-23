@@ -483,8 +483,8 @@ class ServerNetworkManagerImpl : public IServerNetworkEventListener
 {
 public:
     ServerNetworkManagerImpl(asio::io_service &io_service, unsigned int port, ServerRequestHandler &requestHandler)
-        : m_io_service(io_service)
-        , m_request_handler_ref(requestHandler)
+        : m_request_handler_ref(requestHandler)
+        , m_io_service(io_service)
         , m_tcp_acceptor(m_io_service, tcp::endpoint(tcp::v4(), port))
         , m_udp_socket(m_io_service, udp::endpoint(udp::v4(), port))
         , m_udp_connecting_remote_endpoint()
