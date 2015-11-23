@@ -47,6 +47,12 @@ public:
     {
     }
 
+    virtual ~ServerRequestHandlerImpl()
+    {
+        // Without this we get a warning for deletion:
+        // "Delete called on 'class ServerRequestHandlerImpl' that has virtual functions but non-virtual destructor"
+    }
+
     ResponsePtr handle_request(int connection_id, RequestPtr request)
     {
         // The context holds everything a handler needs to evaluate a request

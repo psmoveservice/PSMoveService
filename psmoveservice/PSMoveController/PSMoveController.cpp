@@ -224,7 +224,7 @@ bool PSMoveDeviceEnumerator::get_serial_number(char *out_mb_serial, const size_t
 {
     bool success= false;
 
-    if (cur_dev != nullptr)
+    if (cur_dev != nullptr && cur_dev->serial_number != nullptr)
     {
         success= convert_wcs_to_mbs(cur_dev->serial_number, out_mb_serial, mb_buffer_size);
     }
@@ -325,7 +325,7 @@ bool PSMoveController::open(
         else
         {
             cur_dev_serial_number[0]= '\0';
-            SERVER_LOG_INFO("PSMoveController::open") << "  with NULL serial_number";
+            SERVER_LOG_INFO("PSMoveController::open") << "  with EMPTY serial_number";
         }
 
         HIDDetails.Device_path = cur_dev_path;
@@ -351,8 +351,8 @@ bool PSMoveController::open(
         // cur_dev->serial_number = 0006f718cdf3
         // Using USB
         // cur_dev->path = \\?\hid#vid_054c&pid_03d5&col01#6&7773e57&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
-        // cur_dev->serial_number = (NULL)
-        IsBluetooth = !((cur_dev_serial_number == NULL) || (strlen(cur_dev_serial_number) == 0));
+        // cur_dev->serial_number = (null)
+        IsBluetooth = (strlen(cur_dev_serial_number) > 0);
 
         if (getIsOpen())  // Controller was opened and has an index
         {
