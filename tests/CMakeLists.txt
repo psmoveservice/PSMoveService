@@ -218,3 +218,68 @@ install(TARGETS test_console_client
 	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
 ELSE() #Linux/Darwin
 ENDIF()
+
+#
+# TEST_UDP_SERVER
+#
+
+SET(TEST_UDP_SERVER_INCL_DIRS)
+SET(TEST_UDP_SERVER_REQ_LIBS)
+
+# Dependencies
+
+# Boost
+find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS atomic chrono date_time filesystem program_options regex system thread)
+list(APPEND TEST_UDP_SERVER_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND TEST_UDP_SERVER_REQ_LIBS ${Boost_LIBRARIES})
+
+# Boost.Application and type_index are header only (?)
+list(APPEND TEST_UDP_SERVER_INCL_DIRS
+    ${ROOT_DIR}/thirdparty/Boost.Application/include/
+    ${ROOT_DIR}/thirdparty/Boost.Application/example/
+    ${ROOT_DIR}/thirdparty/type_index/include/)
+
+add_executable(test_udp_server ${CMAKE_CURRENT_LIST_DIR}/test_udp_server.cpp)
+target_include_directories(test_udp_server PUBLIC ${TEST_UDP_SERVER_INCL_DIRS})
+target_link_libraries(test_udp_server ${PLATFORM_LIBS} ${TEST_UDP_SERVER_REQ_LIBS})
+
+# Only set the admin privilege escalation on MSVC builds (for service operations)
+IF(MSVC)
+set_target_properties(test_udp_server PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
+ENDIF()
+
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS test_udp_server
+	RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
+	LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
+	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+ELSE() #Linux/Darwin
+ENDIF()
+
+#
+# TEST_UDP_CLIENT
+#
+
+SET(TEST_UDP_CLIENT_INCL_DIRS)
+SET(TEST_UDP_CLIENT_REQ_LIBS)
+
+# Dependencies
+
+# Boost
+find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS date_time regex system)
+list(APPEND TEST_UDP_CLIENT_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND TEST_UDP_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
+
+add_executable(test_udp_client ${CMAKE_CURRENT_LIST_DIR}/test_udp_client.cpp)
+target_include_directories(test_udp_client PUBLIC ${TEST_UDP_CLIENT_INCL_DIRS})
+target_link_libraries(test_udp_client ${PLATFORM_LIBS} ${TEST_UDP_CLIENT_REQ_LIBS})
+
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS test_udp_client
+	RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
+	LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
+	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+ELSE() #Linux/Darwin
+ENDIF()
