@@ -2,9 +2,10 @@
 #include "ClientControllerView.h"
 #include <chrono>
 
-#ifdef __linux
+#if defined(__linux) || defined (__APPLE__)
 #include <unistd.h>
 #endif
+
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -60,7 +61,7 @@ public:
 private:
     void sleep_millisecond(int sleepMs)
     {
-    #ifdef LINUX
+    #if defined(__linux) || defined (__APPLE__)
         usleep(sleepMs * 1000);
     #endif
     #ifdef WINDOWS
@@ -160,7 +161,7 @@ private:
                     std::chrono::system_clock::now().time_since_epoch() );
             std::chrono::milliseconds diff= now - last_report_fps_timestamp;
 
-            if (diff.count() > FPS_REPORT_DURATION)
+            if (diff.count() > FPS_REPORT_DURATION && controller_view->GetDataFrameFPS() > 0)
             {
                 std::cout << "PSMoveConsoleClient - DataFrame Update FPS: " << controller_view->GetDataFrameFPS() << "FPS" << std::endl;
                 last_report_fps_timestamp= now;

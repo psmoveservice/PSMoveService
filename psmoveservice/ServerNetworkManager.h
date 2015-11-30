@@ -36,7 +36,7 @@ public:
 private:
     // Must use the overloaded constructor
     ServerNetworkManager();
-
+    
     // private implementation - same lifetime as the NetworkManager
     class ServerNetworkManagerImpl *implementation_ptr;
 
