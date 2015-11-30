@@ -15,7 +15,8 @@
 #include <fcntl.h>
 
 // provide setup example for windows service   
-#if defined(BOOST_WINDOWS_API)      
+#if defined(BOOST_WINDOWS_API)
+#include <boost/application.hpp>
 #include "setup/windows/setup/service_setup.hpp"
 #endif
 
