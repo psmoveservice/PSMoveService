@@ -247,7 +247,7 @@ private:
         if (!error) 
         {
             CLIENT_LOG_INFO("ClientNetworkManager::handle_udp_write_connection_id") 
-                << "Successfully sent UDP connection id: " << error.message() << std::endl;
+                << "Successfully sent UDP connection id" << std::endl;
 
             // Now wait for the response
             //###bwalker $TODO timeout
@@ -332,7 +332,7 @@ private:
         if (!error) 
         {
             CLIENT_LOG_INFO("ClientNetworkManager::handle_tcp_read_response_header") 
-                << "Received Message Header:" << std::endl;
+                << "Received Message Header" << std::endl;
             CLIENT_LOG_DEBUG("    ") << show_hex(m_response_read_buffer) << std::endl;
             unsigned msg_len = m_packed_response.decode_header(m_response_read_buffer);
             CLIENT_LOG_DEBUG("    ") << msg_len << " bytes" << std::endl;
@@ -386,7 +386,7 @@ private:
         if (!error) 
         {
             CLIENT_LOG_INFO("ClientNetworkManager::handle_tcp_read_response_body") 
-                << "Received Response Body:" << std::endl;
+                << "Received Response Body" << std::endl;
             CLIENT_LOG_DEBUG("    ") << show_hex(m_response_read_buffer) << std::endl;
 
             // Process the response now that we have received all of it

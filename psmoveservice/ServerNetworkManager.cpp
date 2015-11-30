@@ -102,20 +102,20 @@ public:
             if (m_tcp_socket.is_open())
             {
                 boost::system::error_code error;
-
+                
                 m_tcp_socket.shutdown(asio::socket_base::shutdown_both, error);
                 if (error)
                 {
                     SERVER_LOG_ERROR("ClientConnection::stop") << "Unable to shut down the tcp socket: " << error.value();
                 }
-
+                
                 m_tcp_socket.close(error);
                 if (error)
                 {
                     SERVER_LOG_ERROR("ClientConnection::stop") << "Unable to close the tcp socket: " << error.value();
                 }
             }
-
+            
             m_connection_stopped= true;
             m_has_pending_tcp_write= false;
             m_has_pending_udp_write= false;
@@ -505,11 +505,11 @@ public:
     }
 
     //-- ServerNetworkManagerImpl ----
-    void start_tcp_accept()
+    void start_connection_accept()
     {
         SERVER_LOG_DEBUG("ServerNetworkManager::start_tcp_accept") << "Start waiting for a new TCP connection";
-
-        // Create a new connection to handle a client. 
+        
+        // Create a new connection to handle a client.
         // Passing a reference to a request handler to each connection poses no problem 
         // since the server is single-threaded.
         ClientConnectionPtr new_connection = 
@@ -528,6 +528,7 @@ public:
             new_connection->get_tcp_socket(),
             boost::bind(&ServerNetworkManagerImpl::handle_tcp_accept, this, new_connection, asio::placeholders::error));
 
+        
         // Asynchronously wait to accept a new udp clients
         // These should always come after a tcp connection is accepted
         start_udp_receive_connection_id();
@@ -577,14 +578,18 @@ public:
         // Close down the UDP connection
         if (m_udp_socket.is_open())
         {
-            m_udp_socket.shutdown(asio::socket_base::shutdown_both);
-
             boost::system::error_code error;
-            m_udp_socket.close(error);
 
+            m_udp_socket.shutdown(asio::socket_base::shutdown_both, error);
             if (error)
             {
-                SERVER_LOG_ERROR("ServerNetworkManager::close_all_connections") << "Problem closing the tcp socket: " << error.value();
+                SERVER_LOG_ERROR("ServerNetworkManager::close_all_connections") << "Problem shutting down the udp socket: " << error.message();
+            }
+
+            m_udp_socket.close(error);
+            if (error)
+            {
+                SERVER_LOG_ERROR("ServerNetworkManager::close_all_connections") << "Problem closing the udp socket: " << error.message();
             }
         }
 
@@ -676,7 +681,7 @@ private:
     
     // Core i/o functionality for TCP/UDP sockets
     asio::io_service &m_io_service;
-
+    
     // Handles waiting for and accepting new TCP connections
     tcp::acceptor m_tcp_acceptor;
 
@@ -706,7 +711,7 @@ protected:
         if (!error)
         {
             SERVER_LOG_DEBUG("ServerNetworkManager::handle_tcp_accept") << "Accepting a new connection";
-
+            
             // Start the connection
             connection->start();
         }
@@ -720,7 +725,7 @@ protected:
         }
 
         // Accept another client
-        start_tcp_accept();
+        start_connection_accept();
     }
 
     void start_udp_receive_connection_id()
@@ -766,12 +771,22 @@ protected:
 
                 // Tell the client that this was an invalid connection id
                 start_udp_send_connection_result(false);
+                
+                // Retry:
+                // Asynchronously wait to accept a new udp clients
+                // These should always come after a tcp connection is accepted
+                start_udp_receive_connection_id();
             }
         }
         else
         {
             SERVER_LOG_ERROR("ServerNetworkManager::handle_udp_read_connection_id") 
                 << "Failed to receive UDP connection id: "<< error.message();
+            
+            // Retry:
+            // Asynchronously wait to accept a new udp clients
+            // These should always come after a tcp connection is accepted
+            start_udp_receive_connection_id();
         }
     }
 
@@ -847,8 +862,8 @@ protected:
 ServerNetworkManager *ServerNetworkManager::m_instance = NULL;
 
 ServerNetworkManager::ServerNetworkManager(
-    boost::asio::io_service *io_service, 
-    unsigned port, 
+    boost::asio::io_service *io_service,
+    unsigned port,
     ServerRequestHandler *requestHandler)
     : implementation_ptr(new ServerNetworkManagerImpl(*io_service, port, *requestHandler))
 {
@@ -861,13 +876,19 @@ ServerNetworkManager::~ServerNetworkManager()
         SERVER_LOG_ERROR("~ServerNetworkManager()") << "Network Manager deleted without shutdown() getting called first";
     }
 
-    delete implementation_ptr;
+    if (implementation_ptr != nullptr)
+    {
+        delete implementation_ptr;
+        implementation_ptr= nullptr;
+    }
 }
 
 bool ServerNetworkManager::startup()
 {
+    
     m_instance= this;
-    implementation_ptr->start_tcp_accept();
+    
+    implementation_ptr->start_connection_accept();
 
     return true;
 }
@@ -879,7 +900,9 @@ void ServerNetworkManager::update()
 
 void ServerNetworkManager::shutdown()
 {
+    
     implementation_ptr->close_all_connections();
+    
     m_instance= NULL;
 }
 

@@ -3,7 +3,7 @@
 #include <iostream>
 #include <chrono>
 
-#ifdef __linux
+#if defined(__linux) || defined (__APPLE__)
 #include <unistd.h>
 #endif
 #ifdef _WIN32
@@ -16,11 +16,10 @@ bool g_keep_running= true;
 bool g_has_pending_udp_read= false;
 boost::array<char, 128> g_recv_buf;
 boost::asio::ip::udp::endpoint g_sender_endpoint;
-std::chrono::milliseconds g_last_recv_timestamp;
 
 void sleep_millisecond(int sleepMs)
 {
-#ifdef LINUX
+#if defined(__linux) || defined (__APPLE__)
     usleep(sleepMs * 1000);
 #endif
 #ifdef WINDOWS
@@ -41,9 +40,6 @@ void handle_udp_receive(
     std::size_t bytes_transferred)
 {
     g_has_pending_udp_read= false;
-    g_last_recv_timestamp= 
-        std::chrono::duration_cast< std::chrono::milliseconds >( 
-            std::chrono::system_clock::now().time_since_epoch() );
 
     if (!error) 
     {
@@ -84,18 +80,9 @@ int main(int argc, char* argv[])
         boost::asio::ip::udp::socket socket(io_service);
         socket.open(boost::asio::ip::udp::v4());
 
-        g_last_recv_timestamp=
-            std::chrono::duration_cast< std::chrono::milliseconds >( 
-                std::chrono::system_clock::now().time_since_epoch() );
-
         while (g_keep_running)
         {
-            std::chrono::milliseconds now= 
-                std::chrono::duration_cast< std::chrono::milliseconds >( 
-                    std::chrono::system_clock::now().time_since_epoch() );
-            std::chrono::milliseconds diff= now - g_last_recv_timestamp;
-
-            if (!g_has_pending_udp_read && diff.count() > REQUEST_INTERVAL)
+            if (!g_has_pending_udp_read)
             {
                 g_has_pending_udp_read= true;
 

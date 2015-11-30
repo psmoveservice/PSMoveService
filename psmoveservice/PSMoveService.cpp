@@ -17,11 +17,16 @@
 // provide setup example for windows service   
 #if defined(BOOST_WINDOWS_API)      
 #include "setup/windows/setup/service_setup.hpp"
-#endif
+#endif // defined(BOOST_WINDOWS_API)
 
 using namespace boost;
 
 //-- constants -----
+#if defined(BOOST_POSIX_API)
+#define DAEMON_RUNNING_DIR	"/tmp"
+#define DAEMON_LOCK_FILE	"psmoveserviced.lock"
+#endif // defined(BOOST_POSIX_API)
+
 const int PSMOVE_SERVER_PORT = 9512;
 
 //-- definitions -----
@@ -73,7 +78,7 @@ public:
         }
         catch (std::exception& e) 
         {
-            SERVER_LOG_FATAL("PSMoveService") << e.what();
+            SERVER_LOG_FATAL("EXCEPTION - PSMoveService") << e.what();
         }
 
         // Attempt to shutdown the service
@@ -88,7 +93,7 @@ public:
 
         return 0;
     }
-
+    
     bool stop(application::context& context)
     {
         if (m_status->state() != application::status::stoped)
@@ -184,6 +189,7 @@ private:
 
     void handle_termination_signal()
     {
+        // flag the service as stopped
         SERVER_LOG_WARNING("PSMoveService") << "Received termination signal. Stopping Service.";
         m_status->state(application::status::stoped);
     }
@@ -191,7 +197,7 @@ private:
 private:   
     // The io_service used to perform asynchronous operations.
     boost::asio::io_service m_io_service;
-
+       
     // The signal_set is used to register for process termination notifications.
     boost::asio::signal_set m_signals;
 
@@ -295,7 +301,86 @@ bool win32_service_management_action(
 
     return exit_program;
 }
-#endif // defined(BOOST_WINDOWS_API) 
+#endif // defined(BOOST_WINDOWS_API)
+
+#if defined(BOOST_POSIX_API)
+void daemonize()
+{
+    // already a daemon
+    if(getppid()==1)
+    {
+        return;
+    }
+    
+    // Fork off a child process
+    {
+        int result_pid = fork();
+        
+        if (result_pid < 0)
+        {
+            std::cerr << "Error forking child daemon process" << std::endl;
+            exit(1); /* fork error */
+        }
+        
+        if (result_pid > 0)
+        {
+            std::cout << "Successfully forked child daemon process. Exiting parent." << std::endl;
+            exit(0); /* parent exits */
+        }
+    }
+    
+    // child (daemon) continues
+    
+    // obtain a new process group
+    setsid();
+    
+    // close all file descriptors
+    for (int fd_index=getdtablesize(); fd_index>=0; --fd_index)
+    {
+        close(fd_index);
+    }
+    
+    // alias cout and cerr to /dev/null
+    int fd_dev_null = open("/dev/null",O_RDWR);
+    dup(fd_dev_null);
+    dup(fd_dev_null);
+    
+    // set newly created file permissions
+    umask(027);
+    
+    // change running directory
+    chdir(DAEMON_RUNNING_DIR);
+    
+    // Create the lock file
+    {
+        int lock_fp = open(DAEMON_LOCK_FILE, O_RDWR|O_CREAT, 0640);
+        
+        // can not open
+        if (lock_fp < 0)
+        {
+            exit(1);
+        }
+        
+        // can not lock
+        if (lockf(lock_fp, F_TLOCK, 0) < 0)
+        {
+            exit(0);
+        }
+        
+        // first instance continues
+        char str[10];
+        sprintf(str,"%d\n",getpid());
+        
+        // record pid to lockfile
+        write(lock_fp, str, strlen(str));
+    }
+    
+    signal(SIGCHLD,SIG_IGN); // ignore child
+    signal(SIGTSTP,SIG_IGN); // ignore tty signals
+    signal(SIGTTOU,SIG_IGN);
+    signal(SIGTTIN,SIG_IGN);
+}
+#endif // defined(BOOST_POSIX_API)
 
 //-- Entry Point ---
 int main(int argc, char *argv[])
@@ -353,6 +438,13 @@ int main(int argc, char *argv[])
         return 0;
     }
     #endif // defined(BOOST_WINDOWS_API)
+    
+    #if defined(BOOST_POSIX_API)
+    if (options_map.count("-d"))
+    {
+        daemonize();
+    }
+    #endif // defined(BOOST_POSIX_API)
 
     // initialize logging system
     log_init(&options_map);
@@ -396,11 +488,13 @@ int main(int argc, char *argv[])
 #endif // defined(BOOST_WINDOWS_API) 
 
         // my common/server instantiation
+#if defined(BOOST_WINDOWS_API)
         if (options_map.count("-d"))
         {
             return application::launch<application::server>(app, app_context);
         }
         else
+#endif // defined(BOOST_WINDOWS_API)
         {
             return application::launch<application::common>(app, app_context);
         }

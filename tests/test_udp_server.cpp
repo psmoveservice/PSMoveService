@@ -2,12 +2,17 @@
 #define BOOST_LIB_DIAGNOSTIC
 
 #include <boost/asio.hpp>
-#include <boost/application.hpp>
 #include <boost/program_options.hpp>
+#include <boost/bind.hpp>
+#include <boost/thread.hpp>
+#include <boost/filesystem.hpp>
 #include <fstream>
+#include <iostream>
 #include <cstdio>
 #include <string>
 #include <signal.h>
+#include <stdio.h>
+#include <fcntl.h>
 
 // provide setup example for windows service   
 #if defined(BOOST_WINDOWS_API)      
@@ -18,7 +23,17 @@ using namespace boost;
 using namespace boost::asio::ip;
 
 //-- constants -----
+#define RUNNING_DIR	"/tmp"
+#define LOCK_FILE	"testudpdaytimed.lock"
+
 const int DAYTIME_SERVER_PORT = 9512;
+
+enum e_app_status
+{
+    stopped,
+    paused,
+    running
+};
 
 //-- definitions -----
 std::string make_daytime_string()
@@ -36,7 +51,7 @@ public:
         , m_udp_socket(m_io_service, udp::endpoint(udp::v4(), DAYTIME_SERVER_PORT))
         , m_remote_endpoint()
         , m_signals(m_io_service)
-        , m_status()
+        , m_status(stopped)
     {
         // Register to handle the signals that indicate when the server should exit.
         m_signals.add(SIGINT);
@@ -47,20 +62,17 @@ public:
         m_signals.async_wait(boost::bind(&DaytimeUDPServer::handle_termination_signal, this));
     }
 
-    int operator()(application::context& context)
+    //int operator()(application::context& context)
+    int run()
     {
-        BOOST_APPLICATION_FEATURE_SELECT
-
         // Attempt to start and run the service
         try 
         {
             if (startup())
             {
-                m_status = context.find<application::status>();
-
-                while (m_status->state() != application::status::stoped)
+                while (m_status != stopped)
                 {
-                    if (m_status->state() != application::status::paused)
+                    if (m_status != paused)
                     {
                         update();
                     }
@@ -91,34 +103,34 @@ public:
         return 0;
     }
 
-    bool stop(application::context& context)
+    bool stop()
     {
-        if (m_status->state() != application::status::stoped)
+        if (m_status != stopped)
         {
             std::cout << "Received stop request. Stopping Service." << std::endl;
-            m_status->state(application::status::stoped);
+            m_status= stopped;
         }
 
         return true;
     }
 
-    bool pause(application::context& context)
+    bool pause()
     {
-        if (m_status->state() == application::status::running)
+        if (m_status == running)
         {
             std::cout << "Received pause request. Pausing Service." << std::endl;
-            m_status->state(application::status::paused);
+            m_status= paused;
         }
 
         return true;
     }
 
-    bool resume(application::context& context)
+    bool resume()
     {
-        if (m_status->state() == application::status::paused)
+        if (m_status == paused)
         {
             std::cout << "Received resume request. Resuming Service." << std::endl;
-            m_status->state(application::status::running);
+            m_status= running;
         }
 
         return true;
@@ -129,6 +141,7 @@ private:
     {
         bool success= true;
 
+        m_status= running;
         start_receive();
 
         return success;
@@ -158,7 +171,7 @@ private:
     void handle_termination_signal()
     {
         std::cout << "Received termination signal. Stopping Service." << std::endl;
-        m_status->state(application::status::stoped);    
+        m_status= stopped;
     }
 
     void start_receive()
@@ -214,10 +227,10 @@ private:
     boost::asio::signal_set m_signals;
 
     // Whether the application should keep running or not
-    std::shared_ptr<application::status> m_status;
+    e_app_status m_status;
 };
 
-#if defined(BOOST_WINDOWS_API) 
+#if defined(BOOST_WINDOWS_API)
 bool win32_service_management_action(
     const program_options::variables_map &options_map)
 {
@@ -296,14 +309,90 @@ bool win32_service_management_action(
 
     return exit_program;
 }
-#endif // defined(BOOST_WINDOWS_API) 
+#endif // BOOST_WINDOWS_API
+
+#if defined(BOOST_POSIX_API)
+void daemonize()
+{
+    // already a daemon
+    if(getppid()==1)
+    {
+        return;
+    }
+    
+    // Fork off a child process
+    {
+        int result_pid = fork();
+        
+        if (result_pid < 0)
+        {
+            std::cerr << "Error forking child daemon process" << std::endl;
+            exit(1); /* fork error */
+        }
+        
+        if (result_pid > 0)
+        {
+            std::cout << "Successfully forked child daemon process. Exiting parent." << std::endl;
+            exit(0); /* parent exits */
+        }
+    }
+    
+    // child (daemon) continues
+    
+    // obtain a new process group
+    setsid();
+    
+    // close all file descriptors
+    for (int fd_index=getdtablesize(); fd_index>=0; --fd_index)
+    {
+        close(fd_index);
+    }
+    
+    // alias cout and cerr to /dev/null
+    int fd_dev_null = open("/dev/null",O_RDWR);
+    dup(fd_dev_null);
+    dup(fd_dev_null);
+    
+    // set newly created file permissions
+    umask(027);
+    
+    // change running directory
+    chdir(RUNNING_DIR);
+    
+    // Create the lock file
+    {
+        int lock_fp = open(LOCK_FILE, O_RDWR|O_CREAT, 0640);
+        
+        // can not open
+        if (lock_fp < 0)
+        {
+            exit(1);
+        }
+        
+        // can not lock
+        if (lockf(lock_fp, F_TLOCK, 0) < 0)
+        {
+            exit(0);
+        }
+        
+        // first instance continues
+        char str[10];
+        sprintf(str,"%d\n",getpid());
+        
+        // record pid to lockfile
+        write(lock_fp, str, strlen(str));
+    }
+    
+    signal(SIGCHLD,SIG_IGN); // ignore child
+    signal(SIGTSTP,SIG_IGN); // ignore tty signals
+    signal(SIGTTOU,SIG_IGN);
+    signal(SIGTTIN,SIG_IGN);
+}
+#endif // defined(BOOST_POSIX_API)
 
 //-- Entry Point ---
 int main(int argc, char *argv[])
 {
-    // used to select between std:: and boost:: namespaces
-    BOOST_APPLICATION_FEATURE_SELECT
-
     // Parse service options
     program_options::variables_map options_map;
     program_options::options_description desc;
@@ -353,54 +442,22 @@ int main(int argc, char *argv[])
         return 0;
     }
     #endif // defined(BOOST_WINDOWS_API)
+    
+    #if defined(BOOST_POSIX_API)
+    if (options_map.count("-d"))
+    {
+        daemonize();
+    }
+    #endif // defined(BOOST_POSIX_API)
 
     // Start the service app
     std::cout << "Starting UDP Daytime Service" << std::endl;
     try
     {
         DaytimeUDPServer app;
-        application::context app_context;
-
-        // service aspects
-        app_context.insert<application::path>(
-            make_shared<application::path_default_behaviour>(argc, argv));
-
-        app_context.insert<application::args>(
-            make_shared<application::args>(argc, argv));
-
-        // add termination handler
-        application::handler<>::parameter_callback termination_callback
-            = boost::bind<bool>(&DaytimeUDPServer::stop, &app, _1);
-
-        app_context.insert<application::termination_handler>(
-            make_shared<application::termination_handler_default_behaviour>(termination_callback));
-
-        // To  "pause/resume" works, is required to add the 2 handlers.
-#if defined(BOOST_WINDOWS_API) 
-        // windows only : add pause handler     
-        application::handler<>::parameter_callback pause_callback
-            = boost::bind<bool>(&DaytimeUDPServer::pause, &app, _1);
-
-        app_context.insert<application::pause_handler>(
-            make_shared<application::pause_handler_default_behaviour>(pause_callback));
-
-        // windows only : add resume handler
-        application::handler<>::parameter_callback resume_callback
-            = boost::bind<bool>(&DaytimeUDPServer::resume, &app, _1);
-
-        app_context.insert<application::resume_handler>(
-            make_shared<application::resume_handler_default_behaviour>(resume_callback));
-#endif // defined(BOOST_WINDOWS_API) 
 
         // my common/server instantiation
-        if (options_map.count("-d"))
-        {
-            return application::launch<application::server>(app, app_context);
-        }
-        else
-        {
-            return application::launch<application::common>(app, app_context);
-        }
+        return app.run();
     }
     catch (boost::system::system_error& se)
     {
