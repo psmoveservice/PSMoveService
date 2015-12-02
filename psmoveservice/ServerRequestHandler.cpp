@@ -17,7 +17,7 @@ typedef boost::shared_ptr<ServerRequestHandlerImpl> ServerRequestHandlerImplPtr;
 struct RequestConnectionState
 {
     int connection_id;
-    std::bitset<k_max_psmove_controllers> active_controller_streams;
+    std::bitset<k_max_controllers> active_controller_streams;
 
     RequestConnectionState()
         : connection_id(-1)
@@ -66,11 +66,11 @@ public:
 
         switch (request->type())
         {
-            case PSMoveProtocol::Request_RequestType_START_PSMOVE_DATA_STREAM:
-                handle_request__start_psmove_data_stream(context, response);
+            case PSMoveProtocol::Request_RequestType_START_CONTROLLER_DATA_STREAM:
+                handle_request__start_controller_data_stream(context, response);
                 break;
-            case PSMoveProtocol::Request_RequestType_STOP_PSMOVE_DATA_STREAM:
-                handle_request__stop_psmove_data_stream(context, response);
+            case PSMoveProtocol::Request_RequestType_STOP_CONTROLLER_DATA_STREAM:
+                handle_request__stop_controller_data_stream(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_SET_RUMBLE:
                 handle_request__set_rumble(context, response);
@@ -98,7 +98,7 @@ public:
 
     void publish_controller_data_frame(ControllerDataFramePtr data_frame)
     {
-        int psmove_id= data_frame->psmove_id();
+        int controller_id= data_frame->controller_id();
 
         // Notify any connections that care about the controller update
         for (t_connection_state_iter iter= m_connection_state_map.begin(); iter != m_connection_state_map.end(); ++iter)
@@ -106,12 +106,9 @@ public:
             int connection_id= iter->first;
             RequestConnectionStatePtr connection_state= iter->second;
 
-            for (int psmove_id= 0; psmove_id < k_max_psmove_controllers; ++psmove_id)
+            if (connection_state->active_controller_streams.test(controller_id))
             {
-                if (connection_state->active_controller_streams.test(psmove_id))
-                {
-                    ServerNetworkManager::get_instance()->send_controller_data_frame(connection_id, data_frame);
-                }
+                ServerNetworkManager::get_instance()->send_controller_data_frame(connection_id, data_frame);
             }
         }
     }
@@ -137,17 +134,17 @@ protected:
         return connection_state;
     }
 
-    void handle_request__start_psmove_data_stream(
+    void handle_request__start_controller_data_stream(
         const RequestContext &context, 
         PSMoveProtocol::Response *response)
     {
-        int psmove_id= context.request->request_start_psmove_data_stream().psmove_id();
+        int controller_id= context.request->request_start_psmove_data_stream().controller_id();
 
-        if (psmove_id >= 0 && psmove_id < k_max_psmove_controllers)
+        if (controller_id >= 0 && controller_id < k_max_controllers)
         {
             // The controller manager will always publish updates regardless of who is listening.
             // All we have to do is keep track of which connections care about the updates.
-            context.connection_state->active_controller_streams.set(psmove_id, true);
+            context.connection_state->active_controller_streams.set(controller_id, true);
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -157,15 +154,15 @@ protected:
         }
     }
 
-    void handle_request__stop_psmove_data_stream(
+    void handle_request__stop_controller_data_stream(
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        int psmove_id= context.request->request_start_psmove_data_stream().psmove_id();
+        int controller_id= context.request->request_start_psmove_data_stream().controller_id();
 
-        if (psmove_id >= 0 && psmove_id < k_max_psmove_controllers)
+        if (controller_id >= 0 && controller_id < k_max_controllers)
         {
-            context.connection_state->active_controller_streams.set(psmove_id, false);
+            context.connection_state->active_controller_streams.set(controller_id, false);
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -179,10 +176,10 @@ protected:
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        const int psmove_id= context.request->request_rumble().psmove_id();
+        const int controller_id= context.request->request_rumble().controller_id();
         const int rumble_amount= context.request->request_rumble().rumble();
 
-        if (m_controller_manager.setControllerRumble(psmove_id, rumble_amount))
+        if (m_controller_manager.setControllerRumble(controller_id, rumble_amount))
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -196,9 +193,9 @@ protected:
         const RequestContext &context, 
         PSMoveProtocol::Response *response)
     {
-        const int psmove_id= context.request->reset_pose().psmove_id();
+        const int controller_id= context.request->reset_pose().controller_id();
 
-        if (m_controller_manager.resetPose(psmove_id))
+        if (m_controller_manager.resetPose(controller_id))
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }

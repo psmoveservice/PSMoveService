@@ -103,7 +103,7 @@ public:
 
     void free_controller_view(ClientControllerViewPtr view)
     {
-        t_controller_view_map_iterator view_entry= m_controller_view_map.find(view->GetPSMoveID());
+        t_controller_view_map_iterator view_entry= m_controller_view_map.find(view->GetControllerID());
         assert(view_entry != m_controller_view_map.end());
 
         // Decrease the number of listeners to this view
@@ -118,39 +118,39 @@ public:
 
     void start_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
     {
-        CLIENT_LOG_INFO("start_controller_data_stream") << "requesting controller stream start for PSMoveID: " << view->GetPSMoveID() << std::endl;
+        CLIENT_LOG_INFO("start_controller_data_stream") << "requesting controller stream start for PSMoveID: " << view->GetControllerID() << std::endl;
 
         // Tell the psmove service that we are acquiring this controller
         RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_START_PSMOVE_DATA_STREAM);
-        request->mutable_request_start_psmove_data_stream()->set_psmove_id(view->GetPSMoveID());
+        request->set_type(PSMoveProtocol::Request_RequestType_START_CONTROLLER_DATA_STREAM);
+        request->mutable_request_start_psmove_data_stream()->set_controller_id(view->GetControllerID());
 
         m_request_manager.send_request(request, callback);
     }
 
     void stop_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
     {
-        CLIENT_LOG_INFO("stop_controller_data_stream") << "requesting controller stream stop for PSMoveID: " << view->GetPSMoveID() << std::endl;
+        CLIENT_LOG_INFO("stop_controller_data_stream") << "requesting controller stream stop for PSMoveID: " << view->GetControllerID() << std::endl;
 
         // Tell the psmove service that we are releasing this controller
         RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_STOP_PSMOVE_DATA_STREAM);
-        request->mutable_request_stop_psmove_data_stream()->set_psmove_id(view->GetPSMoveID());
+        request->set_type(PSMoveProtocol::Request_RequestType_STOP_CONTROLLER_DATA_STREAM);
+        request->mutable_request_stop_psmove_data_stream()->set_controller_id(view->GetControllerID());
 
         m_request_manager.send_request(request, callback);
     }
 
     void set_controller_rumble(ClientControllerViewPtr view, float rumble_amount, ClientPSMoveAPI::response_callback callback)
     {
-        CLIENT_LOG_INFO("set_controller_rumble") << "request set rumble to " << rumble_amount << " for PSMoveID: " << view->GetPSMoveID() << std::endl;
+        CLIENT_LOG_INFO("set_controller_rumble") << "request set rumble to " << rumble_amount << " for PSMoveID: " << view->GetControllerID() << std::endl;
 
-        assert(m_controller_view_map.find(view->GetPSMoveID()) != m_controller_view_map.end());
+        assert(m_controller_view_map.find(view->GetControllerID()) != m_controller_view_map.end());
 
         // Tell the psmove service to set the rumble controller
         // Internally rumble values are in the range [0, 255]
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_SET_RUMBLE);
-        request->mutable_request_rumble()->set_psmove_id(view->GetPSMoveID());
+        request->mutable_request_rumble()->set_controller_id(view->GetControllerID());
         request->mutable_request_rumble()->set_rumble(static_cast<int>(rumble_amount * 255.f));
 
         m_request_manager.send_request(request, callback);
@@ -158,12 +158,12 @@ public:
 
     void reset_pose(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
     {
-        CLIENT_LOG_INFO("set_controller_rumble") << "requesting pose reset for PSMoveID: " << view->GetPSMoveID() << std::endl;
+        CLIENT_LOG_INFO("set_controller_rumble") << "requesting pose reset for PSMoveID: " << view->GetControllerID() << std::endl;
 
         // Tell the psmove service to set the current orientation of the given controller as the identity pose
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_RESET_POSE);
-        request->mutable_reset_pose()->set_psmove_id(view->GetPSMoveID());
+        request->mutable_reset_pose()->set_controller_id(view->GetControllerID());
         
         m_request_manager.send_request(request, callback);
     }
@@ -171,9 +171,9 @@ public:
     // IDataFrameListener
     virtual void handle_data_frame(ControllerDataFramePtr data_frame) override
     {
-        CLIENT_LOG_TRACE("handle_data_frame") << "received data frame for PSMoveID: " << data_frame->psmove_id() << std::endl;
+        CLIENT_LOG_TRACE("handle_data_frame") << "received data frame for ControllerID: " << data_frame->controller_id() << std::endl;
 
-        t_controller_view_map_iterator view_entry= m_controller_view_map.find(data_frame->psmove_id());
+        t_controller_view_map_iterator view_entry= m_controller_view_map.find(data_frame->controller_id());
 
         if (view_entry != m_controller_view_map.end())
         {

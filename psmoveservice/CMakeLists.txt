@@ -38,10 +38,13 @@ file(GLOB PSMOVESERVICE_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig/*.h"    
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveController/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveController/*.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.h"
 )
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${ROOT_DIR}/psmoveservice/PSMoveConfig
-    ${ROOT_DIR}/psmoveservice/PSMoveController)
+    ${ROOT_DIR}/psmoveservice/PSMoveController
+    ${ROOT_DIR}/psmoveservice/PSNaviController)
     
 # Boost.Application and type_index are header only (?)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS

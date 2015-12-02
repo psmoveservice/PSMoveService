@@ -1,3 +1,6 @@
+#ifndef PSMOVE_DATA_FRAME_H
+#define PSMOVE_DATA_FRAME_H
+
 /// Position and orientation together.
 typedef struct psmovePosef_
 {
@@ -17,3 +20,5 @@ public:
     // TODO: Button states
     double timeInSeconds;
 };
+
+#endif // PSMOVE_DATA_FRAME_H

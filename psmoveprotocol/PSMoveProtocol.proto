@@ -15,37 +15,37 @@ message Request {
 
     // The request type determines which of the request structures is actually used
     enum RequestType {
-        START_PSMOVE_DATA_STREAM = 0;
-        STOP_PSMOVE_DATA_STREAM = 1;
+        START_CONTROLLER_DATA_STREAM = 0;
+        STOP_CONTROLLER_DATA_STREAM = 1;
         SET_RUMBLE = 2;
         RESET_POSE = 3;
     }
     RequestType type = 2;
    
-    // Parameters for START_PSMOVE_DATA_STREAM
+    // Parameters for START_CONTROLLER_DATA_STREAM
     // NOTE: ControllerDataFrame packets will start streaming to client upon receiving this request
     message RequestStartPSMoveDataStream {
-        int32 psmove_id = 1;
+        int32 controller_id = 1;
     }
     RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
 
     // Parameters for STOP_PSMOVE_DATA_STREAM
     // NOTE: ControllerDataFrame packets will stop streaming to client upon receiving this request
     message RequestStopPSMoveDataStream {
-        int32 psmove_id = 1;
+        int32 controller_id = 1;
     }
     RequestStopPSMoveDataStream request_stop_psmove_data_stream = 21;
 
     // Parameters for SET_RUMBLE
     message RequestSetRumble {
-        int32 psmove_id = 1;
+        int32 controller_id = 1;
         int32 rumble = 2; // [0,255]
     }
     RequestSetRumble request_rumble = 22;
 
     // Parameters for RESET_POSE
     message RequestResetPose {
-        int32 psmove_id = 1;
+        int32 controller_id = 1;
     }
     RequestResetPose reset_pose = 23;   
 }
@@ -81,35 +81,24 @@ message Response {
 // Unreliable (UDP) controller data packet format
 message ControllerDataFrame
 {
-    // The id of controller this data is for
-    int32 psmove_id= 1;
+    enum ControllerType {
+        PSMOVE= 0;
+        PSNAVI= 1;
+    }
     
-    // Monotonically increasing number.
-    // Used to throw out old data if it arrives out of order.
-    int32 sequence_num= 2;
-
-    // Controller status flags
-    bool IsConnected= 3;
-    bool IsTrackingEnabled= 4;
-    bool IsCurrentlyTracking= 5;
-
-    // Tracking position in the space of the HMD tracking camera
     message Position {
         float x = 1;
         float y = 2;
         float z = 3;
     }
-    Position position = 6;
-
-    // Tracking orientation in the frame of the local magnetic field
+    
     message Orientation{
         float x = 1;
         float y = 2;
         float z = 3;
         float w = 4;
-    }
-    Orientation orientation = 7;
-
+    }    
+    
     // Button Index Bits
     enum ButtonType {
         TRIANGLE= 0;
@@ -121,12 +110,64 @@ message ControllerDataFrame
         PS= 6;
         MOVE= 7;
         TRIGGER= 8;
+        UP= 9;
+        DOWN= 10;
+        LEFT= 11;
+        RIGHT= 12;
+        L1= 13;
+        L2= 14;
+        L3= 15;
+        R1= 16;
+        R2= 17;
+        R3= 18;        
     }
+    
+    // The id of controller this data is for
+    int32 controller_id= 1;
+
+    // Specify the type of controller this data is from
+    ControllerType controller_type= 2;
+    
+    // Monotonically increasing number.
+    // Used to throw out old data if it arrives out of order.
+    int32 sequence_num= 3;
+
+    // Common Controller status flags
+    bool IsConnected= 4;
     
     // Raw bitmask of which buttons are currently down
     // Buttons bits are indexed using the ButtonType enum
-    uint32 button_down_bitmask = 8;
+    uint32 button_down_bitmask = 5;    
+    
+    // PSMove Specific Controller state
+    message PSMoveState
+    {
+        // PSMove Specific flags
+        bool IsTrackingEnabled= 1;
+        bool IsCurrentlyTracking= 2;
 
-    // Trigger analog value [0,255]
-    int32 trigger_value = 9;
+        // Tracking position in the space of the HMD tracking camera
+        Position position = 3;
+
+        // Tracking orientation in the frame of the local magnetic field
+        Orientation orientation = 4;
+
+        // Trigger analog value [0,255]
+        int32 trigger_value = 5;
+    }
+    PSMoveState psmove_state = 6;
+    
+    // PSMove Specific Controller state
+    message PSNaviState
+    {
+        // Trigger analog value [0,255]
+        int32 trigger_value = 1;
+        
+        // The x-axis stick value, [0,255], Subtract 0x80 to obtain signed values
+        int32 stick_xaxis = 2;
+        
+        // The y-axis stick value, [0,255], Subtract 0x80 to obtain signed values
+        int32 stick_yaxis = 3;        
+    }
+    PSNaviState psnavi_state = 7;    
 }

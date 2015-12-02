@@ -103,16 +103,21 @@ private:
         if (resultCode == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
         {
             std::cout << "PSMoveConsoleClient - Acquired controller " 
-                << controller_view->GetPSMoveID() << std::endl;
+                << controller_view->GetControllerID() << std::endl;
 
             // Updates will now automatically get pushed into the controller view
 
-            if (controller_view->GetIsCurrentlyTracking())
+            if (controller_view->GetControllerViewType() == ClientControllerView::PSMove)
             {
-                PSMoveVector3 controller_position= controller_view->GetPosition();
+                const ClientPSMoveView &PSMoveView= controller_view->GetPSMoveView();
+                
+                if (PSMoveView.GetIsCurrentlyTracking())
+                {
+                    PSMoveVector3 controller_position= PSMoveView.GetPosition();
 
-                std::cout << "Controller State: " << std::endl;
-                std::cout << "  Position (" << controller_position.x << ", " << controller_position.y << ", " << controller_position.z << ")" << std::endl;
+                    std::cout << "Controller State: " << std::endl;
+                    std::cout << "  Position (" << controller_position.x << ", " << controller_position.y << ", " << controller_position.z << ")" << std::endl;
+                }
             }
         }
         else
