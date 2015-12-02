@@ -1,6 +1,7 @@
 //-- includes -----
 #include "PSMoveController.h"
 #include "../ServerLog.h"
+#include "../ServerUtility.h"
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -13,8 +14,6 @@
 #include <math.h>
 
 //-- constants -----
-#define PSMOVE_VID 0x054c
-#define PSMOVE_PID 0x03d5
 #define PSMOVE_BUFFER_SIZE 49 /* Buffer size for writing LEDs and reading sensor data */
 #define PSMOVE_EXT_DATA_BUF_SIZE 5
 #define PSMOVE_BTADDR_GET_SIZE 16
@@ -26,7 +25,7 @@
 /* Decode 12-bit signed value (assuming two's complement) */
 #define TWELVE_BIT_SIGNED(x) (((x) & 0x800)?(-(((~(x)) & 0xFFF) + 1)):(x))
 
-enum PSMoveRequestType {
+enum PSNaviRequestType {
     PSMove_Req_GetInput = 0x01,
     PSMove_Req_SetLEDs = 0x02,
     PSMove_Req_SetLEDPWMFrequency = 0x03,
@@ -145,16 +144,12 @@ struct PSMoveDataInput {
     unsigned char extdata[PSMOVE_EXT_DATA_BUF_SIZE]; /* external device data (EXT port) */
 };
 
-// -- statics -----
-int PSMoveController::s_nOpened = 0;
-
 // -- private prototypes -----
 static std::string btAddrUcharToString(const unsigned char* addr_buff);
 static int decodeCalibration(char *data, int offset);
 static int psmove_decode_16bit(char *data, int offset);
-inline enum PSMoveButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
+inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
 inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size);
-static bool convert_wcs_to_mbs(const wchar_t *wc_string, char *out_mb_serial, const size_t mb_buffer_size);
 
 // -- public methods
 
@@ -198,74 +193,9 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
     cal_ag_xyz_kb[1][2][1] = pt.get<float>("Calibration.Gyro.Z.b", 0.0f);
 }
 
-// -- PSMove Device Enumerator -----
-PSMoveDeviceEnumerator::PSMoveDeviceEnumerator() 
-    : devs(nullptr)
-    , cur_dev(nullptr)
-{
-    devs = hid_enumerate(PSMOVE_VID, PSMOVE_PID);
-    cur_dev = devs;
-}
-
-PSMoveDeviceEnumerator::~PSMoveDeviceEnumerator()
-{
-    if (devs != nullptr)
-    {
-        hid_free_enumeration(devs);
-    }
-}
-
-const char *PSMoveDeviceEnumerator::get_path() const
-{
-    return (cur_dev != nullptr) ? cur_dev->path : nullptr;
-}
-
-bool PSMoveDeviceEnumerator::get_serial_number(char *out_mb_serial, const size_t mb_buffer_size) const
-{
-    bool success= false;
-
-    if (cur_dev != nullptr && cur_dev->serial_number != nullptr)
-    {
-        success= convert_wcs_to_mbs(cur_dev->serial_number, out_mb_serial, mb_buffer_size);
-    }
-
-    return success;
-}
-
-bool PSMoveDeviceEnumerator::is_valid() const
-{
-    return cur_dev != nullptr;
-}
-
-bool PSMoveDeviceEnumerator::next()
-{
-    bool foundValid= false;
-
-    while (cur_dev != nullptr && !foundValid)
-    {
-        cur_dev = cur_dev->next;
-        foundValid= cur_dev != nullptr;
-
-#ifdef _WIN32
-        /**
-        * Windows Quirk: Each dev is enumerated 3 times.
-        * The one with "&col01#" in the path is the one we will get most of our data from. Only count this one.
-        * The one with "&col02#" in the path is the one we will get the bluetooth address from.
-        **/
-        if (foundValid && strstr(cur_dev->path, "&col01#") == nullptr)
-        {
-            foundValid= false;
-        }
-#endif
-    }
-
-    return foundValid;
-}
-
 // -- PSMove Controller -----
-PSMoveController::PSMoveController(int psmove_id)
-    : PSMove_ID(psmove_id)
-    , LedR(255)
+PSMoveController::PSMoveController()
+    : LedR(255)
     , LedG(0)
     , LedB(0)
     , Rumble(0)
@@ -289,36 +219,35 @@ PSMoveController::~PSMoveController()
 
 bool PSMoveController::open()
 {
-    PSMoveDeviceEnumerator enumerator;
+    ControllerDeviceEnumerator enumerator(CommonControllerState::PSMove);
     bool success= false;
 
     if (enumerator.is_valid())
     {
-        success= open(enumerator);
+        success= open(&enumerator);
     }
 
     return success;
 }
 
 bool PSMoveController::open(
-    const PSMoveDeviceEnumerator &enumerator)
+    const ControllerDeviceEnumerator *enumerator)
 {
+    const char *cur_dev_path= enumerator->get_path();
     bool success= false;
 
     if (getIsOpen())
     {
-        SERVER_LOG_WARNING("PSMoveController::open") << "PSMoveController(" << PSMove_ID << ") already open. Ignoring request.";
+        SERVER_LOG_WARNING("PSMoveController::open") << "PSMoveController(" << cur_dev_path << ") already open. Ignoring request.";
         success= true;
     }
     else
     {
-        const char *cur_dev_path= enumerator.get_path();
         char cur_dev_serial_number[256];
 
-        SERVER_LOG_INFO("PSMoveController::open") << "Opening PSMoveController(" << PSMove_ID << ")";
-        SERVER_LOG_INFO("PSMoveController::open") << "  at device path: " << cur_dev_path;
+        SERVER_LOG_INFO("PSMoveController::open") << "Opening PSMoveController(" << cur_dev_path << ")";
 
-        if (enumerator.get_serial_number(cur_dev_serial_number, sizeof(cur_dev_serial_number)))
+        if (enumerator->get_serial_number(cur_dev_serial_number, sizeof(cur_dev_serial_number)))
         {
             SERVER_LOG_INFO("PSMoveController::open") << "  with serial_number: " << cur_dev_serial_number;
         }
@@ -385,20 +314,19 @@ bool PSMoveController::open(
 
                 // TODO: Other startup.
 
-                s_nOpened++;
                 success= true;
             }
             else
             {
                 // If serial is still bad, maybe we have a disconnected
                 // controller still showing up in hidapi
-                SERVER_LOG_ERROR("PSMoveController::open") << "Failed to get bluetooth address of PSMoveController(" << PSMove_ID << ")";
+                SERVER_LOG_ERROR("PSMoveController::open") << "Failed to get bluetooth address of PSMoveController(" << cur_dev_path << ")";
                 success= false;
             }
         }
         else
         {
-            SERVER_LOG_ERROR("PSMoveController::open") << "Failed to open PSMoveController(" << PSMove_ID << ")";
+            SERVER_LOG_ERROR("PSMoveController::open") << "Failed to open PSMoveController(" << cur_dev_path << ")";
             success= false;
         }
     }
@@ -410,7 +338,7 @@ void PSMoveController::close()
 {
     if (getIsOpen())
     {
-        SERVER_LOG_INFO("PSMoveController::close") << "Closing PSMoveController(" << PSMove_ID << ")";
+        SERVER_LOG_INFO("PSMoveController::close") << "Closing PSMoveController(" << HIDDetails.Device_path << ")";
 
         if (HIDDetails.Handle != nullptr)
         {
@@ -423,34 +351,50 @@ void PSMoveController::close()
             hid_close(HIDDetails.Handle_addr);
             HIDDetails.Handle_addr= nullptr;
         }
-
-        assert(s_nOpened > 0);
-        s_nOpened--;
     }
     else
     {
-        SERVER_LOG_INFO("PSMoveController::close") << "PSMoveController(" << PSMove_ID << ") already closed. Ignoring request.";
+        SERVER_LOG_INFO("PSMoveController::close") << "PSMoveController(" << HIDDetails.Device_path << ") already closed. Ignoring request.";
     }
 }
 
 // Getters
 bool 
-PSMoveController::matchesDeviceEnumerator(const PSMoveDeviceEnumerator &enumerator) const
+PSMoveController::matchesDeviceEnumerator(const ControllerDeviceEnumerator *enumerator) const
 {
-    const char *enumerator_path= enumerator.get_path();
-    const char *dev_path= HIDDetails.Device_path.c_str();
+    bool matches= false;
 
-#ifdef _WIN32
-    return _stricmp(dev_path, enumerator_path) == 0;
-#else
-    return strcmp(dev_path, enumerator_path) == 0;
-#endif
+    if (enumerator->get_device_type() == CommonControllerState::PSMove)
+    {
+        const char *enumerator_path= enumerator->get_path();
+        const char *dev_path= HIDDetails.Device_path.c_str();
+
+    #ifdef _WIN32
+        matches= _stricmp(dev_path, enumerator_path) == 0;
+    #else
+        matches= strcmp(dev_path, enumerator_path) == 0;
+    #endif
+    }
+
+    return matches;
+}
+
+bool 
+PSMoveController::getIsBluetooth() const
+{ 
+    return IsBluetooth; 
 }
 
 bool
 PSMoveController::getIsOpen() const
 {
-    return ((PSMove_ID >= 0) && (HIDDetails.Handle != nullptr));
+    return (HIDDetails.Handle != nullptr);
+}
+
+CommonControllerState::eControllerDeviceType 
+PSMoveController::getControllerDeviceType() const
+{
+    return CommonControllerState::PSMove;
 }
 
 bool
@@ -593,10 +537,10 @@ PSMoveController::loadCalibration()
     cfg.save();
 }
 
-PSMoveController::eReadDataResult
-PSMoveController::readDataIn()
+IControllerInterface::ePollResult
+PSMoveController::poll()
 {
-    PSMoveController::eReadDataResult result= PSMoveController::_ReadDataResultFailure;
+    IControllerInterface::ePollResult result= IControllerInterface::_PollResultFailure;
       
     if (getIsOpen())
     {
@@ -611,8 +555,8 @@ PSMoveController::readDataIn()
             {
                 // Device still in valid state
                 result= (iteration == 0) 
-                    ? PSMoveController::_ReadDataResultSuccessNoData 
-                    : PSMoveController::_ReadDataResultSuccessNewData;
+                    ? IControllerInterface::_PollResultSuccessNoData 
+                    : IControllerInterface::_PollResultSuccessNewData;
                 
                 // No more data available. Stop iterating.
                 break;
@@ -627,7 +571,7 @@ PSMoveController::readDataIn()
                 {
                     SERVER_LOG_ERROR("PSMoveController::readDataIn") << "HID ERROR: " << hidapi_err_mbs;
                 }
-                result= PSMoveController::_ReadDataResultFailure;
+                result= IControllerInterface::_PollResultFailure;
 
                 // No more data available. Stop iterating.
                 break;
@@ -635,11 +579,11 @@ PSMoveController::readDataIn()
             else
             {
                 // New data available. Keep iterating.
-                result= PSMoveController::_ReadDataResultSuccessNewData;
+                result= IControllerInterface::_PollResultFailure;
             }
         
             // https://github.com/nitsch/moveonpc/wiki/Input-report
-            PSMoveState newState;
+            PSMoveControllerState newState;
         
             // Buttons
             newState.AllButtons = (InData->buttons2) | (InData->buttons1 << 8) |
@@ -694,7 +638,7 @@ PSMoveController::readDataIn()
         
             // Other
             newState.Sequence = (InData->buttons4 & 0x0F);
-            newState.Battery = (enum PSMoveBatteryLevel)(InData->battery);
+            newState.Battery = static_cast<CommonControllerState::BatteryLevel>(InData->battery);
             newState.TimeStamp = InData->timelow | (InData->timehigh << 8);
             newState.TempRaw = (InData->temphigh << 4) | ((InData->templow_mXhigh & 0xF0) >> 4);
 
@@ -712,37 +656,33 @@ PSMoveController::readDataIn()
     return result;
 }
 
-psmovePosef
-PSMoveController::getPose(int msec_time) const
+void
+PSMoveController::getState(
+    CommonControllerState *out_state,
+    int lookBack) const
 {
-    psmovePosef nullPose;
+    assert(out_state->DeviceType == CommonControllerState::PSMove);
+    PSMoveControllerState *out_psmove_state= static_cast<PSMoveControllerState *>(out_state);
 
-    nullPose.clear();
-    return nullPose;
-}
-
-const PSMoveState
-PSMoveController::getState(int lookBack) const
-{
     if (ControllerStates.empty())
     {
-        PSMoveState emptyState;
-
-        emptyState.clear();
-
-        return emptyState;  // Returns a null state.
+        out_psmove_state->clear();
     }
     else
     {
         lookBack = (lookBack < (int)ControllerStates.size()) ? lookBack : ControllerStates.size();
-        return ControllerStates.at(ControllerStates.size() - lookBack - 1);
+        
+        *out_psmove_state= ControllerStates.at(ControllerStates.size() - lookBack - 1);
     }
 }
-    
+
 float
 PSMoveController::getTempCelsius() const
 {
-    PSMoveState lastState = getState();
+    PSMoveControllerState lastState;
+
+    getState(&lastState);
+
     /**
      * The Move uses this table in Debug mode. Even though the resulting values
      * are not labeled "degree Celsius" in the Debug output, measurements
@@ -876,40 +816,13 @@ psmove_decode_16bit(char *data, int offset)
     return (low | (high << 8)) - 0x8000;
 }
 
-inline enum PSMoveButtonState
+inline enum CommonControllerState::ButtonState
 getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask)
 {
-    return (enum PSMoveButtonState)((((lastButtons & buttonMask) > 0) << 1) + ((buttons & buttonMask)>0));
+    return (enum CommonControllerState::ButtonState)((((lastButtons & buttonMask) > 0) << 1) + ((buttons & buttonMask)>0));
 }
 
 inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size)
 {
-    return convert_wcs_to_mbs(hid_error(dev), out_mb_error, mb_buffer_size);
-}
-
-static bool convert_wcs_to_mbs(const wchar_t *wc_string, char *out_mb_serial, const size_t mb_buffer_size)
-{
-    bool success= false;
-
-#ifdef _WIN32
-    size_t countConverted;
-    const wchar_t *wcsIndirectString = wc_string;
-    mbstate_t mbstate;
-
-    success= wcsrtombs_s(
-        &countConverted,
-        out_mb_serial,
-        mb_buffer_size,
-        &wcsIndirectString,
-        _TRUNCATE,
-        &mbstate) == 0;
-#else
-    success= 
-        std::wcstombs(
-            out_mb_serial, 
-            wc_string, 
-            mb_buffer_size) != static_cast<std::size_t>(-1);
-#endif
-
-    return success;
+    return ServerUtility::convert_wcs_to_mbs(hid_error(dev), out_mb_error, mb_buffer_size);
 }

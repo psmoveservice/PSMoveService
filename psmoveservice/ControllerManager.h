@@ -4,7 +4,7 @@
 //-- includes -----
 
 //-- constants -----
-static const int k_max_psmove_controllers= 5;
+static const int k_max_controllers= 5;
 
 //-- definitions -----
 class ControllerManager 
@@ -17,8 +17,8 @@ public:
     void update();
     void shutdown();
 
-    bool setControllerRumble(int psmove_id, int rumble_amount);
-    bool resetPose(int psmove_id);
+    bool setControllerRumble(int controller_id, int rumble_amount);
+    bool resetPose(int controller_id);
 
 private:
     // private implementation - same lifetime as the ControllerManager

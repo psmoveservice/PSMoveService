@@ -181,6 +181,10 @@ list(APPEND TEST_CTRLR_INCL_DIRS
 list(APPEND TEST_CTRLR_SRC
     ${ROOT_DIR}/psmoveservice/ServerLog.h
     ${ROOT_DIR}/psmoveservice/ServerLog.cpp
+    ${ROOT_DIR}/psmoveservice/ServerUtility.h
+    ${ROOT_DIR}/psmoveservice/ServerUtility.cpp
+    ${ROOT_DIR}/psmoveservice/ControllerEnumerator.h
+    ${ROOT_DIR}/psmoveservice/ControllerEnumerator.cpp
     ${ROOT_DIR}/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
     ${ROOT_DIR}/psmoveservice/PSMoveController/PSMoveController.h

@@ -20,15 +20,15 @@ int main()
         return -1;
     }
 
-    PSMoveController psmove(0);
+    PSMoveController psmove;
 
 	std::cout << "Opening PSMoveController..." << std::endl;
 	if (psmove.open())
 	{
-        PSMoveState psmstate;
+        PSMoveControllerState psmstate;
 
-        psmove.readDataIn();
-        psmstate = psmove.getState();
+        psmove.poll();
+        psmove.getState(&psmstate);
 
 		unsigned char r = 255;
 		unsigned char g = 0;
@@ -36,10 +36,10 @@ int main()
         
         psmove.setRumbleIntensity(255);
 
-		while (psmove.getIsBluetooth() && psmstate.Move != Button_DOWN)
+		while (psmove.getIsBluetooth() && psmstate.Move != CommonControllerState::Button_DOWN)
 		{
-            psmove.readDataIn();
-            psmstate = psmove.getState();
+            psmove.poll();
+            psmove.getState(&psmstate);
 
 			psmove.setRumbleIntensity(psmstate.Trigger);
 
