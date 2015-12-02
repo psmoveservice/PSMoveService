@@ -1,6 +1,7 @@
 // -- includes -----
 #include "ServerUtility.h"
 #include <wchar.h>
+#include <stdlib.h>
 #include <assert.h>
 
 // -- public methods -----
@@ -30,10 +31,10 @@ namespace ServerUtility
             &mbstate) == 0;
     #else
         success= 
-            std::wcstombs(
+            wcstombs(
                 out_mb_serial, 
                 wc_string, 
-                mb_buffer_size) != static_cast<std::size_t>(-1);
+                mb_buffer_size) != static_cast<size_t>(-1);
     #endif
 
         return success;

@@ -55,7 +55,6 @@ class ControllerManagerImpl
 public:
     ControllerManagerImpl()
         : m_config() // NULL config until startup
-        , m_sequence_number(0)
         , m_last_reconnect_time()
         , m_last_poll_time()
     {
@@ -315,7 +314,6 @@ protected:
 private:
     ControllerManagerConfigPtr m_config;
     ServerControllerViewPtr m_controllers[k_max_controllers];
-    int m_sequence_number;
     boost::posix_time::ptime m_last_reconnect_time;
     boost::posix_time::ptime m_last_poll_time;
 };

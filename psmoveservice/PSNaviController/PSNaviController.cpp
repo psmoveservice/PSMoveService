@@ -442,7 +442,7 @@ btAddrUcharToString(const unsigned char* addr_buff)
     // http://stackoverflow.com/questions/11181251/saving-hex-values-to-a-c-string
     // NOTE: unlike with the Move controller, the address is not stored backwards in the report
     std::ostringstream stream;
-    for (int buff_ind = 0; buff_ind < 6; buff_ind)
+    for (int buff_ind = 0; buff_ind < 6; ++buff_ind)
     {
         stream << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(addr_buff[buff_ind]);
         if (buff_ind > 0)

@@ -1,6 +1,8 @@
 #ifndef SERVER_UTILITY_H
 #define SERVER_UTILITY_H
 
+#include "stdlib.h" // size_t
+
 namespace ServerUtility
 {
     template <typename t_index>
