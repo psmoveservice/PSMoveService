@@ -1,7 +1,7 @@
 //-- includes -----
 #include "ServerControllerView.h"
-#include "..\ServerLog.h"
-#include "..\ServerRequestHandler.h"
+#include "ServerLog.h"
+#include "ServerRequestHandler.h"
 #include "ControllerInterface.h"
 #include "PSMoveController/PSMoveController.h"
 #include "PSNaviController/PSNaviController.h"

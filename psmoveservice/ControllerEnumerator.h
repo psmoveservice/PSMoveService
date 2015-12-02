@@ -2,6 +2,7 @@
 #define CONTROLLER_ENUMERATOR_H
 
 #include "ControllerInterface.h"
+#include "stdlib.h" // size_t
 
 class ControllerDeviceEnumerator
 {

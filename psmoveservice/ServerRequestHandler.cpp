@@ -42,7 +42,6 @@ class ServerRequestHandlerImpl
 public:
     ServerRequestHandlerImpl(ControllerManager &controllerManager) 
         : m_controller_manager(controllerManager)
-        , m_sequence_number(0)
         , m_connection_state_map()
     {
     }
@@ -207,7 +206,6 @@ protected:
 
 private:
     ControllerManager &m_controller_manager;
-    int m_sequence_number;    
     t_connection_state_map m_connection_state_map;
 };
 
