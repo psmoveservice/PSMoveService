@@ -17,3 +17,12 @@
 [submodule "thirdparty/protobuf"]
 	path = thirdparty/protobuf
 	url = https://github.com/google/protobuf.git
+[submodule "thirdparty/imgui"]
+	path = thirdparty/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "thirdparty/stb"]
+	path = thirdparty/stb
+	url = https://github.com/nothings/stb.git
+[submodule "thirdparty/SDL2"]
+	path = thirdparty/SDL2
+	url = https://github.com/spurious/SDL-mirror.git

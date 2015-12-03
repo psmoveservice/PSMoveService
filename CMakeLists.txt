@@ -70,4 +70,5 @@ include_directories(${CMAKE_BINARY_DIR}/psmoveprotocol)  # This is where the .pr
 add_subdirectory(psmoveprotocol)
 add_subdirectory(psmoveservice)
 add_subdirectory(psmoveclient)
+add_subdirectory(psmoveconfigtool)
 add_subdirectory(tests)
