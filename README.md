@@ -59,8 +59,23 @@ A background service that communicates with the psmove and serves its pose and b
 1. Optional: [CL Eye Driver](https://codelaboratories.com/products/eye/driver/)
     * Only necessary for Windows 32-bit if not using PS3EYEDriver
     * Currently $2.99 USD (paypal or credit card)
-    * Platform SDK not necessary
-
+    * Platform SDK not necessary    
+1. Optional: SDL2
+    * Optional - Only required if you are building the the configuration client.
+    * Windows :
+        * `cd third_party/SDL2`
+        * `mkdir build`
+        * `cd build`
+        * `cmake .. -G "Visual Studio 12 2013" -DDIRECTX=OFF`
+        * Open the solution (psmoveapi\external\SDL2\build\SDL2.sln)
+        * Change the target to Release (at the top of the VS window).
+        * Build the solution (Build Menu -> Build Solution).            
+    * Mac
+        `cd third_party/SDL2`
+        `mkdir build`
+        `cd build`
+        `cmake ..`
+   
 # Make PSMoveService
 
 1. `mkdir build & cd build`
