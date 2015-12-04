@@ -8,6 +8,9 @@ public:
         : m_app(app)
     { }
 
+    virtual bool init(int argc, char** argv) { return true; }
+    virtual void destroy() {}
+
     virtual void enter() {}
     virtual void exit() {}
     virtual void update() {}

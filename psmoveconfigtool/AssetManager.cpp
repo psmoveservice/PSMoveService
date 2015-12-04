@@ -9,6 +9,8 @@
 #include "SDL_error.h"
 #include "SDL_opengl.h"
 
+#include <imgui.h>
+
 //-- constants -----
 static const char *k_dk2_texture_filename= "./assets/textures/DK2diffuse.jpg";
 
@@ -37,6 +39,15 @@ bool AssetManager::init()
     if (success)
     {
         success= loadTexture(k_dk2_texture_filename, &m_dk2TextureId);
+    }
+
+    if (success)
+    {
+        // Load Fonts
+        ImGuiIO& io = ImGui::GetIO();
+
+        io.Fonts->AddFontDefault();
+        io.Fonts->AddFontFromFileTTF(k_default_font_filename, k_default_font_pixel_height);
     }
 
     if (success)

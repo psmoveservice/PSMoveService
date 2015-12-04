@@ -1,34 +1,43 @@
 //-- includes -----
 #include "App.h"
-#include "AppStage_IntroScreen.h"
+#include "AppStage.h"
+#include "AssetManager.h"
+#include "Renderer.h"
 #include "Logger.h"
 
 //-- public methods -----
 App::App()
-    : m_renderer()
-    , m_assetManager()
+    : m_renderer(new Renderer())
+    , m_assetManager(new AssetManager())
     , m_cameraType(_cameraNone)
     , m_camera(NULL)
-    , m_orbitCamera(&m_renderer)
-    , m_fixedCamera(&m_renderer)
-    , m_appStageType(_appStageIntroScreen)
+    , m_orbitCamera(m_renderer)
+    , m_fixedCamera(m_renderer)
+    , m_appStageName(nullptr)
     , m_appStage(nullptr)
-    , m_appStage_IntroScreen(new AppStage_IntroScreen(this))
 {
 }
 
 App::~App()
 {
-    delete m_appStage_IntroScreen;
+    for (t_app_stage_map::const_iterator iter= m_nameToAppStageMap.begin(); iter != m_nameToAppStageMap.end(); ++iter)
+    {
+        delete iter->second;
+    }
+
+    delete m_renderer;
+    delete m_assetManager;
 }
 
-int App::exec(int argc, char** argv)
+int App::exec(int argc, char** argv, const char *initial_state_name)
 {
     int result= 0;
 
     if (init(argc, argv))
     {
         SDL_Event e;
+
+        setAppStage(initial_state_name);
 
         while (true) 
         {
@@ -78,36 +87,27 @@ void App::setCameraType(eCameraType cameraType)
 
     m_cameraType= cameraType;
 
-    if (m_camera != NULL)
+    if (m_camera != nullptr)
     {
         m_camera->publishCameraViewMatrix();
     }
     else
     {
-        m_renderer.setCameraViewMatrix(glm::mat4(1.f));
+        m_renderer->setCameraViewMatrix(glm::mat4(1.f));
     }
 }
 
-void App::setAppStage(eAppStageType appStageType)
+void App::setAppStage(const char *appStageName)
 {
-    if (m_appStage != NULL)
+    if (m_appStage != nullptr)
     {
         m_appStage->exit();
-    }
+    }    
 
-    switch (appStageType)
-    {
-    case _appStageNone:
-        m_appStage= NULL;
-        break;
-    case _appStageIntroScreen:
-        m_appStage = m_appStage_IntroScreen;
-        break;
-    }
+    m_appStageName= appStageName;
+    m_appStage = (appStageName != nullptr) ? m_nameToAppStageMap[appStageName] : nullptr;
 
-    m_appStageType= appStageType;
-
-    if (m_appStage != NULL)
+    if (m_appStage != nullptr)
     {
         m_appStage->enter();
     }
@@ -118,13 +118,13 @@ bool App::init(int argc, char** argv)
 {
     bool success= true;
 
-    if (success && !m_renderer.init())
+    if (success && !m_renderer->init())
     {
         Log_ERROR("App::init", "Failed to initialize renderer!");
         success= false;
     }
 
-    if (success && !m_assetManager.init())
+    if (success && !m_assetManager->init())
     {
         Log_ERROR("App::init", "Failed to initialize asset manager!");
         success= false;
@@ -132,10 +132,21 @@ bool App::init(int argc, char** argv)
 
     if (success)
     {
+        for (t_app_stage_map::const_iterator iter= m_nameToAppStageMap.begin(); iter != m_nameToAppStageMap.end(); ++iter)
+        {
+            if (!iter->second->init(argc, argv))
+            {
+                Log_ERROR("App::init", "Failed to initialize app stage %s!", iter->first);
+                success= false;
+                break;
+            }
+        }
+    }
+
+    if (success)
+    {
         m_orbitCamera.setIsLocked(false);
         m_fixedCamera.setIsLocked(true);
-
-        setAppStage(_appStageIntroScreen);
     }
 
     return success;
@@ -143,13 +154,21 @@ bool App::init(int argc, char** argv)
 
 void App::destroy()
 {
-    setAppStage(_appStageNone);
-    m_assetManager.destroy();
-    m_renderer.destroy();
+    setAppStage(nullptr);
+
+    for (t_app_stage_map::const_iterator iter= m_nameToAppStageMap.begin(); iter != m_nameToAppStageMap.end(); ++iter)
+    {
+        iter->second->destroy();
+    }
+
+    m_assetManager->destroy();
+    m_renderer->destroy();
 }
     
 void App::onSDLEvent(const SDL_Event &e)
 {
+    m_renderer->onSDLEvent(&e);
+
     if (m_appStage != NULL)
     {
         switch(e.type)
@@ -190,21 +209,21 @@ void App::update()
 
 void App::render()
 {
-    m_renderer.renderBegin();
+    m_renderer->renderBegin();
 
-    m_renderer.renderStageBegin();
+    m_renderer->renderStageBegin();
     if (m_appStage != NULL)
     {
         m_appStage->render();
     }
-    m_renderer.renderStageEnd();
+    m_renderer->renderStageEnd();
 
-    m_renderer.renderUIBegin();
+    m_renderer->renderUIBegin();
     if (m_appStage != NULL)
     {
         m_appStage->renderUI();
     }
-    m_renderer.renderUIEnd();
+    m_renderer->renderUIEnd();
 
-    m_renderer.renderEnd();
+    m_renderer->renderEnd();
 }
