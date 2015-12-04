@@ -2,18 +2,12 @@
 #define APP_H
 
 //-- includes -----
-#include "Camera.h"
-#include "Renderer.h"
-#include "AssetManager.h"
-
 #include "SDL_events.h"
 
-//-- constants -----
-enum eAppStageType
-{
-    _appStageNone,
-    _appStageIntroScreen,
-};
+#include "Camera.h"
+
+#include <map>
+#include <utility> // std::pair
 
 //-- definitions -----
 class App
@@ -22,21 +16,28 @@ public:
     App();
     virtual ~App();
 
-    inline Renderer *getRenderer()
-    { return &m_renderer; }
+    inline class Renderer *getRenderer()
+    { return m_renderer; }
 
-    inline AssetManager *getAssetManager()
-    { return &m_assetManager; }
+    inline class AssetManager *getAssetManager()
+    { return m_assetManager; }
 
     inline Camera *getOrbitCamera()
     { return &m_orbitCamera; }
     inline Camera *getFixedCamera()
     { return &m_fixedCamera; }
 
-    int exec(int argc, char** argv);
+    int exec(int argc, char** argv, const char *initial_state_name);
 
     void setCameraType(eCameraType cameraType);
-    void setAppStage(eAppStageType appStageType);
+    void setAppStage(const char *appStageName);
+
+    template <typename t_app_stage>
+    inline void registerAppStage()
+    {
+        // This mapping gets cleaned up in the destructor
+        m_nameToAppStageMap.insert(t_app_stage_map_entry(t_app_stage::APP_STAGE_NAME, new t_app_stage(this)));
+    }
 
 protected:
     bool init(int argc, char** argv);
@@ -49,10 +50,10 @@ protected:
 
 private:
     // Contexts
-    class Renderer m_renderer;
+    class Renderer *m_renderer;
 
     // Assets (textures, sounds)
-    class AssetManager m_assetManager;
+    class AssetManager *m_assetManager;
 
     // Cameras
     eCameraType m_cameraType;
@@ -61,9 +62,13 @@ private:
     Camera m_fixedCamera;
 
     // App Stages
-    eAppStageType m_appStageType;
+    const char *m_appStageName;
     class AppStage *m_appStage;
-    class AppStage_IntroScreen *m_appStage_IntroScreen;
+
+    typedef std::map<const char *, class AppStage *> t_app_stage_map;
+    typedef std::pair<const char *, class AppStage *> t_app_stage_map_entry;
+
+    t_app_stage_map m_nameToAppStageMap;
 };
 
 #endif // APP_H

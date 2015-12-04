@@ -4,6 +4,9 @@
 //-- includes -----
 #include <glm/glm.hpp>
 
+//-- typedefs -----
+typedef union SDL_Event SDL_Event;
+
 //-- definitions -----
 class Renderer 
 {
@@ -13,6 +16,8 @@ public:
 
     bool init();
     void destroy();
+
+    bool onSDLEvent(const SDL_Event *event);
 
     void renderBegin();
     void renderStageBegin();
@@ -46,6 +51,12 @@ private:
 
     bool m_isRenderingStage;
     bool m_isRenderingUI;
+
+    // imgui state
+    double m_Time;
+    bool m_MousePressed[3];
+    float m_MouseWheel;
+    unsigned int m_FontTexture;
 
     static Renderer *m_instance;
 };
