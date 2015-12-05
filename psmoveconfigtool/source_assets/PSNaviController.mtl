@@ -1,0 +1,13 @@
+# Blender MTL File: 'PSMoveMotionController.blend'
+# Material Count: 1
+
+newmtl move_B.001
+Ns 33.333333
+Ka 0.000000 0.000000 0.000000
+Kd 0.588200 0.588200 0.588200
+Ks 0.441000 0.441000 0.441000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd E:\Perforce\CharacterDemo\Content\Controllers\source\move_B.jpg

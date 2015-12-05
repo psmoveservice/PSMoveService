@@ -1,5 +1,6 @@
 //-- includes -----
 #include "Renderer.h"
+#include "AssetManager.h"
 #include "Logger.h"
 
 #include "SDL.h"
@@ -11,6 +12,11 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+
+#include "psmovebody_3dmodel.h"
+#include "psmovebulb_3dmodel.h"
+#include "psnavi_3dmodel.h"
+#include "dk2_3dmodel.h"
 
 //-- constants -----
 static const int k_window_pixel_width= 800;
@@ -455,6 +461,87 @@ void drawTransformedTexturedCube(const glm::mat4 &transform, int textureId, floa
         glTexCoord2f(1.0f, 1.0f); glVertex3f(-scale,  scale,  scale);
         glTexCoord2f(0.0f, 1.0f); glVertex3f(-scale,  scale, -scale);
     glEnd();
+
+    // rebind the default texture
+    glBindTexture(GL_TEXTURE_2D, 0); 
+}
+
+void drawDK2Model(const glm::mat4 &transform)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    int textureID= AssetManager::getInstance()->getDK2TextureId();
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glColor3f(1.f, 1.f, 1.f);
+
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        glVertexPointer(3, GL_FLOAT, 0, DK2Verts);
+        glTexCoordPointer(2, GL_FLOAT, 0, DK2TexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, DK2NumVerts);
+        glDisableClientState(GL_VERTEX_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    glPopMatrix();
+
+    // rebind the default texture
+    glBindTexture(GL_TEXTURE_2D, 0); 
+}
+
+void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    int textureID= AssetManager::getInstance()->getPSMoveTextureId();
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        
+        glColor3f(1.f, 1.f, 1.f);
+        glVertexPointer(3, GL_FLOAT, 0, psmovebodyVerts);
+        glTexCoordPointer(2, GL_FLOAT, 0, psmovebodyTexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, psmovebodyNumVerts);
+
+        glColor3fv(glm::value_ptr(color));
+        glVertexPointer(3, GL_FLOAT, 0, psmovebulbVerts);
+        glTexCoordPointer(2, GL_FLOAT, 0, psmovebulbTexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, psmovebulbNumVerts);
+
+        glDisableClientState(GL_VERTEX_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+    glPopMatrix();
+
+    // rebind the default texture
+    glBindTexture(GL_TEXTURE_2D, 0); 
+}
+
+void drawPSNaviModel(const glm::mat4 &transform, const glm::vec3 &color)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    int textureID= AssetManager::getInstance()->getPSNaviTextureId();
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glColor3fv(glm::value_ptr(color));
+
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        glVertexPointer(3, GL_FLOAT, 0, psnaviVerts);
+        glTexCoordPointer(2, GL_FLOAT, 0, psnaviTexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, psnaviNumVerts);
+        glDisableClientState(GL_VERTEX_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    glPopMatrix();
 
     // rebind the default texture
     glBindTexture(GL_TEXTURE_2D, 0); 

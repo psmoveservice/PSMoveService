@@ -13,6 +13,8 @@
 
 //-- constants -----
 static const char *k_dk2_texture_filename= "./assets/textures/DK2diffuse.jpg";
+static const char *k_psmove_texture_filename= "./assets/textures/PSMoveDiffuse.jpg";
+static const char *k_psnavi_texture_filename= "./assets/textures/PSNaviDiffuse.jpg";
 
 static const char *k_default_font_filename= "./assets/fonts/OpenSans-Regular.ttf";
 static const float k_default_font_pixel_height= 24.f;
@@ -43,6 +45,16 @@ bool AssetManager::init()
 
     if (success)
     {
+        success= loadTexture(k_psmove_texture_filename, &m_psmoveTextureId);
+    }
+
+    if (success)
+    {
+        success= loadTexture(k_psnavi_texture_filename, &m_psnaviTextureId);
+    }
+
+    if (success)
+    {
         // Load Fonts
         ImGuiIO& io = ImGui::GetIO();
 
@@ -64,6 +76,18 @@ void AssetManager::destroy()
     {
         glDeleteTextures(1, &m_dk2TextureId);
         m_dk2TextureId= 0;
+    }
+
+    if (m_psmoveTextureId != 0)
+    {
+        glDeleteTextures(1, &m_psmoveTextureId);
+        m_psmoveTextureId= 0;
+    }
+
+    if (m_psnaviTextureId != 0)
+    {
+        glDeleteTextures(1, &m_psnaviTextureId);
+        m_psnaviTextureId= 0;
     }
 
     m_instance= NULL;
