@@ -4,18 +4,17 @@
 //-- includes -----
 #include "PSMoveProtocolInterface.h"
 #include "ClientPSMoveAPI.h"
-#include <functional>
 
 //-- definitions -----
 class ClientRequestManager : public IResponseListener
 {
 public:
-    typedef std::function<void(ClientPSMoveAPI::eClientPSMoveResultCode)> response_callback;
+    typedef void(*t_response_callback)(ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, void *userdata);
 
     ClientRequestManager();
     virtual ~ClientRequestManager();
 
-    void send_request(RequestPtr request, response_callback callback);
+    void send_request(RequestPtr request, t_response_callback callback, void *userdata);
 
     virtual void handle_request_canceled(RequestPtr request) override;
     virtual void handle_response(ResponsePtr response) override;
