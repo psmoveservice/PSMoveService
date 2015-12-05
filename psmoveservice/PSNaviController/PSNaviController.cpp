@@ -256,6 +256,18 @@ PSNaviController::getIsBluetooth() const
     return IsBluetooth; 
 }
 
+std::string 
+PSNaviController::getUSBDevicePath() const
+{
+    return HIDDetails.Device_path;
+}
+
+std::string 
+PSNaviController::getSerial() const
+{
+    return HIDDetails.Bt_addr;
+}
+
 bool
 PSNaviController::getIsOpen() const
 {

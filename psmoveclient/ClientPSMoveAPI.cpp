@@ -126,6 +126,18 @@ public:
         }
     }
 
+    void fetch_controller_list(
+        ClientPSMoveAPI::t_response_callback callback, void *userdata)
+    {
+        CLIENT_LOG_INFO("fetch_controller_list") << "requesting controller list " << std::endl;
+
+        // Tell the psmove service that we we want a list of controllers connected to this machine
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST);
+
+        m_request_manager.send_request(request, callback, userdata);
+    }
+
     void start_controller_data_stream(
         ClientControllerView * view, ClientPSMoveAPI::t_response_callback callback, void *userdata)
     {
@@ -315,6 +327,16 @@ void ClientPSMoveAPI::free_controller_view(ClientControllerView * view)
     if (ClientPSMoveAPI::m_implementation_ptr != NULL)
     {
         ClientPSMoveAPI::m_implementation_ptr->free_controller_view(view);
+    }
+}
+
+void ClientPSMoveAPI::fetch_controller_list(
+    t_response_callback callback, 
+    void *callback_userdata)
+{
+    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->fetch_controller_list(callback, callback_userdata);
     }
 }
 

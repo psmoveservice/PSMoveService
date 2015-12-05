@@ -41,6 +41,7 @@ public:
     static ClientControllerView *allocate_controller_view(int PSMoveID);
     static void free_controller_view(ClientControllerView *view);
 
+    static void fetch_controller_list(t_response_callback callback, void *callback_userdata);
     static void start_controller_data_stream(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
     static void stop_controller_data_stream(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
     static void set_controller_rumble(

@@ -385,6 +385,18 @@ PSMoveController::getIsBluetooth() const
     return IsBluetooth; 
 }
 
+std::string 
+PSMoveController::getUSBDevicePath() const
+{
+    return HIDDetails.Device_path;
+}
+
+std::string 
+PSMoveController::getSerial() const
+{
+    return HIDDetails.Bt_addr;
+}
+
 bool
 PSMoveController::getIsOpen() const
 {

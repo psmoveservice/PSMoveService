@@ -1,6 +1,8 @@
 #ifndef CONTROLLER_INTERFACE_H
 #define CONTROLLER_INTERFACE_H
 
+#include <string>
+
 struct CommonControllerState 
 {
     enum eControllerDeviceType
@@ -80,6 +82,12 @@ public:
     // -- Getters
     // Returns true if the device is connected via Bluetooth, false if by USB
     virtual bool getIsBluetooth() const = 0;
+
+    // Returns the full usb device path for the controller
+    virtual std::string getUSBDevicePath() const = 0;
+
+    // Returns the serial number for the controller
+    virtual std::string getSerial() const  = 0;
 
     // Returns true if hidapi opened successfully
     virtual bool getIsOpen() const  = 0;     

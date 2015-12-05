@@ -98,6 +98,8 @@ public:
 
     // -- Getters
     virtual bool getIsBluetooth() const override;
+    virtual std::string getUSBDevicePath() const override;
+    virtual std::string getSerial() const override;
     virtual bool getIsOpen() const override;
     virtual CommonControllerState::eControllerDeviceType getControllerDeviceType() const override;
     virtual void getState(CommonControllerState *out_state, int lookBack = 0) const;

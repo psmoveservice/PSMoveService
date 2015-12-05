@@ -6,6 +6,11 @@
 syntax = "proto3";
 package PSMoveProtocol;
 
+enum ControllerType {
+    PSMOVE= 0;
+    PSNAVI= 1;
+}
+
 // Reliable (TCP) requests that can issued to the PSMove Service
 message Request {
     // Unique id for this request. 
@@ -15,10 +20,11 @@ message Request {
 
     // The request type determines which of the request structures is actually used
     enum RequestType {
-        START_CONTROLLER_DATA_STREAM = 0;
-        STOP_CONTROLLER_DATA_STREAM = 1;
-        SET_RUMBLE = 2;
-        RESET_POSE = 3;
+        GET_CONTROLLER_LIST = 0;
+        START_CONTROLLER_DATA_STREAM = 1;
+        STOP_CONTROLLER_DATA_STREAM = 2;
+        SET_RUMBLE = 3;
+        RESET_POSE = 4;
     }
     RequestType type = 2;
    
@@ -56,6 +62,7 @@ message Response {
     enum ResponseType {
         GENERAL_RESULT= 0;
         CONNECTION_INFO= 1;
+        CONTROLLER_LIST= 2;
     }
 
     enum ResultCode {
@@ -76,16 +83,29 @@ message Response {
         int32 tcp_connection_id = 1;
     }
     ResultConnectionInfo result_connection_info = 20;
+    
+    // Parameters for CONTROLLER_LIST
+    // This is returned in response to a CONTROLLER_LIST request
+    message ResultControllerList {
+        message ControllerInfo {
+            int32 controller_id= 1;
+            enum ConnectionType {
+                USB = 0;
+                BLUETOOTH = 1;
+            }
+            ConnectionType connection_type = 2;
+            ControllerType controller_type = 3;
+            string device_path = 4;
+            string device_serial = 5;
+        }
+        repeated ControllerInfo controllers = 1;
+    }
+    ResultControllerList result_controller_list = 21;    
 }
 
 // Unreliable (UDP) controller data packet format
 message ControllerDataFrame
-{
-    enum ControllerType {
-        PSMOVE= 0;
-        PSNAVI= 1;
-    }
-    
+{   
     message Position {
         float x = 1;
         float y = 2;
