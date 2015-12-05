@@ -1,6 +1,7 @@
 //-- includes -----
 #include "App.h"
 #include "AppStage_IntroScreen.h"
+#include "AppStage_SelectController.h"
 
 #ifdef _WIN32
 #pragma comment (lib, "winmm.lib")     /* link with Windows MultiMedia lib */
@@ -18,6 +19,7 @@ extern "C" int main(int argc, char *argv[])
 
     // Register all of the app stages
     app.registerAppStage<AppStage_IntroScreen>();
+    app.registerAppStage<AppStage_SelectController>();
 
-    return app.exec(argc, argv, AppStage_IntroScreen::APP_STAGE_NAME);
+    return app.exec(argc, argv, AppStage_SelectController::APP_STAGE_NAME);
 }
