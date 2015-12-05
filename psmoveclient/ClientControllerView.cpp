@@ -188,13 +188,13 @@ void ClientControllerView::ApplyControllerDataFrame(
 
         switch(data_frame->controller_type())
         {
-            case PSMoveProtocol::ControllerDataFrame_ControllerType_PSMOVE:
+            case PSMoveProtocol::PSMOVE:
             {
                 this->ControllerViewType= PSMove;
                 this->ViewState.PSMoveView.ApplyControllerDataFrame(data_frame);
             } break;
 
-            case PSMoveProtocol::ControllerDataFrame_ControllerType_PSNAVI:
+            case PSMoveProtocol::PSNAVI:
             {
                 this->ControllerViewType= PSNavi;
                 this->ViewState.PSNaviView.ApplyControllerDataFrame(data_frame);

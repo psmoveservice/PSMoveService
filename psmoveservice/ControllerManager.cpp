@@ -14,9 +14,6 @@
 static const int k_default_controller_reconnect_interval= 1000; // 1000ms
 static const int k_default_controller_poll_interval= 2; // 2ms
 
-//-- typedefs -----
-typedef std::shared_ptr<ServerControllerView> ServerControllerViewPtr;
-
 //-- private implementation -----
 class ControllerManagerConfig : public PSMoveConfig
 {
@@ -133,6 +130,18 @@ public:
 
         // Shutdown HIDAPI
         hid_exit();
+    }
+
+    ServerControllerViewPtr getController(int controller_id)
+    {
+        ServerControllerViewPtr result;
+
+        if (ServerUtility::is_index_valid(controller_id, k_max_controllers))
+        {
+            result= m_controllers[controller_id];
+        }
+
+        return result;
     }
 
     bool setControllerRumble(int controller_id, int rumble_amount)
@@ -342,6 +351,11 @@ void ControllerManager::update()
 void ControllerManager::shutdown()
 {
     m_implementation_ptr->shutdown();
+}
+
+ServerControllerViewPtr ControllerManager::getController(int controller_id)
+{
+    return m_implementation_ptr->getController(controller_id);
 }
 
 bool ControllerManager::setControllerRumble(int controller_id, int rumble_amount)

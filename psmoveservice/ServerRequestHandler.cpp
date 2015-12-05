@@ -1,7 +1,9 @@
 //-- includes -----
 #include "ServerRequestHandler.h"
 #include "ControllerManager.h"
+#include "ControllerEnumerator.h"
 #include "ServerNetworkManager.h"
+#include "ServerControllerView.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerLog.h"
 #include <cassert>
@@ -65,6 +67,9 @@ public:
 
         switch (request->type())
         {
+            case PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST:
+                handle_request__get_controller_list(context, response);
+                break;
             case PSMoveProtocol::Request_RequestType_START_CONTROLLER_DATA_STREAM:
                 handle_request__start_controller_data_stream(context, response);
                 break;
@@ -131,6 +136,45 @@ protected:
         }
 
         return connection_state;
+    }
+
+    void handle_request__get_controller_list(
+        const RequestContext &context, 
+        PSMoveProtocol::Response *response)
+    {
+        PSMoveProtocol::Response_ResultControllerList* list= response->mutable_result_controller_list();
+
+        for (int controller_id= 0; controller_id < k_max_controllers; ++controller_id)
+        {
+            ServerControllerViewPtr controller_view= m_controller_manager.getController(controller_id);
+
+            if (controller_view->getIsOpen())
+            {
+                PSMoveProtocol::Response_ResultControllerList_ControllerInfo *controller_info= list->add_controllers();
+
+                switch(controller_view->getControllerDeviceType())
+                {
+                case CommonControllerState::PSMove:
+                    controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
+                    break;
+                case CommonControllerState::PSNavi:
+                    controller_info->set_controller_type(PSMoveProtocol::PSNAVI);
+                    break;
+                default:
+                    assert(0 && "Unhandled controller type");
+                }
+
+                controller_info->set_controller_id(controller_id);
+                controller_info->set_connection_type(
+                    controller_view->getIsBluetooth()
+                    ? PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH
+                    : PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_USB);            
+                controller_info->set_device_path(controller_view->getUSBDevicePath());
+                controller_info->set_device_serial(controller_view->getSerial());
+            }
+        }
+
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
     }
 
     void handle_request__start_controller_data_stream(

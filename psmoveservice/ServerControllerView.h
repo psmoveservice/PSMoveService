@@ -29,6 +29,12 @@ public:
     // Returns true if the device is connected via Bluetooth, false if by USB
     bool getIsBluetooth() const;
 
+    // Returns the full usb device path for the controller
+    std::string getUSBDevicePath() const;
+
+    // Returns the serial number for the controller
+    std::string getSerial() const;
+
     // Returns true if hidapi opened successfully
     bool getIsOpen() const;
 

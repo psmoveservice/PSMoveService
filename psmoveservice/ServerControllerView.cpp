@@ -88,6 +88,20 @@ ServerControllerView::getIsBluetooth() const
     return m_controller->getIsBluetooth();
 }
 
+// Returns the full usb device path for the controller
+std::string 
+ServerControllerView::getUSBDevicePath() const
+{
+    return m_controller->getUSBDevicePath();
+}
+
+// Returns the serial number for the controller
+std::string 
+ServerControllerView::getSerial() const
+{
+    return m_controller->getSerial();
+}
+
 bool 
 ServerControllerView::getIsOpen() const
 {
@@ -184,7 +198,7 @@ void ServerControllerView::publish_controller_data_frame()
             SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::MOVE, psmove_state.Move);
             data_frame->set_button_down_bitmask(button_bitmask);
 
-            data_frame->set_controller_type(PSMoveProtocol::ControllerDataFrame_ControllerType_PSMOVE);
+            data_frame->set_controller_type(PSMoveProtocol::PSMOVE);
         } break;
     case CommonControllerState::PSNavi:
         {
@@ -210,7 +224,7 @@ void ServerControllerView::publish_controller_data_frame()
             SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::LEFT, psnavi_state.DPad_Left);
             data_frame->set_button_down_bitmask(button_bitmask);
 
-            data_frame->set_controller_type(PSMoveProtocol::ControllerDataFrame_ControllerType_PSNAVI);
+            data_frame->set_controller_type(PSMoveProtocol::PSNAVI);
         } break;
     default:
         assert(0 && "Unhandled controller type");
