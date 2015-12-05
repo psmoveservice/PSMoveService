@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
+set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(PSMOVE_CLIENT_INCL_DIRS)
 set(PSMOVE_CLIENT_REQ_LIBS)
 
@@ -18,7 +18,7 @@ list(APPEND PSMOVE_CLIENT_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND PSMOVE_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
 
 # PSMoveProtocol
-include_directories(${ROOT_DIR}/psmoveprotocol/)
+include_directories(${ROOT_DIR}/src/psmoveprotocol/)
 list(APPEND PSMOVE_CLIENT_REQ_LIBS PSMoveProtocol)
 
 # Source files that are needed for the shared library

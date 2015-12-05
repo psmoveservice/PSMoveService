@@ -1,6 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
-
-set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
+set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 
 # Common dependencies
 SET(PLATFORM_LIBS)
@@ -48,10 +46,10 @@ list(APPEND TEST_CONFIG_REQ_LIBS ${Boost_LIBRARIES})
 
 # Our custom ConfigManager classes
 # We are not including the PSMoveService project on purpose.
-list(APPEND TEST_CONFIG_INCL_DIRS ${ROOT_DIR}/psmoveservice/PSMoveConfig)
+list(APPEND TEST_CONFIG_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/PSMoveConfig)
 list(APPEND TEST_CONFIG_SRC
-    ${ROOT_DIR}/psmoveservice/PSMoveConfig/PSMoveConfig.h
-    ${ROOT_DIR}/psmoveservice/PSMoveConfig/PSMoveConfig.cpp)
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp)
 
 add_executable(test_config ${CMAKE_CURRENT_LIST_DIR}/test_config.cpp ${TEST_CONFIG_SRC})
 target_include_directories(test_config PUBLIC ${TEST_CONFIG_INCL_DIRS})
@@ -109,7 +107,7 @@ ENDIF()
 # CL EYE - only on Win32
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
     AND NOT(${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8))
-    #include_directories(${ROOT_DIR}/external/CLEYE)
+    #include_directories(${ROOT_DIR}/thirdparty/CLEYE)
     #find_path(CL_EYE_SDK_PATH bin/CLEyeMulticam.dll
     #    HINTS ${ROOT_DIR}/thirdparty/CLEYE/)
     #IF(CL_EYE_SDK_PATH)
@@ -125,10 +123,10 @@ ENDIF()
 
 # Our custom OpenCV VideoCapture classes
 # We are not including the PSMoveService project on purpose.
-list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/psmoveservice/PSEye)
+list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/PSEye)
 list(APPEND TEST_CAMERA_SRC
-    ${ROOT_DIR}/psmoveservice/PSEye/PSEyeVideoCapture.h
-    ${ROOT_DIR}/psmoveservice/PSEye/PSEyeVideoCapture.cpp)
+    ${ROOT_DIR}/src/psmoveservice/PSEye/PSEyeVideoCapture.h
+    ${ROOT_DIR}/src/psmoveservice/PSEye/PSEyeVideoCapture.cpp)
 
 # The test_camera app
 add_executable(test_camera ${CMAKE_CURRENT_LIST_DIR}/test_camera.cpp ${TEST_CAMERA_SRC})
@@ -175,23 +173,23 @@ list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
 # We are not including the PSMoveService target on purpose, because this only tests
 # a small part of the service and should not depend on the whole thing building.
 list(APPEND TEST_CTRLR_INCL_DIRS
-    ${ROOT_DIR}/psmoveservice/
-    ${ROOT_DIR}/psmoveservice/PSMoveConfig
-    ${ROOT_DIR}/psmoveservice/PSMoveController)
+    ${ROOT_DIR}/src/psmoveservice/
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
+    ${ROOT_DIR}/src/psmoveservice/PSMoveController)
 list(APPEND TEST_CTRLR_SRC
-    ${ROOT_DIR}/psmoveservice/ServerLog.h
-    ${ROOT_DIR}/psmoveservice/ServerLog.cpp
-    ${ROOT_DIR}/psmoveservice/ServerUtility.h
-    ${ROOT_DIR}/psmoveservice/ServerUtility.cpp
-    ${ROOT_DIR}/psmoveservice/ControllerEnumerator.h
-    ${ROOT_DIR}/psmoveservice/ControllerEnumerator.cpp
-    ${ROOT_DIR}/psmoveservice/PSMoveConfig/PSMoveConfig.h
-    ${ROOT_DIR}/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
-    ${ROOT_DIR}/psmoveservice/PSMoveController/PSMoveController.h
-    ${ROOT_DIR}/psmoveservice/PSMoveController/PSMoveController.cpp)
+    ${ROOT_DIR}/src/psmoveservice/ServerLog.h
+    ${ROOT_DIR}/src/psmoveservice/ServerLog.cpp
+    ${ROOT_DIR}/src/psmoveservice/ServerUtility.h
+    ${ROOT_DIR}/src/psmoveservice/ServerUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/ControllerEnumerator.h
+    ${ROOT_DIR}/src/psmoveservice/ControllerEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
+    ${ROOT_DIR}/src/psmoveservice/PSMoveController/PSMoveController.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveController/PSMoveController.cpp)
 
 # psmoveprotocol
-list(APPEND TEST_CTRLR_INCL_DIRS ${ROOT_DIR}/psmoveprotocol)
+list(APPEND TEST_CTRLR_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
 list(APPEND TEST_CTRLR_REQ_LIBS PSMoveProtocol)
 
 add_executable(test_controller ${CMAKE_CURRENT_LIST_DIR}/test_controller.cpp ${TEST_CTRLR_SRC})
@@ -211,7 +209,7 @@ ENDIF()
 # TEST_CONSOLE_CLIENT
 #
 add_executable(test_console_client test_console_client.cpp)
-target_include_directories(test_console_client PUBLIC ${ROOT_DIR}/psmoveclient/)
+target_include_directories(test_console_client PUBLIC ${ROOT_DIR}/src/psmoveclient/)
 target_link_libraries(test_console_client PSMoveClient)
 
 # Install    
