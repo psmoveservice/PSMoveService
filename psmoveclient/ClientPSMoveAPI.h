@@ -4,56 +4,55 @@
 //-- includes -----
 #include "ClientConfig.h"
 #include "ClientLog.h"
-#include <functional>
-#include <memory>
 
 //-- pre-declarations -----
 class ClientControllerView;
-typedef std::shared_ptr<ClientControllerView> ClientControllerViewPtr;
 
 //-- interface -----
 class CLIENTPSMOVEAPI ClientPSMoveAPI
 {
 public:
-	enum eClientPSMoveAPIEvent
-	{
-		connectedToService,
+    enum eClientPSMoveAPIEvent
+    {
+        connectedToService,
         failedToConnectToService,
-		disconnectedFromService,
-	};
+        disconnectedFromService,
+    };
 
-	enum eClientPSMoveResultCode
-	{
-		_clientPSMoveResultCode_ok,
+    enum eClientPSMoveResultCode
+    {
+        _clientPSMoveResultCode_ok,
         _clientPSMoveResultCode_error,
         _clientPSMoveResultCode_canceled
-	};
+    };
 
-	typedef std::function<void(eClientPSMoveAPIEvent)> event_callback;
-    typedef std::function<void(eClientPSMoveResultCode ResultCode)> response_callback;
+    typedef void(*t_event_callback)(eClientPSMoveAPIEvent event, void *userdata);
+    typedef void(*t_response_callback)(eClientPSMoveResultCode ResultCode, void *userdata);
 
-	static bool startup(
-        const std::string &host, 
-        const std::string &port, 
-        event_callback callback,
-        e_log_severity_level log_level=_log_severity_level_info);
-	static void update();
-	static void shutdown();
+    static bool startup(
+        const std::string &host,
+        const std::string &port,
+        t_event_callback callback,
+        void *callback_userdata,
+        e_log_severity_level log_level = _log_severity_level_info);
+    static void update();
+    static void shutdown();
 
-    static ClientControllerViewPtr allocate_controller_view(int PSMoveID);
-    static void free_controller_view(ClientControllerViewPtr view);
+    static ClientControllerView *allocate_controller_view(int PSMoveID);
+    static void free_controller_view(ClientControllerView *view);
 
-    static void start_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback);
-    static void stop_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback);
-	static void set_controller_rumble(ClientControllerViewPtr view, float rumble_amount, response_callback callback);
-	static void reset_pose(ClientControllerViewPtr view, response_callback callback);
+    static void start_controller_data_stream(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
+    static void stop_controller_data_stream(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
+    static void set_controller_rumble(
+        ClientControllerView *view, float rumble_amount, t_response_callback callback, void *callback_userdata);
+    static void reset_pose(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
 
 private:
-	// Not allowed to instantiate
-	ClientPSMoveAPI();
+    // Not allowed to instantiate
+    ClientPSMoveAPI();
 
-	// Singleton private implementation - same lifetime as the ClientPSMoveAPI
-	static class ClientPSMoveAPIImpl *m_implementation_ptr;
+    // Singleton private implementation - same lifetime as the ClientPSMoveAPI
+    static class ClientPSMoveAPIImpl *m_implementation_ptr;
 };
 
 #endif // CLIENT_PSMOVE_API_H

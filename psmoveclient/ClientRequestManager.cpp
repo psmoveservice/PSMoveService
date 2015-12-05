@@ -11,7 +11,8 @@
 struct RequestContext
 {
     RequestPtr request;
-    ClientRequestManager::response_callback callback;
+    ClientRequestManager::t_response_callback callback;
+    void *callback_userdata;
 };
 typedef std::map<int, RequestContext> t_request_context_map;
 typedef std::map<int, RequestContext>::iterator t_request_context_map_iterator;
@@ -26,7 +27,7 @@ public:
     {
     }
 
-    void send_request(RequestPtr request, ClientRequestManager::response_callback callback)
+    void send_request(RequestPtr request, ClientRequestManager::t_response_callback callback, void *userdata)
     {
         RequestContext context;
 
@@ -35,6 +36,7 @@ public:
 
         context.request= request;
         context.callback= callback;
+        context.callback_userdata= userdata;
 
         // Add the request to the pending request map.
         // Requests should never be double registered.
@@ -87,7 +89,7 @@ public:
                 assert(false && "Unknown response result code");
             }
 
-            context.callback(result);
+            context.callback(result, context.callback_userdata);
         }
 
         // Remove the pending request from the map
@@ -110,9 +112,10 @@ ClientRequestManager::~ClientRequestManager()
     delete m_implementation_ptr;
 }
 
-void ClientRequestManager::send_request(RequestPtr request, ClientRequestManager::response_callback callback)
+void ClientRequestManager::send_request(
+    RequestPtr request, ClientRequestManager::t_response_callback callback, void *userdata)
 {
-    m_implementation_ptr->send_request(request, callback);
+    m_implementation_ptr->send_request(request, callback, userdata);
 }
 
 void ClientRequestManager::handle_request_canceled(RequestPtr request)

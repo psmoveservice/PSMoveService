@@ -17,7 +17,7 @@ class PSMoveConsoleClient
 public:
     PSMoveConsoleClient() 
         : m_keepRunning(true)
-        , controller_view()
+        , controller_view(nullptr)
     {
     }
 
@@ -70,46 +70,54 @@ private:
     }
 
     // ClientPSMoveAPI
-    void handle_client_psmove_event(ClientPSMoveAPI::eClientPSMoveAPIEvent event_type)
+    static void handle_client_psmove_event(
+        ClientPSMoveAPI::eClientPSMoveAPIEvent event_type,
+        void *userdata)
     {
+        PSMoveConsoleClient *thisPtr= reinterpret_cast<PSMoveConsoleClient *>(userdata);
+
         switch (event_type)
         {
         case ClientPSMoveAPI::connectedToService:
             std::cout << "PSMoveConsoleClient - Connected to service" << std::endl;
 
             // Once created, updates will automatically get pushed into this view
-            controller_view= ClientPSMoveAPI::allocate_controller_view(0);
+            thisPtr->controller_view= ClientPSMoveAPI::allocate_controller_view(0);
 
             // Kick off request to start streaming data from the first controller
             ClientPSMoveAPI::start_controller_data_stream(
-                controller_view, 
-                std::bind(&PSMoveConsoleClient::handle_acquire_controller, this, std::placeholders::_1));
+                thisPtr->controller_view, 
+                &PSMoveConsoleClient::handle_acquire_controller, thisPtr);
             break;
         case ClientPSMoveAPI::failedToConnectToService:
             std::cout << "PSMoveConsoleClient - Failed to connect to service" << std::endl;
-            m_keepRunning= false;
+            thisPtr->m_keepRunning= false;
             break;
         case ClientPSMoveAPI::disconnectedFromService:
             std::cout << "PSMoveConsoleClient - Disconnected from service" << std::endl;
-            m_keepRunning= false;
+            thisPtr->m_keepRunning= false;
             break;
         default:
             break;
         }
     }
 
-    void handle_acquire_controller(ClientPSMoveAPI::eClientPSMoveResultCode resultCode)
+    static void handle_acquire_controller(
+        ClientPSMoveAPI::eClientPSMoveResultCode resultCode,
+        void *userdata)
     {
+        PSMoveConsoleClient *thisPtr= reinterpret_cast<PSMoveConsoleClient *>(userdata);
+
         if (resultCode == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
         {
             std::cout << "PSMoveConsoleClient - Acquired controller " 
-                << controller_view->GetControllerID() << std::endl;
+                << thisPtr->controller_view->GetControllerID() << std::endl;
 
             // Updates will now automatically get pushed into the controller view
 
-            if (controller_view->GetControllerViewType() == ClientControllerView::PSMove)
+            if (thisPtr->controller_view->GetControllerViewType() == ClientControllerView::PSMove)
             {
-                const ClientPSMoveView &PSMoveView= controller_view->GetPSMoveView();
+                const ClientPSMoveView &PSMoveView= thisPtr->controller_view->GetPSMoveView();
                 
                 if (PSMoveView.GetIsCurrentlyTracking())
                 {
@@ -123,7 +131,7 @@ private:
         else
         {
             std::cout << "PSMoveConsoleClient - failed to acquire controller " << std::endl;
-            m_keepRunning= false;
+            thisPtr->m_keepRunning= false;
         }
     }
 
@@ -137,7 +145,7 @@ private:
         {
             if (!ClientPSMoveAPI::startup(
                     "localhost", "9512", 
-                    std::bind(&PSMoveConsoleClient::handle_client_psmove_event, this, std::placeholders::_1)))
+                    &PSMoveConsoleClient::handle_client_psmove_event, this))
             {
                 std::cout << "PSMoveConsoleClient - Failed to initialize the client network manager" << std::endl;
                 success= false;
@@ -180,7 +188,7 @@ private:
         if (controller_view)
         {
             ClientPSMoveAPI::free_controller_view(controller_view);
-            controller_view.reset();
+            controller_view= nullptr;
         }
 
         // Close all active network connections
@@ -189,7 +197,7 @@ private:
 
 private:
     bool m_keepRunning;
-    ClientControllerViewPtr controller_view;
+    ClientControllerView *controller_view;
     std::chrono::milliseconds last_report_fps_timestamp;
 };
 

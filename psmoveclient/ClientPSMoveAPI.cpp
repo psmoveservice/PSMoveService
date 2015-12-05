@@ -8,9 +8,9 @@
 #include <map>
 
 //-- typedefs -----
-typedef std::map<int, ClientControllerViewPtr> t_controller_view_map;
-typedef std::map<int, ClientControllerViewPtr>::iterator t_controller_view_map_iterator;
-typedef std::pair<int, ClientControllerViewPtr> t_id_controller_view_pair;
+typedef std::map<int, ClientControllerView *> t_controller_view_map;
+typedef std::map<int, ClientControllerView *>::iterator t_controller_view_map_iterator;
+typedef std::pair<int, ClientControllerView *> t_id_controller_view_pair;
 
 //-- internal implementation -----
 class ClientPSMoveAPIImpl : 
@@ -19,7 +19,11 @@ class ClientPSMoveAPIImpl :
     public IClientNetworkEventListener
 {
 public:
-    ClientPSMoveAPIImpl(const std::string &host, const std::string &port, ClientPSMoveAPI::event_callback callback)
+    ClientPSMoveAPIImpl(
+        const std::string &host, 
+        const std::string &port, 
+        ClientPSMoveAPI::t_event_callback callback,
+        void *callback_userdata)
         : m_request_manager()
         , m_network_manager(
             host, port, 
@@ -28,6 +32,7 @@ public:
             &m_request_manager, // IResonseListener
             this) // IClientNetworkEventListener
         , m_event_callback(callback)
+        , m_event_callback_userdata(callback_userdata)
         , m_controller_view_map()
     {
     }
@@ -76,9 +81,9 @@ public:
     }
 
     // -- ClientPSMoveAPI Requests -----
-    ClientControllerViewPtr allocate_controller_view(int PSMoveID)
+    ClientControllerView * allocate_controller_view(int PSMoveID)
     {
-        ClientControllerViewPtr view;
+        ClientControllerView * view;
 
         // Use the same view if one already exists for the given controller id
         t_controller_view_map_iterator view_entry= m_controller_view_map.find(PSMoveID);
@@ -89,7 +94,7 @@ public:
         else
         {
             // Create a new initialized controller view
-            view= ClientControllerViewPtr(new ClientControllerView(PSMoveID));
+            view= new ClientControllerView(PSMoveID);
 
             // Add it to the map of controller
             m_controller_view_map.insert(t_id_controller_view_pair(PSMoveID, view));
@@ -101,7 +106,7 @@ public:
         return view;
     }
 
-    void free_controller_view(ClientControllerViewPtr view)
+    void free_controller_view(ClientControllerView * view)
     {
         t_controller_view_map_iterator view_entry= m_controller_view_map.find(view->GetControllerID());
         assert(view_entry != m_controller_view_map.end());
@@ -112,11 +117,17 @@ public:
         // If no one is listening to this controller anymore, free it from the map
         if (view->GetListenerCount() <= 0)
         {
+            // Free the controller view allocated in allocate_controller_view
+            delete view_entry->second;
+            view_entry->second= nullptr;
+
+            // Remove the entry from the map
             m_controller_view_map.erase(view_entry);
         }
     }
 
-    void start_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
+    void start_controller_data_stream(
+        ClientControllerView * view, ClientPSMoveAPI::t_response_callback callback, void *userdata)
     {
         CLIENT_LOG_INFO("start_controller_data_stream") << "requesting controller stream start for PSMoveID: " << view->GetControllerID() << std::endl;
 
@@ -125,10 +136,11 @@ public:
         request->set_type(PSMoveProtocol::Request_RequestType_START_CONTROLLER_DATA_STREAM);
         request->mutable_request_start_psmove_data_stream()->set_controller_id(view->GetControllerID());
 
-        m_request_manager.send_request(request, callback);
+        m_request_manager.send_request(request, callback, userdata);
     }
 
-    void stop_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
+    void stop_controller_data_stream(
+        ClientControllerView * view, ClientPSMoveAPI::t_response_callback callback, void *userdata)
     {
         CLIENT_LOG_INFO("stop_controller_data_stream") << "requesting controller stream stop for PSMoveID: " << view->GetControllerID() << std::endl;
 
@@ -137,10 +149,11 @@ public:
         request->set_type(PSMoveProtocol::Request_RequestType_STOP_CONTROLLER_DATA_STREAM);
         request->mutable_request_stop_psmove_data_stream()->set_controller_id(view->GetControllerID());
 
-        m_request_manager.send_request(request, callback);
+        m_request_manager.send_request(request, callback, userdata);
     }
 
-    void set_controller_rumble(ClientControllerViewPtr view, float rumble_amount, ClientPSMoveAPI::response_callback callback)
+    void set_controller_rumble(
+        ClientControllerView * view, float rumble_amount, ClientPSMoveAPI::t_response_callback callback, void *userdata)
     {
         CLIENT_LOG_INFO("set_controller_rumble") << "request set rumble to " << rumble_amount << " for PSMoveID: " << view->GetControllerID() << std::endl;
 
@@ -153,10 +166,10 @@ public:
         request->mutable_request_rumble()->set_controller_id(view->GetControllerID());
         request->mutable_request_rumble()->set_rumble(static_cast<int>(rumble_amount * 255.f));
 
-        m_request_manager.send_request(request, callback);
+        m_request_manager.send_request(request, callback, userdata);
     }
 
-    void reset_pose(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
+    void reset_pose(ClientControllerView * view, ClientPSMoveAPI::t_response_callback callback, void *userdata)
     {
         CLIENT_LOG_INFO("set_controller_rumble") << "requesting pose reset for PSMoveID: " << view->GetControllerID() << std::endl;
 
@@ -165,7 +178,7 @@ public:
         request->set_type(PSMoveProtocol::Request_RequestType_RESET_POSE);
         request->mutable_reset_pose()->set_controller_id(view->GetControllerID());
         
-        m_request_manager.send_request(request, callback);
+        m_request_manager.send_request(request, callback, userdata);
     }
 
     // IDataFrameListener
@@ -177,7 +190,7 @@ public:
 
         if (view_entry != m_controller_view_map.end())
         {
-            ClientControllerViewPtr view= view_entry->second;
+            ClientControllerView * view= view_entry->second;
 
             view->ApplyControllerDataFrame(data_frame.get());
         }
@@ -202,7 +215,7 @@ public:
 
         if (m_event_callback)
         {
-            m_event_callback(ClientPSMoveAPI::connectedToService);
+            m_event_callback(ClientPSMoveAPI::connectedToService, m_event_callback_userdata);
         }
     }
 
@@ -212,7 +225,7 @@ public:
 
         if (m_event_callback)
         {
-            m_event_callback(ClientPSMoveAPI::failedToConnectToService);
+            m_event_callback(ClientPSMoveAPI::failedToConnectToService, m_event_callback_userdata);
         }
     }
 
@@ -222,7 +235,7 @@ public:
 
         if (m_event_callback)
         {
-            m_event_callback(ClientPSMoveAPI::disconnectedFromService);
+            m_event_callback(ClientPSMoveAPI::disconnectedFromService, m_event_callback_userdata);
         }
     }
 
@@ -239,8 +252,9 @@ public:
 private:
     ClientRequestManager m_request_manager;
     ClientNetworkManager m_network_manager;
-    ClientPSMoveAPI::event_callback m_event_callback;
-    t_controller_view_map m_controller_view_map;    
+    ClientPSMoveAPI::t_event_callback m_event_callback;
+    void *m_event_callback_userdata;
+    t_controller_view_map m_controller_view_map;
 };
 
 //-- ClientPSMoveAPI -----
@@ -249,14 +263,15 @@ class ClientPSMoveAPIImpl *ClientPSMoveAPI::m_implementation_ptr = NULL;
 bool ClientPSMoveAPI::startup(
     const std::string &host, 
     const std::string &port, 
-    ClientPSMoveAPI::event_callback callback,
+    ClientPSMoveAPI::t_event_callback callback,
+    void *callback_userdata,
     e_log_severity_level log_level)
 {
     bool success= true;
 
     if (ClientPSMoveAPI::m_implementation_ptr == NULL)
     {
-        ClientPSMoveAPI::m_implementation_ptr = new ClientPSMoveAPIImpl(host, port, callback);
+        ClientPSMoveAPI::m_implementation_ptr = new ClientPSMoveAPIImpl(host, port, callback, callback_userdata);
         success= ClientPSMoveAPI::m_implementation_ptr->startup(log_level);
     }
 
@@ -283,9 +298,9 @@ void ClientPSMoveAPI::shutdown()
     }
 }
 
-ClientControllerViewPtr ClientPSMoveAPI::allocate_controller_view(int PSMoveID)
+ClientControllerView * ClientPSMoveAPI::allocate_controller_view(int PSMoveID)
 {
-    ClientControllerViewPtr view;
+    ClientControllerView * view;
 
     if (ClientPSMoveAPI::m_implementation_ptr != NULL)
     {
@@ -295,7 +310,7 @@ ClientControllerViewPtr ClientPSMoveAPI::allocate_controller_view(int PSMoveID)
     return view;
 }
 
-void ClientPSMoveAPI::free_controller_view(ClientControllerViewPtr view)
+void ClientPSMoveAPI::free_controller_view(ClientControllerView * view)
 {
     if (ClientPSMoveAPI::m_implementation_ptr != NULL)
     {
@@ -303,39 +318,47 @@ void ClientPSMoveAPI::free_controller_view(ClientControllerViewPtr view)
     }
 }
 
-void ClientPSMoveAPI::start_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
+void ClientPSMoveAPI::start_controller_data_stream(
+    ClientControllerView * view, 
+    ClientPSMoveAPI::t_response_callback callback, 
+    void *callback_userdata)
 {
     if (ClientPSMoveAPI::m_implementation_ptr != NULL)
     {
-        ClientPSMoveAPI::m_implementation_ptr->start_controller_data_stream(view, callback);
+        ClientPSMoveAPI::m_implementation_ptr->start_controller_data_stream(view, callback, callback_userdata);
     }
 }
 
-void ClientPSMoveAPI::stop_controller_data_stream(ClientControllerViewPtr view, ClientPSMoveAPI::response_callback callback)
+void ClientPSMoveAPI::stop_controller_data_stream(
+    ClientControllerView * view, 
+    ClientPSMoveAPI::t_response_callback callback,
+    void *callback_userdata)
 {
     if (ClientPSMoveAPI::m_implementation_ptr != NULL)
     {
-        ClientPSMoveAPI::m_implementation_ptr->stop_controller_data_stream(view, callback);
+        ClientPSMoveAPI::m_implementation_ptr->stop_controller_data_stream(view, callback, callback_userdata);
     }
 }
 
 void ClientPSMoveAPI::set_controller_rumble(
-    ClientControllerViewPtr view, 
+    ClientControllerView * view, 
     float rumble_amount, 
-    ClientPSMoveAPI::response_callback callback)
+    ClientPSMoveAPI::t_response_callback callback,
+    void *callback_userdata)
 {
     if (ClientPSMoveAPI::m_implementation_ptr != NULL)
     {
-        ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount, callback);
+        ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount, callback, callback_userdata);
     }
 }
 
 void ClientPSMoveAPI::reset_pose(
-    ClientControllerViewPtr view,
-    ClientPSMoveAPI::response_callback callback)
+    ClientControllerView * view,
+    ClientPSMoveAPI::t_response_callback callback,
+    void *callback_userdata)
 {
     if (ClientPSMoveAPI::m_implementation_ptr != NULL)
     {
-        ClientPSMoveAPI::m_implementation_ptr->reset_pose(view, callback);
+        ClientPSMoveAPI::m_implementation_ptr->reset_pose(view, callback, callback_userdata);
     }
 }
