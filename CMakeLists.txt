@@ -67,8 +67,4 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES "${PROTOBUF_ORIG_FIND_LIBRARY_SUFFIXES}")  # Res
 include_directories(${CMAKE_BINARY_DIR}/psmoveprotocol)  # This is where the .proto files are compiled to.
 
 # Step into the subdirectories
-add_subdirectory(psmoveprotocol)
-add_subdirectory(psmoveservice)
-add_subdirectory(psmoveclient)
-add_subdirectory(psmoveconfigtool)
-add_subdirectory(tests)
+add_subdirectory(src)

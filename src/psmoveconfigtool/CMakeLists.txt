@@ -1,6 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
-
-set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
+set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(PSMOVECONFIGTOOL_INCL_DIRS)
 set(PSMOVECONFIGTOOL_REQ_LIBS)
 
@@ -9,7 +7,7 @@ list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
     ${ROOT_DIR}/thirdparty/glm
     ${ROOT_DIR}/thirdparty/stb
     ${ROOT_DIR}/thirdparty/imgui
-    ${ROOT_DIR}/psmoveclient/)
+    ${ROOT_DIR}/src/psmoveclient/)
 
 # platform independent libraries
 list(APPEND PSMOVECONFIGTOOL_REQ_LIBS PSMoveClient)
