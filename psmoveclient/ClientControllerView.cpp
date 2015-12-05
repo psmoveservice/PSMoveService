@@ -168,10 +168,16 @@ void ClientControllerView::ApplyControllerDataFrame(
         long long now = 
             std::chrono::duration_cast< std::chrono::milliseconds >(
                 std::chrono::system_clock::now().time_since_epoch()).count();
-        float seconds= static_cast<float>(now - data_frame_last_received_time) / 1000.f;
-        float fps= 1.f / seconds;
+        long long diff= now - data_frame_last_received_time;
 
-        data_frame_average_fps= (0.9f)*data_frame_average_fps + (0.1f)*fps;
+        if (diff > 0)
+        {
+            float seconds= static_cast<float>(diff) / 1000.f;
+            float fps= 1.f / seconds;
+
+            data_frame_average_fps= (0.9f)*data_frame_average_fps + (0.1f)*fps;
+        }
+
         data_frame_last_received_time= now;
     }
 
