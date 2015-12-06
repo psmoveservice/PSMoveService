@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
+set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 
 # Dependencies
 set(PSMOVE_SERVICE_INCL_DIRS)
@@ -42,9 +42,9 @@ file(GLOB PSMOVESERVICE_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.h"
 )
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
-    ${ROOT_DIR}/psmoveservice/PSMoveConfig
-    ${ROOT_DIR}/psmoveservice/PSMoveController
-    ${ROOT_DIR}/psmoveservice/PSNaviController)
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
+    ${ROOT_DIR}/src/psmoveservice/PSMoveController
+    ${ROOT_DIR}/src/psmoveservice/PSNaviController)
     
 # Boost.Application and type_index are header only (?)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
@@ -74,7 +74,7 @@ ELSE()
 ENDIF()
 
 # PSMoveDataFrame
-list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/psmoveprotocol/)
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol/)
 list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveProtocol)
 
 # TODO: Camera. See tests
