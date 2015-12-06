@@ -20,9 +20,11 @@ echo set OPENCV_BUILD_PATH=%OPENCV_ROOT_PATH%\build >> SetBuildVars.bat
 echo set BOOST_ROOT_PATH=%BOOST_ROOT_PATH% >> SetBuildVars.bat
 echo set BOOST_LIB_PATH=%BOOST_ROOT_PATH%\lib32-msvc-12.0 >> SetBuildVars.bat
 
+:: Add MSVC build tools to the path
+call "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" x86
+
 :: Compile the DEBUG|Win32 and RELEASE|Win32 builds of protobuf
 echo "Creating protobuf project files..."
-call "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" x86
 pushd thirdparty\protobuf
 mkdir vsprojects
 pushd vsprojects
@@ -40,6 +42,17 @@ echo "Building libusb DEBUG|Win32..."
 MSBuild.exe libusb_2013.sln /p:configuration=DEBUG /p:Platform="Win32" /t:Clean;Build 
 echo "Building libusb RELEASE|Win32..."
 MSBuild.exe libusb_2013.sln /p:configuration=RELEASE /p:Platform="Win32" /t:Clean;Build
+popd
+
+:: Compile the RELEASE|Win32 build of SDL2
+echo "Creating SDL2 project files..."
+pushd thirdparty\SDL2
+mkdir build
+pushd build
+cmake .. -G "Visual Studio 12 2013" -DDIRECTX=OFF
+echo "Building SDL2 Release|Win32..."
+MSBuild.exe SDL2.sln /p:configuration=RELEASE /p:Platform="Win32" /t:Clean;Build 
+popd
 popd
 
 :: Generate the project files for PSMoveService
