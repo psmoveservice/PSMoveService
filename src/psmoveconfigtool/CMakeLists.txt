@@ -42,22 +42,28 @@ add_executable(PSMoveConfigTool ${PSMOVECONFIGTOOL_SRC})
 target_include_directories(PSMoveConfigTool PUBLIC ${PSMOVECONFIGTOOL_INCL_DIRS})
 target_link_libraries(PSMoveConfigTool ${PSMOVECONFIGTOOL_REQ_LIBS})
 
-# Install    
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-install(TARGETS PSMoveConfigTool
-	RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
-	LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
-	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
-ELSE() #Linux/Darwin
-ENDIF()
-
+# Post build dependencies (assets and external DLLs)
 add_custom_command(TARGET PSMoveConfigTool POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_LIST_DIR}/visual_setup/assets"
+        "${CMAKE_CURRENT_LIST_DIR}/assets"
         $<TARGET_FILE_DIR:PSMoveConfigTool>/assets)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    # only needed in windows
     add_custom_command(TARGET PSMoveConfigTool POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${SDL_BIN_PATH}/SDL2.dll"
             $<TARGET_FILE_DIR:PSMoveConfigTool>)
+ENDIF()
+
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS PSMoveConfigTool
+    RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
+    LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
+    ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+install(FILES ${SDL_BIN_PATH}/SDL2.dll DESTINATION ${ROOT_DIR}/win32/bin)
+install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/assets/ 
+        DESTINATION ${ROOT_DIR}/win32/bin/assets
+        FILES_MATCHING PATTERN "*.ttf"  PATTERN "*.jpg")
+ELSE() #Linux/Darwin
 ENDIF()

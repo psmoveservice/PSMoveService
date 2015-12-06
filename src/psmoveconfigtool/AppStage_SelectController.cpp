@@ -51,7 +51,7 @@ void AppStage_SelectController::renderUI()
         ImGuiWindowFlags_NoCollapse;
     ImGui::SetNextWindowPosCenter();
     ImGui::Begin("Status", nullptr, ImVec2(300, 150), k_bg_alpha, window_flags);
-    ImGui::Text("Waiting for controller data");
+    ImGui::Text("Here is some status...");
     ImGui::End();
 }
 
