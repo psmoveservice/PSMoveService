@@ -3,8 +3,10 @@
 #include "App.h"
 #include "Camera.h"
 #include "Renderer.h"
+#include "UIConstants.h"
 
 #include "SDL_keycode.h"
+
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
 
@@ -12,7 +14,6 @@
 const char *AppStage_SelectController::APP_STAGE_NAME= "SelectController";
 
 //-- constants -----
-static const float k_bg_alpha = 0.65f;
 
 //-- public methods -----
 AppStage_SelectController::AppStage_SelectController(App *app) 
@@ -50,7 +51,7 @@ void AppStage_SelectController::renderUI()
         ImGuiWindowFlags_NoScrollbar |
         ImGuiWindowFlags_NoCollapse;
     ImGui::SetNextWindowPosCenter();
-    ImGui::Begin("Status", nullptr, ImVec2(300, 150), k_bg_alpha, window_flags);
+    ImGui::Begin("Status", nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
     ImGui::Text("Here is some status...");
     ImGui::End();
 }

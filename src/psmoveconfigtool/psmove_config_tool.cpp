@@ -1,6 +1,6 @@
 //-- includes -----
 #include "App.h"
-#include "AppStage_IntroScreen.h"
+#include "AppStage_MainMenu.h"
 #include "AppStage_SelectController.h"
 
 #ifdef _WIN32
@@ -18,8 +18,8 @@ extern "C" int main(int argc, char *argv[])
     App app;
 
     // Register all of the app stages
-    app.registerAppStage<AppStage_IntroScreen>();
+    app.registerAppStage<AppStage_MainMenu>();
     app.registerAppStage<AppStage_SelectController>();
 
-    return app.exec(argc, argv, AppStage_SelectController::APP_STAGE_NAME);
+    return app.exec(argc, argv, AppStage_MainMenu::APP_STAGE_NAME);
 }

@@ -15,6 +15,7 @@ App::App()
     , m_fixedCamera(m_renderer)
     , m_appStageName(nullptr)
     , m_appStage(nullptr)
+    , m_bShutdownRequested(false)
 {
 }
 
@@ -39,7 +40,7 @@ int App::exec(int argc, char** argv, const char *initial_state_name)
 
         setAppStage(initial_state_name);
 
-        while (true) 
+        while (!m_bShutdownRequested) 
         {
             if (SDL_PollEvent(&e)) 
             {
@@ -239,6 +240,8 @@ void App::onClientPSMoveEvent(
 
 void App::update()
 {
+    ClientPSMoveAPI::update();
+
     if (m_appStage != NULL)
     {
         m_appStage->update();
