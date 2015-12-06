@@ -64,10 +64,7 @@ set(PROTOBUF_ORIG_FIND_LIBRARY_SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}") # Stor
 set(CMAKE_FIND_LIBRARY_SUFFIXES .a .lib .so .dylib .dll)  # Prefer static libs
 find_package(Protobuf REQUIRED)
 set(CMAKE_FIND_LIBRARY_SUFFIXES "${PROTOBUF_ORIG_FIND_LIBRARY_SUFFIXES}")  # Restore original
-include_directories(${CMAKE_BINARY_DIR}/psmovedataframe)  # This is where the .proto files are compiled to.
+include_directories(${CMAKE_BINARY_DIR}/psmoveprotocol)  # This is where the .proto files are compiled to.
 
 # Step into the subdirectories
-add_subdirectory(psmovedataframe)
-add_subdirectory(psmoveservice)
-add_subdirectory(psmoveclient)
-add_subdirectory(tests)
+add_subdirectory(src)

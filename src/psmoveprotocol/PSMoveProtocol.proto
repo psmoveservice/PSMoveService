@@ -1,0 +1,193 @@
+//
+// PSMoveProtocol.proto: protobuf definition file for the PSMove Service Protocol
+//
+// Brendan Walker (brendan@millerwalker.net)
+//
+syntax = "proto3";
+package PSMoveProtocol;
+
+enum ControllerType {
+    PSMOVE= 0;
+    PSNAVI= 1;
+}
+
+// Reliable (TCP) requests that can issued to the PSMove Service
+message Request {
+    // Unique id for this request. 
+    // Used to keep track of which response is associated with which request
+    // when multiple requests are in-flight.
+    int32 request_id = 1;
+
+    // The request type determines which of the request structures is actually used
+    enum RequestType {
+        GET_CONTROLLER_LIST = 0;
+        START_CONTROLLER_DATA_STREAM = 1;
+        STOP_CONTROLLER_DATA_STREAM = 2;
+        SET_RUMBLE = 3;
+        RESET_POSE = 4;
+    }
+    RequestType type = 2;
+   
+    // Parameters for START_CONTROLLER_DATA_STREAM
+    // NOTE: ControllerDataFrame packets will start streaming to client upon receiving this request
+    message RequestStartPSMoveDataStream {
+        int32 controller_id = 1;
+    }
+    RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
+
+    // Parameters for STOP_PSMOVE_DATA_STREAM
+    // NOTE: ControllerDataFrame packets will stop streaming to client upon receiving this request
+    message RequestStopPSMoveDataStream {
+        int32 controller_id = 1;
+    }
+    RequestStopPSMoveDataStream request_stop_psmove_data_stream = 21;
+
+    // Parameters for SET_RUMBLE
+    message RequestSetRumble {
+        int32 controller_id = 1;
+        int32 rumble = 2; // [0,255]
+    }
+    RequestSetRumble request_rumble = 22;
+
+    // Parameters for RESET_POSE
+    message RequestResetPose {
+        int32 controller_id = 1;
+    }
+    RequestResetPose reset_pose = 23;   
+}
+
+// Reliable (TCP) responses to requests
+message Response {
+    // The response type
+    enum ResponseType {
+        GENERAL_RESULT= 0;
+        CONNECTION_INFO= 1;
+        CONTROLLER_LIST= 2;
+    }
+
+    enum ResultCode {
+        RESULT_OK= 0;
+        RESULT_ERROR= 1;
+        RESULT_CANCELED= 2;
+    }
+
+    ResponseType type = 1;
+    int32 request_id = 2; // the request id that spawned this response, -1 if this is a notification
+    ResultCode result_code = 3;
+    
+    // No Parameters for GENERAL_RESULT
+    
+    // Parameters for CONNECTION_INFO
+    // This is returned automatically when connecting via TCP
+    message ResultConnectionInfo {
+        int32 tcp_connection_id = 1;
+    }
+    ResultConnectionInfo result_connection_info = 20;
+    
+    // Parameters for CONTROLLER_LIST
+    // This is returned in response to a CONTROLLER_LIST request
+    message ResultControllerList {
+        message ControllerInfo {
+            int32 controller_id= 1;
+            enum ConnectionType {
+                USB = 0;
+                BLUETOOTH = 1;
+            }
+            ConnectionType connection_type = 2;
+            ControllerType controller_type = 3;
+            string device_path = 4;
+            string device_serial = 5;
+        }
+        repeated ControllerInfo controllers = 1;
+    }
+    ResultControllerList result_controller_list = 21;    
+}
+
+// Unreliable (UDP) controller data packet format
+message ControllerDataFrame
+{   
+    message Position {
+        float x = 1;
+        float y = 2;
+        float z = 3;
+    }
+    
+    message Orientation{
+        float x = 1;
+        float y = 2;
+        float z = 3;
+        float w = 4;
+    }    
+    
+    // Button Index Bits
+    enum ButtonType {
+        TRIANGLE= 0;
+        CIRCLE= 1;
+        CROSS= 2;
+        SQUARE= 3;
+        SELECT= 4;
+        START= 5;
+        PS= 6;
+        MOVE= 7;
+        TRIGGER= 8;
+        UP= 9;
+        DOWN= 10;
+        LEFT= 11;
+        RIGHT= 12;
+        L1= 13;
+        L2= 14;
+        L3= 15;
+        R1= 16;
+        R2= 17;
+        R3= 18;        
+    }
+    
+    // The id of controller this data is for
+    int32 controller_id= 1;
+
+    // Specify the type of controller this data is from
+    ControllerType controller_type= 2;
+    
+    // Monotonically increasing number.
+    // Used to throw out old data if it arrives out of order.
+    int32 sequence_num= 3;
+
+    // Common Controller status flags
+    bool IsConnected= 4;
+    
+    // Raw bitmask of which buttons are currently down
+    // Buttons bits are indexed using the ButtonType enum
+    uint32 button_down_bitmask = 5;    
+    
+    // PSMove Specific Controller state
+    message PSMoveState
+    {
+        // PSMove Specific flags
+        bool IsTrackingEnabled= 1;
+        bool IsCurrentlyTracking= 2;
+
+        // Tracking position in the space of the HMD tracking camera
+        Position position = 3;
+
+        // Tracking orientation in the frame of the local magnetic field
+        Orientation orientation = 4;
+
+        // Trigger analog value [0,255]
+        int32 trigger_value = 5;
+    }
+    PSMoveState psmove_state = 6;
+    
+    // PSMove Specific Controller state
+    message PSNaviState
+    {
+        // Trigger analog value [0,255]
+        int32 trigger_value = 1;
+        
+        // The x-axis stick value, [0,255], Subtract 0x80 to obtain signed values
+        int32 stick_xaxis = 2;
+        
+        // The y-axis stick value, [0,255], Subtract 0x80 to obtain signed values
+        int32 stick_yaxis = 3;        
+    }
+    PSNaviState psnavi_state = 7;    
+}
