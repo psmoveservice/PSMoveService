@@ -7,10 +7,15 @@ list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
     ${ROOT_DIR}/thirdparty/glm
     ${ROOT_DIR}/thirdparty/stb
     ${ROOT_DIR}/thirdparty/imgui
-    ${ROOT_DIR}/src/psmoveclient/)
+    ${ROOT_DIR}/src/psmoveclient/
+    ${ROOT_DIR}/src/psmoveprotocol/
+    ${PROTOBUF_INCLUDE_DIRS})
 
 # platform independent libraries
-list(APPEND PSMOVECONFIGTOOL_REQ_LIBS PSMoveClient)
+list(APPEND PSMOVECONFIGTOOL_REQ_LIBS 
+    PSMoveClient
+    PSMoveProtocol
+    ${PROTOBUF_LIBRARIES})
    
 # platform specific libraries/include paths (OpenGL/SDL)    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -41,6 +46,9 @@ file(GLOB PSMOVECONFIGTOOL_SRC
 add_executable(PSMoveConfigTool ${PSMOVECONFIGTOOL_SRC})
 target_include_directories(PSMoveConfigTool PUBLIC ${PSMOVECONFIGTOOL_INCL_DIRS})
 target_link_libraries(PSMoveConfigTool ${PSMOVECONFIGTOOL_REQ_LIBS})
+
+# Allow access to the protocol buffers (extracting response parameters)
+target_compile_definitions(PSMoveConfigTool PRIVATE HAS_PROTOCOL_ACCESS)
 
 # Post build dependencies (assets and external DLLs)
 add_custom_command(TARGET PSMoveConfigTool POST_BUILD

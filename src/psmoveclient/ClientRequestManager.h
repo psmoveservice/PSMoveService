@@ -9,12 +9,10 @@
 class ClientRequestManager : public IResponseListener
 {
 public:
-    typedef void(*t_response_callback)(ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, void *userdata);
-
     ClientRequestManager();
     virtual ~ClientRequestManager();
 
-    void send_request(RequestPtr request, t_response_callback callback, void *userdata);
+    void send_request(RequestPtr request, ClientPSMoveAPI::t_response_callback callback, void *userdata);
 
     virtual void handle_request_canceled(RequestPtr request) override;
     virtual void handle_response(ResponsePtr response) override;

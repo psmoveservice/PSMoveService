@@ -1,6 +1,8 @@
 #ifndef APP_STAGE_H
 #define APP_STAGE_H
 
+#include "ClientPSMoveAPI.h"
+
 class AppStage
 {
 public:
@@ -14,10 +16,15 @@ public:
     virtual void enter() {}
     virtual void exit() {}
     virtual void update() {}
-    virtual void render() = 0;
+    virtual void render() {};
     virtual void renderUI() {}
 
     virtual void onKeyDown(int keyCode) {}
+    virtual bool onClientAPIEvent(
+        ClientPSMoveAPI::eClientPSMoveAPIEvent event, 
+        ClientPSMoveAPI::t_event_data_handle opaque_event_handle) 
+    { return false; }
+    virtual void onServiceResponse(ClientPSMoveAPI::eClientPSMoveResultCode ResultCode) {}
 
 protected:
     class App *m_app;
