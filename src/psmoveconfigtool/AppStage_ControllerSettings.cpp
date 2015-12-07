@@ -1,5 +1,6 @@
 //-- inludes -----
-#include "AppStage_SelectController.h"
+#include "AppStage_ControllerSettings.h"
+#include "AppStage_MainMenu.h"
 #include "App.h"
 #include "Camera.h"
 #include "Renderer.h"
@@ -11,29 +12,29 @@
 #include <imgui.h>
 
 //-- statics ----
-const char *AppStage_SelectController::APP_STAGE_NAME= "SelectController";
+const char *AppStage_ControllerSettings::APP_STAGE_NAME= "ControllerSettings";
 
 //-- constants -----
 
 //-- public methods -----
-AppStage_SelectController::AppStage_SelectController(App *app) 
+AppStage_ControllerSettings::AppStage_ControllerSettings(App *app) 
     : AppStage(app)
 { }
 
-void AppStage_SelectController::enter()
+void AppStage_ControllerSettings::enter()
 {
     m_app->setCameraType(_cameraFixed);
 }
 
-void AppStage_SelectController::exit()
+void AppStage_ControllerSettings::exit()
 {
 }
 
-void AppStage_SelectController::update()
+void AppStage_ControllerSettings::update()
 {
 }
     
-void AppStage_SelectController::render()
+void AppStage_ControllerSettings::render()
 {
     glm::mat4 scale2RotateX90= 
         glm::rotate(
@@ -42,7 +43,7 @@ void AppStage_SelectController::render()
     drawPSMoveModel(scale2RotateX90, glm::vec3(1.f, 1.f, 0.f));
 }
 
-void AppStage_SelectController::renderUI()
+void AppStage_ControllerSettings::renderUI()
 {
     ImGuiWindowFlags window_flags = 
         ImGuiWindowFlags_ShowBorders |
@@ -51,15 +52,12 @@ void AppStage_SelectController::renderUI()
         ImGuiWindowFlags_NoScrollbar |
         ImGuiWindowFlags_NoCollapse;
     ImGui::SetNextWindowPosCenter();
-    ImGui::Begin("Status", nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
-    ImGui::Text("Here is some status...");
-    ImGui::End();
-}
+    ImGui::Begin("Controller Settings", nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
 
-void AppStage_SelectController::onKeyDown(SDL_Keycode keyCode)
-{
-    if (keyCode == SDLK_SPACE)
+    if (ImGui::Button("Return to Main Menu"))
     {
-        //m_app->setAppStage(...);
+        m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
     }
+
+    ImGui::End();
 }

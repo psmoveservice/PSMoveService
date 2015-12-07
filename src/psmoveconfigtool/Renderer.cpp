@@ -16,6 +16,7 @@
 #include "psmovebody_3dmodel.h"
 #include "psmovebulb_3dmodel.h"
 #include "psnavi_3dmodel.h"
+#include "ps3eye_3dmodel.h"
 #include "dk2_3dmodel.h"
 
 //-- constants -----
@@ -488,6 +489,24 @@ void drawDK2Model(const glm::mat4 &transform)
 
     // rebind the default texture
     glBindTexture(GL_TEXTURE_2D, 0); 
+}
+
+void drawPS3EyeModel(const glm::mat4 &transform)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    glColor3f(1.f, 1.f, 1.f);
+
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_NORMAL_ARRAY);
+        glVertexPointer(3, GL_FLOAT, 0, ps3eyeVerts);
+        glNormalPointer(GL_FLOAT, 0, ps3eyeNormals);
+        glDrawArrays(GL_TRIANGLES, 0, ps3eyeNumVerts);
+        glDisableClientState(GL_VERTEX_ARRAY);
+        glDisableClientState(GL_NORMAL_ARRAY);
+    glPopMatrix();
 }
 
 void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color)

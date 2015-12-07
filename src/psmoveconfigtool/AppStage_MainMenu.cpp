@@ -1,5 +1,9 @@
 //-- inludes -----
 #include "AppStage_MainMenu.h"
+#include "AppStage_CameraSettings.h"
+#include "AppStage_ControllerSettings.h"
+#include "AppStage_HMDSettings.h"
+#include "AppStage_ServiceSettings.h"
 #include "App.h"
 #include "Camera.h"
 #include "Renderer.h"
@@ -68,19 +72,22 @@ void AppStage_MainMenu::renderUI()
     
             if (ImGui::Button("Service Settings"))
             {
+                m_app->setAppStage(AppStage_ServiceSettings::APP_STAGE_NAME);
             }
 
             if (ImGui::Button("HMD Settings"))
             {
-                //m_app->setAppStage();
+                m_app->setAppStage(AppStage_HMDSettings::APP_STAGE_NAME);
             }
     
             if (ImGui::Button("Controller Settings"))
             {
+                m_app->setAppStage(AppStage_ControllerSettings::APP_STAGE_NAME);
             }
     
             if (ImGui::Button("Camera Settings"))
             {
+                m_app->setAppStage(AppStage_CameraSettings::APP_STAGE_NAME);
             }
     
             if (ImGui::Button("Exit"))

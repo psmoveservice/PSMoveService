@@ -1,7 +1,10 @@
 //-- includes -----
 #include "App.h"
 #include "AppStage_MainMenu.h"
-#include "AppStage_SelectController.h"
+#include "AppStage_CameraSettings.h"
+#include "AppStage_ControllerSettings.h"
+#include "AppStage_HMDSettings.h"
+#include "AppStage_ServiceSettings.h"
 
 #ifdef _WIN32
 #pragma comment (lib, "winmm.lib")     /* link with Windows MultiMedia lib */
@@ -19,7 +22,10 @@ extern "C" int main(int argc, char *argv[])
 
     // Register all of the app stages
     app.registerAppStage<AppStage_MainMenu>();
-    app.registerAppStage<AppStage_SelectController>();
+    app.registerAppStage<AppStage_CameraSettings>();
+    app.registerAppStage<AppStage_ControllerSettings>();
+    app.registerAppStage<AppStage_HMDSettings>();
+    app.registerAppStage<AppStage_ServiceSettings>();
 
     return app.exec(argc, argv, AppStage_MainMenu::APP_STAGE_NAME);
 }
