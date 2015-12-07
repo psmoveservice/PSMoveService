@@ -542,14 +542,14 @@ void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color)
     glBindTexture(GL_TEXTURE_2D, 0); 
 }
 
-void drawPSNaviModel(const glm::mat4 &transform, const glm::vec3 &color)
+void drawPSNaviModel(const glm::mat4 &transform)
 {
     assert(Renderer::getIsRenderingStage());
 
     int textureID= AssetManager::getInstance()->getPSNaviTextureId();
 
     glBindTexture(GL_TEXTURE_2D, textureID);
-    glColor3fv(glm::value_ptr(color));
+    glColor3f(1.f, 1.f, 1.f);
 
     glPushMatrix();
         glMultMatrixf(glm::value_ptr(transform));

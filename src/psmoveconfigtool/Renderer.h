@@ -67,7 +67,7 @@ void drawTransformedBox(const glm::mat4 &transform, const glm::vec3 &half_extent
 void drawTransformedTexturedCube(const glm::mat4 &transform, int textureId, float scale);
 void drawDK2Model(const glm::mat4 &transform);
 void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color);
-void drawPSNaviModel(const glm::mat4 &transform, const glm::vec3 &color);
+void drawPSNaviModel(const glm::mat4 &transform);
 void drawPS3EyeModel(const glm::mat4 &transform);
 
 #endif // RENDERER_H
