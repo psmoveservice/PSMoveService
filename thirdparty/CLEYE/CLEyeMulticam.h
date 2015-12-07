@@ -5,12 +5,12 @@
 //
 // For updates and file downloads go to: http://codelaboratories.com
 //
-// Copyright 2008-2010 (c) Code Laboratories, Inc. All rights reserved.
+// Copyright 2008-2012 (c) Code Laboratories, Inc. All rights reserved.
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma once
 #include <windows.h>
-#define IMPORT(type) __declspec(dllimport) type __cdecl
+#define IMPORT(type) extern "C" __declspec(dllimport)## type __cdecl
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CLEyeMulticam Camera API
@@ -64,8 +64,6 @@ typedef enum
 	CLEYE_LENSBRIGHTNESS		// [-500, 500]
 }CLEyeCameraParameter;
 
-typedef unsigned short bool;
-
 // Camera information
 IMPORT(int) CLEyeGetCameraCount();
 IMPORT(GUID) CLEyeGetCameraUUID(int camId);
@@ -87,7 +85,7 @@ IMPORT(bool) CLEyeSetCameraParameter(CLEyeCameraInstance cam, CLEyeCameraParamet
 IMPORT(int) CLEyeGetCameraParameter(CLEyeCameraInstance cam, CLEyeCameraParameter param);
 
 // Camera video frame image data retrieval
-IMPORT(bool) CLEyeCameraGetFrameDimensions(CLEyeCameraInstance cam, int* width, int* height);
-IMPORT(bool) CLEyeCameraGetFrame(CLEyeCameraInstance cam, PBYTE pData, int waitTimeout);
+IMPORT(bool) CLEyeCameraGetFrameDimensions(CLEyeCameraInstance cam, int &width, int &height);
+IMPORT(bool) CLEyeCameraGetFrame(CLEyeCameraInstance cam, PBYTE pData, int waitTimeout = 2000);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////

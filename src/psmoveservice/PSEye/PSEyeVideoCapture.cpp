@@ -54,7 +54,7 @@ yuv422_to_bgr(const uint8_t *yuv_src, const int stride, uint8_t *dst, const int 
 }
 #undef _max
 #undef _saturate
-#endif
+#endif //HAVE_PS3EYE
 
 bool PSEyeVideoCapture::open(int index)
 {
@@ -74,7 +74,15 @@ bool PSEyeVideoCapture::open(int index)
 #endif
     
 	// PS3EYE-specific camera capture if available, else default OpenCV object
-    return isOpened() ? isOpened() : cv::VideoCapture::open(index);
+    if (isOpened())
+    {
+        return isOpened();
+    }
+    else
+    {
+        std::cout << "Attempting cv::VideoCapture::open(index)" << std::endl;
+        return cv::VideoCapture::open(index);
+    }
 }
 
 CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture(int index)
@@ -94,6 +102,16 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture(int index)
             }
             
 #ifdef HAVE_CLEYE
+        case PSEYE_CAP_CLEYE:
+            if (!capture)
+            {
+                std::cout << "Attempting pseyeCreateCameraCapture_CLEYE" << std::endl;
+                capture = pseyeCreateCameraCapture_CLEYE(index);
+            }
+            if (pref)
+            {
+                break;
+            }
 			/*
         case PSEYE_CAP_CLMULTI:
             if (!capture)
@@ -104,24 +122,13 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture(int index)
             {
                 break;
             }
-			
-            
-        case PSEYE_CAP_CLEYE:
-            if (!capture)
-            {
-                capture = pseyeCreateCameraCapture_CLEYE(index);
-            }
-            if (pref)
-            {
-                break;
-            }
 			*/
 #endif //HAVE_CLEYE
-
 #ifdef HAVE_PS3EYE
         case PSEYE_CAP_PS3EYE:
             if (!capture)
             {
+                std::cout << "Attempting pseyeCreateCameraCapture_PS3EYE" << std::endl;
                 capture = pseyeCreateCameraCapture_PS3EYE(index);
             }
             if (pref)
@@ -135,25 +142,6 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture(int index)
 }
 
 #ifdef HAVE_CLEYE
-/*
-CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLMULTI(int index)
-{
-    PSEEYECaptureCAM_CLMULTI* capture = new PSEEYECaptureCAM_CLMULTI;
-    try
-    {
-        if( capture->open( index ))
-            return (CvCapture*)capture;
-    }
-    catch(...)
-    {
-        delete capture;
-        throw;
-    }
-    delete capture;
-    return 0;
-}
-
-
 CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLEYE(int index)
 {
     PSEEYECaptureCAM_CLEYE* capture = new PSEEYECaptureCAM_CLEYE;
@@ -169,6 +157,23 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLEYE(int index)
     }
     delete capture;
     return 0;
+}
+/*
+CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLMULTI(int index)
+{
+PSEEYECaptureCAM_CLMULTI* capture = new PSEEYECaptureCAM_CLMULTI;
+try
+{
+if( capture->open( index ))
+return (CvCapture*)capture;
+}
+catch(...)
+{
+delete capture;
+throw;
+}
+delete capture;
+return 0;
 }
 */
 #endif
@@ -193,10 +198,148 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_PS3EYE(int index)
 #endif
 
 
-/*
- * PSEEYECaptureCAM_CLMULTI
- */
+
 #ifdef HAVE_CLEYE
+/*
+* PSEEYECaptureCAM_CLEYE
+*/
+PSEEYECaptureCAM_CLEYE::PSEEYECaptureCAM_CLEYE() :
+frame(NULL), frame4ch(NULL)
+{
+    
+}
+
+PSEEYECaptureCAM_CLEYE::~PSEEYECaptureCAM_CLEYE()
+{
+    close();
+}
+
+void PSEEYECaptureCAM_CLEYE::close()
+{
+    if (openOK)
+    {
+        CLEyeCameraStop(eye);
+        CLEyeDestroyCamera(eye);
+    }
+    cvReleaseImage(&frame);
+    cvReleaseImage(&frame4ch);
+}
+
+// Initialize camera input
+bool PSEEYECaptureCAM_CLEYE::open(int _index)
+{
+    openOK = false;
+    int cams = CLEyeGetCameraCount();
+    std::cout << "CLEyeGetCameraCount() found " << cams << " devices." << std::endl;
+    if (_index < cams)
+    {
+        GUID guid = CLEyeGetCameraUUID(_index);
+        eye = CLEyeCreateCamera(guid, CLEYE_COLOR_PROCESSED, CLEYE_VGA, 60);
+        CLEyeCameraGetFrameDimensions(eye, width, height);
+
+        frame4ch = cvCreateImage(cvSize(width, height), IPL_DEPTH_8U, 4);
+        frame = cvCreateImage(cvSize(width, height), IPL_DEPTH_8U, 3);
+
+        CLEyeCameraStart(eye);
+        //eye->setAutogain(false);
+        //eye->setAutoWhiteBalance(false);
+        openOK = true;
+    }
+    return openOK;
+}
+
+bool PSEEYECaptureCAM_CLEYE::grabFrame()
+{
+    cvGetRawData(frame4ch, &pCapBuffer, 0, 0);
+    return true;
+}
+
+IplImage* PSEEYECaptureCAM_CLEYE::retrieveFrame(int)
+{
+    CLEyeCameraGetFrame(eye, pCapBuffer, 2000);
+    const int from_to[] = { 0, 0, 1, 1, 2, 2 };
+    const CvArr** src = (const CvArr**)&frame4ch;
+    CvArr** dst = (CvArr**)&frame;
+    cvMixChannels(src, 1, dst, 1, from_to, 3);
+    return frame;
+}
+
+double PSEEYECaptureCAM_CLEYE::getProperty(int property_id) const
+{
+    int _width, _height;
+    switch (property_id)
+    {
+    case CV_CAP_PROP_BRIGHTNESS:
+        return (double)(CLEyeGetCameraParameter(eye, CLEYE_LENSBRIGHTNESS)); // [-500, 500]
+    case CV_CAP_PROP_CONTRAST:
+        return false;
+    case CV_CAP_PROP_EXPOSURE:
+        return (double)(CLEyeGetCameraParameter(eye, CLEYE_EXPOSURE)); // [0, 511]
+    case CV_CAP_PROP_FPS:
+        return (double)(60);
+    case CV_CAP_PROP_FRAME_HEIGHT:
+        CLEyeCameraGetFrameDimensions(eye, _width, _height);
+        return (double)(_height);
+    case CV_CAP_PROP_FRAME_WIDTH:
+        CLEyeCameraGetFrameDimensions(eye, _width, _height);
+        return (double)(_width);
+    case CV_CAP_PROP_GAIN:
+        return (double)(CLEyeGetCameraParameter(eye, CLEYE_GAIN)); // [0, 79]
+    case CV_CAP_PROP_HUE:
+        //return (double)(CLEyeGetCameraParameter(eye, CLEYE_EXPOSURE)); // [0 511]
+        return false;
+    case CV_CAP_PROP_SHARPNESS:
+        //return (double)(CLEyeGetCameraParameter(eye, CLEYE_EXPOSURE)); // [0 511]
+        return false;
+
+    }
+    return 0;
+}
+bool PSEEYECaptureCAM_CLEYE::setProperty(int property_id, double value)
+{
+    if (!eye)
+    {
+        return false;
+    }
+    switch (property_id)
+    {
+    case CV_CAP_PROP_BRIGHTNESS:
+        // [-500, 500]
+        CLEyeSetCameraParameter(eye, CLEYE_LENSBRIGHTNESS, (int)value);
+    case CV_CAP_PROP_CONTRAST:
+        return false;
+    case CV_CAP_PROP_EXPOSURE:
+        CLEyeSetCameraParameter(eye, CLEYE_AUTO_EXPOSURE, value > 0);
+        if (value > 0)
+        {
+            //[0, 511]
+            CLEyeSetCameraParameter(eye, CLEYE_EXPOSURE, (int)round(value));// (511 * value) / 0xFFFF));
+        }
+    case CV_CAP_PROP_FPS:
+        return false; //TODO: Modifying FPS probably requires resetting the camera
+    case CV_CAP_PROP_FRAME_HEIGHT:
+        return false; //TODO: Modifying frame size probably requires resetting the camera
+    case CV_CAP_PROP_FRAME_WIDTH:
+        return false; //TODO: Modifying frame size probably requires resetting the camera
+    case CV_CAP_PROP_GAIN:
+        CLEyeSetCameraParameter(eye, CLEYE_AUTO_GAIN, value > 0);
+        if (value > 0)
+        {
+            //[0, 79]
+            CLEyeSetCameraParameter(eye, CLEYE_GAIN, (int)round(value));// (79 * value) / 0xFFFF));
+        }
+    case CV_CAP_PROP_HUE:
+        return false;
+    case CV_CAP_PROP_SHARPNESS:
+        return false; // TODO: Using OpenCV interface, sharpness appears to work
+    }
+    return true;
+}
+
+/*
+* PSEEYECaptureCAM_CLMULTI
+*/
+
 /*
 PSEEYECaptureCAM_CLMULTI::PSEEYECaptureCAM_CLMULTI():
 frame(NULL)
@@ -234,52 +377,6 @@ double PSEEYECaptureCAM_CLMULTI::getProperty( int property_id ) const
     return 0;
 }
 bool PSEEYECaptureCAM_CLMULTI::setProperty( int property_id, double value )
-{
-    return false;
-}
-*/
-
-/*
- * PSEEYECaptureCAM_CLEYE
- */
-
-/*
-PSEEYECaptureCAM_CLEYE::PSEEYECaptureCAM_CLEYE():
-frame(NULL)
-{
-    
-}
-
- PSEEYECaptureCAM_CLEYE::~PSEEYECaptureCAM_CLEYE()
- {
- close();
- }
-
-void PSEEYECaptureCAM_CLEYE::close()
-{
-}
-
-// Initialize camera input
-bool PSEEYECaptureCAM_CLEYE::open( int _index )
-{
-    return false;
-}
-
-bool PSEEYECaptureCAM_CLEYE::grabFrame()
-{
-    return false;
-}
-
-IplImage* PSEEYECaptureCAM_CLEYE::retrieveFrame(int)
-{
-    return frame;
-}
-
-double PSEEYECaptureCAM_CLEYE::getProperty( int property_id ) const
-{
-    return 0;
-}
-bool PSEEYECaptureCAM_CLEYE::setProperty( int property_id, double value )
 {
     return false;
 }
@@ -409,13 +506,13 @@ bool PSEEYECaptureCAM_PS3EYE::setProperty( int property_id, double value )
     {
         case CV_CAP_PROP_BRIGHTNESS:
             // 0 <-> 255 [20]
-            eye->setBrightness(round(value));
+            eye->setBrightness((int)round(value));
         case CV_CAP_PROP_CONTRAST:
             // 0 <-> 255 [37]
-            eye->setContrast(round(value));
+            eye->setContrast((int)round(value));
         case CV_CAP_PROP_EXPOSURE:
             // 0 <-> 255 [120]
-            eye->setExposure(round(value));
+            eye->setExposure((int)round(value));
         case CV_CAP_PROP_FPS:
             return false; //TODO: Modifying FPS probably requires resetting the camera
         case CV_CAP_PROP_FRAME_HEIGHT:
@@ -424,13 +521,13 @@ bool PSEEYECaptureCAM_PS3EYE::setProperty( int property_id, double value )
             return false;
         case CV_CAP_PROP_GAIN:
             // 0 <-> 63 [20]
-            eye->setGain(round(value));
+            eye->setGain((int)round(value));
         case CV_CAP_PROP_HUE:
            // 0 <-> 255 [143]
-            eye->setHue(round(value));
+            eye->setHue((int)round(value));
         case CV_CAP_PROP_SHARPNESS:
             // 0 <-> 63 [0]
-            eye->setSharpness(round(value));
+            eye->setSharpness((int)round(value));
     }
     return true;
 }

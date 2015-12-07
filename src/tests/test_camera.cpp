@@ -33,6 +33,7 @@ int main(int, char**)
 			std::string prop_str("CV_CAP_PROP_EXPOSURE");
 			
 			// q/a for +/- exposure
+            // CL Eye [0 255]
 			if ((wk == 113) || (wk == 97))
 			{
 				cap_prop = CV_CAP_PROP_EXPOSURE;
@@ -41,6 +42,8 @@ int main(int, char**)
 			}
 
 			// w/s for +/- contrast
+            // Note that, for CL EYE at least, changing contrast ALSO changes exposure
+            // CL Eye [0 255]
 			if ((wk == 119) || (wk == 115))
 			{
 				cap_prop = CV_CAP_PROP_CONTRAST;
@@ -48,7 +51,8 @@ int main(int, char**)
 				val_diff = (wk == 119) ? 1 : -1;
 			}
 
-			// e/d for +/- contrast
+			// e/d for +/- gain
+            // For CL Eye, gain seems to be changing colour balance. 
 			if ((wk == 101) || (wk == 100))
 			{
 				cap_prop = CV_CAP_PROP_GAIN;
@@ -56,7 +60,7 @@ int main(int, char**)
 				val_diff = (wk == 101) ? 1 : -1;
 			}
 
-			// r/f for +/- contrast
+			// r/f for +/- hue
 			if ((wk == 114) || (wk == 102))
 			{
 				cap_prop = CV_CAP_PROP_HUE;
@@ -65,6 +69,7 @@ int main(int, char**)
 			}
             
             // t/g for +/- sharpness
+            // For CL_Eye, 1 - sharpness
             if ((wk == 116) || (wk == 103))
             {
                 cap_prop = CV_CAP_PROP_SHARPNESS;

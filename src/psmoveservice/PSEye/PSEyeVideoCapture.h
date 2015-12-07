@@ -2,6 +2,9 @@
 #ifdef HAVE_PS3EYE
 #include "ps3eye.h"
 #endif
+#ifdef HAVE_CLEYE
+#include "CLEyeMulticam.h"
+#endif
 
 // defined in opencv/modules/videoio/src/precomp.hpp
 struct CvCapture
@@ -18,10 +21,10 @@ enum
 {
     PSEYE_CAP_ANY       =0,     // autodetect
 #ifdef HAVE_CLEYE
-	/*
-    PSEYE_CAP_CLMULTI   =100,
-    PSEYE_CAP_CLEYE     =200
-	*/
+	
+    PSEYE_CAP_CLEYE     =100,
+    //PSEYE_CAP_CLMULTI   =200,
+	
 #endif
 #ifdef HAVE_PS3EYE
     PSEYE_CAP_PS3EYE    =300
@@ -40,10 +43,8 @@ public:
     static CvCapture* pseyeCreateCameraCapture(int index);
 
 #ifdef HAVE_CLEYE
-	/*
-    static CvCapture* pseyeCreateCameraCapture_CLMULTI(int index);
     static CvCapture* pseyeCreateCameraCapture_CLEYE(int index);
-	*/
+    //static CvCapture* pseyeCreateCameraCapture_CLMULTI(int index);
 #endif
 #ifdef HAVE_PS3EYE
     static CvCapture* pseyeCreateCameraCapture_PS3EYE(int index);
@@ -69,6 +70,7 @@ protected:
     int index, width, height, fourcc;
     IplImage* frame;
 };
+*/
 
 class PSEEYECaptureCAM_CLEYE : public CvCapture
 {
@@ -85,9 +87,13 @@ public:
 protected:
     void init();
     int index, width, height, fourcc;
+    bool openOK;
+    PBYTE pCapBuffer;
     IplImage* frame;
+    IplImage* frame4ch;
+    CLEyeCameraInstance eye;
 };
-*/
+
 #endif
 
 #ifdef HAVE_PS3EYE

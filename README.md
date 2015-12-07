@@ -37,7 +37,7 @@ A background service that communicates with the psmove and serves its pose and b
     * Windows        
         * cd to thirdparty\protobuf
         * mkdir vsprojects & cd vsprojects
-        * cmake -G "Visual Studio 12 2013" -Dprotobuf_DEBUG_POSTFIX="" -Dprotobuf_BUILD_TESTS=OFF ../cmake
+        * cmake -G "Visual Studio 12 2013 Win64" -Dprotobuf_DEBUG_POSTFIX="" -Dprotobuf_BUILD_TESTS=OFF ../cmake
         * Open protobuf.sln
         * Select Release|Win32 and Build > Rebuild Solution
         * Select Debug|Win32 and Build > Rebuild Solution
@@ -59,17 +59,17 @@ A background service that communicates with the psmove and serves its pose and b
 1. Optional: [CL Eye Driver](https://codelaboratories.com/products/eye/driver/)
     * Only necessary for Windows 32-bit if not using PS3EYEDriver
     * Currently $2.99 USD (paypal or credit card)
-    * Platform SDK not necessary    
+    * Platform SDK not necessary
 1. Optional: SDL2
     * Optional - Only required if you are building the the configuration client.
     * Windows :
-        * `cd third_party/SDL2`
+        * `cd thirdparty/SDL2`
         * `mkdir build`
         * `cd build`
         * `cmake .. -G "Visual Studio 12 2013" -DDIRECTX=OFF`
-        * Open the solution (psmoveapi\external\SDL2\build\SDL2.sln)
+        * Open the solution (<PSMoveService>\external\SDL2\build\SDL2.sln)
         * Change the target to Release (at the top of the VS window).
-        * Build the solution (Build Menu -> Build Solution).            
+        * Right click on the SDL2-static target and select Build.            
     * Mac
         `cd third_party/SDL2`
         `mkdir build`
@@ -78,7 +78,7 @@ A background service that communicates with the psmove and serves its pose and b
    
 # Make PSMoveService
 
-1. `mkdir build & cd build`
+1. `mkdir build && cd build`
 1. Run cmake
     * Windows: `cmake .. -G "Visual Studio 12"`
     * Mac: `cmake ..`
