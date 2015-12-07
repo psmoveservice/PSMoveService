@@ -348,7 +348,15 @@ private:
 
             SERVER_LOG_DEBUG("    ") << "Body Size = " << msg_len << " bytes";
 
-            start_tcp_read_request_body(msg_len);
+            if (msg_len > 0)
+            {
+                start_tcp_read_request_body(msg_len);
+            }
+            else
+            {
+                // If there is no body, jump straight to the handle ready response body callback
+                handle_tcp_read_request_body(boost::system::error_code());
+            }
         }
         else
         {
