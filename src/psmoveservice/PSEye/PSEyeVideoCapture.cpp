@@ -309,7 +309,7 @@ bool PSEEYECaptureCAM_CLEYE::setProperty(int property_id, double value)
     case CV_CAP_PROP_CONTRAST:
         return false;
     case CV_CAP_PROP_EXPOSURE:
-        CLEyeSetCameraParameter(eye, CLEYE_AUTO_EXPOSURE, value > 0);
+        CLEyeSetCameraParameter(eye, CLEYE_AUTO_EXPOSURE, value <= 0);
         if (value > 0)
         {
             //[0, 511]
@@ -322,7 +322,7 @@ bool PSEEYECaptureCAM_CLEYE::setProperty(int property_id, double value)
     case CV_CAP_PROP_FRAME_WIDTH:
         return false; //TODO: Modifying frame size probably requires resetting the camera
     case CV_CAP_PROP_GAIN:
-        CLEyeSetCameraParameter(eye, CLEYE_AUTO_GAIN, value > 0);
+        CLEyeSetCameraParameter(eye, CLEYE_AUTO_GAIN, value <= 0);
         if (value > 0)
         {
             //[0, 79]
