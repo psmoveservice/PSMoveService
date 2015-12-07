@@ -107,18 +107,21 @@ ENDIF()
 # CL EYE - only on Win32
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
     AND NOT(${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8))
-    #include_directories(${ROOT_DIR}/thirdparty/CLEYE)
-    #find_path(CL_EYE_SDK_PATH bin/CLEyeMulticam.dll
-    #    HINTS ${ROOT_DIR}/thirdparty/CLEYE/)
-    #IF(CL_EYE_SDK_PATH)
-    #    list(APPEND TEST_CAMERA_REQ_LIBS CLEyeMulticam)
-    #    file(COPY ${CL_EYE_SDK_PATH}/bin/CLEyeMulticam.dll
-    #        DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-    #    # XXX: If this crashes, disable compiler optimizations
-    #ENDIF()
+    list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/thirdparty/CLEYE)
+    find_path(CL_EYE_SDK_PATH x86/bin/CLEyeMulticam.dll
+        HINTS ${ROOT_DIR}/thirdparty/CLEYE/)
+    IF(CL_EYE_SDK_PATH)
+        list(APPEND TEST_CAMERA_REQ_LIBS ${CL_EYE_SDK_PATH}/x86/lib/CLEyeMulticam.lib)
+        file(COPY ${CL_EYE_SDK_PATH}/x86/bin/CLEyeMulticam.dll
+            DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Release)
+        file(COPY ${CL_EYE_SDK_PATH}/x86/bin/CLEyeMulticam.dll
+            DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Debug)
+        # XXX: If this crashes, disable compiler optimizations
+        add_definitions(-DHAVE_CLEYE)
+    ENDIF()
 
     #TODO: The non multicam version. Maybe it does not require any includes/libs?
-    add_definitions(-DHAVE_CLEYE)
+    # Uses the registry and maybe unnecessary.
 ENDIF()
 
 # Our custom OpenCV VideoCapture classes

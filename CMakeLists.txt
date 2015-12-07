@@ -60,6 +60,10 @@ find_package(Boost REQUIRED)
 # Future targets will do their own find so they can specify components. Here we just want a print to screen.
 
 # Find Protobuf
+IF(MSVC)
+    set(PROTOBUF_SRC_ROOT_FOLDER ${CMAKE_CURRENT_LIST_DIR}/thirdparty/protobuf)
+    #PROTOBUF_IMPORT_DIRS ?
+ENDIF(MSVC)
 set(PROTOBUF_ORIG_FIND_LIBRARY_SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}") # Store original
 set(CMAKE_FIND_LIBRARY_SUFFIXES .a .lib .so .dylib .dll)  # Prefer static libs
 find_package(Protobuf REQUIRED)
