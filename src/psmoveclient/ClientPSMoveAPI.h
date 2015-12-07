@@ -13,6 +13,14 @@
 //-- pre-declarations -----
 class ClientControllerView;
 
+//-- macros -----
+#ifdef HAS_PROTOCOL_ACCESS
+#define GET_PSMOVEPROTOCOL_RESPONSE(handle) \
+    reinterpret_cast<const PSMoveProtocol::Response *>(handle)
+#define GET_PSMOVEPROTOCOL_EVENT(handle) \
+    reinterpret_cast<const PSMoveProtocol::Response *>(handle) // events are a special case of responses
+#endif // HAS_PROTOCOL_ACCESS
+
 //-- interface -----
 class CLIENTPSMOVEAPI ClientPSMoveAPI
 {
@@ -69,17 +77,6 @@ public:
     static t_request_id set_controller_rumble(
         ClientControllerView *view, float rumble_amount, t_response_callback callback, void *callback_userdata);
     static t_request_id reset_pose(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
-
-#ifdef HAS_PROTOCOL_ACCESS
-    inline const PSMoveProtocol::Response *get_response(t_response_handle handle) const
-    {
-        return reinterpret_cast<const PSMoveProtocol::Response *>(handle);
-    }
-    inline const PSMoveProtocol::Response *get_event(t_event_data_handle handle) const // events are a special case of responses
-    {
-        return reinterpret_cast<const PSMoveProtocol::Response *>(handle);
-    }
-#endif // HAS_PROTOCOL_ACCESS
 
 private:
     // Not allowed to instantiate
