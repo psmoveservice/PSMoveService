@@ -4,6 +4,7 @@
 #include "ServerRequestHandler.h"
 #include "ServerLog.h"
 #include "ServerControllerView.h"
+#include "ServerNetworkManager.h"
 #include "ServerUtility.h"
 #include "PSMoveProtocol.pb.h"
 #include "PSMoveConfig.h"
@@ -164,18 +165,25 @@ public:
 protected:
     void update_controllers()
     {
+        bool bAllUpdatedOk= true;
+
         for (int controller_id = 0; controller_id < k_max_controllers; ++controller_id)
         {
             ServerControllerViewPtr &controller= m_controllers[controller_id];
 
-            controller->update();
+            bAllUpdatedOk&= controller->update();
         }
 
+        if (!bAllUpdatedOk)
+        {
+            send_controller_list_changed_notification();
+        }
     }
 
     void update_connected_controllers()
     {
         ServerControllerViewPtr temp_controllers_list[k_max_controllers];
+        bool bSendControllerUpdatedNotification= false;
 
         // Step 1
         // See if any controllers shuffled order OR if any new controllers were attached.
@@ -200,8 +208,8 @@ protected:
                     existingController->setControllerID(static_cast<int>(new_controller_id));
                     
                     SERVER_LOG_INFO("ControllerManagerImpl::reconnect_controllers") << 
-                        "Controller controller_id " << controller_id << " moved to controller_id " << new_controller_id;
-                    //###bwalker $TODO - Send notification to the client?
+                        "Controller controller_id " << controller_id << " moved to controller_id " << new_controller_id;                                            
+                    bSendControllerUpdatedNotification= true;
                 }
 
                 // Move it to the new slot
@@ -232,7 +240,7 @@ protected:
                     {
                         SERVER_LOG_INFO("ControllerManagerImpl::reconnect_controllers") << 
                             "Controller controller_id " << controller_id << " connected";
-                        //###bwalker $TODO - Send notification to the client?
+                        bSendControllerUpdatedNotification= true;
                     }
                 }
                 else
@@ -263,7 +271,7 @@ protected:
                     SERVER_LOG_WARNING("ControllerManagerImpl::reconnect_controllers") << "Closing controller " 
                         << existing_controller_id << " since it's no longer in the device list.";
                     existingController->close();
-                    //###bwalker $TODO - Send notification to the client?
+                    bSendControllerUpdatedNotification= true;
                 }
 
                 // Move it to the new slot
@@ -282,6 +290,21 @@ protected:
         {
             m_controllers[controller_id]= temp_controllers_list[controller_id];
         }
+
+        if (bSendControllerUpdatedNotification)
+        {
+            send_controller_list_changed_notification();
+        }
+    }
+
+    void send_controller_list_changed_notification()
+    {
+        ResponsePtr response(new PSMoveProtocol::Response);
+        response->set_type(PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED);
+        response->set_request_id(-1);
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+
+        ServerNetworkManager::get_instance()->send_notification_to_all_clients(response);
     }
     
     int find_open_controller_controller_id(const ControllerDeviceEnumerator &enumerator)

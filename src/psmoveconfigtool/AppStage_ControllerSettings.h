@@ -23,6 +23,10 @@ public:
     static const char *APP_STAGE_NAME;
 
 protected:
+    virtual bool onClientAPIEvent(
+        ClientPSMoveAPI::eClientPSMoveAPIEvent event, 
+        ClientPSMoveAPI::t_event_data_handle opaque_event_handle) override;
+
     void request_controller_list();
     static void handle_controller_list_response(
         ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, 

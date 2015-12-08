@@ -63,6 +63,7 @@ message Response {
         GENERAL_RESULT= 0;
         CONNECTION_INFO= 1;
         CONTROLLER_LIST= 2;
+        CONTROLLER_LIST_UPDATED= 3;
     }
 
     enum ResultCode {
@@ -101,6 +102,8 @@ message Response {
         repeated ControllerInfo controllers = 1;
     }
     ResultControllerList result_controller_list = 21;    
+    
+    // No parameters for CONTROLLER_LIST_UPDATED
 }
 
 // Unreliable (UDP) controller data packet format

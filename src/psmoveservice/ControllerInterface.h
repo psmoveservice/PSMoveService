@@ -98,6 +98,9 @@ public:
     // Fetch the controller state at the given sample index.
     // A lookBack of 0 corresponds to the most recent data.
     virtual void getState(CommonControllerState *out_state, int lookBack = 0) const = 0;
+
+    // Get the number of milliseconds we're willing to accept no data from the controller before we disconnect it
+    virtual long getDataTimeout() const = 0;
 };
 
 #endif // CONTROLLER_INTERFACE_H

@@ -79,12 +79,15 @@ PSNaviControllerConfig::config2ptree()
 {
     boost::property_tree::ptree pt;
 
+    pt.put("data_timeout", data_timeout);
+
     return pt;
 }
 
 void
 PSNaviControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 {
+    data_timeout = pt.get<long>("data_timeout", 1000);
 }
 
 // -- PSMove Controller -----
@@ -445,6 +448,12 @@ PSNaviController::getState(
         
         *out_psnavi_state= ControllerStates.at(ControllerStates.size() - lookBack - 1);
     }
+}
+
+long 
+PSNaviController::getDataTimeout() const
+{
+    return cfg.data_timeout;
 }
     
 // -- private helper functions -----

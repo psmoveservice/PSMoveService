@@ -55,7 +55,7 @@ void AppStage_ControllerSettings::render()
             {
                 const ControllerInfo &controllerInfo= m_controllerInfos[m_selectedControllerIndex];
 
-                switch(controllerInfo.ConnectionType)
+                switch(controllerInfo.ControllerType)
                 {
                     case PSMoveProtocol::PSMOVE:
                         {
@@ -196,6 +196,25 @@ void AppStage_ControllerSettings::renderUI()
     default:
         assert(0 && "unreachable");
     }
+}
+
+bool AppStage_ControllerSettings::onClientAPIEvent(
+    ClientPSMoveAPI::eClientPSMoveAPIEvent event, 
+    ClientPSMoveAPI::t_event_data_handle opaque_event_handle)
+{
+    bool bHandled= false;
+
+    switch(event)
+    {
+    case ClientPSMoveAPI::disconnectedFromService:
+        m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
+        break;
+    case ClientPSMoveAPI::controllerListUpdated:
+        request_controller_list();
+        break;
+    }
+
+    return bHandled;
 }
 
 void AppStage_ControllerSettings::request_controller_list()

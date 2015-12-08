@@ -228,13 +228,12 @@ public:
             ClientPSMoveAPI::eClientPSMoveAPIEvent specificEventType= ClientPSMoveAPI::opaqueServiceEvent;
 
             // See if we can translate this to an event type a client without protocol access can see
-            //switch(notification->type())
-            //{
-            //###bwalker $TODO: controller connected
-            //###bwalker $TODO: controller disconnected
-            //###bwalker $TODO: tracker connected
-            //###bwalker $TODO: tracker disconnected
-            //}
+            switch(notification->type())
+            {
+            case PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED:
+                specificEventType= ClientPSMoveAPI::controllerListUpdated;
+                break;
+            }
 
             m_event_callback(
                 specificEventType,

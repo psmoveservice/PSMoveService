@@ -158,6 +158,8 @@ const boost::property_tree::ptree
 PSMoveControllerConfig::config2ptree()
 {
     boost::property_tree::ptree pt;
+
+    pt.put("data_timeout", data_timeout);
     
     pt.put("Calibration.Accel.X.k", cal_ag_xyz_kb[0][0][0]);
     pt.put("Calibration.Accel.X.b", cal_ag_xyz_kb[0][0][1]);
@@ -178,6 +180,8 @@ PSMoveControllerConfig::config2ptree()
 void
 PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 {
+    data_timeout = pt.get<long>("data_timeout", 1000);
+
     cal_ag_xyz_kb[0][0][0] = pt.get<float>("Calibration.Accel.X.k", 1.0f);
     cal_ag_xyz_kb[0][0][1] = pt.get<float>("Calibration.Accel.X.b", 0.0f);
     cal_ag_xyz_kb[0][1][0] = pt.get<float>("Calibration.Accel.Y.k", 1.0f);
@@ -724,6 +728,10 @@ PSMoveController::getTempCelsius() const
     return 70;
 }
 
+long PSMoveController::getDataTimeout() const
+{
+    return cfg.data_timeout;
+}
 
 // Setters
 

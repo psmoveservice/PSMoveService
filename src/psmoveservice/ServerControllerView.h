@@ -14,7 +14,7 @@ public:
 
     bool matchesDeviceEnumerator(const class ControllerDeviceEnumerator *enumerator) const;
     bool open(const class ControllerDeviceEnumerator *enumerator);
-    void update();
+    bool update();
     void close();
 
     // getters
@@ -58,6 +58,7 @@ protected:
 private:
     int m_controllerID;
     int m_sequence_number;
+    long long m_last_updated_tick;
     IControllerInterface *m_controller;
 };
 

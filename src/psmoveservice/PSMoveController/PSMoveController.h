@@ -24,12 +24,15 @@ class PSMoveControllerConfig : public PSMoveConfig
 {
 public:
     PSMoveControllerConfig(const std::string &fnamebase = "PSMoveControllerConfig")
-        : PSMoveConfig(fnamebase),
-        cal_ag_xyz_kb(2, std::vector<std::vector<float>>(3, std::vector<float>(2, 0.f)))
+        : PSMoveConfig(fnamebase)
+        , data_timeout(1000) // ms
+        , cal_ag_xyz_kb(2, std::vector<std::vector<float>>(3, std::vector<float>(2, 0.f)))
     {};
 
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
+
+    long data_timeout;
     std::vector<std::vector<std::vector<float>>> cal_ag_xyz_kb;
 };
 
@@ -116,6 +119,7 @@ public:
     virtual bool getIsOpen() const override;
     virtual CommonControllerState::eControllerDeviceType getControllerDeviceType() const override;
     virtual void getState(CommonControllerState *out_state, int lookBack = 0) const override;
+    virtual long getDataTimeout() const override;
 
 private:    
     bool getBTAddress(std::string& host, std::string& controller);

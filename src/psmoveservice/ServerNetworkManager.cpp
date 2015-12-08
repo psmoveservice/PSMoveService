@@ -139,6 +139,11 @@ public:
         m_udp_remote_endpoint= connecting_remote_endpoint;
     }
 
+    bool can_send_data_to_client() const
+    {
+        return m_connection_started && !m_connection_stopped;
+    }
+
     bool has_pending_udp_write() const
     {
         return m_connection_started && m_has_pending_udp_write;
@@ -642,8 +647,11 @@ public:
         {
             ClientConnectionPtr connection= iter->second;
 
-            connection->add_tcp_response_to_write_queue(response);
-            connection->start_tcp_write_queued_response();
+            if (connection->can_send_data_to_client())
+            {
+                connection->add_tcp_response_to_write_queue(response);
+                connection->start_tcp_write_queued_response();
+            }
         }
     }
 

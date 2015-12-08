@@ -9,6 +9,8 @@
 #include "PSMoveProtocol.pb.h"
 #include "ServerUtility.h"
 
+#include <chrono>
+
 //-- macros -----
 #define SET_BUTTON_BIT(bitmask, bit_index, button_state) \
     bitmask|= (button_state == CommonControllerState::Button_DOWN || button_state == CommonControllerState::Button_PRESSED) ? (0x1 << (bit_index)) : 0x0;
@@ -18,6 +20,8 @@ ServerControllerView::ServerControllerView(
     const int controller_id)
     : m_controllerID(controller_id)
     , m_sequence_number(0)
+    , m_last_updated_tick(0)
+    , m_controller(nullptr)
 {
     m_controllerID= controller_id;
     m_controller = new PSMoveController();
@@ -37,7 +41,17 @@ bool ServerControllerView::matchesDeviceEnumerator(
 bool ServerControllerView::open(
     const ControllerDeviceEnumerator *enumerator)
 {
-    return m_controller->open(enumerator);
+    bool bSuccess= m_controller->open(enumerator);
+
+    if (bSuccess)
+    {
+        // Consider a successful opening as an update
+        m_last_updated_tick= 
+            std::chrono::duration_cast< std::chrono::milliseconds >(
+                    std::chrono::system_clock::now().time_since_epoch()).count();
+    }
+
+    return bSuccess;
 }
 
 void ServerControllerView::close()
@@ -45,20 +59,42 @@ void ServerControllerView::close()
     m_controller->close();
 }
 
-void ServerControllerView::update()
+bool ServerControllerView::update()
 {
-    if (m_controller->getIsOpen())
+    bool bSuccessfullyUpdated= true;
+
+    // Only poll data from open, bluetooth controllers
+    if (m_controller->getIsOpen() && m_controller->getIsBluetooth())
     {
         switch (m_controller->poll())
         {
         case IControllerInterface::_PollResultSuccessNoData:
             {
-                //###bwalker $TODO - Close controllers we get not data from in a while
+                long long now = 
+                    std::chrono::duration_cast< std::chrono::milliseconds >(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+                long diff= static_cast<long>(now - m_last_updated_tick);
+                long max_timeout= m_controller->getDataTimeout();
+
+                if (diff > max_timeout)
+                {
+                    SERVER_LOG_INFO("ServerControllerView::poll_open_controllers") << 
+                        "Controller id " << m_controllerID << " closing due to no data timeout (" << max_timeout << "ms)";
+                    m_controller->close();
+
+                    bSuccessfullyUpdated= false;
+                }
             }
             break;
         case IControllerInterface::_PollResultSuccessNewData:
             {
+                m_last_updated_tick= 
+                    std::chrono::duration_cast< std::chrono::milliseconds >(
+                            std::chrono::system_clock::now().time_since_epoch()).count();
+
                 publish_controller_data_frame();
+
+                bSuccessfullyUpdated= true;
             }
             break;
         case IControllerInterface::_PollResultFailure:
@@ -66,11 +102,14 @@ void ServerControllerView::update()
                 SERVER_LOG_INFO("ServerControllerView::poll_open_controllers") << 
                     "Controller id " << m_controllerID << " closing due to failed read";
                 m_controller->close();
-                //###bwalker $TODO - Send notification to the client?
+
+                bSuccessfullyUpdated= false;
             }
             break;
         }                
     }
+
+    return bSuccessfullyUpdated;
 }
 
 psmovePosef
