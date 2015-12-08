@@ -19,15 +19,13 @@ struct CvCapture
 
 enum
 {
-    PSEYE_CAP_ANY       =0,     // autodetect
+    PSEYE_CAP_ANY       = 0,     // autodetect
 #ifdef HAVE_CLEYE
-	
-    PSEYE_CAP_CLEYE     =100,
-    //PSEYE_CAP_CLMULTI   =200,
-	
+    PSEYE_CAP_CLMULTI   = 100,
+    PSEYE_CAP_CLEYE     = 200,
 #endif
 #ifdef HAVE_PS3EYE
-    PSEYE_CAP_PS3EYE    =300
+    PSEYE_CAP_PS3EYE    = 300
 #endif
 };
 
@@ -43,8 +41,8 @@ public:
     static CvCapture* pseyeCreateCameraCapture(int index);
 
 #ifdef HAVE_CLEYE
+    static CvCapture* pseyeCreateCameraCapture_CLMULTI(int index);
     static CvCapture* pseyeCreateCameraCapture_CLEYE(int index);
-    //static CvCapture* pseyeCreateCameraCapture_CLMULTI(int index);
 #endif
 #ifdef HAVE_PS3EYE
     static CvCapture* pseyeCreateCameraCapture_PS3EYE(int index);
@@ -52,7 +50,7 @@ public:
 };
 
 #ifdef HAVE_CLEYE
-/*
+
 class PSEEYECaptureCAM_CLMULTI : public CvCapture
 {
 public:
@@ -68,29 +66,29 @@ public:
 protected:
     void init();
     int index, width, height, fourcc;
+    bool openOK;
+    PBYTE pCapBuffer;
     IplImage* frame;
+    IplImage* frame4ch;
+    CLEyeCameraInstance eye;
 };
-*/
 
 class PSEEYECaptureCAM_CLEYE : public CvCapture
 {
 public:
     PSEEYECaptureCAM_CLEYE();
     virtual ~PSEEYECaptureCAM_CLEYE();
-    virtual bool open( int index );
+    virtual bool open(int index);
     virtual void close();
     virtual double getProperty(int) const;
     virtual bool setProperty(int, double);
     virtual bool grabFrame();
     virtual IplImage* retrieveFrame(int);
-    virtual int getCaptureDomain() { return CV_CAP_MSMF; } // Return the type of the capture object: CV_CAP_VFW, etc...
+    virtual int getCaptureDomain() { return CV_CAP_MSMF; }
 protected:
     void init();
     int index, width, height, fourcc;
-    bool openOK;
-    PBYTE pCapBuffer;
     IplImage* frame;
-    IplImage* frame4ch;
     CLEyeCameraInstance eye;
 };
 
@@ -111,6 +109,7 @@ public:
     virtual int getCaptureDomain() { return CV_CAP_MSMF; } // Return the type of the capture object: CV_CAP_VFW, etc...
 protected:
     void init();
+    std::vector<ps3eye::PS3EYECam::PS3EYERef> devices;
     int index, width, height, widthStep;
     IplImage* frame;
     ps3eye::PS3EYECam::PS3EYERef eye;

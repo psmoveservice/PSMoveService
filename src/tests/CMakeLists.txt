@@ -105,23 +105,21 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"
 ENDIF()
 
 # CL EYE - only on Win32
+SET(ISWIN32 FALSE)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
     AND NOT(${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8))
+    SET(ISWIN32 TRUE)
+    add_definitions(-DHAVE_CLEYE)
     list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/thirdparty/CLEYE)
-    find_path(CL_EYE_SDK_PATH x86/bin/CLEyeMulticam.dll
-        HINTS ${ROOT_DIR}/thirdparty/CLEYE/)
-    IF(CL_EYE_SDK_PATH)
-        list(APPEND TEST_CAMERA_REQ_LIBS ${CL_EYE_SDK_PATH}/x86/lib/CLEyeMulticam.lib)
-        file(COPY ${CL_EYE_SDK_PATH}/x86/bin/CLEyeMulticam.dll
-            DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Release)
-        file(COPY ${CL_EYE_SDK_PATH}/x86/bin/CLEyeMulticam.dll
-            DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Debug)
-        # XXX: If this crashes, disable compiler optimizations
-        add_definitions(-DHAVE_CLEYE)
-    ENDIF()
-
-    #TODO: The non multicam version. Maybe it does not require any includes/libs?
-    # Uses the registry and maybe unnecessary.
+    list(APPEND TEST_CAMERA_REQ_LIBS ${ROOT_DIR}/thirdparty/CLEYE/x86/lib/CLEyeMulticam.lib)
+    find_path(CL_EYE_SDK_PATH CLEyeMulticam.dll
+        HINTS C:/Windows/SysWOW64)
+    #The non-Multicam version does not require any libs/dlls/includes
+    #Uses OpenCV for video. Uses the registry for settings (maybe OpenCV for settings?)
+    #But libusb is required for enumerating the devices and checking for the CL Eye Driver.
+    find_package(USB1 REQUIRED)
+    list(APPEND TEST_CAMERA_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
+    list(APPEND TEST_CAMERA_REQ_LIBS ${LIBUSB_LIBRARIES})
 ENDIF()
 
 # Our custom OpenCV VideoCapture classes
@@ -135,6 +133,19 @@ list(APPEND TEST_CAMERA_SRC
 add_executable(test_camera ${CMAKE_CURRENT_LIST_DIR}/test_camera.cpp ${TEST_CAMERA_SRC})
 target_include_directories(test_camera PUBLIC ${TEST_CAMERA_INCL_DIRS})
 target_link_libraries(test_camera ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS})
+
+IF(ISWIN32 AND (${CL_EYE_SDK_PATH} STREQUAL "CL_EYE_SDK_PATH-NOTFOUND"))
+    #If the developer does not have CLEyeMulticam.dll on their system,
+    #copy it to the correct directory to prevent crashes.
+    #If we distribute binaries (e.g., a server to use alongside a UE4 plugin)
+    #then we will distribute it with this DLL with the server exe.
+    #It will be up to CLEYE SDK users to delete this version of the DLL
+    #to use their system version.
+    add_custom_command(TARGET test_camera POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${ROOT_DIR}/thirdparty/CLEYE/x86/bin/CLEyeMulticam.dll"
+            $<TARGET_FILE_DIR:test_camera>)
+ENDIF()
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
