@@ -382,9 +382,6 @@ bool PSEEYECaptureCAM_CLEYE::open( int _index )
 
     // I think I will have to use windows APIs to get its information.
     // https://msdn.microsoft.com/en-us/library/windows/apps/windows.devices.enumeration.deviceinformation.findallasync.aspx
-    Windows::Devices::Enumeration
-
-    Platform::String aqsFilter;
 
 
     bool cleyedriver_found = false;
