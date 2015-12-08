@@ -1,4 +1,9 @@
 #include "PSEyeVideoCapture.h"
+#ifdef HAVE_CLEYE
+#include "libusb.h"
+const uint16_t VENDOR_ID = 0x1415;
+const uint16_t PRODUCT_ID = 0x2000;
+#endif
 
 #ifdef HAVE_PS3EYE
 /**
@@ -102,27 +107,27 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture(int index)
             }
             
 #ifdef HAVE_CLEYE
-        case PSEYE_CAP_CLEYE:
-            if (!capture)
-            {
-                std::cout << "Attempting pseyeCreateCameraCapture_CLEYE" << std::endl;
-                capture = pseyeCreateCameraCapture_CLEYE(index);
-            }
-            if (pref)
-            {
-                break;
-            }
-			/*
         case PSEYE_CAP_CLMULTI:
             if (!capture)
             {
+                std::cout << "Attempting pseyeCreateCameraCapture_CLMULTI" << std::endl;
                 capture = pseyeCreateCameraCapture_CLMULTI(index);
             }
             if (pref)
             {
                 break;
             }
-			*/
+
+        case PSEYE_CAP_CLEYE:
+            if (!capture)
+            {
+                capture = pseyeCreateCameraCapture_CLEYE(index);
+            }
+            if (pref)
+            {
+                break;
+            }
+
 #endif //HAVE_CLEYE
 #ifdef HAVE_PS3EYE
         case PSEYE_CAP_PS3EYE:
@@ -142,13 +147,35 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture(int index)
 }
 
 #ifdef HAVE_CLEYE
+CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLMULTI(int index)
+{
+    PSEEYECaptureCAM_CLMULTI* capture = new PSEEYECaptureCAM_CLMULTI;
+    try
+    {
+        if (capture->open(index))
+        {
+            return (CvCapture*)capture;
+        }
+    }
+    catch (...)
+    {
+        delete capture;
+        throw;
+    }
+    delete capture;
+    return 0;
+}
+
 CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLEYE(int index)
 {
     PSEEYECaptureCAM_CLEYE* capture = new PSEEYECaptureCAM_CLEYE;
     try
     {
-        if( capture->open( index ))
+        if (capture->open(index))
+        {
             return (CvCapture*)capture;
+        }
+            
     }
     catch(...)
     {
@@ -158,36 +185,21 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLEYE(int index)
     delete capture;
     return 0;
 }
-/*
-CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLMULTI(int index)
-{
-PSEEYECaptureCAM_CLMULTI* capture = new PSEEYECaptureCAM_CLMULTI;
-try
-{
-if( capture->open( index ))
-return (CvCapture*)capture;
-}
-catch(...)
-{
-delete capture;
-throw;
-}
-delete capture;
-return 0;
-}
-*/
-#endif
 
+#endif
 #ifdef HAVE_PS3EYE
 CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_PS3EYE(int index)
 {
     PSEEYECaptureCAM_PS3EYE* capture = new PSEEYECaptureCAM_PS3EYE;
     try
     {
-        if( capture->open( index ))
+        if (capture->open(index))
+        {
             return (CvCapture*)capture;
+        }
+            
     }
-    catch(...)
+    catch (...)
     {
         delete capture;
         throw;
@@ -201,20 +213,24 @@ CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_PS3EYE(int index)
 
 #ifdef HAVE_CLEYE
 /*
-* PSEEYECaptureCAM_CLEYE
+* PSEEYECaptureCAM_CLMULTI
+* Uses the CLEyeMulticam.dll
+* Either uses the one that comes with this source and the user has their camera activated.
+* Or the user has the CL Eye Platform SDK developer binaries installed and they delete
+* the DLL that comes with this source.
 */
-PSEEYECaptureCAM_CLEYE::PSEEYECaptureCAM_CLEYE() :
+PSEEYECaptureCAM_CLMULTI::PSEEYECaptureCAM_CLMULTI() :
 frame(NULL), frame4ch(NULL)
 {
     
 }
 
-PSEEYECaptureCAM_CLEYE::~PSEEYECaptureCAM_CLEYE()
+PSEEYECaptureCAM_CLMULTI::~PSEEYECaptureCAM_CLMULTI()
 {
     close();
 }
 
-void PSEEYECaptureCAM_CLEYE::close()
+void PSEEYECaptureCAM_CLMULTI::close()
 {
     if (openOK)
     {
@@ -226,7 +242,7 @@ void PSEEYECaptureCAM_CLEYE::close()
 }
 
 // Initialize camera input
-bool PSEEYECaptureCAM_CLEYE::open(int _index)
+bool PSEEYECaptureCAM_CLMULTI::open(int _index)
 {
     openOK = false;
     int cams = CLEyeGetCameraCount();
@@ -234,27 +250,27 @@ bool PSEEYECaptureCAM_CLEYE::open(int _index)
     if (_index < cams)
     {
         GUID guid = CLEyeGetCameraUUID(_index);
-        eye = CLEyeCreateCamera(guid, CLEYE_COLOR_PROCESSED, CLEYE_VGA, 60);
+        eye = CLEyeCreateCamera(guid, CLEYE_COLOR_PROCESSED, CLEYE_VGA, 75);
         CLEyeCameraGetFrameDimensions(eye, width, height);
 
         frame4ch = cvCreateImage(cvSize(width, height), IPL_DEPTH_8U, 4);
         frame = cvCreateImage(cvSize(width, height), IPL_DEPTH_8U, 3);
 
         CLEyeCameraStart(eye);
-        //eye->setAutogain(false);
-        //eye->setAutoWhiteBalance(false);
+        CLEyeSetCameraParameter(eye, CLEYE_AUTO_EXPOSURE, false);
+        CLEyeSetCameraParameter(eye, CLEYE_AUTO_GAIN, false);
         openOK = true;
     }
     return openOK;
 }
 
-bool PSEEYECaptureCAM_CLEYE::grabFrame()
+bool PSEEYECaptureCAM_CLMULTI::grabFrame()
 {
     cvGetRawData(frame4ch, &pCapBuffer, 0, 0);
     return true;
 }
 
-IplImage* PSEEYECaptureCAM_CLEYE::retrieveFrame(int)
+IplImage* PSEEYECaptureCAM_CLMULTI::retrieveFrame(int)
 {
     CLEyeCameraGetFrame(eye, pCapBuffer, 2000);
     const int from_to[] = { 0, 0, 1, 1, 2, 2 };
@@ -264,7 +280,7 @@ IplImage* PSEEYECaptureCAM_CLEYE::retrieveFrame(int)
     return frame;
 }
 
-double PSEEYECaptureCAM_CLEYE::getProperty(int property_id) const
+double PSEEYECaptureCAM_CLMULTI::getProperty(int property_id) const
 {
     int _width, _height;
     switch (property_id)
@@ -295,7 +311,7 @@ double PSEEYECaptureCAM_CLEYE::getProperty(int property_id) const
     }
     return 0;
 }
-bool PSEEYECaptureCAM_CLEYE::setProperty(int property_id, double value)
+bool PSEEYECaptureCAM_CLMULTI::setProperty(int property_id, double value)
 {
     if (!eye)
     {
@@ -337,50 +353,103 @@ bool PSEEYECaptureCAM_CLEYE::setProperty(int property_id, double value)
 }
 
 /*
-* PSEEYECaptureCAM_CLMULTI
+* PSEEYECaptureCAM_CLEYE
+* PS3EYE with CL Eye driver, not Platform SDK.
+* Uses OpenCV for video, and registry for parameters.
 */
-
-/*
-PSEEYECaptureCAM_CLMULTI::PSEEYECaptureCAM_CLMULTI():
+PSEEYECaptureCAM_CLEYE::PSEEYECaptureCAM_CLEYE():
 frame(NULL)
 {
 
 }
 
-PSEEYECaptureCAM_CLMULTI::~PSEEYECaptureCAM_CLMULTI()
+PSEEYECaptureCAM_CLEYE::~PSEEYECaptureCAM_CLEYE()
 {
     close();
 }
 
-void PSEEYECaptureCAM_CLMULTI::close()
+void PSEEYECaptureCAM_CLEYE::close()
 {
+    cvReleaseImage(&frame);
 }
 
 // Initialize camera input
-bool PSEEYECaptureCAM_CLMULTI::open( int _index )
+bool PSEEYECaptureCAM_CLEYE::open( int _index )
+{
+    // TODO: Use libusb to iterate through the devices
+    // and see if one matches the VID and PID, and
+    // also see that it is using the CL Eye Driver.
+
+    // I think I will have to use windows APIs to get its information.
+    // https://msdn.microsoft.com/en-us/library/windows/apps/windows.devices.enumeration.deviceinformation.findallasync.aspx
+    Windows::Devices::Enumeration
+
+    Platform::String aqsFilter;
+
+
+    bool cleyedriver_found = false;
+
+    libusb_context *context = NULL;
+    libusb_device **devs = NULL;
+    int rc = 0;
+    ssize_t count = 0;
+
+    rc = libusb_init(&context);
+
+    count = libusb_get_device_list(context, &devs);
+
+    int idx = 0;
+    for (idx = 0; idx < count; ++idx)
+    {
+        libusb_device *device = devs[idx];
+        libusb_device_descriptor desc = { 0 };
+
+        rc = libusb_get_device_descriptor(device, &desc);
+        assert(rc == 0);
+
+        if (desc.idVendor == VENDOR_ID && desc.idProduct == PRODUCT_ID)
+        {
+            // TODO: Check for cleye driver
+            // Description will be "PS3Eye Camera"
+            // Also note that the class:subclass is
+            // camera -LIBUSB_CLASS_VENDOR_SPEC:LIBUSB_CLASS_PER_INTERFACE
+            // audio - LIBUSB_CLASS_AUDIO:LIBUSB_CLASS_AUDIO
+            // composite device - LIBUSB_CLASS_PER_INTERFACE:LIBUSB_CLASS_PER_INTERFACE
+            //desc.iManufacturer
+            libusb_device_handle *devhandle;
+            int err = libusb_open(device, &devhandle);
+            if (err == 0)
+            {
+                libusb_close(devhandle);
+                //cleyedriver_found = true;
+            }   
+        }
+    }
+    libusb_free_device_list(devs, 1);
+
+    //return cv::VideoCapture::open(index);
+    return cleyedriver_found;
+}
+
+bool PSEEYECaptureCAM_CLEYE::grabFrame()
 {
     return false;
 }
 
-bool PSEEYECaptureCAM_CLMULTI::grabFrame()
-{
-    return false;
-}
-
-IplImage* PSEEYECaptureCAM_CLMULTI::retrieveFrame(int)
+IplImage* PSEEYECaptureCAM_CLEYE::retrieveFrame(int)
 {
     return frame;
 }
 
-double PSEEYECaptureCAM_CLMULTI::getProperty( int property_id ) const
+double PSEEYECaptureCAM_CLEYE::getProperty( int property_id ) const
 {
     return 0;
 }
-bool PSEEYECaptureCAM_CLMULTI::setProperty( int property_id, double value )
+bool PSEEYECaptureCAM_CLEYE::setProperty( int property_id, double value )
 {
     return false;
 }
-*/
+
 #endif
 
 /*
@@ -393,11 +462,8 @@ frame(NULL)
     //CoInitialize(NULL);
     
     // Enumerate libusb devices
-    std::vector<ps3eye::PS3EYECam::PS3EYERef> devices = ps3eye::PS3EYECam::getDevices();
+    devices = ps3eye::PS3EYECam::getDevices();
     std::cout << "ps3eye::PS3EYECam::getDevices() found " << devices.size() << " devices." << std::endl;
-    if (devices.size() > 0) {
-        eye = devices[0];
-    }
 }
 
 
@@ -419,18 +485,23 @@ void PSEEYECaptureCAM_PS3EYE::close()
 // Initialize camera input
 bool PSEEYECaptureCAM_PS3EYE::open( int _index )
 {
-    if (eye && eye->init(640, 480, 60))
-    {
-        // Change any default settings here
-        
-        frame = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
-        
-        eye->start();
-        
-        eye->setAutogain(false);
-        eye->setAutoWhiteBalance(false);
-        
-        return true;
+    if (devices.size() > _index) {
+
+        eye = devices[_index];
+
+        if (eye && eye->init(640, 480, 75))
+        {
+            // Change any default settings here
+
+            frame = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
+
+            eye->start();
+
+            eye->setAutogain(false);
+            eye->setAutoWhiteBalance(false);
+
+            return true;
+        }
     }
     else {
         return false;
