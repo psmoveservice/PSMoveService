@@ -120,6 +120,10 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
     find_package(USB1 REQUIRED)
     list(APPEND TEST_CAMERA_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
     list(APPEND TEST_CAMERA_REQ_LIBS ${LIBUSB_LIBRARIES})
+
+    # Windows utilities for querying driver infomation (provider name)
+    list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Platform)
+    list(APPEND TEST_CAMERA_SRC ${ROOT_DIR}/src/psmoveservice/Platform/DeviceInterfaceWin32.cpp)
 ENDIF()
 
 # Our custom OpenCV VideoCapture classes

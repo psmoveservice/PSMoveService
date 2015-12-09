@@ -34,6 +34,8 @@ ENDIF()
 file(GLOB PSMOVESERVICE_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/*.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Platform/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Platform/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig/*.h"    
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveController/*.cpp"
@@ -42,6 +44,7 @@ file(GLOB PSMOVESERVICE_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.h"
 )
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
+    ${ROOT_DIR}/src/psmoveservice/Platform
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
     ${ROOT_DIR}/src/psmoveservice/PSMoveController
     ${ROOT_DIR}/src/psmoveservice/PSNaviController)

@@ -1,8 +1,10 @@
 #include "PSEyeVideoCapture.h"
 #ifdef HAVE_CLEYE
 #include "libusb.h"
+#include "DeviceInterfaceWin32.h"
 const uint16_t VENDOR_ID = 0x1415;
 const uint16_t PRODUCT_ID = 0x2000;
+const char *CLEYE_DRIVER_PROVIDER_NAME= "Code Laboratories, Inc.";
 #endif
 
 #ifdef HAVE_PS3EYE
@@ -380,12 +382,22 @@ bool PSEEYECaptureCAM_CLEYE::open( int _index )
     // and see if one matches the VID and PID, and
     // also see that it is using the CL Eye Driver.
 
-    // I think I will have to use windows APIs to get its information.
-    // https://msdn.microsoft.com/en-us/library/windows/apps/windows.devices.enumeration.deviceinformation.findallasync.aspx
-
-
     bool cleyedriver_found = false;
 
+    char provider_name[128];
+
+    if (DeviceInterface::fetch_driver_reg_property_for_usb_device(
+            DeviceInterface::Camera,
+            VENDOR_ID, 
+            PRODUCT_ID, 
+            DeviceInterface::k_reg_property_provider_name, 
+            provider_name, 
+            sizeof(provider_name)))
+    {
+        cleyedriver_found= strcmp(provider_name, CLEYE_DRIVER_PROVIDER_NAME) == 0;
+    }
+
+    #if 0
     libusb_context *context = NULL;
     libusb_device **devs = NULL;
     int rc = 0;
@@ -423,6 +435,7 @@ bool PSEEYECaptureCAM_CLEYE::open( int _index )
         }
     }
     libusb_free_device_list(devs, 1);
+    #endif
 
     //return cv::VideoCapture::open(index);
     return cleyedriver_found;
