@@ -1,4 +1,5 @@
 #include "PSEyeVideoCapture.h"
+#include "opencv2\opencv.hpp"
 #include <algorithm>
 
 const std::vector<int> known_keys = {113, 97, 119, 115, 101, 100, 114, 102, 116, 103};
@@ -38,7 +39,7 @@ int main(int, char**)
 			{
 				cap_prop = CV_CAP_PROP_EXPOSURE;
 				prop_str = "CV_CAP_PROP_EXPOSURE";
-				val_diff = (wk == 113) ? 1 : -1;
+				val_diff = (wk == 113) ? 10 : -10;
 			}
 
 			// w/s for +/- contrast
@@ -57,7 +58,7 @@ int main(int, char**)
 			{
 				cap_prop = CV_CAP_PROP_GAIN;
 				prop_str = "CV_CAP_PROP_GAIN";
-				val_diff = (wk == 101) ? 1 : -1;
+				val_diff = (wk == 101) ? 4 : -4;
 			}
 
 			// r/f for +/- hue
@@ -79,10 +80,12 @@ int main(int, char**)
 
 			double val = cap.get(cap_prop);
 			std::cout << "Value of " << prop_str << " was " << val << std::endl;
+
 			val += val_diff;
 			cap.set(cap_prop, val);
+
 			val = cap.get(cap_prop);
-			std::cout << "Value of " << prop_str << " changed by " << val_diff << " to " << val << std::endl;
+			std::cout << "Value of " << prop_str << " changed by " << val_diff << " and is now " << val << std::endl;
 		}
         else if (wk > 0)
         {
