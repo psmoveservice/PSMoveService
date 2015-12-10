@@ -12,7 +12,7 @@ enum
 #endif
 };
 
-/// Video capture class that prioritizes PS3 Eye devices (via custom CvCapture objects).
+/// Video capture class that prioritizes PS3 Eye devices via custom cv::IVideoCapture objects.
 /**
 To prioritize custom PS3 Eye devices, we must override open().
 We use the parent cv::VideoCapture class's Ptr< cv::IVideoCapture >icap member variable.
@@ -23,6 +23,10 @@ Device opening priority:
 -CL Eye Driver (Win x86 only)
 -PS3EYEDriver (Win and OSX)
 -OpenCV native
+ 
+ See base class:
+ https://github.com/Itseez/opencv/blob/ddf82d0b154873510802ef75c53e628cd7b2cb13/modules/videoio/include/opencv2/videoio.hpp#L387
+ https://github.com/Itseez/opencv/blob/ddf82d0b154873510802ef75c53e628cd7b2cb13/modules/videoio/src/cap.cpp#L550
 */
 class PSEyeVideoCapture : public cv::VideoCapture {
 public:
@@ -41,12 +45,12 @@ public:
     
 private:
     /// Get the camera capture. If successful, we will have a functional cv::Ptr<CvCapture> \ref cap member variable.
-    static CvCapture* pseyeCreateCameraCapture(int index);
+    static cv::Ptr<cv::IVideoCapture> pseyeVideoCapture_create(int index);
 #ifdef HAVE_CLEYE
-    static CvCapture* pseyeCreateCameraCapture_CLMULTI(int index);
-    static CvCapture* pseyeCreateCameraCapture_CLEYE(int index);
+    static cv::Ptr<cv::IVideoCapture> pseyeVideoCapture_create_CLMULTI(int index);
+    static cv::Ptr<cv::IVideoCapture> pseyeVideoCapture_create_CLEYE(int index);
 #endif
 #ifdef HAVE_PS3EYE
-    static CvCapture* pseyeCreateCameraCapture_PS3EYE(int index);
+    static cv::Ptr<cv::IVideoCapture> pseyeVideoCapture_create_PS3EYE(int index);
 #endif
 };
