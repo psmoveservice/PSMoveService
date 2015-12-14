@@ -23,7 +23,7 @@ A background service that communicates with the psmove and serves its pose and b
 1. Optional: [CL Eye Driver](https://codelaboratories.com/products/eye/driver/)
     * Only necessary for Windows 32-bit if not using PS3EYEDriver
     * Currently $2.99 USD (paypal or credit card)
-    * Platform SDK not necessary    
+    * Platform SDK not necessary
 1. InitialSetup.bat Batch Script
     * The `InitialSetup.bat` in the root folder will automatically configure and build the dependencies in the thirdparty folder.
     * It will ask you for the root install folders of Boost and OpenCV.
@@ -79,7 +79,7 @@ A background service that communicates with the psmove and serves its pose and b
    
 # Generate PSMoveService project files
 
-1. `mkdir build & cd build`
+1. `mkdir build && cd build`
 1. Run cmake
     * Windows: `cmake .. -G "Visual Studio 12 2013"` OR `GenerateProjectFiles.bat`
     * Mac: `cmake ..` OR `cmake -G "Xcode" ..`
