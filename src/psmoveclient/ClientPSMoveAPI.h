@@ -49,6 +49,8 @@ public:
         _clientPSMoveResultCode_canceled
     };
 
+    typedef void *t_request_handle;
+
     typedef const void *t_event_data_handle;
     typedef void(*t_event_callback)(
         eClientPSMoveAPIEvent event, t_event_data_handle event_handle, void *userdata);
@@ -72,12 +74,14 @@ public:
     static ClientControllerView *allocate_controller_view(int PSMoveID);
     static void free_controller_view(ClientControllerView *view);
 
-    static t_request_id fetch_controller_list(t_response_callback callback, void *callback_userdata);
     static t_request_id start_controller_data_stream(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
     static t_request_id stop_controller_data_stream(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
     static t_request_id set_controller_rumble(
         ClientControllerView *view, float rumble_amount, t_response_callback callback, void *callback_userdata);
     static t_request_id reset_pose(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
+
+    // Used to send requests to the server by clients that have protocol access
+    static t_request_id send_opaque_request(t_request_handle request_handle, ClientPSMoveAPI::t_response_callback callback, void *userdata);
 
 private:
     // Not allowed to instantiate

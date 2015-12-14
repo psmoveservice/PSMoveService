@@ -126,20 +126,6 @@ public:
         }
     }
 
-    ClientPSMoveAPI::t_request_id fetch_controller_list(
-        ClientPSMoveAPI::t_response_callback callback, void *userdata)
-    {
-        CLIENT_LOG_INFO("fetch_controller_list") << "requesting controller list " << std::endl;
-
-        // Tell the psmove service that we we want a list of controllers connected to this machine
-        RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST);
-
-        m_request_manager.send_request(request, callback, userdata);
-
-        return request->request_id();
-    }
-
     ClientPSMoveAPI::t_request_id start_controller_data_stream(
         ClientControllerView * view, ClientPSMoveAPI::t_response_callback callback, void *userdata)
     {
@@ -199,6 +185,18 @@ public:
         request->mutable_reset_pose()->set_controller_id(view->GetControllerID());
         
         m_request_manager.send_request(request, callback, userdata);
+
+        return request->request_id();
+    }
+
+    ClientPSMoveAPI::t_request_id send_opaque_request(
+        ClientPSMoveAPI::t_request_handle request_handle,
+        ClientPSMoveAPI::t_response_callback callback, 
+        void *callback_userdata)
+    {
+        RequestPtr &request= *reinterpret_cast<RequestPtr *>(request_handle);
+
+        m_request_manager.send_request(request, callback, callback_userdata);
 
         return request->request_id();
     }
@@ -367,21 +365,6 @@ void ClientPSMoveAPI::free_controller_view(ClientControllerView * view)
 }
 
 ClientPSMoveAPI::t_request_id 
-ClientPSMoveAPI::fetch_controller_list(
-    t_response_callback callback, 
-    void *callback_userdata)
-{
-    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::INVALID_REQUEST_ID;
-
-    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
-    {
-        request_id= ClientPSMoveAPI::m_implementation_ptr->fetch_controller_list(callback, callback_userdata);
-    }
-
-    return request_id;
-}
-
-ClientPSMoveAPI::t_request_id 
 ClientPSMoveAPI::start_controller_data_stream(
     ClientControllerView * view, 
     ClientPSMoveAPI::t_response_callback callback, 
@@ -441,6 +424,23 @@ ClientPSMoveAPI::reset_pose(
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
         request_id= ClientPSMoveAPI::m_implementation_ptr->reset_pose(view, callback, callback_userdata);
+    }
+
+    return request_id;
+}
+
+ClientPSMoveAPI::t_request_id 
+ClientPSMoveAPI::send_opaque_request(
+    ClientPSMoveAPI::t_request_handle request_handle,
+    ClientPSMoveAPI::t_response_callback callback, 
+    void *callback_userdata)
+{
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id= ClientPSMoveAPI::m_implementation_ptr->send_opaque_request(
+            request_handle, callback, callback_userdata);
     }
 
     return request_id;

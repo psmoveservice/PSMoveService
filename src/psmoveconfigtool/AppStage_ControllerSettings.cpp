@@ -5,6 +5,7 @@
 #include "Camera.h"
 #include "Renderer.h"
 #include "UIConstants.h"
+#include "PSMoveProtocolInterface.h"
 #include "PSMoveProtocol.pb.h"
 
 #include "SDL_keycode.h"
@@ -53,7 +54,7 @@ void AppStage_ControllerSettings::render()
         {
             if (m_selectedControllerIndex >= 0)
             {
-                const ControllerInfo &controllerInfo= m_controllerInfos[m_selectedControllerIndex];
+                const ControllerInfo &controllerInfo= m_pairedControllerInfos[m_selectedControllerIndex];
 
                 switch(controllerInfo.ControllerType)
                 {
@@ -72,9 +73,9 @@ void AppStage_ControllerSettings::render()
         } break;
 
     case eControllerMenuState::pendingControllerListRequest:
-        {
-        } break;
     case eControllerMenuState::failedControllerListRequest:
+    case eControllerMenuState::pendingControllerUnpairRequest:
+    case eControllerMenuState::failedControllerUnpairRequest:
         {
         } break;
 
@@ -85,22 +86,24 @@ void AppStage_ControllerSettings::render()
 
 void AppStage_ControllerSettings::renderUI()
 {
+    const char *k_window_title= "Controller Settings";
+    const ImGuiWindowFlags window_flags = 
+        ImGuiWindowFlags_ShowBorders |
+        ImGuiWindowFlags_NoResize | 
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_NoCollapse;
+
     switch (m_menuState)
     {
     case eControllerMenuState::idle:
         {
-            ImGuiWindowFlags window_flags = 
-                ImGuiWindowFlags_ShowBorders |
-                ImGuiWindowFlags_NoResize | 
-                ImGuiWindowFlags_NoMove |
-                ImGuiWindowFlags_NoScrollbar |
-                ImGuiWindowFlags_NoCollapse;
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin("Controller Settings", nullptr, ImVec2(300, 300), k_background_alpha, window_flags);
+            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 300), k_background_alpha, window_flags);
 
-            if (m_controllerInfos.size() > 0)
+            if (m_pairedControllerInfos.size() > 0)
             {
-                const ControllerInfo &controllerInfo= m_controllerInfos[m_selectedControllerIndex];
+                const ControllerInfo &controllerInfo= m_pairedControllerInfos[m_selectedControllerIndex];
 
                 ImGui::Text("Controller: %d", m_selectedControllerIndex);
                 ImGui::Text("  Controller ID: %d", controllerInfo.ControllerID);
@@ -133,11 +136,22 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
-                if (m_selectedControllerIndex + 1 < static_cast<int>(m_controllerInfos.size()))
+                if (m_selectedControllerIndex + 1 < static_cast<int>(m_pairedControllerInfos.size()))
                 {
                     if (ImGui::Button("Next Controller"))
                     {
                         ++m_selectedControllerIndex;
+                    }
+                }
+
+                // We can only pair controllers connected via bluetooth
+                if (controllerInfo.ConnectionType == AppStage_ControllerSettings::USB)
+                {
+                    if (ImGui::Button("Unpair Controller"))
+                    {
+                        ControllerInfo &controllerInfo= m_pairedControllerInfos[m_selectedControllerIndex];
+
+                        request_controller_unpair(controllerInfo.ControllerID);
                     }
                 }
             }
@@ -155,14 +169,8 @@ void AppStage_ControllerSettings::renderUI()
         } break;
     case eControllerMenuState::pendingControllerListRequest:
         {
-            ImGuiWindowFlags window_flags = 
-                ImGuiWindowFlags_ShowBorders |
-                ImGuiWindowFlags_NoResize | 
-                ImGuiWindowFlags_NoMove |
-                ImGuiWindowFlags_NoScrollbar |
-                ImGuiWindowFlags_NoCollapse;
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin("Controller Settings", nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
+            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
 
             ImGui::Text("Waiting for controller list response...");
 
@@ -170,14 +178,8 @@ void AppStage_ControllerSettings::renderUI()
         } break;
     case eControllerMenuState::failedControllerListRequest:
         {
-            ImGuiWindowFlags window_flags = 
-                ImGuiWindowFlags_ShowBorders |
-                ImGuiWindowFlags_NoResize | 
-                ImGuiWindowFlags_NoMove |
-                ImGuiWindowFlags_NoScrollbar |
-                ImGuiWindowFlags_NoCollapse;
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin("Controller Settings", nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
+            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
 
             ImGui::Text("Failed to get controller list!");
 
@@ -193,6 +195,35 @@ void AppStage_ControllerSettings::renderUI()
 
             ImGui::End();
         } break;
+    case eControllerMenuState::pendingControllerUnpairRequest:
+        {
+            ImGui::SetNextWindowPosCenter();
+            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
+
+            ImGui::Text("Waiting for controller to unpair...");
+
+            ImGui::End();
+        } break;
+    case eControllerMenuState::failedControllerUnpairRequest:
+        {
+            ImGui::SetNextWindowPosCenter();
+            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
+
+            ImGui::Text("Failed to unpair controller!");
+
+            if (ImGui::Button("Ok"))
+            {
+                request_controller_list();
+            }
+
+            if (ImGui::Button("Return to Main Menu"))
+            {
+                m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
+            }
+
+            ImGui::End();
+        } break;
+
     default:
         assert(0 && "unreachable");
     }
@@ -207,11 +238,25 @@ bool AppStage_ControllerSettings::onClientAPIEvent(
     switch(event)
     {
     case ClientPSMoveAPI::disconnectedFromService:
-        m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
-        break;
+        {
+            m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
+        } break;
     case ClientPSMoveAPI::controllerListUpdated:
-        request_controller_list();
-        break;
+        {
+            request_controller_list();
+        } break;
+    case ClientPSMoveAPI::opaqueServiceEvent:
+        {
+            const PSMoveProtocol::Response *event= GET_PSMOVEPROTOCOL_EVENT(opaque_event_handle);
+
+            switch(event->type())
+            {
+            case PSMoveProtocol::Response_ResponseType_UNPAIR_REQUEST_COMPLETED:
+                {
+                    handle_controller_unpair_end_event(event);
+                } break;
+            }
+        } break;
     }
 
     return bHandled;
@@ -223,8 +268,14 @@ void AppStage_ControllerSettings::request_controller_list()
     {
         m_menuState= AppStage_ControllerSettings::pendingControllerListRequest;
         m_selectedControllerIndex= -1;
-        m_controllerInfos.clear();
-        ClientPSMoveAPI::fetch_controller_list(AppStage_ControllerSettings::handle_controller_list_response, this);
+        m_pairedControllerInfos.clear();
+        m_unpairedControllerInfos.clear();
+
+        // Tell the psmove service that we we want a list of controllers connected to this machine
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST);
+
+        ClientPSMoveAPI::send_opaque_request(&request, AppStage_ControllerSettings::handle_controller_list_response, this);
     }
 }
 
@@ -245,6 +296,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
             for (int controller_index= 0; controller_index < response->result_controller_list().controllers_size(); ++controller_index)
             {
                 const auto &ControllerResponse= response->result_controller_list().controllers(controller_index);
+
                 AppStage_ControllerSettings::ControllerInfo ControllerInfo;
 
                 ControllerInfo.ControllerID= ControllerResponse.controller_id();
@@ -276,10 +328,17 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 ControllerInfo.DevicePath= ControllerResponse.device_path();
                 ControllerInfo.DeviceSerial= ControllerResponse.device_serial();
 
-                thisPtr->m_controllerInfos.push_back( ControllerInfo );
+                if (ControllerResponse.device_serial().length() > 0)
+                {
+                    thisPtr->m_pairedControllerInfos.push_back( ControllerInfo );
+                }
+                else
+                {
+                    thisPtr->m_unpairedControllerInfos.push_back( ControllerInfo );
+                }
             }
 
-            thisPtr->m_selectedControllerIndex= (thisPtr->m_controllerInfos.size() > 0) ? 0 : -1;
+            thisPtr->m_selectedControllerIndex= (thisPtr->m_pairedControllerInfos.size() > 0) ? 0 : -1;
             thisPtr->m_menuState= AppStage_ControllerSettings::idle;
         } break;
 
@@ -287,6 +346,64 @@ void AppStage_ControllerSettings::handle_controller_list_response(
         case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
         { 
             thisPtr->m_menuState= AppStage_ControllerSettings::failedControllerListRequest;
+        } break;
+    }
+}
+
+void AppStage_ControllerSettings::request_controller_unpair(
+    int controllerID)
+{
+    if (m_menuState != AppStage_ControllerSettings::pendingControllerUnpairRequest)
+    {
+        m_menuState= AppStage_ControllerSettings::pendingControllerUnpairRequest;
+
+        // Tell the psmove service that we want to unpair the given controller
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_UNPAIR_CONTROLLER);
+        request->mutable_unpair_controller()->set_controller_id(controllerID);
+
+        ClientPSMoveAPI::send_opaque_request(&request, AppStage_ControllerSettings::handle_controller_unpair_start_response, this);
+    }
+}
+
+void AppStage_ControllerSettings::handle_controller_unpair_start_response(
+    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, 
+    const ClientPSMoveAPI::t_request_id request_id, 
+    ClientPSMoveAPI::t_response_handle response_handle, 
+    void *userdata)
+{
+    AppStage_ControllerSettings *thisPtr= static_cast<AppStage_ControllerSettings *>(userdata);
+
+    switch(ResultCode)
+    {
+        case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+        {
+            thisPtr->m_menuState= AppStage_ControllerSettings::pendingControllerListRequest;
+        } break;
+
+        case ClientPSMoveAPI::_clientPSMoveResultCode_error:
+        case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+        { 
+            thisPtr->m_menuState= AppStage_ControllerSettings::failedControllerUnpairRequest;
+        } break;
+    }
+}
+
+void AppStage_ControllerSettings::handle_controller_unpair_end_event(
+    const PSMoveProtocol::Response *event)
+{
+    switch(event->result_code())
+    {
+        case PSMoveProtocol::Response_ResultCode_RESULT_OK:
+        {
+            // Refresh the list of controllers now that we have confirmation the controller is unpaired
+            request_controller_list();
+        } break;
+
+        case PSMoveProtocol::Response_ResultCode_RESULT_ERROR:
+        case PSMoveProtocol::Response_ResultCode_RESULT_CANCELED:
+        { 
+            this->m_menuState= AppStage_ControllerSettings::failedControllerUnpairRequest;
         } break;
     }
 }

@@ -145,6 +145,11 @@ public:
         return result;
     }
 
+    int getControllerViewCount() const
+    {
+        return k_max_controllers;
+    }
+
     bool setControllerRumble(int controller_id, int rumble_amount)
     {
         bool result= false;
@@ -159,6 +164,7 @@ public:
 
     bool resetPose(int controller_id)
     {
+        //###bwalker $TODO Once we are computing pose
         return false;
     }
 
@@ -351,6 +357,8 @@ private:
 };
 
 //-- public interface -----
+ControllerManager *ControllerManager::m_instance = NULL;
+
 ControllerManager::ControllerManager()
     : m_implementation_ptr(new ControllerManagerImpl)
 {
@@ -363,6 +371,8 @@ ControllerManager::~ControllerManager()
 
 bool ControllerManager::startup()
 {
+    ControllerManager::m_instance= this;
+
     return m_implementation_ptr->startup();
 }
 
@@ -373,12 +383,19 @@ void ControllerManager::update()
 
 void ControllerManager::shutdown()
 {
+    ControllerManager::m_instance= nullptr;
+
     m_implementation_ptr->shutdown();
 }
 
-ServerControllerViewPtr ControllerManager::getController(int controller_id)
+ServerControllerViewPtr ControllerManager::getControllerView(int controller_id)
 {
     return m_implementation_ptr->getController(controller_id);
+}
+
+int ControllerManager::getControllerViewCount() const
+{
+    return m_implementation_ptr->getControllerViewCount();
 }
 
 bool ControllerManager::setControllerRumble(int controller_id, int rumble_amount)

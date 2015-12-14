@@ -111,6 +111,7 @@ public:
     virtual bool open(const ControllerDeviceEnumerator *enumerator) override;
     virtual IControllerInterface::ePollResult poll() override;
     virtual void close() override;
+    virtual bool setHostBluetoothAddress(const std::string &address) override;
 
     // -- Getters
     virtual bool getIsBluetooth() const override;

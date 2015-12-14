@@ -50,6 +50,7 @@ public:
         m_signals.async_wait(boost::bind(&PSMoveService::handle_termination_signal, this));
     }
 
+    /// Entry point into boost::application
     int operator()(application::context& context)
     {
         BOOST_APPLICATION_FEATURE_SELECT
@@ -128,11 +129,12 @@ public:
     }
 
 private:
+    /// Called upon PSMoveService application start.
     bool startup()
     {
         bool success= true;
 
-        // Start listening for client connections
+        /** Start listening for client connections */
         if (success)
         {
             if (!m_network_manager.startup())
@@ -142,17 +144,7 @@ private:
             }
         }
 
-        // Setup the request handler
-        if (success)
-        {
-            if (!m_request_handler.startup())
-            {
-                SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the service request handler";
-                success= false;
-            }
-        }
-
-        // Setup the controller manager
+        /** Setup the controller manager */
         if (success)
         {
             if (!m_controller_manager.startup())
@@ -162,26 +154,42 @@ private:
             }
         }
 
+        /** Setup the request handler */
+        if (success)
+        {
+            if (!m_request_handler.startup())
+            {
+                SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the service request handler";
+                success= false;
+            }
+        }
+
         return success;
     }
 
+    /// Called in the application loop.
     void update()
     {
-        // Update the list of active tracked controllers
-        // Send controller updates to the client
+        /** Update an async requests still waiting to complete */
+        m_request_handler.update();
+
+        /**
+         Update the list of active tracked controllers
+         Send controller updates to the client
+         */
         m_controller_manager.update();
 
-        // Process incoming/outgoing networking requests
+        /** Process incoming/outgoing networking requests */
         m_network_manager.update();
     }
 
     void shutdown()
     {
-        // Disconnect any actively connected controllers
-        m_controller_manager.shutdown();
-
         // Kill any pending request state
         m_request_handler.shutdown();
+
+        // Disconnect any actively connected controllers
+        m_controller_manager.shutdown();
 
         // Close all active network connections
         m_network_manager.shutdown();

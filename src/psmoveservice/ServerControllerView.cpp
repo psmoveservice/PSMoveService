@@ -1,5 +1,7 @@
 //-- includes -----
 #include "ServerControllerView.h"
+
+#include "BluetoothRequests.h"
 #include "ServerLog.h"
 #include "ServerRequestHandler.h"
 #include "ControllerInterface.h"
@@ -57,6 +59,12 @@ bool ServerControllerView::open(
 void ServerControllerView::close()
 {
     m_controller->close();
+}
+
+bool ServerControllerView::setHostBluetoothAddress(
+    const std::string &address)
+{
+    return m_controller->setHostBluetoothAddress(address);
 }
 
 bool ServerControllerView::update()

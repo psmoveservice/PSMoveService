@@ -491,7 +491,7 @@ private:
 int ClientConnection::next_connection_id = 0;
 
 // -NetworkManagerImpl-
-// Internal implementation of the network manager.
+/// Internal implementation of the network manager.
 class ServerNetworkManagerImpl : public IServerNetworkEventListener
 {
 public:
@@ -518,6 +518,7 @@ public:
     }
 
     //-- ServerNetworkManagerImpl ----
+    /// Called during PSMoveService::startup()
     void start_connection_accept()
     {
         SERVER_LOG_DEBUG("ServerNetworkManager::start_tcp_accept") << "Start waiting for a new TCP connection";
@@ -629,9 +630,9 @@ public:
         }
         else
         {
-            SERVER_LOG_ERROR("ServerNetworkManager::send_notification") 
+            SERVER_LOG_DEBUG("ServerNetworkManager::send_notification") 
                 << "Can't send response_type " << response->type() 
-                << " to unknown connection " << connection_id;
+                << " to a disconected connection " << connection_id;
         }
     }
 

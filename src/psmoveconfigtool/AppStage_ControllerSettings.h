@@ -34,13 +34,25 @@ protected:
         ClientPSMoveAPI::t_response_handle response_handle, 
         void *userdata);
 
+    void request_controller_unpair(int controllerId);
+    static void handle_controller_unpair_start_response(
+        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, 
+        const ClientPSMoveAPI::t_request_id request_id, 
+        ClientPSMoveAPI::t_response_handle response_handle, 
+        void *userdata);
+    void handle_controller_unpair_end_event(const PSMoveProtocol::Response *event);
+
 private:
     enum eControllerMenuState
     {
         inactive,
         idle,
+        
         pendingControllerListRequest,
-        failedControllerListRequest
+        failedControllerListRequest,
+        
+        pendingControllerUnpairRequest,
+        failedControllerUnpairRequest
     };
     eControllerMenuState m_menuState;
 
@@ -65,7 +77,9 @@ private:
         std::string DeviceSerial;
     };
 
-    std::vector<ControllerInfo> m_controllerInfos;
+    std::vector<ControllerInfo> m_pairedControllerInfos;
+    std::vector<ControllerInfo> m_unpairedControllerInfos;
+
     int m_selectedControllerIndex;
 
 };

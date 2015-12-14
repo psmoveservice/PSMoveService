@@ -17,6 +17,7 @@ public:
     static ServerRequestHandler *get_instance() { return m_instance; }
 
     bool startup();
+    void update();
     void shutdown();
 
     ResponsePtr handle_request(int connection_id, RequestPtr request);

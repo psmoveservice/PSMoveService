@@ -79,6 +79,9 @@ public:
     // Closes the HID device for the controller  
     virtual void close() = 0;
 
+    // Sets the address of the bluetooth adapter on the host PC with the controller
+    virtual bool setHostBluetoothAddress(const std::string &address) = 0;
+
     // -- Getters
     // Returns true if the device is connected via Bluetooth, false if by USB
     virtual bool getIsBluetooth() const = 0;

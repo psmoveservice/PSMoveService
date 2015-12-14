@@ -17,6 +17,9 @@ public:
     bool update();
     void close();
 
+    // Registers the address of the bluetooth adapter on the host PC with the controller
+    bool setHostBluetoothAddress(const std::string &address);
+
     // getters
     inline int getControllerID() const 
     { return m_controllerID; }

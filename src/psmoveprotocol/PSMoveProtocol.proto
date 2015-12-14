@@ -25,6 +25,7 @@ message Request {
         STOP_CONTROLLER_DATA_STREAM = 2;
         SET_RUMBLE = 3;
         RESET_POSE = 4;
+        UNPAIR_CONTROLLER= 5;
     }
     RequestType type = 2;
    
@@ -54,6 +55,12 @@ message Request {
         int32 controller_id = 1;
     }
     RequestResetPose reset_pose = 23;   
+    
+    // Parameters for UNPAIR_CONTROLLER
+    message RequestUnpairController {
+        int32 controller_id = 1;
+    }
+    RequestUnpairController unpair_controller = 24;     
 }
 
 // Reliable (TCP) responses to requests
@@ -64,6 +71,7 @@ message Response {
         CONNECTION_INFO= 1;
         CONTROLLER_LIST= 2;
         CONTROLLER_LIST_UPDATED= 3;
+        UNPAIR_REQUEST_COMPLETED= 4;
     }
 
     enum ResultCode {

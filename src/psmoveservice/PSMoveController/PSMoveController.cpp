@@ -17,6 +17,7 @@
 #define PSMOVE_BUFFER_SIZE 49 /* Buffer size for writing LEDs and reading sensor data */
 #define PSMOVE_EXT_DATA_BUF_SIZE 5
 #define PSMOVE_BTADDR_GET_SIZE 16
+#define PSMOVE_BTADDR_SET_SIZE 23
 #define PSMOVE_BTADDR_SIZE 6
 #define PSMOVE_CALIBRATION_SIZE 49 /* Buffer size for calibration data */
 #define PSMOVE_CALIBRATION_BLOB_SIZE (PSMOVE_CALIBRATION_SIZE*3 - 2*2) /* Three blocks, minus header (2 bytes) for blocks 2,3 */
@@ -146,6 +147,7 @@ struct PSMoveDataInput {
 
 // -- private prototypes -----
 static std::string btAddrUcharToString(const unsigned char* addr_buff);
+static bool stringToBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size);
 static int decodeCalibration(char *data, int offset);
 static int psmove_decode_16bit(char *data, int offset);
 inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
@@ -360,6 +362,65 @@ void PSMoveController::close()
     {
         SERVER_LOG_INFO("PSMoveController::close") << "PSMoveController(" << HIDDetails.Device_path << ") already closed. Ignoring request.";
     }
+}
+
+bool 
+PSMoveController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
+{
+    bool success= false;
+    unsigned char bts[PSMOVE_BTADDR_SET_SIZE];
+
+    memset(bts, 0, sizeof(bts));
+    bts[0] = PSMove_Req_SetBTAddr;
+
+    unsigned char addr[6];
+    if (stringToBTAddrUchar(new_host_bt_addr, addr, sizeof(addr)))
+    {
+        int res;
+
+        /* Copy 6 bytes from addr into bts[1]..bts[6] */
+        memcpy(&bts[1], addr, sizeof(addr));
+
+        /* _WIN32 only has move->handle_addr for getting bluetooth address. */
+        if (HIDDetails.Handle_addr) 
+        {
+            res = hid_send_feature_report(HIDDetails.Handle_addr, bts, sizeof(bts));
+        } 
+        else 
+        {
+            res = hid_send_feature_report(HIDDetails.Handle, bts, sizeof(bts));
+        }
+
+        if (res == sizeof(bts))
+        {
+            success= true;
+        }
+        else
+        {
+            char hidapi_err_mbs[256];
+            bool valid_error_mesg= false;
+            
+            if (HIDDetails.Handle_addr)
+            {
+                valid_error_mesg = hid_error_mbs(HIDDetails.Handle_addr, hidapi_err_mbs, sizeof(hidapi_err_mbs));
+            }
+            else
+            {
+                valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
+            }
+
+            if (valid_error_mesg)
+            {
+                SERVER_LOG_ERROR("PSMoveController::setBTAddress") << "HID ERROR: " << hidapi_err_mbs;
+            }            
+        }
+    }
+    else
+    {
+        SERVER_LOG_ERROR("PSMoveController::setBTAddress") << "Malformed address: " << new_host_bt_addr;
+    }
+
+    return success;
 }
 
 // Getters
@@ -817,6 +878,37 @@ btAddrUcharToString(const unsigned char* addr_buff)
         }
     }
     return stream.str();
+}
+
+static bool
+stringToBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size)
+{
+    bool success= false;
+
+    if (addr.length() >= 17 && addr_buf_size >= 6)
+    {
+        const char *raw_string= addr.c_str();
+        unsigned int octets[6];
+
+        success= 
+            sscanf_s(raw_string, "%x:%x:%x:%x:%x:%x", 
+                &octets[5],
+                &octets[4],
+                &octets[3],
+                &octets[2],
+                &octets[1],
+                &octets[0]) == 6;
+
+        if (success)
+        {
+            for (int i= 0; i < 6; ++i)
+            {
+                addr_buff[i]= ServerUtility::int32_to_int8_verify(octets[i]);
+            }
+        }
+    }
+
+    return success;
 }
 
 static int
