@@ -1,4 +1,29 @@
 #include "PSEyeVideoCapture.h"
+#include <opencv2/videoio/videoio.hpp>
+#include <opencv2/videoio/videoio_c.h>
+#include <iostream>
+#ifdef HAVE_PS3EYE
+#include "ps3eye.h"
+#endif
+#ifdef HAVE_CLEYE
+#include "CLEyeMulticam.h"
+#include "DeviceInterfaceWin32.h"
+const uint16_t VENDOR_ID = 0x1415;
+const uint16_t PRODUCT_ID = 0x2000;
+const char *CLEYE_DRIVER_PROVIDER_NAME = "Code Laboratories, Inc.";
+const char *CL_DRIVER_REG_PATH = "Software\\PS3EyeCamera\\Settings";  // [HKCU]
+#endif
+
+enum
+{
+#ifdef HAVE_CLEYE
+    PSEYE_CAP_CLMULTI   = 2100,
+    PSEYE_CAP_CLEYE     = 2200,
+#endif
+#ifdef HAVE_PS3EYE
+    PSEYE_CAP_PS3EYE    = 2300
+#endif
+};
 
 #ifdef HAVE_PS3EYE
 /**
@@ -54,368 +79,281 @@ yuv422_to_bgr(const uint8_t *yuv_src, const int stride, uint8_t *dst, const int 
 }
 #undef _max
 #undef _saturate
-#endif
-
-bool PSEyeVideoCapture::open(int index)
-{
-    if (isOpened()) release();
-
-	// Try to open a PS3EYE-specific camera capture
-
-#if !defined(CV_VERSION_EPOCH) || (CV_VERSION_EPOCH > 2)
-    /* TODO: Consider using IVideoCapture
-    icap = IVideoCapture_create(index);
-    if (!icap.empty())
-        return true;
-    */
-    cap.reset(pseyeCreateCameraCapture(index));
-#else  // OpenCV2
-    cap = pseyeCreateCameraCapture(index);
-#endif
-    
-	// PS3EYE-specific camera capture if available, else default OpenCV object
-    return isOpened() ? isOpened() : cv::VideoCapture::open(index);
-}
-
-CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture(int index)
-{
-    int pref = (index / 100) * 100;
-    index -= pref;
-    CvCapture *capture = 0; // no match
-    
-    switch (pref)
-    {
-        default:
-            if (pref)
-            {
-                // Passed in a non-zero preference
-                // that didn't match any switch cases
-                break;
-            }
-            
-#ifdef HAVE_CLEYE
-			/*
-        case PSEYE_CAP_CLMULTI:
-            if (!capture)
-            {
-                capture = pseyeCreateCameraCapture_CLMULTI(index);
-            }
-            if (pref)
-            {
-                break;
-            }
-			
-            
-        case PSEYE_CAP_CLEYE:
-            if (!capture)
-            {
-                capture = pseyeCreateCameraCapture_CLEYE(index);
-            }
-            if (pref)
-            {
-                break;
-            }
-			*/
-#endif //HAVE_CLEYE
-
-#ifdef HAVE_PS3EYE
-        case PSEYE_CAP_PS3EYE:
-            if (!capture)
-            {
-                capture = pseyeCreateCameraCapture_PS3EYE(index);
-            }
-            if (pref)
-            {
-                break;
-            }
 #endif //HAVE_PS3EYE
-    }
-    
-    return capture;
-}
+
+
+/**
+ cv::IVideoCapture is a convenient abstract base for custom capture devices.
+ Unfortunately, it does not have a public interface, so we redefine it here.
+ https://github.com/Itseez/opencv/blob/09e6c82190b558e74e2e6a53df09844665443d6d/modules/videoio/src/precomp.hpp#L164-L176
+*/
+class cv::IVideoCapture
+{
+public:
+    virtual ~IVideoCapture() {}
+    virtual double getProperty(int) const { return 0; }
+    virtual bool setProperty(int, double) { return false; }
+    virtual bool grabFrame() = 0;
+    virtual bool retrieveFrame(int, cv::OutputArray) = 0;
+    virtual bool isOpened() const = 0;
+    virtual int getCaptureDomain() { return CAP_ANY; } // Return the type of the capture object: CAP_VFW, etc...
+};
+
+/*
+-- Camera-specific implementations of cv::IVideoCapture --
+ Examples
+ 
+ HAVE_DSHOW:
+ https://github.com/Itseez/opencv/blob/ddf82d0b154873510802ef75c53e628cd7b2cb13/modules/videoio/src/cap_dshow.hpp#L23
+ https://github.com/Itseez/opencv/blob/ddf82d0b154873510802ef75c53e628cd7b2cb13/modules/videoio/src/cap_dshow.cpp#L3141
+ 
+ WINRT_VIDEO:
+ https://github.com/Itseez/opencv/blob/ddf82d0b154873510802ef75c53e628cd7b2cb13/modules/videoio/src/cap_winrt_capture.hpp#L45
+ https://github.com/Itseez/opencv/blob/ddf82d0b154873510802ef75c53e628cd7b2cb13/modules/videoio/src/cap_winrt_capture.cpp#L121
+*/
 
 #ifdef HAVE_CLEYE
-/*
-CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLMULTI(int index)
-{
-    PSEEYECaptureCAM_CLMULTI* capture = new PSEEYECaptureCAM_CLMULTI;
-    try
-    {
-        if( capture->open( index ))
-            return (CvCapture*)capture;
-    }
-    catch(...)
-    {
-        delete capture;
-        throw;
-    }
-    delete capture;
-    return 0;
-}
-
-
-CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_CLEYE(int index)
-{
-    PSEEYECaptureCAM_CLEYE* capture = new PSEEYECaptureCAM_CLEYE;
-    try
-    {
-        if( capture->open( index ))
-            return (CvCapture*)capture;
-    }
-    catch(...)
-    {
-        delete capture;
-        throw;
-    }
-    delete capture;
-    return 0;
-}
+/// Implementation of cv::IVideoCapture when using CLEyeMulticam.dll
+/**
+Either uses the DLL that comes with PSMoveService and the user has their camera activated.
+Or the user has the CL Eye Platform SDK developer binaries installed and they delete
+the DLL that comes with PSMoveService.
 */
-#endif
-
-#ifdef HAVE_PS3EYE
-CvCapture* PSEyeVideoCapture::pseyeCreateCameraCapture_PS3EYE(int index)
+class PSEYECaptureCAM_CLMULTI : public cv::IVideoCapture
 {
-    PSEEYECaptureCAM_PS3EYE* capture = new PSEEYECaptureCAM_PS3EYE;
-    try
+public:
+    PSEYECaptureCAM_CLMULTI(int _index)
+        : m_index(-1), m_width(-1), m_height(-1),
+        m_frame(NULL), m_frame4ch(NULL)
     {
-        if( capture->open( index ))
-            return (CvCapture*)capture;
+        open(_index);
     }
-    catch(...)
+
+    ~PSEYECaptureCAM_CLMULTI()
     {
-        delete capture;
-        throw;
+        close();
     }
-    delete capture;
-    return 0;
-}
-#endif
 
-
-/*
- * PSEEYECaptureCAM_CLMULTI
- */
-#ifdef HAVE_CLEYE
-/*
-PSEEYECaptureCAM_CLMULTI::PSEEYECaptureCAM_CLMULTI():
-frame(NULL)
-{
-
-}
-
-PSEEYECaptureCAM_CLMULTI::~PSEEYECaptureCAM_CLMULTI()
-{
-    close();
-}
-
-void PSEEYECaptureCAM_CLMULTI::close()
-{
-}
-
-// Initialize camera input
-bool PSEEYECaptureCAM_CLMULTI::open( int _index )
-{
-    return false;
-}
-
-bool PSEEYECaptureCAM_CLMULTI::grabFrame()
-{
-    return false;
-}
-
-IplImage* PSEEYECaptureCAM_CLMULTI::retrieveFrame(int)
-{
-    return frame;
-}
-
-double PSEEYECaptureCAM_CLMULTI::getProperty( int property_id ) const
-{
-    return 0;
-}
-bool PSEEYECaptureCAM_CLMULTI::setProperty( int property_id, double value )
-{
-    return false;
-}
-*/
-
-/*
- * PSEEYECaptureCAM_CLEYE
- */
-
-/*
-PSEEYECaptureCAM_CLEYE::PSEEYECaptureCAM_CLEYE():
-frame(NULL)
-{
-    
-}
-
- PSEEYECaptureCAM_CLEYE::~PSEEYECaptureCAM_CLEYE()
- {
- close();
- }
-
-void PSEEYECaptureCAM_CLEYE::close()
-{
-}
-
-// Initialize camera input
-bool PSEEYECaptureCAM_CLEYE::open( int _index )
-{
-    return false;
-}
-
-bool PSEEYECaptureCAM_CLEYE::grabFrame()
-{
-    return false;
-}
-
-IplImage* PSEEYECaptureCAM_CLEYE::retrieveFrame(int)
-{
-    return frame;
-}
-
-double PSEEYECaptureCAM_CLEYE::getProperty( int property_id ) const
-{
-    return 0;
-}
-bool PSEEYECaptureCAM_CLEYE::setProperty( int property_id, double value )
-{
-    return false;
-}
-*/
-#endif
-
-/*
- * PSEEYECaptureCAM_PS3EYE
- */
-#ifdef HAVE_PS3EYE
-PSEEYECaptureCAM_PS3EYE::PSEEYECaptureCAM_PS3EYE():
-frame(NULL)
-{
-    //CoInitialize(NULL);
-    
-    // Enumerate libusb devices
-    std::vector<ps3eye::PS3EYECam::PS3EYERef> devices = ps3eye::PS3EYECam::getDevices();
-    std::cout << "ps3eye::PS3EYECam::getDevices() found " << devices.size() << " devices." << std::endl;
-    if (devices.size() > 0) {
-        eye = devices[0];
-    }
-}
-
-
-PSEEYECaptureCAM_PS3EYE::~PSEEYECaptureCAM_PS3EYE()
-{
-    close();
-    
-    // eye is a smart pointer to a class.
-    // When it goes out of scope, it should trigger the class destructor.
-    
-    //CoUninitialize();
-}
-
-void PSEEYECaptureCAM_PS3EYE::close()
-{
-    cvReleaseImage( &frame );
-}
-
-// Initialize camera input
-bool PSEEYECaptureCAM_PS3EYE::open( int _index )
-{
-    if (eye && eye->init(640, 480, 60))
+    double getProperty(int property_id) const
     {
-        // Change any default settings here
-        
-        frame = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
-        
-        eye->start();
-        
+        int _width, _height;
+        switch (property_id)
+        {
+        case CV_CAP_PROP_BRIGHTNESS:
+            return (double)(CLEyeGetCameraParameter(m_eye, CLEYE_LENSBRIGHTNESS)); // [-500, 500]
+        case CV_CAP_PROP_CONTRAST:
+            return false;
+        case CV_CAP_PROP_EXPOSURE:
+            // [0, 511] -> [0, 255]
+            return double(CLEyeGetCameraParameter(m_eye, CLEYE_EXPOSURE))/2.0;
+        case CV_CAP_PROP_FPS:
+            return (double)(60);
+        case CV_CAP_PROP_FRAME_HEIGHT:
+            CLEyeCameraGetFrameDimensions(m_eye, _width, _height);
+            return (double)(_height);
+        case CV_CAP_PROP_FRAME_WIDTH:
+            CLEyeCameraGetFrameDimensions(m_eye, _width, _height);
+            return (double)(_width);
+        case CV_CAP_PROP_GAIN:
+            // [0, 79] -> [0, 255]
+            return double(CLEyeGetCameraParameter(m_eye, CLEYE_GAIN)) * (256.0/80.0);
+        case CV_CAP_PROP_HUE:
+            return 0;
+        case CV_CAP_PROP_SHARPNESS:
+            return 0;
+        }
+        return 0;
+    }
+
+    bool setProperty(int property_id, double value)
+    {
+        int val;
+        if (!m_eye)
+        {
+            return false;
+        }
+        switch (property_id)
+        {
+        case CV_CAP_PROP_BRIGHTNESS:
+            // [-500, 500]
+            CLEyeSetCameraParameter(m_eye, CLEYE_LENSBRIGHTNESS, (int)value);
+        case CV_CAP_PROP_CONTRAST:
+            return false;
+        case CV_CAP_PROP_EXPOSURE:
+            CLEyeSetCameraParameter(m_eye, CLEYE_AUTO_EXPOSURE, value <= 0);
+            if (value > 0)
+            {
+                //[0, 255] -> [0, 511]
+                val = (int)(value * 2.0);
+                CLEyeSetCameraParameter(m_eye, CLEYE_EXPOSURE, val);
+            }
+        case CV_CAP_PROP_FPS:
+            return false; //TODO: Modifying FPS probably requires resetting the camera
+        case CV_CAP_PROP_FRAME_HEIGHT:
+            return false; //TODO: Modifying frame size probably requires resetting the camera
+        case CV_CAP_PROP_FRAME_WIDTH:
+            return false; //TODO: Modifying frame size probably requires resetting the camera
+        case CV_CAP_PROP_GAIN:
+            CLEyeSetCameraParameter(m_eye, CLEYE_AUTO_GAIN, value <= 0);
+            if (value > 0)
+            {
+                //[0, 255] -> [0, 79]
+                val = (int)ceil(value * 80.0 / 256.0);
+                CLEyeSetCameraParameter(m_eye, CLEYE_GAIN, val);
+            }
+        case CV_CAP_PROP_HUE:
+            return false;
+        case CV_CAP_PROP_SHARPNESS:
+            return false; // TODO: Using OpenCV interface, sharpness appears to work
+        }
         return true;
     }
-    else {
-        return false;
-    }
-}
 
-bool PSEEYECaptureCAM_PS3EYE::grabFrame()
-{
-    ps3eye::PS3EYECam::updateDevices();
-    return eye->isNewFrame();
-}
-
-IplImage* PSEEYECaptureCAM_PS3EYE::retrieveFrame(int)
-{
-    const unsigned char *new_pixels = eye->getLastFramePointer();
-    
-    widthStep = eye->getRowBytes();
-    width = eye->getWidth();
-    height = eye->getHeight();
-    size = widthStep * height;
-    
-    // Convert pixels from camera to OpenCV BGR image
-    unsigned char *cvpixels;
-    cvGetRawData(frame, &cvpixels, 0, 0); // cvpixels becomes low-level access to frame
-    if (new_pixels != NULL)
+    bool grabFrame()
     {
-        // Simultaneously copy from new_pixels to cvpixels and convert colorspace.
-        yuv422_to_bgr(new_pixels, widthStep, cvpixels, width, height);
-        
-        // This seems like an opportunity for optimization.
-        // Maybe we can use OpenCV tools to convert the memory format
-        // (see cvInitImageHeader and cvSetData)
-        // Then use OpenCV tools to convert the colorspace. e.g.,
-        // cvtColor(src,dst,CV_YUV2BGR_YUY2);
+        cvGetRawData(m_frame4ch, &pCapBuffer, 0, 0);
+        return true;
     }
-    return frame;
-}
 
-double PSEEYECaptureCAM_PS3EYE::getProperty( int property_id ) const
-{
-    switch( property_id )
+    bool retrieveFrame(int channel, cv::OutputArray outArray)
     {
+        CLEyeCameraGetFrame(m_eye, pCapBuffer, 2000);
+        const int from_to[] = { 0, 0, 1, 1, 2, 2 };
+        const CvArr** src = (const CvArr**)&m_frame4ch;
+        CvArr** dst = (CvArr**)&m_frame;
+        cvMixChannels(src, 1, dst, 1, from_to, 3);
+
+        if (m_frame->origin == IPL_ORIGIN_TL)
+            cv::cvarrToMat(m_frame).copyTo(outArray);
+        else
+        {
+            cv::Mat temp = cv::cvarrToMat(m_frame);
+            flip(temp, outArray, 0);
+        }
+
+        return true;
+    }
+
+    int getCaptureDomain() { return PSEYE_CAP_CLMULTI; }
+
+    bool isOpened() const
+    {
+        return (m_index != -1);
+    }
+
+protected:
+    
+    bool open(int _index) {
+        close();
+        int cams = CLEyeGetCameraCount();
+        std::cout << "CLEyeGetCameraCount() found " << cams << " devices." << std::endl;
+        if (_index < cams)
+        {
+            std::cout << "Attempting to open camera " << _index << " of " << cams << "." << std::endl;
+            GUID guid = CLEyeGetCameraUUID(_index);
+            m_eye = CLEyeCreateCamera(guid, CLEYE_COLOR_PROCESSED, CLEYE_VGA, 75);
+            CLEyeCameraGetFrameDimensions(m_eye, m_width, m_height);
+            
+            m_frame4ch = cvCreateImage(cvSize(m_width, m_height), IPL_DEPTH_8U, 4);
+            m_frame = cvCreateImage(cvSize(m_width, m_height), IPL_DEPTH_8U, 3);
+            
+            CLEyeCameraStart(m_eye);
+            CLEyeSetCameraParameter(m_eye, CLEYE_AUTO_EXPOSURE, false);
+            CLEyeSetCameraParameter(m_eye, CLEYE_AUTO_GAIN, false);
+            m_index = _index;
+        }
+        return isOpened();
+    }
+    
+    void close()
+    {
+        if (isOpened())
+        {
+            CLEyeCameraStop(m_eye);
+            CLEyeDestroyCamera(m_eye);
+        }
+        cvReleaseImage(&m_frame);
+        cvReleaseImage(&m_frame4ch);
+        m_index = -1;
+    }
+    
+    
+    int m_index, m_width, m_height;
+    PBYTE pCapBuffer;
+    IplImage* m_frame;
+    IplImage* m_frame4ch;
+    CLEyeCameraInstance m_eye;
+};
+
+// We don't need an implementation for CL EYE Driver because
+// it uses the native DShow IVideoCapture device.
+#endif
+
+#ifdef HAVE_PS3EYE
+/// Implementation of PS3EyeCapture when using PS3EYEDriver
+class PSEYECaptureCAM_PS3EYE : public cv::IVideoCapture
+{
+public:
+    PSEYECaptureCAM_PS3EYE(int _index)
+    : m_index(-1), m_width(-1), m_height(-1), m_widthStep(-1),
+    m_size(-1), m_frame(NULL)
+    {
+        //CoInitialize(NULL);
+        open(_index);
+    }
+
+    ~PSEYECaptureCAM_PS3EYE()
+    {
+        close();
+    }
+
+    double getProperty(int property_id) const
+    {
+        switch (property_id)
+        {
         case CV_CAP_PROP_BRIGHTNESS:
-            //return eye->getBrightness();
-            return 0;
+            return (double)(eye->getBrightness());
         case CV_CAP_PROP_CONTRAST:
-            // default 37
-            // Seems to be related to gain. Higher value is noisier.
-            return eye->getContrast() / 255;
+            return (double)(eye->getContrast());
         case CV_CAP_PROP_EXPOSURE:
             // Default 120
-            return (double)eye->getExposure() / 255;
+            return (double)(eye->getExposure());
         case CV_CAP_PROP_FPS:
-            return (double)eye->getFrameRate();
+            return (double)(eye->getFrameRate());
         case CV_CAP_PROP_FRAME_HEIGHT:
-            return eye->getHeight();
+            return (double)(eye->getHeight());
         case CV_CAP_PROP_FRAME_WIDTH:
-            return eye->getWidth();
+            return (double)(eye->getWidth());
         case CV_CAP_PROP_GAIN:
-            // Default 20
-            return double(eye->getGain()) / 255;
+            // [0, 63] -> [0, 255]
+            return (double)(eye->getGain())*256.0/64.0;
         case CV_CAP_PROP_HUE:
-            // Default 143
-            return double(eye->getHue()) * 180/255;
+            return (double)(eye->getHue());
+        case CV_CAP_PROP_SHARPNESS:
+            // [0, 63] -> [0, 255]
+            return (double)(eye->getSharpness())*256.0 / 64.0;
+        }
+        return 0;
     }
-    return 0;
-}
-bool PSEEYECaptureCAM_PS3EYE::setProperty( int property_id, double value )
-{
-    if (!eye)
+
+    virtual bool setProperty(int property_id, double value)
     {
-        return false;
-    }
-    switch (property_id)
-    {
-        case CV_CAP_PROP_BRIGHTNESS:
+        int val;
+        if (!eye)
+        {
             return false;
-            //eye->setBrightness(round(value));
-            // While the internal value updates correctly, it doesn't seem to
-            // be affecting brightness. It's affecting hue.
+        }
+        switch (property_id)
+        {
+        case CV_CAP_PROP_BRIGHTNESS:
+            // [0, 255] [20]
+            eye->setBrightness((int)round(value));
         case CV_CAP_PROP_CONTRAST:
-            // Seems to be affecting gain, not contrast
-            eye->setContrast(round(255 * value));
+            // [0, 255] [37]
+            eye->setContrast((int)round(value));
         case CV_CAP_PROP_EXPOSURE:
-            eye->setExposure(round((255*value)));
+            // [0, 255] [120]
+            eye->setExposure((int)round(value));
         case CV_CAP_PROP_FPS:
             return false; //TODO: Modifying FPS probably requires resetting the camera
         case CV_CAP_PROP_FRAME_HEIGHT:
@@ -423,10 +361,327 @@ bool PSEEYECaptureCAM_PS3EYE::setProperty( int property_id, double value )
         case CV_CAP_PROP_FRAME_WIDTH:
             return false;
         case CV_CAP_PROP_GAIN:
-            eye->setGain(round(255 * value));
-        case CV_CAP_PROP_HUE:  // input expected 0-180; output expects 0-255
-            eye->setHue(255 * value / 180);
+            // [0, 255] -> [0, 63] [20]
+            val = (int)(value * 64.0 / 256.0);
+            eye->setGain(val);
+        case CV_CAP_PROP_HUE:
+            // [0, 255] [143]
+            eye->setHue((int)round(value));
+        case CV_CAP_PROP_SHARPNESS:
+            // [0, 255] -> [0, 63] [0]
+            val = (int)(value * 64.0 / 256.0);
+            eye->setSharpness((int)round(value));
+        }
+        return true;
     }
-    return true;
-}
+
+    bool grabFrame()
+    {
+        ps3eye::PS3EYECam::updateDevices();
+        return eye->isNewFrame();
+    }
+
+    bool retrieveFrame(int outputType, cv::OutputArray outArray)
+    {
+        const unsigned char *new_pixels = eye->getLastFramePointer();
+
+        if (new_pixels != NULL)
+        {
+            
+            // I think the rest of this function can be done more efficiently.
+            // Maybe we can use OpenCV tools to convert the memory format
+            // (see cvInitImageHeader and cvSetData)
+            //cvSetData( m_frame, &new_pixels, eye->getRowBytes() );
+            
+            // Then use OpenCV tools to convert the colorspace. e.g.,
+            // cvtColor(src,dst,CV_YUV2BGR_YUY2);
+
+            m_widthStep = eye->getRowBytes();
+            m_width = eye->getWidth();
+            m_height = eye->getHeight();
+            m_size = m_widthStep * m_height;
+
+            // Convert pixels from camera to OpenCV BGR image
+            unsigned char *cvpixels;
+            cvGetRawData(m_frame, &cvpixels, 0, 0); // cvpixels becomes low-level access to frame
+        
+            // Simultaneously copy from new_pixels to cvpixels and convert colorspace.
+            // I think this is pretty slow but I'm not sure.
+            yuv422_to_bgr(new_pixels, m_widthStep, cvpixels, m_width, m_height);
+
+            if(m_frame->origin == IPL_ORIGIN_TL)
+                cv::cvarrToMat(m_frame).copyTo(outArray);
+            else
+            {
+                cv::Mat temp = cv::cvarrToMat(m_frame);
+                flip(temp, outArray, 0);
+            }
+            
+            return true;
+        }
+        return false;
+    }
+
+    int getCaptureDomain() {
+        return PSEYE_CAP_PS3EYE;
+    }
+    
+    bool isOpened() const
+    {
+        return (m_index != -1);
+    }
+
+protected:
+    
+    bool open(int _index)
+    {
+        // Enumerate libusb devices
+        std::vector<ps3eye::PS3EYECam::PS3EYERef> devices = ps3eye::PS3EYECam::getDevices();
+        std::cout << "ps3eye::PS3EYECam::getDevices() found " << devices.size() << " devices." << std::endl;
+        
+        if (devices.size() > (unsigned int)_index) {
+            
+            eye = devices[_index];
+            
+            if (eye && eye->init(640, 480, 75))
+            {
+                // Change any default settings here
+                
+                m_frame = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
+                
+                eye->start();
+                
+                eye->setAutogain(false);
+                eye->setAutoWhiteBalance(false);
+                
+                m_width = 640;
+                m_height = 480;
+                m_index = _index;
+                
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    virtual void close()
+    {
+        cvReleaseImage(&m_frame);
+        // eye will close itself when going out of scope.
+        m_index = -1;
+    }
+
+    int m_index, m_width, m_height, m_widthStep;
+    size_t m_size;
+    IplImage* m_frame;
+    ps3eye::PS3EYECam::PS3EYERef eye;
+};
+
 #endif
+
+static bool usingCLEyeDriver()
+{
+    bool cleyedriver_found = false;
+    // Check if CLEYE_DRIVER
+#ifdef HAVE_CLEYE
+    
+    char provider_name[128];
+
+    if (DeviceInterface::fetch_driver_reg_property_for_usb_device(
+        DeviceInterface::Camera,
+        VENDOR_ID,
+        PRODUCT_ID,
+        DeviceInterface::k_reg_property_provider_name,
+        provider_name,
+        sizeof(provider_name)))
+    {
+        if (strcmp(provider_name, CLEYE_DRIVER_PROVIDER_NAME) == 0)
+        {
+            cleyedriver_found = true;
+        }
+    }
+#endif
+    return cleyedriver_found;
+}
+
+
+/*
+-- Definitions for PSEyeVideoCapture --
+*/
+bool PSEyeVideoCapture::open(int index)
+{
+    if (isOpened())
+    {
+        release();
+    }
+
+	// Try to open a PS3EYE-specific camera capture
+    // Only works for CLEYE_MULTICAM and PS3EYEDRIVER
+    icap = pseyeVideoCapture_create(index);
+    if (!icap.empty())
+    {
+        return true;
+    }
+    
+    // Keep track of the camera index. Necessary for CLEyeDriver only.
+    // non -1 m_index is used as a CL Eye Driver check elsewhere.
+    if (usingCLEyeDriver())
+    {
+        m_index = index;
+        std::cout << "CL Eye Driver being used with native DShow. Setting m_index to " << m_index << std::endl;
+    }
+
+	// PS3EYE-specific camera capture if available, else use base class open()
+    if (!isOpened())
+    {
+        std::cout << "Attempting cv::VideoCapture::open(index)" << std::endl;
+        return cv::VideoCapture::open(index);
+    }
+    return isOpened();
+}
+
+bool PSEyeVideoCapture::set(int propId, double value)
+{
+#ifdef HAVE_CLEYE
+    if (m_index != -1)
+    {
+        bool param_set = false;
+        int val;
+        HKEY hKey;
+        DWORD l = sizeof(DWORD);
+        int err = RegOpenKeyExA(HKEY_CURRENT_USER, CL_DRIVER_REG_PATH, 0, KEY_ALL_ACCESS, &hKey);
+        if (err != ERROR_SUCCESS) {
+            printf("Error: %d Unable to open reg-key:  [HKCU]\\%s!\n", err, CL_DRIVER_REG_PATH);
+            printf("CL-Eye Test must be run at least once for each Windows user.\n");
+            return false;
+        }
+
+        switch (propId)
+        {
+        case CV_CAP_PROP_EXPOSURE:
+            val = (value == 0);
+            RegSetValueExA(hKey, "AutoAEC", 0, REG_DWORD, (CONST BYTE*)&val, l);
+            val = (int)(value * 2) % 511;
+            RegSetValueExA(hKey, "Exposure", 0, REG_DWORD, (CONST BYTE*)&val, l);
+            param_set = true;
+            break;
+        case CV_CAP_PROP_GAIN:
+            val = (value == 0);
+            RegSetValueExA(hKey, "AutoAGC", 0, REG_DWORD, (CONST BYTE*)&val, l);
+            val = (int)ceil(value * 79/256) % 79;
+            RegSetValueExA(hKey, "Gain", 0, REG_DWORD, (CONST BYTE*)&val, l);
+            param_set = true;
+            break;
+        default:
+            param_set = cv::VideoCapture::set(propId, value);
+        }
+
+        // restart the camera capture
+        if (param_set && icap) {
+            std::cout << "Parameter changed via registry. Resetting capture device." << std::endl;
+            cv::VideoCapture::open(m_index);
+        }
+
+        return param_set;
+    }
+#endif
+    return cv::VideoCapture::set(propId, value);
+
+}
+
+double PSEyeVideoCapture::get(int propId) const
+{
+#ifdef HAVE_CLEYE
+    if (m_index != -1)
+    {
+        HKEY hKey;
+        DWORD l = sizeof(DWORD);
+        DWORD resultA = 0;
+        DWORD resultB = 0;
+
+        int err = RegOpenKeyExA(HKEY_CURRENT_USER, CL_DRIVER_REG_PATH, 0, KEY_ALL_ACCESS, &hKey);
+        if (err != ERROR_SUCCESS) {
+            printf("Error: %d Unable to open reg-key:  [HKCU]\\%s!\n", err, CL_DRIVER_REG_PATH);
+            printf("CL-Eye Test must be run at least once for each Windows user.\n");
+            return 0;
+        }
+
+        switch (propId)
+        {
+        case CV_CAP_PROP_EXPOSURE:
+            RegQueryValueExA(hKey, "AutoAEC", NULL, NULL, (LPBYTE)&resultA, &l);
+            RegQueryValueExA(hKey, "Exposure", NULL, NULL, (LPBYTE)&resultB, &l);
+            return (resultA == 1) ? 0 : ((double)(resultB))/2.0;
+        case CV_CAP_PROP_GAIN:
+            RegQueryValueExA(hKey, "AutoAGC", NULL, NULL, (LPBYTE)&resultA, &l);
+            RegQueryValueExA(hKey, "Gain", NULL, NULL, (LPBYTE)&resultB, &l);
+            return (resultA == 1) ? 0 : ((double)(resultB))*(256.0/79.0);
+        default:
+            return cv::VideoCapture::get(propId);
+        }
+    }
+#endif
+    return cv::VideoCapture::get(propId);
+}
+
+cv::Ptr<cv::IVideoCapture> PSEyeVideoCapture::pseyeVideoCapture_create(int index)
+{
+    // https://github.com/Itseez/opencv/blob/09e6c82190b558e74e2e6a53df09844665443d6d/modules/videoio/src/cap.cpp#L432
+    int  domains[] =
+    {
+#ifdef HAVE_CLEYE
+        PSEYE_CAP_CLMULTI,
+        PSEYE_CAP_CLEYE,
+#endif
+#ifdef HAVE_PS3EYE
+        PSEYE_CAP_PS3EYE,
+#endif
+        -1, -1
+    };
+    
+    // interpret preferred interface (0 = autodetect)
+    int pref = (index / 100) * 100;
+    if (pref)
+    {
+        domains[0]=pref;
+        index %= 100;
+        domains[1]=-1;
+    }
+    // try every possibly installed camera API
+    for (int i = 0; domains[i] >= 0; i++)
+    {
+#if defined(HAVE_CLEYE) || defined(HAVE_PS3EYE) || (0)
+        cv::Ptr<cv::IVideoCapture> capture;
+        switch (domains[i])
+        {
+#ifdef HAVE_CLEYE
+            case PSEYE_CAP_CLMULTI:
+                capture = cv::makePtr<PSEYECaptureCAM_CLMULTI>(index);
+                break;
+
+            case PSEYE_CAP_CLEYE:
+                // We want to use the native OpenCV icap in this case.
+                // So we will return empty capture here.
+                if (usingCLEyeDriver())
+                {
+                    std::cout << "CL Eye Driver detected." << std::endl;
+                    return cv::Ptr<cv::IVideoCapture>();
+                }
+                break;
+#endif
+#ifdef HAVE_PS3EYE
+            case PSEYE_CAP_PS3EYE:
+                capture = cv::makePtr<PSEYECaptureCAM_PS3EYE>(index);
+                break;
+#endif
+        }
+        if (capture && capture->isOpened())
+        {
+            return capture;
+        }
+#endif
+    }
+    
+    // failed to open a camera
+    return cv::Ptr<cv::IVideoCapture>();
+}

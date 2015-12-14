@@ -10,13 +10,23 @@ ENDIF()
 # (installed via homebrew on Mac or apt-get in Linux/Ubuntu)
 # In MSVC, we recommend downloading pre-compiled binaries where
 # possible, and building Protobuf yourself (see README.md)
-IF(MSVC)
+
+# OpenCV
+# Override by adding "-DOpenCV_DIR=C:\path\to\opencv\build" to your cmake command
+IF(NOT OpenCV_DIR)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     # Default location of pre-compiled OpenCV for Windows
-    # Override by adding "-DOpenCV_DIR=C:\path\to\opencv\build" to your cmake command
-    IF (NOT OpenCV_DIR)
-        SET(OpenCV_DIR "C:/OpenCV-3.0.0/build/")
-    ENDIF()
-    
+    set(OpenCV_DIR "C:/OpenCV-3.0.0/build")# CACHE PATH "Path to OpenCV" FORCE)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    # Location of homebrew opencv3
+    # Alternatively, can do `brew ln opencv3 --force`
+    message("-- Using homebrew opencv3")
+    set(OpenCV_DIR "/usr/local/Cellar/opencv3/3.0.0/share/OpenCV")
+ENDIF()#Windows or Darwin
+ENDIF(NOT OpenCV_DIR)
+
+# Boost & Protobuf
+IF(MSVC)
     # Default location of pre-compiled Boost for Windows
     # Override by adding "-DBOOST_ROOT=C:\path\to\boost\ -DBOOST_LIBRARYDIR=C:\path\to\boost\lib32-msvc-12.0\" to your cmake command
     IF (NOT BOOST_ROOT)
@@ -60,6 +70,10 @@ find_package(Boost REQUIRED)
 # Future targets will do their own find so they can specify components. Here we just want a print to screen.
 
 # Find Protobuf
+IF(MSVC)
+    set(PROTOBUF_SRC_ROOT_FOLDER ${CMAKE_CURRENT_LIST_DIR}/thirdparty/protobuf)
+    #PROTOBUF_IMPORT_DIRS ?
+ENDIF(MSVC)
 set(PROTOBUF_ORIG_FIND_LIBRARY_SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}") # Store original
 set(CMAKE_FIND_LIBRARY_SUFFIXES .a .lib .so .dylib .dll)  # Prefer static libs
 find_package(Protobuf REQUIRED)

@@ -1,113 +1,51 @@
-#include "opencv2/opencv.hpp"
-#ifdef HAVE_PS3EYE
-#include "ps3eye.h"
-#endif
+#include <opencv2/videoio.hpp>
 
-// defined in opencv/modules/videoio/src/precomp.hpp
-struct CvCapture
-{
-    virtual ~CvCapture() {}
-    virtual double getProperty(int) const { return 0; }
-    virtual bool setProperty(int, double) { return 0; }
-    virtual bool grabFrame() { return true; }
-    virtual IplImage* retrieveFrame(int) { return 0; }
-    virtual int getCaptureDomain() { return CV_CAP_ANY; } // Return the type of the capture object: CV_CAP_VFW, etc...
-};
+/// Video capture class that prioritizes PS3 Eye devices.
+/**
+Device opening priority:
+-CL Eye MultiCam (Win x86 only; user must have activated camera OR CL Eye Platform SDK Developer binaries)
+-CL Eye Driver (Win x86 only)
+-PS3EYEDriver (Win and OSX)
+-OpenCV native
 
-enum
-{
-    PSEYE_CAP_ANY       =0,     // autodetect
-#ifdef HAVE_CLEYE
-	/*
-    PSEYE_CAP_CLMULTI   =100,
-    PSEYE_CAP_CLEYE     =200
-	*/
-#endif
-#ifdef HAVE_PS3EYE
-    PSEYE_CAP_PS3EYE    =300
-#endif
-};
+To prioritize custom PS3 Eye devices, we must override open().
 
+For CL Eye MultiCam and PS3EYEDriver, we set the parent 
+Ptr< cv::IVideoCapture >icap member variable
+to a custom cv::IVideoCapture object.
+
+For CL Eye Driver, we use the native open to get the native icap member variable,
+but we use custom cv::VideoCapture::set() and \ref get() to change parameters via registry settings.
+ 
+ See base class here:
+ https://github.com/Itseez/opencv/blob/ddf82d0b154873510802ef75c53e628cd7b2cb13/modules/videoio/include/opencv2/videoio.hpp#L387
+ https://github.com/Itseez/opencv/blob/ddf82d0b154873510802ef75c53e628cd7b2cb13/modules/videoio/src/cap.cpp#L550
+*/
 class PSEyeVideoCapture : public cv::VideoCapture {
 public:
-    PSEyeVideoCapture(int camindex)
-    {
-        open(camindex);
-    };
+
+    /**
+    \param camindex The index of the camera (0-based). To specify an API
+    pass in the index + API. e.g., PSEyeVideoCapture(0 + PSEYE_CAP_CLMULTI)
+    */
+    PSEyeVideoCapture(int camindex): m_index(-1) {open(camindex);} // Constructor is same as base class
     
+    /// Attempts to open a device using different drivers in the order outlined above.
+    /*
+    If a PS3 Eye device is not found, fall back to base class cv::VideoCapture::open(index)
+    */
     bool open(int index);
+
+    /// Use cv::VideoCapture::set() unless \ref eyeType == PSEYE_CLEYE_DRIVER
+    bool set(int propId, double value);
+
+    /// Use cv::VideoCapture::get() unless \ref eyeType == PSEYE_CLEYE_DRIVER
+    double get(int propId) const;
     
-    static CvCapture* pseyeCreateCameraCapture(int index);
-
-#ifdef HAVE_CLEYE
-	/*
-    static CvCapture* pseyeCreateCameraCapture_CLMULTI(int index);
-    static CvCapture* pseyeCreateCameraCapture_CLEYE(int index);
-	*/
-#endif
-#ifdef HAVE_PS3EYE
-    static CvCapture* pseyeCreateCameraCapture_PS3EYE(int index);
-#endif
-};
-
-#ifdef HAVE_CLEYE
-/*
-class PSEEYECaptureCAM_CLMULTI : public CvCapture
-{
-public:
-    PSEEYECaptureCAM_CLMULTI();
-    virtual ~PSEEYECaptureCAM_CLMULTI();
-    virtual bool open( int index );
-    virtual void close();
-    virtual double getProperty(int) const;
-    virtual bool setProperty(int, double);
-    virtual bool grabFrame();
-    virtual IplImage* retrieveFrame(int);
-    virtual int getCaptureDomain() { return CV_CAP_MSMF; } // Return the type of the capture object: CV_CAP_VFW, etc...
 protected:
-    void init();
-    int index, width, height, fourcc;
-    IplImage* frame;
-};
+    int m_index; /**< Keep track of index. Necessary for PSEYE_CLEYE_DRIVER */
 
-class PSEEYECaptureCAM_CLEYE : public CvCapture
-{
-public:
-    PSEEYECaptureCAM_CLEYE();
-    virtual ~PSEEYECaptureCAM_CLEYE();
-    virtual bool open( int index );
-    virtual void close();
-    virtual double getProperty(int) const;
-    virtual bool setProperty(int, double);
-    virtual bool grabFrame();
-    virtual IplImage* retrieveFrame(int);
-    virtual int getCaptureDomain() { return CV_CAP_MSMF; } // Return the type of the capture object: CV_CAP_VFW, etc...
-protected:
-    void init();
-    int index, width, height, fourcc;
-    IplImage* frame;
+private:
+    /// Get the camera capture. If successful, we will have a functional cv::Ptr<CvCapture> \ref cap member variable.
+    cv::Ptr<cv::IVideoCapture> pseyeVideoCapture_create(int index);
 };
-*/
-#endif
-
-#ifdef HAVE_PS3EYE
-class PSEEYECaptureCAM_PS3EYE : public CvCapture
-{
-public:
-    PSEEYECaptureCAM_PS3EYE();
-    virtual ~PSEEYECaptureCAM_PS3EYE();
-    virtual bool open( int index );
-    virtual void close();
-    virtual double getProperty(int) const;
-    virtual bool setProperty(int, double);
-    virtual bool grabFrame();
-    virtual IplImage* retrieveFrame(int);
-    virtual int getCaptureDomain() { return CV_CAP_MSMF; } // Return the type of the capture object: CV_CAP_VFW, etc...
-protected:
-    void init();
-    int index, width, height, widthStep;
-    IplImage* frame;
-    ps3eye::PS3EYECam::PS3EYERef eye;
-    size_t size;
-};
-#endif
