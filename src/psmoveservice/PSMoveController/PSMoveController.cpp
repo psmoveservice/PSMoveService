@@ -302,9 +302,7 @@ bool PSMoveController::open(
             std::string mbs(cur_dev_serial_number);
             HIDDetails.Bt_addr = mbs;
     #endif
-            std::string host;
-
-            if (getBTAddress(host, HIDDetails.Bt_addr))
+            if (getBTAddress(HIDDetails.Host_bt_addr, HIDDetails.Bt_addr))
             {
                 // Load the config file
                 std::string btaddr = HIDDetails.Bt_addr;
@@ -460,6 +458,12 @@ std::string
 PSMoveController::getSerial() const
 {
     return HIDDetails.Bt_addr;
+}
+
+std::string 
+PSMoveController::getHostBluetoothAddress() const
+{
+    return HIDDetails.Host_bt_addr;
 }
 
 bool

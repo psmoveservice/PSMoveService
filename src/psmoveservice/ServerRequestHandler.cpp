@@ -139,6 +139,10 @@ public:
             case PSMoveProtocol::Request_RequestType_UNPAIR_CONTROLLER:
                 handle_request__unpair_controller(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_PAIR_CONTROLLER:
+                handle_request__pair_controller(context, response);
+            case PSMoveProtocol::Request_RequestType_CANCEL_BLUETOOTH_REQUEST:
+                handle_request__cancel_bluetooth_request(context, response);
             default:
                 assert(0 && "Whoops, bad request!");
                 break;
@@ -326,29 +330,115 @@ protected:
     {
         const int connection_id= context.connection_state->connection_id;
         const int controller_id= context.request->unpair_controller().controller_id();        
-        ServerControllerViewPtr controllerView= m_controller_manager.getControllerView(controller_id);
 
-        context.connection_state->pending_bluetooth_request = 
-            new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
-
-        if (context.connection_state->pending_bluetooth_request->start())
+        if (context.connection_state->pending_bluetooth_request == nullptr)
         {
-            SERVER_LOG_INFO("ServerRequestHandler") 
-                << "Async bluetooth request(" 
-                << context.connection_state->pending_bluetooth_request->getDescription() 
-                << ") started.";
+            ServerControllerViewPtr controllerView= m_controller_manager.getControllerView(controller_id);
 
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            context.connection_state->pending_bluetooth_request = 
+                new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
+
+            if (context.connection_state->pending_bluetooth_request->start())
+            {
+                SERVER_LOG_INFO("ServerRequestHandler") 
+                    << "Async bluetooth request(" 
+                    << context.connection_state->pending_bluetooth_request->getDescription() 
+                    << ") started.";
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                SERVER_LOG_ERROR("ServerRequestHandler") 
+                    << "Async bluetooth request(" 
+                    << context.connection_state->pending_bluetooth_request->getDescription() 
+                    << ") failed to start!";
+
+                delete context.connection_state->pending_bluetooth_request;
+                context.connection_state->pending_bluetooth_request= nullptr;
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
         }
         else
         {
             SERVER_LOG_ERROR("ServerRequestHandler") 
+                << "Can't start unpair request due to existing request: " 
+                << context.connection_state->pending_bluetooth_request->getDescription();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__pair_controller(
+        const RequestContext &context, 
+        PSMoveProtocol::Response *response)
+    {
+        const int connection_id= context.connection_state->connection_id;
+        const int controller_id= context.request->pair_controller().controller_id();        
+
+        if (context.connection_state->pending_bluetooth_request == nullptr)
+        {
+            ServerControllerViewPtr controllerView= m_controller_manager.getControllerView(controller_id);
+
+            context.connection_state->pending_bluetooth_request = 
+                new AsyncBluetoothPairDeviceRequest(connection_id, controllerView);
+
+            if (context.connection_state->pending_bluetooth_request->start())
+            {
+                SERVER_LOG_INFO("ServerRequestHandler") 
+                    << "Async bluetooth request(" 
+                    << context.connection_state->pending_bluetooth_request->getDescription() 
+                    << ") started.";
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                SERVER_LOG_ERROR("ServerRequestHandler") 
+                    << "Async bluetooth request(" 
+                    << context.connection_state->pending_bluetooth_request->getDescription() 
+                    << ") failed to start!";
+
+                delete context.connection_state->pending_bluetooth_request;
+                context.connection_state->pending_bluetooth_request= nullptr;
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            SERVER_LOG_ERROR("ServerRequestHandler") 
+                << "Can't start pair request due to existing request: " 
+                << context.connection_state->pending_bluetooth_request->getDescription();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__cancel_bluetooth_request(
+        const RequestContext &context, 
+        PSMoveProtocol::Response *response)
+    {
+        const int connection_id= context.connection_state->connection_id;
+        const int controller_id= context.request->cancel_bluetooth_request().controller_id();        
+
+        if (context.connection_state->pending_bluetooth_request != nullptr)
+        {
+            ServerControllerViewPtr controllerView= m_controller_manager.getControllerView(controller_id);
+
+            SERVER_LOG_INFO("ServerRequestHandler") 
                 << "Async bluetooth request(" 
                 << context.connection_state->pending_bluetooth_request->getDescription() 
-                << ") failed to start!";
+                << ") Canceled.";
 
-            delete context.connection_state->pending_bluetooth_request;
-            context.connection_state->pending_bluetooth_request= nullptr;
+            context.connection_state->pending_bluetooth_request->cancel(AsyncBluetoothRequest::userRequested);
+            
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            SERVER_LOG_ERROR("ServerRequestHandler") << "No active bluetooth operation active";
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }

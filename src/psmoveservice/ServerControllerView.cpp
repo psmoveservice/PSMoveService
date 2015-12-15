@@ -149,6 +149,12 @@ ServerControllerView::getSerial() const
     return m_controller->getSerial();
 }
 
+std::string 
+ServerControllerView::getHostBluetoothAddress() const
+{
+    return m_controller->getHostBluetoothAddress();
+}
+
 bool 
 ServerControllerView::getIsOpen() const
 {

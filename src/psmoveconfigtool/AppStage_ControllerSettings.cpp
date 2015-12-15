@@ -76,6 +76,8 @@ void AppStage_ControllerSettings::render()
     case eControllerMenuState::failedControllerListRequest:
     case eControllerMenuState::pendingControllerUnpairRequest:
     case eControllerMenuState::failedControllerUnpairRequest:
+    case eControllerMenuState::pendingControllerPairRequest:
+    case eControllerMenuState::failedControllerPairRequest:
         {
         } break;
 
@@ -144,7 +146,7 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
-                // We can only pair controllers connected via bluetooth
+                // We can only unpair controllers connected via usb
                 if (controllerInfo.ConnectionType == AppStage_ControllerSettings::USB)
                 {
                     if (ImGui::Button("Unpair Controller"))
@@ -152,6 +154,18 @@ void AppStage_ControllerSettings::renderUI()
                         ControllerInfo &controllerInfo= m_pairedControllerInfos[m_selectedControllerIndex];
 
                         request_controller_unpair(controllerInfo.ControllerID);
+                    }
+                }
+
+                // If there are any controllers waiting to be paired, 
+                // just present the first one as an option
+                if (m_unpairedControllerInfos.size() > 0)
+                {
+                    if (ImGui::Button("Pair Controller"))
+                    {
+                        ControllerInfo &controllerInfo= m_pairedControllerInfos[0];
+
+                        request_controller_pair(controllerInfo.ControllerID);
                     }
                 }
             }
@@ -223,6 +237,38 @@ void AppStage_ControllerSettings::renderUI()
 
             ImGui::End();
         } break;
+    case eControllerMenuState::pendingControllerPairRequest:
+        {
+            ImGui::SetNextWindowPosCenter();
+            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
+
+            ImGui::Text("Waiting for controller to pair...");
+            
+            //###bwalker $TODO Give pairing instructions based on pairing stage
+            //###bwalker $TODO Show progress of the pairing operation
+            //###bwalker $TODO Present a cancel button and handle cancellation request
+
+            ImGui::End();
+        } break;
+    case eControllerMenuState::failedControllerPairRequest:
+        {
+            ImGui::SetNextWindowPosCenter();
+            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
+
+            ImGui::Text("Failed to pair controller!");
+
+            if (ImGui::Button("Ok"))
+            {
+                request_controller_list();
+            }
+
+            if (ImGui::Button("Return to Main Menu"))
+            {
+                m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
+            }
+
+            ImGui::End();
+        } break;
 
     default:
         assert(0 && "unreachable");
@@ -254,6 +300,14 @@ bool AppStage_ControllerSettings::onClientAPIEvent(
             case PSMoveProtocol::Response_ResponseType_UNPAIR_REQUEST_COMPLETED:
                 {
                     handle_controller_unpair_end_event(event);
+                } break;
+            case PSMoveProtocol::Response_ResponseType_PAIR_REQUEST_COMPLETED:
+                {
+                    handle_controller_pair_end_event(event);
+                } break;
+            case PSMoveProtocol::Response_ResponseType_BLUETOOTH_REQUEST_PROGRESS:
+                {
+                    handle_bluetooth_request_progress_event(event);
                 } break;
             }
         } break;
@@ -353,7 +407,8 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 void AppStage_ControllerSettings::request_controller_unpair(
     int controllerID)
 {
-    if (m_menuState != AppStage_ControllerSettings::pendingControllerUnpairRequest)
+    if (m_menuState != AppStage_ControllerSettings::pendingControllerUnpairRequest && 
+        m_menuState != AppStage_ControllerSettings::pendingControllerPairRequest)
     {
         m_menuState= AppStage_ControllerSettings::pendingControllerUnpairRequest;
 
@@ -378,7 +433,7 @@ void AppStage_ControllerSettings::handle_controller_unpair_start_response(
     {
         case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
-            thisPtr->m_menuState= AppStage_ControllerSettings::pendingControllerListRequest;
+            thisPtr->m_menuState= AppStage_ControllerSettings::pendingControllerUnpairRequest;
         } break;
 
         case ClientPSMoveAPI::_clientPSMoveResultCode_error:
@@ -406,4 +461,69 @@ void AppStage_ControllerSettings::handle_controller_unpair_end_event(
             this->m_menuState= AppStage_ControllerSettings::failedControllerUnpairRequest;
         } break;
     }
+}
+
+void AppStage_ControllerSettings::request_controller_pair(
+    int controllerID)
+{
+    if (m_menuState != AppStage_ControllerSettings::pendingControllerUnpairRequest && 
+        m_menuState != AppStage_ControllerSettings::pendingControllerPairRequest)
+    {
+        m_menuState= AppStage_ControllerSettings::pendingControllerPairRequest;
+
+        // Tell the psmove service that we want to pair the given controller
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_PAIR_CONTROLLER);
+        request->mutable_pair_controller()->set_controller_id(controllerID);
+
+        ClientPSMoveAPI::send_opaque_request(&request, AppStage_ControllerSettings::handle_controller_pair_start_response, this);
+    }
+}
+
+void AppStage_ControllerSettings::handle_controller_pair_start_response(
+    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, 
+    const ClientPSMoveAPI::t_request_id request_id, 
+    ClientPSMoveAPI::t_response_handle response_handle, 
+    void *userdata)
+{
+    AppStage_ControllerSettings *thisPtr= static_cast<AppStage_ControllerSettings *>(userdata);
+
+    switch(ResultCode)
+    {
+        case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+        {
+            thisPtr->m_menuState= AppStage_ControllerSettings::pendingControllerPairRequest;
+        } break;
+
+        case ClientPSMoveAPI::_clientPSMoveResultCode_error:
+        case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+        { 
+            thisPtr->m_menuState= AppStage_ControllerSettings::failedControllerPairRequest;
+        } break;
+    }
+}
+
+void AppStage_ControllerSettings::handle_controller_pair_end_event(
+    const PSMoveProtocol::Response *event)
+{
+    switch(event->result_code())
+    {
+        case PSMoveProtocol::Response_ResultCode_RESULT_OK:
+        {
+            // Refresh the list of controllers now that we have confirmation the controller is unpaired
+            request_controller_list();
+        } break;
+
+        case PSMoveProtocol::Response_ResultCode_RESULT_ERROR:
+        case PSMoveProtocol::Response_ResultCode_RESULT_CANCELED:
+        { 
+            this->m_menuState= AppStage_ControllerSettings::failedControllerPairRequest;
+        } break;
+    }
+}
+
+void AppStage_ControllerSettings::handle_bluetooth_request_progress_event(
+    const PSMoveProtocol::Response *event)
+{
+    //###bwalker $TODO Update the progress display of the pairing operation
 }

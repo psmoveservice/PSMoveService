@@ -16,6 +16,7 @@ struct PSNaviHIDDetails {
     std::string Device_path_addr; // only needed by Win > 8.1, otherwise ignored.
     hid_device *Handle_addr; // only needed by Win > 8.1, otherwise ignored.
     std::string Bt_addr;
+    std::string Host_bt_addr;
 };
 
 struct PSNaviDataInput;  // See .cpp for full declaration
@@ -104,6 +105,7 @@ public:
     virtual bool getIsBluetooth() const override;
     virtual std::string getUSBDevicePath() const override;
     virtual std::string getSerial() const override;
+    virtual std::string getHostBluetoothAddress() const override;
     virtual bool getIsOpen() const override;
     virtual CommonControllerState::eControllerDeviceType getControllerDeviceType() const override;
     virtual void getState(CommonControllerState *out_state, int lookBack = 0) const;

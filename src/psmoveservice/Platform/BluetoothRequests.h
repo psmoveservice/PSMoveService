@@ -24,12 +24,15 @@ public:
     enum eCancelReason
     {
         timeout,
+        userRequested,
         connectionClosed
     };
 
     inline AsyncBluetoothRequest(int connectionId)
         : m_connectionId(connectionId)
         , m_status(preflight)
+    { }
+    virtual ~AsyncBluetoothRequest()
     { }
 
     virtual bool start()= 0;
@@ -54,6 +57,7 @@ public:
         , m_controllerView(controllerView)
     { }
 
+
     virtual bool start() override;
     virtual void update() override;
     virtual void cancel(AsyncBluetoothRequest::eCancelReason reason) override;
@@ -68,12 +72,10 @@ private:
 class AsyncBluetoothPairDeviceRequest : public AsyncBluetoothRequest
 {
 public:
-    inline AsyncBluetoothPairDeviceRequest(
+    AsyncBluetoothPairDeviceRequest(
         int connectionId,
-        ServerControllerViewPtr controllerView)
-        : AsyncBluetoothRequest(connectionId)
-        , m_controllerView(controllerView)
-    { }
+        ServerControllerViewPtr controllerView);
+    virtual ~AsyncBluetoothPairDeviceRequest();
 
     virtual bool start() override;
     virtual void update() override;
@@ -84,6 +86,7 @@ public:
 
 private:
     ServerControllerViewPtr m_controllerView;
+    void *m_internal_state;
 };
 
 #endif // BLUETOOTH_REQUESTS_H

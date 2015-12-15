@@ -38,6 +38,9 @@ public:
     // Returns the serial number for the controller
     std::string getSerial() const;
 
+    // Gets the host bluetooth address registered with the 
+    std::string getHostBluetoothAddress() const;
+
     // Returns true if hidapi opened successfully
     bool getIsOpen() const;
 

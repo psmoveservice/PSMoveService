@@ -42,6 +42,16 @@ protected:
         void *userdata);
     void handle_controller_unpair_end_event(const PSMoveProtocol::Response *event);
 
+    void request_controller_pair(int controllerId);
+    static void handle_controller_pair_start_response(
+        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, 
+        const ClientPSMoveAPI::t_request_id request_id, 
+        ClientPSMoveAPI::t_response_handle response_handle, 
+        void *userdata);
+    void handle_controller_pair_end_event(const PSMoveProtocol::Response *event);
+
+    void handle_bluetooth_request_progress_event(const PSMoveProtocol::Response *event);
+
 private:
     enum eControllerMenuState
     {
@@ -52,7 +62,10 @@ private:
         failedControllerListRequest,
         
         pendingControllerUnpairRequest,
-        failedControllerUnpairRequest
+        failedControllerUnpairRequest,
+
+        pendingControllerPairRequest,
+        failedControllerPairRequest
     };
     eControllerMenuState m_menuState;
 
