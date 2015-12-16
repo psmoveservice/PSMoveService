@@ -122,6 +122,7 @@ message Response {
             ControllerType controller_type = 3;
             string device_path = 4;
             string device_serial = 5;
+            string host_serial = 6;
         }
         repeated ControllerInfo controllers = 1;
     }

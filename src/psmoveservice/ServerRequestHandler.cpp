@@ -247,6 +247,7 @@ protected:
                     : PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_USB);            
                 controller_info->set_device_path(controller_view->getUSBDevicePath());
                 controller_info->set_device_serial(controller_view->getSerial());
+                controller_info->set_host_serial(controller_view->getHostBluetoothAddress());
             }
         }
 

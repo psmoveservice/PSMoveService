@@ -930,8 +930,10 @@ string_to_bluetooth_address(const std::string bt_string, BLUETOOTH_ADDRESS *bt_a
 {
     bool success= true;
 
+    memset(bt_address, 0, sizeof(BLUETOOTH_ADDRESS));
+
     // check input's length
-    if (bt_string.length() != 17) 
+    if (bt_string.length() == 17) 
     {
         const char *str= bt_string.c_str();
         const char *nptr = str;

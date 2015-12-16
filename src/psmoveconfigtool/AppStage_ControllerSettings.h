@@ -52,6 +52,13 @@ protected:
 
     void handle_bluetooth_request_progress_event(const PSMoveProtocol::Response *event);
 
+    void request_cancel_bluetooth_operation(int controllerID);
+    static void handle_cancel_bluetooth_operation_response(
+        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, 
+        const ClientPSMoveAPI::t_request_id request_id, 
+        ClientPSMoveAPI::t_response_handle response_handle, 
+        void *userdata);
+
 private:
     enum eControllerMenuState
     {
@@ -65,7 +72,10 @@ private:
         failedControllerUnpairRequest,
 
         pendingControllerPairRequest,
-        failedControllerPairRequest
+        failedControllerPairRequest,
+
+        pendingCancelBluetoothRequest,
+        failedCancelBluetoothRequest
     };
     eControllerMenuState m_menuState;
 
@@ -88,13 +98,17 @@ private:
         eConnectionType ConnectionType;
         std::string DevicePath;
         std::string DeviceSerial;
+        std::string HostSerial;
     };
 
     std::vector<ControllerInfo> m_pairedControllerInfos;
     std::vector<ControllerInfo> m_unpairedControllerInfos;
 
     int m_selectedControllerIndex;
-
+    int m_pendingBluetoothOpControllerIndex;
+    
+    int m_pair_steps_completed;
+    int m_pair_steps_total;
 };
 
 #endif // APP_STAGE_SELECT_CONTROLLER_H
