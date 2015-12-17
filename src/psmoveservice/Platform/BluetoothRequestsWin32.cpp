@@ -49,7 +49,12 @@
 /* the number of successive checks that we require to be sure the Bluetooth
  * connection is indeed properly established
  */
-#define CONN_CHECK_NUM_TRIES 5
+#define CONN_CHECK_NUM_TRIES 10
+
+/* the delay (in milliseconds) between consecutive checks for a properly
+ * established Bluetooth connection
+ */
+#define CONN_CHECK_DELAY 300
 
 
 // -- definitions -----
@@ -382,9 +387,9 @@ AsyncBluetoothPairDeviceRequest::start()
     bool success= true;
     const int controller_id= m_controllerView->getControllerID();
 
-    if (success && m_controllerView->getIsOpen() && !m_controllerView->getIsBluetooth())
+    if (success && m_controllerView->getIsOpen() && m_controllerView->getIsBluetooth())
     {
-        SERVER_LOG_ERROR("AsyncBluetoothUnpairDeviceRequest") 
+        SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") 
             << "Controller " << controller_id 
             << " isn't an open USB device";
         success= false;
@@ -534,7 +539,8 @@ AsyncBluetoothPairDeviceRequest__findBluetoothRadio(BluetoothPairDeviceState *st
 
     if (nextSubStatus != BluetoothPairDeviceState::failed) 
     {
-        if (BluetoothGetRadioInfo(&state->hRadio, &state->radioInfo) == ERROR_SUCCESS)
+        DWORD result= BluetoothGetRadioInfo(state->hRadio, &state->radioInfo);
+        if (result == ERROR_SUCCESS)
         {
             SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Retrieved radio info";
             state->host_address_string= bluetooth_address_to_string(&state->radioInfo.address);
@@ -543,7 +549,9 @@ AsyncBluetoothPairDeviceRequest__findBluetoothRadio(BluetoothPairDeviceState *st
         }
         else
         {
-            SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") << "Failed to retrieve radio info";
+            SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") 
+                << "Failed to retrieve radio info (Error Code: "
+                << std::hex << std::setfill('0') << std::setw(8) << result;
             nextSubStatus= BluetoothPairDeviceState::failed;
         }
     }
@@ -764,23 +772,23 @@ AsyncBluetoothPairDeviceRequest__attemptConnection(
         // Remember the last time we scanned 
         state->lastTimeConnectionAttempted= now;
 
-        if (success)
+        if (state->connectionAttemptCount >= CONN_RETRIES)
+        {
+            SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Device removed, starting all over again";
+            BluetoothRemoveDevice(&state->deviceInfo.Address);
+
+            // Reset the connection attempt count
+            state->connectionAttemptCount= 0;
+
+            nextSubStatus= BluetoothPairDeviceState::deviceScan;
+        }
+        else if (success)
         {
             // Move on to the patch registry state
             nextSubStatus= BluetoothPairDeviceState::patchRegistry;
 
             // Go ahead and move onto the patch registry state
             canDoMoreWork= true;
-        }
-        else
-        {
-            if (state->connectionAttemptCount >= CONN_RETRIES)
-            {
-                SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Device removed, starting all over again";
-                BluetoothRemoveDevice(&state->deviceInfo.Address);
-
-                nextSubStatus= BluetoothPairDeviceState::deviceScan;
-            }
         }
     }
 
@@ -859,7 +867,7 @@ AsyncBluetoothPairDeviceRequest__verifyConnection(
             std::chrono::system_clock::now().time_since_epoch()).count();
     const long long diff= now - state->lastTimeVerifyConnection;
 
-    if (diff >= REGISTRY_PATCH_DELAY)
+    if (diff >= CONN_CHECK_DELAY)
     {
         bool success= true;
 
@@ -919,6 +927,9 @@ AsyncBluetoothPairDeviceRequest__verifyConnection(
             SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Verified failed. Re-establish connection";
             nextSubStatus= BluetoothPairDeviceState::attemptConnection;
         }
+
+        // Remember the last time we tried to verify the connection
+        state->lastTimeVerifyConnection= now;
     }
 
     return nextSubStatus;

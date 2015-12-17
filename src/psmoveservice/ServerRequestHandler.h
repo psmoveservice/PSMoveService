@@ -16,6 +16,8 @@ public:
 
     static ServerRequestHandler *get_instance() { return m_instance; }
 
+    bool any_active_bluetooth_requests() const;
+
     bool startup();
     void update();
     void shutdown();

@@ -107,11 +107,16 @@ public:
         boost::posix_time::time_duration reconnect_diff = now - m_last_reconnect_time;
         if (reconnect_diff.total_milliseconds() >= m_config->controller_reconnect_interval)
         {
-            // This method tries make the list of open controllers in m_controllers match 
-            // the list of connected controller devices in the device enumerator.
-            // Not controller objects are created or destroyed.
-            // Pointers are just shuffled around and controllers opened and closed.
-            update_connected_controllers();
+            // Don't do any connection opening/closing until all pending bluetooth operations are finished
+            if (!ServerRequestHandler::get_instance()->any_active_bluetooth_requests())
+            {
+                // This method tries make the list of open controllers in m_controllers match 
+                // the list of connected controller devices in the device enumerator.
+                // Not controller objects are created or destroyed.
+                // Pointers are just shuffled around and controllers opened and closed.
+                update_connected_controllers();
+            }
+
             m_last_reconnect_time= now;
         }
     }

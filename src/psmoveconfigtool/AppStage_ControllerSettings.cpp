@@ -3,6 +3,7 @@
 #include "AppStage_MainMenu.h"
 #include "App.h"
 #include "Camera.h"
+#include "MathUtility.h"
 #include "Renderer.h"
 #include "UIConstants.h"
 #include "PSMoveProtocolInterface.h"
@@ -264,14 +265,14 @@ void AppStage_ControllerSettings::renderUI()
     case eControllerMenuState::pendingControllerPairRequest:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 300), k_background_alpha, window_flags);
+            ImGui::Begin(k_window_title, nullptr, ImVec2(350, 300), k_background_alpha, window_flags);
 
             // Show progress
             if (m_pair_steps_total > 0)
             {
                 char label_buffer[32];
-                const float fraction= static_cast<float>(m_pair_steps_completed) / static_cast<float>(m_pair_steps_total);
-                _snprintf(label_buffer, sizeof(32), "Step %d/%d", m_pair_steps_completed, m_pair_steps_total);
+                const float fraction= clampf01(static_cast<float>(m_pair_steps_completed) / static_cast<float>(m_pair_steps_total));
+                _snprintf(label_buffer, sizeof(label_buffer), "Step %d/%d", m_pair_steps_completed, m_pair_steps_total);
 
                 ImGui::TextWrapped(
                     "Unplug the controller.\n" \
@@ -630,7 +631,7 @@ void AppStage_ControllerSettings::handle_bluetooth_request_progress_event(
 void AppStage_ControllerSettings::request_cancel_bluetooth_operation(
     int controllerID)
 {
-    if (m_pendingBluetoothOpControllerIndex == -1 &&
+    if (m_pendingBluetoothOpControllerIndex != -1 &&
         (m_menuState == AppStage_ControllerSettings::pendingControllerUnpairRequest ||
          m_menuState == AppStage_ControllerSettings::pendingControllerPairRequest))
     {

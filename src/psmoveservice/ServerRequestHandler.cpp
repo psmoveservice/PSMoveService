@@ -34,6 +34,7 @@ struct RequestConnectionState
 typedef boost::shared_ptr<RequestConnectionState> RequestConnectionStatePtr;
 typedef std::map<int, RequestConnectionStatePtr> t_connection_state_map;
 typedef std::map<int, RequestConnectionStatePtr>::iterator t_connection_state_iter;
+typedef std::map<int, RequestConnectionStatePtr>::const_iterator t_connection_state_const_iter;
 typedef std::pair<int, RequestConnectionStatePtr> t_id_connection_state_pair;
 
 struct RequestContext
@@ -56,6 +57,24 @@ public:
     {
         // Without this we get a warning for deletion:
         // "Delete called on 'class ServerRequestHandlerImpl' that has virtual functions but non-virtual destructor"
+    }
+
+    bool any_active_bluetooth_requests() const
+    {
+        bool any_active= false;
+
+        for (t_connection_state_const_iter iter= m_connection_state_map.begin(); iter != m_connection_state_map.end(); ++iter)
+        {
+            RequestConnectionStatePtr connection_state= iter->second;
+
+            if (connection_state->pending_bluetooth_request != nullptr)
+            {
+                any_active= true;
+                break;
+            }
+        }
+
+        return any_active;
     }
 
     void update()
@@ -141,11 +160,12 @@ public:
                 break;
             case PSMoveProtocol::Request_RequestType_PAIR_CONTROLLER:
                 handle_request__pair_controller(context, response);
+                break;
             case PSMoveProtocol::Request_RequestType_CANCEL_BLUETOOTH_REQUEST:
                 handle_request__cancel_bluetooth_request(context, response);
+                break;
             default:
                 assert(0 && "Whoops, bad request!");
-                break;
         }
 
         return ResponsePtr(response);
@@ -467,6 +487,11 @@ ServerRequestHandler::~ServerRequestHandler()
     }
 
     delete m_implementation_ptr;
+}
+
+bool ServerRequestHandler::any_active_bluetooth_requests() const
+{
+    return m_implementation_ptr->any_active_bluetooth_requests();
 }
 
 bool ServerRequestHandler::startup()
