@@ -39,17 +39,10 @@
  */
 #define CONN_DELAY 300
 
-/* the delay (in milliseconds) between registry patch attempts
- */
-#define REGISTRY_PATCH_DELAY 800
-
-// The mac number of times we'll attempt to patch the registry
-#define REGISTRY_PATCH_RETRIES 2
-
 /* the number of successive checks that we require to be sure the Bluetooth
  * connection is indeed properly established
  */
-#define CONN_CHECK_NUM_TRIES 10
+#define CONN_CHECK_NUM_TRIES 5
 
 /* the delay (in milliseconds) between consecutive checks for a properly
  * established Bluetooth connection
@@ -83,13 +76,11 @@ struct BluetoothPairDeviceState
     // Timers
     long long lastTimeDeviceScanned;
     long long lastTimeConnectionAttempted;
-    long long lastTimeRegistryPatchAttempted;
     long long lastTimeVerifyConnection;
     
     // Attempt Counters
     int scanCount;
     int connectionAttemptCount;
-    int registryPatchAttemptCount;
     int verifyConnectionCount;
 
     eStatus subStatus;
@@ -98,7 +89,6 @@ struct BluetoothPairDeviceState
     {
         lastTimeDeviceScanned= -1;
         lastTimeConnectionAttempted= -1;
-        lastTimeRegistryPatchAttempted= -1;
         lastTimeVerifyConnection= -1;
         hRadio= INVALID_HANDLE_VALUE;
         memset(&radioInfo, 0, sizeof(BLUETOOTH_RADIO_INFO));
@@ -108,7 +98,6 @@ struct BluetoothPairDeviceState
         host_address_string.clear();
         scanCount= 0;
         connectionAttemptCount= 0;
-        registryPatchAttemptCount= 0;
         verifyConnectionCount= 0;
         subStatus= findBluetoothRadio;
     }
@@ -167,21 +156,21 @@ struct BluetoothPairDeviceState
                     lastTimeDeviceScanned= -1;
                     scanCount= 0;
                 }
+                else
+                {
+                    SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Device removed, starting all over again";
+                    BluetoothRemoveDevice(&deviceInfo.Address);
+                }
             } break;
         case attemptConnection:
             {
                 SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Entering sub status: attemptConnection"; 
-                if (subStatus == deviceScan)
-                {
-                    lastTimeConnectionAttempted= -1;
-                    connectionAttemptCount= 0;
-                }
+                connectionAttemptCount= 0;
+                lastTimeConnectionAttempted= -1;
             } break;
         case patchRegistry:
             {
                 SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Entering sub status: patchRegistry"; 
-                lastTimeRegistryPatchAttempted= -1;
-                registryPatchAttemptCount= 0;
             } break;
         case verifyConnection:
             {
@@ -222,7 +211,7 @@ static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__regist
 static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__setupBluetoothRadio(BluetoothPairDeviceState *state);
 static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__deviceScan(ServerControllerViewPtr &controllerView, BluetoothPairDeviceState *state, bool &canDoMoreWork);
 static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__attemptConnection(BluetoothPairDeviceState *state, bool &canDoMoreWork);
-static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__patchRegistry(BluetoothPairDeviceState *state, bool &canDoMoreWork);
+static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__patchRegistry(BluetoothPairDeviceState *state);
 static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__verifyConnection(BluetoothPairDeviceState *state);
 
 static bool string_to_bluetooth_address(const std::string bt_string, BLUETOOTH_ADDRESS * address);
@@ -449,7 +438,8 @@ AsyncBluetoothPairDeviceRequest::update()
 
         case BluetoothPairDeviceState::patchRegistry:
             {
-                nextSubStatus= AsyncBluetoothPairDeviceRequest__patchRegistry(state, canDoMoreWork);
+                nextSubStatus= AsyncBluetoothPairDeviceRequest__patchRegistry(state);
+                canDoMoreWork= true;
             } break;
 
         case BluetoothPairDeviceState::verifyConnection:
@@ -613,30 +603,28 @@ AsyncBluetoothPairDeviceRequest__setupBluetoothRadio(
         {
             SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") 
                 << "Failed to enable incoming connections on radio " << state->host_address_string;
-
-            nextSubStatus= BluetoothPairDeviceState::failed;
         }
     }
 
-    if (nextSubStatus != BluetoothPairDeviceState::failed) 
+    if (!BluetoothIsDiscoverable(state->hRadio))                 
     {
-        if (!BluetoothIsDiscoverable(state->hRadio))                 
+        SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") 
+            << "Making radio discoverable";
+
+        if (BluetoothEnableDiscovery(state->hRadio, TRUE) == FALSE) 
         {
-            SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") 
-                << "Making radio discoverable";
-
-            if (BluetoothEnableDiscovery(state->hRadio, TRUE) == TRUE) 
-            {
-                nextSubStatus= BluetoothPairDeviceState::deviceScan;
-            }
-            else
-            {
-                SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") 
-                    << "Failed to enable radio " << state->host_address_string << " discoverable";
-
-                nextSubStatus= BluetoothPairDeviceState::failed;
-            }
+            SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") 
+                << "Failed to enable radio " << state->host_address_string << " discoverable";
         }
+    }
+
+    if (BluetoothIsConnectable(state->hRadio) != FALSE && BluetoothIsDiscoverable(state->hRadio) != FALSE)
+    {
+        nextSubStatus= BluetoothPairDeviceState::deviceScan;
+    }
+    else
+    {
+        nextSubStatus= BluetoothPairDeviceState::failed;
     }
 
     return nextSubStatus;
@@ -740,7 +728,7 @@ AsyncBluetoothPairDeviceRequest__attemptConnection(
         SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") 
             << "Connection attempt: " << state->connectionAttemptCount << "/" << CONN_RETRIES;
 
-        if (success && BluetoothGetDeviceInfo(state->hRadio, &state->deviceInfo) != ERROR_SUCCESS) 
+        if (BluetoothGetDeviceInfo(state->hRadio, &state->deviceInfo) != ERROR_SUCCESS) 
         {
             SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") << "Failed to read device info";
 
@@ -749,21 +737,10 @@ AsyncBluetoothPairDeviceRequest__attemptConnection(
             success= false;
         }
 
-        if (success)
+        if (success && !state->deviceInfo.fConnected)
         {
-            SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Checking HID service ...";
-
-            if (!is_hid_service_enabled(state->hRadio, &state->deviceInfo))
-            {
-                SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Enabling HID service ...";
-                GUID service = HumanInterfaceDeviceServiceClass_UUID;
-                DWORD result = BluetoothSetServiceState(state->hRadio, &state->deviceInfo, &service, BLUETOOTH_SERVICE_ENABLE);
-                if (result != ERROR_SUCCESS) 
-                {
-                    SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") << "Failed to enable HID service";
-                    success= false;
-                }
-            }
+            SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") << "Device not connected";
+            success= false;
         }
 
         // Keep track of how many connection attempts we have made
@@ -774,12 +751,7 @@ AsyncBluetoothPairDeviceRequest__attemptConnection(
 
         if (state->connectionAttemptCount >= CONN_RETRIES)
         {
-            SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Device removed, starting all over again";
-            BluetoothRemoveDevice(&state->deviceInfo.Address);
-
-            // Reset the connection attempt count
-            state->connectionAttemptCount= 0;
-
+            // Fall back to scanning devices again
             nextSubStatus= BluetoothPairDeviceState::deviceScan;
         }
         else if (success)
@@ -797,61 +769,43 @@ AsyncBluetoothPairDeviceRequest__attemptConnection(
 
 static BluetoothPairDeviceState::eStatus
 AsyncBluetoothPairDeviceRequest__patchRegistry(
-    BluetoothPairDeviceState *state,
-    bool &canDoMoreWork)
+    BluetoothPairDeviceState *state)
 {
     BluetoothPairDeviceState::eStatus nextSubStatus= state->subStatus;
+    bool success= true;
 
-    const long long now = 
-        std::chrono::duration_cast< std::chrono::milliseconds >(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-    const long long diff= now - state->lastTimeRegistryPatchAttempted;
+    /* Windows 8 seems to require manual help with setting up the device
+    * in the registry. Previous versions do this by themselves, but
+    * doing it manually for them does not seem to harm them either. So we
+    * do not single out Windows 8 but simply perform the necessary tweaks
+    * for all versions of Windows.
+    */
+    SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Patching the registry ...";
+    patch_registry(&state->deviceInfo.Address, &state->radioInfo.address);
 
-    // By default, assume that this is the only state we can run this update
-    canDoMoreWork= false;
-
-    if (diff >= REGISTRY_PATCH_DELAY)
+    // enable HID service only if necessary
+    SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Checking HID service";
+    if(!is_hid_service_enabled(state->hRadio, &state->deviceInfo))
     {
-        /* Windows 8 seems to require manual help with setting up the device
-        * in the registry. Previous versions do this by themselves, but
-        * doing it manually for them does not seem to harm them either. So we
-        * do not single out Windows 8 but simply perform the necessary tweaks
-        * for all versions of Windows.
-        */
-        SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Patching the registry ...";
-
-        // Keep track of the number of patch attempts
-        state->registryPatchAttemptCount++;
-
-        // Remember the last time we attempted to patch the registry
-        state->lastTimeRegistryPatchAttempted= now;
-
-        /* open registry key for modifying a value */
-        /* NOTE: At times, Windows seems a bit slow to generate the key we are looking for.
-            *       We try more than once instead of exiting on the first failed attempt.
-            */
-        if (patch_registry(&state->deviceInfo.Address, &state->radioInfo.address)) 
+        SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "HID service not enabled, attempting to enable";
+        GUID service = HumanInterfaceDeviceServiceClass_UUID;
+        DWORD result = BluetoothSetServiceState(state->hRadio, &state->deviceInfo, &service, BLUETOOTH_SERVICE_ENABLE);
+        
+        if(result == ERROR_SUCCESS)
         {
-            // Move on to verification of the connection
-            SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Successfully patched the registry";
-
-            // Move on to the verify connection state
-            nextSubStatus= BluetoothPairDeviceState::verifyConnection;
-
-            // We can move on the next state this update
-            canDoMoreWork= true;
+            SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Patching the registry ...";
+            patch_registry(&state->deviceInfo.Address, &state->radioInfo.address);
         }
         else
         {
-            SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") << "Failed to patch the registry";
-
-            if (state->registryPatchAttemptCount > REGISTRY_PATCH_RETRIES)
-            {
-                // Try and re-establish the connection
-                nextSubStatus= BluetoothPairDeviceState::attemptConnection;
-            }
+            SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Failed to enable HID service. Error code: " << result;
+            success= false;
         }
     }
+
+    // On Success, Move on to the verify connection state
+    // On Failure, fall back to the device scanning
+    nextSubStatus= success ? BluetoothPairDeviceState::verifyConnection : BluetoothPairDeviceState::deviceScan;
 
     return nextSubStatus;
 }
@@ -883,19 +837,27 @@ AsyncBluetoothPairDeviceRequest__verifyConnection(
          */
         if (BluetoothGetDeviceInfo(state->hRadio, &state->deviceInfo) == ERROR_SUCCESS) 
         {
-            if (!state->deviceInfo.fConnected)
+            if (state->deviceInfo.fConnected)
             {
-                SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Device Not Connected";
-                success= false;
+                SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Device Connected";
             }
 
-            if (!state->deviceInfo.fRemembered)
+            if (state->deviceInfo.fRemembered)
             {
-                SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Device Not remembered";
-                success= false;
+                SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Device Remembered";
             }
 
-            if (!is_hid_service_enabled(state->hRadio, &state->deviceInfo))
+            if (is_hid_service_enabled(state->hRadio, &state->deviceInfo))
+            {
+                SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "HID service enabled";
+            }
+
+            if (state->deviceInfo.fConnected && state->deviceInfo.fRemembered && 
+                is_hid_service_enabled(state->hRadio, &state->deviceInfo))
+            {
+                SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Connected, Remembered, and HID service enabled";
+            }
+            else
             {
                 SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "HID service not enabled";
                 success= false;
@@ -1205,7 +1167,7 @@ patch_registry(const BLUETOOTH_ADDRESS *move_addr, const BLUETOOTH_ADDRESS *radi
     HKEY hKey;
     if (success)
     {
-        LONG result = RegOpenKeyEx(HKEY_LOCAL_MACHINE, sub_key, 0, KEY_SET_VALUE | KEY_WOW64_64KEY, &hKey);
+        LONG result = RegOpenKeyEx(HKEY_LOCAL_MACHINE, sub_key, 0, KEY_READ | KEY_QUERY_VALUE | KEY_WOW64_64KEY | KEY_ALL_ACCESS, &hKey);
         if (result != ERROR_SUCCESS) 
         {
             if (result == ERROR_FILE_NOT_FOUND) 
@@ -1223,13 +1185,38 @@ patch_registry(const BLUETOOTH_ADDRESS *move_addr, const BLUETOOTH_ADDRESS *radi
 
     if (success)
     {
-        DWORD data = 1;
-        LONG result = RegSetValueEx(hKey, _T("VirtuallyCabled"), 0, REG_DWORD, (const BYTE *) &data, sizeof(data));
-
-        if (result != ERROR_SUCCESS) 
         {
-            SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") << "Failed to set 'VirtuallyCabled'";
-            success= false;
+            LONG result;
+
+            do
+            {
+                DWORD pvData;
+                DWORD dwData;
+                DWORD pdwType;
+
+                result = RegQueryValueEx(hKey, _T("VirtuallyCabled"), 0, &pdwType, (LPBYTE)&pvData, &dwData);
+
+                if(result == ERROR_SUCCESS)
+                {
+                   SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Get VirtuallyCabled: " << pvData;
+                }
+                else if( result != ERROR_MORE_DATA )
+                {
+                    SERVER_LOG_WARNING("AsyncBluetoothPairDeviceRequest") << "Failed to get registry value. Error Code: " << result;
+                    // Ignore and continue
+                }
+            }
+            while(result == ERROR_MORE_DATA);
+        }
+
+        {
+            DWORD data = 1;        
+            LONG result = RegSetValueEx(hKey, _T("VirtuallyCabled"), 0, REG_DWORD, (const BYTE *)&data, sizeof(data));
+            if (result != ERROR_SUCCESS) 
+            {
+                SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") << "Failed to set 'VirtuallyCabled'";
+                success= false;
+            }
         }
 
         RegCloseKey(hKey);
