@@ -553,13 +553,14 @@ stringToBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int
         int octets[6];
 
         success= 
-            sscanf_s(raw_string, "%x:%x:%x:%x:%x:%x", 
+            sscanf(raw_string, "%x:%x:%x:%x:%x:%x", 
                 &octets[0],
                 &octets[1],
                 &octets[2],
                 &octets[3],
                 &octets[4],
                 &octets[5]) == 6;
+        //TODO: Make sscanf safe. (sscanf_s is not portable)
 
         if (success)
         {

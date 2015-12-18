@@ -13,6 +13,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
+#include <sstream>
 
 #ifdef _MSC_VER
 #pragma warning (disable: 4996) // 'This function or variable may be unsafe': snprintf
@@ -270,9 +271,9 @@ void AppStage_ControllerSettings::renderUI()
             // Show progress
             if (m_pair_steps_total > 0)
             {
-                char label_buffer[32];
                 const float fraction= clampf01(static_cast<float>(m_pair_steps_completed) / static_cast<float>(m_pair_steps_total));
-                _snprintf(label_buffer, sizeof(label_buffer), "Step %d/%d", m_pair_steps_completed, m_pair_steps_total);
+                std::stringstream progress_label;
+                progress_label << "Step " << m_pair_steps_completed << "/" << m_pair_steps_total;
 
                 ImGui::TextWrapped(
                     "Unplug the controller.\n" \
@@ -282,7 +283,7 @@ void AppStage_ControllerSettings::renderUI()
                     "Whenever it goes off, press the PS button again.\n" \
                     "Repeat this until the status LED finally remains lit.");
 
-                ImGui::ProgressBar(fraction, ImVec2(250, 40), label_buffer);
+                ImGui::ProgressBar(fraction, ImVec2(250, 40), progress_label.str().c_str());
             }
             else
             {

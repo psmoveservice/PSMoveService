@@ -1,5 +1,5 @@
 #include "PSEyeVideoCapture.h"
-#include "opencv2\opencv.hpp"
+#include "opencv2/opencv.hpp"
 #include <algorithm>
 
 const std::vector<int> known_keys = {113, 97, 119, 115, 101, 100, 114, 102, 116, 103};
