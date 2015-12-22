@@ -2,6 +2,7 @@
 #include "PSMoveController.h"
 #include "../ServerLog.h"
 #include "../ServerUtility.h"
+#include "../Platform/BluetoothQueries.h"
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -292,7 +293,7 @@ bool PSMoveController::open(
         if (getIsOpen())  // Controller was opened and has an index
         {
             // Get the bluetooth address
-    #ifndef _WIN32
+    #ifdef __APPLE__
             // On my Mac, getting the bt feature report when connected via
             // bt crashes the controller. So we simply copy the serial number.
             // It gets modified in getBTAddress.
@@ -301,6 +302,14 @@ bool PSMoveController::open(
             // Once done, we can remove the ifndef above.
             std::string mbs(cur_dev_serial_number);
             HIDDetails.Bt_addr = mbs;
+            
+            // TODO: Actually querying the host address appears to make opening the bluetooth device fail to read later
+            // For now, just provide a fake host address so that the client thinks the controller is paired.
+            // Later on we can make a cached version of this query.
+            //if (!bluetooth_get_host_address(HIDDetails.Host_bt_addr))
+            {
+                HIDDetails.Host_bt_addr= "00:00:00:00:00:01";
+            }
     #endif
             if (getBTAddress(HIDDetails.Host_bt_addr, HIDDetails.Bt_addr))
             {
@@ -483,10 +492,13 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
 {
     bool success = false;
 
-    if (IsBluetooth && !controller.empty())
+    if (IsBluetooth && !controller.empty() && !host.empty())
     {
         std::replace(controller.begin(), controller.end(), '-', ':');
         std::transform(controller.begin(), controller.end(), controller.begin(), ::tolower);
+        
+        std::replace(host.begin(), host.end(), '-', ':');
+        std::transform(host.begin(), host.end(), host.begin(), ::tolower);
         
         //TODO: If the third entry is not : and length is PSMOVE_BTADDR_SIZE
 //        std::stringstream ss;

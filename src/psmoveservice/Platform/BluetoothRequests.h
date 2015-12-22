@@ -50,13 +50,10 @@ protected:
 class AsyncBluetoothUnpairDeviceRequest : public AsyncBluetoothRequest
 {
 public:
-    inline AsyncBluetoothUnpairDeviceRequest(
+    AsyncBluetoothUnpairDeviceRequest(
         int connectionId,
-        ServerControllerViewPtr controllerView)
-        : AsyncBluetoothRequest(connectionId)
-        , m_controllerView(controllerView)
-    { }
-
+        ServerControllerViewPtr controllerView);
+    virtual ~AsyncBluetoothUnpairDeviceRequest();
 
     virtual bool start() override;
     virtual void update() override;
@@ -67,6 +64,7 @@ public:
 
 private:
     ServerControllerViewPtr m_controllerView;
+    void *m_internal_state;
 };
 
 class AsyncBluetoothPairDeviceRequest : public AsyncBluetoothRequest
@@ -88,5 +86,8 @@ private:
     ServerControllerViewPtr m_controllerView;
     void *m_internal_state;
 };
+
+//-- interface -----
+bool bluetooth_get_host_address(std::string &out_address);
 
 #endif // BLUETOOTH_REQUESTS_H

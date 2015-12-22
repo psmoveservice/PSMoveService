@@ -11,12 +11,14 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     find_library(APPKIT_FRAMEWORK AppKit)
     #find_library(QTKIT QTKit)
     find_library(AVFOUNDATION AVFoundation)
+    find_library(IOBLUETOOTH IOBluetooth)
     #stdc++ ${QUARTZCORE} ${APPKIT_FRAMEWORK} ${QTKIT} ${AVFOUNDATION}
     list(APPEND PLATFORM_LIBS
         ${COREFOUNDATION_FRAMEWORK}
         ${IOKIT_FRAMEWORK}
         ${APPKIT_FRAMEWORK}
-        ${AVFOUNDATION})
+        ${AVFOUNDATION}
+        ${IOBLUETOOTH})
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     #OpenCV extra dependencies: comctl32 gdi32 ole32 setupapi ws2_32 vfw32
     #setupapi required by hidapi
@@ -200,6 +202,8 @@ list(APPEND TEST_CTRLR_SRC
     ${ROOT_DIR}/src/psmoveservice/ServerUtility.cpp
     ${ROOT_DIR}/src/psmoveservice/ControllerEnumerator.h
     ${ROOT_DIR}/src/psmoveservice/ControllerEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
+    ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
     ${ROOT_DIR}/src/psmoveservice/PSMoveController/PSMoveController.h

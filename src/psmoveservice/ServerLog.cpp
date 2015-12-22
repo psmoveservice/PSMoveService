@@ -14,6 +14,9 @@
 boost::log::sources::severity_logger< boost::log::trivial::severity_level > logger;
 boost::log::sources::severity_logger< boost::log::trivial::severity_level > *g_logger= &logger;
 
+boost::log::sources::severity_logger_mt< boost::log::trivial::severity_level > mt_logger;
+boost::log::sources::severity_logger_mt< boost::log::trivial::severity_level > *g_mt_logger= &mt_logger;
+
 //-- public implementation -----
 void log_init(boost::program_options::variables_map *options)
 {

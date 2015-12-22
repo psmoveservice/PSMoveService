@@ -104,18 +104,24 @@ public:
         // close the tcp request socket
         if (m_tcp_socket.is_open())
         {
-            m_tcp_socket.shutdown(asio::socket_base::shutdown_both);
+            boost::system::error_code shutdown_error;
+            m_tcp_socket.shutdown(asio::socket_base::shutdown_both, shutdown_error);
 
-            boost::system::error_code error;
-            m_tcp_socket.close(error);
-
-            if (error)
+            if (shutdown_error)
             {
-                CLIENT_LOG_ERROR("ClientNetworkManager::stop") << "Problem closing the socket: " << error.value() << std::endl;
+                CLIENT_LOG_ERROR("ClientNetworkManager::stop") << "Problem shutting down the socket: " << shutdown_error.message() << std::endl;
+            }
+
+            boost::system::error_code close_error;
+            m_tcp_socket.close(close_error);
+
+            if (close_error)
+            {
+                CLIENT_LOG_ERROR("ClientNetworkManager::stop") << "Problem closing the socket: " << close_error.message() << std::endl;
 
                 if (m_netEventListener)
                 {
-                    m_netEventListener->handle_server_connection_close_failed(error);
+                    m_netEventListener->handle_server_connection_close_failed(close_error);
                 }
             }
             else

@@ -62,7 +62,7 @@ A background service that communicates with the psmove and serves its pose and b
     * `brew tap homebrew/science`
     * `brew install opencv`
 1. Boost
-    * `brew install boost`
+    * `brew install boost --universal`
 1. protobuf
     * `brew install protobuf --devel`
     * It will likely be necessary to drop the --devel flag after >= 3.0 becomes stable.
@@ -82,7 +82,7 @@ A background service that communicates with the psmove and serves its pose and b
 1. `mkdir build && cd build`
 1. Run cmake
     * Windows: `cmake .. -G "Visual Studio 12 2013"` OR `GenerateProjectFiles.bat`
-    * Mac: `cmake ..` OR `cmake -G "Xcode" ..`
+    * Mac: `cmake ..` OR `cmake -G "Xcode" -DCMAKE_OSX_ARCHITECTURES=i386 ..`
 
 # Build PSMoveService
 
