@@ -13,7 +13,7 @@ extern "C"
 };
 
 bool macosx_bluetooth_set_powered(bool bPowered);
-bool macosx_get_btaddr(char *result, size_t max_result_size);
+bool macosx_get_btaddr(const bool bEnsurePowered, char *result, size_t max_result_size);
 
 // -- interface -----
 bool bluetooth_get_host_address(std::string &out_address)
@@ -23,7 +23,7 @@ bool bluetooth_get_host_address(std::string &out_address)
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     
     char hostBTAddress[32];
-    if (macosx_get_btaddr(hostBTAddress, sizeof(hostBTAddress)))
+    if (macosx_get_btaddr(false, hostBTAddress, sizeof(hostBTAddress)))
     {
         out_address= hostBTAddress;
         bSuccess= true;
@@ -75,11 +75,11 @@ macosx_bluetooth_set_powered(bool bPowered)
 }
 
 bool
-macosx_get_btaddr(char *result, size_t max_result_size)
+macosx_get_btaddr(const bool bEnsurePowered, char *result, size_t max_result_size)
 {
     bool bSuccess= true;
     
-    if (bSuccess && !macosx_bluetooth_set_powered(true))
+    if (bEnsurePowered && !macosx_bluetooth_set_powered(true))
     {
         bSuccess= false;
     }

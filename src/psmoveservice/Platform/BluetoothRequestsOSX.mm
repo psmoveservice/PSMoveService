@@ -29,7 +29,7 @@ static const char *k_invalid_bluetooth_host= "00:00:00:00:00:00";
 #define BLUED_CLOSE_POLL_INTERVAL_USEC 1000000 // 1 second = 1MM usecs
 
 /* The number of times we attempt to poll the bluetooth daemon to see if it's closed */
-#define BLUED_CLOSE_MAX_POLL_ATTEMPTS 60
+#define BLUED_CLOSE_MAX_POLL_ATTEMPTS 5
 
 // -- definitions -----
 class BluetoothDeviceOperationState
@@ -151,10 +151,11 @@ private:
 static void *async_bluetooth_device_operation_worker(void *thread_data);
 
 // defined in BluetoothQueriesOSX.mm
-bool macosx_get_btaddr(char *result, size_t max_result_size);
+bool macosx_get_btaddr(const bool bEnsurePowered, char *result, size_t max_result_size);
 bool macosx_bluetooth_set_powered(bool bPowered);
 
 static bool macosx_blued_running();
+static bool macosx_killall_blued();
 static bool macosx_blued_is_paired(char *btaddr, std::vector<std::string> &other_paired_btaddrs);
 static bool macosx_get_minor_version(int &outMinorVersion);
 static bool macosx_register_bluetooth_address(const char *controllerBTAddr);
@@ -324,7 +325,7 @@ AsyncBluetoothPairDeviceRequest::start()
     {
         NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
         
-        if (!macosx_get_btaddr(hostBTAddress, sizeof(hostBTAddress)))
+        if (!macosx_get_btaddr(true, hostBTAddress, sizeof(hostBTAddress)))
         {
             SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") << "Can't determine host bluetooth address";
             bSuccess= false;
@@ -542,12 +543,21 @@ async_bluetooth_device_operation_worker(void *thread_data)
 
                 usleep(BLUED_CLOSE_POLL_INTERVAL_USEC);
             }
-
+            
             if (!bFailure && attempt >= BLUED_CLOSE_MAX_POLL_ATTEMPTS)
             {
-                SERVER_MT_LOG_ERROR("async_bluetooth_device_operation_worker") << "blued still running. Aborting...";
-                bFailure= true;
+                SERVER_MT_LOG_INFO("async_bluetooth_device_operation_worker") << "blued still running. Attempting manual kill...";
+                if (macosx_killall_blued())
+                {
+                    SERVER_MT_LOG_INFO("async_bluetooth_device_operation_worker") << "blued successfully killed.";
+                }
+                else
+                {
+                    SERVER_MT_LOG_ERROR("async_bluetooth_device_operation_worker") << "blued still running. Aborting...";
+                    bFailure= true;
+                }
             }
+
         }
         
         if (!bFailure)
@@ -637,6 +647,20 @@ macosx_blued_running()
     pclose(fp);
     
     return running;
+}
+
+static bool
+macosx_killall_blued()
+{
+    bool bSuccess= true;
+    
+    if (system("osascript -e 'do shell script \"killall blued\" with administrator privileges'") != 0)
+    {
+        SERVER_MT_LOG_ERROR("macosx_killall_blued") << "Failed to kill blued";
+        bSuccess= false;
+    }
+    
+    return bSuccess;
 }
 
 static bool

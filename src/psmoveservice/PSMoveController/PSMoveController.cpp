@@ -303,12 +303,9 @@ bool PSMoveController::open(
             std::string mbs(cur_dev_serial_number);
             HIDDetails.Bt_addr = mbs;
             
-            // TODO: Actually querying the host address appears to make opening the bluetooth device fail to read later
-            // For now, just provide a fake host address so that the client thinks the controller is paired.
-            // Later on we can make a cached version of this query.
-            //if (!bluetooth_get_host_address(HIDDetails.Host_bt_addr))
+            if (!bluetooth_get_host_address(HIDDetails.Host_bt_addr))
             {
-                HIDDetails.Host_bt_addr= "00:00:00:00:00:01";
+                HIDDetails.Host_bt_addr= "00:00:00:00:00:00";
             }
     #endif
             if (getBTAddress(HIDDetails.Host_bt_addr, HIDDetails.Bt_addr))
