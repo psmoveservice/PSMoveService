@@ -36,7 +36,6 @@ ENDIF()
 file(GLOB PSMOVESERVICE_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/*.h"
-    "${CMAKE_CURRENT_LIST_DIR}/Platform/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig/*.h"    
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveController/*.cpp"
@@ -79,12 +78,20 @@ ENDIF()
 
 # bluetooth
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    list(APPEND PSMOVESERVICE_SRC ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsWin32.cpp)
+    list(APPEND PSMOVESERVICE_SRC 
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequests.h
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsWin32.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueries.h)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     list(APPEND PSMOVESERVICE_SRC 
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequests.h
         ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsOSX.mm
-	${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesOSX.mm)
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueries.h
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesOSX.mm)
 ELSE()
+    list(APPEND PSMOVESERVICE_SRC 
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequests.h
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueries.h)
 ENDIF()
 
 # PSMoveDataFrame
@@ -93,10 +100,13 @@ list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveProtocol)
 
 # TODO: Camera. See tests
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    list(APPEND PSMOVESERVICE_SRC ${CMAKE_CURRENT_LIST_DIR}/Platform/DeviceInterfaceWin32.cpp)
+    list(APPEND PSMOVESERVICE_SRC 
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/DeviceInterfaceWin32.h
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/DeviceInterfaceWin32.cpp)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # Not necessary
 ELSE()
+    # Not necessary
 ENDIF()
 
 add_executable(PSMoveService ${PSMOVESERVICE_SRC})

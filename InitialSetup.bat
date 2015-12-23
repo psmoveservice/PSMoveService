@@ -49,9 +49,11 @@ echo "Creating SDL2 project files..."
 pushd thirdparty\SDL2
 mkdir build
 pushd build
-cmake .. -G "Visual Studio 12 2013" -DDIRECTX=OFF
+cmake .. -G "Visual Studio 12 2013" -DDIRECTX=OFF -DDIRECTX=OFF -DSDL_STATIC=ON -DFORCE_STATIC_VCRT=ON -DEXTRA_CFLAGS="-MT -Z7 -DSDL_MAIN_HANDLED -DWIN32 -DNDEBUG -D_CRT_SECURE_NO_WARNINGS -DHAVE_LIBC -D_USE_MATH_DEFINES
 echo "Building SDL2 Release|Win32..."
-MSBuild.exe SDL2.sln /p:configuration=RELEASE /p:Platform="Win32" /t:Clean;Build 
+MSBuild.exe SDL2.sln /p:configuration=RELEASE /p:Platform="Win32" /t:Clean
+MSBuild.exe SDL2-static.vcxproj /p:configuration=RELEASE /p:Platform="Win32" /t:Build 
+MSBuild.exe SDL2main.vcxproj /p:configuration=RELEASE /p:Platform="Win32" /t:Build
 popd
 popd
 

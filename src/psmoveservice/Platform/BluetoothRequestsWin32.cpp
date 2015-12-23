@@ -228,6 +228,19 @@ static void send_pair_completed_notification_to_client(int connectionID, PSMoveP
 static void send_progress_notification_to_client(int connectionID, int controllerID, int stepsCompleted, int totalSteps);
 
 // -- AsyncBluetoothUnpairDeviceRequest -----
+AsyncBluetoothUnpairDeviceRequest::AsyncBluetoothUnpairDeviceRequest(
+    int connectionId,
+    ServerControllerViewPtr controllerView)
+    : AsyncBluetoothRequest(connectionId)
+    , m_controllerView(controllerView)
+    , m_internal_state(nullptr)
+{
+}
+
+AsyncBluetoothUnpairDeviceRequest::~AsyncBluetoothUnpairDeviceRequest()
+{
+}
+
 bool 
 AsyncBluetoothUnpairDeviceRequest::start()
 {

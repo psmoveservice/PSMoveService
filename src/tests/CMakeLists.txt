@@ -182,6 +182,13 @@ ELSE()
 ENDIF()
 list(APPEND TEST_CTRLR_SRC ${HIDAPI_SRC})
 
+#Bluetooth
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    list(APPEND TEST_CTRLR_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
+ELSE()
+ENDIF()
+
 # Boost
 # TODO: Eliminate boost::filesystem with C++14
 FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS chrono date_time filesystem log log_setup program_options system thread)
@@ -203,7 +210,6 @@ list(APPEND TEST_CTRLR_SRC
     ${ROOT_DIR}/src/psmoveservice/ControllerEnumerator.h
     ${ROOT_DIR}/src/psmoveservice/ControllerEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
-    ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
     ${ROOT_DIR}/src/psmoveservice/PSMoveController/PSMoveController.h

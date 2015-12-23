@@ -45,10 +45,10 @@ A background service that communicates with the psmove and serves its pose and b
     * Optional - Only required if you are building the the configuration client.
     * `cd third_party/SDL2`
     * `mkdir build & cd build`
-    * `cmake .. -G "Visual Studio 12 2013" -DDIRECTX=OFF`
+    * `cmake .. -G "Visual Studio 12 2013" -DDIRECTX=OFF -DDIRECTX=OFF -DSDL_STATIC=ON -DFORCE_STATIC_VCRT=ON -DEXTRA_CFLAGS="-MT -Z7 -DSDL_MAIN_HANDLED -DWIN32 -DNDEBUG -D_CRT_SECURE_NO_WARNINGS -DHAVE_LIBC -D_USE_MATH_DEFINES`
     * Open the solution (psmoveapi\external\SDL2\build\SDL2.sln)
     * Change the target to Release (at the top of the VS window).
-    * Build the solution (Build Menu -> Build Solution).            
+    * Build the SLD2-static and SDL2main projects (Not the SDL2 project) 
     
 # Build Dependencies (OS X)
 
@@ -60,9 +60,9 @@ A background service that communicates with the psmove and serves its pose and b
 1. OpenCV
     * `brew update`
     * `brew tap homebrew/science`
-    * `brew install opencv`
+    * `brew install opencv3`
 1. Boost
-    * `brew install boost --universal`
+    * `brew install boost`
 1. protobuf
     * `brew install protobuf --devel`
     * It will likely be necessary to drop the --devel flag after >= 3.0 becomes stable.
@@ -82,7 +82,7 @@ A background service that communicates with the psmove and serves its pose and b
 1. `mkdir build && cd build`
 1. Run cmake
     * Windows: `cmake .. -G "Visual Studio 12 2013"` OR `GenerateProjectFiles.bat`
-    * Mac: `cmake ..` OR `cmake -G "Xcode" -DCMAKE_OSX_ARCHITECTURES=i386 ..`
+    * Mac: `cmake ..` OR `cmake -G "Xcode" ..`
 
 # Build PSMoveService
 
