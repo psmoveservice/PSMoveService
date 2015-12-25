@@ -242,6 +242,12 @@ void AppStage_ControllerSettings::renderUI()
 
             ImGui::Text("Waiting for controller to unpair...");
 
+            if (ImGui::Button("Cancel"))
+            {
+                assert(m_pendingBluetoothOpControllerIndex != -1);
+                request_cancel_bluetooth_operation(m_pendingBluetoothOpControllerIndex);
+            }
+
             ImGui::End();
         } break;
     case eControllerMenuState::failedControllerUnpairRequest:

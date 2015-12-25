@@ -51,6 +51,112 @@
 
 
 // -- definitions -----
+class BluetoothUnpairDeviceState
+{
+public:
+    enum eStatus
+    {
+        start,
+        removingBluetoothDevice,
+
+        k_total_steps,
+        success= k_total_steps,
+        failed,
+    };
+
+    HANDLE worker_thread_handle;
+    DWORD worker_thread_id;
+
+    void initialize(const int id, const std::string &bt_address_string)
+    {
+        controller_id= id;
+        controllerAddress= bt_address_string;
+
+        main_thread_id= GetCurrentThreadId();
+        worker_thread_id= main_thread_id;
+        
+        subStatus_WorkerThread= start;
+        isCanceled_WorkerThread= 0;
+
+        subStatus_MainThread= start;
+    }
+
+    int getControllerID() const
+    {
+        return controller_id;
+    }
+
+    const std::string &getControllerAddress() const
+    {
+        return controllerAddress;
+    }
+
+    void setSubStatus_WorkerThread(eStatus newSubStatus)
+    {
+        assert(GetCurrentThreadId() == worker_thread_id);
+        
+        // Atomically set the new status on subStatus_WorkerThread
+        InterlockedCompareExchange(&subStatus_WorkerThread, static_cast<LONG>(newSubStatus), subStatus_WorkerThread);
+    }
+
+    bool getIsCanceled_WorkerThread()
+    {
+        assert(GetCurrentThreadId() == worker_thread_id);
+
+        // Atomically fetch the canceled flag from the WorkerThread
+        LONG isCanceled= InterlockedCompareExchange(&isCanceled_WorkerThread, isCanceled_WorkerThread, isCanceled_WorkerThread);
+
+        return isCanceled > 0;
+    }
+
+    bool pollSubStatus_MainThread(eStatus &outNewSubStatus)
+    {
+        assert(GetCurrentThreadId() == main_thread_id);
+        bool subStatusChanged= false;
+
+        // Atomically fetch the status from the WorkerThread
+        LONG newSubStatus= InterlockedCompareExchange(&subStatus_WorkerThread, subStatus_WorkerThread, subStatus_WorkerThread);
+
+        if (newSubStatus != subStatus_MainThread)
+        {
+            subStatus_MainThread= newSubStatus;
+            outNewSubStatus= static_cast<eStatus>(newSubStatus);
+            subStatusChanged= true;
+        }
+
+        return subStatusChanged;
+    }
+
+    bool getIsCanceled_MainThread()
+    {
+        assert(GetCurrentThreadId() == main_thread_id);
+
+        // Atomically fetch the canceled flag from the MainThread
+        LONG isCanceled= InterlockedCompareExchange(&isCanceled_WorkerThread, isCanceled_WorkerThread, isCanceled_WorkerThread);
+
+        return isCanceled > 0;
+    }
+
+    void setIsCanceled_MainThread()
+    {
+        assert(GetCurrentThreadId() == main_thread_id);
+        
+        // Atomically set the new status on subStatus_WorkerThread
+        InterlockedCompareExchange(&isCanceled_WorkerThread, 1, isCanceled_WorkerThread);
+    }
+
+private:
+    int controller_id;
+    std::string controllerAddress;
+
+    LONG main_thread_id;
+
+    volatile LONG subStatus_WorkerThread;
+    volatile LONG isCanceled_WorkerThread;
+
+    int32_t subStatus_MainThread;
+};
+
 struct BluetoothPairDeviceState
 {
     enum eStatus
@@ -206,6 +312,8 @@ struct BluetoothPairDeviceState
 };
 
 // -- prototypes -----
+static DWORD WINAPI AsyncBluetoothUnpairDeviceThreadFunction(LPVOID lpParam);
+
 static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__findBluetoothRadio(BluetoothPairDeviceState *state);
 static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__registerHostAddress(ServerControllerViewPtr &controllerView, BluetoothPairDeviceState *state);
 static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__setupBluetoothRadio(BluetoothPairDeviceState *state);
@@ -235,10 +343,12 @@ AsyncBluetoothUnpairDeviceRequest::AsyncBluetoothUnpairDeviceRequest(
     , m_controllerView(controllerView)
     , m_internal_state(nullptr)
 {
+    m_internal_state= new BluetoothUnpairDeviceState();
 }
 
 AsyncBluetoothUnpairDeviceRequest::~AsyncBluetoothUnpairDeviceRequest()
 {
+    delete ((BluetoothUnpairDeviceState *)m_internal_state);
 }
 
 bool 
@@ -266,22 +376,6 @@ AsyncBluetoothUnpairDeviceRequest::start()
         success= false;
     }
 
-    m_status = success ? AsyncBluetoothRequest::running : AsyncBluetoothRequest::failed;
-
-    return success;
-}
-
-void 
-AsyncBluetoothUnpairDeviceRequest::update()
-{
-    bool success= true;
-    const int controller_id= m_controllerView->getControllerID();
-    const std::string bt_address_string= m_controllerView->getSerial();
-    BLUETOOTH_ADDRESS bt_address;
-
-    success= string_to_bluetooth_address(bt_address_string, &bt_address);
-    assert(success);
-
     // Unregister the bluetooth host address with the controller
     if (success && !m_controllerView->setHostBluetoothAddress(std::string("00:00:00:00:00:00")))
     {
@@ -307,48 +401,130 @@ AsyncBluetoothUnpairDeviceRequest::update()
         }
     }
 
-    // Tell windows to remove the device
+    // Kick off the worker thread to do the rest of the work
     if (success)
     {
-        if (BluetoothRemoveDevice(&bt_address) != ERROR_SUCCESS)
+        BluetoothUnpairDeviceState *state= reinterpret_cast<BluetoothUnpairDeviceState *>(m_internal_state);
+
+        state->initialize(controller_id, bt_address_string);
+        state->worker_thread_handle=
+            CreateThread( 
+                NULL,                        // default security attributes
+                0,                           // use default stack size  
+                AsyncBluetoothUnpairDeviceThreadFunction,       // thread function pointer
+                m_internal_state,            // argument to thread function 
+                0,                           // use default creation flags 
+                &state->worker_thread_id);   // returns the thread identifier
+
+        if (state->worker_thread_handle == NULL)
         {
-            SERVER_LOG_ERROR("AsyncBluetoothUnpairDeviceRequest") 
-                << "Controller " << controller_id 
-                << " failed to remove bluetooth device";
+            SERVER_LOG_ERROR("AsyncBluetoothUnpairDeviceRequest") << "Failed to start worker thread!";
             success= false;
         }
     }
 
-    // Tell the client about the result
+    m_status = success ? AsyncBluetoothRequest::running : AsyncBluetoothRequest::failed;
+
+    return success;
+}
+
+static DWORD WINAPI 
+AsyncBluetoothUnpairDeviceThreadFunction(LPVOID lpParam)
+{
+    BluetoothUnpairDeviceState *state= reinterpret_cast<BluetoothUnpairDeviceState *>(lpParam);
+
+    BLUETOOTH_ADDRESS bt_address;
+    bool success= string_to_bluetooth_address(state->getControllerAddress(), &bt_address);
+
+    if (!state->getIsCanceled_WorkerThread())
     {
-        ResponsePtr notification(new PSMoveProtocol::Response);
+        state->setSubStatus_WorkerThread(BluetoothUnpairDeviceState::removingBluetoothDevice);
 
-        notification->set_type(PSMoveProtocol::Response_ResponseType_UNPAIR_REQUEST_COMPLETED);
-        notification->set_request_id(-1); // This is an notification, not a response
-        notification->set_result_code(
-            success 
-            ? PSMoveProtocol::Response_ResultCode_RESULT_OK 
-            : PSMoveProtocol::Response_ResultCode_RESULT_ERROR); 
+        // Tell windows to remove the device
+        if (success && BluetoothRemoveDevice(&bt_address) != ERROR_SUCCESS)
+        {
+            SERVER_MT_LOG_ERROR("AsyncBluetoothUnpairDeviceRequest") 
+                << "Controller " << state->getControllerID() 
+                << " failed to remove bluetooth device";
+            success= false;
+        }
 
-        ServerNetworkManager::get_instance()->send_notification(m_connectionId, notification);
+        if (state->getIsCanceled_WorkerThread())
+        {
+            SERVER_MT_LOG_ERROR("AsyncBluetoothUnpairDeviceRequest") 
+                << "Ignoring cancel unpair request for Controller " << state->getControllerID() 
+                << ". Already removed.";
+        }
+
+        if (success)
+        {
+            state->setSubStatus_WorkerThread(BluetoothUnpairDeviceState::success);
+        }
+        else
+        {
+            state->setSubStatus_WorkerThread(BluetoothUnpairDeviceState::failed);
+        }
+    }
+    else
+    {
+        SERVER_MT_LOG_ERROR("AsyncBluetoothUnpairDeviceRequest") << "Canceled from the main thread.";
+        state->setSubStatus_WorkerThread(BluetoothUnpairDeviceState::failed);
     }
 
-    m_status = success ? AsyncBluetoothRequest::succeeded : AsyncBluetoothRequest::failed;
+    return 0;
+}
+
+void 
+AsyncBluetoothUnpairDeviceRequest::update()
+{
+    BluetoothUnpairDeviceState *state= ((BluetoothUnpairDeviceState *)m_internal_state);
+
+    // Check the worker thread to see if the sub-status changed
+    BluetoothUnpairDeviceState::eStatus subStatus;
+    if (state->pollSubStatus_MainThread(subStatus))
+    {
+        // Tell the client about the sub status change
+        send_progress_notification_to_client(
+            m_connectionId, 
+            m_controllerView->getControllerID(), 
+            static_cast<int>(subStatus), 
+            BluetoothUnpairDeviceState::k_total_steps);
+
+        // See if the worker thread has completed it's work
+        if (subStatus == BluetoothUnpairDeviceState::success ||
+            subStatus == BluetoothUnpairDeviceState::failed)
+        {
+            if (subStatus == BluetoothUnpairDeviceState::success)
+            {
+                m_status= AsyncBluetoothRequest::succeeded;
+
+                // Tell the client about the result
+                send_pair_completed_notification_to_client(m_connectionId, PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else if (subStatus == BluetoothUnpairDeviceState::failed)
+            {
+                m_status= AsyncBluetoothRequest::failed;
+
+                // Tell the client about the result
+                send_pair_completed_notification_to_client(
+                    m_connectionId, 
+                    state->getIsCanceled_MainThread() 
+                    ? PSMoveProtocol::Response_ResultCode_RESULT_CANCELED
+                    : PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+
+            // Wait for the thread to exit (it should be done at this point)
+            WaitForSingleObject(state->worker_thread_handle, INFINITE);
+        }
+    }
 }
 
 void 
 AsyncBluetoothUnpairDeviceRequest::cancel(AsyncBluetoothRequest::eCancelReason reason)
 {
-    if (reason != AsyncBluetoothRequest::connectionClosed)
-    {
-        ResponsePtr notification(new PSMoveProtocol::Response);
+    BluetoothUnpairDeviceState *state= ((BluetoothUnpairDeviceState *)m_internal_state);
 
-        notification->set_type(PSMoveProtocol::Response_ResponseType_UNPAIR_REQUEST_COMPLETED);
-        notification->set_request_id(-1); // This is an notification, not a response
-        notification->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_CANCELED); 
-
-        ServerNetworkManager::get_instance()->send_notification(m_connectionId, notification);
-    }
+    state->setIsCanceled_MainThread();
 }
 
 AsyncBluetoothRequest::eStatusCode 
