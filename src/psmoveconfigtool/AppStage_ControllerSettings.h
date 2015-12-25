@@ -34,48 +34,14 @@ protected:
         ClientPSMoveAPI::t_response_handle response_handle, 
         void *userdata);
 
-    void request_controller_unpair(int controllerId);
-    static void handle_controller_unpair_start_response(
-        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, 
-        const ClientPSMoveAPI::t_request_id request_id, 
-        ClientPSMoveAPI::t_response_handle response_handle, 
-        void *userdata);
-    void handle_controller_unpair_end_event(const PSMoveProtocol::Response *event);
-
-    void request_controller_pair(int controllerId);
-    static void handle_controller_pair_start_response(
-        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, 
-        const ClientPSMoveAPI::t_request_id request_id, 
-        ClientPSMoveAPI::t_response_handle response_handle, 
-        void *userdata);
-    void handle_controller_pair_end_event(const PSMoveProtocol::Response *event);
-
-    void handle_bluetooth_request_progress_event(const PSMoveProtocol::Response *event);
-
-    void request_cancel_bluetooth_operation(int controllerID);
-    static void handle_cancel_bluetooth_operation_response(
-        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, 
-        const ClientPSMoveAPI::t_request_id request_id, 
-        ClientPSMoveAPI::t_response_handle response_handle, 
-        void *userdata);
-
 private:
     enum eControllerMenuState
     {
         inactive,
         idle,
-        
+
         pendingControllerListRequest,
         failedControllerListRequest,
-        
-        pendingControllerUnpairRequest,
-        failedControllerUnpairRequest,
-
-        pendingControllerPairRequest,
-        failedControllerPairRequest,
-
-        pendingCancelBluetoothRequest,
-        failedCancelBluetoothRequest
     };
     eControllerMenuState m_menuState;
 
@@ -105,10 +71,6 @@ private:
     std::vector<ControllerInfo> m_unpairedControllerInfos;
 
     int m_selectedControllerIndex;
-    int m_pendingBluetoothOpControllerIndex;
-    
-    int m_pair_steps_completed;
-    int m_pair_steps_total;
 };
 
 #endif // APP_STAGE_SELECT_CONTROLLER_H
