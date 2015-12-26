@@ -3,11 +3,16 @@
 
 //-- includes -----
 #include <memory>
+#include <chrono>
+#include "ControllerEnumerator.h"
 
 //-- constants -----
 static const int k_max_controllers= 5;
 
 //-- typedefs -----
+class ControllerManagerConfig;
+typedef std::shared_ptr<ControllerManagerConfig> ControllerManagerConfigPtr;
+
 class ServerControllerView;
 typedef std::shared_ptr<ServerControllerView> ServerControllerViewPtr;
 
@@ -31,12 +36,20 @@ public:
     bool resetPose(int controller_id);    
 
 private:
-    // private implementation - same lifetime as the ControllerManager
-    class ControllerManagerImpl *m_implementation_ptr;
+    void update_controllers();
+    void update_connected_controllers();
+    void send_controller_list_changed_notification();
+    int find_open_controller_controller_id(const ControllerDeviceEnumerator &enumerator);
+    int find_first_closed_controller_controller_id();
 
     /// Singleton instance of the class
     /// Assigned in startup, cleared in teardown
     static ControllerManager *m_instance;
+    
+    ControllerManagerConfigPtr m_config;
+    ServerControllerViewPtr m_controllers[k_max_controllers];
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_last_reconnect_time;
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_last_poll_time;
 };
 
 #endif  // CONTROLLER_MANAGER_H
