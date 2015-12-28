@@ -6,6 +6,10 @@
 
 // -- pre-declarations -----
 class ControllerManager;
+namespace boost {
+    namespace program_options {
+        class variables_map;
+}};
 
 // -- definitions -----
 class ServerRequestHandler 

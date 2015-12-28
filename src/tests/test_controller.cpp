@@ -12,7 +12,7 @@
 
 int main()
 {
-    log_init();
+    log_init("info");
 
     if (hid_init() == -1)
     {

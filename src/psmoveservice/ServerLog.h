@@ -6,13 +6,6 @@
 #include <boost/log/trivial.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 
-//-- pre-declarations -----
-namespace boost {
-    namespace program_options {
-        class variables_map;
-    }
-}
-
 //-- globals -----
 extern boost::log::sources::severity_logger< boost::log::trivial::severity_level > *g_logger;
 extern boost::log::sources::severity_logger_mt< boost::log::trivial::severity_level > *g_mt_logger;
@@ -38,7 +31,7 @@ extern boost::log::sources::severity_logger_mt< boost::log::trivial::severity_le
 #define SERVER_MT_LOG_FATAL(function_name) BOOST_LOG_SEV(*g_mt_logger, boost::log::trivial::fatal) << function_name << " - "
 
 //-- interface -----
-void log_init(boost::program_options::variables_map *options = nullptr);
+void log_init(const std::string &log_level);
  
 #endif  // SERVER_LOG_H
 

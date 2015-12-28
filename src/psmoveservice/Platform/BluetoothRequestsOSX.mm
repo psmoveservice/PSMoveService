@@ -1,6 +1,7 @@
 // -- includes -----
 #include "BluetoothRequests.h"
 #include "../ControllerManager.h"
+#include "../PSMoveService.h"
 #include "../ServerControllerView.h"
 #include "../ServerNetworkManager.h"
 #include "../ServerLog.h"
@@ -155,11 +156,12 @@ bool macosx_get_btaddr(const bool bEnsurePowered, char *result, size_t max_resul
 bool macosx_bluetooth_set_powered(bool bPowered);
 
 static bool macosx_blued_running();
-static bool macosx_killall_blued();
+static void macosx_killall_blued();
+static bool macosx_run_admin_command(const char *cmd);
 static bool macosx_blued_is_paired(char *btaddr, std::vector<std::string> &other_paired_btaddrs);
 static bool macosx_get_minor_version(int &outMinorVersion);
 static bool macosx_register_bluetooth_address(const char *controllerBTAddr);
-static bool macosx_unregister_all_bluetooth_addresses();
+static void macosx_unregister_all_bluetooth_addresses();
 
 static void send_unpair_completed_notification_to_client(int connectionID, PSMoveProtocol::Response_ResultCode resultCode);
 static void send_pair_completed_notification_to_client(int connectionID, PSMoveProtocol::Response_ResultCode resultCode);
@@ -547,15 +549,8 @@ async_bluetooth_device_operation_worker(void *thread_data)
             if (!bFailure && attempt >= BLUED_CLOSE_MAX_POLL_ATTEMPTS)
             {
                 SERVER_MT_LOG_INFO("async_bluetooth_device_operation_worker") << "blued still running. Attempting manual kill...";
-                if (macosx_killall_blued())
-                {
-                    SERVER_MT_LOG_INFO("async_bluetooth_device_operation_worker") << "blued successfully killed.";
-                }
-                else
-                {
-                    SERVER_MT_LOG_ERROR("async_bluetooth_device_operation_worker") << "blued still running. Aborting...";
-                    bFailure= true;
-                }
+
+                macosx_killall_blued();
             }
 
         }
@@ -577,11 +572,7 @@ async_bluetooth_device_operation_worker(void *thread_data)
                 break;
             case BluetoothDeviceOperationState::removeBluetoothDevice:
                 {
-                    if (!macosx_unregister_all_bluetooth_addresses())
-                    {
-                        SERVER_MT_LOG_ERROR("async_bluetooth_device_operation_worker") << "Could not remove all bluetooth device entries.";
-                        bFailure= true;
-                    }
+                    macosx_unregister_all_bluetooth_addresses();
                     
                     for (size_t entry_index= 0; !bFailure && entry_index < other_bt_addrs.size(); ++entry_index)
                     {
@@ -650,17 +641,51 @@ macosx_blued_running()
 }
 
 static bool
-macosx_killall_blued()
+macosx_run_admin_command(const char *cmd)
 {
+    const PSMoveService::ProgramSettings *settings= PSMoveService::getInstance()->getProgramSettings();
+    char system_cmd[1024];
+    int character_written;
     bool bSuccess= true;
-    
-    if (system("osascript -e 'do shell script \"killall blued\" with administrator privileges'") != 0)
+
+    if (settings->admin_password.length() > 0)
     {
-        SERVER_MT_LOG_ERROR("macosx_killall_blued") << "Failed to kill blued";
+        character_written=
+            snprintf(system_cmd, sizeof(system_cmd),
+                 "osascript -e 'do shell script \"%s\" with administrator privileges password \"%s\"'", cmd, settings->admin_password.c_str());
+    }
+    else
+    {
+        character_written=
+            snprintf(system_cmd, sizeof(system_cmd),
+                 "osascript -e 'do shell script \"%s\" with administrator privileges'", cmd);
+    }
+    
+    if (character_written > 0 && character_written < sizeof(system_cmd))
+    {
+        if (system(system_cmd) != 0)
+        {
+            SERVER_MT_LOG_ERROR("macosx_run_admin_command") << "Failed to run admin cmd: " << cmd;
+            bSuccess= false;
+        }
+    }
+    else
+    {
+        SERVER_MT_LOG_ERROR("macosx_run_admin_command") << "Admin cmd too long: " << cmd;
         bSuccess= false;
     }
     
     return bSuccess;
+}
+
+static void
+macosx_killall_blued()
+{
+   
+    if (!macosx_run_admin_command("killall blued"))
+    {
+        SERVER_MT_LOG_WARNING("macosx_killall_blued") << "Failed to kill blued";
+    }
 }
 
 static bool
@@ -770,15 +795,11 @@ macosx_register_bluetooth_address(
     char cmd[1024];
     bool bSuccess= true;
     
-    snprintf(cmd, sizeof(cmd),
-             "osascript -e 'do shell script "
-             "\"defaults write " OSX_BT_CONFIG_PATH
-             " HIDDevices -array-add \\\"%s\\\"\""
-             " with administrator privileges'", controllerBTAddr);
+    snprintf(cmd, sizeof(cmd), "defaults write " OSX_BT_CONFIG_PATH " HIDDevices -array-add \\\"%s\\\"", controllerBTAddr);
     
     SERVER_MT_LOG_INFO("async_bluetooth_device_operation_worker") << "Running: \'" << cmd << "\'";
     
-    if (system(cmd) != 0)
+    if (!macosx_run_admin_command(cmd))
     {
         SERVER_MT_LOG_ERROR("async_bluetooth_device_operation_worker") << "Could not run the command.";
         bSuccess= false;
@@ -787,26 +808,19 @@ macosx_register_bluetooth_address(
     return bSuccess;
 }
 
-static bool
+static void
 macosx_unregister_all_bluetooth_addresses()
 {
     char cmd[1024];
-    bool bSuccess= true;
     
-    snprintf(cmd, sizeof(cmd),
-             "osascript -e 'do shell script "
-             "\"defaults delete " OSX_BT_CONFIG_PATH
-             " HIDDevices\" with administrator privileges'");
+    snprintf(cmd, sizeof(cmd), "defaults delete " OSX_BT_CONFIG_PATH " HIDDevices");
     
     SERVER_MT_LOG_INFO("async_bluetooth_device_operation_worker") << "Running: \'" << cmd << "\'";
     
-    if (system(cmd) != 0)
+    if (!macosx_run_admin_command(cmd))
     {
-        SERVER_MT_LOG_ERROR("async_bluetooth_device_operation_worker") << "Could not run the command.";
-        bSuccess= false;
+        SERVER_MT_LOG_WARNING("async_bluetooth_device_operation_worker") << "Could not delete the HIDDevices entry (already deleted?).";
     }
-    
-    return bSuccess;
 }
 
 //-- network notification helper methods ----

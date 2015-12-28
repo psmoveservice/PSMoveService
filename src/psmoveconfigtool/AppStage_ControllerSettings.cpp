@@ -248,6 +248,11 @@ bool AppStage_ControllerSettings::onClientAPIEvent(
             bHandled= true;
             m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
         } break;
+    case ClientPSMoveAPI::controllerListUpdated:
+        {
+            bHandled= true;
+            request_controller_list();
+        } break;
     }
 
     return bHandled;
