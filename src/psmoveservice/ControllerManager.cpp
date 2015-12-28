@@ -200,7 +200,6 @@ protected:
         // See if any controllers shuffled order OR if any new controllers were attached.
         // Migrate open controllers to a new temp list in the order
         // that they appear in the device enumerator.
-        int new_controller_id = 0;
         for (ControllerDeviceEnumerator enumerator; enumerator.is_valid(); enumerator.next())
         {
             // Find controller index for the controller with the matching device path
@@ -212,19 +211,8 @@ protected:
                 // Fetch the controller from it's existing controller slot
                 ServerControllerViewPtr existingController= m_controllers[controller_id];
 
-                // See if an open controller changed order
-                if (new_controller_id != controller_id)
-                {
-                    // Update the controller_id on the controller
-                    existingController->setControllerID(static_cast<int>(new_controller_id));
-                    
-                    SERVER_LOG_INFO("ControllerManagerImpl::reconnect_controllers") << 
-                        "Controller controller_id " << controller_id << " moved to controller_id " << new_controller_id;                                            
-                    bSendControllerUpdatedNotification= true;
-                }
-
-                // Move it to the new slot
-                temp_controllers_list[new_controller_id]= existingController;
+                // Move it to the same slot in the temp list
+                temp_controllers_list[controller_id]= existingController;
 
                 // Remove it from the previous list
                 m_controllers[controller_id]= ServerControllerViewPtr();
@@ -239,9 +227,9 @@ protected:
                     // Fetch the controller from it's existing controller slot
                     ServerControllerViewPtr existingController= m_controllers[controller_id];
 
-                    // Move it to the new slot
-                    existingController->setControllerID(static_cast<int>(new_controller_id));
-                    temp_controllers_list[new_controller_id]= existingController;
+                    // Move it to the available slot
+                    existingController->setControllerID(static_cast<int>(controller_id));
+                    temp_controllers_list[controller_id]= existingController;
 
                     // Remove it from the previous list
                     m_controllers[controller_id]= ServerControllerViewPtr();
@@ -260,8 +248,6 @@ protected:
                     break;
                 }
             }
-
-            ++new_controller_id;
         }
 
         // Step 2
@@ -285,10 +271,8 @@ protected:
                     bSendControllerUpdatedNotification= true;
                 }
 
-                // Move it to the new slot
-                existingController->setControllerID(static_cast<int>(new_controller_id));
-                temp_controllers_list[new_controller_id]= existingController;
-                ++new_controller_id;
+                // Move it to the temp slot
+                temp_controllers_list[existing_controller_id]= existingController;
 
                 // Remove it from the previous list
                 m_controllers[existing_controller_id]= ServerControllerViewPtr();
