@@ -4,7 +4,7 @@
 #include "PSMoveService.h"
 #include "ServerNetworkManager.h"
 #include "ServerRequestHandler.h"
-#include "ControllerManager.h"
+#include "DeviceManager.h"
 #include "ServerLog.h"
 
 #include <boost/asio.hpp>
@@ -37,8 +37,8 @@ public:
     PSMoveServiceImpl()
         : m_io_service()
         , m_signals(m_io_service)
-        , m_controller_manager()
-        , m_request_handler(&m_controller_manager)
+        , m_device_manager()
+        , m_request_handler(&m_device_manager)
         , m_network_manager(&m_io_service, PSMOVE_SERVER_PORT, &m_request_handler)
         , m_status()
     {
@@ -148,7 +148,7 @@ private:
         /** Setup the controller manager */
         if (success)
         {
-            if (!m_controller_manager.startup())
+            if (!m_device_manager.startup())
             {
                 SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the controller manager";
                 success= false;
@@ -178,7 +178,7 @@ private:
          Update the list of active tracked controllers
          Send controller updates to the client
          */
-        m_controller_manager.update();
+        m_device_manager.update();
 
         /** Process incoming/outgoing networking requests */
         m_network_manager.update();
@@ -190,7 +190,7 @@ private:
         m_request_handler.shutdown();
 
         // Disconnect any actively connected controllers
-        m_controller_manager.shutdown();
+        m_device_manager.shutdown();
 
         // Close all active network connections
         m_network_manager.shutdown();
@@ -210,8 +210,8 @@ private:
     // The signal_set is used to register for process termination notifications.
     boost::asio::signal_set m_signals;
 
-    // Keep track of currently connected PSMove controllers
-    ControllerManager m_controller_manager;
+    // Keep track of currently connected devices (PSMove controllers, cameras, HMDs)
+    DeviceManager m_device_manager;
 
     // Generates responses from incoming requests sent to the network manager
     ServerRequestHandler m_request_handler;

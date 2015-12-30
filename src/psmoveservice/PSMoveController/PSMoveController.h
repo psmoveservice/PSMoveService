@@ -3,8 +3,8 @@
 
 #include "PSMoveDataFrame.h"
 #include "PSMoveConfig.h"
-#include "../ControllerEnumerator.h"
-#include "../ControllerInterface.h"
+#include "../DeviceEnumerator.h"
+#include "../DeviceInterface.h"
 #include "hidapi.h"
 #include <string>
 #include <vector>
@@ -108,20 +108,21 @@ public:
     bool setRumbleIntensity(unsigned char value);
 
     // IControllerInterface
-    virtual bool matchesDeviceEnumerator(const ControllerDeviceEnumerator *enumerator) const override;
-    virtual bool open(const ControllerDeviceEnumerator *enumerator) override;
-    virtual IControllerInterface::ePollResult poll() override;
+    virtual bool matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const override;
+    virtual bool open(const DeviceEnumerator *enumerator) override;
+    virtual IDeviceInterface::ePollResult poll() override;
     virtual void close() override;
     virtual bool setHostBluetoothAddress(const std::string &address) override;
 
     // -- Getters
     virtual bool getIsBluetooth() const override;
+    virtual bool getIsReadyToPoll() const override;
     virtual std::string getUSBDevicePath() const override;
     virtual std::string getSerial() const override;
     virtual std::string getHostBluetoothAddress() const override;
     virtual bool getIsOpen() const override;
-    virtual CommonControllerState::eControllerDeviceType getControllerDeviceType() const override;
-    virtual void getState(CommonControllerState *out_state, int lookBack = 0) const override;
+    virtual CommonDeviceState::eDeviceType getDeviceType() const override;
+    virtual void getState(CommonDeviceState *out_state, int lookBack = 0) const override;
     virtual long getDataTimeout() const override;
 
 private:    

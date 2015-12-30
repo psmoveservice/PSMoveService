@@ -2,10 +2,10 @@
 #include "ServerRequestHandler.h"
 
 #include "BluetoothRequests.h"
-#include "ControllerManager.h"
-#include "ControllerEnumerator.h"
+#include "DeviceManager.h"
+#include "DeviceEnumerator.h"
 #include "ServerNetworkManager.h"
-#include "ServerControllerView.h"
+#include "ServerDeviceView.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerLog.h"
 #include <cassert>
@@ -21,7 +21,7 @@ typedef boost::shared_ptr<ServerRequestHandlerImpl> ServerRequestHandlerImplPtr;
 struct RequestConnectionState
 {
     int connection_id;
-    std::bitset<k_max_controllers> active_controller_streams;
+    std::bitset<ControllerManager::k_max_devices> active_controller_streams;
     AsyncBluetoothRequest *pending_bluetooth_request;
 
     RequestConnectionState()
@@ -47,8 +47,8 @@ struct RequestContext
 class ServerRequestHandlerImpl
 {
 public:
-    ServerRequestHandlerImpl(ControllerManager &controllerManager) 
-        : m_controller_manager(controllerManager)
+    ServerRequestHandlerImpl(DeviceManager &deviceManager)
+        : m_device_manager(deviceManager)
         , m_connection_state_map()
     {
     }
@@ -240,9 +240,9 @@ protected:
     {
         PSMoveProtocol::Response_ResultControllerList* list= response->mutable_result_controller_list();
 
-        for (int controller_id= 0; controller_id < k_max_controllers; ++controller_id)
+        for (int controller_id= 0; controller_id < m_device_manager.m_controller_manager.getMaxDevices(); ++controller_id)
         {
-            ServerControllerViewPtr controller_view= m_controller_manager.getControllerView(controller_id);
+            ServerControllerViewPtr controller_view= m_device_manager.m_controller_manager.getControllerViewPtr(controller_id);
 
             if (controller_view->getIsOpen())
             {
@@ -280,7 +280,7 @@ protected:
     {
         int controller_id= context.request->request_start_psmove_data_stream().controller_id();
 
-        if (controller_id >= 0 && controller_id < k_max_controllers)
+        if (controller_id >= 0 && controller_id < m_device_manager.m_controller_manager.getMaxDevices())
         {
             // The controller manager will always publish updates regardless of who is listening.
             // All we have to do is keep track of which connections care about the updates.
@@ -300,7 +300,7 @@ protected:
     {
         int controller_id= context.request->request_start_psmove_data_stream().controller_id();
 
-        if (controller_id >= 0 && controller_id < k_max_controllers)
+        if (controller_id >= 0 && controller_id < m_device_manager.m_controller_manager.getMaxDevices())
         {
             context.connection_state->active_controller_streams.set(controller_id, false);
 
@@ -319,7 +319,7 @@ protected:
         const int controller_id= context.request->request_rumble().controller_id();
         const int rumble_amount= context.request->request_rumble().rumble();
 
-        if (m_controller_manager.setControllerRumble(controller_id, rumble_amount))
+        if (m_device_manager.m_controller_manager.setControllerRumble(controller_id, rumble_amount))
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -335,7 +335,7 @@ protected:
     {
         const int controller_id= context.request->reset_pose().controller_id();
 
-        if (m_controller_manager.resetPose(controller_id))
+        if (m_device_manager.m_controller_manager.resetPose(controller_id))
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -354,7 +354,7 @@ protected:
 
         if (context.connection_state->pending_bluetooth_request == nullptr)
         {
-            ServerControllerViewPtr controllerView= m_controller_manager.getControllerView(controller_id);
+            ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
             context.connection_state->pending_bluetooth_request = 
                 new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
@@ -400,7 +400,7 @@ protected:
 
         if (context.connection_state->pending_bluetooth_request == nullptr)
         {
-            ServerControllerViewPtr controllerView= m_controller_manager.getControllerView(controller_id);
+            ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
             context.connection_state->pending_bluetooth_request = 
                 new AsyncBluetoothPairDeviceRequest(connection_id, controllerView);
@@ -446,7 +446,7 @@ protected:
 
         if (context.connection_state->pending_bluetooth_request != nullptr)
         {
-            ServerControllerViewPtr controllerView= m_controller_manager.getControllerView(controller_id);
+            ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
             SERVER_LOG_INFO("ServerRequestHandler") 
                 << "Async bluetooth request(" 
@@ -466,15 +466,15 @@ protected:
     }
 
 private:
-    ControllerManager &m_controller_manager;
+    DeviceManager &m_device_manager;
     t_connection_state_map m_connection_state_map;
 };
 
 //-- public interface -----
 ServerRequestHandler *ServerRequestHandler::m_instance = NULL;
 
-ServerRequestHandler::ServerRequestHandler(ControllerManager *controllerManager)
-    : m_implementation_ptr(new ServerRequestHandlerImpl(*controllerManager))
+ServerRequestHandler::ServerRequestHandler(DeviceManager *deviceManager)
+    : m_implementation_ptr(new ServerRequestHandlerImpl(*deviceManager))
 {
 
 }

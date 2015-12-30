@@ -1,28 +1,52 @@
-#ifndef SERVER_CONTROLLER_VIEW_H
-#define SERVER_CONTROLLER_VIEW_H
+#ifndef SERVER_DEVICE_VIEW_H
+#define SERVER_DEVICE_VIEW_H
 
 //-- includes -----
-#include "ControllerInterface.h"
+#include "DeviceInterface.h"
 #include "PSMoveDataFrame.h"
 
 // -- declarations -----
-class ServerControllerView
+class ServerDeviceView
 {
+    
 public:
-    ServerControllerView(const int controller_id);
-    virtual ~ServerControllerView();
-
-    bool matchesDeviceEnumerator(const class ControllerDeviceEnumerator *enumerator) const;
-    bool open(const class ControllerDeviceEnumerator *enumerator);
+    ServerDeviceView(const int device_id);
+    virtual ~ServerDeviceView();
+    
+    bool open(const class DeviceEnumerator *enumerator);
     bool update();
     void close();
+    bool matchesDeviceEnumerator(const class DeviceEnumerator *enumerator) const;
+    
+    // getters
+    inline int getDeviceID() const
+    { return m_deviceID; }
+    
+    // Returns true if device opened successfully
+    bool getIsOpen() const;
+    
+    // setters
+    inline void setDeviceID(int id)
+    { m_deviceID= id; }
+    
+protected:
+    virtual void publish_device_data_frame() =0;
+    
+    long long m_last_updated_tick;
+    IDeviceInterface *m_device;
+    int m_sequence_number;
+    
+private:
+    int m_deviceID;
+};
+
+class ServerControllerView : public ServerDeviceView
+{
+public:
+    ServerControllerView(const int device_id);
 
     // Registers the address of the bluetooth adapter on the host PC with the controller
     bool setHostBluetoothAddress(const std::string &address);
-
-    // getters
-    inline int getControllerID() const 
-    { return m_controllerID; }
 
     // Estimate the given pose if the controller
     // Positive time values estimate into the future
@@ -41,31 +65,21 @@ public:
     // Gets the host bluetooth address registered with the 
     std::string getHostBluetoothAddress() const;
 
-    // Returns true if hidapi opened successfully
-    bool getIsOpen() const;
-
     // Returns what type of controller this controller view represents
-    CommonControllerState::eControllerDeviceType getControllerDeviceType() const;
+    CommonDeviceState::eDeviceType getControllerDeviceType() const;
 
     // Fetch the controller state at the given sample index.
     // A lookBack of 0 corresponds to the most recent data.
     void getState(struct CommonControllerState *out_state, int lookBack = 0) const;
 
-    // setters
-    inline void setControllerID(int id)
-    { m_controllerID= id; }
-
     // Set the rumble value between 0-255
     bool setControllerRumble(int rumble_amount);
 
 protected:
-    void publish_controller_data_frame();
+    void publish_device_data_frame() override;
 
 private:
-    int m_controllerID;
-    int m_sequence_number;
-    long long m_last_updated_tick;
-    IControllerInterface *m_controller;
+    IControllerInterface *m_device;
 };
 
-#endif // SERVER_CONTROLLER_VIEW_H
+#endif // SERVER_DEVICE_VIEW_H

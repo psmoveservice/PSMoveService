@@ -1,10 +1,10 @@
 //-- includes -----
-#include "ServerControllerView.h"
+#include "ServerDeviceView.h"
 
 #include "BluetoothRequests.h"
 #include "ServerLog.h"
 #include "ServerRequestHandler.h"
-#include "ControllerInterface.h"
+#include "DeviceInterface.h"
 #include "PSMoveController/PSMoveController.h"
 #include "PSNaviController/PSNaviController.h"
 #include "PSMoveProtocolInterface.h"
@@ -18,106 +18,123 @@
     bitmask|= (button_state == CommonControllerState::Button_DOWN || button_state == CommonControllerState::Button_PRESSED) ? (0x1 << (bit_index)) : 0x0;
 
 //-- public implementation -----
-ServerControllerView::ServerControllerView(
-    const int controller_id)
-    : m_controllerID(controller_id)
+ServerDeviceView::ServerDeviceView(
+    const int device_id)
+    : m_last_updated_tick(0)
+    , m_device(nullptr)
     , m_sequence_number(0)
-    , m_last_updated_tick(0)
-    , m_controller(nullptr)
+    , m_deviceID(device_id)
 {
-    m_controllerID= controller_id;
-    m_controller = new PSMoveController();
 }
 
-ServerControllerView::~ServerControllerView()
+ServerDeviceView::~ServerDeviceView()
 {
-    delete m_controller;
+    delete m_device;  // Deleting abstract object should be OK because
+                      // this (ServerDeviceView) is abstract as well.
+                      // All non-abstract children will have non-abstract types
+                      // for m_device.
 }
 
-bool ServerControllerView::matchesDeviceEnumerator(
-    const ControllerDeviceEnumerator *enumerator) const
+bool
+ServerDeviceView::open(const DeviceEnumerator *enumerator)
 {
-    return m_controller->matchesDeviceEnumerator(enumerator);
-}
-
-bool ServerControllerView::open(
-    const ControllerDeviceEnumerator *enumerator)
-{
-    bool bSuccess= m_controller->open(enumerator);
-
+    bool bSuccess= m_device->open(enumerator);
+    
     if (bSuccess)
     {
         // Consider a successful opening as an update
-        m_last_updated_tick= 
-            std::chrono::duration_cast< std::chrono::milliseconds >(
-                    std::chrono::system_clock::now().time_since_epoch()).count();
+        m_last_updated_tick=
+        std::chrono::duration_cast< std::chrono::milliseconds >(
+                                                                std::chrono::system_clock::now().time_since_epoch()).count();
     }
-
     return bSuccess;
 }
 
-void ServerControllerView::close()
+bool
+ServerDeviceView::getIsOpen() const
 {
-    m_controller->close();
+    return m_device->getIsOpen();
+}
+
+bool ServerDeviceView::update()
+{
+    bool bSuccessfullyUpdated= true;
+    
+    // Only poll data from open, bluetooth controllers
+    if (m_device->getIsReadyToPoll())
+    {
+        switch (m_device->poll())
+        {
+            case IControllerInterface::_PollResultSuccessNoData:
+            {
+                long long now =
+                std::chrono::duration_cast< std::chrono::milliseconds >(
+                                                                        std::chrono::system_clock::now().time_since_epoch()).count();
+                long diff= static_cast<long>(now - m_last_updated_tick);
+                long max_timeout= m_device->getDataTimeout();
+                
+                if (diff > max_timeout)
+                {
+                    SERVER_LOG_INFO("ServerControllerView::poll_open_controllers") <<
+                    "Controller id " << getDeviceID() << " closing due to no data timeout (" << max_timeout << "ms)";
+                    m_device->close();
+                    
+                    bSuccessfullyUpdated= false;
+                }
+            }
+                break;
+                
+            case IControllerInterface::_PollResultSuccessNewData:
+            {
+                m_last_updated_tick=
+                std::chrono::duration_cast< std::chrono::milliseconds >(
+                                                                        std::chrono::system_clock::now().time_since_epoch()).count();
+                publish_device_data_frame();
+                
+                bSuccessfullyUpdated= true;
+            }
+                break;
+                
+            case IControllerInterface::_PollResultFailure:
+            {
+                SERVER_LOG_INFO("ServerControllerView::poll_open_controllers") <<
+                "Controller id " << getDeviceID() << " closing due to failed read";
+                m_device->close();
+                
+                bSuccessfullyUpdated= false;
+            }
+                break;
+        }
+    }
+    
+    return bSuccessfullyUpdated;
+}
+
+void
+ServerDeviceView::close()
+{
+    m_device->close();
+}
+
+bool
+ServerDeviceView::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
+{
+    return m_device->matchesDeviceEnumerator(enumerator);
+}
+
+
+// Controller
+
+ServerControllerView::ServerControllerView(const int device_id)
+: ServerDeviceView(device_id)
+{
+    m_device = new PSMoveController();
 }
 
 bool ServerControllerView::setHostBluetoothAddress(
     const std::string &address)
 {
-    return m_controller->setHostBluetoothAddress(address);
-}
-
-bool ServerControllerView::update()
-{
-    bool bSuccessfullyUpdated= true;
-
-    // Only poll data from open, bluetooth controllers
-    if (m_controller->getIsOpen() && m_controller->getIsBluetooth())
-    {
-        switch (m_controller->poll())
-        {
-        case IControllerInterface::_PollResultSuccessNoData:
-            {
-                long long now = 
-                    std::chrono::duration_cast< std::chrono::milliseconds >(
-                        std::chrono::system_clock::now().time_since_epoch()).count();
-                long diff= static_cast<long>(now - m_last_updated_tick);
-                long max_timeout= m_controller->getDataTimeout();
-
-                if (diff > max_timeout)
-                {
-                    SERVER_LOG_INFO("ServerControllerView::poll_open_controllers") << 
-                        "Controller id " << m_controllerID << " closing due to no data timeout (" << max_timeout << "ms)";
-                    m_controller->close();
-
-                    bSuccessfullyUpdated= false;
-                }
-            }
-            break;
-        case IControllerInterface::_PollResultSuccessNewData:
-            {
-                m_last_updated_tick= 
-                    std::chrono::duration_cast< std::chrono::milliseconds >(
-                            std::chrono::system_clock::now().time_since_epoch()).count();
-
-                publish_controller_data_frame();
-
-                bSuccessfullyUpdated= true;
-            }
-            break;
-        case IControllerInterface::_PollResultFailure:
-            {
-                SERVER_LOG_INFO("ServerControllerView::poll_open_controllers") << 
-                    "Controller id " << m_controllerID << " closing due to failed read";
-                m_controller->close();
-
-                bSuccessfullyUpdated= false;
-            }
-            break;
-        }                
-    }
-
-    return bSuccessfullyUpdated;
+    return m_device->setHostBluetoothAddress(address);
 }
 
 psmovePosef
@@ -132,39 +149,33 @@ ServerControllerView::getPose(int msec_time) const
 bool 
 ServerControllerView::getIsBluetooth() const
 {
-    return m_controller->getIsBluetooth();
+    return m_device->getIsBluetooth();
 }
 
 // Returns the full usb device path for the controller
 std::string 
 ServerControllerView::getUSBDevicePath() const
 {
-    return m_controller->getUSBDevicePath();
+    return m_device->getUSBDevicePath();
 }
 
 // Returns the serial number for the controller
 std::string 
 ServerControllerView::getSerial() const
 {
-    return m_controller->getSerial();
+    return m_device->getSerial();
 }
 
 std::string 
 ServerControllerView::getHostBluetoothAddress() const
 {
-    return m_controller->getHostBluetoothAddress();
+    return m_device->getHostBluetoothAddress();
 }
 
-bool 
-ServerControllerView::getIsOpen() const
-{
-    return m_controller->getIsOpen();
-}
-
-CommonControllerState::eControllerDeviceType 
+CommonDeviceState::eDeviceType
 ServerControllerView::getControllerDeviceType() const
 {
-    return m_controller->getControllerDeviceType();
+    return m_device->getDeviceType();
 }
 
 // Fetch the controller state at the given sample index.
@@ -172,7 +183,7 @@ ServerControllerView::getControllerDeviceType() const
 void ServerControllerView::getState(
     struct CommonControllerState *out_state, int lookBack) const
 {
-    m_controller->getState(out_state, lookBack);
+    m_device->getState(out_state, lookBack);
 }
 
 // Set the rumble value between 0-255
@@ -184,13 +195,13 @@ bool ServerControllerView::setControllerRumble(int rumble_amount)
     {
         switch(getControllerDeviceType())
         {
-            case CommonControllerState::PSMove:
+            case CommonDeviceState::PSMove:
             {
                 unsigned char rumble_byte= ServerUtility::int32_to_int8_verify(rumble_amount);
-                static_cast<PSMoveController *>(m_controller)->setRumbleIntensity(rumble_byte);
+                static_cast<PSMoveController *>(m_device)->setRumbleIntensity(rumble_byte);
             } break;
 
-            case CommonControllerState::PSNavi:
+            case CommonDeviceState::PSNavi:
             {
                 result= false; // No rumble on the navi
             } break;
@@ -203,18 +214,17 @@ bool ServerControllerView::setControllerRumble(int rumble_amount)
     return result;
 }
 
-// -- private methods -----
-void ServerControllerView::publish_controller_data_frame()
+void ServerControllerView::publish_device_data_frame()
 {
     psmovePosef controller_pose= getPose();    
 
     ControllerDataFramePtr data_frame(new PSMoveProtocol::ControllerDataFrame);
 
-    data_frame->set_controller_id(getControllerID());
+    data_frame->set_controller_id(getDeviceID());
     data_frame->set_sequence_num(m_sequence_number);
     m_sequence_number++;
     
-    data_frame->set_isconnected(m_controller->getIsOpen());
+    data_frame->set_isconnected(m_device->getIsOpen());
 
     switch (getControllerDeviceType())
     {
@@ -223,7 +233,7 @@ void ServerControllerView::publish_controller_data_frame()
             PSMoveControllerState psmove_state;
             PSMoveProtocol::ControllerDataFrame_PSMoveState *psmove_data_frame= data_frame->mutable_psmove_state();
 
-            m_controller->getState(&psmove_state);
+            m_device->getState(&psmove_state);
 
             //###bwalker $TODO - Publish real tracking status
             psmove_data_frame->set_iscurrentlytracking(false);
@@ -258,7 +268,7 @@ void ServerControllerView::publish_controller_data_frame()
             PSNaviControllerState psnavi_state;
             PSMoveProtocol::ControllerDataFrame_PSNaviState *psnavi_data_frame= data_frame->mutable_psnavi_state();
 
-            m_controller->getState(&psnavi_state);
+            m_device->getState(&psnavi_state);
 
             psnavi_data_frame->set_trigger_value(psnavi_state.Trigger);
             psnavi_data_frame->set_stick_xaxis(psnavi_state.Stick_XAxis);

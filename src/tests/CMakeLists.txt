@@ -207,8 +207,8 @@ list(APPEND TEST_CTRLR_SRC
     ${ROOT_DIR}/src/psmoveservice/ServerLog.cpp
     ${ROOT_DIR}/src/psmoveservice/ServerUtility.h
     ${ROOT_DIR}/src/psmoveservice/ServerUtility.cpp
-    ${ROOT_DIR}/src/psmoveservice/ControllerEnumerator.h
-    ${ROOT_DIR}/src/psmoveservice/ControllerEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/DeviceEnumerator.h
+    ${ROOT_DIR}/src/psmoveservice/DeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp

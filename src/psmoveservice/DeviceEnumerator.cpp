@@ -1,5 +1,5 @@
 // -- includes -----
-#include "ControllerEnumerator.h"
+#include "DeviceEnumerator.h"
 #include "ServerUtility.h"
 #include "assert.h"
 #include "hidapi.h"
@@ -17,33 +17,40 @@ struct USBDeviceInfo
 };
 
 // -- globals -----
-USBDeviceInfo g_supported_controller_infos[CommonControllerState::SUPPORTED_CONTROLLER_TYPE_COUNT] = {
+USBDeviceInfo g_supported_controller_infos[CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT & 0x0f] = {
     {0x054c, 0x03d5}, // PSMove
-    //{0x054c, 0x042F}, // PSNavi
+    {0x054c, 0x042F}, // PSNavi
     //{0x054c, 0x0268}, // PSDualShock3
 };
 
+DeviceEnumerator::DeviceEnumerator(CommonDeviceState::eDeviceType deviceType)
+: m_deviceType(deviceType)
+{
+    assert(m_deviceType >= 0 && m_deviceType < (CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT & 0x0f));
+}
+
+DeviceEnumerator::~DeviceEnumerator()
+{
+    
+}
+
 // -- public interface -----
 ControllerDeviceEnumerator::ControllerDeviceEnumerator() 
-    : devs(nullptr)
+    : DeviceEnumerator(CommonDeviceState::PSMove)
+    , devs(nullptr)
     , cur_dev(nullptr)
-    , m_deviceType(CommonControllerState::PSMove)
 {
     USBDeviceInfo &dev_info= g_supported_controller_infos[m_deviceType];
-
     devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
     cur_dev = devs;
 }
 
-ControllerDeviceEnumerator::ControllerDeviceEnumerator(
-    CommonControllerState::eControllerDeviceType deviceType)
-    : devs(nullptr)
+ControllerDeviceEnumerator::ControllerDeviceEnumerator(CommonDeviceState::eDeviceType deviceType)
+    : DeviceEnumerator(deviceType)
+    , devs(nullptr)
     , cur_dev(nullptr)
-    , m_deviceType(deviceType)
 {
-    assert(m_deviceType >= 0 && m_deviceType < CommonControllerState::SUPPORTED_CONTROLLER_TYPE_COUNT);
     USBDeviceInfo &dev_info= g_supported_controller_infos[m_deviceType];
-
     devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
     cur_dev = devs;
 }
@@ -101,10 +108,11 @@ bool ControllerDeviceEnumerator::next()
 
         // If there are more device types to scan
         // move on to the next vid/pid device enumeration
-        if (cur_dev == nullptr && 
-            (m_deviceType + 1) < CommonControllerState::SUPPORTED_CONTROLLER_TYPE_COUNT)
+        if (cur_dev == nullptr &&
+            ((m_deviceType + 1) & 0xf0) == CommonDeviceState::Controller &&
+            (m_deviceType + 1) < CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT)
         {
-            m_deviceType= static_cast<CommonControllerState::eControllerDeviceType>(m_deviceType + 1);
+            m_deviceType= static_cast<CommonDeviceState::eDeviceType>(m_deviceType + 1);
             USBDeviceInfo &dev_info= g_supported_controller_infos[m_deviceType];
 
             // Free any previous enumeration

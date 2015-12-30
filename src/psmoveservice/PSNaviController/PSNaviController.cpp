@@ -126,9 +126,11 @@ bool PSNaviController::open()
 }
 
 bool PSNaviController::open(
-    const ControllerDeviceEnumerator *enumerator)
+    const DeviceEnumerator *enumerator)
 {
-    const char *cur_dev_path= enumerator->get_path();
+    const ControllerDeviceEnumerator *pEnum = static_cast<const ControllerDeviceEnumerator *>(enumerator);
+    
+    const char *cur_dev_path= pEnum->get_path();
     bool success= false;
 
     if (getIsOpen())
@@ -142,7 +144,7 @@ bool PSNaviController::open(
 
         SERVER_LOG_INFO("PSNaviController::open") << "Opening PSNaviController(" << cur_dev_path << ")";
 
-        if (enumerator->get_serial_number(cur_dev_serial_number, sizeof(cur_dev_serial_number)))
+        if (pEnum->get_serial_number(cur_dev_serial_number, sizeof(cur_dev_serial_number)))
         {
             SERVER_LOG_INFO("PSNaviController::open") << "  with serial_number: " << cur_dev_serial_number;
         }
@@ -296,13 +298,14 @@ PSNaviController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
 
 // Getters
 bool 
-PSNaviController::matchesDeviceEnumerator(const ControllerDeviceEnumerator *enumerator) const
+PSNaviController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
 {
+    const ControllerDeviceEnumerator *pEnum = static_cast<const ControllerDeviceEnumerator *>(enumerator);
     bool matches= false;
 
-    if (enumerator->get_device_type() == CommonControllerState::PSNavi)
+    if (pEnum->get_device_type() == CommonControllerState::PSNavi)
     {
-        const char *enumerator_path= enumerator->get_path();
+        const char *enumerator_path= pEnum->get_path();
         const char *dev_path= HIDDetails.Device_path.c_str();
 
     #ifdef _WIN32
@@ -345,8 +348,8 @@ PSNaviController::getIsOpen() const
     return (HIDDetails.Handle != nullptr);
 }
 
-CommonControllerState::eControllerDeviceType 
-PSNaviController::getControllerDeviceType() const
+CommonDeviceState::eDeviceType
+PSNaviController::getDeviceType() const
 {
     return CommonControllerState::PSNavi;
 }
@@ -500,7 +503,7 @@ PSNaviController::poll()
 
 void
 PSNaviController::getState(
-    CommonControllerState *out_state,
+    CommonDeviceState *out_state,
     int lookBack) const
 {
     assert(out_state->DeviceType == CommonControllerState::PSNavi);
