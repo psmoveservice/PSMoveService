@@ -1,5 +1,6 @@
 //-- includes -----
 #include "ServerLog.h"
+#include "PSMoveService.h"
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks/text_file_backend.hpp>
 #include <boost/log/utility/setup/console.hpp>
@@ -14,8 +15,11 @@
 boost::log::sources::severity_logger< boost::log::trivial::severity_level > logger;
 boost::log::sources::severity_logger< boost::log::trivial::severity_level > *g_logger= &logger;
 
+boost::log::sources::severity_logger_mt< boost::log::trivial::severity_level > mt_logger;
+boost::log::sources::severity_logger_mt< boost::log::trivial::severity_level > *g_mt_logger= &mt_logger;
+
 //-- public implementation -----
-void log_init(boost::program_options::variables_map *options)
+void log_init(const std::string &log_level)
 {
     std::setlocale(LC_ALL, "en_US.utf8");
 
@@ -37,34 +41,29 @@ void log_init(boost::program_options::variables_map *options)
 
     boost::log::trivial::severity_level sev_level= boost::log::trivial::info;
 
-    if (options != nullptr && options->count("log_level"))
+    if (log_level == "trace")
     {
-        std::string log_level= (*options)["log_level"].as<std::string>();
-
-        if (log_level == "trace")
-        {
-            sev_level= boost::log::trivial::trace;
-        }
-        else if (log_level == "debug")
-        {
-            sev_level= boost::log::trivial::debug;
-        }
-        else if (log_level == "info")
-        {
-            sev_level= boost::log::trivial::info;
-        }
-        else if (log_level == "warning")
-        {
-            sev_level= boost::log::trivial::warning;
-        }
-        else if (log_level == "error")
-        {
-            sev_level= boost::log::trivial::error;
-        }
-        else if (log_level == "fatal")
-        {
-            sev_level= boost::log::trivial::fatal;
-        }
+        sev_level= boost::log::trivial::trace;
+    }
+    else if (log_level == "debug")
+    {
+        sev_level= boost::log::trivial::debug;
+    }
+    else if (log_level == "info")
+    {
+        sev_level= boost::log::trivial::info;
+    }
+    else if (log_level == "warning")
+    {
+        sev_level= boost::log::trivial::warning;
+    }
+    else if (log_level == "error")
+    {
+        sev_level= boost::log::trivial::error;
+    }
+    else if (log_level == "fatal")
+    {
+        sev_level= boost::log::trivial::fatal;
     }
 
     boost::log::core::get()->set_filter

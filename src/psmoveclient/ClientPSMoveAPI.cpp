@@ -126,19 +126,7 @@ public:
         }
     }
 
-    void fetch_controller_list(
-        ClientPSMoveAPI::t_response_callback callback, void *userdata)
-    {
-        CLIENT_LOG_INFO("fetch_controller_list") << "requesting controller list " << std::endl;
-
-        // Tell the psmove service that we we want a list of controllers connected to this machine
-        RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST);
-
-        m_request_manager.send_request(request, callback, userdata);
-    }
-
-    void start_controller_data_stream(
+    ClientPSMoveAPI::t_request_id start_controller_data_stream(
         ClientControllerView * view, ClientPSMoveAPI::t_response_callback callback, void *userdata)
     {
         CLIENT_LOG_INFO("start_controller_data_stream") << "requesting controller stream start for PSMoveID: " << view->GetControllerID() << std::endl;
@@ -149,9 +137,11 @@ public:
         request->mutable_request_start_psmove_data_stream()->set_controller_id(view->GetControllerID());
 
         m_request_manager.send_request(request, callback, userdata);
+
+        return request->request_id();
     }
 
-    void stop_controller_data_stream(
+    ClientPSMoveAPI::t_request_id stop_controller_data_stream(
         ClientControllerView * view, ClientPSMoveAPI::t_response_callback callback, void *userdata)
     {
         CLIENT_LOG_INFO("stop_controller_data_stream") << "requesting controller stream stop for PSMoveID: " << view->GetControllerID() << std::endl;
@@ -162,9 +152,11 @@ public:
         request->mutable_request_stop_psmove_data_stream()->set_controller_id(view->GetControllerID());
 
         m_request_manager.send_request(request, callback, userdata);
+
+        return request->request_id();
     }
 
-    void set_controller_rumble(
+    ClientPSMoveAPI::t_request_id set_controller_rumble(
         ClientControllerView * view, float rumble_amount, ClientPSMoveAPI::t_response_callback callback, void *userdata)
     {
         CLIENT_LOG_INFO("set_controller_rumble") << "request set rumble to " << rumble_amount << " for PSMoveID: " << view->GetControllerID() << std::endl;
@@ -179,9 +171,11 @@ public:
         request->mutable_request_rumble()->set_rumble(static_cast<int>(rumble_amount * 255.f));
 
         m_request_manager.send_request(request, callback, userdata);
+
+        return request->request_id();
     }
 
-    void reset_pose(ClientControllerView * view, ClientPSMoveAPI::t_response_callback callback, void *userdata)
+    ClientPSMoveAPI::t_request_id reset_pose(ClientControllerView * view, ClientPSMoveAPI::t_response_callback callback, void *userdata)
     {
         CLIENT_LOG_INFO("set_controller_rumble") << "requesting pose reset for PSMoveID: " << view->GetControllerID() << std::endl;
 
@@ -191,6 +185,20 @@ public:
         request->mutable_reset_pose()->set_controller_id(view->GetControllerID());
         
         m_request_manager.send_request(request, callback, userdata);
+
+        return request->request_id();
+    }
+
+    ClientPSMoveAPI::t_request_id send_opaque_request(
+        ClientPSMoveAPI::t_request_handle request_handle,
+        ClientPSMoveAPI::t_response_callback callback, 
+        void *callback_userdata)
+    {
+        RequestPtr &request= *reinterpret_cast<RequestPtr *>(request_handle);
+
+        m_request_manager.send_request(request, callback, callback_userdata);
+
+        return request->request_id();
     }
 
     // IDataFrameListener
@@ -213,11 +221,23 @@ public:
     {
         assert(notification->request_id() == -1);
 
-        //###bwalker $TODO: controller connected
-        //###bwalker $TODO: controller disconnected
-        //###bwalker $TODO: tracker connected
-        //###bwalker $TODO: tracker disconnected
-        CLIENT_LOG_ERROR("handle_notification") << "Unknown notification type received: " << notification->type() << std::endl;
+        if (m_event_callback)
+        {
+            ClientPSMoveAPI::eClientPSMoveAPIEvent specificEventType= ClientPSMoveAPI::opaqueServiceEvent;
+
+            // See if we can translate this to an event type a client without protocol access can see
+            switch(notification->type())
+            {
+            case PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED:
+                specificEventType= ClientPSMoveAPI::controllerListUpdated;
+                break;
+            }
+
+            m_event_callback(
+                specificEventType,
+                static_cast<ClientPSMoveAPI::t_event_data_handle>(notification.get()),
+                m_event_callback_userdata);
+        }
     }
 
     // IClientNetworkEventListener
@@ -227,7 +247,10 @@ public:
 
         if (m_event_callback)
         {
-            m_event_callback(ClientPSMoveAPI::connectedToService, m_event_callback_userdata);
+            m_event_callback(
+                ClientPSMoveAPI::connectedToService, 
+                static_cast<ClientPSMoveAPI::t_event_data_handle>(nullptr),
+                m_event_callback_userdata);
         }
     }
 
@@ -237,7 +260,10 @@ public:
 
         if (m_event_callback)
         {
-            m_event_callback(ClientPSMoveAPI::failedToConnectToService, m_event_callback_userdata);
+            m_event_callback(
+                ClientPSMoveAPI::failedToConnectToService, 
+                static_cast<ClientPSMoveAPI::t_event_data_handle>(nullptr),
+                m_event_callback_userdata);
         }
     }
 
@@ -247,7 +273,10 @@ public:
 
         if (m_event_callback)
         {
-            m_event_callback(ClientPSMoveAPI::disconnectedFromService, m_event_callback_userdata);
+            m_event_callback(
+                ClientPSMoveAPI::disconnectedFromService, 
+                static_cast<ClientPSMoveAPI::t_event_data_handle>(nullptr),
+                m_event_callback_userdata);
         }
     }
 
@@ -270,7 +299,7 @@ private:
 };
 
 //-- ClientPSMoveAPI -----
-class ClientPSMoveAPIImpl *ClientPSMoveAPI::m_implementation_ptr = NULL;
+class ClientPSMoveAPIImpl *ClientPSMoveAPI::m_implementation_ptr = nullptr;
 
 bool ClientPSMoveAPI::startup(
     const std::string &host, 
@@ -281,7 +310,7 @@ bool ClientPSMoveAPI::startup(
 {
     bool success= true;
 
-    if (ClientPSMoveAPI::m_implementation_ptr == NULL)
+    if (ClientPSMoveAPI::m_implementation_ptr == nullptr)
     {
         ClientPSMoveAPI::m_implementation_ptr = new ClientPSMoveAPIImpl(host, port, callback, callback_userdata);
         success= ClientPSMoveAPI::m_implementation_ptr->startup(log_level);
@@ -290,9 +319,14 @@ bool ClientPSMoveAPI::startup(
     return success;
 }
 
+bool ClientPSMoveAPI::has_started()
+{
+    return ClientPSMoveAPI::m_implementation_ptr != nullptr;
+}
+
 void ClientPSMoveAPI::update()
 {
-    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
         ClientPSMoveAPI::m_implementation_ptr->update();
     }
@@ -300,13 +334,13 @@ void ClientPSMoveAPI::update()
 
 void ClientPSMoveAPI::shutdown()
 {
-    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
         ClientPSMoveAPI::m_implementation_ptr->shutdown();
         
         delete ClientPSMoveAPI::m_implementation_ptr;
 
-        ClientPSMoveAPI::m_implementation_ptr = NULL;
+        ClientPSMoveAPI::m_implementation_ptr = nullptr;
     }
 }
 
@@ -314,7 +348,7 @@ ClientControllerView * ClientPSMoveAPI::allocate_controller_view(int PSMoveID)
 {
     ClientControllerView * view;
 
-    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
         view= ClientPSMoveAPI::m_implementation_ptr->allocate_controller_view(PSMoveID);
     }
@@ -324,63 +358,90 @@ ClientControllerView * ClientPSMoveAPI::allocate_controller_view(int PSMoveID)
 
 void ClientPSMoveAPI::free_controller_view(ClientControllerView * view)
 {
-    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
         ClientPSMoveAPI::m_implementation_ptr->free_controller_view(view);
     }
 }
 
-void ClientPSMoveAPI::fetch_controller_list(
-    t_response_callback callback, 
-    void *callback_userdata)
-{
-    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
-    {
-        ClientPSMoveAPI::m_implementation_ptr->fetch_controller_list(callback, callback_userdata);
-    }
-}
-
-void ClientPSMoveAPI::start_controller_data_stream(
+ClientPSMoveAPI::t_request_id 
+ClientPSMoveAPI::start_controller_data_stream(
     ClientControllerView * view, 
     ClientPSMoveAPI::t_response_callback callback, 
     void *callback_userdata)
 {
-    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        ClientPSMoveAPI::m_implementation_ptr->start_controller_data_stream(view, callback, callback_userdata);
+        request_id= ClientPSMoveAPI::m_implementation_ptr->start_controller_data_stream(view, callback, callback_userdata);
     }
+
+    return request_id;
 }
 
-void ClientPSMoveAPI::stop_controller_data_stream(
+ClientPSMoveAPI::t_request_id 
+ClientPSMoveAPI::stop_controller_data_stream(
     ClientControllerView * view, 
     ClientPSMoveAPI::t_response_callback callback,
     void *callback_userdata)
 {
-    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        ClientPSMoveAPI::m_implementation_ptr->stop_controller_data_stream(view, callback, callback_userdata);
+        request_id= ClientPSMoveAPI::m_implementation_ptr->stop_controller_data_stream(view, callback, callback_userdata);
     }
+
+    return request_id;
 }
 
-void ClientPSMoveAPI::set_controller_rumble(
+ClientPSMoveAPI::t_request_id 
+ClientPSMoveAPI::set_controller_rumble(
     ClientControllerView * view, 
     float rumble_amount, 
     ClientPSMoveAPI::t_response_callback callback,
     void *callback_userdata)
 {
-    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount, callback, callback_userdata);
+        request_id= ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount, callback, callback_userdata);
     }
+
+    return request_id;
 }
 
-void ClientPSMoveAPI::reset_pose(
+ClientPSMoveAPI::t_request_id 
+ClientPSMoveAPI::reset_pose(
     ClientControllerView * view,
     ClientPSMoveAPI::t_response_callback callback,
     void *callback_userdata)
 {
-    if (ClientPSMoveAPI::m_implementation_ptr != NULL)
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        ClientPSMoveAPI::m_implementation_ptr->reset_pose(view, callback, callback_userdata);
+        request_id= ClientPSMoveAPI::m_implementation_ptr->reset_pose(view, callback, callback_userdata);
     }
+
+    return request_id;
+}
+
+ClientPSMoveAPI::t_request_id 
+ClientPSMoveAPI::send_opaque_request(
+    ClientPSMoveAPI::t_request_handle request_handle,
+    ClientPSMoveAPI::t_response_callback callback, 
+    void *callback_userdata)
+{
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id= ClientPSMoveAPI::m_implementation_ptr->send_opaque_request(
+            request_handle, callback, callback_userdata);
+    }
+
+    return request_id;
 }

@@ -7,10 +7,15 @@ list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
     ${ROOT_DIR}/thirdparty/glm
     ${ROOT_DIR}/thirdparty/stb
     ${ROOT_DIR}/thirdparty/imgui
-    ${ROOT_DIR}/src/psmoveclient/)
+    ${ROOT_DIR}/src/psmoveclient/
+    ${ROOT_DIR}/src/psmoveprotocol/
+    ${PROTOBUF_INCLUDE_DIRS})
 
 # platform independent libraries
-list(APPEND PSMOVECONFIGTOOL_REQ_LIBS PSMoveClient)
+list(APPEND PSMOVECONFIGTOOL_REQ_LIBS 
+    PSMoveClient
+    PSMoveProtocol
+    ${PROTOBUF_LIBRARIES})
    
 # platform specific libraries/include paths (OpenGL/SDL)    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -25,9 +30,10 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     SET(ENV{SDL2DIR} ${ROOT_DIR}/thirdparty/SDL2/)
     FIND_PACKAGE(SDL2)
     list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${SDL2_INCLUDE_DIR})
-    list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${SDL2_LIBRARY})
-    list(GET SDL2_LIBRARY 0 FIRST_SDL2_LIB)
-    get_filename_component(SDL_BIN_PATH ${FIRST_SDL2_LIB} DIRECTORY)
+    list(APPEND PSMOVECONFIGTOOL_REQ_LIBS 
+        ${SDL2_LIBRARY}
+        imm32.lib
+        version.lib)
 ENDIF()
 
 # Source files that are needed for the psmove config tool
@@ -42,18 +48,14 @@ add_executable(PSMoveConfigTool ${PSMOVECONFIGTOOL_SRC})
 target_include_directories(PSMoveConfigTool PUBLIC ${PSMOVECONFIGTOOL_INCL_DIRS})
 target_link_libraries(PSMoveConfigTool ${PSMOVECONFIGTOOL_REQ_LIBS})
 
+# Allow access to the protocol buffers (extracting response parameters)
+target_compile_definitions(PSMoveConfigTool PRIVATE HAS_PROTOCOL_ACCESS)
+
 # Post build dependencies (assets and external DLLs)
 add_custom_command(TARGET PSMoveConfigTool POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_LIST_DIR}/assets"
         $<TARGET_FILE_DIR:PSMoveConfigTool>/assets)
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    # only needed in windows
-    add_custom_command(TARGET PSMoveConfigTool POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${SDL_BIN_PATH}/SDL2.dll"
-            $<TARGET_FILE_DIR:PSMoveConfigTool>)
-ENDIF()
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -61,7 +63,6 @@ install(TARGETS PSMoveConfigTool
     RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
     LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
     ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
-install(FILES ${SDL_BIN_PATH}/SDL2.dll DESTINATION ${ROOT_DIR}/win32/bin)
 install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/assets/ 
         DESTINATION ${ROOT_DIR}/win32/bin/assets
         FILES_MATCHING PATTERN "*.ttf"  PATTERN "*.jpg")

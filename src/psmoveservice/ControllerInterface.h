@@ -79,12 +79,18 @@ public:
     // Closes the HID device for the controller  
     virtual void close() = 0;
 
+    // Sets the address of the bluetooth adapter on the host PC with the controller
+    virtual bool setHostBluetoothAddress(const std::string &address) = 0;
+
     // -- Getters
     // Returns true if the device is connected via Bluetooth, false if by USB
     virtual bool getIsBluetooth() const = 0;
 
     // Returns the full usb device path for the controller
     virtual std::string getUSBDevicePath() const = 0;
+
+    // Gets the bluetooth address of the adapter on the host PC that's registered with the controller
+    virtual std::string getHostBluetoothAddress() const = 0;
 
     // Returns the serial number for the controller
     virtual std::string getSerial() const  = 0;
@@ -98,6 +104,9 @@ public:
     // Fetch the controller state at the given sample index.
     // A lookBack of 0 corresponds to the most recent data.
     virtual void getState(CommonControllerState *out_state, int lookBack = 0) const = 0;
+
+    // Get the number of milliseconds we're willing to accept no data from the controller before we disconnect it
+    virtual long getDataTimeout() const = 0;
 };
 
 #endif // CONTROLLER_INTERFACE_H

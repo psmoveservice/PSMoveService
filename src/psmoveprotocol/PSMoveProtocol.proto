@@ -25,6 +25,9 @@ message Request {
         STOP_CONTROLLER_DATA_STREAM = 2;
         SET_RUMBLE = 3;
         RESET_POSE = 4;
+        UNPAIR_CONTROLLER= 5;
+        PAIR_CONTROLLER= 6;
+        CANCEL_BLUETOOTH_REQUEST= 7;
     }
     RequestType type = 2;
    
@@ -54,6 +57,24 @@ message Request {
         int32 controller_id = 1;
     }
     RequestResetPose reset_pose = 23;   
+    
+    // Parameters for UNPAIR_CONTROLLER
+    message RequestUnpairController {
+        int32 controller_id = 1;
+    }
+    RequestUnpairController unpair_controller = 24;
+
+    // Parameters for PAIR_CONTROLLER
+    message RequestPairController {
+        int32 controller_id = 1;
+    }
+    RequestPairController pair_controller = 25;
+
+    // Parameters for CANCEL_BLUETOOTH_REQUEST
+    message RequestCancelBluetoothRequest {
+        int32 controller_id = 1;
+    }
+    RequestCancelBluetoothRequest cancel_bluetooth_request = 26;    
 }
 
 // Reliable (TCP) responses to requests
@@ -63,6 +84,10 @@ message Response {
         GENERAL_RESULT= 0;
         CONNECTION_INFO= 1;
         CONTROLLER_LIST= 2;
+        CONTROLLER_LIST_UPDATED= 3;
+        UNPAIR_REQUEST_COMPLETED= 4;
+        PAIR_REQUEST_COMPLETED= 5;
+        BLUETOOTH_REQUEST_PROGRESS= 6;
     }
 
     enum ResultCode {
@@ -97,10 +122,23 @@ message Response {
             ControllerType controller_type = 3;
             string device_path = 4;
             string device_serial = 5;
+            string host_serial = 6;
         }
         repeated ControllerInfo controllers = 1;
     }
     ResultControllerList result_controller_list = 21;    
+    
+    // No parameters for CONTROLLER_LIST_UPDATED
+    // No parameters for UNPAIR_REQUEST_COMPLETED
+    // No parameters for PAIR_REQUEST_COMPLETED
+    
+    // Parameters for BLUETOOTH_REQUEST_PROGRESS
+    message ResultBluetoothRequestProgress {
+        int32 controller_id = 1;
+        int32 steps_completed = 2;
+        int32 total_steps = 3;
+    }
+    ResultBluetoothRequestProgress result_bluetooth_request_progress = 22;    
 }
 
 // Unreliable (UDP) controller data packet format

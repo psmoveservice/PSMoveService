@@ -31,5 +31,8 @@
 build*
 bin*
 
+# Auto-generated Documentation
+docs
+
 # Local Scripts
 SetBuildVars.bat

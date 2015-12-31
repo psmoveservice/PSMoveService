@@ -1,5 +1,7 @@
 //-- includes -----
 #include "ServerRequestHandler.h"
+
+#include "BluetoothRequests.h"
 #include "ControllerManager.h"
 #include "ControllerEnumerator.h"
 #include "ServerNetworkManager.h"
@@ -20,16 +22,19 @@ struct RequestConnectionState
 {
     int connection_id;
     std::bitset<k_max_controllers> active_controller_streams;
+    AsyncBluetoothRequest *pending_bluetooth_request;
 
     RequestConnectionState()
         : connection_id(-1)
         , active_controller_streams()
+        , pending_bluetooth_request(nullptr)
     {
     }
 };
 typedef boost::shared_ptr<RequestConnectionState> RequestConnectionStatePtr;
 typedef std::map<int, RequestConnectionStatePtr> t_connection_state_map;
 typedef std::map<int, RequestConnectionStatePtr>::iterator t_connection_state_iter;
+typedef std::map<int, RequestConnectionStatePtr>::const_iterator t_connection_state_const_iter;
 typedef std::pair<int, RequestConnectionStatePtr> t_id_connection_state_pair;
 
 struct RequestContext
@@ -52,6 +57,74 @@ public:
     {
         // Without this we get a warning for deletion:
         // "Delete called on 'class ServerRequestHandlerImpl' that has virtual functions but non-virtual destructor"
+    }
+
+    bool any_active_bluetooth_requests() const
+    {
+        bool any_active= false;
+
+        for (t_connection_state_const_iter iter= m_connection_state_map.begin(); iter != m_connection_state_map.end(); ++iter)
+        {
+            RequestConnectionStatePtr connection_state= iter->second;
+
+            if (connection_state->pending_bluetooth_request != nullptr)
+            {
+                any_active= true;
+                break;
+            }
+        }
+
+        return any_active;
+    }
+
+    void update()
+    {
+        for (t_connection_state_iter iter= m_connection_state_map.begin(); iter != m_connection_state_map.end(); ++iter)
+        {
+            int connection_id= iter->first;
+            RequestConnectionStatePtr connection_state= iter->second;
+
+            // Update any asynchronous bluetooth requests
+            if (connection_state->pending_bluetooth_request != nullptr)
+            {
+                bool delete_request;
+
+                connection_state->pending_bluetooth_request->update();
+
+                switch(connection_state->pending_bluetooth_request->getStatusCode())
+                {
+                case AsyncBluetoothRequest::running:
+                    {
+                        // Don't delete. Still have work to do
+                        delete_request= false;
+                    } break;
+                case AsyncBluetoothRequest::succeeded:
+                    {
+                        SERVER_LOG_INFO("ServerRequestHandler") 
+                            << "Async bluetooth request(" 
+                            << connection_state->pending_bluetooth_request->getDescription() 
+                            << ") completed.";
+                        delete_request= true;
+                    } break;
+                case AsyncBluetoothRequest::failed:
+                    {
+                        SERVER_LOG_ERROR("ServerRequestHandler") 
+                            << "Async bluetooth request(" 
+                            << connection_state->pending_bluetooth_request->getDescription() 
+                            << ") failed!";
+                        delete_request= true;
+                    } break;
+                default:
+                    assert(0 && "unreachable");
+                }
+
+                if (delete_request)
+                {
+                    delete connection_state->pending_bluetooth_request;
+                    connection_state->pending_bluetooth_request= nullptr;
+                }
+            }
+        }
     }
 
     ResponsePtr handle_request(int connection_id, RequestPtr request)
@@ -82,9 +155,17 @@ public:
             case PSMoveProtocol::Request_RequestType_RESET_POSE:
                 handle_request__reset_pose(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_UNPAIR_CONTROLLER:
+                handle_request__unpair_controller(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_PAIR_CONTROLLER:
+                handle_request__pair_controller(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_CANCEL_BLUETOOTH_REQUEST:
+                handle_request__cancel_bluetooth_request(context, response);
+                break;
             default:
                 assert(0 && "Whoops, bad request!");
-                break;
         }
 
         return ResponsePtr(response);
@@ -96,6 +177,21 @@ public:
 
         if (iter != m_connection_state_map.end())
         {
+            int connection_id= iter->first;
+            RequestConnectionStatePtr connection_state= iter->second;
+
+            // Cancel any pending asynchronous bluetooth requests
+            if (connection_state->pending_bluetooth_request != nullptr)
+            {
+                assert(connection_state->pending_bluetooth_request->getStatusCode() == AsyncBluetoothRequest::running);
+
+                connection_state->pending_bluetooth_request->cancel(AsyncBluetoothRequest::connectionClosed);
+
+                delete connection_state->pending_bluetooth_request;
+                connection_state->pending_bluetooth_request= nullptr;
+            }
+
+            // Remove the connection state from the state map
             m_connection_state_map.erase(iter);
         }
     }
@@ -146,7 +242,7 @@ protected:
 
         for (int controller_id= 0; controller_id < k_max_controllers; ++controller_id)
         {
-            ServerControllerViewPtr controller_view= m_controller_manager.getController(controller_id);
+            ServerControllerViewPtr controller_view= m_controller_manager.getControllerView(controller_id);
 
             if (controller_view->getIsOpen())
             {
@@ -171,6 +267,7 @@ protected:
                     : PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_USB);            
                 controller_info->set_device_path(controller_view->getUSBDevicePath());
                 controller_info->set_device_serial(controller_view->getSerial());
+                controller_info->set_host_serial(controller_view->getHostBluetoothAddress());
             }
         }
 
@@ -248,6 +345,126 @@ protected:
         }
     }
 
+    void handle_request__unpair_controller(
+        const RequestContext &context, 
+        PSMoveProtocol::Response *response)
+    {
+        const int connection_id= context.connection_state->connection_id;
+        const int controller_id= context.request->unpair_controller().controller_id();        
+
+        if (context.connection_state->pending_bluetooth_request == nullptr)
+        {
+            ServerControllerViewPtr controllerView= m_controller_manager.getControllerView(controller_id);
+
+            context.connection_state->pending_bluetooth_request = 
+                new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
+
+            if (context.connection_state->pending_bluetooth_request->start())
+            {
+                SERVER_LOG_INFO("ServerRequestHandler") 
+                    << "Async bluetooth request(" 
+                    << context.connection_state->pending_bluetooth_request->getDescription() 
+                    << ") started.";
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                SERVER_LOG_ERROR("ServerRequestHandler") 
+                    << "Async bluetooth request(" 
+                    << context.connection_state->pending_bluetooth_request->getDescription() 
+                    << ") failed to start!";
+
+                delete context.connection_state->pending_bluetooth_request;
+                context.connection_state->pending_bluetooth_request= nullptr;
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            SERVER_LOG_ERROR("ServerRequestHandler") 
+                << "Can't start unpair request due to existing request: " 
+                << context.connection_state->pending_bluetooth_request->getDescription();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__pair_controller(
+        const RequestContext &context, 
+        PSMoveProtocol::Response *response)
+    {
+        const int connection_id= context.connection_state->connection_id;
+        const int controller_id= context.request->pair_controller().controller_id();        
+
+        if (context.connection_state->pending_bluetooth_request == nullptr)
+        {
+            ServerControllerViewPtr controllerView= m_controller_manager.getControllerView(controller_id);
+
+            context.connection_state->pending_bluetooth_request = 
+                new AsyncBluetoothPairDeviceRequest(connection_id, controllerView);
+
+            if (context.connection_state->pending_bluetooth_request->start())
+            {
+                SERVER_LOG_INFO("ServerRequestHandler") 
+                    << "Async bluetooth request(" 
+                    << context.connection_state->pending_bluetooth_request->getDescription() 
+                    << ") started.";
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                SERVER_LOG_ERROR("ServerRequestHandler") 
+                    << "Async bluetooth request(" 
+                    << context.connection_state->pending_bluetooth_request->getDescription() 
+                    << ") failed to start!";
+
+                delete context.connection_state->pending_bluetooth_request;
+                context.connection_state->pending_bluetooth_request= nullptr;
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            SERVER_LOG_ERROR("ServerRequestHandler") 
+                << "Can't start pair request due to existing request: " 
+                << context.connection_state->pending_bluetooth_request->getDescription();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__cancel_bluetooth_request(
+        const RequestContext &context, 
+        PSMoveProtocol::Response *response)
+    {
+        const int connection_id= context.connection_state->connection_id;
+        const int controller_id= context.request->cancel_bluetooth_request().controller_id();        
+
+        if (context.connection_state->pending_bluetooth_request != nullptr)
+        {
+            ServerControllerViewPtr controllerView= m_controller_manager.getControllerView(controller_id);
+
+            SERVER_LOG_INFO("ServerRequestHandler") 
+                << "Async bluetooth request(" 
+                << context.connection_state->pending_bluetooth_request->getDescription() 
+                << ") Canceled.";
+
+            context.connection_state->pending_bluetooth_request->cancel(AsyncBluetoothRequest::userRequested);
+            
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            SERVER_LOG_ERROR("ServerRequestHandler") << "No active bluetooth operation active";
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
 private:
     ControllerManager &m_controller_manager;
     t_connection_state_map m_connection_state_map;
@@ -272,10 +489,20 @@ ServerRequestHandler::~ServerRequestHandler()
     delete m_implementation_ptr;
 }
 
+bool ServerRequestHandler::any_active_bluetooth_requests() const
+{
+    return m_implementation_ptr->any_active_bluetooth_requests();
+}
+
 bool ServerRequestHandler::startup()
 {
     m_instance= this;
     return true;
+}
+
+void ServerRequestHandler::update()
+{
+    return m_implementation_ptr->update();
 }
 
 void ServerRequestHandler::shutdown()

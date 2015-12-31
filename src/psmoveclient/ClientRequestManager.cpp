@@ -11,7 +11,7 @@
 struct RequestContext
 {
     RequestPtr request;
-    ClientRequestManager::t_response_callback callback;
+    ClientPSMoveAPI::t_response_callback callback;
     void *callback_userdata;
 };
 typedef std::map<int, RequestContext> t_request_context_map;
@@ -27,7 +27,7 @@ public:
     {
     }
 
-    void send_request(RequestPtr request, ClientRequestManager::t_response_callback callback, void *userdata)
+    void send_request(RequestPtr request, ClientPSMoveAPI::t_response_callback callback, void *userdata)
     {
         RequestContext context;
 
@@ -69,7 +69,7 @@ public:
         const RequestContext &context= pending_request_entry->second;
 
         // Notify the callback of the response
-        if (!context.callback)
+        if (context.callback != nullptr)
         {
             ClientPSMoveAPI::eClientPSMoveResultCode result;
 
@@ -89,7 +89,11 @@ public:
                 assert(false && "Unknown response result code");
             }
 
-            context.callback(result, context.callback_userdata);
+            context.callback(
+                result, 
+                context.request->request_id(), 
+                static_cast<ClientPSMoveAPI::t_response_handle>(response.get()), 
+                context.callback_userdata);
         }
 
         // Remove the pending request from the map
@@ -113,7 +117,7 @@ ClientRequestManager::~ClientRequestManager()
 }
 
 void ClientRequestManager::send_request(
-    RequestPtr request, ClientRequestManager::t_response_callback callback, void *userdata)
+    RequestPtr request, ClientPSMoveAPI::t_response_callback callback, void *userdata)
 {
     m_implementation_ptr->send_request(request, callback, userdata);
 }

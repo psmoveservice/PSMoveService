@@ -1,14 +1,14 @@
-#ifndef APP_STAGE_SELECT_CONTROLLER_H
-#define APP_STAGE_SELECT_CONTROLLER_H
+#ifndef APP_STAGE_CAMERA_SETTINGS_H
+#define APP_STAGE_CAMERA_SETTINGS_H
 
 //-- includes -----
 #include "AppStage.h"
 
 //-- definitions -----
-class AppStage_SelectController : public AppStage
+class AppStage_CameraSettings : public AppStage
 {
 public:
-    AppStage_SelectController(class App *app);
+    AppStage_CameraSettings(class App *app);
 
     virtual void enter() override;
     virtual void exit() override;
@@ -17,9 +17,7 @@ public:
 
     virtual void renderUI() override;
 
-    virtual void onKeyDown(int keyCode) override;
-
     static const char *APP_STAGE_NAME;
 };
 
-#endif // APP_STAGE_SELECT_CONTROLLER_H
+#endif // APP_STAGE_CAMERA_SETTINGS_H

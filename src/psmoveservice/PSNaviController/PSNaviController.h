@@ -16,6 +16,7 @@ struct PSNaviHIDDetails {
     std::string Device_path_addr; // only needed by Win > 8.1, otherwise ignored.
     hid_device *Handle_addr; // only needed by Win > 8.1, otherwise ignored.
     std::string Bt_addr;
+    std::string Host_bt_addr;
 };
 
 struct PSNaviDataInput;  // See .cpp for full declaration
@@ -25,10 +26,13 @@ class PSNaviControllerConfig : public PSMoveConfig
 public:
     PSNaviControllerConfig(const std::string &fnamebase = "PSNaviControllerConfig")
         : PSMoveConfig(fnamebase)
+        , data_timeout(1000) // ms
     {};
 
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
+
+    long data_timeout;
 };
 
 // https://code.google.com/p/moveonpc/wiki/NavigationInputReport
@@ -94,15 +98,18 @@ public:
     virtual bool matchesDeviceEnumerator(const ControllerDeviceEnumerator *enumerator) const override;
     virtual bool open(const ControllerDeviceEnumerator *enumerator) override;
     virtual IControllerInterface::ePollResult poll() override;
-    virtual void close() override;                                            
+    virtual void close() override;
+    virtual bool setHostBluetoothAddress(const std::string &address) override;
 
     // -- Getters
     virtual bool getIsBluetooth() const override;
     virtual std::string getUSBDevicePath() const override;
     virtual std::string getSerial() const override;
+    virtual std::string getHostBluetoothAddress() const override;
     virtual bool getIsOpen() const override;
     virtual CommonControllerState::eControllerDeviceType getControllerDeviceType() const override;
     virtual void getState(CommonControllerState *out_state, int lookBack = 0) const;
+    virtual long getDataTimeout() const override;
         
 private:    
     bool getBTAddress(std::string& host, std::string& controller);

@@ -4,6 +4,7 @@
 #include "ServerRequestHandler.h"
 #include "ServerLog.h"
 #include "ServerControllerView.h"
+#include "ServerNetworkManager.h"
 #include "ServerUtility.h"
 #include "PSMoveProtocol.pb.h"
 #include "PSMoveConfig.h"
@@ -106,11 +107,16 @@ public:
         boost::posix_time::time_duration reconnect_diff = now - m_last_reconnect_time;
         if (reconnect_diff.total_milliseconds() >= m_config->controller_reconnect_interval)
         {
-            // This method tries make the list of open controllers in m_controllers match 
-            // the list of connected controller devices in the device enumerator.
-            // Not controller objects are created or destroyed.
-            // Pointers are just shuffled around and controllers opened and closed.
-            update_connected_controllers();
+            // Don't do any connection opening/closing until all pending bluetooth operations are finished
+            if (!ServerRequestHandler::get_instance()->any_active_bluetooth_requests())
+            {
+                // This method tries make the list of open controllers in m_controllers match 
+                // the list of connected controller devices in the device enumerator.
+                // Not controller objects are created or destroyed.
+                // Pointers are just shuffled around and controllers opened and closed.
+                update_connected_controllers();
+            }
+
             m_last_reconnect_time= now;
         }
     }
@@ -144,6 +150,11 @@ public:
         return result;
     }
 
+    int getControllerViewCount() const
+    {
+        return k_max_controllers;
+    }
+
     bool setControllerRumble(int controller_id, int rumble_amount)
     {
         bool result= false;
@@ -158,30 +169,37 @@ public:
 
     bool resetPose(int controller_id)
     {
+        //###bwalker $TODO Once we are computing pose
         return false;
     }
 
 protected:
     void update_controllers()
     {
+        bool bAllUpdatedOk= true;
+
         for (int controller_id = 0; controller_id < k_max_controllers; ++controller_id)
         {
             ServerControllerViewPtr &controller= m_controllers[controller_id];
 
-            controller->update();
+            bAllUpdatedOk&= controller->update();
         }
 
+        if (!bAllUpdatedOk)
+        {
+            send_controller_list_changed_notification();
+        }
     }
 
     void update_connected_controllers()
     {
         ServerControllerViewPtr temp_controllers_list[k_max_controllers];
+        bool bSendControllerUpdatedNotification= false;
 
         // Step 1
         // See if any controllers shuffled order OR if any new controllers were attached.
         // Migrate open controllers to a new temp list in the order
         // that they appear in the device enumerator.
-        int new_controller_id = 0;
         for (ControllerDeviceEnumerator enumerator; enumerator.is_valid(); enumerator.next())
         {
             // Find controller index for the controller with the matching device path
@@ -193,19 +211,8 @@ protected:
                 // Fetch the controller from it's existing controller slot
                 ServerControllerViewPtr existingController= m_controllers[controller_id];
 
-                // See if an open controller changed order
-                if (new_controller_id != controller_id)
-                {
-                    // Update the controller_id on the controller
-                    existingController->setControllerID(static_cast<int>(new_controller_id));
-                    
-                    SERVER_LOG_INFO("ControllerManagerImpl::reconnect_controllers") << 
-                        "Controller controller_id " << controller_id << " moved to controller_id " << new_controller_id;
-                    //###bwalker $TODO - Send notification to the client?
-                }
-
-                // Move it to the new slot
-                temp_controllers_list[new_controller_id]= existingController;
+                // Move it to the same slot in the temp list
+                temp_controllers_list[controller_id]= existingController;
 
                 // Remove it from the previous list
                 m_controllers[controller_id]= ServerControllerViewPtr();
@@ -220,9 +227,9 @@ protected:
                     // Fetch the controller from it's existing controller slot
                     ServerControllerViewPtr existingController= m_controllers[controller_id];
 
-                    // Move it to the new slot
-                    existingController->setControllerID(static_cast<int>(new_controller_id));
-                    temp_controllers_list[new_controller_id]= existingController;
+                    // Move it to the available slot
+                    existingController->setControllerID(static_cast<int>(controller_id));
+                    temp_controllers_list[controller_id]= existingController;
 
                     // Remove it from the previous list
                     m_controllers[controller_id]= ServerControllerViewPtr();
@@ -232,7 +239,7 @@ protected:
                     {
                         SERVER_LOG_INFO("ControllerManagerImpl::reconnect_controllers") << 
                             "Controller controller_id " << controller_id << " connected";
-                        //###bwalker $TODO - Send notification to the client?
+                        bSendControllerUpdatedNotification= true;
                     }
                 }
                 else
@@ -241,8 +248,6 @@ protected:
                     break;
                 }
             }
-
-            ++new_controller_id;
         }
 
         // Step 2
@@ -263,13 +268,11 @@ protected:
                     SERVER_LOG_WARNING("ControllerManagerImpl::reconnect_controllers") << "Closing controller " 
                         << existing_controller_id << " since it's no longer in the device list.";
                     existingController->close();
-                    //###bwalker $TODO - Send notification to the client?
+                    bSendControllerUpdatedNotification= true;
                 }
 
-                // Move it to the new slot
-                existingController->setControllerID(static_cast<int>(new_controller_id));
-                temp_controllers_list[new_controller_id]= existingController;
-                ++new_controller_id;
+                // Move it to the temp slot
+                temp_controllers_list[existing_controller_id]= existingController;
 
                 // Remove it from the previous list
                 m_controllers[existing_controller_id]= ServerControllerViewPtr();
@@ -282,6 +285,21 @@ protected:
         {
             m_controllers[controller_id]= temp_controllers_list[controller_id];
         }
+
+        if (bSendControllerUpdatedNotification)
+        {
+            send_controller_list_changed_notification();
+        }
+    }
+
+    void send_controller_list_changed_notification()
+    {
+        ResponsePtr response(new PSMoveProtocol::Response);
+        response->set_type(PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED);
+        response->set_request_id(-1);
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+
+        ServerNetworkManager::get_instance()->send_notification_to_all_clients(response);
     }
     
     int find_open_controller_controller_id(const ControllerDeviceEnumerator &enumerator)
@@ -328,6 +346,8 @@ private:
 };
 
 //-- public interface -----
+ControllerManager *ControllerManager::m_instance = NULL;
+
 ControllerManager::ControllerManager()
     : m_implementation_ptr(new ControllerManagerImpl)
 {
@@ -340,6 +360,8 @@ ControllerManager::~ControllerManager()
 
 bool ControllerManager::startup()
 {
+    ControllerManager::m_instance= this;
+
     return m_implementation_ptr->startup();
 }
 
@@ -350,12 +372,19 @@ void ControllerManager::update()
 
 void ControllerManager::shutdown()
 {
+    ControllerManager::m_instance= nullptr;
+
     m_implementation_ptr->shutdown();
 }
 
-ServerControllerViewPtr ControllerManager::getController(int controller_id)
+ServerControllerViewPtr ControllerManager::getControllerView(int controller_id)
 {
     return m_implementation_ptr->getController(controller_id);
+}
+
+int ControllerManager::getControllerViewCount() const
+{
+    return m_implementation_ptr->getControllerViewCount();
 }
 
 bool ControllerManager::setControllerRumble(int controller_id, int rumble_amount)

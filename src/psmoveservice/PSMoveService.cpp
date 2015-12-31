@@ -1,6 +1,7 @@
 //-- includes -----
 #define BOOST_LIB_DIAGNOSTIC
 
+#include "PSMoveService.h"
 #include "ServerNetworkManager.h"
 #include "ServerRequestHandler.h"
 #include "ControllerManager.h"
@@ -30,10 +31,10 @@ using namespace boost;
 const int PSMOVE_SERVER_PORT = 9512;
 
 //-- definitions -----
-class PSMoveService
+class PSMoveServiceImpl
 {
 public:
-    PSMoveService() 
+    PSMoveServiceImpl()
         : m_io_service()
         , m_signals(m_io_service)
         , m_controller_manager()
@@ -47,7 +48,7 @@ public:
 #if defined(SIGQUIT)
         m_signals.add(SIGQUIT);
 #endif // defined(SIGQUIT)
-        m_signals.async_wait(boost::bind(&PSMoveService::handle_termination_signal, this));
+        m_signals.async_wait(boost::bind(&PSMoveServiceImpl::handle_termination_signal, this));
     }
 
     /// Entry point into boost::application
@@ -133,23 +134,13 @@ private:
     bool startup()
     {
         bool success= true;
-
+        
         /** Start listening for client connections */
         if (success)
         {
             if (!m_network_manager.startup())
             {
                 SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the service network manager";
-                success= false;
-            }
-        }
-
-        /** Setup the request handler */
-        if (success)
-        {
-            if (!m_request_handler.startup())
-            {
-                SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the service request handler";
                 success= false;
             }
         }
@@ -164,12 +155,25 @@ private:
             }
         }
 
+        /** Setup the request handler */
+        if (success)
+        {
+            if (!m_request_handler.startup())
+            {
+                SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the service request handler";
+                success= false;
+            }
+        }
+
         return success;
     }
 
     /// Called in the application loop.
     void update()
     {
+        /** Update an async requests still waiting to complete */
+        m_request_handler.update();
+
         /**
          Update the list of active tracked controllers
          Send controller updates to the client
@@ -182,11 +186,11 @@ private:
 
     void shutdown()
     {
-        // Disconnect any actively connected controllers
-        m_controller_manager.shutdown();
-
         // Kill any pending request state
         m_request_handler.shutdown();
+
+        // Disconnect any actively connected controllers
+        m_controller_manager.shutdown();
 
         // Close all active network connections
         m_network_manager.shutdown();
@@ -218,6 +222,29 @@ private:
     // Whether the application should keep running or not
     std::shared_ptr<application::status> m_status;
 };
+
+static void parse_program_settings(
+    const program_options::variables_map &options_map,
+    PSMoveService::ProgramSettings &settings)
+{
+    if (options_map.count("log_level"))
+    {
+        settings.log_level= options_map["log_level"].as<std::string>();
+    }
+    else
+    {
+        settings.log_level= "info";
+    }
+    
+    if (options_map.count("admin_password"))
+    {
+        settings.admin_password= options_map["admin_password"].as<std::string>();
+    }
+    else
+    {
+        settings.admin_password.clear();
+    }
+}
 
 #if defined(BOOST_WINDOWS_API) 
 bool win32_service_management_action(
@@ -387,8 +414,21 @@ void daemonize()
 }
 #endif // defined(BOOST_POSIX_API)
 
-//-- Entry Point ---
-int main(int argc, char *argv[])
+//-- Public Interface ---
+PSMoveService *PSMoveService::m_instance= nullptr;
+
+PSMoveService::PSMoveService()
+    : m_settings()
+{
+    PSMoveService::m_instance= this;
+}
+
+PSMoveService::~PSMoveService()
+{
+    PSMoveService::m_instance= nullptr;
+}
+
+int PSMoveService::exec(int argc, char *argv[])
 {
     // used to select between std:: and boost:: namespaces
     BOOST_APPLICATION_FEATURE_SELECT
@@ -405,7 +445,8 @@ int main(int argc, char *argv[])
         ("help,h", "Shows help.")
         (",d", "Run as background daemon/service")
         ("log_level,l", program_options::value<std::string>(), "The level of logging to use: trace, debug, info, warning, error, fatal")
-#if defined(BOOST_WINDOWS_API) 
+        ("admin_password,p", program_options::value<std::string>(), "Remember the admin password for this machine (optional)")
+#if defined(BOOST_WINDOWS_API)
         (",i", "install service")
         (",u", "uninstall service")
         (",c", "check service")
@@ -418,7 +459,11 @@ int main(int argc, char *argv[])
     // Parse the command line
     try
     {
+        // Validate the command line against the arguments description
         program_options::store(program_options::parse_command_line(argc, argv, desc), options_map);
+        
+        // Extract the options that should be stored in the program settings
+        parse_program_settings(options_map, this->m_settings);
     }
     catch(boost::program_options::unknown_option &option)
     {
@@ -452,25 +497,25 @@ int main(int argc, char *argv[])
     #endif // defined(BOOST_POSIX_API)
 
     // initialize logging system
-    log_init(&options_map);
+    log_init(this->getProgramSettings()->log_level);
 
     // Start the service app
     SERVER_LOG_INFO("main") << "Starting PSMoveService";
     try
     {
-        PSMoveService app;
+        PSMoveServiceImpl app;
         application::context app_context;
-
+        
         // service aspects
         app_context.insert<application::path>(
             make_shared<application::path_default_behaviour>(argc, argv));
 
         app_context.insert<application::args>(
             make_shared<application::args>(argc, argv));
-
+        
         // add termination handler
         application::handler<>::parameter_callback termination_callback
-            = boost::bind<bool>(&PSMoveService::stop, &app, _1);
+            = boost::bind<bool>(&PSMoveServiceImpl::stop, &app, _1);
 
         app_context.insert<application::termination_handler>(
             make_shared<application::termination_handler_default_behaviour>(termination_callback));
@@ -479,14 +524,14 @@ int main(int argc, char *argv[])
 #if defined(BOOST_WINDOWS_API) 
         // windows only : add pause handler     
         application::handler<>::parameter_callback pause_callback
-            = boost::bind<bool>(&PSMoveService::pause, &app, _1);
+            = boost::bind<bool>(&PSMoveServiceImpl::pause, &app, _1);
 
         app_context.insert<application::pause_handler>(
             make_shared<application::pause_handler_default_behaviour>(pause_callback));
 
         // windows only : add resume handler
         application::handler<>::parameter_callback resume_callback
-            = boost::bind<bool>(&PSMoveService::resume, &app, _1);
+            = boost::bind<bool>(&PSMoveServiceImpl::resume, &app, _1);
 
         app_context.insert<application::resume_handler>(
             make_shared<application::resume_handler_default_behaviour>(resume_callback));

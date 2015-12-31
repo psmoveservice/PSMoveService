@@ -1,14 +1,14 @@
-#ifndef APP_STAGE_INTRO_SCREEN_H
-#define APP_STAGE_INTRO_SCREEN_H
+#ifndef APP_STAGE_HMD_SETTINGS_H
+#define APP_STAGE_HMD_SETTINGS_H
 
 //-- includes -----
 #include "AppStage.h"
 
 //-- definitions -----
-class AppStage_IntroScreen : public AppStage
+class AppStage_HMDSettings : public AppStage
 {
 public:
-    AppStage_IntroScreen(class App *app);
+    AppStage_HMDSettings(class App *app);
 
     virtual void enter() override;
     virtual void exit() override;
@@ -17,9 +17,7 @@ public:
 
     virtual void renderUI() override;
 
-    virtual void onKeyDown(int keyCode) override;
-
     static const char *APP_STAGE_NAME;
 };
 
-#endif // APP_STAGE_INTRO_SCREEN_H
+#endif // APP_STAGE_HMD_SETTINGS_H

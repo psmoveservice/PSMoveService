@@ -17,6 +17,7 @@
 //###bwalker $TODO This haven't been tested yet
 #define PSNAVI_BTADDR_GET_SIZE 16
 #define PSNAVI_BTADDR_SIZE 6
+#define PSNAVI_BTADDR_SET_SIZE 7
 #define PSNAVI_STATE_BUFFER_MAX 16
 
 //###bwalker $TODO This haven't been tested yet
@@ -68,6 +69,7 @@ struct PSNaviDataInput {
 
 // -- private prototypes -----
 static std::string btAddrUcharToString(const unsigned char* addr_buff);
+static bool stringToBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size);
 inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
 inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size);
 
@@ -79,12 +81,15 @@ PSNaviControllerConfig::config2ptree()
 {
     boost::property_tree::ptree pt;
 
+    pt.put("data_timeout", data_timeout);
+
     return pt;
 }
 
 void
 PSNaviControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 {
+    data_timeout = pt.get<long>("data_timeout", 1000);
 }
 
 // -- PSMove Controller -----
@@ -173,9 +178,7 @@ bool PSNaviController::open(
             std::string mbs(cur_dev_serial_number);
             HIDDetails.Bt_addr = mbs;
     #endif
-            std::string host;
-
-            if (getBTAddress(host, HIDDetails.Bt_addr))
+            if (getBTAddress(HIDDetails.Host_bt_addr, HIDDetails.Bt_addr))
             {
                 // Load the config file
                 std::string btaddr = HIDDetails.Bt_addr;
@@ -229,6 +232,68 @@ void PSNaviController::close()
     }
 }
 
+bool 
+PSNaviController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
+{
+    bool success= false;
+    unsigned char bts[PSNAVI_BTADDR_SET_SIZE];
+
+    memset(bts, 0, sizeof(bts));
+    bts[0] = PSNavi_Req_SetBTAddr;
+    bts[1] = 0x01;
+    bts[2] = 0x00;
+
+    unsigned char addr[6];
+    if (stringToBTAddrUchar(new_host_bt_addr, addr, sizeof(addr)))
+    {
+        int res;
+
+        /* Copy 6 bytes from addr into bts[3]..bts[8] */
+        memcpy(&bts[3], addr, sizeof(addr));
+
+        /* _WIN32 only has move->handle_addr for getting bluetooth address. */
+        if (HIDDetails.Handle_addr) 
+        {
+            res = hid_send_feature_report(HIDDetails.Handle_addr, bts, sizeof(bts));
+        } 
+        else 
+        {
+            res = hid_send_feature_report(HIDDetails.Handle, bts, sizeof(bts));
+        }
+
+        if (res == sizeof(bts))
+        {
+            success= true;
+        }
+        else
+        {
+            char hidapi_err_mbs[256];
+            bool valid_error_mesg= false;
+            
+            if (HIDDetails.Handle_addr)
+            {
+                valid_error_mesg = hid_error_mbs(HIDDetails.Handle_addr, hidapi_err_mbs, sizeof(hidapi_err_mbs));
+            }
+            else
+            {
+                valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
+            }
+
+            if (valid_error_mesg)
+            {
+                SERVER_LOG_ERROR("PSNaviController::setBTAddress") << "HID ERROR: " << hidapi_err_mbs;
+            }            
+        }
+    }
+    else
+    {
+        SERVER_LOG_ERROR("PSNaviController::setBTAddress") << "Malformed address: " << new_host_bt_addr;
+    }
+
+    return success;
+}
+
+
 // Getters
 bool 
 PSNaviController::matchesDeviceEnumerator(const ControllerDeviceEnumerator *enumerator) const
@@ -266,6 +331,12 @@ std::string
 PSNaviController::getSerial() const
 {
     return HIDDetails.Bt_addr;
+}
+
+std::string 
+PSNaviController::getHostBluetoothAddress() const
+{
+    return HIDDetails.Host_bt_addr;
 }
 
 bool
@@ -446,6 +517,12 @@ PSNaviController::getState(
         *out_psnavi_state= ControllerStates.at(ControllerStates.size() - lookBack - 1);
     }
 }
+
+long 
+PSNaviController::getDataTimeout() const
+{
+    return cfg.data_timeout;
+}
     
 // -- private helper functions -----
 static std::string
@@ -463,6 +540,38 @@ btAddrUcharToString(const unsigned char* addr_buff)
         }
     }
     return stream.str();
+}
+
+static bool
+stringToBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size)
+{
+    bool success= false;
+
+    if (addr.length() >= 17 && addr_buf_size >= 6)
+    {
+        const char *raw_string= addr.c_str();
+        int octets[6];
+
+        success= 
+            sscanf(raw_string, "%x:%x:%x:%x:%x:%x", 
+                &octets[0],
+                &octets[1],
+                &octets[2],
+                &octets[3],
+                &octets[4],
+                &octets[5]) == 6;
+        //TODO: Make sscanf safe. (sscanf_s is not portable)
+
+        if (success)
+        {
+            for (int i= 0; i < 6; ++i)
+            {
+                addr_buff[i]= ServerUtility::int32_to_int8_verify(octets[i]);
+            }
+        }
+    }
+
+    return success;
 }
 
 inline enum CommonControllerState::ButtonState

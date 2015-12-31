@@ -2,6 +2,7 @@
 #include "PSMoveController.h"
 #include "../ServerLog.h"
 #include "../ServerUtility.h"
+#include "../Platform/BluetoothQueries.h"
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -17,6 +18,7 @@
 #define PSMOVE_BUFFER_SIZE 49 /* Buffer size for writing LEDs and reading sensor data */
 #define PSMOVE_EXT_DATA_BUF_SIZE 5
 #define PSMOVE_BTADDR_GET_SIZE 16
+#define PSMOVE_BTADDR_SET_SIZE 23
 #define PSMOVE_BTADDR_SIZE 6
 #define PSMOVE_CALIBRATION_SIZE 49 /* Buffer size for calibration data */
 #define PSMOVE_CALIBRATION_BLOB_SIZE (PSMOVE_CALIBRATION_SIZE*3 - 2*2) /* Three blocks, minus header (2 bytes) for blocks 2,3 */
@@ -146,6 +148,7 @@ struct PSMoveDataInput {
 
 // -- private prototypes -----
 static std::string btAddrUcharToString(const unsigned char* addr_buff);
+static bool stringToBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size);
 static int decodeCalibration(char *data, int offset);
 static int psmove_decode_16bit(char *data, int offset);
 inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
@@ -158,6 +161,8 @@ const boost::property_tree::ptree
 PSMoveControllerConfig::config2ptree()
 {
     boost::property_tree::ptree pt;
+
+    pt.put("data_timeout", data_timeout);
     
     pt.put("Calibration.Accel.X.k", cal_ag_xyz_kb[0][0][0]);
     pt.put("Calibration.Accel.X.b", cal_ag_xyz_kb[0][0][1]);
@@ -178,6 +183,8 @@ PSMoveControllerConfig::config2ptree()
 void
 PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 {
+    data_timeout = pt.get<long>("data_timeout", 1000);
+
     cal_ag_xyz_kb[0][0][0] = pt.get<float>("Calibration.Accel.X.k", 1.0f);
     cal_ag_xyz_kb[0][0][1] = pt.get<float>("Calibration.Accel.X.b", 0.0f);
     cal_ag_xyz_kb[0][1][0] = pt.get<float>("Calibration.Accel.Y.k", 1.0f);
@@ -286,7 +293,7 @@ bool PSMoveController::open(
         if (getIsOpen())  // Controller was opened and has an index
         {
             // Get the bluetooth address
-    #ifndef _WIN32
+    #ifdef __APPLE__
             // On my Mac, getting the bt feature report when connected via
             // bt crashes the controller. So we simply copy the serial number.
             // It gets modified in getBTAddress.
@@ -295,10 +302,13 @@ bool PSMoveController::open(
             // Once done, we can remove the ifndef above.
             std::string mbs(cur_dev_serial_number);
             HIDDetails.Bt_addr = mbs;
+            
+            if (!bluetooth_get_host_address(HIDDetails.Host_bt_addr))
+            {
+                HIDDetails.Host_bt_addr= "00:00:00:00:00:00";
+            }
     #endif
-            std::string host;
-
-            if (getBTAddress(host, HIDDetails.Bt_addr))
+            if (getBTAddress(HIDDetails.Host_bt_addr, HIDDetails.Bt_addr))
             {
                 // Load the config file
                 std::string btaddr = HIDDetails.Bt_addr;
@@ -358,6 +368,65 @@ void PSMoveController::close()
     }
 }
 
+bool 
+PSMoveController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
+{
+    bool success= false;
+    unsigned char bts[PSMOVE_BTADDR_SET_SIZE];
+
+    memset(bts, 0, sizeof(bts));
+    bts[0] = PSMove_Req_SetBTAddr;
+
+    unsigned char addr[6];
+    if (stringToBTAddrUchar(new_host_bt_addr, addr, sizeof(addr)))
+    {
+        int res;
+
+        /* Copy 6 bytes from addr into bts[1]..bts[6] */
+        memcpy(&bts[1], addr, sizeof(addr));
+
+        /* _WIN32 only has move->handle_addr for getting bluetooth address. */
+        if (HIDDetails.Handle_addr) 
+        {
+            res = hid_send_feature_report(HIDDetails.Handle_addr, bts, sizeof(bts));
+        } 
+        else 
+        {
+            res = hid_send_feature_report(HIDDetails.Handle, bts, sizeof(bts));
+        }
+
+        if (res == sizeof(bts))
+        {
+            success= true;
+        }
+        else
+        {
+            char hidapi_err_mbs[256];
+            bool valid_error_mesg= false;
+            
+            if (HIDDetails.Handle_addr)
+            {
+                valid_error_mesg = hid_error_mbs(HIDDetails.Handle_addr, hidapi_err_mbs, sizeof(hidapi_err_mbs));
+            }
+            else
+            {
+                valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
+            }
+
+            if (valid_error_mesg)
+            {
+                SERVER_LOG_ERROR("PSMoveController::setBTAddress") << "HID ERROR: " << hidapi_err_mbs;
+            }            
+        }
+    }
+    else
+    {
+        SERVER_LOG_ERROR("PSMoveController::setBTAddress") << "Malformed address: " << new_host_bt_addr;
+    }
+
+    return success;
+}
+
 // Getters
 bool 
 PSMoveController::matchesDeviceEnumerator(const ControllerDeviceEnumerator *enumerator) const
@@ -397,6 +466,12 @@ PSMoveController::getSerial() const
     return HIDDetails.Bt_addr;
 }
 
+std::string 
+PSMoveController::getHostBluetoothAddress() const
+{
+    return HIDDetails.Host_bt_addr;
+}
+
 bool
 PSMoveController::getIsOpen() const
 {
@@ -414,10 +489,13 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
 {
     bool success = false;
 
-    if (IsBluetooth && !controller.empty())
+    if (IsBluetooth && !controller.empty() && !host.empty())
     {
         std::replace(controller.begin(), controller.end(), '-', ':');
         std::transform(controller.begin(), controller.end(), controller.begin(), ::tolower);
+        
+        std::replace(host.begin(), host.end(), '-', ':');
+        std::transform(host.begin(), host.end(), host.begin(), ::tolower);
         
         //TODO: If the third entry is not : and length is PSMOVE_BTADDR_SIZE
 //        std::stringstream ss;
@@ -724,6 +802,10 @@ PSMoveController::getTempCelsius() const
     return 70;
 }
 
+long PSMoveController::getDataTimeout() const
+{
+    return cfg.data_timeout;
+}
 
 // Setters
 
@@ -809,6 +891,38 @@ btAddrUcharToString(const unsigned char* addr_buff)
         }
     }
     return stream.str();
+}
+
+static bool
+stringToBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size)
+{
+    bool success= false;
+
+    if (addr.length() >= 17 && addr_buf_size >= 6)
+    {
+        const char *raw_string= addr.c_str();
+        unsigned int octets[6];
+
+        success= 
+            sscanf(raw_string, "%x:%x:%x:%x:%x:%x",
+                &octets[5],
+                &octets[4],
+                &octets[3],
+                &octets[2],
+                &octets[1],
+                &octets[0]) == 6;
+        //TODO: Make safe (sscanf_s is not portable)
+
+        if (success)
+        {
+            for (int i= 0; i < 6; ++i)
+            {
+                addr_buff[i]= ServerUtility::int32_to_int8_verify(octets[i]);
+            }
+        }
+    }
+
+    return success;
 }
 
 static int

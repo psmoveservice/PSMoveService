@@ -15,6 +15,7 @@ App::App()
     , m_fixedCamera(m_renderer)
     , m_appStageName(nullptr)
     , m_appStage(nullptr)
+    , m_bShutdownRequested(false)
 {
 }
 
@@ -39,7 +40,7 @@ int App::exec(int argc, char** argv, const char *initial_state_name)
 
         setAppStage(initial_state_name);
 
-        while (true) 
+        while (!m_bShutdownRequested) 
         {
             if (SDL_PollEvent(&e)) 
             {
@@ -68,6 +69,22 @@ int App::exec(int argc, char** argv, const char *initial_state_name)
     destroy();
 
     return result;
+}
+
+bool App::reconnectToService()
+{
+    if (ClientPSMoveAPI::has_started())
+    {
+        ClientPSMoveAPI::shutdown();
+    }
+
+    bool success= 
+        ClientPSMoveAPI::startup(
+            "localhost", "9512", //###bwalker $TODO put in config 
+            &App::onClientPSMoveEvent, this, 
+            _log_severity_level_info); //###bwalker $TODO put in config 
+
+    return success;
 }
 
 void App::setCameraType(eCameraType cameraType)
@@ -199,8 +216,32 @@ void App::onSDLEvent(const SDL_Event &e)
     }
 }
 
+void App::onClientPSMoveEvent(
+    ClientPSMoveAPI::eClientPSMoveAPIEvent event_type,
+    ClientPSMoveAPI::t_event_data_handle opaque_event_handle,
+    void *userdata)
+{
+    App *thisPtr= reinterpret_cast<App *>(userdata);
+
+    // Try giving the event to the current AppStage first
+    if (!thisPtr->m_appStage->onClientAPIEvent(event_type, opaque_event_handle))
+    {
+        t_app_stage_event_map::iterator entry= thisPtr->m_eventToFallbackAppStageMap.find(event_type);
+
+        if (entry != thisPtr->m_eventToFallbackAppStageMap.end() && 
+            entry->second != thisPtr->m_appStage)
+        {
+            // If the current stage doesn't care about the event,
+            // hand it off to another app stage registered to care about the event
+            entry->second->onClientAPIEvent(event_type, opaque_event_handle);
+        }
+    }
+}
+
 void App::update()
 {
+    ClientPSMoveAPI::update();
+
     if (m_appStage != NULL)
     {
         m_appStage->update();

@@ -14,8 +14,11 @@ public:
 
     bool matchesDeviceEnumerator(const class ControllerDeviceEnumerator *enumerator) const;
     bool open(const class ControllerDeviceEnumerator *enumerator);
-    void update();
+    bool update();
     void close();
+
+    // Registers the address of the bluetooth adapter on the host PC with the controller
+    bool setHostBluetoothAddress(const std::string &address);
 
     // getters
     inline int getControllerID() const 
@@ -34,6 +37,9 @@ public:
 
     // Returns the serial number for the controller
     std::string getSerial() const;
+
+    // Gets the host bluetooth address registered with the 
+    std::string getHostBluetoothAddress() const;
 
     // Returns true if hidapi opened successfully
     bool getIsOpen() const;
@@ -58,6 +64,7 @@ protected:
 private:
     int m_controllerID;
     int m_sequence_number;
+    long long m_last_updated_tick;
     IControllerInterface *m_controller;
 };
 

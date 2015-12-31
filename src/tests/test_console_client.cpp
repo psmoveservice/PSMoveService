@@ -72,6 +72,7 @@ private:
     // ClientPSMoveAPI
     static void handle_client_psmove_event(
         ClientPSMoveAPI::eClientPSMoveAPIEvent event_type,
+        ClientPSMoveAPI::t_event_data_handle opaque_event_handle,
         void *userdata)
     {
         PSMoveConsoleClient *thisPtr= reinterpret_cast<PSMoveConsoleClient *>(userdata);
@@ -97,13 +98,20 @@ private:
             std::cout << "PSMoveConsoleClient - Disconnected from service" << std::endl;
             thisPtr->m_keepRunning= false;
             break;
+        case ClientPSMoveAPI::opaqueServiceEvent:
+            std::cout << "PSMoveConsoleClient - Opaque service event(%d)" << static_cast<int>(event_type) << std::endl;
+            thisPtr->m_keepRunning= false;
+            break;
         default:
+            assert(0 && "Unhandled event type");
             break;
         }
     }
 
     static void handle_acquire_controller(
         ClientPSMoveAPI::eClientPSMoveResultCode resultCode,
+        const ClientPSMoveAPI::t_request_id request_id, 
+        ClientPSMoveAPI::t_response_handle opaque_response_handle,
         void *userdata)
     {
         PSMoveConsoleClient *thisPtr= reinterpret_cast<PSMoveConsoleClient *>(userdata);

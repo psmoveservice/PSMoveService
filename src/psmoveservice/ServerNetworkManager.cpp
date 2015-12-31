@@ -139,6 +139,11 @@ public:
         m_udp_remote_endpoint= connecting_remote_endpoint;
     }
 
+    bool can_send_data_to_client() const
+    {
+        return m_connection_started && !m_connection_stopped;
+    }
+
     bool has_pending_udp_write() const
     {
         return m_connection_started && m_has_pending_udp_write;
@@ -348,7 +353,15 @@ private:
 
             SERVER_LOG_DEBUG("    ") << "Body Size = " << msg_len << " bytes";
 
-            start_tcp_read_request_body(msg_len);
+            if (msg_len > 0)
+            {
+                start_tcp_read_request_body(msg_len);
+            }
+            else
+            {
+                // If there is no body, jump straight to the handle ready response body callback
+                handle_tcp_read_request_body(boost::system::error_code());
+            }
         }
         else
         {
@@ -617,9 +630,9 @@ public:
         }
         else
         {
-            SERVER_LOG_ERROR("ServerNetworkManager::send_notification") 
+            SERVER_LOG_DEBUG("ServerNetworkManager::send_notification") 
                 << "Can't send response_type " << response->type() 
-                << " to unknown connection " << connection_id;
+                << " to a disconected connection " << connection_id;
         }
     }
 
@@ -635,8 +648,11 @@ public:
         {
             ClientConnectionPtr connection= iter->second;
 
-            connection->add_tcp_response_to_write_queue(response);
-            connection->start_tcp_write_queued_response();
+            if (connection->can_send_data_to_client())
+            {
+                connection->add_tcp_response_to_write_queue(response);
+                connection->start_tcp_write_queued_response();
+            }
         }
     }
 

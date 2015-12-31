@@ -6,6 +6,10 @@
 
 // -- pre-declarations -----
 class ControllerManager;
+namespace boost {
+    namespace program_options {
+        class variables_map;
+}};
 
 // -- definitions -----
 class ServerRequestHandler 
@@ -16,7 +20,10 @@ public:
 
     static ServerRequestHandler *get_instance() { return m_instance; }
 
+    bool any_active_bluetooth_requests() const;
+
     bool startup();
+    void update();
     void shutdown();
 
     ResponsePtr handle_request(int connection_id, RequestPtr request);
