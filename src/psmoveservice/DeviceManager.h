@@ -45,7 +45,7 @@ public:
      For anything that requires knowledge of the device, use the class-specific
      Server<Type>ViewPtr get<Type>ViewPtr(int device_id) functions instead.
      */
-    ServerDeviceViewPtr getDeviceViewPtr(int device_id);
+    virtual ServerDeviceViewPtr getDeviceViewPtr(int device_id)=0;
     
     int reconnect_interval;
     int poll_interval;
@@ -71,8 +71,6 @@ protected:
     
     std::chrono::time_point<std::chrono::high_resolution_clock> m_last_reconnect_time;
     std::chrono::time_point<std::chrono::high_resolution_clock> m_last_poll_time;
-    
-    ServerDeviceViewPtr m_devices[k_max_devices]; // This should be overwritten by subclass
 };
 
 class ControllerManager : public DeviceTypeManager
@@ -90,7 +88,9 @@ public:
     const int getMaxDevices() override
     { return ControllerManager::k_max_devices; }
     
+    ServerDeviceViewPtr getDeviceViewPtr(int device_id) override;
     ServerControllerViewPtr getControllerViewPtr(int device_id);
+    
     
     bool setControllerRumble(int controller_id, int rumble_amount);
     bool resetPose(int controller_id);
@@ -116,6 +116,7 @@ public:
     const int getMaxDevices() override
     { return TrackerManager::k_max_devices; }
     
+    ServerDeviceViewPtr getDeviceViewPtr(int device_id) override;
     ServerTrackerViewPtr getTrackerViewPtr(int device_id);
     
 protected:
@@ -140,6 +141,7 @@ public:
     const int getMaxDevices() override
     { return HMDManager::k_max_devices; }
     
+    ServerDeviceViewPtr getDeviceViewPtr(int device_id) override;
     ServerHMDViewPtr getHMDViewPtr(int device_id);
     
 protected:

@@ -138,12 +138,6 @@ DeviceTypeManager::send_device_list_changed_notification()
     ServerNetworkManager::get_instance()->send_notification_to_all_clients(response);
 }
 
-ServerDeviceViewPtr
-DeviceTypeManager::getDeviceViewPtr(int device_id)
-{
-    return m_devices[device_id];
-}
-
 void
 DeviceTypeManager::update_devices()
 {
@@ -151,7 +145,8 @@ DeviceTypeManager::update_devices()
     
     for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
     {
-        bAllUpdatedOk &= getDeviceViewPtr(device_id)->update();
+        ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
+        bAllUpdatedOk &= device->update();
     }
     
     if (!bAllUpdatedOk)
@@ -167,7 +162,7 @@ DeviceTypeManager::find_open_device_device_id(const DeviceEnumerator &enumerator
     
     for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
     {
-        ServerDeviceViewPtr &device= m_devices[device_id];
+        ServerDeviceViewPtr device= getDeviceViewPtr(device_id);
         
         if (device && device->getIsOpen() && device->matchesDeviceEnumerator(&enumerator))
         {
@@ -185,7 +180,7 @@ DeviceTypeManager::find_first_closed_device_device_id()
     int result_device_id= -1;
     for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
     {
-        ServerDeviceViewPtr &device= m_devices[device_id];
+        ServerDeviceViewPtr device= getDeviceViewPtr(device_id);
         
         if (device && !device->getIsOpen())
         {
@@ -376,6 +371,12 @@ ControllerManager::resetPose(int controller_id)
     return false;
 }
 
+ServerDeviceViewPtr
+ControllerManager::getDeviceViewPtr(int device_id)
+{
+    return m_devices[device_id];
+}
+
 ServerControllerViewPtr
 ControllerManager::getControllerViewPtr(int device_id)
 {
@@ -385,19 +386,36 @@ ControllerManager::getControllerViewPtr(int device_id)
 // Tracker
 
 TrackerManager::TrackerManager()
-: DeviceTypeManager(10000, 13)
+    : DeviceTypeManager(10000, 13)
 {
+    // Allocate all of the devices
+    for (int controller_id = 0; controller_id < k_max_devices; ++controller_id)
+    {
+        ServerTrackerViewPtr controller = ServerTrackerViewPtr(new ServerTrackerView(controller_id));
+        
+        m_devices[controller_id]= controller;
+    }
 }
 
 TrackerManager::~TrackerManager()
 {
-    
+    // Deallocate the controllers
+    for (int device_id = 0; device_id < k_max_devices; ++device_id)
+    {
+        m_devices[device_id]= ServerTrackerViewPtr();
+    }
 }
 
 bool
 TrackerManager::update_connected_devices()
 {
     return false;
+}
+
+ServerDeviceViewPtr
+TrackerManager::getDeviceViewPtr(int device_id)
+{
+    return m_devices[device_id];
 }
 
 ServerTrackerViewPtr
@@ -411,11 +429,28 @@ TrackerManager::getTrackerViewPtr(int device_id)
 HMDManager::HMDManager()
 : DeviceTypeManager(1000, 2)
 {
+    // Allocate all of the devices
+    for (int controller_id = 0; controller_id < k_max_devices; ++controller_id)
+    {
+        ServerHMDViewPtr controller = ServerHMDViewPtr(new ServerHMDView(controller_id));
+        
+        m_devices[controller_id]= controller;
+    }
 }
 
 HMDManager::~HMDManager()
 {
-    
+    // Deallocate the controllers
+    for (int device_id = 0; device_id < k_max_devices; ++device_id)
+    {
+        m_devices[device_id]= ServerHMDViewPtr();
+    }
+}
+
+ServerDeviceViewPtr
+HMDManager::getDeviceViewPtr(int device_id)
+{
+    return m_devices[device_id];
 }
 
 ServerHMDViewPtr

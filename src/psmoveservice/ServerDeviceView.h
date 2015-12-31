@@ -22,6 +22,8 @@ public:
     inline int getDeviceID() const
     { return m_deviceID; }
     
+    virtual IDeviceInterface* getDevice() const=0;
+    
     // Returns true if device opened successfully
     bool getIsOpen() const;
     
@@ -33,7 +35,6 @@ protected:
     virtual void publish_device_data_frame() =0;
     
     long long m_last_updated_tick;
-    IDeviceInterface *m_device;
     int m_sequence_number;
     
 private:
@@ -44,9 +45,12 @@ class ServerControllerView : public ServerDeviceView
 {
 public:
     ServerControllerView(const int device_id);
+    ~ServerControllerView();
 
     // Registers the address of the bluetooth adapter on the host PC with the controller
     bool setHostBluetoothAddress(const std::string &address);
+    
+    IDeviceInterface* getDevice() const override {return m_device;}
 
     // Estimate the given pose if the controller
     // Positive time values estimate into the future
@@ -82,4 +86,29 @@ private:
     IControllerInterface *m_device;
 };
 
+class ServerTrackerView : public ServerDeviceView
+{
+public:
+    ServerTrackerView(const int device_id);
+    ~ServerTrackerView();
+    IDeviceInterface* getDevice() const override {return m_device;}
+protected:
+    void publish_device_data_frame() override {};
+private:
+    //TODO: Make ITrackerInterface
+    IControllerInterface *m_device;
+};
+
+class ServerHMDView : public ServerDeviceView
+{
+public:
+    ServerHMDView(const int device_id);
+    ~ServerHMDView();
+    IDeviceInterface* getDevice() const override {return m_device;}
+protected:
+    void publish_device_data_frame() override {};
+private:
+    //TODO: Make IHMDInterface
+    IControllerInterface *m_device;
+};
 #endif // SERVER_DEVICE_VIEW_H

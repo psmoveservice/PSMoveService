@@ -21,7 +21,6 @@
 ServerDeviceView::ServerDeviceView(
     const int device_id)
     : m_last_updated_tick(0)
-    , m_device(nullptr)
     , m_sequence_number(0)
     , m_deviceID(device_id)
 {
@@ -29,16 +28,12 @@ ServerDeviceView::ServerDeviceView(
 
 ServerDeviceView::~ServerDeviceView()
 {
-    delete m_device;  // Deleting abstract object should be OK because
-                      // this (ServerDeviceView) is abstract as well.
-                      // All non-abstract children will have non-abstract types
-                      // for m_device.
 }
 
 bool
 ServerDeviceView::open(const DeviceEnumerator *enumerator)
 {
-    bool bSuccess= m_device->open(enumerator);
+    bool bSuccess= getDevice()->open(enumerator);
     
     if (bSuccess)
     {
@@ -53,17 +48,18 @@ ServerDeviceView::open(const DeviceEnumerator *enumerator)
 bool
 ServerDeviceView::getIsOpen() const
 {
-    return m_device->getIsOpen();
+    return getDevice()->getIsOpen();
 }
 
 bool ServerDeviceView::update()
 {
     bool bSuccessfullyUpdated= true;
     
+    IDeviceInterface* device = getDevice();
     // Only poll data from open, bluetooth controllers
-    if (m_device->getIsReadyToPoll())
+    if (device->getIsReadyToPoll())
     {
-        switch (m_device->poll())
+        switch (device->poll())
         {
             case IControllerInterface::_PollResultSuccessNoData:
             {
@@ -71,13 +67,13 @@ bool ServerDeviceView::update()
                 std::chrono::duration_cast< std::chrono::milliseconds >(
                                                                         std::chrono::system_clock::now().time_since_epoch()).count();
                 long diff= static_cast<long>(now - m_last_updated_tick);
-                long max_timeout= m_device->getDataTimeout();
+                long max_timeout= device->getDataTimeout();
                 
                 if (diff > max_timeout)
                 {
                     SERVER_LOG_INFO("ServerControllerView::poll_open_controllers") <<
                     "Controller id " << getDeviceID() << " closing due to no data timeout (" << max_timeout << "ms)";
-                    m_device->close();
+                    device->close();
                     
                     bSuccessfullyUpdated= false;
                 }
@@ -99,7 +95,7 @@ bool ServerDeviceView::update()
             {
                 SERVER_LOG_INFO("ServerControllerView::poll_open_controllers") <<
                 "Controller id " << getDeviceID() << " closing due to failed read";
-                m_device->close();
+                device->close();
                 
                 bSuccessfullyUpdated= false;
             }
@@ -113,22 +109,31 @@ bool ServerDeviceView::update()
 void
 ServerDeviceView::close()
 {
-    m_device->close();
+    getDevice()->close();
 }
 
 bool
 ServerDeviceView::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
 {
-    return m_device->matchesDeviceEnumerator(enumerator);
+    return getDevice()->matchesDeviceEnumerator(enumerator);
 }
 
 
 // Controller
 
 ServerControllerView::ServerControllerView(const int device_id)
-: ServerDeviceView(device_id)
+    : ServerDeviceView(device_id)
+    , m_device(nullptr)
 {
     m_device = new PSMoveController();
+}
+
+ServerControllerView::~ServerControllerView()
+{
+    delete m_device;  // Deleting abstract object should be OK because
+                      // this (ServerDeviceView) is abstract as well.
+                      // All non-abstract children will have non-abstract types
+                      // for m_device.
 }
 
 bool ServerControllerView::setHostBluetoothAddress(
@@ -230,10 +235,7 @@ void ServerControllerView::publish_device_data_frame()
     {
     case CommonControllerState::PSMove:
         {
-            PSMoveControllerState psmove_state;
             PSMoveProtocol::ControllerDataFrame_PSMoveState *psmove_data_frame= data_frame->mutable_psmove_state();
-
-            m_device->getState(&psmove_state);
 
             //###bwalker $TODO - Publish real tracking status
             psmove_data_frame->set_iscurrentlytracking(false);
@@ -248,6 +250,10 @@ void ServerControllerView::publish_device_data_frame()
             psmove_data_frame->mutable_position()->set_y(controller_pose.py);
             psmove_data_frame->mutable_position()->set_z(controller_pose.pz);
 
+            PSMoveControllerState psmove_state;
+            // TODO: Do I need to use a CommonDeviceState then static downcast to PSMoveControllerState?
+            m_device->getState(&psmove_state);
+            
             psmove_data_frame->set_trigger_value(psmove_state.Trigger);
 
             unsigned int button_bitmask= 0;
@@ -294,4 +300,30 @@ void ServerControllerView::publish_device_data_frame()
     }
     
     ServerRequestHandler::get_instance()->publish_controller_data_frame(data_frame);
+}
+
+ServerTrackerView::ServerTrackerView(const int device_id)
+: ServerDeviceView(device_id)
+, m_device(nullptr)
+{
+    //TODO: new PSMoveTracker();
+    m_device = new PSMoveController();
+}
+
+ServerTrackerView::~ServerTrackerView()
+{
+    delete m_device;
+}
+
+ServerHMDView::ServerHMDView(const int device_id)
+: ServerDeviceView(device_id)
+, m_device(nullptr)
+{
+    //TODO: new HMD();
+    m_device = new PSMoveController();
+}
+
+ServerHMDView::~ServerHMDView()
+{
+    delete m_device;
 }
