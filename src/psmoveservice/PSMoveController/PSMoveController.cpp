@@ -462,7 +462,7 @@ PSMoveController::getIsBluetooth() const
 bool
 PSMoveController::getIsReadyToPoll() const
 {
-    return (getIsOpen() && getIsOpen());
+    return (getIsOpen() && getIsBluetooth());
 }
 
 std::string 
