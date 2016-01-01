@@ -466,6 +466,7 @@ HMDManager::update_connected_devices()
 }
 
 // DeviceManager - This is the interface used by PSMoveService
+DeviceManager *DeviceManager::m_instance= nullptr;
 
 DeviceManager::DeviceManager()
     : m_config() // NULL config until startup
@@ -498,6 +499,8 @@ DeviceManager::startup()
     m_hmd_manager.reconnect_interval = m_config->hmd_reconnect_interval;
     m_hmd_manager.poll_interval = m_config->hmd_poll_interval;
     success &= m_hmd_manager.startup();
+
+    m_instance= this;
     
     return success;
 }
@@ -518,6 +521,8 @@ DeviceManager::shutdown()
     m_controller_manager.shutdown();
     m_tracker_manager.shutdown();
     m_hmd_manager.shutdown();
+
+    m_instance= nullptr;
 }
 
 ServerControllerViewPtr

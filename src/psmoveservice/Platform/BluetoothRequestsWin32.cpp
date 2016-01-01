@@ -4,8 +4,8 @@
 
 // -- includes -----
 #include "BluetoothRequests.h"
-#include "../ControllerManager.h"
-#include "../ServerControllerView.h"
+#include "../DeviceManager.h"
+#include "../ServerDeviceView.h"
 #include "../ServerNetworkManager.h"
 #include "../ServerLog.h"
 #include "../ServerUtility.h"
@@ -215,7 +215,7 @@ public:
     BLUETOOTH_DEVICE_INFO deviceInfo;
     std::string controller_serial_string;
     std::string host_address_string;
-    CommonControllerState::eControllerDeviceType controller_device_type;
+    CommonDeviceState::eDeviceType controller_device_type;
 
     // Attempt Counters
     int scanCount;
@@ -233,7 +233,7 @@ public:
         deviceInfo.dwSize= sizeof(BLUETOOTH_DEVICE_INFO);
         controller_serial_string.clear();
         host_address_string.clear();
-        controller_device_type= CommonControllerState::SUPPORTED_CONTROLLER_TYPE_COUNT;
+        controller_device_type= CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT;
         scanCount= 0;
         connectionAttemptCount= 0;
         verifyConnectionCount= 0;
@@ -265,7 +265,7 @@ static bool string_to_bluetooth_address(const std::string bt_string, BLUETOOTH_A
 static std::string bluetooth_address_to_string(const BLUETOOTH_ADDRESS* bt_address);
 static bool find_first_bluetooth_radio(HANDLE *hRadio);
 static bool get_bluetooth_device_info(const HANDLE hRadio, const BLUETOOTH_ADDRESS *addr, BLUETOOTH_DEVICE_INFO *device_info, BOOL inquire);
-static bool is_matching_controller_type(const BLUETOOTH_DEVICE_INFO *device_info, const CommonControllerState::eControllerDeviceType controller_device_type);
+static bool is_matching_controller_type(const BLUETOOTH_DEVICE_INFO *device_info, const CommonDeviceState::eDeviceType controller_device_type);
 static bool is_device_move_motion_controller(const BLUETOOTH_DEVICE_INFO *device_info);
 static bool is_device_navigation_controller(const BLUETOOTH_DEVICE_INFO *device_info);
 static bool is_hid_service_enabled(const HANDLE hRadio, BLUETOOTH_DEVICE_INFO *device_info);
@@ -294,7 +294,7 @@ bool
 AsyncBluetoothUnpairDeviceRequest::start()
 {
     bool success= true;
-    const int controller_id= m_controllerView->getControllerID();
+    const int controller_id= m_controllerView->getDeviceID();
     const std::string bt_address_string= m_controllerView->getSerial();
     BLUETOOTH_ADDRESS bt_address;
 
@@ -327,13 +327,13 @@ AsyncBluetoothUnpairDeviceRequest::start()
     // Close all controllers that use this serial number (bluetooth address)
     if (success)
     {
-        const int controllerViewCount= ControllerManager::getInstance()->getControllerViewCount();
+        const int controllerViewCount= DeviceManager::getInstance()->getControllerViewMaxCount();
 
         for (int index= 0; index < controllerViewCount; ++index)
         {
-            ServerControllerViewPtr view= ControllerManager::getInstance()->getControllerView(index);
+            ServerControllerViewPtr view= DeviceManager::getInstance()->getControllerViewPtr(index);
 
-            if (view->getIsOpen() && view->getSerial() == bt_address_string)
+            if (view && view->getIsOpen() && view->getSerial() == bt_address_string)
             {
                 view->close();
             }
@@ -425,7 +425,7 @@ AsyncBluetoothUnpairDeviceRequest::update()
         // Tell the client about the sub status change
         send_progress_notification_to_client(
             m_connectionId, 
-            m_controllerView->getControllerID(), 
+            m_controllerView->getDeviceID(), 
             static_cast<int>(subStatus), 
             BluetoothUnpairDeviceState::k_total_steps);
 
@@ -502,7 +502,7 @@ bool
 AsyncBluetoothPairDeviceRequest::start()
 {
     bool success= true;
-    const int controller_id= m_controllerView->getControllerID();
+    const int controller_id= m_controllerView->getDeviceID();
 
     // Reset the pairing device state
     BluetoothPairDeviceState *state= reinterpret_cast<BluetoothPairDeviceState *>(m_internal_state);
@@ -644,7 +644,7 @@ AsyncBluetoothPairDeviceRequest::update()
         // Tell the client about the sub status change
         send_progress_notification_to_client(
             m_connectionId, 
-            m_controllerView->getControllerID(), 
+            m_controllerView->getDeviceID(), 
             static_cast<int>(subStatus), 
             BluetoothPairDeviceState::k_total_steps);
 
@@ -696,7 +696,7 @@ AsyncBluetoothPairDeviceRequest::getDescription()
 {
     std::ostringstream description;
 
-    description << "[Pair] ID: " << m_controllerView->getControllerID() << " Conn: " << m_connectionId;
+    description << "[Pair] ID: " << m_controllerView->getDeviceID() << " Conn: " << m_connectionId;
 
     return description.str();
 }
@@ -744,7 +744,7 @@ AsyncBluetoothPairDeviceRequest__registerHostAddress(
     BluetoothPairDeviceState *state)
 {
     assert(state->isMainThread());
-    const int controller_id= controllerView->getControllerID();
+    const int controller_id= controllerView->getDeviceID();
     bool bSuccess= true;
 
     if (controllerView->setHostBluetoothAddress(state->host_address_string))
@@ -1199,17 +1199,17 @@ get_bluetooth_device_info(
 static bool
 is_matching_controller_type(
     const BLUETOOTH_DEVICE_INFO *device_info,
-    const CommonControllerState::eControllerDeviceType controller_device_type)
+    const CommonDeviceState::eDeviceType controller_device_type)
 {
     bool matches= false;
 
     switch(controller_device_type)
     {
-    case CommonControllerState::PSMove:
+    case CommonDeviceState::PSMove:
         {
             matches= is_device_move_motion_controller(device_info);
         } break;
-    case CommonControllerState::PSNavi:
+    case CommonDeviceState::PSNavi:
         {
             matches= is_device_navigation_controller(device_info);
         } break;

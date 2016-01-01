@@ -36,7 +36,7 @@ public:
     void update();
     virtual void shutdown();
     
-    virtual const int getMaxDevices()=0;
+    virtual int getMaxDevices() const =0;
     
     /**
      Returns an upcast device view ptr. Useful for generic functions that are
@@ -85,7 +85,7 @@ public:
     /// Override parent shutdown because we have to hid_close
     void shutdown() override;
     
-    const int getMaxDevices() override
+    int getMaxDevices() const override
     { return ControllerManager::k_max_devices; }
     
     ServerDeviceViewPtr getDeviceViewPtr(int device_id) override;
@@ -113,7 +113,7 @@ public:
     TrackerManager();
     ~TrackerManager();
     
-    const int getMaxDevices() override
+    int getMaxDevices() const override
     { return TrackerManager::k_max_devices; }
     
     ServerDeviceViewPtr getDeviceViewPtr(int device_id) override;
@@ -138,7 +138,7 @@ public:
     HMDManager();
     ~HMDManager();
     
-    const int getMaxDevices() override
+    int getMaxDevices() const override
     { return HMDManager::k_max_devices; }
     
     ServerDeviceViewPtr getDeviceViewPtr(int device_id) override;
@@ -167,13 +167,27 @@ public:
     bool startup(); /**< Initialize the interfaces for each specific manager. */
     void update();  /**< Poll all connected devices for each specific manager. */
     void shutdown();/**< Shutdown the interfaces for each specific manager. */
-    
+
+    static inline DeviceManager *getInstance()
+    { return m_instance; }
+
+    inline int getControllerViewMaxCount() const
+    { return m_controller_manager.getMaxDevices(); }
+    inline int getTrackerViewMaxCount() const
+    { return m_tracker_manager.getMaxDevices(); }
+    inline int geHMDViewMaxCount() const
+    { return m_hmd_manager.getMaxDevices(); }
+        
     ServerControllerViewPtr getControllerViewPtr(int controller_id);
     ServerTrackerViewPtr getTrackerViewPtr(int tracker_id);
     ServerHMDViewPtr getHMDViewPtr(int hmd_id);
     
 private:
     DeviceManagerConfigPtr m_config;
+
+    /// Singleton instance of the class
+    /// Assigned in startup, cleared in teardown
+    static DeviceManager *m_instance;
 
 public:
     ControllerManager m_controller_manager;
