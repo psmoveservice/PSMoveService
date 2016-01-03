@@ -4,6 +4,8 @@
 //-- includes -----
 #include "ControllerInterface.h"
 #include "PSMoveDataFrame.h"
+#include "PSMoveProtocolInterface.h"
+#include <assert.h>
 
 // -- declarations -----
 class ServerControllerView
@@ -51,6 +53,24 @@ public:
     // A lookBack of 0 corresponds to the most recent data.
     void getState(struct CommonControllerState *out_state, int lookBack = 0) const;
 
+    // Used for when you have to get controller specific data
+    template <class t_controller_subclass>
+    inline const t_controller_subclass *getControllerSubclassConst() const
+    { 
+        const t_controller_subclass *controller= static_cast<const t_controller_subclass *>(m_controller);
+        assert(controller->getControllerDeviceType() == t_controller_subclass::getControllerDeviceTypeStatic());
+
+        return controller; 
+    }
+    template <class t_controller_subclass>
+    inline t_controller_subclass *getControllerSubclass()
+    { 
+        t_controller_subclass *controller= static_cast<t_controller_subclass *>(m_controller);
+        assert(controller->getControllerDeviceType() == t_controller_subclass::getControllerDeviceTypeStatic());
+
+        return controller; 
+    }
+
     // setters
     inline void setControllerID(int id)
     { m_controllerID= id; }
@@ -60,6 +80,10 @@ public:
 
 protected:
     void publish_controller_data_frame();
+    static void generate_controller_data_frame_for_stream(
+        const ServerControllerView *controller_view,
+        const struct ControllerStreamInfo *stream_info,
+        ControllerDataFramePtr &data_frame);
 
 private:
     int m_controllerID;

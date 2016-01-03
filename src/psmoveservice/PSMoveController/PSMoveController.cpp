@@ -162,6 +162,8 @@ PSMoveControllerConfig::config2ptree()
 {
     boost::property_tree::ptree pt;
 
+    pt.put("is_valid", is_valid);
+
     pt.put("data_timeout", data_timeout);
     
     pt.put("Calibration.Accel.X.k", cal_ag_xyz_kb[0][0][0]);
@@ -183,6 +185,8 @@ PSMoveControllerConfig::config2ptree()
 void
 PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 {
+    is_valid= pt.get<bool>("is_valid", false);
+
     data_timeout = pt.get<long>("data_timeout", 1000);
 
     cal_ag_xyz_kb[0][0][0] = pt.get<float>("Calibration.Accel.X.k", 1.0f);
@@ -561,6 +565,8 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
 void
 PSMoveController::loadCalibration()
 {
+    bool is_valid= true;
+
     // The calibration provides a scale factor (k) and offset (b) to convert
     // raw accelerometer and gyroscope readings into something more useful.
     // https://github.com/nitsch/moveonpc/wiki/Calibration-data
@@ -573,57 +579,96 @@ PSMoveController::loadCalibration()
 
     // Load the calibration from the controller itself.
     unsigned char hid_cal[PSMOVE_CALIBRATION_BLOB_SIZE];
-    unsigned char cal[PSMOVE_CALIBRATION_SIZE];
-    int res;
-    int x;
-    int dest_offset;
-    int src_offset;
-    for (x=0; x<3; x++) {
+
+    for (int block_index=0; is_valid && block_index<3; block_index++) 
+    {
+        unsigned char cal[PSMOVE_CALIBRATION_SIZE];
+        int dest_offset;
+        int src_offset;
+
         memset(cal, 0, sizeof(cal));
         cal[0] = PSMove_Req_GetCalibration;
-        res = hid_get_feature_report(HIDDetails.Handle, cal, sizeof(cal));
-        if (cal[1] == 0x00) {
-            /* First block */
-            dest_offset = 0;
-            src_offset = 0;
-        } else if (cal[1] == 0x01) {
-            /* Second block */
-            dest_offset = PSMOVE_CALIBRATION_SIZE;
-            src_offset = 2;
-        } else if (cal[1] == 0x82) {
-            /* Third block */
-            dest_offset = 2*PSMOVE_CALIBRATION_SIZE - 2;
-            src_offset = 2;
-        }
-        memcpy(hid_cal+dest_offset, cal+src_offset,
-                sizeof(cal)-src_offset);
-    }
-    memcpy(usb_calibration, hid_cal, PSMOVE_CALIBRATION_BLOB_SIZE);
-        
-    // Convert the calibration blob into constant & offset for each accel dim.
-    std::vector< std::vector<int> > dim_lohi = { {1, 3}, {5, 4}, {2, 0} };
-    std::vector<int> res_lohi(2, 0);
-    int dim_ix = 0;
-    int lohi_ix = 0;
-    for (dim_ix = 0; dim_ix < 3; dim_ix++)
-    {
-        for (lohi_ix = 0; lohi_ix < 2; lohi_ix++)
+
+        int res = hid_get_feature_report(HIDDetails.Handle, cal, sizeof(cal));
+
+        if (res == PSMOVE_CALIBRATION_SIZE)
         {
-            res_lohi[lohi_ix] = decodeCalibration(usb_calibration, 0x04 + 6*dim_lohi[dim_ix][lohi_ix] + 2*dim_ix);
+            if (cal[1] == 0x00) 
+            {
+                /* First block */
+                dest_offset = 0;
+                src_offset = 0;
+            }
+            else if (cal[1] == 0x01) 
+            {
+                /* Second block */
+                dest_offset = PSMOVE_CALIBRATION_SIZE;
+                src_offset = 2;
+            }
+            else if (cal[1] == 0x82) 
+            {
+                /* Third block */
+                dest_offset = 2*PSMOVE_CALIBRATION_SIZE - 2;
+                src_offset = 2;
+            }
+            else
+            {
+                SERVER_LOG_ERROR("PSMoveController::loadCalibration") 
+                    << "Unexpected calibration block id(0x" << std::hex << std::setfill('0') << std::setw(2) << cal[1] 
+                    << " on block #" << block_index;
+                is_valid= false;
+            }
         }
-        cfg.cal_ag_xyz_kb[0][dim_ix][0] = 2.f / (float)(res_lohi[1] - res_lohi[0]);
-        cfg.cal_ag_xyz_kb[0][dim_ix][1] = -(cfg.cal_ag_xyz_kb[0][dim_ix][0] * (float)res_lohi[0]) - 1.f;
-    }
-        
-    // Convert the calibration blob into constant for each gyro dim.
-    float factor = (float)(2.0 * M_PI * 80.0) / 60.0f;
-    for (dim_ix = 0; dim_ix < 3; dim_ix++)
-    {
-        cfg.cal_ag_xyz_kb[1][dim_ix][0] = factor / (float)(decodeCalibration(usb_calibration, 0x46 + 10 * dim_ix)
-                                                - decodeCalibration(usb_calibration, 0x2a + 2*dim_ix));
-        // No offset for gyroscope
+        else
+        {
+            char hidapi_err_mbs[256];
+            bool valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
+
+            // Device no longer in valid state.
+            if (valid_error_mesg)
+            {
+                SERVER_LOG_ERROR("PSMoveController::loadCalibration") << "HID ERROR: " << hidapi_err_mbs;
+            }
+
+            is_valid= false;
+        }
+
+        if (is_valid)
+        {
+            memcpy(hid_cal+dest_offset, cal+src_offset, sizeof(cal)-src_offset);
+        }
     }
 
+    if (is_valid)
+    {
+        memcpy(usb_calibration, hid_cal, PSMOVE_CALIBRATION_BLOB_SIZE);
+        
+        // Convert the calibration blob into constant & offset for each accel dim.
+        std::vector< std::vector<int> > dim_lohi = { {1, 3}, {5, 4}, {2, 0} };
+        std::vector<int> res_lohi(2, 0);
+        int dim_ix = 0;
+        int lohi_ix = 0;
+        for (dim_ix = 0; dim_ix < 3; dim_ix++)
+        {
+            for (lohi_ix = 0; lohi_ix < 2; lohi_ix++)
+            {
+                res_lohi[lohi_ix] = decodeCalibration(usb_calibration, 0x04 + 6*dim_lohi[dim_ix][lohi_ix] + 2*dim_ix);
+            }
+            cfg.cal_ag_xyz_kb[0][dim_ix][0] = 2.f / (float)(res_lohi[1] - res_lohi[0]);
+            cfg.cal_ag_xyz_kb[0][dim_ix][1] = -(cfg.cal_ag_xyz_kb[0][dim_ix][0] * (float)res_lohi[0]) - 1.f;
+        }
+        
+        // Convert the calibration blob into constant for each gyro dim.
+        float factor = (float)(2.0 * M_PI * 80.0) / 60.0f;
+        for (dim_ix = 0; dim_ix < 3; dim_ix++)
+        {
+            cfg.cal_ag_xyz_kb[1][dim_ix][0] = factor / (float)(decodeCalibration(usb_calibration, 0x46 + 10 * dim_ix)
+                                                    - decodeCalibration(usb_calibration, 0x2a + 2*dim_ix));
+            // No offset for gyroscope
+        }
+    }
+
+    cfg.is_valid= is_valid;
     cfg.save();
 }
 

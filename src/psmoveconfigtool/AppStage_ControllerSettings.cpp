@@ -1,7 +1,8 @@
 //-- inludes -----
 #include "AppStage_ControllerSettings.h"
-#include "AppStage_PairController.h"
+#include "AppStage_MagnetometerCalibration.h"
 #include "AppStage_MainMenu.h"
+#include "AppStage_PairController.h"
 #include "App.h"
 #include "Camera.h"
 #include "MathUtility.h"
@@ -152,6 +153,11 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
+                if (ImGui::Button("Calibrate Magnetometer"))
+                {
+                    m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
+                }
+
                 // We can only unpair controllers connected via usb
                 if (controllerInfo.ConnectionType == AppStage_ControllerSettings::USB)
                 {
@@ -243,11 +249,6 @@ bool AppStage_ControllerSettings::onClientAPIEvent(
 
     switch(event)
     {
-    case ClientPSMoveAPI::disconnectedFromService:
-        {
-            bHandled= true;
-            m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
-        } break;
     case ClientPSMoveAPI::controllerListUpdated:
         {
             bHandled= true;

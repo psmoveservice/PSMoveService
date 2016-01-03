@@ -129,7 +129,7 @@ private:
                 
                 if (PSMoveView.GetIsCurrentlyTracking())
                 {
-                    PSMoveVector3 controller_position= PSMoveView.GetPosition();
+                    PSMovePosition controller_position= PSMoveView.GetPosition();
 
                     std::cout << "Controller State: " << std::endl;
                     std::cout << "  Position (" << controller_position.x << ", " << controller_position.y << ", " << controller_position.z << ")" << std::endl;

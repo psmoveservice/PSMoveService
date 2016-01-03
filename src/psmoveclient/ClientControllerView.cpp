@@ -7,11 +7,21 @@
 //-- pre-declarations -----
 
 //-- constants -----
-const PSMoveVector3 g_psmove_vector3_zero= {0.f, 0.f, 0.f};
-const PSMoveVector3 *k_psmove_vector3_zero= &g_psmove_vector3_zero;
+const PSMoveFloatVector3 g_psmove_float_vector3_zero= {0.f, 0.f, 0.f};
+const PSMoveFloatVector3 *k_psmove_float_vector3_zero= &g_psmove_float_vector3_zero;
+
+const PSMoveIntVector3 g_psmove_int_vector3_zero= {0, 0, 0};
+const PSMoveIntVector3 *k_psmove_int_vector3_zero= &g_psmove_int_vector3_zero;
+
+const PSMovePosition g_psmove_position_origin= {0.f, 0.f, 0.f};
+const PSMovePosition *k_psmove_position_origin= &g_psmove_position_origin;
 
 const PSMoveQuaternion g_psmove_quaternion_identity= {1.f, 0.f, 0.f, 0.f};
 const PSMoveQuaternion *k_psmove_quaternion_identity= &g_psmove_quaternion_identity;
+
+const PSMoveRawSensorData k_empty_sensor_data= {{0, 0, 0}, {0.f, 0.f, 0.f}, {0.f, 0.f, 0.f}};
+
+const PSMoveFloatVector3 k_identity_gravity_calibration_direction= {0.f, 1.f, 0.f};
 
 //-- prototypes ----
 static void update_button_state(PSMoveButtonState &button, unsigned int button_bitmask, unsigned int button_bit);
@@ -22,10 +32,12 @@ static void update_button_state(PSMoveButtonState &button, unsigned int button_b
 void ClientPSMoveView::Clear()
 {
     bValid= false;
+    bHasValidHardwareCalibration= false;
     bIsTrackingEnabled= false;
     bIsCurrentlyTracking= false;
 
     Pose.Clear();
+    RawSensorData.Clear();
 
     TriangleButton= PSMoveButton_UP;
     CircleButton= PSMoveButton_UP;
@@ -40,12 +52,23 @@ void ClientPSMoveView::Clear()
     TriggerValue= 0;
 }
 
+const PSMoveRawSensorData &ClientPSMoveView::GetRawSensorData() const
+{
+    return IsValid() ? RawSensorData : k_empty_sensor_data;
+}
+
+const PSMoveFloatVector3 &ClientPSMoveView::GetIdentityGravityCalibrationDirection() const
+{
+    return k_identity_gravity_calibration_direction;
+}
+
 void ClientPSMoveView::ApplyControllerDataFrame(const PSMoveProtocol::ControllerDataFrame *data_frame)
 {
     if (data_frame->isconnected())
     {
         const PSMoveProtocol::ControllerDataFrame_PSMoveState &psmove_data_frame= data_frame->psmove_state();
 
+        this->bHasValidHardwareCalibration= psmove_data_frame.validhardwarecalibration();
         this->bIsTrackingEnabled= psmove_data_frame.istrackingenabled();
         this->bIsCurrentlyTracking= psmove_data_frame.iscurrentlytracking();
 
@@ -57,6 +80,28 @@ void ClientPSMoveView::ApplyControllerDataFrame(const PSMoveProtocol::Controller
         this->Pose.Position.x= psmove_data_frame.position().x();
         this->Pose.Position.y= psmove_data_frame.position().y();
         this->Pose.Position.z= psmove_data_frame.position().z();
+
+        if (psmove_data_frame.has_raw_sensor_data())
+        {
+            const PSMoveProtocol::ControllerDataFrame_PSMoveState_RawSensorData &raw_sensor_data= 
+                psmove_data_frame.raw_sensor_data();
+
+            this->RawSensorData.Magnetometer.i= raw_sensor_data.magnetometer().i();
+            this->RawSensorData.Magnetometer.j= raw_sensor_data.magnetometer().j();
+            this->RawSensorData.Magnetometer.k= raw_sensor_data.magnetometer().k();
+
+            this->RawSensorData.Accelerometer.i= raw_sensor_data.accelerometer().i();
+            this->RawSensorData.Accelerometer.j= raw_sensor_data.accelerometer().j();
+            this->RawSensorData.Accelerometer.k= raw_sensor_data.accelerometer().k();
+
+            this->RawSensorData.Gyroscope.i= raw_sensor_data.gyroscope().i();
+            this->RawSensorData.Gyroscope.j= raw_sensor_data.gyroscope().j();
+            this->RawSensorData.Gyroscope.k= raw_sensor_data.gyroscope().k();
+        }
+        else
+        {
+            this->RawSensorData.Clear();
+        }
 
         unsigned int button_bitmask= data_frame->button_down_bitmask();
         update_button_state(TriangleButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_TRIANGLE);

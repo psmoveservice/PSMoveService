@@ -11,7 +11,37 @@
 class AppStage_ControllerSettings : public AppStage
 {
 public:
+    enum eControllerType
+    {
+        PSMove,
+        PSNavi
+    };
+
+    enum eConnectionType
+    {
+        Bluetooth,
+        USB
+    };
+
+    struct ControllerInfo
+    {
+        int ControllerID;
+        eControllerType ControllerType;
+        eConnectionType ConnectionType;
+        std::string DevicePath;
+        std::string DeviceSerial;
+        std::string HostSerial;
+    };
+
     AppStage_ControllerSettings(class App *app);
+
+    inline const ControllerInfo *getSelectedControllerInfo() const
+    { 
+        return 
+            (m_selectedControllerIndex != -1) 
+            ? &m_pairedControllerInfos[m_selectedControllerIndex] 
+            : nullptr; 
+    }
 
     virtual void enter() override;
     virtual void exit() override;
@@ -44,28 +74,6 @@ private:
         failedControllerListRequest,
     };
     eControllerMenuState m_menuState;
-
-    enum eControllerType
-    {
-        PSMove,
-        PSNavi
-    };
-
-    enum eConnectionType
-    {
-        Bluetooth,
-        USB
-    };
-
-    struct ControllerInfo
-    {
-        int ControllerID;
-        eControllerType ControllerType;
-        eConnectionType ConnectionType;
-        std::string DevicePath;
-        std::string DeviceSerial;
-        std::string HostSerial;
-    };
 
     std::vector<ControllerInfo> m_pairedControllerInfos;
     std::vector<ControllerInfo> m_unpairedControllerInfos;

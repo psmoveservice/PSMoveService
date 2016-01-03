@@ -107,6 +107,8 @@ public:
     virtual std::string getSerial() const override;
     virtual std::string getHostBluetoothAddress() const override;
     virtual bool getIsOpen() const override;
+    static CommonControllerState::eControllerDeviceType getControllerDeviceTypeStatic() 
+    { return CommonControllerState::PSNavi; }
     virtual CommonControllerState::eControllerDeviceType getControllerDeviceType() const override;
     virtual void getState(CommonControllerState *out_state, int lookBack = 0) const;
     virtual long getDataTimeout() const override;

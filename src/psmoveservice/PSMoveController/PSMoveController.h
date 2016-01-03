@@ -26,6 +26,7 @@ class PSMoveControllerConfig : public PSMoveConfig
 public:
     PSMoveControllerConfig(const std::string &fnamebase = "PSMoveControllerConfig")
         : PSMoveConfig(fnamebase)
+        , is_valid(false)
         , data_timeout(1000) // ms
         , cal_ag_xyz_kb(2, std::vector<std::vector<float>>(3, std::vector<float>(2, 0.f)))
     {};
@@ -33,6 +34,7 @@ public:
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
+    bool is_valid;
     long data_timeout;
     std::vector<std::vector<std::vector<float>>> cal_ag_xyz_kb;
 };
@@ -120,6 +122,8 @@ public:
     virtual std::string getSerial() const override;
     virtual std::string getHostBluetoothAddress() const override;
     virtual bool getIsOpen() const override;
+    static CommonControllerState::eControllerDeviceType getControllerDeviceTypeStatic() 
+    { return CommonControllerState::PSMove; }
     virtual CommonControllerState::eControllerDeviceType getControllerDeviceType() const override;
     virtual void getState(CommonControllerState *out_state, int lookBack = 0) const override;
     virtual long getDataTimeout() const override;

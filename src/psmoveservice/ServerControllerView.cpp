@@ -10,12 +10,20 @@
 #include "PSMoveProtocolInterface.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerUtility.h"
+#include "ServerRequestHandler.h"
 
 #include <chrono>
 
 //-- macros -----
 #define SET_BUTTON_BIT(bitmask, bit_index, button_state) \
     bitmask|= (button_state == CommonControllerState::Button_DOWN || button_state == CommonControllerState::Button_PRESSED) ? (0x1 << (bit_index)) : 0x0;
+
+
+//-- private methods -----
+static void generate_psmove_data_frame_for_stream(
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, ControllerDataFramePtr &data_frame);
+static void generate_psnavi_data_frame_for_stream(
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, ControllerDataFramePtr &data_frame);
 
 //-- public implementation -----
 ServerControllerView::ServerControllerView(
@@ -206,82 +214,140 @@ bool ServerControllerView::setControllerRumble(int rumble_amount)
 // -- private methods -----
 void ServerControllerView::publish_controller_data_frame()
 {
-    psmovePosef controller_pose= getPose();    
+    // Tell the server request handler we want to send out controller updates.
+    // This will call generate_controller_data_frame_for_stream for each listening connection.
+    ServerRequestHandler::get_instance()->publish_controller_data_frame(
+        this, &ServerControllerView::generate_controller_data_frame_for_stream);
 
-    ControllerDataFramePtr data_frame(new PSMoveProtocol::ControllerDataFrame);
-
-    data_frame->set_controller_id(getControllerID());
-    data_frame->set_sequence_num(m_sequence_number);
     m_sequence_number++;
-    
-    data_frame->set_isconnected(m_controller->getIsOpen());
+}
 
-    switch (getControllerDeviceType())
+void ServerControllerView::generate_controller_data_frame_for_stream(
+    const ServerControllerView *controller_view,
+    const ControllerStreamInfo *stream_info,
+    ControllerDataFramePtr &data_frame)
+{
+    data_frame->set_controller_id(controller_view->getControllerID());
+    data_frame->set_sequence_num(controller_view->m_sequence_number);   
+    data_frame->set_isconnected(controller_view->m_controller->getIsOpen());
+
+    switch (controller_view->getControllerDeviceType())
     {
     case CommonControllerState::PSMove:
         {
-            PSMoveControllerState psmove_state;
-            PSMoveProtocol::ControllerDataFrame_PSMoveState *psmove_data_frame= data_frame->mutable_psmove_state();
-
-            m_controller->getState(&psmove_state);
-
-            //###bwalker $TODO - Publish real tracking status
-            psmove_data_frame->set_iscurrentlytracking(false);
-            psmove_data_frame->set_istrackingenabled(true);
-
-            psmove_data_frame->mutable_orientation()->set_w(controller_pose.qw);
-            psmove_data_frame->mutable_orientation()->set_x(controller_pose.qx);
-            psmove_data_frame->mutable_orientation()->set_y(controller_pose.qy);
-            psmove_data_frame->mutable_orientation()->set_z(controller_pose.qz);
-
-            psmove_data_frame->mutable_position()->set_x(controller_pose.px);
-            psmove_data_frame->mutable_position()->set_y(controller_pose.py);
-            psmove_data_frame->mutable_position()->set_z(controller_pose.pz);
-
-            psmove_data_frame->set_trigger_value(psmove_state.Trigger);
-
-            unsigned int button_bitmask= 0;
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::TRIANGLE, psmove_state.Triangle);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::CIRCLE, psmove_state.Circle);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::CROSS, psmove_state.Cross);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::SQUARE, psmove_state.Square);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::SELECT, psmove_state.Select);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::START, psmove_state.Start);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::PS, psmove_state.PS);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::MOVE, psmove_state.Move);
-            data_frame->set_button_down_bitmask(button_bitmask);
-
-            data_frame->set_controller_type(PSMoveProtocol::PSMOVE);
+            generate_psmove_data_frame_for_stream(controller_view, stream_info, data_frame);
         } break;
     case CommonControllerState::PSNavi:
         {
-            PSNaviControllerState psnavi_state;
-            PSMoveProtocol::ControllerDataFrame_PSNaviState *psnavi_data_frame= data_frame->mutable_psnavi_state();
-
-            m_controller->getState(&psnavi_state);
-
-            psnavi_data_frame->set_trigger_value(psnavi_state.Trigger);
-            psnavi_data_frame->set_stick_xaxis(psnavi_state.Stick_XAxis);
-            psnavi_data_frame->set_stick_yaxis(psnavi_state.Stick_YAxis);
-
-            unsigned int button_bitmask= 0;
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::L1, psnavi_state.L1);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::L2, psnavi_state.L2);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::L3, psnavi_state.L3);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::CIRCLE, psnavi_state.Circle);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::CROSS, psnavi_state.Cross);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::PS, psnavi_state.PS);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::UP, psnavi_state.DPad_Up);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::RIGHT, psnavi_state.DPad_Right);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::DOWN, psnavi_state.DPad_Down);
-            SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::LEFT, psnavi_state.DPad_Left);
-            data_frame->set_button_down_bitmask(button_bitmask);
-
-            data_frame->set_controller_type(PSMoveProtocol::PSNAVI);
+            generate_psnavi_data_frame_for_stream(controller_view, stream_info, data_frame);
         } break;
     default:
         assert(0 && "Unhandled controller type");
     }
-    
-    ServerRequestHandler::get_instance()->publish_controller_data_frame(data_frame);
+}
+
+static void generate_psmove_data_frame_for_stream(
+    const ServerControllerView *controller_view,
+    const ControllerStreamInfo *stream_info,
+    ControllerDataFramePtr &data_frame)
+{
+    const PSMoveController *psmove_controller= controller_view->getControllerSubclassConst<PSMoveController>();
+    const PSMoveControllerConfig &psmove_config= psmove_controller->getConfig();
+
+    PSMoveProtocol::ControllerDataFrame_PSMoveState *psmove_data_frame= data_frame->mutable_psmove_state();
+
+    psmovePosef controller_pose= controller_view->getPose();
+
+    PSMoveControllerState psmove_state;
+    controller_view->getState(&psmove_state);
+
+    psmove_data_frame->set_validhardwarecalibration(psmove_config.is_valid);
+    //###bwalker $TODO - Publish real tracking status
+    psmove_data_frame->set_iscurrentlytracking(false);
+    psmove_data_frame->set_istrackingenabled(true);
+
+    psmove_data_frame->mutable_orientation()->set_w(controller_pose.qw);
+    psmove_data_frame->mutable_orientation()->set_x(controller_pose.qx);
+    psmove_data_frame->mutable_orientation()->set_y(controller_pose.qy);
+    psmove_data_frame->mutable_orientation()->set_z(controller_pose.qz);
+
+    psmove_data_frame->mutable_position()->set_x(controller_pose.px);
+    psmove_data_frame->mutable_position()->set_y(controller_pose.py);
+    psmove_data_frame->mutable_position()->set_z(controller_pose.pz);
+
+    psmove_data_frame->set_trigger_value(psmove_state.Trigger);
+
+    unsigned int button_bitmask= 0;
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::TRIANGLE, psmove_state.Triangle);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::CIRCLE, psmove_state.Circle);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::CROSS, psmove_state.Cross);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::SQUARE, psmove_state.Square);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::SELECT, psmove_state.Select);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::START, psmove_state.Start);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::PS, psmove_state.PS);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::MOVE, psmove_state.Move);
+    data_frame->set_button_down_bitmask(button_bitmask);
+
+    // If requested, get the raw sensor data for the controller
+    if (stream_info->include_raw_sensor_data)
+    {
+        PSMoveProtocol::ControllerDataFrame_PSMoveState_RawSensorData *raw_sensor_data=
+            psmove_data_frame->mutable_raw_sensor_data();
+
+        // One frame: [mx, my, mz] 
+        assert(psmove_state.Mag.size() == 3);
+        raw_sensor_data->mutable_magnetometer()->set_i(psmove_state.Mag[0]);
+        raw_sensor_data->mutable_magnetometer()->set_j(psmove_state.Mag[1]);
+        raw_sensor_data->mutable_magnetometer()->set_k(psmove_state.Mag[2]);
+
+        // Two frames: [[ax0, ay0, az0], [ax1, ay1, az1]] 
+        // Take the most recent frame: [ax1, ay1, az1]
+        assert(psmove_state.Accel.size() == 2);
+        assert(psmove_state.Accel[0].size() == 3);
+        assert(psmove_state.Accel[1].size() == 3);
+        raw_sensor_data->mutable_accelerometer()->set_i(psmove_state.Accel[1][0]);
+        raw_sensor_data->mutable_accelerometer()->set_j(psmove_state.Accel[1][1]);
+        raw_sensor_data->mutable_accelerometer()->set_k(psmove_state.Accel[1][2]);
+
+        // Two frames: [[wx0, wy0, wz0], [wx1, wy1, wz1]] 
+        // Take the most recent frame: [wx1, wy1, wz1]
+        assert(psmove_state.Gyro.size() == 2);
+        assert(psmove_state.Gyro[0].size() == 3);
+        assert(psmove_state.Gyro[1].size() == 3);
+        raw_sensor_data->mutable_gyroscope()->set_i(psmove_state.Gyro[1][0]);
+        raw_sensor_data->mutable_gyroscope()->set_j(psmove_state.Gyro[1][1]);
+        raw_sensor_data->mutable_gyroscope()->set_k(psmove_state.Gyro[1][2]);
+    }
+
+    data_frame->set_controller_type(PSMoveProtocol::PSMOVE);
+}
+
+static void generate_psnavi_data_frame_for_stream(
+    const ServerControllerView *controller_view,
+    const ControllerStreamInfo *stream_info,
+    ControllerDataFramePtr &data_frame)
+{
+    PSMoveProtocol::ControllerDataFrame_PSNaviState *psnavi_data_frame= data_frame->mutable_psnavi_state();
+
+    PSNaviControllerState psnavi_state;
+    controller_view->getState(&psnavi_state);
+
+    psnavi_data_frame->set_trigger_value(psnavi_state.Trigger);
+    psnavi_data_frame->set_stick_xaxis(psnavi_state.Stick_XAxis);
+    psnavi_data_frame->set_stick_yaxis(psnavi_state.Stick_YAxis);
+
+    unsigned int button_bitmask= 0;
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::L1, psnavi_state.L1);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::L2, psnavi_state.L2);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::L3, psnavi_state.L3);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::CIRCLE, psnavi_state.Circle);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::CROSS, psnavi_state.Cross);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::PS, psnavi_state.PS);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::UP, psnavi_state.DPad_Up);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::RIGHT, psnavi_state.DPad_Right);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::DOWN, psnavi_state.DPad_Down);
+    SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::LEFT, psnavi_state.DPad_Left);
+    data_frame->set_button_down_bitmask(button_bitmask);
+
+    data_frame->set_controller_type(PSMoveProtocol::PSNAVI);
 }

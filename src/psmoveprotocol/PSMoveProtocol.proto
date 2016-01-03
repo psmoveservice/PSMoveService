@@ -35,6 +35,7 @@ message Request {
     // NOTE: ControllerDataFrame packets will start streaming to client upon receiving this request
     message RequestStartPSMoveDataStream {
         int32 controller_id = 1;
+        bool include_raw_sensor_data= 2;
     }
     RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
 
@@ -149,6 +150,18 @@ message ControllerDataFrame
         float y = 2;
         float z = 3;
     }
+
+    message FloatVector {
+        float i = 1;
+        float j = 2;
+        float k = 3;
+    }
+
+    message IntVector {
+        int32 i = 1;
+        int32 j = 2;
+        int32 k = 3;
+    }
     
     message Orientation{
         float x = 1;
@@ -199,19 +212,29 @@ message ControllerDataFrame
     
     // PSMove Specific Controller state
     message PSMoveState
-    {
+    {   
         // PSMove Specific flags
-        bool IsTrackingEnabled= 1;
-        bool IsCurrentlyTracking= 2;
+        bool ValidHardwareCalibration= 1;
+        bool IsTrackingEnabled= 2;
+        bool IsCurrentlyTracking= 3;
 
         // Tracking position in the space of the HMD tracking camera
-        Position position = 3;
+        Position position = 4;
 
         // Tracking orientation in the frame of the local magnetic field
-        Orientation orientation = 4;
+        Orientation orientation = 5;
 
         // Trigger analog value [0,255]
-        int32 trigger_value = 5;
+        int32 trigger_value = 6;
+        
+        // Only valid if include_raw_sensor_data=true in START_CONTROLLER_DATA_STREAM request
+        message RawSensorData
+        {
+            IntVector magnetometer= 1;
+            FloatVector accelerometer= 2;
+            FloatVector gyroscope= 3;
+        }
+        RawSensorData raw_sensor_data = 7;
     }
     PSMoveState psmove_state = 6;
     

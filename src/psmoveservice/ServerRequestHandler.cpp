@@ -8,6 +8,7 @@
 #include "ServerControllerView.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerLog.h"
+#include "ServerUtility.h"
 #include <cassert>
 #include <bitset>
 #include <map>
@@ -23,12 +24,17 @@ struct RequestConnectionState
     int connection_id;
     std::bitset<k_max_controllers> active_controller_streams;
     AsyncBluetoothRequest *pending_bluetooth_request;
+    ControllerStreamInfo active_controller_stream_info[k_max_controllers];
 
     RequestConnectionState()
         : connection_id(-1)
         , active_controller_streams()
         , pending_bluetooth_request(nullptr)
     {
+        for (int index= 0; index < k_max_controllers; ++index)
+        {
+            active_controller_stream_info->Clear();
+        }
     }
 };
 typedef boost::shared_ptr<RequestConnectionState> RequestConnectionStatePtr;
@@ -196,9 +202,11 @@ public:
         }
     }
 
-    void publish_controller_data_frame(ControllerDataFramePtr data_frame)
+    void publish_controller_data_frame(
+         ServerControllerView *controller_view, 
+         ServerRequestHandler::t_generate_controller_data_frame_for_stream callback)
     {
-        int controller_id= data_frame->controller_id();
+        int controller_id= controller_view->getControllerID();
 
         // Notify any connections that care about the controller update
         for (t_connection_state_iter iter= m_connection_state_map.begin(); iter != m_connection_state_map.end(); ++iter)
@@ -208,6 +216,14 @@ public:
 
             if (connection_state->active_controller_streams.test(controller_id))
             {
+                const ControllerStreamInfo &streamInfo=
+                    connection_state->active_controller_stream_info[controller_id];
+
+                // Fill out a data frame specific to this stream using the given callback
+                ControllerDataFramePtr data_frame(new PSMoveProtocol::ControllerDataFrame);
+                callback(controller_view, &streamInfo, data_frame);
+
+                // Send the controller data frame over the network
                 ServerNetworkManager::get_instance()->send_controller_data_frame(connection_id, data_frame);
             }
         }
@@ -278,13 +294,22 @@ protected:
         const RequestContext &context, 
         PSMoveProtocol::Response *response)
     {
-        int controller_id= context.request->request_start_psmove_data_stream().controller_id();
+        const PSMoveProtocol::Request_RequestStartPSMoveDataStream& request=
+            context.request->request_start_psmove_data_stream();
+        int controller_id= request.controller_id();
 
-        if (controller_id >= 0 && controller_id < k_max_controllers)
+        if (ServerUtility::is_index_valid(controller_id, k_max_controllers))
         {
+            ControllerStreamInfo &streamInfo=
+                context.connection_state->active_controller_stream_info[controller_id];
+
             // The controller manager will always publish updates regardless of who is listening.
             // All we have to do is keep track of which connections care about the updates.
             context.connection_state->active_controller_streams.set(controller_id, true);
+
+            // Set control flags for the stream
+            streamInfo.Clear();
+            streamInfo.include_raw_sensor_data= request.include_raw_sensor_data();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -300,9 +325,10 @@ protected:
     {
         int controller_id= context.request->request_start_psmove_data_stream().controller_id();
 
-        if (controller_id >= 0 && controller_id < k_max_controllers)
+        if (ServerUtility::is_index_valid(controller_id, k_max_controllers))
         {
             context.connection_state->active_controller_streams.set(controller_id, false);
+            context.connection_state->active_controller_stream_info[controller_id].Clear();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -520,7 +546,9 @@ void ServerRequestHandler::handle_client_connection_stopped(int connection_id)
     return m_implementation_ptr->handle_client_connection_stopped(connection_id);
 }
 
-void ServerRequestHandler::publish_controller_data_frame(ControllerDataFramePtr data_frame)
+void ServerRequestHandler::publish_controller_data_frame(
+    ServerControllerView *controller_view, 
+    t_generate_controller_data_frame_for_stream callback)
 {
-    return m_implementation_ptr->publish_controller_data_frame(data_frame);
+    return m_implementation_ptr->publish_controller_data_frame(controller_view, callback);
 }
