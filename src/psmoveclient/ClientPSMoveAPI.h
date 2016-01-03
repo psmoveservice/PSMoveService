@@ -71,7 +71,7 @@ public:
 
     static bool has_started();
 
-    static ClientControllerView *allocate_controller_view(int PSMoveID);
+    static ClientControllerView *allocate_controller_view(int ControllerID);
     static void free_controller_view(ClientControllerView *view);
 
     static t_request_id start_controller_data_stream(ClientControllerView *view, t_response_callback callback, void *callback_userdata);

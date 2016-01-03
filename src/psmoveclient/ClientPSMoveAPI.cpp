@@ -81,12 +81,12 @@ public:
     }
 
     // -- ClientPSMoveAPI Requests -----
-    ClientControllerView * allocate_controller_view(int PSMoveID)
+    ClientControllerView * allocate_controller_view(int ControllerID)
     {
         ClientControllerView * view;
 
         // Use the same view if one already exists for the given controller id
-        t_controller_view_map_iterator view_entry= m_controller_view_map.find(PSMoveID);
+        t_controller_view_map_iterator view_entry= m_controller_view_map.find(ControllerID);
         if (view_entry != m_controller_view_map.end())
         {
             view= view_entry->second;
@@ -94,10 +94,10 @@ public:
         else
         {
             // Create a new initialized controller view
-            view= new ClientControllerView(PSMoveID);
+            view= new ClientControllerView(ControllerID);
 
             // Add it to the map of controller
-            m_controller_view_map.insert(t_id_controller_view_pair(PSMoveID, view));
+            m_controller_view_map.insert(t_id_controller_view_pair(ControllerID, view));
         }
 
         // Keep track of how many clients are listening to this view
@@ -344,13 +344,13 @@ void ClientPSMoveAPI::shutdown()
     }
 }
 
-ClientControllerView * ClientPSMoveAPI::allocate_controller_view(int PSMoveID)
+ClientControllerView * ClientPSMoveAPI::allocate_controller_view(int ControllerID)
 {
     ClientControllerView * view;
 
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        view= ClientPSMoveAPI::m_implementation_ptr->allocate_controller_view(PSMoveID);
+        view= ClientPSMoveAPI::m_implementation_ptr->allocate_controller_view(ControllerID);
     }
 
     return view;
