@@ -1,7 +1,7 @@
 //-- includes -----
 #include "MathUtility.h"
 
-//-- public methods -----
+//-- float methods -----
 float clampf(float x, float lo, float hi)
 {
 	return fminf(fmaxf(x, lo), hi);
@@ -40,4 +40,15 @@ float wrap_radians(float angle)
 float wrap_degrees(float angle)
 {
     return fmodf(angle + 360.f, 360.f);
+}
+
+//-- glm vector methods -----
+float glm_vec3_normalize_with_default(glm::vec3 &v, const glm::vec3 &default)
+{
+    const float length= glm::length(v);
+
+    // Use the default value if v is too tiny
+    v= (length > k_normal_epsilon) ? (v / length) : default;
+
+    return length;
 }

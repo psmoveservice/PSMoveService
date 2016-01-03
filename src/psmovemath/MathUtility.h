@@ -4,6 +4,7 @@
 //-- includes -----
 #include <float.h>
 #include <math.h>
+#include <glm/glm.hpp>
 
 //-- constants ----
 #define k_real_max FLT_MAX
@@ -43,7 +44,7 @@
 #define assert_valid_float(x)     ((void)0)
 #endif
 
-//-- methods -----
+//-- float methods -----
 float clampf(float x, float lo, float hi);
 float clampf01(float x);
 float lerpf(float a, float b, float u);
@@ -52,5 +53,8 @@ float degrees_to_radians(float x);
 float radians_to_degrees(float x);
 float wrap_radians(float angle);
 float wrap_degrees(float angle);
+
+//-- glm vector methods -----
+float glm_vec3_normalize_with_default(glm::vec3 &v, const glm::vec3 &default);
 
 #endif // MATH_UTILITY_h

@@ -8,12 +8,14 @@ list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
     ${ROOT_DIR}/thirdparty/stb
     ${ROOT_DIR}/thirdparty/imgui
     ${ROOT_DIR}/src/psmoveclient/
+    ${ROOT_DIR}/src/psmovemath/
     ${ROOT_DIR}/src/psmoveprotocol/
     ${PROTOBUF_INCLUDE_DIRS})
 
 # platform independent libraries
 list(APPEND PSMOVECONFIGTOOL_REQ_LIBS 
     PSMoveClient
+    PSMoveMath
     PSMoveProtocol
     ${PROTOBUF_LIBRARIES})
    
