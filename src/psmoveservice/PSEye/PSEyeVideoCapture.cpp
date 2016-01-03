@@ -7,7 +7,7 @@
 #endif
 #ifdef HAVE_CLEYE
 #include "CLEyeMulticam.h"
-#include "DeviceInterfaceWin32.h"
+#include "USBDeviceInterfaceWin32.h"
 const uint16_t VENDOR_ID = 0x1415;
 const uint16_t PRODUCT_ID = 0x2000;
 const char *CLEYE_DRIVER_PROVIDER_NAME = "Code Laboratories, Inc.";
@@ -487,11 +487,11 @@ static bool usingCLEyeDriver()
     
     char provider_name[128];
 
-    if (DeviceInterface::fetch_driver_reg_property_for_usb_device(
-        DeviceInterface::Camera,
+    if (USBDeviceInterface::fetch_driver_reg_property_for_usb_device(
+        USBDeviceInterface::Camera,
         VENDOR_ID,
         PRODUCT_ID,
-        DeviceInterface::k_reg_property_provider_name,
+        USBDeviceInterface::k_reg_property_provider_name,
         provider_name,
         sizeof(provider_name)))
     {

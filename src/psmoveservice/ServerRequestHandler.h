@@ -5,7 +5,7 @@
 #include "PSMoveProtocolInterface.h"
 
 // -- pre-declarations -----
-class ControllerManager;
+class DeviceManager;
 namespace boost {
     namespace program_options {
         class variables_map;
@@ -15,7 +15,7 @@ namespace boost {
 class ServerRequestHandler 
 {
 public:
-    ServerRequestHandler(ControllerManager *controllerManager);
+    ServerRequestHandler(DeviceManager *deviceManager);
     virtual ~ServerRequestHandler();
 
     static ServerRequestHandler *get_instance() { return m_instance; }

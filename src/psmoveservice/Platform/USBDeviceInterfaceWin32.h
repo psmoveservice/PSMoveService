@@ -1,11 +1,11 @@
-#ifndef DEVICE_INTERFACE_WIN32_H
-#define DEVICE_INTERFACE_WIN32_H
+#ifndef USB_DEVICE_INTERFACE_WIN32_H
+#define USB_DEVICE_INTERFACE_WIN32_H
 
 #ifndef _WIN32
 #error "Only include this file in windows builds!"
 #endif // _WIN32
 
-namespace DeviceInterface
+namespace USBDeviceInterface
 {
     enum DeviceClass
     {
@@ -29,4 +29,4 @@ namespace DeviceInterface
         const int buffer_size);
 };
 
-#endif // DEVICE_INTERFACE_WIN32_H
+#endif // USB_DEVICE_INTERFACE_WIN32_H

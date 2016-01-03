@@ -1,4 +1,4 @@
-#include "DeviceInterfaceWin32.h"
+#include "USBDeviceInterfaceWin32.h"
 
 #include <windows.h>  // Required for data types
 #include <guiddef.h>
@@ -8,7 +8,7 @@
 #include <winreg.h>
 
 //-- constants -----
-namespace DeviceInterface
+namespace USBDeviceInterface
 {
     const char *k_reg_property_driver_desc= "DriverDesc";
     const char *k_reg_property_driver_version= "DriverVersion";
@@ -85,7 +85,7 @@ static bool fetch_driver_registry_property(const char *driver_reg_path, const ch
     char *property_buffer, const int buffer_size);
 
 //-- public methods -----
-namespace DeviceInterface
+namespace USBDeviceInterface
 {
     bool fetch_driver_reg_property_for_usb_device(
         const DeviceClass deviceClass,
@@ -100,7 +100,7 @@ namespace DeviceInterface
 
         switch (deviceClass)
         {
-        case DeviceInterface::Camera:
+        case USBDeviceInterface::Camera:
             deviceClassGUID= &GUID_DEVCLASS_IMAGE;
             break;
         default:

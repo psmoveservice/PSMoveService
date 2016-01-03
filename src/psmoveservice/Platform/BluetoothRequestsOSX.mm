@@ -1,8 +1,8 @@
 // -- includes -----
 #include "BluetoothRequests.h"
-#include "../ControllerManager.h"
+#include "../DeviceManager.h"
 #include "../PSMoveService.h"
-#include "../ServerControllerView.h"
+#include "../ServerDeviceView.h"
 #include "../ServerNetworkManager.h"
 #include "../ServerLog.h"
 #include "../ServerUtility.h"
@@ -187,7 +187,7 @@ bool
 AsyncBluetoothUnpairDeviceRequest::start()
 {
     bool success= true;
-    const int controller_id= m_controllerView->getControllerID();
+    const int controller_id= m_controllerView->getDeviceID();
     const std::string bt_address_string= m_controllerView->getSerial();
 
     if (!m_controllerView->getIsOpen() || m_controllerView->getIsBluetooth())
@@ -234,7 +234,7 @@ AsyncBluetoothUnpairDeviceRequest::update()
         // Tell the client about the sub status change
         send_progress_notification_to_client(
             m_connectionId, 
-            m_controllerView->getControllerID(), 
+            m_controllerView->getDeviceID(),
             static_cast<int>(subStatus), 
             BluetoothDeviceOperationState::k_total_steps);
 
@@ -311,7 +311,7 @@ bool
 AsyncBluetoothPairDeviceRequest::start()
 {
     bool bSuccess= true;
-    const int controller_id= m_controllerView->getControllerID();
+    const int controller_id= m_controllerView->getDeviceID();
     const std::string controllerBTAddress= m_controllerView->getSerial();
     char hostBTAddress[32];
 
@@ -382,8 +382,8 @@ AsyncBluetoothPairDeviceRequest::update()
         // Tell the client about the sub status change
         send_progress_notification_to_client(
             m_connectionId, 
-            m_controllerView->getControllerID(), 
-            static_cast<int>(subStatus), 
+            m_controllerView->getDeviceID(),
+            static_cast<int>(subStatus),
             BluetoothDeviceOperationState::k_total_steps);
 
         // See if the worker thread has completed it's work
@@ -434,7 +434,7 @@ AsyncBluetoothPairDeviceRequest::getDescription()
 {
     std::ostringstream description;
 
-    description << "[Pair] ID: " << m_controllerView->getControllerID() << " Conn: " << m_connectionId;
+    description << "[Pair] ID: " << m_controllerView->getDeviceID() << " Conn: " << m_connectionId;
 
     return description.str();
 }
