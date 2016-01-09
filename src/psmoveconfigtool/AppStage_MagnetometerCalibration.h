@@ -41,6 +41,7 @@ private:
         
         waitingForStreamStartResponse,
         failedStreamStart,
+        failedBadCalibration,
         measureBExtents,
         waitForGravityAlignment,
         measureBDirection,
@@ -52,6 +53,7 @@ private:
 
     ClientControllerView *m_controllerView;
     bool m_isControllerStreamActive;
+    int m_lastControllerSeqNum;
 };
 
 #endif // APP_STAGE_SELECT_CONTROLLER_H

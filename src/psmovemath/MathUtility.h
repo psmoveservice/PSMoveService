@@ -56,5 +56,6 @@ float wrap_degrees(float angle);
 
 //-- glm vector methods -----
 float glm_vec3_normalize_with_default(glm::vec3 &v, const glm::vec3 &default);
+glm::vec3 glm_vec3_lerp(const glm::vec3 &a, const glm::vec3 &b, const float u);
 
 #endif // MATH_UTILITY_h

@@ -32,6 +32,7 @@ AppStage_MagnetometerCalibration::AppStage_MagnetometerCalibration(App *app)
     , m_pendingAppStage(nullptr)
     , m_controllerView(nullptr)
     , m_isControllerStreamActive(false)
+    , m_lastControllerSeqNum(-1)
 { }
 
 void AppStage_MagnetometerCalibration::enter()
@@ -63,12 +64,32 @@ void AppStage_MagnetometerCalibration::exit()
 
 void AppStage_MagnetometerCalibration::update()
 {
+    bool bControllerDataUpdatedThisFrame= false;
+
+    if (m_isControllerStreamActive && m_controllerView->GetSequenceNum() != m_lastControllerSeqNum)
+    {
+        m_lastControllerSeqNum= m_controllerView->GetSequenceNum();
+        bControllerDataUpdatedThisFrame= true;
+    }
+
     switch (m_menuState)
     {
     case eCalibrationMenuState::waitingForStreamStartResponse:
         {
+            if (bControllerDataUpdatedThisFrame)
+            {
+                if (m_controllerView->GetPSMoveView().GetHasValidHardwareCalibration())
+                {
+                    m_menuState= AppStage_MagnetometerCalibration::measureBExtents;
+                }
+                else
+                {
+                    m_menuState= AppStage_MagnetometerCalibration::failedBadCalibration;
+                }
+            }
         } break;
     case eCalibrationMenuState::failedStreamStart:
+    case eCalibrationMenuState::failedBadCalibration:
         {
         } break;
     case eCalibrationMenuState::measureBExtents:
@@ -101,6 +122,7 @@ void AppStage_MagnetometerCalibration::render()
         {
         } break;
     case eCalibrationMenuState::failedStreamStart:
+    case eCalibrationMenuState::failedBadCalibration:
         {
         } break;
     case eCalibrationMenuState::measureBExtents:
@@ -155,6 +177,27 @@ void AppStage_MagnetometerCalibration::renderUI()
             ImGui::Begin(k_window_title, nullptr, ImVec2(k_panel_width, 150), k_background_alpha, window_flags);
 
             ImGui::Text("Failed to start controller stream!");
+
+            if (ImGui::Button("Ok"))
+            {
+                request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
+            }
+
+            if (ImGui::Button("Return to Main Menu"))
+            {
+                request_exit_to_app_stage(AppStage_MainMenu::APP_STAGE_NAME);
+            }
+
+            ImGui::End();
+        } break;
+    case eCalibrationMenuState::failedBadCalibration:
+        {
+            ImGui::SetNextWindowPosCenter();
+            ImGui::Begin(k_window_title, nullptr, ImVec2(k_panel_width, 150), k_background_alpha, window_flags);
+
+            ImGui::TextWrapped(
+                "Bad controller hardware calibration!\n" \
+                "Try un-pairing and re-pairing the controller.");
 
             if (ImGui::Button("Ok"))
             {
@@ -267,7 +310,7 @@ void AppStage_MagnetometerCalibration::handle_acquire_controller(
     {
         assert(thisPtr->m_controllerView->GetControllerViewType() == ClientControllerView::PSMove);
         thisPtr->m_isControllerStreamActive= true;
-        thisPtr->m_menuState= AppStage_MagnetometerCalibration::measureBExtents;
+        thisPtr->m_lastControllerSeqNum= -1;
     }
     else
     {

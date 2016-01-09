@@ -153,9 +153,12 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
-                if (ImGui::Button("Calibrate Magnetometer"))
+                if (controllerInfo.ControllerType == AppStage_ControllerSettings::PSMove)
                 {
-                    m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
+                    if (ImGui::Button("Calibrate Magnetometer"))
+                    {
+                        m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
+                    }
                 }
 
                 // We can only unpair controllers connected via usb

@@ -2,11 +2,14 @@
 #include "Renderer.h"
 #include "AssetManager.h"
 #include "Logger.h"
+#include "UIConstants.h"
 
 #include "SDL.h"
 #include "SDL_events.h"
 #include "SDL_opengl.h"
 #include "SDL_syswm.h"
+
+#include "MathUtility.h"
 
 #include <imgui.h>
 
@@ -358,6 +361,73 @@ void Renderer::renderEnd()
 }
 
 //-- Drawing Methods -----
+void drawArrow(const glm::vec3 &start, const glm::vec3 &end, const float headFraction, const glm::vec3 &color)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    const glm::mat4 headBasis= glm::lookAt(start, end, glm::vec3(0, 1, 0));
+
+    const float headSize= glm::length(end-start)*headFraction;
+    const glm::vec3 headOrigin= glm_vec3_lerp(end, start, headFraction);
+    const glm::vec3 headXPos= headOrigin + glm::vec3(headBasis[0])*headSize;
+    const glm::vec3 headXNeg= headOrigin - glm::vec3(headBasis[0])*headSize;
+    const glm::vec3 headYPos= headOrigin + glm::vec3(headBasis[1])*headSize;
+    const glm::vec3 headYNeg= headOrigin - glm::vec3(headBasis[1])*headSize;
+   
+    glColor3fv(glm::value_ptr(color));
+
+    glPushMatrix();
+        glBegin(GL_LINES);
+
+        glVertex3fv(glm::value_ptr(start)); glVertex3fv(glm::value_ptr(end));
+        
+        glVertex3fv(glm::value_ptr(headXPos)); glVertex3fv(glm::value_ptr(headYPos));
+        glVertex3fv(glm::value_ptr(headYPos)); glVertex3fv(glm::value_ptr(headXNeg));
+        glVertex3fv(glm::value_ptr(headXNeg)); glVertex3fv(glm::value_ptr(headYNeg));
+        glVertex3fv(glm::value_ptr(headYNeg)); glVertex3fv(glm::value_ptr(headXPos));
+
+        glVertex3fv(glm::value_ptr(headXPos)); glVertex3fv(glm::value_ptr(end));
+        glVertex3fv(glm::value_ptr(headYPos)); glVertex3fv(glm::value_ptr(end));
+        glVertex3fv(glm::value_ptr(headXNeg)); glVertex3fv(glm::value_ptr(end));
+        glVertex3fv(glm::value_ptr(headYNeg)); glVertex3fv(glm::value_ptr(end));
+
+        glVertex3fv(glm::value_ptr(headXPos)); glVertex3fv(glm::value_ptr(headXNeg));
+        glVertex3fv(glm::value_ptr(headYPos)); glVertex3fv(glm::value_ptr(headYNeg));
+
+        glEnd();
+    glPopMatrix();
+}
+
+void drawUILabelAtWorldPosition(const glm::vec3 &position, const float width, const char *format, ...)
+{
+    // This should only be used inside the renderUI scope
+    assert(Renderer::getIsRenderingUI());
+
+    const ImGuiWindowFlags window_flags = 
+        ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoResize | 
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_NoCollapse;
+
+    glm::vec3 screenCoords =
+        glm::project(
+            position, 
+            Renderer::getCurrentCameraViewMatrix(), 
+            Renderer::getCurrentProjectionMatrix(),
+            glm::vec4(0, 0, (int)ImGui::GetIO().DisplaySize.x, (int)ImGui::GetIO().DisplaySize.y));
+
+    ImGui::SetNextWindowPos(ImVec2(screenCoords.x - width/2.f, screenCoords.y));
+    ImGui::Begin("", nullptr, ImVec2(width, 50), k_background_alpha, window_flags);
+
+    va_list args;
+    va_start(args, format);
+    ImGui::TextV(format, args);
+    va_end(args);
+
+    ImGui::End();
+}
+
 void drawTransformedAxes(const glm::mat4 &transform, float scale)
 {
     assert(Renderer::getIsRenderingStage());
@@ -465,6 +535,22 @@ void drawTransformedTexturedCube(const glm::mat4 &transform, int textureId, floa
 
     // rebind the default texture
     glBindTexture(GL_TEXTURE_2D, 0); 
+}
+
+void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    glColor3fv(glm::value_ptr(color));
+
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glPointSize(5);
+        glVertexPointer(3, GL_FLOAT, 0, points);
+        glDrawArrays(GL_TRIANGLES, 0, point_count);
+        glDisableClientState(GL_VERTEX_ARRAY);
+    glPopMatrix();
 }
 
 void drawDK2Model(const glm::mat4 &transform)

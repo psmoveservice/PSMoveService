@@ -370,6 +370,11 @@ public:
         return ControllerID;
     }
 
+    inline int GetSequenceNum() const
+    {
+        return IsValid() ? SequenceNum : -1;
+    }
+
     inline eControllerViewType GetControllerViewType() const
     {
         return ControllerViewType;
