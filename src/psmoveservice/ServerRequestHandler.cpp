@@ -2,10 +2,10 @@
 #include "ServerRequestHandler.h"
 
 #include "BluetoothRequests.h"
-#include "ControllerManager.h"
-#include "ControllerEnumerator.h"
+#include "DeviceManager.h"
+#include "DeviceEnumerator.h"
 #include "ServerNetworkManager.h"
-#include "ServerControllerView.h"
+#include "ServerDeviceView.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
@@ -22,16 +22,16 @@ typedef boost::shared_ptr<ServerRequestHandlerImpl> ServerRequestHandlerImplPtr;
 struct RequestConnectionState
 {
     int connection_id;
-    std::bitset<k_max_controllers> active_controller_streams;
+    std::bitset<ControllerManager::k_max_devices> active_controller_streams;
     AsyncBluetoothRequest *pending_bluetooth_request;
-    ControllerStreamInfo active_controller_stream_info[k_max_controllers];
+    ControllerStreamInfo active_controller_stream_info[ControllerManager::k_max_devices];
 
     RequestConnectionState()
         : connection_id(-1)
         , active_controller_streams()
         , pending_bluetooth_request(nullptr)
     {
-        for (int index= 0; index < k_max_controllers; ++index)
+        for (int index= 0; index < ControllerManager::k_max_devices; ++index)
         {
             active_controller_stream_info->Clear();
         }
@@ -53,8 +53,8 @@ struct RequestContext
 class ServerRequestHandlerImpl
 {
 public:
-    ServerRequestHandlerImpl(ControllerManager &controllerManager) 
-        : m_controller_manager(controllerManager)
+    ServerRequestHandlerImpl(DeviceManager &deviceManager)
+        : m_device_manager(deviceManager)
         , m_connection_state_map()
     {
     }
@@ -206,7 +206,7 @@ public:
          ServerControllerView *controller_view, 
          ServerRequestHandler::t_generate_controller_data_frame_for_stream callback)
     {
-        int controller_id= controller_view->getControllerID();
+        int controller_id= controller_view->getDeviceID();
 
         // Notify any connections that care about the controller update
         for (t_connection_state_iter iter= m_connection_state_map.begin(); iter != m_connection_state_map.end(); ++iter)
@@ -256,9 +256,9 @@ protected:
     {
         PSMoveProtocol::Response_ResultControllerList* list= response->mutable_result_controller_list();
 
-        for (int controller_id= 0; controller_id < k_max_controllers; ++controller_id)
+        for (int controller_id= 0; controller_id < m_device_manager.m_controller_manager.getMaxDevices(); ++controller_id)
         {
-            ServerControllerViewPtr controller_view= m_controller_manager.getControllerView(controller_id);
+            ServerControllerViewPtr controller_view= m_device_manager.m_controller_manager.getControllerViewPtr(controller_id);
 
             if (controller_view->getIsOpen())
             {
@@ -298,7 +298,7 @@ protected:
             context.request->request_start_psmove_data_stream();
         int controller_id= request.controller_id();
 
-        if (ServerUtility::is_index_valid(controller_id, k_max_controllers))
+        if (ServerUtility::is_index_valid(controller_id, m_device_manager.m_controller_manager.getMaxDevices()))
         {
             ControllerStreamInfo &streamInfo=
                 context.connection_state->active_controller_stream_info[controller_id];
@@ -325,7 +325,7 @@ protected:
     {
         int controller_id= context.request->request_start_psmove_data_stream().controller_id();
 
-        if (ServerUtility::is_index_valid(controller_id, k_max_controllers))
+        if (ServerUtility::is_index_valid(controller_id, m_device_manager.m_controller_manager.getMaxDevices()))
         {
             context.connection_state->active_controller_streams.set(controller_id, false);
             context.connection_state->active_controller_stream_info[controller_id].Clear();
@@ -345,7 +345,7 @@ protected:
         const int controller_id= context.request->request_rumble().controller_id();
         const int rumble_amount= context.request->request_rumble().rumble();
 
-        if (m_controller_manager.setControllerRumble(controller_id, rumble_amount))
+        if (m_device_manager.m_controller_manager.setControllerRumble(controller_id, rumble_amount))
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -361,7 +361,7 @@ protected:
     {
         const int controller_id= context.request->reset_pose().controller_id();
 
-        if (m_controller_manager.resetPose(controller_id))
+        if (m_device_manager.m_controller_manager.resetPose(controller_id))
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -380,7 +380,7 @@ protected:
 
         if (context.connection_state->pending_bluetooth_request == nullptr)
         {
-            ServerControllerViewPtr controllerView= m_controller_manager.getControllerView(controller_id);
+            ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
             context.connection_state->pending_bluetooth_request = 
                 new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
@@ -426,7 +426,7 @@ protected:
 
         if (context.connection_state->pending_bluetooth_request == nullptr)
         {
-            ServerControllerViewPtr controllerView= m_controller_manager.getControllerView(controller_id);
+            ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
             context.connection_state->pending_bluetooth_request = 
                 new AsyncBluetoothPairDeviceRequest(connection_id, controllerView);
@@ -472,7 +472,7 @@ protected:
 
         if (context.connection_state->pending_bluetooth_request != nullptr)
         {
-            ServerControllerViewPtr controllerView= m_controller_manager.getControllerView(controller_id);
+            ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
             SERVER_LOG_INFO("ServerRequestHandler") 
                 << "Async bluetooth request(" 
@@ -492,15 +492,15 @@ protected:
     }
 
 private:
-    ControllerManager &m_controller_manager;
+    DeviceManager &m_device_manager;
     t_connection_state_map m_connection_state_map;
 };
 
 //-- public interface -----
 ServerRequestHandler *ServerRequestHandler::m_instance = NULL;
 
-ServerRequestHandler::ServerRequestHandler(ControllerManager *controllerManager)
-    : m_implementation_ptr(new ServerRequestHandlerImpl(*controllerManager))
+ServerRequestHandler::ServerRequestHandler(DeviceManager *deviceManager)
+    : m_implementation_ptr(new ServerRequestHandlerImpl(*deviceManager))
 {
 
 }

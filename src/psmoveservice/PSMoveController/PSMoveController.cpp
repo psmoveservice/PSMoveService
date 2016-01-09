@@ -242,9 +242,11 @@ bool PSMoveController::open()
 }
 
 bool PSMoveController::open(
-    const ControllerDeviceEnumerator *enumerator)
+    const DeviceEnumerator *enumerator)
 {
-    const char *cur_dev_path= enumerator->get_path();
+    const ControllerDeviceEnumerator *pEnum = static_cast<const ControllerDeviceEnumerator *>(enumerator);
+    
+    const char *cur_dev_path= pEnum->get_path();
     bool success= false;
 
     if (getIsOpen())
@@ -258,7 +260,7 @@ bool PSMoveController::open(
 
         SERVER_LOG_INFO("PSMoveController::open") << "Opening PSMoveController(" << cur_dev_path << ")";
 
-        if (enumerator->get_serial_number(cur_dev_serial_number, sizeof(cur_dev_serial_number)))
+        if (pEnum->get_serial_number(cur_dev_serial_number, sizeof(cur_dev_serial_number)))
         {
             SERVER_LOG_INFO("PSMoveController::open") << "  with serial_number: " << cur_dev_serial_number;
         }
@@ -433,13 +435,16 @@ PSMoveController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
 
 // Getters
 bool 
-PSMoveController::matchesDeviceEnumerator(const ControllerDeviceEnumerator *enumerator) const
+PSMoveController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
 {
+    // Down-cast the enumerator so we can use the correct get_path.
+    const ControllerDeviceEnumerator *pEnum = static_cast<const ControllerDeviceEnumerator *>(enumerator);
+    
     bool matches= false;
 
-    if (enumerator->get_device_type() == CommonControllerState::PSMove)
+    if (pEnum->get_device_type() == CommonControllerState::PSMove)
     {
-        const char *enumerator_path= enumerator->get_path();
+        const char *enumerator_path= pEnum->get_path();
         const char *dev_path= HIDDetails.Device_path.c_str();
 
     #ifdef _WIN32
@@ -456,6 +461,12 @@ bool
 PSMoveController::getIsBluetooth() const
 { 
     return IsBluetooth; 
+}
+
+bool
+PSMoveController::getIsReadyToPoll() const
+{
+    return (getIsOpen() && getIsBluetooth());
 }
 
 std::string 
@@ -482,10 +493,10 @@ PSMoveController::getIsOpen() const
     return (HIDDetails.Handle != nullptr);
 }
 
-CommonControllerState::eControllerDeviceType 
-PSMoveController::getControllerDeviceType() const
+CommonDeviceState::eDeviceType
+PSMoveController::getDeviceType() const
 {
-    return CommonControllerState::PSMove;
+    return CommonDeviceState::PSMove;
 }
 
 bool
@@ -793,7 +804,7 @@ PSMoveController::poll()
 
 void
 PSMoveController::getState(
-    CommonControllerState *out_state,
+    CommonDeviceState *out_state,
     int lookBack) const
 {
     assert(out_state->DeviceType == CommonControllerState::PSMove);
