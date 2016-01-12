@@ -3,14 +3,10 @@
 
 //-- includes -----
 #include "ClientConfig.h"
+#include "ClientGeometry.h"
 #include <cassert>
 
 //-- pre-declarations -----
-struct PSMoveIntVector3;
-struct PSMoveFloatVector3;
-struct PSMovePosition;
-struct PSMoveQuaternion;
-
 namespace PSMoveProtocol
 {
     class ControllerDataFrame;
@@ -24,44 +20,7 @@ enum CLIENTPSMOVEAPI PSMoveButtonState {
     PSMoveButton_RELEASED = 0x02, // (10b) Up for one frame only
 };
 
-CLIENTPSMOVEAPI extern const PSMoveIntVector3 *k_psmove_int_vector3_zero;
-CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_zero;
-CLIENTPSMOVEAPI extern const PSMovePosition *k_psmove_position_origin;
-CLIENTPSMOVEAPI extern const PSMoveQuaternion *k_psmove_quaternion_identity;
-
 //-- declarations -----
-struct CLIENTPSMOVEAPI PSMoveIntVector3
-{
-    int i, j, k;
-};
-
-struct CLIENTPSMOVEAPI PSMoveFloatVector3
-{
-    float i, j, k;
-};
-
-struct CLIENTPSMOVEAPI PSMovePosition
-{
-    float x, y, z;
-};
-
-struct CLIENTPSMOVEAPI PSMoveQuaternion
-{
-    float w, x, y, z;
-};
-
-struct CLIENTPSMOVEAPI PSMovePose
-{
-    PSMoveQuaternion Orientation;
-    PSMovePosition Position;
-
-    inline void Clear()
-    {
-        Orientation= *k_psmove_quaternion_identity;
-        Position= *k_psmove_position_origin;
-    }
-};
-
 struct CLIENTPSMOVEAPI PSMoveRawSensorData
 {
     PSMoveIntVector3 Magnetometer;

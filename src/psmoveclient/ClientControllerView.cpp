@@ -7,20 +7,7 @@
 //-- pre-declarations -----
 
 //-- constants -----
-const PSMoveFloatVector3 g_psmove_float_vector3_zero= {0.f, 0.f, 0.f};
-const PSMoveFloatVector3 *k_psmove_float_vector3_zero= &g_psmove_float_vector3_zero;
-
-const PSMoveIntVector3 g_psmove_int_vector3_zero= {0, 0, 0};
-const PSMoveIntVector3 *k_psmove_int_vector3_zero= &g_psmove_int_vector3_zero;
-
-const PSMovePosition g_psmove_position_origin= {0.f, 0.f, 0.f};
-const PSMovePosition *k_psmove_position_origin= &g_psmove_position_origin;
-
-const PSMoveQuaternion g_psmove_quaternion_identity= {1.f, 0.f, 0.f, 0.f};
-const PSMoveQuaternion *k_psmove_quaternion_identity= &g_psmove_quaternion_identity;
-
 const PSMoveRawSensorData k_empty_sensor_data= {{0, 0, 0}, {0.f, 0.f, 0.f}, {0.f, 0.f, 0.f}};
-
 const PSMoveFloatVector3 k_identity_gravity_calibration_direction= {0.f, 1.f, 0.f};
 
 //-- prototypes ----
