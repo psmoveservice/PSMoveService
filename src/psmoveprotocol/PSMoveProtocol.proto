@@ -28,6 +28,7 @@ message Request {
         UNPAIR_CONTROLLER= 5;
         PAIR_CONTROLLER= 6;
         CANCEL_BLUETOOTH_REQUEST= 7;
+        SET_LED_COLOR= 8;
     }
     RequestType type = 2;
    
@@ -76,6 +77,15 @@ message Request {
         int32 controller_id = 1;
     }
     RequestCancelBluetoothRequest cancel_bluetooth_request = 26;    
+    
+    // Parameters for SET_LED_COLOR
+    message RequestSetLEDColor {
+        int32 controller_id = 1;
+        int32 r = 2;
+        int32 g = 3;
+        int32 b = 4;
+    }
+    RequestSetLEDColor set_led_color_request = 27;        
 }
 
 // Reliable (TCP) responses to requests

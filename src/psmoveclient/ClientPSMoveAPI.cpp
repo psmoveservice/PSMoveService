@@ -175,6 +175,30 @@ public:
         return request->request_id();
     }
 
+    ClientPSMoveAPI::t_request_id set_led_color(
+        ClientControllerView *view, 
+        unsigned char r, unsigned char g, unsigned b,
+        ClientPSMoveAPI::t_response_callback callback, void *callback_userdata)
+    {
+        CLIENT_LOG_INFO("set_controller_rumble") << "request set color to " << r << "," << g << "," << b << 
+            " for PSMoveID: " << view->GetControllerID() << std::endl;
+
+        assert(m_controller_view_map.find(view->GetControllerID()) != m_controller_view_map.end());
+
+        // Tell the psmove service to set the rumble controller
+        // Internally rumble values are in the range [0, 255]
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_SET_LED_COLOR);
+        request->mutable_set_led_color_request()->set_controller_id(view->GetControllerID());
+        request->mutable_set_led_color_request()->set_r(static_cast<int>(r));
+        request->mutable_set_led_color_request()->set_g(static_cast<int>(g));
+        request->mutable_set_led_color_request()->set_b(static_cast<int>(b));
+
+        m_request_manager.send_request(request, callback, callback_userdata);
+
+        return request->request_id();
+    }
+
     ClientPSMoveAPI::t_request_id reset_pose(ClientControllerView * view, ClientPSMoveAPI::t_response_callback callback, void *userdata)
     {
         CLIENT_LOG_INFO("set_controller_rumble") << "requesting pose reset for PSMoveID: " << view->GetControllerID() << std::endl;
@@ -408,6 +432,22 @@ ClientPSMoveAPI::set_controller_rumble(
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
         request_id= ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount, callback, callback_userdata);
+    }
+
+    return request_id;
+}
+
+ClientPSMoveAPI::t_request_id 
+ClientPSMoveAPI::set_led_color(
+    ClientControllerView *view, 
+    unsigned char r, unsigned char g, unsigned b,
+    t_response_callback callback, void *callback_userdata)
+{
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id= ClientPSMoveAPI::m_implementation_ptr->set_led_color(view, r, g, b, callback, callback_userdata);
     }
 
     return request_id;

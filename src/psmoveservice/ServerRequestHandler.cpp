@@ -7,6 +7,7 @@
 #include "ServerNetworkManager.h"
 #include "ServerDeviceView.h"
 #include "PSMoveProtocol.pb.h"
+#include "PSMoveController.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
 #include <cassert>
@@ -169,6 +170,9 @@ public:
                 break;
             case PSMoveProtocol::Request_RequestType_CANCEL_BLUETOOTH_REQUEST:
                 handle_request__cancel_bluetooth_request(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_SET_LED_COLOR:
+                handle_request__set_led_color(context, response);
                 break;
             default:
                 assert(0 && "Whoops, bad request!");
@@ -487,6 +491,38 @@ protected:
         {
             SERVER_LOG_ERROR("ServerRequestHandler") << "No active bluetooth operation active";
 
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_led_color(
+        const RequestContext &context, 
+        PSMoveProtocol::Response *response)
+    {
+        const int connection_id= context.connection_state->connection_id;
+        const int controller_id= context.request->set_led_color_request().controller_id();
+        const unsigned char r= ServerUtility::int32_to_int8_verify(context.request->set_led_color_request().r());
+        const unsigned char g= ServerUtility::int32_to_int8_verify(context.request->set_led_color_request().g());
+        const unsigned char b= ServerUtility::int32_to_int8_verify(context.request->set_led_color_request().b());
+
+        ServerControllerViewPtr ControllerView= 
+            m_device_manager.m_controller_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        {
+            PSMoveController *controller= ControllerView->castChecked<PSMoveController>();
+
+            if (controller->setLED(r, g, b))
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }

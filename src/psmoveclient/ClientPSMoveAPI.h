@@ -78,6 +78,9 @@ public:
     static t_request_id stop_controller_data_stream(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
     static t_request_id set_controller_rumble(
         ClientControllerView *view, float rumble_amount, t_response_callback callback, void *callback_userdata);
+    static t_request_id set_led_color(ClientControllerView *view, 
+        unsigned char r, unsigned char g, unsigned b,
+        t_response_callback callback, void *callback_userdata);
     static t_request_id reset_pose(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
 
     // Used to send requests to the server by clients that have protocol access
