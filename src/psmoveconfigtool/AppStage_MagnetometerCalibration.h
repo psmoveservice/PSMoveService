@@ -3,13 +3,17 @@
 
 //-- includes -----
 #include "AppStage.h"
+#include "ClientGeometry.h"
 
-#include <vector>
+#include <deque>
 
 //-- definitions -----
 class AppStage_MagnetometerCalibration : public AppStage
 {
 public:
+    static const int k_max_magnetometer_samples= 500;
+
+
     AppStage_MagnetometerCalibration(class App *app);
 
     virtual void enter() override;
@@ -54,6 +58,19 @@ private:
     ClientControllerView *m_controllerView;
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;
+
+    PSMoveIntVector3 m_lastMagnetometer;
+    PSMoveFloatVector3 m_lastAccelerometer;
+
+    std::deque<PSMoveIntVector3> m_magnetometerIntSamples;
+    PSMoveIntVector3 m_minSampleExtents;
+    PSMoveIntVector3 m_maxSampleExtents;
+    PSMoveFloatVector3 m_magnetometerScaledSamples[k_max_magnetometer_samples];
+    PSMoveFloatVector3 m_magnetometerScaleRange;
+
+    int m_led_color_r;
+    int m_led_color_g;
+    int m_led_color_b;
 };
 
 #endif // APP_STAGE_SELECT_CONTROLLER_H
