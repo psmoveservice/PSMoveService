@@ -179,6 +179,16 @@ PSMoveControllerConfig::config2ptree()
     pt.put("Calibration.Gyro.Z.k", cal_ag_xyz_kb[1][2][0]);
     pt.put("Calibration.Gyro.Z.b", cal_ag_xyz_kb[1][2][1]);
 
+    pt.put("Calibration.Magnetometer.X.Min", magnetometer_extents[0]);
+    pt.put("Calibration.Magnetometer.Y.Min", magnetometer_extents[1]);
+    pt.put("Calibration.Magnetometer.Z.Min", magnetometer_extents[2]);
+    pt.put("Calibration.Magnetometer.X.Max", magnetometer_extents[3]);
+    pt.put("Calibration.Magnetometer.Y.Max", magnetometer_extents[4]);
+    pt.put("Calibration.Magnetometer.Z.Max", magnetometer_extents[5]);
+    pt.put("Calibration.Magnetometer.X.Identity", magnetometer_identity[0]);
+    pt.put("Calibration.Magnetometer.Y.Identity", magnetometer_identity[1]);
+    pt.put("Calibration.Magnetometer.Z.Identity", magnetometer_identity[2]);
+
     return pt;
 }
 
@@ -202,6 +212,16 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
     cal_ag_xyz_kb[1][1][1] = pt.get<float>("Calibration.Gyro.Y.b", 0.0f);
     cal_ag_xyz_kb[1][2][0] = pt.get<float>("Calibration.Gyro.Z.k", 1.0f);
     cal_ag_xyz_kb[1][2][1] = pt.get<float>("Calibration.Gyro.Z.b", 0.0f);
+
+    magnetometer_extents[0]= pt.get<int>("Calibration.Magnetometer.X.Min", 0);
+    magnetometer_extents[1]= pt.get<int>("Calibration.Magnetometer.Y.Min", 0);
+    magnetometer_extents[2]= pt.get<int>("Calibration.Magnetometer.Z.Min", 0);
+    magnetometer_extents[3]= pt.get<int>("Calibration.Magnetometer.X.Max", 0);
+    magnetometer_extents[4]= pt.get<int>("Calibration.Magnetometer.Y.Max", 0);
+    magnetometer_extents[5]= pt.get<int>("Calibration.Magnetometer.Z.Max", 0);
+    magnetometer_identity[0]= pt.get<float>("Calibration.Magnetometer.X.Identity", 0.f);
+    magnetometer_identity[1]= pt.get<float>("Calibration.Magnetometer.Y.Identity", 0.f);
+    magnetometer_identity[2]= pt.get<float>("Calibration.Magnetometer.Z.Identity", 0.f);
 }
 
 // -- PSMove Controller -----

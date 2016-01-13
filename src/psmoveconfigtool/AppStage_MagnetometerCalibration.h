@@ -6,6 +6,7 @@
 #include "ClientGeometry.h"
 
 #include <deque>
+#include <chrono>
 
 //-- definitions -----
 class AppStage_MagnetometerCalibration : public AppStage
@@ -37,6 +38,11 @@ protected:
         const ClientPSMoveAPI::t_request_id request_id, 
         ClientPSMoveAPI::t_response_handle opaque_response_handle,
         void *userdata);
+    static void handle_set_magnetometer_calibration(
+        ClientPSMoveAPI::eClientPSMoveResultCode resultCode,
+        const ClientPSMoveAPI::t_request_id request_id, 
+        ClientPSMoveAPI::t_response_handle opaque_response_handle,
+        void *userdata);
 
 private:
     enum eCalibrationMenuState
@@ -49,6 +55,8 @@ private:
         measureBExtents,
         waitForGravityAlignment,
         measureBDirection,
+        waitForSetCalibrationResponse,
+        failedSetCalibration,
         complete,
         pendingExit
     };
@@ -71,6 +79,12 @@ private:
     int m_led_color_r;
     int m_led_color_g;
     int m_led_color_b;
+
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
+    bool m_bIsStable;
+
+    PSMoveFloatVector3 m_identityPoseAverageMVector;
+    int m_identityPoseSampleCount;
 };
 
 #endif // APP_STAGE_SELECT_CONTROLLER_H

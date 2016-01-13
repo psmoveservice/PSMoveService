@@ -17,7 +17,12 @@ struct CLIENTPSMOVEAPI PSMoveFloatVector3
     PSMoveFloatVector3 operator * (const float s) const;
     
     PSMoveFloatVector3 unsafe_divide(const float s) const;
+    PSMoveFloatVector3 unsafe_divide(const PSMoveFloatVector3 &v) const;
     PSMoveFloatVector3 safe_divide(const float s, const PSMoveFloatVector3 &default) const;
+    PSMoveFloatVector3 safe_divide(const PSMoveFloatVector3 &v, const PSMoveFloatVector3 &default) const;
+    
+    float length() const;
+    float normalize_with_default(const PSMoveFloatVector3 &default);
 
     float minValue() const;
     float maxValue() const;
@@ -71,6 +76,8 @@ struct CLIENTPSMOVEAPI PSMovePose
 //-- constants -----
 CLIENTPSMOVEAPI extern const PSMoveIntVector3 *k_psmove_int_vector3_zero;
 CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_zero;
+CLIENTPSMOVEAPI extern const PSMoveIntVector3 *k_psmove_int_vector3_one;
+CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_one;
 CLIENTPSMOVEAPI extern const PSMovePosition *k_psmove_position_origin;
 CLIENTPSMOVEAPI extern const PSMoveQuaternion *k_psmove_quaternion_identity;
 

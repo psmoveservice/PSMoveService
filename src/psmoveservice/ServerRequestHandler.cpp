@@ -174,6 +174,9 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_LED_COLOR:
                 handle_request__set_led_color(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION:
+                handle_request__set_magnetometer_calibration(context, response);
+                break;
             default:
                 assert(0 && "Whoops, bad request!");
         }
@@ -520,6 +523,46 @@ protected:
             {
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
             }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_magnetometer_calibration(
+        const RequestContext &context, 
+        PSMoveProtocol::Response *response)
+    {
+        const int controller_id= context.request->set_magnetometer_calibration_request().controller_id();
+
+        ServerControllerViewPtr ControllerView= 
+            m_device_manager.m_controller_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        {
+            const PSMoveProtocol::IntVector &magnetometer_min=
+                context.request->set_magnetometer_calibration_request().magnetometer_min();
+            const PSMoveProtocol::IntVector &magnetometer_max=
+                context.request->set_magnetometer_calibration_request().magnetometer_max();
+            const PSMoveProtocol::FloatVector &magnetometer_identity=
+                context.request->set_magnetometer_calibration_request().magnetometer_identity();
+
+            PSMoveController *controller= ControllerView->castChecked<PSMoveController>();
+            PSMoveControllerConfig &config= controller->getConfigMutable();
+
+            config.magnetometer_extents[0]= magnetometer_min.i();
+            config.magnetometer_extents[1]= magnetometer_min.j();
+            config.magnetometer_extents[2]= magnetometer_min.k();
+            config.magnetometer_extents[3]= magnetometer_max.i();
+            config.magnetometer_extents[4]= magnetometer_max.j();
+            config.magnetometer_extents[5]= magnetometer_max.k();
+
+            config.magnetometer_identity[0]= magnetometer_identity.i();
+            config.magnetometer_identity[1]= magnetometer_identity.j();
+            config.magnetometer_identity[2]= magnetometer_identity.k();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else
         {

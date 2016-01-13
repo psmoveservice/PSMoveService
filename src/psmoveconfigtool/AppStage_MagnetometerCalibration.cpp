@@ -9,6 +9,7 @@
 #include "GeometryUtility.h"
 #include "Logger.h"
 #include "MathUtility.h"
+#include "PSMoveProtocolInterface.h"
 #include "Renderer.h"
 #include "UIConstants.h"
 
@@ -25,14 +26,20 @@ const char *AppStage_MagnetometerCalibration::APP_STAGE_NAME= "MagnetometerCalib
 
 //-- constants -----
 const int k_led_range_target= 320;
+const double k_stabilize_wait_time_ms= 1000.f;
+const int k_desired_magnetometer_sample_count= 100;
 
 //-- private methods -----
 static void expandMagnetometerBounds(
     const PSMoveIntVector3 &sample, PSMoveIntVector3 &minSampleExtents, PSMoveIntVector3 &maxSampleExtents);
-static int getMagnetometerCalibrationMinRange(
+static int computeMagnetometerCalibrationMinRange(
     const PSMoveIntVector3 &minSampleExtents, const PSMoveIntVector3 &maxSampleExtents);
-static int getMagnetometerCalibrationMaxRange(
+static int computeMagnetometerCalibrationMaxRange(
     const PSMoveIntVector3 &minSampleExtents, const PSMoveIntVector3 &maxSampleExtents);
+static PSMoveFloatVector3 computeNormalizedMagnetometerVector(
+    const PSMoveIntVector3 &sample,
+    const PSMoveIntVector3 &minSampleExtents,
+    const PSMoveIntVector3 &maxSampleExtents);
 static bool isMoveStableAndAlignedWithGravity(ClientControllerView *m_controllerView);
 
 //-- public methods -----
@@ -127,7 +134,7 @@ void AppStage_MagnetometerCalibration::update()
                 m_magnetometerIntSamples.push_back(m_lastMagnetometer);
 
                 // Update the extents progress based on min extent size
-                int minRange= getMagnetometerCalibrationMinRange(m_minSampleExtents, m_maxSampleExtents);
+                int minRange= computeMagnetometerCalibrationMinRange(m_minSampleExtents, m_maxSampleExtents);
                 if (minRange > 0)
                 {
                     int percentage= std::min((100 * minRange) / k_led_range_target, 100);
@@ -142,7 +149,7 @@ void AppStage_MagnetometerCalibration::update()
                 }
                 
                 // Scale the magnetometer samples based on max extent size
-                const int maxRange= getMagnetometerCalibrationMaxRange(m_minSampleExtents, m_maxSampleExtents);
+                const int maxRange= computeMagnetometerCalibrationMaxRange(m_minSampleExtents, m_maxSampleExtents);
                 if (maxRange > 0)
                 {
                     const float sampleScale= static_cast<float>(maxRange) / 2.f;
@@ -167,9 +174,105 @@ void AppStage_MagnetometerCalibration::update()
         {
             if (isMoveStableAndAlignedWithGravity(m_controllerView))
             {
+                std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+
+                if (m_bIsStable)
+                {
+                    std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
+    
+                    if (stableDuration.count() >= k_stabilize_wait_time_ms)
+                    {
+                        m_identityPoseAverageMVector= *k_psmove_float_vector3_zero;
+                        m_menuState= AppStage_MagnetometerCalibration::measureBDirection;
+                    }
+                }
+                else
+                {
+                    m_bIsStable= true;
+                    m_stableStartTime= now;
+                }
+            }
+            else
+            {
+                if (m_bIsStable)
+                {
+                    m_bIsStable= false;
+                }
             }
         } break;
     case eCalibrationMenuState::measureBDirection:
+        {
+            if (isMoveStableAndAlignedWithGravity(m_controllerView))
+            {
+                if (bControllerDataUpdatedThisFrame)
+                {
+                    PSMoveFloatVector3 sample= 
+                        computeNormalizedMagnetometerVector(
+                            m_lastMagnetometer, m_minSampleExtents, m_maxSampleExtents);
+
+                    m_identityPoseAverageMVector= m_identityPoseAverageMVector + sample;
+                    ++m_identityPoseSampleCount;
+
+                    if (m_identityPoseSampleCount > k_desired_magnetometer_sample_count)
+                    {
+                        float N= static_cast<float>(m_identityPoseSampleCount);
+
+                        // The average magnetometer direction was recorded while the controller
+                        // was in the cradle pose
+                        m_identityPoseAverageMVector = m_identityPoseAverageMVector.unsafe_divide(N);
+
+                        // Tell the psmove service about the new magnetometer settings
+                        {                            
+                            RequestPtr request(new PSMoveProtocol::Request());
+                            request->set_type(PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION);
+                            request->mutable_set_magnetometer_calibration_request()->set_controller_id(m_controllerView->GetControllerID());
+        
+                            {
+                                PSMoveProtocol::IntVector *vector=
+                                    request->mutable_set_magnetometer_calibration_request()->mutable_magnetometer_min();
+
+                                vector->set_i(m_minSampleExtents.i);
+                                vector->set_j(m_minSampleExtents.j);
+                                vector->set_k(m_minSampleExtents.k);
+                            }
+
+                            {
+                                PSMoveProtocol::IntVector *vector=
+                                    request->mutable_set_magnetometer_calibration_request()->mutable_magnetometer_max();
+
+                                vector->set_i(m_maxSampleExtents.i);
+                                vector->set_j(m_maxSampleExtents.j);
+                                vector->set_k(m_maxSampleExtents.k);
+                            }
+
+                            {
+                                PSMoveProtocol::FloatVector *vector=
+                                    request->mutable_set_magnetometer_calibration_request()->mutable_magnetometer_identity();
+
+                                vector->set_i(m_identityPoseAverageMVector.i);
+                                vector->set_j(m_identityPoseAverageMVector.j);
+                                vector->set_k(m_identityPoseAverageMVector.k);
+                            }
+
+                            ClientPSMoveAPI::send_opaque_request(
+                                &request, AppStage_MagnetometerCalibration::handle_set_magnetometer_calibration, this);
+                        }
+
+                        // Wait for the response
+                        m_menuState= AppStage_MagnetometerCalibration::waitForSetCalibrationResponse;
+                    }
+                }
+            }
+            else
+            {
+                m_bIsStable= false;
+                m_menuState= AppStage_MagnetometerCalibration::waitForGravityAlignment;
+            }
+        } break;
+    case eCalibrationMenuState::waitForSetCalibrationResponse:
+        {
+        } break;
+    case eCalibrationMenuState::failedSetCalibration:
         {
         } break;
     case eCalibrationMenuState::complete:
@@ -220,6 +323,10 @@ void AppStage_MagnetometerCalibration::render()
                 drawArrow(glm::vec3(), m, 0.1f, glm::vec3(1.f, 0.f, 0.f));
                 drawUILabelAtWorldPosition(m, 50.f, "M");
             }
+        } break;
+    case eCalibrationMenuState::waitForGravityAlignment:
+        {
+            drawPSMoveModel(scale3, glm::vec3(1.f, 1.f, 1.f));
 
             {
                 glm::vec3 g= psmove_float_vector3_to_glm_vec3(m_lastAccelerometer);
@@ -228,16 +335,31 @@ void AppStage_MagnetometerCalibration::render()
                 drawUILabelAtWorldPosition(g, 50.f, "G");
             }
         } break;
-    case eCalibrationMenuState::waitForGravityAlignment:
-        {
-            drawPSMoveModel(scale3, glm::vec3(1.f, 1.f, 1.f));
-        } break;
     case eCalibrationMenuState::measureBDirection:
         {
             drawPSMoveModel(scale3, glm::vec3(1.f, 1.f, 1.f));
+
+            {
+                glm::vec3 m= psmove_float_vector3_to_glm_vec3(m_lastMagnetometer.castToFloatVector3());
+
+                drawArrow(glm::vec3(), m, 0.1f, glm::vec3(1.f, 0.f, 0.f));
+                drawUILabelAtWorldPosition(m, 50.f, "M");
+            }
+        } break;
+    case eCalibrationMenuState::waitForSetCalibrationResponse:
+        {
+        } break;
+    case eCalibrationMenuState::failedSetCalibration:
+        {
         } break;
     case eCalibrationMenuState::complete:
         {
+            // Get the orientation of the controller in world space (OpenGL Coordinate System)            
+            glm::quat q= psmove_quaternion_to_glm_quat(m_controllerView->GetPSMoveView().GetOrientation());
+            glm::mat4 worldSpaceOrientation= glm::mat4_cast(q);
+            glm::mat4 worldTransform= glm::scale(worldSpaceOrientation, glm::vec3(3.f, 3.f, 3.f));
+
+            drawPSMoveModel(worldTransform, glm::vec3(1.f, 1.f, 1.f));
         } break;
     case eCalibrationMenuState::pendingExit:
         {
@@ -353,6 +475,19 @@ void AppStage_MagnetometerCalibration::renderUI()
                 "This will be the default orientation of the move controller.\n" \
                 "Measurement will start once the controller is aligned with gravity and stable.");
 
+            if (m_bIsStable)
+            {
+                std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+                std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
+                float fraction = static_cast<float>(stableDuration.count() / k_stabilize_wait_time_ms);
+
+                ImGui::ProgressBar(fraction, ImVec2(250, 40));
+            }
+            else
+            {
+                ImGui::Text("Move Destabilized! Waiting for stabilization..");
+            }
+
             if (ImGui::Button("Cancel"))
             {
                 request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
@@ -371,9 +506,41 @@ void AppStage_MagnetometerCalibration::renderUI()
                 "This will be the default orientation of the move controller.\n"
                 "Measurement will start once the controller is aligned with gravity and stable.");
 
+            ImGui::ProgressBar(
+                static_cast<float>(m_identityPoseSampleCount) / static_cast<float>(k_desired_magnetometer_sample_count), 
+                ImVec2(250, 40));
+
             if (ImGui::Button("Cancel"))
             {
                 request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
+            }
+
+            ImGui::End();
+        } break;
+    case eCalibrationMenuState::waitForSetCalibrationResponse:
+        {
+            ImGui::SetNextWindowPosCenter();
+            ImGui::Begin(k_window_title, nullptr, ImVec2(k_panel_width, 150), k_background_alpha, window_flags);
+
+            ImGui::Text("Sending final calibration to server...");
+
+            ImGui::End();
+        } break;
+    case eCalibrationMenuState::failedSetCalibration:
+        {
+            ImGui::SetNextWindowPosCenter();
+            ImGui::Begin(k_window_title, nullptr, ImVec2(k_panel_width, 150), k_background_alpha, window_flags);
+
+            ImGui::Text("Failed to set calibration!");
+
+            if (ImGui::Button("Ok"))
+            {
+                request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
+            }
+
+            if (ImGui::Button("Return to Main Menu"))
+            {
+                request_exit_to_app_stage(AppStage_MainMenu::APP_STAGE_NAME);
             }
 
             ImGui::End();
@@ -469,6 +636,24 @@ void AppStage_MagnetometerCalibration::handle_release_controller(
     thisPtr->m_app->setAppStage(AppStage_ControllerSettings::APP_STAGE_NAME);
 }
 
+void AppStage_MagnetometerCalibration::handle_set_magnetometer_calibration(
+    ClientPSMoveAPI::eClientPSMoveResultCode resultCode,
+    const ClientPSMoveAPI::t_request_id request_id, 
+    ClientPSMoveAPI::t_response_handle opaque_response_handle,
+    void *userdata)
+{
+    AppStage_MagnetometerCalibration *thisPtr= reinterpret_cast<AppStage_MagnetometerCalibration *>(userdata);
+
+    if (resultCode == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    {
+        thisPtr->m_menuState= AppStage_MagnetometerCalibration::complete;
+    }
+    else
+    {
+        thisPtr->m_menuState= AppStage_MagnetometerCalibration::failedSetCalibration;
+    }
+}
+
 //-- private methods -----
 static void expandMagnetometerBounds(
     const PSMoveIntVector3 &sample,
@@ -479,7 +664,7 @@ static void expandMagnetometerBounds(
     maxSampleExtents= PSMoveIntVector3::max(maxSampleExtents, sample);
 }
 
-static int getMagnetometerCalibrationMinRange(
+static int computeMagnetometerCalibrationMinRange(
     const PSMoveIntVector3 &minSampleExtents,
     const PSMoveIntVector3 &maxSampleExtents)
 {
@@ -488,13 +673,33 @@ static int getMagnetometerCalibrationMinRange(
     return extexts.minValue();
 }
 
-static int getMagnetometerCalibrationMaxRange(
+static int computeMagnetometerCalibrationMaxRange(
     const PSMoveIntVector3 &minSampleExtents,
     const PSMoveIntVector3 &maxSampleExtents)
 {
     PSMoveIntVector3 extexts= maxSampleExtents - minSampleExtents;
 
     return extexts.maxValue();
+}
+
+PSMoveFloatVector3 computeNormalizedMagnetometerVector(
+    const PSMoveIntVector3 &sample,
+    const PSMoveIntVector3 &minSampleExtents,
+    const PSMoveIntVector3 &maxSampleExtents)
+{
+    PSMoveFloatVector3 range = (maxSampleExtents - minSampleExtents).castToFloatVector3();
+    PSMoveFloatVector3 offset = (sample - minSampleExtents).castToFloatVector3();
+
+    // 2*(raw-move->magnetometer_min)/(move->magnetometer_max - move->magnetometer_min) - <1,1,1>
+    PSMoveFloatVector3 result= offset.safe_divide(range, *k_psmove_float_vector3_zero)*2.f - *k_psmove_float_vector3_one;
+
+    // The magnetometer y-axis is flipped compared to the accelerometer and gyro.
+    // Flip it back around to get it into the same space.
+    result.j = -result.j;
+
+    result.normalize_with_default(*k_psmove_float_vector3_zero);
+
+    return result;
 }
 
 static bool

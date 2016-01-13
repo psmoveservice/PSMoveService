@@ -11,6 +11,31 @@ enum ControllerType {
     PSNAVI= 1;
 }
 
+message Position {
+    float x = 1;
+    float y = 2;
+    float z = 3;
+}
+
+message FloatVector {
+    float i = 1;
+    float j = 2;
+    float k = 3;
+}
+
+message IntVector {
+    int32 i = 1;
+    int32 j = 2;
+    int32 k = 3;
+}
+
+message Orientation{
+    float x = 1;
+    float y = 2;
+    float z = 3;
+    float w = 4;
+}
+
 // Reliable (TCP) requests that can issued to the PSMove Service
 message Request {
     // Unique id for this request. 
@@ -29,6 +54,7 @@ message Request {
         PAIR_CONTROLLER= 6;
         CANCEL_BLUETOOTH_REQUEST= 7;
         SET_LED_COLOR= 8;
+        SET_MAGNETOMETER_CALIBRATION= 9;
     }
     RequestType type = 2;
    
@@ -86,6 +112,15 @@ message Request {
         int32 b = 4;
     }
     RequestSetLEDColor set_led_color_request = 27;        
+    
+    // Parameters for SET_MAGNETOMETER_CALIBRATION
+    message RequestSetMagnetometerCalibration {
+        int32 controller_id = 1;
+        IntVector magnetometer_min= 2;
+        IntVector magnetometer_max= 3;
+        FloatVector magnetometer_identity= 4;
+    }
+    RequestSetMagnetometerCalibration set_magnetometer_calibration_request = 28;     
 }
 
 // Reliable (TCP) responses to requests
@@ -155,31 +190,6 @@ message Response {
 // Unreliable (UDP) controller data packet format
 message ControllerDataFrame
 {   
-    message Position {
-        float x = 1;
-        float y = 2;
-        float z = 3;
-    }
-
-    message FloatVector {
-        float i = 1;
-        float j = 2;
-        float k = 3;
-    }
-
-    message IntVector {
-        int32 i = 1;
-        int32 j = 2;
-        int32 k = 3;
-    }
-    
-    message Orientation{
-        float x = 1;
-        float y = 2;
-        float z = 3;
-        float w = 4;
-    }    
-    
     // Button Index Bits
     enum ButtonType {
         TRIANGLE= 0;

@@ -29,6 +29,8 @@ public:
         , is_valid(false)
         , data_timeout(1000) // ms
         , cal_ag_xyz_kb(2, std::vector<std::vector<float>>(3, std::vector<float>(2, 0.f)))
+        , magnetometer_extents(6, 0)
+        , magnetometer_identity(3, 0.f)
     {};
 
     virtual const boost::property_tree::ptree config2ptree();
@@ -37,6 +39,8 @@ public:
     bool is_valid;
     long data_timeout;
     std::vector<std::vector<std::vector<float>>> cal_ag_xyz_kb;
+    std::vector<int> magnetometer_extents;
+    std::vector<float> magnetometer_identity;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport
@@ -101,6 +105,8 @@ public:
 
     // -- Getters
     inline const PSMoveControllerConfig &getConfig() const
+    { return cfg; }
+    inline PSMoveControllerConfig &getConfigMutable()
     { return cfg; }
     float getTempCelsius() const;
 
