@@ -16,7 +16,8 @@ public:
     virtual ~ServerDeviceView();
     
     bool open(const class DeviceEnumerator *enumerator);
-    bool update();
+    bool poll();
+    void publish();
     void close();
     bool matchesDeviceEnumerator(const class DeviceEnumerator *enumerator) const;
     
@@ -50,12 +51,15 @@ public:
     bool getIsOpen() const;
     
     // setters
+    inline void markStateAsUnpublished()
+    { m_bHasUnpublishedState= true; }
     inline void setDeviceID(int id)
     { m_deviceID= id; }
     
 protected:
-    virtual void publish_device_data_frame() =0;
-    
+    virtual void publish_device_data_frame() = 0;
+
+    bool m_bHasUnpublishedState;
     long long m_last_updated_tick;
     int m_sequence_number;
     
@@ -121,7 +125,7 @@ public:
     IDeviceInterface* getDevice() const override {return m_device;}
 
 protected:
-    void publish_device_data_frame() override {};
+    void publish_device_data_frame() override;
 
 private:
     //TODO: Make ITrackerInterface
@@ -137,7 +141,7 @@ public:
     IDeviceInterface* getDevice() const override {return m_device;}
 
 protected:
-    void publish_device_data_frame() override {};
+    void publish_device_data_frame() override;
 
 private:
     //TODO: Make IHMDInterface

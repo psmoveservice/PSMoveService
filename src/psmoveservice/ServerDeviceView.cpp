@@ -26,7 +26,8 @@ static void generate_psnavi_data_frame_for_stream(
 //-- public implementation -----
 ServerDeviceView::ServerDeviceView(
     const int device_id)
-    : m_last_updated_tick(0)
+    : m_bHasUnpublishedState(false)
+    , m_last_updated_tick(0)
     , m_sequence_number(0)
     , m_deviceID(device_id)
 {
@@ -57,11 +58,12 @@ ServerDeviceView::getIsOpen() const
     return getDevice()->getIsOpen();
 }
 
-bool ServerDeviceView::update()
+bool ServerDeviceView::poll()
 {
     bool bSuccessfullyUpdated= true;
     
     IDeviceInterface* device = getDevice();
+
     // Only poll data from open, bluetooth controllers
     if (device->getIsReadyToPoll())
     {
@@ -71,7 +73,7 @@ bool ServerDeviceView::update()
             {
                 long long now =
                 std::chrono::duration_cast< std::chrono::milliseconds >(
-                                                                        std::chrono::system_clock::now().time_since_epoch()).count();
+                    std::chrono::system_clock::now().time_since_epoch()).count();
                 long diff= static_cast<long>(now - m_last_updated_tick);
                 long max_timeout= device->getDataTimeout();
                 
@@ -90,9 +92,11 @@ bool ServerDeviceView::update()
             {
                 m_last_updated_tick=
                 std::chrono::duration_cast< std::chrono::milliseconds >(
-                                                                        std::chrono::system_clock::now().time_since_epoch()).count();
-                publish_device_data_frame();
+                    std::chrono::system_clock::now().time_since_epoch()).count();
                 
+                // If we got new sensor data, then we have new state to publish
+                markStateAsUnpublished();
+
                 bSuccessfullyUpdated= true;
             }
                 break;
@@ -110,6 +114,17 @@ bool ServerDeviceView::update()
     }
     
     return bSuccessfullyUpdated;
+}
+
+void ServerDeviceView::publish()
+{
+    if (m_bHasUnpublishedState)
+    {
+        publish_device_data_frame();
+
+        m_bHasUnpublishedState= false;
+        m_sequence_number++;
+    }
 }
 
 void
@@ -231,8 +246,6 @@ void ServerControllerView::publish_device_data_frame()
     // This will call generate_controller_data_frame_for_stream for each listening connection.
     ServerRequestHandler::get_instance()->publish_controller_data_frame(
         this, &ServerControllerView::generate_controller_data_frame_for_stream);
-
-    m_sequence_number++;
 }
 
 void ServerControllerView::generate_controller_data_frame_for_stream(
@@ -380,6 +393,14 @@ ServerTrackerView::~ServerTrackerView()
     delete m_device;
 }
 
+void ServerTrackerView::publish_device_data_frame()
+{
+    // Tell the server request handler we want to send out tracker updates.
+    // This will call generate_tracker_data_frame_for_stream for each listening connection.
+    //ServerRequestHandler::get_instance()->publish_tracker_data_frame(
+    //    this, &ServerTrackerView::generate_tracker_data_frame_for_stream);
+}
+
 // -- HMD View -----
 ServerHMDView::ServerHMDView(const int device_id)
 : ServerDeviceView(device_id)
@@ -392,4 +413,12 @@ ServerHMDView::ServerHMDView(const int device_id)
 ServerHMDView::~ServerHMDView()
 {
     delete m_device;
+}
+
+void ServerHMDView::publish_device_data_frame()
+{
+    // Tell the server request handler we want to send out HMD updates.
+    // This will call generate_hmd_data_frame_for_stream for each listening connection.
+    //ServerRequestHandler::get_instance()->publish_hmd_data_frame(
+    //    this, &ServerHMDView::generate_hmd_data_frame_for_stream);
 }

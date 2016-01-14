@@ -90,7 +90,7 @@ DeviceTypeManager::startup()
 
 /// Calls update_devices and update_connected_devices if poll_interval and reconnect_interval has elapsed, respectively.
 void
-DeviceTypeManager::update()
+DeviceTypeManager::poll()
 {
     std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
     
@@ -99,11 +99,11 @@ DeviceTypeManager::update()
     
     if (update_diff.count() >= poll_interval)
     {
-        update_devices();
+        poll_devices();
         m_last_poll_time= now;
     }
     
-    // See if it's time to try update the list of connected controllers
+    // See if it's time to try update the list of connected devices
     std::chrono::duration<double, std::milli> reconnect_diff = now - m_last_reconnect_time;
     if (reconnect_diff.count() >= reconnect_interval)
     {
@@ -111,6 +111,18 @@ DeviceTypeManager::update()
         {
             m_last_reconnect_time= now;
         }
+    }
+}
+
+void 
+DeviceTypeManager::publish()
+{
+    // Publish any new data to client connections
+    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+    {
+        ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
+        
+        device->publish();
     }
 }
 
@@ -139,14 +151,14 @@ DeviceTypeManager::send_device_list_changed_notification()
 }
 
 void
-DeviceTypeManager::update_devices()
+DeviceTypeManager::poll_devices()
 {
     bool bAllUpdatedOk= true;
     
     for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
     {
         ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
-        bAllUpdatedOk &= device->update();
+        bAllUpdatedOk &= device->poll();
     }
     
     if (!bAllUpdatedOk)
@@ -508,9 +520,13 @@ DeviceManager::startup()
 void
 DeviceManager::update()
 {
-    m_controller_manager.update();
-    m_tracker_manager.update();
-    m_hmd_manager.update();
+    m_controller_manager.poll();
+    m_tracker_manager.poll();
+    m_hmd_manager.poll();
+
+    m_controller_manager.publish();
+    m_tracker_manager.publish();
+    m_hmd_manager.publish();
 }
 
 void

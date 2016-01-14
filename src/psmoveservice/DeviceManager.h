@@ -33,7 +33,8 @@ public:
     virtual ~DeviceTypeManager();
     
     virtual bool startup();
-    void update();
+    void poll();
+    void publish();
     virtual void shutdown();
     
     virtual int getMaxDevices() const =0;
@@ -51,7 +52,7 @@ public:
     int poll_interval;
     
 protected:
-    void update_devices();
+    void poll_devices();
     
     /** This method tries make the list of open devices in m_devices match
      the list of connected devices in the device enumerator.
