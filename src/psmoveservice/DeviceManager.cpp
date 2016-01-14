@@ -523,13 +523,13 @@ DeviceManager::startup()
 void
 DeviceManager::update()
 {
-    m_controller_manager.poll();
-    m_tracker_manager.poll();
-    m_hmd_manager.poll();
+    m_controller_manager.poll(); // Update controller counts and poll button/IMU state
+    m_tracker_manager.poll(); // Update tracker count and poll video frames
+    m_hmd_manager.poll(); // Update HMD count and poll position/orientation state
 
-    m_controller_manager.publish();
-    m_tracker_manager.publish();
-    m_hmd_manager.publish();
+    m_controller_manager.publish(); // publish controller state to any listening clients  (common case)
+    m_tracker_manager.publish(); // publish tracker state to any listening clients (probably only used by ConfigTool)
+    m_hmd_manager.publish(); // publish hmd state to any listening clients (probably only used by ConfigTool)
 }
 
 void

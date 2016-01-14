@@ -8,7 +8,7 @@ ServerHMDView::ServerHMDView(const int device_id)
     : ServerDeviceView(device_id)
     , m_device(nullptr)
 {
-    //TODO: new PSMoveHMD();
+    //###bwalker $TODO The device should be allocated in open() based on the enumerator type
     m_device = nullptr;
 }
 

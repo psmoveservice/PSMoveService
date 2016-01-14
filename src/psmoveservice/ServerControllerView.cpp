@@ -25,6 +25,7 @@ ServerControllerView::ServerControllerView(const int device_id)
     : ServerDeviceView(device_id)
     , m_device(nullptr)
 {
+    //###bwalker $TODO The device should be allocated in open() based on the enumerator type
     m_device = new PSMoveController();
 }
 
