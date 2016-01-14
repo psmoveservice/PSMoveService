@@ -5,7 +5,7 @@
 // -- includes -----
 #include "BluetoothRequests.h"
 #include "../DeviceManager.h"
-#include "../ServerDeviceView.h"
+#include "../ServerControllerView.h"
 #include "../ServerNetworkManager.h"
 #include "../ServerLog.h"
 #include "../ServerUtility.h"

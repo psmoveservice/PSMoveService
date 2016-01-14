@@ -1,6 +1,9 @@
 //-- includes -----
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
+#include "ServerControllerView.h"
+#include "ServerHMDView.h"
+#include "ServerTrackerView.h"
 #include "ServerRequestHandler.h"
 #include "ServerLog.h"
 #include "ServerDeviceView.h"

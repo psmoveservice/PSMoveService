@@ -151,4 +151,27 @@ public:
     //virtual void getState(CommonControllerState *out_state, int lookBack = 0) const = 0;
 };
 
+/// Abstract class for tracker interface. Implemented tracker classes
+class ITrackerInterface : public IDeviceInterface
+{
+public:
+    // -- Getters
+    // Returns the full usb device path for the tracker
+    virtual std::string getUSBDevicePath() const = 0;
+};
+
+/// Abstract class for HMD interface. Implemented tracker classes
+class IHMDInterface : public IDeviceInterface
+{
+public:
+    // -- Getters
+    // Returns the full usb device path for the tracker
+    virtual std::string getUSBDevicePath() const = 0;
+
+    // Fetch the HMD state at the given sample index.
+    // A lookBack of 0 corresponds to the most recent data.
+    //virtual void getState(CommonHMDState *out_state, int lookBack = 0) const = 0;
+};
+
+
 #endif // DEVICE_INTERFACE_H
