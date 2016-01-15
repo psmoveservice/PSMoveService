@@ -65,6 +65,7 @@ void AppStage_MagnetometerCalibration::enter()
     assert(m_controllerView == nullptr);
     m_controllerView= ClientPSMoveAPI::allocate_controller_view(controllerInfo->ControllerID);
 
+    m_menuState= eCalibrationMenuState::waitingForStreamStartResponse;
     assert(!m_isControllerStreamActive);
     ClientPSMoveAPI::start_controller_data_stream(
         m_controllerView, 
@@ -77,6 +78,7 @@ void AppStage_MagnetometerCalibration::exit()
     assert(m_controllerView != nullptr);
     ClientPSMoveAPI::free_controller_view(m_controllerView);
     m_controllerView= nullptr;
+    m_menuState= eCalibrationMenuState::inactive;
 }
 
 void AppStage_MagnetometerCalibration::update()
