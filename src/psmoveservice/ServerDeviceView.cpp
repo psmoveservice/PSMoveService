@@ -48,7 +48,7 @@ bool ServerDeviceView::poll()
     IDeviceInterface* device = getDevice();
 
     // Only poll data from open, bluetooth controllers
-    if (device->getIsReadyToPoll())
+    if (device != nullptr && device->getIsReadyToPoll())
     {
         switch (device->poll())
         {
