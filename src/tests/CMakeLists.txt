@@ -127,10 +127,10 @@ ENDIF()
 
 # Our custom OpenCV VideoCapture classes
 # We are not including the PSMoveService project on purpose.
-list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/PSEye)
+list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye)
 list(APPEND TEST_CAMERA_SRC
-    ${ROOT_DIR}/src/psmoveservice/PSEye/PSEyeVideoCapture.h
-    ${ROOT_DIR}/src/psmoveservice/PSEye/PSEyeVideoCapture.cpp)
+    ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye/PSEyeVideoCapture.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye/PSEyeVideoCapture.cpp)
 
 # The test_camera app
 add_executable(test_camera ${CMAKE_CURRENT_LIST_DIR}/test_camera.cpp ${TEST_CAMERA_SRC})

@@ -65,4 +65,5 @@ protected:
 private:
     int m_deviceID;
 };
+
 #endif // SERVER_DEVICE_VIEW_H

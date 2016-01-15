@@ -173,6 +173,4 @@ public:
     //virtual void getState(CommonHMDState *out_state, int lookBack = 0) const = 0;
 };
 
-
-
 #endif // DEVICE_INTERFACE_H

@@ -42,6 +42,10 @@ file(GLOB PSMOVESERVICE_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveController/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/*.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/PSEye/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/PSEye/*.h"
 )
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/Platform
@@ -52,6 +56,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
 # Eigen math library
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
     
+client branch.
 # Boost.Application and type_index are header only (?)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${ROOT_DIR}/thirdparty/Boost.Application/include/
@@ -97,15 +102,60 @@ ENDIF()
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol/)
 list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveProtocol)
 
-# TODO: Camera. See tests
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    list(APPEND PSMOVESERVICE_SRC 
+# Tracker
+# Requires OpenCV, PS3EYEDriver (platform-dependent), CL Eye (platform-dependent)
+
+# OpenCV
+set(OpenCV_STATIC ON)
+FIND_PACKAGE(OpenCV REQUIRED)
+IF ("${OpenCV_LIBS}" STREQUAL "")
+    message("OpenCV Libs was empty! Manually setting.")
+    list(APPEND OpenCV_LIBS opencv_core opencv_imgproc opencv_calib3d opencv_video opencv_features2d opencv_ml opencv_highgui opencv_objdetect)
+ENDIF()
+IF ("${OpenCV_INCLUDE_DIRS}" STREQUAL "" AND ${OpenCV_DIR})
+    message("OpenCV include dirs was empty! Manually setting.")
+    set (OpenCV_INCLUDE_DIRS ${OpenCV_DIR}\include)
+ENDIF()
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
+list(APPEND PSMOVE_SERVICE_REQ_LIBS ${OpenCV_LIBS})
+
+# PS3EYEDriver - only necessary on Mac and Win64, but can be used in Win32 (I think)
+IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"
+    OR (${CMAKE_SYSTEM_NAME} MATCHES "Windows"))
+    #PS3EYEDriver
+    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/PS3EYEDriver/src)
+    list(APPEND PSMOVESERVICE_SRC
+        ${ROOT_DIR}/thirdparty/PS3EYEDriver/src/ps3eye.h
+        ${ROOT_DIR}/thirdparty/PS3EYEDriver/src/ps3eye.cpp)
+    #Requires libusb
+    find_package(USB1 REQUIRED)
+    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
+    list(APPEND PSMOVE_SERVICE_REQ_LIBS ${LIBUSB_LIBRARIES})
+    add_definitions(-DHAVE_PS3EYE)
+ENDIF()
+
+# CL EYE - only on Win32
+SET(ISWIN32 FALSE)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
+    AND NOT(${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8))
+    SET(ISWIN32 TRUE)
+    add_definitions(-DHAVE_CLEYE)
+    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/CLEYE)
+    list(APPEND PSMOVE_SERVICE_REQ_LIBS ${ROOT_DIR}/thirdparty/CLEYE/x86/lib/CLEyeMulticam.lib)
+    find_path(CL_EYE_SDK_PATH CLEyeMulticam.dll
+        HINTS C:/Windows/SysWOW64)
+    #The non-Multicam version does not require any libs/dlls/includes
+    #Uses OpenCV for video. Uses the registry for settings.
+    #But libusb is required for enumerating the devices and checking for the CL Eye Driver.
+    find_package(USB1 REQUIRED)
+    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
+    list(APPEND PSMOVE_SERVICE_REQ_LIBS ${LIBUSB_LIBRARIES})
+
+    # Windows utilities for querying driver infomation (provider name)
+    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Platform)
+    list(APPEND PSMOVESERVICE_SRC
         ${CMAKE_CURRENT_LIST_DIR}/Platform/USBDeviceInterfaceWin32.h
         ${CMAKE_CURRENT_LIST_DIR}/Platform/USBDeviceInterfaceWin32.cpp)
-ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    # Not necessary
-ELSE()
-    # Not necessary
 ENDIF()
 
 add_executable(PSMoveService ${PSMOVESERVICE_SRC})
@@ -125,3 +175,18 @@ install(TARGETS PSMoveService
 	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
 ELSE() #Linux/Darwin
 ENDIF()
+
+IF(${ISWIN32})
+    IF(${CL_EYE_SDK_PATH} STREQUAL "CL_EYE_SDK_PATH-NOTFOUND")
+        #If the developer does not have CLEyeMulticam.dll on their system,
+        #copy it to the correct directory to prevent crashes.
+        #If we distribute binaries (e.g., a server to use alongside a UE4 plugin)
+        #then we will distribute it with this DLL with the server exe.
+        #It will be up to CLEYE SDK users to delete this version of the DLL
+        #to use their system version.
+        add_custom_command(TARGET PSMoveService POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${ROOT_DIR}/thirdparty/CLEYE/x86/bin/CLEyeMulticam.dll"
+                $<TARGET_FILE_DIR:PSMoveService>)
+    ENDIF()#CL_EYE not found
+ENDIF()#ISWIN32
