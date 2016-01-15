@@ -1,6 +1,7 @@
 #include "PSEyeVideoCapture.h"
 #include <opencv2/videoio/videoio.hpp>
 #include <opencv2/videoio/videoio_c.h>
+#include "opencv2/imgproc.hpp"
 #include <iostream>
 #ifdef HAVE_PS3EYE
 #include "ps3eye.h"
@@ -24,62 +25,6 @@ enum
     PSEYE_CAP_PS3EYE    = 2300
 #endif
 };
-
-#ifdef HAVE_PS3EYE
-/**
- * Taken from the PS3EYEDriver OpenFrameworks example
- * written by Eugene Zatepyakin, MIT license
- **/
-
-static const int ITUR_BT_601_CY = 1220542;
-static const int ITUR_BT_601_CUB = 2116026;
-static const int ITUR_BT_601_CUG = -409993;
-static const int ITUR_BT_601_CVG = -852492;
-static const int ITUR_BT_601_CVR = 1673527;
-static const int ITUR_BT_601_SHIFT = 20;
-
-static void
-yuv422_to_bgr(const uint8_t *yuv_src, const int stride, uint8_t *dst, const int width, const int height)
-{
-    const int bIdx = 2;
-    const int uIdx = 0;
-    const int yIdx = 0;
-    
-    const int uidx = 1 - yIdx + uIdx * 2;
-    const int vidx = (2 + uidx) % 4;
-    int j, i;
-    
-#define _max(a, b) (((a) > (b)) ? (a) : (b))
-#define _saturate(v) (uint8_t)((uint32_t)(v) <= 0xff ? v : v > 0 ? 0xff : 0)
-    
-    for (j = 0; j < height; j++, yuv_src += stride)
-    {
-        uint8_t* row = dst + (width * 3) * j;
-        
-        for (i = 0; i < 2 * width; i += 4, row += 6)
-        {
-            int u = (int)(yuv_src[i + uidx]) - 128;
-            int v = (int)(yuv_src[i + vidx]) - 128;
-            
-            int ruv = (1 << (ITUR_BT_601_SHIFT - 1)) + ITUR_BT_601_CVR * v;
-            int guv = (1 << (ITUR_BT_601_SHIFT - 1)) + ITUR_BT_601_CVG * v + ITUR_BT_601_CUG * u;
-            int buv = (1 << (ITUR_BT_601_SHIFT - 1)) + ITUR_BT_601_CUB * u;
-            
-            int y00 = _max(0, (int)(yuv_src[i + yIdx]) - 16) * ITUR_BT_601_CY;
-            row[2-bIdx] = _saturate((y00 + buv) >> ITUR_BT_601_SHIFT);
-            row[1]      = _saturate((y00 + guv) >> ITUR_BT_601_SHIFT);
-            row[bIdx]   = _saturate((y00 + ruv) >> ITUR_BT_601_SHIFT);
-            
-            int y01 = _max(0, (int)(yuv_src[i + yIdx + 2]) - 16) * ITUR_BT_601_CY;
-            row[5-bIdx] = _saturate((y01 + buv) >> ITUR_BT_601_SHIFT);
-            row[4]      = _saturate((y01 + guv) >> ITUR_BT_601_SHIFT);
-            row[3+bIdx] = _saturate((y01 + ruv) >> ITUR_BT_601_SHIFT);
-        }
-    }
-}
-#undef _max
-#undef _saturate
-#endif //HAVE_PS3EYE
 
 
 /**
@@ -296,7 +241,7 @@ class PSEYECaptureCAM_PS3EYE : public cv::IVideoCapture
 public:
     PSEYECaptureCAM_PS3EYE(int _index)
     : m_index(-1), m_width(-1), m_height(-1), m_widthStep(-1),
-    m_size(-1), m_frame(NULL)
+    m_size(-1), m_MatYUV(0, 0, CV_8UC2)
     {
         //CoInitialize(NULL);
         open(_index);
@@ -336,7 +281,7 @@ public:
         return 0;
     }
 
-    virtual bool setProperty(int property_id, double value)
+    bool setProperty(int property_id, double value)
     {
         int val;
         if (!eye)
@@ -372,6 +317,9 @@ public:
             val = (int)(value * 64.0 / 256.0);
             eye->setSharpness((int)round(value));
         }
+        
+        refreshDimensions();
+        
         return true;
     }
 
@@ -387,36 +335,8 @@ public:
 
         if (new_pixels != NULL)
         {
-            
-            // I think the rest of this function can be done more efficiently.
-            // Maybe we can use OpenCV tools to convert the memory format
-            // (see cvInitImageHeader and cvSetData)
-            //cvSetData( m_frame, &new_pixels, eye->getRowBytes() );
-            
-            // Then use OpenCV tools to convert the colorspace. e.g.,
-            // cvtColor(src,dst,CV_YUV2BGR_YUY2);
-
-            m_widthStep = eye->getRowBytes();
-            m_width = eye->getWidth();
-            m_height = eye->getHeight();
-            m_size = m_widthStep * m_height;
-
-            // Convert pixels from camera to OpenCV BGR image
-            unsigned char *cvpixels;
-            cvGetRawData(m_frame, &cvpixels, 0, 0); // cvpixels becomes low-level access to frame
-        
-            // Simultaneously copy from new_pixels to cvpixels and convert colorspace.
-            // I think this is pretty slow but I'm not sure.
-            yuv422_to_bgr(new_pixels, m_widthStep, cvpixels, m_width, m_height);
-
-            if(m_frame->origin == IPL_ORIGIN_TL)
-                cv::cvarrToMat(m_frame).copyTo(outArray);
-            else
-            {
-                cv::Mat temp = cv::cvarrToMat(m_frame);
-                flip(temp, outArray, 0);
-            }
-            
+            std::memcpy(m_MatYUV.data, new_pixels, m_MatYUV.total() * m_MatYUV.elemSize() * sizeof(uchar));
+            cv::cvtColor(m_MatYUV, outArray, CV_YUV2BGR_YUY2);
             return true;
         }
         return false;
@@ -443,20 +363,17 @@ protected:
             
             eye = devices[_index];
             
-            if (eye && eye->init(640, 480, 75))
+            if (eye && eye->init(640, 480, 60))
             {
                 // Change any default settings here
-                
-                m_frame = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
                 
                 eye->start();
                 
                 eye->setAutogain(false);
                 eye->setAutoWhiteBalance(false);
                 
-                m_width = 640;
-                m_height = 480;
                 m_index = _index;
+                refreshDimensions();
                 
                 return true;
             }
@@ -464,16 +381,24 @@ protected:
         return false;
     }
     
-    virtual void close()
+    void close()
     {
-        cvReleaseImage(&m_frame);
         // eye will close itself when going out of scope.
         m_index = -1;
+    }
+    
+    void refreshDimensions()
+    {
+        m_width = eye->getWidth();
+        m_widthStep = eye->getRowBytes(); // just width * 2.
+        m_height = eye->getHeight();
+        m_size = m_widthStep * m_height;
+        m_MatYUV.create(cv::Size(m_width, m_height), CV_8UC2);
     }
 
     int m_index, m_width, m_height, m_widthStep;
     size_t m_size;
-    IplImage* m_frame;
+    cv::Mat m_MatYUV;
     ps3eye::PS3EYECam::PS3EYERef eye;
 };
 
