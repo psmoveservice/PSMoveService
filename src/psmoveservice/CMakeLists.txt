@@ -49,6 +49,9 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/PSMoveController
     ${ROOT_DIR}/src/psmoveservice/PSNaviController)
     
+# Eigen math library
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
+    
 # Boost.Application and type_index are header only (?)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${ROOT_DIR}/thirdparty/Boost.Application/include/

@@ -2,6 +2,7 @@
 #define MATH_UTILITY_H
 
 //-- includes -----
+#include <assert.h>
 #include <float.h>
 #include <math.h>
 #include <glm/glm.hpp>

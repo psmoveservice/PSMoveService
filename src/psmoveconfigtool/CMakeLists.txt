@@ -4,6 +4,7 @@ set(PSMOVECONFIGTOOL_REQ_LIBS)
 
 # platform independent include paths
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
+    ${ROOT_DIR}/thirdparty/eigen/
     ${ROOT_DIR}/thirdparty/glm
     ${ROOT_DIR}/thirdparty/stb
     ${ROOT_DIR}/thirdparty/imgui
