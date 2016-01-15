@@ -15,6 +15,7 @@ public:
     
     bool open(const class DeviceEnumerator *enumerator);
     bool poll();
+    virtual void updateStateAndPredict()= 0;
     void publish();
     void close();
     bool matchesDeviceEnumerator(const class DeviceEnumerator *enumerator) const;

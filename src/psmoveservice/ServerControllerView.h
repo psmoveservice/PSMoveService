@@ -13,6 +13,9 @@ public:
     ServerControllerView(const int device_id);
     ~ServerControllerView();
 
+    // Compute pose/prediction of tracking blob+IMU state
+    void updateStateAndPredict() override;
+
     // Registers the address of the bluetooth adapter on the host PC with the controller
     bool setHostBluetoothAddress(const std::string &address);
     

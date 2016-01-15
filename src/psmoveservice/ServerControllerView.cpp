@@ -37,6 +37,10 @@ ServerControllerView::~ServerControllerView()
                       // for m_device.
 }
 
+void ServerControllerView::updateStateAndPredict()
+{
+}
+
 bool ServerControllerView::setHostBluetoothAddress(
     const std::string &address)
 {

@@ -10,7 +10,10 @@ class ServerHMDView : public ServerDeviceView
 public:
     ServerHMDView(const int device_id);
     ~ServerHMDView();
-    
+
+    // Get the pose + prediction for HMD
+    void updateStateAndPredict() override;
+
     IDeviceInterface* getDevice() const override {return m_device;}
 
 protected:

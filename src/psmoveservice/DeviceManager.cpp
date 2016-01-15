@@ -118,6 +118,18 @@ DeviceTypeManager::poll()
 }
 
 void 
+DeviceTypeManager::updateStateAndPredict()
+{
+    // Recompute the state-space data about the device and make predictions about the future
+    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+    {
+        ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
+        
+        device->updateStateAndPredict();
+    }
+}
+
+void 
 DeviceTypeManager::publish()
 {
     // Publish any new data to client connections
@@ -526,6 +538,10 @@ DeviceManager::update()
     m_controller_manager.poll(); // Update controller counts and poll button/IMU state
     m_tracker_manager.poll(); // Update tracker count and poll video frames
     m_hmd_manager.poll(); // Update HMD count and poll position/orientation state
+
+    m_tracker_manager.updateStateAndPredict(); // Get controller colors and update tracking blob positions/predictions
+    m_controller_manager.updateStateAndPredict(); // Compute pose/prediction of tracking blob+IMU state
+    m_hmd_manager.updateStateAndPredict(); // Get the pose + prediction for HMD
 
     m_controller_manager.publish(); // publish controller state to any listening clients  (common case)
     m_tracker_manager.publish(); // publish tracker state to any listening clients (probably only used by ConfigTool)

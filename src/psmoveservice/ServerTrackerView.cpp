@@ -20,6 +20,10 @@ ServerTrackerView::~ServerTrackerView()
     }
 }
 
+void ServerTrackerView::updateStateAndPredict()
+{
+}
+
 void ServerTrackerView::publish_device_data_frame()
 {
     // Tell the server request handler we want to send out tracker updates.

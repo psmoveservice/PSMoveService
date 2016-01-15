@@ -34,6 +34,7 @@ public:
     
     virtual bool startup();
     void poll();
+    void updateStateAndPredict();
     void publish();
     virtual void shutdown();
     
@@ -91,8 +92,7 @@ public:
     
     ServerDeviceViewPtr getDeviceViewPtr(int device_id) override;
     ServerControllerViewPtr getControllerViewPtr(int device_id);
-    
-    
+
     bool setControllerRumble(int controller_id, int rumble_amount);
     bool resetPose(int controller_id);
     
