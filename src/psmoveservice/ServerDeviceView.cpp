@@ -52,7 +52,7 @@ bool ServerDeviceView::poll()
     {
         switch (device->poll())
         {
-            case IControllerInterface::_PollResultSuccessNoData:
+            case IDeviceInterface::_PollResultSuccessNoData:
             {
                 long long now =
                 std::chrono::duration_cast< std::chrono::milliseconds >(
@@ -71,7 +71,7 @@ bool ServerDeviceView::poll()
             }
                 break;
                 
-            case IControllerInterface::_PollResultSuccessNewData:
+            case IDeviceInterface::_PollResultSuccessNewData:
             {
                 m_last_updated_tick=
                 std::chrono::duration_cast< std::chrono::milliseconds >(
@@ -84,7 +84,7 @@ bool ServerDeviceView::poll()
             }
                 break;
                 
-            case IControllerInterface::_PollResultFailure:
+            case IDeviceInterface::_PollResultFailure:
             {
                 SERVER_LOG_INFO("ServerControllerView::poll_open_controllers") <<
                 "Controller id " << getDeviceID() << " closing due to failed read";

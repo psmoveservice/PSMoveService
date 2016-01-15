@@ -121,7 +121,7 @@ public:
     // Returns what type of controller
     virtual CommonDeviceState::eDeviceType getDeviceType() const = 0;
     
-    // Fetch the controller state at the given sample index.
+    // Fetch the device state at the given sample index.
     // A lookBack of 0 corresponds to the most recent data.
     virtual void getState(CommonDeviceState *out_state, int lookBack = 0) const = 0;
 };
@@ -172,6 +172,7 @@ public:
     // A lookBack of 0 corresponds to the most recent data.
     //virtual void getState(CommonHMDState *out_state, int lookBack = 0) const = 0;
 };
+
 
 
 #endif // DEVICE_INTERFACE_H

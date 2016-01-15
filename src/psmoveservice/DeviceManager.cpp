@@ -416,11 +416,11 @@ TrackerManager::TrackerManager()
     : DeviceTypeManager(10000, 13)
 {
     // Allocate all of the devices
-    for (int controller_id = 0; controller_id < k_max_devices; ++controller_id)
+    for (int tracker_id = 0; tracker_id < k_max_devices; ++tracker_id)
     {
-        ServerTrackerViewPtr controller = ServerTrackerViewPtr(new ServerTrackerView(controller_id));
+        ServerTrackerViewPtr tracker = ServerTrackerViewPtr(new ServerTrackerView(tracker_id));
         
-        m_devices[controller_id]= controller;
+        m_devices[tracker_id]= tracker;
     }
 }
 
@@ -457,20 +457,20 @@ HMDManager::HMDManager()
 : DeviceTypeManager(1000, 2)
 {
     // Allocate all of the devices
-    for (int controller_id = 0; controller_id < k_max_devices; ++controller_id)
+    for (int hmd_id = 0; hmd_id < k_max_devices; ++hmd_id)
     {
-        ServerHMDViewPtr controller = ServerHMDViewPtr(new ServerHMDView(controller_id));
+        ServerHMDViewPtr hmd = ServerHMDViewPtr(new ServerHMDView(hmd_id));
         
-        m_devices[controller_id]= controller;
+        m_devices[hmd_id]= hmd;
     }
 }
 
 HMDManager::~HMDManager()
 {
     // Deallocate the controllers
-    for (int device_id = 0; device_id < k_max_devices; ++device_id)
+    for (int hmd_id = 0; hmd_id < k_max_devices; ++hmd_id)
     {
-        m_devices[device_id]= ServerHMDViewPtr();
+        m_devices[hmd_id]= ServerHMDViewPtr();
     }
 }
 
