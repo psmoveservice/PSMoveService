@@ -48,15 +48,17 @@ file(GLOB PSMOVESERVICE_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/PSEye/*.h"
 )
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
-    ${ROOT_DIR}/src/psmoveservice/Platform
-    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
-    ${ROOT_DIR}/src/psmoveservice/PSMoveController
-    ${ROOT_DIR}/src/psmoveservice/PSNaviController)
-    
+    ${CMAKE_CURRENT_LIST_DIR}/Platform
+    ${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig
+    ${CMAKE_CURRENT_LIST_DIR}/PSMoveController
+    ${CMAKE_CURRENT_LIST_DIR}/PSNaviController
+    ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker
+    ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/PSEye
+)
+
 # Eigen math library
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
-    
-client branch.
+
 # Boost.Application and type_index are header only (?)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${ROOT_DIR}/thirdparty/Boost.Application/include/
@@ -103,7 +105,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol/)
 list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveProtocol)
 
 # Tracker
-# Requires OpenCV, PS3EYEDriver (platform-dependent), CL Eye (platform-dependent)
+# Requires OpenCV, PS3EYEDriver (Mac/Win64), CLEye (Win32)
 
 # OpenCV
 set(OpenCV_STATIC ON)

@@ -1,5 +1,5 @@
-#ifndef PSMOVE_CONTROLLER_H
-#define PSMOVE_CONTROLLER_H
+#ifndef PSMOVE_TRACKER_H
+#define PSMOVE_TRACKER_H
 
 #include "PSMoveDataFrame.h"
 #include "PSMoveConfig.h"
@@ -25,7 +25,6 @@ public:
     long data_timeout;
 };
 
-// https://code.google.com/p/moveonpc/wiki/InputReport
 struct PSMoveTrackerState : public CommonDeviceState
 {
     // TODO - member variables containing current state.
@@ -42,7 +41,7 @@ struct PSMoveTrackerState : public CommonDeviceState
     }
 };
 
-class PSMoveTracker : public IDeviceInterface {
+class PSMoveTracker : public ITrackerInterface {
 public:
     PSMoveTracker();
     PSMoveTracker();
@@ -61,6 +60,8 @@ public:
     virtual CommonDeviceState::eDeviceType getDeviceType() const override;
     virtual void getState(CommonDeviceState *out_state, int lookBack = 0) const override;
     
+    // -- ITrackerInterface
+    
     // -- Getters
     inline const PSMoveTrackerConfig &getConfig() const
     { return cfg; }
@@ -73,4 +74,4 @@ private:
     // Read Controller State
     std::deque<PSMoveTrackerState> TrackerStates;
 };
-#endif // PSMOVE_CONTROLLER_H
+#endif // PSMOVE_TRACKER_H

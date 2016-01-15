@@ -1,3 +1,6 @@
+#ifndef PSEYE_VIDEO_CAPTURE_H
+#define PSEYE_VIDEO_CAPTURE_H
+
 #include <opencv2/videoio.hpp>
 
 /// Video capture class that prioritizes PS3 Eye devices.
@@ -49,3 +52,5 @@ private:
     /// Get the camera capture. If successful, we will have a functional cv::Ptr<CvCapture> \ref cap member variable.
     cv::Ptr<cv::IVideoCapture> pseyeVideoCapture_create(int index);
 };
+
+#endif //PSEYE_VIDEO_CAPTURE_H
