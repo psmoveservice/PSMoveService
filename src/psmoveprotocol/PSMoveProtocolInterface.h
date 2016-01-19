@@ -14,6 +14,8 @@ namespace PSMoveProtocol
 	class Request;
 	class Response;
 };
+
+//TODO: Other device type data frame types.
 typedef std::shared_ptr<PSMoveProtocol::ControllerDataFrame> ControllerDataFramePtr;
 typedef std::shared_ptr<PSMoveProtocol::Request> RequestPtr;
 typedef std::shared_ptr<PSMoveProtocol::Response> ResponsePtr;

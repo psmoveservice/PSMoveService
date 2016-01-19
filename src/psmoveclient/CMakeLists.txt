@@ -27,6 +27,7 @@ list(APPEND PSMOVE_CLIENT_REQ_LIBS PSMoveMath)
 
 # Source files that are needed for the shared library
 file(GLOB PSMOVECLIENT_LIBRARY_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/*.cpp"
 )
 

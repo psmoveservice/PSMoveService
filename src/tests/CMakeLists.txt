@@ -56,6 +56,7 @@ list(APPEND TEST_CONFIG_SRC
 add_executable(test_config ${CMAKE_CURRENT_LIST_DIR}/test_config.cpp ${TEST_CONFIG_SRC})
 target_include_directories(test_config PUBLIC ${TEST_CONFIG_INCL_DIRS})
 target_link_libraries(test_config ${PLATFORM_LIBS} ${TEST_CONFIG_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_config PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -136,6 +137,7 @@ list(APPEND TEST_CAMERA_SRC
 add_executable(test_camera ${CMAKE_CURRENT_LIST_DIR}/test_camera.cpp ${TEST_CAMERA_SRC})
 target_include_directories(test_camera PUBLIC ${TEST_CAMERA_INCL_DIRS})
 target_link_libraries(test_camera ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_camera PROPERTIES FOLDER Test)
 
 IF(${ISWIN32})
     IF(${CL_EYE_SDK_PATH} STREQUAL "CL_EYE_SDK_PATH-NOTFOUND")
@@ -222,6 +224,7 @@ list(APPEND TEST_CTRLR_REQ_LIBS PSMoveProtocol)
 add_executable(test_controller ${CMAKE_CURRENT_LIST_DIR}/test_controller.cpp ${TEST_CTRLR_SRC})
 target_include_directories(test_controller PUBLIC ${TEST_CTRLR_INCL_DIRS})
 target_link_libraries(test_controller ${PLATFORM_LIBS} ${TEST_CTRLR_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_controller PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -238,6 +241,7 @@ ENDIF()
 add_executable(test_console_client test_console_client.cpp)
 target_include_directories(test_console_client PUBLIC ${ROOT_DIR}/src/psmoveclient/)
 target_link_libraries(test_console_client PSMoveClient)
+SET_TARGET_PROPERTIES(test_console_client PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -271,6 +275,7 @@ list(APPEND TEST_UDP_SERVER_INCL_DIRS
 add_executable(test_udp_server ${CMAKE_CURRENT_LIST_DIR}/test_udp_server.cpp)
 target_include_directories(test_udp_server PUBLIC ${TEST_UDP_SERVER_INCL_DIRS})
 target_link_libraries(test_udp_server ${PLATFORM_LIBS} ${TEST_UDP_SERVER_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_udp_server PROPERTIES FOLDER Test)
 
 # Only set the admin privilege escalation on MSVC builds (for service operations)
 IF(MSVC)
@@ -303,6 +308,7 @@ list(APPEND TEST_UDP_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
 add_executable(test_udp_client ${CMAKE_CURRENT_LIST_DIR}/test_udp_client.cpp)
 target_include_directories(test_udp_client PUBLIC ${TEST_UDP_CLIENT_INCL_DIRS})
 target_link_libraries(test_udp_client ${PLATFORM_LIBS} ${TEST_UDP_CLIENT_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_udp_client PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")

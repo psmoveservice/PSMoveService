@@ -199,7 +199,7 @@ public:
 
         return write_in_progress;
     }
-
+    
     void add_controller_data_frame_to_write_queue(ControllerDataFramePtr data_frame)
     {
         m_pending_dataframes.push_back(data_frame);

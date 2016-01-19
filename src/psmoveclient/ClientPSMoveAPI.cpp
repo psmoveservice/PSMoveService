@@ -29,7 +29,7 @@ public:
             host, port, 
             this, // IDataFrameListener
             this, // INotificationListener
-            &m_request_manager, // IResonseListener
+            &m_request_manager, // IResponseListener
             this) // IClientNetworkEventListener
         , m_event_callback(callback)
         , m_event_callback_userdata(callback_userdata)

@@ -91,7 +91,7 @@ DeviceTypeManager::startup()
     return true;
 }
 
-/// Calls update_devices and update_connected_devices if poll_interval and reconnect_interval has elapsed, respectively.
+/// Calls poll_devices and update_connected_devices if poll_interval and reconnect_interval has elapsed, respectively.
 void
 DeviceTypeManager::poll()
 {
