@@ -324,6 +324,12 @@ PSNaviController::getIsBluetooth() const
     return IsBluetooth; 
 }
 
+bool
+PSNaviController::getIsReadyToPoll() const
+{
+    return (getIsOpen() && getIsBluetooth());
+}
+
 std::string 
 PSNaviController::getUSBDevicePath() const
 {

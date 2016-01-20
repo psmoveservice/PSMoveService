@@ -103,6 +103,7 @@ public:
 
     // -- Getters
     virtual bool getIsBluetooth() const override;
+    virtual bool getIsReadyToPoll() const override;
     virtual std::string getUSBDevicePath() const override;
     virtual std::string getSerial() const override;
     virtual std::string getHostBluetoothAddress() const override;
