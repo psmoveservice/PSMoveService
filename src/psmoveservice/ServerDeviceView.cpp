@@ -23,7 +23,14 @@ ServerDeviceView::~ServerDeviceView()
 bool
 ServerDeviceView::open(const DeviceEnumerator *enumerator)
 {
-    bool bSuccess= getDevice()->open(enumerator);
+    // Attempt to allocate the device 
+    bool bSuccess= allocate_device_interface(enumerator);
+    
+    // Attempt to open the device
+    if (bSuccess)
+    {
+        bSuccess= getDevice()->open(enumerator);
+    }
     
     if (bSuccess)
     {
@@ -32,13 +39,16 @@ ServerDeviceView::open(const DeviceEnumerator *enumerator)
         std::chrono::duration_cast< std::chrono::milliseconds >(
             std::chrono::system_clock::now().time_since_epoch()).count();
     }
+
     return bSuccess;
 }
 
 bool
 ServerDeviceView::getIsOpen() const
 {
-    return getDevice()->getIsOpen();
+    IDeviceInterface* device= getDevice();
+
+    return (device != nullptr) ? device->getIsOpen() : false;
 }
 
 bool ServerDeviceView::poll()
@@ -113,11 +123,15 @@ void ServerDeviceView::publish()
 void
 ServerDeviceView::close()
 {
-    getDevice()->close();
+    if (getIsOpen())
+    {
+        getDevice()->close();
+        free_device_interface();
+    }
 }
 
 bool
 ServerDeviceView::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
 {
-    return getDevice()->matchesDeviceEnumerator(enumerator);
+    return getIsOpen() && getDevice()->matchesDeviceEnumerator(enumerator);
 }

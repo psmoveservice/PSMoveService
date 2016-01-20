@@ -4,6 +4,7 @@
 #include "BluetoothRequests.h"
 #include "ServerLog.h"
 #include "ServerRequestHandler.h"
+#include "Filter/OrientationFilter.h"
 #include "PSMoveController/PSMoveController.h"
 #include "PSNaviController/PSNaviController.h"
 #include "PSMoveProtocolInterface.h"
@@ -24,17 +25,91 @@ static void generate_psnavi_data_frame_for_stream(
 ServerControllerView::ServerControllerView(const int device_id)
     : ServerDeviceView(device_id)
     , m_device(nullptr)
+    , m_orientation_filter(nullptr)
 {
-    //###bwalker $TODO The device should be allocated in open() based on the enumerator type
-    m_device = new PSMoveController();
 }
 
 ServerControllerView::~ServerControllerView()
 {
-    delete m_device;  // Deleting abstract object should be OK because
-                      // this (ServerDeviceView) is abstract as well.
-                      // All non-abstract children will have non-abstract types
-                      // for m_device.
+}
+
+bool ServerControllerView::allocate_device_interface(
+    const class DeviceEnumerator *enumerator)
+{
+    switch (enumerator->get_device_type())
+    {
+    case CommonDeviceState::PSMove:
+        {
+            m_device = new PSMoveController();
+            m_orientation_filter = new OrientationFilter();
+        } break;
+    case CommonDeviceState::PSNavi:
+        {
+            m_device= new PSNaviController();
+        } break;
+    default:
+        break;
+    }
+
+    return m_device != nullptr;
+}
+
+void ServerControllerView::free_device_interface()
+{
+    if (m_orientation_filter != nullptr)
+    {
+        delete m_orientation_filter;
+        m_orientation_filter= nullptr;
+    }
+
+    if (m_device != nullptr)
+    {
+        delete m_device;  // Deleting abstract object should be OK because
+                          // this (ServerDeviceView) is abstract as well.
+                          // All non-abstract children will have non-abstract types
+                          // for m_device.
+        m_device= nullptr;
+    }
+}
+
+bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
+{
+    // Attempt to open the controller
+    bool bSuccess= ServerDeviceView::open(enumerator);
+
+    // Setup the orientation filter based on the controller configuration
+    if (bSuccess)
+    {
+        IDeviceInterface *device= getDevice();
+
+        switch (device->getDeviceType())
+        {
+        case CommonDeviceState::PSMove:
+            {
+                // Get the magnetometer identity direction from the controller config
+                const PSMoveController *psmove= static_cast<const PSMoveController *>(device);
+                const PSMoveControllerConfig &psmove_config= psmove->getConfig();
+                const std::vector<float> &identity_m= psmove_config.magnetometer_identity;
+
+                // Setup the space the orientation filter operates in
+                Eigen::Vector3f identityGravity= Eigen::Vector3f(0.f, 1.f, 0.f);
+                Eigen::Vector3f identityMagnetometer= Eigen::Vector3f(identity_m[0], identity_m[1], identity_m[2]);
+                Eigen::Matrix3f calibrationTransform= *k_eigen_identity_pose_laying_flat;
+                Eigen::Matrix3f sensorTransform= *k_eigen_sensor_transform_opengl;
+                OrientationFilterSpace filterSpace(identityGravity, identityMagnetometer, calibrationTransform, sensorTransform);
+                
+                m_orientation_filter->setFilterSpace(filterSpace);
+
+                // Use the complementary MARG fusion filter by default
+                m_orientation_filter->setFusionType(OrientationFilter::FusionTypeComplementaryMARG);
+            } break;
+        case CommonDeviceState::PSNavi:
+        default:
+            break;
+        }
+    }
+
+    return bSuccess;
 }
 
 void ServerControllerView::updateStateAndPredict()

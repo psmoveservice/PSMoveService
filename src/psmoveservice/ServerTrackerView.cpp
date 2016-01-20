@@ -24,6 +24,15 @@ void ServerTrackerView::updateStateAndPredict()
 {
 }
 
+bool ServerTrackerView::allocate_device_interface(const class DeviceEnumerator *enumerator)
+{
+    return false;
+}
+
+void ServerTrackerView::free_device_interface()
+{
+}
+
 void ServerTrackerView::publish_device_data_frame()
 {
     // Tell the server request handler we want to send out tracker updates.
