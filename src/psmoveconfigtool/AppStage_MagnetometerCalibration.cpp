@@ -8,6 +8,7 @@
 #include "ClientControllerView.h"
 #include "GeometryUtility.h"
 #include "Logger.h"
+#include "MathGLM.h"
 #include "MathUtility.h"
 #include "PSMoveProtocolInterface.h"
 #include "Renderer.h"
@@ -15,8 +16,6 @@
 
 #include "SDL_keycode.h"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
 
 #include <algorithm>

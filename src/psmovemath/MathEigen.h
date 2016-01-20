@@ -48,4 +48,7 @@ eigen_quaternion_to_clockwise_matrix3f(const Eigen::Quaternionf &q);
 Eigen::Quaternionf
 eigen_matrix3f_to_clockwise_quaternion(const Eigen::Matrix3f &m);
 
+float 
+eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default);
+
 #endif // MATH_EIGEN_H
