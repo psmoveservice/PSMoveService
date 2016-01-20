@@ -129,3 +129,14 @@ eigen_matrix3f_to_clockwise_quaternion(const Eigen::Matrix3f &m)
 
 	return q.conjugate();
 }
+
+float 
+eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default)
+{
+    const float length= v.norm();
+
+    // Use the default value if v is too tiny
+    v= (length > k_normal_epsilon) ? (v / length) : default;
+
+    return length;
+}
