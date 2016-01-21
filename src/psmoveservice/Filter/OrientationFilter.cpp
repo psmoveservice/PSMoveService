@@ -2,6 +2,7 @@
 #include "OrientationFilter.h"
 #include "MathAlignment.h"
 #include "../ServerLog.h"
+#include <deque>
 
 //-- constants -----
 // Calibration Pose transform
@@ -27,7 +28,15 @@ const Eigen::Matrix3f *k_eigen_sensor_transform_opengl= &g_eigen_sensor_transfor
 // Complementary ARG Filter constants
 #define k_base_earth_frame_align_weight 0.02f
 
+// Max length of the orientation history we keep
+#define k_orientation_history_max 16
+
 // -- private definitions -----
+struct OrientationSample
+{
+    Eigen::Quaternionf orientation;
+};
+
 struct MadgwickMARGState
 {
     // estimate gyroscope biases error
@@ -42,6 +51,9 @@ struct ComplementaryMARGState
 struct OrientationSensorFusionState
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    // Recent history of orientation readings
+    std::deque<OrientationSample> orientationHistory;
 
     /* Output value as quaternion */
     Eigen::Quaternionf orientation;
@@ -63,6 +75,7 @@ struct OrientationSensorFusionState
         orientation= Eigen::Quaternionf::Identity();
         reset_orientation= Eigen::Quaternionf::Identity();
         fusion_type= OrientationFilter::FusionTypeComplementaryMARG;
+        orientationHistory.clear();
     }
 };
 
@@ -153,8 +166,13 @@ OrientationFilter::~OrientationFilter()
     delete m_FusionState;
 }
 
-Eigen::Quaternionf OrientationFilter::getOrientation()
+// Estimate the current orientation of the filter given a time offset
+// Positive time values estimate into the future
+// Negative time values get pose values from the past
+Eigen::Quaternionf OrientationFilter::getOrientation(int msec_time)
 {
+    //###bwalker $TODO Use the orientation history to compute an orientation
+
     Eigen::Quaternionf result= m_FusionState->reset_orientation * m_FusionState->orientation;
 
     return result;
@@ -233,6 +251,24 @@ void OrientationFilter::update(
     {
         SERVER_LOG_WARNING("OrientationFilter") << "Orientation is NaN!";
         m_FusionState->orientation = orientation_backup;
+    }
+
+    // Add the new orientation sample to the orientation history
+    {
+        OrientationSample sample;
+
+        sample.orientation= m_FusionState->orientation;
+        //###bwalker $TODO Timestamp?
+
+        // Make room for new entry if at the max queue size
+        if (m_FusionState->orientationHistory.size() >= k_orientation_history_max)
+        {
+            m_FusionState->orientationHistory.erase(
+                m_FusionState->orientationHistory.begin(),
+                m_FusionState->orientationHistory.begin() + m_FusionState->orientationHistory.size() - k_orientation_history_max);
+        }
+
+        m_FusionState->orientationHistory.push_back(sample);
     }
 }
 
