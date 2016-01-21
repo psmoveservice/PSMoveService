@@ -2,6 +2,11 @@
 #include "MathUtility.h"
 
 //-- float methods -----
+float safe_divide_with_default(float numerator, float denomenator, float default_result) 
+{
+    return is_nearly_zero(denomenator) ? default_result : (numerator / denomenator);
+}
+
 float clampf(float x, float lo, float hi)
 {
 	return fminf(fmaxf(x, lo), hi);
