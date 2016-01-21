@@ -230,6 +230,7 @@ PSMoveController::PSMoveController()
     , LedG(0)
     , LedB(0)
     , Rumble(0)
+    , NextPollSequenceNumber(0)
 {
     HIDDetails.Handle = nullptr;
     HIDDetails.Handle_addr = nullptr;
@@ -359,6 +360,9 @@ bool PSMoveController::open(
                 SERVER_LOG_ERROR("PSMoveController::open") << "Failed to get bluetooth address of PSMoveController(" << cur_dev_path << ")";
                 success= false;
             }
+
+            // Reset the polling sequence counter
+            NextPollSequenceNumber= 0;
         }
         else
         {
@@ -751,6 +755,10 @@ PSMoveController::poll()
             // https://github.com/nitsch/moveonpc/wiki/Input-report
             PSMoveControllerState newState;
         
+            // Increment the sequence for every new polling packet
+            newState.PollSequenceNumber= NextPollSequenceNumber;
+            ++NextPollSequenceNumber;
+
             // Buttons
             newState.AllButtons = (InData->buttons2) | (InData->buttons1 << 8) |
                 ((InData->buttons3 & 0x01) << 16) | ((InData->buttons4 & 0xF0) << 13);
@@ -803,9 +811,9 @@ PSMoveController::poll()
 
         
             // Other
-            newState.Sequence = (InData->buttons4 & 0x0F);
+            newState.RawSequence = (InData->buttons4 & 0x0F);
             newState.Battery = static_cast<CommonControllerState::BatteryLevel>(InData->battery);
-            newState.TimeStamp = InData->timelow | (InData->timehigh << 8);
+            newState.RawTimeStamp = InData->timelow | (InData->timehigh << 8);
             newState.TempRaw = (InData->temphigh << 4) | ((InData->templow_mXhigh & 0xF0) >> 4);
 
             // Make room for new entry if at the max queue size
@@ -822,56 +830,48 @@ PSMoveController::poll()
     return result;
 }
 
-void
+const CommonDeviceState * 
 PSMoveController::getState(
-    CommonDeviceState *out_state,
     int lookBack) const
 {
-    assert(out_state->DeviceType == CommonControllerState::PSMove);
-    PSMoveControllerState *out_psmove_state= static_cast<PSMoveControllerState *>(out_state);
+    const int queueSize= static_cast<int>(ControllerStates.size());
+    const CommonDeviceState * result=
+        (lookBack < queueSize) ? &ControllerStates.at(queueSize - lookBack - 1) : nullptr;
 
-    if (ControllerStates.empty())
-    {
-        out_psmove_state->clear();
-    }
-    else
-    {
-        lookBack = (lookBack < (int)ControllerStates.size()) ? lookBack : ControllerStates.size();
-        
-        *out_psmove_state= ControllerStates.at(ControllerStates.size() - lookBack - 1);
-    }
+    return result;
 }
 
 float
 PSMoveController::getTempCelsius() const
 {
-    PSMoveControllerState lastState;
+    const PSMoveControllerState *lastState= static_cast<const PSMoveControllerState *>(getState());
 
-    getState(&lastState);
-
-    /**
-     * The Move uses this table in Debug mode. Even though the resulting values
-     * are not labeled "degree Celsius" in the Debug output, measurements
-     * indicate that it is close enough.
-     **/
-    static int const temperature_lookup[80] = {
-        0x1F6, 0x211, 0x22C, 0x249, 0x266, 0x284, 0x2A4, 0x2C4,
-        0x2E5, 0x308, 0x32B, 0x34F, 0x374, 0x399, 0x3C0, 0x3E8,
-        0x410, 0x439, 0x463, 0x48D, 0x4B8, 0x4E4, 0x510, 0x53D,
-        0x56A, 0x598, 0x5C6, 0x5F4, 0x623, 0x651, 0x680, 0x6AF,
-        0x6DE, 0x70D, 0x73C, 0x76B, 0x79A, 0x7C9, 0x7F7, 0x825,
-        0x853, 0x880, 0x8AD, 0x8D9, 0x905, 0x930, 0x95B, 0x985,
-        0x9AF, 0x9D8, 0xA00, 0xA28, 0xA4F, 0xA75, 0xA9B, 0xAC0,
-        0xAE4, 0xB07, 0xB2A, 0xB4B, 0xB6D, 0xB8D, 0xBAD, 0xBCB,
-        0xBEA, 0xC07, 0xC24, 0xC40, 0xC5B, 0xC75, 0xC8F, 0xCA8,
-        0xCC1, 0xCD8, 0xCF0, 0xD06, 0xD1C, 0xD31, 0xD46, 0xD5A,
-    };
+    if (lastState != nullptr)
+    {
+        /**
+         * The Move uses this table in Debug mode. Even though the resulting values
+         * are not labeled "degree Celsius" in the Debug output, measurements
+         * indicate that it is close enough.
+         **/
+        static int const temperature_lookup[80] = {
+            0x1F6, 0x211, 0x22C, 0x249, 0x266, 0x284, 0x2A4, 0x2C4,
+            0x2E5, 0x308, 0x32B, 0x34F, 0x374, 0x399, 0x3C0, 0x3E8,
+            0x410, 0x439, 0x463, 0x48D, 0x4B8, 0x4E4, 0x510, 0x53D,
+            0x56A, 0x598, 0x5C6, 0x5F4, 0x623, 0x651, 0x680, 0x6AF,
+            0x6DE, 0x70D, 0x73C, 0x76B, 0x79A, 0x7C9, 0x7F7, 0x825,
+            0x853, 0x880, 0x8AD, 0x8D9, 0x905, 0x930, 0x95B, 0x985,
+            0x9AF, 0x9D8, 0xA00, 0xA28, 0xA4F, 0xA75, 0xA9B, 0xAC0,
+            0xAE4, 0xB07, 0xB2A, 0xB4B, 0xB6D, 0xB8D, 0xBAD, 0xBCB,
+            0xBEA, 0xC07, 0xC24, 0xC40, 0xC5B, 0xC75, 0xC8F, 0xCA8,
+            0xCC1, 0xCD8, 0xCF0, 0xD06, 0xD1C, 0xD31, 0xD46, 0xD5A,
+        };
     
-    int i;
+        int i;
     
-    for (i = 0; i < 80; i++) {
-        if (temperature_lookup[i] > lastState.TempRaw) {
-            return (float)(i - 10);
+        for (i = 0; i < 80; i++) {
+            if (temperature_lookup[i] > lastState->TempRaw) {
+                return (float)(i - 10);
+            }
         }
     }
     

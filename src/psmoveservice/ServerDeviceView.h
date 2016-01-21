@@ -8,7 +8,6 @@
 // -- declarations -----
 class ServerDeviceView
 {
-    
 public:
     ServerDeviceView(const int device_id);
     virtual ~ServerDeviceView();
@@ -50,6 +49,8 @@ public:
 
     // Returns true if device opened successfully
     bool getIsOpen() const;
+    inline bool getHasUnpublishedState()
+    { return m_bHasUnpublishedState; }
     
     // setters
     inline void markStateAsUnpublished()

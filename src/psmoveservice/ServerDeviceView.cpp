@@ -62,11 +62,11 @@ bool ServerDeviceView::poll()
     {
         switch (device->poll())
         {
-            case IControllerInterface::_PollResultSuccessNoData:
+        case IControllerInterface::_PollResultSuccessNoData:
             {
                 long long now =
-                std::chrono::duration_cast< std::chrono::milliseconds >(
-                    std::chrono::system_clock::now().time_since_epoch()).count();
+                    std::chrono::duration_cast< std::chrono::milliseconds >(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
                 long diff= static_cast<long>(now - m_last_updated_tick);
                 long max_timeout= device->getDataTimeout();
                 
@@ -79,22 +79,22 @@ bool ServerDeviceView::poll()
                     bSuccessfullyUpdated= false;
                 }
             }
-                break;
+            break;
                 
-            case IControllerInterface::_PollResultSuccessNewData:
+        case IControllerInterface::_PollResultSuccessNewData:
             {
                 m_last_updated_tick=
-                std::chrono::duration_cast< std::chrono::milliseconds >(
-                    std::chrono::system_clock::now().time_since_epoch()).count();
+                    std::chrono::duration_cast< std::chrono::milliseconds >(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
                 
                 // If we got new sensor data, then we have new state to publish
                 markStateAsUnpublished();
 
                 bSuccessfullyUpdated= true;
             }
-                break;
+            break;
                 
-            case IControllerInterface::_PollResultFailure:
+        case IControllerInterface::_PollResultFailure:
             {
                 SERVER_LOG_INFO("ServerControllerView::poll_open_controllers") <<
                 "Controller id " << getDeviceID() << " closing due to failed read";
@@ -102,7 +102,7 @@ bool ServerDeviceView::poll()
                 
                 bSuccessfullyUpdated= false;
             }
-                break;
+            break;
         }
     }
     

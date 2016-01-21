@@ -45,7 +45,7 @@ public:
 
     // Fetch the controller state at the given sample index.
     // A lookBack of 0 corresponds to the most recent data.
-    void getState(struct CommonControllerState *out_state, int lookBack = 0) const;
+    const struct CommonControllerState * getState(int lookBack = 0) const;
 
     // Set the rumble value between 0-255
     bool setControllerRumble(int rumble_amount);
@@ -62,6 +62,8 @@ protected:
 private:
     IControllerInterface *m_device;
     class OrientationFilter *m_orientation_filter;
+    //class PositionFilter *m_position_filter;     //###bwalker $TODO
+    int m_lastPollSeqNumProcessed;
 };
 
 #endif // SERVER_CONTROLLER_VIEW_H
