@@ -8,6 +8,8 @@
 #include "MathUtility.h"
 
 //-- constants -----
+extern const Eigen::Vector3f *k_eigen_vector3f_zero;
+extern const Eigen::Vector3f *k_eigen_vector3f_one;
 extern const Eigen::Quaternionf *k_eigen_quaternion_zero;
 
 //-- macros -----
@@ -47,6 +49,12 @@ eigen_quaternion_to_clockwise_matrix3f(const Eigen::Quaternionf &q);
 
 Eigen::Quaternionf
 eigen_matrix3f_to_clockwise_quaternion(const Eigen::Matrix3f &m);
+
+Eigen::Vector3f
+eigen_vector3f_divide_by_vector_with_default(
+    const Eigen::Vector3f &v, 
+    const Eigen::Vector3f &divisor, 
+    const Eigen::Vector3f &default_result);
 
 float 
 eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default);
