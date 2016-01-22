@@ -551,6 +551,23 @@ void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const fl
     glPopMatrix();
 }
 
+void drawLineStrip(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    glColor3fv(glm::value_ptr(color));
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+
+        glBegin(GL_LINE_STRIP);
+        for (int sampleIndex= 0; sampleIndex < point_count; ++sampleIndex)
+        {
+            glVertex3fv(&points[sampleIndex*3]);
+        }
+        glEnd();
+    glPopMatrix();
+}
+
 void drawDK2Model(const glm::mat4 &transform)
 {
     assert(Renderer::getIsRenderingStage());
