@@ -343,7 +343,7 @@ bool PSMoveController::open(
                 cfg = PSMoveControllerConfig(btaddr);
                 cfg.load();
 
-                if (!IsBluetooth)
+                if (!IsBluetooth || !cfg.is_valid)
                 {
                     // Load calibration from controller internal memory.
                     loadCalibration();
