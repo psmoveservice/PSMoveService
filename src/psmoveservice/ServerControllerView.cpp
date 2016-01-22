@@ -140,7 +140,7 @@ void ServerControllerView::updateStateAndPredict()
     // computing the new orientation along the way.
     for (int lookBack= firstLookBack; lookBack >= 0; --lookBack)
     {
-        const CommonControllerState *controllerState= getState(testLookBack);
+        const CommonControllerState *controllerState= getState(lookBack);
 
         switch (controllerState->DeviceType)
         {
@@ -241,8 +241,9 @@ const struct CommonControllerState * ServerControllerView::getState(
     int lookBack) const
 {
     const struct CommonDeviceState *device_state= m_device->getState(lookBack);
-    assert(device_state->DeviceType >= CommonDeviceState::Controller && 
-            device_state->DeviceType < CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT);
+    assert(device_state == nullptr ||
+           (device_state->DeviceType >= CommonDeviceState::Controller && 
+            device_state->DeviceType < CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT));
 
     return static_cast<const CommonControllerState *>(device_state);
 }
