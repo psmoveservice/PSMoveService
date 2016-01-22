@@ -11,7 +11,9 @@ class ServerControllerView : public ServerDeviceView
 {
 public:
     ServerControllerView(const int device_id);
-    ~ServerControllerView();
+    virtual ~ServerControllerView();
+
+    bool open(const class DeviceEnumerator *enumerator) override;
 
     // Compute pose/prediction of tracking blob+IMU state
     void updateStateAndPredict() override;
@@ -43,12 +45,14 @@ public:
 
     // Fetch the controller state at the given sample index.
     // A lookBack of 0 corresponds to the most recent data.
-    void getState(struct CommonControllerState *out_state, int lookBack = 0) const;
+    const struct CommonControllerState * getState(int lookBack = 0) const;
 
     // Set the rumble value between 0-255
     bool setControllerRumble(int rumble_amount);
 
 protected:
+    bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
+    void free_device_interface() override;
     void publish_device_data_frame() override;
     static void generate_controller_data_frame_for_stream(
         const ServerControllerView *controller_view,
@@ -57,6 +61,9 @@ protected:
 
 private:
     IControllerInterface *m_device;
+    class OrientationFilter *m_orientation_filter;
+    //class PositionFilter *m_position_filter;     //###bwalker $TODO
+    int m_lastPollSeqNumProcessed;
 };
 
 #endif // SERVER_CONTROLLER_VIEW_H

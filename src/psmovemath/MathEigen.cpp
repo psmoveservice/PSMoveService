@@ -2,6 +2,12 @@
 #include "MathEigen.h"
 
 //-- globals ----
+const Eigen::Vector3f g_eigen_vector3f_zero = Eigen::Vector3f( 0, 0, 0 );
+const Eigen::Vector3f *k_eigen_vector3f_zero = &g_eigen_vector3f_zero;
+
+const Eigen::Vector3f g_eigen_vector3f_one = Eigen::Vector3f( 1, 1, 1 );
+const Eigen::Vector3f *k_eigen_vector3f_one = &g_eigen_vector3f_one;
+
 const Eigen::Quaternionf g_eigen_quaternion_zero = Eigen::Quaternionf( 0, 0, 0, 0 );
 const Eigen::Quaternionf *k_eigen_quaternion_zero = &g_eigen_quaternion_zero;
 
@@ -128,4 +134,29 @@ eigen_matrix3f_to_clockwise_quaternion(const Eigen::Matrix3f &m)
 	Eigen::Quaternionf q(m);
 
 	return q.conjugate();
+}
+
+Eigen::Vector3f
+eigen_vector3f_divide_by_vector_with_default(
+    const Eigen::Vector3f &v, 
+    const Eigen::Vector3f &divisor, 
+    const Eigen::Vector3f &default_result)
+{
+    Eigen::Vector3f result(
+        safe_divide_with_default(v.x(), divisor.x(), default_result.x()),
+        safe_divide_with_default(v.y(), divisor.y(), default_result.y()),
+        safe_divide_with_default(v.z(), divisor.z(), default_result.z()));
+
+    return result;
+}
+
+float 
+eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default)
+{
+    const float length= v.norm();
+
+    // Use the default value if v is too tiny
+    v= (length > k_normal_epsilon) ? (v / length) : default;
+
+    return length;
 }

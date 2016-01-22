@@ -80,6 +80,7 @@ void drawTransformedAxes(const glm::mat4 &transform, float scale);
 void drawTransformedBox(const glm::mat4 &transform, const glm::vec3 &half_extents, const glm::vec3 &color);
 void drawTransformedTexturedCube(const glm::mat4 &transform, int textureId, float scale);
 void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count);
+void drawLineStrip(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count);
 void drawDK2Model(const glm::mat4 &transform);
 void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color);
 void drawPSNaviModel(const glm::mat4 &transform);

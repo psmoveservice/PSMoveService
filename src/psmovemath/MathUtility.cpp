@@ -2,6 +2,11 @@
 #include "MathUtility.h"
 
 //-- float methods -----
+float safe_divide_with_default(float numerator, float denomenator, float default_result) 
+{
+    return is_nearly_zero(denomenator) ? default_result : (numerator / denomenator);
+}
+
 float clampf(float x, float lo, float hi)
 {
 	return fminf(fmaxf(x, lo), hi);
@@ -40,20 +45,4 @@ float wrap_radians(float angle)
 float wrap_degrees(float angle)
 {
     return fmodf(angle + 360.f, 360.f);
-}
-
-//-- glm vector methods -----
-float glm_vec3_normalize_with_default(glm::vec3 &v, const glm::vec3 &default)
-{
-    const float length= glm::length(v);
-
-    // Use the default value if v is too tiny
-    v= (length > k_normal_epsilon) ? (v / length) : default;
-
-    return length;
-}
-
-glm::vec3 glm_vec3_lerp(const glm::vec3 &a, const glm::vec3 &b, const float u)
-{
-    return a*(1.f-u) + b*u;
 }

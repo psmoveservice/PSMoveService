@@ -10,11 +10,9 @@
 #include "SDL_syswm.h"
 
 #include "MathUtility.h"
+#include "MathGLM.h"
 
 #include <imgui.h>
-
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
 
 #include "psmovebody_3dmodel.h"
 #include "psmovebulb_3dmodel.h"
@@ -550,6 +548,23 @@ void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const fl
         glVertexPointer(3, GL_FLOAT, 0, points);
         glDrawArrays(GL_TRIANGLES, 0, point_count);
         glDisableClientState(GL_VERTEX_ARRAY);
+    glPopMatrix();
+}
+
+void drawLineStrip(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    glColor3fv(glm::value_ptr(color));
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+
+        glBegin(GL_LINE_STRIP);
+        for (int sampleIndex= 0; sampleIndex < point_count; ++sampleIndex)
+        {
+            glVertex3fv(&points[sampleIndex*3]);
+        }
+        glEnd();
     glPopMatrix();
 }
 

@@ -24,6 +24,15 @@ void ServerHMDView::updateStateAndPredict()
 {
 }
 
+bool ServerHMDView::allocate_device_interface(const class DeviceEnumerator *enumerator)
+{
+    return false;
+}
+
+void ServerHMDView::free_device_interface()
+{
+}
+
 void ServerHMDView::publish_device_data_frame()
 {
     // Tell the server request handler we want to send out HMD updates.

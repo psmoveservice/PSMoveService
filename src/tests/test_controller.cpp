@@ -25,10 +25,10 @@ int main()
 	std::cout << "Opening PSMoveController..." << std::endl;
 	if (psmove.open())
 	{
-        PSMoveControllerState psmstate;
+        const PSMoveControllerState *psmstate= nullptr;
 
         psmove.poll();
-        psmove.getState(&psmstate);
+        psmstate= static_cast<const PSMoveControllerState *>(psmove.getState());
 
 		unsigned char r = 255;
 		unsigned char g = 0;
@@ -36,12 +36,12 @@ int main()
         
         psmove.setRumbleIntensity(255);
 
-		while (psmove.getIsBluetooth() && psmstate.Move != CommonControllerState::Button_DOWN)
+		while (psmove.getIsBluetooth() && psmstate->Move != CommonControllerState::Button_DOWN)
 		{
             psmove.poll();
-            psmove.getState(&psmstate);
+            psmstate= static_cast<const PSMoveControllerState *>(psmove.getState());
 
-			psmove.setRumbleIntensity(psmstate.Trigger);
+			psmove.setRumbleIntensity(psmstate->Trigger);
 
 			r = (r + 23) % 255;
 			g = (g + 47) % 255;
@@ -50,27 +50,27 @@ int main()
 
 			int myw = 4;
 			std::cout << '\r' <<
-				"# " << std::setw(myw) << std::left << psmstate.Sequence <<
+				"# " << std::setw(myw) << std::left << psmstate->RawSequence <<
 				" A(1): " <<
-				std::setw(myw) << std::right << psmstate.Accel[0][0] << "," <<
-				std::setw(myw) << std::right << psmstate.Accel[0][1] << "," <<
-				std::setw(myw) << std::right << psmstate.Accel[0][2] <<
+				std::setw(myw) << std::right << psmstate->Accel[0][0] << "," <<
+				std::setw(myw) << std::right << psmstate->Accel[0][1] << "," <<
+				std::setw(myw) << std::right << psmstate->Accel[0][2] <<
 				"; A(2): " <<
-				std::setw(myw) << std::right << psmstate.Accel[1][0] << "," <<
-				std::setw(myw) << std::right << psmstate.Accel[1][1] << "," <<
-				std::setw(myw) << std::right << psmstate.Accel[1][2] <<
+				std::setw(myw) << std::right << psmstate->Accel[1][0] << "," <<
+				std::setw(myw) << std::right << psmstate->Accel[1][1] << "," <<
+				std::setw(myw) << std::right << psmstate->Accel[1][2] <<
 				"; G(1): " <<
-				std::setw(myw) << std::right << psmstate.Gyro[0][0] << "," <<
-				std::setw(myw) << std::right << psmstate.Gyro[0][1] << "," <<
-				std::setw(myw) << std::right << psmstate.Gyro[0][2] <<
+				std::setw(myw) << std::right << psmstate->Gyro[0][0] << "," <<
+				std::setw(myw) << std::right << psmstate->Gyro[0][1] << "," <<
+				std::setw(myw) << std::right << psmstate->Gyro[0][2] <<
 				"; G(2): " <<
-				std::setw(myw) << std::right << psmstate.Gyro[1][0] << "," <<
-				std::setw(myw) << std::right << psmstate.Gyro[1][1] << "," <<
-				std::setw(myw) << std::right << psmstate.Gyro[1][2] <<
+				std::setw(myw) << std::right << psmstate->Gyro[1][0] << "," <<
+				std::setw(myw) << std::right << psmstate->Gyro[1][1] << "," <<
+				std::setw(myw) << std::right << psmstate->Gyro[1][2] <<
 				"; M: " <<
-				std::setw(myw) << std::right << psmstate.Mag[0] << "," <<
-				std::setw(myw) << std::right << psmstate.Mag[1] << "," <<
-				std::setw(myw) << std::right << psmstate.Mag[2] <<
+				std::setw(myw) << std::right << psmstate->Mag[0] << "," <<
+				std::setw(myw) << std::right << psmstate->Mag[1] << "," <<
+				std::setw(myw) << std::right << psmstate->Mag[2] <<
 				std::flush;
 
 #ifdef _WIN32

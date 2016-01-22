@@ -75,7 +75,12 @@ public:
     static ClientControllerView *allocate_controller_view(int ControllerID);
     static void free_controller_view(ClientControllerView *view);
 
-    static t_request_id start_controller_data_stream(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
+    enum eControllerDataStreamFlags
+    {
+        defaultStreamOptions= 0x00,
+        includeRawSensorData= 0x01
+    };
+    static t_request_id start_controller_data_stream(ClientControllerView *view, unsigned int flags, t_response_callback callback, void *callback_userdata);
     static t_request_id stop_controller_data_stream(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
     static t_request_id set_controller_rumble(
         ClientControllerView *view, float rumble_amount, t_response_callback callback, void *callback_userdata);

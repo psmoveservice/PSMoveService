@@ -127,7 +127,10 @@ public:
     }
 
     ClientPSMoveAPI::t_request_id start_controller_data_stream(
-        ClientControllerView * view, ClientPSMoveAPI::t_response_callback callback, void *userdata)
+        ClientControllerView * view, 
+        unsigned int flags,
+        ClientPSMoveAPI::t_response_callback callback, 
+        void *userdata)
     {
         CLIENT_LOG_INFO("start_controller_data_stream") << "requesting controller stream start for PSMoveID: " << view->GetControllerID() << std::endl;
 
@@ -135,6 +138,11 @@ public:
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_START_CONTROLLER_DATA_STREAM);
         request->mutable_request_start_psmove_data_stream()->set_controller_id(view->GetControllerID());
+
+        if ((flags & ClientPSMoveAPI::includeRawSensorData) > 0)
+        {
+            request->mutable_request_start_psmove_data_stream()->set_include_raw_sensor_data(true);
+        }
 
         m_request_manager.send_request(request, callback, userdata);
 
@@ -391,6 +399,7 @@ void ClientPSMoveAPI::free_controller_view(ClientControllerView * view)
 ClientPSMoveAPI::t_request_id 
 ClientPSMoveAPI::start_controller_data_stream(
     ClientControllerView * view, 
+    unsigned int flags,
     ClientPSMoveAPI::t_response_callback callback, 
     void *callback_userdata)
 {
@@ -398,7 +407,7 @@ ClientPSMoveAPI::start_controller_data_stream(
 
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        request_id= ClientPSMoveAPI::m_implementation_ptr->start_controller_data_stream(view, callback, callback_userdata);
+        request_id= ClientPSMoveAPI::m_implementation_ptr->start_controller_data_stream(view, flags, callback, callback_userdata);
     }
 
     return request_id;

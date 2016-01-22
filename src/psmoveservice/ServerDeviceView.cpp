@@ -23,7 +23,14 @@ ServerDeviceView::~ServerDeviceView()
 bool
 ServerDeviceView::open(const DeviceEnumerator *enumerator)
 {
-    bool bSuccess= getDevice()->open(enumerator);
+    // Attempt to allocate the device 
+    bool bSuccess= allocate_device_interface(enumerator);
+    
+    // Attempt to open the device
+    if (bSuccess)
+    {
+        bSuccess= getDevice()->open(enumerator);
+    }
     
     if (bSuccess)
     {
@@ -32,13 +39,16 @@ ServerDeviceView::open(const DeviceEnumerator *enumerator)
         std::chrono::duration_cast< std::chrono::milliseconds >(
             std::chrono::system_clock::now().time_since_epoch()).count();
     }
+
     return bSuccess;
 }
 
 bool
 ServerDeviceView::getIsOpen() const
 {
-    return getDevice()->getIsOpen();
+    IDeviceInterface* device= getDevice();
+
+    return (device != nullptr) ? device->getIsOpen() : false;
 }
 
 bool ServerDeviceView::poll()
@@ -52,11 +62,11 @@ bool ServerDeviceView::poll()
     {
         switch (device->poll())
         {
-            case IDeviceInterface::_PollResultSuccessNoData:
+        case IControllerInterface::_PollResultSuccessNoData:
             {
                 long long now =
-                std::chrono::duration_cast< std::chrono::milliseconds >(
-                    std::chrono::system_clock::now().time_since_epoch()).count();
+                    std::chrono::duration_cast< std::chrono::milliseconds >(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
                 long diff= static_cast<long>(now - m_last_updated_tick);
                 long max_timeout= device->getDataTimeout();
                 
@@ -69,22 +79,22 @@ bool ServerDeviceView::poll()
                     bSuccessfullyUpdated= false;
                 }
             }
-                break;
+            break;
                 
-            case IDeviceInterface::_PollResultSuccessNewData:
+        case IControllerInterface::_PollResultSuccessNewData:
             {
                 m_last_updated_tick=
-                std::chrono::duration_cast< std::chrono::milliseconds >(
-                    std::chrono::system_clock::now().time_since_epoch()).count();
+                    std::chrono::duration_cast< std::chrono::milliseconds >(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
                 
                 // If we got new sensor data, then we have new state to publish
                 markStateAsUnpublished();
 
                 bSuccessfullyUpdated= true;
             }
-                break;
+            break;
                 
-            case IDeviceInterface::_PollResultFailure:
+        case IControllerInterface::_PollResultFailure:
             {
                 SERVER_LOG_INFO("ServerControllerView::poll_open_controllers") <<
                 "Controller id " << getDeviceID() << " closing due to failed read";
@@ -92,7 +102,7 @@ bool ServerDeviceView::poll()
                 
                 bSuccessfullyUpdated= false;
             }
-                break;
+            break;
         }
     }
     
@@ -113,11 +123,15 @@ void ServerDeviceView::publish()
 void
 ServerDeviceView::close()
 {
-    getDevice()->close();
+    if (getIsOpen())
+    {
+        getDevice()->close();
+        free_device_interface();
+    }
 }
 
 bool
 ServerDeviceView::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
 {
-    return getDevice()->matchesDeviceEnumerator(enumerator);
+    return getIsOpen() && getDevice()->matchesDeviceEnumerator(enumerator);
 }

@@ -46,6 +46,12 @@ public:
 // https://code.google.com/p/moveonpc/wiki/InputReport
 struct PSMoveControllerState : public CommonControllerState
 {
+    int RawSequence;                               // 4-bit (1..16).
+                                                // Sometimes frames are dropped.
+    
+    unsigned int RawTimeStamp;                     // 16-bit (time since ?, units?)
+                                                // About 1150 between in-order frames.
+
     ButtonState Triangle;
     ButtonState Circle;
     ButtonState Cross;
@@ -73,6 +79,9 @@ struct PSMoveControllerState : public CommonControllerState
     void clear()
     {
         CommonControllerState::clear();
+
+        RawSequence = 0;
+        RawTimeStamp = 0;
 
         DeviceType = PSMove;
 
@@ -112,7 +121,8 @@ public:
     virtual void close() override;
     virtual long getDataTimeout() const override;
     virtual CommonDeviceState::eDeviceType getDeviceType() const override;
-    virtual void getState(CommonDeviceState *out_state, int lookBack = 0) const override;
+    virtual const CommonDeviceState * getState(int lookBack = 0) const override;
+    //virtual void getState(CommonDeviceState *out_state, int lookBack = 0) const override;
     
     // -- IControllerInterface
     virtual bool setHostBluetoothAddress(const std::string &address) override;
@@ -152,6 +162,7 @@ private:
     unsigned long LedPWMF;
 
     // Read Controller State
+    int NextPollSequenceNumber;
     std::deque<PSMoveControllerState> ControllerStates;
     PSMoveDataInput* InData;                        // Buffer to copy hidapi reports into
 };

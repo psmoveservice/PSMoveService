@@ -3,7 +3,7 @@
 
 //-- public methods -----
 Eigen::Quaternionf
-psmove_alignment_quaternion_between_vectors(const Eigen::Vector3f &from, const Eigen::Vector3f &to)
+eigen_alignment_quaternion_between_vectors(const Eigen::Vector3f &from, const Eigen::Vector3f &to)
 {
 	assert_vector3f_is_normalized(from);
 	assert_vector3f_is_normalized(to);
@@ -15,7 +15,7 @@ psmove_alignment_quaternion_between_vectors(const Eigen::Vector3f &from, const E
 // "An efficient orientation filter for inertial and inertial/magnetic sensor arrays"
 // https://www.samba.org/tridge/UAV/madgwick_internal_report.pdf
 void
-psmove_alignment_compute_objective_vector(
+eigen_alignment_compute_objective_vector(
 	const Eigen::Quaternionf &q, const Eigen::Vector3f &d, const Eigen::Vector3f &s,
 	Eigen::Matrix<float, 3, 1> &out_f, float *out_squared_error)
 {
@@ -37,7 +37,7 @@ psmove_alignment_compute_objective_vector(
 // "An efficient orientation filter for inertial and inertial/magnetic sensor arrays"
 // https://www.samba.org/tridge/UAV/madgwick_internal_report.pdf
 void
-psmove_alignment_compute_objective_jacobian(
+eigen_alignment_compute_objective_jacobian(
 	const Eigen::Quaternionf &q, const Eigen::Vector3f &d, Eigen::Matrix<float, 4, 3> &J)
 {
 	/*
@@ -77,7 +77,7 @@ psmove_alignment_compute_objective_jacobian(
 }
 
 bool
-psmove_alignment_quaternion_between_vector_frames(
+eigen_alignment_quaternion_between_vector_frames(
 	const Eigen::Vector3f* from[2], const Eigen::Vector3f* to[2], const float tolerance, const Eigen::Quaternionf &initial_q,
 	Eigen::Quaternionf &out_q)
 {
@@ -106,10 +106,10 @@ psmove_alignment_quaternion_between_vector_frames(
 		float error_squared0, error_squared1;
 
 		Eigen::Matrix<float, 3, 1> f_0;
-		psmove_alignment_compute_objective_vector(q, *from[0], *to[0], f_0, &error_squared0);
+		eigen_alignment_compute_objective_vector(q, *from[0], *to[0], f_0, &error_squared0);
 
 		Eigen::Matrix<float, 3, 1> f_1;
-		psmove_alignment_compute_objective_vector(q, *from[1], *to[1], f_1, &error_squared1);
+		eigen_alignment_compute_objective_vector(q, *from[1], *to[1], f_1, &error_squared1);
 
 		Eigen::Matrix<float, 6, 1> f;
 		f.block<3, 1>(0, 0) = f_0;
@@ -131,10 +131,10 @@ psmove_alignment_quaternion_between_vector_frames(
 
 			// Fill in the 4x6 objective function Jacobian matrix: [J_0|J_1]
 			Eigen::Matrix<float, 4, 3> J_0;
-			psmove_alignment_compute_objective_jacobian(q, *from[0], J_0);
+			eigen_alignment_compute_objective_jacobian(q, *from[0], J_0);
 
 			Eigen::Matrix<float, 4, 3> J_1;
-			psmove_alignment_compute_objective_jacobian(q, *from[1], J_1);
+			eigen_alignment_compute_objective_jacobian(q, *from[1], J_1);
 
 			Eigen::Matrix<float, 4, 6> J;
 			J.block<4, 3>(0, 0) = J_0; J.block<4, 3>(0, 3) = J_1;

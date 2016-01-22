@@ -17,6 +17,8 @@ public:
     IDeviceInterface* getDevice() const override {return m_device;}
 
 protected:
+    bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
+    void free_device_interface() override;
     void publish_device_data_frame() override;
 
 private:

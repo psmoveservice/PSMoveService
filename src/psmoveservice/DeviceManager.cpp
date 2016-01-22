@@ -191,7 +191,7 @@ DeviceTypeManager::find_open_device_device_id(const DeviceEnumerator &enumerator
     {
         ServerDeviceViewPtr device= getDeviceViewPtr(device_id);
         
-        if (device && device->getIsOpen() && device->matchesDeviceEnumerator(&enumerator))
+        if (device && device->matchesDeviceEnumerator(&enumerator))
         {
             result_device_id= device_id;
             break;
