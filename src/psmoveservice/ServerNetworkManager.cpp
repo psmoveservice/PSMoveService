@@ -39,9 +39,11 @@ public:
 };
 
 // -ClientConnection-
-// Maintains TCP and UDP connection state to a single client.
-// Handles async socket callbacks on the connection.
-// Routes requests through the request handler
+/**
+ * Maintains TCP and UDP connection state to a single client.
+ * Handles async socket callbacks on the connection.
+ * Routes requests through the request handler
+ */
 class ClientConnection : public boost::enable_shared_from_this<ClientConnection>
 {
 public:
@@ -274,9 +276,11 @@ private:
 
     uint8_t m_dataframe_write_buffer[HEADER_SIZE+MAX_DATA_FRAME_MESSAGE_SIZE];
     PackedMessage<PSMoveProtocol::ControllerDataFrame> m_packed_dataframe;
+    // TODO: m_packed_dataframes for other devices.
 
     deque<ResponsePtr> m_pending_responses;
     deque<ControllerDataFramePtr> m_pending_dataframes;
+    // TODO: m_pending_dataframes for other devices.
     
     bool m_connection_started;
     bool m_connection_stopped;

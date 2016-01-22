@@ -44,7 +44,7 @@ struct PSMoveTrackerState : public CommonDeviceState
 class PSMoveTracker : public ITrackerInterface {
 public:
     PSMoveTracker();
-    PSMoveTracker();
+    ~PSMoveTracker();
     
     // PSMoveTracker
     bool open(); // Opens the first HID device for the controller

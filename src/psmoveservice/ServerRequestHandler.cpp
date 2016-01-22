@@ -25,17 +25,31 @@ struct RequestConnectionState
 {
     int connection_id;
     std::bitset<ControllerManager::k_max_devices> active_controller_streams;
+    std::bitset<TrackerManager::k_max_devices> active_tracker_streams;
+    std::bitset<HMDManager::k_max_devices> active_hmd_streams;
     AsyncBluetoothRequest *pending_bluetooth_request;
     ControllerStreamInfo active_controller_stream_info[ControllerManager::k_max_devices];
+    // TODO: TrackerStreamInfo active_tracker_stream_info[TrackerManager::k_max_devices];
+    // TODO: HMDStreamInfo active_hmd_stream_info[HMDManager::k_max_devices];
 
     RequestConnectionState()
         : connection_id(-1)
         , active_controller_streams()
+        , active_tracker_streams()
+        , active_hmd_streams()
         , pending_bluetooth_request(nullptr)
     {
-        for (int index= 0; index < ControllerManager::k_max_devices; ++index)
+        for (int index = 0; index < ControllerManager::k_max_devices; ++index)
         {
-            active_controller_stream_info->Clear();
+            active_controller_stream_info[index]->Clear();
+        }
+        for (index = 0; index < TrackerManager::k_max_devices; ++index)
+        {
+            //TODO: active_tracker_stream_info->Clear();
+        }
+        for (index = 0; index < HMDManager::k_max_devices; ++index)
+        {
+            //TODO: active_hmd_stream_info->Clear();
         }
     }
 };
