@@ -87,7 +87,8 @@ private:
 
             // Kick off request to start streaming data from the first controller
             ClientPSMoveAPI::start_controller_data_stream(
-                thisPtr->controller_view, 
+                thisPtr->controller_view,
+                ClientPSMoveAPI::defaultStreamOptions,
                 &PSMoveConsoleClient::handle_acquire_controller, thisPtr);
             break;
         case ClientPSMoveAPI::failedToConnectToService:
