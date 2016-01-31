@@ -147,7 +147,9 @@ DeviceTypeManager::shutdown()
     // Close any controllers that were opened
     for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
     {
-        if (getDeviceViewPtr(device_id)->getIsOpen())
+        ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
+
+        if (device && device->getIsOpen())
         {
             getDeviceViewPtr(device_id)->close();
         }
