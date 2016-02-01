@@ -14,7 +14,6 @@ class AppStage_MagnetometerCalibration : public AppStage
 public:
     static const int k_max_magnetometer_samples= 500;
 
-
     AppStage_MagnetometerCalibration(class App *app);
 
     virtual void enter() override;
@@ -25,6 +24,9 @@ public:
     virtual void renderUI() override;
 
     static const char *APP_STAGE_NAME;
+
+    inline void setBypassCalibrationFlag(bool bFlag)
+    { m_bBypassCalibration= bFlag; }
 
 protected:
     static void handle_acquire_controller(
@@ -60,6 +62,7 @@ private:
         complete,
         pendingExit
     };
+    bool m_bBypassCalibration;
     eCalibrationMenuState m_menuState;
     const char *m_pendingAppStage;
 
@@ -71,10 +74,11 @@ private:
     PSMoveFloatVector3 m_lastAccelerometer;
 
     std::deque<PSMoveIntVector3> m_magnetometerIntSamples;
-    PSMoveIntVector3 m_minSampleExtents;
-    PSMoveIntVector3 m_maxSampleExtents;
-    PSMoveFloatVector3 m_magnetometerScaledSamples[k_max_magnetometer_samples];
-    PSMoveFloatVector3 m_magnetometerScaleRange;
+    PSMoveIntVector3 m_minSampleExtent;
+    PSMoveIntVector3 m_maxSampleExtent;
+    PSMoveFloatVector3 m_magnetometerNormalizedSamples[k_max_magnetometer_samples];
+    PSMoveFloatVector3 m_minSampleExtentNormalized, m_maxSampleExtentNormalized;
+    PSMoveFloatVector3 m_lastMagnetometerNormalized;
 
     int m_led_color_r;
     int m_led_color_g;
