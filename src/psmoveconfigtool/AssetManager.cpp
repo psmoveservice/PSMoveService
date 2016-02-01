@@ -2,6 +2,8 @@
 #include "AssetManager.h"
 #include "Logger.h"
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_JPEG
 #include "stb_image.h"
@@ -18,6 +20,9 @@ static const char *k_psnavi_texture_filename= "./assets/textures/PSNaviDiffuse.j
 
 static const char *k_default_font_filename= "./assets/fonts/OpenSans-Regular.ttf";
 static const float k_default_font_pixel_height= 24.f;
+
+static const size_t k_kilo= 1<<10;
+static const size_t k_meg= 1<<20;
 
 //-- statics -----
 AssetManager *AssetManager::m_instance= NULL;
@@ -55,7 +60,12 @@ bool AssetManager::init()
 
     if (success)
     {
-        // Load Fonts
+        success= loadFont(k_default_font_filename, k_default_font_pixel_height, &m_defaultFont);
+    }
+
+    if (success)
+    {
+        // Load IMGUI Fonts
         ImGuiIO& io = ImGui::GetIO();
 
         io.Fonts->AddFontDefault();
@@ -88,6 +98,12 @@ void AssetManager::destroy()
     {
         glDeleteTextures(1, &m_psnaviTextureId);
         m_psnaviTextureId= 0;
+    }
+
+    if (m_defaultFont.textureId != 0)
+    {
+        glDeleteTextures(1, &m_defaultFont.textureId);
+        m_defaultFont.textureId= 0;
     }
 
     m_instance= NULL;
@@ -130,4 +146,94 @@ bool AssetManager::loadTexture(const char *filename, GLuint *textureId)
     }
 
     return success;
+}
+
+bool AssetManager::loadFont(const char *filename, const float pixelHeight, AssetManager::FontAsset *fontAsset)
+{
+    unsigned char *temp_ttf_buffer = NULL;
+    unsigned char *temp_bitmap = NULL;
+
+    bool success= true;
+
+    // For now assume all font sprite sheets fit in a 512x512 texture
+    fontAsset->textureWidth= 512;
+    fontAsset->textureHeight= 512;
+    fontAsset->glyphPixelHeight= pixelHeight;
+
+    // Allocate scratch buffers
+    temp_ttf_buffer = NULL;
+    temp_bitmap = new unsigned char[fontAsset->textureWidth*fontAsset->textureHeight];
+
+    // Load the True Type Font data into memory
+    if (success)
+    {
+        FILE *fp= fopen(k_default_font_filename, "rb");
+        if (fp != NULL)
+        {
+            // obtain file size
+            fseek (fp , 0 , SEEK_END);
+            size_t fileSize = ftell (fp);
+            rewind (fp);
+
+            if (fileSize > 0 && fileSize < 10*k_meg)
+            {
+                temp_ttf_buffer= new unsigned char[fileSize];
+                size_t bytes_read= fread(temp_ttf_buffer, 1, fileSize, fp);
+
+                if (bytes_read != fileSize)
+                {
+                    Log_ERROR("AssetManager::loadFont", "Failed to load font (%s): failed to read expected # of bytes.", filename);
+                    success= false;
+                }
+            }
+            else
+            {
+                Log_ERROR("AssetManager::loadFont", "Failed to load font (%s): file size invalid", filename);
+                success= false;
+            }
+
+            fclose(fp);
+        }
+        else
+        {
+            Log_ERROR("AssetManager::loadFont", "Failed to open font file (%s)", filename);
+            success= false;
+        }
+    }
+
+    // Build the sprite sheet for the font
+    if (success)
+    {
+        if (stbtt_BakeFontBitmap(
+            temp_ttf_buffer, 0, 
+            pixelHeight, 
+            temp_bitmap, fontAsset->textureWidth, fontAsset->textureHeight, 
+            32,96, fontAsset->cdata) <= 0)
+        {
+            Log_ERROR("AssetManager::loadFont", "Failed to fit font(%s) into %dx%d sprite texture", 
+                filename, fontAsset->textureWidth, fontAsset->textureHeight);
+            success= false;
+        }
+    }
+    
+    // Generate the texture for the font sprite sheet
+    if (success)
+    {
+        glGenTextures(1, &fontAsset->textureId);
+        glBindTexture(GL_TEXTURE_2D, fontAsset->textureId);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, 512,512, 0, GL_ALPHA, GL_UNSIGNED_BYTE, temp_bitmap);            
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    }
+
+    // free scratch buffers
+    delete[] temp_bitmap;
+    if (temp_ttf_buffer != NULL) delete[] temp_ttf_buffer;
+
+    return success;
+}
+
+//-- font asset -----
+AssetManager::FontAsset::FontAsset()
+{
+    memset(this, 0, sizeof(FontAsset));
 }
