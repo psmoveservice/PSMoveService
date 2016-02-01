@@ -85,10 +85,10 @@ struct OrientationSensorFusionState
 static void orientation_fusion_imu_update(
     const float delta_time, const OrientationFilterSpace *filter_space, 
     const OrientationFilterPacket *filter_packet, OrientationSensorFusionState *fusion_state);
-static void orientation_fusion_complementary_marg_update(
+static void orientation_fusion_madgwick_marg_update(
     const float delta_time, const OrientationFilterSpace *filter_space, 
     const OrientationFilterPacket *filter_packet, OrientationSensorFusionState *fusion_state);
-static void orientation_fusion_madgwick_marg_update(
+static void orientation_fusion_complementary_marg_update(
     const float delta_time, const OrientationFilterSpace *filter_space, 
     const OrientationFilterPacket *filter_packet, OrientationSensorFusionState *fusion_state);
 
@@ -344,7 +344,7 @@ orientation_fusion_imu_update(
 // "An efficient orientation filter for inertial and inertial/magnetic sensor arrays"
 // https://www.samba.org/tridge/UAV/madgwick_internal_report.pdf
 static void 
-orientation_fusion_complementary_marg_update(
+orientation_fusion_madgwick_marg_update(
     const float delta_time,
     const OrientationFilterSpace *filter_space,
     const OrientationFilterPacket *filter_packet,
@@ -448,7 +448,7 @@ orientation_fusion_complementary_marg_update(
 }
 
 static void 
-orientation_fusion_madgwick_marg_update(
+orientation_fusion_complementary_marg_update(
     const float delta_time,
     const OrientationFilterSpace *filter_space,
     const OrientationFilterPacket *filter_packet,

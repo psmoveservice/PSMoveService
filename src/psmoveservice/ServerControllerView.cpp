@@ -314,8 +314,8 @@ static void generate_psmove_data_frame_for_stream(
     ControllerDataFramePtr &data_frame)
 {
     const PSMoveController *psmove_controller= controller_view->castCheckedConst<PSMoveController>();
-    const PSMoveControllerConfig &psmove_config= psmove_controller->getConfig();
-    const CommonControllerState * controller_state= controller_view->getState();
+    const PSMoveControllerConfig *psmove_config= psmove_controller->getConfig();
+    const CommonControllerState *controller_state= controller_view->getState();
     const psmovePosef controller_pose= controller_view->getPose();
 
     PSMoveProtocol::ControllerDataFrame_PSMoveState *psmove_data_frame= data_frame->mutable_psmove_state();
@@ -325,7 +325,7 @@ static void generate_psmove_data_frame_for_stream(
         assert(controller_state->DeviceType == CommonDeviceState::PSMove);
         const PSMoveControllerState * psmove_state= static_cast<const PSMoveControllerState *>(controller_state);
 
-        psmove_data_frame->set_validhardwarecalibration(psmove_config.is_valid);
+        psmove_data_frame->set_validhardwarecalibration(psmove_config->is_valid);
         //###bwalker $TODO - Publish real tracking status
         psmove_data_frame->set_iscurrentlytracking(false);
         psmove_data_frame->set_istrackingenabled(true);
@@ -426,8 +426,8 @@ init_orientation_filter_for_psmove(
     const PSMoveController *psmoveController, 
     OrientationFilter *orientation_filter)
 {
-    const PSMoveControllerConfig &psmove_config= psmoveController->getConfig();
-    const std::vector<float> &identity_m= psmove_config.magnetometer_identity;
+    const PSMoveControllerConfig *psmove_config= psmoveController->getConfig();
+    const std::vector<float> &identity_m= psmove_config->magnetometer_identity;
 
     // Setup the space the orientation filter operates in
     Eigen::Vector3f identityGravity= Eigen::Vector3f(0.f, 1.f, 0.f);
@@ -448,7 +448,7 @@ update_orientation_filter_for_psmove(
     const PSMoveControllerState *psmoveState,
     OrientationFilter *orientationFilter)
 {
-    const PSMoveControllerConfig &config= psmoveController->getConfig();
+    const PSMoveControllerConfig *config= psmoveController->getConfig();
 
     //###bwalker $TODO Determine time deltas from the timestamps on the controller frames
     const float delta_time= 1.f / 120.f;
@@ -465,14 +465,14 @@ update_orientation_filter_for_psmove(
                 static_cast<float>(psmoveState->Mag[2]));
         const Eigen::Vector3f minSampleExtents= 
             Eigen::Vector3f(
-                static_cast<float>(config.magnetometer_extents[0]), 
-                static_cast<float>(config.magnetometer_extents[1]), 
-                static_cast<float>(config.magnetometer_extents[2]));
+                static_cast<float>(config->magnetometer_extents[0]), 
+                static_cast<float>(config->magnetometer_extents[1]), 
+                static_cast<float>(config->magnetometer_extents[2]));
         const Eigen::Vector3f maxSampleExtents= 
             Eigen::Vector3f(
-                static_cast<float>(config.magnetometer_extents[3]), 
-                static_cast<float>(config.magnetometer_extents[4]), 
-                static_cast<float>(config.magnetometer_extents[5]));
+                static_cast<float>(config->magnetometer_extents[3]), 
+                static_cast<float>(config->magnetometer_extents[4]), 
+                static_cast<float>(config->magnetometer_extents[5]));
 
         const Eigen::Vector3f range= maxSampleExtents - minSampleExtents;
         const Eigen::Vector3f offset= sample - minSampleExtents;

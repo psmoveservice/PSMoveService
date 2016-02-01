@@ -164,7 +164,7 @@ PSMoveControllerConfig::config2ptree()
 
     pt.put("is_valid", is_valid);
 
-    pt.put("data_timeout", data_timeout);
+    pt.put("max_poll_failute_count", max_poll_failure_count);
     
     pt.put("Calibration.Accel.X.k", cal_ag_xyz_kb[0][0][0]);
     pt.put("Calibration.Accel.X.b", cal_ag_xyz_kb[0][0][1]);
@@ -197,7 +197,7 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 {
     is_valid= pt.get<bool>("is_valid", false);
 
-    data_timeout = pt.get<long>("data_timeout", 1000);
+    max_poll_failure_count = pt.get<long>("max_poll_failute_count", 100);
 
     cal_ag_xyz_kb[0][0][0] = pt.get<float>("Calibration.Accel.X.k", 1.0f);
     cal_ag_xyz_kb[0][0][1] = pt.get<float>("Calibration.Accel.X.b", 0.0f);
@@ -878,9 +878,9 @@ PSMoveController::getTempCelsius() const
     return 70;
 }
 
-long PSMoveController::getDataTimeout() const
+long PSMoveController::getMaxPollFailureCount() const
 {
-    return cfg.data_timeout;
+    return cfg.max_poll_failure_count;
 }
 
 // Setters

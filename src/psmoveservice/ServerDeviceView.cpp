@@ -10,7 +10,7 @@
 ServerDeviceView::ServerDeviceView(
     const int device_id)
     : m_bHasUnpublishedState(false)
-    , m_last_updated_tick(0)
+    , m_pollNoDataCount(0)
     , m_sequence_number(0)
     , m_deviceID(device_id)
 {
@@ -35,9 +35,7 @@ ServerDeviceView::open(const DeviceEnumerator *enumerator)
     if (bSuccess)
     {
         // Consider a successful opening as an update
-        m_last_updated_tick=
-        std::chrono::duration_cast< std::chrono::milliseconds >(
-            std::chrono::system_clock::now().time_since_epoch()).count();
+        m_pollNoDataCount= 0;
     }
 
     return bSuccess;
@@ -64,16 +62,14 @@ bool ServerDeviceView::poll()
         {
         case IControllerInterface::_PollResultSuccessNoData:
             {
-                long long now =
-                    std::chrono::duration_cast< std::chrono::milliseconds >(
-                        std::chrono::system_clock::now().time_since_epoch()).count();
-                long diff= static_cast<long>(now - m_last_updated_tick);
-                long max_timeout= device->getDataTimeout();
+                long max_failure= device->getMaxPollFailureCount();
                 
-                if (diff > max_timeout)
+                ++m_pollNoDataCount;
+
+                if (m_pollNoDataCount > max_failure)
                 {
                     SERVER_LOG_INFO("ServerControllerView::poll_open_controllers") <<
-                    "Controller id " << getDeviceID() << " closing due to no data timeout (" << max_timeout << "ms)";
+                    "Controller id " << getDeviceID() << " closing due to no data (" << max_failure << " failed poll attempts)";
                     device->close();
                     
                     bSuccessfullyUpdated= false;
@@ -83,9 +79,7 @@ bool ServerDeviceView::poll()
                 
         case IControllerInterface::_PollResultSuccessNewData:
             {
-                m_last_updated_tick=
-                    std::chrono::duration_cast< std::chrono::milliseconds >(
-                        std::chrono::system_clock::now().time_since_epoch()).count();
+                m_pollNoDataCount= 0;
                 
                 // If we got new sensor data, then we have new state to publish
                 markStateAsUnpublished();

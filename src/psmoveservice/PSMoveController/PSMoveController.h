@@ -27,7 +27,7 @@ public:
     PSMoveControllerConfig(const std::string &fnamebase = "PSMoveControllerConfig")
         : PSMoveConfig(fnamebase)
         , is_valid(false)
-        , data_timeout(1000) // ms
+        , max_poll_failure_count(100) 
         , cal_ag_xyz_kb(2, std::vector<std::vector<float>>(3, std::vector<float>(2, 0.f)))
         , magnetometer_extents(6, 0)
         , magnetometer_identity(3, 0.f)
@@ -37,7 +37,7 @@ public:
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
     bool is_valid;
-    long data_timeout;
+    long max_poll_failure_count;
     std::vector<std::vector<std::vector<float>>> cal_ag_xyz_kb;
     std::vector<int> magnetometer_extents;
     std::vector<float> magnetometer_identity;
@@ -113,10 +113,10 @@ public:
     bool open(); // Opens the first HID device for the controller
 
     // -- Getters
-    inline const PSMoveControllerConfig &getConfig() const
-    { return cfg; }
-    inline PSMoveControllerConfig &getConfigMutable()
-    { return cfg; }
+    inline const PSMoveControllerConfig *getConfig() const
+    { return &cfg; }
+    inline PSMoveControllerConfig *getConfigMutable()
+    { return &cfg; }
     float getTempCelsius() const;
 
     // -- Setters
@@ -142,7 +142,7 @@ public:
     { return CommonDeviceState::PSMove; }
     virtual CommonDeviceState::eDeviceType getDeviceType() const override;
     virtual const CommonDeviceState * getState(int lookBack = 0) const override;
-    virtual long getDataTimeout() const override;
+    virtual long getMaxPollFailureCount() const override;
 
 private:    
     bool getBTAddress(std::string& host, std::string& controller);

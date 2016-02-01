@@ -550,18 +550,20 @@ protected:
                 context.request->set_magnetometer_calibration_request().magnetometer_identity();
 
             PSMoveController *controller= ControllerView->castChecked<PSMoveController>();
-            PSMoveControllerConfig &config= controller->getConfigMutable();
+            PSMoveControllerConfig *config= controller->getConfigMutable();
 
-            config.magnetometer_extents[0]= magnetometer_min.i();
-            config.magnetometer_extents[1]= magnetometer_min.j();
-            config.magnetometer_extents[2]= magnetometer_min.k();
-            config.magnetometer_extents[3]= magnetometer_max.i();
-            config.magnetometer_extents[4]= magnetometer_max.j();
-            config.magnetometer_extents[5]= magnetometer_max.k();
+            config->magnetometer_extents[0]= magnetometer_min.i();
+            config->magnetometer_extents[1]= magnetometer_min.j();
+            config->magnetometer_extents[2]= magnetometer_min.k();
+            config->magnetometer_extents[3]= magnetometer_max.i();
+            config->magnetometer_extents[4]= magnetometer_max.j();
+            config->magnetometer_extents[5]= magnetometer_max.k();
 
-            config.magnetometer_identity[0]= magnetometer_identity.i();
-            config.magnetometer_identity[1]= magnetometer_identity.j();
-            config.magnetometer_identity[2]= magnetometer_identity.k();
+            config->magnetometer_identity[0]= magnetometer_identity.i();
+            config->magnetometer_identity[1]= magnetometer_identity.j();
+            config->magnetometer_identity[2]= magnetometer_identity.k();
+
+            config->save();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }

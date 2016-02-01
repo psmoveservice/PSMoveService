@@ -109,7 +109,7 @@ public:
     virtual void close() = 0;
     
     // Get the number of milliseconds we're willing to accept no data from the controller before we disconnect it
-    virtual long getDataTimeout() const = 0;
+    virtual long getMaxPollFailureCount() const = 0;
     
     // Returns what type of controller
     virtual CommonDeviceState::eDeviceType getDeviceType() const = 0;
