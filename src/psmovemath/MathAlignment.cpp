@@ -5,8 +5,8 @@
 Eigen::Quaternionf
 eigen_alignment_quaternion_between_vectors(const Eigen::Vector3f &from, const Eigen::Vector3f &to)
 {
-	assert_vector3f_is_normalized(from);
-	assert_vector3f_is_normalized(to);
+	assert_eigen_vector3f_is_normalized(from);
+	assert_eigen_vector3f_is_normalized(to);
 
 	return Eigen::Quaternionf::FromTwoVectors(from, to).conjugate();
 }

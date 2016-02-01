@@ -115,7 +115,7 @@ eigen_quaternion_is_valid(const Eigen::Quaternionf &q)
 Eigen::Vector3f
 eigen_vector3f_clockwise_rotate(const Eigen::Quaternionf &q, const Eigen::Vector3f &v)
 {
-	assert_quaternion_is_normalized(q);
+	assert_eigen_quaternion_is_normalized(q);
 
 	// Eigen rotates counterclockwise (i.e. q*v*q^-1), 
 	// while we want the inverse of that (q^-1*v*q)
