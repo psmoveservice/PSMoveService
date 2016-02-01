@@ -20,6 +20,12 @@
 #include "ps3eye_3dmodel.h"
 #include "dk2_3dmodel.h"
 
+#ifdef _MSC_VER
+#pragma warning (disable: 4505) // unreferenced local function has been removed (stb stuff)
+#pragma warning (disable: 4996) // 'This function or variable may be unsafe': strcpy, strdup, sprintf, vsnprintf, sscanf, fopen
+#define snprintf _snprintf
+#endif
+
 //-- constants -----
 static const int k_window_pixel_width= 800;
 static const int k_window_pixel_height= 600;
@@ -359,81 +365,165 @@ void Renderer::renderEnd()
 }
 
 //-- Drawing Methods -----
-void drawArrow(const glm::vec3 &start, const glm::vec3 &end, const float headFraction, const glm::vec3 &color)
+void drawArrow(
+    const glm::mat4 &transform,
+    const glm::vec3 &start, 
+    const glm::vec3 &end, 
+    const float headFraction, 
+    const glm::vec3 &color)
 {
     assert(Renderer::getIsRenderingStage());
 
-    const glm::mat4 headBasis= glm::lookAt(start, end, glm::vec3(0, 1, 0));
-
-    const float headSize= glm::length(end-start)*headFraction;
+    const glm::vec3 headAxis= end-start;
+    const float headSize= headAxis.length()*headFraction*0.1f;
     const glm::vec3 headOrigin= glm_vec3_lerp(end, start, headFraction);
-    const glm::vec3 headXPos= headOrigin + glm::vec3(headBasis[0])*headSize;
-    const glm::vec3 headXNeg= headOrigin - glm::vec3(headBasis[0])*headSize;
-    const glm::vec3 headYPos= headOrigin + glm::vec3(headBasis[1])*headSize;
-    const glm::vec3 headYNeg= headOrigin - glm::vec3(headBasis[1])*headSize;
+
+    const glm::vec3 worldUp= glm::vec3(0, 1, 0);
+    const glm::vec3 headForward= glm::normalize(headAxis);
+    const glm::vec3 headLeft= glm::normalize(glm::cross(worldUp, headForward));
+    const glm::vec3 headUp= glm::normalize(glm::cross(headForward, headLeft));
+
+    const glm::vec3 headXPos= headOrigin - headLeft*headSize;
+    const glm::vec3 headXNeg= headOrigin + headLeft*headSize;
+    const glm::vec3 headYPos= headOrigin + headUp*headSize;
+    const glm::vec3 headYNeg= headOrigin - headUp*headSize;
    
     glColor3fv(glm::value_ptr(color));
 
     glPushMatrix();
-        glBegin(GL_LINES);
+    glMultMatrixf(glm::value_ptr(transform));
 
-        glVertex3fv(glm::value_ptr(start)); glVertex3fv(glm::value_ptr(end));
+    glBegin(GL_LINES);
+
+    glVertex3fv(glm::value_ptr(start)); glVertex3fv(glm::value_ptr(end));
         
-        glVertex3fv(glm::value_ptr(headXPos)); glVertex3fv(glm::value_ptr(headYPos));
-        glVertex3fv(glm::value_ptr(headYPos)); glVertex3fv(glm::value_ptr(headXNeg));
-        glVertex3fv(glm::value_ptr(headXNeg)); glVertex3fv(glm::value_ptr(headYNeg));
-        glVertex3fv(glm::value_ptr(headYNeg)); glVertex3fv(glm::value_ptr(headXPos));
+    glVertex3fv(glm::value_ptr(headXPos)); glVertex3fv(glm::value_ptr(headYPos));
+    glVertex3fv(glm::value_ptr(headYPos)); glVertex3fv(glm::value_ptr(headXNeg));
+    glVertex3fv(glm::value_ptr(headXNeg)); glVertex3fv(glm::value_ptr(headYNeg));
+    glVertex3fv(glm::value_ptr(headYNeg)); glVertex3fv(glm::value_ptr(headXPos));
 
-        glVertex3fv(glm::value_ptr(headXPos)); glVertex3fv(glm::value_ptr(end));
-        glVertex3fv(glm::value_ptr(headYPos)); glVertex3fv(glm::value_ptr(end));
-        glVertex3fv(glm::value_ptr(headXNeg)); glVertex3fv(glm::value_ptr(end));
-        glVertex3fv(glm::value_ptr(headYNeg)); glVertex3fv(glm::value_ptr(end));
+    glVertex3fv(glm::value_ptr(headXPos)); glVertex3fv(glm::value_ptr(end));
+    glVertex3fv(glm::value_ptr(headYPos)); glVertex3fv(glm::value_ptr(end));
+    glVertex3fv(glm::value_ptr(headXNeg)); glVertex3fv(glm::value_ptr(end));
+    glVertex3fv(glm::value_ptr(headYNeg)); glVertex3fv(glm::value_ptr(end));
 
-        glVertex3fv(glm::value_ptr(headXPos)); glVertex3fv(glm::value_ptr(headXNeg));
-        glVertex3fv(glm::value_ptr(headYPos)); glVertex3fv(glm::value_ptr(headYNeg));
+    glVertex3fv(glm::value_ptr(headXPos)); glVertex3fv(glm::value_ptr(headXNeg));
+    glVertex3fv(glm::value_ptr(headYPos)); glVertex3fv(glm::value_ptr(headYNeg));
 
-        glEnd();
+    glEnd();
+
     glPopMatrix();
 }
 
-void drawUILabelAtWorldPosition(const glm::vec3 &position, const float width, const char *format, ...)
+void drawTextAtWorldPosition(
+    const glm::mat4 &transform, 
+    const glm::vec3 &position, 
+    const char *format, 
+    ...)
 {
-    // This should only be used inside the renderUI scope
-    assert(Renderer::getIsRenderingUI());
+    assert(Renderer::getIsRenderingStage());
 
-    const ImGuiWindowFlags window_flags = 
-        ImGuiWindowFlags_NoTitleBar |
-        ImGuiWindowFlags_NoResize | 
-        ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoScrollbar |
-        ImGuiWindowFlags_NoCollapse;
+    // Render with the default font
+    const AssetManager::FontAsset *font= AssetManager::getInstance()->getDefaultFont();
 
+    // Convert the world space coordinates into screen space
+    const glm::vec3 transformed_position= glm::vec3(transform * glm::vec4(position, 1.f));
+    const int screenWidth= static_cast<int>(ImGui::GetIO().DisplaySize.x);
+    const int screenHeight= static_cast<int>(ImGui::GetIO().DisplaySize.y);
     glm::vec3 screenCoords =
         glm::project(
-            position, 
+            transformed_position, 
             Renderer::getCurrentCameraViewMatrix(), 
             Renderer::getCurrentProjectionMatrix(),
-            glm::vec4(0, 0, (int)ImGui::GetIO().DisplaySize.x, (int)ImGui::GetIO().DisplaySize.y));
+            glm::vec4(0, screenHeight, screenWidth, -screenHeight));
+    const float initial_x= screenCoords.x;
 
-    ImGui::SetNextWindowPos(ImVec2(screenCoords.x - width/2.f, screenCoords.y));
-    ImGui::Begin("", nullptr, ImVec2(width, 50), k_background_alpha, window_flags);
-
+    // Bake out the text string
+    char text[1024];
     va_list args;
     va_start(args, format);
-    ImGui::TextV(format, args);
+    int w = vsnprintf(text, sizeof(text), format, args);
+    text[sizeof(text)-1] = 0;
     va_end(args);
 
-    ImGui::End();
+    // Save a back up of the projection matrix and replace with an orthographic projection,
+    // Where units = screen pixels, origin at top left
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    const glm::mat4 ortho_projection= glm::ortho(
+        0.f, (float)screenWidth, // left, right
+        (float)screenHeight, 0.f, // bottom, top
+        -1.0f, 1.0f); // zNear, zFar
+    glLoadMatrixf(glm::value_ptr(ortho_projection));
+
+    // Save a backup of the modelview matrix and replace with the identity matrix
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    // Bind the font texture
+    glBindTexture(GL_TEXTURE_2D, font->textureId);
+    glColor3f(1.f, 1.f, 1.f);
+
+    // Render the text quads
+    glBegin(GL_QUADS);
+    char *next_character= text;
+    while (*next_character) 
+    {
+        char ascii_character= *next_character;
+
+        if (ascii_character >= 32 && ascii_character < 128) 
+        {
+            stbtt_aligned_quad glyph_quad;
+            int char_index= (int)ascii_character - 32;
+
+            stbtt_GetBakedQuad(
+                const_cast<stbtt_bakedchar *>(font->cdata), 
+                font->textureWidth, font->textureHeight, 
+                char_index, 
+                &screenCoords.x, &screenCoords.y, // x position advances with character by the glyph pixel width
+                &glyph_quad,
+                1); // opengl_fillrule= true
+            glTexCoord2f(glyph_quad.s0,glyph_quad.t0); glVertex2f(glyph_quad.x0,glyph_quad.y0);
+            glTexCoord2f(glyph_quad.s1,glyph_quad.t0); glVertex2f(glyph_quad.x1,glyph_quad.y0);
+            glTexCoord2f(glyph_quad.s1,glyph_quad.t1); glVertex2f(glyph_quad.x1,glyph_quad.y1);
+            glTexCoord2f(glyph_quad.s0,glyph_quad.t1); glVertex2f(glyph_quad.x0,glyph_quad.y1);
+        }
+        else if (ascii_character == '\n')
+        {
+            screenCoords.x= initial_x;
+            screenCoords.y+= font->glyphPixelHeight;
+        }
+
+        ++next_character;
+    }
+    glEnd();
+
+    // rebind the default texture
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Restore the projection matrix
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+
+    // Restore the modelview matrix
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
 }
 
 void drawTransformedAxes(const glm::mat4 &transform, float scale)
 {
+    drawTransformedAxes(transform, scale, scale, scale);
+}
+
+void drawTransformedAxes(const glm::mat4 &transform, float xScale, float yScale, float zScale)
+{
     assert(Renderer::getIsRenderingStage());
 
     glm::vec3 origin(0.f, 0.f, 0.f);
-    glm::vec3 xAxis(scale, 0.f, 0.f);
-    glm::vec3 yAxis(0.f, scale, 0.f);
-    glm::vec3 zAxis(0.f, 0.f, scale);
+    glm::vec3 xAxis(xScale, 0.f, 0.f);
+    glm::vec3 yAxis(0.f, yScale, 0.f);
+    glm::vec3 zAxis(0.f, 0.f, zScale);
    
     glPushMatrix();
         glMultMatrixf(glm::value_ptr(transform));
@@ -454,16 +544,21 @@ void drawTransformedAxes(const glm::mat4 &transform, float scale)
 
 void drawTransformedBox(const glm::mat4 &transform, const glm::vec3 &half_extents, const glm::vec3 &color)
 {
+    drawTransformedBox(transform, -half_extents, half_extents, color);
+}
+
+void drawTransformedBox(const glm::mat4 &transform, const glm::vec3 &box_min, const glm::vec3 &box_max, const glm::vec3 &color)
+{
     assert(Renderer::getIsRenderingStage());
 
-    glm::vec3 v0(half_extents.x, half_extents.y, half_extents.z);
-    glm::vec3 v1(-half_extents.x, half_extents.y, half_extents.z);
-    glm::vec3 v2(-half_extents.x, half_extents.y, -half_extents.z);
-    glm::vec3 v3(half_extents.x, half_extents.y, -half_extents.z);
-    glm::vec3 v4(half_extents.x, -half_extents.y, half_extents.z);
-    glm::vec3 v5(-half_extents.x, -half_extents.y, half_extents.z);
-    glm::vec3 v6(-half_extents.x, -half_extents.y, -half_extents.z);
-    glm::vec3 v7(half_extents.x, -half_extents.y, -half_extents.z);
+    glm::vec3 v0(box_max.x, box_max.y, box_max.z);
+    glm::vec3 v1(box_min.x, box_max.y, box_max.z);
+    glm::vec3 v2(box_min.x, box_max.y, box_min.z);
+    glm::vec3 v3(box_max.x, box_max.y, box_min.z);
+    glm::vec3 v4(box_max.x, box_min.y, box_max.z);
+    glm::vec3 v5(box_min.x, box_min.y, box_max.z);
+    glm::vec3 v6(box_min.x, box_min.y, box_min.z);
+    glm::vec3 v7(box_max.x, box_min.y, box_min.z);
 
     glPushMatrix();
         glMultMatrixf(glm::value_ptr(transform));
@@ -546,7 +641,7 @@ void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const fl
         glEnableClientState(GL_VERTEX_ARRAY);
         glPointSize(5);
         glVertexPointer(3, GL_FLOAT, 0, points);
-        glDrawArrays(GL_TRIANGLES, 0, point_count);
+        glDrawArrays(GL_POINTS, 0, point_count);
         glDisableClientState(GL_VERTEX_ARRAY);
     glPopMatrix();
 }
