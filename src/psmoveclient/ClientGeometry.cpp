@@ -138,6 +138,35 @@ PSMoveIntVector3 PSMoveIntVector3::operator - (const PSMoveIntVector3 &other) co
     return PSMoveIntVector3::create(i - other.i, j - other.j, k - other.k);
 }
 
+PSMoveIntVector3 PSMoveIntVector3::unsafe_divide(const int s) const
+{
+    return PSMoveIntVector3::create(i/s, j/s, k/s);
+}
+
+PSMoveIntVector3 PSMoveIntVector3::unsafe_divide(const PSMoveIntVector3 &v) const
+{
+    return PSMoveIntVector3::create(i/v.i, j/v.j, k/v.k);
+}
+
+PSMoveIntVector3 PSMoveIntVector3::safe_divide(const int s, const PSMoveIntVector3 &default) const
+{
+    return s != 0 ? unsafe_divide(s) : default;
+}
+
+PSMoveIntVector3 PSMoveIntVector3::safe_divide(const PSMoveIntVector3 &v, const PSMoveIntVector3 &default) const
+{
+    return 
+        PSMoveIntVector3::create(
+            v.i != 0 ? i/v.i : default.i, 
+            v.j != 0 ? j/v.j : default.j,
+            v.k != 0 ? k/v.k : default.k);
+}
+
+int PSMoveIntVector3::lengthSquared() const
+{
+    return i*i + j*j + k*k;
+}
+
 int PSMoveIntVector3::minValue() const
 {
     return std::min(std::min(i, j), k);

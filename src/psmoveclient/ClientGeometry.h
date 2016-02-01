@@ -43,6 +43,13 @@ struct CLIENTPSMOVEAPI PSMoveIntVector3
     PSMoveIntVector3 operator + (const PSMoveIntVector3 &other) const;
     PSMoveIntVector3 operator - (const PSMoveIntVector3 &other) const;
 
+    PSMoveIntVector3 unsafe_divide(const int s) const;
+    PSMoveIntVector3 unsafe_divide(const PSMoveIntVector3 &v) const;
+    PSMoveIntVector3 safe_divide(const int s, const PSMoveIntVector3 &default) const;
+    PSMoveIntVector3 safe_divide(const PSMoveIntVector3 &v, const PSMoveIntVector3 &default) const;
+
+    int lengthSquared() const;
+
     int minValue() const;
     int maxValue() const;
 
