@@ -57,6 +57,6 @@ eigen_vector3f_divide_by_vector_with_default(
     const Eigen::Vector3f &default_result);
 
 float 
-eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default);
+eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default_value);
 
 #endif // MATH_EIGEN_H

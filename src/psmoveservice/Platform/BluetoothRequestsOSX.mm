@@ -3,6 +3,7 @@
 #include "../DeviceManager.h"
 #include "../PSMoveService.h"
 #include "../ServerDeviceView.h"
+#include "../ServerControllerView.h"
 #include "../ServerNetworkManager.h"
 #include "../ServerLog.h"
 #include "../ServerUtility.h"

@@ -13,7 +13,7 @@
 #define assert_glm_vectors_are_perpendicular(a,b) assert(is_nearly_equal(glm::dot(a,b), 0.f, k_normal_epsilon))
 
 //-- interface -----
-float glm_vec3_normalize_with_default(glm::vec3 &v, const glm::vec3 &default);
+float glm_vec3_normalize_with_default(glm::vec3 &v, const glm::vec3 &default_result);
 glm::vec3 glm_vec3_lerp(const glm::vec3 &a, const glm::vec3 &b, const float u);
 
 #endif // MATH_GLM_H

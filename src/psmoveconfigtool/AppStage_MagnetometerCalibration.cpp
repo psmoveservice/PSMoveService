@@ -97,7 +97,7 @@ void AppStage_MagnetometerCalibration::enter()
     m_led_color_g= 0;
     m_led_color_b= 0;
 
-    m_stableStartTime= std::chrono::time_point<std::chrono::high_resolution_clock>();
+    m_stableStartTime= std::chrono::system_clock::time_point();
     m_bIsStable= false;
 
     m_identityPoseAverageMVector= *k_psmove_float_vector3_zero;;

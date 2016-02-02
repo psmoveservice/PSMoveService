@@ -151,12 +151,12 @@ eigen_vector3f_divide_by_vector_with_default(
 }
 
 float 
-eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default)
+eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default_result)
 {
     const float length= v.norm();
 
     // Use the default value if v is too tiny
-    v= (length > k_normal_epsilon) ? (v / length) : default;
+    v= (length > k_normal_epsilon) ? (v / length) : default_result;
 
     return length;
 }
