@@ -477,7 +477,7 @@ AsyncBluetoothUnpairDeviceRequest::getDescription()
 {
     std::ostringstream description;
 
-    description << "[Unpair] Serial: " << m_controllerView->getSerial() << " Conn: " << m_connectionId;
+    description << "[Unpair] Controller ID: " << m_controllerView->getDeviceID() << " Conn: " << m_connectionId;
 
     return description.str();
 }
