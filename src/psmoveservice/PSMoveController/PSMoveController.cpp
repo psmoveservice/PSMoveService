@@ -749,7 +749,7 @@ PSMoveController::poll()
             else
             {
                 // New data available. Keep iterating.
-                result= IControllerInterface::_PollResultFailure;
+                result = IControllerInterface::_PollResultSuccessNewData;
             }
         
             // https://github.com/nitsch/moveonpc/wiki/Input-report
