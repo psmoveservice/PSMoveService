@@ -84,7 +84,7 @@ private:
     int m_led_color_g;
     int m_led_color_b;
 
-    std::chrono::system_clock::time_point m_stableStartTime;
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
 
     PSMoveFloatVector3 m_identityPoseAverageMVector;

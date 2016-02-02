@@ -97,7 +97,7 @@ void AppStage_MagnetometerCalibration::enter()
     m_led_color_g= 0;
     m_led_color_b= 0;
 
-    m_stableStartTime= std::chrono::system_clock::time_point();
+	m_stableStartTime = std::chrono::time_point<std::chrono::high_resolution_clock>();
     m_bIsStable= false;
 
     m_identityPoseAverageMVector= *k_psmove_float_vector3_zero;;
@@ -255,7 +255,7 @@ void AppStage_MagnetometerCalibration::update()
         {
             if (isMoveStableAndAlignedWithGravity(m_controllerView))
             {
-                std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+				std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 
                 if (m_bIsStable)
                 {
