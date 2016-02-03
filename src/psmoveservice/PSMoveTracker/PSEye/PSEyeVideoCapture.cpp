@@ -325,18 +325,18 @@ public:
 
     bool grabFrame()
     {
-        ps3eye::PS3EYECam::updateDevices();
-        return eye->isNewFrame();
+        return eye->isStreaming();
     }
 
     bool retrieveFrame(int outputType, cv::OutputArray outArray)
     {
-        const unsigned char *new_pixels = eye->getLastFramePointer();
+        uint8_t *new_pixels = eye->getFrame();
 
         if (new_pixels != NULL)
         {
             std::memcpy(m_MatYUV.data, new_pixels, m_MatYUV.total() * m_MatYUV.elemSize() * sizeof(uchar));
             cv::cvtColor(m_MatYUV, outArray, CV_YUV2BGR_YUY2);
+            free(new_pixels);
             return true;
         }
         return false;
