@@ -1,6 +1,7 @@
 //-- includes -----
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
+#include "OrientationFilter.h"
 #include "ServerControllerView.h"
 #include "ServerHMDView.h"
 #include "ServerTrackerView.h"
@@ -396,8 +397,21 @@ ControllerManager::setControllerRumble(int controller_id, int rumble_amount)
 bool
 ControllerManager::resetPose(int controller_id)
 {
-    //###bwalker $TODO Once we are computing pose
-    return false;
+    bool bSuccess = false;
+    ServerControllerViewPtr ControllerPtr = getControllerViewPtr(controller_id);
+
+    if (ControllerPtr)
+    {
+        OrientationFilter *filter= ControllerPtr->getOrientationFilter();
+
+        if (filter != nullptr)
+        {
+            filter->resetOrientation();
+            bSuccess = true;
+        }
+    }
+
+    return bSuccess;
 }
 
 ServerDeviceViewPtr

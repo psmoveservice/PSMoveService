@@ -223,6 +223,11 @@ void OrientationFilter::resetOrientation()
     m_FusionState->reset_orientation= q_inverse;
 }
 
+void OrientationFilter::resetFilterState()
+{
+    m_FusionState->initialize();
+}
+
 void OrientationFilter::update(
     const float delta_time, 
     const OrientationSensorPacket &sensorPacket)

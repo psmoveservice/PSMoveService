@@ -4,6 +4,7 @@
 #include "BluetoothRequests.h"
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
+#include "OrientationFilter.h"
 #include "PSMoveController.h"
 #include "ServerControllerView.h"
 #include "ServerDeviceView.h"
@@ -390,27 +391,23 @@ protected:
         {
             ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
-            context.connection_state->pending_bluetooth_request = 
+            context.connection_state->pending_bluetooth_request =
                 new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
+
+            std::string description = context.connection_state->pending_bluetooth_request->getDescription();
 
             if (context.connection_state->pending_bluetooth_request->start())
             {
-                SERVER_LOG_INFO("ServerRequestHandler") 
-                    << "Async bluetooth request(" 
-                    << context.connection_state->pending_bluetooth_request->getDescription() 
-                    << ") started.";
+                SERVER_LOG_INFO("ServerRequestHandler") << "Async bluetooth request(" << description << ") started.";
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
             else
             {
-                SERVER_LOG_ERROR("ServerRequestHandler") 
-                    << "Async bluetooth request(" 
-                    << context.connection_state->pending_bluetooth_request->getDescription() 
-                    << ") failed to start!";
+                SERVER_LOG_ERROR("ServerRequestHandler") << "Async bluetooth request(" << description << ") failed to start!";
 
                 delete context.connection_state->pending_bluetooth_request;
-                context.connection_state->pending_bluetooth_request= nullptr;
+                context.connection_state->pending_bluetooth_request = nullptr;
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
             }
@@ -564,6 +561,9 @@ protected:
             config->magnetometer_identity[2]= magnetometer_identity.k();
 
             config->save();
+
+            // Reset the orientation filter state the calibration changed
+            ControllerView->getOrientationFilter()->resetFilterState();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
