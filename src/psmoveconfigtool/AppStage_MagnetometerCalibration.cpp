@@ -592,7 +592,7 @@ void AppStage_MagnetometerCalibration::renderUI()
 
             if (m_bIsStable)
             {
-                std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+                std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
                 float fraction = static_cast<float>(stableDuration.count() / k_stabilize_wait_time_ms);
 
