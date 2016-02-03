@@ -33,6 +33,7 @@ public:
 
     void setIsLocked(bool locked);
     void setCameraOrbitLocation(float yawDegrees, float pitchDegrees, float radius);
+    void resetOrientation();
     void publishCameraViewMatrix();
 
 private:

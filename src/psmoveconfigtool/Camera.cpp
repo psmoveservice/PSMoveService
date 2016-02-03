@@ -87,6 +87,11 @@ void Camera::setCameraOrbitLocation(float yawDegrees, float pitchDegrees, float 
     publishCameraViewMatrix();
 }
 
+void Camera::resetOrientation()
+{
+    setCameraOrbitLocation(0.f, 0.f, m_cameraOrbitRadius);
+}
+
 void Camera::publishCameraViewMatrix()
 {
     m_renderer->setCameraViewMatrix(

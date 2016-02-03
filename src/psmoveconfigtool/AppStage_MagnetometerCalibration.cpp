@@ -78,6 +78,7 @@ void AppStage_MagnetometerCalibration::enter()
         controllerSettings->getSelectedControllerInfo();
 
     m_app->setCameraType(_cameraOrbit);
+    m_app->getOrbitCamera()->resetOrientation();
 
     assert(controllerInfo->ControllerID != -1);
     assert(m_controllerView == nullptr);
@@ -150,10 +151,15 @@ void AppStage_MagnetometerCalibration::update()
                     
                     m_led_color_r= 255; m_led_color_g= 0; m_led_color_b= 0;
 
-                    m_menuState= 
-                        m_bBypassCalibration 
-                        ? AppStage_MagnetometerCalibration::complete
-                        : AppStage_MagnetometerCalibration::measureBExtents;
+                    if (m_bBypassCalibration)
+                    {
+                        m_app->getOrbitCamera()->resetOrientation();
+                        m_menuState= AppStage_MagnetometerCalibration::complete;
+                    }
+                    else
+                    {
+                        m_menuState= AppStage_MagnetometerCalibration::measureBExtents;
+                    }
                 }
                 else
                 {
@@ -470,6 +476,7 @@ void AppStage_MagnetometerCalibration::render()
             glm::mat4 worldTransform= glm::scale(worldSpaceOrientation, glm::vec3(3.f, 3.f, 3.f));
 
             drawPSMoveModel(worldTransform, glm::vec3(1.f, 1.f, 1.f));
+            drawTransformedAxes(renderScaleMatrix, 1.f);
         } break;
     case eCalibrationMenuState::pendingExit:
         {
@@ -774,6 +781,7 @@ void AppStage_MagnetometerCalibration::handle_set_magnetometer_calibration(
 
     if (resultCode == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
     {
+        thisPtr->m_app->getOrbitCamera()->resetOrientation();
         thisPtr->m_menuState= AppStage_MagnetometerCalibration::complete;
     }
     else
