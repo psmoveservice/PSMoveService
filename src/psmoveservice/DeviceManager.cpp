@@ -28,8 +28,8 @@ class DeviceManagerConfig : public PSMoveConfig
 public:
     DeviceManagerConfig(const std::string &fnamebase = "ControllerManagerConfig")
         : PSMoveConfig(fnamebase)
-        , controller_reconnect_interval(k_default_controller_poll_interval)
-        , controller_poll_interval(k_default_controller_reconnect_interval)
+        , controller_reconnect_interval(k_default_controller_reconnect_interval)
+        , controller_poll_interval(k_default_controller_poll_interval)
         , tracker_reconnect_interval(k_default_tracker_reconnect_interval)
         , tracker_poll_interval(k_default_tracker_poll_interval)
         , hmd_reconnect_interval(k_default_hmd_reconnect_interval)
