@@ -81,12 +81,12 @@ public:
     }
 
     // -- ClientPSMoveAPI Requests -----
-    ClientControllerView * allocate_controller_view(int PSMoveID)
+    ClientControllerView * allocate_controller_view(int ControllerID)
     {
         ClientControllerView * view;
 
         // Use the same view if one already exists for the given controller id
-        t_controller_view_map_iterator view_entry= m_controller_view_map.find(PSMoveID);
+        t_controller_view_map_iterator view_entry= m_controller_view_map.find(ControllerID);
         if (view_entry != m_controller_view_map.end())
         {
             view= view_entry->second;
@@ -94,10 +94,10 @@ public:
         else
         {
             // Create a new initialized controller view
-            view= new ClientControllerView(PSMoveID);
+            view= new ClientControllerView(ControllerID);
 
             // Add it to the map of controller
-            m_controller_view_map.insert(t_id_controller_view_pair(PSMoveID, view));
+            m_controller_view_map.insert(t_id_controller_view_pair(ControllerID, view));
         }
 
         // Keep track of how many clients are listening to this view
@@ -127,7 +127,10 @@ public:
     }
 
     ClientPSMoveAPI::t_request_id start_controller_data_stream(
-        ClientControllerView * view, ClientPSMoveAPI::t_response_callback callback, void *userdata)
+        ClientControllerView * view, 
+        unsigned int flags,
+        ClientPSMoveAPI::t_response_callback callback, 
+        void *userdata)
     {
         CLIENT_LOG_INFO("start_controller_data_stream") << "requesting controller stream start for PSMoveID: " << view->GetControllerID() << std::endl;
 
@@ -135,6 +138,11 @@ public:
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_START_CONTROLLER_DATA_STREAM);
         request->mutable_request_start_psmove_data_stream()->set_controller_id(view->GetControllerID());
+
+        if ((flags & ClientPSMoveAPI::includeRawSensorData) > 0)
+        {
+            request->mutable_request_start_psmove_data_stream()->set_include_raw_sensor_data(true);
+        }
 
         m_request_manager.send_request(request, callback, userdata);
 
@@ -171,6 +179,30 @@ public:
         request->mutable_request_rumble()->set_rumble(static_cast<int>(rumble_amount * 255.f));
 
         m_request_manager.send_request(request, callback, userdata);
+
+        return request->request_id();
+    }
+
+    ClientPSMoveAPI::t_request_id set_led_color(
+        ClientControllerView *view, 
+        unsigned char r, unsigned char g, unsigned b,
+        ClientPSMoveAPI::t_response_callback callback, void *callback_userdata)
+    {
+        CLIENT_LOG_INFO("set_controller_rumble") << "request set color to " << r << "," << g << "," << b << 
+            " for PSMoveID: " << view->GetControllerID() << std::endl;
+
+        assert(m_controller_view_map.find(view->GetControllerID()) != m_controller_view_map.end());
+
+        // Tell the psmove service to set the rumble controller
+        // Internally rumble values are in the range [0, 255]
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_SET_LED_COLOR);
+        request->mutable_set_led_color_request()->set_controller_id(view->GetControllerID());
+        request->mutable_set_led_color_request()->set_r(static_cast<int>(r));
+        request->mutable_set_led_color_request()->set_g(static_cast<int>(g));
+        request->mutable_set_led_color_request()->set_b(static_cast<int>(b));
+
+        m_request_manager.send_request(request, callback, callback_userdata);
 
         return request->request_id();
     }
@@ -344,13 +376,13 @@ void ClientPSMoveAPI::shutdown()
     }
 }
 
-ClientControllerView * ClientPSMoveAPI::allocate_controller_view(int PSMoveID)
+ClientControllerView * ClientPSMoveAPI::allocate_controller_view(int ControllerID)
 {
     ClientControllerView * view;
 
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        view= ClientPSMoveAPI::m_implementation_ptr->allocate_controller_view(PSMoveID);
+        view= ClientPSMoveAPI::m_implementation_ptr->allocate_controller_view(ControllerID);
     }
 
     return view;
@@ -367,6 +399,7 @@ void ClientPSMoveAPI::free_controller_view(ClientControllerView * view)
 ClientPSMoveAPI::t_request_id 
 ClientPSMoveAPI::start_controller_data_stream(
     ClientControllerView * view, 
+    unsigned int flags,
     ClientPSMoveAPI::t_response_callback callback, 
     void *callback_userdata)
 {
@@ -374,7 +407,7 @@ ClientPSMoveAPI::start_controller_data_stream(
 
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        request_id= ClientPSMoveAPI::m_implementation_ptr->start_controller_data_stream(view, callback, callback_userdata);
+        request_id= ClientPSMoveAPI::m_implementation_ptr->start_controller_data_stream(view, flags, callback, callback_userdata);
     }
 
     return request_id;
@@ -408,6 +441,22 @@ ClientPSMoveAPI::set_controller_rumble(
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
         request_id= ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount, callback, callback_userdata);
+    }
+
+    return request_id;
+}
+
+ClientPSMoveAPI::t_request_id 
+ClientPSMoveAPI::set_led_color(
+    ClientControllerView *view, 
+    unsigned char r, unsigned char g, unsigned b,
+    t_response_callback callback, void *callback_userdata)
+{
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id= ClientPSMoveAPI::m_implementation_ptr->set_led_color(view, r, g, b, callback, callback_userdata);
     }
 
     return request_id;

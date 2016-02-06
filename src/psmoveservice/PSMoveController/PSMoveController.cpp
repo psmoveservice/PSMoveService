@@ -162,7 +162,9 @@ PSMoveControllerConfig::config2ptree()
 {
     boost::property_tree::ptree pt;
 
-    pt.put("data_timeout", data_timeout);
+    pt.put("is_valid", is_valid);
+
+    pt.put("max_poll_failute_count", max_poll_failure_count);
     
     pt.put("Calibration.Accel.X.k", cal_ag_xyz_kb[0][0][0]);
     pt.put("Calibration.Accel.X.b", cal_ag_xyz_kb[0][0][1]);
@@ -177,13 +179,25 @@ PSMoveControllerConfig::config2ptree()
     pt.put("Calibration.Gyro.Z.k", cal_ag_xyz_kb[1][2][0]);
     pt.put("Calibration.Gyro.Z.b", cal_ag_xyz_kb[1][2][1]);
 
+    pt.put("Calibration.Magnetometer.X.Min", magnetometer_extents[0]);
+    pt.put("Calibration.Magnetometer.Y.Min", magnetometer_extents[1]);
+    pt.put("Calibration.Magnetometer.Z.Min", magnetometer_extents[2]);
+    pt.put("Calibration.Magnetometer.X.Max", magnetometer_extents[3]);
+    pt.put("Calibration.Magnetometer.Y.Max", magnetometer_extents[4]);
+    pt.put("Calibration.Magnetometer.Z.Max", magnetometer_extents[5]);
+    pt.put("Calibration.Magnetometer.X.Identity", magnetometer_identity[0]);
+    pt.put("Calibration.Magnetometer.Y.Identity", magnetometer_identity[1]);
+    pt.put("Calibration.Magnetometer.Z.Identity", magnetometer_identity[2]);
+
     return pt;
 }
 
 void
 PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 {
-    data_timeout = pt.get<long>("data_timeout", 1000);
+    is_valid= pt.get<bool>("is_valid", false);
+
+    max_poll_failure_count = pt.get<long>("max_poll_failute_count", 100);
 
     cal_ag_xyz_kb[0][0][0] = pt.get<float>("Calibration.Accel.X.k", 1.0f);
     cal_ag_xyz_kb[0][0][1] = pt.get<float>("Calibration.Accel.X.b", 0.0f);
@@ -198,6 +212,16 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
     cal_ag_xyz_kb[1][1][1] = pt.get<float>("Calibration.Gyro.Y.b", 0.0f);
     cal_ag_xyz_kb[1][2][0] = pt.get<float>("Calibration.Gyro.Z.k", 1.0f);
     cal_ag_xyz_kb[1][2][1] = pt.get<float>("Calibration.Gyro.Z.b", 0.0f);
+
+    magnetometer_extents[0]= pt.get<int>("Calibration.Magnetometer.X.Min", 0);
+    magnetometer_extents[1]= pt.get<int>("Calibration.Magnetometer.Y.Min", 0);
+    magnetometer_extents[2]= pt.get<int>("Calibration.Magnetometer.Z.Min", 0);
+    magnetometer_extents[3]= pt.get<int>("Calibration.Magnetometer.X.Max", 0);
+    magnetometer_extents[4]= pt.get<int>("Calibration.Magnetometer.Y.Max", 0);
+    magnetometer_extents[5]= pt.get<int>("Calibration.Magnetometer.Z.Max", 0);
+    magnetometer_identity[0]= pt.get<float>("Calibration.Magnetometer.X.Identity", 0.f);
+    magnetometer_identity[1]= pt.get<float>("Calibration.Magnetometer.Y.Identity", 0.f);
+    magnetometer_identity[2]= pt.get<float>("Calibration.Magnetometer.Z.Identity", 0.f);
 }
 
 // -- PSMove Controller -----
@@ -206,6 +230,7 @@ PSMoveController::PSMoveController()
     , LedG(0)
     , LedB(0)
     , Rumble(0)
+    , NextPollSequenceNumber(0)
 {
     HIDDetails.Handle = nullptr;
     HIDDetails.Handle_addr = nullptr;
@@ -318,7 +343,7 @@ bool PSMoveController::open(
                 cfg = PSMoveControllerConfig(btaddr);
                 cfg.load();
 
-                if (!IsBluetooth)
+                if (!IsBluetooth || !cfg.is_valid)
                 {
                     // Load calibration from controller internal memory.
                     loadCalibration();
@@ -335,6 +360,9 @@ bool PSMoveController::open(
                 SERVER_LOG_ERROR("PSMoveController::open") << "Failed to get bluetooth address of PSMoveController(" << cur_dev_path << ")";
                 success= false;
             }
+
+            // Reset the polling sequence counter
+            NextPollSequenceNumber= 0;
         }
         else
         {
@@ -572,6 +600,8 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
 void
 PSMoveController::loadCalibration()
 {
+    bool is_valid= true;
+
     // The calibration provides a scale factor (k) and offset (b) to convert
     // raw accelerometer and gyroscope readings into something more useful.
     // https://github.com/nitsch/moveonpc/wiki/Calibration-data
@@ -584,57 +614,96 @@ PSMoveController::loadCalibration()
 
     // Load the calibration from the controller itself.
     unsigned char hid_cal[PSMOVE_CALIBRATION_BLOB_SIZE];
-    unsigned char cal[PSMOVE_CALIBRATION_SIZE];
-    int res;
-    int x;
-    int dest_offset;
-    int src_offset;
-    for (x=0; x<3; x++) {
+
+    for (int block_index=0; is_valid && block_index<3; block_index++) 
+    {
+        unsigned char cal[PSMOVE_CALIBRATION_SIZE];
+        int dest_offset;
+        int src_offset;
+
         memset(cal, 0, sizeof(cal));
         cal[0] = PSMove_Req_GetCalibration;
-        res = hid_get_feature_report(HIDDetails.Handle, cal, sizeof(cal));
-        if (cal[1] == 0x00) {
-            /* First block */
-            dest_offset = 0;
-            src_offset = 0;
-        } else if (cal[1] == 0x01) {
-            /* Second block */
-            dest_offset = PSMOVE_CALIBRATION_SIZE;
-            src_offset = 2;
-        } else if (cal[1] == 0x82) {
-            /* Third block */
-            dest_offset = 2*PSMOVE_CALIBRATION_SIZE - 2;
-            src_offset = 2;
-        }
-        memcpy(hid_cal+dest_offset, cal+src_offset,
-                sizeof(cal)-src_offset);
-    }
-    memcpy(usb_calibration, hid_cal, PSMOVE_CALIBRATION_BLOB_SIZE);
-        
-    // Convert the calibration blob into constant & offset for each accel dim.
-    std::vector< std::vector<int> > dim_lohi = { {1, 3}, {5, 4}, {2, 0} };
-    std::vector<int> res_lohi(2, 0);
-    int dim_ix = 0;
-    int lohi_ix = 0;
-    for (dim_ix = 0; dim_ix < 3; dim_ix++)
-    {
-        for (lohi_ix = 0; lohi_ix < 2; lohi_ix++)
+
+        int res = hid_get_feature_report(HIDDetails.Handle, cal, sizeof(cal));
+
+        if (res == PSMOVE_CALIBRATION_SIZE)
         {
-            res_lohi[lohi_ix] = decodeCalibration(usb_calibration, 0x04 + 6*dim_lohi[dim_ix][lohi_ix] + 2*dim_ix);
+            if (cal[1] == 0x00) 
+            {
+                /* First block */
+                dest_offset = 0;
+                src_offset = 0;
+            }
+            else if (cal[1] == 0x01) 
+            {
+                /* Second block */
+                dest_offset = PSMOVE_CALIBRATION_SIZE;
+                src_offset = 2;
+            }
+            else if (cal[1] == 0x82) 
+            {
+                /* Third block */
+                dest_offset = 2*PSMOVE_CALIBRATION_SIZE - 2;
+                src_offset = 2;
+            }
+            else
+            {
+                SERVER_LOG_ERROR("PSMoveController::loadCalibration") 
+                    << "Unexpected calibration block id(0x" << std::hex << std::setfill('0') << std::setw(2) << cal[1] 
+                    << " on block #" << block_index;
+                is_valid= false;
+            }
         }
-        cfg.cal_ag_xyz_kb[0][dim_ix][0] = 2.f / (float)(res_lohi[1] - res_lohi[0]);
-        cfg.cal_ag_xyz_kb[0][dim_ix][1] = -(cfg.cal_ag_xyz_kb[0][dim_ix][0] * (float)res_lohi[0]) - 1.f;
-    }
-        
-    // Convert the calibration blob into constant for each gyro dim.
-    float factor = (float)(2.0 * M_PI * 80.0) / 60.0f;
-    for (dim_ix = 0; dim_ix < 3; dim_ix++)
-    {
-        cfg.cal_ag_xyz_kb[1][dim_ix][0] = factor / (float)(decodeCalibration(usb_calibration, 0x46 + 10 * dim_ix)
-                                                - decodeCalibration(usb_calibration, 0x2a + 2*dim_ix));
-        // No offset for gyroscope
+        else
+        {
+            char hidapi_err_mbs[256];
+            bool valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
+
+            // Device no longer in valid state.
+            if (valid_error_mesg)
+            {
+                SERVER_LOG_ERROR("PSMoveController::loadCalibration") << "HID ERROR: " << hidapi_err_mbs;
+            }
+
+            is_valid= false;
+        }
+
+        if (is_valid)
+        {
+            memcpy(hid_cal+dest_offset, cal+src_offset, sizeof(cal)-src_offset);
+        }
     }
 
+    if (is_valid)
+    {
+        memcpy(usb_calibration, hid_cal, PSMOVE_CALIBRATION_BLOB_SIZE);
+        
+        // Convert the calibration blob into constant & offset for each accel dim.
+        std::vector< std::vector<int> > dim_lohi = { {1, 3}, {5, 4}, {2, 0} };
+        std::vector<int> res_lohi(2, 0);
+        int dim_ix = 0;
+        int lohi_ix = 0;
+        for (dim_ix = 0; dim_ix < 3; dim_ix++)
+        {
+            for (lohi_ix = 0; lohi_ix < 2; lohi_ix++)
+            {
+                res_lohi[lohi_ix] = decodeCalibration(usb_calibration, 0x04 + 6*dim_lohi[dim_ix][lohi_ix] + 2*dim_ix);
+            }
+            cfg.cal_ag_xyz_kb[0][dim_ix][0] = 2.f / (float)(res_lohi[1] - res_lohi[0]);
+            cfg.cal_ag_xyz_kb[0][dim_ix][1] = -(cfg.cal_ag_xyz_kb[0][dim_ix][0] * (float)res_lohi[0]) - 1.f;
+        }
+        
+        // Convert the calibration blob into constant for each gyro dim.
+        float factor = (float)(2.0 * M_PI * 80.0) / 60.0f;
+        for (dim_ix = 0; dim_ix < 3; dim_ix++)
+        {
+            cfg.cal_ag_xyz_kb[1][dim_ix][0] = factor / (float)(decodeCalibration(usb_calibration, 0x46 + 10 * dim_ix)
+                                                    - decodeCalibration(usb_calibration, 0x2a + 2*dim_ix));
+            // No offset for gyroscope
+        }
+    }
+
+    cfg.is_valid= is_valid;
     cfg.save();
 }
 
@@ -680,12 +749,16 @@ PSMoveController::poll()
             else
             {
                 // New data available. Keep iterating.
-                result= IControllerInterface::_PollResultFailure;
+                result = IControllerInterface::_PollResultSuccessNewData;
             }
         
             // https://github.com/nitsch/moveonpc/wiki/Input-report
             PSMoveControllerState newState;
         
+            // Increment the sequence for every new polling packet
+            newState.PollSequenceNumber= NextPollSequenceNumber;
+            ++NextPollSequenceNumber;
+
             // Buttons
             newState.AllButtons = (InData->buttons2) | (InData->buttons1 << 8) |
                 ((InData->buttons3 & 0x01) << 16) | ((InData->buttons4 & 0xF0) << 13);
@@ -738,9 +811,9 @@ PSMoveController::poll()
 
         
             // Other
-            newState.Sequence = (InData->buttons4 & 0x0F);
+            newState.RawSequence = (InData->buttons4 & 0x0F);
             newState.Battery = static_cast<CommonControllerState::BatteryLevel>(InData->battery);
-            newState.TimeStamp = InData->timelow | (InData->timehigh << 8);
+            newState.RawTimeStamp = InData->timelow | (InData->timehigh << 8);
             newState.TempRaw = (InData->temphigh << 4) | ((InData->templow_mXhigh & 0xF0) >> 4);
 
             // Make room for new entry if at the max queue size
@@ -757,65 +830,57 @@ PSMoveController::poll()
     return result;
 }
 
-void
+const CommonDeviceState * 
 PSMoveController::getState(
-    CommonDeviceState *out_state,
     int lookBack) const
 {
-    assert(out_state->DeviceType == CommonControllerState::PSMove);
-    PSMoveControllerState *out_psmove_state= static_cast<PSMoveControllerState *>(out_state);
+    const int queueSize= static_cast<int>(ControllerStates.size());
+    const CommonDeviceState * result=
+        (lookBack < queueSize) ? &ControllerStates.at(queueSize - lookBack - 1) : nullptr;
 
-    if (ControllerStates.empty())
-    {
-        out_psmove_state->clear();
-    }
-    else
-    {
-        lookBack = (lookBack < (int)ControllerStates.size()) ? lookBack : ControllerStates.size();
-        
-        *out_psmove_state= ControllerStates.at(ControllerStates.size() - lookBack - 1);
-    }
+    return result;
 }
 
 float
 PSMoveController::getTempCelsius() const
 {
-    PSMoveControllerState lastState;
+    const PSMoveControllerState *lastState= static_cast<const PSMoveControllerState *>(getState());
 
-    getState(&lastState);
-
-    /**
-     * The Move uses this table in Debug mode. Even though the resulting values
-     * are not labeled "degree Celsius" in the Debug output, measurements
-     * indicate that it is close enough.
-     **/
-    static int const temperature_lookup[80] = {
-        0x1F6, 0x211, 0x22C, 0x249, 0x266, 0x284, 0x2A4, 0x2C4,
-        0x2E5, 0x308, 0x32B, 0x34F, 0x374, 0x399, 0x3C0, 0x3E8,
-        0x410, 0x439, 0x463, 0x48D, 0x4B8, 0x4E4, 0x510, 0x53D,
-        0x56A, 0x598, 0x5C6, 0x5F4, 0x623, 0x651, 0x680, 0x6AF,
-        0x6DE, 0x70D, 0x73C, 0x76B, 0x79A, 0x7C9, 0x7F7, 0x825,
-        0x853, 0x880, 0x8AD, 0x8D9, 0x905, 0x930, 0x95B, 0x985,
-        0x9AF, 0x9D8, 0xA00, 0xA28, 0xA4F, 0xA75, 0xA9B, 0xAC0,
-        0xAE4, 0xB07, 0xB2A, 0xB4B, 0xB6D, 0xB8D, 0xBAD, 0xBCB,
-        0xBEA, 0xC07, 0xC24, 0xC40, 0xC5B, 0xC75, 0xC8F, 0xCA8,
-        0xCC1, 0xCD8, 0xCF0, 0xD06, 0xD1C, 0xD31, 0xD46, 0xD5A,
-    };
+    if (lastState != nullptr)
+    {
+        /**
+         * The Move uses this table in Debug mode. Even though the resulting values
+         * are not labeled "degree Celsius" in the Debug output, measurements
+         * indicate that it is close enough.
+         **/
+        static int const temperature_lookup[80] = {
+            0x1F6, 0x211, 0x22C, 0x249, 0x266, 0x284, 0x2A4, 0x2C4,
+            0x2E5, 0x308, 0x32B, 0x34F, 0x374, 0x399, 0x3C0, 0x3E8,
+            0x410, 0x439, 0x463, 0x48D, 0x4B8, 0x4E4, 0x510, 0x53D,
+            0x56A, 0x598, 0x5C6, 0x5F4, 0x623, 0x651, 0x680, 0x6AF,
+            0x6DE, 0x70D, 0x73C, 0x76B, 0x79A, 0x7C9, 0x7F7, 0x825,
+            0x853, 0x880, 0x8AD, 0x8D9, 0x905, 0x930, 0x95B, 0x985,
+            0x9AF, 0x9D8, 0xA00, 0xA28, 0xA4F, 0xA75, 0xA9B, 0xAC0,
+            0xAE4, 0xB07, 0xB2A, 0xB4B, 0xB6D, 0xB8D, 0xBAD, 0xBCB,
+            0xBEA, 0xC07, 0xC24, 0xC40, 0xC5B, 0xC75, 0xC8F, 0xCA8,
+            0xCC1, 0xCD8, 0xCF0, 0xD06, 0xD1C, 0xD31, 0xD46, 0xD5A,
+        };
     
-    int i;
+        int i;
     
-    for (i = 0; i < 80; i++) {
-        if (temperature_lookup[i] > lastState.TempRaw) {
-            return (float)(i - 10);
+        for (i = 0; i < 80; i++) {
+            if (temperature_lookup[i] > lastState->TempRaw) {
+                return (float)(i - 10);
+            }
         }
     }
     
     return 70;
 }
 
-long PSMoveController::getDataTimeout() const
+long PSMoveController::getMaxPollFailureCount() const
 {
-    return cfg.data_timeout;
+    return cfg.max_poll_failure_count;
 }
 
 // Setters

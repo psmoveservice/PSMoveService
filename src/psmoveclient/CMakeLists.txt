@@ -21,6 +21,10 @@ list(APPEND PSMOVE_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
 include_directories(${ROOT_DIR}/src/psmoveprotocol/)
 list(APPEND PSMOVE_CLIENT_REQ_LIBS PSMoveProtocol)
 
+# PSMoveProtocol
+include_directories(${ROOT_DIR}/src/psmovemath/)
+list(APPEND PSMOVE_CLIENT_REQ_LIBS PSMoveMath)
+
 # Source files that are needed for the shared library
 file(GLOB PSMOVECLIENT_LIBRARY_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.cpp"

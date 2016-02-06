@@ -7,6 +7,13 @@
 //-- typedefs -----
 typedef union SDL_Event SDL_Event;
 
+//-- macros -----
+#if defined(__clang__) || defined(__GNUC__)
+#define RENDERER_PRINTFARGS(FMT) __attribute__((format(printf, FMT, (FMT+1))))
+#else
+#define RENDERER_PRINTFARGS(FMT)
+#endif
+
 //-- definitions -----
 class Renderer 
 {
@@ -38,6 +45,11 @@ public:
     void setCameraViewMatrix(const glm::mat4 &matrix)
     { m_cameraViewMatrix= matrix; }
 
+    static const glm::mat4 &getCurrentProjectionMatrix()
+    { return m_instance->m_projectionMatrix; }
+    static const glm::mat4 &getCurrentCameraViewMatrix()
+    { return m_instance->m_cameraViewMatrix; }
+
 private:
     bool m_sdlapi_initialized;
     
@@ -62,9 +74,15 @@ private:
 };
 
 //-- drawing methods -----
+void drawArrow(const glm::mat4 &transform, const glm::vec3 &start, const glm::vec3 &end, const float headFraction, const glm::vec3 &color);
+void drawTextAtWorldPosition(const glm::mat4 &transform, const glm::vec3 &position, const char *format, ...) RENDERER_PRINTFARGS(3);
 void drawTransformedAxes(const glm::mat4 &transform, float scale);
+void drawTransformedAxes(const glm::mat4 &transform, float xScale, float yScale, float zScale);
 void drawTransformedBox(const glm::mat4 &transform, const glm::vec3 &half_extents, const glm::vec3 &color);
+void drawTransformedBox(const glm::mat4 &transform, const glm::vec3 &box_min, const glm::vec3 &box_max, const glm::vec3 &color);
 void drawTransformedTexturedCube(const glm::mat4 &transform, int textureId, float scale);
+void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count);
+void drawLineStrip(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count);
 void drawDK2Model(const glm::mat4 &transform);
 void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color);
 void drawPSNaviModel(const glm::mat4 &transform);

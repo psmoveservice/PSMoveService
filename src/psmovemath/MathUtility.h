@@ -2,8 +2,10 @@
 #define MATH_UTILITY_H
 
 //-- includes -----
+#include <assert.h>
 #include <float.h>
 #include <math.h>
+#include <glm/glm.hpp>
 
 //-- constants ----
 #define k_real_max FLT_MAX
@@ -27,8 +29,6 @@
 #define is_nearly_equal(a, b, epsilon) (fabsf(a-b) <= epsilon)
 #define is_nearly_zero(x) is_nearly_equal(x, 0.0f, k_real_epsilon)
 
-#define safe_divide_with_default(numerator, denomenator, default_result) (is_nearly_zero(denomenator) ? (default_result) : (numerator / denomenator));
-
 #ifndef sgn
 #define sgn(x) (((x) >= 0) ? 1 : -1)
 #endif
@@ -43,7 +43,8 @@
 #define assert_valid_float(x)     ((void)0)
 #endif
 
-//-- methods -----
+//-- float methods -----
+float safe_divide_with_default(float numerator, float denomenator, float default_result);
 float clampf(float x, float lo, float hi);
 float clampf01(float x);
 float lerpf(float a, float b, float u);

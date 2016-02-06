@@ -1,6 +1,10 @@
 //-- includes -----
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
+#include "OrientationFilter.h"
+#include "ServerControllerView.h"
+#include "ServerHMDView.h"
+#include "ServerTrackerView.h"
 #include "ServerRequestHandler.h"
 #include "ServerLog.h"
 #include "ServerDeviceView.h"
@@ -24,8 +28,8 @@ class DeviceManagerConfig : public PSMoveConfig
 public:
     DeviceManagerConfig(const std::string &fnamebase = "ControllerManagerConfig")
         : PSMoveConfig(fnamebase)
-        , controller_reconnect_interval(k_default_controller_poll_interval)
-        , controller_poll_interval(k_default_controller_reconnect_interval)
+        , controller_reconnect_interval(k_default_controller_reconnect_interval)
+        , controller_poll_interval(k_default_controller_poll_interval)
         , tracker_reconnect_interval(k_default_tracker_reconnect_interval)
         , tracker_poll_interval(k_default_tracker_poll_interval)
         , hmd_reconnect_interval(k_default_hmd_reconnect_interval)
@@ -90,7 +94,7 @@ DeviceTypeManager::startup()
 
 /// Calls update_devices and update_connected_devices if poll_interval and reconnect_interval has elapsed, respectively.
 void
-DeviceTypeManager::update()
+DeviceTypeManager::poll()
 {
     std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
     
@@ -99,11 +103,11 @@ DeviceTypeManager::update()
     
     if (update_diff.count() >= poll_interval)
     {
-        update_devices();
+        poll_devices();
         m_last_poll_time= now;
     }
     
-    // See if it's time to try update the list of connected controllers
+    // See if it's time to try update the list of connected devices
     std::chrono::duration<double, std::milli> reconnect_diff = now - m_last_reconnect_time;
     if (reconnect_diff.count() >= reconnect_interval)
     {
@@ -114,13 +118,39 @@ DeviceTypeManager::update()
     }
 }
 
+void 
+DeviceTypeManager::updateStateAndPredict()
+{
+    // Recompute the state-space data about the device and make predictions about the future
+    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+    {
+        ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
+        
+        device->updateStateAndPredict();
+    }
+}
+
+void 
+DeviceTypeManager::publish()
+{
+    // Publish any new data to client connections
+    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+    {
+        ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
+        
+        device->publish();
+    }
+}
+
 void
 DeviceTypeManager::shutdown()
 {
     // Close any controllers that were opened
     for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
     {
-        if (getDeviceViewPtr(device_id)->getIsOpen())
+        ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
+
+        if (device && device->getIsOpen())
         {
             getDeviceViewPtr(device_id)->close();
         }
@@ -139,14 +169,14 @@ DeviceTypeManager::send_device_list_changed_notification()
 }
 
 void
-DeviceTypeManager::update_devices()
+DeviceTypeManager::poll_devices()
 {
     bool bAllUpdatedOk= true;
     
     for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
     {
         ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
-        bAllUpdatedOk &= device->update();
+        bAllUpdatedOk &= device->poll();
     }
     
     if (!bAllUpdatedOk)
@@ -164,7 +194,7 @@ DeviceTypeManager::find_open_device_device_id(const DeviceEnumerator &enumerator
     {
         ServerDeviceViewPtr device= getDeviceViewPtr(device_id);
         
-        if (device && device->getIsOpen() && device->matchesDeviceEnumerator(&enumerator))
+        if (device && device->matchesDeviceEnumerator(&enumerator))
         {
             result_device_id= device_id;
             break;
@@ -367,8 +397,21 @@ ControllerManager::setControllerRumble(int controller_id, int rumble_amount)
 bool
 ControllerManager::resetPose(int controller_id)
 {
-    //###bwalker $TODO Once we are computing pose
-    return false;
+    bool bSuccess = false;
+    ServerControllerViewPtr ControllerPtr = getControllerViewPtr(controller_id);
+
+    if (ControllerPtr)
+    {
+        OrientationFilter *filter= ControllerPtr->getOrientationFilter();
+
+        if (filter != nullptr)
+        {
+            filter->resetOrientation();
+            bSuccess = true;
+        }
+    }
+
+    return bSuccess;
 }
 
 ServerDeviceViewPtr
@@ -508,9 +551,17 @@ DeviceManager::startup()
 void
 DeviceManager::update()
 {
-    m_controller_manager.update();
-    m_tracker_manager.update();
-    m_hmd_manager.update();
+    m_controller_manager.poll(); // Update controller counts and poll button/IMU state
+    m_tracker_manager.poll(); // Update tracker count and poll video frames
+    m_hmd_manager.poll(); // Update HMD count and poll position/orientation state
+
+    m_tracker_manager.updateStateAndPredict(); // Get controller colors and update tracking blob positions/predictions
+    m_controller_manager.updateStateAndPredict(); // Compute pose/prediction of tracking blob+IMU state
+    m_hmd_manager.updateStateAndPredict(); // Get the pose + prediction for HMD
+
+    m_controller_manager.publish(); // publish controller state to any listening clients  (common case)
+    m_tracker_manager.publish(); // publish tracker state to any listening clients (probably only used by ConfigTool)
+    m_hmd_manager.publish(); // publish hmd state to any listening clients (probably only used by ConfigTool)
 }
 
 void

@@ -1,7 +1,8 @@
 //-- inludes -----
 #include "AppStage_ControllerSettings.h"
-#include "AppStage_PairController.h"
+#include "AppStage_MagnetometerCalibration.h"
 #include "AppStage_MainMenu.h"
+#include "AppStage_PairController.h"
 #include "App.h"
 #include "Camera.h"
 #include "MathUtility.h"
@@ -106,7 +107,8 @@ void AppStage_ControllerSettings::renderUI()
     case eControllerMenuState::idle:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 400), k_background_alpha, window_flags);
+            ImGui::SetNextWindowSize(ImVec2(300, 400));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
 
             if (m_pairedControllerInfos.size() > 0)
             {
@@ -149,6 +151,24 @@ void AppStage_ControllerSettings::renderUI()
                     if (ImGui::Button("Next Controller"))
                     {
                         ++m_selectedControllerIndex;
+                    }
+                }
+
+                if (controllerInfo.ControllerType == AppStage_ControllerSettings::PSMove)
+                {
+                    if (ImGui::Button("Calibrate Magnetometer"))
+                    {
+                        m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(false);
+                        m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
+                    }
+                }
+
+                if (controllerInfo.ControllerType == AppStage_ControllerSettings::PSMove)
+                {
+                    if (ImGui::Button("Test Orientation"))
+                    {
+                        m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(true);
+                        m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
                     }
                 }
 
@@ -204,7 +224,8 @@ void AppStage_ControllerSettings::renderUI()
     case eControllerMenuState::pendingControllerListRequest:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
+            ImGui::SetNextWindowSize(ImVec2(300, 150));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Waiting for controller list response...");
 
@@ -213,7 +234,8 @@ void AppStage_ControllerSettings::renderUI()
     case eControllerMenuState::failedControllerListRequest:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
+            ImGui::SetNextWindowSize(ImVec2(300, 150));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Failed to get controller list!");
 
@@ -243,11 +265,6 @@ bool AppStage_ControllerSettings::onClientAPIEvent(
 
     switch(event)
     {
-    case ClientPSMoveAPI::disconnectedFromService:
-        {
-            bHandled= true;
-            m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
-        } break;
     case ClientPSMoveAPI::controllerListUpdated:
         {
             bHandled= true;

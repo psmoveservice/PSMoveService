@@ -12,6 +12,16 @@ namespace boost {
 }};
 
 // -- definitions -----
+struct ControllerStreamInfo
+{
+    bool include_raw_sensor_data;
+
+    inline void Clear()
+    {
+        include_raw_sensor_data= false;
+    }
+};
+
 class ServerRequestHandler 
 {
 public:
@@ -28,7 +38,18 @@ public:
 
     ResponsePtr handle_request(int connection_id, RequestPtr request);
     void handle_client_connection_stopped(int connection_id);
-    void publish_controller_data_frame(ControllerDataFramePtr data_frame);
+
+    /// When publishing controller data to all listening connections
+    /// we need to provide a callback that will fill out a data frame given:
+    /// * A \ref ServerControllerView we want to publish to all listening connections
+    /// * A \ref ControllerStreamInfo that describes what info the connection wants
+    /// This callback will be called for each listening connection
+    typedef void (*t_generate_controller_data_frame_for_stream)(
+            const class ServerControllerView *controller_view,
+            const ControllerStreamInfo *stream_info,
+            ControllerDataFramePtr &data_frame);
+    void publish_controller_data_frame(
+        class ServerControllerView *controller_view, t_generate_controller_data_frame_for_stream callback);
 
 private:
     // private implementation - same lifetime as the ServerRequestHandler

@@ -26,3 +26,6 @@
 [submodule "thirdparty/SDL2"]
 	path = thirdparty/SDL2
 	url = https://github.com/spurious/SDL-mirror.git
+[submodule "thirdparty/eigen"]
+	path = thirdparty/eigen
+	url = https://github.com/RLovelett/eigen.git

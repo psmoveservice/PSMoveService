@@ -33,7 +33,9 @@ public:
     virtual ~DeviceTypeManager();
     
     virtual bool startup();
-    void update();
+    void poll();
+    void updateStateAndPredict();
+    void publish();
     virtual void shutdown();
     
     virtual int getMaxDevices() const =0;
@@ -51,7 +53,7 @@ public:
     int poll_interval;
     
 protected:
-    void update_devices();
+    void poll_devices();
     
     /** This method tries make the list of open devices in m_devices match
      the list of connected devices in the device enumerator.
@@ -90,8 +92,7 @@ public:
     
     ServerDeviceViewPtr getDeviceViewPtr(int device_id) override;
     ServerControllerViewPtr getControllerViewPtr(int device_id);
-    
-    
+
     bool setControllerRumble(int controller_id, int rumble_amount);
     bool resetPose(int controller_id);
     

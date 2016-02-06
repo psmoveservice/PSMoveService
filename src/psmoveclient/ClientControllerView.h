@@ -3,48 +3,35 @@
 
 //-- includes -----
 #include "ClientConfig.h"
+#include "ClientGeometry.h"
 #include <cassert>
 
 //-- pre-declarations -----
-struct PSMoveVector3;
-struct PSMoveQuaternion;
-
 namespace PSMoveProtocol
 {
     class ControllerDataFrame;
 };
 
 //-- constants -----
-enum PSMoveButtonState {
+enum CLIENTPSMOVEAPI PSMoveButtonState {
     PSMoveButton_UP = 0x00,       // (00b) Not pressed
     PSMoveButton_PRESSED = 0x01,  // (01b) Down for one frame only
     PSMoveButton_DOWN = 0x03,     // (11b) Down for >1 frame
     PSMoveButton_RELEASED = 0x02, // (10b) Up for one frame only
 };
 
-extern const PSMoveVector3 *k_psmove_vector3_zero;
-extern const PSMoveQuaternion *k_psmove_quaternion_identity;
-
 //-- declarations -----
-struct PSMoveVector3
+struct CLIENTPSMOVEAPI PSMoveRawSensorData
 {
-    float x, y, z;
-};
-
-struct PSMoveQuaternion
-{
-    float w, x, y, z;
-};
-
-struct PSMovePose
-{
-    PSMoveQuaternion Orientation;
-    PSMoveVector3 Position;
+    PSMoveIntVector3 Magnetometer;
+    PSMoveFloatVector3 Accelerometer;
+    PSMoveFloatVector3 Gyroscope;
 
     inline void Clear()
     {
-        Orientation= *k_psmove_quaternion_identity;
-        Position= *k_psmove_vector3_zero;
+        Magnetometer= *k_psmove_int_vector3_zero;
+        Accelerometer= *k_psmove_float_vector3_zero;
+        Gyroscope= *k_psmove_float_vector3_zero;
     }
 };
 
@@ -52,10 +39,12 @@ struct CLIENTPSMOVEAPI ClientPSMoveView
 {
 private:
     bool bValid;
+    bool bHasValidHardwareCalibration;
     bool bIsTrackingEnabled;
     bool bIsCurrentlyTracking;
 
     PSMovePose Pose;
+    PSMoveRawSensorData RawSensorData;
 
     PSMoveButtonState TriangleButton;
     PSMoveButtonState CircleButton;
@@ -86,6 +75,11 @@ public:
         bValid= flag;
     }
 
+    inline bool GetHasValidHardwareCalibration() const
+    {
+        return IsValid() ? bHasValidHardwareCalibration : false;
+    }
+
     inline bool GetIsCurrentlyTracking() const
     {
         return IsValid() ? bIsCurrentlyTracking : false;
@@ -96,12 +90,12 @@ public:
         return IsValid() ? bIsTrackingEnabled : false;
     }
 
-    inline PSMoveVector3 GetPosition() const
+    inline const PSMovePosition &GetPosition() const
     {
-        return IsValid() ? Pose.Position : *k_psmove_vector3_zero;
+        return IsValid() ? Pose.Position : *k_psmove_position_origin;
     }
 
-    inline PSMoveQuaternion GetOrientation() const
+    inline const PSMoveQuaternion &GetOrientation() const
     {
         return IsValid() ? Pose.Orientation : *k_psmove_quaternion_identity;
     }
@@ -155,6 +149,9 @@ public:
     {
         return IsValid() ? ((float)TriggerValue / 255.f) : 0.f;
     }
+
+    const PSMoveRawSensorData &GetRawSensorData() const;
+    const PSMoveFloatVector3 &GetIdentityGravityCalibrationDirection() const;
 };
 
 class CLIENTPSMOVEAPI ClientPSNaviView
@@ -330,6 +327,11 @@ public:
     inline int GetControllerID() const
     {
         return ControllerID;
+    }
+
+    inline int GetSequenceNum() const
+    {
+        return IsValid() ? SequenceNum : -1;
     }
 
     inline eControllerViewType GetControllerViewType() const

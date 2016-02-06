@@ -27,12 +27,7 @@ struct CommonDeviceState
     };
     
     eDeviceType DeviceType;
-    
-    int Sequence;                               // 4-bit (1..16).
-                                                // Sometimes frames are dropped.
-    
-    unsigned int TimeStamp;                     // 16-bit (time since ?, units?)
-                                                // About 1150 between in-order frames.
+    int PollSequenceNumber;
     
     inline CommonDeviceState()
     {
@@ -42,8 +37,7 @@ struct CommonDeviceState
     inline void clear()
     {
         DeviceType= SUPPORTED_CONTROLLER_TYPE_COUNT; // invalid
-        Sequence= 0;
-        TimeStamp= 0;
+        PollSequenceNumber= 0;
     }
 };
 
@@ -79,10 +73,9 @@ struct CommonControllerState : CommonDeviceState
 
     inline void clear()
     {
+        CommonDeviceState::clear();
         DeviceType= SUPPORTED_CONTROLLER_TYPE_COUNT; // invalid
-        Sequence= 0;
         Battery= Batt_MAX;
-        TimeStamp= 0;
         AllButtons= 0;
     }
 };
@@ -116,14 +109,14 @@ public:
     virtual void close() = 0;
     
     // Get the number of milliseconds we're willing to accept no data from the controller before we disconnect it
-    virtual long getDataTimeout() const = 0;
+    virtual long getMaxPollFailureCount() const = 0;
     
     // Returns what type of controller
     virtual CommonDeviceState::eDeviceType getDeviceType() const = 0;
     
     // Fetch the controller state at the given sample index.
     // A lookBack of 0 corresponds to the most recent data.
-    virtual void getState(CommonDeviceState *out_state, int lookBack = 0) const = 0;
+    virtual const CommonDeviceState * getState(int lookBack = 0) const = 0;
 };
 
 /// Abstract class for controller interface. Implemented in PSMoveController.cpp
@@ -145,10 +138,25 @@ public:
 
     // Returns the serial number for the controller
     virtual std::string getSerial() const  = 0;
-
-    // Fetch the controller state at the given sample index.
-    // A lookBack of 0 corresponds to the most recent data.
-    //virtual void getState(CommonControllerState *out_state, int lookBack = 0) const = 0;
 };
+
+/// Abstract class for tracker interface. Implemented tracker classes
+class ITrackerInterface : public IDeviceInterface
+{
+public:
+    // -- Getters
+    // Returns the full usb device path for the tracker
+    virtual std::string getUSBDevicePath() const = 0;
+};
+
+/// Abstract class for HMD interface. Implemented tracker classes
+class IHMDInterface : public IDeviceInterface
+{
+public:
+    // -- Getters
+    // Returns the full usb device path for the tracker
+    virtual std::string getUSBDevicePath() const = 0;
+};
+
 
 #endif // DEVICE_INTERFACE_H

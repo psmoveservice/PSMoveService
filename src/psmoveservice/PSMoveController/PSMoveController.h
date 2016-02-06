@@ -26,20 +26,32 @@ class PSMoveControllerConfig : public PSMoveConfig
 public:
     PSMoveControllerConfig(const std::string &fnamebase = "PSMoveControllerConfig")
         : PSMoveConfig(fnamebase)
-        , data_timeout(1000) // ms
+        , is_valid(false)
+        , max_poll_failure_count(100) 
         , cal_ag_xyz_kb(2, std::vector<std::vector<float>>(3, std::vector<float>(2, 0.f)))
+        , magnetometer_extents(6, 0)
+        , magnetometer_identity(3, 0.f)
     {};
 
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
-    long data_timeout;
+    bool is_valid;
+    long max_poll_failure_count;
     std::vector<std::vector<std::vector<float>>> cal_ag_xyz_kb;
+    std::vector<int> magnetometer_extents;
+    std::vector<float> magnetometer_identity;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport
 struct PSMoveControllerState : public CommonControllerState
 {
+    int RawSequence;                               // 4-bit (1..16).
+                                                // Sometimes frames are dropped.
+    
+    unsigned int RawTimeStamp;                     // 16-bit (time since ?, units?)
+                                                // About 1150 between in-order frames.
+
     ButtonState Triangle;
     ButtonState Circle;
     ButtonState Cross;
@@ -67,6 +79,9 @@ struct PSMoveControllerState : public CommonControllerState
     void clear()
     {
         CommonControllerState::clear();
+
+        RawSequence = 0;
+        RawTimeStamp = 0;
 
         DeviceType = PSMove;
 
@@ -98,8 +113,10 @@ public:
     bool open(); // Opens the first HID device for the controller
 
     // -- Getters
-    inline const PSMoveControllerConfig &getConfig() const
-    { return cfg; }
+    inline const PSMoveControllerConfig *getConfig() const
+    { return &cfg; }
+    inline PSMoveControllerConfig *getConfigMutable()
+    { return &cfg; }
     float getTempCelsius() const;
 
     // -- Setters
@@ -121,9 +138,11 @@ public:
     virtual std::string getSerial() const override;
     virtual std::string getHostBluetoothAddress() const override;
     virtual bool getIsOpen() const override;
+    static CommonDeviceState::eDeviceType getDeviceTypeStatic() 
+    { return CommonDeviceState::PSMove; }
     virtual CommonDeviceState::eDeviceType getDeviceType() const override;
-    virtual void getState(CommonDeviceState *out_state, int lookBack = 0) const override;
-    virtual long getDataTimeout() const override;
+    virtual const CommonDeviceState * getState(int lookBack = 0) const override;
+    virtual long getMaxPollFailureCount() const override;
 
 private:    
     bool getBTAddress(std::string& host, std::string& controller);
@@ -142,6 +161,7 @@ private:
     unsigned long LedPWMF;
 
     // Read Controller State
+    int NextPollSequenceNumber;
     std::deque<PSMoveControllerState> ControllerStates;
     PSMoveDataInput* InData;                        // Buffer to copy hidapi reports into
 };

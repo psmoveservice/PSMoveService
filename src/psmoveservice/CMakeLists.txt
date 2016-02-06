@@ -36,6 +36,8 @@ ENDIF()
 file(GLOB PSMOVESERVICE_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/*.h"
+    "${CMAKE_CURRENT_LIST_DIR}/Filter/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Filter/*.h"        
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig/*.h"    
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveController/*.cpp"
@@ -44,10 +46,14 @@ file(GLOB PSMOVESERVICE_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.h"
 )
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
+    ${ROOT_DIR}/src/psmoveservice/Filter
     ${ROOT_DIR}/src/psmoveservice/Platform
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
     ${ROOT_DIR}/src/psmoveservice/PSMoveController
     ${ROOT_DIR}/src/psmoveservice/PSNaviController)
+    
+# Eigen math library
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
     
 # Boost.Application and type_index are header only (?)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
@@ -63,8 +69,6 @@ list(APPEND PSMOVE_SERVICE_REQ_LIBS ${PROTOBUF_LIBRARIES})
 find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS atomic chrono date_time filesystem log log_setup program_options regex system thread)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${Boost_LIBRARIES})
-
-#include_directories(${ROOT_DIR}/thirdparty/eigen)
 
 # hidapi
 include_directories(${ROOT_DIR}/thirdparty/hidapi/hidapi)
@@ -93,6 +97,10 @@ ENDIF()
 # PSMoveDataFrame
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol/)
 list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveProtocol)
+
+# PSMoveMath
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmovemath/)
+list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveMath)
 
 # TODO: Camera. See tests
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")

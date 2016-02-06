@@ -195,11 +195,6 @@ bool AppStage_PairController::onClientAPIEvent(
 
     switch(event)
     {
-    case ClientPSMoveAPI::disconnectedFromService:
-        {
-            bHandled= true;
-            m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
-        } break;
     case ClientPSMoveAPI::opaqueServiceEvent:
         {
             const PSMoveProtocol::Response *event= GET_PSMOVEPROTOCOL_EVENT(opaque_event_handle);

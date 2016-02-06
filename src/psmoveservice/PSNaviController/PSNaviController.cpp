@@ -81,7 +81,7 @@ PSNaviControllerConfig::config2ptree()
 {
     boost::property_tree::ptree pt;
 
-    pt.put("data_timeout", data_timeout);
+    pt.put("max_poll_failute_count", max_poll_failure_count);
 
     return pt;
 }
@@ -89,7 +89,7 @@ PSNaviControllerConfig::config2ptree()
 void
 PSNaviControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 {
-    data_timeout = pt.get<long>("data_timeout", 1000);
+    max_poll_failure_count = pt.get<long>("max_poll_failute_count", 100);
 }
 
 // -- PSMove Controller -----
@@ -98,6 +98,7 @@ PSNaviController::PSNaviController()
     HIDDetails.Handle = nullptr;
     HIDDetails.Handle_addr = nullptr;
     
+    NextPollSequenceNumber= 0;
     InData = new PSNaviDataInput;
     InData->type = PSNavi_Req_GetInput;
 }
@@ -199,6 +200,9 @@ bool PSNaviController::open(
                 SERVER_LOG_ERROR("PSNaviController::open") << "Failed to get bluetooth address of PSNaviController(" << cur_dev_path << ")";
                 success= false;
             }
+
+            // Reset the polling sequence counter
+            NextPollSequenceNumber= 0;
         }
         else
         {
@@ -322,6 +326,12 @@ bool
 PSNaviController::getIsBluetooth() const
 { 
     return IsBluetooth; 
+}
+
+bool
+PSNaviController::getIsReadyToPoll() const
+{
+    return (getIsOpen() && getIsBluetooth());
 }
 
 std::string 
@@ -469,6 +479,10 @@ PSNaviController::poll()
             // https://github.com/nitsch/moveonpc/wiki/Input-report
             PSNaviControllerState newState;
         
+            // Increment the sequence for every new polling packet
+            newState.PollSequenceNumber= NextPollSequenceNumber;
+            ++NextPollSequenceNumber;
+
             // Buttons
             newState.AllButtons = 
                 (InData->buttons2) |               // |-|L2|L1|-|-|Circle|-|Cross
@@ -501,30 +515,21 @@ PSNaviController::poll()
     return result;
 }
 
-void
+const CommonDeviceState *
 PSNaviController::getState(
-    CommonDeviceState *out_state,
     int lookBack) const
 {
-    assert(out_state->DeviceType == CommonControllerState::PSNavi);
-    PSNaviControllerState *out_psnavi_state= static_cast<PSNaviControllerState *>(out_state);
+    const int queueSize= static_cast<int>(ControllerStates.size());
+    const CommonDeviceState * result=
+        (lookBack < queueSize) ? &ControllerStates.at(queueSize - lookBack - 1) : nullptr;
 
-    if (ControllerStates.empty())
-    {
-        out_psnavi_state->clear();
-    }
-    else
-    {
-        lookBack = (lookBack < (int)ControllerStates.size()) ? lookBack : ControllerStates.size();
-        
-        *out_psnavi_state= ControllerStates.at(ControllerStates.size() - lookBack - 1);
-    }
+    return result;
 }
 
 long 
-PSNaviController::getDataTimeout() const
+PSNaviController::getMaxPollFailureCount() const
 {
-    return cfg.data_timeout;
+    return cfg.max_poll_failure_count;
 }
     
 // -- private helper functions -----
