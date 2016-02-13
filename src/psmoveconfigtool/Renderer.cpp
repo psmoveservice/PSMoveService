@@ -646,6 +646,68 @@ void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const fl
     glPopMatrix();
 }
 
+void drawEllipsoid(
+    const glm::mat4 &transform,
+    const glm::vec3 &color,
+    const glm::mat3 &basis,
+    const glm::vec3 &center,
+    const glm::vec3 &extents,
+    const int subdiv)
+{
+    assert(subdiv >= 3);
+    assert(Renderer::getIsRenderingStage());
+
+    glColor3fv(glm::value_ptr(color));
+    glPushMatrix();
+    glMultMatrixf(glm::value_ptr(transform));
+
+    const float angleStep = k_real_two_pi / static_cast<float>(subdiv);
+    float angle;
+
+    const glm::vec3 x_axis = basis[0];
+    const glm::vec3 y_axis = basis[1];
+    const glm::vec3 z_axis = basis[2];
+
+    const float x_extent = extents[0];
+    const float y_extent = extents[1];
+    const float z_extent = extents[2];
+
+    glBegin(GL_LINE_STRIP);
+    angle = 0.f;
+    for (int index = 0; index <= subdiv; ++index)
+    {
+        glm::vec3 point = x_extent*x_axis*cosf(angle) + y_extent*y_axis*sinf(angle) + center;
+
+        glVertex3fv(glm::value_ptr(point));
+        angle += angleStep;
+    }
+    glEnd();
+
+    glBegin(GL_LINE_STRIP);
+    angle = 0.f;
+    for (int index = 0; index <= subdiv; ++index)
+    {
+        glm::vec3 point = x_extent*x_axis*cosf(angle) + z_extent*z_axis*sinf(angle) + center;
+
+        glVertex3fv(glm::value_ptr(point));
+        angle += angleStep;
+    }
+    glEnd();
+
+    glBegin(GL_LINE_STRIP);
+    angle = 0.f;
+    for (int index = 0; index <= subdiv; ++index)
+    {
+        glm::vec3 point = y_extent*y_axis*cosf(angle) + z_extent*z_axis*sinf(angle) + center;
+
+        glVertex3fv(glm::value_ptr(point));
+        angle += angleStep;
+    }
+    glEnd();
+
+    glPopMatrix();
+}
+
 void drawLineStrip(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count)
 {
     assert(Renderer::getIsRenderingStage());

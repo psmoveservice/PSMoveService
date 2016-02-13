@@ -7,6 +7,11 @@ float safe_divide_with_default(float numerator, float denomenator, float default
     return is_nearly_zero(denomenator) ? default_result : (numerator / denomenator);
 }
 
+float safe_sqrt_with_default(float square, float default_result)
+{
+    return is_nearly_zero(square) ? default_result : sqrtf(square);
+}
+
 float clampf(float x, float lo, float hi)
 {
 	return fminf(fmaxf(x, lo), hi);

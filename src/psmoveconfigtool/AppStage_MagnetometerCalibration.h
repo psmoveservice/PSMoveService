@@ -4,17 +4,34 @@
 //-- includes -----
 #include "AppStage.h"
 #include "ClientGeometry.h"
+#include "MathEigen.h"
+#include "MathAlignment.h"
 
 #include <deque>
 #include <chrono>
 
+//-- constants -----
+enum eEllipseFitMethod
+{
+    _ellipse_fit_method_box,
+    _ellipse_fit_method_min_volume,
+};
+
+static const int k_max_magnetometer_samples = 500;
+
 //-- definitions -----
+struct MagnetometerAlignedSamples
+{
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    Eigen::Vector3f magnetometerEigenSamples[k_max_magnetometer_samples];
+};
+
 class AppStage_MagnetometerCalibration : public AppStage
 {
 public:
-    static const int k_max_magnetometer_samples= 500;
-
     AppStage_MagnetometerCalibration(class App *app);
+    virtual ~AppStage_MagnetometerCalibration();
 
     virtual void enter() override;
     virtual void exit() override;
@@ -73,22 +90,26 @@ private:
     PSMoveIntVector3 m_lastMagnetometer;
     PSMoveFloatVector3 m_lastAccelerometer;
 
-    std::deque<PSMoveIntVector3> m_magnetometerIntSamples;
+    PSMoveIntVector3 m_magnetometerIntSamples[k_max_magnetometer_samples];
+    MagnetometerAlignedSamples *m_alignedSamples;
+    int m_sampleCount;
+    int m_samplePercentage;
+
     PSMoveIntVector3 m_minSampleExtent;
     PSMoveIntVector3 m_maxSampleExtent;
-    PSMoveFloatVector3 m_magnetometerNormalizedSamples[k_max_magnetometer_samples];
-    PSMoveFloatVector3 m_minSampleExtentNormalized, m_maxSampleExtentNormalized;
-    PSMoveFloatVector3 m_lastMagnetometerNormalized;
+
+    EigenFitEllipsoid m_sampleFitEllipsoid;
+    int m_ellipseFitMethod;
 
     int m_led_color_r;
     int m_led_color_g;
     int m_led_color_b;
 
-	std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
 
-    PSMoveFloatVector3 m_identityPoseAverageMVector;
-    int m_identityPoseSampleCount;
+    PSMoveIntVector3 m_identityPoseMVectorSum;
+    int m_identityPoseSampleCount;   
 };
 
 #endif // APP_STAGE_SELECT_CONTROLLER_H

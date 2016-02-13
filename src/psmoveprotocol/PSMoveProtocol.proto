@@ -116,9 +116,13 @@ message Request {
     // Parameters for SET_MAGNETOMETER_CALIBRATION
     message RequestSetMagnetometerCalibration {
         int32 controller_id = 1;
-        IntVector magnetometer_min= 2;
-        IntVector magnetometer_max= 3;
-        FloatVector magnetometer_identity= 4;
+        FloatVector ellipse_center= 2;
+        FloatVector ellipse_extents= 3;
+        FloatVector ellipse_basis_x= 4;
+        FloatVector ellipse_basis_y= 5;
+        FloatVector ellipse_basis_z= 6;
+        float ellipse_fit_error= 7;
+        FloatVector magnetometer_identity= 8;
     }
     RequestSetMagnetometerCalibration set_magnetometer_calibration_request = 28;     
 }
