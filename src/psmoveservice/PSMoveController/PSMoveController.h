@@ -5,6 +5,7 @@
 #include "PSMoveConfig.h"
 #include "../DeviceEnumerator.h"
 #include "../DeviceInterface.h"
+#include "MathAlignment.h"
 #include "hidapi.h"
 #include <string>
 #include <vector>
@@ -24,23 +25,28 @@ struct PSMoveDataInput;  // See .cpp for full declaration
 class PSMoveControllerConfig : public PSMoveConfig
 {
 public:
+    static const int CONFIG_VERSION = 1;
+
     PSMoveControllerConfig(const std::string &fnamebase = "PSMoveControllerConfig")
         : PSMoveConfig(fnamebase)
         , is_valid(false)
+        , version(CONFIG_VERSION)
         , max_poll_failure_count(100) 
         , cal_ag_xyz_kb(2, std::vector<std::vector<float>>(3, std::vector<float>(2, 0.f)))
-        , magnetometer_extents(6, 0)
-        , magnetometer_identity(3, 0.f)
-    {};
+    {
+        magnetometer_ellipsoid.clear();
+        magnetometer_identity = Eigen::Vector3f::Zero();
+    };
 
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
     bool is_valid;
+    long version;
     long max_poll_failure_count;
     std::vector<std::vector<std::vector<float>>> cal_ag_xyz_kb;
-    std::vector<int> magnetometer_extents;
-    std::vector<float> magnetometer_identity;
+    EigenFitEllipsoid magnetometer_ellipsoid;
+    Eigen::Vector3f magnetometer_identity;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport

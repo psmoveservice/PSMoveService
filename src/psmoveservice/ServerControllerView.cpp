@@ -2,6 +2,7 @@
 #include "ServerControllerView.h"
 
 #include "BluetoothRequests.h"
+#include "MathAlignment.h"
 #include "ServerLog.h"
 #include "ServerRequestHandler.h"
 #include "Filter/OrientationFilter.h"
@@ -382,7 +383,7 @@ static void generate_psmove_data_frame_for_stream(
             raw_sensor_data->mutable_gyroscope()->set_j(psmove_state->Gyro[1][1]);
             raw_sensor_data->mutable_gyroscope()->set_k(psmove_state->Gyro[1][2]);
         }
-    }
+    }   
 
     data_frame->set_controller_type(PSMoveProtocol::PSMOVE);
 }
@@ -427,11 +428,10 @@ init_orientation_filter_for_psmove(
     OrientationFilter *orientation_filter)
 {
     const PSMoveControllerConfig *psmove_config= psmoveController->getConfig();
-    const std::vector<float> &identity_m= psmove_config->magnetometer_identity;
 
     // Setup the space the orientation filter operates in
     Eigen::Vector3f identityGravity= Eigen::Vector3f(0.f, 1.f, 0.f);
-    Eigen::Vector3f identityMagnetometer= Eigen::Vector3f(identity_m[0], identity_m[1], identity_m[2]);
+    Eigen::Vector3f identityMagnetometer = psmove_config->magnetometer_identity;
     Eigen::Matrix3f calibrationTransform= *k_eigen_identity_pose_laying_flat;
     Eigen::Matrix3f sensorTransform= *k_eigen_sensor_transform_opengl;
     OrientationFilterSpace filterSpace(identityGravity, identityMagnetometer, calibrationTransform, sensorTransform);
@@ -463,28 +463,12 @@ update_orientation_filter_for_psmove(
                 static_cast<float>(psmoveState->Mag[0]), 
                 static_cast<float>(psmoveState->Mag[1]), 
                 static_cast<float>(psmoveState->Mag[2]));
-        const Eigen::Vector3f minSampleExtents= 
-            Eigen::Vector3f(
-                static_cast<float>(config->magnetometer_extents[0]), 
-                static_cast<float>(config->magnetometer_extents[1]), 
-                static_cast<float>(config->magnetometer_extents[2]));
-        const Eigen::Vector3f maxSampleExtents= 
-            Eigen::Vector3f(
-                static_cast<float>(config->magnetometer_extents[3]), 
-                static_cast<float>(config->magnetometer_extents[4]), 
-                static_cast<float>(config->magnetometer_extents[5]));
 
-        const Eigen::Vector3f range= maxSampleExtents - minSampleExtents;
-        const Eigen::Vector3f offset= sample - minSampleExtents;
-
-        // 2*(raw-magnetometer_min)/(magnetometer_max - magnetometer_min) - <1,1,1>
-        sensorPacket.magnetometer= 
-            eigen_vector3f_divide_by_vector_with_default(offset, range, *k_eigen_vector3f_zero)*2.f 
-            - *k_eigen_vector3f_one;
-
-        // The magnetometer y-axis is flipped compared to the accelerometer and gyro.
-        // Flip it back around to get it into the same space.
-        sensorPacket.magnetometer.y() = -sensorPacket.magnetometer.y();
+        // Project the averaged magnetometer sample into the space of the ellipse
+        // And then normalize it (any deviation from unit length is error)
+        sensorPacket.magnetometer =
+            eigen_alignment_project_point_on_ellipsoid_basis(sample, config->magnetometer_ellipsoid);
+        eigen_vector3f_normalize_with_default(sensorPacket.magnetometer, Eigen::Vector3f(0.f, 1.f, 0.f));
     }
 
     // Each state update contains two readings (one earlier and one later) of accelerometer and gyro data
