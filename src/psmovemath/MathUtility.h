@@ -5,7 +5,6 @@
 #include <assert.h>
 #include <float.h>
 #include <math.h>
-#include <glm/glm.hpp>
 
 //-- constants ----
 #define k_real_max FLT_MAX
@@ -45,6 +44,7 @@
 
 //-- float methods -----
 float safe_divide_with_default(float numerator, float denomenator, float default_result);
+float safe_sqrt_with_default(float square, float default_result);
 float clampf(float x, float lo, float hi);
 float clampf01(float x);
 float lerpf(float a, float b, float u);
