@@ -25,7 +25,7 @@ struct PSMoveDataInput;  // See .cpp for full declaration
 class PSMoveControllerConfig : public PSMoveConfig
 {
 public:
-    static const int CONFIG_VERSION = 1;
+    static const int CONFIG_VERSION;
 
     PSMoveControllerConfig(const std::string &fnamebase = "PSMoveControllerConfig")
         : PSMoveConfig(fnamebase)

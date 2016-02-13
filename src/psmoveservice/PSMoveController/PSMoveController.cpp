@@ -157,6 +157,8 @@ inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_
 // -- public methods
 
 // -- PSMove Controller Config
+const int PSMoveControllerConfig::CONFIG_VERSION= 1;
+
 const boost::property_tree::ptree
 PSMoveControllerConfig::config2ptree()
 {
