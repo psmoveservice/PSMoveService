@@ -200,6 +200,10 @@ PSMoveControllerConfig::config2ptree()
     pt.put("Calibration.Magnetometer.Extents.Y", magnetometer_ellipsoid.extents.y());
     pt.put("Calibration.Magnetometer.Extents.Z", magnetometer_ellipsoid.extents.z());
 
+    pt.put("Calibration.Magnetometer.Identity.X", magnetometer_identity.x());
+    pt.put("Calibration.Magnetometer.Identity.Y", magnetometer_identity.y());
+    pt.put("Calibration.Magnetometer.Identity.Z", magnetometer_identity.z());
+
     pt.put("Calibration.Magnetometer.Error", magnetometer_ellipsoid.error);
 
     return pt;
@@ -253,6 +257,11 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
             pt.get<float>("Calibration.Magnetometer.Extents.X", 0.f),
             pt.get<float>("Calibration.Magnetometer.Extents.Y", 0.f),
             pt.get<float>("Calibration.Magnetometer.Extents.Z", 0.f));
+
+        magnetometer_identity = Eigen::Vector3f(
+            pt.get<float>("Calibration.Magnetometer.Identity.X", 0.f),
+            pt.get<float>("Calibration.Magnetometer.Identity.Y", 0.f),
+            pt.get<float>("Calibration.Magnetometer.Identity.Z", 0.f));
 
         magnetometer_ellipsoid.error= pt.get<float>("Calibration.Magnetometer.Error", 0.f);
     }
