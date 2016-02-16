@@ -13,8 +13,8 @@ extern const Eigen::Vector3f *k_eigen_vector3f_one;
 extern const Eigen::Quaternionf *k_eigen_quaternion_zero;
 
 //-- macros -----
-#define assert_vector3f_is_normalized(v) assert(is_nearly_equal(v.squaredNorm(), 1.f, k_normal_epsilon))
-#define assert_quaternion_is_normalized(q) assert(is_nearly_equal(q.squaredNorm(), 1.f, k_normal_epsilon))
+#define assert_eigen_vector3f_is_normalized(v) assert(is_nearly_equal(v.squaredNorm(), 1.f, k_normal_epsilon))
+#define assert_eigen_quaternion_is_normalized(q) assert(is_nearly_equal(q.squaredNorm(), 1.f, k_normal_epsilon))
 
 //-- interface -----
 Eigen::Quaternionf
@@ -57,6 +57,6 @@ eigen_vector3f_divide_by_vector_with_default(
     const Eigen::Vector3f &default_result);
 
 float 
-eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default);
+eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default_value);
 
 #endif // MATH_EIGEN_H

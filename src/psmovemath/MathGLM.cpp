@@ -2,12 +2,12 @@
 #include "MathGLM.h"
 
 //-- public methods -----
-float glm_vec3_normalize_with_default(glm::vec3 &v, const glm::vec3 &default)
+float glm_vec3_normalize_with_default(glm::vec3 &v, const glm::vec3 &default_result)
 {
     const float length= glm::length(v);
 
     // Use the default value if v is too tiny
-    v= (length > k_normal_epsilon) ? (v / length) : default;
+    v= (length > k_normal_epsilon) ? (v / length) : default_result;
 
     return length;
 }

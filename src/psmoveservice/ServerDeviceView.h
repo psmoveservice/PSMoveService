@@ -64,7 +64,7 @@ protected:
     virtual void publish_device_data_frame() = 0;
 
     bool m_bHasUnpublishedState;
-    long long m_last_updated_tick;
+    int m_pollNoDataCount;
     int m_sequence_number;
     
 private:

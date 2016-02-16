@@ -4,18 +4,34 @@
 //-- includes -----
 #include "AppStage.h"
 #include "ClientGeometry.h"
+#include "MathEigen.h"
+#include "MathAlignment.h"
 
 #include <deque>
 #include <chrono>
 
+//-- constants -----
+enum eEllipseFitMethod
+{
+    _ellipse_fit_method_box,
+    _ellipse_fit_method_min_volume,
+};
+
+static const int k_max_magnetometer_samples = 500;
+
 //-- definitions -----
+struct MagnetometerAlignedSamples
+{
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    Eigen::Vector3f magnetometerEigenSamples[k_max_magnetometer_samples];
+};
+
 class AppStage_MagnetometerCalibration : public AppStage
 {
 public:
-    static const int k_max_magnetometer_samples= 500;
-
-
     AppStage_MagnetometerCalibration(class App *app);
+    virtual ~AppStage_MagnetometerCalibration();
 
     virtual void enter() override;
     virtual void exit() override;
@@ -25,6 +41,9 @@ public:
     virtual void renderUI() override;
 
     static const char *APP_STAGE_NAME;
+
+    inline void setBypassCalibrationFlag(bool bFlag)
+    { m_bBypassCalibration= bFlag; }
 
 protected:
     static void handle_acquire_controller(
@@ -60,6 +79,7 @@ private:
         complete,
         pendingExit
     };
+    bool m_bBypassCalibration;
     eCalibrationMenuState m_menuState;
     const char *m_pendingAppStage;
 
@@ -70,11 +90,16 @@ private:
     PSMoveIntVector3 m_lastMagnetometer;
     PSMoveFloatVector3 m_lastAccelerometer;
 
-    std::deque<PSMoveIntVector3> m_magnetometerIntSamples;
-    PSMoveIntVector3 m_minSampleExtents;
-    PSMoveIntVector3 m_maxSampleExtents;
-    PSMoveFloatVector3 m_magnetometerScaledSamples[k_max_magnetometer_samples];
-    PSMoveFloatVector3 m_magnetometerScaleRange;
+    PSMoveIntVector3 m_magnetometerIntSamples[k_max_magnetometer_samples];
+    MagnetometerAlignedSamples *m_alignedSamples;
+    int m_sampleCount;
+    int m_samplePercentage;
+
+    PSMoveIntVector3 m_minSampleExtent;
+    PSMoveIntVector3 m_maxSampleExtent;
+
+    EigenFitEllipsoid m_sampleFitEllipsoid;
+    int m_ellipseFitMethod;
 
     int m_led_color_r;
     int m_led_color_g;
@@ -83,8 +108,8 @@ private:
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
 
-    PSMoveFloatVector3 m_identityPoseAverageMVector;
-    int m_identityPoseSampleCount;
+    PSMoveIntVector3 m_identityPoseMVectorSum;
+    int m_identityPoseSampleCount;   
 };
 
 #endif // APP_STAGE_SELECT_CONTROLLER_H

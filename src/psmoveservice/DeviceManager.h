@@ -87,6 +87,7 @@ public:
     /// Override parent shutdown because we have to hid_close
     void shutdown() override;
     
+    static const int k_max_devices = 5;
     int getMaxDevices() const override
     { return ControllerManager::k_max_devices; }
     
@@ -96,7 +97,6 @@ public:
     bool setControllerRumble(int controller_id, int rumble_amount);
     bool resetPose(int controller_id);
     
-    static const int k_max_devices= 5;
 protected:
     bool update_connected_devices() override;
     
@@ -114,6 +114,7 @@ public:
     TrackerManager();
     ~TrackerManager();
     
+    static const int k_max_devices = 1;
     int getMaxDevices() const override
     { return TrackerManager::k_max_devices; }
     
@@ -125,9 +126,8 @@ protected:
     
     const PSMoveProtocol::Response_ResponseType getListUpdatedResponseType() override
     { return TrackerManager::k_list_udpated_response_type; }
-    
+
 private:
-    static const int k_max_devices= 1;
     ServerTrackerViewPtr m_devices[k_max_devices];
     //TODO: New response type for Tracker
     static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;
@@ -138,21 +138,21 @@ class HMDManager : public DeviceTypeManager
 public:
     HMDManager();
     ~HMDManager();
-    
+
+    static const int k_max_devices = 1;
     int getMaxDevices() const override
     { return HMDManager::k_max_devices; }
     
     ServerDeviceViewPtr getDeviceViewPtr(int device_id) override;
     ServerHMDViewPtr getHMDViewPtr(int device_id);
-    
+   
 protected:
     bool update_connected_devices() override;
     
     const PSMoveProtocol::Response_ResponseType getListUpdatedResponseType() override
     { return HMDManager::k_list_udpated_response_type; }
-    
+
 private:
-    static const int k_max_devices= 1;
     ServerHMDViewPtr m_devices[k_max_devices];
     //TODO: New response type for HMD
     static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;

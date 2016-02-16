@@ -22,6 +22,7 @@ public:
     bool setHostBluetoothAddress(const std::string &address);
     
     IDeviceInterface* getDevice() const override {return m_device;}
+    inline class OrientationFilter * getOrientationFilter() { return m_orientation_filter; }
 
     // Estimate the given pose if the controller
     // Positive time values estimate into the future

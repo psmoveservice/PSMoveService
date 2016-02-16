@@ -1,6 +1,7 @@
 //-- includes -----
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
+#include "OrientationFilter.h"
 #include "ServerControllerView.h"
 #include "ServerHMDView.h"
 #include "ServerTrackerView.h"
@@ -27,8 +28,8 @@ class DeviceManagerConfig : public PSMoveConfig
 public:
     DeviceManagerConfig(const std::string &fnamebase = "ControllerManagerConfig")
         : PSMoveConfig(fnamebase)
-        , controller_reconnect_interval(k_default_controller_poll_interval)
-        , controller_poll_interval(k_default_controller_reconnect_interval)
+        , controller_reconnect_interval(k_default_controller_reconnect_interval)
+        , controller_poll_interval(k_default_controller_poll_interval)
         , tracker_reconnect_interval(k_default_tracker_reconnect_interval)
         , tracker_poll_interval(k_default_tracker_poll_interval)
         , hmd_reconnect_interval(k_default_hmd_reconnect_interval)
@@ -147,7 +148,9 @@ DeviceTypeManager::shutdown()
     // Close any controllers that were opened
     for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
     {
-        if (getDeviceViewPtr(device_id)->getIsOpen())
+        ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
+
+        if (device && device->getIsOpen())
         {
             getDeviceViewPtr(device_id)->close();
         }
@@ -394,8 +397,21 @@ ControllerManager::setControllerRumble(int controller_id, int rumble_amount)
 bool
 ControllerManager::resetPose(int controller_id)
 {
-    //###bwalker $TODO Once we are computing pose
-    return false;
+    bool bSuccess = false;
+    ServerControllerViewPtr ControllerPtr = getControllerViewPtr(controller_id);
+
+    if (ControllerPtr)
+    {
+        OrientationFilter *filter= ControllerPtr->getOrientationFilter();
+
+        if (filter != nullptr)
+        {
+            filter->resetOrientation();
+            bSuccess = true;
+        }
+    }
+
+    return bSuccess;
 }
 
 ServerDeviceViewPtr

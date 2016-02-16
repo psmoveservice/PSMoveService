@@ -26,13 +26,13 @@ class PSNaviControllerConfig : public PSMoveConfig
 public:
     PSNaviControllerConfig(const std::string &fnamebase = "PSNaviControllerConfig")
         : PSMoveConfig(fnamebase)
-        , data_timeout(1000) // ms
+        , max_poll_failure_count(1000) // ms
     {};
 
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
-    long data_timeout;
+    long max_poll_failure_count;
 };
 
 // https://code.google.com/p/moveonpc/wiki/NavigationInputReport
@@ -112,7 +112,7 @@ public:
     { return CommonDeviceState::PSNavi; }
     virtual CommonDeviceState::eDeviceType getDeviceType() const override;
     virtual const CommonDeviceState * getState(int lookBack = 0) const override;
-    virtual long getDataTimeout() const override;
+    virtual long getMaxPollFailureCount() const override;
         
 private:    
     bool getBTAddress(std::string& host, std::string& controller);

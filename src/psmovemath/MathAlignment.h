@@ -4,6 +4,26 @@
 //-- includes -----
 #include "MathEigen.h"
 
+//-- structs -----
+struct EigenFitEllipsoid
+{
+    Eigen::Vector3f center;
+    Eigen::Matrix3f basis;
+    Eigen::Vector3f extents;
+    float error;
+
+    void clear()
+    {
+        center = Eigen::Vector3f::Zero();
+        basis = Eigen::Matrix3f::Identity();
+        extents = Eigen::Vector3f::Zero();
+        error = 0.f;
+    }
+
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+
 //-- interface -----
 Eigen::Quaternionf
 eigen_alignment_quaternion_between_vectors(const Eigen::Vector3f &from, const Eigen::Vector3f &to);
@@ -21,5 +41,26 @@ bool
 eigen_alignment_quaternion_between_vector_frames(
 	const Eigen::Vector3f* from[2], const Eigen::Vector3f* to[2], const float tolerance, const Eigen::Quaternionf &initial_q,
 	Eigen::Quaternionf &out_q);
+
+void
+eigen_alignment_fit_bounding_box_ellipsoid(
+    const Eigen::Vector3f *points, const int point_count,
+    EigenFitEllipsoid &out_ellipsoid);
+
+void
+eigen_alignment_fit_min_volume_ellipsoid(
+    const Eigen::Vector3f *points, const int point_count,
+    const float tolerance,
+    EigenFitEllipsoid &out_ellipsoid);
+
+Eigen::Vector3f
+eigen_alignment_project_point_on_ellipsoid_basis(
+    const Eigen::Vector3f &point,
+    const EigenFitEllipsoid &ellipsoid);
+
+float
+eigen_alignment_compute_ellipse_fit_error(
+    const Eigen::Vector3f *points, const int point_count,
+    const EigenFitEllipsoid &ellipsoid);
 
 #endif // MATH_UTILITY_h

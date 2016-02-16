@@ -91,6 +91,7 @@ public:
     void setFusionType(FusionType fusionType);
 
     void resetOrientation();
+    void resetFilterState();
     void update(const float delta_time, const OrientationSensorPacket &packet);
 
 private:

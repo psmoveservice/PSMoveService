@@ -85,10 +85,10 @@ struct OrientationSensorFusionState
 static void orientation_fusion_imu_update(
     const float delta_time, const OrientationFilterSpace *filter_space, 
     const OrientationFilterPacket *filter_packet, OrientationSensorFusionState *fusion_state);
-static void orientation_fusion_complementary_marg_update(
+static void orientation_fusion_madgwick_marg_update(
     const float delta_time, const OrientationFilterSpace *filter_space, 
     const OrientationFilterPacket *filter_packet, OrientationSensorFusionState *fusion_state);
-static void orientation_fusion_madgwick_marg_update(
+static void orientation_fusion_complementary_marg_update(
     const float delta_time, const OrientationFilterSpace *filter_space, 
     const OrientationFilterPacket *filter_packet, OrientationSensorFusionState *fusion_state);
 
@@ -223,6 +223,11 @@ void OrientationFilter::resetOrientation()
     m_FusionState->reset_orientation= q_inverse;
 }
 
+void OrientationFilter::resetFilterState()
+{
+    m_FusionState->initialize();
+}
+
 void OrientationFilter::update(
     const float delta_time, 
     const OrientationSensorPacket &sensorPacket)
@@ -344,7 +349,7 @@ orientation_fusion_imu_update(
 // "An efficient orientation filter for inertial and inertial/magnetic sensor arrays"
 // https://www.samba.org/tridge/UAV/madgwick_internal_report.pdf
 static void 
-orientation_fusion_complementary_marg_update(
+orientation_fusion_madgwick_marg_update(
     const float delta_time,
     const OrientationFilterSpace *filter_space,
     const OrientationFilterPacket *filter_packet,
@@ -448,7 +453,7 @@ orientation_fusion_complementary_marg_update(
 }
 
 static void 
-orientation_fusion_madgwick_marg_update(
+orientation_fusion_complementary_marg_update(
     const float delta_time,
     const OrientationFilterSpace *filter_space,
     const OrientationFilterPacket *filter_packet,
@@ -486,24 +491,20 @@ orientation_fusion_madgwick_marg_update(
     const Eigen::Vector3f* mg_from[2] = { &k_identity_g_direction, &k_identity_m_direction };
     const Eigen::Vector3f* mg_to[2] = { &current_g, &current_m };
     Eigen::Quaternionf mg_orientation;
-    bool mg_align_success =
-        eigen_alignment_quaternion_between_vector_frames(
-            mg_from, mg_to, 0.1f, q_current, mg_orientation);
+
+    // Always attempt to align with the identity_mg, even if we don't get within the alignment tolerance.
+    // More often then not we'll be better off moving forward with what we have and trying to refine
+    // the alignment next frame.
+    eigen_alignment_quaternion_between_vector_frames(
+        mg_from, mg_to, 0.1f, q_current, mg_orientation);
 
     // Blending Update
     //----------------
-    if (mg_align_success)
-    {
-        // The final rotation is a blend between the integrated orientation and absolute rotation from the earth-frame
-        float mg_wight = fusion_state->fusion_state.complementary_marg_state.mg_weight;
-        fusion_state->orientation= eigen_quaternion_normalized_lerp(ar_orientation, mg_orientation, mg_wight);
+    // The final rotation is a blend between the integrated orientation and absolute rotation from the earth-frame
+    float mg_wight = fusion_state->fusion_state.complementary_marg_state.mg_weight;
+    fusion_state->orientation= eigen_quaternion_normalized_lerp(ar_orientation, mg_orientation, mg_wight);
 
-        // Update the blend weight
-        fusion_state->fusion_state.complementary_marg_state.mg_weight =
-            lerp_clampf(mg_wight, k_base_earth_frame_align_weight, 0.9f);
-    }
-    else
-    {
-        fusion_state->orientation= ar_orientation;
-    }
+    // Update the blend weight
+    fusion_state->fusion_state.complementary_marg_state.mg_weight =
+        lerp_clampf(mg_wight, k_base_earth_frame_align_weight, 0.9f);
 }

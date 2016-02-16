@@ -74,12 +74,18 @@ private:
 };
 
 //-- drawing methods -----
-void drawArrow(const glm::vec3 &start, const glm::vec3 &end, const float headFraction, const glm::vec3 &color);
-void drawUILabelAtWorldPosition(const glm::vec3 &position, const float width, const char *format, ...) RENDERER_PRINTFARGS(3);
+void drawArrow(const glm::mat4 &transform, const glm::vec3 &start, const glm::vec3 &end, const float headFraction, const glm::vec3 &color);
+void drawTextAtWorldPosition(const glm::mat4 &transform, const glm::vec3 &position, const char *format, ...) RENDERER_PRINTFARGS(3);
 void drawTransformedAxes(const glm::mat4 &transform, float scale);
+void drawTransformedAxes(const glm::mat4 &transform, float xScale, float yScale, float zScale);
 void drawTransformedBox(const glm::mat4 &transform, const glm::vec3 &half_extents, const glm::vec3 &color);
+void drawTransformedBox(const glm::mat4 &transform, const glm::vec3 &box_min, const glm::vec3 &box_max, const glm::vec3 &color);
 void drawTransformedTexturedCube(const glm::mat4 &transform, int textureId, float scale);
 void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count);
+void drawEllipsoid(
+    const glm::mat4 &transform, const glm::vec3 &color, 
+    const glm::mat3 &basis, const glm::vec3 &center, const glm::vec3 &extents,
+    const int subdiv= 64);
 void drawLineStrip(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count);
 void drawDK2Model(const glm::mat4 &transform);
 void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color);

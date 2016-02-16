@@ -43,6 +43,11 @@ ControllerDeviceEnumerator::ControllerDeviceEnumerator()
     USBDeviceInfo &dev_info= g_supported_controller_infos[m_deviceType];
     devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
     cur_dev = devs;
+
+    if (!is_valid())
+    {
+        next();
+    }
 }
 
 ControllerDeviceEnumerator::ControllerDeviceEnumerator(CommonDeviceState::eDeviceType deviceType)
@@ -53,6 +58,11 @@ ControllerDeviceEnumerator::ControllerDeviceEnumerator(CommonDeviceState::eDevic
     USBDeviceInfo &dev_info= g_supported_controller_infos[m_deviceType];
     devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
     cur_dev = devs;
+
+    if (!is_valid())
+    {
+        next();
+    }
 }
 
 ControllerDeviceEnumerator::~ControllerDeviceEnumerator()
@@ -82,7 +92,21 @@ bool ControllerDeviceEnumerator::get_serial_number(char *out_mb_serial, const si
 
 bool ControllerDeviceEnumerator::is_valid() const
 {
-    return cur_dev != nullptr;
+    bool bIsValid= cur_dev != nullptr;
+
+#ifdef _WIN32
+    /**
+    * Windows Quirk: Each psmove dev is enumerated 3 times.
+    * The one with "&col01#" in the path is the one we will get most of our data from. Only count this one.
+    * The one with "&col02#" in the path is the one we will get the bluetooth address from.
+    **/
+    if (bIsValid && m_deviceType == CommonDeviceState::PSMove && strstr(cur_dev->path, "&col01#") == nullptr)
+    {
+        bIsValid= false;
+    }
+#endif
+
+    return bIsValid;
 }
 
 bool ControllerDeviceEnumerator::next()
@@ -92,19 +116,7 @@ bool ControllerDeviceEnumerator::next()
     while (cur_dev != nullptr && !foundValid)
     {
         cur_dev = cur_dev->next;
-        foundValid= cur_dev != nullptr;
-
-#ifdef _WIN32
-        /**
-        * Windows Quirk: Each dev is enumerated 3 times.
-        * The one with "&col01#" in the path is the one we will get most of our data from. Only count this one.
-        * The one with "&col02#" in the path is the one we will get the bluetooth address from.
-        **/
-        if (foundValid && strstr(cur_dev->path, "&col01#") == nullptr)
-        {
-            foundValid= false;
-        }
-#endif
+        foundValid= is_valid();
 
         // If there are more device types to scan
         // move on to the next vid/pid device enumeration

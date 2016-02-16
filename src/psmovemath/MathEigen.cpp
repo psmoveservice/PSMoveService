@@ -115,7 +115,7 @@ eigen_quaternion_is_valid(const Eigen::Quaternionf &q)
 Eigen::Vector3f
 eigen_vector3f_clockwise_rotate(const Eigen::Quaternionf &q, const Eigen::Vector3f &v)
 {
-	assert_quaternion_is_normalized(q);
+	assert_eigen_quaternion_is_normalized(q);
 
 	// Eigen rotates counterclockwise (i.e. q*v*q^-1), 
 	// while we want the inverse of that (q^-1*v*q)
@@ -151,12 +151,12 @@ eigen_vector3f_divide_by_vector_with_default(
 }
 
 float 
-eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default)
+eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default_result)
 {
     const float length= v.norm();
 
     // Use the default value if v is too tiny
-    v= (length > k_normal_epsilon) ? (v / length) : default;
+    v= (length > k_normal_epsilon) ? (v / length) : default_result;
 
     return length;
 }

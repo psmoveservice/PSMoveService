@@ -197,14 +197,19 @@ FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS chrono date_time filesystem log log
 list(APPEND TEST_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
 
+# Eigen math library
+list(APPEND TEST_CTRLR_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
+
 # PSMoveController
 # We are not including the PSMoveService target on purpose, because this only tests
 # a small part of the service and should not depend on the whole thing building.
 list(APPEND TEST_CTRLR_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/
     ${ROOT_DIR}/src/psmoveservice/
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
     ${ROOT_DIR}/src/psmoveservice/PSMoveController)
 list(APPEND TEST_CTRLR_SRC
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.h
     ${ROOT_DIR}/src/psmoveservice/ServerLog.h
     ${ROOT_DIR}/src/psmoveservice/ServerLog.cpp
     ${ROOT_DIR}/src/psmoveservice/ServerUtility.h

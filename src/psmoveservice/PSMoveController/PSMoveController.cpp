@@ -157,14 +157,17 @@ inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_
 // -- public methods
 
 // -- PSMove Controller Config
+const int PSMoveControllerConfig::CONFIG_VERSION= 1;
+
 const boost::property_tree::ptree
 PSMoveControllerConfig::config2ptree()
 {
     boost::property_tree::ptree pt;
 
     pt.put("is_valid", is_valid);
+    pt.put("version", PSMoveControllerConfig::CONFIG_VERSION);
 
-    pt.put("data_timeout", data_timeout);
+    pt.put("max_poll_failure_count", max_poll_failure_count);
     
     pt.put("Calibration.Accel.X.k", cal_ag_xyz_kb[0][0][0]);
     pt.put("Calibration.Accel.X.b", cal_ag_xyz_kb[0][0][1]);
@@ -179,15 +182,25 @@ PSMoveControllerConfig::config2ptree()
     pt.put("Calibration.Gyro.Z.k", cal_ag_xyz_kb[1][2][0]);
     pt.put("Calibration.Gyro.Z.b", cal_ag_xyz_kb[1][2][1]);
 
-    pt.put("Calibration.Magnetometer.X.Min", magnetometer_extents[0]);
-    pt.put("Calibration.Magnetometer.Y.Min", magnetometer_extents[1]);
-    pt.put("Calibration.Magnetometer.Z.Min", magnetometer_extents[2]);
-    pt.put("Calibration.Magnetometer.X.Max", magnetometer_extents[3]);
-    pt.put("Calibration.Magnetometer.Y.Max", magnetometer_extents[4]);
-    pt.put("Calibration.Magnetometer.Z.Max", magnetometer_extents[5]);
-    pt.put("Calibration.Magnetometer.X.Identity", magnetometer_identity[0]);
-    pt.put("Calibration.Magnetometer.Y.Identity", magnetometer_identity[1]);
-    pt.put("Calibration.Magnetometer.Z.Identity", magnetometer_identity[2]);
+    pt.put("Calibration.Magnetometer.Center.X", magnetometer_ellipsoid.center.x());
+    pt.put("Calibration.Magnetometer.Center.Y", magnetometer_ellipsoid.center.y());
+    pt.put("Calibration.Magnetometer.Center.Z", magnetometer_ellipsoid.center.z());
+
+    pt.put("Calibration.Magnetometer.BasisX.X", magnetometer_ellipsoid.basis.col(0).x());
+    pt.put("Calibration.Magnetometer.BasisX.Y", magnetometer_ellipsoid.basis.col(0).y());
+    pt.put("Calibration.Magnetometer.BasisX.Z", magnetometer_ellipsoid.basis.col(0).z());
+    pt.put("Calibration.Magnetometer.BasisY.X", magnetometer_ellipsoid.basis.col(1).x());
+    pt.put("Calibration.Magnetometer.BasisY.Y", magnetometer_ellipsoid.basis.col(1).y());
+    pt.put("Calibration.Magnetometer.BasisY.Z", magnetometer_ellipsoid.basis.col(1).z());
+    pt.put("Calibration.Magnetometer.BasisZ.X", magnetometer_ellipsoid.basis.col(2).x());
+    pt.put("Calibration.Magnetometer.BasisZ.Y", magnetometer_ellipsoid.basis.col(2).y());
+    pt.put("Calibration.Magnetometer.BasisZ.Z", magnetometer_ellipsoid.basis.col(2).z());
+
+    pt.put("Calibration.Magnetometer.Extents.X", magnetometer_ellipsoid.extents.x());
+    pt.put("Calibration.Magnetometer.Extents.Y", magnetometer_ellipsoid.extents.y());
+    pt.put("Calibration.Magnetometer.Extents.Z", magnetometer_ellipsoid.extents.z());
+
+    pt.put("Calibration.Magnetometer.Error", magnetometer_ellipsoid.error);
 
     return pt;
 }
@@ -195,33 +208,60 @@ PSMoveControllerConfig::config2ptree()
 void
 PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 {
-    is_valid= pt.get<bool>("is_valid", false);
+    version = pt.get<int>("version", 0);
 
-    data_timeout = pt.get<long>("data_timeout", 1000);
+    if (version == PSMoveControllerConfig::CONFIG_VERSION)
+    {
+        is_valid = pt.get<bool>("is_valid", false);
+        max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
 
-    cal_ag_xyz_kb[0][0][0] = pt.get<float>("Calibration.Accel.X.k", 1.0f);
-    cal_ag_xyz_kb[0][0][1] = pt.get<float>("Calibration.Accel.X.b", 0.0f);
-    cal_ag_xyz_kb[0][1][0] = pt.get<float>("Calibration.Accel.Y.k", 1.0f);
-    cal_ag_xyz_kb[0][1][1] = pt.get<float>("Calibration.Accel.Y.b", 0.0f);
-    cal_ag_xyz_kb[0][2][0] = pt.get<float>("Calibration.Accel.Z.k", 1.0f);
-    cal_ag_xyz_kb[0][2][1] = pt.get<float>("Calibration.Accel.Z.b", 0.0f);
+        cal_ag_xyz_kb[0][0][0] = pt.get<float>("Calibration.Accel.X.k", 1.0f);
+        cal_ag_xyz_kb[0][0][1] = pt.get<float>("Calibration.Accel.X.b", 0.0f);
+        cal_ag_xyz_kb[0][1][0] = pt.get<float>("Calibration.Accel.Y.k", 1.0f);
+        cal_ag_xyz_kb[0][1][1] = pt.get<float>("Calibration.Accel.Y.b", 0.0f);
+        cal_ag_xyz_kb[0][2][0] = pt.get<float>("Calibration.Accel.Z.k", 1.0f);
+        cal_ag_xyz_kb[0][2][1] = pt.get<float>("Calibration.Accel.Z.b", 0.0f);
 
-    cal_ag_xyz_kb[1][0][0] = pt.get<float>("Calibration.Gyro.X.k", 1.0f);
-    cal_ag_xyz_kb[1][0][1] = pt.get<float>("Calibration.Gyro.X.b", 0.0f);
-    cal_ag_xyz_kb[1][1][0] = pt.get<float>("Calibration.Gyro.Y.k", 1.0f);
-    cal_ag_xyz_kb[1][1][1] = pt.get<float>("Calibration.Gyro.Y.b", 0.0f);
-    cal_ag_xyz_kb[1][2][0] = pt.get<float>("Calibration.Gyro.Z.k", 1.0f);
-    cal_ag_xyz_kb[1][2][1] = pt.get<float>("Calibration.Gyro.Z.b", 0.0f);
+        cal_ag_xyz_kb[1][0][0] = pt.get<float>("Calibration.Gyro.X.k", 1.0f);
+        cal_ag_xyz_kb[1][0][1] = pt.get<float>("Calibration.Gyro.X.b", 0.0f);
+        cal_ag_xyz_kb[1][1][0] = pt.get<float>("Calibration.Gyro.Y.k", 1.0f);
+        cal_ag_xyz_kb[1][1][1] = pt.get<float>("Calibration.Gyro.Y.b", 0.0f);
+        cal_ag_xyz_kb[1][2][0] = pt.get<float>("Calibration.Gyro.Z.k", 1.0f);
+        cal_ag_xyz_kb[1][2][1] = pt.get<float>("Calibration.Gyro.Z.b", 0.0f);
 
-    magnetometer_extents[0]= pt.get<int>("Calibration.Magnetometer.X.Min", 0);
-    magnetometer_extents[1]= pt.get<int>("Calibration.Magnetometer.Y.Min", 0);
-    magnetometer_extents[2]= pt.get<int>("Calibration.Magnetometer.Z.Min", 0);
-    magnetometer_extents[3]= pt.get<int>("Calibration.Magnetometer.X.Max", 0);
-    magnetometer_extents[4]= pt.get<int>("Calibration.Magnetometer.Y.Max", 0);
-    magnetometer_extents[5]= pt.get<int>("Calibration.Magnetometer.Z.Max", 0);
-    magnetometer_identity[0]= pt.get<float>("Calibration.Magnetometer.X.Identity", 0.f);
-    magnetometer_identity[1]= pt.get<float>("Calibration.Magnetometer.Y.Identity", 0.f);
-    magnetometer_identity[2]= pt.get<float>("Calibration.Magnetometer.Z.Identity", 0.f);
+        magnetometer_ellipsoid.center = Eigen::Vector3f(
+            pt.get<float>("Calibration.Magnetometer.Center.X", 0.f),
+            pt.get<float>("Calibration.Magnetometer.Center.Y", 0.f),
+            pt.get<float>("Calibration.Magnetometer.Center.Z", 0.f));
+
+        magnetometer_ellipsoid.basis.col(0) = Eigen::Vector3f(
+            pt.get<float>("Calibration.Magnetometer.BasisX.X", 1.f),
+            pt.get<float>("Calibration.Magnetometer.BasisX.Y", 0.f),
+            pt.get<float>("Calibration.Magnetometer.BasisX.Z", 0.f));
+
+        magnetometer_ellipsoid.basis.col(1) = Eigen::Vector3f(
+            pt.get<float>("Calibration.Magnetometer.BasisY.X", 0.f),
+            pt.get<float>("Calibration.Magnetometer.BasisY.Y", 1.f),
+            pt.get<float>("Calibration.Magnetometer.BasisY.Z", 0.f));
+
+        magnetometer_ellipsoid.basis.col(2) = Eigen::Vector3f(
+            pt.get<float>("Calibration.Magnetometer.BasisZ.X", 0.f),
+            pt.get<float>("Calibration.Magnetometer.BasisZ.Y", 0.f),
+            pt.get<float>("Calibration.Magnetometer.BasisZ.Z", 1.f));
+
+        magnetometer_ellipsoid.center = Eigen::Vector3f(
+            pt.get<float>("Calibration.Magnetometer.Extents.X", 0.f),
+            pt.get<float>("Calibration.Magnetometer.Extents.Y", 0.f),
+            pt.get<float>("Calibration.Magnetometer.Extents.Z", 0.f));
+
+        magnetometer_ellipsoid.error= pt.get<float>("Calibration.Magnetometer.Error", 0.f);
+    }
+    else
+    {
+        SERVER_LOG_WARNING("PSMoveControllerConfig") << 
+            "Config version " << version << " does not match expected version " << 
+            PSMoveControllerConfig::CONFIG_VERSION << ", Using defaults.";
+    }
 }
 
 // -- PSMove Controller -----
@@ -345,6 +385,11 @@ bool PSMoveController::open(
 
                 if (!IsBluetooth || !cfg.is_valid)
                 {
+                    if (!cfg.is_valid)
+                    {
+                        SERVER_LOG_ERROR("PSMoveController::open") << "PSMoveController(" << cur_dev_path << ") has invalid calibration. Reloading.";
+                    }
+
                     // Load calibration from controller internal memory.
                     loadCalibration();
                 }
@@ -749,7 +794,7 @@ PSMoveController::poll()
             else
             {
                 // New data available. Keep iterating.
-                result= IControllerInterface::_PollResultFailure;
+                result = IControllerInterface::_PollResultSuccessNewData;
             }
         
             // https://github.com/nitsch/moveonpc/wiki/Input-report
@@ -878,9 +923,9 @@ PSMoveController::getTempCelsius() const
     return 70;
 }
 
-long PSMoveController::getDataTimeout() const
+long PSMoveController::getMaxPollFailureCount() const
 {
-    return cfg.data_timeout;
+    return cfg.max_poll_failure_count;
 }
 
 // Setters

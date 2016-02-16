@@ -5,6 +5,7 @@
 #include "PSMoveConfig.h"
 #include "../DeviceEnumerator.h"
 #include "../DeviceInterface.h"
+#include "MathAlignment.h"
 #include "hidapi.h"
 #include <string>
 #include <vector>
@@ -24,23 +25,28 @@ struct PSMoveDataInput;  // See .cpp for full declaration
 class PSMoveControllerConfig : public PSMoveConfig
 {
 public:
+    static const int CONFIG_VERSION;
+
     PSMoveControllerConfig(const std::string &fnamebase = "PSMoveControllerConfig")
         : PSMoveConfig(fnamebase)
         , is_valid(false)
-        , data_timeout(1000) // ms
+        , version(CONFIG_VERSION)
+        , max_poll_failure_count(100) 
         , cal_ag_xyz_kb(2, std::vector<std::vector<float>>(3, std::vector<float>(2, 0.f)))
-        , magnetometer_extents(6, 0)
-        , magnetometer_identity(3, 0.f)
-    {};
+    {
+        magnetometer_ellipsoid.clear();
+        magnetometer_identity = Eigen::Vector3f::Zero();
+    };
 
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
     bool is_valid;
-    long data_timeout;
+    long version;
+    long max_poll_failure_count;
     std::vector<std::vector<std::vector<float>>> cal_ag_xyz_kb;
-    std::vector<int> magnetometer_extents;
-    std::vector<float> magnetometer_identity;
+    EigenFitEllipsoid magnetometer_ellipsoid;
+    Eigen::Vector3f magnetometer_identity;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport
@@ -119,10 +125,9 @@ public:
     virtual bool getIsReadyToPoll() const override;
     virtual IDeviceInterface::ePollResult poll() override;
     virtual void close() override;
-    virtual long getDataTimeout() const override;
+    virtual long getMaxPollFailureCount() const override;
     virtual CommonDeviceState::eDeviceType getDeviceType() const override;
     virtual const CommonDeviceState * getState(int lookBack = 0) const override;
-    //virtual void getState(CommonDeviceState *out_state, int lookBack = 0) const override;
     
     // -- IControllerInterface
     virtual bool setHostBluetoothAddress(const std::string &address) override;
@@ -132,10 +137,10 @@ public:
     virtual std::string getSerial() const override;
 
     // -- Getters
-    inline const PSMoveControllerConfig &getConfig() const
-    { return cfg; }
-    inline PSMoveControllerConfig &getConfigMutable()
-    { return cfg; }
+    inline const PSMoveControllerConfig *getConfig() const
+    { return &cfg; }
+    inline PSMoveControllerConfig *getConfigMutable()
+    { return &cfg; }
     float getTempCelsius() const;
     static CommonDeviceState::eDeviceType getDeviceTypeStatic()
     { return CommonDeviceState::PSMove; }

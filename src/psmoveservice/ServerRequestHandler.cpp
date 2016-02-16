@@ -4,6 +4,8 @@
 #include "BluetoothRequests.h"
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
+#include "MathEigen.h"
+#include "OrientationFilter.h"
 #include "PSMoveController.h"
 #include "ServerControllerView.h"
 #include "ServerDeviceView.h"
@@ -41,13 +43,15 @@ struct RequestConnectionState
     {
         for (int index = 0; index < ControllerManager::k_max_devices; ++index)
         {
-            active_controller_stream_info[index]->Clear();
+            active_controller_stream_info[index].Clear();
         }
-        for (index = 0; index < TrackerManager::k_max_devices; ++index)
+
+        for (int index = 0; index < TrackerManager::k_max_devices; ++index)
         {
             //TODO: active_tracker_stream_info->Clear();
         }
-        for (index = 0; index < HMDManager::k_max_devices; ++index)
+
+        for (int index = 0; index < HMDManager::k_max_devices; ++index)
         {
             //TODO: active_hmd_stream_info->Clear();
         }
@@ -404,27 +408,23 @@ protected:
         {
             ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
-            context.connection_state->pending_bluetooth_request = 
+            context.connection_state->pending_bluetooth_request =
                 new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
+
+            std::string description = context.connection_state->pending_bluetooth_request->getDescription();
 
             if (context.connection_state->pending_bluetooth_request->start())
             {
-                SERVER_LOG_INFO("ServerRequestHandler") 
-                    << "Async bluetooth request(" 
-                    << context.connection_state->pending_bluetooth_request->getDescription() 
-                    << ") started.";
+                SERVER_LOG_INFO("ServerRequestHandler") << "Async bluetooth request(" << description << ") started.";
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
             else
             {
-                SERVER_LOG_ERROR("ServerRequestHandler") 
-                    << "Async bluetooth request(" 
-                    << context.connection_state->pending_bluetooth_request->getDescription() 
-                    << ") failed to start!";
+                SERVER_LOG_ERROR("ServerRequestHandler") << "Async bluetooth request(" << description << ") failed to start!";
 
                 delete context.connection_state->pending_bluetooth_request;
-                context.connection_state->pending_bluetooth_request= nullptr;
+                context.connection_state->pending_bluetooth_request = nullptr;
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
             }
@@ -545,6 +545,13 @@ protected:
         }
     }
 
+    inline void set_magnetometer_config_vector(
+        const PSMoveProtocol::FloatVector &source_vector,
+        Eigen::Vector3f &target_vector)
+    {
+        target_vector = Eigen::Vector3f(source_vector.i(), source_vector.j(), source_vector.k());
+    }
+
     void handle_request__set_magnetometer_calibration(
         const RequestContext &context, 
         PSMoveProtocol::Response *response)
@@ -556,26 +563,33 @@ protected:
 
         if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
         {
-            const PSMoveProtocol::IntVector &magnetometer_min=
-                context.request->set_magnetometer_calibration_request().magnetometer_min();
-            const PSMoveProtocol::IntVector &magnetometer_max=
-                context.request->set_magnetometer_calibration_request().magnetometer_max();
-            const PSMoveProtocol::FloatVector &magnetometer_identity=
-                context.request->set_magnetometer_calibration_request().magnetometer_identity();
-
             PSMoveController *controller= ControllerView->castChecked<PSMoveController>();
-            PSMoveControllerConfig &config= controller->getConfigMutable();
+            PSMoveControllerConfig *config= controller->getConfigMutable();
 
-            config.magnetometer_extents[0]= magnetometer_min.i();
-            config.magnetometer_extents[1]= magnetometer_min.j();
-            config.magnetometer_extents[2]= magnetometer_min.k();
-            config.magnetometer_extents[3]= magnetometer_max.i();
-            config.magnetometer_extents[4]= magnetometer_max.j();
-            config.magnetometer_extents[5]= magnetometer_max.k();
+            const PSMoveProtocol::Request_RequestSetMagnetometerCalibration &request= 
+                context.request->set_magnetometer_calibration_request();
 
-            config.magnetometer_identity[0]= magnetometer_identity.i();
-            config.magnetometer_identity[1]= magnetometer_identity.j();
-            config.magnetometer_identity[2]= magnetometer_identity.k();
+            set_magnetometer_config_vector(request.ellipse_center(), config->magnetometer_ellipsoid.center);
+            set_magnetometer_config_vector(request.ellipse_extents(), config->magnetometer_ellipsoid.extents);
+            set_magnetometer_config_vector(request.magnetometer_identity(), config->magnetometer_identity);
+            config->magnetometer_ellipsoid.error = request.ellipse_fit_error();
+
+            {
+                Eigen::Vector3f basis_x, basis_y, basis_z;
+
+                set_magnetometer_config_vector(request.ellipse_basis_x(), basis_x);
+                set_magnetometer_config_vector(request.ellipse_basis_y(), basis_y);
+                set_magnetometer_config_vector(request.ellipse_basis_z(), basis_z);
+
+                config->magnetometer_ellipsoid.basis.col(0) = basis_x;
+                config->magnetometer_ellipsoid.basis.col(1) = basis_y;
+                config->magnetometer_ellipsoid.basis.col(2) = basis_z;
+            }
+
+            config->save();
+
+            // Reset the orientation filter state the calibration changed
+            ControllerView->getOrientationFilter()->resetFilterState();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }

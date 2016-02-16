@@ -81,7 +81,7 @@ PSNaviControllerConfig::config2ptree()
 {
     boost::property_tree::ptree pt;
 
-    pt.put("data_timeout", data_timeout);
+    pt.put("max_poll_failute_count", max_poll_failure_count);
 
     return pt;
 }
@@ -89,7 +89,7 @@ PSNaviControllerConfig::config2ptree()
 void
 PSNaviControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 {
-    data_timeout = pt.get<long>("data_timeout", 1000);
+    max_poll_failure_count = pt.get<long>("max_poll_failute_count", 100);
 }
 
 // -- PSMove Controller -----
@@ -527,9 +527,9 @@ PSNaviController::getState(
 }
 
 long 
-PSNaviController::getDataTimeout() const
+PSNaviController::getMaxPollFailureCount() const
 {
-    return cfg.data_timeout;
+    return cfg.max_poll_failure_count;
 }
     
 // -- private helper functions -----
