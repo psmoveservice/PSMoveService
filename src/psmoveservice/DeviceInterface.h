@@ -144,6 +144,9 @@ public:
 class ITrackerInterface : public IDeviceInterface
 {
 public:
+    // -- Getters
+    // Returns the full usb device path for the tracker
+    virtual std::string getUSBDevicePath() const = 0;
 };
 
 /// Abstract class for HMD interface. Implemented HMD classes
@@ -151,7 +154,7 @@ class IHMDInterface : public IDeviceInterface
 {
 public:
     // -- Getters
-    // Returns the full usb device path for the tracker
+    // Returns the full usb device path for the HMD
     virtual std::string getUSBDevicePath() const = 0;
 };
 

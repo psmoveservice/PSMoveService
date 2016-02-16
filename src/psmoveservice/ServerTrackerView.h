@@ -16,6 +16,12 @@ public:
 
     IDeviceInterface* getDevice() const override {return m_device;}
 
+    // Returns what type of tracker this tracker view represents
+    CommonDeviceState::eDeviceType getTrackerDeviceType() const;
+
+    // Returns the full usb device path for the controller
+    std::string getUSBDevicePath() const;
+
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
     void free_device_interface() override;

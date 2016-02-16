@@ -22,6 +22,29 @@ struct ControllerStreamInfo
     }
 };
 
+struct TrackerStreamInfo
+{
+	// Placeholder
+    bool include_raw_sensor_data;
+
+    inline void Clear()
+    {
+        include_raw_sensor_data = false;
+    }
+};
+
+struct HMDStreamInfo
+{
+	// Placeholder
+    bool include_raw_sensor_data;
+
+    inline void Clear()
+    {
+        include_raw_sensor_data = false;
+    }
+};
+
+
 class ServerRequestHandler 
 {
 public:

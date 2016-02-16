@@ -20,6 +20,19 @@ ServerTrackerView::~ServerTrackerView()
     }
 }
 
+CommonDeviceState::eDeviceType
+ServerTrackerView::getTrackerDeviceType() const
+{
+    return m_device->getDeviceType();
+}
+
+// Returns the full usb device path for the controller
+std::string
+ServerTrackerView::getUSBDevicePath() const
+{
+    return m_device->getUSBDevicePath();
+}
+
 void ServerTrackerView::updateStateAndPredict()
 {
 }

@@ -10,6 +10,7 @@
 #include "ServerControllerView.h"
 #include "ServerDeviceView.h"
 #include "ServerNetworkManager.h"
+#include "ServerTrackerView.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
@@ -31,8 +32,8 @@ struct RequestConnectionState
     std::bitset<HMDManager::k_max_devices> active_hmd_streams;
     AsyncBluetoothRequest *pending_bluetooth_request;
     ControllerStreamInfo active_controller_stream_info[ControllerManager::k_max_devices];
-    // TODO: TrackerStreamInfo active_tracker_stream_info[TrackerManager::k_max_devices];
-    // TODO: HMDStreamInfo active_hmd_stream_info[HMDManager::k_max_devices];
+    TrackerStreamInfo active_tracker_stream_info[TrackerManager::k_max_devices];
+    HMDStreamInfo active_hmd_stream_info[HMDManager::k_max_devices];
 
     RequestConnectionState()
         : connection_id(-1)
@@ -48,12 +49,12 @@ struct RequestConnectionState
 
         for (int index = 0; index < TrackerManager::k_max_devices; ++index)
         {
-            //TODO: active_tracker_stream_info->Clear();
+            active_tracker_stream_info->Clear();
         }
 
         for (int index = 0; index < HMDManager::k_max_devices; ++index)
         {
-            //TODO: active_hmd_stream_info->Clear();
+            active_hmd_stream_info->Clear();
         }
     }
 };
@@ -166,6 +167,7 @@ public:
 
         switch (request->type())
         {
+            // Controller Requests
             case PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST:
                 handle_request__get_controller_list(context, response);
                 break;
@@ -196,6 +198,18 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION:
                 handle_request__set_magnetometer_calibration(context, response);
                 break;
+
+            // Tracker Requests
+            case PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST:
+                handle_request__get_tracker_list(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_START_TRACKER_DATA_STREAM:
+                handle_request__start_tracker_data_stream(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_STOP_TRACKER_DATA_STREAM:
+                handle_request__stop_tracker_data_stream(context, response);
+                break;
+
             default:
                 assert(0 && "Whoops, bad request!");
         }
@@ -276,6 +290,7 @@ protected:
         return connection_state;
     }
 
+    // -- Controller Requests -----
     void handle_request__get_controller_list(
         const RequestContext &context, 
         PSMoveProtocol::Response *response)
@@ -349,7 +364,7 @@ protected:
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        int controller_id= context.request->request_start_psmove_data_stream().controller_id();
+        int controller_id= context.request->request_stop_psmove_data_stream().controller_id();
 
         if (ServerUtility::is_index_valid(controller_id, m_device_manager.m_controller_manager.getMaxDevices()))
         {
@@ -590,6 +605,97 @@ protected:
 
             // Reset the orientation filter state the calibration changed
             ControllerView->getOrientationFilter()->resetFilterState();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    // -- tracker requests -----
+    void handle_request__get_tracker_list(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        PSMoveProtocol::Response_ResultTrackerList* list = response->mutable_result_tracker_list();
+
+        for (int tracker_id = 0; tracker_id < m_device_manager.m_tracker_manager.getMaxDevices(); ++tracker_id)
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.m_tracker_manager.getTrackerViewPtr(tracker_id);
+
+            if (tracker_view->getIsOpen())
+            {
+                PSMoveProtocol::Response_ResultTrackerList_TrackerInfo *tracker_info = list->add_trackers();
+
+                switch (tracker_view->getTrackerDeviceType())
+                {
+                case CommonControllerState::PSEYE_Libusb:
+                    tracker_info->set_tracker_type(PSMoveProtocol::PS3EYEDRIVER);
+                    break;
+                case CommonControllerState::PSEYE_CL:
+                    tracker_info->set_tracker_type(PSMoveProtocol::CL_EYE_DRIVER);
+                    break;
+                case CommonControllerState::PSEYE_CLMulti:
+                    tracker_info->set_tracker_type(PSMoveProtocol::CL_EYE_SDK);
+                    break;
+                // PSMoveProtocol::ISIGHT?
+                case CommonControllerState::Generic_Webcam:
+                    tracker_info->set_tracker_type(PSMoveProtocol::WEBCAM);
+                    break;
+                default:
+                    assert(0 && "Unhandled tracker type");
+                }
+
+                tracker_info->set_tracker_id(tracker_id);
+                tracker_info->set_device_path(tracker_view->getUSBDevicePath());
+            }
+        }
+
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+    }
+
+    void handle_request__start_tracker_data_stream(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const PSMoveProtocol::Request_RequestStartTrackerDataStream& request =
+            context.request->request_start_tracker_data_stream();
+        int tracker_id = request.tracker_id();
+
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.m_controller_manager.getMaxDevices()))
+        {
+            TrackerStreamInfo &streamInfo =
+                context.connection_state->active_tracker_stream_info[tracker_id];
+
+            // The tracker manager will always publish updates regardless of who is listening.
+            // All we have to do is keep track of which connections care about the updates.
+            context.connection_state->active_tracker_streams.set(tracker_id, true);
+
+            // Set control flags for the stream
+            streamInfo.Clear();
+            // TODO: Request specific flags
+            //streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__stop_tracker_data_stream(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        int tracker_id = context.request->request_stop_tracker_data_stream().tracker_id();
+
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.m_tracker_manager.getMaxDevices()))
+        {
+            context.connection_state->active_controller_streams.set(tracker_id, false);
+            context.connection_state->active_controller_stream_info[tracker_id].Clear();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
