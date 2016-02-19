@@ -17,11 +17,13 @@ struct CommonDeviceState
         PSMove = Controller + 0x00,
         PSNavi = Controller + 0x01,
         SUPPORTED_CONTROLLER_TYPE_COUNT = Controller + 0x02,
+        
         PSEYE_Libusb = TrackingCamera + 0x00,
         PSEYE_CL = TrackingCamera + 0x01,
         PSEYE_CLMulti = TrackingCamera + 0x02,
         Generic_Webcam = TrackingCamera + 0x03,
         SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x04,
+
         OVRDK2 = HeadMountedDisplay + 0x00,
         SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01
     };
@@ -38,6 +40,40 @@ struct CommonDeviceState
     {
         DeviceType= SUPPORTED_CONTROLLER_TYPE_COUNT; // invalid
         PollSequenceNumber= 0;
+    }
+
+    static const char *getDeviceTypeString(eDeviceType device_type)
+    {
+        const char *result = nullptr;
+
+        switch (device_type)
+        {
+        case PSMove:
+            result= "PSMove";
+            break;
+        case PSNavi:
+            result = "PSNavi";
+            break;
+        case PSEYE_Libusb:
+            result = "PSEYE(Libusb)";
+            break;
+        case PSEYE_CL:
+            result = "PSEYE(CL)";
+            break;
+        case PSEYE_CLMulti:
+            result = "PSEYE(CLMulti)";
+            break;
+        case Generic_Webcam:
+            result = "Generic Webcam";
+            break;
+        case OVRDK2:
+            result = "Oculus DK2";
+            break;
+        default:
+            result = "UNKNOWN";
+        }
+
+        return result;
     }
 };
 

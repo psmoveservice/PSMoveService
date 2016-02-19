@@ -39,4 +39,28 @@ private:
     struct hid_device_info *devs, *cur_dev;
 };
 
+class TrackerDeviceEnumerator : public DeviceEnumerator
+{
+public:
+    TrackerDeviceEnumerator();
+    TrackerDeviceEnumerator(CommonDeviceState::eDeviceType deviceType);
+    ~TrackerDeviceEnumerator();
+
+    bool is_valid() const override;
+    bool next() override;
+    const char *get_path() const override;
+};
+
+class HMDDeviceEnumerator : public DeviceEnumerator
+{
+public:
+    HMDDeviceEnumerator();
+    HMDDeviceEnumerator(CommonDeviceState::eDeviceType deviceType);
+    ~HMDDeviceEnumerator();
+
+    bool is_valid() const override;
+    bool next() override;
+    const char *get_path() const override;
+};
+
 #endif // DEVICE_ENUMERATOR_H

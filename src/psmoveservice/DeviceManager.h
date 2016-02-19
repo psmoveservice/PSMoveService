@@ -33,10 +33,11 @@ public:
     virtual ~DeviceTypeManager();
     
     virtual bool startup();
+    virtual void shutdown();
+
     void poll();
     void updateStateAndPredict();
     void publish();
-    virtual void shutdown();
     
     virtual int getMaxDevices() const =0;
     
@@ -47,8 +48,8 @@ public:
      For anything that requires knowledge of the device, use the class-specific
      Server<Type>ViewPtr get<Type>ViewPtr(int device_id) functions instead.
      */
-    virtual ServerDeviceViewPtr getDeviceViewPtr(int device_id)=0;
-    
+    ServerDeviceViewPtr getDeviceViewPtr(int device_id);
+
     int reconnect_interval;
     int poll_interval;
     
@@ -60,7 +61,12 @@ protected:
      No device objects are created or destroyed.
      Pointers are just shuffled around and devices opened and closed.
      */
-    virtual bool update_connected_devices()=0;
+    bool update_connected_devices();
+
+    virtual bool can_update_connected_devices() = 0;
+    virtual DeviceEnumerator *allocate_device_enumerator() = 0;
+    virtual void free_device_enumerator(DeviceEnumerator *) = 0;
+    virtual ServerDeviceView *allocate_device_view(int device_id) = 0;
     
     void send_device_list_changed_notification();
     
@@ -68,43 +74,43 @@ protected:
     
     int find_first_closed_device_device_id();
     int find_open_device_device_id(const DeviceEnumerator &enumerator);
-    
-    static const int k_max_devices= 1;
-    
+       
     std::chrono::time_point<std::chrono::high_resolution_clock> m_last_reconnect_time;
     std::chrono::time_point<std::chrono::high_resolution_clock> m_last_poll_time;
+
+    ServerDeviceViewPtr *m_deviceViews;
 };
 
 class ControllerManager : public DeviceTypeManager
 {
 public:
     ControllerManager();
-    ~ControllerManager();
     
-    /// Override parent startup because we have to hid_init
+    /// Call hid_init()
     bool startup() override;
     
-    /// Override parent shutdown because we have to hid_close
+    /// Call hid_close()
     void shutdown() override;
     
     static const int k_max_devices = 5;
     int getMaxDevices() const override
     { return ControllerManager::k_max_devices; }
     
-    ServerDeviceViewPtr getDeviceViewPtr(int device_id) override;
     ServerControllerViewPtr getControllerViewPtr(int device_id);
 
     bool setControllerRumble(int controller_id, int rumble_amount);
     bool resetPose(int controller_id);
     
 protected:
-    bool update_connected_devices() override;
+    bool can_update_connected_devices() override;
+    DeviceEnumerator *allocate_device_enumerator() override;
+    void free_device_enumerator(DeviceEnumerator *) override;
+    ServerDeviceView *allocate_device_view(int device_id) override;
     
     const PSMoveProtocol::Response_ResponseType getListUpdatedResponseType() override
     { return ControllerManager::k_list_udpated_response_type; }
     
 private:
-    ServerControllerViewPtr m_devices[k_max_devices];
     static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;
 };
 
@@ -112,50 +118,48 @@ class TrackerManager : public DeviceTypeManager
 {
 public:
     TrackerManager();
-    ~TrackerManager();
     
     static const int k_max_devices = 1;
     int getMaxDevices() const override
     { return TrackerManager::k_max_devices; }
     
-    ServerDeviceViewPtr getDeviceViewPtr(int device_id) override;
     ServerTrackerViewPtr getTrackerViewPtr(int device_id);
     
 protected:
-    bool update_connected_devices() override;
+    bool can_update_connected_devices() override;
+    DeviceEnumerator *allocate_device_enumerator() override;
+    void free_device_enumerator(DeviceEnumerator *) override;
+    ServerDeviceView *allocate_device_view(int device_id) override;
     
     const PSMoveProtocol::Response_ResponseType getListUpdatedResponseType() override
     { return TrackerManager::k_list_udpated_response_type; }
 
 private:
-    ServerTrackerViewPtr m_devices[k_max_devices];
-    //TODO: New response type for Tracker
-    static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;
+    static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED;
 };
 
 class HMDManager : public DeviceTypeManager
 {
 public:
     HMDManager();
-    ~HMDManager();
 
     static const int k_max_devices = 1;
     int getMaxDevices() const override
     { return HMDManager::k_max_devices; }
     
-    ServerDeviceViewPtr getDeviceViewPtr(int device_id) override;
     ServerHMDViewPtr getHMDViewPtr(int device_id);
    
 protected:
-    bool update_connected_devices() override;
+    bool can_update_connected_devices() override;
+    DeviceEnumerator *allocate_device_enumerator() override;
+    void free_device_enumerator(DeviceEnumerator *) override;
+    ServerDeviceView *allocate_device_view(int device_id) override;
     
     const PSMoveProtocol::Response_ResponseType getListUpdatedResponseType() override
     { return HMDManager::k_list_udpated_response_type; }
 
 private:
-    ServerHMDViewPtr m_devices[k_max_devices];
-    //TODO: New response type for HMD
-    static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;
+    static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_HMD_LIST_UPDATED;
 };
 
 /// This is the class that is actually used by the PSMoveService.

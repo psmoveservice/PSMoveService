@@ -159,11 +159,14 @@ message Response {
         GENERAL_RESULT= 0;
         CONNECTION_INFO= 1;
         CONTROLLER_LIST= 2;
-        CONTROLLER_LIST_UPDATED= 3;
+        CONTROLLER_LIST_UPDATED= 3;        
         UNPAIR_REQUEST_COMPLETED= 4;
         PAIR_REQUEST_COMPLETED= 5;
         BLUETOOTH_REQUEST_PROGRESS= 6;
         TRACKER_LIST= 7;
+        TRACKER_LIST_UPDATED= 8;
+        HMD_LIST= 9;
+        HMD_LIST_UPDATED= 10;        
     }
 
     enum ResultCode {

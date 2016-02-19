@@ -23,10 +23,10 @@ USBDeviceInfo g_supported_controller_infos[CommonDeviceState::SUPPORTED_CONTROLL
     //{0x054c, 0x0268}, // PSDualShock3
 };
 
+// -- DeviceEnumerator -----
 DeviceEnumerator::DeviceEnumerator(CommonDeviceState::eDeviceType deviceType)
-: m_deviceType(deviceType)
+    : m_deviceType(deviceType)
 {
-    assert(m_deviceType >= 0 && m_deviceType < (CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT & 0x0f));
 }
 
 DeviceEnumerator::~DeviceEnumerator()
@@ -34,12 +34,14 @@ DeviceEnumerator::~DeviceEnumerator()
     
 }
 
-// -- public interface -----
+// -- ControllerDeviceEnumerator -----
 ControllerDeviceEnumerator::ControllerDeviceEnumerator() 
     : DeviceEnumerator(CommonDeviceState::PSMove)
     , devs(nullptr)
     , cur_dev(nullptr)
 {
+    assert(m_deviceType >= 0 && (m_deviceType & 0xf) < (CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT & 0x0f));
+
     USBDeviceInfo &dev_info= g_supported_controller_infos[m_deviceType];
     devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
     cur_dev = devs;
@@ -55,6 +57,8 @@ ControllerDeviceEnumerator::ControllerDeviceEnumerator(CommonDeviceState::eDevic
     , devs(nullptr)
     , cur_dev(nullptr)
 {
+    assert(m_deviceType >= 0 && (m_deviceType & 0xf) < (CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT & 0x0f));
+
     USBDeviceInfo &dev_info= g_supported_controller_infos[m_deviceType];
     devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
     cur_dev = devs;
@@ -139,6 +143,94 @@ bool ControllerDeviceEnumerator::next()
             foundValid= false;
         }
     }
+
+    return foundValid;
+}
+
+// -- TrackerDeviceEnumerator -----
+TrackerDeviceEnumerator::TrackerDeviceEnumerator()
+    : DeviceEnumerator(CommonDeviceState::PSEYE_Libusb)
+{
+    assert(m_deviceType >= 0 && (m_deviceType & 0xf) < (CommonDeviceState::SUPPORTED_CAMERA_TYPE_COUNT & 0x0f));
+
+    if (!is_valid())
+    {
+        next();
+    }
+}
+
+TrackerDeviceEnumerator::TrackerDeviceEnumerator(CommonDeviceState::eDeviceType deviceType)
+    : DeviceEnumerator(deviceType)
+{
+    assert(m_deviceType >= 0 && (m_deviceType & 0xf) < (CommonDeviceState::SUPPORTED_CAMERA_TYPE_COUNT & 0x0f));
+
+    if (!is_valid())
+    {
+        next();
+    }
+}
+
+TrackerDeviceEnumerator::~TrackerDeviceEnumerator()
+{
+}
+
+const char *TrackerDeviceEnumerator::get_path() const
+{
+    return nullptr;
+}
+
+bool TrackerDeviceEnumerator::is_valid() const
+{
+    return false;
+}
+
+bool TrackerDeviceEnumerator::next()
+{
+    bool foundValid = false;
+
+    return foundValid;
+}
+
+// -- HMDDeviceEnumerator -----
+HMDDeviceEnumerator::HMDDeviceEnumerator()
+    : DeviceEnumerator(CommonDeviceState::OVRDK2)
+{
+    assert(m_deviceType >= 0 && (m_deviceType &0xf) < (CommonDeviceState::SUPPORTED_HMD_TYPE_COUNT & 0x0f));
+
+    if (!is_valid())
+    {
+        next();
+    }
+}
+
+HMDDeviceEnumerator::HMDDeviceEnumerator(CommonDeviceState::eDeviceType deviceType)
+    : DeviceEnumerator(deviceType)
+{
+    assert(m_deviceType >= 0 && (m_deviceType & 0xf) < (CommonDeviceState::SUPPORTED_HMD_TYPE_COUNT & 0x0f));
+
+    if (!is_valid())
+    {
+        next();
+    }
+}
+
+HMDDeviceEnumerator::~HMDDeviceEnumerator()
+{
+}
+
+const char *HMDDeviceEnumerator::get_path() const
+{
+    return nullptr;
+}
+
+bool HMDDeviceEnumerator::is_valid() const
+{
+    return false;
+}
+
+bool HMDDeviceEnumerator::next()
+{
+    bool foundValid = false;
 
     return foundValid;
 }

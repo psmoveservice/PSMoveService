@@ -77,19 +77,57 @@ public:
 DeviceTypeManager::DeviceTypeManager(const int recon_int, const int poll_int)
     : reconnect_interval(recon_int)
     , poll_interval(poll_int)
+    , m_deviceViews(nullptr)
 {
 }
 
 DeviceTypeManager::~DeviceTypeManager()
 {
-    
+    assert(m_deviceViews == nullptr);
 }
 
 /// Override if the device type needs to initialize any services (e.g., hid_init)
 bool
 DeviceTypeManager::startup()
 {
+    assert(m_deviceViews == nullptr);
+
+    const int maxDeviceCount = getMaxDevices();
+    m_deviceViews = new ServerDeviceViewPtr[maxDeviceCount];
+
+    // Allocate all of the device views
+    for (int device_id = 0; device_id < maxDeviceCount; ++device_id)
+    {
+        ServerDeviceViewPtr deviceView = ServerDeviceViewPtr(allocate_device_view(device_id));
+
+        m_deviceViews[device_id] = deviceView;
+    }
+
     return true;
+}
+
+/// Override if the device type needs to teardown any services (e.g., hid_init)
+void
+DeviceTypeManager::shutdown()
+{
+    assert(m_deviceViews != nullptr);
+
+    // Close any controllers that were opened
+    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+    {
+        ServerDeviceViewPtr device = m_deviceViews[device_id];
+
+        if (device->getIsOpen())
+        {
+            device->close();
+        }
+
+        m_deviceViews[device_id] = ServerDeviceViewPtr();
+    }
+    
+    // Free the device view pointer list
+    delete[] m_deviceViews;
+    m_deviceViews = nullptr;
 }
 
 /// Calls poll_devices and update_connected_devices if poll_interval and reconnect_interval has elapsed, respectively.
@@ -118,6 +156,135 @@ DeviceTypeManager::poll()
     }
 }
 
+bool
+DeviceTypeManager::update_connected_devices()
+{
+    bool success = false;
+
+    // Don't do any connection opening/closing until all pending bluetooth operations are finished
+    if (can_update_connected_devices())
+    {
+        const int maxDeviceCount = getMaxDevices();
+        ServerDeviceViewPtr *temp_device_list = new ServerDeviceViewPtr[maxDeviceCount];
+        bool bSendControllerUpdatedNotification = false;
+
+        // Step 1
+        // See if any devices shuffled order OR if any new controllers were attached.
+        // Migrate open devices to a new temp list in the order
+        // that they appear in the device enumerator.
+        {
+            DeviceEnumerator *enumerator = allocate_device_enumerator();
+
+            while (enumerator->is_valid())
+            {
+                // Find device index for the device with the matching device path
+                int device_id = find_open_device_device_id(*enumerator);
+
+                // Existing device case (Most common)
+                if (device_id != -1)
+                {
+                    // Fetch the device from it's existing device slot
+                    ServerDeviceViewPtr existingDevice = getDeviceViewPtr(device_id);
+
+                    // Move it to the same slot in the temp list
+                    temp_device_list[device_id] = existingDevice;
+
+                    // Remove it from the previous list
+                    m_deviceViews[device_id] = ServerDeviceViewPtr();
+                }
+                // New controller connected case
+                else
+                {
+                    int device_id = find_first_closed_device_device_id();
+
+                    if (device_id != -1)
+                    {
+                        // Fetch the controller from it's existing controller slot
+                        ServerDeviceViewPtr existingDevice = getDeviceViewPtr(device_id);
+
+                        // Move it to the available slot
+                        existingDevice->setDeviceID(static_cast<int>(device_id));
+                        temp_device_list[device_id] = existingDevice;
+
+                        // Remove it from the previous list
+                        m_deviceViews[device_id] = ServerDeviceViewPtr();
+
+                        // Attempt to open the device
+                        if (existingDevice->open(enumerator))
+                        {
+                            const char *device_type_name = 
+                                CommonDeviceState::getDeviceTypeString(existingDevice->getDevice()->getDeviceType());
+
+                            SERVER_LOG_INFO("DeviceTypeManager::update_connected_devices") <<
+                                "Device device_id " << device_id << " (" << device_type_name << ") connected";
+                            bSendControllerUpdatedNotification = true;
+                        }
+                    }
+                    else
+                    {
+                        SERVER_LOG_ERROR("ControllerManager::reconnect_controllers") << "Can't connect any more new controllers. Too many open controllers";
+                        break;
+                    }
+                }
+
+                enumerator->next();
+            }
+
+            free_device_enumerator(enumerator);
+        }
+
+        // Step 2
+        // Close any remaining open controllers not listed in the device enumerator.
+        // Copy over any closed controllers to the temp.
+        for (int existing_device_id = 0; existing_device_id < maxDeviceCount; ++existing_device_id)
+        {
+            ServerDeviceViewPtr existingDevice = getDeviceViewPtr(existing_device_id);
+
+            if (existingDevice)
+            {
+                // Any "open" controllers remaining in the old list need to be closed
+                // since they no longer appear in the connected device list.
+                // This probably shouldn't happen very often (at all?) as polling should catch
+                // disconnected controllers first.
+                if (existingDevice->getIsOpen())
+                {
+                    const char *device_type_name =
+                        CommonDeviceState::getDeviceTypeString(existingDevice->getDevice()->getDeviceType());
+
+                    SERVER_LOG_WARNING("ControllerManager::reconnect_controllers") << "Closing device "
+                        << existing_device_id << " (" << device_type_name << ") since it's no longer in the device list.";
+                    existingDevice->close();
+                    bSendControllerUpdatedNotification = true;
+                }
+
+                // Move it to the temp slot
+                temp_device_list[existing_device_id] = existingDevice;
+
+                // Remove it from the previous list
+                m_deviceViews[existing_device_id] = ServerDeviceViewPtr();
+            }
+        }
+
+        // Step 3
+        // Copy the temp controller list back over top the original list
+        for (int device_id = 0; device_id < maxDeviceCount; ++device_id)
+        {
+            m_deviceViews[device_id] = temp_device_list[device_id];
+        }
+
+        if (bSendControllerUpdatedNotification)
+        {
+            send_device_list_changed_notification();
+        }
+
+        delete[] temp_device_list;
+
+        success = true;
+    }
+
+    return success;
+}
+
 void 
 DeviceTypeManager::updateStateAndPredict()
 {
@@ -139,21 +306,6 @@ DeviceTypeManager::publish()
         ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
         
         device->publish();
-    }
-}
-
-void
-DeviceTypeManager::shutdown()
-{
-    // Close any controllers that were opened
-    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
-    {
-        ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
-
-        if (device && device->getIsOpen())
-        {
-            getDeviceViewPtr(device_id)->close();
-        }
     }
 }
 
@@ -221,41 +373,41 @@ DeviceTypeManager::find_first_closed_device_device_id()
     return result_device_id;
 }
 
-// ControllerManager
-
-// TODO: Can initialization of m_devices done in type-agnostic way?
-// If so, then it should happen in parent DeviceTypeManager::DeviceTypeManager()
-ControllerManager::ControllerManager()
-: DeviceTypeManager(1000, 2)
+ServerDeviceViewPtr
+DeviceTypeManager::getDeviceViewPtr(int device_id)
 {
-    // Allocate all of the devices
-    for (int controller_id = 0; controller_id < k_max_devices; ++controller_id)
-    {
-        ServerControllerViewPtr controller = ServerControllerViewPtr(new ServerControllerView(controller_id));
-        
-        m_devices[controller_id]= controller;
-    }
+    assert (m_deviceViews != nullptr);
+
+    return m_deviceViews[device_id];
 }
 
-ControllerManager::~ControllerManager()
+// ControllerManager
+
+ControllerManager::ControllerManager()
+    : DeviceTypeManager(1000, 2)
 {
-    // Deallocate the controllers
-    for (int device_id = 0; device_id < k_max_devices; ++device_id)
-    {
-        m_devices[device_id]= ServerControllerViewPtr();
-    }
 }
 
 bool
 ControllerManager::startup()
 {
     bool success = true;
-    // Initialize HIDAPI
-    if (hid_init() == -1)
+
+    if (!DeviceTypeManager::startup())
     {
-        SERVER_LOG_ERROR("ControllerManager::startup") << "Failed to initialize HIDAPI";
-        success= false;
+        success = false;
     }
+
+    if (success)
+    {
+        // Initialize HIDAPI
+        if (hid_init() == -1)
+        {
+            SERVER_LOG_ERROR("ControllerManager::startup") << "Failed to initialize HIDAPI";
+            success = false;
+        }
+    }
+
     return success;
 }
 
@@ -268,117 +420,28 @@ ControllerManager::shutdown()
     hid_exit();
 }
 
-bool
-ControllerManager::update_connected_devices()
+bool 
+ControllerManager::can_update_connected_devices()
 {
-    bool success = false;
-    // Don't do any connection opening/closing until all pending bluetooth operations are finished
-    if (!ServerRequestHandler::get_instance()->any_active_bluetooth_requests())
-    {
-        ServerControllerViewPtr *temp_controllers_list = new ServerControllerViewPtr[k_max_devices];
-        bool bSendControllerUpdatedNotification= false;
-        
-        // Step 1
-        // See if any controllers shuffled order OR if any new controllers were attached.
-        // Migrate open controllers to a new temp list in the order
-        // that they appear in the device enumerator.
-        for (ControllerDeviceEnumerator enumerator; enumerator.is_valid(); enumerator.next())
-        {
-            // Find controller index for the controller with the matching device path
-            int controller_id= find_open_device_device_id(enumerator);
-            
-            // Existing controller case (Most common)
-            if (controller_id != -1)
-            {
-                // Fetch the controller from it's existing controller slot
-                ServerControllerViewPtr existingController= m_devices[controller_id];
-                
-                // Move it to the same slot in the temp list
-                temp_controllers_list[controller_id]= existingController;
-                
-                // Remove it from the previous list
-                m_devices[controller_id]= ServerControllerViewPtr();
-            }
-            // New controller connected case
-            else
-            {
-                int controller_id= find_first_closed_device_device_id();
-                
-                if (controller_id != -1)
-                {
-                    // Fetch the controller from it's existing controller slot
-                    ServerControllerViewPtr existingController= m_devices[controller_id];
-                    
-                    // Move it to the available slot
-                    existingController->setDeviceID(static_cast<int>(controller_id));
-                    temp_controllers_list[controller_id]= existingController;
-                    
-                    // Remove it from the previous list
-                    m_devices[controller_id]= ServerControllerViewPtr();
-                    
-                    // Attempt to open the controller
-                    if (existingController->open(&enumerator))
-                    {
-                        SERVER_LOG_INFO("ControllerManager::reconnect_controllers") <<
-                        "Controller controller_id " << controller_id << " connected";
-                        bSendControllerUpdatedNotification= true;
-                    }
-                }
-                else
-                {
-                    SERVER_LOG_ERROR("ControllerManager::reconnect_controllers") << "Can't connect any more new controllers. Too many open controllers";
-                    break;
-                }
-            }
-        }
-        
-        // Step 2
-        // Close any remaining open controllers not listed in the device enumerator.
-        // Copy over any closed controllers to the temp.
-        for (int existing_controller_id = 0; existing_controller_id < k_max_devices; ++existing_controller_id)
-        {
-            ServerControllerViewPtr &existingController= m_devices[existing_controller_id];
-            
-            if (existingController)
-            {
-                // Any "open" controllers remaining in the old list need to be closed
-                // since they no longer appear in the connected device list.
-                // This probably shouldn't happen very often (at all?) as polling should catch
-                // disconnected controllers first.
-                if (existingController->getIsOpen())
-                {
-                    SERVER_LOG_WARNING("ControllerManager::reconnect_controllers") << "Closing controller "
-                    << existing_controller_id << " since it's no longer in the device list.";
-                    existingController->close();
-                    bSendControllerUpdatedNotification= true;
-                }
-                
-                // Move it to the temp slot
-                temp_controllers_list[existing_controller_id]= existingController;
-                
-                // Remove it from the previous list
-                m_devices[existing_controller_id]= ServerControllerViewPtr();
-            }
-        }
-        
-        // Step 3
-        // Copy the temp controller list back over top the original list
-        for (int controller_id = 0; controller_id < k_max_devices; ++controller_id)
-        {
-            m_devices[controller_id]= temp_controllers_list[controller_id];
-        }
-        
-        if (bSendControllerUpdatedNotification)
-        {
-            send_device_list_changed_notification();
-        }
-        
-        delete[] temp_controllers_list;
-        
-        success = true;
-    }
-    
-    return success;
+    return !ServerRequestHandler::get_instance()->any_active_bluetooth_requests();
+}
+
+DeviceEnumerator *
+ControllerManager::allocate_device_enumerator()
+{
+    return new ControllerDeviceEnumerator;
+}
+
+void 
+ControllerManager::free_device_enumerator(DeviceEnumerator *enumerator)
+{
+    delete static_cast<ControllerDeviceEnumerator *>(enumerator);
+}
+
+ServerDeviceView *
+ControllerManager::allocate_device_view(int device_id)
+{
+    return new ServerControllerView(device_id);
 }
 
 bool
@@ -387,8 +450,8 @@ ControllerManager::setControllerRumble(int controller_id, int rumble_amount)
     bool result= false;
     
     if (ServerUtility::is_index_valid(controller_id, k_max_devices))
-    {
-        result = m_devices[controller_id]->setControllerRumble(rumble_amount);
+    {        
+        result = getControllerViewPtr(controller_id)->setControllerRumble(rumble_amount);
     }
     
     return result;
@@ -414,98 +477,88 @@ ControllerManager::resetPose(int controller_id)
     return bSuccess;
 }
 
-ServerDeviceViewPtr
-ControllerManager::getDeviceViewPtr(int device_id)
-{
-    return m_devices[device_id];
-}
-
 ServerControllerViewPtr
 ControllerManager::getControllerViewPtr(int device_id)
 {
-    return m_devices[device_id];
+    assert(m_deviceViews != nullptr);
+
+    return std::static_pointer_cast<ServerControllerView>(m_deviceViews[device_id]);
 }
 
 // Tracker
-
 TrackerManager::TrackerManager()
     : DeviceTypeManager(10000, 13)
 {
-    // Allocate all of the devices
-    for (int tracker_id = 0; tracker_id < k_max_devices; ++tracker_id)
-    {
-        ServerTrackerViewPtr tracker = ServerTrackerViewPtr(new ServerTrackerView(tracker_id));
-        
-        m_devices[tracker_id]= tracker;
-    }
-}
-
-TrackerManager::~TrackerManager()
-{
-    // Deallocate the controllers
-    for (int device_id = 0; device_id < k_max_devices; ++device_id)
-    {
-        m_devices[device_id]= ServerTrackerViewPtr();
-    }
 }
 
 bool
-TrackerManager::update_connected_devices()
+TrackerManager::can_update_connected_devices()
 {
-    return false;
+    return true;
 }
 
-ServerDeviceViewPtr
-TrackerManager::getDeviceViewPtr(int device_id)
+DeviceEnumerator *
+TrackerManager::allocate_device_enumerator()
 {
-    return m_devices[device_id];
+    return new TrackerDeviceEnumerator;
+}
+
+void
+TrackerManager::free_device_enumerator(DeviceEnumerator *enumerator)
+{
+    delete static_cast<TrackerDeviceEnumerator *>(enumerator);
+}
+
+ServerDeviceView *
+TrackerManager::allocate_device_view(int device_id)
+{
+    return new ServerTrackerView(device_id);
 }
 
 ServerTrackerViewPtr
 TrackerManager::getTrackerViewPtr(int device_id)
 {
-    return m_devices[device_id];
+    assert(m_deviceViews != nullptr);
+
+    return std::static_pointer_cast<ServerTrackerView>(m_deviceViews[device_id]);
 }
 
 // HMD
-
 HMDManager::HMDManager()
 : DeviceTypeManager(1000, 2)
 {
-    // Allocate all of the devices
-    for (int hmd_id = 0; hmd_id < k_max_devices; ++hmd_id)
-    {
-        ServerHMDViewPtr hmd = ServerHMDViewPtr(new ServerHMDView(hmd_id));
-        
-        m_devices[hmd_id]= hmd;
-    }
-}
-
-HMDManager::~HMDManager()
-{
-    // Deallocate the controllers
-    for (int hmd_id = 0; hmd_id < k_max_devices; ++hmd_id)
-    {
-        m_devices[hmd_id]= ServerHMDViewPtr();
-    }
-}
-
-ServerDeviceViewPtr
-HMDManager::getDeviceViewPtr(int device_id)
-{
-    return m_devices[device_id];
 }
 
 ServerHMDViewPtr
 HMDManager::getHMDViewPtr(int device_id)
 {
-    return m_devices[device_id];
+    assert(m_deviceViews != nullptr);
+
+    return std::static_pointer_cast<ServerHMDView>(m_deviceViews[device_id]);
 }
 
 bool
-HMDManager::update_connected_devices()
+HMDManager::can_update_connected_devices()
 {
-    return false;
+    return true;
+}
+
+DeviceEnumerator *
+HMDManager::allocate_device_enumerator()
+{
+    return new HMDDeviceEnumerator;
+}
+
+void
+HMDManager::free_device_enumerator(DeviceEnumerator *enumerator)
+{
+    delete static_cast<HMDDeviceEnumerator *>(enumerator);
+}
+
+ServerDeviceView *
+HMDManager::allocate_device_view(int device_id)
+{
+    return new ServerHMDView(device_id);
 }
 
 // DeviceManager - This is the interface used by PSMoveService
@@ -584,17 +637,30 @@ DeviceManager::getControllerViewPtr(int device_id)
     {
         result= m_controller_manager.getControllerViewPtr(device_id);
     }
+
     return result;
 }
 
-/*
-ServerTrackerView DeviceManager::getTrackerViewPtr(int tracker_id)
+ServerTrackerViewPtr
+DeviceManager::getTrackerViewPtr(int tracker_id)
 {
-    
+    ServerTrackerViewPtr result;
+    if (ServerUtility::is_index_valid(tracker_id, m_tracker_manager.getMaxDevices()))
+    {
+        result = m_tracker_manager.getTrackerViewPtr(tracker_id);
+    }
+
+    return result;
 }
 
-ServerHMDView DeviceManager::getHMDViewPtr(int hmd_id)
+ServerHMDViewPtr
+DeviceManager::getHMDViewPtr(int hmd_id)
 {
-    
+    ServerHMDViewPtr result;
+    if (ServerUtility::is_index_valid(hmd_id, m_hmd_manager.getMaxDevices()))
+    {
+        result = m_hmd_manager.getHMDViewPtr(hmd_id);
+    }
+
+    return result;
 }
-*/
