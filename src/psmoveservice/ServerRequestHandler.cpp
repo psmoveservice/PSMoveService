@@ -2,18 +2,22 @@
 #include "ServerRequestHandler.h"
 
 #include "BluetoothRequests.h"
+#include "ControllerManager.h"
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
+#include "HMDManager.h"
 #include "MathEigen.h"
 #include "OrientationFilter.h"
 #include "PSMoveController.h"
+#include "PSMoveProtocol.pb.h"
 #include "ServerControllerView.h"
 #include "ServerDeviceView.h"
 #include "ServerNetworkManager.h"
 #include "ServerTrackerView.h"
-#include "PSMoveProtocol.pb.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
+#include "TrackerManager.h"
+
 #include <cassert>
 #include <bitset>
 #include <map>
@@ -297,9 +301,9 @@ protected:
     {
         PSMoveProtocol::Response_ResultControllerList* list= response->mutable_result_controller_list();
 
-        for (int controller_id= 0; controller_id < m_device_manager.m_controller_manager.getMaxDevices(); ++controller_id)
+        for (int controller_id= 0; controller_id < m_device_manager.getControllerViewMaxCount(); ++controller_id)
         {
-            ServerControllerViewPtr controller_view= m_device_manager.m_controller_manager.getControllerViewPtr(controller_id);
+            ServerControllerViewPtr controller_view= m_device_manager.getControllerViewPtr(controller_id);
 
             if (controller_view->getIsOpen())
             {
@@ -339,7 +343,7 @@ protected:
             context.request->request_start_psmove_data_stream();
         int controller_id= request.controller_id();
 
-        if (ServerUtility::is_index_valid(controller_id, m_device_manager.m_controller_manager.getMaxDevices()))
+        if (ServerUtility::is_index_valid(controller_id, m_device_manager.getControllerViewMaxCount()))
         {
             ControllerStreamInfo &streamInfo=
                 context.connection_state->active_controller_stream_info[controller_id];
@@ -366,7 +370,7 @@ protected:
     {
         int controller_id= context.request->request_stop_psmove_data_stream().controller_id();
 
-        if (ServerUtility::is_index_valid(controller_id, m_device_manager.m_controller_manager.getMaxDevices()))
+        if (ServerUtility::is_index_valid(controller_id, m_device_manager.getControllerViewMaxCount()))
         {
             context.connection_state->active_controller_streams.set(controller_id, false);
             context.connection_state->active_controller_stream_info[controller_id].Clear();
@@ -386,7 +390,7 @@ protected:
         const int controller_id= context.request->request_rumble().controller_id();
         const int rumble_amount= context.request->request_rumble().rumble();
 
-        if (m_device_manager.m_controller_manager.setControllerRumble(controller_id, rumble_amount))
+        if (m_device_manager.m_controller_manager->setControllerRumble(controller_id, rumble_amount))
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -402,7 +406,7 @@ protected:
     {
         const int controller_id= context.request->reset_pose().controller_id();
 
-        if (m_device_manager.m_controller_manager.resetPose(controller_id))
+        if (m_device_manager.m_controller_manager->resetPose(controller_id))
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -538,8 +542,7 @@ protected:
         const unsigned char g= ServerUtility::int32_to_int8_verify(context.request->set_led_color_request().g());
         const unsigned char b= ServerUtility::int32_to_int8_verify(context.request->set_led_color_request().b());
 
-        ServerControllerViewPtr ControllerView= 
-            m_device_manager.m_controller_manager.getControllerViewPtr(controller_id);
+        ServerControllerViewPtr ControllerView= m_device_manager.getControllerViewPtr(controller_id);
 
         if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
         {
@@ -573,8 +576,7 @@ protected:
     {
         const int controller_id= context.request->set_magnetometer_calibration_request().controller_id();
 
-        ServerControllerViewPtr ControllerView= 
-            m_device_manager.m_controller_manager.getControllerViewPtr(controller_id);
+        ServerControllerViewPtr ControllerView= m_device_manager.getControllerViewPtr(controller_id);
 
         if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
         {
@@ -621,9 +623,9 @@ protected:
     {
         PSMoveProtocol::Response_ResultTrackerList* list = response->mutable_result_tracker_list();
 
-        for (int tracker_id = 0; tracker_id < m_device_manager.m_tracker_manager.getMaxDevices(); ++tracker_id)
+        for (int tracker_id = 0; tracker_id < m_device_manager.getTrackerViewMaxCount(); ++tracker_id)
         {
-            ServerTrackerViewPtr tracker_view = m_device_manager.m_tracker_manager.getTrackerViewPtr(tracker_id);
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
 
             if (tracker_view->getIsOpen())
             {
@@ -664,7 +666,7 @@ protected:
             context.request->request_start_tracker_data_stream();
         int tracker_id = request.tracker_id();
 
-        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.m_controller_manager.getMaxDevices()))
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {
             TrackerStreamInfo &streamInfo =
                 context.connection_state->active_tracker_stream_info[tracker_id];
@@ -692,7 +694,7 @@ protected:
     {
         int tracker_id = context.request->request_stop_tracker_data_stream().tracker_id();
 
-        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.m_tracker_manager.getMaxDevices()))
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {
             context.connection_state->active_controller_streams.set(tracker_id, false);
             context.connection_state->active_controller_stream_info[tracker_id].Clear();
