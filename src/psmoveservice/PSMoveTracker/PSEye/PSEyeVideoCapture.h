@@ -31,19 +31,20 @@ public:
     \param camindex The index of the camera (0-based). To specify an API
     pass in the index + API. e.g., PSEyeVideoCapture(0 + PSEYE_CAP_CLMULTI)
     */
-    PSEyeVideoCapture(int camindex): m_index(-1) {open(camindex);} // Constructor is same as base class
+    PSEyeVideoCapture(int camindex)
+        : m_index(-1) {open(camindex);} // Constructor is same as base class
     
     /// Attempts to open a device using different drivers in the order outlined above.
     /*
     If a PS3 Eye device is not found, fall back to base class cv::VideoCapture::open(index)
     */
-    bool open(int index);
+    bool open(int index) override;
 
     /// Use cv::VideoCapture::set() unless \ref eyeType == PSEYE_CLEYE_DRIVER
-    bool set(int propId, double value);
+    bool set(int propId, double value) override;
 
     /// Use cv::VideoCapture::get() unless \ref eyeType == PSEYE_CLEYE_DRIVER
-    double get(int propId) const;
+    double get(int propId) const override;
     
 protected:
     int m_index; /**< Keep track of index. Necessary for PSEYE_CLEYE_DRIVER */

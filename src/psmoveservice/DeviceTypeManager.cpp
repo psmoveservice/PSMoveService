@@ -156,7 +156,7 @@ DeviceTypeManager::update_connected_devices()
                     }
                     else
                     {
-                        SERVER_LOG_ERROR("ControllerManager::reconnect_controllers") << "Can't connect any more new controllers. Too many open controllers";
+                        SERVER_LOG_ERROR("DeviceTypeManager::update_connected_devices") << "Can't connect any more new devices. Too many open device.";
                         break;
                     }
                 }
@@ -185,7 +185,7 @@ DeviceTypeManager::update_connected_devices()
                     const char *device_type_name =
                         CommonDeviceState::getDeviceTypeString(existingDevice->getDevice()->getDeviceType());
 
-                    SERVER_LOG_WARNING("ControllerManager::reconnect_controllers") << "Closing device "
+                    SERVER_LOG_WARNING("DeviceTypeManager::update_connected_devices") << "Closing device "
                         << existing_device_id << " (" << device_type_name << ") since it's no longer in the device list.";
                     existingDevice->close();
                     bSendControllerUpdatedNotification = true;

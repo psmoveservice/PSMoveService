@@ -26,23 +26,23 @@ public:
     virtual IDeviceInterface* getDevice() const=0;
     
     // Used for when you have to get device specific data
-    template <class t_controller_subclass>
-    inline const t_controller_subclass *castCheckedConst() const
+    template <class t_device_subclass>
+    inline const t_device_subclass *castCheckedConst() const
     { 
         IDeviceInterface* device= getDevice();
         assert(device != nullptr);
-        assert(device->getDeviceType() == t_controller_subclass::getDeviceTypeStatic());
-        const t_controller_subclass *controller= static_cast<const t_controller_subclass *>(device);
+        assert(device->getDeviceType() == t_device_subclass::getDeviceTypeStatic());
+        const t_device_subclass *controller= static_cast<const t_device_subclass *>(device);
 
         return controller; 
     }
-    template <class t_controller_subclass>
-    inline t_controller_subclass *castChecked()
+    template <class t_device_subclass>
+    inline t_device_subclass *castChecked()
     {
         IDeviceInterface* device= getDevice();
         assert(device != nullptr);
-        assert(device->getDeviceType() == t_controller_subclass::getDeviceTypeStatic());
-        t_controller_subclass *controller= static_cast<t_controller_subclass *>(device);
+        assert(device->getDeviceType() == t_device_subclass::getDeviceTypeStatic());
+        t_device_subclass *controller= static_cast<t_device_subclass *>(device);
 
         return controller; 
     }    

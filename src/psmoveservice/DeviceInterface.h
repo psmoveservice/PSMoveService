@@ -18,11 +18,8 @@ struct CommonDeviceState
         PSNavi = Controller + 0x01,
         SUPPORTED_CONTROLLER_TYPE_COUNT = Controller + 0x02,
         
-        PSEYE_Libusb = TrackingCamera + 0x00,
-        PSEYE_CL = TrackingCamera + 0x01,
-        PSEYE_CLMulti = TrackingCamera + 0x02,
-        Generic_Webcam = TrackingCamera + 0x03,
-        SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x04,
+        PS3EYE = TrackingCamera + 0x00,
+        SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x01,
 
         OVRDK2 = HeadMountedDisplay + 0x00,
         SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01
@@ -54,17 +51,8 @@ struct CommonDeviceState
         case PSNavi:
             result = "PSNavi";
             break;
-        case PSEYE_Libusb:
-            result = "PSEYE(Libusb)";
-            break;
-        case PSEYE_CL:
-            result = "PSEYE(CL)";
-            break;
-        case PSEYE_CLMulti:
-            result = "PSEYE(CLMulti)";
-            break;
-        case Generic_Webcam:
-            result = "Generic Webcam";
+        case PS3EYE:
+            result = "PSEYE";
             break;
         case OVRDK2:
             result = "Oculus DK2";
@@ -130,7 +118,7 @@ public:
     // Return true if device path matches
     virtual bool matchesDeviceEnumerator(const class DeviceEnumerator *enumerator) const = 0;
     
-    // Opens the HID device for the controller at the given enumerator
+    // Opens the HID device for the device at the given enumerator
     virtual bool open(const class DeviceEnumerator *enumerator) = 0;
     
     // Returns true if hidapi opened successfully
@@ -138,16 +126,16 @@ public:
     
     virtual bool getIsReadyToPoll() const = 0;
     
-    // Polls for new controller data
+    // Polls for new device data
     virtual ePollResult poll() = 0;
     
-    // Closes the HID device for the controller
+    // Closes the HID device for the device
     virtual void close() = 0;
     
-    // Get the number of milliseconds we're willing to accept no data from the controller before we disconnect it
+    // Get the number of milliseconds we're willing to accept no data from the device before we disconnect it
     virtual long getMaxPollFailureCount() const = 0;
     
-    // Returns what type of controller
+    // Returns what type of device
     virtual CommonDeviceState::eDeviceType getDeviceType() const = 0;
     
     // Fetch the device state at the given sample index.
@@ -180,9 +168,47 @@ public:
 class ITrackerInterface : public IDeviceInterface
 {
 public:
+    enum eDriverType
+    {
+        Libusb,
+        CL,
+        CLMulti,
+        Generic_Webcam,
+
+        SUPPORTED_DRIVER_TYPE_COUNT,
+    };
+
     // -- Getters
+    // Returns the driver type being used by this camera
+    virtual eDriverType getDriverType() const = 0;
+
     // Returns the full usb device path for the tracker
     virtual std::string getUSBDevicePath() const = 0;
+
+    static const char *getDriverTypeString(eDriverType device_type)
+    {
+        const char *result = nullptr;
+
+        switch (device_type)
+        {
+        case Libusb:
+            result = "Libusb";
+            break;
+        case CL:
+            result = "CL";
+            break;
+        case CLMulti:
+            result = "CLMulti";
+            break;
+        case Generic_Webcam:
+            result = "Generic_Webcam";
+            break;
+        default:
+            result = "UNKNOWN";
+        }
+
+        return result;
+    }
 };
 
 /// Abstract class for HMD interface. Implemented HMD classes

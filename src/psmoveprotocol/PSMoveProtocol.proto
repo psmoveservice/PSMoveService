@@ -37,11 +37,14 @@ message Orientation{
 }
 
 enum TrackerType {
-    CL_EYE_DRIVER = 0;
-    CL_EYE_SDK = 1;
-    PS3EYEDRIVER = 2;
-    ISIGHT = 3;
-    WEBCAM = 4;
+    PS3EYE = 0;
+}
+
+enum TrackerDriver {
+    LIBUSB = 0;
+    CL_EYE = 1;
+    CL_EYE_MULTICAM = 2;
+    GENERIC_WEBCAM = 3;
 }
 
 // Reliable (TCP) requests that can issued to the PSMove Service
@@ -226,7 +229,8 @@ message Response {
         message TrackerInfo {
             int32 tracker_id= 1;
             TrackerType tracker_type = 2;
-            string device_path = 3;
+            TrackerDriver tracker_driver = 3;
+            string device_path = 4;
         }
         repeated TrackerInfo trackers = 1;
     }

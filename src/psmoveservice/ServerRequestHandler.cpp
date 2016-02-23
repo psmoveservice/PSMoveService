@@ -8,6 +8,7 @@
 #include "HMDManager.h"
 #include "MathEigen.h"
 #include "OrientationFilter.h"
+#include "PS3EyeTracker.h"
 #include "PSMoveController.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerControllerView.h"
@@ -633,18 +634,27 @@ protected:
 
                 switch (tracker_view->getTrackerDeviceType())
                 {
-                case CommonControllerState::PSEYE_Libusb:
-                    tracker_info->set_tracker_type(PSMoveProtocol::PS3EYEDRIVER);
+                case CommonControllerState::PS3EYE:
+                    tracker_info->set_tracker_type(PSMoveProtocol::PS3EYE);
                     break;
-                case CommonControllerState::PSEYE_CL:
-                    tracker_info->set_tracker_type(PSMoveProtocol::CL_EYE_DRIVER);
+                default:
+                    assert(0 && "Unhandled tracker type");
+                }
+
+                switch (tracker_view->getTrackerDriverType())
+                {
+                case ITrackerInterface::Libusb:
+                    tracker_info->set_tracker_driver(PSMoveProtocol::LIBUSB);
                     break;
-                case CommonControllerState::PSEYE_CLMulti:
-                    tracker_info->set_tracker_type(PSMoveProtocol::CL_EYE_SDK);
+                case ITrackerInterface::CL:
+                    tracker_info->set_tracker_driver(PSMoveProtocol::CL_EYE);
                     break;
-                // PSMoveProtocol::ISIGHT?
-                case CommonControllerState::Generic_Webcam:
-                    tracker_info->set_tracker_type(PSMoveProtocol::WEBCAM);
+                case ITrackerInterface::CLMulti:
+                    tracker_info->set_tracker_driver(PSMoveProtocol::CL_EYE_MULTICAM);
+                    break;
+                    // PSMoveProtocol::ISIGHT?
+                case ITrackerInterface::Generic_Webcam:
+                    tracker_info->set_tracker_driver(PSMoveProtocol::GENERIC_WEBCAM);
                     break;
                 default:
                     assert(0 && "Unhandled tracker type");

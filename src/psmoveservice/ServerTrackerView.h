@@ -19,6 +19,9 @@ public:
     // Returns what type of tracker this tracker view represents
     CommonDeviceState::eDeviceType getTrackerDeviceType() const;
 
+    // Returns what type of driver this tracker uses
+    ITrackerInterface::eDriverType getTrackerDriverType() const;
+
     // Returns the full usb device path for the controller
     std::string getUSBDevicePath() const;
 
