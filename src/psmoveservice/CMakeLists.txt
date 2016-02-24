@@ -33,30 +33,89 @@ ELSE() #Linux
 ENDIF()
 
 # Source files for PSMoveService
-file(GLOB PSMOVESERVICE_SRC
-    "${CMAKE_CURRENT_LIST_DIR}/*.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/*.h"
-    "${CMAKE_CURRENT_LIST_DIR}/Filter/*.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/Filter/*.h"        
+file(GLOB PSMOVESERVICE_CONFIG_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig/*.h"    
+)
+source_group("Config" FILES ${PSMOVESERVICE_CONFIG_SRC})
+
+file(GLOB PSMOVESERVICE_CONTROLLER_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveController/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveController/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.h"
+    "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.h"    
+)
+source_group("Controller" FILES ${PSMOVESERVICE_CONTROLLER_SRC})
+
+file(GLOB PSMOVESERVICE_DEVICE_ENUM_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/Device/Enumerator/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Device/Enumerator/*.h"    
+)
+source_group("Device\\Enumerator" FILES ${PSMOVESERVICE_DEVICE_ENUM_SRC})
+
+file(GLOB PSMOVESERVICE_DEVICE_INT_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/Device/Interface/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Device/Interface/*.h"    
+)
+source_group("Device\\Interface" FILES ${PSMOVESERVICE_DEVICE_INT_SRC})
+
+file(GLOB PSMOVESERVICE_DEVICE_MGR_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/Device/Manager/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Device/Manager/*.h"    
+)
+source_group("Device\\Manager" FILES ${PSMOVESERVICE_DEVICE_MGR_SRC})
+
+file(GLOB PSMOVESERVICE_DEVICE_VIEW_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/Device/View/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Device/View/*.h"    
+)
+source_group("Device\\View" FILES ${PSMOVESERVICE_DEVICE_VIEW_SRC})
+
+file(GLOB PSMOVESERVICE_FILTER_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/Filter/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Filter/*.h"        
+)
+source_group("Filter" FILES ${PSMOVESERVICE_FILTER_SRC})
+
+file(GLOB PSMOVESERVICE_SERVER_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/Server/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Server/*.h"
+)
+source_group("Server" FILES ${PSMOVESERVICE_SERVER_SRC})
+
+file(GLOB PSMOVESERVICE_TRACKER_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/PSEye/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/PSEye/*.h"
 )
+source_group("Tracker" FILES ${PSMOVESERVICE_TRACKER_SRC})
+
+set(PSMOVESERVICE_SRC
+    ${PSMOVESERVICE_CONFIG_SRC}
+    ${PSMOVESERVICE_CONTROLLER_SRC}
+    ${PSMOVESERVICE_DEVICE_ENUM_SRC}
+    ${PSMOVESERVICE_DEVICE_INT_SRC}
+    ${PSMOVESERVICE_DEVICE_MGR_SRC}
+    ${PSMOVESERVICE_DEVICE_VIEW_SRC}
+    ${PSMOVESERVICE_FILTER_SRC}
+    ${PSMOVESERVICE_SERVER_SRC} 
+    ${PSMOVESERVICE_TRACKER_SRC}
+)
+
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
-    ${ROOT_DIR}/src/psmoveservice/Filter
+    ${CMAKE_CURRENT_LIST_DIR}/Device/Enumerator
+    ${CMAKE_CURRENT_LIST_DIR}/Device/Interface
+    ${CMAKE_CURRENT_LIST_DIR}/Device/Manager
+    ${CMAKE_CURRENT_LIST_DIR}/Device/View
+    ${CMAKE_CURRENT_LIST_DIR}/Filter
     ${CMAKE_CURRENT_LIST_DIR}/Platform
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveController
     ${CMAKE_CURRENT_LIST_DIR}/PSNaviController
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/PSEye
+    ${CMAKE_CURRENT_LIST_DIR}/Server
 )
 
 # Eigen math library

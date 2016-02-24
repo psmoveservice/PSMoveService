@@ -3,8 +3,8 @@
 
 #include "PSMoveDataFrame.h"
 #include "PSMoveConfig.h"
-#include "../DeviceEnumerator.h"
-#include "../DeviceInterface.h"
+#include "DeviceEnumerator.h"
+#include "DeviceInterface.h"
 #include <string>
 #include <vector>
 #include <deque>

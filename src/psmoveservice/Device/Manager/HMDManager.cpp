@@ -1,6 +1,6 @@
 //-- includes -----
 #include "HMDManager.h"
-#include "DeviceEnumerator.h"
+#include "HMDDeviceEnumerator.h"
 #include "ServerLog.h"
 #include "ServerHMDView.h"
 #include "ServerDeviceView.h"

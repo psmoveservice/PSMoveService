@@ -1,8 +1,9 @@
 // -- includes -----
 #include "PS3EyeTracker.h"
-#include "../ServerLog.h"
-#include "../ServerUtility.h"
+#include "ServerLog.h"
+#include "ServerUtility.h"
 #include "PSEyeVideoCapture.h"
+#include "TrackerDeviceEnumerator.h"
 #include "opencv2/opencv.hpp"
 
 // -- constants -----
@@ -80,7 +81,7 @@ bool PS3EyeTracker::open() // Opens the first HID device for the tracker
 bool PS3EyeTracker::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
 {
     // Down-cast the enumerator so we can use the correct get_path.
-    const ControllerDeviceEnumerator *pEnum = static_cast<const ControllerDeviceEnumerator *>(enumerator);
+    const TrackerDeviceEnumerator *pEnum = static_cast<const TrackerDeviceEnumerator *>(enumerator);
 
     bool matches = false;
 

@@ -4,11 +4,11 @@
 
 // -- includes -----
 #include "BluetoothRequests.h"
-#include "../DeviceManager.h"
-#include "../ServerControllerView.h"
-#include "../ServerNetworkManager.h"
-#include "../ServerLog.h"
-#include "../ServerUtility.h"
+#include "DeviceManager.h"
+#include "ServerControllerView.h"
+#include "ServerNetworkManager.h"
+#include "ServerLog.h"
+#include "ServerUtility.h"
 
 #include "PSMoveProtocol.pb.h"
 #include "PSMoveProtocolInterface.h"

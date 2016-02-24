@@ -1,8 +1,9 @@
 //-- includes -----
 #include "PSMoveController.h"
-#include "../ServerLog.h"
-#include "../ServerUtility.h"
-#include "../Platform/BluetoothQueries.h"
+#include "ControllerDeviceEnumerator.h"
+#include "ServerLog.h"
+#include "ServerUtility.h"
+#include "BluetoothQueries.h"
 #include <iostream>
 #include <sstream>
 #include <iomanip>

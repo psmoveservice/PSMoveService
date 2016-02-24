@@ -1,6 +1,6 @@
 //-- includes -----
 #include "ControllerManager.h"
-#include "DeviceEnumerator.h"
+#include "ControllerDeviceEnumerator.h"
 #include "OrientationFilter.h"
 #include "ServerLog.h"
 #include "ServerControllerView.h"

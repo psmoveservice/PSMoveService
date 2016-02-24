@@ -1,6 +1,6 @@
 //-- includes -----
 #include "TrackerManager.h"
-#include "DeviceEnumerator.h"
+#include "TrackerDeviceEnumerator.h"
 #include "ServerLog.h"
 #include "ServerTrackerView.h"
 #include "ServerDeviceView.h"

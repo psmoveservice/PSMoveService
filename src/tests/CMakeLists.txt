@@ -177,14 +177,8 @@ SET(TEST_CTRLR_REQ_LIBS)
 include_directories(${ROOT_DIR}/thirdparty/hidapi/hidapi)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/windows/hid.c)
-    find_package(USB1 REQUIRED)
-    list(APPEND TEST_CTRLR_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
-    list(APPEND TEST_CTRLR_REQ_LIBS ${LIBUSB_LIBRARIES})   
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)
-    find_package(USB1 REQUIRED)
-    list(APPEND TEST_CTRLR_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
-    list(APPEND TEST_CTRLR_REQ_LIBS ${LIBUSB_LIBRARIES})       
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)      
 ELSE()
     set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
 ENDIF()
@@ -212,16 +206,20 @@ list(APPEND TEST_CTRLR_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
 list(APPEND TEST_CTRLR_INCL_DIRS
     ${ROOT_DIR}/src/psmovemath/
     ${ROOT_DIR}/src/psmoveservice/
+    ${ROOT_DIR}/src/psmoveservice/Server
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator
+    ${ROOT_DIR}/src/psmoveservice/Device/Interface
+    ${ROOT_DIR}/src/psmoveservice/Platform
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
     ${ROOT_DIR}/src/psmoveservice/PSMoveController)
 list(APPEND TEST_CTRLR_SRC
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
-    ${ROOT_DIR}/src/psmoveservice/ServerLog.h
-    ${ROOT_DIR}/src/psmoveservice/ServerLog.cpp
-    ${ROOT_DIR}/src/psmoveservice/ServerUtility.h
-    ${ROOT_DIR}/src/psmoveservice/ServerUtility.cpp
-    ${ROOT_DIR}/src/psmoveservice/DeviceEnumerator.h
-    ${ROOT_DIR}/src/psmoveservice/DeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
