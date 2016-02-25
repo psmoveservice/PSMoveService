@@ -185,6 +185,12 @@ public:
     // Returns the full usb device path for the tracker
     virtual std::string getUSBDevicePath() const = 0;
 
+    // Returns the video frame size (used to compute frame buffer size)
+    virtual bool getVideoFrameDimensions(int *out_width, int *out_height, int *out_stride) const = 0;
+
+    // Returns a pointer to the last video frame buffer captured
+    virtual const unsigned char *getVideoFrameBuffer() const = 0;
+
     static const char *getDriverTypeString(eDriverType device_type)
     {
         const char *result = nullptr;

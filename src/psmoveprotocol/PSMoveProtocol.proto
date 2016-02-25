@@ -166,10 +166,11 @@ message Response {
         UNPAIR_REQUEST_COMPLETED= 4;
         PAIR_REQUEST_COMPLETED= 5;
         BLUETOOTH_REQUEST_PROGRESS= 6;
-        TRACKER_LIST= 7;
-        TRACKER_LIST_UPDATED= 8;
-        HMD_LIST= 9;
-        HMD_LIST_UPDATED= 10;        
+        TRACKER_STREAM_INFO= 8;
+        TRACKER_LIST= 9;
+        TRACKER_LIST_UPDATED= 10;
+        HMD_LIST= 11;
+        HMD_LIST_UPDATED= 12;        
     }
 
     enum ResultCode {
@@ -222,7 +223,13 @@ message Response {
     }
     ResultBluetoothRequestProgress result_bluetooth_request_progress = 22;
 
-
+    // Parameters for TRACKER_STREAM_INFO
+    // This is returned in response to a START_TRACKER_DATA_STREAM request
+    message ResultTrackerStreamInfo {
+        string shared_memory_name = 1;
+    }
+    ResultTrackerStreamInfo result_tracker_stream_info = 23;
+    
     // Parameters for TRACKER_LIST
     // This is returned in response to a TRACKER_LIST request
     message ResultTrackerList {
@@ -234,7 +241,7 @@ message Response {
         }
         repeated TrackerInfo trackers = 1;
     }
-    ResultTrackerList result_tracker_list = 23;
+    ResultTrackerList result_tracker_list = 24;
 }
 
 // Unreliable (UDP) controller data packet format

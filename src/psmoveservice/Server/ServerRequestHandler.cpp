@@ -242,6 +242,15 @@ public:
                 connection_state->pending_bluetooth_request= nullptr;
             }
 
+            // Halt any shared memory streams this connection has going
+            for (int tracker_id = 0; tracker_id < TrackerManager::k_max_devices; ++tracker_id)
+            {
+                if (connection_state->active_tracker_stream_info[tracker_id].streaming_video_data)
+                {
+                    m_device_manager.getTrackerViewPtr(tracker_id)->stopSharedMemoryVideoStream();
+                }
+            }
+
             // Remove the connection state from the state map
             m_connection_state_map.erase(iter);
         }
@@ -678,19 +687,35 @@ protected:
 
         if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {
-            TrackerStreamInfo &streamInfo =
-                context.connection_state->active_tracker_stream_info[tracker_id];
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
 
-            // The tracker manager will always publish updates regardless of who is listening.
-            // All we have to do is keep track of which connections care about the updates.
-            context.connection_state->active_tracker_streams.set(tracker_id, true);
+            if (tracker_view->getIsOpen())
+            {
+                PSMoveProtocol::Response_ResultTrackerStreamInfo *result_stream_info =
+                    response->mutable_result_tracker_stream_info();
 
-            // Set control flags for the stream
-            streamInfo.Clear();
-            // TODO: Request specific flags
-            //streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
+                TrackerStreamInfo &streamInfo =
+                    context.connection_state->active_tracker_stream_info[tracker_id];
 
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+                // The tracker manager will always publish updates regardless of who is listening.
+                // All we have to do is keep track of which connections care about the updates.
+                context.connection_state->active_tracker_streams.set(tracker_id, false);
+
+                // Set control flags for the stream
+                streamInfo.streaming_video_data = true;
+
+                // Increment the number of stream listeners
+                tracker_view->startSharedMemoryVideoStream();
+
+                // Return the name of the shared memory block the video frames will be written to
+                result_stream_info->set_shared_memory_name(tracker_view->getSharedMemoryStreamName());
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                // Device not opened
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
         }
         else
         {
@@ -706,10 +731,23 @@ protected:
 
         if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {
-            context.connection_state->active_controller_streams.set(tracker_id, false);
-            context.connection_state->active_controller_stream_info[tracker_id].Clear();
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
 
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            if (tracker_view->getIsOpen())
+            {
+                context.connection_state->active_controller_streams.set(tracker_id, false);
+                context.connection_state->active_controller_stream_info[tracker_id].Clear();
+
+                // Decrement the number of stream listeners
+                tracker_view->stopSharedMemoryVideoStream();
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                // Device not opened
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
         }
         else
         {

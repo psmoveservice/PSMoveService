@@ -14,6 +14,13 @@ namespace ServerUtility
     unsigned char int32_to_int8_verify(int value);
     bool convert_wcs_to_mbs(const wchar_t *wc_string, char *out_mb_serial, const size_t mb_buffer_size);
 
+    /// Formats a string into the given target buffer
+    /// \param buffer The target buffer to write in to
+    /// \param buffer_size The max number of bytes that can be written to the buffer
+    /// \param format The formatting string that will be written to the buffer
+    /// \return The number of characters successfully written
+    int format_string(char *buffer, size_t buffer_size, const char *format, ...);
+
     /// Coverts the given bluetooth string into standarized format. Ex) "XX-XX-XX-XX-XX-XX" to "xx:xx:xx:xx:xx:xx"
     /// \param addr The given bluetooth address we want to convers
     /// \param bLowercase true if we want the result to be in lower case or not

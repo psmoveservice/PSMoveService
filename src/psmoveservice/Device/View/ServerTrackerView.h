@@ -4,12 +4,30 @@
 //-- includes -----
 #include "ServerDeviceView.h"
 
+//-- pre-declarations -----
+namespace boost {
+    namespace interprocess {
+        class shared_memory_object;
+    };
+};
+
 // -- declarations -----
 class ServerTrackerView : public ServerDeviceView
 {
 public:
     ServerTrackerView(const int device_id);
     ~ServerTrackerView();
+
+    bool open(const class DeviceEnumerator *enumerator) override;
+    void close() override;
+
+    // Starts or stops streaming of the video feed to the shared memory buffer.
+    // Keep a ref count of how many clients are following the stream.
+    void startSharedMemoryVideoStream();
+    void stopSharedMemoryVideoStream();
+
+    // Fetch the next video frame and copy to shared memory
+    bool poll() override;
 
     // Get controller colors and update tracking blob positions/predictions
     void updateStateAndPredict() override;
@@ -25,12 +43,18 @@ public:
     // Returns the full usb device path for the controller
     std::string getUSBDevicePath() const;
 
+    // Returns the name of the shared memory block video frames are written to
+    std::string getSharedMemoryStreamName() const;
+
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
     void free_device_interface() override;
     void publish_device_data_frame() override;
 
 private:
+    char m_shared_memory_name[256];
+    boost::interprocess::shared_memory_object *m_shared_video_frame;
+    int m_shared_memory_video_stream_count;
     ITrackerInterface *m_device;
 };
 

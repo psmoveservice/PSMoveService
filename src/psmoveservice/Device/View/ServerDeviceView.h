@@ -13,10 +13,12 @@ public:
     virtual ~ServerDeviceView();
     
     virtual bool open(const class DeviceEnumerator *enumerator);
-    bool poll();
+    virtual void close();
+
+    virtual bool poll();
     virtual void updateStateAndPredict()= 0;
-    void publish();
-    void close();
+    virtual void publish();
+    
     bool matchesDeviceEnumerator(const class DeviceEnumerator *enumerator) const;
     
     // getters

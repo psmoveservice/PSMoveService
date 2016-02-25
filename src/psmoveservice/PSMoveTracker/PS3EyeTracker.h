@@ -66,16 +66,18 @@ public:
     // -- ITrackerInterface
     ITrackerInterface::eDriverType getDriverType() const override;
     std::string getUSBDevicePath() const override;
+    bool getVideoFrameDimensions(int *out_width, int *out_height, int *out_stride) const override;
+    const unsigned char *getVideoFrameBuffer() const override;
 
     // -- Getters
     inline const PS3EyeTrackerConfig &getConfig() const
     { return cfg; }
 
 private:
-
     PS3EyeTrackerConfig cfg;
     std::string USBDevicePath;
     class PSEyeVideoCapture *VideoCapture;
+    class PSEyeCaptureData *CaptureData;
     ITrackerInterface::eDriverType DriverType;
     
     // Read Controller State

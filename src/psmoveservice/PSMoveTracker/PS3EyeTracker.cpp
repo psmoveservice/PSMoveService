@@ -9,6 +9,19 @@
 // -- constants -----
 #define PS3EYE_STATE_BUFFER_MAX 16
 
+// -- private definitions -----
+class PSEyeCaptureData
+{
+public:
+    PSEyeCaptureData()
+        : frame()
+    {
+
+    }
+
+    cv::Mat frame;
+};
+
 // -- public methods
 // -- PS3EYE Controller Config
 const int PS3EyeTrackerConfig::CONFIG_VERSION = 1;
@@ -48,6 +61,7 @@ PS3EyeTracker::PS3EyeTracker()
     : cfg()
     , USBDevicePath()
     , VideoCapture(nullptr)
+    , CaptureData(nullptr)
     , DriverType(PS3EyeTracker::Libusb)
     , NextPollSequenceNumber(0)
     , TrackerStates()
@@ -117,6 +131,7 @@ bool PS3EyeTracker::open(const DeviceEnumerator *enumerator)
 
         if (VideoCapture->isOpened())
         {
+            CaptureData = new PSEyeCaptureData;
             USBDevicePath = enumerator->get_path();
             bSuccess = true;
         }
@@ -147,9 +162,8 @@ IDeviceInterface::ePollResult PS3EyeTracker::poll()
 
     if (getIsOpen())
     {
-        cv::Mat frame;
-
-        if (!VideoCapture->grab() || !VideoCapture->retrieve(frame, cv::CAP_OPENNI_BGR_IMAGE))
+        if (!VideoCapture->grab() || 
+            !VideoCapture->retrieve(CaptureData->frame, cv::CAP_OPENNI_BGR_IMAGE))
         {
             // Device still in valid state
             result = IControllerInterface::_PollResultSuccessNoData;
@@ -164,7 +178,6 @@ IDeviceInterface::ePollResult PS3EyeTracker::poll()
             PS3EyeTrackerState newState;
 
             // TODO: Process the frame and extract the blobs
-            // TODO: Copy the video frame to shared memory for any clients listening to a video feed
 
             // Increment the sequence for every new polling packet
             newState.PollSequenceNumber = NextPollSequenceNumber;
@@ -186,6 +199,12 @@ IDeviceInterface::ePollResult PS3EyeTracker::poll()
 
 void PS3EyeTracker::close()
 {
+    if (CaptureData != nullptr)
+    {
+        delete CaptureData;
+        CaptureData = nullptr;
+    }
+
     if (VideoCapture != nullptr)
     {
         delete VideoCapture;
@@ -221,4 +240,63 @@ ITrackerInterface::eDriverType PS3EyeTracker::getDriverType() const
 std::string PS3EyeTracker::getUSBDevicePath() const
 {
     return USBDevicePath;
+}
+
+bool PS3EyeTracker::getVideoFrameDimensions(
+    int *out_width,
+    int *out_height,
+    int *out_stride) const
+{
+    bool bSuccess = true;
+
+    if (out_width != nullptr)
+    {
+        *out_width = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH));
+    }
+
+    if (out_height != nullptr)
+    {
+        int height = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_HEIGHT));
+
+        if (out_stride != nullptr)
+        {
+            int format = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FORMAT));
+            int bytes_per_pixel;
+
+            switch (format)
+            {
+            case cv::CAP_MODE_BGR:
+            case cv::CAP_MODE_RGB:
+                bytes_per_pixel = 3;
+                break;
+            case cv::CAP_MODE_YUYV:
+                bytes_per_pixel = 2;
+                break;
+            case cv::CAP_MODE_GRAY:
+                bytes_per_pixel = 1;
+                break;
+            default:
+                assert(false && "Unknown video format?");
+                break;
+            }
+
+            *out_stride = bytes_per_pixel * height;
+        }
+
+        *out_height = height;
+    }
+
+    return bSuccess;
+}
+
+const unsigned char *PS3EyeTracker::getVideoFrameBuffer() const
+{
+    const unsigned char *result = nullptr;
+
+    if (CaptureData != nullptr)
+    {
+        return static_cast<const unsigned char *>(CaptureData->frame.data);
+    }
+
+    return result;
 }

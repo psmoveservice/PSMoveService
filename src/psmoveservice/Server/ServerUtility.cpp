@@ -4,7 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdarg.h>
 #include <locale>
+
+#ifdef _MSC_VER
+#pragma warning (disable: 4996) // 'This function or variable may be unsafe': vsnprintf
+#define vsnprintf _vsnprintf
+#endif
 
 // -- public methods -----
 namespace ServerUtility
@@ -43,6 +49,18 @@ namespace ServerUtility
         }
 
         return success;
+    }
+
+    int format_string(char *buffer, size_t buffer_size, const char *format, ...)
+    {
+        // Bake out the text string
+        va_list args;
+        va_start(args, format);
+        int chars_written = vsnprintf(buffer, buffer_size, format, args);
+        buffer[buffer_size - 1] = 0;
+        va_end(args);
+
+        return chars_written;
     }
 
     bool normalize_bluetooth_address(

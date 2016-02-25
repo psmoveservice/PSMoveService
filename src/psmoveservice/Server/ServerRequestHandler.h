@@ -24,12 +24,11 @@ struct ControllerStreamInfo
 
 struct TrackerStreamInfo
 {
-	// Placeholder
-    bool include_raw_sensor_data;
+    bool streaming_video_data;
 
     inline void Clear()
     {
-        include_raw_sensor_data = false;
+        streaming_video_data = false;
     }
 };
 
