@@ -671,6 +671,7 @@ protected:
 
                 tracker_info->set_tracker_id(tracker_id);
                 tracker_info->set_device_path(tracker_view->getUSBDevicePath());
+                tracker_info->set_shared_memory_name(tracker_view->getSharedMemoryStreamName());
             }
         }
 
@@ -691,9 +692,6 @@ protected:
 
             if (tracker_view->getIsOpen())
             {
-                PSMoveProtocol::Response_ResultTrackerStreamInfo *result_stream_info =
-                    response->mutable_result_tracker_stream_info();
-
                 TrackerStreamInfo &streamInfo =
                     context.connection_state->active_tracker_stream_info[tracker_id];
 
@@ -708,7 +706,6 @@ protected:
                 tracker_view->startSharedMemoryVideoStream();
 
                 // Return the name of the shared memory block the video frames will be written to
-                result_stream_info->set_shared_memory_name(tracker_view->getSharedMemoryStreamName());
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
             else
