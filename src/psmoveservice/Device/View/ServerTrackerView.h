@@ -4,12 +4,6 @@
 //-- includes -----
 #include "ServerDeviceView.h"
 
-//-- pre-declarations -----
-namespace boost {
-    namespace interprocess {
-        class shared_memory_object;
-    };
-};
 
 // -- declarations -----
 class ServerTrackerView : public ServerDeviceView
@@ -53,7 +47,7 @@ protected:
 
 private:
     char m_shared_memory_name[256];
-    boost::interprocess::shared_memory_object *m_shared_video_frame;
+    class SharedVideoFrameReadWriteAccessor *m_shared_memory_accesor;
     int m_shared_memory_video_stream_count;
     ITrackerInterface *m_device;
 };
