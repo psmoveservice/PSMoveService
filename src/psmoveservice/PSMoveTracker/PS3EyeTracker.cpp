@@ -251,12 +251,7 @@ bool PS3EyeTracker::getVideoFrameDimensions(
 
     if (out_width != nullptr)
     {
-        *out_width = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH));
-    }
-
-    if (out_height != nullptr)
-    {
-        int height = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_HEIGHT));
+        int width = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_WIDTH));
 
         if (out_stride != nullptr)
         {
@@ -280,8 +275,15 @@ bool PS3EyeTracker::getVideoFrameDimensions(
                 break;
             }
 
-            *out_stride = bytes_per_pixel * height;
+            *out_stride = bytes_per_pixel * width;
         }
+
+        *out_width = width;
+    }
+
+    if (out_height != nullptr)
+    {
+        int height = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FRAME_HEIGHT));
 
         *out_height = height;
     }
