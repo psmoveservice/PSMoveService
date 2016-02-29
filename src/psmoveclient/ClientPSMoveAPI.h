@@ -40,6 +40,8 @@ public:
         // Service Events
         opaqueServiceEvent, // Need to have protocol access to see what kind of event this is
         controllerListUpdated,
+        trackerListUpdated,
+        hmdListUpdated,
     };
 
     enum eClientPSMoveResultCode

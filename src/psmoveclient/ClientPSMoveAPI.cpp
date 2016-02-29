@@ -263,6 +263,12 @@ public:
             case PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED:
                 specificEventType= ClientPSMoveAPI::controllerListUpdated;
                 break;
+            case PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED:
+                specificEventType = ClientPSMoveAPI::trackerListUpdated;
+                break;
+            case PSMoveProtocol::Response_ResponseType_HMD_LIST_UPDATED:
+                specificEventType = ClientPSMoveAPI::hmdListUpdated;
+                break;
             }
 
             m_event_callback(

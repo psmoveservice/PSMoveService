@@ -45,12 +45,12 @@ private:
 };
 
 //-- externs -----
-extern std::ostream g_normal_logger;
-extern NullStream<char> g_null_logger;
+CLIENTPSMOVEAPI extern std::ostream g_normal_logger;
+CLIENTPSMOVEAPI extern NullStream<char> g_null_logger;
 
 //-- interface -----
 void log_init(e_log_severity_level level);
-bool log_can_emit_level(e_log_severity_level level);
+CLIENTPSMOVEAPI bool log_can_emit_level(e_log_severity_level level);
 
 //-- macros -----
 #define SELECT_LOG_STREAM(level) (log_can_emit_level(level) ? g_normal_logger : g_null_logger)

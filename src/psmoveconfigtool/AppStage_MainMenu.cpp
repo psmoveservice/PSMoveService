@@ -1,9 +1,10 @@
 //-- inludes -----
 #include "AppStage_MainMenu.h"
-#include "AppStage_CameraSettings.h"
+#include "AppStage_TrackerSettings.h"
 #include "AppStage_ControllerSettings.h"
 #include "AppStage_HMDSettings.h"
 #include "AppStage_ServiceSettings.h"
+#include "AppStage_TestTracker.h"
 #include "App.h"
 #include "Camera.h"
 #include "Renderer.h"
@@ -85,9 +86,9 @@ void AppStage_MainMenu::renderUI()
                 m_app->setAppStage(AppStage_ControllerSettings::APP_STAGE_NAME);
             }
     
-            if (ImGui::Button("Camera Settings"))
+            if (ImGui::Button("Tracker Settings"))
             {
-                m_app->setAppStage(AppStage_CameraSettings::APP_STAGE_NAME);
+                m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
     
             if (ImGui::Button("Exit"))
