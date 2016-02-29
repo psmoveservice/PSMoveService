@@ -732,8 +732,8 @@ protected:
 
             if (tracker_view->getIsOpen())
             {
-                context.connection_state->active_controller_streams.set(tracker_id, false);
-                context.connection_state->active_controller_stream_info[tracker_id].Clear();
+                context.connection_state->active_tracker_streams.set(tracker_id, false);
+                context.connection_state->active_tracker_stream_info[tracker_id].Clear();
 
                 // Decrement the number of stream listeners
                 tracker_view->stopSharedMemoryVideoStream();
