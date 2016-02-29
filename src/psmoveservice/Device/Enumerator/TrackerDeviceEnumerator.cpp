@@ -37,7 +37,7 @@ TrackerDeviceEnumerator::TrackerDeviceEnumerator()
     cur_dev = (devs != nullptr) ? devs[0] : nullptr;
     camera_index = 0;
 
-    if (!is_valid())
+    if (!recompute_current_device_validity())
     {
         camera_index = -1;
         next();
@@ -55,8 +55,11 @@ TrackerDeviceEnumerator::TrackerDeviceEnumerator(CommonDeviceState::eDeviceType 
     , dev_index(0)
     , dev_count(0)
     , camera_index(-1)
+    , dev_valid(false)
 {
     assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CAMERA_TYPE_INDEX);
+
+    memset(dev_port_numbers, 255, sizeof(dev_port_numbers));
 
     libusb_init(&usb_context);
     dev_count = static_cast<int>(libusb_get_device_list(usb_context, &devs));
@@ -105,30 +108,58 @@ const char *TrackerDeviceEnumerator::get_path() const
 
 bool TrackerDeviceEnumerator::is_valid() const
 {
-    bool bIsValid = false;
+    return dev_valid;
+}
+
+bool TrackerDeviceEnumerator::recompute_current_device_validity()
+{
+    dev_valid = false;
 
     if (cur_dev != nullptr)
     {
         USBDeviceInfo &dev_info = g_supported_tracker_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
-
         struct libusb_device_descriptor dev_desc;
-        libusb_get_device_descriptor(cur_dev, &dev_desc);
 
-        if (dev_desc.idVendor == dev_info.vendor_id &&
+        int libusb_result = libusb_get_device_descriptor(cur_dev, &dev_desc);
+
+        if (libusb_result == 0 &&
+            dev_desc.idVendor == dev_info.vendor_id &&
             dev_desc.idProduct == dev_info.product_id)
         {
-            libusb_device_handle *devhandle;
-            int err = libusb_open(cur_dev, &devhandle);
+            uint8_t port_numbers[MAX_USB_DEVICE_PORT_PATH];
+            
+            memset(port_numbers, 0, sizeof(port_numbers));
+            int elements_filled= libusb_get_port_numbers(cur_dev, port_numbers, MAX_USB_DEVICE_PORT_PATH);
 
-            if (err == 0)
+            if (elements_filled > 0)
             {
-                libusb_close(devhandle);
-                bIsValid = true;
+                // Make sure this device is actually different from the last device we looked at
+                // (i.e. has a different device port path)
+                if (memcmp(port_numbers, dev_port_numbers, sizeof(port_numbers)) != 0)
+                {
+                    libusb_device_handle *devhandle;
+
+                    // Finally need to test that we can actually open the device
+                    // (or see that device is already open)
+                    libusb_result = libusb_open(cur_dev, &devhandle);
+                    if (libusb_result == LIBUSB_SUCCESS || libusb_result == LIBUSB_ERROR_ACCESS)
+                    {
+                        if (libusb_result == LIBUSB_SUCCESS)
+                        {
+                            libusb_close(devhandle);
+                        }
+
+                        // Cache the port number for the last valid device found
+                        memcpy(dev_port_numbers, port_numbers, sizeof(port_numbers));
+
+                        dev_valid = true;
+                    }
+                }
             }
         }
     }
 
-    return bIsValid;
+    return dev_valid;
 }
 
 bool TrackerDeviceEnumerator::next()
@@ -139,7 +170,7 @@ bool TrackerDeviceEnumerator::next()
     {
         ++dev_index;
         cur_dev = (dev_index < dev_count) ? devs[dev_index] : nullptr;
-        foundValid = is_valid();
+        foundValid = recompute_current_device_validity();
 
         // If there are more device types to scan
         // move on to the next vid/pid device enumeration
@@ -152,7 +183,7 @@ bool TrackerDeviceEnumerator::next()
             // Reset the device iterator
             dev_index = 0;
             cur_dev = (devs != nullptr) ? devs[0] : nullptr;
-            foundValid = is_valid();
+            foundValid = recompute_current_device_validity();
         }
     }
 
