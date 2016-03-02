@@ -95,7 +95,7 @@ const char *TrackerDeviceEnumerator::get_path() const
         struct libusb_device_descriptor dev_desc;
         libusb_get_device_descriptor(cur_dev, &dev_desc);
 
-        _snprintf(
+        snprintf(
             (char *)(cur_path), sizeof(cur_path),
             "USB\\VID_%04X&PID_%04X\\%d\\%d",
             dev_desc.idVendor, dev_desc.idProduct, dev_index, camera_index);
