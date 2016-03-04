@@ -57,13 +57,18 @@ public:
             // Map all of the shared memory for read/write access
             m_region = new boost::interprocess::mapped_region(*m_shared_memory_object, boost::interprocess::read_write);
 
-            // Initialize the shared memory
-            SharedVideoFrameHeader *frameState = getFrameHeader();
-            std::memset(frameState, 0, m_region->get_size());
+            // Initialize the shared memory (call constructor using placement new)
+            // This make sure the mutex has the constructor called on it.
+            SharedVideoFrameHeader *frameState = new (getFrameHeader()) SharedVideoFrameHeader();
+            
             frameState->width = width;
             frameState->height = height;
             frameState->stride = stride;
             frameState->frame_index = 0;
+            std::memset(
+                frameState->getBufferMutable(),
+                0,
+                SharedVideoFrameHeader::computeVideoBufferSize(stride, height));
 
             bSuccess = true;
         }
@@ -81,6 +86,10 @@ public:
     {
         if (m_region != nullptr)
         {
+            // Call the destructor manually on the frame header since it was constructed via placement new
+            // This will make sure the mutex has the destructor called on it.
+            getFrameHeader()->~SharedVideoFrameHeader();
+            
             delete m_region;
             m_region = nullptr;
         }

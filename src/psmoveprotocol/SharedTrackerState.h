@@ -3,8 +3,18 @@
 
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
 
-struct SharedVideoFrameHeader
+class SharedVideoFrameHeader
 {
+public:
+    SharedVideoFrameHeader()
+        : mutex()
+        , width(0)
+        , height(0)
+        , stride(0)
+        , frame_index(0)
+    {
+    }
+    
     //Mutex to protect access to the shared memory
     boost::interprocess::interprocess_mutex mutex;
 
