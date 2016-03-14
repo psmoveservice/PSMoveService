@@ -6,6 +6,8 @@ IF (NOT MSVC)
     set(CMAKE_CXX_FLAGS "-std=c++11 -stdlib=libc++")
 ENDIF()
 
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
 # When not using MSVC, we recommend using system-wide libraries
 # (installed via homebrew on Mac or apt-get in Linux/Ubuntu)
 # In MSVC, we recommend downloading pre-compiled binaries where

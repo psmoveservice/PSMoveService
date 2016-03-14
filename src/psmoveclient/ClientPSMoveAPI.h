@@ -40,6 +40,8 @@ public:
         // Service Events
         opaqueServiceEvent, // Need to have protocol access to see what kind of event this is
         controllerListUpdated,
+        trackerListUpdated,
+        hmdListUpdated,
     };
 
     enum eClientPSMoveResultCode
@@ -66,7 +68,8 @@ public:
         t_event_callback callback,
         void *callback_userdata,
         e_log_severity_level log_level = _log_severity_level_info);
-    static void update();
+    
+    static void update();  /**< Process incoming/outgoing networking requests via the network manager. */
     static void shutdown();
 
     static bool has_started();
@@ -88,7 +91,7 @@ public:
         t_response_callback callback, void *callback_userdata);
     static t_request_id reset_pose(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
 
-    // Used to send requests to the server by clients that have protocol access
+    /// Used to send requests to the server by clients that have protocol access
     static t_request_id send_opaque_request(t_request_handle request_handle, ClientPSMoveAPI::t_response_callback callback, void *userdata);
 
 private:

@@ -10,7 +10,7 @@
 //-- definitions -----
 struct RequestContext
 {
-    RequestPtr request;
+    RequestPtr request;  // std::shared_ptr<PSMoveProtocol::Request>
     ClientPSMoveAPI::t_response_callback callback;
     void *callback_userdata;
 };

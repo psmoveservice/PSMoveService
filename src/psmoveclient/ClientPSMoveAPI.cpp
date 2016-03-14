@@ -29,7 +29,7 @@ public:
             host, port, 
             this, // IDataFrameListener
             this, // INotificationListener
-            &m_request_manager, // IResonseListener
+            &m_request_manager, // IResponseListener
             this) // IClientNetworkEventListener
         , m_event_callback(callback)
         , m_event_callback_userdata(callback_userdata)
@@ -262,6 +262,12 @@ public:
             {
             case PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED:
                 specificEventType= ClientPSMoveAPI::controllerListUpdated;
+                break;
+            case PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED:
+                specificEventType = ClientPSMoveAPI::trackerListUpdated;
+                break;
+            case PSMoveProtocol::Response_ResponseType_HMD_LIST_UPDATED:
+                specificEventType = ClientPSMoveAPI::hmdListUpdated;
                 break;
             }
 

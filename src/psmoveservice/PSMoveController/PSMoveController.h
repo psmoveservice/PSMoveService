@@ -3,8 +3,8 @@
 
 #include "PSMoveDataFrame.h"
 #include "PSMoveConfig.h"
-#include "../DeviceEnumerator.h"
-#include "../DeviceInterface.h"
+#include "DeviceEnumerator.h"
+#include "DeviceInterface.h"
 #include "MathAlignment.h"
 #include "hidapi.h"
 #include <string>
@@ -117,6 +117,24 @@ public:
 
     // PSMoveController
     bool open(); // Opens the first HID device for the controller
+    
+    // -- IDeviceInterface
+    virtual bool matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const override;
+    virtual bool open(const DeviceEnumerator *enumerator) override;
+    virtual bool getIsOpen() const override;
+    virtual bool getIsReadyToPoll() const override;
+    virtual IDeviceInterface::ePollResult poll() override;
+    virtual void close() override;
+    virtual long getMaxPollFailureCount() const override;
+    virtual CommonDeviceState::eDeviceType getDeviceType() const override;
+    virtual const CommonDeviceState * getState(int lookBack = 0) const override;
+    
+    // -- IControllerInterface
+    virtual bool setHostBluetoothAddress(const std::string &address) override;
+    virtual bool getIsBluetooth() const override;
+    virtual std::string getUSBDevicePath() const override;
+    virtual std::string getHostBluetoothAddress() const override;
+    virtual std::string getSerial() const override;
 
     // -- Getters
     inline const PSMoveControllerConfig *getConfig() const
@@ -124,31 +142,13 @@ public:
     inline PSMoveControllerConfig *getConfigMutable()
     { return &cfg; }
     float getTempCelsius() const;
+    static CommonDeviceState::eDeviceType getDeviceTypeStatic()
+    { return CommonDeviceState::PSMove; }
 
     // -- Setters
     bool setLED(unsigned char r, unsigned char g, unsigned char b); // 0x00..0xff. TODO: vec3
     bool setLEDPWMFrequency(unsigned long freq);    // 733..24e6
     bool setRumbleIntensity(unsigned char value);
-
-    // IControllerInterface
-    virtual bool matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const override;
-    virtual bool open(const DeviceEnumerator *enumerator) override;
-    virtual IDeviceInterface::ePollResult poll() override;
-    virtual void close() override;
-    virtual bool setHostBluetoothAddress(const std::string &address) override;
-
-    // -- Getters
-    virtual bool getIsBluetooth() const override;
-    virtual bool getIsReadyToPoll() const override;
-    virtual std::string getUSBDevicePath() const override;
-    virtual std::string getSerial() const override;
-    virtual std::string getHostBluetoothAddress() const override;
-    virtual bool getIsOpen() const override;
-    static CommonDeviceState::eDeviceType getDeviceTypeStatic() 
-    { return CommonDeviceState::PSMove; }
-    virtual CommonDeviceState::eDeviceType getDeviceType() const override;
-    virtual const CommonDeviceState * getState(int lookBack = 0) const override;
-    virtual long getMaxPollFailureCount() const override;
 
 private:    
     bool getBTAddress(std::string& host, std::string& controller);

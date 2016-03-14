@@ -56,6 +56,7 @@ list(APPEND TEST_CONFIG_SRC
 add_executable(test_config ${CMAKE_CURRENT_LIST_DIR}/test_config.cpp ${TEST_CONFIG_SRC})
 target_include_directories(test_config PUBLIC ${TEST_CONFIG_INCL_DIRS})
 target_link_libraries(test_config ${PLATFORM_LIBS} ${TEST_CONFIG_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_config PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -127,15 +128,16 @@ ENDIF()
 
 # Our custom OpenCV VideoCapture classes
 # We are not including the PSMoveService project on purpose.
-list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/PSEye)
+list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye)
 list(APPEND TEST_CAMERA_SRC
-    ${ROOT_DIR}/src/psmoveservice/PSEye/PSEyeVideoCapture.h
-    ${ROOT_DIR}/src/psmoveservice/PSEye/PSEyeVideoCapture.cpp)
+    ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye/PSEyeVideoCapture.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye/PSEyeVideoCapture.cpp)
 
 # The test_camera app
 add_executable(test_camera ${CMAKE_CURRENT_LIST_DIR}/test_camera.cpp ${TEST_CAMERA_SRC})
 target_include_directories(test_camera PUBLIC ${TEST_CAMERA_INCL_DIRS})
 target_link_libraries(test_camera ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_camera PROPERTIES FOLDER Test)
 
 IF(${ISWIN32})
     IF(${CL_EYE_SDK_PATH} STREQUAL "CL_EYE_SDK_PATH-NOTFOUND")
@@ -176,7 +178,7 @@ include_directories(${ROOT_DIR}/thirdparty/hidapi/hidapi)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/windows/hid.c)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)      
 ELSE()
     set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
 ENDIF()
@@ -204,16 +206,20 @@ list(APPEND TEST_CTRLR_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
 list(APPEND TEST_CTRLR_INCL_DIRS
     ${ROOT_DIR}/src/psmovemath/
     ${ROOT_DIR}/src/psmoveservice/
+    ${ROOT_DIR}/src/psmoveservice/Server
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator
+    ${ROOT_DIR}/src/psmoveservice/Device/Interface
+    ${ROOT_DIR}/src/psmoveservice/Platform
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
     ${ROOT_DIR}/src/psmoveservice/PSMoveController)
 list(APPEND TEST_CTRLR_SRC
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
-    ${ROOT_DIR}/src/psmoveservice/ServerLog.h
-    ${ROOT_DIR}/src/psmoveservice/ServerLog.cpp
-    ${ROOT_DIR}/src/psmoveservice/ServerUtility.h
-    ${ROOT_DIR}/src/psmoveservice/ServerUtility.cpp
-    ${ROOT_DIR}/src/psmoveservice/DeviceEnumerator.h
-    ${ROOT_DIR}/src/psmoveservice/DeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
@@ -227,6 +233,7 @@ list(APPEND TEST_CTRLR_REQ_LIBS PSMoveProtocol)
 add_executable(test_controller ${CMAKE_CURRENT_LIST_DIR}/test_controller.cpp ${TEST_CTRLR_SRC})
 target_include_directories(test_controller PUBLIC ${TEST_CTRLR_INCL_DIRS})
 target_link_libraries(test_controller ${PLATFORM_LIBS} ${TEST_CTRLR_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_controller PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -243,6 +250,7 @@ ENDIF()
 add_executable(test_console_client test_console_client.cpp)
 target_include_directories(test_console_client PUBLIC ${ROOT_DIR}/src/psmoveclient/)
 target_link_libraries(test_console_client PSMoveClient)
+SET_TARGET_PROPERTIES(test_console_client PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -276,6 +284,7 @@ list(APPEND TEST_UDP_SERVER_INCL_DIRS
 add_executable(test_udp_server ${CMAKE_CURRENT_LIST_DIR}/test_udp_server.cpp)
 target_include_directories(test_udp_server PUBLIC ${TEST_UDP_SERVER_INCL_DIRS})
 target_link_libraries(test_udp_server ${PLATFORM_LIBS} ${TEST_UDP_SERVER_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_udp_server PROPERTIES FOLDER Test)
 
 # Only set the admin privilege escalation on MSVC builds (for service operations)
 IF(MSVC)
@@ -308,6 +317,7 @@ list(APPEND TEST_UDP_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
 add_executable(test_udp_client ${CMAKE_CURRENT_LIST_DIR}/test_udp_client.cpp)
 target_include_directories(test_udp_client PUBLIC ${TEST_UDP_CLIENT_INCL_DIRS})
 target_link_libraries(test_udp_client ${PLATFORM_LIBS} ${TEST_UDP_CLIENT_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_udp_client PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
