@@ -32,3 +32,6 @@
 [submodule "thirdparty/OculusSDK-0.5.0.1"]
 	path = thirdparty/OculusSDK-0.5.0.1
 	url = https://github.com/jherico/OculusSDK.git
+[submodule "thirdparty/OculusSDK-0.8.0.0"]
+	path = thirdparty/OculusSDK-0.8.0.0
+	url = https://github.com/frenchjam/OculusSDK.git

@@ -57,26 +57,11 @@ MSBuild.exe SDL2main.vcxproj /p:configuration=RELEASE /p:Platform="Win32" /t:Bui
 popd
 popd
 
-:: Compile the RELEASE|Win32 build of OculusSDK-0.5.0.1
-echo "Creating OculusSDK-0.5.0.1 project files..."
-pushd thirdparty\OculusSDK-0.5.0.1
-:: Create and compile project
-mkdir build
-pushd build
-cmake .. -G "Visual Studio 12 2013"
-echo "Building OculusSDK-0.5.0.1 Release|Win32..."
-MSBuild.exe OculusSDK.sln /p:configuration=RELEASE /p:Platform="Win32" /t:Clean
-MSBuild.exe OculusSDK.sln /p:configuration=RELEASE /p:Platform="Win32" /t:Build
-popd
-:: Hack to get compiled libOVR copied into the right place
-:: In the future the "Install" project should copy it into the right location
-pushd LibOVR
-mkdir Lib\Windows\Win32\Release\VS2013
-pushd Lib\Windows\Win32\Release\VS2013
-copy ..\..\..\..\..\..\build\output\ovr.lib LibOVR.lib
-popd
-popd
-:: Return to top level directory
+:: Compile the RELEASE|Win32 build of OculusSDK-0.8.0.0
+echo "Building OculusSDK-0.8.0.0 Release|Win32..."
+pushd thirdparty\OculusSDK-0.8.0.0\LibOVR\Projects\Windows\VS2013
+MSBuild.exe LibOVR.vcxproj /p:configuration=RELEASE /p:Platform="Win32" /t:Clean
+MSBuild.exe LibOVR.vcxproj /p:configuration=RELEASE /p:Platform="Win32" /t:Build
 popd
 
 :: Generate the project files for PSMoveService
