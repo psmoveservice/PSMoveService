@@ -47,6 +47,10 @@ enum TrackerDriver {
     GENERIC_WEBCAM = 3;
 }
 
+enum HMDType {
+    OculusDK2 = 0;
+}
+
 // Reliable (TCP) requests that can issued to the PSMove Service
 message Request {
     // Unique id for this request.
@@ -66,14 +70,19 @@ message Request {
         CANCEL_BLUETOOTH_REQUEST= 7;
         SET_LED_COLOR= 8;
         SET_MAGNETOMETER_CALIBRATION= 9;
+
         GET_TRACKER_LIST = 10;
         START_TRACKER_DATA_STREAM = 11;
         STOP_TRACKER_DATA_STREAM = 12;
+        
+        GET_HMD_LIST = 13;
+        START_HMD_DATA_STREAM = 14;
+        STOP_HMD_DATA_STREAM = 15;        
     }
     RequestType type = 2;
    
     // Parameters for START_CONTROLLER_DATA_STREAM
-    // NOTE: ControllerDataFrame packets will start streaming to client upon receiving this request
+    // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
     message RequestStartPSMoveDataStream {
         int32 controller_id = 1;
         bool include_raw_sensor_data= 2;
@@ -81,7 +90,7 @@ message Request {
     RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
 
     // Parameters for STOP_PSMOVE_DATA_STREAM
-    // NOTE: ControllerDataFrame packets will stop streaming to client upon receiving this request
+    // NOTE: DeviceDataFrame packets will stop streaming to client upon receiving this request
     message RequestStopPSMoveDataStream {
         int32 controller_id = 1;
     }
@@ -141,18 +150,33 @@ message Request {
     RequestSetMagnetometerCalibration set_magnetometer_calibration_request = 28;
 
     // Parameters for START_TRACKER_DATA_STREAM
-    // NOTE: TrackerDataFrame packets will start streaming to client upon receiving this request
+    // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
     message RequestStartTrackerDataStream {
         int32 tracker_id = 1;
     }
     RequestStartTrackerDataStream request_start_tracker_data_stream = 29;
 
     // Parameters for STOP_TRACKER_DATA_STREAM
-    // NOTE: TrackerDataFrame packets will stop streaming to client upon receiving this request
+    // NOTE: DeviceDataFrame packets will stop streaming to client upon receiving this request
     message RequestStopTrackerDataStream {
         int32 tracker_id = 1;
     }
     RequestStopTrackerDataStream request_stop_tracker_data_stream = 30;
+    
+    // Parameters for START_HMD_DATA_STREAM
+    // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
+    message RequestStartHmdDataStream {
+        int32 hmd_id = 1;
+        bool include_raw_sensor_data= 2;        
+    }
+    RequestStartHmdDataStream request_start_hmd_data_stream = 31;
+
+    // Parameters for STOP_HMD_DATA_STREAM
+    // NOTE: DeviceDataFrame packets will stop streaming to client upon receiving this request
+    message RequestStopHmdDataStream {
+        int32 hmd_id = 1;
+    }
+    RequestStopHmdDataStream request_stop_hmd_data_stream = 32;    
 }
 
 // Reliable (TCP) responses to requests
@@ -235,100 +259,183 @@ message Response {
         repeated TrackerInfo trackers = 1;
     }
     ResultTrackerList result_tracker_list = 23;
-}
-
-// Unreliable (UDP) controller data packet format
-message ControllerDataFrame
-{
-    // Button Index Bits
-    enum ButtonType {
-        TRIANGLE= 0;
-        CIRCLE= 1;
-        CROSS= 2;
-        SQUARE= 3;
-        SELECT= 4;
-        START= 5;
-        PS= 6;
-        MOVE= 7;
-        TRIGGER= 8;
-        UP= 9;
-        DOWN= 10;
-        LEFT= 11;
-        RIGHT= 12;
-        L1= 13;
-        L2= 14;
-        L3= 15;
-        R1= 16;
-        R2= 17;
-        R3= 18;        
-    }
     
-    // The id of controller this data is for
-    int32 controller_id= 1;
-
-    // Specify the type of controller this data is from
-    ControllerType controller_type= 2;
+    // No parameters for HMD_LIST_UPDATED
     
-    // Monotonically increasing number.
-    // Used to throw out old data if it arrives out of order.
-    int32 sequence_num= 3;
-
-    // Common Controller status flags
-    bool IsConnected= 4;
-    
-    // Raw bitmask of which buttons are currently down
-    // Buttons bits are indexed using the ButtonType enum
-    uint32 button_down_bitmask = 5;    
-    
-    // PSMove Specific Controller state
-    message PSMoveState
-    {   
-        // PSMove Specific flags
-        bool ValidHardwareCalibration= 1;
-        bool IsTrackingEnabled= 2;
-        bool IsCurrentlyTracking= 3;
-
-        // Tracking position in the space of the HMD tracking camera
-        Position position = 4;
-
-        // Tracking orientation in the frame of the local magnetic field
-        Orientation orientation = 5;
-
-        // Trigger analog value [0,255]
-        int32 trigger_value = 6;
-        
-        // Only valid if include_raw_sensor_data=true in START_CONTROLLER_DATA_STREAM request
-        message RawSensorData
-        {
-            IntVector magnetometer= 1;
-            FloatVector accelerometer= 2;
-            FloatVector gyroscope= 3;
+    // Parameters for HMD_LIST
+    // This is returned in response to a HMD_LIST request
+    message ResultHMDList {
+        message HMDInfo {
+            int32 hmd_id= 1;
+            HMDType hmd_type = 2;
+            string device_path = 4;
         }
-        RawSensorData raw_sensor_data = 7;
+        repeated HMDInfo hmd_entries = 1;
     }
-    PSMoveState psmove_state = 6;
-    
-    // PSMove Specific Controller state
-    message PSNaviState
-    {
-        // Trigger analog value [0,255]
-        int32 trigger_value = 1;
-        
-        // The x-axis stick value, [0,255], Subtract 0x80 to obtain signed values
-        int32 stick_xaxis = 2;
-        
-        // The y-axis stick value, [0,255], Subtract 0x80 to obtain signed values
-        int32 stick_yaxis = 3;        
-    }
-    PSNaviState psnavi_state = 7;    
+    ResultHMDList result_hmd_list = 24;    
 }
 
-// Unreliable (UDP) tracker data packet format
-message TrackerDataFrame
+// Unreliable (UDP) device data packet format
+message DeviceDataFrame 
 {
-    // The id of tracker this data is for
-    int32 tracker_id= 1;
+    // The device type
+    enum DeviceCategory 
+    {
+        CONTROLLER= 0;
+        TRACKER= 1;
+        HMD= 2;
+    }
+    DeviceCategory device_category= 1;
+    
+    // Update packet for a controller
+    message ControllerDataPacket
+    {
+        // Button Index Bits
+        enum ButtonType {
+            TRIANGLE= 0;
+            CIRCLE= 1;
+            CROSS= 2;
+            SQUARE= 3;
+            SELECT= 4;
+            START= 5;
+            PS= 6;
+            MOVE= 7;
+            TRIGGER= 8;
+            UP= 9;
+            DOWN= 10;
+            LEFT= 11;
+            RIGHT= 12;
+            L1= 13;
+            L2= 14;
+            L3= 15;
+            R1= 16;
+            R2= 17;
+            R3= 18;        
+        }
+        
+        // The id of controller this data is for
+        int32 controller_id= 1;
 
-    // Specify the type of controller this data is from
-    TrackerType tracker_type= 2;
+        // Specify the type of controller this data is from
+        ControllerType controller_type= 2;
+        
+        // Monotonically increasing number.
+        // Used to throw out old data if it arrives out of order.
+        int32 sequence_num= 3;
+
+        // Common Controller status flags
+        bool IsConnected= 4;
+        
+        // Raw bitmask of which buttons are currently down
+        // Buttons bits are indexed using the ButtonType enum
+        uint32 button_down_bitmask = 5;    
+        
+        // PSMove Specific Controller state
+        message PSMoveState
+        {   
+            // PSMove Specific flags
+            bool ValidHardwareCalibration= 1;
+            bool IsTrackingEnabled= 2;
+            bool IsCurrentlyTracking= 3;
+
+            // Tracking position in the space of the HMD tracking camera
+            Position position = 4;
+
+            // Tracking orientation in the frame of the local magnetic field
+            Orientation orientation = 5;
+
+            // Trigger analog value [0,255]
+            int32 trigger_value = 6;
+            
+            // Only valid if include_raw_sensor_data=true in START_CONTROLLER_DATA_STREAM request
+            message RawSensorData
+            {
+                IntVector magnetometer= 1;
+                FloatVector accelerometer= 2;
+                FloatVector gyroscope= 3;
+            }
+            RawSensorData raw_sensor_data = 7;
+        }
+        PSMoveState psmove_state = 6;
+        
+        // PSMove Specific Controller state
+        message PSNaviState
+        {
+            // Trigger analog value [0,255]
+            int32 trigger_value = 1;
+            
+            // The x-axis stick value, [0,255], Subtract 0x80 to obtain signed values
+            int32 stick_xaxis = 2;
+            
+            // The y-axis stick value, [0,255], Subtract 0x80 to obtain signed values
+            int32 stick_yaxis = 3;        
+        }
+        PSNaviState psnavi_state = 7;    
+    }
+    ControllerDataPacket controller_data_packet = 2;
+
+    // Update packet for a tracker
+    message TrackerDataPacket
+    {
+        // The id of tracker this data is for
+        int32 tracker_id= 1;
+
+        // Specify the type of controller this data is from
+        TrackerType tracker_type= 2;
+        
+        // Monotonically increasing number.
+        // Used to throw out old data if it arrives out of order.
+        int32 sequence_num= 3;
+
+        // Common Controller status flags
+        bool IsConnected= 4;                
+    }
+    TrackerDataPacket tracker_data_packet = 3;
+
+    // Update packet for an HMD
+    message HMDDataPacket
+    {
+        // The id of hmd this data is for
+        int32 hmd_id= 1;
+
+        // Specify the type of controller this data is from
+        HMDType hmd_type= 2;
+        
+        // Monotonically increasing number.
+        // Used to throw out old data if it arrives out of order.
+        int32 sequence_num= 3;
+
+        // Common Controller status flags
+        bool IsConnected= 4;        
+        
+        // The current position of the HMD (in it's associated tracking space)
+        Position position= 5;
+        
+        // The current orientation quaternion of the HMD (in it's associated tracking space)
+        Orientation orientation= 6;
+        
+        // OculusDK2 Specific HMD state
+        message OculusDK2State
+        {
+            // HMD State space properties
+            FloatVector angular_velocity = 1;
+            FloatVector linear_velocity = 2;
+            FloatVector angular_acceleration = 3;
+            FloatVector linear_acceleration = 4;
+            float state_time = 5;
+            
+            // Only valid if include_raw_sensor_data=true in START_HMD_DATA_STREAM request
+            message RawSensorData
+            {
+                FloatVector accelerometer= 1;
+                FloatVector gyroscope= 2;
+                FloatVector magnetometer= 3;
+                float temparature = 4;
+                float imu_sample_time = 5;
+            }
+            RawSensorData raw_sensor_data = 6;            
+        }
+        OculusDK2State oculus_dk2_state = 7;          
+    }
+    HMDDataPacket hmd_data_packet = 4;
 }

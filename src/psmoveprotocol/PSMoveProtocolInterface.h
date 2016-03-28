@@ -10,13 +10,12 @@
 //-- pre-declarations -----
 namespace PSMoveProtocol
 {
-    class ControllerDataFrame;
+    class DeviceDataFrame;
 	class Request;
 	class Response;
 };
 
-//TODO: Other device type data frame types.
-typedef std::shared_ptr<PSMoveProtocol::ControllerDataFrame> ControllerDataFramePtr;
+typedef std::shared_ptr<PSMoveProtocol::DeviceDataFrame> DeviceDataFramePtr;
 typedef std::shared_ptr<PSMoveProtocol::Request> RequestPtr;
 typedef std::shared_ptr<PSMoveProtocol::Response> ResponsePtr;
 
@@ -30,7 +29,7 @@ public:
 class IDataFrameListener
 {
 public:
-    virtual void handle_data_frame(ControllerDataFramePtr data_frame) = 0;
+    virtual void handle_data_frame(DeviceDataFramePtr data_frame) = 0;
 };
 
 class IResponseListener

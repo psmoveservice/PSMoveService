@@ -158,7 +158,7 @@ DeviceManager::getTrackerViewMaxCount() const
 }
 
 int 
-DeviceManager::geHMDViewMaxCount() const
+DeviceManager::getHMDViewMaxCount() const
 {
     return m_hmd_manager->getMaxDevices();
 }

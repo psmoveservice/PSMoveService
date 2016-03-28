@@ -5,10 +5,46 @@
 #include "ServerHMDView.h"
 #include "ServerDeviceView.h"
 
+#include "OVR_CAPI.h"
+
 //-- methods -----
 HMDManager::HMDManager()
     : DeviceTypeManager(1000, 2)
+    , m_oculusapi_initialized(false)
 {
+}
+
+bool
+HMDManager::startup()
+{
+    bool success = false;
+
+    if (DeviceTypeManager::startup())
+    {
+        if (ovr_Initialize(0) == ovrTrue)
+        {
+            m_oculusapi_initialized = true;
+        }
+        else
+        {
+            SERVER_LOG_WARNING("HMDManager::startup") << "Oculus API init failed (different SDK installed?)";
+            success = false;
+        }
+    }
+
+    return success;
+}
+
+void
+HMDManager::shutdown()
+{
+    if (m_oculusapi_initialized)
+    {
+        ovr_Shutdown();
+        m_oculusapi_initialized = false;
+    }
+
+    DeviceTypeManager::shutdown();
 }
 
 ServerHMDViewPtr

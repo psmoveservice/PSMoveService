@@ -58,12 +58,12 @@ protected:
     static void generate_controller_data_frame_for_stream(
         const ServerControllerView *controller_view,
         const struct ControllerStreamInfo *stream_info,
-        ControllerDataFramePtr &data_frame);
+        DeviceDataFramePtr &data_frame);
 
 private:
     IControllerInterface *m_device;
     class OrientationFilter *m_orientation_filter;
-    //class PositionFilter *m_position_filter;     //###bwalker $TODO
+    class PositionFilter *m_position_filter;
     int m_lastPollSeqNumProcessed;
 };
 

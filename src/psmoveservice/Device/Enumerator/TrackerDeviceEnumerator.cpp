@@ -17,6 +17,7 @@
 // -- globals -----
 USBDeviceInfo g_supported_tracker_infos[MAX_CAMERA_TYPE_INDEX] = {
     { 0x1415, 0x2000 }, // PS3Eye
+    //{0x2833, 0x0201 }, // RiftDK2 Sensor
     //{0x045e, 0x02ae}, // V1 Kinect
 };
 

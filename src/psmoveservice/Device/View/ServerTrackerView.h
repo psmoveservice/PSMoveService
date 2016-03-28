@@ -3,7 +3,7 @@
 
 //-- includes -----
 #include "ServerDeviceView.h"
-
+#include "PSMoveProtocolInterface.h"
 
 // -- declarations -----
 class ServerTrackerView : public ServerDeviceView
@@ -44,6 +44,9 @@ protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
     void free_device_interface() override;
     void publish_device_data_frame() override;
+    static void generate_tracker_data_frame_for_stream(
+        const ServerTrackerView *tracker_view, const struct TrackerStreamInfo *stream_info,
+        DeviceDataFramePtr &data_frame);
 
 private:
     char m_shared_memory_name[256];

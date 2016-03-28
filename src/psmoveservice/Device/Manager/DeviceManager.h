@@ -4,7 +4,7 @@
 //-- includes -----
 #include <memory>
 #include <chrono>
-#include "PSMoveProtocol.pb.h"
+//#include "PSMoveProtocol.pb.h"
 
 //-- typedefs -----
 class DeviceManagerConfig;
@@ -36,7 +36,7 @@ public:
 
     int getControllerViewMaxCount() const;
     int getTrackerViewMaxCount() const;
-    int geHMDViewMaxCount() const;
+    int getHMDViewMaxCount() const;
         
     ServerControllerViewPtr getControllerViewPtr(int controller_id);
     ServerTrackerViewPtr getTrackerViewPtr(int tracker_id);

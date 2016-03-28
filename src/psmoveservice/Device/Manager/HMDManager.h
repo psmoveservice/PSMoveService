@@ -19,6 +19,14 @@ class HMDManager : public DeviceTypeManager
 public:
     HMDManager();
 
+    virtual bool startup() override;
+    virtual void shutdown() override;
+
+    inline bool getIsOculusAPIInitialized() const 
+    {
+        return m_oculusapi_initialized;
+    }
+
     static const int k_max_devices = 1;
     int getMaxDevices() const override
     {
@@ -39,6 +47,7 @@ protected:
     }
 
 private:
+    bool m_oculusapi_initialized;
     static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_HMD_LIST_UPDATED;
 };
 

@@ -15,6 +15,7 @@
 #include "ServerDeviceView.h"
 #include "ServerNetworkManager.h"
 #include "ServerTrackerView.h"
+#include "ServerHMDView.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
 #include "TrackerManager.h"
@@ -215,6 +216,17 @@ public:
                 handle_request__stop_tracker_data_stream(context, response);
                 break;
 
+            // HMD Requests
+            case PSMoveProtocol::Request_RequestType_GET_HMD_LIST:
+                handle_request__get_hmd_list(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_START_HMD_DATA_STREAM:
+                handle_request__start_hmd_data_stream(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_STOP_HMD_DATA_STREAM:
+                handle_request__stop_hmd_data_stream(context, response);
+                break;
+
             default:
                 assert(0 && "Whoops, bad request!");
         }
@@ -274,11 +286,65 @@ public:
                     connection_state->active_controller_stream_info[controller_id];
 
                 // Fill out a data frame specific to this stream using the given callback
-                ControllerDataFramePtr data_frame(new PSMoveProtocol::ControllerDataFrame);
+                DeviceDataFramePtr data_frame(new PSMoveProtocol::DeviceDataFrame);
                 callback(controller_view, &streamInfo, data_frame);
 
                 // Send the controller data frame over the network
-                ServerNetworkManager::get_instance()->send_controller_data_frame(connection_id, data_frame);
+                ServerNetworkManager::get_instance()->send_device_data_frame(connection_id, data_frame);
+            }
+        }
+    }
+
+    void publish_tracker_data_frame(
+        class ServerTrackerView *tracker_view,
+            ServerRequestHandler::t_generate_tracker_data_frame_for_stream callback)
+    {
+        int tracker_id = tracker_view->getDeviceID();
+
+        // Notify any connections that care about the tracker update
+        for (t_connection_state_iter iter = m_connection_state_map.begin(); iter != m_connection_state_map.end(); ++iter)
+        {
+            int connection_id = iter->first;
+            RequestConnectionStatePtr connection_state = iter->second;
+
+            if (connection_state->active_tracker_streams.test(tracker_id))
+            {
+                const TrackerStreamInfo &streamInfo =
+                    connection_state->active_tracker_stream_info[tracker_id];
+
+                // Fill out a data frame specific to this stream using the given callback
+                DeviceDataFramePtr data_frame(new PSMoveProtocol::DeviceDataFrame);
+                callback(tracker_view, &streamInfo, data_frame);
+
+                // Send the tracker data frame over the network
+                ServerNetworkManager::get_instance()->send_device_data_frame(connection_id, data_frame);
+            }
+        }
+    }
+
+    void publish_hmd_data_frame(
+        class ServerHMDView *hmd_view,
+        ServerRequestHandler::t_generate_hmd_data_frame_for_stream callback)
+    {
+        int hmd_id = hmd_view->getDeviceID();
+
+        // Notify any connections that care about the tracker update
+        for (t_connection_state_iter iter = m_connection_state_map.begin(); iter != m_connection_state_map.end(); ++iter)
+        {
+            int connection_id = iter->first;
+            RequestConnectionStatePtr connection_state = iter->second;
+
+            if (connection_state->active_hmd_streams.test(hmd_id))
+            {
+                const HMDStreamInfo &streamInfo =
+                    connection_state->active_hmd_stream_info[hmd_id];
+
+                // Fill out a data frame specific to this stream using the given callback
+                DeviceDataFramePtr data_frame(new PSMoveProtocol::DeviceDataFrame);
+                callback(hmd_view, &streamInfo, data_frame);
+
+                // Send the hmd data frame over the network
+                ServerNetworkManager::get_instance()->send_device_data_frame(connection_id, data_frame);
             }
         }
     }
@@ -752,6 +818,107 @@ protected:
         }
     }
 
+    // -- hmd requests -----
+    void handle_request__get_hmd_list(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        PSMoveProtocol::Response_ResultHMDList* list = response->mutable_result_hmd_list();
+
+        for (int hmd_id = 0; hmd_id < m_device_manager.getHMDViewMaxCount(); ++hmd_id)
+        {
+            ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+            if (hmd_view->getIsOpen())
+            {
+                PSMoveProtocol::Response_ResultHMDList_HMDInfo *hmd_info = list->add_hmd_entries();
+
+                switch (hmd_view->getHMDDeviceType())
+                {
+                case CommonHMDState::OculusDK2:
+                    hmd_info->set_hmd_type(PSMoveProtocol::OculusDK2);
+                    break;
+                default:
+                    assert(0 && "Unhandled tracker type");
+                }
+
+                hmd_info->set_hmd_id(hmd_id);
+                hmd_info->set_device_path(hmd_view->getUSBDevicePath());
+            }
+        }
+
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+    }
+
+    void handle_request__start_hmd_data_stream(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const PSMoveProtocol::Request_RequestStartHmdDataStream& request =
+            context.request->request_start_hmd_data_stream();
+        int hmd_id = request.hmd_id();
+
+        if (ServerUtility::is_index_valid(hmd_id, m_device_manager.getHMDViewMaxCount()))
+        {
+            ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+            if (hmd_view->getIsOpen())
+            {
+                HMDStreamInfo &streamInfo =
+                    context.connection_state->active_hmd_stream_info[hmd_id];
+
+                // The hmd manager will always publish updates regardless of who is listening.
+                // All we have to do is keep track of which connections care about the updates.
+                context.connection_state->active_hmd_streams.set(hmd_id, false);
+
+                // Set control flags for the stream
+                streamInfo.Clear();
+                streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
+
+                // Return the name of the shared memory block the video frames will be written to
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                // Device not opened
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__stop_hmd_data_stream(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        int hmd_id = context.request->request_stop_hmd_data_stream().hmd_id();
+
+        if (ServerUtility::is_index_valid(hmd_id, m_device_manager.getHMDViewMaxCount()))
+        {
+            ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+            if (hmd_view->getIsOpen())
+            {
+                context.connection_state->active_tracker_streams.set(hmd_id, false);
+                context.connection_state->active_tracker_stream_info[hmd_id].Clear();
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                // Device not opened
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
 private:
     DeviceManager &m_device_manager;
     t_connection_state_map m_connection_state_map;
@@ -812,4 +979,18 @@ void ServerRequestHandler::publish_controller_data_frame(
     t_generate_controller_data_frame_for_stream callback)
 {
     return m_implementation_ptr->publish_controller_data_frame(controller_view, callback);
+}
+
+void ServerRequestHandler::publish_tracker_data_frame(
+    class ServerTrackerView *tracker_view,
+    t_generate_tracker_data_frame_for_stream callback)
+{
+    return m_implementation_ptr->publish_tracker_data_frame(tracker_view, callback);
+}
+
+void ServerRequestHandler::publish_hmd_data_frame(
+    class ServerHMDView *hmd_view,
+    t_generate_hmd_data_frame_for_stream callback)
+{
+    return m_implementation_ptr->publish_hmd_data_frame(hmd_view, callback);
 }

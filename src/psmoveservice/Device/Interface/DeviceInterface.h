@@ -3,6 +3,49 @@
 
 #include <string>
 
+struct CommonDeviceVector
+{
+    float i, j, k;
+
+    inline void clear()
+    {
+        i = j = k = 0.f;
+    }
+};
+
+struct CommonDevicePosition
+{
+    float x, y, z;
+
+    inline void clear()
+    {
+        x = y = z = 0.f;
+    }
+};
+
+struct CommonDeviceQuaternion
+{
+    float x, y, z, w;
+
+    inline void clear()
+    {
+        x = y = z = 0.f;
+        w = 0.f;
+    }
+};
+
+struct CommonDevicePose
+{
+    CommonDevicePosition Position;
+    CommonDeviceQuaternion Orientation;
+
+    void clear()
+    {
+        Position.clear();
+        Orientation.clear();
+    }
+};
+
 struct CommonDeviceState
 {
     enum eDeviceClass
@@ -21,7 +64,8 @@ struct CommonDeviceState
         PS3EYE = TrackingCamera + 0x00,
         SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x01,
 
-        OVRDK2 = HeadMountedDisplay + 0x00,
+        OculusHMD = HeadMountedDisplay + 0x00,
+        OculusDK2 = OculusHMD,
         SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01
     };
     
@@ -54,7 +98,7 @@ struct CommonDeviceState
         case PS3EYE:
             result = "PSEYE";
             break;
-        case OVRDK2:
+        case OculusDK2:
             result = "Oculus DK2";
             break;
         default:
@@ -103,6 +147,24 @@ struct CommonControllerState : CommonDeviceState
         AllButtons= 0;
     }
 };
+
+struct CommonHMDState : CommonDeviceState
+{
+    CommonDevicePose Pose;
+
+    inline CommonHMDState()
+    {
+        clear();
+    }
+
+    inline void clear()
+    {
+        CommonDeviceState::clear();
+
+        Pose.clear();
+    }
+};
+
 
 /// Abstract base class for any device interface. Further defined in specific device abstractions.
 class IDeviceInterface
@@ -224,6 +286,9 @@ public:
     // -- Getters
     // Returns the full usb device path for the HMD
     virtual std::string getUSBDevicePath() const = 0;
+
+    // Returns the serial number for the controller
+    virtual std::string getSerial() const = 0;
 };
 
 #endif // DEVICE_INTERFACE_H

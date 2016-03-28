@@ -2,8 +2,10 @@
 #include "ServerTrackerView.h"
 #include "DeviceEnumerator.h"
 #include "PS3EyeTracker.h"
+#include "PSMoveProtocol.pb.h"
 #include "ServerUtility.h"
 #include "ServerLog.h"
+#include "ServerRequestHandler.h"
 #include "SharedTrackerState.h"
 
 #include <boost/interprocess/shared_memory_object.hpp>
@@ -290,6 +292,35 @@ void ServerTrackerView::publish_device_data_frame()
 {
     // Tell the server request handler we want to send out tracker updates.
     // This will call generate_tracker_data_frame_for_stream for each listening connection.
-    //ServerRequestHandler::get_instance()->publish_tracker_data_frame(
-    //    this, &ServerTrackerView::generate_tracker_data_frame_for_stream);
+    ServerRequestHandler::get_instance()->publish_tracker_data_frame(
+        this, &ServerTrackerView::generate_tracker_data_frame_for_stream);
+}
+
+void ServerTrackerView::generate_tracker_data_frame_for_stream(
+    const ServerTrackerView *tracker_view,
+    const struct TrackerStreamInfo *stream_info,
+    DeviceDataFramePtr &data_frame)
+{
+    PSMoveProtocol::DeviceDataFrame_TrackerDataPacket *tracker_data_frame =
+        data_frame->mutable_tracker_data_packet();
+
+    tracker_data_frame->set_tracker_id(tracker_view->getDeviceID());
+    tracker_data_frame->set_sequence_num(tracker_view->m_sequence_number);
+    tracker_data_frame->set_isconnected(tracker_view->getDevice()->getIsOpen());
+
+    switch (tracker_view->getTrackerDeviceType())
+    {
+    case CommonDeviceState::PS3EYE:
+        {
+            //TODO: PS3EYE tracker location
+        } break;
+    //case CommonDeviceState::RiftDK2Sensor:
+    //    {
+    //        //TODO: RiftDK2Sensor tracker location
+    //    } break;
+    default:
+        assert(0 && "Unhandled Tracker type");
+    }
+
+    data_frame->set_device_category(PSMoveProtocol::DeviceDataFrame::TRACKER);
 }

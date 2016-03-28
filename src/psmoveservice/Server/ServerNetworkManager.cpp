@@ -202,12 +202,12 @@ public:
         return write_in_progress;
     }
     
-    void add_controller_data_frame_to_write_queue(ControllerDataFramePtr data_frame)
+    void add_device_data_frame_to_write_queue(DeviceDataFramePtr data_frame)
     {
         m_pending_dataframes.push_back(data_frame);
     }
 
-    bool start_udp_write_queued_controller_data_frame()
+    bool start_udp_write_queued_device_data_frame()
     {
         bool write_in_progress= false;
 
@@ -217,14 +217,14 @@ public:
             {
                 if (m_pending_dataframes.size() > 0)
                 {
-                    ControllerDataFramePtr dataframe= m_pending_dataframes.front();
+                    DeviceDataFramePtr dataframe= m_pending_dataframes.front();
 
                     m_packed_dataframe.set_msg(dataframe);
                     if (m_packed_dataframe.pack(m_dataframe_write_buffer, sizeof(m_dataframe_write_buffer)))
                     {
                         int msg_size= m_packed_dataframe.get_msg()->ByteSize();
 
-                        SERVER_LOG_DEBUG("ClientConnection::start_udp_write_queued_controller_data_frame") << "Sending UDP DataFrame";
+                        SERVER_LOG_DEBUG("ClientConnection::start_udp_write_queued_device_data_frame") << "Sending UDP DataFrame";
                         SERVER_LOG_DEBUG("   ") << show_hex(m_dataframe_write_buffer, HEADER_SIZE+msg_size);
                         SERVER_LOG_DEBUG("   ") << msg_size << " bytes";
 
@@ -238,11 +238,11 @@ public:
                         m_udp_socket_ref.async_send_to(
                             boost::asio::buffer(m_dataframe_write_buffer, sizeof(m_dataframe_write_buffer)),
                             m_udp_remote_endpoint,
-                            boost::bind(&ClientConnection::handle_udp_write_controller_data_frame_complete, this, _1));
+                            boost::bind(&ClientConnection::handle_udp_write_device_data_frame_complete, this, _1));
                     }
                     else
                     {
-                        SERVER_LOG_ERROR("ClientConnection::start_udp_write_queued_controller_data_frame") 
+                        SERVER_LOG_ERROR("ClientConnection::start_udp_write_queued_device_data_frame") 
                             << "DataFrame too big to fit in packet!";
                     }
                 }
@@ -275,12 +275,10 @@ private:
     PackedMessage<PSMoveProtocol::Response> m_packed_response;
 
     uint8_t m_dataframe_write_buffer[HEADER_SIZE+MAX_DATA_FRAME_MESSAGE_SIZE];
-    PackedMessage<PSMoveProtocol::ControllerDataFrame> m_packed_dataframe;
-    // TODO: m_packed_dataframes for other devices.
+    PackedMessage<PSMoveProtocol::DeviceDataFrame> m_packed_dataframe;
 
     deque<ResponsePtr> m_pending_responses;
-    deque<ControllerDataFramePtr> m_pending_dataframes;
-    // TODO: m_pending_dataframes for other devices.
+    deque<DeviceDataFramePtr> m_pending_dataframes;
     
     bool m_connection_started;
     bool m_connection_stopped;
@@ -467,14 +465,14 @@ private:
         }
     }
 
-    void handle_udp_write_controller_data_frame_complete(const boost::system::error_code& ec)
+    void handle_udp_write_device_data_frame_complete(const boost::system::error_code& ec)
     {
         if (m_connection_stopped)
             return;
 
         if (!ec)
         {
-            SERVER_LOG_TRACE("ClientConnection::handle_udp_write_controller_data_frame_complete") 
+            SERVER_LOG_TRACE("ClientConnection::handle_udp_write_device_data_frame_complete") 
                 << "Sent UDP data frame on connection id " << m_connection_id;
 
             // no longer is there a pending write
@@ -485,7 +483,7 @@ private:
         }
         else
         {
-            SERVER_LOG_ERROR("ClientConnection::handle_udp_write_controller_data_frame_complete") 
+            SERVER_LOG_ERROR("ClientConnection::handle_udp_write_device_data_frame_complete") 
                 << "Error sending data frame on connection " << m_connection_id << ": " << ec.message();
 
             stop();
@@ -636,7 +634,7 @@ public:
         {
             SERVER_LOG_DEBUG("ServerNetworkManager::send_notification") 
                 << "Can't send response_type " << response->type() 
-                << " to a disconected connection " << connection_id;
+                << " to a disconnected connection " << connection_id;
         }
     }
 
@@ -660,7 +658,7 @@ public:
         }
     }
 
-    void send_controller_data_frame(int connection_id, ControllerDataFramePtr data_frame)
+    void send_device_data_frame(int connection_id, DeviceDataFramePtr data_frame)
     {
         t_client_connection_map_iter entry = m_connections.find(connection_id);
 
@@ -668,16 +666,16 @@ public:
         {
             ClientConnectionPtr connection= entry->second;
 
-            SERVER_LOG_TRACE("ServerNetworkManager::send_controller_data_frame") 
+            SERVER_LOG_TRACE("ServerNetworkManager::send_device_data_frame") 
                 << "Sending data_frame to connection " << connection_id;
 
-            connection->add_controller_data_frame_to_write_queue(data_frame);
+            connection->add_device_data_frame_to_write_queue(data_frame);
 
             start_udp_queued_data_frame_write();
         }
         else
         {
-            SERVER_LOG_ERROR("ServerNetworkManager::send_controller_data_frame") 
+            SERVER_LOG_ERROR("ServerNetworkManager::send_device_data_frame") 
                 << "Can't send data_frame to unknown connection " << connection_id;
         }
     }
@@ -841,7 +839,7 @@ protected:
         {
             ClientConnectionPtr connection= iter->second;
 
-            if (connection->start_udp_write_queued_controller_data_frame())
+            if (connection->start_udp_write_queued_device_data_frame())
             {
                 SERVER_LOG_TRACE("ServerNetworkManager::start_udp_queued_data_frame_write") 
                     << "Send queued UDP data on connection id: " << iter->first;
@@ -937,7 +935,7 @@ void ServerNetworkManager::send_notification_to_all_clients(ResponsePtr response
     implementation_ptr->send_notification_to_all_clients(response);
 }
 
-void ServerNetworkManager::send_controller_data_frame(int connection_id, ControllerDataFramePtr data_frame)
+void ServerNetworkManager::send_device_data_frame(int connection_id, DeviceDataFramePtr data_frame)
 {
-    implementation_ptr->send_controller_data_frame(connection_id, data_frame);
+    implementation_ptr->send_device_data_frame(connection_id, data_frame);
 }
