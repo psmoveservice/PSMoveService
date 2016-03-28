@@ -39,6 +39,9 @@ float
 eigen_quaternion_normalize_with_default(Eigen::Quaternionf &inout_v, const Eigen::Quaternionf &default_result);
 
 bool
+eigen_vector3f_is_valid(const Eigen::Vector3f &v);
+
+bool
 eigen_quaternion_is_valid(const Eigen::Quaternionf &q);
 
 Eigen::Vector3f
