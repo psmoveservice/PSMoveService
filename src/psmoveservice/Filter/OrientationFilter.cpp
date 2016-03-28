@@ -145,6 +145,7 @@ void OrientationFilterSpace::convertSensorPacketToFilterPacket(
     const OrientationSensorPacket &sensorPacket,
     OrientationFilterPacket &outFilterPacket) const
 {
+    outFilterPacket.orientation = sensorPacket.orientation;
     outFilterPacket.gyroscope= m_SensorTransform * sensorPacket.gyroscope;
     outFilterPacket.normalized_accelerometer= m_SensorTransform * sensorPacket.accelerometer;
     outFilterPacket.normalized_magnetometer= m_SensorTransform * sensorPacket.magnetometer;
@@ -191,6 +192,7 @@ void OrientationFilter::setFusionType(OrientationFilter::FusionType fusionType)
     switch (m_FusionState->fusion_type)
     {
     case FusionTypeNone:
+    case FusionTypePassThru:
     case FusionTypeMadgwickIMU:
         // No initialization
         break;
@@ -240,6 +242,9 @@ void OrientationFilter::update(
     switch(m_FusionState->fusion_type)
     {
     case FusionTypeNone:
+        break;
+    case FusionTypePassThru:
+        m_FusionState->orientation = filterPacket.orientation;
         break;
     case FusionTypeMadgwickIMU:
         orientation_fusion_imu_update(delta_time, &m_FilterSpace, &filterPacket, m_FusionState);

@@ -17,6 +17,7 @@ extern const Eigen::Matrix3f *k_eigen_sensor_transform_opengl;
 /// A snapshot of IMU data emitted from a controller
 struct OrientationSensorPacket
 {
+    Eigen::Quaternionf orientation;
     Eigen::Vector3f accelerometer;
     Eigen::Vector3f magnetometer;
     Eigen::Vector3f gyroscope;
@@ -25,6 +26,7 @@ struct OrientationSensorPacket
 /// A snapshot of IMU data transformed by a filter space so that it can be used to update an orientation filter
 struct OrientationFilterPacket
 {
+    Eigen::Quaternionf orientation;
     Eigen::Vector3f normalized_accelerometer;
     Eigen::Vector3f normalized_magnetometer;
     Eigen::Vector3f gyroscope;
@@ -71,6 +73,7 @@ public:
 
     enum FusionType {
         FusionTypeNone,
+        FusionTypePassThru,
         FusionTypeMadgwickIMU,
         FusionTypeMadgwickMARG,
         FusionTypeComplementaryMARG,
