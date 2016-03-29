@@ -21,6 +21,19 @@ HMDManager::startup()
 
     if (DeviceTypeManager::startup())
     {
+#if defined(OVR_OS_WIN32)
+        if (OVR_SUCCESS(ovr_Initialize(0)))
+        {
+            m_oculusapi_initialized = true;
+        }
+        else
+        {
+            ovrErrorInfo errorInfo;
+            ovr_GetLastErrorInfo(&errorInfo);
+
+            SERVER_LOG_WARNING("HMDManager::startup") << "Oculus API init failed: " << errorInfo.ErrorString;
+        }
+#elif defined(OVR_OS_MAC)
         if (ovr_Initialize(0) == ovrTrue)
         {
             m_oculusapi_initialized = true;
@@ -28,8 +41,10 @@ HMDManager::startup()
         else
         {
             SERVER_LOG_WARNING("HMDManager::startup") << "Oculus API init failed (different SDK installed?)";
-            success = false;
         }
+#endif
+
+        success = true;
     }
 
     return success;

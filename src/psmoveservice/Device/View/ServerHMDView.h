@@ -27,9 +27,6 @@ public:
     // Returns the full usb device path for the controller
     std::string getUSBDevicePath() const;
 
-    // Returns the serial number for the controller
-    std::string getSerial() const;
-
     // Returns what type of HMD this HMD view represents
     CommonDeviceState::eDeviceType getHMDDeviceType() const;
 

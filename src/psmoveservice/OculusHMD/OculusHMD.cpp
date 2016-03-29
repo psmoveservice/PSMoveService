@@ -23,7 +23,6 @@ class OculusHIDDetails
 {
 public:
     std::string Device_path;
-    std::string Device_serial;
     ovrHmdDesc HmdDesc;
 #if defined(OVR_OS_WIN32)
     ovrSession SessionHandle;
@@ -40,7 +39,6 @@ public:
     void Reset()
     {
         Device_path = "";
-        Device_serial = "";
         memset(&HmdDesc, 0, sizeof(ovrHmdDesc));
 #if defined(OVR_OS_WIN32)
         memset(&SessionHandle, 0, sizeof(ovrSession));
@@ -164,18 +162,6 @@ bool OculusHMD::open(
         SERVER_LOG_INFO("OculusHMD::open") << "Opening OculusHMD(" << cur_dev_path << ")";
         HIDDetails->Device_path = cur_dev_path;
 
-        char cur_dev_serial_number[256];
-        if (pEnum->get_serial_number(cur_dev_serial_number, sizeof(cur_dev_serial_number)))
-        {
-            SERVER_LOG_INFO("OculusHMD::open") << "  with serial_number: " << cur_dev_serial_number;
-        }
-        else
-        {
-            cur_dev_serial_number[0] = '\0';
-            SERVER_LOG_INFO("OculusHMD::open") << "  with EMPTY serial_number";
-        }
-        HIDDetails->Device_serial = cur_dev_serial_number;
-
 #if defined(OVR_OS_WIN32)
         if (ovr_Create(&HIDDetails->SessionHandle, &HIDDetails->Luid) == ovrSuccess)
         {
@@ -296,12 +282,6 @@ std::string
 OculusHMD::getUSBDevicePath() const
 {
     return HIDDetails->Device_path;
-}
-
-std::string
-OculusHMD::getSerial() const
-{
-    return HIDDetails->Device_serial;
 }
 
 bool

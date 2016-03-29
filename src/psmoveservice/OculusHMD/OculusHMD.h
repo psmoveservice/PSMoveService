@@ -90,7 +90,6 @@ public:
 
     // -- IHMDInterface
     virtual std::string getUSBDevicePath() const override;
-    virtual std::string getSerial() const override;
 
     // -- Getters
     inline const OculusHMDConfig *getConfig() const

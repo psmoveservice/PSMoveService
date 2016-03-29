@@ -15,10 +15,19 @@ public:
     bool is_valid() const override;
     bool next() override;
     const char *get_path() const override;
-    bool get_serial_number(char *out_mb_serial, const size_t mb_buffer_size) const;
+    inline int get_hmd_index() const { return hmd_index; }
+
+protected:
+    bool recompute_current_device_validity();
 
 private:
-    struct hid_device_info *devs, *cur_dev;
+    char cur_path[256];
+    struct libusb_context* usb_context;
+    struct libusb_device **devs, *cur_dev;
+    unsigned char dev_port_numbers[MAX_USB_DEVICE_PORT_PATH];
+    int dev_index, dev_count;
+    int hmd_index;
+    bool dev_valid;
 };
 
 #endif // HMD_DEVICE_ENUMERATOR_H

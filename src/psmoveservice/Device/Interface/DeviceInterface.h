@@ -286,9 +286,6 @@ public:
     // -- Getters
     // Returns the full usb device path for the HMD
     virtual std::string getUSBDevicePath() const = 0;
-
-    // Returns the serial number for the controller
-    virtual std::string getSerial() const = 0;
 };
 
 #endif // DEVICE_INTERFACE_H

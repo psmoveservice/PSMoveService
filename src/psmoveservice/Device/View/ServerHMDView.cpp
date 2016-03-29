@@ -63,6 +63,8 @@ bool ServerHMDView::allocate_device_interface(const class DeviceEnumerator *enum
     case CommonDeviceState::OculusDK2:
         {
             m_device = new OculusDevKit2();
+            m_orientation_filter = new OrientationFilter();
+            m_position_filter = new PositionFilter();
         } break;
     default:
         break;
@@ -184,13 +186,6 @@ ServerHMDView::getUSBDevicePath() const
     return m_device->getUSBDevicePath();
 }
 
-// Returns the serial number for the controller
-std::string
-ServerHMDView::getSerial() const
-{
-    return m_device->getSerial();
-}
-
 CommonDeviceState::eDeviceType
 ServerHMDView::getHMDDeviceType() const
 {
@@ -303,7 +298,7 @@ update_filters_for_oculus_hmd(
     // Update the orientation filter
     {
         //###bwalker $TODO Determine time deltas from the timestamps on the controller frames
-        const float delta_time = 1.f / 120.f;
+        const float delta_time = 1.f / 60.f;
 
         OrientationSensorPacket sensorPacket;
 
