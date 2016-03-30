@@ -23,7 +23,7 @@ public:
 
     AppStage_HMDSettings(class App *app);
 
-    inline const HMDInfo *getSelectedTrackerInfo() const
+    inline const HMDInfo *getSelectedHmdInfo() const
     {
         return
             (m_selectedHmdIndex != -1)

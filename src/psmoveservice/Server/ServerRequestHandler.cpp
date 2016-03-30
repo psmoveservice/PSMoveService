@@ -763,7 +763,7 @@ protected:
 
                 // The tracker manager will always publish updates regardless of who is listening.
                 // All we have to do is keep track of which connections care about the updates.
-                context.connection_state->active_tracker_streams.set(tracker_id, false);
+                context.connection_state->active_tracker_streams.set(tracker_id, true);
 
                 // Set control flags for the stream
                 streamInfo.streaming_video_data = true;
@@ -869,7 +869,7 @@ protected:
 
                 // The hmd manager will always publish updates regardless of who is listening.
                 // All we have to do is keep track of which connections care about the updates.
-                context.connection_state->active_hmd_streams.set(hmd_id, false);
+                context.connection_state->active_hmd_streams.set(hmd_id, true);
 
                 // Set control flags for the stream
                 streamInfo.Clear();

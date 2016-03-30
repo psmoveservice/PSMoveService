@@ -1,6 +1,7 @@
 //-- inludes -----
 #include "AppStage_HMDSettings.h"
 #include "AppStage_MainMenu.h"
+#include "AppStage_TestHMD.h"
 #include "App.h"
 #include "Camera.h"
 #include "Renderer.h"
@@ -35,6 +36,7 @@ void AppStage_HMDSettings::enter()
 
 void AppStage_HMDSettings::exit()
 {
+    m_menuState = AppStage_HMDSettings::inactive;
 }
 
 void AppStage_HMDSettings::update()
@@ -129,7 +131,7 @@ void AppStage_HMDSettings::renderUI()
 
             if (ImGui::Button("Test HMD Tracking"))
             {
-                //m_app->setAppStage(AppStage_TestHMD::APP_STAGE_NAME);
+                m_app->setAppStage(AppStage_TestHMD::APP_STAGE_NAME);
             }
         }
         else
