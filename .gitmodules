@@ -35,3 +35,6 @@
 [submodule "thirdparty/OculusSDK-0.8.0.0"]
 	path = thirdparty/OculusSDK-0.8.0.0
 	url = https://github.com/frenchjam/OculusSDK.git
+[submodule "thirdparty/openvr"]
+	path = thirdparty/openvr
+	url = https://github.com/ValveSoftware/openvr.git
