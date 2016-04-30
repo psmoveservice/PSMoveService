@@ -3,10 +3,8 @@
 
 #include "ControllerManager.h"
 #include "DeviceEnumerator.h"
-#include "HMDManager.h"
 #include "OrientationFilter.h"
 #include "ServerControllerView.h"
-#include "ServerHMDView.h"
 #include "ServerTrackerView.h"
 #include "ServerRequestHandler.h"
 #include "ServerLog.h"
@@ -23,8 +21,6 @@ static const int k_default_controller_reconnect_interval= 1000; // ms
 static const int k_default_controller_poll_interval= 2; // ms
 static const int k_default_tracker_reconnect_interval= 10000; // ms
 static const int k_default_tracker_poll_interval= 13; // 1000/75 ms
-static const int k_default_hmd_reconnect_interval= 10000; // ms
-static const int k_default_hmd_poll_interval= 2; // ms
 
 class DeviceManagerConfig : public PSMoveConfig
 {
@@ -35,9 +31,6 @@ public:
         , controller_poll_interval(k_default_controller_poll_interval)
         , tracker_reconnect_interval(k_default_tracker_reconnect_interval)
         , tracker_poll_interval(k_default_tracker_poll_interval)
-        , hmd_reconnect_interval(k_default_hmd_reconnect_interval)
-        , hmd_poll_interval(k_default_hmd_poll_interval)
-
     {};
 
     const boost::property_tree::ptree
@@ -49,8 +42,6 @@ public:
         pt.put("controller_poll_interval", controller_poll_interval);
         pt.put("tracker_reconnect_interval", tracker_reconnect_interval);
         pt.put("tracker_poll_interval", tracker_poll_interval);
-        pt.put("hmd_reconnect_interval", hmd_reconnect_interval);
-        pt.put("hmd_poll_interval", hmd_poll_interval);
 
         return pt;
     }
@@ -62,16 +53,12 @@ public:
         controller_poll_interval = pt.get<int>("controller_poll_interval", k_default_controller_poll_interval);
         tracker_reconnect_interval = pt.get<int>("tracker_reconnect_interval", k_default_tracker_reconnect_interval);
         tracker_poll_interval = pt.get<int>("tracker_poll_interval", k_default_tracker_poll_interval);
-        hmd_reconnect_interval = pt.get<int>("hmd_reconnect_interval", k_default_hmd_reconnect_interval);
-        hmd_poll_interval = pt.get<int>("hmd_poll_interval", k_default_hmd_poll_interval);
     }
 
     int controller_reconnect_interval;
     int controller_poll_interval;
     int tracker_reconnect_interval;
     int tracker_poll_interval;
-    int hmd_reconnect_interval;
-    int hmd_poll_interval;
 };
 
 // DeviceManager - This is the interface used by PSMoveService
@@ -81,7 +68,6 @@ DeviceManager::DeviceManager()
     : m_config() // NULL config until startup
     , m_controller_manager(new ControllerManager())
     , m_tracker_manager(new TrackerManager())
-    , m_hmd_manager(new HMDManager())
 {
 }
 
@@ -89,7 +75,6 @@ DeviceManager::~DeviceManager()
 {
     delete m_controller_manager;
     delete m_tracker_manager;
-    delete m_hmd_manager;
 }
 
 bool
@@ -107,10 +92,6 @@ DeviceManager::startup()
     m_tracker_manager->reconnect_interval = m_config->tracker_reconnect_interval;
     m_tracker_manager->poll_interval = m_config->tracker_poll_interval;
     success &= m_tracker_manager->startup();
-    
-    m_hmd_manager->reconnect_interval = m_config->hmd_reconnect_interval;
-    m_hmd_manager->poll_interval = m_config->hmd_poll_interval;
-    success &= m_hmd_manager->startup();
 
     m_instance= this;
     
@@ -122,15 +103,12 @@ DeviceManager::update()
 {
     m_controller_manager->poll(); // Update controller counts and poll button/IMU state
     m_tracker_manager->poll(); // Update tracker count and poll video frames
-    m_hmd_manager->poll(); // Update HMD count and poll position/orientation state
 
     m_tracker_manager->updateStateAndPredict(); // Get controller colors and update tracking blob positions/predictions
     m_controller_manager->updateStateAndPredict(); // Compute pose/prediction of tracking blob+IMU state
-    m_hmd_manager->updateStateAndPredict(); // Get the pose + prediction for HMD
 
     m_controller_manager->publish(); // publish controller state to any listening clients  (common case)
     m_tracker_manager->publish(); // publish tracker state to any listening clients (probably only used by ConfigTool)
-    m_hmd_manager->publish(); // publish hmd state to any listening clients (probably only used by ConfigTool)
 }
 
 void
@@ -140,7 +118,6 @@ DeviceManager::shutdown()
 
     m_controller_manager->shutdown();
     m_tracker_manager->shutdown();
-    m_hmd_manager->shutdown();
 
     m_instance= nullptr;
 }
@@ -155,12 +132,6 @@ int
 DeviceManager::getTrackerViewMaxCount() const
 {
     return m_tracker_manager->getMaxDevices();
-}
-
-int 
-DeviceManager::getHMDViewMaxCount() const
-{
-    return m_hmd_manager->getMaxDevices();
 }
 
 ServerControllerViewPtr
@@ -182,18 +153,6 @@ DeviceManager::getTrackerViewPtr(int tracker_id)
     if (ServerUtility::is_index_valid(tracker_id, m_tracker_manager->getMaxDevices()))
     {
         result = m_tracker_manager->getTrackerViewPtr(tracker_id);
-    }
-
-    return result;
-}
-
-ServerHMDViewPtr
-DeviceManager::getHMDViewPtr(int hmd_id)
-{
-    ServerHMDViewPtr result;
-    if (ServerUtility::is_index_valid(hmd_id, m_hmd_manager->getMaxDevices()))
-    {
-        result = m_hmd_manager->getHMDViewPtr(hmd_id);
     }
 
     return result;

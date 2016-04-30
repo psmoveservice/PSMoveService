@@ -51,8 +51,7 @@ struct CommonDeviceState
     enum eDeviceClass
     {
         Controller = 0x00,
-        TrackingCamera = 0x10,
-        HeadMountedDisplay = 0x20
+        TrackingCamera = 0x10
     };
     
     enum eDeviceType
@@ -63,10 +62,6 @@ struct CommonDeviceState
         
         PS3EYE = TrackingCamera + 0x00,
         SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x01,
-
-        OculusHMD = HeadMountedDisplay + 0x00,
-        OculusDK2 = OculusHMD,
-        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01
     };
     
     eDeviceType DeviceType;
@@ -97,9 +92,6 @@ struct CommonDeviceState
             break;
         case PS3EYE:
             result = "PSEYE";
-            break;
-        case OculusDK2:
-            result = "Oculus DK2";
             break;
         default:
             result = "UNKNOWN";
@@ -147,24 +139,6 @@ struct CommonControllerState : CommonDeviceState
         AllButtons= 0;
     }
 };
-
-struct CommonHMDState : CommonDeviceState
-{
-    CommonDevicePose Pose;
-
-    inline CommonHMDState()
-    {
-        clear();
-    }
-
-    inline void clear()
-    {
-        CommonDeviceState::clear();
-
-        Pose.clear();
-    }
-};
-
 
 /// Abstract base class for any device interface. Further defined in specific device abstractions.
 class IDeviceInterface
@@ -278,14 +252,4 @@ public:
         return result;
     }
 };
-
-/// Abstract class for HMD interface. Implemented HMD classes
-class IHMDInterface : public IDeviceInterface
-{
-public:
-    // -- Getters
-    // Returns the full usb device path for the HMD
-    virtual std::string getUSBDevicePath() const = 0;
-};
-
 #endif // DEVICE_INTERFACE_H

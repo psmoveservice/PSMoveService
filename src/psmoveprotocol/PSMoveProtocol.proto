@@ -47,10 +47,6 @@ enum TrackerDriver {
     GENERIC_WEBCAM = 3;
 }
 
-enum HMDType {
-    OculusDK2 = 0;
-}
-
 // Reliable (TCP) requests that can issued to the PSMove Service
 message Request {
     // Unique id for this request.
@@ -73,11 +69,7 @@ message Request {
 
         GET_TRACKER_LIST = 10;
         START_TRACKER_DATA_STREAM = 11;
-        STOP_TRACKER_DATA_STREAM = 12;
-        
-        GET_HMD_LIST = 13;
-        START_HMD_DATA_STREAM = 14;
-        STOP_HMD_DATA_STREAM = 15;        
+        STOP_TRACKER_DATA_STREAM = 12;       
     }
     RequestType type = 2;
    
@@ -161,22 +153,7 @@ message Request {
     message RequestStopTrackerDataStream {
         int32 tracker_id = 1;
     }
-    RequestStopTrackerDataStream request_stop_tracker_data_stream = 30;
-    
-    // Parameters for START_HMD_DATA_STREAM
-    // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
-    message RequestStartHmdDataStream {
-        int32 hmd_id = 1;
-        bool include_raw_sensor_data= 2;        
-    }
-    RequestStartHmdDataStream request_start_hmd_data_stream = 31;
-
-    // Parameters for STOP_HMD_DATA_STREAM
-    // NOTE: DeviceDataFrame packets will stop streaming to client upon receiving this request
-    message RequestStopHmdDataStream {
-        int32 hmd_id = 1;
-    }
-    RequestStopHmdDataStream request_stop_hmd_data_stream = 32;    
+    RequestStopTrackerDataStream request_stop_tracker_data_stream = 30;   
 }
 
 // Reliable (TCP) responses to requests
@@ -191,9 +168,7 @@ message Response {
         PAIR_REQUEST_COMPLETED= 5;
         BLUETOOTH_REQUEST_PROGRESS= 6;
         TRACKER_LIST= 7;
-        TRACKER_LIST_UPDATED= 8;
-        HMD_LIST= 9;
-        HMD_LIST_UPDATED= 10;        
+        TRACKER_LIST_UPDATED= 8;       
     }
 
     enum ResultCode {
@@ -258,21 +233,7 @@ message Response {
         }
         repeated TrackerInfo trackers = 1;
     }
-    ResultTrackerList result_tracker_list = 23;
-    
-    // No parameters for HMD_LIST_UPDATED
-    
-    // Parameters for HMD_LIST
-    // This is returned in response to a HMD_LIST request
-    message ResultHMDList {
-        message HMDInfo {
-            int32 hmd_id= 1;
-            HMDType hmd_type = 2;
-            string device_path = 4;
-        }
-        repeated HMDInfo hmd_entries = 1;
-    }
-    ResultHMDList result_hmd_list = 24;    
+    ResultTrackerList result_tracker_list = 23;  
 }
 
 // Unreliable (UDP) device data packet format
@@ -283,7 +244,6 @@ message DeviceDataFrame
     {
         CONTROLLER= 0;
         TRACKER= 1;
-        HMD= 2;
     }
     DeviceCategory device_category= 1;
     
@@ -391,51 +351,4 @@ message DeviceDataFrame
         bool IsConnected= 4;                
     }
     TrackerDataPacket tracker_data_packet = 3;
-
-    // Update packet for an HMD
-    message HMDDataPacket
-    {
-        // The id of hmd this data is for
-        int32 hmd_id= 1;
-
-        // Specify the type of controller this data is from
-        HMDType hmd_type= 2;
-        
-        // Monotonically increasing number.
-        // Used to throw out old data if it arrives out of order.
-        int32 sequence_num= 3;
-
-        // Common Controller status flags
-        bool IsConnected= 4;        
-        
-        // The current position of the HMD (in it's associated tracking space)
-        Position position= 5;
-        
-        // The current orientation quaternion of the HMD (in it's associated tracking space)
-        Orientation orientation= 6;
-        
-        // OculusDK2 Specific HMD state
-        message OculusDK2State
-        {
-            // HMD State space properties
-            FloatVector angular_velocity = 1;
-            FloatVector linear_velocity = 2;
-            FloatVector angular_acceleration = 3;
-            FloatVector linear_acceleration = 4;
-            float state_time = 5;
-            
-            // Only valid if include_raw_sensor_data=true in START_HMD_DATA_STREAM request
-            message RawSensorData
-            {
-                FloatVector accelerometer= 1;
-                FloatVector gyroscope= 2;
-                FloatVector magnetometer= 3;
-                float temparature = 4;
-                float imu_sample_time = 5;
-            }
-            RawSensorData raw_sensor_data = 6;            
-        }
-        OculusDK2State oculus_dk2_state = 7;          
-    }
-    HMDDataPacket hmd_data_packet = 4;
 }

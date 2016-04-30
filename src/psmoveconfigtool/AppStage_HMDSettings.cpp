@@ -55,7 +55,7 @@ void AppStage_HMDSettings::render()
 
             switch (hmdInfo.HmdType)
             {
-            case PSMoveProtocol::OculusDK2:
+            case AppStage_HMDSettings::OculusDK2:
                 {
                     glm::mat4 scale3 = glm::scale(glm::mat4(1.f), glm::vec3(3.f, 3.f, 3.f));
                     drawDK2Model(scale3);
@@ -182,24 +182,6 @@ void AppStage_HMDSettings::renderUI()
     }
 }
 
-bool AppStage_HMDSettings::onClientAPIEvent(
-    ClientPSMoveAPI::eClientPSMoveAPIEvent event,
-    ClientPSMoveAPI::t_event_data_handle opaque_event_handle)
-{
-    bool bHandled = false;
-
-    switch (event)
-    {
-    case ClientPSMoveAPI::hmdListUpdated:
-        {
-            bHandled = true;
-            request_hmd_list();
-        } break;
-    }
-
-    return bHandled;
-}
-
 void AppStage_HMDSettings::request_hmd_list()
 {
     if (m_menuState != AppStage_HMDSettings::pendingHmdListRequest)
@@ -209,57 +191,57 @@ void AppStage_HMDSettings::request_hmd_list()
         m_hmdInfos.clear();
 
         // Tell the psmove service that we we want a list of HMDs connected to this machine
-        RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_GET_HMD_LIST);
+        // RequestPtr request(new PSMoveProtocol::Request());
+        // request->set_type(PSMoveProtocol::Request_RequestType_GET_HMD_LIST);
 
-        ClientPSMoveAPI::send_opaque_request(&request, AppStage_HMDSettings::handle_hmd_list_response, this);
+        // ClientPSMoveAPI::send_opaque_request(&request, AppStage_HMDSettings::handle_hmd_list_response, this);
     }
 }
 
-void AppStage_HMDSettings::handle_hmd_list_response(
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-    const ClientPSMoveAPI::t_request_id request_id,
-    ClientPSMoveAPI::t_response_handle response_handle,
-    void *userdata)
-{
-    AppStage_HMDSettings *thisPtr = static_cast<AppStage_HMDSettings *>(userdata);
+// void AppStage_HMDSettings::handle_hmd_list_response(
+    // ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
+    // const ClientPSMoveAPI::t_request_id request_id,
+    // ClientPSMoveAPI::t_response_handle response_handle,
+    // void *userdata)
+// {
+    // AppStage_HMDSettings *thisPtr = static_cast<AppStage_HMDSettings *>(userdata);
 
-    switch (ResultCode)
-    {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
-        {
-            const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+    // switch (ResultCode)
+    // {
+    // case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+        // {
+            // const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
 
-            for (int hmd_index = 0; hmd_index < response->result_hmd_list().hmd_entries_size(); ++hmd_index)
-            {
-                const auto &HmdResponse = response->result_hmd_list().hmd_entries(hmd_index);
+            // for (int hmd_index = 0; hmd_index < response->result_hmd_list().hmd_entries_size(); ++hmd_index)
+            // {
+                // const auto &HmdResponse = response->result_hmd_list().hmd_entries(hmd_index);
 
-                AppStage_HMDSettings::HMDInfo HmdInfo;
+                // AppStage_HMDSettings::HMDInfo HmdInfo;
 
-                HmdInfo.HmdID = HmdResponse.hmd_id();
+                // HmdInfo.HmdID = HmdResponse.hmd_id();
 
-                switch (HmdResponse.hmd_type())
-                {
-                case PSMoveProtocol::HMDType::OculusDK2:
-                    HmdInfo.HmdType = AppStage_HMDSettings::OculusDK2;
-                    break;
-                default:
-                    assert(0 && "unreachable");
-                }
+                // switch (HmdResponse.hmd_type())
+                // {
+                // case PSMoveProtocol::HMDType::OculusDK2:
+                    // HmdInfo.HmdType = AppStage_HMDSettings::OculusDK2;
+                    // break;
+                // default:
+                    // assert(0 && "unreachable");
+                // }
 
-                HmdInfo.DevicePath = HmdResponse.device_path();
+                // HmdInfo.DevicePath = HmdResponse.device_path();
 
-                thisPtr->m_hmdInfos.push_back(HmdInfo);
-            }
+                // thisPtr->m_hmdInfos.push_back(HmdInfo);
+            // }
 
-            thisPtr->m_selectedHmdIndex = (thisPtr->m_hmdInfos.size() > 0) ? 0 : -1;
-            thisPtr->m_menuState = AppStage_HMDSettings::idle;
-        } break;
+            // thisPtr->m_selectedHmdIndex = (thisPtr->m_hmdInfos.size() > 0) ? 0 : -1;
+            // thisPtr->m_menuState = AppStage_HMDSettings::idle;
+        // } break;
 
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
-        {
-            thisPtr->m_menuState = AppStage_HMDSettings::failedHmdListRequest;
-        } break;
-    }
-}
+    // case ClientPSMoveAPI::_clientPSMoveResultCode_error:
+    // case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+        // {
+            // thisPtr->m_menuState = AppStage_HMDSettings::failedHmdListRequest;
+        // } break;
+    // }
+// }

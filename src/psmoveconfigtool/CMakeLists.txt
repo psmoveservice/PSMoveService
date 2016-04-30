@@ -39,6 +39,11 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         version.lib)
 ENDIF()
 
+#OpenVR
+FIND_PACKAGE(OpenVR REQUIRED)
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${OPENVR_INCLUDE_DIRS})
+list(APPEND PSMOVE_SERVICE_REQ_LIBS ${OPENVR_LIBRARIES})
+
 # Source files that are needed for the psmove config tool
 file(GLOB PSMOVECONFIGTOOL_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.h"

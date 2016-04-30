@@ -42,7 +42,6 @@ public:
         opaqueServiceEvent, // Need to have protocol access to see what kind of event this is
         controllerListUpdated,
         trackerListUpdated,
-        hmdListUpdated,
     };
 
     enum eClientPSMoveResultCode
@@ -78,9 +77,6 @@ public:
     static ClientControllerView *allocate_controller_view(int ControllerID);
     static void free_controller_view(ClientControllerView *view);
 
-    static ClientHMDView *allocate_hmd_view(int HmdID);
-    static void free_hmd_view(ClientHMDView *view);
-
     enum eControllerDataStreamFlags
     {
         defaultStreamOptions= 0x00,
@@ -89,9 +85,6 @@ public:
 
     static t_request_id start_controller_data_stream(ClientControllerView *view, unsigned int flags, t_response_callback callback, void *callback_userdata);
     static t_request_id stop_controller_data_stream(ClientControllerView *view, t_response_callback callback, void *callback_userdata);
-
-    static t_request_id start_hmd_data_stream(ClientHMDView *view, unsigned int flags, t_response_callback callback, void *callback_userdata);
-    static t_request_id stop_hmd_data_stream(ClientHMDView *view, t_response_callback callback, void *callback_userdata);
 
     static t_request_id set_controller_rumble(
         ClientControllerView *view, float rumble_amount, t_response_callback callback, void *callback_userdata);
