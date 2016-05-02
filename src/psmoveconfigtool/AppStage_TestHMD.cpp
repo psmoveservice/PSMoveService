@@ -4,7 +4,9 @@
 #include "AppStage_MainMenu.h"
 #include "App.h"
 #include "Camera.h"
+#include "ClientHMDView.h"
 #include "Logger.h"
+#include "OpenVRContext.h"
 #include "MathUtility.h"
 #include "Renderer.h"
 #include "UIConstants.h"
@@ -28,35 +30,41 @@ const char *AppStage_TestHMD::APP_STAGE_NAME = "TestHMD";
 AppStage_TestHMD::AppStage_TestHMD(App *app)
     : AppStage(app)
     , m_menuState(AppStage_TestHMD::inactive)
-    , m_pendingAppStage(nullptr)
+    , m_hmdView(nullptr)
     , m_lastHmdSeqNum(-1)
 { }
 
 void AppStage_TestHMD::enter()
 {
     const AppStage_HMDSettings *hmdSettings = m_app->getAppStage<AppStage_HMDSettings>();
-    const AppStage_HMDSettings::HMDInfo *hmdInfo = hmdSettings->getSelectedHmdInfo();
-    assert(hmdInfo->HmdID != -1);
+    const OpenVRHmdInfo *hmdInfo = hmdSettings->getSelectedHmdInfo();
+    assert(hmdInfo->DeviceIndex != -1);
     
-    // assert(m_hmdView == nullptr);
-    // m_hmdView = ClientPSMoveAPI::allocate_hmd_view(hmdInfo->HmdID);
+    // Allocate a new HMD stream
+    assert(m_hmdView == nullptr);
+    m_hmdView = m_app->getOpenVRContext()->allocateHmdView();
+    if (m_hmdView != nullptr)
+    {
+        m_menuState = eHmdMenuState::pendingHmdStartStreamRequest;
+        m_lastHmdSeqNum = -1;
+    }
+    else
+    {
+        m_menuState = eHmdMenuState::failedHmdStartStreamRequest;
+    }
 
     m_app->setCameraType(_cameraFixed);
 
     m_lastHmdSeqNum = -1;
-
-    // ClientPSMoveAPI::start_hmd_data_stream(
-        // m_hmdView,
-        // ClientPSMoveAPI::includeRawSensorData,
-        // &AppStage_TestHMD::handle_hmd_start_stream_response,
-        // this);
 }
 
 void AppStage_TestHMD::exit()
 {
-    //assert(m_hmdView != nullptr);
-    // ClientPSMoveAPI::free_hmd_view(m_hmdView);
-    // m_hmdView = nullptr;
+    if (m_hmdView != nullptr)
+    {
+        m_app->getOpenVRContext()->freeHmdView(m_hmdView);
+        m_hmdView = nullptr;
+    }
 
     m_menuState = eHmdMenuState::inactive;
 }
@@ -65,33 +73,33 @@ void AppStage_TestHMD::update()
 {
     bool bControllerDataUpdatedThisFrame = false;
 
-    // if (m_isHmdStreamActive && m_hmdView->GetSequenceNum() != m_lastHmdSeqNum)
-    // {
-        // m_lastHmdSeqNum = m_hmdView->GetSequenceNum();
-        // bControllerDataUpdatedThisFrame = true;
+     if (m_hmdView != nullptr && m_hmdView->getSequenceNum() != m_lastHmdSeqNum)
+     {
+         m_lastHmdSeqNum = m_hmdView->getSequenceNum();
+         bControllerDataUpdatedThisFrame = true;
 
-        // if (m_menuState == eHmdMenuState::pendingHmdStartStreamRequest)
-        // {
-            // m_menuState = eHmdMenuState::idle;
-        // }
-    // }
+         if (m_menuState == eHmdMenuState::pendingHmdStartStreamRequest)
+         {
+             m_menuState = eHmdMenuState::idle;
+         }
+     }
 }
 
 void AppStage_TestHMD::render()
 {
-    // if (m_menuState == eHmdMenuState::idle)
-    // {
-        // PSMovePose pose= m_hmdView->GetHmdPose();
-        // glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
-        // glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
+     if (m_menuState == eHmdMenuState::idle)
+     {
+         PSMovePose pose= m_hmdView->getHmdPose();
+         glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
+         glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
 
-        // glm::mat4 rot = glm::mat4_cast(orientation);
-        // glm::mat4 trans = glm::translate(glm::mat4(1.0f), position);
-        // glm::mat4 transform = trans * rot;
+         glm::mat4 rot = glm::mat4_cast(orientation);
+         glm::mat4 trans = glm::translate(glm::mat4(1.0f), position);
+         glm::mat4 transform = trans * rot;
 
-        // drawDK2Model(transform);
-        // drawTransformedAxes(transform, 10.f);
-    // }
+         drawDK2Model(transform);
+         drawTransformedAxes(transform, 10.f);
+     }
 }
 
 void AppStage_TestHMD::renderUI()
@@ -112,6 +120,22 @@ void AppStage_TestHMD::renderUI()
         ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
         ImGui::SetNextWindowSize(ImVec2(k_panel_width, 50));
         ImGui::Begin(k_window_title, nullptr, window_flags);
+
+        if (ImGui::Button("Return to HMD Settings"))
+        {
+            request_exit_to_app_stage(AppStage_HMDSettings::APP_STAGE_NAME);
+        }
+
+        ImGui::End();
+    } break;
+
+    case eHmdMenuState::pendingHmdStartStreamRequest:
+    {
+        ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
+        ImGui::SetNextWindowSize(ImVec2(k_panel_width, 50));
+        ImGui::Begin(k_window_title, nullptr, window_flags);
+
+        ImGui::Text("Pending HMD stream start...");
 
         if (ImGui::Button("Return to HMD Settings"))
         {
@@ -147,63 +171,13 @@ void AppStage_TestHMD::renderUI()
     }
 }
 
-// void AppStage_TestHMD::handle_hmd_start_stream_response(
-    // ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-    // const ClientPSMoveAPI::t_request_id request_id,
-    // ClientPSMoveAPI::t_response_handle response_handle,
-    // void *userdata)
-// {
-    // AppStage_TestHMD *thisPtr = static_cast<AppStage_TestHMD *>(userdata);
-
-    // switch (ResultCode)
-    // {
-    // case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
-        // {
-            // thisPtr->m_isHmdStreamActive = true;
-            // thisPtr->m_lastHmdSeqNum = -1;
-        // } break;
-
-    // case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    // case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
-        // {
-            // thisPtr->m_menuState = AppStage_TestHMD::failedHmdStartStreamRequest;
-        // } break;
-    // }
-// }
-
 void AppStage_TestHMD::request_exit_to_app_stage(const char *app_stage_name)
 {
-    if (m_pendingAppStage == nullptr)
+    if (m_hmdView != nullptr)
     {
-        if (m_isHmdStreamActive)
-        {
-            m_pendingAppStage = app_stage_name;
-            // ClientPSMoveAPI::stop_hmd_data_stream(
-                // m_hmdView,
-                // &AppStage_TestHMD::handle_hmd_stop_stream_response,
-                // this);
-        }
-        else
-        {
-            m_app->setAppStage(app_stage_name);
-        }
+        m_app->getOpenVRContext()->freeHmdView(m_hmdView);
+        m_hmdView = nullptr;
     }
+
+    m_app->setAppStage(app_stage_name);
 }
-
-// void AppStage_TestHMD::handle_hmd_stop_stream_response(
-    // ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-    // const ClientPSMoveAPI::t_request_id request_id,
-    // ClientPSMoveAPI::t_response_handle response_handle,
-    // void *userdata)
-// {
-    // AppStage_TestHMD *thisPtr = static_cast<AppStage_TestHMD *>(userdata);
-
-    // if (ResultCode != ClientPSMoveAPI::_clientPSMoveResultCode_ok)
-    // {
-        // Log_ERROR("AppStage_TestHMD", "Failed to release HMD on server!");
-    // }
-
-    // thisPtr->m_isHmdStreamActive = false;    
-    // thisPtr->m_app->setAppStage(thisPtr->m_pendingAppStage);
-    // thisPtr->m_pendingAppStage = nullptr;
-// }

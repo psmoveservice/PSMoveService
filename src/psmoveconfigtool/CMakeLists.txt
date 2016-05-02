@@ -41,8 +41,8 @@ ENDIF()
 
 #OpenVR
 FIND_PACKAGE(OpenVR REQUIRED)
-list(APPEND PSMOVE_SERVICE_INCL_DIRS ${OPENVR_INCLUDE_DIRS})
-list(APPEND PSMOVE_SERVICE_REQ_LIBS ${OPENVR_LIBRARIES})
+list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${OPENVR_INCLUDE_DIR})
+list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${OPENVR_LIBRARIES})
 
 # Source files that are needed for the psmove config tool
 file(GLOB PSMOVECONFIGTOOL_SRC
@@ -64,6 +64,10 @@ add_custom_command(TARGET PSMoveConfigTool POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_LIST_DIR}/assets"
         $<TARGET_FILE_DIR:PSMoveConfigTool>/assets)
+add_custom_command(TARGET PSMoveConfigTool POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${OPENVR_BINARIES_DIR}"
+        $<TARGET_FILE_DIR:PSMoveConfigTool>)        
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -74,5 +78,8 @@ install(TARGETS PSMoveConfigTool
 install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/assets/ 
         DESTINATION ${ROOT_DIR}/win32/bin/assets
         FILES_MATCHING PATTERN "*.ttf"  PATTERN "*.jpg")
+install(DIRECTORY ${OPENVR_BINARIES_DIR}/ 
+        DESTINATION ${ROOT_DIR}/win32/bin
+        FILES_MATCHING PATTERN "*.dll" PATTERN "*.pdb")        
 ELSE() #Linux/Darwin
 ENDIF()

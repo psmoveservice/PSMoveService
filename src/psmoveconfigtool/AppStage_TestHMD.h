@@ -5,8 +5,6 @@
 #include "AppStage.h"
 #include "ClientPSMoveAPI.h"
 
-#include <vector>
-
 //-- definitions -----
 class AppStage_TestHMD : public AppStage
 {
@@ -31,15 +29,12 @@ private:
         inactive,
         idle,
 
+        pendingHmdStartStreamRequest,
         failedHmdStartStreamRequest,
-
     };
 
     eHmdMenuState m_menuState;
-    const char *m_pendingAppStage;
-
-    //ClientHMDView *m_hmdView;
-    bool m_isHmdStreamActive;
+    class ClientHMDView *m_hmdView;
     int m_lastHmdSeqNum;
 };
 

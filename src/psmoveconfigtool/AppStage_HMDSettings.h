@@ -8,28 +8,11 @@
 class AppStage_HMDSettings : public AppStage
 {
 public:
-    enum eHMDType
-    {
-        OculusDK2
-    };
-
-    struct HMDInfo
-    {
-        int HmdID;
-        eHMDType HmdType;
-        std::string DevicePath;
-    };
-
 
     AppStage_HMDSettings(class App *app);
+    virtual ~AppStage_HMDSettings();
 
-    inline const HMDInfo *getSelectedHmdInfo() const
-    {
-        return
-            (m_selectedHmdIndex != -1)
-            ? &m_hmdInfos[m_selectedHmdIndex]
-            : nullptr;
-    }
+    const struct OpenVRHmdInfo *getSelectedHmdInfo() const;
 
     virtual void enter() override;
     virtual void exit() override;
@@ -49,12 +32,12 @@ private:
         inactive,
         idle,
 
-        pendingHmdListRequest,
         failedHmdListRequest,
     };
     eHmdMenuState m_menuState;
 
-    std::vector<HMDInfo> m_hmdInfos;
+    struct OpenVRHmdInfo *m_hmdInfos;
+    int m_hmdListCount;
 
     int m_selectedHmdIndex;
 };

@@ -4,10 +4,10 @@
 #include "AppStage_TestHMD.h"
 #include "App.h"
 #include "Camera.h"
+#include "ClientHMDView.h"
+#include "OpenVRContext.h"
 #include "Renderer.h"
 #include "UIConstants.h"
-#include "PSMoveProtocolInterface.h"
-#include "PSMoveProtocol.pb.h"
 
 #include "SDL_keycode.h"
 
@@ -18,13 +18,31 @@
 const char *AppStage_HMDSettings::APP_STAGE_NAME= "HMDSettings";
 
 //-- constants -----
+const int k_max_hmd_list_list = 4;
 
 //-- public methods -----
 AppStage_HMDSettings::AppStage_HMDSettings(App *app) 
     : AppStage(app)
     , m_menuState(AppStage_HMDSettings::inactive)
     , m_selectedHmdIndex(-1)
-{ }
+    , m_hmdInfos(nullptr)
+    , m_hmdListCount(0)
+{ 
+    m_hmdInfos = new OpenVRHmdInfo[k_max_hmd_list_list];
+}
+
+AppStage_HMDSettings::~AppStage_HMDSettings()
+{
+    delete[] m_hmdInfos;
+}
+
+const OpenVRHmdInfo *AppStage_HMDSettings::getSelectedHmdInfo() const
+{
+    return
+        (m_selectedHmdIndex != -1)
+        ? &m_hmdInfos[m_selectedHmdIndex]
+        : nullptr;
+}
 
 void AppStage_HMDSettings::enter()
 {
@@ -51,22 +69,14 @@ void AppStage_HMDSettings::render()
     {
         if (m_selectedHmdIndex >= 0)
         {
-            const HMDInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
+            const OpenVRHmdInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
 
-            switch (hmdInfo.HmdType)
-            {
-            case AppStage_HMDSettings::OculusDK2:
-                {
-                    glm::mat4 scale3 = glm::scale(glm::mat4(1.f), glm::vec3(3.f, 3.f, 3.f));
-                    drawDK2Model(scale3);
-                } break;
-            default:
-                assert(0 && "Unreachable");
-            }
+            //###HipsterSloth $TODO Render the model retrieved from OpenVR
+            glm::mat4 scale3 = glm::scale(glm::mat4(1.f), glm::vec3(3.f, 3.f, 3.f));
+            drawDK2Model(scale3);
         }
     } break;
 
-    case eHmdMenuState::pendingHmdListRequest:
     case eHmdMenuState::failedHmdListRequest:
         {
         } break;
@@ -94,24 +104,20 @@ void AppStage_HMDSettings::renderUI()
         ImGui::SetNextWindowSize(ImVec2(300, 400));
         ImGui::Begin(k_window_title, nullptr, window_flags);
 
-        if (m_hmdInfos.size() > 0)
+        if (m_hmdListCount > 0)
         {
-            const HMDInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
+            const OpenVRHmdInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
 
             ImGui::Text("HMD: %d", m_selectedHmdIndex);
-            ImGui::Text("  HMD ID: %d", hmdInfo.HmdID);
-
-            switch (hmdInfo.HmdType)
-            {
-            case AppStage_HMDSettings::OculusDK2:
-            {
-                ImGui::Text("  HMD Type: Oculus DK2");
-            } break;
-            default:
-                assert(0 && "Unreachable");
-            }
-
-            ImGui::TextWrapped("  Device Path: %s", hmdInfo.DevicePath.c_str());
+            ImGui::Text("  OpenVR DeviceIndex: %d", hmdInfo.DeviceIndex);
+            ImGui::Text("  Manufacturer: %s", hmdInfo.ManufacturerName.c_str());
+            ImGui::Text("  Tracking System Name: %s", hmdInfo.TrackingSystemName.c_str());
+            ImGui::Text("  Model Number: %s", hmdInfo.ModelNumber.c_str());
+            ImGui::Text("  Serial Number: %s", hmdInfo.SerialNumber.c_str());
+            ImGui::Text("  Tracking Firmware Version: %s", hmdInfo.TrackingFirmwareVersion.c_str());
+            ImGui::Text("  Hardware Revision: %s", hmdInfo.HardwareRevision.c_str());
+            ImGui::Text("  EDID Vendor ID: 0x%x", hmdInfo.EdidVendorID);
+            ImGui::Text("  EDID Product ID: 0x%x", hmdInfo.EdidProductID);
 
             if (m_selectedHmdIndex > 0)
             {
@@ -121,7 +127,7 @@ void AppStage_HMDSettings::renderUI()
                 }
             }
 
-            if (m_selectedHmdIndex + 1 < static_cast<int>(m_hmdInfos.size()))
+            if (m_selectedHmdIndex + 1 < m_hmdListCount)
             {
                 if (ImGui::Button("Next HMD"))
                 {
@@ -146,23 +152,13 @@ void AppStage_HMDSettings::renderUI()
 
         ImGui::End();
     } break;
-    case eHmdMenuState::pendingHmdListRequest:
-    {
-        ImGui::SetNextWindowPosCenter();
-        ImGui::SetNextWindowSize(ImVec2(300, 150));
-        ImGui::Begin(k_window_title, nullptr, window_flags);
-
-        ImGui::Text("Waiting for HMD list response...");
-
-        ImGui::End();
-    } break;
     case eHmdMenuState::failedHmdListRequest:
     {
         ImGui::SetNextWindowPosCenter();
         ImGui::SetNextWindowSize(ImVec2(300, 150));
         ImGui::Begin(k_window_title, nullptr, window_flags);
 
-        ImGui::Text("Failed to get tracker list!");
+        ImGui::Text("Failed to get HMD list!");
 
         if (ImGui::Button("Retry"))
         {
@@ -184,64 +180,16 @@ void AppStage_HMDSettings::renderUI()
 
 void AppStage_HMDSettings::request_hmd_list()
 {
-    if (m_menuState != AppStage_HMDSettings::pendingHmdListRequest)
+    if (m_app->getOpenVRContext()->getIsInitialized())
     {
-        m_menuState = AppStage_HMDSettings::pendingHmdListRequest;
+        m_hmdListCount = m_app->getOpenVRContext()->getHmdList(m_hmdInfos, k_max_hmd_list_list);
+        m_selectedHmdIndex = (m_hmdListCount > 0) ? 0 : -1;
+        m_menuState = AppStage_HMDSettings::idle;
+    }
+    else
+    {
+        m_hmdListCount = 0;
         m_selectedHmdIndex = -1;
-        m_hmdInfos.clear();
-
-        // Tell the psmove service that we we want a list of HMDs connected to this machine
-        // RequestPtr request(new PSMoveProtocol::Request());
-        // request->set_type(PSMoveProtocol::Request_RequestType_GET_HMD_LIST);
-
-        // ClientPSMoveAPI::send_opaque_request(&request, AppStage_HMDSettings::handle_hmd_list_response, this);
+        m_menuState = AppStage_HMDSettings::failedHmdListRequest;
     }
 }
-
-// void AppStage_HMDSettings::handle_hmd_list_response(
-    // ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-    // const ClientPSMoveAPI::t_request_id request_id,
-    // ClientPSMoveAPI::t_response_handle response_handle,
-    // void *userdata)
-// {
-    // AppStage_HMDSettings *thisPtr = static_cast<AppStage_HMDSettings *>(userdata);
-
-    // switch (ResultCode)
-    // {
-    // case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
-        // {
-            // const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-
-            // for (int hmd_index = 0; hmd_index < response->result_hmd_list().hmd_entries_size(); ++hmd_index)
-            // {
-                // const auto &HmdResponse = response->result_hmd_list().hmd_entries(hmd_index);
-
-                // AppStage_HMDSettings::HMDInfo HmdInfo;
-
-                // HmdInfo.HmdID = HmdResponse.hmd_id();
-
-                // switch (HmdResponse.hmd_type())
-                // {
-                // case PSMoveProtocol::HMDType::OculusDK2:
-                    // HmdInfo.HmdType = AppStage_HMDSettings::OculusDK2;
-                    // break;
-                // default:
-                    // assert(0 && "unreachable");
-                // }
-
-                // HmdInfo.DevicePath = HmdResponse.device_path();
-
-                // thisPtr->m_hmdInfos.push_back(HmdInfo);
-            // }
-
-            // thisPtr->m_selectedHmdIndex = (thisPtr->m_hmdInfos.size() > 0) ? 0 : -1;
-            // thisPtr->m_menuState = AppStage_HMDSettings::idle;
-        // } break;
-
-    // case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    // case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
-        // {
-            // thisPtr->m_menuState = AppStage_HMDSettings::failedHmdListRequest;
-        // } break;
-    // }
-// }

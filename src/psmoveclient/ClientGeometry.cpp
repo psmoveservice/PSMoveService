@@ -204,6 +204,11 @@ PSMoveFloatVector3 PSMovePosition::operator - (const PSMovePosition &other) cons
     return PSMoveFloatVector3::create(x - other.x, y - other.y, z - other.z);
 }
 
+PSMovePosition PSMovePosition::operator * (const float s) const
+{
+    return PSMovePosition::create(x*s, y*s, z*s);
+}
+
  // -- PSMovePose -- 
 void PSMovePose::Clear()
 {
