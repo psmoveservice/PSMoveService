@@ -517,8 +517,7 @@ int PSMoveService::exec(int argc, char *argv[])
         application::handler<>::parameter_callback termination_callback
             = boost::bind<bool>(&PSMoveServiceImpl::stop, &app, _1);
 
-        app_context.insert<application::termination_handler>(
-            make_shared<application::termination_handler_default_behaviour>(termination_callback));
+        app_context.insert<application::termination_handler>(std::make_shared<application::termination_handler_default_behaviour>(termination_callback));
 
         // To  "pause/resume" works, is required to add the 2 handlers.
 #if defined(BOOST_WINDOWS_API) 
