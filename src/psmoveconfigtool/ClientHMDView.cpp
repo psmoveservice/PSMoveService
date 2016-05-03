@@ -1,7 +1,7 @@
 //-- includes -----
 #include "ClientHMDView.h"
 #include "Logger.h"
-
+#include "math.h"
 #include "openvr.h"
 
 //-- constants -----
