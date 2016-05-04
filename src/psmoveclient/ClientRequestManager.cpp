@@ -11,8 +11,6 @@
 struct RequestContext
 {
     RequestPtr request;  // std::shared_ptr<PSMoveProtocol::Request>
-    ClientPSMoveAPI::t_response_callback callback;
-    void *callback_userdata;
 };
 typedef std::map<int, RequestContext> t_request_context_map;
 typedef std::map<int, RequestContext>::iterator t_request_context_map_iterator;
@@ -21,13 +19,17 @@ typedef std::pair<int, RequestContext> t_id_request_context_pair;
 class ClientRequestManagerImpl
 {
 public:
-    ClientRequestManagerImpl()
-        : m_pending_requests()
+    ClientRequestManagerImpl(
+        ClientRequestManager::t_response_callback callback, 
+        void *userdata)
+        : m_callback(callback)
+        , m_callback_userdata(userdata)
+        , m_pending_requests()
         , m_next_request_id(0)
     {
     }
 
-    void send_request(RequestPtr request, ClientPSMoveAPI::t_response_callback callback, void *userdata)
+    void send_request(RequestPtr request)
     {
         RequestContext context;
 
@@ -35,8 +37,6 @@ public:
         ++m_next_request_id;
 
         context.request= request;
-        context.callback= callback;
-        context.callback_userdata= userdata;
 
         // Add the request to the pending request map.
         // Requests should never be double registered.
@@ -69,7 +69,7 @@ public:
         const RequestContext &context= pending_request_entry->second;
 
         // Notify the callback of the response
-        if (context.callback != nullptr)
+        if (m_callback != nullptr)
         {
             ClientPSMoveAPI::eClientPSMoveResultCode result;
 
@@ -89,11 +89,11 @@ public:
                 assert(false && "Unknown response result code");
             }
 
-            context.callback(
+            m_callback(
                 result, 
                 context.request->request_id(), 
-                static_cast<ClientPSMoveAPI::t_response_handle>(response.get()), 
-                context.callback_userdata);
+                response, 
+                m_callback_userdata);
         }
 
         // Remove the pending request from the map
@@ -101,14 +101,16 @@ public:
     }
 
 private:
+    ClientRequestManager::t_response_callback m_callback;
+    void *m_callback_userdata;
     t_request_context_map m_pending_requests;
     int m_next_request_id;
 };
 
 //-- public methods -----
-ClientRequestManager::ClientRequestManager() 
+ClientRequestManager::ClientRequestManager(ClientRequestManager::t_response_callback callback, void *userdata)
 {
-    m_implementation_ptr = new ClientRequestManagerImpl();
+    m_implementation_ptr = new ClientRequestManagerImpl(callback, userdata);
 }
 
 ClientRequestManager::~ClientRequestManager()
@@ -117,9 +119,9 @@ ClientRequestManager::~ClientRequestManager()
 }
 
 void ClientRequestManager::send_request(
-    RequestPtr request, ClientPSMoveAPI::t_response_callback callback, void *userdata)
+    RequestPtr request)
 {
-    m_implementation_ptr->send_request(request, callback, userdata);
+    m_implementation_ptr->send_request(request);
 }
 
 void ClientRequestManager::handle_request_canceled(RequestPtr request)

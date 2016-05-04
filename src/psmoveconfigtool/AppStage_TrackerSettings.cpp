@@ -233,7 +233,9 @@ void AppStage_TrackerSettings::request_tracker_list()
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST);
 
-        ClientPSMoveAPI::send_opaque_request(&request, AppStage_TrackerSettings::handle_tracker_list_response, this);
+        m_app->registerCallback(
+            ClientPSMoveAPI::send_opaque_request(&request), 
+            AppStage_TrackerSettings::handle_tracker_list_response, this);
     }
 }
 
