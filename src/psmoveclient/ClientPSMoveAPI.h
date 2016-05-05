@@ -12,6 +12,7 @@
 
 //-- pre-declarations -----
 class ClientControllerView;
+class ClientHMDView;
 
 //-- macros -----
 #ifdef HAS_PROTOCOL_ACCESS
@@ -41,7 +42,6 @@ public:
         opaqueServiceEvent, // Need to have protocol access to see what kind of event this is
         controllerListUpdated,
         trackerListUpdated,
-        hmdListUpdated,
     };
 
     enum eClientPSMoveResultCode

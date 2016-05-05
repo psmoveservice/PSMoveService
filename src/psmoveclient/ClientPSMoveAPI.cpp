@@ -268,17 +268,38 @@ public:
     }
 
     // IDataFrameListener
-    virtual void handle_data_frame(ControllerDataFramePtr data_frame) override
+    virtual void handle_data_frame(DeviceDataFramePtr data_frame) override
     {
-        CLIENT_LOG_TRACE("handle_data_frame") << "received data frame for ControllerID: " << data_frame->controller_id() << std::endl;
-
-        t_controller_view_map_iterator view_entry= m_controller_view_map.find(data_frame->controller_id());
-
-        if (view_entry != m_controller_view_map.end())
+        switch (data_frame->device_category())
         {
-            ClientControllerView * view= view_entry->second;
+        case PSMoveProtocol::DeviceDataFrame::CONTROLLER:
+            {
+                const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket& controller_packet= data_frame->controller_data_packet();
 
-            view->ApplyControllerDataFrame(data_frame.get());
+                CLIENT_LOG_TRACE("handle_data_frame") 
+                    << "received data frame for ControllerID: " 
+                    << controller_packet.controller_id() << std::endl;
+
+                t_controller_view_map_iterator view_entry = m_controller_view_map.find(controller_packet.controller_id());
+
+                if (view_entry != m_controller_view_map.end())
+                {
+                    ClientControllerView * view = view_entry->second;
+
+                    view->ApplyControllerDataFrame(&controller_packet);
+                }
+            } break;
+        case PSMoveProtocol::DeviceDataFrame::TRACKER:
+            {
+                const PSMoveProtocol::DeviceDataFrame_TrackerDataPacket& tracker_packet = data_frame->tracker_data_packet();
+
+                CLIENT_LOG_TRACE("handle_data_frame")
+                    << "received data frame for TrackerID: "
+                    << tracker_packet.tracker_id() 
+                    << ". Ignoring." << std::endl;
+
+                // Clients don't care about tracker updates
+            } break;
         }
     }
 
@@ -298,9 +319,7 @@ public:
         case PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED:
             specificEventType = ClientPSMoveAPI::trackerListUpdated;
             break;
-        case PSMoveProtocol::Response_ResponseType_HMD_LIST_UPDATED:
-            specificEventType = ClientPSMoveAPI::hmdListUpdated;
-            break;
+
         }
 
         enqueue_event_message(specificEventType, notification);

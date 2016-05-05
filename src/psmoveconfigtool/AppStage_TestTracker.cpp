@@ -470,7 +470,7 @@ void AppStage_TestTracker::request_tracker_stop_stream(
         // Tell the psmove service that we want to stop streaming data from the tracker
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_STOP_TRACKER_DATA_STREAM);
-        request->mutable_request_start_tracker_data_stream()->set_tracker_id(trackerID);
+        request->mutable_request_stop_tracker_data_stream()->set_tracker_id(trackerID);
 
         m_app->registerCallback(
             ClientPSMoveAPI::send_opaque_request(&request), 

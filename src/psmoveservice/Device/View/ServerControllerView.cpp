@@ -6,6 +6,7 @@
 #include "ServerLog.h"
 #include "ServerRequestHandler.h"
 #include "OrientationFilter.h"
+#include "PositionFilter.h"
 #include "PSMoveController.h"
 #include "PSNaviController.h"
 #include "PSMoveProtocolInterface.h"
@@ -19,21 +20,24 @@
     bitmask|= (button_state == CommonControllerState::Button_DOWN || button_state == CommonControllerState::Button_PRESSED) ? (0x1 << (bit_index)) : 0x0;
 
 //-- private methods -----
-static void init_orientation_filter_for_psmove(
-    const PSMoveController *psmoveController, OrientationFilter *orientation_filter);
-static void update_orientation_filter_for_psmove(
-    const PSMoveController *psmoveController, const PSMoveControllerState *psmoveState, OrientationFilter *orientationFilter);
+static void init_filters_for_psmove(
+    const PSMoveController *psmoveController, 
+    OrientationFilter *orientation_filter, PositionFilter *position_filter);
+static void update_filters_for_psmove(
+    const PSMoveController *psmoveController, const PSMoveControllerState *psmoveState, 
+    OrientationFilter *orientationFilter, PositionFilter *position_filter);
 
 static void generate_psmove_data_frame_for_stream(
-    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, ControllerDataFramePtr &data_frame);
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceDataFramePtr &data_frame);
 static void generate_psnavi_data_frame_for_stream(
-    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, ControllerDataFramePtr &data_frame);
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceDataFramePtr &data_frame);
 
 //-- public implementation -----
 ServerControllerView::ServerControllerView(const int device_id)
     : ServerDeviceView(device_id)
     , m_device(nullptr)
     , m_orientation_filter(nullptr)
+    , m_position_filter(nullptr)
     , m_lastPollSeqNumProcessed(-1)
 {
 }
@@ -51,11 +55,13 @@ bool ServerControllerView::allocate_device_interface(
         {
             m_device = new PSMoveController();
             m_orientation_filter = new OrientationFilter();
+            m_position_filter = new PositionFilter();
         } break;
     case CommonDeviceState::PSNavi:
         {
             m_device= new PSNaviController();
             m_orientation_filter= nullptr;
+            m_position_filter = nullptr;
         } break;
     default:
         break;
@@ -70,6 +76,12 @@ void ServerControllerView::free_device_interface()
     {
         delete m_orientation_filter;
         m_orientation_filter= nullptr;
+    }
+
+    if (m_position_filter != nullptr)
+    {
+        delete m_position_filter;
+        m_position_filter = nullptr;
     }
 
     if (m_device != nullptr)
@@ -98,7 +110,7 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
             {
                 const PSMoveController *psmoveController= this->castCheckedConst<PSMoveController>();
 
-                init_orientation_filter_for_psmove(psmoveController, m_orientation_filter);
+                init_filters_for_psmove(psmoveController, m_orientation_filter, m_position_filter);
             } break;
         case CommonDeviceState::PSNavi:
             // No orientation filter for the navi
@@ -150,12 +162,13 @@ void ServerControllerView::updateStateAndPredict()
                 const PSMoveController *psmoveController= this->castCheckedConst<PSMoveController>();
                 const PSMoveControllerState *psmoveState= static_cast<const PSMoveControllerState *>(controllerState);
 
-                update_orientation_filter_for_psmove(psmoveController, psmoveState, m_orientation_filter);
+                update_filters_for_psmove(psmoveController, psmoveState, m_orientation_filter, m_position_filter);
             } break;
         case CommonControllerState::PSNavi:
             {
-                // No orientation to update
+                // No orientation or position to update
                 assert(m_orientation_filter == nullptr);
+                assert(m_position_filter == nullptr);
             } break;
         default:
             assert(0 && "Unhandled controller type");
@@ -164,8 +177,6 @@ void ServerControllerView::updateStateAndPredict()
         // Consider this controller state sequence num processed
         m_lastPollSeqNumProcessed= controllerState->PollSequenceNumber;
     }
-
-    // TODO: Process tracker updates and update the position filter
 }
 
 bool ServerControllerView::setHostBluetoothAddress(
@@ -191,15 +202,14 @@ ServerControllerView::getPose(int msec_time) const
         pose.qz= orientation.z();
     }
 
-    //###bwalker $TODO - extract position
-    //if (m_position_filter != nullptr)
-    //{
-    //    Eigen::Vector3f position= m_position_filter->getPosition(msec_time);
+    if (m_position_filter != nullptr)
+    {
+        Eigen::Vector3f position= m_position_filter->getPosition(msec_time);
 
-    //    pose.x= position.x();
-    //    pose.y= position.y();
-    //    pose.z= position.z();
-    //}
+        pose.px= position.x();
+        pose.py= position.y();
+        pose.pz= position.z();
+    }
 
     return pose;
 }
@@ -288,11 +298,14 @@ void ServerControllerView::publish_device_data_frame()
 void ServerControllerView::generate_controller_data_frame_for_stream(
     const ServerControllerView *controller_view,
     const ControllerStreamInfo *stream_info,
-    ControllerDataFramePtr &data_frame)
+    DeviceDataFramePtr &data_frame)
 {
-    data_frame->set_controller_id(controller_view->getDeviceID());
-    data_frame->set_sequence_num(controller_view->m_sequence_number);   
-    data_frame->set_isconnected(controller_view->getDevice()->getIsOpen());
+    PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *controller_data_frame= 
+        data_frame->mutable_controller_data_packet();
+
+    controller_data_frame->set_controller_id(controller_view->getDeviceID());
+    controller_data_frame->set_sequence_num(controller_view->m_sequence_number);
+    controller_data_frame->set_isconnected(controller_view->getDevice()->getIsOpen());
 
     switch (controller_view->getControllerDeviceType())
     {
@@ -307,19 +320,22 @@ void ServerControllerView::generate_controller_data_frame_for_stream(
     default:
         assert(0 && "Unhandled controller type");
     }
+
+    data_frame->set_device_category(PSMoveProtocol::DeviceDataFrame::CONTROLLER);
 }
 
 static void generate_psmove_data_frame_for_stream(
     const ServerControllerView *controller_view,
     const ControllerStreamInfo *stream_info,
-    ControllerDataFramePtr &data_frame)
+    DeviceDataFramePtr &data_frame)
 {
     const PSMoveController *psmove_controller= controller_view->castCheckedConst<PSMoveController>();
     const PSMoveControllerConfig *psmove_config= psmove_controller->getConfig();
     const CommonControllerState *controller_state= controller_view->getState();
     const psmovePosef controller_pose= controller_view->getPose();
 
-    PSMoveProtocol::ControllerDataFrame_PSMoveState *psmove_data_frame= data_frame->mutable_psmove_state();
+    PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *controller_data_frame= data_frame->mutable_controller_data_packet();
+    PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSMoveState *psmove_data_frame = controller_data_frame->mutable_psmove_state();
    
     if (controller_state != nullptr)
     {        
@@ -343,20 +359,20 @@ static void generate_psmove_data_frame_for_stream(
         psmove_data_frame->set_trigger_value(psmove_state->Trigger);
 
         unsigned int button_bitmask= 0;
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::TRIANGLE, psmove_state->Triangle);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::CIRCLE, psmove_state->Circle);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::CROSS, psmove_state->Cross);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::SQUARE, psmove_state->Square);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::SELECT, psmove_state->Select);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::START, psmove_state->Start);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::PS, psmove_state->PS);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::MOVE, psmove_state->Move);
-        data_frame->set_button_down_bitmask(button_bitmask);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::TRIANGLE, psmove_state->Triangle);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::CIRCLE, psmove_state->Circle);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::CROSS, psmove_state->Cross);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::SQUARE, psmove_state->Square);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::SELECT, psmove_state->Select);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::START, psmove_state->Start);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::PS, psmove_state->PS);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::MOVE, psmove_state->Move);
+        controller_data_frame->set_button_down_bitmask(button_bitmask);
 
         // If requested, get the raw sensor data for the controller
         if (stream_info->include_raw_sensor_data)
         {
-            PSMoveProtocol::ControllerDataFrame_PSMoveState_RawSensorData *raw_sensor_data=
+            PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSMoveState_RawSensorData *raw_sensor_data=
                 psmove_data_frame->mutable_raw_sensor_data();
 
             // One frame: [mx, my, mz] 
@@ -385,15 +401,17 @@ static void generate_psmove_data_frame_for_stream(
         }
     }   
 
-    data_frame->set_controller_type(PSMoveProtocol::PSMOVE);
+    controller_data_frame->set_controller_type(PSMoveProtocol::PSMOVE);
 }
 
 static void generate_psnavi_data_frame_for_stream(
     const ServerControllerView *controller_view,
     const ControllerStreamInfo *stream_info,
-    ControllerDataFramePtr &data_frame)
+    DeviceDataFramePtr &data_frame)
 {
-    PSMoveProtocol::ControllerDataFrame_PSNaviState *psnavi_data_frame= data_frame->mutable_psnavi_state();
+    PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *controller_data_frame = data_frame->mutable_controller_data_packet();
+    PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSNaviState *psnavi_data_frame = controller_data_frame->mutable_psnavi_state();
+
     const CommonControllerState *controller_state= controller_view->getState();
 
     if (controller_state != nullptr)
@@ -406,81 +424,117 @@ static void generate_psnavi_data_frame_for_stream(
         psnavi_data_frame->set_stick_yaxis(psnavi_state->Stick_YAxis);
 
         unsigned int button_bitmask= 0;
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::L1, psnavi_state->L1);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::L2, psnavi_state->L2);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::L3, psnavi_state->L3);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::CIRCLE, psnavi_state->Circle);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::CROSS, psnavi_state->Cross);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::PS, psnavi_state->PS);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::UP, psnavi_state->DPad_Up);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::RIGHT, psnavi_state->DPad_Right);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::DOWN, psnavi_state->DPad_Down);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::ControllerDataFrame::LEFT, psnavi_state->DPad_Left);
-        data_frame->set_button_down_bitmask(button_bitmask);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::L1, psnavi_state->L1);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::L2, psnavi_state->L2);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::L3, psnavi_state->L3);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::CIRCLE, psnavi_state->Circle);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::CROSS, psnavi_state->Cross);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::PS, psnavi_state->PS);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::UP, psnavi_state->DPad_Up);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::RIGHT, psnavi_state->DPad_Right);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::DOWN, psnavi_state->DPad_Down);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::LEFT, psnavi_state->DPad_Left);
+        controller_data_frame->set_button_down_bitmask(button_bitmask);
     }
 
-    data_frame->set_controller_type(PSMoveProtocol::PSNAVI);
+    controller_data_frame->set_controller_type(PSMoveProtocol::PSNAVI);
 }
 
 static void
-init_orientation_filter_for_psmove(
+init_filters_for_psmove(
     const PSMoveController *psmoveController, 
-    OrientationFilter *orientation_filter)
+    OrientationFilter *orientation_filter,
+    PositionFilter *position_filter)
 {
-    const PSMoveControllerConfig *psmove_config= psmoveController->getConfig();
+    const PSMoveControllerConfig *psmove_config = psmoveController->getConfig();
 
-    // Setup the space the orientation filter operates in
-    Eigen::Vector3f identityGravity= Eigen::Vector3f(0.f, 1.f, 0.f);
-    Eigen::Vector3f identityMagnetometer = psmove_config->magnetometer_identity;
-    Eigen::Matrix3f calibrationTransform= *k_eigen_identity_pose_laying_flat;
-    Eigen::Matrix3f sensorTransform= *k_eigen_sensor_transform_opengl;
-    OrientationFilterSpace filterSpace(identityGravity, identityMagnetometer, calibrationTransform, sensorTransform);
-                
-    orientation_filter->setFilterSpace(filterSpace);
+    {
+        // Setup the space the orientation filter operates in
+        Eigen::Vector3f identityGravity = Eigen::Vector3f(0.f, 1.f, 0.f);
+        Eigen::Vector3f identityMagnetometer = psmove_config->magnetometer_identity;
+        Eigen::Matrix3f calibrationTransform = *k_eigen_identity_pose_laying_flat;
+        Eigen::Matrix3f sensorTransform = *k_eigen_sensor_transform_opengl;
+        OrientationFilterSpace filterSpace(identityGravity, identityMagnetometer, calibrationTransform, sensorTransform);
 
-    // Use the complementary MARG fusion filter by default
-    orientation_filter->setFusionType(OrientationFilter::FusionTypeComplementaryMARG);
+        orientation_filter->setFilterSpace(filterSpace);
+
+        // Use the complementary MARG fusion filter by default
+        orientation_filter->setFusionType(OrientationFilter::FusionTypeComplementaryMARG);
+    }
+
+    {
+        //###bwalker $TODO Setup the space the position filter operates in
+        Eigen::Matrix3f sensorTransform = Eigen::Matrix3f::Identity();
+        PositionFilterSpace filterSpace(sensorTransform);
+
+        position_filter->setFilterSpace(filterSpace);
+
+        //###bwalker $TODO Use the LowPass filter by default
+        position_filter->setFusionType(PositionFilter::FusionTypePassThru);
+    }
 }
 
 static void                
-update_orientation_filter_for_psmove(
+update_filters_for_psmove(
     const PSMoveController *psmoveController, 
     const PSMoveControllerState *psmoveState,
-    OrientationFilter *orientationFilter)
+    OrientationFilter *orientationFilter,
+    PositionFilter *position_filter)
 {
-    const PSMoveControllerConfig *config= psmoveController->getConfig();
+    const PSMoveControllerConfig *config = psmoveController->getConfig();
 
-    //###bwalker $TODO Determine time deltas from the timestamps on the controller frames
-    const float delta_time= 1.f / 120.f;
-
-    OrientationSensorPacket sensorPacket;
-
-    // Re-scale the magnetometer int-vector into a float vector in the range <-1,-1,-1> to <1,1,1>
-    // using the min and max magnetometer extents stored in the controller config.
+    // Update the orientation filter
     {
-        const Eigen::Vector3f sample= 
-            Eigen::Vector3f(
-                static_cast<float>(psmoveState->Mag[0]), 
-                static_cast<float>(psmoveState->Mag[1]), 
+        //###bwalker $TODO Determine time deltas from the timestamps on the controller frames
+        const float delta_time = 1.f / 120.f;
+
+        OrientationSensorPacket sensorPacket;
+
+        // Re-scale the magnetometer int-vector into a float vector in the range <-1,-1,-1> to <1,1,1>
+        // using the min and max magnetometer extents stored in the controller config.
+        {
+            const Eigen::Vector3f sample =
+                Eigen::Vector3f(
+                static_cast<float>(psmoveState->Mag[0]),
+                static_cast<float>(psmoveState->Mag[1]),
                 static_cast<float>(psmoveState->Mag[2]));
 
-        // Project the averaged magnetometer sample into the space of the ellipse
-        // And then normalize it (any deviation from unit length is error)
-        sensorPacket.magnetometer =
-            eigen_alignment_project_point_on_ellipsoid_basis(sample, config->magnetometer_ellipsoid);
-        eigen_vector3f_normalize_with_default(sensorPacket.magnetometer, Eigen::Vector3f(0.f, 1.f, 0.f));
+            // Project the averaged magnetometer sample into the space of the ellipse
+            // And then normalize it (any deviation from unit length is error)
+            sensorPacket.magnetometer =
+                eigen_alignment_project_point_on_ellipsoid_basis(sample, config->magnetometer_ellipsoid);
+            eigen_vector3f_normalize_with_default(sensorPacket.magnetometer, Eigen::Vector3f(0.f, 1.f, 0.f));
+        }
+
+        // Each state update contains two readings (one earlier and one later) of accelerometer and gyro data
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            sensorPacket.orientation = orientationFilter->getOrientation();
+
+            sensorPacket.accelerometer =
+                Eigen::Vector3f(psmoveState->Accel[frame][0], psmoveState->Accel[frame][1], psmoveState->Accel[frame][2]);
+            sensorPacket.gyroscope =
+                Eigen::Vector3f(psmoveState->Gyro[frame][0], psmoveState->Gyro[frame][1], psmoveState->Gyro[frame][2]);
+
+            // Update the orientation filter using the sensor packet.
+            // NOTE: The magnetometer reading is the same for both sensor readings.
+            orientationFilter->update(delta_time, sensorPacket);
+        }
     }
 
-    // Each state update contains two readings (one earlier and one later) of accelerometer and gyro data
-    for (int frame=0; frame < 2; ++frame)
-    {
-        sensorPacket.accelerometer= 
-            Eigen::Vector3f(psmoveState->Accel[frame][0], psmoveState->Accel[frame][1], psmoveState->Accel[frame][2]);
-        sensorPacket.gyroscope= 
-            Eigen::Vector3f(psmoveState->Gyro[frame][0], psmoveState->Gyro[frame][1], psmoveState->Gyro[frame][2]);
 
-        // Update the orientation filter using the sensor packet.
-        // NOTE: The magnetometer reading is the same for both sensor readings.
-        orientationFilter->update(delta_time, sensorPacket);
+    // Update the position filter
+    {
+        //###bwalker $TODO Determine time deltas from trackers
+        const float delta_time = 1.f / 60.f;
+
+        //###bwalker $TODO - Extract the position from the attached trackers
+        PositionSensorPacket sensorPacket;
+
+        sensorPacket.position = Eigen::Vector3f::Zero();
+        sensorPacket.velocity = Eigen::Vector3f::Zero();
+        sensorPacket.acceleration = Eigen::Vector3f::Zero();
+
+        position_filter->update(delta_time, sensorPacket);
     }
 }

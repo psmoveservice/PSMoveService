@@ -3,13 +3,55 @@
 
 #include <string>
 
+struct CommonDeviceVector
+{
+    float i, j, k;
+
+    inline void clear()
+    {
+        i = j = k = 0.f;
+    }
+};
+
+struct CommonDevicePosition
+{
+    float x, y, z;
+
+    inline void clear()
+    {
+        x = y = z = 0.f;
+    }
+};
+
+struct CommonDeviceQuaternion
+{
+    float x, y, z, w;
+
+    inline void clear()
+    {
+        x = y = z = 0.f;
+        w = 0.f;
+    }
+};
+
+struct CommonDevicePose
+{
+    CommonDevicePosition Position;
+    CommonDeviceQuaternion Orientation;
+
+    void clear()
+    {
+        Position.clear();
+        Orientation.clear();
+    }
+};
+
 struct CommonDeviceState
 {
     enum eDeviceClass
     {
         Controller = 0x00,
-        TrackingCamera = 0x10,
-        HeadMountedDisplay = 0x20
+        TrackingCamera = 0x10
     };
     
     enum eDeviceType
@@ -20,9 +62,6 @@ struct CommonDeviceState
         
         PS3EYE = TrackingCamera + 0x00,
         SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x01,
-
-        OVRDK2 = HeadMountedDisplay + 0x00,
-        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01
     };
     
     eDeviceType DeviceType;
@@ -53,9 +92,6 @@ struct CommonDeviceState
             break;
         case PS3EYE:
             result = "PSEYE";
-            break;
-        case OVRDK2:
-            result = "Oculus DK2";
             break;
         default:
             result = "UNKNOWN";
@@ -216,14 +252,4 @@ public:
         return result;
     }
 };
-
-/// Abstract class for HMD interface. Implemented HMD classes
-class IHMDInterface : public IDeviceInterface
-{
-public:
-    // -- Getters
-    // Returns the full usb device path for the HMD
-    virtual std::string getUSBDevicePath() const = 0;
-};
-
 #endif // DEVICE_INTERFACE_H

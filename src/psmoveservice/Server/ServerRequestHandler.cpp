@@ -5,7 +5,6 @@
 #include "ControllerManager.h"
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
-#include "HMDManager.h"
 #include "MathEigen.h"
 #include "OrientationFilter.h"
 #include "PS3EyeTracker.h"
@@ -34,17 +33,14 @@ struct RequestConnectionState
     int connection_id;
     std::bitset<ControllerManager::k_max_devices> active_controller_streams;
     std::bitset<TrackerManager::k_max_devices> active_tracker_streams;
-    std::bitset<HMDManager::k_max_devices> active_hmd_streams;
     AsyncBluetoothRequest *pending_bluetooth_request;
     ControllerStreamInfo active_controller_stream_info[ControllerManager::k_max_devices];
     TrackerStreamInfo active_tracker_stream_info[TrackerManager::k_max_devices];
-    HMDStreamInfo active_hmd_stream_info[HMDManager::k_max_devices];
 
     RequestConnectionState()
         : connection_id(-1)
         , active_controller_streams()
         , active_tracker_streams()
-        , active_hmd_streams()
         , pending_bluetooth_request(nullptr)
     {
         for (int index = 0; index < ControllerManager::k_max_devices; ++index)
@@ -54,12 +50,7 @@ struct RequestConnectionState
 
         for (int index = 0; index < TrackerManager::k_max_devices; ++index)
         {
-            active_tracker_stream_info->Clear();
-        }
-
-        for (int index = 0; index < HMDManager::k_max_devices; ++index)
-        {
-            active_hmd_stream_info->Clear();
+            active_tracker_stream_info[index].Clear();
         }
     }
 };
@@ -274,11 +265,38 @@ public:
                     connection_state->active_controller_stream_info[controller_id];
 
                 // Fill out a data frame specific to this stream using the given callback
-                ControllerDataFramePtr data_frame(new PSMoveProtocol::ControllerDataFrame);
+                DeviceDataFramePtr data_frame(new PSMoveProtocol::DeviceDataFrame);
                 callback(controller_view, &streamInfo, data_frame);
 
                 // Send the controller data frame over the network
-                ServerNetworkManager::get_instance()->send_controller_data_frame(connection_id, data_frame);
+                ServerNetworkManager::get_instance()->send_device_data_frame(connection_id, data_frame);
+            }
+        }
+    }
+
+    void publish_tracker_data_frame(
+        class ServerTrackerView *tracker_view,
+            ServerRequestHandler::t_generate_tracker_data_frame_for_stream callback)
+    {
+        int tracker_id = tracker_view->getDeviceID();
+
+        // Notify any connections that care about the tracker update
+        for (t_connection_state_iter iter = m_connection_state_map.begin(); iter != m_connection_state_map.end(); ++iter)
+        {
+            int connection_id = iter->first;
+            RequestConnectionStatePtr connection_state = iter->second;
+
+            if (connection_state->active_tracker_streams.test(tracker_id))
+            {
+                const TrackerStreamInfo &streamInfo =
+                    connection_state->active_tracker_stream_info[tracker_id];
+
+                // Fill out a data frame specific to this stream using the given callback
+                DeviceDataFramePtr data_frame(new PSMoveProtocol::DeviceDataFrame);
+                callback(tracker_view, &streamInfo, data_frame);
+
+                // Send the tracker data frame over the network
+                ServerNetworkManager::get_instance()->send_device_data_frame(connection_id, data_frame);
             }
         }
     }
@@ -697,7 +715,7 @@ protected:
 
                 // The tracker manager will always publish updates regardless of who is listening.
                 // All we have to do is keep track of which connections care about the updates.
-                context.connection_state->active_tracker_streams.set(tracker_id, false);
+                context.connection_state->active_tracker_streams.set(tracker_id, true);
 
                 // Set control flags for the stream
                 streamInfo.streaming_video_data = true;
@@ -812,4 +830,11 @@ void ServerRequestHandler::publish_controller_data_frame(
     t_generate_controller_data_frame_for_stream callback)
 {
     return m_implementation_ptr->publish_controller_data_frame(controller_view, callback);
+}
+
+void ServerRequestHandler::publish_tracker_data_frame(
+    class ServerTrackerView *tracker_view,
+    t_generate_tracker_data_frame_for_stream callback)
+{
+    return m_implementation_ptr->publish_tracker_data_frame(tracker_view, callback);
 }

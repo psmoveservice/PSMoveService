@@ -57,6 +57,13 @@ MSBuild.exe SDL2main.vcxproj /p:configuration=RELEASE /p:Platform="Win32" /t:Bui
 popd
 popd
 
+:: Compile the RELEASE|Win32 build of OculusSDK-0.8.0.0
+echo "Building OculusSDK-0.8.0.0 Release|Win32..."
+pushd thirdparty\OculusSDK-0.8.0.0\LibOVR\Projects\Windows\VS2013
+MSBuild.exe LibOVR.vcxproj /p:configuration=RELEASE /p:Platform="Win32" /t:Clean
+MSBuild.exe LibOVR.vcxproj /p:configuration=RELEASE /p:Platform="Win32" /t:Build
+popd
+
 :: Generate the project files for PSMoveService
 call GenerateProjectFiles.bat
 pause

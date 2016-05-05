@@ -508,17 +508,17 @@ int PSMoveService::exec(int argc, char *argv[])
         
         // service aspects
         app_context.insert<application::path>(
-            make_shared<application::path_default_behaviour>(argc, argv));
+            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<application::path_default_behaviour>(argc, argv));
 
         app_context.insert<application::args>(
-            make_shared<application::args>(argc, argv));
+            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<application::args>(argc, argv));
         
         // add termination handler
         application::handler<>::parameter_callback termination_callback
             = boost::bind<bool>(&PSMoveServiceImpl::stop, &app, _1);
 
         app_context.insert<application::termination_handler>(
-            make_shared<application::termination_handler_default_behaviour>(termination_callback));
+            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<application::termination_handler_default_behaviour>(termination_callback));
 
         // To  "pause/resume" works, is required to add the 2 handlers.
 #if defined(BOOST_WINDOWS_API) 
@@ -527,14 +527,14 @@ int PSMoveService::exec(int argc, char *argv[])
             = boost::bind<bool>(&PSMoveServiceImpl::pause, &app, _1);
 
         app_context.insert<application::pause_handler>(
-            make_shared<application::pause_handler_default_behaviour>(pause_callback));
+            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<application::pause_handler_default_behaviour>(pause_callback));
 
         // windows only : add resume handler
         application::handler<>::parameter_callback resume_callback
             = boost::bind<bool>(&PSMoveServiceImpl::resume, &app, _1);
 
         app_context.insert<application::resume_handler>(
-            make_shared<application::resume_handler_default_behaviour>(resume_callback));
+            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<application::resume_handler_default_behaviour>(resume_callback));
 #endif // defined(BOOST_WINDOWS_API) 
 
         // my common/server instantiation

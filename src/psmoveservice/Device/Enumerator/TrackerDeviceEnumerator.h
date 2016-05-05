@@ -3,8 +3,6 @@
 
 #include "DeviceEnumerator.h"
 
-#define MAX_USB_DEVICE_PORT_PATH 7
-
 class TrackerDeviceEnumerator : public DeviceEnumerator
 {
 public:

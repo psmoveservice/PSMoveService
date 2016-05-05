@@ -4,7 +4,7 @@
 //-- includes -----
 #include <memory>
 #include <chrono>
-#include "PSMoveProtocol.pb.h"
+//#include "PSMoveProtocol.pb.h"
 
 //-- typedefs -----
 class DeviceManagerConfig;
@@ -15,9 +15,6 @@ typedef std::shared_ptr<ServerControllerView> ServerControllerViewPtr;
 
 class ServerTrackerView;
 typedef std::shared_ptr<ServerTrackerView> ServerTrackerViewPtr;
-
-class ServerHMDView;
-typedef std::shared_ptr<ServerHMDView> ServerHMDViewPtr;
 
 //-- definitions -----
 /// This is the class that is actually used by the PSMoveService.
@@ -36,11 +33,9 @@ public:
 
     int getControllerViewMaxCount() const;
     int getTrackerViewMaxCount() const;
-    int geHMDViewMaxCount() const;
         
     ServerControllerViewPtr getControllerViewPtr(int controller_id);
     ServerTrackerViewPtr getTrackerViewPtr(int tracker_id);
-    ServerHMDViewPtr getHMDViewPtr(int hmd_id);
     
 private:
     DeviceManagerConfigPtr m_config;
@@ -52,7 +47,6 @@ private:
 public:
     class ControllerManager *m_controller_manager;
     class TrackerManager *m_tracker_manager;
-    class HMDManager *m_hmd_manager;
 };
 
 #endif  // DEVICE_MANAGER_H

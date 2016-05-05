@@ -49,11 +49,12 @@ const PSMoveFloatVector3 &ClientPSMoveView::GetIdentityGravityCalibrationDirecti
     return k_identity_gravity_calibration_direction;
 }
 
-void ClientPSMoveView::ApplyControllerDataFrame(const PSMoveProtocol::ControllerDataFrame *data_frame)
+void ClientPSMoveView::ApplyControllerDataFrame(
+    const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame)
 {
     if (data_frame->isconnected())
     {
-        const PSMoveProtocol::ControllerDataFrame_PSMoveState &psmove_data_frame= data_frame->psmove_state();
+        const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSMoveState &psmove_data_frame = data_frame->psmove_state();
 
         this->bHasValidHardwareCalibration= psmove_data_frame.validhardwarecalibration();
         this->bIsTrackingEnabled= psmove_data_frame.istrackingenabled();
@@ -70,7 +71,7 @@ void ClientPSMoveView::ApplyControllerDataFrame(const PSMoveProtocol::Controller
 
         if (psmove_data_frame.has_raw_sensor_data())
         {
-            const PSMoveProtocol::ControllerDataFrame_PSMoveState_RawSensorData &raw_sensor_data= 
+            const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSMoveState_RawSensorData &raw_sensor_data =
                 psmove_data_frame.raw_sensor_data();
 
             this->RawSensorData.Magnetometer.i= raw_sensor_data.magnetometer().i();
@@ -91,15 +92,15 @@ void ClientPSMoveView::ApplyControllerDataFrame(const PSMoveProtocol::Controller
         }
 
         unsigned int button_bitmask= data_frame->button_down_bitmask();
-        update_button_state(TriangleButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_TRIANGLE);
-        update_button_state(CircleButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_CIRCLE);
-        update_button_state(CrossButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_CROSS);
-        update_button_state(SquareButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_SQUARE);
-        update_button_state(SelectButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_SELECT);
-        update_button_state(StartButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_START);
-        update_button_state(PSButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_PS);
-        update_button_state(MoveButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_MOVE);
-        update_button_state(TriggerButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_TRIGGER);
+        update_button_state(TriangleButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_TRIANGLE);
+        update_button_state(CircleButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_CIRCLE);
+        update_button_state(CrossButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_CROSS);
+        update_button_state(SquareButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_SQUARE);
+        update_button_state(SelectButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_SELECT);
+        update_button_state(StartButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_START);
+        update_button_state(PSButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_PS);
+        update_button_state(MoveButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_MOVE);
+        update_button_state(TriggerButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_TRIGGER);
 
         //###bwalker $TODO make sure this is in the range [0, 255]
         this->TriggerValue= static_cast<unsigned char>(psmove_data_frame.trigger_value());
@@ -134,24 +135,24 @@ void ClientPSNaviView::Clear()
     Stick_YAxis= 0x80;
 }
 
-void ClientPSNaviView::ApplyControllerDataFrame(const PSMoveProtocol::ControllerDataFrame *data_frame)
+void ClientPSNaviView::ApplyControllerDataFrame(const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame)
 {
     if (data_frame->isconnected())
     {
-        const PSMoveProtocol::ControllerDataFrame_PSNaviState &psnavi_data_frame= data_frame->psnavi_state();
+        const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSNaviState &psnavi_data_frame= data_frame->psnavi_state();
 
         unsigned int button_bitmask= data_frame->button_down_bitmask();
-        update_button_state(L1Button, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_L1);
-        update_button_state(L2Button, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_L2);
-        update_button_state(L3Button, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_L3);
-        update_button_state(CircleButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_CIRCLE);
-        update_button_state(CrossButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_CROSS);
-        update_button_state(PSButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_PS);
-        update_button_state(TriggerButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_TRIGGER);
-        update_button_state(DPadUpButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_UP);
-        update_button_state(DPadRightButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_RIGHT);
-        update_button_state(DPadDownButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_DOWN);
-        update_button_state(DPadLeftButton, button_bitmask, PSMoveProtocol::ControllerDataFrame_ButtonType_LEFT);
+        update_button_state(L1Button, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_L1);
+        update_button_state(L2Button, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_L2);
+        update_button_state(L3Button, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_L3);
+        update_button_state(CircleButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_CIRCLE);
+        update_button_state(CrossButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_CROSS);
+        update_button_state(PSButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_PS);
+        update_button_state(TriggerButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_TRIGGER);
+        update_button_state(DPadUpButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_UP);
+        update_button_state(DPadRightButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_RIGHT);
+        update_button_state(DPadDownButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_DOWN);
+        update_button_state(DPadLeftButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_LEFT);
 
         //###bwalker $TODO make sure this is in the range [0, 255]
         this->TriggerValue= static_cast<unsigned char>(psnavi_data_frame.trigger_value());
@@ -191,7 +192,7 @@ void ClientControllerView::Clear()
 }
 
 void ClientControllerView::ApplyControllerDataFrame(
-    const PSMoveProtocol::ControllerDataFrame *data_frame)
+    const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame)
 {
     assert(data_frame->controller_id() == ControllerID);
 

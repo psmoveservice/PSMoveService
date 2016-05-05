@@ -52,7 +52,7 @@ public:
         , m_response_read_buffer()
         , m_packed_response(std::shared_ptr<PSMoveProtocol::Response>(new PSMoveProtocol::Response()))
 
-        , m_packed_data_frame(std::shared_ptr<PSMoveProtocol::ControllerDataFrame>(new PSMoveProtocol::ControllerDataFrame()))  // TODO: Different device types
+        , m_packed_data_frame(std::shared_ptr<PSMoveProtocol::DeviceDataFrame>(new PSMoveProtocol::DeviceDataFrame()))
     
         , m_write_bufer()
         , m_packed_request()
@@ -580,8 +580,7 @@ private:
         // Parse the response buffer
         if (m_packed_data_frame.unpack(m_data_frame_read_buffer, total_len))
         {
-            // TODO: Switch on data frame type to choose return type.
-            ControllerDataFramePtr data_frame = m_packed_data_frame.get_msg();
+            DeviceDataFramePtr data_frame = m_packed_data_frame.get_msg();
 
             m_data_frame_listener->handle_data_frame(data_frame);
         }
@@ -621,8 +620,7 @@ private:
 
     uint8_t m_data_frame_read_buffer[HEADER_SIZE+MAX_DATA_FRAME_MESSAGE_SIZE];
     
-    // TODO: More data frame types (controller, tracker, HMD, etc.)
-    PackedMessage<PSMoveProtocol::ControllerDataFrame> m_packed_data_frame;
+    PackedMessage<PSMoveProtocol::DeviceDataFrame> m_packed_data_frame;
     
     vector<uint8_t> m_write_bufer;
     PackedMessage<PSMoveProtocol::Request> m_packed_request;

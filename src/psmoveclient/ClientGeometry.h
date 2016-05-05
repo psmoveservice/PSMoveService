@@ -65,6 +65,7 @@ struct CLIENTPSMOVEAPI PSMovePosition
     static PSMovePosition create(float x, float y, float z);
 
     PSMoveFloatVector3 operator - (const PSMovePosition &other) const;
+    PSMovePosition operator * (const float s) const;
 };
 
 struct CLIENTPSMOVEAPI PSMoveQuaternion

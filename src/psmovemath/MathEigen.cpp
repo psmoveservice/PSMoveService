@@ -107,6 +107,12 @@ eigen_quaternion_normalize_with_default(Eigen::Quaternionf &inout_v, const Eigen
 }
 
 bool
+eigen_vector3f_is_valid(const Eigen::Vector3f &v)
+{
+    return is_valid_float(v.x()) && is_valid_float(v.y()) && is_valid_float(v.z());
+}
+
+bool
 eigen_quaternion_is_valid(const Eigen::Quaternionf &q)
 {
 	return is_valid_float(q.x()) && is_valid_float(q.y()) && is_valid_float(q.z()) && is_valid_float(q.w());

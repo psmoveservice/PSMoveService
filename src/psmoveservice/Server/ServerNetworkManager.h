@@ -53,7 +53,7 @@ public:
     
     void send_notification_to_all_clients(ResponsePtr response);
     
-    void send_controller_data_frame(int connection_id, ControllerDataFramePtr data_frame);
+    void send_device_data_frame(int connection_id, DeviceDataFramePtr data_frame);
 
 private:
     /// Must use the overloaded constructor

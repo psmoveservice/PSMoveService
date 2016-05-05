@@ -9,7 +9,8 @@
 //-- pre-declarations -----
 namespace PSMoveProtocol
 {
-    class ControllerDataFrame;
+    class DeviceDataFrame;
+    class DeviceDataFrame_ControllerDataPacket;
 };
 
 //-- constants -----
@@ -63,7 +64,7 @@ private:
 
 public:
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::ControllerDataFrame *data_frame);
+    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame);
 
     inline bool IsValid() const
     {
@@ -177,7 +178,7 @@ private:
 
 public:
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::ControllerDataFrame *data_frame);
+    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame);
 
     inline bool IsValid() const
     {
@@ -304,7 +305,7 @@ public:
     ClientControllerView(int ControllerID);
 
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::ControllerDataFrame *data_frame);
+    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame);
 
     // Listener State
     inline void IncListenerCount()

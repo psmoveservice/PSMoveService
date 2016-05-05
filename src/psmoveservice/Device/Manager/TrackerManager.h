@@ -19,7 +19,7 @@ class TrackerManager : public DeviceTypeManager
 public:
     TrackerManager();
 
-    static const int k_max_devices = 1;
+    static const int k_max_devices = 2;
     int getMaxDevices() const override
     {
         return TrackerManager::k_max_devices;
