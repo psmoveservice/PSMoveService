@@ -414,7 +414,9 @@ void AppStage_TestTracker::request_tracker_start_stream(
         request->set_type(PSMoveProtocol::Request_RequestType_START_TRACKER_DATA_STREAM);
         request->mutable_request_start_tracker_data_stream()->set_tracker_id(trackerID);
 
-        ClientPSMoveAPI::send_opaque_request(&request, AppStage_TestTracker::handle_tracker_start_stream_response, this);
+        m_app->registerCallback(
+            ClientPSMoveAPI::send_opaque_request(&request), 
+            AppStage_TestTracker::handle_tracker_start_stream_response, this);
     }
 }
 
@@ -470,7 +472,9 @@ void AppStage_TestTracker::request_tracker_stop_stream(
         request->set_type(PSMoveProtocol::Request_RequestType_STOP_TRACKER_DATA_STREAM);
         request->mutable_request_stop_tracker_data_stream()->set_tracker_id(trackerID);
 
-        ClientPSMoveAPI::send_opaque_request(&request, AppStage_TestTracker::handle_tracker_stop_stream_response, this);
+        m_app->registerCallback(
+            ClientPSMoveAPI::send_opaque_request(&request), 
+            AppStage_TestTracker::handle_tracker_stop_stream_response, this);
     }
 }
 

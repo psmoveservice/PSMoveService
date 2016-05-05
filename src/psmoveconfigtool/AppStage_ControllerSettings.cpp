@@ -288,7 +288,9 @@ void AppStage_ControllerSettings::request_controller_list()
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST);
 
-        ClientPSMoveAPI::send_opaque_request(&request, AppStage_ControllerSettings::handle_controller_list_response, this);
+        m_app->registerCallback(
+            ClientPSMoveAPI::send_opaque_request(&request), 
+            AppStage_ControllerSettings::handle_controller_list_response, this);
     }
 }
 
