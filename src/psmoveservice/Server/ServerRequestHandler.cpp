@@ -50,7 +50,7 @@ struct RequestConnectionState
 
         for (int index = 0; index < TrackerManager::k_max_devices; ++index)
         {
-            active_tracker_stream_info->Clear();
+            active_tracker_stream_info[index].Clear();
         }
     }
 };
