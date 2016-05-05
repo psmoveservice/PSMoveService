@@ -117,11 +117,9 @@ void AppStage_MagnetometerCalibration::enter()
     assert(!m_isControllerStreamActive);
     m_lastControllerSeqNum= -1;
 
-    ClientPSMoveAPI::start_controller_data_stream(
-        m_controllerView, 
-        ClientPSMoveAPI::includeRawSensorData,
-        &AppStage_MagnetometerCalibration::handle_acquire_controller, 
-        this);
+    m_app->registerCallback(
+        ClientPSMoveAPI::start_controller_data_stream(m_controllerView, ClientPSMoveAPI::includeRawSensorData),
+        &AppStage_MagnetometerCalibration::handle_acquire_controller, this);
 }
 
 void AppStage_MagnetometerCalibration::exit()
@@ -246,8 +244,7 @@ void AppStage_MagnetometerCalibration::update()
                             m_led_color_r = led_color_r;
                             m_led_color_g = led_color_g;
                             m_led_color_b = led_color_b;
-                            ClientPSMoveAPI::set_led_color(
-                                m_controllerView, m_led_color_r, m_led_color_g, m_led_color_b, nullptr, nullptr);
+                            ClientPSMoveAPI::set_led_color(m_controllerView, m_led_color_r, m_led_color_g, m_led_color_b);
                         }
                     }
                 }
@@ -328,8 +325,9 @@ void AppStage_MagnetometerCalibration::update()
 
                             write_calibration_parameter(projected_sample, calibration->mutable_magnetometer_identity());
 
-                            ClientPSMoveAPI::send_opaque_request(
-                                &request, AppStage_MagnetometerCalibration::handle_set_magnetometer_calibration, this);
+                            m_app->registerCallback(
+                                ClientPSMoveAPI::send_opaque_request(&request), 
+                                AppStage_MagnetometerCalibration::handle_set_magnetometer_calibration, this);
                         }
 
                         // Wait for the response
@@ -601,7 +599,7 @@ void AppStage_MagnetometerCalibration::renderUI()
                 {
                     if (ImGui::Button("Ok"))
                     {
-                        ClientPSMoveAPI::set_led_color(m_controllerView, 0, 0, 0, nullptr, nullptr);
+                        ClientPSMoveAPI::set_led_color(m_controllerView, 0, 0, 0);
                         m_menuState = waitForGravityAlignment;
                     }
                     ImGui::SameLine();
@@ -798,11 +796,11 @@ void AppStage_MagnetometerCalibration::request_exit_to_app_stage(const char *app
         if (m_isControllerStreamActive)
         {
             m_pendingAppStage= app_stage_name;
-            ClientPSMoveAPI::set_led_color(m_controllerView, 0, 0, 0, nullptr, nullptr);
-            ClientPSMoveAPI::stop_controller_data_stream(
-                m_controllerView, 
-                &AppStage_MagnetometerCalibration::handle_release_controller, 
-                this);
+            ClientPSMoveAPI::set_led_color(m_controllerView, 0, 0, 0);
+
+            m_app->registerCallback(
+                ClientPSMoveAPI::stop_controller_data_stream(m_controllerView), 
+                &AppStage_MagnetometerCalibration::handle_release_controller, this);
         }
         else
         {

@@ -18,6 +18,7 @@ public:
     PSMoveConsoleClient() 
         : m_keepRunning(true)
         , controller_view(nullptr)
+        , start_stream_request_id(-1)
     {
     }
 
@@ -70,38 +71,32 @@ private:
     }
 
     // ClientPSMoveAPI
-    static void handle_client_psmove_event(
-        ClientPSMoveAPI::eClientPSMoveAPIEvent event_type,
-        ClientPSMoveAPI::t_event_data_handle opaque_event_handle,
-        void *userdata)
+    void handle_client_psmove_event(ClientPSMoveAPI::eClientPSMoveAPIEvent event_type)
     {
-        PSMoveConsoleClient *thisPtr= reinterpret_cast<PSMoveConsoleClient *>(userdata);
-
         switch (event_type)
         {
         case ClientPSMoveAPI::connectedToService:
             std::cout << "PSMoveConsoleClient - Connected to service" << std::endl;
 
             // Once created, updates will automatically get pushed into this view
-            thisPtr->controller_view= ClientPSMoveAPI::allocate_controller_view(0);
+            controller_view= ClientPSMoveAPI::allocate_controller_view(0);
 
             // Kick off request to start streaming data from the first controller
-            ClientPSMoveAPI::start_controller_data_stream(
-                thisPtr->controller_view,
-                ClientPSMoveAPI::defaultStreamOptions,
-                &PSMoveConsoleClient::handle_acquire_controller, thisPtr);
+            start_stream_request_id= 
+                ClientPSMoveAPI::start_controller_data_stream(
+                    controller_view, ClientPSMoveAPI::defaultStreamOptions);
             break;
         case ClientPSMoveAPI::failedToConnectToService:
             std::cout << "PSMoveConsoleClient - Failed to connect to service" << std::endl;
-            thisPtr->m_keepRunning= false;
+            m_keepRunning= false;
             break;
         case ClientPSMoveAPI::disconnectedFromService:
             std::cout << "PSMoveConsoleClient - Disconnected from service" << std::endl;
-            thisPtr->m_keepRunning= false;
+            m_keepRunning= false;
             break;
         case ClientPSMoveAPI::opaqueServiceEvent:
             std::cout << "PSMoveConsoleClient - Opaque service event(%d)" << static_cast<int>(event_type) << std::endl;
-            thisPtr->m_keepRunning= false;
+            m_keepRunning= false;
             break;
         default:
             assert(0 && "Unhandled event type");
@@ -109,24 +104,18 @@ private:
         }
     }
 
-    static void handle_acquire_controller(
-        ClientPSMoveAPI::eClientPSMoveResultCode resultCode,
-        const ClientPSMoveAPI::t_request_id request_id, 
-        ClientPSMoveAPI::t_response_handle opaque_response_handle,
-        void *userdata)
+    void handle_acquire_controller(ClientPSMoveAPI::eClientPSMoveResultCode resultCode)
     {
-        PSMoveConsoleClient *thisPtr= reinterpret_cast<PSMoveConsoleClient *>(userdata);
-
         if (resultCode == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
         {
             std::cout << "PSMoveConsoleClient - Acquired controller " 
-                << thisPtr->controller_view->GetControllerID() << std::endl;
+                << controller_view->GetControllerID() << std::endl;
 
             // Updates will now automatically get pushed into the controller view
 
-            if (thisPtr->controller_view->GetControllerViewType() == ClientControllerView::PSMove)
+            if (controller_view->GetControllerViewType() == ClientControllerView::PSMove)
             {
-                const ClientPSMoveView &PSMoveView= thisPtr->controller_view->GetPSMoveView();
+                const ClientPSMoveView &PSMoveView= controller_view->GetPSMoveView();
                 
                 if (PSMoveView.GetIsCurrentlyTracking())
                 {
@@ -140,7 +129,7 @@ private:
         else
         {
             std::cout << "PSMoveConsoleClient - failed to acquire controller " << std::endl;
-            thisPtr->m_keepRunning= false;
+            m_keepRunning= false;
         }
     }
 
@@ -152,9 +141,7 @@ private:
         // Attempt to connect to the server
         if (success)
         {
-            if (!ClientPSMoveAPI::startup(
-                    "localhost", "9512", 
-                    &PSMoveConsoleClient::handle_client_psmove_event, this))
+            if (!ClientPSMoveAPI::startup("localhost", "9512"))
             {
                 std::cout << "PSMoveConsoleClient - Failed to initialize the client network manager" << std::endl;
                 success= false;
@@ -175,6 +162,26 @@ private:
     {
         // Process incoming/outgoing networking requests
         ClientPSMoveAPI::update();
+
+        // Poll events queued up by the call to ClientPSMoveAPI::update()
+        ClientPSMoveAPI::Message message;
+        while (ClientPSMoveAPI::poll_next_message(&message, sizeof(message)))
+        {
+            switch (message.payload_type)
+            {
+            case ClientPSMoveAPI::_messagePayloadType_Response:
+                if (start_stream_request_id != -1 &&
+                    message.response_data.request_id == start_stream_request_id)
+                {
+                    handle_acquire_controller(message.response_data.result_code);
+                    start_stream_request_id= -1;
+                }
+                break;
+            case ClientPSMoveAPI::_messagePayloadType_Event:
+                handle_client_psmove_event(message.event_data.event_type);
+                break;
+            }
+        }
 
         if (controller_view)
         {
@@ -208,6 +215,7 @@ private:
     bool m_keepRunning;
     ClientControllerView *controller_view;
     std::chrono::milliseconds last_report_fps_timestamp;
+    ClientPSMoveAPI::t_request_id start_stream_request_id;
 };
 
 int main(int argc, char *argv[])

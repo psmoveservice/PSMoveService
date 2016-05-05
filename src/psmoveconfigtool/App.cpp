@@ -81,7 +81,6 @@ bool App::reconnectToService()
     bool success= 
         ClientPSMoveAPI::startup(
             "localhost", "9512", //###bwalker $TODO put in config 
-            &App::onClientPSMoveEvent, this, 
             _log_severity_level_info); //###bwalker $TODO put in config 
 
     return success;
@@ -217,19 +216,18 @@ void App::onSDLEvent(const SDL_Event &e)
 }
 
 void App::onClientPSMoveEvent(
-    ClientPSMoveAPI::eClientPSMoveAPIEvent event_type,
-    ClientPSMoveAPI::t_event_data_handle opaque_event_handle,
-    void *userdata)
+    const ClientPSMoveAPI::EventMessage *event)
 {
-    App *thisPtr= reinterpret_cast<App *>(userdata);
+    ClientPSMoveAPI::eClientPSMoveAPIEvent event_type = event->event_type;
+    ClientPSMoveAPI::t_event_data_handle opaque_event_handle = event->event_data_handle;
 
     // Try giving the event to the current AppStage first
-    if (!thisPtr->m_appStage->onClientAPIEvent(event_type, opaque_event_handle))
+    if (!m_appStage->onClientAPIEvent(event_type, opaque_event_handle))
     {
-        t_app_stage_event_map::iterator entry= thisPtr->m_eventToFallbackAppStageMap.find(event_type);
+        t_app_stage_event_map::iterator entry= m_eventToFallbackAppStageMap.find(event_type);
 
-        if (entry != thisPtr->m_eventToFallbackAppStageMap.end() && 
-            entry->second != thisPtr->m_appStage)
+        if (entry != m_eventToFallbackAppStageMap.end() && 
+            entry->second != m_appStage)
         {
             // If the current stage doesn't care about the event,
             // hand it off to another app stage registered to care about the event
@@ -238,9 +236,67 @@ void App::onClientPSMoveEvent(
     }
 }
 
+void App::registerCallback(
+    ClientPSMoveAPI::t_request_id request_id,
+    App::t_response_callback callback,
+    void *callback_userdata)
+{
+    if (request_id != ClientPSMoveAPI::INVALID_REQUEST_ID)
+    {
+        PendingRequest pendingRequest;
+
+        assert(m_pending_request_map.find(request_id) == m_pending_request_map.end());
+        memset(&pendingRequest, 0, sizeof(PendingRequest));
+        pendingRequest.request_id = request_id;
+        pendingRequest.response_callback = callback;
+        pendingRequest.response_userdata = callback_userdata;
+
+        m_pending_request_map.insert(t_pending_request_map_entry(request_id, pendingRequest));
+    }
+}
+
+void App::onClientPSMoveResponse(
+    const ClientPSMoveAPI::ResponseMessage *response)
+{
+    ClientPSMoveAPI::t_request_id request_id= response->request_id;
+    t_pending_request_map::iterator entry = m_pending_request_map.find(request_id);
+
+    if (entry != m_pending_request_map.end())
+    {
+        const PendingRequest &pendingRequest = entry->second;
+
+        if (pendingRequest.response_callback != nullptr)
+        {
+            pendingRequest.response_callback(
+                response->result_code,
+                request_id,
+                response->response_handle,
+                pendingRequest.response_userdata);
+        }
+
+        m_pending_request_map.erase(entry);
+    }
+}
+
 void App::update()
 {
+    // Gather any new messages on the network
     ClientPSMoveAPI::update();
+
+    // Poll events queued up by the call to ClientPSMoveAPI::update()
+    ClientPSMoveAPI::Message message;
+    while (ClientPSMoveAPI::poll_next_message(&message, sizeof(message)))
+    {
+        switch (message.payload_type)
+        {
+        case ClientPSMoveAPI::_messagePayloadType_Response:
+            onClientPSMoveResponse(&message.response_data);
+            break;
+        case ClientPSMoveAPI::_messagePayloadType_Event:
+            onClientPSMoveEvent(&message.event_data);
+            break;
+        }
+    }
 
     if (m_appStage != NULL)
     {
