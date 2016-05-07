@@ -237,7 +237,7 @@ void AppStage_PairController::request_controller_unpair(
         request->set_type(PSMoveProtocol::Request_RequestType_UNPAIR_CONTROLLER);
         request->mutable_unpair_controller()->set_controller_id(controllerID);
 
-        m_app->registerCallback(
+        ClientPSMoveAPI::register_callback(
             ClientPSMoveAPI::send_opaque_request(&request), 
             AppStage_PairController::handle_controller_unpair_start_response, this);
     }
@@ -305,7 +305,7 @@ void AppStage_PairController::request_controller_pair(
         request->set_type(PSMoveProtocol::Request_RequestType_PAIR_CONTROLLER);
         request->mutable_pair_controller()->set_controller_id(controllerID);
 
-        m_app->registerCallback(
+        ClientPSMoveAPI::register_callback(
             ClientPSMoveAPI::send_opaque_request(&request), 
             AppStage_PairController::handle_controller_pair_start_response, this);
     }
@@ -385,7 +385,7 @@ void AppStage_PairController::request_cancel_bluetooth_operation(
         request->set_type(PSMoveProtocol::Request_RequestType_CANCEL_BLUETOOTH_REQUEST);
         request->mutable_cancel_bluetooth_request()->set_controller_id(controllerID);
 
-        m_app->registerCallback(
+        ClientPSMoveAPI::register_callback(
             ClientPSMoveAPI::send_opaque_request(&request), 
             AppStage_PairController::handle_cancel_bluetooth_operation_response, this);
     }

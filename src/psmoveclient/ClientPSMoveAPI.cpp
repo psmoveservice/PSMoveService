@@ -26,7 +26,7 @@ public:
     ClientPSMoveAPIImpl(
         const std::string &host, 
         const std::string &port)
-        : m_request_manager(ClientPSMoveAPIImpl::enqueue_response_message, this)
+        : m_request_manager(ClientPSMoveAPIImpl::handle_response_message, this)
         , m_network_manager(
             host, port, 
             this, // IDataFrameListener
@@ -358,13 +358,33 @@ public:
     }
 
     // Request Manager Callback
-    static void enqueue_response_message(
+    static void handle_response_message(
         ClientPSMoveAPI::eClientPSMoveResultCode result_code,
         const ClientPSMoveAPI::t_request_id request_id,
         ResponsePtr response,
         void *userdata)
     {
-        ClientPSMoveAPIImpl *this_ptr= reinterpret_cast<ClientPSMoveAPIImpl *>(userdata);
+        ClientPSMoveAPIImpl *this_ptr = reinterpret_cast<ClientPSMoveAPIImpl *>(userdata);
+
+        if (request_id != ClientPSMoveAPI::INVALID_REQUEST_ID)
+        {
+            // If there is a callback waiting to be called for this request,
+            // then go ahread and execute it now.
+            if (!this_ptr->execute_callback(result_code, request_id, response))
+            {
+                // Otherwise go ahead and enqueue a message that can be picked up
+                // in poll_next_message() this frame.
+                this_ptr->enqueue_response_message(result_code, request_id, response);
+            }
+        }
+    }
+
+    // Message Handling
+    void enqueue_response_message(
+        ClientPSMoveAPI::eClientPSMoveResultCode result_code,
+        const ClientPSMoveAPI::t_request_id request_id,
+        ResponsePtr response)
+    {
         ClientPSMoveAPI::Message message;
 
         memset(&message, 0, sizeof(ClientPSMoveAPI::Message));
@@ -375,12 +395,12 @@ public:
         message.response_data.response_handle = (bool)response ? static_cast<const void *>(response.get()) : nullptr;
 
         // Add the message to the message queue
-        this_ptr->m_message_queue.push_back(message);
+        m_message_queue.push_back(message);
 
         // Maintain a reference to the response until the next update
         if (response)
         {
-            this_ptr->m_response_reference_cache.push_back(response);
+            m_response_reference_cache.push_back(response);
         }
     }
 
@@ -406,12 +426,101 @@ public:
         }
     }
 
+    void register_callback(
+        ClientPSMoveAPI::t_request_id request_id,
+        ClientPSMoveAPI::t_response_callback callback,
+        void *callback_userdata)
+    {
+        if (request_id != ClientPSMoveAPI::INVALID_REQUEST_ID)
+        {
+            PendingRequest pendingRequest;
+
+            assert(m_pending_request_map.find(request_id) == m_pending_request_map.end());
+            memset(&pendingRequest, 0, sizeof(PendingRequest));
+            pendingRequest.request_id = request_id;
+            pendingRequest.response_callback = callback;
+            pendingRequest.response_userdata = callback_userdata;
+
+            m_pending_request_map.insert(t_pending_request_map_entry(request_id, pendingRequest));
+        }
+    }
+
+    bool execute_callback(
+        ClientPSMoveAPI::eClientPSMoveResultCode result_code,
+        const ClientPSMoveAPI::t_request_id request_id,
+        ResponsePtr response)
+    {
+        bool bExecutedCallback = false;
+
+        if (request_id != ClientPSMoveAPI::INVALID_REQUEST_ID)
+        {
+            t_pending_request_map::iterator iter = m_pending_request_map.find(request_id);
+
+            if (iter != m_pending_request_map.end())
+            {
+                const PendingRequest &pendingRequest = iter->second;
+
+                if (pendingRequest.response_callback != nullptr)
+                {
+                    // Convert a response pointer to an opaque pointer
+                    ClientPSMoveAPI::t_response_handle response_handle =
+                        (bool)response ? static_cast<const void *>(response.get()) : nullptr;
+
+                    pendingRequest.response_callback(
+                        result_code,
+                        request_id,
+                        response_handle,
+                        pendingRequest.response_userdata);
+
+                    bExecutedCallback = true;
+                }
+
+                m_pending_request_map.erase(iter);
+            }
+            else
+            {
+                enqueue_response_message(result_code, request_id, response);
+            }
+        }
+
+        return bExecutedCallback;
+    }
+
+    void cancel_callback(ClientPSMoveAPI::t_request_id request_id)
+    {
+        if (request_id != ClientPSMoveAPI::INVALID_REQUEST_ID)
+        {
+            t_pending_request_map::iterator iter= m_pending_request_map.find(request_id);
+
+            if (iter != m_pending_request_map.end())
+            {
+                m_pending_request_map.erase(iter);
+            }
+        }
+    }
+
 private:
-    ClientRequestManager m_request_manager;
+    //-- Session Management -----
     ClientNetworkManager m_network_manager;
     
+    //-- Controller Views -----
     t_controller_view_map m_controller_view_map;
 
+    //-- Pending requests -----
+    ClientRequestManager m_request_manager;
+
+    struct PendingRequest
+    {
+        ClientPSMoveAPI::t_request_id request_id;
+        ClientPSMoveAPI::t_response_callback response_callback;
+        void *response_userdata;
+    };
+    typedef std::map<ClientPSMoveAPI::t_request_id, PendingRequest> t_pending_request_map;
+    typedef std::pair<ClientPSMoveAPI::t_request_id, PendingRequest> t_pending_request_map_entry;
+
+    t_pending_request_map m_pending_request_map;
+
+    //-- Messages -----
     // Queue of message received from the most recent call to update()
     // This queue will be emptied automatically at the next call to update().
     t_message_queue m_message_queue;
@@ -584,4 +693,24 @@ ClientPSMoveAPI::send_opaque_request(
     }
 
     return request_id;
+}
+
+void ClientPSMoveAPI::register_callback(
+    ClientPSMoveAPI::t_request_id request_id,
+    ClientPSMoveAPI::t_response_callback callback, 
+    void *callback_userdata)
+{
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->register_callback(request_id, callback, callback_userdata);
+    }
+}
+
+void ClientPSMoveAPI::cancel_callback(
+    ClientPSMoveAPI::t_request_id request_id)
+{
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->cancel_callback(request_id);
+    }
 }

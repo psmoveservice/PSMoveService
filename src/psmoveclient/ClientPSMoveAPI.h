@@ -14,6 +14,10 @@
 class ClientControllerView;
 class ClientHMDView;
 
+//-- constants -----
+#define PSMOVESERVICE_DEFAULT_ADDRESS   "localhost"
+#define PSMOVESERVICE_DEFAULT_PORT      "9512"
+
 //-- macros -----
 #ifdef HAS_PROTOCOL_ACCESS
 #define GET_PSMOVEPROTOCOL_RESPONSE(handle) \
@@ -90,7 +94,10 @@ public:
         const std::string &port,
         e_log_severity_level log_level = _log_severity_level_info);
     
-    /**< Process incoming/outgoing networking requests via the network manager. */
+    /**< 
+        Process incoming/outgoing networking requests via the network manager. 
+        Fires off callbacks for any registered request_id that got responses.
+    */
     static void update();  
 
     /**< Poll the next message from the service in the queue */
@@ -116,6 +123,15 @@ public:
 
     /// Used to send requests to the server by clients that have protocol access
     static t_request_id send_opaque_request(t_request_handle request_handle);
+
+    /// Used to send register a callback to get called when an async request is completed
+    typedef void(*t_response_callback)(
+        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
+        const ClientPSMoveAPI::t_request_id request_id,
+        ClientPSMoveAPI::t_response_handle response_handle,
+        void *userdata);
+    static void register_callback(ClientPSMoveAPI::t_request_id request_id, t_response_callback callback, void *callback_userdata);
+    static void cancel_callback(ClientPSMoveAPI::t_request_id request_id);
 
 private:
     // Not allowed to instantiate

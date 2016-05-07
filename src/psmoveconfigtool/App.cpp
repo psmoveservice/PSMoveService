@@ -83,7 +83,8 @@ bool App::reconnectToService()
 
     bool success= 
         ClientPSMoveAPI::startup(
-            "localhost", "9512", //###bwalker $TODO put in config 
+            PSMOVESERVICE_DEFAULT_ADDRESS, //###bwalker $TODO put in config 
+            PSMOVESERVICE_DEFAULT_PORT, //###bwalker $TODO put in config 
             _log_severity_level_info); //###bwalker $TODO put in config 
 
     return success;
@@ -245,46 +246,17 @@ void App::onClientPSMoveEvent(
     }
 }
 
-void App::registerCallback(
-    ClientPSMoveAPI::t_request_id request_id,
-    App::t_response_callback callback,
-    void *callback_userdata)
-{
-    if (request_id != ClientPSMoveAPI::INVALID_REQUEST_ID)
-    {
-        PendingRequest pendingRequest;
-
-        assert(m_pending_request_map.find(request_id) == m_pending_request_map.end());
-        memset(&pendingRequest, 0, sizeof(PendingRequest));
-        pendingRequest.request_id = request_id;
-        pendingRequest.response_callback = callback;
-        pendingRequest.response_userdata = callback_userdata;
-
-        m_pending_request_map.insert(t_pending_request_map_entry(request_id, pendingRequest));
-    }
-}
-
 void App::onClientPSMoveResponse(
     const ClientPSMoveAPI::ResponseMessage *response)
 {
     ClientPSMoveAPI::t_request_id request_id= response->request_id;
-    t_pending_request_map::iterator entry = m_pending_request_map.find(request_id);
+    const PSMoveProtocol::Response *protocol_response = GET_PSMOVEPROTOCOL_RESPONSE(response->response_handle);
+    PSMoveProtocol::Response_ResponseType protocol_response_type= protocol_response->type();
+    const std::string& protocol_response_type_name = PSMoveProtocol::Response_ResponseType_Name(protocol_response_type);
 
-    if (entry != m_pending_request_map.end())
-    {
-        const PendingRequest &pendingRequest = entry->second;
-
-        if (pendingRequest.response_callback != nullptr)
-        {
-            pendingRequest.response_callback(
-                response->result_code,
-                request_id,
-                response->response_handle,
-                pendingRequest.response_userdata);
-        }
-
-        m_pending_request_map.erase(entry);
-    }
+    // All responses should have been handled by a response handler
+    Log_ERROR("App::onClientPSMoveResponse", "Unhandled response type:%s (request id: %d)!", 
+        protocol_response_type_name.c_str(), request_id);
 }
 
 void App::update()

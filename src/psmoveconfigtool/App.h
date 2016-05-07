@@ -67,12 +67,10 @@ public:
         m_eventToFallbackAppStageMap.insert(t_app_stage_event_map_entry(event_type, app_stage));
     }
 
-    typedef void(*t_response_callback)(
-        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-        const ClientPSMoveAPI::t_request_id request_id,
-        ClientPSMoveAPI::t_response_handle response_handle,
-        void *userdata);
-    void registerCallback(ClientPSMoveAPI::t_request_id request_id, t_response_callback callback, void *callback_userdata);
+    static void eat_response(ClientPSMoveAPI::t_request_id request_id)
+    {
+        ClientPSMoveAPI::register_callback(request_id, App::null_response_callback, nullptr);
+    }
 
 protected:
     bool init(int argc, char** argv);
@@ -84,6 +82,15 @@ protected:
 
     void update();
     void render();
+
+    static void null_response_callback(
+        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
+        const ClientPSMoveAPI::t_request_id request_id,
+        ClientPSMoveAPI::t_response_handle response_handle,
+        void *userdata)
+    {
+
+    }
 
 private:
     // Contexts
@@ -117,18 +124,6 @@ private:
 
     // Flag requesting that we exit the update loop
     bool m_bShutdownRequested;
-
-    // Pending requests
-    struct PendingRequest
-    {
-        ClientPSMoveAPI::t_request_id request_id;
-        t_response_callback response_callback;
-        void *response_userdata;
-    };
-    typedef std::map<ClientPSMoveAPI::t_request_id, PendingRequest> t_pending_request_map;
-    typedef std::pair<ClientPSMoveAPI::t_request_id, PendingRequest> t_pending_request_map_entry;
-
-    t_pending_request_map m_pending_request_map;
 };
 
 #endif // APP_H
