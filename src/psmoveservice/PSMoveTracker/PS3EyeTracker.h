@@ -68,6 +68,8 @@ public:
     std::string getUSBDevicePath() const override;
     bool getVideoFrameDimensions(int *out_width, int *out_height, int *out_stride) const override;
     const unsigned char *getVideoFrameBuffer() const override;
+    void setExposure(double value) override;
+    double getExposure() const override;
 
     // -- Getters
     inline const PS3EyeTrackerConfig &getConfig() const

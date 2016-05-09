@@ -302,3 +302,13 @@ const unsigned char *PS3EyeTracker::getVideoFrameBuffer() const
 
     return result;
 }
+
+void PS3EyeTracker::setExposure(double value)
+{
+    VideoCapture->set(cv::CAP_PROP_EXPOSURE, value);
+}
+
+double PS3EyeTracker::getExposure() const
+{
+    return VideoCapture->get(cv::CAP_PROP_EXPOSURE);
+}
