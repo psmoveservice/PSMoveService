@@ -204,7 +204,7 @@ void AppStage_TrackerSettings::renderUI()
 }
 
 bool AppStage_TrackerSettings::onClientAPIEvent(
-    ClientPSMoveAPI::eClientPSMoveAPIEvent event,
+    ClientPSMoveAPI::eEventType event,
     ClientPSMoveAPI::t_event_data_handle opaque_event_handle)
 {
     bool bHandled = false;
@@ -240,18 +240,16 @@ void AppStage_TrackerSettings::request_tracker_list()
 }
 
 void AppStage_TrackerSettings::handle_tracker_list_response(
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-    const ClientPSMoveAPI::t_request_id request_id,
-    ClientPSMoveAPI::t_response_handle response_handle,
+    const ClientPSMoveAPI::ResponseMessage *response_message,
     void *userdata)
 {
     AppStage_TrackerSettings *thisPtr = static_cast<AppStage_TrackerSettings *>(userdata);
 
-    switch (ResultCode)
+    switch (response_message->result_code)
     {
     case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
-            const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+            const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_message->opaque_response_handle);
 
             for (int tracker_index = 0; tracker_index < response->result_tracker_list().trackers_size(); ++tracker_index)
             {

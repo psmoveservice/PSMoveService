@@ -228,7 +228,7 @@ void App::onSDLEvent(const SDL_Event &e)
 void App::onClientPSMoveEvent(
     const ClientPSMoveAPI::EventMessage *event)
 {
-    ClientPSMoveAPI::eClientPSMoveAPIEvent event_type = event->event_type;
+    ClientPSMoveAPI::eEventType event_type = event->event_type;
     ClientPSMoveAPI::t_event_data_handle opaque_event_handle = event->event_data_handle;
 
     // Try giving the event to the current AppStage first
@@ -250,7 +250,7 @@ void App::onClientPSMoveResponse(
     const ClientPSMoveAPI::ResponseMessage *response)
 {
     ClientPSMoveAPI::t_request_id request_id= response->request_id;
-    const PSMoveProtocol::Response *protocol_response = GET_PSMOVEPROTOCOL_RESPONSE(response->response_handle);
+    const PSMoveProtocol::Response *protocol_response = GET_PSMOVEPROTOCOL_RESPONSE(response->opaque_response_handle);
     PSMoveProtocol::Response_ResponseType protocol_response_type= protocol_response->type();
     const std::string& protocol_response_type_name = PSMoveProtocol::Response_ResponseType_Name(protocol_response_type);
 

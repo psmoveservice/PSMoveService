@@ -61,7 +61,7 @@ public:
     }
 
     template <class t_app_stage>
-    inline void registerEventFallbackAppStage(ClientPSMoveAPI::eClientPSMoveAPIEvent event_type)
+    inline void registerEventFallbackAppStage(ClientPSMoveAPI::eEventType event_type)
     {
         t_app_stage *app_stage= getAppStage<t_app_stage>();
         m_eventToFallbackAppStageMap.insert(t_app_stage_event_map_entry(event_type, app_stage));
@@ -84,13 +84,9 @@ protected:
     void render();
 
     static void null_response_callback(
-        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-        const ClientPSMoveAPI::t_request_id request_id,
-        ClientPSMoveAPI::t_response_handle response_handle,
+        const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata)
-    {
-
-    }
+    { }
 
 private:
     // Contexts
@@ -113,8 +109,8 @@ private:
     typedef std::map<const char *, class AppStage *> t_app_stage_map;
     typedef std::pair<const char *, class AppStage *> t_app_stage_map_entry;
 
-    typedef std::map<ClientPSMoveAPI::eClientPSMoveAPIEvent, class AppStage *> t_app_stage_event_map;
-    typedef std::pair<ClientPSMoveAPI::eClientPSMoveAPIEvent, class AppStage *> t_app_stage_event_map_entry;
+    typedef std::map<ClientPSMoveAPI::eEventType, class AppStage *> t_app_stage_event_map;
+    typedef std::pair<ClientPSMoveAPI::eEventType, class AppStage *> t_app_stage_event_map_entry;
 
     t_app_stage_map m_nameToAppStageMap;
 

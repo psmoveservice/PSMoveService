@@ -51,14 +51,12 @@ public:
 
 protected:
     virtual bool onClientAPIEvent(
-        ClientPSMoveAPI::eClientPSMoveAPIEvent event,
+        ClientPSMoveAPI::eEventType event,
         ClientPSMoveAPI::t_event_data_handle opaque_event_handle) override;
 
     void request_tracker_list();
     static void handle_tracker_list_response(
-        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-        const ClientPSMoveAPI::t_request_id request_id,
-        ClientPSMoveAPI::t_response_handle response_handle,
+        const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
 
 protected:

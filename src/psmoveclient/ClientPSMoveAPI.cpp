@@ -13,7 +13,6 @@ typedef std::map<int, ClientControllerView *> t_controller_view_map;
 typedef std::map<int, ClientControllerView *>::iterator t_controller_view_map_iterator;
 typedef std::pair<int, ClientControllerView *> t_id_controller_view_pair;
 typedef std::deque<ClientPSMoveAPI::Message> t_message_queue;
-typedef std::vector<ResponsePtr> t_response_reference_cache;
 typedef std::vector<ResponsePtr> t_event_reference_cache;
 
 //-- internal implementation -----
@@ -76,7 +75,7 @@ public:
         // Drop all of the message parameters
         // NOTE: std::vector::clear() calls the destructor on each element in the vector
         // This will decrement the last ref count to the parameter data, causing them to get cleaned up.
-        m_response_reference_cache.clear();
+        m_request_manager.flush_response_cache();
         m_event_reference_cache.clear();
 
         // Process incoming/outgoing networking requests
@@ -119,8 +118,11 @@ public:
         // Drop all of the message parameters
         // NOTE: std::vector::clear() calls the destructor on each element in the vector
         // This will decrement the last ref count to the parameter data, causing them to get cleaned up.
-        m_response_reference_cache.clear();
+        m_request_manager.flush_response_cache();
         m_event_reference_cache.clear();
+
+        // No more pending requests
+        m_pending_request_map.clear();
     }
 
     // -- ClientPSMoveAPI Requests -----
@@ -167,6 +169,19 @@ public:
             // Remove the entry from the map
             m_controller_view_map.erase(view_entry);
         }
+    }
+
+    ClientPSMoveAPI::t_request_id get_controller_list()
+    {
+        CLIENT_LOG_INFO("get_controller_list") << "requesting controller list" << std::endl;
+
+        // Tell the psmove service that we want a list of all connected controllers
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST);
+
+        m_request_manager.send_request(request);
+
+        return request->request_id();
     }
 
     ClientPSMoveAPI::t_request_id start_controller_data_stream(ClientControllerView * view, unsigned int flags)
@@ -308,7 +323,7 @@ public:
     {
         assert(notification->request_id() == -1);
 
-        ClientPSMoveAPI::eClientPSMoveAPIEvent specificEventType= ClientPSMoveAPI::opaqueServiceEvent;
+        ClientPSMoveAPI::eEventType specificEventType= ClientPSMoveAPI::opaqueServiceEvent;
 
         // See if we can translate this to an event type a client without protocol access can see
         switch(notification->type())
@@ -359,53 +374,28 @@ public:
 
     // Request Manager Callback
     static void handle_response_message(
-        ClientPSMoveAPI::eClientPSMoveResultCode result_code,
-        const ClientPSMoveAPI::t_request_id request_id,
-        ResponsePtr response,
+        const ClientPSMoveAPI::ResponseMessage *response_message,
         void *userdata)
     {
         ClientPSMoveAPIImpl *this_ptr = reinterpret_cast<ClientPSMoveAPIImpl *>(userdata);
 
-        if (request_id != ClientPSMoveAPI::INVALID_REQUEST_ID)
+        if (response_message->request_id != ClientPSMoveAPI::INVALID_REQUEST_ID)
         {
             // If there is a callback waiting to be called for this request,
-            // then go ahread and execute it now.
-            if (!this_ptr->execute_callback(result_code, request_id, response))
+            // then go ahead and execute it now.
+            if (!this_ptr->execute_callback(response_message))
             {
                 // Otherwise go ahead and enqueue a message that can be picked up
                 // in poll_next_message() this frame.
-                this_ptr->enqueue_response_message(result_code, request_id, response);
+                this_ptr->enqueue_response_message(response_message);
             }
         }
     }
 
-    // Message Handling
-    void enqueue_response_message(
-        ClientPSMoveAPI::eClientPSMoveResultCode result_code,
-        const ClientPSMoveAPI::t_request_id request_id,
-        ResponsePtr response)
-    {
-        ClientPSMoveAPI::Message message;
-
-        memset(&message, 0, sizeof(ClientPSMoveAPI::Message));
-        message.payload_type = ClientPSMoveAPI::_messagePayloadType_Response;
-        message.response_data.request_id = request_id;
-        message.response_data.result_code = result_code;
-        //NOTE: This pointer is only safe until the next update call to update is made
-        message.response_data.response_handle = (bool)response ? static_cast<const void *>(response.get()) : nullptr;
-
-        // Add the message to the message queue
-        m_message_queue.push_back(message);
-
-        // Maintain a reference to the response until the next update
-        if (response)
-        {
-            m_response_reference_cache.push_back(response);
-        }
-    }
-
+    // Message Helpers
+    //-----------------
     void enqueue_event_message(
-        ClientPSMoveAPI::eClientPSMoveAPIEvent event_type,
+        ClientPSMoveAPI::eEventType event_type,
         ResponsePtr event)
     {
         ClientPSMoveAPI::Message message;
@@ -446,10 +436,9 @@ public:
     }
 
     bool execute_callback(
-        ClientPSMoveAPI::eClientPSMoveResultCode result_code,
-        const ClientPSMoveAPI::t_request_id request_id,
-        ResponsePtr response)
+        const ClientPSMoveAPI::ResponseMessage *response_message)
     {
+        const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
         bool bExecutedCallback = false;
 
         if (request_id != ClientPSMoveAPI::INVALID_REQUEST_ID)
@@ -462,14 +451,8 @@ public:
 
                 if (pendingRequest.response_callback != nullptr)
                 {
-                    // Convert a response pointer to an opaque pointer
-                    ClientPSMoveAPI::t_response_handle response_handle =
-                        (bool)response ? static_cast<const void *>(response.get()) : nullptr;
-
                     pendingRequest.response_callback(
-                        result_code,
-                        request_id,
-                        response_handle,
+                        response_message,
                         pendingRequest.response_userdata);
 
                     bExecutedCallback = true;
@@ -477,13 +460,22 @@ public:
 
                 m_pending_request_map.erase(iter);
             }
-            else
-            {
-                enqueue_response_message(result_code, request_id, response);
-            }
         }
 
         return bExecutedCallback;
+    }
+
+    void enqueue_response_message(
+        const ClientPSMoveAPI::ResponseMessage *response_message)
+    {
+        ClientPSMoveAPI::Message message;
+
+        memset(&message, 0, sizeof(ClientPSMoveAPI::Message));
+        message.payload_type = ClientPSMoveAPI::_messagePayloadType_Response;
+        message.response_data= *response_message;
+
+        // Add the message to the message queue
+        m_message_queue.push_back(message);
     }
 
     void cancel_callback(ClientPSMoveAPI::t_request_id request_id)
@@ -528,7 +520,6 @@ private:
     // These vectors are used solely to keep the ref counted pointers to the 
     // response and event parameter data valid until the next update call.
     // The message queue contains raw void pointers to the response and event data.
-    t_response_reference_cache m_response_reference_cache;
     t_event_reference_cache m_event_reference_cache;
 };
 
@@ -606,6 +597,19 @@ void ClientPSMoveAPI::free_controller_view(ClientControllerView * view)
     {
         ClientPSMoveAPI::m_implementation_ptr->free_controller_view(view);
     }
+}
+
+ClientPSMoveAPI::t_request_id 
+ClientPSMoveAPI::get_controller_list()
+{
+    ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id = ClientPSMoveAPI::m_implementation_ptr->get_controller_list();
+    }
+
+    return request_id;
 }
 
 ClientPSMoveAPI::t_request_id 

@@ -421,14 +421,12 @@ void AppStage_TestTracker::request_tracker_start_stream(
 }
 
 void AppStage_TestTracker::handle_tracker_start_stream_response(
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-    const ClientPSMoveAPI::t_request_id request_id,
-    ClientPSMoveAPI::t_response_handle response_handle,
+    const ClientPSMoveAPI::ResponseMessage *response,
     void *userdata)
 {
     AppStage_TestTracker *thisPtr = static_cast<AppStage_TestTracker *>(userdata);
 
-    switch (ResultCode)
+    switch (response->result_code)
     {
     case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
@@ -479,9 +477,7 @@ void AppStage_TestTracker::request_tracker_stop_stream(
 }
 
 void AppStage_TestTracker::handle_tracker_stop_stream_response(
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-    const ClientPSMoveAPI::t_request_id request_id,
-    ClientPSMoveAPI::t_response_handle response_handle,
+    const ClientPSMoveAPI::ResponseMessage *response,
     void *userdata)
 {
     AppStage_TestTracker *thisPtr = static_cast<AppStage_TestTracker *>(userdata);
@@ -489,7 +485,7 @@ void AppStage_TestTracker::handle_tracker_stop_stream_response(
     // In either case consider the stream as now inactive
     thisPtr->m_bStreamIsActive = false;
 
-    switch (ResultCode)
+    switch (response->result_code)
     {
     case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {

@@ -71,7 +71,7 @@ private:
     }
 
     // ClientPSMoveAPI
-    void handle_client_psmove_event(ClientPSMoveAPI::eClientPSMoveAPIEvent event_type)
+    void handle_client_psmove_event(ClientPSMoveAPI::eEventType event_type)
     {
         switch (event_type)
         {

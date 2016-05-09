@@ -27,16 +27,12 @@ public:
 
 protected:
     static void handle_tracker_start_stream_response(
-        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-        const ClientPSMoveAPI::t_request_id request_id,
-        ClientPSMoveAPI::t_response_handle response_handle,
+        const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
     void open_shared_memory_stream();
 
     static void handle_tracker_stop_stream_response(
-        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-        const ClientPSMoveAPI::t_request_id request_id,
-        ClientPSMoveAPI::t_response_handle response_handle,
+        const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
     void close_shared_memory_stream();
 

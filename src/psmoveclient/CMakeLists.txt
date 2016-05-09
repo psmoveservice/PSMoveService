@@ -36,7 +36,7 @@ add_library(PSMoveClient SHARED ${PSMOVECLIENT_LIBRARY_SRC})
 target_include_directories(PSMoveClient PUBLIC ${PSMOVE_CLIENT_INCL_DIRS})
 target_link_libraries(PSMoveClient ${PSMOVE_CLIENT_REQ_LIBS})
 set_target_properties(PSMoveClient PROPERTIES
-    COMPILE_FLAGS -DBUILDING_SHARED_LIBRARY)
+    COMPILE_FLAGS -DBUILDING_SHARED_PSMOVECLIENT_LIBRARY)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")

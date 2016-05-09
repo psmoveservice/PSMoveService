@@ -772,14 +772,12 @@ void AppStage_MagnetometerCalibration::renderUI()
 
 //-- private methods -----
 void AppStage_MagnetometerCalibration::handle_acquire_controller(
-    ClientPSMoveAPI::eClientPSMoveResultCode resultCode,
-    const ClientPSMoveAPI::t_request_id request_id, 
-    ClientPSMoveAPI::t_response_handle opaque_response_handle,
+    const ClientPSMoveAPI::ResponseMessage *response,
     void *userdata)
 {
     AppStage_MagnetometerCalibration *thisPtr= reinterpret_cast<AppStage_MagnetometerCalibration *>(userdata);
 
-    if (resultCode == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
     {
         thisPtr->m_isControllerStreamActive= true;
         thisPtr->m_lastControllerSeqNum= -1;
@@ -812,14 +810,12 @@ void AppStage_MagnetometerCalibration::request_exit_to_app_stage(const char *app
 }
 
 void AppStage_MagnetometerCalibration::handle_release_controller(
-    ClientPSMoveAPI::eClientPSMoveResultCode resultCode,
-    const ClientPSMoveAPI::t_request_id request_id, 
-    ClientPSMoveAPI::t_response_handle opaque_response_handle,
+    const ClientPSMoveAPI::ResponseMessage *response,
     void *userdata)
 {
     AppStage_MagnetometerCalibration *thisPtr= reinterpret_cast<AppStage_MagnetometerCalibration *>(userdata);
 
-    if (resultCode != ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (response->result_code != ClientPSMoveAPI::_clientPSMoveResultCode_ok)
     {
         Log_ERROR("AppStage_MagnetometerCalibration", "Failed to release controller on server!");
     }
@@ -830,14 +826,12 @@ void AppStage_MagnetometerCalibration::handle_release_controller(
 }
 
 void AppStage_MagnetometerCalibration::handle_set_magnetometer_calibration(
-    ClientPSMoveAPI::eClientPSMoveResultCode resultCode,
-    const ClientPSMoveAPI::t_request_id request_id, 
-    ClientPSMoveAPI::t_response_handle opaque_response_handle,
+    const ClientPSMoveAPI::ResponseMessage *response,
     void *userdata)
 {
     AppStage_MagnetometerCalibration *thisPtr= reinterpret_cast<AppStage_MagnetometerCalibration *>(userdata);
 
-    if (resultCode == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
     {
         thisPtr->m_app->getOrbitCamera()->resetOrientation();
         thisPtr->m_menuState= AppStage_MagnetometerCalibration::complete;

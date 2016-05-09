@@ -2,7 +2,7 @@
 #define CLIENT_CONFIG_H
 
 #ifdef _WIN32
-#  if defined(BUILDING_SHARED_LIBRARY)
+#  if defined(BUILDING_SHARED_PSMOVECLIENT_LIBRARY)
 #    define CLIENTPSMOVEAPI __declspec(dllexport)
 #  else
 #    define CLIENTPSMOVEAPI __declspec(dllimport)

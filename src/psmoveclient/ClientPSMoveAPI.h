@@ -4,6 +4,7 @@
 //-- includes -----
 #include "ClientConfig.h"
 #include "ClientLog.h"
+#include "ClientControllerView.h"
 
 #ifdef HAS_PROTOCOL_ACCESS
 #include "PSMoveProtocol.pb.h"
@@ -17,6 +18,9 @@ class ClientHMDView;
 //-- constants -----
 #define PSMOVESERVICE_DEFAULT_ADDRESS   "localhost"
 #define PSMOVESERVICE_DEFAULT_PORT      "9512"
+
+// See ControllerManager.h in PSMoveService
+#define PSMOVESERVICE_MAX_CONTROLLER_COUNT  5
 
 //-- macros -----
 #ifdef HAS_PROTOCOL_ACCESS
@@ -35,7 +39,15 @@ public:
         INVALID_REQUEST_ID= -1
     };
 
-    enum eClientPSMoveAPIEvent
+    enum eControllerDataStreamFlags
+    {
+        defaultStreamOptions = 0x00,
+        includeRawSensorData = 0x01
+    };
+
+    // Service Events
+    //--------------
+    enum eEventType
     {
         // Client Events
         connectedToService,
@@ -48,6 +60,19 @@ public:
         trackerListUpdated,
     };
 
+    typedef const void *t_event_data_handle;
+    struct EventMessage
+    {
+        eEventType event_type;
+
+        // Opaque handle that can be converted to a <const PSMoveProtocol::Response *> pointer
+        // using GET_PSMOVEPROTOCOL_EVENT(handle) if you linked against the PSMoveProtocol lib.
+        t_event_data_handle event_data_handle;
+    };
+
+    // Service Responses
+    //------------------
+
     enum eClientPSMoveResultCode
     {
         _clientPSMoveResultCode_ok,
@@ -55,29 +80,56 @@ public:
         _clientPSMoveResultCode_canceled
     };
 
+    enum eResponsePayloadType
+    {
+        _responsePayloadType_Empty,
+        _responsePayloadType_ControllerCount,
+
+        _responsePayloadType_Count
+    };
+
+    typedef int t_request_id;
+    typedef const void*t_response_handle;
+    typedef void *t_request_handle;
+
+    struct ResponsePayload_ControllerList
+    {
+        int controller_id[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
+        ClientControllerView::eControllerType controller_type[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
+        int count;
+    };
+
+    struct ResponseMessage
+    {
+        // Fields common to all responses
+        //----
+        // The id of the request this response is from
+        t_request_id request_id;
+
+        // Whether this request succeeded, failed, or was canceled
+        eClientPSMoveResultCode result_code;
+
+        // Opaque handle that can be converted to a <const PSMoveProtocol::Response *> pointer
+        // using GET_PSMOVEPROTOCOL_RESPONSE(handle) if you linked against the PSMoveProtocol lib.
+        t_response_handle opaque_response_handle;
+
+        // Payload data specific to a subset of the responses
+        //----
+        union
+        {
+            ResponsePayload_ControllerList controller_list;
+        } payload;
+        eResponsePayloadType payload_type;
+    };
+
+    // Message Container
+    //------------------
     enum eMessagePayloadType
     {
         _messagePayloadType_Event,
         _messagePayloadType_Response,
 
         _messagePayloadType_Count
-    };
-
-    typedef const void *t_event_data_handle;
-    struct EventMessage
-    {
-        eClientPSMoveAPIEvent event_type;
-        t_event_data_handle event_data_handle;
-    };
-
-    typedef int t_request_id;
-    typedef const void*t_response_handle;
-    typedef void *t_request_handle;
-    struct ResponseMessage
-    {
-        t_request_id request_id;
-        t_response_handle response_handle;
-        eClientPSMoveResultCode result_code;
     };
 
     struct Message
@@ -89,33 +141,29 @@ public:
         eMessagePayloadType payload_type;
     };
 
+    // Client Interface
+    //-----------------
     static bool startup(
         const std::string &host,
         const std::string &port,
         e_log_severity_level log_level = _log_severity_level_info);
-    
+    static bool has_started();
+
     /**< 
         Process incoming/outgoing networking requests via the network manager. 
         Fires off callbacks for any registered request_id that got responses.
     */
     static void update();  
-
     /**< Poll the next message from the service in the queue */
     static bool poll_next_message(Message *message, size_t message_size);
 
     static void shutdown();
 
-    static bool has_started();
-
     static ClientControllerView *allocate_controller_view(int ControllerID);
     static void free_controller_view(ClientControllerView *view);
 
-    enum eControllerDataStreamFlags
-    {
-        defaultStreamOptions= 0x00,
-        includeRawSensorData= 0x01
-    };
-    static t_request_id start_controller_data_stream(ClientControllerView *view, unsigned int flags);
+    static t_request_id get_controller_list();
+    static t_request_id start_controller_data_stream(ClientControllerView *view, unsigned int data_stream_flags);
     static t_request_id stop_controller_data_stream(ClientControllerView *view);
     static t_request_id set_controller_rumble(ClientControllerView *view, float rumble_amount);
     static t_request_id set_led_color(ClientControllerView *view, unsigned char r, unsigned char g, unsigned b);
@@ -125,11 +173,7 @@ public:
     static t_request_id send_opaque_request(t_request_handle request_handle);
 
     /// Used to send register a callback to get called when an async request is completed
-    typedef void(*t_response_callback)(
-        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-        const ClientPSMoveAPI::t_request_id request_id,
-        ClientPSMoveAPI::t_response_handle response_handle,
-        void *userdata);
+    typedef void(*t_response_callback)(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
     static void register_callback(ClientPSMoveAPI::t_request_id request_id, t_response_callback callback, void *callback_userdata);
     static void cancel_callback(ClientPSMoveAPI::t_request_id request_id);
 

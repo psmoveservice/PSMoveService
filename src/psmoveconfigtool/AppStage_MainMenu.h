@@ -17,7 +17,7 @@ public:
     virtual void renderUI() override;
 
     virtual bool onClientAPIEvent(
-        ClientPSMoveAPI::eClientPSMoveAPIEvent event_type, 
+        ClientPSMoveAPI::eEventType event_type,
         ClientPSMoveAPI::t_event_data_handle opaque_event_handle) override;
 
     static const char *APP_STAGE_NAME;

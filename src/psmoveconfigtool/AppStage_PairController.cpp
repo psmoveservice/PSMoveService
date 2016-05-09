@@ -188,7 +188,7 @@ void AppStage_PairController::renderUI()
 }
 
 bool AppStage_PairController::onClientAPIEvent(
-    ClientPSMoveAPI::eClientPSMoveAPIEvent event, 
+    ClientPSMoveAPI::eEventType event,
     ClientPSMoveAPI::t_event_data_handle opaque_event_handle)
 {
     bool bHandled= false;
@@ -244,14 +244,12 @@ void AppStage_PairController::request_controller_unpair(
 }
 
 void AppStage_PairController::handle_controller_unpair_start_response(
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, 
-    const ClientPSMoveAPI::t_request_id request_id, 
-    ClientPSMoveAPI::t_response_handle response_handle, 
+    const ClientPSMoveAPI::ResponseMessage *response,
     void *userdata)
 {
     AppStage_PairController *thisPtr= static_cast<AppStage_PairController *>(userdata);
 
-    switch(ResultCode)
+    switch(response->result_code)
     {
         case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
@@ -312,14 +310,12 @@ void AppStage_PairController::request_controller_pair(
 }
 
 void AppStage_PairController::handle_controller_pair_start_response(
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, 
-    const ClientPSMoveAPI::t_request_id request_id, 
-    ClientPSMoveAPI::t_response_handle response_handle, 
+    const ClientPSMoveAPI::ResponseMessage *response,
     void *userdata)
 {
     AppStage_PairController *thisPtr= static_cast<AppStage_PairController *>(userdata);
 
-    switch(ResultCode)
+    switch(response->result_code)
     {
         case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
@@ -392,9 +388,7 @@ void AppStage_PairController::request_cancel_bluetooth_operation(
 }
 
 void AppStage_PairController::handle_cancel_bluetooth_operation_response(
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, 
-    const ClientPSMoveAPI::t_request_id request_id, 
-    ClientPSMoveAPI::t_response_handle response_handle, 
+    const ClientPSMoveAPI::ResponseMessage *response,
     void *userdata)
 {
     AppStage_PairController *thisPtr= static_cast<AppStage_PairController *>(userdata);
@@ -404,7 +398,7 @@ void AppStage_PairController::handle_cancel_bluetooth_operation_response(
         // No longer pending a bluetooth operation in any case
         thisPtr->m_pendingBluetoothOpControllerIndex= -1;
 
-        switch(ResultCode)
+        switch(response->result_code)
         {
             case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
             case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
