@@ -416,11 +416,13 @@ public:
         }
     }
 
-    void register_callback(
+    bool register_callback(
         ClientPSMoveAPI::t_request_id request_id,
         ClientPSMoveAPI::t_response_callback callback,
         void *callback_userdata)
     {
+        bool bSuccess = false;
+
         if (request_id != ClientPSMoveAPI::INVALID_REQUEST_ID)
         {
             PendingRequest pendingRequest;
@@ -432,7 +434,10 @@ public:
             pendingRequest.response_userdata = callback_userdata;
 
             m_pending_request_map.insert(t_pending_request_map_entry(request_id, pendingRequest));
+            bSuccess = true;
         }
+
+        return bSuccess;
     }
 
     bool execute_callback(
@@ -478,8 +483,10 @@ public:
         m_message_queue.push_back(message);
     }
 
-    void cancel_callback(ClientPSMoveAPI::t_request_id request_id)
+    bool cancel_callback(ClientPSMoveAPI::t_request_id request_id)
     {
+        bool bSuccess = false;
+
         if (request_id != ClientPSMoveAPI::INVALID_REQUEST_ID)
         {
             t_pending_request_map::iterator iter= m_pending_request_map.find(request_id);
@@ -487,8 +494,11 @@ public:
             if (iter != m_pending_request_map.end())
             {
                 m_pending_request_map.erase(iter);
+                bSuccess = true;
             }
         }
+
+        return bSuccess;
     }
 
 private:
@@ -699,22 +709,35 @@ ClientPSMoveAPI::send_opaque_request(
     return request_id;
 }
 
-void ClientPSMoveAPI::register_callback(
+bool ClientPSMoveAPI::register_callback(
     ClientPSMoveAPI::t_request_id request_id,
     ClientPSMoveAPI::t_response_callback callback, 
     void *callback_userdata)
 {
+    bool bSuccess = false;
+
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        ClientPSMoveAPI::m_implementation_ptr->register_callback(request_id, callback, callback_userdata);
+        bSuccess= ClientPSMoveAPI::m_implementation_ptr->register_callback(request_id, callback, callback_userdata);
     }
+
+    return bSuccess;
 }
 
-void ClientPSMoveAPI::cancel_callback(
+bool ClientPSMoveAPI::cancel_callback(
     ClientPSMoveAPI::t_request_id request_id)
 {
+    bool bSuccess = false;
+
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        ClientPSMoveAPI::m_implementation_ptr->cancel_callback(request_id);
+        bSuccess= ClientPSMoveAPI::m_implementation_ptr->cancel_callback(request_id);
     }
+
+    return bSuccess;
+}
+
+bool ClientPSMoveAPI::eat_response(ClientPSMoveAPI::t_request_id request_id)
+{
+    return ClientPSMoveAPI::register_callback(request_id, ClientPSMoveAPI::null_response_callback, nullptr);
 }

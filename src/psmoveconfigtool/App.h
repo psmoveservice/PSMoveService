@@ -67,11 +67,6 @@ public:
         m_eventToFallbackAppStageMap.insert(t_app_stage_event_map_entry(event_type, app_stage));
     }
 
-    static void eat_response(ClientPSMoveAPI::t_request_id request_id)
-    {
-        ClientPSMoveAPI::register_callback(request_id, App::null_response_callback, nullptr);
-    }
-
 protected:
     bool init(int argc, char** argv);
     void destroy();
@@ -82,11 +77,6 @@ protected:
 
     void update();
     void render();
-
-    static void null_response_callback(
-        const ClientPSMoveAPI::ResponseMessage *response,
-        void *userdata)
-    { }
 
 private:
     // Contexts

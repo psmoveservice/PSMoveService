@@ -174,10 +174,16 @@ public:
 
     /// Used to send register a callback to get called when an async request is completed
     typedef void(*t_response_callback)(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
-    static void register_callback(ClientPSMoveAPI::t_request_id request_id, t_response_callback callback, void *callback_userdata);
-    static void cancel_callback(ClientPSMoveAPI::t_request_id request_id);
+    static bool register_callback(ClientPSMoveAPI::t_request_id request_id, t_response_callback callback, void *callback_userdata);
+    static bool cancel_callback(ClientPSMoveAPI::t_request_id request_id);
+    static bool eat_response(ClientPSMoveAPI::t_request_id request_id);
 
 private:
+    static void null_response_callback(
+        const ClientPSMoveAPI::ResponseMessage *response,
+        void *userdata)
+    { }
+
     // Not allowed to instantiate
     ClientPSMoveAPI();
 
