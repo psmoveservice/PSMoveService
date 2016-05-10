@@ -16,7 +16,7 @@ public:
     : PSMoveConfig(fnamebase)
     , is_valid(false)
     , max_poll_failure_count(100)
-    , exposure(40)
+    , exposure(32)
     {};
     
     virtual const boost::property_tree::ptree config2ptree();

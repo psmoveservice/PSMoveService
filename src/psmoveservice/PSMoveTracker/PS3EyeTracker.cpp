@@ -48,7 +48,7 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
     {
         is_valid = pt.get<bool>("is_valid", false);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
-        exposure = pt.get<double>("exposure", 40);
+        exposure = pt.get<double>("exposure", 32);
     }
     else
     {

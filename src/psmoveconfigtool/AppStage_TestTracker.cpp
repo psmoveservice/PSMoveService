@@ -341,13 +341,13 @@ void AppStage_TestTracker::renderUI()
             {
                 const AppStage_TrackerSettings *trackerSettings = m_app->getAppStage<AppStage_TrackerSettings>();
                 const AppStage_TrackerSettings::TrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
-                request_tracker_set_exposure(trackerInfo->TrackerID, m_trackerExposure+10);
+                request_tracker_set_exposure(trackerInfo->TrackerID, m_trackerExposure+8);
             }
             if (ImGui::Button("-"))
             {
                 const AppStage_TrackerSettings *trackerSettings = m_app->getAppStage<AppStage_TrackerSettings>();
                 const AppStage_TrackerSettings::TrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
-                request_tracker_set_exposure(trackerInfo->TrackerID, m_trackerExposure-10);
+                request_tracker_set_exposure(trackerInfo->TrackerID, m_trackerExposure-8);
             }
         }
         
