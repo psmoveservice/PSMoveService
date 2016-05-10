@@ -257,6 +257,12 @@ message Response {
         double exposure= 1;
     }
     ResultTrackerSettings result_tracker_settings = 24;
+    
+    // This is returned in response to a SET_TRACKER_EXPOSURE request
+    message ResultSetTrackerExposure {
+        double new_exposure= 1;
+    }
+    ResultSetTrackerExposure result_set_tracker_exposure = 25;    
 }
 
 // Unreliable (UDP) device data packet format

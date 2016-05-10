@@ -256,6 +256,7 @@ void AppStage_TestTracker::enter()
     assert(trackerInfo->TrackerID != -1);
 
     m_app->setCameraType(_cameraFixed);
+    m_trackerID = trackerInfo->TrackerID;
     
     request_tracker_get_settings(trackerInfo->TrackerID);
 
@@ -269,7 +270,7 @@ void AppStage_TestTracker::exit()
 
     if (m_shared_memory_accesor != nullptr)
     {
-        delete[] m_shared_memory_accesor;
+        delete m_shared_memory_accesor;
         m_shared_memory_accesor = nullptr;
     }
 }
@@ -456,6 +457,9 @@ void AppStage_TestTracker::handle_tracker_start_stream_response(
             thisPtr->m_bStreamIsActive = true;
             thisPtr->m_menuState = AppStage_TestTracker::idle;
             thisPtr->open_shared_memory_stream();
+
+            // Get the tracker settings now that the tracker stream is open
+            thisPtr->request_tracker_get_settings(thisPtr->m_trackerID);
         } break;
 
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
@@ -563,14 +567,13 @@ void AppStage_TestTracker::handle_tracker_set_exposure_response(
     {
         case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
-            const AppStage_TrackerSettings *trackerSettings = thisPtr->m_app->getAppStage<AppStage_TrackerSettings>();
-            const AppStage_TrackerSettings::TrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
-            thisPtr->request_tracker_get_settings(trackerInfo->TrackerID);
+            const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+            thisPtr->m_trackerExposure = response->result_set_tracker_exposure().new_exposure();
         } break;
         case ClientPSMoveAPI::_clientPSMoveResultCode_error:
         case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
         {
-            // TODO: Print error.
+            CLIENT_LOG_INFO("AppStage_TestTracker") << "Failed to set the tracker exposure!";
         } break;
     }
     
@@ -606,7 +609,7 @@ void AppStage_TestTracker::handle_tracker_get_settings_response(
         case ClientPSMoveAPI::_clientPSMoveResultCode_error:
         case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
         {
-            // TODO: Print error.
+            CLIENT_LOG_INFO("AppStage_TestTracker") << "Failed to get the tracker settings!";
         } break;
     }
 }
