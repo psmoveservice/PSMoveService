@@ -69,7 +69,9 @@ message Request {
 
         GET_TRACKER_LIST = 10;
         START_TRACKER_DATA_STREAM = 11;
-        STOP_TRACKER_DATA_STREAM = 12;       
+        STOP_TRACKER_DATA_STREAM = 12;
+        GET_TRACKER_SETTINGS = 13;
+        SET_TRACKER_EXPOSURE = 14;
     }
     RequestType type = 2;
    
@@ -153,7 +155,21 @@ message Request {
     message RequestStopTrackerDataStream {
         int32 tracker_id = 1;
     }
-    RequestStopTrackerDataStream request_stop_tracker_data_stream = 30;   
+    RequestStopTrackerDataStream request_stop_tracker_data_stream = 30;
+    
+    // Parameters for GET_TRACKER_SETTINGS
+    message RequestGetTrackerSettings {
+        int32 tracker_id = 1;
+    }
+    RequestGetTrackerSettings request_get_tracker_settings = 31;
+
+    // Parameters for SET_TRACKER_EXPOSURE
+    message RequestSetTrackerExposure {
+        int32 tracker_id = 1;
+        double value = 2;
+    }
+    RequestSetTrackerExposure request_set_tracker_exposure = 32;
+
 }
 
 // Reliable (TCP) responses to requests
@@ -163,12 +179,13 @@ message Response {
         GENERAL_RESULT= 0;
         CONNECTION_INFO= 1;
         CONTROLLER_LIST= 2;
-        CONTROLLER_LIST_UPDATED= 3;        
+        CONTROLLER_LIST_UPDATED= 3;
         UNPAIR_REQUEST_COMPLETED= 4;
         PAIR_REQUEST_COMPLETED= 5;
         BLUETOOTH_REQUEST_PROGRESS= 6;
         TRACKER_LIST= 7;
-        TRACKER_LIST_UPDATED= 8;       
+        TRACKER_LIST_UPDATED= 8;
+        TRACKER_SETTINGS= 9;
     }
 
     enum ResultCode {
@@ -191,7 +208,7 @@ message Response {
     ResultConnectionInfo result_connection_info = 20;
     
     // Parameters for CONTROLLER_LIST
-    // This is returned in response to a CONTROLLER_LIST request
+    // This is returned in response to a GET_CONTROLLER_LIST request
     message ResultControllerList {
         message ControllerInfo {
             int32 controller_id= 1;
@@ -222,7 +239,7 @@ message Response {
     ResultBluetoothRequestProgress result_bluetooth_request_progress = 22;
    
     // Parameters for TRACKER_LIST
-    // This is returned in response to a TRACKER_LIST request
+    // This is returned in response to a GET_TRACKER_LIST request
     message ResultTrackerList {
         message TrackerInfo {
             int32 tracker_id= 1;
@@ -233,7 +250,19 @@ message Response {
         }
         repeated TrackerInfo trackers = 1;
     }
-    ResultTrackerList result_tracker_list = 23;  
+    ResultTrackerList result_tracker_list = 23;
+    
+    // This is returned in response to a GET_TRACKER_SETTINGS request
+    message ResultTrackerSettings {
+        double exposure= 1;
+    }
+    ResultTrackerSettings result_tracker_settings = 24;
+    
+    // This is returned in response to a SET_TRACKER_EXPOSURE request
+    message ResultSetTrackerExposure {
+        double new_exposure= 1;
+    }
+    ResultSetTrackerExposure result_set_tracker_exposure = 25;    
 }
 
 // Unreliable (UDP) device data packet format

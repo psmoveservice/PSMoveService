@@ -324,3 +324,13 @@ void ServerTrackerView::generate_tracker_data_frame_for_stream(
 
     data_frame->set_device_category(PSMoveProtocol::DeviceDataFrame::TRACKER);
 }
+
+double ServerTrackerView::getExposure() const
+{
+    return m_device->getExposure();
+}
+
+void ServerTrackerView::setExposure(double value)
+{
+    m_device->setExposure(value);
+}

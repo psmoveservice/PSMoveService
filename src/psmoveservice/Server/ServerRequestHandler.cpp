@@ -205,7 +205,12 @@ public:
             case PSMoveProtocol::Request_RequestType_STOP_TRACKER_DATA_STREAM:
                 handle_request__stop_tracker_data_stream(context, response);
                 break;
-
+            case PSMoveProtocol::Request_RequestType_GET_TRACKER_SETTINGS:
+                handle_request__get_tracker_settings(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE:
+                handle_request__set_tracker_exposure(context, response);
+                break;
             default:
                 assert(0 && "Whoops, bad request!");
         }
@@ -761,6 +766,65 @@ protected:
             else
             {
                 // Device not opened
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+    
+    void handle_request__get_tracker_settings(const RequestContext &context,
+                                      PSMoveProtocol::Response *response)
+    {
+        const int tracker_id= context.request->request_get_tracker_settings().tracker_id();
+
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                PSMoveProtocol::Response_ResultTrackerSettings* settings = 
+                    response->mutable_result_tracker_settings();
+
+                settings->set_exposure(tracker_view->getExposure());
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+    
+    void handle_request__set_tracker_exposure(const RequestContext &context,
+                                              PSMoveProtocol::Response *response)
+    {
+        const int tracker_id= context.request->request_set_tracker_exposure().tracker_id();
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                const double desired_exposure = context.request->request_set_tracker_exposure().value();
+                PSMoveProtocol::Response_ResultSetTrackerExposure* result_exposure =
+                    response->mutable_result_set_tracker_exposure();
+
+                // Set the desired exposure on the tracker
+                tracker_view->setExposure(desired_exposure);
+
+                // Return back the actual exposure that got get
+                result_exposure->set_new_exposure(tracker_view->getExposure());
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
             }
         }

@@ -39,6 +39,9 @@ public:
 
     // Returns the name of the shared memory block video frames are written to
     std::string getSharedMemoryStreamName() const;
+    
+    double getExposure() const;
+    void setExposure(double value);
 
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
