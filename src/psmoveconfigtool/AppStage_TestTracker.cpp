@@ -244,6 +244,7 @@ AppStage_TestTracker::AppStage_TestTracker(App *app)
     , m_menuState(AppStage_TestTracker::inactive)
     , m_bStreamIsActive(false)
     , m_shared_memory_accesor(nullptr)
+    , m_trackerExposure(0)
 { }
 
 void AppStage_TestTracker::enter()
@@ -255,6 +256,8 @@ void AppStage_TestTracker::enter()
     assert(trackerInfo->TrackerID != -1);
 
     m_app->setCameraType(_cameraFixed);
+    
+    request_tracker_get_settings(trackerInfo->TrackerID);
 
     assert(!m_bStreamIsActive);
     request_tracker_start_stream(trackerInfo->TrackerID);
@@ -310,7 +313,7 @@ void AppStage_TestTracker::renderUI()
     case eTrackerMenuState::idle:
     {
         ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-        ImGui::SetNextWindowSize(ImVec2(k_panel_width, 50));
+        ImGui::SetNextWindowSize(ImVec2(k_panel_width, 200));
         ImGui::Begin(k_window_title, nullptr, window_flags);
 
         if (ImGui::Button("Return to Tracker Settings"))
@@ -329,6 +332,24 @@ void AppStage_TestTracker::renderUI()
                 m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
         }
+        
+        if (m_bStreamIsActive)
+        {
+            ImGui::Text("Exposure: %f", m_trackerExposure);
+            if (ImGui::Button("+"))
+            {
+                const AppStage_TrackerSettings *trackerSettings = m_app->getAppStage<AppStage_TrackerSettings>();
+                const AppStage_TrackerSettings::TrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
+                request_tracker_set_exposure(trackerInfo->TrackerID, m_trackerExposure+10);
+            }
+            if (ImGui::Button("-"))
+            {
+                const AppStage_TrackerSettings *trackerSettings = m_app->getAppStage<AppStage_TrackerSettings>();
+                const AppStage_TrackerSettings::TrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
+                request_tracker_set_exposure(trackerInfo->TrackerID, m_trackerExposure-10);
+            }
+        }
+        
 
         ImGui::End();
     } break;
@@ -514,5 +535,78 @@ void AppStage_TestTracker::close_shared_memory_stream()
     {
         delete m_shared_memory_accesor;
         m_shared_memory_accesor = nullptr;
+    }
+}
+
+void AppStage_TestTracker::request_tracker_set_exposure(int trackerID, double value)
+{
+    // Tell the psmove service that we want to change exposure.
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE);
+    request->mutable_request_set_tracker_exposure()->set_tracker_id(trackerID);
+    request->mutable_request_set_tracker_exposure()->set_value(value);
+        
+    m_app->registerCallback(
+                            ClientPSMoveAPI::send_opaque_request(&request),
+                            AppStage_TestTracker::handle_tracker_set_exposure_response, this);
+    
+}
+
+void AppStage_TestTracker::handle_tracker_set_exposure_response(
+                                                                ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
+                                                                const ClientPSMoveAPI::t_request_id request_id,
+                                                                ClientPSMoveAPI::t_response_handle response_handle,
+                                                                void *userdata)
+{
+    AppStage_TestTracker *thisPtr = static_cast<AppStage_TestTracker *>(userdata);
+    switch (ResultCode)
+    {
+        case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+        {
+            const AppStage_TrackerSettings *trackerSettings = thisPtr->m_app->getAppStage<AppStage_TrackerSettings>();
+            const AppStage_TrackerSettings::TrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
+            thisPtr->request_tracker_get_settings(trackerInfo->TrackerID);
+        } break;
+        case ClientPSMoveAPI::_clientPSMoveResultCode_error:
+        case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+        {
+            // TODO: Print error.
+        } break;
+    }
+    
+}
+
+void AppStage_TestTracker::request_tracker_get_settings(int trackerID)
+{
+    // Tell the psmove service that we want to change exposure.
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_GET_TRACKER_SETTINGS);
+    request->mutable_request_get_tracker_settings()->set_tracker_id(trackerID);
+    
+    m_app->registerCallback(
+                            ClientPSMoveAPI::send_opaque_request(&request),
+                            AppStage_TestTracker::handle_tracker_get_settings_response, this);
+    
+}
+
+void AppStage_TestTracker::handle_tracker_get_settings_response(
+                                                                ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
+                                                                const ClientPSMoveAPI::t_request_id request_id,
+                                                                ClientPSMoveAPI::t_response_handle response_handle,
+                                                                void *userdata)
+{
+    AppStage_TestTracker *thisPtr = static_cast<AppStage_TestTracker *>(userdata);
+    switch (ResultCode)
+    {
+        case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+        {
+            const PSMoveProtocol::Response *response= GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+            thisPtr->m_trackerExposure = response->result_tracker_settings().exposure();
+        } break;
+        case ClientPSMoveAPI::_clientPSMoveResultCode_error:
+        case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+        {
+            // TODO: Print error.
+        } break;
     }
 }
