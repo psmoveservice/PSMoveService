@@ -34,6 +34,7 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("is_valid", is_valid);
     pt.put("version", PS3EyeTrackerConfig::CONFIG_VERSION);
     pt.put("max_poll_failure_count", max_poll_failure_count);
+    pt.put("exposure", exposure);
 
     return pt;
 }
@@ -47,6 +48,7 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
     {
         is_valid = pt.get<bool>("is_valid", false);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
+        exposure = pt.get<double>("exposure", 40);
     }
     else
     {
@@ -66,7 +68,6 @@ PS3EyeTracker::PS3EyeTracker()
     , NextPollSequenceNumber(0)
     , TrackerStates()
 {
-
 }
 
 PS3EyeTracker::~PS3EyeTracker()
@@ -141,6 +142,12 @@ bool PS3EyeTracker::open(const DeviceEnumerator *enumerator)
 
             close();
         }
+    }
+    
+    if (bSuccess)
+    {
+        cfg.load();
+        setExposure(cfg.exposure);
     }
 
     return bSuccess;
@@ -306,6 +313,8 @@ const unsigned char *PS3EyeTracker::getVideoFrameBuffer() const
 void PS3EyeTracker::setExposure(double value)
 {
     VideoCapture->set(cv::CAP_PROP_EXPOSURE, value);
+    cfg.exposure = value;
+    cfg.save();
 }
 
 double PS3EyeTracker::getExposure() const
