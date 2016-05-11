@@ -16,6 +16,7 @@ public:
     : PSMoveConfig(fnamebase)
     , is_valid(false)
     , max_poll_failure_count(100)
+    , exposure(32)
     {};
     
     virtual const boost::property_tree::ptree config2ptree();
@@ -24,6 +25,7 @@ public:
     bool is_valid;
     long version;
     long max_poll_failure_count;
+    double exposure;
 
     static const int CONFIG_VERSION;
 };
@@ -68,6 +70,8 @@ public:
     std::string getUSBDevicePath() const override;
     bool getVideoFrameDimensions(int *out_width, int *out_height, int *out_stride) const override;
     const unsigned char *getVideoFrameBuffer() const override;
+    void setExposure(double value) override;
+    double getExposure() const override;
 
     // -- Getters
     inline const PS3EyeTrackerConfig &getConfig() const

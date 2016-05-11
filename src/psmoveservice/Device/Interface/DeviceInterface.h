@@ -251,5 +251,8 @@ public:
 
         return result;
     }
+    
+    virtual void setExposure(double value) = 0;
+    virtual double getExposure() const = 0;
 };
 #endif // DEVICE_INTERFACE_H
