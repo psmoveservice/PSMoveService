@@ -546,19 +546,20 @@ void AppStage_TestTracker::request_tracker_set_exposure(int trackerID, double va
     request->mutable_request_set_tracker_exposure()->set_tracker_id(trackerID);
     request->mutable_request_set_tracker_exposure()->set_value(value);
         
-    m_app->registerCallback(
-                            ClientPSMoveAPI::send_opaque_request(&request),
-                            AppStage_TestTracker::handle_tracker_set_exposure_response, this);
-    
+    ClientPSMoveAPI::register_callback(
+        ClientPSMoveAPI::send_opaque_request(&request),
+        AppStage_TestTracker::handle_tracker_set_exposure_response, this);
 }
 
 void AppStage_TestTracker::handle_tracker_set_exposure_response(
-                                                                ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-                                                                const ClientPSMoveAPI::t_request_id request_id,
-                                                                ClientPSMoveAPI::t_response_handle response_handle,
-                                                                void *userdata)
+    const ClientPSMoveAPI::ResponseMessage *response,
+    void *userdata)
 {
+    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response->result_code;
+    const ClientPSMoveAPI::t_request_id request_id = response->request_id;
+    ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
     AppStage_TestTracker *thisPtr = static_cast<AppStage_TestTracker *>(userdata);
+
     switch (ResultCode)
     {
         case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
@@ -582,19 +583,21 @@ void AppStage_TestTracker::request_tracker_get_settings(int trackerID)
     request->set_type(PSMoveProtocol::Request_RequestType_GET_TRACKER_SETTINGS);
     request->mutable_request_get_tracker_settings()->set_tracker_id(trackerID);
     
-    m_app->registerCallback(
-                            ClientPSMoveAPI::send_opaque_request(&request),
-                            AppStage_TestTracker::handle_tracker_get_settings_response, this);
+    ClientPSMoveAPI::register_callback(
+        ClientPSMoveAPI::send_opaque_request(&request),
+        AppStage_TestTracker::handle_tracker_get_settings_response, this);
     
 }
 
 void AppStage_TestTracker::handle_tracker_get_settings_response(
-                                                                ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-                                                                const ClientPSMoveAPI::t_request_id request_id,
-                                                                ClientPSMoveAPI::t_response_handle response_handle,
-                                                                void *userdata)
+    const ClientPSMoveAPI::ResponseMessage *response,
+    void *userdata)
 {
+    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response->result_code;
+    const ClientPSMoveAPI::t_request_id request_id = response->request_id;
+    ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
     AppStage_TestTracker *thisPtr = static_cast<AppStage_TestTracker *>(userdata);
+
     switch (ResultCode)
     {
         case ClientPSMoveAPI::_clientPSMoveResultCode_ok:

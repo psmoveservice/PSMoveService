@@ -39,15 +39,11 @@ protected:
     void close_shared_memory_stream();
     
     static void handle_tracker_set_exposure_response(
-                                                     ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-                                                     const ClientPSMoveAPI::t_request_id request_id,
-                                                     ClientPSMoveAPI::t_response_handle response_handle,
-                                                     void *userdata);
+        const ClientPSMoveAPI::ResponseMessage *response,
+        void *userdata);
     static void handle_tracker_get_settings_response(
-                                                     ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-                                                     const ClientPSMoveAPI::t_request_id request_id,
-                                                     ClientPSMoveAPI::t_response_handle response_handle,
-                                                     void *userdata);
+        const ClientPSMoveAPI::ResponseMessage *response,
+        void *userdata);
 
 private:
     enum eTrackerMenuState
