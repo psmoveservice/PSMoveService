@@ -277,7 +277,7 @@ public:
 class CLIENTPSMOVEAPI ClientControllerView
 {
 public:
-    enum eControllerViewType
+    enum eControllerType
     {
         None= -1,
         PSMove,
@@ -290,7 +290,7 @@ private:
         ClientPSMoveView PSMoveView;
         ClientPSNaviView PSNaviView;
     } ViewState;
-    eControllerViewType ControllerViewType;
+    eControllerType ControllerViewType;
 
     int ControllerID;
     int SequenceNum;
@@ -335,7 +335,7 @@ public:
         return IsValid() ? SequenceNum : -1;
     }
 
-    inline eControllerViewType GetControllerViewType() const
+    inline eControllerType GetControllerViewType() const
     {
         return ControllerViewType;
     }

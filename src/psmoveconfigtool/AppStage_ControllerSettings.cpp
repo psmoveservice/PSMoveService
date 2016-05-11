@@ -258,7 +258,7 @@ void AppStage_ControllerSettings::renderUI()
 }
 
 bool AppStage_ControllerSettings::onClientAPIEvent(
-    ClientPSMoveAPI::eClientPSMoveAPIEvent event, 
+    ClientPSMoveAPI::eEventType event, 
     ClientPSMoveAPI::t_event_data_handle opaque_event_handle)
 {
     bool bHandled= false;
@@ -288,19 +288,21 @@ void AppStage_ControllerSettings::request_controller_list()
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST);
 
-        m_app->registerCallback(
+        ClientPSMoveAPI::register_callback(
             ClientPSMoveAPI::send_opaque_request(&request), 
             AppStage_ControllerSettings::handle_controller_list_response, this);
     }
 }
 
 void AppStage_ControllerSettings::handle_controller_list_response(
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode, 
-    const ClientPSMoveAPI::t_request_id request_id, 
-    ClientPSMoveAPI::t_response_handle response_handle, 
+    const ClientPSMoveAPI::ResponseMessage *response_message,
     void *userdata)
 {
     AppStage_ControllerSettings *thisPtr= static_cast<AppStage_ControllerSettings *>(userdata);
+
+    const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
+    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
+    const ClientPSMoveAPI::t_response_handle response_handle = response_message->opaque_response_handle;
 
     switch(ResultCode)
     {

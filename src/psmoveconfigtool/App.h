@@ -61,18 +61,11 @@ public:
     }
 
     template <class t_app_stage>
-    inline void registerEventFallbackAppStage(ClientPSMoveAPI::eClientPSMoveAPIEvent event_type)
+    inline void registerEventFallbackAppStage(ClientPSMoveAPI::eEventType event_type)
     {
         t_app_stage *app_stage= getAppStage<t_app_stage>();
         m_eventToFallbackAppStageMap.insert(t_app_stage_event_map_entry(event_type, app_stage));
     }
-
-    typedef void(*t_response_callback)(
-        ClientPSMoveAPI::eClientPSMoveResultCode ResultCode,
-        const ClientPSMoveAPI::t_request_id request_id,
-        ClientPSMoveAPI::t_response_handle response_handle,
-        void *userdata);
-    void registerCallback(ClientPSMoveAPI::t_request_id request_id, t_response_callback callback, void *callback_userdata);
 
 protected:
     bool init(int argc, char** argv);
@@ -106,8 +99,8 @@ private:
     typedef std::map<const char *, class AppStage *> t_app_stage_map;
     typedef std::pair<const char *, class AppStage *> t_app_stage_map_entry;
 
-    typedef std::map<ClientPSMoveAPI::eClientPSMoveAPIEvent, class AppStage *> t_app_stage_event_map;
-    typedef std::pair<ClientPSMoveAPI::eClientPSMoveAPIEvent, class AppStage *> t_app_stage_event_map_entry;
+    typedef std::map<ClientPSMoveAPI::eEventType, class AppStage *> t_app_stage_event_map;
+    typedef std::pair<ClientPSMoveAPI::eEventType, class AppStage *> t_app_stage_event_map_entry;
 
     t_app_stage_map m_nameToAppStageMap;
 
@@ -117,18 +110,6 @@ private:
 
     // Flag requesting that we exit the update loop
     bool m_bShutdownRequested;
-
-    // Pending requests
-    struct PendingRequest
-    {
-        ClientPSMoveAPI::t_request_id request_id;
-        t_response_callback response_callback;
-        void *response_userdata;
-    };
-    typedef std::map<ClientPSMoveAPI::t_request_id, PendingRequest> t_pending_request_map;
-    typedef std::pair<ClientPSMoveAPI::t_request_id, PendingRequest> t_pending_request_map_entry;
-
-    t_pending_request_map m_pending_request_map;
 };
 
 #endif // APP_H

@@ -15,18 +15,27 @@ struct RequestContext
 typedef std::map<int, RequestContext> t_request_context_map;
 typedef std::map<int, RequestContext>::iterator t_request_context_map_iterator;
 typedef std::pair<int, RequestContext> t_id_request_context_pair;
+typedef std::vector<ResponsePtr> t_response_reference_cache;
 
 class ClientRequestManagerImpl
 {
 public:
     ClientRequestManagerImpl(
-        ClientRequestManager::t_response_callback callback, 
+        ClientPSMoveAPI::t_response_callback callback, 
         void *userdata)
         : m_callback(callback)
         , m_callback_userdata(userdata)
         , m_pending_requests()
         , m_next_request_id(0)
     {
+    }
+
+    void flush_response_cache()
+    {
+        // Drop all of the response references,
+        // NOTE: std::vector::clear() calls the destructor on each element in the vector
+        // This will decrement the last ref count to the parameter data, causing them to get cleaned up.
+        m_response_reference_cache.clear();
     }
 
     void send_request(RequestPtr request)
@@ -71,44 +80,117 @@ public:
         // Notify the callback of the response
         if (m_callback != nullptr)
         {
-            ClientPSMoveAPI::eClientPSMoveResultCode result;
+            ClientPSMoveAPI::ResponseMessage response_message;
 
-            // Translate internal result codes into public facing result codes
-            switch (response->result_code())
-            {
-            case PSMoveProtocol::Response_ResultCode_RESULT_OK:
-                result= ClientPSMoveAPI::_clientPSMoveResultCode_ok;
-                break;
-            case PSMoveProtocol::Response_ResultCode_RESULT_ERROR:
-                result= ClientPSMoveAPI::_clientPSMoveResultCode_error;
-                break;
-            case PSMoveProtocol::Response_ResultCode_RESULT_CANCELED:
-                result= ClientPSMoveAPI::_clientPSMoveResultCode_canceled;
-                break;
-            default:
-                assert(false && "Unknown response result code");
-            }
+            // Generate a client API response message from 
+            build_response_message(context.request, response, &response_message);
 
-            m_callback(
-                result, 
-                context.request->request_id(), 
-                response, 
-                m_callback_userdata);
+            m_callback(&response_message, m_callback_userdata);
         }
 
         // Remove the pending request from the map
         m_pending_requests.erase(pending_request_entry);
     }
 
+    void build_response_message(
+        RequestPtr request,
+        ResponsePtr response,
+        ClientPSMoveAPI::ResponseMessage *out_response_message)
+    {        
+        memset(out_response_message, 0, sizeof(ClientPSMoveAPI::ResponseMessage));
+
+        // Let the response know what request the result came from
+        out_response_message->request_id = request->request_id();
+
+        // Translate internal result codes into public facing result codes
+        switch (response->result_code())
+        {
+        case PSMoveProtocol::Response_ResultCode_RESULT_OK:
+            out_response_message->result_code = ClientPSMoveAPI::_clientPSMoveResultCode_ok;
+            break;
+        case PSMoveProtocol::Response_ResultCode_RESULT_ERROR:
+            out_response_message->result_code = ClientPSMoveAPI::_clientPSMoveResultCode_error;
+            break;
+        case PSMoveProtocol::Response_ResultCode_RESULT_CANCELED:
+            out_response_message->result_code = ClientPSMoveAPI::_clientPSMoveResultCode_canceled;
+            break;
+        default:
+            assert(false && "Unknown response result code");
+        }
+
+        // Attach an opaque pointer to the PSMoveProtocol response.
+        // Client code that has linked against PSMoveProtocol library
+        // can access this pointer via the GET_PSMOVEPROTOCOL_RESPONSE() macro.
+        out_response_message->opaque_response_handle = static_cast<const void*>(response.get());
+
+        // The opaque response pointer will only remain valid until the next call to update()
+        // at which time the response reference cache gets cleared out.
+        m_response_reference_cache.push_back(response);
+
+        // Write response specific data
+        switch (response->type())
+        {        
+        case PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST:
+            build_controller_list_response_message(response, &out_response_message->payload.controller_list);
+            out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_ControllerCount;
+            break;
+        default:
+            out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_Empty;
+            break;
+        }
+    }
+
+    void build_controller_list_response_message(
+        ResponsePtr response,
+        ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list)
+    {
+        int controller_count = 0;
+
+        // Copy the controller entries into the response payload
+        while (controller_count < response->result_controller_list().controllers_size()
+                && controller_count < PSMOVESERVICE_MAX_CONTROLLER_COUNT)
+        {
+            const auto &ControllerResponse = response->result_controller_list().controllers(controller_count);
+
+            // Convert the PSMoveProtocol controller enum to the public ClientControllerView enum
+            ClientControllerView::eControllerType controllerType;
+            switch (ControllerResponse.controller_type())
+            {
+            case PSMoveProtocol::PSMOVE:
+                controllerType = ClientControllerView::PSMove;
+                break;
+            case PSMoveProtocol::PSNAVI:
+                controllerType = ClientControllerView::PSNavi;
+                break;
+            default:
+                assert(0 && "unreachable");
+                controllerType = ClientControllerView::PSMove;
+            }
+
+            // Add an entry to the controller list
+            controller_list->controller_type[controller_count] = controllerType;
+            controller_list->controller_id[controller_count] = ControllerResponse.controller_id();
+            ++controller_count;
+        }
+
+        // Record how many controllers we copied into the payload
+        controller_list->count = controller_count;
+    }
+
 private:
-    ClientRequestManager::t_response_callback m_callback;
+    ClientPSMoveAPI::t_response_callback m_callback;
     void *m_callback_userdata;
     t_request_context_map m_pending_requests;
     int m_next_request_id;
+
+    // This vector is used solely to keep the ref counted pointers to the 
+    // response parameter data valid until the next update call.
+    // The ClientAPI message queue contains raw void pointers to the response and event data.
+    t_response_reference_cache m_response_reference_cache;
 };
 
 //-- public methods -----
-ClientRequestManager::ClientRequestManager(ClientRequestManager::t_response_callback callback, void *userdata)
+ClientRequestManager::ClientRequestManager(ClientPSMoveAPI::t_response_callback callback, void *userdata)
 {
     m_implementation_ptr = new ClientRequestManagerImpl(callback, userdata);
 }
@@ -116,6 +198,11 @@ ClientRequestManager::ClientRequestManager(ClientRequestManager::t_response_call
 ClientRequestManager::~ClientRequestManager()
 {
     delete m_implementation_ptr;
+}
+
+void ClientRequestManager::flush_response_cache()
+{
+    m_implementation_ptr->flush_response_cache();
 }
 
 void ClientRequestManager::send_request(

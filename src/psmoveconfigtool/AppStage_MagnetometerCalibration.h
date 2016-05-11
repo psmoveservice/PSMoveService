@@ -47,20 +47,14 @@ public:
 
 protected:
     static void handle_acquire_controller(
-        ClientPSMoveAPI::eClientPSMoveResultCode resultCode,
-        const ClientPSMoveAPI::t_request_id request_id, 
-        ClientPSMoveAPI::t_response_handle opaque_response_handle,
+        const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
     void request_exit_to_app_stage(const char *app_stage_name);
     static void handle_release_controller(
-        ClientPSMoveAPI::eClientPSMoveResultCode resultCode,
-        const ClientPSMoveAPI::t_request_id request_id, 
-        ClientPSMoveAPI::t_response_handle opaque_response_handle,
+        const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
     static void handle_set_magnetometer_calibration(
-        ClientPSMoveAPI::eClientPSMoveResultCode resultCode,
-        const ClientPSMoveAPI::t_request_id request_id, 
-        ClientPSMoveAPI::t_response_handle opaque_response_handle,
+        const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
 
 private:

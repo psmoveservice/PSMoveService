@@ -171,7 +171,7 @@ void AppStage_MainMenu::renderUI()
 }
 
 bool AppStage_MainMenu::onClientAPIEvent(
-    ClientPSMoveAPI::eClientPSMoveAPIEvent event_type, 
+    ClientPSMoveAPI::eEventType event_type,
     ClientPSMoveAPI::t_event_data_handle opaque_event_handle) 
 {
     bool bHandeled= false;

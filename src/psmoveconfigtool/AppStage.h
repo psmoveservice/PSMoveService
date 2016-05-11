@@ -21,7 +21,7 @@ public:
 
     virtual void onKeyDown(int keyCode) {}
     virtual bool onClientAPIEvent(
-        ClientPSMoveAPI::eClientPSMoveAPIEvent event, 
+        ClientPSMoveAPI::eEventType event, 
         ClientPSMoveAPI::t_event_data_handle opaque_event_handle) 
     { return false; }
     virtual void onServiceResponse(ClientPSMoveAPI::eClientPSMoveResultCode ResultCode) {}

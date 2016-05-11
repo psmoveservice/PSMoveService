@@ -1,4 +1,5 @@
 # Step into the subdirectories
+add_subdirectory(openvr_plugin)
 add_subdirectory(psmoveprotocol)
 add_subdirectory(psmoveservice)
 add_subdirectory(psmoveclient)
