@@ -7,9 +7,20 @@
 
 #if defined( _WIN32 )
 #include <windows.h>
+#else
+#include <unistd.h>
 #endif
 
-#define HMD_DLL_EXPORT extern "C" __declspec( dllexport )
+#if defined( _WIN32 )
+#define HMD_DLL_EXPORT extern "C" __declspec(dllexport)
+#else
+#define HMD_DLL_EXPORT extern "C"
+#endif
+
+#if defined( _WIN32)
+#define strcasecmp(a, b) stricmp(a,b)
+#define snprintf _snprintf
+#endif
 
 CServerDriver_PSMoveService g_ServerTrackedDeviceProvider;
 CClientDriver_PSMoveService g_ClientTrackedDeviceProvider;
@@ -154,7 +165,7 @@ vr::ITrackedDeviceServerDriver * CServerDriver_PSMoveService::GetTrackedDeviceDr
     const char *pchInterfaceVersion )
 {
     // don't return anything if that's not the interface version we have
-    if ( 0 != stricmp( pchInterfaceVersion, vr::ITrackedDeviceServerDriver_Version ) )
+    if ( 0 != strcasecmp( pchInterfaceVersion, vr::ITrackedDeviceServerDriver_Version ) )
     {
         DriverLog( "FindTrackedDeviceDriver for version %s, which we don't support.\n",
             pchInterfaceVersion );
@@ -174,7 +185,7 @@ vr::ITrackedDeviceServerDriver * CServerDriver_PSMoveService::FindTrackedDeviceD
     const char *pchInterfaceVersion )
 {
     // don't return anything if that's not the interface version we have
-    if ( 0 != stricmp( pchInterfaceVersion, vr::ITrackedDeviceServerDriver_Version ) )
+    if ( 0 != strcasecmp( pchInterfaceVersion, vr::ITrackedDeviceServerDriver_Version ) )
     {
         DriverLog( "FindTrackedDeviceDriver for version %s, which we don't support.\n",
             pchInterfaceVersion );
@@ -391,7 +402,7 @@ void CServerDriver_PSMoveService::LaunchPSMoveConfigTool( const char * pchDriver
 #elif defined( _WIN32 )
     ss << "win32";
 #else
-#error Do not know how to launch psmoveconfigtool
+    ss << "osx";
 #endif
     DriverLog( "psmoveconfigtool path: %s\n", ss.str().c_str() );
 
@@ -402,7 +413,28 @@ void CServerDriver_PSMoveService::LaunchPSMoveConfigTool( const char * pchDriver
     BOOL okay = CreateProcessA( (ss.str() + "\\psmoveconfigtool.exe").c_str(), NULL, NULL, NULL, FALSE, 0, NULL, ss.str().c_str(), &sInfoProcess, &pInfoStartedProcess );
     DriverLog( "start psmoveconfigtool okay: %d %08x\n", okay, GetLastError() );
 #else
-#error Do not know how to launch psmoveconfigtool
+    pid_t processId;
+    if ((processId = fork()) == 0)
+    {
+        const char * app_path = (ss.str() + "\\psmoveconfigtool.exe").c_str();
+        char app[256];
+        
+        size_t app_path_len= strnlen(app_path, sizeof(app)-1);
+        strncpy(app, app_path, app_path_len);
+        app[app_path_len]= '\0';
+        
+        char * const argv[] = { app, NULL };
+        
+        if (execv(app, argv) < 0)
+        {
+            DriverLog( "Failed to exec child process\n");
+        }
+    }
+    else if (processId < 0)
+    {
+        DriverLog( "Failed to fork child process\n");
+        perror("fork error");
+    }
 #endif
 }
 
@@ -506,7 +538,7 @@ CPSMoveControllerLatest::~CPSMoveControllerLatest()
 
 void *CPSMoveControllerLatest::GetComponent( const char *pchComponentNameAndVersion )
 {
-    if ( !stricmp( pchComponentNameAndVersion, vr::IVRControllerComponent_Version ) )
+    if ( !strcasecmp( pchComponentNameAndVersion, vr::IVRControllerComponent_Version ) )
     {
         return ( vr::IVRControllerComponent* )this;
     }
@@ -689,7 +721,7 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty( vr::ETrackedDe
     }
     else
     {
-        _snprintf( pchValue, unBufferSize, sRetVal.c_str() );
+        snprintf( pchValue, unBufferSize, sRetVal.c_str() );
         *pError = vr::TrackedProp_Success;
         return sRetVal.size() + 1;
     }
