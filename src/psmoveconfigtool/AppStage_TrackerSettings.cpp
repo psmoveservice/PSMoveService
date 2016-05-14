@@ -1,6 +1,7 @@
 //-- inludes -----
 #include "AppStage_TrackerSettings.h"
 #include "AppStage_TestTracker.h"
+#include "AppStage_ComputeTrackerPoses.h"
 #include "AppStage_MainMenu.h"
 #include "App.h"
 #include "Camera.h"
@@ -132,6 +133,11 @@ void AppStage_TrackerSettings::renderUI()
 
             ImGui::Text("  Shared Mem Name: %s", trackerInfo.SharedMemoryName.c_str());
             ImGui::TextWrapped("  Device Path: %s", trackerInfo.DevicePath.c_str());
+
+            if (ImGui::Button("Compute Tracker Poses"))
+            {
+                m_app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
+            }
 
             if (m_selectedTrackerIndex > 0)
             {
