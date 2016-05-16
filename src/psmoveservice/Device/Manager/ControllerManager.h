@@ -5,6 +5,7 @@
 #include <memory>
 #include "DeviceTypeManager.h"
 #include "PSMoveProtocol.pb.h"
+#include "TrackerManager.h"
 
 //-- typedefs -----
 class ServerControllerView;
@@ -21,6 +22,8 @@ public:
 
     /// Call hid_close()
     void shutdown() override;
+    
+    void updateStateAndPredict(TrackerManager* tracker_manager);
 
     static const int k_max_devices = 5;
     int getMaxDevices() const override

@@ -129,6 +129,24 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
     return bSuccess;
 }
 
+void ServerControllerView::updateStateAndPredict(TrackerManager* tracker_manager)
+{
+    int positions_found = 0;
+    // TODO: Initialize a map between trackers and found positions
+    for (int tracker_id = 0; tracker_id < tracker_manager->getMaxDevices(); ++tracker_id)
+    {
+        ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+        //TODO: position_list[tracker_id] = tracker->getPositionForObject(this);
+        //TODO: increment positions_found if a good position was found
+    }
+    if (positions_found > 1)
+    {
+        //TODO: triangulate positions.
+    }
+    // IMU
+    updateStateAndPredict();
+}
+
 void ServerControllerView::updateStateAndPredict()
 {
     if (!getHasUnpublishedState())

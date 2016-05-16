@@ -22,7 +22,7 @@ public:
     virtual void shutdown();
 
     void poll();
-    void updateStateAndPredict();
+    void updateStateAndPredict();  // No longer used for tracker. Controller has its own implementation. This is now useless in parent class.
     void publish();
 
     virtual int getMaxDevices() const = 0;

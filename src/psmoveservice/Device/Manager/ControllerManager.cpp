@@ -48,6 +48,16 @@ ControllerManager::shutdown()
     hid_exit();
 }
 
+void
+ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
+{
+    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+    {
+        ServerControllerViewPtr controller = getControllerViewPtr(device_id);
+        controller->updateStateAndPredict(tracker_manager);
+    }
+}
+
 bool
 ControllerManager::can_update_connected_devices()
 {
