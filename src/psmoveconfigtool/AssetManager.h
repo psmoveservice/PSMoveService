@@ -3,19 +3,47 @@
 
 #include "stb_truetype.h"
 
+class TextureAsset
+{
+public:
+    unsigned int texture_id;
+    unsigned int texture_width;
+    unsigned int texture_height;
+    unsigned int texture_format;
+    unsigned int buffer_format;
+
+    TextureAsset()
+        : texture_id(0)
+        , texture_width(0)
+        , texture_height(0)
+        , texture_format(0)
+        , buffer_format(0)
+    {}
+    ~TextureAsset()
+    { dispose(); }
+
+    bool init(unsigned int width, unsigned int height, unsigned int texture_format, unsigned int buffer_format, unsigned char *buffer);
+    void copyBufferIntoTexture(const unsigned char *pixels);
+    void dispose();
+};
+
+class FontAsset : public TextureAsset
+{
+public:
+    float glyphPixelHeight;
+    stbtt_bakedchar cdata[96]; // ASCII 32..126 is 95 glyphs
+
+    FontAsset()
+        : TextureAsset()
+        , glyphPixelHeight(0.f)
+    {}
+
+    bool init(unsigned char *ttf_buffer, float pixel_height);
+};
+
 class AssetManager
 {
 public:
-    struct FontAsset
-    {
-        unsigned int textureId;
-        int textureWidth, textureHeight;
-        float glyphPixelHeight;
-        stbtt_bakedchar cdata[96]; // ASCII 32..126 is 95 glyphs
-
-        FontAsset();
-    };
-
     AssetManager();
     ~AssetManager();
 
@@ -25,26 +53,26 @@ public:
     static AssetManager *getInstance()
     { return m_instance; }
 
-    unsigned int getDK2TextureId()
-    { return m_dk2TextureId; }
+    const TextureAsset *getDK2TextureAsset()
+    { return &m_dk2Texture; }
 
-    unsigned int getPSMoveTextureId()
-    { return m_psmoveTextureId; }
+    const TextureAsset *getPSMoveTextureAsset()
+    { return &m_psmoveTexture; }
 
-    unsigned int getPSNaviTextureId()
-    { return m_psnaviTextureId; }
+    const TextureAsset *getPSNaviTextureAsset()
+    { return &m_psnaviTexture; }
 
     const FontAsset *getDefaultFont()
     { return &m_defaultFont; }
 
 private:
-    bool loadTexture(const char *filename, unsigned int *textureId);
-    bool loadFont(const char *filename, float pixelHeight, AssetManager::FontAsset *fontAsset);
+    bool loadTexture(const char *filename, TextureAsset *textureAsset);
+    bool loadFont(const char *filename, float pixelHeight, FontAsset *fontAsset);
 
     // Utility Textures
-    unsigned int m_dk2TextureId;
-    unsigned int m_psmoveTextureId;
-    unsigned int m_psnaviTextureId;
+    TextureAsset m_dk2Texture;
+    TextureAsset m_psmoveTexture;
+    TextureAsset m_psnaviTexture;
 
     // Font Rendering
     FontAsset m_defaultFont;

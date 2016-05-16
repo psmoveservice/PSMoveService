@@ -16,6 +16,7 @@ typedef std::map<int, RequestContext> t_request_context_map;
 typedef std::map<int, RequestContext>::iterator t_request_context_map_iterator;
 typedef std::pair<int, RequestContext> t_id_request_context_pair;
 typedef std::vector<ResponsePtr> t_response_reference_cache;
+typedef std::vector<RequestPtr> t_request_reference_cache;
 
 class ClientRequestManagerImpl
 {
@@ -32,9 +33,10 @@ public:
 
     void flush_response_cache()
     {
-        // Drop all of the response references,
+        // Drop all of the request/response references,
         // NOTE: std::vector::clear() calls the destructor on each element in the vector
         // This will decrement the last ref count to the parameter data, causing them to get cleaned up.
+        m_request_reference_cache.clear();
         m_response_reference_cache.clear();
     }
 
@@ -118,6 +120,15 @@ public:
             assert(false && "Unknown response result code");
         }
 
+        // Attach an opaque pointer to the PSMoveProtocol request.
+        // Client code that has linked against PSMoveProtocol library
+        // can access this pointer via the GET_PSMOVEPROTOCOL_REQUEST() macro.
+        out_response_message->opaque_response_handle = static_cast<const void*>(request.get());
+
+        // The opaque request pointer will only remain valid until the next call to update()
+        // at which time the request reference cache gets cleared out.
+        m_request_reference_cache.push_back(request);
+
         // Attach an opaque pointer to the PSMoveProtocol response.
         // Client code that has linked against PSMoveProtocol library
         // can access this pointer via the GET_PSMOVEPROTOCOL_RESPONSE() macro.
@@ -128,15 +139,22 @@ public:
         m_response_reference_cache.push_back(response);
 
         // Write response specific data
-        switch (response->type())
-        {        
-        case PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST:
-            build_controller_list_response_message(response, &out_response_message->payload.controller_list);
-            out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_ControllerCount;
-            break;
-        default:
-            out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_Empty;
-            break;
+        if (response->result_code() == PSMoveProtocol::Response_ResultCode_RESULT_OK)
+        {
+            switch (response->type())
+            {
+            case PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST:
+                build_controller_list_response_message(response, &out_response_message->payload.controller_list);
+                out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_ControllerList;
+                break;
+            case PSMoveProtocol::Response_ResponseType_TRACKER_LIST:
+                build_tracker_list_response_message(response, &out_response_message->payload.tracker_list);
+                out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_TrackerList;
+                break;
+            default:
+                out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_Empty;
+                break;
+            }
         }
     }
 
@@ -177,15 +195,68 @@ public:
         controller_list->count = controller_count;
     }
 
+    void build_tracker_list_response_message(
+        ResponsePtr response,
+        ClientPSMoveAPI::ResponsePayload_TrackerList *tracker_list)
+    {
+        int tracker_count = 0;
+
+        // Copy the controller entries into the response payload
+        while (tracker_count < response->result_tracker_list().trackers_size()
+            && tracker_count < PSMOVESERVICE_MAX_TRACKER_COUNT)
+        {
+            const auto &TrackerResponse = response->result_tracker_list().trackers(tracker_count);
+            ClientTrackerInfo &TrackerInfo= tracker_list->trackers[tracker_count];
+
+            TrackerInfo.tracker_id = TrackerResponse.tracker_id();
+
+            switch (TrackerResponse.tracker_type())
+            {
+            case PSMoveProtocol::TrackerType::PS3EYE:
+                TrackerInfo.tracker_type = eTrackerType::PS3Eye;
+                break;
+            default:
+                assert(0 && "unreachable");
+            }
+
+            switch (TrackerResponse.tracker_driver())
+            {
+            case PSMoveProtocol::TrackerDriver::LIBUSB:
+                TrackerInfo.tracker_driver = eTrackerDriver::LIBUSB;
+                break;
+            case PSMoveProtocol::TrackerDriver::CL_EYE:
+                TrackerInfo.tracker_driver = eTrackerDriver::CL_EYE;
+                break;
+            case PSMoveProtocol::TrackerDriver::CL_EYE_MULTICAM:
+                TrackerInfo.tracker_driver = eTrackerDriver::CL_EYE_MULTICAM;
+                break;
+            case PSMoveProtocol::TrackerDriver::GENERIC_WEBCAM:
+                TrackerInfo.tracker_driver = eTrackerDriver::GENERIC_WEBCAM;
+                break;
+            default:
+                assert(0 && "unreachable");
+            }
+
+            strncpy(TrackerInfo.device_path, TrackerResponse.device_path().c_str(), sizeof(TrackerInfo.device_path));
+            strncpy(TrackerInfo.shared_memory_name, TrackerResponse.shared_memory_name().c_str(), sizeof(TrackerInfo.shared_memory_name));
+
+            ++tracker_count;
+        }
+
+        // Record how many trackers we copied into the payload
+        tracker_list->count = tracker_count;
+    }
+
 private:
     ClientPSMoveAPI::t_response_callback m_callback;
     void *m_callback_userdata;
     t_request_context_map m_pending_requests;
     int m_next_request_id;
 
-    // This vector is used solely to keep the ref counted pointers to the 
-    // response parameter data valid until the next update call.
-    // The ClientAPI message queue contains raw void pointers to the response and event data.
+    // These vectors is used solely to keep the ref counted pointers to the 
+    // request/response parameter data valid until the next update call.
+    // The ClientAPI message queue contains raw void pointers to the request/response and event data.
+    t_request_reference_cache m_request_reference_cache;
     t_response_reference_cache m_response_reference_cache;
 };
 

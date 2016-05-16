@@ -12,7 +12,6 @@
 #include "UIConstants.h"
 #include "PSMoveProtocolInterface.h"
 #include "PSMoveProtocol.pb.h"
-#include "SharedTrackerState.h"
 #include "MathGLM.h"
 
 #include "SDL_keycode.h"

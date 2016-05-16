@@ -424,7 +424,7 @@ void drawTextAtWorldPosition(
     assert(Renderer::getIsRenderingStage());
 
     // Render with the default font
-    const AssetManager::FontAsset *font= AssetManager::getInstance()->getDefaultFont();
+    const FontAsset *font= AssetManager::getInstance()->getDefaultFont();
 
     // Convert the world space coordinates into screen space
     const glm::vec3 transformed_position= glm::vec3(transform * glm::vec4(position, 1.f));
@@ -462,7 +462,7 @@ void drawTextAtWorldPosition(
     glLoadIdentity();
 
     // Bind the font texture
-    glBindTexture(GL_TEXTURE_2D, font->textureId);
+    glBindTexture(GL_TEXTURE_2D, font->texture_id);
     glColor3f(1.f, 1.f, 1.f);
 
     // Render the text quads
@@ -479,7 +479,7 @@ void drawTextAtWorldPosition(
 
             stbtt_GetBakedQuad(
                 const_cast<stbtt_bakedchar *>(font->cdata), 
-                font->textureWidth, font->textureHeight, 
+                font->texture_width, font->texture_height, 
                 char_index, 
                 &screenCoords.x, &screenCoords.y, // x position advances with character by the glyph pixel width
                 &glyph_quad,
@@ -771,7 +771,7 @@ void drawDK2Model(const glm::mat4 &transform)
 {
     assert(Renderer::getIsRenderingStage());
 
-    int textureID= AssetManager::getInstance()->getDK2TextureId();
+    int textureID= AssetManager::getInstance()->getDK2TextureAsset()->texture_id;
 
     glBindTexture(GL_TEXTURE_2D, textureID);
     glColor3f(1.f, 1.f, 1.f);
@@ -813,7 +813,7 @@ void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color)
 {
     assert(Renderer::getIsRenderingStage());
 
-    int textureID= AssetManager::getInstance()->getPSMoveTextureId();
+    int textureID= AssetManager::getInstance()->getPSMoveTextureAsset()->texture_id;
 
     glBindTexture(GL_TEXTURE_2D, textureID);
 
@@ -846,7 +846,7 @@ void drawPSNaviModel(const glm::mat4 &transform)
 {
     assert(Renderer::getIsRenderingStage());
 
-    int textureID= AssetManager::getInstance()->getPSNaviTextureId();
+    int textureID= AssetManager::getInstance()->getPSNaviTextureAsset()->texture_id;
 
     glBindTexture(GL_TEXTURE_2D, textureID);
     glColor3f(1.f, 1.f, 1.f);

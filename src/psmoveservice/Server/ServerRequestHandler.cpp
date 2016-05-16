@@ -334,6 +334,8 @@ protected:
     {
         PSMoveProtocol::Response_ResultControllerList* list= response->mutable_result_controller_list();
 
+        response->set_type(PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST);
+
         for (int controller_id= 0; controller_id < m_device_manager.getControllerViewMaxCount(); ++controller_id)
         {
             ServerControllerViewPtr controller_view= m_device_manager.getControllerViewPtr(controller_id);
@@ -656,6 +658,8 @@ protected:
     {
         PSMoveProtocol::Response_ResultTrackerList* list = response->mutable_result_tracker_list();
 
+        response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_LIST);
+
         for (int tracker_id = 0; tracker_id < m_device_manager.getTrackerViewMaxCount(); ++tracker_id)
         {
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
@@ -779,6 +783,8 @@ protected:
                                       PSMoveProtocol::Response *response)
     {
         const int tracker_id= context.request->request_get_tracker_settings().tracker_id();
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_SETTINGS);
 
         if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {

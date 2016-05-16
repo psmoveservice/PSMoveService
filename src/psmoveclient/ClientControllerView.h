@@ -14,7 +14,7 @@ namespace PSMoveProtocol
 };
 
 //-- constants -----
-enum CLIENTPSMOVEAPI PSMoveButtonState {
+enum PSMoveButtonState {
     PSMoveButton_UP = 0x00,       // (00b) Not pressed
     PSMoveButton_PRESSED = 0x01,  // (01b) Down for one frame only
     PSMoveButton_DOWN = 0x03,     // (11b) Down for >1 frame

@@ -12,6 +12,11 @@
 typedef std::map<int, ClientControllerView *> t_controller_view_map;
 typedef std::map<int, ClientControllerView *>::iterator t_controller_view_map_iterator;
 typedef std::pair<int, ClientControllerView *> t_id_controller_view_pair;
+
+typedef std::map<int, ClientTrackerView *> t_tracker_view_map;
+typedef std::map<int, ClientTrackerView *>::iterator t_tracker_view_map_iterator;
+typedef std::pair<int, ClientTrackerView *> t_id_tracker_view_pair;
+
 typedef std::deque<ClientPSMoveAPI::Message> t_message_queue;
 typedef std::vector<ResponsePtr> t_event_reference_cache;
 
@@ -186,7 +191,7 @@ public:
 
     ClientPSMoveAPI::t_request_id start_controller_data_stream(ClientControllerView * view, unsigned int flags)
     {
-        CLIENT_LOG_INFO("start_controller_data_stream") << "requesting controller stream start for PSMoveID: " << view->GetControllerID() << std::endl;
+        CLIENT_LOG_INFO("start_controller_data_stream") << "requesting controller stream start for ControllerID: " << view->GetControllerID() << std::endl;
 
         // Tell the psmove service that we are acquiring this controller
         RequestPtr request(new PSMoveProtocol::Request());
@@ -205,7 +210,7 @@ public:
 
     ClientPSMoveAPI::t_request_id stop_controller_data_stream(ClientControllerView * view)
     {
-        CLIENT_LOG_INFO("stop_controller_data_stream") << "requesting controller stream stop for PSMoveID: " << view->GetControllerID() << std::endl;
+        CLIENT_LOG_INFO("stop_controller_data_stream") << "requesting controller stream stop for ControllerID: " << view->GetControllerID() << std::endl;
 
         // Tell the psmove service that we are releasing this controller
         RequestPtr request(new PSMoveProtocol::Request());
@@ -219,7 +224,7 @@ public:
 
     ClientPSMoveAPI::t_request_id set_controller_rumble(ClientControllerView * view, float rumble_amount)
     {
-        CLIENT_LOG_INFO("set_controller_rumble") << "request set rumble to " << rumble_amount << " for PSMoveID: " << view->GetControllerID() << std::endl;
+        CLIENT_LOG_INFO("set_controller_rumble") << "request set rumble to " << rumble_amount << " for ControllerID: " << view->GetControllerID() << std::endl;
 
         assert(m_controller_view_map.find(view->GetControllerID()) != m_controller_view_map.end());
 
@@ -272,6 +277,92 @@ public:
         return request->request_id();
     }
 
+    ClientTrackerView *allocate_tracker_view(const ClientTrackerInfo &trackerInfo)
+    {
+        ClientTrackerView * view;
+
+        // Use the same view if one already exists for the given tracker id
+        t_tracker_view_map_iterator view_entry = m_tracker_view_map.find(trackerInfo.tracker_id);
+        if (view_entry != m_tracker_view_map.end())
+        {
+            view = view_entry->second;
+        }
+        else
+        {
+            // Create a new initialized tracker view
+            view = new ClientTrackerView(trackerInfo);
+
+            // Add it to the map of tracker
+            m_tracker_view_map.insert(t_id_tracker_view_pair(trackerInfo.tracker_id, view));
+        }
+
+        // Keep track of how many clients are listening to this view
+        view->incListenerCount();
+
+        return view;
+    }
+
+    void free_tracker_view(ClientTrackerView *view)
+    {
+        t_tracker_view_map_iterator view_entry = m_tracker_view_map.find(view->getTrackerId());
+        assert(view_entry != m_tracker_view_map.end());
+
+        // Decrease the number of listeners to this view
+        view->decListenerCount();
+
+        // If no one is listening to this tracker anymore, free it from the map
+        if (view->getListenerCount() <= 0)
+        {
+            // Free the tracker view allocated in allocate_tracker_view
+            delete view_entry->second;
+            view_entry->second = nullptr;
+
+            // Remove the entry from the map
+            m_tracker_view_map.erase(view_entry);
+        }
+    }
+
+    ClientPSMoveAPI::t_request_id get_tracker_list()
+    {
+        CLIENT_LOG_INFO("get_tracker_list") << "requesting tracker list" << std::endl;
+
+        // Tell the psmove service that we want a list of all connected trackers
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST);
+
+        m_request_manager.send_request(request);
+
+        return request->request_id();
+    }
+
+    ClientPSMoveAPI::t_request_id start_tracker_data_stream(ClientTrackerView *view)
+    {
+        CLIENT_LOG_INFO("start_tracker_data_stream") << "requesting tracker stream start for TrackerID: " << view->getTrackerId() << std::endl;
+
+        // Tell the psmove service that we are acquiring this tracker
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_START_TRACKER_DATA_STREAM);
+        request->mutable_request_start_tracker_data_stream()->set_tracker_id(view->getTrackerId());
+
+        m_request_manager.send_request(request);
+
+        return request->request_id();
+    }
+
+    ClientPSMoveAPI::t_request_id stop_tracker_data_stream(ClientTrackerView *view)
+    {
+        CLIENT_LOG_INFO("stop_tracker_data_stream") << "requesting tracker stream stop for TrackerID: " << view->getTrackerId() << std::endl;
+
+        // Tell the psmove service that we want to stop streaming data from the tracker
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_STOP_TRACKER_DATA_STREAM);
+        request->mutable_request_stop_tracker_data_stream()->set_tracker_id(view->getTrackerId());
+
+        m_request_manager.send_request(request);
+
+        return request->request_id();
+    }
+
     ClientPSMoveAPI::t_request_id send_opaque_request(
         ClientPSMoveAPI::t_request_handle request_handle)
     {
@@ -310,10 +401,16 @@ public:
 
                 CLIENT_LOG_TRACE("handle_data_frame")
                     << "received data frame for TrackerID: "
-                    << tracker_packet.tracker_id() 
-                    << ". Ignoring." << std::endl;
+                    << tracker_packet.tracker_id() << std::endl;
 
-                // Clients don't care about tracker updates
+                t_tracker_view_map_iterator view_entry = m_tracker_view_map.find(tracker_packet.tracker_id());
+
+                if (view_entry != m_tracker_view_map.end())
+                {
+                    ClientTrackerView * view = view_entry->second;
+
+                    view->applyTrackerDataFrame(&tracker_packet);
+                }
             } break;
         }
     }
@@ -508,6 +605,9 @@ private:
     //-- Controller Views -----
     t_controller_view_map m_controller_view_map;
 
+    //-- Tracker Views -----
+    t_tracker_view_map m_tracker_view_map;
+
     //-- Pending requests -----
     ClientRequestManager m_request_manager;
 
@@ -690,6 +790,67 @@ ClientPSMoveAPI::reset_pose(
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
         request_id= ClientPSMoveAPI::m_implementation_ptr->reset_pose(view);
+    }
+
+    return request_id;
+}
+
+ClientTrackerView *
+ClientPSMoveAPI::allocate_tracker_view(const ClientTrackerInfo &trackerInfo)
+{
+    ClientTrackerView * view;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        view = ClientPSMoveAPI::m_implementation_ptr->allocate_tracker_view(trackerInfo);
+    }
+
+    return view;
+}
+
+void 
+ClientPSMoveAPI::free_tracker_view(ClientTrackerView *view)
+{
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->free_tracker_view(view);
+    }
+}
+
+ClientPSMoveAPI::t_request_id
+ClientPSMoveAPI::get_tracker_list()
+{
+    ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id = ClientPSMoveAPI::m_implementation_ptr->get_tracker_list();
+    }
+
+    return request_id;
+}
+
+ClientPSMoveAPI::t_request_id 
+ClientPSMoveAPI::start_tracker_data_stream(ClientTrackerView *view)
+{
+    ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id = ClientPSMoveAPI::m_implementation_ptr->start_tracker_data_stream(view);
+    }
+
+    return request_id;
+}
+
+ClientPSMoveAPI::t_request_id 
+ClientPSMoveAPI::stop_tracker_data_stream(ClientTrackerView *view)
+{
+    ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id = ClientPSMoveAPI::m_implementation_ptr->stop_tracker_data_stream(view);
     }
 
     return request_id;
