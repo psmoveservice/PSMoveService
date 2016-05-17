@@ -2,6 +2,9 @@
 #include "AppStage_ComputeTrackerPoses.h"
 #include "AppStage_MainMenu.h"
 #include "AppStage_TrackerSettings.h"
+#include "AppStage_HMDSettings.h"
+#include "AppSubStage_CalibrateWithHMD.h"
+#include "AppSubStage_CalibrateWithMat.h"
 #include "App.h"
 #include "AssetManager.h"
 #include "Camera.h"
@@ -33,7 +36,19 @@ AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
     , m_menuState(AppStage_ComputeTrackerPoses::inactive)
     , m_hmdView(nullptr)
     , m_controllerView(nullptr)
-{ }
+    , m_pendingTrackerStartCount(0)
+    , m_renderTrackerIndex(0)
+    , m_pCalibrateWithHMD(new AppSubStage_CalibrateWithHMD(this))
+    , m_pCalibrateWithMat(new AppSubStage_CalibrateWithMat(this))
+{ 
+    m_renderTrackerIter = m_trackerViews.end();
+}
+
+AppStage_ComputeTrackerPoses::~AppStage_ComputeTrackerPoses()
+{
+    delete m_pCalibrateWithHMD;
+    delete m_pCalibrateWithMat;
+}
 
 void AppStage_ComputeTrackerPoses::enter()
 {
@@ -62,7 +77,7 @@ void AppStage_ComputeTrackerPoses::exit()
         m_hmdView = nullptr;
     }
 
-    m_menuState = eMenuState::inactive;
+    setState(eMenuState::inactive);
 }
 
 void AppStage_ComputeTrackerPoses::update()
@@ -80,21 +95,26 @@ void AppStage_ComputeTrackerPoses::update()
     case eMenuState::failedControllerStartRequest:
     case eMenuState::failedTrackerStartRequest:
         break;
+    case eMenuState::verifyHMD:
+        break;
+    case eMenuState::verifyTrackers:
+        if (m_renderTrackerIter != m_trackerViews.end())
+        {
+            // Render the latest from the currently active tracker
+            if (m_renderTrackerIter->second.trackerView->pollVideoStream())
+            {
+                m_renderTrackerIter->second.textureAsset->copyBufferIntoTexture(
+                    m_renderTrackerIter->second.trackerView->getVideoFrameBuffer());
+            }
+        }
+        break;
     case eMenuState::selectCalibrationType:
         break;
-    case eMenuState::calibrationStepOriginPlacement:
+    case eMenuState::calibrateWithHMD:
+        m_pCalibrateWithHMD->update();
         break;
-    case eMenuState::calibrationStepPlacePSMove:
-        break;
-    case eMenuState::calibrationStepRecordPSMove:
-        break;
-    case eMenuState::calibrationStepPlaceHMD:
-        break;
-    case eMenuState::calibrationStepRecordHMD:
-        break;
-    case eMenuState::calibrationStepAttachPSMove:
-        break;
-    case eMenuState::calibrationStepRecordHmdPSMove:
+    case eMenuState::calibrateWithMat:
+        m_pCalibrateWithMat->update();
         break;
     case eMenuState::calibrateStepComplete:
         break;
@@ -112,57 +132,100 @@ void AppStage_ComputeTrackerPoses::render()
     case eMenuState::inactive:
         break;
     case eMenuState::pendingControllerListRequest:
-        break;
-    case eMenuState::failedControllerListRequest:
-        break;
     case eMenuState::pendingControllerStartRequest:
-        break;
-    case eMenuState::failedControllerStartRequest:
-        break;
+    case eMenuState::pendingTrackerListRequest:
     case eMenuState::pendingTrackerStartRequest:
         break;
+    case eMenuState::failedControllerListRequest:
+    case eMenuState::failedControllerStartRequest:
+    case eMenuState::failedTrackerListRequest:
     case eMenuState::failedTrackerStartRequest:
         break;
+    case eMenuState::verifyHMD:
+        {
+            if (m_hmdView != nullptr)
+            {
+                PSMovePose pose = m_hmdView->getHmdPose();
+                glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
+                glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
+
+                glm::mat4 rot = glm::mat4_cast(orientation);
+                glm::mat4 trans = glm::translate(glm::mat4(1.0f), position);
+                glm::mat4 transform = trans * rot;
+
+                drawDK2Model(transform);
+                drawTransformedAxes(transform, 10.f);
+            }
+        } break;
+    case eMenuState::verifyTrackers:
+        {
+            if (m_renderTrackerIter != m_trackerViews.end())
+            {
+                drawFullscreenTexture(m_renderTrackerIter->second.textureAsset->texture_id);
+            }
+        } break;
     case eMenuState::selectCalibrationType:
         break;
-    case eMenuState::calibrationStepOriginPlacement:
+    case eMenuState::calibrateWithHMD:
+        m_pCalibrateWithHMD->render();
         break;
-    case eMenuState::calibrationStepPlacePSMove:
-        break;
-    case eMenuState::calibrationStepRecordPSMove:
-        break;
-    case eMenuState::calibrationStepPlaceHMD:
-        break;
-    case eMenuState::calibrationStepRecordHMD:
-        break;
-    case eMenuState::calibrationStepAttachPSMove:
-        break;
-    case eMenuState::calibrationStepRecordHmdPSMove:
+    case eMenuState::calibrateWithMat:
+        m_pCalibrateWithMat->render();
         break;
     case eMenuState::calibrateStepComplete:
-        break;
+        {
+            // Draw the origin axes
+            drawTransformedAxes(glm::mat4(1.0f), 100.f);
+
+            // Draw the frustum for the DK2 camera
+            if (m_app->getOpenVRContext()->getIsInitialized())
+            {
+                //###HipsterSloth $TODO
+                //TrackingCameraFrustum frustum;
+
+                //hmdContext->getTrackingCameraFrustum(frustum);
+                //drawTrackingFrustum(frustum, k_dk2_frustum_color);
+            }
+
+            // Draw the frustum for each tracking camera
+            for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+            {
+                const ClientTrackerView *trackerView= iter->second.trackerView;
+
+                //###HipsterSloth $TODO
+                //{
+                //    TrackingCameraFrustum frustum;
+
+                //    psMoveContext->getHMDRelativeTrackingCameraFrustum(trackerIndex, hmdContext, frustum);
+                //    drawTrackingFrustum(frustum, k_psmove_frustum_color);
+                //}
+
+                //{
+                //    glm::mat4 cameraTransform = psMoveContext->getHMDRelativeTrackingCameraTransform(trackerIndex, hmdContext);
+
+                //    drawTransformedAxes(cameraTransform, 20.f);
+                //}
+            }
+
+            if (m_hmdView != nullptr)
+            {
+                PSMovePose pose = m_hmdView->getHmdPose();
+                glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
+                glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
+
+                glm::mat4 rot = glm::mat4_cast(orientation);
+                glm::mat4 trans = glm::translate(glm::mat4(1.0f), position);
+                glm::mat4 transform = trans * rot;
+
+                drawDK2Model(transform);
+                drawTransformedAxes(transform, 10.f);
+            }
+        } break;
     case eMenuState::calibrateStepFailed:
         break;
     default:
         assert(0 && "unreachable");
     }
-
-    //if (m_menuState == eMenuState::idle)
-    //{
-    //    if (m_hmdView != nullptr)
-    //    {
-    //        PSMovePose pose = m_hmdView->getHmdPose();
-    //        glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
-    //        glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
-
-    //        glm::mat4 rot = glm::mat4_cast(orientation);
-    //        glm::mat4 trans = glm::translate(glm::mat4(1.0f), position);
-    //        glm::mat4 transform = trans * rot;
-
-    //        drawDK2Model(transform);
-    //        drawTransformedAxes(transform, 10.f);
-    //    }
-    //}
 }
 
 void AppStage_ComputeTrackerPoses::renderUI()
@@ -183,13 +246,14 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
     case eMenuState::pendingControllerListRequest:
     case eMenuState::pendingControllerStartRequest:
+    case eMenuState::pendingTrackerListRequest:
     case eMenuState::pendingTrackerStartRequest:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 50));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            ImGui::Text("Pending controller setup...");
+            ImGui::Text("Pending device initialization...");
 
             if (ImGui::Button("Return to Tracker Settings"))
             {
@@ -201,26 +265,115 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
     case eMenuState::failedControllerListRequest:
     case eMenuState::failedControllerStartRequest:
+    case eMenuState::failedTrackerListRequest:
     case eMenuState::failedTrackerStartRequest:
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            ImGui::Text("Failed controller setup!");
+            switch (m_menuState)
+            {
+            case eMenuState::failedControllerListRequest:
+                ImGui::Text("Failed controller list retrieval!");
+                break;
+            case eMenuState::failedControllerStartRequest:
+                ImGui::Text("Failed controller stream start!");
+                break;
+            case eMenuState::failedTrackerListRequest:
+                ImGui::Text("Failed tracker list retrieval!");
+                break;
+            case eMenuState::failedTrackerStartRequest:
+                ImGui::Text("Failed tracker stream start!");
+                break;
+            }
 
             if (ImGui::Button("Ok"))
             {
-                m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
 
             if (ImGui::Button("Return to Main Menu"))
             {
-                m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
+                request_exit_to_app_stage(AppStage_MainMenu::APP_STAGE_NAME);
             }
 
             ImGui::End();
         } break;
+
+    case eMenuState::verifyHMD:
+        ImGui::SetNextWindowPosCenter();
+        ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
+        ImGui::Begin(k_window_title, nullptr, window_flags);
+
+        if (m_hmdView != nullptr)
+        {
+            ImGui::Text("Verify that your HMD is tracking correctly");
+            ImGui::Separator();
+
+            if (ImGui::Button("Looks Good!"))
+            {
+                setState(eMenuState::verifyTrackers);
+            }
+
+            if (ImGui::Button("Hmm... Something is wrong."))
+            {
+                request_exit_to_app_stage(AppStage_HMDSettings::APP_STAGE_NAME);
+            }
+        }
+
+        ImGui::End();
+        break;
+
+    case eMenuState::verifyTrackers:
+        ImGui::SetNextWindowPosCenter();
+        ImGui::SetNextWindowSize(ImVec2(k_panel_width, 200));
+        ImGui::Begin(k_window_title, nullptr, window_flags);
+
+        if (m_hmdView != nullptr)
+        {
+            const int trackerCount = static_cast<int>(m_trackerViews.size());
+
+            ImGui::Text("Verify that your tracking cameras can see the tracking origin");
+            ImGui::Separator();
+
+            if (m_trackerViews.size() > 1)
+            {
+                ImGui::Text("Tracker #%d", m_renderTrackerIndex + 1);
+
+                if (ImGui::Button("Previous Tracker"))
+                {
+                    m_renderTrackerIndex = (m_renderTrackerIndex + trackerCount - 1) % trackerCount;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Next Tracker"))
+                {
+                    m_renderTrackerIndex = (m_renderTrackerIndex + 1) % trackerCount;
+                }
+
+                // Find the tracker iterator that corresponds to the render index we want to show
+                for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+                {
+                    if (iter->second.listIndex == m_renderTrackerIndex)
+                    {
+                        m_renderTrackerIter = iter;
+                    }
+                }
+            }
+
+            if (ImGui::Button("Looks Good!"))
+            {
+                setState(eMenuState::selectCalibrationType);
+            }
+
+            if (ImGui::Button("Hmm... Something is wrong."))
+            {
+                request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+            }
+        }
+
+        ImGui::End();
+        break;
 
     case eMenuState::selectCalibrationType:
         {
@@ -234,12 +387,12 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
                 if (ImGui::Button("Attach PSMove To HMD"))
                 {
-                    m_menuState = eMenuState::calibrationStepAttachPSMove;
+                    setState(eMenuState::calibrateWithHMD);
                 }
 
                 if (ImGui::Button("Use Calibration Mat"))
                 {
-                    m_menuState = eMenuState::calibrationStepOriginPlacement;
+                    setState(eMenuState::calibrateWithMat);
                 }
 
                 if (ImGui::Button("Cancel"))
@@ -251,23 +404,64 @@ void AppStage_ComputeTrackerPoses::renderUI()
             ImGui::End();
         } break;
 
-    case eMenuState::calibrationStepOriginPlacement:
-        break;
-    case eMenuState::calibrationStepPlacePSMove:
-        break;
-    case eMenuState::calibrationStepRecordPSMove:
-        break;
-    case eMenuState::calibrationStepPlaceHMD:
-        break;
-    case eMenuState::calibrationStepRecordHMD:
-        break;
-    case eMenuState::calibrationStepAttachPSMove:
-        break;
-    case eMenuState::calibrationStepRecordHmdPSMove:
-        break;
+    case eMenuState::calibrateWithHMD:
+        {
+            m_pCalibrateWithHMD->renderUI();
+        } break;
+
+    case eMenuState::calibrateWithMat:
+        {
+            m_pCalibrateWithMat->renderUI();
+        } break;
+
     case eMenuState::calibrateStepComplete:
+        {
+            ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
+
+            if (m_hmdView != nullptr)
+            {
+                ImGui::Text("Calibration Complete");
+
+                if (ImGui::Button("Redo Calibration"))
+                {
+                    setState(eMenuState::selectCalibrationType);
+                }
+
+                if (ImGui::Button("Exit"))
+                {
+                    m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                }
+            }
+
+            ImGui::End();
+        }
         break;
+
     case eMenuState::calibrateStepFailed:
+        {
+            ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
+
+            if (m_hmdView != nullptr)
+            {
+                ImGui::Text("Calibration Failed");
+
+                if (ImGui::Button("Restart Calibration"))
+                {
+                    setState(eMenuState::selectCalibrationType);
+                }
+
+                if (ImGui::Button("Cancel"))
+                {
+                    m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                }
+            }
+
+            ImGui::End();
+        }
         break;
 
     default:
@@ -275,8 +469,91 @@ void AppStage_ComputeTrackerPoses::renderUI()
     }
 }
 
-void AppStage_ComputeTrackerPoses::request_exit_to_app_stage(const char *app_stage_name)
+void AppStage_ComputeTrackerPoses::setState(eMenuState newState)
 {
+    if (newState != m_menuState)
+    {
+        onExitState(m_menuState);
+        onEnterState(newState);
+
+        m_menuState = newState;
+    }
+}
+
+void AppStage_ComputeTrackerPoses::onExitState(eMenuState newState)
+{
+    switch (m_menuState)
+    {
+    case eMenuState::inactive:
+        break;
+    case eMenuState::pendingControllerListRequest:
+    case eMenuState::pendingControllerStartRequest:
+    case eMenuState::pendingTrackerListRequest:
+    case eMenuState::pendingTrackerStartRequest:
+        break;
+    case eMenuState::failedControllerListRequest:
+    case eMenuState::failedControllerStartRequest:
+    case eMenuState::failedTrackerListRequest:
+    case eMenuState::failedTrackerStartRequest:
+        break;
+    case eMenuState::verifyHMD:
+    case eMenuState::verifyTrackers:
+    case eMenuState::selectCalibrationType:
+        break;
+    case eMenuState::calibrateWithHMD:
+        m_pCalibrateWithHMD->exit();
+        break;
+    case eMenuState::calibrateWithMat:
+        m_pCalibrateWithMat->exit();
+        break;
+    case eMenuState::calibrateStepComplete:
+    case eMenuState::calibrateStepFailed:
+        break;
+    default:
+        assert(0 && "unreachable");
+    }
+}
+
+void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
+{
+    switch (m_menuState)
+    {
+    case eMenuState::inactive:
+        break;
+    case eMenuState::pendingControllerListRequest:
+    case eMenuState::pendingControllerStartRequest:
+    case eMenuState::pendingTrackerListRequest:
+    case eMenuState::pendingTrackerStartRequest:
+        m_trackerViews.clear();
+        m_pendingTrackerStartCount = 0;
+        break;
+    case eMenuState::failedControllerListRequest:
+    case eMenuState::failedControllerStartRequest:
+    case eMenuState::failedTrackerListRequest:
+    case eMenuState::failedTrackerStartRequest:
+        break;
+    case eMenuState::verifyHMD:
+    case eMenuState::verifyTrackers:
+    case eMenuState::selectCalibrationType:
+        break;
+    case eMenuState::calibrateWithHMD:
+        m_pCalibrateWithHMD->enter();
+        break;
+    case eMenuState::calibrateWithMat:
+        m_pCalibrateWithMat->enter();
+        break;
+    case eMenuState::calibrateStepComplete:
+    case eMenuState::calibrateStepFailed:
+        break;
+    default:
+        assert(0 && "unreachable");
+    }
+}
+
+void AppStage_ComputeTrackerPoses::release_devices()
+{
+    //###HipsterSloth $REVIEW Do we care about canceling in-flight requests?
+
     if (m_hmdView != nullptr)
     {
         m_app->getOpenVRContext()->freeHmdView(m_hmdView);
@@ -289,6 +566,33 @@ void AppStage_ComputeTrackerPoses::request_exit_to_app_stage(const char *app_sta
         ClientPSMoveAPI::free_controller_view(m_controllerView);
         m_controllerView = nullptr;
     }
+
+    for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+    {
+        TrackerState &trackerState = iter->second;
+
+        if (trackerState.textureAsset != nullptr)
+        {
+            delete trackerState.textureAsset;
+        }
+
+        if (trackerState.trackerView != nullptr)
+        {
+            ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_tracker_data_stream(trackerState.trackerView));
+            ClientPSMoveAPI::free_tracker_view(trackerState.trackerView);
+        }
+    }
+
+    m_trackerViews.clear();
+    m_pendingTrackerStartCount= 0;
+
+    m_renderTrackerIndex= 0;
+    m_renderTrackerIter = m_trackerViews.end();
+}
+
+void AppStage_ComputeTrackerPoses::request_exit_to_app_stage(const char *app_stage_name)
+{
+    release_devices();
 
     m_app->setAppStage(app_stage_name);
 }
@@ -339,14 +643,14 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
             }
             else
             {
-                thisPtr->m_menuState = AppStage_ComputeTrackerPoses::failedControllerListRequest;
+                thisPtr->setState(AppStage_ComputeTrackerPoses::failedControllerListRequest);
             }
         } break;
 
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
     case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
         {
-            thisPtr->m_menuState = AppStage_ComputeTrackerPoses::failedControllerListRequest;
+            thisPtr->setState(AppStage_ComputeTrackerPoses::failedControllerListRequest);
         } break;
     }
 }
@@ -358,7 +662,7 @@ void AppStage_ComputeTrackerPoses::request_start_controller_stream(int Controlle
     m_controllerView= ClientPSMoveAPI::allocate_controller_view(ControllerID);
 
     // Start receiving data from the controller
-    m_menuState = AppStage_ComputeTrackerPoses::pendingControllerStartRequest;
+    setState(AppStage_ComputeTrackerPoses::pendingControllerStartRequest);
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::start_controller_data_stream(m_controllerView, ClientPSMoveAPI::defaultStreamOptions),
         AppStage_ComputeTrackerPoses::handle_start_controller_response, this);
@@ -383,7 +687,7 @@ void AppStage_ComputeTrackerPoses::handle_start_controller_response(
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
     case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
         {
-            thisPtr->m_menuState = AppStage_ComputeTrackerPoses::failedControllerStartRequest;
+            thisPtr->setState(AppStage_ComputeTrackerPoses::failedControllerStartRequest);
         } break;
     }
 }
@@ -392,9 +696,7 @@ void AppStage_ComputeTrackerPoses::request_tracker_list()
 {
     if (m_menuState != eMenuState::pendingTrackerListRequest)
     {
-        m_menuState = eMenuState::pendingTrackerListRequest;
-        m_trackerViews.clear();
-        m_pendingTrackerStartCount = 0;
+        setState(eMenuState::pendingTrackerListRequest);
 
         // Tell the psmove service that we we want a list of trackers connected to this machine
         ClientPSMoveAPI::register_callback(
@@ -420,26 +722,28 @@ void AppStage_ComputeTrackerPoses::handle_tracker_list_response(
             {
                 const ClientTrackerInfo *TrackerInfo = &tracker_list.trackers[tracker_index];
 
-                thisPtr->request_tracker_start_stream(TrackerInfo);
+                thisPtr->request_tracker_start_stream(TrackerInfo, tracker_index);
             }
         } break;
 
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
     case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
         {
-            thisPtr->m_menuState = eMenuState::failedTrackerListRequest;
+            thisPtr->setState(eMenuState::failedTrackerListRequest);
         } break;
     }
 }
 
 void AppStage_ComputeTrackerPoses::request_tracker_start_stream(
-    const ClientTrackerInfo *TrackerInfo)
+    const ClientTrackerInfo *TrackerInfo,
+    int listIndex)
 {
-    m_menuState = eMenuState::pendingTrackerStartRequest;
-
     TrackerState trackerState;
 
+    setState(eMenuState::pendingTrackerStartRequest);
+
     // Allocate a new tracker view
+    trackerState.listIndex = listIndex;
     trackerState.trackerView = ClientPSMoveAPI::allocate_tracker_view(*TrackerInfo);
     trackerState.textureAsset = nullptr;
 
@@ -494,14 +798,26 @@ void AppStage_ComputeTrackerPoses::handle_tracker_start_stream_response(
             --thisPtr->m_pendingTrackerStartCount;
             if (thisPtr->m_pendingTrackerStartCount <= 0)
             {
-                thisPtr->m_menuState = eMenuState::selectCalibrationType;
+                thisPtr->handle_all_devices_ready();
             }
         } break;
 
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
     case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
         {
-            thisPtr->m_menuState = eMenuState::failedTrackerStartRequest;
+            thisPtr->setState(eMenuState::failedTrackerStartRequest);
         } break;
+    }
+}
+
+void AppStage_ComputeTrackerPoses::handle_all_devices_ready()
+{
+    if (m_hmdView != nullptr)
+    {
+        setState(eMenuState::verifyHMD);
+    }
+    else
+    {
+        setState(eMenuState::verifyTrackers);
     }
 }
