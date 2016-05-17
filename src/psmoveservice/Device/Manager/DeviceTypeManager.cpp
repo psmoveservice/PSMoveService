@@ -220,18 +220,6 @@ DeviceTypeManager::update_connected_devices()
 }
 
 void
-DeviceTypeManager::updateStateAndPredict()
-{
-    // Recompute the state-space data about the device and make predictions about the future
-    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
-    {
-        ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
-
-        device->updateStateAndPredict();
-    }
-}
-
-void
 DeviceTypeManager::publish()
 {
     // Publish any new data to client connections

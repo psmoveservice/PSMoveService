@@ -177,6 +177,13 @@ public:
     // Fetch the device state at the given sample index.
     // A lookBack of 0 corresponds to the most recent data.
     virtual const CommonDeviceState * getState(int lookBack = 0) const = 0;
+    
+    virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const
+    {
+        return std::make_tuple(0, 0, 0);
+        //Use with: unsigned char r, g, b; std::tie(r, g, b) = controller.getColour();
+    }
+ 
 };
 
 /// Abstract class for controller interface. Implemented in PSMoveController.cpp

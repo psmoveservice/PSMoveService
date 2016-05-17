@@ -13,6 +13,8 @@
 #include <boost/interprocess/sync/scoped_lock.hpp>
 #include <memory>
 
+#include "opencv2/core.hpp"
+
 //-- private methods -----
 class SharedVideoFrameReadWriteAccessor
 {
@@ -257,10 +259,6 @@ bool ServerTrackerView::poll()
     return bSuccess;
 }
 
-void ServerTrackerView::updateStateAndPredict()
-{
-}
-
 bool ServerTrackerView::allocate_device_interface(const class DeviceEnumerator *enumerator)
 {
     switch (enumerator->get_device_type())
@@ -334,3 +332,30 @@ void ServerTrackerView::setExposure(double value)
 {
     m_device->setExposure(value);
 }
+
+bool
+ServerTrackerView::getPositionForObject(IDeviceInterface* tracked_object, glm::vec3* out_position)
+{
+    if (m_bHasUnpublishedState)
+    {
+        unsigned char r, g, b;
+        std::tie(r, g, b) = tracked_object->getColour();
+        
+        const unsigned char *vid_buff = m_device->getVideoFrameBuffer();
+        
+        int _width, _height, _stride;
+        m_device->getVideoFrameDimensions(&_width, &_height, &_stride);
+        
+        cv::Mat frame = cv::Mat(_width, _height, CV_8U, &vid_buff, _stride);
+        
+        //TODO: ROI seed on last known position, clamp to frame edges.
+        
+        // TODO: Colour filter
+        
+    }
+    return false;
+}
+
+
+
+

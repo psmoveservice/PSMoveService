@@ -17,8 +17,8 @@ public:
     bool open(const class DeviceEnumerator *enumerator) override;
 
     // Compute pose/prediction of tracking blob+IMU state
-    void updateStateAndPredict() override;
-    void updateStateAndPredict(TrackerManager* tracker_manager);
+    void updatePositionEstimation(TrackerManager* tracker_manager);
+    void updateStateAndPredict();
 
     // Registers the address of the bluetooth adapter on the host PC with the controller
     bool setHostBluetoothAddress(const std::string &address);

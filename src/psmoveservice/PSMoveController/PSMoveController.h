@@ -128,6 +128,7 @@ public:
     virtual long getMaxPollFailureCount() const override;
     virtual CommonDeviceState::eDeviceType getDeviceType() const override;
     virtual const CommonDeviceState * getState(int lookBack = 0) const override;
+    virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
     
     // -- IControllerInterface
     virtual bool setHostBluetoothAddress(const std::string &address) override;
@@ -144,6 +145,13 @@ public:
     float getTempCelsius() const;
     static CommonDeviceState::eDeviceType getDeviceTypeStatic()
     { return CommonDeviceState::PSMove; }
+    
+    
+    const unsigned long getLEDPWMFrequency() const
+    {
+        return LedPWMF;
+    }
+    
 
     // -- Setters
     bool setLED(unsigned char r, unsigned char g, unsigned char b); // 0x00..0xff. TODO: vec3

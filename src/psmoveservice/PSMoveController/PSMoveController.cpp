@@ -896,6 +896,12 @@ PSMoveController::getState(
     return result;
 }
 
+const std::tuple<unsigned char, unsigned char, unsigned char>
+PSMoveController::getColour() const
+{
+    return std::make_tuple(LedR, LedG, LedB);
+}
+
 float
 PSMoveController::getTempCelsius() const
 {

@@ -54,7 +54,8 @@ ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
     for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
     {
         ServerControllerViewPtr controller = getControllerViewPtr(device_id);
-        controller->updateStateAndPredict(tracker_manager);
+        controller->updatePositionEstimation(tracker_manager);
+        controller->updateStateAndPredict();
     }
 }
 

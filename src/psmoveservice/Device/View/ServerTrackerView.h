@@ -4,6 +4,7 @@
 //-- includes -----
 #include "ServerDeviceView.h"
 #include "PSMoveProtocolInterface.h"
+#include <glm/glm.hpp>
 
 // -- declarations -----
 class ServerTrackerView : public ServerDeviceView
@@ -23,9 +24,6 @@ public:
     // Fetch the next video frame and copy to shared memory
     bool poll() override;
 
-    // Get controller colors and update tracking blob positions/predictions
-    void updateStateAndPredict() override;
-
     IDeviceInterface* getDevice() const override {return m_device;}
 
     // Returns what type of tracker this tracker view represents
@@ -42,6 +40,8 @@ public:
     
     double getExposure() const;
     void setExposure(double value);
+    
+    bool getPositionForObject(IDeviceInterface* tracked_object, glm::vec3* out_position);
 
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;

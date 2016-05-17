@@ -12,6 +12,9 @@
 #include "PSMoveProtocolInterface.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerUtility.h"
+#include "ServerTrackerView.h"
+
+#include <glm/glm.hpp>
 
 //-- constants -----
 
@@ -129,22 +132,59 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
     return bSuccess;
 }
 
-void ServerControllerView::updateStateAndPredict(TrackerManager* tracker_manager)
+void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_manager)
 {
+    // TODO: Probably need to first update IMU state to get velocity.
+    // If velocity is too high, don't bother getting a new position.
+    // Though it may be enough to just use the camera ROI as the limit.
+    
     int positions_found = 0;
-    // TODO: Initialize a map between trackers and found positions
+    glm::vec3 position3d_list[TrackerManager::k_max_devices];
+    int valid_tracker_ids[TrackerManager::k_max_devices];
+    
     for (int tracker_id = 0; tracker_id < tracker_manager->getMaxDevices(); ++tracker_id)
     {
         ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-        //TODO: position_list[tracker_id] = tracker->getPositionForObject(this);
-        //TODO: increment positions_found if a good position was found
+        if (tracker->getPositionForObject(this->getDevice(), &position3d_list[positions_found]))
+        {
+            valid_tracker_ids[positions_found] = tracker_id;
+            ++positions_found;
+        }
     }
-    if (positions_found > 1)
+    
+    if (false)//positions_found > 1)
     {
-        //TODO: triangulate positions.
+        glm::vec3 position2d_list[TrackerManager::k_max_devices];
+        for (int list_index= 0; list_index < positions_found; ++list_index)
+        {
+            int tracker_id= valid_tracker_ids[list_index];
+            ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+            
+            // Convert the camera intrinsic matric to an opencv matrix
+            //const glm::mat4 glmCameraMatrix = tracker->getCameraIntrinsicMatrix();
+            //cv::Matx33f cvCameraMatrix = glmMat4ToCvMat33f(glmCameraMatrix);
+            
+            // Get the camera pose
+            //const glm::mat4 glmCameraPose = tracker->getCameraPoseMatrix();
+            
+            // Convert to openCV rvec/tvec
+            //cv::Mat rvec(3, 1, cv::DataType<double>::type);
+            //cv::Mat tvec(3, 1, cv::DataType<double>::type);
+            
+            // Convert 3dpoint to an open cv point
+            //cv::vector<cv::Point3f> cvObjectPoints;
+            
+            // Project the 3d point onto the cameras image plane
+            //cv::projectPoints(cvObjectPoints, rvec, tvec, cvCameraMatrix, cvDistCoeffs, projectedPoints);
+            // Add the project point back to the 2d point list
+        }
+        // Select the best pair of 2d points to use and feed them into
+        // cv::triangulatePoints to get a 3d position
     }
-    // IMU
-    updateStateAndPredict();
+    else
+    {
+        // Use the 3d position for the only valid tracker
+    }
 }
 
 void ServerControllerView::updateStateAndPredict()
