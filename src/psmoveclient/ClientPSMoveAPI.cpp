@@ -203,6 +203,11 @@ public:
             request->mutable_request_start_psmove_data_stream()->set_include_raw_sensor_data(true);
         }
 
+        if ((flags & ClientPSMoveAPI::includeRawTrackerData) > 0)
+        {
+            request->mutable_request_start_psmove_data_stream()->set_include_raw_tracker_data(true);
+        }
+
         m_request_manager.send_request(request);
 
         return request->request_id();

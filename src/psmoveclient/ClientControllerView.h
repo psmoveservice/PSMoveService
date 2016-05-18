@@ -3,6 +3,7 @@
 
 //-- includes -----
 #include "ClientConfig.h"
+#include "ClientConstants.h"
 #include "ClientGeometry.h"
 #include <cassert>
 
@@ -36,6 +37,41 @@ struct CLIENTPSMOVEAPI PSMoveRawSensorData
     }
 };
 
+struct CLIENTPSMOVEAPI PSMoveRawTrackerData
+{
+    // Parallel arrays: ScreenLocation and the TrackerID associated with it
+    PSMoveScreenLocation ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    int TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    int ValidTrackerLocations;
+
+    inline void Clear()
+    {
+        for (int index = 0; index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++index)
+        {
+            ScreenLocations[index] = PSMoveScreenLocation::create(0, 0);
+            TrackerIDs[index] = -1;
+        }
+        ValidTrackerLocations = 0;
+    }
+
+    inline bool GetLocationForTrackerId(int trackerId, PSMoveScreenLocation &outLocation) const
+    {
+        bool bFound = false;
+
+        for (int listIndex = 0; listIndex < ValidTrackerLocations; ++listIndex)
+        {
+            if (TrackerIDs[listIndex] == trackerId)
+            {
+                outLocation = ScreenLocations[listIndex];
+                bFound = true;
+                break;
+            }
+        }
+
+        return bFound;
+    }
+};
+
 struct CLIENTPSMOVEAPI ClientPSMoveView
 {
 private:
@@ -46,6 +82,7 @@ private:
 
     PSMovePose Pose;
     PSMoveRawSensorData RawSensorData;
+    PSMoveRawTrackerData RawTrackerData;
 
     PSMoveButtonState TriangleButton;
     PSMoveButtonState CircleButton;
@@ -153,6 +190,9 @@ public:
 
     const PSMoveRawSensorData &GetRawSensorData() const;
     const PSMoveFloatVector3 &GetIdentityGravityCalibrationDirection() const;
+    bool GetIsStableAndAlignedWithGravity() const;
+
+    const PSMoveRawTrackerData &GetRawTrackerData() const;
 };
 
 class CLIENTPSMOVEAPI ClientPSNaviView

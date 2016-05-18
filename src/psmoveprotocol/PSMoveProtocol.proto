@@ -17,6 +17,11 @@ message Position {
     float z = 3;
 }
 
+message Pixel {
+    float x = 1;
+    float y = 2;
+}
+
 message FloatVector {
     float i = 1;
     float j = 2;
@@ -80,6 +85,7 @@ message Request {
     message RequestStartPSMoveDataStream {
         int32 controller_id = 1;
         bool include_raw_sensor_data= 2;
+        bool include_raw_tracker_data= 3;
     }
     RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
 
@@ -344,6 +350,15 @@ message DeviceDataFrame
                 FloatVector gyroscope= 3;
             }
             RawSensorData raw_sensor_data = 7;
+            
+            // Only valid if include_raw_tracker_data=true in START_CONTROLLER_DATA_STREAM request
+            message RawTrackerData
+            {
+                repeated Pixel screen_locations= 1;
+                repeated int32 tracker_ids= 2;
+                int32 valid_tracker_count= 3;
+            }
+            RawTrackerData raw_tracker_data = 8;            
         }
         PSMoveState psmove_state = 6;
         

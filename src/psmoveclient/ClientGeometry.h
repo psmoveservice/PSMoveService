@@ -5,6 +5,33 @@
 #include "ClientConfig.h"
 
 //-- declarations -----
+struct CLIENTPSMOVEAPI PSMoveFloatVector2
+{
+    float i, j;
+
+    // psuedo-constructor to keep this a POD type
+    static PSMoveFloatVector2 create(float i, float j);
+
+    PSMoveFloatVector2 operator + (const PSMoveFloatVector2 &other) const;
+    PSMoveFloatVector2 operator - (const PSMoveFloatVector2 &other) const;
+    PSMoveFloatVector2 operator * (const float s) const;
+
+    PSMoveFloatVector2 unsafe_divide(const float s) const;
+    PSMoveFloatVector2 unsafe_divide(const PSMoveFloatVector2 &v) const;
+    PSMoveFloatVector2 safe_divide(const float s, const PSMoveFloatVector2 &default_result) const;
+    PSMoveFloatVector2 safe_divide(const PSMoveFloatVector2 &v, const PSMoveFloatVector2 &default_result) const;
+
+    float length() const;
+    float normalize_with_default(const PSMoveFloatVector2 &default_result);
+
+    float minValue() const;
+    float maxValue() const;
+
+    static float dot(const PSMoveFloatVector2 &a, const PSMoveFloatVector2 &b);
+    static PSMoveFloatVector2 min(const PSMoveFloatVector2 &a, const PSMoveFloatVector2 &b);
+    static PSMoveFloatVector2 max(const PSMoveFloatVector2 &a, const PSMoveFloatVector2 &b);
+};
+
 struct CLIENTPSMOVEAPI PSMoveFloatVector3
 {
     float i, j, k;
@@ -27,6 +54,7 @@ struct CLIENTPSMOVEAPI PSMoveFloatVector3
     float minValue() const;
     float maxValue() const;
 
+    static float dot(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
     static PSMoveFloatVector3 min(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
     static PSMoveFloatVector3 max(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
 };
@@ -66,6 +94,17 @@ struct CLIENTPSMOVEAPI PSMovePosition
 
     PSMoveFloatVector3 operator - (const PSMovePosition &other) const;
     PSMovePosition operator * (const float s) const;
+};
+
+struct CLIENTPSMOVEAPI PSMoveScreenLocation
+{
+    float x, y;
+
+    // psuedo-constructor to keep this a POD type
+    static PSMoveScreenLocation create(float x, float y);
+
+    PSMoveFloatVector2 toPSMoveFloatVector2() const;
+    PSMoveFloatVector2 operator - (const PSMoveScreenLocation &other) const;
 };
 
 struct CLIENTPSMOVEAPI PSMoveQuaternion

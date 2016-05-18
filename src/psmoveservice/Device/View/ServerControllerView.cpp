@@ -399,6 +399,19 @@ static void generate_psmove_data_frame_for_stream(
             raw_sensor_data->mutable_gyroscope()->set_j(psmove_state->Gyro[1][1]);
             raw_sensor_data->mutable_gyroscope()->set_k(psmove_state->Gyro[1][2]);
         }
+
+        // If requested, get the raw tracker data for the controller
+        if (stream_info->include_raw_tracker_data)
+        {
+            PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSMoveState_RawTrackerData *raw_tracker_data =
+                psmove_data_frame->mutable_raw_tracker_data();
+
+            //###HipsterSloth $TODO Publish real raw tracking
+            //PSMoveProtocol::Pixel *pixel= raw_tracker_data->add_screen_locations();
+            //raw_tracker_data->add_tracker_ids(tracker_id);
+
+            raw_tracker_data->set_valid_tracker_count(0);
+        }
     }   
 
     controller_data_frame->set_controller_type(PSMoveProtocol::PSMOVE);

@@ -27,6 +27,94 @@ const PSMoveQuaternion *k_psmove_quaternion_identity= &g_psmove_quaternion_ident
 //-- methods -----
 
 // -- PSMoveFloatVector3 --
+PSMoveFloatVector2 PSMoveFloatVector2::create(float i, float j)
+{
+    PSMoveFloatVector2 v;
+
+    v.i = i;
+    v.j = j;
+
+    return v;
+}
+
+PSMoveFloatVector2 PSMoveFloatVector2::operator + (const PSMoveFloatVector2 &other) const
+{
+    return PSMoveFloatVector2::create(i + other.i, j + other.j);
+}
+
+PSMoveFloatVector2 PSMoveFloatVector2::operator - (const PSMoveFloatVector2 &other) const
+{
+    return PSMoveFloatVector2::create(i - other.i, j - other.j);
+}
+
+PSMoveFloatVector2 PSMoveFloatVector2::operator * (const float s) const
+{
+    return PSMoveFloatVector2::create(i*s, j*s);
+}
+
+PSMoveFloatVector2 PSMoveFloatVector2::unsafe_divide(const float s) const
+{
+    return PSMoveFloatVector2::create(i / s, j / s);
+}
+
+PSMoveFloatVector2 PSMoveFloatVector2::unsafe_divide(const PSMoveFloatVector2 &v) const
+{
+    return PSMoveFloatVector2::create(i / v.i, j / v.j);
+}
+
+PSMoveFloatVector2 PSMoveFloatVector2::safe_divide(const float s, const PSMoveFloatVector2 &default_result) const
+{
+    return !is_nearly_zero(s) ? unsafe_divide(s) : default_result;
+}
+
+PSMoveFloatVector2 PSMoveFloatVector2::safe_divide(const PSMoveFloatVector2 &v, const PSMoveFloatVector2 &default_result) const
+{
+    return
+        PSMoveFloatVector2::create(
+            !is_nearly_zero(v.i) ? i / v.i : default_result.i,
+            !is_nearly_zero(v.j) ? j / v.j : default_result.j);
+}
+
+float PSMoveFloatVector2::length() const
+{
+    return sqrtf(i*i + j*j);
+}
+
+float PSMoveFloatVector2::normalize_with_default(const PSMoveFloatVector2 &default_result)
+{
+    const float divisor = length();
+
+    *this = this->safe_divide(divisor, default_result);
+
+    return divisor;
+}
+
+float PSMoveFloatVector2::minValue() const
+{
+    return std::min(i, j);
+}
+
+float PSMoveFloatVector2::maxValue() const
+{
+    return std::max(i, j);
+}
+
+float PSMoveFloatVector2::dot(const PSMoveFloatVector2 &a, const PSMoveFloatVector2 &b)
+{
+    return a.i*b.i + a.j*b.j;
+}
+
+PSMoveFloatVector2 PSMoveFloatVector2::min(const PSMoveFloatVector2 &a, const PSMoveFloatVector2 &b)
+{
+    return PSMoveFloatVector2::create(std::min(a.i, b.i), std::min(a.j, b.j));
+}
+
+PSMoveFloatVector2 PSMoveFloatVector2::max(const PSMoveFloatVector2 &a, const PSMoveFloatVector2 &b)
+{
+    return PSMoveFloatVector2::create(std::max(a.i, b.i), std::max(a.j, b.j));
+}
+
+// -- PSMoveFloatVector3 --
 PSMoveFloatVector3 PSMoveFloatVector3::create(float i, float j, float k)
 {
     PSMoveFloatVector3 v;
@@ -99,6 +187,11 @@ float PSMoveFloatVector3::minValue() const
 float PSMoveFloatVector3::maxValue() const
 {
     return std::max(std::max(i, j), k);
+}
+
+float PSMoveFloatVector3::dot(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b)
+{
+    return a.i*b.i + a.j*b.j + a.k*b.k;
 }
 
 PSMoveFloatVector3 PSMoveFloatVector3::min(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b)
@@ -207,6 +300,27 @@ PSMoveFloatVector3 PSMovePosition::operator - (const PSMovePosition &other) cons
 PSMovePosition PSMovePosition::operator * (const float s) const
 {
     return PSMovePosition::create(x*s, y*s, z*s);
+}
+
+// -- PSMovePosition -- 
+PSMoveScreenLocation PSMoveScreenLocation::create(float x, float y)
+{
+    PSMoveScreenLocation p;
+
+    p.x = x;
+    p.y = y;
+
+    return p;
+}
+
+PSMoveFloatVector2 PSMoveScreenLocation::toPSMoveFloatVector2() const
+{
+    return PSMoveFloatVector2::create(x, y);
+}
+
+PSMoveFloatVector2 PSMoveScreenLocation::operator - (const PSMoveScreenLocation &other) const
+{
+    return PSMoveFloatVector2::create(x - other.x, y - other.y);
 }
 
  // -- PSMovePose -- 

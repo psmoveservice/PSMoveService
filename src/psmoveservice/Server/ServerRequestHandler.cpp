@@ -390,6 +390,7 @@ protected:
             // Set control flags for the stream
             streamInfo.Clear();
             streamInfo.include_raw_sensor_data= request.include_raw_sensor_data();
+            streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }

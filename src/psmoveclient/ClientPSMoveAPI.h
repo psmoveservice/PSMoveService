@@ -3,6 +3,7 @@
 
 //-- includes -----
 #include "ClientConfig.h"
+#include "ClientConstants.h"
 #include "ClientLog.h"
 #include "ClientControllerView.h"
 #include "ClientTrackerView.h"
@@ -15,16 +16,6 @@
 //-- pre-declarations -----
 class ClientControllerView;
 class ClientHMDView;
-
-//-- constants -----
-#define PSMOVESERVICE_DEFAULT_ADDRESS   "localhost"
-#define PSMOVESERVICE_DEFAULT_PORT      "9512"
-
-// See ControllerManager.h in PSMoveService
-#define PSMOVESERVICE_MAX_CONTROLLER_COUNT  5
-
-// See TrackerManager.h in PSMoveService
-#define PSMOVESERVICE_MAX_TRACKER_COUNT  2
 
 //-- macros -----
 #ifdef HAS_PROTOCOL_ACCESS
@@ -48,7 +39,8 @@ public:
     enum eControllerDataStreamFlags
     {
         defaultStreamOptions = 0x00,
-        includeRawSensorData = 0x01
+        includeRawSensorData = 0x01,
+        includeRawTrackerData = 0x02,
     };
 
     // Service Events

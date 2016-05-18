@@ -664,7 +664,9 @@ void AppStage_ComputeTrackerPoses::request_start_controller_stream(int Controlle
     // Start receiving data from the controller
     setState(AppStage_ComputeTrackerPoses::pendingControllerStartRequest);
     ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::start_controller_data_stream(m_controllerView, ClientPSMoveAPI::defaultStreamOptions),
+        ClientPSMoveAPI::start_controller_data_stream(
+            m_controllerView, 
+            ClientPSMoveAPI::includeRawSensorData | ClientPSMoveAPI::includeRawTrackerData),
         AppStage_ComputeTrackerPoses::handle_start_controller_response, this);
 }
 
