@@ -327,3 +327,21 @@ install(TARGETS test_udp_client
     ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
 ELSE() #Linux/Darwin
 ENDIF()
+
+#
+# TEST_OPTICAL_TRACKER
+#
+
+add_executable(test_optical_tracker ${CMAKE_CURRENT_LIST_DIR}/test_optical_tracker.cpp ${TEST_CAMERA_SRC} ${TEST_CTRLR_SRC})
+target_include_directories(test_optical_tracker PUBLIC ${TEST_CAMERA_INCL_DIRS} ${TEST_CTRLR_INCL_DIRS})
+target_link_libraries(test_optical_tracker ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS} ${TEST_CTRLR_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_optical_tracker PROPERTIES FOLDER Test)
+
+# Install
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS test_optical_tracker
+RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
+LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
+ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+ELSE() #Linux/Darwin
+ENDIF()
