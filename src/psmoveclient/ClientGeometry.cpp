@@ -24,6 +24,9 @@ const PSMovePosition *k_psmove_position_origin= &g_psmove_position_origin;
 const PSMoveQuaternion g_psmove_quaternion_identity= {1.f, 0.f, 0.f, 0.f};
 const PSMoveQuaternion *k_psmove_quaternion_identity= &g_psmove_quaternion_identity;
 
+const PSMoveMatrix3x3 g_psmove_matrix_identity = { 1.f, 0.f, 0.f , 0.f, 1.f, 0.f, 0.f, 0.f, 1.f };
+const PSMoveMatrix3x3 *k_psmove_matrix_identity = &g_psmove_matrix_identity;
+
 //-- methods -----
 
 // -- PSMoveFloatVector3 --
@@ -124,6 +127,11 @@ PSMoveFloatVector3 PSMoveFloatVector3::create(float i, float j, float k)
     v.k= k;
 
     return v;
+}
+
+PSMovePosition PSMoveFloatVector3::castToPSMovePosition() const
+{
+    return PSMovePosition::create(i, j, k);
 }
 
 PSMoveFloatVector3 PSMoveFloatVector3::operator + (const PSMoveFloatVector3 &other) const
@@ -292,6 +300,11 @@ PSMovePosition PSMovePosition::create(float x, float y, float z)
     return p;
 }
 
+PSMoveFloatVector3 PSMovePosition::toPSMoveFloatVector3() const
+{
+    return PSMoveFloatVector3::create(x, y, z);
+}
+
 PSMoveFloatVector3 PSMovePosition::operator - (const PSMovePosition &other) const
 {
     return PSMoveFloatVector3::create(x - other.x, y - other.y, z - other.z);
@@ -323,7 +336,80 @@ PSMoveFloatVector2 PSMoveScreenLocation::operator - (const PSMoveScreenLocation 
     return PSMoveFloatVector2::create(x - other.x, y - other.y);
 }
 
- // -- PSMovePose -- 
+// -- PSMoveQuaternion -- 
+// psuedo-constructor to keep this a POD type
+PSMoveQuaternion PSMoveQuaternion::create(float w, float x, float y, float z)
+{
+    PSMoveQuaternion q;
+
+    q.w = w;
+    q.x = x;
+    q.y = y;
+    q.z = z;
+
+    return q;
+}
+
+PSMoveQuaternion PSMoveQuaternion::operator + (const PSMoveQuaternion &other) const
+{
+    return PSMoveQuaternion::create(w + other.w, x + other.x, y + other.y, z + other.z);
+}
+
+PSMoveQuaternion PSMoveQuaternion::unsafe_divide(const float s) const
+{
+    return PSMoveQuaternion::create(w / s, x / s, y / s, z / s);
+}
+
+PSMoveQuaternion PSMoveQuaternion::safe_divide(const float s, const PSMoveQuaternion &default_result) const
+{
+    return !is_nearly_zero(s) ? unsafe_divide(s) : default_result;
+}
+
+float PSMoveQuaternion::length() const
+{
+    return sqrtf(w*w + x*x + y*y + z*z);
+}
+
+PSMoveQuaternion & PSMoveQuaternion::normalize_with_default(const PSMoveQuaternion &default_result)
+{
+    const float divisor = length();
+
+    *this = this->safe_divide(divisor, default_result);
+
+    return *this;
+}
+
+// -- PSMoveMatrix3x3 --
+PSMoveMatrix3x3 PSMoveMatrix3x3::create(
+    const PSMoveFloatVector3 &basis_x,
+    const PSMoveFloatVector3 &basis_y,
+    const PSMoveFloatVector3 &basis_z)
+{
+    PSMoveMatrix3x3 mat;
+
+    mat.m[0][0] = basis_x.i; mat.m[0][1] = basis_x.j; mat.m[0][2] = basis_x.k;
+    mat.m[1][0] = basis_y.i; mat.m[1][1] = basis_y.j; mat.m[1][2] = basis_y.k;
+    mat.m[2][0] = basis_z.i; mat.m[2][1] = basis_z.j; mat.m[2][2] = basis_z.k;
+
+    return mat;
+}
+
+PSMoveFloatVector3 PSMoveMatrix3x3::basis_x() const
+{
+    return PSMoveFloatVector3::create(m[0][0], m[0][1], m[0][2]);
+}
+
+PSMoveFloatVector3 PSMoveMatrix3x3::basis_y() const
+{
+    return PSMoveFloatVector3::create(m[1][0], m[1][1], m[1][2]);
+}
+
+PSMoveFloatVector3 PSMoveMatrix3x3::basis_z() const
+{
+    return PSMoveFloatVector3::create(m[2][0], m[2][1], m[2][2]);
+}
+
+// -- PSMovePose -- 
 void PSMovePose::Clear()
 {
     Orientation= *k_psmove_quaternion_identity;

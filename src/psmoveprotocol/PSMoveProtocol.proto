@@ -253,6 +253,9 @@ message Response {
             TrackerDriver tracker_driver = 3;
             string device_path = 4;
             string shared_memory_name = 5;
+            Pixel tracker_focal_lengths = 6;
+            Pixel tracker_principal_point = 7;
+            Pixel tracker_screen_dimensions = 8;            
         }
         repeated TrackerInfo trackers = 1;
     }

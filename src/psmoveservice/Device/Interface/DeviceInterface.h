@@ -254,5 +254,12 @@ public:
     
     virtual void setExposure(double value) = 0;
     virtual double getExposure() const = 0;
+
+    virtual void getCameraIntrinsics(
+        float &outFocalLengthX, float &outFocalLengthY,
+        float &outPrincipalX, float &outPrincipalY) const = 0;
+    virtual void setCameraIntrinsics(
+        float focalLengthX, float focalLengthY,
+        float principalX, float principalY) = 0;
 };
 #endif // DEVICE_INTERFACE_H

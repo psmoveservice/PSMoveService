@@ -41,10 +41,15 @@ private:
     PSMoveFloatVector3 m_angularVelocity;
     PSMoveFloatVector3 m_linearVelocity;
 
+    PSMoveFloatVector3 m_xBasisVector; // +x
+    PSMoveFloatVector3 m_yBasisVector; // +y
+    PSMoveFloatVector3 m_zBasisVector; // -z
+
     int m_sequenceNum;
     int m_listenerCount;
 
     bool m_bIsConnected;
+    bool m_bIsTracking;
 
     long long m_dataFrameLastReceivedTime;
     float m_dataFrameAverageFps;
@@ -105,6 +110,13 @@ public:
     {
         return m_bIsConnected;
     }
+
+    inline bool getIsTracking() const
+    {
+        return m_bIsTracking;
+    }
+
+    bool getIsStableAndAlignedWithGravity() const;
 
     // Statistics
     inline float getDataFrameFPS() const

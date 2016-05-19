@@ -237,6 +237,19 @@ public:
                 assert(0 && "unreachable");
             }
 
+            TrackerInfo.tracker_focal_lengths = 
+                PSMoveFloatVector2::create(
+                    TrackerResponse.tracker_focal_lengths().x(), 
+                    TrackerResponse.tracker_focal_lengths().y());
+            TrackerInfo.tracker_principal_point =
+                PSMoveFloatVector2::create(
+                    TrackerResponse.tracker_principal_point().x(),
+                    TrackerResponse.tracker_principal_point().y());
+            TrackerInfo.tracker_screen_dimensions =
+                PSMoveFloatVector2::create(
+                    TrackerResponse.tracker_screen_dimensions().x(),
+                    TrackerResponse.tracker_screen_dimensions().y());
+
             strncpy(TrackerInfo.device_path, TrackerResponse.device_path().c_str(), sizeof(TrackerInfo.device_path));
             strncpy(TrackerInfo.shared_memory_name, TrackerResponse.shared_memory_name().c_str(), sizeof(TrackerInfo.shared_memory_name));
 

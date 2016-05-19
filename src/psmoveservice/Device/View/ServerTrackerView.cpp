@@ -334,3 +334,29 @@ void ServerTrackerView::setExposure(double value)
 {
     m_device->setExposure(value);
 }
+
+void ServerTrackerView::getCameraIntrinsics(
+    float &outFocalLengthX, float &outFocalLengthY,
+    float &outPrincipalX, float &outPrincipalY) const
+{
+    m_device->getCameraIntrinsics(
+        outFocalLengthX, outFocalLengthY,
+        outPrincipalX, outPrincipalY);
+}
+
+void ServerTrackerView::setCameraIntrinsics(
+    float focalLengthX, float focalLengthY,
+    float principalX, float principalY)
+{
+    m_device->setCameraIntrinsics(focalLengthX, focalLengthY, principalX, principalY);
+}
+
+void ServerTrackerView::getPixelDimensions(float &outWidth, float &outHeight) const
+{
+    int pixelWidth, pixelHeight;
+
+    m_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
+
+    outWidth = static_cast<float>(pixelWidth);
+    outHeight = static_cast<float>(pixelHeight);
+}

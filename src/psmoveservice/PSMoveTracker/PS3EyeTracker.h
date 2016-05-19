@@ -17,6 +17,10 @@ public:
     , is_valid(false)
     , max_poll_failure_count(100)
     , exposure(32)
+    , focalLengthX(640.f)
+    , focalLengthY(640.f)
+    , principalX(320.f)
+    , principalY(240.f)
     {};
     
     virtual const boost::property_tree::ptree config2ptree();
@@ -26,6 +30,10 @@ public:
     long version;
     long max_poll_failure_count;
     double exposure;
+    double focalLengthX;
+    double focalLengthY;
+    double principalX;
+    double principalY;
 
     static const int CONFIG_VERSION;
 };
@@ -72,6 +80,12 @@ public:
     const unsigned char *getVideoFrameBuffer() const override;
     void setExposure(double value) override;
     double getExposure() const override;
+    void getCameraIntrinsics(
+        float &outFocalLengthX, float &outFocalLengthY,
+        float &outPrincipalX, float &outPrincipalY) const override;
+    void setCameraIntrinsics(
+        float focalLengthX, float focalLengthY,
+        float principalX, float principalY) override;
 
     // -- Getters
     inline const PS3EyeTrackerConfig &getConfig() const

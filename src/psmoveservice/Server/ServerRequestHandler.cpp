@@ -700,6 +700,25 @@ protected:
                 tracker_info->set_tracker_id(tracker_id);
                 tracker_info->set_device_path(tracker_view->getUSBDevicePath());
                 tracker_info->set_shared_memory_name(tracker_view->getSharedMemoryStreamName());
+
+                // Get the intrinsic camera lens properties
+                {
+                    float focalLengthX, focalLengthY, principalX, principalY;
+                    float pixelWidth, pixelHeight;
+
+                    tracker_view->getCameraIntrinsics(focalLengthX, focalLengthY, principalX, principalY);
+                    tracker_view->getPixelDimensions(pixelWidth, pixelHeight);
+
+                    tracker_info->mutable_tracker_focal_lengths()->set_x(focalLengthX);
+                    tracker_info->mutable_tracker_focal_lengths()->set_y(focalLengthY);
+
+                    tracker_info->mutable_tracker_principal_point()->set_x(principalX);
+                    tracker_info->mutable_tracker_principal_point()->set_y(principalY);
+
+                    tracker_info->mutable_tracker_screen_dimensions()->set_x(pixelWidth);
+                    tracker_info->mutable_tracker_screen_dimensions()->set_y(pixelHeight);
+
+                }
             }
         }
 

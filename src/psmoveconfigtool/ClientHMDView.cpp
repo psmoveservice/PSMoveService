@@ -1,6 +1,8 @@
 //-- includes -----
 #include "ClientHMDView.h"
+#include "ClientGeometry.h"
 #include "Logger.h"
+#include "MathUtility.h"
 #include "math.h"
 #include "openvr.h"
 
@@ -61,6 +63,7 @@ void ClientHMDView::clear()
     m_listenerCount= 0;
 
     m_bIsConnected= false;
+    m_bIsTracking = false;
 
     m_dataFrameLastReceivedTime = -1LL;
     m_dataFrameAverageFps= 0.f;
@@ -86,11 +89,16 @@ void ClientHMDView::applyHMDDataFrame(const vr::TrackedDevicePose_t *data_frame)
 {
     if (data_frame->bPoseIsValid)
     {
+        const float(&m)[3][4] = data_frame->mDeviceToAbsoluteTracking.m;
+
         // OpenVR uses right-handed coordinate system:
         // +y is up
         // +x is to the right
         // -z is going away from you
         // Distance unit is meters
+        m_xBasisVector = PSMoveFloatVector3::create(m[0][0], m[1][0], m[2][0]);
+        m_yBasisVector = PSMoveFloatVector3::create(m[0][1], m[1][1], m[2][1]);
+        m_zBasisVector = PSMoveFloatVector3::create(m[0][2], m[1][2], m[2][2]);
 
         // PSMoveAPI also uses the same right-handed coordinate system
         // Distance unit is centimeters
@@ -101,9 +109,28 @@ void ClientHMDView::applyHMDDataFrame(const vr::TrackedDevicePose_t *data_frame)
 
         // Increment the sequence number now that that we have new data
         ++m_sequenceNum;
+
+        m_bIsTracking = true;
+    }
+    else
+    {
+        m_bIsTracking = false;
     }
 }
 
+bool ClientHMDView::getIsStableAndAlignedWithGravity() const
+{
+    const float k_cosine_10_degrees = 0.984808f;
+    const float velocity_magnitude = m_linearVelocity.length();
+
+    const bool isOk =
+        is_nearly_equal(velocity_magnitude, 0.f, 0.5f) &&
+        PSMoveFloatVector3::dot(m_yBasisVector, PSMoveFloatVector3::create(0.f, 1.f, 0.f)) >= k_cosine_10_degrees;
+
+    return isOk;
+}
+
+//-- private helpers -----
 // From: http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
 static PSMoveQuaternion openvrMatrixExtractPSMoveQuaternion(const vr::HmdMatrix34_t &openVRTransform)
 {
@@ -169,7 +196,6 @@ static PSMoveFloatVector3 openvrVectorToPSMoveVector(const vr::HmdVector3_t &ope
     return PSMoveFloatVector3::create(v[0], v[1], v[2]);
 }
 
-//-- private helpers -----
 static std::string trackedDeviceGetString(
     vr::IVRSystem *pVRSystem,
     vr::TrackedDeviceIndex_t unDevice,

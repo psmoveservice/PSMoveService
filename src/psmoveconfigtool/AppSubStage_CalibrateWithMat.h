@@ -4,6 +4,7 @@
 //-- includes -----
 #include "ClientGeometry.h"
 #include "ClientConstants.h"
+#include "MathGLM.h"
 #include <chrono>
 
 //-- constants -----
@@ -21,8 +22,8 @@ struct PS3EYETrackerPoseContext
 
     PSMoveScreenLocation avgScreenSpacePointAtLocation[k_mat_sample_location_count];
 
-    PSMovePose trackerPose;
-    PSMovePose hmdCameraRelativeTrackerPose;
+    glm::mat4 trackerPose;
+    glm::mat4 hmdCameraRelativeTrackerPose;
     float reprojectionError;
     bool bValidTrackerPose;
 
@@ -31,8 +32,8 @@ struct PS3EYETrackerPoseContext
         memset(screenSpacePoints, 0, sizeof(PSMoveScreenLocation)*k_mat_calibration_sample_count);
         memset(avgScreenSpacePointAtLocation, 0, sizeof(PSMoveScreenLocation)*k_mat_sample_location_count);
         screenSpacePointCount = 0;
-        trackerPose.Clear();
-        hmdCameraRelativeTrackerPose.Clear();
+        trackerPose= glm::mat4(1.f);
+        hmdCameraRelativeTrackerPose = glm::mat4(1.f);
         reprojectionError = 0.f;
         bValidTrackerPose = false;
     }
@@ -75,8 +76,9 @@ protected:
         calibrationStepRecordPSMove,
         calibrationStepPlaceHMD,
         calibrationStepRecordHMD,
+        calibrationStepComputeTrackerPoses,
 
-        calibrateStepComplete,
+        calibrateStepSuccess,
         calibrateStepFailed,
     };
 

@@ -35,6 +35,9 @@ struct CLIENTPSMOVEAPI ClientTrackerInfo
     eTrackerDriver tracker_driver;
     char device_path[128];
     char shared_memory_name[64];
+    PSMoveFloatVector2 tracker_focal_lengths;
+    PSMoveFloatVector2 tracker_principal_point;
+    PSMoveFloatVector2 tracker_screen_dimensions;
 };
 
 class CLIENTPSMOVEAPI ClientTrackerView
@@ -88,6 +91,19 @@ public:
     inline const ClientTrackerInfo &getTrackerInfo() const
     {
         return m_tracker_info;
+    }
+
+    inline PSMoveFloatVector2 getTrackerPixelExtents() const
+    {
+        return m_tracker_info.tracker_screen_dimensions;
+    }
+
+    inline PSMoveMatrix3x3 getTrackerIntrinsicMatrix() const
+    {
+        return PSMoveMatrix3x3::create(
+            PSMoveFloatVector3::create(m_tracker_info.tracker_focal_lengths.i, 0.f, m_tracker_info.tracker_principal_point.i),
+            PSMoveFloatVector3::create(0.f, m_tracker_info.tracker_focal_lengths.j, m_tracker_info.tracker_principal_point.j),
+            PSMoveFloatVector3::create(0.f, 0.f, 1.f));
     }
 
     inline int getTrackerId() const
