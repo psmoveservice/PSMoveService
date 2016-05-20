@@ -151,13 +151,25 @@ struct CLIENTPSMOVEAPI PSMovePose
     void Clear();
 };
 
+struct CLIENTPSMOVEAPI PSMoveFrustum
+{
+    PSMovePosition origin; // cm
+    PSMoveFloatVector3 forward, left, up;
+    float HFOV, VFOV; // radians
+    float zNear, zFar; // cm
+};
+
 //-- constants -----
 CLIENTPSMOVEAPI extern const PSMoveIntVector3 *k_psmove_int_vector3_zero;
 CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_zero;
 CLIENTPSMOVEAPI extern const PSMoveIntVector3 *k_psmove_int_vector3_one;
 CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_one;
+CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_i;
+CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_j;
+CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_k;
 CLIENTPSMOVEAPI extern const PSMovePosition *k_psmove_position_origin;
 CLIENTPSMOVEAPI extern const PSMoveQuaternion *k_psmove_quaternion_identity;
 CLIENTPSMOVEAPI extern const PSMoveMatrix3x3 *k_psmove_matrix_identity;
+CLIENTPSMOVEAPI extern const PSMovePose *k_psmove_pose_identity;
 
 #endif // CLIENT_GEOMETRY_H

@@ -48,13 +48,20 @@ protected:
         calibrateWithHMD,
         calibrateWithMat,
 
-        calibrateStepComplete,
+        calibrateStepTestTracking,
         calibrateStepFailed,
     };
 
     void setState(eMenuState newState);
     void onExitState(eMenuState newState);
     void onEnterState(eMenuState newState);
+
+    void update_tracker_video();
+    void render_tracker_video();
+    void go_next_tracker();
+    void go_previous_tracker();
+    int get_tracker_count() const;
+    int get_render_tracker_index() const;
 
     void request_controller_list();
     static void handle_controller_list_response(

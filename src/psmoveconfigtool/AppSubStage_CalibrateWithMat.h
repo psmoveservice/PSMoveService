@@ -69,9 +69,8 @@ public:
 protected:
     enum eMenuState
     {
-        inactive,
+        initial,
 
-        calibrationStepOriginPlacement,
         calibrationStepPlacePSMove,
         calibrationStepRecordPSMove,
         calibrationStepPlaceHMD,

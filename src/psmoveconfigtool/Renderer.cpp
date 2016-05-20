@@ -1,5 +1,6 @@
 //-- includes -----
 #include "Renderer.h"
+#include "ClientGeometry.h"
 #include "AssetManager.h"
 #include "Logger.h"
 #include "UIConstants.h"
@@ -686,6 +687,64 @@ void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const fl
         glDrawArrays(GL_POINTS, 0, point_count);
         glDisableClientState(GL_VERTEX_ARRAY);
     glPopMatrix();
+}
+
+void drawFrustum(const PSMoveFrustum *frustum, const glm::vec3 &color)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    const float HRatio = tanf(frustum->HFOV / 2.f);
+    const float VRatio = tanf(frustum->VFOV / 2.f);
+
+    glm::vec3 left(frustum->left.i, frustum->left.j, frustum->left.k);
+    glm::vec3 up(frustum->up.i, frustum->up.j, frustum->up.k);
+    glm::vec3 forward(frustum->forward.i, frustum->forward.j, frustum->forward.k);
+    glm::vec3 origin(frustum->origin.x, frustum->origin.y, frustum->origin.z);
+
+    glm::vec3 nearX = left*frustum->zNear*HRatio;
+    glm::vec3 farX = left*frustum->zFar*HRatio;
+
+    glm::vec3 nearY = up*frustum->zNear*VRatio;
+    glm::vec3 farY = up*frustum->zFar*VRatio;
+
+    glm::vec3 nearZ = forward*frustum->zNear;
+    glm::vec3 farZ = forward*frustum->zFar;
+
+    glm::vec3 nearCenter = origin + nearZ;
+    glm::vec3 near0 = origin + nearX + nearY + nearZ;
+    glm::vec3 near1 = origin - nearX + nearY + nearZ;
+    glm::vec3 near2 = origin - nearX - nearY + nearZ;
+    glm::vec3 near3 = origin + nearX - nearY + nearZ;
+
+    glm::vec3 far0 = origin + farX + farY + farZ;
+    glm::vec3 far1 = origin - farX + farY + farZ;
+    glm::vec3 far2 = origin - farX - farY + farZ;
+    glm::vec3 far3 = origin + farX - farY + farZ;
+
+    glBegin(GL_LINES);
+
+    glColor3fv(glm::value_ptr(color));
+
+    glVertex3fv(glm::value_ptr(near0)); glVertex3fv(glm::value_ptr(near1));
+    glVertex3fv(glm::value_ptr(near1)); glVertex3fv(glm::value_ptr(near2));
+    glVertex3fv(glm::value_ptr(near2)); glVertex3fv(glm::value_ptr(near3));
+    glVertex3fv(glm::value_ptr(near3)); glVertex3fv(glm::value_ptr(near0));
+
+    glVertex3fv(glm::value_ptr(far0)); glVertex3fv(glm::value_ptr(far1));
+    glVertex3fv(glm::value_ptr(far1)); glVertex3fv(glm::value_ptr(far2));
+    glVertex3fv(glm::value_ptr(far2)); glVertex3fv(glm::value_ptr(far3));
+    glVertex3fv(glm::value_ptr(far3)); glVertex3fv(glm::value_ptr(far0));
+
+    glVertex3fv(glm::value_ptr(origin)); glVertex3fv(glm::value_ptr(far0));
+    glVertex3fv(glm::value_ptr(origin)); glVertex3fv(glm::value_ptr(far1));
+    glVertex3fv(glm::value_ptr(origin)); glVertex3fv(glm::value_ptr(far2));
+    glVertex3fv(glm::value_ptr(origin)); glVertex3fv(glm::value_ptr(far3));
+
+    glVertex3fv(glm::value_ptr(origin));
+    glColor3ub(0, 255, 0);
+    glVertex3fv(glm::value_ptr(nearCenter));
+
+    glEnd();
 }
 
 void drawEllipsoid(

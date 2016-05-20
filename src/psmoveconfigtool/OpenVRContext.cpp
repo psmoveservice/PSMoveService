@@ -97,23 +97,12 @@ void OpenVRContext::update()
         {
             processVREvent(event);
         }
-
-        // Process SteamVR controller state
-        //for (vr::TrackedDeviceIndex_t unDevice = 0; unDevice < vr::k_unMaxTrackedDeviceCount; unDevice++)
-        //{
-        //    vr::VRControllerState_t state;
-        //    if (m_pHMD->GetControllerState(unDevice, &state))
-        //    {
-        //        m_rbShowTrackedDevice[unDevice] = state.ulButtonPressed == 0;
-        //    }
-        //}
     }
 }
 
 void OpenVRContext::processVREvent(const vr::VREvent_t & event)
 {
-    if (event.trackedDeviceIndex == vr::k_unTrackedDeviceIndex_Hmd && 
-        m_hmdView != nullptr)
+    if (m_hmdView != nullptr)
     {
         switch (event.eventType)
         {
@@ -121,19 +110,19 @@ void OpenVRContext::processVREvent(const vr::VREvent_t & event)
             {
                 //SetupRenderModelForTrackedDevice(event.trackedDeviceIndex);
                 Log_INFO("OpenVRContext::processVREvent", "Device %u attached. Setting up render model.\n", event.trackedDeviceIndex);
-                m_hmdView->notifyConnected(m_pVRSystem);
+                m_hmdView->notifyConnected(m_pVRSystem, event.trackedDeviceIndex);
             }
             break;
         case vr::VREvent_TrackedDeviceDeactivated:
             {
                 Log_INFO("OpenVRContext::processVREvent", "Device %u detached.\n", event.trackedDeviceIndex);
-                m_hmdView->notifyDisconnected(m_pVRSystem);
+                m_hmdView->notifyDisconnected(m_pVRSystem, event.trackedDeviceIndex);
             }
             break;
         case vr::VREvent_TrackedDeviceUpdated:
             {
                 Log_INFO("OpenVRContext::processVREvent", "Device %u updated.\n", event.trackedDeviceIndex);
-                m_hmdView->notifyPropertyChanged(m_pVRSystem);
+                m_hmdView->notifyPropertyChanged(m_pVRSystem, event.trackedDeviceIndex);
             }
             break;
         }
@@ -155,7 +144,35 @@ int OpenVRContext::getHmdList(OpenVRHmdInfo *outHmdList, int maxListSize)
             {
                 OpenVRHmdInfo &entry = outHmdList[listCount];
 
-                entry.rebuild(deviceIndex, m_pVRSystem);
+                entry.clear();
+                entry.rebuild(m_pVRSystem);
+                entry.DeviceIndex = deviceIndex;
+                ++listCount;
+            }
+        }
+    }
+
+    return listCount;
+}
+
+int OpenVRContext::getHmdTrackerList(struct OpenVRTrackerInfo *outTrackerList, int maxListSize)
+{
+    int listCount = 0;
+
+    if (getIsInitialized())
+    {
+        for (vr::TrackedDeviceIndex_t deviceIndex = 0;
+            deviceIndex < vr::k_unMaxTrackedDeviceCount && listCount < maxListSize;
+            ++deviceIndex)
+        {
+            if (m_pVRSystem->IsTrackedDeviceConnected(deviceIndex) &&
+                m_pVRSystem->GetTrackedDeviceClass(deviceIndex) == vr::TrackedDeviceClass_TrackingReference)
+            {
+                OpenVRTrackerInfo &entry = outTrackerList[listCount];
+
+                entry.clear();
+                entry.rebuild(m_pVRSystem);
+                entry.DeviceIndex = deviceIndex;
                 ++listCount;
             }
         }
@@ -172,15 +189,32 @@ ClientHMDView *OpenVRContext::allocateHmdView()
     {
         if (m_hmdView == nullptr)
         {
-            m_hmdView = new ClientHMDView(static_cast<int>(vr::k_unTrackedDeviceIndex_Hmd));
+            OpenVRHmdInfo hmdList[1];
+            OpenVRTrackerInfo trackerList[1];
 
-            if (m_pVRSystem->IsTrackedDeviceConnected(vr::k_unTrackedDeviceIndex_Hmd))
+            int hmdCount = getHmdList(hmdList, sizeof(hmdList));
+            int trackerCount = getHmdTrackerList(trackerList, sizeof(trackerList));
+
+            if (hmdCount > 0 && trackerCount > 0)
             {
-                m_hmdView->notifyConnected(m_pVRSystem);
+                m_hmdView = new ClientHMDView(hmdList[0].DeviceIndex, trackerList[0].DeviceIndex);
+
+                if (m_pVRSystem->IsTrackedDeviceConnected(hmdList[0].DeviceIndex))
+                {
+                    m_hmdView->notifyConnected(m_pVRSystem, hmdList[0].DeviceIndex);
+                }
+
+                if (m_pVRSystem->IsTrackedDeviceConnected(trackerList[0].DeviceIndex))
+                {
+                    m_hmdView->notifyConnected(m_pVRSystem, trackerList[0].DeviceIndex);
+                }
             }
         }
 
-        m_hmdView->incListenerCount();
+        if (m_hmdView != nullptr)
+        {
+            m_hmdView->incListenerCount();
+        }
 
         result = m_hmdView;
     }

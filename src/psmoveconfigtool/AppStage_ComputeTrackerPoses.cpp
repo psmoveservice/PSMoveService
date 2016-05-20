@@ -98,15 +98,7 @@ void AppStage_ComputeTrackerPoses::update()
     case eMenuState::verifyHMD:
         break;
     case eMenuState::verifyTrackers:
-        if (m_renderTrackerIter != m_trackerViews.end())
-        {
-            // Render the latest from the currently active tracker
-            if (m_renderTrackerIter->second.trackerView->pollVideoStream())
-            {
-                m_renderTrackerIter->second.textureAsset->copyBufferIntoTexture(
-                    m_renderTrackerIter->second.trackerView->getVideoFrameBuffer());
-            }
-        }
+        update_tracker_video();
         break;
     case eMenuState::selectCalibrationType:
         break;
@@ -116,7 +108,7 @@ void AppStage_ComputeTrackerPoses::update()
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->update();
         break;
-    case eMenuState::calibrateStepComplete:
+    case eMenuState::calibrateStepTestTracking:
         break;
     case eMenuState::calibrateStepFailed:
         break;
@@ -159,10 +151,7 @@ void AppStage_ComputeTrackerPoses::render()
         } break;
     case eMenuState::verifyTrackers:
         {
-            if (m_renderTrackerIter != m_trackerViews.end())
-            {
-                drawFullscreenTexture(m_renderTrackerIter->second.textureAsset->texture_id);
-            }
+            render_tracker_video();
         } break;
     case eMenuState::selectCalibrationType:
         break;
@@ -172,7 +161,7 @@ void AppStage_ComputeTrackerPoses::render()
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->render();
         break;
-    case eMenuState::calibrateStepComplete:
+    case eMenuState::calibrateStepTestTracking:
         {
             // Draw the origin axes
             drawTransformedAxes(glm::mat4(1.0f), 100.f);
@@ -343,21 +332,12 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
                 if (ImGui::Button("Previous Tracker"))
                 {
-                    m_renderTrackerIndex = (m_renderTrackerIndex + trackerCount - 1) % trackerCount;
+                    go_previous_tracker();
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Next Tracker"))
                 {
-                    m_renderTrackerIndex = (m_renderTrackerIndex + 1) % trackerCount;
-                }
-
-                // Find the tracker iterator that corresponds to the render index we want to show
-                for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
-                {
-                    if (iter->second.listIndex == m_renderTrackerIndex)
-                    {
-                        m_renderTrackerIter = iter;
-                    }
+                    go_next_tracker();
                 }
             }
 
@@ -414,7 +394,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
             m_pCalibrateWithMat->renderUI();
         } break;
 
-    case eMenuState::calibrateStepComplete:
+    case eMenuState::calibrateStepTestTracking:
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
@@ -506,7 +486,7 @@ void AppStage_ComputeTrackerPoses::onExitState(eMenuState newState)
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->exit();
         break;
-    case eMenuState::calibrateStepComplete:
+    case eMenuState::calibrateStepTestTracking:
     case eMenuState::calibrateStepFailed:
         break;
     default:
@@ -542,12 +522,81 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->enter();
         break;
-    case eMenuState::calibrateStepComplete:
+    case eMenuState::calibrateStepTestTracking:
     case eMenuState::calibrateStepFailed:
         break;
     default:
         assert(0 && "unreachable");
     }
+}
+
+void AppStage_ComputeTrackerPoses::update_tracker_video()
+{
+    if (m_renderTrackerIter != m_trackerViews.end())
+    {
+        // Render the latest from the currently active tracker
+        if (m_renderTrackerIter->second.trackerView->pollVideoStream())
+        {
+            m_renderTrackerIter->second.textureAsset->copyBufferIntoTexture(
+                m_renderTrackerIter->second.trackerView->getVideoFrameBuffer());
+        }
+    }
+}
+
+void AppStage_ComputeTrackerPoses::render_tracker_video()
+{
+    if (m_renderTrackerIter != m_trackerViews.end())
+    {
+        drawFullscreenTexture(m_renderTrackerIter->second.textureAsset->texture_id);
+    }
+}
+
+void AppStage_ComputeTrackerPoses::go_next_tracker()
+{
+    const int trackerCount = static_cast<int>(m_trackerViews.size());
+
+    if (trackerCount > 1)
+    {
+        m_renderTrackerIndex = (m_renderTrackerIndex + 1) % trackerCount;
+
+        // Find the tracker iterator that corresponds to the render index we want to show
+        for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+        {
+            if (iter->second.listIndex == m_renderTrackerIndex)
+            {
+                m_renderTrackerIter = iter;
+            }
+        }
+    }
+}
+
+void AppStage_ComputeTrackerPoses::go_previous_tracker()
+{
+    const int trackerCount = static_cast<int>(m_trackerViews.size());
+
+    if (trackerCount > 1)
+    {
+        m_renderTrackerIndex = (m_renderTrackerIndex + trackerCount - 1) % trackerCount;
+
+        // Find the tracker iterator that corresponds to the render index we want to show
+        for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+        {
+            if (iter->second.listIndex == m_renderTrackerIndex)
+            {
+                m_renderTrackerIter = iter;
+            }
+        }
+    }
+}
+
+int AppStage_ComputeTrackerPoses::get_tracker_count() const
+{
+    return static_cast<int>(m_trackerViews.size());
+}
+
+int AppStage_ComputeTrackerPoses::get_render_tracker_index() const
+{
+    return m_renderTrackerIndex;
 }
 
 void AppStage_ComputeTrackerPoses::release_devices()

@@ -33,56 +33,138 @@ void OpenVRHmdInfo::clear()
     EdidProductID = -1;
 }
 
-void OpenVRHmdInfo::rebuild(int deviceIndex, vr::IVRSystem *pVRSystem)
+void OpenVRHmdInfo::rebuild(vr::IVRSystem *pVRSystem)
 {
-    DeviceIndex = deviceIndex;
-    TrackingSystemName = trackedDeviceGetString(pVRSystem, deviceIndex, vr::Prop_TrackingSystemName_String);
-    ModelNumber = trackedDeviceGetString(pVRSystem, deviceIndex, vr::Prop_ModelNumber_String);
-    SerialNumber = trackedDeviceGetString(pVRSystem, deviceIndex, vr::Prop_SerialNumber_String);
-    ManufacturerName = trackedDeviceGetString(pVRSystem, deviceIndex, vr::Prop_ManufacturerName_String);
-    HardwareRevision = trackedDeviceGetString(pVRSystem, deviceIndex, vr::Prop_HardwareRevision_String);
-    EdidProductID = pVRSystem->GetInt32TrackedDeviceProperty(deviceIndex, vr::Prop_EdidProductID_Int32);
-    EdidVendorID = pVRSystem->GetInt32TrackedDeviceProperty(deviceIndex, vr::Prop_EdidVendorID_Int32);
+    if (DeviceIndex != -1)
+    {
+        TrackingSystemName = trackedDeviceGetString(pVRSystem, DeviceIndex, vr::Prop_TrackingSystemName_String);
+        ModelNumber = trackedDeviceGetString(pVRSystem, DeviceIndex, vr::Prop_ModelNumber_String);
+        SerialNumber = trackedDeviceGetString(pVRSystem, DeviceIndex, vr::Prop_SerialNumber_String);
+        ManufacturerName = trackedDeviceGetString(pVRSystem, DeviceIndex, vr::Prop_ManufacturerName_String);
+        HardwareRevision = trackedDeviceGetString(pVRSystem, DeviceIndex, vr::Prop_HardwareRevision_String);
+        EdidProductID = pVRSystem->GetInt32TrackedDeviceProperty(DeviceIndex, vr::Prop_EdidProductID_Int32);
+        EdidVendorID = pVRSystem->GetInt32TrackedDeviceProperty(DeviceIndex, vr::Prop_EdidVendorID_Int32);
+    }
+}
+
+//-- OpenVRHmdInfo --
+void OpenVRTrackerInfo::clear()
+{
+    DeviceIndex = -1;
+    TrackingSystemName = "";
+    ModelNumber = "";
+    SerialNumber = "";
+    ManufacturerName = "";
+    TrackingFirmwareVersion = "";
+    HardwareRevision = "";
+    ModeLabel = "";
+    EdidVendorID = -1;
+    EdidProductID = -1;
+    FieldOfViewLeftDegrees = 0;
+    FieldOfViewRightDegrees = 0;
+    FieldOfViewTopDegrees = 0;
+    FieldOfViewBottomDegrees = 0;
+    TrackingRangeMinimumMeters = 0;
+    TrackingRangeMaximumMeters = 0;
+}
+
+void OpenVRTrackerInfo::rebuild(vr::IVRSystem *pVRSystem)
+{
+    if (DeviceIndex != -1)
+    {
+        TrackingSystemName = trackedDeviceGetString(pVRSystem, DeviceIndex, vr::Prop_TrackingSystemName_String);
+        ModelNumber = trackedDeviceGetString(pVRSystem, DeviceIndex, vr::Prop_ModelNumber_String);
+        SerialNumber = trackedDeviceGetString(pVRSystem, DeviceIndex, vr::Prop_SerialNumber_String);
+        ManufacturerName = trackedDeviceGetString(pVRSystem, DeviceIndex, vr::Prop_ManufacturerName_String);
+        HardwareRevision = trackedDeviceGetString(pVRSystem, DeviceIndex, vr::Prop_HardwareRevision_String);
+        EdidProductID = pVRSystem->GetInt32TrackedDeviceProperty(DeviceIndex, vr::Prop_EdidProductID_Int32);
+        EdidVendorID = pVRSystem->GetInt32TrackedDeviceProperty(DeviceIndex, vr::Prop_EdidVendorID_Int32);
+
+        FieldOfViewLeftDegrees = pVRSystem->GetFloatTrackedDeviceProperty(DeviceIndex, vr::Prop_FieldOfViewLeftDegrees_Float);
+        FieldOfViewRightDegrees = pVRSystem->GetFloatTrackedDeviceProperty(DeviceIndex, vr::Prop_FieldOfViewRightDegrees_Float);
+        FieldOfViewTopDegrees = pVRSystem->GetFloatTrackedDeviceProperty(DeviceIndex, vr::Prop_FieldOfViewTopDegrees_Float);
+        FieldOfViewBottomDegrees = pVRSystem->GetFloatTrackedDeviceProperty(DeviceIndex, vr::Prop_FieldOfViewBottomDegrees_Float);
+        TrackingRangeMinimumMeters = pVRSystem->GetFloatTrackedDeviceProperty(DeviceIndex, vr::Prop_TrackingRangeMinimumMeters_Float);
+        TrackingRangeMaximumMeters = pVRSystem->GetFloatTrackedDeviceProperty(DeviceIndex, vr::Prop_TrackingRangeMaximumMeters_Float);
+        ModeLabel = trackedDeviceGetString(pVRSystem, DeviceIndex, vr::Prop_ModeLabel_String);
+    }
 }
 
 // -- ClientHMDView --
-ClientHMDView::ClientHMDView(int deviceIndex) 
+ClientHMDView::ClientHMDView(int hmdDeviceIndex, int trackerDeviceIndex)
 {
     clear();
-    m_hmdInfo.DeviceIndex = deviceIndex;
+    m_hmdInfo.DeviceIndex = hmdDeviceIndex;
+    m_trackerInfo.DeviceIndex = trackerDeviceIndex;
 }
 
 void ClientHMDView::clear()
 {
     m_hmdInfo.clear();
-    m_pose.Clear();
-    m_angularVelocity = *k_psmove_float_vector3_zero;
-    m_linearVelocity = *k_psmove_float_vector3_zero;
+    m_trackerInfo.clear();
 
-    m_sequenceNum= 0;
+    m_hmdPose.Clear();
+    m_trackerPose.Clear();
+
+    m_hmdAngularVelocity = *k_psmove_float_vector3_zero;
+    m_hmdLinearVelocity = *k_psmove_float_vector3_zero;
+
+    m_hmdXBasisVector = *k_psmove_float_vector3_i;
+    m_hmdYBasisVector = *k_psmove_float_vector3_j;
+    m_hmdZBasisVector = *k_psmove_float_vector3_k;
+
+    m_trackerXBasisVector = *k_psmove_float_vector3_i;
+    m_trackerYBasisVector = *k_psmove_float_vector3_j;
+    m_trackerZBasisVector = *k_psmove_float_vector3_k;
+
+    m_hmdSequenceNum= 0;
+    m_trackerSequenceNum = 0;
     m_listenerCount= 0;
 
-    m_bIsConnected= false;
-    m_bIsTracking = false;
+    m_bIsHMDConnected= false;
+    m_bIsHMDTracking = false;
+    m_bIsTrackerTracking = false;
 
     m_dataFrameLastReceivedTime = -1LL;
     m_dataFrameAverageFps= 0.f;
 }
 
-void ClientHMDView::notifyConnected(vr::IVRSystem *pVRSystem)
+void ClientHMDView::notifyConnected(vr::IVRSystem *pVRSystem, int deviceIndex)
 {
-    m_bIsConnected = true;
-    m_hmdInfo.rebuild(m_hmdInfo.DeviceIndex, pVRSystem);
+    if (deviceIndex == m_hmdInfo.DeviceIndex)
+    {
+        m_hmdInfo.rebuild(pVRSystem);
+        m_bIsHMDConnected = true;
+    }
+    else if (deviceIndex == m_trackerInfo.DeviceIndex)
+    {
+        m_trackerInfo.rebuild(pVRSystem);
+        m_bIsTrackerConnected = true;
+    }
 }
 
-void ClientHMDView::notifyDisconnected(vr::IVRSystem *pVRSystem)
+void ClientHMDView::notifyDisconnected(vr::IVRSystem *pVRSystem, int deviceIndex)
 {
-    m_bIsConnected = false;
+    if (deviceIndex == m_hmdInfo.DeviceIndex)
+    {
+        m_bIsHMDConnected = false;
+    }
+    else if (deviceIndex == m_trackerInfo.DeviceIndex)
+    {
+        m_bIsTrackerConnected = false;
+    }
 }
 
-void ClientHMDView::notifyPropertyChanged(vr::IVRSystem *pVRSystem)
+void ClientHMDView::notifyPropertyChanged(vr::IVRSystem *pVRSystem, int deviceIndex)
 {
-    m_hmdInfo.rebuild(m_hmdInfo.DeviceIndex, pVRSystem);
+    if (deviceIndex == m_hmdInfo.DeviceIndex)
+    {
+        m_hmdInfo.rebuild(pVRSystem);
+    }
+    else if (deviceIndex == m_trackerInfo.DeviceIndex)
+    {
+        m_trackerInfo.rebuild(pVRSystem);
+    }
 }
 
 void ClientHMDView::applyHMDDataFrame(const vr::TrackedDevicePose_t *data_frame)
@@ -96,38 +178,87 @@ void ClientHMDView::applyHMDDataFrame(const vr::TrackedDevicePose_t *data_frame)
         // +x is to the right
         // -z is going away from you
         // Distance unit is meters
-        m_xBasisVector = PSMoveFloatVector3::create(m[0][0], m[1][0], m[2][0]);
-        m_yBasisVector = PSMoveFloatVector3::create(m[0][1], m[1][1], m[2][1]);
-        m_zBasisVector = PSMoveFloatVector3::create(m[0][2], m[1][2], m[2][2]);
+        m_hmdXBasisVector = PSMoveFloatVector3::create(m[0][0], m[1][0], m[2][0]);
+        m_hmdYBasisVector = PSMoveFloatVector3::create(m[0][1], m[1][1], m[2][1]);
+        m_hmdZBasisVector = PSMoveFloatVector3::create(m[0][2], m[1][2], m[2][2]);
 
         // PSMoveAPI also uses the same right-handed coordinate system
         // Distance unit is centimeters
-        m_pose.Orientation = openvrMatrixExtractPSMoveQuaternion(data_frame->mDeviceToAbsoluteTracking);
-        m_pose.Position = openvrMatrixExtractPSMovePosition(data_frame->mDeviceToAbsoluteTracking) *k_meters_to_centimenters;
-        m_angularVelocity= openvrVectorToPSMoveVector(data_frame->vAngularVelocity);
-        m_linearVelocity = openvrVectorToPSMoveVector(data_frame->vVelocity) *k_meters_to_centimenters;
+        m_hmdPose.Orientation = openvrMatrixExtractPSMoveQuaternion(data_frame->mDeviceToAbsoluteTracking);
+        m_hmdPose.Position = openvrMatrixExtractPSMovePosition(data_frame->mDeviceToAbsoluteTracking) * k_meters_to_centimenters;
+        m_hmdAngularVelocity= openvrVectorToPSMoveVector(data_frame->vAngularVelocity);
+        m_hmdLinearVelocity = openvrVectorToPSMoveVector(data_frame->vVelocity) *k_meters_to_centimenters;
 
         // Increment the sequence number now that that we have new data
-        ++m_sequenceNum;
+        ++m_hmdSequenceNum;
 
-        m_bIsTracking = true;
+        m_bIsHMDTracking = true;
     }
     else
     {
-        m_bIsTracking = false;
+        m_bIsHMDTracking = false;
     }
 }
 
-bool ClientHMDView::getIsStableAndAlignedWithGravity() const
+void ClientHMDView::applyTrackerDataFrame(const vr::TrackedDevicePose_t *data_frame)
+{
+    if (data_frame->bPoseIsValid)
+    {
+        const float(&m)[3][4] = data_frame->mDeviceToAbsoluteTracking.m;
+
+        // OpenVR uses right-handed coordinate system:
+        // +y is up
+        // +x is to the right
+        // -z is going away from you
+        // Distance unit is meters
+        m_trackerXBasisVector = PSMoveFloatVector3::create(m[0][0], m[1][0], m[2][0]);
+        m_trackerYBasisVector = PSMoveFloatVector3::create(m[0][1], m[1][1], m[2][1]);
+        m_trackerZBasisVector = PSMoveFloatVector3::create(m[0][2], m[1][2], m[2][2]);
+
+        // PSMoveAPI also uses the same right-handed coordinate system
+        // Distance unit is centimeters
+        m_trackerPose.Orientation = openvrMatrixExtractPSMoveQuaternion(data_frame->mDeviceToAbsoluteTracking);
+        m_trackerPose.Position = openvrMatrixExtractPSMovePosition(data_frame->mDeviceToAbsoluteTracking) * k_meters_to_centimenters;
+
+        // Increment the sequence number now that that we have new data
+        ++m_trackerSequenceNum;
+
+        m_bIsTrackerTracking = true;
+    }
+    else
+    {
+        m_bIsTrackerTracking = false;
+    }
+}
+
+bool ClientHMDView::getIsHMDStableAndAlignedWithGravity() const
 {
     const float k_cosine_10_degrees = 0.984808f;
-    const float velocity_magnitude = m_linearVelocity.length();
+    const float velocity_magnitude = m_hmdLinearVelocity.length();
 
     const bool isOk =
         is_nearly_equal(velocity_magnitude, 0.f, 0.5f) &&
-        PSMoveFloatVector3::dot(m_yBasisVector, PSMoveFloatVector3::create(0.f, 1.f, 0.f)) >= k_cosine_10_degrees;
+        PSMoveFloatVector3::dot(m_hmdYBasisVector, PSMoveFloatVector3::create(0.f, 1.f, 0.f)) >= k_cosine_10_degrees;
 
     return isOk;
+}
+
+PSMoveFrustum ClientHMDView::getTrackerFrustum() const
+{
+    PSMoveFrustum frustum;
+
+    frustum.origin = m_trackerPose.Position;
+    frustum.forward = m_trackerZBasisVector;
+    frustum.left = m_trackerXBasisVector;
+    frustum.up = m_trackerYBasisVector;
+    frustum.HFOV = 
+        (m_trackerInfo.FieldOfViewLeftDegrees + m_trackerInfo.FieldOfViewRightDegrees) *k_degrees_to_radians;
+    frustum.VFOV =
+        (m_trackerInfo.FieldOfViewBottomDegrees + m_trackerInfo.FieldOfViewTopDegrees) *k_degrees_to_radians;
+    frustum.zNear = m_trackerInfo.TrackingRangeMinimumMeters * k_meters_to_centimenters;
+    frustum.zFar = m_trackerInfo.TrackingRangeMaximumMeters * k_meters_to_centimenters;
+
+    return frustum;
 }
 
 //-- private helpers -----

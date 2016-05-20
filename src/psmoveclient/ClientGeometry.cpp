@@ -12,6 +12,15 @@ const PSMoveFloatVector3 *k_psmove_float_vector3_zero= &g_psmove_float_vector3_z
 const PSMoveFloatVector3 g_psmove_float_vector3_one= {1.f, 1.f, 1.f};
 const PSMoveFloatVector3 *k_psmove_float_vector3_one= &g_psmove_float_vector3_one;
 
+const PSMoveFloatVector3 g_psmove_float_vector3_i = { 0.f, 0.f, 0.f };
+const PSMoveFloatVector3 *k_psmove_float_vector3_i = &g_psmove_float_vector3_i;
+
+const PSMoveFloatVector3 g_psmove_float_vector3_j = { 0.f, 0.f, 0.f };
+const PSMoveFloatVector3 *k_psmove_float_vector3_j = &g_psmove_float_vector3_j;
+
+const PSMoveFloatVector3 g_psmove_float_vector3_k = { 0.f, 0.f, 0.f };
+const PSMoveFloatVector3 *k_psmove_float_vector3_k = &g_psmove_float_vector3_k;
+
 const PSMoveIntVector3 g_psmove_int_vector3_zero= {0, 0, 0};
 const PSMoveIntVector3 *k_psmove_int_vector3_zero= &g_psmove_int_vector3_zero;
 
@@ -26,6 +35,9 @@ const PSMoveQuaternion *k_psmove_quaternion_identity= &g_psmove_quaternion_ident
 
 const PSMoveMatrix3x3 g_psmove_matrix_identity = { 1.f, 0.f, 0.f , 0.f, 1.f, 0.f, 0.f, 0.f, 1.f };
 const PSMoveMatrix3x3 *k_psmove_matrix_identity = &g_psmove_matrix_identity;
+
+const PSMovePose g_psmove_pose_identity = { g_psmove_quaternion_identity, g_psmove_position_origin };
+const PSMovePose *k_psmove_pose_identity = &g_psmove_pose_identity;
 
 //-- methods -----
 
