@@ -50,7 +50,12 @@ public:
         float focalLengthX, float focalLengthY,
         float principalX, float principalY);
 
+    void getTrackerPose(struct CommonDevicePose *outPose, struct CommonDevicePose *outHmdRelativePose) const;
+    void setTrackerPose(const struct CommonDevicePose *pose, const struct CommonDevicePose *hmdRelativePose);
+
     void getPixelDimensions(float &outWidth, float &outHeight) const;
+    void getFOV(float &outHFOV, float &outVFOV) const;
+    void getZRange(float &outZNear, float &outZFar) const;
 
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;

@@ -1,6 +1,7 @@
 //-- includes -----
 #include "ClientGeometry.h"
 #include "MathUtility.h"
+#include "MathGLM.h"
 #include <algorithm>
 
 //-- pre-declarations -----
@@ -426,4 +427,18 @@ void PSMovePose::Clear()
 {
     Orientation= *k_psmove_quaternion_identity;
     Position= *k_psmove_position_origin;
+}
+
+// -- PSMoveFrustum -- 
+void PSMoveFrustum::set_pose(const PSMovePose &pose)
+{
+    const PSMoveQuaternion &q = pose.Orientation;
+    const glm::quat glm_quat(q.w, q.x, q.y, q.z);
+    const glm::mat3 glm_mat3 = glm::mat3_cast(glm_quat);
+
+    forward = PSMoveFloatVector3::create(glm_mat3[2].x, glm_mat3[2].y, glm_mat3[2].z); // z-axis
+    left = PSMoveFloatVector3::create(glm_mat3[0].x, glm_mat3[0].y, glm_mat3[0].z); // x-axis
+    up = PSMoveFloatVector3::create(glm_mat3[1].x, glm_mat3[1].y, glm_mat3[1].z); // y-axis
+
+    origin = pose.Position;
 }

@@ -30,14 +30,29 @@ enum eTrackerDriver
 //-- declarations -----
 struct CLIENTPSMOVEAPI ClientTrackerInfo
 {
+    // ID of the tracker in the service
     int tracker_id;
+
+    // Tracker USB properties
     eTrackerType tracker_type;
     eTrackerDriver tracker_driver;
     char device_path[128];
+
+    // Video stream properties
     char shared_memory_name[64];
-    PSMoveFloatVector2 tracker_focal_lengths;
-    PSMoveFloatVector2 tracker_principal_point;
-    PSMoveFloatVector2 tracker_screen_dimensions;
+
+    // Camera Intrinsic properties
+    PSMoveFloatVector2 tracker_focal_lengths; // pixels
+    PSMoveFloatVector2 tracker_principal_point; // pixels
+    PSMoveFloatVector2 tracker_screen_dimensions; // pixels
+    float tracker_hfov; // degrees
+    float tracker_vfov; // degrees
+    float tracker_znear; // cm
+    float tracker_zfar; // cm
+
+    // Camera Extrinsic properties
+    PSMovePose tracker_pose;
+    PSMovePose hmd_relative_tracker_pose;
 };
 
 class CLIENTPSMOVEAPI ClientTrackerView
@@ -60,6 +75,12 @@ public:
     // Apply a UDP data packet update to this tracker
     void applyTrackerDataFrame(const PSMoveProtocol::DeviceDataFrame_TrackerDataPacket *data_frame);
     void clearTrackerDataFrameState();
+
+    // Used to apply tracker property changes after config tools run
+    inline ClientTrackerInfo &getTrackerInfoMutable()
+    {
+        return m_tracker_info;
+    }
 
     // Open the shared memory buffer specified in the tracker info
     bool openVideoStream();
@@ -106,6 +127,16 @@ public:
             PSMoveFloatVector3::create(0.f, 0.f, 1.f));
     }
 
+    inline PSMovePose getTrackerPose() const
+    {
+        return m_tracker_info.tracker_pose;
+    }
+
+    inline PSMovePose getHMDRelativeTrackerPose() const
+    {
+        return m_tracker_info.hmd_relative_tracker_pose;
+    }
+
     inline int getTrackerId() const
     {
         return m_tracker_info.tracker_id;
@@ -140,6 +171,9 @@ public:
     int getVideoFrameHeight() const;
     int getVideoFrameStride() const;
     const unsigned char *getVideoFrameBuffer() const;
+
+    PSMoveFrustum getTrackerFrustum() const;
+    PSMoveFrustum getHMDRelativeTrackerFrustum() const;
 
     // Statistics
     inline float GetDataFrameFPS() const

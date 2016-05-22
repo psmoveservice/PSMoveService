@@ -11,12 +11,6 @@ enum ControllerType {
     PSNAVI= 1;
 }
 
-message Position {
-    float x = 1;
-    float y = 2;
-    float z = 3;
-}
-
 message Pixel {
     float x = 1;
     float y = 2;
@@ -34,11 +28,22 @@ message IntVector {
     int32 k = 3;
 }
 
+message Position {
+    float x = 1;
+    float y = 2;
+    float z = 3;
+}
+
 message Orientation{
     float x = 1;
     float y = 2;
     float z = 3;
     float w = 4;
+}
+
+message Pose {
+    Orientation orientation= 1;
+    Position position= 2;
 }
 
 enum TrackerType {
@@ -77,6 +82,7 @@ message Request {
         STOP_TRACKER_DATA_STREAM = 12;
         GET_TRACKER_SETTINGS = 13;
         SET_TRACKER_EXPOSURE = 14;
+        SET_TRACKER_POSE = 15;
     }
     RequestType type = 2;
    
@@ -175,7 +181,14 @@ message Request {
         double value = 2;
     }
     RequestSetTrackerExposure request_set_tracker_exposure = 32;
-
+    
+    // Parameters for SET_TRACKER_POSE
+    message RequestSetTrackerPose {
+        int32 tracker_id = 1;
+        Pose pose = 2;
+        Pose hmd_relative_pose = 3;
+    }
+    RequestSetTrackerPose request_set_tracker_pose = 33;
 }
 
 // Reliable (TCP) responses to requests
@@ -248,14 +261,29 @@ message Response {
     // This is returned in response to a GET_TRACKER_LIST request
     message ResultTrackerList {
         message TrackerInfo {
+            // ID of the tracker in the service
             int32 tracker_id= 1;
+            
+            // Tracker USB Properties
             TrackerType tracker_type = 2;
             TrackerDriver tracker_driver = 3;
             string device_path = 4;
+            
+            // Video Stream Properties
             string shared_memory_name = 5;
+            
+            // Camera Intrinsic Properties
             Pixel tracker_focal_lengths = 6;
             Pixel tracker_principal_point = 7;
-            Pixel tracker_screen_dimensions = 8;            
+            Pixel tracker_screen_dimensions = 8;
+            float tracker_hfov = 9;
+            float tracker_vfov = 10;
+            float tracker_znear = 11;
+            float tracker_zfar = 12;
+            
+            // Camera Extrinsic Properties
+            Pose tracker_pose = 13;
+            Pose hmd_relative_tracker_pose = 14;
         }
         repeated TrackerInfo trackers = 1;
     }

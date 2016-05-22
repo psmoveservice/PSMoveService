@@ -157,6 +157,8 @@ struct CLIENTPSMOVEAPI PSMoveFrustum
     PSMoveFloatVector3 forward, left, up;
     float HFOV, VFOV; // radians
     float zNear, zFar; // cm
+
+    void set_pose(const PSMovePose &pose);
 };
 
 //-- constants -----

@@ -48,7 +48,7 @@ protected:
         calibrateWithHMD,
         calibrateWithMat,
 
-        calibrateStepTestTracking,
+        testTracking,
         calibrateStepFailed,
     };
 
@@ -82,6 +82,11 @@ protected:
     static void handle_tracker_start_stream_response(
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
+
+    void request_set_tracker_pose(
+        const struct PSMovePose *pose, 
+        const struct PSMovePose *hmd_relative_pose,
+        class ClientTrackerView *TrackerView);
 
     void handle_all_devices_ready();
 

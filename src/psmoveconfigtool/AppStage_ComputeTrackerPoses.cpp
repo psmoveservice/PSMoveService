@@ -9,6 +9,7 @@
 #include "AssetManager.h"
 #include "Camera.h"
 #include "ClientHMDView.h"
+#include "GeometryUtility.h"
 #include "Logger.h"
 #include "OpenVRContext.h"
 #include "MathUtility.h"
@@ -29,6 +30,8 @@
 const char *AppStage_ComputeTrackerPoses::APP_STAGE_NAME = "ComputeTrackerPoses";
 
 //-- constants -----
+static const glm::vec3 k_dk2_frustum_color = glm::vec3(1.f, 0.788f, 0.055f);
+static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 
 //-- public methods -----
 AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
@@ -106,9 +109,20 @@ void AppStage_ComputeTrackerPoses::update()
         m_pCalibrateWithHMD->update();
         break;
     case eMenuState::calibrateWithMat:
-        m_pCalibrateWithMat->update();
+        {
+            m_pCalibrateWithMat->update();
+
+            if (m_pCalibrateWithMat->getMenuState() == AppSubStage_CalibrateWithMat::calibrateStepSuccess)
+            {
+                setState(AppStage_ComputeTrackerPoses::eMenuState::testTracking);
+            }
+            else if (m_pCalibrateWithMat->getMenuState() == AppSubStage_CalibrateWithMat::calibrateStepFailed)
+            {
+                setState(AppStage_ComputeTrackerPoses::eMenuState::calibrateStepFailed);
+            }
+        }
         break;
-    case eMenuState::calibrateStepTestTracking:
+    case eMenuState::testTracking:
         break;
     case eMenuState::calibrateStepFailed:
         break;
@@ -161,19 +175,17 @@ void AppStage_ComputeTrackerPoses::render()
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->render();
         break;
-    case eMenuState::calibrateStepTestTracking:
+    case eMenuState::testTracking:
         {
             // Draw the origin axes
             drawTransformedAxes(glm::mat4(1.0f), 100.f);
 
             // Draw the frustum for the DK2 camera
-            if (m_app->getOpenVRContext()->getIsInitialized())
+            if (m_hmdView != nullptr)
             {
-                //###HipsterSloth $TODO
-                //TrackingCameraFrustum frustum;
+                const PSMoveFrustum frustum = m_hmdView->getTrackerFrustum();
 
-                //hmdContext->getTrackingCameraFrustum(frustum);
-                //drawTrackingFrustum(frustum, k_dk2_frustum_color);
+                drawFrustum(&frustum, k_dk2_frustum_color);
             }
 
             // Draw the frustum for each tracking camera
@@ -181,19 +193,24 @@ void AppStage_ComputeTrackerPoses::render()
             {
                 const ClientTrackerView *trackerView= iter->second.trackerView;
 
-                //###HipsterSloth $TODO
-                //{
-                //    TrackingCameraFrustum frustum;
+                {
+                    PSMoveFrustum frustum = 
+                        (m_hmdView != nullptr) 
+                        ? trackerView->getHMDRelativeTrackerFrustum()
+                        : trackerView->getTrackerFrustum();
 
-                //    psMoveContext->getHMDRelativeTrackingCameraFrustum(trackerIndex, hmdContext, frustum);
-                //    drawTrackingFrustum(frustum, k_psmove_frustum_color);
-                //}
+                    drawFrustum(&frustum, k_psmove_frustum_color);
+                }
 
-                //{
-                //    glm::mat4 cameraTransform = psMoveContext->getHMDRelativeTrackingCameraTransform(trackerIndex, hmdContext);
+                {
+                    PSMovePose pose =
+                        (m_hmdView != nullptr)
+                        ? trackerView->getHMDRelativeTrackerPose()
+                        : trackerView->getTrackerPose();
+                    glm::mat4 cameraTransform = psmove_pose_to_glm_mat4(pose);
 
-                //    drawTransformedAxes(cameraTransform, 20.f);
-                //}
+                    drawTransformedAxes(cameraTransform, 20.f);
+                }
             }
 
             if (m_hmdView != nullptr)
@@ -394,7 +411,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
             m_pCalibrateWithMat->renderUI();
         } break;
 
-    case eMenuState::calibrateStepTestTracking:
+    case eMenuState::testTracking:
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
@@ -486,7 +503,7 @@ void AppStage_ComputeTrackerPoses::onExitState(eMenuState newState)
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->exit();
         break;
-    case eMenuState::calibrateStepTestTracking:
+    case eMenuState::testTracking:
     case eMenuState::calibrateStepFailed:
         break;
     default:
@@ -522,7 +539,7 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->enter();
         break;
-    case eMenuState::calibrateStepTestTracking:
+    case eMenuState::testTracking:
     case eMenuState::calibrateStepFailed:
         break;
     default:
@@ -858,6 +875,57 @@ void AppStage_ComputeTrackerPoses::handle_tracker_start_stream_response(
         {
             thisPtr->setState(eMenuState::failedTrackerStartRequest);
         } break;
+    }
+}
+
+static void copy_pose_to_request(
+    const PSMovePose &pose,
+    PSMoveProtocol::Pose *pose_request)
+{
+    {
+        PSMoveProtocol::Orientation *orientation_request= pose_request->mutable_orientation();
+
+        orientation_request->set_w(pose.Orientation.w);
+        orientation_request->set_x(pose.Orientation.x);
+        orientation_request->set_y(pose.Orientation.y);
+        orientation_request->set_z(pose.Orientation.z);
+    }
+
+    {
+        PSMoveProtocol::Position *position_request = pose_request->mutable_position();
+
+        position_request->set_x(pose.Position.x);
+        position_request->set_y(pose.Position.y);
+        position_request->set_z(pose.Position.z);
+    }
+}
+
+void AppStage_ComputeTrackerPoses::request_set_tracker_pose(
+    const PSMovePose *pose,
+    const PSMovePose *hmd_relative_pose,
+    class ClientTrackerView *TrackerView)
+{
+    // Set the pose on out local tracker view
+    {
+        ClientTrackerInfo &trackerInfo= TrackerView->getTrackerInfoMutable();
+
+        trackerInfo.tracker_pose = *pose;
+        trackerInfo.hmd_relative_tracker_pose = *hmd_relative_pose;
+    }
+
+    // Update the pose on the service
+    {
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_POSE);
+
+        PSMoveProtocol::Request_RequestSetTrackerPose *set_pose_request =
+            request->mutable_request_set_tracker_pose();
+
+        set_pose_request->set_tracker_id(TrackerView->getTrackerId());
+        copy_pose_to_request(TrackerView->getTrackerPose(), set_pose_request->mutable_pose());
+        copy_pose_to_request(TrackerView->getHMDRelativeTrackerPose(), set_pose_request->mutable_hmd_relative_pose());
+
+        ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
     }
 }
 

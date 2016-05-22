@@ -17,10 +17,14 @@ public:
     , is_valid(false)
     , max_poll_failure_count(100)
     , exposure(32)
-    , focalLengthX(640.f)
-    , focalLengthY(640.f)
-    , principalX(320.f)
-    , principalY(240.f)
+    , focalLengthX(640.0) // pixels
+    , focalLengthY(640.0) // pixels
+    , principalX(320.0) // pixels
+    , principalY(240.0) // pixels
+    , hfov(60.0) // degrees
+    , vfov(45.0) // degrees
+    , zNear(10.0) // cm
+    , zFar(200.0) // cm
     {};
     
     virtual const boost::property_tree::ptree config2ptree();
@@ -34,6 +38,12 @@ public:
     double focalLengthY;
     double principalX;
     double principalY;
+    double hfov;
+    double vfov;
+    double zNear;
+    double zFar;
+    CommonDevicePose pose;
+    CommonDevicePose hmdRelativePose;
 
     static const int CONFIG_VERSION;
 };
@@ -86,6 +96,14 @@ public:
     void setCameraIntrinsics(
         float focalLengthX, float focalLengthY,
         float principalX, float principalY) override;
+    void getTrackerPose(
+        struct CommonDevicePose *outPose, 
+        struct CommonDevicePose *outHmdRelativePose) const override;
+    void setTrackerPose(
+        const struct CommonDevicePose *pose, 
+        const struct CommonDevicePose *hmdRelativePose) override;
+    void getFOV(float &outHFOV, float &outVFOV) const override;
+    void getZRange(float &outZNear, float &outZFar) const override;
 
     // -- Getters
     inline const PS3EyeTrackerConfig &getConfig() const

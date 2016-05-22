@@ -1,6 +1,7 @@
 //-- includes -----
 #include "ClientTrackerView.h"
 #include "ClientLog.h"
+#include "MathGLM.h"
 #include "PSMoveProtocol.pb.h"
 #include "SharedTrackerState.h"
 #include <assert.h>
@@ -317,4 +318,36 @@ int ClientTrackerView::getVideoFrameStride() const
 const unsigned char *ClientTrackerView::getVideoFrameBuffer() const
 {
     return (m_shared_memory_accesor != nullptr) ? m_shared_memory_accesor->getVideoFrameBuffer() : nullptr;
+}
+
+PSMoveFrustum ClientTrackerView::getTrackerFrustum() const
+{
+    PSMoveFrustum frustum;
+
+    frustum.set_pose(m_tracker_info.tracker_pose);
+
+    // Convert the FOV angles to radians for rendering purposes
+    frustum.HFOV = m_tracker_info.tracker_hfov * k_degrees_to_radians;
+    frustum.VFOV = m_tracker_info.tracker_vfov * k_degrees_to_radians;
+
+    frustum.zNear = m_tracker_info.tracker_znear;
+    frustum.zFar = m_tracker_info.tracker_zfar;
+
+    return frustum;
+}
+
+PSMoveFrustum ClientTrackerView::getHMDRelativeTrackerFrustum() const
+{
+    PSMoveFrustum frustum;
+
+    frustum.set_pose(m_tracker_info.hmd_relative_tracker_pose);
+
+    // Convert the FOV angles to radians for rendering purposes
+    frustum.HFOV = m_tracker_info.tracker_hfov * k_degrees_to_radians;
+    frustum.VFOV = m_tracker_info.tracker_vfov * k_degrees_to_radians;
+
+    frustum.zNear = m_tracker_info.tracker_znear;
+    frustum.zFar = m_tracker_info.tracker_zfar;
+
+    return frustum;
 }

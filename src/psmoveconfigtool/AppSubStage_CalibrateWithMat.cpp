@@ -6,6 +6,7 @@
 #include "AssetManager.h"
 #include "Camera.h"
 #include "ClientHMDView.h"
+#include "GeometryUtility.h"
 #include "Logger.h"
 #include "OpenVRContext.h"
 #include "MathUtility.h"
@@ -56,10 +57,6 @@ computePSMoveTrackerToHMDTrackerSpaceTransform(
 static bool computeTrackerCameraPose(
     const ClientTrackerView *trackerView, const glm::mat4 &psmoveTrackerToHmdTrackerSpace, 
     PS3EYETrackerPoseContext &trackerCoregData);
-
-static cv::Matx33f PSMoveMoveMatrix3x3ToCvMat33f(const PSMoveMatrix3x3 &in);
-static glm::mat4 PSMovePoseToGlmMat4(const PSMoveQuaternion &quat, const PSMovePosition &pos);
-static glm::mat4 PSMovePoseToGlmMat4(const PSMovePose &pose);
 
 //-- public methods -----
 AppSubStage_CalibrateWithMat::AppSubStage_CalibrateWithMat(
@@ -340,6 +337,25 @@ void AppSubStage_CalibrateWithMat::update()
                 bSuccess&= computeTrackerCameraPose(trackerView, psmoveTrackerToHmdTrackerSpace, trackerSampleData);
             }
 
+            // Update the poses on each local tracker view and notify the service of the new pose
+            if (bSuccess)
+            {
+                for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
+                    bSuccess && iter != m_parentStage->m_trackerViews.end();
+                    ++iter)
+                {
+                    const int trackerIndex = iter->second.listIndex;
+                    const PS3EYETrackerPoseContext &trackerSampleData = m_psmoveTrackerPoseContexts[trackerIndex];
+
+                    const PSMovePose trackerPose = trackerSampleData.trackerPose;
+                    const PSMovePose hmdRelativeTrackerPose = trackerSampleData.hmdCameraRelativeTrackerPose;
+
+                    ClientTrackerView *trackerView = iter->second.trackerView;
+
+                    m_parentStage->request_set_tracker_pose(&trackerPose, &hmdRelativeTrackerPose, trackerView);
+                }
+            }
+
             if (bSuccess)
             {
                 setState(AppSubStage_CalibrateWithMat::eMenuState::calibrateStepSuccess);
@@ -373,7 +389,7 @@ void AppSubStage_CalibrateWithMat::render()
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:
         {
             const ClientHMDView *HMDView = m_parentStage->m_hmdView;
-            const glm::mat4 transform = PSMovePoseToGlmMat4(HMDView->getHmdPose());
+            const glm::mat4 transform = psmove_pose_to_glm_mat4(HMDView->getHmdPose());
             const PSMoveFrustum frustum = HMDView->getTrackerFrustum();
 
             drawFrustum(&frustum, k_dk2_frustum_color);
@@ -564,51 +580,9 @@ void AppSubStage_CalibrateWithMat::renderUI()
             ImGui::End();
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepComputeTrackerPoses:
-        break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrateStepSuccess:
-        {
-            ImGui::SetNextWindowPosCenter();
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
-            ImGui::Begin(k_window_title, nullptr, window_flags);
-
-            ImGui::Text("Calibration complete.");
-
-            ImGui::Separator();
-
-            if (ImGui::Button("Test Tracking"))
-            {
-                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::calibrateStepTestTracking);
-            }
-
-            if (ImGui::Button("Restart Calibration"))
-            {
-                setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
-            }
-
-            ImGui::End();
-        } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrateStepFailed:
-        {
-            ImGui::SetNextWindowPosCenter();
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
-            ImGui::Begin(k_window_title, nullptr, window_flags);
-
-            ImGui::Text("Calibration failed!");
-
-            ImGui::Separator();
-
-            if (ImGui::Button("Restart Calibration"))
-            {
-                setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
-            }
-
-            if (ImGui::Button("Restart Calibration"))
-            {
-                m_parentStage->request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
-            }
-
-            ImGui::End();
-        } break;
+        break;
     default:
         assert(0 && "unreachable");
     }
@@ -709,19 +683,19 @@ computePSMoveTrackerToHMDTrackerSpaceTransform(
     //   - Represents locations relative to the HMD tracking camera
 
     // Compute a transform that goes from the HMD tracking space to the HMD camera space
-    const glm::mat4 hmdCameraToHmdTrackingSpace = PSMovePoseToGlmMat4(hmdView->getTrackerPose());
+    const glm::mat4 hmdCameraToHmdTrackingSpace = psmove_pose_to_glm_mat4(hmdView->getTrackerPose());
     const glm::mat4 hmdTrackingToHmdCameraSpace = glm::inverse(hmdCameraToHmdTrackingSpace);
 
     // During calibration we record the HMD pose at the PSMove calibration origin.
     // This pose represents the psmove calibration origin in HMD tracking space.
     glm::mat4 psmoveCalibrationToHmdTrackingSpace =
-        PSMovePoseToGlmMat4(
+        psmove_pose_to_glm_mat4(
             hmdTrackerPoseContext.avgHMDWorldSpaceOrientation,
             hmdTrackerPoseContext.avgHMDWorldSpacePoint);
 
     // The calibration target might be manually offset from origin of psmove tracking space.
     // Compute the transform that goes from psmove tracking space to calibration origin space.
-    const glm::mat4 psmoveCalibrationToPSMoveTrackingSpace = PSMovePoseToGlmMat4(psmoveCalibrationOffset);
+    const glm::mat4 psmoveCalibrationToPSMoveTrackingSpace = psmove_pose_to_glm_mat4(psmoveCalibrationOffset);
     const glm::mat4 psmoveTrackingToPSMoveCalibrationSpace = glm::inverse(psmoveCalibrationToPSMoveTrackingSpace);
 
     // Compute the final transform that goes from PSMove tracking space to HMD Camera space
@@ -745,7 +719,7 @@ computeTrackerCameraPose(
 
     // Get the tracker "intrinsic" matrix that encodes the camera FOV
     const PSMoveMatrix3x3 cameraMatrix = trackerView->getTrackerIntrinsicMatrix();
-    cv::Matx33f cvCameraMatrix = PSMoveMoveMatrix3x3ToCvMat33f(cameraMatrix);
+    cv::Matx33f cvCameraMatrix = psmove_matrix3x3_to_cv_mat33f(cameraMatrix);
 
     // Copy the object/image point mappings into OpenCV format
     std::vector<cv::Point3f> cvObjectPoints;
@@ -827,45 +801,13 @@ computeTrackerCameraPose(
         glm::mat4 trackerXform = glm::make_mat4(RTMat);
 
         // Save off the tracker pose in MultiCam Tracking space
-        trackerCoregData.trackerPose = trackerXform;
+        trackerCoregData.trackerPose = glm_mat4_to_psmove_pose(trackerXform);
 
         // Also save off the tracker pose relative to the HMD tracking camera.
         // NOTE: With GLM matrix multiplication the operation you want applied first
         // should be last in the multiplication.
-        trackerCoregData.hmdCameraRelativeTrackerPose = psmoveTrackerToHmdTrackerSpace * trackerXform;
+        trackerCoregData.hmdCameraRelativeTrackerPose = glm_mat4_to_psmove_pose(psmoveTrackerToHmdTrackerSpace * trackerXform);
     }
 
     return trackerCoregData.bValidTrackerPose;
-}
-
-static cv::Matx33f
-PSMoveMoveMatrix3x3ToCvMat33f(const PSMoveMatrix3x3 &in)
-{
-    // Both OpenCV and PSMoveMatrix3x3 matrices are stored row-major
-    cv::Matx33f out; 
-    for (int i = 0; i < 3; ++i)
-    {
-        for (int j = 0; j < 3; ++j)
-        {
-            out(i, j) = in.m[i][j];
-        }
-    }
-
-    return out;
-}
-
-static glm::mat4
-PSMovePoseToGlmMat4(const PSMoveQuaternion &quat, const PSMovePosition &pos)
-{
-    glm::quat orientation(quat.w, quat.x, quat.y, quat.z);
-    glm::vec3 position(pos.x, pos.y, pos.z);
-    glm::mat4 transform = glm_mat4_from_pose(orientation, position);
-
-    return transform;
-}
-
-static glm::mat4
-PSMovePoseToGlmMat4(const PSMovePose &pose)
-{
-    return PSMovePoseToGlmMat4(pose.Orientation, pose.Position);
 }

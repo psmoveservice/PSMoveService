@@ -24,7 +24,7 @@ public:
 
 // -- public methods
 // -- PS3EYE Controller Config
-const int PS3EyeTrackerConfig::CONFIG_VERSION = 2;
+const int PS3EyeTrackerConfig::CONFIG_VERSION = 3;
 
 const boost::property_tree::ptree
 PS3EyeTrackerConfig::config2ptree()
@@ -39,6 +39,26 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("focalLengthY", focalLengthY);
     pt.put("principalX", principalX);
     pt.put("principalY", principalY);
+    pt.put("hfov", hfov);
+    pt.put("vfov", vfov);
+    pt.put("zNear", zNear);
+    pt.put("zFar", zFar);
+
+    pt.put("pose.orientation.w", pose.Orientation.w);
+    pt.put("pose.orientation.x", pose.Orientation.x);
+    pt.put("pose.orientation.y", pose.Orientation.y);
+    pt.put("pose.orientation.z", pose.Orientation.z);
+    pt.put("pose.position.x", pose.Position.x);
+    pt.put("pose.position.y", pose.Position.y);
+    pt.put("pose.position.z", pose.Position.z);
+
+    pt.put("hmd_relative_pose.orientation.w", hmdRelativePose.Orientation.w);
+    pt.put("hmd_relative_pose.orientation.x", hmdRelativePose.Orientation.x);
+    pt.put("hmd_relative_pose.orientation.y", hmdRelativePose.Orientation.y);
+    pt.put("hmd_relative_pose.orientation.z", hmdRelativePose.Orientation.z);
+    pt.put("hmd_relative_pose.position.x", hmdRelativePose.Position.x);
+    pt.put("hmd_relative_pose.position.y", hmdRelativePose.Position.y);
+    pt.put("hmd_relative_pose.position.z", hmdRelativePose.Position.z);
 
     return pt;
 }
@@ -53,10 +73,30 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
         is_valid = pt.get<bool>("is_valid", false);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
         exposure = pt.get<double>("exposure", 32);
-        focalLengthX = pt.get<double>("focalLengthX", 640.f);
-        focalLengthY = pt.get<double>("focalLengthY", 640.f);
-        principalX = pt.get<double>("principalX", 320.f);
-        principalY = pt.get<double>("principalY", 240.f);
+        focalLengthX = pt.get<double>("focalLengthX", 640.0);
+        focalLengthY = pt.get<double>("focalLengthY", 640.0);
+        principalX = pt.get<double>("principalX", 320.0);
+        principalY = pt.get<double>("principalY", 240.0);
+        hfov = pt.get<double>("hfov", 60.0);
+        vfov = pt.get<double>("vfov", 45.0);
+        zNear = pt.get<double>("zNear", 10.0);
+        zFar = pt.get<double>("zFar", 200.0);
+
+        pose.Orientation.w = pt.get<float>("pose.orientation.w", 1.0);
+        pose.Orientation.x = pt.get<float>("pose.orientation.x", 0.0);
+        pose.Orientation.y = pt.get<float>("pose.orientation.y", 0.0);
+        pose.Orientation.z = pt.get<float>("pose.orientation.z", 0.0);
+        pose.Position.x = pt.get<float>("pose.position.x", 0.0);
+        pose.Position.y = pt.get<float>("pose.position.y", 0.0);
+        pose.Position.z = pt.get<float>("pose.position.z", 0.0);
+
+        hmdRelativePose.Orientation.w = pt.get<float>("hmd_relative_pose.orientation.w", 1.0);
+        hmdRelativePose.Orientation.x = pt.get<float>("hmd_relative_pose.orientation.x", 0.0);
+        hmdRelativePose.Orientation.y = pt.get<float>("hmd_relative_pose.orientation.y", 0.0);
+        hmdRelativePose.Orientation.z = pt.get<float>("hmd_relative_pose.orientation.z", 0.0);
+        hmdRelativePose.Position.x = pt.get<float>("hmd_relative_pose.position.x", 0.0);
+        hmdRelativePose.Position.y = pt.get<float>("hmd_relative_pose.position.y", 0.0);
+        hmdRelativePose.Position.z = pt.get<float>("hmd_relative_pose.position.z", 0.0);
     }
     else
     {
@@ -334,10 +374,10 @@ void PS3EyeTracker::getCameraIntrinsics(
     float &outFocalLengthX, float &outFocalLengthY,
     float &outPrincipalX, float &outPrincipalY) const
 {
-    outFocalLengthX = cfg.focalLengthX;
-    outFocalLengthY = cfg.focalLengthY;
-    outPrincipalX = cfg.principalX;
-    outPrincipalY = cfg.principalY;
+    outFocalLengthX = static_cast<float>(cfg.focalLengthX);
+    outFocalLengthY = static_cast<float>(cfg.focalLengthY);
+    outPrincipalX = static_cast<float>(cfg.principalX);
+    outPrincipalY = static_cast<float>(cfg.principalY);
 }
 
 void PS3EyeTracker::setCameraIntrinsics(
@@ -349,4 +389,33 @@ void PS3EyeTracker::setCameraIntrinsics(
     cfg.principalX = principalX;
     cfg.principalY = principalY;
     cfg.save();
+}
+
+void PS3EyeTracker::getTrackerPose(
+    struct CommonDevicePose *outPose, 
+    struct CommonDevicePose *outHmdRelativePose) const
+{
+    *outPose = cfg.pose;
+    *outHmdRelativePose = cfg.hmdRelativePose;
+}
+
+void PS3EyeTracker::setTrackerPose(
+    const struct CommonDevicePose *pose, 
+    const struct CommonDevicePose *hmdRelativePose)
+{
+    cfg.pose = *pose;
+    cfg.hmdRelativePose = *hmdRelativePose;
+    cfg.save();
+}
+
+void PS3EyeTracker::getFOV(float &outHFOV, float &outVFOV) const
+{
+    outHFOV = static_cast<float>(cfg.hfov);
+    outVFOV = static_cast<float>(cfg.vfov);
+}
+
+void PS3EyeTracker::getZRange(float &outZNear, float &outZFar) const
+{
+    outZNear = static_cast<float>(cfg.zNear);
+    outZFar = static_cast<float>(cfg.zFar);
 }

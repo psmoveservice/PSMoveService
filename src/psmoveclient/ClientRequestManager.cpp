@@ -250,6 +250,12 @@ public:
                     TrackerResponse.tracker_screen_dimensions().x(),
                     TrackerResponse.tracker_screen_dimensions().y());
 
+            TrackerInfo.tracker_hfov = TrackerResponse.tracker_hfov();
+            TrackerInfo.tracker_vfov = TrackerResponse.tracker_vfov();
+
+            TrackerInfo.tracker_znear = TrackerResponse.tracker_znear();
+            TrackerInfo.tracker_zfar = TrackerResponse.tracker_zfar();
+
             strncpy(TrackerInfo.device_path, TrackerResponse.device_path().c_str(), sizeof(TrackerInfo.device_path));
             strncpy(TrackerInfo.shared_memory_name, TrackerResponse.shared_memory_name().c_str(), sizeof(TrackerInfo.shared_memory_name));
 

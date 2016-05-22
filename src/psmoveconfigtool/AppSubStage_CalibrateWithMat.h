@@ -4,7 +4,6 @@
 //-- includes -----
 #include "ClientGeometry.h"
 #include "ClientConstants.h"
-#include "MathGLM.h"
 #include <chrono>
 
 //-- constants -----
@@ -22,8 +21,8 @@ struct PS3EYETrackerPoseContext
 
     PSMoveScreenLocation avgScreenSpacePointAtLocation[k_mat_sample_location_count];
 
-    glm::mat4 trackerPose;
-    glm::mat4 hmdCameraRelativeTrackerPose;
+    PSMovePose trackerPose;
+    PSMovePose hmdCameraRelativeTrackerPose;
     float reprojectionError;
     bool bValidTrackerPose;
 
@@ -32,8 +31,8 @@ struct PS3EYETrackerPoseContext
         memset(screenSpacePoints, 0, sizeof(PSMoveScreenLocation)*k_mat_calibration_sample_count);
         memset(avgScreenSpacePointAtLocation, 0, sizeof(PSMoveScreenLocation)*k_mat_sample_location_count);
         screenSpacePointCount = 0;
-        trackerPose= glm::mat4(1.f);
-        hmdCameraRelativeTrackerPose = glm::mat4(1.f);
+        trackerPose= *k_psmove_pose_identity;
+        hmdCameraRelativeTrackerPose = *k_psmove_pose_identity;
         reprojectionError = 0.f;
         bValidTrackerPose = false;
     }
@@ -57,16 +56,6 @@ struct HMDTrackerPoseContext
 class AppSubStage_CalibrateWithMat
 {
 public:
-    AppSubStage_CalibrateWithMat(class AppStage_ComputeTrackerPoses *parentStage);
-
-    void enter();
-    void exit();
-    void update();
-    void render();
-
-    void renderUI();
-
-protected:
     enum eMenuState
     {
         initial,
@@ -81,6 +70,21 @@ protected:
         calibrateStepFailed,
     };
 
+    AppSubStage_CalibrateWithMat(class AppStage_ComputeTrackerPoses *parentStage);
+
+    void enter();
+    void exit();
+    void update();
+    void render();
+
+    void renderUI();
+
+    inline eMenuState getMenuState() const
+    {
+        return m_menuState;
+    }
+
+protected:
     void setState(eMenuState newState);
     void onExitState(eMenuState newState);
     void onEnterState(eMenuState newState);
