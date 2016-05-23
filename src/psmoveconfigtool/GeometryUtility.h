@@ -29,6 +29,10 @@ PSMoveMatrix3x3 glm_mat3_to_psmove_matrix3x3(const glm::mat3 &m);
 PSMoveQuaternion glm_mat3_to_psmove_quaternion(const glm::quat &q);
 PSMovePose glm_mat4_to_psmove_pose(const glm::mat4 &m);
 
+// GLM Types to Eigen types
+Eigen::Matrix3f glm_mat3_to_eigen_matrix3f(const glm::mat3 &m);
+Eigen::Matrix4f glm_mat4_to_eigen_matrix4f(const glm::mat4 &m);
+
 // PSMove types to OpenCV types
 cv::Matx33f psmove_matrix3x3_to_cv_mat33f(const PSMoveMatrix3x3 &in);
 
@@ -38,6 +42,7 @@ Eigen::Vector3f psmove_float_vector3_to_eigen_vector3(const PSMoveFloatVector3 &
 
 // Eigen types to GLM types
 glm::mat3 eigen_matrix3f_to_glm_mat3(const Eigen::Matrix3f &m);
+glm::mat4 eigen_matrix4f_to_glm_mat4(const Eigen::Matrix4f &m);
 glm::vec3 eigen_vector3f_to_glm_vec3(const Eigen::Vector3f &v);
 
 #endif // GEOMETRY_UTILITY_H

@@ -826,6 +826,21 @@ void drawLineStrip(const glm::mat4 &transform, const glm::vec3 &color, const flo
     glPopMatrix();
 }
 
+void drawPoseArrayStrip(const struct PSMovePose *poses, const int poseCount, const glm::vec3 &color)
+{
+    glColor3fv(glm::value_ptr(color));
+    glBegin(GL_LINE_STRIP);
+
+    for (int sampleIndex = 0; sampleIndex < poseCount; ++sampleIndex)
+    {
+        const PSMovePose &pose = poses[sampleIndex];
+
+        glVertex3f(pose.Position.x, pose.Position.y, pose.Position.z);
+    }
+
+    glEnd();
+}
+
 void drawDK2Model(const glm::mat4 &transform)
 {
     assert(Renderer::getIsRenderingStage());

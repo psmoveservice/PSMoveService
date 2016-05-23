@@ -386,8 +386,9 @@ message DeviceDataFrame
             message RawTrackerData
             {
                 repeated Pixel screen_locations= 1;
-                repeated int32 tracker_ids= 2;
-                int32 valid_tracker_count= 3;
+                repeated Position relative_positions= 2;
+                repeated int32 tracker_ids= 3;
+                int32 valid_tracker_count= 4;
             }
             RawTrackerData raw_tracker_data = 8;            
         }

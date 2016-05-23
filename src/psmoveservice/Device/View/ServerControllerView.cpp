@@ -408,6 +408,7 @@ static void generate_psmove_data_frame_for_stream(
 
             //###HipsterSloth $TODO Publish real raw tracking
             //PSMoveProtocol::Pixel *pixel= raw_tracker_data->add_screen_locations();
+            //PSMoveProtocol::Position *position = raw_tracker_data->add_relative_positions();
             //raw_tracker_data->add_tracker_ids(tracker_id);
 
             raw_tracker_data->set_valid_tracker_count(0);

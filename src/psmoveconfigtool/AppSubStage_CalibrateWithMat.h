@@ -96,13 +96,10 @@ private:
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
 
-    PSMoveFloatVector3 m_originOffset;
-
     HMDTrackerPoseContext m_hmdTrackerPoseContext;
     PS3EYETrackerPoseContext m_psmoveTrackerPoseContexts[PSMOVESERVICE_MAX_TRACKER_COUNT];
 
     int m_sampleLocationIndex;
-
 };
 
 #endif // APP_STAGE_COREGISTER_WITH_MAT_H

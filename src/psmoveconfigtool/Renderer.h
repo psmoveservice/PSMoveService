@@ -89,6 +89,7 @@ void drawEllipsoid(
     const glm::mat3 &basis, const glm::vec3 &center, const glm::vec3 &extents,
     const int subdiv= 64);
 void drawLineStrip(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count);
+void drawPoseArrayStrip(const struct PSMovePose *poses, const int poseCount, const glm::vec3 &color);
 void drawDK2Model(const glm::mat4 &transform);
 void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color);
 void drawPSNaviModel(const glm::mat4 &transform);

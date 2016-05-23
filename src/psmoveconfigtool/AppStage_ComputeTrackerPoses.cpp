@@ -30,7 +30,7 @@
 const char *AppStage_ComputeTrackerPoses::APP_STAGE_NAME = "ComputeTrackerPoses";
 
 //-- constants -----
-static const glm::vec3 k_dk2_frustum_color = glm::vec3(1.f, 0.788f, 0.055f);
+static const glm::vec3 k_hmd_frustum_color = glm::vec3(1.f, 0.788f, 0.055f);
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 
 //-- public methods -----
@@ -185,7 +185,7 @@ void AppStage_ComputeTrackerPoses::render()
             {
                 const PSMoveFrustum frustum = m_hmdView->getTrackerFrustum();
 
-                drawFrustum(&frustum, k_dk2_frustum_color);
+                drawFrustum(&frustum, k_hmd_frustum_color);
             }
 
             // Draw the frustum for each tracking camera

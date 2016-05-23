@@ -117,6 +117,27 @@ psmove_matrix3x3_to_cv_mat33f(const PSMoveMatrix3x3 &in)
     return out;
 }
 
+// GLM Types to Eigen types
+Eigen::Matrix3f glm_mat3_to_eigen_matrix3f(const glm::mat3 &m)
+{
+    const float *raw_m = glm::value_ptr(m);
+    float copy_raw_m[3* 3];
+    memcpy(copy_raw_m, raw_m, sizeof(copy_raw_m));
+    Eigen::Map<Eigen::Matrix3f> result(copy_raw_m);
+
+    return result;
+}
+
+Eigen::Matrix4f glm_mat4_to_eigen_matrix4f(const glm::mat4 &m)
+{
+    const float *raw_m = glm::value_ptr(m);
+    float copy_raw_m[4 * 4];
+    memcpy(copy_raw_m, raw_m, sizeof(copy_raw_m));
+    Eigen::Map<Eigen::Matrix4f> result(copy_raw_m);
+
+    return result;
+}
+
 // PSMoveTypes to Eigen types
 Eigen::Vector3f psmove_int_vector3_to_eigen_vector3(const PSMoveIntVector3 &v)
 {
@@ -132,6 +153,11 @@ Eigen::Vector3f psmove_float_vector3_to_eigen_vector3(const PSMoveFloatVector3 &
 glm::mat3 eigen_matrix3f_to_glm_mat3(const Eigen::Matrix3f &m)
 {
     return glm::make_mat3x3((const float *)m.data());
+}
+
+glm::mat4 eigen_matrix4f_to_glm_mat4(const Eigen::Matrix4f &m)
+{
+    return glm::make_mat4x4((const float *)m.data());
 }
 
 glm::vec3 eigen_vector3f_to_glm_vec3(const Eigen::Vector3f &v)

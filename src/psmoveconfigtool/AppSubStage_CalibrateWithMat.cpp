@@ -24,7 +24,7 @@
 #include <vector>
 
 //-- constants -----
-static const glm::vec3 k_dk2_frustum_color = glm::vec3(1.f, 0.788f, 0.055f);
+static const glm::vec3 k_hmd_frustum_color = glm::vec3(1.f, 0.788f, 0.055f);
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 
 static const double k_stabilize_wait_time_ms = 1000.f;
@@ -49,8 +49,7 @@ static const char *k_sample_location_names[k_mat_sample_location_count] = {
 };
 
 //-- private methods -----
-static glm::mat4
-computePSMoveTrackerToHMDTrackerSpaceTransform(
+static glm::mat4 computePSMoveTrackerToHMDTrackerSpaceTransform(
     const ClientHMDView *hmdContext,
     const PSMovePose &psmoveCalibrationOffset,
     const HMDTrackerPoseContext &hmdTrackerPoseContext);
@@ -155,7 +154,7 @@ void AppSubStage_CalibrateWithMat::update()
                         PSMoveScreenLocation screenSample;
 
                         if (PSMoveView.GetIsCurrentlyTracking() &&
-                            PSMoveView.GetRawTrackerData().GetLocationForTrackerId(trackerIndex, screenSample) &&
+                            PSMoveView.GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample) &&
                             m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount < k_mat_calibration_sample_count)
                         {
                             const int sampleCount = m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount;
@@ -392,7 +391,7 @@ void AppSubStage_CalibrateWithMat::render()
             const glm::mat4 transform = psmove_pose_to_glm_mat4(HMDView->getHmdPose());
             const PSMoveFrustum frustum = HMDView->getTrackerFrustum();
 
-            drawFrustum(&frustum, k_dk2_frustum_color);
+            drawFrustum(&frustum, k_hmd_frustum_color);
 
             drawDK2Model(transform);
 

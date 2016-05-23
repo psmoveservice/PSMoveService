@@ -39,8 +39,9 @@ struct CLIENTPSMOVEAPI PSMoveRawSensorData
 
 struct CLIENTPSMOVEAPI PSMoveRawTrackerData
 {
-    // Parallel arrays: ScreenLocation and the TrackerID associated with it
+    // Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
     PSMoveScreenLocation ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMovePosition RelativePositions[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int ValidTrackerLocations;
 
@@ -49,12 +50,13 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
         for (int index = 0; index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++index)
         {
             ScreenLocations[index] = PSMoveScreenLocation::create(0, 0);
+            RelativePositions[index] = *k_psmove_position_origin;
             TrackerIDs[index] = -1;
         }
         ValidTrackerLocations = 0;
     }
 
-    inline bool GetLocationForTrackerId(int trackerId, PSMoveScreenLocation &outLocation) const
+    inline bool GetPixelLocationOnTrackerId(int trackerId, PSMoveScreenLocation &outLocation) const
     {
         bool bFound = false;
 
@@ -63,6 +65,23 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
             if (TrackerIDs[listIndex] == trackerId)
             {
                 outLocation = ScreenLocations[listIndex];
+                bFound = true;
+                break;
+            }
+        }
+
+        return bFound;
+    }
+
+    inline bool GetPositionOnTrackerId(int trackerId, PSMovePosition &outPosition) const
+    {
+        bool bFound = false;
+
+        for (int listIndex = 0; listIndex < ValidTrackerLocations; ++listIndex)
+        {
+            if (TrackerIDs[listIndex] == trackerId)
+            {
+                outPosition = RelativePositions[listIndex];
                 bFound = true;
                 break;
             }

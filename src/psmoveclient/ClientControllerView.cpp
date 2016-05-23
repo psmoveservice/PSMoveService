@@ -10,7 +10,12 @@
 
 //-- constants -----
 const PSMoveRawSensorData k_empty_sensor_data= {{0, 0, 0}, {0.f, 0.f, 0.f}, {0.f, 0.f, 0.f}};
-const PSMoveRawTrackerData k_empty_tracker_data = { { { 0, 0 }, { 0, 0 } }, { -1, -1 }, 0 };
+const PSMoveRawTrackerData k_empty_tracker_data = { 
+    { { 0, 0 }, { 0, 0 } }, 
+    { { 0, 0, 0 }, { 0, 0, 0 } },
+    { -1, -1 }, 
+    0 
+};
 const PSMoveFloatVector3 k_identity_gravity_calibration_direction= {0.f, 1.f, 0.f};
 
 //-- prototypes ----
@@ -125,11 +130,15 @@ void ClientPSMoveView::ApplyControllerDataFrame(
 
             for (int listIndex = 0; listIndex < this->RawTrackerData.ValidTrackerLocations; ++listIndex)
             {
-                const PSMoveProtocol::Pixel &trackerLocation = raw_tracker_data.screen_locations(listIndex);
+                const PSMoveProtocol::Pixel &locationOnTracker = raw_tracker_data.screen_locations(listIndex);
+                const PSMoveProtocol::Position &positionOnTracker = raw_tracker_data.relative_positions(listIndex);
 
                 this->RawTrackerData.TrackerIDs[listIndex]= raw_tracker_data.tracker_ids(listIndex);
                 this->RawTrackerData.ScreenLocations[listIndex] =
-                    PSMoveScreenLocation::create(trackerLocation.x(), trackerLocation.y());
+                    PSMoveScreenLocation::create(locationOnTracker.x(), locationOnTracker.y());
+                this->RawTrackerData.RelativePositions[listIndex] =
+                    PSMovePosition::create(
+                        positionOnTracker.x(), positionOnTracker.y(), positionOnTracker.z());
             }            
         }
         else
