@@ -26,6 +26,10 @@ enum
 #endif
 };
 
+#ifdef _MSC_VER
+#pragma warning (disable: 4996) // 'This function or variable may be unsafe': snprintf
+#define snprintf _snprintf
+#endif
 
 /**
  cv::IVideoCapture is a convenient abstract base for custom capture devices.
@@ -184,6 +188,25 @@ public:
     bool isOpened() const
     {
         return (m_index != -1);
+    }
+
+    std::string getUniqueIndentifier() const
+    {
+        std::string identifier= "cleye_";
+
+        if (isOpened())
+        {
+            GUID guid = CLEyeGetCameraUUID(m_index);
+            char guid_string[128];
+
+            snprintf(guid_string, sizeof(guid_string), "cleye_%x-%x-%x-%x%x%x%x%x%x%x%x",
+                guid.Data1, guid.Data2, guid.Data3,
+                guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3],
+                guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
+            identifier.append(guid_string);
+        }
+
+        return identifier;
     }
 
 protected:
@@ -349,6 +372,23 @@ public:
     bool isOpened() const
     {
         return (m_index != -1);
+    }
+
+    std::string getUniqueIndentifier() const
+    {
+        std::string identifier = "ps3eye_";
+
+        if (isOpened())
+        {
+            char usb_port_path[128];
+
+            if (eye->getUSBPortPath(usb_port_path, sizeof(usb_port_path)))
+            {
+                identifier.append(usb_port_path);
+            }
+        }
+
+        return identifier;
     }
 
 protected:
@@ -549,6 +589,11 @@ double PSEyeVideoCapture::get(int propId) const
     return cv::VideoCapture::get(propId);
 }
 
+std::string PSEyeVideoCapture::getUniqueIndentifier() const
+{
+    return m_indentifier;
+}
+
 cv::Ptr<cv::IVideoCapture> PSEyeVideoCapture::pseyeVideoCapture_create(int index)
 {
     // https://github.com/Itseez/opencv/blob/09e6c82190b558e74e2e6a53df09844665443d6d/modules/videoio/src/cap.cpp#L432
@@ -581,7 +626,10 @@ cv::Ptr<cv::IVideoCapture> PSEyeVideoCapture::pseyeVideoCapture_create(int index
         {
 #ifdef HAVE_CLEYE
             case PSEYE_CAP_CLMULTI:
-                capture = cv::makePtr<PSEYECaptureCAM_CLMULTI>(index);
+                {
+                    capture = cv::makePtr<PSEYECaptureCAM_CLMULTI>(index);
+                    m_indentifier = capture.dynamicCast<PSEYECaptureCAM_CLMULTI>()->getUniqueIndentifier();
+                }
                 break;
 
             case PSEYE_CAP_CLEYE:
@@ -590,13 +638,21 @@ cv::Ptr<cv::IVideoCapture> PSEyeVideoCapture::pseyeVideoCapture_create(int index
                 if (usingCLEyeDriver())
                 {
                     std::cout << "CL Eye Driver detected." << std::endl;
-                    return cv::Ptr<cv::IVideoCapture>();
+                    capture = cv::Ptr<cv::IVideoCapture>();
+
+                    m_indentifier = "opencv_";
+                    m_indentifier.append(std::to_string(index));
+
+                    return capture;
                 }
                 break;
 #endif
 #ifdef HAVE_PS3EYE
             case PSEYE_CAP_PS3EYE:
-                capture = cv::makePtr<PSEYECaptureCAM_PS3EYE>(index);
+                {
+                    capture = cv::makePtr<PSEYECaptureCAM_PS3EYE>(index);
+                    m_indentifier = capture.dynamicCast<PSEYECaptureCAM_PS3EYE>()->getUniqueIndentifier();
+                }
                 break;
 #endif
         }

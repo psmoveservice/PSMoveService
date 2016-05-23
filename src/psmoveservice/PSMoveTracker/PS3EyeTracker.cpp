@@ -194,6 +194,11 @@ bool PS3EyeTracker::open(const DeviceEnumerator *enumerator)
     
     if (bSuccess)
     {
+        std::string identifier = VideoCapture->getUniqueIndentifier();
+        std::string config_name = "PS3EyeTrackerConfig_";
+        config_name.append(identifier);
+
+        cfg = PS3EyeTrackerConfig(config_name);
         cfg.load();
         setExposure(cfg.exposure);
     }

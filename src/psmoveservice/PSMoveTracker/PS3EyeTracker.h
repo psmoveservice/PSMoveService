@@ -25,7 +25,10 @@ public:
     , vfov(45.0) // degrees
     , zNear(10.0) // cm
     , zFar(200.0) // cm
-    {};
+    {
+        pose.clear();
+        hmdRelativePose.clear();
+    };
     
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);

@@ -45,9 +45,13 @@ public:
 
     /// Use cv::VideoCapture::get() unless \ref eyeType == PSEYE_CLEYE_DRIVER
     double get(int propId) const override;
+
+    /// Get the unique identifier for the camera
+    std::string getUniqueIndentifier() const;
     
 protected:
     int m_index; /**< Keep track of index. Necessary for PSEYE_CLEYE_DRIVER */
+    std::string m_indentifier; /**< Filled in when the tracker is opened */
 
 private:
     /// Get the camera capture. If successful, we will have a functional cv::Ptr<CvCapture> \ref cap member variable.

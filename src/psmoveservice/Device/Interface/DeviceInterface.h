@@ -30,7 +30,7 @@ struct CommonDeviceQuaternion
     inline void clear()
     {
         x = y = z = 0.f;
-        w = 0.f;
+        w = 1.f;
     }
 };
 
