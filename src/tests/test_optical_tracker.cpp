@@ -18,23 +18,27 @@ const int HUE_RANGE = 20;
 const int SAT_RANGE = 85;
 const int VAL_RANGE = 85;
 
-void bgr2hsv_min_max(cv::Scalar bgr_in, cv::Scalar& min_out, cv::Scalar& max_out)
+typedef cv::Vec< unsigned char, 3 > cvBGR;
+typedef cv::Vec< unsigned char, 3 > cvRGB;
+typedef cv::Vec< unsigned char, 3 > cvHSV;
+
+void bgr2hsv_min_max(cvBGR bgr_in, cvHSV& min_out, cvHSV& max_out)
 {
-    cv::Scalar hsv_in(0, 0, 0, 1);
+    cvBGR hsv_in(0, 0, 0);
     static cv::Mat img_hsv(1, 1, CV_8UC3);
     static cv::Mat img_bgr(1, 1, CV_8UC3, bgr_in);
     
     cv::cvtColor(img_bgr, img_hsv, CV_BGR2HSV);
     
-    hsv_in = img_hsv.at<cv::Scalar>(0, 0);
+    hsv_in = img_hsv.at<cvHSV>(0, 0);
     
-    min_out.val[0] = MIN(hsv_in.val[0] - HUE_RANGE, 0);  //0-180
-    min_out.val[1] = MIN(hsv_in.val[1] - SAT_RANGE, 0);  //0-255
-    min_out.val[2] = MIN(hsv_in.val[2] - VAL_RANGE, 0);  //0-255
+    min_out.val[0] = MAX(hsv_in.val[0] - HUE_RANGE, 0);  //0-180
+    min_out.val[1] = MAX(hsv_in.val[1] - SAT_RANGE, 0);  //0-255
+    min_out.val[2] = MAX(hsv_in.val[2] - VAL_RANGE, 0);  //0-255
     
-    max_out.val[0] = MAX(hsv_in.val[0] + HUE_RANGE, 180);
-    max_out.val[1] = MAX(hsv_in.val[0] + SAT_RANGE, 255);
-    max_out.val[2] = MAX(hsv_in.val[0] + VAL_RANGE, 255);
+    max_out.val[0] = MIN(hsv_in.val[0] + HUE_RANGE, 180);
+    max_out.val[1] = MIN(hsv_in.val[1] + SAT_RANGE, 255);
+    max_out.val[2] = MIN(hsv_in.val[2] + VAL_RANGE, 255);
 }
 
 int main()
@@ -66,11 +70,12 @@ int main()
         psmove.setLED(r, g, b);
         psmove.setRumbleIntensity(0);
         
-        cv::Mat frame;
+        cv::Mat bgrFrame;
+        cv::Mat hsvFrame;
         cv::Mat gsFrame;
-        cv::Scalar psmoveColor(b, g, r);
-        cv::Scalar led_min, led_max;
-        bgr2hsv_min_max(psmoveColor, led_min, led_max);
+        cvBGR psmoveBGRColor(b, g, r);
+        cvHSV led_min, led_max;
+        bgr2hsv_min_max(psmoveBGRColor, led_min, led_max);
         
 
 		while (psmove.getIsBluetooth() && psmstate->Move != CommonControllerState::Button_DOWN)
@@ -80,21 +85,25 @@ int main()
             
             psmove.setLED(r, g, b); // TODO: Rate-limit LED update
 
-            cap >> frame; // get a new frame from camera
+            cap >> bgrFrame; // get a new frame from camera
             
-            if (!frame.empty())
+            if (!bgrFrame.empty())
             {
-                
-                cv::inRange(frame, led_min, led_max, gsFrame);  // colour filter
+                cv::cvtColor(bgrFrame, hsvFrame, CV_BGR2HSV);       // Convert frame to HSV colour space
+                cv::inRange(hsvFrame, led_min, led_max, gsFrame);  // Filter based on led HSV range
                 
                 std::vector<std::vector<cv::Point> > contours;
                 cv::findContours(gsFrame, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
                 
                 std::vector<cv::Point> biggest_contour;
-                for (auto it = contours.begin(); it != contours.end(); ++it) {
-                    if (it == contours.begin() || it->size() > biggest_contour.size())
-                    {
-                        biggest_contour = *it;
+
+                if (contours.size() > 0)
+                {
+                    for (auto it = contours.begin(); it != contours.end(); ++it) {
+                        if (it == contours.begin() || it->size() > biggest_contour.size())
+                        {
+                            biggest_contour = *it;
+                        }
                     }
                 }
                 
@@ -142,7 +151,13 @@ int main()
                         }
                         hull = std::vector<cv::Point>(&hull[best_i], &hull[best_i+N]);
                     }
-                    cv::drawContours(frame, hull, 0, cv::Scalar(0,0,255));
+
+                    {
+                        std::vector< std::vector<cv::Point> > contours;
+
+                        contours.push_back(hull);
+                        cv::drawContours(bgrFrame, contours, 0, cv::Scalar(0, 0, 255));
+                    }
 
                     
                     // Fit ellipse to reduced hull
@@ -153,12 +168,12 @@ int main()
                         Eigen::MatrixXf D1(hull.size(), 3);
                         Eigen::MatrixXf D2(hull.size(), 3);
                         for (int ix=0; ix < hull.size(); ++ix) {
-                            D1.col(ix)[0] = hull[ix].x * hull[ix].x;
-                            D1.col(ix)[1] = hull[ix].x * hull[ix].y;
-                            D1.col(ix)[2] = hull[ix].y * hull[ix].y;
-                            D2.col(ix)[0] = hull[ix].x;
-                            D2.col(ix)[1] = hull[ix].y;
-                            D2.col(ix)[2] = 1;
+                            D1.row(ix)[0] = hull[ix].x * hull[ix].x;
+                            D1.row(ix)[1] = hull[ix].x * hull[ix].y;
+                            D1.row(ix)[2] = hull[ix].y * hull[ix].y;
+                            D2.row(ix)[0] = hull[ix].x;
+                            D2.row(ix)[1] = hull[ix].y;
+                            D2.row(ix)[2] = 1;
                         }
                         Eigen::Matrix3f S1 = D1.transpose() * D1;
                         Eigen::Matrix3f S2 = D1.transpose() * D2;
@@ -201,35 +216,42 @@ int main()
                         float semi_n = A*FF + C*D*D + G*BB - 2*B*D*F - AC*G;
                         float dAC = A-C;
                         float dACsq = dAC*dAC;
-                        float semi_d_2 = sqrtf( dACsq + 4*BB );
+                        float semi_d_2 = sqrtf(dACsq + 4*BB);
                         float semi_d_3 = -A - C;
-                        float a = sqrt( (2*semi_n) / (off_d * (semi_d_3 + semi_d_2)));
-                        // b and tau are only needed for drawing an ellipse.
-                        float b = sqrt( (2*semi_n) / (off_d * (semi_d_3 - semi_d_2)));
-                        double tau = atan2(2*B, dAC) / 2;  //acot((A-C)/(2*B))/2;
-                        cv::ellipse(frame, cv::Point(h, k), cv::Size(2*a, 2*b), tau, 0, 360, cv::Scalar(255, 0, 0));
-                        
-                        //Get sphere coordinates from parametric
-                        float F_PX = 554.2563;
-                        float R = 2.25;
-                        float L_px = sqrt(h*h + k*k);
-                        float m = L_px / F_PX;
-                        float fl = F_PX / L_px;
-                        float j = (L_px + a) / F_PX;
-                        float l = (j - m) / (1 + j*m);
-                        float D_cm = R * sqrt(1 + l*l) / l;
-                        float z = D_cm * fl / sqrt( 1 + fl*fl);
-                        float L_cm = z * m;
-                        float x = L_cm * h / L_px;
-                        float y = L_cm * k / L_px;
-                        
-                        std::cout << "X: " << x << " Y: " << y << " Z: " << z << std::endl;
-                        
-                        
+                        float a_sqrd = (2 * semi_n) / (off_d * (semi_d_3 + semi_d_2));
+                        float b_sqrd = (2 * semi_n) / (off_d * (semi_d_3 - semi_d_2));
+
+                        if (a_sqrd > FLT_EPSILON && b_sqrd > FLT_EPSILON)
+                        {
+                            // b and tau are only needed for drawing an ellipse.
+                            float a = sqrt(a_sqrd);
+                            float b = sqrt(b_sqrd);
+                            double tau = atan2(2 * B, dAC) / 2;  //acot((A-C)/(2*B))/2;
+                            cv::ellipse(bgrFrame, cv::Point(h, k), cv::Size(2 * a, 2 * b), tau, 0, 360, cv::Scalar(255, 0, 0));
+
+                            //Get sphere coordinates from parametric
+                            float F_PX = 554.2563;
+                            float R = 2.25;
+                            float L_px = sqrt(h*h + k*k);
+                            float m = L_px / F_PX;
+                            float fl = F_PX / L_px;
+                            float j = (L_px + a) / F_PX;
+                            float l = (j - m) / (1 + j*m);
+                            float D_cm = R * sqrt(1 + l*l) / l;
+                            float z = D_cm * fl / sqrt(1 + fl*fl);
+                            float L_cm = z * m;
+                            float x = L_cm * h / L_px;
+                            float y = L_cm * k / L_px;
+
+                            std::cout << "X: " << x << " Y: " << y << " Z: " << z << std::endl;
+                        }
                     }
                     
                 }
-                imshow("result", frame);
+
+                imshow("bgr video", bgrFrame);
+                imshow("hsv video", hsvFrame);
+                imshow("result", gsFrame);
             }
 
 			int myw = 4;
@@ -257,11 +279,7 @@ int main()
 				std::setw(myw) << std::right << psmstate->Mag[2] <<
 				std::flush;
 
-#ifdef _WIN32
-			_sleep(5); // 5 msec
-#else
-            usleep(5000);
-#endif
+            cv::waitKey(16);
 		}
         std::cout << std::endl;
 
