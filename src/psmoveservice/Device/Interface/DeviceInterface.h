@@ -2,6 +2,7 @@
 #define DEVICE_INTERFACE_H
 
 #include <string>
+#include <tuple>
 
 struct CommonDeviceVector
 {
