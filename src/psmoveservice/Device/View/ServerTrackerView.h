@@ -43,6 +43,20 @@ public:
     
     bool getPositionForObject(IDeviceInterface* tracked_object, glm::vec3* out_position);
 
+    void getCameraIntrinsics(
+        float &outFocalLengthX, float &outFocalLengthY,
+        float &outPrincipalX, float &outPrincipalY) const;
+    void setCameraIntrinsics(
+        float focalLengthX, float focalLengthY,
+        float principalX, float principalY);
+
+    void getTrackerPose(struct CommonDevicePose *outPose, struct CommonDevicePose *outHmdRelativePose) const;
+    void setTrackerPose(const struct CommonDevicePose *pose, const struct CommonDevicePose *hmdRelativePose);
+
+    void getPixelDimensions(float &outWidth, float &outHeight) const;
+    void getFOV(float &outHFOV, float &outVFOV) const;
+    void getZRange(float &outZNear, float &outZFar) const;
+
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
     void free_device_interface() override;

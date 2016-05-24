@@ -18,6 +18,9 @@
 #define k_real_two_pi 2.f*k_real_pi
 #define k_real_half_pi 0.5f*k_real_pi
 
+#define k_degrees_to_radians (k_real_pi / 180.f)
+#define k_radians_to_degreees (180.f / k_real_pi)
+
 //-- macros ----
 #ifdef isfinite
 #define is_valid_float(x) (!isnan(x) && isfinite(x))

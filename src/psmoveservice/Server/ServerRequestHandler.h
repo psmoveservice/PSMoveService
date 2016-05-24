@@ -15,10 +15,12 @@ namespace boost {
 struct ControllerStreamInfo
 {
     bool include_raw_sensor_data;
+    bool include_raw_tracker_data;
 
     inline void Clear()
     {
         include_raw_sensor_data= false;
+        include_raw_tracker_data = false;
     }
 };
 

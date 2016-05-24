@@ -44,6 +44,20 @@ FIND_PACKAGE(OpenVR REQUIRED)
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${OPENVR_INCLUDE_DIR})
 list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${OPENVR_LIBRARIES})
 
+# OpenCV
+set(OpenCV_STATIC ON)
+FIND_PACKAGE(OpenCV REQUIRED)
+IF ("${OpenCV_LIBS}" STREQUAL "")
+    message("OpenCV Libs was empty! Manually setting.")
+    list(APPEND OpenCV_LIBS opencv_core opencv_imgproc opencv_calib3d opencv_video opencv_features2d opencv_ml opencv_highgui opencv_objdetect)
+ENDIF()
+IF ("${OpenCV_INCLUDE_DIRS}" STREQUAL "" AND ${OpenCV_DIR})
+    message("OpenCV include dirs was empty! Manually setting.")
+    set (OpenCV_INCLUDE_DIRS ${OpenCV_DIR}\include)
+ENDIF()
+list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
+list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${OpenCV_LIBS})
+
 # Source files that are needed for the psmove config tool
 file(GLOB PSMOVECONFIGTOOL_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.h"

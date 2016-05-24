@@ -59,9 +59,9 @@ private:
     };
 
     eTrackerMenuState m_menuState;
-    int m_trackerID;
     bool m_bStreamIsActive;
-    class SharedVideoFrameReadOnlyAccessor *m_shared_memory_accesor;
+    class ClientTrackerView *m_tracker_view;
+    class TextureAsset *m_video_texture;
     double m_trackerExposure;
 };
 

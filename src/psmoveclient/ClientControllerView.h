@@ -3,6 +3,7 @@
 
 //-- includes -----
 #include "ClientConfig.h"
+#include "ClientConstants.h"
 #include "ClientGeometry.h"
 #include <cassert>
 
@@ -14,7 +15,7 @@ namespace PSMoveProtocol
 };
 
 //-- constants -----
-enum CLIENTPSMOVEAPI PSMoveButtonState {
+enum PSMoveButtonState {
     PSMoveButton_UP = 0x00,       // (00b) Not pressed
     PSMoveButton_PRESSED = 0x01,  // (01b) Down for one frame only
     PSMoveButton_DOWN = 0x03,     // (11b) Down for >1 frame
@@ -36,6 +37,60 @@ struct CLIENTPSMOVEAPI PSMoveRawSensorData
     }
 };
 
+struct CLIENTPSMOVEAPI PSMoveRawTrackerData
+{
+    // Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
+    PSMoveScreenLocation ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMovePosition RelativePositions[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    int TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    int ValidTrackerLocations;
+
+    inline void Clear()
+    {
+        for (int index = 0; index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++index)
+        {
+            ScreenLocations[index] = PSMoveScreenLocation::create(0, 0);
+            RelativePositions[index] = *k_psmove_position_origin;
+            TrackerIDs[index] = -1;
+        }
+        ValidTrackerLocations = 0;
+    }
+
+    inline bool GetPixelLocationOnTrackerId(int trackerId, PSMoveScreenLocation &outLocation) const
+    {
+        bool bFound = false;
+
+        for (int listIndex = 0; listIndex < ValidTrackerLocations; ++listIndex)
+        {
+            if (TrackerIDs[listIndex] == trackerId)
+            {
+                outLocation = ScreenLocations[listIndex];
+                bFound = true;
+                break;
+            }
+        }
+
+        return bFound;
+    }
+
+    inline bool GetPositionOnTrackerId(int trackerId, PSMovePosition &outPosition) const
+    {
+        bool bFound = false;
+
+        for (int listIndex = 0; listIndex < ValidTrackerLocations; ++listIndex)
+        {
+            if (TrackerIDs[listIndex] == trackerId)
+            {
+                outPosition = RelativePositions[listIndex];
+                bFound = true;
+                break;
+            }
+        }
+
+        return bFound;
+    }
+};
+
 struct CLIENTPSMOVEAPI ClientPSMoveView
 {
 private:
@@ -46,6 +101,7 @@ private:
 
     PSMovePose Pose;
     PSMoveRawSensorData RawSensorData;
+    PSMoveRawTrackerData RawTrackerData;
 
     PSMoveButtonState TriangleButton;
     PSMoveButtonState CircleButton;
@@ -153,6 +209,9 @@ public:
 
     const PSMoveRawSensorData &GetRawSensorData() const;
     const PSMoveFloatVector3 &GetIdentityGravityCalibrationDirection() const;
+    bool GetIsStableAndAlignedWithGravity() const;
+
+    const PSMoveRawTrackerData &GetRawTrackerData() const;
 };
 
 class CLIENTPSMOVEAPI ClientPSNaviView
