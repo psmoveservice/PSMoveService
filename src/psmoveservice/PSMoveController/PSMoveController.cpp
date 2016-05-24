@@ -25,6 +25,9 @@
 #define PSMOVE_CALIBRATION_BLOB_SIZE (PSMOVE_CALIBRATION_SIZE*3 - 2*2) /* Three blocks, minus header (2 bytes) for blocks 2,3 */
 #define PSMOVE_STATE_BUFFER_MAX 16
 
+/* Minimum time (in milliseconds) psmove write updates */
+#define PSMOVE_WRITE_DATA_INTERVAL_MS 120
+
 /* Decode 12-bit signed value (assuming two's complement) */
 #define TWELVE_BIT_SIGNED(x) (((x) & 0x800)?(-(((~(x)) & 0xFFF) + 1)):(x))
 
@@ -276,17 +279,26 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 
 // -- PSMove Controller -----
 PSMoveController::PSMoveController()
-    : LedR(255)
+    : LedR(0)
     , LedG(0)
     , LedB(0)
     , Rumble(0)
     , NextPollSequenceNumber(0)
+    , bWriteStateDirty(false)
 {
     HIDDetails.Handle = nullptr;
     HIDDetails.Handle_addr = nullptr;
     
     InData = new PSMoveDataInput;
     InData->type = PSMove_Req_GetInput;
+
+    // Make sure there is an initial empty state in the tracker queue
+    {     
+        PSMoveControllerState empty_state;
+
+        empty_state.clear();
+        ControllerStates.push_back(empty_state);
+    }
 }
 
 PSMoveController::~PSMoveController()
@@ -875,10 +887,23 @@ PSMoveController::poll()
             if (ControllerStates.size() >= PSMOVE_STATE_BUFFER_MAX)
             {
                 ControllerStates.erase(ControllerStates.begin(),
-                                        ControllerStates.begin()+ControllerStates.size()-PSMOVE_STATE_BUFFER_MAX);
+                    ControllerStates.begin() + ControllerStates.size() - PSMOVE_STATE_BUFFER_MAX);
             }
 
             ControllerStates.push_back(newState);
+        }
+
+        // Update recurrent writes on a regular interval
+        {
+            std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+
+            // See if it's time to update the LED/rumble state
+            std::chrono::duration<double, std::milli> led_update_diff = now - lastWriteStateTime;
+            if (led_update_diff.count() >= PSMOVE_WRITE_DATA_INTERVAL_MS)
+            {
+                writeDataOut();
+                lastWriteStateTime = now;
+            }
         }
     }
 
@@ -956,6 +981,9 @@ PSMoveController::writeDataOut()
     data_out.g = LedG;
     data_out.b = LedB;
     data_out.rumble = Rumble;
+
+    // Keep writing state out until the desired LED and Rumble are 0 
+    bWriteStateDirty = LedR != 0 || LedG != 0 || LedB != 0 || Rumble != 0;
     
     int res = hid_write(HIDDetails.Handle, (unsigned char*)(&data_out),
                         sizeof(data_out));
@@ -971,6 +999,7 @@ PSMoveController::setLED(unsigned char r, unsigned char g, unsigned char b)
         LedR = r;
         LedG = g;
         LedB = b;
+        bWriteStateDirty = true;
         success = writeDataOut();
     }
     return success;
@@ -983,6 +1012,7 @@ PSMoveController::setRumbleIntensity(unsigned char value)
     if (Rumble != value)
     {
         Rumble = value;
+        bWriteStateDirty = true;
         success = writeDataOut();
     }
     return success;

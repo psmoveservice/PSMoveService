@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include <deque>
+#include <chrono>
 
 struct PSMoveHIDDetails {
     std::string Device_path;
@@ -173,6 +174,8 @@ private:
     unsigned char LedR, LedG, LedB;
     unsigned char Rumble;
     unsigned long LedPWMF;
+    bool bWriteStateDirty;
+    std::chrono::time_point<std::chrono::high_resolution_clock> lastWriteStateTime;
 
     // Read Controller State
     int NextPollSequenceNumber;
