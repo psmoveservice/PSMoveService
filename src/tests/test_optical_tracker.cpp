@@ -14,24 +14,25 @@
 #include <unistd.h>
 #endif
 
-const int HUE_RANGE = 20;
-const int SAT_RANGE = 85;
-const int VAL_RANGE = 85;
+const int HUE_RANGE = 9;
+const int SAT_RANGE = 32;
+const int VAL_RANGE = 32;
 
 typedef cv::Vec< unsigned char, 3 > cvBGR;
 typedef cv::Vec< unsigned char, 3 > cvRGB;
 typedef cv::Vec< unsigned char, 3 > cvHSV;
 
-void bgr2hsv_min_max(cvBGR bgr_in, cvHSV& min_out, cvHSV& max_out)
+cvHSV
+bgr2hsv(cvBGR bgr_in)
 {
-    cvBGR hsv_in(0, 0, 0);
-    static cv::Mat img_hsv(1, 1, CV_8UC3);
     static cv::Mat img_bgr(1, 1, CV_8UC3, bgr_in);
-    
+    static cv::Mat img_hsv(1, 1, CV_8UC3);
     cv::cvtColor(img_bgr, img_hsv, CV_BGR2HSV);
-    
-    hsv_in = img_hsv.at<cvHSV>(0, 0);
-    
+    return img_hsv.at<cvHSV>(0, 0);
+}
+
+void hsv_range(cvHSV hsv_in, cvHSV& min_out, cvHSV& max_out)
+{
     min_out.val[0] = MAX(hsv_in.val[0] - HUE_RANGE, 0);  //0-180
     min_out.val[1] = MAX(hsv_in.val[1] - SAT_RANGE, 0);  //0-255
     min_out.val[2] = MAX(hsv_in.val[2] - VAL_RANGE, 0);  //0-255
@@ -39,6 +40,13 @@ void bgr2hsv_min_max(cvBGR bgr_in, cvHSV& min_out, cvHSV& max_out)
     max_out.val[0] = MIN(hsv_in.val[0] + HUE_RANGE, 180);
     max_out.val[1] = MIN(hsv_in.val[1] + SAT_RANGE, 255);
     max_out.val[2] = MIN(hsv_in.val[2] + VAL_RANGE, 255);
+}
+
+void onMouse(int evt, int x, int y, int flags, void* param) {
+    if(evt == CV_EVENT_LBUTTONDOWN) {
+        cv::Point *ptPtr = (cv::Point*)param;
+        *ptPtr = cv::Point(x, y);
+    }
 }
 
 int main()
@@ -53,8 +61,12 @@ int main()
     
     PSMoveController psmove;
     PSEyeVideoCapture cap(0); // open the default camera
-    cv::namedWindow("result",1);
+    cv::namedWindow("bgr video");
+    cv::namedWindow("hsv video");
+    cv::namedWindow("result");
     
+    cv::Point clickPoint;
+    cv::setMouseCallback("hsv video", onMouse, (void*)&clickPoint);
 
 	std::cout << "Opening PSMoveController..." << std::endl;
 	if (psmove.open() && cap.isOpened())
@@ -72,10 +84,15 @@ int main()
         
         cv::Mat bgrFrame;
         cv::Mat hsvFrame;
+        cv::Mat intGsFrame;
         cv::Mat gsFrame;
-        cvBGR psmoveBGRColor(b, g, r);
         cvHSV led_min, led_max;
-        bgr2hsv_min_max(psmoveBGRColor, led_min, led_max);
+        cvHSV psmoveHSVColour = bgr2hsv(cvBGR(b, g, r));
+        
+        // HACK FOR TESTING
+        psmoveHSVColour = cvHSV(30, 50, 255);
+        
+        hsv_range(psmoveHSVColour, led_min, led_max);
         
 
 		while (psmove.getIsBluetooth() && psmstate->Move != CommonControllerState::Button_DOWN)
@@ -92,21 +109,46 @@ int main()
                 cv::cvtColor(bgrFrame, hsvFrame, CV_BGR2HSV);       // Convert frame to HSV colour space
                 cv::inRange(hsvFrame, led_min, led_max, gsFrame);  // Filter based on led HSV range
                 
+//                cv::GaussianBlur(intGsFrame, gsFrame, cv::Size(3, 3), 0);
+//                cv::blur(intGsFrame, gsFrame, cv::Size(3, 3));  // Fastest
+//                cv::bilateralFilter(intGsFrame, gsFrame, 3, 6.0, 1.5);  // Preserves edges
+                
+                imshow("result", gsFrame);
+                
+//                if (clickPoint.x > 0)
+//                {
+//                    cvHSV hsv_bulb = hsvFrame.at<cvHSV>(clickPoint);
+//                    std::cout << clickPoint << ";" << hsv_bulb << std::endl;
+//                }
+                
                 std::vector<std::vector<cv::Point> > contours;
                 cv::findContours(gsFrame, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
                 
-                std::vector<cv::Point> biggest_contour;
+                cv::Scalar contCol = cv::Scalar( 255, 0, 0 );
+                for (int i=0; i<contours.size(); ++i) {
+                    cv::drawContours(bgrFrame, contours, i, contCol);
+                }
 
+                std::vector<cv::Point> biggest_contour;
                 if (contours.size() > 0)
                 {
+                    double contArea = 0;
+                    double newArea = 0;
                     for (auto it = contours.begin(); it != contours.end(); ++it) {
-                        if (it == contours.begin() || it->size() > biggest_contour.size())
+                        newArea = cv::contourArea(*it);
+                        if (newArea > contArea)
                         {
+                            contArea = newArea;
                             biggest_contour = *it;
                         }
                     }
                 }
                 
+                //TODO: If our contour is suddenly much smaller than last frame,
+                // but is next to an almost-as-big contour, then maybe these
+                // 2 contours should be joined.
+                // (i.e. if a finger is blocking the middle of the bulb)
+
                 if (biggest_contour.size() > 6)
                 {
                     // Remove any points in contour on edge of camera/ROI
@@ -119,50 +161,58 @@ int main()
                             ++it;
                         }
                     }
-                    
+
                     // Get the convex hull
                     std::vector<cv::Point> hull;
                     cv::convexHull(biggest_contour, hull);
                     
-                    // If our hull has lots of points, select the N consecutive
-                    // points that are furthest, because furthest are least
-                    // likely to be occluded (assuming player is near middle of FOV).
-                    int N = 10;
-                    if (hull.size() > N)
-                    {
-                        std::deque<float> dists;
-                        float max_dist = 0;
-                        float sum_dists = 0;
-                        int best_i = 0;
-                        for (int i=0; i < (hull.size()-N); i++) {
-                            float new_dist = hull[i].x*hull[i].x + hull[i].y*hull[i].y;
-                            sum_dists += new_dist;
-                            dists.push_back(new_dist);
-                            if (i >= N)
-                            {
-                                sum_dists -= dists.front();
-                                dists.pop_front();
-                                if (sum_dists > max_dist)
-                                {
-                                    best_i = i;
-                                    max_dist = sum_dists;
-                                }
-                            }
-                        }
-                        hull = std::vector<cv::Point>(&hull[best_i], &hull[best_i+N]);
-                    }
 
+//                    // If our hull has lots of points, select the N consecutive
+//                    // points that are furthest, because furthest are least
+//                    // likely to be occluded (assuming player is near middle of FOV).
+//                    int N = 10;
+//                    if (hull.size() > N)
+//                    {
+//                        std::deque<float> dists;
+//                        float max_dist = 0;
+//                        float sum_dists = 0;
+//                        int best_i = 0;
+//                        for (int i=0; i < (hull.size()-N); i++) {
+//                            float new_dist = hull[i].x*hull[i].x + hull[i].y*hull[i].y;
+//                            sum_dists += new_dist;
+//                            dists.push_back(new_dist);
+//                            if (i >= N)
+//                            {
+//                                sum_dists -= dists.front();
+//                                dists.pop_front();
+//                                if (sum_dists > max_dist)
+//                                {
+//                                    best_i = i;
+//                                    max_dist = sum_dists;
+//                                }
+//                            }
+//                        }
+//                        hull = std::vector<cv::Point>(&hull[best_i], &hull[best_i+N]);
+//                    }
+                    
                     {
                         std::vector< std::vector<cv::Point> > contours;
-
+                        
                         contours.push_back(hull);
-                        cv::drawContours(bgrFrame, contours, 0, cv::Scalar(0, 0, 255));
+                        cv::drawContours(bgrFrame, contours, 0, cv::Scalar(255, 0, 255));
                     }
 
                     
                     // Fit ellipse to reduced hull
+                    
+                    // Subtract midpoint from each point.
+                    std::for_each(hull.begin(), hull.end(), [](cv::Point& p) { p.x -= 320; p.y = 240 - p.y;});
+                    
+                    
+                    
                     if (hull.size() > 5)
                     {
+                        // http://autotrace.sourceforge.net/WSCG98.pdf
                         std::vector<float> conic_params(6);
                         
                         Eigen::MatrixXf D1(hull.size(), 3);
@@ -175,10 +225,12 @@ int main()
                             D2.row(ix)[1] = hull[ix].y;
                             D2.row(ix)[2] = 1;
                         }
+                        // std::cout << "\n\n\n\n" << hull << "\n\n\n\n" << std::endl;
                         Eigen::Matrix3f S1 = D1.transpose() * D1;
                         Eigen::Matrix3f S2 = D1.transpose() * D2;
                         Eigen::Matrix3f S3 = D2.transpose() * D2;
-                        Eigen::Matrix3f T = -S3.inverse() * S2.transpose(); //-S3.colPivHouseholderQr().solve(S2.transpose());
+                        Eigen::Matrix3f T = -S3.colPivHouseholderQr().solve(S2.transpose());
+//                        Eigen::Matrix3f T = -S3.inverse() * S2.transpose();
                         Eigen::Matrix3f M = S2*T + S1;
                         Eigen::Matrix3f Mout;
                         Mout.block<1, 3>(0, 0) = M.block<1, 3>(2, 0) / 2;
@@ -227,7 +279,18 @@ int main()
                             float a = sqrt(a_sqrd);
                             float b = sqrt(b_sqrd);
                             double tau = atan2(2 * B, dAC) / 2;  //acot((A-C)/(2*B))/2;
-                            cv::ellipse(bgrFrame, cv::Point(h, k), cv::Size(2 * a, 2 * b), tau, 0, 360, cv::Scalar(255, 0, 0));
+                            if (A > C)
+                            {
+                                tau += M_PI/2;
+                            }
+//                            if (tau < 0)
+//                            {
+//                                float oldb = b;
+//                                b = a;
+//                                a = oldb;
+//                                tau += M_PI;
+//                            }
+                            cv::ellipse(bgrFrame, cv::Point(h+320, 240-k), cv::Size(a, b), tau, 0, 360, cv::Scalar(0, 255, 0));
 
                             //Get sphere coordinates from parametric
                             float F_PX = 554.2563;
@@ -251,7 +314,6 @@ int main()
 
                 imshow("bgr video", bgrFrame);
                 imshow("hsv video", hsvFrame);
-                imshow("result", gsFrame);
             }
 
 			int myw = 4;
