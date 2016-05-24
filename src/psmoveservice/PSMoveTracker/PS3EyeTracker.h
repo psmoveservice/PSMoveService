@@ -17,7 +17,18 @@ public:
     , is_valid(false)
     , max_poll_failure_count(100)
     , exposure(32)
-    {};
+    , focalLengthX(640.0) // pixels
+    , focalLengthY(640.0) // pixels
+    , principalX(320.0) // pixels
+    , principalY(240.0) // pixels
+    , hfov(60.0) // degrees
+    , vfov(45.0) // degrees
+    , zNear(10.0) // cm
+    , zFar(200.0) // cm
+    {
+        pose.clear();
+        hmdRelativePose.clear();
+    };
     
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
@@ -26,6 +37,16 @@ public:
     long version;
     long max_poll_failure_count;
     double exposure;
+    double focalLengthX;
+    double focalLengthY;
+    double principalX;
+    double principalY;
+    double hfov;
+    double vfov;
+    double zNear;
+    double zFar;
+    CommonDevicePose pose;
+    CommonDevicePose hmdRelativePose;
 
     static const int CONFIG_VERSION;
 };
@@ -72,6 +93,20 @@ public:
     const unsigned char *getVideoFrameBuffer() const override;
     void setExposure(double value) override;
     double getExposure() const override;
+    void getCameraIntrinsics(
+        float &outFocalLengthX, float &outFocalLengthY,
+        float &outPrincipalX, float &outPrincipalY) const override;
+    void setCameraIntrinsics(
+        float focalLengthX, float focalLengthY,
+        float principalX, float principalY) override;
+    void getTrackerPose(
+        struct CommonDevicePose *outPose, 
+        struct CommonDevicePose *outHmdRelativePose) const override;
+    void setTrackerPose(
+        const struct CommonDevicePose *pose, 
+        const struct CommonDevicePose *hmdRelativePose) override;
+    void getFOV(float &outHFOV, float &outVFOV) const override;
+    void getZRange(float &outZNear, float &outZFar) const override;
 
     // -- Getters
     inline const PS3EyeTrackerConfig &getConfig() const

@@ -326,7 +326,7 @@ void CServerDriver_PSMoveService::HandleClientPSMoveResponse(
 {
     switch (response->payload_type)
     {
-    case ClientPSMoveAPI::_responsePayloadType_ControllerCount:
+    case ClientPSMoveAPI::_responsePayloadType_ControllerList:
         DriverLog("NotifyClientPSMoveResponse - Controller Count = %d (request id %d).\n", 
             response->payload.controller_list.count, response->request_id);
         HandleControllerListReponse(&response->payload.controller_list);

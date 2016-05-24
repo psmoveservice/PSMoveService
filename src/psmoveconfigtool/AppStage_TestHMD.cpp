@@ -12,7 +12,6 @@
 #include "UIConstants.h"
 #include "PSMoveProtocolInterface.h"
 #include "PSMoveProtocol.pb.h"
-#include "SharedTrackerState.h"
 #include "MathGLM.h"
 
 #include "SDL_keycode.h"
@@ -73,9 +72,9 @@ void AppStage_TestHMD::update()
 {
     bool bControllerDataUpdatedThisFrame = false;
 
-     if (m_hmdView != nullptr && m_hmdView->getSequenceNum() != m_lastHmdSeqNum)
+     if (m_hmdView != nullptr && m_hmdView->getHMDSequenceNum() != m_lastHmdSeqNum)
      {
-         m_lastHmdSeqNum = m_hmdView->getSequenceNum();
+         m_lastHmdSeqNum = m_hmdView->getHMDSequenceNum();
          bControllerDataUpdatedThisFrame = true;
 
          if (m_menuState == eHmdMenuState::pendingHmdStartStreamRequest)
@@ -92,13 +91,12 @@ void AppStage_TestHMD::render()
          PSMovePose pose= m_hmdView->getHmdPose();
          glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
          glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
-
-         glm::mat4 rot = glm::mat4_cast(orientation);
-         glm::mat4 trans = glm::translate(glm::mat4(1.0f), position);
-         glm::mat4 transform = trans * rot;
+         glm::mat4 transform = glm_mat4_from_pose(orientation, position);
 
          drawDK2Model(transform);
          drawTransformedAxes(transform, 10.f);
+
+         //###HipsterSloth $TODO render tracking camera
      }
 }
 

@@ -1,13 +1,21 @@
 //-- includes -----
 #include "ClientControllerView.h"
 #include "PSMoveProtocol.pb.h"
+#include "MathUtility.h"
 #include <chrono>
+#include <algorithm>
 #include <assert.h>
 
 //-- pre-declarations -----
 
 //-- constants -----
 const PSMoveRawSensorData k_empty_sensor_data= {{0, 0, 0}, {0.f, 0.f, 0.f}, {0.f, 0.f, 0.f}};
+const PSMoveRawTrackerData k_empty_tracker_data = { 
+    { { 0, 0 }, { 0, 0 } }, 
+    { { 0, 0, 0 }, { 0, 0, 0 } },
+    { -1, -1 }, 
+    0 
+};
 const PSMoveFloatVector3 k_identity_gravity_calibration_direction= {0.f, 1.f, 0.f};
 
 //-- prototypes ----
@@ -47,6 +55,27 @@ const PSMoveRawSensorData &ClientPSMoveView::GetRawSensorData() const
 const PSMoveFloatVector3 &ClientPSMoveView::GetIdentityGravityCalibrationDirection() const
 {
     return k_identity_gravity_calibration_direction;
+}
+
+bool ClientPSMoveView::GetIsStableAndAlignedWithGravity() const
+{
+    const float k_cosine_10_degrees = 0.984808f;
+
+    // Get the direction the gravity vector should be pointing 
+    // while the controller is in cradle pose.
+    PSMoveFloatVector3 acceleration_direction = RawSensorData.Accelerometer;
+    const float acceleration_magnitude = acceleration_direction.normalize_with_default(*k_psmove_float_vector3_zero);
+
+    const bool isOk =
+        is_nearly_equal(1.f, acceleration_magnitude, 0.1f) &&
+        PSMoveFloatVector3::dot(k_identity_gravity_calibration_direction, acceleration_direction) >= k_cosine_10_degrees;
+
+    return isOk;
+}
+
+const PSMoveRawTrackerData &ClientPSMoveView::GetRawTrackerData() const
+{    
+    return IsValid() ? RawTrackerData : k_empty_tracker_data;
 }
 
 void ClientPSMoveView::ApplyControllerDataFrame(
@@ -89,6 +118,32 @@ void ClientPSMoveView::ApplyControllerDataFrame(
         else
         {
             this->RawSensorData.Clear();
+        }
+
+        if (psmove_data_frame.has_raw_tracker_data())
+        {
+            const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSMoveState_RawTrackerData &raw_tracker_data =
+                psmove_data_frame.raw_tracker_data();
+
+            this->RawTrackerData.ValidTrackerLocations = 
+                std::min(raw_tracker_data.valid_tracker_count(), PSMOVESERVICE_MAX_TRACKER_COUNT);
+
+            for (int listIndex = 0; listIndex < this->RawTrackerData.ValidTrackerLocations; ++listIndex)
+            {
+                const PSMoveProtocol::Pixel &locationOnTracker = raw_tracker_data.screen_locations(listIndex);
+                const PSMoveProtocol::Position &positionOnTracker = raw_tracker_data.relative_positions(listIndex);
+
+                this->RawTrackerData.TrackerIDs[listIndex]= raw_tracker_data.tracker_ids(listIndex);
+                this->RawTrackerData.ScreenLocations[listIndex] =
+                    PSMoveScreenLocation::create(locationOnTracker.x(), locationOnTracker.y());
+                this->RawTrackerData.RelativePositions[listIndex] =
+                    PSMovePosition::create(
+                        positionOnTracker.x(), positionOnTracker.y(), positionOnTracker.z());
+            }            
+        }
+        else
+        {
+            this->RawTrackerData.Clear();
         }
 
         unsigned int button_bitmask= data_frame->button_down_bitmask();

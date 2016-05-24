@@ -15,5 +15,6 @@
 //-- interface -----
 float glm_vec3_normalize_with_default(glm::vec3 &v, const glm::vec3 &default_result);
 glm::vec3 glm_vec3_lerp(const glm::vec3 &a, const glm::vec3 &b, const float u);
+glm::mat4 glm_mat4_from_pose(const glm::quat &orientation, const glm::vec3 &position);
 
 #endif // MATH_GLM_H

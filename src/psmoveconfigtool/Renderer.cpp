@@ -1,5 +1,6 @@
 //-- includes -----
 #include "Renderer.h"
+#include "ClientGeometry.h"
 #include "AssetManager.h"
 #include "Logger.h"
 #include "UIConstants.h"
@@ -424,7 +425,7 @@ void drawTextAtWorldPosition(
     assert(Renderer::getIsRenderingStage());
 
     // Render with the default font
-    const AssetManager::FontAsset *font= AssetManager::getInstance()->getDefaultFont();
+    const FontAsset *font= AssetManager::getInstance()->getDefaultFont();
 
     // Convert the world space coordinates into screen space
     const glm::vec3 transformed_position= glm::vec3(transform * glm::vec4(position, 1.f));
@@ -462,7 +463,7 @@ void drawTextAtWorldPosition(
     glLoadIdentity();
 
     // Bind the font texture
-    glBindTexture(GL_TEXTURE_2D, font->textureId);
+    glBindTexture(GL_TEXTURE_2D, font->texture_id);
     glColor3f(1.f, 1.f, 1.f);
 
     // Render the text quads
@@ -479,7 +480,7 @@ void drawTextAtWorldPosition(
 
             stbtt_GetBakedQuad(
                 const_cast<stbtt_bakedchar *>(font->cdata), 
-                font->textureWidth, font->textureHeight, 
+                font->texture_width, font->texture_height, 
                 char_index, 
                 &screenCoords.x, &screenCoords.y, // x position advances with character by the glyph pixel width
                 &glyph_quad,
@@ -688,6 +689,64 @@ void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const fl
     glPopMatrix();
 }
 
+void drawFrustum(const PSMoveFrustum *frustum, const glm::vec3 &color)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    const float HRatio = tanf(frustum->HFOV / 2.f);
+    const float VRatio = tanf(frustum->VFOV / 2.f);
+
+    glm::vec3 left(frustum->left.i, frustum->left.j, frustum->left.k);
+    glm::vec3 up(frustum->up.i, frustum->up.j, frustum->up.k);
+    glm::vec3 forward(frustum->forward.i, frustum->forward.j, frustum->forward.k);
+    glm::vec3 origin(frustum->origin.x, frustum->origin.y, frustum->origin.z);
+
+    glm::vec3 nearX = left*frustum->zNear*HRatio;
+    glm::vec3 farX = left*frustum->zFar*HRatio;
+
+    glm::vec3 nearY = up*frustum->zNear*VRatio;
+    glm::vec3 farY = up*frustum->zFar*VRatio;
+
+    glm::vec3 nearZ = forward*frustum->zNear;
+    glm::vec3 farZ = forward*frustum->zFar;
+
+    glm::vec3 nearCenter = origin + nearZ;
+    glm::vec3 near0 = origin + nearX + nearY + nearZ;
+    glm::vec3 near1 = origin - nearX + nearY + nearZ;
+    glm::vec3 near2 = origin - nearX - nearY + nearZ;
+    glm::vec3 near3 = origin + nearX - nearY + nearZ;
+
+    glm::vec3 far0 = origin + farX + farY + farZ;
+    glm::vec3 far1 = origin - farX + farY + farZ;
+    glm::vec3 far2 = origin - farX - farY + farZ;
+    glm::vec3 far3 = origin + farX - farY + farZ;
+
+    glBegin(GL_LINES);
+
+    glColor3fv(glm::value_ptr(color));
+
+    glVertex3fv(glm::value_ptr(near0)); glVertex3fv(glm::value_ptr(near1));
+    glVertex3fv(glm::value_ptr(near1)); glVertex3fv(glm::value_ptr(near2));
+    glVertex3fv(glm::value_ptr(near2)); glVertex3fv(glm::value_ptr(near3));
+    glVertex3fv(glm::value_ptr(near3)); glVertex3fv(glm::value_ptr(near0));
+
+    glVertex3fv(glm::value_ptr(far0)); glVertex3fv(glm::value_ptr(far1));
+    glVertex3fv(glm::value_ptr(far1)); glVertex3fv(glm::value_ptr(far2));
+    glVertex3fv(glm::value_ptr(far2)); glVertex3fv(glm::value_ptr(far3));
+    glVertex3fv(glm::value_ptr(far3)); glVertex3fv(glm::value_ptr(far0));
+
+    glVertex3fv(glm::value_ptr(origin)); glVertex3fv(glm::value_ptr(far0));
+    glVertex3fv(glm::value_ptr(origin)); glVertex3fv(glm::value_ptr(far1));
+    glVertex3fv(glm::value_ptr(origin)); glVertex3fv(glm::value_ptr(far2));
+    glVertex3fv(glm::value_ptr(origin)); glVertex3fv(glm::value_ptr(far3));
+
+    glVertex3fv(glm::value_ptr(origin));
+    glColor3ub(0, 255, 0);
+    glVertex3fv(glm::value_ptr(nearCenter));
+
+    glEnd();
+}
+
 void drawEllipsoid(
     const glm::mat4 &transform,
     const glm::vec3 &color,
@@ -767,11 +826,26 @@ void drawLineStrip(const glm::mat4 &transform, const glm::vec3 &color, const flo
     glPopMatrix();
 }
 
+void drawPoseArrayStrip(const struct PSMovePose *poses, const int poseCount, const glm::vec3 &color)
+{
+    glColor3fv(glm::value_ptr(color));
+    glBegin(GL_LINE_STRIP);
+
+    for (int sampleIndex = 0; sampleIndex < poseCount; ++sampleIndex)
+    {
+        const PSMovePose &pose = poses[sampleIndex];
+
+        glVertex3f(pose.Position.x, pose.Position.y, pose.Position.z);
+    }
+
+    glEnd();
+}
+
 void drawDK2Model(const glm::mat4 &transform)
 {
     assert(Renderer::getIsRenderingStage());
 
-    int textureID= AssetManager::getInstance()->getDK2TextureId();
+    int textureID= AssetManager::getInstance()->getDK2TextureAsset()->texture_id;
 
     glBindTexture(GL_TEXTURE_2D, textureID);
     glColor3f(1.f, 1.f, 1.f);
@@ -813,7 +887,7 @@ void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color)
 {
     assert(Renderer::getIsRenderingStage());
 
-    int textureID= AssetManager::getInstance()->getPSMoveTextureId();
+    int textureID= AssetManager::getInstance()->getPSMoveTextureAsset()->texture_id;
 
     glBindTexture(GL_TEXTURE_2D, textureID);
 
@@ -846,7 +920,7 @@ void drawPSNaviModel(const glm::mat4 &transform)
 {
     assert(Renderer::getIsRenderingStage());
 
-    int textureID= AssetManager::getInstance()->getPSNaviTextureId();
+    int textureID= AssetManager::getInstance()->getPSNaviTextureAsset()->texture_id;
 
     glBindTexture(GL_TEXTURE_2D, textureID);
     glColor3f(1.f, 1.f, 1.f);

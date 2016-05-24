@@ -334,3 +334,53 @@ void ServerTrackerView::setExposure(double value)
 {
     m_device->setExposure(value);
 }
+
+void ServerTrackerView::getCameraIntrinsics(
+    float &outFocalLengthX, float &outFocalLengthY,
+    float &outPrincipalX, float &outPrincipalY) const
+{
+    m_device->getCameraIntrinsics(
+        outFocalLengthX, outFocalLengthY,
+        outPrincipalX, outPrincipalY);
+}
+
+void ServerTrackerView::setCameraIntrinsics(
+    float focalLengthX, float focalLengthY,
+    float principalX, float principalY)
+{
+    m_device->setCameraIntrinsics(focalLengthX, focalLengthY, principalX, principalY);
+}
+
+void ServerTrackerView::getTrackerPose(
+    CommonDevicePose *outPose,
+    CommonDevicePose *outHmdRelativePose) const
+{
+    m_device->getTrackerPose(outPose, outHmdRelativePose);
+}
+
+void ServerTrackerView::setTrackerPose(
+    const struct CommonDevicePose *pose,
+    const struct CommonDevicePose *hmdRelativePose)
+{
+    m_device->setTrackerPose(pose, hmdRelativePose);
+}
+
+void ServerTrackerView::getPixelDimensions(float &outWidth, float &outHeight) const
+{
+    int pixelWidth, pixelHeight;
+
+    m_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
+
+    outWidth = static_cast<float>(pixelWidth);
+    outHeight = static_cast<float>(pixelHeight);
+}
+
+void ServerTrackerView::getFOV(float &outHFOV, float &outVFOV) const
+{
+    m_device->getFOV(outHFOV, outVFOV);
+}
+
+void ServerTrackerView::getZRange(float &outZNear, float &outZFar) const
+{
+    m_device->getZRange(outZNear, outZFar);
+}

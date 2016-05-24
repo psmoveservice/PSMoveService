@@ -21,6 +21,9 @@ static const char *k_psnavi_texture_filename= "./assets/textures/PSNaviDiffuse.j
 static const char *k_default_font_filename= "./assets/fonts/OpenSans-Regular.ttf";
 static const float k_default_font_pixel_height= 24.f;
 
+static const unsigned int k_font_texture_width = 512;
+static const unsigned int k_font_texture_height = 512;
+
 static const size_t k_kilo= 1<<10;
 static const size_t k_meg= 1<<20;
 
@@ -29,8 +32,10 @@ AssetManager *AssetManager::m_instance= NULL;
 
 //-- public methods -----
 AssetManager::AssetManager()
-    : m_dk2TextureId(0)
-    //, m_defaultFont()
+    : m_dk2Texture()
+    , m_psmoveTexture()
+    , m_psnaviTexture()
+    , m_defaultFont()
 {
 }
 
@@ -45,17 +50,17 @@ bool AssetManager::init()
 
     if (success)
     {
-        success= loadTexture(k_dk2_texture_filename, &m_dk2TextureId);
+        success= loadTexture(k_dk2_texture_filename, &m_dk2Texture);
     }
 
     if (success)
     {
-        success= loadTexture(k_psmove_texture_filename, &m_psmoveTextureId);
+        success= loadTexture(k_psmove_texture_filename, &m_psmoveTexture);
     }
 
     if (success)
     {
-        success= loadTexture(k_psnavi_texture_filename, &m_psnaviTextureId);
+        success= loadTexture(k_psnavi_texture_filename, &m_psnaviTexture);
     }
 
     if (success)
@@ -82,35 +87,16 @@ bool AssetManager::init()
 
 void AssetManager::destroy()
 {
-    if (m_dk2TextureId != 0)
-    {
-        glDeleteTextures(1, &m_dk2TextureId);
-        m_dk2TextureId= 0;
-    }
-
-    if (m_psmoveTextureId != 0)
-    {
-        glDeleteTextures(1, &m_psmoveTextureId);
-        m_psmoveTextureId= 0;
-    }
-
-    if (m_psnaviTextureId != 0)
-    {
-        glDeleteTextures(1, &m_psnaviTextureId);
-        m_psnaviTextureId= 0;
-    }
-
-    if (m_defaultFont.textureId != 0)
-    {
-        glDeleteTextures(1, &m_defaultFont.textureId);
-        m_defaultFont.textureId= 0;
-    }
+    m_dk2Texture.dispose();
+    m_psmoveTexture.dispose();
+    m_psnaviTexture.dispose();
+    m_defaultFont.dispose();
 
     m_instance= NULL;
 }
 
 //-- private methods -----
-bool AssetManager::loadTexture(const char *filename, GLuint *textureId)
+bool AssetManager::loadTexture(const char *filename, TextureAsset *textureAsset)
 {
     bool success= false;
 
@@ -123,15 +109,7 @@ bool AssetManager::loadTexture(const char *filename, GLuint *textureId)
 
         if (channelCount == 3)
         {
-            glGenTextures(1, textureId);
-
-            // Typical Texture Generation Using Data From The Bitmap
-            glBindTexture(GL_TEXTURE_2D, *textureId);
-            glTexImage2D(GL_TEXTURE_2D, 0, 3, pixelWidth, pixelHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, image_buffer);
-            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-
-            success= true;
+            success = textureAsset->init(pixelWidth, pixelHeight, GL_RGB, GL_RGB, image_buffer);
         }
         else
         {
@@ -148,21 +126,14 @@ bool AssetManager::loadTexture(const char *filename, GLuint *textureId)
     return success;
 }
 
-bool AssetManager::loadFont(const char *filename, const float pixelHeight, AssetManager::FontAsset *fontAsset)
+bool AssetManager::loadFont(const char *filename, const float pixelHeight, FontAsset *fontAsset)
 {
     unsigned char *temp_ttf_buffer = NULL;
-    unsigned char *temp_bitmap = NULL;
 
     bool success= true;
 
-    // For now assume all font sprite sheets fit in a 512x512 texture
-    fontAsset->textureWidth= 512;
-    fontAsset->textureHeight= 512;
-    fontAsset->glyphPixelHeight= pixelHeight;
-
-    // Allocate scratch buffers
+    // Scratch buffer for true type font data loaded from file
     temp_ttf_buffer = NULL;
-    temp_bitmap = new unsigned char[fontAsset->textureWidth*fontAsset->textureHeight];
 
     // Load the True Type Font data into memory
     if (success)
@@ -202,38 +173,127 @@ bool AssetManager::loadFont(const char *filename, const float pixelHeight, Asset
     }
 
     // Build the sprite sheet for the font
-    if (success)
+    if (success && !fontAsset->init(temp_ttf_buffer, pixelHeight))
     {
-        if (stbtt_BakeFontBitmap(
-            temp_ttf_buffer, 0, 
-            pixelHeight, 
-            temp_bitmap, fontAsset->textureWidth, fontAsset->textureHeight, 
-            32,96, fontAsset->cdata) <= 0)
-        {
-            Log_ERROR("AssetManager::loadFont", "Failed to fit font(%s) into %dx%d sprite texture", 
-                filename, fontAsset->textureWidth, fontAsset->textureHeight);
-            success= false;
-        }
+        Log_ERROR("AssetManager::loadFont", "Failed to fit font(%s) into %dx%d sprite texture", 
+            filename, k_font_texture_width, k_font_texture_height);
+        success = false;
     }
     
-    // Generate the texture for the font sprite sheet
-    if (success)
+    // Free true type font scratch buffers
+    if (temp_ttf_buffer != NULL)
     {
-        glGenTextures(1, &fontAsset->textureId);
-        glBindTexture(GL_TEXTURE_2D, fontAsset->textureId);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, 512,512, 0, GL_ALPHA, GL_UNSIGNED_BYTE, temp_bitmap);            
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        delete[] temp_ttf_buffer;
     }
-
-    // free scratch buffers
-    delete[] temp_bitmap;
-    if (temp_ttf_buffer != NULL) delete[] temp_ttf_buffer;
 
     return success;
 }
 
-//-- font asset -----
-AssetManager::FontAsset::FontAsset()
+//-- Font Asset -----
+bool TextureAsset::init(
+    unsigned int width,
+    unsigned int height,
+    unsigned int texture_format,
+    unsigned int buffer_format,
+    unsigned char *buffer)
 {
-    memset(this, 0, sizeof(FontAsset));
+    bool success = false;
+
+    if (width > 0 && height > 0 && texture_format > 0 && buffer_format > 0)
+    {
+        this->texture_width = width;
+        this->texture_height = height;
+        this->texture_format = texture_format;
+        this->buffer_format = buffer_format;
+
+        // Setup the OpenGL texture to render the video frame into
+        glGenTextures(1, &texture_id);
+        glBindTexture(GL_TEXTURE_2D, texture_id);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            texture_format,
+            width,
+            height,
+            0,
+            buffer_format,
+            GL_UNSIGNED_BYTE,
+            buffer);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        success = true;
+    }
+
+    return success;
+}
+
+void TextureAsset::copyBufferIntoTexture(const unsigned char *pixels)
+{
+    if (texture_id != 0)
+    {
+        glPixelStorei(GL_UNPACK_SWAP_BYTES, GL_FALSE);
+        glPixelStorei(GL_UNPACK_LSB_FIRST, GL_TRUE);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+        glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+        glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+        glBindTexture(GL_TEXTURE_2D, texture_id);
+        glTexSubImage2D(
+            GL_TEXTURE_2D,
+            0,
+            0,
+            0,
+            texture_width,
+            texture_height,
+            buffer_format,
+            GL_UNSIGNED_BYTE,
+            pixels);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+}
+
+void TextureAsset::dispose()
+{
+    // Free the OpenGL video texture
+    if (texture_id != 0)
+    {
+        glDeleteTextures(1, &texture_id);
+        texture_id = 0;
+        texture_width = 0;
+        texture_height = 0;
+        texture_format = 0;
+        buffer_format = 0;
+    }
+}
+
+//-- Font Asset -----
+bool FontAsset::init(
+    unsigned char *ttf_buffer,
+    float pixel_height)
+{
+    bool success = false;
+
+    // Temp buffer to bake the font texture into
+    unsigned char *texture_buffer = new unsigned char[k_font_texture_width*k_font_texture_height];
+
+    glyphPixelHeight = pixel_height;
+
+    // Generate the texture for the font sprite sheet
+    if (stbtt_BakeFontBitmap(
+            ttf_buffer, 0,
+            pixel_height,
+            texture_buffer, k_font_texture_width, k_font_texture_height,
+            32, 96, cdata) > 0)
+    {
+        // Load the texture into video memory
+        success = TextureAsset::init(k_font_texture_width, k_font_texture_height, GL_ALPHA, GL_ALPHA, texture_buffer);
+    }
+
+    // Free the font texture buffer
+    delete[] texture_buffer;
+
+    return success;
 }

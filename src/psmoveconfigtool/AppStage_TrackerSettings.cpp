@@ -1,9 +1,11 @@
 //-- inludes -----
 #include "AppStage_TrackerSettings.h"
 #include "AppStage_TestTracker.h"
+#include "AppStage_ComputeTrackerPoses.h"
 #include "AppStage_MainMenu.h"
 #include "App.h"
 #include "Camera.h"
+#include "ClientPSMoveAPI.h"
 #include "Renderer.h"
 #include "UIConstants.h"
 #include "PSMoveProtocolInterface.h"
@@ -48,15 +50,15 @@ void AppStage_TrackerSettings::render()
     {
         if (m_selectedTrackerIndex >= 0)
         {
-            const TrackerInfo &trackerInfo = m_trackerInfos[m_selectedTrackerIndex];
+            const ClientTrackerInfo &trackerInfo = m_trackerInfos[m_selectedTrackerIndex];
 
-            switch (trackerInfo.TrackerType)
+            switch (trackerInfo.tracker_type)
             {
             case PSMoveProtocol::PS3EYE:
-            {
-                glm::mat4 scale3 = glm::scale(glm::mat4(1.f), glm::vec3(3.f, 3.f, 3.f));
-                drawPS3EyeModel(scale3);
-            } break;
+                {
+                    glm::mat4 scale3 = glm::scale(glm::mat4(1.f), glm::vec3(3.f, 3.f, 3.f));
+                    drawPS3EyeModel(scale3);
+                } break;
             default:
                 assert(0 && "Unreachable");
             }
@@ -93,45 +95,50 @@ void AppStage_TrackerSettings::renderUI()
 
         if (m_trackerInfos.size() > 0)
         {
-            const TrackerInfo &trackerInfo = m_trackerInfos[m_selectedTrackerIndex];
+            const ClientTrackerInfo &trackerInfo = m_trackerInfos[m_selectedTrackerIndex];
 
             ImGui::Text("Tracker: %d", m_selectedTrackerIndex);
-            ImGui::Text("  Tracker ID: %d", trackerInfo.TrackerID);
+            ImGui::Text("  Tracker ID: %d", trackerInfo.tracker_id);
 
-            switch (trackerInfo.TrackerType)
+            switch (trackerInfo.tracker_type)
             {
-            case AppStage_TrackerSettings::PS3Eye:
-            {
-                ImGui::Text("  Controller Type: PS3 Eye");
-            } break;
+            case eTrackerType::PS3Eye:
+                {
+                    ImGui::Text("  Controller Type: PS3 Eye");
+                } break;
             default:
                 assert(0 && "Unreachable");
             }
 
-            switch (trackerInfo.TrackerDriver)
+            switch (trackerInfo.tracker_driver)
             {
-            case AppStage_TrackerSettings::LIBUSB:
-            {
-                ImGui::Text("  Controller Type: LIBUSB");
-            } break;
-            case AppStage_TrackerSettings::CL_EYE:
-            {
-                ImGui::Text("  Controller Type: CLEye");
-            } break;
-            case AppStage_TrackerSettings::CL_EYE_MULTICAM:
-            {
-                ImGui::Text("  Controller Type: CLEye(Multicam SDK)");
-            } break;
-            case AppStage_TrackerSettings::GENERIC_WEBCAM:
-            {
-                ImGui::Text("  Controller Type: Generic Webcam");
-            } break;
+            case eTrackerDriver::LIBUSB:
+                {
+                    ImGui::Text("  Controller Type: LIBUSB");
+                } break;
+            case eTrackerDriver::CL_EYE:
+                {
+                    ImGui::Text("  Controller Type: CLEye");
+                } break;
+            case eTrackerDriver::CL_EYE_MULTICAM:
+                {
+                    ImGui::Text("  Controller Type: CLEye(Multicam SDK)");
+                } break;
+            case eTrackerDriver::GENERIC_WEBCAM:
+                {
+                    ImGui::Text("  Controller Type: Generic Webcam");
+                } break;
             default:
                 assert(0 && "Unreachable");
             }
 
-            ImGui::Text("  Shared Mem Name: %s", trackerInfo.SharedMemoryName.c_str());
-            ImGui::TextWrapped("  Device Path: %s", trackerInfo.DevicePath.c_str());
+            ImGui::Text("  Shared Mem Name: %s", trackerInfo.shared_memory_name);
+            ImGui::TextWrapped("  Device Path: %s", trackerInfo.device_path);
+
+            if (ImGui::Button("Compute Tracker Poses"))
+            {
+                m_app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
+            }
 
             if (m_selectedTrackerIndex > 0)
             {
@@ -230,11 +237,8 @@ void AppStage_TrackerSettings::request_tracker_list()
         m_trackerInfos.clear();
 
         // Tell the psmove service that we we want a list of trackers connected to this machine
-        RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST);
-
         ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::send_opaque_request(&request), 
+            ClientPSMoveAPI::get_tracker_list(), 
             AppStage_TrackerSettings::handle_tracker_list_response, this);
     }
 }
@@ -249,45 +253,12 @@ void AppStage_TrackerSettings::handle_tracker_list_response(
     {
     case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
-            const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_message->opaque_response_handle);
+            assert(response_message->payload_type == ClientPSMoveAPI::_responsePayloadType_TrackerList);
+            const ClientPSMoveAPI::ResponsePayload_TrackerList &tracker_list= response_message->payload.tracker_list;
 
-            for (int tracker_index = 0; tracker_index < response->result_tracker_list().trackers_size(); ++tracker_index)
+            for (int tracker_index = 0; tracker_index < tracker_list.count; ++tracker_index)
             {
-                const auto &TrackerResponse = response->result_tracker_list().trackers(tracker_index);
-
-                AppStage_TrackerSettings::TrackerInfo TrackerInfo;
-
-                TrackerInfo.TrackerID = TrackerResponse.tracker_id();
-
-                switch (TrackerResponse.tracker_type())
-                {
-                case PSMoveProtocol::TrackerType::PS3EYE:
-                    TrackerInfo.TrackerType = AppStage_TrackerSettings::PS3Eye;
-                    break;
-                default:
-                    assert(0 && "unreachable");
-                }
-
-                switch (TrackerResponse.tracker_driver())
-                {
-                case PSMoveProtocol::TrackerDriver::LIBUSB:
-                    TrackerInfo.TrackerDriver = AppStage_TrackerSettings::LIBUSB;
-                    break;
-                case PSMoveProtocol::TrackerDriver::CL_EYE:
-                    TrackerInfo.TrackerDriver = AppStage_TrackerSettings::CL_EYE;
-                    break;
-                case PSMoveProtocol::TrackerDriver::CL_EYE_MULTICAM:
-                    TrackerInfo.TrackerDriver = AppStage_TrackerSettings::CL_EYE_MULTICAM;
-                    break;
-                case PSMoveProtocol::TrackerDriver::GENERIC_WEBCAM:
-                    TrackerInfo.TrackerDriver = AppStage_TrackerSettings::GENERIC_WEBCAM;
-                    break;
-                default:
-                    assert(0 && "unreachable");
-                }
-
-                TrackerInfo.DevicePath = TrackerResponse.device_path();
-                TrackerInfo.SharedMemoryName = TrackerResponse.shared_memory_name();
+                const ClientTrackerInfo &TrackerInfo = tracker_list.trackers[tracker_index];
 
                 thisPtr->m_trackerInfos.push_back(TrackerInfo);
             }

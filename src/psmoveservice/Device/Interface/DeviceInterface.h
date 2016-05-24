@@ -30,7 +30,7 @@ struct CommonDeviceQuaternion
     inline void clear()
     {
         x = y = z = 0.f;
-        w = 0.f;
+        w = 1.f;
     }
 };
 
@@ -254,5 +254,18 @@ public:
     
     virtual void setExposure(double value) = 0;
     virtual double getExposure() const = 0;
+
+    virtual void getCameraIntrinsics(
+        float &outFocalLengthX, float &outFocalLengthY,
+        float &outPrincipalX, float &outPrincipalY) const = 0;
+    virtual void setCameraIntrinsics(
+        float focalLengthX, float focalLengthY,
+        float principalX, float principalY) = 0;
+
+    virtual void getTrackerPose(struct CommonDevicePose *outPose, struct CommonDevicePose *outHmdRelativePose) const = 0;
+    virtual void setTrackerPose(const struct CommonDevicePose *pose, const struct CommonDevicePose *hmdRelativePose) = 0;
+
+    virtual void getFOV(float &outHFOV, float &outVFOV) const = 0;
+    virtual void getZRange(float &outZNear, float &outZFar) const = 0;
 };
 #endif // DEVICE_INTERFACE_H

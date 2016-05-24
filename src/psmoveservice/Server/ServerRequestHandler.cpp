@@ -211,6 +211,9 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE:
                 handle_request__set_tracker_exposure(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SET_TRACKER_POSE:
+                handle_request__set_tracker_pose(context, response);
+                break;
             default:
                 assert(0 && "Whoops, bad request!");
         }
@@ -334,6 +337,8 @@ protected:
     {
         PSMoveProtocol::Response_ResultControllerList* list= response->mutable_result_controller_list();
 
+        response->set_type(PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST);
+
         for (int controller_id= 0; controller_id < m_device_manager.getControllerViewMaxCount(); ++controller_id)
         {
             ServerControllerViewPtr controller_view= m_device_manager.getControllerViewPtr(controller_id);
@@ -388,6 +393,7 @@ protected:
             // Set control flags for the stream
             streamInfo.Clear();
             streamInfo.include_raw_sensor_data= request.include_raw_sensor_data();
+            streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -650,11 +656,30 @@ protected:
     }
 
     // -- tracker requests -----
+    inline void common_device_pose_to_protocol_pose(
+        const CommonDevicePose &pose, 
+        PSMoveProtocol::Pose *result)
+    {
+        PSMoveProtocol::Orientation *orietation = result->mutable_orientation();
+        PSMoveProtocol::Position *position = result->mutable_position();
+
+        orietation->set_w(pose.Orientation.w);
+        orietation->set_x(pose.Orientation.x);
+        orietation->set_y(pose.Orientation.y);
+        orietation->set_z(pose.Orientation.z);
+
+        position->set_x(pose.Position.x);
+        position->set_y(pose.Position.y);
+        position->set_z(pose.Position.z);
+    }
+
     void handle_request__get_tracker_list(
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
         PSMoveProtocol::Response_ResultTrackerList* list = response->mutable_result_tracker_list();
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_LIST);
 
         for (int tracker_id = 0; tracker_id < m_device_manager.getTrackerViewMaxCount(); ++tracker_id)
         {
@@ -695,6 +720,48 @@ protected:
                 tracker_info->set_tracker_id(tracker_id);
                 tracker_info->set_device_path(tracker_view->getUSBDevicePath());
                 tracker_info->set_shared_memory_name(tracker_view->getSharedMemoryStreamName());
+
+                // Get the intrinsic camera lens properties
+                {
+                    float focalLengthX, focalLengthY, principalX, principalY;
+                    float pixelWidth, pixelHeight;
+
+                    tracker_view->getCameraIntrinsics(focalLengthX, focalLengthY, principalX, principalY);
+                    tracker_view->getPixelDimensions(pixelWidth, pixelHeight);
+
+                    tracker_info->mutable_tracker_focal_lengths()->set_x(focalLengthX);
+                    tracker_info->mutable_tracker_focal_lengths()->set_y(focalLengthY);
+
+                    tracker_info->mutable_tracker_principal_point()->set_x(principalX);
+                    tracker_info->mutable_tracker_principal_point()->set_y(principalY);
+
+                    tracker_info->mutable_tracker_screen_dimensions()->set_x(pixelWidth);
+                    tracker_info->mutable_tracker_screen_dimensions()->set_y(pixelHeight);
+                }
+
+                // Get the tracker field of view properties
+                {
+                    float hfov, vfov;
+                    float zNear, zFar;
+                    
+                    tracker_view->getFOV(hfov, vfov);
+                    tracker_view->getZRange(zNear, zFar);
+
+                    tracker_info->set_tracker_hfov(hfov);
+                    tracker_info->set_tracker_vfov(vfov);
+                    tracker_info->set_tracker_znear(zNear);
+                    tracker_info->set_tracker_zfar(zFar);
+                }
+
+                // Get the tracker pose
+                {
+                    CommonDevicePose pose, hmdRelativePose;
+
+                    tracker_view->getTrackerPose(&pose, &hmdRelativePose);
+
+                    common_device_pose_to_protocol_pose(pose, tracker_info->mutable_tracker_pose());
+                    common_device_pose_to_protocol_pose(hmdRelativePose, tracker_info->mutable_hmd_relative_tracker_pose());
+                }                
             }
         }
 
@@ -774,18 +841,20 @@ protected:
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
-    
+
     void handle_request__get_tracker_settings(const RequestContext &context,
-                                      PSMoveProtocol::Response *response)
+        PSMoveProtocol::Response *response)
     {
-        const int tracker_id= context.request->request_get_tracker_settings().tracker_id();
+        const int tracker_id = context.request->request_get_tracker_settings().tracker_id();
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_SETTINGS);
 
         if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
-                PSMoveProtocol::Response_ResultTrackerSettings* settings = 
+                PSMoveProtocol::Response_ResultTrackerSettings* settings =
                     response->mutable_result_tracker_settings();
 
                 settings->set_exposure(tracker_view->getExposure());
@@ -801,11 +870,11 @@ protected:
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
-    
+
     void handle_request__set_tracker_exposure(const RequestContext &context,
-                                              PSMoveProtocol::Response *response)
+        PSMoveProtocol::Response *response)
     {
-        const int tracker_id= context.request->request_set_tracker_exposure().tracker_id();
+        const int tracker_id = context.request->request_set_tracker_exposure().tracker_id();
         if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
@@ -820,6 +889,55 @@ protected:
 
                 // Return back the actual exposure that got get
                 result_exposure->set_new_exposure(tracker_view->getExposure());
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    inline CommonDevicePose protocol_pose_to_common_device_pose(const PSMoveProtocol::Pose &pose)
+    {
+        CommonDevicePose result;
+
+        result.Orientation.w = pose.orientation().w();
+        result.Orientation.x = pose.orientation().x();
+        result.Orientation.y = pose.orientation().y();
+        result.Orientation.z = pose.orientation().z();
+
+        result.Position.x = pose.position().x();
+        result.Position.y = pose.position().y();
+        result.Position.z = pose.position().z();
+
+        return result;
+    }
+
+    void handle_request__set_tracker_pose(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_set_tracker_exposure().tracker_id();
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                const PSMoveProtocol::Pose &srcPose = 
+                    context.request->request_set_tracker_pose().pose();
+                const PSMoveProtocol::Pose &srcHmdRelativePose = 
+                    context.request->request_set_tracker_pose().hmd_relative_pose();
+
+                CommonDevicePose destPose = protocol_pose_to_common_device_pose(srcPose);
+                CommonDevicePose destHmdRelativePose = protocol_pose_to_common_device_pose(srcHmdRelativePose);
+
+                tracker_view->setTrackerPose(&destPose, &destHmdRelativePose);
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }

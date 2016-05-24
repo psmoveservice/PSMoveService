@@ -43,7 +43,6 @@ static PSMoveFloatVector3 computeNormalizedMagnetometerVector(
     const PSMoveIntVector3 &sample,
     const PSMoveIntVector3 &minSampleExtents,
     const PSMoveIntVector3 &maxSampleExtents);
-static bool isMoveStableAndAlignedWithGravity(ClientControllerView *m_controllerView);
 static void write_calibration_parameter(const Eigen::Vector3f &in_vector, PSMoveProtocol::FloatVector *out_vector);
 
 //-- public methods -----
@@ -254,7 +253,7 @@ void AppStage_MagnetometerCalibration::update()
         } break;
     case eCalibrationMenuState::waitForGravityAlignment:
         {
-            if (isMoveStableAndAlignedWithGravity(m_controllerView))
+            if (m_controllerView->GetPSMoveView().GetIsStableAndAlignedWithGravity())
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 
@@ -285,7 +284,7 @@ void AppStage_MagnetometerCalibration::update()
         } break;
     case eCalibrationMenuState::measureBDirection:
         {
-            if (isMoveStableAndAlignedWithGravity(m_controllerView))
+            if (m_controllerView->GetPSMoveView().GetIsStableAndAlignedWithGravity())
             {
                 if (bControllerDataUpdatedThisFrame)
                 {
@@ -888,29 +887,6 @@ PSMoveFloatVector3 computeNormalizedMagnetometerVector(
     result.normalize_with_default(*k_psmove_float_vector3_zero);
 
     return result;
-}
-
-static bool
-isMoveStableAndAlignedWithGravity(
-    ClientControllerView *m_controllerView)
-{
-    const float k_cosine_10_degrees = 0.984808f;
-
-    // Get the direction the gravity vector should be pointing 
-    // while the controller is in cradle pose.
-    const PSMoveFloatVector3 &gravity= m_controllerView->GetPSMoveView().GetIdentityGravityCalibrationDirection();
-    glm::vec3 k_identity_gravity_vector= psmove_float_vector3_to_glm_vec3(gravity);
-
-    // Get the current acceleration reading from the controller
-    const PSMoveFloatVector3 &acceleration= m_controllerView->GetPSMoveView().GetRawSensorData().Accelerometer;
-    glm::vec3 acceleration_direction= psmove_float_vector3_to_glm_vec3(acceleration);
-    const float acceleration_magnitude= glm_vec3_normalize_with_default(acceleration_direction, glm::vec3());
-
-    const bool isOk =
-        is_nearly_equal(1.f, acceleration_magnitude, 0.1f) &&
-        glm::dot(k_identity_gravity_vector, acceleration_direction) >= k_cosine_10_degrees;
-
-    return isOk;
 }
 
 static void

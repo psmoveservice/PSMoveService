@@ -3,36 +3,15 @@
 
 //-- includes -----
 #include "AppStage.h"
+#include "ClientTrackerView.h"
 
 //-- definitions -----
 class AppStage_TrackerSettings : public AppStage
 {
 public:
-    enum eTrackerType
-    {
-        PS3Eye
-    };
-
-    enum eTrackerDriver
-    {
-        LIBUSB,
-        CL_EYE,
-        CL_EYE_MULTICAM,
-        GENERIC_WEBCAM
-    };
-
-    struct TrackerInfo
-    {
-        int TrackerID;
-        eTrackerType TrackerType;
-        eTrackerDriver TrackerDriver;
-        std::string DevicePath;
-        std::string SharedMemoryName;
-    };
-
     AppStage_TrackerSettings(class App *app);
 
-    inline const TrackerInfo *getSelectedTrackerInfo() const
+    inline const ClientTrackerInfo *getSelectedTrackerInfo() const
     {
         return
             (m_selectedTrackerIndex != -1)
@@ -70,7 +49,7 @@ protected:
     };
     eTrackerMenuState m_menuState;
 
-    std::vector<TrackerInfo> m_trackerInfos;
+    std::vector<ClientTrackerInfo> m_trackerInfos;
 
     int m_selectedTrackerIndex;
 };

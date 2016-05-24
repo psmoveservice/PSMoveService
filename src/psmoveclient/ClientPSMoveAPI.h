@@ -3,8 +3,10 @@
 
 //-- includes -----
 #include "ClientConfig.h"
+#include "ClientConstants.h"
 #include "ClientLog.h"
 #include "ClientControllerView.h"
+#include "ClientTrackerView.h"
 
 #ifdef HAS_PROTOCOL_ACCESS
 #include "PSMoveProtocol.pb.h"
@@ -15,15 +17,10 @@
 class ClientControllerView;
 class ClientHMDView;
 
-//-- constants -----
-#define PSMOVESERVICE_DEFAULT_ADDRESS   "localhost"
-#define PSMOVESERVICE_DEFAULT_PORT      "9512"
-
-// See ControllerManager.h in PSMoveService
-#define PSMOVESERVICE_MAX_CONTROLLER_COUNT  5
-
 //-- macros -----
 #ifdef HAS_PROTOCOL_ACCESS
+#define GET_PSMOVEPROTOCOL_REQUEST(handle) \
+    reinterpret_cast<const PSMoveProtocol::Request *>(handle)
 #define GET_PSMOVEPROTOCOL_RESPONSE(handle) \
     reinterpret_cast<const PSMoveProtocol::Response *>(handle)
 #define GET_PSMOVEPROTOCOL_EVENT(handle) \
@@ -42,7 +39,8 @@ public:
     enum eControllerDataStreamFlags
     {
         defaultStreamOptions = 0x00,
-        includeRawSensorData = 0x01
+        includeRawSensorData = 0x01,
+        includeRawTrackerData = 0x02,
     };
 
     // Service Events
@@ -83,7 +81,8 @@ public:
     enum eResponsePayloadType
     {
         _responsePayloadType_Empty,
-        _responsePayloadType_ControllerCount,
+        _responsePayloadType_ControllerList,
+        _responsePayloadType_TrackerList,
 
         _responsePayloadType_Count
     };
@@ -99,6 +98,12 @@ public:
         int count;
     };
 
+    struct ResponsePayload_TrackerList
+    {
+        ClientTrackerInfo trackers[PSMOVESERVICE_MAX_TRACKER_COUNT];
+        int count;
+    };
+
     struct ResponseMessage
     {
         // Fields common to all responses
@@ -109,6 +114,10 @@ public:
         // Whether this request succeeded, failed, or was canceled
         eClientPSMoveResultCode result_code;
 
+        // Opaque handle that can be converted to a <const PSMoveProtocol::Request *> pointer
+        // using GET_PSMOVEPROTOCOL_REQUEST(handle) if you linked against the PSMoveProtocol lib.
+        t_response_handle opaque_request_handle;
+
         // Opaque handle that can be converted to a <const PSMoveProtocol::Response *> pointer
         // using GET_PSMOVEPROTOCOL_RESPONSE(handle) if you linked against the PSMoveProtocol lib.
         t_response_handle opaque_response_handle;
@@ -118,6 +127,7 @@ public:
         union
         {
             ResponsePayload_ControllerList controller_list;
+            ResponsePayload_TrackerList tracker_list;
         } payload;
         eResponsePayloadType payload_type;
     };
@@ -159,6 +169,7 @@ public:
 
     static void shutdown();
 
+    /// Controller Methods
     static ClientControllerView *allocate_controller_view(int ControllerID);
     static void free_controller_view(ClientControllerView *view);
 
@@ -168,6 +179,14 @@ public:
     static t_request_id set_controller_rumble(ClientControllerView *view, float rumble_amount);
     static t_request_id set_led_color(ClientControllerView *view, unsigned char r, unsigned char g, unsigned b);
     static t_request_id reset_pose(ClientControllerView *view);
+
+    /// Tracker Methods
+    static ClientTrackerView *allocate_tracker_view(const ClientTrackerInfo &trackerInfo);
+    static void free_tracker_view(ClientTrackerView *view);
+
+    static t_request_id get_tracker_list();
+    static t_request_id start_tracker_data_stream(ClientTrackerView *view);
+    static t_request_id stop_tracker_data_stream(ClientTrackerView *view);
 
     /// Used to send requests to the server by clients that have protocol access
     static t_request_id send_opaque_request(t_request_handle request_handle);
