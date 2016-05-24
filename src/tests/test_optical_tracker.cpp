@@ -7,11 +7,10 @@
 #include <algorithm>
 #include <Eigen/Dense>
 
-// For sleep
-#ifdef _WIN32
-#include <cstdlib>
-#else
-#include <unistd.h>
+#ifndef HAVE_M_PI
+#ifndef M_PI
+#define M_PI    3.14159265358979323846264338327950288   /* pi */
+#endif
 #endif
 
 const int HUE_RANGE = 9;
