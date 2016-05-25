@@ -1,6 +1,7 @@
 //-- inludes -----
 #include "AppStage_TrackerSettings.h"
 #include "AppStage_TestTracker.h"
+#include "AppStage_ColorCalibration.h"
 #include "AppStage_ComputeTrackerPoses.h"
 #include "AppStage_MainMenu.h"
 #include "App.h"
@@ -140,6 +141,18 @@ void AppStage_TrackerSettings::renderUI()
                 m_app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
             }
 
+			//###HipsterSloth $TODO: Localhost only check
+			if (ImGui::Button("Calibrate Tracking Colors"))
+			{
+				m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
+			}
+
+			//###HipsterSloth $TODO: Localhost only check
+			if (ImGui::Button("Test Video Feed"))
+			{
+				m_app->setAppStage(AppStage_TestTracker::APP_STAGE_NAME);
+			}
+
             if (m_selectedTrackerIndex > 0)
             {
                 if (ImGui::Button("Previous Tracker"))
@@ -154,12 +167,6 @@ void AppStage_TrackerSettings::renderUI()
                 {
                     ++m_selectedTrackerIndex;
                 }
-            }
-
-            // TODO: Localhost only check
-            if (ImGui::Button("Test Video Feed"))
-            {
-                m_app->setAppStage(AppStage_TestTracker::APP_STAGE_NAME);
             }
         }
         else
