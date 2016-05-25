@@ -41,6 +41,12 @@ message Orientation{
     float w = 4;
 }
 
+message OptionSet {
+	string option_name = 1;
+	repeated string option_strings = 2;
+	int32 option_index = 3;
+}
+
 message Pose {
     Orientation orientation= 1;
     Position position= 2;
@@ -82,7 +88,9 @@ message Request {
         STOP_TRACKER_DATA_STREAM = 12;
         GET_TRACKER_SETTINGS = 13;
         SET_TRACKER_EXPOSURE = 14;
-        SET_TRACKER_POSE = 15;
+        SET_TRACKER_GAIN = 15;
+        SET_TRACKER_OPTION = 16;
+        SET_TRACKER_POSE = 17;
     }
     RequestType type = 2;
    
@@ -178,9 +186,24 @@ message Request {
     // Parameters for SET_TRACKER_EXPOSURE
     message RequestSetTrackerExposure {
         int32 tracker_id = 1;
-        double value = 2;
+        float value = 2;
     }
     RequestSetTrackerExposure request_set_tracker_exposure = 32;
+
+    // Parameters for SET_TRACKER_GAIN
+    message RequestSetTrackerGain {
+        int32 tracker_id = 1;
+        float value = 2;
+    }
+    RequestSetTrackerGain request_set_tracker_gain = 33;
+
+    // Parameters for SET_TRACKER_OPTION
+    message RequestSetTrackerOption {
+        int32 tracker_id = 1;
+        string option_name = 2;
+        int32 option_index = 3;
+    }
+    RequestSetTrackerGain request_set_tracker_option = 34;
     
     // Parameters for SET_TRACKER_POSE
     message RequestSetTrackerPose {
@@ -188,7 +211,7 @@ message Request {
         Pose pose = 2;
         Pose hmd_relative_pose = 3;
     }
-    RequestSetTrackerPose request_set_tracker_pose = 33;
+    RequestSetTrackerPose request_set_tracker_pose = 35;
 }
 
 // Reliable (TCP) responses to requests
@@ -205,6 +228,9 @@ message Response {
         TRACKER_LIST= 7;
         TRACKER_LIST_UPDATED= 8;
         TRACKER_SETTINGS= 9;
+        TRACKER_EXPOSURE_UPDATED= 10;
+        TRACKER_GAIN_UPDATED= 11;
+        TRACKER_OPTION_UPDATED= 12;
     }
 
     enum ResultCode {
@@ -291,15 +317,30 @@ message Response {
     
     // This is returned in response to a GET_TRACKER_SETTINGS request
     message ResultTrackerSettings {
-        double exposure= 1;
+        float exposure= 1;
+        float gain= 2;
+        repeated OptionSet option_sets= 3; 
     }
     ResultTrackerSettings result_tracker_settings = 24;
     
     // This is returned in response to a SET_TRACKER_EXPOSURE request
     message ResultSetTrackerExposure {
-        double new_exposure= 1;
+        float new_exposure= 1;
     }
-    ResultSetTrackerExposure result_set_tracker_exposure = 25;    
+    ResultSetTrackerExposure result_set_tracker_exposure = 25;
+
+    // This is returned in response to a SET_TRACKER_GAIN request
+    message ResultSetTrackerGain {
+        float new_gain= 1;
+    }
+    ResultSetTrackerGain result_set_tracker_gain = 26;
+    
+    // This is returned in response to a SET_TRACKER_OPTION request
+    message ResultSetTrackerOption {
+        string option_name = 1;
+        float new_option_index = 2;
+    }
+    ResultSetTrackerOption result_set_tracker_option = 27;
 }
 
 // Unreliable (UDP) device data packet format

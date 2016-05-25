@@ -333,6 +333,16 @@ void ServerTrackerView::setExposure(double value)
     m_device->setExposure(value);
 }
 
+double ServerTrackerView::getGain() const
+{
+	return m_device->getGain();
+}
+
+void ServerTrackerView::setGain(double value)
+{
+	m_device->setGain(value);
+}
+
 void ServerTrackerView::getCameraIntrinsics(
     float &outFocalLengthX, float &outFocalLengthY,
     float &outPrincipalX, float &outPrincipalY) const

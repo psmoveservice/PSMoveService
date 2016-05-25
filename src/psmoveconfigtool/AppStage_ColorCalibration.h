@@ -6,6 +6,7 @@
 #include "ClientPSMoveAPI.h"
 
 #include <vector>
+#include <string>
 
 //-- definitions -----
 class AppStage_ColorCalibration : public AppStage
@@ -46,6 +47,13 @@ protected:
 		void *userdata);
 
 private:
+	struct TrackerOption
+	{
+		std::string option_name;
+		std::vector<std::string> option_strings;
+		int option_index;
+	};
+
 	enum eTrackerMenuState
 	{
 		inactive,
@@ -58,11 +66,22 @@ private:
 		failedTrackerStopStreamRequest,
 	};
 
+	enum eVideoDisplayMode
+	{
+		mode_bgr,
+		mode_hsv,
+		mode_hsv_range
+	};
+
 	eTrackerMenuState m_menuState;
 	bool m_bStreamIsActive;
-	class ClientTrackerView *m_tracker_view;
-	class TextureAsset *m_video_texture;
+	class ClientTrackerView *m_trackerView;
+	class TextureAsset *m_videoTexture;
+	eVideoDisplayMode m_videoDisplayMode;
+
 	double m_trackerExposure;
+	double m_trackerGain;
+	std::vector<TrackerOption> m_trackerOptions;
 };
 
 #endif // APP_STAGE_COLOR_CALIBRATION_H

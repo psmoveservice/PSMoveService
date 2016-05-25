@@ -263,6 +263,9 @@ public:
     virtual void setExposure(double value) = 0;
     virtual double getExposure() const = 0;
 
+	virtual void setGain(double value) = 0;
+	virtual double getGain() const = 0;
+
     virtual void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
         float &outPrincipalX, float &outPrincipalY) const = 0;

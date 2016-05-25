@@ -40,6 +40,9 @@ public:
     
     double getExposure() const;
     void setExposure(double value);
+
+	double getGain() const;
+	void setGain(double value);
     
     bool getPositionForObject(IDeviceInterface* tracked_object, glm::vec3* out_position);
 

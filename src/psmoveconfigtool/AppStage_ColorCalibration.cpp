@@ -35,9 +35,11 @@ AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
 	: AppStage(app)
 	, m_menuState(AppStage_ColorCalibration::inactive)
 	, m_bStreamIsActive(false)
-	, m_tracker_view(nullptr)
-	, m_video_texture(nullptr)
+	, m_trackerView(nullptr)
+	, m_videoTexture(nullptr)
+	, m_videoDisplayMode(AppStage_ColorCalibration::eVideoDisplayMode::mode_bgr)
 	, m_trackerExposure(0)
+	, m_trackerGain(0)
 { }
 
 void AppStage_ColorCalibration::enter()
@@ -49,31 +51,31 @@ void AppStage_ColorCalibration::enter()
 
 	m_app->setCameraType(_cameraFixed);
 
-	assert(m_tracker_view == nullptr);
-	m_tracker_view = ClientPSMoveAPI::allocate_tracker_view(*trackerInfo);
+	assert(m_trackerView == nullptr);
+	m_trackerView = ClientPSMoveAPI::allocate_tracker_view(*trackerInfo);
 
-	request_tracker_get_settings(m_tracker_view->getTrackerId());
+	request_tracker_get_settings(m_trackerView->getTrackerId());
 
 	assert(!m_bStreamIsActive);
-	request_tracker_start_stream(m_tracker_view->getTrackerId());
+	request_tracker_start_stream(m_trackerView->getTrackerId());
 }
 
 void AppStage_ColorCalibration::exit()
 {
 	m_menuState = AppStage_ColorCalibration::inactive;
 
-	ClientPSMoveAPI::free_tracker_view(m_tracker_view);
-	m_tracker_view = nullptr;
+	ClientPSMoveAPI::free_tracker_view(m_trackerView);
+	m_trackerView = nullptr;
 }
 
 void AppStage_ColorCalibration::update()
 {
 	// Try and read the next video frame from shared memory
-	if (m_video_texture != nullptr)
+	if (m_videoTexture != nullptr)
 	{
-		if (m_tracker_view->pollVideoStream())
+		if (m_trackerView->pollVideoStream())
 		{
-			m_video_texture->copyBufferIntoTexture(m_tracker_view->getVideoFrameBuffer());
+			m_videoTexture->copyBufferIntoTexture(m_trackerView->getVideoFrameBuffer());
 		}
 	}
 }
@@ -81,9 +83,9 @@ void AppStage_ColorCalibration::update()
 void AppStage_ColorCalibration::render()
 {
 	// If there is a video frame available to render, show it
-	if (m_video_texture != nullptr)
+	if (m_videoTexture != nullptr)
 	{
-		unsigned int texture_id = m_video_texture->texture_id;
+		unsigned int texture_id = m_videoTexture->texture_id;
 
 		if (texture_id != 0)
 		{
@@ -94,6 +96,9 @@ void AppStage_ColorCalibration::render()
 
 void AppStage_ColorCalibration::renderUI()
 {
+	const AppStage_TrackerSettings *trackerSettings = m_app->getAppStage<AppStage_TrackerSettings>();
+	const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
+
 	const float k_panel_width = 300.f;
 	const char *k_window_title = "Color Calibration";
 	const ImGuiWindowFlags window_flags =
@@ -115,10 +120,6 @@ void AppStage_ColorCalibration::renderUI()
 		{
 			if (m_bStreamIsActive)
 			{
-				const AppStage_TrackerSettings *trackerSettings =
-					m_app->getAppStage<AppStage_TrackerSettings>();
-				const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
-
 				request_tracker_stop_stream(trackerInfo->tracker_id);
 			}
 			else
@@ -129,20 +130,31 @@ void AppStage_ColorCalibration::renderUI()
 
 		if (m_bStreamIsActive)
 		{
-			ImGui::Text("Exposure: %f", m_trackerExposure);
 			if (ImGui::Button("+"))
 			{
-				const AppStage_TrackerSettings *trackerSettings = m_app->getAppStage<AppStage_TrackerSettings>();
-				const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
 				request_tracker_set_exposure(trackerInfo->tracker_id, m_trackerExposure + 8);
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("-"))
 			{
-				const AppStage_TrackerSettings *trackerSettings = m_app->getAppStage<AppStage_TrackerSettings>();
-				const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
 				request_tracker_set_exposure(trackerInfo->tracker_id, m_trackerExposure - 8);
 			}
+			ImGui::SameLine();
+			ImGui::Text("Exposure: %f", m_trackerExposure);
+
+			if (ImGui::Button("+"))
+			{
+				request_tracker_set_exposure(trackerInfo->tracker_id, m_trackerGain + 8);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("-"))
+			{
+				request_tracker_set_exposure(trackerInfo->tracker_id, m_trackerGain - 8);
+			}
+			ImGui::SameLine();
+			ImGui::Text("Gain: %f", m_trackerGain);
+
+			//###HipsterSloth $TODO - options
 		}
 
 
@@ -227,7 +239,7 @@ void AppStage_ColorCalibration::request_tracker_start_stream(
 
 		// Tell the psmove service that we want to start streaming data from the tracker
 		ClientPSMoveAPI::register_callback(
-			ClientPSMoveAPI::start_tracker_data_stream(m_tracker_view),
+			ClientPSMoveAPI::start_tracker_data_stream(m_trackerView),
 			AppStage_ColorCalibration::handle_tracker_start_stream_response, this);
 	}
 }
@@ -242,7 +254,7 @@ void AppStage_ColorCalibration::handle_tracker_start_stream_response(
 	{
 	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
 	{
-		ClientTrackerView *trackerView = thisPtr->m_tracker_view;
+		ClientTrackerView *trackerView = thisPtr->m_trackerView;
 
 		thisPtr->m_bStreamIsActive = true;
 		thisPtr->m_menuState = AppStage_ColorCalibration::idle;
@@ -251,8 +263,8 @@ void AppStage_ColorCalibration::handle_tracker_start_stream_response(
 		if (trackerView->openVideoStream())
 		{
 			// Create a texture to render the video frame to
-			thisPtr->m_video_texture = new TextureAsset();
-			thisPtr->m_video_texture->init(
+			thisPtr->m_videoTexture = new TextureAsset();
+			thisPtr->m_videoTexture->init(
 				trackerView->getVideoFrameWidth(),
 				trackerView->getVideoFrameHeight(),
 				GL_RGB, // texture format
@@ -261,7 +273,7 @@ void AppStage_ColorCalibration::handle_tracker_start_stream_response(
 		}
 
 		// Get the tracker settings now that the tracker stream is open
-		thisPtr->request_tracker_get_settings(thisPtr->m_tracker_view->getTrackerId());
+		thisPtr->request_tracker_get_settings(thisPtr->m_trackerView->getTrackerId());
 	} break;
 
 	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
@@ -281,7 +293,7 @@ void AppStage_ColorCalibration::request_tracker_stop_stream(
 
 		// Tell the psmove service that we want to stop streaming data from the tracker        
 		ClientPSMoveAPI::register_callback(
-			ClientPSMoveAPI::stop_tracker_data_stream(m_tracker_view),
+			ClientPSMoveAPI::stop_tracker_data_stream(m_trackerView),
 			AppStage_ColorCalibration::handle_tracker_stop_stream_response, this);
 	}
 }
@@ -298,28 +310,28 @@ void AppStage_ColorCalibration::handle_tracker_stop_stream_response(
 	switch (response->result_code)
 	{
 	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
-	{
-		thisPtr->m_menuState = AppStage_ColorCalibration::inactive;
-
-		// Close the shared memory buffer
-		thisPtr->m_tracker_view->closeVideoStream();
-
-		// Free the texture we were rendering to
-		if (thisPtr->m_video_texture != nullptr)
 		{
-			delete thisPtr->m_video_texture;
-			thisPtr->m_video_texture = nullptr;
-		}
+			thisPtr->m_menuState = AppStage_ColorCalibration::inactive;
 
-		// After closing the stream, we should go back to the tracker settings
-		thisPtr->m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
-	} break;
+			// Close the shared memory buffer
+			thisPtr->m_trackerView->closeVideoStream();
+
+			// Free the texture we were rendering to
+			if (thisPtr->m_videoTexture != nullptr)
+			{
+				delete thisPtr->m_videoTexture;
+				thisPtr->m_videoTexture = nullptr;
+			}
+
+			// After closing the stream, we should go back to the tracker settings
+			thisPtr->m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
+		} break;
 
 	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
 	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
-	{
-		thisPtr->m_menuState = AppStage_ColorCalibration::failedTrackerStopStreamRequest;
-	} break;
+		{
+			thisPtr->m_menuState = AppStage_ColorCalibration::failedTrackerStopStreamRequest;
+		} break;
 	}
 }
 
@@ -348,15 +360,15 @@ void AppStage_ColorCalibration::handle_tracker_set_exposure_response(
 	switch (ResultCode)
 	{
 	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
-	{
-		const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-		thisPtr->m_trackerExposure = response->result_set_tracker_exposure().new_exposure();
-	} break;
+		{
+			const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+			thisPtr->m_trackerExposure = response->result_set_tracker_exposure().new_exposure();
+		} break;
 	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
 	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
-	{
-		CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker exposure!";
-	} break;
+		{
+			CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker exposure!";
+		} break;
 	}
 
 }
@@ -386,14 +398,17 @@ void AppStage_ColorCalibration::handle_tracker_get_settings_response(
 	switch (ResultCode)
 	{
 	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
-	{
-		const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-		thisPtr->m_trackerExposure = response->result_tracker_settings().exposure();
-	} break;
+		{
+			const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+			thisPtr->m_trackerExposure = response->result_tracker_settings().exposure();
+			thisPtr->m_trackerGain = response->result_tracker_settings().gain();
+
+			//###HipsterSloth $TODO - options
+		} break;
 	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
 	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
-	{
-		CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to get the tracker settings!";
-	} break;
+		{
+			CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to get the tracker settings!";
+		} break;
 	}
 }

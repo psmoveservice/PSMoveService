@@ -35,6 +35,7 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("version", PS3EyeTrackerConfig::CONFIG_VERSION);
     pt.put("max_poll_failure_count", max_poll_failure_count);
     pt.put("exposure", exposure);
+	pt.put("gain", gain);
     pt.put("focalLengthX", focalLengthX);
     pt.put("focalLengthY", focalLengthY);
     pt.put("principalX", principalX);
@@ -73,6 +74,7 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
         is_valid = pt.get<bool>("is_valid", false);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
         exposure = pt.get<double>("exposure", 32);
+		gain = pt.get<double>("gain", 32);
         focalLengthX = pt.get<double>("focalLengthX", 640.0);
         focalLengthY = pt.get<double>("focalLengthY", 640.0);
         principalX = pt.get<double>("principalX", 320.0);
@@ -373,6 +375,18 @@ void PS3EyeTracker::setExposure(double value)
 double PS3EyeTracker::getExposure() const
 {
     return VideoCapture->get(cv::CAP_PROP_EXPOSURE);
+}
+
+void PS3EyeTracker::setGain(double value)
+{
+	VideoCapture->set(cv::CAP_PROP_GAIN, value);
+	cfg.gain = value;
+	cfg.save();
+}
+
+double PS3EyeTracker::getGain() const
+{
+	return VideoCapture->get(cv::CAP_PROP_GAIN);
 }
 
 void PS3EyeTracker::getCameraIntrinsics(

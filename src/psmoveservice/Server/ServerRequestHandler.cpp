@@ -211,6 +211,12 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE:
                 handle_request__set_tracker_exposure(context, response);
                 break;
+			case PSMoveProtocol::Request_RequestType_SET_TRACKER_GAIN:
+				handle_request__set_tracker_gain(context, response);
+				break;
+			case PSMoveProtocol::Request_RequestType_SET_TRACKER_OPTION:
+				handle_request__set_tracker_option(context, response);
+				break;
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_POSE:
                 handle_request__set_tracker_pose(context, response);
                 break;
@@ -857,7 +863,7 @@ protected:
                 PSMoveProtocol::Response_ResultTrackerSettings* settings =
                     response->mutable_result_tracker_settings();
 
-                settings->set_exposure(tracker_view->getExposure());
+                settings->set_exposure(static_cast<float>(tracker_view->getExposure()));
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
             else
@@ -875,12 +881,15 @@ protected:
         PSMoveProtocol::Response *response)
     {
         const int tracker_id = context.request->request_set_tracker_exposure().tracker_id();
+
+		response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_EXPOSURE_UPDATED);
+
         if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
-                const double desired_exposure = context.request->request_set_tracker_exposure().value();
+                const float desired_exposure = context.request->request_set_tracker_exposure().value();
                 PSMoveProtocol::Response_ResultSetTrackerExposure* result_exposure =
                     response->mutable_result_set_tracker_exposure();
 
@@ -888,7 +897,7 @@ protected:
                 tracker_view->setExposure(desired_exposure);
 
                 // Return back the actual exposure that got get
-                result_exposure->set_new_exposure(tracker_view->getExposure());
+                result_exposure->set_new_exposure(static_cast<float>(tracker_view->getExposure()));
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -902,6 +911,47 @@ protected:
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
+
+	void handle_request__set_tracker_gain(const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int tracker_id = context.request->request_set_tracker_gain().tracker_id();
+
+		response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_GAIN_UPDATED);
+
+		if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+		{
+			ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+			if (tracker_view->getIsOpen())
+			{
+				const double desired_gain = context.request->request_set_tracker_gain().value();
+				PSMoveProtocol::Response_ResultSetTrackerGain* result_gain =
+					response->mutable_result_set_tracker_gain();
+
+				// Set the desired gain on the tracker
+				tracker_view->setGain(desired_gain);
+
+				// Return back the actual gain that got get
+				result_gain->set_new_gain(static_cast<float>(tracker_view->getGain()));
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
+	void handle_request__set_tracker_option(const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		//###HipsterSloth $TODO
+	}
 
     inline CommonDevicePose protocol_pose_to_common_device_pose(const PSMoveProtocol::Pose &pose)
     {

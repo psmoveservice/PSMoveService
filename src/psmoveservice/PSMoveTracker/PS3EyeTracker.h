@@ -17,6 +17,7 @@ public:
     , is_valid(false)
     , max_poll_failure_count(100)
     , exposure(32)
+	, gain(32)
     , focalLengthX(640.0) // pixels
     , focalLengthY(640.0) // pixels
     , principalX(320.0) // pixels
@@ -37,6 +38,7 @@ public:
     long version;
     long max_poll_failure_count;
     double exposure;
+	double gain;
     double focalLengthX;
     double focalLengthY;
     double principalX;
@@ -93,6 +95,8 @@ public:
     const unsigned char *getVideoFrameBuffer() const override;
     void setExposure(double value) override;
     double getExposure() const override;
+	void setGain(double value) override;
+	double getGain() const override;
     void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
         float &outPrincipalX, float &outPrincipalY) const override;
