@@ -1,6 +1,7 @@
 #ifndef PS3EYE_TRACKER_H
 #define PS3EYE_TRACKER_H
 
+// -- includes -----
 #include "PSMoveDataFrame.h"
 #include "PSMoveConfig.h"
 #include "DeviceEnumerator.h"
@@ -9,9 +10,24 @@
 #include <vector>
 #include <deque>
 
+// -- pre-declarations -----
+namespace PSMoveProtocol
+{
+    class Response_ResultTrackerSettings;
+};
+
+// -- definitions -----
 class PS3EyeTrackerConfig : public PSMoveConfig
 {
 public:
+    enum eFOVSetting
+    {
+        RedDot, // 56 degree FOV
+        BlueDot, // 75 degree FOV
+        
+        MAX_FOV_SETTINGS
+    };
+
     PS3EyeTrackerConfig(const std::string &fnamebase = "PS3EyeTrackerConfig")
     : PSMoveConfig(fnamebase)
     , is_valid(false)
@@ -26,6 +42,7 @@ public:
     , vfov(45.0) // degrees
     , zNear(10.0) // cm
     , zFar(200.0) // cm
+    , fovSetting(BlueDot)
     {
         pose.clear();
         hmdRelativePose.clear();
@@ -47,6 +64,7 @@ public:
     double vfov;
     double zNear;
     double zFar;
+    eFOVSetting fovSetting;
     CommonDevicePose pose;
     CommonDevicePose hmdRelativePose;
 
@@ -111,6 +129,9 @@ public:
         const struct CommonDevicePose *hmdRelativePose) override;
     void getFOV(float &outHFOV, float &outVFOV) const override;
     void getZRange(float &outZNear, float &outZFar) const override;
+    void gatherTrackerOptions(PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
+    bool setOptionIndex(const std::string &option_name, int option_index);
+    bool getOptionIndex(const std::string &option_name, int &out_option_index) const;
 
     // -- Getters
     inline const PS3EyeTrackerConfig &getConfig() const

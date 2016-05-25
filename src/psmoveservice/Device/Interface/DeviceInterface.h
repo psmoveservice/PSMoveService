@@ -1,9 +1,17 @@
 #ifndef DEVICE_INTERFACE_H
 #define DEVICE_INTERFACE_H
 
+// -- includes -----
 #include <string>
 #include <tuple>
 
+// -- pre-declarations ----
+namespace PSMoveProtocol
+{
+    class Response_ResultTrackerSettings;
+};
+
+// -- definitions -----
 struct CommonDeviceVector
 {
     float i, j, k;
@@ -278,5 +286,9 @@ public:
 
     virtual void getFOV(float &outHFOV, float &outVFOV) const = 0;
     virtual void getZRange(float &outZNear, float &outZFar) const = 0;
+
+    virtual void gatherTrackerOptions(PSMoveProtocol::Response_ResultTrackerSettings* settings) const = 0;
+    virtual bool setOptionIndex(const std::string &option_name, int option_index) = 0;
+    virtual bool getOptionIndex(const std::string &option_name, int &out_option_index) const = 0;
 };
 #endif // DEVICE_INTERFACE_H

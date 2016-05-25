@@ -211,12 +211,12 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE:
                 handle_request__set_tracker_exposure(context, response);
                 break;
-			case PSMoveProtocol::Request_RequestType_SET_TRACKER_GAIN:
-				handle_request__set_tracker_gain(context, response);
-				break;
-			case PSMoveProtocol::Request_RequestType_SET_TRACKER_OPTION:
-				handle_request__set_tracker_option(context, response);
-				break;
+            case PSMoveProtocol::Request_RequestType_SET_TRACKER_GAIN:
+                handle_request__set_tracker_gain(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_SET_TRACKER_OPTION:
+                handle_request__set_tracker_option(context, response);
+                break;
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_POSE:
                 handle_request__set_tracker_pose(context, response);
                 break;
@@ -864,6 +864,9 @@ protected:
                     response->mutable_result_tracker_settings();
 
                 settings->set_exposure(static_cast<float>(tracker_view->getExposure()));
+                settings->set_gain(static_cast<float>(tracker_view->getGain()));
+                tracker_view->gatherTrackerOptions(settings);
+
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
             else
@@ -896,7 +899,7 @@ protected:
                 // Set the desired exposure on the tracker
                 tracker_view->setExposure(desired_exposure);
 
-                // Return back the actual exposure that got get
+                // Return back the actual exposure that got set
                 result_exposure->set_new_exposure(static_cast<float>(tracker_view->getExposure()));
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
@@ -912,46 +915,85 @@ protected:
         }
     }
 
-	void handle_request__set_tracker_gain(const RequestContext &context,
-		PSMoveProtocol::Response *response)
-	{
-		const int tracker_id = context.request->request_set_tracker_gain().tracker_id();
+    void handle_request__set_tracker_gain(const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_set_tracker_gain().tracker_id();
 
-		response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_GAIN_UPDATED);
+        response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_GAIN_UPDATED);
 
-		if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
-		{
-			ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
-			if (tracker_view->getIsOpen())
-			{
-				const double desired_gain = context.request->request_set_tracker_gain().value();
-				PSMoveProtocol::Response_ResultSetTrackerGain* result_gain =
-					response->mutable_result_set_tracker_gain();
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                const double desired_gain = context.request->request_set_tracker_gain().value();
+                PSMoveProtocol::Response_ResultSetTrackerGain* result_gain =
+                    response->mutable_result_set_tracker_gain();
 
-				// Set the desired gain on the tracker
-				tracker_view->setGain(desired_gain);
+                // Set the desired gain on the tracker
+                tracker_view->setGain(desired_gain);
 
-				// Return back the actual gain that got get
-				result_gain->set_new_gain(static_cast<float>(tracker_view->getGain()));
+                // Return back the actual gain that got set
+                result_gain->set_new_gain(static_cast<float>(tracker_view->getGain()));
 
-				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-			}
-			else
-			{
-				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-			}
-		}
-		else
-		{
-			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-		}
-	}
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
 
-	void handle_request__set_tracker_option(const RequestContext &context,
-		PSMoveProtocol::Response *response)
-	{
-		//###HipsterSloth $TODO
-	}
+    void handle_request__set_tracker_option(const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_set_tracker_gain().tracker_id();
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_OPTION_UPDATED);
+
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                const std::string &option_name = context.request->request_set_tracker_option().option_name();
+                const int desired_option_index = context.request->request_set_tracker_option().option_index();
+                PSMoveProtocol::Response_ResultSetTrackerOption* result_gain =
+                    response->mutable_result_set_tracker_option();
+
+                // Set the desired gain on the tracker
+                if (tracker_view->setOptionIndex(option_name, desired_option_index))
+                {
+                    // Return back the actual option index that got set
+                    int result_option_index;
+
+                    tracker_view->getOptionIndex(option_name, result_option_index);
+                    result_gain->set_option_name(option_name);
+                    result_gain->set_new_option_index(result_option_index);
+
+                    response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+                }
+                else
+                {
+                    response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+                }
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
 
     inline CommonDevicePose protocol_pose_to_common_device_pose(const PSMoveProtocol::Pose &pose)
     {

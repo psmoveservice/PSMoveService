@@ -6,6 +6,12 @@
 #include "PSMoveProtocolInterface.h"
 #include <glm/glm.hpp>
 
+// -- pre-declarations -----
+namespace PSMoveProtocol
+{
+    class Response_ResultTrackerSettings;
+};
+
 // -- declarations -----
 class ServerTrackerView : public ServerDeviceView
 {
@@ -59,6 +65,10 @@ public:
     void getPixelDimensions(float &outWidth, float &outHeight) const;
     void getFOV(float &outHFOV, float &outVFOV) const;
     void getZRange(float &outZNear, float &outZFar) const;
+
+    void gatherTrackerOptions(PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
+    bool setOptionIndex(const std::string &option_name, int option_index);
+    bool getOptionIndex(const std::string &option_name, int &out_option_index) const;
 
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;

@@ -3,11 +3,16 @@
 #include "ServerLog.h"
 #include "ServerUtility.h"
 #include "PSEyeVideoCapture.h"
+#include "PSMoveProtocol.pb.h"
 #include "TrackerDeviceEnumerator.h"
 #include "opencv2/opencv.hpp"
 
 // -- constants -----
 #define PS3EYE_STATE_BUFFER_MAX 16
+
+static const char *OPTION_FOV_SETTING = "FOV Setting";
+static const char *OPTION_FOV_RED_DOT = "Red Dot";
+static const char *OPTION_FOV_BLUE_DOT = "Blue Dot";
 
 // -- private definitions -----
 class PSEyeCaptureData
@@ -24,7 +29,7 @@ public:
 
 // -- public methods
 // -- PS3EYE Controller Config
-const int PS3EyeTrackerConfig::CONFIG_VERSION = 3;
+const int PS3EyeTrackerConfig::CONFIG_VERSION = 4;
 
 const boost::property_tree::ptree
 PS3EyeTrackerConfig::config2ptree()
@@ -44,6 +49,7 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("vfov", vfov);
     pt.put("zNear", zNear);
     pt.put("zFar", zFar);
+    pt.put("fovSetting", static_cast<int>(fovSetting));
 
     pt.put("pose.orientation.w", pose.Orientation.w);
     pt.put("pose.orientation.x", pose.Orientation.x);
@@ -83,6 +89,9 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
         vfov = pt.get<double>("vfov", 45.0);
         zNear = pt.get<double>("zNear", 10.0);
         zFar = pt.get<double>("zFar", 200.0);
+        fovSetting = 
+            static_cast<PS3EyeTrackerConfig::eFOVSetting>(
+                pt.get<int>("fovSetting", PS3EyeTrackerConfig::eFOVSetting::BlueDot));
 
         pose.Orientation.w = pt.get<float>("pose.orientation.w", 1.0);
         pose.Orientation.x = pt.get<float>("pose.orientation.x", 0.0);
@@ -437,4 +446,50 @@ void PS3EyeTracker::getZRange(float &outZNear, float &outZFar) const
 {
     outZNear = static_cast<float>(cfg.zNear);
     outZFar = static_cast<float>(cfg.zFar);
+}
+
+void PS3EyeTracker::gatherTrackerOptions(
+    PSMoveProtocol::Response_ResultTrackerSettings* settings) const
+{
+    PSMoveProtocol::OptionSet *optionSet = settings->add_option_sets();
+    
+    optionSet->set_option_name(OPTION_FOV_SETTING);
+    optionSet->add_option_strings(OPTION_FOV_RED_DOT);
+    optionSet->add_option_strings(OPTION_FOV_BLUE_DOT);
+    optionSet->set_option_index(static_cast<int>(cfg.fovSetting));
+}
+
+bool PS3EyeTracker::setOptionIndex(
+    const std::string &option_name,
+    int option_index)
+{
+    bool bValidOption = false;
+
+    if (option_name == OPTION_FOV_SETTING && 
+        option_index >= 0 && 
+        option_index < PS3EyeTrackerConfig::eFOVSetting::MAX_FOV_SETTINGS)
+    {
+        cfg.fovSetting = static_cast<PS3EyeTrackerConfig::eFOVSetting>(option_index);
+        //###HipsterSloth $TODO Update the focal lengths?
+        cfg.save();
+
+        bValidOption = true;
+    }
+
+    return bValidOption;
+}
+
+bool PS3EyeTracker::getOptionIndex(
+    const std::string &option_name, 
+    int &out_option_index) const
+{
+    bool bValidOption = false;
+
+    if (option_name == OPTION_FOV_SETTING)
+    {
+        out_option_index = static_cast<int>(cfg.fovSetting);
+        bValidOption = true;
+    }
+
+    return bValidOption;
 }

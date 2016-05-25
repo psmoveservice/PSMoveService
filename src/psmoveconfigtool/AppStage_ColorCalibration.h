@@ -12,7 +12,14 @@
 class AppStage_ColorCalibration : public AppStage
 {
 public:
-	AppStage_ColorCalibration(class App *app);
+    struct TrackerOption
+    {
+        std::string option_name;
+        std::vector<std::string> option_strings;
+        int option_index;
+    };
+
+    AppStage_ColorCalibration(class App *app);
 
 	virtual void enter() override;
 	virtual void exit() override;
@@ -26,6 +33,8 @@ public:
 	void request_tracker_start_stream(int trackerID);
 	void request_tracker_stop_stream(int trackerID);
 	void request_tracker_set_exposure(int trackerID, double value);
+    void request_tracker_set_gain(int trackerID, double value);
+    void request_tracker_set_option(int trackerID, TrackerOption &option, int new_option_index);
 	void request_tracker_get_settings(int trackerID);
 
 protected:
@@ -42,18 +51,17 @@ protected:
 	static void handle_tracker_set_exposure_response(
 		const ClientPSMoveAPI::ResponseMessage *response,
 		void *userdata);
+    static void handle_tracker_set_gain_response(
+        const ClientPSMoveAPI::ResponseMessage *response,
+        void *userdata);
+    static void handle_tracker_set_option_response(
+        const ClientPSMoveAPI::ResponseMessage *response,
+        void *userdata);
 	static void handle_tracker_get_settings_response(
 		const ClientPSMoveAPI::ResponseMessage *response,
 		void *userdata);
 
 private:
-	struct TrackerOption
-	{
-		std::string option_name;
-		std::vector<std::string> option_strings;
-		int option_index;
-	};
-
 	enum eTrackerMenuState
 	{
 		inactive,
@@ -70,7 +78,9 @@ private:
 	{
 		mode_bgr,
 		mode_hsv,
-		mode_hsv_range
+		mode_hsv_range,
+
+        MAX_VIDEO_DISPLAY_MODES
 	};
 
 	eTrackerMenuState m_menuState;
