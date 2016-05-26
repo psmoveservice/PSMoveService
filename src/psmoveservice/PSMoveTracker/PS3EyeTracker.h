@@ -28,25 +28,7 @@ public:
         MAX_FOV_SETTINGS
     };
 
-    PS3EyeTrackerConfig(const std::string &fnamebase = "PS3EyeTrackerConfig")
-    : PSMoveConfig(fnamebase)
-    , is_valid(false)
-    , max_poll_failure_count(100)
-    , exposure(32)
-	, gain(32)
-    , focalLengthX(640.0) // pixels
-    , focalLengthY(640.0) // pixels
-    , principalX(320.0) // pixels
-    , principalY(240.0) // pixels
-    , hfov(60.0) // degrees
-    , vfov(45.0) // degrees
-    , zNear(10.0) // cm
-    , zFar(200.0) // cm
-    , fovSetting(BlueDot)
-    {
-        pose.clear();
-        hmdRelativePose.clear();
-    };
+    PS3EyeTrackerConfig(const std::string &fnamebase = "PS3EyeTrackerConfig");
     
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);

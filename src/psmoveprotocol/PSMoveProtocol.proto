@@ -75,12 +75,12 @@ enum TrackingColorType {
 
 message TrackingColorPreset {
     TrackingColorType color_type = 1;
-    float hue_min = 2;
-    float hue_max = 3;
-    float saturation_min = 4;
-    float saturation_max = 5;
-    float value_min = 6;
-    float value_max = 7;
+    float hue_center = 2;
+    float hue_range = 3;
+    float saturation_center = 4;
+    float saturation_range = 5;
+    float value_center = 6;
+    float value_range = 7;
 }
 
 // Reliable (TCP) requests that can issued to the PSMove Service

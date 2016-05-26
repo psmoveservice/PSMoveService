@@ -27,11 +27,11 @@ enum eCommonTrackColorType {
 // -- definitions -----
 struct CommonDeviceRange
 {
-    float min, max;
+    float center, range;
 
     inline void clear()
     {
-        min = max = 0.f;
+        center = range = 0.f;
     }
 };
 

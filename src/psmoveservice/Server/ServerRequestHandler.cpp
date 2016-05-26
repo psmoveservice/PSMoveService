@@ -1069,12 +1069,12 @@ protected:
                     context.request->request_set_tracker_color_preset().color_preset();
                 
                 CommonHSVColorRange hsvColorRange;
-                hsvColorRange.hue_range.min= colorPreset.hue_min();
-                hsvColorRange.hue_range.max = colorPreset.hue_max();
-                hsvColorRange.saturation_range.min = colorPreset.saturation_min();
-                hsvColorRange.saturation_range.max = colorPreset.saturation_max();
-                hsvColorRange.value_range.min = colorPreset.value_min();
-                hsvColorRange.value_range.max = colorPreset.value_max();
+                hsvColorRange.hue_range.center= colorPreset.hue_center();
+                hsvColorRange.hue_range.range = colorPreset.hue_range();
+                hsvColorRange.saturation_range.center = colorPreset.saturation_center();
+                hsvColorRange.saturation_range.range = colorPreset.saturation_range();
+                hsvColorRange.value_range.center = colorPreset.value_center();
+                hsvColorRange.value_range.range = colorPreset.value_range();
 
                 tracker_view->setTrackingColorPreset(
                     static_cast<eCommonTrackColorType>(colorPreset.color_type()),

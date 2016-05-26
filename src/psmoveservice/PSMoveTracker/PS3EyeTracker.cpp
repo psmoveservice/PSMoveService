@@ -14,13 +14,18 @@ static const char *OPTION_FOV_SETTING = "FOV Setting";
 static const char *OPTION_FOV_RED_DOT = "Red Dot";
 static const char *OPTION_FOV_BLUE_DOT = "Blue Dot";
 
+
+// Format: {hue center, hue range}, {sat center, sat range}, {val center, val range}
+// All hue angles are 60 degrees apart to maximize hue separation for 6 max tracked colors.
+// Hue angle reference: http://i.imgur.com/PKjgfFXm.jpg 
+// Hue angles divide by 2 for opencv which remaps hue range to [0,180]
 static CommonHSVColorRange k_default_color_presets[] = {
-    { { 0, 0 }, { 0, 0 }, { 0, 0 } }, // Magenta
-    { { 0, 0 }, { 0, 0 }, { 0, 0 } }, // Cyan
-    { { 0, 0 }, { 0, 0 }, { 0, 0 } }, // Yellow
-    { { 0, 0 }, { 0, 0 }, { 0, 0 } }, // Red
-    { { 0, 0 }, { 0, 0 }, { 0, 0 } }, // Green
-    { { 0, 0 }, { 0, 0 }, { 0, 0 } }, // Blue
+    { { 300/2, 10 }, { 255, 32 }, { 255, 32 } }, // Magenta
+    { { 180/2, 10 }, { 255, 32 }, { 255, 32 } }, // Cyan
+    { { 60/2, 10 }, { 255, 32 }, { 255, 32 } }, // Yellow
+    { { 0, 10 }, { 255, 32 }, { 255, 32 } }, // Red
+    { { 120/2, 10 }, { 255, 32 }, { 255, 32 } }, // Green
+    { { 240/2, 10 }, { 255, 32 }, { 255, 32 } }, // Blue
 };
 
 // -- private definitions -----
@@ -38,7 +43,32 @@ public:
 
 // -- public methods
 // -- PS3EYE Controller Config
-const int PS3EyeTrackerConfig::CONFIG_VERSION = 5;
+const int PS3EyeTrackerConfig::CONFIG_VERSION = 6;
+
+PS3EyeTrackerConfig::PS3EyeTrackerConfig(const std::string &fnamebase)
+    : PSMoveConfig(fnamebase)
+    , is_valid(false)
+    , max_poll_failure_count(100)
+    , exposure(32)
+    , gain(32)
+    , focalLengthX(640.0) // pixels
+    , focalLengthY(640.0) // pixels
+    , principalX(320.0) // pixels
+    , principalY(240.0) // pixels
+    , hfov(60.0) // degrees
+    , vfov(45.0) // degrees
+    , zNear(10.0) // cm
+    , zFar(200.0) // cm
+    , fovSetting(BlueDot)
+{
+    pose.clear();
+    hmdRelativePose.clear();
+
+    for (int preset_index = 0; preset_index < eCommonTrackColorType::MAX_TRACKING_COLOR_TYPES; ++preset_index)
+    {
+        ColorPresets[preset_index] = k_default_color_presets[preset_index];
+    }
+};
 
 const boost::property_tree::ptree
 PS3EyeTrackerConfig::config2ptree()
@@ -146,12 +176,12 @@ PS3EyeTrackerConfig::writeColorPreset(
     const char *color_name, 
     const CommonHSVColorRange &colorPreset)
 {
-    writeColorPropertyPreset(pt, color_name, "hue_min", colorPreset.hue_range.min);
-    writeColorPropertyPreset(pt, color_name, "hue_max", colorPreset.hue_range.max);
-    writeColorPropertyPreset(pt, color_name, "saturation_min", colorPreset.saturation_range.min);
-    writeColorPropertyPreset(pt, color_name, "saturation_max", colorPreset.saturation_range.max);
-    writeColorPropertyPreset(pt, color_name, "value_min", colorPreset.value_range.min);
-    writeColorPropertyPreset(pt, color_name, "value_max", colorPreset.value_range.max);
+    writeColorPropertyPreset(pt, color_name, "hue_center", colorPreset.hue_range.center);
+    writeColorPropertyPreset(pt, color_name, "hue_range", colorPreset.hue_range.range);
+    writeColorPropertyPreset(pt, color_name, "saturation_center", colorPreset.saturation_range.center);
+    writeColorPropertyPreset(pt, color_name, "saturation_range", colorPreset.saturation_range.range);
+    writeColorPropertyPreset(pt, color_name, "value_center", colorPreset.value_range.center);
+    writeColorPropertyPreset(pt, color_name, "value_range", colorPreset.value_range.range);
 }
 
 void 
@@ -161,12 +191,12 @@ PS3EyeTrackerConfig::readColorPreset(
     CommonHSVColorRange &outColorPreset,
     const CommonHSVColorRange &defaultPreset)
 {
-    readColorPropertyPreset(pt, color_name, "hue_min", outColorPreset.hue_range.min, defaultPreset.hue_range.min);
-    readColorPropertyPreset(pt, color_name, "hue_max", outColorPreset.hue_range.max, defaultPreset.hue_range.max);
-    readColorPropertyPreset(pt, color_name, "saturation_min", outColorPreset.saturation_range.min, defaultPreset.saturation_range.min);
-    readColorPropertyPreset(pt, color_name, "saturation_max", outColorPreset.saturation_range.max, defaultPreset.saturation_range.max);
-    readColorPropertyPreset(pt, color_name, "value_min", outColorPreset.value_range.min, defaultPreset.value_range.min);
-    readColorPropertyPreset(pt, color_name, "value_max", outColorPreset.value_range.max, defaultPreset.value_range.max);
+    readColorPropertyPreset(pt, color_name, "hue_center", outColorPreset.hue_range.center, defaultPreset.hue_range.center);
+    readColorPropertyPreset(pt, color_name, "hue_range", outColorPreset.hue_range.range, defaultPreset.hue_range.range);
+    readColorPropertyPreset(pt, color_name, "saturation_center", outColorPreset.saturation_range.center, defaultPreset.saturation_range.center);
+    readColorPropertyPreset(pt, color_name, "saturation_range", outColorPreset.saturation_range.range, defaultPreset.saturation_range.range);
+    readColorPropertyPreset(pt, color_name, "value_center", outColorPreset.value_range.center, defaultPreset.value_range.center);
+    readColorPropertyPreset(pt, color_name, "value_range", outColorPreset.value_range.range, defaultPreset.value_range.range);
 }
 
 void 
@@ -583,12 +613,12 @@ void PS3EyeTracker::gatherTrackingColorPresets(
 
         PSMoveProtocol::TrackingColorPreset *colorPreset= settings->add_color_presets();
         colorPreset->set_color_type(static_cast<PSMoveProtocol::TrackingColorType>(colorType));
-        colorPreset->set_hue_min(hsvRange.hue_range.min);
-        colorPreset->set_hue_max(hsvRange.hue_range.max);
-        colorPreset->set_saturation_min(hsvRange.saturation_range.min);
-        colorPreset->set_saturation_max(hsvRange.saturation_range.max);
-        colorPreset->set_value_min(hsvRange.value_range.min);
-        colorPreset->set_value_max(hsvRange.value_range.max);
+        colorPreset->set_hue_center(hsvRange.hue_range.center);
+        colorPreset->set_hue_range(hsvRange.hue_range.range);
+        colorPreset->set_saturation_center(hsvRange.saturation_range.center);
+        colorPreset->set_saturation_range(hsvRange.saturation_range.range);
+        colorPreset->set_value_center(hsvRange.value_range.center);
+        colorPreset->set_value_range(hsvRange.value_range.range);
     }
 }
 

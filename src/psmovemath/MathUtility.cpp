@@ -51,3 +51,11 @@ float wrap_degrees(float angle)
 {
     return fmodf(angle + 360.f, 360.f);
 }
+
+float wrap_range(float value, float range_min, float range_max)
+{
+    assert(range_max > range_min);
+    const float range = range_max - range_min;
+    
+    return range_min + fmodf((value - range_min) + range, range);
+}

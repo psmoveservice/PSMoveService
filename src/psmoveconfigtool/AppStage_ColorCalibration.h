@@ -40,7 +40,7 @@ protected:
     {
         mode_bgr,
         mode_hsv,
-        mode_hsv_range,
+        mode_masked,
 
         MAX_VIDEO_DISPLAY_MODES
     };
@@ -54,12 +54,12 @@ protected:
 
     struct TrackerColorPreset
     {
-        float hue_min;
-        float hue_max;
-        float saturation_min;
-        float saturation_max;
-        float value_min;
-        float value_max;
+        float hue_center;
+        float hue_range;
+        float saturation_center;
+        float saturation_range;
+        float value_center;
+        float value_range;
     };
 
     void setState(eMenuState newState);
@@ -101,8 +101,14 @@ protected:
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
 
+    void allocate_video_buffers();
+    void release_video_buffers();
+
     void release_devices();
     void request_exit_to_app_stage(const char *app_stage_name);
+
+    inline TrackerColorPreset &getColorPreset()
+    { return m_colorPresets[m_trackingColorType]; }
 
 private:
     // ClientPSMoveAPI state
@@ -111,7 +117,7 @@ private:
 
     // Menu state
     eMenuState m_menuState;
-    class TextureAsset *m_videoTexture;
+    class VideoBufferState *m_video_buffer_state;
     eVideoDisplayMode m_videoDisplayMode;
 
     // Tracker Settings state

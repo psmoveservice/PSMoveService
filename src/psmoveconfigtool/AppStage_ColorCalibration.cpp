@@ -16,6 +16,9 @@
 #include "SDL_keycode.h"
 #include "SDL_opengl.h"
 
+#include "opencv2/opencv.hpp"
+#include "opencv2/calib3d/calib3d.hpp"
+
 #include <imgui.h>
 #include <algorithm>
 
@@ -31,7 +34,7 @@ const char *AppStage_ColorCalibration::APP_STAGE_NAME = "ColorCalibration";
 static const char *k_video_display_mode_names[] = {
     "BGR",
     "HSV",
-    "HSV Range"
+    "Masked"
 };
 
 static const char *k_tracking_color_names[] = {
@@ -43,7 +46,83 @@ static const char *k_tracking_color_names[] = {
     "Blue"
 };
 
-//-- private methods -----
+//-- private definitions -----
+class VideoBufferState
+{
+public:
+    VideoBufferState(class ClientTrackerView *trackerView)
+        : videoTexture(nullptr)
+        , bgrBuffer(nullptr)
+        , hsvBuffer(nullptr)
+        , gsLowerBuffer(nullptr)
+        , gsUpperBuffer(nullptr)
+        , maskedBuffer(nullptr)
+    {
+        const int frameWidth = trackerView->getVideoFrameWidth();
+        const int frameHeight = trackerView->getVideoFrameHeight();
+
+        // Create a texture to render the video frame to
+        videoTexture = new TextureAsset();
+        videoTexture->init(
+            frameWidth,
+            frameHeight,
+            GL_RGB, // texture format
+            GL_BGR, // buffer format
+            nullptr);
+
+        bgrBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+        hsvBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+        gsLowerBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
+        gsUpperBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
+        maskedBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+    }
+
+    virtual ~VideoBufferState()
+    {
+        if (maskedBuffer != nullptr)
+        {
+            delete maskedBuffer;
+            maskedBuffer = nullptr;
+        }
+
+        if (gsLowerBuffer != nullptr)
+        {
+            delete gsLowerBuffer;
+            gsLowerBuffer = nullptr;
+        }
+
+        if (gsUpperBuffer != nullptr)
+        {
+            delete gsUpperBuffer;
+            gsUpperBuffer = nullptr;
+        }
+
+        if (hsvBuffer != nullptr)
+        {
+            delete hsvBuffer;
+            hsvBuffer = nullptr;
+        }
+
+        if (bgrBuffer != nullptr)
+        {
+            delete bgrBuffer;
+            bgrBuffer = nullptr;
+        }
+
+        if (videoTexture != nullptr)
+        {
+            delete videoTexture;
+            videoTexture = nullptr;
+        }
+    }
+
+    TextureAsset *videoTexture;
+    cv::Mat *bgrBuffer; // source video frame
+    cv::Mat *hsvBuffer; // source frame converted to HSV color space
+    cv::Mat *gsLowerBuffer; // HSV image clamped by HSV range into grayscale mask
+    cv::Mat *gsUpperBuffer; // HSV image clamped by HSV range into grayscale mask
+    cv::Mat *maskedBuffer; // bgr image ANDed together with grayscale mask
+};
 
 //-- public methods -----
 AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
@@ -51,7 +130,7 @@ AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
     , m_controllerView(nullptr)
     , m_trackerView(nullptr)
     , m_menuState(AppStage_ColorCalibration::inactive)
-    , m_videoTexture(nullptr)
+    , m_video_buffer_state(nullptr)
     , m_videoDisplayMode(AppStage_ColorCalibration::eVideoDisplayMode::mode_bgr)
     , m_trackerExposure(0)
     , m_trackerGain(0)
@@ -80,7 +159,7 @@ void AppStage_ColorCalibration::enter()
 
     // Request to start the tracker
     // Wait for the tracker response before requesting the controller
-    assert(m_videoTexture == nullptr);
+    assert(m_video_buffer_state == nullptr);
     request_tracker_start_stream();
 
     // In parallel, Get the settings for the selected tracker
@@ -97,11 +176,105 @@ void AppStage_ColorCalibration::exit()
 void AppStage_ColorCalibration::update()
 {
     // Try and read the next video frame from shared memory
-    if (m_videoTexture != nullptr)
+    if (m_video_buffer_state != nullptr)
     {
         if (m_trackerView->pollVideoStream())
         {
-            m_videoTexture->copyBufferIntoTexture(m_trackerView->getVideoFrameBuffer());
+            const int frameWidth = m_trackerView->getVideoFrameWidth();
+            const int frameHeight = m_trackerView->getVideoFrameHeight();
+            const unsigned char *video_buffer = m_trackerView->getVideoFrameBuffer();
+            const unsigned char *display_buffer = video_buffer;
+            const TrackerColorPreset &preset = getColorPreset();
+
+            // Copy the video frame buffer into the bgr opencv buffer
+            {
+                const cv::Mat videoBufferMat(frameHeight, frameWidth, CV_8UC3, const_cast<unsigned char *>(video_buffer));
+
+                videoBufferMat.copyTo(*m_video_buffer_state->bgrBuffer);
+            }
+
+            // Convert the video buffer to the HSV color space
+            cv::cvtColor(*m_video_buffer_state->bgrBuffer, *m_video_buffer_state->hsvBuffer, cv::COLOR_BGR2HSV);
+
+            // Clamp the HSV image, taking into account wrapping the hue angle
+            {
+                const float hue_min = preset.hue_center - preset.hue_range;
+                const float hue_max = preset.hue_center + preset.hue_range;
+                const float saturation_min = clampf(preset.saturation_center - preset.saturation_range, 0, 255);
+                const float saturation_max = clampf(preset.saturation_center + preset.saturation_range, 0, 255);
+                const float value_min = clampf(preset.value_center - preset.value_range, 0, 255);
+                const float value_max = clampf(preset.value_center + preset.value_range, 0, 255);
+
+                if (hue_min < 0)
+                {
+                    cv::inRange(
+                        *m_video_buffer_state->hsvBuffer,
+                        cv::Scalar(0, saturation_min, value_min),
+                        cv::Scalar(clampf(hue_max, 0, 180), saturation_max, value_max),
+                        *m_video_buffer_state->gsLowerBuffer);
+                    cv::inRange(
+                        *m_video_buffer_state->hsvBuffer,
+                        cv::Scalar(clampf(180 + hue_min, 0, 180), saturation_min, value_min),
+                        cv::Scalar(180, saturation_max, value_max),
+                        *m_video_buffer_state->gsUpperBuffer);
+                    cv::bitwise_or(
+                        *m_video_buffer_state->gsLowerBuffer, 
+                        *m_video_buffer_state->gsUpperBuffer, 
+                        *m_video_buffer_state->gsLowerBuffer);
+                }
+                else if (hue_max > 180)
+                {
+                    cv::inRange(
+                        *m_video_buffer_state->hsvBuffer,
+                        cv::Scalar(0, saturation_min, value_min),
+                        cv::Scalar(clampf(hue_max - 180, 0, 180), saturation_max, value_max),
+                        *m_video_buffer_state->gsLowerBuffer);
+                    cv::inRange(
+                        *m_video_buffer_state->hsvBuffer,
+                        cv::Scalar(clampf(hue_min, 0, 180), saturation_min, value_min),
+                        cv::Scalar(180, saturation_max, value_max),
+                        *m_video_buffer_state->gsUpperBuffer);
+                    cv::bitwise_or(
+                        *m_video_buffer_state->gsLowerBuffer, 
+                        *m_video_buffer_state->gsUpperBuffer, 
+                        *m_video_buffer_state->gsLowerBuffer);
+                }
+                else
+                {
+                    cv::inRange(
+                        *m_video_buffer_state->hsvBuffer,
+                        cv::Scalar(hue_min, saturation_min, value_min),
+                        cv::Scalar(hue_max, saturation_max, value_max),
+                        *m_video_buffer_state->gsLowerBuffer);
+                }
+            }
+
+            // Mask out the original video frame with the HSV filtered mask
+            *m_video_buffer_state->maskedBuffer = cv::Scalar(0, 0, 0);
+            cv::bitwise_and(
+                *m_video_buffer_state->bgrBuffer, 
+                *m_video_buffer_state->bgrBuffer, 
+                *m_video_buffer_state->maskedBuffer, 
+                *m_video_buffer_state->gsLowerBuffer);
+
+            switch (m_videoDisplayMode)
+            {
+            case AppStage_ColorCalibration::mode_bgr:
+                display_buffer = m_video_buffer_state->bgrBuffer->data;
+                break;
+            case AppStage_ColorCalibration::mode_hsv:
+                display_buffer = m_video_buffer_state->hsvBuffer->data;
+                break;
+            case AppStage_ColorCalibration::mode_masked:
+                display_buffer = m_video_buffer_state->maskedBuffer->data;
+                break;
+            default:
+                assert(0 && "unreachable");
+                break;
+            }
+
+            // Display the selected buffer
+            m_video_buffer_state->videoTexture->copyBufferIntoTexture(display_buffer);
         }
     }
 }
@@ -109,9 +282,9 @@ void AppStage_ColorCalibration::update()
 void AppStage_ColorCalibration::render()
 {
     // If there is a video frame available to render, show it
-    if (m_videoTexture != nullptr)
+    if (m_video_buffer_state != nullptr)
     {
-        unsigned int texture_id = m_videoTexture->texture_id;
+        unsigned int texture_id = m_video_buffer_state->videoTexture->texture_id;
 
         if (texture_id != 0)
         {
@@ -149,7 +322,7 @@ void AppStage_ColorCalibration::renderUI()
                 request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
 
-            if (m_videoTexture != nullptr)
+            if (m_video_buffer_state != nullptr)
             {
                 if (ImGui::Button("<##Filter"))
                 {
@@ -241,6 +414,82 @@ void AppStage_ColorCalibration::renderUI()
             }
             ImGui::SameLine();
             ImGui::Text("Tracking Color: %s", k_tracking_color_names[m_trackingColorType]);
+
+            // -- Hue --
+            if (ImGui::Button("+##HueCenter"))
+            {
+                getColorPreset().hue_center = wrap_range(getColorPreset().hue_center + 5.f, 0.f, 180.f);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("-##HueCenter"))
+            {
+                getColorPreset().hue_center = wrap_range(getColorPreset().hue_center - 5.f, 0.f, 180.f);
+            }
+            ImGui::SameLine();
+            ImGui::Text("Hue Angle: %f", getColorPreset().hue_center);
+
+            if (ImGui::Button("+##HueRange"))
+            {
+                getColorPreset().hue_range = clampf(getColorPreset().hue_range + 8.f, 0.f, 90.f);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("-##HueRange"))
+            {
+                getColorPreset().hue_range = clampf(getColorPreset().hue_range - 8.f, 0.f, 90.f);
+            }
+            ImGui::SameLine();
+            ImGui::Text("Hue Range: %f", getColorPreset().hue_range);
+
+            // -- Saturation --
+            if (ImGui::Button("+##SaturationCenter"))
+            {
+                getColorPreset().saturation_center = clampf(getColorPreset().saturation_center + 5.f, 0.f, 255.f);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("-##SaturationCenter"))
+            {
+                getColorPreset().saturation_center = clampf(getColorPreset().saturation_center - 5.f, 0.f, 255.f);
+            }
+            ImGui::SameLine();
+            ImGui::Text("Saturation Center: %f", getColorPreset().saturation_center);
+
+            if (ImGui::Button("+##SaturationRange"))
+            {
+                getColorPreset().saturation_range = clampf(getColorPreset().saturation_range + 5.f, 0.f, 125.f);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("-##SaturationRange"))
+            {
+                getColorPreset().saturation_range = clampf(getColorPreset().saturation_range - 5.f, 0.f, 125.f);
+            }
+            ImGui::SameLine();
+            ImGui::Text("Saturation Range: %f", getColorPreset().saturation_range);
+
+            // -- Value --
+            if (ImGui::Button("+##ValueCenter"))
+            {
+                getColorPreset().value_center = clampf(getColorPreset().value_center + 5.f, 0.f, 255.f);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("-##ValueCenter"))
+            {
+                getColorPreset().value_center = clampf(getColorPreset().value_center - 5.f, 0.f, 255.f);
+            }
+            ImGui::SameLine();
+            ImGui::Text("Value Center: %f", getColorPreset().value_center);
+
+            if (ImGui::Button("+##ValueRange"))
+            {
+                getColorPreset().value_range = clampf(getColorPreset().value_range + 5.f, 0.f, 125.f);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("-##ValueRange"))
+            {
+                getColorPreset().value_range = clampf(getColorPreset().value_range - 5.f, 0.f, 125.f);
+            }
+            ImGui::SameLine();
+            ImGui::Text("Value Range: %f", getColorPreset().value_range);
+
 
             ImGui::End();
         }
@@ -374,14 +623,7 @@ void AppStage_ColorCalibration::handle_tracker_start_stream_response(
             // Open the shared memory that the video stream is being written to
             if (trackerView->openVideoStream())
             {
-                // Create a texture to render the video frame to
-                thisPtr->m_videoTexture = new TextureAsset();
-                thisPtr->m_videoTexture->init(
-                    trackerView->getVideoFrameWidth(),
-                    trackerView->getVideoFrameHeight(),
-                    GL_RGB, // texture format
-                    GL_BGR, // buffer format
-                    nullptr);
+                thisPtr->allocate_video_buffers();
             }
 
             // Now that the tracker stream is started, start the controller stream
@@ -394,6 +636,17 @@ void AppStage_ColorCalibration::handle_tracker_start_stream_response(
             thisPtr->setState(AppStage_ColorCalibration::failedTrackerStartStreamRequest);
         } break;
     }
+}
+
+void AppStage_ColorCalibration::allocate_video_buffers()
+{
+    m_video_buffer_state = new VideoBufferState(m_trackerView);
+}
+
+void AppStage_ColorCalibration::release_video_buffers()
+{
+    delete m_video_buffer_state;
+    m_video_buffer_state = nullptr;
 }
 
 void AppStage_ColorCalibration::request_tracker_set_exposure(double value)
@@ -535,12 +788,12 @@ void AppStage_ColorCalibration::request_tracker_set_color_preset(
             request->mutable_request_set_tracker_color_preset()->mutable_color_preset();
 
         tracking_color_preset->set_color_type(static_cast<PSMoveProtocol::TrackingColorType>(color_type));
-        tracking_color_preset->set_hue_min(color_preset.hue_min);
-        tracking_color_preset->set_hue_max(color_preset.hue_max);
-        tracking_color_preset->set_saturation_min(color_preset.saturation_min);
-        tracking_color_preset->set_saturation_max(color_preset.saturation_max);
-        tracking_color_preset->set_value_min(color_preset.value_min);
-        tracking_color_preset->set_value_max(color_preset.value_max);
+        tracking_color_preset->set_hue_center(color_preset.hue_center);
+        tracking_color_preset->set_hue_range(color_preset.hue_range);
+        tracking_color_preset->set_saturation_center(color_preset.saturation_center);
+        tracking_color_preset->set_saturation_range(color_preset.saturation_range);
+        tracking_color_preset->set_value_center(color_preset.value_center);
+        tracking_color_preset->set_value_range(color_preset.value_range);
     }
 
     ClientPSMoveAPI::register_callback(
@@ -607,12 +860,12 @@ void AppStage_ColorCalibration::handle_tracker_get_settings_response(
                     static_cast<PSMoveTrackingColorType>(srcPreset.color_type());
 
                 AppStage_ColorCalibration::TrackerColorPreset &destPreset = thisPtr->m_colorPresets[client_color];
-                destPreset.hue_min= srcPreset.hue_min();
-                destPreset.hue_max= srcPreset.hue_max();
-                destPreset.saturation_min = srcPreset.saturation_min();
-                destPreset.saturation_max = srcPreset.saturation_max();
-                destPreset.value_min = srcPreset.value_min();
-                destPreset.value_max = srcPreset.value_max();
+                destPreset.hue_center= srcPreset.hue_center();
+                destPreset.hue_range= srcPreset.hue_range();
+                destPreset.saturation_center = srcPreset.saturation_center();
+                destPreset.saturation_range = srcPreset.saturation_range();
+                destPreset.value_center = srcPreset.value_center();
+                destPreset.value_range = srcPreset.value_range();
             }
         } break;
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
@@ -627,11 +880,7 @@ void AppStage_ColorCalibration::release_devices()
 {
     //###HipsterSloth $REVIEW Do we care about canceling in-flight requests?
 
-    if (m_videoTexture != nullptr)
-    {
-        delete m_videoTexture;
-        m_videoTexture = nullptr;
-    }
+    release_video_buffers();
 
     if (m_controllerView != nullptr)
     {
