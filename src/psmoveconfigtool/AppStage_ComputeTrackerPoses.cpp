@@ -644,6 +644,8 @@ void AppStage_ComputeTrackerPoses::release_devices()
 
         if (trackerState.trackerView != nullptr)
         {
+            trackerState.trackerView->closeVideoStream();
+
             ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_tracker_data_stream(trackerState.trackerView));
             ClientPSMoveAPI::free_tracker_view(trackerState.trackerView);
         }

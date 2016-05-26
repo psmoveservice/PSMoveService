@@ -254,14 +254,34 @@ public:
 
         assert(m_controller_view_map.find(view->GetControllerID()) != m_controller_view_map.end());
 
-        // Tell the psmove service to set the rumble controller
-        // Internally rumble values are in the range [0, 255]
+        // Tell the psmove service to set the led color
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_SET_LED_COLOR);
         request->mutable_set_led_color_request()->set_controller_id(view->GetControllerID());
         request->mutable_set_led_color_request()->set_r(static_cast<int>(r));
         request->mutable_set_led_color_request()->set_g(static_cast<int>(g));
         request->mutable_set_led_color_request()->set_b(static_cast<int>(b));
+
+        m_request_manager.send_request(request);
+
+        return request->request_id();
+    }
+
+    ClientPSMoveAPI::t_request_id set_led_tracking_color(
+        ClientControllerView *view,
+        PSMoveTrackingColorType tracking_color)
+    {
+        CLIENT_LOG_INFO("set_controller_rumble") << "request set tracking color to " << tracking_color <<
+            " for PSMoveID: " << view->GetControllerID() << std::endl;
+
+        assert(m_controller_view_map.find(view->GetControllerID()) != m_controller_view_map.end());
+
+        // Tell the psmove service to set the led color by tracking preset
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_SET_LED_TRACKING_COLOR);
+        request->mutable_set_led_tracking_color_request()->set_controller_id(view->GetControllerID());
+        request->mutable_set_led_tracking_color_request()->set_color_type(
+            static_cast<PSMoveProtocol::TrackingColorType>(tracking_color));
 
         m_request_manager.send_request(request);
 
@@ -781,6 +801,21 @@ ClientPSMoveAPI::set_led_color(
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
         request_id= ClientPSMoveAPI::m_implementation_ptr->set_led_color(view, r, g, b);
+    }
+
+    return request_id;
+}
+
+ClientPSMoveAPI::t_request_id
+ClientPSMoveAPI::set_led_tracking_color(
+    ClientControllerView *view,
+    PSMoveTrackingColorType tracking_color)
+{
+    ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id = ClientPSMoveAPI::m_implementation_ptr->set_led_tracking_color(view, tracking_color);
     }
 
     return request_id;

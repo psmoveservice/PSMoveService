@@ -22,6 +22,17 @@ enum PSMoveButtonState {
     PSMoveButton_RELEASED = 0x02, // (10b) Up for one frame only
 };
 
+enum PSMoveTrackingColorType {
+    Magenta,    // R:0xFF, G:0x00, B:0xFF
+    Cyan,       // R:0x00, G:0xFF, B:0xFF
+    Yellow,     // R:0xFF, G:0xFF, B:0x00
+    Red,        // R:0xFF, G:0x00, B:0x00
+    Green,      // R:0x00, G:0xFF, B:0x00
+    Blue,       // R:0x00, G:0x00, B:0xFF
+
+    MAX_PSMOVE_COLOR_TYPES
+};
+
 //-- declarations -----
 struct CLIENTPSMOVEAPI PSMoveRawSensorData
 {
@@ -433,4 +444,5 @@ public:
         return data_frame_average_fps;
     }
 };
-#endif // CLIENT_CONTROLLER_VIEW_H
+
+#endif

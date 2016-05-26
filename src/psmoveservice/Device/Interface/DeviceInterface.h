@@ -9,9 +9,46 @@
 namespace PSMoveProtocol
 {
     class Response_ResultTrackerSettings;
+    class TrackingColorPreset;
+};
+
+// -- constants -----
+enum eCommonTrackColorType {
+    Magenta,
+    Cyan,
+    Yellow,
+    Red,
+    Green,
+    Blue,
+
+    MAX_TRACKING_COLOR_TYPES
 };
 
 // -- definitions -----
+struct CommonDeviceRange
+{
+    float min, max;
+
+    inline void clear()
+    {
+        min = max = 0.f;
+    }
+};
+
+struct CommonHSVColorRange
+{
+    CommonDeviceRange hue_range;
+    CommonDeviceRange saturation_range;
+    CommonDeviceRange value_range;
+
+    inline void clear()
+    {
+        hue_range.clear();
+        saturation_range.clear();
+        value_range.clear();
+    }
+};
+
 struct CommonDeviceVector
 {
     float i, j, k;
@@ -290,5 +327,9 @@ public:
     virtual void gatherTrackerOptions(PSMoveProtocol::Response_ResultTrackerSettings* settings) const = 0;
     virtual bool setOptionIndex(const std::string &option_name, int option_index) = 0;
     virtual bool getOptionIndex(const std::string &option_name, int &out_option_index) const = 0;
+
+    virtual void gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const = 0;
+    virtual void setTrackingColorPreset(eCommonTrackColorType color, const CommonHSVColorRange *preset) = 0;
+    virtual void getTrackingColorPreset(eCommonTrackColorType color, CommonHSVColorRange *out_preset) const = 0;
 };
 #endif // DEVICE_INTERFACE_H

@@ -2,6 +2,7 @@
 #define CLIENT_CONFIG_H
 
 #ifdef _WIN32
+#  define CLIENTPSMOVECALL __cdecl
 #  if defined(BUILDING_SHARED_PSMOVECLIENT_LIBRARY)
 #    define CLIENTPSMOVEAPI __declspec(dllexport)
 #  else
@@ -9,6 +10,7 @@
 #  endif
 #else
 #  define CLIENTPSMOVEAPI
+#  define CLIENTPSMOVECALL
 #endif
 
 #endif // CLIENT_CONFIG_H

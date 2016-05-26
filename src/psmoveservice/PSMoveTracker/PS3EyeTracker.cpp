@@ -14,6 +14,15 @@ static const char *OPTION_FOV_SETTING = "FOV Setting";
 static const char *OPTION_FOV_RED_DOT = "Red Dot";
 static const char *OPTION_FOV_BLUE_DOT = "Blue Dot";
 
+static CommonHSVColorRange k_default_color_presets[] = {
+    { { 0, 0 }, { 0, 0 }, { 0, 0 } }, // Magenta
+    { { 0, 0 }, { 0, 0 }, { 0, 0 } }, // Cyan
+    { { 0, 0 }, { 0, 0 }, { 0, 0 } }, // Yellow
+    { { 0, 0 }, { 0, 0 }, { 0, 0 } }, // Red
+    { { 0, 0 }, { 0, 0 }, { 0, 0 } }, // Green
+    { { 0, 0 }, { 0, 0 }, { 0, 0 } }, // Blue
+};
+
 // -- private definitions -----
 class PSEyeCaptureData
 {
@@ -29,7 +38,7 @@ public:
 
 // -- public methods
 // -- PS3EYE Controller Config
-const int PS3EyeTrackerConfig::CONFIG_VERSION = 4;
+const int PS3EyeTrackerConfig::CONFIG_VERSION = 5;
 
 const boost::property_tree::ptree
 PS3EyeTrackerConfig::config2ptree()
@@ -66,6 +75,13 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("hmd_relative_pose.position.x", hmdRelativePose.Position.x);
     pt.put("hmd_relative_pose.position.y", hmdRelativePose.Position.y);
     pt.put("hmd_relative_pose.position.z", hmdRelativePose.Position.z);
+
+    writeColorPreset(pt, "magenta", ColorPresets[eCommonTrackColorType::Magenta]);
+    writeColorPreset(pt, "cyan", ColorPresets[eCommonTrackColorType::Cyan]);
+    writeColorPreset(pt, "yellow", ColorPresets[eCommonTrackColorType::Yellow]);
+    writeColorPreset(pt, "red", ColorPresets[eCommonTrackColorType::Red]);
+    writeColorPreset(pt, "green", ColorPresets[eCommonTrackColorType::Green]);
+    writeColorPreset(pt, "blue", ColorPresets[eCommonTrackColorType::Blue]);
 
     return pt;
 }
@@ -108,6 +124,13 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
         hmdRelativePose.Position.x = pt.get<float>("hmd_relative_pose.position.x", 0.0);
         hmdRelativePose.Position.y = pt.get<float>("hmd_relative_pose.position.y", 0.0);
         hmdRelativePose.Position.z = pt.get<float>("hmd_relative_pose.position.z", 0.0);
+
+        readColorPreset(pt, "magenta", ColorPresets[eCommonTrackColorType::Magenta], k_default_color_presets[eCommonTrackColorType::Magenta]);
+        readColorPreset(pt, "cyan", ColorPresets[eCommonTrackColorType::Cyan], k_default_color_presets[eCommonTrackColorType::Cyan]);
+        readColorPreset(pt, "yellow", ColorPresets[eCommonTrackColorType::Yellow], k_default_color_presets[eCommonTrackColorType::Yellow]);
+        readColorPreset(pt, "red", ColorPresets[eCommonTrackColorType::Red], k_default_color_presets[eCommonTrackColorType::Red]);
+        readColorPreset(pt, "green", ColorPresets[eCommonTrackColorType::Green], k_default_color_presets[eCommonTrackColorType::Green]);
+        readColorPreset(pt, "blue", ColorPresets[eCommonTrackColorType::Blue], k_default_color_presets[eCommonTrackColorType::Blue]);
     }
     else
     {
@@ -115,6 +138,62 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
             "Config version " << version << " does not match expected version " <<
             PS3EyeTrackerConfig::CONFIG_VERSION << ", Using defaults.";
     }
+}
+
+void 
+PS3EyeTrackerConfig::writeColorPreset(
+    boost::property_tree::ptree &pt,
+    const char *color_name, 
+    const CommonHSVColorRange &colorPreset)
+{
+    writeColorPropertyPreset(pt, color_name, "hue_min", colorPreset.hue_range.min);
+    writeColorPropertyPreset(pt, color_name, "hue_max", colorPreset.hue_range.max);
+    writeColorPropertyPreset(pt, color_name, "saturation_min", colorPreset.saturation_range.min);
+    writeColorPropertyPreset(pt, color_name, "saturation_max", colorPreset.saturation_range.max);
+    writeColorPropertyPreset(pt, color_name, "value_min", colorPreset.value_range.min);
+    writeColorPropertyPreset(pt, color_name, "value_max", colorPreset.value_range.max);
+}
+
+void 
+PS3EyeTrackerConfig::readColorPreset(
+    const boost::property_tree::ptree &pt,
+    const char *color_name, 
+    CommonHSVColorRange &outColorPreset,
+    const CommonHSVColorRange &defaultPreset)
+{
+    readColorPropertyPreset(pt, color_name, "hue_min", outColorPreset.hue_range.min, defaultPreset.hue_range.min);
+    readColorPropertyPreset(pt, color_name, "hue_max", outColorPreset.hue_range.max, defaultPreset.hue_range.max);
+    readColorPropertyPreset(pt, color_name, "saturation_min", outColorPreset.saturation_range.min, defaultPreset.saturation_range.min);
+    readColorPropertyPreset(pt, color_name, "saturation_max", outColorPreset.saturation_range.max, defaultPreset.saturation_range.max);
+    readColorPropertyPreset(pt, color_name, "value_min", outColorPreset.value_range.min, defaultPreset.value_range.min);
+    readColorPropertyPreset(pt, color_name, "value_max", outColorPreset.value_range.max, defaultPreset.value_range.max);
+}
+
+void 
+PS3EyeTrackerConfig::writeColorPropertyPreset(
+    boost::property_tree::ptree &pt,
+    const char *color_name, 
+    const char *property_name, 
+    float value)
+{
+    char full_property_name[256];
+
+    ServerUtility::format_string(full_property_name, sizeof(full_property_name), "color_preset.%s.%s", color_name, property_name);
+    pt.put(full_property_name, value);
+}
+
+void 
+PS3EyeTrackerConfig::readColorPropertyPreset(
+    const boost::property_tree::ptree &pt,
+    const char *color_name,
+    const char *property_name, 
+    float &out_value,
+    const float default_value)
+{
+    char full_property_name[256];
+
+    ServerUtility::format_string(full_property_name, sizeof(full_property_name), "color_preset.%s.%s", color_name, property_name);
+    out_value= pt.get<float>(full_property_name, default_value);
 }
 
 // -- PS3EYE Tracker
@@ -492,4 +571,38 @@ bool PS3EyeTracker::getOptionIndex(
     }
 
     return bValidOption;
+}
+
+void PS3EyeTracker::gatherTrackingColorPresets(
+    PSMoveProtocol::Response_ResultTrackerSettings* settings) const
+{
+    for (int list_index = 0; list_index < MAX_TRACKING_COLOR_TYPES; ++list_index)
+    {
+        const CommonHSVColorRange &hsvRange = cfg.ColorPresets[list_index];
+        const eCommonTrackColorType colorType = static_cast<eCommonTrackColorType>(list_index);
+
+        PSMoveProtocol::TrackingColorPreset *colorPreset= settings->add_color_presets();
+        colorPreset->set_color_type(static_cast<PSMoveProtocol::TrackingColorType>(colorType));
+        colorPreset->set_hue_min(hsvRange.hue_range.min);
+        colorPreset->set_hue_max(hsvRange.hue_range.max);
+        colorPreset->set_saturation_min(hsvRange.saturation_range.min);
+        colorPreset->set_saturation_max(hsvRange.saturation_range.max);
+        colorPreset->set_value_min(hsvRange.value_range.min);
+        colorPreset->set_value_max(hsvRange.value_range.max);
+    }
+}
+
+void PS3EyeTracker::setTrackingColorPreset(
+    eCommonTrackColorType color, 
+    const CommonHSVColorRange *preset)
+{
+    cfg.ColorPresets[color] = *preset;
+    cfg.save();
+}
+
+void PS3EyeTracker::getTrackingColorPreset(
+    eCommonTrackColorType color, 
+    CommonHSVColorRange *out_preset) const
+{
+    *out_preset = cfg.ColorPresets[color];
 }

@@ -408,6 +408,21 @@ bool ServerTrackerView::getOptionIndex(const std::string &option_name, int &out_
     return m_device->getOptionIndex(option_name, out_option_index);
 }
 
+void ServerTrackerView::gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const
+{
+    return m_device->gatherTrackingColorPresets(settings);
+}
+
+void ServerTrackerView::setTrackingColorPreset(eCommonTrackColorType color, const CommonHSVColorRange *preset)
+{
+    return m_device->setTrackingColorPreset(color, preset);
+}
+
+void ServerTrackerView::getTrackingColorPreset(eCommonTrackColorType color, CommonHSVColorRange *out_preset) const
+{
+    return m_device->getTrackingColorPreset(color, out_preset);
+}
+
 bool
 ServerTrackerView::getPositionForObject(IDeviceInterface* tracked_object, glm::vec3* out_position)
 {

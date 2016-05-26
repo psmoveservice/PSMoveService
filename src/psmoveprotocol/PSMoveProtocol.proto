@@ -63,6 +63,26 @@ enum TrackerDriver {
     GENERIC_WEBCAM = 3;
 }
 
+enum TrackingColorType {
+    Magenta = 0;
+    Cyan = 1;
+    Yellow = 2;
+    Red = 3;
+    Green = 4;
+    Blue = 5;
+    MAX_PSMOVE_COLOR_PRESETS = 6;
+};
+
+message TrackingColorPreset {
+    TrackingColorType color_type = 1;
+    float hue_min = 2;
+    float hue_max = 3;
+    float saturation_min = 4;
+    float saturation_max = 5;
+    float value_min = 6;
+    float value_max = 7;
+}
+
 // Reliable (TCP) requests that can issued to the PSMove Service
 message Request {
     // Unique id for this request.
@@ -81,16 +101,18 @@ message Request {
         PAIR_CONTROLLER= 6;
         CANCEL_BLUETOOTH_REQUEST= 7;
         SET_LED_COLOR= 8;
-        SET_MAGNETOMETER_CALIBRATION= 9;
+        SET_LED_TRACKING_COLOR= 9;
+        SET_MAGNETOMETER_CALIBRATION= 10;
 
-        GET_TRACKER_LIST = 10;
-        START_TRACKER_DATA_STREAM = 11;
-        STOP_TRACKER_DATA_STREAM = 12;
-        GET_TRACKER_SETTINGS = 13;
-        SET_TRACKER_EXPOSURE = 14;
-        SET_TRACKER_GAIN = 15;
-        SET_TRACKER_OPTION = 16;
-        SET_TRACKER_POSE = 17;
+        GET_TRACKER_LIST = 11;
+        START_TRACKER_DATA_STREAM = 12;
+        STOP_TRACKER_DATA_STREAM = 13;
+        GET_TRACKER_SETTINGS = 14;
+        SET_TRACKER_EXPOSURE = 15;
+        SET_TRACKER_GAIN = 16;
+        SET_TRACKER_OPTION = 17;
+        SET_TRACKER_COLOR_PRESET = 18;
+        SET_TRACKER_POSE = 19;
     }
     RequestType type = 2;
    
@@ -148,7 +170,14 @@ message Request {
         int32 g = 3;
         int32 b = 4;
     }
-    RequestSetLEDColor set_led_color_request = 27;        
+    RequestSetLEDColor set_led_color_request = 27;
+    
+    // Parameters for SET_LED_TRACKING_COLOR
+    message RequestSetLEDTrackingColor {
+        int32 controller_id = 1;
+        TrackingColorType color_type = 2;
+    }
+    RequestSetLEDTrackingColor set_led_tracking_color_request = 28;
     
     // Parameters for SET_MAGNETOMETER_CALIBRATION
     message RequestSetMagnetometerCalibration {
@@ -161,41 +190,41 @@ message Request {
         float ellipse_fit_error= 7;
         FloatVector magnetometer_identity= 8;
     }
-    RequestSetMagnetometerCalibration set_magnetometer_calibration_request = 28;
+    RequestSetMagnetometerCalibration set_magnetometer_calibration_request = 29;
 
     // Parameters for START_TRACKER_DATA_STREAM
     // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
     message RequestStartTrackerDataStream {
         int32 tracker_id = 1;
     }
-    RequestStartTrackerDataStream request_start_tracker_data_stream = 29;
+    RequestStartTrackerDataStream request_start_tracker_data_stream = 30;
 
     // Parameters for STOP_TRACKER_DATA_STREAM
     // NOTE: DeviceDataFrame packets will stop streaming to client upon receiving this request
     message RequestStopTrackerDataStream {
         int32 tracker_id = 1;
     }
-    RequestStopTrackerDataStream request_stop_tracker_data_stream = 30;
+    RequestStopTrackerDataStream request_stop_tracker_data_stream = 31;
     
     // Parameters for GET_TRACKER_SETTINGS
     message RequestGetTrackerSettings {
         int32 tracker_id = 1;
     }
-    RequestGetTrackerSettings request_get_tracker_settings = 31;
+    RequestGetTrackerSettings request_get_tracker_settings = 32;
 
     // Parameters for SET_TRACKER_EXPOSURE
     message RequestSetTrackerExposure {
         int32 tracker_id = 1;
         float value = 2;
     }
-    RequestSetTrackerExposure request_set_tracker_exposure = 32;
+    RequestSetTrackerExposure request_set_tracker_exposure = 33;
 
     // Parameters for SET_TRACKER_GAIN
     message RequestSetTrackerGain {
         int32 tracker_id = 1;
         float value = 2;
     }
-    RequestSetTrackerGain request_set_tracker_gain = 33;
+    RequestSetTrackerGain request_set_tracker_gain = 34;
 
     // Parameters for SET_TRACKER_OPTION
     message RequestSetTrackerOption {
@@ -203,7 +232,14 @@ message Request {
         string option_name = 2;
         int32 option_index = 3;
     }
-    RequestSetTrackerOption request_set_tracker_option = 34;
+    RequestSetTrackerOption request_set_tracker_option = 35;
+
+    // Parameters for SET_TRACKER_COLOR_PRESET
+    message RequestSetTrackerColorPreset {
+        int32 tracker_id = 1;
+        TrackingColorPreset color_preset = 2;
+    }
+    RequestSetTrackerColorPreset request_set_tracker_color_preset = 36;
     
     // Parameters for SET_TRACKER_POSE
     message RequestSetTrackerPose {
@@ -211,7 +247,7 @@ message Request {
         Pose pose = 2;
         Pose hmd_relative_pose = 3;
     }
-    RequestSetTrackerPose request_set_tracker_pose = 35;
+    RequestSetTrackerPose request_set_tracker_pose = 37;
 }
 
 // Reliable (TCP) responses to requests
@@ -320,6 +356,7 @@ message Response {
         float exposure= 1;
         float gain= 2;
         repeated OptionSet option_sets= 3; 
+        repeated TrackingColorPreset color_presets = 4;
     }
     ResultTrackerSettings result_tracker_settings = 24;
     

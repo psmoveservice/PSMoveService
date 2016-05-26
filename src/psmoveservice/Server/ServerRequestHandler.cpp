@@ -191,6 +191,9 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_LED_COLOR:
                 handle_request__set_led_color(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SET_LED_TRACKING_COLOR:
+                handle_request__set_led_tracking_color(context, response);
+                break;
             case PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION:
                 handle_request__set_magnetometer_calibration(context, response);
                 break;
@@ -216,6 +219,9 @@ public:
                 break;
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_OPTION:
                 handle_request__set_tracker_option(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_SET_TRACKER_COLOR_PRESET:
+                handle_request__set_tracker_color_preset(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_POSE:
                 handle_request__set_tracker_pose(context, response);
@@ -608,6 +614,59 @@ protected:
         }
     }
 
+    void handle_request__set_led_tracking_color(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int connection_id = context.connection_state->connection_id;
+        const int controller_id = context.request->set_led_tracking_color_request().controller_id();
+        const PSMoveProtocol::TrackingColorType color_type=
+            context.request->set_led_tracking_color_request().color_type();
+
+        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        {
+            PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+            unsigned char r, g, b;
+
+            switch (color_type)
+            {
+            case PSMoveProtocol::Magenta:
+                r= 0xFF; g= 0x00; b= 0xFF;
+                break;
+            case PSMoveProtocol::Cyan:
+                r = 0x00; g = 0xFF; b = 0xFF;
+                break;
+            case PSMoveProtocol::Yellow:
+                r = 0xFF; g = 0xFF; b = 0x00;
+                break;
+            case PSMoveProtocol::Red:
+                r = 0xFF; g = 0x00; b = 0x00;
+                break;
+            case PSMoveProtocol::Green:
+                r = 0x00; g = 0xFF; b = 0x00;
+                break;
+            case PSMoveProtocol::Blue:
+                r = 0x00; g = 0x00; b = 0xFF;
+                break;
+            }
+
+            if (controller->setLED(r, g, b))
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
     inline void set_magnetometer_config_vector(
         const PSMoveProtocol::FloatVector &source_vector,
         Eigen::Vector3f &target_vector)
@@ -866,6 +925,7 @@ protected:
                 settings->set_exposure(static_cast<float>(tracker_view->getExposure()));
                 settings->set_gain(static_cast<float>(tracker_view->getGain()));
                 tracker_view->gatherTrackerOptions(settings);
+                tracker_view->gatherTrackingColorPresets(settings);
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -995,6 +1055,44 @@ protected:
         }
     }
 
+    void handle_request__set_tracker_color_preset(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_set_tracker_exposure().tracker_id();
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                const PSMoveProtocol::TrackingColorPreset &colorPreset =
+                    context.request->request_set_tracker_color_preset().color_preset();
+                
+                CommonHSVColorRange hsvColorRange;
+                hsvColorRange.hue_range.min= colorPreset.hue_min();
+                hsvColorRange.hue_range.max = colorPreset.hue_max();
+                hsvColorRange.saturation_range.min = colorPreset.saturation_min();
+                hsvColorRange.saturation_range.max = colorPreset.saturation_max();
+                hsvColorRange.value_range.min = colorPreset.value_min();
+                hsvColorRange.value_range.max = colorPreset.value_max();
+
+                tracker_view->setTrackingColorPreset(
+                    static_cast<eCommonTrackColorType>(colorPreset.color_type()),
+                    &hsvColorRange);
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
     inline CommonDevicePose protocol_pose_to_common_device_pose(const PSMoveProtocol::Pose &pose)
     {
         CommonDevicePose result;
@@ -1010,6 +1108,7 @@ protected:
 
         return result;
     }
+
 
     void handle_request__set_tracker_pose(
         const RequestContext &context,

@@ -10,6 +10,7 @@
 namespace PSMoveProtocol
 {
     class Response_ResultTrackerSettings;
+    class TrackingColorPreset;
 };
 
 // -- declarations -----
@@ -69,6 +70,10 @@ public:
     void gatherTrackerOptions(PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
     bool setOptionIndex(const std::string &option_name, int option_index);
     bool getOptionIndex(const std::string &option_name, int &out_option_index) const;
+
+    void gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
+    void setTrackingColorPreset(eCommonTrackColorType color, const CommonHSVColorRange *preset);
+    void getTrackingColorPreset(eCommonTrackColorType color, CommonHSVColorRange *out_preset) const;
 
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
