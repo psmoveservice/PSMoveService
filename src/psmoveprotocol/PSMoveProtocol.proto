@@ -267,6 +267,7 @@ message Response {
         TRACKER_EXPOSURE_UPDATED= 10;
         TRACKER_GAIN_UPDATED= 11;
         TRACKER_OPTION_UPDATED= 12;
+        TRACKER_PRESET_UPDATED= 13;
     }
 
     enum ResultCode {
@@ -378,6 +379,13 @@ message Response {
         int32 new_option_index = 2;
     }
     ResultSetTrackerOption result_set_tracker_option = 27;
+    
+    // This is returned in response to a SET_TRACKER_COLOR_PRESET request
+    message ResultSetTrackerColorPreset {
+        int32 tracker_id = 1;
+        TrackingColorPreset new_color_preset = 2;
+    }
+    ResultSetTrackerColorPreset result_set_tracker_color_preset = 28;    
 }
 
 // Unreliable (UDP) device data packet format

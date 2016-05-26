@@ -633,7 +633,7 @@ protected:
             switch (color_type)
             {
             case PSMoveProtocol::Magenta:
-                r= 0xFF; g= 0x00; b= 0xFF;
+                r = 0xFF; g = 0x00; b = 0xFF;
                 break;
             case PSMoveProtocol::Cyan:
                 r = 0x00; g = 0xFF; b = 0xFF;
@@ -1060,6 +1060,9 @@ protected:
         PSMoveProtocol::Response *response)
     {
         const int tracker_id = context.request->request_set_tracker_exposure().tracker_id();
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_PRESET_UPDATED);
+
         if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
@@ -1067,18 +1070,40 @@ protected:
             {
                 const PSMoveProtocol::TrackingColorPreset &colorPreset =
                     context.request->request_set_tracker_color_preset().color_preset();
-                
-                CommonHSVColorRange hsvColorRange;
-                hsvColorRange.hue_range.center= colorPreset.hue_center();
-                hsvColorRange.hue_range.range = colorPreset.hue_range();
-                hsvColorRange.saturation_range.center = colorPreset.saturation_center();
-                hsvColorRange.saturation_range.range = colorPreset.saturation_range();
-                hsvColorRange.value_range.center = colorPreset.value_center();
-                hsvColorRange.value_range.range = colorPreset.value_range();
+                const eCommonTrackColorType colorType=
+                    static_cast<eCommonTrackColorType>(colorPreset.color_type());
 
-                tracker_view->setTrackingColorPreset(
-                    static_cast<eCommonTrackColorType>(colorPreset.color_type()),
-                    &hsvColorRange);
+                // Set the color preset on the tracker
+                {
+                    CommonHSVColorRange hsvColorRange;
+                    hsvColorRange.hue_range.center= colorPreset.hue_center();
+                    hsvColorRange.hue_range.range = colorPreset.hue_range();
+                    hsvColorRange.saturation_range.center = colorPreset.saturation_center();
+                    hsvColorRange.saturation_range.range = colorPreset.saturation_range();
+                    hsvColorRange.value_range.center = colorPreset.value_center();
+                    hsvColorRange.value_range.range = colorPreset.value_range();
+
+                    tracker_view->setTrackingColorPreset(colorType, &hsvColorRange);
+                }
+
+                // Get the resulting preset from the tracker
+                {
+                    CommonHSVColorRange hsvColorRange;
+                    tracker_view->getTrackingColorPreset(colorType, &hsvColorRange);
+
+                    PSMoveProtocol::Response_ResultSetTrackerColorPreset *result =
+                        response->mutable_result_set_tracker_color_preset();
+                    result->set_tracker_id(tracker_id);
+
+                    PSMoveProtocol::TrackingColorPreset *presetResult = result->mutable_new_color_preset();
+                    presetResult->set_color_type(colorPreset.color_type());
+                    presetResult->set_hue_center(hsvColorRange.hue_range.center);
+                    presetResult->set_hue_range(hsvColorRange.hue_range.range);
+                    presetResult->set_saturation_center(hsvColorRange.saturation_range.center);
+                    presetResult->set_saturation_range(hsvColorRange.saturation_range.range);
+                    presetResult->set_value_center(hsvColorRange.value_range.center);
+                    presetResult->set_value_range(hsvColorRange.value_range.range);
+                }
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }

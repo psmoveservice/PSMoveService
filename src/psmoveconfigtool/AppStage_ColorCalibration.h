@@ -27,7 +27,7 @@ protected:
     enum eMenuState
     {
         inactive,
-        idle,
+        manualConfig,
 
         pendingControllerStartRequest,
         failedControllerStartRequest,
@@ -107,7 +107,7 @@ protected:
     void release_devices();
     void request_exit_to_app_stage(const char *app_stage_name);
 
-    inline TrackerColorPreset &getColorPreset()
+    inline TrackerColorPreset getColorPreset()
     { return m_colorPresets[m_trackingColorType]; }
 
 private:
