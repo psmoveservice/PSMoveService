@@ -113,6 +113,8 @@ message Request {
         SET_TRACKER_OPTION = 17;
         SET_TRACKER_COLOR_PRESET = 18;
         SET_TRACKER_POSE = 19;
+        SAVE_TRACKER_PROFILE = 20;
+        APPLY_TRACKER_PROFILE = 21;
     }
     RequestType type = 2;
    
@@ -248,6 +250,18 @@ message Request {
         Pose hmd_relative_pose = 3;
     }
     RequestSetTrackerPose request_set_tracker_pose = 37;
+    
+    // Parameters for SAVE_TRACKER_PROFILE
+    message RequestSaveTrackerProfile {
+        int32 tracker_id = 1;
+    }
+    RequestSaveTrackerProfile request_save_tracker_profile = 38;
+    
+    // Parameters for APPLY_TRACKER_PROFILE
+    message RequestApplyTrackerProfile {
+        int32 tracker_id = 1;
+    }
+    RequestApplyTrackerProfile request_apply_tracker_profile = 39;    
 }
 
 // Reliable (TCP) responses to requests
@@ -268,6 +282,7 @@ message Response {
         TRACKER_GAIN_UPDATED= 11;
         TRACKER_OPTION_UPDATED= 12;
         TRACKER_PRESET_UPDATED= 13;
+        TRACKER_PROFILE_APPLIED= 14;
     }
 
     enum ResultCode {
@@ -385,7 +400,16 @@ message Response {
         int32 tracker_id = 1;
         TrackingColorPreset new_color_preset = 2;
     }
-    ResultSetTrackerColorPreset result_set_tracker_color_preset = 28;    
+    ResultSetTrackerColorPreset result_set_tracker_color_preset = 28;
+    
+    // This is returned in response to a APPLY_TRACKER_PROFILE request
+    message ResultApplyTrackerProfile {
+        int32 tracker_id = 1;
+        float exposure = 2;
+        float gain = 3;        
+        repeated TrackingColorPreset color_presets = 4;
+    }
+    ResultApplyTrackerProfile result_apply_tracker_profile = 29;    
 }
 
 // Unreliable (UDP) device data packet format

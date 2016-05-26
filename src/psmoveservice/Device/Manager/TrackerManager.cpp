@@ -42,3 +42,9 @@ TrackerManager::getTrackerViewPtr(int device_id)
 
     return std::static_pointer_cast<ServerTrackerView>(m_deviceViews[device_id]);
 }
+
+void 
+TrackerManager::saveDefaultTrackerProfile(float exposure, float gain, struct CommonHSVColorRange *colorPresets, int presetCount)
+{
+
+}

@@ -226,6 +226,12 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_POSE:
                 handle_request__set_tracker_pose(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SAVE_TRACKER_PROFILE:
+                handle_request__save_tracker_profile(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_APPLY_TRACKER_PROFILE:
+                handle_request__apply_tracker_profile(context, response);
+                break;
             default:
                 assert(0 && "Whoops, bad request!");
         }
@@ -1166,6 +1172,54 @@ protected:
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
+    }
+
+    void handle_request__save_tracker_profile(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_set_tracker_exposure().tracker_id();
+
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                CommonHSVColorRange colorPresets[eCommonTrackColorType::MAX_TRACKING_COLOR_TYPES];
+                const float exposure= tracker_view->getExposure();
+                const float gain = tracker_view->getGain();
+
+                for (int preset_index = 0; preset_index < eCommonTrackColorType::MAX_TRACKING_COLOR_TYPES; ++preset_index)
+                {
+                    tracker_view->getTrackingColorPreset(
+                        static_cast<eCommonTrackColorType>(preset_index),
+                        &colorPresets[preset_index]);
+                }
+
+                m_device_manager->m_tracker_manager->saveDefaultTrackerProfile(
+                    exposure,
+                    gain,
+                    colorPresets,
+                    eCommonTrackColorType::MAX_TRACKING_COLOR_TYPES);
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__apply_tracker_profile(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+
     }
 
 private:
