@@ -1,6 +1,7 @@
 //-- includes -----
 #include "MathAlignment.h"
 #include "Eigen/SVD"
+#include "Eigen/Dense"
 
 //-- public methods -----
 Eigen::Quaternionf
@@ -194,7 +195,7 @@ eigen_alignment_fit_bounding_box_ellipsoid(
         out_ellipsoid.center = (box_max + box_min) / 2.f;
         out_ellipsoid.extents = (box_max - box_min) / 2.f;
         out_ellipsoid.basis = Eigen::Matrix3f::Identity();
-        out_ellipsoid.error = eigen_alignment_compute_ellipse_fit_error(points, point_count, out_ellipsoid);
+        out_ellipsoid.error = eigen_alignment_compute_ellipsoid_fit_error(points, point_count, out_ellipsoid);
     }
     else
     {
@@ -294,7 +295,7 @@ eigen_alignment_fit_min_volume_ellipsoid(
         out_ellipsoid.center = P*u;
 
         // Compute the fit error
-        out_ellipsoid.error = eigen_alignment_compute_ellipse_fit_error(points, point_count, out_ellipsoid);
+        out_ellipsoid.error = eigen_alignment_compute_ellipsoid_fit_error(points, point_count, out_ellipsoid);
     }
     else
     {
@@ -321,7 +322,7 @@ eigen_alignment_project_point_on_ellipsoid_basis(
 }
 
 float
-eigen_alignment_compute_ellipse_fit_error(
+eigen_alignment_compute_ellipsoid_fit_error(
     const Eigen::Vector3f *points,
     const int point_count,
     const EigenFitEllipsoid &ellipsoid)
@@ -350,6 +351,145 @@ eigen_alignment_compute_ellipse_fit_error(
         // E(x, y, x) < 0 means the point is below the surface
         // |E(x, y, x)| gives us distance from the surface, which will treat as an error
         error += fabsf((x*x / a_squared) + (y*y / b_squared) + (z*z / c_squared) - 1.f);
+    }
+
+    return error;
+}
+
+bool
+eigen_alignment_fit_least_squares_ellipse(
+    const Eigen::Vector2f *points,
+    const int point_count,
+    EigenFitEllipse &out_ellipse)
+{
+    float conic_params[6];
+    bool bSuccess = false;
+
+    // See http://autotrace.sourceforge.net/WSCG98.pdf
+    Eigen::MatrixXf D1(point_count, 3);
+    Eigen::MatrixXf D2(point_count, 3);
+    for (int ix = 0; ix < point_count; ++ix) {
+        D1.row(ix)[0] = points[ix].x() * points[ix].x();
+        D1.row(ix)[1] = points[ix].x() * points[ix].y();
+        D1.row(ix)[2] = points[ix].y() * points[ix].y();
+        D2.row(ix)[0] = points[ix].x();
+        D2.row(ix)[1] = points[ix].y();
+        D2.row(ix)[2] = 1;
+    }
+
+    Eigen::Matrix3f S1 = D1.transpose() * D1;
+    Eigen::Matrix3f S2 = D1.transpose() * D2;
+    Eigen::Matrix3f S3 = D2.transpose() * D2;
+    Eigen::Matrix3f T = -S3.colPivHouseholderQr().solve(S2.transpose());
+    //                        Eigen::Matrix3f T = -S3.inverse() * S2.transpose();
+    Eigen::Matrix3f M = S2*T + S1;
+    Eigen::Matrix3f Mout;
+    Mout.block<1, 3>(0, 0) = M.block<1, 3>(2, 0) / 2;
+    Mout.block<1, 3>(1, 0) = -M.block<1, 3>(1, 0);
+    Mout.block<1, 3>(2, 0) = M.block<1, 3>(0, 0) / 2;
+    Eigen::EigenSolver<Eigen::Matrix3f> eigsolv(Mout);
+    for (int row_ix = 0; row_ix<3; ++row_ix) 
+    {
+        Eigen::Vector3f evec = eigsolv.eigenvectors().col(row_ix).real();
+
+        //cond = 4 * evec(1, :) .* evec(3, :) - evec(2, :).^2; % evaluate a'Ca
+        if ((4.0 * evec[0] * evec[2]) - (evec[1] * evec[1]) > 0)
+        {
+            conic_params[0] = evec[0];
+            conic_params[1] = evec[1];
+            conic_params[2] = evec[2];
+
+            Eigen::Vector3f Tevec = T*evec;
+            conic_params[3] = Tevec[0];
+            conic_params[4] = Tevec[1];
+            conic_params[5] = Tevec[2];
+        }
+    }
+
+    if (eigsolv.info() == Eigen::Success)
+    {
+        // Get the general quadratic curve parameters of the ellipse
+        // solved for in the least square minimization
+        // These express an ellipse of the form:
+        // A*x^2 + 2*B*x*y + C*y^2 + 2*D*x + 2*F*y + G = 0
+        float A = conic_params[0];
+        float B = conic_params[1] / 2;
+        float C = conic_params[2];
+        float D = conic_params[3] / 2;
+        float F = conic_params[4] / 2;
+        float G = conic_params[5];
+
+        // Convert to parametric parameters
+        // These express an ellipse of the form:
+        // x(t) = a*cos(t + tau) + h
+        // y(t) = b*sin(t + tau) + k
+        float BB = B*B;
+        float AC = A*C;
+        float FF = F*F;
+        float off_d = BB - AC;
+        float h = (C*D - B*F) / off_d;
+        float k = (A*F - B*D) / off_d;
+        float semi_n = A*FF + C*D*D + G*BB - 2 * B*D*F - AC*G;
+        float dAC = A - C;
+        float dACsq = dAC*dAC;
+        float semi_d_2 = sqrtf(dACsq + 4 * BB);
+        float semi_d_3 = -A - C;
+        float a_sqrd = (2 * semi_n) / (off_d * (semi_d_3 + semi_d_2));
+        float b_sqrd = (2 * semi_n) / (off_d * (semi_d_3 - semi_d_2));
+
+        if (a_sqrd > k_real_epsilon && b_sqrd > k_real_epsilon)
+        {
+            // b and tau are only needed for drawing an ellipse.
+            float a = sqrt(a_sqrd);
+            float b = sqrt(b_sqrd);
+            float tau = atan2f(2 * B, dAC) / 2.f;  //acot((A-C)/(2*B))/2;
+
+            if (A > C)
+            {
+                tau += k_real_pi / 2.f;
+            }
+
+            out_ellipse.center = Eigen::Vector2f(h, k);
+            out_ellipse.extents = Eigen::Vector2f(a, b);
+            out_ellipse.angle = tau;
+            out_ellipse.error = eigen_alignment_compute_ellipse_fit_error(points, point_count, out_ellipse);
+            bSuccess = true;
+        }
+    }
+
+    return bSuccess;
+}
+
+float
+eigen_alignment_compute_ellipse_fit_error(
+    const Eigen::Vector2f *points, const int point_count,
+    const EigenFitEllipse &ellipse)
+{
+    float error = 0.f;
+
+    // Get the semi-axis lengths of the ellipse
+    const float a_squared = ellipse.extents.x()*ellipse.extents.x();
+    const float b_squared = ellipse.extents.y()*ellipse.extents.y();
+
+    Eigen::Vector2f basis_x(cosf(ellipse.angle), sinf(ellipse.angle));
+    Eigen::Vector2f basis_y(-basis_x.y(), basis_x.x());
+
+    for (int point_index = 0; point_index < point_count; ++point_index)
+    {
+        // Compute the point relative to the ellipsoid center
+        const Eigen::Vector2f &point = points[point_index];
+        const Eigen::Vector2f offset = point - ellipse.center;
+
+        // Project the offset onto basis
+        const float x = offset.dot(basis_x);
+        const float y = offset.dot(basis_y);
+
+        // Compute the general ellipsoid equation: E(x, y, x)= (x^2/a^2) + (y^2/b^2) + (z^2/x^2) - 1
+        // E(x, y, x) = 0 means the point is on the surface
+        // E(x, y, x) > 0 means the point is above the surface
+        // E(x, y, x) < 0 means the point is below the surface
+        // |E(x, y, x)| gives us distance from the surface, which will treat as an error
+        error += fabsf((x*x / a_squared) + (y*y / b_squared) - 1.f);
     }
 
     return error;

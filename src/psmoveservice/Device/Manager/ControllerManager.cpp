@@ -34,6 +34,12 @@ ControllerManager::startup()
             SERVER_LOG_ERROR("ControllerManager::startup") << "Failed to initialize HIDAPI";
             success = false;
         }
+
+        // Put all of the available tracking colors in the queue
+        for (int color_index = 0; color_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++color_index)
+        {
+            m_available_controller_color_ids.push_back(static_cast<eCommonTrackingColorID>(color_index));
+        }
     }
 
     return success;
@@ -126,4 +132,22 @@ ControllerManager::getControllerViewPtr(int device_id)
     assert(m_deviceViews != nullptr);
 
     return std::static_pointer_cast<ServerControllerView>(m_deviceViews[device_id]);
+}
+
+eCommonTrackingColorID 
+ControllerManager::allocateTrackingColorID()
+{
+    assert(m_available_controller_color_ids.size() > 0);
+    eCommonTrackingColorID tracking_color = m_available_controller_color_ids.front();
+
+    m_available_controller_color_ids.pop_front();
+
+    return tracking_color;
+}
+
+void 
+ControllerManager::freeTrackingColorID(eCommonTrackingColorID color_id)
+{
+    assert(std::find(m_available_controller_color_ids.begin(), m_available_controller_color_ids.end(), color_id) == m_available_controller_color_ids.end());
+    m_available_controller_color_ids.push_back(color_id);
 }

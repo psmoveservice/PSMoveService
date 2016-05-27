@@ -129,7 +129,6 @@ public:
     virtual long getMaxPollFailureCount() const override;
     virtual CommonDeviceState::eDeviceType getDeviceType() const override;
     virtual const CommonDeviceState * getState(int lookBack = 0) const override;
-    virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
     
     // -- IControllerInterface
     virtual bool setHostBluetoothAddress(const std::string &address) override;
@@ -137,6 +136,7 @@ public:
     virtual std::string getUSBDevicePath() const override;
     virtual std::string getHostBluetoothAddress() const override;
     virtual std::string getSerial() const override;
+    virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
 
     // -- Getters
     inline const PSMoveControllerConfig *getConfig() const

@@ -1,6 +1,10 @@
 //-- includes -----
 #include "ServerTrackerView.h"
+#include "ServerControllerView.h"
 #include "DeviceEnumerator.h"
+#include "MathUtility.h"
+#include "MathEigen.h"
+#include "MathAlignment.h"
 #include "PS3EyeTracker.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerUtility.h"
@@ -13,7 +17,8 @@
 #include <boost/interprocess/sync/scoped_lock.hpp>
 #include <memory>
 
-#include "opencv2/core.hpp"
+#include "opencv2/opencv.hpp"
+#include "opencv2/calib3d/calib3d.hpp"
 
 //-- private methods -----
 class SharedVideoFrameReadWriteAccessor
@@ -137,11 +142,192 @@ private:
     boost::interprocess::mapped_region *m_region;
 };
 
+class OpenCVBufferState
+{
+public:
+    OpenCVBufferState(int width, int height)
+        : frameWidth(width)
+        , frameHeight(height)
+        , bgrBuffer(nullptr)
+        , hsvBuffer(nullptr)
+        , gsLowerBuffer(nullptr)
+        , gsUpperBuffer(nullptr)
+        , maskedBuffer(nullptr)
+    {
+        bgrBuffer = new cv::Mat(height, width, CV_8UC3);
+        hsvBuffer = new cv::Mat(height, width, CV_8UC3);
+        gsLowerBuffer = new cv::Mat(height, width, CV_8UC1);
+        gsUpperBuffer = new cv::Mat(height, width, CV_8UC1);
+        maskedBuffer = new cv::Mat(height, width, CV_8UC3);
+    }
+
+    virtual ~OpenCVBufferState()
+    {
+        if (maskedBuffer != nullptr)
+        {
+            delete maskedBuffer;
+            maskedBuffer = nullptr;
+        }
+
+        if (gsLowerBuffer != nullptr)
+        {
+            delete gsLowerBuffer;
+            gsLowerBuffer = nullptr;
+        }
+
+        if (gsUpperBuffer != nullptr)
+        {
+            delete gsUpperBuffer;
+            gsUpperBuffer = nullptr;
+        }
+
+        if (hsvBuffer != nullptr)
+        {
+            delete hsvBuffer;
+            hsvBuffer = nullptr;
+        }
+
+        if (bgrBuffer != nullptr)
+        {
+            delete bgrBuffer;
+            bgrBuffer = nullptr;
+        }
+    }
+
+    void writeVideoFrame(const unsigned char *video_buffer)
+    {
+        const cv::Mat videoBufferMat(frameHeight, frameWidth, CV_8UC3, const_cast<unsigned char *>(video_buffer));
+
+        // Copy the raw bgr frame into the bgrBuffer
+        videoBufferMat.copyTo(*bgrBuffer);
+
+        // Convert the video buffer to the HSV color space
+        cv::cvtColor(*bgrBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
+    }
+
+    bool computeBiggestConvexContour(
+        const CommonHSVColorRange &hsvColorRange, 
+        std::vector<Eigen::Vector2f> &out_contour)
+    {
+        // Clamp the HSV image, taking into account wrapping the hue angle
+        {
+            const float hue_min = hsvColorRange.hue_range.center - hsvColorRange.hue_range.range;
+            const float hue_max = hsvColorRange.hue_range.center + hsvColorRange.hue_range.range;
+            const float saturation_min = clampf(hsvColorRange.saturation_range.center - hsvColorRange.saturation_range.range, 0, 255);
+            const float saturation_max = clampf(hsvColorRange.saturation_range.center + hsvColorRange.saturation_range.range, 0, 255);
+            const float value_min = clampf(hsvColorRange.value_range.center - hsvColorRange.value_range.range, 0, 255);
+            const float value_max = clampf(hsvColorRange.value_range.center + hsvColorRange.value_range.range, 0, 255);
+
+            if (hue_min < 0)
+            {
+                cv::inRange(
+                    *hsvBuffer,
+                    cv::Scalar(0, saturation_min, value_min),
+                    cv::Scalar(clampf(hue_max, 0, 180), saturation_max, value_max),
+                    *gsLowerBuffer);
+                cv::inRange(
+                    *hsvBuffer,
+                    cv::Scalar(clampf(180 + hue_min, 0, 180), saturation_min, value_min),
+                    cv::Scalar(180, saturation_max, value_max),
+                    *gsUpperBuffer);
+                cv::bitwise_or(*gsLowerBuffer, *gsUpperBuffer, *gsLowerBuffer);
+            }
+            else if (hue_max > 180)
+            {
+                cv::inRange(
+                    *hsvBuffer,
+                    cv::Scalar(0, saturation_min, value_min),
+                    cv::Scalar(clampf(hue_max - 180, 0, 180), saturation_max, value_max),
+                    *gsLowerBuffer);
+                cv::inRange(
+                    *hsvBuffer,
+                    cv::Scalar(clampf(hue_min, 0, 180), saturation_min, value_min),
+                    cv::Scalar(180, saturation_max, value_max),
+                    *gsUpperBuffer);
+                cv::bitwise_or(*gsLowerBuffer, *gsUpperBuffer, *gsLowerBuffer);
+            }
+            else
+            {
+                cv::inRange(
+                    *hsvBuffer,
+                    cv::Scalar(hue_min, saturation_min, value_min),
+                    cv::Scalar(hue_max, saturation_max, value_max),
+                    *gsLowerBuffer);
+            }
+        }
+
+        // Find the largest convex blob in the filtered grayscale buffer
+        {
+            std::vector<std::vector<cv::Point> > contours;
+            cv::findContours(*gsLowerBuffer, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+
+            std::vector<cv::Point> biggest_contour;
+            if (contours.size() > 0)
+            {
+                double contArea = 0;
+                double newArea = 0;
+                for (auto it = contours.begin(); it != contours.end(); ++it) 
+                {
+                    newArea = cv::contourArea(*it);
+
+                    if (newArea > contArea)
+                    {
+                        contArea = newArea;
+                        biggest_contour = *it;
+                    }
+                }
+            }
+
+            //TODO: If our contour is suddenly much smaller than last frame,
+            // but is next to an almost-as-big contour, then maybe these
+            // 2 contours should be joined.
+            // (i.e. if a finger is blocking the middle of the bulb)
+            if (biggest_contour.size() > 6)
+            {
+                // Remove any points in contour on edge of camera/ROI
+                std::vector<cv::Point>::iterator it = biggest_contour.begin();
+                while (it != biggest_contour.end()) {
+                    if (it->x == 320 || it->x == -320 || it->y == 240 || it->y == -240) {
+                        it = biggest_contour.erase(it);
+                    }
+                    else {
+                        ++it;
+                    }
+                }
+
+                // Compute the convex hull of the contour
+                std::vector<cv::Point> convex_hull;
+                cv::convexHull(biggest_contour, convex_hull);
+
+                // Subtract midpoint from each point.
+                std::for_each(
+                    convex_hull.begin(),
+                    convex_hull.end(),
+                    [this, &out_contour](cv::Point& p) {
+                        out_contour.push_back(
+                            Eigen::Vector2f(p.x - (frameWidth / 2), (frameHeight / 2) - p.y));
+                    });
+            }
+        }
+
+        return (out_contour.size() > 5);
+    }
+
+    int frameWidth;
+    int frameHeight;
+    cv::Mat *bgrBuffer; // source video frame
+    cv::Mat *hsvBuffer; // source frame converted to HSV color space
+    cv::Mat *gsLowerBuffer; // HSV image clamped by HSV range into grayscale mask
+    cv::Mat *gsUpperBuffer; // HSV image clamped by HSV range into grayscale mask
+    cv::Mat *maskedBuffer; // bgr image ANDed together with grayscale mask
+};
+
 //-- public implementation -----
 ServerTrackerView::ServerTrackerView(const int device_id)
     : ServerDeviceView(device_id)
     , m_shared_memory_accesor(nullptr)
     , m_shared_memory_video_stream_count(0)
+    , m_opencv_buffer_state(nullptr)
     , m_device(nullptr)
 {
     ServerUtility::format_string(m_shared_memory_name, sizeof(m_shared_memory_name), "tracker_view_%d", device_id);
@@ -152,6 +338,11 @@ ServerTrackerView::~ServerTrackerView()
     if (m_shared_memory_accesor != nullptr)
     {
         delete m_shared_memory_accesor;
+    }
+
+    if (m_opencv_buffer_state != nullptr)
+    {
+        delete m_opencv_buffer_state;
     }
 
     if (m_device != nullptr)
@@ -208,6 +399,9 @@ bool ServerTrackerView::open(const class DeviceEnumerator *enumerator)
 
                 SERVER_LOG_ERROR("ServerTrackerView::open()") << "Failed to allocated shared memory: " << m_shared_memory_name;
             }
+
+            // Allocate the OpenCV scratch buffers used for finding tracking blobs
+            m_opencv_buffer_state = new OpenCVBufferState(width, height);
         }
         else
         {
@@ -242,16 +436,22 @@ bool ServerTrackerView::poll()
 {
     bool bSuccess = ServerDeviceView::poll();
 
-    if (bSuccess)
+    if (bSuccess && m_device != nullptr)
     {
-        // Copy the video frame to shared memory (if requested)
-        if (m_shared_memory_accesor != nullptr && m_shared_memory_video_stream_count > 0)
-        {
-            const unsigned char *buffer= m_device->getVideoFrameBuffer();
+        const unsigned char *buffer = m_device->getVideoFrameBuffer();
 
-            if (buffer != nullptr)
+        if (buffer != nullptr)
+        {
+            // Copy the video frame to shared memory (if requested)
+            if (m_shared_memory_accesor != nullptr && m_shared_memory_video_stream_count > 0)
             {
                 m_shared_memory_accesor->writeVideoFrame(buffer);
+            }
+
+            // Cache the raw video frame and convert it to an HSV buffer for filtering later
+            if (m_opencv_buffer_state != nullptr)
+            {
+                m_opencv_buffer_state->writeVideoFrame(buffer);
             }
         }
     }
@@ -413,37 +613,89 @@ void ServerTrackerView::gatherTrackingColorPresets(PSMoveProtocol::Response_Resu
     return m_device->gatherTrackingColorPresets(settings);
 }
 
-void ServerTrackerView::setTrackingColorPreset(eCommonTrackColorType color, const CommonHSVColorRange *preset)
+void ServerTrackerView::setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset)
 {
     return m_device->setTrackingColorPreset(color, preset);
 }
 
-void ServerTrackerView::getTrackingColorPreset(eCommonTrackColorType color, CommonHSVColorRange *out_preset) const
+void ServerTrackerView::getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const
 {
     return m_device->getTrackingColorPreset(color, out_preset);
 }
 
 bool
-ServerTrackerView::getPositionForObject(IDeviceInterface* tracked_object, glm::vec3* out_position)
+ServerTrackerView::computePositionForController(
+    class ServerControllerView* tracked_controller, 
+    glm::vec3* out_position)
 {
-    if (m_bHasUnpublishedState)
+    bool bSuccess = m_bHasUnpublishedState;
+
+    // Get the HSV filter used to find the tracking blob
+    CommonHSVColorRange hsvColorRange;
+    if (bSuccess)
     {
-        unsigned char r, g, b;
-        std::tie(r, g, b) = tracked_object->getColour();
-        
-        const unsigned char *vid_buff = m_device->getVideoFrameBuffer();
-        
-        int _width, _height, _stride;
-        m_device->getVideoFrameDimensions(&_width, &_height, &_stride);
-        
-        cv::Mat frame = cv::Mat(_width, _height, CV_8U, &vid_buff, _stride);
-        
-        //TODO: ROI seed on last known position, clamp to frame edges.
-        
-        // TODO: Colour filter
-        
+        eCommonTrackingColorID tracked_color_id = tracked_controller->getTrackingColorID();
+
+        if (tracked_color_id != eCommonTrackingColorID::INVALID)
+        {
+            getTrackingColorPreset(tracked_color_id, &hsvColorRange);
+        }
+        else
+        {
+            bSuccess = false;
+        }
     }
-    return false;
+
+    // Find the contour associated with the controller
+    std::vector<Eigen::Vector2f> convex_contour;
+    if (bSuccess)
+    {
+        ///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges.
+        bSuccess= m_opencv_buffer_state->computeBiggestConvexContour(hsvColorRange, convex_contour);              
+    }
+
+    // Compute a best fit ellipse for the contour
+    EigenFitEllipse ellipse;
+    if (bSuccess)
+    {
+        bSuccess=
+            eigen_alignment_fit_least_squares_ellipse(
+                convex_contour.data(),
+                static_cast<int>(convex_contour.size()),
+                ellipse);
+    }
+
+    if (bSuccess)
+    {
+        const float h = ellipse.center.x();
+        const float k = ellipse.center.y();
+        const float a = ellipse.extents.x();
+
+        //float F_PX, F_PY;
+        //float PrincipalX, PrincipalY;
+        //m_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+        //###HipsterSloth $TODO - Get this value from the camera intrinsics
+        const float F_PX = 554.2563f;
+
+        //###HipsterSloth $TODO - Get from tracked controller geometry
+        const float R = 2.25; // cm
+
+        //Get sphere coordinates from parametric
+        const float L_px = sqrtf(h*h + k*k);
+        const float m = L_px / F_PX;
+        const float fl = F_PX / L_px;
+        const float j = (L_px + a) / F_PX;
+        const float l = (j - m) / (1 + j*m);
+        const float D_cm = R * sqrt(1 + l*l) / l;
+        const float z = D_cm * fl / sqrt(1 + fl*fl);
+        const float L_cm = z * m;
+        const float x = L_cm * h / L_px;
+        const float y = L_cm * k / L_px;
+
+        *out_position = glm::vec3(x, y, z);
+    }
+
+    return bSuccess;
 }
 
 

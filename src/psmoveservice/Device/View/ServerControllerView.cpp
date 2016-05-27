@@ -2,6 +2,8 @@
 #include "ServerControllerView.h"
 
 #include "BluetoothRequests.h"
+#include "ControllerManager.h"
+#include "DeviceManager.h"
 #include "MathAlignment.h"
 #include "ServerLog.h"
 #include "ServerRequestHandler.h"
@@ -38,6 +40,7 @@ static void generate_psnavi_data_frame_for_stream(
 //-- public implementation -----
 ServerControllerView::ServerControllerView(const int device_id)
     : ServerDeviceView(device_id)
+    , m_tracking_color_id(eCommonTrackingColorID::INVALID)
     , m_device(nullptr)
     , m_orientation_filter(nullptr)
     , m_position_filter(nullptr)
@@ -101,6 +104,7 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
 {
     // Attempt to open the controller
     bool bSuccess= ServerDeviceView::open(enumerator);
+    bool bAllocateTrackingColor = false;
 
     // Setup the orientation filter based on the controller configuration
     if (bSuccess)
@@ -114,6 +118,7 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
                 const PSMoveController *psmoveController= this->castCheckedConst<PSMoveController>();
 
                 init_filters_for_psmove(psmoveController, m_orientation_filter, m_position_filter);
+                bAllocateTrackingColor = true;
             } break;
         case CommonDeviceState::PSNavi:
             // No orientation filter for the navi
@@ -127,9 +132,26 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
         m_lastPollSeqNumProcessed= -1;
     }
 
-    //###bwalker $TODO Setup the position filter based on the controller configuration
+    // If needed for this kind of controller, assign a tracking color id
+    if (bAllocateTrackingColor)
+    {
+        assert(m_tracking_color_id == eCommonTrackingColorID::INVALID);
+        m_tracking_color_id= DeviceManager::getInstance()->m_controller_manager->allocateTrackingColorID();
+    }
 
     return bSuccess;
+}
+
+void ServerControllerView::close()
+{
+    ServerDeviceView::close();
+
+    if (m_tracking_color_id != eCommonTrackingColorID::INVALID)
+    {
+        DeviceManager::getInstance()->m_controller_manager->freeTrackingColorID(m_tracking_color_id);
+
+        m_tracking_color_id = eCommonTrackingColorID::INVALID;
+    }
 }
 
 void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_manager)
@@ -145,7 +167,7 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
     for (int tracker_id = 0; tracker_id < tracker_manager->getMaxDevices(); ++tracker_id)
     {
         ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-        if (tracker->getPositionForObject(this->getDevice(), &position3d_list[positions_found]))
+        if (tracker->computePositionForController(this, &position3d_list[positions_found]))
         {
             valid_tracker_ids[positions_found] = tracker_id;
             ++positions_found;

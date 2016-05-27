@@ -22,13 +22,13 @@ struct TrackerProfile
 {
     float exposure;
     float gain;
-    CommonHSVColorRange color_presets[eCommonTrackColorType::MAX_TRACKING_COLOR_TYPES];
+    CommonHSVColorRange color_presets[eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES];
 
     inline void clear()
     {
         exposure = 0.f;
         gain = 0;
-        for (int preset_index = 0; preset_index < eCommonTrackColorType::MAX_TRACKING_COLOR_TYPES; ++preset_index)
+        for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
         {
             color_presets[preset_index].clear();
         }

@@ -532,6 +532,12 @@ PSNaviController::getMaxPollFailureCount() const
 {
     return cfg.max_poll_failure_count;
 }
+
+const std::tuple<unsigned char, unsigned char, unsigned char> 
+PSNaviController::getColour() const
+{
+    return std::make_tuple(0, 0, 0);
+}
     
 // -- private helper functions -----
 static std::string

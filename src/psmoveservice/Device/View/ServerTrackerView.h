@@ -51,7 +51,7 @@ public:
 	double getGain() const;
 	void setGain(double value);
     
-    bool getPositionForObject(IDeviceInterface* tracked_object, glm::vec3* out_position);
+    bool computePositionForController(class ServerControllerView* tracked_controller, glm::vec3* out_position);
 
     void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
@@ -72,8 +72,8 @@ public:
     bool getOptionIndex(const std::string &option_name, int &out_option_index) const;
 
     void gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
-    void setTrackingColorPreset(eCommonTrackColorType color, const CommonHSVColorRange *preset);
-    void getTrackingColorPreset(eCommonTrackColorType color, CommonHSVColorRange *out_preset) const;
+    void setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset);
+    void getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
 
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
@@ -87,6 +87,7 @@ private:
     char m_shared_memory_name[256];
     class SharedVideoFrameReadWriteAccessor *m_shared_memory_accesor;
     int m_shared_memory_video_stream_count;
+    class OpenCVBufferState *m_opencv_buffer_state;
     ITrackerInterface *m_device;
 };
 

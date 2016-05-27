@@ -2,10 +2,13 @@
 #define CONTROLLER_MANAGER_H
 
 //-- includes -----
-#include <memory>
+#include "DeviceInterface.h"
 #include "DeviceTypeManager.h"
 #include "PSMoveProtocol.pb.h"
 #include "TrackerManager.h"
+
+#include <memory>
+#include <deque>
 
 //-- typedefs -----
 class ServerControllerView;
@@ -36,6 +39,9 @@ public:
     bool setControllerRumble(int controller_id, int rumble_amount);
     bool resetPose(int controller_id);
 
+    eCommonTrackingColorID allocateTrackingColorID();
+    void freeTrackingColorID(eCommonTrackingColorID color_id);
+
 protected:
     bool can_update_connected_devices() override;
     class DeviceEnumerator *allocate_device_enumerator() override;
@@ -49,6 +55,7 @@ protected:
 
 private:
     static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;
+    std::deque<eCommonTrackingColorID> m_available_controller_color_ids;
 };
 
 #endif // CONTROLLER_MANAGER_H

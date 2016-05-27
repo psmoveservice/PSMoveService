@@ -113,6 +113,7 @@ public:
     virtual CommonDeviceState::eDeviceType getDeviceType() const override;
     virtual const CommonDeviceState * getState(int lookBack = 0) const override;
     virtual long getMaxPollFailureCount() const override;
+    virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
         
 private:    
     bool getBTAddress(std::string& host, std::string& controller);

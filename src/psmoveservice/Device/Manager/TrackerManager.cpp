@@ -28,7 +28,7 @@ TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
 {
     default_tracker_profile.exposure = 32;
     default_tracker_profile.gain = 32;
-    for (int preset_index = 0; preset_index < eCommonTrackColorType::MAX_TRACKING_COLOR_TYPES; ++preset_index)
+    for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
     {
         default_tracker_profile.color_presets[preset_index] = k_default_color_presets[preset_index];
     }
@@ -43,12 +43,12 @@ TrackerManagerConfig::config2ptree()
     pt.put("default_tracker_profile.exposure", default_tracker_profile.exposure);
     pt.put("default_tracker_profile.gain", default_tracker_profile.gain);
 
-    writeColorPreset(pt, "default_tracker_profile", "magenta", &default_tracker_profile.color_presets[eCommonTrackColorType::Magenta]);
-    writeColorPreset(pt, "default_tracker_profile", "cyan", &default_tracker_profile.color_presets[eCommonTrackColorType::Cyan]);
-    writeColorPreset(pt, "default_tracker_profile", "yellow", &default_tracker_profile.color_presets[eCommonTrackColorType::Yellow]);
-    writeColorPreset(pt, "default_tracker_profile", "red", &default_tracker_profile.color_presets[eCommonTrackColorType::Red]);
-    writeColorPreset(pt, "default_tracker_profile", "green", &default_tracker_profile.color_presets[eCommonTrackColorType::Green]);
-    writeColorPreset(pt, "default_tracker_profile", "blue", &default_tracker_profile.color_presets[eCommonTrackColorType::Blue]);
+    writeColorPreset(pt, "default_tracker_profile", "magenta", &default_tracker_profile.color_presets[eCommonTrackingColorID::Magenta]);
+    writeColorPreset(pt, "default_tracker_profile", "cyan", &default_tracker_profile.color_presets[eCommonTrackingColorID::Cyan]);
+    writeColorPreset(pt, "default_tracker_profile", "yellow", &default_tracker_profile.color_presets[eCommonTrackingColorID::Yellow]);
+    writeColorPreset(pt, "default_tracker_profile", "red", &default_tracker_profile.color_presets[eCommonTrackingColorID::Red]);
+    writeColorPreset(pt, "default_tracker_profile", "green", &default_tracker_profile.color_presets[eCommonTrackingColorID::Green]);
+    writeColorPreset(pt, "default_tracker_profile", "blue", &default_tracker_profile.color_presets[eCommonTrackingColorID::Blue]);
 
     return pt;
 }
@@ -63,12 +63,12 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
         default_tracker_profile.exposure = pt.get<float>("default_tracker_profile.exposure", 32);
         default_tracker_profile.gain = pt.get<float>("default_tracker_profile.gain", 32);
 
-        readColorPreset(pt, "default_tracker_profile", "magenta", &default_tracker_profile.color_presets[eCommonTrackColorType::Magenta], &k_default_color_presets[eCommonTrackColorType::Magenta]);
-        readColorPreset(pt, "default_tracker_profile", "cyan", &default_tracker_profile.color_presets[eCommonTrackColorType::Cyan], &k_default_color_presets[eCommonTrackColorType::Cyan]);
-        readColorPreset(pt, "default_tracker_profile", "yellow", &default_tracker_profile.color_presets[eCommonTrackColorType::Yellow], &k_default_color_presets[eCommonTrackColorType::Yellow]);
-        readColorPreset(pt, "default_tracker_profile", "red", &default_tracker_profile.color_presets[eCommonTrackColorType::Red], &k_default_color_presets[eCommonTrackColorType::Red]);
-        readColorPreset(pt, "default_tracker_profile", "green", &default_tracker_profile.color_presets[eCommonTrackColorType::Green], &k_default_color_presets[eCommonTrackColorType::Green]);
-        readColorPreset(pt, "default_tracker_profile", "blue", &default_tracker_profile.color_presets[eCommonTrackColorType::Blue], &k_default_color_presets[eCommonTrackColorType::Blue]);
+        readColorPreset(pt, "default_tracker_profile", "magenta", &default_tracker_profile.color_presets[eCommonTrackingColorID::Magenta], &k_default_color_presets[eCommonTrackingColorID::Magenta]);
+        readColorPreset(pt, "default_tracker_profile", "cyan", &default_tracker_profile.color_presets[eCommonTrackingColorID::Cyan], &k_default_color_presets[eCommonTrackingColorID::Cyan]);
+        readColorPreset(pt, "default_tracker_profile", "yellow", &default_tracker_profile.color_presets[eCommonTrackingColorID::Yellow], &k_default_color_presets[eCommonTrackingColorID::Yellow]);
+        readColorPreset(pt, "default_tracker_profile", "red", &default_tracker_profile.color_presets[eCommonTrackingColorID::Red], &k_default_color_presets[eCommonTrackingColorID::Red]);
+        readColorPreset(pt, "default_tracker_profile", "green", &default_tracker_profile.color_presets[eCommonTrackingColorID::Green], &k_default_color_presets[eCommonTrackingColorID::Green]);
+        readColorPreset(pt, "default_tracker_profile", "blue", &default_tracker_profile.color_presets[eCommonTrackingColorID::Blue], &k_default_color_presets[eCommonTrackingColorID::Blue]);
     }
     else
     {

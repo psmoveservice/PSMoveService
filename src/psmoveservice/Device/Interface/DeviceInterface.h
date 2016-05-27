@@ -13,7 +13,9 @@ namespace PSMoveProtocol
 };
 
 // -- constants -----
-enum eCommonTrackColorType {
+enum eCommonTrackingColorID {
+    INVALID= -1,
+    
     Magenta,
     Cyan,
     Yellow,
@@ -222,14 +224,7 @@ public:
     
     // Fetch the device state at the given sample index.
     // A lookBack of 0 corresponds to the most recent data.
-    virtual const CommonDeviceState * getState(int lookBack = 0) const = 0;
-    
-    virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const
-    {
-        return std::make_tuple(0, 0, 0);
-        //Use with: unsigned char r, g, b; std::tie(r, g, b) = controller.getColour();
-    }
- 
+    virtual const CommonDeviceState * getState(int lookBack = 0) const = 0;   
 };
 
 /// Abstract class for controller interface. Implemented in PSMoveController.cpp
@@ -251,6 +246,9 @@ public:
 
     // Returns the serial number for the controller
     virtual std::string getSerial() const  = 0;
+
+    // Get the tracking color of the controller
+    virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const = 0;
 };
 
 /// Abstract class for Tracker interface. Implemented Tracker classes
@@ -329,7 +327,7 @@ public:
     virtual bool getOptionIndex(const std::string &option_name, int &out_option_index) const = 0;
 
     virtual void gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const = 0;
-    virtual void setTrackingColorPreset(eCommonTrackColorType color, const CommonHSVColorRange *preset) = 0;
-    virtual void getTrackingColorPreset(eCommonTrackColorType color, CommonHSVColorRange *out_preset) const = 0;
+    virtual void setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset) = 0;
+    virtual void getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const = 0;
 };
 #endif // DEVICE_INTERFACE_H

@@ -49,7 +49,7 @@ public:
     eFOVSetting fovSetting;
     CommonDevicePose pose;
     CommonDevicePose hmdRelativePose;
-    CommonHSVColorRange ColorPresets[eCommonTrackColorType::MAX_TRACKING_COLOR_TYPES];
+    CommonHSVColorRange ColorPresets[eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES];
 
     static const int CONFIG_VERSION;
 };
@@ -116,8 +116,8 @@ public:
     bool setOptionIndex(const std::string &option_name, int option_index) override;
     bool getOptionIndex(const std::string &option_name, int &out_option_index) const override;
     void gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const override;
-    void setTrackingColorPreset(eCommonTrackColorType color, const CommonHSVColorRange *preset) override;
-    void getTrackingColorPreset(eCommonTrackColorType color, CommonHSVColorRange *out_preset) const override;
+    void setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset) override;
+    void getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const override;
 
     // -- Getters
     inline const PS3EyeTrackerConfig &getConfig() const

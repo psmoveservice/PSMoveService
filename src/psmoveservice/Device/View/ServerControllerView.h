@@ -2,6 +2,7 @@
 #define SERVER_CONTROLLER_VIEW_H
 
 //-- includes -----
+#include "DeviceInterface.h"
 #include "ServerDeviceView.h"
 #include "PSMoveDataFrame.h"
 #include "PSMoveProtocolInterface.h"
@@ -15,6 +16,7 @@ public:
     virtual ~ServerControllerView();
 
     bool open(const class DeviceEnumerator *enumerator) override;
+    void close() override;
 
     // Compute pose/prediction of tracking blob+IMU state
     void updatePositionEstimation(TrackerManager* tracker_manager);
@@ -48,7 +50,10 @@ public:
 
     // Fetch the controller state at the given sample index.
     // A lookBack of 0 corresponds to the most recent data.
-    const struct CommonControllerState * getState(int lookBack = 0) const;
+    const CommonControllerState * getState(int lookBack = 0) const;
+
+    // Get the currently assigned tracking color ID for the controller
+    inline eCommonTrackingColorID getTrackingColorID() const { return m_tracking_color_id; }
 
     // Set the rumble value between 0-255
     bool setControllerRumble(int rumble_amount);
@@ -63,6 +68,7 @@ protected:
         DeviceDataFramePtr &data_frame);
 
 private:
+    eCommonTrackingColorID m_tracking_color_id;
     IControllerInterface *m_device;
     class OrientationFilter *m_orientation_filter;
     class PositionFilter *m_position_filter;

@@ -1076,8 +1076,8 @@ protected:
             {
                 const PSMoveProtocol::TrackingColorPreset &colorPreset =
                     context.request->request_set_tracker_color_preset().color_preset();
-                const eCommonTrackColorType colorType=
-                    static_cast<eCommonTrackColorType>(colorPreset.color_type());
+                const eCommonTrackingColorID colorType=
+                    static_cast<eCommonTrackingColorID>(colorPreset.color_type());
 
                 // Set the color preset on the tracker
                 {
@@ -1191,10 +1191,10 @@ protected:
                 trackerProfile.exposure= static_cast<float>(tracker_view->getExposure());
                 trackerProfile.gain = static_cast<float>(tracker_view->getGain());
 
-                for (int preset_index = 0; preset_index < eCommonTrackColorType::MAX_TRACKING_COLOR_TYPES; ++preset_index)
+                for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
                 {
                     tracker_view->getTrackingColorPreset(
-                        static_cast<eCommonTrackColorType>(preset_index),
+                        static_cast<eCommonTrackingColorID>(preset_index),
                         &trackerProfile.color_presets[preset_index]);
                 }
 
@@ -1232,10 +1232,10 @@ protected:
                 // Apply the profile to the tracker
                 tracker_view->setExposure(trackerProfile->exposure);
                 tracker_view->setGain(trackerProfile->gain);
-                for (int preset_index = 0; preset_index < eCommonTrackColorType::MAX_TRACKING_COLOR_TYPES; ++preset_index)
+                for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
                 {
                     const CommonHSVColorRange *preset= &trackerProfile->color_presets[preset_index];
-                    const eCommonTrackColorType color_type = static_cast<eCommonTrackColorType>(preset_index);
+                    const eCommonTrackingColorID color_type = static_cast<eCommonTrackingColorID>(preset_index);
 
                     tracker_view->setTrackingColorPreset(color_type, preset);
                 }
