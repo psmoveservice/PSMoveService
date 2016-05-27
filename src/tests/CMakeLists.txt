@@ -48,10 +48,16 @@ list(APPEND TEST_CONFIG_REQ_LIBS ${Boost_LIBRARIES})
 
 # Our custom ConfigManager classes
 # We are not including the PSMoveService project on purpose.
-list(APPEND TEST_CONFIG_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/PSMoveConfig)
+list(APPEND TEST_CONFIG_INCL_DIRS 
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
+    ${ROOT_DIR}/src/psmoveservice/Device/Interface
+    ${ROOT_DIR}/src/psmoveservice/Server)
 list(APPEND TEST_CONFIG_SRC
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
-    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp)
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Interface/DeviceInterface.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.cpp)
 
 add_executable(test_config ${CMAKE_CURRENT_LIST_DIR}/test_config.cpp ${TEST_CONFIG_SRC})
 target_include_directories(test_config PUBLIC ${TEST_CONFIG_INCL_DIRS})

@@ -14,15 +14,25 @@
 class ServerTrackerView;
 typedef std::shared_ptr<ServerTrackerView> ServerTrackerViewPtr;
 
+//-- constants -----
+extern const CommonHSVColorRange *k_default_color_presets;
+
 //-- definitions -----
 struct TrackerProfile
 {
-    std::string profile_name;
     float exposure;
     float gain;
     CommonHSVColorRange color_presets[eCommonTrackColorType::MAX_TRACKING_COLOR_TYPES];
 
-    void clear();
+    inline void clear()
+    {
+        exposure = 0.f;
+        gain = 0;
+        for (int preset_index = 0; preset_index < eCommonTrackColorType::MAX_TRACKING_COLOR_TYPES; ++preset_index)
+        {
+            color_presets[preset_index].clear();
+        }
+    }
 };
 
 class TrackerManagerConfig : public PSMoveConfig
@@ -30,24 +40,21 @@ class TrackerManagerConfig : public PSMoveConfig
 public:
     static const int CONFIG_VERSION;
 
-    TrackerManagerConfig(const std::string &fnamebase = "TrackerManagerConfig")
-        : PSMoveConfig(fnamebase)
-        , version(CONFIG_VERSION)
-    {
-        magnetometer_ellipsoid.clear();
-        magnetometer_identity = Eigen::Vector3f::Zero();
-    };
+    TrackerManagerConfig(const std::string &fnamebase = "TrackerManagerConfig");
 
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
     long version;
+    TrackerProfile default_tracker_profile;
 };
 
 class TrackerManager : public DeviceTypeManager
 {
 public:
     TrackerManager();
+
+    bool startup() override;
 
     static const int k_max_devices = 2;
     int getMaxDevices() const override
@@ -57,7 +64,16 @@ public:
 
     ServerTrackerViewPtr getTrackerViewPtr(int device_id);
 
-    void saveDefaultTrackerProfile(float exposure, float gain, struct CommonHSVColorRange *colorPresets, int presetCount);
+    inline void saveDefaultTrackerProfile(const TrackerProfile *profile)
+    {
+        cfg.default_tracker_profile = *profile;
+        cfg.save();
+    }
+
+    inline const TrackerProfile *getDefaultTrackerProfile() const
+    {
+        return &cfg.default_tracker_profile; 
+    }
 
 protected:
     bool can_update_connected_devices() override;

@@ -282,7 +282,6 @@ message Response {
         TRACKER_GAIN_UPDATED= 11;
         TRACKER_OPTION_UPDATED= 12;
         TRACKER_PRESET_UPDATED= 13;
-        TRACKER_PROFILE_APPLIED= 14;
     }
 
     enum ResultCode {
@@ -367,7 +366,7 @@ message Response {
     }
     ResultTrackerList result_tracker_list = 23;
     
-    // This is returned in response to a GET_TRACKER_SETTINGS request
+    // This is returned in response to a GET_TRACKER_SETTINGS or APPLY_TRACKER_PROFILE request
     message ResultTrackerSettings {
         float exposure= 1;
         float gain= 2;
@@ -400,16 +399,7 @@ message Response {
         int32 tracker_id = 1;
         TrackingColorPreset new_color_preset = 2;
     }
-    ResultSetTrackerColorPreset result_set_tracker_color_preset = 28;
-    
-    // This is returned in response to a APPLY_TRACKER_PROFILE request
-    message ResultApplyTrackerProfile {
-        int32 tracker_id = 1;
-        float exposure = 2;
-        float gain = 3;        
-        repeated TrackingColorPreset color_presets = 4;
-    }
-    ResultApplyTrackerProfile result_apply_tracker_profile = 29;    
+    ResultSetTrackerColorPreset result_set_tracker_color_preset = 28;    
 }
 
 // Unreliable (UDP) device data packet format

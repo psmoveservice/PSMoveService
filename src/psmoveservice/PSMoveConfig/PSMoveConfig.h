@@ -8,13 +8,25 @@ class PSMoveConfig {
 public:
     PSMoveConfig(const std::string &fnamebase = std::string("PSMoveConfig"));
     void save();
-    void load();
+    bool load();
     
     std::string ConfigFileBase;
 
     virtual const boost::property_tree::ptree config2ptree() = 0;  // Implement by each device class' own Config
     virtual void ptree2config(const boost::property_tree::ptree &pt) = 0;  // Implement by each device class' own Config
     
+    static void writeColorPreset(
+        boost::property_tree::ptree &pt,
+        const char *profile_name,
+        const char *color_name,
+        const struct CommonHSVColorRange *colorPreset);
+    static void readColorPreset(
+        const boost::property_tree::ptree &pt,
+        const char *profile_name,
+        const char *color_name,
+        struct CommonHSVColorRange *outColorPreset,
+        const struct CommonHSVColorRange *defaultPreset);
+
 private:
     const std::string getConfigPath();
 };

@@ -101,6 +101,9 @@ protected:
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
 
+    void request_save_default_tracker_profile();
+    void request_apply_default_tracker_profile();
+
     void allocate_video_buffers();
     void release_video_buffers();
 

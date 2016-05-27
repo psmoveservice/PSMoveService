@@ -32,21 +32,6 @@ public:
     
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
-
-    void writeColorPreset(
-        boost::property_tree::ptree &pt,
-        const char *color_name, const CommonHSVColorRange &colorPreset);
-    void readColorPreset(
-        const boost::property_tree::ptree &pt,
-        const char *color_name, CommonHSVColorRange &outColorPreset,
-        const CommonHSVColorRange &defaultPreset);
-
-    void writeColorPropertyPreset(
-        boost::property_tree::ptree &pt,
-        const char *color_name, const char *property_name, float value);
-    void readColorPropertyPreset(
-        const boost::property_tree::ptree &pt,
-        const char *color_name, const char *property_name, float &out_value, const float default_value);
     
     bool is_valid;
     long version;

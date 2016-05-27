@@ -385,6 +385,16 @@ void AppStage_ColorCalibration::renderUI()
                     ImGui::Text("%s: %s", option.option_name.c_str(), option.option_strings[option.option_index].c_str());
                     ImGui::PopID();
                 }
+
+                if (ImGui::Button("Save Default Profile"))
+                {
+                    request_save_default_tracker_profile();
+                }
+
+                if (ImGui::Button("Apply Default Profile"))
+                {
+                    request_apply_default_tracker_profile();
+                }
             }
 
             ImGui::End();
@@ -929,6 +939,28 @@ void AppStage_ColorCalibration::handle_tracker_get_settings_response(
             CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to get the tracker settings!";
         } break;
     }
+}
+
+void AppStage_ColorCalibration::request_save_default_tracker_profile()
+{
+    // Tell the psmove service that we want to save the current trackers profile.
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SAVE_TRACKER_PROFILE);
+    request->mutable_request_save_tracker_profile()->set_tracker_id(m_trackerView->getTrackerId());
+
+    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+}
+
+void AppStage_ColorCalibration::request_apply_default_tracker_profile()
+{
+    // Tell the psmove service that we want to apply the saved default profile to the current tracker.
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_APPLY_TRACKER_PROFILE);
+    request->mutable_request_save_tracker_profile()->set_tracker_id(m_trackerView->getTrackerId());
+
+    ClientPSMoveAPI::register_callback(
+        ClientPSMoveAPI::send_opaque_request(&request),
+        AppStage_ColorCalibration::handle_tracker_get_settings_response, this);
 }
 
 void AppStage_ColorCalibration::release_devices()
