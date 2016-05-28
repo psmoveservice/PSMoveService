@@ -494,3 +494,98 @@ eigen_alignment_compute_ellipse_fit_error(
 
     return error;
 }
+
+// Comments reference diagram in "Analytic solution after ellipse fitting"
+// from: https://github.com/cboulay/PSMoveService/wiki/Optical-Tracker-Algorithms
+bool
+eigen_alignment_fit_focal_cone_to_sphere(
+    const Eigen::Vector2f *focal_plane_contour_points, 
+    const int focal_plane_contour_point_count,
+    const float sphere_radius, 
+    const float camera_focal_length, // a.k.a. "f_px"
+    Eigen::Vector3f *out_sphere_center)
+{
+    // Compute a best fit ellipse for the contour
+    EigenFitEllipse ellipse;
+    bool bSuccess =
+        eigen_alignment_fit_least_squares_ellipse(
+            focal_plane_contour_points,
+            focal_plane_contour_point_count,
+            ellipse);
+
+    // The sphere can be thought of as a base of a cone whose vertex is at the camera focal point.
+    // The camera's sensor plane can be thought of as a slice through the cone, creating an ellipse. 
+    // We fit an ellipse to the blob. Then we can determine the sphere's 3D position by using similar 
+    // triangles to relate known quantities(camera FOV, focal length, ellipse centre, major and minor axes) 
+    // to unknown quantities.
+    if (bSuccess)
+    {
+        const float h = ellipse.center.x();
+        const float k = ellipse.center.y();
+        const float a = ellipse.extents.x();
+
+        // The length of the line from image centre to ellipse centre.
+        const float L_px = sqrtf(h*h + k*k);
+
+        // The green triangle goes from the camera pinhole (at origin)
+        // to 0,0,f_px (centerpoint on focal plane),
+        // to the center of the sphere on the focal plane (x_px, y_px, f_px)
+        // The orange triangle extends the green triangle to go from pinhole,
+        // to the middle of the sensor image, to the far edge of the ellipse (i.e. L_px + a_px)
+
+        // Theta, the angle in the green triangle from the pinhole
+        // to the center of the sphere on the image, off the focal axis:
+        // theta = atan(m), where
+        const float m = L_px / camera_focal_length;
+
+        // We can now use another pair of similar (nested) triangles.
+        // The outer triangle (blue+purple+orange) has base L_cm, side Z_cm, and hypotenuse D_cm.
+        // The inner triangle (blue + some orange) has base L_px, size f_px, and hypotenuse D_px.
+        // From the larger triangle, we get sin(gamma) = Z_cm / D_cm;
+        // From the smaller triangle, we get tan(gamma) = f_px / L_px,
+        // or gamma = atan( f_px / L_px );
+        // then sin(gamma) = sin( atan( f_px / L_px ) ) = Z_cm / D_cm;
+        // Again, using the sin-of-arctan identity
+        // sin( atan( f_px / L_px ) ) = fl / sqrt( 1 + fl*fl ) = Z_cm / D_cm, where
+        const float fl = camera_focal_length / L_px;
+
+        // theta + alpha, the angle in the green+orange triangle
+        // from the pinhole to the far edge of the ellipse, off the focal axis:
+        // theta + alpha = atan( j ), where
+        const float j = (L_px + a) / camera_focal_length;
+
+        // Re-arranging for alpha:
+        // alpha = atan(j) - atan(m);
+        // Difference of atans (See 5.2.9 here:
+        // http://www.mathamazement.com/Lessons/Pre-Calculus/05_Analytic-Trigonometry/sum-and-difference-formulas.html )
+        // atan(j) - atan(m) = atan(l), where
+        const float l = (j - m) / (1 + j*m);
+
+        // The red+purple+orange triangle goes from camera pinhole,
+        // to the edge of the sphere, to the center of the sphere.
+        // sin(alpha) = R_cm / D_cm;
+        // sin(atan(l)) = R_cm / D_cm;
+        // sin of arctan (http://www.rapidtables.com/math/trigonometry/arctan/sin-of-arctan.htm )
+        // sin(atan(l)) = l / sqrt( 1 + l*l )
+        // R_cm / D_cm = l / sqrt( 1 + l*l )
+        // Solve for D:
+        const float D_cm = sphere_radius * sqrt(1 + l*l) / l;
+
+        // Solve for Z_cm
+        const float z = D_cm * fl / sqrt(1 + fl*fl);
+
+        // Use a pair of similar triangles to find L_cm
+        // 1: blue + purple + orange; tan(beta) = z_cm / L_cm
+        // 2: inner blue + some orange; tan(beta) = f_px / L_px
+        // Solve for L_cm
+        const float L_cm = z * m;
+
+        // We can now use the pair of gray triangles on the x-y plane to find x_cm and y_cm
+        const float x = L_cm * h / L_px;
+        const float y = L_cm * k / L_px;
+
+        *out_sphere_center = Eigen::Vector3f(x, y, z);
+    }
+
+    return bSuccess;
+}

@@ -9,16 +9,16 @@
 struct PositionSensorPacket
 {
     Eigen::Vector3f position;
-    Eigen::Vector3f velocity;
     Eigen::Vector3f acceleration;
+    bool bPositionValid;
 };
 
 /// A snapshot of raw IMU data transformed by a filter space so that it can be used to update an position filter
 struct PositionFilterPacket
 {
     Eigen::Vector3f position;
-    Eigen::Vector3f velocity;
     Eigen::Vector3f acceleration;
+    bool bPositionValid;
 };
 
 /// Used to transform sensor data from a device into an arbitrary space

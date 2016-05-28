@@ -14,7 +14,7 @@ namespace PSMoveProtocol
 
 // -- constants -----
 enum eCommonTrackingColorID {
-    INVALID= -1,
+    INVALID_COLOR= -1,
     
     Magenta,
     Cyan,
@@ -25,6 +25,16 @@ enum eCommonTrackingColorID {
 
     MAX_TRACKING_COLOR_TYPES
 };
+
+enum eCommonTrackingShapeType {
+    INVALID_SHAPE = -1,
+
+    Sphere,
+    PlanarBlob,
+
+    MAX_TRACKING_SHAPE_TYPES
+};
+
 
 // -- definitions -----
 struct CommonDeviceRange
@@ -68,6 +78,29 @@ struct CommonDevicePosition
     inline void clear()
     {
         x = y = z = 0.f;
+    }
+
+    inline void set(float _x, float _y, float _z)
+    {
+        x= _x;
+        y= _y;
+        z= _z;
+    }
+};
+
+struct CommonDeviceScreenLocation
+{
+    float x, y;
+
+    inline void clear()
+    {
+        x = y = 0.f;
+    }
+
+    inline void set(float _x, float _y)
+    {
+        x = _x;
+        y = _y;
     }
 };
 
@@ -188,6 +221,22 @@ struct CommonControllerState : CommonDeviceState
     }
 };
 
+struct CommonDeviceTrackingShape
+{
+    union{
+        struct {
+            float radius;
+        } sphere;
+
+        struct {
+            float width;
+            float height;
+        } planar_blob;
+    } shape;
+
+    eCommonTrackingShapeType shape_type;
+};
+
 /// Abstract base class for any device interface. Further defined in specific device abstractions.
 class IDeviceInterface
 {
@@ -249,6 +298,9 @@ public:
 
     // Get the tracking color of the controller
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const = 0;
+
+    // Get the tracking shape use by the controller
+    virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const = 0;
 };
 
 /// Abstract class for Tracker interface. Implemented Tracker classes

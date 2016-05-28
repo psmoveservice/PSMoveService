@@ -1,7 +1,6 @@
 #ifndef PSMOVE_CONTROLLER_H
 #define PSMOVE_CONTROLLER_H
 
-#include "PSMoveDataFrame.h"
 #include "PSMoveConfig.h"
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
@@ -137,6 +136,7 @@ public:
     virtual std::string getHostBluetoothAddress() const override;
     virtual std::string getSerial() const override;
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
+    virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
 
     // -- Getters
     inline const PSMoveControllerConfig *getConfig() const

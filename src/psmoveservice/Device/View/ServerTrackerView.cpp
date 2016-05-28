@@ -626,9 +626,16 @@ void ServerTrackerView::getTrackingColorPreset(eCommonTrackingColorID color, Com
 bool
 ServerTrackerView::computePositionForController(
     class ServerControllerView* tracked_controller, 
-    glm::vec3* out_position)
+    CommonDevicePosition* out_position)
 {
     bool bSuccess = m_bHasUnpublishedState;
+
+    // Get the tracking shape used by the controller
+    CommonDeviceTrackingShape tracking_shape;
+    if (bSuccess)
+    {
+        bSuccess = tracked_controller->getTrackingShape(tracking_shape);
+    }
 
     // Get the HSV filter used to find the tracking blob
     CommonHSVColorRange hsvColorRange;
@@ -636,7 +643,7 @@ ServerTrackerView::computePositionForController(
     {
         eCommonTrackingColorID tracked_color_id = tracked_controller->getTrackingColorID();
 
-        if (tracked_color_id != eCommonTrackingColorID::INVALID)
+        if (tracked_color_id != eCommonTrackingColorID::INVALID_COLOR)
         {
             getTrackingColorPreset(tracked_color_id, &hsvColorRange);
         }
@@ -654,50 +661,96 @@ ServerTrackerView::computePositionForController(
         bSuccess= m_opencv_buffer_state->computeBiggestConvexContour(hsvColorRange, convex_contour);              
     }
 
-    // Compute a best fit ellipse for the contour
-    EigenFitEllipse ellipse;
+    // Compute the tracker relative 3d position of the controller from the contour
     if (bSuccess)
     {
-        bSuccess=
-            eigen_alignment_fit_least_squares_ellipse(
-                convex_contour.data(),
-                static_cast<int>(convex_contour.size()),
-                ellipse);
-    }
+        switch (tracking_shape.shape_type)
+        {
+        case eCommonTrackingShapeType::Sphere:
+            {
+                Eigen::Vector3f sphere_center;
 
-    if (bSuccess)
-    {
-        const float h = ellipse.center.x();
-        const float k = ellipse.center.y();
-        const float a = ellipse.extents.x();
+                float F_PX, F_PY;
+                float PrincipalX, PrincipalY;
+                m_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
 
-        //float F_PX, F_PY;
-        //float PrincipalX, PrincipalY;
-        //m_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
-        //###HipsterSloth $TODO - Get this value from the camera intrinsics
-        const float F_PX = 554.2563f;
+                bSuccess =
+                    eigen_alignment_fit_focal_cone_to_sphere(
+                        convex_contour.data(),
+                        static_cast<int>(convex_contour.size()),
+                        tracking_shape.shape.sphere.radius,
+                        F_PX,
+                        &sphere_center);
 
-        //###HipsterSloth $TODO - Get from tracked controller geometry
-        const float R = 2.25; // cm
-
-        //Get sphere coordinates from parametric
-        const float L_px = sqrtf(h*h + k*k);
-        const float m = L_px / F_PX;
-        const float fl = F_PX / L_px;
-        const float j = (L_px + a) / F_PX;
-        const float l = (j - m) / (1 + j*m);
-        const float D_cm = R * sqrt(1 + l*l) / l;
-        const float z = D_cm * fl / sqrt(1 + fl*fl);
-        const float L_cm = z * m;
-        const float x = L_cm * h / L_px;
-        const float y = L_cm * k / L_px;
-
-        *out_position = glm::vec3(x, y, z);
+                if (bSuccess)
+                {
+                    out_position->set(sphere_center.x(), sphere_center.y(), sphere_center.z());
+                }
+            } break;
+        case eCommonTrackingShapeType::PlanarBlob:
+            {
+                //###HipsterSloth $TODO
+                bSuccess= false;
+            } break;
+        default:
+            assert(0 && "Unreachable");
+            break;
+        }
     }
 
     return bSuccess;
 }
 
+static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(ITrackerInterface *tracker_device)
+{
+    cv::Matx33f out;
 
+    float F_PX, F_PY;
+    float PrincipalX, PrincipalY;
+    tracker_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
 
+    out(0, 0) = F_PX; out(0, 1) = 0.f; out(0, 2) = PrincipalX;
+    out(1, 0) = 0.f; out(1, 1) = F_PY; out(1, 2) = PrincipalY;
+    out(2, 0) = 0.f; out(2, 1) = 0.f; out(2, 2) = 1.f;
 
+    return out;
+}
+
+CommonDeviceScreenLocation
+ServerTrackerView::projectTrackerRelativePosition(const CommonDevicePosition *trackerRelativePosition) const
+{
+    CommonDeviceScreenLocation screenLocation;
+
+    // Assume no distortion
+    // TODO: Probably should get the distortion coefficients out of the tracker
+    cv::Mat cvDistCoeffs(4, 1, cv::DataType<float>::type);
+    cvDistCoeffs.at<float>(0) = 0;
+    cvDistCoeffs.at<float>(1) = 0;
+    cvDistCoeffs.at<float>(2) = 0;
+    cvDistCoeffs.at<float>(3) = 0;
+
+    // Use the identity transform for tracker relative positions
+    cv::Mat rvec(3, 1, cv::DataType<double>::type, double(0));
+    cv::Mat tvec(3, 1, cv::DataType<double>::type, double(0));
+
+    // Only one point to project
+    std::vector<cv::Point3f> cvObjectPoints;
+    cvObjectPoints.push_back(
+        cv::Point3f(
+            trackerRelativePosition->x,
+            trackerRelativePosition->y,
+            trackerRelativePosition->z));
+
+    // Compute the camera intrinsic matrix in opencv format
+    cv::Matx33f cvCameraMatrix= computeOpenCVCameraIntrinsicMatrix(m_device);
+
+    // Projected point 
+    std::vector<cv::Point2f> projectedPoints;
+    cv::projectPoints(cvObjectPoints, rvec, tvec, cvCameraMatrix, cvDistCoeffs, projectedPoints);
+
+    //###HipsterSloth $TODO Is this using the right screen origin?
+    screenLocation.x = projectedPoints[0].x;
+    screenLocation.y = projectedPoints[0].y;
+
+    return screenLocation;
+}

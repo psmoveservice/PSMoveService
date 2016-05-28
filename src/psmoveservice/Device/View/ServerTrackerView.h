@@ -4,7 +4,6 @@
 //-- includes -----
 #include "ServerDeviceView.h"
 #include "PSMoveProtocolInterface.h"
-#include <glm/glm.hpp>
 
 // -- pre-declarations -----
 namespace PSMoveProtocol
@@ -51,7 +50,8 @@ public:
 	double getGain() const;
 	void setGain(double value);
     
-    bool computePositionForController(class ServerControllerView* tracked_controller, glm::vec3* out_position);
+    bool computePositionForController(class ServerControllerView* tracked_controller, CommonDevicePosition *out_position);
+    CommonDeviceScreenLocation projectTrackerRelativePosition(const CommonDevicePosition *trackerRelativePosition) const;
 
     void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,

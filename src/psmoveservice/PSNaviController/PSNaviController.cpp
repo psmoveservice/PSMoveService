@@ -536,7 +536,15 @@ PSNaviController::getMaxPollFailureCount() const
 const std::tuple<unsigned char, unsigned char, unsigned char> 
 PSNaviController::getColour() const
 {
+    // Navi doesn't have an LED
     return std::make_tuple(0, 0, 0);
+}
+
+void 
+PSNaviController::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const
+{
+    // Navi isn't a tracked controller
+    outTrackingShape.shape_type= eCommonTrackingShapeType::INVALID_SHAPE;
 }
     
 // -- private helper functions -----

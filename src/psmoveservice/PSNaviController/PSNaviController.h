@@ -1,7 +1,6 @@
 #ifndef PSNAVI_CONTROLLER_H
 #define PSNAVI_CONTROLLER_H
 
-#include "PSMoveDataFrame.h"
 #include "PSMoveConfig.h"
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
@@ -114,6 +113,7 @@ public:
     virtual const CommonDeviceState * getState(int lookBack = 0) const override;
     virtual long getMaxPollFailureCount() const override;
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
+    virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
         
 private:    
     bool getBTAddress(std::string& host, std::string& controller);

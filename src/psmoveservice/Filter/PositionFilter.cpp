@@ -60,8 +60,17 @@ void PositionFilterSpace::convertSensorPacketToFilterPacket(
     const PositionSensorPacket &sensorPacket,
     PositionFilterPacket &outFilterPacket) const
 {
-    outFilterPacket.position = sensorPacket.position;
-    outFilterPacket.velocity =  m_SensorTransform * sensorPacket.velocity;
+    if (sensorPacket.bPositionValid)
+    {
+        outFilterPacket.position = sensorPacket.position;
+        outFilterPacket.bPositionValid = true;
+    }
+    else
+    {
+        outFilterPacket.position = Eigen::Vector3f::Zero();
+        outFilterPacket.bPositionValid = false;
+    }
+
     outFilterPacket.acceleration = m_SensorTransform * sensorPacket.acceleration;
 }
 

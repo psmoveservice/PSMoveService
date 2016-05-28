@@ -25,6 +25,8 @@
 #define PSMOVE_CALIBRATION_BLOB_SIZE (PSMOVE_CALIBRATION_SIZE*3 - 2*2) /* Three blocks, minus header (2 bytes) for blocks 2,3 */
 #define PSMOVE_STATE_BUFFER_MAX 16
 
+#define PSMOVE_TRACKING_BULB_RADIUS  2.25f // The radius of the psmove tracking bulb in cm
+
 /* Minimum time (in milliseconds) psmove write updates */
 #define PSMOVE_WRITE_DATA_INTERVAL_MS 120
 
@@ -925,6 +927,13 @@ const std::tuple<unsigned char, unsigned char, unsigned char>
 PSMoveController::getColour() const
 {
     return std::make_tuple(LedR, LedG, LedB);
+}
+
+void 
+PSMoveController::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const
+{
+    outTrackingShape.shape_type= eCommonTrackingShapeType::Sphere;
+    outTrackingShape.shape.sphere.radius = PSMOVE_TRACKING_BULB_RADIUS;
 }
 
 float

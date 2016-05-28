@@ -93,4 +93,12 @@ eigen_alignment_compute_ellipse_fit_error(
     const Eigen::Vector2f *points, const int point_count,
     const EigenFitEllipse &ellipsoid);
 
+bool
+eigen_alignment_fit_focal_cone_to_sphere(
+    const Eigen::Vector2f *focal_plane_contour_points,
+    const int focal_plane_contour_point_count,
+    const float sphere_radius,
+    const float camera_focal_length,
+    Eigen::Vector3f *out_sphere_center);
+
 #endif // MATH_UTILITY_h

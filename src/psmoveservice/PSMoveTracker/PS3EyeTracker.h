@@ -2,7 +2,6 @@
 #define PS3EYE_TRACKER_H
 
 // -- includes -----
-#include "PSMoveDataFrame.h"
 #include "PSMoveConfig.h"
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
