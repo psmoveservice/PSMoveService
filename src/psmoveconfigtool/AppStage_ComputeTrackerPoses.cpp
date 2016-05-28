@@ -180,39 +180,7 @@ void AppStage_ComputeTrackerPoses::render()
             // Draw the origin axes
             drawTransformedAxes(glm::mat4(1.0f), 100.f);
 
-            // Draw the frustum for the DK2 camera
-            if (m_hmdView != nullptr)
-            {
-                const PSMoveFrustum frustum = m_hmdView->getTrackerFrustum();
-
-                drawFrustum(&frustum, k_hmd_frustum_color);
-            }
-
-            // Draw the frustum for each tracking camera
-            for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
-            {
-                const ClientTrackerView *trackerView= iter->second.trackerView;
-
-                {
-                    PSMoveFrustum frustum = 
-                        (m_hmdView != nullptr) 
-                        ? trackerView->getHMDRelativeTrackerFrustum()
-                        : trackerView->getTrackerFrustum();
-
-                    drawFrustum(&frustum, k_psmove_frustum_color);
-                }
-
-                {
-                    PSMovePose pose =
-                        (m_hmdView != nullptr)
-                        ? trackerView->getHMDRelativeTrackerPose()
-                        : trackerView->getTrackerPose();
-                    glm::mat4 cameraTransform = psmove_pose_to_glm_mat4(pose);
-
-                    drawTransformedAxes(cameraTransform, 20.f);
-                }
-            }
-
+            // Draw the HMD
             if (m_hmdView != nullptr)
             {
                 PSMovePose pose = m_hmdView->getHmdPose();
@@ -223,8 +191,29 @@ void AppStage_ComputeTrackerPoses::render()
                 glm::mat4 trans = glm::translate(glm::mat4(1.0f), position);
                 glm::mat4 transform = trans * rot;
 
+                //###HipsterSloth $TODO Put the HMD in the Calibration Mat tracking space 
+
                 drawDK2Model(transform);
                 drawTransformedAxes(transform, 10.f);
+            }
+
+            // Draw the frustum for each tracking camera
+            for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+            {
+                const ClientTrackerView *trackerView = iter->second.trackerView;
+
+                {
+                    PSMoveFrustum frustum = trackerView->getTrackerFrustum();
+
+                    drawFrustum(&frustum, k_psmove_frustum_color);
+                }
+
+                {
+                    PSMovePose pose = trackerView->getTrackerPose();
+                    glm::mat4 cameraTransform = psmove_pose_to_glm_mat4(pose);
+
+                    drawTransformedAxes(cameraTransform, 20.f);
+                }
             }
         } break;
     case eMenuState::calibrateStepFailed:
@@ -904,7 +893,6 @@ static void copy_pose_to_request(
 
 void AppStage_ComputeTrackerPoses::request_set_tracker_pose(
     const PSMovePose *pose,
-    const PSMovePose *hmd_relative_pose,
     class ClientTrackerView *TrackerView)
 {
     // Set the pose on out local tracker view
@@ -912,7 +900,6 @@ void AppStage_ComputeTrackerPoses::request_set_tracker_pose(
         ClientTrackerInfo &trackerInfo= TrackerView->getTrackerInfoMutable();
 
         trackerInfo.tracker_pose = *pose;
-        trackerInfo.hmd_relative_tracker_pose = *hmd_relative_pose;
     }
 
     // Update the pose on the service
@@ -925,7 +912,6 @@ void AppStage_ComputeTrackerPoses::request_set_tracker_pose(
 
         set_pose_request->set_tracker_id(TrackerView->getTrackerId());
         copy_pose_to_request(TrackerView->getTrackerPose(), set_pose_request->mutable_pose());
-        copy_pose_to_request(TrackerView->getHMDRelativeTrackerPose(), set_pose_request->mutable_hmd_relative_pose());
 
         ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
     }

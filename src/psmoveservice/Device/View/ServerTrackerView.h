@@ -47,11 +47,18 @@ public:
     double getExposure() const;
     void setExposure(double value);
 
-	double getGain() const;
-	void setGain(double value);
+    double getGain() const;
+    void setGain(double value);
     
     bool computePositionForController(class ServerControllerView* tracked_controller, CommonDevicePosition *out_position);
+
     CommonDeviceScreenLocation projectTrackerRelativePosition(const CommonDevicePosition *trackerRelativePosition) const;
+    
+    CommonDevicePosition computeWorldPosition(const CommonDevicePosition *tracker_relative_position);
+
+    static CommonDevicePosition triangulateWorldPosition(
+        const ServerTrackerView *tracker, const CommonDeviceScreenLocation *screen_location,
+        const ServerTrackerView *other_tracker, const CommonDeviceScreenLocation *other_screen_location);
 
     void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
@@ -60,8 +67,8 @@ public:
         float focalLengthX, float focalLengthY,
         float principalX, float principalY);
 
-    void getTrackerPose(struct CommonDevicePose *outPose, struct CommonDevicePose *outHmdRelativePose) const;
-    void setTrackerPose(const struct CommonDevicePose *pose, const struct CommonDevicePose *hmdRelativePose);
+    CommonDevicePose getTrackerPose() const;
+    void setTrackerPose(const struct CommonDevicePose *pose);
 
     void getPixelDimensions(float &outWidth, float &outHeight) const;
     void getFOV(float &outHFOV, float &outVFOV) const;

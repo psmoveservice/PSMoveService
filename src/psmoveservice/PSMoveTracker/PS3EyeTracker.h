@@ -47,7 +47,6 @@ public:
     double zFar;
     eFOVSetting fovSetting;
     CommonDevicePose pose;
-    CommonDevicePose hmdRelativePose;
     CommonHSVColorRange ColorPresets[eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES];
 
     static const int CONFIG_VERSION;
@@ -103,12 +102,8 @@ public:
     void setCameraIntrinsics(
         float focalLengthX, float focalLengthY,
         float principalX, float principalY) override;
-    void getTrackerPose(
-        struct CommonDevicePose *outPose, 
-        struct CommonDevicePose *outHmdRelativePose) const override;
-    void setTrackerPose(
-        const struct CommonDevicePose *pose, 
-        const struct CommonDevicePose *hmdRelativePose) override;
+    CommonDevicePose getTrackerPose() const override;
+    void setTrackerPose(const struct CommonDevicePose *pose) override;
     void getFOV(float &outHFOV, float &outVFOV) const override;
     void getZRange(float &outZNear, float &outZFar) const override;
     void gatherTrackerOptions(PSMoveProtocol::Response_ResultTrackerSettings* settings) const override;

@@ -247,7 +247,6 @@ message Request {
     message RequestSetTrackerPose {
         int32 tracker_id = 1;
         Pose pose = 2;
-        Pose hmd_relative_pose = 3;
     }
     RequestSetTrackerPose request_set_tracker_pose = 37;
     
@@ -360,7 +359,6 @@ message Response {
             
             // Camera Extrinsic Properties
             Pose tracker_pose = 13;
-            Pose hmd_relative_tracker_pose = 14;
         }
         repeated TrackerInfo trackers = 1;
     }

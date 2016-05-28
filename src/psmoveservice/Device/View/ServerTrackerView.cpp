@@ -4,6 +4,7 @@
 #include "DeviceEnumerator.h"
 #include "MathUtility.h"
 #include "MathEigen.h"
+#include "MathGLM.h"
 #include "MathAlignment.h"
 #include "PS3EyeTracker.h"
 #include "PSMoveProtocol.pb.h"
@@ -559,18 +560,15 @@ void ServerTrackerView::setCameraIntrinsics(
     m_device->setCameraIntrinsics(focalLengthX, focalLengthY, principalX, principalY);
 }
 
-void ServerTrackerView::getTrackerPose(
-    CommonDevicePose *outPose,
-    CommonDevicePose *outHmdRelativePose) const
+CommonDevicePose ServerTrackerView::getTrackerPose() const
 {
-    m_device->getTrackerPose(outPose, outHmdRelativePose);
+    return m_device->getTrackerPose();
 }
 
 void ServerTrackerView::setTrackerPose(
-    const struct CommonDevicePose *pose,
-    const struct CommonDevicePose *hmdRelativePose)
+    const struct CommonDevicePose *pose)
 {
-    m_device->setTrackerPose(pose, hmdRelativePose);
+    m_device->setTrackerPose(pose);
 }
 
 void ServerTrackerView::getPixelDimensions(float &outWidth, float &outHeight) const
@@ -701,6 +699,35 @@ ServerTrackerView::computePositionForController(
     return bSuccess;
 }
 
+static glm::mat4 computeGLMCameraTransformMatrix(ITrackerInterface *tracker_device)
+{
+
+    const CommonDevicePose pose = tracker_device->getTrackerPose();
+    const CommonDeviceQuaternion &quat = pose.Orientation;
+    const CommonDevicePosition &pos = pose.Position;
+
+    const glm::quat glm_quat(quat.w, quat.x, quat.y, quat.z);
+    const glm::vec3 glm_pos(pos.x, pos.y, pos.z);
+    const glm::mat4 glm_camera_xform = glm_mat4_from_pose(glm_quat, glm_pos);
+
+    return glm_camera_xform;
+}
+
+static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(ITrackerInterface *tracker_device)
+{
+    cv::Matx34f out;
+
+    // Extrinsic matrix is the inverse of the camera pose matrix
+    const glm::mat4 glm_camera_xform = computeGLMCameraTransformMatrix(tracker_device);
+    const glm::mat4 glm_mat = glm::inverse(glm_camera_xform);
+
+    out(0, 0) = glm_mat[0][0]; out(0, 1) = glm_mat[1][0]; out(0, 2) = glm_mat[2][0]; out(0, 3) = glm_mat[3][0];
+    out(1, 0) = glm_mat[0][1]; out(1, 1) = glm_mat[1][1]; out(1, 2) = glm_mat[2][1]; out(1, 3) = glm_mat[3][1];
+    out(2, 0) = glm_mat[0][2]; out(2, 1) = glm_mat[1][2]; out(2, 2) = glm_mat[2][2]; out(2, 3) = glm_mat[3][2];
+
+    return out;
+}
+
 static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(ITrackerInterface *tracker_device)
 {
     cv::Matx33f out;
@@ -714,6 +741,15 @@ static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(ITrackerInterface *tracker
     out(2, 0) = 0.f; out(2, 1) = 0.f; out(2, 2) = 1.f;
 
     return out;
+}
+
+static cv::Matx34f computeOpenCVCameraPinholeMatrix(ITrackerInterface *tracker_device)
+{
+    cv::Matx34f extrinsic_matrix = computeOpenCVCameraExtrinsicMatrix(tracker_device);
+    cv::Matx33f intrinsic_matrix = computeOpenCVCameraIntrinsicMatrix(tracker_device);
+    cv::Matx34f pinhole_matrix = intrinsic_matrix * extrinsic_matrix;
+
+    return pinhole_matrix;
 }
 
 CommonDeviceScreenLocation
@@ -753,4 +789,45 @@ ServerTrackerView::projectTrackerRelativePosition(const CommonDevicePosition *tr
     screenLocation.y = projectedPoints[0].y;
 
     return screenLocation;
+}
+
+CommonDevicePosition
+ServerTrackerView::computeWorldPosition(
+    const CommonDevicePosition *tracker_relative_position)
+{
+    const glm::vec4 rel_pos(tracker_relative_position->x, tracker_relative_position->y, tracker_relative_position->z, 1.f);
+    const glm::mat4 cameraTransform= computeGLMCameraTransformMatrix(m_device);
+    const glm::vec4 world_pos = cameraTransform * rel_pos;
+    
+    CommonDevicePosition result;
+    result.set(world_pos.x, world_pos.y, world_pos.z);
+
+    return result;
+}
+
+CommonDevicePosition
+ServerTrackerView::triangulateWorldPosition(
+    const ServerTrackerView *tracker, 
+    const CommonDeviceScreenLocation *screen_location,
+    const ServerTrackerView *other_tracker,
+    const CommonDeviceScreenLocation *other_screen_location)
+{
+    cv::Mat projPoints1 = cv::Mat(cv::Point2f(screen_location->x, screen_location->y));
+    cv::Mat projPoints2 = cv::Mat(cv::Point2f(other_screen_location->x, other_screen_location->y));
+
+    cv::Mat projMat1 = cv::Mat(computeOpenCVCameraPinholeMatrix(tracker->m_device));
+    cv::Mat projMat2 = cv::Mat(computeOpenCVCameraPinholeMatrix(other_tracker->m_device));
+
+    cv::Mat point3D(1, 1, CV_32FC4);
+
+    cv::triangulatePoints(projMat1, projMat2, projPoints1, projPoints2, point3D);
+
+    const float w = point3D.at<float>(3, 0);
+
+    CommonDevicePosition result;
+    result.x = point3D.at<float>(0, 0) / w;
+    result.y = point3D.at<float>(1, 0) / w;
+    result.z = point3D.at<float>(2, 0) / w;
+
+    return result;
 }

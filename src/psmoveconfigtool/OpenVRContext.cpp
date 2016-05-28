@@ -155,32 +155,6 @@ int OpenVRContext::getHmdList(OpenVRHmdInfo *outHmdList, int maxListSize)
     return listCount;
 }
 
-int OpenVRContext::getHmdTrackerList(struct OpenVRTrackerInfo *outTrackerList, int maxListSize)
-{
-    int listCount = 0;
-
-    if (getIsInitialized())
-    {
-        for (vr::TrackedDeviceIndex_t deviceIndex = 0;
-            deviceIndex < vr::k_unMaxTrackedDeviceCount && listCount < maxListSize;
-            ++deviceIndex)
-        {
-            if (m_pVRSystem->IsTrackedDeviceConnected(deviceIndex) &&
-                m_pVRSystem->GetTrackedDeviceClass(deviceIndex) == vr::TrackedDeviceClass_TrackingReference)
-            {
-                OpenVRTrackerInfo &entry = outTrackerList[listCount];
-
-                entry.clear();
-                entry.rebuild(m_pVRSystem);
-                entry.DeviceIndex = deviceIndex;
-                ++listCount;
-            }
-        }
-    }
-
-    return listCount;
-}
-
 ClientHMDView *OpenVRContext::allocateHmdView()
 {
     ClientHMDView * result = nullptr;
@@ -190,23 +164,16 @@ ClientHMDView *OpenVRContext::allocateHmdView()
         if (m_hmdView == nullptr)
         {
             OpenVRHmdInfo hmdList[1];
-            OpenVRTrackerInfo trackerList[1];
 
             int hmdCount = getHmdList(hmdList, sizeof(hmdList));
-            int trackerCount = getHmdTrackerList(trackerList, sizeof(trackerList));
 
-            if (hmdCount > 0 && trackerCount > 0)
+            if (hmdCount > 0)
             {
-                m_hmdView = new ClientHMDView(hmdList[0].DeviceIndex, trackerList[0].DeviceIndex);
+                m_hmdView = new ClientHMDView(hmdList[0].DeviceIndex);
 
                 if (m_pVRSystem->IsTrackedDeviceConnected(hmdList[0].DeviceIndex))
                 {
                     m_hmdView->notifyConnected(m_pVRSystem, hmdList[0].DeviceIndex);
-                }
-
-                if (m_pVRSystem->IsTrackedDeviceConnected(trackerList[0].DeviceIndex))
-                {
-                    m_hmdView->notifyConnected(m_pVRSystem, trackerList[0].DeviceIndex);
                 }
             }
         }

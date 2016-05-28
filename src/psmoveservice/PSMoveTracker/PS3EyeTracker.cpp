@@ -30,7 +30,7 @@ public:
 
 // -- public methods
 // -- PS3EYE Controller Config
-const int PS3EyeTrackerConfig::CONFIG_VERSION = 6;
+const int PS3EyeTrackerConfig::CONFIG_VERSION = 7;
 
 PS3EyeTrackerConfig::PS3EyeTrackerConfig(const std::string &fnamebase)
     : PSMoveConfig(fnamebase)
@@ -49,7 +49,6 @@ PS3EyeTrackerConfig::PS3EyeTrackerConfig(const std::string &fnamebase)
     , fovSetting(BlueDot)
 {
     pose.clear();
-    hmdRelativePose.clear();
 
     for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
     {
@@ -84,14 +83,6 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("pose.position.x", pose.Position.x);
     pt.put("pose.position.y", pose.Position.y);
     pt.put("pose.position.z", pose.Position.z);
-
-    pt.put("hmd_relative_pose.orientation.w", hmdRelativePose.Orientation.w);
-    pt.put("hmd_relative_pose.orientation.x", hmdRelativePose.Orientation.x);
-    pt.put("hmd_relative_pose.orientation.y", hmdRelativePose.Orientation.y);
-    pt.put("hmd_relative_pose.orientation.z", hmdRelativePose.Orientation.z);
-    pt.put("hmd_relative_pose.position.x", hmdRelativePose.Position.x);
-    pt.put("hmd_relative_pose.position.y", hmdRelativePose.Position.y);
-    pt.put("hmd_relative_pose.position.z", hmdRelativePose.Position.z);
 
     writeColorPreset(pt, "", "magenta", &ColorPresets[eCommonTrackingColorID::Magenta]);
     writeColorPreset(pt, "", "cyan", &ColorPresets[eCommonTrackingColorID::Cyan]);
@@ -133,14 +124,6 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
         pose.Position.x = pt.get<float>("pose.position.x", 0.0);
         pose.Position.y = pt.get<float>("pose.position.y", 0.0);
         pose.Position.z = pt.get<float>("pose.position.z", 0.0);
-
-        hmdRelativePose.Orientation.w = pt.get<float>("hmd_relative_pose.orientation.w", 1.0);
-        hmdRelativePose.Orientation.x = pt.get<float>("hmd_relative_pose.orientation.x", 0.0);
-        hmdRelativePose.Orientation.y = pt.get<float>("hmd_relative_pose.orientation.y", 0.0);
-        hmdRelativePose.Orientation.z = pt.get<float>("hmd_relative_pose.orientation.z", 0.0);
-        hmdRelativePose.Position.x = pt.get<float>("hmd_relative_pose.position.x", 0.0);
-        hmdRelativePose.Position.y = pt.get<float>("hmd_relative_pose.position.y", 0.0);
-        hmdRelativePose.Position.z = pt.get<float>("hmd_relative_pose.position.z", 0.0);
 
         readColorPreset(pt, "", "magenta", &ColorPresets[eCommonTrackingColorID::Magenta], &k_default_color_presets[eCommonTrackingColorID::Magenta]);
         readColorPreset(pt, "", "cyan", &ColorPresets[eCommonTrackingColorID::Cyan], &k_default_color_presets[eCommonTrackingColorID::Cyan]);
@@ -459,20 +442,15 @@ void PS3EyeTracker::setCameraIntrinsics(
     cfg.save();
 }
 
-void PS3EyeTracker::getTrackerPose(
-    struct CommonDevicePose *outPose, 
-    struct CommonDevicePose *outHmdRelativePose) const
+CommonDevicePose PS3EyeTracker::getTrackerPose() const
 {
-    *outPose = cfg.pose;
-    *outHmdRelativePose = cfg.hmdRelativePose;
+    return cfg.pose;
 }
 
 void PS3EyeTracker::setTrackerPose(
-    const struct CommonDevicePose *pose, 
-    const struct CommonDevicePose *hmdRelativePose)
+    const struct CommonDevicePose *pose)
 {
     cfg.pose = *pose;
-    cfg.hmdRelativePose = *hmdRelativePose;
     cfg.save();
 }
 

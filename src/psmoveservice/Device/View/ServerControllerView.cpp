@@ -225,26 +225,67 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
             positionEstimate.bValidTimestamps = true;
         }
 
-        // If multiple trackers can see the controller, triangulate the result
+        // If multiple trackers can see the controller, 
+        // triangulate all pairs of trackers and average the results
         if (positions_found > 1)
         {
-            glm::vec3 position2d_list[TrackerManager::k_max_devices];
+            // Project the tracker relative 3d tracking position back on to the tracker camera plane
+            CommonDeviceScreenLocation position2d_list[TrackerManager::k_max_devices];
             for (int list_index = 0; list_index < positions_found; ++list_index)
             {
-                int tracker_id = valid_tracker_ids[list_index];
-                ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-
-                //###HipsterSloth $TODO
+                const int tracker_id = valid_tracker_ids[list_index];
+                const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+                const ControllerPositionEstimation &positionEstimate = m_tracker_position_estimation[tracker_id];
+                
+                position2d_list[list_index] = tracker->projectTrackerRelativePosition(&positionEstimate.position);
             }
-            // Select the best pair of 2d points to use and feed them into
-            // cv::triangulatePoints to get a 3d position
+
+            int pair_count = 0;
+            CommonDevicePosition average_world_position = { 0.f, 0.f, 0.f };
+            for (int list_index = 0; list_index < positions_found; ++list_index)
+            {
+                const int tracker_id = valid_tracker_ids[list_index];
+                const CommonDeviceScreenLocation &screen_location = position2d_list[list_index];
+                const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+
+                for (int other_list_index = list_index + 1; other_list_index < positions_found; ++other_list_index)
+                {
+                    const int other_tracker_id = valid_tracker_ids[other_list_index];
+                    const CommonDeviceScreenLocation &other_screen_location = position2d_list[other_list_index];
+                    const ServerTrackerViewPtr other_tracker = tracker_manager->getTrackerViewPtr(other_tracker_id);
+
+                    // Using the screen locations on two different trackers we can triangulate a world position
+                    CommonDevicePosition world_position =
+                        ServerTrackerView::triangulateWorldPosition(
+                            tracker.get(), &screen_location,
+                            other_tracker.get(), &other_screen_location);
+
+                    average_world_position.x += world_position.x;
+                    average_world_position.y += world_position.y;
+                    average_world_position.z += world_position.z;
+
+                    ++pair_count;
+                }
+            }
+
+            if (pair_count > 1)
+            {
+                const float N = static_cast<float>(pair_count);
+
+                average_world_position.x /= N;
+                average_world_position.y /= N;
+                average_world_position.z /= N;
+            }
         }
         // If only one tracker can see the controller, then just use the position estimate from that
         else if (positions_found == 1)
         {
-            //###HipsterSloth $TODO - put the tracker relative position into world space
-            const int valid_tracker_id = valid_tracker_ids[0];
-            m_multicam_position_estimation->position = m_tracker_position_estimation[valid_tracker_id].position;
+            // Put the tracker relative position into world space
+            const int tracker_id = valid_tracker_ids[0];
+            const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+            const CommonDevicePosition &tracker_relative_position = m_tracker_position_estimation[tracker_id].position;
+
+            m_multicam_position_estimation->position = tracker->computeWorldPosition(&tracker_relative_position);
             m_multicam_position_estimation->bCurrentlyTracking = true;
         }
         // If no trackers can see the controller, maintain the last known position and time it was seen

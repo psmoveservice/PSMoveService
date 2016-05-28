@@ -35,7 +35,6 @@ public:
     }
 
     int getHmdList(struct OpenVRHmdInfo *outHmdList, int maxListSize);
-    int getHmdTrackerList(struct OpenVRTrackerInfo *outTrackerList, int maxListSize);
 
     ClientHMDView *allocateHmdView();
     void freeHmdView(ClientHMDView *view);

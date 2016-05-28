@@ -52,7 +52,6 @@ struct CLIENTPSMOVEAPI ClientTrackerInfo
 
     // Camera Extrinsic properties
     PSMovePose tracker_pose;
-    PSMovePose hmd_relative_tracker_pose;
 };
 
 class CLIENTPSMOVEAPI ClientTrackerView
@@ -132,11 +131,6 @@ public:
         return m_tracker_info.tracker_pose;
     }
 
-    inline PSMovePose getHMDRelativeTrackerPose() const
-    {
-        return m_tracker_info.hmd_relative_tracker_pose;
-    }
-
     inline int getTrackerId() const
     {
         return m_tracker_info.tracker_id;
@@ -173,7 +167,6 @@ public:
     const unsigned char *getVideoFrameBuffer() const;
 
     PSMoveFrustum getTrackerFrustum() const;
-    PSMoveFrustum getHMDRelativeTrackerFrustum() const;
 
     // Statistics
     inline float GetDataFrameFPS() const

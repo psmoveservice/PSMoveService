@@ -826,12 +826,9 @@ protected:
 
                 // Get the tracker pose
                 {
-                    CommonDevicePose pose, hmdRelativePose;
-
-                    tracker_view->getTrackerPose(&pose, &hmdRelativePose);
+                    CommonDevicePose pose= tracker_view->getTrackerPose();
 
                     common_device_pose_to_protocol_pose(pose, tracker_info->mutable_tracker_pose());
-                    common_device_pose_to_protocol_pose(hmdRelativePose, tracker_info->mutable_hmd_relative_tracker_pose());
                 }                
             }
         }
@@ -1153,13 +1150,9 @@ protected:
             {
                 const PSMoveProtocol::Pose &srcPose = 
                     context.request->request_set_tracker_pose().pose();
-                const PSMoveProtocol::Pose &srcHmdRelativePose = 
-                    context.request->request_set_tracker_pose().hmd_relative_pose();
-
                 CommonDevicePose destPose = protocol_pose_to_common_device_pose(srcPose);
-                CommonDevicePose destHmdRelativePose = protocol_pose_to_common_device_pose(srcHmdRelativePose);
 
-                tracker_view->setTrackerPose(&destPose, &destHmdRelativePose);
+                tracker_view->setTrackerPose(&destPose);
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }

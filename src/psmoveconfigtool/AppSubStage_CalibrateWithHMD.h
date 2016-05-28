@@ -24,19 +24,17 @@ struct FrustumBounds
 
 struct TrackerCoregistrationData
 {
-    FrustumBounds sampleBounds;
     PSMovePose hmd_poses[NPOSES];
     PSMovePosition psmoveposes[NPOSES];
     int poseCount;
     bool bComputedCoregTransform;
 
-    PSMovePose hmdCameraRelativeTrackerPose;
+    PSMovePose trackerPose;
 
     void clear()
     {
-        sampleBounds.clear();
         poseCount = 0;
-        hmdCameraRelativeTrackerPose = *k_psmove_pose_identity;
+        trackerPose = *k_psmove_pose_identity;
         bComputedCoregTransform = false;
     }
 };
@@ -79,9 +77,6 @@ private:
     eMenuState m_menuState;
 
     TrackerCoregistrationData m_trackerCoreg[PSMOVESERVICE_MAX_TRACKER_COUNT];
-
-    PSMovePose m_hmd_tracker_pose;
-    bool m_sampled_hmd_tracker_pose;
 };
 
 #endif // APP_STAGE_COREGISTER_WITH_HMD_H

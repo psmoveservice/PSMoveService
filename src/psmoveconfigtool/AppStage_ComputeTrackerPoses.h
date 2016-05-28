@@ -85,7 +85,6 @@ protected:
 
     void request_set_tracker_pose(
         const struct PSMovePose *pose, 
-        const struct PSMovePose *hmd_relative_pose,
         class ClientTrackerView *TrackerView);
 
     void handle_all_devices_ready();
