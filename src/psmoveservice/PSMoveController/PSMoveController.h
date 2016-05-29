@@ -33,6 +33,7 @@ public:
         , version(CONFIG_VERSION)
         , max_poll_failure_count(100) 
         , cal_ag_xyz_kb(2, std::vector<std::vector<float>>(3, std::vector<float>(2, 0.f)))
+        , prediction_time(0.f)
     {
         magnetometer_ellipsoid.clear();
         magnetometer_identity = Eigen::Vector3f::Zero();
@@ -47,6 +48,7 @@ public:
     std::vector<std::vector<std::vector<float>>> cal_ag_xyz_kb;
     EigenFitEllipsoid magnetometer_ellipsoid;
     Eigen::Vector3f magnetometer_identity;
+    float prediction_time;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport

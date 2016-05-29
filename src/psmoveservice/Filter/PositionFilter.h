@@ -52,7 +52,7 @@ public:
     enum FusionType {
         FusionTypeNone,
         FusionTypePassThru,
-        // TODO: LowPass
+        FusionTypeLowPass
         // TODO: Kalman
     };
 
@@ -64,10 +64,9 @@ public:
         return m_FilterSpace;
     }
 
-    // Estimate the current position of the filter given a time offset
-    // Positive time values estimate into the future
-    // Negative time values get pose values from the past
-    Eigen::Vector3f getPosition(int msec_time = 0);
+    // Estimate the current position of the filter given a time offset into the future
+    Eigen::Vector3f getPosition(float time = 0.f);
+    Eigen::Vector3f getVelocity();
 
     void setFilterSpace(const PositionFilterSpace &filterSpace);
     void setFusionType(FusionType fusionType);

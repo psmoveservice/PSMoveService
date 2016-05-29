@@ -32,11 +32,6 @@ const Eigen::Matrix3f *k_eigen_sensor_transform_opengl= &g_eigen_sensor_transfor
 #define k_orientation_history_max 16
 
 // -- private definitions -----
-struct OrientationSample
-{
-    Eigen::Quaternionf orientation;
-};
-
 struct MadgwickMARGState
 {
     // estimate gyroscope biases error
@@ -52,11 +47,9 @@ struct OrientationSensorFusionState
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    // Recent history of orientation readings
-    std::deque<OrientationSample> orientationHistory;
-
     /* Output value as quaternion */
     Eigen::Quaternionf orientation;
+    Eigen::Quaternionf orientation_derivative;
 
     /* Quaternion measured when controller points towards camera */
     Eigen::Quaternionf reset_orientation;
@@ -73,9 +66,9 @@ struct OrientationSensorFusionState
     void initialize()
     {
         orientation= Eigen::Quaternionf::Identity();
+        orientation_derivative = Eigen::Quaternionf::Identity();
         reset_orientation= Eigen::Quaternionf::Identity();
         fusion_type= OrientationFilter::FusionTypeComplementaryMARG;
-        orientationHistory.clear();
     }
 };
 
@@ -167,16 +160,20 @@ OrientationFilter::~OrientationFilter()
     delete m_FusionState;
 }
 
-// Estimate the current orientation of the filter given a time offset
-// Positive time values estimate into the future
-// Negative time values get pose values from the past
-Eigen::Quaternionf OrientationFilter::getOrientation(int msec_time)
+Eigen::Quaternionf OrientationFilter::getOrientation(float time)
 {
-    //###bwalker $TODO Use the orientation history to compute an orientation
-
-    Eigen::Quaternionf result= m_FusionState->reset_orientation * m_FusionState->orientation;
+    Eigen::Quaternionf predicted_orientation = 
+        is_nearly_zero(time) 
+        ? m_FusionState->orientation
+        : Eigen::Quaternionf(m_FusionState->orientation.coeffs() + m_FusionState->orientation_derivative.coeffs()*time);
+    Eigen::Quaternionf result = m_FusionState->reset_orientation * predicted_orientation;
 
     return result;
+}
+
+Eigen::Quaternionf OrientationFilter::getOrientationDerivative()
+{
+    return m_FusionState->orientation_derivative;
 }
 
 void OrientationFilter::setFilterSpace(const OrientationFilterSpace &filterSpace)
@@ -262,24 +259,6 @@ void OrientationFilter::update(
         SERVER_LOG_WARNING("OrientationFilter") << "Orientation is NaN!";
         m_FusionState->orientation = orientation_backup;
     }
-
-    // Add the new orientation sample to the orientation history
-    {
-        OrientationSample sample;
-
-        sample.orientation= m_FusionState->orientation;
-        //###bwalker $TODO Timestamp?
-
-        // Make room for new entry if at the max queue size
-        if (m_FusionState->orientationHistory.size() >= k_orientation_history_max)
-        {
-            m_FusionState->orientationHistory.erase(
-                m_FusionState->orientationHistory.begin(),
-                m_FusionState->orientationHistory.begin() + m_FusionState->orientationHistory.size() - k_orientation_history_max);
-        }
-
-        m_FusionState->orientationHistory.push_back(sample);
-    }
 }
 
 // -- Orientation Filters ----
@@ -348,6 +327,7 @@ orientation_fusion_imu_update(
 
     // Save the new quaternion back into the orientation state
     fusion_state->orientation= SEq_new;
+    fusion_state->orientation_derivative = SEqDot_omega;
 }
 
 // This algorithm comes from Sebastian O.H. Madgwick's 2010 paper:
@@ -455,6 +435,7 @@ orientation_fusion_madgwick_marg_update(
 
     // Save the new quaternion back into the orientation state
     fusion_state->orientation= SEq_new;
+    fusion_state->orientation_derivative = SEqDot_est;
 }
 
 static void 
@@ -508,6 +489,7 @@ orientation_fusion_complementary_marg_update(
     // The final rotation is a blend between the integrated orientation and absolute rotation from the earth-frame
     float mg_wight = fusion_state->fusion_state.complementary_marg_state.mg_weight;
     fusion_state->orientation= eigen_quaternion_normalized_lerp(ar_orientation, mg_orientation, mg_wight);
+    fusion_state->orientation_derivative = q_derivative;
 
     // Update the blend weight
     fusion_state->fusion_state.complementary_marg_state.mg_weight =

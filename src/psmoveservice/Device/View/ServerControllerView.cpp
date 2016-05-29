@@ -381,7 +381,7 @@ bool ServerControllerView::setHostBluetoothAddress(
 }
 
 CommonDevicePose
-ServerControllerView::getFilteredPose(int msec_time) const
+ServerControllerView::getFilteredPose(float time) const
 {
     CommonDevicePose pose;
 
@@ -389,7 +389,7 @@ ServerControllerView::getFilteredPose(int msec_time) const
 
     if (m_orientation_filter != nullptr)
     {
-        Eigen::Quaternionf orientation= m_orientation_filter->getOrientation(msec_time);
+        Eigen::Quaternionf orientation= m_orientation_filter->getOrientation(time);
 
         pose.Orientation.w= orientation.w();
         pose.Orientation.x= orientation.x();
@@ -399,7 +399,7 @@ ServerControllerView::getFilteredPose(int msec_time) const
 
     if (m_position_filter != nullptr)
     {
-        Eigen::Vector3f position= m_position_filter->getPosition(msec_time);
+        Eigen::Vector3f position= m_position_filter->getPosition(time);
 
         pose.Position.x= position.x();
         pose.Position.y= position.y();
@@ -535,7 +535,7 @@ static void generate_psmove_data_frame_for_stream(
     const PSMoveController *psmove_controller= controller_view->castCheckedConst<PSMoveController>();
     const PSMoveControllerConfig *psmove_config= psmove_controller->getConfig();
     const CommonControllerState *controller_state= controller_view->getState();
-    const CommonDevicePose controller_pose= controller_view->getFilteredPose();
+    const CommonDevicePose controller_pose = controller_view->getFilteredPose(psmove_config->prediction_time);
 
     PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *controller_data_frame= data_frame->mutable_controller_data_packet();
     PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSMoveState *psmove_data_frame = controller_data_frame->mutable_psmove_state();

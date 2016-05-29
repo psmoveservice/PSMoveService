@@ -1146,7 +1146,6 @@ protected:
         return result;
     }
 
-
     void handle_request__set_tracker_pose(
         const RequestContext &context,
         PSMoveProtocol::Response *response)

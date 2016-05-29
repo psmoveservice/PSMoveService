@@ -85,10 +85,9 @@ public:
     inline OrientationFilterSpace &getFilterSpace()
     { return m_FilterSpace; }
 
-    // Estimate the current orientation of the filter given a time offset
-    // Positive time values estimate into the future
-    // Negative time values get pose values from the past
-    Eigen::Quaternionf getOrientation(int msec_time = 0);
+    // Estimate the current orientation of the filter given a time offset into the future
+    Eigen::Quaternionf getOrientation(float time = 0.f);
+    Eigen::Quaternionf getOrientationDerivative();
 
     void setFilterSpace(const OrientationFilterSpace &filterSpace);
     void setFusionType(FusionType fusionType);

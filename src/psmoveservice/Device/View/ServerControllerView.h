@@ -48,10 +48,8 @@ public:
     IDeviceInterface* getDevice() const override {return m_device;}
     inline class OrientationFilter * getOrientationFilter() { return m_orientation_filter; }
 
-    // Estimate the given pose if the controller
-    // Positive time values estimate into the future
-    // Negative time values get pose values from the past
-    CommonDevicePose getFilteredPose(int msec_time = 0) const;
+    // Estimate the given pose if the controller at some point into the future
+    CommonDevicePose getFilteredPose(float time= 0.f) const;
 
     // Returns true if the device is connected via Bluetooth, false if by USB
     bool getIsBluetooth() const;

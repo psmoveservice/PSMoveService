@@ -163,6 +163,8 @@ inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_
 // -- public methods
 
 // -- PSMove Controller Config
+// Bump this version when you are making a breaking config change.
+// Simply adding or removing a field is ok and doesn't require a version bump.
 const int PSMoveControllerConfig::CONFIG_VERSION= 1;
 
 const boost::property_tree::ptree
@@ -173,6 +175,7 @@ PSMoveControllerConfig::config2ptree()
     pt.put("is_valid", is_valid);
     pt.put("version", PSMoveControllerConfig::CONFIG_VERSION);
 
+    pt.put("prediction_time", prediction_time);
     pt.put("max_poll_failure_count", max_poll_failure_count);
     
     pt.put("Calibration.Accel.X.k", cal_ag_xyz_kb[0][0][0]);
@@ -223,6 +226,8 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
     if (version == PSMoveControllerConfig::CONFIG_VERSION)
     {
         is_valid = pt.get<bool>("is_valid", false);
+
+        prediction_time = pt.get<float>("prediction_time", 0.f);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
 
         cal_ag_xyz_kb[0][0][0] = pt.get<float>("Calibration.Accel.X.k", 1.0f);
