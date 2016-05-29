@@ -151,6 +151,10 @@ public:
                 build_tracker_list_response_message(response, &out_response_message->payload.tracker_list);
                 out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_TrackerList;
                 break;
+            case PSMoveProtocol::Response_ResponseType_HMD_TRACKING_SPACE_SETTINGS:
+                build_hmd_settings_response_message(response, &out_response_message->payload.hmd_tracking_space);
+                out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_HMDTrackingSpace;
+                break;
             default:
                 out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_Empty;
                 break;
@@ -193,6 +197,22 @@ public:
 
         // Record how many controllers we copied into the payload
         controller_list->count = controller_count;
+    }
+
+    inline PSMovePose protocol_pose_to_psmove_pose(const PSMoveProtocol::Pose &pose)
+    {
+        PSMovePose result;
+
+        result.Orientation.w = pose.orientation().w();
+        result.Orientation.x = pose.orientation().x();
+        result.Orientation.y = pose.orientation().y();
+        result.Orientation.z = pose.orientation().z();
+
+        result.Position.x = pose.position().x();
+        result.Position.y = pose.position().y();
+        result.Position.z = pose.position().z();
+
+        return result;
     }
 
     void build_tracker_list_response_message(
@@ -259,11 +279,23 @@ public:
             strncpy(TrackerInfo.device_path, TrackerResponse.device_path().c_str(), sizeof(TrackerInfo.device_path));
             strncpy(TrackerInfo.shared_memory_name, TrackerResponse.shared_memory_name().c_str(), sizeof(TrackerInfo.shared_memory_name));
 
+            TrackerInfo.tracker_pose= protocol_pose_to_psmove_pose(TrackerResponse.tracker_pose());
+
             ++tracker_count;
         }
 
         // Record how many trackers we copied into the payload
         tracker_list->count = tracker_count;
+    }
+
+    void build_hmd_settings_response_message(
+        ResponsePtr response,
+        ClientPSMoveAPI::ResponsePayload_HMDTrackingSpace *hmd_tracking_space)
+    {
+        const PSMoveProtocol::Pose &protocol_pose=
+            response->result_get_hmd_tracking_space_settings().origin_pose();
+
+        hmd_tracking_space->origin_pose = protocol_pose_to_psmove_pose(protocol_pose);
     }
 
 private:

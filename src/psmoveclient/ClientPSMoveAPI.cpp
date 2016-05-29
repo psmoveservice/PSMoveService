@@ -388,6 +388,19 @@ public:
         return request->request_id();
     }
 
+    ClientPSMoveAPI::t_request_id get_hmd_tracking_space_settings()
+    {
+        CLIENT_LOG_INFO("get_hmd_tracking_space_settings") << "requesting hmd tracking space settings: " << std::endl;
+
+        // Tell the psmove service that we want the hmd tracking space settings defined during tracker config
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_GET_HMD_TRACKING_SPACE_SETTINGS);
+
+        m_request_manager.send_request(request);
+
+        return request->request_id();
+    }
+
     ClientPSMoveAPI::t_request_id send_opaque_request(
         ClientPSMoveAPI::t_request_handle request_handle)
     {
@@ -891,6 +904,19 @@ ClientPSMoveAPI::stop_tracker_data_stream(ClientTrackerView *view)
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
         request_id = ClientPSMoveAPI::m_implementation_ptr->stop_tracker_data_stream(view);
+    }
+
+    return request_id;
+}
+
+ClientPSMoveAPI::t_request_id
+ClientPSMoveAPI::get_hmd_tracking_space_settings()
+{
+    ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id = ClientPSMoveAPI::m_implementation_ptr->get_hmd_tracking_space_settings();
     }
 
     return request_id;

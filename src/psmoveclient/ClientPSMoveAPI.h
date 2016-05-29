@@ -83,6 +83,7 @@ public:
         _responsePayloadType_Empty,
         _responsePayloadType_ControllerList,
         _responsePayloadType_TrackerList,
+        _responsePayloadType_HMDTrackingSpace,
 
         _responsePayloadType_Count
     };
@@ -102,6 +103,11 @@ public:
     {
         ClientTrackerInfo trackers[PSMOVESERVICE_MAX_TRACKER_COUNT];
         int count;
+    };
+
+    struct ResponsePayload_HMDTrackingSpace
+    {
+        PSMovePose origin_pose;
     };
 
     struct ResponseMessage
@@ -128,6 +134,7 @@ public:
         {
             ResponsePayload_ControllerList controller_list;
             ResponsePayload_TrackerList tracker_list;
+            ResponsePayload_HMDTrackingSpace hmd_tracking_space;
         } payload;
         eResponsePayloadType payload_type;
     };
@@ -188,6 +195,7 @@ public:
     static t_request_id get_tracker_list();
     static t_request_id start_tracker_data_stream(ClientTrackerView *view);
     static t_request_id stop_tracker_data_stream(ClientTrackerView *view);
+    static t_request_id get_hmd_tracking_space_settings();
 
     /// Used to send requests to the server by clients that have protocol access
     static t_request_id send_opaque_request(t_request_handle request_handle);
