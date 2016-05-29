@@ -232,6 +232,15 @@ public:
             case PSMoveProtocol::Request_RequestType_APPLY_TRACKER_PROFILE:
                 handle_request__apply_tracker_profile(context, response);
                 break;
+
+            // HMD Requests
+            case PSMoveProtocol::Request_RequestType_GET_HMD_TRACKING_SPACE_SETTINGS:
+                handle_request__get_hmd_tracking_space_settings(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_SET_HMD_TRACKING_SPACE_ORIGIN:
+                handle_request__set_hmd_tracking_space_origin(context, response);
+                break;
+
             default:
                 assert(0 && "Whoops, bad request!");
         }
@@ -1142,7 +1151,7 @@ protected:
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        const int tracker_id = context.request->request_set_tracker_exposure().tracker_id();
+        const int tracker_id = context.request->request_set_tracker_pose().tracker_id();
         if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
@@ -1171,7 +1180,7 @@ protected:
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        const int tracker_id = context.request->request_set_tracker_exposure().tracker_id();
+        const int tracker_id = context.request->request_save_tracker_profile().tracker_id();
 
         if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {
@@ -1210,7 +1219,7 @@ protected:
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        const int tracker_id = context.request->request_set_tracker_exposure().tracker_id();
+        const int tracker_id = context.request->request_apply_tracker_profile().tracker_id();
 
         response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_SETTINGS);
 
@@ -1255,6 +1264,34 @@ protected:
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
+    }
+
+    // -- HMD Requests -----
+    void handle_request__get_hmd_tracking_space_settings(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        response->set_type(PSMoveProtocol::Response_ResponseType_HMD_TRACKING_SPACE_SETTINGS);
+
+        PSMoveProtocol::Response_ResultGetHMDTrackingSpaceSettings* settings =
+            response->mutable_result_get_hmd_tracking_space_settings();
+        CommonDevicePose pose = m_device_manager.m_tracker_manager->getHmdTrackingOriginPose();
+
+        common_device_pose_to_protocol_pose(pose, settings->mutable_origin_pose());
+
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+    }
+
+    void handle_request__set_hmd_tracking_space_origin(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const PSMoveProtocol::Pose &srcPose = context.request->request_set_tracker_pose().pose();
+        CommonDevicePose destPose = protocol_pose_to_common_device_pose(srcPose);
+
+        m_device_manager.m_tracker_manager->setHmdTrackingOriginPose(destPose);
+
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
     }
 
 private:

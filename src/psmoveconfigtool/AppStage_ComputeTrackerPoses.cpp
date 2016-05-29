@@ -183,18 +183,17 @@ void AppStage_ComputeTrackerPoses::render()
             // Draw the HMD
             if (m_hmdView != nullptr)
             {
-                PSMovePose pose = m_hmdView->getHmdPose();
-                glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
-                glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
+                // Compute a transform that goes from HMD tracking space to PSMove tracking space
+                PSMovePose tracking_space_pose = m_app->getOpenVRContext()->getHMDTrackingSpaceOrigin();
+                glm::mat4 tracking_space_transform = psmove_pose_to_glm_mat4(tracking_space_pose);
+                glm::mat4 tracking_space_inv_transform = glm::inverse(tracking_space_transform);
 
-                glm::mat4 rot = glm::mat4_cast(orientation);
-                glm::mat4 trans = glm::translate(glm::mat4(1.0f), position);
-                glm::mat4 transform = trans * rot;
+                // Put the HMD transform in PSMove tracking space
+                PSMovePose hmd_pose = m_hmdView->getHmdPose();
+                glm::mat4 hmd_transform = psmove_pose_to_glm_mat4(hmd_pose) * tracking_space_inv_transform;
 
-                //###HipsterSloth $TODO Put the HMD in the Calibration Mat tracking space 
-
-                drawDK2Model(transform);
-                drawTransformedAxes(transform, 10.f);
+                drawDK2Model(hmd_transform);
+                drawTransformedAxes(hmd_transform, 10.f);
             }
 
             // Draw the frustum for each tracking camera
@@ -912,6 +911,28 @@ void AppStage_ComputeTrackerPoses::request_set_tracker_pose(
 
         set_pose_request->set_tracker_id(TrackerView->getTrackerId());
         copy_pose_to_request(TrackerView->getTrackerPose(), set_pose_request->mutable_pose());
+
+        ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+    }
+}
+
+void AppStage_ComputeTrackerPoses::request_set_hmd_tracking_space_origin(
+    const struct PSMovePose *pose)
+{
+    if (m_app->getOpenVRContext()->getIsInitialized())
+    {
+        m_app->getOpenVRContext()->setHMDTrackingSpaceOrigin(*pose);
+    }
+
+    // Update the pose on the service
+    {
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_SET_HMD_TRACKING_SPACE_ORIGIN);
+
+        PSMoveProtocol::Request_RequestSetHMDTrackingSpaceOrigin *set_origin_request =
+            request->mutable_request_set_hmd_tracking_space_origin();
+
+        copy_pose_to_request(*pose, set_origin_request->mutable_origin_pose());
 
         ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
     }

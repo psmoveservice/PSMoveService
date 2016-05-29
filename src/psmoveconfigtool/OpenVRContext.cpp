@@ -8,6 +8,7 @@
 //-- methods -----
 OpenVRContext::OpenVRContext()
     : m_bIsInitialized(false)
+    , m_hmdOriginPose(*k_psmove_pose_identity)
     , m_pVRSystem(nullptr)
     , m_pRenderModels(nullptr)
     , m_pTrackedDevicePoseArray(new vr::TrackedDevicePose_t[vr::k_unMaxTrackedDeviceCount])
@@ -202,4 +203,14 @@ void OpenVRContext::freeHmdView(ClientHMDView *view)
             m_hmdView = nullptr;
         }
     }
+}
+
+void OpenVRContext::setHMDTrackingSpaceOrigin(const struct PSMovePose &pose)
+{
+    m_hmdOriginPose = pose;
+}
+
+PSMovePose OpenVRContext::getHMDTrackingSpaceOrigin() const
+{
+    return m_hmdOriginPose;
 }

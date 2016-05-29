@@ -323,9 +323,9 @@ void AppSubStage_CalibrateWithMat::update()
                 bSuccess&= computeTrackerCameraPose(trackerView, trackerSampleData);
             }
 
-            // Update the poses on each local tracker view and notify the service of the new pose
             if (bSuccess)
             {
+                // Update the poses on each local tracker view and notify the service of the new pose
                 for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
                     bSuccess && iter != m_parentStage->m_trackerViews.end();
                     ++iter)
@@ -338,6 +338,15 @@ void AppSubStage_CalibrateWithMat::update()
                     ClientTrackerView *trackerView = iter->second.trackerView;
 
                     m_parentStage->request_set_tracker_pose(&trackerPose, trackerView);
+                }
+
+                if (HMDView != nullptr)
+                {
+                    PSMovePose hmdPose;
+                    hmdPose.Orientation = m_hmdTrackerPoseContext.avgHMDWorldSpaceOrientation;
+                    hmdPose.Position = m_hmdTrackerPoseContext.avgHMDWorldSpacePoint;
+
+                    m_parentStage->request_set_hmd_tracking_space_origin(&hmdPose);
                 }
             }
 

@@ -46,6 +46,7 @@ public:
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
     long version;
+    CommonDevicePose hmd_tracking_origin_pose;
     TrackerProfile default_tracker_profile;
 };
 
@@ -73,6 +74,17 @@ public:
     inline const TrackerProfile *getDefaultTrackerProfile() const
     {
         return &cfg.default_tracker_profile; 
+    }
+
+    inline void setHmdTrackingOriginPose(const CommonDevicePose &pose)
+    {
+        cfg.hmd_tracking_origin_pose= pose;
+        cfg.save();
+    }
+
+    inline CommonDevicePose getHmdTrackingOriginPose()
+    {
+        return cfg.hmd_tracking_origin_pose;
     }
 
 protected:
