@@ -503,15 +503,16 @@ eigen_alignment_fit_focal_cone_to_sphere(
     const int focal_plane_contour_point_count,
     const float sphere_radius, 
     const float camera_focal_length, // a.k.a. "f_px"
-    Eigen::Vector3f *out_sphere_center)
+    Eigen::Vector3f *out_sphere_center,
+    EigenFitEllipse *out_projection_ellipse)
 {
     // Compute a best fit ellipse for the contour
-    EigenFitEllipse ellipse;
+    EigenFitEllipse ellipse_projection;
     bool bSuccess =
         eigen_alignment_fit_least_squares_ellipse(
             focal_plane_contour_points,
             focal_plane_contour_point_count,
-            ellipse);
+            ellipse_projection);
 
     // The sphere can be thought of as a base of a cone whose vertex is at the camera focal point.
     // The camera's sensor plane can be thought of as a slice through the cone, creating an ellipse. 
@@ -520,9 +521,9 @@ eigen_alignment_fit_focal_cone_to_sphere(
     // to unknown quantities.
     if (bSuccess)
     {
-        const float h = ellipse.center.x();
-        const float k = ellipse.center.y();
-        const float a = ellipse.extents.x();
+        const float h = ellipse_projection.center.x();
+        const float k = ellipse_projection.center.y();
+        const float a = ellipse_projection.extents.x();
 
         // The length of the line from image centre to ellipse centre.
         const float L_px = sqrtf(h*h + k*k);
@@ -585,6 +586,11 @@ eigen_alignment_fit_focal_cone_to_sphere(
         const float y = L_cm * k / L_px;
 
         *out_sphere_center = Eigen::Vector3f(x, y, z);
+
+        if (out_projection_ellipse != nullptr)
+        {
+            *out_projection_ellipse = ellipse_projection;
+        }
     }
 
     return bSuccess;

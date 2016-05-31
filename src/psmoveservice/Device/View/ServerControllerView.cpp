@@ -207,7 +207,10 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
             ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
             ControllerPositionEstimation &positionEstimate= m_tracker_position_estimation[tracker_id];
 
-            if (tracker->computePositionForController(this, &positionEstimate.position))
+            if (tracker->computePositionForController(
+                    this, 
+                    &positionEstimate.position, 
+                    &positionEstimate.projection))
             {
                 positionEstimate.bCurrentlyTracking= true;
                 positionEstimate.last_visible_timestamp = now;
@@ -650,7 +653,7 @@ static void generate_psmove_data_frame_for_stream(
 
                 if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
                 {
-                    const CommonDevicePosition trackerRelativePosition = positionEstimate->position;
+                    const CommonDevicePosition &trackerRelativePosition = positionEstimate->position;
                     const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
 
                     // Project the 3d camera position back onto the tracker screen
@@ -670,6 +673,38 @@ static void generate_psmove_data_frame_for_stream(
                         position->set_x(trackerRelativePosition.x);
                         position->set_y(trackerRelativePosition.y);
                         position->set_z(trackerRelativePosition.z);
+                    }
+
+                    // Add the tracker relative projection shapes
+                    {
+                        const CommonDeviceTrackingProjection &trackerRelativeProjection = 
+                            positionEstimate->projection;
+
+                        switch (trackerRelativeProjection.shape_type)
+                        {
+                        case eCommonTrackingProjectionType::ProjectionType_Ellipse:
+                            {
+                                PSMoveProtocol::Ellipse *ellipse= raw_tracker_data->add_projected_spheres();
+                                
+                                ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
+                                ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
+                                ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
+                                ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
+                                ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
+                            } break;
+                        case eCommonTrackingProjectionType::ProjectionType_Quad:
+                            {
+                                PSMoveProtocol::Polygon *polygon = raw_tracker_data->add_projected_blobs();
+
+                                for (int vert_index = 0; vert_index < 4; ++vert_index)
+                                {
+                                    PSMoveProtocol::Pixel *pixel= polygon->add_vertices();
+
+                                    pixel->set_x(trackerRelativeProjection.shape.quad.corners[vert_index].x);
+                                    pixel->set_x(trackerRelativeProjection.shape.quad.corners[vert_index].y);
+                                }
+                            } break;
+                        }
                     }
 
                     raw_tracker_data->add_tracker_ids(trackerId);

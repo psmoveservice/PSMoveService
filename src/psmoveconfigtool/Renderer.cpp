@@ -554,6 +554,73 @@ void drawFullscreenTexture(const unsigned int texture_id)
     glPopMatrix();
 }
 
+void drawTrackingProjection(
+    const PSMoveTrackingProjection *projection,
+    const glm::vec3 &color)
+{
+    // Save a backup of the projection matrix and replace with the identity matrix
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+
+    // Save a backup of the modelview matrix and replace with the identity matrix
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    // Fill the screen with the texture
+    glColor3fv(glm::value_ptr(color));
+
+    switch (projection->shape_type)
+    {
+    case PSMoveTrackingProjection::eShapeType::Ellipse:
+        {
+            const int subdiv = 64;
+            const float angleStep = k_real_two_pi / static_cast<float>(subdiv);
+
+            const float x_extent = projection->shape.ellipse.half_x_extent;
+            const float y_extent = projection->shape.ellipse.half_y_extent;
+            const float rot_angle = projection->shape.ellipse.angle;
+            glm::vec3 center(projection->shape.ellipse.center.x, projection->shape.ellipse.center.y, 1.f);
+
+            float angle = 0.f;
+            glBegin(GL_LINE_STRIP);
+            for (int index = 0; index <= subdiv; ++index)
+            {
+                glm::vec3 point = 
+                    glm::vec3(
+                        x_extent*cosf(angle + rot_angle), 
+                        y_extent*sinf(angle + rot_angle), 
+                        0.f)
+                    + center;
+
+                glVertex3fv(glm::value_ptr(point));
+                angle += angleStep;
+            }
+            glEnd();
+        } break;
+    case PSMoveTrackingProjection::eShapeType::Quad:
+        {
+            const PSMoveScreenLocation *corners = projection->shape.quad.corners;
+            
+            glBegin(GL_QUADS);
+            glVertex3f(corners[0].x, corners[0].y, 1.f);
+            glVertex3f(corners[1].x, corners[1].y, 1.f);
+            glVertex3f(corners[2].x, corners[2].y, 1.f);
+            glVertex3f(corners[3].x, corners[3].y, 1.f);
+            glEnd();
+        } break;
+    }
+
+    // Restore the projection matrix
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+
+    // Restore the modelview matrix
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+}
+
 void drawTransformedAxes(const glm::mat4 &transform, float scale)
 {
     drawTransformedAxes(transform, scale, scale, scale);

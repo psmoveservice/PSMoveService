@@ -161,6 +161,33 @@ struct CLIENTPSMOVEAPI PSMoveFrustum
     void set_pose(const PSMovePose &pose);
 };
 
+struct CLIENTPSMOVEAPI PSMoveTrackingProjection
+{
+    enum eShapeType {
+        INVALID_PROJECTION = -1,
+
+        Ellipse,
+        Quad,
+
+        MAX_TRACKING_PROJECTION_TYPES
+    };
+
+    union{
+        struct {
+            PSMoveScreenLocation center;
+            float half_x_extent;
+            float half_y_extent;
+            float angle;
+        } ellipse;
+
+        struct {
+            PSMoveScreenLocation corners[4];
+        } quad;
+    } shape;
+
+    eShapeType shape_type;
+};
+
 //-- constants -----
 CLIENTPSMOVEAPI extern const PSMoveIntVector3 *k_psmove_int_vector3_zero;
 CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_zero;

@@ -99,6 +99,7 @@ eigen_alignment_fit_focal_cone_to_sphere(
     const int focal_plane_contour_point_count,
     const float sphere_radius,
     const float camera_focal_length,
-    Eigen::Vector3f *out_sphere_center);
+    Eigen::Vector3f *out_sphere_center,
+    EigenFitEllipse *out_projection_ellipse = nullptr);
 
 #endif // MATH_UTILITY_h

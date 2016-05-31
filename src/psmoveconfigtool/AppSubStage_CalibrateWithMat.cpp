@@ -379,7 +379,22 @@ void AppSubStage_CalibrateWithMat::render()
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
         {
+            // Draw the video from the PoV of the current tracker
             m_parentStage->render_tracker_video();
+
+            // Draw the projection shape of the controller in the pov of the current tracker being rendered
+            {
+                const ClientTrackerView *TrackerView = m_parentStage->get_render_tracker_view();
+                const ClientControllerView *ControllerView = m_parentStage->m_controllerView;
+                const ClientPSMoveView &PSMoveView = ControllerView->GetPSMoveView();
+                PSMoveTrackingProjection trackingProjection;
+
+                if (PSMoveView.GetIsCurrentlyTracking() &&
+                    PSMoveView.GetRawTrackerData().GetProjectionOnTrackerId(TrackerView->getTrackerId(), trackingProjection))
+                {
+                    drawTrackingProjection(&trackingProjection, glm::vec3(1.f, 1.f, 1.f));
+                }
+            }
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:

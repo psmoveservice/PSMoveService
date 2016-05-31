@@ -617,6 +617,11 @@ int AppStage_ComputeTrackerPoses::get_render_tracker_index() const
     return m_renderTrackerIndex;
 }
 
+class ClientTrackerView *AppStage_ComputeTrackerPoses::get_render_tracker_view() const
+{
+    return (m_trackerViews.size() > 0) ? m_renderTrackerIter->second.trackerView : nullptr;
+}
+
 void AppStage_ComputeTrackerPoses::release_devices()
 {
     //###HipsterSloth $REVIEW Do we care about canceling in-flight requests?

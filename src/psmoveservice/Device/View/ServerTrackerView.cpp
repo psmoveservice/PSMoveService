@@ -624,7 +624,8 @@ void ServerTrackerView::getTrackingColorPreset(eCommonTrackingColorID color, Com
 bool
 ServerTrackerView::computePositionForController(
     class ServerControllerView* tracked_controller, 
-    CommonDevicePosition* out_position)
+    CommonDevicePosition* out_position,
+    CommonDeviceTrackingProjection *out_projection_shape)
 {
     bool bSuccess = m_bHasUnpublishedState;
 
@@ -667,6 +668,7 @@ ServerTrackerView::computePositionForController(
         case eCommonTrackingShapeType::Sphere:
             {
                 Eigen::Vector3f sphere_center;
+                EigenFitEllipse projection_ellipse;
 
                 float F_PX, F_PY;
                 float PrincipalX, PrincipalY;
@@ -678,11 +680,22 @@ ServerTrackerView::computePositionForController(
                         static_cast<int>(convex_contour.size()),
                         tracking_shape.shape.sphere.radius,
                         F_PX,
-                        &sphere_center);
+                        &sphere_center,
+                        &projection_ellipse);
 
                 if (bSuccess)
                 {
                     out_position->set(sphere_center.x(), sphere_center.y(), sphere_center.z());
+
+                    if (out_projection_shape != nullptr)
+                    {
+                        out_projection_shape->shape_type = eCommonTrackingProjectionType::ProjectionType_Ellipse;
+                        out_projection_shape->shape.ellipse.center.set(
+                            projection_ellipse.center.x(), projection_ellipse.center.y());
+                        out_projection_shape->shape.ellipse.half_x_extent = projection_ellipse.extents.x();
+                        out_projection_shape->shape.ellipse.half_y_extent = projection_ellipse.extents.y();
+                        out_projection_shape->shape.ellipse.angle = projection_ellipse.angle;
+                    }
                 }
             } break;
         case eCommonTrackingShapeType::PlanarBlob:

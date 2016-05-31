@@ -35,6 +35,15 @@ enum eCommonTrackingShapeType {
     MAX_TRACKING_SHAPE_TYPES
 };
 
+enum eCommonTrackingProjectionType {
+    INVALID_PROJECTION = -1,
+
+    ProjectionType_Ellipse,
+    ProjectionType_Quad,
+
+    MAX_TRACKING_PROJECTION_TYPES
+};
+
 
 // -- definitions -----
 struct CommonDeviceRange
@@ -251,6 +260,24 @@ struct CommonDeviceTrackingShape
     } shape;
 
     eCommonTrackingShapeType shape_type;
+};
+
+struct CommonDeviceTrackingProjection
+{
+    union{
+        struct {
+            CommonDeviceScreenLocation center;
+            float half_x_extent;
+            float half_y_extent;
+            float angle;
+        } ellipse;
+
+        struct {
+            CommonDeviceScreenLocation corners[4];
+        } quad;
+    } shape;
+
+    eCommonTrackingProjectionType shape_type;
 };
 
 /// Abstract base class for any device interface. Further defined in specific device abstractions.

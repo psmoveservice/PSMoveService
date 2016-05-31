@@ -41,6 +41,19 @@ message Orientation{
     float w = 4;
 }
 
+message Ellipse
+{
+    Pixel center = 1;
+    float half_x_extent = 2;
+    float half_y_extent = 3;
+    float angle = 4;    
+}
+
+message Polygon
+{
+    repeated Pixel vertices = 1;
+}
+
 message OptionSet {
 	string option_name = 1;
 	repeated string option_strings = 2;
@@ -505,7 +518,9 @@ message DeviceDataFrame
                 repeated Pixel screen_locations= 1;
                 repeated Position relative_positions= 2;
                 repeated int32 tracker_ids= 3;
-                int32 valid_tracker_count= 4;
+                repeated Ellipse projected_spheres= 4;
+                repeated Polygon projected_blobs= 5;
+                int32 valid_tracker_count= 6;
             }
             RawTrackerData raw_tracker_data = 8;  
 

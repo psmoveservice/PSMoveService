@@ -16,6 +16,7 @@ struct ControllerPositionEstimation
     bool bValidTimestamps;
 
     CommonDevicePosition position;
+    CommonDeviceTrackingProjection projection;
     bool bCurrentlyTracking;
 
     inline void clear()
