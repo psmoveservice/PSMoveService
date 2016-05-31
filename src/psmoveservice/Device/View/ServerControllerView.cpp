@@ -19,6 +19,8 @@
 #include <glm/glm.hpp>
 
 //-- constants -----
+static const float k_min_time_delta_seconds = 1 / 120.f;
+static const float k_max_time_delta_seconds = 1 / 30.f;
 
 //-- macros -----
 #define SET_BUTTON_BIT(bitmask, bit_index, button_state) \
@@ -329,16 +331,18 @@ void ServerControllerView::updateStateAndPredict()
 
     // Compute the time in seconds since the last update
     const std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-    float time_delta;
+    float time_delta_seconds;
     if (m_last_filter_update_timestamp_valid)
     {
-        std::chrono::duration<float, std::milli> update_diff = now - m_last_filter_update_timestamp;
+        const std::chrono::duration<float, std::milli> time_delta = now - m_last_filter_update_timestamp;
+        const float time_delta_milli = time_delta.count();
 
-        time_delta= update_diff.count() * 1000.f; // convert delta to seconds
+        // convert delta to seconds clamp time delta between 120hz and 30hz
+        time_delta_seconds = clampf(time_delta_milli / 1000.f, k_min_time_delta_seconds, k_max_time_delta_seconds);
     }
     else
     {
-        time_delta= 1/60.f; // start off with a standard 60 fps time delta
+        time_delta_seconds = k_max_time_delta_seconds; 
     }
     m_last_filter_update_timestamp = now;
     m_last_filter_update_timestamp_valid = true;
@@ -358,7 +362,7 @@ void ServerControllerView::updateStateAndPredict()
 
                 update_filters_for_psmove(
                     psmoveController, psmoveState, 
-                    time_delta, 
+                    time_delta_seconds, 
                     m_multicam_position_estimation, 
                     m_orientation_filter, m_position_filter);
             } break;
