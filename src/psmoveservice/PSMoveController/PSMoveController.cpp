@@ -264,7 +264,7 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
             pt.get<float>("Calibration.Magnetometer.BasisZ.Y", 0.f),
             pt.get<float>("Calibration.Magnetometer.BasisZ.Z", 1.f));
 
-        magnetometer_ellipsoid.center = Eigen::Vector3f(
+        magnetometer_ellipsoid.extents = Eigen::Vector3f(
             pt.get<float>("Calibration.Magnetometer.Extents.X", 0.f),
             pt.get<float>("Calibration.Magnetometer.Extents.Y", 0.f),
             pt.get<float>("Calibration.Magnetometer.Extents.Z", 0.f));
