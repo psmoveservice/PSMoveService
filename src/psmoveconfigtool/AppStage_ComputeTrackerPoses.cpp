@@ -847,8 +847,8 @@ void AppStage_ComputeTrackerPoses::handle_tracker_start_stream_response(
     case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
             // Get the tracker ID this request was for
-            const PSMoveProtocol::Request *response = GET_PSMOVEPROTOCOL_REQUEST(response_message->opaque_request_handle);
-            const int tracker_id= response->request_start_tracker_data_stream().tracker_id();
+            const PSMoveProtocol::Request *request = GET_PSMOVEPROTOCOL_REQUEST(response_message->opaque_request_handle);
+            const int tracker_id= request->request_start_tracker_data_stream().tracker_id();
 
             // Get the tracker state associated with the tracker id
             t_tracker_state_map_iterator trackerStateEntry = thisPtr->m_trackerViews.find(tracker_id);

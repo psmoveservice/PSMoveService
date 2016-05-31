@@ -123,7 +123,7 @@ public:
         // Attach an opaque pointer to the PSMoveProtocol request.
         // Client code that has linked against PSMoveProtocol library
         // can access this pointer via the GET_PSMOVEPROTOCOL_REQUEST() macro.
-        out_response_message->opaque_response_handle = static_cast<const void*>(request.get());
+        out_response_message->opaque_request_handle = static_cast<const void*>(request.get());
 
         // The opaque request pointer will only remain valid until the next call to update()
         // at which time the request reference cache gets cleared out.
