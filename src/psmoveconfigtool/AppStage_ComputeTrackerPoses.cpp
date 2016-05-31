@@ -43,6 +43,7 @@ AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
     , m_renderTrackerIndex(0)
     , m_pCalibrateWithHMD(new AppSubStage_CalibrateWithHMD(this))
     , m_pCalibrateWithMat(new AppSubStage_CalibrateWithMat(this))
+    , m_bSkipCalibration(false)
 { 
     m_renderTrackerIter = m_trackerViews.end();
 }
@@ -51,6 +52,18 @@ AppStage_ComputeTrackerPoses::~AppStage_ComputeTrackerPoses()
 {
     delete m_pCalibrateWithHMD;
     delete m_pCalibrateWithMat;
+}
+
+void AppStage_ComputeTrackerPoses::enterStageAndCalibrate(App *app)
+{
+    app->getAppStage<AppStage_ComputeTrackerPoses>()->m_bSkipCalibration = false;
+    app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
+}
+
+void AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(App *app)
+{
+    app->getAppStage<AppStage_ComputeTrackerPoses>()->m_bSkipCalibration = true;
+    app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
 }
 
 void AppStage_ComputeTrackerPoses::enter()
@@ -940,12 +953,19 @@ void AppStage_ComputeTrackerPoses::request_set_hmd_tracking_space_origin(
 
 void AppStage_ComputeTrackerPoses::handle_all_devices_ready()
 {
-    if (m_hmdView != nullptr)
+    if (!m_bSkipCalibration)
     {
-        setState(eMenuState::verifyHMD);
+        if (m_hmdView != nullptr)
+        {
+            setState(eMenuState::verifyHMD);
+        }
+        else
+        {
+            setState(eMenuState::verifyTrackers);
+        }
     }
     else
     {
-        setState(eMenuState::verifyTrackers);
+        setState(eMenuState::testTracking);
     }
 }

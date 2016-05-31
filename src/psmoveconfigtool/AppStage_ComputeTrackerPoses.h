@@ -14,6 +14,9 @@ public:
     AppStage_ComputeTrackerPoses(class App *app);
     ~AppStage_ComputeTrackerPoses();
 
+    static void enterStageAndCalibrate(class App *app);
+    static void enterStageAndSkipCalibration(class App *app);
+
     virtual void enter() override;
     virtual void exit() override;
     virtual void update() override;
@@ -121,6 +124,8 @@ private:
 
     class AppSubStage_CalibrateWithMat *m_pCalibrateWithMat;
     friend class AppSubStage_CalibrateWithMat;
+
+    bool m_bSkipCalibration;
 };
 
 #endif // APP_STAGE_COMPUTE_TRACKER_POSES_H

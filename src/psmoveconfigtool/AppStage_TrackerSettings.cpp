@@ -138,7 +138,12 @@ void AppStage_TrackerSettings::renderUI()
 
             if (ImGui::Button("Compute Tracker Poses"))
             {
-                m_app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
+                AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app);
+            }
+
+            if (ImGui::Button("Test Tracking"))
+            {
+                AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app);
             }
 
 			//###HipsterSloth $TODO: Localhost only check
