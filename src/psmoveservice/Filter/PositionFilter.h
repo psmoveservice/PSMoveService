@@ -67,6 +67,7 @@ public:
     // Estimate the current position of the filter given a time offset into the future
     Eigen::Vector3f getPosition(float time = 0.f);
     Eigen::Vector3f getVelocity();
+    Eigen::Vector3f getAcceleration();
 
     void setFilterSpace(const PositionFilterSpace &filterSpace);
     void setFusionType(FusionType fusionType);

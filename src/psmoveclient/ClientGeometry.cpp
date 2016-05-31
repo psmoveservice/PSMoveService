@@ -37,7 +37,7 @@ const PSMoveQuaternion *k_psmove_quaternion_identity= &g_psmove_quaternion_ident
 const PSMoveMatrix3x3 g_psmove_matrix_identity = { 1.f, 0.f, 0.f , 0.f, 1.f, 0.f, 0.f, 0.f, 1.f };
 const PSMoveMatrix3x3 *k_psmove_matrix_identity = &g_psmove_matrix_identity;
 
-const PSMovePose g_psmove_pose_identity = { g_psmove_quaternion_identity, g_psmove_position_origin };
+const PSMovePose g_psmove_pose_identity = { g_psmove_position_origin, g_psmove_quaternion_identity };
 const PSMovePose *k_psmove_pose_identity = &g_psmove_pose_identity;
 
 //-- methods -----
@@ -425,8 +425,8 @@ PSMoveFloatVector3 PSMoveMatrix3x3::basis_z() const
 // -- PSMovePose -- 
 void PSMovePose::Clear()
 {
-    Orientation= *k_psmove_quaternion_identity;
     Position= *k_psmove_position_origin;
+    Orientation = *k_psmove_quaternion_identity;
 }
 
 // -- PSMoveFrustum -- 

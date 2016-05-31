@@ -127,6 +127,7 @@ message Request {
         int32 controller_id = 1;
         bool include_raw_sensor_data= 2;
         bool include_raw_tracker_data= 3;
+        bool include_physics_data= 4;
     }
     RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
 
@@ -506,7 +507,17 @@ message DeviceDataFrame
                 repeated int32 tracker_ids= 3;
                 int32 valid_tracker_count= 4;
             }
-            RawTrackerData raw_tracker_data = 8;            
+            RawTrackerData raw_tracker_data = 8;  
+
+            // Only valid if include_physics_data=true in START_CONTROLLER_DATA_STREAM request
+            message PhysicsData
+            {
+                FloatVector velocity= 1;
+                FloatVector acceleration= 2;
+                FloatVector angular_velocity= 3;
+                FloatVector angular_acceleration= 4; 
+            }
+            PhysicsData physics_data = 9;             
         }
         PSMoveState psmove_state = 6;
         

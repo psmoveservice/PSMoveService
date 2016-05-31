@@ -409,6 +409,42 @@ ServerControllerView::getFilteredPose(float time) const
     return pose;
 }
 
+CommonDevicePhysics 
+ServerControllerView::getFilteredPhysics() const
+{
+    CommonDevicePhysics physics;
+
+    if (m_orientation_filter != nullptr)
+    {
+        const Eigen::AngleAxisf first_derivative(m_orientation_filter->getOrientationFirstDerivative());
+        const Eigen::AngleAxisf second_derivative(m_orientation_filter->getOrientationSecondDerivative());
+
+        physics.AngularVelocity.i = first_derivative.axis().x()*first_derivative.angle();
+        physics.AngularVelocity.j = first_derivative.axis().y()*first_derivative.angle();
+        physics.AngularVelocity.k = first_derivative.axis().z()*first_derivative.angle();
+
+        physics.AngularAcceleration.i = second_derivative.axis().x()*second_derivative.angle();
+        physics.AngularAcceleration.j = second_derivative.axis().y()*second_derivative.angle();
+        physics.AngularAcceleration.k = second_derivative.axis().z()*second_derivative.angle();
+    }
+
+    if (m_position_filter != nullptr)
+    {
+        Eigen::Vector3f velocity(m_position_filter->getVelocity());
+        Eigen::Vector3f acceleration(m_position_filter->getAcceleration());
+
+        physics.Velocity.i = velocity.x();
+        physics.Velocity.j = velocity.y();
+        physics.Velocity.k = velocity.z();
+
+        physics.Acceleration.i = acceleration.x();
+        physics.Acceleration.j = acceleration.y();
+        physics.Acceleration.k = acceleration.z();
+    }
+
+    return physics;
+}
+
 bool 
 ServerControllerView::getIsBluetooth() const
 {
@@ -537,8 +573,8 @@ static void generate_psmove_data_frame_for_stream(
     const CommonControllerState *controller_state= controller_view->getState();
     const CommonDevicePose controller_pose = controller_view->getFilteredPose(psmove_config->prediction_time);
 
-    PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *controller_data_frame= data_frame->mutable_controller_data_packet();
-    PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSMoveState *psmove_data_frame = controller_data_frame->mutable_psmove_state();
+    auto *controller_data_frame= data_frame->mutable_controller_data_packet();
+    auto *psmove_data_frame = controller_data_frame->mutable_psmove_state();
    
     if (controller_state != nullptr)
     {        
@@ -574,8 +610,7 @@ static void generate_psmove_data_frame_for_stream(
         // If requested, get the raw sensor data for the controller
         if (stream_info->include_raw_sensor_data)
         {
-            PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSMoveState_RawSensorData *raw_sensor_data=
-                psmove_data_frame->mutable_raw_sensor_data();
+            auto *raw_sensor_data= psmove_data_frame->mutable_raw_sensor_data();
 
             // One frame: [mx, my, mz] 
             assert(psmove_state->Mag.size() == 3);
@@ -605,8 +640,7 @@ static void generate_psmove_data_frame_for_stream(
         // If requested, get the raw tracker data for the controller
         if (stream_info->include_raw_tracker_data)
         {
-            PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSMoveState_RawTrackerData *raw_tracker_data =
-                psmove_data_frame->mutable_raw_tracker_data();
+            auto *raw_tracker_data = psmove_data_frame->mutable_raw_tracker_data();
             int valid_tracker_count= 0;
 
             for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
@@ -644,6 +678,28 @@ static void generate_psmove_data_frame_for_stream(
             }
 
             raw_tracker_data->set_valid_tracker_count(valid_tracker_count);
+        }
+
+        // if requested, get the physics data for the controller
+        {
+            const CommonDevicePhysics controller_physics = controller_view->getFilteredPhysics();
+            auto *physics_data = psmove_data_frame->mutable_physics_data();
+
+            physics_data->mutable_velocity()->set_i(controller_physics.Velocity.i);
+            physics_data->mutable_velocity()->set_j(controller_physics.Velocity.j);
+            physics_data->mutable_velocity()->set_k(controller_physics.Velocity.k);
+
+            physics_data->mutable_acceleration()->set_i(controller_physics.Acceleration.i);
+            physics_data->mutable_acceleration()->set_j(controller_physics.Acceleration.j);
+            physics_data->mutable_acceleration()->set_k(controller_physics.Acceleration.k);
+
+            physics_data->mutable_angular_velocity()->set_i(controller_physics.AngularVelocity.i);
+            physics_data->mutable_angular_velocity()->set_j(controller_physics.AngularVelocity.j);
+            physics_data->mutable_angular_velocity()->set_k(controller_physics.AngularVelocity.k);
+
+            physics_data->mutable_angular_acceleration()->set_i(controller_physics.AngularAcceleration.i);
+            physics_data->mutable_angular_acceleration()->set_j(controller_physics.AngularAcceleration.j);
+            physics_data->mutable_angular_acceleration()->set_k(controller_physics.AngularAcceleration.k);
         }
     }   
 

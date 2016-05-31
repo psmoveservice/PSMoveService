@@ -145,8 +145,8 @@ struct CLIENTPSMOVEAPI PSMoveMatrix3x3
 
 struct CLIENTPSMOVEAPI PSMovePose
 {
-    PSMoveQuaternion Orientation;
     PSMovePosition Position;
+    PSMoveQuaternion Orientation;
 
     void Clear();
 };

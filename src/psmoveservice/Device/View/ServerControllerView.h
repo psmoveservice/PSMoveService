@@ -51,6 +51,9 @@ public:
     // Estimate the given pose if the controller at some point into the future
     CommonDevicePose getFilteredPose(float time= 0.f) const;
 
+    // Get the current physics from the filter position and orientation
+    CommonDevicePhysics getFilteredPhysics() const;
+
     // Returns true if the device is connected via Bluetooth, false if by USB
     bool getIsBluetooth() const;
 

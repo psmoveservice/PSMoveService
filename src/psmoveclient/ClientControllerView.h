@@ -34,6 +34,22 @@ enum PSMoveTrackingColorType {
 };
 
 //-- declarations -----
+struct CLIENTPSMOVEAPI PSMovePhysicsData
+{
+    PSMoveFloatVector3 Velocity;
+    PSMoveFloatVector3 Acceleration;
+    PSMoveFloatVector3 AngularVelocity;
+    PSMoveFloatVector3 AngularAcceleration;
+
+    inline void Clear()
+    {
+        Velocity = *k_psmove_float_vector3_zero;
+        Acceleration = *k_psmove_float_vector3_zero;
+        AngularVelocity = *k_psmove_float_vector3_zero;
+        AngularAcceleration = *k_psmove_float_vector3_zero;
+    }
+};
+
 struct CLIENTPSMOVEAPI PSMoveRawSensorData
 {
     PSMoveIntVector3 Magnetometer;
@@ -111,6 +127,7 @@ private:
     bool bIsCurrentlyTracking;
 
     PSMovePose Pose;
+    PSMovePhysicsData PhysicsData;
     PSMoveRawSensorData RawSensorData;
     PSMoveRawTrackerData RawTrackerData;
 
@@ -218,6 +235,7 @@ public:
         return IsValid() ? ((float)TriggerValue / 255.f) : 0.f;
     }
 
+    const PSMovePhysicsData &GetPhysicsData() const;
     const PSMoveRawSensorData &GetRawSensorData() const;
     const PSMoveFloatVector3 &GetIdentityGravityCalibrationDirection() const;
     bool GetIsStableAndAlignedWithGravity() const;

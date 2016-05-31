@@ -41,6 +41,7 @@ public:
         defaultStreamOptions = 0x00,
         includeRawSensorData = 0x01,
         includeRawTrackerData = 0x02,
+        includePhysicsData = 0x04,
     };
 
     // Service Events

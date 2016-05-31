@@ -9,7 +9,8 @@
 //-- pre-declarations -----
 
 //-- constants -----
-const PSMoveRawSensorData k_empty_sensor_data= {{0, 0, 0}, {0.f, 0.f, 0.f}, {0.f, 0.f, 0.f}};
+const PSMovePhysicsData k_empty_physics_data = { { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f } };
+const PSMoveRawSensorData k_empty_sensor_data = { { 0, 0, 0 }, { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f } };
 const PSMoveRawTrackerData k_empty_tracker_data = { 
     { { 0, 0 }, { 0, 0 } }, 
     { { 0, 0, 0 }, { 0, 0, 0 } },
@@ -32,7 +33,9 @@ void ClientPSMoveView::Clear()
     bIsCurrentlyTracking= false;
 
     Pose.Clear();
+    PhysicsData.Clear();
     RawSensorData.Clear();
+    RawTrackerData.Clear();
 
     TriangleButton= PSMoveButton_UP;
     CircleButton= PSMoveButton_UP;
@@ -45,6 +48,11 @@ void ClientPSMoveView::Clear()
     TriggerButton= PSMoveButton_UP;
 
     TriggerValue= 0;
+}
+
+const PSMovePhysicsData &ClientPSMoveView::GetPhysicsData() const
+{
+    return IsValid() ? PhysicsData : k_empty_physics_data;
 }
 
 const PSMoveRawSensorData &ClientPSMoveView::GetRawSensorData() const

@@ -127,6 +127,22 @@ struct CommonDevicePose
     }
 };
 
+struct CommonDevicePhysics
+{
+    CommonDeviceVector Velocity;
+    CommonDeviceVector Acceleration;
+    CommonDeviceVector AngularVelocity;
+    CommonDeviceVector AngularAcceleration;
+
+    void clear()
+    {
+        Velocity.clear();
+        Acceleration.clear();
+        AngularVelocity.clear();
+        AngularAcceleration.clear();
+    }
+};
+
 struct CommonDeviceState
 {
     enum eDeviceClass

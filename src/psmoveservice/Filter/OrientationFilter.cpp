@@ -47,9 +47,10 @@ struct OrientationSensorFusionState
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    /* Output value as quaternion */
+    /* Physics State */
     Eigen::Quaternionf orientation;
-    Eigen::Quaternionf orientation_derivative;
+    Eigen::Quaternionf orientation_first_derivative;
+    Eigen::Quaternionf orientation_second_derivative;
 
     /* Quaternion measured when controller points towards camera */
     Eigen::Quaternionf reset_orientation;
@@ -66,7 +67,8 @@ struct OrientationSensorFusionState
     void initialize()
     {
         orientation= Eigen::Quaternionf::Identity();
-        orientation_derivative = Eigen::Quaternionf::Identity();
+        orientation_first_derivative = Eigen::Quaternionf::Identity();
+        orientation_second_derivative = Eigen::Quaternionf::Identity();
         reset_orientation= Eigen::Quaternionf::Identity();
         fusion_type= OrientationFilter::FusionTypeComplementaryMARG;
     }
@@ -160,20 +162,27 @@ OrientationFilter::~OrientationFilter()
     delete m_FusionState;
 }
 
-Eigen::Quaternionf OrientationFilter::getOrientation(float time)
+Eigen::Quaternionf OrientationFilter::getOrientation(float time) const
 {
     Eigen::Quaternionf predicted_orientation = 
         is_nearly_zero(time) 
         ? m_FusionState->orientation
-        : Eigen::Quaternionf(m_FusionState->orientation.coeffs() + m_FusionState->orientation_derivative.coeffs()*time);
+        : Eigen::Quaternionf(
+            m_FusionState->orientation.coeffs() 
+            + m_FusionState->orientation_first_derivative.coeffs()*time).normalized();
     Eigen::Quaternionf result = m_FusionState->reset_orientation * predicted_orientation;
 
     return result;
 }
 
-Eigen::Quaternionf OrientationFilter::getOrientationDerivative()
+Eigen::Quaternionf OrientationFilter::getOrientationFirstDerivative() const
 {
-    return m_FusionState->orientation_derivative;
+    return m_FusionState->orientation_first_derivative;
+}
+
+Eigen::Quaternionf OrientationFilter::getOrientationSecondDerivative() const
+{
+    return m_FusionState->orientation_second_derivative;
 }
 
 void OrientationFilter::setFilterSpace(const OrientationFilterSpace &filterSpace)
@@ -234,14 +243,30 @@ void OrientationFilter::update(
     OrientationFilterPacket filterPacket;
     m_FilterSpace.convertSensorPacketToFilterPacket(sensorPacket, filterPacket);
 
-    Eigen::Quaternionf orientation_backup= m_FusionState->orientation;
+    const Eigen::Quaternionf orientation_backup= m_FusionState->orientation;
+    const Eigen::Quaternionf first_derivative_backup = m_FusionState->orientation_first_derivative;
+    const Eigen::Quaternionf second_derivative_backup = m_FusionState->orientation_second_derivative;
 
     switch(m_FusionState->fusion_type)
     {
     case FusionTypeNone:
         break;
     case FusionTypePassThru:
-        m_FusionState->orientation = filterPacket.orientation;
+        {
+            const Eigen::Quaternionf &new_orientation= filterPacket.orientation;
+            const Eigen::Quaternionf new_first_derivative=
+                Eigen::Quaternionf(
+                    (new_orientation.coeffs() - m_FusionState->orientation.coeffs())
+                    / delta_time);
+            const Eigen::Quaternionf new_second_derivative =
+                Eigen::Quaternionf(
+                    (new_first_derivative.coeffs() - m_FusionState->orientation_first_derivative.coeffs())
+                    / delta_time);
+
+            m_FusionState->orientation = new_orientation;
+            m_FusionState->orientation_first_derivative = new_first_derivative;
+            m_FusionState->orientation_second_derivative = new_second_derivative;
+        }
         break;
     case FusionTypeMadgwickIMU:
         orientation_fusion_imu_update(delta_time, &m_FilterSpace, &filterPacket, m_FusionState);
@@ -258,6 +283,18 @@ void OrientationFilter::update(
     {
         SERVER_LOG_WARNING("OrientationFilter") << "Orientation is NaN!";
         m_FusionState->orientation = orientation_backup;
+    }
+
+    if (!eigen_quaternion_is_valid(m_FusionState->orientation_first_derivative))
+    {
+        SERVER_LOG_WARNING("OrientationFilter") << "Orientation first derivative is NaN!";
+        m_FusionState->orientation_first_derivative = first_derivative_backup;
+    }
+
+    if (!eigen_quaternion_is_valid(m_FusionState->orientation_second_derivative))
+    {
+        SERVER_LOG_WARNING("OrientationFilter") << "Orientation second derivative is NaN!";
+        m_FusionState->orientation_second_derivative = second_derivative_backup;
     }
 }
 
@@ -325,9 +362,20 @@ orientation_fusion_imu_update(
     // Make sure the net quaternion is a pure rotation quaternion
     SEq_new.normalize();
 
-    // Save the new quaternion back into the orientation state
-    fusion_state->orientation= SEq_new;
-    fusion_state->orientation_derivative = SEqDot_omega;
+    // Save the new quaternion and first derivative back into the orientation state
+    // Derive the second derivative
+    {
+        const Eigen::Quaternionf &new_orientation = SEq_new;
+        const Eigen::Quaternionf &new_first_derivative = SEqDot_omega;
+        const Eigen::Quaternionf new_second_derivative =
+            Eigen::Quaternionf(
+            (new_first_derivative.coeffs() - fusion_state->orientation_first_derivative.coeffs())
+            / delta_time);
+
+        fusion_state->orientation = new_orientation;
+        fusion_state->orientation_second_derivative = new_first_derivative;
+        fusion_state->orientation_first_derivative = new_second_derivative;
+    }
 }
 
 // This algorithm comes from Sebastian O.H. Madgwick's 2010 paper:
@@ -433,9 +481,20 @@ orientation_fusion_madgwick_marg_update(
     // Make sure the net quaternion is a pure rotation quaternion
     SEq_new.normalize();
 
-    // Save the new quaternion back into the orientation state
-    fusion_state->orientation= SEq_new;
-    fusion_state->orientation_derivative = SEqDot_est;
+    // Save the new quaternion and first derivative back into the orientation state
+    // Derive the second derivative
+    {
+        const Eigen::Quaternionf &new_orientation = SEq_new;
+        const Eigen::Quaternionf &new_first_derivative = SEqDot_est;
+        const Eigen::Quaternionf new_second_derivative =
+            Eigen::Quaternionf(
+            (new_first_derivative.coeffs() - fusion_state->orientation_first_derivative.coeffs())
+            / delta_time);
+
+        fusion_state->orientation = new_orientation;
+        fusion_state->orientation_second_derivative = new_first_derivative;
+        fusion_state->orientation_first_derivative = new_second_derivative;
+    }
 }
 
 static void 
@@ -486,10 +545,24 @@ orientation_fusion_complementary_marg_update(
 
     // Blending Update
     //----------------
-    // The final rotation is a blend between the integrated orientation and absolute rotation from the earth-frame
     float mg_wight = fusion_state->fusion_state.complementary_marg_state.mg_weight;
-    fusion_state->orientation= eigen_quaternion_normalized_lerp(ar_orientation, mg_orientation, mg_wight);
-    fusion_state->orientation_derivative = q_derivative;
+
+    // Save the new quaternion and first derivative back into the orientation state
+    // Derive the second derivative
+    {
+        // The final rotation is a blend between the integrated orientation and absolute rotation from the earth-frame
+        const Eigen::Quaternionf new_orientation = 
+            eigen_quaternion_normalized_lerp(ar_orientation, mg_orientation, mg_wight);
+        const Eigen::Quaternionf &new_first_derivative = q_derivative;
+        const Eigen::Quaternionf new_second_derivative =
+            Eigen::Quaternionf(
+            (new_first_derivative.coeffs() - fusion_state->orientation_first_derivative.coeffs())
+            / delta_time);
+
+        fusion_state->orientation = new_orientation;
+        fusion_state->orientation_second_derivative = new_first_derivative;
+        fusion_state->orientation_first_derivative = new_second_derivative;
+    }
 
     // Update the blend weight
     fusion_state->fusion_state.complementary_marg_state.mg_weight =
