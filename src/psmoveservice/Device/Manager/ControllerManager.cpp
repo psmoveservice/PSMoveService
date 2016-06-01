@@ -61,7 +61,7 @@ ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
     {
         ServerControllerViewPtr controllerView = getControllerViewPtr(device_id);
 
-		if (controllerView->getIsOpen() && controllerView->getIsTrackingEnabled())
+		if (controllerView->getIsOpen())
 		{
 			controllerView->updatePositionEstimation(tracker_manager);
 			controllerView->updateStateAndPredict();

@@ -26,7 +26,7 @@ const char *AppStage_MagnetometerCalibration::APP_STAGE_NAME= "MagnetometerCalib
 
 //-- constants -----
 const int k_sample_count_target = 200;
-const int k_sample_range_target= 320;
+const int k_sample_range_target= 280;
 const double k_stabilize_wait_time_ms= 1000.f;
 const int k_desired_magnetometer_sample_count= 100;
 const int k_min_sample_distance= 20;
@@ -595,6 +595,13 @@ void AppStage_MagnetometerCalibration::renderUI()
                 if (m_samplePercentage < 100)
                 {
                     ImGui::ProgressBar(static_cast<float>(m_samplePercentage) / 100.f, ImVec2(250, 20));
+
+                    if ((m_samplePercentage > 60) && ImGui::Button("Force Accept"))
+                    {
+                        ClientPSMoveAPI::eat_response(ClientPSMoveAPI::set_led_color(m_controllerView, 0, 0, 0));
+                        m_menuState = waitForGravityAlignment;
+                    }
+                    ImGui::SameLine();
                 }
                 else
                 {

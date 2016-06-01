@@ -200,7 +200,7 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
     // If velocity is too high, don't bother getting a new position.
     // Though it may be enough to just use the camera ROI as the limit.
     
-    if (m_multicam_position_estimation != nullptr)
+    if (getIsTrackingEnabled())
     {
         int valid_tracker_ids[TrackerManager::k_max_devices];
         int positions_found = 0;
@@ -321,16 +321,16 @@ void ServerControllerView::updateStateAndPredict()
 
     // Look backward in time to find the first controller update state with a poll sequence number 
     // newer than the last sequence number we've processed.
-    int firstLookBack = -1;
+    int firstLookBackIndex = -1;
     int testLookBack = 0;
     const CommonControllerState *state= getState(testLookBack);
     while (state != nullptr && state->PollSequenceNumber > m_lastPollSeqNumProcessed)
     {
-        firstLookBack= testLookBack;
+        firstLookBackIndex= testLookBack;
         testLookBack++;
         state= getState(testLookBack);
     }
-    assert(firstLookBack >= 0);
+    assert(firstLookBackIndex >= 0);
 
     // Compute the time in seconds since the last update
     const std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
@@ -350,11 +350,14 @@ void ServerControllerView::updateStateAndPredict()
     m_last_filter_update_timestamp = now;
     m_last_filter_update_timestamp_valid = true;
 
+    // Evenly apply the list of controller state updates over the time since last filter update
+    float per_state_time_delta_seconds = time_delta_seconds / static_cast<float>(firstLookBackIndex + 1);
+
     // Process the polled controller states forward in time
     // computing the new orientation along the way.
-    for (int lookBack= firstLookBack; lookBack >= 0; --lookBack)
+    for (int lookBackIndex= firstLookBackIndex; lookBackIndex >= 0; --lookBackIndex)
     {
-        const CommonControllerState *controllerState= getState(lookBack);
+        const CommonControllerState *controllerState= getState(lookBackIndex);
 
         switch (controllerState->DeviceType)
         {
@@ -363,11 +366,13 @@ void ServerControllerView::updateStateAndPredict()
                 const PSMoveController *psmoveController= this->castCheckedConst<PSMoveController>();
                 const PSMoveControllerState *psmoveState= static_cast<const PSMoveControllerState *>(controllerState);
 
+                // Only update the position filter when tracking is enabled
                 update_filters_for_psmove(
                     psmoveController, psmoveState, 
-                    time_delta_seconds, 
+                    per_state_time_delta_seconds,
                     m_multicam_position_estimation, 
-                    m_orientation_filter, m_position_filter);
+                    m_orientation_filter, 
+                    getIsTrackingEnabled() ? m_position_filter : nullptr);
             } break;
         case CommonControllerState::PSNavi:
             {
@@ -906,6 +911,7 @@ update_filters_for_psmove(
     const PSMoveControllerConfig *config = psmoveController->getConfig();
 
     // Update the orientation filter
+    if (orientationFilter != nullptr)
     {
         OrientationSensorPacket sensorPacket;
 
@@ -943,6 +949,7 @@ update_filters_for_psmove(
 
 
     // Update the position filter
+    if (position_filter != nullptr)
     {
         PositionSensorPacket sensorPacket;
         sensorPacket.position = 
