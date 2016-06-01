@@ -197,6 +197,12 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION:
                 handle_request__set_magnetometer_calibration(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_START_TRACKING:
+                handle_request__start_controller_tracking(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_STOP_TRACKING:
+                handle_request__stop_controller_tracking(context, response);
+                break;
 
             // Tracker Requests
             case PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST:
@@ -615,7 +621,7 @@ protected:
         {
             PSMoveController *controller= ControllerView->castChecked<PSMoveController>();
 
-            if (controller->setLED(r, g, b))
+            if (!ControllerView->getIsTrackingEnabled() && controller->setLED(r, g, b))
             {
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -636,46 +642,27 @@ protected:
     {
         const int connection_id = context.connection_state->connection_id;
         const int controller_id = context.request->set_led_tracking_color_request().controller_id();
-        const PSMoveProtocol::TrackingColorType color_type=
-            context.request->set_led_tracking_color_request().color_type();
+        const eCommonTrackingColorID newColorID=
+            static_cast<eCommonTrackingColorID>(context.request->set_led_tracking_color_request().color_type());
 
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
         if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
         {
-            PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-            unsigned char r, g, b;
-
-            switch (color_type)
+            // Give up control of our existing tracking color
+            const eCommonTrackingColorID eOldColorID = ControllerView->getTrackingColorID();
+            if (eOldColorID != eCommonTrackingColorID::INVALID_COLOR)
             {
-            case PSMoveProtocol::Magenta:
-                r = 0xFF; g = 0x00; b = 0xFF;
-                break;
-            case PSMoveProtocol::Cyan:
-                r = 0x00; g = 0xFF; b = 0xFF;
-                break;
-            case PSMoveProtocol::Yellow:
-                r = 0xFF; g = 0xFF; b = 0x00;
-                break;
-            case PSMoveProtocol::Red:
-                r = 0xFF; g = 0x00; b = 0x00;
-                break;
-            case PSMoveProtocol::Green:
-                r = 0x00; g = 0xFF; b = 0x00;
-                break;
-            case PSMoveProtocol::Blue:
-                r = 0x00; g = 0x00; b = 0xFF;
-                break;
+                m_device_manager.m_controller_manager->freeTrackingColorID(eOldColorID);
             }
 
-            if (controller->setLED(r, g, b))
-            {
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-            }
-            else
-            {
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-            }
+            // Take the color from any other controller that might have it
+            m_device_manager.m_controller_manager->claimTrackingColorID(newColorID);
+
+            // Assign the new color to ourselves
+            ControllerView->setTrackingColorID(newColorID);
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else
         {
@@ -728,6 +715,46 @@ protected:
             // Reset the orientation filter state the calibration changed
             ControllerView->getOrientationFilter()->resetFilterState();
 
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__start_controller_tracking(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int connection_id = context.connection_state->connection_id;
+        const int controller_id = context.request->set_led_tracking_color_request().controller_id();
+
+        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        {
+            ControllerView->setTrackingEnabled(true);
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__stop_controller_tracking(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int connection_id = context.connection_state->connection_id;
+        const int controller_id = context.request->set_led_tracking_color_request().controller_id();
+
+        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        {
+            ControllerView->setTrackingEnabled(false);
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else

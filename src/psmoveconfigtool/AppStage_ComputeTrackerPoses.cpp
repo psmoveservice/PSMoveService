@@ -257,7 +257,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
     case eMenuState::pendingTrackerStartRequest:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 50));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 80));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Pending device initialization...");
@@ -276,7 +276,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
     case eMenuState::failedTrackerStartRequest:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 180));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             switch (m_menuState)
@@ -309,37 +309,37 @@ void AppStage_ComputeTrackerPoses::renderUI()
         } break;
 
     case eMenuState::verifyHMD:
-        ImGui::SetNextWindowPosCenter();
-        ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
-        ImGui::Begin(k_window_title, nullptr, window_flags);
-
-        if (m_hmdView != nullptr)
         {
-            ImGui::Text("Verify that your HMD is tracking correctly");
-            ImGui::Separator();
+            ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 180));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            if (ImGui::Button("Looks Good!"))
+            if (m_hmdView != nullptr)
             {
-                setState(eMenuState::verifyTrackers);
+                ImGui::Text("Verify that your HMD is tracking correctly");
+                ImGui::Separator();
+
+                if (ImGui::Button("Looks Good!"))
+                {
+                    setState(eMenuState::verifyTrackers);
+                }
+
+                if (ImGui::Button("Hmm... Something is wrong."))
+                {
+                    request_exit_to_app_stage(AppStage_HMDSettings::APP_STAGE_NAME);
+                }
             }
 
-            if (ImGui::Button("Hmm... Something is wrong."))
-            {
-                request_exit_to_app_stage(AppStage_HMDSettings::APP_STAGE_NAME);
-            }
-        }
-
-        ImGui::End();
-        break;
+            ImGui::End();
+        } break;
 
     case eMenuState::verifyTrackers:
-        ImGui::SetNextWindowPosCenter();
-        ImGui::SetNextWindowSize(ImVec2(k_panel_width, 200));
-        ImGui::Begin(k_window_title, nullptr, window_flags);
-
-        if (m_hmdView != nullptr)
         {
             const int trackerCount = static_cast<int>(m_trackerViews.size());
+
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - 450 / 2.f, 20.f));
+            ImGui::SetNextWindowSize(ImVec2(450, (m_trackerViews.size() > 0) ? 150 : 100));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Verify that your tracking cameras can see the tracking origin");
             ImGui::Separator();
@@ -368,10 +368,9 @@ void AppStage_ComputeTrackerPoses::renderUI()
             {
                 request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
-        }
 
-        ImGui::End();
-        break;
+            ImGui::End();
+        } break;
 
     case eMenuState::selectCalibrationType:
         {
@@ -379,24 +378,21 @@ void AppStage_ComputeTrackerPoses::renderUI()
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            if (m_hmdView != nullptr)
+            ImGui::Text("Select a camera pose estimation method");
+
+            if (m_hmdView != nullptr && ImGui::Button("Attach PSMove To HMD"))
             {
-                ImGui::Text("Select a camera pose estimation method");
+                setState(eMenuState::calibrateWithHMD);
+            }
 
-                if (ImGui::Button("Attach PSMove To HMD"))
-                {
-                    setState(eMenuState::calibrateWithHMD);
-                }
+            if (ImGui::Button("Use Calibration Mat"))
+            {
+                setState(eMenuState::calibrateWithMat);
+            }
 
-                if (ImGui::Button("Use Calibration Mat"))
-                {
-                    setState(eMenuState::calibrateWithMat);
-                }
-
-                if (ImGui::Button("Cancel"))
-                {
-                    m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
-                }
+            if (ImGui::Button("Cancel"))
+            {
+                m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
 
             ImGui::End();
@@ -418,19 +414,16 @@ void AppStage_ComputeTrackerPoses::renderUI()
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            if (m_hmdView != nullptr)
+            ImGui::Text("Calibration Complete");
+
+            if (ImGui::Button("Redo Calibration"))
             {
-                ImGui::Text("Calibration Complete");
+                setState(eMenuState::selectCalibrationType);
+            }
 
-                if (ImGui::Button("Redo Calibration"))
-                {
-                    setState(eMenuState::selectCalibrationType);
-                }
-
-                if (ImGui::Button("Exit"))
-                {
-                    m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
-                }
+            if (ImGui::Button("Exit"))
+            {
+                m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
 
             ImGui::End();
@@ -443,19 +436,16 @@ void AppStage_ComputeTrackerPoses::renderUI()
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            if (m_hmdView != nullptr)
+            ImGui::Text("Calibration Failed");
+
+            if (ImGui::Button("Restart Calibration"))
             {
-                ImGui::Text("Calibration Failed");
+                setState(eMenuState::selectCalibrationType);
+            }
 
-                if (ImGui::Button("Restart Calibration"))
-                {
-                    setState(eMenuState::selectCalibrationType);
-                }
-
-                if (ImGui::Button("Cancel"))
-                {
-                    m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
-                }
+            if (ImGui::Button("Cancel"))
+            {
+                m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
 
             ImGui::End();
@@ -514,13 +504,14 @@ void AppStage_ComputeTrackerPoses::onExitState(eMenuState newState)
 
 void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
 {
-    switch (m_menuState)
+    switch (newState)
     {
     case eMenuState::inactive:
         break;
     case eMenuState::pendingControllerListRequest:
     case eMenuState::pendingControllerStartRequest:
     case eMenuState::pendingTrackerListRequest:
+        break;
     case eMenuState::pendingTrackerStartRequest:
         m_trackerViews.clear();
         m_pendingTrackerStartCount = 0;
@@ -531,7 +522,10 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
     case eMenuState::failedTrackerStartRequest:
         break;
     case eMenuState::verifyHMD:
+        break;
     case eMenuState::verifyTrackers:
+        m_renderTrackerIter = m_trackerViews.begin();
+        break;
     case eMenuState::selectCalibrationType:
         break;
     case eMenuState::calibrateWithHMD:
@@ -634,6 +628,7 @@ void AppStage_ComputeTrackerPoses::release_devices()
 
     if (m_controllerView != nullptr)
     {
+        ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_tracking(m_controllerView));
         ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(m_controllerView));
         ClientPSMoveAPI::free_controller_view(m_controllerView);
         m_controllerView = nullptr;
@@ -742,6 +737,9 @@ void AppStage_ComputeTrackerPoses::request_start_controller_stream(int Controlle
             m_controllerView, 
             ClientPSMoveAPI::includeRawSensorData | ClientPSMoveAPI::includeRawTrackerData),
         AppStage_ComputeTrackerPoses::handle_start_controller_response, this);
+
+    // Also start tracking the controller
+    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::start_tracking(m_controllerView));
 }
 
 void AppStage_ComputeTrackerPoses::handle_start_controller_response(

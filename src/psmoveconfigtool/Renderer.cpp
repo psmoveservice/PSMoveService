@@ -174,10 +174,9 @@ bool Renderer::init()
         glEnable (GL_BLEND);
         glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+        m_instance = this;
         setProjectionMatrix(
-            glm::perspective(k_camera_vfov, getWindowAspectRatio(), k_camera_z_near, k_camera_z_far));
-
-        m_instance= this;
+            glm::perspective(k_camera_vfov, Renderer::getWindowAspectRatio(), k_camera_z_near, k_camera_z_far));
     }
 
     return success;
@@ -556,12 +555,16 @@ void drawFullscreenTexture(const unsigned int texture_id)
 
 void drawTrackingProjection(
     const PSMoveTrackingProjection *projection,
+    float trackerWidth, 
+    float trackerHeight,
     const glm::vec3 &color)
 {
-    // Save a backup of the projection matrix and replace with the identity matrix
+    // Save a backup of the projection matrix 
+    // and replace with a projection that maps the tracker image coordinates over the whole screen
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
+    glOrtho(-trackerWidth / 2.f, trackerWidth / 2.f, trackerHeight / 2.f, -trackerHeight / 2.f, 0.0f, 1.0f);
 
     // Save a backup of the modelview matrix and replace with the identity matrix
     glMatrixMode(GL_MODELVIEW);
@@ -581,7 +584,7 @@ void drawTrackingProjection(
             const float x_extent = projection->shape.ellipse.half_x_extent;
             const float y_extent = projection->shape.ellipse.half_y_extent;
             const float rot_angle = projection->shape.ellipse.angle;
-            glm::vec3 center(projection->shape.ellipse.center.x, projection->shape.ellipse.center.y, 1.f);
+            glm::vec3 center(projection->shape.ellipse.center.x, projection->shape.ellipse.center.y, 0.5f);
 
             float angle = 0.f;
             glBegin(GL_LINE_STRIP);
@@ -604,10 +607,10 @@ void drawTrackingProjection(
             const PSMoveScreenLocation *corners = projection->shape.quad.corners;
             
             glBegin(GL_QUADS);
-            glVertex3f(corners[0].x, corners[0].y, 1.f);
-            glVertex3f(corners[1].x, corners[1].y, 1.f);
-            glVertex3f(corners[2].x, corners[2].y, 1.f);
-            glVertex3f(corners[3].x, corners[3].y, 1.f);
+            glVertex3f(corners[0].x, corners[0].y, 0.5f);
+            glVertex3f(corners[1].x, corners[1].y, 0.5f);
+            glVertex3f(corners[2].x, corners[2].y, 0.5f);
+            glVertex3f(corners[3].x, corners[3].y, 0.5f);
             glEnd();
         } break;
     }

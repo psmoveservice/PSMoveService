@@ -77,6 +77,15 @@ public:
     // Get the currently assigned tracking color ID for the controller
     inline eCommonTrackingColorID getTrackingColorID() const { return m_tracking_color_id; }
 
+    // Set the assigned tracking color ID for the controller
+    void setTrackingColorID(eCommonTrackingColorID colorID);
+
+    // Get the tracking is enabled on this controller
+    inline bool getIsTrackingEnabled() const { return m_tracking_enabled && m_multicam_position_estimation != nullptr; }
+
+    // Set the assigned tracking color ID for the controller
+    void setTrackingEnabled(bool bEnabled);
+
     // Get the tracking shape for the controller
     bool getTrackingShape(CommonDeviceTrackingShape &outTrackingShape);
 
@@ -89,9 +98,6 @@ public:
     inline const ControllerPositionEstimation *getMulticamPositionEstimate() const { 
         return m_multicam_position_estimation; 
     }
-
-    // Return true if one or more trackers are actively looking for this controller
-    inline bool getIsTrackingEnabled() const { return m_multicam_position_estimation != nullptr; }
 
     // return true if one or more cameras saw this controller last update
     inline bool getIsCurrentlyTracking() const { 
@@ -112,6 +118,7 @@ protected:
 
 private:
     eCommonTrackingColorID m_tracking_color_id;
+    bool m_tracking_enabled;
     IControllerInterface *m_device;
     ControllerPositionEstimation *m_tracker_position_estimation; // array of size TrackerManager::k_max_devices
     ControllerPositionEstimation *m_multicam_position_estimation;

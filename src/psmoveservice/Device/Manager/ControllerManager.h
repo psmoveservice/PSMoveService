@@ -40,6 +40,7 @@ public:
     bool resetPose(int controller_id);
 
     eCommonTrackingColorID allocateTrackingColorID();
+    void claimTrackingColorID(eCommonTrackingColorID color_id);
     void freeTrackingColorID(eCommonTrackingColorID color_id);
 
 protected:

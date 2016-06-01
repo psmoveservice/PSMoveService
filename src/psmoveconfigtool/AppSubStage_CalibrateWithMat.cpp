@@ -392,7 +392,12 @@ void AppSubStage_CalibrateWithMat::render()
                 if (PSMoveView.GetIsCurrentlyTracking() &&
                     PSMoveView.GetRawTrackerData().GetProjectionOnTrackerId(TrackerView->getTrackerId(), trackingProjection))
                 {
-                    drawTrackingProjection(&trackingProjection, glm::vec3(1.f, 1.f, 1.f));
+                    const PSMoveFloatVector2 screenSize= TrackerView->getTrackerInfo().tracker_screen_dimensions;
+
+                    drawTrackingProjection(
+                        &trackingProjection,
+                        screenSize.i, screenSize.j,
+                        glm::vec3(0.f, 1.f, 0.f));
                 }
             }
         } break;
@@ -423,7 +428,7 @@ void AppSubStage_CalibrateWithMat::render()
 
 void AppSubStage_CalibrateWithMat::renderUI()
 {
-    const float k_panel_width = 300.f;
+    const float k_panel_width = 450.f;
     const char *k_window_title = "Compute Tracker Poses";
     const ImGuiWindowFlags window_flags =
         ImGuiWindowFlags_ShowBorders |
@@ -440,7 +445,7 @@ void AppSubStage_CalibrateWithMat::renderUI()
         break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
         {
-            ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
@@ -486,7 +491,7 @@ void AppSubStage_CalibrateWithMat::renderUI()
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
         {
-            ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 200));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
@@ -540,7 +545,7 @@ void AppSubStage_CalibrateWithMat::renderUI()
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD:
         {
-            ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
@@ -570,7 +575,7 @@ void AppSubStage_CalibrateWithMat::renderUI()
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:
         {
-            ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 

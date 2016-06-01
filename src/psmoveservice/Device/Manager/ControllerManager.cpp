@@ -59,12 +59,12 @@ ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
 {
     for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
     {
-        ServerControllerViewPtr controller = getControllerViewPtr(device_id);
+        ServerControllerViewPtr controllerView = getControllerViewPtr(device_id);
 
-		if (controller->getIsOpen())
+		if (controllerView->getIsOpen() && controllerView->getIsTrackingEnabled())
 		{
-			controller->updatePositionEstimation(tracker_manager);
-			controller->updateStateAndPredict();
+			controllerView->updatePositionEstimation(tracker_manager);
+			controllerView->updateStateAndPredict();
 		}
     }
 }
@@ -143,6 +143,41 @@ ControllerManager::allocateTrackingColorID()
     m_available_controller_color_ids.pop_front();
 
     return tracking_color;
+}
+
+void 
+ControllerManager::claimTrackingColorID(eCommonTrackingColorID color_id)
+{
+    bool bColorWasInUse = false;
+
+    // If any other controller has this tracking color, make them pick a new color
+    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+    {
+        ServerControllerViewPtr device = getControllerViewPtr(device_id);
+
+        if (device->getIsOpen())
+        {
+            if (device->getTrackingColorID() == color_id)
+            {
+                device->setTrackingColorID(allocateTrackingColorID());
+                bColorWasInUse = true;
+                break;
+            }
+        }
+    }
+
+    // If the color was not in use, remove it from the color queue
+    if (!bColorWasInUse)
+    {
+        for (auto iter = m_available_controller_color_ids.begin(); iter != m_available_controller_color_ids.end(); ++iter)
+        {
+            if (*iter == color_id)
+            {
+                m_available_controller_color_ids.erase(iter);
+                break;
+            }
+        }
+    }
 }
 
 void 

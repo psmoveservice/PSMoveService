@@ -44,6 +44,7 @@ static void generate_psnavi_data_frame_for_stream(
 ServerControllerView::ServerControllerView(const int device_id)
     : ServerDeviceView(device_id)
     , m_tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
+    , m_tracking_enabled(false)
     , m_device(nullptr)
     , m_tracker_position_estimation(nullptr)
     , m_multicam_position_estimation(nullptr)
@@ -180,6 +181,8 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
 void ServerControllerView::close()
 {
     ServerDeviceView::close();
+
+    setTrackingEnabled(false);
 
     if (m_tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
     {
@@ -496,6 +499,82 @@ const struct CommonControllerState * ServerControllerView::getState(
 
     return static_cast<const CommonControllerState *>(device_state);
 }
+
+void ServerControllerView::setTrackingColorID(eCommonTrackingColorID colorID)
+{
+    if (colorID != m_tracking_color_id)
+    {
+        bool bWasTracking = getIsTrackingEnabled();
+
+        if (bWasTracking)
+        {
+            setTrackingEnabled(false);
+        }
+
+        m_tracking_color_id = colorID;
+
+        if (bWasTracking)
+        {
+            setTrackingEnabled(true);
+        }
+    }
+}
+
+void ServerControllerView::setTrackingEnabled(bool bEnabled)
+{
+    if (m_tracking_enabled != bEnabled)
+    {
+        unsigned char r, g, b;
+
+        if (bEnabled)
+        {
+            switch (m_tracking_color_id)
+            {
+            case PSMoveProtocol::Magenta:
+                r = 0xFF; g = 0x00; b = 0xFF;
+                break;
+            case PSMoveProtocol::Cyan:
+                r = 0x00; g = 0xFF; b = 0xFF;
+                break;
+            case PSMoveProtocol::Yellow:
+                r = 0xFF; g = 0xFF; b = 0x00;
+                break;
+            case PSMoveProtocol::Red:
+                r = 0xFF; g = 0x00; b = 0x00;
+                break;
+            case PSMoveProtocol::Green:
+                r = 0x00; g = 0xFF; b = 0x00;
+                break;
+            case PSMoveProtocol::Blue:
+                r = 0x00; g = 0x00; b = 0xFF;
+                break;
+            default:
+                assert(0 && "unreachable");
+            }
+        }
+        else
+        {
+            r = g = b = 0;
+        }
+
+        switch (getControllerDeviceType())
+        {
+        case CommonDeviceState::PSMove:
+            {
+                this->castChecked<PSMoveController>()->setLED(r, g, b);
+            } break;
+        case CommonDeviceState::PSNavi:
+            {
+                // Do nothing...
+            } break;
+        default:
+            assert(false && "Unhanded controller type!");
+        }
+
+        m_tracking_enabled = bEnabled;
+    }
+}
+
 
 // Get the tracking shape for the controller
 bool ServerControllerView::getTrackingShape(CommonDeviceTrackingShape &trackingShape)

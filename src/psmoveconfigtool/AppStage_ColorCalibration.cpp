@@ -623,10 +623,35 @@ void AppStage_ColorCalibration::handle_start_controller_response(
 void AppStage_ColorCalibration::request_set_controller_tracking_color(
     PSMoveTrackingColorType tracking_color)
 {
+    unsigned char r, g, b;
+
     m_trackingColorType= tracking_color;
 
-    ClientPSMoveAPI::eat_response(
-        ClientPSMoveAPI::set_led_tracking_color(m_controllerView, m_trackingColorType));
+    switch (m_trackingColorType)
+    {
+    case PSMoveProtocol::Magenta:
+        r = 0xFF; g = 0x00; b = 0xFF;
+        break;
+    case PSMoveProtocol::Cyan:
+        r = 0x00; g = 0xFF; b = 0xFF;
+        break;
+    case PSMoveProtocol::Yellow:
+        r = 0xFF; g = 0xFF; b = 0x00;
+        break;
+    case PSMoveProtocol::Red:
+        r = 0xFF; g = 0x00; b = 0x00;
+        break;
+    case PSMoveProtocol::Green:
+        r = 0x00; g = 0xFF; b = 0x00;
+        break;
+    case PSMoveProtocol::Blue:
+        r = 0x00; g = 0x00; b = 0xFF;
+        break;
+    default:
+        assert(0 && "unreachable");
+    }
+
+    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::set_led_color(m_controllerView, r, g, b));
 }
 
 void AppStage_ColorCalibration::request_tracker_start_stream()
