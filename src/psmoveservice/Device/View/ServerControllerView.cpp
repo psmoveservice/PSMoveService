@@ -180,8 +180,6 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
 
 void ServerControllerView::close()
 {
-    ServerDeviceView::close();
-
     setTrackingEnabled(false);
 
     if (m_tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
@@ -190,6 +188,8 @@ void ServerControllerView::close()
 
         m_tracking_color_id = eCommonTrackingColorID::INVALID_COLOR;
     }
+
+    ServerDeviceView::close();
 }
 
 void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_manager)
