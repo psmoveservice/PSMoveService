@@ -193,6 +193,11 @@ public:
         return IsValid() ? bIsTrackingEnabled : false;
     }
 
+    inline const PSMovePose &GetPose() const
+    {
+        return IsValid() ? Pose : *k_psmove_pose_identity;
+    }
+
     inline const PSMovePosition &GetPosition() const
     {
         return IsValid() ? Pose.Position : *k_psmove_position_origin;

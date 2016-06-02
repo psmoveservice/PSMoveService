@@ -895,7 +895,7 @@ init_filters_for_psmove(
         position_filter->setFilterSpace(filterSpace);
 
         //###bwalker $TODO Use the LowPass filter by default
-        position_filter->setFusionType(PositionFilter::FusionTypePassThru);
+        position_filter->setFusionType(PositionFilter::FusionTypeLowPass);
     }
 }
 

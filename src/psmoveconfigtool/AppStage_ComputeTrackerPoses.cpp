@@ -87,11 +87,7 @@ void AppStage_ComputeTrackerPoses::enter()
 
 void AppStage_ComputeTrackerPoses::exit()
 {
-    if (m_hmdView != nullptr)
-    {
-        m_app->getOpenVRContext()->freeHmdView(m_hmdView);
-        m_hmdView = nullptr;
-    }
+    release_devices();
 
     setState(eMenuState::inactive);
 }
@@ -227,6 +223,16 @@ void AppStage_ComputeTrackerPoses::render()
                     drawTransformedAxes(cameraTransform, 20.f);
                 }
             }
+
+            // Draw the psmove model
+            {
+                PSMovePose pose = m_controllerView->GetPSMoveView().GetPose();
+                glm::mat4 worldTransform = psmove_pose_to_glm_mat4(pose);
+
+                drawPSMoveModel(worldTransform, glm::vec3(1.f, 1.f, 1.f));
+                drawTransformedAxes(worldTransform, 10.f);
+            }
+
         } break;
     case eMenuState::calibrateStepFailed:
         break;
@@ -338,7 +344,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
             const int trackerCount = static_cast<int>(m_trackerViews.size());
 
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - 450 / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(450, (m_trackerViews.size() > 0) ? 150 : 100));
+            ImGui::SetNextWindowSize(ImVec2(450.f, (m_trackerViews.size() > 0) ? 150.f : 100.f));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Verify that your tracking cameras can see the tracking origin");
@@ -410,7 +416,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
     case eMenuState::testTracking:
         {
-            ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
@@ -495,6 +501,8 @@ void AppStage_ComputeTrackerPoses::onExitState(eMenuState newState)
         m_pCalibrateWithMat->exit();
         break;
     case eMenuState::testTracking:
+        m_app->setCameraType(_cameraFixed);
+        break;
     case eMenuState::calibrateStepFailed:
         break;
     default:
@@ -535,6 +543,8 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
         m_pCalibrateWithMat->enter();
         break;
     case eMenuState::testTracking:
+        m_app->setCameraType(_cameraOrbit);
+        break;
     case eMenuState::calibrateStepFailed:
         break;
     default:

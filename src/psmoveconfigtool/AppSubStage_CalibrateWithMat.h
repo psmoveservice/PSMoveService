@@ -56,8 +56,9 @@ class AppSubStage_CalibrateWithMat
 public:
     enum eMenuState
     {
-        initial,
+        invalid,
 
+        initial,
         calibrationStepPlacePSMove,
         calibrationStepRecordPSMove,
         calibrationStepPlaceHMD,

@@ -620,6 +620,8 @@ void drawTrackingProjection(
         } break;
     }
 
+    glLineWidth(1.f);
+
     // Restore the projection matrix
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();

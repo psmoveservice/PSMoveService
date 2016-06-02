@@ -61,13 +61,13 @@ static bool computeTrackerCameraPose(
 AppSubStage_CalibrateWithMat::AppSubStage_CalibrateWithMat(
     AppStage_ComputeTrackerPoses *parentStage)
     : m_parentStage(parentStage)
-    , m_menuState(AppSubStage_CalibrateWithMat::eMenuState::initial)
+    , m_menuState(AppSubStage_CalibrateWithMat::eMenuState::invalid)
 {
 }
 
 void AppSubStage_CalibrateWithMat::enter()
 {
-    setState(AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove);
+    setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
 }
 
 void AppSubStage_CalibrateWithMat::exit()
@@ -216,7 +216,7 @@ void AppSubStage_CalibrateWithMat::update()
                         }
                         else
                         {
-                            setState(AppSubStage_CalibrateWithMat::eMenuState::calibrateStepSuccess);
+                            setState(AppSubStage_CalibrateWithMat::eMenuState::calibrationStepComputeTrackerPoses);
                         }
                     }
                 }
@@ -349,8 +349,6 @@ void AppSubStage_CalibrateWithMat::update()
                     m_parentStage->request_set_hmd_tracking_space_origin(&hmdPose);
                 }
             }
-
-            //###HipsterSloth $TODO Set the HMD pose when at the psmove origin
 
             if (bSuccess)
             {
@@ -541,11 +539,6 @@ void AppSubStage_CalibrateWithMat::renderUI()
                 }
             }
 
-            if (ImGui::Button("Restart Calibration"))
-            {
-                setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
-            }
-            ImGui::SameLine();
             if (ImGui::Button("Cancel"))
             {
                 m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
@@ -576,11 +569,6 @@ void AppSubStage_CalibrateWithMat::renderUI()
 
             ImGui::Separator();
 
-            if (ImGui::Button("Restart Calibration"))
-            {
-                setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
-            }
-            ImGui::SameLine();
             if (ImGui::Button("Cancel"))
             {
                 m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
@@ -600,11 +588,6 @@ void AppSubStage_CalibrateWithMat::renderUI()
 
             ImGui::Separator();
 
-            if (ImGui::Button("Restart Calibration"))
-            {
-                setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
-            }
-            ImGui::SameLine();
             if (ImGui::Button("Cancel"))
             {
                 m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
@@ -638,6 +621,7 @@ void AppSubStage_CalibrateWithMat::onExitState(
 {
     switch (oldState)
     {
+    case AppSubStage_CalibrateWithMat::eMenuState::invalid:
     case AppSubStage_CalibrateWithMat::eMenuState::initial:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
@@ -658,8 +642,6 @@ void AppSubStage_CalibrateWithMat::onEnterState(
     switch (newState)
     {
     case AppSubStage_CalibrateWithMat::eMenuState::initial:
-        break;
-    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
         {
             for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
                 iter != m_parentStage->m_trackerViews.end();
@@ -673,6 +655,20 @@ void AppSubStage_CalibrateWithMat::onEnterState(
             m_sampleLocationIndex = 0;
             m_bIsStable = false;
             m_hmdTrackerPoseContext.clear();
+        }
+        break;
+    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
+        {
+            for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
+                iter != m_parentStage->m_trackerViews.end();
+                ++iter)
+            {
+                const int trackerIndex = iter->second.listIndex;
+
+                m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount = 0;
+            }
+
+            m_bIsStable = false;
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
         break;
@@ -708,7 +704,7 @@ computeTrackerCameraPose(
     // Copy the object/image point mappings into OpenCV format
     std::vector<cv::Point3f> cvObjectPoints;
     std::vector<cv::Point2f> cvImagePoints;
-    for (int locationIndex = 0; locationIndex < k_mat_calibration_sample_count; ++locationIndex)
+    for (int locationIndex = 0; locationIndex < k_mat_sample_location_count; ++locationIndex)
     {
         const PSMoveScreenLocation &screenPoint =
             trackerCoregData.avgScreenSpacePointAtLocation[locationIndex];
