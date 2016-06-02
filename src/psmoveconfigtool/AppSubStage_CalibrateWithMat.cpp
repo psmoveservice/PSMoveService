@@ -397,7 +397,7 @@ void AppSubStage_CalibrateWithMat::render()
                     drawTrackingProjection(
                         &trackingProjection,
                         screenSize.i, screenSize.j,
-                        glm::vec3(0.f, 1.f, 0.f));
+                        glm::vec3(1.f, 1.f, 1.f));
                 }
             }
         } break;
@@ -486,6 +486,11 @@ void AppSubStage_CalibrateWithMat::renderUI()
             {
                 setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
             }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel"))
+            {
+                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
+            }
 
             ImGui::End();
         } break;
@@ -540,6 +545,11 @@ void AppSubStage_CalibrateWithMat::renderUI()
             {
                 setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
             }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel"))
+            {
+                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
+            }
 
             ImGui::End();
         } break;
@@ -570,6 +580,11 @@ void AppSubStage_CalibrateWithMat::renderUI()
             {
                 setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
             }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel"))
+            {
+                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
+            }
 
             ImGui::End();
         } break;
@@ -588,6 +603,11 @@ void AppSubStage_CalibrateWithMat::renderUI()
             if (ImGui::Button("Restart Calibration"))
             {
                 setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel"))
+            {
+                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
             }
 
             ImGui::End();
