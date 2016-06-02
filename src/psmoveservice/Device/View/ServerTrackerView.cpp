@@ -21,6 +21,8 @@
 #include "opencv2/opencv.hpp"
 #include "opencv2/calib3d/calib3d.hpp"
 
+#define USE_OPEN_CV_ELLIPSE_FIT
+
 //-- private methods -----
 class SharedVideoFrameReadWriteAccessor
 {
@@ -667,34 +669,70 @@ ServerTrackerView::computePositionForController(
         {
         case eCommonTrackingShapeType::Sphere:
             {
-                Eigen::Vector3f sphere_center;
-                EigenFitEllipse projection_ellipse;
+                // Compute a best fit ellipse for the contour
+                EigenFitEllipse ellipse_projection;
 
-                float F_PX, F_PY;
-                float PrincipalX, PrincipalY;
-                m_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+                //###HipsterSloth $TODO - Near the edge of the screen the 
+                // Near the edges of the the screen the ellipse fit using the improved
+                // least square fit starts behaving oddly (creating large offset skewed ellipses).
+                // For now, fall back to OpenCV's ellipse fit method which uses the 
+                // older method of Fitzgibbon (http://www.bmva.org/bmvc/1995/bmvc-95-050.pdf).
+                #ifdef USE_OPEN_CV_ELLIPSE_FIT
+                {
+                    // Yeah this is silly to copy the list of points BACK to an OpenCV point list
+                    // after we just copied from an OpenCV point to an Eigen::Vector2f point list
+                    // in computeBiggestConvexContour(), but this is a temp hack
+                    std::vector<cv::Point> open_cv_convex_contour;
+                    std::for_each(
+                        convex_contour.begin(),
+                        convex_contour.end(),
+                        [&open_cv_convex_contour](Eigen::Vector2f& p) {
+                            open_cv_convex_contour.push_back(cv::Point((int)p.x(), (int)p.y()));
+                        });
 
+                    cv::RotatedRect cvFitEllipse = cv::fitEllipse(open_cv_convex_contour);
+
+                    ellipse_projection.center= Eigen::Vector2f(cvFitEllipse.center.x, cvFitEllipse.center.y);
+                    ellipse_projection.extents= Eigen::Vector2f(cvFitEllipse.size.width/2.f, cvFitEllipse.size.height/2.f);
+                    ellipse_projection.angle= cvFitEllipse.angle;
+
+                    bSuccess= true;
+                }
+                #else
                 bSuccess =
-                    eigen_alignment_fit_focal_cone_to_sphere(
-                        convex_contour.data(),
-                        static_cast<int>(convex_contour.size()),
-                        tracking_shape.shape.sphere.radius,
-                        F_PX,
-                        &sphere_center,
-                        &projection_ellipse);
+                    eigen_alignment_fit_least_squares_ellipse(
+                        convex_contour.data(), static_cast<int>(convex_contour.size()),
+                        ellipse_projection);
+                #endif
 
                 if (bSuccess)
                 {
+                    Eigen::Vector3f sphere_center;
+
+                    // Get the camera focal length
+                    float F_PX, F_PY;
+                    float PrincipalX, PrincipalY;
+                    m_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+
+                    // Given a cone defined by the camera view point and an ellipse 
+                    // (projection of a sphere on the camera's image plane)
+                    // compute the sphere center that would produce that ellipse projection.
+                    eigen_alignment_fit_focal_cone_to_sphere(
+                        ellipse_projection,
+                        tracking_shape.shape.sphere.radius,
+                        F_PX,
+                        &sphere_center);
+
                     out_position->set(sphere_center.x(), sphere_center.y(), sphere_center.z());
 
                     if (out_projection_shape != nullptr)
                     {
                         out_projection_shape->shape_type = eCommonTrackingProjectionType::ProjectionType_Ellipse;
                         out_projection_shape->shape.ellipse.center.set(
-                            projection_ellipse.center.x(), projection_ellipse.center.y());
-                        out_projection_shape->shape.ellipse.half_x_extent = projection_ellipse.extents.x();
-                        out_projection_shape->shape.ellipse.half_y_extent = projection_ellipse.extents.y();
-                        out_projection_shape->shape.ellipse.angle = projection_ellipse.angle;
+                            ellipse_projection.center.x(), ellipse_projection.center.y());
+                        out_projection_shape->shape.ellipse.half_x_extent = ellipse_projection.extents.x();
+                        out_projection_shape->shape.ellipse.half_y_extent = ellipse_projection.extents.y();
+                        out_projection_shape->shape.ellipse.angle = ellipse_projection.angle;
                     }
                 }
             } break;
