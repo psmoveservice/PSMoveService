@@ -559,12 +559,15 @@ void drawTrackingProjection(
     float trackerHeight,
     const glm::vec3 &color)
 {
+    // Clear the depth buffer to allow overdraw 
+    glClear(GL_DEPTH_BUFFER_BIT);
+
     // Save a backup of the projection matrix 
     // and replace with a projection that maps the tracker image coordinates over the whole screen
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
-    glOrtho(-trackerWidth / 2.f, trackerWidth / 2.f, trackerHeight / 2.f, -trackerHeight / 2.f, 0.0f, 1.0f);
+    glOrtho(-trackerWidth / 2.f, trackerWidth / 2.f, -trackerHeight / 2.f, trackerHeight / 2.f, 1.0f, -1.0f);
 
     // Save a backup of the modelview matrix and replace with the identity matrix
     glMatrixMode(GL_MODELVIEW);
@@ -573,6 +576,7 @@ void drawTrackingProjection(
 
     // Fill the screen with the texture
     glColor3fv(glm::value_ptr(color));
+    glLineWidth(5.f);
 
     switch (projection->shape_type)
     {
@@ -584,6 +588,9 @@ void drawTrackingProjection(
             const float x_extent = projection->shape.ellipse.half_x_extent;
             const float y_extent = projection->shape.ellipse.half_y_extent;
             const float rot_angle = projection->shape.ellipse.angle;
+
+            glm::vec3 x_axis(cosf(rot_angle), sinf(rot_angle), 0.f);
+            glm::vec3 y_axis(sinf(rot_angle), -cosf(rot_angle), 0.f);
             glm::vec3 center(projection->shape.ellipse.center.x, projection->shape.ellipse.center.y, 0.5f);
 
             float angle = 0.f;
@@ -591,10 +598,8 @@ void drawTrackingProjection(
             for (int index = 0; index <= subdiv; ++index)
             {
                 glm::vec3 point = 
-                    glm::vec3(
-                        x_extent*cosf(angle + rot_angle), 
-                        y_extent*sinf(angle + rot_angle), 
-                        0.f)
+                    x_axis*x_extent*cosf(angle)
+                    + y_axis*y_extent*sinf(angle)
                     + center;
 
                 glVertex3fv(glm::value_ptr(point));
