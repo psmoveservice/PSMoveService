@@ -235,6 +235,7 @@ bool PS3EyeTracker::open(const DeviceEnumerator *enumerator)
         cfg = PS3EyeTrackerConfig(config_name);
         cfg.load();
         setExposure(cfg.exposure);
+        setGain(cfg.gain);
     }
 
     return bSuccess;
