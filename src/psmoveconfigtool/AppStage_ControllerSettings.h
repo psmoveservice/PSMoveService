@@ -28,6 +28,7 @@ public:
         int ControllerID;
         eControllerType ControllerType;
         eConnectionType ConnectionType;
+        PSMoveTrackingColorType TrackingColorType;
         std::string DevicePath;
         std::string DeviceSerial;
         std::string HostSerial;

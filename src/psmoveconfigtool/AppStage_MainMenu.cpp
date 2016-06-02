@@ -71,10 +71,11 @@ void AppStage_MainMenu::renderUI()
             ImGui::SetNextWindowPosCenter();
             ImGui::Begin("Main Menu", nullptr, ImVec2(300, 400), k_background_alpha, window_flags);
     
-            if (ImGui::Button("Service Settings"))
-            {
-                m_app->setAppStage(AppStage_ServiceSettings::APP_STAGE_NAME);
-            }
+            //###HipsterSloth $TODO No service wide settings yet
+            //if (ImGui::Button("Service Settings"))
+            //{
+            //    m_app->setAppStage(AppStage_ServiceSettings::APP_STAGE_NAME);
+            //}
 
             if (ImGui::Button("HMD Settings"))
             {

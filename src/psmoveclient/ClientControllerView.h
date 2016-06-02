@@ -22,7 +22,34 @@ enum PSMoveButtonState {
     PSMoveButton_RELEASED = 0x02, // (10b) Up for one frame only
 };
 
+enum PSMoveTrackingColorType {
+    Magenta,    // R:0xFF, G:0x00, B:0xFF
+    Cyan,       // R:0x00, G:0xFF, B:0xFF
+    Yellow,     // R:0xFF, G:0xFF, B:0x00
+    Red,        // R:0xFF, G:0x00, B:0x00
+    Green,      // R:0x00, G:0xFF, B:0x00
+    Blue,       // R:0x00, G:0x00, B:0xFF
+
+    MAX_PSMOVE_COLOR_TYPES
+};
+
 //-- declarations -----
+struct CLIENTPSMOVEAPI PSMovePhysicsData
+{
+    PSMoveFloatVector3 Velocity;
+    PSMoveFloatVector3 Acceleration;
+    PSMoveFloatVector3 AngularVelocity;
+    PSMoveFloatVector3 AngularAcceleration;
+
+    inline void Clear()
+    {
+        Velocity = *k_psmove_float_vector3_zero;
+        Acceleration = *k_psmove_float_vector3_zero;
+        AngularVelocity = *k_psmove_float_vector3_zero;
+        AngularAcceleration = *k_psmove_float_vector3_zero;
+    }
+};
+
 struct CLIENTPSMOVEAPI PSMoveRawSensorData
 {
     PSMoveIntVector3 Magnetometer;
@@ -42,6 +69,7 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
     // Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
     PSMoveScreenLocation ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMovePosition RelativePositions[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMoveTrackingProjection TrackingProjections[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int ValidTrackerLocations;
 
@@ -89,6 +117,23 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
 
         return bFound;
     }
+
+    inline bool GetProjectionOnTrackerId(int trackerId, PSMoveTrackingProjection &outProjection) const
+    {
+        bool bFound = false;
+
+        for (int listIndex = 0; listIndex < ValidTrackerLocations; ++listIndex)
+        {
+            if (TrackerIDs[listIndex] == trackerId)
+            {
+                outProjection = TrackingProjections[listIndex];
+                bFound = true;
+                break;
+            }
+        }
+
+        return bFound;
+    }
 };
 
 struct CLIENTPSMOVEAPI ClientPSMoveView
@@ -100,6 +145,7 @@ private:
     bool bIsCurrentlyTracking;
 
     PSMovePose Pose;
+    PSMovePhysicsData PhysicsData;
     PSMoveRawSensorData RawSensorData;
     PSMoveRawTrackerData RawTrackerData;
 
@@ -145,6 +191,11 @@ public:
     inline bool GetIsTrackingEnabled() const
     {
         return IsValid() ? bIsTrackingEnabled : false;
+    }
+
+    inline const PSMovePose &GetPose() const
+    {
+        return IsValid() ? Pose : *k_psmove_pose_identity;
     }
 
     inline const PSMovePosition &GetPosition() const
@@ -207,6 +258,7 @@ public:
         return IsValid() ? ((float)TriggerValue / 255.f) : 0.f;
     }
 
+    const PSMovePhysicsData &GetPhysicsData() const;
     const PSMoveRawSensorData &GetRawSensorData() const;
     const PSMoveFloatVector3 &GetIdentityGravityCalibrationDirection() const;
     bool GetIsStableAndAlignedWithGravity() const;
@@ -433,4 +485,5 @@ public:
         return data_frame_average_fps;
     }
 };
-#endif // CLIENT_CONTROLLER_VIEW_H
+
+#endif

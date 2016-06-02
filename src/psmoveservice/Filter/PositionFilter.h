@@ -9,16 +9,16 @@
 struct PositionSensorPacket
 {
     Eigen::Vector3f position;
-    Eigen::Vector3f velocity;
     Eigen::Vector3f acceleration;
+    bool bPositionValid;
 };
 
 /// A snapshot of raw IMU data transformed by a filter space so that it can be used to update an position filter
 struct PositionFilterPacket
 {
     Eigen::Vector3f position;
-    Eigen::Vector3f velocity;
     Eigen::Vector3f acceleration;
+    bool bPositionValid;
 };
 
 /// Used to transform sensor data from a device into an arbitrary space
@@ -52,7 +52,7 @@ public:
     enum FusionType {
         FusionTypeNone,
         FusionTypePassThru,
-        // TODO: LowPass
+        FusionTypeLowPass
         // TODO: Kalman
     };
 
@@ -64,10 +64,10 @@ public:
         return m_FilterSpace;
     }
 
-    // Estimate the current position of the filter given a time offset
-    // Positive time values estimate into the future
-    // Negative time values get pose values from the past
-    Eigen::Vector3f getPosition(int msec_time = 0);
+    // Estimate the current position of the filter given a time offset into the future
+    Eigen::Vector3f getPosition(float time = 0.f);
+    Eigen::Vector3f getVelocity();
+    Eigen::Vector3f getAcceleration();
 
     void setFilterSpace(const PositionFilterSpace &filterSpace);
     void setFusionType(FusionType fusionType);

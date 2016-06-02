@@ -41,6 +41,7 @@ public:
         defaultStreamOptions = 0x00,
         includeRawSensorData = 0x01,
         includeRawTrackerData = 0x02,
+        includePhysicsData = 0x04,
     };
 
     // Service Events
@@ -83,6 +84,7 @@ public:
         _responsePayloadType_Empty,
         _responsePayloadType_ControllerList,
         _responsePayloadType_TrackerList,
+        _responsePayloadType_HMDTrackingSpace,
 
         _responsePayloadType_Count
     };
@@ -102,6 +104,11 @@ public:
     {
         ClientTrackerInfo trackers[PSMOVESERVICE_MAX_TRACKER_COUNT];
         int count;
+    };
+
+    struct ResponsePayload_HMDTrackingSpace
+    {
+        PSMovePose origin_pose;
     };
 
     struct ResponseMessage
@@ -128,6 +135,7 @@ public:
         {
             ResponsePayload_ControllerList controller_list;
             ResponsePayload_TrackerList tracker_list;
+            ResponsePayload_HMDTrackingSpace hmd_tracking_space;
         } payload;
         eResponsePayloadType payload_type;
     };
@@ -178,7 +186,10 @@ public:
     static t_request_id stop_controller_data_stream(ClientControllerView *view);
     static t_request_id set_controller_rumble(ClientControllerView *view, float rumble_amount);
     static t_request_id set_led_color(ClientControllerView *view, unsigned char r, unsigned char g, unsigned b);
+    static t_request_id set_led_tracking_color(ClientControllerView *view, PSMoveTrackingColorType tracking_color);
     static t_request_id reset_pose(ClientControllerView *view);
+    static t_request_id start_tracking(ClientControllerView *view);
+    static t_request_id stop_tracking(ClientControllerView *view);
 
     /// Tracker Methods
     static ClientTrackerView *allocate_tracker_view(const ClientTrackerInfo &trackerInfo);
@@ -187,6 +198,7 @@ public:
     static t_request_id get_tracker_list();
     static t_request_id start_tracker_data_stream(ClientTrackerView *view);
     static t_request_id stop_tracker_data_stream(ClientTrackerView *view);
+    static t_request_id get_hmd_tracking_space_settings();
 
     /// Used to send requests to the server by clients that have protocol access
     static t_request_id send_opaque_request(t_request_handle request_handle);

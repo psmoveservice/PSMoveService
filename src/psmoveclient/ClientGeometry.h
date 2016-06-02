@@ -145,8 +145,8 @@ struct CLIENTPSMOVEAPI PSMoveMatrix3x3
 
 struct CLIENTPSMOVEAPI PSMovePose
 {
-    PSMoveQuaternion Orientation;
     PSMovePosition Position;
+    PSMoveQuaternion Orientation;
 
     void Clear();
 };
@@ -159,6 +159,33 @@ struct CLIENTPSMOVEAPI PSMoveFrustum
     float zNear, zFar; // cm
 
     void set_pose(const PSMovePose &pose);
+};
+
+struct CLIENTPSMOVEAPI PSMoveTrackingProjection
+{
+    enum eShapeType {
+        INVALID_PROJECTION = -1,
+
+        Ellipse,
+        Quad,
+
+        MAX_TRACKING_PROJECTION_TYPES
+    };
+
+    union{
+        struct {
+            PSMoveScreenLocation center;
+            float half_x_extent;
+            float half_y_extent;
+            float angle;
+        } ellipse;
+
+        struct {
+            PSMoveScreenLocation corners[4];
+        } quad;
+    } shape;
+
+    eShapeType shape_type;
 };
 
 //-- constants -----

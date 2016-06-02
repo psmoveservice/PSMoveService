@@ -14,6 +14,9 @@ public:
     AppStage_ComputeTrackerPoses(class App *app);
     ~AppStage_ComputeTrackerPoses();
 
+    static void enterStageAndCalibrate(class App *app);
+    static void enterStageAndSkipCalibration(class App *app);
+
     virtual void enter() override;
     virtual void exit() override;
     virtual void update() override;
@@ -62,6 +65,7 @@ protected:
     void go_previous_tracker();
     int get_tracker_count() const;
     int get_render_tracker_index() const;
+    class ClientTrackerView *get_render_tracker_view() const;
 
     void request_controller_list();
     static void handle_controller_list_response(
@@ -85,8 +89,10 @@ protected:
 
     void request_set_tracker_pose(
         const struct PSMovePose *pose, 
-        const struct PSMovePose *hmd_relative_pose,
         class ClientTrackerView *TrackerView);
+
+    void request_set_hmd_tracking_space_origin(
+        const struct PSMovePose *pose);
 
     void handle_all_devices_ready();
 
@@ -119,6 +125,8 @@ private:
 
     class AppSubStage_CalibrateWithMat *m_pCalibrateWithMat;
     friend class AppSubStage_CalibrateWithMat;
+
+    bool m_bSkipCalibration;
 };
 
 #endif // APP_STAGE_COMPUTE_TRACKER_POSES_H

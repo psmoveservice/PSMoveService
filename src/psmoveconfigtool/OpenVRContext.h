@@ -2,6 +2,7 @@
 #define OPENVR_CONTEXT_H
 
 //-- includes -----
+#include "ClientGeometry.h"
 #include <vector>
 
 //-- typedefs -----
@@ -35,13 +36,16 @@ public:
     }
 
     int getHmdList(struct OpenVRHmdInfo *outHmdList, int maxListSize);
-    int getHmdTrackerList(struct OpenVRTrackerInfo *outTrackerList, int maxListSize);
 
     ClientHMDView *allocateHmdView();
     void freeHmdView(ClientHMDView *view);
 
+    void setHMDTrackingSpaceOrigin(const struct PSMovePose &pose);
+    PSMovePose getHMDTrackingSpaceOrigin() const;
+
 private:
     bool m_bIsInitialized;
+    PSMovePose m_hmdOriginPose;
 
     vr::IVRSystem *m_pVRSystem;
     vr::IVRRenderModels *m_pRenderModels;

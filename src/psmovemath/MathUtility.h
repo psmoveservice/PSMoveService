@@ -56,5 +56,6 @@ float degrees_to_radians(float x);
 float radians_to_degrees(float x);
 float wrap_radians(float angle);
 float wrap_degrees(float angle);
+float wrap_range(float value, float range_min, float range_max);
 
 #endif // MATH_UTILITY_h

@@ -7,40 +7,44 @@
 //-- constants -----
 // Max length of the position history we keep
 #define k_position_history_max 16
+#define k_max_lowpass_smoothing_distance 10.f // cm
 
 // -- private definitions -----
-struct PositionSample
-{
-    Eigen::Vector3f position;
-};
-
 struct PositionSensorFusionState
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    // Recent history of orientation readings
-    std::deque<PositionSample> positionHistory;
+    /// Is the current fustion state valid
+    bool bIsValid;
 
-    /* Output value as vector */
+    /// Current Physics State of the filter
     Eigen::Vector3f position;
+    Eigen::Vector3f velocity;
+    Eigen::Vector3f acceleration;
 
-    /* Position that's considered the origin position */
-    Eigen::Vector3f reset_position;
+    /// Position that's considered the origin position 
+    Eigen::Vector3f origin_position;
 
+    /// The filter fusion algorithm to use
     PositionFilter::FusionType fusion_type;
 
     void initialize()
     {
+        bIsValid = false;
         position = Eigen::Vector3f::Zero();
-        reset_position = Eigen::Vector3f::Zero();
-        fusion_type = PositionFilter::FusionTypePassThru;
-        positionHistory.clear();
+        velocity = Eigen::Vector3f::Zero();
+        acceleration = Eigen::Vector3f::Zero();
+        origin_position = Eigen::Vector3f::Zero();
+        fusion_type = PositionFilter::FusionTypeLowPass;
     }
 };
 
 // -- globals -----
 
 // -- private methods -----
+static void position_fusion_lowpass_update(
+    const float delta_time, const PositionFilterSpace *filter_space, const PositionFilterPacket *filter_packet,
+    PositionSensorFusionState *fusion_state);
 
 // -- public interface -----
 
@@ -60,8 +64,17 @@ void PositionFilterSpace::convertSensorPacketToFilterPacket(
     const PositionSensorPacket &sensorPacket,
     PositionFilterPacket &outFilterPacket) const
 {
-    outFilterPacket.position = sensorPacket.position;
-    outFilterPacket.velocity =  m_SensorTransform * sensorPacket.velocity;
+    if (sensorPacket.bPositionValid)
+    {
+        outFilterPacket.position = sensorPacket.position;
+        outFilterPacket.bPositionValid = true;
+    }
+    else
+    {
+        outFilterPacket.position = Eigen::Vector3f::Zero();
+        outFilterPacket.bPositionValid = false;
+    }
+
     outFilterPacket.acceleration = m_SensorTransform * sensorPacket.acceleration;
 }
 
@@ -78,16 +91,31 @@ PositionFilter::~PositionFilter()
     delete m_FusionState;
 }
 
-// Estimate the current orientation of the filter given a time offset
-// Positive time values estimate into the future
-// Negative time values get pose values from the past
-Eigen::Vector3f PositionFilter::getPosition(int msec_time)
+Eigen::Vector3f PositionFilter::getPosition(float time)
 {
-    //###bwalker $TODO Use the position history to compute an orientation
+    Eigen::Vector3f result = Eigen::Vector3f::Zero();
 
-    Eigen::Vector3f result = m_FusionState->position - m_FusionState->reset_position;
+    if (m_FusionState->bIsValid)
+    {
+        Eigen::Vector3f predicted_position = 
+            is_nearly_zero(time)
+            ? m_FusionState->position
+            : m_FusionState->position + m_FusionState->velocity * time;
+
+        result= predicted_position - m_FusionState->origin_position;
+    }
 
     return result;
+}
+
+Eigen::Vector3f PositionFilter::getVelocity()
+{
+    return (m_FusionState->bIsValid) ? m_FusionState->velocity : Eigen::Vector3f::Zero();
+}
+
+Eigen::Vector3f PositionFilter::getAcceleration()
+{
+    return (m_FusionState->bIsValid) ? m_FusionState->acceleration : Eigen::Vector3f::Zero();
 }
 
 void PositionFilter::setFilterSpace(const PositionFilterSpace &filterSpace)
@@ -106,7 +134,8 @@ void PositionFilter::setFusionType(PositionFilter::FusionType fusionType)
     case FusionTypePassThru:
         // No initialization
         break;
-    // TODO: LowPass
+    case FusionTypeLowPass:
+        break;
     // TODO: Kalman
     default:
         break;
@@ -115,7 +144,7 @@ void PositionFilter::setFusionType(PositionFilter::FusionType fusionType)
 
 void PositionFilter::resetPosition()
 {
-    m_FusionState->reset_position = m_FusionState->position;
+    m_FusionState->origin_position = m_FusionState->position;
 }
 
 void PositionFilter::resetFilterState()
@@ -131,6 +160,8 @@ void PositionFilter::update(
     m_FilterSpace.convertSensorPacketToFilterPacket(sensorPacket, filterPacket);
 
     Eigen::Vector3f position_backup = m_FusionState->position;
+    Eigen::Vector3f velocity_backup = m_FusionState->velocity;
+    Eigen::Vector3f acceleration_backup = m_FusionState->acceleration;
 
     switch (m_FusionState->fusion_type)
     {
@@ -139,7 +170,9 @@ void PositionFilter::update(
     case FusionTypePassThru:
         m_FusionState->position = filterPacket.position;
         break;
-    // TODO: LowPass
+    case FusionTypeLowPass:
+        position_fusion_lowpass_update(delta_time, &m_FilterSpace, &filterPacket, m_FusionState);
+        break;
     // TODO: Kalman
     }
 
@@ -149,21 +182,66 @@ void PositionFilter::update(
         m_FusionState->position = position_backup;
     }
 
-    // Add the new position sample to the position history
+    if (!eigen_vector3f_is_valid(m_FusionState->velocity))
     {
-        PositionSample sample;
+        SERVER_LOG_WARNING("PositionFilter") << "Velocity is NaN!";
+        m_FusionState->velocity = velocity_backup;
+    }
 
-        sample.position = m_FusionState->position;
-        //###bwalker $TODO Timestamp?
+    if (!eigen_vector3f_is_valid(m_FusionState->acceleration))
+    {
+        SERVER_LOG_WARNING("PositionFilter") << "Acceleration is NaN!";
+        m_FusionState->acceleration = acceleration_backup;
+    }
+}
 
-        // Make room for new entry if at the max queue size
-        if (m_FusionState->positionHistory.size() >= k_position_history_max)
+// -- Position Filters ----
+static void
+position_fusion_lowpass_update(
+    const float delta_time,
+    const PositionFilterSpace *filter_space,
+    const PositionFilterPacket *filter_packet,
+    PositionSensorFusionState *fusion_state)
+{
+    if (filter_packet->bPositionValid && eigen_vector3f_is_valid(filter_packet->position))
+    {
+        if (fusion_state->bIsValid)
         {
-            m_FusionState->positionHistory.erase(
-                m_FusionState->positionHistory.begin(),
-                m_FusionState->positionHistory.begin() + m_FusionState->positionHistory.size() - k_position_history_max);
-        }
+            // Traveling k_max_lowpass_smoothing_distance in one frame should have 0 smoothing
+            // Traveling 0+noise cm in one frame should have 60% smoothing
+            Eigen::Vector3f diff = filter_packet->position - fusion_state->position;
+            float distance = diff.norm();
+            float new_position_weight = clampf01(lerpf(0.40f, 1.00f, distance / k_max_lowpass_smoothing_distance));
 
-        m_FusionState->positionHistory.push_back(sample);
+            // New position is blended against the old position
+            const Eigen::Vector3f old_position = fusion_state->position;
+            const Eigen::Vector3f new_position = filter_packet->position;
+            fusion_state->position = old_position*(1.f - new_position_weight) + new_position*new_position_weight;
+
+            // Compute the velocity of the blended position
+            if (!is_nearly_zero(delta_time))
+            {
+                const Eigen::Vector3f new_velocity = (new_position - old_position) / delta_time;
+                const Eigen::Vector3f new_acceleration = (new_velocity - fusion_state->velocity) / delta_time;
+
+                fusion_state->velocity = new_velocity;
+                fusion_state->acceleration = new_acceleration;
+            }
+            else
+            {
+                fusion_state->velocity = Eigen::Vector3f::Zero();
+                fusion_state->acceleration = Eigen::Vector3f::Zero();
+            }
+        }
+        else
+        {
+            // If this is the first filter packet, just accept the position as gospel
+            fusion_state->position = filter_packet->position;
+            fusion_state->velocity = Eigen::Vector3f::Zero();
+            fusion_state->acceleration = Eigen::Vector3f::Zero();
+
+            // Fusion state is valid now that we have one sample
+            fusion_state->bIsValid = true;
+        }
     }
 }

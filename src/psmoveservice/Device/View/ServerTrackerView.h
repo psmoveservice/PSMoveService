@@ -5,6 +5,13 @@
 #include "ServerDeviceView.h"
 #include "PSMoveProtocolInterface.h"
 
+// -- pre-declarations -----
+namespace PSMoveProtocol
+{
+    class Response_ResultTrackerSettings;
+    class TrackingColorPreset;
+};
+
 // -- declarations -----
 class ServerTrackerView : public ServerDeviceView
 {
@@ -23,9 +30,6 @@ public:
     // Fetch the next video frame and copy to shared memory
     bool poll() override;
 
-    // Get controller colors and update tracking blob positions/predictions
-    void updateStateAndPredict() override;
-
     IDeviceInterface* getDevice() const override {return m_device;}
 
     // Returns what type of tracker this tracker view represents
@@ -43,6 +47,22 @@ public:
     double getExposure() const;
     void setExposure(double value);
 
+    double getGain() const;
+    void setGain(double value);
+    
+    bool computePositionForController(
+        class ServerControllerView* tracked_controller, 
+        CommonDevicePosition *out_position,
+        CommonDeviceTrackingProjection *out_projection_shape = nullptr);
+
+    CommonDeviceScreenLocation projectTrackerRelativePosition(const CommonDevicePosition *trackerRelativePosition) const;
+    
+    CommonDevicePosition computeWorldPosition(const CommonDevicePosition *tracker_relative_position);
+
+    static CommonDevicePosition triangulateWorldPosition(
+        const ServerTrackerView *tracker, const CommonDeviceScreenLocation *screen_location,
+        const ServerTrackerView *other_tracker, const CommonDeviceScreenLocation *other_screen_location);
+
     void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
         float &outPrincipalX, float &outPrincipalY) const;
@@ -50,12 +70,20 @@ public:
         float focalLengthX, float focalLengthY,
         float principalX, float principalY);
 
-    void getTrackerPose(struct CommonDevicePose *outPose, struct CommonDevicePose *outHmdRelativePose) const;
-    void setTrackerPose(const struct CommonDevicePose *pose, const struct CommonDevicePose *hmdRelativePose);
+    CommonDevicePose getTrackerPose() const;
+    void setTrackerPose(const struct CommonDevicePose *pose);
 
     void getPixelDimensions(float &outWidth, float &outHeight) const;
     void getFOV(float &outHFOV, float &outVFOV) const;
     void getZRange(float &outZNear, float &outZFar) const;
+
+    void gatherTrackerOptions(PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
+    bool setOptionIndex(const std::string &option_name, int option_index);
+    bool getOptionIndex(const std::string &option_name, int &out_option_index) const;
+
+    void gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
+    void setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset);
+    void getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
 
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
@@ -69,6 +97,7 @@ private:
     char m_shared_memory_name[256];
     class SharedVideoFrameReadWriteAccessor *m_shared_memory_accesor;
     int m_shared_memory_video_stream_count;
+    class OpenCVBufferState *m_opencv_buffer_state;
     ITrackerInterface *m_device;
 };
 

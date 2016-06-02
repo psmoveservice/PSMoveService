@@ -24,16 +24,14 @@ static const glm::vec3 k_hmd_frustum_color = glm::vec3(1.f, 0.788f, 0.055f);
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 
 //-- private methods ----
-static bool computeCameraPoseTransform(const PSMovePose &hmdTrackerPose, TrackerCoregistrationData &trackerCoregData);
 static void drawFrustumBounds(const FrustumBounds &frustum, const glm::vec3 &color);
+static bool computeCameraPoseTransform(TrackerCoregistrationData &trackerCoregData);
 
 //-- public methods -----
 AppSubStage_CalibrateWithHMD::AppSubStage_CalibrateWithHMD(
     AppStage_ComputeTrackerPoses *parentStage)
     : m_parentStage(parentStage)
     , m_menuState(AppSubStage_CalibrateWithHMD::eMenuState::initial)
-    , m_hmd_tracker_pose(*k_psmove_pose_identity)
-    , m_sampled_hmd_tracker_pose(false)
 {
 }
 
@@ -78,21 +76,6 @@ void AppSubStage_CalibrateWithHMD::update()
                     continue;
                 }
 
-                if (trackerCoregData.poseCount == 0)
-                {
-                    PSMoveFrustum frustum = HMDView->getTrackerFrustum();
-
-                    // Reset the sample bounds
-                    trackerCoregData.sampleBounds.init(frustum);
-
-                    // Compute current camera pose inverse if this is the first sample
-                    if (!m_sampled_hmd_tracker_pose)
-                    {
-                        m_hmd_tracker_pose = HMDView->getTrackerPose();
-                        m_sampled_hmd_tracker_pose = true;
-                    }
-                }
-
                 PSMovePosition positionOnTracker;
                 if (PSMoveView.GetIsCurrentlyTracking() &&
                     PSMoveView.GetRawTrackerData().GetPositionOnTrackerId(trackerView->getTrackerId(), positionOnTracker) &&
@@ -101,8 +84,6 @@ void AppSubStage_CalibrateWithHMD::update()
                     trackerCoregData.hmd_poses[trackerCoregData.poseCount] = dk2pose;
                     trackerCoregData.psmoveposes[trackerCoregData.poseCount] = positionOnTracker;
                     trackerCoregData.poseCount++;
-
-                    trackerCoregData.sampleBounds.enclosePoint(dk2position);
                 }
 
                 if (trackerCoregData.poseCount >= NPOSES)
@@ -129,7 +110,7 @@ void AppSubStage_CalibrateWithHMD::update()
                 const ClientTrackerView *trackerView = iter->second.trackerView;
                 TrackerCoregistrationData &trackerCoregData = m_trackerCoreg[trackerIndex];
 
-                bSuccess= computeCameraPoseTransform(m_hmd_tracker_pose, trackerCoregData);
+                bSuccess= computeCameraPoseTransform(trackerCoregData);
             }
 
             // Update the poses on each local tracker view and notify the service of the new pose
@@ -145,12 +126,11 @@ void AppSubStage_CalibrateWithHMD::update()
                     // In this calibration mode,
                     // the psmove calibration space origin is the hmd tracking camera.
                     // Therefore trackerPose = hmdRelativeTrackerPose
-                    const PSMovePose trackerPose = trackerCoregData.hmdCameraRelativeTrackerPose;
-                    const PSMovePose hmdRelativeTrackerPose = trackerCoregData.hmdCameraRelativeTrackerPose;
+                    const PSMovePose trackerPose = trackerCoregData.trackerPose;
 
                     ClientTrackerView *trackerView = iter->second.trackerView;
 
-                    m_parentStage->request_set_tracker_pose(&trackerPose, &hmdRelativeTrackerPose, trackerView);
+                    m_parentStage->request_set_tracker_pose(&trackerPose, trackerView);
                 }
             }
 
@@ -210,17 +190,9 @@ void AppSubStage_CalibrateWithHMD::render()
                 {
                     drawPoseArrayStrip(trackerCoregData.hmd_poses, trackerCoregData.poseCount, glm::vec3(1.f, 1.f, 0.f));
                 }
-
-                // Draw a frustum bounding box of the samples
-                drawFrustumBounds(trackerCoregData.sampleBounds, glm::vec3(0.f, 1.f, 0.f));
             }
 
-            // Draw the frustum for the DK2 camera
-            {
-                PSMoveFrustum frustum= HMDView->getTrackerFrustum();
-
-                drawFrustum(&frustum, k_hmd_frustum_color);
-            }
+            //###HipsterSloth - Render the frustum bounds for each tracker
 
             // Draw the DK2 model
             {
@@ -346,8 +318,6 @@ void AppSubStage_CalibrateWithHMD::onEnterState(
             {
                 m_trackerCoreg[trackerIndex].clear();
             }
-
-            m_sampled_hmd_tracker_pose = false;
         } break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrateStepSuccess:
         break;
@@ -465,7 +435,6 @@ static void drawFrustumBounds(const FrustumBounds &frustum, const glm::vec3 &col
 }
 
 static bool computeCameraPoseTransform(
-    const PSMovePose &hmdTrackerPose,
     TrackerCoregistrationData &trackerCoregData)
 {
     const PSMovePose *hmd_poses = trackerCoregData.hmd_poses;
@@ -479,9 +448,6 @@ static bool computeCameraPoseTransform(
 
     // Build the A matrix and the b column vector from the given poses
     {
-        const glm::mat4 camera_xform = psmove_pose_to_glm_mat4(hmdTrackerPose);
-        const glm::mat4 camera_invxform = glm::inverse(camera_xform);
-
         Eigen::Matrix4f eigenHmdPose;             // HMD pose in Eigen 4x4 mat
         Eigen::Matrix3f RMi;                // Transpose of inner 3x3 of DK2 pose
 
@@ -492,8 +458,6 @@ static bool computeCameraPoseTransform(
             //###HipsterSloth $TODO Go from PSMovePose directly to Eigen::Matrix4f
             PSMovePose hmdPose = hmd_poses[poseIndex];
             glm::mat4 glmHmdPose = psmove_pose_to_glm_mat4(hmdPose);
-
-            glmHmdPose = camera_invxform * glmHmdPose;  // Make the camera pose the new origin, so dk2 is returned relative to that.
             eigenHmdPose= glm_mat4_to_eigen_matrix4f(glmHmdPose);
             RMi = eigenHmdPose.topLeftCorner(3, 3).transpose();           // inner 33 transposed
 
@@ -527,7 +491,7 @@ static bool computeCameraPoseTransform(
             glmResultTransform[col_ix][row_ix] = x(i);
         }
 
-        trackerCoregData.hmdCameraRelativeTrackerPose = glm_mat4_to_psmove_pose(glmResultTransform);
+        trackerCoregData.trackerPose = glm_mat4_to_psmove_pose(glmResultTransform);
         trackerCoregData.bComputedCoregTransform = true;
 
         //###HipsterSloth $TODO Actually detect the failure cases for solving this linear system

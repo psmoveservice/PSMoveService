@@ -5,7 +5,7 @@
 #include <memory>
 
 //-- constants -----
-#define MAX_DATA_FRAME_MESSAGE_SIZE 256
+#define MAX_DATA_FRAME_MESSAGE_SIZE 500
  
 //-- pre-declarations -----
 namespace PSMoveProtocol

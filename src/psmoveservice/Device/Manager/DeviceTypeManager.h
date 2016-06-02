@@ -22,7 +22,6 @@ public:
     virtual void shutdown();
 
     void poll();
-    void updateStateAndPredict();
     void publish();
 
     virtual int getMaxDevices() const = 0;

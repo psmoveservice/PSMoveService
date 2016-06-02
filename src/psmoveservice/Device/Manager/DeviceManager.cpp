@@ -104,8 +104,7 @@ DeviceManager::update()
     m_controller_manager->poll(); // Update controller counts and poll button/IMU state
     m_tracker_manager->poll(); // Update tracker count and poll video frames
 
-    m_tracker_manager->updateStateAndPredict(); // Get controller colors and update tracking blob positions/predictions
-    m_controller_manager->updateStateAndPredict(); // Compute pose/prediction of tracking blob+IMU state
+    m_controller_manager->updateStateAndPredict(m_tracker_manager); // Compute pose/prediction of tracking blob+IMU state
 
     m_controller_manager->publish(); // publish controller state to any listening clients  (common case)
     m_tracker_manager->publish(); // publish tracker state to any listening clients (probably only used by ConfigTool)

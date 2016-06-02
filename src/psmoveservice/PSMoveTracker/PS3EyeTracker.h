@@ -1,7 +1,7 @@
 #ifndef PS3EYE_TRACKER_H
 #define PS3EYE_TRACKER_H
 
-#include "PSMoveDataFrame.h"
+// -- includes -----
 #include "PSMoveConfig.h"
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
@@ -9,26 +9,25 @@
 #include <vector>
 #include <deque>
 
+// -- pre-declarations -----
+namespace PSMoveProtocol
+{
+    class Response_ResultTrackerSettings;
+};
+
+// -- definitions -----
 class PS3EyeTrackerConfig : public PSMoveConfig
 {
 public:
-    PS3EyeTrackerConfig(const std::string &fnamebase = "PS3EyeTrackerConfig")
-    : PSMoveConfig(fnamebase)
-    , is_valid(false)
-    , max_poll_failure_count(100)
-    , exposure(32)
-    , focalLengthX(640.0) // pixels
-    , focalLengthY(640.0) // pixels
-    , principalX(320.0) // pixels
-    , principalY(240.0) // pixels
-    , hfov(60.0) // degrees
-    , vfov(45.0) // degrees
-    , zNear(10.0) // cm
-    , zFar(200.0) // cm
+    enum eFOVSetting
     {
-        pose.clear();
-        hmdRelativePose.clear();
+        RedDot, // 56 degree FOV
+        BlueDot, // 75 degree FOV
+        
+        MAX_FOV_SETTINGS
     };
+
+    PS3EyeTrackerConfig(const std::string &fnamebase = "PS3EyeTrackerConfig");
     
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
@@ -37,6 +36,7 @@ public:
     long version;
     long max_poll_failure_count;
     double exposure;
+	double gain;
     double focalLengthX;
     double focalLengthY;
     double principalX;
@@ -45,8 +45,9 @@ public:
     double vfov;
     double zNear;
     double zFar;
+    eFOVSetting fovSetting;
     CommonDevicePose pose;
-    CommonDevicePose hmdRelativePose;
+    CommonHSVColorRange ColorPresets[eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES];
 
     static const int CONFIG_VERSION;
 };
@@ -93,20 +94,24 @@ public:
     const unsigned char *getVideoFrameBuffer() const override;
     void setExposure(double value) override;
     double getExposure() const override;
+	void setGain(double value) override;
+	double getGain() const override;
     void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
         float &outPrincipalX, float &outPrincipalY) const override;
     void setCameraIntrinsics(
         float focalLengthX, float focalLengthY,
         float principalX, float principalY) override;
-    void getTrackerPose(
-        struct CommonDevicePose *outPose, 
-        struct CommonDevicePose *outHmdRelativePose) const override;
-    void setTrackerPose(
-        const struct CommonDevicePose *pose, 
-        const struct CommonDevicePose *hmdRelativePose) override;
+    CommonDevicePose getTrackerPose() const override;
+    void setTrackerPose(const struct CommonDevicePose *pose) override;
     void getFOV(float &outHFOV, float &outVFOV) const override;
     void getZRange(float &outZNear, float &outZFar) const override;
+    void gatherTrackerOptions(PSMoveProtocol::Response_ResultTrackerSettings* settings) const override;
+    bool setOptionIndex(const std::string &option_name, int option_index) override;
+    bool getOptionIndex(const std::string &option_name, int &out_option_index) const override;
+    void gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const override;
+    void setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset) override;
+    void getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const override;
 
     // -- Getters
     inline const PS3EyeTrackerConfig &getConfig() const
@@ -117,7 +122,7 @@ private:
     std::string USBDevicePath;
     class PSEyeVideoCapture *VideoCapture;
     class PSEyeCaptureData *CaptureData;
-    ITrackerInterface::eDriverType DriverType;
+    ITrackerInterface::eDriverType DriverType;    
     
     // Read Controller State
     int NextPollSequenceNumber;

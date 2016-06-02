@@ -37,7 +37,6 @@ AppStage_TestTracker::AppStage_TestTracker(App *app)
     , m_bStreamIsActive(false)
     , m_tracker_view(nullptr)
     , m_video_texture(nullptr)
-    , m_trackerExposure(0)
 { }
 
 void AppStage_TestTracker::enter()
@@ -51,8 +50,6 @@ void AppStage_TestTracker::enter()
 
     assert(m_tracker_view == nullptr);
     m_tracker_view= ClientPSMoveAPI::allocate_tracker_view(*trackerInfo);
-
-    request_tracker_get_settings(m_tracker_view->getTrackerId());
 
     assert(!m_bStreamIsActive);
     request_tracker_start_stream(m_tracker_view->getTrackerId());
@@ -125,25 +122,7 @@ void AppStage_TestTracker::renderUI()
             {
                 m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
-        }
-        
-        if (m_bStreamIsActive)
-        {
-            ImGui::Text("Exposure: %f", m_trackerExposure);
-            if (ImGui::Button("+"))
-            {
-                const AppStage_TrackerSettings *trackerSettings = m_app->getAppStage<AppStage_TrackerSettings>();
-                const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
-                request_tracker_set_exposure(trackerInfo->tracker_id, m_trackerExposure+8);
-            }
-            if (ImGui::Button("-"))
-            {
-                const AppStage_TrackerSettings *trackerSettings = m_app->getAppStage<AppStage_TrackerSettings>();
-                const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
-                request_tracker_set_exposure(trackerInfo->tracker_id, m_trackerExposure-8);
-            }
-        }
-        
+        }              
 
         ImGui::End();
     } break;
@@ -258,9 +237,6 @@ void AppStage_TestTracker::handle_tracker_start_stream_response(
                     GL_BGR, // buffer format
                     nullptr);
             }
-
-            // Get the tracker settings now that the tracker stream is open
-            thisPtr->request_tracker_get_settings(thisPtr->m_tracker_view->getTrackerId());
         } break;
 
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
@@ -318,81 +294,6 @@ void AppStage_TestTracker::handle_tracker_stop_stream_response(
     case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
         {
             thisPtr->m_menuState = AppStage_TestTracker::failedTrackerStopStreamRequest;
-        } break;
-    }
-}
-
-void AppStage_TestTracker::request_tracker_set_exposure(int trackerID, double value)
-{
-    // Tell the psmove service that we want to change exposure.
-    RequestPtr request(new PSMoveProtocol::Request());
-    request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE);
-    request->mutable_request_set_tracker_exposure()->set_tracker_id(trackerID);
-    request->mutable_request_set_tracker_exposure()->set_value(value);
-        
-    ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::send_opaque_request(&request),
-        AppStage_TestTracker::handle_tracker_set_exposure_response, this);
-}
-
-void AppStage_TestTracker::handle_tracker_set_exposure_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
-    void *userdata)
-{
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response->result_code;
-    const ClientPSMoveAPI::t_request_id request_id = response->request_id;
-    ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
-    AppStage_TestTracker *thisPtr = static_cast<AppStage_TestTracker *>(userdata);
-
-    switch (ResultCode)
-    {
-        case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
-        {
-            const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-            thisPtr->m_trackerExposure = response->result_set_tracker_exposure().new_exposure();
-        } break;
-        case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-        case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
-        {
-            CLIENT_LOG_INFO("AppStage_TestTracker") << "Failed to set the tracker exposure!";
-        } break;
-    }
-    
-}
-
-void AppStage_TestTracker::request_tracker_get_settings(int trackerID)
-{
-    // Tell the psmove service that we want to change exposure.
-    RequestPtr request(new PSMoveProtocol::Request());
-    request->set_type(PSMoveProtocol::Request_RequestType_GET_TRACKER_SETTINGS);
-    request->mutable_request_get_tracker_settings()->set_tracker_id(trackerID);
-    
-    ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::send_opaque_request(&request),
-        AppStage_TestTracker::handle_tracker_get_settings_response, this);
-    
-}
-
-void AppStage_TestTracker::handle_tracker_get_settings_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
-    void *userdata)
-{
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response->result_code;
-    const ClientPSMoveAPI::t_request_id request_id = response->request_id;
-    ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
-    AppStage_TestTracker *thisPtr = static_cast<AppStage_TestTracker *>(userdata);
-
-    switch (ResultCode)
-    {
-        case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
-        {
-            const PSMoveProtocol::Response *response= GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-            thisPtr->m_trackerExposure = response->result_tracker_settings().exposure();
-        } break;
-        case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-        case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
-        {
-            CLIENT_LOG_INFO("AppStage_TestTracker") << "Failed to get the tracker settings!";
         } break;
     }
 }

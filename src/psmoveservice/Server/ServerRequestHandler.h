@@ -16,11 +16,13 @@ struct ControllerStreamInfo
 {
     bool include_raw_sensor_data;
     bool include_raw_tracker_data;
+    bool include_physics_data;
 
     inline void Clear()
     {
         include_raw_sensor_data= false;
         include_raw_tracker_data = false;
+        include_physics_data = false;
     }
 };
 

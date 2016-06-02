@@ -1,6 +1,7 @@
 //-- inludes -----
 #include "AppStage_TrackerSettings.h"
 #include "AppStage_TestTracker.h"
+#include "AppStage_ColorCalibration.h"
 #include "AppStage_ComputeTrackerPoses.h"
 #include "AppStage_MainMenu.h"
 #include "App.h"
@@ -97,7 +98,24 @@ void AppStage_TrackerSettings::renderUI()
         {
             const ClientTrackerInfo &trackerInfo = m_trackerInfos[m_selectedTrackerIndex];
 
+            if (m_selectedTrackerIndex > 0)
+            {
+                if (ImGui::Button("<##TrackerIndex"))
+                {
+                    --m_selectedTrackerIndex;
+                }
+                ImGui::SameLine();
+            }
             ImGui::Text("Tracker: %d", m_selectedTrackerIndex);
+            if (m_selectedTrackerIndex + 1 < static_cast<int>(m_trackerInfos.size()))
+            {
+                ImGui::SameLine();
+                if (ImGui::Button(">##TrackerIndex"))
+                {
+                    ++m_selectedTrackerIndex;
+                }
+            }
+
             ImGui::Text("  Tracker ID: %d", trackerInfo.tracker_id);
 
             switch (trackerInfo.tracker_type)
@@ -137,30 +155,25 @@ void AppStage_TrackerSettings::renderUI()
 
             if (ImGui::Button("Compute Tracker Poses"))
             {
-                m_app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
+                AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app);
             }
 
-            if (m_selectedTrackerIndex > 0)
+            if (ImGui::Button("Test Tracking"))
             {
-                if (ImGui::Button("Previous Tracker"))
-                {
-                    --m_selectedTrackerIndex;
-                }
+                AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app);
             }
 
-            if (m_selectedTrackerIndex + 1 < static_cast<int>(m_trackerInfos.size()))
-            {
-                if (ImGui::Button("Next Tracker"))
-                {
-                    ++m_selectedTrackerIndex;
-                }
-            }
+			//###HipsterSloth $TODO: Localhost only check
+			if (ImGui::Button("Calibrate Tracking Colors"))
+			{
+				m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
+			}
 
-            // TODO: Localhost only check
-            if (ImGui::Button("Test Video Feed"))
-            {
-                m_app->setAppStage(AppStage_TestTracker::APP_STAGE_NAME);
-            }
+			//###HipsterSloth $TODO: Localhost only check
+			if (ImGui::Button("Test Video Feed"))
+			{
+				m_app->setAppStage(AppStage_TestTracker::APP_STAGE_NAME);
+			}
         }
         else
         {

@@ -24,6 +24,25 @@ public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
+struct EigenFitEllipse
+{
+    Eigen::Vector2f center;
+    Eigen::Vector2f extents;
+    float angle; // radians
+    float error;
+
+    void clear()
+    {
+        center = Eigen::Vector2f::Zero();
+        extents = Eigen::Vector2f::Zero();
+        angle = 0.f;
+        error = 0.f;
+    }
+
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+
 //-- interface -----
 Eigen::Quaternionf
 eigen_alignment_quaternion_between_vectors(const Eigen::Vector3f &from, const Eigen::Vector3f &to);
@@ -59,8 +78,26 @@ eigen_alignment_project_point_on_ellipsoid_basis(
     const EigenFitEllipsoid &ellipsoid);
 
 float
-eigen_alignment_compute_ellipse_fit_error(
+eigen_alignment_compute_ellipsoid_fit_error(
     const Eigen::Vector3f *points, const int point_count,
     const EigenFitEllipsoid &ellipsoid);
+
+bool
+eigen_alignment_fit_least_squares_ellipse(
+    const Eigen::Vector2f *points,
+    const int point_count,
+    EigenFitEllipse &out_ellipse);
+
+float
+eigen_alignment_compute_ellipse_fit_error(
+    const Eigen::Vector2f *points, const int point_count,
+    const EigenFitEllipse &ellipsoid);
+
+void
+eigen_alignment_fit_focal_cone_to_sphere(
+    const EigenFitEllipse &ellipse_projection,
+    const float sphere_radius,
+    const float camera_focal_length,
+    Eigen::Vector3f *out_sphere_center);
 
 #endif // MATH_UTILITY_h

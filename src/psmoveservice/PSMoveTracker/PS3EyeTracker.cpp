@@ -3,11 +3,17 @@
 #include "ServerLog.h"
 #include "ServerUtility.h"
 #include "PSEyeVideoCapture.h"
+#include "PSMoveProtocol.pb.h"
 #include "TrackerDeviceEnumerator.h"
+#include "TrackerManager.h"
 #include "opencv2/opencv.hpp"
 
 // -- constants -----
 #define PS3EYE_STATE_BUFFER_MAX 16
+
+static const char *OPTION_FOV_SETTING = "FOV Setting";
+static const char *OPTION_FOV_RED_DOT = "Red Dot";
+static const char *OPTION_FOV_BLUE_DOT = "Blue Dot";
 
 // -- private definitions -----
 class PSEyeCaptureData
@@ -24,7 +30,31 @@ public:
 
 // -- public methods
 // -- PS3EYE Controller Config
-const int PS3EyeTrackerConfig::CONFIG_VERSION = 3;
+const int PS3EyeTrackerConfig::CONFIG_VERSION = 7;
+
+PS3EyeTrackerConfig::PS3EyeTrackerConfig(const std::string &fnamebase)
+    : PSMoveConfig(fnamebase)
+    , is_valid(false)
+    , max_poll_failure_count(100)
+    , exposure(32)
+    , gain(32)
+    , focalLengthX(554.2563) // pixels
+    , focalLengthY(640.0) // pixels
+    , principalX(320.0) // pixels
+    , principalY(240.0) // pixels
+    , hfov(60.0) // degrees
+    , vfov(45.0) // degrees
+    , zNear(10.0) // cm
+    , zFar(200.0) // cm
+    , fovSetting(BlueDot)
+{
+    pose.clear();
+
+    for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
+    {
+        ColorPresets[preset_index] = k_default_color_presets[preset_index];
+    }
+};
 
 const boost::property_tree::ptree
 PS3EyeTrackerConfig::config2ptree()
@@ -35,6 +65,7 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("version", PS3EyeTrackerConfig::CONFIG_VERSION);
     pt.put("max_poll_failure_count", max_poll_failure_count);
     pt.put("exposure", exposure);
+	pt.put("gain", gain);
     pt.put("focalLengthX", focalLengthX);
     pt.put("focalLengthY", focalLengthY);
     pt.put("principalX", principalX);
@@ -43,6 +74,7 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("vfov", vfov);
     pt.put("zNear", zNear);
     pt.put("zFar", zFar);
+    pt.put("fovSetting", static_cast<int>(fovSetting));
 
     pt.put("pose.orientation.w", pose.Orientation.w);
     pt.put("pose.orientation.x", pose.Orientation.x);
@@ -52,13 +84,12 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("pose.position.y", pose.Position.y);
     pt.put("pose.position.z", pose.Position.z);
 
-    pt.put("hmd_relative_pose.orientation.w", hmdRelativePose.Orientation.w);
-    pt.put("hmd_relative_pose.orientation.x", hmdRelativePose.Orientation.x);
-    pt.put("hmd_relative_pose.orientation.y", hmdRelativePose.Orientation.y);
-    pt.put("hmd_relative_pose.orientation.z", hmdRelativePose.Orientation.z);
-    pt.put("hmd_relative_pose.position.x", hmdRelativePose.Position.x);
-    pt.put("hmd_relative_pose.position.y", hmdRelativePose.Position.y);
-    pt.put("hmd_relative_pose.position.z", hmdRelativePose.Position.z);
+    writeColorPreset(pt, "", "magenta", &ColorPresets[eCommonTrackingColorID::Magenta]);
+    writeColorPreset(pt, "", "cyan", &ColorPresets[eCommonTrackingColorID::Cyan]);
+    writeColorPreset(pt, "", "yellow", &ColorPresets[eCommonTrackingColorID::Yellow]);
+    writeColorPreset(pt, "", "red", &ColorPresets[eCommonTrackingColorID::Red]);
+    writeColorPreset(pt, "", "green", &ColorPresets[eCommonTrackingColorID::Green]);
+    writeColorPreset(pt, "", "blue", &ColorPresets[eCommonTrackingColorID::Blue]);
 
     return pt;
 }
@@ -73,6 +104,7 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
         is_valid = pt.get<bool>("is_valid", false);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
         exposure = pt.get<double>("exposure", 32);
+		gain = pt.get<double>("gain", 32);
         focalLengthX = pt.get<double>("focalLengthX", 640.0);
         focalLengthY = pt.get<double>("focalLengthY", 640.0);
         principalX = pt.get<double>("principalX", 320.0);
@@ -81,6 +113,9 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
         vfov = pt.get<double>("vfov", 45.0);
         zNear = pt.get<double>("zNear", 10.0);
         zFar = pt.get<double>("zFar", 200.0);
+        fovSetting = 
+            static_cast<PS3EyeTrackerConfig::eFOVSetting>(
+                pt.get<int>("fovSetting", PS3EyeTrackerConfig::eFOVSetting::BlueDot));
 
         pose.Orientation.w = pt.get<float>("pose.orientation.w", 1.0);
         pose.Orientation.x = pt.get<float>("pose.orientation.x", 0.0);
@@ -90,13 +125,12 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
         pose.Position.y = pt.get<float>("pose.position.y", 0.0);
         pose.Position.z = pt.get<float>("pose.position.z", 0.0);
 
-        hmdRelativePose.Orientation.w = pt.get<float>("hmd_relative_pose.orientation.w", 1.0);
-        hmdRelativePose.Orientation.x = pt.get<float>("hmd_relative_pose.orientation.x", 0.0);
-        hmdRelativePose.Orientation.y = pt.get<float>("hmd_relative_pose.orientation.y", 0.0);
-        hmdRelativePose.Orientation.z = pt.get<float>("hmd_relative_pose.orientation.z", 0.0);
-        hmdRelativePose.Position.x = pt.get<float>("hmd_relative_pose.position.x", 0.0);
-        hmdRelativePose.Position.y = pt.get<float>("hmd_relative_pose.position.y", 0.0);
-        hmdRelativePose.Position.z = pt.get<float>("hmd_relative_pose.position.z", 0.0);
+        readColorPreset(pt, "", "magenta", &ColorPresets[eCommonTrackingColorID::Magenta], &k_default_color_presets[eCommonTrackingColorID::Magenta]);
+        readColorPreset(pt, "", "cyan", &ColorPresets[eCommonTrackingColorID::Cyan], &k_default_color_presets[eCommonTrackingColorID::Cyan]);
+        readColorPreset(pt, "", "yellow", &ColorPresets[eCommonTrackingColorID::Yellow], &k_default_color_presets[eCommonTrackingColorID::Yellow]);
+        readColorPreset(pt, "", "red", &ColorPresets[eCommonTrackingColorID::Red], &k_default_color_presets[eCommonTrackingColorID::Red]);
+        readColorPreset(pt, "", "green", &ColorPresets[eCommonTrackingColorID::Green], &k_default_color_presets[eCommonTrackingColorID::Green]);
+        readColorPreset(pt, "", "blue", &ColorPresets[eCommonTrackingColorID::Blue], &k_default_color_presets[eCommonTrackingColorID::Blue]);
     }
     else
     {
@@ -375,6 +409,18 @@ double PS3EyeTracker::getExposure() const
     return VideoCapture->get(cv::CAP_PROP_EXPOSURE);
 }
 
+void PS3EyeTracker::setGain(double value)
+{
+	VideoCapture->set(cv::CAP_PROP_GAIN, value);
+	cfg.gain = value;
+	cfg.save();
+}
+
+double PS3EyeTracker::getGain() const
+{
+	return VideoCapture->get(cv::CAP_PROP_GAIN);
+}
+
 void PS3EyeTracker::getCameraIntrinsics(
     float &outFocalLengthX, float &outFocalLengthY,
     float &outPrincipalX, float &outPrincipalY) const
@@ -396,20 +442,15 @@ void PS3EyeTracker::setCameraIntrinsics(
     cfg.save();
 }
 
-void PS3EyeTracker::getTrackerPose(
-    struct CommonDevicePose *outPose, 
-    struct CommonDevicePose *outHmdRelativePose) const
+CommonDevicePose PS3EyeTracker::getTrackerPose() const
 {
-    *outPose = cfg.pose;
-    *outHmdRelativePose = cfg.hmdRelativePose;
+    return cfg.pose;
 }
 
 void PS3EyeTracker::setTrackerPose(
-    const struct CommonDevicePose *pose, 
-    const struct CommonDevicePose *hmdRelativePose)
+    const struct CommonDevicePose *pose)
 {
     cfg.pose = *pose;
-    cfg.hmdRelativePose = *hmdRelativePose;
     cfg.save();
 }
 
@@ -423,4 +464,84 @@ void PS3EyeTracker::getZRange(float &outZNear, float &outZFar) const
 {
     outZNear = static_cast<float>(cfg.zNear);
     outZFar = static_cast<float>(cfg.zFar);
+}
+
+void PS3EyeTracker::gatherTrackerOptions(
+    PSMoveProtocol::Response_ResultTrackerSettings* settings) const
+{
+    PSMoveProtocol::OptionSet *optionSet = settings->add_option_sets();
+    
+    optionSet->set_option_name(OPTION_FOV_SETTING);
+    optionSet->add_option_strings(OPTION_FOV_RED_DOT);
+    optionSet->add_option_strings(OPTION_FOV_BLUE_DOT);
+    optionSet->set_option_index(static_cast<int>(cfg.fovSetting));
+}
+
+bool PS3EyeTracker::setOptionIndex(
+    const std::string &option_name,
+    int option_index)
+{
+    bool bValidOption = false;
+
+    if (option_name == OPTION_FOV_SETTING && 
+        option_index >= 0 && 
+        option_index < PS3EyeTrackerConfig::eFOVSetting::MAX_FOV_SETTINGS)
+    {
+        cfg.fovSetting = static_cast<PS3EyeTrackerConfig::eFOVSetting>(option_index);
+        //###HipsterSloth $TODO Update the focal lengths?
+        cfg.save();
+
+        bValidOption = true;
+    }
+
+    return bValidOption;
+}
+
+bool PS3EyeTracker::getOptionIndex(
+    const std::string &option_name, 
+    int &out_option_index) const
+{
+    bool bValidOption = false;
+
+    if (option_name == OPTION_FOV_SETTING)
+    {
+        out_option_index = static_cast<int>(cfg.fovSetting);
+        bValidOption = true;
+    }
+
+    return bValidOption;
+}
+
+void PS3EyeTracker::gatherTrackingColorPresets(
+    PSMoveProtocol::Response_ResultTrackerSettings* settings) const
+{
+    for (int list_index = 0; list_index < MAX_TRACKING_COLOR_TYPES; ++list_index)
+    {
+        const CommonHSVColorRange &hsvRange = cfg.ColorPresets[list_index];
+        const eCommonTrackingColorID colorType = static_cast<eCommonTrackingColorID>(list_index);
+
+        PSMoveProtocol::TrackingColorPreset *colorPreset= settings->add_color_presets();
+        colorPreset->set_color_type(static_cast<PSMoveProtocol::TrackingColorType>(colorType));
+        colorPreset->set_hue_center(hsvRange.hue_range.center);
+        colorPreset->set_hue_range(hsvRange.hue_range.range);
+        colorPreset->set_saturation_center(hsvRange.saturation_range.center);
+        colorPreset->set_saturation_range(hsvRange.saturation_range.range);
+        colorPreset->set_value_center(hsvRange.value_range.center);
+        colorPreset->set_value_range(hsvRange.value_range.range);
+    }
+}
+
+void PS3EyeTracker::setTrackingColorPreset(
+    eCommonTrackingColorID color, 
+    const CommonHSVColorRange *preset)
+{
+    cfg.ColorPresets[color] = *preset;
+    cfg.save();
+}
+
+void PS3EyeTracker::getTrackingColorPreset(
+    eCommonTrackingColorID color, 
+    CommonHSVColorRange *out_preset) const
+{
+    *out_preset = cfg.ColorPresets[color];
 }

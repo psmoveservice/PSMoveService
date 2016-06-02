@@ -117,6 +117,37 @@ void AppStage_ControllerSettings::renderUI()
                 ImGui::Text("Controller: %d", m_selectedControllerIndex);
                 ImGui::Text("  Controller ID: %d", controllerInfo.ControllerID);
 
+                // Display the tracking color being used for the controller
+                {
+                    const char *color_string = "UNKNOWN";
+
+                    switch (controllerInfo.TrackingColorType)
+                    {
+                    case PSMoveTrackingColorType::Magenta:
+                        color_string = "Magenta";
+                        break;
+                    case PSMoveTrackingColorType::Cyan:
+                        color_string = "Cyan";
+                        break;
+                    case PSMoveTrackingColorType::Yellow:
+                        color_string = "Yellow";
+                        break;
+                    case PSMoveTrackingColorType::Red:
+                        color_string = "Red";
+                        break;
+                    case PSMoveTrackingColorType::Green:
+                        color_string = "Green";
+                        break;
+                    case PSMoveTrackingColorType::Blue:
+                        color_string = "Blue";
+                        break;
+                    default:
+                        break;
+                    }
+
+                    ImGui::Text("  Controller Type: %s", color_string);
+                }
+
                 switch(controllerInfo.ControllerType)
                 {
                     case AppStage_ControllerSettings::PSMove:
@@ -342,6 +373,8 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                     assert(0 && "unreachable");
                 }
 
+                ControllerInfo.TrackingColorType = 
+                    static_cast<PSMoveTrackingColorType>(ControllerResponse.tracking_color_type());
                 ControllerInfo.DevicePath= ControllerResponse.device_path();
                 ControllerInfo.DeviceSerial= ControllerResponse.device_serial();
                 ControllerInfo.HostSerial= ControllerResponse.host_serial();

@@ -32,40 +32,10 @@ struct OpenVRHmdInfo
     void rebuild(vr::IVRSystem *pVRSystem);
 };
 
-struct OpenVRTrackerInfo
-{
-    int DeviceIndex;
-    std::string TrackingSystemName;
-    std::string ModelNumber;
-    std::string SerialNumber;
-    std::string ManufacturerName;
-    std::string TrackingFirmwareVersion;
-    std::string HardwareRevision;
-    std::string ModeLabel;
-    int EdidVendorID;
-    int EdidProductID;
-
-    float FieldOfViewLeftDegrees;
-    float FieldOfViewRightDegrees;
-    float FieldOfViewTopDegrees;
-    float FieldOfViewBottomDegrees;
-    float TrackingRangeMinimumMeters;
-    float TrackingRangeMaximumMeters;
-
-    void clear();
-    void rebuild(vr::IVRSystem *pVRSystem);
-};
-
 class ClientHMDView
 {
 private:
     OpenVRHmdInfo m_hmdInfo;
-    OpenVRTrackerInfo m_trackerInfo;
-
-    PSMovePose m_trackerPose;
-    PSMoveFloatVector3 m_trackerXBasisVector;
-    PSMoveFloatVector3 m_trackerYBasisVector;
-    PSMoveFloatVector3 m_trackerZBasisVector;
 
     PSMovePose m_hmdPose;
     PSMoveFloatVector3 m_hmdXBasisVector;
@@ -82,14 +52,11 @@ private:
     bool m_bIsHMDConnected;
     bool m_bIsHMDTracking;
 
-    bool m_bIsTrackerTracking;
-    bool m_bIsTrackerConnected;
-
     long long m_dataFrameLastReceivedTime;
     float m_dataFrameAverageFps;
 
 public:
-    ClientHMDView(int hmdDeviceIndex, int trackerDeviceIndex);
+    ClientHMDView(int hmdDeviceIndex);
 
     void clear();
     void notifyConnected(vr::IVRSystem *pVRSystem, int deviceIndex);
@@ -152,34 +119,6 @@ public:
     }
 
     bool getIsHMDStableAndAlignedWithGravity() const;
-
-    // Tracker Data Accessors
-    inline const OpenVRTrackerInfo &getHmdTrackerInfo() const
-    {
-        return m_trackerInfo;
-    }
-    
-    inline int getTrackerSequenceNum() const
-    {
-        return getIsTrackerConnected() ? m_trackerSequenceNum : -1;
-    }
-
-    inline PSMovePose getTrackerPose() const
-    {
-        return m_hmdPose;
-    }
-
-    inline bool getIsTrackerConnected() const
-    {
-        return m_bIsTrackerConnected;
-    }
-
-    inline bool getIsTrackerTracking() const
-    {
-        return m_bIsTrackerTracking;
-    }
-
-    PSMoveFrustum getTrackerFrustum() const;
 
     // Statistics
     inline float getDataFrameFPS() const

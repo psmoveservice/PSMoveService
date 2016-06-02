@@ -1,7 +1,6 @@
 #ifndef PSMOVE_CONTROLLER_H
 #define PSMOVE_CONTROLLER_H
 
-#include "PSMoveDataFrame.h"
 #include "PSMoveConfig.h"
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
@@ -10,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <deque>
+#include <chrono>
 
 struct PSMoveHIDDetails {
     std::string Device_path;
@@ -33,6 +33,7 @@ public:
         , version(CONFIG_VERSION)
         , max_poll_failure_count(100) 
         , cal_ag_xyz_kb(2, std::vector<std::vector<float>>(3, std::vector<float>(2, 0.f)))
+        , prediction_time(0.f)
     {
         magnetometer_ellipsoid.clear();
         magnetometer_identity = Eigen::Vector3f::Zero();
@@ -47,6 +48,7 @@ public:
     std::vector<std::vector<std::vector<float>>> cal_ag_xyz_kb;
     EigenFitEllipsoid magnetometer_ellipsoid;
     Eigen::Vector3f magnetometer_identity;
+    float prediction_time;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport
@@ -135,6 +137,8 @@ public:
     virtual std::string getUSBDevicePath() const override;
     virtual std::string getHostBluetoothAddress() const override;
     virtual std::string getSerial() const override;
+    virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
+    virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
 
     // -- Getters
     inline const PSMoveControllerConfig *getConfig() const
@@ -144,6 +148,13 @@ public:
     float getTempCelsius() const;
     static CommonDeviceState::eDeviceType getDeviceTypeStatic()
     { return CommonDeviceState::PSMove; }
+    
+    
+    const unsigned long getLEDPWMFrequency() const
+    {
+        return LedPWMF;
+    }
+    
 
     // -- Setters
     bool setLED(unsigned char r, unsigned char g, unsigned char b); // 0x00..0xff. TODO: vec3
@@ -165,6 +176,8 @@ private:
     unsigned char LedR, LedG, LedB;
     unsigned char Rumble;
     unsigned long LedPWMF;
+    bool bWriteStateDirty;
+    std::chrono::time_point<std::chrono::high_resolution_clock> lastWriteStateTime;
 
     // Read Controller State
     int NextPollSequenceNumber;

@@ -54,20 +54,20 @@ static glm::mat4 computePSMoveTrackerToHMDTrackerSpaceTransform(
     const PSMovePose &psmoveCalibrationOffset,
     const HMDTrackerPoseContext &hmdTrackerPoseContext);
 static bool computeTrackerCameraPose(
-    const ClientTrackerView *trackerView, const glm::mat4 &psmoveTrackerToHmdTrackerSpace, 
+    const ClientTrackerView *trackerView,
     PS3EYETrackerPoseContext &trackerCoregData);
 
 //-- public methods -----
 AppSubStage_CalibrateWithMat::AppSubStage_CalibrateWithMat(
     AppStage_ComputeTrackerPoses *parentStage)
     : m_parentStage(parentStage)
-    , m_menuState(AppSubStage_CalibrateWithMat::eMenuState::initial)
+    , m_menuState(AppSubStage_CalibrateWithMat::eMenuState::invalid)
 {
 }
 
 void AppSubStage_CalibrateWithMat::enter()
 {
-    setState(AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove);
+    setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
 }
 
 void AppSubStage_CalibrateWithMat::exit()
@@ -216,7 +216,7 @@ void AppSubStage_CalibrateWithMat::update()
                         }
                         else
                         {
-                            setState(AppSubStage_CalibrateWithMat::eMenuState::calibrateStepSuccess);
+                            setState(AppSubStage_CalibrateWithMat::eMenuState::calibrationStepComputeTrackerPoses);
                         }
                     }
                 }
@@ -311,19 +311,6 @@ void AppSubStage_CalibrateWithMat::update()
         {
             bool bSuccess = true;
 
-            // If the HMD is valid,
-            // compute a transform that puts the PSMove trackers in the space of the hmd tracker
-            glm::mat4 psmoveTrackerToHmdTrackerSpace = glm::mat4(1.f);
-            if (HMDView != nullptr)
-            {
-                psmoveTrackerToHmdTrackerSpace =
-                    computePSMoveTrackerToHMDTrackerSpaceTransform(
-                        HMDView,
-                        //###HipsterSloth $TODO Allow the calibration mat be somewhere besides the origin
-                        *k_psmove_pose_identity,
-                        m_hmdTrackerPoseContext);
-            }
-
             // Compute and the pose transform for each tracker
             for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
                 bSuccess && iter != m_parentStage->m_trackerViews.end();
@@ -333,12 +320,12 @@ void AppSubStage_CalibrateWithMat::update()
                 const ClientTrackerView *trackerView = iter->second.trackerView;
                 PS3EYETrackerPoseContext &trackerSampleData = m_psmoveTrackerPoseContexts[trackerIndex];
 
-                bSuccess&= computeTrackerCameraPose(trackerView, psmoveTrackerToHmdTrackerSpace, trackerSampleData);
+                bSuccess&= computeTrackerCameraPose(trackerView, trackerSampleData);
             }
 
-            // Update the poses on each local tracker view and notify the service of the new pose
             if (bSuccess)
             {
+                // Update the poses on each local tracker view and notify the service of the new pose
                 for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
                     bSuccess && iter != m_parentStage->m_trackerViews.end();
                     ++iter)
@@ -347,11 +334,19 @@ void AppSubStage_CalibrateWithMat::update()
                     const PS3EYETrackerPoseContext &trackerSampleData = m_psmoveTrackerPoseContexts[trackerIndex];
 
                     const PSMovePose trackerPose = trackerSampleData.trackerPose;
-                    const PSMovePose hmdRelativeTrackerPose = trackerSampleData.hmdCameraRelativeTrackerPose;
 
                     ClientTrackerView *trackerView = iter->second.trackerView;
 
-                    m_parentStage->request_set_tracker_pose(&trackerPose, &hmdRelativeTrackerPose, trackerView);
+                    m_parentStage->request_set_tracker_pose(&trackerPose, trackerView);
+                }
+
+                if (HMDView != nullptr)
+                {
+                    PSMovePose hmdPose;
+                    hmdPose.Orientation = m_hmdTrackerPoseContext.avgHMDWorldSpaceOrientation;
+                    hmdPose.Position = m_hmdTrackerPoseContext.avgHMDWorldSpacePoint;
+
+                    m_parentStage->request_set_hmd_tracking_space_origin(&hmdPose);
                 }
             }
 
@@ -382,16 +377,33 @@ void AppSubStage_CalibrateWithMat::render()
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
         {
+            // Draw the video from the PoV of the current tracker
             m_parentStage->render_tracker_video();
+
+            // Draw the projection shape of the controller in the pov of the current tracker being rendered
+            {
+                const ClientTrackerView *TrackerView = m_parentStage->get_render_tracker_view();
+                const ClientControllerView *ControllerView = m_parentStage->m_controllerView;
+                const ClientPSMoveView &PSMoveView = ControllerView->GetPSMoveView();
+                PSMoveTrackingProjection trackingProjection;
+
+                if (PSMoveView.GetIsCurrentlyTracking() &&
+                    PSMoveView.GetRawTrackerData().GetProjectionOnTrackerId(TrackerView->getTrackerId(), trackingProjection))
+                {
+                    const PSMoveFloatVector2 screenSize= TrackerView->getTrackerInfo().tracker_screen_dimensions;
+
+                    drawTrackingProjection(
+                        &trackingProjection,
+                        screenSize.i, screenSize.j,
+                        glm::vec3(1.f, 1.f, 1.f));
+                }
+            }
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:
         {
             const ClientHMDView *HMDView = m_parentStage->m_hmdView;
             const glm::mat4 transform = psmove_pose_to_glm_mat4(HMDView->getHmdPose());
-            const PSMoveFrustum frustum = HMDView->getTrackerFrustum();
-
-            drawFrustum(&frustum, k_hmd_frustum_color);
 
             drawDK2Model(transform);
 
@@ -414,7 +426,7 @@ void AppSubStage_CalibrateWithMat::render()
 
 void AppSubStage_CalibrateWithMat::renderUI()
 {
-    const float k_panel_width = 300.f;
+    const float k_panel_width = 450.f;
     const char *k_window_title = "Compute Tracker Poses";
     const ImGuiWindowFlags window_flags =
         ImGuiWindowFlags_ShowBorders |
@@ -431,7 +443,7 @@ void AppSubStage_CalibrateWithMat::renderUI()
         break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
         {
-            ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
@@ -472,12 +484,17 @@ void AppSubStage_CalibrateWithMat::renderUI()
             {
                 setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
             }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel"))
+            {
+                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
+            }
 
             ImGui::End();
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
         {
-            ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 200));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
@@ -522,16 +539,16 @@ void AppSubStage_CalibrateWithMat::renderUI()
                 }
             }
 
-            if (ImGui::Button("Restart Calibration"))
+            if (ImGui::Button("Cancel"))
             {
-                setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
+                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
             }
 
             ImGui::End();
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD:
         {
-            ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
@@ -552,16 +569,16 @@ void AppSubStage_CalibrateWithMat::renderUI()
 
             ImGui::Separator();
 
-            if (ImGui::Button("Restart Calibration"))
+            if (ImGui::Button("Cancel"))
             {
-                setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
+                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
             }
 
             ImGui::End();
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:
         {
-            ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
@@ -571,9 +588,9 @@ void AppSubStage_CalibrateWithMat::renderUI()
 
             ImGui::Separator();
 
-            if (ImGui::Button("Restart Calibration"))
+            if (ImGui::Button("Cancel"))
             {
-                setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
+                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
             }
 
             ImGui::End();
@@ -604,6 +621,7 @@ void AppSubStage_CalibrateWithMat::onExitState(
 {
     switch (oldState)
     {
+    case AppSubStage_CalibrateWithMat::eMenuState::invalid:
     case AppSubStage_CalibrateWithMat::eMenuState::initial:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
@@ -624,8 +642,6 @@ void AppSubStage_CalibrateWithMat::onEnterState(
     switch (newState)
     {
     case AppSubStage_CalibrateWithMat::eMenuState::initial:
-        break;
-    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
         {
             for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
                 iter != m_parentStage->m_trackerViews.end();
@@ -639,6 +655,20 @@ void AppSubStage_CalibrateWithMat::onEnterState(
             m_sampleLocationIndex = 0;
             m_bIsStable = false;
             m_hmdTrackerPoseContext.clear();
+        }
+        break;
+    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
+        {
+            for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
+                iter != m_parentStage->m_trackerViews.end();
+                ++iter)
+            {
+                const int trackerIndex = iter->second.listIndex;
+
+                m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount = 0;
+            }
+
+            m_bIsStable = false;
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
         break;
@@ -659,58 +689,9 @@ void AppSubStage_CalibrateWithMat::onEnterState(
 }
 
 //-- math helper functions -----
-// Compute a transform that take a pose in PSMove tracking space 
-// and converts it into a pose in HMD camera space
-static glm::mat4
-computePSMoveTrackerToHMDTrackerSpaceTransform(
-    const ClientHMDView *hmdView,
-    const PSMovePose &psmoveCalibrationOffset,
-    const HMDTrackerPoseContext &hmdTrackerPoseContext)
-{
-    // Some useful definitions:
-    // "PSMove Tracking Space"
-    //   - The coordinate system that contains the PS3EYE tracking camera and poses
-    //   - PS Move controller poses are converted into this space via 
-    //     psmove_fusion_get_multicam_tracking_space_location()
-    // "PSMove Calibration Space"
-    //   - Inside of the "PSMove Tracking Space"
-    //   - Represents locations relative to the PS3EYE Calibration Origin
-    // "HMD Tracking Space"
-    //   - The coordinate system that contains the HMD tracking camera and HMD poses
-    // "HMD Camera Space"
-    //   - Inside of the "HMD Camera space"
-    //   - Represents locations relative to the HMD tracking camera
-
-    // Compute a transform that goes from the HMD tracking space to the HMD camera space
-    const glm::mat4 hmdCameraToHmdTrackingSpace = psmove_pose_to_glm_mat4(hmdView->getTrackerPose());
-    const glm::mat4 hmdTrackingToHmdCameraSpace = glm::inverse(hmdCameraToHmdTrackingSpace);
-
-    // During calibration we record the HMD pose at the PSMove calibration origin.
-    // This pose represents the psmove calibration origin in HMD tracking space.
-    glm::mat4 psmoveCalibrationToHmdTrackingSpace =
-        psmove_pose_to_glm_mat4(
-            hmdTrackerPoseContext.avgHMDWorldSpaceOrientation,
-            hmdTrackerPoseContext.avgHMDWorldSpacePoint);
-
-    // The calibration target might be manually offset from origin of psmove tracking space.
-    // Compute the transform that goes from psmove tracking space to calibration origin space.
-    const glm::mat4 psmoveCalibrationToPSMoveTrackingSpace = psmove_pose_to_glm_mat4(psmoveCalibrationOffset);
-    const glm::mat4 psmoveTrackingToPSMoveCalibrationSpace = glm::inverse(psmoveCalibrationToPSMoveTrackingSpace);
-
-    // Compute the final transform that goes from PSMove tracking space to HMD Camera space
-    // NOTE: Transforms are applied right to left
-    const glm::mat4 glm_transform =
-        hmdTrackingToHmdCameraSpace *
-        psmoveCalibrationToHmdTrackingSpace *
-        psmoveTrackingToPSMoveCalibrationSpace;
-
-    return glm_transform;
-}
-
 static bool
 computeTrackerCameraPose(
     const ClientTrackerView *trackerView,
-    const glm::mat4 &psmoveTrackerToHmdTrackerSpace,
     PS3EYETrackerPoseContext &trackerCoregData)
 {
     // Get the pixel width and height of the tracker image
@@ -723,7 +704,7 @@ computeTrackerCameraPose(
     // Copy the object/image point mappings into OpenCV format
     std::vector<cv::Point3f> cvObjectPoints;
     std::vector<cv::Point2f> cvImagePoints;
-    for (int locationIndex = 0; locationIndex < k_mat_calibration_sample_count; ++locationIndex)
+    for (int locationIndex = 0; locationIndex < k_mat_sample_location_count; ++locationIndex)
     {
         const PSMoveScreenLocation &screenPoint =
             trackerCoregData.avgScreenSpacePointAtLocation[locationIndex];
@@ -801,11 +782,6 @@ computeTrackerCameraPose(
 
         // Save off the tracker pose in MultiCam Tracking space
         trackerCoregData.trackerPose = glm_mat4_to_psmove_pose(trackerXform);
-
-        // Also save off the tracker pose relative to the HMD tracking camera.
-        // NOTE: With GLM matrix multiplication the operation you want applied first
-        // should be last in the multiplication.
-        trackerCoregData.hmdCameraRelativeTrackerPose = glm_mat4_to_psmove_pose(psmoveTrackerToHmdTrackerSpace * trackerXform);
     }
 
     return trackerCoregData.bValidTrackerPose;

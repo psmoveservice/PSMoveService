@@ -37,8 +37,12 @@ public:
     { return m_instance != nullptr && m_instance->m_isRenderingStage; }
     static bool getIsRenderingUI()
     { return m_instance != nullptr && m_instance->m_isRenderingUI; }
-    float getWindowAspectRatio() const
-    { return static_cast<float>(m_windowWidth) / static_cast<float>(m_windowHeight); }
+    static float getWindowWidth()
+    { return static_cast<float>(m_instance->m_windowWidth); }
+    static float getWindowHeight()
+    { return static_cast<float>(m_instance->m_windowHeight); }
+    static float getWindowAspectRatio()
+    { return static_cast<float>(m_instance->m_windowWidth) / static_cast<float>(m_instance->m_windowHeight); }
 
     void setProjectionMatrix(const glm::mat4 &matrix)
     { m_projectionMatrix= matrix; }
@@ -77,6 +81,7 @@ private:
 void drawArrow(const glm::mat4 &transform, const glm::vec3 &start, const glm::vec3 &end, const float headFraction, const glm::vec3 &color);
 void drawTextAtWorldPosition(const glm::mat4 &transform, const glm::vec3 &position, const char *format, ...) RENDERER_PRINTFARGS(3);
 void drawFullscreenTexture(const unsigned int texture_id);
+void drawTrackingProjection(const struct PSMoveTrackingProjection *projection, float trackerWidth, float trackerHeight, const glm::vec3 &color);
 void drawTransformedAxes(const glm::mat4 &transform, float scale);
 void drawTransformedAxes(const glm::mat4 &transform, float xScale, float yScale, float zScale);
 void drawTransformedBox(const glm::mat4 &transform, const glm::vec3 &half_extents, const glm::vec3 &color);

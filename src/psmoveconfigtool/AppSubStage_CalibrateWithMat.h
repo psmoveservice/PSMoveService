@@ -22,7 +22,6 @@ struct PS3EYETrackerPoseContext
     PSMoveScreenLocation avgScreenSpacePointAtLocation[k_mat_sample_location_count];
 
     PSMovePose trackerPose;
-    PSMovePose hmdCameraRelativeTrackerPose;
     float reprojectionError;
     bool bValidTrackerPose;
 
@@ -32,7 +31,6 @@ struct PS3EYETrackerPoseContext
         memset(avgScreenSpacePointAtLocation, 0, sizeof(PSMoveScreenLocation)*k_mat_sample_location_count);
         screenSpacePointCount = 0;
         trackerPose= *k_psmove_pose_identity;
-        hmdCameraRelativeTrackerPose = *k_psmove_pose_identity;
         reprojectionError = 0.f;
         bValidTrackerPose = false;
     }
@@ -58,8 +56,9 @@ class AppSubStage_CalibrateWithMat
 public:
     enum eMenuState
     {
-        initial,
+        invalid,
 
+        initial,
         calibrationStepPlacePSMove,
         calibrationStepRecordPSMove,
         calibrationStepPlaceHMD,

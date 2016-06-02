@@ -335,19 +335,3 @@ PSMoveFrustum ClientTrackerView::getTrackerFrustum() const
 
     return frustum;
 }
-
-PSMoveFrustum ClientTrackerView::getHMDRelativeTrackerFrustum() const
-{
-    PSMoveFrustum frustum;
-
-    frustum.set_pose(m_tracker_info.hmd_relative_tracker_pose);
-
-    // Convert the FOV angles to radians for rendering purposes
-    frustum.HFOV = m_tracker_info.tracker_hfov * k_degrees_to_radians;
-    frustum.VFOV = m_tracker_info.tracker_vfov * k_degrees_to_radians;
-
-    frustum.zNear = m_tracker_info.tracker_znear;
-    frustum.zFar = m_tracker_info.tracker_zfar;
-
-    return frustum;
-}

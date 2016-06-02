@@ -174,10 +174,9 @@ bool Renderer::init()
         glEnable (GL_BLEND);
         glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+        m_instance = this;
         setProjectionMatrix(
-            glm::perspective(k_camera_vfov, getWindowAspectRatio(), k_camera_z_near, k_camera_z_far));
-
-        m_instance= this;
+            glm::perspective(k_camera_vfov, Renderer::getWindowAspectRatio(), k_camera_z_near, k_camera_z_far));
     }
 
     return success;
@@ -544,6 +543,84 @@ void drawFullscreenTexture(const unsigned int texture_id)
 
     // Clear the depth buffer to allow overdraw 
     glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Restore the projection matrix
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+
+    // Restore the modelview matrix
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+}
+
+void drawTrackingProjection(
+    const PSMoveTrackingProjection *projection,
+    float trackerWidth, 
+    float trackerHeight,
+    const glm::vec3 &color)
+{
+    // Clear the depth buffer to allow overdraw 
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Save a backup of the projection matrix 
+    // and replace with a projection that maps the tracker image coordinates over the whole screen
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(-trackerWidth / 2.f, trackerWidth / 2.f, -trackerHeight / 2.f, trackerHeight / 2.f, 1.0f, -1.0f);
+
+    // Save a backup of the modelview matrix and replace with the identity matrix
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    // Fill the screen with the texture
+    glColor3fv(glm::value_ptr(color));
+    glLineWidth(5.f);
+
+    switch (projection->shape_type)
+    {
+    case PSMoveTrackingProjection::eShapeType::Ellipse:
+        {
+            const int subdiv = 64;
+            const float angleStep = k_real_two_pi / static_cast<float>(subdiv);
+
+            const float x_extent = projection->shape.ellipse.half_x_extent;
+            const float y_extent = projection->shape.ellipse.half_y_extent;
+            const float rot_angle = projection->shape.ellipse.angle;
+
+            glm::vec3 x_axis(cosf(rot_angle), sinf(rot_angle), 0.f);
+            glm::vec3 y_axis(sinf(rot_angle), -cosf(rot_angle), 0.f);
+            glm::vec3 center(projection->shape.ellipse.center.x, projection->shape.ellipse.center.y, 0.5f);
+
+            float angle = 0.f;
+            glBegin(GL_LINE_STRIP);
+            for (int index = 0; index <= subdiv; ++index)
+            {
+                glm::vec3 point = 
+                    x_axis*x_extent*cosf(angle)
+                    + y_axis*y_extent*sinf(angle)
+                    + center;
+
+                glVertex3fv(glm::value_ptr(point));
+                angle += angleStep;
+            }
+            glEnd();
+        } break;
+    case PSMoveTrackingProjection::eShapeType::Quad:
+        {
+            const PSMoveScreenLocation *corners = projection->shape.quad.corners;
+            
+            glBegin(GL_QUADS);
+            glVertex3f(corners[0].x, corners[0].y, 0.5f);
+            glVertex3f(corners[1].x, corners[1].y, 0.5f);
+            glVertex3f(corners[2].x, corners[2].y, 0.5f);
+            glVertex3f(corners[3].x, corners[3].y, 0.5f);
+            glEnd();
+        } break;
+    }
+
+    glLineWidth(1.f);
 
     // Restore the projection matrix
     glMatrixMode(GL_PROJECTION);

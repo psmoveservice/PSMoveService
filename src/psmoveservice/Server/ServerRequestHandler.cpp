@@ -191,8 +191,17 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_LED_COLOR:
                 handle_request__set_led_color(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SET_LED_TRACKING_COLOR:
+                handle_request__set_led_tracking_color(context, response);
+                break;
             case PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION:
                 handle_request__set_magnetometer_calibration(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_START_TRACKING:
+                handle_request__start_controller_tracking(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_STOP_TRACKING:
+                handle_request__stop_controller_tracking(context, response);
                 break;
 
             // Tracker Requests
@@ -211,9 +220,33 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE:
                 handle_request__set_tracker_exposure(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SET_TRACKER_GAIN:
+                handle_request__set_tracker_gain(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_SET_TRACKER_OPTION:
+                handle_request__set_tracker_option(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_SET_TRACKER_COLOR_PRESET:
+                handle_request__set_tracker_color_preset(context, response);
+                break;
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_POSE:
                 handle_request__set_tracker_pose(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SAVE_TRACKER_PROFILE:
+                handle_request__save_tracker_profile(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_APPLY_TRACKER_PROFILE:
+                handle_request__apply_tracker_profile(context, response);
+                break;
+
+            // HMD Requests
+            case PSMoveProtocol::Request_RequestType_GET_HMD_TRACKING_SPACE_SETTINGS:
+                handle_request__get_hmd_tracking_space_settings(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_SET_HMD_TRACKING_SPACE_ORIGIN:
+                handle_request__set_hmd_tracking_space_origin(context, response);
+                break;
+
             default:
                 assert(0 && "Whoops, bad request!");
         }
@@ -392,8 +425,9 @@ protected:
 
             // Set control flags for the stream
             streamInfo.Clear();
-            streamInfo.include_raw_sensor_data= request.include_raw_sensor_data();
+            streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
             streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
+            streamInfo.include_physics_data = request.include_physics_data();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -587,7 +621,7 @@ protected:
         {
             PSMoveController *controller= ControllerView->castChecked<PSMoveController>();
 
-            if (controller->setLED(r, g, b))
+            if (!ControllerView->getIsTrackingEnabled() && controller->setLED(r, g, b))
             {
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -595,6 +629,40 @@ protected:
             {
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
             }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_led_tracking_color(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int connection_id = context.connection_state->connection_id;
+        const int controller_id = context.request->set_led_tracking_color_request().controller_id();
+        const eCommonTrackingColorID newColorID=
+            static_cast<eCommonTrackingColorID>(context.request->set_led_tracking_color_request().color_type());
+
+        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        {
+            // Give up control of our existing tracking color
+            const eCommonTrackingColorID eOldColorID = ControllerView->getTrackingColorID();
+            if (eOldColorID != eCommonTrackingColorID::INVALID_COLOR)
+            {
+                m_device_manager.m_controller_manager->freeTrackingColorID(eOldColorID);
+            }
+
+            // Take the color from any other controller that might have it
+            m_device_manager.m_controller_manager->claimTrackingColorID(newColorID);
+
+            // Assign the new color to ourselves
+            ControllerView->setTrackingColorID(newColorID);
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else
         {
@@ -647,6 +715,46 @@ protected:
             // Reset the orientation filter state the calibration changed
             ControllerView->getOrientationFilter()->resetFilterState();
 
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__start_controller_tracking(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int connection_id = context.connection_state->connection_id;
+        const int controller_id = context.request->set_led_tracking_color_request().controller_id();
+
+        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        {
+            ControllerView->setTrackingEnabled(true);
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__stop_controller_tracking(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int connection_id = context.connection_state->connection_id;
+        const int controller_id = context.request->set_led_tracking_color_request().controller_id();
+
+        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        {
+            ControllerView->setTrackingEnabled(false);
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else
@@ -755,12 +863,9 @@ protected:
 
                 // Get the tracker pose
                 {
-                    CommonDevicePose pose, hmdRelativePose;
-
-                    tracker_view->getTrackerPose(&pose, &hmdRelativePose);
+                    CommonDevicePose pose= tracker_view->getTrackerPose();
 
                     common_device_pose_to_protocol_pose(pose, tracker_info->mutable_tracker_pose());
-                    common_device_pose_to_protocol_pose(hmdRelativePose, tracker_info->mutable_hmd_relative_tracker_pose());
                 }                
             }
         }
@@ -857,7 +962,11 @@ protected:
                 PSMoveProtocol::Response_ResultTrackerSettings* settings =
                     response->mutable_result_tracker_settings();
 
-                settings->set_exposure(tracker_view->getExposure());
+                settings->set_exposure(static_cast<float>(tracker_view->getExposure()));
+                settings->set_gain(static_cast<float>(tracker_view->getGain()));
+                tracker_view->gatherTrackerOptions(settings);
+                tracker_view->gatherTrackingColorPresets(settings);
+
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
             else
@@ -875,20 +984,166 @@ protected:
         PSMoveProtocol::Response *response)
     {
         const int tracker_id = context.request->request_set_tracker_exposure().tracker_id();
+
+		response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_EXPOSURE_UPDATED);
+
         if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
-                const double desired_exposure = context.request->request_set_tracker_exposure().value();
+                const float desired_exposure = context.request->request_set_tracker_exposure().value();
                 PSMoveProtocol::Response_ResultSetTrackerExposure* result_exposure =
                     response->mutable_result_set_tracker_exposure();
 
                 // Set the desired exposure on the tracker
                 tracker_view->setExposure(desired_exposure);
 
-                // Return back the actual exposure that got get
-                result_exposure->set_new_exposure(tracker_view->getExposure());
+                // Return back the actual exposure that got set
+                result_exposure->set_new_exposure(static_cast<float>(tracker_view->getExposure()));
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_tracker_gain(const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_set_tracker_gain().tracker_id();
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_GAIN_UPDATED);
+
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                const double desired_gain = context.request->request_set_tracker_gain().value();
+                PSMoveProtocol::Response_ResultSetTrackerGain* result_gain =
+                    response->mutable_result_set_tracker_gain();
+
+                // Set the desired gain on the tracker
+                tracker_view->setGain(desired_gain);
+
+                // Return back the actual gain that got set
+                result_gain->set_new_gain(static_cast<float>(tracker_view->getGain()));
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_tracker_option(const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_set_tracker_gain().tracker_id();
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_OPTION_UPDATED);
+
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                const std::string &option_name = context.request->request_set_tracker_option().option_name();
+                const int desired_option_index = context.request->request_set_tracker_option().option_index();
+                PSMoveProtocol::Response_ResultSetTrackerOption* result_gain =
+                    response->mutable_result_set_tracker_option();
+
+                // Set the desired gain on the tracker
+                if (tracker_view->setOptionIndex(option_name, desired_option_index))
+                {
+                    // Return back the actual option index that got set
+                    int result_option_index;
+
+                    tracker_view->getOptionIndex(option_name, result_option_index);
+                    result_gain->set_option_name(option_name);
+                    result_gain->set_new_option_index(result_option_index);
+
+                    response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+                }
+                else
+                {
+                    response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+                }
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_tracker_color_preset(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_set_tracker_color_preset().tracker_id();
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_PRESET_UPDATED);
+
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                const PSMoveProtocol::TrackingColorPreset &colorPreset =
+                    context.request->request_set_tracker_color_preset().color_preset();
+                const eCommonTrackingColorID colorType=
+                    static_cast<eCommonTrackingColorID>(colorPreset.color_type());
+
+                // Set the color preset on the tracker
+                {
+                    CommonHSVColorRange hsvColorRange;
+                    hsvColorRange.hue_range.center= colorPreset.hue_center();
+                    hsvColorRange.hue_range.range = colorPreset.hue_range();
+                    hsvColorRange.saturation_range.center = colorPreset.saturation_center();
+                    hsvColorRange.saturation_range.range = colorPreset.saturation_range();
+                    hsvColorRange.value_range.center = colorPreset.value_center();
+                    hsvColorRange.value_range.range = colorPreset.value_range();
+
+                    tracker_view->setTrackingColorPreset(colorType, &hsvColorRange);
+                }
+
+                // Get the resulting preset from the tracker
+                {
+                    CommonHSVColorRange hsvColorRange;
+                    tracker_view->getTrackingColorPreset(colorType, &hsvColorRange);
+
+                    PSMoveProtocol::Response_ResultSetTrackerColorPreset *result =
+                        response->mutable_result_set_tracker_color_preset();
+                    result->set_tracker_id(tracker_id);
+
+                    PSMoveProtocol::TrackingColorPreset *presetResult = result->mutable_new_color_preset();
+                    presetResult->set_color_type(colorPreset.color_type());
+                    presetResult->set_hue_center(hsvColorRange.hue_range.center);
+                    presetResult->set_hue_range(hsvColorRange.hue_range.range);
+                    presetResult->set_saturation_center(hsvColorRange.saturation_range.center);
+                    presetResult->set_saturation_range(hsvColorRange.saturation_range.range);
+                    presetResult->set_value_center(hsvColorRange.value_range.center);
+                    presetResult->set_value_range(hsvColorRange.value_range.range);
+                }
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -923,7 +1178,7 @@ protected:
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        const int tracker_id = context.request->request_set_tracker_exposure().tracker_id();
+        const int tracker_id = context.request->request_set_tracker_pose().tracker_id();
         if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
         {
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
@@ -931,13 +1186,9 @@ protected:
             {
                 const PSMoveProtocol::Pose &srcPose = 
                     context.request->request_set_tracker_pose().pose();
-                const PSMoveProtocol::Pose &srcHmdRelativePose = 
-                    context.request->request_set_tracker_pose().hmd_relative_pose();
-
                 CommonDevicePose destPose = protocol_pose_to_common_device_pose(srcPose);
-                CommonDevicePose destHmdRelativePose = protocol_pose_to_common_device_pose(srcHmdRelativePose);
 
-                tracker_view->setTrackerPose(&destPose, &destHmdRelativePose);
+                tracker_view->setTrackerPose(&destPose);
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -950,6 +1201,124 @@ protected:
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
+    }
+
+    void handle_request__save_tracker_profile(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_save_tracker_profile().tracker_id();
+
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                TrackerProfile trackerProfile;
+
+                trackerProfile.clear();
+                trackerProfile.exposure= static_cast<float>(tracker_view->getExposure());
+                trackerProfile.gain = static_cast<float>(tracker_view->getGain());
+
+                for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
+                {
+                    tracker_view->getTrackingColorPreset(
+                        static_cast<eCommonTrackingColorID>(preset_index),
+                        &trackerProfile.color_presets[preset_index]);
+                }
+
+                m_device_manager.m_tracker_manager->saveDefaultTrackerProfile(&trackerProfile);
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__apply_tracker_profile(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_apply_tracker_profile().tracker_id();
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_SETTINGS);
+
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                const TrackerProfile *trackerProfile = 
+                    m_device_manager.m_tracker_manager->getDefaultTrackerProfile();
+    
+                // Apply the profile to the tracker
+                tracker_view->setExposure(trackerProfile->exposure);
+                tracker_view->setGain(trackerProfile->gain);
+                for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
+                {
+                    const CommonHSVColorRange *preset= &trackerProfile->color_presets[preset_index];
+                    const eCommonTrackingColorID color_type = static_cast<eCommonTrackingColorID>(preset_index);
+
+                    tracker_view->setTrackingColorPreset(color_type, preset);
+                }
+
+                // Send the profile application result to the client
+                {
+                    PSMoveProtocol::Response_ResultTrackerSettings* settings =
+                        response->mutable_result_tracker_settings();
+
+                    settings->set_exposure(static_cast<float>(tracker_view->getExposure()));
+                    settings->set_gain(static_cast<float>(tracker_view->getGain()));
+                    tracker_view->gatherTrackerOptions(settings);
+                    tracker_view->gatherTrackingColorPresets(settings);
+                }
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    // -- HMD Requests -----
+    void handle_request__get_hmd_tracking_space_settings(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        response->set_type(PSMoveProtocol::Response_ResponseType_HMD_TRACKING_SPACE_SETTINGS);
+
+        PSMoveProtocol::Response_ResultGetHMDTrackingSpaceSettings* settings =
+            response->mutable_result_get_hmd_tracking_space_settings();
+        CommonDevicePose pose = m_device_manager.m_tracker_manager->getHmdTrackingOriginPose();
+
+        common_device_pose_to_protocol_pose(pose, settings->mutable_origin_pose());
+
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+    }
+
+    void handle_request__set_hmd_tracking_space_origin(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const PSMoveProtocol::Pose &srcPose = context.request->request_set_tracker_pose().pose();
+        CommonDevicePose destPose = protocol_pose_to_common_device_pose(srcPose);
+
+        m_device_manager.m_tracker_manager->setHmdTrackingOriginPose(destPose);
+
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
     }
 
 private:

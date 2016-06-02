@@ -9,13 +9,8 @@
 //-- pre-declarations -----
 
 //-- constants -----
-const PSMoveRawSensorData k_empty_sensor_data= {{0, 0, 0}, {0.f, 0.f, 0.f}, {0.f, 0.f, 0.f}};
-const PSMoveRawTrackerData k_empty_tracker_data = { 
-    { { 0, 0 }, { 0, 0 } }, 
-    { { 0, 0, 0 }, { 0, 0, 0 } },
-    { -1, -1 }, 
-    0 
-};
+const PSMovePhysicsData k_empty_physics_data = { { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f } };
+const PSMoveRawSensorData k_empty_sensor_data = { { 0, 0, 0 }, { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f } };
 const PSMoveFloatVector3 k_identity_gravity_calibration_direction= {0.f, 1.f, 0.f};
 
 //-- prototypes ----
@@ -32,7 +27,9 @@ void ClientPSMoveView::Clear()
     bIsCurrentlyTracking= false;
 
     Pose.Clear();
+    PhysicsData.Clear();
     RawSensorData.Clear();
+    RawTrackerData.Clear();
 
     TriangleButton= PSMoveButton_UP;
     CircleButton= PSMoveButton_UP;
@@ -45,6 +42,11 @@ void ClientPSMoveView::Clear()
     TriggerButton= PSMoveButton_UP;
 
     TriggerValue= 0;
+}
+
+const PSMovePhysicsData &ClientPSMoveView::GetPhysicsData() const
+{
+    return IsValid() ? PhysicsData : k_empty_physics_data;
 }
 
 const PSMoveRawSensorData &ClientPSMoveView::GetRawSensorData() const
@@ -75,7 +77,7 @@ bool ClientPSMoveView::GetIsStableAndAlignedWithGravity() const
 
 const PSMoveRawTrackerData &ClientPSMoveView::GetRawTrackerData() const
 {    
-    return IsValid() ? RawTrackerData : k_empty_tracker_data;
+    return RawTrackerData;
 }
 
 void ClientPSMoveView::ApplyControllerDataFrame(
@@ -83,7 +85,7 @@ void ClientPSMoveView::ApplyControllerDataFrame(
 {
     if (data_frame->isconnected())
     {
-        const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSMoveState &psmove_data_frame = data_frame->psmove_state();
+        const auto &psmove_data_frame = data_frame->psmove_state();
 
         this->bHasValidHardwareCalibration= psmove_data_frame.validhardwarecalibration();
         this->bIsTrackingEnabled= psmove_data_frame.istrackingenabled();
@@ -100,8 +102,7 @@ void ClientPSMoveView::ApplyControllerDataFrame(
 
         if (psmove_data_frame.has_raw_sensor_data())
         {
-            const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSMoveState_RawSensorData &raw_sensor_data =
-                psmove_data_frame.raw_sensor_data();
+            const auto &raw_sensor_data = psmove_data_frame.raw_sensor_data();
 
             this->RawSensorData.Magnetometer.i= raw_sensor_data.magnetometer().i();
             this->RawSensorData.Magnetometer.j= raw_sensor_data.magnetometer().j();
@@ -122,8 +123,7 @@ void ClientPSMoveView::ApplyControllerDataFrame(
 
         if (psmove_data_frame.has_raw_tracker_data())
         {
-            const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSMoveState_RawTrackerData &raw_tracker_data =
-                psmove_data_frame.raw_tracker_data();
+            const auto &raw_tracker_data = psmove_data_frame.raw_tracker_data();
 
             this->RawTrackerData.ValidTrackerLocations = 
                 std::min(raw_tracker_data.valid_tracker_count(), PSMOVESERVICE_MAX_TRACKER_COUNT);
@@ -139,6 +139,39 @@ void ClientPSMoveView::ApplyControllerDataFrame(
                 this->RawTrackerData.RelativePositions[listIndex] =
                     PSMovePosition::create(
                         positionOnTracker.x(), positionOnTracker.y(), positionOnTracker.z());
+
+                if (raw_tracker_data.projected_spheres_size() > 0)
+                {
+                    const PSMoveProtocol::Ellipse &protocolEllipse = raw_tracker_data.projected_spheres(0);
+                    PSMoveTrackingProjection &projection= this->RawTrackerData.TrackingProjections[listIndex];
+
+                    projection.shape.ellipse.center.x = protocolEllipse.center().x();
+                    projection.shape.ellipse.center.y = protocolEllipse.center().y();
+                    projection.shape.ellipse.half_x_extent = protocolEllipse.half_x_extent();
+                    projection.shape.ellipse.half_y_extent = protocolEllipse.half_y_extent();
+                    projection.shape.ellipse.angle = protocolEllipse.angle();
+                    projection.shape_type = PSMoveTrackingProjection::eShapeType::Ellipse;
+                }
+                else if (raw_tracker_data.projected_blobs_size() > 0)
+                {
+                    const PSMoveProtocol::Polygon &protocolPolygon = raw_tracker_data.projected_blobs(0);
+                    PSMoveTrackingProjection &projection = this->RawTrackerData.TrackingProjections[listIndex];
+
+                    assert(protocolPolygon.vertices_size() == 4);
+                    for (int vert_index = 0; vert_index < 4; ++vert_index)
+                    {
+                        const PSMoveProtocol::Pixel &pixel= protocolPolygon.vertices(vert_index);
+
+                        projection.shape.quad.corners[vert_index].x = pixel.x();
+                        projection.shape.quad.corners[vert_index].y = pixel.y();
+                    }
+                }
+                else
+                {
+                    PSMoveTrackingProjection &projection = this->RawTrackerData.TrackingProjections[listIndex];
+
+                    projection.shape_type = PSMoveTrackingProjection::eShapeType::INVALID_PROJECTION;
+                }
             }            
         }
         else

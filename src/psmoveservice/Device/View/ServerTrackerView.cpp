@@ -1,6 +1,11 @@
 //-- includes -----
 #include "ServerTrackerView.h"
+#include "ServerControllerView.h"
 #include "DeviceEnumerator.h"
+#include "MathUtility.h"
+#include "MathEigen.h"
+#include "MathGLM.h"
+#include "MathAlignment.h"
 #include "PS3EyeTracker.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerUtility.h"
@@ -12,6 +17,11 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/sync/scoped_lock.hpp>
 #include <memory>
+
+#include "opencv2/opencv.hpp"
+#include "opencv2/calib3d/calib3d.hpp"
+
+#define USE_OPEN_CV_ELLIPSE_FIT
 
 //-- private methods -----
 class SharedVideoFrameReadWriteAccessor
@@ -135,11 +145,192 @@ private:
     boost::interprocess::mapped_region *m_region;
 };
 
+class OpenCVBufferState
+{
+public:
+    OpenCVBufferState(int width, int height)
+        : frameWidth(width)
+        , frameHeight(height)
+        , bgrBuffer(nullptr)
+        , hsvBuffer(nullptr)
+        , gsLowerBuffer(nullptr)
+        , gsUpperBuffer(nullptr)
+        , maskedBuffer(nullptr)
+    {
+        bgrBuffer = new cv::Mat(height, width, CV_8UC3);
+        hsvBuffer = new cv::Mat(height, width, CV_8UC3);
+        gsLowerBuffer = new cv::Mat(height, width, CV_8UC1);
+        gsUpperBuffer = new cv::Mat(height, width, CV_8UC1);
+        maskedBuffer = new cv::Mat(height, width, CV_8UC3);
+    }
+
+    virtual ~OpenCVBufferState()
+    {
+        if (maskedBuffer != nullptr)
+        {
+            delete maskedBuffer;
+            maskedBuffer = nullptr;
+        }
+
+        if (gsLowerBuffer != nullptr)
+        {
+            delete gsLowerBuffer;
+            gsLowerBuffer = nullptr;
+        }
+
+        if (gsUpperBuffer != nullptr)
+        {
+            delete gsUpperBuffer;
+            gsUpperBuffer = nullptr;
+        }
+
+        if (hsvBuffer != nullptr)
+        {
+            delete hsvBuffer;
+            hsvBuffer = nullptr;
+        }
+
+        if (bgrBuffer != nullptr)
+        {
+            delete bgrBuffer;
+            bgrBuffer = nullptr;
+        }
+    }
+
+    void writeVideoFrame(const unsigned char *video_buffer)
+    {
+        const cv::Mat videoBufferMat(frameHeight, frameWidth, CV_8UC3, const_cast<unsigned char *>(video_buffer));
+
+        // Copy the raw bgr frame into the bgrBuffer
+        videoBufferMat.copyTo(*bgrBuffer);
+
+        // Convert the video buffer to the HSV color space
+        cv::cvtColor(*bgrBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
+    }
+
+    bool computeBiggestConvexContour(
+        const CommonHSVColorRange &hsvColorRange, 
+        std::vector<Eigen::Vector2f> &out_contour)
+    {
+        // Clamp the HSV image, taking into account wrapping the hue angle
+        {
+            const float hue_min = hsvColorRange.hue_range.center - hsvColorRange.hue_range.range;
+            const float hue_max = hsvColorRange.hue_range.center + hsvColorRange.hue_range.range;
+            const float saturation_min = clampf(hsvColorRange.saturation_range.center - hsvColorRange.saturation_range.range, 0, 255);
+            const float saturation_max = clampf(hsvColorRange.saturation_range.center + hsvColorRange.saturation_range.range, 0, 255);
+            const float value_min = clampf(hsvColorRange.value_range.center - hsvColorRange.value_range.range, 0, 255);
+            const float value_max = clampf(hsvColorRange.value_range.center + hsvColorRange.value_range.range, 0, 255);
+
+            if (hue_min < 0)
+            {
+                cv::inRange(
+                    *hsvBuffer,
+                    cv::Scalar(0, saturation_min, value_min),
+                    cv::Scalar(clampf(hue_max, 0, 180), saturation_max, value_max),
+                    *gsLowerBuffer);
+                cv::inRange(
+                    *hsvBuffer,
+                    cv::Scalar(clampf(180 + hue_min, 0, 180), saturation_min, value_min),
+                    cv::Scalar(180, saturation_max, value_max),
+                    *gsUpperBuffer);
+                cv::bitwise_or(*gsLowerBuffer, *gsUpperBuffer, *gsLowerBuffer);
+            }
+            else if (hue_max > 180)
+            {
+                cv::inRange(
+                    *hsvBuffer,
+                    cv::Scalar(0, saturation_min, value_min),
+                    cv::Scalar(clampf(hue_max - 180, 0, 180), saturation_max, value_max),
+                    *gsLowerBuffer);
+                cv::inRange(
+                    *hsvBuffer,
+                    cv::Scalar(clampf(hue_min, 0, 180), saturation_min, value_min),
+                    cv::Scalar(180, saturation_max, value_max),
+                    *gsUpperBuffer);
+                cv::bitwise_or(*gsLowerBuffer, *gsUpperBuffer, *gsLowerBuffer);
+            }
+            else
+            {
+                cv::inRange(
+                    *hsvBuffer,
+                    cv::Scalar(hue_min, saturation_min, value_min),
+                    cv::Scalar(hue_max, saturation_max, value_max),
+                    *gsLowerBuffer);
+            }
+        }
+
+        // Find the largest convex blob in the filtered grayscale buffer
+        {
+            std::vector<std::vector<cv::Point> > contours;
+            cv::findContours(*gsLowerBuffer, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+
+            std::vector<cv::Point> biggest_contour;
+            if (contours.size() > 0)
+            {
+                double contArea = 0;
+                double newArea = 0;
+                for (auto it = contours.begin(); it != contours.end(); ++it) 
+                {
+                    newArea = cv::contourArea(*it);
+
+                    if (newArea > contArea)
+                    {
+                        contArea = newArea;
+                        biggest_contour = *it;
+                    }
+                }
+            }
+
+            //TODO: If our contour is suddenly much smaller than last frame,
+            // but is next to an almost-as-big contour, then maybe these
+            // 2 contours should be joined.
+            // (i.e. if a finger is blocking the middle of the bulb)
+            if (biggest_contour.size() > 6)
+            {
+                // Remove any points in contour on edge of camera/ROI
+                std::vector<cv::Point>::iterator it = biggest_contour.begin();
+                while (it != biggest_contour.end()) {
+                    if (it->x == 320 || it->x == -320 || it->y == 240 || it->y == -240) {
+                        it = biggest_contour.erase(it);
+                    }
+                    else {
+                        ++it;
+                    }
+                }
+
+                // Compute the convex hull of the contour
+                std::vector<cv::Point> convex_hull;
+                cv::convexHull(biggest_contour, convex_hull);
+
+                // Subtract midpoint from each point.
+                std::for_each(
+                    convex_hull.begin(),
+                    convex_hull.end(),
+                    [this, &out_contour](cv::Point& p) {
+                        out_contour.push_back(
+                            Eigen::Vector2f(p.x - (frameWidth / 2), (frameHeight / 2) - p.y));
+                    });
+            }
+        }
+
+        return (out_contour.size() > 5);
+    }
+
+    int frameWidth;
+    int frameHeight;
+    cv::Mat *bgrBuffer; // source video frame
+    cv::Mat *hsvBuffer; // source frame converted to HSV color space
+    cv::Mat *gsLowerBuffer; // HSV image clamped by HSV range into grayscale mask
+    cv::Mat *gsUpperBuffer; // HSV image clamped by HSV range into grayscale mask
+    cv::Mat *maskedBuffer; // bgr image ANDed together with grayscale mask
+};
+
 //-- public implementation -----
 ServerTrackerView::ServerTrackerView(const int device_id)
     : ServerDeviceView(device_id)
     , m_shared_memory_accesor(nullptr)
     , m_shared_memory_video_stream_count(0)
+    , m_opencv_buffer_state(nullptr)
     , m_device(nullptr)
 {
     ServerUtility::format_string(m_shared_memory_name, sizeof(m_shared_memory_name), "tracker_view_%d", device_id);
@@ -150,6 +341,11 @@ ServerTrackerView::~ServerTrackerView()
     if (m_shared_memory_accesor != nullptr)
     {
         delete m_shared_memory_accesor;
+    }
+
+    if (m_opencv_buffer_state != nullptr)
+    {
+        delete m_opencv_buffer_state;
     }
 
     if (m_device != nullptr)
@@ -206,6 +402,9 @@ bool ServerTrackerView::open(const class DeviceEnumerator *enumerator)
 
                 SERVER_LOG_ERROR("ServerTrackerView::open()") << "Failed to allocated shared memory: " << m_shared_memory_name;
             }
+
+            // Allocate the OpenCV scratch buffers used for finding tracking blobs
+            m_opencv_buffer_state = new OpenCVBufferState(width, height);
         }
         else
         {
@@ -240,25 +439,27 @@ bool ServerTrackerView::poll()
 {
     bool bSuccess = ServerDeviceView::poll();
 
-    if (bSuccess)
+    if (bSuccess && m_device != nullptr)
     {
-        // Copy the video frame to shared memory (if requested)
-        if (m_shared_memory_accesor != nullptr && m_shared_memory_video_stream_count > 0)
-        {
-            const unsigned char *buffer= m_device->getVideoFrameBuffer();
+        const unsigned char *buffer = m_device->getVideoFrameBuffer();
 
-            if (buffer != nullptr)
+        if (buffer != nullptr)
+        {
+            // Copy the video frame to shared memory (if requested)
+            if (m_shared_memory_accesor != nullptr && m_shared_memory_video_stream_count > 0)
             {
                 m_shared_memory_accesor->writeVideoFrame(buffer);
+            }
+
+            // Cache the raw video frame and convert it to an HSV buffer for filtering later
+            if (m_opencv_buffer_state != nullptr)
+            {
+                m_opencv_buffer_state->writeVideoFrame(buffer);
             }
         }
     }
 
     return bSuccess;
-}
-
-void ServerTrackerView::updateStateAndPredict()
-{
 }
 
 bool ServerTrackerView::allocate_device_interface(const class DeviceEnumerator *enumerator)
@@ -335,6 +536,16 @@ void ServerTrackerView::setExposure(double value)
     m_device->setExposure(value);
 }
 
+double ServerTrackerView::getGain() const
+{
+	return m_device->getGain();
+}
+
+void ServerTrackerView::setGain(double value)
+{
+	m_device->setGain(value);
+}
+
 void ServerTrackerView::getCameraIntrinsics(
     float &outFocalLengthX, float &outFocalLengthY,
     float &outPrincipalX, float &outPrincipalY) const
@@ -351,18 +562,15 @@ void ServerTrackerView::setCameraIntrinsics(
     m_device->setCameraIntrinsics(focalLengthX, focalLengthY, principalX, principalY);
 }
 
-void ServerTrackerView::getTrackerPose(
-    CommonDevicePose *outPose,
-    CommonDevicePose *outHmdRelativePose) const
+CommonDevicePose ServerTrackerView::getTrackerPose() const
 {
-    m_device->getTrackerPose(outPose, outHmdRelativePose);
+    return m_device->getTrackerPose();
 }
 
 void ServerTrackerView::setTrackerPose(
-    const struct CommonDevicePose *pose,
-    const struct CommonDevicePose *hmdRelativePose)
+    const struct CommonDevicePose *pose)
 {
-    m_device->setTrackerPose(pose, hmdRelativePose);
+    m_device->setTrackerPose(pose);
 }
 
 void ServerTrackerView::getPixelDimensions(float &outWidth, float &outHeight) const
@@ -383,4 +591,294 @@ void ServerTrackerView::getFOV(float &outHFOV, float &outVFOV) const
 void ServerTrackerView::getZRange(float &outZNear, float &outZFar) const
 {
     m_device->getZRange(outZNear, outZFar);
+}
+
+void ServerTrackerView::gatherTrackerOptions(PSMoveProtocol::Response_ResultTrackerSettings* settings) const
+{
+    m_device->gatherTrackerOptions(settings);
+}
+
+bool ServerTrackerView::setOptionIndex(const std::string &option_name, int option_index)
+{
+    return m_device->setOptionIndex(option_name, option_index);
+}
+
+bool ServerTrackerView::getOptionIndex(const std::string &option_name, int &out_option_index) const
+{
+    return m_device->getOptionIndex(option_name, out_option_index);
+}
+
+void ServerTrackerView::gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const
+{
+    return m_device->gatherTrackingColorPresets(settings);
+}
+
+void ServerTrackerView::setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset)
+{
+    return m_device->setTrackingColorPreset(color, preset);
+}
+
+void ServerTrackerView::getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const
+{
+    return m_device->getTrackingColorPreset(color, out_preset);
+}
+
+bool
+ServerTrackerView::computePositionForController(
+    class ServerControllerView* tracked_controller, 
+    CommonDevicePosition* out_position,
+    CommonDeviceTrackingProjection *out_projection_shape)
+{
+    bool bSuccess = m_bHasUnpublishedState;
+
+    // Get the tracking shape used by the controller
+    CommonDeviceTrackingShape tracking_shape;
+    if (bSuccess)
+    {
+        bSuccess = tracked_controller->getTrackingShape(tracking_shape);
+    }
+
+    // Get the HSV filter used to find the tracking blob
+    CommonHSVColorRange hsvColorRange;
+    if (bSuccess)
+    {
+        eCommonTrackingColorID tracked_color_id = tracked_controller->getTrackingColorID();
+
+        if (tracked_color_id != eCommonTrackingColorID::INVALID_COLOR)
+        {
+            getTrackingColorPreset(tracked_color_id, &hsvColorRange);
+        }
+        else
+        {
+            bSuccess = false;
+        }
+    }
+
+    // Find the contour associated with the controller
+    std::vector<Eigen::Vector2f> convex_contour;
+    if (bSuccess)
+    {
+        ///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges.
+        bSuccess= m_opencv_buffer_state->computeBiggestConvexContour(hsvColorRange, convex_contour);              
+    }
+
+    // Compute the tracker relative 3d position of the controller from the contour
+    if (bSuccess)
+    {
+        switch (tracking_shape.shape_type)
+        {
+        case eCommonTrackingShapeType::Sphere:
+            {
+                // Compute a best fit ellipse for the contour
+                EigenFitEllipse ellipse_projection;
+
+                //###HipsterSloth $TODO - Near the edge of the screen the 
+                // Near the edges of the the screen the ellipse fit using the improved
+                // least square fit starts behaving oddly (creating large offset skewed ellipses).
+                // For now, fall back to OpenCV's ellipse fit method which uses the 
+                // older method of Fitzgibbon (http://www.bmva.org/bmvc/1995/bmvc-95-050.pdf).
+                #ifdef USE_OPEN_CV_ELLIPSE_FIT
+                {
+                    // Yeah this is silly to copy the list of points BACK to an OpenCV point list
+                    // after we just copied from an OpenCV point to an Eigen::Vector2f point list
+                    // in computeBiggestConvexContour(), but this is a temp hack
+                    std::vector<cv::Point> open_cv_convex_contour;
+                    std::for_each(
+                        convex_contour.begin(),
+                        convex_contour.end(),
+                        [&open_cv_convex_contour](Eigen::Vector2f& p) {
+                            open_cv_convex_contour.push_back(cv::Point((int)p.x(), (int)p.y()));
+                        });
+
+                    cv::RotatedRect cvFitEllipse = cv::fitEllipse(open_cv_convex_contour);
+
+                    ellipse_projection.center= Eigen::Vector2f(cvFitEllipse.center.x, cvFitEllipse.center.y);
+                    ellipse_projection.extents= Eigen::Vector2f(cvFitEllipse.size.width/2.f, cvFitEllipse.size.height/2.f);
+                    ellipse_projection.angle= cvFitEllipse.angle;
+
+                    bSuccess= true;
+                }
+                #else
+                bSuccess =
+                    eigen_alignment_fit_least_squares_ellipse(
+                        convex_contour.data(), static_cast<int>(convex_contour.size()),
+                        ellipse_projection);
+                #endif
+
+                if (bSuccess)
+                {
+                    Eigen::Vector3f sphere_center;
+
+                    // Get the camera focal length
+                    float F_PX, F_PY;
+                    float PrincipalX, PrincipalY;
+                    m_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+
+                    // Given a cone defined by the camera view point and an ellipse 
+                    // (projection of a sphere on the camera's image plane)
+                    // compute the sphere center that would produce that ellipse projection.
+                    eigen_alignment_fit_focal_cone_to_sphere(
+                        ellipse_projection,
+                        tracking_shape.shape.sphere.radius,
+                        F_PX,
+                        &sphere_center);
+
+                    out_position->set(sphere_center.x(), sphere_center.y(), sphere_center.z());
+
+                    if (out_projection_shape != nullptr)
+                    {
+                        out_projection_shape->shape_type = eCommonTrackingProjectionType::ProjectionType_Ellipse;
+                        out_projection_shape->shape.ellipse.center.set(
+                            ellipse_projection.center.x(), ellipse_projection.center.y());
+                        out_projection_shape->shape.ellipse.half_x_extent = ellipse_projection.extents.x();
+                        out_projection_shape->shape.ellipse.half_y_extent = ellipse_projection.extents.y();
+                        out_projection_shape->shape.ellipse.angle = ellipse_projection.angle;
+                    }
+                }
+            } break;
+        case eCommonTrackingShapeType::PlanarBlob:
+            {
+                //###HipsterSloth $TODO
+                bSuccess= false;
+            } break;
+        default:
+            assert(0 && "Unreachable");
+            break;
+        }
+    }
+
+    return bSuccess;
+}
+
+static glm::mat4 computeGLMCameraTransformMatrix(ITrackerInterface *tracker_device)
+{
+
+    const CommonDevicePose pose = tracker_device->getTrackerPose();
+    const CommonDeviceQuaternion &quat = pose.Orientation;
+    const CommonDevicePosition &pos = pose.Position;
+
+    const glm::quat glm_quat(quat.w, quat.x, quat.y, quat.z);
+    const glm::vec3 glm_pos(pos.x, pos.y, pos.z);
+    const glm::mat4 glm_camera_xform = glm_mat4_from_pose(glm_quat, glm_pos);
+
+    return glm_camera_xform;
+}
+
+static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(ITrackerInterface *tracker_device)
+{
+    cv::Matx34f out;
+
+    // Extrinsic matrix is the inverse of the camera pose matrix
+    const glm::mat4 glm_camera_xform = computeGLMCameraTransformMatrix(tracker_device);
+    const glm::mat4 glm_mat = glm::inverse(glm_camera_xform);
+
+    out(0, 0) = glm_mat[0][0]; out(0, 1) = glm_mat[1][0]; out(0, 2) = glm_mat[2][0]; out(0, 3) = glm_mat[3][0];
+    out(1, 0) = glm_mat[0][1]; out(1, 1) = glm_mat[1][1]; out(1, 2) = glm_mat[2][1]; out(1, 3) = glm_mat[3][1];
+    out(2, 0) = glm_mat[0][2]; out(2, 1) = glm_mat[1][2]; out(2, 2) = glm_mat[2][2]; out(2, 3) = glm_mat[3][2];
+
+    return out;
+}
+
+static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(ITrackerInterface *tracker_device)
+{
+    cv::Matx33f out;
+
+    float F_PX, F_PY;
+    float PrincipalX, PrincipalY;
+    tracker_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+
+    out(0, 0) = F_PX; out(0, 1) = 0.f; out(0, 2) = PrincipalX;
+    out(1, 0) = 0.f; out(1, 1) = F_PY; out(1, 2) = PrincipalY;
+    out(2, 0) = 0.f; out(2, 1) = 0.f; out(2, 2) = 1.f;
+
+    return out;
+}
+
+static cv::Matx34f computeOpenCVCameraPinholeMatrix(ITrackerInterface *tracker_device)
+{
+    cv::Matx34f extrinsic_matrix = computeOpenCVCameraExtrinsicMatrix(tracker_device);
+    cv::Matx33f intrinsic_matrix = computeOpenCVCameraIntrinsicMatrix(tracker_device);
+    cv::Matx34f pinhole_matrix = intrinsic_matrix * extrinsic_matrix;
+
+    return pinhole_matrix;
+}
+
+CommonDeviceScreenLocation
+ServerTrackerView::projectTrackerRelativePosition(const CommonDevicePosition *trackerRelativePosition) const
+{
+    CommonDeviceScreenLocation screenLocation;
+
+    // Assume no distortion
+    // TODO: Probably should get the distortion coefficients out of the tracker
+    cv::Mat cvDistCoeffs(4, 1, cv::DataType<float>::type);
+    cvDistCoeffs.at<float>(0) = 0;
+    cvDistCoeffs.at<float>(1) = 0;
+    cvDistCoeffs.at<float>(2) = 0;
+    cvDistCoeffs.at<float>(3) = 0;
+
+    // Use the identity transform for tracker relative positions
+    cv::Mat rvec(3, 1, cv::DataType<double>::type, double(0));
+    cv::Mat tvec(3, 1, cv::DataType<double>::type, double(0));
+
+    // Only one point to project
+    std::vector<cv::Point3f> cvObjectPoints;
+    cvObjectPoints.push_back(
+        cv::Point3f(
+            trackerRelativePosition->x,
+            trackerRelativePosition->y,
+            trackerRelativePosition->z));
+
+    // Compute the camera intrinsic matrix in opencv format
+    cv::Matx33f cvCameraMatrix= computeOpenCVCameraIntrinsicMatrix(m_device);
+
+    // Projected point 
+    std::vector<cv::Point2f> projectedPoints;
+    cv::projectPoints(cvObjectPoints, rvec, tvec, cvCameraMatrix, cvDistCoeffs, projectedPoints);
+
+    //###HipsterSloth $TODO Is this using the right screen origin?
+    screenLocation.x = projectedPoints[0].x;
+    screenLocation.y = projectedPoints[0].y;
+
+    return screenLocation;
+}
+
+CommonDevicePosition
+ServerTrackerView::computeWorldPosition(
+    const CommonDevicePosition *tracker_relative_position)
+{
+    const glm::vec4 rel_pos(tracker_relative_position->x, tracker_relative_position->y, tracker_relative_position->z, 1.f);
+    const glm::mat4 cameraTransform= computeGLMCameraTransformMatrix(m_device);
+    const glm::vec4 world_pos = cameraTransform * rel_pos;
+    
+    CommonDevicePosition result;
+    result.set(world_pos.x, world_pos.y, world_pos.z);
+
+    return result;
+}
+
+CommonDevicePosition
+ServerTrackerView::triangulateWorldPosition(
+    const ServerTrackerView *tracker, 
+    const CommonDeviceScreenLocation *screen_location,
+    const ServerTrackerView *other_tracker,
+    const CommonDeviceScreenLocation *other_screen_location)
+{
+    cv::Mat projPoints1 = cv::Mat(cv::Point2f(screen_location->x, screen_location->y));
+    cv::Mat projPoints2 = cv::Mat(cv::Point2f(other_screen_location->x, other_screen_location->y));
+
+    cv::Mat projMat1 = cv::Mat(computeOpenCVCameraPinholeMatrix(tracker->m_device));
+    cv::Mat projMat2 = cv::Mat(computeOpenCVCameraPinholeMatrix(other_tracker->m_device));
+
+    cv::Mat point3D(1, 1, CV_32FC4);
+
+    cv::triangulatePoints(projMat1, projMat2, projPoints1, projPoints2, point3D);
+
+    const float w = point3D.at<float>(3, 0);
+
+    CommonDevicePosition result;
+    result.x = point3D.at<float>(0, 0) / w;
+    result.y = point3D.at<float>(1, 0) / w;
+    result.z = point3D.at<float>(2, 0) / w;
+
+    return result;
 }

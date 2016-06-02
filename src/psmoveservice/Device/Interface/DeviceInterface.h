@@ -1,7 +1,74 @@
 #ifndef DEVICE_INTERFACE_H
 #define DEVICE_INTERFACE_H
 
+// -- includes -----
 #include <string>
+#include <tuple>
+
+// -- pre-declarations ----
+namespace PSMoveProtocol
+{
+    class Response_ResultTrackerSettings;
+    class TrackingColorPreset;
+};
+
+// -- constants -----
+enum eCommonTrackingColorID {
+    INVALID_COLOR= -1,
+    
+    Magenta,
+    Cyan,
+    Yellow,
+    Red,
+    Green,
+    Blue,
+
+    MAX_TRACKING_COLOR_TYPES
+};
+
+enum eCommonTrackingShapeType {
+    INVALID_SHAPE = -1,
+
+    Sphere,
+    PlanarBlob,
+
+    MAX_TRACKING_SHAPE_TYPES
+};
+
+enum eCommonTrackingProjectionType {
+    INVALID_PROJECTION = -1,
+
+    ProjectionType_Ellipse,
+    ProjectionType_Quad,
+
+    MAX_TRACKING_PROJECTION_TYPES
+};
+
+
+// -- definitions -----
+struct CommonDeviceRange
+{
+    float center, range;
+
+    inline void clear()
+    {
+        center = range = 0.f;
+    }
+};
+
+struct CommonHSVColorRange
+{
+    CommonDeviceRange hue_range;
+    CommonDeviceRange saturation_range;
+    CommonDeviceRange value_range;
+
+    inline void clear()
+    {
+        hue_range.clear();
+        saturation_range.clear();
+        value_range.clear();
+    }
+};
 
 struct CommonDeviceVector
 {
@@ -20,6 +87,29 @@ struct CommonDevicePosition
     inline void clear()
     {
         x = y = z = 0.f;
+    }
+
+    inline void set(float _x, float _y, float _z)
+    {
+        x= _x;
+        y= _y;
+        z= _z;
+    }
+};
+
+struct CommonDeviceScreenLocation
+{
+    float x, y;
+
+    inline void clear()
+    {
+        x = y = 0.f;
+    }
+
+    inline void set(float _x, float _y)
+    {
+        x = _x;
+        y = _y;
     }
 };
 
@@ -43,6 +133,22 @@ struct CommonDevicePose
     {
         Position.clear();
         Orientation.clear();
+    }
+};
+
+struct CommonDevicePhysics
+{
+    CommonDeviceVector Velocity;
+    CommonDeviceVector Acceleration;
+    CommonDeviceVector AngularVelocity;
+    CommonDeviceVector AngularAcceleration;
+
+    void clear()
+    {
+        Velocity.clear();
+        Acceleration.clear();
+        AngularVelocity.clear();
+        AngularAcceleration.clear();
     }
 };
 
@@ -140,6 +246,40 @@ struct CommonControllerState : CommonDeviceState
     }
 };
 
+struct CommonDeviceTrackingShape
+{
+    union{
+        struct {
+            float radius;
+        } sphere;
+
+        struct {
+            float width;
+            float height;
+        } planar_blob;
+    } shape;
+
+    eCommonTrackingShapeType shape_type;
+};
+
+struct CommonDeviceTrackingProjection
+{
+    union{
+        struct {
+            CommonDeviceScreenLocation center;
+            float half_x_extent;
+            float half_y_extent;
+            float angle;
+        } ellipse;
+
+        struct {
+            CommonDeviceScreenLocation corners[4];
+        } quad;
+    } shape;
+
+    eCommonTrackingProjectionType shape_type;
+};
+
 /// Abstract base class for any device interface. Further defined in specific device abstractions.
 class IDeviceInterface
 {
@@ -176,7 +316,7 @@ public:
     
     // Fetch the device state at the given sample index.
     // A lookBack of 0 corresponds to the most recent data.
-    virtual const CommonDeviceState * getState(int lookBack = 0) const = 0;
+    virtual const CommonDeviceState * getState(int lookBack = 0) const = 0;   
 };
 
 /// Abstract class for controller interface. Implemented in PSMoveController.cpp
@@ -198,6 +338,12 @@ public:
 
     // Returns the serial number for the controller
     virtual std::string getSerial() const  = 0;
+
+    // Get the tracking color of the controller
+    virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const = 0;
+
+    // Get the tracking shape use by the controller
+    virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const = 0;
 };
 
 /// Abstract class for Tracker interface. Implemented Tracker classes
@@ -255,6 +401,9 @@ public:
     virtual void setExposure(double value) = 0;
     virtual double getExposure() const = 0;
 
+	virtual void setGain(double value) = 0;
+	virtual double getGain() const = 0;
+
     virtual void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
         float &outPrincipalX, float &outPrincipalY) const = 0;
@@ -262,10 +411,18 @@ public:
         float focalLengthX, float focalLengthY,
         float principalX, float principalY) = 0;
 
-    virtual void getTrackerPose(struct CommonDevicePose *outPose, struct CommonDevicePose *outHmdRelativePose) const = 0;
-    virtual void setTrackerPose(const struct CommonDevicePose *pose, const struct CommonDevicePose *hmdRelativePose) = 0;
+    virtual CommonDevicePose getTrackerPose() const = 0;
+    virtual void setTrackerPose(const struct CommonDevicePose *pose) = 0;
 
     virtual void getFOV(float &outHFOV, float &outVFOV) const = 0;
     virtual void getZRange(float &outZNear, float &outZFar) const = 0;
+
+    virtual void gatherTrackerOptions(PSMoveProtocol::Response_ResultTrackerSettings* settings) const = 0;
+    virtual bool setOptionIndex(const std::string &option_name, int option_index) = 0;
+    virtual bool getOptionIndex(const std::string &option_name, int &out_option_index) const = 0;
+
+    virtual void gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const = 0;
+    virtual void setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset) = 0;
+    virtual void getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const = 0;
 };
 #endif // DEVICE_INTERFACE_H
