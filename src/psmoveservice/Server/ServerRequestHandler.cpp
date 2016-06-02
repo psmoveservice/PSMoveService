@@ -1099,7 +1099,7 @@ protected:
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        const int tracker_id = context.request->request_set_tracker_exposure().tracker_id();
+        const int tracker_id = context.request->request_set_tracker_color_preset().tracker_id();
 
         response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_PRESET_UPDATED);
 
