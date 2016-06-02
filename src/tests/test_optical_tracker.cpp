@@ -13,8 +13,8 @@
 #endif
 #endif
 
-const int HUE_RANGE = 9;
-const int SAT_RANGE = 32;
+const int HUE_RANGE = 25;
+const int SAT_RANGE = 50;
 const int VAL_RANGE = 32;
 
 typedef cv::Vec< unsigned char, 3 > cvBGR;
@@ -72,12 +72,15 @@ int main()
 	{
         const PSMoveControllerState *psmstate= nullptr;
 
+        cap.set(cv::CAP_PROP_EXPOSURE, 16);
+        cap.set(cv::CAP_PROP_GAIN, 64);
+
         psmove.poll();
         psmstate= static_cast<const PSMoveControllerState *>(psmove.getState());
 
 		unsigned char r = 255;
 		unsigned char g = 0;
-		unsigned char b = 0;
+		unsigned char b = 255;
         psmove.setLED(r, g, b);
         psmove.setRumbleIntensity(0);
         
@@ -89,7 +92,7 @@ int main()
         cvHSV psmoveHSVColour = bgr2hsv(cvBGR(b, g, r));
         
         // HACK FOR TESTING
-        psmoveHSVColour = cvHSV(30, 50, 255);
+        psmoveHSVColour = cvHSV(140, 25, 255);
         
         hsv_range(psmoveHSVColour, led_min, led_max);
         
@@ -250,6 +253,15 @@ int main()
                                 conic_params[5] = Tevec[2];
                             }
                         }
+
+                        cv::RotatedRect cvFitEllipse= cv::fitEllipse(hull);
+                        cv::ellipse(
+                            bgrFrame, 
+                            cv::Point(cvFitEllipse.center.x + 320, 240 - cvFitEllipse.center.y),
+                            cv::Size(cvFitEllipse.size.width/2, cvFitEllipse.size.height/2),
+                            cvFitEllipse.angle,
+                            0, 360, 
+                            cv::Scalar(0, 255, 255));
                         
                         // Convert to parametric params
                         float A = conic_params[0];
