@@ -341,26 +341,26 @@ void AppStage_ColorCalibration::renderUI()
                 ImGui::SameLine();
                 ImGui::Text("Video Filter Mode: %s", k_video_display_mode_names[m_videoDisplayMode]);
 
-                if (ImGui::Button("+##Exposure"))
-                {
-                    request_tracker_set_exposure(m_trackerExposure + 8);
-                }
-                ImGui::SameLine();
                 if (ImGui::Button("-##Exposure"))
                 {
                     request_tracker_set_exposure(m_trackerExposure - 8);
                 }
                 ImGui::SameLine();
-                ImGui::Text("Exposure: %f", m_trackerExposure);
-
-                if (ImGui::Button("+##Gain"))
+                if (ImGui::Button("+##Exposure"))
                 {
-                    request_tracker_set_gain(m_trackerGain + 8);
+                    request_tracker_set_exposure(m_trackerExposure + 8);
                 }
                 ImGui::SameLine();
+                ImGui::Text("Exposure: %f", m_trackerExposure);
+
                 if (ImGui::Button("-##Gain"))
                 {
                     request_tracker_set_gain(m_trackerGain - 8);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("+##Gain"))
+                {
+                    request_tracker_set_gain(m_trackerGain + 8);
                 }
                 ImGui::SameLine();
                 ImGui::Text("Gain: %f", m_trackerGain);
@@ -426,13 +426,6 @@ void AppStage_ColorCalibration::renderUI()
             ImGui::Text("Tracking Color: %s", k_tracking_color_names[m_trackingColorType]);
 
             // -- Hue --
-            if (ImGui::Button("+##HueCenter"))
-            {
-                TrackerColorPreset preset = getColorPreset();
-                preset.hue_center = wrap_range(preset.hue_center + 5.f, 0.f, 180.f);
-                request_tracker_set_color_preset(m_trackingColorType, preset);
-            }
-            ImGui::SameLine();
             if (ImGui::Button("-##HueCenter"))
             {
                 TrackerColorPreset preset = getColorPreset();
@@ -440,15 +433,15 @@ void AppStage_ColorCalibration::renderUI()
                 request_tracker_set_color_preset(m_trackingColorType, preset);
             }
             ImGui::SameLine();
-            ImGui::Text("Hue Angle: %f", getColorPreset().hue_center);
-
-            if (ImGui::Button("+##HueRange"))
+            if (ImGui::Button("+##HueCenter"))
             {
                 TrackerColorPreset preset = getColorPreset();
-                preset.hue_range = clampf(preset.hue_range + 5.f, 0.f, 90.f);
+                preset.hue_center = wrap_range(preset.hue_center + 5.f, 0.f, 180.f);
                 request_tracker_set_color_preset(m_trackingColorType, preset);
             }
             ImGui::SameLine();
+            ImGui::Text("Hue Angle: %f", getColorPreset().hue_center);
+
             if (ImGui::Button("-##HueRange"))
             {
                 TrackerColorPreset preset = getColorPreset();
@@ -456,16 +449,16 @@ void AppStage_ColorCalibration::renderUI()
                 request_tracker_set_color_preset(m_trackingColorType, preset);
             }
             ImGui::SameLine();
-            ImGui::Text("Hue Range: %f", getColorPreset().hue_range);
-
-            // -- Saturation --
-            if (ImGui::Button("+##SaturationCenter"))
+            if (ImGui::Button("+##HueRange"))
             {
                 TrackerColorPreset preset = getColorPreset();
-                preset.saturation_center = clampf(preset.saturation_center + 5.f, 0.f, 255.f);
+                preset.hue_range = clampf(preset.hue_range + 5.f, 0.f, 90.f);
                 request_tracker_set_color_preset(m_trackingColorType, preset);
             }
             ImGui::SameLine();
+            ImGui::Text("Hue Range: %f", getColorPreset().hue_range);
+
+            // -- Saturation --
             if (ImGui::Button("-##SaturationCenter"))
             {
                 TrackerColorPreset preset = getColorPreset();
@@ -473,15 +466,15 @@ void AppStage_ColorCalibration::renderUI()
                 request_tracker_set_color_preset(m_trackingColorType, preset);
             }
             ImGui::SameLine();
-            ImGui::Text("Saturation Center: %f", getColorPreset().saturation_center);
-
-            if (ImGui::Button("+##SaturationRange"))
+            if (ImGui::Button("+##SaturationCenter"))
             {
                 TrackerColorPreset preset = getColorPreset();
-                preset.saturation_range = clampf(preset.saturation_range + 5.f, 0.f, 125.f);
+                preset.saturation_center = clampf(preset.saturation_center + 5.f, 0.f, 255.f);
                 request_tracker_set_color_preset(m_trackingColorType, preset);
             }
             ImGui::SameLine();
+            ImGui::Text("Saturation Center: %f", getColorPreset().saturation_center);
+
             if (ImGui::Button("-##SaturationRange"))
             {
                 TrackerColorPreset preset = getColorPreset();
@@ -489,16 +482,16 @@ void AppStage_ColorCalibration::renderUI()
                 request_tracker_set_color_preset(m_trackingColorType, preset);
             }
             ImGui::SameLine();
-            ImGui::Text("Saturation Range: %f", getColorPreset().saturation_range);
-
-            // -- Value --
-            if (ImGui::Button("+##ValueCenter"))
+            if (ImGui::Button("+##SaturationRange"))
             {
                 TrackerColorPreset preset = getColorPreset();
-                preset.value_center = clampf(preset.value_center + 5.f, 0.f, 255.f);
+                preset.saturation_range = clampf(preset.saturation_range + 5.f, 0.f, 125.f);
                 request_tracker_set_color_preset(m_trackingColorType, preset);
             }
             ImGui::SameLine();
+            ImGui::Text("Saturation Range: %f", getColorPreset().saturation_range);
+
+            // -- Value --
             if (ImGui::Button("-##ValueCenter"))
             {
                 TrackerColorPreset preset = getColorPreset();
@@ -506,19 +499,26 @@ void AppStage_ColorCalibration::renderUI()
                 request_tracker_set_color_preset(m_trackingColorType, preset);
             }
             ImGui::SameLine();
-            ImGui::Text("Value Center: %f", getColorPreset().value_center);
-
-            if (ImGui::Button("+##ValueRange"))
+            if (ImGui::Button("+##ValueCenter"))
             {
                 TrackerColorPreset preset = getColorPreset();
-                preset.value_range = clampf(preset.value_range + 5.f, 0.f, 125.f);
+                preset.value_center = clampf(preset.value_center + 5.f, 0.f, 255.f);
                 request_tracker_set_color_preset(m_trackingColorType, preset);
             }
             ImGui::SameLine();
+            ImGui::Text("Value Center: %f", getColorPreset().value_center);
+
             if (ImGui::Button("-##ValueRange"))
             {
                 TrackerColorPreset preset = getColorPreset();
                 preset.value_range = clampf(preset.value_range - 5.f, 0.f, 125.f);
+                request_tracker_set_color_preset(m_trackingColorType, preset);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("+##ValueRange"))
+            {
+                TrackerColorPreset preset = getColorPreset();
+                preset.value_range = clampf(preset.value_range + 5.f, 0.f, 125.f);
                 request_tracker_set_color_preset(m_trackingColorType, preset);
             }
             ImGui::SameLine();
