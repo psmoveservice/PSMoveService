@@ -201,8 +201,8 @@ public:
     {
         const cv::Mat videoBufferMat(frameHeight, frameWidth, CV_8UC3, const_cast<unsigned char *>(video_buffer));
 
-        // Copy the raw bgr frame into the bgrBuffer
-        videoBufferMat.copyTo(*bgrBuffer);
+        // Copy and Flip image about the x-axis
+        cv::flip(videoBufferMat, *bgrBuffer, 1);
 
         // Convert the video buffer to the HSV color space
         cv::cvtColor(*bgrBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
@@ -449,16 +449,16 @@ bool ServerTrackerView::poll()
 
         if (buffer != nullptr)
         {
-            // Copy the video frame to shared memory (if requested)
-            if (m_shared_memory_accesor != nullptr && m_shared_memory_video_stream_count > 0)
-            {
-                m_shared_memory_accesor->writeVideoFrame(buffer);
-            }
-
             // Cache the raw video frame and convert it to an HSV buffer for filtering later
             if (m_opencv_buffer_state != nullptr)
             {
                 m_opencv_buffer_state->writeVideoFrame(buffer);
+
+                // Copy the video frame to shared memory (if requested)
+                if (m_shared_memory_accesor != nullptr && m_shared_memory_video_stream_count > 0)
+                {
+                    m_shared_memory_accesor->writeVideoFrame(m_opencv_buffer_state->bgrBuffer->data);
+                }
             }
         }
     }
@@ -892,11 +892,11 @@ ServerTrackerView::triangulateWorldPosition(
     cv::Mat projPoints1 = 
         cv::Mat(cv::Point2f(
             screen_location->x + (screenWidth / 2), 
-            (screenHeight / 2) - screen_location->y));
+            screen_location->y + (screenHeight / 2)));
     cv::Mat projPoints2 = 
         cv::Mat(cv::Point2f(
             other_screen_location->x + (otherScreenWidth / 2),
-            (otherScreenHeight / 2) - other_screen_location->y));
+            other_screen_location->y + (otherScreenHeight / 2)));
 
     // Compute the pinhole camera matrix for each tracker that allows you to raycast
     // from the tracker center in world space through the screen location, into the world

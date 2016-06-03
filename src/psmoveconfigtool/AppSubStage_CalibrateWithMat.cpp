@@ -734,7 +734,7 @@ computeTrackerCameraPose(
         cvImagePoints.push_back(
             cv::Point2f(
                 screenPoint.x + (trackerPixelDimensions.i / 2), 
-                (trackerPixelDimensions.j / 2) - screenPoint.y));
+                screenPoint.y + (trackerPixelDimensions.j / 2)));
     }
 
     // Assume no distortion
