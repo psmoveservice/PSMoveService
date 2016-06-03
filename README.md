@@ -1,5 +1,5 @@
 # PSMoveService
-A background service that communicates with the psmove and serves its pose and button states. It also include a visual client front-end for configuring and managing controllers.
+A background service that communicates with the psmove and serves its pose and button states. It also include a visual client front-end for configuring and managing controllers. The [FAQ](https://github.com/cboulay/PSMoveService/wiki/Frequently-Asked-Questions) is a good starting point for any questions you may have about the project.
 
 # Download
 
