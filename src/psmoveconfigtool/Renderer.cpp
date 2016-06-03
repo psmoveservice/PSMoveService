@@ -554,7 +554,8 @@ void drawFullscreenTexture(const unsigned int texture_id)
 }
 
 void drawTrackingProjection(
-    const PSMoveTrackingProjection *projection,
+    const PSMoveScreenLocation *centerProjection,
+    const PSMoveTrackingProjection *shapeProjection,
     float trackerWidth, 
     float trackerHeight,
     const glm::vec3 &color)
@@ -574,24 +575,32 @@ void drawTrackingProjection(
     glPushMatrix();
     glLoadIdentity();
 
-    // Fill the screen with the texture
     glColor3fv(glm::value_ptr(color));
-    glLineWidth(5.f);
 
-    switch (projection->shape_type)
+    // Draw a small "+" where the center of the projection lies
+    glLineWidth(2.f);
+    glBegin(GL_LINES);
+        glVertex3f(centerProjection->x-5.f, centerProjection->y, 0.5f); 
+        glVertex3f(centerProjection->x+5.f, centerProjection->y, 0.5f);
+        glVertex3f(centerProjection->x, centerProjection->y+5.f, 0.5f); 
+        glVertex3f(centerProjection->x, centerProjection->y-5.f, 0.5f);
+    glEnd();
+
+    glLineWidth(5.f);
+    switch (shapeProjection->shape_type)
     {
     case PSMoveTrackingProjection::eShapeType::Ellipse:
         {
             const int subdiv = 64;
             const float angleStep = k_real_two_pi / static_cast<float>(subdiv);
 
-            const float x_extent = projection->shape.ellipse.half_x_extent;
-            const float y_extent = projection->shape.ellipse.half_y_extent;
-            const float rot_angle = projection->shape.ellipse.angle;
+            const float x_extent = shapeProjection->shape.ellipse.half_x_extent;
+            const float y_extent = shapeProjection->shape.ellipse.half_y_extent;
+            const float rot_angle = shapeProjection->shape.ellipse.angle;
 
             glm::vec3 x_axis(cosf(rot_angle), sinf(rot_angle), 0.f);
             glm::vec3 y_axis(sinf(rot_angle), -cosf(rot_angle), 0.f);
-            glm::vec3 center(projection->shape.ellipse.center.x, projection->shape.ellipse.center.y, 0.5f);
+            glm::vec3 center(shapeProjection->shape.ellipse.center.x, shapeProjection->shape.ellipse.center.y, 0.5f);
 
             float angle = 0.f;
             glBegin(GL_LINE_STRIP);
@@ -609,7 +618,7 @@ void drawTrackingProjection(
         } break;
     case PSMoveTrackingProjection::eShapeType::Quad:
         {
-            const PSMoveScreenLocation *corners = projection->shape.quad.corners;
+            const PSMoveScreenLocation *corners = shapeProjection->shape.quad.corners;
             
             glBegin(GL_QUADS);
             glVertex3f(corners[0].x, corners[0].y, 0.5f);

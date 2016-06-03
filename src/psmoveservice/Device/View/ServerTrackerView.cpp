@@ -208,6 +208,8 @@ public:
         cv::cvtColor(*bgrBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
     }
 
+    // Return points in CommonDeviceScreenLocation space:
+    // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]    
     bool computeBiggestConvexContour(
         const CommonHSVColorRange &hsvColorRange, 
         std::vector<Eigen::Vector2f> &out_contour)
@@ -290,10 +292,12 @@ public:
                 // Remove any points in contour on edge of camera/ROI
                 std::vector<cv::Point>::iterator it = biggest_contour.begin();
                 while (it != biggest_contour.end()) {
-                    if (it->x == 320 || it->x == -320 || it->y == 240 || it->y == -240) {
+                    if (it->x == 0 || it->x == (frameWidth-1) || it->y == 0 || it->y == (frameHeight-1)) 
+                    {
                         it = biggest_contour.erase(it);
                     }
-                    else {
+                    else 
+                    {
                         ++it;
                     }
                 }
@@ -659,6 +663,8 @@ ServerTrackerView::computePositionForController(
     if (bSuccess)
     {
         ///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges.
+        // NOTE: convex_contour in CommonDeviceScreenLocation space:
+        // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]    
         bSuccess= m_opencv_buffer_state->computeBiggestConvexContour(hsvColorRange, convex_contour);              
     }
 
@@ -692,6 +698,8 @@ ServerTrackerView::computePositionForController(
 
                     cv::RotatedRect cvFitEllipse = cv::fitEllipse(open_cv_convex_contour);
 
+                    // NOTE: ellipse_projection in CommonDeviceScreenLocation space:
+                    // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]    
                     ellipse_projection.center= Eigen::Vector2f(cvFitEllipse.center.x, cvFitEllipse.center.y);
                     ellipse_projection.extents= Eigen::Vector2f(cvFitEllipse.size.width/2.f, cvFitEllipse.size.height/2.f);
                     ellipse_projection.angle= cvFitEllipse.angle;
@@ -835,9 +843,17 @@ ServerTrackerView::projectTrackerRelativePosition(const CommonDevicePosition *tr
     std::vector<cv::Point2f> projectedPoints;
     cv::projectPoints(cvObjectPoints, rvec, tvec, cvCameraMatrix, cvDistCoeffs, projectedPoints);
 
-    //###HipsterSloth $TODO Is this using the right screen origin?
-    screenLocation.x = projectedPoints[0].x;
-    screenLocation.y = projectedPoints[0].y;
+    // cv::projectPoints() returns position in pixel coordinates where:
+    //  (0, 0) is the lower left of the screen and +y is pointing up
+    // Convert this to CommonDeviceScreenLocation space where:
+    //  (0, 0) in the center of the screen with +y is pointing up
+    {
+        float screenWidth, screenHeight;
+        getPixelDimensions(screenWidth, screenHeight);
+
+        screenLocation.x = projectedPoints[0].x - (screenWidth / 2);
+        screenLocation.y = projectedPoints[0].y - (screenHeight / 2);
+    }
 
     return screenLocation;
 }
@@ -863,19 +879,38 @@ ServerTrackerView::triangulateWorldPosition(
     const ServerTrackerView *other_tracker,
     const CommonDeviceScreenLocation *other_screen_location)
 {
-    cv::Mat projPoints1 = cv::Mat(cv::Point2f(screen_location->x, screen_location->y));
-    cv::Mat projPoints2 = cv::Mat(cv::Point2f(other_screen_location->x, other_screen_location->y));
+    // Convert the tracker screen locations in CommonDeviceScreenLocation space
+    // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
+    // into OpenCV pixel space
+    // i.e. [0, 0]x[frameWidth, frameHeight]
+    float screenWidth, screenHeight;
+    tracker->getPixelDimensions(screenWidth, screenHeight);
 
+    float otherScreenWidth, otherScreenHeight;
+    tracker->getPixelDimensions(otherScreenWidth, otherScreenHeight);
+
+    cv::Mat projPoints1 = 
+        cv::Mat(cv::Point2f(
+            screen_location->x + (screenWidth / 2), 
+            (screenHeight / 2) - screen_location->y));
+    cv::Mat projPoints2 = 
+        cv::Mat(cv::Point2f(
+            other_screen_location->x + (otherScreenWidth / 2),
+            (otherScreenHeight / 2) - other_screen_location->y));
+
+    // Compute the pinhole camera matrix for each tracker that allows you to raycast
+    // from the tracker center in world space through the screen location, into the world
+    // See: http://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html
     cv::Mat projMat1 = cv::Mat(computeOpenCVCameraPinholeMatrix(tracker->m_device));
     cv::Mat projMat2 = cv::Mat(computeOpenCVCameraPinholeMatrix(other_tracker->m_device));
 
+    // Triangulate the world position from the two cameras
     cv::Mat point3D(1, 1, CV_32FC4);
-
     cv::triangulatePoints(projMat1, projMat2, projPoints1, projPoints2, point3D);
 
-    const float w = point3D.at<float>(3, 0);
-
+    // Return the world space position
     CommonDevicePosition result;
+    const float w = point3D.at<float>(3, 0);
     result.x = point3D.at<float>(0, 0) / w;
     result.y = point3D.at<float>(1, 0) / w;
     result.z = point3D.at<float>(2, 0) / w;

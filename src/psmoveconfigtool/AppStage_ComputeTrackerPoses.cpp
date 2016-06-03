@@ -199,7 +199,7 @@ void AppStage_ComputeTrackerPoses::render()
 
                 // Put the HMD transform in PSMove tracking space
                 PSMovePose hmd_pose = m_hmdView->getHmdPose();
-                glm::mat4 hmd_transform = psmove_pose_to_glm_mat4(hmd_pose) * tracking_space_inv_transform;
+                glm::mat4 hmd_transform = tracking_space_inv_transform * psmove_pose_to_glm_mat4(hmd_pose);
 
                 drawDK2Model(hmd_transform);
                 drawTransformedAxes(hmd_transform, 10.f);

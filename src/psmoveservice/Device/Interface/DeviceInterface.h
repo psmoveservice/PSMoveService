@@ -97,6 +97,7 @@ struct CommonDevicePosition
     }
 };
 
+/// A screen location in the space [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]    
 struct CommonDeviceScreenLocation
 {
     float x, y;

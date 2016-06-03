@@ -138,12 +138,14 @@ void ClientHMDView::applyHMDDataFrame(const vr::TrackedDevicePose_t *data_frame)
 
 bool ClientHMDView::getIsHMDStableAndAlignedWithGravity() const
 {
-    const float k_cosine_10_degrees = 0.984808f;
+    // Other HMDs don't have a completely flat bottom like the DK2 does so they won't lie level.
+    // Thus the 30 degree tolerance.
+    const float k_cosine_30_degrees = 0.866025f;
     const float velocity_magnitude = m_hmdLinearVelocity.length();
 
     const bool isOk =
         is_nearly_equal(velocity_magnitude, 0.f, 0.5f) &&
-        PSMoveFloatVector3::dot(m_hmdYBasisVector, PSMoveFloatVector3::create(0.f, 1.f, 0.f)) >= k_cosine_10_degrees;
+        PSMoveFloatVector3::dot(m_hmdYBasisVector, PSMoveFloatVector3::create(0.f, 1.f, 0.f)) >= k_cosine_30_degrees;
 
     return isOk;
 }

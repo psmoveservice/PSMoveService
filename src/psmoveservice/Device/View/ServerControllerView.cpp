@@ -284,6 +284,9 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
                 average_world_position.y /= N;
                 average_world_position.z /= N;
             }
+
+            m_multicam_position_estimation->position = average_world_position;
+            m_multicam_position_estimation->bCurrentlyTracking = true;
         }
         // If only one tracker can see the controller, then just use the position estimate from that
         else if (positions_found == 1)

@@ -62,6 +62,8 @@ AppSubStage_CalibrateWithMat::AppSubStage_CalibrateWithMat(
     AppStage_ComputeTrackerPoses *parentStage)
     : m_parentStage(parentStage)
     , m_menuState(AppSubStage_CalibrateWithMat::eMenuState::invalid)
+    , m_bIsStable(false)
+    , m_bForceHMDStable(false)
 {
 }
 
@@ -227,7 +229,7 @@ void AppSubStage_CalibrateWithMat::update()
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD:
         {
-            if (HMDView->getIsHMDStableAndAlignedWithGravity())
+            if (HMDView->getIsHMDStableAndAlignedWithGravity() || m_bForceHMDStable)
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 
@@ -257,7 +259,7 @@ void AppSubStage_CalibrateWithMat::update()
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:
         {
             // Only record samples when the controller is stable
-            if (HMDView->getIsHMDStableAndAlignedWithGravity())
+            if (HMDView->getIsHMDStableAndAlignedWithGravity() || m_bForceHMDStable)
             {
                 if (HMDView->getIsHMDTracking() &&
                     m_hmdTrackerPoseContext.worldSpaceSampleCount < k_mat_sample_location_count)
@@ -332,7 +334,6 @@ void AppSubStage_CalibrateWithMat::update()
                 {
                     const int trackerIndex = iter->second.listIndex;
                     const PS3EYETrackerPoseContext &trackerSampleData = m_psmoveTrackerPoseContexts[trackerIndex];
-
                     const PSMovePose trackerPose = trackerSampleData.trackerPose;
 
                     ClientTrackerView *trackerView = iter->second.trackerView;
@@ -385,14 +386,20 @@ void AppSubStage_CalibrateWithMat::render()
                 const ClientTrackerView *TrackerView = m_parentStage->get_render_tracker_view();
                 const ClientControllerView *ControllerView = m_parentStage->m_controllerView;
                 const ClientPSMoveView &PSMoveView = ControllerView->GetPSMoveView();
+                const PSMoveRawTrackerData &RawTrackerData= PSMoveView.GetRawTrackerData();
+                const int TrackerID = TrackerView->getTrackerId();
+
                 PSMoveTrackingProjection trackingProjection;
+                PSMoveScreenLocation centerProjection;
 
                 if (PSMoveView.GetIsCurrentlyTracking() &&
-                    PSMoveView.GetRawTrackerData().GetProjectionOnTrackerId(TrackerView->getTrackerId(), trackingProjection))
+                    RawTrackerData.GetPixelLocationOnTrackerId(TrackerID, centerProjection) &&
+                    RawTrackerData.GetProjectionOnTrackerId(TrackerID, trackingProjection))
                 {
                     const PSMoveFloatVector2 screenSize= TrackerView->getTrackerInfo().tracker_screen_dimensions;
 
                     drawTrackingProjection(
+                        &centerProjection,
                         &trackingProjection,
                         screenSize.i, screenSize.j,
                         glm::vec3(1.f, 1.f, 1.f));
@@ -569,6 +576,11 @@ void AppSubStage_CalibrateWithMat::renderUI()
 
             ImGui::Separator();
 
+            if (ImGui::Button("Trust me, it's stable"))
+            {
+                m_bForceHMDStable= true;
+            }
+            ImGui::SameLine();
             if (ImGui::Button("Cancel"))
             {
                 m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
@@ -674,6 +686,7 @@ void AppSubStage_CalibrateWithMat::onEnterState(
         break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD:
         {
+            m_bForceHMDStable = false;
             m_bIsStable = false;
             m_hmdTrackerPoseContext.worldSpaceSampleCount = 0;
         }
@@ -714,8 +727,14 @@ computeTrackerCameraPose(
         // Add in the psmove calibration origin offset
         cvObjectPoints.push_back(cv::Point3f(worldPoint.x, worldPoint.y, worldPoint.z));
 
-        // Flip the pixel y coordinates
-        cvImagePoints.push_back(cv::Point2f(screenPoint.x, trackerPixelDimensions.j - screenPoint.y));
+        // Convert the tracker screen locations in PSMoveScreenLocation space
+        // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
+        // into OpenCV pixel space
+        // i.e. [0, 0]x[frameWidth, frameHeight]
+        cvImagePoints.push_back(
+            cv::Point2f(
+                screenPoint.x + (trackerPixelDimensions.i / 2), 
+                (trackerPixelDimensions.j / 2) - screenPoint.y));
     }
 
     // Assume no distortion

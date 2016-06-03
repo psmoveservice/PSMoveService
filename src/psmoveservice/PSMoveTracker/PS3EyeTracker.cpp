@@ -39,7 +39,7 @@ PS3EyeTrackerConfig::PS3EyeTrackerConfig(const std::string &fnamebase)
     , exposure(32)
     , gain(32)
     , focalLengthX(554.2563) // pixels
-    , focalLengthY(640.0) // pixels
+    , focalLengthY(554.2563) // pixels
     , principalX(320.0) // pixels
     , principalY(240.0) // pixels
     , hfov(60.0) // degrees
@@ -105,8 +105,8 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
         exposure = pt.get<double>("exposure", 32);
 		gain = pt.get<double>("gain", 32);
-        focalLengthX = pt.get<double>("focalLengthX", 640.0);
-        focalLengthY = pt.get<double>("focalLengthY", 640.0);
+        focalLengthX = pt.get<double>("focalLengthX", 554.2563);
+        focalLengthY = pt.get<double>("focalLengthY", 554.2563);
         principalX = pt.get<double>("principalX", 320.0);
         principalY = pt.get<double>("principalY", 240.0);
         hfov = pt.get<double>("hfov", 60.0);
