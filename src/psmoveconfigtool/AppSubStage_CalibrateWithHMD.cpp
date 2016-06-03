@@ -31,8 +31,12 @@ static bool computeCameraPoseTransform(TrackerCoregistrationData &trackerCoregDa
 AppSubStage_CalibrateWithHMD::AppSubStage_CalibrateWithHMD(
     AppStage_ComputeTrackerPoses *parentStage)
     : m_parentStage(parentStage)
-    , m_menuState(AppSubStage_CalibrateWithHMD::eMenuState::initial)
+    , m_menuState(AppSubStage_CalibrateWithHMD::eMenuState::invalid)
 {
+    for (int tracker_index = 0; tracker_index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++tracker_index)
+    {
+        m_trackerCoreg[tracker_index].clear();
+    }
 }
 
 void AppSubStage_CalibrateWithHMD::enter()
@@ -42,7 +46,7 @@ void AppSubStage_CalibrateWithHMD::enter()
 
 void AppSubStage_CalibrateWithHMD::exit()
 {
-    setState(AppSubStage_CalibrateWithHMD::eMenuState::initial);
+    setState(AppSubStage_CalibrateWithHMD::eMenuState::invalid);
 }
 
 void AppSubStage_CalibrateWithHMD::update()
@@ -53,7 +57,7 @@ void AppSubStage_CalibrateWithHMD::update()
 
     switch (m_menuState)
     {
-    case AppSubStage_CalibrateWithHMD::eMenuState::initial:
+    case AppSubStage_CalibrateWithHMD::eMenuState::invalid:
         break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepAttachPSMove:
         break;
@@ -69,13 +73,8 @@ void AppSubStage_CalibrateWithHMD::update()
             {
                 const int trackerIndex = iter->second.listIndex;
                 const ClientTrackerView *trackerView = iter->second.trackerView;
+
                 TrackerCoregistrationData &trackerCoregData = m_trackerCoreg[trackerIndex];
-
-                if (trackerCoregData.poseCount >= NPOSES)
-                {
-                    continue;
-                }
-
                 PSMovePosition positionOnTracker;
                 if (PSMoveView.GetIsCurrentlyTracking() &&
                     PSMoveView.GetRawTrackerData().GetPositionOnTrackerId(trackerView->getTrackerId(), positionOnTracker) &&
@@ -86,7 +85,7 @@ void AppSubStage_CalibrateWithHMD::update()
                     trackerCoregData.poseCount++;
                 }
 
-                if (trackerCoregData.poseCount >= NPOSES)
+                if (trackerCoregData.poseCount < NPOSES)
                 {
                     bAllTrackersComplete = false;
                 }
@@ -156,7 +155,7 @@ void AppSubStage_CalibrateWithHMD::render()
 {
     switch (m_menuState)
     {
-    case AppSubStage_CalibrateWithHMD::eMenuState::initial:
+    case AppSubStage_CalibrateWithHMD::eMenuState::invalid:
         break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepAttachPSMove:
         {
@@ -164,9 +163,10 @@ void AppSubStage_CalibrateWithHMD::render()
 
             // Offset the models (in cm) just enough so that they look like they are attached
             drawDK2Model(glm::translate(glm::mat4(1.f), glm::vec3(-9.f, 0.f, 0.f)));
-            drawPSMoveModel(glm::translate(glm::mat4(1.f), glm::vec3(2.3f, 9.f, 0.f)) * rotateX90, glm::vec3(1.f, 1.f, 1.f));
+            drawPSMoveModel(glm::translate(glm::mat4(1.f), glm::vec3(2.3f, 0.f, 0.f)) * rotateX90, glm::vec3(1.f, 1.f, 1.f));
         } break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepRecordHmdPSMove:
+    case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepComputeTrackerPoses:
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrateStepSuccess:
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrateStepFailed:
         {
@@ -221,50 +221,52 @@ void AppSubStage_CalibrateWithHMD::renderUI()
 
     switch (m_menuState)
     {
-    case AppSubStage_CalibrateWithHMD::eMenuState::initial:
+    case AppSubStage_CalibrateWithHMD::eMenuState::invalid:
         break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepAttachPSMove:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 50));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 100));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Attach the PSMove to the side of the HMD");
             ImGui::Text("Press Begin when ready to sample poses");
 
+            if (ImGui::Button("Cancel"))
+            {
+                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
+            }
+            ImGui::SameLine();
             if (ImGui::Button("Begin"))
             {
                 setState(AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepRecordHmdPSMove);
             }
 
+            ImGui::End();
+        } break;
+    case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepRecordHmdPSMove:
+        {
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 100));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
+
+            ImGui::Text("Sweep HMD+PSMove around the frustum.");
+            ImGui::Text("Try to cover as much area as possible.");
+
             if (ImGui::Button("Cancel"))
             {
                 m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
             }
+            ImGui::SameLine();
+            if (ImGui::Button("Restart"))
+            {
+                setState(AppSubStage_CalibrateWithHMD::eMenuState::invalid);
+            }
 
             ImGui::End();
         } break;
-    case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepRecordHmdPSMove:
-    {
-        ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-        ImGui::SetNextWindowSize(ImVec2(k_panel_width, 50));
-        ImGui::Begin(k_window_title, nullptr, window_flags);
-
-        ImGui::Text("Sweep HMD+PSMove around the frustum.");
-        ImGui::Text("Try to cover as much area as possible.");
-
-        if (ImGui::Button("Restart"))
-        {
-            setState(AppSubStage_CalibrateWithHMD::eMenuState::initial);
-        }
-
-        if (ImGui::Button("Cancel"))
-        {
-            m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
-        }
-
-        ImGui::End();
-    } break;
+    case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepComputeTrackerPoses:
+        break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrateStepSuccess:
         break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrateStepFailed:
@@ -292,9 +294,10 @@ void AppSubStage_CalibrateWithHMD::onExitState(
 {
     switch (oldState)
     {
-    case AppSubStage_CalibrateWithHMD::eMenuState::initial:
+    case AppSubStage_CalibrateWithHMD::eMenuState::invalid:
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepAttachPSMove:
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepRecordHmdPSMove:
+    case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepComputeTrackerPoses:
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrateStepSuccess:
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrateStepFailed:
         break;
@@ -308,7 +311,7 @@ void AppSubStage_CalibrateWithHMD::onEnterState(
 {
     switch (newState)
     {
-    case AppSubStage_CalibrateWithHMD::eMenuState::initial:
+    case AppSubStage_CalibrateWithHMD::eMenuState::invalid:
         break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepAttachPSMove:
         break;
@@ -319,6 +322,8 @@ void AppSubStage_CalibrateWithHMD::onEnterState(
                 m_trackerCoreg[trackerIndex].clear();
             }
         } break;
+    case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepComputeTrackerPoses:
+        break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrateStepSuccess:
         break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrateStepFailed:

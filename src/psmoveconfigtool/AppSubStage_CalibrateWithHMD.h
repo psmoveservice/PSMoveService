@@ -44,7 +44,7 @@ class AppSubStage_CalibrateWithHMD
 public:
     enum eMenuState
     {
-        initial,
+        invalid,
 
         calibrationStepAttachPSMove,
         calibrationStepRecordHmdPSMove,

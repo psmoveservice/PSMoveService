@@ -115,7 +115,18 @@ void AppStage_ComputeTrackerPoses::update()
     case eMenuState::selectCalibrationType:
         break;
     case eMenuState::calibrateWithHMD:
-        m_pCalibrateWithHMD->update();
+        {
+            m_pCalibrateWithHMD->update();
+
+            if (m_pCalibrateWithHMD->getMenuState() == AppSubStage_CalibrateWithHMD::calibrateStepSuccess)
+            {
+                setState(AppStage_ComputeTrackerPoses::eMenuState::testTracking);
+            }
+            else if (m_pCalibrateWithHMD->getMenuState() == AppSubStage_CalibrateWithHMD::calibrateStepFailed)
+            {
+                setState(AppStage_ComputeTrackerPoses::eMenuState::calibrateStepFailed);
+            }
+        }
         break;
     case eMenuState::calibrateWithMat:
         {
