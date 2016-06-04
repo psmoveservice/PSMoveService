@@ -165,7 +165,7 @@ inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_
 // -- PSMove Controller Config
 // Bump this version when you are making a breaking config change.
 // Simply adding or removing a field is ok and doesn't require a version bump.
-const int PSMoveControllerConfig::CONFIG_VERSION= 1;
+const int PSMoveControllerConfig::CONFIG_VERSION= 2;
 
 const boost::property_tree::ptree
 PSMoveControllerConfig::config2ptree()
@@ -880,7 +880,9 @@ PSMoveController::poll()
             // Mag
             newState.Mag = {0, 0, 0};
             newState.Mag[0] = TWELVE_BIT_SIGNED(((InData->templow_mXhigh & 0x0F) << 8) | InData->mXlow);
-            newState.Mag[1] = TWELVE_BIT_SIGNED((InData->mYhigh << 4) | (InData->mYlow_mZhigh & 0xF0) >> 4);
+            // The magnetometer y-axis is flipped compared to the accelerometer and gyro.
+            // Flip it back around to get it into the same space.
+            newState.Mag[1] = -TWELVE_BIT_SIGNED((InData->mYhigh << 4) | (InData->mYlow_mZhigh & 0xF0) >> 4);
             newState.Mag[2] = TWELVE_BIT_SIGNED(((InData->mYlow_mZhigh & 0x0F) << 8) | InData->mZlow);
 
         
