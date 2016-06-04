@@ -369,8 +369,8 @@ void AppStage_ComputeTrackerPoses::renderUI()
         {
             const int trackerCount = static_cast<int>(m_trackerViews.size());
 
-            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - 450 / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(450.f, (m_trackerViews.size() > 0) ? 150.f : 100.f));
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - 500.f / 2.f, 20.f));
+            ImGui::SetNextWindowSize(ImVec2(500.f, (m_trackerViews.size() > 0) ? 150.f : 100.f));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Verify that your tracking cameras can see the tracking origin");

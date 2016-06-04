@@ -192,7 +192,15 @@ void AppSubStage_CalibrateWithHMD::render()
                 }
             }
 
-            //###HipsterSloth - Render the frustum bounds for each tracker
+            // Render the HMD tracking volume
+            {
+                PSMoveVolume volume;
+
+                if (m_parentStage->m_app->getOpenVRContext()->getHMDTrackingVolume(volume))
+                {
+                    drawTransformedVolume(glm::mat4(1.f), &volume, glm::vec3(0.f, 1.f, 1.f));
+                }
+            }
 
             // Draw the DK2 model
             {
@@ -297,6 +305,8 @@ void AppSubStage_CalibrateWithHMD::onExitState(
     case AppSubStage_CalibrateWithHMD::eMenuState::invalid:
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepAttachPSMove:
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepRecordHmdPSMove:
+        m_parentStage->m_app->setCameraType(_cameraFixed);
+        break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepComputeTrackerPoses:
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrateStepSuccess:
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrateStepFailed:
@@ -321,6 +331,9 @@ void AppSubStage_CalibrateWithHMD::onEnterState(
             {
                 m_trackerCoreg[trackerIndex].clear();
             }
+
+            m_parentStage->m_app->setCameraType(_cameraOrbit);
+            m_parentStage->m_app->getOrbitCamera()->setCameraOrbitLocation(45.f, 30.f, 700.f);
         } break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepComputeTrackerPoses:
         break;
