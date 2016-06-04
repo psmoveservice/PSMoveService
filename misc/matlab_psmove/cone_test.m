@@ -5,6 +5,7 @@ F_PX = 554.2563;  % 75 deg diagonal fov, blue dot
 % 75 diagonal degrees for about 800 diagonal pixels
 % (Actually there are more than 640 x 480 pixels on the sensor)
 % Is about 10 pixels per degree.
+doc_ok = true;
 
 %% Get parameters of ellipse that slices through known cone
 % cone from camera focal point to sphere centre at B
@@ -16,7 +17,7 @@ true_conic_params = ellipseFromSphere(B, R, F_PX);
 % a*x^2 + b*x*y + c*y^2 + d*x + f*y + g = 0
 %Check b*b - 4*a*c < 0
 
-%% Create an ellipse
+%% Create an ellipse on the image
 [truex, truey] = createEllipse(true_conic_params);
 plot(truex, truey, 'LineWidth', 3)
 set(gca, 'PlotBoxAspectRatio', [640 480 1])
@@ -44,19 +45,26 @@ yn = yn(1:floor(length(yn)/8):end);
 scatter(xn, yn, 'o')
 clear xy
 
-%% Solve for the parameters of the noisy ellipse
-fit_conic_params = fitEllipse(xn, yn, 'LSqFit');
-% Sanity check returned parameters
-if length(fit_conic_params) == 5
-    num2str([convertEllipseParameters(true_conic_params); fit_conic_params])
-else
-    num2str([true_conic_params/(true_conic_params(1)); fit_conic_params/fit_conic_params(1)])
-end
-[fitx, fity] = createEllipse(fit_conic_params);
-plot(fitx, fity, 'LineWidth', 3)
+%% Get the sphere position from the pixels
 
-%% Recover our sphere position from these parameters
-test_params = fit_conic_params;
-% test_params = true_conic_params/true_conic_params(1);
-fitB = sphereFromEllipse(test_params, R, F_PX, 'Parametric');
+if doc_ok
+    fitB = spherePosFromPoints(xn, yn, R, F_PX);  %Normalize pixel values
+else
+    
+    %% Solve for the parameters of the noisy ellipse
+    fit_conic_params = fitEllipse(xn, yn, 'LSqFit');
+    % Sanity check returned parameters
+    if length(fit_conic_params) == 5
+        num2str([convertEllipseParameters(true_conic_params); fit_conic_params])
+    else
+        num2str([true_conic_params/(true_conic_params(1)); fit_conic_params/fit_conic_params(1)])
+    end
+    [fitx, fity] = createEllipse(fit_conic_params);
+    plot(fitx, fity, 'LineWidth', 3)
+    
+    %% Recover our sphere position from these parameters
+    test_params = fit_conic_params;
+    % test_params = true_conic_params/true_conic_params(1);
+    fitB = sphereFromEllipse(test_params, R, F_PX, 'Parametric');
+end
 num2str([B; fitB])

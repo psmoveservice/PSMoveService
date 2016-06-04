@@ -6,7 +6,7 @@ function [conic_params] = ellipseFromSphere(B, R, z_pl)
 %
 % Every point on the surface of the cone is a vector A_i
 % A_i can be projected onto B = A_B
-% This yields dot(A, B_u) = norm(A) * norm(B_u) * cos(theta)
+% This yields dot(A, B) = norm(A) * norm(B_u) * cos(theta)
 % (A.*B)^2 - (B.*B)*(A.*A)(cos(theta))^2 = 0
 % (Ax*Bx + Ay*By + Az*Bz)^2 - (Bx^2 + By^2 + Bz^2)(Ax^2 + Ay^2 + Az^2)(cos(theta)^2) = 0
 %
