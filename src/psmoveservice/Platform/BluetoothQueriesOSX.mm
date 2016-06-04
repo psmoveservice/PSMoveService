@@ -42,7 +42,7 @@ macosx_bluetooth_set_powered(bool bPowered)
     
     // Inspired by blueutil from Frederik Seiffert <ego@frederikseiffert.de>
     int desiredPowerState= bPowered ? 1 : 0;
-    int currentPowerState = IOBluetoothPreferenceGetControllerPowerState();
+    int currentPowerState = IOBluetoothPreferenceGetControllerPowerState();  // Is this call necessary? Because return is unused.
     
     IOBluetoothPreferenceSetControllerPowerState(desiredPowerState);
     

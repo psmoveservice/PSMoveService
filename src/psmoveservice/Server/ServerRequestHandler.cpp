@@ -104,7 +104,7 @@ public:
     {
         for (t_connection_state_iter iter= m_connection_state_map.begin(); iter != m_connection_state_map.end(); ++iter)
         {
-            int connection_id= iter->first;
+//            int connection_id= iter->first;
             RequestConnectionStatePtr connection_state= iter->second;
 
             // Update any asynchronous bluetooth requests
@@ -260,7 +260,7 @@ public:
 
         if (iter != m_connection_state_map.end())
         {
-            int connection_id= iter->first;
+//            int connection_id= iter->first;
             RequestConnectionStatePtr connection_state= iter->second;
 
             // Cancel any pending asynchronous bluetooth requests
@@ -581,8 +581,8 @@ protected:
         const RequestContext &context, 
         PSMoveProtocol::Response *response)
     {
-        const int connection_id= context.connection_state->connection_id;
-        const int controller_id= context.request->cancel_bluetooth_request().controller_id();        
+//        const int connection_id= context.connection_state->connection_id;
+        const int controller_id= context.request->cancel_bluetooth_request().controller_id();
 
         if (context.connection_state->pending_bluetooth_request != nullptr)
         {
@@ -609,7 +609,7 @@ protected:
         const RequestContext &context, 
         PSMoveProtocol::Response *response)
     {
-        const int connection_id= context.connection_state->connection_id;
+//        const int connection_id= context.connection_state->connection_id;
         const int controller_id= context.request->set_led_color_request().controller_id();
         const unsigned char r= ServerUtility::int32_to_int8_verify(context.request->set_led_color_request().r());
         const unsigned char g= ServerUtility::int32_to_int8_verify(context.request->set_led_color_request().g());
@@ -640,7 +640,7 @@ protected:
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        const int connection_id = context.connection_state->connection_id;
+//        const int connection_id = context.connection_state->connection_id;
         const int controller_id = context.request->set_led_tracking_color_request().controller_id();
         const eCommonTrackingColorID newColorID=
             static_cast<eCommonTrackingColorID>(context.request->set_led_tracking_color_request().color_type());
@@ -727,7 +727,7 @@ protected:
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        const int connection_id = context.connection_state->connection_id;
+//        const int connection_id = context.connection_state->connection_id;
         const int controller_id = context.request->set_led_tracking_color_request().controller_id();
 
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
@@ -747,7 +747,7 @@ protected:
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        const int connection_id = context.connection_state->connection_id;
+//        const int connection_id = context.connection_state->connection_id;
         const int controller_id = context.request->set_led_tracking_color_request().controller_id();
 
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);

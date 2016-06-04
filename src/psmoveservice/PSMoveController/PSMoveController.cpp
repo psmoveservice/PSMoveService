@@ -290,8 +290,8 @@ PSMoveController::PSMoveController()
     , LedG(0)
     , LedB(0)
     , Rumble(0)
-    , NextPollSequenceNumber(0)
     , bWriteStateDirty(false)
+    , NextPollSequenceNumber(0)
 {
     HIDDetails.Handle = nullptr;
     HIDDetails.Handle_addr = nullptr;

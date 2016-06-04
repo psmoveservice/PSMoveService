@@ -124,9 +124,9 @@ private:
     ControllerPositionEstimation *m_multicam_position_estimation;
     class OrientationFilter *m_orientation_filter;
     class PositionFilter *m_position_filter;
+    int m_lastPollSeqNumProcessed;
     std::chrono::time_point<std::chrono::high_resolution_clock> m_last_filter_update_timestamp;
     bool m_last_filter_update_timestamp_valid;
-    int m_lastPollSeqNumProcessed;
 };
 
 #endif // SERVER_CONTROLLER_VIEW_H

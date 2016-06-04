@@ -295,8 +295,8 @@ void AppStage_ColorCalibration::render()
 
 void AppStage_ColorCalibration::renderUI()
 {
-    const AppStage_TrackerSettings *trackerSettings = m_app->getAppStage<AppStage_TrackerSettings>();
-    const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
+//    const AppStage_TrackerSettings *trackerSettings = m_app->getAppStage<AppStage_TrackerSettings>();
+//    const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
 
     const float k_panel_width = 300.f;
     const char *k_window_title = "Color Calibration";
@@ -602,7 +602,7 @@ void AppStage_ColorCalibration::handle_start_controller_response(
     AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
 
     const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
-    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
+//    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
 
     switch (ResultCode)
     {

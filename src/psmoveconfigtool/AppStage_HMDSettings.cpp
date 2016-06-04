@@ -24,9 +24,9 @@ const int k_max_hmd_list_list = 4;
 AppStage_HMDSettings::AppStage_HMDSettings(App *app) 
     : AppStage(app)
     , m_menuState(AppStage_HMDSettings::inactive)
-    , m_selectedHmdIndex(-1)
     , m_hmdInfos(nullptr)
     , m_hmdListCount(0)
+    , m_selectedHmdIndex(-1)
 { 
     m_hmdInfos = new OpenVRHmdInfo[k_max_hmd_list_list];
 }
@@ -69,7 +69,7 @@ void AppStage_HMDSettings::render()
     {
         if (m_selectedHmdIndex >= 0)
         {
-            const OpenVRHmdInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
+//            const OpenVRHmdInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
 
             //###HipsterSloth $TODO Render the model retrieved from OpenVR
             glm::mat4 scale3 = glm::scale(glm::mat4(1.f), glm::vec3(3.f, 3.f, 3.f));
