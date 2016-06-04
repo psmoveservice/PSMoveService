@@ -182,6 +182,15 @@ void AppStage_ComputeTrackerPoses::render()
                 drawDK2Model(transform);
                 drawTransformedAxes(transform, 10.f);
             }
+
+            {
+                PSMoveVolume volume;
+
+                if (m_app->getOpenVRContext()->getHMDTrackingVolume(volume))
+                {
+                    drawTransformedVolume(glm::mat4(1.f), &volume, glm::vec3(0.f, 1.f, 1.f));
+                }
+            }
         } break;
     case eMenuState::verifyTrackers:
         {
@@ -200,12 +209,12 @@ void AppStage_ComputeTrackerPoses::render()
             // Draw the origin axes
             drawTransformedAxes(glm::mat4(1.0f), 100.f);
 
-            // Draw the HMD
+            // Draw the HMD and tracking volume
             if (m_hmdView != nullptr)
             {
                 // Compute a transform that goes from HMD tracking space to PSMove tracking space
-                PSMovePose tracking_space_pose = m_app->getOpenVRContext()->getHMDTrackingSpaceOrigin();
-                glm::mat4 tracking_space_transform = psmove_pose_to_glm_mat4(tracking_space_pose);
+                PSMovePose hmd_pose_at_origin = m_app->getOpenVRContext()->getHMDPoseAtPSMoveTrackingSpaceOrigin();
+                glm::mat4 tracking_space_transform = psmove_pose_to_glm_mat4(hmd_pose_at_origin);
                 glm::mat4 tracking_space_inv_transform = glm::inverse(tracking_space_transform);
 
                 // Put the HMD transform in PSMove tracking space
@@ -214,6 +223,12 @@ void AppStage_ComputeTrackerPoses::render()
 
                 drawDK2Model(hmd_transform);
                 drawTransformedAxes(hmd_transform, 10.f);
+
+                PSMoveVolume volume;
+                if (m_app->getOpenVRContext()->getHMDTrackingVolume(volume))
+                {
+                    drawTransformedVolume(tracking_space_inv_transform, &volume, glm::vec3(0.f, 1.f, 1.f));
+                }
             }
 
             // Draw the frustum for each tracking camera
@@ -502,6 +517,8 @@ void AppStage_ComputeTrackerPoses::onExitState(eMenuState newState)
     case eMenuState::failedTrackerStartRequest:
         break;
     case eMenuState::verifyHMD:
+        m_app->setCameraType(_cameraFixed);
+        break;
     case eMenuState::verifyTrackers:
     case eMenuState::selectCalibrationType:
         break;
@@ -541,6 +558,7 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
     case eMenuState::failedTrackerStartRequest:
         break;
     case eMenuState::verifyHMD:
+        m_app->setCameraType(_cameraOrbit);
         break;
     case eMenuState::verifyTrackers:
         m_renderTrackerIter = m_trackerViews.begin();
@@ -578,7 +596,8 @@ void AppStage_ComputeTrackerPoses::update_tracker_video()
 
 void AppStage_ComputeTrackerPoses::render_tracker_video()
 {
-    if (m_renderTrackerIter != m_trackerViews.end())
+    if (m_renderTrackerIter != m_trackerViews.end() &&
+        m_renderTrackerIter->second.textureAsset != nullptr)
     {
         drawFullscreenTexture(m_renderTrackerIter->second.textureAsset->texture_id);
     }

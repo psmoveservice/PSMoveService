@@ -35,6 +35,7 @@ private:
 
     eHmdMenuState m_menuState;
     class ClientHMDView *m_hmdView;
+    PSMoveVolume m_hmdVolume;
     int m_lastHmdSeqNum;
 };
 

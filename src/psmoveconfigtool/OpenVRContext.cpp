@@ -2,8 +2,13 @@
 #include "OpenVRContext.h"
 #include "ClientHMDView.h"
 #include "Logger.h"
+#include "GeometryUtility.h"
 
 #include "openvr.h"
+
+//-- constants -----
+const float k_meters_to_centimenters = 100.f;
+const float k_chaperone_height_centimenters = 200.f;
 
 //-- methods -----
 OpenVRContext::OpenVRContext()
@@ -37,10 +42,19 @@ bool OpenVRContext::init()
 
     if (bSuccess)
     {
-        m_pRenderModels = (vr::IVRRenderModels *)vr::VR_GetGenericInterface(vr::IVRRenderModels_Version, &eError);
-        if (!m_pRenderModels)
+        m_pChaperone = (vr::IVRChaperone *)vr::VR_GetGenericInterface(vr::IVRChaperone_Version, &eError);
+        if (m_pChaperone == nullptr)
         {
-            m_pRenderModels = nullptr;
+            Log_ERROR("OpenVRContext::startup", "Unable to get chaperone interface: %s!", vr::VR_GetVRInitErrorAsEnglishDescription(eError));
+            bSuccess = false;
+        }
+    }
+
+    if (bSuccess)
+    {
+        m_pRenderModels = (vr::IVRRenderModels *)vr::VR_GetGenericInterface(vr::IVRRenderModels_Version, &eError);
+        if (m_pRenderModels == nullptr)
+        {
             Log_ERROR("OpenVRContext::startup", "Unable to get render model interface: %s!", vr::VR_GetVRInitErrorAsEnglishDescription(eError));
             bSuccess = false;
         }
@@ -69,6 +83,8 @@ void OpenVRContext::destroy()
     if (m_pVRSystem != nullptr)
     {
         vr::VR_Shutdown();
+        m_pChaperone= nullptr;
+        m_pRenderModels = nullptr;
         m_pVRSystem = nullptr;
     }
 
@@ -81,7 +97,7 @@ void OpenVRContext::update()
     {
         // Fetch the latest tracking data on all tracked devices
         m_pVRSystem->GetDeviceToAbsoluteTrackingPose(
-            vr::TrackingUniverseRawAndUncalibrated,
+            vr::TrackingUniverseStanding,
             0.f, // no prediction needed
             m_pTrackedDevicePoseArray,
             vr::k_unMaxTrackedDeviceCount);
@@ -146,8 +162,8 @@ int OpenVRContext::getHmdList(OpenVRHmdInfo *outHmdList, int maxListSize)
                 OpenVRHmdInfo &entry = outHmdList[listCount];
 
                 entry.clear();
-                entry.rebuild(m_pVRSystem);
                 entry.DeviceIndex = deviceIndex;
+                entry.rebuild(m_pVRSystem);
                 ++listCount;
             }
         }
@@ -210,7 +226,50 @@ void OpenVRContext::setHMDTrackingSpaceOrigin(const struct PSMovePose &pose)
     m_hmdOriginPose = pose;
 }
 
-PSMovePose OpenVRContext::getHMDTrackingSpaceOrigin() const
+PSMovePose OpenVRContext::getHMDPoseAtPSMoveTrackingSpaceOrigin() const
 {
     return m_hmdOriginPose;
+}
+
+bool OpenVRContext::getHMDTrackingSpaceSize(float &outSizeX, float &outSizeZ) const
+{
+    bool bSuccess= false;
+
+    if (m_pChaperone->GetPlayAreaSize(&outSizeX, &outSizeZ))
+    {
+        outSizeX *= k_meters_to_centimenters;
+        outSizeZ *= k_meters_to_centimenters;
+
+        bSuccess = true;
+    }
+
+    return bSuccess;
+}
+
+bool OpenVRContext::getHMDTrackingVolume(PSMoveVolume &volume) const
+{
+    bool bSuccess = false;
+
+    vr::HmdQuad_t rect;
+    if (m_pChaperone->GetPlayAreaRect(&rect))
+    {
+        for (int index = 0; index < 4; ++index)
+        {
+            const vr::HmdVector3_t &openvr_point= rect.vCorners[index];
+            const glm::vec4 glm_point=
+                glm::vec4(
+                    openvr_point.v[0] * k_meters_to_centimenters, 
+                    openvr_point.v[1] * k_meters_to_centimenters,
+                    openvr_point.v[2] * k_meters_to_centimenters,
+                    1.f);
+
+            volume.vertices[index] = PSMovePosition::create(glm_point.x, glm_point.y, glm_point.z);
+        }
+        volume.vertex_count = 4;
+        volume.up_height = k_chaperone_height_centimenters; // Pick the y value for any corner to get the height
+
+        bSuccess = true;
+    }
+
+    return bSuccess;
 }

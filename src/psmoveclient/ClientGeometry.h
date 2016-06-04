@@ -189,6 +189,13 @@ struct CLIENTPSMOVEAPI PSMoveTrackingProjection
     eShapeType shape_type;
 };
 
+struct CLIENTPSMOVEAPI PSMoveVolume
+{
+    PSMovePosition vertices[4];
+    int vertex_count;
+    float up_height;
+};
+
 //-- constants -----
 CLIENTPSMOVEAPI extern const PSMoveIntVector3 *k_psmove_int_vector3_zero;
 CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_zero;

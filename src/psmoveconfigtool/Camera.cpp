@@ -11,6 +11,7 @@
 static const float k_camera_mouse_zoom_scalar= 50.f;
 static const float k_camera_mouse_pan_scalar= 0.5f;
 static const float k_camera_min_zoom= 100.f;
+static const float k_camera_y_offset = 1.f;
 
 //-- public methods -----
 void Camera::onMouseMotion(int deltaX, int deltaY)
@@ -79,10 +80,12 @@ void Camera::setCameraOrbitLocation(float yawDegrees, float pitchDegrees, float 
     const float pitchRadians= degrees_to_radians(m_cameraOrbitPitchDegrees);
     const float xzRadiusAtPitch= m_cameraOrbitRadius*cosf(pitchRadians);
 
-    m_cameraPosition= glm::vec3(
-        xzRadiusAtPitch*sinf(yawRadians),
-        m_cameraOrbitRadius*sinf(pitchRadians),
-        xzRadiusAtPitch*cosf(yawRadians));
+    m_cameraPosition= 
+        glm::vec3(
+            xzRadiusAtPitch*sinf(yawRadians),
+            m_cameraOrbitRadius*sinf(pitchRadians),
+            xzRadiusAtPitch*cosf(yawRadians))
+        + glm::vec3(0.f, k_camera_y_offset, 0.f);
 
     publishCameraViewMatrix();
 }

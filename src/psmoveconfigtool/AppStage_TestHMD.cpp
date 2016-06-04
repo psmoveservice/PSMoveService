@@ -5,6 +5,7 @@
 #include "App.h"
 #include "Camera.h"
 #include "ClientHMDView.h"
+#include "GeometryUtility.h"
 #include "Logger.h"
 #include "OpenVRContext.h"
 #include "MathUtility.h"
@@ -52,7 +53,7 @@ void AppStage_TestHMD::enter()
         m_menuState = eHmdMenuState::failedHmdStartStreamRequest;
     }
 
-    m_app->setCameraType(_cameraFixed);
+    m_app->setCameraType(_cameraOrbit);
 
     m_lastHmdSeqNum = -1;
 }
@@ -88,15 +89,28 @@ void AppStage_TestHMD::render()
 {
      if (m_menuState == eHmdMenuState::idle)
      {
-         PSMovePose pose= m_hmdView->getHmdPose();
-         glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
-         glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
-         glm::mat4 transform = glm_mat4_from_pose(orientation, position);
+        // Render the HMD
+        {
+            PSMovePose pose = m_hmdView->getHmdPose();
+            glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
+            glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
+            glm::mat4 transform = glm_mat4_from_pose(orientation, position);
 
-         drawDK2Model(transform);
-         drawTransformedAxes(transform, 10.f);
+            drawDK2Model(transform);
+            drawTransformedAxes(transform, 10.f);
+        }
 
-         //###HipsterSloth $TODO render tracking camera
+        // Render the HMD tracking volume
+        {
+            PSMoveVolume volume;
+
+            if (m_app->getOpenVRContext()->getHMDTrackingVolume(volume))
+            {
+                drawTransformedVolume(glm::mat4(1.f), &volume, glm::vec3(0.f, 1.f, 1.f));
+            }
+        }
+
+         //###HipsterSloth $TODO render tracking cameras
      }
 }
 

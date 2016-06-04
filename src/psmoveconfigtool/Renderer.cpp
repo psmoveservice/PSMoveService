@@ -481,7 +481,7 @@ void drawTextAtWorldPosition(
                 const_cast<stbtt_bakedchar *>(font->cdata), 
                 font->texture_width, font->texture_height, 
                 char_index, 
-                &screenCoords.x, &screenCoords.y, // x position advances with character by the glyph pixel width
+                &screenCoords.x, &screenCoords.y, // x position advances with character by the glyph pixel widthorbit
                 &glyph_quad,
                 1); // opengl_fillrule= true
             glTexCoord2f(glyph_quad.s0,glyph_quad.t0); glVertex2f(glyph_quad.x0,glyph_quad.y0);
@@ -560,6 +560,8 @@ void drawTrackingProjection(
     float trackerHeight,
     const glm::vec3 &color)
 {
+    assert(Renderer::getIsRenderingStage());
+
     // Clear the depth buffer to allow overdraw 
     glClear(GL_DEPTH_BUFFER_BIT);
 
@@ -637,6 +639,38 @@ void drawTrackingProjection(
 
     // Restore the modelview matrix
     glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+}
+
+void drawTransformedVolume(const glm::mat4 &transform, const PSMoveVolume *volume, const glm::vec3 &color)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+        glColor3fv(glm::value_ptr(color));
+
+        glBegin(GL_LINES);
+
+        int previous_index= volume->vertex_count - 1;
+        for (int index = 0; index < volume->vertex_count; ++index)
+        {
+            const PSMovePosition &previous_vert = volume->vertices[previous_index];
+            const PSMovePosition &vert = volume->vertices[index];
+
+            glm::vec3 prev_lower(previous_vert.x, previous_vert.y, previous_vert.z);
+            glm::vec3 prev_upper(previous_vert.x, previous_vert.y + volume->up_height, previous_vert.z);
+            glm::vec3 lower(vert.x, vert.y, vert.z);
+            glm::vec3 upper(vert.x, vert.y + volume->up_height, vert.z);
+
+            glVertex3fv(glm::value_ptr(prev_lower)); glVertex3fv(glm::value_ptr(lower));
+            glVertex3fv(glm::value_ptr(prev_upper)); glVertex3fv(glm::value_ptr(upper));
+            glVertex3fv(glm::value_ptr(lower)); glVertex3fv(glm::value_ptr(upper));
+
+            previous_index= index;
+        }
+
+        glEnd();
     glPopMatrix();
 }
 

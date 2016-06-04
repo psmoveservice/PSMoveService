@@ -11,6 +11,7 @@ namespace vr
     class IVRSystem;
     class IVRCompositor;
     class IVRRenderModels;
+    class IVRChaperone;
 
     struct VREvent_t;
     struct TrackedDevicePose_t;
@@ -40,8 +41,10 @@ public:
     ClientHMDView *allocateHmdView();
     void freeHmdView(ClientHMDView *view);
 
-    void setHMDTrackingSpaceOrigin(const struct PSMovePose &pose);
-    PSMovePose getHMDTrackingSpaceOrigin() const;
+    void setHMDTrackingSpaceOrigin(const PSMovePose &pose);
+    PSMovePose getHMDPoseAtPSMoveTrackingSpaceOrigin() const;
+    bool getHMDTrackingSpaceSize(float &outWidth, float &outHeight) const;
+    bool getHMDTrackingVolume(PSMoveVolume &volume) const;
 
 private:
     bool m_bIsInitialized;
@@ -49,6 +52,7 @@ private:
 
     vr::IVRSystem *m_pVRSystem;
     vr::IVRRenderModels *m_pRenderModels;
+    vr::IVRChaperone *m_pChaperone;
     vr::TrackedDevicePose_t *m_pTrackedDevicePoseArray;
     ClientHMDView *m_hmdView;
 
