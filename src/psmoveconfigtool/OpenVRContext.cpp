@@ -97,7 +97,7 @@ void OpenVRContext::update()
     {
         // Fetch the latest tracking data on all tracked devices
         m_pVRSystem->GetDeviceToAbsoluteTrackingPose(
-            vr::TrackingUniverseStanding,
+            vr::TrackingUniverseRawAndUncalibrated,
             0.f, // no prediction needed
             m_pTrackedDevicePoseArray,
             vr::k_unMaxTrackedDeviceCount);

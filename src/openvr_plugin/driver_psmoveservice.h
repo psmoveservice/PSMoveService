@@ -33,11 +33,11 @@ public:
 
     void LaunchPSMoveConfigTool();
 
-    inline PSMovePose GetHMDTrackingOrigin() const { return m_hmdTrackingOrigin; }
+    inline PSMovePose GetWorldFromDriverPose() const { return m_worldFromDriverPose; }
 
 private:
-    void AllocateUniquePSMoveController(int ControllerID, bool bNotifyServer);
-    void AllocateUniquePSMoveTracker(const ClientTrackerInfo &trackerInfo, bool bNotifyServer);
+    void AllocateUniquePSMoveController(int ControllerID);
+    void AllocateUniquePSMoveTracker(const ClientTrackerInfo &trackerInfo);
     bool ReconnectToPSMoveService();
 
     // Event Handling
@@ -66,7 +66,7 @@ private:
     std::vector< CPSMoveTrackedDeviceLatest * > m_vecTrackedDevices;
 
     // HMD Tracking Space
-    PSMovePose m_hmdTrackingOrigin;
+    PSMovePose m_worldFromDriverPose;
 };
 
 class CClientDriver_PSMoveService : public vr::IClientTrackedDeviceProvider
@@ -112,6 +112,7 @@ public:
     virtual vr::ETrackedDeviceClass GetTrackedDeviceClass() const;
     virtual bool IsActivated() const;
     virtual void Update();
+    virtual void RefreshWorldFromDriverPose();
     virtual const char *GetSerialNumber() const;
 
 protected:
@@ -128,10 +129,6 @@ protected:
     vr::DriverPose_t m_Pose;
     unsigned short m_firmware_revision;
     unsigned short m_hardware_revision;
-
-    // Ancillary tracking state
-    PSMoveFloatVector3 m_WorldFromDriverTranslation;
-    PSMoveQuaternion m_WorldFromDriverRotation;
 };
 
 class CPSMoveControllerLatest : public CPSMoveTrackedDeviceLatest, public vr::IVRControllerComponent
@@ -154,16 +151,17 @@ public:
     virtual bool TriggerHapticPulse( uint32_t unAxisId, uint16_t usPulseDurationMicroseconds ) override;
 
     static const vr::EVRButtonId k_EButton_PS = vr::k_EButton_System;
-    static const vr::EVRButtonId k_EButton_Move = vr::k_EButton_Grip;
-    static const vr::EVRButtonId k_EButton_Trigger = vr::k_EButton_Axis0;
-    static const vr::EVRButtonId k_EButton_Cross = vr::k_EButton_ApplicationMenu;
-    static const vr::EVRButtonId k_EButton_Triangle = (vr::EVRButtonId)7;
-    static const vr::EVRButtonId k_EButton_Circle = (vr::EVRButtonId)8;
-    static const vr::EVRButtonId k_EButton_Square = (vr::EVRButtonId)9;
-    static const vr::EVRButtonId k_EButton_Select = (vr::EVRButtonId)10;
-    static const vr::EVRButtonId k_EButton_Start = (vr::EVRButtonId)11;
+    static const vr::EVRButtonId k_EButton_Move = vr::k_EButton_SteamVR_Touchpad;
+    static const vr::EVRButtonId k_EButton_Trigger = vr::k_EButton_SteamVR_Trigger;
+    static const vr::EVRButtonId k_EButton_Triangle = vr::k_EButton_ApplicationMenu;
+    static const vr::EVRButtonId k_EButton_Square = vr::k_EButton_Dashboard_Back;
+    static const vr::EVRButtonId k_EButton_Circle = vr::k_EButton_A;
+    static const vr::EVRButtonId k_EButton_Cross = (vr::EVRButtonId)8;
+    static const vr::EVRButtonId k_EButton_Select = (vr::EVRButtonId)9;
+    static const vr::EVRButtonId k_EButton_Start = (vr::EVRButtonId)10;
 
     // Overridden Implementation of CPSMoveTrackedDeviceLatest
+    virtual vr::ETrackedDeviceClass GetTrackedDeviceClass() const override { return vr::TrackedDeviceClass_Controller; }
     virtual void Update() override;
 
     bool HasControllerId(int ControllerID);
@@ -194,9 +192,6 @@ private:
     uint16_t m_pendingHapticPulseDuration;
     uint16_t m_sentHapticPulseDuration;
     std::chrono::time_point<std::chrono::high_resolution_clock> m_lastTimeRumbleSent;
-
-    // The rendermodel used by the device. Check the contents of "c:\Program Files (x86)\Steam\steamapps\common\OpenVR\resources\rendermodels" for available models.
-    std::string m_strRenderModel;
 };
 
 class CPSMoveTrackerLatest : public CPSMoveTrackedDeviceLatest
@@ -206,9 +201,15 @@ public:
     virtual ~CPSMoveTrackerLatest();
 
     // Overridden Implementation of vr::ITrackedDeviceServerDriver
+    virtual vr::EVRInitError Activate(uint32_t unObjectId) override;
+    virtual void Deactivate() override;
     virtual float GetFloatTrackedDeviceProperty(vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError) override;
     virtual int32_t GetInt32TrackedDeviceProperty(vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError) override;
     virtual uint32_t GetStringTrackedDeviceProperty(vr::ETrackedDeviceProperty prop, char * pchValue, uint32_t unBufferSize, vr::ETrackedPropertyError * pError) override;
+
+    // Overridden Implementation of CPSMoveTrackedDeviceLatest
+    virtual vr::ETrackedDeviceClass GetTrackedDeviceClass() const override { return vr::TrackedDeviceClass_TrackingReference; }
+    virtual void Update() override;
 
     bool HasTrackerId(int ControllerID);
     void SetClientTrackerInfo(const ClientTrackerInfo &trackerInfo);
@@ -219,14 +220,4 @@ private:
 
     // The static information about this tracker
     ClientTrackerInfo m_tracker_info;
-
-    // To main structures for passing state to vrserver
-    vr::DriverPose_t m_Pose;
-
-    // Ancillary tracking state
-    PSMoveFloatVector3 m_WorldFromDriverTranslation;
-    PSMoveQuaternion m_WorldFromDriverRotation;
-
-    // The rendermodel used by the device. Check the contents of "c:\Program Files (x86)\Steam\steamapps\common\OpenVR\resources\rendermodels" for available models.
-    std::string m_strRenderModel;
 };

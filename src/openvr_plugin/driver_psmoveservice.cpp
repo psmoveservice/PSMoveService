@@ -120,21 +120,14 @@ vr::EVRInitError CServerDriver_PSMoveService::Init(
     InitDriverLog( pDriverLog );
     m_pDriverHost = pDriverHost;
     m_strDriverInstallDir = pchDriverInstallDir;
-    m_hmdTrackingOrigin = *k_psmove_pose_identity;
+    
+    // By default, assume the psmove and openvr tracking spaces are the same
+    m_worldFromDriverPose.Clear();
     
     // Note that reconnection is a non-blocking async request.
     // Returning true means we we're able to start trying to connect,
     // not that we are successfully connected yet.
-    if (ReconnectToPSMoveService())
-    {
-        // By default, allocate one tracked device slot.
-        // The allocated slot won't be considered connected until we get data back from
-        // the service about its connection status.
-        // If we get a tracked devices list update and there turn out to be more than one
-        // tracked devices, we'll allocate additional slots as needed.
-        AllocateUniquePSMoveController(0, false);
-    }
-    else
+    if (!ReconnectToPSMoveService())
     {
         initError= vr::VRInitError_Driver_Failed;
     }
@@ -289,6 +282,10 @@ void CServerDriver_PSMoveService::HandleClientPSMoveEvent(
 
 void CServerDriver_PSMoveService::HandleConnectedToPSMoveService()
 {
+    // Ask for the HMD tracking space configuration
+    // Response handled in HandleHMDTrackingSpaceReponse()
+    ClientPSMoveAPI::get_hmd_tracking_space_settings();
+
     // Ask the service for a list of connected controllers
     // Response handled in HandleControllerListReponse()
     ClientPSMoveAPI::get_controller_list();
@@ -296,10 +293,6 @@ void CServerDriver_PSMoveService::HandleConnectedToPSMoveService()
     // Ask the service for a list of connected trackers
     // Response handled in HandleTrackerListReponse()
     ClientPSMoveAPI::get_tracker_list();
-
-    // Ask for the HMD tracking space configuration
-    // Response handled in HandleHMDTrackingSpaceReponse()
-    ClientPSMoveAPI::get_hmd_tracking_space_settings();
 }
 
 void CServerDriver_PSMoveService::HandleFailedToConnectToPSMoveService()
@@ -341,6 +334,11 @@ void CServerDriver_PSMoveService::HandleClientPSMoveResponse(
 {
     switch (response->payload_type)
     {
+    case ClientPSMoveAPI::_responsePayloadType_Empty:
+        DriverLog("NotifyClientPSMoveResponse - request id %d returned result %s.\n",
+            response->request_id, 
+            (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok) ? "ok" : "error");
+        break;
     case ClientPSMoveAPI::_responsePayloadType_ControllerList:
         DriverLog("NotifyClientPSMoveResponse - Controller Count = %d (request id %d).\n", 
             response->payload.controller_list.count, response->request_id);
@@ -371,14 +369,14 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
         switch (controller_type)
         {
         case ClientControllerView::PSMove:
-            AllocateUniquePSMoveController(controller_id, true);
+            AllocateUniquePSMoveController(controller_id);
             break;
         //TODO
         //case ClientControllerView::PSNavi:
-        //    AllocateUniquePSNaviController(controller_id, true);
+        //    AllocateUniquePSNaviController(controller_id);
         //TODO
         //case ClientControllerView::DualShock4:
-        //    AllocateUniqueDualShock4Controller(controller_id, true);
+        //    AllocateUniqueDualShock4Controller(controller_id);
             break;
         default:
             break;
@@ -393,14 +391,23 @@ void CServerDriver_PSMoveService::HandleTrackerListReponse(
     {
         const ClientTrackerInfo &trackerInfo = tracker_list->trackers[list_index];
 
-        AllocateUniquePSMoveTracker(trackerInfo, true);
+        AllocateUniquePSMoveTracker(trackerInfo);
     }
 }
 
 void CServerDriver_PSMoveService::HandleHMDTrackingSpaceReponse(
     const ClientPSMoveAPI::ResponsePayload_HMDTrackingSpace *hmdTrackingSpace)
 {
-    m_hmdTrackingOrigin= hmdTrackingSpace->origin_pose;
+    m_worldFromDriverPose= hmdTrackingSpace->origin_pose;
+
+    // Tell all the devices that the relationship between the psmove and the OpenVR
+    // tracking spaces changed
+    for (auto it = m_vecTrackedDevices.begin(); it != m_vecTrackedDevices.end(); ++it)
+    {
+        CPSMoveTrackedDeviceLatest *pDevice = *it;
+
+        pDevice->RefreshWorldFromDriverPose();
+    }
 }
 
 static void GenerateControllerSerialNumber( char *p, int psize, int controller )
@@ -408,7 +415,7 @@ static void GenerateControllerSerialNumber( char *p, int psize, int controller )
     snprintf(p, psize, "psmove_controller%d", controller);
 }
 
-void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerID, bool bNotifyServer)
+void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerID)
 {
     char buf[256];
     GenerateControllerSerialNumber(buf, sizeof(buf), ControllerID);
@@ -418,7 +425,7 @@ void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerI
         DriverLog( "added new psmove controller %s\n", buf );
         m_vecTrackedDevices.push_back( new CPSMoveControllerLatest( m_pDriverHost, ControllerID ) );
 
-        if ( bNotifyServer && m_pDriverHost )
+        if (m_pDriverHost)
         {
             m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSerialNumber());
         }
@@ -430,7 +437,7 @@ static void GenerateTrackerSerialNumber(char *p, int psize, int tracker)
     snprintf(p, psize, "psmove_tracker%d", tracker);
 }
 
-void CServerDriver_PSMoveService::AllocateUniquePSMoveTracker(const ClientTrackerInfo &trackerInfo, bool bNotifyServer)
+void CServerDriver_PSMoveService::AllocateUniquePSMoveTracker(const ClientTrackerInfo &trackerInfo)
 {
     char buf[256];
     GenerateTrackerSerialNumber(buf, sizeof(buf), trackerInfo.tracker_id);
@@ -440,7 +447,7 @@ void CServerDriver_PSMoveService::AllocateUniquePSMoveTracker(const ClientTracke
         DriverLog("added new device %s\n", buf);
         m_vecTrackedDevices.push_back(new CPSMoveTrackerLatest(m_pDriverHost, trackerInfo));
 
-        if (bNotifyServer && m_pDriverHost)
+        if (m_pDriverHost)
         {
             m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSerialNumber());
         }
@@ -566,20 +573,14 @@ CPSMoveTrackedDeviceLatest::CPSMoveTrackedDeviceLatest(vr::IServerDriverHost * p
     memset(&m_Pose, 0, sizeof(m_Pose));
     m_Pose.result = vr::TrackingResult_Uninitialized;
 
-    // Cache off the transform from psmove tracking space to openvr tracking space
-    // (recorded during tracker calibration)
-    {
-        const PSMovePose hmdTrackingOrigin = g_ServerTrackedDeviceProvider.GetHMDTrackingOrigin();
-
-        m_WorldFromDriverTranslation.i = hmdTrackingOrigin.Position.x;
-        m_WorldFromDriverTranslation.j = hmdTrackingOrigin.Position.y;
-        m_WorldFromDriverTranslation.k = hmdTrackingOrigin.Position.z;
-
-        m_WorldFromDriverRotation.w = hmdTrackingOrigin.Orientation.w;
-        m_WorldFromDriverRotation.x = hmdTrackingOrigin.Orientation.x;
-        m_WorldFromDriverRotation.y = hmdTrackingOrigin.Orientation.y;
-        m_WorldFromDriverRotation.z = hmdTrackingOrigin.Orientation.z;
-    }
+    // By default, assume that the tracked devices are in the tracking space as OpenVR
+    m_Pose.qWorldFromDriverRotation.w = 1.f;
+    m_Pose.qWorldFromDriverRotation.x = 0.f;
+    m_Pose.qWorldFromDriverRotation.y = 0.f;
+    m_Pose.qWorldFromDriverRotation.z = 0.f;
+    m_Pose.vecWorldFromDriverTranslation[0] = 0.f;
+    m_Pose.vecWorldFromDriverTranslation[1] = 0.f;
+    m_Pose.vecWorldFromDriverTranslation[2] = 0.f;
 
     m_firmware_revision = 0x0001;
     m_hardware_revision = 0x0001;
@@ -778,6 +779,20 @@ void CPSMoveTrackedDeviceLatest::Update()
 
 }
 
+void CPSMoveTrackedDeviceLatest::RefreshWorldFromDriverPose()
+{
+    const PSMovePose worldFromDriverPose = g_ServerTrackedDeviceProvider.GetWorldFromDriverPose();
+
+    // Transform used to convert from PSMove Tracking space to OpenVR Tracking Space
+    m_Pose.qWorldFromDriverRotation.w = worldFromDriverPose.Orientation.w;
+    m_Pose.qWorldFromDriverRotation.x = worldFromDriverPose.Orientation.x;
+    m_Pose.qWorldFromDriverRotation.y = worldFromDriverPose.Orientation.y;
+    m_Pose.qWorldFromDriverRotation.z = worldFromDriverPose.Orientation.z;
+    m_Pose.vecWorldFromDriverTranslation[0] = worldFromDriverPose.Position.x * k_fScalePSMoveAPIToMeters;
+    m_Pose.vecWorldFromDriverTranslation[1] = worldFromDriverPose.Position.y * k_fScalePSMoveAPIToMeters;
+    m_Pose.vecWorldFromDriverTranslation[2] = worldFromDriverPose.Position.z * k_fScalePSMoveAPIToMeters;
+}
+
 const char *CPSMoveTrackedDeviceLatest::GetSerialNumber() const
 {
     return m_strSerialNumber.c_str();
@@ -807,13 +822,8 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
     m_fBatteryChargeFraction= 1.f;
 
     // Load config from steamvr.vrsettings
-    vr::IVRSettings *settings_;
-    settings_ = m_pDriverHost->GetSettings(vr::IVRSettings_Version);
-    char tmp_[32];
-
-    // renderModel: assign a rendermodel
-    settings_->GetString("psmove", "renderModel", tmp_, sizeof(tmp_), "vr_controller_vive_1_5");
-    m_strRenderModel.assign(tmp_, sizeof(tmp_));
+    //vr::IVRSettings *settings_;
+    //settings_ = m_pDriverHost->GetSettings(vr::IVRSettings_Version);
 }
 
 CPSMoveControllerLatest::~CPSMoveControllerLatest()
@@ -827,7 +837,13 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(uint32_t unObjectId)
 
     if (result == vr::VRInitError_None)
     {
-        ClientPSMoveAPI::start_controller_data_stream(m_controller_view, ClientPSMoveAPI::includePhysicsData);
+        // Poll the latest WorldFromDriverPose transform we got from the service
+        // Transform used to convert from PSMove Tracking space to OpenVR Tracking Space
+        RefreshWorldFromDriverPose();
+
+        ClientPSMoveAPI::start_controller_data_stream(
+            m_controller_view, 
+            ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includePhysicsData);
     }
 
     return result;
@@ -978,9 +994,7 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
         // in the driver's own resources/rendermodels directory.  The driver can
         // still refer to SteamVR models like "generic_hmd".
         //ssRetVal << "{psmove}psmove_controller";
-
-        // We return the user configured rendermodel here. Defaults to "{psmove}psmove_controller".
-        ssRetVal << m_strRenderModel.c_str();
+        ssRetVal << "vr_controller_vive_1_5";
         break;
     }
 
@@ -1063,7 +1077,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
         NewState.ulButtonPressed |= vr::ButtonMaskFromId(k_EButton_Start);
     if (clientView.GetButtonTriangle())
         NewState.ulButtonPressed |= vr::ButtonMaskFromId(k_EButton_Triangle);
-    if (clientView.GetButtonTrigger())
+    if (clientView.GetTriggerValue() > 0.9f)
         NewState.ulButtonPressed |= vr::ButtonMaskFromId(k_EButton_Trigger);
 
     // All pressed buttons are touched
@@ -1111,15 +1125,6 @@ void CPSMoveControllerLatest::UpdateTrackingState()
             // No prediction since that's already handled in the psmove service
             m_Pose.poseTimeOffset = 0.f;
 
-            // Transform used to convert from PSMove Tracking space to OpenVR Tracking Space
-            m_Pose.qWorldFromDriverRotation.w = m_WorldFromDriverRotation.w;
-            m_Pose.qWorldFromDriverRotation.x = m_WorldFromDriverRotation.x;
-            m_Pose.qWorldFromDriverRotation.y = m_WorldFromDriverRotation.y;
-            m_Pose.qWorldFromDriverRotation.z = m_WorldFromDriverRotation.z;
-            m_Pose.vecWorldFromDriverTranslation[0] = m_WorldFromDriverTranslation.i;
-            m_Pose.vecWorldFromDriverTranslation[1] = m_WorldFromDriverTranslation.j;
-            m_Pose.vecWorldFromDriverTranslation[2] = m_WorldFromDriverTranslation.k;
-
             // No transform due to the current HMD orientation
             m_Pose.qDriverFromHeadRotation.w = 1.f;
             m_Pose.qDriverFromHeadRotation.x = 0.0f;
@@ -1152,21 +1157,40 @@ void CPSMoveControllerLatest::UpdateTrackingState()
             {
                 const PSMovePhysicsData &physicsData= view.GetPhysicsData();
 
-                m_Pose.vecVelocity[0] = physicsData.Velocity.i;
-                m_Pose.vecVelocity[1] = physicsData.Velocity.j;
-                m_Pose.vecVelocity[2] = physicsData.Velocity.k;
+                // The physics coming from the server is jacked up right now
+                // so until I can figure out what's going on, let's just disabme it for now
 
-                m_Pose.vecAcceleration[0] = physicsData.Acceleration.i;
-                m_Pose.vecAcceleration[1] = physicsData.Acceleration.j;
-                m_Pose.vecAcceleration[2] = physicsData.Acceleration.k;
+                //m_Pose.vecVelocity[0] = physicsData.Velocity.i * k_fScalePSMoveAPIToMeters;
+                //m_Pose.vecVelocity[1] = physicsData.Velocity.j * k_fScalePSMoveAPIToMeters;
+                //m_Pose.vecVelocity[2] = physicsData.Velocity.k * k_fScalePSMoveAPIToMeters;
 
-                m_Pose.vecAngularVelocity[0] = physicsData.AngularVelocity.i;
-                m_Pose.vecAngularVelocity[1] = physicsData.AngularVelocity.j;
-                m_Pose.vecAngularVelocity[2] = physicsData.AngularVelocity.k;
+                //m_Pose.vecAcceleration[0] = physicsData.Acceleration.i * k_fScalePSMoveAPIToMeters;
+                //m_Pose.vecAcceleration[1] = physicsData.Acceleration.j * k_fScalePSMoveAPIToMeters;
+                //m_Pose.vecAcceleration[2] = physicsData.Acceleration.k * k_fScalePSMoveAPIToMeters;
 
-                m_Pose.vecAngularAcceleration[0] = physicsData.AngularAcceleration.i;
-                m_Pose.vecAngularAcceleration[1] = physicsData.AngularAcceleration.j;
-                m_Pose.vecAngularAcceleration[2] = physicsData.AngularAcceleration.k;
+                //m_Pose.vecAngularVelocity[0] = physicsData.AngularVelocity.i;
+                //m_Pose.vecAngularVelocity[1] = physicsData.AngularVelocity.j;
+                //m_Pose.vecAngularVelocity[2] = physicsData.AngularVelocity.k;
+
+                //m_Pose.vecAngularAcceleration[0] = physicsData.AngularAcceleration.i;
+                //m_Pose.vecAngularAcceleration[1] = physicsData.AngularAcceleration.j;
+                //m_Pose.vecAngularAcceleration[2] = physicsData.AngularAcceleration.k;
+
+                m_Pose.vecVelocity[0] = 0.f;
+                m_Pose.vecVelocity[1] = 0.f;
+                m_Pose.vecVelocity[2] = 0.f;
+
+                m_Pose.vecAcceleration[0] = 0.f;
+                m_Pose.vecAcceleration[1] = 0.f;
+                m_Pose.vecAcceleration[2] = 0.f;
+
+                m_Pose.vecAngularVelocity[0] = 0.f;
+                m_Pose.vecAngularVelocity[1] = 0.f;
+                m_Pose.vecAngularVelocity[2] = 0.f;
+
+                m_Pose.vecAngularAcceleration[0] = 0.f;
+                m_Pose.vecAngularAcceleration[1] = 0.f;
+                m_Pose.vecAngularAcceleration[2] = 0.f;
             }
 
             m_Pose.poseIsValid = view.GetIsCurrentlyTracking();
@@ -1222,6 +1246,8 @@ bool CPSMoveControllerLatest::HasControllerId( int ControllerID )
 
 void CPSMoveControllerLatest::Update()
 {
+    CPSMoveTrackedDeviceLatest::Update();
+
     if (IsActivated() && m_controller_view->GetIsConnected())
     {
         int seq_num= m_controller_view->GetSequenceNum();
@@ -1255,16 +1281,29 @@ CPSMoveTrackerLatest::CPSMoveTrackerLatest(vr::IServerDriverHost * pDriverHost, 
     SetClientTrackerInfo(trackerInfo);
 
     // Load config from steamvr.vrsettings
-    vr::IVRSettings *settings_;
-    settings_ = m_pDriverHost->GetSettings(vr::IVRSettings_Version);
-    char tmp_[32];
-
-    // renderModel: assign a rendermodel
-    settings_->GetString("psmove", "renderModel", tmp_, sizeof(tmp_), "vr_controller_vive_1_5");
-    m_strRenderModel.assign(tmp_, sizeof(tmp_));
+    //vr::IVRSettings *settings_;
+    //settings_ = m_pDriverHost->GetSettings(vr::IVRSettings_Version);
 }
 
 CPSMoveTrackerLatest::~CPSMoveTrackerLatest()
+{
+}
+
+vr::EVRInitError CPSMoveTrackerLatest::Activate(uint32_t unObjectId)
+{
+    vr::EVRInitError result = CPSMoveTrackedDeviceLatest::Activate(unObjectId);
+
+    if (result == vr::VRInitError_None)
+    {
+        // Poll the latest WorldFromDriverPose transform we got from the service
+        // Transform used to convert from PSMove Tracking space to OpenVR Tracking Space
+        RefreshWorldFromDriverPose();
+    }
+
+    return result;
+}
+
+void CPSMoveTrackerLatest::Deactivate()
 {
 }
 
@@ -1278,12 +1317,12 @@ float CPSMoveTrackerLatest::GetFloatTrackedDeviceProperty(
     {
     case vr::Prop_FieldOfViewLeftDegrees_Float:
     case vr::Prop_FieldOfViewRightDegrees_Float:
-        floatResult = (m_tracker_info.tracker_hfov / 2.f) * k_fRadiansToDegrees;
+        floatResult = (m_tracker_info.tracker_hfov / 2.f);
         *pError = vr::TrackedProp_Success;
         break;
     case vr::Prop_FieldOfViewTopDegrees_Float:
     case vr::Prop_FieldOfViewBottomDegrees_Float:
-        floatResult = (m_tracker_info.tracker_vfov / 2.f) * k_fRadiansToDegrees;
+        floatResult = (m_tracker_info.tracker_vfov / 2.f);
         *pError = vr::TrackedProp_Success;
         break;
     case vr::Prop_TrackingRangeMinimumMeters_Float:
@@ -1324,14 +1363,9 @@ void CPSMoveTrackerLatest::SetClientTrackerInfo(
     // No prediction since that's already handled in the psmove service
     m_Pose.poseTimeOffset = 0.f;
 
+    // Poll the latest WorldFromDriverPose transform we got from the service
     // Transform used to convert from PSMove Tracking space to OpenVR Tracking Space
-    m_Pose.qWorldFromDriverRotation.w = m_WorldFromDriverRotation.w;
-    m_Pose.qWorldFromDriverRotation.x = m_WorldFromDriverRotation.x;
-    m_Pose.qWorldFromDriverRotation.y = m_WorldFromDriverRotation.y;
-    m_Pose.qWorldFromDriverRotation.z = m_WorldFromDriverRotation.z;
-    m_Pose.vecWorldFromDriverTranslation[0] = m_WorldFromDriverTranslation.i;
-    m_Pose.vecWorldFromDriverTranslation[1] = m_WorldFromDriverTranslation.j;
-    m_Pose.vecWorldFromDriverTranslation[2] = m_WorldFromDriverTranslation.k;
+    RefreshWorldFromDriverPose();
 
     // No transform due to the current HMD orientation
     m_Pose.qDriverFromHeadRotation.w = 1.f;
@@ -1362,6 +1396,15 @@ void CPSMoveTrackerLatest::SetClientTrackerInfo(
     }
 
     m_Pose.poseIsValid = true;
+}
+
+void CPSMoveTrackerLatest::Update()
+{
+    CPSMoveTrackedDeviceLatest::Update();
+
+    // This call posts this pose to shared memory, where all clients will have access to it the next
+    // moment they want to predict a pose.
+    m_pDriverHost->TrackedDevicePoseUpdated(m_unSteamVRTrackedDeviceId, m_Pose);
 }
 
 int32_t CPSMoveTrackerLatest::GetInt32TrackedDeviceProperty(
@@ -1404,10 +1447,8 @@ uint32_t CPSMoveTrackerLatest::GetStringTrackedDeviceProperty(
         // The {psmove} syntax lets us refer to rendermodels that are installed
         // in the driver's own resources/rendermodels directory.  The driver can
         // still refer to SteamVR models like "generic_hmd".
-        //ssRetVal << "{psmove}psmove_controller";
-
-        // We return the user configured rendermodel here. Defaults to "{psmove}psmove_controller".
-        ssRetVal << m_strRenderModel.c_str();
+        //ssRetVal << "ps3eye_tracker";
+        ssRetVal << "generic_tracker";
         break;
 
     case vr::Prop_ModeLabel_String:
