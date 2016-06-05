@@ -353,21 +353,30 @@ bool PS3EyeTracker::getVideoFrameDimensions(
             int format = static_cast<int>(VideoCapture->get(cv::CAP_PROP_FORMAT));
             int bytes_per_pixel;
 
-            switch (format)
+            if (format != -1)
             {
-            case cv::CAP_MODE_BGR:
-            case cv::CAP_MODE_RGB:
+                switch (format)
+                {
+                case cv::CAP_MODE_BGR:
+                case cv::CAP_MODE_RGB:
+                    bytes_per_pixel = 3;
+                    break;
+                case cv::CAP_MODE_YUYV:
+                    bytes_per_pixel = 2;
+                    break;
+                case cv::CAP_MODE_GRAY:
+                    bytes_per_pixel = 1;
+                    break;
+                default:
+                    assert(false && "Unknown video format?");
+                    break;
+                }
+            }
+            else
+            {
+                // Assume RGB?
+                SERVER_LOG_ERROR("PS3EyeTracker::getVideoFrameDimensions") << "Unknown video format for camera" << USBDevicePath << ")";
                 bytes_per_pixel = 3;
-                break;
-            case cv::CAP_MODE_YUYV:
-                bytes_per_pixel = 2;
-                break;
-            case cv::CAP_MODE_GRAY:
-                bytes_per_pixel = 1;
-                break;
-            default:
-                assert(false && "Unknown video format?");
-                break;
             }
 
             *out_stride = bytes_per_pixel * width;
