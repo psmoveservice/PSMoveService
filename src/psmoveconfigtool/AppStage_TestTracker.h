@@ -22,8 +22,8 @@ public:
 
     static const char *APP_STAGE_NAME;
 
-    void request_tracker_start_stream(int trackerID);
-    void request_tracker_stop_stream(int trackerID);
+    void request_tracker_start_stream();
+    void request_tracker_stop_stream();
 
 protected:
     static void handle_tracker_start_stream_response(

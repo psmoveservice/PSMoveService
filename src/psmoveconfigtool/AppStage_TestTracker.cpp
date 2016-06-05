@@ -52,7 +52,7 @@ void AppStage_TestTracker::enter()
     m_tracker_view= ClientPSMoveAPI::allocate_tracker_view(*trackerInfo);
 
     assert(!m_bStreamIsActive);
-    request_tracker_start_stream(m_tracker_view->getTrackerId());
+    request_tracker_start_stream();
 }
 
 void AppStage_TestTracker::exit()
@@ -116,7 +116,7 @@ void AppStage_TestTracker::renderUI()
                     m_app->getAppStage<AppStage_TrackerSettings>();
                 const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
 
-                request_tracker_stop_stream(trackerInfo->tracker_id);
+                request_tracker_stop_stream();
             }
             else
             {
@@ -196,8 +196,7 @@ void AppStage_TestTracker::renderUI()
     }
 }
 
-void AppStage_TestTracker::request_tracker_start_stream(
-    int trackerID)
+void AppStage_TestTracker::request_tracker_start_stream()
 {
     if (m_menuState != AppStage_TestTracker::pendingTrackerStartStreamRequest)
     {
@@ -247,8 +246,7 @@ void AppStage_TestTracker::handle_tracker_start_stream_response(
     }
 }
 
-void AppStage_TestTracker::request_tracker_stop_stream(
-    int trackerID)
+void AppStage_TestTracker::request_tracker_stop_stream()
 {
     if (m_bStreamIsActive && m_menuState != AppStage_TestTracker::pendingTrackerStopStreamRequest)
     {
