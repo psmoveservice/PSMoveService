@@ -161,8 +161,8 @@ private:
 
     unsigned char TriggerValue;
 
-    unsigned char CurrentRumble;
-    unsigned char RumbleRequest;
+//    unsigned char CurrentRumble;
+//    unsigned char RumbleRequest;
 
 public:
     void Clear();

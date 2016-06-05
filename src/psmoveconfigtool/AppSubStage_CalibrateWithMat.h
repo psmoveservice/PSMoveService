@@ -5,6 +5,7 @@
 #include "ClientGeometry.h"
 #include "ClientConstants.h"
 #include <chrono>
+#include <string.h>  // Required for memset in Xcode
 
 //-- constants -----
 // Sample 5 points - The psmove standing on the 4 corners and the center of a sheet of paper

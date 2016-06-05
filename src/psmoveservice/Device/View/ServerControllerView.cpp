@@ -503,7 +503,7 @@ const struct CommonControllerState * ServerControllerView::getState(
 {
     const struct CommonDeviceState *device_state= m_device->getState(lookBack);
     assert(device_state == nullptr ||
-           (device_state->DeviceType >= CommonDeviceState::Controller && 
+           ((int)device_state->DeviceType >= (int)CommonDeviceState::Controller &&
             device_state->DeviceType < CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT));
 
     return static_cast<const CommonControllerState *>(device_state);

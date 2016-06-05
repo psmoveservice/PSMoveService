@@ -105,7 +105,7 @@ bool AssetManager::loadTexture(const char *filename, TextureAsset *textureAsset)
 
     if (image_buffer != NULL)
     {
-        GLint glPixelFormat= -1;
+//        GLint glPixelFormat= -1;
 
         if (channelCount == 3)
         {

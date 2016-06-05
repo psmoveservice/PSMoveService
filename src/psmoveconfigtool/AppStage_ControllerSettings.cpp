@@ -332,7 +332,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
     AppStage_ControllerSettings *thisPtr= static_cast<AppStage_ControllerSettings *>(userdata);
 
     const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
-    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
+//    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
     const ClientPSMoveAPI::t_response_handle response_handle = response_message->opaque_response_handle;
 
     switch(ResultCode)

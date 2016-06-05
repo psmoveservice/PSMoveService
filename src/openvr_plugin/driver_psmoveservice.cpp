@@ -21,7 +21,7 @@
 #if defined(_WIN32)
 #define HMD_DLL_EXPORT extern "C" __declspec( dllexport )
 #define HMD_DLL_IMPORT extern "C" __declspec( dllimport )
-#elif defined(GNUC) || defined(COMPILER_GCC)
+#elif defined(GNUC) || defined(COMPILER_GCC) || defined(__GNUC__)
 #define HMD_DLL_EXPORT extern "C" __attribute__((visibility("default")))
 #define HMD_DLL_IMPORT extern "C" 
 #else

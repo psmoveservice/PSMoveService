@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/quaternion.hpp>
-#include <opencv2\core\matx.hpp>
+#include <opencv2/opencv.hpp>
 #include "MathEigen.h"
 
 //-- methods -----

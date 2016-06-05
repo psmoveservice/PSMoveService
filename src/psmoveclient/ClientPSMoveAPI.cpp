@@ -647,6 +647,9 @@ public:
     }
 
 private:
+    //-- Pending requests -----
+    ClientRequestManager m_request_manager;
+    
     //-- Session Management -----
     ClientNetworkManager m_network_manager;
     
@@ -655,9 +658,6 @@ private:
 
     //-- Tracker Views -----
     t_tracker_view_map m_tracker_view_map;
-
-    //-- Pending requests -----
-    ClientRequestManager m_request_manager;
 
     struct PendingRequest
     {
@@ -739,7 +739,7 @@ void ClientPSMoveAPI::shutdown()
 
 ClientControllerView * ClientPSMoveAPI::allocate_controller_view(int ControllerID)
 {
-    ClientControllerView * view;
+    ClientControllerView * view = nullptr;
 
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
@@ -861,7 +861,7 @@ ClientPSMoveAPI::reset_pose(
 ClientTrackerView *
 ClientPSMoveAPI::allocate_tracker_view(const ClientTrackerInfo &trackerInfo)
 {
-    ClientTrackerView * view;
+    ClientTrackerView * view = nullptr;
 
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {

@@ -367,7 +367,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
     case eMenuState::verifyTrackers:
         {
-            const int trackerCount = static_cast<int>(m_trackerViews.size());
+//            const int trackerCount = static_cast<int>(m_trackerViews.size());
 
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - 500.f / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(500.f, (m_trackerViews.size() > 0) ? 150.f : 100.f));
@@ -725,7 +725,7 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
     AppStage_ComputeTrackerPoses *thisPtr = static_cast<AppStage_ComputeTrackerPoses *>(userdata);
 
     const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
-    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
+//    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
 
     switch (ResultCode)
     {
@@ -785,7 +785,7 @@ void AppStage_ComputeTrackerPoses::handle_start_controller_response(
     AppStage_ComputeTrackerPoses *thisPtr = static_cast<AppStage_ComputeTrackerPoses *>(userdata);
 
     const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
-    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
+//    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
 
     switch (ResultCode)
     {
