@@ -179,6 +179,31 @@ void ClientPSMoveView::ApplyControllerDataFrame(
             this->RawTrackerData.Clear();
         }
 
+        if (psmove_data_frame.has_physics_data())
+        {
+            const auto &raw_physics_data = psmove_data_frame.physics_data();
+
+            this->PhysicsData.Velocity.i = raw_physics_data.velocity().i();
+            this->PhysicsData.Velocity.j = raw_physics_data.velocity().j();
+            this->PhysicsData.Velocity.k = raw_physics_data.velocity().k();
+
+            this->PhysicsData.Acceleration.i = raw_physics_data.acceleration().i();
+            this->PhysicsData.Acceleration.j = raw_physics_data.acceleration().j();
+            this->PhysicsData.Acceleration.k = raw_physics_data.acceleration().k();
+
+            this->PhysicsData.AngularVelocity.i = raw_physics_data.velocity().i();
+            this->PhysicsData.AngularVelocity.j = raw_physics_data.velocity().j();
+            this->PhysicsData.AngularVelocity.k = raw_physics_data.velocity().k();
+
+            this->PhysicsData.AngularAcceleration.i = raw_physics_data.angular_acceleration().i();
+            this->PhysicsData.AngularAcceleration.j = raw_physics_data.angular_acceleration().j();
+            this->PhysicsData.AngularAcceleration.k = raw_physics_data.angular_acceleration().k();
+        }
+        else
+        {
+            this->PhysicsData.Clear();
+        }
+
         unsigned int button_bitmask= data_frame->button_down_bitmask();
         update_button_state(TriangleButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_TRIANGLE);
         update_button_state(CircleButton, button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_ButtonType_CIRCLE);
