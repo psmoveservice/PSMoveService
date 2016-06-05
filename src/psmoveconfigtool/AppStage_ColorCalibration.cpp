@@ -403,10 +403,10 @@ void AppStage_ColorCalibration::renderUI()
         if (ImGui::IsMouseClicked(1) )
         {
             ImVec2 mousePos = ImGui::GetMousePos();
-            int img_x = mousePos.x * 640 / 800;
-            int img_y = mousePos.y * 480 / 600;
+            ImVec2 dispSize = ImGui::GetIO().DisplaySize;
+            int img_x = mousePos.x * m_video_buffer_state->hsvBuffer->cols / dispSize.x;
+            int img_y = mousePos.y * m_video_buffer_state->hsvBuffer->rows / dispSize.y;
             cv::Vec< unsigned char, 3 > hsv_pixel = m_video_buffer_state->hsvBuffer->at<cv::Vec< unsigned char, 3 >>(cv::Point(img_x, img_y));
-//            std::cout << "Clicked at " << img_x << ", " << img_y << "; HSV: " << hsv_pixel << std::endl;
             
             TrackerColorPreset preset = getColorPreset();
             preset.hue_center = hsv_pixel[0];
