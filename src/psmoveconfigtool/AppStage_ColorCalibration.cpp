@@ -316,7 +316,7 @@ void AppStage_ColorCalibration::renderUI()
             ImGui::SetNextWindowPos(ImVec2(10.f, 10.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 200));
             ImGui::Begin(k_window_title, nullptr, window_flags);
-
+            
             if (ImGui::Button("Return to Tracker Settings"))
             {
                 request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
@@ -398,6 +398,21 @@ void AppStage_ColorCalibration::renderUI()
             }
 
             ImGui::End();
+        }
+        
+        if (ImGui::IsMouseClicked(1) )
+        {
+            ImVec2 mousePos = ImGui::GetMousePos();
+            int img_x = mousePos.x * 640 / 800;
+            int img_y = mousePos.y * 480 / 600;
+            cv::Vec< unsigned char, 3 > hsv_pixel = m_video_buffer_state->hsvBuffer->at<cv::Vec< unsigned char, 3 >>(cv::Point(img_x, img_y));
+//            std::cout << "Clicked at " << img_x << ", " << img_y << "; HSV: " << hsv_pixel << std::endl;
+            
+            TrackerColorPreset preset = getColorPreset();
+            preset.hue_center = hsv_pixel[0];
+            preset.saturation_center = hsv_pixel[1];
+            preset.value_center = hsv_pixel[2];
+            request_tracker_set_color_preset(m_trackingColorType, preset);
         }
 
         // Color Control Panel
