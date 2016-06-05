@@ -198,6 +198,11 @@ public:
         request->set_type(PSMoveProtocol::Request_RequestType_START_CONTROLLER_DATA_STREAM);
         request->mutable_request_start_psmove_data_stream()->set_controller_id(view->GetControllerID());
 
+        if ((flags & ClientPSMoveAPI::includePositionData) > 0)
+        {
+            request->mutable_request_start_psmove_data_stream()->set_include_position_data(true);
+        }
+
         if ((flags & ClientPSMoveAPI::includeRawSensorData) > 0)
         {
             request->mutable_request_start_psmove_data_stream()->set_include_raw_sensor_data(true);
@@ -302,34 +307,6 @@ public:
         request->set_type(PSMoveProtocol::Request_RequestType_RESET_POSE);
         request->mutable_reset_pose()->set_controller_id(view->GetControllerID());
         
-        m_request_manager.send_request(request);
-
-        return request->request_id();
-    }
-
-    ClientPSMoveAPI::t_request_id start_tracking(ClientControllerView *view)
-    {
-        CLIENT_LOG_INFO("start_tracking") << "requesting start tracking PSMoveID: " << view->GetControllerID() << std::endl;
-
-        // Tell the psmove service to start tracking the controller with the current tracking color
-        RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_START_TRACKING);
-        request->mutable_start_tracking_request()->set_controller_id(view->GetControllerID());
-
-        m_request_manager.send_request(request);
-
-        return request->request_id();
-    }
-
-    ClientPSMoveAPI::t_request_id stop_tracking(ClientControllerView *view)
-    {
-        CLIENT_LOG_INFO("stop_tracking") << "requesting stop tracking PSMoveID: " << view->GetControllerID() << std::endl;
-
-        // Tell the psmove service to start tracking the controller with the current tracking color
-        RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_STOP_TRACKING);
-        request->mutable_stop_tracking_request()->set_controller_id(view->GetControllerID());
-
         m_request_manager.send_request(request);
 
         return request->request_id();
@@ -876,32 +853,6 @@ ClientPSMoveAPI::reset_pose(
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
         request_id= ClientPSMoveAPI::m_implementation_ptr->reset_pose(view);
-    }
-
-    return request_id;
-}
-
-ClientPSMoveAPI::t_request_id
-ClientPSMoveAPI::start_tracking(ClientControllerView *view)
-{
-    ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
-
-    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
-    {
-        request_id = ClientPSMoveAPI::m_implementation_ptr->start_tracking(view);
-    }
-
-    return request_id;
-}
-
-ClientPSMoveAPI::t_request_id
-ClientPSMoveAPI::stop_tracking(ClientControllerView *view)
-{
-    ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
-
-    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
-    {
-        request_id = ClientPSMoveAPI::m_implementation_ptr->stop_tracking(view);
     }
 
     return request_id;

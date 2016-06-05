@@ -83,8 +83,13 @@ public:
     // Get the tracking is enabled on this controller
     inline bool getIsTrackingEnabled() const { return m_tracking_enabled && m_multicam_position_estimation != nullptr; }
 
-    // Set the assigned tracking color ID for the controller
-    void setTrackingEnabled(bool bEnabled);
+    // Increment the position tracking listener count
+    // Starts position tracking this controller if the count was zero
+    void startTracking();
+
+    // Decrements the position tracking listener count
+    // Stop tracking this controller if this count becomes zero
+    void stopTracking();
 
     // Get the tracking shape for the controller
     bool getTrackingShape(CommonDeviceTrackingShape &outTrackingShape);
@@ -108,6 +113,7 @@ public:
     bool setControllerRumble(int rumble_amount);
 
 protected:
+    void set_tracking_enabled_internal(bool bEnabled);
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
     void free_device_interface() override;
     void publish_device_data_frame() override;
@@ -118,6 +124,7 @@ protected:
 
 private:
     eCommonTrackingColorID m_tracking_color_id;
+    int m_tracking_listener_count;
     bool m_tracking_enabled;
     IControllerInterface *m_device;
     ControllerPositionEstimation *m_tracker_position_estimation; // array of size TrackerManager::k_max_devices

@@ -668,7 +668,6 @@ void AppStage_ComputeTrackerPoses::release_devices()
 
     if (m_controllerView != nullptr)
     {
-        ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_tracking(m_controllerView));
         ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(m_controllerView));
         ClientPSMoveAPI::free_controller_view(m_controllerView);
         m_controllerView = nullptr;
@@ -775,11 +774,8 @@ void AppStage_ComputeTrackerPoses::request_start_controller_stream(int Controlle
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::start_controller_data_stream(
             m_controllerView, 
-            ClientPSMoveAPI::includeRawSensorData | ClientPSMoveAPI::includeRawTrackerData),
+            ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includeRawSensorData | ClientPSMoveAPI::includeRawTrackerData),
         AppStage_ComputeTrackerPoses::handle_start_controller_response, this);
-
-    // Also start tracking the controller
-    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::start_tracking(m_controllerView));
 }
 
 void AppStage_ComputeTrackerPoses::handle_start_controller_response(

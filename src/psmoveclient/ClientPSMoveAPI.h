@@ -39,9 +39,10 @@ public:
     enum eControllerDataStreamFlags
     {
         defaultStreamOptions = 0x00,
-        includeRawSensorData = 0x01,
-        includeRawTrackerData = 0x02,
-        includePhysicsData = 0x04,
+        includePositionData = 0x01,
+        includePhysicsData = 0x02,
+        includeRawSensorData = 0x04,
+        includeRawTrackerData = 0x08
     };
 
     // Service Events
@@ -188,8 +189,6 @@ public:
     static t_request_id set_led_color(ClientControllerView *view, unsigned char r, unsigned char g, unsigned b);
     static t_request_id set_led_tracking_color(ClientControllerView *view, PSMoveTrackingColorType tracking_color);
     static t_request_id reset_pose(ClientControllerView *view);
-    static t_request_id start_tracking(ClientControllerView *view);
-    static t_request_id stop_tracking(ClientControllerView *view);
 
     /// Tracker Methods
     static ClientTrackerView *allocate_tracker_view(const ClientTrackerInfo &trackerInfo);

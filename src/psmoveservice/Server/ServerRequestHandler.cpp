@@ -197,12 +197,6 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION:
                 handle_request__set_magnetometer_calibration(context, response);
                 break;
-            case PSMoveProtocol::Request_RequestType_START_TRACKING:
-                handle_request__start_controller_tracking(context, response);
-                break;
-            case PSMoveProtocol::Request_RequestType_STOP_TRACKING:
-                handle_request__stop_controller_tracking(context, response);
-                break;
 
             // Tracker Requests
             case PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST:
@@ -272,6 +266,15 @@ public:
 
                 delete connection_state->pending_bluetooth_request;
                 connection_state->pending_bluetooth_request= nullptr;
+            }
+
+            // Halt any controller tracking this connection had going on
+            for (int controller_id = 0; controller_id < ControllerManager::k_max_devices; ++controller_id)
+            {
+                if (connection_state->active_controller_stream_info[controller_id].include_position_data)
+                {
+                    m_device_manager.getControllerViewPtr(controller_id)->stopTracking();
+                }
             }
 
             // Halt any shared memory streams this connection has going
@@ -425,9 +428,17 @@ protected:
 
             // Set control flags for the stream
             streamInfo.Clear();
+            streamInfo.include_position_data = request.include_position_data();
+            streamInfo.include_physics_data = request.include_physics_data();
             streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
             streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
-            streamInfo.include_physics_data = request.include_physics_data();
+
+            if (streamInfo.include_position_data)
+            {
+                ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
+
+                controller_view->startTracking();
+            }
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -445,6 +456,16 @@ protected:
 
         if (ServerUtility::is_index_valid(controller_id, m_device_manager.getControllerViewMaxCount()))
         {
+            ControllerStreamInfo &streamInfo =
+                context.connection_state->active_controller_stream_info[controller_id];
+
+            if (streamInfo.include_position_data)
+            {
+                ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
+
+                controller_view->stopTracking();
+            }
+
             context.connection_state->active_controller_streams.set(controller_id, false);
             context.connection_state->active_controller_stream_info[controller_id].Clear();
 
@@ -715,46 +736,6 @@ protected:
             // Reset the orientation filter state the calibration changed
             ControllerView->getOrientationFilter()->resetFilterState();
 
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-        }
-        else
-        {
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-        }
-    }
-
-    void handle_request__start_controller_tracking(
-        const RequestContext &context,
-        PSMoveProtocol::Response *response)
-    {
-        const int connection_id = context.connection_state->connection_id;
-        const int controller_id = context.request->set_led_tracking_color_request().controller_id();
-
-        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
-
-        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
-        {
-            ControllerView->setTrackingEnabled(true);
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-        }
-        else
-        {
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-        }
-    }
-
-    void handle_request__stop_controller_tracking(
-        const RequestContext &context,
-        PSMoveProtocol::Response *response)
-    {
-        const int connection_id = context.connection_state->connection_id;
-        const int controller_id = context.request->set_led_tracking_color_request().controller_id();
-
-        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
-
-        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
-        {
-            ControllerView->setTrackingEnabled(false);
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else
@@ -1313,7 +1294,7 @@ protected:
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        const PSMoveProtocol::Pose &srcPose = context.request->request_set_tracker_pose().pose();
+        const PSMoveProtocol::Pose &srcPose = context.request->request_set_hmd_tracking_space_origin().origin_pose();
         CommonDevicePose destPose = protocol_pose_to_common_device_pose(srcPose);
 
         m_device_manager.m_tracker_manager->setHmdTrackingOriginPose(destPose);

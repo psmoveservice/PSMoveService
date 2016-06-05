@@ -45,6 +45,7 @@ ServerControllerView::ServerControllerView(const int device_id)
     : ServerDeviceView(device_id)
     , m_tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
     , m_tracking_enabled(false)
+    , m_tracking_listener_count(0)
     , m_device(nullptr)
     , m_tracker_position_estimation(nullptr)
     , m_multicam_position_estimation(nullptr)
@@ -180,7 +181,7 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
 
 void ServerControllerView::close()
 {
-    setTrackingEnabled(false);
+    set_tracking_enabled_internal(false);
 
     if (m_tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
     {
@@ -516,19 +517,40 @@ void ServerControllerView::setTrackingColorID(eCommonTrackingColorID colorID)
 
         if (bWasTracking)
         {
-            setTrackingEnabled(false);
+            set_tracking_enabled_internal(false);
         }
 
         m_tracking_color_id = colorID;
 
         if (bWasTracking)
         {
-            setTrackingEnabled(true);
+            set_tracking_enabled_internal(true);
         }
     }
 }
 
-void ServerControllerView::setTrackingEnabled(bool bEnabled)
+void ServerControllerView::startTracking()
+{
+    if (!m_tracking_enabled)
+    {
+        set_tracking_enabled_internal(true);
+    }
+
+    ++m_tracking_listener_count;
+}
+
+void ServerControllerView::stopTracking()
+{
+    assert(m_tracking_listener_count > 0);
+    --m_tracking_listener_count;
+
+    if (m_tracking_listener_count <= 0 && m_tracking_enabled)
+    {
+        set_tracking_enabled_internal(false);
+    }
+}
+
+void ServerControllerView::set_tracking_enabled_internal(bool bEnabled)
 {
     if (m_tracking_enabled != bEnabled)
     {
@@ -684,9 +706,18 @@ static void generate_psmove_data_frame_for_stream(
         psmove_data_frame->mutable_orientation()->set_y(controller_pose.Orientation.y);
         psmove_data_frame->mutable_orientation()->set_z(controller_pose.Orientation.z);
 
-        psmove_data_frame->mutable_position()->set_x(controller_pose.Position.x);
-        psmove_data_frame->mutable_position()->set_y(controller_pose.Position.y);
-        psmove_data_frame->mutable_position()->set_z(controller_pose.Position.z);
+        if (stream_info->include_position_data)
+        {
+            psmove_data_frame->mutable_position()->set_x(controller_pose.Position.x);
+            psmove_data_frame->mutable_position()->set_y(controller_pose.Position.y);
+            psmove_data_frame->mutable_position()->set_z(controller_pose.Position.z);
+        }
+        else
+        {
+            psmove_data_frame->mutable_position()->set_x(0);
+            psmove_data_frame->mutable_position()->set_y(0);
+            psmove_data_frame->mutable_position()->set_z(0);
+        }
 
         psmove_data_frame->set_trigger_value(psmove_state->Trigger);
 
