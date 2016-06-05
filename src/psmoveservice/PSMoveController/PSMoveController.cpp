@@ -847,7 +847,8 @@ PSMoveController::poll()
             newState.Start = getButtonState(newState.AllButtons, lastButtons, Btn_START);
             newState.PS = getButtonState(newState.AllButtons, lastButtons, Btn_PS);
             newState.Move = getButtonState(newState.AllButtons, lastButtons, Btn_MOVE);
-            newState.Trigger = (InData->trigger + InData->trigger2) / 2; // TODO: store each frame separately
+            newState.Trigger = getButtonState(newState.AllButtons, lastButtons, Btn_T);
+            newState.TriggerValue = (InData->trigger + InData->trigger2) / 2; // TODO: store each frame separately
         
             // Sensors (Accel/Gyro/Mag)
             char* data = (char *)InData;

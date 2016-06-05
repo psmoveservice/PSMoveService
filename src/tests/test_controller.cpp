@@ -41,7 +41,7 @@ int main()
             psmove.poll();
             psmstate= static_cast<const PSMoveControllerState *>(psmove.getState());
 
-			psmove.setRumbleIntensity(psmstate->Trigger);
+			psmove.setRumbleIntensity(psmstate->TriggerValue);
 
 			r = (r + 23) % 255;
 			g = (g + 47) % 255;

@@ -719,7 +719,7 @@ static void generate_psmove_data_frame_for_stream(
             psmove_data_frame->mutable_position()->set_z(0);
         }
 
-        psmove_data_frame->set_trigger_value(psmove_state->Trigger);
+        psmove_data_frame->set_trigger_value(psmove_state->TriggerValue);
 
         unsigned int button_bitmask= 0;
         SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::TRIANGLE, psmove_state->Triangle);
@@ -730,6 +730,7 @@ static void generate_psmove_data_frame_for_stream(
         SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::START, psmove_state->Start);
         SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::PS, psmove_state->PS);
         SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::MOVE, psmove_state->Move);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::TRIGGER, psmove_state->Trigger);
         controller_data_frame->set_button_down_bitmask(button_bitmask);
 
         // If requested, get the raw sensor data for the controller

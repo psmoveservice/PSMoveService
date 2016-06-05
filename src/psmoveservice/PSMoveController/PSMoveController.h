@@ -68,8 +68,9 @@ struct PSMoveControllerState : public CommonControllerState
     ButtonState Start;
     ButtonState PS;
     ButtonState Move;
+    ButtonState Trigger;
 
-    unsigned char Trigger;  // 0-255. Average of last two frames.
+    unsigned char TriggerValue;  // 0-255. Average of last two frames.
 
     std::vector< std::vector<float> > Accel;    // Two frames of 3 dimensions
     std::vector< std::vector<float> > Gyro;     // Two frames of 3 dimensions
@@ -101,8 +102,9 @@ struct PSMoveControllerState : public CommonControllerState
         Start = Button_UP;
         PS = Button_UP;
         Move = Button_UP;
+        Trigger = Button_UP;
 
-        Trigger= 0;
+        TriggerValue= 0;
 
         Accel = { {0, 0, 0}, {0, 0, 0} };
         Gyro = { {0, 0, 0}, {0, 0, 0} };

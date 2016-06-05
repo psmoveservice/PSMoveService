@@ -1077,7 +1077,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
         NewState.ulButtonPressed |= vr::ButtonMaskFromId(k_EButton_Start);
     if (clientView.GetButtonTriangle())
         NewState.ulButtonPressed |= vr::ButtonMaskFromId(k_EButton_Triangle);
-    if (clientView.GetTriggerValue() > 0.9f)
+    if (clientView.GetButtonTrigger())
         NewState.ulButtonPressed |= vr::ButtonMaskFromId(k_EButton_Trigger);
 
     // All pressed buttons are touched
