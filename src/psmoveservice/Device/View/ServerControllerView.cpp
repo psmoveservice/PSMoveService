@@ -46,6 +46,7 @@ ServerControllerView::ServerControllerView(const int device_id)
     , m_tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
     , m_tracking_enabled(false)
     , m_tracking_listener_count(0)
+    , m_LED_override_active(false)
     , m_device(nullptr)
     , m_tracker_position_estimation(nullptr)
     , m_multicam_position_estimation(nullptr)
@@ -55,6 +56,8 @@ ServerControllerView::ServerControllerView(const int device_id)
     , m_last_filter_update_timestamp()
     , m_last_filter_update_timestamp_valid(false)
 {
+    m_tracking_color = std::make_tuple(0x00, 0x00, 0x00);
+    m_LED_override_color = std::make_tuple(0x00, 0x00, 0x00);
 }
 
 ServerControllerView::~ServerControllerView()
@@ -501,12 +504,26 @@ ServerControllerView::getControllerDeviceType() const
 const struct CommonControllerState * ServerControllerView::getState(
     int lookBack) const
 {
-    const struct CommonDeviceState *device_state= m_device->getState(lookBack);
+    const struct CommonDeviceState *device_state = m_device->getState(lookBack);
     assert(device_state == nullptr ||
-           ((int)device_state->DeviceType >= (int)CommonDeviceState::Controller &&
-            device_state->DeviceType < CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT));
+        ((int)device_state->DeviceType >= (int)CommonDeviceState::Controller &&
+        device_state->DeviceType < CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT));
 
     return static_cast<const CommonControllerState *>(device_state);
+}
+
+void ServerControllerView::setLEDOverride(unsigned char r, unsigned char g, unsigned char b)
+{
+    m_LED_override_color = std::make_tuple(r, g, b);
+    m_LED_override_active = true;
+    update_LED_color_internal();
+}
+
+void ServerControllerView::clearLEDOverride()
+{
+    m_LED_override_color = std::make_tuple(0x00, 0x00, 0x00);
+    m_LED_override_active = false;
+    update_LED_color_internal();
 }
 
 void ServerControllerView::setTrackingColorID(eCommonTrackingColorID colorID)
@@ -554,29 +571,27 @@ void ServerControllerView::set_tracking_enabled_internal(bool bEnabled)
 {
     if (m_tracking_enabled != bEnabled)
     {
-        unsigned char r, g, b;
-
         if (bEnabled)
         {
             switch (m_tracking_color_id)
             {
             case PSMoveProtocol::Magenta:
-                r = 0xFF; g = 0x00; b = 0xFF;
+                m_tracking_color= std::make_tuple(0xFF, 0x00, 0xFF);
                 break;
             case PSMoveProtocol::Cyan:
-                r = 0x00; g = 0xFF; b = 0xFF;
+                m_tracking_color = std::make_tuple(0x00, 0xFF, 0xFF);
                 break;
             case PSMoveProtocol::Yellow:
-                r = 0xFF; g = 0xFF; b = 0x00;
+                m_tracking_color = std::make_tuple(0xFF, 0xFF, 0x00);
                 break;
             case PSMoveProtocol::Red:
-                r = 0xFF; g = 0x00; b = 0x00;
+                m_tracking_color = std::make_tuple(0xFF, 0x00, 0x00);
                 break;
             case PSMoveProtocol::Green:
-                r = 0x00; g = 0xFF; b = 0x00;
+                m_tracking_color = std::make_tuple(0x00, 0xFF, 0x00);
                 break;
             case PSMoveProtocol::Blue:
-                r = 0x00; g = 0x00; b = 0xFF;
+                m_tracking_color = std::make_tuple(0x00, 0x00, 0xFF);
                 break;
             default:
                 assert(0 && "unreachable");
@@ -584,27 +599,50 @@ void ServerControllerView::set_tracking_enabled_internal(bool bEnabled)
         }
         else
         {
-            r = g = b = 0;
-        }
-
-        switch (getControllerDeviceType())
-        {
-        case CommonDeviceState::PSMove:
-            {
-                this->castChecked<PSMoveController>()->setLED(r, g, b);
-            } break;
-        case CommonDeviceState::PSNavi:
-            {
-                // Do nothing...
-            } break;
-        default:
-            assert(false && "Unhanded controller type!");
+            m_tracking_color = std::make_tuple(0x00, 0x00, 0x00);
         }
 
         m_tracking_enabled = bEnabled;
+
+        update_LED_color_internal();
     }
 }
 
+void ServerControllerView::update_LED_color_internal()
+{
+    unsigned char r, g, b;
+    if (m_LED_override_active)
+    {
+        r = std::get<0>(m_LED_override_color);
+        g = std::get<1>(m_LED_override_color);
+        b = std::get<2>(m_LED_override_color);
+    }
+    else if (m_tracking_enabled)
+    {
+        assert(m_tracking_color_id != eCommonTrackingColorID::INVALID_COLOR);
+        r = std::get<0>(m_tracking_color);
+        g = std::get<1>(m_tracking_color);
+        b = std::get<2>(m_tracking_color);
+    }
+    else
+    {
+        r = g = b = 0;
+    }
+
+    switch (getControllerDeviceType())
+    {
+    case CommonDeviceState::PSMove:
+        {
+            this->castChecked<PSMoveController>()->setLED(r, g, b);
+        } break;
+    case CommonDeviceState::PSNavi:
+        {
+            // Do nothing...
+        } break;
+    default:
+        assert(false && "Unhanded controller type!");
+    }
+}
 
 // Get the tracking shape for the controller
 bool ServerControllerView::getTrackingShape(CommonDeviceTrackingShape &trackingShape)

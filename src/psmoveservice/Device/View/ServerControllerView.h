@@ -74,6 +74,17 @@ public:
     // A lookBack of 0 corresponds to the most recent data.
     const CommonControllerState * getState(int lookBack = 0) const;
 
+    // Sets the bulb LED color to some new override color
+    // If tracking was active this likely will affect controller tracking
+    void setLEDOverride(unsigned char r, unsigned char g, unsigned char b);
+
+    // Removes the over led color and restores the tracking color
+    // of the controller is currently being tracked
+    void clearLEDOverride();
+
+    // Returns true 
+    inline bool getIsLEDOverrideActive() const { return m_LED_override_active; }
+
     // Get the currently assigned tracking color ID for the controller
     inline eCommonTrackingColorID getTrackingColorID() const { return m_tracking_color_id; }
 
@@ -114,6 +125,7 @@ public:
 
 protected:
     void set_tracking_enabled_internal(bool bEnabled);
+    void update_LED_color_internal();
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
     void free_device_interface() override;
     void publish_device_data_frame() override;
@@ -123,10 +135,20 @@ protected:
         DeviceDataFramePtr &data_frame);
 
 private:
+    // Tracking color state
+    std::tuple<unsigned char, unsigned char, unsigned char> m_tracking_color;
     eCommonTrackingColorID m_tracking_color_id;
     int m_tracking_listener_count;
     bool m_tracking_enabled;
+    
+    // Override color state
+    std::tuple<unsigned char, unsigned char, unsigned char> m_LED_override_color;
+    bool m_LED_override_active;
+
+    // Device state
     IControllerInterface *m_device;
+    
+    // Filter state
     ControllerPositionEstimation *m_tracker_position_estimation; // array of size TrackerManager::k_max_devices
     ControllerPositionEstimation *m_multicam_position_estimation;
     class OrientationFilter *m_orientation_filter;
