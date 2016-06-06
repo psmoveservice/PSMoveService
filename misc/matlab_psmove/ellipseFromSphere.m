@@ -25,8 +25,9 @@ function [conic_params] = ellipseFromSphere(B, R, z_pl)
 % f: (2*By*Bz*z_pl)*Ay units: cm^2_px
 % g: (Bz^2*z_pl^2 - k*(Bx^2+By^2+Bz^2)*z_pl^2) units: units: cm^2_px^2
 
-theta_rad = asin(R/norm(B));  % visual angle for half the sphere (half cone aperture)
-k = (cos(theta_rad))^2;
+% theta_rad = asin(R/norm(B));  % visual angle for half the sphere (half cone aperture)
+% k = (cos(theta_rad))^2;
+k = 1 - (R/norm(B)).^2;
 
 % There are a couple normalizations we can do to make the algebra easier.
 % 1 - Make B a unit vector

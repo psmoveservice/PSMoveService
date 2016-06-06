@@ -29,7 +29,7 @@ if strcmpi(fitMethod, 'LSqFit')
     S1 = D1' * D1; % quadratic part of the scatter matrix
     S2 = D1' * D2; % combined part of the scatter matrix
     S3 = D2' * D2; % linear part of the scatter matrix
-    T = - inv(S3) * S2'; % for getting a2 from a1
+    T = - inv(S3) * S2'; % -S3\S2' for getting a2 from a1
     M = S1 + S2 * T; % reduced scatter matrix
     M = [M(3, :) ./ 2; - M(2, :); M(1, :) ./ 2]; % premultiply by inv(C1)
     [evec, ~] = eig(M); % solve eigensystem

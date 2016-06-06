@@ -32,7 +32,7 @@ norm_A = sqrt(x.^2 + y.^2 + zz);
 A = [x y -norm_A];
 b = -zz*ones(size(x));
 
-Bx_By_c = A\b;
+Bx_By_c = A\b;  %pinv(A)*b
 Bx = Bx_By_c(1);
 By = Bx_By_c(2);
 c = Bx_By_c(3);
