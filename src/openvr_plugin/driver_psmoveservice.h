@@ -140,6 +140,7 @@ public:
     // Overridden Implementation of vr::ITrackedDeviceServerDriver
     virtual vr::EVRInitError Activate(uint32_t unObjectId) override;
     virtual void Deactivate() override;
+    virtual void *GetComponent(const char *pchComponentNameAndVersion) override;
     virtual bool GetBoolTrackedDeviceProperty( vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError ) override;
     virtual float GetFloatTrackedDeviceProperty( vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError ) override;
     virtual int32_t GetInt32TrackedDeviceProperty( vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError ) override;

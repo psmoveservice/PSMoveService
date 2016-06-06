@@ -470,7 +470,7 @@ private:
 
         if (m_pending_requests.size() > 0 && !m_has_pending_tcp_write)
         {
-            RequestPtr request= m_pending_requests.front();
+            RequestPtr request= m_pending_requests[0];
 
             m_packed_request.set_msg(request);
             m_packed_request.pack(m_write_bufer);

@@ -554,12 +554,16 @@ vr::EVRInitError CClientDriver_PSMoveService::SetDisplayId( const char * pchDisp
 
 vr::HiddenAreaMesh_t CClientDriver_PSMoveService::GetHiddenAreaMesh( vr::EVREye eEye )
 {
-    return vr::HiddenAreaMesh_t();
+    vr::HiddenAreaMesh_t hiddenAreaMesh= vr::HiddenAreaMesh_t();
+
+    return hiddenAreaMesh;
 }
 
 uint32_t CClientDriver_PSMoveService::GetMCImage( uint32_t * pImgWidth, uint32_t * pImgHeight, uint32_t * pChannels, void * pDataBuffer, uint32_t unBufferLen )
 {
-    return uint32_t();
+    uint32_t image= uint32_t();
+
+    return image;
 }
 
 //==================================================================================================
@@ -613,11 +617,6 @@ void CPSMoveTrackedDeviceLatest::PowerOff()
 
 void *CPSMoveTrackedDeviceLatest::GetComponent(const char *pchComponentNameAndVersion)
 {
-    if (!strcasecmp(pchComponentNameAndVersion, vr::IVRControllerComponent_Version))
-    {
-        return (vr::IVRControllerComponent*)this;
-    }
-
     return NULL;
 }
 
@@ -804,9 +803,14 @@ const char *CPSMoveTrackedDeviceLatest::GetSerialNumber() const
 
 CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int controllerId )
     : CPSMoveTrackedDeviceLatest(pDriverHost)
-    , m_nControllerId( controllerId )
-    , m_nPoseSequenceNumber( 0 )
-
+    , m_nControllerId(controllerId)
+    , m_controller_view(nullptr)
+    , m_nPoseSequenceNumber(0)
+    , m_bIsBatteryCharging(false)
+    , m_fBatteryChargeFraction(1.f)
+    , m_pendingHapticPulseDuration(0)
+    , m_sentHapticPulseDuration(0)
+    , m_lastTimeRumbleSent()
 {
     char buf[256];
     GenerateControllerSerialNumber(buf, sizeof(buf), controllerId);
@@ -815,11 +819,7 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
     // Tell psmoveapi that we are listening to this controller id
     m_controller_view = ClientPSMoveAPI::allocate_controller_view(controllerId);
 
-    memset( &m_ControllerState, 0, sizeof( m_ControllerState ) );
-
-    //###HipsterSloth $TODO - Register for updates from the service about these values changing
-    m_bIsBatteryCharging= false;
-    m_fBatteryChargeFraction= 1.f;
+    memset(&m_ControllerState, 0, sizeof(vr::VRControllerState_t));
 
     // Load config from steamvr.vrsettings
     //vr::IVRSettings *settings_;
@@ -852,6 +852,16 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(uint32_t unObjectId)
 void CPSMoveControllerLatest::Deactivate()
 {
     ClientPSMoveAPI::stop_controller_data_stream(m_controller_view);
+}
+
+void *CPSMoveControllerLatest::GetComponent(const char *pchComponentNameAndVersion)
+{
+    if (!strcasecmp(pchComponentNameAndVersion, vr::IVRControllerComponent_Version))
+    {
+        return (vr::IVRControllerComponent*)this;
+    }
+
+    return NULL;
 }
 
 bool CPSMoveControllerLatest::GetBoolTrackedDeviceProperty(
@@ -1018,9 +1028,7 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
 
 vr::VRControllerState_t CPSMoveControllerLatest::GetControllerState()
 {
-    // This is only called at startup to synchronize with the driver.
-    // Future updates are driven by our thread calling TrackedDeviceButton*() and TrackedDeviceAxis*()
-    return vr::VRControllerState_t();
+    return m_ControllerState;
 }
 
 bool CPSMoveControllerLatest::TriggerHapticPulse( uint32_t unAxisId, uint16_t usPulseDurationMicroseconds )
@@ -1210,8 +1218,8 @@ void CPSMoveControllerLatest::UpdateTrackingState()
 
 void CPSMoveControllerLatest::UpdateRumbleState()
 {
-    const float k_max_rumble_update_rate = 13.f; // Don't bother trying to update the rumble faster than 60fps (13ms)
-    const float k_max_pulse_microseconds = 5000.f; // Docs suggest max pulse duration of 5ms
+    const float k_max_rumble_update_rate = 100.f; // Don't bother trying to update the rumble faster than 10fps (100ms)
+    const float k_max_pulse_microseconds = 1000.f; // Docs suggest max pulse duration of 5ms, but we'll call 1ms max
 
     // Only bother with this if the rumble value actually changed
     if (m_pendingHapticPulseDuration != m_sentHapticPulseDuration)
@@ -1224,9 +1232,18 @@ void CPSMoveControllerLatest::UpdateRumbleState()
         {
             float rumble_fraction = static_cast<float>(m_pendingHapticPulseDuration) / k_max_pulse_microseconds;
 
-            if (rumble_fraction > 1.f)
+            // Keep the pulse intensity within reasonable bounds
+            if (m_pendingHapticPulseDuration != 0)
             {
-                rumble_fraction = 1.f;
+                if (rumble_fraction < 0.35f)
+                {
+                    // rumble values less 35% isn't noticeable
+                    rumble_fraction = 0.35f;
+                }
+                else if (rumble_fraction > 1.f)
+                {
+                    rumble_fraction = 1.f;
+                }
             }
 
             // Actually send the rumble to the server
@@ -1235,6 +1252,13 @@ void CPSMoveControllerLatest::UpdateRumbleState()
             // Remember the last rumble we went and when we sent it
             m_sentHapticPulseDuration = m_pendingHapticPulseDuration;
             m_lastTimeRumbleSent = now;
+
+            // Reset the pending haptic pulse duration.
+            // If another call to TriggerHapticPulse() is made later, it will stomp this value.
+            // If no call to TriggerHapticPulse() is made later, then the next call to UpdateRumbleState()
+            // in k_max_rumble_update_rate milliseconds will set the rumble_fraction to 0.f
+            // This effectively makes the shortest rumble pulse k_max_rumble_update_rate milliseconds.
+            m_pendingHapticPulseDuration = 0;
         }
     }
 }
