@@ -684,107 +684,42 @@ ServerTrackerView::computePositionForController(
                 // TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
                 // Then replace F_PX with -1.
                 
-                // TODO: Move all of this to an external function.
-                float zz = F_PX * F_PX;
-                
-                Eigen::MatrixXf A(convex_contour.size(), 3);
-                for (int i=0; i<convex_contour.size(); ++i) {
-                    Eigen::Vector2f p = convex_contour[i];
-                    float norm_A = sqrt(p.x()*p.x() + p.y()*p.y() + zz);
-                    A(i, 0) = p.x();
-                    A(i, 1) = p.y();
-                    A(i, 2) = -norm_A;
-                }
-                Eigen::VectorXf b(convex_contour.size());
-                b.fill(-zz);
-                Eigen::Vector3f Bx_By_c = A.colPivHouseholderQr().solve(b);
-                float norm_norm_B = sqrt(Bx_By_c[0]*Bx_By_c[0] +
-                                         Bx_By_c[1]*Bx_By_c[1] +
-                                         zz);
-                float cos_theta = Bx_By_c[2] / norm_norm_B;
-                float k = cos_theta * cos_theta;
-                float norm_B = tracking_shape.shape.sphere.radius / sqrt(1 - k);
-                Eigen::Vector3f sphere_center;
-                sphere_center << Bx_By_c[0], Bx_By_c[1], F_PX;
-                sphere_center *= (norm_B / norm_norm_B);
-                
-                bSuccess= true;
-                out_position->set(sphere_center.x(), sphere_center.y(), sphere_center.z());
-                
                 if (out_projection_shape != nullptr)
                 {
-                    out_projection_shape->shape_type = eCommonTrackingProjectionType::ProjectionType_Ellipse;
+                    // Compute the sphere center AND the projected ellipse
+                    Eigen::Vector3f sphere_center;
                     EigenFitEllipse ellipse_projection;
+                    eigen_alignment_fit_focal_cone_to_sphere(
+                        convex_contour.data(),
+                        static_cast<int>(convex_contour.size()),
+                        tracking_shape.shape.sphere.radius,
+                        F_PX,
+                        &sphere_center,
+                        &ellipse_projection);
+
+                    out_position->set(sphere_center.x(), sphere_center.y(), sphere_center.z());
                     
-                    // Calculate ellipse from sphere
-                    
-                    if (false)
-                    {
-                        // Get conical parameters
-                        float xx = sphere_center.x() * sphere_center.x();
-                        float yy = sphere_center.y() * sphere_center.y();
-                        float _zz = sphere_center.z() * sphere_center.z();
-                        float m = k*(xx + yy + _zz);
-                        float a = xx - m;
-                        float b = 2*sphere_center.x()*sphere_center.y();
-                        float c = yy - m;
-                        float d = 2*sphere_center.x()*sphere_center.z()*F_PX;
-                        float f = 2*sphere_center.y()*sphere_center.z()*F_PX;
-                        float g = zz * (_zz - m);
-                        // Convert conical to parametric
-                        // http://mathworld.wolfram.com/Ellipse.html Eqns 19-23
-                        b /= 2;
-                        d /= 2;
-                        f /= 2;
-                        float bb = b*b;
-                        float off_d = bb - a*c;
-                        float h_ = (c*d - b*f) / off_d;
-                        float k_ = (a*f - b*d) / off_d;
-                        float semi_n = a*f*f + c*d*d + g*bb - 2*b*d*f - a*c*g;
-                        float semi_d_2 = sqrt( (a-c)*(a-c) + 4*bb );
-                        float semi_d_3 = -1*(a+c);
-                        float a_ = sqrt(2*semi_n / (off_d * (semi_d_2 + semi_d_3)));
-                        float b_ = sqrt(2*semi_n / (off_d * (-1*semi_d_2 + semi_d_3)));
-                        float tau = 0;
-                        if (b != 0)
-                        {
-                            tau = atan2f(2*b, a-c)/2;
-                        }
-                        Eigen::Vector2f center;
-                        center << h_, k_;
-                        ellipse_projection.center = center;
-                        Eigen::Vector2f extents;
-                        extents << a_, b_;
-                        ellipse_projection.extents = extents;
-                        ellipse_projection.angle = tau;
-                    }
-                    else {
-                        // OR use cv::fitEllipse
-                        
-                        // Yeah this is silly to copy the list of points BACK to an OpenCV point list
-                        // after we just copied from an OpenCV point to an Eigen::Vector2f point list
-                        // in computeBiggestConvexContour(), but this is a temp hack
-                        std::vector<cv::Point> open_cv_convex_contour;
-                        std::for_each(
-                                      convex_contour.begin(),
-                                      convex_contour.end(),
-                                      [&open_cv_convex_contour](Eigen::Vector2f& p) {
-                                          open_cv_convex_contour.push_back(cv::Point((int)p.x(), (int)p.y()));
-                                      });
-                        cv::RotatedRect cvFitEllipse = cv::fitEllipse(open_cv_convex_contour);
-                        
-                        // NOTE: ellipse_projection in CommonDeviceScreenLocation space:
-                        // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]
-                        ellipse_projection.center= Eigen::Vector2f(cvFitEllipse.center.x, cvFitEllipse.center.y);
-                        ellipse_projection.extents= Eigen::Vector2f(cvFitEllipse.size.width/2.f, cvFitEllipse.size.height/2.f);
-                        ellipse_projection.angle= cvFitEllipse.angle;
-                    }
-                    out_projection_shape->shape.ellipse.center.set(
-                                                                   ellipse_projection.center.x(), ellipse_projection.center.y());
+                    out_projection_shape->shape_type = eCommonTrackingProjectionType::ProjectionType_Ellipse;
+                    out_projection_shape->shape.ellipse.center.set(ellipse_projection.center.x(), ellipse_projection.center.y());
                     out_projection_shape->shape.ellipse.half_x_extent = ellipse_projection.extents.x();
                     out_projection_shape->shape.ellipse.half_y_extent = ellipse_projection.extents.y();
                     out_projection_shape->shape.ellipse.angle = ellipse_projection.angle;
                 }
+                else
+                {
+                    // Just compute the sphere center
+                    Eigen::Vector3f sphere_center;
+                    eigen_alignment_fit_focal_cone_to_sphere(
+                        convex_contour.data(),
+                        static_cast<int>(convex_contour.size()),
+                        tracking_shape.shape.sphere.radius,
+                        F_PX,
+                        &sphere_center);
+
+                    out_position->set(sphere_center.x(), sphere_center.y(), sphere_center.z());
+                }
+
+                bSuccess = true;
             } break;
         case eCommonTrackingShapeType::PlanarBlob:
             {
