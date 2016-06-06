@@ -695,8 +695,8 @@ ServerTrackerView::computePositionForController(
                     A(i, 1) = p.y();
                     A(i, 2) = -norm_A;
                 }
-                Eigen::VectorXf b;
-                b << convex_contour.size(), -zz;
+                Eigen::VectorXf b(convex_contour.size());
+                b.fill(-zz);
                 Eigen::Vector3f Bx_By_c = A.colPivHouseholderQr().solve(b);
                 float norm_norm_B = sqrt(Bx_By_c[0]*Bx_By_c[0] +
                                          Bx_By_c[1]*Bx_By_c[1] +
