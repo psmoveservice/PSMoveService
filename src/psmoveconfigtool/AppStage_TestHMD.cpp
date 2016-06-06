@@ -91,7 +91,7 @@ void AppStage_TestHMD::render()
      {
         // Render the HMD
         {
-            PSMovePose pose = m_hmdView->getHmdPose();
+            PSMovePose pose = m_hmdView->getDisplayHmdPose();
             glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
             glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
             glm::mat4 transform = glm_mat4_from_pose(orientation, position);

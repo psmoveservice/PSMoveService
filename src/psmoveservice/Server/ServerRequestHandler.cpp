@@ -268,10 +268,24 @@ public:
                 connection_state->pending_bluetooth_request= nullptr;
             }
 
-            // Halt any controller tracking this connection had going on
+            // Clean up any controller state related to this connection
             for (int controller_id = 0; controller_id < ControllerManager::k_max_devices; ++controller_id)
             {
-                if (connection_state->active_controller_stream_info[controller_id].include_position_data)
+                const ControllerStreamInfo &streamInfo = connection_state->active_controller_stream_info[controller_id];
+                ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
+
+                // Clear any LED overrides we had active
+                //###HipsterSlot $HACK 
+                // This implicitly assumes that only one connection had an LED override color active.
+                // This is technically true right now because only the config tool sets the override
+                // color for purposes of tracking color calibration, but this could change in the future.
+                if (controller_view->getIsLEDOverrideActive())
+                {
+                    controller_view->clearLEDOverride();
+                }
+
+                // Halt any controller tracking this connection had going on
+                if (streamInfo.include_position_data)
                 {
                     m_device_manager.getControllerViewPtr(controller_id)->stopTracking();
                 }
@@ -638,17 +652,33 @@ protected:
 
         ServerControllerViewPtr ControllerView= m_device_manager.getControllerViewPtr(controller_id);
 
-        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        if (ControllerView && 
+            ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
         {
-            PSMoveController *controller= ControllerView->castChecked<PSMoveController>();
-
-            if (!ControllerView->getIsTrackingEnabled() && controller->setLED(r, g, b))
+            // (0,0,0) is treated as clearing the override
+            if (r == 0 && g == 0 && b == 0)
             {
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+                if (ControllerView->getIsLEDOverrideActive())
+                {
+                    // Removes the over led color and restores the tracking color
+                    // of the controller is currently being tracked
+                    ControllerView->clearLEDOverride();
+
+                    response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+                }
+                else
+                {
+                    response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+                }
             }
+            // Otherwise we are setting the override to a new color
             else
             {
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+                // Sets the bulb LED color to some new override color
+                // If tracking was active this likely will affect controller tracking
+                ControllerView->setLEDOverride(r, g, b);
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
         }
         else

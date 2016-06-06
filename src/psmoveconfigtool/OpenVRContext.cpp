@@ -16,14 +16,16 @@ OpenVRContext::OpenVRContext()
     , m_hmdOriginPose(*k_psmove_pose_identity)
     , m_pVRSystem(nullptr)
     , m_pRenderModels(nullptr)
-    , m_pTrackedDevicePoseArray(new vr::TrackedDevicePose_t[vr::k_unMaxTrackedDeviceCount])
+    , m_pTrackedDeviceRawPoseArray(new vr::TrackedDevicePose_t[vr::k_unMaxTrackedDeviceCount])
+    , m_pTrackedDeviceStandingPoseArray(new vr::TrackedDevicePose_t[vr::k_unMaxTrackedDeviceCount])
     , m_hmdView(nullptr)
 {
 }
 
 OpenVRContext::~OpenVRContext()
 {
-    delete[] m_pTrackedDevicePoseArray;
+    delete[] m_pTrackedDeviceRawPoseArray;
+    delete[] m_pTrackedDeviceStandingPoseArray;
 }
 
 bool OpenVRContext::init()
@@ -99,13 +101,20 @@ void OpenVRContext::update()
         m_pVRSystem->GetDeviceToAbsoluteTrackingPose(
             vr::TrackingUniverseRawAndUncalibrated,
             0.f, // no prediction needed
-            m_pTrackedDevicePoseArray,
+            m_pTrackedDeviceRawPoseArray,
+            vr::k_unMaxTrackedDeviceCount);
+        m_pVRSystem->GetDeviceToAbsoluteTrackingPose(
+            vr::TrackingUniverseStanding,
+            0.f, // no prediction needed
+            m_pTrackedDeviceStandingPoseArray,
             vr::k_unMaxTrackedDeviceCount);
 
         // Update the HMD pose
         if (m_hmdView != nullptr)
         {
-            m_hmdView->applyHMDDataFrame(&m_pTrackedDevicePoseArray[vr::k_unTrackedDeviceIndex_Hmd]);
+            m_hmdView->applyHMDDataFrame(
+                &m_pTrackedDeviceRawPoseArray[vr::k_unTrackedDeviceIndex_Hmd],
+                &m_pTrackedDeviceStandingPoseArray[vr::k_unTrackedDeviceIndex_Hmd]);
         }
 
         // Process OpenVR events

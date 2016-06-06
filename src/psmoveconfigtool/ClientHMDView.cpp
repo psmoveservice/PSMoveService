@@ -58,14 +58,14 @@ void ClientHMDView::clear()
 {
     m_hmdInfo.clear();
 
-    m_hmdPose.Clear();
+    m_rawHmdPose.Clear();
+    m_rawHmdAngularVelocity = *k_psmove_float_vector3_zero;
+    m_rawHmdLinearVelocity = *k_psmove_float_vector3_zero;
+    m_rawHmdXBasisVector = *k_psmove_float_vector3_i;
+    m_rawHmdYBasisVector = *k_psmove_float_vector3_j;
+    m_rawHmdZBasisVector = *k_psmove_float_vector3_k;
 
-    m_hmdAngularVelocity = *k_psmove_float_vector3_zero;
-    m_hmdLinearVelocity = *k_psmove_float_vector3_zero;
-
-    m_hmdXBasisVector = *k_psmove_float_vector3_i;
-    m_hmdYBasisVector = *k_psmove_float_vector3_j;
-    m_hmdZBasisVector = *k_psmove_float_vector3_k;
+    m_displayHmdPose.Clear();
 
     m_hmdSequenceNum= 0;
     m_trackerSequenceNum = 0;
@@ -103,27 +103,38 @@ void ClientHMDView::notifyPropertyChanged(vr::IVRSystem *pVRSystem, int deviceIn
     }
 }
 
-void ClientHMDView::applyHMDDataFrame(const vr::TrackedDevicePose_t *data_frame)
+void ClientHMDView::applyHMDDataFrame(
+    const vr::TrackedDevicePose_t *raw_data_frame,
+    const vr::TrackedDevicePose_t *standing_data_frame)
 {
-    if (data_frame->bPoseIsValid)
+    if (raw_data_frame->bPoseIsValid && standing_data_frame->bPoseIsValid)
     {
-        const float(&m)[3][4] = data_frame->mDeviceToAbsoluteTracking.m;
+        {
+            const float(&m)[3][4] = raw_data_frame->mDeviceToAbsoluteTracking.m;
 
-        // OpenVR uses right-handed coordinate system:
-        // +y is up
-        // +x is to the right
-        // -z is going away from you
-        // Distance unit is meters
-        m_hmdXBasisVector = PSMoveFloatVector3::create(m[0][0], m[1][0], m[2][0]);
-        m_hmdYBasisVector = PSMoveFloatVector3::create(m[0][1], m[1][1], m[2][1]);
-        m_hmdZBasisVector = PSMoveFloatVector3::create(m[0][2], m[1][2], m[2][2]);
+            // OpenVR uses right-handed coordinate system:
+            // +y is up
+            // +x is to the right
+            // -z is going away from you
+            // Distance unit is meters
+            m_rawHmdXBasisVector = PSMoveFloatVector3::create(m[0][0], m[1][0], m[2][0]);
+            m_rawHmdYBasisVector = PSMoveFloatVector3::create(m[0][1], m[1][1], m[2][1]);
+            m_rawHmdZBasisVector = PSMoveFloatVector3::create(m[0][2], m[1][2], m[2][2]);
 
-        // PSMoveAPI also uses the same right-handed coordinate system
-        // Distance unit is centimeters
-        m_hmdPose.Orientation = openvrMatrixExtractPSMoveQuaternion(data_frame->mDeviceToAbsoluteTracking);
-        m_hmdPose.Position = openvrMatrixExtractPSMovePosition(data_frame->mDeviceToAbsoluteTracking) * k_meters_to_centimenters;
-        m_hmdAngularVelocity= openvrVectorToPSMoveVector(data_frame->vAngularVelocity);
-        m_hmdLinearVelocity = openvrVectorToPSMoveVector(data_frame->vVelocity) *k_meters_to_centimenters;
+            // PSMoveAPI also uses the same right-handed coordinate system
+            // Distance unit is centimeters
+            m_rawHmdPose.Orientation = openvrMatrixExtractPSMoveQuaternion(raw_data_frame->mDeviceToAbsoluteTracking);
+            m_rawHmdPose.Position = openvrMatrixExtractPSMovePosition(raw_data_frame->mDeviceToAbsoluteTracking) * k_meters_to_centimenters;
+            m_rawHmdAngularVelocity = openvrVectorToPSMoveVector(raw_data_frame->vAngularVelocity);
+            m_rawHmdLinearVelocity = openvrVectorToPSMoveVector(raw_data_frame->vVelocity) *k_meters_to_centimenters;
+        }
+
+        {
+            m_displayHmdPose.Orientation = 
+                openvrMatrixExtractPSMoveQuaternion(standing_data_frame->mDeviceToAbsoluteTracking);
+            m_displayHmdPose.Position = 
+                openvrMatrixExtractPSMovePosition(standing_data_frame->mDeviceToAbsoluteTracking) * k_meters_to_centimenters;
+        }
 
         // Increment the sequence number now that that we have new data
         ++m_hmdSequenceNum;
@@ -141,11 +152,11 @@ bool ClientHMDView::getIsHMDStableAndAlignedWithGravity() const
     // Other HMDs don't have a completely flat bottom like the DK2 does so they won't lie level.
     // Thus the 30 degree tolerance.
     const float k_cosine_30_degrees = 0.866025f;
-    const float velocity_magnitude = m_hmdLinearVelocity.length();
+    const float velocity_magnitude = m_rawHmdLinearVelocity.length();
 
     const bool isOk =
         is_nearly_equal(velocity_magnitude, 0.f, 0.5f) &&
-        PSMoveFloatVector3::dot(m_hmdYBasisVector, PSMoveFloatVector3::create(0.f, 1.f, 0.f)) >= k_cosine_30_degrees;
+        PSMoveFloatVector3::dot(m_rawHmdYBasisVector, PSMoveFloatVector3::create(0.f, 1.f, 0.f)) >= k_cosine_30_degrees;
 
     return isOk;
 }

@@ -37,13 +37,14 @@ class ClientHMDView
 private:
     OpenVRHmdInfo m_hmdInfo;
 
-    PSMovePose m_hmdPose;
-    PSMoveFloatVector3 m_hmdXBasisVector;
-    PSMoveFloatVector3 m_hmdYBasisVector;
-    PSMoveFloatVector3 m_hmdZBasisVector;
+    PSMovePose m_rawHmdPose;
+    PSMoveFloatVector3 m_rawHmdXBasisVector;
+    PSMoveFloatVector3 m_rawHmdYBasisVector;
+    PSMoveFloatVector3 m_rawHmdZBasisVector;
+    PSMoveFloatVector3 m_rawHmdAngularVelocity;
+    PSMoveFloatVector3 m_rawHmdLinearVelocity;
 
-    PSMoveFloatVector3 m_hmdAngularVelocity;
-    PSMoveFloatVector3 m_hmdLinearVelocity;
+    PSMovePose m_displayHmdPose;
 
     int m_hmdSequenceNum;
     int m_trackerSequenceNum;
@@ -62,8 +63,9 @@ public:
     void notifyConnected(vr::IVRSystem *pVRSystem, int deviceIndex);
     void notifyDisconnected(vr::IVRSystem *pVRSystem, int deviceIndex);
     void notifyPropertyChanged(vr::IVRSystem *pVRSystem, int deviceIndex);
-    void applyHMDDataFrame(const vr::TrackedDevicePose_t *data_frame);
-    void applyTrackerDataFrame(const vr::TrackedDevicePose_t *data_frame);
+    void applyHMDDataFrame(
+        const vr::TrackedDevicePose_t *raw_data_frame, 
+        const vr::TrackedDevicePose_t *standing_data_frame);
 
     // Listener State
     inline void incListenerCount()
@@ -93,19 +95,28 @@ public:
         return getIsHMDConnected() ? m_hmdSequenceNum : -1;
     }
 
-    inline PSMovePose getHmdPose() const
+    // This is the raw HMD pose that comes from the driver.
+    // You want to use this pose when computing calibration state.
+    inline PSMovePose getRawHmdPose() const
     {
-        return m_hmdPose;
+        return m_rawHmdPose;
     }
 
-    inline const PSMoveFloatVector3 &getHMDAngularVelocity() const
+    // This is the HMD pose relative to the standing tracking space in OpenVR.
+    // You want to use this when rendering the HMD and tracking space.
+    inline PSMovePose getDisplayHmdPose() const
     {
-        return getIsHMDConnected() ? m_hmdAngularVelocity : *k_psmove_float_vector3_zero;
+        return m_displayHmdPose;
     }
 
-    inline const PSMoveFloatVector3 &getHMDLinearVelocity() const
+    inline const PSMoveFloatVector3 &getRawHMDAngularVelocity() const
     {
-        return getIsHMDConnected() ? m_hmdLinearVelocity : *k_psmove_float_vector3_zero;
+        return getIsHMDConnected() ? m_rawHmdAngularVelocity : *k_psmove_float_vector3_zero;
+    }
+
+    inline const PSMoveFloatVector3 &getRawHMDLinearVelocity() const
+    {
+        return getIsHMDConnected() ? m_rawHmdLinearVelocity : *k_psmove_float_vector3_zero;
     }
 
     inline bool getIsHMDConnected() const

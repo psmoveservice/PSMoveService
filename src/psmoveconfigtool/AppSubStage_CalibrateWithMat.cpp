@@ -265,7 +265,7 @@ void AppSubStage_CalibrateWithMat::update()
                     m_hmdTrackerPoseContext.worldSpaceSampleCount < k_mat_sample_location_count)
                 {
                     const int sampleCount = m_hmdTrackerPoseContext.worldSpaceSampleCount;
-                    const PSMovePose pose = HMDView->getHmdPose();
+                    const PSMovePose pose = HMDView->getRawHmdPose();
 
                     m_hmdTrackerPoseContext.worldSpacePoints[sampleCount] = pose.Position;
                     m_hmdTrackerPoseContext.worldSpaceOrientations[sampleCount] = pose.Orientation;
@@ -410,7 +410,7 @@ void AppSubStage_CalibrateWithMat::render()
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:
         {
             const ClientHMDView *HMDView = m_parentStage->m_hmdView;
-            const glm::mat4 transform = psmove_pose_to_glm_mat4(HMDView->getHmdPose());
+            const glm::mat4 transform = psmove_pose_to_glm_mat4(HMDView->getDisplayHmdPose());
 
             drawDK2Model(transform);
 
