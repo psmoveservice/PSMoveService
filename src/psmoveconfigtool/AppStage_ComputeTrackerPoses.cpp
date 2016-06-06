@@ -171,7 +171,7 @@ void AppStage_ComputeTrackerPoses::render()
         {
             if (m_hmdView != nullptr)
             {
-                PSMovePose pose = m_hmdView->getHmdPose();
+                PSMovePose pose = m_hmdView->getDisplayHmdPose();
                 glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
                 glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
 
@@ -218,7 +218,7 @@ void AppStage_ComputeTrackerPoses::render()
                 glm::mat4 tracking_space_inv_transform = glm::inverse(tracking_space_transform);
 
                 // Put the HMD transform in PSMove tracking space
-                PSMovePose hmd_pose = m_hmdView->getHmdPose();
+                PSMovePose hmd_pose = m_hmdView->getDisplayHmdPose();
                 glm::mat4 hmd_transform = tracking_space_inv_transform * psmove_pose_to_glm_mat4(hmd_pose);
 
                 drawDK2Model(hmd_transform);

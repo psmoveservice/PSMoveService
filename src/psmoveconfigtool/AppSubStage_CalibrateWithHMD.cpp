@@ -63,7 +63,7 @@ void AppSubStage_CalibrateWithHMD::update()
         break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepRecordHmdPSMove:
         {
-            PSMovePose dk2pose = HMDView->getHmdPose();
+            PSMovePose dk2pose = HMDView->getRawHmdPose();
             PSMovePosition dk2position = dk2pose.Position;
             bool bAllTrackersComplete = true;
 
@@ -204,7 +204,7 @@ void AppSubStage_CalibrateWithHMD::render()
 
             // Draw the DK2 model
             {
-                glm::mat4 transform = psmove_pose_to_glm_mat4(HMDView->getHmdPose());
+                glm::mat4 transform = psmove_pose_to_glm_mat4(HMDView->getDisplayHmdPose());
 
                 drawDK2Model(transform);
                 drawTransformedAxes(transform, 10.f);

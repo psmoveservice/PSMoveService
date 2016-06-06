@@ -53,7 +53,8 @@ private:
     vr::IVRSystem *m_pVRSystem;
     vr::IVRRenderModels *m_pRenderModels;
     vr::IVRChaperone *m_pChaperone;
-    vr::TrackedDevicePose_t *m_pTrackedDevicePoseArray;
+    vr::TrackedDevicePose_t *m_pTrackedDeviceRawPoseArray;
+    vr::TrackedDevicePose_t *m_pTrackedDeviceStandingPoseArray;
     ClientHMDView *m_hmdView;
 
     void processVREvent(const vr::VREvent_t & event);
