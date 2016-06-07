@@ -48,7 +48,8 @@ protected:
     */
     bool update_connected_devices();
 
-    virtual bool can_update_connected_devices() = 0;
+    virtual bool can_poll_connected_devices();
+    virtual bool can_update_connected_devices();
     virtual class DeviceEnumerator *allocate_device_enumerator() = 0;
     virtual void free_device_enumerator(class DeviceEnumerator *) = 0;
     virtual ServerDeviceView *allocate_device_view(int device_id) = 0;

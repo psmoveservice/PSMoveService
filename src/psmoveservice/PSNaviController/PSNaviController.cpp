@@ -348,7 +348,7 @@ PSNaviController::getSerial() const
 }
 
 std::string 
-PSNaviController::getHostBluetoothAddress() const
+PSNaviController::getAssignedHostBluetoothAddress() const
 {
     return HIDDetails.Host_bt_addr;
 }

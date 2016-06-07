@@ -2,6 +2,7 @@
 #include "ServerRequestHandler.h"
 
 #include "BluetoothRequests.h"
+#include "BluetoothQueries.h"
 #include "ControllerManager.h"
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
@@ -389,6 +390,10 @@ protected:
 
         response->set_type(PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST);
 
+        // Get the address of the bluetooth adapter cached at startup
+        list->set_host_serial(m_device_manager.m_controller_manager->getCachedBluetoothHostAddress());
+
+        // Add of the 
         for (int controller_id= 0; controller_id < m_device_manager.getControllerViewMaxCount(); ++controller_id)
         {
             ServerControllerViewPtr controller_view= m_device_manager.getControllerViewPtr(controller_id);
@@ -416,7 +421,7 @@ protected:
                     : PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_USB);            
                 controller_info->set_device_path(controller_view->getUSBDevicePath());
                 controller_info->set_device_serial(controller_view->getSerial());
-                controller_info->set_host_serial(controller_view->getHostBluetoothAddress());
+                controller_info->set_assigned_host_serial(controller_view->getAssignedHostBluetoothAddress());
             }
         }
 
@@ -535,6 +540,12 @@ protected:
         {
             ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
+            // Bluetooth operations causes a lot of stalls in the video threads.
+            // It's best to just close everything down while a pairing operating is going on.
+            // The tracker will automatically re-open when the operation completes
+            SERVER_LOG_INFO("ServerRequestHandler") << "Closing all trackers!";
+            m_device_manager.m_tracker_manager->closeAllTrackers();
+
             context.connection_state->pending_bluetooth_request =
                 new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
 
@@ -576,6 +587,12 @@ protected:
         if (context.connection_state->pending_bluetooth_request == nullptr)
         {
             ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
+
+            // Bluetooth operations causes a lot of stalls in the video threads.
+            // It's best to just close everything down while a pairing operating is going on.
+            // The tracker will automatically re-open when the operation completes
+            SERVER_LOG_INFO("ServerRequestHandler") << "Closing all trackers!";
+            m_device_manager.m_tracker_manager->closeAllTrackers();
 
             context.connection_state->pending_bluetooth_request = 
                 new AsyncBluetoothPairDeviceRequest(connection_id, controllerView);

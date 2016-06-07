@@ -119,10 +119,20 @@ TrackerManager::startup()
     return bSuccess;
 }
 
-bool
-TrackerManager::can_update_connected_devices()
+void
+TrackerManager::closeAllTrackers()
 {
-    return true;
+    for (int tracker_id = 0; tracker_id < k_max_devices; ++tracker_id)
+    {
+        ServerTrackerViewPtr tracker_view = getTrackerViewPtr(tracker_id);
+
+        if (tracker_view->getIsOpen())
+        {
+            tracker_view->close();
+        }
+    }
+
+    send_device_list_changed_notification();
 }
 
 DeviceEnumerator *

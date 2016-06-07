@@ -105,7 +105,7 @@ public:
     virtual bool getIsReadyToPoll() const override;
     virtual std::string getUSBDevicePath() const override;
     virtual std::string getSerial() const override;
-    virtual std::string getHostBluetoothAddress() const override;
+    virtual std::string getAssignedHostBluetoothAddress() const override;
     virtual bool getIsOpen() const override;
     static CommonDeviceState::eDeviceType getDeviceTypeStatic() 
     { return CommonDeviceState::PSNavi; }

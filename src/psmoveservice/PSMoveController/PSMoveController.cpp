@@ -580,7 +580,7 @@ PSMoveController::getSerial() const
 }
 
 std::string 
-PSMoveController::getHostBluetoothAddress() const
+PSMoveController::getAssignedHostBluetoothAddress() const
 {
     return HIDDetails.Host_bt_addr;
 }

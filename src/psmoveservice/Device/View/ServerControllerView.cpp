@@ -488,9 +488,9 @@ ServerControllerView::getSerial() const
 }
 
 std::string 
-ServerControllerView::getHostBluetoothAddress() const
+ServerControllerView::getAssignedHostBluetoothAddress() const
 {
-    return m_device->getHostBluetoothAddress();
+    return m_device->getAssignedHostBluetoothAddress();
 }
 
 CommonDeviceState::eDeviceType

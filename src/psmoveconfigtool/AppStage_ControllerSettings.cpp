@@ -110,9 +110,16 @@ void AppStage_ControllerSettings::renderUI()
             ImGui::SetNextWindowSize(ImVec2(300, 400));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            if (m_pairedControllerInfos.size() > 0)
+            if (m_hostSerial.length() <= 1 || m_hostSerial == "00:00:00:00:00:00")
+            {
+                ImGui::Text("No bluetooth adapter detected!");
+            }
+            else if (m_pairedControllerInfos.size() > 0)
             {
                 const ControllerInfo &controllerInfo= m_pairedControllerInfos[m_selectedControllerIndex];
+
+                ImGui::Text("Host Serial: %s", m_hostSerial.c_str());
+                ImGui::Separator();
 
                 ImGui::Text("Controller: %d", m_selectedControllerIndex);
                 ImGui::Text("  Controller ID: %d", controllerInfo.ControllerID);
@@ -166,7 +173,7 @@ void AppStage_ControllerSettings::renderUI()
                     controllerInfo.ConnectionType == AppStage_ControllerSettings::Bluetooth
                     ? "Bluetooth" : "USB");
                 ImGui::Text("  Device Serial: %s", controllerInfo.DeviceSerial.c_str());
-                ImGui::Text("  Host Serial: %s", controllerInfo.HostSerial.c_str());
+                ImGui::Text("  Assigned Host Serial: %s", controllerInfo.AssignedHostSerial.c_str());
                 ImGui::TextWrapped("  Device Path: %s", controllerInfo.DevicePath.c_str());
 
                 if (m_selectedControllerIndex > 0)
@@ -332,7 +339,6 @@ void AppStage_ControllerSettings::handle_controller_list_response(
     AppStage_ControllerSettings *thisPtr= static_cast<AppStage_ControllerSettings *>(userdata);
 
     const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
-//    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
     const ClientPSMoveAPI::t_response_handle response_handle = response_message->opaque_response_handle;
 
     switch(ResultCode)
@@ -340,6 +346,8 @@ void AppStage_ControllerSettings::handle_controller_list_response(
         case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
             const PSMoveProtocol::Response *response= GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+
+            thisPtr->m_hostSerial = response->result_controller_list().host_serial();
 
             for (int controller_index= 0; controller_index < response->result_controller_list().controllers_size(); ++controller_index)
             {
@@ -377,10 +385,10 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                     static_cast<PSMoveTrackingColorType>(ControllerResponse.tracking_color_type());
                 ControllerInfo.DevicePath= ControllerResponse.device_path();
                 ControllerInfo.DeviceSerial= ControllerResponse.device_serial();
-                ControllerInfo.HostSerial= ControllerResponse.host_serial();
+                ControllerInfo.AssignedHostSerial= ControllerResponse.assigned_host_serial();
 
-                if (ControllerResponse.host_serial().length() > 0 && 
-                    ControllerResponse.host_serial() != "00:00:00:00:00:00")
+                if (ControllerResponse.assigned_host_serial().length() > 0 && 
+                    ControllerResponse.assigned_host_serial() == thisPtr->m_hostSerial)
                 {
                     thisPtr->m_pairedControllerInfos.push_back( ControllerInfo );
                 }

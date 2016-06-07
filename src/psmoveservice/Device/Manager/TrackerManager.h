@@ -57,7 +57,9 @@ public:
 
     bool startup() override;
 
-    static const int k_max_devices = 2;
+    void closeAllTrackers();
+
+    static const int k_max_devices = 3;
     int getMaxDevices() const override
     {
         return TrackerManager::k_max_devices;
@@ -88,7 +90,6 @@ public:
     }
 
 protected:
-    bool can_update_connected_devices() override;
     DeviceEnumerator *allocate_device_enumerator() override;
     void free_device_enumerator(DeviceEnumerator *) override;
     ServerDeviceView *allocate_device_view(int device_id) override;

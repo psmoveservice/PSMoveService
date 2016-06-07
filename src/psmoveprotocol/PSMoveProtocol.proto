@@ -344,9 +344,10 @@ message Response {
             TrackingColorType tracking_color_type = 4;
             string device_path = 5;
             string device_serial = 6;
-            string host_serial = 7;
+            string assigned_host_serial = 7;
         }
         repeated ControllerInfo controllers = 1;
+        string host_serial = 2;
     }
     ResultControllerList result_controller_list = 21;    
     

@@ -335,7 +335,7 @@ public:
     virtual std::string getUSBDevicePath() const = 0;
 
     // Gets the bluetooth address of the adapter on the host PC that's registered with the controller
-    virtual std::string getHostBluetoothAddress() const = 0;
+    virtual std::string getAssignedHostBluetoothAddress() const = 0;
 
     // Returns the serial number for the controller
     virtual std::string getSerial() const  = 0;

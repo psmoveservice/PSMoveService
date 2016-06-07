@@ -31,7 +31,7 @@ public:
         PSMoveTrackingColorType TrackingColorType;
         std::string DevicePath;
         std::string DeviceSerial;
-        std::string HostSerial;
+        std::string AssignedHostSerial;
     };
 
     AppStage_ControllerSettings(class App *app);
@@ -76,6 +76,7 @@ private:
 
     std::vector<ControllerInfo> m_pairedControllerInfos;
     std::vector<ControllerInfo> m_unpairedControllerInfos;
+    std::string m_hostSerial;
 
     int m_selectedControllerIndex;
 };

@@ -5,6 +5,7 @@
 #include "ServerDeviceView.h"
 #include "ServerNetworkManager.h"
 #include "ServerUtility.h"
+#include "ServerRequestHandler.h"
 
 //-- methods -----
 /// Constructor and set intervals (ms) for reconnect and polling
@@ -242,20 +243,35 @@ DeviceTypeManager::send_device_list_changed_notification()
     ServerNetworkManager::get_instance()->send_notification_to_all_clients(response);
 }
 
+bool
+DeviceTypeManager::can_poll_connected_devices()
+{
+    return !ServerRequestHandler::get_instance()->any_active_bluetooth_requests();
+}
+
+bool
+DeviceTypeManager::can_update_connected_devices()
+{
+    return !ServerRequestHandler::get_instance()->any_active_bluetooth_requests();
+}
+
 void
 DeviceTypeManager::poll_devices()
 {
-    bool bAllUpdatedOk = true;
-
-    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+    if (can_poll_connected_devices())
     {
-        ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
-        bAllUpdatedOk &= device->poll();
-    }
+        bool bAllUpdatedOk = true;
 
-    if (!bAllUpdatedOk)
-    {
-        send_device_list_changed_notification();
+        for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+        {
+            ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
+            bAllUpdatedOk &= device->poll();
+        }
+
+        if (!bAllUpdatedOk)
+        {
+            send_device_list_changed_notification();
+        }
     }
 }
 
