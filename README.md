@@ -16,8 +16,7 @@ A background service that communicates with the psmove and serves its pose and b
     * The CMake scripts assume you install to the default directory (C:\OpenCV-3.0.0).
     If not, you will have to add a `-DOpenCV_DIR=<install dir>\build` flag to your cmake command.
 1. Boost
-    * From [here](sourceforge.net/projects/boost/files/boost-binaries/1.59.0/),
-    get boost_1_59_0-msvc-12.0-32.exe and/or -64.exe.
+    * From [here](https://sourceforge.net/projects/boost/files/boost-binaries/1.59.0_b1/), get boost_1_59_0-msvc-12.0-32.exe and/or -64.exe.
     * Install to `C:\` (e.g., resulting in `C:\boost_1_59_0\`)
     * This path will be referred to BOOST_ROOT later
 1. Optional: [CL Eye Driver](https://codelaboratories.com/products/eye/driver/)
