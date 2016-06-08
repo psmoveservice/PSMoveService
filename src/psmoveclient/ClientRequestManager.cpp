@@ -175,7 +175,7 @@ public:
         ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list)
     {
         int src_controller_count = 0;
-        int dest_controller_count = 0;
+        int dest_controller_count= 0;
 
         // Copy the controller entries into the response payload
         while (src_controller_count < response->result_controller_list().controllers_size()
@@ -212,7 +212,7 @@ public:
         }
 
         // Record how many controllers we copied into the payload
-        controller_list->count = src_controller_count;
+        controller_list->count = dest_controller_count;
     }
 
     inline PSMovePose protocol_pose_to_psmove_pose(const PSMoveProtocol::Pose &pose)

@@ -69,7 +69,7 @@ ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
     {
         ServerControllerViewPtr controllerView = getControllerViewPtr(device_id);
 
-		if (controllerView->getIsOpen())
+		if (controllerView->getIsOpen() && controllerView->getIsBluetooth())
 		{
 			controllerView->updatePositionEstimation(tracker_manager);
 			controllerView->updateStateAndPredict();

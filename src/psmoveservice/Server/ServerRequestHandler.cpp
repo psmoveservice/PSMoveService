@@ -233,6 +233,9 @@ public:
             case PSMoveProtocol::Request_RequestType_APPLY_TRACKER_PROFILE:
                 handle_request__apply_tracker_profile(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SEARCH_FOR_NEW_TRACKERS:
+                handle_request__search_for_new_trackers(context, response);
+                break;
 
             // HMD Requests
             case PSMoveProtocol::Request_RequestType_GET_HMD_TRACKING_SPACE_SETTINGS:
@@ -386,6 +389,8 @@ protected:
         const RequestContext &context, 
         PSMoveProtocol::Response *response)
     {
+        const PSMoveProtocol::Request_RequestGetControllerList& request =
+            context.request->request_get_controller_list();
         PSMoveProtocol::Response_ResultControllerList* list= response->mutable_result_controller_list();
 
         response->set_type(PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST);
@@ -393,12 +398,14 @@ protected:
         // Get the address of the bluetooth adapter cached at startup
         list->set_host_serial(m_device_manager.m_controller_manager->getCachedBluetoothHostAddress());
 
-        // Add of the 
+        // Add of the open controllers matching the filter constraints
         for (int controller_id= 0; controller_id < m_device_manager.getControllerViewMaxCount(); ++controller_id)
         {
             ServerControllerViewPtr controller_view= m_device_manager.getControllerViewPtr(controller_id);
+            const bool bIncludeUSB = request.include_usb_controllers();
+            const bool bIsBluetooth = controller_view->getIsBluetooth();
 
-            if (controller_view->getIsOpen())
+            if (controller_view->getIsOpen() && (bIncludeUSB || bIsBluetooth))
             {
                 PSMoveProtocol::Response_ResultControllerList_ControllerInfo *controller_info= list->add_controllers();
 
@@ -416,7 +423,7 @@ protected:
 
                 controller_info->set_controller_id(controller_id);
                 controller_info->set_connection_type(
-                    controller_view->getIsBluetooth()
+                    bIsBluetooth
                     ? PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH
                     : PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_USB);            
                 controller_info->set_device_path(controller_view->getUSBDevicePath());
@@ -438,28 +445,37 @@ protected:
 
         if (ServerUtility::is_index_valid(controller_id, m_device_manager.getControllerViewMaxCount()))
         {
-            ControllerStreamInfo &streamInfo=
-                context.connection_state->active_controller_stream_info[controller_id];
+            ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
 
-            // The controller manager will always publish updates regardless of who is listening.
-            // All we have to do is keep track of which connections care about the updates.
-            context.connection_state->active_controller_streams.set(controller_id, true);
-
-            // Set control flags for the stream
-            streamInfo.Clear();
-            streamInfo.include_position_data = request.include_position_data();
-            streamInfo.include_physics_data = request.include_physics_data();
-            streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
-            streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
-
-            if (streamInfo.include_position_data)
+            if (controller_view->getIsBluetooth())
             {
-                ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
+                ControllerStreamInfo &streamInfo =
+                    context.connection_state->active_controller_stream_info[controller_id];
 
-                controller_view->startTracking();
+                // The controller manager will always publish updates regardless of who is listening.
+                // All we have to do is keep track of which connections care about the updates.
+                context.connection_state->active_controller_streams.set(controller_id, true);
+
+                // Set control flags for the stream
+                streamInfo.Clear();
+                streamInfo.include_position_data = request.include_position_data();
+                streamInfo.include_physics_data = request.include_physics_data();
+                streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
+                streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
+
+                if (streamInfo.include_position_data)
+                {
+                    ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
+
+                    controller_view->startTracking();
+                }
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
-
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
         }
         else
         {
@@ -475,20 +491,26 @@ protected:
 
         if (ServerUtility::is_index_valid(controller_id, m_device_manager.getControllerViewMaxCount()))
         {
+            ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
             ControllerStreamInfo &streamInfo =
                 context.connection_state->active_controller_stream_info[controller_id];
 
-            if (streamInfo.include_position_data)
+            if (controller_view->getIsBluetooth())
             {
-                ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
+                if (streamInfo.include_position_data)
+                {
+                    controller_view->stopTracking();
+                }
 
-                controller_view->stopTracking();
+                context.connection_state->active_controller_streams.set(controller_id, false);
+                context.connection_state->active_controller_stream_info[controller_id].Clear();
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
-
-            context.connection_state->active_controller_streams.set(controller_id, false);
-            context.connection_state->active_controller_stream_info[controller_id].Clear();
-
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
         }
         else
         {
@@ -540,12 +562,6 @@ protected:
         {
             ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
-            // Bluetooth operations causes a lot of stalls in the video threads.
-            // It's best to just close everything down while a pairing operating is going on.
-            // The tracker will automatically re-open when the operation completes
-            SERVER_LOG_INFO("ServerRequestHandler") << "Closing all trackers!";
-            m_device_manager.m_tracker_manager->closeAllTrackers();
-
             context.connection_state->pending_bluetooth_request =
                 new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
 
@@ -587,12 +603,6 @@ protected:
         if (context.connection_state->pending_bluetooth_request == nullptr)
         {
             ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
-
-            // Bluetooth operations causes a lot of stalls in the video threads.
-            // It's best to just close everything down while a pairing operating is going on.
-            // The tracker will automatically re-open when the operation completes
-            SERVER_LOG_INFO("ServerRequestHandler") << "Closing all trackers!";
-            m_device_manager.m_tracker_manager->closeAllTrackers();
 
             context.connection_state->pending_bluetooth_request = 
                 new AsyncBluetoothPairDeviceRequest(connection_id, controllerView);
@@ -715,7 +725,9 @@ protected:
 
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
-        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        if (ControllerView && 
+            ControllerView->getIsBluetooth() &&
+            ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
         {
             // Give up control of our existing tracking color
             const eCommonTrackingColorID eOldColorID = ControllerView->getTrackingColorID();
@@ -1319,6 +1331,18 @@ protected:
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
+    }
+
+    void handle_request__search_for_new_trackers(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        // The video polling threads tend to stall out when we are polling for new devices via libusb.
+        // Until we have a better solution, best to just shut down all of the trackers
+        // and then wait for them to restart next tracker device refresh.
+        m_device_manager.m_tracker_manager->closeAllTrackers();
+
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
     }
 
     // -- HMD Requests -----

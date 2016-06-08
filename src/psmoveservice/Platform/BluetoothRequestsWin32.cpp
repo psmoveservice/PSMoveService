@@ -395,7 +395,7 @@ AsyncBluetoothUnpairDeviceRequest::start()
                 AsyncBluetoothUnpairDeviceThreadFunction,       // thread function pointer
                 m_internal_state,            // argument to thread function 
                 0,                           // use default creation flags 
-                &state->worker_thread_id);   // returns the thread identifier
+                NULL);                       // returns the thread identifier
 
         if (state->worker_thread_handle == NULL)
         {
@@ -413,6 +413,8 @@ static DWORD WINAPI
 AsyncBluetoothUnpairDeviceThreadFunction(LPVOID lpParam)
 {
     BluetoothUnpairDeviceState *state= reinterpret_cast<BluetoothUnpairDeviceState *>(lpParam);
+
+    state->worker_thread_id = GetCurrentThreadId();
 
     BLUETOOTH_ADDRESS bt_address;
     bool success= string_to_bluetooth_address(state->getControllerAddress(), &bt_address);
@@ -587,7 +589,7 @@ AsyncBluetoothPairDeviceRequest::start()
                     AsyncBluetoothPairDeviceThreadFunction,       // thread function pointer
                     m_internal_state,            // argument to thread function 
                     0,                           // use default creation flags 
-                    &state->worker_thread_id);   // returns the thread identifier
+                    NULL);                       // returns the thread identifier
 
             if (state->worker_thread_handle == NULL)
             {
@@ -619,6 +621,8 @@ static DWORD WINAPI
 AsyncBluetoothPairDeviceThreadFunction(LPVOID lpParam)
 {
     BluetoothPairDeviceState *state= reinterpret_cast<BluetoothPairDeviceState *>(lpParam);
+
+    state->worker_thread_id = GetCurrentThreadId();
 
     bool isCompleted= false; 
     const int controller_id= state->getControllerID();

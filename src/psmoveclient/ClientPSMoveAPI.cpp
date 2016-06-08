@@ -184,6 +184,9 @@ public:
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST);
 
+        // Don't include controllers connected via USB for normal controller list requests
+        request->mutable_request_get_controller_list()->set_include_usb_controllers(false);
+
         m_request_manager.send_request(request);
 
         return request->request_id();
@@ -549,9 +552,6 @@ public:
         message.payload_type = ClientPSMoveAPI::_messagePayloadType_Event;
         message.event_data.event_type= event_type;
 
-        // Add the message to the message queue
-        m_message_queue.push_back(message);
-
         // Maintain a reference to the event until the next update
         if (event)
         {
@@ -570,6 +570,9 @@ public:
         {
             message.event_data.event_data_handle = nullptr;
         }
+
+        // Add the message to the message queue
+        m_message_queue.push_back(message);
     }
 
     bool register_callback(

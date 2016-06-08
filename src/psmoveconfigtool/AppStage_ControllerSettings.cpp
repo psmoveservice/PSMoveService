@@ -64,7 +64,7 @@ void AppStage_ControllerSettings::render()
         {
             if (m_selectedControllerIndex >= 0)
             {
-                const ControllerInfo &controllerInfo= m_pairedControllerInfos[m_selectedControllerIndex];
+                const ControllerInfo &controllerInfo= m_bluetoothControllerInfos[m_selectedControllerIndex];
 
                 switch(controllerInfo.ControllerType)
                 {
@@ -107,22 +107,43 @@ void AppStage_ControllerSettings::renderUI()
     case eControllerMenuState::idle:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::SetNextWindowSize(ImVec2(300, 400));
+            ImGui::SetNextWindowSize(ImVec2(350, 350));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            if (m_hostSerial.length() <= 1 || m_hostSerial == "00:00:00:00:00:00")
+            if (m_hostSerial.length() > 1 && m_hostSerial != "00:00:00:00:00:00")
+            {
+                ImGui::Text("Host Serial: %s", m_hostSerial.c_str());
+            }
+            else
             {
                 ImGui::Text("No bluetooth adapter detected!");
             }
-            else if (m_pairedControllerInfos.size() > 0)
+            
+            ImGui::Separator();
+
+            if (m_bluetoothControllerInfos.size() > 0)
             {
-                const ControllerInfo &controllerInfo= m_pairedControllerInfos[m_selectedControllerIndex];
+                const ControllerInfo &controllerInfo= m_bluetoothControllerInfos[m_selectedControllerIndex];
 
-                ImGui::Text("Host Serial: %s", m_hostSerial.c_str());
-                ImGui::Separator();
-
+                if (m_selectedControllerIndex > 0)
+                {
+                    if (ImGui::Button("<##ControllerIndex"))
+                    {
+                        --m_selectedControllerIndex;
+                    }
+                    ImGui::SameLine();
+                }
                 ImGui::Text("Controller: %d", m_selectedControllerIndex);
-                ImGui::Text("  Controller ID: %d", controllerInfo.ControllerID);
+                if (m_selectedControllerIndex + 1 < static_cast<int>(m_bluetoothControllerInfos.size()))
+                {
+                    ImGui::SameLine();
+                    if (ImGui::Button(">##ControllerIndex"))
+                    {
+                        ++m_selectedControllerIndex;
+                    }
+                }
+
+                ImGui::BulletText("Controller ID: %d", controllerInfo.ControllerID);
 
                 // Display the tracking color being used for the controller
                 {
@@ -152,45 +173,28 @@ void AppStage_ControllerSettings::renderUI()
                         break;
                     }
 
-                    ImGui::Text("  Controller Type: %s", color_string);
+                    ImGui::BulletText("Controller Type: %s", color_string);
                 }
 
                 switch(controllerInfo.ControllerType)
                 {
                     case AppStage_ControllerSettings::PSMove:
                         {
-                            ImGui::Text("  Controller Type: PSMove");
+                            ImGui::BulletText("Controller Type: PSMove");
                         } break;
                     case AppStage_ControllerSettings::PSNavi:
                         {
-                            ImGui::Text("  Controller Type: PSNavi");
+                            ImGui::BulletText("Controller Type: PSNavi");
                         } break;
                     default:
                         assert(0 && "Unreachable");
                 }
 
-                ImGui::Text("  Controller Connection: %s", 
-                    controllerInfo.ConnectionType == AppStage_ControllerSettings::Bluetooth
-                    ? "Bluetooth" : "USB");
-                ImGui::Text("  Device Serial: %s", controllerInfo.DeviceSerial.c_str());
-                ImGui::Text("  Assigned Host Serial: %s", controllerInfo.AssignedHostSerial.c_str());
-                ImGui::TextWrapped("  Device Path: %s", controllerInfo.DevicePath.c_str());
-
-                if (m_selectedControllerIndex > 0)
-                {
-                    if (ImGui::Button("Previous Controller"))
-                    {
-                        --m_selectedControllerIndex;
-                    }
-                }
-
-                if (m_selectedControllerIndex + 1 < static_cast<int>(m_pairedControllerInfos.size()))
-                {
-                    if (ImGui::Button("Next Controller"))
-                    {
-                        ++m_selectedControllerIndex;
-                    }
-                }
+                ImGui::BulletText("Device Serial: %s", controllerInfo.DeviceSerial.c_str());
+                ImGui::BulletText("Assigned Host Serial: %s", controllerInfo.AssignedHostSerial.c_str());
+                ImGui::BulletText("Device Path:");
+                ImGui::SameLine();
+                ImGui::TextWrapped("%s", controllerInfo.DevicePath.c_str());
 
                 if (controllerInfo.ControllerType == AppStage_ControllerSettings::PSMove)
                 {
@@ -209,48 +213,45 @@ void AppStage_ControllerSettings::renderUI()
                         m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
                     }
                 }
+            }
+            else
+            {
+                ImGui::Text("No Bluetooth connected controllers");
+            }
+
+            ImGui::Separator();
+
+            // If there are any controllers waiting to be paired, 
+            // just present the first one as an option
+            if (m_usbControllerInfos.size() > 0)
+            {
+                // Only consider the first controller connected via usb
+                ControllerInfo &controllerInfo = m_usbControllerInfos[0];
 
                 // We can only unpair controllers connected via usb
-                if (controllerInfo.ConnectionType == AppStage_ControllerSettings::USB)
+                if (controllerInfo.PairedToHost)
                 {
-                    if (ImGui::Button("Unpair Controller"))
+                    if (ImGui::Button("Unpair USB Controller"))
                     {
-                        ControllerInfo &controllerInfo= m_pairedControllerInfos[m_selectedControllerIndex];
-
                         m_app->getAppStage<AppStage_PairController>()->request_controller_unpair(controllerInfo.ControllerID);
                         m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
                     }
                 }
-
-                // If there are any controllers waiting to be paired, 
-                // just present the first one as an option
-                if (m_unpairedControllerInfos.size() > 0)
+                else
                 {
-                    if (ImGui::Button("Pair New Controller"))
+                    if (ImGui::Button("Pair USB Controller"))
                     {
-                        ControllerInfo &controllerInfo= m_unpairedControllerInfos[0];
-
                         m_app->getAppStage<AppStage_PairController>()->request_controller_pair(controllerInfo.ControllerID);
                         m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
                     }
                 }
             }
-            // If there are any controllers waiting to be paired, 
-            // just present the first one as an option
-            else if (m_unpairedControllerInfos.size() > 0)
-            {
-                if (ImGui::Button("Pair New Controller"))
-                {
-                    ControllerInfo &controllerInfo= m_unpairedControllerInfos[0];
-
-                    m_app->getAppStage<AppStage_PairController>()->request_controller_pair(controllerInfo.ControllerID);
-                    m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
-                }
-            }
             else
             {
-                ImGui::Text("No connected controllers");
+                ImGui::Text("No USB connected controllers");
             }
+
+            ImGui::Separator();
 
             if (ImGui::Button("Return to Main Menu"))
             {
@@ -319,12 +320,15 @@ void AppStage_ControllerSettings::request_controller_list()
     {
         m_menuState= AppStage_ControllerSettings::pendingControllerListRequest;
         m_selectedControllerIndex= -1;
-        m_pairedControllerInfos.clear();
-        m_unpairedControllerInfos.clear();
+        m_bluetoothControllerInfos.clear();
+        m_usbControllerInfos.clear();
 
         // Tell the psmove service that we we want a list of controllers connected to this machine
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST);
+
+        // Do get controllers connected bia USB in this menu since we need the info for pairing/unpairing
+        request->mutable_request_get_controller_list()->set_include_usb_controllers(true);
 
         ClientPSMoveAPI::register_callback(
             ClientPSMoveAPI::send_opaque_request(&request), 
@@ -357,18 +361,6 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 
                 ControllerInfo.ControllerID= ControllerResponse.controller_id();
 
-                switch(ControllerResponse.connection_type())
-                {
-                case PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH:
-                    ControllerInfo.ConnectionType= AppStage_ControllerSettings::Bluetooth;
-                    break;
-                case PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_USB:
-                    ControllerInfo.ConnectionType= AppStage_ControllerSettings::USB;
-                    break;
-                default:
-                    assert(0 && "unreachable");
-                }
-
                 switch(ControllerResponse.controller_type())
                 {
                 case PSMoveProtocol::PSMOVE:
@@ -386,19 +378,25 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 ControllerInfo.DevicePath= ControllerResponse.device_path();
                 ControllerInfo.DeviceSerial= ControllerResponse.device_serial();
                 ControllerInfo.AssignedHostSerial= ControllerResponse.assigned_host_serial();
+                ControllerInfo.PairedToHost=
+                    ControllerResponse.assigned_host_serial().length() > 0 && 
+                    ControllerResponse.assigned_host_serial() == thisPtr->m_hostSerial;
 
-                if (ControllerResponse.assigned_host_serial().length() > 0 && 
-                    ControllerResponse.assigned_host_serial() == thisPtr->m_hostSerial)
+                // Add the controller to the appropriate connection list
+                switch (ControllerResponse.connection_type())
                 {
-                    thisPtr->m_pairedControllerInfos.push_back( ControllerInfo );
-                }
-                else
-                {
-                    thisPtr->m_unpairedControllerInfos.push_back( ControllerInfo );
+                case PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH:
+                    thisPtr->m_bluetoothControllerInfos.push_back(ControllerInfo);
+                    break;
+                case PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_USB:
+                    thisPtr->m_usbControllerInfos.push_back(ControllerInfo);
+                    break;
+                default:
+                    assert(0 && "unreachable");
                 }
             }
 
-            thisPtr->m_selectedControllerIndex= (thisPtr->m_pairedControllerInfos.size() > 0) ? 0 : -1;
+            thisPtr->m_selectedControllerIndex= (thisPtr->m_bluetoothControllerInfos.size() > 0) ? 0 : -1;
             thisPtr->m_menuState= AppStage_ControllerSettings::idle;
         } break;
 
