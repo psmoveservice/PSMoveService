@@ -219,22 +219,23 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
         for (int tracker_id = 0; tracker_id < tracker_manager->getMaxDevices(); ++tracker_id)
         {
             ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-            ControllerPositionEstimation &positionEstimate= m_tracker_position_estimation[tracker_id];
+            ControllerPositionEstimation &positionEstimate = m_tracker_position_estimation[tracker_id];
 
-            if (tracker->computePositionForController(
-                    this, 
-                    &positionEstimate.position, 
+            positionEstimate.bCurrentlyTracking = false;
+
+            if (tracker->getIsOpen())
+            {
+                if (tracker->computePositionForController(
+                    this,
+                    &positionEstimate.position,
                     &positionEstimate.projection))
-            {
-                positionEstimate.bCurrentlyTracking= true;
-                positionEstimate.last_visible_timestamp = now;
+                {
+                    positionEstimate.bCurrentlyTracking = true;
+                    positionEstimate.last_visible_timestamp = now;
 
-                valid_tracker_ids[positions_found] = tracker_id;
-                ++positions_found;
-            }
-            else
-            {
-                positionEstimate.bCurrentlyTracking= false;
+                    valid_tracker_ids[positions_found] = tracker_id;
+                    ++positions_found;
+                }
             }
 
             // Keep track of the last time the position estimate was updated
