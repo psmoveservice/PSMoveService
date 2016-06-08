@@ -25,15 +25,21 @@ file(GLOB OPENVR_PLUGIN_LIBRARY_SRC
 )
 
 # Shared library
-add_library(driver_psmoveservice SHARED ${OPENVR_PLUGIN_LIBRARY_SRC})
-target_include_directories(driver_psmoveservice PUBLIC ${OPENVR_PLUGIN_INCL_DIRS})
-target_link_libraries(driver_psmoveservice ${OPENVR_PLUGIN_REQ_LIBS})
+add_library(driver_psmove SHARED ${OPENVR_PLUGIN_LIBRARY_SRC})
+target_include_directories(driver_psmove PUBLIC ${OPENVR_PLUGIN_INCL_DIRS})
+target_link_libraries(driver_psmove ${OPENVR_PLUGIN_REQ_LIBS})
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-install(TARGETS driver_psmoveservice
+install(TARGETS driver_psmove
 	RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
 	LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
 	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/
+    DESTINATION ${ROOT_DIR}/win32/bin
+    FILES_MATCHING PATTERN "*.bat")
+install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/resources
+    DESTINATION ${ROOT_DIR}/win32/bin
+    FILES_MATCHING PATTERN "*.png" PATTERN "*.json" PATTERN "*.obj" PATTERN "*.mtl")
 ELSE() #Linux/Darwin
 ENDIF()

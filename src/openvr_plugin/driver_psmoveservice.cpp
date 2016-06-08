@@ -809,7 +809,6 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
     , m_bIsBatteryCharging(false)
     , m_fBatteryChargeFraction(1.f)
     , m_pendingHapticPulseDuration(0)
-    , m_sentHapticPulseDuration(0)
     , m_lastTimeRumbleSent()
     , m_lastTimeRumbleSentValid(false)
 {
@@ -1219,59 +1218,54 @@ void CPSMoveControllerLatest::UpdateTrackingState()
 
 void CPSMoveControllerLatest::UpdateRumbleState()
 {
-    const float k_max_rumble_update_rate = 100.f; // Don't bother trying to update the rumble faster than 10fps (100ms)
+    const float k_max_rumble_update_rate = 200.f; // Don't bother trying to update the rumble faster than 5fps (200ms)
     const float k_max_pulse_microseconds = 1000.f; // Docs suggest max pulse duration of 5ms, but we'll call 1ms max
 
-    // Only bother with this if the rumble value actually changed
-    if (m_pendingHapticPulseDuration != m_sentHapticPulseDuration)
+    std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+    bool bTimoutElapsed= true;
+
+    if (m_lastTimeRumbleSentValid)
     {
-        std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-        bool bTimoutElapsed= true;
+        std::chrono::duration<double, std::milli> timeSinceLastSend = now - m_lastTimeRumbleSent;
 
-        if (m_lastTimeRumbleSentValid)
+        bTimoutElapsed= timeSinceLastSend.count() >= k_max_rumble_update_rate;
+    }
+
+    // See if a rumble request hasn't come too recently
+    if (bTimoutElapsed)
+    {
+        float rumble_fraction = static_cast<float>(m_pendingHapticPulseDuration) / k_max_pulse_microseconds;
+
+        // Unless a zero runble intensity was explicitly set, 
+        // don't rumble less than 35% (no enough to feel)
+        if (m_pendingHapticPulseDuration != 0)
         {
-            std::chrono::duration<double, std::milli> timeSinceLastSend = now - m_lastTimeRumbleSent;
-
-            bTimoutElapsed= timeSinceLastSend.count() >= k_max_rumble_update_rate;
+            if (rumble_fraction < 0.35f)
+            {
+                // rumble values less 35% isn't noticeable
+                rumble_fraction = 0.35f;
+            }
         }
 
-        // See if a rumble request hasn't come too recently
-        if (bTimoutElapsed)
+        // Keep the pulse intensity within reasonable bounds
+        if (rumble_fraction > 1.f)
         {
-            float rumble_fraction = static_cast<float>(m_pendingHapticPulseDuration) / k_max_pulse_microseconds;
-
-            // Unless a zero runble intensity was explicitly set, 
-            // don't rumble less than 35% (no enough to feel)
-            if (m_pendingHapticPulseDuration != 0)
-            {
-                if (rumble_fraction < 0.35f)
-                {
-                    // rumble values less 35% isn't noticeable
-                    rumble_fraction = 0.35f;
-                }
-            }
-
-            // Keep the pulse intensity within reasonable bounds
-            if (rumble_fraction > 1.f)
-            {
-                rumble_fraction = 1.f;
-            }
-
-            // Actually send the rumble to the server
-            ClientPSMoveAPI::eat_response(ClientPSMoveAPI::set_controller_rumble(m_controller_view, rumble_fraction));
-
-            // Remember the last rumble we went and when we sent it
-            m_sentHapticPulseDuration = m_pendingHapticPulseDuration;
-            m_lastTimeRumbleSent = now;
-            m_lastTimeRumbleSentValid= true;
-
-            // Reset the pending haptic pulse duration.
-            // If another call to TriggerHapticPulse() is made later, it will stomp this value.
-            // If no call to TriggerHapticPulse() is made later, then the next call to UpdateRumbleState()
-            // in k_max_rumble_update_rate milliseconds will set the rumble_fraction to 0.f
-            // This effectively makes the shortest rumble pulse k_max_rumble_update_rate milliseconds.
-            m_pendingHapticPulseDuration = 0;
+            rumble_fraction = 1.f;
         }
+
+        // Actually send the rumble to the server
+        ClientPSMoveAPI::set_controller_rumble(m_controller_view, rumble_fraction);
+
+        // Remember the last rumble we went and when we sent it
+        m_lastTimeRumbleSent = now;
+        m_lastTimeRumbleSentValid= true;
+
+        // Reset the pending haptic pulse duration.
+        // If another call to TriggerHapticPulse() is made later, it will stomp this value.
+        // If no call to TriggerHapticPulse() is made later, then the next call to UpdateRumbleState()
+        // in k_max_rumble_update_rate milliseconds will set the rumble_fraction to 0.f
+        // This effectively makes the shortest rumble pulse k_max_rumble_update_rate milliseconds.
+        m_pendingHapticPulseDuration = 0;
     }
 }
 
