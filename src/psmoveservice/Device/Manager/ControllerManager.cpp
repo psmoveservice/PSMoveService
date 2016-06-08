@@ -1,12 +1,12 @@
 //-- includes -----
 #include "ControllerManager.h"
+#include "BluetoothQueries.h"
 #include "ControllerDeviceEnumerator.h"
 #include "OrientationFilter.h"
 #include "ServerLog.h"
 #include "ServerControllerView.h"
 #include "ServerDeviceView.h"
 #include "ServerNetworkManager.h"
-#include "ServerRequestHandler.h"
 #include "ServerUtility.h"
 #include "hidapi.h"
 
@@ -42,6 +42,14 @@ ControllerManager::startup()
         }
     }
 
+    if (success)
+    {
+        if (!bluetooth_get_host_address(m_bluetooth_host_address))
+        {
+            m_bluetooth_host_address= "00:00:00:00:00:00";
+        }
+    }
+
     return success;
 }
 
@@ -61,18 +69,12 @@ ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
     {
         ServerControllerViewPtr controllerView = getControllerViewPtr(device_id);
 
-		if (controllerView->getIsOpen())
+		if (controllerView->getIsOpen() && controllerView->getIsBluetooth())
 		{
 			controllerView->updatePositionEstimation(tracker_manager);
 			controllerView->updateStateAndPredict();
 		}
     }
-}
-
-bool
-ControllerManager::can_update_connected_devices()
-{
-    return !ServerRequestHandler::get_instance()->any_active_bluetooth_requests();
 }
 
 DeviceEnumerator *

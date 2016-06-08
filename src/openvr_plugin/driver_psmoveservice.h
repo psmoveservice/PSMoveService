@@ -193,6 +193,7 @@ private:
     uint16_t m_pendingHapticPulseDuration;
     uint16_t m_sentHapticPulseDuration;
     std::chrono::time_point<std::chrono::high_resolution_clock> m_lastTimeRumbleSent;
+    bool m_lastTimeRumbleSentValid;
 };
 
 class CPSMoveTrackerLatest : public CPSMoveTrackedDeviceLatest

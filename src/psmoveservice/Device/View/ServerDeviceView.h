@@ -56,8 +56,6 @@ public:
     // setters
     inline void markStateAsUnpublished()
     { m_bHasUnpublishedState= true; }
-    inline void setDeviceID(int id)
-    { m_deviceID= id; }
     
 protected:
     virtual bool allocate_device_interface(const class DeviceEnumerator *enumerator) = 0;

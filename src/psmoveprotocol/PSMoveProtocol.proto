@@ -128,12 +128,18 @@ message Request {
         SET_TRACKER_POSE = 19;
         SAVE_TRACKER_PROFILE = 20;
         APPLY_TRACKER_PROFILE = 21;
+        SEARCH_FOR_NEW_TRACKERS = 22;
         
-        GET_HMD_TRACKING_SPACE_SETTINGS = 22;
-        SET_HMD_TRACKING_SPACE_ORIGIN = 23;
+        GET_HMD_TRACKING_SPACE_SETTINGS = 23;
+        SET_HMD_TRACKING_SPACE_ORIGIN = 24;
     }
     RequestType type = 2;
-   
+
+    message RequestGetControllerList {
+        bool include_usb_controllers = 1;
+    }
+    RequestGetControllerList request_get_controller_list = 3;
+    
     // Parameters for START_CONTROLLER_DATA_STREAM
     // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
     message RequestStartPSMoveDataStream {
@@ -143,45 +149,45 @@ message Request {
         bool include_raw_sensor_data= 4;
         bool include_raw_tracker_data= 5;
     }
-    RequestStartPSMoveDataStream request_start_psmove_data_stream = 20;
+    RequestStartPSMoveDataStream request_start_psmove_data_stream = 4;
 
     // Parameters for STOP_PSMOVE_DATA_STREAM
     // NOTE: DeviceDataFrame packets will stop streaming to client upon receiving this request
     message RequestStopPSMoveDataStream {
         int32 controller_id = 1;
     }
-    RequestStopPSMoveDataStream request_stop_psmove_data_stream = 21;
+    RequestStopPSMoveDataStream request_stop_psmove_data_stream = 5;
 
     // Parameters for SET_RUMBLE
     message RequestSetRumble {
         int32 controller_id = 1;
         int32 rumble = 2; // [0,255]
     }
-    RequestSetRumble request_rumble = 22;
+    RequestSetRumble request_rumble = 6;
 
     // Parameters for RESET_POSE
     message RequestResetPose {
         int32 controller_id = 1;
     }
-    RequestResetPose reset_pose = 23;   
+    RequestResetPose reset_pose = 7;   
     
     // Parameters for UNPAIR_CONTROLLER
     message RequestUnpairController {
         int32 controller_id = 1;
     }
-    RequestUnpairController unpair_controller = 24;
+    RequestUnpairController unpair_controller = 8;
 
     // Parameters for PAIR_CONTROLLER
     message RequestPairController {
         int32 controller_id = 1;
     }
-    RequestPairController pair_controller = 25;
+    RequestPairController pair_controller = 9;
 
     // Parameters for CANCEL_BLUETOOTH_REQUEST
     message RequestCancelBluetoothRequest {
         int32 controller_id = 1;
     }
-    RequestCancelBluetoothRequest cancel_bluetooth_request = 26;    
+    RequestCancelBluetoothRequest cancel_bluetooth_request = 10;    
     
     // Parameters for SET_LED_COLOR
     message RequestSetLEDColor {
@@ -190,14 +196,14 @@ message Request {
         int32 g = 3;
         int32 b = 4;
     }
-    RequestSetLEDColor set_led_color_request = 27;
+    RequestSetLEDColor set_led_color_request = 11;
     
     // Parameters for SET_LED_TRACKING_COLOR
     message RequestSetLEDTrackingColor {
         int32 controller_id = 1;
         TrackingColorType color_type = 2;
     }
-    RequestSetLEDTrackingColor set_led_tracking_color_request = 28;
+    RequestSetLEDTrackingColor set_led_tracking_color_request = 12;
     
     // Parameters for SET_MAGNETOMETER_CALIBRATION
     message RequestSetMagnetometerCalibration {
@@ -210,42 +216,41 @@ message Request {
         float ellipse_fit_error= 7;
         FloatVector magnetometer_identity= 8;
     }
-    RequestSetMagnetometerCalibration set_magnetometer_calibration_request = 29;
+    RequestSetMagnetometerCalibration set_magnetometer_calibration_request = 13;
     
-   
     // Parameters for START_TRACKER_DATA_STREAM
     // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
     message RequestStartTrackerDataStream {
         int32 tracker_id = 1;
     }
-    RequestStartTrackerDataStream request_start_tracker_data_stream = 30;
+    RequestStartTrackerDataStream request_start_tracker_data_stream = 14;
 
     // Parameters for STOP_TRACKER_DATA_STREAM
     // NOTE: DeviceDataFrame packets will stop streaming to client upon receiving this request
     message RequestStopTrackerDataStream {
         int32 tracker_id = 1;
     }
-    RequestStopTrackerDataStream request_stop_tracker_data_stream = 31;
+    RequestStopTrackerDataStream request_stop_tracker_data_stream = 15;
     
     // Parameters for GET_TRACKER_SETTINGS
     message RequestGetTrackerSettings {
         int32 tracker_id = 1;
     }
-    RequestGetTrackerSettings request_get_tracker_settings = 32;
+    RequestGetTrackerSettings request_get_tracker_settings = 16;
 
     // Parameters for SET_TRACKER_EXPOSURE
     message RequestSetTrackerExposure {
         int32 tracker_id = 1;
         float value = 2;
     }
-    RequestSetTrackerExposure request_set_tracker_exposure = 33;
+    RequestSetTrackerExposure request_set_tracker_exposure = 17;
 
     // Parameters for SET_TRACKER_GAIN
     message RequestSetTrackerGain {
         int32 tracker_id = 1;
         float value = 2;
     }
-    RequestSetTrackerGain request_set_tracker_gain = 34;
+    RequestSetTrackerGain request_set_tracker_gain = 18;
 
     // Parameters for SET_TRACKER_OPTION
     message RequestSetTrackerOption {
@@ -253,33 +258,35 @@ message Request {
         string option_name = 2;
         int32 option_index = 3;
     }
-    RequestSetTrackerOption request_set_tracker_option = 35;
+    RequestSetTrackerOption request_set_tracker_option = 19;
 
     // Parameters for SET_TRACKER_COLOR_PRESET
     message RequestSetTrackerColorPreset {
         int32 tracker_id = 1;
         TrackingColorPreset color_preset = 2;
     }
-    RequestSetTrackerColorPreset request_set_tracker_color_preset = 36;
+    RequestSetTrackerColorPreset request_set_tracker_color_preset = 20;
     
     // Parameters for SET_TRACKER_POSE
     message RequestSetTrackerPose {
         int32 tracker_id = 1;
         Pose pose = 2;
     }
-    RequestSetTrackerPose request_set_tracker_pose = 37;
+    RequestSetTrackerPose request_set_tracker_pose = 21;
     
     // Parameters for SAVE_TRACKER_PROFILE
     message RequestSaveTrackerProfile {
         int32 tracker_id = 1;
     }
-    RequestSaveTrackerProfile request_save_tracker_profile = 38;
+    RequestSaveTrackerProfile request_save_tracker_profile = 22;
     
     // Parameters for APPLY_TRACKER_PROFILE
     message RequestApplyTrackerProfile {
         int32 tracker_id = 1;
     }
-    RequestApplyTrackerProfile request_apply_tracker_profile = 39;
+    RequestApplyTrackerProfile request_apply_tracker_profile = 23;
+    
+    // No Parameters for SEARCH_FOR_NEW_TRACKERS
     
     // No Parameters for GET_HMD_TRACKING_SPACE_SETTINGS
     
@@ -287,7 +294,7 @@ message Request {
     message RequestSetHMDTrackingSpaceOrigin {
         Pose origin_pose = 1;
     }
-    RequestSetHMDTrackingSpaceOrigin request_set_hmd_tracking_space_origin = 40;    
+    RequestSetHMDTrackingSpaceOrigin request_set_hmd_tracking_space_origin = 24;
 }
 
 // Reliable (TCP) responses to requests
@@ -344,9 +351,10 @@ message Response {
             TrackingColorType tracking_color_type = 4;
             string device_path = 5;
             string device_serial = 6;
-            string host_serial = 7;
+            string assigned_host_serial = 7;
         }
         repeated ControllerInfo controllers = 1;
+        string host_serial = 2;
     }
     ResultControllerList result_controller_list = 21;    
     

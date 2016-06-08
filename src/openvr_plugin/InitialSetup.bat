@@ -17,9 +17,14 @@ goto failure
 
 :use_openvr
 set STEAMVR_RUNTIME_DIR=%STEAM_ROOT_PATH%\steamapps\common\OpenVR
+goto write_set_drivers_script
 
 :use_steamvr
 set STEAMVR_RUNTIME_DIR=%STEAM_ROOT_PATH%\steamapps\common\SteamVR
+goto write_set_drivers_script
+
+:write_set_drivers_script
+echo "Found SteamVR Runtime Dir: %STEAMVR_RUNTIME_DIR%"
 
 :: Write out the paths to a config batch file
 del SetDriverVars.bat

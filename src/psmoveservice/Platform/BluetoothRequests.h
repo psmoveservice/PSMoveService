@@ -87,7 +87,4 @@ private:
     void *m_internal_state;
 };
 
-//-- interface -----
-bool bluetooth_get_host_address(std::string &out_address);
-
 #endif // BLUETOOTH_REQUESTS_H

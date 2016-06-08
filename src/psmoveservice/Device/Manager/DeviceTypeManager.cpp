@@ -5,6 +5,7 @@
 #include "ServerDeviceView.h"
 #include "ServerNetworkManager.h"
 #include "ServerUtility.h"
+#include "ServerRequestHandler.h"
 
 //-- methods -----
 /// Constructor and set intervals (ms) for reconnect and polling
@@ -99,13 +100,17 @@ DeviceTypeManager::update_connected_devices()
     if (can_update_connected_devices())
     {
         const int maxDeviceCount = getMaxDevices();
-        ServerDeviceViewPtr *temp_device_list = new ServerDeviceViewPtr[maxDeviceCount];
+        bool exists_in_enumerator[64];
         bool bSendControllerUpdatedNotification = false;
 
+        // Initialize temp table used to keep track of open devices
+        // still found in the enumerator
+        assert(maxDeviceCount <= 64);
+        memset(exists_in_enumerator, 0, sizeof(exists_in_enumerator));
+
         // Step 1
-        // See if any devices shuffled order OR if any new controllers were attached.
-        // Migrate open devices to a new temp list in the order
-        // that they appear in the device enumerator.
+        // Mark any open devices that still show up in the enumerator.
+        // Open devices shown in the enumerator that we haven't open yet.
         {
             DeviceEnumerator *enumerator = allocate_device_enumerator();
 
@@ -117,14 +122,8 @@ DeviceTypeManager::update_connected_devices()
                 // Existing device case (Most common)
                 if (device_id != -1)
                 {
-                    // Fetch the device from it's existing device slot
-                    ServerDeviceViewPtr existingDevice = getDeviceViewPtr(device_id);
-
-                    // Move it to the same slot in the temp list
-                    temp_device_list[device_id] = existingDevice;
-
-                    // Remove it from the previous list
-                    m_deviceViews[device_id] = ServerDeviceViewPtr();
+                    // Mark the device as having showed up in the enumerator
+                    exists_in_enumerator[device_id]= true;
                 }
                 // New controller connected case
                 else
@@ -134,29 +133,33 @@ DeviceTypeManager::update_connected_devices()
                     if (device_id != -1)
                     {
                         // Fetch the controller from it's existing controller slot
-                        ServerDeviceViewPtr existingDevice = getDeviceViewPtr(device_id);
-
-                        // Move it to the available slot
-                        existingDevice->setDeviceID(static_cast<int>(device_id));
-                        temp_device_list[device_id] = existingDevice;
-
-                        // Remove it from the previous list
-                        m_deviceViews[device_id] = ServerDeviceViewPtr();
+                        ServerDeviceViewPtr availableDeviceView = getDeviceViewPtr(device_id);
 
                         // Attempt to open the device
-                        if (existingDevice->open(enumerator))
+                        if (availableDeviceView->open(enumerator))
                         {
                             const char *device_type_name =
-                                CommonDeviceState::getDeviceTypeString(existingDevice->getDevice()->getDeviceType());
+                                CommonDeviceState::getDeviceTypeString(availableDeviceView->getDevice()->getDeviceType());
 
                             SERVER_LOG_INFO("DeviceTypeManager::update_connected_devices") <<
-                                "Device device_id " << device_id << " (" << device_type_name << ") connected";
+                                "Device device_id " << device_id << " (" << device_type_name << ") opened";
+
+                            // Mark the device as having showed up in the enumerator
+                            exists_in_enumerator[device_id] = true;
+
+                            // Send notificiation to clients that a new device was added
                             bSendControllerUpdatedNotification = true;
+                        }
+                        else
+                        {
+                            SERVER_LOG_ERROR("DeviceTypeManager::update_connected_devices") << 
+                                "Device device_id " << device_id << " (" << enumerator->get_path() << ") failed to open!";
                         }
                     }
                     else
                     {
-                        SERVER_LOG_ERROR("DeviceTypeManager::update_connected_devices") << "Can't connect any more new devices. Too many open device.";
+                        SERVER_LOG_ERROR("DeviceTypeManager::update_connected_devices") << 
+                            "Can't connect any more new devices. Too many open device.";
                         break;
                     }
                 }
@@ -168,50 +171,30 @@ DeviceTypeManager::update_connected_devices()
         }
 
         // Step 2
-        // Close any remaining open controllers not listed in the device enumerator.
-        // Copy over any closed controllers to the temp.
-        for (int existing_device_id = 0; existing_device_id < maxDeviceCount; ++existing_device_id)
+        // Close any device that is open and wasn't found in the enumerator
+        for (int device_id = 0; device_id < maxDeviceCount; ++device_id)
         {
-            ServerDeviceViewPtr existingDevice = getDeviceViewPtr(existing_device_id);
+            ServerDeviceViewPtr existingDevice = getDeviceViewPtr(device_id);
 
-            if (existingDevice)
+            // This probably shouldn't happen very often (at all?) as polling should catch
+            // disconnected devices first.
+            if (existingDevice->getIsOpen() && !exists_in_enumerator[device_id])
             {
-                // Any "open" controllers remaining in the old list need to be closed
-                // since they no longer appear in the connected device list.
-                // This probably shouldn't happen very often (at all?) as polling should catch
-                // disconnected controllers first.
-                if (existingDevice->getIsOpen())
-                {
-                    const char *device_type_name =
-                        CommonDeviceState::getDeviceTypeString(existingDevice->getDevice()->getDeviceType());
+                const char *device_type_name =
+                    CommonDeviceState::getDeviceTypeString(existingDevice->getDevice()->getDeviceType());
 
-                    SERVER_LOG_WARNING("DeviceTypeManager::update_connected_devices") << "Closing device "
-                        << existing_device_id << " (" << device_type_name << ") since it's no longer in the device list.";
-                    existingDevice->close();
-                    bSendControllerUpdatedNotification = true;
-                }
-
-                // Move it to the temp slot
-                temp_device_list[existing_device_id] = existingDevice;
-
-                // Remove it from the previous list
-                m_deviceViews[existing_device_id] = ServerDeviceViewPtr();
+                SERVER_LOG_WARNING("DeviceTypeManager::update_connected_devices") << "Closing device "
+                    << device_id << " (" << device_type_name << ") since it's no longer in the device list.";
+                existingDevice->close();
+                bSendControllerUpdatedNotification = true;
             }
         }
 
-        // Step 3
-        // Copy the temp controller list back over top the original list
-        for (int device_id = 0; device_id < maxDeviceCount; ++device_id)
-        {
-            m_deviceViews[device_id] = temp_device_list[device_id];
-        }
-
+        // List of open devices changed, tell the clients
         if (bSendControllerUpdatedNotification)
         {
             send_device_list_changed_notification();
         }
-
-        delete[] temp_device_list;
 
         success = true;
     }
@@ -242,20 +225,35 @@ DeviceTypeManager::send_device_list_changed_notification()
     ServerNetworkManager::get_instance()->send_notification_to_all_clients(response);
 }
 
+bool
+DeviceTypeManager::can_poll_connected_devices()
+{
+    return !ServerRequestHandler::get_instance()->any_active_bluetooth_requests();
+}
+
+bool
+DeviceTypeManager::can_update_connected_devices()
+{
+    return !ServerRequestHandler::get_instance()->any_active_bluetooth_requests();
+}
+
 void
 DeviceTypeManager::poll_devices()
 {
-    bool bAllUpdatedOk = true;
-
-    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+    if (can_poll_connected_devices())
     {
-        ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
-        bAllUpdatedOk &= device->poll();
-    }
+        bool bAllUpdatedOk = true;
 
-    if (!bAllUpdatedOk)
-    {
-        send_device_list_changed_notification();
+        for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+        {
+            ServerDeviceViewPtr device = getDeviceViewPtr(device_id);
+            bAllUpdatedOk &= device->poll();
+        }
+
+        if (!bAllUpdatedOk)
+        {
+            send_device_list_changed_notification();
+        }
     }
 }
 

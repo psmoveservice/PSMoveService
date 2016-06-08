@@ -17,21 +17,15 @@ public:
         PSNavi
     };
 
-    enum eConnectionType
-    {
-        Bluetooth,
-        USB
-    };
-
     struct ControllerInfo
     {
         int ControllerID;
         eControllerType ControllerType;
-        eConnectionType ConnectionType;
         PSMoveTrackingColorType TrackingColorType;
         std::string DevicePath;
         std::string DeviceSerial;
-        std::string HostSerial;
+        std::string AssignedHostSerial;
+        bool PairedToHost;
     };
 
     AppStage_ControllerSettings(class App *app);
@@ -40,7 +34,7 @@ public:
     { 
         return 
             (m_selectedControllerIndex != -1) 
-            ? &m_pairedControllerInfos[m_selectedControllerIndex] 
+            ? &m_bluetoothControllerInfos[m_selectedControllerIndex] 
             : nullptr; 
     }
 
@@ -74,8 +68,9 @@ private:
     };
     eControllerMenuState m_menuState;
 
-    std::vector<ControllerInfo> m_pairedControllerInfos;
-    std::vector<ControllerInfo> m_unpairedControllerInfos;
+    std::vector<ControllerInfo> m_bluetoothControllerInfos;
+    std::vector<ControllerInfo> m_usbControllerInfos;
+    std::string m_hostSerial;
 
     int m_selectedControllerIndex;
 };

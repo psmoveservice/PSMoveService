@@ -271,8 +271,50 @@ static bool is_device_navigation_controller(const BLUETOOTH_DEVICE_INFO *device_
 static bool is_hid_service_enabled(const HANDLE hRadio, BLUETOOTH_DEVICE_INFO *device_info);
 static bool patch_registry(const BLUETOOTH_ADDRESS *move_addr, const BLUETOOTH_ADDRESS *radio_addr);
 
+static void send_unpair_completed_notification_to_client(int connectionID, PSMoveProtocol::Response_ResultCode resultCode);
 static void send_pair_completed_notification_to_client(int connectionID, PSMoveProtocol::Response_ResultCode resultCode);
 static void send_progress_notification_to_client(int connectionID, int controllerID, int stepsCompleted, int totalSteps);
+
+//-- Queries -----
+bool bluetooth_get_host_address(std::string &out_address)
+{
+    bool bSuccess = true;
+    HANDLE hRadio;
+
+    if (find_first_bluetooth_radio(&hRadio) && hRadio != INVALID_HANDLE_VALUE)
+    {
+        SERVER_LOG_INFO("bluetooth_get_host_address") << "Found a bluetooth radio";
+    }
+    else
+    {
+        SERVER_LOG_ERROR("bluetooth_get_host_address") << "Failed to find a bluetooth radio";
+        bSuccess = false;
+    }
+
+    if (bSuccess)
+    {
+        BLUETOOTH_RADIO_INFO radioInfo;
+        memset(&radioInfo, 0, sizeof(BLUETOOTH_RADIO_INFO));
+        radioInfo.dwSize = sizeof(BLUETOOTH_RADIO_INFO);
+
+        DWORD result = BluetoothGetRadioInfo(hRadio, &radioInfo);
+
+        if (result == ERROR_SUCCESS)
+        {
+            SERVER_LOG_INFO("bluetooth_get_host_address") << "Retrieved radio info";
+            out_address = bluetooth_address_to_string(&radioInfo.address);
+        }
+        else
+        {
+            SERVER_LOG_ERROR("bluetooth_get_host_address")
+                << "Failed to retrieve radio info (Error Code: "
+                << std::hex << std::setfill('0') << std::setw(8) << result;
+            bSuccess = false;
+        }
+    }
+
+    return bSuccess;
+}
 
 // -- AsyncBluetoothUnpairDeviceRequest -----
 AsyncBluetoothUnpairDeviceRequest::AsyncBluetoothUnpairDeviceRequest(
@@ -353,7 +395,7 @@ AsyncBluetoothUnpairDeviceRequest::start()
                 AsyncBluetoothUnpairDeviceThreadFunction,       // thread function pointer
                 m_internal_state,            // argument to thread function 
                 0,                           // use default creation flags 
-                &state->worker_thread_id);   // returns the thread identifier
+                NULL);                       // returns the thread identifier
 
         if (state->worker_thread_handle == NULL)
         {
@@ -371,6 +413,8 @@ static DWORD WINAPI
 AsyncBluetoothUnpairDeviceThreadFunction(LPVOID lpParam)
 {
     BluetoothUnpairDeviceState *state= reinterpret_cast<BluetoothUnpairDeviceState *>(lpParam);
+
+    state->worker_thread_id = GetCurrentThreadId();
 
     BLUETOOTH_ADDRESS bt_address;
     bool success= string_to_bluetooth_address(state->getControllerAddress(), &bt_address);
@@ -438,14 +482,14 @@ AsyncBluetoothUnpairDeviceRequest::update()
                 m_status= AsyncBluetoothRequest::succeeded;
 
                 // Tell the client about the result
-                send_pair_completed_notification_to_client(m_connectionId, PSMoveProtocol::Response_ResultCode_RESULT_OK);
+                send_unpair_completed_notification_to_client(m_connectionId, PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
             else if (subStatus == BluetoothUnpairDeviceState::failed)
             {
                 m_status= AsyncBluetoothRequest::failed;
 
                 // Tell the client about the result
-                send_pair_completed_notification_to_client(
+                send_unpair_completed_notification_to_client(
                     m_connectionId, 
                     state->getIsCanceled_MainThread() 
                     ? PSMoveProtocol::Response_ResultCode_RESULT_CANCELED
@@ -526,7 +570,7 @@ AsyncBluetoothPairDeviceRequest::start()
     }
 
     // Make sure the controller isn't already paired with this host adapter
-    if (m_controllerView->getHostBluetoothAddress() != state->host_address_string)
+    if (m_controllerView->getAssignedHostBluetoothAddress() != state->host_address_string)
     {
         // Assign this host address on the controller.
         // NOTE: This needs to be done on the main thread since the controller view isn't thread safe.
@@ -545,7 +589,7 @@ AsyncBluetoothPairDeviceRequest::start()
                     AsyncBluetoothPairDeviceThreadFunction,       // thread function pointer
                     m_internal_state,            // argument to thread function 
                     0,                           // use default creation flags 
-                    &state->worker_thread_id);   // returns the thread identifier
+                    NULL);                       // returns the thread identifier
 
             if (state->worker_thread_handle == NULL)
             {
@@ -577,6 +621,8 @@ static DWORD WINAPI
 AsyncBluetoothPairDeviceThreadFunction(LPVOID lpParam)
 {
     BluetoothPairDeviceState *state= reinterpret_cast<BluetoothPairDeviceState *>(lpParam);
+
+    state->worker_thread_id = GetCurrentThreadId();
 
     bool isCompleted= false; 
     const int controller_id= state->getControllerID();
@@ -1388,6 +1434,18 @@ patch_registry(const BLUETOOTH_ADDRESS *move_addr, const BLUETOOTH_ADDRESS *radi
     }
 
     return success;
+}
+
+static void
+send_unpair_completed_notification_to_client(int connectionID, PSMoveProtocol::Response_ResultCode resultCode)
+{
+    ResponsePtr notification(new PSMoveProtocol::Response);
+
+    notification->set_type(PSMoveProtocol::Response_ResponseType_UNPAIR_REQUEST_COMPLETED);
+    notification->set_request_id(-1); // This is an notification, not a response
+    notification->set_result_code(resultCode);
+
+    ServerNetworkManager::get_instance()->send_notification(connectionID, notification);
 }
 
 static void

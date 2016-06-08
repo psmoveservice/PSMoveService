@@ -57,7 +57,9 @@ public:
 
     bool startup() override;
 
-    static const int k_max_devices = 2;
+    void closeAllTrackers();
+
+    static const int k_max_devices = 3;
     int getMaxDevices() const override
     {
         return TrackerManager::k_max_devices;
@@ -87,8 +89,11 @@ public:
         return cfg.hmd_tracking_origin_pose;
     }
 
+
 protected:
     bool can_update_connected_devices() override;
+    void mark_tracker_list_dirty();
+
     DeviceEnumerator *allocate_device_enumerator() override;
     void free_device_enumerator(DeviceEnumerator *) override;
     ServerDeviceView *allocate_device_view(int device_id) override;
@@ -102,6 +107,7 @@ private:
     static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED;
 
     TrackerManagerConfig cfg;
+    bool m_tracker_list_dirty;
 };
 
 #endif // TRACKER_MANAGER_H

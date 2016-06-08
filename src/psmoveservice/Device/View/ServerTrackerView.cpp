@@ -428,6 +428,8 @@ void ServerTrackerView::close()
         delete m_shared_memory_accesor;
         m_shared_memory_accesor = nullptr;
     }
+
+    ServerDeviceView::close();
 }
 
 void ServerTrackerView::startSharedMemoryVideoStream()

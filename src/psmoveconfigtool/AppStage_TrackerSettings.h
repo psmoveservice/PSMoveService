@@ -38,6 +38,11 @@ protected:
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
 
+    void request_search_for_new_trackers();
+    static void handle_search_for_new_trackers_response(
+        const ClientPSMoveAPI::ResponseMessage *response,
+        void *userdata);
+
 protected:
     enum eTrackerMenuState
     {
@@ -46,6 +51,7 @@ protected:
 
         pendingTrackerListRequest,
         failedTrackerListRequest,
+        pendingSearchForNewTrackersRequest,
     };
     eTrackerMenuState m_menuState;
 

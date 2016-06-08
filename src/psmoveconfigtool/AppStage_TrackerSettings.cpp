@@ -66,6 +66,7 @@ void AppStage_TrackerSettings::render()
         }
     } break;
 
+    case eTrackerMenuState::pendingSearchForNewTrackersRequest:
     case eTrackerMenuState::pendingTrackerListRequest:
     case eTrackerMenuState::failedTrackerListRequest:
     {
@@ -94,6 +95,16 @@ void AppStage_TrackerSettings::renderUI()
         ImGui::SetNextWindowSize(ImVec2(300, 400));
         ImGui::Begin(k_window_title, nullptr, window_flags);
 
+        //###HipsterSloth $TODO The tracker restart currently takes longer than it does
+        // just to close and re-open the service.
+        // For now let's just disable this until we can make this more performant.
+        //if (ImGui::Button("Refresh Tracker List"))
+        //{
+        //    request_search_for_new_trackers();
+        //}
+
+        //ImGui::Separator();
+
         if (m_trackerInfos.size() > 0)
         {
             const ClientTrackerInfo &trackerInfo = m_trackerInfos[m_selectedTrackerIndex];
@@ -116,13 +127,13 @@ void AppStage_TrackerSettings::renderUI()
                 }
             }
 
-            ImGui::Text("  Tracker ID: %d", trackerInfo.tracker_id);
+            ImGui::BulletText("Tracker ID: %d", trackerInfo.tracker_id);
 
             switch (trackerInfo.tracker_type)
             {
             case eTrackerType::PS3Eye:
                 {
-                    ImGui::Text("  Controller Type: PS3 Eye");
+                    ImGui::BulletText("Controller Type: PS3 Eye");
                 } break;
             default:
                 assert(0 && "Unreachable");
@@ -132,52 +143,59 @@ void AppStage_TrackerSettings::renderUI()
             {
             case eTrackerDriver::LIBUSB:
                 {
-                    ImGui::Text("  Controller Type: LIBUSB");
+                    ImGui::BulletText("Controller Type: LIBUSB");
                 } break;
             case eTrackerDriver::CL_EYE:
                 {
-                    ImGui::Text("  Controller Type: CLEye");
+                    ImGui::BulletText("Controller Type: CLEye");
                 } break;
             case eTrackerDriver::CL_EYE_MULTICAM:
                 {
-                    ImGui::Text("  Controller Type: CLEye(Multicam SDK)");
+                    ImGui::BulletText("Controller Type: CLEye(Multicam SDK)");
                 } break;
             case eTrackerDriver::GENERIC_WEBCAM:
                 {
-                    ImGui::Text("  Controller Type: Generic Webcam");
+                    ImGui::BulletText("Controller Type: Generic Webcam");
                 } break;
             default:
                 assert(0 && "Unreachable");
             }
 
-            ImGui::Text("  Shared Mem Name: %s", trackerInfo.shared_memory_name);
-            ImGui::TextWrapped("  Device Path: %s", trackerInfo.device_path);
+            ImGui::BulletText("Shared Mem Name: %s", trackerInfo.shared_memory_name);
+            ImGui::BulletText("Device Path: ");
+            ImGui::SameLine();
+            ImGui::TextWrapped("%s", trackerInfo.device_path);
 
+            //###HipsterSloth $TODO: Localhost only check
+            if (ImGui::Button("Test Tracker Video Feed"))
+            {
+                m_app->setAppStage(AppStage_TestTracker::APP_STAGE_NAME);
+            }
+        }
+        else
+        {
+            ImGui::Text("No trackers controllers");
+        }
+
+        ImGui::Separator();
+
+        if (m_trackerInfos.size() > 0)
+        {
             if (ImGui::Button("Compute Tracker Poses"))
             {
                 AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app);
+            }
+
+            //###HipsterSloth $TODO: Localhost only check
+            if (ImGui::Button("Calibrate Tracking Colors"))
+            {
+                m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
             }
 
             if (ImGui::Button("Test Tracking"))
             {
                 AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app);
             }
-
-			//###HipsterSloth $TODO: Localhost only check
-			if (ImGui::Button("Calibrate Tracking Colors"))
-			{
-				m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
-			}
-
-			//###HipsterSloth $TODO: Localhost only check
-			if (ImGui::Button("Test Video Feed"))
-			{
-				m_app->setAppStage(AppStage_TestTracker::APP_STAGE_NAME);
-			}
-        }
-        else
-        {
-            ImGui::Text("No trackers controllers");
         }
 
         if (ImGui::Button("Return to Main Menu"))
@@ -187,6 +205,7 @@ void AppStage_TrackerSettings::renderUI()
 
         ImGui::End();
     } break;
+    case eTrackerMenuState::pendingSearchForNewTrackersRequest:
     case eTrackerMenuState::pendingTrackerListRequest:
     {
         ImGui::SetNextWindowPosCenter();
@@ -286,4 +305,28 @@ void AppStage_TrackerSettings::handle_tracker_list_response(
             thisPtr->m_menuState = AppStage_TrackerSettings::failedTrackerListRequest;
         } break;
     }
+}
+
+void AppStage_TrackerSettings::request_search_for_new_trackers()
+{
+    // Tell the psmove service that we want see if new trackers are connected.
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SEARCH_FOR_NEW_TRACKERS);
+
+    m_menuState = AppStage_TrackerSettings::pendingSearchForNewTrackersRequest;
+    m_selectedTrackerIndex = -1;
+    m_trackerInfos.clear();
+
+    ClientPSMoveAPI::register_callback(
+        ClientPSMoveAPI::send_opaque_request(&request),
+        AppStage_TrackerSettings::handle_search_for_new_trackers_response, this);
+}
+
+void AppStage_TrackerSettings::handle_search_for_new_trackers_response(
+    const ClientPSMoveAPI::ResponseMessage *response,
+    void *userdata)
+{
+    AppStage_TrackerSettings *thisPtr = static_cast<AppStage_TrackerSettings *>(userdata);
+
+    thisPtr->request_tracker_list();
 }

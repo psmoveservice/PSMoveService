@@ -151,10 +151,15 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
             {
                 const PSMoveController *psmoveController= this->castCheckedConst<PSMoveController>();
 
-                init_filters_for_psmove(psmoveController, m_orientation_filter, m_position_filter);
-                m_multicam_position_estimation->clear();
+                // Don't bother initializing any filters or allocating a tracking color
+                // for usb connected controllers
+                if (psmoveController->getIsBluetooth())
+                {
+                    init_filters_for_psmove(psmoveController, m_orientation_filter, m_position_filter);
+                    m_multicam_position_estimation->clear();
 
-                bAllocateTrackingColor = true;
+                    bAllocateTrackingColor = true;
+                }
             } break;
         case CommonDeviceState::PSNavi:
             // No orientation filter for the navi
@@ -470,27 +475,27 @@ ServerControllerView::getFilteredPhysics() const
 bool 
 ServerControllerView::getIsBluetooth() const
 {
-    return m_device->getIsBluetooth();
+    return (m_device != nullptr) ? m_device->getIsBluetooth() : false;
 }
 
 // Returns the full usb device path for the controller
 std::string 
 ServerControllerView::getUSBDevicePath() const
 {
-    return m_device->getUSBDevicePath();
+    return (m_device != nullptr) ? m_device->getUSBDevicePath() : "";
 }
 
 // Returns the serial number for the controller
 std::string 
 ServerControllerView::getSerial() const
 {
-    return m_device->getSerial();
+    return(m_device != nullptr) ? m_device->getSerial() : "";
 }
 
 std::string 
-ServerControllerView::getHostBluetoothAddress() const
+ServerControllerView::getAssignedHostBluetoothAddress() const
 {
-    return m_device->getHostBluetoothAddress();
+    return (m_device != nullptr) ? m_device->getAssignedHostBluetoothAddress() : "";
 }
 
 CommonDeviceState::eDeviceType

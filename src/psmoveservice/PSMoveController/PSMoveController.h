@@ -137,7 +137,7 @@ public:
     virtual bool setHostBluetoothAddress(const std::string &address) override;
     virtual bool getIsBluetooth() const override;
     virtual std::string getUSBDevicePath() const override;
-    virtual std::string getHostBluetoothAddress() const override;
+    virtual std::string getAssignedHostBluetoothAddress() const override;
     virtual std::string getSerial() const override;
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
     virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;

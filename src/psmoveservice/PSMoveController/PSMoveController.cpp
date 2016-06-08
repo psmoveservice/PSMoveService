@@ -580,7 +580,7 @@ PSMoveController::getSerial() const
 }
 
 std::string 
-PSMoveController::getHostBluetoothAddress() const
+PSMoveController::getAssignedHostBluetoothAddress() const
 {
     return HIDDetails.Host_bt_addr;
 }
@@ -786,7 +786,12 @@ PSMoveController::poll()
 {
     IControllerInterface::ePollResult result= IControllerInterface::_PollResultFailure;
       
-    if (getIsOpen())
+    if (!getIsBluetooth())
+    {
+        // Don't bother polling when connected via usb
+        result = IControllerInterface::_PollResultSuccessNoData;
+    }
+    else if (getIsOpen())
     {
         static const int k_max_iterations= 32;        
 

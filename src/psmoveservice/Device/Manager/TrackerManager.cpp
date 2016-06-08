@@ -99,6 +99,7 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
 //-- Tracker Manager -----
 TrackerManager::TrackerManager()
     : DeviceTypeManager(10000, 13)
+    , m_tracker_list_dirty(false)
 {
 }
 
@@ -114,15 +115,44 @@ TrackerManager::startup()
             // Save out the defaults if there is no config to load
             cfg.save();
         }
+
+        // Refresh the tracker list
+        mark_tracker_list_dirty();
     }
 
     return bSuccess;
 }
 
+void
+TrackerManager::closeAllTrackers()
+{
+    for (int tracker_id = 0; tracker_id < k_max_devices; ++tracker_id)
+    {
+        ServerTrackerViewPtr tracker_view = getTrackerViewPtr(tracker_id);
+
+        if (tracker_view->getIsOpen())
+        {
+            tracker_view->close();
+        }
+    }
+
+    // Refresh the tracker list once we're allowed to
+    mark_tracker_list_dirty();
+
+    // Tell any clients that the tracker list changed
+    send_device_list_changed_notification();
+}
+
 bool
 TrackerManager::can_update_connected_devices()
 {
-    return true;
+    return m_tracker_list_dirty && DeviceTypeManager::can_update_connected_devices();
+}
+
+void 
+TrackerManager::mark_tracker_list_dirty()
+{
+    m_tracker_list_dirty= true;
 }
 
 DeviceEnumerator *

@@ -129,14 +129,22 @@ public:
         // at which time the request reference cache gets cleared out.
         m_request_reference_cache.push_back(request);
 
-        // Attach an opaque pointer to the PSMoveProtocol response.
-        // Client code that has linked against PSMoveProtocol library
-        // can access this pointer via the GET_PSMOVEPROTOCOL_RESPONSE() macro.
-        out_response_message->opaque_response_handle = static_cast<const void*>(response.get());
+        {
+            // Create a smart pointer to a new copy of the response.
+            // If we just add the given event smart pointer to the reference cache
+            // we'll be storing a reference to the shared m_packed_response on the client network manager
+            // which gets constantly overwritten with new incoming responses.
+            ResponsePtr responseCopy(new PSMoveProtocol::Response(*response.get()));
 
-        // The opaque response pointer will only remain valid until the next call to update()
-        // at which time the response reference cache gets cleared out.
-        m_response_reference_cache.push_back(response);
+            // Attach an opaque pointer to the PSMoveProtocol response.
+            // Client code that has linked against PSMoveProtocol library
+            // can access this pointer via the GET_PSMOVEPROTOCOL_RESPONSE() macro.
+            out_response_message->opaque_response_handle = static_cast<const void*>(responseCopy.get());
+
+            // The opaque response pointer will only remain valid until the next call to update()
+            // at which time the response reference cache gets cleared out.
+            m_response_reference_cache.push_back(responseCopy);
+        }
 
         // Write response specific data
         if (response->result_code() == PSMoveProtocol::Response_ResultCode_RESULT_OK)
@@ -166,37 +174,45 @@ public:
         ResponsePtr response,
         ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list)
     {
-        int controller_count = 0;
+        int src_controller_count = 0;
+        int dest_controller_count= 0;
 
         // Copy the controller entries into the response payload
-        while (controller_count < response->result_controller_list().controllers_size()
-                && controller_count < PSMOVESERVICE_MAX_CONTROLLER_COUNT)
+        while (src_controller_count < response->result_controller_list().controllers_size()
+                && src_controller_count < PSMOVESERVICE_MAX_CONTROLLER_COUNT)
         {
-            const auto &ControllerResponse = response->result_controller_list().controllers(controller_count);
+            const auto &ControllerResponse = response->result_controller_list().controllers(src_controller_count);
 
-            // Convert the PSMoveProtocol controller enum to the public ClientControllerView enum
-            ClientControllerView::eControllerType controllerType;
-            switch (ControllerResponse.controller_type())
+            // As far as the publicly facing API is concerned, don't show the USB connected controllers
+            if (ControllerResponse.connection_type() ==
+                PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH)
             {
-            case PSMoveProtocol::PSMOVE:
-                controllerType = ClientControllerView::PSMove;
-                break;
-            case PSMoveProtocol::PSNAVI:
-                controllerType = ClientControllerView::PSNavi;
-                break;
-            default:
-                assert(0 && "unreachable");
-                controllerType = ClientControllerView::PSMove;
+                // Convert the PSMoveProtocol controller enum to the public ClientControllerView enum
+                ClientControllerView::eControllerType controllerType;
+                switch (ControllerResponse.controller_type())
+                {
+                case PSMoveProtocol::PSMOVE:
+                    controllerType = ClientControllerView::PSMove;
+                    break;
+                case PSMoveProtocol::PSNAVI:
+                    controllerType = ClientControllerView::PSNavi;
+                    break;
+                default:
+                    assert(0 && "unreachable");
+                    controllerType = ClientControllerView::PSMove;
+                }
+
+                // Add an entry to the controller list
+                controller_list->controller_type[dest_controller_count] = controllerType;
+                controller_list->controller_id[dest_controller_count] = ControllerResponse.controller_id();
+                ++dest_controller_count;
             }
 
-            // Add an entry to the controller list
-            controller_list->controller_type[controller_count] = controllerType;
-            controller_list->controller_id[controller_count] = ControllerResponse.controller_id();
-            ++controller_count;
+            ++src_controller_count;
         }
 
         // Record how many controllers we copied into the payload
-        controller_list->count = controller_count;
+        controller_list->count = dest_controller_count;
     }
 
     inline PSMovePose protocol_pose_to_psmove_pose(const PSMoveProtocol::Pose &pose)

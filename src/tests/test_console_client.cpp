@@ -84,7 +84,7 @@ private:
             // Kick off request to start streaming data from the first controller
             start_stream_request_id= 
                 ClientPSMoveAPI::start_controller_data_stream(
-                    controller_view, ClientPSMoveAPI::defaultStreamOptions);
+                    controller_view, ClientPSMoveAPI::includePositionData);
             break;
         case ClientPSMoveAPI::failedToConnectToService:
             std::cout << "PSMoveConsoleClient - Failed to connect to service" << std::endl;

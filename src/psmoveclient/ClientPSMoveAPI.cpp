@@ -184,6 +184,9 @@ public:
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST);
 
+        // Don't include controllers connected via USB for normal controller list requests
+        request->mutable_request_get_controller_list()->set_include_usb_controllers(false);
+
         m_request_manager.send_request(request);
 
         return request->request_id();
@@ -548,17 +551,28 @@ public:
         memset(&message, 0, sizeof(ClientPSMoveAPI::Message));
         message.payload_type = ClientPSMoveAPI::_messagePayloadType_Event;
         message.event_data.event_type= event_type;
-        //NOTE: This pointer is only safe until the next update call to update is made
-        message.event_data.event_data_handle = (bool)event ? static_cast<const void *>(event.get()) : nullptr;
-
-        // Add the message to the message queue
-        m_message_queue.push_back(message);
 
         // Maintain a reference to the event until the next update
         if (event)
         {
-            m_event_reference_cache.push_back(event);
+            // Create a smart pointer to a new copy of the event.
+            // If we just add the given event smart pointer to the reference cache
+            // we'll be storing a reference to the shared m_packed_response on the client network manager
+            // which gets constantly overwritten with new incoming events.
+            ResponsePtr eventCopy(new PSMoveProtocol::Response(*event.get()));
+
+            //NOTE: This pointer is only safe until the next update call to update is made
+            message.event_data.event_data_handle = static_cast<const void *>(eventCopy.get());
+
+            m_event_reference_cache.push_back(eventCopy);
         }
+        else
+        {
+            message.event_data.event_data_handle = nullptr;
+        }
+
+        // Add the message to the message queue
+        m_message_queue.push_back(message);
     }
 
     bool register_callback(

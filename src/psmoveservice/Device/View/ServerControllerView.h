@@ -65,7 +65,7 @@ public:
     std::string getSerial() const;
 
     // Gets the host bluetooth address registered with the 
-    std::string getHostBluetoothAddress() const;
+    std::string getAssignedHostBluetoothAddress() const;
 
     // Returns what type of controller this controller view represents
     CommonDeviceState::eDeviceType getControllerDeviceType() const;

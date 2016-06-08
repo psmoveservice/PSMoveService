@@ -367,8 +367,6 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
     case eMenuState::verifyTrackers:
         {
-//            const int trackerCount = static_cast<int>(m_trackerViews.size());
-
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - 500.f / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(500.f, (m_trackerViews.size() > 0) ? 150.f : 100.f));
             ImGui::Begin(k_window_title, nullptr, window_flags);
@@ -446,11 +444,14 @@ void AppStage_ComputeTrackerPoses::renderUI()
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            ImGui::Text("Calibration Complete");
-
-            if (ImGui::Button("Redo Calibration"))
+            if (!m_bSkipCalibration)
             {
-                setState(eMenuState::selectCalibrationType);
+                ImGui::Text("Calibration Complete");
+
+                if (ImGui::Button("Redo Calibration"))
+                {
+                    setState(eMenuState::selectCalibrationType);
+                }
             }
 
             if (ImGui::Button("Exit"))

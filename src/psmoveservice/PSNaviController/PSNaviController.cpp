@@ -348,7 +348,7 @@ PSNaviController::getSerial() const
 }
 
 std::string 
-PSNaviController::getHostBluetoothAddress() const
+PSNaviController::getAssignedHostBluetoothAddress() const
 {
     return HIDDetails.Host_bt_addr;
 }
@@ -437,7 +437,12 @@ PSNaviController::poll()
 {
     IControllerInterface::ePollResult result= IControllerInterface::_PollResultFailure;
       
-    if (getIsOpen())
+    if (!getIsBluetooth())
+    {
+        // Don't bother polling when connected via usb
+        result = IControllerInterface::_PollResultSuccessNoData;
+    }
+    else if (getIsOpen())
     {
         static const int k_max_iterations= 32;        
 
