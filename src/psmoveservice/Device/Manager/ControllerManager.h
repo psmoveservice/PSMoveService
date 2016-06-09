@@ -41,7 +41,7 @@ public:
 
     ServerControllerViewPtr getControllerViewPtr(int device_id);
 
-    bool setControllerRumble(int controller_id, int rumble_amount);
+    void setControllerRumble(int controller_id, int rumble_amount);
     bool resetPose(int controller_id);
 
     eCommonTrackingColorID allocateTrackingColorID();

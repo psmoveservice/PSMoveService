@@ -159,94 +159,121 @@ public:
         context.connection_state= FindOrCreateConnectionState(connection_id);
 
         // All responses track which request they came from
-        PSMoveProtocol::Response *response= new PSMoveProtocol::Response;
-        response->set_request_id(request->request_id());
+        PSMoveProtocol::Response *response= nullptr;
 
         switch (request->type())
         {
             // Controller Requests
             case PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST:
+                response = new PSMoveProtocol::Response;
                 handle_request__get_controller_list(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_START_CONTROLLER_DATA_STREAM:
+                response = new PSMoveProtocol::Response;
                 handle_request__start_controller_data_stream(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_STOP_CONTROLLER_DATA_STREAM:
+                response = new PSMoveProtocol::Response;
                 handle_request__stop_controller_data_stream(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_SET_RUMBLE:
-                handle_request__set_rumble(context, response);
+                handle_request__set_rumble(context);
                 break;
             case PSMoveProtocol::Request_RequestType_RESET_POSE:
+                response = new PSMoveProtocol::Response;
                 handle_request__reset_pose(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_UNPAIR_CONTROLLER:
+                response = new PSMoveProtocol::Response;
                 handle_request__unpair_controller(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_PAIR_CONTROLLER:
+                response = new PSMoveProtocol::Response;
                 handle_request__pair_controller(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_CANCEL_BLUETOOTH_REQUEST:
+                response = new PSMoveProtocol::Response;
                 handle_request__cancel_bluetooth_request(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_SET_LED_COLOR:
-                handle_request__set_led_color(context, response);
+                handle_request__set_led_color(context);
                 break;
             case PSMoveProtocol::Request_RequestType_SET_LED_TRACKING_COLOR:
+                response = new PSMoveProtocol::Response;
                 handle_request__set_led_tracking_color(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION:
+                response = new PSMoveProtocol::Response;
                 handle_request__set_magnetometer_calibration(context, response);
                 break;
 
             // Tracker Requests
             case PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST:
+                response = new PSMoveProtocol::Response;
                 handle_request__get_tracker_list(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_START_TRACKER_DATA_STREAM:
+                response = new PSMoveProtocol::Response;
                 handle_request__start_tracker_data_stream(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_STOP_TRACKER_DATA_STREAM:
+                response = new PSMoveProtocol::Response;
                 handle_request__stop_tracker_data_stream(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_GET_TRACKER_SETTINGS:
+                response = new PSMoveProtocol::Response;
                 handle_request__get_tracker_settings(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE:
+                response = new PSMoveProtocol::Response;
                 handle_request__set_tracker_exposure(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_GAIN:
+                response = new PSMoveProtocol::Response;
                 handle_request__set_tracker_gain(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_OPTION:
+                response = new PSMoveProtocol::Response;
                 handle_request__set_tracker_option(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_COLOR_PRESET:
+                response = new PSMoveProtocol::Response;
                 handle_request__set_tracker_color_preset(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_POSE:
+                response = new PSMoveProtocol::Response;
                 handle_request__set_tracker_pose(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_SAVE_TRACKER_PROFILE:
+                response = new PSMoveProtocol::Response;
                 handle_request__save_tracker_profile(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_APPLY_TRACKER_PROFILE:
+                response = new PSMoveProtocol::Response;
                 handle_request__apply_tracker_profile(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_SEARCH_FOR_NEW_TRACKERS:
+                response = new PSMoveProtocol::Response;
                 handle_request__search_for_new_trackers(context, response);
                 break;
 
             // HMD Requests
             case PSMoveProtocol::Request_RequestType_GET_HMD_TRACKING_SPACE_SETTINGS:
+                response = new PSMoveProtocol::Response;
                 handle_request__get_hmd_tracking_space_settings(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_SET_HMD_TRACKING_SPACE_ORIGIN:
+                response = new PSMoveProtocol::Response;
                 handle_request__set_hmd_tracking_space_origin(context, response);
                 break;
 
             default:
                 assert(0 && "Whoops, bad request!");
+        }
+
+        if (response != nullptr)
+        {
+            response->set_request_id(request->request_id());
         }
 
         return ResponsePtr(response);
@@ -519,20 +546,12 @@ protected:
     }
 
     void handle_request__set_rumble(
-        const RequestContext &context,
-        PSMoveProtocol::Response *response)
+        const RequestContext &context)
     {
         const int controller_id= context.request->request_rumble().controller_id();
         const int rumble_amount= context.request->request_rumble().rumble();
 
-        if (m_device_manager.m_controller_manager->setControllerRumble(controller_id, rumble_amount))
-        {
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-        }
-        else
-        {
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-        }
+        m_device_manager.m_controller_manager->setControllerRumble(controller_id, rumble_amount);
     }
 
     void handle_request__reset_pose(
@@ -668,8 +687,7 @@ protected:
     }
 
     void handle_request__set_led_color(
-        const RequestContext &context, 
-        PSMoveProtocol::Response *response)
+        const RequestContext &context)
     {
         const int connection_id= context.connection_state->connection_id;
         const int controller_id= context.request->set_led_color_request().controller_id();
@@ -691,11 +709,6 @@ protected:
                     // of the controller is currently being tracked
                     ControllerView->clearLEDOverride();
 
-                    response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-                }
-                else
-                {
-                    response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
                 }
             }
             // Otherwise we are setting the override to a new color
@@ -704,13 +717,7 @@ protected:
                 // Sets the bulb LED color to some new override color
                 // If tracking was active this likely will affect controller tracking
                 ControllerView->setLEDOverride(r, g, b);
-
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
-        }
-        else
-        {
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
 

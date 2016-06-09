@@ -240,9 +240,9 @@ public:
         return request->request_id();
     }
 
-    ClientPSMoveAPI::t_request_id set_controller_rumble(ClientControllerView * view, float rumble_amount)
+    void set_controller_rumble(ClientControllerView * view, float rumble_amount)
     {
-        CLIENT_LOG_INFO("set_controller_rumble") << "request set rumble to " << rumble_amount << " for ControllerID: " << view->GetControllerID() << std::endl;
+        CLIENT_LOG_DEBUG("set_controller_rumble") << "request set rumble to " << rumble_amount << " for ControllerID: " << view->GetControllerID() << std::endl;
 
         assert(m_controller_view_map.find(view->GetControllerID()) != m_controller_view_map.end());
 
@@ -253,16 +253,14 @@ public:
         request->mutable_request_rumble()->set_controller_id(view->GetControllerID());
         request->mutable_request_rumble()->set_rumble(static_cast<int>(rumble_amount * 255.f));
 
-        m_request_manager.send_request(request);
-
-        return request->request_id();
+        m_request_manager.send_request_no_reply(request);
     }
 
-    ClientPSMoveAPI::t_request_id set_led_color(
+    void set_led_color(
         ClientControllerView *view, 
         unsigned char r, unsigned char g, unsigned b)
     {
-        CLIENT_LOG_INFO("set_controller_rumble") << "request set color to " << r << "," << g << "," << b << 
+        CLIENT_LOG_DEBUG("set_controller_rumble") << "request set color to " << (int)r << "," << (int)g << "," << (int)b <<
             " for PSMoveID: " << view->GetControllerID() << std::endl;
 
         assert(m_controller_view_map.find(view->GetControllerID()) != m_controller_view_map.end());
@@ -275,9 +273,7 @@ public:
         request->mutable_set_led_color_request()->set_g(static_cast<int>(g));
         request->mutable_set_led_color_request()->set_b(static_cast<int>(b));
 
-        m_request_manager.send_request(request);
-
-        return request->request_id();
+        m_request_manager.send_request_no_reply(request);
     }
 
     ClientPSMoveAPI::t_request_id set_led_tracking_color(
@@ -813,34 +809,26 @@ ClientPSMoveAPI::stop_controller_data_stream(
     return request_id;
 }
 
-ClientPSMoveAPI::t_request_id 
+void 
 ClientPSMoveAPI::set_controller_rumble(
     ClientControllerView * view, 
     float rumble_amount)
 {
-    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::INVALID_REQUEST_ID;
-
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        request_id= ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount);
+        ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount);
     }
-
-    return request_id;
 }
 
-ClientPSMoveAPI::t_request_id 
+void
 ClientPSMoveAPI::set_led_color(
     ClientControllerView *view, 
     unsigned char r, unsigned char g, unsigned b)
 {
-    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::INVALID_REQUEST_ID;
-
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        request_id= ClientPSMoveAPI::m_implementation_ptr->set_led_color(view, r, g, b);
+        ClientPSMoveAPI::m_implementation_ptr->set_led_color(view, r, g, b);
     }
-
-    return request_id;
 }
 
 ClientPSMoveAPI::t_request_id

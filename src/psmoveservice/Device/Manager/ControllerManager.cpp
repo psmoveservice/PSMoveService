@@ -95,17 +95,13 @@ ControllerManager::allocate_device_view(int device_id)
     return new ServerControllerView(device_id);
 }
 
-bool
+void
 ControllerManager::setControllerRumble(int controller_id, int rumble_amount)
 {
-    bool result = false;
-
     if (ServerUtility::is_index_valid(controller_id, k_max_devices))
     {
-        result = getControllerViewPtr(controller_id)->setControllerRumble(rumble_amount);
+        getControllerViewPtr(controller_id)->setControllerRumble(rumble_amount);
     }
-
-    return result;
 }
 
 bool

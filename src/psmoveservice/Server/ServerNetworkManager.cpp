@@ -176,7 +176,7 @@ public:
                     m_packed_response.set_msg(response);
                     m_packed_response.pack(m_response_write_buffer);
 
-                    SERVER_LOG_INFO("ClientConnection::start_tcp_write_queued_response") << "Sending TCP response";
+                    SERVER_LOG_DEBUG("ClientConnection::start_tcp_write_queued_response") << "Sending TCP response";
                     SERVER_LOG_DEBUG("   ") << show_hex(m_response_write_buffer);
                     SERVER_LOG_DEBUG("   ") << m_packed_response.get_msg()->ByteSize() << " bytes";
 
@@ -396,7 +396,7 @@ private:
     {
         if (!error) 
         {
-            SERVER_LOG_INFO("ClientConnection::handle_tcp_read_request_body") 
+            SERVER_LOG_DEBUG("ClientConnection::handle_tcp_read_request_body")
                 << "Read request body on connection" << m_connection_id;
             SERVER_LOG_DEBUG("   ") << show_hex(m_request_read_buffer);
 
@@ -425,9 +425,12 @@ private:
                 << "Handle request type " << request->request_id() 
                 << " on connection id to client " << m_connection_id;
 
-            ResponsePtr response = m_request_handler_ref.handle_request(m_connection_id, request);
-            
-            add_tcp_response_to_write_queue(response);
+            ResponsePtr response = m_request_handler_ref.handle_request(m_connection_id, request);            
+            if (response)
+            {
+                add_tcp_response_to_write_queue(response);
+            }
+
             start_tcp_write_queued_response();
         }
         else
