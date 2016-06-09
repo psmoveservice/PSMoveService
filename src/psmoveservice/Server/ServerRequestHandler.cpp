@@ -452,7 +452,9 @@ protected:
                 controller_info->set_connection_type(
                     bIsBluetooth
                     ? PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH
-                    : PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_USB);            
+                    : PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_USB);  
+                controller_info->set_tracking_color_type(
+                    static_cast<PSMoveProtocol::TrackingColorType>(controller_view->getTrackingColorID()));
                 controller_info->set_device_path(controller_view->getUSBDevicePath());
                 controller_info->set_device_serial(controller_view->getSerial());
                 controller_info->set_assigned_host_serial(controller_view->getAssignedHostBluetoothAddress());

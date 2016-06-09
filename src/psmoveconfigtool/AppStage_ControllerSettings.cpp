@@ -70,7 +70,36 @@ void AppStage_ControllerSettings::render()
                 {
                     case PSMoveProtocol::PSMOVE:
                         {
-                            drawPSMoveModel(scale2RotateX90, glm::vec3(1.f, 1.f, 1.f));
+                            const ControllerInfo &controllerInfo = m_bluetoothControllerInfos[m_selectedControllerIndex];
+
+                            // Display the tracking color being used for the controller
+                            glm::vec3 bulb_color = glm::vec3(1.f, 1.f, 1.f);
+
+                            switch (controllerInfo.TrackingColorType)
+                            {
+                            case PSMoveTrackingColorType::Magenta:
+                                bulb_color = glm::vec3(1.f, 0.f, 1.f);
+                                break;
+                            case PSMoveTrackingColorType::Cyan:
+                                bulb_color = glm::vec3(0.f, 1.f, 1.f);
+                                break;
+                            case PSMoveTrackingColorType::Yellow:
+                                bulb_color = glm::vec3(1.f, 1.f, 0.f);
+                                break;
+                            case PSMoveTrackingColorType::Red:
+                                bulb_color = glm::vec3(1.f, 0.f, 0.f);
+                                break;
+                            case PSMoveTrackingColorType::Green:
+                                bulb_color = glm::vec3(0.f, 1.f, 0.f);
+                                break;
+                            case PSMoveTrackingColorType::Blue:
+                                bulb_color = glm::vec3(0.f, 0.f, 1.f);
+                                break;
+                            default:
+                                break;
+                            }
+
+                            drawPSMoveModel(scale2RotateX90, bulb_color);
                         } break;
                     case PSMoveProtocol::PSNAVI:
                         {
@@ -173,7 +202,7 @@ void AppStage_ControllerSettings::renderUI()
                         break;
                     }
 
-                    ImGui::BulletText("Controller Type: %s", color_string);
+                    ImGui::BulletText("Tracking Color: %s", color_string);
                 }
 
                 switch(controllerInfo.ControllerType)
