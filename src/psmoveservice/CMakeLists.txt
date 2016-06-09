@@ -241,6 +241,9 @@ install(TARGETS PSMoveService
 	RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
 	LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
 	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+install(DIRECTORY "${ROOT_DIR}/thirdparty/CLEYE/x86/bin/"
+    DESTINATION ${ROOT_DIR}/win32/bin
+    FILES_MATCHING PATTERN "*.dll")    
 ELSE() #Linux/Darwin
 ENDIF()
 
