@@ -166,7 +166,7 @@ public:
 
     bool retrieveFrame(int channel, cv::OutputArray outArray)
     {
-        CLEyeCameraGetFrame(m_eye, pCapBuffer, 2000);
+        CLEyeCameraGetFrame(m_eye, pCapBuffer, 33);
         const int from_to[] = { 0, 0, 1, 1, 2, 2 };
         const CvArr** src = (const CvArr**)&m_frame4ch;
         CvArr** dst = (CvArr**)&m_frame;
