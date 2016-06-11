@@ -63,8 +63,8 @@ void AppSubStage_CalibrateWithHMD::update()
         break;
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepRecordHmdPSMove:
         {
-            PSMovePose dk2pose = HMDView->getRawHmdPose();
-            PSMovePosition dk2position = dk2pose.Position;
+            PSMovePose hmdRawPose = HMDView->getRawHmdPose();
+            PSMovePose hmdRenderPose = HMDView->getDisplayHmdPose();
             bool bAllTrackersComplete = true;
 
             for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
@@ -80,7 +80,8 @@ void AppSubStage_CalibrateWithHMD::update()
                     PSMoveView.GetRawTrackerData().GetPositionOnTrackerId(trackerView->getTrackerId(), positionOnTracker) &&
                     trackerCoregData.poseCount < NPOSES)
                 {
-                    trackerCoregData.hmd_poses[trackerCoregData.poseCount] = dk2pose;
+                    trackerCoregData.hmd_raw_poses[trackerCoregData.poseCount] = hmdRawPose;
+                    trackerCoregData.hmd_render_poses[trackerCoregData.poseCount] = hmdRenderPose;
                     trackerCoregData.psmoveposes[trackerCoregData.poseCount] = positionOnTracker;
                     trackerCoregData.poseCount++;
                 }
@@ -131,6 +132,15 @@ void AppSubStage_CalibrateWithHMD::update()
 
                     m_parentStage->request_set_tracker_pose(&trackerPose, trackerView);
                 }
+            }
+
+            // The HMD tracking space origin in this mode is the identity pose
+            if (HMDView != nullptr)
+            {
+                PSMovePose hmdPose;
+                hmdPose.Clear();
+
+                m_parentStage->request_set_hmd_tracking_space_origin(&hmdPose);
             }
 
             if (bSuccess)
@@ -188,7 +198,7 @@ void AppSubStage_CalibrateWithHMD::render()
                 // Draw a line strip connecting all of the dk2 positions collected so far
                 if (trackerCoregData.poseCount > 0)
                 {
-                    drawPoseArrayStrip(trackerCoregData.hmd_poses, trackerCoregData.poseCount, glm::vec3(1.f, 1.f, 0.f));
+                    drawPoseArrayStrip(trackerCoregData.hmd_render_poses, trackerCoregData.poseCount, glm::vec3(1.f, 1.f, 0.f));
                 }
             }
 
@@ -455,7 +465,7 @@ static void drawFrustumBounds(const FrustumBounds &frustum, const glm::vec3 &col
 static bool computeCameraPoseTransform(
     TrackerCoregistrationData &trackerCoregData)
 {
-    const PSMovePose *hmd_poses = trackerCoregData.hmd_poses;
+    const PSMovePose *hmd_poses = trackerCoregData.hmd_raw_poses;
     const PSMovePosition *psmoveposes = trackerCoregData.psmoveposes;
     const int poseCount = trackerCoregData.poseCount;
 
