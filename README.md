@@ -1,5 +1,5 @@
 # PSMoveService
-A background service that communicates with the psmove and serves its pose and button states. It also include a visual client front-end for configuring and managing controllers. The [FAQ](https://github.com/cboulay/PSMoveService/wiki/Frequently-Asked-Questions) is a good starting point for any questions you may have about the project.
+A background service that communicates with the psmove and serves its pose and button states. It also include a visual client front-end for configuring and managing controllers. The [FAQ](https://github.com/cboulay/PSMoveService/wiki/Frequently-Asked-Questions) is a good starting point for any specific questions you may have about the project. If you just want to install or build the project from source check out the [wiki](https://github.com/cboulay/PSMoveService/wiki) main page for detailed instructions.
 
 # Download
 Don't download the source from the green "Clone or download" button! The zip provided only contains the source from the `/src` folder and not the submodules in `/thirdparty`. This is a known issue with GitHub (we don't provided the zip file that this button generates). If you don't have a github client installed, get it from: https://desktop.github.com/
