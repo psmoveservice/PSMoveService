@@ -142,7 +142,7 @@ void ClientPSMoveView::ApplyControllerDataFrame(
 
                 if (raw_tracker_data.projected_spheres_size() > 0)
                 {
-                    const PSMoveProtocol::Ellipse &protocolEllipse = raw_tracker_data.projected_spheres(0);
+                    const PSMoveProtocol::Ellipse &protocolEllipse = raw_tracker_data.projected_spheres(listIndex);
                     PSMoveTrackingProjection &projection= this->RawTrackerData.TrackingProjections[listIndex];
 
                     projection.shape.ellipse.center.x = protocolEllipse.center().x();
@@ -154,7 +154,7 @@ void ClientPSMoveView::ApplyControllerDataFrame(
                 }
                 else if (raw_tracker_data.projected_blobs_size() > 0)
                 {
-                    const PSMoveProtocol::Polygon &protocolPolygon = raw_tracker_data.projected_blobs(0);
+                    const PSMoveProtocol::Polygon &protocolPolygon = raw_tracker_data.projected_blobs(listIndex);
                     PSMoveTrackingProjection &projection = this->RawTrackerData.TrackingProjections[listIndex];
 
                     assert(protocolPolygon.vertices_size() == 4);
