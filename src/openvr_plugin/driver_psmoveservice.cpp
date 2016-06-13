@@ -1069,6 +1069,16 @@ void CPSMoveControllerLatest::UpdateControllerState()
     // changed.  We don't try to be precise about that here.
     NewState.unPacketNum = m_ControllerState.unPacketNum + 1;
 
+    bool bStartWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(k_EButton_Start)) > 0;
+    bool bSelectWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(k_EButton_Select)) > 0;
+
+    // If start and select are released at the same time, recenter the controller orientation pose 
+    if (bStartWasPressed && !clientView.GetButtonStart() &&
+        bSelectWasPressed && !clientView.GetButtonSelect())
+    {
+        ClientPSMoveAPI::reset_pose(m_controller_view);
+    }
+
     if (clientView.GetButtonCircle())
         NewState.ulButtonPressed |= vr::ButtonMaskFromId(k_EButton_Circle);
     if (clientView.GetButtonCross())
