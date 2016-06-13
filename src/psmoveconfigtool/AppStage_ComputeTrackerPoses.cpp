@@ -169,9 +169,10 @@ void AppStage_ComputeTrackerPoses::render()
         break;
     case eMenuState::verifyHMD:
         {
+            // Draw everything in Chaperone tracking space
             if (m_hmdView != nullptr)
             {
-                PSMovePose pose = m_hmdView->getDisplayHmdPose();
+                PSMovePose pose = m_hmdView->getChaperoneSpaceHmdPose();
                 glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
                 glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
 
@@ -186,7 +187,7 @@ void AppStage_ComputeTrackerPoses::render()
             {
                 PSMoveVolume volume;
 
-                if (m_app->getOpenVRContext()->getHMDTrackingVolume(volume))
+                if (m_app->getOpenVRContext()->getChaperoneTrackingVolume(volume))
                 {
                     drawTransformedVolume(glm::mat4(1.f), &volume, glm::vec3(0.f, 1.f, 1.f));
                 }
@@ -206,57 +207,72 @@ void AppStage_ComputeTrackerPoses::render()
         break;
     case eMenuState::testTracking:
         {
-            // Draw the origin axes
+            glm::mat4 psmove_tracking_space_to_chaperone_space = glm::mat4(1.f);
+
+            // Draw the chaperone origin axes
             drawTransformedAxes(glm::mat4(1.0f), 100.f);
 
-            // Draw the HMD and tracking volume
+            // Draw the HMD and tracking volume in chaperone tracking space
             if (m_hmdView != nullptr)
             {
-                // Compute a transform that goes from HMD tracking space to PSMove tracking space
-                PSMovePose hmd_pose_at_origin = m_app->getOpenVRContext()->getHMDPoseAtPSMoveTrackingSpaceOrigin();
-                glm::mat4 tracking_space_transform = psmove_pose_to_glm_mat4(hmd_pose_at_origin);
-                glm::mat4 tracking_space_inv_transform = glm::inverse(tracking_space_transform);
+                // Get the transform that goes from PSMove-tracking-space to Raw-HMD-tracking-space.
+                // If the HMD coregistration method was used, this will be the identity pose
+                // because the the trackers were already aligned with Raw HMD tracking space.
+                PSMovePose hmd_raw_pose_at_psmove_origin = m_app->getOpenVRContext()->getRawHMDPoseAtPSMoveTrackingSpaceOrigin();
+                glm::mat4 psmove_to_hmd_raw_transform = psmove_pose_to_glm_mat4(hmd_raw_pose_at_psmove_origin);
 
-                // Put the HMD transform in PSMove tracking space
-                PSMovePose hmd_pose = m_hmdView->getDisplayHmdPose();
-                glm::mat4 hmd_transform = psmove_pose_to_glm_mat4(hmd_pose);
+                // Get the raw HMD OpenVR transform 
+                PSMovePose hmd_raw_pose = m_hmdView->getRawHmdPose();
+                glm::mat4 hmd_raw_transform = psmove_pose_to_glm_mat4(hmd_raw_pose);
 
-                drawDK2Model(hmd_transform);
-                drawTransformedAxes(hmd_transform, 10.f);
+                // Get the Chaperone space HMD transform
+                PSMovePose hmd_chaperone_pose = m_hmdView->getChaperoneSpaceHmdPose();
+                glm::mat4 hmd_chaperone_transform = psmove_pose_to_glm_mat4(hmd_chaperone_pose);
 
+                // Compute a transform to go from HMD raw to chaperone space using the current
+                // raw HMD pose and chaperone HMD pose
+                glm::mat4 raw_to_chaperone_transform = hmd_chaperone_transform * glm::inverse(hmd_raw_transform);
+
+                // Compute the transform that goes from PSMove-tracking-space to Chaperone space
+                psmove_tracking_space_to_chaperone_space = raw_to_chaperone_transform * psmove_to_hmd_raw_transform;
+
+                // Draw the HMD in chaperone space
+                drawDK2Model(hmd_chaperone_transform);
+                drawTransformedAxes(hmd_chaperone_transform, 10.f);
+                
+                // Draw the Chaperone volume 
                 PSMoveVolume volume;
-                if (m_app->getOpenVRContext()->getHMDTrackingVolume(volume))
+                if (m_app->getOpenVRContext()->getChaperoneTrackingVolume(volume))
                 {
-                    drawTransformedVolume(tracking_space_inv_transform, &volume, glm::vec3(0.f, 1.f, 1.f));
+                    drawTransformedVolume(glm::mat4(1.f), &volume, glm::vec3(0.f, 1.f, 1.f));
                 }
             }
 
-            // Draw the frustum for each tracking camera
+            // Draw the frustum for each tracking camera.
+            // The frustums are defined in PSMove tracking space.
+            // We need to transform them into chaperone space to display them along side the HMD.
             for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
             {
                 const ClientTrackerView *trackerView = iter->second.trackerView;
+                const PSMovePose psmove_space_pose = trackerView->getTrackerPose();
+                const glm::mat4 chaperoneSpaceTransform = psmove_tracking_space_to_chaperone_space * psmove_pose_to_glm_mat4(psmove_space_pose);
 
                 {
                     PSMoveFrustum frustum = trackerView->getTrackerFrustum();
 
-                    drawFrustum(&frustum, k_psmove_frustum_color);
+                    drawTransformedFrustum(psmove_tracking_space_to_chaperone_space, &frustum, k_psmove_frustum_color);
                 }
 
-                {
-                    PSMovePose pose = trackerView->getTrackerPose();
-                    glm::mat4 cameraTransform = psmove_pose_to_glm_mat4(pose);
-
-                    drawTransformedAxes(cameraTransform, 20.f);
-                }
+                drawTransformedAxes(chaperoneSpaceTransform, 20.f);
             }
 
             // Draw the psmove model
             {
-                PSMovePose pose = m_controllerView->GetPSMoveView().GetPose();
-                glm::mat4 worldTransform = psmove_pose_to_glm_mat4(pose);
+                PSMovePose psmove_space_pose = m_controllerView->GetPSMoveView().GetPose();
+                glm::mat4 chaperoneSpaceTransform = psmove_tracking_space_to_chaperone_space * psmove_pose_to_glm_mat4(psmove_space_pose);
 
-                drawPSMoveModel(worldTransform, glm::vec3(1.f, 1.f, 1.f));
-                drawTransformedAxes(worldTransform, 10.f);
+                drawPSMoveModel(chaperoneSpaceTransform, glm::vec3(1.f, 1.f, 1.f));
+                drawTransformedAxes(chaperoneSpaceTransform, 10.f);
             }
 
         } break;
@@ -974,7 +990,7 @@ void AppStage_ComputeTrackerPoses::request_set_hmd_tracking_space_origin(
 {
     if (m_app->getOpenVRContext()->getIsInitialized())
     {
-        m_app->getOpenVRContext()->setHMDTrackingSpaceOrigin(*pose);
+        m_app->getOpenVRContext()->setRawHMDTrackingSpaceOrigin(*pose);
     }
 
     // Update the pose on the service

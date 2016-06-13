@@ -88,8 +88,8 @@ void drawTransformedAxes(const glm::mat4 &transform, float xScale, float yScale,
 void drawTransformedBox(const glm::mat4 &transform, const glm::vec3 &half_extents, const glm::vec3 &color);
 void drawTransformedBox(const glm::mat4 &transform, const glm::vec3 &box_min, const glm::vec3 &box_max, const glm::vec3 &color);
 void drawTransformedTexturedCube(const glm::mat4 &transform, int textureId, float scale);
+void drawTransformedFrustum(const glm::mat4 &transform, const struct PSMoveFrustum *frustum, const glm::vec3 &color);
 void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count);
-void drawFrustum(const struct PSMoveFrustum *frustum, const glm::vec3 &color);
 void drawEllipsoid(
     const glm::mat4 &transform, const glm::vec3 &color, 
     const glm::mat3 &basis, const glm::vec3 &center, const glm::vec3 &extents,

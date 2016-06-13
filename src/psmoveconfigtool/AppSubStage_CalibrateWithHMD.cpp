@@ -64,7 +64,7 @@ void AppSubStage_CalibrateWithHMD::update()
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrationStepRecordHmdPSMove:
         {
             PSMovePose hmdRawPose = HMDView->getRawHmdPose();
-            PSMovePose hmdRenderPose = HMDView->getDisplayHmdPose();
+            PSMovePose hmdRenderPose = HMDView->getChaperoneSpaceHmdPose();
             bool bAllTrackersComplete = true;
 
             for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
@@ -81,7 +81,7 @@ void AppSubStage_CalibrateWithHMD::update()
                     trackerCoregData.poseCount < NPOSES)
                 {
                     trackerCoregData.hmd_raw_poses[trackerCoregData.poseCount] = hmdRawPose;
-                    trackerCoregData.hmd_render_poses[trackerCoregData.poseCount] = hmdRenderPose;
+                    trackerCoregData.hmd_chaperone_poses[trackerCoregData.poseCount] = hmdRenderPose;
                     trackerCoregData.psmoveposes[trackerCoregData.poseCount] = positionOnTracker;
                     trackerCoregData.poseCount++;
                 }
@@ -184,7 +184,10 @@ void AppSubStage_CalibrateWithHMD::render()
             const ClientPSMoveView &PSMoveView = ControllerView->GetPSMoveView();
             const ClientHMDView *HMDView = m_parentStage->m_hmdView;
 
-            // Draw the origin axes
+            // Draw all of this data in Chaperone Space, not raw OpenVR tracking space
+            //-----
+
+            // Draw the origin axes of the chaperone volume
             drawTransformedAxes(glm::mat4(1.0f), 100.f);
 
             for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
@@ -198,23 +201,23 @@ void AppSubStage_CalibrateWithHMD::render()
                 // Draw a line strip connecting all of the dk2 positions collected so far
                 if (trackerCoregData.poseCount > 0)
                 {
-                    drawPoseArrayStrip(trackerCoregData.hmd_render_poses, trackerCoregData.poseCount, glm::vec3(1.f, 1.f, 0.f));
+                    drawPoseArrayStrip(trackerCoregData.hmd_chaperone_poses, trackerCoregData.poseCount, glm::vec3(1.f, 1.f, 0.f));
                 }
             }
 
-            // Render the HMD tracking volume
+            // Render the Chaperone tracking volume
             {
                 PSMoveVolume volume;
 
-                if (m_parentStage->m_app->getOpenVRContext()->getHMDTrackingVolume(volume))
+                if (m_parentStage->m_app->getOpenVRContext()->getChaperoneTrackingVolume(volume))
                 {
                     drawTransformedVolume(glm::mat4(1.f), &volume, glm::vec3(0.f, 1.f, 1.f));
                 }
             }
 
-            // Draw the DK2 model
+            // Draw the HMD model
             {
-                glm::mat4 transform = psmove_pose_to_glm_mat4(HMDView->getDisplayHmdPose());
+                glm::mat4 transform = psmove_pose_to_glm_mat4(HMDView->getChaperoneSpaceHmdPose());
 
                 drawDK2Model(transform);
                 drawTransformedAxes(transform, 10.f);

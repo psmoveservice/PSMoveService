@@ -793,23 +793,7 @@ void drawTransformedTexturedCube(const glm::mat4 &transform, int textureId, floa
     glBindTexture(GL_TEXTURE_2D, 0); 
 }
 
-void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count)
-{
-    assert(Renderer::getIsRenderingStage());
-
-    glColor3fv(glm::value_ptr(color));
-
-    glPushMatrix();
-        glMultMatrixf(glm::value_ptr(transform));
-        glEnableClientState(GL_VERTEX_ARRAY);
-        glPointSize(5);
-        glVertexPointer(3, GL_FLOAT, 0, points);
-        glDrawArrays(GL_POINTS, 0, point_count);
-        glDisableClientState(GL_VERTEX_ARRAY);
-    glPopMatrix();
-}
-
-void drawFrustum(const PSMoveFrustum *frustum, const glm::vec3 &color)
+void drawTransformedFrustum(const glm::mat4 &transform, const PSMoveFrustum *frustum, const glm::vec3 &color)
 {
     assert(Renderer::getIsRenderingStage());
 
@@ -841,9 +825,11 @@ void drawFrustum(const PSMoveFrustum *frustum, const glm::vec3 &color)
     glm::vec3 far2 = origin - farX - farY + farZ;
     glm::vec3 far3 = origin + farX - farY + farZ;
 
-    glBegin(GL_LINES);
-
+    glPushMatrix();
+    glMultMatrixf(glm::value_ptr(transform));
     glColor3fv(glm::value_ptr(color));
+
+    glBegin(GL_LINES);
 
     glVertex3fv(glm::value_ptr(near0)); glVertex3fv(glm::value_ptr(near1));
     glVertex3fv(glm::value_ptr(near1)); glVertex3fv(glm::value_ptr(near2));
@@ -865,6 +851,24 @@ void drawFrustum(const PSMoveFrustum *frustum, const glm::vec3 &color)
     glVertex3fv(glm::value_ptr(nearCenter));
 
     glEnd();
+
+    glPopMatrix();
+}
+
+void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    glColor3fv(glm::value_ptr(color));
+
+    glPushMatrix();
+    glMultMatrixf(glm::value_ptr(transform));
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glPointSize(5);
+    glVertexPointer(3, GL_FLOAT, 0, points);
+    glDrawArrays(GL_POINTS, 0, point_count);
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glPopMatrix();
 }
 
 void drawEllipsoid(

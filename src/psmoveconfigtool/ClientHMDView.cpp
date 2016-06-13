@@ -65,7 +65,7 @@ void ClientHMDView::clear()
     m_rawHmdYBasisVector = *k_psmove_float_vector3_j;
     m_rawHmdZBasisVector = *k_psmove_float_vector3_k;
 
-    m_displayHmdPose.Clear();
+    m_ChaperoneSpaceHmdPose.Clear();
 
     m_hmdSequenceNum= 0;
     m_trackerSequenceNum = 0;
@@ -105,9 +105,9 @@ void ClientHMDView::notifyPropertyChanged(vr::IVRSystem *pVRSystem, int deviceIn
 
 void ClientHMDView::applyHMDDataFrame(
     const vr::TrackedDevicePose_t *raw_data_frame,
-    const vr::TrackedDevicePose_t *standing_data_frame)
+    const vr::TrackedDevicePose_t *chaperone_data_frame)
 {
-    if (raw_data_frame->bPoseIsValid && standing_data_frame->bPoseIsValid)
+    if (raw_data_frame->bPoseIsValid && chaperone_data_frame->bPoseIsValid)
     {
         {
             const float(&m)[3][4] = raw_data_frame->mDeviceToAbsoluteTracking.m;
@@ -130,10 +130,10 @@ void ClientHMDView::applyHMDDataFrame(
         }
 
         {
-            m_displayHmdPose.Orientation = 
-                openvrMatrixExtractPSMoveQuaternion(standing_data_frame->mDeviceToAbsoluteTracking);
-            m_displayHmdPose.Position = 
-                openvrMatrixExtractPSMovePosition(standing_data_frame->mDeviceToAbsoluteTracking) * k_meters_to_centimenters;
+            m_ChaperoneSpaceHmdPose.Orientation = 
+                openvrMatrixExtractPSMoveQuaternion(chaperone_data_frame->mDeviceToAbsoluteTracking);
+            m_ChaperoneSpaceHmdPose.Position = 
+                openvrMatrixExtractPSMovePosition(chaperone_data_frame->mDeviceToAbsoluteTracking) * k_meters_to_centimenters;
         }
 
         // Increment the sequence number now that that we have new data

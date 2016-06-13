@@ -41,10 +41,10 @@ public:
     ClientHMDView *allocateHmdView();
     void freeHmdView(ClientHMDView *view);
 
-    void setHMDTrackingSpaceOrigin(const PSMovePose &pose);
-    PSMovePose getHMDPoseAtPSMoveTrackingSpaceOrigin() const;
-    bool getHMDTrackingSpaceSize(float &outWidth, float &outHeight) const;
-    bool getHMDTrackingVolume(PSMoveVolume &volume) const;
+    void setRawHMDTrackingSpaceOrigin(const PSMovePose &pose);
+    PSMovePose getRawHMDPoseAtPSMoveTrackingSpaceOrigin() const;
+    bool getChaperoneTrackingVolumeSize(float &outWidth, float &outHeight) const;
+    bool getChaperoneTrackingVolume(PSMoveVolume &volume) const;
 
 private:
     bool m_bIsInitialized;

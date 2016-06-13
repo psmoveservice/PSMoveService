@@ -44,7 +44,7 @@ private:
     PSMoveFloatVector3 m_rawHmdAngularVelocity;
     PSMoveFloatVector3 m_rawHmdLinearVelocity;
 
-    PSMovePose m_displayHmdPose;
+    PSMovePose m_ChaperoneSpaceHmdPose;
 
     int m_hmdSequenceNum;
     int m_trackerSequenceNum;
@@ -65,7 +65,7 @@ public:
     void notifyPropertyChanged(vr::IVRSystem *pVRSystem, int deviceIndex);
     void applyHMDDataFrame(
         const vr::TrackedDevicePose_t *raw_data_frame, 
-        const vr::TrackedDevicePose_t *standing_data_frame);
+        const vr::TrackedDevicePose_t *chaperone_data_frame);
 
     // Listener State
     inline void incListenerCount()
@@ -102,11 +102,11 @@ public:
         return m_rawHmdPose;
     }
 
-    // This is the HMD pose relative to the standing tracking space in OpenVR.
+    // This is the HMD pose relative to the chaperone tracking space in OpenVR.
     // You want to use this when rendering the HMD and tracking space.
-    inline PSMovePose getDisplayHmdPose() const
+    inline PSMovePose getChaperoneSpaceHmdPose() const
     {
-        return m_displayHmdPose;
+        return m_ChaperoneSpaceHmdPose;
     }
 
     inline const PSMoveFloatVector3 &getRawHMDAngularVelocity() const

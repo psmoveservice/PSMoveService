@@ -25,7 +25,7 @@ struct FrustumBounds
 struct TrackerCoregistrationData
 {
     PSMovePose hmd_raw_poses[NPOSES];
-    PSMovePose hmd_render_poses[NPOSES];
+    PSMovePose hmd_chaperone_poses[NPOSES];
     PSMovePosition psmoveposes[NPOSES];
     int poseCount;
     bool bComputedCoregTransform;

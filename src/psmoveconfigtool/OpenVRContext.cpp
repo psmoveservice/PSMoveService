@@ -230,17 +230,17 @@ void OpenVRContext::freeHmdView(ClientHMDView *view)
     }
 }
 
-void OpenVRContext::setHMDTrackingSpaceOrigin(const struct PSMovePose &pose)
+void OpenVRContext::setRawHMDTrackingSpaceOrigin(const struct PSMovePose &pose)
 {
     m_hmdOriginPose = pose;
 }
 
-PSMovePose OpenVRContext::getHMDPoseAtPSMoveTrackingSpaceOrigin() const
+PSMovePose OpenVRContext::getRawHMDPoseAtPSMoveTrackingSpaceOrigin() const
 {
     return m_hmdOriginPose;
 }
 
-bool OpenVRContext::getHMDTrackingSpaceSize(float &outSizeX, float &outSizeZ) const
+bool OpenVRContext::getChaperoneTrackingVolumeSize(float &outSizeX, float &outSizeZ) const
 {
     bool bSuccess= false;
 
@@ -255,7 +255,7 @@ bool OpenVRContext::getHMDTrackingSpaceSize(float &outSizeX, float &outSizeZ) co
     return bSuccess;
 }
 
-bool OpenVRContext::getHMDTrackingVolume(PSMoveVolume &volume) const
+bool OpenVRContext::getChaperoneTrackingVolume(PSMoveVolume &volume) const
 {
     bool bSuccess = false;
 

@@ -432,13 +432,15 @@ void PSMovePose::Clear()
 // -- PSMoveFrustum -- 
 void PSMoveFrustum::set_pose(const PSMovePose &pose)
 {
-    const PSMoveQuaternion &q = pose.Orientation;
-    const glm::quat glm_quat(q.w, q.x, q.y, q.z);
-    const glm::mat3 glm_mat3 = glm::mat3_cast(glm_quat);
+    const glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
+    const glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
+    const glm::mat4 rot = glm::mat4_cast(orientation);
+    const glm::mat4 trans = glm::translate(glm::mat4(1.0f), position);
+    const glm::mat4 glm_mat4 = trans * rot;
 
-    forward = PSMoveFloatVector3::create(glm_mat3[2].x, glm_mat3[2].y, glm_mat3[2].z); // z-axis
-    left = PSMoveFloatVector3::create(glm_mat3[0].x, glm_mat3[0].y, glm_mat3[0].z); // x-axis
-    up = PSMoveFloatVector3::create(glm_mat3[1].x, glm_mat3[1].y, glm_mat3[1].z); // y-axis
+    forward = PSMoveFloatVector3::create(glm_mat4[2].x, glm_mat4[2].y, glm_mat4[2].z); // z-axis
+    left = PSMoveFloatVector3::create(glm_mat4[0].x, glm_mat4[0].y, glm_mat4[0].z); // x-axis
+    up = PSMoveFloatVector3::create(glm_mat4[1].x, glm_mat4[1].y, glm_mat4[1].z); // y-axis
 
-    origin = pose.Position;
+    origin = PSMovePosition::create(glm_mat4[3].x, glm_mat4[3].y, glm_mat4[3].z);
 }

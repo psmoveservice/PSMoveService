@@ -293,8 +293,33 @@ void AppSubStage_CalibrateWithMat::update()
                         // Save the average sample for the HMD
                         m_hmdTrackerPoseContext.avgHMDWorldSpacePoint = 
                             avgPosition.unsafe_divide(N).castToPSMovePosition();
-                        m_hmdTrackerPoseContext.avgHMDWorldSpaceOrientation = 
-                            avgOrientation.unsafe_divide(N).normalize_with_default(*k_psmove_quaternion_identity);
+
+                        // Constrain the rotation to just be a yaw (rotation about y-axis) 
+                        {
+                            // Compute the average pose quaternion
+                            PSMoveQuaternion avg_quaternion =
+                                avgOrientation.unsafe_divide(N).normalize_with_default(*k_psmove_quaternion_identity);
+                            glm::quat glm_quat = psmove_quaternion_to_glm_quat(avg_quaternion);
+
+                            // Convert the pose quaternion into a set of basis vectors
+                            glm::mat3 glm_mat3 = glm::mat3_cast(glm_quat);
+
+                            // Extract the forward (z-axis) vector from the basis
+                            glm::vec3 glm_forward = glm_mat3[2];
+
+                            // Project the forwaard vector onto the x-z plane
+                            glm::vec3 glm_forward2d = glm::normalize(glm::vec3(glm_forward.x, 0.f, glm_forward.z));
+
+                            // Compute the yaw angle (amount the z-axis has been rotated to it's current facing)
+                            float cos_yaw = glm::dot(glm_forward2d, glm::vec3(0.f, 0.f, 1.f));
+                            float half_yaw = acosf(clampf(cos_yaw, -1.f, 1.f)) / 2.f;
+
+                            // Convert this yaw rotation back into a quaternion
+                            m_hmdTrackerPoseContext.avgHMDWorldSpaceOrientation =
+                                PSMoveQuaternion::create(
+                                cosf(half_yaw), // w = cos(theta/2)
+                                0.f, sinf(half_yaw), 0.f); // (x, y, z) = sin(theta/2)*axis, where axis = (0, 1, 0)
+                        }
 
                         // Otherwise we are done with the HMD sampling.
                         // Move onto the next phase.
@@ -410,13 +435,24 @@ void AppSubStage_CalibrateWithMat::render()
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:
         {
             const ClientHMDView *HMDView = m_parentStage->m_hmdView;
-            const glm::mat4 transform = psmove_pose_to_glm_mat4(HMDView->getDisplayHmdPose());
+            const glm::mat4 transform = psmove_pose_to_glm_mat4(HMDView->getChaperoneSpaceHmdPose());
 
+            // Draw the HMD in chaperone space
             drawDK2Model(transform);
 
             if (m_menuState == AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD)
             {
                 drawTransformedAxes(transform, 10.f);
+            }
+            
+            // Draw the chaperone bounds
+            {
+                PSMoveVolume volume;
+
+                if (m_parentStage->m_app->getOpenVRContext()->getChaperoneTrackingVolume(volume))
+                {
+                    drawTransformedVolume(glm::mat4(1.f), &volume, glm::vec3(0.f, 1.f, 1.f));
+                }
             }
         }
         break;
