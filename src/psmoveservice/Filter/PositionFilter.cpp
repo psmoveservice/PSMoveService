@@ -216,19 +216,23 @@ position_fusion_lowpass_update(
             // New position is blended against the old position
             const Eigen::Vector3f old_position = fusion_state->position;
             const Eigen::Vector3f new_position = filter_packet->position;
-            fusion_state->position = old_position*(1.f - new_position_weight) + new_position*new_position_weight;
+            const Eigen::Vector3f filtered_new_position = old_position*(1.f - new_position_weight) + new_position*new_position_weight;
 
             // Compute the velocity of the blended position
             if (!is_nearly_zero(delta_time))
             {
-                const Eigen::Vector3f new_velocity = (new_position - old_position) / delta_time;
+                const Eigen::Vector3f new_velocity = (filtered_new_position - old_position) / delta_time;
                 const Eigen::Vector3f new_acceleration = (new_velocity - fusion_state->velocity) / delta_time;
 
-                fusion_state->velocity = new_velocity;
-                fusion_state->acceleration = new_acceleration;
+                fusion_state->position = filtered_new_position;
+
+                //###NipsterSloth $TODO derivatives of source signal, even a low pass filtered one, is too noisy
+                fusion_state->velocity = Eigen::Vector3f::Zero(); // new_velocity;
+                fusion_state->acceleration = Eigen::Vector3f::Zero(); //new_acceleration;
             }
             else
             {
+                fusion_state->position = filtered_new_position;
                 fusion_state->velocity = Eigen::Vector3f::Zero();
                 fusion_state->acceleration = Eigen::Vector3f::Zero();
             }
