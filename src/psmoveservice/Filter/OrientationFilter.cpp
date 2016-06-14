@@ -49,8 +49,8 @@ struct OrientationSensorFusionState
 
     /* Physics State */
     Eigen::Quaternionf orientation;
-    Eigen::Quaternionf orientation_first_derivative;
-    Eigen::Quaternionf orientation_second_derivative;
+    Eigen::Vector3f angular_velocity;
+    Eigen::Vector3f angular_acceleration;
 
     /* Quaternion measured when controller points towards camera */
     Eigen::Quaternionf reset_orientation;
@@ -67,8 +67,8 @@ struct OrientationSensorFusionState
     void initialize()
     {
         orientation= Eigen::Quaternionf::Identity();
-        orientation_first_derivative = Eigen::Quaternionf::Identity();
-        orientation_second_derivative = Eigen::Quaternionf::Identity();
+        angular_velocity = Eigen::Vector3f::Zero();
+        angular_acceleration = Eigen::Vector3f::Zero();
         reset_orientation= Eigen::Quaternionf::Identity();
         fusion_type= OrientationFilter::FusionTypeComplementaryMARG;
     }
@@ -86,6 +86,12 @@ static void orientation_fusion_madgwick_marg_update(
 static void orientation_fusion_complementary_marg_update(
     const float delta_time, const OrientationFilterSpace *filter_space, 
     const OrientationFilterPacket *filter_packet, OrientationSensorFusionState *fusion_state);
+
+static Eigen::Quaternionf
+angular_velocity_to_quaternion_derivative(const Eigen::Quaternionf &current_orientation, const Eigen::Vector3f &ang_vel);
+
+static Eigen::Vector3f
+quaternion_derivative_to_angular_velocity( const Eigen::Quaternionf &current_orientation, const Eigen::Quaternionf &quaternion_derivative);
 
 // -- public interface -----
 
@@ -164,25 +170,31 @@ OrientationFilter::~OrientationFilter()
 
 Eigen::Quaternionf OrientationFilter::getOrientation(float time) const
 {
-    Eigen::Quaternionf predicted_orientation = 
-        is_nearly_zero(time) 
-        ? m_FusionState->orientation
-        : Eigen::Quaternionf(
-            m_FusionState->orientation.coeffs() 
-            + m_FusionState->orientation_first_derivative.coeffs()*time).normalized();
+    Eigen::Quaternionf predicted_orientation = m_FusionState->orientation;
+
+    if (fabsf(time) > k_real_epsilon)
+    {
+        const Eigen::Quaternionf &quaternion_derivative=
+            angular_velocity_to_quaternion_derivative(m_FusionState->orientation, m_FusionState->angular_velocity);
+
+        predicted_orientation= Eigen::Quaternionf(
+            m_FusionState->orientation.coeffs()
+            + quaternion_derivative.coeffs()*time).normalized();
+    }
+
     Eigen::Quaternionf result = m_FusionState->reset_orientation * predicted_orientation;
 
     return result;
 }
 
-Eigen::Quaternionf OrientationFilter::getOrientationFirstDerivative() const
+Eigen::Vector3f OrientationFilter::getAngularVelocity() const
 {
-    return m_FusionState->orientation_first_derivative;
+    return m_FusionState->angular_velocity;
 }
 
-Eigen::Quaternionf OrientationFilter::getOrientationSecondDerivative() const
+Eigen::Vector3f OrientationFilter::getAngularAcceleration() const
 {
-    return m_FusionState->orientation_second_derivative;
+    return m_FusionState->angular_acceleration;
 }
 
 void OrientationFilter::setFilterSpace(const OrientationFilterSpace &filterSpace)
@@ -244,8 +256,8 @@ void OrientationFilter::update(
     m_FilterSpace.convertSensorPacketToFilterPacket(sensorPacket, filterPacket);
 
     const Eigen::Quaternionf orientation_backup= m_FusionState->orientation;
-    const Eigen::Quaternionf first_derivative_backup = m_FusionState->orientation_first_derivative;
-    const Eigen::Quaternionf second_derivative_backup = m_FusionState->orientation_second_derivative;
+    const Eigen::Vector3f first_derivative_backup = m_FusionState->angular_velocity;
+    const Eigen::Vector3f second_derivative_backup = m_FusionState->angular_acceleration;
 
     switch(m_FusionState->fusion_type)
     {
@@ -254,18 +266,13 @@ void OrientationFilter::update(
     case FusionTypePassThru:
         {
             const Eigen::Quaternionf &new_orientation= filterPacket.orientation;
-            const Eigen::Quaternionf new_first_derivative=
-                Eigen::Quaternionf(
-                    (new_orientation.coeffs() - m_FusionState->orientation.coeffs())
-                    / delta_time);
-            const Eigen::Quaternionf new_second_derivative =
-                Eigen::Quaternionf(
-                    (new_first_derivative.coeffs() - m_FusionState->orientation_first_derivative.coeffs())
-                    / delta_time);
+            const Eigen::Quaternionf orientation_derivative= Eigen::Quaternionf((new_orientation.coeffs() - m_FusionState->orientation.coeffs()) / delta_time);
+            const Eigen::Vector3f angular_velocity = quaternion_derivative_to_angular_velocity(new_orientation, orientation_derivative);
+            const Eigen::Vector3f angular_accelertion = (angular_velocity - m_FusionState->angular_velocity) / delta_time;
 
             m_FusionState->orientation = new_orientation;
-            m_FusionState->orientation_first_derivative = new_first_derivative;
-            m_FusionState->orientation_second_derivative = new_second_derivative;
+            m_FusionState->angular_velocity = angular_velocity;
+            m_FusionState->angular_acceleration = angular_accelertion;
         }
         break;
     case FusionTypeMadgwickIMU:
@@ -285,16 +292,16 @@ void OrientationFilter::update(
         m_FusionState->orientation = orientation_backup;
     }
 
-    if (!eigen_quaternion_is_valid(m_FusionState->orientation_first_derivative))
+    if (!eigen_vector3f_is_valid(m_FusionState->angular_velocity))
     {
-        SERVER_LOG_WARNING("OrientationFilter") << "Orientation first derivative is NaN!";
-        m_FusionState->orientation_first_derivative = first_derivative_backup;
+        SERVER_LOG_WARNING("OrientationFilter") << "Angular Velocity is NaN!";
+        m_FusionState->angular_velocity = first_derivative_backup;
     }
 
-    if (!eigen_quaternion_is_valid(m_FusionState->orientation_second_derivative))
+    if (!eigen_vector3f_is_valid(m_FusionState->angular_acceleration))
     {
-        SERVER_LOG_WARNING("OrientationFilter") << "Orientation second derivative is NaN!";
-        m_FusionState->orientation_second_derivative = second_derivative_backup;
+        SERVER_LOG_WARNING("OrientationFilter") << "Angular Acceleration is NaN!";
+        m_FusionState->angular_acceleration = second_derivative_backup;
     }
 }
 
@@ -366,15 +373,10 @@ orientation_fusion_imu_update(
     // Derive the second derivative
     {
         const Eigen::Quaternionf &new_orientation = SEq_new;
-        const Eigen::Quaternionf &new_first_derivative = SEqDot_omega;
-        const Eigen::Quaternionf new_second_derivative =
-            Eigen::Quaternionf(
-            (new_first_derivative.coeffs() - fusion_state->orientation_first_derivative.coeffs())
-            / delta_time);
 
         fusion_state->orientation = new_orientation;
-        fusion_state->orientation_second_derivative = new_first_derivative;
-        fusion_state->orientation_first_derivative = new_second_derivative;
+        fusion_state->angular_velocity = current_omega;
+        fusion_state->angular_acceleration = (current_omega - fusion_state->angular_velocity) / delta_time;
     }
 }
 
@@ -485,15 +487,11 @@ orientation_fusion_madgwick_marg_update(
     // Derive the second derivative
     {
         const Eigen::Quaternionf &new_orientation = SEq_new;
-        const Eigen::Quaternionf &new_first_derivative = SEqDot_est;
-        const Eigen::Quaternionf new_second_derivative =
-            Eigen::Quaternionf(
-            (new_first_derivative.coeffs() - fusion_state->orientation_first_derivative.coeffs())
-            / delta_time);
+        const Eigen::Vector3f angular_velocity(corrected_omega.x(), corrected_omega.y(), corrected_omega.z());
 
         fusion_state->orientation = new_orientation;
-        fusion_state->orientation_second_derivative = new_first_derivative;
-        fusion_state->orientation_first_derivative = new_second_derivative;
+        fusion_state->angular_velocity = angular_velocity;
+        fusion_state->angular_acceleration = (angular_velocity - fusion_state->angular_velocity) / delta_time;
     }
 }
 
@@ -552,19 +550,37 @@ orientation_fusion_complementary_marg_update(
     {
         // The final rotation is a blend between the integrated orientation and absolute rotation from the earth-frame
         const Eigen::Quaternionf new_orientation = 
-            eigen_quaternion_normalized_lerp(ar_orientation, mg_orientation, mg_wight);
-        const Eigen::Quaternionf &new_first_derivative = q_derivative;
-        const Eigen::Quaternionf new_second_derivative =
-            Eigen::Quaternionf(
-            (new_first_derivative.coeffs() - fusion_state->orientation_first_derivative.coeffs())
-            / delta_time);
+            eigen_quaternion_normalized_lerp(ar_orientation, mg_orientation, mg_wight);            
 
         fusion_state->orientation = new_orientation;
-        fusion_state->orientation_second_derivative = new_first_derivative;
-        fusion_state->orientation_first_derivative = new_second_derivative;
+        fusion_state->angular_velocity = current_omega;
+        fusion_state->angular_acceleration = (current_omega - fusion_state->angular_velocity) / delta_time;
     }
 
     // Update the blend weight
     fusion_state->fusion_state.complementary_marg_state.mg_weight =
         lerp_clampf(mg_wight, k_base_earth_frame_align_weight, 0.9f);
+}
+
+static Eigen::Quaternionf 
+angular_velocity_to_quaternion_derivative(
+    const Eigen::Quaternionf &current_orientation,
+    const Eigen::Vector3f &ang_vel)
+{
+    Eigen::Quaternionf omega = Eigen::Quaternionf(0.f, ang_vel.x(), ang_vel.y(), ang_vel.z());
+    Eigen::Quaternionf quaternion_derivative = Eigen::Quaternionf(current_orientation.coeffs() * 0.5f) *omega;
+
+    return quaternion_derivative;
+}
+
+static Eigen::Vector3f
+quaternion_derivative_to_angular_velocity(
+    const Eigen::Quaternionf &current_orientation,
+    const Eigen::Quaternionf &quaternion_derivative)
+{
+    Eigen::Quaternionf inv_orientation = current_orientation.conjugate();
+    auto q_ang_vel = (quaternion_derivative*inv_orientation).coeffs() * 2.f;
+    Eigen::Vector3f ang_vel(q_ang_vel.x(), q_ang_vel.y(), q_ang_vel.z());
+
+    return ang_vel;
 }

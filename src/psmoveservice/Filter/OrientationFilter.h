@@ -87,8 +87,8 @@ public:
 
     // Estimate the current orientation of the filter given a time offset into the future
     Eigen::Quaternionf getOrientation(float time = 0.f) const;
-    Eigen::Quaternionf getOrientationFirstDerivative() const;
-    Eigen::Quaternionf getOrientationSecondDerivative() const;
+    Eigen::Vector3f getAngularVelocity() const;
+    Eigen::Vector3f getAngularAcceleration() const;
 
     void setFilterSpace(const OrientationFilterSpace &filterSpace);
     void setFusionType(FusionType fusionType);
