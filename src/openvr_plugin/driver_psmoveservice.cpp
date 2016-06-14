@@ -1244,8 +1244,9 @@ void CPSMoveControllerLatest::UpdateRumbleState()
             rumble_fraction = 1.f;
         }
 
+        //###HipsterSloth $TODO Disable rumble until I can figure out why it's murdering the connection
         // Actually send the rumble to the server
-        ClientPSMoveAPI::set_controller_rumble(m_controller_view, rumble_fraction);
+        //ClientPSMoveAPI::set_controller_rumble(m_controller_view, rumble_fraction);
 
         // Remember the last rumble we went and when we sent it
         m_lastTimeRumbleSent = now;

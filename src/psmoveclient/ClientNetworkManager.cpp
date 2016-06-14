@@ -476,7 +476,6 @@ private:
             m_packed_request.pack(m_write_bufer);
 
             // The queue should prevent us from writing more than one request as once
-            assert(!m_has_pending_tcp_write);
             m_has_pending_tcp_write= true;
 
             // Start an asynchronous operation to send a heartbeat message.
