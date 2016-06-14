@@ -1109,11 +1109,11 @@ void CPSMoveControllerLatest::UpdateControllerState()
     SendButtonUpdates( &vr::IServerDriverHost::TrackedDeviceButtonUnpressed, ulChangedPressed & ~NewState.ulButtonPressed );
     SendButtonUpdates( &vr::IServerDriverHost::TrackedDeviceButtonUntouched, ulChangedTouched & ~NewState.ulButtonTouched );
 
-    NewState.rAxis[0].x = clientView.GetTriggerValue();
-    NewState.rAxis[0].y = 0.f;
+    NewState.rAxis[1].x = clientView.GetTriggerValue();
+    NewState.rAxis[1].y = 0.f;
 
-    if ( NewState.rAxis[0].x != m_ControllerState.rAxis[0].x )
-        m_pDriverHost->TrackedDeviceAxisUpdated( m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0] );
+    if ( NewState.rAxis[1].x != m_ControllerState.rAxis[1].x )
+        m_pDriverHost->TrackedDeviceAxisUpdated( m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1] );
 
     m_ControllerState = NewState;
 }
