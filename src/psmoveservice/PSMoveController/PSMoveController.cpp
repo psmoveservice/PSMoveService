@@ -76,20 +76,6 @@ enum PSMoveButton {
     Btn_PS = 1 << 16,		// PS button, front center
     Btn_MOVE = 1 << 19,		// Move button, big front button
     Btn_T = 1 << 20,		// Trigger, on the back
-
-#if 0
-    /* Not used for now - only on Sixaxis/DS3 or nav controller */
-    Btn_L2 = 1 << 0x00,
-    Btn_R2 = 1 << 0x01,
-    Btn_L1 = 1 << 0x02,
-    Btn_R1 = 1 << 0x03,
-    Btn_L3 = 1 << 0x09,
-    Btn_R3 = 1 << 0x0A,
-    Btn_UP = 1 << 0x0C,
-    Btn_RIGHT = 1 << 0x0D,
-    Btn_DOWN = 1 << 0x0E,
-    Btn_LEFT = 1 << 0x0F,
-#endif
 };
 
 // -- private definitions -----

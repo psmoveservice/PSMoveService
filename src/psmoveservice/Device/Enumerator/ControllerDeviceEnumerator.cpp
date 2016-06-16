@@ -18,7 +18,7 @@
 USBDeviceInfo g_supported_controller_infos[MAX_CONTROLLER_TYPE_INDEX] = {
     { 0x054c, 0x03d5 }, // PSMove
     { 0x054c, 0x042F }, // PSNavi
-    //{0x054c, 0x0268}, // PSDualShock3
+    { 0x054c, 0x05C4 }, // PSDualShock4
 };
 
 // -- ControllerDeviceEnumerator -----
