@@ -165,6 +165,9 @@ void
 TrackerManager::free_device_enumerator(DeviceEnumerator *enumerator)
 {
     delete static_cast<TrackerDeviceEnumerator *>(enumerator);
+
+    // Tracker list is no longer dirty after we have iterated through the list of cameras
+    m_tracker_list_dirty = false;
 }
 
 ServerDeviceView *
