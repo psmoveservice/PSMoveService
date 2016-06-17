@@ -1109,11 +1109,11 @@ void CPSMoveControllerLatest::UpdateControllerState()
     SendButtonUpdates( &vr::IServerDriverHost::TrackedDeviceButtonUnpressed, ulChangedPressed & ~NewState.ulButtonPressed );
     SendButtonUpdates( &vr::IServerDriverHost::TrackedDeviceButtonUntouched, ulChangedTouched & ~NewState.ulButtonTouched );
 
-    NewState.rAxis[0].x = clientView.GetTriggerValue();
-    NewState.rAxis[0].y = 0.f;
+    NewState.rAxis[1].x = clientView.GetTriggerValue();
+    NewState.rAxis[1].y = 0.f;
 
-    if ( NewState.rAxis[0].x != m_ControllerState.rAxis[0].x )
-        m_pDriverHost->TrackedDeviceAxisUpdated( m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0] );
+    if ( NewState.rAxis[1].x != m_ControllerState.rAxis[1].x )
+        m_pDriverHost->TrackedDeviceAxisUpdated( m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1] );
 
     m_ControllerState = NewState;
 }
@@ -1175,40 +1175,21 @@ void CPSMoveControllerLatest::UpdateTrackingState()
             {
                 const PSMovePhysicsData &physicsData= view.GetPhysicsData();
 
-                // The physics coming from the server is jacked up right now
-                // so until I can figure out what's going on, let's just disabme it for now
+                m_Pose.vecVelocity[0] = physicsData.Velocity.i * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[1] = physicsData.Velocity.j * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[2] = physicsData.Velocity.k * k_fScalePSMoveAPIToMeters;
 
-                //m_Pose.vecVelocity[0] = physicsData.Velocity.i * k_fScalePSMoveAPIToMeters;
-                //m_Pose.vecVelocity[1] = physicsData.Velocity.j * k_fScalePSMoveAPIToMeters;
-                //m_Pose.vecVelocity[2] = physicsData.Velocity.k * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[0] = physicsData.Acceleration.i * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[1] = physicsData.Acceleration.j * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[2] = physicsData.Acceleration.k * k_fScalePSMoveAPIToMeters;
 
-                //m_Pose.vecAcceleration[0] = physicsData.Acceleration.i * k_fScalePSMoveAPIToMeters;
-                //m_Pose.vecAcceleration[1] = physicsData.Acceleration.j * k_fScalePSMoveAPIToMeters;
-                //m_Pose.vecAcceleration[2] = physicsData.Acceleration.k * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAngularVelocity[0] = physicsData.AngularVelocity.i;
+                m_Pose.vecAngularVelocity[1] = physicsData.AngularVelocity.j;
+                m_Pose.vecAngularVelocity[2] = physicsData.AngularVelocity.k;
 
-                //m_Pose.vecAngularVelocity[0] = physicsData.AngularVelocity.i;
-                //m_Pose.vecAngularVelocity[1] = physicsData.AngularVelocity.j;
-                //m_Pose.vecAngularVelocity[2] = physicsData.AngularVelocity.k;
-
-                //m_Pose.vecAngularAcceleration[0] = physicsData.AngularAcceleration.i;
-                //m_Pose.vecAngularAcceleration[1] = physicsData.AngularAcceleration.j;
-                //m_Pose.vecAngularAcceleration[2] = physicsData.AngularAcceleration.k;
-
-                m_Pose.vecVelocity[0] = 0.f;
-                m_Pose.vecVelocity[1] = 0.f;
-                m_Pose.vecVelocity[2] = 0.f;
-
-                m_Pose.vecAcceleration[0] = 0.f;
-                m_Pose.vecAcceleration[1] = 0.f;
-                m_Pose.vecAcceleration[2] = 0.f;
-
-                m_Pose.vecAngularVelocity[0] = 0.f;
-                m_Pose.vecAngularVelocity[1] = 0.f;
-                m_Pose.vecAngularVelocity[2] = 0.f;
-
-                m_Pose.vecAngularAcceleration[0] = 0.f;
-                m_Pose.vecAngularAcceleration[1] = 0.f;
-                m_Pose.vecAngularAcceleration[2] = 0.f;
+                m_Pose.vecAngularAcceleration[0] = physicsData.AngularAcceleration.i;
+                m_Pose.vecAngularAcceleration[1] = physicsData.AngularAcceleration.j;
+                m_Pose.vecAngularAcceleration[2] = physicsData.AngularAcceleration.k;
             }
 
             m_Pose.poseIsValid = view.GetIsCurrentlyTracking();

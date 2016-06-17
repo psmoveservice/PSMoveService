@@ -97,3 +97,11 @@ Don't download the source from the green "Clone or download" button! The zip pro
 1. Launch Xcode
 1. Open <path_to_repo>\build\PSMoveService.xcodeproj
 1. Go to "Product" > "Build" or hit <Command>-B
+
+#Attribution
+Special thanks to the following people who helped make this project possible:
+* Thomas Perl and his [psmoveapi](https://github.com/thp/psmoveapi) project which laid the groundwork for this project.
+* Alexander Nitch and his work on [psmove-pair-win](https://github.com/nitsch/psmove-pair-win) that enabled psmove controller pairing over Bluetooth on Windows. Alex also did nearly all of the investigation into the PSMove communication protocol.
+* Eugene Zatepyakin and his [PS3EYEDriver](https://github.com/inspirit/PS3EYEDriver) project which enabled access to the PS3Eye camera.
+* Ritesh Oedayrajsingh Varma and his work on [PS3EYEDriver](https://github.com/rovarma/PS3EYEDriver) enabling improved camera polling performance (consistent 60fps)
+* Frédéric Lopez and his work on [PS-Move-Setup](https://github.com/Fredz66/PS-Move-Setup) that enabled co registration of  and HMD with the PSMove.

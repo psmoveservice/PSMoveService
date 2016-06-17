@@ -192,9 +192,9 @@ void ClientPSMoveView::ApplyControllerDataFrame(
             this->PhysicsData.Acceleration.j = raw_physics_data.acceleration().j();
             this->PhysicsData.Acceleration.k = raw_physics_data.acceleration().k();
 
-            this->PhysicsData.AngularVelocity.i = raw_physics_data.velocity().i();
-            this->PhysicsData.AngularVelocity.j = raw_physics_data.velocity().j();
-            this->PhysicsData.AngularVelocity.k = raw_physics_data.velocity().k();
+            this->PhysicsData.AngularVelocity.i = raw_physics_data.angular_velocity().i();
+            this->PhysicsData.AngularVelocity.j = raw_physics_data.angular_velocity().j();
+            this->PhysicsData.AngularVelocity.k = raw_physics_data.angular_velocity().k();
 
             this->PhysicsData.AngularAcceleration.i = raw_physics_data.angular_acceleration().i();
             this->PhysicsData.AngularAcceleration.j = raw_physics_data.angular_acceleration().j();

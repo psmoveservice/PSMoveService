@@ -498,16 +498,16 @@ ServerControllerView::getFilteredPhysics() const
 
     if (m_orientation_filter != nullptr)
     {
-        const Eigen::AngleAxisf first_derivative(m_orientation_filter->getOrientationFirstDerivative());
-        const Eigen::AngleAxisf second_derivative(m_orientation_filter->getOrientationSecondDerivative());
+        const Eigen::Vector3f first_derivative= m_orientation_filter->getAngularVelocity();
+        const Eigen::Vector3f second_derivative= m_orientation_filter->getAngularAcceleration();
 
-        physics.AngularVelocity.i = first_derivative.axis().x()*first_derivative.angle();
-        physics.AngularVelocity.j = first_derivative.axis().y()*first_derivative.angle();
-        physics.AngularVelocity.k = first_derivative.axis().z()*first_derivative.angle();
+        physics.AngularVelocity.i = first_derivative.x();
+        physics.AngularVelocity.j = first_derivative.y();
+        physics.AngularVelocity.k = first_derivative.z();
 
-        physics.AngularAcceleration.i = second_derivative.axis().x()*second_derivative.angle();
-        physics.AngularAcceleration.j = second_derivative.axis().y()*second_derivative.angle();
-        physics.AngularAcceleration.k = second_derivative.axis().z()*second_derivative.angle();
+        physics.AngularAcceleration.i = second_derivative.x();
+        physics.AngularAcceleration.j = second_derivative.y();
+        physics.AngularAcceleration.k = second_derivative.z();
     }
 
     if (m_position_filter != nullptr)
