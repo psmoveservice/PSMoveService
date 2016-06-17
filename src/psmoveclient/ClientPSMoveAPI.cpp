@@ -240,18 +240,22 @@ public:
         return request->request_id();
     }
 
-    void set_controller_rumble(ClientControllerView * view, float rumble_amount)
+    void set_controller_rumble(ClientControllerView * view, float rumble_amount, ClientPSMoveAPI::eControllerRumbleChannel channel)
     {
-        CLIENT_LOG_DEBUG("set_controller_rumble") << "request set rumble to " << rumble_amount << " for ControllerID: " << view->GetControllerID() << std::endl;
+        CLIENT_LOG_DEBUG("set_controller_rumble") << 
+            "request set rumble to " << rumble_amount << 
+            " on channel " << channel << 
+            " for ControllerID: " << view->GetControllerID() << std::endl;
 
         assert(m_controller_view_map.find(view->GetControllerID()) != m_controller_view_map.end());
 
-        // Tell the psmove service to set the rumble controller
-        // Internally rumble values are in the range [0, 255]
+        // Tell the service to set the rumble controller
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_SET_RUMBLE);
         request->mutable_request_rumble()->set_controller_id(view->GetControllerID());
-        request->mutable_request_rumble()->set_rumble(static_cast<int>(rumble_amount * 255.f));
+        request->mutable_request_rumble()->set_rumble(rumble_amount);
+        request->mutable_request_rumble()->set_channel(
+            static_cast<PSMoveProtocol::Request_RequestSetRumble_RumbleChannel>(channel));
 
         m_request_manager.send_request_no_reply(request);
     }
@@ -812,11 +816,12 @@ ClientPSMoveAPI::stop_controller_data_stream(
 void 
 ClientPSMoveAPI::set_controller_rumble(
     ClientControllerView * view, 
-    float rumble_amount)
+    float rumble_amount,
+    eControllerRumbleChannel channel)
 {
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount);
+        ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount, channel);
     }
 }
 

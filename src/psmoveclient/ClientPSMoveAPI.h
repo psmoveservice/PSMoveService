@@ -45,6 +45,13 @@ public:
         includeRawTrackerData = 0x08
     };
 
+    enum eControllerRumbleChannel
+    {
+        channelAll,
+        channelLeft,
+        channelRight
+    };
+
     // Service Events
     //--------------
     enum eEventType
@@ -185,7 +192,7 @@ public:
     static t_request_id get_controller_list();
     static t_request_id start_controller_data_stream(ClientControllerView *view, unsigned int data_stream_flags);
     static t_request_id stop_controller_data_stream(ClientControllerView *view);
-    static void set_controller_rumble(ClientControllerView *view, float rumble_amount);
+    static void set_controller_rumble(ClientControllerView *view, float rumble_amount, eControllerRumbleChannel channel);
     static void set_led_color(ClientControllerView *view, unsigned char r, unsigned char g, unsigned b);
     static t_request_id set_led_tracking_color(ClientControllerView *view, PSMoveTrackingColorType tracking_color);
     static t_request_id reset_pose(ClientControllerView *view);

@@ -675,17 +675,17 @@ ServerTrackerView::computePositionForController(
     // Compute the tracker relative 3d position of the controller from the contour
     if (bSuccess)
     {
+        float F_PX, F_PY;
+        float PrincipalX, PrincipalY;
+        m_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+
+        // TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
+        // Then replace F_PX with -1.
+
         switch (tracking_shape.shape_type)
         {
         case eCommonTrackingShapeType::Sphere:
-            {
-                float F_PX, F_PY;
-                float PrincipalX, PrincipalY;
-                m_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
-                
-                // TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
-                // Then replace F_PX with -1.
-                
+            {                               
                 if (out_projection_shape != nullptr)
                 {
                     // Compute the sphere center AND the projected ellipse
@@ -725,8 +725,46 @@ ServerTrackerView::computePositionForController(
             } break;
         case eCommonTrackingShapeType::PlanarBlob:
             {
-                //###HipsterSloth $TODO
-                bSuccess= false;
+                //###HipsterSloth $HACK $TODO
+                // As a temp solution until I can implement proper planar blob fitting
+                // let's just pretend for the time being that the blob is actually a sphere
+
+                if (out_projection_shape != nullptr)
+                {
+                    // Compute the sphere center AND the projected ellipse
+                    Eigen::Vector3f sphere_center;
+                    EigenFitEllipse ellipse_projection;
+                    eigen_alignment_fit_focal_cone_to_sphere(
+                        convex_contour.data(),
+                        static_cast<int>(convex_contour.size()),
+                        tracking_shape.shape.planar_blob.width/2.f,
+                        F_PX,
+                        &sphere_center,
+                        &ellipse_projection);
+
+                    out_position->set(sphere_center.x(), sphere_center.y(), sphere_center.z());
+
+                    out_projection_shape->shape_type = eCommonTrackingProjectionType::ProjectionType_Ellipse;
+                    out_projection_shape->shape.ellipse.center.set(ellipse_projection.center.x(), ellipse_projection.center.y());
+                    out_projection_shape->shape.ellipse.half_x_extent = ellipse_projection.extents.x();
+                    out_projection_shape->shape.ellipse.half_y_extent = ellipse_projection.extents.y();
+                    out_projection_shape->shape.ellipse.angle = ellipse_projection.angle;
+                }
+                else
+                {
+                    // Just compute the sphere center
+                    Eigen::Vector3f sphere_center;
+                    eigen_alignment_fit_focal_cone_to_sphere(
+                        convex_contour.data(),
+                        static_cast<int>(convex_contour.size()),
+                        tracking_shape.shape.planar_blob.width / 2.f,
+                        F_PX,
+                        &sphere_center);
+
+                    out_position->set(sphere_center.x(), sphere_center.y(), sphere_center.z());
+                }
+
+                bSuccess = true;
             } break;
         default:
             assert(0 && "Unreachable");

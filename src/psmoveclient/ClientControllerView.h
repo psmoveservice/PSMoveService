@@ -385,6 +385,212 @@ public:
     }
 };
 
+struct CLIENTPSMOVEAPI PSDualShock4RawSensorData
+{
+    PSMoveFloatVector3 Accelerometer;
+    PSMoveFloatVector3 Gyroscope;
+
+    inline void Clear()
+    {
+        Accelerometer = *k_psmove_float_vector3_zero;
+        Gyroscope = *k_psmove_float_vector3_zero;
+    }
+};
+
+struct CLIENTPSMOVEAPI ClientPSDualShock4View
+{
+private:
+    bool bValid;
+    bool bHasValidHardwareCalibration;
+    bool bIsTrackingEnabled;
+    bool bIsCurrentlyTracking;
+
+    PSMovePose Pose;
+    PSMovePhysicsData PhysicsData;
+    PSDualShock4RawSensorData RawSensorData;
+    PSMoveRawTrackerData RawTrackerData;
+
+    PSMoveButtonState DPadUpButton;
+    PSMoveButtonState DPadDownButton;
+    PSMoveButtonState DPadLeftButton;
+    PSMoveButtonState DPadRightButton;
+
+    PSMoveButtonState SquareButton;
+    PSMoveButtonState CrossButton;
+    PSMoveButtonState CircleButton;
+    PSMoveButtonState TriangleButton;
+
+    PSMoveButtonState L1Button;
+    PSMoveButtonState R1Button;
+    PSMoveButtonState L2Button;
+    PSMoveButtonState R2Button;
+    PSMoveButtonState L3Button;
+    PSMoveButtonState R3Button;
+
+    PSMoveButtonState ShareButton;
+    PSMoveButtonState OptionsButton;
+
+    PSMoveButtonState PSButton;
+    PSMoveButtonState TrackPadButton;
+
+    float LeftAnalogX;
+    float LeftAnalogY;
+    float RightAnalogX;
+    float RightAnalogY;
+    float LeftTriggerValue;
+    float RightTriggerValue;
+
+public:
+    void Clear();
+    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame);
+
+    inline bool IsValid() const
+    {
+        return bValid;
+    }
+
+    inline void SetValid(bool flag)
+    {
+        bValid = flag;
+    }
+
+    inline bool GetHasValidHardwareCalibration() const
+    {
+        return IsValid() ? bHasValidHardwareCalibration : false;
+    }
+
+    inline bool GetIsCurrentlyTracking() const
+    {
+        return IsValid() ? bIsCurrentlyTracking : false;
+    }
+
+    inline bool GetIsTrackingEnabled() const
+    {
+        return IsValid() ? bIsTrackingEnabled : false;
+    }
+
+    inline const PSMovePose &GetPose() const
+    {
+        return IsValid() ? Pose : *k_psmove_pose_identity;
+    }
+
+    inline const PSMovePosition &GetPosition() const
+    {
+        return IsValid() ? Pose.Position : *k_psmove_position_origin;
+    }
+
+    inline const PSMoveQuaternion &GetOrientation() const
+    {
+        return IsValid() ? Pose.Orientation : *k_psmove_quaternion_identity;
+    }
+
+    inline PSMoveButtonState GetDPadUp() const
+    {
+        return IsValid() ? DPadUpButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetDPadDown() const
+    {
+        return IsValid() ? DPadDownButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetDPadLeft() const
+    {
+        return IsValid() ? DPadLeftButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetDPadRight() const
+    {
+        return IsValid() ? DPadRightButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonSquare() const
+    {
+        return IsValid() ? SquareButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonCross() const
+    {
+        return IsValid() ? CrossButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonCircle() const
+    {
+        return IsValid() ? CircleButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonTriangle() const
+    {
+        return IsValid() ? TriangleButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonL1() const
+    {
+        return IsValid() ? L1Button : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonR1() const
+    {
+        return IsValid() ? R1Button : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonL2() const
+    {
+        return IsValid() ? L2Button : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonR2() const
+    {
+        return IsValid() ? R2Button : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonL3() const
+    {
+        return IsValid() ? L2Button : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonR3() const
+    {
+        return IsValid() ? R2Button : PSMoveButton_UP;
+    }
+
+    inline float GetLeftAnalogX() const
+    {
+        return IsValid() ? LeftAnalogX : 0.f;
+    }
+
+    inline float GetLeftAnalogY() const
+    {
+        return IsValid() ? LeftAnalogY : 0.f;
+    }
+
+    inline float GetRightAnalogX() const
+    {
+        return IsValid() ? RightAnalogX : 0.f;
+    }
+
+    inline float GetRightAnalogY() const
+    {
+        return IsValid() ? RightAnalogY : 0.f;
+    }
+
+    inline float GetLeftTriggerValue() const
+    {
+        return IsValid() ? LeftTriggerValue : 0.f;
+    }
+
+    inline float GetRightTriggerValue() const
+    {
+        return IsValid() ? LeftTriggerValue : 0.f;
+    }
+
+    const PSMovePhysicsData &GetPhysicsData() const;
+    const PSDualShock4RawSensorData &GetRawSensorData() const;
+    const PSMoveFloatVector3 &GetIdentityGravityCalibrationDirection() const;
+    bool GetIsStableAndAlignedWithGravity() const;
+    const PSMoveRawTrackerData &GetRawTrackerData() const;
+};
+
 class CLIENTPSMOVEAPI ClientControllerView
 {
 public:
@@ -392,7 +598,8 @@ public:
     {
         None= -1,
         PSMove,
-        PSNavi
+        PSNavi,
+        PSDualShock4
     };
 
 private:
@@ -400,6 +607,7 @@ private:
     {
         ClientPSMoveView PSMoveView;
         ClientPSNaviView PSNaviView;
+        ClientPSDualShock4View PSDualShock4View;
     } ViewState;
     eControllerType ControllerViewType;
 
@@ -457,16 +665,16 @@ public:
         return ViewState.PSMoveView;
     }
 
-    inline ClientPSMoveView &GetPSMoveViewMutable()
-    {
-        assert(ControllerViewType == PSMove);
-        return ViewState.PSMoveView;
-    }
-
     inline const ClientPSNaviView &GetPSNaviView() const
     {
         assert(ControllerViewType == PSNavi);
         return ViewState.PSNaviView;
+    }
+
+    inline const ClientPSDualShock4View &GetPSDualShock4View() const
+    {
+        assert(ControllerViewType == PSDualShock4);
+        return ViewState.PSDualShock4View;
     }
 
     inline bool IsValid() const

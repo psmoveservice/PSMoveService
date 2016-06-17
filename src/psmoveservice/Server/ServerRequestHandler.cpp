@@ -444,6 +444,9 @@ protected:
                 case CommonControllerState::PSNavi:
                     controller_info->set_controller_type(PSMoveProtocol::PSNAVI);
                     break;
+                case CommonControllerState::PSDualShock4:
+                    controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
+                    break;
                 default:
                     assert(0 && "Unhandled controller type");
                 }
@@ -551,9 +554,11 @@ protected:
         const RequestContext &context)
     {
         const int controller_id= context.request->request_rumble().controller_id();
-        const int rumble_amount= context.request->request_rumble().rumble();
+        const float rumble_amount= context.request->request_rumble().rumble();
+        const CommonControllerState::RumbleChannel rumble_channel = 
+            static_cast<CommonControllerState::RumbleChannel>(context.request->request_rumble().channel());
 
-        m_device_manager.m_controller_manager->setControllerRumble(controller_id, rumble_amount);
+        m_device_manager.m_controller_manager->setControllerRumble(controller_id, rumble_amount, rumble_channel);
     }
 
     void handle_request__reset_pose(
@@ -700,7 +705,8 @@ protected:
         ServerControllerViewPtr ControllerView= m_device_manager.getControllerViewPtr(controller_id);
 
         if (ControllerView && 
-            ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+            (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove || 
+             ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4))
         {
             // (0,0,0) is treated as clearing the override
             if (r == 0 && g == 0 && b == 0)
@@ -736,7 +742,8 @@ protected:
 
         if (ControllerView && 
             ControllerView->getIsBluetooth() &&
-            ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+            (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove ||
+             ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4))
         {
             // Give up control of our existing tracking color
             const eCommonTrackingColorID eOldColorID = ControllerView->getTrackingColorID();

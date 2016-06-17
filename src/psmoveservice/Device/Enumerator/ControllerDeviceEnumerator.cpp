@@ -104,30 +104,37 @@ bool ControllerDeviceEnumerator::next()
 {
     bool foundValid = false;
 
-    while (cur_dev != nullptr && !foundValid)
+    while (!foundValid && m_deviceType < CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT)
     {
-        cur_dev = cur_dev->next;
-        foundValid = is_valid();
+        if (cur_dev != nullptr)
+        {
+            cur_dev = cur_dev->next;
+            foundValid = is_valid();
+        }
 
         // If there are more device types to scan
         // move on to the next vid/pid device enumeration
-        if (cur_dev == nullptr &&
-            GET_DEVICE_TYPE_CLASS(m_deviceType + 1) == CommonDeviceState::Controller &&
-            (m_deviceType + 1) < CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT)
+        if (!foundValid)
         {
             m_deviceType = static_cast<CommonDeviceState::eDeviceType>(m_deviceType + 1);
-            USBDeviceInfo &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
 
             // Free any previous enumeration
             if (devs != nullptr)
             {
                 hid_free_enumeration(devs);
+                cur_dev= nullptr;
+                devs= nullptr;
             }
 
-            // Create a new HID enumeration
-            devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
-            cur_dev = devs;
-            foundValid = false;
+            if (GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX)
+            {
+                USBDeviceInfo &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
+
+                // Create a new HID enumeration
+                devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
+                cur_dev = devs;
+                foundValid = is_valid();
+            }
         }
     }
 

@@ -120,8 +120,8 @@ public:
         return getIsTrackingEnabled() ? m_multicam_position_estimation->bCurrentlyTracking : false;
     }
 
-    // Set the rumble value between 0-255
-    bool setControllerRumble(int rumble_amount);
+    // Set the rumble value between 0.f-1.f on a channel
+    bool setControllerRumble(float rumble_amount, CommonControllerState::RumbleChannel channel);
 
 protected:
     void set_tracking_enabled_internal(bool bEnabled);

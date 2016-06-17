@@ -15,6 +15,10 @@
 #endif
 #include <math.h>
 
+#ifdef _MSC_VER
+#pragma warning (disable: 4996) // 'This function or variable may be unsafe': strcpy, strdup, sprintf, vsnprintf, sscanf, fopen
+#endif
+
 //-- constants -----
 #define PSDS4_INPUT_REPORT_LENGTH 547
 
@@ -317,12 +321,12 @@ PSDualShock4Controller::PSDualShock4Controller()
     , LedB(0)
     , RumbleRight(0)
     , RumbleLeft(0)
-    , LedPWMF(0)
+    , LedOnDuration(0)
+    , LedOffDuration(0)
     , bWriteStateDirty(false)
     , NextPollSequenceNumber(0)
 {
     HIDDetails.Handle = nullptr;
-    HIDDetails.Handle_addr = nullptr;
 
     InData = new PSDualShock4DataInput;
     memset(InData, 0, sizeof(PSDualShock4DataInput));
@@ -404,15 +408,12 @@ bool PSDualShock4Controller::open(
         }
 
         HIDDetails.Device_path = cur_dev_path;
-#ifdef _WIN32
-        HIDDetails.Device_path_addr = HIDDetails.Device_path;
-        HIDDetails.Device_path_addr.replace(HIDDetails.Device_path_addr.find("&col01#"), 7, "&col02#");
-        HIDDetails.Device_path_addr.replace(HIDDetails.Device_path_addr.find("&0000#"), 6, "&0001#");
-        HIDDetails.Handle_addr = hid_open_path(HIDDetails.Device_path_addr.c_str());
-        hid_set_nonblocking(HIDDetails.Handle_addr, 1);
-#endif
         HIDDetails.Handle = hid_open_path(HIDDetails.Device_path.c_str());
-        hid_set_nonblocking(HIDDetails.Handle, 1);
+
+        if (HIDDetails.Handle != nullptr)
+        {
+            hid_set_nonblocking(HIDDetails.Handle, 1);
+        }
 
         // On my Mac, using bluetooth,
         // cur_dev->path = Bluetooth_054c_03d5_779732e8
@@ -455,17 +456,6 @@ bool PSDualShock4Controller::open(
                 cfg = PSDualShock4ControllerConfig(btaddr);
                 cfg.load();
 
-                if (!IsBluetooth || !cfg.is_valid)
-                {
-                    if (!cfg.is_valid)
-                    {
-                        SERVER_LOG_ERROR("PSDualShock4Controller::open") << "PSDualShock4Controller(" << cur_dev_path << ") has invalid calibration. Reloading.";
-                    }
-
-                    // Load calibration from controller internal memory.
-                    loadCalibration();
-                }
-
                 success = true;
             }
             else
@@ -500,12 +490,6 @@ void PSDualShock4Controller::close()
             hid_close(HIDDetails.Handle);
             HIDDetails.Handle = nullptr;
         }
-
-        if (HIDDetails.Handle_addr != nullptr)
-        {
-            hid_close(HIDDetails.Handle_addr);
-            HIDDetails.Handle_addr = nullptr;
-        }
     }
     else
     {
@@ -520,7 +504,7 @@ PSDualShock4Controller::setHostBluetoothAddress(const std::string &new_host_bt_a
     unsigned char bts[PSDS4_BTADDR_SET_SIZE];
 
     memset(bts, 0, sizeof(bts));
-    bts[0] = PSMove_Req_SetBTAddr;
+    bts[0] = PSDualShock4_Req_SetBTAddr;
 
     unsigned char addr[6];
     if (stringToBTAddrUchar(new_host_bt_addr, addr, sizeof(addr)))
@@ -537,14 +521,7 @@ PSDualShock4Controller::setHostBluetoothAddress(const std::string &new_host_bt_a
         }
 
         /* _WIN32 only has move->handle_addr for getting bluetooth address. */
-        if (HIDDetails.Handle_addr)
-        {
-            res = hid_send_feature_report(HIDDetails.Handle_addr, bts, sizeof(bts));
-        }
-        else
-        {
-            res = hid_send_feature_report(HIDDetails.Handle, bts, sizeof(bts));
-        }
+        res = hid_send_feature_report(HIDDetails.Handle, bts, sizeof(bts));
 
         if (res == sizeof(bts))
         {
@@ -555,14 +532,7 @@ PSDualShock4Controller::setHostBluetoothAddress(const std::string &new_host_bt_a
             char hidapi_err_mbs[256];
             bool valid_error_mesg = false;
 
-            if (HIDDetails.Handle_addr)
-            {
-                valid_error_mesg = hid_error_mbs(HIDDetails.Handle_addr, hidapi_err_mbs, sizeof(hidapi_err_mbs));
-            }
-            else
-            {
-                valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
-            }
+            valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
 
             if (valid_error_mesg)
             {
@@ -587,7 +557,7 @@ PSDualShock4Controller::matchesDeviceEnumerator(const DeviceEnumerator *enumerat
 
     bool matches = false;
 
-    if (pEnum->get_device_type() == CommonControllerState::PSMove)
+    if (pEnum->get_device_type() == CommonControllerState::PSDualShock4)
     {
         const char *enumerator_path = pEnum->get_path();
         const char *dev_path = HIDDetails.Device_path.c_str();
@@ -641,7 +611,7 @@ PSDualShock4Controller::getIsOpen() const
 CommonDeviceState::eDeviceType
 PSDualShock4Controller::getDeviceType() const
 {
-    return CommonDeviceState::PSMove;
+    return CommonDeviceState::PSDualShock4;
 }
 
 bool
@@ -675,14 +645,8 @@ PSDualShock4Controller::getBTAddress(std::string& host, std::string& controller)
         unsigned char host_char_buff[PSDS4_BTADDR_SIZE];
 
         memset(btg, 0, sizeof(btg));
-        btg[0] = PSMove_Req_GetBTAddr;
-        /* _WIN32 only has move->handle_addr for getting bluetooth address. */
-        if (HIDDetails.Handle_addr) {
-            res = hid_get_feature_report(HIDDetails.Handle_addr, btg, sizeof(btg));
-        }
-        else {
-            res = hid_get_feature_report(HIDDetails.Handle, btg, sizeof(btg));
-        }
+        btg[0] = PSDualShock4_Req_GetBTAddr;
+        res = hid_get_feature_report(HIDDetails.Handle, btg, sizeof(btg));
 
         if (res == sizeof(btg)) {
 
@@ -699,14 +663,7 @@ PSDualShock4Controller::getBTAddress(std::string& host, std::string& controller)
             char hidapi_err_mbs[256];
             bool valid_error_mesg = false;
 
-            if (HIDDetails.Handle_addr)
-            {
-                valid_error_mesg = hid_error_mbs(HIDDetails.Handle_addr, hidapi_err_mbs, sizeof(hidapi_err_mbs));
-            }
-            else
-            {
-                valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
-            }
+            valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
 
             if (valid_error_mesg)
             {
@@ -718,115 +675,6 @@ PSDualShock4Controller::getBTAddress(std::string& host, std::string& controller)
     return success;
 }
 
-void
-PSDualShock4Controller::loadCalibration()
-{
-    bool is_valid = true;
-
-    // The calibration provides a scale factor (k) and offset (b) to convert
-    // raw accelerometer and gyroscope readings into something more useful.
-    // https://github.com/nitsch/moveonpc/wiki/Calibration-data
-
-    // calibration data storage - loaded from file (if bluetooth) or usb
-    char usb_calibration[PSDS4_CALIBRATION_BLOB_SIZE];
-
-    // Default values are pass-through (raw*1 + 0)
-    cfg.cal_ag_xyz_kb = { { { 1, 0 }, { 1, 0 }, { 1, 0 } }, { { 1, 0 }, { 1, 0 }, { 1, 0 } } };
-
-    // Load the calibration from the controller itself.
-    unsigned char hid_cal[PSDS4_CALIBRATION_BLOB_SIZE];
-
-    for (int block_index = 0; is_valid && block_index<3; block_index++)
-    {
-        unsigned char cal[PSDS4_CALIBRATION_SIZE];
-        int dest_offset;
-        int src_offset;
-
-        memset(cal, 0, sizeof(cal));
-        cal[0] = PSDualShock4_Req_GetCalibration;
-
-        int res = hid_get_feature_report(HIDDetails.Handle, cal, sizeof(cal));
-
-        if (res == PSDS4_CALIBRATION_SIZE)
-        {
-            if (cal[1] == 0x00)
-            {
-                /* First block */
-                dest_offset = 0;
-                src_offset = 0;
-            }
-            else if (cal[1] == 0x01)
-            {
-                /* Second block */
-                dest_offset = PSDS4_CALIBRATION_SIZE;
-                src_offset = 2;
-            }
-            else if (cal[1] == 0x82)
-            {
-                /* Third block */
-                dest_offset = 2 * PSDS4_CALIBRATION_SIZE - 2;
-                src_offset = 2;
-            }
-            else
-            {
-                SERVER_LOG_ERROR("PSMoveController::loadCalibration")
-                    << "Unexpected calibration block id(0x" << std::hex << std::setfill('0') << std::setw(2) << cal[1]
-                    << " on block #" << block_index;
-                is_valid = false;
-            }
-        }
-        else
-        {
-            char hidapi_err_mbs[256];
-            bool valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
-
-            // Device no longer in valid state.
-            if (valid_error_mesg)
-            {
-                SERVER_LOG_ERROR("PSMoveController::loadCalibration") << "HID ERROR: " << hidapi_err_mbs;
-            }
-
-            is_valid = false;
-        }
-
-        if (is_valid)
-        {
-            memcpy(hid_cal + dest_offset, cal + src_offset, sizeof(cal) - src_offset);
-        }
-    }
-
-    if (is_valid)
-    {
-        memcpy(usb_calibration, hid_cal, PSDS4_CALIBRATION_BLOB_SIZE);
-
-        // Convert the calibration blob into constant & offset for each accel dim.
-        std::vector< std::vector<int> > dim_lohi = { { 1, 3 }, { 5, 4 }, { 2, 0 } };
-        std::vector<int> res_lohi(2, 0);
-        int dim_ix = 0;
-        int lohi_ix = 0;
-        for (dim_ix = 0; dim_ix < 3; dim_ix++)
-        {
-            for (lohi_ix = 0; lohi_ix < 2; lohi_ix++)
-            {
-                res_lohi[lohi_ix] = decodeCalibration(usb_calibration, 0x04 + 6 * dim_lohi[dim_ix][lohi_ix] + 2 * dim_ix);
-            }
-            cfg.cal_ag_xyz_kb[0][dim_ix][0] = 2.f / (float)(res_lohi[1] - res_lohi[0]);
-            cfg.cal_ag_xyz_kb[0][dim_ix][1] = -(cfg.cal_ag_xyz_kb[0][dim_ix][0] * (float)res_lohi[0]) - 1.f;
-        }
-
-        // Convert the calibration blob into constant for each gyro dim.
-        float factor = (float)(2.0 * M_PI * 80.0) / 60.0f;
-        for (dim_ix = 0; dim_ix < 3; dim_ix++)
-        {
-            cfg.cal_ag_xyz_kb[1][dim_ix][0] = factor / (float)(decodeCalibration(usb_calibration, 0x46 + 10 * dim_ix)
-                - decodeCalibration(usb_calibration, 0x2a + 2 * dim_ix));
-            // No offset for gyroscope
-        }
-    }
-
-    cfg.is_valid = is_valid;
-    cfg.save();
-}
 
 IControllerInterface::ePollResult
 PSDualShock4Controller::poll()
@@ -887,13 +735,13 @@ PSDualShock4Controller::poll()
 
             // Smush the button state into one unsigned 32-bit variable
             newState.AllButtons = 
-                (((unsigned int)InData->buttons3 & 0x3) << 16) | // Get the 1st two bits of buttons: [0|0|0|0|0|0|PS|TPad]
-                (unsigned int)(InData->buttons2 << 8) | // [R3|L3|Option|Share|R2|L2|R1|L1]
-                ((unsigned int)InData->buttons1 & 0xF8); // Mask out the dpad enum (1st four bits): [tri|cir|x|sq|0|0|0|0]
+                (((unsigned int)InData->buttons3.raw & 0x3) << 16) | // Get the 1st two bits of buttons: [0|0|0|0|0|0|PS|TPad]
+                (unsigned int)(InData->buttons2.raw << 8) | // [R3|L3|Option|Share|R2|L2|R1|L1]
+                ((unsigned int)InData->buttons1.raw & 0xF8); // Mask out the dpad enum (1st four bits): [tri|cir|x|sq|0|0|0|0]
 
             // Converts the dpad enum to independent bit flags
             {
-                ePSDualShock4_DPad dpad_enum = static_cast<ePSDualShock4_DPad>(InData->buttons1 & 0xF);
+                ePSDualShock4_DPad dpad_enum = static_cast<ePSDualShock4_DPad>(InData->buttons1.raw & 0xF);
                 unsigned int dpad_bits= 0;
 
                 switch (dpad_enum)
@@ -982,9 +830,9 @@ PSDualShock4Controller::poll()
                 short raw_gyroZ = (short)((unsigned short)(InData->gyro_z[0] << 8) | InData->gyro_z[1]);
 
                 // TODO: Convert to g/s^2
-                newState.Accel.i = (float)raw_accelX;
-                newState.Accel.j = (float)raw_accelY;
-                newState.Accel.k = (float)raw_accelZ;
+                newState.Accelerometer.i = (float)raw_accelX;
+                newState.Accelerometer.j = (float)raw_accelY;
+                newState.Accelerometer.k = (float)raw_accelZ;
 
                 // TODO: Convert to rad/s
                 newState.Gyro.i = (float)raw_gyroX;
@@ -1109,6 +957,18 @@ PSDualShock4Controller::setLED(unsigned char r, unsigned char g, unsigned char b
         LedR = r;
         LedG = g;
         LedB = b;
+
+        if (r != 0 || g != 0 || b != 0)
+        {
+            LedOnDuration= 255;
+            LedOffDuration = 0;
+        }
+        else
+        {
+            LedOnDuration = 0;
+            LedOffDuration = 0;
+        }
+
         bWriteStateDirty = true;
         success = writeDataOut();
     }
@@ -1116,12 +976,25 @@ PSDualShock4Controller::setLED(unsigned char r, unsigned char g, unsigned char b
 }
 
 bool
-PSDualShock4Controller::setRumbleIntensity(unsigned char value)
+PSDualShock4Controller::setLeftRumbleIntensity(unsigned char value)
 {
     bool success = true;
-    if (Rumble != value)
+    if (RumbleLeft != value)
     {
-        Rumble = value;
+        RumbleLeft = value;
+        bWriteStateDirty = true;
+        success = writeDataOut();
+    }
+    return success;
+}
+
+bool
+PSDualShock4Controller::setRightRumbleIntensity(unsigned char value)
+{
+    bool success = true;
+    if (RumbleRight != value)
+    {
+        RumbleRight = value;
         bWriteStateDirty = true;
         success = writeDataOut();
     }

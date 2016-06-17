@@ -1246,7 +1246,7 @@ void CPSMoveControllerLatest::UpdateRumbleState()
     {
         float rumble_fraction = static_cast<float>(m_pendingHapticPulseDuration) / k_max_pulse_microseconds;
 
-        // Unless a zero runble intensity was explicitly set, 
+        // Unless a zero rumble intensity was explicitly set, 
         // don't rumble less than 35% (no enough to feel)
         if (m_pendingHapticPulseDuration != 0)
         {
@@ -1264,7 +1264,7 @@ void CPSMoveControllerLatest::UpdateRumbleState()
         }
 
         // Actually send the rumble to the server
-        ClientPSMoveAPI::set_controller_rumble(m_controller_view, rumble_fraction);
+        ClientPSMoveAPI::set_controller_rumble(m_controller_view, rumble_fraction, ClientPSMoveAPI::channelAll);
 
         // Remember the last rumble we went and when we sent it
         m_lastTimeRumbleSent = now;

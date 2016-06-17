@@ -232,6 +232,13 @@ struct CommonControllerState : CommonDeviceState
         Batt_CHARGING_DONE = 0xEF, /*!< Battery is fully charged (on charger) */
     };
 
+    enum RumbleChannel
+    {
+        ChannelAll,
+        ChannelLeft,
+        ChannelRight
+    };
+
     enum BatteryLevel Battery;
     unsigned int AllButtons;                    // all-buttons, used to detect changes
 

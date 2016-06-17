@@ -1,5 +1,5 @@
-#ifndef PSMOVE_CONTROLLER_H
-#define PSMOVE_CONTROLLER_H
+#ifndef PSDUALSHOCK4_CONTROLLER_H
+#define PSDUALSHOCK4_CONTROLLER_H
 
 #include "PSMoveConfig.h"
 #include "DeviceEnumerator.h"
@@ -13,13 +13,12 @@
 struct PSDualShock4HIDDetails {
     std::string Device_path;
     hid_device *Handle;
-    std::string Device_path_addr; // only needed by Win > 8.1, otherwise ignored.
-    hid_device *Handle_addr; // only needed by Win > 8.1, otherwise ignored.
     std::string Bt_addr;      // The bluetooth address of the controller
     std::string Host_bt_addr; // The bluetooth address of the adapter registered with the controller
 };
 
-struct PSDualShock4DataInput;  // See .cpp for full declaration
+struct PSDualShock4DataInput;   // See .cpp for declaration
+struct PSDualShock4DataOutput;  // See .cpp for declaration
 
 class PSDualShock4ControllerConfig : public PSMoveConfig
 {
@@ -175,13 +174,6 @@ public:
         return CommonDeviceState::PSDualShock4;
     }
 
-
-    const unsigned long getLEDPWMFrequency() const
-    {
-        return LedPWMF;
-    }
-
-
     // -- Setters
     bool setLED(unsigned char r, unsigned char g, unsigned char b);
     bool setLeftRumbleIntensity(unsigned char value);
@@ -189,7 +181,6 @@ public:
 
 private:
     bool getBTAddress(std::string& host, std::string& controller);
-    void loadCalibration();
     bool writeDataOut();                            // Setters will call this
 
     // Constant while a controller is open
@@ -212,4 +203,4 @@ private:
     PSDualShock4DataInput* InData;                        // Buffer to read hidapi reports into
     PSDualShock4DataOutput* OutData;                      // Buffer to write hidapi reports out from
 };
-#endif // PSMOVE_CONTROLLER_H
+#endif // PSDUALSHOCK4_CONTROLLER_H

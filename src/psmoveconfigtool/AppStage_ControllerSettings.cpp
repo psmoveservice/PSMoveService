@@ -68,7 +68,8 @@ void AppStage_ControllerSettings::render()
 
                 switch(controllerInfo.ControllerType)
                 {
-                    case PSMoveProtocol::PSMOVE:
+                    case ClientControllerView::eControllerType::PSMove:
+                    case ClientControllerView::eControllerType::PSDualShock4:
                         {
                             const ControllerInfo &controllerInfo = m_bluetoothControllerInfos[m_selectedControllerIndex];
 
@@ -99,9 +100,16 @@ void AppStage_ControllerSettings::render()
                                 break;
                             }
 
-                            drawPSMoveModel(scale2RotateX90, bulb_color);
+                            if (controllerInfo.ControllerType == ClientControllerView::PSMove)
+                            {
+                                drawPSMoveModel(scale2RotateX90, bulb_color);
+                            }
+                            else
+                            {
+                                drawPSDualShock4Model(scale2RotateX90, bulb_color);
+                            }
                         } break;
-                    case PSMoveProtocol::PSNAVI:
+                    case ClientControllerView::eControllerType::PSNavi:
                         {
                             drawPSNaviModel(scale2RotateX90);
                         } break;
@@ -207,13 +215,17 @@ void AppStage_ControllerSettings::renderUI()
 
                 switch(controllerInfo.ControllerType)
                 {
-                    case AppStage_ControllerSettings::PSMove:
+                    case ClientControllerView::eControllerType::PSMove:
                         {
                             ImGui::BulletText("Controller Type: PSMove");
                         } break;
-                    case AppStage_ControllerSettings::PSNavi:
+                    case ClientControllerView::eControllerType::PSNavi:
                         {
                             ImGui::BulletText("Controller Type: PSNavi");
+                        } break;
+                    case ClientControllerView::eControllerType::PSDualShock4:
+                        {
+                            ImGui::BulletText("Controller Type: PSDualShock4");
                         } break;
                     default:
                         assert(0 && "Unreachable");
@@ -225,7 +237,7 @@ void AppStage_ControllerSettings::renderUI()
                 ImGui::SameLine();
                 ImGui::TextWrapped("%s", controllerInfo.DevicePath.c_str());
 
-                if (controllerInfo.ControllerType == AppStage_ControllerSettings::PSMove)
+                if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSMove)
                 {
                     if (ImGui::Button("Calibrate Magnetometer"))
                     {
@@ -234,7 +246,8 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
-                if (controllerInfo.ControllerType == AppStage_ControllerSettings::PSMove)
+                if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSMove || 
+                    controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
                 {
                     if (ImGui::Button("Test Orientation"))
                     {
@@ -393,10 +406,13 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 switch(ControllerResponse.controller_type())
                 {
                 case PSMoveProtocol::PSMOVE:
-                    ControllerInfo.ControllerType= AppStage_ControllerSettings::PSMove;
+                    ControllerInfo.ControllerType = ClientControllerView::eControllerType::PSMove;
                     break;
                 case PSMoveProtocol::PSNAVI:
-                    ControllerInfo.ControllerType= AppStage_ControllerSettings::PSNavi;
+                    ControllerInfo.ControllerType = ClientControllerView::eControllerType::PSNavi;
+                    break;
+                case PSMoveProtocol::PSDUALSHOCK4:
+                    ControllerInfo.ControllerType = ClientControllerView::eControllerType::PSDualShock4;
                     break;
                 default:
                     assert(0 && "unreachable");

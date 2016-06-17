@@ -17,6 +17,8 @@
 static const char *k_dk2_texture_filename= "./assets/textures/DK2diffuse.jpg";
 static const char *k_psmove_texture_filename= "./assets/textures/PSMoveDiffuse.jpg";
 static const char *k_psnavi_texture_filename= "./assets/textures/PSNaviDiffuse.jpg";
+//###HipsterSloth $TODO Replace with actual DS4 texture
+static const char *k_psdualshock4_texture_filename = "./assets/textures/PSMoveDiffuse.jpg";
 
 static const char *k_default_font_filename= "./assets/fonts/OpenSans-Regular.ttf";
 static const float k_default_font_pixel_height= 24.f;
@@ -65,6 +67,11 @@ bool AssetManager::init()
 
     if (success)
     {
+        success = loadTexture(k_psdualshock4_texture_filename, &m_psdualshock4Texture);
+    }
+
+    if (success)
+    {
         success= loadFont(k_default_font_filename, k_default_font_pixel_height, &m_defaultFont);
     }
 
@@ -90,6 +97,7 @@ void AssetManager::destroy()
     m_dk2Texture.dispose();
     m_psmoveTexture.dispose();
     m_psnaviTexture.dispose();
+    m_psdualshock4Texture.dispose();
     m_defaultFont.dispose();
 
     m_instance= NULL;

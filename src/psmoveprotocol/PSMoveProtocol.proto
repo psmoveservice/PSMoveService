@@ -9,6 +9,7 @@ package PSMoveProtocol;
 enum ControllerType {
     PSMOVE= 0;
     PSNAVI= 1;
+    PSDUALSHOCK4= 2;
 }
 
 message Pixel {
@@ -161,7 +162,14 @@ message Request {
     // Parameters for SET_RUMBLE
     message RequestSetRumble {
         int32 controller_id = 1;
-        int32 rumble = 2; // [0,255]
+        float rumble = 2; // [0,1]
+        
+        enum RumbleChannel {
+            ChannelAll = 0;
+            ChannelLeft = 1;
+            ChannelRight = 2;
+        };
+        RumbleChannel channel = 3;
     }
     RequestSetRumble request_rumble = 6;
 
@@ -477,7 +485,10 @@ message DeviceDataFrame
             L3= 15;
             R1= 16;
             R2= 17;
-            R3= 18;        
+            R3= 18;
+            SHARE= 19;
+            OPTIONS= 20;
+            TRACKPAD= 21;
         }
         
         // The id of controller this data is for
@@ -560,8 +571,64 @@ message DeviceDataFrame
             int32 stick_yaxis = 3;        
         }
         PSNaviState psnavi_state = 7;    
+        
+        // PSDualShock4 Specific Controller state
+        message PSDualShock4State
+        {   
+            // PSDualShock4 Specific flags
+            bool ValidHardwareCalibration= 1;
+            bool IsTrackingEnabled= 2;
+            bool IsCurrentlyTracking= 3;
+
+            // Tracking position in the space of the HMD tracking camera
+            Position position = 4;
+
+            // Tracking orientation in the frame of the local magnetic field
+            Orientation orientation = 5;
+
+            // Thumbsticks
+            float left_thumbstick_x = 6;
+            float left_thumbstick_y = 7;
+            float right_thumbstick_x = 8;
+            float right_thumbstick_y = 9;
+            
+            // Trigger analog value [0,1]
+            float left_trigger_value = 10;
+            float right_trigger_value = 11;
+            
+            // Only valid if include_raw_sensor_data=true in START_CONTROLLER_DATA_STREAM request
+            message RawSensorData
+            {
+                FloatVector accelerometer= 1;
+                FloatVector gyroscope= 2;
+            }
+            RawSensorData raw_sensor_data = 12;
+            
+            // Only valid if include_raw_tracker_data=true in START_CONTROLLER_DATA_STREAM request
+            message RawTrackerData
+            {
+                repeated Pixel screen_locations= 1;
+                repeated Position relative_positions= 2;
+                repeated int32 tracker_ids= 3;
+                repeated Ellipse projected_spheres= 4;
+                repeated Polygon projected_blobs= 5;
+                int32 valid_tracker_count= 6;
+            }
+            RawTrackerData raw_tracker_data = 13;  
+
+            // Only valid if include_physics_data=true in START_CONTROLLER_DATA_STREAM request
+            message PhysicsData
+            {
+                FloatVector velocity= 1;
+                FloatVector acceleration= 2;
+                FloatVector angular_velocity= 3;
+                FloatVector angular_acceleration= 4; 
+            }
+            PhysicsData physics_data = 14;             
+        }
+        PSDualShock4State psdualshock4_state = 8;        
     }
-    ControllerDataPacket controller_data_packet = 2;
+    ControllerDataPacket controller_data_packet = 2;    
 
     // Update packet for a tracker
     message TrackerDataPacket

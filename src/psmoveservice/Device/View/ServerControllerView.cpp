@@ -9,6 +9,7 @@
 #include "ServerRequestHandler.h"
 #include "OrientationFilter.h"
 #include "PositionFilter.h"
+#include "PSDualShock4Controller.h"
 #include "PSMoveController.h"
 #include "PSNaviController.h"
 #include "PSMoveProtocolInterface.h"
@@ -35,9 +36,19 @@ static void update_filters_for_psmove(
     const ControllerPositionEstimation *positionEstimation,
     OrientationFilter *orientationFilter, PositionFilter *position_filter);
 
+static void init_filters_for_psdualshock4(
+    const PSDualShock4Controller *psdualshock4Controller,
+    OrientationFilter *orientation_filter, PositionFilter *position_filter);
+static void update_filters_for_psdualshock4(
+    const PSDualShock4Controller *psdualshock4Controller, const PSDualShock4ControllerState *psmoveState, const float delta_time,
+    const ControllerPositionEstimation *positionEstimation,
+    OrientationFilter *orientationFilter, PositionFilter *position_filter);
+
 static void generate_psmove_data_frame_for_stream(
     const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceDataFramePtr &data_frame);
 static void generate_psnavi_data_frame_for_stream(
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceDataFramePtr &data_frame);
+static void generate_psdualshock4_data_frame_for_stream(
     const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceDataFramePtr &data_frame);
 
 //-- public implementation -----
@@ -90,6 +101,21 @@ bool ServerControllerView::allocate_device_interface(
             m_orientation_filter= nullptr;
             m_position_filter = nullptr;
             m_multicam_position_estimation = nullptr;
+        } break;
+    case CommonDeviceState::PSDualShock4:
+        {
+            m_device = new PSDualShock4Controller();
+            m_orientation_filter = new OrientationFilter();
+            m_position_filter = new PositionFilter();
+
+            m_tracker_position_estimation = new ControllerPositionEstimation[TrackerManager::k_max_devices];
+            for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
+            {
+                m_tracker_position_estimation[tracker_index].clear();
+            }
+
+            m_multicam_position_estimation = new ControllerPositionEstimation();
+            m_multicam_position_estimation->clear();
         } break;
     default:
         break;
@@ -165,6 +191,20 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
             // No orientation filter for the navi
             assert(m_orientation_filter == nullptr);
             break;
+        case CommonDeviceState::PSDualShock4:
+            {
+                const PSDualShock4Controller *psdualshock4Controller = this->castCheckedConst<PSDualShock4Controller>();
+
+                // Don't bother initializing any filters or allocating a tracking color
+                // for usb connected controllers
+                if (psdualshock4Controller->getIsBluetooth())
+                {
+                    init_filters_for_psdualshock4(psdualshock4Controller, m_orientation_filter, m_position_filter);
+                    m_multicam_position_estimation->clear();
+
+                    bAllocateTrackingColor = true;
+                }
+            } break;
         default:
             break;
         }
@@ -392,6 +432,20 @@ void ServerControllerView::updateStateAndPredict()
                 // No orientation or position to update
                 assert(m_orientation_filter == nullptr);
                 assert(m_position_filter == nullptr);
+            } break;
+        case CommonControllerState::PSDualShock4:
+            {
+                const PSDualShock4Controller *psdualshock4Controller = this->castCheckedConst<PSDualShock4Controller>();
+                const PSDualShock4ControllerState *psdualshock4State = 
+                    static_cast<const PSDualShock4ControllerState *>(controllerState);
+
+                // Only update the position filter when tracking is enabled
+                update_filters_for_psdualshock4(
+                    psdualshock4Controller, psdualshock4State,
+                    per_state_time_delta_seconds,
+                    m_multicam_position_estimation,
+                    m_orientation_filter,
+                    getIsTrackingEnabled() ? m_position_filter : nullptr);
             } break;
         default:
             assert(0 && "Unhandled controller type");
@@ -645,6 +699,10 @@ void ServerControllerView::update_LED_color_internal()
         {
             // Do nothing...
         } break;
+    case CommonDeviceState::PSDualShock4:
+        {
+            this->castChecked<PSDualShock4Controller>()->setLED(r, g, b);
+        } break;
     default:
         assert(false && "Unhanded controller type!");
     }
@@ -658,8 +716,10 @@ bool ServerControllerView::getTrackingShape(CommonDeviceTrackingShape &trackingS
     return trackingShape.shape_type != eCommonTrackingShapeType::INVALID_SHAPE;
 }
 
-// Set the rumble value between 0-255
-bool ServerControllerView::setControllerRumble(int rumble_amount)
+// Set the rumble value between 0.f - 1.f on a given channel
+bool ServerControllerView::setControllerRumble(
+    float rumble_amount,
+    CommonControllerState::RumbleChannel channel)
 {
     bool result= false;
 
@@ -667,19 +727,41 @@ bool ServerControllerView::setControllerRumble(int rumble_amount)
     {
         switch(getControllerDeviceType())
         {
-            case CommonDeviceState::PSMove:
+        case CommonDeviceState::PSMove:
             {
-                unsigned char rumble_byte= ServerUtility::int32_to_int8_verify(rumble_amount);
+                unsigned char rumble_byte= static_cast<unsigned char>(clampf01(rumble_amount)*255.f);
+
                 static_cast<PSMoveController *>(m_device)->setRumbleIntensity(rumble_byte);
+                result = true;
             } break;
 
-            case CommonDeviceState::PSNavi:
+        case CommonDeviceState::PSNavi:
             {
                 result= false; // No rumble on the navi
             } break;
 
-            default:
-                assert(false && "Unhanded controller type!");
+        case CommonDeviceState::PSDualShock4:
+            {
+                unsigned char rumble_byte = static_cast<unsigned char>(clampf01(rumble_amount)*255.f);
+                PSDualShock4Controller *controller= static_cast<PSDualShock4Controller *>(m_device);
+
+                if (channel == CommonControllerState::RumbleChannel::ChannelLeft ||
+                    channel == CommonControllerState::RumbleChannel::ChannelAll)
+                {
+                    controller->setLeftRumbleIntensity(rumble_byte);
+                }
+
+                if (channel == CommonControllerState::RumbleChannel::ChannelRight ||
+                    channel == CommonControllerState::RumbleChannel::ChannelAll)
+                {
+                    controller->setRightRumbleIntensity(rumble_byte);
+                }
+
+                result = true;
+            } break;
+
+        default:
+            assert(false && "Unhanded controller type!");
         }
     }
 
@@ -715,6 +797,10 @@ void ServerControllerView::generate_controller_data_frame_for_stream(
     case CommonControllerState::PSNavi:
         {
             generate_psnavi_data_frame_for_stream(controller_view, stream_info, data_frame);
+        } break;
+    case CommonControllerState::PSDualShock4:
+        {
+            generate_psdualshock4_data_frame_for_stream(controller_view, stream_info, data_frame);
         } break;
     default:
         assert(0 && "Unhandled controller type");
@@ -944,6 +1030,195 @@ static void generate_psnavi_data_frame_for_stream(
     controller_data_frame->set_controller_type(PSMoveProtocol::PSNAVI);
 }
 
+static void generate_psdualshock4_data_frame_for_stream(
+    const ServerControllerView *controller_view,
+    const ControllerStreamInfo *stream_info,
+    DeviceDataFramePtr &data_frame)
+{
+    const PSDualShock4Controller *psmove_controller = controller_view->castCheckedConst<PSDualShock4Controller>();
+    const PSDualShock4ControllerConfig *psmove_config = psmove_controller->getConfig();
+    const CommonControllerState *controller_state = controller_view->getState();
+    const CommonDevicePose controller_pose = controller_view->getFilteredPose(psmove_config->prediction_time);
+
+    auto *controller_data_frame = data_frame->mutable_controller_data_packet();
+    auto *psds4_data_frame = controller_data_frame->mutable_psdualshock4_state();
+
+    if (controller_state != nullptr)
+    {
+        assert(controller_state->DeviceType == CommonDeviceState::PSDualShock4);
+        const PSDualShock4ControllerState * psds4_state = static_cast<const PSDualShock4ControllerState *>(controller_state);
+
+        psds4_data_frame->set_validhardwarecalibration(psmove_config->is_valid);
+        psds4_data_frame->set_iscurrentlytracking(controller_view->getIsCurrentlyTracking());
+        psds4_data_frame->set_istrackingenabled(controller_view->getIsTrackingEnabled());
+
+        psds4_data_frame->mutable_orientation()->set_w(controller_pose.Orientation.w);
+        psds4_data_frame->mutable_orientation()->set_x(controller_pose.Orientation.x);
+        psds4_data_frame->mutable_orientation()->set_y(controller_pose.Orientation.y);
+        psds4_data_frame->mutable_orientation()->set_z(controller_pose.Orientation.z);
+
+        if (stream_info->include_position_data)
+        {
+            psds4_data_frame->mutable_position()->set_x(controller_pose.Position.x);
+            psds4_data_frame->mutable_position()->set_y(controller_pose.Position.y);
+            psds4_data_frame->mutable_position()->set_z(controller_pose.Position.z);
+        }
+        else
+        {
+            psds4_data_frame->mutable_position()->set_x(0);
+            psds4_data_frame->mutable_position()->set_y(0);
+            psds4_data_frame->mutable_position()->set_z(0);
+        }
+
+        psds4_data_frame->set_left_thumbstick_x(psds4_state->LeftAnalogX);
+        psds4_data_frame->set_left_thumbstick_y(psds4_state->LeftAnalogY);
+
+        psds4_data_frame->set_right_thumbstick_x(psds4_state->RightAnalogX);
+        psds4_data_frame->set_right_thumbstick_y(psds4_state->RightAnalogY);
+
+        psds4_data_frame->set_left_trigger_value(psds4_state->LeftTrigger);
+        psds4_data_frame->set_right_trigger_value(psds4_state->RightTrigger);
+
+        unsigned int button_bitmask = 0;
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::UP, psds4_state->DPad_Up);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::DOWN, psds4_state->DPad_Down);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::LEFT, psds4_state->DPad_Left);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::RIGHT, psds4_state->DPad_Right);
+
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::L1, psds4_state->L1);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::R1, psds4_state->R1);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::L2, psds4_state->L2);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::R2, psds4_state->R2);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::L3, psds4_state->L3);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::R3, psds4_state->R3);
+
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::TRIANGLE, psds4_state->Triangle);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::CIRCLE, psds4_state->Circle);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::CROSS, psds4_state->Cross);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::SQUARE, psds4_state->Square);
+
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::SHARE, psds4_state->Share);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::OPTIONS, psds4_state->Options);
+
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::PS, psds4_state->PS);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::TRACKPAD, psds4_state->TrackPadButton);
+        controller_data_frame->set_button_down_bitmask(button_bitmask);
+
+        // If requested, get the raw sensor data for the controller
+        if (stream_info->include_raw_sensor_data)
+        {
+            auto *raw_sensor_data = psds4_data_frame->mutable_raw_sensor_data();
+
+            raw_sensor_data->mutable_accelerometer()->set_i(psds4_state->Accelerometer.i);
+            raw_sensor_data->mutable_accelerometer()->set_j(psds4_state->Accelerometer.j);
+            raw_sensor_data->mutable_accelerometer()->set_k(psds4_state->Accelerometer.k);
+
+            raw_sensor_data->mutable_gyroscope()->set_i(psds4_state->Gyro.i);
+            raw_sensor_data->mutable_gyroscope()->set_j(psds4_state->Gyro.j);
+            raw_sensor_data->mutable_gyroscope()->set_k(psds4_state->Gyro.k);
+        }
+
+        // If requested, get the raw tracker data for the controller
+        if (stream_info->include_raw_tracker_data)
+        {
+            auto *raw_tracker_data = psds4_data_frame->mutable_raw_tracker_data();
+            int valid_tracker_count = 0;
+
+            for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
+            {
+                const ControllerPositionEstimation *positionEstimate =
+                    controller_view->getTrackerPositionEstimate(trackerId);
+
+                if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
+                {
+                    const CommonDevicePosition &trackerRelativePosition = positionEstimate->position;
+                    const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
+
+                    // Project the 3d camera position back onto the tracker screen
+                    {
+                        const CommonDeviceScreenLocation trackerScreenLocation =
+                            tracker_view->projectTrackerRelativePosition(&trackerRelativePosition);
+                        PSMoveProtocol::Pixel *pixel = raw_tracker_data->add_screen_locations();
+
+                        pixel->set_x(trackerScreenLocation.x);
+                        pixel->set_y(trackerScreenLocation.y);
+                    }
+
+                    // Add the tracker relative 3d position
+                    {
+                        PSMoveProtocol::Position *position = raw_tracker_data->add_relative_positions();
+
+                        position->set_x(trackerRelativePosition.x);
+                        position->set_y(trackerRelativePosition.y);
+                        position->set_z(trackerRelativePosition.z);
+                    }
+
+                    // Add the tracker relative projection shapes
+                    {
+                        const CommonDeviceTrackingProjection &trackerRelativeProjection =
+                            positionEstimate->projection;
+
+                        switch (trackerRelativeProjection.shape_type)
+                        {
+                        case eCommonTrackingProjectionType::ProjectionType_Ellipse:
+                            {
+                                PSMoveProtocol::Ellipse *ellipse = raw_tracker_data->add_projected_spheres();
+
+                                ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
+                                ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
+                                ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
+                                ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
+                                ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
+                            } break;
+                        case eCommonTrackingProjectionType::ProjectionType_Quad:
+                            {
+                                PSMoveProtocol::Polygon *polygon = raw_tracker_data->add_projected_blobs();
+
+                                for (int vert_index = 0; vert_index < 4; ++vert_index)
+                                {
+                                    PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
+
+                                    pixel->set_x(trackerRelativeProjection.shape.quad.corners[vert_index].x);
+                                    pixel->set_x(trackerRelativeProjection.shape.quad.corners[vert_index].y);
+                                }
+                            } break;
+                        }
+                    }
+
+                    raw_tracker_data->add_tracker_ids(trackerId);
+                    ++valid_tracker_count;
+                }
+            }
+
+            raw_tracker_data->set_valid_tracker_count(valid_tracker_count);
+        }
+
+        // if requested, get the physics data for the controller
+        {
+            const CommonDevicePhysics controller_physics = controller_view->getFilteredPhysics();
+            auto *physics_data = psds4_data_frame->mutable_physics_data();
+
+            physics_data->mutable_velocity()->set_i(controller_physics.Velocity.i);
+            physics_data->mutable_velocity()->set_j(controller_physics.Velocity.j);
+            physics_data->mutable_velocity()->set_k(controller_physics.Velocity.k);
+
+            physics_data->mutable_acceleration()->set_i(controller_physics.Acceleration.i);
+            physics_data->mutable_acceleration()->set_j(controller_physics.Acceleration.j);
+            physics_data->mutable_acceleration()->set_k(controller_physics.Acceleration.k);
+
+            physics_data->mutable_angular_velocity()->set_i(controller_physics.AngularVelocity.i);
+            physics_data->mutable_angular_velocity()->set_j(controller_physics.AngularVelocity.j);
+            physics_data->mutable_angular_velocity()->set_k(controller_physics.AngularVelocity.k);
+
+            physics_data->mutable_angular_acceleration()->set_i(controller_physics.AngularAcceleration.i);
+            physics_data->mutable_angular_acceleration()->set_j(controller_physics.AngularAcceleration.j);
+            physics_data->mutable_angular_acceleration()->set_k(controller_physics.AngularAcceleration.k);
+        }
+    }
+
+    controller_data_frame->set_controller_type(PSMoveProtocol::PSMOVE);
+}
+
 static void
 init_filters_for_psmove(
     const PSMoveController *psmoveController, 
@@ -1055,5 +1330,95 @@ update_filters_for_psmove(
         //    // NOTE: The magnetometer reading is the same for both sensor readings.
         //    position_filter->update(delta_time / 2.f, sensorPacket);
         //}
+    }
+}
+
+static void
+init_filters_for_psdualshock4(
+    const PSDualShock4Controller *psmoveController,
+    OrientationFilter *orientation_filter,
+    PositionFilter *position_filter)
+{
+    const PSDualShock4ControllerConfig *psmove_config = psmoveController->getConfig();
+
+    {
+        // Setup the space the orientation filter operates in
+        Eigen::Vector3f identityGravity = Eigen::Vector3f(0.f, 1.f, 0.f);
+        Eigen::Vector3f identityMagnetometer = Eigen::Vector3f::Zero(); // No magnetometer on DS4 :(
+        Eigen::Matrix3f calibrationTransform = *k_eigen_identity_pose_laying_flat;
+        Eigen::Matrix3f sensorTransform = *k_eigen_sensor_transform_opengl;
+        OrientationFilterSpace filterSpace(identityGravity, identityMagnetometer, calibrationTransform, sensorTransform);
+
+        orientation_filter->setFilterSpace(filterSpace);
+
+        // Use the complementary IMU fusion filter by default (no magnetometer)
+        orientation_filter->setFusionType(OrientationFilter::FusionTypeMadgwickIMU);
+    }
+
+    {
+        //###bwalker $TODO Setup the space the position filter operates in
+        Eigen::Matrix3f sensorTransform = Eigen::Matrix3f::Identity();
+        PositionFilterSpace filterSpace(sensorTransform);
+
+        position_filter->setFilterSpace(filterSpace);
+
+        //###bwalker $TODO Use the LowPass filter by default
+        position_filter->setFusionType(PositionFilter::FusionTypeLowPass);
+    }
+}
+
+static void
+update_filters_for_psdualshock4(
+    const PSDualShock4Controller *psmoveController,
+    const PSDualShock4ControllerState *psmoveState,
+    const float delta_time,
+    const ControllerPositionEstimation *positionEstimation,
+    OrientationFilter *orientationFilter,
+    PositionFilter *position_filter)
+{
+    const PSDualShock4ControllerConfig *config = psmoveController->getConfig();
+
+    // Update the orientation filter
+    if (orientationFilter != nullptr)
+    {
+        OrientationSensorPacket sensorPacket;
+
+        sensorPacket.orientation = orientationFilter->getOrientation();
+
+        sensorPacket.accelerometer =
+            Eigen::Vector3f(psmoveState->Accelerometer.i, psmoveState->Accelerometer.j, psmoveState->Accelerometer.k);
+        sensorPacket.gyroscope =
+            Eigen::Vector3f(psmoveState->Gyro.i, psmoveState->Gyro.j, psmoveState->Gyro.k);
+
+        // Update the orientation filter using the sensor packet.
+        // NOTE: The magnetometer reading is the same for both sensor readings.
+        orientationFilter->update(delta_time, sensorPacket);
+    }
+
+    // Update the position filter
+    if (position_filter != nullptr)
+    {
+        PositionSensorPacket sensorPacket;
+        sensorPacket.position =
+            Eigen::Vector3f(
+            positionEstimation->position.x,
+            positionEstimation->position.y,
+            positionEstimation->position.z);
+        sensorPacket.bPositionValid = positionEstimation->bCurrentlyTracking;
+        sensorPacket.acceleration = Eigen::Vector3f(0.f, 0.f, 0.f);
+
+        position_filter->update(delta_time, sensorPacket);
+
+        //###HipsterSloth $TODO Feed the world space controller acceleration into the filter
+        //Eigen::Quaternionf orientation= orientationFilter->getOrientation();
+        //Eigen::Vector3f accelerometer =
+        //    Eigen::Vector3f(psmoveState->Accelerometer.i, psmoveState->Accelerometer.j, psmoveState->Accelerometer.k);
+        //Eigen::Vector3f acceleration= eigen_vector3f_clockwise_rotate(orientation, accelerometer);
+
+        //sensorPacket.acceleration= acceleration;
+
+        // Update the orientation filter using the sensor packet.
+        // NOTE: The magnetometer reading is the same for both sensor readings.
+        //position_filter->update(delta_time, sensorPacket);
     }
 }
