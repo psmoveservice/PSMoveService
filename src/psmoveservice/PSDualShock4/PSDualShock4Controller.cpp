@@ -214,9 +214,9 @@ struct PSDualShock4DataInput
 // 78 bytes
 struct PSDualShock4DataOutput 
 {
-    unsigned char hid_report_type : 2;      // byte 0, bit 0-1 (0x02=OUTPUT)
-    unsigned char hid_parameter : 2;        // byte 0, bit 2-3 (0x00)
-    unsigned char hid_transaction_type : 4; // byte 0, bit 4-7 (0x0a=DATA)
+    //unsigned char hid_report_type : 2;      // byte 0, bit 0-1 (0x02=OUTPUT)
+    //unsigned char hid_parameter : 2;        // byte 0, bit 2-3 (0x00)
+    //unsigned char hid_transaction_type : 4; // byte 0, bit 4-7 (0x0a=DATA)
     unsigned char hid_protocol_code;        // byte 1 (0x11)
 
     unsigned char _unknown1[2];             // byte 2-3, must be: [0x00|0xff]
@@ -334,9 +334,9 @@ PSDualShock4Controller::PSDualShock4Controller()
 
     OutData = new PSDualShock4DataOutput;
     memset(OutData, 0, sizeof(PSDualShock4DataOutput));
-    OutData->hid_report_type= 0x02; // OUTPUT
-    OutData->hid_parameter= 0x00;
-    OutData->hid_transaction_type= 0x0a; //DATA
+    //OutData->hid_report_type= 0x02; // OUTPUT
+    //OutData->hid_parameter= 0x00;
+    //OutData->hid_transaction_type= 0x0a; //DATA
     OutData->hid_protocol_code= 0x11;
     OutData->_unknown1[0]= 0x80; // Unknown why this this is needed, copied from DS4Windows
     OutData->_unknown1[1] = 0x00;
@@ -482,6 +482,13 @@ bool PSDualShock4Controller::open(
 
             // Reset the polling sequence counter
             NextPollSequenceNumber = 0;
+
+            // Write out the initial controller state
+            if (success && IsBluetooth)
+            {
+                bWriteStateDirty = true;
+                writeDataOut();
+            }
         }
         else
         {
@@ -924,21 +931,28 @@ long PSDualShock4Controller::getMaxPollFailureCount() const
 bool
 PSDualShock4Controller::writeDataOut()
 {
-    OutData->led_r = LedR;
-    OutData->led_g = LedG;
-    OutData->led_b = LedB;
-    OutData->led_flash_on= LedOnDuration;
-    OutData->led_flash_off = LedOffDuration;
-    OutData->rumble_right = RumbleRight;
-    OutData->rumble_left = RumbleLeft;
+    bool bSuccess= true;
 
-    // Keep writing state out until the desired LED and Rumble are 0 
-    bWriteStateDirty = 
-        LedR != 0 || LedG != 0 || LedB != 0 || 
-        RumbleRight != 0 || RumbleLeft != 0;
+    if (bWriteStateDirty)
+    {
+        OutData->led_r = LedR;
+        OutData->led_g = LedG;
+        OutData->led_b = LedB;
+        OutData->led_flash_on = LedOnDuration;
+        OutData->led_flash_off = LedOffDuration;
+        OutData->rumble_right = RumbleRight;
+        OutData->rumble_left = RumbleLeft;
 
-    int res = hid_write(HIDDetails.Handle, (unsigned char*)(&OutData), sizeof(OutData));
-    return (res == sizeof(OutData));
+        // Keep writing state out until the desired LED and Rumble are 0 
+        bWriteStateDirty =
+            LedR != 0 || LedG != 0 || LedB != 0 ||
+            RumbleRight != 0 || RumbleLeft != 0;
+
+        int res = hid_write(HIDDetails.Handle, (unsigned char*)(&OutData), sizeof(OutData));
+        bSuccess= (res == sizeof(OutData));
+    }
+
+    return bSuccess;
 }
 
 bool

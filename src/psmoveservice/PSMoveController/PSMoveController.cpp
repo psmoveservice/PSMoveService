@@ -1017,20 +1017,27 @@ long PSMoveController::getMaxPollFailureCount() const
 bool
 PSMoveController::writeDataOut()
 {
-    PSMoveDataOutput data_out = PSMoveDataOutput();  // 0-initialized
-    data_out.type = PSMove_Req_SetLEDs;
-    data_out.rumble2 = 0x00;
-    data_out.r = LedR;
-    data_out.g = LedG;
-    data_out.b = LedB;
-    data_out.rumble = Rumble;
+    bool bSuccess= true;
 
-    // Keep writing state out until the desired LED and Rumble are 0 
-    bWriteStateDirty = LedR != 0 || LedG != 0 || LedB != 0 || Rumble != 0;
-    
-    int res = hid_write(HIDDetails.Handle, (unsigned char*)(&data_out),
-                        sizeof(data_out));
-    return (res == sizeof(data_out));
+    if (bWriteStateDirty)
+    {
+        PSMoveDataOutput data_out = PSMoveDataOutput();  // 0-initialized
+        data_out.type = PSMove_Req_SetLEDs;
+        data_out.rumble2 = 0x00;
+        data_out.r = LedR;
+        data_out.g = LedG;
+        data_out.b = LedB;
+        data_out.rumble = Rumble;
+
+        // Keep writing state out until the desired LED and Rumble are 0 
+        bWriteStateDirty = LedR != 0 || LedG != 0 || LedB != 0 || Rumble != 0;
+
+        int res = hid_write(HIDDetails.Handle, (unsigned char*)(&data_out),
+            sizeof(data_out));
+        bSuccess= (res == sizeof(data_out));
+    }
+
+    return bSuccess;
 }
 
 bool
