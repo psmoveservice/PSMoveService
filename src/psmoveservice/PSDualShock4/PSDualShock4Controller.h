@@ -180,7 +180,7 @@ public:
     bool setRightRumbleIntensity(unsigned char value);
 
 private:
-    bool getBTAddress(std::string& host, std::string& controller);
+    bool getBTAddressesViaUSB(std::string& host, std::string& controller);
     bool writeDataOut();                            // Setters will call this
 
     // Constant while a controller is open

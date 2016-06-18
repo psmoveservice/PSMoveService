@@ -1,12 +1,11 @@
 //-- includes -----
 #include "PSDualShock4Controller.h"
 #include "ControllerDeviceEnumerator.h"
+#include "ControllerManager.h"
+#include "DeviceManager.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
 #include "BluetoothQueries.h"
-#include <iostream>
-#include <sstream>
-#include <iomanip>
 #include <algorithm>
 #include <vector>
 #include <cstdlib>
@@ -42,9 +41,8 @@
 enum ePSDualShock4_RequestType {
     PSDualShock4_BTReport_Input = 0x00,
     PSDualShock4_BTReport_Output = 0x11,
-    PSDualShock4_Req_GetCalibration = 0x10,
-    PSDualShock4_Req_GetBTAddr = 0x12,
-    PSDualShock4_Req_SetBTAddr = 0x13,
+    PSDualShock4_USBReport_GetBTAddr = 0x12,
+    PSDualShock4_USBReport_SetBTAddr = 0x13,
 };
 
 enum ePSDualShock4_DPad
@@ -241,8 +239,6 @@ struct PSDualShock4DataOutput
 };
 
 // -- private prototypes -----
-static std::string btAddrUcharToString(const unsigned char* addr_buff);
-static bool stringToBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size);
 static int decodeCalibration(char *data, int offset);
 inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
 inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size);
@@ -407,63 +403,81 @@ bool PSDualShock4Controller::open(
             SERVER_LOG_INFO("PSDualShock4Controller::open") << "  with EMPTY serial_number";
         }
 
+        // Attempt to open the controller 
         HIDDetails.Device_path = cur_dev_path;
         HIDDetails.Handle = hid_open_path(HIDDetails.Device_path.c_str());
 
-        if (HIDDetails.Handle != nullptr)
-        {
+        if (HIDDetails.Handle != nullptr)  // Controller was opened and has an index
+        {             
+            // Don't block on hid report requests
             hid_set_nonblocking(HIDDetails.Handle, 1);
-        }
 
-        // On my Mac, using bluetooth,
-        // cur_dev->path = Bluetooth_054c_03d5_779732e8
-        // cur_dev->serial_number = 00-06-f7-97-32-e8
-        // On my Mac, using USB,
-        // cur_dev->path = USB_054c_03d5_14100000
-        // cur_dev->serial_number = "" (not null, just empty)
+            /* -USB or Bluetooth Device-
 
-        // On my Windows 10 box (different controller), using bluetooth
-        // cur_dev->path = \\?\hid#{00001124-0000-1000-8000-00805f9b34fb}_vid&0002054c_pid&03d5&col01#9&456a2d2&2&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
-        // cur_dev->serial_number = 0006f718cdf3
-        // Using USB
-        // cur_dev->path = \\?\hid#vid_054c&pid_03d5&col01#6&7773e57&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
-        // cur_dev->serial_number = (null)
-        IsBluetooth = (strlen(cur_dev_serial_number) > 0);
+                On my Mac, using bluetooth,
+                cur_dev->path = Bluetooth_054c_03d5_779732e8
+                cur_dev->serial_number = 00-06-f7-97-32-e8
+                On my Mac, using USB,
+                cur_dev->path = USB_054c_03d5_14100000
+                cur_dev->serial_number = "" (not null, just empty)
 
-        if (getIsOpen())  // Controller was opened and has an index
-        {
-            // Get the bluetooth address
-#ifdef __APPLE__
-            // On my Mac, getting the bt feature report when connected via
-            // bt crashes the controller. So we simply copy the serial number.
-            // It gets modified in getBTAddress.
-            // TODO: Copy this over anyway even in Windows. Check getBTAddress
-            // comments for handling windows serial_number.
-            // Once done, we can remove the ifndef above.
-            std::string mbs(cur_dev_serial_number);
-            HIDDetails.Bt_addr = mbs;
+                On my Windows 10 box (different controller), using bluetooth
+                cur_dev->path = \\?\hid#{00001124-0000-1000-8000-00805f9b34fb}_vid&0002054c_pid&05c4#8&217a4584&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
+                cur_dev->serial_number = 1c666d2c8deb
+                Using USB
+                cur_dev->path = \\?\hid#vid_054c&pid_03d5&col01#6&7773e57&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
+                cur_dev->serial_number = (null)
+            */
 
-            if (!bluetooth_get_host_address(HIDDetails.Host_bt_addr))
+            // Bluetooth connected
+            if (strlen(cur_dev_serial_number) > 0)
             {
-                HIDDetails.Host_bt_addr = "00:00:00:00:00:00";
-            }
-#endif
-            if (getBTAddress(HIDDetails.Host_bt_addr, HIDDetails.Bt_addr))
-            {
-                // Load the config file
-                std::string btaddr = HIDDetails.Bt_addr;
-                std::replace(btaddr.begin(), btaddr.end(), ':', '_');
-                cfg = PSDualShock4ControllerConfig(btaddr);
-                cfg.load();
+                IsBluetooth = true;
+
+                // Convert the serial number into a normalized bluetooth address of the form: "xx:xx:xx:xx:xx:xx"
+                char szNormalizedControllerAddress[18];
+                ServerUtility::bluetooth_cstr_address_normalize(
+                    cur_dev_serial_number, true, ':',
+                    szNormalizedControllerAddress, sizeof(szNormalizedControllerAddress));
+
+                // Save the controller address as a std::string
+                HIDDetails.Bt_addr = std::string(szNormalizedControllerAddress);
+
+                // Use the cached host bluetooth address at service startup.
+                // On windows, calling bluetooth_get_host_address() can sometimes be a really long blocking call.
+                HIDDetails.Host_bt_addr = DeviceManager::getInstance()->m_controller_manager->getCachedBluetoothHostAddress();
 
                 success = true;
             }
+            // USB Connected
             else
             {
-                // If serial is still bad, maybe we have a disconnected
-                // controller still showing up in hidapi
-                SERVER_LOG_ERROR("PSDualShock4Controller::open") << "Failed to get bluetooth address of PSDualShock4Controller(" << cur_dev_path << ")";
-                success = false;
+                IsBluetooth = false;
+                
+                // Fetch the bluetooth host and controller addresses via USB HID report request
+                if (!getBTAddressesViaUSB(HIDDetails.Host_bt_addr, HIDDetails.Bt_addr))
+                {
+                    // If serial is still bad, maybe we have a disconnected
+                    // controller still showing up in hidapi
+                    SERVER_LOG_ERROR("PSDualShock4Controller::open") << "Failed to get bluetooth address of PSDualShock4Controller(" << cur_dev_path << ")";
+                    success = false;
+                }
+            }
+
+            if (success)
+            {
+                // Build a unique name for the config file using bluetooth address of the controller
+                char szConfigSuffix[18];
+                ServerUtility::bluetooth_cstr_address_normalize(
+                    HIDDetails.Bt_addr.c_str(), true, '_',
+                    szConfigSuffix, sizeof(szConfigSuffix));
+
+                std::string config_name("dualshock4_");
+                config_name += szConfigSuffix;
+
+                // Load the config file
+                cfg = PSDualShock4ControllerConfig(config_name);
+                cfg.load();
             }
 
             // Reset the polling sequence counter
@@ -504,10 +518,10 @@ PSDualShock4Controller::setHostBluetoothAddress(const std::string &new_host_bt_a
     unsigned char bts[PSDS4_BTADDR_SET_SIZE];
 
     memset(bts, 0, sizeof(bts));
-    bts[0] = PSDualShock4_Req_SetBTAddr;
+    bts[0] = PSDualShock4_USBReport_SetBTAddr;
 
     unsigned char addr[6];
-    if (stringToBTAddrUchar(new_host_bt_addr, addr, sizeof(addr)))
+    if (ServerUtility::bluetooth_string_address_to_bytes(new_host_bt_addr, addr, sizeof(addr)))
     {
         int res;
 
@@ -615,60 +629,39 @@ PSDualShock4Controller::getDeviceType() const
 }
 
 bool
-PSDualShock4Controller::getBTAddress(std::string& host, std::string& controller)
+PSDualShock4Controller::getBTAddressesViaUSB(std::string& host, std::string& controller)
 {
     bool success = false;
+    int res;
 
-    if (IsBluetooth && !controller.empty() && !host.empty())
+    unsigned char btg[PSDS4_BTADDR_GET_SIZE];
+    unsigned char ctrl_char_buff[PSDS4_BTADDR_SIZE];
+    unsigned char host_char_buff[PSDS4_BTADDR_SIZE];
+
+    memset(btg, 0, sizeof(btg));
+    btg[0] = PSDualShock4_USBReport_GetBTAddr;
+    res = hid_get_feature_report(HIDDetails.Handle, btg, sizeof(btg));
+
+    if (res == sizeof(btg))
     {
-        std::replace(controller.begin(), controller.end(), '-', ':');
-        std::transform(controller.begin(), controller.end(), controller.begin(), ::tolower);
+        memcpy(host_char_buff, btg + 10, PSDS4_BTADDR_SIZE);
+        host = ServerUtility::bluetooth_byte_addr_to_string(host_char_buff);
 
-        std::replace(host.begin(), host.end(), '-', ':');
-        std::transform(host.begin(), host.end(), host.begin(), ::tolower);
-
-        //TODO: If the third entry is not : and length is PSDS4_BTADDR_SIZE
-        //        std::stringstream ss;
-        //        ss << controller.substr(0, 2) << ":" << controller.substr(2, 2) <<
-        //        ":" << controller.substr(4, 2) << ":" << controller.substr(6, 2) <<
-        //        ":" << controller.substr(8, 2) << ":" << controller.substr(10, 2);
-        //        controller = ss.str();
+        memcpy(ctrl_char_buff, btg + 1, PSDS4_BTADDR_SIZE);
+        controller = ServerUtility::bluetooth_byte_addr_to_string(ctrl_char_buff);
 
         success = true;
     }
     else
     {
-        int res;
+        char hidapi_err_mbs[256];
+        bool valid_error_mesg = false;
 
-        unsigned char btg[PSDS4_BTADDR_GET_SIZE];
-        unsigned char ctrl_char_buff[PSDS4_BTADDR_SIZE];
-        unsigned char host_char_buff[PSDS4_BTADDR_SIZE];
+        valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
 
-        memset(btg, 0, sizeof(btg));
-        btg[0] = PSDualShock4_Req_GetBTAddr;
-        res = hid_get_feature_report(HIDDetails.Handle, btg, sizeof(btg));
-
-        if (res == sizeof(btg)) {
-
-            memcpy(host_char_buff, btg + 10, PSDS4_BTADDR_SIZE);
-            host = btAddrUcharToString(host_char_buff);
-
-            memcpy(ctrl_char_buff, btg + 1, PSDS4_BTADDR_SIZE);
-            controller = btAddrUcharToString(ctrl_char_buff);
-
-            success = true;
-        }
-        else
+        if (valid_error_mesg)
         {
-            char hidapi_err_mbs[256];
-            bool valid_error_mesg = false;
-
-            valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
-
-            if (valid_error_mesg)
-            {
-                SERVER_LOG_ERROR("PSDualShock4Controller::getBTAddress") << "HID ERROR: " << hidapi_err_mbs;
-            }
+            SERVER_LOG_ERROR("PSDualShock4Controller::getBTAddress") << "HID ERROR: " << hidapi_err_mbs;
         }
     }
 
@@ -1002,55 +995,6 @@ PSDualShock4Controller::setRightRumbleIntensity(unsigned char value)
 }
 
 // -- private helper functions -----
-static std::string
-btAddrUcharToString(const unsigned char* addr_buff)
-{
-    // http://stackoverflow.com/questions/11181251/saving-hex-values-to-a-c-string
-    std::ostringstream stream;
-    int buff_ind = 5;
-    for (buff_ind = 5; buff_ind >= 0; buff_ind--)
-    {
-        stream << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(addr_buff[buff_ind]);
-        if (buff_ind > 0)
-        {
-            stream << ":";
-        }
-    }
-    return stream.str();
-}
-
-static bool
-stringToBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size)
-{
-    bool success = false;
-
-    if (addr.length() >= 17 && addr_buf_size >= 6)
-    {
-        const char *raw_string = addr.c_str();
-        unsigned int octets[6];
-
-        success =
-            sscanf(raw_string, "%x:%x:%x:%x:%x:%x",
-            &octets[5],
-            &octets[4],
-            &octets[3],
-            &octets[2],
-            &octets[1],
-            &octets[0]) == 6;
-        //TODO: Make safe (sscanf_s is not portable)
-
-        if (success)
-        {
-            for (int i = 0; i < 6; ++i)
-            {
-                addr_buff[i] = ServerUtility::int32_to_int8_verify(octets[i]);
-            }
-        }
-    }
-
-    return success;
-}
-
 static int
 decodeCalibration(char *data, int offset)
 {
