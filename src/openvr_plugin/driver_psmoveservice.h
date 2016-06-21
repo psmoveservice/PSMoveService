@@ -37,6 +37,8 @@ public:
 
 private:
     void AllocateUniquePSMoveController(int ControllerID);
+    void AllocateUniquePSNaviController(int ControllerID);
+    void AllocateUniqueDualShock4Controller(int ControllerID);
     void AllocateUniquePSMoveTracker(const ClientTrackerInfo &trackerInfo);
     bool ReconnectToPSMoveService();
 
@@ -152,14 +154,27 @@ public:
     virtual bool TriggerHapticPulse( uint32_t unAxisId, uint16_t usPulseDurationMicroseconds ) override;
 
     static const vr::EVRButtonId k_EButton_PS = vr::k_EButton_System;
+    static const vr::EVRButtonId k_EButton_Left = vr::k_EButton_DPad_Left;
+    static const vr::EVRButtonId k_EButton_Up = vr::k_EButton_DPad_Up;
+    static const vr::EVRButtonId k_EButton_Right = vr::k_EButton_DPad_Right;
+    static const vr::EVRButtonId k_EButton_Down = vr::k_EButton_DPad_Down;
     static const vr::EVRButtonId k_EButton_Move = vr::k_EButton_SteamVR_Touchpad;
+    static const vr::EVRButtonId k_EButton_Trackpad = vr::k_EButton_SteamVR_Touchpad;
     static const vr::EVRButtonId k_EButton_Trigger = vr::k_EButton_SteamVR_Trigger;
     static const vr::EVRButtonId k_EButton_Triangle = vr::k_EButton_ApplicationMenu;
     static const vr::EVRButtonId k_EButton_Square = vr::k_EButton_Dashboard_Back;
     static const vr::EVRButtonId k_EButton_Circle = vr::k_EButton_A;
     static const vr::EVRButtonId k_EButton_Cross = (vr::EVRButtonId)8;
     static const vr::EVRButtonId k_EButton_Select = (vr::EVRButtonId)9;
+    static const vr::EVRButtonId k_EButton_Share = (vr::EVRButtonId)9;
     static const vr::EVRButtonId k_EButton_Start = (vr::EVRButtonId)10;
+    static const vr::EVRButtonId k_EButton_Options = (vr::EVRButtonId)10;
+    static const vr::EVRButtonId k_EButton_L1 = (vr::EVRButtonId)11;
+    static const vr::EVRButtonId k_EButton_L2 = (vr::EVRButtonId)12;
+    static const vr::EVRButtonId k_EButton_L3 = (vr::EVRButtonId)13;
+    static const vr::EVRButtonId k_EButton_R1 = (vr::EVRButtonId)14;
+    static const vr::EVRButtonId k_EButton_R2 = (vr::EVRButtonId)15;
+    static const vr::EVRButtonId k_EButton_R3 = (vr::EVRButtonId)16;
 
     // Overridden Implementation of CPSMoveTrackedDeviceLatest
     virtual vr::ETrackedDeviceClass GetTrackedDeviceClass() const override { return vr::TrackedDeviceClass_Controller; }
