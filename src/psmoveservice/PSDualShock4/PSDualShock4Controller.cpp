@@ -447,12 +447,13 @@ bool PSDualShock4Controller::open(
                 IsBluetooth = false;
                 
                 // Fetch the bluetooth host and controller addresses via USB HID report request
-                if (!getBTAddressesViaUSB(HIDDetails.Host_bt_addr, HIDDetails.Bt_addr))
+                success = getBTAddressesViaUSB(HIDDetails.Host_bt_addr, HIDDetails.Bt_addr);
+
+                if (!success)
                 {
                     // If serial is still bad, maybe we have a disconnected
                     // controller still showing up in hidapi
                     SERVER_LOG_ERROR("PSDualShock4Controller::open") << "Failed to get bluetooth address of PSDualShock4Controller(" << cur_dev_path << ")";
-                    success = false;
                 }
             }
 
