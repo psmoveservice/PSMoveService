@@ -181,6 +181,7 @@ public:
 
 private:
     bool getBTAddressesViaUSB(std::string& host, std::string& controller);
+    void clearAndWriteDataOut();
     bool writeDataOut();                            // Setters will call this
 
     // Constant while a controller is open
@@ -192,8 +193,6 @@ private:
     unsigned char LedR, LedG, LedB;
     unsigned char RumbleRight; // Weak
     unsigned char RumbleLeft; // Strong
-    unsigned char LedOnDuration;
-    unsigned char LedOffDuration;
     bool bWriteStateDirty;
     std::chrono::time_point<std::chrono::high_resolution_clock> lastWriteStateTime;
 

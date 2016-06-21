@@ -18,6 +18,9 @@
 #pragma warning (disable: 4996) // 'This function or variable may be unsafe': strcpy, strdup, sprintf, vsnprintf, sscanf, fopen
 #endif
 
+#include <windows.h>
+#include <Hidsdi.h>
+
 //-- constants -----
 #define PSDS4_INPUT_REPORT_LENGTH 547
 
@@ -29,7 +32,7 @@
 #define PSDS4_TRACKING_SHAPE_WIDTH  5.f // The width of the DS4 tracking bar in cm
 #define PSDS4_TRACKING_SHAPE_HEIGHT  1.1f // The height of the DS4 tracking bar in cm
 
-#define PSDS4_RUMBLE_ENABLED 0xf3
+#define PSDS4_RUMBLE_ENABLED 0xff
 #define PSDS4_RUMBLE_DISABLED 0xf0
 
 #define PSDS4_CALIBRATION_SIZE 49 /* Buffer size for calibration data */
@@ -126,11 +129,11 @@ struct PS4DualShock4TouchPacket
 // http://eleccelerator.com/wiki/index.php?title=DualShock_4
 struct PSDualShock4DataInput
 {
-    unsigned char hid_report_type : 2;      // byte 0, bit 0-1 (0x01=INPUT)
-    unsigned char hid_parameter : 2;        // byte 0, bit 2-3 (0x00)
-    unsigned char hid_transaction_type : 4; // byte 0, bit 4-7 (0x0a=DATA)
+    //unsigned char hid_report_type : 2;      // byte 0, bit 0-1 (0x01=INPUT)
+    //unsigned char hid_parameter : 2;        // byte 0, bit 2-3 (0x00)
+    //unsigned char hid_transaction_type : 4; // byte 0, bit 4-7 (0x0a=DATA)
     unsigned char hid_protocol_code;        // byte 1 (0x11)
-    unsigned char hid_unknown;              // byte 2 (0xc2)
+    unsigned char hid_unknown;              // byte 2 (0xc0)
 
     unsigned char report_id;            // byte 3 report ID, must be PSDualShock4_BTReport_Input(0x00)
     unsigned char left_stick_x;         // byte 4, 0 = left
@@ -214,34 +217,33 @@ struct PSDualShock4DataInput
 // 78 bytes
 struct PSDualShock4DataOutput 
 {
-    //unsigned char hid_report_type : 2;      // byte 0, bit 0-1 (0x02=OUTPUT)
-    //unsigned char hid_parameter : 2;        // byte 0, bit 2-3 (0x00)
-    //unsigned char hid_transaction_type : 4; // byte 0, bit 4-7 (0x0a=DATA)
-    unsigned char hid_protocol_code;        // byte 1 (0x11)
+    unsigned char hid_protocol_code;        // byte 0 (0x11)
 
-    unsigned char _unknown1[2];             // byte 2-3, must be: [0x00|0xff]
-    unsigned char rumbleFlags;              // byte 4, 	0xf0 disables the rumble motors, 0xf3 enables them
-    unsigned char _unknown2[2];             // byte 5-6
-    unsigned char rumble_right;             // byte 7, 0x00 to 0xff
-    unsigned char rumble_left;              // byte 8, 0x00 to 0xff
-    unsigned char led_r;                    // byte 9, red value, 0x00 to 0xff 
-    unsigned char led_g;                    // byte 10, green value, 0x00 to 0xff
-    unsigned char led_b;                    // byte 11, blue value, 0x00 to 0xff
-    unsigned char led_flash_on;             // byte 12, flash on duration
-    unsigned char led_flash_off;            // byte 13, flash off duration
-    unsigned char _unknown3[8];             // byte 14-21
-    unsigned char volume_left;              // byte 22
-    unsigned char volume_right;             // byte 23
-    unsigned char volume_mic;               // byte 24
-    unsigned char volume_speaker;           // byte 25
-    unsigned char _unknown4[49];            // byte 26-74
-    unsigned char crc32[4];                 // byte 75-78, CRC-32 of the first 75 bytes
+    unsigned char _unknown1[2];             // byte 1-2, must be: [0x80|0x00]
+    unsigned char rumbleFlags;              // byte 3, 	0xf0 disables the rumble motors, 0xf3 enables them
+    unsigned char _unknown2[2];             // byte 4-5, [0x00, 0x00]
+    unsigned char rumble_right;             // byte 6, 0x00 to 0xff
+    unsigned char rumble_left;              // byte 7, 0x00 to 0xff
+    unsigned char led_r;                    // byte 8, red value, 0x00 to 0xff 
+    unsigned char led_g;                    // byte 9, green value, 0x00 to 0xff
+    unsigned char led_b;                    // byte 10, blue value, 0x00 to 0xff
+    unsigned char led_flash_on;             // byte 11, flash on duration
+    unsigned char led_flash_off;            // byte 12, flash off duration
+    unsigned char _unknown3[8];             // byte 13-20
+    unsigned char volume_left;              // byte 21
+    unsigned char volume_right;             // byte 22
+    unsigned char volume_mic;               // byte 23
+    unsigned char volume_speaker;           // byte 24
+    unsigned char _unknown4[49];            // byte 25-73
+    unsigned char crc32[4];                 // byte 74-77, CRC-32 of the first 75 bytes
 };
 
 // -- private prototypes -----
-static int decodeCalibration(char *data, int offset);
 inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
 inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size);
+#ifdef _WIN32
+static int hid_set_output_report(hid_device *dev, const unsigned char *data, size_t length);
+#endif // _WIN32
 
 // -- public methods
 
@@ -317,8 +319,6 @@ PSDualShock4Controller::PSDualShock4Controller()
     , LedB(0)
     , RumbleRight(0)
     , RumbleLeft(0)
-    , LedOnDuration(0)
-    , LedOffDuration(0)
     , bWriteStateDirty(false)
     , NextPollSequenceNumber(0)
 {
@@ -326,17 +326,9 @@ PSDualShock4Controller::PSDualShock4Controller()
 
     InData = new PSDualShock4DataInput;
     memset(InData, 0, sizeof(PSDualShock4DataInput));
-    InData->hid_report_type= 0x01; // INPUT
-    InData->hid_parameter= 0x00;
-    InData->hid_transaction_type= 0x0a; // DATA
-    InData->hid_protocol_code= 0x11;
-    InData->hid_unknown= 0xc2;
 
     OutData = new PSDualShock4DataOutput;
     memset(OutData, 0, sizeof(PSDualShock4DataOutput));
-    //OutData->hid_report_type= 0x02; // OUTPUT
-    //OutData->hid_parameter= 0x00;
-    //OutData->hid_transaction_type= 0x0a; //DATA
     OutData->hid_protocol_code= 0x11;
     OutData->_unknown1[0]= 0x80; // Unknown why this this is needed, copied from DS4Windows
     OutData->_unknown1[1] = 0x00;
@@ -486,7 +478,7 @@ bool PSDualShock4Controller::open(
             // Write out the initial controller state
             if (success && IsBluetooth)
             {
-                bWriteStateDirty = true;
+                bWriteStateDirty= true;
                 writeDataOut();
             }
         }
@@ -508,6 +500,11 @@ void PSDualShock4Controller::close()
 
         if (HIDDetails.Handle != nullptr)
         {
+            if (IsBluetooth)
+            {
+                clearAndWriteDataOut();
+            }
+
             hid_close(HIDDetails.Handle);
             HIDDetails.Handle = nullptr;
         }
@@ -697,6 +694,8 @@ PSDualShock4Controller::poll()
 
             if (res == 0)
             {
+                //SERVER_LOG_WARNING("PSDualShock4Controller::readDataIn") << "Read Bytes: " << res;
+
                 // Device still in valid state
                 result = (iteration == 0)
                     ? IControllerInterface::_PollResultSuccessNoData
@@ -722,6 +721,8 @@ PSDualShock4Controller::poll()
             }
             else
             {
+                //SERVER_LOG_WARNING("PSDualShock4Controller::readDataIn") << "Read Bytes: " << res;
+
                 // New data available. Keep iterating.
                 result = IControllerInterface::_PollResultSuccessNewData;
             }
@@ -849,20 +850,26 @@ PSDualShock4Controller::poll()
             {
             case 0:
                 newState.Battery = CommonControllerState::BatteryLevel::Batt_CHARGING;
+                break;
             case 1:
                 newState.Battery = CommonControllerState::BatteryLevel::Batt_MIN;
+                break;
             case 2:
             case 3:
                 newState.Battery = CommonControllerState::BatteryLevel::Batt_20Percent;
+                break;
             case 4:
             case 5:
                 newState.Battery = CommonControllerState::BatteryLevel::Batt_40Percent;
+                break;
             case 6:
             case 7:
                 newState.Battery = CommonControllerState::BatteryLevel::Batt_60Percent;
+                break;
             case 8:
             case 9:
                 newState.Battery = CommonControllerState::BatteryLevel::Batt_80Percent;
+                break;
             case 10:
             default:
                 newState.Battery = CommonControllerState::BatteryLevel::Batt_MAX;
@@ -926,7 +933,18 @@ long PSDualShock4Controller::getMaxPollFailureCount() const
     return cfg.max_poll_failure_count;
 }
 
+#define HIDP_TRANS_SET_REPORT  0x50
+#define HIDP_DATA_RTYPE_OUTPUT 0x02
+
 // Setters
+void 
+PSDualShock4Controller::clearAndWriteDataOut()
+{
+    LedR = LedG = LedB = 0;
+    RumbleLeft = RumbleRight = 0;
+    bWriteStateDirty= true;
+    writeDataOut();
+}
 
 bool
 PSDualShock4Controller::writeDataOut()
@@ -935,21 +953,47 @@ PSDualShock4Controller::writeDataOut()
 
     if (bWriteStateDirty)
     {
+        const bool bLedIsOn = LedR != 0 || LedG != 0 || LedB != 0;
+        const bool bIsRumbleOn = RumbleRight != 0 || RumbleLeft != 0;
+
+        // Light bar color
         OutData->led_r = LedR;
         OutData->led_g = LedG;
         OutData->led_b = LedB;
-        OutData->led_flash_on = LedOnDuration;
-        OutData->led_flash_off = LedOffDuration;
+        
+        // Set off interval to 0% and the on interval to 100%. 
+        // There are no discos in PSMoveService.
+        OutData->led_flash_on = bLedIsOn ? 0xff : 0x00;
+        OutData->led_flash_off = 0x00; 
+
+        // a.k.a Soft Rumble Motor
         OutData->rumble_right = RumbleRight;
+        // a.k.a Hard Rumble Motor
         OutData->rumble_left = RumbleLeft;
 
         // Keep writing state out until the desired LED and Rumble are 0 
-        bWriteStateDirty =
-            LedR != 0 || LedG != 0 || LedB != 0 ||
-            RumbleRight != 0 || RumbleLeft != 0;
+        bWriteStateDirty = bLedIsOn || bIsRumbleOn;
 
-        int res = hid_write(HIDDetails.Handle, (unsigned char*)(&OutData), sizeof(OutData));
-        bSuccess= (res == sizeof(OutData));
+        // Unfortunately in windows simply writing to the HID device, via WriteFile() internally, 
+        // doesn't appear to actually set the data on the controller (despite returning successfully).
+        // In the DS4 implementation they use the HidD_SetOutputReport() Win32 API call instead. 
+        // Unfortunately HIDAPI doesn't have any equivalent call, so we have to make our own.
+        #ifdef _WIN32
+        int res = hid_set_output_report(HIDDetails.Handle, (unsigned char*)OutData, sizeof(PSDualShock4DataOutput));
+        #else
+        int res = hid_write(HIDDetails.Handle, (unsigned char*)OutData, sizeof(PSDualShock4DataOutput));
+        #endif
+        bSuccess = res > 0;
+
+        if (!bSuccess)
+        {
+            char szErrorMessage[256];
+
+            if (hid_error_mbs(HIDDetails.Handle, szErrorMessage, sizeof(szErrorMessage)))
+            {
+                SERVER_LOG_ERROR("PSDualShock4Controller::writeDataOut") << "HID ERROR: " << szErrorMessage;
+            }
+        }
     }
 
     return bSuccess;
@@ -964,18 +1008,6 @@ PSDualShock4Controller::setLED(unsigned char r, unsigned char g, unsigned char b
         LedR = r;
         LedG = g;
         LedB = b;
-
-        if (r != 0 || g != 0 || b != 0)
-        {
-            LedOnDuration= 255;
-            LedOffDuration = 0;
-        }
-        else
-        {
-            LedOnDuration = 0;
-            LedOffDuration = 0;
-        }
-
         bWriteStateDirty = true;
         success = writeDataOut();
     }
@@ -1009,14 +1041,6 @@ PSDualShock4Controller::setRightRumbleIntensity(unsigned char value)
 }
 
 // -- private helper functions -----
-static int
-decodeCalibration(char *data, int offset)
-{
-    unsigned char low = data[offset] & 0xFF;
-    unsigned char high = (data[offset + 1]) & 0xFF;
-    return (low | (high << 8)) - 0x8000;
-}
-
 inline enum CommonControllerState::ButtonState
 getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask)
 {
@@ -1027,3 +1051,80 @@ inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_
 {
     return ServerUtility::convert_wcs_to_mbs(hid_error(dev), out_mb_error, mb_buffer_size);
 }
+
+#ifdef _WIN32
+static int hid_set_output_report(hid_device *dev, const unsigned char *data, size_t length)
+{
+    // This copies the private structure inside the windows implementation of HidAPI
+    struct hid_device_ {
+        HANDLE device_handle;
+        BOOL blocking;
+        USHORT output_report_length;
+        size_t input_report_length;
+        void *last_error_str;
+        DWORD last_error_num;
+        BOOL read_pending;
+        char *read_buf;
+        OVERLAPPED ol;
+    };
+    hid_device_ *dev_internal = (hid_device_ *)dev;
+
+    DWORD bytes_written;
+    unsigned char *buf;
+    BOOL res;
+
+    if (length >= dev_internal->output_report_length)
+    {
+        // The user passed the right number of bytes. Use the buffer as-is.
+        buf = (unsigned char *)data;
+    }
+    else
+    {
+        // Create a temporary buffer and copy the user's data into it, padding the rest with zeros.
+        buf = (unsigned char *)malloc(dev_internal->output_report_length);
+        memcpy(buf, data, length);
+        memset(buf + length, 0, dev_internal->output_report_length - length);
+        length = dev_internal->output_report_length;
+    }
+
+    res = HidD_SetOutputReport(dev_internal->device_handle, buf, length);
+
+    if (res == TRUE)
+    {
+        bytes_written = length;
+    }
+    else
+    {
+        const DWORD error_code = GetLastError();
+
+        if (error_code != ERROR_IO_PENDING)
+        {
+            WCHAR *error_msg;
+
+            FormatMessageW(
+                FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                FORMAT_MESSAGE_FROM_SYSTEM |
+                FORMAT_MESSAGE_IGNORE_INSERTS,
+                NULL,
+                error_code,
+                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                (LPWSTR)&error_msg, 0/*sz*/,
+                NULL);
+
+            /* Store the message off in the Device entry so that
+            the hid_error() function can pick it up. */
+            LocalFree(dev_internal->last_error_str);
+            dev_internal->last_error_str = error_msg;
+
+            bytes_written = -1;
+        }
+    }
+
+    if (buf != data)
+    {
+        free(buf);
+    }
+
+    return bytes_written;
+}
+#endif
