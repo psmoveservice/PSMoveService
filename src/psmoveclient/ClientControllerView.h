@@ -484,22 +484,22 @@ public:
         return IsValid() ? Pose.Orientation : *k_psmove_quaternion_identity;
     }
 
-    inline PSMoveButtonState GetDPadUp() const
+    inline PSMoveButtonState GetButtonDPadUp() const
     {
         return IsValid() ? DPadUpButton : PSMoveButton_UP;
     }
 
-    inline PSMoveButtonState GetDPadDown() const
+    inline PSMoveButtonState GetButtonDPadDown() const
     {
         return IsValid() ? DPadDownButton : PSMoveButton_UP;
     }
 
-    inline PSMoveButtonState GetDPadLeft() const
+    inline PSMoveButtonState GetButtonDPadLeft() const
     {
         return IsValid() ? DPadLeftButton : PSMoveButton_UP;
     }
 
-    inline PSMoveButtonState GetDPadRight() const
+    inline PSMoveButtonState GetButtonDPadRight() const
     {
         return IsValid() ? DPadRightButton : PSMoveButton_UP;
     }
@@ -522,6 +522,26 @@ public:
     inline PSMoveButtonState GetButtonTriangle() const
     {
         return IsValid() ? TriangleButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonOptions() const
+    {
+        return IsValid() ? OptionsButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonShare() const
+    {
+        return IsValid() ? ShareButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonPS() const
+    {
+        return IsValid() ? PSButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonTrackpad() const
+    {
+        return IsValid() ? TrackPadButton : PSMoveButton_UP;
     }
 
     inline PSMoveButtonState GetButtonL1() const
@@ -686,6 +706,15 @@ public:
     {
         return (IsValid() && IsConnected);
     }
+
+    const PSMovePose &GetPose() const;
+    const PSMovePosition &GetPosition() const;
+    const PSMoveQuaternion &GetOrientation() const;
+    const PSMovePhysicsData &GetPhysicsData() const;
+    const PSMoveRawTrackerData &GetRawTrackerData() const;
+
+    bool GetIsCurrentlyTracking() const;
+    bool GetIsStableAndAlignedWithGravity() const;
     
     // Statistics
     inline float GetDataFrameFPS() const

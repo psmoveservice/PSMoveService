@@ -13,6 +13,7 @@ const PSMovePhysicsData k_empty_physics_data = { { 0.f, 0.f, 0.f }, { 0.f, 0.f, 
 const PSMoveRawSensorData k_empty_psmove_sensor_data = { { 0, 0, 0 }, { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f } };
 const PSDualShock4RawSensorData k_empty_ds4_sensor_data = { { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f } };
 const PSMoveFloatVector3 k_identity_gravity_calibration_direction= {0.f, 1.f, 0.f};
+const PSMoveRawTrackerData k_empty_raw_tracker_data = { 0 };
 
 //-- prototypes ----
 static void update_button_state(PSMoveButtonState &button, unsigned int button_bitmask, unsigned int button_bit);
@@ -595,6 +596,125 @@ void ClientControllerView::ApplyControllerDataFrame(
             default:
                 assert(0 && "Unhandled controller type");
         }
+    }
+}
+
+const PSMovePose &ClientControllerView::GetPose() const
+{
+    switch (ControllerViewType)
+    {
+    case eControllerType::PSMove:
+        return GetPSMoveView().GetPose();
+    case eControllerType::PSNavi:
+        // No Pose!
+        return *k_psmove_pose_identity;
+    case eControllerType::PSDualShock4:
+        return GetPSDualShock4View().GetPose();
+    default:
+        assert(0 && "invalid controller type");
+        return *k_psmove_pose_identity;
+    }
+}
+
+const PSMovePosition &ClientControllerView::GetPosition() const
+{
+    switch (ControllerViewType)
+    {
+    case eControllerType::PSMove:
+        return GetPSMoveView().GetPosition();
+    case eControllerType::PSNavi:
+        // No Position!
+        return *k_psmove_position_origin;
+    case eControllerType::PSDualShock4:
+        return GetPSDualShock4View().GetPosition();
+    default:
+        assert(0 && "invalid controller type");
+        return *k_psmove_position_origin;
+    }
+}
+
+const PSMoveQuaternion &ClientControllerView::GetOrientation() const
+{
+    switch (ControllerViewType)
+    {
+    case eControllerType::PSMove:
+        return GetPSMoveView().GetOrientation();
+    case eControllerType::PSNavi:
+        // No orientation!
+        return *k_psmove_quaternion_identity;
+    case eControllerType::PSDualShock4:
+        return GetPSDualShock4View().GetOrientation();
+    default:
+        assert(0 && "invalid controller type");
+        return *k_psmove_quaternion_identity;
+    }
+}
+
+const PSMovePhysicsData &ClientControllerView::GetPhysicsData() const
+{
+    switch (ControllerViewType)
+    {
+    case eControllerType::PSMove:
+        return GetPSMoveView().GetPhysicsData();
+    case eControllerType::PSNavi:
+        // No Physics!
+        return k_empty_physics_data;
+    case eControllerType::PSDualShock4:
+        return GetPSDualShock4View().GetPhysicsData();
+    default:
+        assert(0 && "invalid controller type");
+        return k_empty_physics_data;
+    }
+}
+
+const PSMoveRawTrackerData &ClientControllerView::GetRawTrackerData() const
+{
+    switch (ControllerViewType)
+    {
+    case eControllerType::PSMove:
+        return GetPSMoveView().GetRawTrackerData();
+    case eControllerType::PSNavi:
+        // No Physics!
+        return k_empty_raw_tracker_data;
+    case eControllerType::PSDualShock4:
+        return GetPSDualShock4View().GetRawTrackerData();
+    default:
+        assert(0 && "invalid controller type");
+        return k_empty_raw_tracker_data;
+    }
+}
+
+bool ClientControllerView::GetIsCurrentlyTracking() const
+{
+    switch (ControllerViewType)
+    {
+    case eControllerType::PSMove:
+        return GetPSMoveView().GetIsCurrentlyTracking();
+    case eControllerType::PSNavi:
+        // Never Tracking!
+        return false;
+    case eControllerType::PSDualShock4:
+        return GetPSDualShock4View().GetIsCurrentlyTracking();
+    default:
+        assert(0 && "invalid controller type");
+        return false;
+    }
+}
+
+bool ClientControllerView::GetIsStableAndAlignedWithGravity() const
+{
+    switch (ControllerViewType)
+    {
+    case eControllerType::PSMove:
+        return GetPSMoveView().GetIsStableAndAlignedWithGravity();
+    case eControllerType::PSNavi:
+        // Always stable! (no physics)
+        return true;
+    case eControllerType::PSDualShock4:
+        return GetPSDualShock4View().GetIsStableAndAlignedWithGravity();
+    default:
+        assert(0 && "invalid controller type");
+        return true;
     }
 }
 

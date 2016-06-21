@@ -268,7 +268,7 @@ void AppStage_ComputeTrackerPoses::render()
 
             // Draw the psmove model
             {
-                PSMovePose psmove_space_pose = m_controllerView->GetPSMoveView().GetPose();
+                PSMovePose psmove_space_pose = m_controllerView->GetPose();
                 glm::mat4 chaperoneSpaceTransform = psmove_tracking_space_to_chaperone_space * psmove_pose_to_glm_mat4(psmove_space_pose);
 
                 drawPSMoveModel(chaperoneSpaceTransform, glm::vec3(1.f, 1.f, 1.f));
@@ -752,19 +752,20 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
             const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list = 
                 &response_message->payload.controller_list;
 
-            int PSMoveControllerId = -1;
+            int trackedControllerId = -1;
             for (int list_index = 0; list_index < controller_list->count; ++list_index)
             {
-                if (controller_list->controller_type[list_index] == ClientControllerView::PSMove)
+                if (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
+                    controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)
                 {
-                    PSMoveControllerId = controller_list->controller_id[list_index];
+                    trackedControllerId = controller_list->controller_id[list_index];
                     break;
                 }
             }
 
-            if (PSMoveControllerId != -1)
+            if (trackedControllerId != -1)
             {
-                thisPtr->request_start_controller_stream(PSMoveControllerId);
+                thisPtr->request_start_controller_stream(trackedControllerId);
             }
             else
             {

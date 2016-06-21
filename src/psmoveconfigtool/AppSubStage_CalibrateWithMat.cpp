@@ -91,7 +91,7 @@ void AppSubStage_CalibrateWithMat::update()
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
         {
-            if (ControllerView->GetPSMoveView().GetIsStableAndAlignedWithGravity())
+            if (ControllerView->GetIsStableAndAlignedWithGravity())
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 
@@ -123,8 +123,7 @@ void AppSubStage_CalibrateWithMat::update()
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
         {
-            const ClientPSMoveView &PSMoveView= ControllerView->GetPSMoveView();
-            const bool bIsStable = PSMoveView.GetIsStableAndAlignedWithGravity();
+            const bool bIsStable = ControllerView->GetIsStableAndAlignedWithGravity();
 
             // See if any tracker needs more samples
             bool bNeedMoreSamples = false;
@@ -155,8 +154,8 @@ void AppSubStage_CalibrateWithMat::update()
 
                         PSMoveScreenLocation screenSample;
 
-                        if (PSMoveView.GetIsCurrentlyTracking() &&
-                            PSMoveView.GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample) &&
+                        if (ControllerView->GetIsCurrentlyTracking() &&
+                            ControllerView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample) &&
                             m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount < k_mat_calibration_sample_count)
                         {
                             const int sampleCount = m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount;
@@ -410,14 +409,13 @@ void AppSubStage_CalibrateWithMat::render()
             {
                 const ClientTrackerView *TrackerView = m_parentStage->get_render_tracker_view();
                 const ClientControllerView *ControllerView = m_parentStage->m_controllerView;
-                const ClientPSMoveView &PSMoveView = ControllerView->GetPSMoveView();
-                const PSMoveRawTrackerData &RawTrackerData= PSMoveView.GetRawTrackerData();
+                const PSMoveRawTrackerData &RawTrackerData = ControllerView->GetRawTrackerData();
                 const int TrackerID = TrackerView->getTrackerId();
 
                 PSMoveTrackingProjection trackingProjection;
                 PSMoveScreenLocation centerProjection;
 
-                if (PSMoveView.GetIsCurrentlyTracking() &&
+                if (ControllerView->GetIsCurrentlyTracking() &&
                     RawTrackerData.GetPixelLocationOnTrackerId(TrackerID, centerProjection) &&
                     RawTrackerData.GetProjectionOnTrackerId(TrackerID, trackingProjection))
                 {
