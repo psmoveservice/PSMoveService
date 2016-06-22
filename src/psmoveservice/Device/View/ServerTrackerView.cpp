@@ -515,7 +515,7 @@ void ServerTrackerView::generate_tracker_data_frame_for_stream(
 
     tracker_data_frame->set_tracker_id(tracker_view->getDeviceID());
     tracker_data_frame->set_sequence_num(tracker_view->m_sequence_number);
-    tracker_data_frame->set_isconnected(tracker_view->getDevice()->getIsOpen());
+    tracker_data_frame->set_isconnected(tracker_view->getIsOpen());
 
     switch (tracker_view->getTrackerDeviceType())
     {
