@@ -44,28 +44,15 @@ public:
     {
         RequestContext context;
 
+        context.request = request;
+
         request->set_request_id(m_next_request_id);
         ++m_next_request_id;
-
-        context.request= request;
 
         // Add the request to the pending request map.
         // Requests should never be double registered.
         assert(m_pending_requests.find(request->request_id()) == m_pending_requests.end());
         m_pending_requests.insert(t_id_request_context_pair(request->request_id(), context));
-
-        // Send the request off to the network manager to get sent to the server
-        ClientNetworkManager::get_instance()->send_request(request);
-    }
-
-    void send_request_no_reply(RequestPtr request)
-    {
-        RequestContext context;
-
-        request->set_request_id(m_next_request_id);
-        ++m_next_request_id;
-
-        context.request = request;
 
         // Send the request off to the network manager to get sent to the server
         ClientNetworkManager::get_instance()->send_request(request);
@@ -360,12 +347,6 @@ void ClientRequestManager::send_request(
     RequestPtr request)
 {
     m_implementation_ptr->send_request(request);
-}
-
-void ClientRequestManager::send_request_no_reply(
-    RequestPtr request)
-{
-    m_implementation_ptr->send_request_no_reply(request);
 }
 
 void ClientRequestManager::handle_request_canceled(RequestPtr request)

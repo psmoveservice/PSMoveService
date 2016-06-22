@@ -203,7 +203,7 @@ ClientTrackerView::~ClientTrackerView()
 }
 
 void ClientTrackerView::applyTrackerDataFrame(
-    const PSMoveProtocol::DeviceDataFrame_TrackerDataPacket *data_frame)
+    const PSMoveProtocol::DeviceOutputDataFrame_TrackerDataPacket *data_frame)
 {
     assert(data_frame->tracker_id() == getTrackerId());
 

@@ -132,7 +132,7 @@ protected:
     static void generate_controller_data_frame_for_stream(
         const ServerControllerView *controller_view,
         const struct ControllerStreamInfo *stream_info,
-        DeviceDataFramePtr &data_frame);
+        DeviceOutputDataFramePtr &data_frame);
 
 private:
     // Tracking color state

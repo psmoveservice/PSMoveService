@@ -36,9 +36,9 @@ static void update_filters_for_psmove(
     OrientationFilter *orientationFilter, PositionFilter *position_filter);
 
 static void generate_psmove_data_frame_for_stream(
-    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceDataFramePtr &data_frame);
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceOutputDataFramePtr &data_frame);
 static void generate_psnavi_data_frame_for_stream(
-    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceDataFramePtr &data_frame);
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceOutputDataFramePtr &data_frame);
 
 //-- public implementation -----
 ServerControllerView::ServerControllerView(const int device_id)
@@ -697,9 +697,9 @@ void ServerControllerView::publish_device_data_frame()
 void ServerControllerView::generate_controller_data_frame_for_stream(
     const ServerControllerView *controller_view,
     const ControllerStreamInfo *stream_info,
-    DeviceDataFramePtr &data_frame)
+    DeviceOutputDataFramePtr &data_frame)
 {
-    PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *controller_data_frame= 
+    PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *controller_data_frame= 
         data_frame->mutable_controller_data_packet();
 
     controller_data_frame->set_controller_id(controller_view->getDeviceID());
@@ -720,13 +720,13 @@ void ServerControllerView::generate_controller_data_frame_for_stream(
         assert(0 && "Unhandled controller type");
     }
 
-    data_frame->set_device_category(PSMoveProtocol::DeviceDataFrame::CONTROLLER);
+    data_frame->set_device_category(PSMoveProtocol::DeviceOutputDataFrame::CONTROLLER);
 }
 
 static void generate_psmove_data_frame_for_stream(
     const ServerControllerView *controller_view,
     const ControllerStreamInfo *stream_info,
-    DeviceDataFramePtr &data_frame)
+    DeviceOutputDataFramePtr &data_frame)
 {
     const PSMoveController *psmove_controller= controller_view->castCheckedConst<PSMoveController>();
     const PSMoveControllerConfig *psmove_config= psmove_controller->getConfig();
@@ -766,15 +766,15 @@ static void generate_psmove_data_frame_for_stream(
         psmove_data_frame->set_trigger_value(psmove_state->TriggerValue);
 
         unsigned int button_bitmask= 0;
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::TRIANGLE, psmove_state->Triangle);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::CIRCLE, psmove_state->Circle);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::CROSS, psmove_state->Cross);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::SQUARE, psmove_state->Square);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::SELECT, psmove_state->Select);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::START, psmove_state->Start);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::PS, psmove_state->PS);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::MOVE, psmove_state->Move);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::TRIGGER, psmove_state->Trigger);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::TRIANGLE, psmove_state->Triangle);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::CIRCLE, psmove_state->Circle);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::CROSS, psmove_state->Cross);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::SQUARE, psmove_state->Square);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::SELECT, psmove_state->Select);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::START, psmove_state->Start);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::PS, psmove_state->PS);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::MOVE, psmove_state->Move);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::TRIGGER, psmove_state->Trigger);
         controller_data_frame->set_button_down_bitmask(button_bitmask);
 
         // If requested, get the raw sensor data for the controller
@@ -911,10 +911,10 @@ static void generate_psmove_data_frame_for_stream(
 static void generate_psnavi_data_frame_for_stream(
     const ServerControllerView *controller_view,
     const ControllerStreamInfo *stream_info,
-    DeviceDataFramePtr &data_frame)
+    DeviceOutputDataFramePtr &data_frame)
 {
-    PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *controller_data_frame = data_frame->mutable_controller_data_packet();
-    PSMoveProtocol::DeviceDataFrame_ControllerDataPacket_PSNaviState *psnavi_data_frame = controller_data_frame->mutable_psnavi_state();
+    PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *controller_data_frame = data_frame->mutable_controller_data_packet();
+    PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket_PSNaviState *psnavi_data_frame = controller_data_frame->mutable_psnavi_state();
 
     const CommonControllerState *controller_state= controller_view->getState();
 
@@ -928,16 +928,16 @@ static void generate_psnavi_data_frame_for_stream(
         psnavi_data_frame->set_stick_yaxis(psnavi_state->Stick_YAxis);
 
         unsigned int button_bitmask= 0;
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::L1, psnavi_state->L1);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::L2, psnavi_state->L2);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::L3, psnavi_state->L3);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::CIRCLE, psnavi_state->Circle);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::CROSS, psnavi_state->Cross);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::PS, psnavi_state->PS);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::UP, psnavi_state->DPad_Up);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::RIGHT, psnavi_state->DPad_Right);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::DOWN, psnavi_state->DPad_Down);
-        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceDataFrame_ControllerDataPacket::LEFT, psnavi_state->DPad_Left);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::L1, psnavi_state->L1);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::L2, psnavi_state->L2);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::L3, psnavi_state->L3);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::CIRCLE, psnavi_state->Circle);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::CROSS, psnavi_state->Cross);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::PS, psnavi_state->PS);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::UP, psnavi_state->DPad_Up);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::RIGHT, psnavi_state->DPad_Right);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::DOWN, psnavi_state->DPad_Down);
+        SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::LEFT, psnavi_state->DPad_Left);
         controller_data_frame->set_button_down_bitmask(button_bitmask);
     }
 

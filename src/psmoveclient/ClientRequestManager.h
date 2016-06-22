@@ -13,7 +13,6 @@ public:
     virtual ~ClientRequestManager();
 
     void send_request(RequestPtr request);
-    void send_request_no_reply(RequestPtr request);
 
     virtual void handle_request_canceled(RequestPtr request) override;
     virtual void handle_response(ResponsePtr response) override;

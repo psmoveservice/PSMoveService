@@ -24,6 +24,7 @@ public:
 
     bool startup();
     void send_request(RequestPtr request);
+    void send_device_data_frame(DeviceInputDataFramePtr data_frame);
     void update();
     void shutdown();
 

@@ -48,11 +48,12 @@ public:
         , m_has_pending_tcp_read(false)
         , m_has_pending_tcp_write(false)
         , m_has_pending_udp_read(false)
+        , m_has_pending_udp_write(false)
 
         , m_response_read_buffer()
         , m_packed_response(std::shared_ptr<PSMoveProtocol::Response>(new PSMoveProtocol::Response()))
 
-        , m_packed_data_frame(std::shared_ptr<PSMoveProtocol::DeviceDataFrame>(new PSMoveProtocol::DeviceDataFrame()))
+        , m_packed_output_data_frame(std::shared_ptr<PSMoveProtocol::DeviceOutputDataFrame>(new PSMoveProtocol::DeviceOutputDataFrame()))
     
         , m_write_bufer()
         , m_packed_request()
@@ -63,7 +64,7 @@ public:
         , m_netEventListener(netEventListener)
         , m_pending_requests()
     {
-        memset(m_data_frame_read_buffer, 0, sizeof(m_data_frame_read_buffer));
+        memset(m_output_data_frame_buffer, 0, sizeof(m_output_data_frame_buffer));
     }
 
     bool start()
@@ -83,9 +84,40 @@ public:
         start_tcp_write_request();
     }
 
+    void send_device_data_frame(DeviceInputDataFramePtr data_frame)
+    {
+        // Stamp the packet with the connection ID before it goes out
+        data_frame->set_connection_id(m_tcp_connection_id);
+
+        m_pending_data_frames.push_back(data_frame);
+        start_udp_queued_data_frame_write();
+    }
+
     void poll()
     {
-        m_io_service.poll();
+        bool keep_polling = true;
+        int iteration_count = 0;
+        const static int k_max_iteration_count = 32;
+
+        while (keep_polling && iteration_count < k_max_iteration_count)
+        {
+            // Start any pending writes on the UDP socket that can be started
+            start_udp_queued_data_frame_write();
+
+            // This call can execute any of the following callbacks:
+            // * TCP request has finished writing
+            // * TCP response has finished receiving
+            // * UDP data frame has finished writing
+            m_io_service.poll();
+
+            // In the event that a UDP data frame write completed immediately,
+            // we should start another UDP data frame write.
+            keep_polling = m_pending_data_frames.size() > 0;
+
+            // ... but don't re-run this too many times
+            ++iteration_count;
+        }
+
     }
 
     void stop()
@@ -136,6 +168,8 @@ public:
         m_connection_stopped= true;
         m_has_pending_tcp_read= false;
         m_has_pending_tcp_write= false;
+        m_has_pending_udp_read = false;
+        m_has_pending_udp_write = false;
     }
 
 private:
@@ -242,10 +276,32 @@ private:
         CLIENT_LOG_INFO("ClientNetworkManager::send_udp_connection_id") 
             << "Sending connection id to server over UDP: " << m_tcp_connection_id << std::endl;
 
-        m_udp_socket.async_send_to(
-            boost::asio::buffer(&m_tcp_connection_id, sizeof(m_tcp_connection_id)), 
-            m_udp_server_endpoint,
-            boost::bind(&ClientNetworkManagerImpl::handle_udp_write_connection_id, this, boost::asio::placeholders::error));
+        // Package the connection ID in a device input data frame with an invalid device
+        DeviceInputDataFramePtr data_frame(new PSMoveProtocol::DeviceInputDataFrame);
+        data_frame->set_connection_id(m_tcp_connection_id);
+        data_frame->set_device_category(PSMoveProtocol::DeviceInputDataFrame_DeviceCategory_INVALID);
+
+        m_packed_input_data_frame.set_msg(data_frame);
+        if (m_packed_input_data_frame.pack(m_input_data_frame_buffer, sizeof(m_input_data_frame_buffer)))
+        {
+            int msg_size = m_packed_input_data_frame.get_msg()->ByteSize();
+
+            CLIENT_LOG_DEBUG("ClientNetworkManager::send_udp_connection_id") << "Sending UDP Connection DataFrame";
+            CLIENT_LOG_DEBUG("   ") << show_hex(m_input_data_frame_buffer, HEADER_SIZE + msg_size);
+            CLIENT_LOG_DEBUG("   ") << msg_size << " bytes";
+
+            // Start an asynchronous operation to send the data frame
+            // NOTE: Even if the write completes immediate, the callback will only be called from io_service::poll()
+            m_udp_socket.async_send_to(
+                boost::asio::buffer(m_input_data_frame_buffer, sizeof(m_input_data_frame_buffer)),
+                m_udp_server_endpoint,
+                boost::bind(&ClientNetworkManagerImpl::handle_udp_write_connection_id, this, _1));
+        }
+        else
+        {
+            CLIENT_LOG_ERROR("ClientNetworkManager::send_udp_connection_id")
+                << "DataFrame too big to fit in packet!";
+        }
     }
 
     void handle_udp_write_connection_id(const boost::system::error_code& error)
@@ -498,7 +554,7 @@ private:
 
             // Remove the request from the pending send queue not that it's sent
             m_pending_requests.pop_front();
-
+            
             // Start listening for the response
             start_tcp_read_response_header();
 
@@ -518,13 +574,76 @@ private:
         }
     }
 
+    void start_udp_queued_data_frame_write()
+    {
+        if (!m_connection_stopped)
+        {
+            if (!m_has_pending_udp_write)
+            {
+                if (m_pending_data_frames.size() > 0)
+                {
+                    DeviceInputDataFramePtr dataframe = m_pending_data_frames.front();
+
+                    m_packed_input_data_frame.set_msg(dataframe);
+                    if (m_packed_input_data_frame.pack(m_input_data_frame_buffer, sizeof(m_input_data_frame_buffer)))
+                    {
+                        int msg_size = m_packed_input_data_frame.get_msg()->ByteSize();
+
+                        CLIENT_LOG_DEBUG("ClientNetworkManager::start_udp_queued_data_frame_write") << "Sending UDP DataFrame";
+                        CLIENT_LOG_DEBUG("   ") << show_hex(m_input_data_frame_buffer, HEADER_SIZE + msg_size);
+                        CLIENT_LOG_DEBUG("   ") << msg_size << " bytes";
+
+                        // The queue should prevent us from writing more than one data frame at once
+                        assert(!m_has_pending_udp_write);
+                        m_has_pending_udp_write = true;
+
+                        // Start an asynchronous operation to send the data frame
+                        // NOTE: Even if the write completes immediate, the callback will only be called from io_service::poll()
+                        m_udp_socket.async_send_to(
+                            boost::asio::buffer(m_input_data_frame_buffer, sizeof(m_input_data_frame_buffer)),
+                            m_udp_server_endpoint,
+                            boost::bind(&ClientNetworkManagerImpl::handle_udp_write_device_data_frame_complete, this, _1));
+                    }
+                    else
+                    {
+                        CLIENT_LOG_ERROR("ClientNetworkManager::start_udp_queued_data_frame_write")
+                            << "DataFrame too big to fit in packet!";
+                    }
+                }
+            }
+        }
+    }
+
+    void handle_udp_write_device_data_frame_complete(const boost::system::error_code& ec)
+    {
+        if (m_connection_stopped)
+            return;
+
+        if (!ec)
+        {
+            CLIENT_LOG_TRACE("ClientNetworkManager::handle_udp_write_device_data_frame_complete")
+                << "Sent UDP data frame";
+
+            // no longer is there a pending write
+            m_has_pending_udp_write = false;
+
+            // Remove the dataframe from the pending send queue now that it's sent
+            m_pending_data_frames.pop_front();
+        }
+        else
+        {
+            CLIENT_LOG_ERROR("ClientNetworkManager::handle_udp_write_device_data_frame_complete")
+                << "Error sending data frame: " << ec.message();
+        }
+    }
+
     void start_udp_read_data_frame()
     {
         if (!m_has_pending_udp_read)
         {
             m_has_pending_udp_read= true;
             m_udp_socket.async_receive_from(
-                asio::buffer(m_data_frame_read_buffer, sizeof(m_data_frame_read_buffer)),
+                asio::buffer(m_output_data_frame_buffer, sizeof(m_output_data_frame_buffer)),
                 m_udp_server_endpoint,
                 boost::bind(
                     &ClientNetworkManagerImpl::handle_udp_read_data_frame, 
@@ -571,15 +690,15 @@ private:
         CLIENT_LOG_DEBUG("ClientNetworkManager::handle_udp_data_frame_received") << "Parsing DataFrame" << std::endl;
         
         // TODO: Switch on data frame type to choose which m_packed_data_frame_X to use.
-        unsigned msg_len = m_packed_data_frame.decode_header(m_data_frame_read_buffer, sizeof(m_data_frame_read_buffer));
+        unsigned msg_len = m_packed_output_data_frame.decode_header(m_output_data_frame_buffer, sizeof(m_output_data_frame_buffer));
         unsigned total_len= HEADER_SIZE+msg_len;
-        CLIENT_LOG_DEBUG("    ") << show_hex(m_data_frame_read_buffer, total_len) << std::endl;
+        CLIENT_LOG_DEBUG("    ") << show_hex(m_output_data_frame_buffer, total_len) << std::endl;
         CLIENT_LOG_DEBUG("    ") << msg_len << " bytes" << std::endl;
 
         // Parse the response buffer
-        if (m_packed_data_frame.unpack(m_data_frame_read_buffer, total_len))
+        if (m_packed_output_data_frame.unpack(m_output_data_frame_buffer, total_len))
         {
-            DeviceDataFramePtr data_frame = m_packed_data_frame.get_msg();
+            DeviceOutputDataFramePtr data_frame = m_packed_output_data_frame.get_msg();
 
             m_data_frame_listener->handle_data_frame(data_frame);
         }
@@ -590,7 +709,7 @@ private:
 
             if (m_netEventListener)
             {
-                //###bwalker $TODO pick a better error code that means "malformed data"
+                //###HipsterSloth $TODO pick a better error code that means "malformed data"
                 m_netEventListener->handle_server_connection_socket_error(boost::asio::error::message_size);
             }
         }
@@ -613,13 +732,16 @@ private:
     bool m_has_pending_tcp_read;
     bool m_has_pending_tcp_write;
     bool m_has_pending_udp_read;
+    bool m_has_pending_udp_write;
     
     vector<uint8_t> m_response_read_buffer;
     PackedMessage<PSMoveProtocol::Response> m_packed_response;
 
-    uint8_t m_data_frame_read_buffer[HEADER_SIZE+MAX_DATA_FRAME_MESSAGE_SIZE];
-    
-    PackedMessage<PSMoveProtocol::DeviceDataFrame> m_packed_data_frame;
+    uint8_t m_output_data_frame_buffer[HEADER_SIZE+MAX_OUTPUT_DATA_FRAME_MESSAGE_SIZE];
+    PackedMessage<PSMoveProtocol::DeviceOutputDataFrame> m_packed_output_data_frame;
+
+    uint8_t m_input_data_frame_buffer[HEADER_SIZE + MAX_INPUT_DATA_FRAME_MESSAGE_SIZE];
+    PackedMessage<PSMoveProtocol::DeviceInputDataFrame> m_packed_input_data_frame;
     
     vector<uint8_t> m_write_bufer;
     PackedMessage<PSMoveProtocol::Request> m_packed_request;
@@ -630,6 +752,7 @@ private:
     IClientNetworkEventListener *m_netEventListener;
 
     deque<RequestPtr> m_pending_requests;
+    deque<DeviceInputDataFramePtr> m_pending_data_frames;
 };
 
 // -ClientNetworkManager-
@@ -670,6 +793,11 @@ bool ClientNetworkManager::startup()
 void ClientNetworkManager::send_request(RequestPtr request)
 {
     m_implementation_ptr->send_request(request);
+}
+
+void ClientNetworkManager::send_device_data_frame(DeviceInputDataFramePtr data_frame)
+{
+    m_implementation_ptr->send_device_data_frame(data_frame);
 }
 
 void ClientNetworkManager::update()

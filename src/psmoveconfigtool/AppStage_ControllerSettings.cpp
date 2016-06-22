@@ -3,6 +3,7 @@
 #include "AppStage_MagnetometerCalibration.h"
 #include "AppStage_MainMenu.h"
 #include "AppStage_PairController.h"
+#include "AppStage_TestRumble.h"
 #include "App.h"
 #include "Camera.h"
 #include "MathUtility.h"
@@ -240,6 +241,11 @@ void AppStage_ControllerSettings::renderUI()
                     {
                         m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(true);
                         m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
+                    }
+
+                    if (ImGui::Button("Test Rumble"))
+                    {
+                        m_app->setAppStage(AppStage_TestRumble::APP_STAGE_NAME);
                     }
                 }
             }

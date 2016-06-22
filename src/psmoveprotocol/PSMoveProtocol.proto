@@ -108,12 +108,10 @@ message Request {
         GET_CONTROLLER_LIST = 0;
         START_CONTROLLER_DATA_STREAM = 1;
         STOP_CONTROLLER_DATA_STREAM = 2;
-        SET_RUMBLE = 3;
         RESET_POSE = 4;
         UNPAIR_CONTROLLER= 5;
         PAIR_CONTROLLER= 6;
         CANCEL_BLUETOOTH_REQUEST= 7;
-        SET_LED_COLOR= 8;
         SET_LED_TRACKING_COLOR= 9;
         SET_MAGNETOMETER_CALIBRATION= 10;
 
@@ -158,13 +156,6 @@ message Request {
     }
     RequestStopPSMoveDataStream request_stop_psmove_data_stream = 5;
 
-    // Parameters for SET_RUMBLE
-    message RequestSetRumble {
-        int32 controller_id = 1;
-        int32 rumble = 2; // [0,255]
-    }
-    RequestSetRumble request_rumble = 6;
-
     // Parameters for RESET_POSE
     message RequestResetPose {
         int32 controller_id = 1;
@@ -188,15 +179,6 @@ message Request {
         int32 controller_id = 1;
     }
     RequestCancelBluetoothRequest cancel_bluetooth_request = 10;    
-    
-    // Parameters for SET_LED_COLOR
-    message RequestSetLEDColor {
-        int32 controller_id = 1;
-        int32 r = 2;
-        int32 g = 3;
-        int32 b = 4;
-    }
-    RequestSetLEDColor set_led_color_request = 11;
     
     // Parameters for SET_LED_TRACKING_COLOR
     message RequestSetLEDTrackingColor {
@@ -443,8 +425,8 @@ message Response {
     ResultGetHMDTrackingSpaceSettings result_get_hmd_tracking_space_settings = 29;
 }
 
-// Unreliable (UDP) device data packet format
-message DeviceDataFrame 
+// Unreliable (UDP) device data packet sent from service to clients
+message DeviceOutputDataFrame 
 {
     // The device type
     enum DeviceCategory 
@@ -580,4 +562,48 @@ message DeviceDataFrame
         bool IsConnected= 4;                
     }
     TrackerDataPacket tracker_data_packet = 3;
+}
+
+// Unreliable (UDP) device data packet sent from clients to service
+message DeviceInputDataFrame 
+{
+    // The id of the connection this data frame came from
+    int32 connection_id= 1;
+    
+    // The device update type
+    enum DeviceCategory 
+    {
+        INVALID = 0;
+        CONTROLLER= 1;
+    }
+    DeviceCategory device_category= 2;
+    
+    // Input packet for a controller
+    message ControllerDataPacket
+    {
+        // The id of controller this data is for
+        int32 controller_id= 1;
+
+        // Specify the type of controller this data is from
+        ControllerType controller_type= 2;
+        
+        // Monotonically increasing number.
+        // Used to throw out old data if it arrives out of order.
+        int32 sequence_num= 3;
+        
+        // PSMove Specific Controller state
+        message PSMoveState
+        {   
+            // Analog rumble value [0,255]
+            int32 rumble_value = 1;
+
+            // LED override ([0, 255], [0, 255], [0, 255])
+            // (0, 0, 0) clears the override and defaults back to tracking color
+            int32 led_r = 2;
+            int32 led_g = 3;
+            int32 led_b = 4;            
+        }
+        PSMoveState psmove_state = 4;  
+    }
+    ControllerDataPacket controller_data_packet = 3;
 }

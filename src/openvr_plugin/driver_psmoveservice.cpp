@@ -1209,7 +1209,7 @@ void CPSMoveControllerLatest::UpdateTrackingState()
 
 void CPSMoveControllerLatest::UpdateRumbleState()
 {
-    const float k_max_rumble_update_rate = 200.f; // Don't bother trying to update the rumble faster than 5fps (200ms)
+    const float k_max_rumble_update_rate = 33.f; // Don't bother trying to update the rumble faster than 30fps (33ms)
     const float k_max_pulse_microseconds = 1000.f; // Docs suggest max pulse duration of 5ms, but we'll call 1ms max
 
     std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
@@ -1244,9 +1244,17 @@ void CPSMoveControllerLatest::UpdateRumbleState()
             rumble_fraction = 1.f;
         }
 
-        //###HipsterSloth $TODO Disable rumble until I can figure out why it's murdering the connection
         // Actually send the rumble to the server
-        //ClientPSMoveAPI::set_controller_rumble(m_controller_view, rumble_fraction);
+        switch (m_controller_view->GetControllerViewType())
+        {
+        case ClientControllerView::PSMove:
+            m_controller_view->GetPSMoveViewMutable().SetRumble(rumble_fraction);
+            break;
+        case ClientControllerView::PSNavi:
+            break;
+        default:
+            assert(0 && "Unreachable");
+        }
 
         // Remember the last rumble we went and when we sent it
         m_lastTimeRumbleSent = now;
@@ -1272,7 +1280,7 @@ void CPSMoveControllerLatest::Update()
 
     if (IsActivated() && m_controller_view->GetIsConnected())
     {
-        int seq_num= m_controller_view->GetSequenceNum();
+        int seq_num= m_controller_view->GetOutputSequenceNum();
 
         // Only other updating incoming state if it actually changed
         if (m_nPoseSequenceNumber != seq_num)

@@ -10,8 +10,10 @@
 //-- pre-declarations -----
 namespace PSMoveProtocol
 {
-    class DeviceDataFrame;
-    class DeviceDataFrame_ControllerDataPacket;
+    class DeviceOutputDataFrame;
+    class DeviceOutputDataFrame_ControllerDataPacket;
+    class DeviceInputDataFrame;
+    class DeviceInputDataFrame_ControllerDataPacket;
 };
 
 //-- constants -----
@@ -143,6 +145,7 @@ private:
     bool bHasValidHardwareCalibration;
     bool bIsTrackingEnabled;
     bool bIsCurrentlyTracking;
+    bool bHasUnpublishedState;
 
     PSMovePose Pose;
     PSMovePhysicsData PhysicsData;
@@ -161,12 +164,16 @@ private:
 
     unsigned char TriggerValue;
 
-//    unsigned char CurrentRumble;
-//    unsigned char RumbleRequest;
+    unsigned char Rumble;
+    unsigned char LED_r, LED_g, LED_b;
 
 public:
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame);
+    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
+    void Publish(PSMoveProtocol::DeviceInputDataFrame_ControllerDataPacket *data_frame);
+
+    void SetRumble(float rumbleFraction);
+    void SetLEDOverride(unsigned char red, unsigned char g, unsigned char b);
 
     inline bool IsValid() const
     {
@@ -191,6 +198,11 @@ public:
     inline bool GetIsTrackingEnabled() const
     {
         return IsValid() ? bIsTrackingEnabled : false;
+    }
+
+    inline bool GetHasUnpublishedState() const
+    {
+        return IsValid() ? bHasUnpublishedState : false;
     }
 
     inline const PSMovePose &GetPose() const
@@ -258,6 +270,11 @@ public:
         return IsValid() ? ((float)TriggerValue / 255.f) : 0.f;
     }
 
+    inline float GetRumble() const
+    {
+        return IsValid() ? static_cast<float>(Rumble) / 255.f : 0.f;
+    }
+
     const PSMovePhysicsData &GetPhysicsData() const;
     const PSMoveRawSensorData &GetRawSensorData() const;
     const PSMoveFloatVector3 &GetIdentityGravityCalibrationDirection() const;
@@ -289,11 +306,17 @@ private:
 
 public:
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame);
+    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
+    void Publish(PSMoveProtocol::DeviceInputDataFrame_ControllerDataPacket *data_frame);
 
     inline bool IsValid() const
     {
         return bValid;
+    }
+
+    inline bool GetHasUnpublishedState() const
+    {
+        return false;
     }
 
     inline PSMoveButtonState GetButtonL1() const
@@ -404,7 +427,8 @@ private:
     eControllerType ControllerViewType;
 
     int ControllerID;
-    int SequenceNum;
+    int OutputSequenceNum;
+    int InputSequenceNum;
     int ListenerCount;
 
     bool IsConnected;
@@ -416,7 +440,8 @@ public:
     ClientControllerView(int ControllerID);
 
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame);
+    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
+    void Publish();
 
     // Listener State
     inline void IncListenerCount()
@@ -441,10 +466,17 @@ public:
         return ControllerID;
     }
 
-    inline int GetSequenceNum() const
+    inline int GetOutputSequenceNum() const
     {
-        return IsValid() ? SequenceNum : -1;
+        return IsValid() ? OutputSequenceNum : -1;
     }
+
+    inline int GetInputSequenceNum() const
+    {
+        return IsValid() ? InputSequenceNum : -1;
+    }
+
+    bool GetHasUnpublishedState() const;
 
     inline eControllerType GetControllerViewType() const
     {

@@ -5,17 +5,20 @@
 #include <memory>
 
 //-- constants -----
-#define MAX_DATA_FRAME_MESSAGE_SIZE 500
+#define MAX_OUTPUT_DATA_FRAME_MESSAGE_SIZE 500
+#define MAX_INPUT_DATA_FRAME_MESSAGE_SIZE 64
  
 //-- pre-declarations -----
 namespace PSMoveProtocol
 {
-    class DeviceDataFrame;
+    class DeviceOutputDataFrame;
+    class DeviceInputDataFrame;
 	class Request;
 	class Response;
 };
 
-typedef std::shared_ptr<PSMoveProtocol::DeviceDataFrame> DeviceDataFramePtr;
+typedef std::shared_ptr<PSMoveProtocol::DeviceOutputDataFrame> DeviceOutputDataFramePtr;
+typedef std::shared_ptr<PSMoveProtocol::DeviceInputDataFrame> DeviceInputDataFramePtr;
 typedef std::shared_ptr<PSMoveProtocol::Request> RequestPtr;
 typedef std::shared_ptr<PSMoveProtocol::Response> ResponsePtr;
 
@@ -29,7 +32,7 @@ public:
 class IDataFrameListener
 {
 public:
-    virtual void handle_data_frame(DeviceDataFramePtr data_frame) = 0;
+    virtual void handle_data_frame(DeviceOutputDataFramePtr data_frame) = 0;
 };
 
 class IResponseListener

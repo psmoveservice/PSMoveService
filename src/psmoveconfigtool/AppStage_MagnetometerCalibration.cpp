@@ -136,13 +136,13 @@ void AppStage_MagnetometerCalibration::update()
 {
     bool bControllerDataUpdatedThisFrame= false;
 
-    if (m_isControllerStreamActive && m_controllerView->GetSequenceNum() != m_lastControllerSeqNum)
+    if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
     {
         const PSMoveRawSensorData &sensorData= m_controllerView->GetPSMoveView().GetRawSensorData();
 
         m_lastMagnetometer= sensorData.Magnetometer;
         m_lastAccelerometer= sensorData.Accelerometer;
-        m_lastControllerSeqNum= m_controllerView->GetSequenceNum();
+        m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
         bControllerDataUpdatedThisFrame= true;
     }
 
@@ -243,8 +243,8 @@ void AppStage_MagnetometerCalibration::update()
                             m_led_color_r = led_color_r;
                             m_led_color_g = led_color_g;
                             m_led_color_b = led_color_b;
-                            ClientPSMoveAPI::set_led_color(
-                                m_controllerView, m_led_color_r, m_led_color_g, m_led_color_b);
+                            
+                            m_controllerView->GetPSMoveViewMutable().SetLEDOverride(m_led_color_r, m_led_color_g, m_led_color_b);
                         }
                     }
                 }
@@ -597,7 +597,7 @@ void AppStage_MagnetometerCalibration::renderUI()
 
                     if ((m_samplePercentage > 60) && ImGui::Button("Force Accept"))
                     {
-                        ClientPSMoveAPI::set_led_color(m_controllerView, 0, 0, 0);
+                        m_controllerView->GetPSMoveViewMutable().SetLEDOverride(0, 0, 0);
                         m_menuState = waitForGravityAlignment;
                     }
                     ImGui::SameLine();
@@ -606,7 +606,7 @@ void AppStage_MagnetometerCalibration::renderUI()
                 {
                     if (ImGui::Button("Ok"))
                     {
-                        ClientPSMoveAPI::set_led_color(m_controllerView, 0, 0, 0);
+                        m_controllerView->GetPSMoveViewMutable().SetLEDOverride(0, 0, 0);
                         m_menuState = waitForGravityAlignment;
                     }
                     ImGui::SameLine();
@@ -801,7 +801,7 @@ void AppStage_MagnetometerCalibration::request_exit_to_app_stage(const char *app
         if (m_isControllerStreamActive)
         {
             m_pendingAppStage= app_stage_name;
-            ClientPSMoveAPI::set_led_color(m_controllerView, 0, 0, 0);
+            m_controllerView->GetPSMoveViewMutable().SetLEDOverride(0, 0, 0);
 
             ClientPSMoveAPI::register_callback(
                 ClientPSMoveAPI::stop_controller_data_stream(m_controllerView), 

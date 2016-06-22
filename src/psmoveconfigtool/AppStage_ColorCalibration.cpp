@@ -666,7 +666,7 @@ void AppStage_ColorCalibration::request_set_controller_tracking_color(
         assert(0 && "unreachable");
     }
 
-    ClientPSMoveAPI::set_led_color(m_controllerView, r, g, b);
+    m_controllerView->GetPSMoveViewMutable().SetLEDOverride(r, g, b);
 }
 
 void AppStage_ColorCalibration::request_tracker_start_stream()
@@ -1011,7 +1011,7 @@ void AppStage_ColorCalibration::release_devices()
 
     if (m_controllerView != nullptr)
     {
-        ClientPSMoveAPI::set_led_color(m_controllerView, 0, 0, 0);
+        m_controllerView->GetPSMoveViewMutable().SetLEDOverride(0, 0, 0);
         ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(m_controllerView));
         ClientPSMoveAPI::free_controller_view(m_controllerView);
         m_controllerView = nullptr;

@@ -83,8 +83,24 @@ public:
         m_request_manager.flush_response_cache();
         m_event_reference_cache.clear();
 
+        // Publish modified device state back to the service
+        publish();
+
         // Process incoming/outgoing networking requests
         m_network_manager.update();
+    }
+
+    void publish()
+    {
+        // Publish all of the modified controller state
+        for (t_controller_view_map_iterator view_entry = m_controller_view_map.begin();
+            view_entry != m_controller_view_map.end();
+            ++view_entry)
+        {
+            ClientControllerView *controllerView= view_entry->second;
+
+            controllerView->Publish();
+        }
     }
 
     bool poll_next_message(ClientPSMoveAPI::Message *message, size_t message_size)
@@ -240,42 +256,6 @@ public:
         return request->request_id();
     }
 
-    void set_controller_rumble(ClientControllerView * view, float rumble_amount)
-    {
-        CLIENT_LOG_DEBUG("set_controller_rumble") << "request set rumble to " << rumble_amount << " for ControllerID: " << view->GetControllerID() << std::endl;
-
-        assert(m_controller_view_map.find(view->GetControllerID()) != m_controller_view_map.end());
-
-        // Tell the psmove service to set the rumble controller
-        // Internally rumble values are in the range [0, 255]
-        RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_SET_RUMBLE);
-        request->mutable_request_rumble()->set_controller_id(view->GetControllerID());
-        request->mutable_request_rumble()->set_rumble(static_cast<int>(rumble_amount * 255.f));
-
-        m_request_manager.send_request_no_reply(request);
-    }
-
-    void set_led_color(
-        ClientControllerView *view, 
-        unsigned char r, unsigned char g, unsigned b)
-    {
-        CLIENT_LOG_DEBUG("set_controller_rumble") << "request set color to " << (int)r << "," << (int)g << "," << (int)b <<
-            " for PSMoveID: " << view->GetControllerID() << std::endl;
-
-        assert(m_controller_view_map.find(view->GetControllerID()) != m_controller_view_map.end());
-
-        // Tell the psmove service to set the led color
-        RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_SET_LED_COLOR);
-        request->mutable_set_led_color_request()->set_controller_id(view->GetControllerID());
-        request->mutable_set_led_color_request()->set_r(static_cast<int>(r));
-        request->mutable_set_led_color_request()->set_g(static_cast<int>(g));
-        request->mutable_set_led_color_request()->set_b(static_cast<int>(b));
-
-        m_request_manager.send_request_no_reply(request);
-    }
-
     ClientPSMoveAPI::t_request_id set_led_tracking_color(
         ClientControllerView *view,
         PSMoveTrackingColorType tracking_color)
@@ -421,13 +401,13 @@ public:
     }
 
     // IDataFrameListener
-    virtual void handle_data_frame(DeviceDataFramePtr data_frame) override
+    virtual void handle_data_frame(DeviceOutputDataFramePtr data_frame) override
     {
         switch (data_frame->device_category())
         {
-        case PSMoveProtocol::DeviceDataFrame::CONTROLLER:
+        case PSMoveProtocol::DeviceOutputDataFrame::CONTROLLER:
             {
-                const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket& controller_packet= data_frame->controller_data_packet();
+                const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket& controller_packet= data_frame->controller_data_packet();
 
                 CLIENT_LOG_TRACE("handle_data_frame") 
                     << "received data frame for ControllerID: " 
@@ -442,9 +422,9 @@ public:
                     view->ApplyControllerDataFrame(&controller_packet);
                 }
             } break;
-        case PSMoveProtocol::DeviceDataFrame::TRACKER:
+        case PSMoveProtocol::DeviceOutputDataFrame::TRACKER:
             {
-                const PSMoveProtocol::DeviceDataFrame_TrackerDataPacket& tracker_packet = data_frame->tracker_data_packet();
+                const PSMoveProtocol::DeviceOutputDataFrame_TrackerDataPacket& tracker_packet = data_frame->tracker_data_packet();
 
                 CLIENT_LOG_TRACE("handle_data_frame")
                     << "received data frame for TrackerID: "
@@ -807,28 +787,6 @@ ClientPSMoveAPI::stop_controller_data_stream(
     }
 
     return request_id;
-}
-
-void 
-ClientPSMoveAPI::set_controller_rumble(
-    ClientControllerView * view, 
-    float rumble_amount)
-{
-    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
-    {
-        ClientPSMoveAPI::m_implementation_ptr->set_controller_rumble(view, rumble_amount);
-    }
-}
-
-void
-ClientPSMoveAPI::set_led_color(
-    ClientControllerView *view, 
-    unsigned char r, unsigned char g, unsigned b)
-{
-    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
-    {
-        ClientPSMoveAPI::m_implementation_ptr->set_led_color(view, r, g, b);
-    }
 }
 
 ClientPSMoveAPI::t_request_id
