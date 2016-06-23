@@ -25,7 +25,8 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     #OpenCV extra dependencies: comctl32 gdi32 ole32 setupapi ws2_32 vfw32
     #setupapi required by hidapi
-    list(APPEND PSMOVE_SERVICE_REQ_LIBS bthprops setupapi)
+    #hid required for HidD_SetOutputReport() in DualShock4 controller
+    list(APPEND PSMOVE_SERVICE_REQ_LIBS bthprops setupapi hid)
     IF(MINGW)
         #list(APPEND PSMOVE_SERVICE_REQ_LIBS stdc++)
     ENDIF(MINGW)
