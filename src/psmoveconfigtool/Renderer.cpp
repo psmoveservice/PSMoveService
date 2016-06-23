@@ -442,7 +442,7 @@ void drawTextAtWorldPosition(
     char text[1024];
     va_list args;
     va_start(args, format);
-//    int w = vsnprintf(text, sizeof(text), format, args);
+    int w = vsnprintf(text, sizeof(text), format, args);
     text[sizeof(text)-1] = 0;
     va_end(args);
 
