@@ -6,9 +6,9 @@
 #include "ControllerManager.h"
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
-#include "MathEigen.h"
 #include "OrientationFilter.h"
 #include "PS3EyeTracker.h"
+#include "PSDualShock4Controller.h"
 #include "PSMoveController.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerControllerView.h"
@@ -205,6 +205,10 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION:
                 response = new PSMoveProtocol::Response;
                 handle_request__set_magnetometer_calibration(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_SET_ACCELEROMETER_CALIBRATION:
+                response = new PSMoveProtocol::Response;
+                handle_request__set_accelerometer_calibration(context, response);
                 break;
 
             // Tracker Requests
@@ -493,6 +497,7 @@ protected:
                 streamInfo.include_position_data = request.include_position_data();
                 streamInfo.include_physics_data = request.include_physics_data();
                 streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
+                streamInfo.include_calibrated_sensor_data = request.include_calibrated_sensor_data();
                 streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
 
                 if (streamInfo.include_position_data)
@@ -766,11 +771,13 @@ protected:
         }
     }
 
-    inline void set_magnetometer_config_vector(
+    inline void set_config_vector(
         const PSMoveProtocol::FloatVector &source_vector,
-        Eigen::Vector3f &target_vector)
+        CommonDeviceVector &target_vector)
     {
-        target_vector = Eigen::Vector3f(source_vector.i(), source_vector.j(), source_vector.k());
+        target_vector.i = source_vector.i();
+        target_vector.j = source_vector.j();
+        target_vector.k = source_vector.k();
     }
 
     void handle_request__set_magnetometer_calibration(
@@ -789,23 +796,55 @@ protected:
             const PSMoveProtocol::Request_RequestSetMagnetometerCalibration &request= 
                 context.request->set_magnetometer_calibration_request();
 
-            set_magnetometer_config_vector(request.ellipse_center(), config->magnetometer_ellipsoid.center);
-            set_magnetometer_config_vector(request.ellipse_extents(), config->magnetometer_ellipsoid.extents);
-            set_magnetometer_config_vector(request.magnetometer_identity(), config->magnetometer_identity);
-            config->magnetometer_ellipsoid.error = request.ellipse_fit_error();
+            set_config_vector(request.ellipse_center(), config->magnetometer_center);
+            set_config_vector(request.ellipse_extents(), config->magnetometer_extents);
+            set_config_vector(request.magnetometer_identity(), config->magnetometer_identity);
+            config->magnetometer_error = request.ellipse_fit_error();
 
             {
-                Eigen::Vector3f basis_x, basis_y, basis_z;
+                CommonDeviceVector basis_x, basis_y, basis_z;
 
-                set_magnetometer_config_vector(request.ellipse_basis_x(), basis_x);
-                set_magnetometer_config_vector(request.ellipse_basis_y(), basis_y);
-                set_magnetometer_config_vector(request.ellipse_basis_z(), basis_z);
+                set_config_vector(request.ellipse_basis_x(), basis_x);
+                set_config_vector(request.ellipse_basis_y(), basis_y);
+                set_config_vector(request.ellipse_basis_z(), basis_z);
 
-                config->magnetometer_ellipsoid.basis.col(0) = basis_x;
-                config->magnetometer_ellipsoid.basis.col(1) = basis_y;
-                config->magnetometer_ellipsoid.basis.col(2) = basis_z;
+                config->magnetometer_basis_x = basis_x;
+                config->magnetometer_basis_y = basis_y;
+                config->magnetometer_basis_z = basis_z;
             }
 
+            config->save();
+
+            // Reset the orientation filter state the calibration changed
+            ControllerView->getOrientationFilter()->resetFilterState();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_accelerometer_calibration(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int controller_id = context.request->set_accelerometer_calibration_request().controller_id();
+
+        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+        {
+            PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+            PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+
+            const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
+                context.request->set_accelerometer_calibration_request();
+
+            set_config_vector(request.bias(), config->accelerometer_bias);
+            set_config_vector(request.gain(), config->accelerometer_gain);
+            config->accelerometer_fit_error= request.ellipse_fit_error();
             config->save();
 
             // Reset the orientation filter state the calibration changed

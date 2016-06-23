@@ -791,7 +791,7 @@ void ServerControllerView::generate_controller_data_frame_for_stream(
     switch (controller_view->getControllerDeviceType())
     {
     case CommonControllerState::PSMove:
-        {
+        {            
             generate_psmove_data_frame_for_stream(controller_view, stream_info, data_frame);
         } break;
     case CommonControllerState::PSNavi:
@@ -869,28 +869,44 @@ static void generate_psmove_data_frame_for_stream(
             auto *raw_sensor_data= psmove_data_frame->mutable_raw_sensor_data();
 
             // One frame: [mx, my, mz] 
-            assert(psmove_state->Mag.size() == 3);
-            raw_sensor_data->mutable_magnetometer()->set_i(psmove_state->Mag[0]);
-            raw_sensor_data->mutable_magnetometer()->set_j(psmove_state->Mag[1]);
-            raw_sensor_data->mutable_magnetometer()->set_k(psmove_state->Mag[2]);
+            raw_sensor_data->mutable_magnetometer()->set_i(psmove_state->RawMag[0]);
+            raw_sensor_data->mutable_magnetometer()->set_j(psmove_state->RawMag[1]);
+            raw_sensor_data->mutable_magnetometer()->set_k(psmove_state->RawMag[2]);
 
             // Two frames: [[ax0, ay0, az0], [ax1, ay1, az1]] 
             // Take the most recent frame: [ax1, ay1, az1]
-            assert(psmove_state->Accel.size() == 2);
-            assert(psmove_state->Accel[0].size() == 3);
-            assert(psmove_state->Accel[1].size() == 3);
-            raw_sensor_data->mutable_accelerometer()->set_i(psmove_state->Accel[1][0]);
-            raw_sensor_data->mutable_accelerometer()->set_j(psmove_state->Accel[1][1]);
-            raw_sensor_data->mutable_accelerometer()->set_k(psmove_state->Accel[1][2]);
+            raw_sensor_data->mutable_accelerometer()->set_i(psmove_state->RawAccel[1][0]);
+            raw_sensor_data->mutable_accelerometer()->set_j(psmove_state->RawAccel[1][1]);
+            raw_sensor_data->mutable_accelerometer()->set_k(psmove_state->RawAccel[1][2]);
 
             // Two frames: [[wx0, wy0, wz0], [wx1, wy1, wz1]] 
             // Take the most recent frame: [wx1, wy1, wz1]
-            assert(psmove_state->Gyro.size() == 2);
-            assert(psmove_state->Gyro[0].size() == 3);
-            assert(psmove_state->Gyro[1].size() == 3);
-            raw_sensor_data->mutable_gyroscope()->set_i(psmove_state->Gyro[1][0]);
-            raw_sensor_data->mutable_gyroscope()->set_j(psmove_state->Gyro[1][1]);
-            raw_sensor_data->mutable_gyroscope()->set_k(psmove_state->Gyro[1][2]);
+            raw_sensor_data->mutable_gyroscope()->set_i(psmove_state->RawGyro[1][0]);
+            raw_sensor_data->mutable_gyroscope()->set_j(psmove_state->RawGyro[1][1]);
+            raw_sensor_data->mutable_gyroscope()->set_k(psmove_state->RawGyro[1][2]);
+        }
+
+        // If requested, get the calibrated sensor data for the controller
+        if (stream_info->include_calibrated_sensor_data)
+        {
+            auto *calibrated_sensor_data = psmove_data_frame->mutable_calibrated_sensor_data();
+
+            // One frame: [mx, my, mz] 
+            calibrated_sensor_data->mutable_magnetometer()->set_i(psmove_state->CalibratedMag[0]);
+            calibrated_sensor_data->mutable_magnetometer()->set_j(psmove_state->CalibratedMag[1]);
+            calibrated_sensor_data->mutable_magnetometer()->set_k(psmove_state->CalibratedMag[2]);
+
+            // Two frames: [[ax0, ay0, az0], [ax1, ay1, az1]] 
+            // Take the most recent frame: [ax1, ay1, az1]
+            calibrated_sensor_data->mutable_accelerometer()->set_i(psmove_state->CalibratedAccel[1][0]);
+            calibrated_sensor_data->mutable_accelerometer()->set_j(psmove_state->CalibratedAccel[1][1]);
+            calibrated_sensor_data->mutable_accelerometer()->set_k(psmove_state->CalibratedAccel[1][2]);
+
+            // Two frames: [[wx0, wy0, wz0], [wx1, wy1, wz1]] 
+            // Take the most recent frame: [wx1, wy1, wz1]
+            calibrated_sensor_data->mutable_gyroscope()->set_i(psmove_state->CalibratedGyro[1][0]);
+            calibrated_sensor_data->mutable_gyroscope()->set_j(psmove_state->CalibratedGyro[1][1]);
+            calibrated_sensor_data->mutable_gyroscope()->set_k(psmove_state->CalibratedGyro[1][2]);
         }
 
         // If requested, get the raw tracker data for the controller
@@ -1109,13 +1125,27 @@ static void generate_psdualshock4_data_frame_for_stream(
         {
             auto *raw_sensor_data = psds4_data_frame->mutable_raw_sensor_data();
 
-            raw_sensor_data->mutable_accelerometer()->set_i(psds4_state->Accelerometer.i);
-            raw_sensor_data->mutable_accelerometer()->set_j(psds4_state->Accelerometer.j);
-            raw_sensor_data->mutable_accelerometer()->set_k(psds4_state->Accelerometer.k);
+            raw_sensor_data->mutable_accelerometer()->set_i(psds4_state->RawAccelerometer[0]);
+            raw_sensor_data->mutable_accelerometer()->set_j(psds4_state->RawAccelerometer[1]);
+            raw_sensor_data->mutable_accelerometer()->set_k(psds4_state->RawAccelerometer[2]);
 
-            raw_sensor_data->mutable_gyroscope()->set_i(psds4_state->Gyro.i);
-            raw_sensor_data->mutable_gyroscope()->set_j(psds4_state->Gyro.j);
-            raw_sensor_data->mutable_gyroscope()->set_k(psds4_state->Gyro.k);
+            raw_sensor_data->mutable_gyroscope()->set_i(psds4_state->RawGyro[0]);
+            raw_sensor_data->mutable_gyroscope()->set_j(psds4_state->RawGyro[1]);
+            raw_sensor_data->mutable_gyroscope()->set_k(psds4_state->RawGyro[2]);
+        }
+
+        // If requested, get the raw sensor data for the controller
+        if (stream_info->include_calibrated_sensor_data)
+        {
+            auto *calibrated_sensor_data = psds4_data_frame->mutable_calibrated_sensor_data();
+
+            calibrated_sensor_data->mutable_accelerometer()->set_i(psds4_state->CalibratedAccelerometer.i);
+            calibrated_sensor_data->mutable_accelerometer()->set_j(psds4_state->CalibratedAccelerometer.j);
+            calibrated_sensor_data->mutable_accelerometer()->set_k(psds4_state->CalibratedAccelerometer.k);
+
+            calibrated_sensor_data->mutable_gyroscope()->set_i(psds4_state->CalibratedGyro.i);
+            calibrated_sensor_data->mutable_gyroscope()->set_j(psds4_state->CalibratedGyro.j);
+            calibrated_sensor_data->mutable_gyroscope()->set_k(psds4_state->CalibratedGyro.k);
         }
 
         // If requested, get the raw tracker data for the controller
@@ -1216,7 +1246,7 @@ static void generate_psdualshock4_data_frame_for_stream(
         }
     }
 
-    controller_data_frame->set_controller_type(PSMoveProtocol::PSMOVE);
+    controller_data_frame->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
 }
 
 static void
@@ -1230,7 +1260,10 @@ init_filters_for_psmove(
     {
         // Setup the space the orientation filter operates in
         Eigen::Vector3f identityGravity = Eigen::Vector3f(0.f, 1.f, 0.f);
-        Eigen::Vector3f identityMagnetometer = psmove_config->magnetometer_identity;
+        Eigen::Vector3f identityMagnetometer = Eigen::Vector3f(
+            psmove_config->magnetometer_identity.i,
+            psmove_config->magnetometer_identity.j,
+            psmove_config->magnetometer_identity.k);
         Eigen::Matrix3f calibrationTransform = *k_eigen_identity_pose_laying_flat;
         Eigen::Matrix3f sensorTransform = *k_eigen_sensor_transform_opengl;
         OrientationFilterSpace filterSpace(identityGravity, identityMagnetometer, calibrationTransform, sensorTransform);
@@ -1269,21 +1302,11 @@ update_filters_for_psmove(
     {
         OrientationSensorPacket sensorPacket;
 
-        // Re-scale the magnetometer int-vector into a float vector in the range <-1,-1,-1> to <1,1,1>
-        // using the min and max magnetometer extents stored in the controller config.
-        {
-            const Eigen::Vector3f sample =
-                Eigen::Vector3f(
-                static_cast<float>(psmoveState->Mag[0]),
-                static_cast<float>(psmoveState->Mag[1]),
-                static_cast<float>(psmoveState->Mag[2]));
-
-            // Project the averaged magnetometer sample into the space of the ellipse
-            // And then normalize it (any deviation from unit length is error)
-            sensorPacket.magnetometer =
-                eigen_alignment_project_point_on_ellipsoid_basis(sample, config->magnetometer_ellipsoid);
-            eigen_vector3f_normalize_with_default(sensorPacket.magnetometer, Eigen::Vector3f(0.f, 1.f, 0.f));
-        }
+        sensorPacket.magnetometer =
+            Eigen::Vector3f(
+                psmoveState->CalibratedMag[0],
+                psmoveState->CalibratedMag[1],
+                psmoveState->CalibratedMag[2]);
 
         // Each state update contains two readings (one earlier and one later) of accelerometer and gyro data
         for (int frame = 0; frame < 2; ++frame)
@@ -1291,9 +1314,15 @@ update_filters_for_psmove(
             sensorPacket.orientation = orientationFilter->getOrientation();
 
             sensorPacket.accelerometer =
-                Eigen::Vector3f(psmoveState->Accel[frame][0], psmoveState->Accel[frame][1], psmoveState->Accel[frame][2]);
+                Eigen::Vector3f(
+                    psmoveState->CalibratedAccel[frame][0], 
+                    psmoveState->CalibratedAccel[frame][1], 
+                    psmoveState->CalibratedAccel[frame][2]);
             sensorPacket.gyroscope =
-                Eigen::Vector3f(psmoveState->Gyro[frame][0], psmoveState->Gyro[frame][1], psmoveState->Gyro[frame][2]);
+                Eigen::Vector3f(
+                    psmoveState->CalibratedGyro[frame][0], 
+                    psmoveState->CalibratedGyro[frame][1], 
+                    psmoveState->CalibratedGyro[frame][2]);
 
             // Update the orientation filter using the sensor packet.
             // NOTE: The magnetometer reading is the same for both sensor readings.
@@ -1386,9 +1415,15 @@ update_filters_for_psdualshock4(
         sensorPacket.orientation = orientationFilter->getOrientation();
 
         sensorPacket.accelerometer =
-            Eigen::Vector3f(psmoveState->Accelerometer.i, psmoveState->Accelerometer.j, psmoveState->Accelerometer.k);
+            Eigen::Vector3f(
+                psmoveState->CalibratedAccelerometer.i,
+                psmoveState->CalibratedAccelerometer.j,
+                psmoveState->CalibratedAccelerometer.k);
         sensorPacket.gyroscope =
-            Eigen::Vector3f(psmoveState->Gyro.i, psmoveState->Gyro.j, psmoveState->Gyro.k);
+            Eigen::Vector3f(
+                psmoveState->CalibratedGyro.i, 
+                psmoveState->CalibratedGyro.j,
+                psmoveState->CalibratedGyro.k);
 
         // Update the orientation filter using the sensor packet.
         // NOTE: The magnetometer reading is the same for both sensor readings.

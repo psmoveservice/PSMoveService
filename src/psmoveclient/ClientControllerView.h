@@ -53,14 +53,28 @@ struct CLIENTPSMOVEAPI PSMovePhysicsData
 struct CLIENTPSMOVEAPI PSMoveRawSensorData
 {
     PSMoveIntVector3 Magnetometer;
+    PSMoveIntVector3 Accelerometer;
+    PSMoveIntVector3 Gyroscope;
+
+    inline void Clear()
+    {
+        Magnetometer= *k_psmove_int_vector3_zero;
+        Accelerometer = *k_psmove_int_vector3_zero;
+        Gyroscope = *k_psmove_int_vector3_zero;
+    }
+};
+
+struct CLIENTPSMOVEAPI PSMoveCalibratedSensorData
+{
+    PSMoveFloatVector3 Magnetometer;
     PSMoveFloatVector3 Accelerometer;
     PSMoveFloatVector3 Gyroscope;
 
     inline void Clear()
     {
-        Magnetometer= *k_psmove_int_vector3_zero;
-        Accelerometer= *k_psmove_float_vector3_zero;
-        Gyroscope= *k_psmove_float_vector3_zero;
+        Magnetometer = *k_psmove_float_vector3_zero;
+        Accelerometer = *k_psmove_float_vector3_zero;
+        Gyroscope = *k_psmove_float_vector3_zero;
     }
 };
 
@@ -147,6 +161,7 @@ private:
     PSMovePose Pose;
     PSMovePhysicsData PhysicsData;
     PSMoveRawSensorData RawSensorData;
+    PSMoveCalibratedSensorData CalibratedSensorData;
     PSMoveRawTrackerData RawTrackerData;
 
     PSMoveButtonState TriangleButton;
@@ -260,6 +275,7 @@ public:
 
     const PSMovePhysicsData &GetPhysicsData() const;
     const PSMoveRawSensorData &GetRawSensorData() const;
+    const PSMoveCalibratedSensorData &GetCalibratedSensorData() const;
     const PSMoveFloatVector3 &GetIdentityGravityCalibrationDirection() const;
     bool GetIsStableAndAlignedWithGravity() const;
 
@@ -387,6 +403,18 @@ public:
 
 struct CLIENTPSMOVEAPI PSDualShock4RawSensorData
 {
+    PSMoveIntVector3 Accelerometer;
+    PSMoveIntVector3 Gyroscope;
+
+    inline void Clear()
+    {
+        Accelerometer = *k_psmove_int_vector3_zero;
+        Gyroscope = *k_psmove_int_vector3_zero;
+    }
+};
+
+struct CLIENTPSMOVEAPI PSDualShock4CalibratedSensorData
+{
     PSMoveFloatVector3 Accelerometer;
     PSMoveFloatVector3 Gyroscope;
 
@@ -408,6 +436,7 @@ private:
     PSMovePose Pose;
     PSMovePhysicsData PhysicsData;
     PSDualShock4RawSensorData RawSensorData;
+    PSDualShock4CalibratedSensorData CalibratedSensorData;
     PSMoveRawTrackerData RawTrackerData;
 
     PSMoveButtonState DPadUpButton;
@@ -606,6 +635,7 @@ public:
 
     const PSMovePhysicsData &GetPhysicsData() const;
     const PSDualShock4RawSensorData &GetRawSensorData() const;
+    const PSDualShock4CalibratedSensorData &GetCalibratedSensorData() const;
     const PSMoveFloatVector3 &GetIdentityGravityCalibrationDirection() const;
     bool GetIsStableAndAlignedWithGravity() const;
     const PSMoveRawTrackerData &GetRawTrackerData() const;

@@ -18,8 +18,11 @@
 #pragma warning (disable: 4996) // 'This function or variable may be unsafe': strcpy, strdup, sprintf, vsnprintf, sscanf, fopen
 #endif
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include <Hidsdi.h>
+#include <Hidsdi.h> // for HidD_SetOutputReport
+#endif
 
 //-- constants -----
 #define PSDS4_INPUT_REPORT_LENGTH 547
@@ -190,12 +193,12 @@ struct PSDualShock4DataInput
 
     unsigned char battery;              // byte 15, 0x00 to 0xff
 
-    unsigned char accel_y[2];           // byte 16-17, 12-bit signed x-accelerometer reading
-    unsigned char accel_x[2];           // byte 18-19, 12-bit signed y-accelerometer reading
-    unsigned char accel_z[2];           // byte 20-21, 12-bit signed z-accelerometer reading
-    unsigned char gyro_x[2];            // byte 22-23, 16-bit signed x-gyroscope reading
-    unsigned char gyro_y[2];            // byte 24-25, 16-bit signed x-gyroscope reading
-    unsigned char gyro_z[2];            // byte 26-27, 16-bit signed x-gyroscope reading
+    unsigned char gyro_x[2];            // byte 16-17, 16-bit signed x-gyroscope reading
+    unsigned char gyro_y[2];            // byte 18-19, 16-bit signed y-gyroscope reading
+    unsigned char gyro_z[2];            // byte 20-21, 16-bit signed z-gyroscope reading
+    unsigned char accel_x[2];           // byte 22-23, 12-bit signed x-accelerometer reading
+    unsigned char accel_y[2];           // byte 24-25, 12-bit signed y-accelerometer reading
+    unsigned char accel_z[2];           // byte 26-27, 12-bit signed z-accelerometer reading
 
     unsigned char _unknown1[5];         // byte 28-32, Unknown (seems to be always 0x00)
 
@@ -260,18 +263,21 @@ PSDualShock4ControllerConfig::config2ptree()
     pt.put("is_valid", is_valid);
     pt.put("version", PSDualShock4ControllerConfig::CONFIG_VERSION);
 
-    pt.put("Calibration.Accel.X.k", cal_ag_xyz_kb[0][0][0]);
-    pt.put("Calibration.Accel.X.b", cal_ag_xyz_kb[0][0][1]);
-    pt.put("Calibration.Accel.Y.k", cal_ag_xyz_kb[0][1][0]);
-    pt.put("Calibration.Accel.Y.b", cal_ag_xyz_kb[0][1][1]);
-    pt.put("Calibration.Accel.Z.k", cal_ag_xyz_kb[0][2][0]);
-    pt.put("Calibration.Accel.Z.b", cal_ag_xyz_kb[0][2][1]);
-    pt.put("Calibration.Gyro.X.k", cal_ag_xyz_kb[1][0][0]);
-    pt.put("Calibration.Gyro.X.b", cal_ag_xyz_kb[1][0][1]);
-    pt.put("Calibration.Gyro.Y.k", cal_ag_xyz_kb[1][1][0]);
-    pt.put("Calibration.Gyro.Y.b", cal_ag_xyz_kb[1][1][1]);
-    pt.put("Calibration.Gyro.Z.k", cal_ag_xyz_kb[1][2][0]);
-    pt.put("Calibration.Gyro.Z.b", cal_ag_xyz_kb[1][2][1]);
+    pt.put("Calibration.Accel.X.k", accelerometer_gain.i);
+    pt.put("Calibration.Accel.Y.k", accelerometer_gain.j);
+    pt.put("Calibration.Accel.Z.k", accelerometer_gain.k);
+    pt.put("Calibration.Accel.X.b", accelerometer_bias.i);
+    pt.put("Calibration.Accel.Y.b", accelerometer_bias.j);
+    pt.put("Calibration.Accel.Z.b", accelerometer_bias.k);
+    pt.put("Calibration.Accel.Error", accelerometer_fit_error);
+
+    pt.put("Calibration.Gyro.X.k", gyro_gain.i);
+    pt.put("Calibration.Gyro.Y.k", gyro_gain.j);
+    pt.put("Calibration.Gyro.Z.k", gyro_gain.k);
+    pt.put("Calibration.Gyro.X.b", gyro_bias.i);
+    pt.put("Calibration.Gyro.Y.b", gyro_bias.j);
+    pt.put("Calibration.Gyro.Z.b", gyro_bias.k);
+    pt.put("Calibration.Gyro.Error", gyro_fit_error);
 
     pt.put("prediction_time", prediction_time);
     pt.put("max_poll_failure_count", max_poll_failure_count);
@@ -290,19 +296,21 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         prediction_time = pt.get<float>("prediction_time", 0.f);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
 
-        cal_ag_xyz_kb[0][0][0] = pt.get<float>("Calibration.Accel.X.k", 1.0f);
-        cal_ag_xyz_kb[0][0][1] = pt.get<float>("Calibration.Accel.X.b", 0.0f);
-        cal_ag_xyz_kb[0][1][0] = pt.get<float>("Calibration.Accel.Y.k", 1.0f);
-        cal_ag_xyz_kb[0][1][1] = pt.get<float>("Calibration.Accel.Y.b", 0.0f);
-        cal_ag_xyz_kb[0][2][0] = pt.get<float>("Calibration.Accel.Z.k", 1.0f);
-        cal_ag_xyz_kb[0][2][1] = pt.get<float>("Calibration.Accel.Z.b", 0.0f);
+        accelerometer_gain.i = pt.get<float>("Calibration.Accel.X.k", accelerometer_gain.i);
+        accelerometer_gain.j = pt.get<float>("Calibration.Accel.Y.k", accelerometer_gain.j);
+        accelerometer_gain.k = pt.get<float>("Calibration.Accel.Z.k", accelerometer_gain.k);
+        accelerometer_bias.i = pt.get<float>("Calibration.Accel.X.b", accelerometer_bias.i);
+        accelerometer_bias.j = pt.get<float>("Calibration.Accel.Y.b", accelerometer_bias.j);
+        accelerometer_bias.k = pt.get<float>("Calibration.Accel.Z.b", accelerometer_bias.k);
+        accelerometer_fit_error = pt.get<float>("Calibration.Accel.Error", 0.0f);
 
-        cal_ag_xyz_kb[1][0][0] = pt.get<float>("Calibration.Gyro.X.k", 1.0f);
-        cal_ag_xyz_kb[1][0][1] = pt.get<float>("Calibration.Gyro.X.b", 0.0f);
-        cal_ag_xyz_kb[1][1][0] = pt.get<float>("Calibration.Gyro.Y.k", 1.0f);
-        cal_ag_xyz_kb[1][1][1] = pt.get<float>("Calibration.Gyro.Y.b", 0.0f);
-        cal_ag_xyz_kb[1][2][0] = pt.get<float>("Calibration.Gyro.Z.k", 1.0f);
-        cal_ag_xyz_kb[1][2][1] = pt.get<float>("Calibration.Gyro.Z.b", 0.0f);
+        gyro_gain.i = pt.get<float>("Calibration.Gyro.X.k", gyro_gain.i);
+        gyro_gain.j = pt.get<float>("Calibration.Gyro.Y.k", gyro_gain.j);
+        gyro_gain.k = pt.get<float>("Calibration.Gyro.Z.k", gyro_gain.k);
+        gyro_bias.i = pt.get<float>("Calibration.Gyro.X.b", gyro_bias.i);
+        gyro_bias.j = pt.get<float>("Calibration.Gyro.Y.b", gyro_bias.j);
+        gyro_bias.k = pt.get<float>("Calibration.Gyro.Z.b", gyro_bias.k);
+        gyro_fit_error = pt.get<float>("Calibration.Gyro.Error", 0.0f);
     }
     else
     {
@@ -822,24 +830,46 @@ PSDualShock4Controller::poll()
             // Processes the IMU data
             {
                 // Piece together the 12-bit accelerometer data
-                short raw_accelX = (short)((unsigned short)(InData->accel_x[0] << 8) | InData->accel_x[1]);
-                short raw_accelY = (short)((unsigned short)(InData->accel_y[0] << 8) | InData->accel_y[1]);
-                short raw_accelZ = (short)((unsigned short)(InData->accel_z[0] << 8) | InData->accel_z[1]);
+                short raw_accelX = static_cast<short>((InData->accel_x[1] << 8) | InData->accel_x[0]);
+                short raw_accelY = static_cast<short>((InData->accel_y[1] << 8) | InData->accel_y[0]);
+                short raw_accelZ = static_cast<short>((InData->accel_z[1] << 8) | InData->accel_z[0]);
 
                 // Piece together the 16-bit gyroscope data
-                short raw_gyroX = (short)((unsigned short)(InData->gyro_x[0] << 8) | InData->gyro_x[1]);
-                short raw_gyroY = (short)((unsigned short)(InData->gyro_y[0] << 8) | InData->gyro_y[1]);
-                short raw_gyroZ = (short)((unsigned short)(InData->gyro_z[0] << 8) | InData->gyro_z[1]);
+                short raw_gyroX = static_cast<short>((InData->gyro_x[1] << 8) | InData->gyro_x[0]);
+                short raw_gyroY = static_cast<short>((InData->gyro_y[1] << 8) | InData->gyro_y[0]);
+                short raw_gyroZ = static_cast<short>((InData->gyro_z[1] << 8) | InData->gyro_z[0]);
 
-                // TODO: Convert to g/s^2
-                newState.Accelerometer.i = (float)raw_accelX;
-                newState.Accelerometer.j = (float)raw_accelY;
-                newState.Accelerometer.k = (float)raw_accelZ;
+                // Save the raw accelerometer values
+                newState.RawAccelerometer[0] = static_cast<int>(raw_accelX);
+                newState.RawAccelerometer[1] = static_cast<int>(raw_accelY);
+                newState.RawAccelerometer[2] = static_cast<int>(raw_accelZ);
 
-                // TODO: Convert to rad/s
-                newState.Gyro.i = (float)raw_gyroX;
-                newState.Gyro.j = (float)raw_gyroY;
-                newState.Gyro.k = (float)raw_gyroZ;
+                // Save the raw gyro values
+                newState.RawGyro[0] = static_cast<int>(raw_gyroX);
+                newState.RawGyro[1] = static_cast<int>(raw_gyroY);
+                newState.RawGyro[2] = static_cast<int>(raw_gyroZ);
+
+                // calibrated_acc= raw_acc*acc_gain + acc_bias
+                newState.CalibratedAccelerometer.i = 
+                    static_cast<float>(newState.RawAccelerometer[0]) * cfg.accelerometer_gain.i 
+                    + cfg.accelerometer_bias.i;
+                newState.CalibratedAccelerometer.j =
+                    static_cast<float>(newState.RawAccelerometer[1]) * cfg.accelerometer_gain.j
+                    + cfg.accelerometer_bias.j;
+                newState.CalibratedAccelerometer.k =
+                    static_cast<float>(newState.RawAccelerometer[2]) * cfg.accelerometer_gain.k
+                    + cfg.accelerometer_bias.k;
+
+                // calibrated_gyro= raw_gyro*gyro_gain + gyro_bias
+                newState.CalibratedGyro.i = 
+                    static_cast<float>(newState.RawGyro[0]) * cfg.gyro_gain.i
+                    + cfg.gyro_bias.i;
+                newState.CalibratedGyro.j = 
+                    static_cast<float>(newState.RawGyro[1]) * cfg.gyro_gain.j
+                    + cfg.gyro_bias.j;
+                newState.CalibratedGyro.k = 
+                    static_cast<float>(newState.RawGyro[2]) * cfg.gyro_gain.k
+                    + cfg.gyro_bias.k;
             }
 
             // Sequence and timestamp
@@ -933,9 +963,6 @@ long PSDualShock4Controller::getMaxPollFailureCount() const
 {
     return cfg.max_poll_failure_count;
 }
-
-#define HIDP_TRANS_SET_REPORT  0x50
-#define HIDP_DATA_RTYPE_OUTPUT 0x02
 
 // Setters
 void 

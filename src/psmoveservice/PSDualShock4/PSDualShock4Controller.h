@@ -29,9 +29,28 @@ public:
         : PSMoveConfig(fnamebase)
         , is_valid(false)
         , version(CONFIG_VERSION)
+        , accelerometer_fit_error(0.f)
+        , gyro_fit_error(0.f)
         , max_poll_failure_count(100)
         , prediction_time(0.f)
     {
+        // Accelerometer defaults computed from accelerometer calibration in the config tool
+        accelerometer_gain.i = 0.000173128647f;
+        accelerometer_gain.j = 0.00013985172f;
+        accelerometer_gain.k = 0.000100948688f;
+        
+        accelerometer_bias.i = -0.0126388613f;
+        accelerometer_bias.j = -0.0440602154f;
+        accelerometer_bias.k = -0.138208047f;
+
+        // Gyro details not yet calibrated
+        gyro_gain.i = 1.f;
+        gyro_gain.j = 1.f;
+        gyro_gain.k = 1.f;
+
+        gyro_bias.i = 0.f;
+        gyro_bias.j = 0.f;
+        gyro_bias.k = 0.f;
     };
 
     virtual const boost::property_tree::ptree config2ptree();
@@ -39,7 +58,17 @@ public:
 
     bool is_valid;
     long version;
-    std::vector<std::vector<std::vector<float>>> cal_ag_xyz_kb;
+
+    // calibrated_acc= raw_acc*acc_gain + acc_bias
+    CommonDeviceVector accelerometer_gain;
+    CommonDeviceVector accelerometer_bias;
+    float accelerometer_fit_error;
+
+    // calibrated_gyro= raw_gyro*gyro_gain + gyro_bias
+    CommonDeviceVector gyro_gain;
+    CommonDeviceVector gyro_bias;
+    float gyro_fit_error;
+
     long max_poll_failure_count;
     float prediction_time;
 };
@@ -80,8 +109,11 @@ struct PSDualShock4ControllerState : public CommonControllerState
     ButtonState PS;
     ButtonState TrackPadButton;
 
-    CommonDeviceVector Accelerometer; // g/s^2?
-    CommonDeviceVector Gyro; // rad/s?
+    int RawAccelerometer[3]; // Raw 12-bit Accelerometer Value
+    int RawGyro[3]; // Raw 16-bit Gyroscope Value
+
+    CommonDeviceVector CalibratedAccelerometer; // units of g (where 1g = 9.8m/s^2)
+    CommonDeviceVector CalibratedGyro; // rad/s
 
     PSDualShock4ControllerState()
     {
@@ -127,8 +159,11 @@ struct PSDualShock4ControllerState : public CommonControllerState
         PS = Button_UP;
         TrackPadButton = Button_UP;
 
-        Accelerometer.clear();
-        Gyro.clear();
+        memset(RawAccelerometer, 0, sizeof(int) * 3);
+        memset(RawGyro, 0, sizeof(int) * 3);
+
+        CalibratedAccelerometer.clear();
+        CalibratedGyro.clear();
     }
 };
 

@@ -54,8 +54,8 @@ AppStage_MagnetometerCalibration::AppStage_MagnetometerCalibration(App *app)
     , m_controllerView(nullptr)
     , m_isControllerStreamActive(false)
     , m_lastControllerSeqNum(-1)
-    , m_lastMagnetometer()
-    , m_lastAccelerometer()
+    , m_lastRawMagnetometer()
+    , m_lastCalibratedAccelerometer()
     , m_alignedSamples(new MagnetometerAlignedSamples)
     , m_sampleCount(0)
     , m_samplePercentage(0)
@@ -93,8 +93,8 @@ void AppStage_MagnetometerCalibration::enter()
     assert(m_controllerView == nullptr);
     m_controllerView= ClientPSMoveAPI::allocate_controller_view(controllerInfo->ControllerID);
 
-    m_lastMagnetometer= *k_psmove_int_vector3_zero;
-    m_lastAccelerometer= *k_psmove_float_vector3_zero;
+    m_lastRawMagnetometer= *k_psmove_int_vector3_zero;
+    m_lastCalibratedAccelerometer= *k_psmove_float_vector3_zero;
 
     m_sampleCount = 0;
     m_samplePercentage = 0;
@@ -117,7 +117,9 @@ void AppStage_MagnetometerCalibration::enter()
     m_lastControllerSeqNum= -1;
 
     ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::start_controller_data_stream(m_controllerView, ClientPSMoveAPI::includeRawSensorData),
+        ClientPSMoveAPI::start_controller_data_stream(
+            m_controllerView, 
+            ClientPSMoveAPI::includeRawSensorData | ClientPSMoveAPI::includeCalibratedSensorData),
         &AppStage_MagnetometerCalibration::handle_acquire_controller, this);
 }
 
@@ -138,10 +140,11 @@ void AppStage_MagnetometerCalibration::update()
 
     if (m_isControllerStreamActive && m_controllerView->GetSequenceNum() != m_lastControllerSeqNum)
     {
-        const PSMoveRawSensorData &sensorData= m_controllerView->GetPSMoveView().GetRawSensorData();
+        const PSMoveRawSensorData &rawSensorData= m_controllerView->GetPSMoveView().GetRawSensorData();
+        const PSMoveCalibratedSensorData &calibratedSensorData = m_controllerView->GetPSMoveView().GetCalibratedSensorData();
 
-        m_lastMagnetometer= sensorData.Magnetometer;
-        m_lastAccelerometer= sensorData.Accelerometer;
+        m_lastRawMagnetometer = rawSensorData.Magnetometer;
+        m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
         m_lastControllerSeqNum= m_controllerView->GetSequenceNum();
         bControllerDataUpdatedThisFrame= true;
     }
@@ -187,13 +190,13 @@ void AppStage_MagnetometerCalibration::update()
             if (bControllerDataUpdatedThisFrame && m_sampleCount < k_max_magnetometer_samples)
             {
                 // Grow the measurement extents bounding box
-                expandMagnetometerBounds(m_lastMagnetometer, m_minSampleExtent, m_maxSampleExtent);
+                expandMagnetometerBounds(m_lastRawMagnetometer, m_minSampleExtent, m_maxSampleExtent);
 
                 // Make sure this sample isn't too close to another sample
                 bool bTooClose= false;
                 for (int sampleIndex= m_sampleCount-1; sampleIndex >= 0; --sampleIndex)
                 {
-                    const PSMoveIntVector3 diff= m_lastMagnetometer - m_magnetometerIntSamples[sampleIndex];
+                    const PSMoveIntVector3 diff= m_lastRawMagnetometer - m_magnetometerIntSamples[sampleIndex];
                     const int distanceSquared= diff.lengthSquared();
 
                     if (distanceSquared < k_min_sample_distance_sq)
@@ -207,8 +210,8 @@ void AppStage_MagnetometerCalibration::update()
                 if (!bTooClose)
                 {
                     // Store the new sample
-                    m_magnetometerIntSamples[m_sampleCount]= m_lastMagnetometer;
-                    m_alignedSamples->magnetometerEigenSamples[m_sampleCount] = psmove_int_vector3_to_eigen_vector3(m_lastMagnetometer);
+                    m_magnetometerIntSamples[m_sampleCount]= m_lastRawMagnetometer;
+                    m_alignedSamples->magnetometerEigenSamples[m_sampleCount] = psmove_int_vector3_to_eigen_vector3(m_lastRawMagnetometer);
                     ++m_sampleCount;
 
                     // Compute a best fit ellipsoid for the sample points
@@ -287,7 +290,7 @@ void AppStage_MagnetometerCalibration::update()
             {
                 if (bControllerDataUpdatedThisFrame)
                 {
-                    m_identityPoseMVectorSum = m_identityPoseMVectorSum + m_lastMagnetometer;
+                    m_identityPoseMVectorSum = m_identityPoseMVectorSum + m_lastRawMagnetometer;
                     ++m_identityPoseSampleCount;
 
                     if (m_identityPoseSampleCount > k_desired_magnetometer_sample_count)
@@ -435,7 +438,7 @@ void AppStage_MagnetometerCalibration::render()
             // Draw the current magnetometer direction
             {
                 glm::vec3 m_start= boxCenter;
-                glm::vec3 m_end= psmove_float_vector3_to_glm_vec3(m_lastMagnetometer.castToFloatVector3());
+                glm::vec3 m_end= psmove_float_vector3_to_glm_vec3(m_lastRawMagnetometer.castToFloatVector3());
 
                 drawArrow(recenterMatrix, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
                 drawTextAtWorldPosition(recenterMatrix, m_end, "M");
@@ -450,7 +453,7 @@ void AppStage_MagnetometerCalibration::render()
                 const float renderScale = 200.f;
                 glm::mat4 renderScaleMatrix = 
                     glm::scale(glm::mat4(1.f), glm::vec3(renderScale, renderScale, renderScale));
-                glm::vec3 g= psmove_float_vector3_to_glm_vec3(m_lastAccelerometer);
+                glm::vec3 g= psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
 
                 drawArrow(
                     renderScaleMatrix,
@@ -467,7 +470,7 @@ void AppStage_MagnetometerCalibration::render()
             // Draw the current magnetometer direction
             {
                 glm::vec3 m_start = boxCenter;
-                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastMagnetometer.castToFloatVector3());
+                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastRawMagnetometer.castToFloatVector3());
 
                 drawArrow(recenterMatrix, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
                 drawTextAtWorldPosition(recenterMatrix, m_end, "M");

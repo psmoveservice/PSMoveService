@@ -606,7 +606,7 @@ void AppStage_ColorCalibration::request_start_controller_stream()
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::start_controller_data_stream(
             m_controllerView,
-            ClientPSMoveAPI::includeRawSensorData | ClientPSMoveAPI::includeRawTrackerData),
+            ClientPSMoveAPI::defaultStreamOptions),
         AppStage_ColorCalibration::handle_start_controller_response, this);
 }
 

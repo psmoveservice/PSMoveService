@@ -10,8 +10,10 @@
 
 //-- constants -----
 const PSMovePhysicsData k_empty_physics_data = { { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f } };
-const PSMoveRawSensorData k_empty_psmove_sensor_data = { { 0, 0, 0 }, { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f } };
-const PSDualShock4RawSensorData k_empty_ds4_sensor_data = { { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f } };
+const PSMoveRawSensorData k_empty_psmove_raw_sensor_data = { { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 } };
+const PSMoveCalibratedSensorData k_empty_psmove_calibrated_sensor_data = { { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f } };
+const PSDualShock4RawSensorData k_empty_ds4_raw_sensor_data = { { 0, 0, 0 }, { 0, 0, 0 } };
+const PSDualShock4CalibratedSensorData k_empty_ds4_calibrated_sensor_data = { { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f } };
 const PSMoveFloatVector3 k_identity_gravity_calibration_direction= {0.f, 1.f, 0.f};
 const PSMoveRawTrackerData k_empty_raw_tracker_data = { 0 };
 
@@ -53,7 +55,12 @@ const PSMovePhysicsData &ClientPSMoveView::GetPhysicsData() const
 
 const PSMoveRawSensorData &ClientPSMoveView::GetRawSensorData() const
 {
-    return IsValid() ? RawSensorData : k_empty_psmove_sensor_data;
+    return IsValid() ? RawSensorData : k_empty_psmove_raw_sensor_data;
+}
+
+const PSMoveCalibratedSensorData &ClientPSMoveView::GetCalibratedSensorData() const
+{
+    return IsValid() ? CalibratedSensorData : k_empty_psmove_calibrated_sensor_data;
 }
 
 const PSMoveFloatVector3 &ClientPSMoveView::GetIdentityGravityCalibrationDirection() const
@@ -67,7 +74,7 @@ bool ClientPSMoveView::GetIsStableAndAlignedWithGravity() const
 
     // Get the direction the gravity vector should be pointing 
     // while the controller is in cradle pose.
-    PSMoveFloatVector3 acceleration_direction = RawSensorData.Accelerometer;
+    PSMoveFloatVector3 acceleration_direction = CalibratedSensorData.Accelerometer;
     const float acceleration_magnitude = acceleration_direction.normalize_with_default(*k_psmove_float_vector3_zero);
 
     const bool isOk =
@@ -121,6 +128,27 @@ void ClientPSMoveView::ApplyControllerDataFrame(
         else
         {
             this->RawSensorData.Clear();
+        }
+
+        if (psmove_data_frame.has_calibrated_sensor_data())
+        {
+            const auto &calibrated_sensor_data = psmove_data_frame.calibrated_sensor_data();
+
+            this->CalibratedSensorData.Magnetometer.i = calibrated_sensor_data.magnetometer().i();
+            this->CalibratedSensorData.Magnetometer.j = calibrated_sensor_data.magnetometer().j();
+            this->CalibratedSensorData.Magnetometer.k = calibrated_sensor_data.magnetometer().k();
+
+            this->CalibratedSensorData.Accelerometer.i = calibrated_sensor_data.accelerometer().i();
+            this->CalibratedSensorData.Accelerometer.j = calibrated_sensor_data.accelerometer().j();
+            this->CalibratedSensorData.Accelerometer.k = calibrated_sensor_data.accelerometer().k();
+
+            this->CalibratedSensorData.Gyroscope.i = calibrated_sensor_data.gyroscope().i();
+            this->CalibratedSensorData.Gyroscope.j = calibrated_sensor_data.gyroscope().j();
+            this->CalibratedSensorData.Gyroscope.k = calibrated_sensor_data.gyroscope().k();
+        }
+        else
+        {
+            this->CalibratedSensorData.Clear();
         }
 
         if (psmove_data_frame.has_raw_tracker_data())
@@ -362,6 +390,23 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
             this->RawSensorData.Clear();
         }
 
+        if (psds4_data_frame.has_calibrated_sensor_data())
+        {
+            const auto &calibrated_sensor_data = psds4_data_frame.calibrated_sensor_data();
+
+            this->CalibratedSensorData.Accelerometer.i = calibrated_sensor_data.accelerometer().i();
+            this->CalibratedSensorData.Accelerometer.j = calibrated_sensor_data.accelerometer().j();
+            this->CalibratedSensorData.Accelerometer.k = calibrated_sensor_data.accelerometer().k();
+
+            this->CalibratedSensorData.Gyroscope.i = calibrated_sensor_data.gyroscope().i();
+            this->CalibratedSensorData.Gyroscope.j = calibrated_sensor_data.gyroscope().j();
+            this->CalibratedSensorData.Gyroscope.k = calibrated_sensor_data.gyroscope().k();
+        }
+        else
+        {
+            this->CalibratedSensorData.Clear();
+        }
+
         if (psds4_data_frame.has_raw_tracker_data())
         {
             const auto &raw_tracker_data = psds4_data_frame.raw_tracker_data();
@@ -492,7 +537,12 @@ const PSMovePhysicsData &ClientPSDualShock4View::GetPhysicsData() const
 
 const PSDualShock4RawSensorData &ClientPSDualShock4View::GetRawSensorData() const
 {
-    return IsValid() ? RawSensorData : k_empty_ds4_sensor_data;
+    return IsValid() ? RawSensorData : k_empty_ds4_raw_sensor_data;
+}
+
+const PSDualShock4CalibratedSensorData &ClientPSDualShock4View::GetCalibratedSensorData() const
+{
+    return IsValid() ? CalibratedSensorData : k_empty_ds4_calibrated_sensor_data;
 }
 
 const PSMoveFloatVector3 &ClientPSDualShock4View::GetIdentityGravityCalibrationDirection() const
@@ -506,7 +556,7 @@ bool ClientPSDualShock4View::GetIsStableAndAlignedWithGravity() const
 
     // Get the direction the gravity vector should be pointing 
     // while the controller is in cradle pose.
-    PSMoveFloatVector3 acceleration_direction = RawSensorData.Accelerometer;
+    PSMoveFloatVector3 acceleration_direction = CalibratedSensorData.Accelerometer;
     const float acceleration_magnitude = acceleration_direction.normalize_with_default(*k_psmove_float_vector3_zero);
 
     const bool isOk =

@@ -42,7 +42,8 @@ public:
         includePositionData = 0x01,
         includePhysicsData = 0x02,
         includeRawSensorData = 0x04,
-        includeRawTrackerData = 0x08
+        includeCalibratedSensorData = 0x08,
+        includeRawTrackerData = 0x10
     };
 
     enum eControllerRumbleChannel

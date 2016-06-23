@@ -792,7 +792,7 @@ void AppStage_ComputeTrackerPoses::request_start_controller_stream(int Controlle
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::start_controller_data_stream(
             m_controllerView, 
-            ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includeRawSensorData | ClientPSMoveAPI::includeRawTrackerData),
+            ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includeCalibratedSensorData | ClientPSMoveAPI::includeRawTrackerData),
         AppStage_ComputeTrackerPoses::handle_start_controller_response, this);
 }
 

@@ -220,6 +220,11 @@ list(APPEND TEST_CTRLR_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/PSMoveController)
 list(APPEND TEST_CTRLR_SRC
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp    
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
     ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
     ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp
     ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.h
