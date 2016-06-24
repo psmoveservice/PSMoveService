@@ -1003,8 +1003,8 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
         // The {psmove} syntax lets us refer to rendermodels that are installed
         // in the driver's own resources/rendermodels directory.  The driver can
         // still refer to SteamVR models like "generic_hmd".
-        //ssRetVal << "{psmove}psmove_controller";
-        ssRetVal << "vr_controller_vive_1_5";
+        ssRetVal << "{psmove}psmove_controller";
+        //ssRetVal << "vr_controller_vive_1_5";
         break;
     }
 
@@ -1477,8 +1477,8 @@ uint32_t CPSMoveTrackerLatest::GetStringTrackedDeviceProperty(
         // The {psmove} syntax lets us refer to rendermodels that are installed
         // in the driver's own resources/rendermodels directory.  The driver can
         // still refer to SteamVR models like "generic_hmd".
-        //ssRetVal << "ps3eye_tracker";
-        ssRetVal << "generic_tracker";
+        ssRetVal << "{psmove}ps3eye_tracker";
+        //ssRetVal << "generic_tracker";
         break;
 
     case vr::Prop_ModeLabel_String:
