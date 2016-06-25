@@ -618,15 +618,14 @@ void drawTrackingProjection(
             }
             glEnd();
         } break;
-    case PSMoveTrackingProjection::eShapeType::Quad:
+    case PSMoveTrackingProjection::eShapeType::Triangle:
         {
-            const PSMoveScreenLocation *corners = shapeProjection->shape.quad.corners;
+            const PSMoveScreenLocation *corners = shapeProjection->shape.triangle.corners;
             
-            glBegin(GL_QUADS);
-            glVertex3f(corners[0].x, corners[0].y, 0.5f);
-            glVertex3f(corners[1].x, corners[1].y, 0.5f);
-            glVertex3f(corners[2].x, corners[2].y, 0.5f);
-            glVertex3f(corners[3].x, corners[3].y, 0.5f);
+            glBegin(GL_LINE_STRIP);
+            glVertex3f(corners[0].x, corners[0].y, 0.5f); glVertex3f(corners[1].x, corners[1].y, 0.5f);
+            glVertex3f(corners[1].x, corners[1].y, 0.5f); glVertex3f(corners[2].x, corners[2].y, 0.5f);
+            glVertex3f(corners[2].x, corners[2].y, 0.5f); glVertex3f(corners[0].x, corners[0].y, 0.5f);
             glEnd();
         } break;
     }

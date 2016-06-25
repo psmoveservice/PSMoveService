@@ -30,7 +30,7 @@ enum eCommonTrackingShapeType {
     INVALID_SHAPE = -1,
 
     Sphere,
-    PlanarBlob,
+    Triangle,
 
     MAX_TRACKING_SHAPE_TYPES
 };
@@ -39,7 +39,7 @@ enum eCommonTrackingProjectionType {
     INVALID_PROJECTION = -1,
 
     ProjectionType_Ellipse,
-    ProjectionType_Quad,
+    ProjectionType_Triangle,
 
     MAX_TRACKING_PROJECTION_TYPES
 };
@@ -266,9 +266,8 @@ struct CommonDeviceTrackingShape
         } sphere;
 
         struct {
-            float width;
-            float height;
-        } planar_blob;
+            CommonDevicePosition corner[3];
+        } triangle;
     } shape;
 
     eCommonTrackingShapeType shape_type;
@@ -285,8 +284,8 @@ struct CommonDeviceTrackingProjection
         } ellipse;
 
         struct {
-            CommonDeviceScreenLocation corners[4];
-        } quad;
+            CommonDeviceScreenLocation corners[3];
+        } triangle;
     } shape;
 
     eCommonTrackingProjectionType shape_type;

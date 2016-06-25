@@ -187,14 +187,15 @@ void ClientPSMoveView::ApplyControllerDataFrame(
                     const PSMoveProtocol::Polygon &protocolPolygon = raw_tracker_data.projected_blobs(listIndex);
                     PSMoveTrackingProjection &projection = this->RawTrackerData.TrackingProjections[listIndex];
 
-                    assert(protocolPolygon.vertices_size() == 4);
-                    for (int vert_index = 0; vert_index < 4; ++vert_index)
+                    assert(protocolPolygon.vertices_size() == 3);
+                    for (int vert_index = 0; vert_index < 3; ++vert_index)
                     {
                         const PSMoveProtocol::Pixel &pixel= protocolPolygon.vertices(vert_index);
 
-                        projection.shape.quad.corners[vert_index].x = pixel.x();
-                        projection.shape.quad.corners[vert_index].y = pixel.y();
+                        projection.shape.triangle.corners[vert_index].x = pixel.x();
+                        projection.shape.triangle.corners[vert_index].y = pixel.y();
                     }
+                    projection.shape_type = PSMoveTrackingProjection::Triangle;
                 }
                 else
                 {
@@ -443,14 +444,15 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
                     const PSMoveProtocol::Polygon &protocolPolygon = raw_tracker_data.projected_blobs(listIndex);
                     PSMoveTrackingProjection &projection = this->RawTrackerData.TrackingProjections[listIndex];
 
-                    assert(protocolPolygon.vertices_size() == 4);
-                    for (int vert_index = 0; vert_index < 4; ++vert_index)
+                    assert(protocolPolygon.vertices_size() == 3);
+                    for (int vert_index = 0; vert_index < 3; ++vert_index)
                     {
                         const PSMoveProtocol::Pixel &pixel = protocolPolygon.vertices(vert_index);
 
-                        projection.shape.quad.corners[vert_index].x = pixel.x();
-                        projection.shape.quad.corners[vert_index].y = pixel.y();
+                        projection.shape.triangle.corners[vert_index].x = pixel.x();
+                        projection.shape.triangle.corners[vert_index].y = pixel.y();
                     }
+                    projection.shape_type = PSMoveTrackingProjection::Triangle;
                 }
                 else
                 {

@@ -168,7 +168,7 @@ struct CLIENTPSMOVEAPI PSMoveTrackingProjection
         INVALID_PROJECTION = -1,
 
         Ellipse,
-        Quad,
+        Triangle,
 
         MAX_TRACKING_PROJECTION_TYPES
     };
@@ -182,8 +182,8 @@ struct CLIENTPSMOVEAPI PSMoveTrackingProjection
         } ellipse;
 
         struct {
-            PSMoveScreenLocation corners[4];
-        } quad;
+            PSMoveScreenLocation corners[3];
+        } triangle;
     } shape;
 
     eShapeType shape_type;

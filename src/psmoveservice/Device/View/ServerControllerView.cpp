@@ -33,7 +33,7 @@ static void init_filters_for_psmove(
     OrientationFilter *orientation_filter, PositionFilter *position_filter);
 static void update_filters_for_psmove(
     const PSMoveController *psmoveController, const PSMoveControllerState *psmoveState, const float delta_time,
-    const ControllerPositionEstimation *positionEstimation,
+    const ControllerOpticalPoseEstimation *positionEstimation,
     OrientationFilter *orientationFilter, PositionFilter *position_filter);
 
 static void init_filters_for_psdualshock4(
@@ -41,7 +41,7 @@ static void init_filters_for_psdualshock4(
     OrientationFilter *orientation_filter, PositionFilter *position_filter);
 static void update_filters_for_psdualshock4(
     const PSDualShock4Controller *psdualshock4Controller, const PSDualShock4ControllerState *psmoveState, const float delta_time,
-    const ControllerPositionEstimation *positionEstimation,
+    const ControllerOpticalPoseEstimation *positionEstimation,
     OrientationFilter *orientationFilter, PositionFilter *position_filter);
 
 static void generate_psmove_data_frame_for_stream(
@@ -59,8 +59,8 @@ ServerControllerView::ServerControllerView(const int device_id)
     , m_tracking_listener_count(0)
     , m_LED_override_active(false)
     , m_device(nullptr)
-    , m_tracker_position_estimation(nullptr)
-    , m_multicam_position_estimation(nullptr)
+    , m_tracker_pose_estimation(nullptr)
+    , m_multicam_pose_estimation(nullptr)
     , m_orientation_filter(nullptr)
     , m_position_filter(nullptr)
     , m_lastPollSeqNumProcessed(-1)
@@ -86,21 +86,21 @@ bool ServerControllerView::allocate_device_interface(
             m_orientation_filter = new OrientationFilter();
             m_position_filter = new PositionFilter();
 
-            m_tracker_position_estimation = new ControllerPositionEstimation[TrackerManager::k_max_devices];
+            m_tracker_pose_estimation = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
             for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
             {
-                m_tracker_position_estimation[tracker_index].clear();
+                m_tracker_pose_estimation[tracker_index].clear();
             }
 
-            m_multicam_position_estimation = new ControllerPositionEstimation();
-            m_multicam_position_estimation->clear();
+            m_multicam_pose_estimation = new ControllerOpticalPoseEstimation();
+            m_multicam_pose_estimation->clear();
         } break;
     case CommonDeviceState::PSNavi:
         {
             m_device= new PSNaviController();
             m_orientation_filter= nullptr;
             m_position_filter = nullptr;
-            m_multicam_position_estimation = nullptr;
+            m_multicam_pose_estimation = nullptr;
         } break;
     case CommonDeviceState::PSDualShock4:
         {
@@ -108,14 +108,14 @@ bool ServerControllerView::allocate_device_interface(
             m_orientation_filter = new OrientationFilter();
             m_position_filter = new PositionFilter();
 
-            m_tracker_position_estimation = new ControllerPositionEstimation[TrackerManager::k_max_devices];
+            m_tracker_pose_estimation = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
             for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
             {
-                m_tracker_position_estimation[tracker_index].clear();
+                m_tracker_pose_estimation[tracker_index].clear();
             }
 
-            m_multicam_position_estimation = new ControllerPositionEstimation();
-            m_multicam_position_estimation->clear();
+            m_multicam_pose_estimation = new ControllerOpticalPoseEstimation();
+            m_multicam_pose_estimation->clear();
         } break;
     default:
         break;
@@ -126,16 +126,16 @@ bool ServerControllerView::allocate_device_interface(
 
 void ServerControllerView::free_device_interface()
 {
-    if (m_multicam_position_estimation != nullptr)
+    if (m_multicam_pose_estimation != nullptr)
     {
-        delete m_multicam_position_estimation;
-        m_multicam_position_estimation= nullptr;
+        delete m_multicam_pose_estimation;
+        m_multicam_pose_estimation= nullptr;
     }
 
-    if (m_tracker_position_estimation != nullptr)
+    if (m_tracker_pose_estimation != nullptr)
     {
-        delete[] m_tracker_position_estimation;
-        m_tracker_position_estimation = nullptr;
+        delete[] m_tracker_pose_estimation;
+        m_tracker_pose_estimation = nullptr;
     }
 
     if (m_orientation_filter != nullptr)
@@ -182,7 +182,7 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
                 if (psmoveController->getIsBluetooth())
                 {
                     init_filters_for_psmove(psmoveController, m_orientation_filter, m_position_filter);
-                    m_multicam_position_estimation->clear();
+                    m_multicam_pose_estimation->clear();
 
                     bAllocateTrackingColor = true;
                 }
@@ -200,7 +200,7 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
                 if (psdualshock4Controller->getIsBluetooth())
                 {
                     init_filters_for_psdualshock4(psdualshock4Controller, m_orientation_filter, m_position_filter);
-                    m_multicam_position_estimation->clear();
+                    m_multicam_pose_estimation->clear();
 
                     bAllocateTrackingColor = true;
                 }
@@ -259,19 +259,16 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
         for (int tracker_id = 0; tracker_id < tracker_manager->getMaxDevices(); ++tracker_id)
         {
             ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-            ControllerPositionEstimation &positionEstimate = m_tracker_position_estimation[tracker_id];
+            ControllerOpticalPoseEstimation &poseEstimate = m_tracker_pose_estimation[tracker_id];
 
-            positionEstimate.bCurrentlyTracking = false;
+            poseEstimate.bCurrentlyTracking = false;
 
             if (tracker->getIsOpen())
             {
-                if (tracker->computePositionForController(
-                    this,
-                    &positionEstimate.position,
-                    &positionEstimate.projection))
+                if (tracker->computePoseForController(this, &poseEstimate))
                 {
-                    positionEstimate.bCurrentlyTracking = true;
-                    positionEstimate.last_visible_timestamp = now;
+                    poseEstimate.bCurrentlyTracking = true;
+                    poseEstimate.last_visible_timestamp = now;
 
                     valid_tracker_ids[positions_found] = tracker_id;
                     ++positions_found;
@@ -279,8 +276,8 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
             }
 
             // Keep track of the last time the position estimate was updated
-            positionEstimate.last_update_timestamp = now;
-            positionEstimate.bValidTimestamps = true;
+            poseEstimate.last_update_timestamp = now;
+            poseEstimate.bValidTimestamps = true;
         }
 
         // If multiple trackers can see the controller, 
@@ -293,7 +290,7 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
             {
                 const int tracker_id = valid_tracker_ids[list_index];
                 const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-                const ControllerPositionEstimation &positionEstimate = m_tracker_position_estimation[tracker_id];
+                const ControllerOpticalPoseEstimation &positionEstimate = m_tracker_pose_estimation[tracker_id];
                 
                 position2d_list[list_index] = tracker->projectTrackerRelativePosition(&positionEstimate.position);
             }
@@ -335,8 +332,8 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
                 average_world_position.z /= N;
             }
 
-            m_multicam_position_estimation->position = average_world_position;
-            m_multicam_position_estimation->bCurrentlyTracking = true;
+            m_multicam_pose_estimation->position = average_world_position;
+            m_multicam_pose_estimation->bCurrentlyTracking = true;
         }
         // If only one tracker can see the controller, then just use the position estimate from that
         else if (positions_found == 1)
@@ -344,24 +341,24 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
             // Put the tracker relative position into world space
             const int tracker_id = valid_tracker_ids[0];
             const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-            const CommonDevicePosition &tracker_relative_position = m_tracker_position_estimation[tracker_id].position;
+            const CommonDevicePosition &tracker_relative_position = m_tracker_pose_estimation[tracker_id].position;
 
-            m_multicam_position_estimation->position = tracker->computeWorldPosition(&tracker_relative_position);
-            m_multicam_position_estimation->bCurrentlyTracking = true;
+            m_multicam_pose_estimation->position = tracker->computeWorldPosition(&tracker_relative_position);
+            m_multicam_pose_estimation->bCurrentlyTracking = true;
         }
         // If no trackers can see the controller, maintain the last known position and time it was seen
         else
         {
-            m_multicam_position_estimation->bCurrentlyTracking= false;
+            m_multicam_pose_estimation->bCurrentlyTracking= false;
         }
 
         // Update the position estimation timestamps
         if (positions_found > 0)
         {
-            m_multicam_position_estimation->last_visible_timestamp = now;
+            m_multicam_pose_estimation->last_visible_timestamp = now;
         }
-        m_multicam_position_estimation->last_update_timestamp = now;
-        m_multicam_position_estimation->bValidTimestamps = true;
+        m_multicam_pose_estimation->last_update_timestamp = now;
+        m_multicam_pose_estimation->bValidTimestamps = true;
     }
 }
 
@@ -423,7 +420,7 @@ void ServerControllerView::updateStateAndPredict()
                 update_filters_for_psmove(
                     psmoveController, psmoveState, 
                     per_state_time_delta_seconds,
-                    m_multicam_position_estimation, 
+                    m_multicam_pose_estimation, 
                     m_orientation_filter, 
                     getIsTrackingEnabled() ? m_position_filter : nullptr);
             } break;
@@ -443,7 +440,7 @@ void ServerControllerView::updateStateAndPredict()
                 update_filters_for_psdualshock4(
                     psdualshock4Controller, psdualshock4State,
                     per_state_time_delta_seconds,
-                    m_multicam_position_estimation,
+                    m_multicam_pose_estimation,
                     m_orientation_filter,
                     getIsTrackingEnabled() ? m_position_filter : nullptr);
             } break;
@@ -917,8 +914,8 @@ static void generate_psmove_data_frame_for_stream(
 
             for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
             {
-                const ControllerPositionEstimation *positionEstimate= 
-                    controller_view->getTrackerPositionEstimate(trackerId);
+                const ControllerOpticalPoseEstimation *positionEstimate= 
+                    controller_view->getTrackerPoseEstimate(trackerId);
 
                 if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
                 {
@@ -961,16 +958,16 @@ static void generate_psmove_data_frame_for_stream(
                                 ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
                                 ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
                             } break;
-                        case eCommonTrackingProjectionType::ProjectionType_Quad:
+                        case eCommonTrackingProjectionType::ProjectionType_Triangle:
                             {
                                 PSMoveProtocol::Polygon *polygon = raw_tracker_data->add_projected_blobs();
 
-                                for (int vert_index = 0; vert_index < 4; ++vert_index)
+                                for (int vert_index = 0; vert_index < 3; ++vert_index)
                                 {
                                     PSMoveProtocol::Pixel *pixel= polygon->add_vertices();
 
-                                    pixel->set_x(trackerRelativeProjection.shape.quad.corners[vert_index].x);
-                                    pixel->set_x(trackerRelativeProjection.shape.quad.corners[vert_index].y);
+                                    pixel->set_x(trackerRelativeProjection.shape.triangle.corners[vert_index].x);
+                                    pixel->set_y(trackerRelativeProjection.shape.triangle.corners[vert_index].y);
                                 }
                             } break;
                         }
@@ -1156,8 +1153,8 @@ static void generate_psdualshock4_data_frame_for_stream(
 
             for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
             {
-                const ControllerPositionEstimation *positionEstimate =
-                    controller_view->getTrackerPositionEstimate(trackerId);
+                const ControllerOpticalPoseEstimation *positionEstimate =
+                    controller_view->getTrackerPoseEstimate(trackerId);
 
                 if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
                 {
@@ -1200,16 +1197,16 @@ static void generate_psdualshock4_data_frame_for_stream(
                                 ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
                                 ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
                             } break;
-                        case eCommonTrackingProjectionType::ProjectionType_Quad:
+                        case eCommonTrackingProjectionType::ProjectionType_Triangle:
                             {
                                 PSMoveProtocol::Polygon *polygon = raw_tracker_data->add_projected_blobs();
 
-                                for (int vert_index = 0; vert_index < 4; ++vert_index)
+                                for (int vert_index = 0; vert_index < 3; ++vert_index)
                                 {
                                     PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
 
-                                    pixel->set_x(trackerRelativeProjection.shape.quad.corners[vert_index].x);
-                                    pixel->set_x(trackerRelativeProjection.shape.quad.corners[vert_index].y);
+                                    pixel->set_x(trackerRelativeProjection.shape.triangle.corners[vert_index].x);
+                                    pixel->set_y(trackerRelativeProjection.shape.triangle.corners[vert_index].y);
                                 }
                             } break;
                         }
@@ -1291,7 +1288,7 @@ update_filters_for_psmove(
     const PSMoveController *psmoveController, 
     const PSMoveControllerState *psmoveState,
     const float delta_time,
-    const ControllerPositionEstimation *positionEstimation,
+    const ControllerOpticalPoseEstimation *positionEstimation,
     OrientationFilter *orientationFilter,
     PositionFilter *position_filter)
 {
@@ -1401,7 +1398,7 @@ update_filters_for_psdualshock4(
     const PSDualShock4Controller *psmoveController,
     const PSDualShock4ControllerState *psmoveState,
     const float delta_time,
-    const ControllerPositionEstimation *positionEstimation,
+    const ControllerOpticalPoseEstimation *positionEstimation,
     OrientationFilter *orientationFilter,
     PositionFilter *position_filter)
 {
