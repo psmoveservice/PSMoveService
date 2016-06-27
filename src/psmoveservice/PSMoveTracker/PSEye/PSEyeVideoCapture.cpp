@@ -494,6 +494,12 @@ bool PSEyeVideoCapture::open(int index)
     {
         m_index = index;
         std::cout << "CL Eye Driver being used with native DShow. Setting m_index to " << m_index << std::endl;
+
+        if (!isOpened())
+        {
+            std::cout << "Attempting cv::VideoCapture::open(index) for CLEye DShow camera." << std::endl;
+            return cv::VideoCapture::open(index);
+        }
     }
 
 	// PS3EYE-specific camera capture if available, else use base class open()
