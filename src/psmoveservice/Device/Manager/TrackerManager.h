@@ -59,7 +59,7 @@ public:
 
     void closeAllTrackers();
 
-    static const int k_max_devices = 3;
+    static const int k_max_devices = 4;
     int getMaxDevices() const override
     {
         return TrackerManager::k_max_devices;
