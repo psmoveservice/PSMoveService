@@ -2,7 +2,7 @@
 #define CLIENT_CONTROLLER_VIEW_H
 
 //-- includes -----
-#include "ClientConfig.h"
+#include "PSMoveClient_export.h"
 #include "ClientConstants.h"
 #include "ClientGeometry.h"
 #include <cassert>
@@ -36,7 +36,7 @@ enum PSMoveTrackingColorType {
 };
 
 //-- declarations -----
-struct CLIENTPSMOVEAPI PSMovePhysicsData
+struct PSM_CPP_PUBLIC_CLASS PSMovePhysicsData
 {
     PSMoveFloatVector3 Velocity;
     PSMoveFloatVector3 Acceleration;
@@ -52,7 +52,7 @@ struct CLIENTPSMOVEAPI PSMovePhysicsData
     }
 };
 
-struct CLIENTPSMOVEAPI PSMoveRawSensorData
+struct PSM_CPP_PUBLIC_CLASS PSMoveRawSensorData
 {
     PSMoveIntVector3 Magnetometer;
     PSMoveFloatVector3 Accelerometer;
@@ -66,7 +66,7 @@ struct CLIENTPSMOVEAPI PSMoveRawSensorData
     }
 };
 
-struct CLIENTPSMOVEAPI PSMoveRawTrackerData
+struct PSM_CPP_PUBLIC_CLASS PSMoveRawTrackerData
 {
     // Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
     PSMoveScreenLocation ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
@@ -138,7 +138,7 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
     }
 };
 
-struct CLIENTPSMOVEAPI ClientPSMoveView
+struct PSM_CPP_PUBLIC_CLASS ClientPSMoveView
 {
 private:
     bool bValid;
@@ -283,7 +283,7 @@ public:
     const PSMoveRawTrackerData &GetRawTrackerData() const;
 };
 
-class CLIENTPSMOVEAPI ClientPSNaviView
+class PSM_CPP_PUBLIC_CLASS ClientPSNaviView
 {
 private:
     bool bValid;
@@ -408,7 +408,7 @@ public:
     }
 };
 
-class CLIENTPSMOVEAPI ClientControllerView
+class PSM_CPP_PUBLIC_CLASS ClientControllerView
 {
 public:
     enum eControllerType

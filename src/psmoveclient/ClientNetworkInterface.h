@@ -2,10 +2,11 @@
 #define CLIENT_NETWORK_INTERFACE_H
 
 //-- includes -----
+#include "PSMoveClient_export.h"
 #include <boost/system/error_code.hpp>
 
 //-- interface -----
-class IClientNetworkEventListener
+class PSM_CPP_PRIVATE_CLASS IClientNetworkEventListener
 {
 public:
 	virtual void handle_server_connection_opened() = 0;

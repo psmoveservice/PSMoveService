@@ -2,7 +2,7 @@
 #define CLIENT_HMD_VIEW_H
 
 //-- includes -----
-#include "ClientConfig.h"
+#include "PSMoveClient_export.h"
 #include "ClientGeometry.h"
 #include <cassert>
 #include <string>

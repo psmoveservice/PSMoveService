@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.0)
+include (GenerateExportHeader)
 
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
+set(CMAKE_INSTALL_PREFIX ${ROOT_DIR}/dist)
+
 set(PSMOVE_CLIENT_INCL_DIRS)
 set(PSMOVE_CLIENT_REQ_LIBS)
 
@@ -25,7 +28,7 @@ ENDIF()
 include_directories(${ROOT_DIR}/src/psmoveprotocol/)
 list(APPEND PSMOVE_CLIENT_REQ_LIBS PSMoveProtocol)
 
-# PSMoveProtocol
+# PSMoveMath
 include_directories(${ROOT_DIR}/src/psmovemath/)
 list(APPEND PSMOVE_CLIENT_REQ_LIBS PSMoveMath)
 
@@ -39,8 +42,9 @@ file(GLOB PSMOVECLIENT_LIBRARY_SRC
 add_library(PSMoveClient SHARED ${PSMOVECLIENT_LIBRARY_SRC})
 target_include_directories(PSMoveClient PUBLIC ${PSMOVE_CLIENT_INCL_DIRS})
 target_link_libraries(PSMoveClient ${PSMOVE_CLIENT_REQ_LIBS})
-set_target_properties(PSMoveClient PROPERTIES
-    COMPILE_FLAGS -DBUILDING_SHARED_PSMOVECLIENT_LIBRARY)
+target_compile_definitions(PSMoveClient
+	PRIVATE PSMOVECLIENT_CPP_API)
+set_target_properties(PSMoveClient PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -50,3 +54,44 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
+
+
+set(PSMOVE_CLIENT_CAPI_INCL_DIRS)
+set(PSMOVE_CLIENT_CAPI_REQ_LIBS)
+
+# Protobuf
+list(APPEND PSMOVE_CLIENT_CAPI_INCL_DIRS ${PROTOBUF_INCLUDE_DIRS})
+list(APPEND PSMOVE_CLIENT_CAPI_REQ_LIBS ${PROTOBUF_LIBRARIES})
+
+# Boost - TODO: Trim this list
+find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS date_time regex system)
+list(APPEND PSMOVE_CLIENT_CAPI_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND PSMOVE_CLIENT_CAPI_REQ_LIBS ${Boost_LIBRARIES})
+
+# PSMoveProtocol
+list(APPEND PSMOVE_CLIENT_CAPI_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol/)
+list(APPEND PSMOVE_CLIENT_CAPI_REQ_LIBS PSMoveProtocol)
+
+# PSMoveMath
+list(APPEND PSMOVE_CLIENT_CAPI_INCL_DIRS ${ROOT_DIR}/src/psmovemath/)
+list(APPEND PSMOVE_CLIENT_CAPI_REQ_LIBS PSMoveMath)
+
+# Source files that are needed for the shared library
+file(GLOB PSMOVECLIENT_CAPI_LIBRARY_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/*.h"
+    "${CMAKE_CURRENT_LIST_DIR}/*.cpp"
+)
+
+# Shared library
+add_library(PSMoveClient_CAPI SHARED ${PSMOVECLIENT_LIBRARY_SRC})
+target_include_directories(PSMoveClient_CAPI PUBLIC ${PSMOVE_CLIENT_CAPI_INCL_DIRS} ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(PSMoveClient_CAPI ${PSMOVE_CLIENT_CAPI_REQ_LIBS})
+set_target_properties(PSMoveClient_CAPI PROPERTIES CXX_VISIBILITY_PRESET hidden)
+
+# Install
+install(TARGETS PSMoveClient_CAPI
+	RUNTIME DESTINATION bin
+	LIBRARY DESTINATION lib
+	ARCHIVE DESTINATION lib
+	INCLUDES DESTINATION include
+)

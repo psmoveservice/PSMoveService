@@ -268,6 +268,8 @@ ENDIF()
 add_executable(test_console_client test_console_client.cpp)
 target_include_directories(test_console_client PUBLIC ${ROOT_DIR}/src/psmoveclient/)
 target_link_libraries(test_console_client PSMoveClient)
+target_compile_definitions(test_console_client
+	PRIVATE PSMOVECLIENT_CPP_API)
 SET_TARGET_PROPERTIES(test_console_client PROPERTIES FOLDER Test)
 
 # Install    

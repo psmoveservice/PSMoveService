@@ -28,6 +28,8 @@ file(GLOB OPENVR_PLUGIN_LIBRARY_SRC
 add_library(driver_psmove SHARED ${OPENVR_PLUGIN_LIBRARY_SRC})
 target_include_directories(driver_psmove PUBLIC ${OPENVR_PLUGIN_INCL_DIRS})
 target_link_libraries(driver_psmove ${OPENVR_PLUGIN_REQ_LIBS})
+target_compile_definitions(driver_psmove
+	PRIVATE PSMOVECLIENT_CPP_API)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")

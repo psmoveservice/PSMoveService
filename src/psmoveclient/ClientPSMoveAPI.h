@@ -2,7 +2,7 @@
 #define CLIENT_PSMOVE_API_H
 
 //-- includes -----
-#include "ClientConfig.h"
+#include "PSMoveClient_export.h"
 #include "ClientConstants.h"
 #include "ClientLog.h"
 #include "ClientControllerView.h"
@@ -28,7 +28,7 @@ class ClientHMDView;
 #endif // HAS_PROTOCOL_ACCESS
 
 //-- interface -----
-class CLIENTPSMOVEAPI ClientPSMoveAPI
+class PSM_CPP_PUBLIC_CLASS ClientPSMoveAPI
 {
 public:
     enum eClientAPIConstants

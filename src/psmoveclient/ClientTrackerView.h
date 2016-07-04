@@ -2,7 +2,7 @@
 #define CLIENT_TRACKER_VIEW_H
 
 //-- includes -----
-#include "ClientConfig.h"
+#include "PSMoveClient_export.h"
 #include "ClientGeometry.h"
 #include <cassert>
 
@@ -28,7 +28,7 @@ enum eTrackerDriver
 };
 
 //-- declarations -----
-struct CLIENTPSMOVEAPI ClientTrackerInfo
+struct PSM_CPP_PUBLIC_CLASS ClientTrackerInfo
 {
     // ID of the tracker in the service
     int tracker_id;
@@ -54,7 +54,7 @@ struct CLIENTPSMOVEAPI ClientTrackerInfo
     PSMovePose tracker_pose;
 };
 
-class CLIENTPSMOVEAPI ClientTrackerView
+class PSM_CPP_PUBLIC_CLASS ClientTrackerView
 {
 private:
     ClientTrackerInfo m_tracker_info;

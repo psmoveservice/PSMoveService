@@ -76,7 +76,9 @@ target_include_directories(PSMoveConfigTool PUBLIC ${PSMOVECONFIGTOOL_INCL_DIRS}
 target_link_libraries(PSMoveConfigTool ${PSMOVECONFIGTOOL_REQ_LIBS})
 
 # Allow access to the protocol buffers (extracting response parameters)
-target_compile_definitions(PSMoveConfigTool PRIVATE HAS_PROTOCOL_ACCESS)
+target_compile_definitions(PSMoveConfigTool
+	PRIVATE HAS_PROTOCOL_ACCESS
+	PRIVATE PSMOVECLIENT_CPP_API)
 
 # Post build dependencies (assets and external DLLs)
 add_custom_command(TARGET PSMoveConfigTool POST_BUILD
