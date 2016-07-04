@@ -1,102 +1,28 @@
 # PSMoveService
-A background service that communicates with the psmove and serves its pose and button states. It also include a visual client front-end for configuring and managing controllers. The [FAQ](https://github.com/cboulay/PSMoveService/wiki/Frequently-Asked-Questions) is a good starting point for any specific questions you may have about the project. If you just want to install or build the project from source check out the [wiki](https://github.com/cboulay/PSMoveService/wiki) main page for detailed instructions.
+A background service that manages PSMove Controllers and PS3 Eye Camera. Clients connect to the service and stream PSMove Controller state (position, orientation and button presses). Also included are a visual client front-end for controller/tracker configuration as well as a plugin for SteamVR. The [FAQ](https://github.com/cboulay/PSMoveService/wiki/Frequently-Asked-Questions) is a good starting point for any specific questions you may have about the project. 
 
-# Download
-Don't download the source from the green "Clone or download" button! The zip provided only contains the source from the `/src` folder and not the submodules in `/thirdparty`. This is a known issue with GitHub (we don't provided the zip file that this button generates). If you don't have a github client installed, get it from: https://desktop.github.com/
+**NOTE** This is still alpha software still heavily in development. If you are downloading this project to play games on SteamVR please be aware that this tool may not work for the game you want to play so buyer beware. That said, if you are feeling brave and want to test this we appriciate the feedback about what works and what doesn't.
 
-`git clone --recursive https://github.com/cboulay/PSMoveService.git`
+# Prebuilt Releases
+You can download prebuilt releases (Windows only at the moment) from the [Releases](https://github.com/cboulay/PSMoveService/releases) page. Then follow the initial setup instructions found in the [wiki](https://github.com/cboulay/PSMoveService/wiki#initial-setup). If you run into problems take a look at the [Troubleshooting Page](https://github.com/cboulay/PSMoveService/wiki/Troubleshooting-%28Windows%29) first. If that doesn't help you fix your issue, look at the [issues](https://github.com/cboulay/PSMoveService/issues) page to see if anyone else has the same problem. If not, feel free to post a new issue.
 
-`cd PSMoveService`
+# Building from source
+If you want to make modifications to the service or want to debug it, you can build the project from source by following the  [Building-from-source](https://github.com/cboulay/PSMoveService/wiki/Building-from-source) instructions. Currently supported build platforms are Win10 and OS X with Linux support hopefully coming in the near future.
 
-# Build Dependencies (Windows)
-1. Compiler
-    * Visual Studio 2013 is required by OpenCV 3.0.0 pre-compiled binaries.
-1. OpenCV
-    * I am opting for a system install of opencv instead of project-specific.
-    * Download [OpenCV 3.0](http://sourceforge.net/projects/opencvlibrary/files/opencv-win/3.0.0/opencv-3.0.0.exe/download)
-    * The CMake scripts assume you install to the default directory (C:\OpenCV-3.0.0).
-    If not, you will have to add a `-DOpenCV_DIR=<install dir>\build` flag to your cmake command.
-1. Boost
-    * From [here](https://sourceforge.net/projects/boost/files/boost-binaries/1.59.0_b1/), get boost_1_59_0-msvc-12.0-32.exe and/or -64.exe.
-    * Install to `C:\` (e.g., resulting in `C:\boost_1_59_0\`)
-    * This path will be referred to BOOST_ROOT later
-1. Optional: [CL Eye Driver](https://codelaboratories.com/products/eye/driver/)
-    * Only necessary for Windows 32-bit if not using PS3EYEDriver
-    * Currently $2.99 USD (paypal or credit card)
-    * Platform SDK not necessary
-1. InitialSetup.bat Batch Script
-    * The `InitialSetup.bat` in the root folder will automatically configure and build the dependencies in the thirdparty folder.
-    * It will ask you for the root install folders of Boost and OpenCV.
-    * After the initial setup phase, if you add source files or other CMake changes you can run `GenerateProjectFiles.bat` to regenerate the PSMoveService solution.
-    * If you would rather do initial setup by hand, then proceed to the next step
-1. protobuf (Manual Steps)
-    * cd to thirdparty\protobuf
-    * mkdir vsprojects & cd vsprojects
-    * cmake -G "Visual Studio 12 2013" -Dprotobuf_DEBUG_POSTFIX="" -Dprotobuf_BUILD_TESTS=OFF ../cmake
-    * Open protobuf.sln
-    * Select Release|Win32 and Build > Rebuild Solution
-    * Select Debug|Win32 and Build > Rebuild Solution
-1. Optional: libusb (Manual Steps)
-    * Only necessary for PS3EYEDriver (required on Mac and Windows 64-bit)
-    * Open PSMoveService\thirdparty\libusb\msvc\libusb_2013.sln
-    * For each combination of Release/Debug * Win32/x64, right-click on libusb-1.0 (static) and Build.
-    * Close this Visual Studio Solution.
-1. Optional: SDL2 (Manual Steps)
-    * Optional - Only required if you are building the the configuration client.
-    * `cd third_party/SDL2`
-    * `mkdir build & cd build`
-    * `cmake .. -G "Visual Studio 12 2013" -DDIRECTX=OFF -DDIRECTX=OFF -DSDL_STATIC=ON -DFORCE_STATIC_VCRT=ON -DEXTRA_CFLAGS="-MT -Z7 -DSDL_MAIN_HANDLED -DWIN32 -DNDEBUG -D_CRT_SECURE_NO_WARNINGS -DHAVE_LIBC -D_USE_MATH_DEFINES`
-    * Open the solution (psmoveapi\external\SDL2\build\SDL2.sln)
-    * Change the target to Release (at the top of the VS window).
-    * Build the SLD2-static and SDL2main projects (Not the SDL2 project) 
-    
-# Build Dependencies (OS X)
+# Near Term Roadmap
+ * Ongoing Stabilization of service and SteamVR plugin
+ * DualShock4 Controller Support
+ * PSNavi Controller Support
+ * PS4 Camera Support
+ * Support for other webcams (need camera calibration tool)
+ * Position smoothing and prediction (via Unscented Kalman Filter)
+ * C99 client interface to make interfacing with other languages (Python, C#) easier
 
-1. Compiler
-    * Tested with XCode/clang. gcc may work.
-1. Homebrew
-    * I am opting for a system install of dependent libraries where possible, instead of project-specific.
-    * Install [homebrew](http://brew.sh/) if you do not already have it.
-1. OpenCV
-    * `brew update`
-    * `brew tap homebrew/science`
-    * `brew install opencv3`
-1. Boost
-    * `brew install boost`
-1. protobuf
-    * `brew install protobuf --devel`
-    * It will likely be necessary to drop the --devel flag after >= 3.0 becomes stable.
-1. Optional: libusb
-    * Only necessary for PS3EYEDriver (required on Mac and Windows 64-bit)
-    * `cd thirdparty/libusb`
-    * `./autogen.sh`
-    * `./configure`
-    * `./configure` (yes, a second time)
-    * `make`
-1. Optional: SDL2
-    * Optional - Only required if you are building the the configuration client.
-    * `brew install SDL2`
-   
-# Generate PSMoveService project files
-
-1. `mkdir build && cd build`
-1. Run cmake
-    * Windows: `cmake .. -G "Visual Studio 12 2013"` OR `GenerateProjectFiles.bat`
-    * Mac: `cmake ..` OR `cmake -G "Xcode" ..`
-
-# Build PSMoveService
-
-### Windows
-
-1. Open <path_to_repo>\build\PSMoveService.sln
-1. Change to "Release" configuration
-1. Rt-click on the project and build
-
-### OS X (Xcode)
-
-1. Launch Xcode
-1. Open <path_to_repo>\build\PSMoveService.xcodeproj
-1. Go to "Product" > "Build" or hit <Command>-B
+# Long Term Roadmap
+ * Integration with PSMove-UE4
+ * Integration with PSMove-Unity5
+ * Linux support
+ * Integration with OSVR
 
 #Attribution
 Special thanks to the following people who helped make this project possible:
