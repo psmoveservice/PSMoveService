@@ -26,6 +26,8 @@ call "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" x86
 :: Compile the DEBUG|Win32 and RELEASE|Win32 builds of protobuf
 echo "Creating protobuf project files..."
 pushd thirdparty\protobuf
+del /f /s /q vsprojects > nul
+rmdir /s /q vsprojects
 mkdir vsprojects
 pushd vsprojects
 cmake -G "Visual Studio 12 2013" -Dprotobuf_DEBUG_POSTFIX="" -Dprotobuf_BUILD_TESTS=OFF ../cmake
@@ -47,6 +49,8 @@ popd
 :: Compile the RELEASE|Win32 build of SDL2
 echo "Creating SDL2 project files..."
 pushd thirdparty\SDL2
+del /f /s /q build > nul
+rmdir /s /q build
 mkdir build
 pushd build
 cmake .. -G "Visual Studio 12 2013" -DDIRECTX=OFF -DDIRECTX=OFF -DSDL_STATIC=ON -DFORCE_STATIC_VCRT=ON -DEXTRA_CFLAGS="-MT -Z7 -DSDL_MAIN_HANDLED -DWIN32 -DNDEBUG -D_CRT_SECURE_NO_WARNINGS -DHAVE_LIBC -D_USE_MATH_DEFINES
@@ -58,7 +62,7 @@ popd
 popd
 
 :: Generate the project files for PSMoveService
-call GenerateProjectFiles.bat
+call GenerateProjectFiles_Win32.bat
 pause
 goto exit
 

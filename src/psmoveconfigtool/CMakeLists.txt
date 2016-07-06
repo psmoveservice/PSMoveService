@@ -84,16 +84,16 @@ add_custom_command(TARGET PSMoveConfigTool POST_BUILD
         $<TARGET_FILE_DIR:PSMoveConfigTool>)        
 
 # Install    
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-install(TARGETS PSMoveConfigTool
-    RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
-    LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
-    ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
-install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/assets/ 
-        DESTINATION ${ROOT_DIR}/win32/bin/assets
-        FILES_MATCHING PATTERN "*.ttf"  PATTERN "*.jpg")
-install(DIRECTORY ${OPENVR_BINARIES_DIR}/ 
-        DESTINATION ${ROOT_DIR}/win32/bin
-        FILES_MATCHING PATTERN "*.dll" PATTERN "*.pdb")        
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")   
+    install(TARGETS PSMoveConfigTool
+        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+    install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/assets/ 
+            DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin/assets
+            FILES_MATCHING PATTERN "*.ttf"  PATTERN "*.jpg")
+    install(DIRECTORY ${OPENVR_BINARIES_DIR}/ 
+            DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+            FILES_MATCHING PATTERN "*.dll" PATTERN "*.pdb")        
 ELSE() #Linux/Darwin
 ENDIF()

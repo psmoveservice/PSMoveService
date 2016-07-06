@@ -40,9 +40,9 @@ set_target_properties(PSMoveClient PROPERTIES
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-install(TARGETS PSMoveClient
-	RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
-	LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
-	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+    install(TARGETS PSMoveClient
+        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
