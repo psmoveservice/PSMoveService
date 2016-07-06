@@ -18,7 +18,7 @@
 #endif
 
 #ifndef PSM_PUBLIC_FUNCTION
-    #ifdef PSMoveClient_EXPORTS  // CMake-defined when creating shared library
+    #if defined(PSMoveClient_EXPORTS) || defined(PSMoveClient_CAPI_EXPORTS)  // CMake-defined when creating shared library
         #if defined _WIN32 || defined __CYGWIN__
             #define PSM_PUBLIC_FUNCTION(rval)       PSM_EXTERN_C    __declspec(dllexport)                   rval    PSM_CALL
             #define PSM_PUBLIC_CLASS                                __declspec(dllexport)
@@ -35,7 +35,7 @@
             #define PSM_PRIVATE_FUNCTION(rval)                      __attribute__((visibility("hidden")))   rval    PSM_CALL
             #define PSM_PRIVATE_CLASS                               __attribute__((visibility("hidden")))
         #endif  //defined _WIN32 || defined __CYGWIN__
-    #elif defined(PSMoveClient_STATIC)  // Building static lib
+    #elif defined(PSMoveClient_STATIC) || defined(PSMoveClient_CAPI_STATIC)  // Building static lib
         #define PSM_PUBLIC_FUNCTION(rval)           PSM_EXTERN_C                                            rval    PSM_CALL
         #define PSM_PUBLIC_CLASS
         #define PSM_PRIVATE_FUNCTION(rval)                                                                  rval    PSM_CALL
