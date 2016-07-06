@@ -1,4 +1,5 @@
 #include "PSEyeVideoCapture.h"
+#include "ClientConstants.h"
 #include "opencv2/opencv.hpp"
 #include <algorithm>
 #include <vector>
@@ -16,8 +17,8 @@ int main(int, char**)
 {
     std::vector<camera_state> camera_states;
 
-    // Open all available cameras (up to 3 max)
-    for (int camera_index = 0; camera_index < 3; ++camera_index)
+    // Open all available cameras (up to 4 max)
+    for (int camera_index = 0; camera_index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++camera_index)
     {
         PSEyeVideoCapture *camera = new PSEyeVideoCapture(camera_index); // open the default camera
 

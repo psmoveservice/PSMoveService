@@ -264,7 +264,7 @@ class PSEYECaptureCAM_PS3EYE : public cv::IVideoCapture
 public:
     PSEYECaptureCAM_PS3EYE(int _index)
     : m_index(-1), m_width(-1), m_height(-1), m_widthStep(-1),
-    m_size(-1), m_MatYUV(0, 0, CV_8UC2)
+    m_size(-1), m_MatBayer(0, 0, CV_8UC1)
     {
         //CoInitialize(NULL);
         open(_index);
@@ -357,8 +357,9 @@ public:
 
         if (new_pixels != NULL)
         {
-            std::memcpy(m_MatYUV.data, new_pixels, m_MatYUV.total() * m_MatYUV.elemSize() * sizeof(uchar));
-            cv::cvtColor(m_MatYUV, outArray, CV_YUV2BGR_YUY2);
+            std::memcpy(m_MatBayer.data, new_pixels, m_MatBayer.total() * m_MatBayer.elemSize() * sizeof(uchar));
+            //cv::cvtColor(m_MatYUV, outArray, CV_YUV2BGR_YUY2);
+            cv::cvtColor(m_MatBayer, outArray, CV_BayerGB2BGR);
             free(new_pixels);
             return true;
         }
@@ -430,15 +431,15 @@ protected:
     void refreshDimensions()
     {
         m_width = eye->getWidth();
-        m_widthStep = eye->getRowBytes(); // just width * 2.
+        m_widthStep = eye->getRowBytes(); // just width * 1 byte per pixel.
         m_height = eye->getHeight();
         m_size = m_widthStep * m_height;
-        m_MatYUV.create(cv::Size(m_width, m_height), CV_8UC2);
+        m_MatBayer.create(cv::Size(m_width, m_height), CV_8UC1);
     }
 
     int m_index, m_width, m_height, m_widthStep;
     size_t m_size;
-    cv::Mat m_MatYUV;
+    cv::Mat m_MatBayer;
     ps3eye::PS3EYECam::PS3EYERef eye;
 };
 

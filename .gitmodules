@@ -7,7 +7,7 @@
 [submodule "thirdparty/PS3EYEDriver"]
 	path = thirdparty/PS3EYEDriver
 	url = https://github.com/HipsterSloth/PS3EYEDriver.git
-	branch = psmoveservice
+	branch = bayer-test
 [submodule "thirdparty/type_index"]
 	path = thirdparty/type_index
 	url = https://github.com/boostorg/type_index.git

@@ -128,6 +128,8 @@ public:
 AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
     : AppStage(app)
     , m_controllerView(nullptr)
+    , m_isControllerStreamActive(false)
+    , m_lastControllerSeqNum(-1)
     , m_trackerView(nullptr)
     , m_menuState(AppStage_ColorCalibration::inactive)
     , m_video_buffer_state(nullptr)
@@ -156,6 +158,8 @@ void AppStage_ColorCalibration::enter()
     assert(m_controllerView == nullptr);
     const int ControllerID = 0;
     m_controllerView = ClientPSMoveAPI::allocate_controller_view(ControllerID);
+    m_isControllerStreamActive= false;
+    m_lastControllerSeqNum= -1;
 
     // Request to start the tracker
     // Wait for the tracker response before requesting the controller
@@ -175,6 +179,17 @@ void AppStage_ColorCalibration::exit()
 
 void AppStage_ColorCalibration::update()
 {
+    bool bControllerDataUpdatedThisFrame= false;
+
+    if (m_menuState == eMenuState::waitingForStreamStartResponse)
+    {
+        if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
+        {
+            request_set_controller_tracking_color(PSMoveTrackingColorType::Magenta);
+            setState(eMenuState::manualConfig);
+        }
+    }
+
     // Try and read the next video frame from shared memory
     if (m_video_buffer_state != nullptr)
     {
@@ -404,8 +419,8 @@ void AppStage_ColorCalibration::renderUI()
         {
             ImVec2 mousePos = ImGui::GetMousePos();
             ImVec2 dispSize = ImGui::GetIO().DisplaySize;
-            int img_x = mousePos.x * m_video_buffer_state->hsvBuffer->cols / dispSize.x;
-            int img_y = mousePos.y * m_video_buffer_state->hsvBuffer->rows / dispSize.y;
+            int img_x = mousePos.x * m_video_buffer_state->hsvBuffer->cols / static_cast<int>(dispSize.x);
+            int img_y = mousePos.y * m_video_buffer_state->hsvBuffer->rows / static_cast<int>(dispSize.y);
             cv::Vec< unsigned char, 3 > hsv_pixel = m_video_buffer_state->hsvBuffer->at<cv::Vec< unsigned char, 3 >>(cv::Point(img_x, img_y));
             
             TrackerColorPreset preset = getColorPreset();
@@ -546,6 +561,7 @@ void AppStage_ColorCalibration::renderUI()
 
     case eMenuState::pendingTrackerStartStreamRequest:
     case eMenuState::pendingControllerStartRequest:
+    case eMenuState::waitingForStreamStartResponse:
     {
         ImGui::SetNextWindowPosCenter();
         ImGui::SetNextWindowSize(ImVec2(k_panel_width, 50));
@@ -623,8 +639,8 @@ void AppStage_ColorCalibration::handle_start_controller_response(
     {
     case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
-            thisPtr->request_set_controller_tracking_color(PSMoveTrackingColorType::Magenta);
-            thisPtr->setState(AppStage_ColorCalibration::manualConfig);
+            thisPtr->m_isControllerStreamActive= true;
+            thisPtr->setState(AppStage_ColorCalibration::waitingForStreamStartResponse);
         } break;
 
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
@@ -1015,6 +1031,8 @@ void AppStage_ColorCalibration::release_devices()
         ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(m_controllerView));
         ClientPSMoveAPI::free_controller_view(m_controllerView);
         m_controllerView = nullptr;
+        m_isControllerStreamActive= false;
+        m_lastControllerSeqNum= -1;
     }
 
     if (m_trackerView != nullptr)
