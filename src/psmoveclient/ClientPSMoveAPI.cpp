@@ -166,7 +166,7 @@ public:
             m_controller_view_map.insert(t_id_controller_view_pair(ControllerID, view));
         }
 
-        // Keep track of how many clients are listening to this view
+        // Increment the number of objects that are registered to listen in on this controller on this client
         view->IncListenerCount();        
         
         return view;
@@ -183,6 +183,7 @@ public:
         // If no one is listening to this controller anymore, free it from the map
         if (view->GetListenerCount() <= 0)
         {
+            stop_controller_data_stream(view_entry->second);
             // Free the controller view allocated in allocate_controller_view
             delete view_entry->second;
             view_entry->second= nullptr;
@@ -328,6 +329,7 @@ public:
         if (view->getListenerCount() <= 0)
         {
             // Free the tracker view allocated in allocate_tracker_view
+            stop_tracker_data_stream(view_entry->second);
             delete view_entry->second;
             view_entry->second = nullptr;
 

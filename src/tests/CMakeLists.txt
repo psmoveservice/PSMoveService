@@ -282,6 +282,23 @@ ELSE() #Linux/Darwin
 ENDIF()
 
 #
+# TEST_CONSOLE_CAPI
+#
+add_executable(test_console_CAPI test_console_CAPI.cpp)
+target_include_directories(test_console_CAPI PUBLIC ${ROOT_DIR}/src/psmoveclient/)
+target_link_libraries(test_console_CAPI PSMoveClient_CAPI)
+SET_TARGET_PROPERTIES(test_console_CAPI PROPERTIES FOLDER Test)
+
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS test_console_CAPI
+    RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
+    LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
+    ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+ELSE() #Linux/Darwin
+ENDIF()
+
+#
 # TEST_UDP_SERVER
 #
 
