@@ -1,5 +1,7 @@
 #include "PSMoveClient_CAPI.h"
+#include "ClientConstants.h"
 #include <iostream>
+#include <iomanip>
 #include <chrono>
 
 #if defined(__linux) || defined (__APPLE__)
@@ -18,6 +20,11 @@ public:
     PSMoveConsoleClient() 
         : m_keepRunning(true)
     {
+        controllers = (PSMController **)malloc(sizeof(PSMController *)*PSMOVESERVICE_MAX_CONTROLLER_COUNT);
+    }
+    ~PSMoveConsoleClient()
+    {
+        free(controllers);
     }
 
     int run()
@@ -31,7 +38,7 @@ public:
                 {
                     update();
 
-                    sleep_millisecond(1);
+                    _PAUSE(1);
                 }
             }
             else
@@ -58,16 +65,6 @@ public:
    }
 
 private:
-    void sleep_millisecond(int sleepMs)
-    {
-    #if defined(__linux) || defined (__APPLE__)
-        usleep(sleepMs * 1000);
-    #endif
-    #ifdef WINDOWS
-        Sleep(sleepMs);
-    #endif
-    }
-
     // PSMoveConsoleClient
     bool startup()
     {
@@ -80,6 +77,18 @@ private:
             {
                 std::cout << "PSMoveConsoleClient::startup() - Failed to initialize the client network manager" << std::endl;
                 success= false;
+            }
+            int controller_count = PSM_GetControllerList(controllers);
+            std::cout << "Found " << controller_count << " controllers." << std::endl;
+            
+            // TODO: Register as listener and start stream for each controller
+            unsigned int data_stream_flags = PSMControllerDataStreamFlags::includePositionData |
+            PSMControllerDataStreamFlags::includePhysicsData | PSMControllerDataStreamFlags::includeRawSensorData |
+            PSMControllerDataStreamFlags::includeRawTrackerData;
+            PSMResult result;
+            for (int ctrl_ix=0; ctrl_ix<controller_count; ++ctrl_ix) {
+                result = PSM_RegisterAsControllerListener(controllers[ctrl_ix]);
+                result = PSM_StartControllerDataStream(controllers[ctrl_ix], data_stream_flags);
             }
         }
 
@@ -97,30 +106,51 @@ private:
     {
         std::chrono::milliseconds now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
         std::chrono::milliseconds diff= now - last_report_fps_timestamp;
-        if (diff.count() > 10000)
+        
+        PSMResult result = PSM_UpdateController(controllers[0]);
+        PSMRawSensorData rawsens = controllers[0]->ControllerState.PSMoveState.RawSensorData;
+        
+        std::cout << "Controller 0 (AGMXYZ):  ";
+        
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << rawsens.Accelerometer.x;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << rawsens.Accelerometer.y;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << rawsens.Accelerometer.z;
+        
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << rawsens.Gyroscope.x;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << rawsens.Gyroscope.y;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << rawsens.Gyroscope.z;
+        
+        std::cout << std::setw(5) << std::right << rawsens.Magnetometer.x;
+        std::cout << std::setw(5) << std::right << rawsens.Magnetometer.y;
+        std::cout << std::setw(5) << std::right << rawsens.Magnetometer.z;
+        
+        PSMVector3f position = controllers[0]->ControllerState.PSMoveState.RawTrackerData.RelativePositions[0];
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << position.x;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << position.y;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << position.z;
+        
+        std::cout << std::endl;
+        
+        if (controllers[0]->ControllerState.PSMoveState.CrossButton != PSMButtonState_UP)
         {
             m_keepRunning = false;
         }
-        
-            
-
-            /*
-            if (diff.count() > FPS_REPORT_DURATION && controller_view->GetDataFrameFPS() > 0)
-            {
-                std::cout << "PSMoveConsoleClient - DataFrame Update FPS: " << controller_view->GetDataFrameFPS() << "FPS" << std::endl;
-                last_report_fps_timestamp= now;
-            }
-             */
     }
 
     void shutdown()
     {
+        for (int ctrl_ix=0; ctrl_ix < PSMOVESERVICE_MAX_CONTROLLER_COUNT; ++ctrl_ix)
+        {
+            PSM_StopControllerDataStream(controllers[ctrl_ix]);
+//            PSM_DeregisterAsControllerListener(controllers[ctrl_ix]);
+        }
         PSM_Shutdown();
     }
 
 private:
     bool m_keepRunning;
     std::chrono::milliseconds last_report_fps_timestamp;
+    PSMController **controllers;
 };
 
 int main(int argc, char *argv[])

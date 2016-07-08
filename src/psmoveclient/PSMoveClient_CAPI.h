@@ -4,6 +4,18 @@
 #include "PSMoveClient_export.h"
 #include "ClientConstants.h"
 
+// Defines a standard _PAUSE function
+#if __cplusplus >= 199711L  // if C++11
+    #include <thread>
+    #define _PAUSE(ms) (std::this_thread::sleep_for(std::chrono::milliseconds(ms)))
+#elif defined(_WIN32)       // if windows system
+    #include <windows.h>
+    #define _PAUSE(ms) (Sleep(ms))
+#else                       // assume this is Unix system
+    #include <unistd.h>
+    #define _PAUSE(ms) (usleep(1000 * ms))
+#endif
+
 typedef int PSMRequestID;
 typedef char PSMBool;
 #define PSMFalse 0
@@ -13,7 +25,8 @@ typedef enum _PSMResult
 {
     PSMResult_Error                 = -1,
     PSMResult_Success               = 0,
-    PSMResult_Timeout               = 1
+    PSMResult_Timeout               = 1,
+    PSMResult_RequestSent           = 2
 } PSMResult;
 
 typedef enum _PSMConnectionType
@@ -40,12 +53,14 @@ typedef enum _PSMTrackingColorType
     PSMTrackingColorType_Blue,       // R:0x00, G:0x00, B:0xFF
 } PSMTrackingColorType;
 
-
-/// A quaternion rotation.
-typedef struct _PSMQuatf
+typedef enum _PSMControllerDataStreamFlags
 {
-    float x, y, z, w;
-} PSMQuatf;
+    defaultStreamOptions = 0x00,
+    includePositionData = 0x01,
+    includePhysicsData = 0x02,
+    includeRawSensorData = 0x04,
+    includeRawTrackerData = 0x08
+} PSMControllerDataStreamFlags;
 
 /// A 2D vector with float components.
 typedef struct _PSMVector2f
@@ -65,11 +80,17 @@ typedef struct _PSMVector3i
     int x, y, z;
 } PSMVector3i;
 
+/// A quaternion rotation.
+typedef struct _PSMQuatf
+{
+    float x, y, z, w;
+} PSMQuatf;
+
 /// Position and orientation together.
 typedef struct _PSMPosef
 {
-    PSMQuatf     Orientation;
     PSMVector3f  Position;
+    PSMQuatf     Orientation;
 } PSMPosef;
 
 typedef struct _PSMovePhysicsData
@@ -124,7 +145,6 @@ typedef struct _PSMRawTrackerData
 
 typedef struct _PSMPSMove
 {
-    bool                    bValid;
     bool                    bHasValidHardwareCalibration;
     bool                    bIsTrackingEnabled;
     bool                    bIsCurrentlyTracking;
@@ -159,7 +179,6 @@ typedef struct _PSMPSMove
 
 typedef struct _PSMPSNavi
 {
-    bool bValid;
     PSMButtonState L1Button;
     PSMButtonState L2Button;
     PSMButtonState L3Button;
@@ -190,10 +209,10 @@ typedef struct _PSMController
         PSMPSNavi PSNaviState;
     }               ControllerState;
     eControllerType ControllerType;
+    bool            bValid;
     unsigned int    ControllerID;
     int             OutputSequenceNum;
     int             InputSequenceNum;
-    int             ListenerCount;
     bool            IsConnected;
     long long       DataFrameLastReceivedTime;
     float           DataFrameAverageFPS;
@@ -206,7 +225,7 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_Shutdown();
 //PSM_PUBLIC_FUNCTION(PSMResult) PSM_PollNextMessage();  //*message, sizeof(message)
 
 /// Controller Methods
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerList(PSMController** controllers, unsigned int timeout_msec);
+PSM_PUBLIC_FUNCTION(int) PSM_GetControllerList(PSMController** controllers);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_RegisterAsControllerListener(PSMController *controller);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartControllerDataStream(PSMController *controller, unsigned int data_stream_flags);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopControllerDataStream(PSMController *controller);

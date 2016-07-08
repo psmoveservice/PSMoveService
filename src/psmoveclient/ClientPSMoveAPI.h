@@ -181,6 +181,7 @@ public:
     /// Controller Methods
     static ClientControllerView *allocate_controller_view(int ControllerID);
     static void free_controller_view(ClientControllerView *view);
+    static ClientControllerView *get_controller_view(int controller_id);
 
     static t_request_id get_controller_list();
     static t_request_id start_controller_data_stream(ClientControllerView *view, unsigned int data_stream_flags);

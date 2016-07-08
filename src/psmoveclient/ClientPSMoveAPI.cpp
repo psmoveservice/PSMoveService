@@ -183,7 +183,7 @@ public:
         // If no one is listening to this controller anymore, free it from the map
         if (view->GetListenerCount() <= 0)
         {
-            stop_controller_data_stream(view_entry->second);
+//            stop_controller_data_stream(view_entry->second);
             // Free the controller view allocated in allocate_controller_view
             delete view_entry->second;
             view_entry->second= nullptr;
@@ -191,6 +191,13 @@ public:
             // Remove the entry from the map
             m_controller_view_map.erase(view_entry);
         }
+    }
+    
+    ClientControllerView* get_controller_view(int controller_id)
+    {
+        t_controller_view_map_iterator view_entry= m_controller_view_map.find(controller_id);
+        assert(view_entry != m_controller_view_map.end());
+        return view_entry->second;
     }
 
     ClientPSMoveAPI::t_request_id get_controller_list()
@@ -329,7 +336,7 @@ public:
         if (view->getListenerCount() <= 0)
         {
             // Free the tracker view allocated in allocate_tracker_view
-            stop_tracker_data_stream(view_entry->second);
+//            stop_tracker_data_stream(view_entry->second);
             delete view_entry->second;
             view_entry->second = nullptr;
 
@@ -747,6 +754,16 @@ void ClientPSMoveAPI::free_controller_view(ClientControllerView * view)
     {
         ClientPSMoveAPI::m_implementation_ptr->free_controller_view(view);
     }
+}
+
+ClientControllerView * ClientPSMoveAPI::get_controller_view(int controller_id)
+{
+    ClientControllerView * view = nullptr;
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        view = ClientPSMoveAPI::m_implementation_ptr->get_controller_view(controller_id);
+    }
+    return view;
 }
 
 ClientPSMoveAPI::t_request_id 
