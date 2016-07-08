@@ -539,6 +539,11 @@ protected:
                     controller_view->stopTracking();
                 }
 
+                if (streamInfo.led_override_active)
+                {
+                    controller_view->clearLEDOverride();
+                }
+
                 context.connection_state->active_controller_streams.set(controller_id, false);
                 context.connection_state->active_controller_stream_info[controller_id].Clear();
 
@@ -1390,7 +1395,6 @@ protected:
                                     // Removes the over led color and restores the tracking color
                                     // of the controller is currently being tracked
                                     controller_view->clearLEDOverride();
-
                                 }
                             }
                             // Otherwise we are setting the override to a new color
@@ -1400,6 +1404,10 @@ protected:
                                 // If tracking was active this likely will affect controller tracking
                                 controller_view->setLEDOverride(r, g, b);
                             }
+
+                            // Flag if the LED override is active
+                            // If the stream closes and this flag is active we'll need to clear the led override
+                            streamInfo.led_override_active= controller_view->getIsLEDOverrideActive();
                         }
                     } break;
                 case CommonDeviceState::eDeviceType::PSNavi:

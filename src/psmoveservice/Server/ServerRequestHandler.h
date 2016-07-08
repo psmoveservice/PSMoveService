@@ -18,6 +18,7 @@ struct ControllerStreamInfo
     bool include_physics_data;
     bool include_raw_sensor_data;
     bool include_raw_tracker_data;
+    bool led_override_active;
     int last_data_input_sequence_number;
 
     inline void Clear()
@@ -26,6 +27,7 @@ struct ControllerStreamInfo
         include_physics_data = false;
         include_raw_sensor_data = false;
         include_raw_tracker_data = false;
+        led_override_active = false;
         last_data_input_sequence_number = -1;
     }
 };
