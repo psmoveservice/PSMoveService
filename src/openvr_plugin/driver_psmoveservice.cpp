@@ -213,7 +213,7 @@ const char * const *CServerDriver_PSMoveService::GetInterfaceVersions()
 
 uint32_t CServerDriver_PSMoveService::GetTrackedDeviceCount()
 {
-    return m_vecTrackedDevices.size();
+    return static_cast<uint32_t>(m_vecTrackedDevices.size());
 }
 
 vr::ITrackedDeviceServerDriver * CServerDriver_PSMoveService::GetTrackedDeviceDriver( 
@@ -583,11 +583,28 @@ CClientDriver_PSMoveService::~CClientDriver_PSMoveService()
 {
 }
 
-vr::EVRInitError CClientDriver_PSMoveService::Init( vr::IDriverLog * pDriverLog, vr::IClientDriverHost * pDriverHost, const char * pchUserDriverConfigDir, const char * pchDriverInstallDir )
+vr::EVRInitError CClientDriver_PSMoveService::Init( 
+    vr::EClientDriverMode driverMode,
+    vr::IDriverLog * pDriverLog, 
+    vr::IClientDriverHost * pDriverHost, 
+    const char * pchUserDriverConfigDir, 
+    const char * pchDriverInstallDir )
 {
-    InitDriverLog( pDriverLog );
-    m_pDriverHost = pDriverHost;
-    return vr::VRInitError_None;
+    vr::EVRInitError result= vr::VRInitError_Driver_Failed;
+
+    switch(driverMode)
+    {
+    case vr::ClientDriverMode_Normal:
+        InitDriverLog( pDriverLog );
+        m_pDriverHost = pDriverHost;
+        result= vr::VRInitError_None;
+        break;
+    case vr::ClientDriverMode_Watchdog: // client should return VRInitError_Init_LowPowerWatchdogNotSupported if it can't support this mode
+        result= vr::VRInitError_Init_LowPowerWatchdogNotSupported;
+        break;
+    }
+
+    return result;
 }
 
 void CClientDriver_PSMoveService::Cleanup()
@@ -805,13 +822,13 @@ uint32_t CPSMoveTrackedDeviceLatest::GetStringTrackedDeviceProperty(
     else if (sRetVal.size() + 1 > unBufferSize)
     {
         *pError = vr::TrackedProp_BufferTooSmall;
-        return sRetVal.size() + 1;  // caller needs to know how to size buffer
+        return static_cast<uint32_t>(sRetVal.size() + 1);  // caller needs to know how to size buffer
     }
     else
     {
         snprintf(pchValue, unBufferSize, sRetVal.c_str());
         *pError = vr::TrackedProp_Success;
-        return sRetVal.size() + 1;
+        return static_cast<uint32_t>(sRetVal.size() + 1);
     }
 }
 
@@ -1118,13 +1135,13 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
     else if ( sRetVal.size() + 1 > unBufferSize )
     {
         *pError = vr::TrackedProp_BufferTooSmall;
-        return sRetVal.size() + 1;  // caller needs to know how to size buffer
+        return static_cast<uint32_t>(sRetVal.size() + 1);  // caller needs to know how to size buffer
     }
     else
     {
         snprintf( pchValue, unBufferSize, sRetVal.c_str() );
         *pError = vr::TrackedProp_Success;
-        return sRetVal.size() + 1;
+        return static_cast<uint32_t>(sRetVal.size() + 1);
     }
 }
 
@@ -1596,13 +1613,13 @@ uint32_t CPSMoveTrackerLatest::GetStringTrackedDeviceProperty(
     else if (sRetVal.size() + 1 > unBufferSize)
     {
         *pError = vr::TrackedProp_BufferTooSmall;
-        return sRetVal.size() + 1;  // caller needs to know how to size buffer
+        return static_cast<uint32_t>(sRetVal.size() + 1);  // caller needs to know how to size buffer
     }
     else
     {
         snprintf(pchValue, unBufferSize, sRetVal.c_str());
         *pError = vr::TrackedProp_Success;
-        return sRetVal.size() + 1;
+        return static_cast<uint32_t>(sRetVal.size() + 1);
     }
 }
 

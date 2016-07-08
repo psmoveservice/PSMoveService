@@ -76,7 +76,7 @@ public:
     virtual ~CClientDriver_PSMoveService();
 
     // Inherited via IClientTrackedDeviceProvider
-    virtual vr::EVRInitError Init( vr::IDriverLog * pDriverLog, vr::IClientDriverHost * pDriverHost, const char * pchUserDriverConfigDir, const char * pchDriverInstallDir ) override;
+    virtual vr::EVRInitError Init( vr::EClientDriverMode eDriverMode, vr::IDriverLog * pDriverLog, vr::IClientDriverHost * pDriverHost, const char * pchUserDriverConfigDir, const char * pchDriverInstallDir ) override;
     virtual void Cleanup() override;
     virtual bool BIsHmdPresent( const char * pchUserConfigDir ) override;
     virtual vr::EVRInitError SetDisplayId( const char * pchDisplayId ) override;
@@ -85,7 +85,6 @@ public:
 
 private:
     vr::IClientDriverHost* m_pDriverHost;
-
 };
 
 class CPSMoveTrackedDeviceLatest : public vr::ITrackedDeviceServerDriver
