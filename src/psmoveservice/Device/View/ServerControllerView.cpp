@@ -36,9 +36,9 @@ static void update_filters_for_psmove(
     OrientationFilter *orientationFilter, PositionFilter *position_filter);
 
 static void generate_psmove_data_frame_for_stream(
-    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceOutputDataFramePtr &data_frame);
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, PSMoveProtocol::DeviceOutputDataFrame* data_frame);
 static void generate_psnavi_data_frame_for_stream(
-    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceOutputDataFramePtr &data_frame);
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, PSMoveProtocol::DeviceOutputDataFrame* data_frame);
 
 //-- public implementation -----
 ServerControllerView::ServerControllerView(const int device_id)
@@ -697,7 +697,7 @@ void ServerControllerView::publish_device_data_frame()
 void ServerControllerView::generate_controller_data_frame_for_stream(
     const ServerControllerView *controller_view,
     const ControllerStreamInfo *stream_info,
-    DeviceOutputDataFramePtr &data_frame)
+    PSMoveProtocol::DeviceOutputDataFrame* data_frame)
 {
     PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *controller_data_frame= 
         data_frame->mutable_controller_data_packet();
@@ -726,7 +726,7 @@ void ServerControllerView::generate_controller_data_frame_for_stream(
 static void generate_psmove_data_frame_for_stream(
     const ServerControllerView *controller_view,
     const ControllerStreamInfo *stream_info,
-    DeviceOutputDataFramePtr &data_frame)
+    PSMoveProtocol::DeviceOutputDataFrame* data_frame)
 {
     const PSMoveController *psmove_controller= controller_view->castCheckedConst<PSMoveController>();
     const PSMoveControllerConfig *psmove_config= psmove_controller->getConfig();
@@ -911,7 +911,7 @@ static void generate_psmove_data_frame_for_stream(
 static void generate_psnavi_data_frame_for_stream(
     const ServerControllerView *controller_view,
     const ControllerStreamInfo *stream_info,
-    DeviceOutputDataFramePtr &data_frame)
+    PSMoveProtocol::DeviceOutputDataFrame* data_frame)
 {
     PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *controller_data_frame = data_frame->mutable_controller_data_packet();
     PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket_PSNaviState *psnavi_data_frame = controller_data_frame->mutable_psnavi_state();

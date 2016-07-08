@@ -698,7 +698,7 @@ private:
         // Parse the response buffer
         if (m_packed_output_data_frame.unpack(m_output_data_frame_buffer, total_len))
         {
-            DeviceOutputDataFramePtr data_frame = m_packed_output_data_frame.get_msg();
+            const PSMoveProtocol::DeviceOutputDataFrame *data_frame = m_packed_output_data_frame.get_msg().get();
 
             m_data_frame_listener->handle_data_frame(data_frame);
         }

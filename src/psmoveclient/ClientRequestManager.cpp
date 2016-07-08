@@ -22,9 +22,11 @@ class ClientRequestManagerImpl
 {
 public:
     ClientRequestManagerImpl(
+        IDataFrameListener *dataFrameListener,
         ClientPSMoveAPI::t_response_callback callback, 
         void *userdata)
-        : m_callback(callback)
+        : m_dataFrameListener(dataFrameListener)
+        , m_callback(callback)
         , m_callback_userdata(userdata)
         , m_pending_requests()
         , m_next_request_id(0)
@@ -151,6 +153,12 @@ public:
         {
             switch (response->type())
             {
+            case PSMoveProtocol::Response_ResponseType_CONTROLLER_STREAM_STARTED:
+                {
+                    const PSMoveProtocol::DeviceOutputDataFrame *dataFrame= &response->result_controller_stream_started().initial_data_frame();
+
+                    m_dataFrameListener->handle_data_frame(dataFrame);
+                } break;
             case PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST:
                 build_controller_list_response_message(response, &out_response_message->payload.controller_list);
                 out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_ControllerList;
@@ -315,6 +323,7 @@ public:
     }
 
 private:
+    IDataFrameListener *m_dataFrameListener;
     ClientPSMoveAPI::t_response_callback m_callback;
     void *m_callback_userdata;
     t_request_context_map m_pending_requests;
@@ -328,9 +337,12 @@ private:
 };
 
 //-- public methods -----
-ClientRequestManager::ClientRequestManager(ClientPSMoveAPI::t_response_callback callback, void *userdata)
+ClientRequestManager::ClientRequestManager(
+    IDataFrameListener *dataFrameListener,
+    ClientPSMoveAPI::t_response_callback callback, 
+    void *userdata)
 {
-    m_implementation_ptr = new ClientRequestManagerImpl(callback, userdata);
+    m_implementation_ptr = new ClientRequestManagerImpl(dataFrameListener, callback, userdata);
 }
 
 ClientRequestManager::~ClientRequestManager()

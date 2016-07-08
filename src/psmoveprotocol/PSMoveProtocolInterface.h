@@ -32,7 +32,7 @@ public:
 class IDataFrameListener
 {
 public:
-    virtual void handle_data_frame(DeviceOutputDataFramePtr data_frame) = 0;
+    virtual void handle_data_frame(const PSMoveProtocol::DeviceOutputDataFrame *data_frame) = 0;
 };
 
 class IResponseListener

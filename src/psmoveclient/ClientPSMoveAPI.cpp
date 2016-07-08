@@ -30,7 +30,10 @@ public:
     ClientPSMoveAPIImpl(
         const std::string &host, 
         const std::string &port)
-        : m_request_manager(ClientPSMoveAPIImpl::handle_response_message, this)
+        : m_request_manager(
+            this, // IDataFrameListener
+            ClientPSMoveAPIImpl::handle_response_message, 
+            this) // ClientPSMoveAPIImpl::handle_response_message userdata
         , m_network_manager(
             host, port, 
             this, // IDataFrameListener
@@ -410,7 +413,7 @@ public:
     }
 
     // IDataFrameListener
-    virtual void handle_data_frame(DeviceOutputDataFramePtr data_frame) override
+    virtual void handle_data_frame(const PSMoveProtocol::DeviceOutputDataFrame *data_frame) override
     {
         switch (data_frame->device_category())
         {

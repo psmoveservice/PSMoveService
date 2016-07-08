@@ -32,7 +32,7 @@ PSMResult PSM_Shutdown()
     return PSMResult_Success;
 }
 
-PSMResult findMessageOfType(PSMoveProtocol::Request_RequestType request_type, unsigned int timeout_msec)
+static PSMResult findMessageOfType(PSMoveProtocol::Request_RequestType request_type, unsigned int timeout_msec)
 {
     bool response_found = false;
     // Start the timer
@@ -52,6 +52,31 @@ PSMResult findMessageOfType(PSMoveProtocol::Request_RequestType request_type, un
     }
     return response_found ? PSMResult_Success : PSMResult_Timeout;
 }
+
+static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (req_id > 0)
+    {
+        ResultState resultState;
+        ClientPSMoveAPI::register_callback(req_id, ResultState::response_callback, &resultState);
+    
+        while (!resultState.bReceived)
+        {
+            _PAUSE(10);
+            ClientPSMoveAPI::update();
+        }
+
+        if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+        {
+            result= PSMResult_Success;
+        }
+    }
+
+    return result;
+}
+
 
 int PSM_GetControllerList(PSMController** controllers)
 {
@@ -112,37 +137,87 @@ PSMResult PSM_RegisterAsControllerListener(PSMController *controller)
     return PSMResult_Success;
 }
 
-PSMResult PSM_StartControllerDataStream(PSMController *controller, unsigned int data_stream_flags)
+PSMResult PSM_StartControllerDataStreamAsync(PSMController *controller, unsigned int data_stream_flags, PSMRequestID *out_request_id)
 {
     ClientControllerView * view = new ClientControllerView(controller->ControllerID);
     ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::start_controller_data_stream(view, data_stream_flags);
+
+    if (out_request_id != nullptr)
+    {
+        *out_request_id= static_cast<PSMRequestID>(req_id);
+    }
+
+    return (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+}
+
+PSMResult PSM_StartControllerDataStream(PSMController *controller, unsigned int data_stream_flags)
+{
+    ClientControllerView * view = new ClientControllerView(controller->ControllerID);
+    return blockUntilResponse(ClientPSMoveAPI::start_controller_data_stream(view, data_stream_flags));
+}
+
+PSMResult PSM_StopControllerDataStreamAsync(PSMController *controller, PSMRequestID *out_request_id)
+{
+    ClientControllerView * view = new ClientControllerView(controller->ControllerID);
+    ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::stop_controller_data_stream(view);
+
+    if (out_request_id != nullptr)
+    {
+        *out_request_id= static_cast<PSMRequestID>(req_id);
+    }
+
     return (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
 }
 
 PSMResult PSM_StopControllerDataStream(PSMController *controller)
 {
     ClientControllerView * view = new ClientControllerView(controller->ControllerID);
-    return (ClientPSMoveAPI::stop_controller_data_stream(view) > 0) ? PSMResult_RequestSent : PSMResult_Error;
+    return blockUntilResponse(ClientPSMoveAPI::stop_controller_data_stream(view));
 }
 
 PSMResult PSM_DeregisterAsControllerListener(PSMController *controller)
-
 {
     ClientControllerView * view = new ClientControllerView(controller->ControllerID);
     ClientPSMoveAPI::free_controller_view(view);
     return PSMResult_Success;
 }
 
+PSMResult PSM_SetControllerLEDColorAsync(PSMController *controller, PSMTrackingColorType tracking_color, PSMRequestID *out_request_id)
+{
+    ClientControllerView * view = new ClientControllerView(controller->ControllerID);
+    ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::set_led_tracking_color(view, static_cast<PSMoveTrackingColorType>(tracking_color));
+
+    if (out_request_id != nullptr)
+    {
+        *out_request_id= static_cast<PSMRequestID>(req_id);
+    }
+
+    return (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+}
+
 PSMResult PSM_SetControllerLEDColor(PSMController *controller, PSMTrackingColorType tracking_color)
 {
-    
-    return PSMResult_Error;
+    ClientControllerView * view = new ClientControllerView(controller->ControllerID);
+    return blockUntilResponse(ClientPSMoveAPI::set_led_tracking_color(view, static_cast<PSMoveTrackingColorType>(tracking_color)));
+}
+
+PSMResult PSM_ResetControllerPoseAsync(PSMController *controller, PSMRequestID *out_request_id)
+{
+    ClientControllerView * view = new ClientControllerView(controller->ControllerID);
+    ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::reset_pose(view);
+
+    if (out_request_id != nullptr)
+    {
+        *out_request_id= static_cast<PSMRequestID>(req_id);
+    }
+
+    return (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
 }
 
 PSMResult PSM_ResetControllerPose(PSMController *controller)
 {
-    
-    return PSMResult_Error;
+    ClientControllerView * view = new ClientControllerView(controller->ControllerID);
+    return blockUntilResponse(ClientPSMoveAPI::reset_pose(view));
 }
 
 PSMResult PSM_UpdateController(PSMController *controller)
@@ -227,8 +302,8 @@ PSMResult PSM_UpdateController(PSMController *controller)
             controller->ControllerState.PSMoveState.PSButton = static_cast<PSMButtonState>(psmview.GetButtonPS());
             controller->ControllerState.PSMoveState.MoveButton = static_cast<PSMButtonState>(psmview.GetButtonMove());
             controller->ControllerState.PSMoveState.TriggerButton = static_cast<PSMButtonState>(psmview.GetButtonTrigger());
-            controller->ControllerState.PSMoveState.TriggerValue = psmview.GetTriggerValue();
-            controller->ControllerState.PSMoveState.Rumble = psmview.GetRumble();
+            controller->ControllerState.PSMoveState.TriggerValue = static_cast<unsigned char>(psmview.GetTriggerValue() * 255.f);
+            controller->ControllerState.PSMoveState.Rumble = static_cast<unsigned char>(psmview.GetRumble() * 255.f);
 //            unsigned char           LED_r, LED_g, LED_b;
             break;
             

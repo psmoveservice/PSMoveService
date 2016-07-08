@@ -285,19 +285,20 @@ message Response {
     enum ResponseType {
         GENERAL_RESULT= 0;
         CONNECTION_INFO= 1;
-        CONTROLLER_LIST= 2;
-        CONTROLLER_LIST_UPDATED= 3;
-        UNPAIR_REQUEST_COMPLETED= 4;
-        PAIR_REQUEST_COMPLETED= 5;
-        BLUETOOTH_REQUEST_PROGRESS= 6;
-        TRACKER_LIST= 7;
-        TRACKER_LIST_UPDATED= 8;
-        TRACKER_SETTINGS= 9;
-        TRACKER_EXPOSURE_UPDATED= 10;
-        TRACKER_GAIN_UPDATED= 11;
-        TRACKER_OPTION_UPDATED= 12;
-        TRACKER_PRESET_UPDATED= 13;
-        HMD_TRACKING_SPACE_SETTINGS= 14;
+        CONTROLLER_STREAM_STARTED= 2;
+        CONTROLLER_LIST= 3;
+        CONTROLLER_LIST_UPDATED= 4;
+        UNPAIR_REQUEST_COMPLETED= 5;
+        PAIR_REQUEST_COMPLETED= 6;
+        BLUETOOTH_REQUEST_PROGRESS= 7;
+        TRACKER_LIST= 8;
+        TRACKER_LIST_UPDATED= 9;
+        TRACKER_SETTINGS= 10;
+        TRACKER_EXPOSURE_UPDATED= 11;
+        TRACKER_GAIN_UPDATED= 12;
+        TRACKER_OPTION_UPDATED= 13;
+        TRACKER_PRESET_UPDATED= 14;
+        HMD_TRACKING_SPACE_SETTINGS= 15;
     }
 
     enum ResultCode {
@@ -317,7 +318,13 @@ message Response {
     message ResultConnectionInfo {
         int32 tcp_connection_id = 1;
     }
-    ResultConnectionInfo result_connection_info = 20;
+    ResultConnectionInfo result_connection_info = 4;
+    
+    // Parameters for CONTROLLER_STREAM_STARTED
+    message ResultControllerStreamStarted {
+        DeviceOutputDataFrame initial_data_frame= 1;
+    }
+    ResultControllerStreamStarted result_controller_stream_started= 5;
     
     // Parameters for CONTROLLER_LIST
     // This is returned in response to a GET_CONTROLLER_LIST request
@@ -338,7 +345,7 @@ message Response {
         repeated ControllerInfo controllers = 1;
         string host_serial = 2;
     }
-    ResultControllerList result_controller_list = 21;    
+    ResultControllerList result_controller_list = 6;    
     
     // No parameters for CONTROLLER_LIST_UPDATED
     // No parameters for UNPAIR_REQUEST_COMPLETED
@@ -350,7 +357,7 @@ message Response {
         int32 steps_completed = 2;
         int32 total_steps = 3;
     }
-    ResultBluetoothRequestProgress result_bluetooth_request_progress = 22;
+    ResultBluetoothRequestProgress result_bluetooth_request_progress = 7;
    
     // Parameters for TRACKER_LIST
     // This is returned in response to a GET_TRACKER_LIST request
@@ -381,7 +388,7 @@ message Response {
         }
         repeated TrackerInfo trackers = 1;
     }
-    ResultTrackerList result_tracker_list = 23;
+    ResultTrackerList result_tracker_list = 8;
     
     // This is returned in response to a GET_TRACKER_SETTINGS or APPLY_TRACKER_PROFILE request
     message ResultTrackerSettings {
@@ -390,39 +397,39 @@ message Response {
         repeated OptionSet option_sets= 3; 
         repeated TrackingColorPreset color_presets = 4;
     }
-    ResultTrackerSettings result_tracker_settings = 24;
+    ResultTrackerSettings result_tracker_settings = 9;
     
     // This is returned in response to a SET_TRACKER_EXPOSURE request
     message ResultSetTrackerExposure {
         float new_exposure= 1;
     }
-    ResultSetTrackerExposure result_set_tracker_exposure = 25;
+    ResultSetTrackerExposure result_set_tracker_exposure = 10;
 
     // This is returned in response to a SET_TRACKER_GAIN request
     message ResultSetTrackerGain {
         float new_gain= 1;
     }
-    ResultSetTrackerGain result_set_tracker_gain = 26;
+    ResultSetTrackerGain result_set_tracker_gain = 11;
     
     // This is returned in response to a SET_TRACKER_OPTION request
     message ResultSetTrackerOption {
         string option_name = 1;
         int32 new_option_index = 2;
     }
-    ResultSetTrackerOption result_set_tracker_option = 27;
+    ResultSetTrackerOption result_set_tracker_option = 12;
     
     // This is returned in response to a SET_TRACKER_COLOR_PRESET request
     message ResultSetTrackerColorPreset {
         int32 tracker_id = 1;
         TrackingColorPreset new_color_preset = 2;
     }
-    ResultSetTrackerColorPreset result_set_tracker_color_preset = 28;
+    ResultSetTrackerColorPreset result_set_tracker_color_preset = 13;
     
     // This is returned in response to a GET_HMD_TRACKING_SPACE_SETTINGS request
     message ResultGetHMDTrackingSpaceSettings {
         Pose origin_pose = 1;
     }
-    ResultGetHMDTrackingSpaceSettings result_get_hmd_tracking_space_settings = 29;
+    ResultGetHMDTrackingSpaceSettings result_get_hmd_tracking_space_settings = 14;
 }
 
 // Unreliable (UDP) device data packet sent from service to clients

@@ -222,15 +222,22 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_Shutdown();
 //PSM_PUBLIC_FUNCTION(PSMResult) PSM_Update();
 //PSM_PUBLIC_FUNCTION(PSMResult) PSM_PollNextMessage();  //*message, sizeof(message)
 
-/// Controller Methods
+/// Blocking Controller Methods
 PSM_PUBLIC_FUNCTION(int) PSM_GetControllerList(PSMController** controllers);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_RegisterAsControllerListener(PSMController *controller);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartControllerDataStream(PSMController *controller, unsigned int data_stream_flags);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopControllerDataStream(PSMController *controller);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_DeregisterAsControllerListener(PSMController *controller);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDColor(PSMController *controller, PSMTrackingColorType tracking_color);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerPose(PSMController *controller);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_DeregisterAsControllerListener(PSMController *controller);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_UpdateController(PSMController *controller);
+
+/// Async Controller Methods
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartControllerDataStreamAsync(PSMController *controller, unsigned int data_stream_flags, PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopControllerDataStreamAsync(PSMController *controller, PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDColorAsync(PSMController *controller, PSMTrackingColorType tracking_color, PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerPoseAsync(PSMController *controller, PSMRequestID *out_request_id);
+
 
 /// Tracker Methods
 //PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerList(PSMTracker** controllers, unsigned int timeout_msec);

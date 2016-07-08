@@ -123,16 +123,18 @@ public:
     // Set the rumble value between 0-255
     bool setControllerRumble(int rumble_amount);
 
+    // Helper used to publish the current controller state to the given output data frame
+    static void generate_controller_data_frame_for_stream(
+        const ServerControllerView *controller_view,
+        const struct ControllerStreamInfo *stream_info,
+        class PSMoveProtocol::DeviceOutputDataFrame* data_frame);
+
 protected:
     void set_tracking_enabled_internal(bool bEnabled);
     void update_LED_color_internal();
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
     void free_device_interface() override;
     void publish_device_data_frame() override;
-    static void generate_controller_data_frame_for_stream(
-        const ServerControllerView *controller_view,
-        const struct ControllerStreamInfo *stream_info,
-        DeviceOutputDataFramePtr &data_frame);
 
 private:
     // Tracking color state
