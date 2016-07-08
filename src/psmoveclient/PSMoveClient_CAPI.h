@@ -112,12 +112,12 @@ typedef struct _PSMRawSensorData
 
 typedef struct _PSMTrackingProjection
 {
-    enum        eShapeType
+    enum eShapeType
     {
         INVALID_PROJECTION = -1,
         Ellipse,
         Quad,
-    };
+    }                               shape_type;
     union{
         struct {
             PSMVector2f center;
@@ -128,9 +128,8 @@ typedef struct _PSMTrackingProjection
         struct {
             PSMVector2f corners[4];
         } quad;
-    }           shape;
+    }                               shape;
     
-    eShapeType  shape_type;
 } PSMTrackingProjection;
 
 typedef struct _PSMRawTrackerData
@@ -197,18 +196,17 @@ typedef struct _PSMPSNavi
 
 typedef struct _PSMController
 {
-    enum            eControllerType
+    enum eControllerType
     {
         None= -1,
         PSMove,
         PSNavi
-    };
+    }               ControllerType;
     union
     {
         PSMPSMove PSMoveState;
         PSMPSNavi PSNaviState;
     }               ControllerState;
-    eControllerType ControllerType;
     bool            bValid;
     unsigned int    ControllerID;
     int             OutputSequenceNum;
