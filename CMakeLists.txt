@@ -46,6 +46,7 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(OpenCV_DIR "/usr/local/Cellar/opencv3/3.1.0_1/share/OpenCV")
 ENDIF()#Windows or Darwin
 ENDIF(NOT OpenCV_DIR)
+LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})
 
 # Boost & Protobuf
 IF(MSVC)
