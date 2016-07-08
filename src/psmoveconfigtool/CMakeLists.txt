@@ -2,6 +2,10 @@ set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(PSMOVECONFIGTOOL_INCL_DIRS)
 set(PSMOVECONFIGTOOL_REQ_LIBS)
 
+# Boost
+find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS date_time)
+list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${Boost_LIBRARIES})
+
 # platform independent include paths
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
     ${ROOT_DIR}/thirdparty/eigen/
