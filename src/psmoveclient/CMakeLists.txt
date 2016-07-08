@@ -88,9 +88,18 @@ set_target_properties(PSMoveClient_CAPI PROPERTIES CXX_VISIBILITY_PRESET hidden)
 set_target_properties(PSMoveClient_CAPI PROPERTIES C_VISIBILITY_PRESET hidden)
 
 # Install
-install(TARGETS PSMoveClient_CAPI
-	RUNTIME DESTINATION bin
-	LIBRARY DESTINATION lib
-	ARCHIVE DESTINATION lib
-	INCLUDES DESTINATION include
-)
+# Install
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    install(TARGETS PSMoveClient_CAPI
+        RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib
+        INCLUDES DESTINATION ${ROOT_DIR}/win32/include)
+ELSE() #Linux/Darwin
+    install(TARGETS PSMoveClient_CAPI
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        INCLUDES DESTINATION include
+    )
+ENDIF()
