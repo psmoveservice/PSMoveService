@@ -81,6 +81,11 @@ SET(TEST_CAMERA_SRC)
 SET(TEST_CAMERA_INCL_DIRS)
 SET(TEST_CAMERA_REQ_LIBS)
 
+# Boost
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic)
+list(APPEND TEST_CAMERA_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND TEST_CAMERA_REQ_LIBS ${Boost_LIBRARIES})
+
 # OpenCV
 set(OpenCV_STATIC ON)
 FIND_PACKAGE(OpenCV REQUIRED)
@@ -202,7 +207,7 @@ ENDIF()
 
 # Boost
 # TODO: Eliminate boost::filesystem with C++14
-FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS chrono date_time filesystem log log_setup program_options system thread)
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono date_time filesystem log log_setup program_options system thread)
 list(APPEND TEST_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
 
