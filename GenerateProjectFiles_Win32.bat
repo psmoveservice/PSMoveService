@@ -1,5 +1,5 @@
 @echo off
-call SetBuildVars.bat
+call SetBuildVars_Win32.bat
 
 IF NOT EXIST build mkdir build
 cd build
