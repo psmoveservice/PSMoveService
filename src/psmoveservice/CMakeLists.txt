@@ -243,7 +243,7 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
     IF(${ISWIN32})
         install(DIRECTORY "${ROOT_DIR}/thirdparty/CLEYE/x86/bin/"
-            DESTINATION ${ROOT_DIR}/win32/bin
+            DESTINATION ${ROOT_DIR}/Win32/bin
             FILES_MATCHING PATTERN "*.dll")    
     ENDIF()#ISWIN32
 ELSE() #Linux/Darwin
