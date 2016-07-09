@@ -13,15 +13,41 @@ set "psCommand="(new-object -COM 'Shell.Application')^
 for /f "usebackq delims=" %%I in (`powershell %psCommand%`) do set "BOOST_ROOT_PATH=%%I"
 if NOT DEFINED BOOST_ROOT_PATH (goto failure)
 
+::Substitute backslashes to forward slashes
+set FWD_SLASH_OPENCV_ROOT_PATH=%OPENCV_ROOT_PATH:\=/%
+
 :: Write out the paths to a config batch file
-del SetBuildVars.bat
-echo @echo off >> SetBuildVars.bat
-echo set OPENCV_BUILD_PATH=%OPENCV_ROOT_PATH%\build >> SetBuildVars.bat
-echo set BOOST_ROOT_PATH=%BOOST_ROOT_PATH% >> SetBuildVars.bat
-echo set BOOST_LIB_PATH=%BOOST_ROOT_PATH%\lib32-msvc-14.0 >> SetBuildVars.bat
+del SetBuildVars_Win32.bat
+echo @echo off >> SetBuildVars_Win32.bat
+echo set OPENCV_BUILD_PATH=%FWD_SLASH_OPENCV_ROOT_PATH%/sources/build/install >> SetBuildVars_Win32.bat
+echo set BOOST_ROOT_PATH=%BOOST_ROOT_PATH% >> SetBuildVars_Win32.bat
+echo set BOOST_LIB_PATH=%BOOST_ROOT_PATH%/lib32-msvc-14.0 >> SetBuildVars_Win32.bat
 
 :: Add MSVC build tools to the path
 call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86
+
+:: Generate the project files for OpenCV 32-bit
+echo "Creating OpenCV 32-bit project files..."
+pushd %OPENCV_ROOT_PATH%\sources
+del /f /s /q build > nul
+rmdir /s /q build
+mkdir build
+pushd build
+cmake -G "Visual Studio 14 2015" -DBUILD_opencv_java=OFF -DBUILD_opencv_python2=OFF -DBUILD_opencv_python3=OFF ..
+popd
+popd
+
+:: Compile the DEBUG|Win32 and RELEASE|Win32 builds of OpenCV
+pushd %OPENCV_ROOT_PATH%\sources\build
+echo "Building OpenCV DEBUG|Win32..."
+MSBuild.exe OpenCV.sln /p:configuration=DEBUG /p:Platform="Win32" /t:Clean;Build 
+echo "Installing OpenCV DEBUG|Win32..."
+MSBuild.exe INSTALL.vcxproj /p:configuration=DEBUG /p:Platform="Win32" /t:Build
+echo "Building OpenCV RELEASE|Win32..."
+MSBuild.exe OpenCV.sln /p:configuration=RELEASE /p:Platform="Win32" /t:Clean;Build
+echo "Installing OpenCV RELEASE|Win32..."
+MSBuild.exe INSTALL.vcxproj /p:configuration=RELEASE /p:Platform="Win32" /t:Build
+popd
 
 :: Compile the DEBUG|Win32 and RELEASE|Win32 builds of protobuf
 echo "Creating protobuf project files..."
