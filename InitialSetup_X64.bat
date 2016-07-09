@@ -13,12 +13,15 @@ set "psCommand="(new-object -COM 'Shell.Application')^
 for /f "usebackq delims=" %%I in (`powershell %psCommand%`) do set "BOOST_ROOT_PATH=%%I"
 if NOT DEFINED BOOST_ROOT_PATH (goto failure)
 
+::Substitute backslashes to forward slashes
+set FWD_SLASH_OPENCV_ROOT_PATH=%OPENCV_ROOT_PATH:\=/%
+
 :: Write out the paths to a config batch file
 del SetBuildVars_x64.bat
 echo @echo off >> SetBuildVars_x64.bat
-echo set OPENCV_BUILD_PATH=%OPENCV_ROOT_PATH%\build >> SetBuildVars_x64.bat
+echo set OPENCV_BUILD_PATH=%FWD_SLASH_OPENCV_ROOT_PATH%/build >> SetBuildVars_x64.bat
 echo set BOOST_ROOT_PATH=%BOOST_ROOT_PATH% >> SetBuildVars_x64.bat
-echo set BOOST_LIB_PATH=%BOOST_ROOT_PATH%\lib64-msvc-14.0 >> SetBuildVars_x64.bat
+echo set BOOST_LIB_PATH=%BOOST_ROOT_PATH%/lib64-msvc-14.0 >> SetBuildVars_x64.bat
 
 :: Add MSVC build tools to the path
 call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" amd64
@@ -34,11 +37,11 @@ cmake -G "Visual Studio 14 2015 Win64" -Dprotobuf_DEBUG_POSTFIX="" -Dprotobuf_BU
 echo "Building protobuf DEBUG|x64"
 MSBuild.exe protobuf.sln /p:configuration=DEBUG /t:Clean;Build 
 :: Work around for issue in 64-bit builds, FindProtobuf modules expects files in x64\Debug
-move Debug\*.* x64\Debug
+copy Debug\*.* x64\Debug
 echo "Building protobuf RELEASE|x64"
 MSBuild.exe protobuf.sln /p:configuration=RELEASE /t:Clean;Build
 :: Work around for issue in 64-bit builds, FindProtobuf modules expects files in x64\Release
-move Release\*.* x64\Release
+copy Release\*.* x64\Release
 popd
 popd
 
