@@ -33,6 +33,9 @@ typedef const void * PSMResponseHandle;
 typedef void *PSMRequestHandle;
 typedef const void *PSMEventDataHandle;
 
+typedef int PSMControllerID;
+typedef int PSMTrackerID;
+
 //###HipsterSloth $REVIEW@cboulay - Can we replace with the <stdbool.h>?
 typedef char PSMBool;
 #define PSMFalse 0
@@ -91,6 +94,7 @@ typedef enum _PSMControllerType
 
 typedef enum _PSMTrackerType
 {
+    PSMTracker_None= -1,
     PSMTracker_PS3Eye
 } PSMTrackerType;
 
@@ -241,6 +245,7 @@ typedef struct _PSMPSNavi
 
 typedef struct _PSMController
 {
+    PSMControllerID ControllerID;
     PSMControllerType ControllerType;
     union
     {
@@ -248,12 +253,12 @@ typedef struct _PSMController
         PSMPSNavi PSNaviState;
     }               ControllerState;
     bool            bValid;
-    unsigned int    ControllerID;
     int             OutputSequenceNum;
     int             InputSequenceNum;
     bool            IsConnected;
     long long       DataFrameLastReceivedTime;
     float           DataFrameAverageFPS;
+    int             ListenerCount;
 } PSMController;
 
 // Tracker State
@@ -261,7 +266,7 @@ typedef struct _PSMController
 typedef struct _PSMClientTrackerInfo
 {
     // ID of the tracker in the service
-    int tracker_id;
+    PSMTrackerID tracker_id;
 
     // Tracker USB properties
     PSMTrackerType tracker_type;
@@ -324,23 +329,23 @@ typedef struct _PSMEventMessage
 
 // Service Responses
 //------------------
-typedef struct _PSMResponsePayload_ControllerList
+typedef struct _PSMControllerList
 {
-    int controller_id[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
+    PSMControllerID controller_id[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
     PSMControllerType controller_type[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
     int count;
-} PSMResponsePayload_ControllerList;
+} PSMControllerList;
 
-typedef struct _PSMResponsePayload_TrackerList
+typedef struct _PSMTrackerList
 {
     PSMClientTrackerInfo trackers[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int count;
-} PSMResponsePayload_TrackerList;
+} PSMTrackerList;
 
-typedef struct _PSMResponsePayload_HMDTrackingSpace
+typedef struct _PSMHMDTrackingSpace
 {
     PSMPosef origin_pose;
-} PSMResponsePayload_HMDTrackingSpace;
+} PSMHMDTrackingSpace;
 
 typedef struct _PSMResponseMessage
 {
@@ -364,9 +369,9 @@ typedef struct _PSMResponseMessage
     //----
     union
     {
-        PSMResponsePayload_ControllerList controller_list;
-        PSMResponsePayload_TrackerList tracker_list;
-        PSMResponsePayload_HMDTrackingSpace hmd_tracking_space;
+        PSMControllerList controller_list;
+        PSMTrackerList tracker_list;
+        PSMHMDTrackingSpace hmd_tracking_space;
     } payload;
 
     enum eResponsePayloadType
@@ -408,21 +413,24 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_Initialize(const char* host, const char* port
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_Shutdown();
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_Update();
 
+/// Controller Pool
+PSM_PUBLIC_FUNCTION(PSMController *) PSM_GetController(PSMControllerID controller_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_AllocateControllerListener(PSMControllerID controller_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_FreeControllerListener(PSMControllerID controller_id);
+
 /// Blocking Controller Methods
-PSM_PUBLIC_FUNCTION(int) PSM_GetControllerList(PSMController** controllers);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_RegisterAsControllerListener(PSMController *controller);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartControllerDataStream(PSMController *controller, unsigned int data_stream_flags);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopControllerDataStream(PSMController *controller);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDColor(PSMController *controller, PSMTrackingColorType tracking_color);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerPose(PSMController *controller);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_DeregisterAsControllerListener(PSMController *controller);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_UpdateController(PSMController *controller);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerList(PSMControllerList *out_controller_list);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartControllerDataStream(PSMControllerID controller_id, unsigned int data_stream_flags);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopControllerDataStream(PSMControllerID controller_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDColor(PSMControllerID controller_id, PSMTrackingColorType tracking_color);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerPose(PSMControllerID controller_id);
 
 /// Async Controller Methods
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartControllerDataStreamAsync(PSMController *controller, unsigned int data_stream_flags, PSMRequestID *out_request_id);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopControllerDataStreamAsync(PSMController *controller, PSMRequestID *out_request_id);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDColorAsync(PSMController *controller, PSMTrackingColorType tracking_color, PSMRequestID *out_request_id);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerPoseAsync(PSMController *controller, PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerListAsync(PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartControllerDataStreamAsync(PSMControllerID controller_id, unsigned int data_stream_flags, PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopControllerDataStreamAsync(PSMControllerID controller_id, PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDColorAsync(PSMControllerID controller_id, PSMTrackingColorType tracking_color, PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerPoseAsync(PSMControllerID controller_id, PSMRequestID *out_request_id);
 
 /// Async Message Handling API
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_PollNextMessage(PSMMessage *message, size_t message_size);
