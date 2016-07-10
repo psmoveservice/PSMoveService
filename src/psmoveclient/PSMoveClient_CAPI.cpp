@@ -1,21 +1,56 @@
+// -- includes -----
 #include <map>
 #include "PSMoveClient_CAPI.h"
 #include "ClientPSMoveAPI.h"
+#include "ClientVersion.h"
 #include "PSMoveProtocol.pb.h"
+#include <assert.h>
 
-struct ResultState
+// -- private methods -----
+static PSMResult findMessageOfType(PSMoveProtocol::Request_RequestType request_type, unsigned int timeout_msec);
+static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id);
+static void convertInternalResponseMessage(const ClientPSMoveAPI::ResponseMessage *response_internal, PSMResponseMessage *response);
+
+// -- private definitions -----
+struct CallbackResultCapture
 {
     bool bReceived= false;
     ClientPSMoveAPI::ResponseMessage out_response;
     
     static void response_callback(const ClientPSMoveAPI::ResponseMessage *response, void *userdata)
     {
-        ResultState *result= reinterpret_cast<ResultState *>(userdata);
+        CallbackResultCapture *result= reinterpret_cast<CallbackResultCapture *>(userdata);
         
         result->out_response= *response;
         result->bReceived= true;
     }
 };
+
+struct CallbackResultAdapter
+{   
+    PSMResponseCallback callback;
+    void *callback_userdata;
+        
+    static void response_callback(const ClientPSMoveAPI::ResponseMessage *response_internal, void *userdata)
+    {
+        CallbackResultAdapter *adapter= reinterpret_cast<CallbackResultAdapter *>(userdata);
+        
+        PSMResponseMessage response;
+        convertInternalResponseMessage(response_internal, &response);
+
+        adapter->callback(&response, adapter->callback_userdata);
+
+        delete adapter;
+    }
+};
+
+// -- public interface -----
+const char* PSM_GetVersionString()
+{
+    const char *version_string= PSM_DETAILED_VERSION_STRING;
+
+    return version_string;
+}
 
 PSMResult PSM_Initialize(const char* host, const char* port)
 {
@@ -32,59 +67,26 @@ PSMResult PSM_Shutdown()
     return PSMResult_Success;
 }
 
-static PSMResult findMessageOfType(PSMoveProtocol::Request_RequestType request_type, unsigned int timeout_msec)
-{
-    bool response_found = false;
-    // Start the timer
-    
-    // Look to see if there's a pending response of the same request_type
-    // if yes, retrieve the message
-    // Look to see if there's a pending request of the same request_type
-    // need access to `ClientPSMoveAPIImpl`'s `m_request_manager`'s `m_implementation_ptr`'s `m_pending_requests`
-    // If no, create a new request
-    while (!response_found)  // && timer.since < timeout_msec
-    {
-        ClientPSMoveAPI::update();
-        // Sleep a tick.
-        // search for responses, copy message to input
-        
-        //m_pending_requests
-    }
-    return response_found ? PSMResult_Success : PSMResult_Timeout;
-}
-
-static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id)
+PSMResult PSM_Update()
 {
     PSMResult result= PSMResult_Error;
 
-    if (req_id > 0)
+    if (ClientPSMoveAPI::has_started())
     {
-        ResultState resultState;
-        ClientPSMoveAPI::register_callback(req_id, ResultState::response_callback, &resultState);
-    
-        while (!resultState.bReceived)
-        {
-            _PAUSE(10);
-            ClientPSMoveAPI::update();
-        }
-
-        if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
-        {
-            result= PSMResult_Success;
-        }
+        ClientPSMoveAPI::update();
+        result= PSMResult_Success;
     }
 
     return result;
 }
 
-
 int PSM_GetControllerList(PSMController** controllers)
 {
     int controller_count = -1;
-    ResultState resultState;
+    CallbackResultCapture resultState;
     ClientPSMoveAPI::register_callback(
                                        ClientPSMoveAPI::get_controller_list(),
-                                       ResultState::response_callback,
+                                       CallbackResultCapture::response_callback,
                                        &resultState);
     
     while (!resultState.bReceived)
@@ -101,14 +103,14 @@ int PSM_GetControllerList(PSMController** controllers)
         {
             PSMController *thisController = (PSMController *)calloc(1, sizeof(PSMController));
             thisController->ControllerID = controller_list.controller_id[list_index];
-            thisController->ControllerType = static_cast<PSMController::eControllerType>(controller_list.controller_type[list_index]);
+            thisController->ControllerType = static_cast<PSMControllerType>(controller_list.controller_type[list_index]);
             std::cout << "Set ControllerID and ControllerType on *thisController from input" << std::endl;
             switch (thisController->ControllerType)
             {
-                case PSMController::eControllerType::PSMove:
+                case PSMController_Move:
                     break;
                     //TODO
-                case PSMController::eControllerType::PSNavi:
+                case PSMController_Navi:
                     break;
                 //case ClientControllerView::DualShock4:
                 //break;
@@ -129,7 +131,7 @@ int PSM_GetControllerList(PSMController** controllers)
 PSMResult PSM_RegisterAsControllerListener(PSMController *controller)
 {
     ClientControllerView* view = ClientPSMoveAPI::allocate_controller_view(controller->ControllerID);
-    controller->ControllerType = static_cast<PSMController::eControllerType>(view->GetControllerViewType());
+    controller->ControllerType = static_cast<PSMControllerType>(view->GetControllerViewType());
     controller->IsConnected = view->GetIsConnected();
     controller->InputSequenceNum = view->GetInputSequenceNum();
     controller->OutputSequenceNum = view->GetOutputSequenceNum();
@@ -227,7 +229,7 @@ PSMResult PSM_UpdateController(PSMController *controller)
     
     // Set the generic items
     controller->bValid = view->IsValid();
-    controller->ControllerType = static_cast<PSMController::eControllerType>(view->GetControllerViewType());
+    controller->ControllerType = static_cast<PSMControllerType>(view->GetControllerViewType());
     controller->InputSequenceNum = view->GetInputSequenceNum();
     controller->OutputSequenceNum = view->GetOutputSequenceNum();
     controller->IsConnected = view->GetIsConnected();
@@ -314,4 +316,180 @@ PSMResult PSM_UpdateController(PSMController *controller)
             break;
     }
     return PSMResult_Success;
+}
+
+PSMResult PSM_PollNextMessage(PSMMessage *message, size_t message_size)
+{
+    PSMResult result= PSMResult_Error;
+
+    // Poll events queued up by the call to ClientPSMoveAPI::update()
+    ClientPSMoveAPI::Message message_internal;
+    if (ClientPSMoveAPI::poll_next_message(&message_internal, sizeof(message_internal)))
+    {
+        assert(sizeof(PSMMessage) == message_size);
+        assert(message != nullptr);
+
+        switch (message_internal.payload_type)
+        {
+        case ClientPSMoveAPI::_messagePayloadType_Response:
+            {
+                message->payload_type= PSMMessage::_messagePayloadType_Response;
+                convertInternalResponseMessage(&message_internal.response_data, &message->response_data);
+            } break;
+        case ClientPSMoveAPI::_messagePayloadType_Event:
+            {
+                message->payload_type= PSMMessage::_messagePayloadType_Event;
+                message->event_data.event_type= static_cast<PSMEventMessage::eEventType>(message_internal.event_data.event_type);
+                message->event_data.event_data_handle= static_cast<PSMEventDataHandle>(message_internal.event_data.event_data_handle);
+
+            } break;
+        default:
+            assert(0 && "unreachable");
+        }
+
+        result= PSMResult_Success;
+    }
+
+    return result;
+}
+
+PSMResult PSM_SendOpaqueRequest(PSMRequestHandle request_handle, PSMRequestID *out_request_id)
+{
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::send_opaque_request(static_cast<ClientPSMoveAPI::t_request_handle>(request_handle));
+    PSMResult result= PSMResult_Error;
+
+    if (request_id != -1)
+    {
+        if (out_request_id != nullptr)
+        {
+            *out_request_id= static_cast<PSMRequestID>(request_id);
+        }
+
+        result= PSMResult_RequestSent;
+    }
+
+    return result;
+}
+
+PSMResult PSM_RegisterCallback(PSMRequestID request_id, PSMResponseCallback callback, void *callback_userdata)
+{
+    PSMResult result= PSMResult_Error;
+
+    CallbackResultAdapter *adapter = new CallbackResultAdapter;
+    adapter->callback= callback;
+    adapter->callback_userdata= callback_userdata;
+
+    if (ClientPSMoveAPI::register_callback(static_cast<ClientPSMoveAPI::t_request_id>(request_id), CallbackResultAdapter::response_callback, adapter))
+    {
+        result= PSMResult_Success;
+    }
+    else
+    {
+        delete adapter;
+    }
+
+    return result;
+}
+
+PSMResult PSM_CancelCallback(PSMRequestID request_id)
+{
+    return ClientPSMoveAPI::cancel_callback(static_cast<ClientPSMoveAPI::t_request_id>(request_id)) ? PSMResult_Success : PSMResult_Error;
+}
+
+PSMResult PSM_EatResponse(PSMRequestID request_id)
+{
+    return ClientPSMoveAPI::eat_response(static_cast<ClientPSMoveAPI::t_request_id>(request_id)) ? PSMResult_Success : PSMResult_Error;
+}
+
+// -- Async Messaging Helpers -----
+static PSMResult findMessageOfType(PSMoveProtocol::Request_RequestType request_type, unsigned int timeout_msec)
+{
+    bool response_found = false;
+    // Start the timer
+    
+    // Look to see if there's a pending response of the same request_type
+    // if yes, retrieve the message
+    // Look to see if there's a pending request of the same request_type
+    // need access to `ClientPSMoveAPIImpl`'s `m_request_manager`'s `m_implementation_ptr`'s `m_pending_requests`
+    // If no, create a new request
+    while (!response_found)  // && timer.since < timeout_msec
+    {
+        ClientPSMoveAPI::update();
+        // Sleep a tick.
+        // search for responses, copy message to input
+        
+        //m_pending_requests
+    }
+    return response_found ? PSMResult_Success : PSMResult_Timeout;
+}
+
+static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (req_id > 0)
+    {
+        CallbackResultCapture resultState;
+        ClientPSMoveAPI::register_callback(req_id, CallbackResultCapture::response_callback, &resultState);
+    
+        while (!resultState.bReceived)
+        {
+            _PAUSE(10);
+            ClientPSMoveAPI::update();
+        }
+
+        if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+        {
+            result= PSMResult_Success;
+        }
+    }
+
+    return result;
+}
+
+static void convertInternalResponseMessage(const ClientPSMoveAPI::ResponseMessage *response_internal, PSMResponseMessage *response)
+{
+    response->request_id= static_cast<PSMRequestID>(response_internal->request_id);
+
+    switch(response_internal->result_code)
+    {
+    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+        response->result_code= PSMResult_Success;
+        break;
+    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
+        response->result_code= PSMResult_Error;
+        break;
+    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+        response->result_code= PSMResult_Canceled;
+        break;
+    default:
+        assert(0 && "unreachable");
+    }
+
+    response->opaque_request_handle= static_cast<PSMResponseHandle>(response_internal->opaque_request_handle);
+    response->opaque_response_handle= static_cast<PSMResponseHandle>(response_internal->opaque_response_handle);
+
+    switch (response_internal->payload_type)
+    {
+    case ClientPSMoveAPI::_responsePayloadType_Empty:
+        response->payload_type= PSMResponseMessage::_responsePayloadType_Empty;
+        break;
+    case ClientPSMoveAPI::_responsePayloadType_ControllerList:
+        response->payload_type= PSMResponseMessage::_responsePayloadType_ControllerList;
+        static_assert(sizeof(PSMResponsePayload_ControllerList) == sizeof(ClientPSMoveAPI::ResponsePayload_ControllerList), "Response payload types changed!");
+        memcpy(&response->payload.controller_list, &response_internal->payload.controller_list, sizeof(PSMResponsePayload_ControllerList));
+        break;
+    case ClientPSMoveAPI::_responsePayloadType_TrackerList:
+        response->payload_type= PSMResponseMessage::_responsePayloadType_TrackerList;
+        static_assert(sizeof(PSMResponsePayload_TrackerList) == sizeof(ClientPSMoveAPI::ResponsePayload_TrackerList), "Response payload types changed!");
+        memcpy(&response->payload.tracker_list, &response_internal->payload.tracker_list, sizeof(PSMResponsePayload_ControllerList));
+        break;
+    case ClientPSMoveAPI::_responsePayloadType_HMDTrackingSpace:
+        response->payload_type= PSMResponseMessage::_responsePayloadType_HMDTrackingSpace;
+        static_assert(sizeof(PSMResponsePayload_HMDTrackingSpace) == sizeof(ClientPSMoveAPI::ResponsePayload_HMDTrackingSpace), "Response payload types changed!");
+        memcpy(&response->payload.hmd_tracking_space, &response_internal->payload.hmd_tracking_space, sizeof(PSMResponsePayload_ControllerList));
+        break;
+    default:
+        assert(0 && "unreachable");
+    }
 }
