@@ -640,6 +640,21 @@ public:
 
             if (iter != m_pending_request_map.end())
             {
+                const PendingRequest &pendingRequest = iter->second;
+
+                // Notify the response callback that the request was canceled
+                if (pendingRequest.response_callback != nullptr)
+                {
+                    ClientPSMoveAPI::ResponseMessage response;
+
+                    memset(&response, 0, sizeof(ClientPSMoveAPI::ResponseMessage));
+                    response.result_code= ClientPSMoveAPI::_clientPSMoveResultCode_canceled;
+                    response.request_id= request_id;
+                    response.payload_type= ClientPSMoveAPI::_responsePayloadType_Empty;
+
+                    pendingRequest.response_callback(&response, pendingRequest.response_userdata);
+                }
+
                 m_pending_request_map.erase(iter);
                 bSuccess = true;
             }
