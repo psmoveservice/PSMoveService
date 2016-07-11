@@ -15,6 +15,9 @@ file(GLOB PSMOVE_MATH_LIBRARY_SRC
 
 # Static library
 add_library(PSMoveMath STATIC ${PSMOVE_MATH_LIBRARY_SRC})
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+endif()
 target_include_directories(PSMoveMath PUBLIC ${PSMOVE_MATH_INCL_DIRS} ${CMAKE_CURRENT_BINARY_DIR})
 set_target_properties(PSMoveMath PROPERTIES
     COMPILE_FLAGS -DBUILDING_STATIC_LIBRARY)
