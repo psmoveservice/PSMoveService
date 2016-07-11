@@ -15,6 +15,7 @@ static PSMResult findMessageOfType(PSMoveProtocol::Request_RequestType request_t
 static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id);
 static void extractResponseMessage(const ClientPSMoveAPI::ResponseMessage *response_internal, PSMResponseMessage *response);
 static void extractControllerState(const ClientControllerView *view, PSMController *controller);
+static void extractTrackerState(const ClientTrackerView *view, PSMTracker *tracker);
 
 // -- private definitions -----
 struct CallbackResultCapture
@@ -130,6 +131,17 @@ PSMResult PSM_Update()
             if (view != nullptr)
             {
                 extractControllerState(view, controller);
+            }
+        }
+
+        for (PSMTrackerID tracker_id= 0; tracker_id < PSMOVESERVICE_MAX_TRACKER_COUNT; ++tracker_id)
+        {
+            PSMTracker *tracker= &g_trackers[tracker_id];
+            ClientTrackerView * view = g_tracker_views[tracker_id];
+
+            if (view != nullptr)
+            {
+                extractTrackerState(view, tracker);
             }
         }
 
@@ -405,6 +417,249 @@ PSMResult PSM_ResetControllerPose(PSMControllerID controller_id)
     return result;
 }
 
+/// Tracker Pool
+PSMTracker *PSM_GetTracker(PSMTrackerID tracker_id)
+{
+    PSMTracker *tracker= nullptr;
+
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+        tracker= &g_trackers[tracker_id];
+    }
+
+    return tracker;
+}
+
+PSMResult PSM_AllocateTrackerListener(PSMTrackerID tracker_id, PSMClientTrackerInfo *tracker_info)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+        PSMTracker *tracker= &g_trackers[tracker_id];
+
+        if (g_tracker_views[tracker_id] == nullptr)
+        {
+            ClientTrackerView *view= ClientPSMoveAPI::allocate_tracker_view(*reinterpret_cast<ClientTrackerInfo *>(tracker_info));
+
+            g_tracker_views[tracker_id]= view;
+
+            tracker->tracker_info= *tracker_info;
+            tracker->opaque_shared_memory_accesor= view->getSharedMemoryAccessor();
+            extractTrackerState(view, tracker);
+
+            assert(tracker->listener_count == 0);
+        }
+
+        ++tracker->listener_count;
+        result= PSMResult_Success;
+    }
+    
+    return result;
+}
+
+PSMResult PSM_FreeTrackerListener(PSMTrackerID tracker_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+        PSMTracker *tracker= &g_trackers[tracker_id];
+
+        assert(tracker->listener_count > 0);
+        --tracker->listener_count;
+
+        if (tracker->listener_count <= 0)
+        {
+            ClientPSMoveAPI::free_tracker_view(g_tracker_views[tracker_id]);
+            g_tracker_views[tracker_id]= nullptr;
+
+            memset(tracker, 0, sizeof(PSMTracker));
+            tracker->tracker_info.tracker_id= tracker_id;
+            tracker->tracker_info.tracker_type= PSMTracker_None;
+            tracker->listener_count= 0;
+        }
+
+        result= PSMResult_Success;
+    }
+
+    return result;
+}
+
+/// Blocking Tracker Methods
+PSMResult PSM_GetTrackerList(PSMTrackerList *out_tracker_list)
+{
+    PSMResult result= PSMResult_Error;
+
+    CallbackResultCapture resultState;
+    ClientPSMoveAPI::register_callback(
+                                       ClientPSMoveAPI::get_tracker_list(),
+                                       CallbackResultCapture::response_callback,
+                                       &resultState);
+    
+    while (!resultState.bReceived)
+    {
+        _PAUSE(10);
+        ClientPSMoveAPI::update();
+    }
+    
+    if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    {
+        assert(resultState.out_response.payload_type == ClientPSMoveAPI::eResponsePayloadType::_responsePayloadType_TrackerList);
+        
+        PSMResponseMessage response;
+        extractResponseMessage(&resultState.out_response, &response);
+
+        *out_tracker_list= response.payload.tracker_list;
+        result= PSMResult_Success;
+    }
+    
+    return result;
+}
+
+PSMResult PSM_StartTrackerDataStream(PSMTrackerID tracker_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+        PSMTracker *tracker= &g_trackers[tracker_id];
+        ClientTrackerView *view = g_tracker_views[tracker_id];
+
+        if (blockUntilResponse(ClientPSMoveAPI::start_tracker_data_stream(view)) == PSMResult_Success)
+        {
+            result= PSMResult_Success;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_StopTrackerDataStream(PSMTrackerID tracker_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+        PSMTracker *tracker= &g_trackers[tracker_id];
+        ClientTrackerView *view = g_tracker_views[tracker_id];
+
+        if (blockUntilResponse(ClientPSMoveAPI::stop_tracker_data_stream(view)) == PSMResult_Success)
+        {
+            result= PSMResult_Success;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetHMDTrackingSpaceSettings(PSMHMDTrackingSpace *out_tracking_space)
+{
+    PSMResult result= PSMResult_Error;
+
+    CallbackResultCapture resultState;
+    ClientPSMoveAPI::register_callback(
+                                       ClientPSMoveAPI::get_hmd_tracking_space_settings(),
+                                       CallbackResultCapture::response_callback,
+                                       &resultState);
+    
+    while (!resultState.bReceived)
+    {
+        _PAUSE(10);
+        ClientPSMoveAPI::update();
+    }
+    
+    if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    {
+        assert(resultState.out_response.payload_type == ClientPSMoveAPI::eResponsePayloadType::_responsePayloadType_ControllerList);
+        
+        PSMResponseMessage response;
+        extractResponseMessage(&resultState.out_response, &response);
+
+        *out_tracking_space= response.payload.hmd_tracking_space;
+        result= PSMResult_Success;
+    }
+    
+    return result;
+}
+
+/// Async Tracker Methods
+PSMResult PSM_GetTrackerListAsync(PSMRequestID *out_request_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::get_tracker_list();
+
+    if (out_request_id != nullptr)
+    {
+        *out_request_id= static_cast<PSMRequestID>(req_id);
+    }
+
+    result= (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+
+    return result;
+}
+
+PSMResult PSM_StartTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID *out_request_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+        ClientTrackerView *view = g_tracker_views[tracker_id];
+
+        if (view != nullptr)
+        {
+            ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::start_tracker_data_stream(view);
+
+            if (out_request_id != nullptr)
+            {
+                *out_request_id= static_cast<PSMRequestID>(req_id);
+            }
+
+            result= (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_StopTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID *out_request_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+        ClientTrackerView *view = g_tracker_views[tracker_id];
+
+        if (view != nullptr)
+        {
+            ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::stop_tracker_data_stream(view);
+
+            if (out_request_id != nullptr)
+            {
+                *out_request_id= static_cast<PSMRequestID>(req_id);
+            }
+
+            result= (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetHMDTrackingSpaceSettingsAsync(PSMRequestID *out_request_id)
+{
+    ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::get_hmd_tracking_space_settings();
+
+    if (out_request_id != nullptr)
+    {
+        *out_request_id= static_cast<PSMRequestID>(req_id);
+    }
+
+    return (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+}
+
 PSMResult PSM_PollNextMessage(PSMMessage *message, size_t message_size)
 {
     PSMResult result= PSMResult_Error;
@@ -569,12 +824,12 @@ static void extractResponseMessage(const ClientPSMoveAPI::ResponseMessage *respo
     case ClientPSMoveAPI::_responsePayloadType_TrackerList:
         response->payload_type= PSMResponseMessage::_responsePayloadType_TrackerList;
         static_assert(sizeof(PSMTrackerList) == sizeof(ClientPSMoveAPI::ResponsePayload_TrackerList), "Response payload types changed!");
-        memcpy(&response->payload.tracker_list, &response_internal->payload.tracker_list, sizeof(PSMControllerList));
+        memcpy(&response->payload.tracker_list, &response_internal->payload.tracker_list, sizeof(PSMTrackerList));
         break;
     case ClientPSMoveAPI::_responsePayloadType_HMDTrackingSpace:
         response->payload_type= PSMResponseMessage::_responsePayloadType_HMDTrackingSpace;
         static_assert(sizeof(PSMHMDTrackingSpace) == sizeof(ClientPSMoveAPI::ResponsePayload_HMDTrackingSpace), "Response payload types changed!");
-        memcpy(&response->payload.hmd_tracking_space, &response_internal->payload.hmd_tracking_space, sizeof(PSMControllerList));
+        memcpy(&response->payload.hmd_tracking_space, &response_internal->payload.hmd_tracking_space, sizeof(PSMHMDTrackingSpace));
         break;
     default:
         assert(0 && "unreachable");
@@ -671,4 +926,12 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
         default:
             break;
     }
+}
+
+static void extractTrackerState(const ClientTrackerView *view, PSMTracker *tracker)
+{
+    tracker->is_connected= view->getIsConnected();
+    tracker->data_frame_average_fps= view->GetDataFrameFPS();
+    tracker->data_frame_last_received_time= view->GetDataFrameLastReceivedTime();
+    tracker->sequence_num= view->getSequenceNum();
 }

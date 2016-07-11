@@ -21,6 +21,7 @@ public:
         : m_keepRunning(true)
     {
         memset(&controllerList, 0, sizeof(PSMControllerList));
+        memset(&trackerList, 0, sizeof(PSMTrackerList));
     }
 
     int run()
@@ -69,22 +70,60 @@ private:
         // Attempt to connect to the server
         if (success)
         {
-            if (PSM_Initialize("localhost", "9512") != PSMResult_Success)
+            if (PSM_Initialize("localhost", "9512") == PSMResult_Success)
+            {
+                std::cout << "PSMoveConsoleClient::startup() - Initialized client version - " << PSM_GetVersionString() << std::endl;
+            }
+            else
             {
                 std::cout << "PSMoveConsoleClient::startup() - Failed to initialize the client network manager" << std::endl;
                 success= false;
             }
+
             PSM_GetControllerList(&controllerList);
             std::cout << "Found " << controllerList.count << " controllers." << std::endl;
+            for (int trkr_ix=0; trkr_ix<controllerList.count; ++trkr_ix) 
+            {
+                const char *controller_type= "NONE";
+
+                switch (controllerList.controller_type[trkr_ix])
+                {
+                case PSMController_Move:
+                    controller_type= "PSMove";
+                    break;
+                case PSMController_Navi:
+                    controller_type= "PSNavi";
+                    break;
+                }
+
+                std::cout << "  Controller ID: " << controllerList.controller_id[trkr_ix] << " is a " << controller_type << std::endl;
+            }
+
+
+            PSM_GetTrackerList(&trackerList);
+            std::cout << "Found " << trackerList.count << " trackers." << std::endl;
+            for (int trkr_ix=0; trkr_ix<trackerList.count; ++trkr_ix) 
+            {
+                const char *tracker_type= "NONE";
+
+                switch (trackerList.trackers[trkr_ix].tracker_type)
+                {
+                case PSMTracker_PS3Eye:
+                    tracker_type= "PS3Eye";
+                    break;
+                }
+
+                std::cout << "  Tracker ID: " << trackerList.trackers[trkr_ix].tracker_id << " is a " << tracker_type << std::endl;
+            }
             
-            // TODO: Register as listener and start stream for each controller
+            // Register as listener and start stream for each controller
             unsigned int data_stream_flags = PSMControllerDataStreamFlags::includePositionData |
             PSMControllerDataStreamFlags::includePhysicsData | PSMControllerDataStreamFlags::includeRawSensorData |
             PSMControllerDataStreamFlags::includeRawTrackerData;
             PSMResult result;
-            for (int ctrl_ix=0; ctrl_ix<controllerList.count; ++ctrl_ix) {
-                result = PSM_AllocateControllerListener(controllerList.controller_id[ctrl_ix]);
-                result = PSM_StartControllerDataStream(controllerList.controller_id[ctrl_ix], data_stream_flags);
+            for (int trkr_ix=0; trkr_ix<controllerList.count; ++trkr_ix) {
+                result = PSM_AllocateControllerListener(controllerList.controller_id[trkr_ix]);
+                result = PSM_StartControllerDataStream(controllerList.controller_id[trkr_ix], data_stream_flags);
             }
         }
 
@@ -138,7 +177,7 @@ private:
 
     void shutdown()
     {
-        for (int ctrl_ix=0; ctrl_ix < PSMOVESERVICE_MAX_CONTROLLER_COUNT; ++ctrl_ix)
+        for (int ctrl_ix=0; ctrl_ix < controllerList.count; ++ctrl_ix)
         {
             PSM_StopControllerDataStream(controllerList.controller_id[ctrl_ix]);
             PSM_FreeControllerListener(controllerList.controller_id[ctrl_ix]);
@@ -150,6 +189,7 @@ private:
     bool m_keepRunning;
     std::chrono::milliseconds last_report_fps_timestamp;
     PSMControllerList controllerList;
+    PSMTrackerList trackerList;
 };
 
 int main(int argc, char *argv[])

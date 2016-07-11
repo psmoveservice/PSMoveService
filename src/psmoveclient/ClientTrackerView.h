@@ -168,10 +168,20 @@ public:
 
     PSMoveFrustum getTrackerFrustum() const;
 
+    inline class SharedVideoFrameReadOnlyAccessor *getSharedMemoryAccessor() const 
+    {
+        return m_shared_memory_accesor;
+    }
+
     // Statistics
     inline float GetDataFrameFPS() const
     {
         return data_frame_average_fps;
+    }
+
+    inline long long GetDataFrameLastReceivedTime() const
+    {
+        return m_data_frame_last_received_time;
     }
 };
 #endif // CLIENT_TRACKER_VIEW_H
