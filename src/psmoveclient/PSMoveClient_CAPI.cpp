@@ -876,7 +876,7 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
                 controller->ControllerState.PSMoveState.RawTrackerData.RelativePositions[track_id] = {
                     raw_track.RelativePositions[track_id].x, raw_track.RelativePositions[track_id].y, raw_track.RelativePositions[track_id].z
                 };
-                controller->ControllerState.PSMoveState.RawTrackerData.TrackingProjections[track_id].shape_type = PSMTrackingProjection::eShapeType::Ellipse;
+                controller->ControllerState.PSMoveState.RawTrackerData.TrackingProjections[track_id].shape_type = PSMTrackingProjection::eShapeType::PSMShape_Ellipse;
                 controller->ControllerState.PSMoveState.RawTrackerData.TrackingProjections[track_id].shape.ellipse.center = {
                     raw_track.TrackingProjections[track_id].shape.ellipse.center.x, raw_track.TrackingProjections[track_id].shape.ellipse.center.y
                 };
