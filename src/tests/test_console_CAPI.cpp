@@ -80,50 +80,53 @@ private:
                 success= false;
             }
 
-            PSM_GetControllerList(&controllerList);
-            std::cout << "Found " << controllerList.count << " controllers." << std::endl;
-            for (int trkr_ix=0; trkr_ix<controllerList.count; ++trkr_ix) 
+            if (success)
             {
-                const char *controller_type= "NONE";
-
-                switch (controllerList.controller_type[trkr_ix])
+                PSM_GetControllerList(&controllerList);
+                std::cout << "Found " << controllerList.count << " controllers." << std::endl;
+                for (int trkr_ix=0; trkr_ix<controllerList.count; ++trkr_ix) 
                 {
-                case PSMController_Move:
-                    controller_type= "PSMove";
-                    break;
-                case PSMController_Navi:
-                    controller_type= "PSNavi";
-                    break;
+                    const char *controller_type= "NONE";
+
+                    switch (controllerList.controller_type[trkr_ix])
+                    {
+                    case PSMController_Move:
+                        controller_type= "PSMove";
+                        break;
+                    case PSMController_Navi:
+                        controller_type= "PSNavi";
+                        break;
+                    }
+
+                    std::cout << "  Controller ID: " << controllerList.controller_id[trkr_ix] << " is a " << controller_type << std::endl;
                 }
 
-                std::cout << "  Controller ID: " << controllerList.controller_id[trkr_ix] << " is a " << controller_type << std::endl;
-            }
 
-
-            PSM_GetTrackerList(&trackerList);
-            std::cout << "Found " << trackerList.count << " trackers." << std::endl;
-            for (int trkr_ix=0; trkr_ix<trackerList.count; ++trkr_ix) 
-            {
-                const char *tracker_type= "NONE";
-
-                switch (trackerList.trackers[trkr_ix].tracker_type)
+                PSM_GetTrackerList(&trackerList);
+                std::cout << "Found " << trackerList.count << " trackers." << std::endl;
+                for (int trkr_ix=0; trkr_ix<trackerList.count; ++trkr_ix) 
                 {
-                case PSMTracker_PS3Eye:
-                    tracker_type= "PS3Eye";
-                    break;
-                }
+                    const char *tracker_type= "NONE";
 
-                std::cout << "  Tracker ID: " << trackerList.trackers[trkr_ix].tracker_id << " is a " << tracker_type << std::endl;
-            }
+                    switch (trackerList.trackers[trkr_ix].tracker_type)
+                    {
+                    case PSMTracker_PS3Eye:
+                        tracker_type= "PS3Eye";
+                        break;
+                    }
+
+                    std::cout << "  Tracker ID: " << trackerList.trackers[trkr_ix].tracker_id << " is a " << tracker_type << std::endl;
+                }
             
-            // Register as listener and start stream for each controller
-            unsigned int data_stream_flags = PSMControllerDataStreamFlags::PSMStreamFlags_includePositionData |
-            PSMControllerDataStreamFlags::PSMStreamFlags_includePhysicsData | PSMControllerDataStreamFlags::PSMStreamFlags_includeRawSensorData |
-            PSMControllerDataStreamFlags::PSMStreamFlags_includeRawTrackerData;
-            PSMResult result;
-            for (int trkr_ix=0; trkr_ix<controllerList.count; ++trkr_ix) {
-                result = PSM_AllocateControllerListener(controllerList.controller_id[trkr_ix]);
-                result = PSM_StartControllerDataStream(controllerList.controller_id[trkr_ix], data_stream_flags);
+                // Register as listener and start stream for each controller
+                unsigned int data_stream_flags = PSMControllerDataStreamFlags::PSMStreamFlags_includePositionData |
+                PSMControllerDataStreamFlags::PSMStreamFlags_includePhysicsData | PSMControllerDataStreamFlags::PSMStreamFlags_includeRawSensorData |
+                PSMControllerDataStreamFlags::PSMStreamFlags_includeRawTrackerData;
+                PSMResult result;
+                for (int trkr_ix=0; trkr_ix<controllerList.count; ++trkr_ix) {
+                    result = PSM_AllocateControllerListener(controllerList.controller_id[trkr_ix]);
+                    result = PSM_StartControllerDataStream(controllerList.controller_id[trkr_ix], data_stream_flags);
+                }
             }
         }
 
