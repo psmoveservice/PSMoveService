@@ -1,31 +1,8 @@
 #ifndef __PSMOVECLIENT_CAPI_H
 #define __PSMOVECLIENT_CAPI_H
-
 #include "PSMoveClient_export.h"
 #include "ClientConstants.h"
 #include <stdbool.h>
-
-// Defines a standard _PAUSE function
-#if __cplusplus >= 199711L  // if C++11
-    #include <thread>
-    #define _PAUSE(ms) (std::this_thread::sleep_for(std::chrono::milliseconds(ms)))
-#elif defined(_WIN32)       // if windows system
-    #include <windows.h>
-    #define _PAUSE(ms) (Sleep(ms))
-#else                       // assume this is Unix system
-    #include <unistd.h>
-    #define _PAUSE(ms) (usleep(1000 * ms))
-#endif
-
-//-- macros -----
-#if defined(__cplusplus) && defined(HAS_PROTOCOL_ACCESS)
-#define GET_PSMOVEPROTOCOL_REQUEST(handle) \
-    reinterpret_cast<const PSMoveProtocol::Request *>(handle)
-#define GET_PSMOVEPROTOCOL_RESPONSE(handle) \
-    reinterpret_cast<const PSMoveProtocol::Response *>(handle)
-#define GET_PSMOVEPROTOCOL_EVENT(handle) \
-    reinterpret_cast<const PSMoveProtocol::Response *>(handle) // events are a special case of responses
-#endif // defined(__cplusplus) && defined(HAS_PROTOCOL_ACCESS)
 
 // Wrapper Types
 //--------------
@@ -39,28 +16,31 @@ typedef int PSMTrackerID;
 
 // Shared Constants
 //-----------------
-typedef enum _PSMResult
+enum _PSMResult
 {
     PSMResult_Error                 = -1,
     PSMResult_Success               = 0,
     PSMResult_Timeout               = 1,
     PSMResult_RequestSent           = 2,
     PSMResult_Canceled              = 3,
-} PSMResult;
+};
+typedef enum _PSMResult PSMResult;
 
-typedef enum _PSMConnectionType
+enum _PSMConnectionType
 {
     PSMConnectionType_BLUETOOTH,
     PSMConnectionType_USB
     
-} PSMConnectionType;
+};
+typedef enum _PSMConnectionType PSMConnectionType;
 
-typedef enum _PSMButtonState {
+enum _PSMButtonState {
     PSMButtonState_UP = 0x00,       // (00b) Not pressed
     PSMButtonState_PRESSED = 0x01,  // (01b) Down for one frame only
     PSMButtonState_DOWN = 0x03,     // (11b) Down for >1 frame
     PSMButtonState_RELEASED = 0x02, // (10b) Up for one frame only
-} PSMButtonState;
+};
+typedef enum _PSMButtonState PSMButtonState;
 
 typedef enum _PSMTrackingColorType
 {
@@ -74,11 +54,11 @@ typedef enum _PSMTrackingColorType
 
 typedef enum _PSMControllerDataStreamFlags
 {
-    defaultStreamOptions = 0x00,
-    includePositionData = 0x01,
-    includePhysicsData = 0x02,
-    includeRawSensorData = 0x04,
-    includeRawTrackerData = 0x08
+    PSMStreamFlags_defaultStreamOptions = 0x00,
+    PSMStreamFlags_includePositionData = 0x01,
+    PSMStreamFlags_includePhysicsData = 0x02,
+    PSMStreamFlags_includeRawSensorData = 0x04,
+    PSMStreamFlags_includeRawTrackerData = 0x08
 } PSMControllerDataStreamFlags;
 
 typedef enum _PSMControllerType
@@ -157,9 +137,9 @@ typedef struct _PSMTrackingProjection
 {
     enum eShapeType
     {
-        INVALID_PROJECTION = -1,
-        Ellipse,
-        Quad,
+        PSMShape_INVALID_PROJECTION = -1,
+        PSMShape_Ellipse,
+        PSMShape_Quad,
     }                               shape_type;
     union{
         struct {
@@ -308,14 +288,14 @@ typedef struct _PSMEventMessage
     enum eEventType
     {
         // Client Events
-        connectedToService,
-        failedToConnectToService,
-        disconnectedFromService,
+        PSMEvent_connectedToService,
+        PSMEvent_failedToConnectToService,
+        PSMEvent_disconnectedFromService,
 
         // Service Events
-        opaqueServiceEvent, // Need to have protocol access to see what kind of event this is
-        controllerListUpdated,
-        trackerListUpdated,
+        PSMEvent_opaqueServiceEvent, // Need to have protocol access to see what kind of event this is
+        PSMEvent_controllerListUpdated,
+        PSMEvent_trackerListUpdated,
     } event_type;
 
     // Opaque handle that can be converted to a <const PSMoveProtocol::Response *> pointer

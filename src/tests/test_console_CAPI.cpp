@@ -117,9 +117,9 @@ private:
             }
             
             // Register as listener and start stream for each controller
-            unsigned int data_stream_flags = PSMControllerDataStreamFlags::includePositionData |
-            PSMControllerDataStreamFlags::includePhysicsData | PSMControllerDataStreamFlags::includeRawSensorData |
-            PSMControllerDataStreamFlags::includeRawTrackerData;
+            unsigned int data_stream_flags = PSMControllerDataStreamFlags::PSMStreamFlags_includePositionData |
+            PSMControllerDataStreamFlags::PSMStreamFlags_includePhysicsData | PSMControllerDataStreamFlags::PSMStreamFlags_includeRawSensorData |
+            PSMControllerDataStreamFlags::PSMStreamFlags_includeRawTrackerData;
             PSMResult result;
             for (int trkr_ix=0; trkr_ix<controllerList.count; ++trkr_ix) {
                 result = PSM_AllocateControllerListener(controllerList.controller_id[trkr_ix]);

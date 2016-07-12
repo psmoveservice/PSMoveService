@@ -272,7 +272,7 @@ PSMResult PSM_StartControllerDataStreamAsync(PSMControllerID controller_id, unsi
 
     if (IS_VALID_CONTROLLER_INDEX(controller_id))
     {
-        PSMController *controller= &g_controllers[controller_id];
+//        PSMController *controller= &g_controllers[controller_id];
         ClientControllerView * view = g_controller_views[controller_id];
         ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::start_controller_data_stream(view, data_stream_flags);
 
@@ -523,7 +523,7 @@ PSMResult PSM_StartTrackerDataStream(PSMTrackerID tracker_id)
 
     if (IS_VALID_TRACKER_INDEX(tracker_id))
     {
-        PSMTracker *tracker= &g_trackers[tracker_id];
+//        PSMTracker *tracker= &g_trackers[tracker_id];
         ClientTrackerView *view = g_tracker_views[tracker_id];
 
         if (blockUntilResponse(ClientPSMoveAPI::start_tracker_data_stream(view)) == PSMResult_Success)
@@ -541,7 +541,7 @@ PSMResult PSM_StopTrackerDataStream(PSMTrackerID tracker_id)
 
     if (IS_VALID_TRACKER_INDEX(tracker_id))
     {
-        PSMTracker *tracker= &g_trackers[tracker_id];
+//        PSMTracker *tracker= &g_trackers[tracker_id];
         ClientTrackerView *view = g_tracker_views[tracker_id];
 
         if (blockUntilResponse(ClientPSMoveAPI::stop_tracker_data_stream(view)) == PSMResult_Success)
@@ -744,27 +744,6 @@ PSMResult PSM_EatResponse(PSMRequestID request_id)
 }
 
 // -- Async Messaging Helpers -----
-static PSMResult findMessageOfType(PSMoveProtocol::Request_RequestType request_type, unsigned int timeout_msec)
-{
-    bool response_found = false;
-    // Start the timer
-    
-    // Look to see if there's a pending response of the same request_type
-    // if yes, retrieve the message
-    // Look to see if there's a pending request of the same request_type
-    // need access to `ClientPSMoveAPIImpl`'s `m_request_manager`'s `m_implementation_ptr`'s `m_pending_requests`
-    // If no, create a new request
-    while (!response_found)  // && timer.since < timeout_msec
-    {
-        ClientPSMoveAPI::update();
-        // Sleep a tick.
-        // search for responses, copy message to input
-        
-        //m_pending_requests
-    }
-    return response_found ? PSMResult_Success : PSMResult_Timeout;
-}
-
 static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id)
 {
     PSMResult result= PSMResult_Error;
