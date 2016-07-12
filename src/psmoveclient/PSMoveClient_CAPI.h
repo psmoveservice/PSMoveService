@@ -3,6 +3,7 @@
 
 #include "PSMoveClient_export.h"
 #include "ClientConstants.h"
+#include <stdbool.h>
 
 // Defines a standard _PAUSE function
 #if __cplusplus >= 199711L  // if C++11
@@ -35,11 +36,6 @@ typedef const void *PSMEventDataHandle;
 
 typedef int PSMControllerID;
 typedef int PSMTrackerID;
-
-//###HipsterSloth $REVIEW@cboulay - Can we replace with the <stdbool.h>?
-typedef char PSMBool;
-#define PSMFalse 0
-#define PSMTrue 1
 
 // Shared Constants
 //-----------------
@@ -201,7 +197,7 @@ typedef struct _PSMPSMove
     char                    DevicePath[256];
     char                    DeviceSerial[128];
     char                    AssignedHostSerial[128];
-    PSMBool                 PairedToHost;
+    bool                 PairedToHost;
     PSMConnectionType       ConnectionType;
     
     PSMTrackingColorType    TrackingColorType;
@@ -296,7 +292,7 @@ typedef struct _PSMTracker
 
     // Tracker Streaming State
     int listener_count;
-    PSMBool is_connected;
+    bool is_connected;
     int sequence_num;
     long long data_frame_last_received_time;
     float data_frame_average_fps;
@@ -389,7 +385,7 @@ typedef void(*PSMResponseCallback)(const PSMResponseMessage *response, void *use
 
 // Message Container
 //------------------
-struct PSMMessage
+typedef struct _PSMMessage
 {
     union{
         PSMEventMessage event_data;
@@ -403,7 +399,7 @@ struct PSMMessage
 
         _messagePayloadType_Count
     } payload_type;
-};
+} PSMMessage;
 
 // Interface
 //----------
