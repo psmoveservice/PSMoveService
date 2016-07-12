@@ -441,7 +441,7 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerPoseAsync(PSMControllerID cont
 
 /// Tracker Pool
 PSM_PUBLIC_FUNCTION(PSMTracker *) PSM_GetTracker(PSMTrackerID tracker_id);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_AllocateTrackerListener(PSMTrackerID controller_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_AllocateTrackerListener(PSMTrackerID tracker_id, PSMClientTrackerInfo *tracker_info);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_FreeTrackerListener(PSMTrackerID controller_id);
 
 /// Blocking Tracker Methods
