@@ -65,7 +65,6 @@ if __name__ == "__main__":
     copyfile(libpath, os.path.abspath(os.path.join('.', libname)))
     ffi.compile(verbose=True)
     
-    
 ignoreme = """
 #In OS X, run the following: install_name_tool -change "@rpath/libPSMoveClient_CAPI.dylib" "@loader_path/libPSMoveClient_CAPI.dylib" _psmoveclient.cpython-35m-darwin.so
 
@@ -73,10 +72,10 @@ ignoreme = """
 lib = ffi.dlopen(libpath)
 
 # If we use the more robust API way, we do it as follows:
+import time
 from _psmoveclient import ffi, lib
 
 # Then try out the functions
-import time
 result = lib.PSM_Initialize(b"localhost", b"9512")
 controller0 = lib.PSM_GetController(0)
 result = lib.PSM_AllocateControllerListener(0)
@@ -87,9 +86,12 @@ result = lib.PSM_StartControllerDataStream(0, flags)
 start = time.time()
 while time.time() - start < 5:
     result = lib.PSM_Update()
-    controller0= lib.PSM_GetController(0)
     sens = controller0.ControllerState.PSMoveState.RawSensorData
-    print(sens.Accelerometer.x)
+    print('{0:8.3f} {1:8.3f} {2:8.3f} {3:8.3f} {4:8.3f} {5:8.3f} {6:5d} {7:5d} {8:5d}'.format(
+        sens.Accelerometer.x, sens.Accelerometer.y, sens.Accelerometer.z,
+        sens.Gyroscope.x, sens.Gyroscope.y, sens.Gyroscope.z,
+        sens.Magnetometer.x, sens.Magnetometer.y, sens.Magnetometer.z,))
+    #time.sleep(0.001)
 result = lib.PSM_StopControllerDataStream(0)
 result = lib.PSM_FreeControllerListener(0)
 result = lib.PSM_Shutdown()
