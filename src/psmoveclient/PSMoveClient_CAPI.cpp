@@ -11,11 +11,11 @@
 #define IS_VALID_TRACKER_INDEX(x) ((x) >= 0 && (x) < PSMOVESERVICE_MAX_TRACKER_COUNT)
 
 // -- private methods -----
-static PSMResult findMessageOfType(PSMoveProtocol::Request_RequestType request_type, unsigned int timeout_msec);
 static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id);
 static void extractResponseMessage(const ClientPSMoveAPI::ResponseMessage *response_internal, PSMResponseMessage *response);
 static void extractControllerState(const ClientControllerView *view, PSMController *controller);
 static void extractTrackerState(const ClientTrackerView *view, PSMTracker *tracker);
+static void processEvent(ClientPSMoveAPI::EventMessage *event_message);
 
 // -- private definitions -----
 struct CallbackResultCapture
@@ -57,6 +57,12 @@ PSMTracker g_trackers[PSMOVESERVICE_MAX_TRACKER_COUNT];
 ClientControllerView *g_controller_views[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
 ClientTrackerView *g_tracker_views[PSMOVESERVICE_MAX_TRACKER_COUNT];
 
+bool g_bIsConnected= false;
+bool g_bHasConnectionStatusChanged= false;
+bool g_bHasControllerListChanged= false;
+bool g_bHasTrackerListChanged= false;
+
+
 // -- public interface -----
 const char* PSM_GetVersionString()
 {
@@ -65,12 +71,62 @@ const char* PSM_GetVersionString()
     return version_string;
 }
 
+bool PSM_GetIsConnected()
+{
+    return g_bIsConnected;
+}
+
+bool PSM_HasConnectionStatusChanged()
+{
+    bool result= g_bHasConnectionStatusChanged;
+
+    g_bHasConnectionStatusChanged= false;
+
+    return result;
+}
+
+bool PSM_HasControllerListChanged()
+{
+    bool result= g_bHasControllerListChanged;
+
+    g_bHasControllerListChanged= false;
+
+    return result;
+}
+
+bool PSM_HasTrackerListChanged()
+{
+    bool result= g_bHasTrackerListChanged;
+
+    g_bHasTrackerListChanged= false;
+
+    return result;
+}
+
 PSMResult PSM_Initialize(const char* host, const char* port)
+{
+    PSMResult result = PSMResult_Error;
+
+    if (PSM_InitializeAsync(host, port) == PSMResult_RequestSent)
+    {
+        while (!PSM_HasConnectionStatusChanged())
+        {
+            _PAUSE(10);
+            PSM_Update();            
+        }
+
+        result= PSM_GetIsConnected() ? PSMResult_Success : PSMResult_Error;
+    }
+
+    return result;
+}
+
+PSMResult PSM_InitializeAsync(const char* host, const char* port)
 {
     std::string s_host(host);
     std::string s_port(port);
     e_log_severity_level log_level = _log_severity_level_info;
-    PSMResult result = ClientPSMoveAPI::startup(s_host, s_port, log_level) ? PSMResult_Success : PSMResult_Error;
+    PSMResult result = ClientPSMoveAPI::startup(s_host, s_port, log_level) ? PSMResult_RequestSent : PSMResult_Error;
 
     memset(&g_controllers, 0, sizeof(PSMController)*PSMOVESERVICE_MAX_CONTROLLER_COUNT);
     memset(&g_controller_views, 0, sizeof(ClientControllerView *)*PSMOVESERVICE_MAX_CONTROLLER_COUNT);
@@ -87,6 +143,11 @@ PSMResult PSM_Initialize(const char* host, const char* port)
         g_trackers[tracker_id].tracker_info.tracker_id= tracker_id;
         g_trackers[tracker_id].tracker_info.tracker_type= PSMTracker_None;
     }
+
+    g_bIsConnected= false;
+    g_bHasConnectionStatusChanged= false;
+    g_bHasControllerListChanged= false;
+    g_bHasTrackerListChanged= false;
 
     return result;
 }
@@ -112,10 +173,47 @@ PSMResult PSM_Shutdown()
     }
 
     ClientPSMoveAPI::shutdown();
+
+    g_bIsConnected= false;
+    g_bHasConnectionStatusChanged= false;
+    g_bHasControllerListChanged= false;
+    g_bHasTrackerListChanged= false;
+
     return PSMResult_Success;
 }
 
 PSMResult PSM_Update()
+{
+    PSMResult result = PSMResult_Error;
+
+    if (PSM_UpdateNoPollMessages() == PSMResult_Success)
+    {
+        ClientPSMoveAPI::Message message;
+        while(ClientPSMoveAPI::poll_next_message(&message, sizeof(message)))
+        {
+            switch(message.payload_type)
+            {
+                case ClientPSMoveAPI::eMessagePayloadType::_messagePayloadType_Event:
+                    // Only handle events
+                    processEvent(&message.event_data);
+                    break;
+                case ClientPSMoveAPI::eMessagePayloadType::_messagePayloadType_Response:
+                    // Any response that didn't get a callback executed get dropped on the floor
+                    CLIENT_LOG_INFO("PSM_Update") << "Dropping response to request id: " << message.response_data.request_id;
+                    break;
+                default:
+                    assert(0 && "unreachable");
+                    break;
+            }
+        }
+
+        result= PSMResult_Success;
+    }
+
+    return result;
+}
+
+PSMResult PSM_UpdateNoPollMessages()
 {
     PSMResult result= PSMResult_Error;
 
@@ -192,7 +290,7 @@ PSMResult PSM_GetControllerList(PSMControllerList *out_controller_list)
     while (!resultState.bReceived)
     {
         _PAUSE(10);
-        ClientPSMoveAPI::update();
+        PSM_Update();
     }
     
     if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
@@ -500,7 +598,7 @@ PSMResult PSM_GetTrackerList(PSMTrackerList *out_tracker_list)
     while (!resultState.bReceived)
     {
         _PAUSE(10);
-        ClientPSMoveAPI::update();
+        PSM_Update();
     }
     
     if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
@@ -566,7 +664,7 @@ PSMResult PSM_GetHMDTrackingSpaceSettings(PSMHMDTrackingSpace *out_tracking_spac
     while (!resultState.bReceived)
     {
         _PAUSE(10);
-        ClientPSMoveAPI::update();
+        PSM_Update();
     }
     
     if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
@@ -680,6 +778,10 @@ PSMResult PSM_PollNextMessage(PSMMessage *message, size_t message_size)
             } break;
         case ClientPSMoveAPI::_messagePayloadType_Event:
             {
+                // Update event flags before handling off the event
+                processEvent(&message_internal.event_data);
+
+                // Package up the event
                 message->payload_type= PSMMessage::_messagePayloadType_Event;
                 message->event_data.event_type= static_cast<PSMEventMessage::eEventType>(message_internal.event_data.event_type);
                 message->event_data.event_data_handle= static_cast<PSMEventDataHandle>(message_internal.event_data.event_data_handle);
@@ -756,7 +858,9 @@ static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id)
         while (!resultState.bReceived)
         {
             _PAUSE(10);
-            ClientPSMoveAPI::update();
+
+            // Process responses, events and controller updates from the service
+            PSM_Update();
         }
 
         if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
@@ -913,4 +1017,39 @@ static void extractTrackerState(const ClientTrackerView *view, PSMTracker *track
     tracker->data_frame_average_fps= view->GetDataFrameFPS();
     tracker->data_frame_last_received_time= view->GetDataFrameLastReceivedTime();
     tracker->sequence_num= view->getSequenceNum();
+}
+
+static void processEvent(ClientPSMoveAPI::EventMessage *event_message)
+{
+    switch (event_message->event_type)
+    {
+    // Client Events
+    case PSMEventMessage::eEventType::PSMEvent_connectedToService:
+        g_bIsConnected= true;
+        g_bHasConnectionStatusChanged= true;
+        break;
+    case PSMEventMessage::eEventType::PSMEvent_failedToConnectToService:
+        g_bIsConnected= false;
+        g_bHasConnectionStatusChanged= true;
+        break;
+    case PSMEventMessage::eEventType::PSMEvent_disconnectedFromService:
+        g_bIsConnected= false;
+        g_bHasConnectionStatusChanged= true;
+        break;
+
+    // Service Events
+    case PSMEventMessage::eEventType::PSMEvent_opaqueServiceEvent:
+        // Need to have protocol access to see what kind of event this is
+        CLIENT_LOG_INFO("PSM_Update") << "Dropping opaque service event";
+        break;
+    case PSMEventMessage::eEventType::PSMEvent_controllerListUpdated:
+        g_bHasControllerListChanged= true;
+        break;
+    case PSMEventMessage::eEventType::PSMEvent_trackerListUpdated:
+        g_bHasTrackerListChanged= true;
+        break;
+    default:
+        assert(0 && "unreachable");
+        break;
+    }
 }

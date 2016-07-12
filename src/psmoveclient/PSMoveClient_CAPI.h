@@ -384,10 +384,23 @@ typedef struct _PSMMessage
 // Interface
 //----------
 
-PSM_PUBLIC_FUNCTION(const char*) PSM_GetVersionString();
+// Blocking Connection Methods
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_Initialize(const char* host, const char* port);  //"localhost", "9512"
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_Shutdown();
+
+// Async Connection Methods
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_InitializeAsync(const char* host, const char* port);  //"localhost", "9512"
+
+// Update
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_Update();
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_UpdateNoPollMessages();
+
+// System Queries
+PSM_PUBLIC_FUNCTION(const char*) PSM_GetVersionString();
+PSM_PUBLIC_FUNCTION(bool) PSM_GetIsConnected();
+PSM_PUBLIC_FUNCTION(bool) PSM_HasConnectionStatusChanged();
+PSM_PUBLIC_FUNCTION(bool) PSM_HasControllerListChanged();
+PSM_PUBLIC_FUNCTION(bool) PSM_HasTrackerListChanged();
 
 /// Async Message Handling API
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_PollNextMessage(PSMMessage *message, size_t message_size);
