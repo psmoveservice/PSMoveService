@@ -11,7 +11,7 @@
 #define IS_VALID_TRACKER_INDEX(x) ((x) >= 0 && (x) < PSMOVESERVICE_MAX_TRACKER_COUNT)
 
 // -- private methods -----
-static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id);
+static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id, int timeout_ms);
 static void extractResponseMessage(const ClientPSMoveAPI::ResponseMessage *response_internal, PSMResponseMessage *response);
 static void extractControllerState(const ClientControllerView *view, PSMController *controller);
 static void extractTrackerState(const ClientTrackerView *view, PSMTracker *tracker);
@@ -48,6 +48,28 @@ struct CallbackResultAdapter
 
         delete adapter;
     }
+};
+
+class CallbackTimeout
+{
+public:
+    CallbackTimeout(int timeout_ms) 
+        : m_startTime(std::chrono::high_resolution_clock::now())
+        , m_duration(static_cast<float>(timeout_ms))
+    {        
+    }
+
+    bool HasElapsed() const
+    {
+        std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
+        std::chrono::duration<float, std::milli> timeSinceStart= now - m_startTime;
+
+        return timeSinceStart > m_duration;
+    }
+
+private:
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_startTime;
+    std::chrono::duration<float, std::milli> m_duration;
 };
 
 // -- private data ---
@@ -103,19 +125,28 @@ bool PSM_HasTrackerListChanged()
     return result;
 }
 
-PSMResult PSM_Initialize(const char* host, const char* port)
+PSMResult PSM_Initialize(const char* host, const char* port, int timeout_ms)
 {
     PSMResult result = PSMResult_Error;
 
     if (PSM_InitializeAsync(host, port) == PSMResult_RequestSent)
     {
-        while (!PSM_HasConnectionStatusChanged())
+        CallbackTimeout timeout(timeout_ms);
+
+        while (!PSM_HasConnectionStatusChanged() && !timeout.HasElapsed())
         {
             _PAUSE(10);
             PSM_Update();            
         }
 
-        result= PSM_GetIsConnected() ? PSMResult_Success : PSMResult_Error;
+        if (!timeout.HasElapsed())
+        {
+            result= PSM_GetIsConnected() ? PSMResult_Success : PSMResult_Error;
+        }
+        else
+        {
+            result= PSMResult_Timeout;
+        }
     }
 
     return result;
@@ -277,23 +308,30 @@ PSMResult PSM_GetControllerListAsync(PSMRequestID *out_request_id)
     return result;
 }
 
-PSMResult PSM_GetControllerList(PSMControllerList *out_controller_list)
+PSMResult PSM_GetControllerList(PSMControllerList *out_controller_list, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
     CallbackResultCapture resultState;
-    ClientPSMoveAPI::register_callback(
-                                       ClientPSMoveAPI::get_controller_list(),
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::get_controller_list();
+    ClientPSMoveAPI::register_callback(request_id,
                                        CallbackResultCapture::response_callback,
                                        &resultState);
+
+    CallbackTimeout timeout(timeout_ms);
     
-    while (!resultState.bReceived)
+    while (!resultState.bReceived && !timeout.HasElapsed())
     {
         _PAUSE(10);
         PSM_Update();
     }
     
-    if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (timeout.HasElapsed())
+    {
+        ClientPSMoveAPI::cancel_callback(request_id);
+        result= PSMResult_Timeout;
+    }
+    else if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
     {
         assert(resultState.out_response.payload_type == ClientPSMoveAPI::eResponsePayloadType::_responsePayloadType_ControllerList);
         
@@ -385,7 +423,7 @@ PSMResult PSM_StartControllerDataStreamAsync(PSMControllerID controller_id, unsi
     return result;
 }
 
-PSMResult PSM_StartControllerDataStream(PSMControllerID controller_id, unsigned int data_stream_flags)
+PSMResult PSM_StartControllerDataStream(PSMControllerID controller_id, unsigned int data_stream_flags, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
@@ -394,10 +432,11 @@ PSMResult PSM_StartControllerDataStream(PSMControllerID controller_id, unsigned 
         PSMController *controller= &g_controllers[controller_id];
         ClientControllerView *view = g_controller_views[controller_id];
 
-        if (blockUntilResponse(ClientPSMoveAPI::start_controller_data_stream(view, data_stream_flags)) == PSMResult_Success)
+        result= blockUntilResponse(ClientPSMoveAPI::start_controller_data_stream(view, data_stream_flags), timeout_ms);
+        
+        if (result == PSMResult_Success)
         {
             extractControllerState(view, controller);
-            result= PSMResult_Success;
         }
     }
 
@@ -424,7 +463,7 @@ PSMResult PSM_StopControllerDataStreamAsync(PSMControllerID controller_id, PSMRe
     return result;
 }
 
-PSMResult PSM_StopControllerDataStream(PSMControllerID controller_id)
+PSMResult PSM_StopControllerDataStream(PSMControllerID controller_id, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
@@ -432,10 +471,7 @@ PSMResult PSM_StopControllerDataStream(PSMControllerID controller_id)
     {
         ClientControllerView *view = g_controller_views[controller_id];
 
-        if (blockUntilResponse(ClientPSMoveAPI::stop_controller_data_stream(view)) == PSMResult_Success)
-        {
-            result= PSMResult_Success;
-        }
+        result= blockUntilResponse(ClientPSMoveAPI::stop_controller_data_stream(view), timeout_ms);
     }
 
     return result;
@@ -461,7 +497,7 @@ PSMResult PSM_SetControllerLEDColorAsync(PSMControllerID controller_id, PSMTrack
     return result;
 }
 
-PSMResult PSM_SetControllerLEDColor(PSMControllerID controller_id, PSMTrackingColorType tracking_color)
+PSMResult PSM_SetControllerLEDColor(PSMControllerID controller_id, PSMTrackingColorType tracking_color, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
@@ -469,10 +505,9 @@ PSMResult PSM_SetControllerLEDColor(PSMControllerID controller_id, PSMTrackingCo
     {
         ClientControllerView *view = g_controller_views[controller_id];
 
-        if (blockUntilResponse(ClientPSMoveAPI::set_led_tracking_color(view, static_cast<PSMoveTrackingColorType>(tracking_color))) == PSMResult_Success)
-        {
-            result= PSMResult_Success;
-        }
+        result= blockUntilResponse(
+            ClientPSMoveAPI::set_led_tracking_color(view, static_cast<PSMoveTrackingColorType>(tracking_color)), 
+            timeout_ms);
     }
 
     return result;
@@ -498,7 +533,7 @@ PSMResult PSM_ResetControllerPoseAsync(PSMControllerID controller_id, PSMRequest
     return result;
 }
 
-PSMResult PSM_ResetControllerPose(PSMControllerID controller_id)
+PSMResult PSM_ResetControllerPose(PSMControllerID controller_id, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
@@ -506,10 +541,7 @@ PSMResult PSM_ResetControllerPose(PSMControllerID controller_id)
     {
         ClientControllerView *view = g_controller_views[controller_id];
 
-        if (blockUntilResponse(ClientPSMoveAPI::reset_pose(view)) == PSMResult_Success)
-        {
-            result= PSMResult_Success;
-        }
+        result= blockUntilResponse(ClientPSMoveAPI::reset_pose(view), timeout_ms);
     }
 
     return result;
@@ -585,23 +617,31 @@ PSMResult PSM_FreeTrackerListener(PSMTrackerID tracker_id)
 }
 
 /// Blocking Tracker Methods
-PSMResult PSM_GetTrackerList(PSMTrackerList *out_tracker_list)
+PSMResult PSM_GetTrackerList(PSMTrackerList *out_tracker_list, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
     CallbackResultCapture resultState;
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::get_tracker_list();
     ClientPSMoveAPI::register_callback(
-                                       ClientPSMoveAPI::get_tracker_list(),
+                                       request_id,
                                        CallbackResultCapture::response_callback,
                                        &resultState);
+
+    CallbackTimeout timeout(timeout_ms);
     
-    while (!resultState.bReceived)
+    while (!resultState.bReceived && !timeout.HasElapsed())
     {
         _PAUSE(10);
         PSM_Update();
     }
     
-    if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (timeout.HasElapsed())
+    {
+        ClientPSMoveAPI::cancel_callback(request_id);
+        result= PSMResult_Timeout;
+    }
+    else if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
     {
         assert(resultState.out_response.payload_type == ClientPSMoveAPI::eResponsePayloadType::_responsePayloadType_TrackerList);
         
@@ -615,59 +655,57 @@ PSMResult PSM_GetTrackerList(PSMTrackerList *out_tracker_list)
     return result;
 }
 
-PSMResult PSM_StartTrackerDataStream(PSMTrackerID tracker_id)
+PSMResult PSM_StartTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
     if (IS_VALID_TRACKER_INDEX(tracker_id))
     {
-//        PSMTracker *tracker= &g_trackers[tracker_id];
         ClientTrackerView *view = g_tracker_views[tracker_id];
 
-        if (blockUntilResponse(ClientPSMoveAPI::start_tracker_data_stream(view)) == PSMResult_Success)
-        {
-            result= PSMResult_Success;
-        }
+        result= blockUntilResponse(ClientPSMoveAPI::start_tracker_data_stream(view), timeout_ms);
     }
 
     return result;
 }
 
-PSMResult PSM_StopTrackerDataStream(PSMTrackerID tracker_id)
+PSMResult PSM_StopTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
     if (IS_VALID_TRACKER_INDEX(tracker_id))
     {
-//        PSMTracker *tracker= &g_trackers[tracker_id];
         ClientTrackerView *view = g_tracker_views[tracker_id];
 
-        if (blockUntilResponse(ClientPSMoveAPI::stop_tracker_data_stream(view)) == PSMResult_Success)
-        {
-            result= PSMResult_Success;
-        }
+        result= blockUntilResponse(ClientPSMoveAPI::stop_tracker_data_stream(view), timeout_ms);
     }
 
     return result;
 }
 
-PSMResult PSM_GetHMDTrackingSpaceSettings(PSMHMDTrackingSpace *out_tracking_space)
+PSMResult PSM_GetHMDTrackingSpaceSettings(PSMHMDTrackingSpace *out_tracking_space, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
     CallbackResultCapture resultState;
-    ClientPSMoveAPI::register_callback(
-                                       ClientPSMoveAPI::get_hmd_tracking_space_settings(),
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::get_hmd_tracking_space_settings();
+    ClientPSMoveAPI::register_callback(request_id,
                                        CallbackResultCapture::response_callback,
                                        &resultState);
+    CallbackTimeout timeout(timeout_ms);
     
-    while (!resultState.bReceived)
+    while (!resultState.bReceived && !timeout.HasElapsed())
     {
         _PAUSE(10);
         PSM_Update();
     }
     
-    if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (timeout.HasElapsed())
+    {
+        ClientPSMoveAPI::cancel_callback(request_id);
+        result= PSMResult_Timeout;
+    }
+    else if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
     {
         assert(resultState.out_response.payload_type == ClientPSMoveAPI::eResponsePayloadType::_responsePayloadType_ControllerList);
         
@@ -846,7 +884,7 @@ PSMResult PSM_EatResponse(PSMRequestID request_id)
 }
 
 // -- Async Messaging Helpers -----
-static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id)
+static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
@@ -855,7 +893,9 @@ static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id)
         CallbackResultCapture resultState;
         ClientPSMoveAPI::register_callback(req_id, CallbackResultCapture::response_callback, &resultState);
     
-        while (!resultState.bReceived)
+        CallbackTimeout timeout(timeout_ms);
+
+        while (!resultState.bReceived && !timeout.HasElapsed())
         {
             _PAUSE(10);
 
@@ -863,7 +903,12 @@ static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id)
             PSM_Update();
         }
 
-        if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+        if (timeout.HasElapsed())
+        {
+            ClientPSMoveAPI::cancel_callback(req_id);
+            result= PSMResult_Timeout;
+        }
+        else if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
         {
             result= PSMResult_Success;
         }

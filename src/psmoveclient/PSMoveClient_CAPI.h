@@ -16,6 +16,8 @@ typedef int PSMTrackerID;
 
 // Shared Constants
 //-----------------
+#define PSM_DEFAULT_TIMEOUT 1000 // milliseconds
+
 enum _PSMResult
 {
     PSMResult_Error                 = -1,
@@ -385,7 +387,7 @@ typedef struct _PSMMessage
 //----------
 
 // Blocking Connection Methods
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_Initialize(const char* host, const char* port);  //"localhost", "9512"
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_Initialize(const char* host, const char* port, int timeout_ms);  //"localhost", "9512"
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_Shutdown();
 
 // Async Connection Methods
@@ -415,11 +417,11 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_AllocateControllerListener(PSMControllerID co
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_FreeControllerListener(PSMControllerID controller_id);
 
 /// Blocking Controller Methods
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerList(PSMControllerList *out_controller_list);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartControllerDataStream(PSMControllerID controller_id, unsigned int data_stream_flags);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopControllerDataStream(PSMControllerID controller_id);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDColor(PSMControllerID controller_id, PSMTrackingColorType tracking_color);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerPose(PSMControllerID controller_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerList(PSMControllerList *out_controller_list, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartControllerDataStream(PSMControllerID controller_id, unsigned int data_stream_flags, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopControllerDataStream(PSMControllerID controller_id, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDColor(PSMControllerID controller_id, PSMTrackingColorType tracking_color, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerPose(PSMControllerID controller_id, int timeout_ms);
 
 /// Async Controller Methods
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerListAsync(PSMRequestID *out_request_id);
@@ -434,10 +436,10 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_AllocateTrackerListener(PSMTrackerID tracker_
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_FreeTrackerListener(PSMTrackerID controller_id);
 
 /// Blocking Tracker Methods
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerList(PSMTrackerList *out_tracker_list);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartTrackerDataStream(PSMTrackerID tracker_id);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopTrackerDataStream(PSMTrackerID tracker_id);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHMDTrackingSpaceSettings(PSMHMDTrackingSpace *out_tracking_space);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerList(PSMTrackerList *out_tracker_list, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHMDTrackingSpaceSettings(PSMHMDTrackingSpace *out_tracking_space, int timeout_ms);
 
 /// Async Tracker Methods
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerListAsync(PSMRequestID *out_request_id);

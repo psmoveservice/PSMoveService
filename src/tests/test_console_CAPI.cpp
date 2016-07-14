@@ -70,7 +70,7 @@ private:
         // Attempt to connect to the server
         if (success)
         {
-            if (PSM_Initialize("localhost", "9512") == PSMResult_Success)
+            if (PSM_Initialize("localhost", "9512", PSM_DEFAULT_TIMEOUT) == PSMResult_Success)
             {
                 std::cout << "PSMoveConsoleClient::startup() - Initialized client version - " << PSM_GetVersionString() << std::endl;
             }
@@ -82,7 +82,7 @@ private:
 
             if (success)
             {
-                PSM_GetControllerList(&controllerList);
+                PSM_GetControllerList(&controllerList, PSM_DEFAULT_TIMEOUT);
                 std::cout << "Found " << controllerList.count << " controllers." << std::endl;
                 for (int trkr_ix=0; trkr_ix<controllerList.count; ++trkr_ix) 
                 {
@@ -102,7 +102,7 @@ private:
                 }
 
 
-                PSM_GetTrackerList(&trackerList);
+                PSM_GetTrackerList(&trackerList, PSM_DEFAULT_TIMEOUT);
                 std::cout << "Found " << trackerList.count << " trackers." << std::endl;
                 for (int trkr_ix=0; trkr_ix<trackerList.count; ++trkr_ix) 
                 {
@@ -125,7 +125,7 @@ private:
                 PSMResult result;
                 for (int trkr_ix=0; trkr_ix<controllerList.count; ++trkr_ix) {
                     result = PSM_AllocateControllerListener(controllerList.controller_id[trkr_ix]);
-                    result = PSM_StartControllerDataStream(controllerList.controller_id[trkr_ix], data_stream_flags);
+                    result = PSM_StartControllerDataStream(controllerList.controller_id[trkr_ix], data_stream_flags, PSM_DEFAULT_TIMEOUT);
                 }
             }
         }
@@ -182,7 +182,7 @@ private:
     {
         for (int ctrl_ix=0; ctrl_ix < controllerList.count; ++ctrl_ix)
         {
-            PSM_StopControllerDataStream(controllerList.controller_id[ctrl_ix]);
+            PSM_StopControllerDataStream(controllerList.controller_id[ctrl_ix], PSM_DEFAULT_TIMEOUT);
             PSM_FreeControllerListener(controllerList.controller_id[ctrl_ix]);
         }
         PSM_Shutdown();
