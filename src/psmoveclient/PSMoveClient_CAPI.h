@@ -16,7 +16,6 @@ typedef int PSMTrackerID;
 
 // Shared Constants
 //-----------------
-#define PSM_DEFAULT_TIMEOUT 1000 // milliseconds
 
 enum _PSMResult
 {
