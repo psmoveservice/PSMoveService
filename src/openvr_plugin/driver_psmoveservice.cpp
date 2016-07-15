@@ -642,6 +642,7 @@ uint32_t CClientDriver_PSMoveService::GetMCImage( uint32_t * pImgWidth, uint32_t
 
 CPSMoveTrackedDeviceLatest::CPSMoveTrackedDeviceLatest(vr::IServerDriverHost * pDriverHost)
     : m_pDriverHost(pDriverHost)
+    , m_properties_dirty(false)
     , m_unSteamVRTrackedDeviceId(vr::k_unTrackedDeviceIndexInvalid)
 {
     memset(&m_Pose, 0, sizeof(m_Pose));
@@ -845,7 +846,11 @@ bool CPSMoveTrackedDeviceLatest::IsActivated() const
 
 void CPSMoveTrackedDeviceLatest::Update()
 {
-
+    if (IsActivated() && m_properties_dirty)
+    {
+        m_pDriverHost->TrackedDevicePropertiesChanged(m_unSteamVRTrackedDeviceId);
+        m_properties_dirty= false;
+    }
 }
 
 void CPSMoveTrackedDeviceLatest::RefreshWorldFromDriverPose()

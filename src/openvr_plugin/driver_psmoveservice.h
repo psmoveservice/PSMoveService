@@ -124,6 +124,9 @@ protected:
     // Assigned by vrserver upon Activate().  The same ID visible to clients
     uint32_t m_unSteamVRTrackedDeviceId;
 
+    // Flag to denote we should re-publish the controller properties
+    bool m_properties_dirty;
+
     // Cached for answering version queries from vrserver
     vr::DriverPose_t m_Pose;
     unsigned short m_firmware_revision;
