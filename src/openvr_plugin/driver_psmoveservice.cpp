@@ -1052,11 +1052,6 @@ int32_t CPSMoveControllerLatest::GetInt32TrackedDeviceProperty(
 
     switch ( prop )
     {
-    case vr::Prop_ControllerRoleHint_Int32:
-        nRetVal = (m_controller_view->GetControllerID() % 2 == 0) ? vr::TrackedControllerRole_RightHand : vr::TrackedControllerRole_LeftHand;
-        *pError = vr::TrackedProp_Success;
-        break;
-        
     case vr::Prop_DeviceClass_Int32:
         nRetVal = vr::TrackedDeviceClass_Controller;
         *pError = vr::TrackedProp_Success;
