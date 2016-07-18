@@ -1,73 +1,71 @@
 //-- includes -----
 #include "ServerLog.h"
 #include "PSMoveService.h"
-#include <boost/log/expressions.hpp>
-#include <boost/log/sinks/text_file_backend.hpp>
-#include <boost/log/utility/setup/console.hpp>
-#include <boost/log/utility/setup/common_attributes.hpp>
-#include <boost/log/utility/setup/file.hpp>
-#include <boost/log/sources/record_ostream.hpp>
-#include <boost/program_options.hpp>
-#include <string>
-#include <clocale>
+
+#include <chrono>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 
 //-- globals -----
-boost::log::sources::severity_logger< boost::log::trivial::severity_level > logger;
-boost::log::sources::severity_logger< boost::log::trivial::severity_level > *g_logger= &logger;
+e_log_severity_level g_min_log_level;
 
-boost::log::sources::severity_logger_mt< boost::log::trivial::severity_level > mt_logger;
-boost::log::sources::severity_logger_mt< boost::log::trivial::severity_level > *g_mt_logger= &mt_logger;
+
+// Connect the normal logger to standard output
+std::ostream g_normal_logger(std::cout.rdbuf());
+
+// Null stream eats the log
+NullStream<char> g_null_logger;
+
+ThreadSafeStream<char> g_mt_normal_logger(&g_normal_logger);
+ThreadSafeStream<char> g_mt_null_logger(&g_null_logger);
 
 //-- public implementation -----
 void log_init(const std::string &log_level)
 {
-    std::setlocale(LC_ALL, "en_US.utf8");
-
-    boost::log::add_common_attributes();
-
-    boost::shared_ptr< boost::log::sinks::synchronous_sink< boost::log::sinks::text_ostream_backend > > console_sink = 
-    boost::log::add_console_log
-    (
-        std::cout, boost::log::keywords::format = "[%TimeStamp%]: %Message%"
-    );
-
-    boost::shared_ptr< boost::log::sinks::synchronous_sink< boost::log::sinks::text_file_backend > > file_sink = 
-    boost::log::add_file_log
-    (
-        boost::log::keywords::file_name = "PSMoveService_%N.log",     /*< file name pattern >*/
-        boost::log::keywords::rotation_size = 10 * 1024 * 1024,       /*< rotate files every 10 MiB... >*/
-        boost::log::keywords::format = "[%TimeStamp%]: %Message%"     /*< log record format >*/
-    );
-
-    boost::log::trivial::severity_level sev_level= boost::log::trivial::info;
+    g_min_log_level= _log_severity_level_info;
 
     if (log_level == "trace")
     {
-        sev_level= boost::log::trivial::trace;
+        g_min_log_level= _log_severity_level_trace;
     }
     else if (log_level == "debug")
     {
-        sev_level= boost::log::trivial::debug;
+        g_min_log_level= _log_severity_level_debug;
     }
     else if (log_level == "info")
     {
-        sev_level= boost::log::trivial::info;
+        g_min_log_level= _log_severity_level_info;
     }
     else if (log_level == "warning")
     {
-        sev_level= boost::log::trivial::warning;
+        g_min_log_level= _log_severity_level_warning;
     }
     else if (log_level == "error")
     {
-        sev_level= boost::log::trivial::error;
+        g_min_log_level= _log_severity_level_error;
     }
     else if (log_level == "fatal")
     {
-        sev_level= boost::log::trivial::fatal;
+        g_min_log_level= _log_severity_level_fatal;
     }
+}
 
-    boost::log::core::get()->set_filter
-    (
-        boost::log::trivial::severity >= sev_level
-    );
+bool log_can_emit_level(e_log_severity_level level)
+{
+    return (level >= g_min_log_level);
+}
+
+std::string log_get_timestamp_prefix()
+{
+    auto now = std::chrono::system_clock::now();
+    auto seconds = std::chrono::time_point_cast<std::chrono::seconds>(now);
+    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now - seconds);
+    time_t in_time_t = std::chrono::system_clock::to_time_t(now);
+
+    std::stringstream ss;
+    ss << "[" << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %H:%M:%S") << "." << milliseconds.count() << "]: ";
+
+    return ss.str();
 }
