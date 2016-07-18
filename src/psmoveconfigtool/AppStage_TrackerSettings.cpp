@@ -172,6 +172,12 @@ void AppStage_TrackerSettings::renderUI()
             {
                 m_app->setAppStage(AppStage_TestTracker::APP_STAGE_NAME);
             }
+
+            //###HipsterSloth $TODO: Localhost only check
+            if (ImGui::Button("Calibrate Tracker Distortion"))
+            {
+                m_app->setAppStage(AppStage_DistortionCalibration::APP_STAGE_NAME);
+            }
         }
         else
         {
@@ -191,12 +197,6 @@ void AppStage_TrackerSettings::renderUI()
             if (ImGui::Button("Calibrate Tracking Colors"))
             {
                 m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
-            }
-
-            //###HipsterSloth $TODO: Localhost only check
-            if (ImGui::Button("Calibrate Tracker Distortion"))
-            {
-                m_app->setAppStage(AppStage_DistortionCalibration::APP_STAGE_NAME);
             }
 
             if (ImGui::Button("Test Tracking"))

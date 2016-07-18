@@ -49,10 +49,23 @@ private:
         failedTrackerStopStreamRequest,
     };
 
+    enum eVideoDisplayMode
+    {
+        mode_bgr,
+        mode_grayscale,
+        mode_undistored,
+
+        MAX_VIDEO_DISPLAY_MODES
+    };
+
+    // Menu state
     eTrackerMenuState m_menuState;
+    eVideoDisplayMode m_videoDisplayMode;
+
     bool m_bStreamIsActive;
     class ClientTrackerView *m_tracker_view;
     class TextureAsset *m_video_texture;
+    class OpenCVBufferState *m_opencv_state;
 };
 
 #endif // APP_STAGE_DISTORTION_CALIBRATION_H
