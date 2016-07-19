@@ -24,6 +24,7 @@ public:
 
     void request_tracker_start_stream();
     void request_tracker_stop_stream();
+    void request_exit();
 
 protected:
     static void handle_tracker_start_stream_response(
@@ -40,10 +41,12 @@ private:
     enum eTrackerMenuState
     {
         inactive,
-        idle,
+        capture,
+        complete,
 
         pendingTrackerStartStreamRequest,
         failedTrackerStartStreamRequest,
+        failedTrackerOpenStreamRequest,
 
         pendingTrackerStopStreamRequest,
         failedTrackerStopStreamRequest,
