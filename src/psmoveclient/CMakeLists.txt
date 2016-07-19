@@ -16,6 +16,10 @@ list(APPEND PSMOVE_CLIENT_REQ_LIBS ${PROTOBUF_LIBRARIES})
 find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS system)
 list(APPEND PSMOVE_CLIENT_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND PSMOVE_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
+IF(MSVC) # Disable asio auto linking in date-time and regex
+add_definitions(-DBOOST_DATE_TIME_NO_LIB)
+add_definitions(-DBOOST_REGEX_NO_LIB)
+ENDIF()
 
 # PSMoveProtocol
 include_directories(${ROOT_DIR}/src/psmoveprotocol/)
