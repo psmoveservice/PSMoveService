@@ -29,6 +29,10 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ELSE() #Linux
 ENDIF()
 
+IF(MSVC) # Disable asio auto linking in date-time and regex
+add_definitions(-DBOOST_DATE_TIME_NO_LIB)
+add_definitions(-DBOOST_REGEX_NO_LIB)
+ENDIF()
 
 #
 # TEST_CONFIGMANAGER
@@ -45,10 +49,6 @@ SET(TEST_CONFIG_REQ_LIBS)
 FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS filesystem system)
 list(APPEND TEST_CONFIG_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_CONFIG_REQ_LIBS ${Boost_LIBRARIES})
-IF(MSVC) # Disable asio auto linking in date-time and regex
-add_definitions(-DBOOST_DATE_TIME_NO_LIB)
-add_definitions(-DBOOST_REGEX_NO_LIB)
-ENDIF()
 
 # Our custom ConfigManager classes
 # We are not including the PSMoveService project on purpose.
@@ -209,10 +209,6 @@ ENDIF()
 FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS chrono filesystem program_options system thread)
 list(APPEND TEST_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
-IF(MSVC) # Disable asio auto linking in date-time and regex
-add_definitions(-DBOOST_DATE_TIME_NO_LIB)
-add_definitions(-DBOOST_REGEX_NO_LIB)
-ENDIF()
 
 # Eigen math library
 list(APPEND TEST_CTRLR_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
@@ -291,10 +287,6 @@ SET(TEST_UDP_SERVER_REQ_LIBS)
 find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
 list(APPEND TEST_UDP_SERVER_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_UDP_SERVER_REQ_LIBS ${Boost_LIBRARIES})
-IF(MSVC) # Disable asio auto linking in date-time and regex
-add_definitions(-DBOOST_DATE_TIME_NO_LIB)
-add_definitions(-DBOOST_REGEX_NO_LIB)
-ENDIF()
 
 # Boost.Application and type_index are header only (?)
 list(APPEND TEST_UDP_SERVER_INCL_DIRS
@@ -334,10 +326,6 @@ SET(TEST_UDP_CLIENT_REQ_LIBS)
 find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS system)
 list(APPEND TEST_UDP_CLIENT_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_UDP_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
-IF(MSVC) # Disable asio auto linking in date-time and regex
-add_definitions(-DBOOST_DATE_TIME_NO_LIB)
-add_definitions(-DBOOST_REGEX_NO_LIB)
-ENDIF()
 
 add_executable(test_udp_client ${CMAKE_CURRENT_LIST_DIR}/test_udp_client.cpp)
 target_include_directories(test_udp_client PUBLIC ${TEST_UDP_CLIENT_INCL_DIRS})

@@ -19,7 +19,12 @@ list(APPEND PSMOVECONFIGTOOL_REQ_LIBS
     PSMoveMath
     PSMoveProtocol
     ${PROTOBUF_LIBRARIES})
-   
+
+IF(MSVC) # Disable asio auto linking in date-time and regex
+add_definitions(-DBOOST_DATE_TIME_NO_LIB)
+add_definitions(-DBOOST_REGEX_NO_LIB)
+ENDIF()
+    
 # platform specific libraries/include paths (OpenGL/SDL)    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     find_library(OPENGL_FRAMEWORK OpenGL)
