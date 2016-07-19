@@ -1027,8 +1027,16 @@ void AppStage_ColorCalibration::release_devices()
 
     if (m_controllerView != nullptr)
     {
-        m_controllerView->GetPSMoveViewMutable().SetLEDOverride(0, 0, 0);
-        ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(m_controllerView));
+        if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
+        {
+            m_controllerView->GetPSMoveViewMutable().SetLEDOverride(0, 0, 0);
+        }
+
+        if (m_isControllerStreamActive)
+        {
+            ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(m_controllerView));
+        }
+
         ClientPSMoveAPI::free_controller_view(m_controllerView);
         m_controllerView = nullptr;
         m_isControllerStreamActive= false;
