@@ -6,8 +6,7 @@
 	url = https://github.com/cboulay/hidapi.git
 [submodule "thirdparty/PS3EYEDriver"]
 	path = thirdparty/PS3EYEDriver
-	url = https://github.com/HipsterSloth/PS3EYEDriver.git
-	branch = bayer-test
+	url = https://github.com/inspirit/PS3EYEDriver.git
 [submodule "thirdparty/type_index"]
 	path = thirdparty/type_index
 	url = https://github.com/boostorg/type_index.git
