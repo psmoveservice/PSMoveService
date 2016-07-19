@@ -399,6 +399,9 @@ public:
         return result;
     }
     
+    virtual void loadSettings() = 0;
+    virtual void saveSettings() = 0;
+
     virtual void setExposure(double value) = 0;
     virtual double getExposure() const = 0;
 

@@ -242,6 +242,10 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__save_tracker_profile(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_RELOAD_TRACKER_SETTINGS:
+                response = new PSMoveProtocol::Response;
+                handle_request__reload_tracker_settings(context, response);
+                break;
             case PSMoveProtocol::Request_RequestType_APPLY_TRACKER_PROFILE:
                 response = new PSMoveProtocol::Response;
                 handle_request__apply_tracker_profile(context, response);
@@ -1017,6 +1021,12 @@ protected:
                 // Set the desired exposure on the tracker
                 tracker_view->setExposure(desired_exposure);
 
+                // Only save the setting if requested
+                if (context.request->request_set_tracker_exposure().save_setting())
+                {
+                    tracker_view->saveSettings();
+                }
+
                 // Return back the actual exposure that got set
                 result_exposure->set_new_exposure(static_cast<float>(tracker_view->getExposure()));
 
@@ -1051,6 +1061,12 @@ protected:
 
                 // Set the desired gain on the tracker
                 tracker_view->setGain(desired_gain);
+
+                // Only save the setting if requested
+                if (context.request->request_set_tracker_gain().save_setting())
+                {
+                    tracker_view->saveSettings();
+                }
 
                 // Return back the actual gain that got set
                 result_gain->set_new_gain(static_cast<float>(tracker_view->getGain()));
@@ -1094,6 +1110,8 @@ protected:
                     tracker_view->getOptionIndex(option_name, result_option_index);
                     result_gain->set_option_name(option_name);
                     result_gain->set_new_option_index(result_option_index);
+
+                    tracker_view->saveSettings();
 
                     response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
                 }
@@ -1142,6 +1160,7 @@ protected:
                     hsvColorRange.value_range.range = colorPreset.value_range();
 
                     tracker_view->setTrackingColorPreset(colorType, &hsvColorRange);
+                    tracker_view->saveSettings();
                 }
 
                 // Get the resulting preset from the tracker
@@ -1207,6 +1226,7 @@ protected:
                 CommonDevicePose destPose = protocol_pose_to_common_device_pose(srcPose);
 
                 tracker_view->setTrackerPose(&destPose);
+                tracker_view->saveSettings();
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -1298,6 +1318,35 @@ protected:
                     tracker_view->gatherTrackingColorPresets(settings);
                 }
 
+                tracker_view->saveSettings();
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__reload_tracker_settings(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_apply_tracker_profile().tracker_id();
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_GENERAL_RESULT);
+
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {   
+                tracker_view->loadSettings();
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
             else

@@ -407,11 +407,33 @@ const unsigned char *PS3EyeTracker::getVideoFrameBuffer() const
     return result;
 }
 
+void PS3EyeTracker::loadSettings()
+{
+    const double currentExposure= VideoCapture->get(cv::CAP_PROP_EXPOSURE);
+    const double currentGain= VideoCapture->get(cv::CAP_PROP_GAIN);
+
+    cfg.load();
+
+    if (currentExposure != cfg.exposure)
+    {
+        VideoCapture->set(cv::CAP_PROP_EXPOSURE, cfg.exposure);
+    }
+
+    if (currentGain != cfg.gain)
+    {
+        VideoCapture->set(cv::CAP_PROP_GAIN, cfg.gain);
+    }
+}
+
+void PS3EyeTracker::saveSettings()
+{
+    cfg.save();
+}
+
 void PS3EyeTracker::setExposure(double value)
 {
     VideoCapture->set(cv::CAP_PROP_EXPOSURE, value);
     cfg.exposure = value;
-    cfg.save();
 }
 
 double PS3EyeTracker::getExposure() const
@@ -423,7 +445,6 @@ void PS3EyeTracker::setGain(double value)
 {
 	VideoCapture->set(cv::CAP_PROP_GAIN, value);
 	cfg.gain = value;
-	cfg.save();
 }
 
 double PS3EyeTracker::getGain() const
@@ -449,7 +470,6 @@ void PS3EyeTracker::setCameraIntrinsics(
     cfg.focalLengthY = focalLengthY;
     cfg.principalX = principalX;
     cfg.principalY = principalY;
-    cfg.save();
 }
 
 CommonDevicePose PS3EyeTracker::getTrackerPose() const
@@ -499,7 +519,6 @@ bool PS3EyeTracker::setOptionIndex(
     {
         cfg.fovSetting = static_cast<PS3EyeTrackerConfig::eFOVSetting>(option_index);
         //###HipsterSloth $TODO Update the focal lengths?
-        cfg.save();
 
         bValidOption = true;
     }
@@ -546,7 +565,6 @@ void PS3EyeTracker::setTrackingColorPreset(
     const CommonHSVColorRange *preset)
 {
     cfg.ColorPresets[color] = *preset;
-    cfg.save();
 }
 
 void PS3EyeTracker::getTrackingColorPreset(

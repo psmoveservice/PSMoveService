@@ -964,7 +964,7 @@ void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, c
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
-    glOrtho(-trackerWidth / 2.f, trackerWidth / 2.f, -trackerHeight / 2.f, trackerHeight / 2.f, 1.0f, -1.0f);
+    glOrtho(0.f, trackerWidth, 0, trackerHeight, 1.0f, -1.0f);
 
     // Save a backup of the modelview matrix and replace with the identity matrix
     glMatrixMode(GL_MODELVIEW);

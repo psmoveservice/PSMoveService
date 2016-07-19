@@ -140,8 +140,10 @@ public:
                     *gsBuffer, 
                     cv::Size(PATTERN_W, PATTERN_H), 
                     new_corners, // output corners
-                    cv::CALIB_CB_ADAPTIVE_THRESH + cv::CALIB_CB_NORMALIZE_IMAGE + cv::CALIB_CB_FAST_CHECK))
-                    //cv::CALIB_CB_ADAPTIVE_THRESH + cv::CALIB_CB_FILTER_QUADS))
+                    cv::CALIB_CB_ADAPTIVE_THRESH 
+                    + cv::CALIB_CB_FILTER_QUADS 
+                    // + cv::CALIB_CB_NORMALIZE_IMAGE is suuuper slow
+                    + cv::CALIB_CB_FAST_CHECK))
             {
                 // Get subpixel accuracy on those corners
                 cv::cornerSubPix(
@@ -164,7 +166,7 @@ public:
 
                         for (int corner_index= 0; corner_index < CORNER_COUNT; ++corner_index)
                         {
-                            float squared_error= cv::norm(new_corners[corner_index] - corners[corner_index]);
+                            float squared_error= static_cast<float>(cv::norm(new_corners[corner_index] - corners[corner_index]));
 
                             squared_error_sum+= squared_error;
                         }
@@ -185,8 +187,8 @@ public:
                             corner_index < CORNER_COUNT; 
                             ++write_index, ++corner_index) 
                         {
-                            image_points->at<float>(write_index, 0)= corners[corner_index].x;
-                            image_points->at<float>(write_index, 1)= corners[corner_index].y;
+                            image_points->at<float>(write_index, 0)= new_corners[corner_index].x;
+                            image_points->at<float>(write_index, 1)= new_corners[corner_index].y;
 
                             object_points->at<float>(write_index, 0)= static_cast<float>(corner_index) / static_cast<float>(PATTERN_W);
                             object_points->at<float>(write_index, 1)= static_cast<float>(corner_index % PATTERN_W);
@@ -196,8 +198,8 @@ public:
                         capturedBoardCount++;
 
                         // Keep track of the path of the corners of the chessboard
-                        upperCornerPath.push_back(corners[0]);
-                        lowerCornerPath.push_back(corners[CORNER_COUNT-1]);
+                        upperCornerPath.push_back(new_corners[0]);
+                        lowerCornerPath.push_back(new_corners[CORNER_COUNT-1]);
 
                         // Remember the last set of valid corners
                         corners= new_corners;
@@ -288,6 +290,10 @@ void AppStage_DistortionCalibration::enter()
     assert(m_tracker_view == nullptr);
     m_tracker_view= ClientPSMoveAPI::allocate_tracker_view(*trackerInfo);
 
+    // Crank up the exposure and gain so that we can see the chessboard
+    request_tracker_set_temp_exposure(255.f);
+    request_tracker_set_temp_gain(128.f);
+
     assert(!m_bStreamIsActive);
     request_tracker_start_stream();
 }
@@ -301,6 +307,9 @@ void AppStage_DistortionCalibration::exit()
         delete m_opencv_state;
         m_opencv_state= nullptr;
     }
+
+    // Revert unsaved modifications to the tracker settings
+    request_tracker_reload_settings();
 
     ClientPSMoveAPI::free_tracker_view(m_tracker_view);
     m_tracker_view = nullptr;
@@ -366,10 +375,10 @@ void AppStage_DistortionCalibration::render()
             if (m_opencv_state->corners.size() > 0)
             {
                 drawOpenCVChessBoard(
-                    m_opencv_state->frameWidth, 
-                    m_opencv_state->frameHeight, 
+                    static_cast<float>(m_opencv_state->frameWidth), 
+                    static_cast<float>(m_opencv_state->frameHeight), 
                     reinterpret_cast<float *>(m_opencv_state->corners.data()), // cv::point2f is just two floats 
-                    m_opencv_state->corners.size());
+                    static_cast<int>(m_opencv_state->corners.size()));
             }
         }
     }
@@ -628,6 +637,40 @@ void AppStage_DistortionCalibration::handle_tracker_stop_stream_response(
             thisPtr->m_menuState = AppStage_DistortionCalibration::failedTrackerStopStreamRequest;
         } break;
     }
+}
+
+void AppStage_DistortionCalibration::request_tracker_set_temp_gain(float gain)
+{
+    // Tell the psmove service that we want to change gain, but not save the change
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_GAIN);
+    request->mutable_request_set_tracker_gain()->set_tracker_id(m_tracker_view->getTrackerId());
+    request->mutable_request_set_tracker_gain()->set_value(gain);
+    request->mutable_request_set_tracker_gain()->set_save_setting(false);
+
+    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+}
+
+void AppStage_DistortionCalibration::request_tracker_set_temp_exposure(float exposure)
+{
+    // Tell the psmove service that we want to change exposure, but not save the change.
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE);
+    request->mutable_request_set_tracker_exposure()->set_tracker_id(m_tracker_view->getTrackerId());
+    request->mutable_request_set_tracker_exposure()->set_value(exposure);
+    request->mutable_request_set_tracker_exposure()->set_save_setting(false);
+
+    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+}
+
+
+void AppStage_DistortionCalibration::request_tracker_reload_settings()
+{
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_RELOAD_TRACKER_SETTINGS);
+    request->mutable_request_reload_tracker_settings()->set_tracker_id(m_tracker_view->getTrackerId());
+
+    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }
 
 void AppStage_DistortionCalibration::request_exit()

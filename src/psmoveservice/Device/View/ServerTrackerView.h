@@ -44,6 +44,9 @@ public:
     // Returns the name of the shared memory block video frames are written to
     std::string getSharedMemoryStreamName() const;
     
+    void loadSettings();
+    void saveSettings();
+
     double getExposure() const;
     void setExposure(double value);
 

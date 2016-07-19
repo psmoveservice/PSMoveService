@@ -124,12 +124,13 @@ message Request {
         SET_TRACKER_OPTION = 17;
         SET_TRACKER_COLOR_PRESET = 18;
         SET_TRACKER_POSE = 19;
-        SAVE_TRACKER_PROFILE = 20;
-        APPLY_TRACKER_PROFILE = 21;
-        SEARCH_FOR_NEW_TRACKERS = 22;
+        RELOAD_TRACKER_SETTINGS = 20;
+        SAVE_TRACKER_PROFILE = 21;
+        APPLY_TRACKER_PROFILE = 22;
+        SEARCH_FOR_NEW_TRACKERS = 23;
         
-        GET_HMD_TRACKING_SPACE_SETTINGS = 23;
-        SET_HMD_TRACKING_SPACE_ORIGIN = 24;
+        GET_HMD_TRACKING_SPACE_SETTINGS = 24;
+        SET_HMD_TRACKING_SPACE_ORIGIN = 25;
     }
     RequestType type = 2;
 
@@ -224,6 +225,7 @@ message Request {
     message RequestSetTrackerExposure {
         int32 tracker_id = 1;
         float value = 2;
+        bool save_setting= 3;
     }
     RequestSetTrackerExposure request_set_tracker_exposure = 17;
 
@@ -231,6 +233,7 @@ message Request {
     message RequestSetTrackerGain {
         int32 tracker_id = 1;
         float value = 2;
+        bool save_setting= 3;
     }
     RequestSetTrackerGain request_set_tracker_gain = 18;
 
@@ -256,17 +259,23 @@ message Request {
     }
     RequestSetTrackerPose request_set_tracker_pose = 21;
     
+    // Parameters for RELOAD_TRACKER_SETTINGS
+    message RequestReloadTrackerSettings {
+        int32 tracker_id = 1;
+    }
+    RequestReloadTrackerSettings request_reload_tracker_settings = 22;
+    
     // Parameters for SAVE_TRACKER_PROFILE
     message RequestSaveTrackerProfile {
         int32 tracker_id = 1;
     }
-    RequestSaveTrackerProfile request_save_tracker_profile = 22;
+    RequestSaveTrackerProfile request_save_tracker_profile = 23;
     
     // Parameters for APPLY_TRACKER_PROFILE
     message RequestApplyTrackerProfile {
         int32 tracker_id = 1;
     }
-    RequestApplyTrackerProfile request_apply_tracker_profile = 23;
+    RequestApplyTrackerProfile request_apply_tracker_profile = 24;
     
     // No Parameters for SEARCH_FOR_NEW_TRACKERS
     
@@ -276,7 +285,7 @@ message Request {
     message RequestSetHMDTrackingSpaceOrigin {
         Pose origin_pose = 1;
     }
-    RequestSetHMDTrackingSpaceOrigin request_set_hmd_tracking_space_origin = 24;
+    RequestSetHMDTrackingSpaceOrigin request_set_hmd_tracking_space_origin = 25;
 }
 
 // Reliable (TCP) responses to requests

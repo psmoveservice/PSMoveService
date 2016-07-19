@@ -24,6 +24,9 @@ public:
 
     void request_tracker_start_stream();
     void request_tracker_stop_stream();
+    void request_tracker_set_temp_gain(float gain);
+    void request_tracker_set_temp_exposure(float exposure);
+    void request_tracker_reload_settings();
     void request_exit();
 
 protected:
