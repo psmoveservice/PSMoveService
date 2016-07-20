@@ -45,6 +45,12 @@ public:
     double vfov;
     double zNear;
     double zFar;
+    double distortionK1;
+    double distortionK2;
+    double distortionK3;
+    double distortionP1;
+    double distortionP2;
+
     eFOVSetting fovSetting;
     CommonDevicePose pose;
     CommonHSVColorRange ColorPresets[eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES];
@@ -100,10 +106,14 @@ public:
 	double getGain() const override;
     void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
-        float &outPrincipalX, float &outPrincipalY) const override;
+        float &outPrincipalX, float &outPrincipalY,
+        float &outDistortionK1, float &outDistortionK2, float &outDistortionK3,
+        float &outDistortionP1, float &outDistortionP2) const override;
     void setCameraIntrinsics(
         float focalLengthX, float focalLengthY,
-        float principalX, float principalY) override;
+        float principalX, float principalY,
+        float distortionK1, float distortionK2, float distortionK3,
+        float distortionP1, float distortionP2) override;
     CommonDevicePose getTrackerPose() const override;
     void setTrackerPose(const struct CommonDevicePose *pose) override;
     void getFOV(float &outHFOV, float &outVFOV) const override;

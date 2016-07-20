@@ -46,6 +46,11 @@ PS3EyeTrackerConfig::PS3EyeTrackerConfig(const std::string &fnamebase)
     , vfov(45.0) // degrees
     , zNear(10.0) // cm
     , zFar(200.0) // cm
+    , distortionK1(0.0)
+    , distortionK2(0.0)
+    , distortionK3(0.0)
+    , distortionP1(0.0)
+    , distortionP2(0.0)
     , fovSetting(BlueDot)
 {
     pose.clear();
@@ -74,6 +79,11 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("vfov", vfov);
     pt.put("zNear", zNear);
     pt.put("zFar", zFar);
+    pt.put("distortionK1", distortionK1);
+    pt.put("distortionK2", distortionK2);
+    pt.put("distortionK3", distortionK3);
+    pt.put("distortionP1", distortionP1);
+    pt.put("distortionP2", distortionP2);
     pt.put("fovSetting", static_cast<int>(fovSetting));
 
     pt.put("pose.orientation.w", pose.Orientation.w);
@@ -113,6 +123,11 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
         vfov = pt.get<double>("vfov", 45.0);
         zNear = pt.get<double>("zNear", 10.0);
         zFar = pt.get<double>("zFar", 200.0);
+        distortionK1 = pt.get<double>("distortionK1", 0.0);
+        distortionK2 = pt.get<double>("distortionK2", 0.0);
+        distortionK3 = pt.get<double>("distortionK3", 0.0);
+        distortionP1 = pt.get<double>("distortionP1", 0.0);
+        distortionP2 = pt.get<double>("distortionP2", 0.0);
         fovSetting = 
             static_cast<PS3EyeTrackerConfig::eFOVSetting>(
                 pt.get<int>("fovSetting", PS3EyeTrackerConfig::eFOVSetting::BlueDot));
@@ -454,22 +469,36 @@ double PS3EyeTracker::getGain() const
 
 void PS3EyeTracker::getCameraIntrinsics(
     float &outFocalLengthX, float &outFocalLengthY,
-    float &outPrincipalX, float &outPrincipalY) const
+    float &outPrincipalX, float &outPrincipalY,
+    float &outDistortionK1, float &outDistortionK2, float &outDistortionK3,
+    float &outDistortionP1, float &outDistortionP2) const
 {
     outFocalLengthX = static_cast<float>(cfg.focalLengthX);
     outFocalLengthY = static_cast<float>(cfg.focalLengthY);
     outPrincipalX = static_cast<float>(cfg.principalX);
     outPrincipalY = static_cast<float>(cfg.principalY);
+    outDistortionK1 = static_cast<float>(cfg.distortionK1);
+    outDistortionK2 = static_cast<float>(cfg.distortionK2);
+    outDistortionK3 = static_cast<float>(cfg.distortionK3);
+    outDistortionP1 = static_cast<float>(cfg.distortionP1);
+    outDistortionP2 = static_cast<float>(cfg.distortionP2);
 }
 
 void PS3EyeTracker::setCameraIntrinsics(
     float focalLengthX, float focalLengthY,
-    float principalX, float principalY)
+    float principalX, float principalY,
+    float distortionK1, float distortionK2, float distortionK3,
+    float distortionP1, float distortionP2)
 {
     cfg.focalLengthX = focalLengthX;
     cfg.focalLengthY = focalLengthY;
     cfg.principalX = principalX;
     cfg.principalY = principalY;
+    cfg.distortionK1 = distortionK1;
+    cfg.distortionK2 = distortionK2;
+    cfg.distortionK3 = distortionK3;
+    cfg.distortionP1 = distortionP1;
+    cfg.distortionP2 = distortionP2;
 }
 
 CommonDevicePose PS3EyeTracker::getTrackerPose() const

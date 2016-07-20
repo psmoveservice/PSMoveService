@@ -292,6 +292,12 @@ public:
             TrackerInfo.tracker_znear = TrackerResponse.tracker_znear();
             TrackerInfo.tracker_zfar = TrackerResponse.tracker_zfar();
 
+            TrackerInfo.tracker_k1 = TrackerResponse.tracker_k1();
+            TrackerInfo.tracker_k2 = TrackerResponse.tracker_k2();
+            TrackerInfo.tracker_k3 = TrackerResponse.tracker_k3();
+            TrackerInfo.tracker_p1 = TrackerResponse.tracker_p1();
+            TrackerInfo.tracker_p2 = TrackerResponse.tracker_p2();
+
             strncpy(TrackerInfo.device_path, TrackerResponse.device_path().c_str(), sizeof(TrackerInfo.device_path));
             strncpy(TrackerInfo.shared_memory_name, TrackerResponse.shared_memory_name().c_str(), sizeof(TrackerInfo.shared_memory_name));
 

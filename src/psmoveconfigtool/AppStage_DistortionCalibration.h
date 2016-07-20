@@ -26,6 +26,11 @@ public:
     void request_tracker_stop_stream();
     void request_tracker_set_temp_gain(float gain);
     void request_tracker_set_temp_exposure(float exposure);
+    void request_tracker_set_intrinsic(
+        float focalLengthX, float focalLengthY,
+        float principalX, float principalY,
+        float distortionK1, float distortionK2, float distortionK3,
+        float distortionP1, float distortionP2);
     void request_tracker_reload_settings();
     void request_exit();
 

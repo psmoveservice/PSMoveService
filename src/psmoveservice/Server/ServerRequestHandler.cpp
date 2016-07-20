@@ -238,6 +238,10 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__set_tracker_pose(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SET_TRACKER_INTRINSICS:
+                response = new PSMoveProtocol::Response;
+                handle_request__set_tracker_intrinsics(context, response);
+                break;
             case PSMoveProtocol::Request_RequestType_SAVE_TRACKER_PROFILE:
                 response = new PSMoveProtocol::Response;
                 handle_request__save_tracker_profile(context, response);
@@ -853,10 +857,16 @@ protected:
 
                 // Get the intrinsic camera lens properties
                 {
-                    float focalLengthX, focalLengthY, principalX, principalY;
                     float pixelWidth, pixelHeight;
+                    float focalLengthX, focalLengthY, principalX, principalY;
+                    float distortionK1, distortionK2, distortionK3;
+                    float distortionP1, distortionP2;
 
-                    tracker_view->getCameraIntrinsics(focalLengthX, focalLengthY, principalX, principalY);
+                    tracker_view->getCameraIntrinsics(
+                        focalLengthX, focalLengthY, 
+                        principalX, principalY,
+                        distortionK1, distortionK2, distortionK3,
+                        distortionP1, distortionP2);
                     tracker_view->getPixelDimensions(pixelWidth, pixelHeight);
 
                     tracker_info->mutable_tracker_focal_lengths()->set_x(focalLengthX);
@@ -867,6 +877,12 @@ protected:
 
                     tracker_info->mutable_tracker_screen_dimensions()->set_x(pixelWidth);
                     tracker_info->mutable_tracker_screen_dimensions()->set_y(pixelHeight);
+
+                    tracker_info->set_tracker_k1(distortionK1);
+                    tracker_info->set_tracker_k2(distortionK2);
+                    tracker_info->set_tracker_k3(distortionK3);
+                    tracker_info->set_tracker_p1(distortionP1);
+                    tracker_info->set_tracker_p2(distortionP2);
                 }
 
                 // Get the tracker field of view properties
@@ -1226,6 +1242,38 @@ protected:
                 CommonDevicePose destPose = protocol_pose_to_common_device_pose(srcPose);
 
                 tracker_view->setTrackerPose(&destPose);
+                tracker_view->saveSettings();
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_tracker_intrinsics(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_set_tracker_intrinsics().tracker_id();
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                const auto &intrinsics= context.request->request_set_tracker_intrinsics();
+
+                tracker_view->setCameraIntrinsics(
+                    intrinsics.tracker_focal_lengths().x(), intrinsics.tracker_focal_lengths().y(),
+                    intrinsics.tracker_principal_point().x(), intrinsics.tracker_principal_point().y(),
+                    intrinsics.tracker_k1(), intrinsics.tracker_k2(), intrinsics.tracker_k3(),
+                    intrinsics.tracker_p1(), intrinsics.tracker_p2());
                 tracker_view->saveSettings();
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);

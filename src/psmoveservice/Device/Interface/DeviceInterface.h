@@ -410,10 +410,14 @@ public:
 
     virtual void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
-        float &outPrincipalX, float &outPrincipalY) const = 0;
+        float &outPrincipalX, float &outPrincipalY,
+        float &outDistortionK1, float &outDistortionK2, float &outDistortionK3,
+        float &outDistortionP1, float &outDistortionP2) const = 0;
     virtual void setCameraIntrinsics(
         float focalLengthX, float focalLengthY,
-        float principalX, float principalY) = 0;
+        float principalX, float principalY,
+        float distortionK1, float distortionK2, float distortionK3,
+        float distortionP1, float distortionP2) = 0;
 
     virtual CommonDevicePose getTrackerPose() const = 0;
     virtual void setTrackerPose(const struct CommonDevicePose *pose) = 0;

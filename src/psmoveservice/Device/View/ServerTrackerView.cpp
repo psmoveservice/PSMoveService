@@ -566,18 +566,28 @@ void ServerTrackerView::setGain(double value)
 
 void ServerTrackerView::getCameraIntrinsics(
     float &outFocalLengthX, float &outFocalLengthY,
-    float &outPrincipalX, float &outPrincipalY) const
+    float &outPrincipalX, float &outPrincipalY,
+    float &outDistortionK1, float &outDistortionK2, float &outDistortionK3,
+    float &outDistortionP1, float &outDistortionP2) const
 {
     m_device->getCameraIntrinsics(
         outFocalLengthX, outFocalLengthY,
-        outPrincipalX, outPrincipalY);
+        outPrincipalX, outPrincipalY,
+        outDistortionK1, outDistortionK2, outDistortionK3,
+        outDistortionP1, outDistortionP2);
 }
 
 void ServerTrackerView::setCameraIntrinsics(
     float focalLengthX, float focalLengthY,
-    float principalX, float principalY)
+    float principalX, float principalY,
+    float distortionK1, float distortionK2, float distortionK3,
+    float distortionP1, float distortionP2)
 {
-    m_device->setCameraIntrinsics(focalLengthX, focalLengthY, principalX, principalY);
+    m_device->setCameraIntrinsics(
+        focalLengthX, focalLengthY,
+        principalX, principalY,
+        distortionK1, distortionK2, distortionK3,
+        distortionP1, distortionP2);
 }
 
 CommonDevicePose ServerTrackerView::getTrackerPose() const
@@ -691,7 +701,14 @@ ServerTrackerView::computePositionForController(
             {
                 float F_PX, F_PY;
                 float PrincipalX, PrincipalY;
-                m_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+                float distortionK1, distortionK2, distortionK3;
+                float distortionP1, distortionP2;
+
+                m_device->getCameraIntrinsics(
+                    F_PX, F_PY, 
+                    PrincipalX, PrincipalY,
+                    distortionK1, distortionK2, distortionK3,
+                    distortionP1, distortionP2);
                 
                 // TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
                 // Then replace F_PX with -1.
@@ -782,7 +799,14 @@ static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(ITrackerInterface *tracker
 
     float F_PX, F_PY;
     float PrincipalX, PrincipalY;
-    tracker_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+    float distortionK1, distortionK2, distortionK3;
+    float distortionP1, distortionP2;
+
+    tracker_device->getCameraIntrinsics(
+        F_PX, F_PY, 
+        PrincipalX, PrincipalY,
+        distortionK1, distortionK2, distortionK3,
+        distortionP1, distortionP2);
 
     out(0, 0) = F_PX; out(0, 1) = 0.f; out(0, 2) = PrincipalX;
     out(1, 0) = 0.f; out(1, 1) = F_PY; out(1, 2) = PrincipalY;

@@ -367,6 +367,17 @@ void AppStage_DistortionCalibration::update()
                 {
                     m_opencv_state->computeCameraCalibration();
 
+                    {
+                        cv::Mat *intrinsic_matrix= m_opencv_state->intrinsic_matrix;
+                        cv::Mat *distortion_coeffs= m_opencv_state->distortion_coeffs;
+
+                        request_tracker_set_intrinsic(
+                            intrinsic_matrix->at<float>(0, 0), intrinsic_matrix->at<float>(1, 1),
+                            intrinsic_matrix->at<float>(0, 2), intrinsic_matrix->at<float>(1, 2),
+                            distortion_coeffs->at<float>(0, 0), distortion_coeffs->at<float>(1, 0), distortion_coeffs->at<float>(4, 0),
+                            distortion_coeffs->at<float>(2, 0), distortion_coeffs->at<float>(3, 0));
+                    }
+
                     m_videoDisplayMode= AppStage_DistortionCalibration::mode_undistored;
                     m_menuState= AppStage_DistortionCalibration::complete;
                 }
@@ -628,7 +639,7 @@ void AppStage_DistortionCalibration::handle_tracker_start_stream_response(
 
             thisPtr->m_bStreamIsActive = true;
 
-            // Open the shared memory that the vidoe stream is being written to
+            // Open the shared memory that the video stream is being written to
             if (trackerView->openVideoStream())
             {
                 int width= trackerView->getVideoFrameWidth();
@@ -741,6 +752,32 @@ void AppStage_DistortionCalibration::request_tracker_set_temp_exposure(float exp
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }
 
+void AppStage_DistortionCalibration::request_tracker_set_intrinsic(
+    float focalLengthX, float focalLengthY,
+    float principalX, float principalY,
+    float distortionK1, float distortionK2, float distortionK3,
+    float distortionP1, float distortionP2)
+{
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_INTRINSICS);
+    request->mutable_request_set_tracker_intrinsics()->set_tracker_id(m_tracker_view->getTrackerId());
+
+    PSMoveProtocol::Pixel *focal_lengths= request->mutable_request_set_tracker_intrinsics()->mutable_tracker_focal_lengths();
+    focal_lengths->set_x(focalLengthX);
+    focal_lengths->set_y(focalLengthY);
+
+    PSMoveProtocol::Pixel *principal_point= request->mutable_request_set_tracker_intrinsics()->mutable_tracker_principal_point();
+    principal_point->set_x(principalX);
+    principal_point->set_y(principalY);
+
+    request->mutable_request_set_tracker_intrinsics()->set_tracker_k1(distortionK1);
+    request->mutable_request_set_tracker_intrinsics()->set_tracker_k2(distortionK2);
+    request->mutable_request_set_tracker_intrinsics()->set_tracker_k3(distortionK3);
+    request->mutable_request_set_tracker_intrinsics()->set_tracker_p1(distortionP1);
+    request->mutable_request_set_tracker_intrinsics()->set_tracker_p2(distortionP2);
+
+    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+}
 
 void AppStage_DistortionCalibration::request_tracker_reload_settings()
 {

@@ -124,13 +124,14 @@ message Request {
         SET_TRACKER_OPTION = 17;
         SET_TRACKER_COLOR_PRESET = 18;
         SET_TRACKER_POSE = 19;
-        RELOAD_TRACKER_SETTINGS = 20;
-        SAVE_TRACKER_PROFILE = 21;
-        APPLY_TRACKER_PROFILE = 22;
-        SEARCH_FOR_NEW_TRACKERS = 23;
+		SET_TRACKER_INTRINSICS = 20;
+        RELOAD_TRACKER_SETTINGS = 21;
+        SAVE_TRACKER_PROFILE = 22;
+        APPLY_TRACKER_PROFILE = 23;
+        SEARCH_FOR_NEW_TRACKERS = 24;
         
-        GET_HMD_TRACKING_SPACE_SETTINGS = 24;
-        SET_HMD_TRACKING_SPACE_ORIGIN = 25;
+        GET_HMD_TRACKING_SPACE_SETTINGS = 25;
+        SET_HMD_TRACKING_SPACE_ORIGIN = 26;
     }
     RequestType type = 2;
 
@@ -252,30 +253,43 @@ message Request {
     }
     RequestSetTrackerColorPreset request_set_tracker_color_preset = 20;
     
+    // Parameters for SET_TRACKER_INTRINSICS
+    message RequestSetTrackerIntrinsics {
+        int32 tracker_id = 1;
+        Pixel tracker_focal_lengths = 2;
+        Pixel tracker_principal_point = 3;
+        float tracker_k1= 4;
+        float tracker_k2= 5;
+        float tracker_k3= 6;
+        float tracker_p1= 7;
+        float tracker_p2= 8;    
+    }
+    RequestSetTrackerIntrinsics request_set_tracker_intrinsics = 21;
+    
     // Parameters for SET_TRACKER_POSE
     message RequestSetTrackerPose {
         int32 tracker_id = 1;
         Pose pose = 2;
     }
-    RequestSetTrackerPose request_set_tracker_pose = 21;
+    RequestSetTrackerPose request_set_tracker_pose = 22;
     
     // Parameters for RELOAD_TRACKER_SETTINGS
     message RequestReloadTrackerSettings {
         int32 tracker_id = 1;
     }
-    RequestReloadTrackerSettings request_reload_tracker_settings = 22;
+    RequestReloadTrackerSettings request_reload_tracker_settings = 23;
     
     // Parameters for SAVE_TRACKER_PROFILE
     message RequestSaveTrackerProfile {
         int32 tracker_id = 1;
     }
-    RequestSaveTrackerProfile request_save_tracker_profile = 23;
+    RequestSaveTrackerProfile request_save_tracker_profile = 24;
     
     // Parameters for APPLY_TRACKER_PROFILE
     message RequestApplyTrackerProfile {
         int32 tracker_id = 1;
     }
-    RequestApplyTrackerProfile request_apply_tracker_profile = 24;
+    RequestApplyTrackerProfile request_apply_tracker_profile = 25;
     
     // No Parameters for SEARCH_FOR_NEW_TRACKERS
     
@@ -285,7 +299,7 @@ message Request {
     message RequestSetHMDTrackingSpaceOrigin {
         Pose origin_pose = 1;
     }
-    RequestSetHMDTrackingSpaceOrigin request_set_hmd_tracking_space_origin = 25;
+    RequestSetHMDTrackingSpaceOrigin request_set_hmd_tracking_space_origin = 26;
 }
 
 // Reliable (TCP) responses to requests
@@ -384,9 +398,14 @@ message Response {
             float tracker_vfov = 10;
             float tracker_znear = 11;
             float tracker_zfar = 12;
+            float tracker_k1= 13;
+            float tracker_k2= 14;
+            float tracker_k3= 15;
+            float tracker_p1= 16;
+            float tracker_p2= 17;
             
             // Camera Extrinsic Properties
-            Pose tracker_pose = 13;
+            Pose tracker_pose = 18;
         }
         repeated TrackerInfo trackers = 1;
     }
