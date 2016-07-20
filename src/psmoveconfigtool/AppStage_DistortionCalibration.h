@@ -68,6 +68,10 @@ private:
     eTrackerMenuState m_menuState;
     eVideoDisplayMode m_videoDisplayMode;
 
+    // Tracker Settings state
+    float m_trackerExposure;
+    float m_trackerGain;
+
     bool m_bStreamIsActive;
     class ClientTrackerView *m_tracker_view;
     class TextureAsset *m_video_texture;

@@ -952,6 +952,54 @@ void drawLineStrip(const glm::mat4 &transform, const glm::vec3 &color, const flo
     glPopMatrix();
 }
 
+void drawQuadList2d(const float trackerWidth, const float trackerHeight, const glm::vec3 &color, const float *points2d, const int point_count)
+{
+    assert(Renderer::getIsRenderingStage());
+    assert((point_count % 4) == 0);
+
+    // Clear the depth buffer to allow overdraw 
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Save a backup of the projection matrix 
+    // and replace with a projection that maps the tracker image coordinates over the whole screen
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0.f, trackerWidth, trackerHeight, 0, 1.0f, -1.0f);
+
+    // Save a backup of the modelview matrix and replace with the identity matrix
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    // Draw line strip connecting all of the points on the line strip
+    glColor3fv(glm::value_ptr(color));
+    glBegin(GL_LINES);
+    for (int sampleIndex= 0; sampleIndex < point_count; sampleIndex+=4)
+    {
+        glVertex3f(points2d[sampleIndex*2+0], points2d[sampleIndex*2+1], 0.5f);
+        glVertex3f(points2d[sampleIndex*2+2], points2d[sampleIndex*2+3], 0.5f);
+
+        glVertex3f(points2d[sampleIndex*2+2], points2d[sampleIndex*2+3], 0.5f);
+        glVertex3f(points2d[sampleIndex*2+4], points2d[sampleIndex*2+5], 0.5f);
+
+        glVertex3f(points2d[sampleIndex*2+4], points2d[sampleIndex*2+5], 0.5f);
+        glVertex3f(points2d[sampleIndex*2+6], points2d[sampleIndex*2+7], 0.5f);
+
+        glVertex3f(points2d[sampleIndex*2+6], points2d[sampleIndex*2+7], 0.5f);
+        glVertex3f(points2d[sampleIndex*2+0], points2d[sampleIndex*2+1], 0.5f);
+    }
+    glEnd();
+
+    // Restore the projection matrix
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+
+    // Restore the modelview matrix
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+}
+
 void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, const float *points2d, const int point_count)
 {
     assert(Renderer::getIsRenderingStage());
@@ -964,7 +1012,7 @@ void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, c
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
-    glOrtho(0.f, trackerWidth, 0, trackerHeight, 1.0f, -1.0f);
+    glOrtho(0.f, trackerWidth, trackerHeight, 0, 1.0f, -1.0f);
 
     // Save a backup of the modelview matrix and replace with the identity matrix
     glMatrixMode(GL_MODELVIEW);
@@ -981,15 +1029,15 @@ void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, c
 
         HSVtoRGB(hue, 1.f, 1.f, r, g, b);
         glColor3f(r, g, b);
-        glVertex3f(points2d[sampleIndex*3+0], points2d[sampleIndex*3+1], 0.5f);
+        glVertex3f(points2d[sampleIndex*2+0], points2d[sampleIndex*2+1], 0.5f);
     }
     glEnd();
 
     // Draw circles at each corner
     for (int sampleIndex= 0; sampleIndex < point_count; ++sampleIndex)
     {
-        const float radius= 5.f;
-        const int subdiv = 16;
+        const float radius= 2.f;
+        const int subdiv = 8;
         const float angleStep = k_real_two_pi / static_cast<float>(subdiv);
         float angle = 0.f;
 
@@ -1004,8 +1052,8 @@ void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, c
         for (int index = 0; index <= subdiv; ++index)
         {
             glm::vec3 point(
-                radius*cosf(angle) + points2d[sampleIndex*3+0],
-                radius*sinf(angle) + points2d[sampleIndex*3+1],
+                radius*cosf(angle) + points2d[sampleIndex*2+0],
+                radius*sinf(angle) + points2d[sampleIndex*2+1],
                 0.5f);
 
             glVertex3fv(glm::value_ptr(point));

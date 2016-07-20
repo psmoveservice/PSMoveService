@@ -40,10 +40,10 @@ static const char *k_video_display_mode_names[] = {
     "Undistorted"
 };
 
-#define PATTERN_W 9 // Internal corners
-#define PATTERN_H 6
+#define PATTERN_W 7 // Internal corners
+#define PATTERN_H 9
 #define CORNER_COUNT (PATTERN_W*PATTERN_H)
-#define DESIRED_CAPTURE_BOARD_COUNT 100
+#define DESIRED_CAPTURE_BOARD_COUNT 20
 
 #define BOARD_MOVED_PIXEL_DIST 5 
 #define BOARD_MOVED_SQUARED_ERROR_SUM (BOARD_MOVED_PIXEL_DIST*BOARD_MOVED_PIXEL_DIST)*CORNER_COUNT
@@ -64,8 +64,6 @@ public:
         bgrUndistortBuffer = new cv::Mat(height, width, CV_8UC3);
 
         // Chessboard state
-        image_points = new cv::Mat(DESIRED_CAPTURE_BOARD_COUNT * CORNER_COUNT, 2, CV_32FC1);
-        object_points = new cv::Mat(DESIRED_CAPTURE_BOARD_COUNT * CORNER_COUNT, 3, CV_32FC1);
         intrinsic_matrix = new cv::Mat(3, 3, CV_32FC1);
         distortion_coeffs = new cv::Mat(5, 1, CV_32FC1);
 
@@ -86,8 +84,6 @@ public:
         delete bgrUndistortBuffer;
 
         // Chessboard state
-        delete image_points;
-        delete object_points;
         delete intrinsic_matrix;
         delete distortion_coeffs;
 
@@ -99,9 +95,10 @@ public:
     void resetCaptureState()
     {
         capturedBoardCount= 0;
-        corners.clear();
-        *image_points= cv::Mat::zeros(DESIRED_CAPTURE_BOARD_COUNT * CORNER_COUNT, 2, CV_32FC1);
-        *object_points= cv::Mat::zeros(DESIRED_CAPTURE_BOARD_COUNT * CORNER_COUNT, 3, CV_32FC1);
+        imagePoints.clear();
+        quadList.clear();
+        imagePointsList.clear();
+        objectPointsList.clear();
     }
 
     void resetCalibrationState()
@@ -127,19 +124,25 @@ public:
         // Convert the video buffer to a grayscale image
         cv::cvtColor(*bgrSourceBuffer, *gsBuffer, cv::COLOR_BGR2GRAY);
         cv::cvtColor(*gsBuffer, *gsBGRBuffer, cv::COLOR_GRAY2BGR);
+
+        // Apply the distortion map
+        cv::remap(
+            *bgrSourceBuffer, *bgrUndistortBuffer, 
+            *distortionMapX, *distortionMapY, 
+            cv::INTER_LINEAR, cv::BORDER_CONSTANT);
     }
 
     void findAndAppendNewChessBoard()
     {
         if (capturedBoardCount < DESIRED_CAPTURE_BOARD_COUNT)
         {
-            std::vector<cv::Point2f> new_corners;
+            std::vector<cv::Point2f> new_image_points;
 
             // Find chessboard corners:
             if (cv::findChessboardCorners(
                     *gsBuffer, 
                     cv::Size(PATTERN_W, PATTERN_H), 
-                    new_corners, // output corners
+                    new_image_points, // output corners
                     cv::CALIB_CB_ADAPTIVE_THRESH 
                     + cv::CALIB_CB_FILTER_QUADS 
                     // + cv::CALIB_CB_NORMALIZE_IMAGE is suuuper slow
@@ -148,25 +151,25 @@ public:
                 // Get subpixel accuracy on those corners
                 cv::cornerSubPix(
                     *gsBuffer, 
-                    new_corners, // corners to refine
+                    new_image_points, // corners to refine
                     cv::Size(11, 11), // winSize- Half of the side length of the search window
                     cv::Size(-1, -1), // zeroZone- (-1,-1) means no dead zone in search
                     cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 30, 0.1));
 
                 // Append the new chessboard corner pixels into the image_points matrix
                 // Append the corresponding 3d chessboard corners into the object_points matrix
-                if (new_corners.size() == CORNER_COUNT) 
+                if (new_image_points.size() == CORNER_COUNT) 
                 {
                     bool bCornersChanged= false;
 
                     // See if the board moved enough to be considered a new location
-                    if (corners.size() > 0)
+                    if (imagePoints.size() > 0)
                     {
                         float squared_error_sum= 0.f;
 
                         for (int corner_index= 0; corner_index < CORNER_COUNT; ++corner_index)
                         {
-                            float squared_error= static_cast<float>(cv::norm(new_corners[corner_index] - corners[corner_index]));
+                            float squared_error= static_cast<float>(cv::norm(new_image_points[corner_index] - imagePoints[corner_index]));
 
                             squared_error_sum+= squared_error;
                         }
@@ -181,28 +184,34 @@ public:
                     // If it's a valid new location, append it to the board list
                     if (bCornersChanged)
                     {
-                        int write_offset = capturedBoardCount * CORNER_COUNT;
+                        // Generate the object points for each corner of the board
+                        std::vector<cv::Point3f> new_object_points;
 
-                        for (int write_index = write_offset, corner_index = 0; 
-                            corner_index < CORNER_COUNT; 
-                            ++write_index, ++corner_index) 
+                        for (int corner_index = 0; corner_index < CORNER_COUNT; ++corner_index) 
                         {
-                            image_points->at<float>(write_index, 0)= new_corners[corner_index].x;
-                            image_points->at<float>(write_index, 1)= new_corners[corner_index].y;
+                            cv::Point3f object_point(
+                                static_cast<float>(corner_index) / static_cast<float>(PATTERN_W),
+                                static_cast<float>(corner_index % PATTERN_W),
+                                0.f);
 
-                            object_points->at<float>(write_index, 0)= static_cast<float>(corner_index) / static_cast<float>(PATTERN_W);
-                            object_points->at<float>(write_index, 1)= static_cast<float>(corner_index % PATTERN_W);
-                            object_points->at<float>(write_index, 2)= 0.f;
+                            new_object_points.push_back(object_point);
                         }
 
-                        capturedBoardCount++;
+                        // Keep track of the corners of all of the chessboards we sample
+                        quadList.push_back(new_image_points[0]);
+                        quadList.push_back(new_image_points[PATTERN_W - 1]);
+                        quadList.push_back(new_image_points[CORNER_COUNT-1]);
+                        quadList.push_back(new_image_points[CORNER_COUNT-PATTERN_W]);                        
 
-                        // Keep track of the path of the corners of the chessboard
-                        upperCornerPath.push_back(new_corners[0]);
-                        lowerCornerPath.push_back(new_corners[CORNER_COUNT-1]);
+                        // Append the new images points and object points
+                        imagePointsList.push_back(new_image_points);
+                        objectPointsList.push_back(new_object_points);
 
                         // Remember the last set of valid corners
-                        corners= new_corners;
+                        imagePoints= new_image_points;
+
+                        // Keep track of how many boards have been captured so far
+                        capturedBoardCount++;
                     }
                 }
             }
@@ -218,7 +227,7 @@ public:
             // Compute the camera intrinsic matrix and distortion parameters
             reprojectionError= 
                 cv::calibrateCamera(
-                    *object_points, *image_points,
+                    objectPointsList, imagePointsList,
                     cv::Size(frameWidth, frameHeight), 
                     *intrinsic_matrix, *distortion_coeffs, // Output we care about
                     cv::noArray(), cv::noArray(), // best fit board poses as rvec/tvec pairs
@@ -251,11 +260,10 @@ public:
 
     // Chess board computed state
     int capturedBoardCount;
-    std::vector<cv::Point2f> corners;
-    std::vector<cv::Point2f> upperCornerPath;
-    std::vector<cv::Point2f> lowerCornerPath;
-    cv::Mat *image_points;
-    cv::Mat *object_points;
+    std::vector<cv::Point2f> imagePoints;
+    std::vector<cv::Point2f> quadList;
+    std::vector<std::vector<cv::Point2f>> imagePointsList;
+    std::vector<std::vector<cv::Point3f>> objectPointsList;
 
     // Calibration state
     double reprojectionError;
@@ -271,6 +279,8 @@ public:
 AppStage_DistortionCalibration::AppStage_DistortionCalibration(App *app)
     : AppStage(app)
     , m_menuState(AppStage_DistortionCalibration::inactive)
+    , m_trackerExposure(0.0)
+    , m_trackerGain(0.0)
     , m_bStreamIsActive(false)
     , m_tracker_view(nullptr)
     , m_video_texture(nullptr)
@@ -313,6 +323,7 @@ void AppStage_DistortionCalibration::exit()
 
     ClientPSMoveAPI::free_tracker_view(m_tracker_view);
     m_tracker_view = nullptr;
+    m_bStreamIsActive= false;
 }
 
 void AppStage_DistortionCalibration::update()
@@ -351,6 +362,14 @@ void AppStage_DistortionCalibration::update()
             {
                 // Update the chess board capture state
                 m_opencv_state->findAndAppendNewChessBoard();
+
+                if (m_opencv_state->capturedBoardCount >= DESIRED_CAPTURE_BOARD_COUNT)
+                {
+                    m_opencv_state->computeCameraCalibration();
+
+                    m_videoDisplayMode= AppStage_DistortionCalibration::mode_undistored;
+                    m_menuState= AppStage_DistortionCalibration::complete;
+                }
             }
         }
     }
@@ -371,14 +390,26 @@ void AppStage_DistortionCalibration::render()
 
         if (m_menuState == AppStage_DistortionCalibration::capture)
         {
+            float frameWidth= static_cast<float>(m_opencv_state->frameWidth);
+            float frameHeight= static_cast<float>(m_opencv_state->frameHeight);
+
             // Draw the most recently capture chessboard
-            if (m_opencv_state->corners.size() > 0)
+            if (m_opencv_state->imagePoints.size() > 0)
             {
                 drawOpenCVChessBoard(
-                    static_cast<float>(m_opencv_state->frameWidth), 
-                    static_cast<float>(m_opencv_state->frameHeight), 
-                    reinterpret_cast<float *>(m_opencv_state->corners.data()), // cv::point2f is just two floats 
-                    static_cast<int>(m_opencv_state->corners.size()));
+                    frameWidth, frameHeight, 
+                    reinterpret_cast<float *>(m_opencv_state->imagePoints.data()), // cv::point2f is just two floats 
+                    static_cast<int>(m_opencv_state->imagePoints.size()));
+            }
+
+            // Draw the outlines of all of the chess boards 
+            if (m_opencv_state->quadList.size() > 0)
+            {
+                drawQuadList2d(
+                    frameWidth, frameHeight, 
+                    glm::vec3(1.f, 1.f, 0.f), 
+                        reinterpret_cast<float *>(m_opencv_state->quadList.data()), // cv::point2f is just two floats 
+                        static_cast<int>(m_opencv_state->quadList.size()));
             }
         }
     }
@@ -386,8 +417,8 @@ void AppStage_DistortionCalibration::render()
 
 void AppStage_DistortionCalibration::renderUI()
 {
-    const float k_panel_width = 300.f;
-    const char *k_window_title = "Tracker Test";
+    const float k_panel_width = 200.f;
+    const char *k_window_title = "Distortion Calibration";
     const ImGuiWindowFlags window_flags =
         ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize |
@@ -399,12 +430,13 @@ void AppStage_DistortionCalibration::renderUI()
     {
     case eTrackerMenuState::capture:
         {
-            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 200));
-            ImGui::Begin(k_window_title, nullptr, window_flags);
+            assert (m_opencv_state != nullptr);
 
-            if (m_opencv_state != nullptr)
             {
+                ImGui::SetNextWindowPos(ImVec2(10.f, 10.f));
+                ImGui::SetNextWindowSize(ImVec2(275, 150));
+                ImGui::Begin("Video Controls", nullptr, window_flags);
+
                 if (ImGui::Button("<##Filter"))
                 {
                     m_videoDisplayMode =
@@ -421,20 +453,62 @@ void AppStage_DistortionCalibration::renderUI()
                 }
                 ImGui::SameLine();
                 ImGui::Text("Video Filter Mode: %s", k_video_display_mode_names[m_videoDisplayMode]);
+
+                if (ImGui::Button("-##Exposure"))
+                {
+                    request_tracker_set_temp_exposure(m_trackerExposure - 8);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("+##Exposure"))
+                {
+                    request_tracker_set_temp_exposure(m_trackerExposure + 8);
+                }
+                ImGui::SameLine();
+                ImGui::Text("Exposure: %f", m_trackerExposure);
+
+                if (ImGui::Button("-##Gain"))
+                {
+                    request_tracker_set_temp_gain(m_trackerGain - 8);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("+##Gain"))
+                {
+                    request_tracker_set_temp_gain(m_trackerGain + 8);
+                }
+                ImGui::SameLine();
+                ImGui::Text("Gain: %f", m_trackerGain);
+
+                ImGui::End();
             }
 
-            if (ImGui::Button("Cancel"))
             {
-                request_exit();
-            }
+                ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
+                ImGui::SetNextWindowSize(ImVec2(k_panel_width, 110));
+                ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            ImGui::End();
+                const float samplePercentage= 
+                    static_cast<float>(m_opencv_state->capturedBoardCount) / static_cast<float>(DESIRED_CAPTURE_BOARD_COUNT);
+                ImGui::ProgressBar(samplePercentage, ImVec2(k_panel_width - 20, 20));
+
+                if (ImGui::Button("Restart"))
+                {
+                    m_opencv_state->resetCaptureState();
+                    m_opencv_state->resetCalibrationState();
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Cancel"))
+                {
+                    request_exit();
+                }
+
+                ImGui::End();
+            }
         } break;
 
     case eTrackerMenuState::complete:
         {
-            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 200));
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 10.f));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 110));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Calibration complete!");
@@ -641,6 +715,8 @@ void AppStage_DistortionCalibration::handle_tracker_stop_stream_response(
 
 void AppStage_DistortionCalibration::request_tracker_set_temp_gain(float gain)
 {
+    m_trackerGain= gain;
+
     // Tell the psmove service that we want to change gain, but not save the change
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_GAIN);
@@ -653,6 +729,8 @@ void AppStage_DistortionCalibration::request_tracker_set_temp_gain(float gain)
 
 void AppStage_DistortionCalibration::request_tracker_set_temp_exposure(float exposure)
 {
+    m_trackerExposure= exposure;
+
     // Tell the psmove service that we want to change exposure, but not save the change.
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE);
