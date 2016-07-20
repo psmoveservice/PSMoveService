@@ -9,12 +9,6 @@ You can download prebuilt releases (Windows only at the moment) from the [Releas
 # Building from source
 If you want to make modifications to the service or want to debug it, you can build the project from source by following the  [Building-from-source](https://github.com/cboulay/PSMoveService/wiki/Building-from-source) instructions. Currently supported build platforms are Win10 and OS X with Linux support hopefully coming in the near future.
 
-# Setup
-
-YouTuber [VirtuallyChris](https://www.youtube.com/channel/UCeHc0xNYWSSoS1aBZ_xmDbw) has put together this really excellent [setup video](https://www.youtube.com/watch?v=XiLYa1EZL04). All of the steps in the video are also in the [setup wiki](https://github.com/cboulay/PSMoveService/wiki#initial-setup), but it's probably best to watch the video first to get a sense of what's involved.
-
-**PLEASE DO NOT REPOST THIS VIDEO**. I know some of you love to re-post this stuff on /r/oculus or other sites and I appriciate your enthusiasm. But this video is intended to help people who have discovered this project get started, **NOT** to advertise this project. PSMoveService still has several major features in development and is **NOT** ready for broad adoption. By widely broadcasting this service in its current state we get overwealmed with support requests which make it more difficult for us complete the work we have left. We've held back on posting this setup video for a while for this reason, but enough people were having difficulty with the setup that I felt it was doing more harm than good to not make it available to people trying to use this service now. Thank you for your patience and support.
-
 # Near Term Roadmap
  * Ongoing Stabilization of service and SteamVR plugin
  * DualShock4 Controller Support
