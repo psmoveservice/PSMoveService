@@ -45,27 +45,33 @@ static const char *k_video_display_mode_names[] = {
 #define CORNER_COUNT (PATTERN_W*PATTERN_H)
 #define DESIRED_CAPTURE_BOARD_COUNT 20
 
-#define BOARD_MOVED_PIXEL_DIST 5 
-#define BOARD_MOVED_SQUARED_ERROR_SUM (BOARD_MOVED_PIXEL_DIST*BOARD_MOVED_PIXEL_DIST)*CORNER_COUNT
+#define BOARD_MOVED_PIXEL_DIST 5
+#define BOARD_MOVED_ERROR_SUM BOARD_MOVED_PIXEL_DIST*CORNER_COUNT
+
+#define BOARD_NEW_LOCATION_PIXEL_DIST 100 
+#define BOARD_NEW_LOCATION_ERROR_SUM BOARD_NEW_LOCATION_PIXEL_DIST*CORNER_COUNT
+
+#define STRAIGHT_LINE_TOLERANCE 5 // error tolerance in pixels
 
 //-- private definitions -----
 class OpenCVBufferState
 {
 public:
-    OpenCVBufferState(int width, int height)
-        : frameWidth(width)
-        , frameHeight(height)
+    OpenCVBufferState(const ClientTrackerInfo &_trackerInfo)
+        : trackerInfo(_trackerInfo)
+        , frameWidth(static_cast<int>(_trackerInfo.tracker_screen_dimensions.i))
+        , frameHeight(static_cast<int>(_trackerInfo.tracker_screen_dimensions.j))
         , capturedBoardCount(0)
     {
         // Video Frame data
-        bgrSourceBuffer = new cv::Mat(height, width, CV_8UC3);
-        gsBuffer = new cv::Mat(height, width, CV_8UC1);
-        gsBGRBuffer = new cv::Mat(height, width, CV_8UC3);
-        bgrUndistortBuffer = new cv::Mat(height, width, CV_8UC3);
+        bgrSourceBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+        gsBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
+        gsBGRBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+        bgrUndistortBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
 
         // Chessboard state
-        intrinsic_matrix = new cv::Mat(3, 3, CV_32FC1);
-        distortion_coeffs = new cv::Mat(5, 1, CV_32FC1);
+        intrinsic_matrix = new cv::Mat(3, 3, CV_64FC1);
+        distortion_coeffs = new cv::Mat(5, 1, CV_64FC1);
 
         // Distortion state
         distortionMapX = new cv::Mat(cv::Size(frameWidth, frameHeight), CV_32FC1);
@@ -95,7 +101,9 @@ public:
     void resetCaptureState()
     {
         capturedBoardCount= 0;
-        imagePoints.clear();
+        bCurrentImagePointsValid= false;
+        currentImagePoints.clear();
+        lastValidImagePoints.clear();
         quadList.clear();
         imagePointsList.clear();
         objectPointsList.clear();
@@ -105,13 +113,28 @@ public:
     {
         reprojectionError= 0.f;
 
-        // Initialize the intrinsic matrix such that the two focal lengths have a ratio of 1.0
-        *intrinsic_matrix = cv::Mat::zeros(3, 3, CV_32FC1);
-        intrinsic_matrix->at<float>(0, 0)= 1.0f;
-        intrinsic_matrix->at<float>(1, 1)= 1.0f;
+        // Fill in the intrinsic matrix
+        intrinsic_matrix->at<double>(0, 0)= trackerInfo.tracker_focal_lengths.i;
+        intrinsic_matrix->at<double>(1, 0)= 0.0;
+        intrinsic_matrix->at<double>(2, 0)= 0.0;
 
-        // Clear out the distortion co-efficients
-        *distortion_coeffs = cv::Mat::zeros(5, 1, CV_32FC1);
+        intrinsic_matrix->at<double>(0, 1)= 0.0;
+        intrinsic_matrix->at<double>(1, 1)= trackerInfo.tracker_focal_lengths.j;
+        intrinsic_matrix->at<double>(2, 1)= 0.0;
+
+        intrinsic_matrix->at<double>(0, 2)= trackerInfo.tracker_principal_point.i;
+        intrinsic_matrix->at<double>(1, 2)= trackerInfo.tracker_principal_point.j;
+        intrinsic_matrix->at<double>(2, 2)= 1.0;
+
+        // Fill in the distortion coefficients
+        distortion_coeffs->at<double>(0, 0)= trackerInfo.tracker_k1; 
+        distortion_coeffs->at<double>(1, 0)= trackerInfo.tracker_k2;
+        distortion_coeffs->at<double>(2, 0)= trackerInfo.tracker_p1;
+        distortion_coeffs->at<double>(3, 0)= trackerInfo.tracker_p2;
+        distortion_coeffs->at<double>(4, 0)= trackerInfo.tracker_k3;
+
+        // Generate the distortion map that corresponds to the tracker's camera settings
+        rebuildDistortionMap();
     }
 
     void applyVideoFrame(const unsigned char *video_buffer)
@@ -160,29 +183,52 @@ public:
                 // Append the corresponding 3d chessboard corners into the object_points matrix
                 if (new_image_points.size() == CORNER_COUNT) 
                 {
-                    bool bCornersChanged= false;
+                    bCurrentImagePointsValid= false;
 
-                    // See if the board moved enough to be considered a new location
-                    if (imagePoints.size() > 0)
+                    // See if the board is stationary (didn't move much since last frame)
+                    if (currentImagePoints.size() > 0)
                     {
-                        float squared_error_sum= 0.f;
+                        float error_sum= 0.f;
 
                         for (int corner_index= 0; corner_index < CORNER_COUNT; ++corner_index)
                         {
-                            float squared_error= static_cast<float>(cv::norm(new_image_points[corner_index] - imagePoints[corner_index]));
+                            float squared_error= static_cast<float>(cv::norm(new_image_points[corner_index] - currentImagePoints[corner_index]));
 
-                            squared_error_sum+= squared_error;
+                            error_sum+= squared_error;
                         }
 
-                        bCornersChanged= squared_error_sum >= BOARD_MOVED_SQUARED_ERROR_SUM;
+                        bCurrentImagePointsValid= error_sum <= BOARD_MOVED_ERROR_SUM;
                     }
                     else
                     {
-                        bCornersChanged= true;
+                        bCurrentImagePointsValid= true;
+                    }
+
+                    // See if the board moved far enough from the last valid location
+                    if (bCurrentImagePointsValid)
+                    {
+                        if (lastValidImagePoints.size() > 0)
+                        {
+                            float error_sum= 0.f;
+
+                            for (int corner_index= 0; corner_index < CORNER_COUNT; ++corner_index)
+                            {
+                                float squared_error= static_cast<float>(cv::norm(new_image_points[corner_index] - lastValidImagePoints[corner_index]));
+
+                                error_sum+= squared_error;
+                            }
+
+                            bCurrentImagePointsValid= error_sum >= BOARD_NEW_LOCATION_ERROR_SUM;
+                        }
+                    }
+
+                    if (bCurrentImagePointsValid)
+                    {
+                        bCurrentImagePointsValid= areGridLinesStraight(new_image_points);
                     }
 
                     // If it's a valid new location, append it to the board list
-                    if (bCornersChanged)
+                    if (bCurrentImagePointsValid)
                     {
                         // Generate the object points for each corner of the board
                         std::vector<cv::Point3f> new_object_points;
@@ -207,15 +253,55 @@ public:
                         imagePointsList.push_back(new_image_points);
                         objectPointsList.push_back(new_object_points);
 
-                        // Remember the last set of valid corners
-                        imagePoints= new_image_points;
+                        // Remember the last valid captured points
+                        lastValidImagePoints= currentImagePoints;
 
                         // Keep track of how many boards have been captured so far
                         capturedBoardCount++;
                     }
+
+                    // Remember the last set of valid corners
+                    currentImagePoints= new_image_points;
                 }
             }
         }
+    }
+
+    static bool areGridLinesStraight(const std::vector<cv::Point2f> &corners)
+    {
+        assert(corners.size() == CORNER_COUNT);
+        bool bAllLinesStraight= true;
+
+        for (int line_index= 0; bAllLinesStraight && line_index < PATTERN_H; ++line_index)
+        {
+            int start_index= line_index*PATTERN_W;
+            int end_index= start_index + PATTERN_W - 1;
+
+            cv::Point2f line_start= corners[start_index];
+            cv::Point2f line_end= corners[end_index];
+
+            for (int point_index= start_index + 1; bAllLinesStraight && point_index < end_index; ++point_index)
+            {
+                cv::Point2f point= corners[point_index];
+
+                if (distanceToLine(line_start, line_end, point) > STRAIGHT_LINE_TOLERANCE)
+                {
+                    bAllLinesStraight= false;
+                }
+            }
+        }
+
+        return bAllLinesStraight;
+    }
+
+    static float distanceToLine(cv::Point2f line_start, cv::Point2f line_end, cv::Point2f point)
+    {
+        const auto start_to_end= line_end - line_start;
+        const auto start_to_point= point - line_start;
+
+        float area = static_cast<float>(start_to_point.cross(start_to_end));
+        float line_length= static_cast<float>(cv::norm(start_to_end));
+        return fabsf(safe_divide_with_default(area, line_length, 0.f));
     }
 
     bool computeCameraCalibration()
@@ -233,15 +319,9 @@ public:
                     cv::noArray(), cv::noArray(), // best fit board poses as rvec/tvec pairs
                     cv::CALIB_FIX_ASPECT_RATIO,
                     cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, DBL_EPSILON));
-
-            cv::initUndistortRectifyMap(
-                *intrinsic_matrix, *distortion_coeffs, 
-                cv::noArray(), // unneeded rectification transformation computed by stereoRectify()
-                                   // newCameraMatrix - can be computed by getOptimalNewCameraMatrix(), but
-                *intrinsic_matrix, // "In case of a monocular camera, newCameraMatrix is usually equal to cameraMatrix"
-                cv::Size(frameWidth, frameHeight),
-                CV_32FC1, // Distortion map type
-                *distortionMapX, *distortionMapY);
+            
+            // Regenerate the distortion map now for the new calibration
+            rebuildDistortionMap();
 
             bSuccess= true;
         }
@@ -249,6 +329,19 @@ public:
         return bSuccess;
     }
 
+    void rebuildDistortionMap()
+    {
+        cv::initUndistortRectifyMap(
+            *intrinsic_matrix, *distortion_coeffs, 
+            cv::noArray(), // unneeded rectification transformation computed by stereoRectify()
+                                // newCameraMatrix - can be computed by getOptimalNewCameraMatrix(), but
+            *intrinsic_matrix, // "In case of a monocular camera, newCameraMatrix is usually equal to cameraMatrix"
+            cv::Size(frameWidth, frameHeight),
+            CV_32FC1, // Distortion map type
+            *distortionMapX, *distortionMapY);
+    }
+
+    const ClientTrackerInfo &trackerInfo;
     int frameWidth;
     int frameHeight;
 
@@ -260,7 +353,9 @@ public:
 
     // Chess board computed state
     int capturedBoardCount;
-    std::vector<cv::Point2f> imagePoints;
+    std::vector<cv::Point2f> lastValidImagePoints;
+    std::vector<cv::Point2f> currentImagePoints;
+    bool bCurrentImagePointsValid;
     std::vector<cv::Point2f> quadList;
     std::vector<std::vector<cv::Point2f>> imagePointsList;
     std::vector<std::vector<cv::Point3f>> objectPointsList;
@@ -365,18 +460,28 @@ void AppStage_DistortionCalibration::update()
 
                 if (m_opencv_state->capturedBoardCount >= DESIRED_CAPTURE_BOARD_COUNT)
                 {
+                    cv::Mat *intrinsic_matrix= m_opencv_state->intrinsic_matrix;
+                    cv::Mat *distortion_coeffs= m_opencv_state->distortion_coeffs;
+
                     m_opencv_state->computeCameraCalibration();
 
-                    {
-                        cv::Mat *intrinsic_matrix= m_opencv_state->intrinsic_matrix;
-                        cv::Mat *distortion_coeffs= m_opencv_state->distortion_coeffs;
+                    const float f_x= static_cast<float>(intrinsic_matrix->at<double>(0, 0));
+                    const float f_y= static_cast<float>(intrinsic_matrix->at<double>(1, 1));
+                    const float p_x= static_cast<float>(intrinsic_matrix->at<double>(0, 2));
+                    const float p_y= static_cast<float>(intrinsic_matrix->at<double>(1, 2));
 
-                        request_tracker_set_intrinsic(
-                            intrinsic_matrix->at<float>(0, 0), intrinsic_matrix->at<float>(1, 1),
-                            intrinsic_matrix->at<float>(0, 2), intrinsic_matrix->at<float>(1, 2),
-                            distortion_coeffs->at<float>(0, 0), distortion_coeffs->at<float>(1, 0), distortion_coeffs->at<float>(4, 0),
-                            distortion_coeffs->at<float>(2, 0), distortion_coeffs->at<float>(3, 0));
-                    }
+                    const float k_1= static_cast<float>(distortion_coeffs->at<double>(0, 0));
+                    const float k_2= static_cast<float>(distortion_coeffs->at<double>(1, 0));
+                    const float p_1= static_cast<float>(distortion_coeffs->at<double>(2, 0));
+                    const float p_2= static_cast<float>(distortion_coeffs->at<double>(3, 0));
+                    const float k_3= static_cast<float>(distortion_coeffs->at<double>(4, 0));
+
+                    // Update the camera intrinsics for this camera
+                    request_tracker_set_intrinsic(
+                        f_x, f_y,
+                        p_x, p_y,
+                        k_1, k_2, k_3,
+                        p_1, p_2);
 
                     m_videoDisplayMode= AppStage_DistortionCalibration::mode_undistored;
                     m_menuState= AppStage_DistortionCalibration::complete;
@@ -404,13 +509,24 @@ void AppStage_DistortionCalibration::render()
             float frameWidth= static_cast<float>(m_opencv_state->frameWidth);
             float frameHeight= static_cast<float>(m_opencv_state->frameHeight);
 
-            // Draw the most recently capture chessboard
-            if (m_opencv_state->imagePoints.size() > 0)
+            // Draw the last valid capture chessboard
+            if (m_opencv_state->lastValidImagePoints.size() > 0)
             {
                 drawOpenCVChessBoard(
                     frameWidth, frameHeight, 
-                    reinterpret_cast<float *>(m_opencv_state->imagePoints.data()), // cv::point2f is just two floats 
-                    static_cast<int>(m_opencv_state->imagePoints.size()));
+                    reinterpret_cast<float *>(m_opencv_state->lastValidImagePoints.data()), // cv::point2f is just two floats 
+                    static_cast<int>(m_opencv_state->lastValidImagePoints.size()),
+                    true);
+            }            
+
+            // Draw the most recently capture chessboard
+            if (m_opencv_state->currentImagePoints.size() > 0)
+            {
+                drawOpenCVChessBoard(
+                    frameWidth, frameHeight, 
+                    reinterpret_cast<float *>(m_opencv_state->currentImagePoints.data()), // cv::point2f is just two floats 
+                    static_cast<int>(m_opencv_state->currentImagePoints.size()),
+                    m_opencv_state->bCurrentImagePointsValid);
             }
 
             // Draw the outlines of all of the chess boards 
@@ -533,6 +649,7 @@ void AppStage_DistortionCalibration::renderUI()
             {
                 m_opencv_state->resetCaptureState();
                 m_opencv_state->resetCalibrationState();
+                m_videoDisplayMode= AppStage_DistortionCalibration::mode_bgr;
                 m_menuState= eTrackerMenuState::capture;
             }
 
@@ -642,20 +759,21 @@ void AppStage_DistortionCalibration::handle_tracker_start_stream_response(
             // Open the shared memory that the video stream is being written to
             if (trackerView->openVideoStream())
             {
-                int width= trackerView->getVideoFrameWidth();
-                int height= trackerView->getVideoFrameHeight();
+                const ClientTrackerInfo &trackerInfo= trackerView->getTrackerInfo();
+                const int width= static_cast<int>(trackerInfo.tracker_screen_dimensions.i);
+                const int height= static_cast<int>(trackerInfo.tracker_screen_dimensions.j);
 
                 // Create a texture to render the video frame to
                 thisPtr->m_video_texture = new TextureAsset();
                 thisPtr->m_video_texture->init(
-                    width,
+                    width, 
                     height,
                     GL_RGB, // texture format
                     GL_BGR, // buffer format
                     nullptr);
 
                 // Allocate an opencv buffer 
-                thisPtr->m_opencv_state = new OpenCVBufferState(width, height);
+                thisPtr->m_opencv_state = new OpenCVBufferState(trackerInfo);
 
                 // Start capturing chess boards
                 thisPtr->m_menuState = AppStage_DistortionCalibration::capture;
@@ -758,6 +876,19 @@ void AppStage_DistortionCalibration::request_tracker_set_intrinsic(
     float distortionK1, float distortionK2, float distortionK3,
     float distortionP1, float distortionP2)
 {
+    // Update the intrinsic state on the tracker info
+    // so that this becomes the new reset point.
+    ClientTrackerInfo trackerInfo= m_tracker_view->getTrackerInfoMutable();
+    trackerInfo.tracker_focal_lengths.i= focalLengthX;
+    trackerInfo.tracker_focal_lengths.j= focalLengthY;
+    trackerInfo.tracker_principal_point.i= principalX;
+    trackerInfo.tracker_principal_point.j= principalY;
+    trackerInfo.tracker_k1= distortionK1;
+    trackerInfo.tracker_k2= distortionK2;
+    trackerInfo.tracker_k3= distortionK3;
+    trackerInfo.tracker_p1= distortionP1;
+    trackerInfo.tracker_p2= distortionP2;
+
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_INTRINSICS);
     request->mutable_request_set_tracker_intrinsics()->set_tracker_id(m_tracker_view->getTrackerId());
@@ -774,7 +905,7 @@ void AppStage_DistortionCalibration::request_tracker_set_intrinsic(
     request->mutable_request_set_tracker_intrinsics()->set_tracker_k2(distortionK2);
     request->mutable_request_set_tracker_intrinsics()->set_tracker_k3(distortionK3);
     request->mutable_request_set_tracker_intrinsics()->set_tracker_p1(distortionP1);
-    request->mutable_request_set_tracker_intrinsics()->set_tracker_p2(distortionP2);
+    request->mutable_request_set_tracker_intrinsics()->set_tracker_p2(distortionP2);    
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }

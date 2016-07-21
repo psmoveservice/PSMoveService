@@ -96,7 +96,7 @@ void drawEllipsoid(
     const int subdiv= 64);
 void drawLineStrip(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count);
 void drawQuadList2d(const float trackerWidth, const float trackerHeight, const glm::vec3 &color, const float *points2d, const int point_count);
-void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, const float *points2d, const int point_count);
+void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, const float *points2d, const int point_count, bool valid_points);
 void drawPoseArrayStrip(const struct PSMovePose *poses, const int poseCount, const glm::vec3 &color);
 void drawDK2Model(const glm::mat4 &transform);
 void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color);

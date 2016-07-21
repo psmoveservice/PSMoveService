@@ -1000,7 +1000,7 @@ void drawQuadList2d(const float trackerWidth, const float trackerHeight, const g
     glPopMatrix();
 }
 
-void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, const float *points2d, const int point_count)
+void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, const float *points2d, const int point_count, bool validPoints)
 {
     assert(Renderer::getIsRenderingStage());
 
@@ -1023,12 +1023,20 @@ void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, c
     glBegin(GL_LINE_STRIP);
     for (int sampleIndex= 0; sampleIndex < point_count; ++sampleIndex)
     {
-        // Match how OpenCV colors the line strip (red -> blue i.e. hue angle 0 to 255 degrees)
-        const float hue= static_cast<float>(sampleIndex * 255 / point_count);
-        float r, g, b;
+        if (validPoints)
+        {
+            // Match how OpenCV colors the line strip (red -> blue i.e. hue angle 0 to 255 degrees)
+            const float hue= static_cast<float>(sampleIndex * 255 / point_count);
+            float r, g, b;
 
-        HSVtoRGB(hue, 1.f, 1.f, r, g, b);
-        glColor3f(r, g, b);
+            HSVtoRGB(hue, 1.f, 1.f, r, g, b);
+            glColor3f(r, g, b);
+        }
+        else
+        {
+            glColor3f(1.f, 0.f, 0.f);
+        }
+
         glVertex3f(points2d[sampleIndex*2+0], points2d[sampleIndex*2+1], 0.5f);
     }
     glEnd();
@@ -1041,12 +1049,19 @@ void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, c
         const float angleStep = k_real_two_pi / static_cast<float>(subdiv);
         float angle = 0.f;
 
-        // Match how OpenCV colors the line strip (red -> blue i.e. hue angle 0 to 255 degrees)
-        const float hue= static_cast<float>(sampleIndex * 255 / point_count);
-        float r, g, b;
+        if (validPoints)
+        {
+            // Match how OpenCV colors the line strip (red -> blue i.e. hue angle 0 to 255 degrees)
+            const float hue= static_cast<float>(sampleIndex * 255 / point_count);
+            float r, g, b;
 
-        HSVtoRGB(hue, 1.f, 1.f, r, g, b);
-        glColor3f(r, g, b);
+            HSVtoRGB(hue, 1.f, 1.f, r, g, b);
+            glColor3f(r, g, b);
+        }
+        else
+        {
+            glColor3f(1.f, 0.f, 0.f);
+        }
 
         glBegin(GL_LINE_STRIP);
         for (int index = 0; index <= subdiv; ++index)
