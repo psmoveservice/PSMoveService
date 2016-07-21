@@ -189,11 +189,11 @@ private:
         // Kill any pending request state
         m_request_handler.shutdown();
 
-        // Disconnect any actively connected controllers
-        m_device_manager.shutdown();
-
         // Close all active network connections
         m_network_manager.shutdown();
+
+        // Disconnect any actively connected controllers
+        m_device_manager.shutdown();
     }
 
     void handle_termination_signal()
