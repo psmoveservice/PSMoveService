@@ -9,8 +9,8 @@
 //-- pre-declarations -----
 namespace PSMoveProtocol
 {
-    class DeviceDataFrame;
-    class DeviceDataFrame_TrackerDataPacket;
+    class DeviceOutputDataFrame;
+    class DeviceOutputDataFrame_TrackerDataPacket;
 };
 
 //-- constants -----
@@ -72,7 +72,7 @@ public:
     ~ClientTrackerView();
 
     // Apply a UDP data packet update to this tracker
-    void applyTrackerDataFrame(const PSMoveProtocol::DeviceDataFrame_TrackerDataPacket *data_frame);
+    void applyTrackerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_TrackerDataPacket *data_frame);
     void clearTrackerDataFrameState();
 
     // Used to apply tracker property changes after config tools run

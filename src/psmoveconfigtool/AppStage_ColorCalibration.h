@@ -27,6 +27,7 @@ protected:
     enum eMenuState
     {
         inactive,
+        waitingForStreamStartResponse,
         manualConfig,
 
         pendingControllerStartRequest,
@@ -116,6 +117,8 @@ protected:
 private:
     // ClientPSMoveAPI state
     class ClientControllerView *m_controllerView;
+    bool m_isControllerStreamActive;
+    int m_lastControllerSeqNum;
     class ClientTrackerView *m_trackerView;
 
     // Menu state

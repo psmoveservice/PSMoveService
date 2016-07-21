@@ -29,6 +29,14 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ELSE() #Linux
 ENDIF()
 
+IF(MSVC) 
+# Disable asio auto linking in date-time and regex
+add_definitions(-DBOOST_DATE_TIME_NO_LIB)
+add_definitions(-DBOOST_REGEX_NO_LIB)
+# fix: fatal error C1128: number of sections exceeded object file format limit
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+ENDIF()
+
 
 #
 # TEST_CONFIGMANAGER
@@ -66,10 +74,10 @@ SET_TARGET_PROPERTIES(test_config PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-install(TARGETS test_config
-    RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
-    LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
-    ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+    install(TARGETS test_config
+        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
 
@@ -134,8 +142,11 @@ ENDIF()
 
 # Our custom OpenCV VideoCapture classes
 # We are not including the PSMoveService project on purpose.
-list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye)
+list(APPEND TEST_CAMERA_INCL_DIRS 
+    ${ROOT_DIR}/src/psmoveclient/
+    ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye)
 list(APPEND TEST_CAMERA_SRC
+    ${ROOT_DIR}/src/psmoveclient/ClientConstants.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye/PSEyeVideoCapture.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye/PSEyeVideoCapture.cpp)
 
@@ -162,10 +173,10 @@ ENDIF()#ISWIN32
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-install(TARGETS test_camera
-    RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
-    LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
-    ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+    install(TARGETS test_camera
+        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
 
@@ -199,7 +210,7 @@ ENDIF()
 
 # Boost
 # TODO: Eliminate boost::filesystem with C++14
-FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS chrono date_time filesystem log log_setup program_options system thread)
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS chrono filesystem program_options system thread)
 list(APPEND TEST_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
 
@@ -218,7 +229,7 @@ list(APPEND TEST_CTRLR_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/Platform
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
     ${ROOT_DIR}/src/psmoveservice/PSMoveController)
-list(APPEND TEST_CTRLR_SRC
+list(APPEND TEST_CTRLR_SRC    
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
     ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
     ${ROOT_DIR}/src/psmovemath/MathEigen.h
@@ -248,10 +259,10 @@ SET_TARGET_PROPERTIES(test_controller PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-install(TARGETS test_controller
-    RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
-    LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
-    ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+    install(TARGETS test_controller
+        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
 
@@ -265,10 +276,10 @@ SET_TARGET_PROPERTIES(test_console_client PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-install(TARGETS test_console_client
-    RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
-    LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
-    ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+    install(TARGETS test_console_client
+        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
 
@@ -282,7 +293,7 @@ SET(TEST_UDP_SERVER_REQ_LIBS)
 # Dependencies
 
 # Boost
-find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS atomic chrono date_time filesystem program_options regex system thread)
+find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
 list(APPEND TEST_UDP_SERVER_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_UDP_SERVER_REQ_LIBS ${Boost_LIBRARIES})
 
@@ -305,9 +316,9 @@ ENDIF()
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 install(TARGETS test_udp_server
-    RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
-    LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
-    ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+    RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+    LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+    ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
 
@@ -321,7 +332,7 @@ SET(TEST_UDP_CLIENT_REQ_LIBS)
 # Dependencies
 
 # Boost
-find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS date_time regex system)
+find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS system)
 list(APPEND TEST_UDP_CLIENT_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_UDP_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
 
@@ -333,9 +344,9 @@ SET_TARGET_PROPERTIES(test_udp_client PROPERTIES FOLDER Test)
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 install(TARGETS test_udp_client
-    RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
-    LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
-    ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+    RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+    LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+    ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
 
@@ -351,8 +362,8 @@ SET_TARGET_PROPERTIES(test_optical_tracker PROPERTIES FOLDER Test)
 # Install
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 install(TARGETS test_optical_tracker
-RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
-LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
-ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()

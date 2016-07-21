@@ -78,7 +78,7 @@ public:
     virtual ~CClientDriver_PSMoveService();
 
     // Inherited via IClientTrackedDeviceProvider
-    virtual vr::EVRInitError Init( vr::IDriverLog * pDriverLog, vr::IClientDriverHost * pDriverHost, const char * pchUserDriverConfigDir, const char * pchDriverInstallDir ) override;
+    virtual vr::EVRInitError Init( vr::EClientDriverMode eDriverMode, vr::IDriverLog * pDriverLog, vr::IClientDriverHost * pDriverHost, const char * pchUserDriverConfigDir, const char * pchDriverInstallDir ) override;
     virtual void Cleanup() override;
     virtual bool BIsHmdPresent( const char * pchUserConfigDir ) override;
     virtual vr::EVRInitError SetDisplayId( const char * pchDisplayId ) override;
@@ -87,7 +87,6 @@ public:
 
 private:
     vr::IClientDriverHost* m_pDriverHost;
-
 };
 
 class CPSMoveTrackedDeviceLatest : public vr::ITrackedDeviceServerDriver
@@ -127,6 +126,9 @@ protected:
     // Assigned by vrserver upon Activate().  The same ID visible to clients
     uint32_t m_unSteamVRTrackedDeviceId;
 
+    // Flag to denote we should re-publish the controller properties
+    bool m_properties_dirty;
+
     // Cached for answering version queries from vrserver
     vr::DriverPose_t m_Pose;
     unsigned short m_firmware_revision;
@@ -136,6 +138,34 @@ protected:
 class CPSMoveControllerLatest : public CPSMoveTrackedDeviceLatest, public vr::IVRControllerComponent
 {
 public:
+    enum ePSButtonID
+    {
+        k_EPSButtonID_PS,
+        k_EPSButtonID_Left,
+        k_EPSButtonID_Up,
+        k_EPSButtonID_Right,
+        k_EPSButtonID_Down,
+        k_EPSButtonID_Move,
+        k_EPSButtonID_Trackpad,
+        k_EPSButtonID_Trigger,
+        k_EPSButtonID_Triangle,
+        k_EPSButtonID_Square,
+        k_EPSButtonID_Circle,
+        k_EPSButtonID_Cross,
+        k_EPSButtonID_Select,
+        k_EPSButtonID_Share,
+        k_EPSButtonID_Start,
+        k_EPSButtonID_Options,
+        k_EPSButtonID_L1,
+        k_EPSButtonID_L2,
+        k_EPSButtonID_L3,
+        k_EPSButtonID_R1,
+        k_EPSButtonID_R2,
+        k_EPSButtonID_R3,
+
+        k_EPSButtonID_Count
+    };
+
     CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int ControllerID );
     virtual ~CPSMoveControllerLatest();
 
@@ -152,29 +182,6 @@ public:
     // Implementation of vr::IVRControllerComponent
     virtual vr::VRControllerState_t GetControllerState() override;
     virtual bool TriggerHapticPulse( uint32_t unAxisId, uint16_t usPulseDurationMicroseconds ) override;
-
-    static const vr::EVRButtonId k_EButton_PS = vr::k_EButton_System;
-    static const vr::EVRButtonId k_EButton_Left = vr::k_EButton_DPad_Left;
-    static const vr::EVRButtonId k_EButton_Up = vr::k_EButton_DPad_Up;
-    static const vr::EVRButtonId k_EButton_Right = vr::k_EButton_DPad_Right;
-    static const vr::EVRButtonId k_EButton_Down = vr::k_EButton_DPad_Down;
-    static const vr::EVRButtonId k_EButton_Move = vr::k_EButton_SteamVR_Touchpad;
-    static const vr::EVRButtonId k_EButton_Trackpad = vr::k_EButton_SteamVR_Touchpad;
-    static const vr::EVRButtonId k_EButton_Trigger = vr::k_EButton_SteamVR_Trigger;
-    static const vr::EVRButtonId k_EButton_Triangle = vr::k_EButton_ApplicationMenu;
-    static const vr::EVRButtonId k_EButton_Square = vr::k_EButton_Dashboard_Back;
-    static const vr::EVRButtonId k_EButton_Circle = vr::k_EButton_A;
-    static const vr::EVRButtonId k_EButton_Cross = (vr::EVRButtonId)8;
-    static const vr::EVRButtonId k_EButton_Select = (vr::EVRButtonId)9;
-    static const vr::EVRButtonId k_EButton_Share = (vr::EVRButtonId)9;
-    static const vr::EVRButtonId k_EButton_Start = (vr::EVRButtonId)10;
-    static const vr::EVRButtonId k_EButton_Options = (vr::EVRButtonId)10;
-    static const vr::EVRButtonId k_EButton_L1 = (vr::EVRButtonId)11;
-    static const vr::EVRButtonId k_EButton_L2 = (vr::EVRButtonId)12;
-    static const vr::EVRButtonId k_EButton_L3 = (vr::EVRButtonId)13;
-    static const vr::EVRButtonId k_EButton_R1 = (vr::EVRButtonId)14;
-    static const vr::EVRButtonId k_EButton_R2 = (vr::EVRButtonId)15;
-    static const vr::EVRButtonId k_EButton_R3 = (vr::EVRButtonId)16;
 
     // Overridden Implementation of CPSMoveTrackedDeviceLatest
     virtual vr::ETrackedDeviceClass GetTrackedDeviceClass() const override { return vr::TrackedDeviceClass_Controller; }
@@ -208,6 +215,13 @@ private:
     uint16_t m_pendingHapticPulseDuration;
     std::chrono::time_point<std::chrono::high_resolution_clock> m_lastTimeRumbleSent;
     bool m_lastTimeRumbleSentValid;
+
+    // Button Remapping
+    vr::EVRButtonId psButtonIDToVRButtonID[k_EPSButtonID_Count];
+    void LoadButtonMapping(
+        vr::IVRSettings *pSettings,
+        const CPSMoveControllerLatest::ePSButtonID psButtonID,
+        const vr::EVRButtonId defaultVRButtonID);
 };
 
 class CPSMoveTrackerLatest : public CPSMoveTrackedDeviceLatest

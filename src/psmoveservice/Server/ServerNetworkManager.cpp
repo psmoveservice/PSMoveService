@@ -139,6 +139,12 @@ public:
             << connecting_remote_endpoint.port();
 
         m_udp_remote_endpoint= connecting_remote_endpoint;
+        m_is_udp_remote_endpoint_bound = true;
+    }
+
+    bool is_udp_remote_endpoint_bound() const
+    {
+        return m_is_udp_remote_endpoint_bound;
     }
 
     bool can_send_data_to_client() const
@@ -202,7 +208,7 @@ public:
         return write_in_progress;
     }
     
-    void add_device_data_frame_to_write_queue(DeviceDataFramePtr data_frame)
+    void add_device_data_frame_to_write_queue(DeviceOutputDataFramePtr data_frame)
     {
         m_pending_dataframes.push_back(data_frame);
     }
@@ -217,15 +223,15 @@ public:
             {
                 if (m_pending_dataframes.size() > 0)
                 {
-                    DeviceDataFramePtr dataframe= m_pending_dataframes.front();
+                    DeviceOutputDataFramePtr dataframe= m_pending_dataframes.front();
 
-                    m_packed_dataframe.set_msg(dataframe);
-                    if (m_packed_dataframe.pack(m_dataframe_write_buffer, sizeof(m_dataframe_write_buffer)))
+                    m_packed_output_dataframe.set_msg(dataframe);
+                    if (m_packed_output_dataframe.pack(m_output_dataframe_buffer, sizeof(m_output_dataframe_buffer)))
                     {
-                        int msg_size= m_packed_dataframe.get_msg()->ByteSize();
+                        int msg_size= m_packed_output_dataframe.get_msg()->ByteSize();
 
                         SERVER_LOG_DEBUG("ClientConnection::start_udp_write_queued_device_data_frame") << "Sending UDP DataFrame";
-                        SERVER_LOG_DEBUG("   ") << show_hex(m_dataframe_write_buffer, HEADER_SIZE+msg_size);
+                        SERVER_LOG_DEBUG("   ") << show_hex(m_output_dataframe_buffer, HEADER_SIZE+msg_size);
                         SERVER_LOG_DEBUG("   ") << msg_size << " bytes";
 
                         // The queue should prevent us from writing more than one data frame at once
@@ -236,7 +242,7 @@ public:
                         // Start an asynchronous operation to send the data frame
                         // NOTE: Even if the write completes immediate, the callback will only be called from io_service::poll()
                         m_udp_socket_ref.async_send_to(
-                            boost::asio::buffer(m_dataframe_write_buffer, sizeof(m_dataframe_write_buffer)),
+                            boost::asio::buffer(m_output_dataframe_buffer, sizeof(m_output_dataframe_buffer)),
                             m_udp_remote_endpoint,
                             boost::bind(&ClientConnection::handle_udp_write_device_data_frame_complete, this, _1));
                     }
@@ -267,6 +273,7 @@ private:
     tcp::socket m_tcp_socket;
     udp::socket &m_udp_socket_ref;
     udp::endpoint m_udp_remote_endpoint;
+    bool m_is_udp_remote_endpoint_bound;
 
     vector<uint8_t> m_request_read_buffer;
     PackedMessage<PSMoveProtocol::Request> m_packed_request;
@@ -274,11 +281,11 @@ private:
     vector<uint8_t> m_response_write_buffer;
     PackedMessage<PSMoveProtocol::Response> m_packed_response;
 
-    uint8_t m_dataframe_write_buffer[HEADER_SIZE+MAX_DATA_FRAME_MESSAGE_SIZE];
-    PackedMessage<PSMoveProtocol::DeviceDataFrame> m_packed_dataframe;
+    uint8_t m_output_dataframe_buffer[HEADER_SIZE+MAX_OUTPUT_DATA_FRAME_MESSAGE_SIZE];
+    PackedMessage<PSMoveProtocol::DeviceOutputDataFrame> m_packed_output_dataframe;
 
     deque<ResponsePtr> m_pending_responses;
-    deque<DeviceDataFramePtr> m_pending_dataframes;
+    deque<DeviceOutputDataFramePtr> m_pending_dataframes;
     
     bool m_connection_started;
     bool m_connection_stopped;
@@ -296,11 +303,12 @@ private:
         , m_tcp_socket(io_service_ref)
         , m_udp_socket_ref(udp_socket_ref)
         , m_udp_remote_endpoint()
+        , m_is_udp_remote_endpoint_bound(false)
         , m_request_read_buffer()
         , m_packed_request(std::shared_ptr<PSMoveProtocol::Request>(new PSMoveProtocol::Request()))
         , m_response_write_buffer()
         , m_packed_response()
-        , m_packed_dataframe()
+        , m_packed_output_dataframe()
         , m_pending_responses()
         , m_pending_dataframes()
         , m_connection_started(false)
@@ -308,7 +316,7 @@ private:
         , m_has_pending_tcp_write(false)
         , m_has_pending_udp_write(false)
     {
-        memset(m_dataframe_write_buffer, 0, sizeof(m_dataframe_write_buffer));
+        memset(m_output_dataframe_buffer, 0, sizeof(m_output_dataframe_buffer));
         next_connection_id++;
     }
 
@@ -506,11 +514,12 @@ public:
         , m_tcp_acceptor(m_io_service, tcp::endpoint(tcp::v4(), port))
         , m_udp_socket(m_io_service, udp::endpoint(udp::v4(), port))
         , m_udp_connecting_remote_endpoint()
-        , m_udp_connection_id_read_buffer(-1)
+        , m_packed_input_dataframe(std::shared_ptr<PSMoveProtocol::DeviceInputDataFrame>(new PSMoveProtocol::DeviceInputDataFrame()))
         , m_udp_connection_result_write_buffer(false)
         , m_has_pending_udp_read(false)
         , m_connections()
     {
+        memset(m_input_dataframe_buffer, 0, sizeof(m_input_dataframe_buffer));
     }
 
     virtual ~ServerNetworkManagerImpl()
@@ -550,7 +559,7 @@ public:
         
         // Asynchronously wait to accept a new udp clients
         // These should always come after a tcp connection is accepted
-        start_udp_receive_connection_id();
+        start_udp_read_input_data_frame();
     }
 
     void poll()
@@ -661,7 +670,7 @@ public:
         }
     }
 
-    void send_device_data_frame(int connection_id, DeviceDataFramePtr data_frame)
+    void send_device_data_frame(int connection_id, DeviceOutputDataFramePtr data_frame)
     {
         t_client_connection_map_iter entry = m_connections.find(connection_id);
 
@@ -714,7 +723,8 @@ private:
     udp::endpoint m_udp_connecting_remote_endpoint;
 
     // A pending udp request from the client
-    int m_udp_connection_id_read_buffer;
+    uint8_t m_input_dataframe_buffer[HEADER_SIZE + MAX_INPUT_DATA_FRAME_MESSAGE_SIZE];
+    PackedMessage<PSMoveProtocol::DeviceInputDataFrame> m_packed_input_dataframe;
 
     // A pending udp result sent to the client
     bool m_udp_connection_result_write_buffer;
@@ -750,65 +760,97 @@ protected:
         start_connection_accept();
     }
 
-    void start_udp_receive_connection_id()
+    void start_udp_read_input_data_frame()
     {
         if (!m_has_pending_udp_read)
         {
-            SERVER_LOG_DEBUG("ServerNetworkManager::start_udp_receive_connection_id") << "waiting for UDP connection id";
+            SERVER_LOG_DEBUG("ServerNetworkManager::start_udp_receive_connection_id") << "waiting for UDP input dataframe";
 
-            m_has_pending_udp_read= true;
+            m_has_pending_udp_read = true;
             m_udp_socket.async_receive_from(
-                boost::asio::buffer(&m_udp_connection_id_read_buffer, sizeof(m_udp_connection_id_read_buffer)),
+                asio::buffer(m_input_dataframe_buffer, sizeof(m_input_dataframe_buffer)),
                 m_udp_connecting_remote_endpoint,
-                boost::bind(&ServerNetworkManagerImpl::handle_udp_read_connection_id, this, boost::asio::placeholders::error));
+                boost::bind(
+                    &ServerNetworkManagerImpl::handle_udp_read_data_frame,
+                    this,
+                    asio::placeholders::error));
         }
     }
 
-    void handle_udp_read_connection_id(const boost::system::error_code& error)
+    void handle_udp_read_data_frame(const boost::system::error_code& error)
     {
         m_has_pending_udp_read= false;
 
         if (!error) 
         {
-            // Find the connection with the matching id
-            t_client_connection_map_iter iter= m_connections.find(m_udp_connection_id_read_buffer);
-
-            if (iter != m_connections.end())
-            {
-                SERVER_LOG_DEBUG("ServerNetworkManager::start_udp_receive_connection_id") 
-                    << "Found UDP client connected with matching connection_id: " << m_udp_connection_id_read_buffer;
-
-                ClientConnectionPtr connection= iter->second;
-
-                // Associate this udp remote endpoint with the given connection id
-                connection->bind_udp_remote_endpoint(m_udp_connecting_remote_endpoint);
-
-                // Tell the client that this was a valid connection id
-                start_udp_send_connection_result(true);
-            }
-            else
-            {
-                SERVER_LOG_ERROR("ServerNetworkManager::handle_udp_read_connection_id") 
-                    << "UDP client connected with INVALID connection_id: " << m_udp_connection_id_read_buffer;
-
-                // Tell the client that this was an invalid connection id
-                start_udp_send_connection_result(false);
-                
-                // Retry:
-                // Asynchronously wait to accept a new udp clients
-                // These should always come after a tcp connection is accepted
-                start_udp_receive_connection_id();
-            }
+            // Parse the incoming data frame
+            handle_udp_data_frame_received();
         }
         else
         {
             SERVER_LOG_ERROR("ServerNetworkManager::handle_udp_read_connection_id") 
                 << "Failed to receive UDP connection id: "<< error.message();
-            
-            // Retry:
-            // Asynchronously wait to accept a new udp clients
-            // These should always come after a tcp connection is accepted
-            start_udp_receive_connection_id();
+        }
+
+        // Start reading the next incoming data frame
+        start_udp_read_input_data_frame();
+    }
+
+    // Called when enough data was read into m_data_frame_read_buffer for a complete data frame message. 
+    // Parse the data_frame and forward it on to the response handler.
+    void handle_udp_data_frame_received()
+    {
+        // No longer is there a pending read
+        m_has_pending_udp_read = false;
+
+        SERVER_LOG_DEBUG("ClientNetworkManager::handle_udp_data_frame_received") << "Parsing DataFrame" << std::endl;
+
+        // TODO: Switch on data frame type to choose which m_packed_data_frame_X to use.
+        unsigned msg_len = m_packed_input_dataframe.decode_header(m_input_dataframe_buffer, sizeof(m_input_dataframe_buffer));
+        unsigned total_len = HEADER_SIZE + msg_len;
+        SERVER_LOG_DEBUG("    ") << show_hex(m_input_dataframe_buffer, total_len) << std::endl;
+        SERVER_LOG_DEBUG("    ") << msg_len << " bytes" << std::endl;
+
+        // Parse the response buffer
+        if (m_packed_input_dataframe.unpack(m_input_dataframe_buffer, total_len))
+        {
+            DeviceInputDataFramePtr data_frame = m_packed_input_dataframe.get_msg();
+
+            // Find the connection with the matching id
+            t_client_connection_map_iter iter = m_connections.find(data_frame->connection_id());
+
+            if (iter != m_connections.end())
+            {
+                SERVER_LOG_DEBUG("ServerNetworkManager::handle_udp_data_frame_received")
+                    << "Found UDP client connected with matching connection_id: " << data_frame->connection_id();
+
+                ClientConnectionPtr connection = iter->second;
+
+                // Bind the udp endpoint if this is the first UDP packet received from the client
+                if (!connection->is_udp_remote_endpoint_bound())
+                {
+                    // Associate this udp remote endpoint with the given connection id
+                    connection->bind_udp_remote_endpoint(m_udp_connecting_remote_endpoint);
+
+                    // Tell the client that this was a valid connection id
+                    start_udp_send_connection_result(true);
+                }
+
+                // Process the incoming data frame
+                m_request_handler_ref.handle_input_data_frame(data_frame);
+            }
+            else 
+            {
+                SERVER_LOG_ERROR("ServerNetworkManager::handle_udp_data_frame_received")
+                    << "UDP client connected with INVALID connection_id: " << data_frame->connection_id();
+
+                if (data_frame->device_category() == PSMoveProtocol::DeviceInputDataFrame_DeviceCategory_INVALID)
+                {
+                    // If the device category was invalid, then this must have been an initial dataframe sent at device connection
+                    // Tell the client that this was an invalid connection id
+                    start_udp_send_connection_result(false);
+                }
+            }
         }
     }
 
@@ -833,7 +875,7 @@ protected:
         }
 
         // Start waiting for the next connection result
-        start_udp_receive_connection_id();
+        start_udp_read_input_data_frame();
     }
 
     void start_udp_queued_data_frame_write()
@@ -938,7 +980,7 @@ void ServerNetworkManager::send_notification_to_all_clients(ResponsePtr response
     implementation_ptr->send_notification_to_all_clients(response);
 }
 
-void ServerNetworkManager::send_device_data_frame(int connection_id, DeviceDataFramePtr data_frame)
+void ServerNetworkManager::send_device_data_frame(int connection_id, DeviceOutputDataFramePtr data_frame)
 {
     implementation_ptr->send_device_data_frame(connection_id, data_frame);
 }

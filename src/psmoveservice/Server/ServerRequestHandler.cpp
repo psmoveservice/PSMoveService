@@ -176,9 +176,6 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__stop_controller_data_stream(context, response);
                 break;
-            case PSMoveProtocol::Request_RequestType_SET_RUMBLE:
-                handle_request__set_rumble(context);
-                break;
             case PSMoveProtocol::Request_RequestType_RESET_POSE:
                 response = new PSMoveProtocol::Response;
                 handle_request__reset_pose(context, response);
@@ -194,9 +191,6 @@ public:
             case PSMoveProtocol::Request_RequestType_CANCEL_BLUETOOTH_REQUEST:
                 response = new PSMoveProtocol::Response;
                 handle_request__cancel_bluetooth_request(context, response);
-                break;
-            case PSMoveProtocol::Request_RequestType_SET_LED_COLOR:
-                handle_request__set_led_color(context);
                 break;
             case PSMoveProtocol::Request_RequestType_SET_LED_TRACKING_COLOR:
                 response = new PSMoveProtocol::Response;
@@ -283,6 +277,20 @@ public:
         return ResponsePtr(response);
     }
 
+    void handle_input_data_frame(DeviceInputDataFramePtr data_frame)
+    {
+        // The context holds everything a handler needs to evaluate a request
+        RequestConnectionStatePtr connection_state = FindOrCreateConnectionState(data_frame->connection_id());
+
+        switch (data_frame->device_category())
+        {
+        case PSMoveProtocol::DeviceInputDataFrame::DeviceCategory::DeviceInputDataFrame_DeviceCategory_CONTROLLER:
+            {
+                handle_data_frame__controller_packet(connection_state, data_frame);
+            } break;
+        }
+    }
+
     void handle_client_connection_stopped(int connection_id)
     {
         t_connection_state_iter iter= m_connection_state_map.find(connection_id);
@@ -358,7 +366,7 @@ public:
                     connection_state->active_controller_stream_info[controller_id];
 
                 // Fill out a data frame specific to this stream using the given callback
-                DeviceDataFramePtr data_frame(new PSMoveProtocol::DeviceDataFrame);
+                DeviceOutputDataFramePtr data_frame(new PSMoveProtocol::DeviceOutputDataFrame);
                 callback(controller_view, &streamInfo, data_frame);
 
                 // Send the controller data frame over the network
@@ -385,7 +393,7 @@ public:
                     connection_state->active_tracker_stream_info[tracker_id];
 
                 // Fill out a data frame specific to this stream using the given callback
-                DeviceDataFramePtr data_frame(new PSMoveProtocol::DeviceDataFrame);
+                DeviceOutputDataFramePtr data_frame(new PSMoveProtocol::DeviceOutputDataFrame);
                 callback(tracker_view, &streamInfo, data_frame);
 
                 // Send the tracker data frame over the network
@@ -539,6 +547,11 @@ protected:
                     controller_view->stopTracking();
                 }
 
+                if (streamInfo.led_override_active)
+                {
+                    controller_view->clearLEDOverride();
+                }
+
                 context.connection_state->active_controller_streams.set(controller_id, false);
                 context.connection_state->active_controller_stream_info[controller_id].Clear();
 
@@ -553,17 +566,6 @@ protected:
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
-    }
-
-    void handle_request__set_rumble(
-        const RequestContext &context)
-    {
-        const int controller_id= context.request->request_rumble().controller_id();
-        const float rumble_amount= context.request->request_rumble().rumble();
-        const CommonControllerState::RumbleChannel rumble_channel = 
-            static_cast<CommonControllerState::RumbleChannel>(context.request->request_rumble().channel());
-
-        m_device_manager.m_controller_manager->setControllerRumble(controller_id, rumble_amount, rumble_channel);
     }
 
     void handle_request__reset_pose(
@@ -695,42 +697,6 @@ protected:
             SERVER_LOG_ERROR("ServerRequestHandler") << "No active bluetooth operation active";
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-        }
-    }
-
-    void handle_request__set_led_color(
-        const RequestContext &context)
-    {
-        const int connection_id= context.connection_state->connection_id;
-        const int controller_id= context.request->set_led_color_request().controller_id();
-        const unsigned char r= ServerUtility::int32_to_int8_verify(context.request->set_led_color_request().r());
-        const unsigned char g= ServerUtility::int32_to_int8_verify(context.request->set_led_color_request().g());
-        const unsigned char b= ServerUtility::int32_to_int8_verify(context.request->set_led_color_request().b());
-
-        ServerControllerViewPtr ControllerView= m_device_manager.getControllerViewPtr(controller_id);
-
-        if (ControllerView && 
-            (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove || 
-             ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4))
-        {
-            // (0,0,0) is treated as clearing the override
-            if (r == 0 && g == 0 && b == 0)
-            {
-                if (ControllerView->getIsLEDOverrideActive())
-                {
-                    // Removes the over led color and restores the tracking color
-                    // of the controller is currently being tracked
-                    ControllerView->clearLEDOverride();
-
-                }
-            }
-            // Otherwise we are setting the override to a new color
-            else
-            {
-                // Sets the bulb LED color to some new override color
-                // If tracking was active this likely will affect controller tracking
-                ControllerView->setLEDOverride(r, g, b);
-            }
         }
     }
 
@@ -1428,6 +1394,114 @@ protected:
         response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
     }
 
+    // -- Data Frame Updates -----
+    void handle_data_frame__controller_packet(
+        RequestConnectionStatePtr connection_state,
+        DeviceInputDataFramePtr data_frame)
+    {
+        const auto &controllerDataPacket = data_frame->controller_data_packet();
+        const int controller_id = controllerDataPacket.controller_id();
+
+        if (ServerUtility::is_index_valid(controller_id, m_device_manager.getControllerViewMaxCount()))
+        {
+            ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
+            ControllerStreamInfo &streamInfo = connection_state->active_controller_stream_info[controller_id];
+
+            // Don't consider this data frame if the controller is USB connected
+            // or if the sequence number is old
+            if (controller_view->getIsBluetooth() && 
+                controllerDataPacket.sequence_num() > streamInfo.last_data_input_sequence_number)
+            {
+                // Remember the last sequence number we received from this connection
+                streamInfo.last_data_input_sequence_number = controllerDataPacket.sequence_num();
+
+                switch (controller_view->getControllerDeviceType())
+                {
+                case CommonDeviceState::eDeviceType::PSMove:
+                    {
+                        const auto &psmove_state= controllerDataPacket.psmove_state();
+
+                        // Update the rumble
+                        const float rumbleValue= static_cast<float>(psmove_state.rumble_value()) / 255.f;
+                        controller_view->setControllerRumble(rumbleValue, CommonControllerState::ChannelAll);
+
+                        // Update the override led color
+                        {
+                            unsigned char r = static_cast<unsigned char>(psmove_state.led_r());
+                            unsigned char g = static_cast<unsigned char>(psmove_state.led_g());
+                            unsigned char b = static_cast<unsigned char>(psmove_state.led_b());
+
+                            // (0,0,0) is treated as clearing the override
+                            if (r == 0 && g == 0 && b == 0)
+                            {
+                                if (controller_view->getIsLEDOverrideActive())
+                                {
+                                    // Removes the over led color and restores the tracking color
+                                    // of the controller is currently being tracked
+                                    controller_view->clearLEDOverride();
+                                }
+                            }
+                            // Otherwise we are setting the override to a new color
+                            else
+                            {
+                                // Sets the bulb LED color to some new override color
+                                // If tracking was active this likely will affect controller tracking
+                                controller_view->setLEDOverride(r, g, b);
+                            }
+
+                            // Flag if the LED override is active
+                            // If the stream closes and this flag is active we'll need to clear the led override
+                            streamInfo.led_override_active= controller_view->getIsLEDOverrideActive();
+                        }
+                    } break;
+                case CommonDeviceState::eDeviceType::PSNavi:
+                    {
+                        // Nothing to update...
+                    } break;
+                case CommonDeviceState::eDeviceType::PSDualShock4:
+                    {
+                        const auto &psmove_state= controllerDataPacket.psdualshock4_state();
+
+                        // Update the rumble
+                        const float bigRumbleValue= static_cast<float>(psmove_state.big_rumble_value()) / 255.f;
+                        const float smallRumbleValue= static_cast<float>(psmove_state.small_rumble_value()) / 255.f;
+                        controller_view->setControllerRumble(bigRumbleValue, CommonControllerState::ChannelLeft);
+                        controller_view->setControllerRumble(smallRumbleValue, CommonControllerState::ChannelRight);
+
+                        // Update the override led color
+                        {
+                            unsigned char r = static_cast<unsigned char>(psmove_state.led_r());
+                            unsigned char g = static_cast<unsigned char>(psmove_state.led_g());
+                            unsigned char b = static_cast<unsigned char>(psmove_state.led_b());
+
+                            // (0,0,0) is treated as clearing the override
+                            if (r == 0 && g == 0 && b == 0)
+                            {
+                                if (controller_view->getIsLEDOverrideActive())
+                                {
+                                    // Removes the over led color and restores the tracking color
+                                    // of the controller is currently being tracked
+                                    controller_view->clearLEDOverride();
+                                }
+                            }
+                            // Otherwise we are setting the override to a new color
+                            else
+                            {
+                                // Sets the bulb LED color to some new override color
+                                // If tracking was active this likely will affect controller tracking
+                                controller_view->setLEDOverride(r, g, b);
+                            }
+
+                            // Flag if the LED override is active
+                            // If the stream closes and this flag is active we'll need to clear the led override
+                            streamInfo.led_override_active= controller_view->getIsLEDOverrideActive();
+                        }
+                    } break;
+                }
+            }
+        }
+    }
+
 private:
     DeviceManager &m_device_manager;
     t_connection_state_map m_connection_state_map;
@@ -1476,6 +1550,11 @@ void ServerRequestHandler::shutdown()
 ResponsePtr ServerRequestHandler::handle_request(int connection_id, RequestPtr request)
 {
     return m_implementation_ptr->handle_request(connection_id, request);
+}
+
+void ServerRequestHandler::handle_input_data_frame(DeviceInputDataFramePtr data_frame)
+{
+    return m_implementation_ptr->handle_input_data_frame(data_frame);
 }
 
 void ServerRequestHandler::handle_client_connection_stopped(int connection_id)

@@ -27,14 +27,13 @@ goto write_set_drivers_script
 echo "Found SteamVR Runtime Dir: %STEAMVR_RUNTIME_DIR%"
 
 :: Write out the paths to a config batch file
-del SteamVR_SetDriverVars.bat
-echo @echo off >> SteamVR_SetDriverVars.bat
-echo set PLATFORM=win32>> SteamVR_SetDriverVars.bat
-echo set INSTALL_DIR=%STEAMVR_RUNTIME_DIR%\drivers\psmove>> SteamVR_SetDriverVars.bat
-echo set STEAMVR_RUNTIME_DIR=%STEAMVR_RUNTIME_DIR%>> SteamVR_SetDriverVars.bat
+del SteamVR_SetDriverVarsWin32.bat
+echo @echo off >> SteamVR_SetDriverVarsWin32.bat
+echo set INSTALL_DIR=%STEAMVR_RUNTIME_DIR%\drivers\psmove>> SteamVR_SetDriverVarsWin32.bat
+echo set STEAMVR_RUNTIME_DIR=%STEAMVR_RUNTIME_DIR%>> SteamVR_SetDriverVarsWin32.bat
 
 :: Copy over the openvr drivers
-call SteamVR_ReinstallDriver.bat
+call SteamVR_ReinstallDriverWin32.bat
 pause
 goto exit
 

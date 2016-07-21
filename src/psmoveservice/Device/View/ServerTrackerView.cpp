@@ -521,9 +521,9 @@ void ServerTrackerView::publish_device_data_frame()
 void ServerTrackerView::generate_tracker_data_frame_for_stream(
     const ServerTrackerView *tracker_view,
     const struct TrackerStreamInfo *stream_info,
-    DeviceDataFramePtr &data_frame)
+    DeviceOutputDataFramePtr &data_frame)
 {
-    PSMoveProtocol::DeviceDataFrame_TrackerDataPacket *tracker_data_frame =
+    PSMoveProtocol::DeviceOutputDataFrame_TrackerDataPacket *tracker_data_frame =
         data_frame->mutable_tracker_data_packet();
 
     tracker_data_frame->set_tracker_id(tracker_view->getDeviceID());
@@ -544,7 +544,7 @@ void ServerTrackerView::generate_tracker_data_frame_for_stream(
         assert(0 && "Unhandled Tracker type");
     }
 
-    data_frame->set_device_category(PSMoveProtocol::DeviceDataFrame::TRACKER);
+    data_frame->set_device_category(PSMoveProtocol::DeviceOutputDataFrame::TRACKER);
 }
 
 double ServerTrackerView::getExposure() const

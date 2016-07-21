@@ -133,7 +133,7 @@ void AppStage_AccelerometerCalibration::update()
 {
     bool bControllerDataUpdatedThisFrame = false;
 
-    if (m_isControllerStreamActive && m_controllerView->GetSequenceNum() != m_lastControllerSeqNum)
+    if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
     {
         const PSDualShock4RawSensorData &rawSensorData =
             m_controllerView->GetPSDualShock4View().GetRawSensorData();
@@ -142,7 +142,7 @@ void AppStage_AccelerometerCalibration::update()
 
         m_lastRawAccelerometer = rawSensorData.Accelerometer;
         m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
-        m_lastControllerSeqNum = m_controllerView->GetSequenceNum();
+        m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
         bControllerDataUpdatedThisFrame = true;
     }
 
@@ -499,7 +499,7 @@ void AppStage_AccelerometerCalibration::renderUI()
 
             if (ImGui::Button("Ok"))
             {
-                ClientPSMoveAPI::set_led_color(m_controllerView, 0, 0, 0);
+                m_controllerView->GetPSDualShock4ViewMutable().SetLEDOverride(0, 0, 0);
 
                 if (m_currentPoseID >= eMeasurementPose::leanBackward)
                 {

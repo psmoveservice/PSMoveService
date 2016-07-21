@@ -138,9 +138,13 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS ${PROTOBUF_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${PROTOBUF_LIBRARIES})
 
 # Boost. TODO: Trim this list.
-find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS atomic chrono date_time filesystem log log_setup program_options regex system thread)
+find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${Boost_LIBRARIES})
+IF(MSVC) # Disable asio auto linking in date-time and regex
+add_definitions(-DBOOST_DATE_TIME_NO_LIB)
+add_definitions(-DBOOST_REGEX_NO_LIB)
+ENDIF()
 
 # hidapi
 include_directories(${ROOT_DIR}/thirdparty/hidapi/hidapi)
@@ -241,13 +245,15 @@ ENDIF()
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-install(TARGETS PSMoveService
-	RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
-	LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
-	ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
-install(DIRECTORY "${ROOT_DIR}/thirdparty/CLEYE/x86/bin/"
-    DESTINATION ${ROOT_DIR}/win32/bin
-    FILES_MATCHING PATTERN "*.dll")    
+    install(TARGETS PSMoveService
+        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+    IF(${ISWIN32})
+        install(DIRECTORY "${ROOT_DIR}/thirdparty/CLEYE/x86/bin/"
+            DESTINATION ${ROOT_DIR}/win32/bin
+            FILES_MATCHING PATTERN "*.dll")    
+    ENDIF()#ISWIN32
 ELSE() #Linux/Darwin
 ENDIF()
 

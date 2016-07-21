@@ -19,7 +19,12 @@ list(APPEND PSMOVECONFIGTOOL_REQ_LIBS
     PSMoveMath
     PSMoveProtocol
     ${PROTOBUF_LIBRARIES})
-   
+
+IF(MSVC) # Disable asio auto linking in date-time and regex
+add_definitions(-DBOOST_DATE_TIME_NO_LIB)
+add_definitions(-DBOOST_REGEX_NO_LIB)
+ENDIF()
+    
 # platform specific libraries/include paths (OpenGL/SDL)    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     find_library(OPENGL_FRAMEWORK OpenGL)
@@ -84,16 +89,16 @@ add_custom_command(TARGET PSMoveConfigTool POST_BUILD
         $<TARGET_FILE_DIR:PSMoveConfigTool>)        
 
 # Install    
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-install(TARGETS PSMoveConfigTool
-    RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
-    LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
-    ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
-install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/assets/ 
-        DESTINATION ${ROOT_DIR}/win32/bin/assets
-        FILES_MATCHING PATTERN "*.ttf"  PATTERN "*.jpg")
-install(DIRECTORY ${OPENVR_BINARIES_DIR}/ 
-        DESTINATION ${ROOT_DIR}/win32/bin
-        FILES_MATCHING PATTERN "*.dll" PATTERN "*.pdb")        
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")   
+    install(TARGETS PSMoveConfigTool
+        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+    install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/assets/ 
+            DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin/assets
+            FILES_MATCHING PATTERN "*.ttf"  PATTERN "*.jpg")
+    install(DIRECTORY ${OPENVR_BINARIES_DIR}/ 
+            DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+            FILES_MATCHING PATTERN "*.dll" PATTERN "*.pdb")        
 ELSE() #Linux/Darwin
 ENDIF()

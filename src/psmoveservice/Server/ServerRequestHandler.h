@@ -19,6 +19,8 @@ struct ControllerStreamInfo
     bool include_raw_sensor_data;
     bool include_calibrated_sensor_data;
     bool include_raw_tracker_data;
+    bool led_override_active;
+    int last_data_input_sequence_number;
 
     inline void Clear()
     {
@@ -27,6 +29,8 @@ struct ControllerStreamInfo
         include_raw_sensor_data = false;
         include_calibrated_sensor_data= false;
         include_raw_tracker_data = false;
+        led_override_active = false;
+        last_data_input_sequence_number = -1;
     }
 };
 
@@ -55,6 +59,7 @@ public:
     void shutdown();
 
     ResponsePtr handle_request(int connection_id, RequestPtr request);
+    void handle_input_data_frame(DeviceInputDataFramePtr data_frame);
     void handle_client_connection_stopped(int connection_id);
 
     /// When publishing controller data to all listening connections
@@ -65,7 +70,7 @@ public:
     typedef void (*t_generate_controller_data_frame_for_stream)(
             const class ServerControllerView *controller_view,
             const ControllerStreamInfo *stream_info,
-            DeviceDataFramePtr &data_frame);
+            DeviceOutputDataFramePtr &data_frame);
     void publish_controller_data_frame(
         class ServerControllerView *controller_view, t_generate_controller_data_frame_for_stream callback);
 
@@ -77,7 +82,7 @@ public:
     typedef void(*t_generate_tracker_data_frame_for_stream)(
         const class ServerTrackerView *tracker_view,
         const TrackerStreamInfo *stream_info,
-        DeviceDataFramePtr &data_frame);
+        DeviceOutputDataFramePtr &data_frame);
     void publish_tracker_data_frame(
         class ServerTrackerView *tracker_view, t_generate_tracker_data_frame_for_stream callback);
 

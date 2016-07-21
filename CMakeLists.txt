@@ -4,9 +4,29 @@ project(PSMoveService VERSION 0.0.1)
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 IF (NOT MSVC)
     set(CMAKE_CXX_FLAGS "-std=c++11 -stdlib=libc++")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch")
 ENDIF()
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+# Shared architecture label used for install folder locations
+if (${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8)
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+        set(ARCH_LABEL "Win64")
+    elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(ARCH_LABEL "OSX64")
+    else()
+        set(ARCH_LABEL "Linux64")
+    endif()
+else()
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+        set(ARCH_LABEL "Win32")
+    elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(ARCH_LABEL "OSX32")
+    else()
+        set(ARCH_LABEL "Linux32")
+    endif()
+endif()
 
 # When not using MSVC, we recommend using system-wide libraries
 # (installed via homebrew on Mac or apt-get in Linux/Ubuntu)
@@ -18,7 +38,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 IF(NOT OpenCV_DIR)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     # Default location of pre-compiled OpenCV for Windows
-    set(OpenCV_DIR "C:/OpenCV-3.0.0/build")# CACHE PATH "Path to OpenCV" FORCE)
+    set(OpenCV_DIR "C:/OpenCV-3.1.0/build")# CACHE PATH "Path to OpenCV" FORCE)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # Location of homebrew opencv3
     # Alternatively, can do `brew ln opencv3 --force`
@@ -30,10 +50,10 @@ ENDIF(NOT OpenCV_DIR)
 # Boost & Protobuf
 IF(MSVC)
     # Default location of pre-compiled Boost for Windows
-    # Override by adding "-DBOOST_ROOT=C:\path\to\boost\ -DBOOST_LIBRARYDIR=C:\path\to\boost\lib32-msvc-12.0\" to your cmake command
+    # Override by adding "-DBOOST_ROOT=C:\path\to\boost\ -DBOOST_LIBRARYDIR=C:\path\to\boost\lib32-msvc-14.0\" to your cmake command
     IF (NOT BOOST_ROOT)
-        SET(BOOST_ROOT "C:/boost_1_59_0/")
-        SET(BOOST_LIBRARYDIR "C:/boost_1_59_0/lib32-msvc-12.0/")
+        SET(BOOST_ROOT "C:/boost_1_61_0/")
+        SET(BOOST_LIBRARYDIR "C:/boost_1_61_0/lib32-msvc-14.0/")
     ENDIF()
     
     # Default location of protobuf for Windows

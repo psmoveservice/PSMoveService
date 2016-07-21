@@ -10,8 +10,10 @@
 //-- pre-declarations -----
 namespace PSMoveProtocol
 {
-    class DeviceDataFrame;
-    class DeviceDataFrame_ControllerDataPacket;
+    class DeviceOutputDataFrame;
+    class DeviceOutputDataFrame_ControllerDataPacket;
+    class DeviceInputDataFrame;
+    class DeviceInputDataFrame_ControllerDataPacket;
 };
 
 //-- constants -----
@@ -157,6 +159,7 @@ private:
     bool bHasValidHardwareCalibration;
     bool bIsTrackingEnabled;
     bool bIsCurrentlyTracking;
+    bool bHasUnpublishedState;
 
     PSMovePose Pose;
     PSMovePhysicsData PhysicsData;
@@ -176,12 +179,16 @@ private:
 
     unsigned char TriggerValue;
 
-//    unsigned char CurrentRumble;
-//    unsigned char RumbleRequest;
+    unsigned char Rumble;
+    unsigned char LED_r, LED_g, LED_b;
 
 public:
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame);
+    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
+    void Publish(PSMoveProtocol::DeviceInputDataFrame_ControllerDataPacket *data_frame);
+
+    void SetRumble(float rumbleFraction);
+    void SetLEDOverride(unsigned char red, unsigned char g, unsigned char b);
 
     inline bool IsValid() const
     {
@@ -206,6 +213,11 @@ public:
     inline bool GetIsTrackingEnabled() const
     {
         return IsValid() ? bIsTrackingEnabled : false;
+    }
+
+    inline bool GetHasUnpublishedState() const
+    {
+        return IsValid() ? bHasUnpublishedState : false;
     }
 
     inline const PSMovePose &GetPose() const
@@ -273,6 +285,11 @@ public:
         return IsValid() ? ((float)TriggerValue / 255.f) : 0.f;
     }
 
+    inline float GetRumble() const
+    {
+        return IsValid() ? static_cast<float>(Rumble) / 255.f : 0.f;
+    }
+
     const PSMovePhysicsData &GetPhysicsData() const;
     const PSMoveRawSensorData &GetRawSensorData() const;
     const PSMoveCalibratedSensorData &GetCalibratedSensorData() const;
@@ -305,11 +322,17 @@ private:
 
 public:
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame);
+    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
+    void Publish(PSMoveProtocol::DeviceInputDataFrame_ControllerDataPacket *data_frame);
 
     inline bool IsValid() const
     {
         return bValid;
+    }
+
+    inline bool GetHasUnpublishedState() const
+    {
+        return false;
     }
 
     inline PSMoveButtonState GetButtonL1() const
@@ -432,6 +455,7 @@ private:
     bool bHasValidHardwareCalibration;
     bool bIsTrackingEnabled;
     bool bIsCurrentlyTracking;
+    bool bHasUnpublishedState;
 
     PSMovePose Pose;
     PSMovePhysicsData PhysicsData;
@@ -469,9 +493,17 @@ private:
     float LeftTriggerValue;
     float RightTriggerValue;
 
+    unsigned char BigRumble, SmallRumble;
+    unsigned char LED_r, LED_g, LED_b;
+
 public:
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame);
+    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
+    void Publish(PSMoveProtocol::DeviceInputDataFrame_ControllerDataPacket *data_frame);
+
+    void SetBigRumble(float rumbleFraction);
+    void SetSmallRumble(float rumbleFraction);
+    void SetLEDOverride(unsigned char red, unsigned char g, unsigned char b);
 
     inline bool IsValid() const
     {
@@ -496,6 +528,11 @@ public:
     inline bool GetIsTrackingEnabled() const
     {
         return IsValid() ? bIsTrackingEnabled : false;
+    }
+
+    inline bool GetHasUnpublishedState() const
+    {
+        return IsValid() ? bHasUnpublishedState : false;
     }
 
     inline const PSMovePose &GetPose() const
@@ -633,6 +670,16 @@ public:
         return IsValid() ? LeftTriggerValue : 0.f;
     }
 
+    inline float GetBigRumble() const
+    {
+        return IsValid() ? static_cast<float>(BigRumble) / 255.f : 0.f;
+    }
+
+    inline float GetSmallRumble() const
+    {
+        return IsValid() ? static_cast<float>(SmallRumble) / 255.f : 0.f;
+    }
+
     const PSMovePhysicsData &GetPhysicsData() const;
     const PSDualShock4RawSensorData &GetRawSensorData() const;
     const PSDualShock4CalibratedSensorData &GetCalibratedSensorData() const;
@@ -662,7 +709,8 @@ private:
     eControllerType ControllerViewType;
 
     int ControllerID;
-    int SequenceNum;
+    int OutputSequenceNum;
+    int InputSequenceNum;
     int ListenerCount;
 
     bool IsConnected;
@@ -674,7 +722,8 @@ public:
     ClientControllerView(int ControllerID);
 
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceDataFrame_ControllerDataPacket *data_frame);
+    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
+    void Publish();
 
     // Listener State
     inline void IncListenerCount()
@@ -699,10 +748,17 @@ public:
         return ControllerID;
     }
 
-    inline int GetSequenceNum() const
+    inline int GetOutputSequenceNum() const
     {
-        return IsValid() ? SequenceNum : -1;
+        return IsValid() ? OutputSequenceNum : -1;
     }
+
+    inline int GetInputSequenceNum() const
+    {
+        return IsValid() ? InputSequenceNum : -1;
+    }
+
+    bool GetHasUnpublishedState() const;
 
     inline eControllerType GetControllerViewType() const
     {
@@ -715,6 +771,12 @@ public:
         return ViewState.PSMoveView;
     }
 
+    inline ClientPSMoveView &GetPSMoveViewMutable()
+    {
+        assert(ControllerViewType == PSMove);
+        return ViewState.PSMoveView;
+    }
+
     inline const ClientPSNaviView &GetPSNaviView() const
     {
         assert(ControllerViewType == PSNavi);
@@ -722,6 +784,12 @@ public:
     }
 
     inline const ClientPSDualShock4View &GetPSDualShock4View() const
+    {
+        assert(ControllerViewType == PSDualShock4);
+        return ViewState.PSDualShock4View;
+    }
+
+    inline ClientPSDualShock4View &GetPSDualShock4ViewMutable()
     {
         assert(ControllerViewType == PSDualShock4);
         return ViewState.PSDualShock4View;
@@ -745,6 +813,8 @@ public:
 
     bool GetIsCurrentlyTracking() const;
     bool GetIsStableAndAlignedWithGravity() const;
+
+    void SetLEDOverride(unsigned char r, unsigned char g, unsigned char b);
     
     // Statistics
     inline float GetDataFrameFPS() const

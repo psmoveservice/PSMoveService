@@ -90,7 +90,7 @@ protected:
     void publish_device_data_frame() override;
     static void generate_tracker_data_frame_for_stream(
         const ServerTrackerView *tracker_view, const struct TrackerStreamInfo *stream_info,
-        DeviceDataFramePtr &data_frame);
+        DeviceOutputDataFramePtr &data_frame);
 
 private:
     char m_shared_memory_name[256];

@@ -264,7 +264,7 @@ class PSEYECaptureCAM_PS3EYE : public cv::IVideoCapture
 public:
     PSEYECaptureCAM_PS3EYE(int _index)
     : m_index(-1), m_width(-1), m_height(-1), m_widthStep(-1),
-    m_size(-1), m_MatYUV(0, 0, CV_8UC2)
+    m_size(-1), m_MatBayer(0, 0, CV_8UC1)
     {
         //CoInitialize(NULL);
         open(_index);
@@ -353,16 +353,10 @@ public:
 
     bool retrieveFrame(int outputType, cv::OutputArray outArray)
     {
-        uint8_t *new_pixels = eye->getFrame();
+        eye->getFrame(m_MatBayer.data);
 
-        if (new_pixels != NULL)
-        {
-            std::memcpy(m_MatYUV.data, new_pixels, m_MatYUV.total() * m_MatYUV.elemSize() * sizeof(uchar));
-            cv::cvtColor(m_MatYUV, outArray, CV_YUV2BGR_YUY2);
-            free(new_pixels);
-            return true;
-        }
-        return false;
+        cv::cvtColor(m_MatBayer, outArray, CV_BayerGB2BGR);
+        return true;
     }
 
     int getCaptureDomain() {
@@ -403,7 +397,7 @@ protected:
             
             eye = devices[_index];
             
-            if (eye && eye->init(640, 480, 60))
+            if (eye && eye->init(640, 480, 60, ps3eye::PS3EYECam::EOutputFormat::Bayer))
             {
                 // Change any default settings here
                 
@@ -430,15 +424,15 @@ protected:
     void refreshDimensions()
     {
         m_width = eye->getWidth();
-        m_widthStep = eye->getRowBytes(); // just width * 2.
+        m_widthStep = eye->getRowBytes(); // just width * 1 byte per pixel.
         m_height = eye->getHeight();
         m_size = m_widthStep * m_height;
-        m_MatYUV.create(cv::Size(m_width, m_height), CV_8UC2);
+        m_MatBayer.create(cv::Size(m_width, m_height), CV_8UC1);
     }
 
     int m_index, m_width, m_height, m_widthStep;
     size_t m_size;
-    cv::Mat m_MatYUV;
+    cv::Mat m_MatBayer;
     ps3eye::PS3EYECam::PS3EYERef eye;
 };
 
@@ -494,14 +488,27 @@ bool PSEyeVideoCapture::open(int index)
     {
         m_index = index;
         std::cout << "CL Eye Driver being used with native DShow. Setting m_index to " << m_index << std::endl;
+
+        if (!isOpened())
+        {
+            std::cout << "Attempting cv::VideoCapture::open(index) for CLEye DShow camera." << std::endl;
+            return cv::VideoCapture::open(index);
+        }
     }
 
 	// PS3EYE-specific camera capture if available, else use base class open()
-    if (!isOpened())
-    {
-        std::cout << "Attempting cv::VideoCapture::open(index)" << std::endl;
-        return cv::VideoCapture::open(index);
-    }
+
+    //###HipsterSloth $TODO
+    // Disabling the OpenCV camera open fallback.
+    // We don't officially support anything but the PS3Eye camera at the moment
+    // and it's currently confusing debugging other peoples camera issues with 
+    // this code path in place (random web cams getting opened)
+    //if (!isOpened())
+    //{
+    //    std::cout << "Attempting cv::VideoCapture::open(index)" << std::endl;
+    //    return cv::VideoCapture::open(index);
+    //}
+
     return isOpened();
 }
 
