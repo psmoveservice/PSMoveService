@@ -148,53 +148,67 @@ private:
 class OpenCVBufferState
 {
 public:
-    OpenCVBufferState(int width, int height)
-        : frameWidth(width)
-        , frameHeight(height)
-        , bgrBuffer(nullptr)
+    OpenCVBufferState(ITrackerInterface *device)
+        : bgrBuffer(nullptr)
         , hsvBuffer(nullptr)
         , gsLowerBuffer(nullptr)
         , gsUpperBuffer(nullptr)
         , maskedBuffer(nullptr)
     {
-        bgrBuffer = new cv::Mat(height, width, CV_8UC3);
-        hsvBuffer = new cv::Mat(height, width, CV_8UC3);
-        gsLowerBuffer = new cv::Mat(height, width, CV_8UC1);
-        gsUpperBuffer = new cv::Mat(height, width, CV_8UC1);
-        maskedBuffer = new cv::Mat(height, width, CV_8UC3);
+        device->getVideoFrameDimensions(&frameWidth, &frameHeight, nullptr);
+
+        bgrBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+        hsvBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+        gsLowerBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
+        gsUpperBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
+        maskedBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+
+        intrinsic_matrix = new cv::Mat(3, 3, CV_64FC1);
+        distortion_coeffs = new cv::Mat(5, 1, CV_64FC1);
+
+        {
+            float F_PX, F_PY;
+            float PrincipalX, PrincipalY;
+            float distortionK1, distortionK2, distortionK3;
+            float distortionP1, distortionP2;
+
+            device->getCameraIntrinsics(
+                F_PX, F_PY, 
+                PrincipalX, PrincipalY,
+                distortionK1, distortionK2, distortionK3,
+                distortionP1, distortionP2);
+
+            // Fill in the intrinsic matrix
+            intrinsic_matrix->at<double>(0, 0)= F_PX;
+            intrinsic_matrix->at<double>(1, 0)= 0.0;
+            intrinsic_matrix->at<double>(2, 0)= 0.0;
+
+            intrinsic_matrix->at<double>(0, 1)= 0.0;
+            intrinsic_matrix->at<double>(1, 1)= F_PY;
+            intrinsic_matrix->at<double>(2, 1)= 0.0;
+
+            intrinsic_matrix->at<double>(0, 2)= PrincipalX;
+            intrinsic_matrix->at<double>(1, 2)= PrincipalY;
+            intrinsic_matrix->at<double>(2, 2)= 1.0;
+
+            // Fill in the distortion coefficients
+            distortion_coeffs->at<double>(0, 0)= distortionK1; 
+            distortion_coeffs->at<double>(1, 0)= distortionK2;
+            distortion_coeffs->at<double>(2, 0)= distortionP1;
+            distortion_coeffs->at<double>(3, 0)= distortionP2;
+            distortion_coeffs->at<double>(4, 0)= distortionK3;
+        }
     }
 
     virtual ~OpenCVBufferState()
     {
-        if (maskedBuffer != nullptr)
-        {
-            delete maskedBuffer;
-            maskedBuffer = nullptr;
-        }
-
-        if (gsLowerBuffer != nullptr)
-        {
-            delete gsLowerBuffer;
-            gsLowerBuffer = nullptr;
-        }
-
-        if (gsUpperBuffer != nullptr)
-        {
-            delete gsUpperBuffer;
-            gsUpperBuffer = nullptr;
-        }
-
-        if (hsvBuffer != nullptr)
-        {
-            delete hsvBuffer;
-            hsvBuffer = nullptr;
-        }
-
-        if (bgrBuffer != nullptr)
-        {
-            delete bgrBuffer;
-            bgrBuffer = nullptr;
-        }
+        delete maskedBuffer;
+        delete gsLowerBuffer;
+        delete gsUpperBuffer;
+        delete hsvBuffer;
+        delete bgrBuffer;
+        delete intrinsic_matrix;
+        delete distortion_coeffs;
     }
 
     void writeVideoFrame(const unsigned char *video_buffer)
@@ -306,15 +320,25 @@ public:
                 std::vector<cv::Point> convex_hull;
                 cv::convexHull(biggest_contour, convex_hull);
 
-                // Subtract midpoint from each point.
-                // TODO: Replace this with cv::undistortPoints
-                //http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
+                // Convert the cv::Point array into a Eigen::Vector2f array
+                std::vector<cv::Point2f> float_convex_hull;
                 std::for_each(
                     convex_hull.begin(),
                     convex_hull.end(),
-                    [this, &out_contour](cv::Point& p) {
-                        out_contour.push_back(
-                            Eigen::Vector2f(p.x - (frameWidth / 2), (frameHeight / 2) - p.y));
+                    [this, &float_convex_hull](cv::Point& p) {
+                        float_convex_hull.push_back(cv::Point2f(static_cast<float>(p.x), static_cast<float>(p.y)));
+                    });
+
+                // Apply the undistort and camera matrix transform on the contour
+                std::vector<cv::Point2f> undistorted_convex_hull;
+                cv::undistortPoints(float_convex_hull, undistorted_convex_hull, *intrinsic_matrix, *distortion_coeffs);
+
+                // Convert the cv::Point array into a Eigen::Vector2f array
+                std::for_each(
+                    undistorted_convex_hull.begin(),
+                    undistorted_convex_hull.end(),
+                    [this, &out_contour](cv::Point2f& p) {
+                        out_contour.push_back(Eigen::Vector2f(p.x, p.y));
                     });
             }
         }
@@ -329,6 +353,8 @@ public:
     cv::Mat *gsLowerBuffer; // HSV image clamped by HSV range into grayscale mask
     cv::Mat *gsUpperBuffer; // HSV image clamped by HSV range into grayscale mask
     cv::Mat *maskedBuffer; // bgr image ANDed together with grayscale mask
+    cv::Mat *intrinsic_matrix;
+    cv::Mat *distortion_coeffs;
 };
 
 //-- public implementation -----
@@ -410,7 +436,7 @@ bool ServerTrackerView::open(const class DeviceEnumerator *enumerator)
             }
 
             // Allocate the OpenCV scratch buffers used for finding tracking blobs
-            m_opencv_buffer_state = new OpenCVBufferState(width, height);
+            m_opencv_buffer_state = new OpenCVBufferState(m_device);
         }
         else
         {
@@ -698,21 +724,7 @@ ServerTrackerView::computePositionForController(
         switch (tracking_shape.shape_type)
         {
         case eCommonTrackingShapeType::Sphere:
-            {
-                float F_PX, F_PY;
-                float PrincipalX, PrincipalY;
-                float distortionK1, distortionK2, distortionK3;
-                float distortionP1, distortionP2;
-
-                m_device->getCameraIntrinsics(
-                    F_PX, F_PY, 
-                    PrincipalX, PrincipalY,
-                    distortionK1, distortionK2, distortionK3,
-                    distortionP1, distortionP2);
-                
-                // TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
-                // Then replace F_PX with -1.
-                
+            {               
                 if (out_projection_shape != nullptr)
                 {
                     // Compute the sphere center AND the projected ellipse
@@ -722,7 +734,7 @@ ServerTrackerView::computePositionForController(
                         convex_contour.data(),
                         static_cast<int>(convex_contour.size()),
                         tracking_shape.shape.sphere.radius,
-                        F_PX,
+                        -1.f,
                         &sphere_center,
                         &ellipse_projection);
 
@@ -742,7 +754,7 @@ ServerTrackerView::computePositionForController(
                         convex_contour.data(),
                         static_cast<int>(convex_contour.size()),
                         tracking_shape.shape.sphere.radius,
-                        F_PX,
+                        -1.f,
                         &sphere_center);
 
                     out_position->set(sphere_center.x(), sphere_center.y(), sphere_center.z());
