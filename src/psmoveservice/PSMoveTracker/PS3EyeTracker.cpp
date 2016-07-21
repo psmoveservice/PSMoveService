@@ -38,19 +38,19 @@ PS3EyeTrackerConfig::PS3EyeTrackerConfig(const std::string &fnamebase)
     , max_poll_failure_count(100)
     , exposure(32)
     , gain(32)
-    , focalLengthX(554.2563) // pixels
-    , focalLengthY(554.2563) // pixels
-    , principalX(320.0) // pixels
-    , principalY(240.0) // pixels
+    , focalLengthX(1034.1484375) // pixels
+    , focalLengthY(1034.1484375) // pixels
+    , principalX(273.9329833984375) // pixels
+    , principalY(290.45953369140625) // pixels
     , hfov(60.0) // degrees
     , vfov(45.0) // degrees
     , zNear(10.0) // cm
     , zFar(200.0) // cm
-    , distortionK1(0.0)
-    , distortionK2(0.0)
-    , distortionK3(0.0)
-    , distortionP1(0.0)
-    , distortionP2(0.0)
+    , distortionK1(0.92773741483688354)
+    , distortionK2(-2.7479372024536133)
+    , distortionK3(15.096343994140625)
+    , distortionP1(0.075812220573425293)
+    , distortionP2(-0.04500984400510788)
     , fovSetting(BlueDot)
 {
     pose.clear();
