@@ -33,8 +33,8 @@
 #define PSDS4_BTADDR_SIZE 6
 #define PSDS4_STATE_BUFFER_MAX 16
 
-#define PSDS4_TRACKING_SHAPE_WIDTH  7.5f // The width of a triangle that encloses the DS4 tracking bar in cm
-#define PSDS4_TRACKING_SHAPE_HEIGHT  1.2f // The height of a triangle that encloses the DS4 tracking bar in cm
+#define PSDS4_TRACKING_SHAPE_WIDTH  2.3f // The width of a triangle that encloses the DS4 tracking bar in cm
+#define PSDS4_TRACKING_SHAPE_HEIGHT  1.8f // The height of a triangle that encloses the DS4 tracking bar in cm
 #define PSDS4_TRACKING_SHAPE_PITCH  30.f // How much the DS4 light bar is tilted inward in degrees
 
 #define PSDS4_RUMBLE_ENABLED 0xff
@@ -969,9 +969,9 @@ PSDualShock4Controller::getTrackingShape(CommonDeviceTrackingShape &outTrackingS
     // y-axis= from the center up through the track pad
     // z-axis= from the center out through the extension port
     outTrackingShape.shape_type = eCommonTrackingShapeType::Triangle;
-    outTrackingShape.shape.triangle.corner[0] = { -x_axis, y_axis*cos_angle, -y_axis*sin_angle };
-    outTrackingShape.shape.triangle.corner[1] = { x_axis, y_axis*cos_angle, -y_axis*sin_angle };
-    outTrackingShape.shape.triangle.corner[2] = { 0.f, -y_axis*cos_angle, y_axis*sin_angle };
+    outTrackingShape.shape.triangle.corner[0] = { -x_axis, -y_axis*cos_angle, y_axis*sin_angle };
+    outTrackingShape.shape.triangle.corner[1] = { x_axis, -y_axis*cos_angle, y_axis*sin_angle };
+    outTrackingShape.shape.triangle.corner[2] = { 0.f, y_axis*cos_angle, -y_axis*sin_angle };
 }
 
 long PSDualShock4Controller::getMaxPollFailureCount() const
