@@ -145,6 +145,89 @@ private:
     boost::interprocess::mapped_region *m_region;
 };
 
+struct OpenCVPlane2D
+{
+    cv::Point2f origin;
+    cv::Point3f coefficients; // coefficients a, b, c in 2d plane equation: a*x + b*y + c = 0
+
+    OpenCVPlane2D() 
+        : origin(0.f, 0.f)
+        , coefficients(0.f, 0.f, 0.f)
+    {
+    }
+
+    OpenCVPlane2D(
+        const cv::Point2f &o,
+        const cv::Point3f &c) 
+        : origin(o)
+        , coefficients(c)
+    {
+    }
+
+    static OpenCVPlane2D createFromPoints(const cv::Point2f &a, const cv::Point2f &b, const cv::Point2f &inside)
+    {
+        const cv::Point2f tangent= b - a;
+        const float tangent_length= static_cast<float>(cv::norm(tangent));
+        cv::Point2f normal=
+            !is_nearly_zero(tangent_length)
+            ? cv::Point2f(-tangent.y/tangent_length, tangent.x/tangent_length) 
+            : cv::Point2f(0.f, 0.f);
+
+        // Make sure the "inside point" is on the positive side of the plane
+        if ((inside - a).dot(normal) < 0)
+        {
+            normal= -normal;
+        }
+
+        const cv::Point2f center= (a + b) / 2.f;
+
+        return OpenCVPlane2D::createFromPointAndNormal(center, normal);
+    }
+
+    static OpenCVPlane2D createFromPointAndNormal(const cv::Point2f &p, const cv::Point2f &n)
+    {
+        const float n_length= static_cast<float>(cv::norm(n));
+        const cv::Point2f normal= !is_nearly_zero(n_length) ? (n / n_length) : cv::Point2f(0.f, 0.f);
+
+        cv::Point3f coefficients;
+        coefficients.x= normal.x;        // coefficient a
+        coefficients.y= normal.y;        // coefficient b
+        coefficients.z= -normal.dot(p);  // coefficient c
+
+        return OpenCVPlane2D(p, coefficients); 
+    }
+
+    inline cv::Point2f getOrigin() const
+    {
+        return origin;
+    }
+
+    inline cv::Point2f getNormal() const
+    {
+        return cv::Point2f(coefficients.x, coefficients.y);
+    }
+
+    inline bool isValidPlane() const
+    {
+        return !is_nearly_zero(coefficients.x) || !is_nearly_zero(coefficients.y);
+    }
+
+    float signedDistance(const cv::Point2f &point) const
+    {
+        return point.x*coefficients.x + point.y*coefficients.y + coefficients.z;
+    }
+
+    float unsignedDistance(const cv::Point2f &point) const
+    {
+        return fabsf(signedDistance(point));
+    }
+
+    cv::Point2f computeTangent() const
+    {
+        return cv::Point2f(-coefficients.y, coefficients.x);
+    }
+};
+
 class OpenCVBufferState
 {
 public:
@@ -210,10 +293,9 @@ public:
 
     // Return points in CommonDeviceScreenLocation space:
     // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]    
-    bool computeBiggestConvexContour(
+    bool computeBiggestContour(
         const CommonHSVColorRange &hsvColorRange,
-        std::vector<cv::Point> &out_opencv_contour,
-        std::vector<Eigen::Vector2f> &out_eigen_contour)
+        std::vector<cv::Point> &out_biggest_contour)
     {
         // Clamp the HSV image, taking into account wrapping the hue angle
         {
@@ -267,7 +349,6 @@ public:
             std::vector<std::vector<cv::Point> > contours;
             cv::findContours(*gsLowerBuffer, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 
-            std::vector<cv::Point> biggest_contour;
             if (contours.size() > 0)
             {
                 double contArea = 0;
@@ -279,7 +360,7 @@ public:
                     if (newArea > contArea)
                     {
                         contArea = newArea;
-                        biggest_contour = *it;
+                        out_biggest_contour = *it;
                     }
                 }
             }
@@ -288,38 +369,24 @@ public:
             // but is next to an almost-as-big contour, then maybe these
             // 2 contours should be joined.
             // (i.e. if a finger is blocking the middle of the bulb)
-            if (biggest_contour.size() > 6)
+            if (out_biggest_contour.size() > 6)
             {
                 // Remove any points in contour on edge of camera/ROI
-                std::vector<cv::Point>::iterator it = biggest_contour.begin();
-                while (it != biggest_contour.end()) {
+                std::vector<cv::Point>::iterator it = out_biggest_contour.begin();
+                while (it != out_biggest_contour.end()) {
                     if (it->x == 0 || it->x == (frameWidth-1) || it->y == 0 || it->y == (frameHeight-1)) 
                     {
-                        it = biggest_contour.erase(it);
+                        it = out_biggest_contour.erase(it);
                     }
                     else 
                     {
                         ++it;
                     }
                 }
-
-                // Compute the convex hull of the contour
-                cv::convexHull(biggest_contour, out_opencv_contour);
-
-                // Subtract midpoint from each point.
-                // TODO: Replace this with cv::undistortPoints
-                //http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
-                std::for_each(
-                    out_opencv_contour.begin(),
-                    out_opencv_contour.end(),
-                    [this, &out_eigen_contour](cv::Point& p) {
-                        out_eigen_contour.push_back(
-                            Eigen::Vector2f(p.x - (frameWidth / 2), (frameHeight / 2) - p.y));
-                    });
             }
         }
 
-        return (out_eigen_contour.size() > 5);
+        return (out_biggest_contour.size() > 5);
     }
 
     int frameWidth;
@@ -336,13 +403,20 @@ static glm::mat4 computeGLMCameraTransformMatrix(const ITrackerInterface *tracke
 static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const ITrackerInterface *tracker_device);
 static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const ITrackerInterface *tracker_device);
 static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tracker_device);
-static bool computeTrackerRelativeContourPose(
+static bool computeTrackerRelativeTriangleContourPose(
     const ITrackerInterface *tracker_device,
     const CommonDeviceTrackingShape *tracking_shape,
     const std::vector<cv::Point> &opencv_contour,
     CommonDevicePose *out_tracker_relative_pose,
     CommonDeviceTrackingProjection *out_projection);
-
+static bool computeBestFitTriangleForContour(
+    const std::vector<cv::Point> &opencv_contour,
+    std::vector<cv::Point2f> &out_best_fit_triangle);
+static bool computeBestFitPlane2d(const std::vector<cv::Point2f> &points, OpenCVPlane2D &outBestFitPlane);
+static bool computeRayRayIntersection(
+    const cv::Point2f &origin0, const cv::Point2f &direction0,
+    const cv::Point2f &origin1, const cv::Point2f &direction1,
+    cv::Point2f &out_intersection);
 
 //-- public implementation -----
 ServerTrackerView::ServerTrackerView(const int device_id)
@@ -675,8 +749,7 @@ ServerTrackerView::computePoseForController(
     }
 
     // Find the contour associated with the controller
-    std::vector<cv::Point> opencv_contour;
-    std::vector<Eigen::Vector2f> eigen_contour;
+    std::vector<cv::Point> biggest_contour;
     if (bSuccess)
     {
         ///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges.
@@ -685,7 +758,7 @@ ServerTrackerView::computePoseForController(
         // i.e. [0, frameHeight]x[frameWidth, 0]    
         // eigen_contour in CommonDeviceScreenLocation space:
         // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]    
-        bSuccess = m_opencv_buffer_state->computeBiggestConvexContour(hsvColorRange, opencv_contour, eigen_contour);
+        bSuccess = m_opencv_buffer_state->computeBiggestContour(hsvColorRange, biggest_contour);
     }
 
     // Compute the tracker relative 3d position of the controller from the contour
@@ -702,6 +775,24 @@ ServerTrackerView::computePoseForController(
         {
         case eCommonTrackingShapeType::Sphere:
             {                               
+                float frameWidth, frameHeight;
+                getPixelDimensions(frameWidth, frameHeight);
+
+                // Compute the convex hull of the contour
+                std::vector<cv::Point> convex_contour;
+                cv::convexHull(biggest_contour, convex_contour);
+
+                // Subtract midpoint from each point.
+                // TODO: Replace this with cv::undistortPoints
+                //http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
+                std::vector<Eigen::Vector2f> eigen_contour;
+                std::for_each(
+                    convex_contour.begin(),
+                    convex_contour.end(),
+                    [frameWidth, frameHeight, &eigen_contour](cv::Point& p) {
+                        eigen_contour.push_back(Eigen::Vector2f(p.x - (frameWidth / 2), (frameHeight / 2) - p.y));
+                    });
+
                 // Compute the sphere center AND the projected ellipse
                 Eigen::Vector3f sphere_center;
                 EigenFitEllipse ellipse_projection;
@@ -733,10 +824,10 @@ ServerTrackerView::computePoseForController(
             {
                 CommonDevicePose tracker_relative_pose;
 
-                if (computeTrackerRelativeContourPose(
+                if (computeTrackerRelativeTriangleContourPose(
                         m_device,
                         &tracking_shape,
-                        opencv_contour,
+                        biggest_contour,
                         &tracker_relative_pose,
                         &out_pose_estimate->projection))
                 {
@@ -920,27 +1011,27 @@ static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tra
     return pinhole_matrix;
 }
 
-static bool computeTrackerRelativeContourPose(
+static bool computeTrackerRelativeTriangleContourPose(
     const ITrackerInterface *tracker_device,
     const CommonDeviceTrackingShape *tracking_shape,
     const std::vector<cv::Point> &opencv_contour,
     CommonDevicePose *out_tracker_relative_pose,
     CommonDeviceTrackingProjection *out_projection)
 {
-    bool bValidTrackerPose= false;
     assert(tracking_shape->shape_type == eCommonTrackingShapeType::Triangle);
 
     // Get the pixel width and height of the tracker image
     int pixelWidth, pixelHeight;
     tracker_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
 
-    // Compute the projected tracking triangle corners
-    std::vector<cv::Point2f> cvYFlippedImagePoints;
-    {
-        // Compute the tightest possible bounding triangle for the given contour
-        std::vector<cv::Point2f> cvMinTriangle;
-        cv::minEnclosingTriangle(opencv_contour, cvMinTriangle);
+    // Create a best fit triangle around the contour
+    std::vector<cv::Point2f> cv_best_fit_triangle;
+    std::vector<cv::Point2f> cv_y_flipped_best_fit_triangle;
+    bool bValidTrackerPose= computeBestFitTriangleForContour(opencv_contour, cv_best_fit_triangle);
 
+    // Put the triangle vertices into a standard orientation
+    if (bValidTrackerPose)
+    {     
         // Find the corner closest to the center of mass.
         // This is the bottom of the triangle.
         int bottomCornerIndex = -1;
@@ -952,7 +1043,7 @@ static bool computeTrackerRelativeContourPose(
             double bestDistance = k_real_max;
             for (int cornerIndex = 0; cornerIndex < 3; ++cornerIndex)
             {
-                const double testDistance = cv::norm(cvMinTriangle[cornerIndex] - massCenter);
+                const double testDistance = cv::norm(cv_best_fit_triangle[cornerIndex] - massCenter);
 
                 if (testDistance < bestDistance)
                 {
@@ -986,9 +1077,9 @@ static bool computeTrackerRelativeContourPose(
         // Make sure the left and right corners are actually 
         // on the left and right of the triangle
         {
-            const cv::Point2f &bottom = cvMinTriangle[bottomCornerIndex];
-            const cv::Point2f &left = cvMinTriangle[leftCornerIndex];
-            const cv::Point2f &right = cvMinTriangle[rightCornerIndex];
+            const cv::Point2f &bottom = cv_best_fit_triangle[bottomCornerIndex];
+            const cv::Point2f &left = cv_best_fit_triangle[leftCornerIndex];
+            const cv::Point2f &right = cv_best_fit_triangle[rightCornerIndex];
             const cv::Point2f bottomToLeft = left - bottom;
             const cv::Point2f bottomToRight = right - bottom;
 
@@ -1007,76 +1098,80 @@ static bool computeTrackerRelativeContourPose(
         for (int list_index = 0; list_index < 3; ++list_index)
         {
             int corner_index = corner_list[list_index];
-            const cv::Point2f &cvPoint= cvMinTriangle[corner_index];
+            const cv::Point2f &cvPoint= cv_best_fit_triangle[corner_index];
             const cv::Point2f &cvYFlippedPoint = { cvPoint.x, pixelHeight - cvPoint.y };
 
-            cvYFlippedImagePoints.push_back(cvYFlippedPoint);
+            cv_y_flipped_best_fit_triangle.push_back(cvYFlippedPoint);
         }        
     }
 
-    // Copy the object/image point mappings into OpenCV format
-    // Assumed vertex order is right, left, bottom
-    std::vector<cv::Point3f> cvObjectPoints;
-    for (int corner_index= 0; corner_index < 3; ++corner_index)
-    {        
-        const CommonDevicePosition &corner = tracking_shape->shape.triangle.corner[corner_index];
-
-        cvObjectPoints.push_back(cv::Point3f(corner.x, corner.y, corner.z));
-    }
-
-    // Assume no distortion
-    // TODO: Probably should get the distortion coefficients out of the tracker
-    cv::Mat cvDistCoeffs(4, 1, cv::DataType<float>::type);
-    cvDistCoeffs.at<float>(0) = 0;
-    cvDistCoeffs.at<float>(1) = 0;
-    cvDistCoeffs.at<float>(2) = 0;
-    cvDistCoeffs.at<float>(3) = 0;
-
-    // Get the tracker "intrinsic" matrix that encodes the camera FOV
-    cv::Matx33f cvCameraMatrix = computeOpenCVCameraIntrinsicMatrix(tracker_device);
-
-    // Solve the Project N-Point problem:
-    // Given a set of 3D points and their corresponding 2D pixel projections,
-    // solve for the cameras position and orientation that would allow
-    // us to re-project the 3D points back onto the 2D pixel locations
-    cv::Mat rvec(3, 1, cv::DataType<double>::type);
-    cv::Mat tvec(3, 1, cv::DataType<double>::type);
-    if (cv::solvePnP(cvObjectPoints, cvYFlippedImagePoints, cvCameraMatrix, cvDistCoeffs, rvec, tvec))
+    // Solve the tracking position using solvePnP
+    if (bValidTrackerPose)
     {
-        // Return rvec (an angle-axis vector) as a quaternion in the pose
+        // Copy the object/image point mappings into OpenCV format
+        // Assumed vertex order is right, left, bottom
+        std::vector<cv::Point3f> cvObjectPoints;
+        for (int corner_index= 0; corner_index < 3; ++corner_index)
+        {        
+            const CommonDevicePosition &corner = tracking_shape->shape.triangle.corner[corner_index];
+
+            cvObjectPoints.push_back(cv::Point3f(corner.x, corner.y, corner.z));
+        }
+
+        // Assume no distortion
+        // TODO: Probably should get the distortion coefficients out of the tracker
+        cv::Mat cvDistCoeffs(4, 1, cv::DataType<float>::type);
+        cvDistCoeffs.at<float>(0) = 0;
+        cvDistCoeffs.at<float>(1) = 0;
+        cvDistCoeffs.at<float>(2) = 0;
+        cvDistCoeffs.at<float>(3) = 0;
+
+        // Get the tracker "intrinsic" matrix that encodes the camera FOV
+        cv::Matx33f cvCameraMatrix = computeOpenCVCameraIntrinsicMatrix(tracker_device);
+
+        // Solve the Project N-Point problem:
+        // Given a set of 3D points and their corresponding 2D pixel projections,
+        // solve for the cameras position and orientation that would allow
+        // us to re-project the 3D points back onto the 2D pixel locations
+        cv::Mat rvec(3, 1, cv::DataType<double>::type);
+        cv::Mat tvec(3, 1, cv::DataType<double>::type);
+        if (cv::solvePnP(cvObjectPoints, cv_y_flipped_best_fit_triangle, cvCameraMatrix, cvDistCoeffs, rvec, tvec))
         {
-            const float r_x = static_cast<float>(rvec.at<double>(0));
-            const float r_y = static_cast<float>(rvec.at<double>(1));
-            const float r_z = static_cast<float>(rvec.at<double>(2));
-            const float theta = sqrtf(r_x*r_x + r_y*r_y + r_z*r_z);
+            // Return rvec (an angle-axis vector) as a quaternion in the pose
+            {
+                const float r_x = static_cast<float>(rvec.at<double>(0));
+                const float r_y = static_cast<float>(rvec.at<double>(1));
+                const float r_z = static_cast<float>(rvec.at<double>(2));
+                const float theta = sqrtf(r_x*r_x + r_y*r_y + r_z*r_z);
             
-            CommonDeviceQuaternion &orientation = out_tracker_relative_pose->Orientation;
+                CommonDeviceQuaternion &orientation = out_tracker_relative_pose->Orientation;
 
-            if (!is_nearly_zero(theta))
-            {
-                const float sin_theta_over_two = sinf(theta * 0.5f);
+                if (!is_nearly_zero(theta))
+                {
+                    const float sin_theta_over_two = sinf(theta * 0.5f);
 
-                orientation.w = cosf(theta * 0.5f);
-                orientation.x = (r_x / theta) * sin_theta_over_two;
-                orientation.y = (r_y / theta) * sin_theta_over_two;
-                orientation.z = (r_z / theta) * sin_theta_over_two;
+                    orientation.w = cosf(theta * 0.5f);
+                    orientation.x = (r_x / theta) * sin_theta_over_two;
+                    orientation.y = (r_y / theta) * sin_theta_over_two;
+                    orientation.z = (r_z / theta) * sin_theta_over_two;
+                }
+                else
+                {
+                    orientation.clear();
+                }
             }
-            else
+
+            // Return the position in the pose
             {
-                orientation.clear();
+                CommonDevicePosition &position= out_tracker_relative_pose->Position;
+
+                position.x = static_cast<float>(tvec.at<double>(0));
+                position.y = static_cast<float>(tvec.at<double>(1));
+                position.z = static_cast<float>(tvec.at<double>(2));            
             }
+
+            bValidTrackerPose= true;
         }
-
-        // Return the position in the pose
-        {
-            CommonDevicePosition &position= out_tracker_relative_pose->Position;
-
-            position.x = static_cast<float>(tvec.at<double>(0));
-            position.y = static_cast<float>(tvec.at<double>(1));
-            position.z = static_cast<float>(tvec.at<double>(2));            
-        }
-
-        bValidTrackerPose= true;
     }
 
     // Return the projection of the tracking shape
@@ -1085,7 +1180,7 @@ static bool computeTrackerRelativeContourPose(
         out_projection->shape_type = eCommonTrackingProjectionType::ProjectionType_Triangle;
         for (int vertex_index = 0; vertex_index < 3; ++vertex_index)
         {
-            const cv::Point2f &cvPoint = cvYFlippedImagePoints[vertex_index];
+            const cv::Point2f &cvPoint = cv_y_flipped_best_fit_triangle[vertex_index];
 
             // Convert the tracker screen locations in OpenCV pixel space
             // i.e. [0, 0]x[frameWidth, frameHeight]
@@ -1097,4 +1192,212 @@ static bool computeTrackerRelativeContourPose(
     }
 
     return bValidTrackerPose;
+}
+
+static bool computeBestFitTriangleForContour(
+    const std::vector<cv::Point> &opencv_contour,
+    std::vector<cv::Point2f> &out_best_fit_triangle)
+{
+    // Compute the tightest possible bounding triangle for the given contour
+    std::vector<cv::Point2f> cv_min_triangle;
+    cv::minEnclosingTriangle(opencv_contour, cv_min_triangle);
+
+    if (cv_min_triangle.size() != 3)
+    {
+        return false;
+    }
+
+    static bool g_compute_best_fit= true;
+    if (g_compute_best_fit == false)
+    {
+        out_best_fit_triangle= cv_min_triangle;
+        return true;
+    }
+
+    // Create planes for the triangle edges
+    cv::Point2f min_triangle_center= (cv_min_triangle[0] + cv_min_triangle[1] + cv_min_triangle[2]) / 3;
+    OpenCVPlane2D min_plane_01= OpenCVPlane2D::createFromPoints(cv_min_triangle[0], cv_min_triangle[1], min_triangle_center);
+    OpenCVPlane2D min_plane_12= OpenCVPlane2D::createFromPoints(cv_min_triangle[1], cv_min_triangle[2], min_triangle_center);
+    OpenCVPlane2D min_plane_20= OpenCVPlane2D::createFromPoints(cv_min_triangle[2], cv_min_triangle[0], min_triangle_center);
+
+    // Sort the contour points into it's corresponding "closest edge bucket"
+    std::array<std::vector<cv::Point2f>, 3> edge_lists;
+    for (auto contour_point_index= 0; contour_point_index < opencv_contour.size(); ++contour_point_index)
+    {
+        const cv::Point2f &contour_point= opencv_contour[contour_point_index];
+        const std::array<float, 3> edge_distances = {
+            min_plane_01.unsignedDistance(contour_point),
+            min_plane_12.unsignedDistance(contour_point),
+            min_plane_20.unsignedDistance(contour_point)
+        };
+
+        int closest_edge_index= 0;
+        float closest_edge_distance= edge_distances[0];
+        for (auto edge_index= 1; edge_index < edge_distances.size(); ++edge_index)
+        {
+            const float test_edge_distance= edge_distances[edge_index];
+
+            if (test_edge_distance < closest_edge_distance)
+            {
+                closest_edge_index= edge_index;
+                closest_edge_distance= test_edge_distance;
+            }
+        }
+
+        edge_lists[closest_edge_index].push_back(contour_point);
+    }
+
+    // Compute the best fit plane for each edge
+    std::vector<OpenCVPlane2D> best_fit_planes;
+    for (auto edge_index= 0; edge_index < edge_lists.size(); ++edge_index)
+    {
+        const std::vector<cv::Point2f> &edge_points= edge_lists[edge_index];
+
+        OpenCVPlane2D best_fit_plane;
+        if (computeBestFitPlane2d(edge_points, best_fit_plane))
+        {
+            best_fit_planes.push_back(best_fit_plane);
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    // Compute the new best fit corners by intersecting the best fit planes
+    cv::Point2f best_fit_origin_01 = best_fit_planes[0].getOrigin();
+    cv::Point2f best_fit_origin_12 = best_fit_planes[1].getOrigin();
+    cv::Point2f best_fit_origin_20 = best_fit_planes[2].getOrigin();
+
+    cv::Point2f best_fit_tangents_01 = best_fit_planes[0].computeTangent();
+    cv::Point2f best_fit_tangents_12 = best_fit_planes[1].computeTangent();
+    cv::Point2f best_fit_tangents_20 = best_fit_planes[2].computeTangent();
+
+    cv::Point2f best_fit_corner_0;
+    if (!computeRayRayIntersection(
+            best_fit_origin_20, best_fit_tangents_20,
+            best_fit_origin_01, best_fit_tangents_01,
+            best_fit_corner_0))
+    {
+        return false;
+    }
+
+    cv::Point2f best_fit_corner_1;
+    if (!computeRayRayIntersection(
+            best_fit_origin_01, best_fit_tangents_01,
+            best_fit_origin_12, best_fit_tangents_12,
+            best_fit_corner_1))
+    {
+        return false;
+    }
+
+    cv::Point2f best_fit_corner_2;
+    if (!computeRayRayIntersection(
+            best_fit_origin_12, best_fit_tangents_12,
+            best_fit_origin_20, best_fit_tangents_20,
+            best_fit_corner_2))
+    {
+        return false;
+    }
+
+    out_best_fit_triangle.push_back(best_fit_corner_0);
+    out_best_fit_triangle.push_back(best_fit_corner_1);
+    out_best_fit_triangle.push_back(best_fit_corner_2);
+
+    return true;
+}
+
+// From "A Practical Guide to Developing Computational Software"
+// http://www.infogoaround.org/JBook/Chapter9.pdf
+static bool computeBestFitPlane2d(const std::vector<cv::Point2f> &points, OpenCVPlane2D &outBestFitPlane)
+{
+    // Can't fit a plane to less than 2 points
+    if (points.size() < 2)
+    {
+        return false;
+    }
+
+    // If there are only two points just fit a plane directly
+    if (points.size() == 2)
+    {
+        outBestFitPlane = OpenCVPlane2D::createFromPoints(points[0], points[1], points[0]);
+        return true;
+    }
+
+    // The best fit plane passes through the centroid of the data
+    // (see 9.6 Least squares plane)
+    cv::Point2f centroid;
+    for (auto point_index = 0; point_index < points.size(); ++point_index)
+    {
+        centroid+= points[point_index];
+    }
+    centroid= centroid / static_cast<float>(points.size());
+
+    // Compute the coefficients of the A^t*A matrix from 
+    // the least square "normal equation": A^t*A*x = A^T*b 
+    // (see 9.6 Least squares plane)
+    float x_bar_x_bar_sum= 0.f;
+    float x_bar_y_bar_sum= 0.f;
+    float y_bar_y_bar_sum= 0.f;
+    for (auto point_index = 0; point_index < points.size(); ++point_index)
+    {
+        const cv::Point2f &point= points[point_index];
+        float x_bar= point.x - centroid.x;
+        float y_bar= point.y - centroid.y;
+
+        x_bar_x_bar_sum+= x_bar*x_bar;
+        x_bar_y_bar_sum+= x_bar*y_bar;
+        y_bar_y_bar_sum+= y_bar*y_bar;
+    }
+
+    // Compute the minimum eigen value of the pos def 2x2 A^t*A matrix:
+    // | x_bar_x_bar_sum  x_bar_y_bar_sum |
+    // | x_bar_y_bar_sum  y_bar_y_bar_sum |
+
+    // For 2x2 pos-def matrices there is a nice closed form solution for this
+    // From: http://www.math.harvard.edu/archive/21b_fall_04/exhibits/2dmatrices/
+    //
+    // A = | a  c |  T= trace(A) = a+b           eig_val_max= T/2 + sqrt(T^2/4 - D)
+    //     | c  b |  D= determinant(A)= a*b-c^2  eig_val_min= T/2 - sqrt(T^2/4 - D)
+    //
+    // eig_vec_min= | eig_val_max - b |  eig_vec_max= | eig_val_min - b |
+    //              |        c        |               |        c        |
+    const float det_A= x_bar_x_bar_sum*y_bar_y_bar_sum - x_bar_y_bar_sum*x_bar_y_bar_sum;
+    const float trace_A= x_bar_x_bar_sum+y_bar_y_bar_sum;
+    const float min_eigen_value= (trace_A / 2.f) - sqrtf((trace_A*trace_A/4.f) - det_A);
+    const cv::Point2f min_eigen_vector(min_eigen_value - y_bar_y_bar_sum, x_bar_y_bar_sum);
+
+    // "The eigenvector defined by the smallest eigenvalue is the normal of the best fitting plane"
+    // (see 9.6 Least squares plane)
+    outBestFitPlane= OpenCVPlane2D::createFromPointAndNormal(centroid, min_eigen_vector);
+
+    return outBestFitPlane.isValidPlane();
+}
+
+static bool computeRayRayIntersection(
+    const cv::Point2f &origin0, const cv::Point2f &direction0,
+    const cv::Point2f &origin1, const cv::Point2f &direction1,
+    cv::Point2f &out_intersection)
+{
+    // Compute the intersection of the rays
+    // origin0.x + t*direction0.x = origin1.x + s*direction1.x
+    // origin0.y + t*direction0.y = origin1.y + s*direction1.y
+
+    const float divisor= direction0.y*direction1.x - direction0.x*direction1.y;
+    bool bSuccess= false;
+
+    if (!is_nearly_zero(divisor))
+    {
+        const float t = (direction1.x*(origin1.y - origin0.y) + direction1.y*(origin0.x - origin1.x)) / divisor;
+
+        out_intersection= origin0 + direction0*t;
+        bSuccess= true;
+    }
+    else if (is_nearly_zero(static_cast<float>(cv::norm(origin0-origin1))))
+    {
+        out_intersection= origin0;
+        bSuccess= true;
+    }
+
+    return bSuccess;
 }
