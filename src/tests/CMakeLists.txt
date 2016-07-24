@@ -29,6 +29,10 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ELSE() #Linux
 ENDIF()
 
+IF(MSVC) # Disable asio auto linking in date-time and regex
+add_definitions(-DBOOST_DATE_TIME_NO_LIB)
+add_definitions(-DBOOST_REGEX_NO_LIB)
+ENDIF()
 
 #
 # TEST_CONFIGMANAGER
@@ -207,7 +211,7 @@ ENDIF()
 
 # Boost
 # TODO: Eliminate boost::filesystem with C++14
-FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono date_time filesystem log log_setup program_options system thread)
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
 list(APPEND TEST_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
 
@@ -285,7 +289,7 @@ SET(TEST_UDP_SERVER_REQ_LIBS)
 # Dependencies
 
 # Boost
-find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS atomic chrono date_time filesystem program_options regex system thread)
+find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
 list(APPEND TEST_UDP_SERVER_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_UDP_SERVER_REQ_LIBS ${Boost_LIBRARIES})
 
@@ -324,7 +328,7 @@ SET(TEST_UDP_CLIENT_REQ_LIBS)
 # Dependencies
 
 # Boost
-find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS date_time regex system)
+find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS system)
 list(APPEND TEST_UDP_CLIENT_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_UDP_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
 

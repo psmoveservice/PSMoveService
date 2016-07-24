@@ -353,17 +353,10 @@ public:
 
     bool retrieveFrame(int outputType, cv::OutputArray outArray)
     {
-        uint8_t *new_pixels = eye->getFrame();
+        eye->getFrame(m_MatBayer.data);
 
-        if (new_pixels != NULL)
-        {
-            std::memcpy(m_MatBayer.data, new_pixels, m_MatBayer.total() * m_MatBayer.elemSize() * sizeof(uchar));
-            //cv::cvtColor(m_MatYUV, outArray, CV_YUV2BGR_YUY2);
-            cv::cvtColor(m_MatBayer, outArray, CV_BayerGB2BGR);
-            free(new_pixels);
-            return true;
-        }
-        return false;
+        cv::cvtColor(m_MatBayer, outArray, CV_BayerGB2BGR);
+        return true;
     }
 
     int getCaptureDomain() {
@@ -404,7 +397,7 @@ protected:
             
             eye = devices[_index];
             
-            if (eye && eye->init(640, 480, 60))
+            if (eye && eye->init(640, 480, 60, ps3eye::PS3EYECam::EOutputFormat::Bayer))
             {
                 // Change any default settings here
                 

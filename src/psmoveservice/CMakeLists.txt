@@ -134,9 +134,13 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS ${PROTOBUF_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${PROTOBUF_LIBRARIES})
 
 # Boost. TODO: Trim this list.
-find_package(Boost 1.61.0 REQUIRED QUIET COMPONENTS atomic chrono date_time filesystem log log_setup program_options regex system thread)
+find_package(Boost 1.61.0 REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${Boost_LIBRARIES})
+IF(MSVC) # Disable asio auto linking in date-time and regex
+add_definitions(-DBOOST_DATE_TIME_NO_LIB)
+add_definitions(-DBOOST_REGEX_NO_LIB)
+ENDIF()
 
 # hidapi
 include_directories(${ROOT_DIR}/thirdparty/hidapi/hidapi)
