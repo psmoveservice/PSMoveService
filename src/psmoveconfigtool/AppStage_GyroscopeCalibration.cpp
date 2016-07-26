@@ -28,7 +28,7 @@ const char *AppStage_GyroscopeCalibration::APP_STAGE_NAME = "GyroscopeCalibratio
 //-- constants -----
 const double k_stabilize_wait_time_ms = 1000.f;
 const int k_desired_noise_sample_count = 1000;
-const float k_desired_sampling_time = 30.0*1000.f; // milliseconds
+const float k_desired_drift_sampling_time = 30.0*1000.f; // milliseconds
 
 const int k_desired_scale_sample_count = 1000;
 const float k_max_valid_scale_time_delta= 50.f; // milliseconds (20 fps)
@@ -50,6 +50,38 @@ struct GyroscopeErrorSamples
         sample_count= 0;
         raw_variance= 0.f;
         raw_drift= 0.f;
+    }
+
+    void computeStatistics(std::chrono::duration<float, std::milli> sampleDurationMilli)
+    {
+        const float sampleDurationSeconds= sampleDurationMilli.count() / 1000.f;
+        const float N = static_cast<float>(sample_count);
+
+        // Compute the mean of the samples
+        PSMoveFloatVector3 mean_omega= PSMoveFloatVector3::create(0.f, 0.f, 0.f);
+        for (int sample_index = 0; sample_index < sample_count; sample_index++)
+        {
+            mean_omega= mean_omega + omega_samples[sample_index].castToFloatVector3();
+        }
+        mean_omega= mean_omega.unsafe_divide(N);
+
+        // Compute the variance of the samples
+        PSMoveFloatVector3 var_omega= PSMoveFloatVector3::create(0.f, 0.f, 0.f);
+        for (int sample_index = 0; sample_index < sample_count; sample_index++)
+        {
+            PSMoveFloatVector3 sample= omega_samples[sample_index].castToFloatVector3();
+            PSMoveFloatVector3 diff_from_mean= sample - mean_omega;
+
+            var_omega= var_omega + diff_from_mean.square();
+        }
+        var_omega= var_omega.unsafe_divide(N - 1);
+
+        // Use the max variance of all three axes (should be close)
+        raw_variance= var_omega.maxValue();
+
+        // Compute the max drift rate we got across a three axis
+        PSMoveFloatVector3 drift_rate= drift_rotation.castToFloatVector3().unsafe_divide(sampleDurationSeconds);
+        raw_drift= drift_rate.abs().maxValue();
     }
 };
 
@@ -73,9 +105,34 @@ struct GyroscopeScaleSamples
         raw_scale_mean= 0.f;
         raw_scale_variance= 0.f;
     }
+
+    void computeStatistics()
+    {
+        const float N = static_cast<float>(sample_count);
+
+        // Compute the mean of the samples
+        raw_scale_mean= 0.f;
+        for (int sample_index = 0; sample_index < sample_count; sample_index++)
+        {
+            raw_scale_mean+= scale_samples[sample_index];
+        }
+        raw_scale_mean/= N;
+
+        // Compute the variance of the samples
+        raw_scale_variance= 0.f;
+        for (int sample_index = 0; sample_index < sample_count; sample_index++)
+        {
+            const float &sample= scale_samples[sample_index];
+            float diff_from_mean= sample - raw_scale_mean;
+
+            raw_scale_variance+= diff_from_mean*diff_from_mean;
+        }
+        raw_scale_variance/= N - 1.f;
+    }
 };
 
 //-- private methods -----
+static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
 
 //-- public methods -----
 AppStage_GyroscopeCalibration::AppStage_GyroscopeCalibration(App *app)
@@ -123,6 +180,9 @@ void AppStage_GyroscopeCalibration::enter()
     m_lastRawGyroscope = *k_psmove_int_vector3_zero;
     m_lastControllerSeqNum = -1;
 
+    m_lastCalibratedAccelerometer = *k_psmove_float_vector3_zero;
+    m_lastCalibratedGyroscope = *k_psmove_float_vector3_zero;
+
     m_stableStartTime = std::chrono::time_point<std::chrono::high_resolution_clock>();
     m_bIsStable= false;
 
@@ -161,6 +221,7 @@ void AppStage_GyroscopeCalibration::update()
 
         m_lastRawGyroscope = rawSensorData.Gyroscope;
         m_lastCalibratedGyroscope = calibratedSensorData.Gyroscope;
+        m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
         m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
         bControllerDataUpdatedThisFrame = true;
     }
@@ -234,37 +295,10 @@ void AppStage_GyroscopeCalibration::update()
                 }
 
                 // See if we have completed the sampling period
-                if (sampleDurationMilli.count() >= k_desired_sampling_time)
+                if (sampleDurationMilli.count() >= k_desired_drift_sampling_time)
                 {
-                    const float sampleDurationSeconds= sampleDurationMilli.count() / 1000.f;
-                    const float N = static_cast<float>(m_errorSamples->sample_count);
-
-                    // Compute the mean of the samples
-                    PSMoveFloatVector3 mean_omega= PSMoveFloatVector3::create(0.f, 0.f, 0.f);
-                    for (int sample_index = 0; sample_index < m_errorSamples->sample_count; sample_index++)
-                    {
-                        mean_omega= mean_omega + m_errorSamples->omega_samples[sample_index].castToFloatVector3();
-                    }
-                    mean_omega= mean_omega.unsafe_divide(N);
-
-                    // Compute the variance of the samples
-                    PSMoveFloatVector3 var_omega= PSMoveFloatVector3::create(0.f, 0.f, 0.f);
-                    for (int sample_index = 0; sample_index < m_errorSamples->sample_count; sample_index++)
-                    {
-                        PSMoveFloatVector3 sample= m_errorSamples->omega_samples[sample_index].castToFloatVector3();
-                        PSMoveFloatVector3 diff_from_mean= sample - mean_omega;
-
-                        var_omega= var_omega + diff_from_mean.square();
-                    }
-                    var_omega= var_omega.unsafe_divide(N - 1);
-
-                    // Use the max variance of all three axes (should be close)
-                    m_errorSamples->raw_variance= var_omega.maxValue();
-
-                    // Compute the max drift rate we got across a three axis
-                    PSMoveFloatVector3 drift_rate= 
-                        m_errorSamples->drift_rotation.castToFloatVector3().unsafe_divide(sampleDurationSeconds);
-                    m_errorSamples->raw_drift= drift_rate.abs().maxValue();
+                    // Compute bias and drift statistics
+                    m_errorSamples->computeStatistics(sampleDurationMilli);
 
                     // Start measuring the gyro scale
                     m_scaleSamples->clear();
@@ -320,7 +354,16 @@ void AppStage_GyroscopeCalibration::update()
 
                             if (m_scaleSamples->sample_count >= k_desired_scale_sample_count)
                             {
-                                //TODO: compute the average and mean scale
+                                // Compute the scale statistics
+                                m_scaleSamples->computeStatistics();
+
+                                // Update the gyro config on the service
+                                request_set_gyroscope_calibration(
+                                    m_scaleSamples->raw_scale_mean, 
+                                    m_errorSamples->raw_drift, 
+                                    m_errorSamples->raw_variance);
+
+                                m_menuState= eCalibrationMenuState::measureComplete;
                             }
                         }
                     }
@@ -332,7 +375,6 @@ void AppStage_GyroscopeCalibration::update()
             }
         } break;
     case eCalibrationMenuState::measureComplete:
-    case eCalibrationMenuState::verifyCalibration:
     case eCalibrationMenuState::test:
         {
         } break;
@@ -356,19 +398,39 @@ void AppStage_GyroscopeCalibration::render()
         {
         } break;
     case eCalibrationMenuState::waitForStable:
+        {
+            drawController(m_controllerView, scaleAndRotateModelX90);
+
+            // Draw the current direction of gravity
+            {
+                const float renderScale = 200.f;
+                glm::mat4 renderScaleMatrix = 
+                    glm::scale(glm::mat4(1.f), glm::vec3(renderScale, renderScale, renderScale));
+                glm::vec3 g= psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
+
+                drawArrow(
+                    renderScaleMatrix,
+                    glm::vec3(), g, 
+                    0.1f, 
+                    glm::vec3(0.f, 1.f, 0.f));
+                drawTextAtWorldPosition(renderScaleMatrix, g, "G");
+            }
+        } break;
     case eCalibrationMenuState::measureBiasAndDrift:
     case eCalibrationMenuState::measureScale:
     case eCalibrationMenuState::measureComplete:
-    case eCalibrationMenuState::verifyCalibration:
         {
-            // Draw the controller model in the pose we want the user place it in
-            drawPSDualShock4Model(scaleAndRotateModelX90, glm::vec3(1.f, 1.f, 1.f));
+            drawController(m_controllerView, scaleAndRotateModelX90);
         } break;
     case eCalibrationMenuState::test:
         {
-            // Draw the ps dualshock4 model in the middle
-            drawPSDualShock4Model(scaleAndRotateModelX90, glm::vec3(1.f, 1.f, 1.f));
-            drawTransformedAxes(scaleAndRotateModelX90, 200.f);
+            // Get the orientation of the controller in world space (OpenGL Coordinate System)            
+            glm::quat q= psmove_quaternion_to_glm_quat(m_controllerView->GetPSMoveView().GetOrientation());
+            glm::mat4 worldSpaceOrientation= glm::mat4_cast(q);
+            glm::mat4 worldTransform = glm::scale(worldSpaceOrientation, glm::vec3(modelScale, modelScale, modelScale));
+
+            drawController(m_controllerView, worldTransform);
+            drawTransformedAxes(glm::mat4(1.f), 200.f);
         } break;
     default:
         assert(0 && "unreachable");
@@ -385,16 +447,6 @@ void AppStage_GyroscopeCalibration::renderUI()
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |
         ImGuiWindowFlags_NoCollapse;
-
-    /*
-        waitingForStreamStartResponse,
-        failedStreamStart,
-        waitForStable,
-        measureBiasAndDrift,
-        measureScale,
-        measureComplete,
-        verifyCalibration,
-    */
 
     switch (m_menuState)
     {
@@ -436,6 +488,25 @@ void AppStage_GyroscopeCalibration::renderUI()
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
+            ImGui::TextWrapped(
+                "[Step 1 of 2: Measuring gyroscope drift and bias]\n" \
+                "Set the controller down on a level surface.\n" \
+                "Measurement will start once the controller is aligned with gravity and stable.");
+
+            if (m_bIsStable)
+            {
+                std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
+                float fraction = static_cast<float>(stableDuration.count() / k_stabilize_wait_time_ms);
+
+                ImGui::ProgressBar(fraction, ImVec2(250, 20));
+                ImGui::Spacing();
+            }
+            else
+            {
+                ImGui::Text("Controller Destabilized! Waiting for stabilization..");
+            }
+
             if (ImGui::Button("Cancel"))
             {
                 request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
@@ -449,12 +520,24 @@ void AppStage_GyroscopeCalibration::renderUI()
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
+            std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> stableDuration = now - m_errorSamples->sampleStartTime;
+            float timeFraction = static_cast<float>(stableDuration.count() / k_desired_drift_sampling_time);
+
             const float sampleFraction = 
                 static_cast<float>(m_errorSamples->sample_count)
                 / static_cast<float>(k_desired_noise_sample_count);
 
-            ImGui::Text("Sampling gyroscope noise.");
-            ImGui::ProgressBar(sampleFraction, ImVec2(250, 20));
+            ImGui::TextWrapped(
+                "[Step 1 of 2: Measuring gyroscope drift and bias]\n" \
+                "Pick up the controller and smoothly twist it around\n" \
+                "with the light bar in view of the camera.");
+            ImGui::ProgressBar(fminf(sampleFraction, timeFraction), ImVec2(250, 20));
+
+            if (ImGui::Button("Cancel"))
+            {
+                request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
+            }
 
             ImGui::End();
         } break;
@@ -463,6 +546,10 @@ void AppStage_GyroscopeCalibration::renderUI()
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
+
+            ImGui::TextWrapped(
+                "[Step 2 of 2: Computing gyroscope sensor scale]\n" \
+                "Sampling gyroscope...");
 
             const float sampleFraction = 
                 static_cast<float>(m_scaleSamples->sample_count)
@@ -481,12 +568,12 @@ void AppStage_GyroscopeCalibration::renderUI()
 
             ImGui::TextWrapped(
                 "Sampling complete.\n" \
-                "Press OK to continue or Redo to recalibrate");
+                "Press OK to continue or Redo to recalibration.");
 
             if (ImGui::Button("Ok"))
             {
                 m_controllerView->GetPSDualShock4ViewMutable().SetLEDOverride(0, 0, 0);
-                m_menuState = eCalibrationMenuState::verifyCalibration;
+                m_menuState = eCalibrationMenuState::test;
             }
             ImGui::SameLine();
             if (ImGui::Button("Redo"))
@@ -503,7 +590,6 @@ void AppStage_GyroscopeCalibration::renderUI()
 
             ImGui::End();
         } break;
-    case eCalibrationMenuState::verifyCalibration:
     case eCalibrationMenuState::test:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
@@ -540,9 +626,9 @@ void AppStage_GyroscopeCalibration::renderUI()
 
 //-- private methods -----
 void AppStage_GyroscopeCalibration::request_set_gyroscope_calibration(
-    const float raw_bias,
+    const float sensor_scale,
     const float raw_drift, 
-    const float sensor_scale)
+    const float raw_variance)
 {
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_GYROSCOPE_CALIBRATION);
@@ -554,7 +640,7 @@ void AppStage_GyroscopeCalibration::request_set_gyroscope_calibration(
 
     calibration->set_sensor_scale(sensor_scale);
     calibration->set_raw_drift(raw_drift);
-    calibration->set_raw_variance(raw_bias);
+    calibration->set_raw_variance(raw_variance);
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }
@@ -585,3 +671,15 @@ void AppStage_GyroscopeCalibration::request_exit_to_app_stage(const char *app_st
 }
 
 //-- private methods -----
+static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform)
+{
+    switch(controllerView->GetControllerViewType())
+    {
+    case ClientControllerView::PSMove:
+        drawPSDualShock4Model(transform, glm::vec3(1.f, 1.f, 1.f));
+        break;
+    case ClientControllerView::PSDualShock4:
+        drawPSMoveModel(transform, glm::vec3(1.f, 1.f, 1.f));
+        break;
+    }
+}

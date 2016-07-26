@@ -33,7 +33,7 @@ public:
     }
 
 protected:
-    void request_set_gyroscope_calibration(const float raw_bias, const float raw_drift, const float sensor_scale);
+    void request_set_gyroscope_calibration(const float sensor_scale, const float raw_drift, const float raw_variance);
     static void handle_acquire_controller(
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
@@ -50,7 +50,6 @@ private:
         measureBiasAndDrift,
         measureScale,
         measureComplete,
-        verifyCalibration,
         test
     };
     eCalibrationMenuState m_menuState;
@@ -62,6 +61,7 @@ private:
 
     PSMoveIntVector3 m_lastRawGyroscope;
     PSMoveFloatVector3 m_lastCalibratedGyroscope;
+    PSMoveFloatVector3 m_lastCalibratedAccelerometer;
 
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
