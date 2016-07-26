@@ -855,6 +855,23 @@ protected:
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
+        else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        {
+            PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+            PSMoveControllerConfig *config = controller->getConfigMutable();
+
+            const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
+                context.request->set_gyroscope_calibration_request();
+
+            config->raw_gyro_drift= request.raw_drift();
+            config->raw_gyro_variance= request.raw_variance();
+            config->save();
+
+            // Reset the orientation filter state the calibration changed
+            ControllerView->getOrientationFilter()->resetFilterState();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
         else
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);

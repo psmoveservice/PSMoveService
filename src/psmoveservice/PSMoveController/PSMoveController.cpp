@@ -206,12 +206,16 @@ PSMoveControllerConfig::config2ptree()
     pt.put("Calibration.Accel.Y.b", cal_ag_xyz_kb[0][1][1]);
     pt.put("Calibration.Accel.Z.k", cal_ag_xyz_kb[0][2][0]);
     pt.put("Calibration.Accel.Z.b", cal_ag_xyz_kb[0][2][1]);
+
     pt.put("Calibration.Gyro.X.k", cal_ag_xyz_kb[1][0][0]);
     pt.put("Calibration.Gyro.X.b", cal_ag_xyz_kb[1][0][1]);
     pt.put("Calibration.Gyro.Y.k", cal_ag_xyz_kb[1][1][0]);
     pt.put("Calibration.Gyro.Y.b", cal_ag_xyz_kb[1][1][1]);
     pt.put("Calibration.Gyro.Z.k", cal_ag_xyz_kb[1][2][0]);
     pt.put("Calibration.Gyro.Z.b", cal_ag_xyz_kb[1][2][1]);
+
+    pt.put("Calibration.Gyro.RawVariance", raw_gyro_variance);
+    pt.put("Calibration.Gyro.RawDrift", raw_gyro_drift);
 
     pt.put("Calibration.Magnetometer.Center.X", magnetometer_center.i);
     pt.put("Calibration.Magnetometer.Center.Y", magnetometer_center.j);
@@ -265,6 +269,9 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         cal_ag_xyz_kb[1][1][1] = pt.get<float>("Calibration.Gyro.Y.b", 0.0f);
         cal_ag_xyz_kb[1][2][0] = pt.get<float>("Calibration.Gyro.Z.k", 1.0f);
         cal_ag_xyz_kb[1][2][1] = pt.get<float>("Calibration.Gyro.Z.b", 0.0f);
+
+        raw_gyro_variance= pt.get<float>("Calibration.Gyro.RawVariance", raw_gyro_variance);
+        raw_gyro_drift= pt.get<float>("Calibration.Gyro.RawDrift", raw_gyro_drift);
 
         magnetometer_center.i = pt.get<float>("Calibration.Magnetometer.Center.X", 0.f);
         magnetometer_center.j = pt.get<float>("Calibration.Magnetometer.Center.Y", 0.f);

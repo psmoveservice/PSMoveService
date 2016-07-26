@@ -36,6 +36,8 @@ public:
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }} 
         }})
         , prediction_time(0.f)
+        , raw_gyro_variance(0.f)
+        , raw_gyro_drift(0.f)
     {
         magnetometer_identity.clear();
         magnetometer_center.clear();
@@ -64,6 +66,11 @@ public:
     CommonDeviceVector magnetometer_extents;
     float magnetometer_error;
     float prediction_time;
+    
+    // The variance of the raw gyro readings 
+    float raw_gyro_variance;
+    // The drift raw gyro readings in raw_units/second
+    float raw_gyro_drift;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport
