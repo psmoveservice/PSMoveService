@@ -30,7 +30,10 @@ public:
         , is_valid(false)
         , version(CONFIG_VERSION)
         , accelerometer_fit_error(0.f)
-        , gyro_fit_error(0.f)
+        // Gyro details not yet calibrated
+        , gyro_gain(1.f)
+        , raw_gyro_variance(0.f)
+        , raw_gyro_drift(0.f)
         , max_poll_failure_count(100)
         , prediction_time(0.f)
     {
@@ -43,14 +46,9 @@ public:
         accelerometer_bias.j = -0.0440602154f;
         accelerometer_bias.k = -0.138208047f;
 
-        // Gyro details not yet calibrated
-        gyro_gain.i = 1.f;
-        gyro_gain.j = 1.f;
-        gyro_gain.k = 1.f;
-
-        gyro_bias.i = 0.f;
-        gyro_bias.j = 0.f;
-        gyro_bias.k = 0.f;
+        identity_gravity_direction.i= 0.f;
+        identity_gravity_direction.j= 1.f;
+        identity_gravity_direction.k= 0.f;
     };
 
     virtual const boost::property_tree::ptree config2ptree();
@@ -64,10 +62,15 @@ public:
     CommonDeviceVector accelerometer_bias;
     float accelerometer_fit_error;
 
-    // calibrated_gyro= raw_gyro*gyro_gain + gyro_bias
-    CommonDeviceVector gyro_gain;
-    CommonDeviceVector gyro_bias;
-    float gyro_fit_error;
+    // The calibrated "down" direction
+    CommonDeviceVector identity_gravity_direction;
+
+    // calibrated_gyro= raw_gyro*gyro_gain
+    float gyro_gain;
+    // The variance of the raw gyro readings 
+    float raw_gyro_variance;
+    // The drift raw gyro readings in raw_units/second
+    float raw_gyro_drift;
 
     long max_poll_failure_count;
     float prediction_time;

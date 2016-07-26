@@ -1131,7 +1131,7 @@ static void generate_psdualshock4_data_frame_for_stream(
             raw_sensor_data->mutable_gyroscope()->set_k(psds4_state->RawGyro[2]);
         }
 
-        // If requested, get the raw sensor data for the controller
+        // If requested, get the calibrated sensor data for the controller
         if (stream_info->include_calibrated_sensor_data)
         {
             auto *calibrated_sensor_data = psds4_data_frame->mutable_calibrated_sensor_data();
@@ -1143,6 +1143,10 @@ static void generate_psdualshock4_data_frame_for_stream(
             calibrated_sensor_data->mutable_gyroscope()->set_i(psds4_state->CalibratedGyro.i);
             calibrated_sensor_data->mutable_gyroscope()->set_j(psds4_state->CalibratedGyro.j);
             calibrated_sensor_data->mutable_gyroscope()->set_k(psds4_state->CalibratedGyro.k);
+
+            calibrated_sensor_data->mutable_identity_gravity_direction()->set_i(psmove_config->identity_gravity_direction.i);
+            calibrated_sensor_data->mutable_identity_gravity_direction()->set_j(psmove_config->identity_gravity_direction.j);
+            calibrated_sensor_data->mutable_identity_gravity_direction()->set_k(psmove_config->identity_gravity_direction.k);
         }
 
         // If requested, get the raw tracker data for the controller
@@ -1153,12 +1157,13 @@ static void generate_psdualshock4_data_frame_for_stream(
 
             for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
             {
-                const ControllerOpticalPoseEstimation *positionEstimate =
+                const ControllerOpticalPoseEstimation *poseEstimate =
                     controller_view->getTrackerPoseEstimate(trackerId);
 
-                if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
+                if (poseEstimate != nullptr && poseEstimate->bCurrentlyTracking)
                 {
-                    const CommonDevicePosition &trackerRelativePosition = positionEstimate->position;
+                    const CommonDevicePosition &trackerRelativePosition = poseEstimate->position;
+                    const CommonDeviceQuaternion &trackerRelativeOrientation = poseEstimate->orientation;
                     const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
 
                     // Project the 3d camera position back onto the tracker screen
@@ -1171,19 +1176,25 @@ static void generate_psdualshock4_data_frame_for_stream(
                         pixel->set_y(trackerScreenLocation.y);
                     }
 
-                    // Add the tracker relative 3d position
+                    // Add the tracker relative 3d pose
                     {
                         PSMoveProtocol::Position *position = raw_tracker_data->add_relative_positions();
+                        PSMoveProtocol::Orientation *orientation = raw_tracker_data->add_relative_orientations();
 
                         position->set_x(trackerRelativePosition.x);
                         position->set_y(trackerRelativePosition.y);
                         position->set_z(trackerRelativePosition.z);
+
+                        orientation->set_w(trackerRelativeOrientation.w);
+                        orientation->set_x(trackerRelativeOrientation.x);
+                        orientation->set_y(trackerRelativeOrientation.y);
+                        orientation->set_z(trackerRelativeOrientation.z);
                     }
 
                     // Add the tracker relative projection shapes
                     {
                         const CommonDeviceTrackingProjection &trackerRelativeProjection =
-                            positionEstimate->projection;
+                            poseEstimate->projection;
 
                         switch (trackerRelativeProjection.shape_type)
                         {

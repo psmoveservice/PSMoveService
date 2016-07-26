@@ -255,7 +255,7 @@ static int hid_set_output_report(hid_device *dev, const unsigned char *data, siz
 // -- PSMove Controller Config
 // Bump this version when you are making a breaking config change.
 // Simply adding or removing a field is ok and doesn't require a version bump.
-const int PSDualShock4ControllerConfig::CONFIG_VERSION = 2;
+const int PSDualShock4ControllerConfig::CONFIG_VERSION = 3;
 
 const boost::property_tree::ptree
 PSDualShock4ControllerConfig::config2ptree()
@@ -272,14 +272,12 @@ PSDualShock4ControllerConfig::config2ptree()
     pt.put("Calibration.Accel.Y.b", accelerometer_bias.j);
     pt.put("Calibration.Accel.Z.b", accelerometer_bias.k);
     pt.put("Calibration.Accel.Error", accelerometer_fit_error);
-
-    pt.put("Calibration.Gyro.X.k", gyro_gain.i);
-    pt.put("Calibration.Gyro.Y.k", gyro_gain.j);
-    pt.put("Calibration.Gyro.Z.k", gyro_gain.k);
-    pt.put("Calibration.Gyro.X.b", gyro_bias.i);
-    pt.put("Calibration.Gyro.Y.b", gyro_bias.j);
-    pt.put("Calibration.Gyro.Z.b", gyro_bias.k);
-    pt.put("Calibration.Gyro.Error", gyro_fit_error);
+    pt.put("Calibration.Gyro.Gain", gyro_gain);
+    pt.put("Calibration.Gyro.RawVariance", raw_gyro_variance);
+    pt.put("Calibration.Gyro.RawDrift", raw_gyro_drift);
+    pt.put("Calibration.Identity.Gravity.X", identity_gravity_direction.i);
+    pt.put("Calibration.Identity.Gravity.Y", identity_gravity_direction.j);
+    pt.put("Calibration.Identity.Gravity.Z", identity_gravity_direction.k);
 
     pt.put("prediction_time", prediction_time);
     pt.put("max_poll_failure_count", max_poll_failure_count);
@@ -298,6 +296,7 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         prediction_time = pt.get<float>("prediction_time", 0.f);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
 
+        // Use the current accelerometer values (constructor defaults) as the default values
         accelerometer_gain.i = pt.get<float>("Calibration.Accel.X.k", accelerometer_gain.i);
         accelerometer_gain.j = pt.get<float>("Calibration.Accel.Y.k", accelerometer_gain.j);
         accelerometer_gain.k = pt.get<float>("Calibration.Accel.Z.k", accelerometer_gain.k);
@@ -306,13 +305,15 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         accelerometer_bias.k = pt.get<float>("Calibration.Accel.Z.b", accelerometer_bias.k);
         accelerometer_fit_error = pt.get<float>("Calibration.Accel.Error", 0.0f);
 
-        gyro_gain.i = pt.get<float>("Calibration.Gyro.X.k", gyro_gain.i);
-        gyro_gain.j = pt.get<float>("Calibration.Gyro.Y.k", gyro_gain.j);
-        gyro_gain.k = pt.get<float>("Calibration.Gyro.Z.k", gyro_gain.k);
-        gyro_bias.i = pt.get<float>("Calibration.Gyro.X.b", gyro_bias.i);
-        gyro_bias.j = pt.get<float>("Calibration.Gyro.Y.b", gyro_bias.j);
-        gyro_bias.k = pt.get<float>("Calibration.Gyro.Z.b", gyro_bias.k);
-        gyro_fit_error = pt.get<float>("Calibration.Gyro.Error", 0.0f);
+        // Use the current gyroscope values (constructor defaults) as the default values
+        gyro_gain= pt.get<float>("Calibration.Gyro.Gain", gyro_gain);
+        raw_gyro_variance= pt.get<float>("Calibration.Gyro.RawVariance", raw_gyro_variance);
+        raw_gyro_drift= pt.get<float>("Calibration.Gyro.RawDrift", raw_gyro_drift);
+
+        // Get the calibration direction for "down"
+        pt.get<float>("Calibration.Identity.Gravity.X", identity_gravity_direction.i);
+        pt.get<float>("Calibration.Identity.Gravity.Y", identity_gravity_direction.j);
+        pt.get<float>("Calibration.Identity.Gravity.Z", identity_gravity_direction.k);
     }
     else
     {
@@ -863,15 +864,9 @@ PSDualShock4Controller::poll()
                     + cfg.accelerometer_bias.k;
 
                 // calibrated_gyro= raw_gyro*gyro_gain + gyro_bias
-                newState.CalibratedGyro.i = 
-                    static_cast<float>(newState.RawGyro[0]) * cfg.gyro_gain.i
-                    + cfg.gyro_bias.i;
-                newState.CalibratedGyro.j = 
-                    static_cast<float>(newState.RawGyro[1]) * cfg.gyro_gain.j
-                    + cfg.gyro_bias.j;
-                newState.CalibratedGyro.k = 
-                    static_cast<float>(newState.RawGyro[2]) * cfg.gyro_gain.k
-                    + cfg.gyro_bias.k;
+                newState.CalibratedGyro.i = static_cast<float>(newState.RawGyro[0]) * cfg.gyro_gain;
+                newState.CalibratedGyro.j = static_cast<float>(newState.RawGyro[1]) * cfg.gyro_gain;
+                newState.CalibratedGyro.k = static_cast<float>(newState.RawGyro[2]) * cfg.gyro_gain;
             }
 
             // Sequence and timestamp

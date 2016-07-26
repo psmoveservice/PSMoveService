@@ -27,7 +27,6 @@ const char *AppStage_AccelerometerCalibration::APP_STAGE_NAME = "AcceleromterCal
 
 //-- constants -----
 const double k_stabilize_wait_time_ms = 1000.f;
-const int k_desired_magnetometer_sample_count = 100;
 
 //-- constants -----
 static const int k_max_accelerometer_samples = 500;
@@ -66,6 +65,7 @@ AppStage_AccelerometerCalibration::AppStage_AccelerometerCalibration(App *app)
     , m_minSampleExtent()
     , m_maxSampleExtent()
     , m_lastRawAccelerometer()
+    , m_identityGravityDirection()
     , m_poseSamples(new AccelerometerPoseSamples[AppStage_AccelerometerCalibration::k_measurement_pose_count])
     , m_currentPoseID(AppStage_AccelerometerCalibration::eMeasurementPose::faceUp)
     , m_sampleFitEllipsoid(new EigenFitEllipsoid)
@@ -107,6 +107,7 @@ void AppStage_AccelerometerCalibration::enter()
     m_minSampleExtent = *k_psmove_int_vector3_zero;
     m_maxSampleExtent = *k_psmove_int_vector3_zero;
     m_lastRawAccelerometer = *k_psmove_int_vector3_zero;
+    m_identityGravityDirection= *k_psmove_float_vector3_zero;
     m_lastControllerSeqNum = -1;
 
     // Start streaming in controller data
@@ -193,6 +194,14 @@ void AppStage_AccelerometerCalibration::update()
                     // This assumes that the acceleration noise has a Gaussian distribution.
                     poseSamples.avg_accelerometer_sample /= static_cast<float>(k_max_accelerometer_samples);
 
+                    // The average accelerometer reading in the face up pose becomes the "identity" gravity direction
+                    if (m_currentPoseID == eMeasurementPose::faceUp)
+                    {
+                        m_identityGravityDirection.i= poseSamples.avg_accelerometer_sample.x();
+                        m_identityGravityDirection.j= poseSamples.avg_accelerometer_sample.y();
+                        m_identityGravityDirection.k= poseSamples.avg_accelerometer_sample.z();
+                    }
+
                     // See if we completed the last pose
                     if (m_currentPoseID >= eMeasurementPose::leanBackward)
                     {
@@ -225,7 +234,7 @@ void AppStage_AccelerometerCalibration::update()
                         m_sampleFitEllipsoid->error *= maxSampleExtent;
 
                         // Tell the service what the new calibration constraints are
-                        request_set_accelerometer_calibration(m_sampleFitEllipsoid);
+                        request_set_accelerometer_calibration(m_sampleFitEllipsoid, m_identityGravityDirection);
                     }
 
                     m_menuState = AppStage_AccelerometerCalibration::measureComplete;
@@ -572,7 +581,8 @@ void AppStage_AccelerometerCalibration::renderUI()
 
 //-- private methods -----
 void AppStage_AccelerometerCalibration::request_set_accelerometer_calibration(
-    const EigenFitEllipsoid *ellipsoid)
+    const EigenFitEllipsoid *ellipsoid,
+    const PSMoveFloatVector3 &gravityIdentity)
 {
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_ACCELEROMETER_CALIBRATION);
@@ -598,6 +608,10 @@ void AppStage_AccelerometerCalibration::request_set_accelerometer_calibration(
     calibration->mutable_bias()->set_k(-ellipsoid->center.z() * gain_z);
 
     calibration->set_ellipse_fit_error(ellipsoid->error);
+
+    calibration->mutable_identity_gravity_direction()->set_i(gravityIdentity.i);
+    calibration->mutable_identity_gravity_direction()->set_j(gravityIdentity.j);
+    calibration->mutable_identity_gravity_direction()->set_k(gravityIdentity.k);
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }

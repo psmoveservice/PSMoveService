@@ -85,6 +85,7 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
     // Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
     PSMoveScreenLocation ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMovePosition RelativePositions[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMoveQuaternion RelativeOrientations[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMoveTrackingProjection TrackingProjections[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int ValidTrackerLocations;
@@ -95,6 +96,7 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
         {
             ScreenLocations[index] = PSMoveScreenLocation::create(0, 0);
             RelativePositions[index] = *k_psmove_position_origin;
+            RelativeOrientations[index]= *k_psmove_quaternion_identity;
             TrackerIDs[index] = -1;
         }
         ValidTrackerLocations = 0;
@@ -126,6 +128,23 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
             if (TrackerIDs[listIndex] == trackerId)
             {
                 outPosition = RelativePositions[listIndex];
+                bFound = true;
+                break;
+            }
+        }
+
+        return bFound;
+    }
+
+    inline bool GetOrientationOnTrackerId(int trackerId, PSMoveQuaternion &outOrientation) const
+    {
+        bool bFound = false;
+
+        for (int listIndex = 0; listIndex < ValidTrackerLocations; ++listIndex)
+        {
+            if (TrackerIDs[listIndex] == trackerId)
+            {
+                outOrientation = RelativeOrientations[listIndex];
                 bFound = true;
                 break;
             }
@@ -440,11 +459,13 @@ struct CLIENTPSMOVEAPI PSDualShock4CalibratedSensorData
 {
     PSMoveFloatVector3 Accelerometer;
     PSMoveFloatVector3 Gyroscope;
+    PSMoveFloatVector3 IdentityGravityDirection;
 
     inline void Clear()
     {
         Accelerometer = *k_psmove_float_vector3_zero;
         Gyroscope = *k_psmove_float_vector3_zero;
+        IdentityGravityDirection = {0.f, 1.f, 0.f};
     }
 };
 

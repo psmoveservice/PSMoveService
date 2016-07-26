@@ -24,6 +24,9 @@ struct CLIENTPSMOVEAPI PSMoveFloatVector2
     PSMoveFloatVector2 safe_divide(const float s, const PSMoveFloatVector2 &default_result) const;
     PSMoveFloatVector2 safe_divide(const PSMoveFloatVector2 &v, const PSMoveFloatVector2 &default_result) const;
 
+    PSMoveFloatVector2 abs() const;
+    PSMoveFloatVector2 square() const;
+
     float length() const;
     float normalize_with_default(const PSMoveFloatVector2 &default_result);
 
@@ -53,6 +56,9 @@ struct CLIENTPSMOVEAPI PSMoveFloatVector3
     PSMoveFloatVector3 safe_divide(const float s, const PSMoveFloatVector3 &default_result) const;
     PSMoveFloatVector3 safe_divide(const PSMoveFloatVector3 &v, const PSMoveFloatVector3 &default_result) const;
     
+    PSMoveFloatVector3 abs() const;
+    PSMoveFloatVector3 square() const;
+
     float length() const;
     float normalize_with_default(const PSMoveFloatVector3 &default_result);
 
@@ -80,6 +86,9 @@ struct CLIENTPSMOVEAPI PSMoveIntVector3
     PSMoveIntVector3 unsafe_divide(const PSMoveIntVector3 &v) const;
     PSMoveIntVector3 safe_divide(const int s, const PSMoveIntVector3 &default_result) const;
     PSMoveIntVector3 safe_divide(const PSMoveIntVector3 &v, const PSMoveIntVector3 &default_result) const;
+
+    PSMoveIntVector3 abs() const;
+    PSMoveIntVector3 square() const;
 
     int lengthSquared() const;
 

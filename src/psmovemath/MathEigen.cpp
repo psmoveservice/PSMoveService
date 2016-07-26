@@ -166,3 +166,18 @@ eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f 
 
     return length;
 }
+
+float
+eigen_quaternion_unsigned_angle_between(const Eigen::Quaternionf &a, const Eigen::Quaternionf &b)
+{
+    assert_eigen_quaternion_is_normalized(a);
+    assert_eigen_quaternion_is_normalized(b);
+
+    const Eigen::Quaternionf b_inv= b.conjugate();
+    const Eigen::Quaternionf q_diff= a*b_inv;
+
+    // w = cos(2*theta)
+    const float radian_diff= fabsf(2.f * acosf(q_diff.w()));
+
+    return radian_diff;
+}

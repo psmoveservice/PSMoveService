@@ -49,7 +49,9 @@ public:
     };
 
 protected:
-    void request_set_accelerometer_calibration(const EigenFitEllipsoid *ellipsoid);
+    void request_set_accelerometer_calibration(
+        const EigenFitEllipsoid *ellipsoid,
+        const PSMoveFloatVector3 &gravityIdentity);
     static void handle_acquire_controller(
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
@@ -79,6 +81,7 @@ private:
     PSMoveIntVector3 m_maxSampleExtent;
     PSMoveIntVector3 m_lastRawAccelerometer;
     PSMoveFloatVector3 m_lastCalibratedAccelerometer;
+    PSMoveFloatVector3 m_identityGravityDirection;
 
     AccelerometerPoseSamples *m_poseSamples;
 

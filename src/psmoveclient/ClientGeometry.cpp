@@ -91,6 +91,16 @@ PSMoveFloatVector2 PSMoveFloatVector2::safe_divide(const PSMoveFloatVector2 &v, 
             !is_nearly_zero(v.j) ? j / v.j : default_result.j);
 }
 
+PSMoveFloatVector2 PSMoveFloatVector2::abs() const
+{
+    return PSMoveFloatVector2::create(fabsf(i), fabsf(j));
+}
+
+PSMoveFloatVector2 PSMoveFloatVector2::square() const
+{
+    return PSMoveFloatVector2::create(i*i, j*j);
+}
+
 float PSMoveFloatVector2::length() const
 {
     return sqrtf(i*i + j*j);
@@ -200,6 +210,16 @@ float PSMoveFloatVector3::normalize_with_default(const PSMoveFloatVector3 &defau
     return divisor;
 }
 
+PSMoveFloatVector3 PSMoveFloatVector3::abs() const
+{
+    return PSMoveFloatVector3::create(fabsf(i), fabsf(j), fabsf(k));
+}
+
+PSMoveFloatVector3 PSMoveFloatVector3::square() const
+{
+    return PSMoveFloatVector3::create(i*i, j*j, k*k);
+}
+
 float PSMoveFloatVector3::minValue() const
 {
     return std::min(std::min(i, j), k);
@@ -274,6 +294,16 @@ PSMoveIntVector3 PSMoveIntVector3::safe_divide(const PSMoveIntVector3 &v, const 
             v.i != 0 ? i/v.i : default_result.i,
             v.j != 0 ? j/v.j : default_result.j,
             v.k != 0 ? k/v.k : default_result.k);
+}
+
+PSMoveIntVector3 PSMoveIntVector3::abs() const
+{
+    return PSMoveIntVector3::create(std::abs(i), std::abs(j), std::abs(k));
+}
+
+PSMoveIntVector3 PSMoveIntVector3::square() const
+{
+    return PSMoveIntVector3::create(i*i, j*j, k*k);
 }
 
 int PSMoveIntVector3::lengthSquared() const

@@ -204,6 +204,10 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__set_accelerometer_calibration(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SET_GYROSCOPE_CALIBRATION:
+                response = new PSMoveProtocol::Response;
+                handle_request__set_gyroscope_calibration(context, response);
+                break;
 
             // Tracker Requests
             case PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST:
@@ -810,7 +814,40 @@ protected:
 
             set_config_vector(request.bias(), config->accelerometer_bias);
             set_config_vector(request.gain(), config->accelerometer_gain);
+            set_config_vector(request.identity_gravity_direction(), config->identity_gravity_direction);
             config->accelerometer_fit_error= request.ellipse_fit_error();
+            config->save();
+
+            // Reset the orientation filter state the calibration changed
+            ControllerView->getOrientationFilter()->resetFilterState();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_gyroscope_calibration(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int controller_id = context.request->set_gyroscope_calibration_request().controller_id();
+
+        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+        {
+            PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+            PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+
+            const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
+                context.request->set_gyroscope_calibration_request();
+
+            config->gyro_gain= request.sensor_scale();
+            config->raw_gyro_drift= request.raw_drift();
+            config->raw_gyro_variance= request.raw_variance();
             config->save();
 
             // Reset the orientation filter state the calibration changed

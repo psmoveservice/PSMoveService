@@ -448,6 +448,10 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
             this->CalibratedSensorData.Gyroscope.i = calibrated_sensor_data.gyroscope().i();
             this->CalibratedSensorData.Gyroscope.j = calibrated_sensor_data.gyroscope().j();
             this->CalibratedSensorData.Gyroscope.k = calibrated_sensor_data.gyroscope().k();
+
+            this->CalibratedSensorData.IdentityGravityDirection.i = calibrated_sensor_data.identity_gravity_direction().i();
+            this->CalibratedSensorData.IdentityGravityDirection.j = calibrated_sensor_data.identity_gravity_direction().j();
+            this->CalibratedSensorData.IdentityGravityDirection.k = calibrated_sensor_data.identity_gravity_direction().k();
         }
         else
         {
@@ -645,7 +649,7 @@ const PSDualShock4CalibratedSensorData &ClientPSDualShock4View::GetCalibratedSen
 
 const PSMoveFloatVector3 &ClientPSDualShock4View::GetIdentityGravityCalibrationDirection() const
 {
-    return k_identity_gravity_calibration_direction;
+    return IsValid() ? CalibratedSensorData.IdentityGravityDirection : k_identity_gravity_calibration_direction;
 }
 
 bool ClientPSDualShock4View::GetIsStableAndAlignedWithGravity() const
@@ -659,7 +663,7 @@ bool ClientPSDualShock4View::GetIsStableAndAlignedWithGravity() const
 
     const bool isOk =
         is_nearly_equal(1.f, acceleration_magnitude, 0.1f) &&
-        PSMoveFloatVector3::dot(k_identity_gravity_calibration_direction, acceleration_direction) >= k_cosine_10_degrees;
+        PSMoveFloatVector3::dot(GetIdentityGravityCalibrationDirection(), acceleration_direction) >= k_cosine_10_degrees;
 
     return isOk;
 }
