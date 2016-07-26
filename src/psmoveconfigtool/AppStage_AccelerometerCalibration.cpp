@@ -26,10 +26,11 @@
 const char *AppStage_AccelerometerCalibration::APP_STAGE_NAME = "AcceleromterCalibration";
 
 //-- constants -----
-const double k_stabilize_wait_time_ms = 1000.f;
-
-//-- constants -----
+static const double k_stabilize_wait_time_ms = 1000.f;
 static const int k_max_accelerometer_samples = 500;
+
+static const float k_min_sample_distance = 1000.f;
+static const float k_min_sample_distance_sq = k_min_sample_distance*k_min_sample_distance;
 
 //-- definitions -----
 struct AccelerometerPoseSamples
@@ -49,6 +50,10 @@ struct AccelerometerPoseSamples
 };
 
 //-- private methods -----
+static void request_set_accelerometer_calibration(
+    const int controller_id,
+    const EigenFitEllipsoid *ellipsoid,
+    const Eigen::Vector3f &gravityIdentity);
 static void expandAccelerometerBounds(
     const PSMoveIntVector3 &sample, PSMoveIntVector3 &minSampleExtents, PSMoveIntVector3 &maxSampleExtents);
 static void write_calibration_parameter(const Eigen::Vector3f &in_vector, PSMoveProtocol::FloatVector *out_vector);
@@ -65,8 +70,9 @@ AppStage_AccelerometerCalibration::AppStage_AccelerometerCalibration(App *app)
     , m_minSampleExtent()
     , m_maxSampleExtent()
     , m_lastRawAccelerometer()
-    , m_identityGravityDirection()
     , m_poseSamples(new AccelerometerPoseSamples[AppStage_AccelerometerCalibration::k_measurement_pose_count])
+    , m_gravitySamples(new AccelerometerPoseSamples)
+    , m_sphereSamples(new AccelerometerPoseSamples)
     , m_currentPoseID(AppStage_AccelerometerCalibration::eMeasurementPose::faceUp)
     , m_sampleFitEllipsoid(new EigenFitEllipsoid)
 {
@@ -75,6 +81,8 @@ AppStage_AccelerometerCalibration::AppStage_AccelerometerCalibration(App *app)
 AppStage_AccelerometerCalibration::~AppStage_AccelerometerCalibration()
 {
     delete[] m_poseSamples;
+    delete m_gravitySamples;
+    delete m_sphereSamples;
     delete m_sampleFitEllipsoid;
 }
 
@@ -99,6 +107,11 @@ void AppStage_AccelerometerCalibration::enter()
     }
     m_currentPoseID = eMeasurementPose::faceUp;
 
+    m_gravitySamples->clear();
+    m_sphereSamples->clear();
+
+    m_calibrationMethod= eCalibrationMethod::boundingBox;
+
     // Initialize the controller state
     assert(controllerInfo->ControllerID != -1);
     assert(m_controllerView == nullptr);
@@ -107,7 +120,6 @@ void AppStage_AccelerometerCalibration::enter()
     m_minSampleExtent = *k_psmove_int_vector3_zero;
     m_maxSampleExtent = *k_psmove_int_vector3_zero;
     m_lastRawAccelerometer = *k_psmove_int_vector3_zero;
-    m_identityGravityDirection= *k_psmove_float_vector3_zero;
     m_lastControllerSeqNum = -1;
 
     // Start streaming in controller data
@@ -160,12 +172,14 @@ void AppStage_AccelerometerCalibration::update()
                 }
                 else
                 {
-                    m_menuState = AppStage_AccelerometerCalibration::placeController;
+                    m_menuState = AppStage_AccelerometerCalibration::selectMethod;
                 }
             }
         } break;
     case eCalibrationMenuState::failedStreamStart:
+    case eCalibrationMenuState::selectMethod:
     case eCalibrationMenuState::placeController:
+    case eCalibrationMenuState::holdAndSpinController:
         {
         } break;
     case eCalibrationMenuState::measureDirection:
@@ -193,14 +207,6 @@ void AppStage_AccelerometerCalibration::update()
                     // Compute the average gravity value in this pose.
                     // This assumes that the acceleration noise has a Gaussian distribution.
                     poseSamples.avg_accelerometer_sample /= static_cast<float>(k_max_accelerometer_samples);
-
-                    // The average accelerometer reading in the face up pose becomes the "identity" gravity direction
-                    if (m_currentPoseID == eMeasurementPose::faceUp)
-                    {
-                        m_identityGravityDirection.i= poseSamples.avg_accelerometer_sample.x();
-                        m_identityGravityDirection.j= poseSamples.avg_accelerometer_sample.y();
-                        m_identityGravityDirection.k= poseSamples.avg_accelerometer_sample.z();
-                    }
 
                     // See if we completed the last pose
                     if (m_currentPoseID >= eMeasurementPose::leanBackward)
@@ -233,9 +239,105 @@ void AppStage_AccelerometerCalibration::update()
                         m_sampleFitEllipsoid->extents.z() = m_sampleFitEllipsoid->extents.z() * maxSampleExtent;
                         m_sampleFitEllipsoid->error *= maxSampleExtent;
 
+                        // The average accelerometer reading in the face up pose becomes the "identity" gravity direction
+                        AccelerometerPoseSamples &poseSamples = m_poseSamples[eMeasurementPose::faceUp];
+                        Eigen::Vector3f eigen_indentity_gravity = poseSamples.avg_accelerometer_sample - boxCenter;
+                        eigen_vector3f_normalize_with_default(eigen_indentity_gravity, Eigen::Vector3f(0.f, 1.f, 0.f));                        
+
                         // Tell the service what the new calibration constraints are
-                        request_set_accelerometer_calibration(m_sampleFitEllipsoid, m_identityGravityDirection);
+                        request_set_accelerometer_calibration(
+                            m_controllerView->GetControllerID(),
+                            m_sampleFitEllipsoid, 
+                            eigen_indentity_gravity);
                     }
+
+                    m_menuState = AppStage_AccelerometerCalibration::measureComplete;
+                }
+            }
+        } break;
+    case eCalibrationMenuState::measureSphere:
+        {
+            if (bControllerDataUpdatedThisFrame && m_sphereSamples->sample_count < k_max_accelerometer_samples)
+            {
+                // Get the last accelerometer sample we've received for the controller
+                PSMoveFloatVector3 psmove_sample = m_lastRawAccelerometer.castToFloatVector3();
+                Eigen::Vector3f eigen_sample = psmove_float_vector3_to_eigen_vector3(psmove_sample);
+
+                // Make sure this sample isn't too close to another sample
+                bool bTooClose= false;
+                for (int sampleIndex= m_sphereSamples->sample_count-1; sampleIndex >= 0; --sampleIndex)
+                {
+                    const Eigen::Vector3f diff= eigen_sample - m_sphereSamples->eigen_accelerometer_samples[sampleIndex];
+                    const float distanceSquared= diff.squaredNorm();
+
+                    if (distanceSquared < k_min_sample_distance_sq)
+                    {
+                        bTooClose= true;
+                        break;
+                    }
+                }
+
+                if (!bTooClose)
+                {
+                    // Grow the measurement extents bounding box
+                    expandAccelerometerBounds(m_lastRawAccelerometer, m_minSampleExtent, m_maxSampleExtent);
+
+                    // Store the new sample
+                    m_sphereSamples->psmove_accelerometer_samples[m_sphereSamples->sample_count] = psmove_sample;
+                    m_sphereSamples->eigen_accelerometer_samples[m_sphereSamples->sample_count] = eigen_sample;
+                    m_sphereSamples->avg_accelerometer_sample += eigen_sample;
+                    ++m_sphereSamples->sample_count;
+
+                    // See if we filled all of the samples for this pose
+                    if (m_sphereSamples->sample_count >= k_max_accelerometer_samples)
+                    {
+                        // Compute the average gravity value in this pose.
+                        // This assumes that the acceleration noise has a Gaussian distribution.
+                        m_sphereSamples->avg_accelerometer_sample /= static_cast<float>(k_max_accelerometer_samples);
+
+                        // Compute a best fit ellipsoid based on the bounding box 
+                        eigen_alignment_fit_bounding_box_ellipsoid(
+                            m_sphereSamples->eigen_accelerometer_samples, 
+                            m_sphereSamples->sample_count, 
+                            *m_sampleFitEllipsoid);
+
+                        // Instruct the use to set the controller down to measure gravity
+                        m_menuState = AppStage_AccelerometerCalibration::placeController;
+                    }
+                }
+            }
+        } break;
+    case eCalibrationMenuState::measureGravity:
+        {
+            if (bControllerDataUpdatedThisFrame && m_gravitySamples->sample_count < k_max_accelerometer_samples)
+            {
+                // Get the last accelerometer sample we've received for the controller
+                PSMoveFloatVector3 psmove_sample = m_lastRawAccelerometer.castToFloatVector3();
+                Eigen::Vector3f eigen_sample = psmove_float_vector3_to_eigen_vector3(psmove_sample);
+
+                // Store the new sample
+                m_gravitySamples->psmove_accelerometer_samples[m_gravitySamples->sample_count] = psmove_sample;
+                m_gravitySamples->eigen_accelerometer_samples[m_gravitySamples->sample_count] = eigen_sample;
+                m_gravitySamples->avg_accelerometer_sample += eigen_sample;
+                ++m_gravitySamples->sample_count;
+
+                // See if we filled all of the samples for this pose
+                if (m_gravitySamples->sample_count >= k_max_accelerometer_samples)
+                {
+                    // Compute the average gravity value in this pose.
+                    // This assumes that the acceleration noise has a Gaussian distribution.
+                    m_gravitySamples->avg_accelerometer_sample /= static_cast<float>(k_max_accelerometer_samples);
+
+                    // The average accelerometer reading in the face up pose becomes the "identity" gravity direction
+                    Eigen::Vector3f eigen_indentity_gravity = 
+                        m_gravitySamples->avg_accelerometer_sample - m_sampleFitEllipsoid->center;
+                    eigen_vector3f_normalize_with_default(eigen_indentity_gravity, Eigen::Vector3f(0.f, 1.f, 0.f));                        
+
+                    // Tell the service what the new calibration constraints are
+                    request_set_accelerometer_calibration(
+                        m_controllerView->GetControllerID(),
+                        m_sampleFitEllipsoid, 
+                        eigen_indentity_gravity);
 
                     m_menuState = AppStage_AccelerometerCalibration::measureComplete;
                 }
@@ -272,8 +374,10 @@ void AppStage_AccelerometerCalibration::render()
     {
     case eCalibrationMenuState::waitingForStreamStartResponse:
     case eCalibrationMenuState::failedStreamStart:
+    case eCalibrationMenuState::selectMethod:
         {
         } break;
+    case eCalibrationMenuState::holdAndSpinController:
     case eCalibrationMenuState::placeController:
         {
             // Draw the controller model in the pose we want the user place it in
@@ -281,18 +385,39 @@ void AppStage_AccelerometerCalibration::render()
             drawPSDualShock4Model(controllerTransform, glm::vec3(1.f, 1.f, 1.f));
         } break;
     case eCalibrationMenuState::measureDirection:
+    case eCalibrationMenuState::measureGravity:
+    case eCalibrationMenuState::measureSphere:
     case eCalibrationMenuState::measureComplete:
         {
             // Draw the controller in the middle
             glm::mat4 controllerTransform = computeControllerPoseTransform(eMeasurementPose::identity);
             drawPSDualShock4Model(controllerTransform, glm::vec3(1.f, 1.f, 1.f));
 
+            // Get the sample list to draw based on the calibration method
+            float *poseSamples= nullptr;
+            int sampleCount= 0;
+            switch(m_calibrationMethod)
+            {
+            case eCalibrationMethod::boundingBox:
+                if (m_menuState == eCalibrationMenuState::measureSphere)
+                {
+                    poseSamples= reinterpret_cast<float *>(&m_sphereSamples->psmove_accelerometer_samples[0]);
+                    sampleCount= m_sphereSamples->sample_count;
+                }
+                else if (m_menuState == eCalibrationMenuState::measureGravity)
+                {
+                    poseSamples= reinterpret_cast<float *>(&m_gravitySamples->psmove_accelerometer_samples[0]);
+                    sampleCount= m_gravitySamples->sample_count;
+                }
+                break;
+            case eCalibrationMethod::minVolumeFit:
+                poseSamples= reinterpret_cast<float *>(&m_poseSamples[m_currentPoseID].psmove_accelerometer_samples[0]);
+                sampleCount= m_poseSamples[m_currentPoseID].sample_count;
+                break;
+            }
+
             // Draw the sample point cloud around the origin
-            drawPointCloud(
-                recenterMatrix,
-                glm::vec3(1.f, 1.f, 1.f),
-                reinterpret_cast<float *>(&m_poseSamples[m_currentPoseID].psmove_accelerometer_samples[0]),
-                m_poseSamples[m_currentPoseID].sample_count);
+            drawPointCloud(recenterMatrix, glm::vec3(1.f, 1.f, 1.f), poseSamples, sampleCount);
 
             // Draw the sample bounding box
             // Label the min and max corners with the min and max magnetometer readings
@@ -441,37 +566,42 @@ void AppStage_AccelerometerCalibration::renderUI()
 
             ImGui::End();
         } break;
-    case eCalibrationMenuState::placeController:
+    case eCalibrationMenuState::selectMethod:
+        {
+            ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
+
+            ImGui::Text("Select a calibration method (recommend bounding box)!");
+
+            if (ImGui::Button("Bounding Box Fit"))
+            {
+                m_calibrationMethod= eCalibrationMethod::boundingBox;
+                m_menuState = eCalibrationMenuState::holdAndSpinController;
+            }
+
+            if (ImGui::Button("Min Volume Fit"))
+            {
+                m_calibrationMethod= eCalibrationMethod::minVolumeFit;
+                m_menuState = eCalibrationMenuState::placeController;
+            }
+
+            ImGui::End();
+        } break;
+    case eCalibrationMenuState::holdAndSpinController:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            switch (m_currentPoseID)
-            {
-            case AppStage_AccelerometerCalibration::faceUp:
-                ImGui::Text("Lay the controller flat on the table face up");
-                break;
-            case AppStage_AccelerometerCalibration::faceDown:
-                ImGui::Text("Lay the controller flat on the table face down");
-                break;
-            case AppStage_AccelerometerCalibration::leanLeft:
-                ImGui::Text("Hold the controller on it's left side");
-                break;
-            case AppStage_AccelerometerCalibration::leanRight:
-                ImGui::Text("Hold the controller on it's right side");
-                break;
-            case AppStage_AccelerometerCalibration::leanForward:
-                ImGui::Text("Balance the controller on trigger button face");
-                break;
-            case AppStage_AccelerometerCalibration::leanBackward:
-                ImGui::Text("Balance the controller on the thumbsticks");
-                break;
-            }
+            ImGui::TextWrapped(
+                "Hold the controller in your hand\n" \
+                "Slowly Rotate the controller around.\n"
+                "Try to sweep out a sphere.\n");
 
             if (ImGui::Button("Start Sampling"))
             {
-                m_menuState = eCalibrationMenuState::measureDirection;
+                m_menuState = eCalibrationMenuState::measureSphere;
             }
             ImGui::SameLine();
             if (ImGui::Button("Cancel"))
@@ -481,15 +611,88 @@ void AppStage_AccelerometerCalibration::renderUI()
 
             ImGui::End();
         } break;
+    case eCalibrationMenuState::placeController:
+        {
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
+
+            if (m_calibrationMethod == eCalibrationMethod::minVolumeFit)
+            {
+                switch (m_currentPoseID)
+                {
+                case AppStage_AccelerometerCalibration::faceUp:
+                    ImGui::Text("Lay the controller flat on the table face up");
+                    break;
+                case AppStage_AccelerometerCalibration::faceDown:
+                    ImGui::Text("Lay the controller flat on the table face down");
+                    break;
+                case AppStage_AccelerometerCalibration::leanLeft:
+                    ImGui::Text("Hold the controller on it's left side");
+                    break;
+                case AppStage_AccelerometerCalibration::leanRight:
+                    ImGui::Text("Hold the controller on it's right side");
+                    break;
+                case AppStage_AccelerometerCalibration::leanForward:
+                    ImGui::Text("Balance the controller on trigger button face");
+                    break;
+                case AppStage_AccelerometerCalibration::leanBackward:
+                    ImGui::Text("Balance the controller on the thumbsticks");
+                    break;
+                }
+
+                if (ImGui::Button("Start Sampling"))
+                {
+                    m_menuState = eCalibrationMenuState::measureDirection;
+                }
+                ImGui::SameLine();
+            }
+            else
+            {
+                ImGui::Text("Lay the controller flat on the table face up");
+
+                if (ImGui::Button("Start Sampling"))
+                {
+                    m_menuState = eCalibrationMenuState::measureGravity;
+                }
+                ImGui::SameLine();
+            }
+
+            if (ImGui::Button("Cancel"))
+            {
+                request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
+            }
+
+            ImGui::End();
+        } break;
+    case eCalibrationMenuState::measureGravity:
+    case eCalibrationMenuState::measureSphere:
     case eCalibrationMenuState::measureDirection:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            const float sampleFraction = 
-                static_cast<float>(m_poseSamples[m_currentPoseID].sample_count)
-                / static_cast<float>(k_max_accelerometer_samples);
+            float sampleFraction = 0;
+
+            switch (m_menuState)
+            {
+            case eCalibrationMenuState::measureGravity:
+                sampleFraction=
+                    static_cast<float>(m_gravitySamples->sample_count)
+                    / static_cast<float>(k_max_accelerometer_samples);
+                break;
+            case eCalibrationMenuState::measureSphere:
+                sampleFraction=
+                    static_cast<float>(m_sphereSamples->sample_count)
+                    / static_cast<float>(k_max_accelerometer_samples);
+                break;
+            case eCalibrationMenuState::measureDirection:
+                sampleFraction=
+                    static_cast<float>(m_poseSamples[m_currentPoseID].sample_count)
+                    / static_cast<float>(k_max_accelerometer_samples);
+                break;
+            }
 
             ImGui::Text("Sampling accelerometer.");
             ImGui::ProgressBar(sampleFraction, ImVec2(250, 20));
@@ -510,21 +713,28 @@ void AppStage_AccelerometerCalibration::renderUI()
             {
                 m_controllerView->GetPSDualShock4ViewMutable().SetLEDOverride(0, 0, 0);
 
-                if (m_currentPoseID >= eMeasurementPose::leanBackward)
+                if (m_calibrationMethod == eCalibrationMethod::minVolumeFit)
                 {
-                    m_menuState = eCalibrationMenuState::verifyCalibration;
+                    if (m_currentPoseID >= eMeasurementPose::leanBackward)
+                    {
+                        m_menuState = eCalibrationMenuState::verifyCalibration;
+                    }
+                    else
+                    {
+                        // Reset the sample info for the next pose
+                        AccelerometerPoseSamples &nextPoseSamples = m_poseSamples[m_currentPoseID + 1];
+                        nextPoseSamples.sample_count = 0;
+                        nextPoseSamples.avg_accelerometer_sample = Eigen::Vector3f::Zero();
+
+                        // Move onto the next pose
+                        m_currentPoseID = static_cast<eMeasurementPose>(m_currentPoseID + 1);
+
+                        m_menuState = eCalibrationMenuState::placeController;
+                    }
                 }
                 else
                 {
-                    // Reset the sample info for the next pose
-                    AccelerometerPoseSamples &nextPoseSamples = m_poseSamples[m_currentPoseID + 1];
-                    nextPoseSamples.sample_count = 0;
-                    nextPoseSamples.avg_accelerometer_sample = Eigen::Vector3f::Zero();
-
-                    // Move onto the next pose
-                    m_currentPoseID = static_cast<eMeasurementPose>(m_currentPoseID + 1);
-
-                    m_menuState = eCalibrationMenuState::placeController;
+                    m_menuState = eCalibrationMenuState::verifyCalibration;
                 }
             }
             ImGui::SameLine();
@@ -580,9 +790,10 @@ void AppStage_AccelerometerCalibration::renderUI()
 }
 
 //-- private methods -----
-void AppStage_AccelerometerCalibration::request_set_accelerometer_calibration(
+static void request_set_accelerometer_calibration(
+    const int controller_id,
     const EigenFitEllipsoid *ellipsoid,
-    const PSMoveFloatVector3 &gravityIdentity)
+    const Eigen::Vector3f &gravityIdentity)
 {
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_ACCELEROMETER_CALIBRATION);
@@ -590,7 +801,7 @@ void AppStage_AccelerometerCalibration::request_set_accelerometer_calibration(
     PSMoveProtocol::Request_RequestSetAccelerometerCalibration *calibration =
         request->mutable_set_accelerometer_calibration_request();
 
-    calibration->set_controller_id(m_controllerView->GetControllerID());
+    calibration->set_controller_id(controller_id);
 
     // The gain for each axis is 1 / ellipsoid extent on that axis
     const float gain_x = safe_divide_with_default(1.f, ellipsoid->extents.x(), 1.f);
@@ -609,9 +820,9 @@ void AppStage_AccelerometerCalibration::request_set_accelerometer_calibration(
 
     calibration->set_ellipse_fit_error(ellipsoid->error);
 
-    calibration->mutable_identity_gravity_direction()->set_i(gravityIdentity.i);
-    calibration->mutable_identity_gravity_direction()->set_j(gravityIdentity.j);
-    calibration->mutable_identity_gravity_direction()->set_k(gravityIdentity.k);
+    calibration->mutable_identity_gravity_direction()->set_i(gravityIdentity.x());
+    calibration->mutable_identity_gravity_direction()->set_j(gravityIdentity.y());
+    calibration->mutable_identity_gravity_direction()->set_k(gravityIdentity.z());
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }

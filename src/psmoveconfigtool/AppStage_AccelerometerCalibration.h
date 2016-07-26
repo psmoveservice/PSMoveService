@@ -49,9 +49,6 @@ public:
     };
 
 protected:
-    void request_set_accelerometer_calibration(
-        const EigenFitEllipsoid *ellipsoid,
-        const PSMoveFloatVector3 &gravityIdentity);
     static void handle_acquire_controller(
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
@@ -64,13 +61,25 @@ private:
 
         waitingForStreamStartResponse,
         failedStreamStart,
+        selectMethod,
         placeController,
+        holdAndSpinController,
         measureDirection,
+        measureSphere,
+        measureGravity,
         measureComplete,
         verifyCalibration,
         test
     };
     eCalibrationMenuState m_menuState;
+
+    enum eCalibrationMethod
+    {
+        boundingBox,
+        minVolumeFit
+    };
+    eCalibrationMethod m_calibrationMethod;
+
     bool m_bBypassCalibration;
 
     class ClientControllerView *m_controllerView;
@@ -81,9 +90,13 @@ private:
     PSMoveIntVector3 m_maxSampleExtent;
     PSMoveIntVector3 m_lastRawAccelerometer;
     PSMoveFloatVector3 m_lastCalibratedAccelerometer;
-    PSMoveFloatVector3 m_identityGravityDirection;
 
+    // Min Volume ellipsoid method
     AccelerometerPoseSamples *m_poseSamples;
+
+    // Bounding Box method
+    AccelerometerPoseSamples *m_gravitySamples;
+    AccelerometerPoseSamples *m_sphereSamples;
 
     eMeasurementPose m_currentPoseID;
 
