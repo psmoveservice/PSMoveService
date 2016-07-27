@@ -469,13 +469,17 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
             {
                 const PSMoveProtocol::Pixel &locationOnTracker = raw_tracker_data.screen_locations(listIndex);
                 const PSMoveProtocol::Position &positionOnTracker = raw_tracker_data.relative_positions(listIndex);
+                const PSMoveProtocol::Orientation &orientationOnTracker = raw_tracker_data.relative_orientations(listIndex);
 
                 this->RawTrackerData.TrackerIDs[listIndex] = raw_tracker_data.tracker_ids(listIndex);
                 this->RawTrackerData.ScreenLocations[listIndex] =
                     PSMoveScreenLocation::create(locationOnTracker.x(), locationOnTracker.y());
                 this->RawTrackerData.RelativePositions[listIndex] =
                     PSMovePosition::create(
-                    positionOnTracker.x(), positionOnTracker.y(), positionOnTracker.z());
+                        positionOnTracker.x(), positionOnTracker.y(), positionOnTracker.z());
+                this->RawTrackerData.RelativeOrientations[listIndex] =
+                    PSMoveQuaternion::create(
+                        orientationOnTracker.w(), orientationOnTracker.x(), orientationOnTracker.y(), orientationOnTracker.z());
 
                 if (raw_tracker_data.projected_spheres_size() > 0)
                 {
