@@ -123,7 +123,7 @@ public:
     template <typename t_enum_status>
     void setSubStatus_WorkerThread(t_enum_status newSubStatus)
     {
-        assert(isWorkerThread());
+        //assert(isWorkerThread());
         
         // Atomically set the new status on subStatus_WorkerThread
         InterlockedCompareExchange(&subStatus_WorkerThread, static_cast<LONG>(newSubStatus), subStatus_WorkerThread);
