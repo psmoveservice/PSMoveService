@@ -4,11 +4,14 @@
 #include "PSMoveConfig.h"
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
+#include "MathUtility.h"
 #include "hidapi.h"
 #include <string>
 #include <vector>
 #include <deque>
 #include <chrono>
+
+#define ACCELEROMETER_PITCH_DEGREES 12.661
 
 struct PSDualShock4HIDDetails {
     std::string Device_path;
@@ -38,17 +41,17 @@ public:
         , prediction_time(0.f)
     {
         // Accelerometer defaults computed from accelerometer calibration in the config tool
-        accelerometer_gain.i = 0.000123639955f; // This is suspiciously close to 1/2^13
-        accelerometer_gain.j = 0.000110350913f;
-        accelerometer_gain.k = 0.000121006778f;
+        accelerometer_gain.i = 1.f/8192.f;
+        accelerometer_gain.j = 1.f/8192.f;
+        accelerometer_gain.k = 1.f/8192.f;
         
-        accelerometer_bias.i = -0.00309099886f;
-        accelerometer_bias.j = -0.0923637152f;
-        accelerometer_bias.k = -0.0185140371f;
+        accelerometer_bias.i = 0.f;
+        accelerometer_bias.j = 0.f;
+        accelerometer_bias.k = 0.f;
 
-        identity_gravity_direction.i= 0.00176459958f;
-        identity_gravity_direction.j= 0.975684166f;
-        identity_gravity_direction.k= 0.219174221f;
+        identity_gravity_direction.i= 0.f;
+        identity_gravity_direction.j= cosf(ACCELEROMETER_PITCH_DEGREES*k_degrees_to_radians);
+        identity_gravity_direction.k= sinf(ACCELEROMETER_PITCH_DEGREES*k_degrees_to_radians);
     };
 
     virtual const boost::property_tree::ptree config2ptree();
