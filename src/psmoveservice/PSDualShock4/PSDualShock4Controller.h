@@ -38,17 +38,17 @@ public:
         , prediction_time(0.f)
     {
         // Accelerometer defaults computed from accelerometer calibration in the config tool
-        accelerometer_gain.i = 0.000173128647f;
-        accelerometer_gain.j = 0.00013985172f;
-        accelerometer_gain.k = 0.000100948688f;
+        accelerometer_gain.i = 0.000123639955f; // This is suspiciously close to 1/2^13
+        accelerometer_gain.j = 0.000110350913f;
+        accelerometer_gain.k = 0.000121006778f;
         
-        accelerometer_bias.i = -0.0126388613f;
-        accelerometer_bias.j = -0.0440602154f;
-        accelerometer_bias.k = -0.138208047f;
+        accelerometer_bias.i = -0.00309099886f;
+        accelerometer_bias.j = -0.0923637152f;
+        accelerometer_bias.k = -0.0185140371f;
 
-        identity_gravity_direction.i= 0.f;
-        identity_gravity_direction.j= 1.f;
-        identity_gravity_direction.k= 0.f;
+        identity_gravity_direction.i= 0.00176459958f;
+        identity_gravity_direction.j= 0.975684166f;
+        identity_gravity_direction.k= 0.219174221f;
     };
 
     virtual const boost::property_tree::ptree config2ptree();
