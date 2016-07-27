@@ -345,7 +345,7 @@ void AppStage_GyroscopeCalibration::update()
                 if (m_scaleSamples->lastSampleTimeValid)
                 {
                     std::chrono::duration<float, std::milli> sampleDurationMilli = 
-                        now - m_errorSamples->sampleStartTime;
+                        now - m_scaleSamples->lastSampleTime;
 
                     if (sampleDurationMilli.count() < k_max_valid_scale_time_delta)
                     {
