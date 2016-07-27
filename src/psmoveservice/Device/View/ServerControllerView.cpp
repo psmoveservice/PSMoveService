@@ -261,17 +261,29 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
             ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
             ControllerOpticalPoseEstimation &poseEstimate = m_tracker_pose_estimation[tracker_id];
 
-            poseEstimate.bCurrentlyTracking = false;
-
             if (tracker->getIsOpen())
             {
-                if (tracker->computePoseForController(this, &poseEstimate))
+                if (tracker->getHasUnpublishedState())
                 {
-                    poseEstimate.bCurrentlyTracking = true;
-                    poseEstimate.last_visible_timestamp = now;
+                    poseEstimate.bCurrentlyTracking = false;
 
-                    valid_tracker_ids[positions_found] = tracker_id;
-                    ++positions_found;
+                    if (tracker->computePoseForController(this, &poseEstimate))
+                    {
+                        poseEstimate.bCurrentlyTracking = true;
+                        poseEstimate.last_visible_timestamp = now;
+
+                        valid_tracker_ids[positions_found] = tracker_id;
+                        ++positions_found;
+                    }
+                }
+                else
+                {
+                    // Keep using the pose from the last visible frame
+                    if (poseEstimate.bCurrentlyTracking)
+                    {
+                        valid_tracker_ids[positions_found] = tracker_id;
+                        ++positions_found;
+                    }
                 }
             }
 

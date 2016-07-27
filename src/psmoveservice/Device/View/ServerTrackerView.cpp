@@ -718,7 +718,7 @@ ServerTrackerView::computePoseForController(
     ServerControllerView* tracked_controller,
     ControllerOpticalPoseEstimation *out_pose_estimate)
 {
-    bool bSuccess = m_bHasUnpublishedState;
+    bool bSuccess = true;
 
     // Get the tracking shape used by the controller
     CommonDeviceTrackingShape tracking_shape;
