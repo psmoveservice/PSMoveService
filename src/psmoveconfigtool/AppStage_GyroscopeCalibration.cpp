@@ -61,7 +61,7 @@ struct GyroscopeErrorSamples
         PSMoveFloatVector3 mean_omega= PSMoveFloatVector3::create(0.f, 0.f, 0.f);
         for (int sample_index = 0; sample_index < sample_count; sample_index++)
         {
-            mean_omega= mean_omega + omega_samples[sample_index].castToFloatVector3();
+            mean_omega= mean_omega + omega_samples[sample_index].castToFloatVector3().abs();
         }
         mean_omega= mean_omega.unsafe_divide(N);
 
@@ -91,6 +91,7 @@ struct GyroscopeScaleSamples
     
     Eigen::Quaternionf lastOpticalOrientation;
     std::chrono::time_point<std::chrono::high_resolution_clock> lastSampleTime;
+    bool lastSampleTimeValid;
 
     float scale_samples[k_desired_scale_sample_count];
     int sample_count;
@@ -100,6 +101,7 @@ struct GyroscopeScaleSamples
 
     void clear()
     {
+        lastSampleTimeValid= false;
         lastOpticalOrientation= Eigen::Quaternionf::Identity();
         sample_count= 0;
         raw_scale_mean= 0.f;
@@ -191,6 +193,7 @@ void AppStage_GyroscopeCalibration::enter()
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::start_controller_data_stream(
             m_controllerView, 
+            ClientPSMoveAPI::includePositionData | 
             ClientPSMoveAPI::includeRawSensorData | 
             ClientPSMoveAPI::includeCalibratedSensorData |
             ClientPSMoveAPI::includeRawTrackerData),
@@ -302,7 +305,21 @@ void AppStage_GyroscopeCalibration::update()
 
                     // Start measuring the gyro scale
                     m_scaleSamples->clear();
-                    m_menuState= eCalibrationMenuState::measureScale;
+
+                    if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4)
+                    {
+                        m_menuState= eCalibrationMenuState::measureScale;
+                    }
+                    else
+                    {
+                        // Update the gyro config on the service
+                        request_set_gyroscope_calibration(
+                            1.f, // No gyro sensor scaling for other controllers 
+                            m_errorSamples->raw_drift, 
+                            m_errorSamples->raw_variance);
+
+                        m_menuState= eCalibrationMenuState::measureComplete;
+                    }
                 }
             }
             else
@@ -325,7 +342,7 @@ void AppStage_GyroscopeCalibration::update()
                 const Eigen::Quaternionf orientation= 
                     psmove_quaternion_to_eigen_quaternionf(orientationOnTracker);
 
-                if (m_scaleSamples->sample_count > 0)
+                if (m_scaleSamples->lastSampleTimeValid)
                 {
                     std::chrono::duration<float, std::milli> sampleDurationMilli = 
                         now - m_errorSamples->sampleStartTime;
@@ -372,6 +389,7 @@ void AppStage_GyroscopeCalibration::update()
                 m_scaleSamples->lastSampleTime= now;
                 m_scaleSamples->lastOpticalOrientation= 
                     psmove_quaternion_to_eigen_quaternionf(orientationOnTracker);
+                m_scaleSamples->lastSampleTimeValid= true;
             }
         } break;
     case eCalibrationMenuState::measureComplete:
@@ -386,10 +404,8 @@ void AppStage_GyroscopeCalibration::update()
 void AppStage_GyroscopeCalibration::render()
 {
     const float modelScale = 18.f;
-    glm::mat4 scaleAndRotateModelX90= 
-        glm::rotate(
-            glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale)),
-            90.f, glm::vec3(1.f, 0.f, 0.f));  
+    glm::mat4 scaleModel= 
+            glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale));  
 
     switch (m_menuState)
     {
@@ -399,7 +415,7 @@ void AppStage_GyroscopeCalibration::render()
         } break;
     case eCalibrationMenuState::waitForStable:
         {
-            drawController(m_controllerView, scaleAndRotateModelX90);
+            drawController(m_controllerView, scaleModel);
 
             // Draw the current direction of gravity
             {
@@ -417,10 +433,28 @@ void AppStage_GyroscopeCalibration::render()
             }
         } break;
     case eCalibrationMenuState::measureBiasAndDrift:
+        {
+            drawController(m_controllerView, scaleModel);
+        } break;
     case eCalibrationMenuState::measureScale:
+        {
+            PSMoveQuaternion orientationOnTracker;
+            
+            // Show the optically derived orientation
+            if (m_controllerView->GetIsCurrentlyTracking() &&
+                m_controllerView->GetRawTrackerData().GetOrientationOnTrackerId(0, orientationOnTracker))
+            {
+                // Get the orientation of the controller in world space (OpenGL Coordinate System)            
+                glm::quat q= psmove_quaternion_to_glm_quat(orientationOnTracker);
+                glm::mat4 trackerSpaceOrientation= glm::mat4_cast(q);
+                glm::mat4 trackerSpaceTransform = glm::scale(trackerSpaceOrientation, glm::vec3(modelScale, modelScale, modelScale));
+
+                drawController(m_controllerView, trackerSpaceTransform);
+            }
+        } break;
     case eCalibrationMenuState::measureComplete:
         {
-            drawController(m_controllerView, scaleAndRotateModelX90);
+            drawController(m_controllerView, scaleModel);
         } break;
     case eCalibrationMenuState::test:
         {
@@ -530,8 +564,7 @@ void AppStage_GyroscopeCalibration::renderUI()
 
             ImGui::TextWrapped(
                 "[Step 1 of 2: Measuring gyroscope drift and bias]\n" \
-                "Pick up the controller and smoothly twist it around\n" \
-                "with the light bar in view of the camera.");
+                "Sampling Gyroscope...");
             ImGui::ProgressBar(fminf(sampleFraction, timeFraction), ImVec2(250, 20));
 
             if (ImGui::Button("Cancel"))
@@ -549,13 +582,25 @@ void AppStage_GyroscopeCalibration::renderUI()
 
             ImGui::TextWrapped(
                 "[Step 2 of 2: Computing gyroscope sensor scale]\n" \
-                "Sampling gyroscope...");
+                "Pick up the controller and smoothly twist it around\n" \
+                "with the light bar in view of the camera.");
+
+            if (m_controllerView->GetIsStableAndAlignedWithGravity())
+            {
+                ImGui::Text("[Controller stationary]");
+            }
+            else if (!m_controllerView->GetIsCurrentlyTracking())
+            {
+                ImGui::Text("[Light bar not in view of tracker 0]");
+            }
+            else
+            {
+                ImGui::Text("Sampling gyroscope scale...");                
+            }
 
             const float sampleFraction = 
                 static_cast<float>(m_scaleSamples->sample_count)
                 / static_cast<float>(k_desired_scale_sample_count);
-
-            ImGui::Text("Sampling gyroscope scale.");
             ImGui::ProgressBar(sampleFraction, ImVec2(250, 20));
 
             ImGui::End();
@@ -676,10 +721,10 @@ static void drawController(ClientControllerView *controllerView, const glm::mat4
     switch(controllerView->GetControllerViewType())
     {
     case ClientControllerView::PSMove:
-        drawPSDualShock4Model(transform, glm::vec3(1.f, 1.f, 1.f));
+        drawPSMoveModel(transform, glm::vec3(1.f, 1.f, 1.f));
         break;
     case ClientControllerView::PSDualShock4:
-        drawPSMoveModel(transform, glm::vec3(1.f, 1.f, 1.f));
+        drawPSDualShock4Model(transform, glm::vec3(1.f, 1.f, 1.f));
         break;
     }
 }
