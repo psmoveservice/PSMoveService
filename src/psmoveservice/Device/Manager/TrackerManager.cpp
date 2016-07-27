@@ -26,6 +26,7 @@ const int TrackerManagerConfig::CONFIG_VERSION = 2;
 TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
     : PSMoveConfig(fnamebase)
 {
+    optical_tracking_timeout= 100;
     default_tracker_profile.exposure = 32;
     default_tracker_profile.gain = 32;
     for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
@@ -42,6 +43,9 @@ TrackerManagerConfig::config2ptree()
     boost::property_tree::ptree pt;
 
     pt.put("version", TrackerManagerConfig::CONFIG_VERSION);
+
+    pt.put("optical_tracking_timeout", optical_tracking_timeout);
+    
     pt.put("default_tracker_profile.exposure", default_tracker_profile.exposure);
     pt.put("default_tracker_profile.gain", default_tracker_profile.gain);
 
@@ -70,6 +74,8 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
 
     if (version == TrackerManagerConfig::CONFIG_VERSION)
     {
+        optical_tracking_timeout= pt.get<int>("optical_tracking_timeout", optical_tracking_timeout);
+
         default_tracker_profile.exposure = pt.get<float>("default_tracker_profile.exposure", 32);
         default_tracker_profile.gain = pt.get<float>("default_tracker_profile.gain", 32);
 

@@ -46,6 +46,7 @@ public:
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
     long version;
+    int optical_tracking_timeout;
     CommonDevicePose hmd_tracking_origin_pose;
     TrackerProfile default_tracker_profile;
 };
@@ -89,6 +90,10 @@ public:
         return cfg.hmd_tracking_origin_pose;
     }
 
+    inline const TrackerManagerConfig& getConfig() const
+    {
+        return cfg;
+    }
 
 protected:
     bool can_update_connected_devices() override;

@@ -637,7 +637,7 @@ ServerTrackerView::computePositionForController(
     CommonDevicePosition* out_position,
     CommonDeviceTrackingProjection *out_projection_shape)
 {
-    bool bSuccess = m_bHasUnpublishedState;
+    bool bSuccess = true;
 
     // Get the tracking shape used by the controller
     CommonDeviceTrackingShape tracking_shape;

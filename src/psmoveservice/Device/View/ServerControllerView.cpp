@@ -221,20 +221,62 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
             ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
             ControllerPositionEstimation &positionEstimate = m_tracker_position_estimation[tracker_id];
 
+            const bool bWasTracking= positionEstimate.bCurrentlyTracking;
+
+            // Assume we're going to lose tracking this frame
             positionEstimate.bCurrentlyTracking = false;
 
             if (tracker->getIsOpen())
             {
-                if (tracker->computePositionForController(
-                    this,
-                    &positionEstimate.position,
-                    &positionEstimate.projection))
-                {
-                    positionEstimate.bCurrentlyTracking = true;
-                    positionEstimate.last_visible_timestamp = now;
+                // See how long it's been since we got a new video frame
+                const std::chrono::time_point<std::chrono::high_resolution_clock> now= 
+                    std::chrono::high_resolution_clock::now();
+                const std::chrono::duration<float, std::milli> timeSinceNewDataMillis= 
+                    now - tracker->getLastNewDataTimestamp();
+                const float timeoutMilli= 
+                    static_cast<float>(DeviceManager::getInstance()->m_tracker_manager->getConfig().optical_tracking_timeout);
 
-                    valid_tracker_ids[positions_found] = tracker_id;
-                    ++positions_found;
+                // Can't compute tracking on video data that's too old
+                if (timeSinceNewDataMillis.count() < timeoutMilli)
+                {
+                    CommonDevicePosition new_position= positionEstimate.position;
+                    CommonDeviceTrackingProjection new_projection= positionEstimate.projection;
+                    std::chrono::time_point<std::chrono::high_resolution_clock> new_last_visible_timestamp=
+                        positionEstimate.last_visible_timestamp;
+                    bool bIsVisibleThisUpdate= false;
+
+                    // If a new video frame is available this tick, 
+                    // attempt to update the tracking location
+                    if (tracker->getHasUnpublishedState())
+                    {
+                        if (tracker->computePositionForController(
+                                this,
+                                &new_position,
+                                &new_projection))
+                        {
+                            bIsVisibleThisUpdate= true;
+                            new_last_visible_timestamp = now;
+                        }
+                    }
+
+                    // If the position estimate isn't too old (or updated this tick), 
+                    // say we have a valid tracked location
+                    if (bWasTracking || bIsVisibleThisUpdate)
+                    {
+                        const std::chrono::duration<float, std::milli> timeSinceLastVisibleMillis= 
+                            now - new_last_visible_timestamp;
+
+                        if (timeSinceLastVisibleMillis.count() < timeoutMilli)
+                        {
+                            positionEstimate.position= new_position;
+                            positionEstimate.projection= new_projection;
+                            positionEstimate.last_visible_timestamp = new_last_visible_timestamp;
+                            positionEstimate.bCurrentlyTracking = true;
+
+                            valid_tracker_ids[positions_found] = tracker_id;
+                            ++positions_found;
+                        }
+                    }
                 }
             }
 
