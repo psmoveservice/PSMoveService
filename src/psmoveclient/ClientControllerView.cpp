@@ -185,21 +185,6 @@ void ClientPSMoveView::ApplyControllerDataFrame(
                     projection.shape.ellipse.angle = protocolEllipse.angle();
                     projection.shape_type = PSMoveTrackingProjection::eShapeType::Ellipse;
                 }
-                else if (raw_tracker_data.projected_blobs_size() > 0)
-                {
-                    const PSMoveProtocol::Polygon &protocolPolygon = raw_tracker_data.projected_blobs(listIndex);
-                    PSMoveTrackingProjection &projection = this->RawTrackerData.TrackingProjections[listIndex];
-
-                    assert(protocolPolygon.vertices_size() == 3);
-                    for (int vert_index = 0; vert_index < 3; ++vert_index)
-                    {
-                        const PSMoveProtocol::Pixel &pixel= protocolPolygon.vertices(vert_index);
-
-                        projection.shape.triangle.corners[vert_index].x = pixel.x();
-                        projection.shape.triangle.corners[vert_index].y = pixel.y();
-                    }
-                    projection.shape_type = PSMoveTrackingProjection::Triangle;
-                }
                 else
                 {
                     PSMoveTrackingProjection &projection = this->RawTrackerData.TrackingProjections[listIndex];
@@ -481,32 +466,36 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
                     PSMoveQuaternion::create(
                         orientationOnTracker.w(), orientationOnTracker.x(), orientationOnTracker.y(), orientationOnTracker.z());
 
-                if (raw_tracker_data.projected_spheres_size() > 0)
-                {
-                    const PSMoveProtocol::Ellipse &protocolEllipse = raw_tracker_data.projected_spheres(listIndex);
-                    PSMoveTrackingProjection &projection = this->RawTrackerData.TrackingProjections[listIndex];
-
-                    projection.shape.ellipse.center.x = protocolEllipse.center().x();
-                    projection.shape.ellipse.center.y = protocolEllipse.center().y();
-                    projection.shape.ellipse.half_x_extent = protocolEllipse.half_x_extent();
-                    projection.shape.ellipse.half_y_extent = protocolEllipse.half_y_extent();
-                    projection.shape.ellipse.angle = protocolEllipse.angle();
-                    projection.shape_type = PSMoveTrackingProjection::eShapeType::Ellipse;
-                }
-                else if (raw_tracker_data.projected_blobs_size() > 0)
+                if (raw_tracker_data.projected_blobs_size() > 0)
                 {
                     const PSMoveProtocol::Polygon &protocolPolygon = raw_tracker_data.projected_blobs(listIndex);
                     PSMoveTrackingProjection &projection = this->RawTrackerData.TrackingProjections[listIndex];
 
-                    assert(protocolPolygon.vertices_size() == 3);
-                    for (int vert_index = 0; vert_index < 3; ++vert_index)
+                    switch(protocolPolygon.vertices_size())
                     {
-                        const PSMoveProtocol::Pixel &pixel = protocolPolygon.vertices(vert_index);
+                    case 3:
+                        for (int vert_index = 0; vert_index < 3; ++vert_index)
+                        {
+                            const PSMoveProtocol::Pixel &pixel = protocolPolygon.vertices(vert_index);
 
-                        projection.shape.triangle.corners[vert_index].x = pixel.x();
-                        projection.shape.triangle.corners[vert_index].y = pixel.y();
+                            projection.shape.triangle.corners[vert_index].x = pixel.x();
+                            projection.shape.triangle.corners[vert_index].y = pixel.y();
+                        }
+                        projection.shape_type = PSMoveTrackingProjection::Triangle;
+                        break;
+                    case 4:
+                        for (int vert_index = 0; vert_index < 4; ++vert_index)
+                        {
+                            const PSMoveProtocol::Pixel &pixel = protocolPolygon.vertices(vert_index);
+
+                            projection.shape.quad.corners[vert_index].x = pixel.x();
+                            projection.shape.quad.corners[vert_index].y = pixel.y();
+                        }
+                        projection.shape_type = PSMoveTrackingProjection::Quad;
+                        break;
+                    default:
+                        assert(false && "unreachable");
                     }
-                    projection.shape_type = PSMoveTrackingProjection::Triangle;
                 }
                 else
                 {

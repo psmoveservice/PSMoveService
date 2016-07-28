@@ -629,6 +629,17 @@ void drawTrackingProjection(
             glVertex3f(corners[2].x, corners[2].y, 0.5f); glVertex3f(corners[0].x, corners[0].y, 0.5f);
             glEnd();
         } break;
+    case PSMoveTrackingProjection::eShapeType::Quad:
+        {
+            const PSMoveScreenLocation *corners = shapeProjection->shape.quad.corners;
+            
+            glBegin(GL_LINE_STRIP);
+            glVertex3f(corners[0].x, corners[0].y, 0.5f); glVertex3f(corners[1].x, corners[1].y, 0.5f);
+            glVertex3f(corners[1].x, corners[1].y, 0.5f); glVertex3f(corners[2].x, corners[2].y, 0.5f);
+            glVertex3f(corners[2].x, corners[2].y, 0.5f); glVertex3f(corners[3].x, corners[3].y, 0.5f);
+            glVertex3f(corners[3].x, corners[3].y, 0.5f); glVertex3f(corners[0].x, corners[0].y, 0.5f);
+            glEnd();
+        } break;
     }
 
     glLineWidth(1.f);
