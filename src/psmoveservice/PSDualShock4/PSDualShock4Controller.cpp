@@ -33,8 +33,12 @@
 #define PSDS4_BTADDR_SIZE 6
 #define PSDS4_STATE_BUFFER_MAX 16
 
-#define PSDS4_TRACKING_SHAPE_WIDTH  2.3f // The width of a triangle that encloses the DS4 tracking bar in cm
-#define PSDS4_TRACKING_SHAPE_HEIGHT  1.8f // The height of a triangle that encloses the DS4 tracking bar in cm
+#define PSDS4_TRACKING_TRIANGLE_WIDTH  2.3f // The width of a triangle that encloses the DS4 tracking bar in cm
+#define PSDS4_TRACKING_TRIANGLE_HEIGHT  1.8f // The height of a triangle that encloses the DS4 tracking bar in cm
+
+#define PSDS4_TRACKING_QUAD_WIDTH  5.1f // The width of a quad that encloses the DS4 tracking bar in cm
+#define PSDS4_TRACKING_QUAD_HEIGHT  1.1f // The height of a quad that encloses the DS4 tracking bar in cm
+
 #define PSDS4_TRACKING_SHAPE_PITCH  30.f // How much the DS4 light bar is tilted inward in degrees
 
 #define PSDS4_RUMBLE_ENABLED 0xff
@@ -951,8 +955,9 @@ PSDualShock4Controller::getColour() const
 void
 PSDualShock4Controller::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const
 {
-    const float x_axis = PSDS4_TRACKING_SHAPE_WIDTH / 2.f;
-    const float y_axis = PSDS4_TRACKING_SHAPE_HEIGHT / 2.f;
+#if 0
+    const float x_axis = PSDS4_TRACKING_TRIANGLE_WIDTH / 2.f;
+    const float y_axis = PSDS4_TRACKING_TRIANGLE_HEIGHT / 2.f;
     const float angle = PSDS4_TRACKING_SHAPE_PITCH * k_degrees_to_radians;
     const float cos_angle = cosf(angle);
     const float sin_angle = sinf(angle);
@@ -967,6 +972,24 @@ PSDualShock4Controller::getTrackingShape(CommonDeviceTrackingShape &outTrackingS
     outTrackingShape.shape.triangle.corner[0] = { -x_axis, -y_axis*cos_angle, y_axis*sin_angle };
     outTrackingShape.shape.triangle.corner[1] = { x_axis, -y_axis*cos_angle, y_axis*sin_angle };
     outTrackingShape.shape.triangle.corner[2] = { 0.f, y_axis*cos_angle, -y_axis*sin_angle };
+#endif
+    const float x_axis = PSDS4_TRACKING_QUAD_WIDTH / 2.f;
+    const float y_axis = PSDS4_TRACKING_QUAD_HEIGHT / 2.f;
+    const float angle = PSDS4_TRACKING_SHAPE_PITCH * k_degrees_to_radians;
+    const float cos_angle = cosf(angle);
+    const float sin_angle = sinf(angle);
+
+    // We define the origin to be the center of the light bar.
+    // The light bar on the DS4 is tilted inward 30 degrees.
+    // The coordinate system on the DS4 is defined as follows:
+    // x-axis= from the center toward the circle button
+    // y-axis= from the center up through the track pad
+    // z-axis= from the center out through the extension port
+    outTrackingShape.shape_type = eCommonTrackingShapeType::Quad;
+    outTrackingShape.shape.triangle.corner[0] = { -x_axis, y_axis*cos_angle, -y_axis*sin_angle };
+    outTrackingShape.shape.triangle.corner[1] = { x_axis, y_axis*cos_angle, -y_axis*sin_angle };
+    outTrackingShape.shape.triangle.corner[2] = { x_axis, -y_axis*cos_angle, y_axis*sin_angle };
+    outTrackingShape.shape.triangle.corner[3] = { -x_axis, -y_axis*cos_angle, y_axis*sin_angle };
 }
 
 long PSDualShock4Controller::getMaxPollFailureCount() const

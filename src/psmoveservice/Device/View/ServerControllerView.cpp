@@ -958,31 +958,14 @@ static void generate_psmove_data_frame_for_stream(
                         const CommonDeviceTrackingProjection &trackerRelativeProjection = 
                             positionEstimate->projection;
 
-                        switch (trackerRelativeProjection.shape_type)
-                        {
-                        case eCommonTrackingProjectionType::ProjectionType_Ellipse:
-                            {
-                                PSMoveProtocol::Ellipse *ellipse= raw_tracker_data->add_projected_spheres();
+                        assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_Ellipse);
+                        PSMoveProtocol::Ellipse *ellipse= raw_tracker_data->add_projected_spheres();
                                 
-                                ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
-                                ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
-                                ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
-                                ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
-                                ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
-                            } break;
-                        case eCommonTrackingProjectionType::ProjectionType_Triangle:
-                            {
-                                PSMoveProtocol::Polygon *polygon = raw_tracker_data->add_projected_blobs();
-
-                                for (int vert_index = 0; vert_index < 3; ++vert_index)
-                                {
-                                    PSMoveProtocol::Pixel *pixel= polygon->add_vertices();
-
-                                    pixel->set_x(trackerRelativeProjection.shape.triangle.corners[vert_index].x);
-                                    pixel->set_y(trackerRelativeProjection.shape.triangle.corners[vert_index].y);
-                                }
-                            } break;
-                        }
+                        ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
+                        ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
+                        ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
+                        ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
+                        ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
                     }
 
                     raw_tracker_data->add_tracker_ids(trackerId);
@@ -1230,6 +1213,18 @@ static void generate_psdualshock4_data_frame_for_stream(
 
                                     pixel->set_x(trackerRelativeProjection.shape.triangle.corners[vert_index].x);
                                     pixel->set_y(trackerRelativeProjection.shape.triangle.corners[vert_index].y);
+                                }
+                            } break;
+                        case eCommonTrackingProjectionType::ProjectionType_Quad:
+                            {
+                                PSMoveProtocol::Polygon *polygon = raw_tracker_data->add_projected_blobs();
+
+                                for (int vert_index = 0; vert_index < 4; ++vert_index)
+                                {
+                                    PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
+
+                                    pixel->set_x(trackerRelativeProjection.shape.quad.corners[vert_index].x);
+                                    pixel->set_y(trackerRelativeProjection.shape.quad.corners[vert_index].y);
                                 }
                             } break;
                         }

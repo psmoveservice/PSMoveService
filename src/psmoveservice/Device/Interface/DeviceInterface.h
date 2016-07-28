@@ -31,6 +31,7 @@ enum eCommonTrackingShapeType {
 
     Sphere,
     Triangle,
+    Quad,
 
     MAX_TRACKING_SHAPE_TYPES
 };
@@ -40,6 +41,7 @@ enum eCommonTrackingProjectionType {
 
     ProjectionType_Ellipse,
     ProjectionType_Triangle,
+    ProjectionType_Quad,
 
     MAX_TRACKING_PROJECTION_TYPES
 };
@@ -268,6 +270,10 @@ struct CommonDeviceTrackingShape
         struct {
             CommonDevicePosition corner[3];
         } triangle;
+
+        struct {
+            CommonDevicePosition corner[4];
+        } quad;
     } shape;
 
     eCommonTrackingShapeType shape_type;
@@ -286,6 +292,10 @@ struct CommonDeviceTrackingProjection
         struct {
             CommonDeviceScreenLocation corners[3];
         } triangle;
+
+        struct {
+            CommonDeviceScreenLocation corners[4];
+        } quad;
     } shape;
 
     eCommonTrackingProjectionType shape_type;
