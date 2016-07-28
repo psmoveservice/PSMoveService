@@ -11,7 +11,7 @@
 #include <deque>
 #include <chrono>
 
-#define ACCELEROMETER_PITCH_DEGREES 12.661
+#define ACCELEROMETER_PITCH_DEGREES 12.661f
 
 struct PSDualShock4HIDDetails {
     std::string Device_path;

@@ -424,8 +424,7 @@ void AppSubStage_CalibrateWithMat::render()
                     drawTrackingProjection(
                         &centerProjection,
                         &trackingProjection,
-                        screenSize.i, screenSize.j,
-                        glm::vec3(1.f, 1.f, 1.f));
+                        screenSize.i, screenSize.j);
                 }
             }
         } break;

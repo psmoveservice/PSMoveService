@@ -955,9 +955,12 @@ PSDualShock4Controller::getColour() const
 void
 PSDualShock4Controller::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const
 {
-#if 0
-    const float x_axis = PSDS4_TRACKING_TRIANGLE_WIDTH / 2.f;
-    const float y_axis = PSDS4_TRACKING_TRIANGLE_HEIGHT / 2.f;
+    const float tri_x_axis = PSDS4_TRACKING_TRIANGLE_WIDTH / 2.f;
+    const float tri_y_axis = PSDS4_TRACKING_TRIANGLE_HEIGHT / 2.f;
+
+    const float quad_x_axis = PSDS4_TRACKING_QUAD_WIDTH / 2.f;
+    const float quad_y_axis = PSDS4_TRACKING_QUAD_HEIGHT / 2.f;
+
     const float angle = PSDS4_TRACKING_SHAPE_PITCH * k_degrees_to_radians;
     const float cos_angle = cosf(angle);
     const float sin_angle = sinf(angle);
@@ -968,28 +971,19 @@ PSDualShock4Controller::getTrackingShape(CommonDeviceTrackingShape &outTrackingS
     // x-axis= from the center toward the circle button
     // y-axis= from the center up through the track pad
     // z-axis= from the center out through the extension port
-    outTrackingShape.shape_type = eCommonTrackingShapeType::Triangle;
-    outTrackingShape.shape.triangle.corner[0] = { -x_axis, -y_axis*cos_angle, y_axis*sin_angle };
-    outTrackingShape.shape.triangle.corner[1] = { x_axis, -y_axis*cos_angle, y_axis*sin_angle };
-    outTrackingShape.shape.triangle.corner[2] = { 0.f, y_axis*cos_angle, -y_axis*sin_angle };
-#endif
-    const float x_axis = PSDS4_TRACKING_QUAD_WIDTH / 2.f;
-    const float y_axis = PSDS4_TRACKING_QUAD_HEIGHT / 2.f;
-    const float angle = PSDS4_TRACKING_SHAPE_PITCH * k_degrees_to_radians;
-    const float cos_angle = cosf(angle);
-    const float sin_angle = sinf(angle);
 
-    // We define the origin to be the center of the light bar.
-    // The light bar on the DS4 is tilted inward 30 degrees.
-    // The coordinate system on the DS4 is defined as follows:
-    // x-axis= from the center toward the circle button
-    // y-axis= from the center up through the track pad
-    // z-axis= from the center out through the extension port
-    outTrackingShape.shape_type = eCommonTrackingShapeType::Quad;
-    outTrackingShape.shape.triangle.corner[0] = { -x_axis, y_axis*cos_angle, -y_axis*sin_angle };
-    outTrackingShape.shape.triangle.corner[1] = { x_axis, y_axis*cos_angle, -y_axis*sin_angle };
-    outTrackingShape.shape.triangle.corner[2] = { x_axis, -y_axis*cos_angle, y_axis*sin_angle };
-    outTrackingShape.shape.triangle.corner[3] = { -x_axis, -y_axis*cos_angle, y_axis*sin_angle };
+    // The triangle connects the mid-points of each light-bar edge
+    outTrackingShape.shape.light_bar.triangle[0] = { -tri_x_axis, -tri_y_axis*cos_angle, tri_y_axis*sin_angle };
+    outTrackingShape.shape.light_bar.triangle[1] = { tri_x_axis, -tri_y_axis*cos_angle, tri_y_axis*sin_angle };
+    outTrackingShape.shape.light_bar.triangle[2] = { 0.f, tri_y_axis*cos_angle, -tri_y_axis*sin_angle };
+
+    // The quad bounds the light-bar
+    outTrackingShape.shape.light_bar.quad[0] = { -quad_x_axis, quad_y_axis*cos_angle, -quad_y_axis*sin_angle };
+    outTrackingShape.shape.light_bar.quad[1] = { quad_x_axis, quad_y_axis*cos_angle, -quad_y_axis*sin_angle };
+    outTrackingShape.shape.light_bar.quad[2] = { quad_x_axis, -quad_y_axis*cos_angle, quad_y_axis*sin_angle };
+    outTrackingShape.shape.light_bar.quad[3] = { -quad_x_axis, -quad_y_axis*cos_angle, quad_y_axis*sin_angle };
+
+    outTrackingShape.shape_type = eCommonTrackingShapeType::LightBar;
 }
 
 long PSDualShock4Controller::getMaxPollFailureCount() const

@@ -471,30 +471,22 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
                     const PSMoveProtocol::Polygon &protocolPolygon = raw_tracker_data.projected_blobs(listIndex);
                     PSMoveTrackingProjection &projection = this->RawTrackerData.TrackingProjections[listIndex];
 
-                    switch(protocolPolygon.vertices_size())
+                    assert (protocolPolygon.vertices_size() == 7);
+                    projection.shape_type = PSMoveTrackingProjection::LightBar;
+
+                    for (int vert_index = 0; vert_index < 3; ++vert_index)
                     {
-                    case 3:
-                        for (int vert_index = 0; vert_index < 3; ++vert_index)
-                        {
-                            const PSMoveProtocol::Pixel &pixel = protocolPolygon.vertices(vert_index);
+                        const PSMoveProtocol::Pixel &pixel = protocolPolygon.vertices(vert_index);
 
-                            projection.shape.triangle.corners[vert_index].x = pixel.x();
-                            projection.shape.triangle.corners[vert_index].y = pixel.y();
-                        }
-                        projection.shape_type = PSMoveTrackingProjection::Triangle;
-                        break;
-                    case 4:
-                        for (int vert_index = 0; vert_index < 4; ++vert_index)
-                        {
-                            const PSMoveProtocol::Pixel &pixel = protocolPolygon.vertices(vert_index);
+                        projection.shape.lightbar.triangle[vert_index].x = pixel.x();
+                        projection.shape.lightbar.triangle[vert_index].y = pixel.y();
+                    }
+                    for (int vert_index = 0; vert_index < 4; ++vert_index)
+                    {
+                        const PSMoveProtocol::Pixel &pixel = protocolPolygon.vertices(vert_index+3);
 
-                            projection.shape.quad.corners[vert_index].x = pixel.x();
-                            projection.shape.quad.corners[vert_index].y = pixel.y();
-                        }
-                        projection.shape_type = PSMoveTrackingProjection::Quad;
-                        break;
-                    default:
-                        assert(false && "unreachable");
+                        projection.shape.lightbar.quad[vert_index].x = pixel.x();
+                        projection.shape.lightbar.quad[vert_index].y = pixel.y();
                     }
                 }
                 else

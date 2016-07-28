@@ -1191,42 +1191,23 @@ static void generate_psdualshock4_data_frame_for_stream(
                         const CommonDeviceTrackingProjection &trackerRelativeProjection =
                             poseEstimate->projection;
 
-                        switch (trackerRelativeProjection.shape_type)
+                        assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_LightBar);
+                        PSMoveProtocol::Polygon *polygon = raw_tracker_data->add_projected_blobs();
+
+                        for (int vert_index = 0; vert_index < 3; ++vert_index)
                         {
-                        case eCommonTrackingProjectionType::ProjectionType_Ellipse:
-                            {
-                                PSMoveProtocol::Ellipse *ellipse = raw_tracker_data->add_projected_spheres();
+                            PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
 
-                                ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
-                                ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
-                                ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
-                                ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
-                                ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
-                            } break;
-                        case eCommonTrackingProjectionType::ProjectionType_Triangle:
-                            {
-                                PSMoveProtocol::Polygon *polygon = raw_tracker_data->add_projected_blobs();
+                            pixel->set_x(trackerRelativeProjection.shape.lightbar.triangle[vert_index].x);
+                            pixel->set_y(trackerRelativeProjection.shape.lightbar.triangle[vert_index].y);
+                        }
 
-                                for (int vert_index = 0; vert_index < 3; ++vert_index)
-                                {
-                                    PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
+                        for (int vert_index = 0; vert_index < 4; ++vert_index)
+                        {
+                            PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
 
-                                    pixel->set_x(trackerRelativeProjection.shape.triangle.corners[vert_index].x);
-                                    pixel->set_y(trackerRelativeProjection.shape.triangle.corners[vert_index].y);
-                                }
-                            } break;
-                        case eCommonTrackingProjectionType::ProjectionType_Quad:
-                            {
-                                PSMoveProtocol::Polygon *polygon = raw_tracker_data->add_projected_blobs();
-
-                                for (int vert_index = 0; vert_index < 4; ++vert_index)
-                                {
-                                    PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
-
-                                    pixel->set_x(trackerRelativeProjection.shape.quad.corners[vert_index].x);
-                                    pixel->set_y(trackerRelativeProjection.shape.quad.corners[vert_index].y);
-                                }
-                            } break;
+                            pixel->set_x(trackerRelativeProjection.shape.lightbar.quad[vert_index].x);
+                            pixel->set_y(trackerRelativeProjection.shape.lightbar.quad[vert_index].y);
                         }
                     }
 

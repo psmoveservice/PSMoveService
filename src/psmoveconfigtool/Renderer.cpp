@@ -558,8 +558,7 @@ void drawTrackingProjection(
     const PSMoveScreenLocation *centerProjection,
     const PSMoveTrackingProjection *shapeProjection,
     float trackerWidth, 
-    float trackerHeight,
-    const glm::vec3 &color)
+    float trackerHeight)
 {
     assert(Renderer::getIsRenderingStage());
 
@@ -578,18 +577,17 @@ void drawTrackingProjection(
     glPushMatrix();
     glLoadIdentity();
 
-    glColor3fv(glm::value_ptr(color));
-
     // Draw a small "+" where the center of the projection lies
     glLineWidth(2.f);
     glBegin(GL_LINES);
+        glColor3f(1.f, 1.f, 1.f);
         glVertex3f(centerProjection->x-5.f, centerProjection->y, 0.5f); 
         glVertex3f(centerProjection->x+5.f, centerProjection->y, 0.5f);
         glVertex3f(centerProjection->x, centerProjection->y+5.f, 0.5f); 
         glVertex3f(centerProjection->x, centerProjection->y-5.f, 0.5f);
     glEnd();
 
-    glLineWidth(5.f);
+    glLineWidth(2.f);
     switch (shapeProjection->shape_type)
     {
     case PSMoveTrackingProjection::eShapeType::Ellipse:
@@ -607,6 +605,7 @@ void drawTrackingProjection(
 
             float angle = 0.f;
             glBegin(GL_LINE_STRIP);
+            glColor3f(1.f, 1.f, 1.f);
             for (int index = 0; index <= subdiv; ++index)
             {
                 glm::vec3 point = 
@@ -619,25 +618,29 @@ void drawTrackingProjection(
             }
             glEnd();
         } break;
-    case PSMoveTrackingProjection::eShapeType::Triangle:
+    case PSMoveTrackingProjection::eShapeType::LightBar:
         {
-            const PSMoveScreenLocation *corners = shapeProjection->shape.triangle.corners;
+            const PSMoveScreenLocation *triangle = shapeProjection->shape.lightbar.triangle;
+            const PSMoveScreenLocation *quad = shapeProjection->shape.lightbar.quad;
             
             glBegin(GL_LINE_STRIP);
-            glVertex3f(corners[0].x, corners[0].y, 0.5f); glVertex3f(corners[1].x, corners[1].y, 0.5f);
-            glVertex3f(corners[1].x, corners[1].y, 0.5f); glVertex3f(corners[2].x, corners[2].y, 0.5f);
-            glVertex3f(corners[2].x, corners[2].y, 0.5f); glVertex3f(corners[0].x, corners[0].y, 0.5f);
+            glColor3f(1.f, 0.f, 0.f);
+            glVertex3f(triangle[0].x, triangle[0].y, 0.5f); glVertex3f(triangle[1].x, triangle[1].y, 0.5f);
+            glColor3f(0.f, 1.f, 0.f);
+            glVertex3f(triangle[1].x, triangle[1].y, 0.5f); glVertex3f(triangle[2].x, triangle[2].y, 0.5f);
+            glColor3f(0.f, 0.f, 1.f);
+            glVertex3f(triangle[2].x, triangle[2].y, 0.5f); glVertex3f(triangle[0].x, triangle[0].y, 0.5f);
             glEnd();
-        } break;
-    case PSMoveTrackingProjection::eShapeType::Quad:
-        {
-            const PSMoveScreenLocation *corners = shapeProjection->shape.quad.corners;
-            
+
             glBegin(GL_LINE_STRIP);
-            glVertex3f(corners[0].x, corners[0].y, 0.5f); glVertex3f(corners[1].x, corners[1].y, 0.5f);
-            glVertex3f(corners[1].x, corners[1].y, 0.5f); glVertex3f(corners[2].x, corners[2].y, 0.5f);
-            glVertex3f(corners[2].x, corners[2].y, 0.5f); glVertex3f(corners[3].x, corners[3].y, 0.5f);
-            glVertex3f(corners[3].x, corners[3].y, 0.5f); glVertex3f(corners[0].x, corners[0].y, 0.5f);
+            glColor3f(1.f, 0.f, 0.f);
+            glVertex3f(quad[0].x, quad[0].y, 0.5f); glVertex3f(quad[1].x, quad[1].y, 0.5f);
+            glColor3f(0.f, 1.f, 0.f);
+            glVertex3f(quad[1].x, quad[1].y, 0.5f); glVertex3f(quad[2].x, quad[2].y, 0.5f);
+            glColor3f(0.f, 0.f, 1.f);
+            glVertex3f(quad[2].x, quad[2].y, 0.5f); glVertex3f(quad[3].x, quad[3].y, 0.5f);
+            glColor3f(1.f, 0.f, 0.f);
+            glVertex3f(quad[3].x, quad[3].y, 0.5f); glVertex3f(quad[0].x, quad[0].y, 0.5f);
             glEnd();
         } break;
     }

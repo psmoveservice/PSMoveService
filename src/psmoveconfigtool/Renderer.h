@@ -81,7 +81,7 @@ private:
 void drawArrow(const glm::mat4 &transform, const glm::vec3 &start, const glm::vec3 &end, const float headFraction, const glm::vec3 &color);
 void drawTextAtWorldPosition(const glm::mat4 &transform, const glm::vec3 &position, const char *format, ...) RENDERER_PRINTFARGS(3);
 void drawFullscreenTexture(const unsigned int texture_id);
-void drawTrackingProjection(const struct PSMoveScreenLocation *centerProjection, const struct PSMoveTrackingProjection *projection, float trackerWidth, float trackerHeight, const glm::vec3 &color);
+void drawTrackingProjection(const struct PSMoveScreenLocation *centerProjection, const struct PSMoveTrackingProjection *projection, float trackerWidth, float trackerHeight);
 void drawTransformedVolume(const glm::mat4 &transform, const struct PSMoveVolume *volume, const glm::vec3 &color);
 void drawTransformedAxes(const glm::mat4 &transform, float scale);
 void drawTransformedAxes(const glm::mat4 &transform, float xScale, float yScale, float zScale);
