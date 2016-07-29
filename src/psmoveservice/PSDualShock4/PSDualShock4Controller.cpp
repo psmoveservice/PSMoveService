@@ -33,10 +33,10 @@
 #define PSDS4_BTADDR_SIZE 6
 #define PSDS4_STATE_BUFFER_MAX 16
 
-#define PSDS4_TRACKING_TRIANGLE_WIDTH  2.3f // The width of a triangle that encloses the DS4 tracking bar in cm
-#define PSDS4_TRACKING_TRIANGLE_HEIGHT  1.8f // The height of a triangle that encloses the DS4 tracking bar in cm
+#define PSDS4_TRACKING_TRIANGLE_WIDTH  .9386f // The width of a triangle enclosed in the DS4 tracking bar in cm
+#define PSDS4_TRACKING_TRIANGLE_HEIGHT  .6548f // The height of a triangle enclosed in the DS4 tracking bar in cm
 
-#define PSDS4_TRACKING_QUAD_WIDTH  5.1f // The width of a quad that encloses the DS4 tracking bar in cm
+#define PSDS4_TRACKING_QUAD_WIDTH  5.2f // The width of a quad that encloses the DS4 tracking bar in cm
 #define PSDS4_TRACKING_QUAD_HEIGHT  1.1f // The height of a quad that encloses the DS4 tracking bar in cm
 
 #define PSDS4_TRACKING_SHAPE_PITCH  30.f // How much the DS4 light bar is tilted inward in degrees
@@ -955,11 +955,11 @@ PSDualShock4Controller::getColour() const
 void
 PSDualShock4Controller::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const
 {
-    const float tri_x_axis = PSDS4_TRACKING_TRIANGLE_WIDTH / 2.f;
-    const float tri_y_axis = PSDS4_TRACKING_TRIANGLE_HEIGHT / 2.f;
+    const float quad_half_x = PSDS4_TRACKING_QUAD_WIDTH / 2.f;
+    const float quad_half_y = PSDS4_TRACKING_QUAD_HEIGHT / 2.f;
 
-    const float quad_x_axis = PSDS4_TRACKING_QUAD_WIDTH / 2.f;
-    const float quad_y_axis = PSDS4_TRACKING_QUAD_HEIGHT / 2.f;
+    const float tri_half_x = PSDS4_TRACKING_TRIANGLE_WIDTH / 2.f;
+    const float tri_lower_half_y = PSDS4_TRACKING_TRIANGLE_HEIGHT - quad_half_y;
 
     const float angle = PSDS4_TRACKING_SHAPE_PITCH * k_degrees_to_radians;
     const float cos_angle = cosf(angle);
@@ -972,16 +972,16 @@ PSDualShock4Controller::getTrackingShape(CommonDeviceTrackingShape &outTrackingS
     // y-axis= from the center up through the track pad
     // z-axis= from the center out through the extension port
 
-    // The triangle connects the mid-points of each light-bar edge
-    outTrackingShape.shape.light_bar.triangle[0] = { -tri_x_axis, -tri_y_axis*cos_angle, tri_y_axis*sin_angle };
-    outTrackingShape.shape.light_bar.triangle[1] = { tri_x_axis, -tri_y_axis*cos_angle, tri_y_axis*sin_angle };
-    outTrackingShape.shape.light_bar.triangle[2] = { 0.f, tri_y_axis*cos_angle, -tri_y_axis*sin_angle };
+    // The triangle connects the mid-points of each light-bar edge (lower right, lower left, upper middle)
+    outTrackingShape.shape.light_bar.triangle[0] = { -tri_half_x, -tri_lower_half_y*cos_angle, tri_lower_half_y*sin_angle };
+    outTrackingShape.shape.light_bar.triangle[1] = { tri_half_x, -tri_lower_half_y*cos_angle, tri_lower_half_y*sin_angle };
+    outTrackingShape.shape.light_bar.triangle[2] = { 0.f, quad_half_y*cos_angle, -quad_half_y*sin_angle };
 
-    // The quad bounds the light-bar
-    outTrackingShape.shape.light_bar.quad[0] = { -quad_x_axis, quad_y_axis*cos_angle, -quad_y_axis*sin_angle };
-    outTrackingShape.shape.light_bar.quad[1] = { quad_x_axis, quad_y_axis*cos_angle, -quad_y_axis*sin_angle };
-    outTrackingShape.shape.light_bar.quad[2] = { quad_x_axis, -quad_y_axis*cos_angle, quad_y_axis*sin_angle };
-    outTrackingShape.shape.light_bar.quad[3] = { -quad_x_axis, -quad_y_axis*cos_angle, quad_y_axis*sin_angle };
+    // The quad bounds the light-bar (upper right, upper left, lower left, lower right)
+    outTrackingShape.shape.light_bar.quad[0] = { -quad_half_x, quad_half_y*cos_angle, -quad_half_y*sin_angle };
+    outTrackingShape.shape.light_bar.quad[1] = { quad_half_x, quad_half_y*cos_angle, -quad_half_y*sin_angle };
+    outTrackingShape.shape.light_bar.quad[2] = { quad_half_x, -quad_half_y*cos_angle, quad_half_y*sin_angle };
+    outTrackingShape.shape.light_bar.quad[3] = { -quad_half_x, -quad_half_y*cos_angle, quad_half_y*sin_angle };
 
     outTrackingShape.shape_type = eCommonTrackingShapeType::LightBar;
 }
