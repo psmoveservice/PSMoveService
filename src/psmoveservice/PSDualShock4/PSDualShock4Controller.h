@@ -33,22 +33,66 @@ public:
         , is_valid(false)
         , version(CONFIG_VERSION)
         , accelerometer_fit_error(0.f)
-        // Gyro details not yet calibrated
-        , gyro_gain(1.f)
+        , gyro_gain(0.f)
         , raw_gyro_variance(0.f)
         , raw_gyro_drift(0.f)
         , max_poll_failure_count(100)
         , prediction_time(0.f)
     {
-        // Accelerometer defaults computed from accelerometer calibration in the config tool
-        accelerometer_gain.i = 1.f/8192.f;
-        accelerometer_gain.j = 1.f/8192.f;
-        accelerometer_gain.k = 1.f/8192.f;
+        // The DS4 uses the BMI055 IMU Chip: 
+        // https://www.bosch-sensortec.com/bst/products/all_products/bmi055
+        //
+        // The Accelerometer can operate in one of 4 modes: 
+        //   ±2g, ±4g, ±8g, ±16g
+        // The Gyroscope can operate in one of 5 modes: 
+        //   ±125°/s, ±250°/s, ±500°/s, ±1000°/s, ±2000°/s
+        //   (or ±2.18 rad/s, ±4.36 rad/s, ±8.72 rad/s, ±17.45 rad/s, ±34.9 rad/s)
+        //
+        // I haven't seen any indication that suggests the DS4 changes modes.
+        // It also appears that the raw accelerometer and gyroscope values are pre-calibrated
+        // (there is no sensor calibration report with biases and gains that I can find)
+
+        // The following guide: 
+        // http://gamedev.stackexchange.com/questions/87106/accessing-dualshock-4-motion-sensor-in-windows-ideally-unity/87178#87178
+        // suggests that:
+        //  -raw accelerometer value should be divided by 8192 to get g/s
+        //  -raw gyroscope value should be divided by 1024 to get rad/s
+
+        // In contrast The DS4 Windows library:
+        // https://github.com/Jays2Kings/DS4Windows
+        // suggests that:
+        //  -raw accelerometer value should be divided by 256 to get g/s
+        //  -raw gyroscope value should be divided by 64 to get rad/s
+
+        // Accelerometer gain computed from accelerometer calibration in the config tool is really close to 1/8192.
+        // and is just in a 2.13 fixed point value (+1 sign bit)
+        // This agrees with the stack exchange article (but disagrees with DS4Windows)
+        accelerometer_gain.i = 1.f / 8192.f;
+        accelerometer_gain.j = 1.f / 8192.f;
+        accelerometer_gain.k = 1.f / 8192.f;
         
+        // Accelerometer bias computed from accelerometer calibration in the config tool is really close to 0
+        // This is because the raw gyro readings are likely pre-calibrated
         accelerometer_bias.i = 0.f;
         accelerometer_bias.j = 0.f;
         accelerometer_bias.k = 0.f;
 
+        // Gyroscope gain computed from gyroscope calibration in the config tool is really close to 1/64.
+        // This implies that gyroscope is returned from the controller is pre-calibrated 
+        // and is just in a 9.6 fixed point value (+1 sign bit)
+        // This agrees with DS4 Windows (but disagrees with stack exchange article)
+        gyro_gain= 1.f / 64.f;
+
+        // This is the variance of the raw gyro value recorded for 100 samples
+        // Multiply this by the gyro_gain to get the gyro variance in rad/s^2
+        raw_gyro_variance= 34.5793457f;
+
+        // This is the drift of the raw gyro value recorded for 60 seconds
+        // Multiply this by the gyro_gain to get the gyro drift in rad/s
+        raw_gyro_drift= 133.991867f;
+
+        // This is the ideal accelerometer reading you get when you rest the DS4 on a flat surface
+        // The ACCELEROMETER_PITCH_DEGREES comes from the calibration utility
         identity_gravity_direction.i= 0.f;
         identity_gravity_direction.j= cosf(ACCELEROMETER_PITCH_DEGREES*k_degrees_to_radians);
         identity_gravity_direction.k= sinf(ACCELEROMETER_PITCH_DEGREES*k_degrees_to_radians);
@@ -56,6 +100,18 @@ public:
 
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
+
+    // The variance of the gyro measurement in rad/s^2
+    inline float get_gyro_variance() const 
+    {
+        return raw_gyro_variance * gyro_gain;
+    }
+
+    // The drift of the gyro measurement in rad/s
+    inline float get_gyro_drift() const 
+    {
+        return raw_gyro_drift * gyro_gain;
+    }
 
     bool is_valid;
     long version;
