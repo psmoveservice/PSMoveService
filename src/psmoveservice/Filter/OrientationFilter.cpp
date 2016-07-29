@@ -288,19 +288,19 @@ void OrientationFilter::update(
 
     if (!eigen_quaternion_is_valid(m_FusionState->orientation)) 
     {
-        SERVER_LOG_WARNING("OrientationFilter") << "Orientation is NaN!";
+        SERVER_LOG_WARNING("OrientationFilter") << "Orientation is NaN!" << std::endl;
         m_FusionState->orientation = orientation_backup;
     }
 
     if (!eigen_vector3f_is_valid(m_FusionState->angular_velocity))
     {
-        SERVER_LOG_WARNING("OrientationFilter") << "Angular Velocity is NaN!";
+        SERVER_LOG_WARNING("OrientationFilter") << "Angular Velocity is NaN!" << std::endl;
         m_FusionState->angular_velocity = first_derivative_backup;
     }
 
     if (!eigen_vector3f_is_valid(m_FusionState->angular_acceleration))
     {
-        SERVER_LOG_WARNING("OrientationFilter") << "Angular Acceleration is NaN!";
+        SERVER_LOG_WARNING("OrientationFilter") << "Angular Acceleration is NaN!" << std::endl;
         m_FusionState->angular_acceleration = second_derivative_backup;
     }
 }

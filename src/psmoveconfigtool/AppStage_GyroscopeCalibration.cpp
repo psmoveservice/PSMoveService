@@ -26,12 +26,17 @@
 const char *AppStage_GyroscopeCalibration::APP_STAGE_NAME = "GyroscopeCalibration";
 
 //-- constants -----
+#define MILLI_PER_SECOND 1000
+#define MICRO_PER_SECOND 1000000
+
 const double k_stabilize_wait_time_ms = 1000.f;
 const int k_desired_noise_sample_count = 1000;
 const float k_desired_drift_sampling_time = 30.0*1000.f; // milliseconds
 
 const int k_desired_scale_sample_count = 1000;
-const float k_max_valid_scale_time_delta= 50.f; // milliseconds (20 fps)
+
+const double k_min_valid_scale_time_delta= 0.005; // seconds (200 fps)
+const double k_max_valid_scale_time_delta= 0.05; // seconds (20 fps)
 
 //-- definitions -----
 struct GyroscopeErrorSamples
@@ -93,11 +98,11 @@ struct GyroscopeScaleSamples
     std::chrono::time_point<std::chrono::high_resolution_clock> lastSampleTime;
     bool lastSampleTimeValid;
 
-    float scale_samples[k_desired_scale_sample_count];
+    double scale_samples[k_desired_scale_sample_count];
     int sample_count;
 
-    float raw_scale_mean;
-    float raw_scale_variance;
+    double raw_scale_mean;
+    double raw_scale_variance;
 
     void clear()
     {
@@ -110,7 +115,7 @@ struct GyroscopeScaleSamples
 
     void computeStatistics()
     {
-        const float N = static_cast<float>(sample_count);
+        const double N = static_cast<double>(sample_count);
 
         // Compute the mean of the samples
         raw_scale_mean= 0.f;
@@ -124,8 +129,8 @@ struct GyroscopeScaleSamples
         raw_scale_variance= 0.f;
         for (int sample_index = 0; sample_index < sample_count; sample_index++)
         {
-            const float &sample= scale_samples[sample_index];
-            float diff_from_mean= sample - raw_scale_mean;
+            const double &sample= scale_samples[sample_index];
+            double diff_from_mean= sample - raw_scale_mean;
 
             raw_scale_variance+= diff_from_mean*diff_from_mean;
         }
@@ -344,17 +349,18 @@ void AppStage_GyroscopeCalibration::update()
 
                 if (m_scaleSamples->lastSampleTimeValid)
                 {
-                    std::chrono::duration<float, std::milli> sampleDurationMilli = 
+                    std::chrono::duration<double, std::micro> sampleDurationMicro = 
                         now - m_scaleSamples->lastSampleTime;
+                    double sampleDurationSeconds= sampleDurationMicro.count() / MICRO_PER_SECOND;
 
-                    if (sampleDurationMilli.count() < k_max_valid_scale_time_delta)
+                    if (sampleDurationSeconds >= k_min_valid_scale_time_delta &&
+                        sampleDurationSeconds <= k_max_valid_scale_time_delta)
                     {
-                        const float sampleDurationSeconds= sampleDurationMilli.count() / 1000.f;
-                        const float optical_radians_between= 
+                        const double optical_radians_between= 
                             eigen_quaternion_unsigned_angle_between(
                                 m_scaleSamples->lastOpticalOrientation,
                                 orientation);
-                        const float optical_angular_speed= optical_radians_between / sampleDurationSeconds;
+                        const double optical_angular_speed= optical_radians_between / sampleDurationSeconds;
                         
                         // This assumes that the the length of the gyro vector
                         // (gyro vector = angular rates on each axis)
@@ -364,7 +370,7 @@ void AppStage_GyroscopeCalibration::update()
 
                         if (!is_nearly_zero(raw_gyro_speed))
                         {
-                            const float raw_gyro_scale= optical_angular_speed / raw_gyro_speed;
+                            const double raw_gyro_scale= optical_angular_speed / static_cast<double>(raw_gyro_speed);
 
                             m_scaleSamples->scale_samples[m_scaleSamples->sample_count]= raw_gyro_scale;
                             ++m_scaleSamples->sample_count;
@@ -376,7 +382,7 @@ void AppStage_GyroscopeCalibration::update()
 
                                 // Update the gyro config on the service
                                 request_set_gyroscope_calibration(
-                                    m_scaleSamples->raw_scale_mean, 
+                                    static_cast<float>(m_scaleSamples->raw_scale_mean), 
                                     m_errorSamples->raw_drift, 
                                     m_errorSamples->raw_variance);
 

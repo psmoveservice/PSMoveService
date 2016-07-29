@@ -177,7 +177,7 @@ eigen_quaternion_unsigned_angle_between(const Eigen::Quaternionf &a, const Eigen
     const Eigen::Quaternionf q_diff= a*b_inv;
 
     // w = cos(2*theta)
-    const float radian_diff= fabsf(2.f * acosf(q_diff.w()));
+    const float radian_diff= fabsf(2.f * acosf(clampf(q_diff.w(), -1.f, 1.f)));
 
     return radian_diff;
 }

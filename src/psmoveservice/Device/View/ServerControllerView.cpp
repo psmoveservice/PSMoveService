@@ -1420,6 +1420,7 @@ update_filters_for_psdualshock4(
                 psmoveState->CalibratedGyro.i, 
                 psmoveState->CalibratedGyro.j,
                 psmoveState->CalibratedGyro.k);
+        sensorPacket.magnetometer= Eigen::Vector3f::Zero();
 
         // Update the orientation filter using the sensor packet.
         // NOTE: The magnetometer reading is the same for both sensor readings.
