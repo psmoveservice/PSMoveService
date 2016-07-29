@@ -409,14 +409,19 @@ static bool computeTrackerRelativeShapeContourPose(
     const std::vector<cv::Point> &opencv_contour,
     CommonDevicePose *out_tracker_relative_pose,
     CommonDeviceTrackingProjection *out_projection);
+static bool computeBestFitTriangleForContour(
+    const std::vector<cv::Point> &opencv_contour,
+    cv::Point2f &out_triangle_top,
+    cv::Point2f &out_triangle_bottom_left,
+    cv::Point2f &out_triangle_bottom_right);
 static bool computeBestFitQuadForContour(
     const std::vector<cv::Point> &opencv_contour,
     const cv::Point2f &up_hint, 
     const cv::Point2f &right_hint,
-    std::vector<cv::Point2f> &out_best_fit_triangle);
-static bool computeBestFitTriangleForContour(
-    const std::vector<cv::Point> &opencv_contour,
-    std::vector<cv::Point2f> &out_best_fit_triangle);
+    cv::Point2f &top_right,
+    cv::Point2f &top_left,
+    cv::Point2f &bottom_left,
+    cv::Point2f &bottom_right);
 
 //-- public implementation -----
 ServerTrackerView::ServerTrackerView(const int device_id)
@@ -1024,35 +1029,50 @@ static bool computeTrackerRelativeShapeContourPose(
     int pixelWidth, pixelHeight;
     tracker_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
 
-    // Create a best fit triangle around the contour
-    std::vector<cv::Point2f> cv_best_fit_shape;
-    bool bValidTrackerPose= computeBestFitTriangleForContour(opencv_contour, cv_best_fit_shape);
-
-    // Also create a best fit quad to provide a total of 7 points to correlate
-    if (bValidTrackerPose)
+    bool bValidTrackerPose= true;
+    std::vector<cv::Point2f> cvImagePoints;
     {
-        // Standard triangle vertex index - right, left, bottom
-        const cv::Point2f &tri_right= cv_best_fit_shape[0];
-        const cv::Point2f &tri_left= cv_best_fit_shape[1];
-        const cv::Point2f &tri_top= cv_best_fit_shape[2];
+        cv::Point2f tri_top, tri_bottom_left, tri_bottom_right;
+        cv::Point2f quad_top_right, quad_top_left, quad_bottom_left, quad_bottom_right;
 
-        // Use the triangle to define 
-        const cv::Point2f up_hint= tri_top - 0.5f*(tri_left + tri_right);
-        const cv::Point2f right_hint= tri_right - tri_left;
+        // Create a best fit triangle around the contour
+        bValidTrackerPose= computeBestFitTriangleForContour(
+            opencv_contour, 
+            tri_top, tri_bottom_left, tri_bottom_right);
 
-        bValidTrackerPose= computeBestFitQuadForContour(opencv_contour, up_hint, right_hint, cv_best_fit_shape);
-    }
-
-    // flip the y coordinates
-    std::vector<cv::Point2f> cv_y_flipped_best_fit_shape;
-    if (bValidTrackerPose)
-    {     
-        for (auto list_index = 0; list_index < cv_best_fit_shape.size(); ++list_index)
+        // Also create a best fit quad around the contour
+        // Use the best fit triangle to define the orientation
+        if (bValidTrackerPose)
         {
-            const cv::Point2f &cvPoint= cv_best_fit_shape[list_index];
-            const cv::Point2f cvYFlippedPoint = { cvPoint.x, pixelHeight - cvPoint.y };
+            // Use the triangle to define an up and a right direction
+            const cv::Point2f up_hint= tri_top - 0.5f*(tri_bottom_left + tri_bottom_right);
+            const cv::Point2f right_hint= tri_bottom_right - tri_bottom_left;
 
-            cv_y_flipped_best_fit_shape.push_back(cvYFlippedPoint);
+            bValidTrackerPose= computeBestFitQuadForContour(
+                opencv_contour, 
+                up_hint, right_hint, 
+                quad_top_right, quad_top_left, quad_bottom_left, quad_bottom_right);
+        }
+
+        // In practice the best fit triangle top is a bit noisy.
+        // Since it should be at the midpoint of the top of the quad we use that instead.
+        tri_top= 0.5f*(quad_top_right + quad_top_left);
+
+        // Put the image points in corresponding order with cvObjectPoints
+        cvImagePoints.push_back(tri_bottom_right);
+        cvImagePoints.push_back(tri_bottom_left);
+        cvImagePoints.push_back(tri_top);
+        cvImagePoints.push_back(quad_top_right);
+        cvImagePoints.push_back(quad_top_left);
+        cvImagePoints.push_back(quad_bottom_left);
+        cvImagePoints.push_back(quad_bottom_right);
+
+        // SolvePnP needs the y-coordinates flipped
+        for (auto list_index = 0; list_index < cvImagePoints.size(); ++list_index)
+        {
+            cv::Point2f &cvPoint= cvImagePoints[list_index];
+
+            cvPoint.y= pixelHeight - cvPoint.y;
         }        
     }
 
@@ -1097,7 +1117,7 @@ static bool computeTrackerRelativeShapeContourPose(
         cv::Mat rvec(4, 1, cv::DataType<double>::type);
         cv::Mat tvec(4, 1, cv::DataType<double>::type);
         if (cv::solvePnP(
-                cvObjectPoints, cv_y_flipped_best_fit_shape, 
+                cvObjectPoints, cvImagePoints, 
                 cvCameraMatrix, cvDistCoeffs, 
                 rvec, tvec, 
                 false, cv::SOLVEPNP_ITERATIVE))
@@ -1146,7 +1166,7 @@ static bool computeTrackerRelativeShapeContourPose(
 
         for (int vertex_index = 0; vertex_index < 3; ++vertex_index)
         {
-            const cv::Point2f &cvPoint = cv_y_flipped_best_fit_shape[vertex_index];
+            const cv::Point2f &cvPoint = cvImagePoints[vertex_index];
 
             // Convert the tracker screen locations in OpenCV pixel space
             // i.e. [0, 0]x[frameWidth, frameHeight]
@@ -1158,7 +1178,7 @@ static bool computeTrackerRelativeShapeContourPose(
 
         for (int vertex_index = 0; vertex_index < 4; ++vertex_index)
         {
-            const cv::Point2f &cvPoint = cv_y_flipped_best_fit_shape[vertex_index + 3];
+            const cv::Point2f &cvPoint = cvImagePoints[vertex_index + 3];
 
             // Convert the tracker screen locations in OpenCV pixel space
             // i.e. [0, 0]x[frameWidth, frameHeight]
@@ -1172,58 +1192,11 @@ static bool computeTrackerRelativeShapeContourPose(
     return bValidTrackerPose;
 }
 
-static bool computeBestFitQuadForContour(
-    const std::vector<cv::Point> &opencv_contour,
-    const cv::Point2f &up_hint, 
-    const cv::Point2f &right_hint,
-    std::vector<cv::Point2f> &out_best_fit_quad)
-{
-    // Compute the tightest possible bounding triangle for the given contour
-    cv::RotatedRect cv_min_box= cv::minAreaRect(opencv_contour);
-
-    if (cv_min_box.size.width <= k_real_epsilon || cv_min_box.size.height <= k_real_epsilon)
-    {
-        return false;
-    }
-
-    cv::Mat cv_box_points(4, 2, cv::DataType<float>::type);
-    cv::boxPoints(cv_min_box, cv_box_points);
-
-    cv::Point2f top_right= cv_box_points.at<cv::Point2f>(3, 0);
-    cv::Point2f top_left= cv_box_points.at<cv::Point2f>(0, 0);
-    cv::Point2f bottom_left= cv_box_points.at<cv::Point2f>(1, 0);
-    cv::Point2f bottom_right= cv_box_points.at<cv::Point2f>(2, 0);
-
-    cv::Point2f box_up= top_left - bottom_left;
-    if (box_up.dot(up_hint) < 0)
-    {
-        // up axis is flipped
-        // flip the box vertically
-        std::swap(top_right, bottom_right);
-        std::swap(top_left, bottom_left);
-    }
-
-    cv::Point2f box_right= top_right - top_left;
-    if (box_right.dot(right_hint) < 0)
-    {
-        // right axis is flipped
-        // flip the box horizontally
-        std::swap(top_right, top_left);
-        std::swap(bottom_right, bottom_left);
-    }
-
-    // Emit the box in standard order: top_right, top_left, bottom_left, bottom_right
-    out_best_fit_quad.push_back(top_right);
-    out_best_fit_quad.push_back(top_left);
-    out_best_fit_quad.push_back(bottom_left);
-    out_best_fit_quad.push_back(bottom_right);
-
-    return true;
-}
-
 static bool computeBestFitTriangleForContour(
     const std::vector<cv::Point> &opencv_contour,
-    std::vector<cv::Point2f> &out_best_fit_triangle)
+    cv::Point2f &out_triangle_top,
+    cv::Point2f &out_triangle_bottom_left,
+    cv::Point2f &out_triangle_bottom_right)
 {
     // Compute the tightest possible bounding triangle for the given contour
     std::vector<cv::Point2f> cv_min_triangle;
@@ -1287,32 +1260,85 @@ static bool computeBestFitTriangleForContour(
 
     // Make sure the left and right corners are actually 
     // on the left and right of the triangle
-    {
-        const cv::Point2f &top = cv_midpoint_triangle[topCornerIndex];
-        const cv::Point2f &left = cv_midpoint_triangle[leftCornerIndex];
-        const cv::Point2f &right = cv_midpoint_triangle[rightCornerIndex];
-        const cv::Point2f topToLeft = left - top;
-        const cv::Point2f topToRight = right - top;
+    out_triangle_top = cv_midpoint_triangle[topCornerIndex];
+    out_triangle_bottom_left = cv_midpoint_triangle[leftCornerIndex];
+    out_triangle_bottom_right = cv_midpoint_triangle[rightCornerIndex];
 
-        // Cross product should be positive if sides are correct
-        // If not, then swap them.
-        if (topToRight.cross(topToLeft) < 0)
-        {
-            std::swap(leftCornerIndex, rightCornerIndex);
-        }
+    const cv::Point2f topToLeft = out_triangle_bottom_left - out_triangle_top;
+    const cv::Point2f topToRight = out_triangle_bottom_right - out_triangle_top;
+
+    // Cross product should be positive if sides are correct
+    // If not, then swap them.
+    if (topToRight.cross(topToLeft) < 0)
+    {
+        std::swap(out_triangle_bottom_left, out_triangle_bottom_right);
     }
 
-    // Put the triangle corners in the same order as the 
-    // world space tracking shape vertices (i.e right, left, top)
-    // And flip the y coordinate
-    int corner_list[3] = { rightCornerIndex , leftCornerIndex, topCornerIndex };
-    for (int list_index = 0; list_index < 3; ++list_index)
-    {
-        int corner_index = corner_list[list_index];
-        const cv::Point2f &cvPoint= cv_midpoint_triangle[corner_index];
+    return true;
+}
 
-        out_best_fit_triangle.push_back(cvPoint);
-    }        
+static bool computeBestFitQuadForContour(
+    const std::vector<cv::Point> &opencv_contour,
+    const cv::Point2f &up_hint, 
+    const cv::Point2f &right_hint,
+    cv::Point2f &top_right,
+    cv::Point2f &top_left,
+    cv::Point2f &bottom_left,
+    cv::Point2f &bottom_right)
+{
+    // Compute the tightest possible bounding triangle for the given contour
+    cv::RotatedRect cv_min_box= cv::minAreaRect(opencv_contour);
+
+    if (cv_min_box.size.width <= k_real_epsilon || cv_min_box.size.height <= k_real_epsilon)
+    {
+        return false;
+    }
+
+    float half_width, half_height;
+    float radians;
+    if (cv_min_box.size.width > cv_min_box.size.height)
+    {
+        half_width= cv_min_box.size.width / 2.f;
+        half_height= cv_min_box.size.height / 2.f;
+        radians= cv_min_box.angle*k_degrees_to_radians;
+    }
+    else
+    {
+        half_width= cv_min_box.size.height / 2.f;
+        half_height= cv_min_box.size.width / 2.f;
+        radians= (cv_min_box.angle + 90.f)*k_degrees_to_radians;
+    }
+
+    cv::Point2f quad_half_right, quad_half_up;
+    {
+        const float cos_angle= cosf(radians);
+        const float sin_angle= sinf(radians);
+
+        quad_half_right.x= half_width*cos_angle;
+        quad_half_right.y= half_width*sin_angle;
+
+        quad_half_up.x= -half_height*sin_angle;
+        quad_half_up.y= half_height*cos_angle;
+    }
+
+    if (quad_half_up.dot(up_hint) < 0)
+    {
+        // up axis is flipped
+        // flip the box vertically
+        quad_half_up= -quad_half_up;
+    }
+
+    if (quad_half_right.dot(right_hint) < 0)
+    {
+        // right axis is flipped
+        // flip the box horizontally
+        quad_half_right= -quad_half_right;
+    }
+
+    top_right= cv_min_box.center + quad_half_up + quad_half_right;
+    top_left= cv_min_box.center + quad_half_up - quad_half_right;
+    bottom_right= cv_min_box.center - quad_half_up + quad_half_right;
+    bottom_left= cv_min_box.center - quad_half_up - quad_half_right;
 
     return true;
 }
