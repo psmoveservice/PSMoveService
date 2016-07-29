@@ -166,8 +166,7 @@ bool Renderer::init()
         glViewport(0, 0, m_windowWidth, m_windowHeight);
 
         glEnable(GL_LIGHT0);
-        glEnable(GL_TEXTURE_2D);
-        //glShadeModel(GL_SMOOTH);
+        glEnable(GL_TEXTURE_2D);        
         //glClearDepth(1.0f);
         glEnable(GL_DEPTH_TEST);
         //glDepthFunc(GL_LEQUAL);
@@ -625,22 +624,26 @@ void drawTrackingProjection(
             
             glBegin(GL_LINE_STRIP);
             glColor3f(1.f, 0.f, 0.f);
-            glVertex3f(triangle[0].x, triangle[0].y, 0.5f); glVertex3f(triangle[1].x, triangle[1].y, 0.5f);
+            glVertex3f(triangle[0].x, triangle[0].y, 0.5f);
             glColor3f(0.f, 1.f, 0.f);
-            glVertex3f(triangle[1].x, triangle[1].y, 0.5f); glVertex3f(triangle[2].x, triangle[2].y, 0.5f);
+            glVertex3f(triangle[1].x, triangle[1].y, 0.5f);
             glColor3f(0.f, 0.f, 1.f);
-            glVertex3f(triangle[2].x, triangle[2].y, 0.5f); glVertex3f(triangle[0].x, triangle[0].y, 0.5f);
+            glVertex3f(triangle[2].x, triangle[2].y, 0.5f); 
+            glColor3f(1.f, 0.f, 0.f);
+            glVertex3f(triangle[0].x, triangle[0].y, 0.5f);
             glEnd();
 
             glBegin(GL_LINE_STRIP);
             glColor3f(1.f, 0.f, 0.f);
-            glVertex3f(quad[0].x, quad[0].y, 0.5f); glVertex3f(quad[1].x, quad[1].y, 0.5f);
+            glVertex3f(quad[0].x, quad[0].y, 0.5f);
             glColor3f(0.f, 1.f, 0.f);
-            glVertex3f(quad[1].x, quad[1].y, 0.5f); glVertex3f(quad[2].x, quad[2].y, 0.5f);
+            glVertex3f(quad[1].x, quad[1].y, 0.5f);
             glColor3f(0.f, 0.f, 1.f);
-            glVertex3f(quad[2].x, quad[2].y, 0.5f); glVertex3f(quad[3].x, quad[3].y, 0.5f);
+            glVertex3f(quad[2].x, quad[2].y, 0.5f);
+            glColor3f(1.f, 1.f, 0.f);
+            glVertex3f(quad[3].x, quad[3].y, 0.5f);
             glColor3f(1.f, 0.f, 0.f);
-            glVertex3f(quad[3].x, quad[3].y, 0.5f); glVertex3f(quad[0].x, quad[0].y, 0.5f);
+            glVertex3f(quad[0].x, quad[0].y, 0.5f);
             glEnd();
         } break;
     }
