@@ -111,4 +111,12 @@ eigen_alignment_fit_focal_cone_to_sphere(
     Eigen::Vector3f *out_sphere_center,
     EigenFitEllipse *out_ellipse_projection= nullptr);
 
+// Compute the weighted average of multiple quaternions
+bool
+eigen_quaternion_compute_weighted_average(
+    const Eigen::Quaternionf *quaternions,
+    const float *weights,
+    const int count,
+    Eigen::Quaternionf *out_result);
+
 #endif // MATH_UTILITY_h
