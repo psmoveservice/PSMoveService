@@ -252,7 +252,7 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
     if (getIsTrackingEnabled())
     {
         int valid_tracker_ids[TrackerManager::k_max_devices];
-        int positions_found = 0;
+        int poses_found = 0;
 
         // Compute an estimated 3d tracked position of the controller 
         // from the perspective of each tracker
@@ -272,8 +272,8 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
                         poseEstimate.bCurrentlyTracking = true;
                         poseEstimate.last_visible_timestamp = now;
 
-                        valid_tracker_ids[positions_found] = tracker_id;
-                        ++positions_found;
+                        valid_tracker_ids[poses_found] = tracker_id;
+                        ++poses_found;
                     }
                 }
                 else
@@ -281,8 +281,8 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
                     // Keep using the pose from the last visible frame
                     if (poseEstimate.bCurrentlyTracking)
                     {
-                        valid_tracker_ids[positions_found] = tracker_id;
-                        ++positions_found;
+                        valid_tracker_ids[poses_found] = tracker_id;
+                        ++poses_found;
                     }
                 }
             }
@@ -294,11 +294,11 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
 
         // If multiple trackers can see the controller, 
         // triangulate all pairs of trackers and average the results
-        if (positions_found > 1)
+        if (poses_found > 1)
         {
             // Project the tracker relative 3d tracking position back on to the tracker camera plane
             CommonDeviceScreenLocation position2d_list[TrackerManager::k_max_devices];
-            for (int list_index = 0; list_index < positions_found; ++list_index)
+            for (int list_index = 0; list_index < poses_found; ++list_index)
             {
                 const int tracker_id = valid_tracker_ids[list_index];
                 const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
@@ -309,13 +309,13 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
 
             int pair_count = 0;
             CommonDevicePosition average_world_position = { 0.f, 0.f, 0.f };
-            for (int list_index = 0; list_index < positions_found; ++list_index)
+            for (int list_index = 0; list_index < poses_found; ++list_index)
             {
                 const int tracker_id = valid_tracker_ids[list_index];
                 const CommonDeviceScreenLocation &screen_location = position2d_list[list_index];
                 const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
 
-                for (int other_list_index = list_index + 1; other_list_index < positions_found; ++other_list_index)
+                for (int other_list_index = list_index + 1; other_list_index < poses_found; ++other_list_index)
                 {
                     const int other_tracker_id = valid_tracker_ids[other_list_index];
                     const CommonDeviceScreenLocation &other_screen_location = position2d_list[other_list_index];
@@ -348,7 +348,7 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
             m_multicam_pose_estimation->bCurrentlyTracking = true;
         }
         // If only one tracker can see the controller, then just use the position estimate from that
-        else if (positions_found == 1)
+        else if (poses_found == 1)
         {
             // Put the tracker relative position into world space
             const int tracker_id = valid_tracker_ids[0];
@@ -357,6 +357,14 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
 
             m_multicam_pose_estimation->position = tracker->computeWorldPosition(&tracker_relative_position);
             m_multicam_pose_estimation->bCurrentlyTracking = true;
+
+            if (m_tracker_pose_estimation[tracker_id].bOrientationValid)
+            {
+                const CommonDeviceQuaternion &tracker_relative_quaternion = m_tracker_pose_estimation[tracker_id].orientation;
+
+                m_multicam_pose_estimation->orientation = tracker->computeWorldOrientation(&tracker_relative_quaternion);
+                m_multicam_pose_estimation->bOrientationValid = true;
+            }
         }
         // If no trackers can see the controller, maintain the last known position and time it was seen
         else
@@ -365,7 +373,7 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
         }
 
         // Update the position estimation timestamps
-        if (positions_found > 0)
+        if (poses_found > 0)
         {
             m_multicam_pose_estimation->last_visible_timestamp = now;
         }

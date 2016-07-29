@@ -57,6 +57,7 @@ public:
     CommonDeviceScreenLocation projectTrackerRelativePosition(const CommonDevicePosition *trackerRelativePosition) const;
     
     CommonDevicePosition computeWorldPosition(const CommonDevicePosition *tracker_relative_position);
+    CommonDeviceQuaternion computeWorldOrientation(const CommonDeviceQuaternion *tracker_relative_orientation);
 
     static CommonDevicePosition triangulateWorldPosition(
         const ServerTrackerView *tracker, const CommonDeviceScreenLocation *screen_location,

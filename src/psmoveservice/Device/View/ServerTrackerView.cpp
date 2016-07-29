@@ -399,6 +399,7 @@ public:
 };
 
 // -- Utility Methods -----
+static glm::quat computeGLMCameraTransformQuaternion(const ITrackerInterface *tracker_device);
 static glm::mat4 computeGLMCameraTransformMatrix(const ITrackerInterface *tracker_device);
 static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const ITrackerInterface *tracker_device);
 static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const ITrackerInterface *tracker_device);
@@ -868,6 +869,28 @@ ServerTrackerView::computeWorldPosition(
     return result;
 }
 
+CommonDeviceQuaternion
+ServerTrackerView::computeWorldOrientation(
+    const CommonDeviceQuaternion *tracker_relative_orientation)
+{
+    const glm::quat rel_orientation(
+        tracker_relative_orientation->w,
+        tracker_relative_orientation->x,
+        tracker_relative_orientation->y,
+        tracker_relative_orientation->z);    
+    const glm::quat camera_quat= computeGLMCameraTransformQuaternion(m_device);
+    // combined_rotation = second_rotation * first_rotation;
+    const glm::quat world_quat = camera_quat * rel_orientation;
+    
+    CommonDeviceQuaternion result;
+    result.w= world_quat.w;
+    result.x= world_quat.x;
+    result.y= world_quat.y;
+    result.z= world_quat.z;
+
+    return result;
+}
+
 CommonDevicePosition
 ServerTrackerView::triangulateWorldPosition(
     const ServerTrackerView *tracker, 
@@ -963,6 +986,17 @@ ServerTrackerView::projectTrackerRelativePosition(const CommonDevicePosition *tr
 
 
 // -- Tracker Utility Methods -----
+static glm::quat computeGLMCameraTransformQuaternion(const ITrackerInterface *tracker_device)
+{
+
+    const CommonDevicePose pose = tracker_device->getTrackerPose();
+    const CommonDeviceQuaternion &quat = pose.Orientation;
+
+    const glm::quat glm_quat(quat.w, quat.x, quat.y, quat.z);
+
+    return glm_quat;
+}
+
 static glm::mat4 computeGLMCameraTransformMatrix(const ITrackerInterface *tracker_device)
 {
 
