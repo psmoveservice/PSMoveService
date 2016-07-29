@@ -49,12 +49,13 @@ ffi.set_source("_psmoveclient",
     #include "PSMoveClient_CAPI.h"
     """,
     include_dirs=[client_path],
-    libraries=['PSMoveClient_CAPI'], library_dirs=[os.path.abspath('.')])  #lib_path, os.path.abspath('.')
+    libraries=['PSMoveClient_CAPI'], library_dirs=[lib_path])  #lib_path, os.path.abspath('.')
 ffi.cdef(header_dat)
 
 libpath = os.path.abspath(os.path.join(lib_path, libname))
 if not os.path.isfile(libpath):
-    libpath = util.find_library(libname)
+    from ctypes.util import find_library
+    libpath = find_library(libname)
 if not libpath:
     raise RuntimeError("library " + libname + " was not found - make sure "
                        "that it is on the search path (e.g., in the same "

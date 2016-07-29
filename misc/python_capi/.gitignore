@@ -1,2 +1,4 @@
 *.c
 .idea
+Release
+*.pyd
