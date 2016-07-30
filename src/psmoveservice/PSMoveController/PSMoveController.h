@@ -4,6 +4,7 @@
 #include "PSMoveConfig.h"
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
+#include "MathUtility.h"
 #include "hidapi.h"
 #include <string>
 #include <array>
@@ -36,8 +37,8 @@ public:
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }} 
         }})
         , prediction_time(0.f)
-        , raw_gyro_variance(0.f)
-        , raw_gyro_drift(0.f)
+        , gyro_variance(1.5f*k_degrees_to_radians) // rad/s^2
+        , gyro_drift(0.9f*k_degrees_to_radians) // rad/s
     {
         magnetometer_identity.clear();
         magnetometer_center.clear();
@@ -67,10 +68,10 @@ public:
     float magnetometer_error;
     float prediction_time;
     
-    // The variance of the raw gyro readings 
-    float raw_gyro_variance;
-    // The drift raw gyro readings in raw_units/second
-    float raw_gyro_drift;
+    // The variance of the calibrated gyro readings in rad/s^2
+    float gyro_variance;
+    // The drift of the calibrated gyro readings in rad/second^2
+    float gyro_drift;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport

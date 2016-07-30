@@ -33,7 +33,7 @@ public:
     }
 
 protected:
-    void request_set_gyroscope_calibration(const float sensor_scale, const float raw_drift, const float raw_variance);
+    void request_set_gyroscope_calibration(const float raw_drift, const float raw_variance);
     static void handle_acquire_controller(
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);

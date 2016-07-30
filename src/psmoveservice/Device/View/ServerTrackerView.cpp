@@ -823,6 +823,7 @@ ServerTrackerView::computePoseForController(
                 out_pose_estimate->projection.shape.ellipse.half_x_extent = ellipse_projection.extents.x();
                 out_pose_estimate->projection.shape.ellipse.half_y_extent = ellipse_projection.extents.y();
                 out_pose_estimate->projection.shape.ellipse.angle = ellipse_projection.angle;
+                out_pose_estimate->projection.screen_area= ellipse_projection.area;
 
                 bSuccess = true;
             } break;
@@ -1064,6 +1065,7 @@ static bool computeTrackerRelativeShapeContourPose(
     tracker_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
 
     bool bValidTrackerPose= true;
+    float projectionArea= 0.f;
     std::vector<cv::Point2f> cvImagePoints;
     {
         cv::Point2f tri_top, tri_bottom_left, tri_bottom_right;
@@ -1088,26 +1090,34 @@ static bool computeTrackerRelativeShapeContourPose(
                 quad_top_right, quad_top_left, quad_bottom_left, quad_bottom_right);
         }
 
-        // In practice the best fit triangle top is a bit noisy.
-        // Since it should be at the midpoint of the top of the quad we use that instead.
-        tri_top= 0.5f*(quad_top_right + quad_top_left);
-
-        // Put the image points in corresponding order with cvObjectPoints
-        cvImagePoints.push_back(tri_bottom_right);
-        cvImagePoints.push_back(tri_bottom_left);
-        cvImagePoints.push_back(tri_top);
-        cvImagePoints.push_back(quad_top_right);
-        cvImagePoints.push_back(quad_top_left);
-        cvImagePoints.push_back(quad_bottom_left);
-        cvImagePoints.push_back(quad_bottom_right);
-
-        // SolvePnP needs the y-coordinates flipped
-        for (auto list_index = 0; list_index < cvImagePoints.size(); ++list_index)
+        if (bValidTrackerPose)
         {
-            cv::Point2f &cvPoint= cvImagePoints[list_index];
+            // In practice the best fit triangle top is a bit noisy.
+            // Since it should be at the midpoint of the top of the quad we use that instead.
+            tri_top= 0.5f*(quad_top_right + quad_top_left);
 
-            cvPoint.y= pixelHeight - cvPoint.y;
-        }        
+            // Put the image points in corresponding order with cvObjectPoints
+            cvImagePoints.push_back(tri_bottom_right);
+            cvImagePoints.push_back(tri_bottom_left);
+            cvImagePoints.push_back(tri_top);
+            cvImagePoints.push_back(quad_top_right);
+            cvImagePoints.push_back(quad_top_left);
+            cvImagePoints.push_back(quad_bottom_left);
+            cvImagePoints.push_back(quad_bottom_right);
+
+            // The projection area is the size of the best fit quad
+            projectionArea= 
+                cv::norm(quad_bottom_right-quad_bottom_left)
+                *cv::norm(quad_bottom_left-quad_top_left);
+
+            // SolvePnP needs the y-coordinates flipped
+            for (auto list_index = 0; list_index < cvImagePoints.size(); ++list_index)
+            {
+                cv::Point2f &cvPoint= cvImagePoints[list_index];
+
+                cvPoint.y= pixelHeight - cvPoint.y;
+            }                    
+        }
     }
 
     // Solve the tracking position using solvePnP
@@ -1221,6 +1231,8 @@ static bool computeTrackerRelativeShapeContourPose(
             out_projection->shape.lightbar.quad[vertex_index] = 
                 { cvPoint.x - (pixelWidth / 2), cvPoint.y - (pixelHeight / 2) };
         }
+
+        out_projection->screen_area= projectionArea;
     }
 
     return bValidTrackerPose;

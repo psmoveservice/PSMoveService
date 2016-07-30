@@ -29,6 +29,7 @@ struct EigenFitEllipse
     Eigen::Vector2f center;
     Eigen::Vector2f extents;
     float angle; // radians
+    float area;
     float error;
 
     void clear()
@@ -36,6 +37,7 @@ struct EigenFitEllipse
         center = Eigen::Vector2f::Zero();
         extents = Eigen::Vector2f::Zero();
         angle = 0.f;
+        area = 0.f;
         error = 0.f;
     }
 

@@ -290,6 +290,7 @@ struct CommonDeviceTrackingProjection
         } lightbar;
     } shape;
 
+    float screen_area; // area in pixels^2
     eCommonTrackingProjectionType shape_type;
 };
 

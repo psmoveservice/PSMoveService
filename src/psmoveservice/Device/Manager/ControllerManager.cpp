@@ -71,7 +71,7 @@ ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
 
 		if (controllerView->getIsOpen() && controllerView->getIsBluetooth())
 		{
-			controllerView->updatePositionEstimation(tracker_manager);
+			controllerView->updateOpticalPoseEstimation(tracker_manager);
 			controllerView->updateStateAndPredict();
 		}
     }

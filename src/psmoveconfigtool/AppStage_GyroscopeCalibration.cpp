@@ -22,6 +22,9 @@
 
 #include <algorithm>
 
+//###HipsterSloth $NOTE Only used for trying to figure out raw gyro data scale
+//#ifdef MEASURE_RAW_GYRO_SCALE
+
 //-- statics ----
 const char *AppStage_GyroscopeCalibration::APP_STAGE_NAME = "GyroscopeCalibration";
 
@@ -41,20 +44,20 @@ const double k_max_valid_scale_time_delta= 0.05; // seconds (20 fps)
 //-- definitions -----
 struct GyroscopeErrorSamples
 {
-    PSMoveIntVector3 omega_samples[k_desired_noise_sample_count];
-    PSMoveIntVector3 drift_rotation;
+    PSMoveFloatVector3 omega_samples[k_desired_noise_sample_count];
+    PSMoveFloatVector3 drift_rotation;
     std::chrono::time_point<std::chrono::high_resolution_clock> sampleStartTime;
     int sample_count;
 
-    float raw_variance; // Max sensor variance (raw_sensor_units/s/s)
-    float raw_drift; // Max drift rate (raw_sensor_units/s)
+    float variance; // Max sensor variance (raw_sensor_units/s/s for DS4, rad/s/s for PSMove)
+    float drift; // Max drift rate (raw_sensor_units/s for DS4, rad/s for PSMove)
 
     void clear()
     {
-        drift_rotation= PSMoveIntVector3::create(0, 0, 0);
+        drift_rotation= PSMoveFloatVector3::create(0, 0, 0);
         sample_count= 0;
-        raw_variance= 0.f;
-        raw_drift= 0.f;
+        variance= 0.f;
+        drift= 0.f;
     }
 
     void computeStatistics(std::chrono::duration<float, std::milli> sampleDurationMilli)
@@ -66,7 +69,7 @@ struct GyroscopeErrorSamples
         PSMoveFloatVector3 mean_omega= PSMoveFloatVector3::create(0.f, 0.f, 0.f);
         for (int sample_index = 0; sample_index < sample_count; sample_index++)
         {
-            mean_omega= mean_omega + omega_samples[sample_index].castToFloatVector3().abs();
+            mean_omega= mean_omega + omega_samples[sample_index].abs();
         }
         mean_omega= mean_omega.unsafe_divide(N);
 
@@ -74,7 +77,7 @@ struct GyroscopeErrorSamples
         PSMoveFloatVector3 var_omega= PSMoveFloatVector3::create(0.f, 0.f, 0.f);
         for (int sample_index = 0; sample_index < sample_count; sample_index++)
         {
-            PSMoveFloatVector3 sample= omega_samples[sample_index].castToFloatVector3();
+            PSMoveFloatVector3 sample= omega_samples[sample_index];
             PSMoveFloatVector3 diff_from_mean= sample - mean_omega;
 
             var_omega= var_omega + diff_from_mean.square();
@@ -82,15 +85,15 @@ struct GyroscopeErrorSamples
         var_omega= var_omega.unsafe_divide(N - 1);
 
         // Use the max variance of all three axes (should be close)
-        raw_variance= var_omega.maxValue();
+        variance= var_omega.maxValue();
 
         // Compute the max drift rate we got across a three axis
-        PSMoveFloatVector3 drift_rate= drift_rotation.castToFloatVector3().unsafe_divide(sampleDurationSeconds);
-        raw_drift= drift_rate.abs().maxValue();
+        PSMoveFloatVector3 drift_rate= drift_rotation.unsafe_divide(sampleDurationSeconds);
+        drift= drift_rate.abs().maxValue();
     }
 };
 
-struct GyroscopeScaleSamples
+struct GyroscopeScaleSamples // DS4 only
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     
@@ -285,7 +288,7 @@ void AppStage_GyroscopeCalibration::update()
                 }
             }
         } break;
-    case eCalibrationMenuState::measureBiasAndDrift:
+    case eCalibrationMenuState::measureBiasAndDrift: // PSMove and DS4
         {
             if (m_controllerView->GetIsStableAndAlignedWithGravity())
             {
@@ -293,12 +296,12 @@ void AppStage_GyroscopeCalibration::update()
                 std::chrono::duration<float, std::milli> sampleDurationMilli = now - m_errorSamples->sampleStartTime;
 
                 // Accumulate the drift total
-                m_errorSamples->drift_rotation= m_errorSamples->drift_rotation + m_lastRawGyroscope;
+                m_errorSamples->drift_rotation= m_errorSamples->drift_rotation + m_lastCalibratedGyroscope;
 
                 // Record the next noise sample
                 if (m_errorSamples->sample_count < k_desired_noise_sample_count)
                 {
-                    m_errorSamples->omega_samples[m_errorSamples->sample_count]= m_lastRawGyroscope;
+                    m_errorSamples->omega_samples[m_errorSamples->sample_count]= m_lastCalibratedGyroscope;
                     ++m_errorSamples->sample_count;
                 }
 
@@ -311,18 +314,19 @@ void AppStage_GyroscopeCalibration::update()
                     // Start measuring the gyro scale
                     m_scaleSamples->clear();
 
+                    // Update the gyro config on the service
+                    request_set_gyroscope_calibration(
+                        m_errorSamples->drift, 
+                        m_errorSamples->variance);
+
+                    #ifdef MEASURE_RAW_GYRO_SCALE
                     if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4)
                     {
                         m_menuState= eCalibrationMenuState::measureScale;
                     }
                     else
+                    #endif
                     {
-                        // Update the gyro config on the service
-                        request_set_gyroscope_calibration(
-                            1.f, // No gyro sensor scaling for other controllers 
-                            m_errorSamples->raw_drift, 
-                            m_errorSamples->raw_variance);
-
                         m_menuState= eCalibrationMenuState::measureComplete;
                     }
                 }
@@ -333,9 +337,11 @@ void AppStage_GyroscopeCalibration::update()
                 m_menuState = AppStage_GyroscopeCalibration::waitForStable;
             }
         } break;
-    case eCalibrationMenuState::measureScale:
+    case eCalibrationMenuState::measureScale: // DS4 only
         {
             PSMoveQuaternion orientationOnTracker;
+
+            assert(m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4);
 
             if (!m_controllerView->GetIsStableAndAlignedWithGravity() &&
                 m_controllerView->GetIsCurrentlyTracking() &&
@@ -379,12 +385,6 @@ void AppStage_GyroscopeCalibration::update()
                             {
                                 // Compute the scale statistics
                                 m_scaleSamples->computeStatistics();
-
-                                // Update the gyro config on the service
-                                request_set_gyroscope_calibration(
-                                    static_cast<float>(m_scaleSamples->raw_scale_mean), 
-                                    m_errorSamples->raw_drift, 
-                                    m_errorSamples->raw_variance);
 
                                 m_menuState= eCalibrationMenuState::measureComplete;
                             }
@@ -677,9 +677,8 @@ void AppStage_GyroscopeCalibration::renderUI()
 
 //-- private methods -----
 void AppStage_GyroscopeCalibration::request_set_gyroscope_calibration(
-    const float sensor_scale,
-    const float raw_drift, 
-    const float raw_variance)
+    const float drift, 
+    const float variance)
 {
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_GYROSCOPE_CALIBRATION);
@@ -689,9 +688,8 @@ void AppStage_GyroscopeCalibration::request_set_gyroscope_calibration(
 
     calibration->set_controller_id(m_controllerView->GetControllerID());
 
-    calibration->set_sensor_scale(sensor_scale);
-    calibration->set_raw_drift(raw_drift);
-    calibration->set_raw_variance(raw_variance);
+    calibration->set_drift(drift);
+    calibration->set_variance(variance);
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }

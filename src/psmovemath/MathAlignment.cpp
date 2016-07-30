@@ -659,6 +659,7 @@ eigen_alignment_fit_focal_cone_to_sphere(
         out_ellipse_projection->center = center;
         out_ellipse_projection->extents = extents;
         out_ellipse_projection->angle = tau;
+        out_ellipse_projection->area = k_real_pi*a_*b_;
         out_ellipse_projection->error=
             eigen_alignment_compute_ellipse_fit_error(
                 points, point_count, *out_ellipse_projection);
@@ -677,12 +678,14 @@ eigen_quaternion_compute_weighted_average(
     if (count == 1)
     {
         *out_result= quaternions[0];
+        success= true;
     }
     else if (count == 2)
     {
         const float u= safe_divide_with_default(fabs(weights[1]), fabs(weights[0]) + fabs(weights[1]), 0.f);
 
         *out_result= eigen_quaternion_normalized_lerp(quaternions[0], quaternions[1], u);
+        success= true;
     }
     else if (count > 2)
     {

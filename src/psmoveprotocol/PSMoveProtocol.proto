@@ -217,9 +217,8 @@ message Request {
     // Parameters for SET_GYROSCOPE_CALIBRATION
     message RequestSetGyroscopeCalibration {
         int32 controller_id = 1;
-        float raw_variance= 2;
-        float raw_drift= 3;
-        float sensor_scale= 4;
+        float variance= 2;
+        float drift= 3;
     }
     RequestSetGyroscopeCalibration set_gyroscope_calibration_request = 15;    
     

@@ -13,11 +13,20 @@ extern const Eigen::Matrix3f *k_eigen_identity_pose_laying_flat;
 extern const Eigen::Matrix3f *k_eigen_sensor_transform_identity;
 extern const Eigen::Matrix3f *k_eigen_sensor_transform_opengl;
 
+enum OrientationSource
+{
+    OrientationSource_PreviousFrame,
+    OrientationSource_Optical
+};
+
 //-- declarations -----
 /// A snapshot of IMU data emitted from a controller
 struct OrientationSensorPacket
 {
     Eigen::Quaternionf orientation;
+    OrientationSource orientation_source;
+    float orientation_quality; // [0, 1]
+
     Eigen::Vector3f accelerometer;
     Eigen::Vector3f magnetometer;
     Eigen::Vector3f gyroscope;
@@ -27,6 +36,9 @@ struct OrientationSensorPacket
 struct OrientationFilterPacket
 {
     Eigen::Quaternionf orientation;
+    OrientationSource orientation_source;
+    float orientation_quality; // [0, 1]
+
     Eigen::Vector3f normalized_accelerometer;
     Eigen::Vector3f normalized_magnetometer;
     Eigen::Vector3f gyroscope;
@@ -74,8 +86,9 @@ public:
     enum FusionType {
         FusionTypeNone,
         FusionTypePassThru,
-        FusionTypeMadgwickIMU,
+        FusionTypeMadgwickARG,
         FusionTypeMadgwickMARG,
+        FusionTypeComplementaryOpticalARG,
         FusionTypeComplementaryMARG,
     };
 
@@ -93,6 +106,16 @@ public:
     void setFilterSpace(const OrientationFilterSpace &filterSpace);
     void setFusionType(FusionType fusionType);
 
+    // Error Parameters
+    inline void setGyroscopeError(float gyro_error) 
+    {
+        m_gyroError= gyro_error;
+    }
+    inline void setGyroscopeDrift(float gyro_drift)
+    {
+        m_gyroDrift= gyro_drift;
+    }
+
     void resetOrientation();
     void resetFilterState();
     void update(const float delta_time, const OrientationSensorPacket &packet);
@@ -100,6 +123,9 @@ public:
 private:
     OrientationFilterSpace m_FilterSpace;
     struct OrientationSensorFusionState *m_FusionState;
+
+    float m_gyroError; // rad/s^2
+    float m_gyroDrift; // rad/s
 };
 
 #endif // ORIENTATION_FILTER_H

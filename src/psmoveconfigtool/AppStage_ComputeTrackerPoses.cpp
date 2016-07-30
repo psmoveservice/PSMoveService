@@ -33,6 +33,9 @@ const char *AppStage_ComputeTrackerPoses::APP_STAGE_NAME = "ComputeTrackerPoses"
 static const glm::vec3 k_hmd_frustum_color = glm::vec3(1.f, 0.788f, 0.055f);
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 
+//-- private methods -----
+static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
+
 //-- public methods -----
 AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
     : AppStage(app)
@@ -271,7 +274,7 @@ void AppStage_ComputeTrackerPoses::render()
                 PSMovePose psmove_space_pose = m_controllerView->GetPose();
                 glm::mat4 chaperoneSpaceTransform = psmove_tracking_space_to_chaperone_space * psmove_pose_to_glm_mat4(psmove_space_pose);
 
-                drawPSMoveModel(chaperoneSpaceTransform, glm::vec3(1.f, 1.f, 1.f));
+                drawController(m_controllerView, chaperoneSpaceTransform);
                 drawTransformedAxes(chaperoneSpaceTransform, 10.f);
             }
 
@@ -1024,5 +1027,19 @@ void AppStage_ComputeTrackerPoses::handle_all_devices_ready()
     else
     {
         setState(eMenuState::testTracking);
+    }
+}
+
+//-- private methods -----
+static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform)
+{
+    switch(controllerView->GetControllerViewType())
+    {
+    case ClientControllerView::PSMove:
+        drawPSMoveModel(transform, glm::vec3(1.f, 1.f, 1.f));
+        break;
+    case ClientControllerView::PSDualShock4:
+        drawPSDualShock4Model(transform, glm::vec3(1.f, 1.f, 1.f));
+        break;
     }
 }

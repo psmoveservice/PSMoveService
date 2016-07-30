@@ -91,7 +91,7 @@ void AppSubStage_CalibrateWithMat::update()
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
         {
-            if (ControllerView->GetIsStableAndAlignedWithGravity())
+            if (ControllerView->GetIsStableAndAlignedWithGravity() || m_bForceControllerStable)
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 
@@ -143,7 +143,7 @@ void AppSubStage_CalibrateWithMat::update()
             if (bNeedMoreSamples)
             {
                 // Only record samples when the controller is stable
-                if (bIsStable)
+                if (bIsStable || m_bForceControllerStable)
                 {
                     for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
                         iter != m_parentStage->m_trackerViews.end();
@@ -520,6 +520,11 @@ void AppSubStage_CalibrateWithMat::renderUI()
                 }
             }
 
+            if (ImGui::Button("Trust me, it's stable"))
+            {
+                m_bForceControllerStable= true;
+            }
+            ImGui::SameLine();
             if (ImGui::Button("Restart Calibration"))
             {
                 setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
@@ -699,6 +704,8 @@ void AppSubStage_CalibrateWithMat::onEnterState(
 
             m_sampleLocationIndex = 0;
             m_bIsStable = false;
+            m_bForceControllerStable = false;
+            m_bForceHMDStable= false;
             m_hmdTrackerPoseContext.clear();
         }
         break;
@@ -714,6 +721,7 @@ void AppSubStage_CalibrateWithMat::onEnterState(
             }
 
             m_bIsStable = false;
+            m_bForceControllerStable= false;
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
         break;

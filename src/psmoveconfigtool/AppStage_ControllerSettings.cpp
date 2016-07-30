@@ -25,6 +25,9 @@
 #define snprintf _snprintf
 #endif
 
+//###HipsterSloth $NOTE Only used for trying to figure out raw accelerometer data scale
+//#ifdef MEASURE_RAW_ACCEL_SCALE
+
 //-- statics ----
 const char *AppStage_ControllerSettings::APP_STAGE_NAME= "ControllerSettings";
 
@@ -257,11 +260,13 @@ void AppStage_ControllerSettings::renderUI()
 
                 if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
                 {
+                    #ifdef MEASURE_RAW_ACCEL_SCALE
                     if (ImGui::Button("Calibrate Accelerometer"))
                     {
                         m_app->getAppStage<AppStage_AccelerometerCalibration>()->setBypassCalibrationFlag(false);
                         m_app->setAppStage(AppStage_AccelerometerCalibration::APP_STAGE_NAME);
                     }
+                    #endif
 
                     if (ImGui::Button("Test Accelerometer"))
                     {

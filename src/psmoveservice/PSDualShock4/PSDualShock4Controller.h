@@ -34,10 +34,12 @@ public:
         , version(CONFIG_VERSION)
         , accelerometer_fit_error(0.f)
         , gyro_gain(0.f)
-        , raw_gyro_variance(0.f)
-        , raw_gyro_drift(0.f)
+        , gyro_variance(0.f)
+        , gyro_drift(0.f)
         , max_poll_failure_count(100)
         , prediction_time(0.f)
+        , min_quality_screen_area(150.f*34.f*.1f)
+        , max_quality_screen_area(150.f*34.f) // light bar at ideal range looking straight on is about 150px by 34px 
     {
         // The DS4 uses the BMI055 IMU Chip: 
         // https://www.bosch-sensortec.com/bst/products/all_products/bmi055
@@ -58,15 +60,9 @@ public:
         //  -raw accelerometer value should be divided by 8192 to get g/s
         //  -raw gyroscope value should be divided by 1024 to get rad/s
 
-        // In contrast The DS4 Windows library:
-        // https://github.com/Jays2Kings/DS4Windows
-        // suggests that:
-        //  -raw accelerometer value should be divided by 256 to get g/s
-        //  -raw gyroscope value should be divided by 64 to get rad/s
-
         // Accelerometer gain computed from accelerometer calibration in the config tool is really close to 1/8192.
         // and is just in a 2.13 fixed point value (+1 sign bit)
-        // This agrees with the stack exchange article (but disagrees with DS4Windows)
+        // This agrees with the stack exchange article
         accelerometer_gain.i = 1.f / 8192.f;
         accelerometer_gain.j = 1.f / 8192.f;
         accelerometer_gain.k = 1.f / 8192.f;
@@ -77,19 +73,19 @@ public:
         accelerometer_bias.j = 0.f;
         accelerometer_bias.k = 0.f;
 
-        // Gyroscope gain computed from gyroscope calibration in the config tool is really close to 1/64.
+        // Empirical testing of the of the gyro gain looks best at 1/1024.
         // This implies that gyroscope is returned from the controller is pre-calibrated 
-        // and is just in a 9.6 fixed point value (+1 sign bit)
-        // This agrees with DS4 Windows (but disagrees with stack exchange article)
-        gyro_gain= 1.f / 64.f;
+        // and is just in a 5.10 fixed point value (+1 sign bit).
+        // This agrees with stack exchange article.
+        gyro_gain= 1.f / 1024.f;
 
-        // This is the variance of the raw gyro value recorded for 100 samples
-        // Multiply this by the gyro_gain to get the gyro variance in rad/s^2
-        raw_gyro_variance= 34.5793457f;
+        // This is the variance of the calibrated gyro value recorded for 100 samples
+        // Units in rad/s^2
+        gyro_variance= 0.033769f;
 
         // This is the drift of the raw gyro value recorded for 60 seconds
-        // Multiply this by the gyro_gain to get the gyro drift in rad/s
-        raw_gyro_drift= 133.991867f;
+        // Units rad/s
+        gyro_drift= 0.130851f;
 
         // This is the ideal accelerometer reading you get when you rest the DS4 on a flat surface
         // The ACCELEROMETER_PITCH_DEGREES comes from the calibration utility
@@ -100,18 +96,6 @@ public:
 
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
-
-    // The variance of the gyro measurement in rad/s^2
-    inline float get_gyro_variance() const 
-    {
-        return raw_gyro_variance * gyro_gain;
-    }
-
-    // The drift of the gyro measurement in rad/s
-    inline float get_gyro_drift() const 
-    {
-        return raw_gyro_drift * gyro_gain;
-    }
 
     bool is_valid;
     long version;
@@ -126,10 +110,15 @@ public:
 
     // calibrated_gyro= raw_gyro*gyro_gain
     float gyro_gain;
-    // The variance of the raw gyro readings 
-    float raw_gyro_variance;
-    // The drift raw gyro readings in raw_units/second
-    float raw_gyro_drift;
+    // The variance of the raw gyro readings in rad/sec^2
+    float gyro_variance;
+    // The drift raw gyro readings in rad/second
+    float gyro_drift;
+
+    // The pixel area of the tracking projection at which the orientation quality is 0
+    float min_quality_screen_area;
+    // The pixel area of the tracking projection at which the orientation quality is 0
+    float max_quality_screen_area;
 
     long max_poll_failure_count;
     float prediction_time;

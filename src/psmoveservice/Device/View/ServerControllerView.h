@@ -33,6 +33,9 @@ struct ControllerOpticalPoseEstimation
 
         orientation.clear();
         bOrientationValid= false;
+
+        memset(&projection, 0, sizeof(CommonDeviceTrackingProjection));
+        projection.shape_type= eCommonTrackingProjectionType::INVALID_PROJECTION;
     }
 };
 
@@ -46,7 +49,7 @@ public:
     void close() override;
 
     // Compute pose/prediction of tracking blob+IMU state
-    void updatePositionEstimation(TrackerManager* tracker_manager);
+    void updateOpticalPoseEstimation(TrackerManager* tracker_manager);
     void updateStateAndPredict();
 
     // Registers the address of the bluetooth adapter on the host PC with the controller

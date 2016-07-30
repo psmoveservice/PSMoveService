@@ -241,7 +241,7 @@ void ServerControllerView::close()
     ServerDeviceView::close();
 }
 
-void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_manager)
+void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_manager)
 {
     const std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
 
@@ -251,8 +251,12 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
     
     if (getIsTrackingEnabled())
     {
+        Eigen::Quaternionf controller_world_orientations[TrackerManager::k_max_devices];
+        float controller_orientation_weights[TrackerManager::k_max_devices];
+        int orientations_found = 0;
+
         int valid_tracker_ids[TrackerManager::k_max_devices];
-        int poses_found = 0;
+        int positions_found = 0;
 
         // Compute an estimated 3d tracked position of the controller 
         // from the perspective of each tracker
@@ -272,8 +276,26 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
                         poseEstimate.bCurrentlyTracking = true;
                         poseEstimate.last_visible_timestamp = now;
 
-                        valid_tracker_ids[poses_found] = tracker_id;
-                        ++poses_found;
+                        valid_tracker_ids[positions_found] = tracker_id;
+                        ++positions_found;
+
+                        // If the pose has a valid tracker relative orientation,
+                        // convert the orientation to world space and add it
+                        // to a weighted list of orientations
+                        if (m_tracker_pose_estimation[tracker_id].bOrientationValid)
+                        {
+                            const CommonDeviceQuaternion &tracker_relative_quaternion = 
+                                m_tracker_pose_estimation[tracker_id].orientation;
+                            const CommonDeviceQuaternion &world_quaternion =
+                                tracker->computeWorldOrientation(&tracker_relative_quaternion);
+                            const Eigen::Quaternionf eigen_quaternion(
+                                world_quaternion.w, world_quaternion.x, world_quaternion.y, world_quaternion.z);
+
+                            controller_world_orientations[orientations_found]= eigen_quaternion;
+                            controller_orientation_weights[orientations_found]= 
+                                m_tracker_pose_estimation[tracker_id].projection.screen_area;
+                            ++orientations_found;
+                        }
                     }
                 }
                 else
@@ -281,8 +303,8 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
                     // Keep using the pose from the last visible frame
                     if (poseEstimate.bCurrentlyTracking)
                     {
-                        valid_tracker_ids[poses_found] = tracker_id;
-                        ++poses_found;
+                        valid_tracker_ids[positions_found] = tracker_id;
+                        ++positions_found;
                     }
                 }
             }
@@ -294,11 +316,11 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
 
         // If multiple trackers can see the controller, 
         // triangulate all pairs of trackers and average the results
-        if (poses_found > 1)
+        if (positions_found > 1)
         {
             // Project the tracker relative 3d tracking position back on to the tracker camera plane
             CommonDeviceScreenLocation position2d_list[TrackerManager::k_max_devices];
-            for (int list_index = 0; list_index < poses_found; ++list_index)
+            for (int list_index = 0; list_index < positions_found; ++list_index)
             {
                 const int tracker_id = valid_tracker_ids[list_index];
                 const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
@@ -309,13 +331,13 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
 
             int pair_count = 0;
             CommonDevicePosition average_world_position = { 0.f, 0.f, 0.f };
-            for (int list_index = 0; list_index < poses_found; ++list_index)
+            for (int list_index = 0; list_index < positions_found; ++list_index)
             {
                 const int tracker_id = valid_tracker_ids[list_index];
                 const CommonDeviceScreenLocation &screen_location = position2d_list[list_index];
                 const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
 
-                for (int other_list_index = list_index + 1; other_list_index < poses_found; ++other_list_index)
+                for (int other_list_index = list_index + 1; other_list_index < positions_found; ++other_list_index)
                 {
                     const int other_tracker_id = valid_tracker_ids[other_list_index];
                     const CommonDeviceScreenLocation &other_screen_location = position2d_list[other_list_index];
@@ -348,7 +370,7 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
             m_multicam_pose_estimation->bCurrentlyTracking = true;
         }
         // If only one tracker can see the controller, then just use the position estimate from that
-        else if (poses_found == 1)
+        else if (positions_found == 1)
         {
             // Put the tracker relative position into world space
             const int tracker_id = valid_tracker_ids[0];
@@ -357,14 +379,6 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
 
             m_multicam_pose_estimation->position = tracker->computeWorldPosition(&tracker_relative_position);
             m_multicam_pose_estimation->bCurrentlyTracking = true;
-
-            if (m_tracker_pose_estimation[tracker_id].bOrientationValid)
-            {
-                const CommonDeviceQuaternion &tracker_relative_quaternion = m_tracker_pose_estimation[tracker_id].orientation;
-
-                m_multicam_pose_estimation->orientation = tracker->computeWorldOrientation(&tracker_relative_quaternion);
-                m_multicam_pose_estimation->bOrientationValid = true;
-            }
         }
         // If no trackers can see the controller, maintain the last known position and time it was seen
         else
@@ -372,8 +386,38 @@ void ServerControllerView::updatePositionEstimation(TrackerManager* tracker_mana
             m_multicam_pose_estimation->bCurrentlyTracking= false;
         }
 
+        // Compute a weighted average of all of the orientations we found.
+        // Weighted by the projection area (higher projection area proportional to better quality orientation)
+        if (orientations_found > 0)
+        {
+            Eigen::Quaternionf avg_world_orientation;
+
+            if (eigen_quaternion_compute_weighted_average(
+                controller_world_orientations,
+                controller_orientation_weights,
+                orientations_found,
+                &avg_world_orientation))
+            {
+                m_multicam_pose_estimation->orientation.w= avg_world_orientation.w();
+                m_multicam_pose_estimation->orientation.x= avg_world_orientation.x();
+                m_multicam_pose_estimation->orientation.y= avg_world_orientation.y();
+                m_multicam_pose_estimation->orientation.z= avg_world_orientation.z();
+
+                // Compute the average projection area.
+                // This is proportional to our orientation quality.
+                m_multicam_pose_estimation->projection.screen_area= 0;
+                for (int orientation_index= 0; orientation_index < orientations_found; ++orientation_index)
+                {
+                    m_multicam_pose_estimation->projection.screen_area+= controller_orientation_weights[orientation_index];
+                }
+                m_multicam_pose_estimation->projection.screen_area/= static_cast<float>(orientations_found);
+
+                m_multicam_pose_estimation->bOrientationValid= true;
+            }
+        }
+
         // Update the position estimation timestamps
-        if (poses_found > 0)
+        if (positions_found > 0)
         {
             m_multicam_pose_estimation->last_visible_timestamp = now;
         }
@@ -1276,6 +1320,8 @@ init_filters_for_psmove(
 
         // Use the complementary MARG fusion filter by default
         orientation_filter->setFusionType(OrientationFilter::FusionTypeComplementaryMARG);
+        orientation_filter->setGyroscopeError(psmove_config->gyro_variance); 
+        orientation_filter->setGyroscopeDrift(psmove_config->gyro_drift);
     }
 
     {
@@ -1316,6 +1362,8 @@ update_filters_for_psmove(
         for (int frame = 0; frame < 2; ++frame)
         {
             sensorPacket.orientation = orientationFilter->getOrientation();
+            sensorPacket.orientation_source = OrientationSource_PreviousFrame;
+            sensorPacket.orientation_quality= -1.f; // not relevant for previous frame
 
             sensorPacket.accelerometer =
                 Eigen::Vector3f(
@@ -1372,11 +1420,15 @@ init_filters_for_psdualshock4(
     OrientationFilter *orientation_filter,
     PositionFilter *position_filter)
 {
-    const PSDualShock4ControllerConfig *psmove_config = psmoveController->getConfig();
+    const PSDualShock4ControllerConfig *ds4_config = psmoveController->getConfig();
 
     {
         // Setup the space the orientation filter operates in
-        Eigen::Vector3f identityGravity = Eigen::Vector3f(0.f, 1.f, 0.f);
+        Eigen::Vector3f identityGravity = 
+            Eigen::Vector3f(
+                ds4_config->identity_gravity_direction.i,
+                ds4_config->identity_gravity_direction.j,
+                ds4_config->identity_gravity_direction.k);
         Eigen::Vector3f identityMagnetometer = Eigen::Vector3f::Zero(); // No magnetometer on DS4 :(
         Eigen::Matrix3f calibrationTransform = *k_eigen_identity_pose_laying_flat;
         Eigen::Matrix3f sensorTransform = *k_eigen_sensor_transform_opengl;
@@ -1384,8 +1436,10 @@ init_filters_for_psdualshock4(
 
         orientation_filter->setFilterSpace(filterSpace);
 
-        // Use the complementary IMU fusion filter by default (no magnetometer)
-        orientation_filter->setFusionType(OrientationFilter::FusionTypeMadgwickIMU);
+        // Use the complementary ARG fusion filter by default (no magnetometer, has optical)
+        orientation_filter->setFusionType(OrientationFilter::FusionTypeComplementaryOpticalARG);
+        orientation_filter->setGyroscopeError(ds4_config->gyro_variance); 
+        orientation_filter->setGyroscopeDrift(ds4_config->gyro_drift);
     }
 
     {
@@ -1405,7 +1459,7 @@ update_filters_for_psdualshock4(
     const PSDualShock4Controller *psmoveController,
     const PSDualShock4ControllerState *psmoveState,
     const float delta_time,
-    const ControllerOpticalPoseEstimation *positionEstimation,
+    const ControllerOpticalPoseEstimation *poseEstimation,
     OrientationFilter *orientationFilter,
     PositionFilter *position_filter)
 {
@@ -1416,7 +1470,28 @@ update_filters_for_psdualshock4(
     {
         OrientationSensorPacket sensorPacket;
 
-        sensorPacket.orientation = orientationFilter->getOrientation();
+        if (poseEstimation->bOrientationValid)
+        {
+            sensorPacket.orientation = 
+                Eigen::Quaternionf(
+                    poseEstimation->orientation.w, 
+                    poseEstimation->orientation.x,
+                    poseEstimation->orientation.y,
+                    poseEstimation->orientation.z);
+            sensorPacket.orientation_source= OrientationSource_Optical;
+            sensorPacket.orientation_quality= 
+                clampf01(
+                    safe_divide_with_default(
+                        poseEstimation->projection.screen_area - config->min_quality_screen_area,
+                        config->max_quality_screen_area - config->min_quality_screen_area,
+                        1.f));
+        }
+        else
+        {
+            sensorPacket.orientation = orientationFilter->getOrientation();
+            sensorPacket.orientation_source= OrientationSource_PreviousFrame;
+            sensorPacket.orientation_quality= -1.f; // not relevant for previous frame
+        }
 
         sensorPacket.accelerometer =
             Eigen::Vector3f(
@@ -1441,10 +1516,10 @@ update_filters_for_psdualshock4(
         PositionSensorPacket sensorPacket;
         sensorPacket.position =
             Eigen::Vector3f(
-            positionEstimation->position.x,
-            positionEstimation->position.y,
-            positionEstimation->position.z);
-        sensorPacket.bPositionValid = positionEstimation->bCurrentlyTracking;
+            poseEstimation->position.x,
+            poseEstimation->position.y,
+            poseEstimation->position.z);
+        sensorPacket.bPositionValid = poseEstimation->bCurrentlyTracking;
         sensorPacket.acceleration = Eigen::Vector3f(0.f, 0.f, 0.f);
 
         position_filter->update(delta_time, sensorPacket);

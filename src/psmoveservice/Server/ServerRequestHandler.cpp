@@ -845,9 +845,8 @@ protected:
             const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
                 context.request->set_gyroscope_calibration_request();
 
-            config->gyro_gain= request.sensor_scale();
-            config->raw_gyro_drift= request.raw_drift();
-            config->raw_gyro_variance= request.raw_variance();
+            config->gyro_drift= request.drift();
+            config->gyro_variance= request.variance();
             config->save();
 
             // Reset the orientation filter state the calibration changed
@@ -863,8 +862,8 @@ protected:
             const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
                 context.request->set_gyroscope_calibration_request();
 
-            config->raw_gyro_drift= request.raw_drift();
-            config->raw_gyro_variance= request.raw_variance();
+            config->gyro_drift= request.drift();
+            config->gyro_variance= request.variance();
             config->save();
 
             // Reset the orientation filter state the calibration changed
