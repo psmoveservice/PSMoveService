@@ -922,8 +922,6 @@ void ClientControllerView::SetLEDOverride(unsigned char r, unsigned char g, unsi
     case eControllerType::PSDualShock4:
         GetPSDualShock4ViewMutable().SetLEDOverride(r, g, b);
         break;
-    default:
-        assert(0 && "invalid controller type");
     }
 }
 
