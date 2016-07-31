@@ -36,3 +36,7 @@ docs
 
 # Local Scripts
 SetBuildVars.bat
+
+# Allow source model files
+!src/psmoveconfigtool/source_assets/*.obj
+!src/openvr_plugin/resources/*.obj

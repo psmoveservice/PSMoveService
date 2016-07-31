@@ -1085,39 +1085,24 @@ void drawPSDualShock4Model(const glm::mat4 &transform, const glm::vec3 &color)
 {
     assert(Renderer::getIsRenderingStage());
 
+    int textureID = AssetManager::getInstance()->getPSDualShock4TextureAsset()->texture_id;
 
-    //int textureID = AssetManager::getInstance()->getPSDualShock4TextureAsset()->texture_id;
-
-    //glBindTexture(GL_TEXTURE_2D, textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glColor3f(1.f, 1.f, 1.f);
 
     glPushMatrix();
-    glMultMatrixf(glm::value_ptr(transform));
-
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_NORMAL_ARRAY);
-    //glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-
-    //###HipsterSloth $TODO Add texture
-    glColor3f(0.028451f, 0.028451f, 0.028451f);
-    glVertexPointer(3, GL_FLOAT, 0, psds4Verts);
-    glNormalPointer(GL_FLOAT, 0, psds4Normals);
-    //glTexCoordPointer(2, GL_FLOAT, 0, psds4TexCoords);
-    glDrawArrays(GL_TRIANGLES, 0, psmovebodyNumVerts);
-
-    //###HipsterSloth $TODO replace with DS4 lightbar geometry
-    //glColor3fv(glm::value_ptr(color));
-    //glVertexPointer(3, GL_FLOAT, 0, psmovebulbVerts);
-    //glTexCoordPointer(2, GL_FLOAT, 0, psmovebulbTexCoords);
-    //glDrawArrays(GL_TRIANGLES, 0, psmovebulbNumVerts);
-
-    glDisableClientState(GL_VERTEX_ARRAY);
-    glDisableClientState(GL_NORMAL_ARRAY);
-    //glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-
+        glMultMatrixf(glm::value_ptr(transform));
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        glVertexPointer(3, GL_FLOAT, 0, psds4Verts);
+        glTexCoordPointer(2, GL_FLOAT, 0, psds4TexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, psds4NumVerts);
+        glDisableClientState(GL_VERTEX_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
     glPopMatrix();
 
     // rebind the default texture
-    //glBindTexture(GL_TEXTURE_2D, 0);
+    glBindTexture(GL_TEXTURE_2D, 0); 
 }
 
 // -- IMGUI Callbacks -----
