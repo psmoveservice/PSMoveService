@@ -968,10 +968,6 @@ PSDualShock4Controller::getTrackingShape(CommonDeviceTrackingShape &outTrackingS
     const float tri_half_x = PSDS4_TRACKING_TRIANGLE_WIDTH / 2.f;
     const float tri_lower_half_y = PSDS4_TRACKING_TRIANGLE_HEIGHT - quad_half_y;
 
-    const float angle = PSDS4_TRACKING_SHAPE_PITCH * k_degrees_to_radians;
-    const float cos_angle = cosf(angle);
-    const float sin_angle = sinf(angle);
-
     // We define the origin to be the center of the light bar.
     // The light bar on the DS4 is tilted inward 30 degrees.
     // The coordinate system on the DS4 is defined as follows:
@@ -980,15 +976,15 @@ PSDualShock4Controller::getTrackingShape(CommonDeviceTrackingShape &outTrackingS
     // z-axis= from the center out through the extension port
 
     // The triangle connects the mid-points of each light-bar edge (lower right, lower left, upper middle)
-    outTrackingShape.shape.light_bar.triangle[0] = { tri_half_x, -tri_lower_half_y*cos_angle, tri_lower_half_y*sin_angle };
-    outTrackingShape.shape.light_bar.triangle[1] = { -tri_half_x, -tri_lower_half_y*cos_angle, tri_lower_half_y*sin_angle };
-    outTrackingShape.shape.light_bar.triangle[2] = { 0.f, quad_half_y*cos_angle, -quad_half_y*sin_angle };
+    outTrackingShape.shape.light_bar.triangle[0] = { tri_half_x, -tri_lower_half_y, 0.f };
+    outTrackingShape.shape.light_bar.triangle[1] = { -tri_half_x, -tri_lower_half_y, 0.f };
+    outTrackingShape.shape.light_bar.triangle[2] = { 0.f, quad_half_y, 0.f };
 
     // The quad bounds the light-bar (upper right, upper left, lower left, lower right)
-    outTrackingShape.shape.light_bar.quad[0] = { quad_half_x, quad_half_y*cos_angle, -quad_half_y*sin_angle };
-    outTrackingShape.shape.light_bar.quad[1] = { -quad_half_x, quad_half_y*cos_angle, -quad_half_y*sin_angle };
-    outTrackingShape.shape.light_bar.quad[2] = { -quad_half_x, -quad_half_y*cos_angle, quad_half_y*sin_angle };
-    outTrackingShape.shape.light_bar.quad[3] = { quad_half_x, -quad_half_y*cos_angle, quad_half_y*sin_angle };
+    outTrackingShape.shape.light_bar.quad[0] = { quad_half_x, quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[1] = { -quad_half_x, quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[2] = { -quad_half_x, -quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[3] = { quad_half_x, -quad_half_y, 0.f };
 
     outTrackingShape.shape_type = eCommonTrackingShapeType::LightBar;
 }

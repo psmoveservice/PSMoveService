@@ -269,9 +269,12 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
             {
                 if (tracker->getHasUnpublishedState())
                 {
-                    poseEstimate.bCurrentlyTracking = false;
+                    CommonDevicePose poseGuess= {poseEstimate.position, poseEstimate.orientation};
 
-                    if (tracker->computePoseForController(this, &poseEstimate))
+                    if (tracker->computePoseForController(
+                            this, 
+                            poseEstimate.bOrientationValid ? &poseGuess : nullptr,
+                            &poseEstimate))
                     {
                         poseEstimate.bCurrentlyTracking = true;
                         poseEstimate.last_visible_timestamp = now;
@@ -296,6 +299,10 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
                                 m_tracker_pose_estimation[tracker_id].projection.screen_area;
                             ++orientations_found;
                         }
+                    }
+                    else
+                    {
+                        poseEstimate.bCurrentlyTracking = false;
                     }
                 }
                 else
@@ -770,7 +777,7 @@ void ServerControllerView::update_LED_color_internal()
 }
 
 // Get the tracking shape for the controller
-bool ServerControllerView::getTrackingShape(CommonDeviceTrackingShape &trackingShape)
+bool ServerControllerView::getTrackingShape(CommonDeviceTrackingShape &trackingShape) const
 {
     m_device->getTrackingShape(trackingShape);
 

@@ -112,7 +112,7 @@ public:
     void stopTracking();
 
     // Get the tracking shape for the controller
-    bool getTrackingShape(CommonDeviceTrackingShape &outTrackingShape);
+    bool getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const;
 
     // Get the pose estimate relative to the given tracker id
     inline const ControllerOpticalPoseEstimation *getTrackerPoseEstimate(int trackerId) const {

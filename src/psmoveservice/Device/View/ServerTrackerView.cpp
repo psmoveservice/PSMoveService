@@ -291,8 +291,8 @@ public:
         cv::cvtColor(*bgrBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
     }
 
-    // Return points in CommonDeviceScreenLocation space:
-    // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]    
+    // Return points in raw image space:
+    // i.e. [0, 0] at lower left  to [frameWidth-1, frameHeight-1] at lower right
     bool computeBiggestContour(
         const CommonHSVColorRange &hsvColorRange,
         std::vector<cv::Point> &out_biggest_contour)
@@ -408,6 +408,7 @@ static bool computeTrackerRelativeShapeContourPose(
     const ITrackerInterface *tracker_device,
     const CommonDeviceTrackingShape *tracking_shape,
     const std::vector<cv::Point> &opencv_contour,
+    const CommonDevicePose *tracker_relative_pose_guess,
     CommonDevicePose *out_tracker_relative_pose,
     CommonDeviceTrackingProjection *out_projection);
 static bool computeBestFitTriangleForContour(
@@ -726,7 +727,8 @@ void ServerTrackerView::getTrackingColorPreset(eCommonTrackingColorID color, Com
 
 bool
 ServerTrackerView::computePoseForController(
-    ServerControllerView* tracked_controller,
+    const ServerControllerView* tracked_controller,
+    const CommonDevicePose *tracker_pose_guess,
     ControllerOpticalPoseEstimation *out_pose_estimate)
 {
     bool bSuccess = true;
@@ -758,12 +760,7 @@ ServerTrackerView::computePoseForController(
     std::vector<cv::Point> biggest_contour;
     if (bSuccess)
     {
-        ///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges.
-        // NOTE: 
-        // opencv_contour in OpenCV space:
-        // i.e. [0, frameHeight]x[frameWidth, 0]    
-        // eigen_contour in CommonDeviceScreenLocation space:
-        // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]    
+        ///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges. 
         bSuccess = m_opencv_buffer_state->computeBiggestContour(hsvColorRange, biggest_contour);
     }
 
@@ -788,7 +785,10 @@ ServerTrackerView::computePoseForController(
                 std::vector<cv::Point> convex_contour;
                 cv::convexHull(biggest_contour, convex_contour);
 
-                // Subtract midpoint from each point.
+                // Convert opencv_contour in raw pixel space:
+                // i.e. [0, 0]x[frameWidth-1, frameHeight-1]
+                // eigen_contour in CommonDeviceScreenLocation space:
+                // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]   
                 // TODO: Replace this with cv::undistortPoints
                 //http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
                 std::vector<Eigen::Vector2f> eigen_contour;
@@ -835,6 +835,7 @@ ServerTrackerView::computePoseForController(
                         m_device,
                         &tracking_shape,
                         biggest_contour,
+                        tracker_pose_guess,
                         &tracker_relative_pose,
                         &out_pose_estimate->projection))
                 {
@@ -1055,6 +1056,7 @@ static bool computeTrackerRelativeShapeContourPose(
     const ITrackerInterface *tracker_device,
     const CommonDeviceTrackingShape *tracking_shape,
     const std::vector<cv::Point> &opencv_contour,
+    const CommonDevicePose *tracker_relative_pose_guess,
     CommonDevicePose *out_tracker_relative_pose,
     CommonDeviceTrackingProjection *out_projection)
 {
@@ -1107,10 +1109,12 @@ static bool computeTrackerRelativeShapeContourPose(
 
             // The projection area is the size of the best fit quad
             projectionArea= 
-                cv::norm(quad_bottom_right-quad_bottom_left)
-                *cv::norm(quad_bottom_left-quad_top_left);
+                static_cast<float>(
+                    cv::norm(quad_bottom_right-quad_bottom_left)
+                    *cv::norm(quad_bottom_left-quad_top_left));
 
-            // SolvePnP needs the y-coordinates flipped
+            // Image pixel coordinates
+            // intrinsic camera transform
             for (auto list_index = 0; list_index < cvImagePoints.size(); ++list_index)
             {
                 cv::Point2f &cvPoint= cvImagePoints[list_index];
@@ -1158,13 +1162,52 @@ static bool computeTrackerRelativeShapeContourPose(
         // Given a set of 3D points and their corresponding 2D pixel projections,
         // solve for the cameras position and orientation that would allow
         // us to re-project the 3D points back onto the 2D pixel locations
-        cv::Mat rvec(4, 1, cv::DataType<double>::type);
-        cv::Mat tvec(4, 1, cv::DataType<double>::type);
+        cv::Mat rvec(3, 1, cv::DataType<double>::type);
+        cv::Mat tvec(3, 1, cv::DataType<double>::type);
+
+        bool bUseExtrinsicGuess= false;
+        if (tracker_relative_pose_guess != nullptr)
+        {
+            const float k_max_valid_guess_distance= 300.f; // cm
+            float guess_position_distance_sqrd= 
+                tracker_relative_pose_guess->Position.x*tracker_relative_pose_guess->Position.x
+                + tracker_relative_pose_guess->Position.y*tracker_relative_pose_guess->Position.y
+                + tracker_relative_pose_guess->Position.z*tracker_relative_pose_guess->Position.z;
+
+            if (guess_position_distance_sqrd < k_max_valid_guess_distance*k_max_valid_guess_distance)
+            {
+                double qw= clampf(tracker_relative_pose_guess->Orientation.w, -1.0, 1.0);
+                double angle = 2.0 * acos(qw);
+                double axis_normalizer = sqrt(1.0 - qw*qw);
+
+                if (axis_normalizer > k_real_epsilon) 
+                {
+                    rvec.at<double>(0) = angle * (tracker_relative_pose_guess->Orientation.x / axis_normalizer);
+                    rvec.at<double>(1) = angle * (tracker_relative_pose_guess->Orientation.y / axis_normalizer);
+                    rvec.at<double>(2) = angle * (tracker_relative_pose_guess->Orientation.z / axis_normalizer);
+                }
+                else
+                {
+                    // Angle is either 0 or 360,
+                    // which is a rotation no-op so we are free to pick any axis we want
+                    rvec.at<double>(0) = angle; 
+                    rvec.at<double>(1) = 0.0;
+                    rvec.at<double>(2) = 0.0;
+                }
+
+                tvec.at<double>(0)= tracker_relative_pose_guess->Position.x;
+                tvec.at<double>(1)= tracker_relative_pose_guess->Position.y;
+                tvec.at<double>(2)= tracker_relative_pose_guess->Position.z;
+
+                bUseExtrinsicGuess= true;
+            }
+        }
+
         if (cv::solvePnP(
                 cvObjectPoints, cvImagePoints, 
                 cvCameraMatrix, cvDistCoeffs, 
                 rvec, tvec, 
-                false, cv::SOLVEPNP_ITERATIVE))
+                bUseExtrinsicGuess, cv::SOLVEPNP_ITERATIVE))
         {
             // Return rvec (an angle-axis vector) as a quaternion in the pose
             {
