@@ -65,20 +65,24 @@ struct GyroscopeErrorSamples
         const float sampleDurationSeconds= sampleDurationMilli.count() / 1000.f;
         const float N = static_cast<float>(sample_count);
 
-        // Compute the mean of the samples
-        PSMoveFloatVector3 mean_omega= PSMoveFloatVector3::create(0.f, 0.f, 0.f);
+        // Compute the mean of the error samples, where "error" = abs(omega_sample)
+        // If we took the mean of the signed omega samples we'd get a value very 
+        // close to zero since the the gyro at rest over a short period has mean-zero noise
+        PSMoveFloatVector3 mean_omega_error= PSMoveFloatVector3::create(0.f, 0.f, 0.f);
         for (int sample_index = 0; sample_index < sample_count; sample_index++)
         {
-            mean_omega= mean_omega + omega_samples[sample_index].abs();
-        }
-        mean_omega= mean_omega.unsafe_divide(N);
+            PSMoveFloatVector3 error_sample= omega_samples[sample_index].abs();
 
-        // Compute the variance of the samples
+            mean_omega_error= mean_omega_error + error_sample;
+        }
+        mean_omega_error= mean_omega_error.unsafe_divide(N);
+
+        // Compute the variance of the (unsigned) sample error, where "error" = abs(omega_sample)
         PSMoveFloatVector3 var_omega= PSMoveFloatVector3::create(0.f, 0.f, 0.f);
         for (int sample_index = 0; sample_index < sample_count; sample_index++)
         {
-            PSMoveFloatVector3 sample= omega_samples[sample_index];
-            PSMoveFloatVector3 diff_from_mean= sample - mean_omega;
+            PSMoveFloatVector3 error_sample= omega_samples[sample_index].abs();
+            PSMoveFloatVector3 diff_from_mean= error_sample - mean_omega_error;
 
             var_omega= var_omega + diff_from_mean.square();
         }
@@ -222,6 +226,9 @@ void AppStage_GyroscopeCalibration::exit()
 void AppStage_GyroscopeCalibration::update()
 {
     bool bControllerDataUpdatedThisFrame = false;
+    bool bTimeDeltaValid = false;
+    std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float, std::milli> sampleTimeDeltaMilli(0);
 
     if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
     {
@@ -254,6 +261,15 @@ void AppStage_GyroscopeCalibration::update()
         }
 
         m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
+        
+        if (m_bLastSampleTimeValid)
+        {
+            sampleTimeDeltaMilli = now - m_lastSampleTime;
+        }
+
+        m_lastSampleTime= now;
+        m_bLastSampleTimeValid= true;
+        
         bControllerDataUpdatedThisFrame = true;
     }
 
@@ -281,8 +297,6 @@ void AppStage_GyroscopeCalibration::update()
         {
             if (m_controllerView->GetIsStable())
             {
-                std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-
                 if (m_bIsStable)
                 {
                     std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
@@ -312,11 +326,16 @@ void AppStage_GyroscopeCalibration::update()
         {
             if (m_controllerView->GetIsStable())
             {
-                std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-                std::chrono::duration<float, std::milli> sampleDurationMilli = now - m_errorSamples->sampleStartTime;
+                const std::chrono::duration<float, std::milli> sampleDurationMilli = now - m_errorSamples->sampleStartTime;
+                const float deltaTimeSeconds= sampleTimeDeltaMilli.count()/1000.f;
 
                 // Accumulate the drift total
-                m_errorSamples->drift_rotation= m_errorSamples->drift_rotation + m_lastCalibratedGyroscope;
+                if (deltaTimeSeconds > 0.f)
+                {
+                    m_errorSamples->drift_rotation= 
+                        m_errorSamples->drift_rotation
+                        + m_lastCalibratedGyroscope*deltaTimeSeconds;
+                }
 
                 // Record the next noise sample
                 if (m_errorSamples->sample_count < k_desired_noise_sample_count)
@@ -430,8 +449,10 @@ void AppStage_GyroscopeCalibration::update()
 void AppStage_GyroscopeCalibration::render()
 {
     const float modelScale = 18.f;
-    glm::mat4 scaleModel= 
-            glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale));  
+    glm::mat4 scaleAndRotateModelX90= 
+        glm::rotate(
+            glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale)),
+            90.f, glm::vec3(1.f, 0.f, 0.f));  
 
     switch (m_menuState)
     {
@@ -441,7 +462,7 @@ void AppStage_GyroscopeCalibration::render()
         } break;
     case eCalibrationMenuState::waitForStable:
         {
-            drawController(m_controllerView, scaleModel);
+            drawController(m_controllerView, scaleAndRotateModelX90);
 
             // Draw the current direction of gravity
             {
@@ -460,7 +481,7 @@ void AppStage_GyroscopeCalibration::render()
         } break;
     case eCalibrationMenuState::measureBiasAndDrift:
         {
-            drawController(m_controllerView, scaleModel);
+            drawController(m_controllerView, scaleAndRotateModelX90);
         } break;
     case eCalibrationMenuState::measureScale:
         {
@@ -480,7 +501,7 @@ void AppStage_GyroscopeCalibration::render()
         } break;
     case eCalibrationMenuState::measureComplete:
         {
-            drawController(m_controllerView, scaleModel);
+            drawController(m_controllerView, scaleAndRotateModelX90);
         } break;
     case eCalibrationMenuState::test:
         {

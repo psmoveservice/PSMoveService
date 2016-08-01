@@ -59,6 +59,9 @@ private:
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;
 
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_lastSampleTime;
+    bool m_bLastSampleTimeValid;
+
     PSMoveIntVector3 m_lastRawGyroscope;
     PSMoveFloatVector3 m_lastCalibratedGyroscope;
     PSMoveFloatVector3 m_lastCalibratedAccelerometer;
