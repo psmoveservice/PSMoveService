@@ -91,7 +91,7 @@ void AppSubStage_CalibrateWithMat::update()
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
         {
-            if (ControllerView->GetIsStableAndAlignedWithGravity() || m_bForceControllerStable)
+            if (ControllerView->GetIsStable() || m_bForceControllerStable)
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 
@@ -123,7 +123,7 @@ void AppSubStage_CalibrateWithMat::update()
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
         {
-            const bool bIsStable = ControllerView->GetIsStableAndAlignedWithGravity();
+            const bool bIsStable = ControllerView->GetIsStable();
 
             // See if any tracker needs more samples
             bool bNeedMoreSamples = false;

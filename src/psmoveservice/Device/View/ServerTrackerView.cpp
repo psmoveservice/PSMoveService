@@ -404,13 +404,12 @@ static glm::mat4 computeGLMCameraTransformMatrix(const ITrackerInterface *tracke
 static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const ITrackerInterface *tracker_device);
 static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const ITrackerInterface *tracker_device);
 static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tracker_device);
-static bool computeTrackerRelativeShapeContourPose(
+static bool computeTrackerRelativeLightBarContourPose(
     const ITrackerInterface *tracker_device,
     const CommonDeviceTrackingShape *tracking_shape,
     const std::vector<cv::Point> &opencv_contour,
     const CommonDevicePose *tracker_relative_pose_guess,
-    CommonDevicePose *out_tracker_relative_pose,
-    CommonDeviceTrackingProjection *out_projection);
+    ControllerOpticalPoseEstimation *out_pose_estimate);
 static bool computeBestFitTriangleForContour(
     const std::vector<cv::Point> &opencv_contour,
     cv::Point2f &out_triangle_top,
@@ -424,6 +423,18 @@ static bool computeBestFitQuadForContour(
     cv::Point2f &top_left,
     cv::Point2f &bottom_left,
     cv::Point2f &bottom_right);
+static void commonDeviceOrientationToOpenCVRodrigues(
+    const CommonDeviceQuaternion &orientation,
+    cv::Mat &rvec);
+static void openCVRodriguesToAngleAxis(
+    const cv::Mat &rvec,
+    float &axis_x, float &axis_y, float &axis_z, float &radians);
+static void angleAxisVectorToEulerAngles(
+    const float axis_x, const float axis_y, const float axis_z, const float radians,
+    float &yaw, float &pitch, float &roll);
+static void angleAxisVectorToCommonDeviceOrientation(
+    const float axis_x, const float axis_y, const float axis_z, const float radians,
+    CommonDeviceQuaternion &orientation);
 
 //-- public implementation -----
 ServerTrackerView::ServerTrackerView(const int device_id)
@@ -829,24 +840,13 @@ ServerTrackerView::computePoseForController(
             } break;
         case eCommonTrackingShapeType::LightBar:
             {
-                CommonDevicePose tracker_relative_pose;
-
-                if (computeTrackerRelativeShapeContourPose(
+                bSuccess= 
+                    computeTrackerRelativeLightBarContourPose(
                         m_device,
                         &tracking_shape,
                         biggest_contour,
                         tracker_pose_guess,
-                        &tracker_relative_pose,
-                        &out_pose_estimate->projection))
-                {
-                    out_pose_estimate->orientation = tracker_relative_pose.Orientation;
-                    out_pose_estimate->bOrientationValid = true;
-
-                    out_pose_estimate->position = tracker_relative_pose.Position;
-                    out_pose_estimate->bCurrentlyTracking = true;
-
-                    bSuccess = true;
-                }
+                        out_pose_estimate);
             } break;
         default:
             assert(0 && "Unreachable");
@@ -1052,13 +1052,12 @@ static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tra
     return pinhole_matrix;
 }
 
-static bool computeTrackerRelativeShapeContourPose(
+static bool computeTrackerRelativeLightBarContourPose(
     const ITrackerInterface *tracker_device,
     const CommonDeviceTrackingShape *tracking_shape,
     const std::vector<cv::Point> &opencv_contour,
     const CommonDevicePose *tracker_relative_pose_guess,
-    CommonDevicePose *out_tracker_relative_pose,
-    CommonDeviceTrackingProjection *out_projection)
+    ControllerOpticalPoseEstimation *out_pose_estimate)
 {
     assert(tracking_shape->shape_type == eCommonTrackingShapeType::LightBar);
 
@@ -1158,10 +1157,8 @@ static bool computeTrackerRelativeShapeContourPose(
         // Get the tracker "intrinsic" matrix that encodes the camera FOV
         cv::Matx33f cvCameraMatrix = computeOpenCVCameraIntrinsicMatrix(tracker_device);
 
-        // Solve the Project N-Point problem:
-        // Given a set of 3D points and their corresponding 2D pixel projections,
-        // solve for the cameras position and orientation that would allow
-        // us to re-project the 3D points back onto the 2D pixel locations
+        // Fill out the initial guess in OpenCV format for the contour pose
+        // if a guess pose was provided
         cv::Mat rvec(3, 1, cv::DataType<double>::type);
         cv::Mat tvec(3, 1, cv::DataType<double>::type);
 
@@ -1176,24 +1173,8 @@ static bool computeTrackerRelativeShapeContourPose(
 
             if (guess_position_distance_sqrd < k_max_valid_guess_distance*k_max_valid_guess_distance)
             {
-                double qw= clampf(tracker_relative_pose_guess->Orientation.w, -1.0, 1.0);
-                double angle = 2.0 * acos(qw);
-                double axis_normalizer = sqrt(1.0 - qw*qw);
-
-                if (axis_normalizer > k_real_epsilon) 
-                {
-                    rvec.at<double>(0) = angle * (tracker_relative_pose_guess->Orientation.x / axis_normalizer);
-                    rvec.at<double>(1) = angle * (tracker_relative_pose_guess->Orientation.y / axis_normalizer);
-                    rvec.at<double>(2) = angle * (tracker_relative_pose_guess->Orientation.z / axis_normalizer);
-                }
-                else
-                {
-                    // Angle is either 0 or 360,
-                    // which is a rotation no-op so we are free to pick any axis we want
-                    rvec.at<double>(0) = angle; 
-                    rvec.at<double>(1) = 0.0;
-                    rvec.at<double>(2) = 0.0;
-                }
+                // solvePnP expects a rotation as a Rodrigues (AngleAxis) vector
+                commonDeviceOrientationToOpenCVRodrigues(tracker_relative_pose_guess->Orientation, rvec);
 
                 tvec.at<double>(0)= tracker_relative_pose_guess->Position.x;
                 tvec.at<double>(1)= tracker_relative_pose_guess->Position.y;
@@ -1203,43 +1184,50 @@ static bool computeTrackerRelativeShapeContourPose(
             }
         }
 
+        // Solve the Perspective-N-Point problem:
+        // Given a set of 3D points and their corresponding 2D pixel projections,
+        // solve for the object position and orientation that would allow
+        // us to re-project the 3D points back onto the 2D pixel locations
         if (cv::solvePnP(
                 cvObjectPoints, cvImagePoints, 
                 cvCameraMatrix, cvDistCoeffs, 
                 rvec, tvec, 
                 bUseExtrinsicGuess, cv::SOLVEPNP_ITERATIVE))
         {
-            // Return rvec (an angle-axis vector) as a quaternion in the pose
+            float axis_x, axis_y, axis_z, axis_theta;
+            float yaw, pitch, roll;
+
+            // Extract the angle-axis components from the solution OpenCV Rodrigues vector
+            openCVRodriguesToAngleAxis(rvec, axis_x, axis_y, axis_z, axis_theta);
+
+            // Convert the angle-axis rotation into Euler angles (yaw-pitch-roll)
+            angleAxisVectorToEulerAngles(axis_x, axis_y, axis_z, axis_theta, yaw, pitch, roll);
+           
+            //###HipsterSloth $TODO This should be a property of the lightbar tracking shape
+            static const float k_max_valid_tracking_pitch= 15.f*k_degrees_to_radians;
+            static const float k_max_valid_tracking_yaw= 15.f*k_degrees_to_radians;
+
+            // Due to ambiguity of the off the yaw and pitch solution from solvePnP (two possible solutions)
+            // we can't trust anything more than close to straightforward.
+            // Any roll angle is fine though.
+            if (fabsf(yaw) < k_max_valid_tracking_yaw && fabsf(pitch) < k_max_valid_tracking_pitch)
+            {           
+                // Convert the solution angle-axis into a CommonDeviceOrientation
+                angleAxisVectorToCommonDeviceOrientation(axis_x, axis_y, axis_z, axis_theta, out_pose_estimate->orientation);
+                out_pose_estimate->bOrientationValid= true;
+            }
+            else
             {
-                const float r_x = static_cast<float>(rvec.at<double>(0));
-                const float r_y = static_cast<float>(rvec.at<double>(1));
-                const float r_z = static_cast<float>(rvec.at<double>(2));
-                const float theta = sqrtf(r_x*r_x + r_y*r_y + r_z*r_z);
-            
-                CommonDeviceQuaternion &orientation = out_tracker_relative_pose->Orientation;
-
-                if (!is_nearly_zero(theta))
-                {
-                    const float sin_theta_over_two = sinf(theta * 0.5f);
-
-                    orientation.w = cosf(theta * 0.5f);
-                    orientation.x = (r_x / theta) * sin_theta_over_two;
-                    orientation.y = (r_y / theta) * sin_theta_over_two;
-                    orientation.z = (r_z / theta) * sin_theta_over_two;
-                }
-                else
-                {
-                    orientation.clear();
-                }
+                out_pose_estimate->bOrientationValid= false;
             }
 
             // Return the position in the pose
             {
-                CommonDevicePosition &position= out_tracker_relative_pose->Position;
+                CommonDevicePosition &position= out_pose_estimate->position;
 
                 position.x = static_cast<float>(tvec.at<double>(0));
                 position.y = static_cast<float>(tvec.at<double>(1));
-                position.z = static_cast<float>(tvec.at<double>(2));            
+                position.z = static_cast<float>(tvec.at<double>(2));
             }
 
             bValidTrackerPose= true;
@@ -1249,6 +1237,8 @@ static bool computeTrackerRelativeShapeContourPose(
     // Return the projection of the tracking shape
     if (bValidTrackerPose)
     {
+        CommonDeviceTrackingProjection *out_projection= &out_pose_estimate->projection;
+
         out_projection->shape_type = eCommonTrackingProjectionType::ProjectionType_LightBar;
 
         for (int vertex_index = 0; vertex_index < 3; ++vertex_index)
@@ -1430,4 +1420,94 @@ static bool computeBestFitQuadForContour(
     bottom_left= cv_min_box.center - quad_half_up - quad_half_right;
 
     return true;
+}
+
+// http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToAngle/index.htm
+static void commonDeviceOrientationToOpenCVRodrigues(
+    const CommonDeviceQuaternion &orientation,
+    cv::Mat &rvec)
+{
+    double qw= clampf(orientation.w, -1.0, 1.0);
+    double angle = 2.0 * acos(qw);
+    double axis_normalizer = sqrt(1.0 - qw*qw);
+
+    if (axis_normalizer > k_real_epsilon) 
+    {
+        rvec.at<double>(0) = angle * (orientation.x / axis_normalizer);
+        rvec.at<double>(1) = angle * (orientation.y / axis_normalizer);
+        rvec.at<double>(2) = angle * (orientation.z / axis_normalizer);
+    }
+    else
+    {
+        // Angle is either 0 or 360,
+        // which is a rotation no-op so we are free to pick any axis we want
+        rvec.at<double>(0) = angle; 
+        rvec.at<double>(1) = 0.0;
+        rvec.at<double>(2) = 0.0;
+    }
+}
+
+static void openCVRodriguesToAngleAxis(
+    const cv::Mat &rvec,
+    float &axis_x, float &axis_y, float &axis_z, float &radians)
+{
+    const float r_x = static_cast<float>(rvec.at<double>(0));
+    const float r_y = static_cast<float>(rvec.at<double>(1));
+    const float r_z = static_cast<float>(rvec.at<double>(2));
+    
+    radians = sqrtf(r_x*r_x + r_y*r_y + r_z*r_z);
+
+    axis_x= safe_divide_with_default(r_x, radians, 1.f);
+    axis_y= safe_divide_with_default(r_y, radians, 0.f);
+    axis_z= safe_divide_with_default(r_z, radians, 0.f);
+}
+
+// http://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToEuler/index.htm
+static void angleAxisVectorToEulerAngles(
+    const float axis_x, const float axis_y, const float axis_z, const float radians,
+    float &yaw, float &pitch, float &roll)
+{
+    float s= sinf(radians);
+    float c= cosf(radians);
+    float t= 1.f-c;
+
+    if ((axis_x*axis_y*t + axis_z*s) > 0.998) 
+    {
+        // north pole singularity detected
+        yaw = 2*atan2f(axis_x*sinf(radians/2), cosf(radians/2));
+        pitch = k_real_half_pi;
+        roll = 0;
+    }
+    else if ((axis_x*axis_y*t + axis_z*s) < -0.998) 
+    { 
+        // south pole singularity detected
+        yaw = -2*atan2(axis_x*sinf(radians/2), cosf(radians/2));
+        pitch = -k_real_half_pi;
+        roll = 0;
+    }
+    else
+    {
+        yaw = atan2f(axis_y*s - axis_x*axis_z*t , 1.f - (axis_y*axis_y + axis_z*axis_z )*t);
+        pitch = asinf(axis_x*axis_y*t + axis_z*s) ;
+        roll = atan2f(axis_x*s - axis_y*axis_z*t , 1.f - (axis_x*axis_x + axis_z*axis_z)*t);
+    }
+}
+
+static void angleAxisVectorToCommonDeviceOrientation(
+    const float axis_x, const float axis_y, const float axis_z, const float radians,
+    CommonDeviceQuaternion &orientation)
+{
+    if (!is_nearly_zero(radians))
+    {
+        const float sin_theta_over_two = sinf(radians * 0.5f);
+
+        orientation.w = cosf(radians * 0.5f);
+        orientation.x = axis_x * sin_theta_over_two;
+        orientation.y = axis_y * sin_theta_over_two;
+        orientation.z = axis_z * sin_theta_over_two;
+    }
+    else
+    {
+        orientation.clear();
+    }
 }

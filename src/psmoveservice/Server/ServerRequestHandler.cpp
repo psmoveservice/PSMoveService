@@ -814,7 +814,6 @@ protected:
 
             set_config_vector(request.bias(), config->accelerometer_bias);
             set_config_vector(request.gain(), config->accelerometer_gain);
-            set_config_vector(request.identity_gravity_direction(), config->identity_gravity_direction);
             config->accelerometer_fit_error= request.ellipse_fit_error();
             config->save();
 

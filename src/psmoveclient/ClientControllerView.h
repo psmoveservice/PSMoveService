@@ -312,8 +312,9 @@ public:
     const PSMovePhysicsData &GetPhysicsData() const;
     const PSMoveRawSensorData &GetRawSensorData() const;
     const PSMoveCalibratedSensorData &GetCalibratedSensorData() const;
-    const PSMoveFloatVector3 &GetIdentityGravityCalibrationDirection() const;
+    bool GetIsStable() const;
     bool GetIsStableAndAlignedWithGravity() const;
+
 
     const PSMoveRawTrackerData &GetRawTrackerData() const;
 };
@@ -459,13 +460,11 @@ struct CLIENTPSMOVEAPI PSDualShock4CalibratedSensorData
 {
     PSMoveFloatVector3 Accelerometer;
     PSMoveFloatVector3 Gyroscope;
-    PSMoveFloatVector3 IdentityGravityDirection;
 
     inline void Clear()
     {
         Accelerometer = *k_psmove_float_vector3_zero;
         Gyroscope = *k_psmove_float_vector3_zero;
-        IdentityGravityDirection = {0.f, 1.f, 0.f};
     }
 };
 
@@ -704,8 +703,7 @@ public:
     const PSMovePhysicsData &GetPhysicsData() const;
     const PSDualShock4RawSensorData &GetRawSensorData() const;
     const PSDualShock4CalibratedSensorData &GetCalibratedSensorData() const;
-    const PSMoveFloatVector3 &GetIdentityGravityCalibrationDirection() const;
-    bool GetIsStableAndAlignedWithGravity() const;
+    bool GetIsStable() const;
     const PSMoveRawTrackerData &GetRawTrackerData() const;
 };
 
@@ -833,7 +831,7 @@ public:
     const PSMoveRawTrackerData &GetRawTrackerData() const;
 
     bool GetIsCurrentlyTracking() const;
-    bool GetIsStableAndAlignedWithGravity() const;
+    bool GetIsStable() const;
 
     void SetLEDOverride(unsigned char r, unsigned char g, unsigned char b);
     

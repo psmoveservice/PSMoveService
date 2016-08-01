@@ -259,7 +259,7 @@ void AppStage_GyroscopeCalibration::update()
         } break;
     case eCalibrationMenuState::waitForStable:
         {
-            if (m_controllerView->GetIsStableAndAlignedWithGravity())
+            if (m_controllerView->GetIsStable())
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 
@@ -290,7 +290,7 @@ void AppStage_GyroscopeCalibration::update()
         } break;
     case eCalibrationMenuState::measureBiasAndDrift: // PSMove and DS4
         {
-            if (m_controllerView->GetIsStableAndAlignedWithGravity())
+            if (m_controllerView->GetIsStable())
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<float, std::milli> sampleDurationMilli = now - m_errorSamples->sampleStartTime;
@@ -343,7 +343,7 @@ void AppStage_GyroscopeCalibration::update()
 
             assert(m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4);
 
-            if (!m_controllerView->GetIsStableAndAlignedWithGravity() &&
+            if (!m_controllerView->GetIsStable() &&
                 m_controllerView->GetIsCurrentlyTracking() &&
                 m_controllerView->GetRawTrackerData().GetOrientationOnTrackerId(0, orientationOnTracker) &&
                 m_scaleSamples->sample_count < k_desired_scale_sample_count)
@@ -591,7 +591,7 @@ void AppStage_GyroscopeCalibration::renderUI()
                 "Pick up the controller and smoothly twist it around\n" \
                 "with the light bar in view of the camera.");
 
-            if (m_controllerView->GetIsStableAndAlignedWithGravity())
+            if (m_controllerView->GetIsStable())
             {
                 ImGui::Text("[Controller stationary]");
             }

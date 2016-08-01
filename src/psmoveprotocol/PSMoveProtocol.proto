@@ -210,7 +210,6 @@ message Request {
         FloatVector bias= 2;
         FloatVector gain= 3;
         float ellipse_fit_error= 4;
-        FloatVector identity_gravity_direction= 5;
     }
     RequestSetAccelerometerCalibration set_accelerometer_calibration_request = 14;
     
@@ -614,7 +613,6 @@ message DeviceOutputDataFrame
             {
                 FloatVector accelerometer= 1;
                 FloatVector gyroscope= 2;
-                FloatVector identity_gravity_direction= 3;
             }
             CalibratedSensorData calibrated_sensor_data = 13;            
             

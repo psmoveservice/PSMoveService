@@ -394,7 +394,7 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
         }
 
         // Compute a weighted average of all of the orientations we found.
-        // Weighted by the projection area (higher projection area proportional to better quality orientation)
+        // Weighted by the projection area (higher projection area proportional to better quality orientation)        
         if (orientations_found > 0)
         {
             Eigen::Quaternionf avg_world_orientation;
@@ -421,6 +421,14 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
 
                 m_multicam_pose_estimation->bOrientationValid= true;
             }
+            else
+            {
+                m_multicam_pose_estimation->bOrientationValid= false;
+            }
+        }
+        else
+        {
+            m_multicam_pose_estimation->bOrientationValid= false;
         }
 
         // Update the position estimation timestamps
@@ -1197,10 +1205,6 @@ static void generate_psdualshock4_data_frame_for_stream(
             calibrated_sensor_data->mutable_gyroscope()->set_i(psds4_state->CalibratedGyro.i);
             calibrated_sensor_data->mutable_gyroscope()->set_j(psds4_state->CalibratedGyro.j);
             calibrated_sensor_data->mutable_gyroscope()->set_k(psds4_state->CalibratedGyro.k);
-
-            calibrated_sensor_data->mutable_identity_gravity_direction()->set_i(psmove_config->identity_gravity_direction.i);
-            calibrated_sensor_data->mutable_identity_gravity_direction()->set_j(psmove_config->identity_gravity_direction.j);
-            calibrated_sensor_data->mutable_identity_gravity_direction()->set_k(psmove_config->identity_gravity_direction.k);
         }
 
         // If requested, get the raw tracker data for the controller

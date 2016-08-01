@@ -66,9 +66,13 @@ const PSMoveCalibratedSensorData &ClientPSMoveView::GetCalibratedSensorData() co
     return IsValid() ? CalibratedSensorData : k_empty_psmove_calibrated_sensor_data;
 }
 
-const PSMoveFloatVector3 &ClientPSMoveView::GetIdentityGravityCalibrationDirection() const
+bool ClientPSMoveView::GetIsStable() const
 {
-    return k_identity_gravity_calibration_direction;
+    const float k_gyro_noise= 1.f*k_degrees_to_radians; // noise threshold in rad/sec
+    const float worst_rotation_rate = fabsf(CalibratedSensorData.Gyroscope.maxValue());
+    const bool isOk = worst_rotation_rate < k_gyro_noise;
+
+    return isOk;
 }
 
 bool ClientPSMoveView::GetIsStableAndAlignedWithGravity() const
@@ -433,10 +437,6 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
             this->CalibratedSensorData.Gyroscope.i = calibrated_sensor_data.gyroscope().i();
             this->CalibratedSensorData.Gyroscope.j = calibrated_sensor_data.gyroscope().j();
             this->CalibratedSensorData.Gyroscope.k = calibrated_sensor_data.gyroscope().k();
-
-            this->CalibratedSensorData.IdentityGravityDirection.i = calibrated_sensor_data.identity_gravity_direction().i();
-            this->CalibratedSensorData.IdentityGravityDirection.j = calibrated_sensor_data.identity_gravity_direction().j();
-            this->CalibratedSensorData.IdentityGravityDirection.k = calibrated_sensor_data.identity_gravity_direction().k();
         }
         else
         {
@@ -632,23 +632,11 @@ const PSDualShock4CalibratedSensorData &ClientPSDualShock4View::GetCalibratedSen
     return IsValid() ? CalibratedSensorData : k_empty_ds4_calibrated_sensor_data;
 }
 
-const PSMoveFloatVector3 &ClientPSDualShock4View::GetIdentityGravityCalibrationDirection() const
+bool ClientPSDualShock4View::GetIsStable() const
 {
-    return IsValid() ? CalibratedSensorData.IdentityGravityDirection : k_identity_gravity_calibration_direction;
-}
-
-bool ClientPSDualShock4View::GetIsStableAndAlignedWithGravity() const
-{
-    const float k_cosine_10_degrees = 0.984808f;
-
-    // Get the direction the gravity vector should be pointing 
-    // while the controller is in cradle pose.
-    PSMoveFloatVector3 acceleration_direction = CalibratedSensorData.Accelerometer;
-    const float acceleration_magnitude = acceleration_direction.normalize_with_default(*k_psmove_float_vector3_zero);
-
-    const bool isOk =
-        is_nearly_equal(1.f, acceleration_magnitude, 0.1f) &&
-        PSMoveFloatVector3::dot(GetIdentityGravityCalibrationDirection(), acceleration_direction) >= k_cosine_10_degrees;
+    const float k_gyro_noise= 1.f*k_degrees_to_radians; // noise threshold in rad/sec
+    const float worst_rotation_rate = fabsf(CalibratedSensorData.Gyroscope.maxValue());
+    const bool isOk = worst_rotation_rate < k_gyro_noise;
 
     return isOk;
 }
@@ -893,17 +881,17 @@ bool ClientControllerView::GetIsCurrentlyTracking() const
     }
 }
 
-bool ClientControllerView::GetIsStableAndAlignedWithGravity() const
+bool ClientControllerView::GetIsStable() const
 {
     switch (ControllerViewType)
     {
     case eControllerType::PSMove:
-        return GetPSMoveView().GetIsStableAndAlignedWithGravity();
+        return GetPSMoveView().GetIsStable();
     case eControllerType::PSNavi:
         // Always stable! (no physics)
         return true;
     case eControllerType::PSDualShock4:
-        return GetPSDualShock4View().GetIsStableAndAlignedWithGravity();
+        return GetPSDualShock4View().GetIsStable();
     default:
         assert(0 && "invalid controller type");
         return true;

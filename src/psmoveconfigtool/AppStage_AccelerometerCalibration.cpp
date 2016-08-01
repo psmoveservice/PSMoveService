@@ -52,8 +52,7 @@ struct AccelerometerPoseSamples
 //-- private methods -----
 static void request_set_accelerometer_calibration(
     const int controller_id,
-    const EigenFitEllipsoid *ellipsoid,
-    const Eigen::Vector3f &gravityIdentity);
+    const EigenFitEllipsoid *ellipsoid);
 static void expandAccelerometerBounds(
     const PSMoveIntVector3 &sample, PSMoveIntVector3 &minSampleExtents, PSMoveIntVector3 &maxSampleExtents);
 static void write_calibration_parameter(const Eigen::Vector3f &in_vector, PSMoveProtocol::FloatVector *out_vector);
@@ -239,16 +238,10 @@ void AppStage_AccelerometerCalibration::update()
                         m_sampleFitEllipsoid->extents.z() = m_sampleFitEllipsoid->extents.z() * maxSampleExtent;
                         m_sampleFitEllipsoid->error *= maxSampleExtent;
 
-                        // The average accelerometer reading in the face up pose becomes the "identity" gravity direction
-                        AccelerometerPoseSamples &poseSamples = m_poseSamples[eMeasurementPose::faceUp];
-                        Eigen::Vector3f eigen_indentity_gravity = poseSamples.avg_accelerometer_sample - boxCenter;
-                        eigen_vector3f_normalize_with_default(eigen_indentity_gravity, Eigen::Vector3f(0.f, 1.f, 0.f));                        
-
                         // Tell the service what the new calibration constraints are
                         request_set_accelerometer_calibration(
                             m_controllerView->GetControllerID(),
-                            m_sampleFitEllipsoid, 
-                            eigen_indentity_gravity);
+                            m_sampleFitEllipsoid);
                     }
 
                     m_menuState = AppStage_AccelerometerCalibration::measureComplete;
@@ -334,10 +327,9 @@ void AppStage_AccelerometerCalibration::update()
                     eigen_vector3f_normalize_with_default(eigen_indentity_gravity, Eigen::Vector3f(0.f, 1.f, 0.f));                        
 
                     // Tell the service what the new calibration constraints are
-                    request_set_accelerometer_calibration(
-                        m_controllerView->GetControllerID(),
-                        m_sampleFitEllipsoid, 
-                        eigen_indentity_gravity);
+                    //request_set_accelerometer_calibration(
+                    //    m_controllerView->GetControllerID(),
+                    //    m_sampleFitEllipsoid);
 
                     m_menuState = AppStage_AccelerometerCalibration::measureComplete;
                 }
@@ -792,8 +784,7 @@ void AppStage_AccelerometerCalibration::renderUI()
 //-- private methods -----
 static void request_set_accelerometer_calibration(
     const int controller_id,
-    const EigenFitEllipsoid *ellipsoid,
-    const Eigen::Vector3f &gravityIdentity)
+    const EigenFitEllipsoid *ellipsoid)
 {
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_ACCELEROMETER_CALIBRATION);
@@ -819,10 +810,6 @@ static void request_set_accelerometer_calibration(
     calibration->mutable_bias()->set_k(-ellipsoid->center.z() * gain_z);
 
     calibration->set_ellipse_fit_error(ellipsoid->error);
-
-    calibration->mutable_identity_gravity_direction()->set_i(gravityIdentity.x());
-    calibration->mutable_identity_gravity_direction()->set_j(gravityIdentity.y());
-    calibration->mutable_identity_gravity_direction()->set_k(gravityIdentity.z());
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }

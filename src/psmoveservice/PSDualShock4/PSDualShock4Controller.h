@@ -11,7 +11,17 @@
 #include <deque>
 #include <chrono>
 
-#define ACCELEROMETER_PITCH_DEGREES 12.661f
+// The angle the accelerometer reading is pitched forward when the DS4 is on a flat surface
+// The value comes from the accelerometer calibration utility
+#define FLAT_SURFACE_ACCELEROMETER_PITCH_DEGREES 12.661f
+
+// The angle between the lightbar and a flat surface it rests on
+#define FLAT_SURFACE_LIGHTBAR_PITCH_DEGREES 51.8f
+
+// The angle the accelerometer reading will be pitched by
+// if the DS4 is held such that the light bar is perpendicular to the ground
+// i.e. where what we consider the "identity" pose
+#define ACCELEROMETER_IDENTITY_PITCH_DEGREES 22.667f
 
 struct PSDualShock4HIDDetails {
     std::string Device_path;
@@ -87,11 +97,11 @@ public:
         // Units rad/s
         gyro_drift= 0.130851f;
 
-        // This is the ideal accelerometer reading you get when you rest the DS4 on a flat surface
-        // The ACCELEROMETER_PITCH_DEGREES comes from the calibration utility
+        // This is the ideal accelerometer reading you get when the DS4 is held such that 
+        // the light bar facing is perpendicular to gravity.        
         identity_gravity_direction.i= 0.f;
-        identity_gravity_direction.j= cosf(ACCELEROMETER_PITCH_DEGREES*k_degrees_to_radians);
-        identity_gravity_direction.k= sinf(ACCELEROMETER_PITCH_DEGREES*k_degrees_to_radians);
+        identity_gravity_direction.j= cosf(ACCELEROMETER_IDENTITY_PITCH_DEGREES*k_degrees_to_radians);
+        identity_gravity_direction.k= -sinf(ACCELEROMETER_IDENTITY_PITCH_DEGREES*k_degrees_to_radians);
     };
 
     virtual const boost::property_tree::ptree config2ptree();
