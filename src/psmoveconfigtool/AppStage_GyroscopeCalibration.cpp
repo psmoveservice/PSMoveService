@@ -225,14 +225,34 @@ void AppStage_GyroscopeCalibration::update()
 
     if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
     {
-        const PSDualShock4RawSensorData &rawSensorData =
-            m_controllerView->GetPSDualShock4View().GetRawSensorData();
-        const PSDualShock4CalibratedSensorData &calibratedSensorData =
-            m_controllerView->GetPSDualShock4View().GetCalibratedSensorData();
+        switch(m_controllerView->GetControllerViewType())
+        {
+        case ClientControllerView::PSDualShock4:
+            {
+                const PSDualShock4RawSensorData &rawSensorData =
+                    m_controllerView->GetPSDualShock4View().GetRawSensorData();
+                const PSDualShock4CalibratedSensorData &calibratedSensorData =
+                    m_controllerView->GetPSDualShock4View().GetCalibratedSensorData();
 
-        m_lastRawGyroscope = rawSensorData.Gyroscope;
-        m_lastCalibratedGyroscope = calibratedSensorData.Gyroscope;
-        m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
+                m_lastRawGyroscope = rawSensorData.Gyroscope;
+                m_lastCalibratedGyroscope = calibratedSensorData.Gyroscope;
+                m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
+            }
+            break;
+        case ClientControllerView::PSMove:
+            {
+                const PSMoveRawSensorData &rawSensorData =
+                    m_controllerView->GetPSMoveView().GetRawSensorData();
+                const PSMoveCalibratedSensorData &calibratedSensorData =
+                    m_controllerView->GetPSMoveView().GetCalibratedSensorData();
+
+                m_lastRawGyroscope = rawSensorData.Gyroscope;
+                m_lastCalibratedGyroscope = calibratedSensorData.Gyroscope;
+                m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
+            }
+            break;
+        }
+
         m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
         bControllerDataUpdatedThisFrame = true;
     }
@@ -623,7 +643,7 @@ void AppStage_GyroscopeCalibration::renderUI()
 
             if (ImGui::Button("Ok"))
             {
-                m_controllerView->GetPSDualShock4ViewMutable().SetLEDOverride(0, 0, 0);
+                m_controllerView->SetLEDOverride(0, 0, 0);
                 m_menuState = eCalibrationMenuState::test;
             }
             ImGui::SameLine();

@@ -251,6 +251,12 @@ void AppStage_ControllerSettings::renderUI()
                         m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
                     }
 
+                    if (ImGui::Button("Calibrate Gyroscope"))
+                    {
+                        m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(false);
+                        m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+                    }
+
                     if (ImGui::Button("Test Orientation"))
                     {
                         m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(true);
