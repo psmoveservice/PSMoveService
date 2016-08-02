@@ -506,11 +506,12 @@ void AppStage_GyroscopeCalibration::render()
     case eCalibrationMenuState::test:
         {
             // Get the orientation of the controller in world space (OpenGL Coordinate System)            
-            glm::quat q= psmove_quaternion_to_glm_quat(m_controllerView->GetPSMoveView().GetOrientation());
+            glm::quat q= psmove_quaternion_to_glm_quat(m_controllerView->GetOrientation());
             glm::mat4 worldSpaceOrientation= glm::mat4_cast(q);
             glm::mat4 worldTransform = glm::scale(worldSpaceOrientation, glm::vec3(modelScale, modelScale, modelScale));
 
             drawController(m_controllerView, worldTransform);
+            drawTransformedAxes(worldSpaceOrientation, 200.f);
             drawTransformedAxes(glm::mat4(1.f), 200.f);
         } break;
     default:

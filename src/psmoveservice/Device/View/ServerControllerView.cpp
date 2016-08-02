@@ -1441,8 +1441,8 @@ init_filters_for_psdualshock4(
                 ds4_config->identity_gravity_direction.j,
                 ds4_config->identity_gravity_direction.k);
         Eigen::Vector3f identityMagnetometer = Eigen::Vector3f::Zero(); // No magnetometer on DS4 :(
-        Eigen::Matrix3f calibrationTransform = *k_eigen_identity_pose_laying_flat;
-        Eigen::Matrix3f sensorTransform = *k_eigen_sensor_transform_opengl;
+        Eigen::Matrix3f calibrationTransform = *k_eigen_identity_pose_upright;
+        Eigen::Matrix3f sensorTransform = *k_eigen_sensor_transform_identity;
         OrientationFilterSpace filterSpace(identityGravity, identityMagnetometer, calibrationTransform, sensorTransform);
 
         orientation_filter->setFilterSpace(filterSpace);

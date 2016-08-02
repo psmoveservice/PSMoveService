@@ -630,7 +630,7 @@ const PSDualShock4CalibratedSensorData &ClientPSDualShock4View::GetCalibratedSen
 
 bool ClientPSDualShock4View::GetIsStable() const
 {
-    const float k_gyro_noise= 1.f*k_degrees_to_radians; // noise threshold in rad/sec
+    const float k_gyro_noise= 10.f*k_degrees_to_radians; // noise threshold in rad/sec
     const float worst_rotation_rate = fabsf(CalibratedSensorData.Gyroscope.maxValue());
     const bool isOk = worst_rotation_rate < k_gyro_noise;
 

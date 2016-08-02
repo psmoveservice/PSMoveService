@@ -20,7 +20,7 @@ const Eigen::Matrix3f g_eigen_sensor_transform_opengl((Eigen::Matrix3f() << 1,0,
 const Eigen::Matrix3f *k_eigen_sensor_transform_opengl= &g_eigen_sensor_transform_opengl;
 
 // Maximum we blend against the optically derived orientation
-#define k_max_optical_orientation_weight 0.5f
+#define k_max_optical_orientation_weight 0.05f
 
 // Complementary MARG Filter constants
 #define k_base_earth_frame_align_weight 0.02f
@@ -67,7 +67,6 @@ struct OrientationSensorFusionState
         angular_velocity = Eigen::Vector3f::Zero();
         angular_acceleration = Eigen::Vector3f::Zero();
         reset_orientation= Eigen::Quaternionf::Identity();
-        fusion_type= OrientationFilter::FusionTypeComplementaryMARG;
     }
 };
 
@@ -169,6 +168,7 @@ OrientationFilter::OrientationFilter()
     : m_FilterSpace()
     , m_FusionState(new OrientationSensorFusionState)
 {
+    m_FusionState->fusion_type = FusionTypeNone;
     m_FusionState->initialize();
 }
 
@@ -346,7 +346,7 @@ orientation_fusion_madgwick_arg_update(
     Eigen::Quaternionf omega = Eigen::Quaternionf(0.f, current_omega.x(), current_omega.y(), current_omega.z());
     Eigen::Quaternionf SEqDot_omega = Eigen::Quaternionf(SEq.coeffs() * 0.5f) *omega;
 
-    if (current_g.isApprox(Eigen::Vector3f::Zero(), k_normal_epsilon))
+    if (!current_g.isApprox(Eigen::Vector3f::Zero(), k_normal_epsilon))
     {
         // Get the direction of the gravitational fields in the identity pose		
         Eigen::Vector3f k_identity_g_direction = filter_space->getGravityCalibrationDirection();
@@ -548,7 +548,7 @@ static void orientation_fusion_complementary_optical_arg_update(
     Eigen::Quaternionf omega = Eigen::Quaternionf(0.f, current_omega.x(), current_omega.y(), current_omega.z());
     Eigen::Quaternionf SEqDot_omega = Eigen::Quaternionf(SEq.coeffs() * 0.5f) *omega;
 
-    if (current_g.isApprox(Eigen::Vector3f::Zero(), k_normal_epsilon))
+    if (!current_g.isApprox(Eigen::Vector3f::Zero(), k_normal_epsilon))
     {
         // Get the direction of the gravitational fields in the identity pose		
         Eigen::Vector3f k_identity_g_direction = filter_space->getGravityCalibrationDirection();

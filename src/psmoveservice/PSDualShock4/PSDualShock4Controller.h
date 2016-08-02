@@ -83,19 +83,19 @@ public:
         accelerometer_bias.j = 0.f;
         accelerometer_bias.k = 0.f;
 
-        // Empirical testing of the of the gyro gain looks best at 1/1024.
+        // Empirical testing of the of the gyro gain looks best at 1/2048.
         // This implies that gyroscope is returned from the controller is pre-calibrated 
-        // and is just in a 5.10 fixed point value (+1 sign bit).
-        // This agrees with stack exchange article.
-        gyro_gain= 1.f / 1024.f;
+        // and is just in a 4.11 fixed point value (+1 sign bit).
+        // This is twice what the stack exchange article recommends.
+        gyro_gain= 1.f / 2048.f;
 
         // This is the variance of the calibrated gyro value recorded for 100 samples
         // Units in rad/s^2
-        gyro_variance= 0.033769f;
+        gyro_variance= 1.33875039e-006f;
 
         // This is the drift of the raw gyro value recorded for 60 seconds
         // Units rad/s
-        gyro_drift= 0.130851f;
+        gyro_drift= 0.00110168592f;
 
         // This is the ideal accelerometer reading you get when the DS4 is held such that 
         // the light bar facing is perpendicular to gravity.        

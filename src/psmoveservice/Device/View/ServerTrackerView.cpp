@@ -1204,8 +1204,8 @@ static bool computeTrackerRelativeLightBarContourPose(
             angleAxisVectorToEulerAngles(axis_x, axis_y, axis_z, axis_theta, yaw, pitch, roll);
            
             //###HipsterSloth $TODO This should be a property of the lightbar tracking shape
-            static const float k_max_valid_tracking_pitch= 15.f*k_degrees_to_radians;
-            static const float k_max_valid_tracking_yaw= 15.f*k_degrees_to_radians;
+            static const float k_max_valid_tracking_pitch= 30.f*k_degrees_to_radians;
+            static const float k_max_valid_tracking_yaw= 30.f*k_degrees_to_radians;
 
             // Due to ambiguity of the off the yaw and pitch solution from solvePnP (two possible solutions)
             // we can't trust anything more than close to straightforward.
@@ -1463,6 +1463,10 @@ static void openCVRodriguesToAngleAxis(
 }
 
 // http://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToEuler/index.htm
+// NOTE: This code has the X and Z axis flipped from the code in the link
+// because I consider rotation about the X-axis pitch and the Z-axis roll
+// whereas the original code had the opposite.
+// Also they refer to yaw as "heading", pitch as "attitude", and roll ""
 static void angleAxisVectorToEulerAngles(
     const float axis_x, const float axis_y, const float axis_z, const float radians,
     float &yaw, float &pitch, float &roll)
@@ -1474,22 +1478,22 @@ static void angleAxisVectorToEulerAngles(
     if ((axis_x*axis_y*t + axis_z*s) > 0.998) 
     {
         // north pole singularity detected
-        yaw = 2*atan2f(axis_x*sinf(radians/2), cosf(radians/2));
+        yaw = 2*atan2f(axis_z*sinf(radians/2), cosf(radians/2));
         pitch = k_real_half_pi;
         roll = 0;
     }
     else if ((axis_x*axis_y*t + axis_z*s) < -0.998) 
     { 
         // south pole singularity detected
-        yaw = -2*atan2(axis_x*sinf(radians/2), cosf(radians/2));
+        yaw = -2*atan2(axis_z*sinf(radians/2), cosf(radians/2));
         pitch = -k_real_half_pi;
         roll = 0;
     }
     else
     {
-        yaw = atan2f(axis_y*s - axis_x*axis_z*t , 1.f - (axis_y*axis_y + axis_z*axis_z )*t);
-        pitch = asinf(axis_x*axis_y*t + axis_z*s) ;
-        roll = atan2f(axis_x*s - axis_y*axis_z*t , 1.f - (axis_x*axis_x + axis_z*axis_z)*t);
+        yaw = atan2f(axis_y*s - axis_x*axis_z*t, 1.f - (axis_y*axis_y + axis_z*axis_z)*t);
+        pitch = asinf(axis_z*axis_y*t + axis_x*s) ;
+        roll = atan2f(axis_z*s - axis_x*axis_y*t , 1.f - (axis_x*axis_x + axis_z*axis_z)*t);
     }
 }
 
