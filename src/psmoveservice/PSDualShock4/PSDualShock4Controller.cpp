@@ -283,8 +283,11 @@ PSDualShock4ControllerConfig::config2ptree()
     pt.put("Calibration.Identity.Gravity.Y", identity_gravity_direction.j);
     pt.put("Calibration.Identity.Gravity.Z", identity_gravity_direction.k);
 
-    pt.put("OrientationFilter.MinQualityScreenArea", min_quality_screen_area);
-    pt.put("OrientationFilter.MaxQualityScreenArea", max_quality_screen_area);
+    pt.put("OrientationFilter.MinQualityScreenArea", min_orientation_quality_screen_area);
+    pt.put("OrientationFilter.MaxQualityScreenArea", max_orientation_quality_screen_area);
+
+    pt.put("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
+    pt.put("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
 
     pt.put("prediction_time", prediction_time);
     pt.put("max_poll_failure_count", max_poll_failure_count);
@@ -318,8 +321,12 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         gyro_drift= pt.get<float>("Calibration.Gyro.Drift", gyro_drift);
 
         // Get the orientation filter parameters
-        min_quality_screen_area= pt.get<float>("OrientationFilter.MinQualityScreenArea", min_quality_screen_area);
-        max_quality_screen_area= pt.get<float>("OrientationFilter.MaxQualityScreenArea", max_quality_screen_area);
+        min_orientation_quality_screen_area= pt.get<float>("OrientationFilter.MinQualityScreenArea", min_orientation_quality_screen_area);
+        max_orientation_quality_screen_area= pt.get<float>("OrientationFilter.MaxQualityScreenArea", max_orientation_quality_screen_area);
+
+        // Get the position filter parameters
+        min_position_quality_screen_area= pt.get<float>("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
+        max_position_quality_screen_area= pt.get<float>("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
 
         // Get the calibration direction for "down"
         pt.get<float>("Calibration.Identity.Gravity.X", identity_gravity_direction.i);

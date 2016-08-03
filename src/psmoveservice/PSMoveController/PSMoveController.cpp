@@ -241,6 +241,9 @@ PSMoveControllerConfig::config2ptree()
 
     pt.put("Calibration.Magnetometer.Error", magnetometer_error);
 
+    pt.put("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
+    pt.put("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
+
     return pt;
 }
 
@@ -298,6 +301,10 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         magnetometer_identity.k = pt.get<float>("Calibration.Magnetometer.Identity.Z", 0.f);
 
         magnetometer_error= pt.get<float>("Calibration.Magnetometer.Error", 0.f);
+
+        // Get the position filter parameters
+        min_position_quality_screen_area= pt.get<float>("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
+        max_position_quality_screen_area= pt.get<float>("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
     }
     else
     {

@@ -1336,14 +1336,15 @@ init_filters_for_psmove(
     }
 
     {
-        //###bwalker $TODO Setup the space the position filter operates in
-        Eigen::Matrix3f sensorTransform = Eigen::Matrix3f::Identity();
-        PositionFilterSpace filterSpace(sensorTransform);
+        Eigen::Vector3f identityGravity = Eigen::Vector3f(0.f, 1.f, 0.f);
+        Eigen::Matrix3f calibrationTransform = *k_eigen_identity_pose_laying_flat;
+        Eigen::Matrix3f sensorTransform = *k_eigen_sensor_transform_opengl;
+        PositionFilterSpace filterSpace(identityGravity, calibrationTransform, sensorTransform);
 
         position_filter->setFilterSpace(filterSpace);
 
-        //###bwalker $TODO Use the LowPass filter by default
-        position_filter->setFusionType(PositionFilter::FusionTypeLowPass);
+        // Use the LowPass filter by default
+        position_filter->setFusionType(PositionFilter::FusionTypeLowPassOptical);
     }
 }
 
@@ -1352,11 +1353,12 @@ update_filters_for_psmove(
     const PSMoveController *psmoveController, 
     const PSMoveControllerState *psmoveState,
     const float delta_time,
-    const ControllerOpticalPoseEstimation *positionEstimation,
+    const ControllerOpticalPoseEstimation *poseEstimation,
     OrientationFilter *orientationFilter,
     PositionFilter *position_filter)
 {
     const PSMoveControllerConfig *config = psmoveController->getConfig();
+    Eigen::Quaternionf orientationFrames[2] = {Eigen::Quaternionf::Identity(), Eigen::Quaternionf::Identity()};
 
     // Update the orientation filter
     if (orientationFilter != nullptr)
@@ -1393,35 +1395,70 @@ update_filters_for_psmove(
         }
     }
 
-
     // Update the position filter
     if (position_filter != nullptr)
     {
         PositionSensorPacket sensorPacket;
-        sensorPacket.position = 
-            Eigen::Vector3f(
-                positionEstimation->position.x,
-                positionEstimation->position.y,
-                positionEstimation->position.z);
-        sensorPacket.bPositionValid = positionEstimation->bCurrentlyTracking;
-        sensorPacket.acceleration = Eigen::Vector3f(0.f, 0.f, 0.f);
 
-        position_filter->update(delta_time, sensorPacket);
+        if (poseEstimation->bCurrentlyTracking)
+        {
+            sensorPacket.world_position =
+                Eigen::Vector3f(
+                poseEstimation->position.x,
+                poseEstimation->position.y,
+                poseEstimation->position.z);
+            sensorPacket.position_source= PositionSource_Optical;
+            sensorPacket.position_quality= 
+                clampf01(
+                    safe_divide_with_default(
+                        poseEstimation->projection.screen_area - config->min_position_quality_screen_area,
+                        config->max_position_quality_screen_area - config->min_position_quality_screen_area,
+                        1.f));
+        }
+        else
+        {
+            sensorPacket.world_position = position_filter->getPosition();
+            sensorPacket.position_source= PositionSource_PreviousFrame;
+            sensorPacket.position_quality= -1.f; // not relevant for previous frame
+        }
 
-        //###HipsterSloth $TODO Feed the world space controller acceleration into the filter
-        //for (int frame = 0; frame < 2; ++frame)
-        //{
-        //    Eigen::Quaternionf orientation= orientationFilter->getOrientation();
-        //    Eigen::Vector3f accelerometer =
-        //        Eigen::Vector3f(psmoveState->Accel[frame][0], psmoveState->Accel[frame][1], psmoveState->Accel[frame][2]);
-        //    Eigen::Vector3f acceleration= eigen_vector3f_clockwise_rotate(orientation, accelerometer);
+        switch (position_filter->getFusionType())
+        {
+        case PositionFilter::FusionTypeNone:
+        case PositionFilter::FusionTypePassThru:
+        case PositionFilter::FusionTypeLowPassOptical:
+            {
+                // All other filter types don't use transformed IMU data
+                sensorPacket.world_orientation = Eigen::Quaternionf::Identity();
+                sensorPacket.accelerometer= Eigen::Vector3f::Zero();
 
-        //    sensorPacket.acceleration= acceleration;
+                // Update the orientation filter using the sensor packet.
+                position_filter->update(delta_time, sensorPacket);
+            } break;
+        case PositionFilter::FusionTypeLowPassIMU:
+        case PositionFilter::FusionTypeComplimentaryOpticalIMU:
+            {
+                // Each state update contains two readings (one earlier and one later) of accelerometer data
+                for (int frame = 0; frame < 2; ++frame)
+                {
+                    // Use the latest estimated orientation for the frame
+                    sensorPacket.world_orientation = orientationFrames[frame];
 
-        //    // Update the orientation filter using the sensor packet.
-        //    // NOTE: The magnetometer reading is the same for both sensor readings.
-        //    position_filter->update(delta_time / 2.f, sensorPacket);
-        //}
+                    // The filter will use the current orientation and the identity gravity direction
+                    // to subtract out gravity and get acceleration of the controller in world space
+                    sensorPacket.accelerometer =
+                        Eigen::Vector3f(
+                            psmoveState->CalibratedAccel[frame][0], 
+                            psmoveState->CalibratedAccel[frame][1], 
+                            psmoveState->CalibratedAccel[frame][2]);
+
+                    // Update the orientation filter using the sensor packet for each frame.
+                    position_filter->update(delta_time / 2.f, sensorPacket);
+                }
+            } break;
+        default:
+            assert(0 && "unreachable");
+        }
     }
 }
 
@@ -1447,28 +1484,33 @@ init_filters_for_psdualshock4(
 
         orientation_filter->setFilterSpace(filterSpace);
 
-        // Use the complementary ARG fusion filter by default (no magnetometer, has optical)
+        // Use the complementary ARG fusion filter by default (no magnetometer, use optical to fix drift)
         orientation_filter->setFusionType(OrientationFilter::FusionTypeComplementaryOpticalARG);
         orientation_filter->setGyroscopeError(ds4_config->gyro_variance); 
         orientation_filter->setGyroscopeDrift(ds4_config->gyro_drift);
     }
 
     {
-        //###bwalker $TODO Setup the space the position filter operates in
-        Eigen::Matrix3f sensorTransform = Eigen::Matrix3f::Identity();
-        PositionFilterSpace filterSpace(sensorTransform);
+        Eigen::Vector3f identityGravity = 
+            Eigen::Vector3f(
+                ds4_config->identity_gravity_direction.i,
+                ds4_config->identity_gravity_direction.j,
+                ds4_config->identity_gravity_direction.k);
+        Eigen::Matrix3f calibrationTransform = *k_eigen_identity_pose_upright;
+        Eigen::Matrix3f sensorTransform = *k_eigen_sensor_transform_identity;
+        PositionFilterSpace filterSpace(identityGravity, calibrationTransform, sensorTransform);
 
         position_filter->setFilterSpace(filterSpace);
 
-        //###bwalker $TODO Use the LowPass filter by default
-        position_filter->setFusionType(PositionFilter::FusionTypeLowPass);
+        // Use the LowPass filter by default
+        position_filter->setFusionType(PositionFilter::FusionTypeComplimentaryOpticalIMU);
     }
 }
 
 static void
 update_filters_for_psdualshock4(
     const PSDualShock4Controller *psmoveController,
-    const PSDualShock4ControllerState *psmoveState,
+    const PSDualShock4ControllerState *psdualShock4State,
     const float delta_time,
     const ControllerOpticalPoseEstimation *poseEstimation,
     OrientationFilter *orientationFilter,
@@ -1493,8 +1535,8 @@ update_filters_for_psdualshock4(
             sensorPacket.orientation_quality= 
                 clampf01(
                     safe_divide_with_default(
-                        poseEstimation->projection.screen_area - config->min_quality_screen_area,
-                        config->max_quality_screen_area - config->min_quality_screen_area,
+                        poseEstimation->projection.screen_area - config->min_orientation_quality_screen_area,
+                        config->max_orientation_quality_screen_area - config->min_orientation_quality_screen_area,
                         1.f));
         }
         else
@@ -1506,14 +1548,14 @@ update_filters_for_psdualshock4(
 
         sensorPacket.accelerometer =
             Eigen::Vector3f(
-                psmoveState->CalibratedAccelerometer.i,
-                psmoveState->CalibratedAccelerometer.j,
-                psmoveState->CalibratedAccelerometer.k);
+                psdualShock4State->CalibratedAccelerometer.i,
+                psdualShock4State->CalibratedAccelerometer.j,
+                psdualShock4State->CalibratedAccelerometer.k);
         sensorPacket.gyroscope =
             Eigen::Vector3f(
-                psmoveState->CalibratedGyro.i, 
-                psmoveState->CalibratedGyro.j,
-                psmoveState->CalibratedGyro.k);
+                psdualShock4State->CalibratedGyro.i, 
+                psdualShock4State->CalibratedGyro.j,
+                psdualShock4State->CalibratedGyro.k);
         sensorPacket.magnetometer= Eigen::Vector3f::Zero();
 
         // Update the orientation filter using the sensor packet.
@@ -1525,26 +1567,41 @@ update_filters_for_psdualshock4(
     if (position_filter != nullptr)
     {
         PositionSensorPacket sensorPacket;
-        sensorPacket.position =
+
+        if (poseEstimation->bCurrentlyTracking)
+        {
+            sensorPacket.world_position =
+                Eigen::Vector3f(
+                poseEstimation->position.x,
+                poseEstimation->position.y,
+                poseEstimation->position.z);
+            sensorPacket.position_source= PositionSource_Optical;
+            sensorPacket.position_quality= 
+                clampf01(
+                    safe_divide_with_default(
+                        poseEstimation->projection.screen_area - config->min_position_quality_screen_area,
+                        config->max_position_quality_screen_area - config->min_position_quality_screen_area,
+                        1.f));
+        }
+        else
+        {
+            sensorPacket.world_position = position_filter->getPosition();
+            sensorPacket.position_source= PositionSource_PreviousFrame;
+            sensorPacket.position_quality= -1.f; // not relevant for previous frame
+        }
+
+        // Use the latest estimated orientation 
+        sensorPacket.world_orientation = orientationFilter->getOrientation();
+        
+        // The filter will use the current orientation and the identity gravity direction
+        // to subtract out gravity and get acceleration of the controller in world space
+        sensorPacket.accelerometer =
             Eigen::Vector3f(
-            poseEstimation->position.x,
-            poseEstimation->position.y,
-            poseEstimation->position.z);
-        sensorPacket.bPositionValid = poseEstimation->bCurrentlyTracking;
-        sensorPacket.acceleration = Eigen::Vector3f(0.f, 0.f, 0.f);
-
-        position_filter->update(delta_time, sensorPacket);
-
-        //###HipsterSloth $TODO Feed the world space controller acceleration into the filter
-        //Eigen::Quaternionf orientation= orientationFilter->getOrientation();
-        //Eigen::Vector3f accelerometer =
-        //    Eigen::Vector3f(psmoveState->Accelerometer.i, psmoveState->Accelerometer.j, psmoveState->Accelerometer.k);
-        //Eigen::Vector3f acceleration= eigen_vector3f_clockwise_rotate(orientation, accelerometer);
-
-        //sensorPacket.acceleration= acceleration;
+                psdualShock4State->CalibratedAccelerometer.i, 
+                psdualShock4State->CalibratedAccelerometer.j, 
+                psdualShock4State->CalibratedAccelerometer.k);
 
         // Update the orientation filter using the sensor packet.
-        // NOTE: The magnetometer reading is the same for both sensor readings.
-        //position_filter->update(delta_time, sensorPacket);
+        position_filter->update(delta_time, sensorPacket);
     }
 }

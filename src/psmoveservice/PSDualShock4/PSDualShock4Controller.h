@@ -48,8 +48,8 @@ public:
         , gyro_drift(0.f)
         , max_poll_failure_count(100)
         , prediction_time(0.f)
-        , min_quality_screen_area(150.f*34.f*.1f)
-        , max_quality_screen_area(150.f*34.f) // light bar at ideal range looking straight on is about 150px by 34px 
+        , min_orientation_quality_screen_area(150.f*34.f*.1f)
+        , max_orientation_quality_screen_area(150.f*34.f) // light bar at ideal range looking straight on is about 150px by 34px 
     {
         // The DS4 uses the BMI055 IMU Chip: 
         // https://www.bosch-sensortec.com/bst/products/all_products/bmi055
@@ -126,9 +126,14 @@ public:
     float gyro_drift;
 
     // The pixel area of the tracking projection at which the orientation quality is 0
-    float min_quality_screen_area;
-    // The pixel area of the tracking projection at which the orientation quality is 0
-    float max_quality_screen_area;
+    float min_orientation_quality_screen_area;
+    // The pixel area of the tracking projection at which the orientation quality is 1
+    float max_orientation_quality_screen_area;
+
+    // The pixel area of the tracking projection at which the position quality is 0
+    float min_position_quality_screen_area;
+    // The pixel area of the tracking projection at which the position quality is 1
+    float max_position_quality_screen_area;
 
     long max_poll_failure_count;
     float prediction_time;
