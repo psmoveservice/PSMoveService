@@ -37,6 +37,7 @@ public:
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }} 
         }})
         , prediction_time(0.f)
+        , accelerometer_noise_radius(0.f)
         , gyro_variance(1.5f*k_degrees_to_radians) // rad/s^2
         , gyro_drift(0.9f*k_degrees_to_radians) // rad/s
         , min_position_quality_screen_area(0.f)
@@ -69,6 +70,9 @@ public:
     CommonDeviceVector magnetometer_extents;
     float magnetometer_error;
     float prediction_time;
+
+    // The radius of the accelerometer noise
+    float accelerometer_noise_radius;
     
     // The variance of the calibrated gyro readings in rad/s^2
     float gyro_variance;

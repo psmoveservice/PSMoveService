@@ -275,7 +275,7 @@ PSDualShock4ControllerConfig::config2ptree()
     pt.put("Calibration.Accel.X.b", accelerometer_bias.i);
     pt.put("Calibration.Accel.Y.b", accelerometer_bias.j);
     pt.put("Calibration.Accel.Z.b", accelerometer_bias.k);
-    pt.put("Calibration.Accel.Error", accelerometer_fit_error);
+    pt.put("Calibration.Accel.NoiseRadius", accelerometer_noise_radius);
     pt.put("Calibration.Gyro.Gain", gyro_gain);
     pt.put("Calibration.Gyro.Variance", gyro_variance);
     pt.put("Calibration.Gyro.Drift", gyro_drift);
@@ -313,7 +313,7 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         accelerometer_bias.i = pt.get<float>("Calibration.Accel.X.b", accelerometer_bias.i);
         accelerometer_bias.j = pt.get<float>("Calibration.Accel.Y.b", accelerometer_bias.j);
         accelerometer_bias.k = pt.get<float>("Calibration.Accel.Z.b", accelerometer_bias.k);
-        accelerometer_fit_error = pt.get<float>("Calibration.Accel.Error", 0.0f);
+        accelerometer_noise_radius = pt.get<float>("Calibration.Accel.NoiseRadius", 0.0f);
 
         // Use the current gyroscope values (constructor defaults) as the default values
         gyro_gain= pt.get<float>("Calibration.Gyro.Gain", gyro_gain);

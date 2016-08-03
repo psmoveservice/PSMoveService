@@ -804,7 +804,23 @@ protected:
 
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
-        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        {
+            PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+            PSMoveControllerConfig *config = controller->getConfigMutable();
+
+            const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
+                context.request->set_accelerometer_calibration_request();
+
+            config->accelerometer_noise_radius= request.noise_radius();
+            config->save();
+
+            // Reset the orientation filter state the calibration changed
+            ControllerView->getOrientationFilter()->resetFilterState();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
         {
             PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
             PSDualShock4ControllerConfig *config = controller->getConfigMutable();
@@ -812,9 +828,7 @@ protected:
             const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
                 context.request->set_accelerometer_calibration_request();
 
-            set_config_vector(request.bias(), config->accelerometer_bias);
-            set_config_vector(request.gain(), config->accelerometer_gain);
-            config->accelerometer_fit_error= request.ellipse_fit_error();
+            config->accelerometer_noise_radius= request.noise_radius();
             config->save();
 
             // Reset the orientation filter state the calibration changed

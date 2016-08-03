@@ -25,9 +25,6 @@
 #define snprintf _snprintf
 #endif
 
-//###HipsterSloth $NOTE Only used for trying to figure out raw accelerometer data scale
-//#ifdef MEASURE_RAW_ACCEL_SCALE
-
 //-- statics ----
 const char *AppStage_ControllerSettings::APP_STAGE_NAME= "ControllerSettings";
 
@@ -150,7 +147,7 @@ void AppStage_ControllerSettings::renderUI()
     case eControllerMenuState::idle:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::SetNextWindowSize(ImVec2(350, 400));
+            ImGui::SetNextWindowSize(ImVec2(350, 430));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             if (m_hostSerial.length() > 1 && m_hostSerial != "00:00:00:00:00:00")
@@ -266,20 +263,6 @@ void AppStage_ControllerSettings::renderUI()
 
                 if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
                 {
-                    #ifdef MEASURE_RAW_ACCEL_SCALE
-                    if (ImGui::Button("Calibrate Accelerometer"))
-                    {
-                        m_app->getAppStage<AppStage_AccelerometerCalibration>()->setBypassCalibrationFlag(false);
-                        m_app->setAppStage(AppStage_AccelerometerCalibration::APP_STAGE_NAME);
-                    }
-                    #endif
-
-                    if (ImGui::Button("Test Accelerometer"))
-                    {
-                        m_app->getAppStage<AppStage_AccelerometerCalibration>()->setBypassCalibrationFlag(true);
-                        m_app->setAppStage(AppStage_AccelerometerCalibration::APP_STAGE_NAME);
-                    }
-
                     if (ImGui::Button("Calibrate Gyroscope"))
                     {
                         m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(false);
@@ -296,6 +279,18 @@ void AppStage_ControllerSettings::renderUI()
                 if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSMove || 
                     controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
                 {
+                    if (ImGui::Button("Calibrate Accelerometer"))
+                    {
+                        m_app->getAppStage<AppStage_AccelerometerCalibration>()->setBypassCalibrationFlag(false);
+                        m_app->setAppStage(AppStage_AccelerometerCalibration::APP_STAGE_NAME);
+                    }
+
+                    if (ImGui::Button("Test Accelerometer"))
+                    {
+                        m_app->getAppStage<AppStage_AccelerometerCalibration>()->setBypassCalibrationFlag(true);
+                        m_app->setAppStage(AppStage_AccelerometerCalibration::APP_STAGE_NAME);
+                    }
+
                     if (ImGui::Button("Test Rumble"))
                     {
                         m_app->setAppStage(AppStage_TestRumble::APP_STAGE_NAME);

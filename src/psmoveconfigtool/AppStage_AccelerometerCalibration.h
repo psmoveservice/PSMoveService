@@ -34,20 +34,6 @@ public:
         m_bBypassCalibration = bFlag;
     }
 
-    enum eMeasurementPose
-    {
-        identity= -1,
-
-        faceUp= 0,
-        faceDown,
-        leanLeft,
-        leanRight,
-        leanForward,
-        leanBackward,
-
-        k_measurement_pose_count
-    };
-
 protected:
     static void handle_acquire_controller(
         const ClientPSMoveAPI::ResponseMessage *response,
@@ -61,24 +47,12 @@ private:
 
         waitingForStreamStartResponse,
         failedStreamStart,
-        selectMethod,
         placeController,
-        holdAndSpinController,
-        measureDirection,
-        measureSphere,
-        measureGravity,
+        measureNoise,
         measureComplete,
-        verifyCalibration,
         test
     };
     eCalibrationMenuState m_menuState;
-
-    enum eCalibrationMethod
-    {
-        boundingBox,
-        minVolumeFit
-    };
-    eCalibrationMethod m_calibrationMethod;
 
     bool m_bBypassCalibration;
 
@@ -86,21 +60,10 @@ private:
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;
 
-    PSMoveIntVector3 m_minSampleExtent;
-    PSMoveIntVector3 m_maxSampleExtent;
-    PSMoveIntVector3 m_lastRawAccelerometer;
+    PSMoveFloatVector3 m_lastAcceleration;
     PSMoveFloatVector3 m_lastCalibratedAccelerometer;
 
-    // Min Volume ellipsoid method
-    AccelerometerPoseSamples *m_poseSamples;
-
-    // Bounding Box method
-    AccelerometerPoseSamples *m_gravitySamples;
-    AccelerometerPoseSamples *m_sphereSamples;
-
-    eMeasurementPose m_currentPoseID;
-
-    EigenFitEllipsoid *m_sampleFitEllipsoid;
+    AccelerometerPoseSamples *m_noiseSamples;
 };
 
 #endif // APP_STAGE_ACCELEROMETER_CALIBRATION_H

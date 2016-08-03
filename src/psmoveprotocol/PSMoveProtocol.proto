@@ -207,9 +207,7 @@ message Request {
     // Parameters for SET_ACCELEROMETER_CALIBRATION
     message RequestSetAccelerometerCalibration {
         int32 controller_id = 1;
-        FloatVector bias= 2;
-        FloatVector gain= 3;
-        float ellipse_fit_error= 4;
+        float noise_radius= 2;
     }
     RequestSetAccelerometerCalibration set_accelerometer_calibration_request = 14;
     

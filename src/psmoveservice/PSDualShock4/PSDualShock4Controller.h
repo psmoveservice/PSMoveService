@@ -42,7 +42,7 @@ public:
         : PSMoveConfig(fnamebase)
         , is_valid(false)
         , version(CONFIG_VERSION)
-        , accelerometer_fit_error(0.f)
+        , accelerometer_noise_radius(0.f)
         , gyro_gain(0.f)
         , gyro_variance(0.f)
         , gyro_drift(0.f)
@@ -113,7 +113,7 @@ public:
     // calibrated_acc= raw_acc*acc_gain + acc_bias
     CommonDeviceVector accelerometer_gain;
     CommonDeviceVector accelerometer_bias;
-    float accelerometer_fit_error;
+    float accelerometer_noise_radius;
 
     // The calibrated "down" direction
     CommonDeviceVector identity_gravity_direction;
