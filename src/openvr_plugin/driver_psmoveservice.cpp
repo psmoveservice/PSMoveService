@@ -1195,7 +1195,20 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
         // The {psmove} syntax lets us refer to rendermodels that are installed
         // in the driver's own resources/rendermodels directory.  The driver can
         // still refer to SteamVR models like "generic_hmd".
-        ssRetVal << "{psmove}psmove_controller";
+        switch(m_controller_view->GetControllerViewType())
+        {
+        case ClientControllerView::PSMove:
+            ssRetVal << "{psmove}psmove_controller";
+            break;
+        case ClientControllerView::PSNavi:
+            ssRetVal << "{psmove}navi_controller";
+            break;
+        case ClientControllerView::PSDualShock4:
+            ssRetVal << "{psmove}dualshock4_controller";
+            break;
+        default:
+            ssRetVal << "generic_controller";
+        }
         break;
     }
 
