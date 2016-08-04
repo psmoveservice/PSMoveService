@@ -1044,6 +1044,7 @@ static void generate_psmove_data_frame_for_stream(
         }
 
         // if requested, get the physics data for the controller
+        if (stream_info->include_physics_data)
         {
             const CommonDevicePhysics controller_physics = controller_view->getFilteredPhysics();
             auto *physics_data = psmove_data_frame->mutable_physics_data();
@@ -1283,6 +1284,7 @@ static void generate_psdualshock4_data_frame_for_stream(
         }
 
         // if requested, get the physics data for the controller
+        if (stream_info->include_physics_data)
         {
             const CommonDevicePhysics controller_physics = controller_view->getFilteredPhysics();
             auto *physics_data = psds4_data_frame->mutable_physics_data();
@@ -1345,6 +1347,8 @@ init_filters_for_psmove(
 
         // Use the LowPass filter by default
         position_filter->setFusionType(PositionFilter::FusionTypeLowPassOptical);
+        position_filter->setAccelerometerNoiseRadius(psmove_config->accelerometer_noise_radius);
+        position_filter->setMaxVelocity(psmove_config->max_velocity);
     }
 }
 
@@ -1504,6 +1508,8 @@ init_filters_for_psdualshock4(
 
         // Use the LowPass filter by default
         position_filter->setFusionType(PositionFilter::FusionTypeComplimentaryOpticalIMU);
+        position_filter->setAccelerometerNoiseRadius(ds4_config->accelerometer_noise_radius);
+        position_filter->setMaxVelocity(ds4_config->max_velocity);
     }
 }
 

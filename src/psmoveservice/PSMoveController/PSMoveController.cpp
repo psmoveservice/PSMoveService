@@ -245,6 +245,7 @@ PSMoveControllerConfig::config2ptree()
 
     pt.put("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
     pt.put("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
+    pt.put("PositionFilter.MaxVelocity", max_velocity);
 
     return pt;
 }
@@ -309,6 +310,7 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         // Get the position filter parameters
         min_position_quality_screen_area= pt.get<float>("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
         max_position_quality_screen_area= pt.get<float>("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
+        max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
     }
     else
     {

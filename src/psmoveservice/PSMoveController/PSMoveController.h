@@ -42,6 +42,7 @@ public:
         , gyro_drift(0.9f*k_degrees_to_radians) // rad/s
         , min_position_quality_screen_area(0.f)
         , max_position_quality_screen_area(k_real_pi*20.f*20.f) // lightbulb at ideal range is about 40px by 40px 
+        , max_velocity(1.f)
     {
         magnetometer_identity.clear();
         magnetometer_center.clear();
@@ -83,6 +84,9 @@ public:
     float min_position_quality_screen_area;
     // The pixel area of the tracking projection at which the position quality is 1
     float max_position_quality_screen_area;
+
+    // The maximum velocity allowed in the position filter
+    float max_velocity;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport

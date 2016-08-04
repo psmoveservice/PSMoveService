@@ -61,6 +61,7 @@ private:
     int m_lastControllerSeqNum;
 
     PSMoveFloatVector3 m_lastAcceleration;
+    PSMoveFloatVector3 m_lastVelocity;
     PSMoveFloatVector3 m_lastCalibratedAccelerometer;
 
     AccelerometerPoseSamples *m_noiseSamples;

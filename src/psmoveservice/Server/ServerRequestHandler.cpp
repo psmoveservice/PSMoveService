@@ -7,6 +7,7 @@
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
 #include "OrientationFilter.h"
+#include "PositionFilter.h"
 #include "PS3EyeTracker.h"
 #include "PSDualShock4Controller.h"
 #include "PSMoveController.h"
@@ -807,32 +808,38 @@ protected:
         if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
         {
             PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+            PositionFilter *positionFilter= ControllerView->getPositionFilter();
             PSMoveControllerConfig *config = controller->getConfigMutable();
 
             const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
                 context.request->set_accelerometer_calibration_request();
 
+            // Save the noise radius in controller config
             config->accelerometer_noise_radius= request.noise_radius();
             config->save();
 
             // Reset the orientation filter state the calibration changed
-            ControllerView->getOrientationFilter()->resetFilterState();
+            positionFilter->setAccelerometerNoiseRadius(config->accelerometer_noise_radius);
+            positionFilter->resetFilterState();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
         {
             PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+            PositionFilter *positionFilter= ControllerView->getPositionFilter();
             PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
             const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
                 context.request->set_accelerometer_calibration_request();
 
+            // Save the noise radius in controller config
             config->accelerometer_noise_radius= request.noise_radius();
             config->save();
 
             // Reset the orientation filter state the calibration changed
-            ControllerView->getOrientationFilter()->resetFilterState();
+            positionFilter->setAccelerometerNoiseRadius(config->accelerometer_noise_radius);
+            positionFilter->resetFilterState();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }

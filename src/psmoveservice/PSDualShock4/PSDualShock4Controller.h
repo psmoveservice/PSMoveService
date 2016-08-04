@@ -43,6 +43,7 @@ public:
         , is_valid(false)
         , version(CONFIG_VERSION)
         , accelerometer_noise_radius(0.f)
+        , max_velocity(1.f)
         , gyro_gain(0.f)
         , gyro_variance(0.f)
         , gyro_drift(0.f)
@@ -50,6 +51,8 @@ public:
         , prediction_time(0.f)
         , min_orientation_quality_screen_area(150.f*34.f*.1f)
         , max_orientation_quality_screen_area(150.f*34.f) // light bar at ideal range looking straight on is about 150px by 34px 
+        , min_position_quality_screen_area(75.f*17.f*.25f)
+        , max_position_quality_screen_area(75.f*17.f)
     {
         // The DS4 uses the BMI055 IMU Chip: 
         // https://www.bosch-sensortec.com/bst/products/all_products/bmi055
@@ -114,6 +117,9 @@ public:
     CommonDeviceVector accelerometer_gain;
     CommonDeviceVector accelerometer_bias;
     float accelerometer_noise_radius;
+
+    // Maximum velocity for the controller physics (meters/second)
+    float max_velocity;
 
     // The calibrated "down" direction
     CommonDeviceVector identity_gravity_direction;

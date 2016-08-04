@@ -119,7 +119,9 @@ void AppStage_AccelerometerCalibration::enter()
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::start_controller_data_stream(
             m_controllerView, 
-            ClientPSMoveAPI::includeCalibratedSensorData | ClientPSMoveAPI::includePhysicsData),
+            ClientPSMoveAPI::includeCalibratedSensorData | 
+            ClientPSMoveAPI::includePhysicsData |
+            ClientPSMoveAPI::includePositionData), // Needed so linear acceleration is computed
         &AppStage_AccelerometerCalibration::handle_acquire_controller, this);
 }
 
@@ -163,6 +165,7 @@ void AppStage_AccelerometerCalibration::update()
         }
 
         m_lastAcceleration= physicsData.Acceleration;
+        m_lastVelocity= physicsData.Velocity;
         m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
         bControllerDataUpdatedThisFrame = true;
     }
@@ -226,9 +229,6 @@ void AppStage_AccelerometerCalibration::render()
     const float modelScale = 18.f;
     glm::mat4 controllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale));
 
-    const float sampleScale = 100.f;
-    glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
-
     switch (m_menuState)
     {
     case eCalibrationMenuState::waitingForStreamStartResponse:
@@ -243,6 +243,9 @@ void AppStage_AccelerometerCalibration::render()
     case eCalibrationMenuState::measureNoise:
     case eCalibrationMenuState::measureComplete:
         {
+            const float sampleScale = 100.f;
+            glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
+
             // Draw the controller in the middle            
             drawController(m_controllerView, controllerTransform);
 
@@ -262,22 +265,32 @@ void AppStage_AccelerometerCalibration::render()
         } break;
     case eCalibrationMenuState::test:
         {
-            const float centimeters_to_meters= 0.01f;
-            const float accel_cms2 = m_lastAcceleration.length();
-            const float accel_ms2 = accel_cms2 * centimeters_to_meters;
+            const float sampleScale = 1.f;
+            glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
 
             drawController(m_controllerView, controllerTransform);
             drawTransformedAxes(controllerTransform, 200.f);
 
             // Draw the current filtered acceleration direction
             {
-                const float render_scale= 5.f;
+                const float accel_cms2 = m_lastAcceleration.length();
                 glm::vec3 m_start = glm::vec3(0.f);
-                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastAcceleration*centimeters_to_meters*render_scale);
+                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastAcceleration);
 
                 drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
-                drawTextAtWorldPosition(sampleTransform, m_end, "A(%.1fm/s^2)", accel_ms2);
+                drawTextAtWorldPosition(sampleTransform, m_end, "A(%.1fcm/s^2)", accel_cms2);
             }
+
+            // Draw the current filtered acceleration direction
+            {
+                const float vel_cms = m_lastVelocity.length();
+                glm::vec3 m_start = glm::vec3(0.f);
+                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastVelocity);
+
+                drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(0.f, 1.f, 0.f));
+                drawTextAtWorldPosition(sampleTransform, m_end, "V(%.1fcm/s)", vel_cms);
+            }
+
         } break;
     default:
         assert(0 && "unreachable");

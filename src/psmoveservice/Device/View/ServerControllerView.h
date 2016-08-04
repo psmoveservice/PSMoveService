@@ -57,6 +57,7 @@ public:
     
     IDeviceInterface* getDevice() const override {return m_device;}
     inline class OrientationFilter * getOrientationFilter() { return m_orientation_filter; }
+    inline class PositionFilter * getPositionFilter() { return m_position_filter; }
 
     // Estimate the given pose if the controller at some point into the future
     CommonDevicePose getFilteredPose(float time= 0.f) const;

@@ -30,7 +30,14 @@ struct PositionFilterPacket
     PositionSource position_source;
     float position_quality; // [0, 1]
 
-    Eigen::Vector3f world_acceleration;
+    Eigen::Vector3f world_accelerometer;
+};
+
+/// Filter parameters that remain constant during the lifetime of the the filter
+struct PositionFilterConstants 
+{
+    float accelerometerNoiseRadius;
+    float maxVelocity;
 };
 
 /// Used to transform sensor data from a device into an arbitrary space
@@ -96,11 +103,21 @@ public:
     void setFilterSpace(const PositionFilterSpace &filterSpace);
     void setFusionType(FusionType fusionType);
 
+    inline void setAccelerometerNoiseRadius(float noiseRadius)
+    {
+        m_FilterConstants.accelerometerNoiseRadius= noiseRadius;
+    }
+    inline void setMaxVelocity(float maxVelocity)
+    {
+        m_FilterConstants.maxVelocity= maxVelocity;
+    }
+
     void resetPosition();
     void resetFilterState();
     void update(const float delta_time, const PositionSensorPacket &packet);
 
 private:
+    PositionFilterConstants m_FilterConstants;
     PositionFilterSpace m_FilterSpace;
     struct PositionSensorFusionState *m_FusionState;
 };
