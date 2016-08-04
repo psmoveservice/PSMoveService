@@ -134,7 +134,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS ${PROTOBUF_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${PROTOBUF_LIBRARIES})
 
 # Boost. TODO: Trim this list.
-find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
+find_package(Boost 1.61.0 REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${Boost_LIBRARIES})
 IF(MSVC) # Disable asio auto linking in date-time and regex
@@ -247,7 +247,7 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
     IF(${ISWIN32})
         install(DIRECTORY "${ROOT_DIR}/thirdparty/CLEYE/x86/bin/"
-            DESTINATION ${ROOT_DIR}/win32/bin
+            DESTINATION ${ROOT_DIR}/Win32/bin
             FILES_MATCHING PATTERN "*.dll")    
     ENDIF()#ISWIN32
 ELSE() #Linux/Darwin

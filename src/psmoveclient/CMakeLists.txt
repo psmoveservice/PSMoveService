@@ -13,7 +13,7 @@ list(APPEND PSMOVE_CLIENT_INCL_DIRS ${PROTOBUF_INCLUDE_DIRS})
 list(APPEND PSMOVE_CLIENT_REQ_LIBS ${PROTOBUF_LIBRARIES})
 
 # Boost - TODO: Trim this list
-find_package(Boost 1.59.0 REQUIRED QUIET COMPONENTS system)
+find_package(Boost 1.61.0 REQUIRED QUIET COMPONENTS system)
 list(APPEND PSMOVE_CLIENT_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND PSMOVE_CLIENT_REQ_LIBS ${Boost_LIBRARIES})
 IF(MSVC) # Disable asio auto linking in date-time and regex

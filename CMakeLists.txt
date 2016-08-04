@@ -46,14 +46,15 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(OpenCV_DIR "/usr/local/Cellar/opencv3/3.1.0_1/share/OpenCV")
 ENDIF()#Windows or Darwin
 ENDIF(NOT OpenCV_DIR)
+LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})
 
 # Boost & Protobuf
 IF(MSVC)
     # Default location of pre-compiled Boost for Windows
     # Override by adding "-DBOOST_ROOT=C:\path\to\boost\ -DBOOST_LIBRARYDIR=C:\path\to\boost\lib32-msvc-14.0\" to your cmake command
     IF (NOT BOOST_ROOT)
-        SET(BOOST_ROOT "C:/boost_1_61_0/")
-        SET(BOOST_LIBRARYDIR "C:/boost_1_61_0/lib32-msvc-14.0/")
+        SET(BOOST_ROOT "C:/local/boost_1_61_0/")
+        SET(BOOST_LIBRARYDIR "C:/local/boost_1_61_0/lib32-msvc-14.0/")
     ENDIF()
     
     # Default location of protobuf for Windows

@@ -36,3 +36,5 @@ docs
 
 # Local Scripts
 SetBuildVars.bat
+SetBuildVars_Win32.bat
+SetBuildVars_X64.bat
