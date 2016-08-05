@@ -222,6 +222,9 @@ private:
         vr::IVRSettings *pSettings,
         const CPSMoveControllerLatest::ePSButtonID psButtonID,
         const vr::EVRButtonId defaultVRButtonID);
+
+    // Callbacks
+    static void start_controller_response_callback(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
 };
 
 class CPSMoveTrackerLatest : public CPSMoveTrackedDeviceLatest

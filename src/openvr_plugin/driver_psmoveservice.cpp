@@ -1020,12 +1020,26 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(uint32_t unObjectId)
         // Transform used to convert from PSMove Tracking space to OpenVR Tracking Space
         RefreshWorldFromDriverPose();
 
-        ClientPSMoveAPI::start_controller_data_stream(
-            m_controller_view, 
-            ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includePhysicsData);
+        ClientPSMoveAPI::register_callback(
+            ClientPSMoveAPI::start_controller_data_stream(
+                m_controller_view, 
+                ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includePhysicsData),
+            CPSMoveControllerLatest::start_controller_response_callback,
+            this);
     }
 
     return result;
+}
+
+void CPSMoveControllerLatest::start_controller_response_callback(
+    const ClientPSMoveAPI::ResponseMessage *response, void *userdata)
+{
+    CPSMoveControllerLatest *controller= reinterpret_cast<CPSMoveControllerLatest *>(userdata);
+
+    if (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    {
+        controller->m_properties_dirty= true;
+    }
 }
 
 void CPSMoveControllerLatest::Deactivate()
@@ -1508,7 +1522,7 @@ void CPSMoveControllerLatest::UpdateTrackingState()
                 m_Pose.vecAngularAcceleration[2] = physicsData.AngularAcceleration.k;
             }
 
-            m_Pose.poseIsValid = view.GetIsCurrentlyTracking();
+            m_Pose.poseIsValid = m_controller_view->GetIsPoseValid();
 
             // This call posts this pose to shared memory, where all clients will have access to it the next
             // moment they want to predict a pose.
@@ -1527,9 +1541,9 @@ void CPSMoveControllerLatest::UpdateTrackingState()
             // No prediction since that's already handled in the psmove service
             m_Pose.poseTimeOffset = 0.f;
 
-            // No transform due to the current HMD orientation
-            m_Pose.qDriverFromHeadRotation.w = 1.f;
-            m_Pose.qDriverFromHeadRotation.x = 0.0f;
+            // Rotate -90 degrees about the x-axis from the current HMD orientation
+            m_Pose.qDriverFromHeadRotation.w = 0.707107;
+            m_Pose.qDriverFromHeadRotation.x = -0.707107;
             m_Pose.qDriverFromHeadRotation.y = 0.0f;
             m_Pose.qDriverFromHeadRotation.z = 0.0f;
             m_Pose.vecDriverFromHeadTranslation[0] = 0.f;
@@ -1556,27 +1570,28 @@ void CPSMoveControllerLatest::UpdateTrackingState()
                 }
 
                 // Set the physics state of the controller
+                // TODO: Physics data is too noisy for the DS4 right now, causes jitter
                 {
                     const PSMovePhysicsData &physicsData = view.GetPhysicsData();
 
-                    m_Pose.vecVelocity[0] = physicsData.Velocity.i * k_fScalePSMoveAPIToMeters;
-                    m_Pose.vecVelocity[1] = physicsData.Velocity.j * k_fScalePSMoveAPIToMeters;
-                    m_Pose.vecVelocity[2] = physicsData.Velocity.k * k_fScalePSMoveAPIToMeters;
+                    m_Pose.vecVelocity[0] = 0.f; // physicsData.Velocity.i * k_fScalePSMoveAPIToMeters;
+                    m_Pose.vecVelocity[1] = 0.f; // physicsData.Velocity.j * k_fScalePSMoveAPIToMeters;
+                    m_Pose.vecVelocity[2] = 0.f; // physicsData.Velocity.k * k_fScalePSMoveAPIToMeters;
 
-                    m_Pose.vecAcceleration[0] = physicsData.Acceleration.i * k_fScalePSMoveAPIToMeters;
-                    m_Pose.vecAcceleration[1] = physicsData.Acceleration.j * k_fScalePSMoveAPIToMeters;
-                    m_Pose.vecAcceleration[2] = physicsData.Acceleration.k * k_fScalePSMoveAPIToMeters;
+                    m_Pose.vecAcceleration[0] = 0.f; // physicsData.Acceleration.i * k_fScalePSMoveAPIToMeters;
+                    m_Pose.vecAcceleration[1] = 0.f; // physicsData.Acceleration.j * k_fScalePSMoveAPIToMeters;
+                    m_Pose.vecAcceleration[2] = 0.f; // physicsData.Acceleration.k * k_fScalePSMoveAPIToMeters;
 
-                    m_Pose.vecAngularVelocity[0] = physicsData.AngularVelocity.i;
-                    m_Pose.vecAngularVelocity[1] = physicsData.AngularVelocity.j;
-                    m_Pose.vecAngularVelocity[2] = physicsData.AngularVelocity.k;
+                    m_Pose.vecAngularVelocity[0] = 0.f; // physicsData.AngularVelocity.i;
+                    m_Pose.vecAngularVelocity[1] = 0.f; // physicsData.AngularVelocity.j;
+                    m_Pose.vecAngularVelocity[2] = 0.f; // physicsData.AngularVelocity.k;
 
-                    m_Pose.vecAngularAcceleration[0] = physicsData.AngularAcceleration.i;
-                    m_Pose.vecAngularAcceleration[1] = physicsData.AngularAcceleration.j;
-                    m_Pose.vecAngularAcceleration[2] = physicsData.AngularAcceleration.k;
+                    m_Pose.vecAngularAcceleration[0] = 0.f; // physicsData.AngularAcceleration.i;
+                    m_Pose.vecAngularAcceleration[1] = 0.f; // physicsData.AngularAcceleration.j;
+                    m_Pose.vecAngularAcceleration[2] = 0.f; // physicsData.AngularAcceleration.k;
                 }
 
-                m_Pose.poseIsValid = view.GetIsCurrentlyTracking();
+                m_Pose.poseIsValid = m_controller_view->GetIsPoseValid();
 
                 // This call posts this pose to shared memory, where all clients will have access to it the next
                 // moment they want to predict a pose.

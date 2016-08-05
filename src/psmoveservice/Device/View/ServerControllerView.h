@@ -56,8 +56,10 @@ public:
     bool setHostBluetoothAddress(const std::string &address);
     
     IDeviceInterface* getDevice() const override {return m_device;}
-    inline class OrientationFilter * getOrientationFilter() { return m_orientation_filter; }
-    inline class PositionFilter * getPositionFilter() { return m_position_filter; }
+    inline class OrientationFilter * getOrientationFilterMutable() { return m_orientation_filter; }
+    inline const class OrientationFilter * getOrientationFilter() const { return m_orientation_filter; }
+    inline class PositionFilter * getPositionFilterMutable() { return m_position_filter; }
+    inline const class PositionFilter * getPositionFilter() const { return m_position_filter; }
 
     // Estimate the given pose if the controller at some point into the future
     CommonDevicePose getFilteredPose(float time= 0.f) const;

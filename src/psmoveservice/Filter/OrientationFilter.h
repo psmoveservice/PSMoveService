@@ -98,6 +98,8 @@ public:
     inline OrientationFilterSpace &getFilterSpace()
     { return m_FilterSpace; }
 
+    FusionType getFusionType() const;
+    bool getIsFusionStateValid() const;
     // Estimate the current orientation of the filter given a time offset into the future
     Eigen::Quaternionf getOrientation(float time = 0.f) const;
     Eigen::Vector3f getAngularVelocity() const;

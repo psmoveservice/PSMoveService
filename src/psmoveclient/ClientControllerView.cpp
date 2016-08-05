@@ -102,6 +102,8 @@ void ClientPSMoveView::ApplyControllerDataFrame(
         this->bHasValidHardwareCalibration= psmove_data_frame.validhardwarecalibration();
         this->bIsTrackingEnabled= psmove_data_frame.istrackingenabled();
         this->bIsCurrentlyTracking= psmove_data_frame.iscurrentlytracking();
+        this->bIsOrientationValid = psmove_data_frame.isorientationvalid();
+        this->bIsPositionValid = psmove_data_frame.ispositionvalid();
 
         this->Pose.Orientation.w= psmove_data_frame.orientation().w();
         this->Pose.Orientation.x= psmove_data_frame.orientation().x();
@@ -395,6 +397,8 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
         this->bHasValidHardwareCalibration = psds4_data_frame.validhardwarecalibration();
         this->bIsTrackingEnabled = psds4_data_frame.istrackingenabled();
         this->bIsCurrentlyTracking = psds4_data_frame.iscurrentlytracking();
+        this->bIsOrientationValid = psds4_data_frame.isorientationvalid();
+        this->bIsPositionValid = psds4_data_frame.ispositionvalid();
 
         this->Pose.Orientation.w = psds4_data_frame.orientation().w();
         this->Pose.Orientation.x = psds4_data_frame.orientation().x();
@@ -871,6 +875,23 @@ bool ClientControllerView::GetIsCurrentlyTracking() const
         return false;
     case eControllerType::PSDualShock4:
         return GetPSDualShock4View().GetIsCurrentlyTracking();
+    default:
+        assert(0 && "invalid controller type");
+        return false;
+    }
+}
+
+bool ClientControllerView::GetIsPoseValid() const
+{
+    switch (ControllerViewType)
+    {
+    case eControllerType::PSMove:
+        return GetPSMoveView().GetIsOrientationValid() && GetPSMoveView().GetIsPositionValid();
+    case eControllerType::PSNavi:
+        // Never Tracking!
+        return false;
+    case eControllerType::PSDualShock4:
+        return GetPSDualShock4View().GetIsOrientationValid() && GetPSDualShock4View().GetIsPositionValid();
     default:
         assert(0 && "invalid controller type");
         return false;

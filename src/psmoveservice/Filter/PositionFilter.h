@@ -94,8 +94,9 @@ public:
         return m_FilterSpace;
     }
 
-    // Estimate the current position of the filter given a time offset into the future
     FusionType getFusionType() const;
+    bool getIsFusionStateValid() const;
+    /// Estimate the current position of the filter given a time offset into the future
     Eigen::Vector3f getPosition(float time = 0.f) const;
     Eigen::Vector3f getVelocity() const;
     Eigen::Vector3f getAcceleration() const;

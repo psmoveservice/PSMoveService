@@ -178,6 +178,8 @@ private:
     bool bHasValidHardwareCalibration;
     bool bIsTrackingEnabled;
     bool bIsCurrentlyTracking;
+    bool bIsOrientationValid;
+    bool bIsPositionValid;
     bool bHasUnpublishedState;
 
     PSMovePose Pose;
@@ -232,6 +234,16 @@ public:
     inline bool GetIsTrackingEnabled() const
     {
         return IsValid() ? bIsTrackingEnabled : false;
+    }
+
+    inline bool GetIsOrientationValid() const
+    {
+        return IsValid() ? bIsOrientationValid : false;
+    }
+
+    inline bool GetIsPositionValid() const
+    {
+        return IsValid() ? bIsPositionValid : false;
     }
 
     inline bool GetHasUnpublishedState() const
@@ -475,6 +487,8 @@ private:
     bool bHasValidHardwareCalibration;
     bool bIsTrackingEnabled;
     bool bIsCurrentlyTracking;
+    bool bIsOrientationValid;
+    bool bIsPositionValid;
     bool bHasUnpublishedState;
 
     PSMovePose Pose;
@@ -548,6 +562,16 @@ public:
     inline bool GetIsTrackingEnabled() const
     {
         return IsValid() ? bIsTrackingEnabled : false;
+    }
+
+    inline bool GetIsOrientationValid() const
+    {
+        return IsValid() ? bIsOrientationValid : false;
+    }
+
+    inline bool GetIsPositionValid() const
+    {
+        return IsValid() ? bIsPositionValid : false;
     }
 
     inline bool GetHasUnpublishedState() const
@@ -831,6 +855,7 @@ public:
     const PSMoveRawTrackerData &GetRawTrackerData() const;
 
     bool GetIsCurrentlyTracking() const;
+    bool GetIsPoseValid() const;
     bool GetIsStable() const;
 
     void SetLEDOverride(unsigned char r, unsigned char g, unsigned char b);

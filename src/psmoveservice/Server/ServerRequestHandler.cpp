@@ -787,7 +787,7 @@ protected:
             config->save();
 
             // Reset the orientation filter state the calibration changed
-            ControllerView->getOrientationFilter()->resetFilterState();
+            ControllerView->getOrientationFilterMutable()->resetFilterState();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -808,7 +808,7 @@ protected:
         if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
         {
             PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-            PositionFilter *positionFilter= ControllerView->getPositionFilter();
+            PositionFilter *positionFilter= ControllerView->getPositionFilterMutable();
             PSMoveControllerConfig *config = controller->getConfigMutable();
 
             const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
@@ -827,7 +827,7 @@ protected:
         else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
         {
             PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-            PositionFilter *positionFilter= ControllerView->getPositionFilter();
+            PositionFilter *positionFilter= ControllerView->getPositionFilterMutable();
             PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
             const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
@@ -870,7 +870,7 @@ protected:
             config->save();
 
             // Reset the orientation filter state the calibration changed
-            ControllerView->getOrientationFilter()->resetFilterState();
+            ControllerView->getOrientationFilterMutable()->resetFilterState();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -887,7 +887,7 @@ protected:
             config->save();
 
             // Reset the orientation filter state the calibration changed
-            ControllerView->getOrientationFilter()->resetFilterState();
+            ControllerView->getOrientationFilterMutable()->resetFilterState();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }

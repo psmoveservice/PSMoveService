@@ -115,7 +115,7 @@ ControllerManager::resetPose(int controller_id)
 
     if (ControllerPtr)
     {
-        OrientationFilter *filter = ControllerPtr->getOrientationFilter();
+        OrientationFilter *filter = ControllerPtr->getOrientationFilterMutable();
 
         if (filter != nullptr)
         {

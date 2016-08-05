@@ -44,6 +44,9 @@ struct OrientationSensorFusionState
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
+    /// Is the current fusion state valid
+    bool bIsValid;
+
     /* Physics State */
     Eigen::Quaternionf orientation;
     Eigen::Vector3f angular_velocity;
@@ -63,6 +66,7 @@ struct OrientationSensorFusionState
 
     void initialize()
     {
+        bIsValid= false;
         orientation= Eigen::Quaternionf::Identity();
         angular_velocity = Eigen::Vector3f::Zero();
         angular_acceleration = Eigen::Vector3f::Zero();
@@ -177,33 +181,49 @@ OrientationFilter::~OrientationFilter()
     delete m_FusionState;
 }
 
+
+OrientationFilter::FusionType OrientationFilter::getFusionType() const
+{
+    return m_FusionState->fusion_type;
+}
+
+bool OrientationFilter::getIsFusionStateValid() const
+{
+    return m_FusionState->bIsValid;
+}
+
 Eigen::Quaternionf OrientationFilter::getOrientation(float time) const
 {
-    Eigen::Quaternionf predicted_orientation = m_FusionState->orientation;
+    Eigen::Quaternionf result = Eigen::Quaternionf::Identity();
 
-    if (fabsf(time) > k_real_epsilon)
+    if (m_FusionState->bIsValid)
     {
-        const Eigen::Quaternionf &quaternion_derivative=
-            angular_velocity_to_quaternion_derivative(m_FusionState->orientation, m_FusionState->angular_velocity);
+        Eigen::Quaternionf predicted_orientation = m_FusionState->orientation;
 
-        predicted_orientation= Eigen::Quaternionf(
-            m_FusionState->orientation.coeffs()
-            + quaternion_derivative.coeffs()*time).normalized();
+        if (fabsf(time) > k_real_epsilon)
+        {
+            const Eigen::Quaternionf &quaternion_derivative=
+                angular_velocity_to_quaternion_derivative(m_FusionState->orientation, m_FusionState->angular_velocity);
+
+            predicted_orientation= Eigen::Quaternionf(
+                m_FusionState->orientation.coeffs()
+                + quaternion_derivative.coeffs()*time).normalized();
+        }
+
+        result = m_FusionState->reset_orientation * predicted_orientation;
     }
-
-    Eigen::Quaternionf result = m_FusionState->reset_orientation * predicted_orientation;
 
     return result;
 }
 
 Eigen::Vector3f OrientationFilter::getAngularVelocity() const
 {
-    return m_FusionState->angular_velocity;
+    return m_FusionState->bIsValid ? m_FusionState->angular_velocity : Eigen::Vector3f::Zero();
 }
 
 Eigen::Vector3f OrientationFilter::getAngularAcceleration() const
 {
-    return m_FusionState->angular_acceleration;
+    return m_FusionState->bIsValid ? m_FusionState->angular_acceleration : Eigen::Vector3f::Zero();
 }
 
 void OrientationFilter::setFilterSpace(const OrientationFilterSpace &filterSpace)
@@ -319,6 +339,9 @@ void OrientationFilter::update(
         SERVER_LOG_WARNING("OrientationFilter") << "Angular Acceleration is NaN!" << std::endl;
         m_FusionState->angular_acceleration = second_derivative_backup;
     }
+
+    // Fusion state is valid now that we have had an update
+    m_FusionState->bIsValid= true;
 }
 
 // -- Orientation Filters ----

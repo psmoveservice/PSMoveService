@@ -157,6 +157,11 @@ PositionFilter::FusionType PositionFilter::getFusionType() const
     return m_FusionState->fusion_type;
 }
 
+bool PositionFilter::getIsFusionStateValid() const
+{
+    return m_FusionState->bIsValid;
+}
+
 Eigen::Vector3f PositionFilter::getPosition(float time) const
 {
     Eigen::Vector3f result = Eigen::Vector3f::Zero();

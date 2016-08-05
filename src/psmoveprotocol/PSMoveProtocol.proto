@@ -508,15 +508,17 @@ message DeviceOutputDataFrame
             bool ValidHardwareCalibration= 1;
             bool IsTrackingEnabled= 2;
             bool IsCurrentlyTracking= 3;
+            bool IsOrientationValid= 4;
+            bool IsPositionValid= 5;
 
             // Tracking position in the space of the HMD tracking camera
-            Position position = 4;
+            Position position = 6;
 
             // Tracking orientation in the frame of the local magnetic field
-            Orientation orientation = 5;
+            Orientation orientation = 7;
 
             // Trigger analog value [0,255]
-            int32 trigger_value = 6;
+            int32 trigger_value = 8;
             
             // Only valid if include_raw_sensor_data=true in START_CONTROLLER_DATA_STREAM request
             message RawSensorData
@@ -525,7 +527,7 @@ message DeviceOutputDataFrame
                 IntVector accelerometer= 2;
                 IntVector gyroscope= 3;
             }
-            RawSensorData raw_sensor_data = 7;
+            RawSensorData raw_sensor_data = 9;
             
             // Only valid if include_calibrated_sensor_data=true in START_CONTROLLER_DATA_STREAM request
             message CalibratedSensorData
@@ -534,7 +536,7 @@ message DeviceOutputDataFrame
                 FloatVector accelerometer= 2;
                 FloatVector gyroscope= 3;
             }
-            CalibratedSensorData calibrated_sensor_data = 8;            
+            CalibratedSensorData calibrated_sensor_data = 10;            
             
             // Only valid if include_raw_tracker_data=true in START_CONTROLLER_DATA_STREAM request
             message RawTrackerData
@@ -546,7 +548,7 @@ message DeviceOutputDataFrame
                 repeated Polygon projected_blobs= 5;
                 int32 valid_tracker_count= 6;
             }
-            RawTrackerData raw_tracker_data = 9;  
+            RawTrackerData raw_tracker_data = 11;  
 
             // Only valid if include_physics_data=true in START_CONTROLLER_DATA_STREAM request
             message PhysicsData
@@ -556,7 +558,7 @@ message DeviceOutputDataFrame
                 FloatVector angular_velocity= 3;
                 FloatVector angular_acceleration= 4; 
             }
-            PhysicsData physics_data = 10;             
+            PhysicsData physics_data = 12;             
         }
         PSMoveState psmove_state = 6;
         
@@ -581,22 +583,24 @@ message DeviceOutputDataFrame
             bool ValidHardwareCalibration= 1;
             bool IsTrackingEnabled= 2;
             bool IsCurrentlyTracking= 3;
+            bool IsOrientationValid= 4;
+            bool IsPositionValid= 5;
 
             // Tracking position in the space of the HMD tracking camera
-            Position position = 4;
+            Position position = 6;
 
             // Tracking orientation in the frame of the local magnetic field
-            Orientation orientation = 5;
+            Orientation orientation = 7;
 
             // Thumbsticks
-            float left_thumbstick_x = 6;
-            float left_thumbstick_y = 7;
-            float right_thumbstick_x = 8;
-            float right_thumbstick_y = 9;
+            float left_thumbstick_x = 8;
+            float left_thumbstick_y = 9;
+            float right_thumbstick_x = 10;
+            float right_thumbstick_y = 11;
             
             // Trigger analog value [0,1]
-            float left_trigger_value = 10;
-            float right_trigger_value = 11;
+            float left_trigger_value = 12;
+            float right_trigger_value = 13;
             
             // Only valid if include_raw_sensor_data=true in START_CONTROLLER_DATA_STREAM request
             message RawSensorData
@@ -604,7 +608,7 @@ message DeviceOutputDataFrame
                 IntVector accelerometer= 1;
                 IntVector gyroscope= 2;
             }
-            RawSensorData raw_sensor_data = 12;
+            RawSensorData raw_sensor_data = 14;
             
             // Only valid if include_calibrated_sensor_data=true in START_CONTROLLER_DATA_STREAM request
             message CalibratedSensorData
@@ -612,7 +616,7 @@ message DeviceOutputDataFrame
                 FloatVector accelerometer= 1;
                 FloatVector gyroscope= 2;
             }
-            CalibratedSensorData calibrated_sensor_data = 13;            
+            CalibratedSensorData calibrated_sensor_data = 15;            
             
             // Only valid if include_raw_tracker_data=true in START_CONTROLLER_DATA_STREAM request
             message RawTrackerData
@@ -625,7 +629,7 @@ message DeviceOutputDataFrame
                 repeated Polygon projected_blobs= 6;
                 int32 valid_tracker_count= 7;
             }
-            RawTrackerData raw_tracker_data = 14;  
+            RawTrackerData raw_tracker_data = 16;  
 
             // Only valid if include_physics_data=true in START_CONTROLLER_DATA_STREAM request
             message PhysicsData
@@ -635,7 +639,7 @@ message DeviceOutputDataFrame
                 FloatVector angular_velocity= 3;
                 FloatVector angular_acceleration= 4; 
             }
-            PhysicsData physics_data = 15;             
+            PhysicsData physics_data = 17;             
         }
         PSDualShock4State psdualshock4_state = 8;        
     }
