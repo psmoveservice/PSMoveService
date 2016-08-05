@@ -396,7 +396,8 @@ static void lowpass_filter_imu_step(
         const Eigen::Vector3f old_acceleration = fusion_state->acceleration;
 
         // Gather new sensor readings
-        const Eigen::Vector3f &new_accelerometer= filter_packet->world_accelerometer;
+        // Need to negate the accelerometer reading since it points the opposite direction of gravity)
+        const Eigen::Vector3f &new_accelerometer= -filter_packet->world_accelerometer;
    
         // Compute the filtered derivative of the accelerometer (a.k.a. the "jerk")
         Eigen::Vector3f new_accelerometer_derivative= Eigen::Vector3f::Zero();
