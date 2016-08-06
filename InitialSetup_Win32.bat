@@ -1,25 +1,15 @@
 @echo off
 setlocal
 
-::Select the path to the root opencv folder
-set "psCommand="(new-object -COM 'Shell.Application')^
-.BrowseForFolder(0,'Please select the root folder for Opencv (ex: c:\OpenCV-3.1.0).',0,0).self.path""
-for /f "usebackq delims=" %%I in (`powershell %psCommand%`) do set "OPENCV_ROOT_PATH=%%I"
-if NOT DEFINED OPENCV_ROOT_PATH (goto failure)
-
 ::Select the path to the root Boost folder
 set "psCommand="(new-object -COM 'Shell.Application')^
 .BrowseForFolder(0,'Please select the root folder for Boost (ex: c:\local\boost_1_61_0).',0,0).self.path""
 for /f "usebackq delims=" %%I in (`powershell %psCommand%`) do set "BOOST_ROOT_PATH=%%I"
 if NOT DEFINED BOOST_ROOT_PATH (goto failure)
 
-::Substitute backslashes to forward slashes
-set FWD_SLASH_OPENCV_ROOT_PATH=%OPENCV_ROOT_PATH:\=/%
-
 :: Write out the paths to a config batch file
 del SetBuildVars_Win32.bat
 echo @echo off >> SetBuildVars_Win32.bat
-echo set OPENCV_BUILD_PATH=%FWD_SLASH_OPENCV_ROOT_PATH%/build >> SetBuildVars_Win32.bat
 echo set BOOST_ROOT_PATH=%BOOST_ROOT_PATH% >> SetBuildVars_Win32.bat
 echo set BOOST_LIB_PATH=%BOOST_ROOT_PATH%/lib32-msvc-14.0 >> SetBuildVars_Win32.bat
 
