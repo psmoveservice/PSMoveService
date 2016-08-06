@@ -92,8 +92,8 @@ enum ePSDS4_Button {
     Btn_R3 = 1 << 15,
 
     // buttons3
-    Btn_PS = 1 << 17,
-    Btn_TPAD = 1 << 18,
+    Btn_PS = 1 << 16,
+    Btn_TPAD = 1 << 17,
 };
 
 // The link key used when binding a bluetooth host address on the DS4
@@ -771,7 +771,7 @@ PSDualShock4Controller::poll()
             newState.AllButtons = 
                 (((unsigned int)InData->buttons3.raw & 0x3) << 16) | // Get the 1st two bits of buttons: [0|0|0|0|0|0|PS|TPad]
                 (unsigned int)(InData->buttons2.raw << 8) | // [R3|L3|Option|Share|R2|L2|R1|L1]
-                ((unsigned int)InData->buttons1.raw & 0xF8); // Mask out the dpad enum (1st four bits): [tri|cir|x|sq|0|0|0|0]
+                ((unsigned int)InData->buttons1.raw & 0xF0); // Mask out the dpad enum (1st four bits): [tri|cir|x|sq|0|0|0|0]
 
             // Converts the dpad enum to independent bit flags
             {

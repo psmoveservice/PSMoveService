@@ -957,20 +957,20 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
     LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Move, vr::k_EButton_SteamVR_Touchpad);
     LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Trackpad, vr::k_EButton_SteamVR_Touchpad);
     LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Trigger, vr::k_EButton_SteamVR_Trigger);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Triangle, vr::k_EButton_ApplicationMenu);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Square, vr::k_EButton_Dashboard_Back);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Circle, vr::k_EButton_A);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Cross, (vr::EVRButtonId)8);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Select, (vr::EVRButtonId)9);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Share, (vr::EVRButtonId)9);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Start, (vr::EVRButtonId)10);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Options, (vr::EVRButtonId)10);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_L1, (vr::EVRButtonId)11);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_L2, (vr::EVRButtonId)12);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_L3, (vr::EVRButtonId)13);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R1, (vr::EVRButtonId)14);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R2, (vr::EVRButtonId)15);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R3, (vr::EVRButtonId)16);    
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Triangle, (vr::EVRButtonId)8);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Square, (vr::EVRButtonId)9);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Circle, (vr::EVRButtonId)10);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Cross, (vr::EVRButtonId)11);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Select, vr::k_EButton_Grip);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Share, vr::k_EButton_ApplicationMenu);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Start, vr::k_EButton_ApplicationMenu);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Options, vr::k_EButton_ApplicationMenu);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_L1, vr::k_EButton_SteamVR_Trigger);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_L2, vr::k_EButton_SteamVR_Trigger);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_L3, vr::k_EButton_Grip);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R1, vr::k_EButton_SteamVR_Trigger);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R2, vr::k_EButton_SteamVR_Trigger);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R3, vr::k_EButton_Grip);    
 }
 
 CPSMoveControllerLatest::~CPSMoveControllerLatest()
@@ -1411,13 +1411,13 @@ void CPSMoveControllerLatest::UpdateControllerState()
                 NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_PS]);
 
             NewState.rAxis[0].x = clientView.GetLeftAnalogX();
-            NewState.rAxis[0].y = clientView.GetLeftAnalogY();
+            NewState.rAxis[0].y = -clientView.GetLeftAnalogY();
 
             NewState.rAxis[1].x = clientView.GetLeftTriggerValue();
             NewState.rAxis[1].y = 0.f;
 
             NewState.rAxis[2].x = clientView.GetRightAnalogX();
-            NewState.rAxis[2].y = clientView.GetRightAnalogY();
+            NewState.rAxis[2].y = -clientView.GetRightAnalogY();
 
             NewState.rAxis[3].x = clientView.GetRightTriggerValue();
             NewState.rAxis[3].y = 0.f;

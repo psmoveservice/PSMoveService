@@ -676,12 +676,12 @@ public:
 
     inline PSMoveButtonState GetButtonL3() const
     {
-        return IsValid() ? L2Button : PSMoveButton_UP;
+        return IsValid() ? L3Button : PSMoveButton_UP;
     }
 
     inline PSMoveButtonState GetButtonR3() const
     {
-        return IsValid() ? R2Button : PSMoveButton_UP;
+        return IsValid() ? R3Button : PSMoveButton_UP;
     }
 
     inline float GetLeftAnalogX() const
