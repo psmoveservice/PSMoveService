@@ -893,6 +893,32 @@ ServerTrackerView::computeWorldOrientation(
     return result;
 }
 
+CommonDevicePose
+ServerTrackerView::triangulateWorldPose(
+    const ServerTrackerView *tracker, 
+    const CommonDeviceTrackingProjection *tracker_relative_projection,
+    const ServerTrackerView *other_tracker,
+    const CommonDeviceTrackingProjection *other_tracker_relative_projection)
+{
+    assert(tracker_relative_projection->shape_type == other_tracker_relative_projection->shape_type);
+    CommonDevicePose pose;
+
+    pose.clear();
+    switch(tracker_relative_projection->shape_type)
+    {
+    case eCommonTrackingProjectionType::ProjectionType_Ellipse:
+        {
+        } break;
+    case eCommonTrackingProjectionType::ProjectionType_LightBar:
+        {
+        } break;
+    default:
+        assert(0 && "unreachable");
+    }
+
+    return pose;
+}
+
 CommonDevicePosition
 ServerTrackerView::triangulateWorldPosition(
     const ServerTrackerView *tracker, 

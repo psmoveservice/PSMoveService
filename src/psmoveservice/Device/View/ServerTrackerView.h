@@ -60,9 +60,15 @@ public:
     CommonDevicePosition computeWorldPosition(const CommonDevicePosition *tracker_relative_position);
     CommonDeviceQuaternion computeWorldOrientation(const CommonDeviceQuaternion *tracker_relative_orientation);
 
+    /// Given screen locations on two different trackers, compute the triangulated world space location
     static CommonDevicePosition triangulateWorldPosition(
         const ServerTrackerView *tracker, const CommonDeviceScreenLocation *screen_location,
         const ServerTrackerView *other_tracker, const CommonDeviceScreenLocation *other_screen_location);
+
+    /// Given screen projections on two different trackers, compute the triangulated world space location
+    static CommonDevicePose triangulateWorldPose(
+        const ServerTrackerView *tracker, const CommonDeviceTrackingProjection *tracker_relative_projection,
+        const ServerTrackerView *other_tracker, const CommonDeviceTrackingProjection *other_tracker_relative_projection);
 
     void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
