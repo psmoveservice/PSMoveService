@@ -1,6 +1,18 @@
 @echo off
 setlocal
 
+::Clean up the old PSMoveService build folder
+IF EXIST build (
+del /f /s /q build > nul
+rmdir /s /q build
+)
+
+::Clean up the old PSMoveService deps folder
+IF EXIST deps (
+del /f /s /q deps > nul
+rmdir /s /q deps
+)
+
 ::Select the path to the root Boost folder
 set "psCommand="(new-object -COM 'Shell.Application')^
 .BrowseForFolder(0,'Please select the root folder for Boost (ex: c:\local\boost_1_61_0).',0,0).self.path""

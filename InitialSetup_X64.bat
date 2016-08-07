@@ -1,11 +1,17 @@
 @echo off
 setlocal
 
-::Select the path to the root opencv folder
-set "psCommand="(new-object -COM 'Shell.Application')^
-.BrowseForFolder(0,'Please select the root folder for 64-bit OpenCV (ex: c:\OpenCV-3.1.0).',0,0).self.path""
-for /f "usebackq delims=" %%I in (`powershell %psCommand%`) do set "OPENCV_ROOT_PATH=%%I"
-if NOT DEFINED OPENCV_ROOT_PATH (goto failure)
+::Clean up the old PSMoveService build folder
+IF EXIST build (
+del /f /s /q build > nul
+rmdir /s /q build
+)
+
+::Clean up the old PSMoveService deps folder
+IF EXIST deps (
+del /f /s /q deps > nul
+rmdir /s /q deps
+)
 
 ::Select the path to the root Boost folder
 set "psCommand="(new-object -COM 'Shell.Application')^
@@ -13,13 +19,9 @@ set "psCommand="(new-object -COM 'Shell.Application')^
 for /f "usebackq delims=" %%I in (`powershell %psCommand%`) do set "BOOST_ROOT_PATH=%%I"
 if NOT DEFINED BOOST_ROOT_PATH (goto failure)
 
-::Substitute backslashes to forward slashes
-set FWD_SLASH_OPENCV_ROOT_PATH=%OPENCV_ROOT_PATH:\=/%
-
 :: Write out the paths to a config batch file
 del SetBuildVars_x64.bat
 echo @echo off >> SetBuildVars_x64.bat
-echo set OPENCV_BUILD_PATH=%FWD_SLASH_OPENCV_ROOT_PATH%/build >> SetBuildVars_x64.bat
 echo set BOOST_ROOT_PATH=%BOOST_ROOT_PATH% >> SetBuildVars_x64.bat
 echo set BOOST_LIB_PATH=%BOOST_ROOT_PATH%/lib64-msvc-14.0 >> SetBuildVars_x64.bat
 

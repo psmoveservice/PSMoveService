@@ -52,7 +52,6 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         -DBUILD_SHARED_LIBS:BOOL=OFF
         -DBUILD_DOCS:BOOL=OFF
         -DBUILD_EXAMPLES:BOOL=OFF
-        -DBUILD_PACKAGE:BOOL=OFF
         -DBUILD_TESTS:BOOL=OFF
         -DBUILD_PERF_TESTS:BOOL=OFF
         #-DCMAKE_BUILD_TYPE:STRING=Release
@@ -61,7 +60,6 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         -DWITH_JASPER:BOOL=OFF
         -DWITH_TIFF:BOOL=OFF
         -DWITH_IPP:BOOL=OFF
-        -DBUILD_NEW_PYTHON_SUPPORT:BOOL=OFF
         -DBUILD_opencv_apps:BOOL=OFF
         -DBUILD_opencv_calib3d:BOOL=ON
         -DBUILD_opencv_flann:BOOL=ON
@@ -74,6 +72,7 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         -DBUILD_opencv_java:BOOL=OFF
         -DBUILD_opencv_python2:BOOL=OFF
         -DBUILD_opencv_python3:BOOL=OFF
+        -DPYTHON2_LIBRARY:STRING=C:/Python27/libs/python27.lib
       INSTALL_DIR ${ROOT_DIR}/deps/local/
     )
     
