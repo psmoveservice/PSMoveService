@@ -9,6 +9,9 @@ You can download prebuilt releases (Windows only at the moment) from the [Releas
 # Building from source
 If you want to make modifications to the service or want to debug it, you can build the project from source by following the  [Building-from-source](https://github.com/cboulay/PSMoveService/wiki/Building-from-source) instructions. Currently supported build platforms are Win10 and OS X with Linux support hopefully coming in the near future.
 
+# Getting Help
+Please start with the [wiki](https://github.com/cboulay/PSMoveService/wiki). If you can't find help with your problem then please search through the issues (especially the closed ones) to see if your problem has been addressed already. If you still find no previous mention of your issue then post a new issue.
+
 # Near Term Roadmap
  * Ongoing Stabilization of service and SteamVR plugin
  * DualShock4 Controller Support
