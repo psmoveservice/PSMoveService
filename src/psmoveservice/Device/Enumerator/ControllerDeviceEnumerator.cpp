@@ -114,7 +114,7 @@ bool ControllerDeviceEnumerator::next()
 
         // If there are more device types to scan
         // move on to the next vid/pid device enumeration
-        if (!foundValid)
+        if (!foundValid && cur_dev == nullptr)
         {
             m_deviceType = static_cast<CommonDeviceState::eDeviceType>(m_deviceType + 1);
 
