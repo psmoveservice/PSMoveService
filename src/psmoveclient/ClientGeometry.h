@@ -99,6 +99,8 @@ struct CLIENTPSMOVEAPI PSMovePosition
 
     PSMoveFloatVector3 toPSMoveFloatVector3() const;
     PSMoveFloatVector3 operator - (const PSMovePosition &other) const;
+	PSMovePosition operator + (const PSMoveFloatVector3 &v) const;
+	PSMovePosition operator - (const PSMoveFloatVector3 &v) const;
     PSMovePosition operator * (const float s) const;
 };
 
@@ -122,9 +124,14 @@ struct CLIENTPSMOVEAPI PSMoveQuaternion
     static PSMoveQuaternion create(float w, float x, float y, float z);
 
     PSMoveQuaternion operator + (const PSMoveQuaternion &other) const;
+	PSMoveQuaternion operator * (const PSMoveQuaternion &other) const;
 
     PSMoveQuaternion unsafe_divide(const float s) const;
     PSMoveQuaternion safe_divide(const float s, const PSMoveQuaternion &default_result) const;
+	PSMoveQuaternion inverse() const;
+	static PSMoveQuaternion concat(const PSMoveQuaternion &first, const PSMoveQuaternion &second);
+	PSMoveFloatVector3 rotate_vector(const PSMoveFloatVector3 &v) const;
+	PSMovePosition rotate_position(const PSMovePosition &v) const;
 
     float length() const;
     PSMoveQuaternion &normalize_with_default(const PSMoveQuaternion &default_result);
@@ -138,6 +145,7 @@ struct CLIENTPSMOVEAPI PSMoveMatrix3x3
         const PSMoveFloatVector3 &basis_x, 
         const PSMoveFloatVector3 &basis_y,
         const PSMoveFloatVector3 &basis_z);
+	static PSMoveMatrix3x3 create(const PSMoveQuaternion &q);
 
     PSMoveFloatVector3 basis_x() const;
     PSMoveFloatVector3 basis_y() const;
@@ -150,6 +158,10 @@ struct CLIENTPSMOVEAPI PSMovePose
     PSMoveQuaternion Orientation;
 
     void Clear();
+	PSMovePose inverse() const;
+	static PSMovePose concat(const PSMovePose &first, const PSMovePose &second);
+	PSMovePosition apply_transform(const PSMovePosition &p) const;
+	PSMovePosition apply_inverse_transform(const PSMovePosition &p) const;
 };
 
 struct CLIENTPSMOVEAPI PSMoveFrustum
