@@ -265,70 +265,93 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
         for (int tracker_id = 0; tracker_id < tracker_manager->getMaxDevices(); ++tracker_id)
         {
             ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-            ControllerOpticalPoseEstimation &poseEstimate = m_tracker_pose_estimation[tracker_id];
+            ControllerOpticalPoseEstimation &trackerPoseEstimateRef = m_tracker_pose_estimation[tracker_id];
+
+            const bool bWasTracking= trackerPoseEstimateRef.bCurrentlyTracking;
+
+            // Assume we're going to lose tracking this frame
+            trackerPoseEstimateRef.bCurrentlyTracking = false;
 
             if (tracker->getIsOpen())
             {
-                if (tracker->getHasUnpublishedState())
+                // See how long it's been since we got a new video frame
+                const std::chrono::time_point<std::chrono::high_resolution_clock> now= 
+                    std::chrono::high_resolution_clock::now();
+                const std::chrono::duration<float, std::milli> timeSinceNewDataMillis= 
+                    now - tracker->getLastNewDataTimestamp();
+                const float timeoutMilli= 
+                    static_cast<float>(DeviceManager::getInstance()->m_tracker_manager->getConfig().optical_tracking_timeout);
+
+                // Can't compute tracking on video data that's too old
+                if (timeSinceNewDataMillis.count() < timeoutMilli)
                 {
-                    CommonDevicePose poseGuess= {poseEstimate.position, poseEstimate.orientation};
+                    // Initially the newTrackerPoseEstimate is a copy of the existing pose
+                    bool bIsVisibleThisUpdate= false;
 
-                    if (tracker->computePoseForController(
-                            this, 
-                            poseEstimate.bOrientationValid ? &poseGuess : nullptr,
-                            &poseEstimate))
+                    // If a new video frame is available this tick, 
+                    // attempt to update the tracking location
+                    if (tracker->getHasUnpublishedState())
                     {
-                        const float tracker_screen_area= 
-                            m_tracker_pose_estimation[tracker_id].projection.screen_area;
+                        ControllerOpticalPoseEstimation newTrackerPoseEstimate= trackerPoseEstimateRef;
+                        CommonDevicePose poseGuess= {trackerPoseEstimateRef.position, trackerPoseEstimateRef.orientation};
 
-                        // Sum up the tracking screen area over all of the trackers that can see the controller
-                        screen_area_sum+= tracker_screen_area;
-
-                        // Flag that this tracker has a valid pose estimate for this controller
-                        poseEstimate.bCurrentlyTracking = true;
-                        poseEstimate.last_visible_timestamp = now;
-
-                        // If this tracker has a valid position for the controller
-                        // add it to the tracker id list
-                        valid_position_tracker_ids[positions_found] = tracker_id;
-                        ++positions_found;
-
-                        // If the pose has a valid tracker relative orientation,
-                        // convert the orientation to world space and add it
-                        // to a weighted list of orientations
-                        if (m_tracker_pose_estimation[tracker_id].bOrientationValid)
+                        if (tracker->computePoseForController(
+                                this, 
+                                trackerPoseEstimateRef.bOrientationValid ? &poseGuess : nullptr,
+                                &newTrackerPoseEstimate))
                         {
-                            const CommonDeviceQuaternion &tracker_relative_quaternion = 
-                                m_tracker_pose_estimation[tracker_id].orientation;
-                            const CommonDeviceQuaternion &world_quaternion =
-                                tracker->computeWorldOrientation(&tracker_relative_quaternion);
-                            const Eigen::Quaternionf eigen_quaternion(
-                                world_quaternion.w, world_quaternion.x, world_quaternion.y, world_quaternion.z);
+                            bIsVisibleThisUpdate= true;
 
-                            controller_world_orientations[orientations_found]= eigen_quaternion;
-                            controller_orientation_weights[orientations_found]= tracker_screen_area;
-                            ++orientations_found;
+                            trackerPoseEstimateRef= newTrackerPoseEstimate;
+                            trackerPoseEstimateRef.last_visible_timestamp = now;
                         }
                     }
-                    else
+
+                    // If the position estimate isn't too old (or updated this tick), 
+                    // say we have a valid tracked location
+                    if (bWasTracking || bIsVisibleThisUpdate)
                     {
-                        poseEstimate.bCurrentlyTracking = false;
-                    }
-                }
-                else
-                {
-                    // Keep using the pose from the last visible frame
-                    if (poseEstimate.bCurrentlyTracking)
-                    {
-                        valid_position_tracker_ids[positions_found] = tracker_id;
-                        ++positions_found;
+                        const std::chrono::duration<float, std::milli> timeSinceLastVisibleMillis= 
+                            now - trackerPoseEstimateRef.last_visible_timestamp;
+
+                        if (timeSinceLastVisibleMillis.count() < timeoutMilli)
+                        {
+                            const float tracker_screen_area= trackerPoseEstimateRef.projection.screen_area;
+
+                            // Sum up the tracking screen area over all of the trackers that can see the controller
+                            screen_area_sum+= tracker_screen_area;
+
+                            // If this tracker has a valid position for the controller
+                            // add it to the tracker id list
+                            valid_position_tracker_ids[positions_found] = tracker_id;
+                            ++positions_found;
+
+                            // If the pose has a valid tracker relative orientation,
+                            // convert the orientation to world space and add it
+                            // to a weighted list of orientations
+                            if (trackerPoseEstimateRef.bOrientationValid)
+                            {
+                                const CommonDeviceQuaternion &tracker_relative_quaternion = trackerPoseEstimateRef.orientation;
+                                const CommonDeviceQuaternion &world_quaternion =
+                                    tracker->computeWorldOrientation(&tracker_relative_quaternion);
+                                const Eigen::Quaternionf eigen_quaternion(
+                                    world_quaternion.w, world_quaternion.x, world_quaternion.y, world_quaternion.z);
+
+                                controller_world_orientations[orientations_found]= eigen_quaternion;
+                                controller_orientation_weights[orientations_found]= tracker_screen_area;
+                                ++orientations_found;
+                            }
+
+                            // Flag this pose estimate as invalid
+                            trackerPoseEstimateRef.bCurrentlyTracking = true;
+                        }
                     }
                 }
             }
 
             // Keep track of the last time the position estimate was updated
-            poseEstimate.last_update_timestamp = now;
-            poseEstimate.bValidTimestamps = true;
+            trackerPoseEstimateRef.last_update_timestamp = now;
+            trackerPoseEstimateRef.bValidTimestamps = true;
         }
 
         // If multiple trackers can see the controller, 

@@ -82,7 +82,8 @@ bool ServerDeviceView::poll()
         case IDeviceInterface::_PollResultSuccessNewData:
             {
                 m_pollNoDataCount= 0;
-                
+                m_lastNewDataTimestamp= std::chrono::high_resolution_clock::now();
+
                 // If we got new sensor data, then we have new state to publish
                 markStateAsUnpublished();
 

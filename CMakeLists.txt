@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 project(PSMoveService VERSION 0.0.1)
+include(ExternalProject)
+
+set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 IF (NOT MSVC)
@@ -30,15 +33,72 @@ endif()
 
 # When not using MSVC, we recommend using system-wide libraries
 # (installed via homebrew on Mac or apt-get in Linux/Ubuntu)
-# In MSVC, we recommend downloading pre-compiled binaries where
-# possible, and building Protobuf yourself (see README.md)
+# In MSVC, we auto-download the source and make it an external_project
 
 # OpenCV
 # Override by adding "-DOpenCV_DIR=C:\path\to\opencv\build" to your cmake command
 IF(NOT OpenCV_DIR)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    # Default location of pre-compiled OpenCV for Windows
-    set(OpenCV_DIR "C:/OpenCV-3.1.0/build")# CACHE PATH "Path to OpenCV" FORCE)
+    ExternalProject_Add(opencv
+      PREFIX ${ROOT_DIR}/deps/opencv
+      GIT_REPOSITORY https://github.com/opencv/opencv.git
+      GIT_TAG 3.1.0
+      CMAKE_GENERATOR ${gen}
+      CMAKE_ARGS
+        -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+        -DCMAKE_INCLUDE_PATH=${ROOT_DIR}/deps/local/include        
+        -DCMAKE_LIBRARY_PATH=${ROOT_DIR}/deps/local/lib                
+        -DBUILD_WITH_STATIC_CRT:BOOL=ON
+        -DBUILD_SHARED_LIBS:BOOL=OFF
+        -DBUILD_DOCS:BOOL=OFF
+        -DBUILD_EXAMPLES:BOOL=OFF
+        -DBUILD_PACKAGE:BOOL=OFF
+        -DBUILD_TESTS:BOOL=OFF
+        -DBUILD_PERF_TESTS:BOOL=OFF
+        #-DCMAKE_BUILD_TYPE:STRING=Release
+        -DWITH_FFMPEG:BOOL=OFF       
+        -DWITH_OPENEXR:BOOL=OFF
+        -DWITH_JASPER:BOOL=OFF
+        -DWITH_TIFF:BOOL=OFF
+        -DWITH_IPP:BOOL=OFF
+        -DBUILD_NEW_PYTHON_SUPPORT:BOOL=OFF
+        -DBUILD_opencv_apps:BOOL=OFF
+        -DBUILD_opencv_calib3d:BOOL=ON
+        -DBUILD_opencv_flann:BOOL=ON
+        -DBUILD_opencv_features2d:BOOL=ON
+        -DBUILD_opencv_objdetect:BOOL=ON
+        -DBUILD_opencv_photo:BOOL=ON
+        -DBUILD_opencv_ts:BOOL=OFF
+        -DBUILD_opencv_ml:BOOL=ON
+        -DBUILD_opencv_video:BOOL=ON
+        -DBUILD_opencv_java:BOOL=OFF
+        -DBUILD_opencv_python2:BOOL=OFF
+        -DBUILD_opencv_python3:BOOL=OFF
+      INSTALL_DIR ${ROOT_DIR}/deps/local/
+    )
+    
+    add_definitions(-DHAS_OPENCV)
+
+    set(OpenCV_DIR ${ROOT_DIR}/deps/local)
+    set(OpenCV_INCLUDE_DIRS ${ROOT_DIR}/deps/local/include )    
+    if (${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8)
+        set(OPENCV_LIBS_DIR ${ROOT_DIR}/deps/local/x64/vc14/staticlib)
+    else()
+        set(OPENCV_LIBS_DIR ${ROOT_DIR}/deps/local/x86/vc14/staticlib)
+    endif()    
+    
+    foreach(__CVLIB core calib3d features2d imgproc imgcodecs ml highgui objdetect video videoio)
+        set(OpenCV_${__CVLIB}_LIBRARY debug ${OPENCV_LIBS_DIR}/opencv_${__CVLIB}310d.lib optimized ${OPENCV_LIBS_DIR}/opencv_${__CVLIB}310.lib CACHE STRING "" FORCE)
+        set(OpenCV_LIBS ${OpenCV_LIBS} ${OpenCV_${__CVLIB}_LIBRARY})
+    endforeach(__CVLIB)    
+
+    foreach(__CVLIB libjpeg libpng libwebp zlib)
+        set(OpenCV_${__CVLIB}_LIBRARY debug ${OPENCV_LIBS_DIR}/${__CVLIB}d.lib optimized ${OPENCV_LIBS_DIR}/${__CVLIB}.lib CACHE STRING "" FORCE)
+        set(OpenCV_LIBS ${OpenCV_LIBS} ${OpenCV_${__CVLIB}_LIBRARY})
+    endforeach(__CVLIB)     
+    
+    LIST(APPEND OpenCV_LIBS vfw32.lib)
+    
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # Location of homebrew opencv3
     # Alternatively, can do `brew ln opencv3 --force`
@@ -46,14 +106,15 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(OpenCV_DIR "/usr/local/Cellar/opencv3/3.1.0_1/share/OpenCV")
 ENDIF()#Windows or Darwin
 ENDIF(NOT OpenCV_DIR)
+LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})
 
 # Boost & Protobuf
 IF(MSVC)
     # Default location of pre-compiled Boost for Windows
     # Override by adding "-DBOOST_ROOT=C:\path\to\boost\ -DBOOST_LIBRARYDIR=C:\path\to\boost\lib32-msvc-14.0\" to your cmake command
     IF (NOT BOOST_ROOT)
-        SET(BOOST_ROOT "C:/boost_1_61_0/")
-        SET(BOOST_LIBRARYDIR "C:/boost_1_61_0/lib32-msvc-14.0/")
+        SET(BOOST_ROOT "C:/local/boost_1_61_0/")
+        SET(BOOST_LIBRARYDIR "C:/local/boost_1_61_0/lib32-msvc-14.0/")
     ENDIF()
     
     # Default location of protobuf for Windows
