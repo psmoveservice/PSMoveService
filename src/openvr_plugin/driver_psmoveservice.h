@@ -33,7 +33,9 @@ public:
 
     void LaunchPSMoveConfigTool();
 
+	void SetHMDTrackingSpace(const PSMovePose &origin_pose);
     inline PSMovePose GetWorldFromDriverPose() const { return m_worldFromDriverPose; }
+	bool FindFirstHMDPose(PSMovePose &out_origin_pose);
 
 private:
     void AllocateUniquePSMoveController(int ControllerID);
@@ -56,8 +58,6 @@ private:
     void HandleTrackerListReponse(const ClientPSMoveAPI::ResponsePayload_TrackerList *tracker_list);
     void HandleHMDTrackingSpaceReponse(const ClientPSMoveAPI::ResponsePayload_HMDTrackingSpace *hmdTrackingSpace);
     
-    void CheckForChordedSystemButtons();
-
     void LaunchPSMoveConfigTool( const char * pchDriverInstallDir );
 
     vr::IServerDriverHost* m_pDriverHost;
@@ -193,9 +193,10 @@ private:
     typedef void ( vr::IServerDriverHost::*ButtonUpdate )( uint32_t unWhichDevice, vr::EVRButtonId eButtonId, double eventTimeOffset );
 
     void SendButtonUpdates( ButtonUpdate ButtonEvent, uint64_t ulMask );
+	void RealignHMDTrackingSpace();
     void UpdateControllerState();
     void UpdateTrackingState();
-    void UpdateRumbleState();
+    void UpdateRumbleState();	
 
     // The last received state of a psmove controller from the service
     int m_nControllerId;

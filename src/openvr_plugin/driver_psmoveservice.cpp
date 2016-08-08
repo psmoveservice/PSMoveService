@@ -463,7 +463,13 @@ void CServerDriver_PSMoveService::HandleTrackerListReponse(
 void CServerDriver_PSMoveService::HandleHMDTrackingSpaceReponse(
     const ClientPSMoveAPI::ResponsePayload_HMDTrackingSpace *hmdTrackingSpace)
 {
-    m_worldFromDriverPose= hmdTrackingSpace->origin_pose;
+    SetHMDTrackingSpace(hmdTrackingSpace->origin_pose);
+}
+
+void CServerDriver_PSMoveService::SetHMDTrackingSpace(
+    const PSMovePose &origin_pose)
+{
+    m_worldFromDriverPose = origin_pose;
 
     // Tell all the devices that the relationship between the psmove and the OpenVR
     // tracking spaces changed
@@ -473,6 +479,36 @@ void CServerDriver_PSMoveService::HandleHMDTrackingSpaceReponse(
 
         pDevice->RefreshWorldFromDriverPose();
     }
+}
+
+bool CServerDriver_PSMoveService::FindFirstHMDPose(PSMovePose &out_origin_pose)
+{
+    bool bResult = false;
+
+    for (vr::TrackedDeviceIndex_t deviceIndex = 0; !bResult && deviceIndex < GetTrackedDeviceCount(); ++deviceIndex)
+    {
+        vr::ITrackedDeviceServerDriver *Device = GetTrackedDeviceDriver(deviceIndex);
+        vr::ETrackedPropertyError error;
+        int deviceClass = Device->GetInt32TrackedDeviceProperty(vr::Prop_DeviceClass_Int32, &error);
+        
+        if (error == vr::TrackedProp_Success && deviceClass == vr::TrackedDeviceClass_HMD)
+        {
+            vr::DriverPose_t DriverPose = Device->GetPose();
+
+            out_origin_pose.Position.x = static_cast<float>(DriverPose.vecPosition[0]);
+            out_origin_pose.Position.y = static_cast<float>(DriverPose.vecPosition[1]);
+            out_origin_pose.Position.z = static_cast<float>(DriverPose.vecPosition[2]);
+
+            out_origin_pose.Orientation.w = static_cast<float>(DriverPose.qRotation.w);
+            out_origin_pose.Orientation.x = static_cast<float>(DriverPose.qRotation.x);
+            out_origin_pose.Orientation.y = static_cast<float>(DriverPose.qRotation.y);
+            out_origin_pose.Orientation.z = static_cast<float>(DriverPose.qRotation.z);
+
+            bResult = true;
+        }
+    }
+
+    return bResult;
 }
 
 static void GenerateControllerSerialNumber( char *p, int psize, int controller )
@@ -1295,11 +1331,25 @@ void CPSMoveControllerLatest::UpdateControllerState()
             bool bStartWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Start])) > 0;
             bool bSelectWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Select])) > 0;
 
+            bool bSquareWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Square])) > 0;
+            bool bCrossWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Cross])) > 0;
+            bool bTriangleWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Triangle])) > 0;
+            bool bCircleWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Circle])) > 0;
+
             // If start and select are released at the same time, recenter the controller orientation pose 
             if (bStartWasPressed && !clientView.GetButtonStart() &&
                 bSelectWasPressed && !clientView.GetButtonSelect())
             {
                 ClientPSMoveAPI::reset_pose(m_controller_view);
+            }
+
+            // If square, cross, triangle, and circle are released at the same time, re-align the psmove tracking space with the  
+            if (bSquareWasPressed && !clientView.GetButtonSquare() &&
+                bCrossWasPressed && !clientView.GetButtonCross() &&
+                bTriangleWasPressed && !clientView.GetButtonTriangle() &&
+                bCircleWasPressed && !clientView.GetButtonCircle())
+            {
+                //RealignHMDTrackingSpace();
             }
 
             if (clientView.GetButtonCircle())
@@ -1359,7 +1409,6 @@ void CPSMoveControllerLatest::UpdateControllerState()
 
             NewState.rAxis[1].x = clientView.GetTriggerValue();
             NewState.rAxis[1].y = 0.f;
-
 
             if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x || NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
                 m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
@@ -1446,6 +1495,65 @@ void CPSMoveControllerLatest::UpdateControllerState()
     SendButtonUpdates( &vr::IServerDriverHost::TrackedDeviceButtonUntouched, ulChangedTouched & ~NewState.ulButtonTouched );
 
     m_ControllerState = NewState;
+}
+
+PSMoveQuaternion ExtractYawQuaternion(const PSMoveQuaternion &q)
+{
+    // Convert the quaternion to a basis matrix
+    const PSMoveMatrix3x3 hmd_orientation = PSMoveMatrix3x3::create(q);
+
+    // Extract the forward (z-axis) vector from the basis
+    const PSMoveFloatVector3 global_forward = PSMoveFloatVector3::create(0.f, 0.f, 1.f);
+    const PSMoveFloatVector3 &forward = hmd_orientation.basis_z();
+
+    // Compute the yaw angle (amount the z-axis has been rotated to it's current facing)
+    const float cos_yaw = PSMoveFloatVector3::dot(forward, global_forward);
+    const float half_yaw = acosf(fminf(fmaxf(cos_yaw, -1.f), 1.f)) / 2.f;
+
+    // Convert this yaw rotation back into a quaternion
+    PSMoveQuaternion yaw_quaternion =
+        PSMoveQuaternion::create(
+            cosf(half_yaw), // w = cos(theta/2)
+            0.f, sinf(half_yaw), 0.f); // (x, y, z) = sin(theta/2)*axis, where axis = (0, 1, 0)
+
+    return yaw_quaternion;
+}
+
+void CPSMoveControllerLatest::RealignHMDTrackingSpace()
+{
+    PSMovePose hmd_pose_meters;
+    if (g_ServerTrackedDeviceProvider.FindFirstHMDPose(hmd_pose_meters))
+    {
+        // Make the HMD orientation only contain a yaw
+        hmd_pose_meters.Orientation = ExtractYawQuaternion(hmd_pose_meters.Orientation);
+
+        // Get the current pose of this psmove (in meters)
+        PSMovePose psmove_pose_meters;
+        psmove_pose_meters.Position.x = static_cast<float>(m_Pose.vecPosition[0]);
+        psmove_pose_meters.Position.y = static_cast<float>(m_Pose.vecPosition[1]);
+        psmove_pose_meters.Position.z = static_cast<float>(m_Pose.vecPosition[2]);
+        psmove_pose_meters.Orientation.w = static_cast<float>(m_Pose.qRotation.w);
+        psmove_pose_meters.Orientation.x = static_cast<float>(m_Pose.qRotation.x);
+        psmove_pose_meters.Orientation.y = static_cast<float>(m_Pose.qRotation.y);
+        psmove_pose_meters.Orientation.z = static_cast<float>(m_Pose.qRotation.z);
+
+        // Make the PSMove orientation only contain a yaw
+        psmove_pose_meters.Orientation = ExtractYawQuaternion(psmove_pose_meters.Orientation);
+
+        // Create a transform that brings the psmove back to the psmove tracking space origin
+        PSMovePose psmove_pose_inv= psmove_pose_meters.inverse();
+
+        // Create a transform that goes from psmove tracking space to hmd tracking space
+        PSMovePose psm_space_to_hmd_space = PSMovePose::concat(psmove_pose_inv, hmd_pose_meters);
+
+        // Create a transform that takes the HMD pose to the PSMove origin
+        PSMovePose hmd_to_psmove_origin = PSMovePose::concat(psmove_pose_inv, psm_space_to_hmd_space);
+
+        // Compute the pose of of the HMD if it were at the PSMove Tracking Origin
+        PSMovePose hmd_at_psmove_origin_pose = PSMovePose::concat(hmd_pose_meters, hmd_to_psmove_origin);
+
+        g_ServerTrackedDeviceProvider.SetHMDTrackingSpace(hmd_at_psmove_origin_pose);
+    }
 }
 
 void CPSMoveControllerLatest::UpdateTrackingState()
@@ -1560,42 +1668,42 @@ void CPSMoveControllerLatest::UpdateTrackingState()
             }
 
             // Set rotational coordinates
-                {
-                    const PSMoveQuaternion &orientation = view.GetOrientation();
+            {
+                const PSMoveQuaternion &orientation = view.GetOrientation();
 
-                    m_Pose.qRotation.w = orientation.w;
-                    m_Pose.qRotation.x = orientation.x;
-                    m_Pose.qRotation.y = orientation.y;
-                    m_Pose.qRotation.z = orientation.z;
-                }
+                m_Pose.qRotation.w = orientation.w;
+                m_Pose.qRotation.x = orientation.x;
+                m_Pose.qRotation.y = orientation.y;
+                m_Pose.qRotation.z = orientation.z;
+            }
 
-                // Set the physics state of the controller
-                // TODO: Physics data is too noisy for the DS4 right now, causes jitter
-                {
-                    const PSMovePhysicsData &physicsData = view.GetPhysicsData();
+            // Set the physics state of the controller
+            // TODO: Physics data is too noisy for the DS4 right now, causes jitter
+            {
+                const PSMovePhysicsData &physicsData = view.GetPhysicsData();
 
-                    m_Pose.vecVelocity[0] = 0.f; // physicsData.Velocity.i * k_fScalePSMoveAPIToMeters;
-                    m_Pose.vecVelocity[1] = 0.f; // physicsData.Velocity.j * k_fScalePSMoveAPIToMeters;
-                    m_Pose.vecVelocity[2] = 0.f; // physicsData.Velocity.k * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[0] = 0.f; // physicsData.Velocity.i * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[1] = 0.f; // physicsData.Velocity.j * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[2] = 0.f; // physicsData.Velocity.k * k_fScalePSMoveAPIToMeters;
 
-                    m_Pose.vecAcceleration[0] = 0.f; // physicsData.Acceleration.i * k_fScalePSMoveAPIToMeters;
-                    m_Pose.vecAcceleration[1] = 0.f; // physicsData.Acceleration.j * k_fScalePSMoveAPIToMeters;
-                    m_Pose.vecAcceleration[2] = 0.f; // physicsData.Acceleration.k * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[0] = 0.f; // physicsData.Acceleration.i * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[1] = 0.f; // physicsData.Acceleration.j * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[2] = 0.f; // physicsData.Acceleration.k * k_fScalePSMoveAPIToMeters;
 
-                    m_Pose.vecAngularVelocity[0] = 0.f; // physicsData.AngularVelocity.i;
-                    m_Pose.vecAngularVelocity[1] = 0.f; // physicsData.AngularVelocity.j;
-                    m_Pose.vecAngularVelocity[2] = 0.f; // physicsData.AngularVelocity.k;
+                m_Pose.vecAngularVelocity[0] = 0.f; // physicsData.AngularVelocity.i;
+                m_Pose.vecAngularVelocity[1] = 0.f; // physicsData.AngularVelocity.j;
+                m_Pose.vecAngularVelocity[2] = 0.f; // physicsData.AngularVelocity.k;
 
-                    m_Pose.vecAngularAcceleration[0] = 0.f; // physicsData.AngularAcceleration.i;
-                    m_Pose.vecAngularAcceleration[1] = 0.f; // physicsData.AngularAcceleration.j;
-                    m_Pose.vecAngularAcceleration[2] = 0.f; // physicsData.AngularAcceleration.k;
-                }
+                m_Pose.vecAngularAcceleration[0] = 0.f; // physicsData.AngularAcceleration.i;
+                m_Pose.vecAngularAcceleration[1] = 0.f; // physicsData.AngularAcceleration.j;
+                m_Pose.vecAngularAcceleration[2] = 0.f; // physicsData.AngularAcceleration.k;
+            }
 
-                m_Pose.poseIsValid = m_controller_view->GetIsPoseValid();
+            m_Pose.poseIsValid = m_controller_view->GetIsPoseValid();
 
-                // This call posts this pose to shared memory, where all clients will have access to it the next
-                // moment they want to predict a pose.
-                m_pDriverHost->TrackedDevicePoseUpdated(m_unSteamVRTrackedDeviceId, m_Pose);
+            // This call posts this pose to shared memory, where all clients will have access to it the next
+            // moment they want to predict a pose.
+            m_pDriverHost->TrackedDevicePoseUpdated(m_unSteamVRTrackedDeviceId, m_Pose);
         } break;
     }
 }

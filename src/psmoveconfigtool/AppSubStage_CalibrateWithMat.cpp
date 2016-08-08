@@ -310,8 +310,13 @@ void AppSubStage_CalibrateWithMat::update()
                             glm::vec3 glm_forward2d = glm::normalize(glm::vec3(glm_forward.x, 0.f, glm_forward.z));
 
                             // Compute the yaw angle (amount the z-axis has been rotated to it's current facing)
-                            float cos_yaw = glm::dot(glm_forward2d, glm::vec3(0.f, 0.f, 1.f));
-                            float half_yaw = acosf(clampf(cos_yaw, -1.f, 1.f)) / 2.f;
+                            float cos_yaw = glm::dot(glm_forward2d, glm::vec3(0.f, 0.f, 1.f));						
+							float half_yaw = acosf(clampf(cos_yaw, -1.f, 1.f)) / 2.f;
+							glm::vec3 yaw_axis = glm::cross(glm::vec3(0.f, 0.f, 1.f), glm_forward2d);
+							if (glm::dot(yaw_axis, glm::vec3(0.f, 1.f, 0.f)) < 0)
+							{ 
+								half_yaw = -half_yaw;
+							}
 
                             // Convert this yaw rotation back into a quaternion
                             m_hmdTrackerPoseContext.avgHMDWorldSpaceOrientation =
