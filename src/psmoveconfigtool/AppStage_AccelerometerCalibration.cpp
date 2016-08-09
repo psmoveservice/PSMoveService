@@ -227,7 +227,20 @@ void AppStage_AccelerometerCalibration::update()
 void AppStage_AccelerometerCalibration::render()
 {
     const float modelScale = 18.f;
-    glm::mat4 controllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale));
+    glm::mat4 controllerTransform;
+
+    switch(m_controllerView->GetControllerViewType())
+    {
+    case ClientControllerView::PSMove:
+		controllerTransform= 
+			glm::rotate(
+				glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale)),
+				90.f, glm::vec3(1.f, 0.f, 0.f));  
+        break;
+    case ClientControllerView::PSDualShock4:
+        controllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale));
+        break;
+    }
 
     switch (m_menuState)
     {
@@ -348,7 +361,15 @@ void AppStage_AccelerometerCalibration::renderUI()
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            ImGui::Text("Lay the controller flat on the table face up");
+			switch(m_controllerView->GetControllerViewType())
+			{
+			case ClientControllerView::PSMove:
+				ImGui::Text("Stand the controller on a level surface with the Move button facing you");
+				break;
+			case ClientControllerView::PSDualShock4:
+				ImGui::Text("Lay the controller flat on the table face up");
+				break;
+			}
 
             if (ImGui::Button("Start Sampling"))
             {
