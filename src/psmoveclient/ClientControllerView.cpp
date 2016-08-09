@@ -576,7 +576,7 @@ void ClientPSDualShock4View::Publish(
     psmove_state->set_led_g(this->LED_g);
     psmove_state->set_led_b(this->LED_b);
     psmove_state->set_big_rumble_value(this->BigRumble);
-    psmove_state->set_big_rumble_value(this->SmallRumble);
+    psmove_state->set_small_rumble_value(this->SmallRumble);
 
     bHasUnpublishedState = false;
 }

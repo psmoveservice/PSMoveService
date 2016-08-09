@@ -711,7 +711,7 @@ public:
 
     inline float GetRightTriggerValue() const
     {
-        return IsValid() ? LeftTriggerValue : 0.f;
+        return IsValid() ? RightTriggerValue : 0.f;
     }
 
     inline float GetBigRumble() const
