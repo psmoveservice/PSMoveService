@@ -30,7 +30,6 @@ AppStage_TrackerSettings::AppStage_TrackerSettings(App *app)
 void AppStage_TrackerSettings::enter()
 {
     m_app->setCameraType(_cameraFixed);
-    m_selectedTrackerIndex = -1;
 
     request_tracker_list();
 }
@@ -265,8 +264,6 @@ void AppStage_TrackerSettings::request_tracker_list()
     if (m_menuState != AppStage_TrackerSettings::pendingTrackerListRequest)
     {
         m_menuState = AppStage_TrackerSettings::pendingTrackerListRequest;
-        m_selectedTrackerIndex = -1;
-        m_trackerInfos.clear();
 
         // Tell the psmove service that we we want a list of trackers connected to this machine
         ClientPSMoveAPI::register_callback(
@@ -287,6 +284,10 @@ void AppStage_TrackerSettings::handle_tracker_list_response(
         {
             assert(response_message->payload_type == ClientPSMoveAPI::_responsePayloadType_TrackerList);
             const ClientPSMoveAPI::ResponsePayload_TrackerList &tracker_list= response_message->payload.tracker_list;
+			int oldSelectedTrackerIndex= thisPtr->m_selectedTrackerIndex;
+
+			thisPtr->m_selectedTrackerIndex = -1;
+			thisPtr->m_trackerInfos.clear();
 
             for (int tracker_index = 0; tracker_index < tracker_list.count; ++tracker_index)
             {
@@ -295,7 +296,19 @@ void AppStage_TrackerSettings::handle_tracker_list_response(
                 thisPtr->m_trackerInfos.push_back(TrackerInfo);
             }
 
-            thisPtr->m_selectedTrackerIndex = (thisPtr->m_trackerInfos.size() > 0) ? 0 : -1;
+			if (oldSelectedTrackerIndex != -1)
+			{
+				// Maintain the same position in the list if possible
+				thisPtr->m_selectedTrackerIndex= 
+					(oldSelectedTrackerIndex < thisPtr->m_trackerInfos.size()) 
+					? oldSelectedTrackerIndex
+					: 0;
+			}
+			else
+			{
+	            thisPtr->m_selectedTrackerIndex= (thisPtr->m_trackerInfos.size() > 0) ? 0 : -1;
+			}
+
             thisPtr->m_menuState = AppStage_TrackerSettings::idle;
         } break;
 

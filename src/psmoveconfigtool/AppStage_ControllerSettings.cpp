@@ -40,7 +40,6 @@ AppStage_ControllerSettings::AppStage_ControllerSettings(App *app)
 void AppStage_ControllerSettings::enter()
 {
     m_app->setCameraType(_cameraFixed);
-    m_selectedControllerIndex= -1;
 
     request_controller_list();
 }
@@ -402,9 +401,6 @@ void AppStage_ControllerSettings::request_controller_list()
     if (m_menuState != AppStage_ControllerSettings::pendingControllerListRequest)
     {
         m_menuState= AppStage_ControllerSettings::pendingControllerListRequest;
-        m_selectedControllerIndex= -1;
-        m_bluetoothControllerInfos.clear();
-        m_usbControllerInfos.clear();
 
         // Tell the psmove service that we we want a list of controllers connected to this machine
         RequestPtr request(new PSMoveProtocol::Request());
@@ -433,8 +429,12 @@ void AppStage_ControllerSettings::handle_controller_list_response(
         case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
             const PSMoveProtocol::Response *response= GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+			int oldSelectedControllerIndex= thisPtr->m_selectedControllerIndex;
 
             thisPtr->m_hostSerial = response->result_controller_list().host_serial();
+			thisPtr->m_selectedControllerIndex= -1;
+			thisPtr->m_bluetoothControllerInfos.clear();
+			thisPtr->m_usbControllerInfos.clear();
 
             for (int controller_index= 0; controller_index < response->result_controller_list().controllers_size(); ++controller_index)
             {
@@ -482,7 +482,19 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 }
             }
 
-            thisPtr->m_selectedControllerIndex= (thisPtr->m_bluetoothControllerInfos.size() > 0) ? 0 : -1;
+			if (oldSelectedControllerIndex != -1)
+			{
+				// Maintain the same position in the list if possible
+				thisPtr->m_selectedControllerIndex= 
+					(oldSelectedControllerIndex < thisPtr->m_bluetoothControllerInfos.size()) 
+					? oldSelectedControllerIndex
+					: 0;
+			}
+			else
+			{
+	            thisPtr->m_selectedControllerIndex= (thisPtr->m_bluetoothControllerInfos.size() > 0) ? 0 : -1;
+			}
+
             thisPtr->m_menuState= AppStage_ControllerSettings::idle;
         } break;
 
