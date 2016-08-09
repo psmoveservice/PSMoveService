@@ -59,6 +59,9 @@ public:
     const TextureAsset *getPSMoveTextureAsset()
     { return &m_psmoveTexture; }
 
+    const TextureAsset *getPSDualShock4TextureAsset()
+    { return &m_psdualshock4Texture; }
+
     const TextureAsset *getPSNaviTextureAsset()
     { return &m_psnaviTexture; }
 
@@ -73,6 +76,7 @@ private:
     TextureAsset m_dk2Texture;
     TextureAsset m_psmoveTexture;
     TextureAsset m_psnaviTexture;
+    TextureAsset m_psdualshock4Texture;
 
     // Font Rendering
     FontAsset m_defaultFont;

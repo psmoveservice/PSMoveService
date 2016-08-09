@@ -6,9 +6,10 @@
 #include "ControllerManager.h"
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
-#include "MathEigen.h"
 #include "OrientationFilter.h"
+#include "PositionFilter.h"
 #include "PS3EyeTracker.h"
+#include "PSDualShock4Controller.h"
 #include "PSMoveController.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerControllerView.h"
@@ -199,6 +200,14 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION:
                 response = new PSMoveProtocol::Response;
                 handle_request__set_magnetometer_calibration(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_SET_ACCELEROMETER_CALIBRATION:
+                response = new PSMoveProtocol::Response;
+                handle_request__set_accelerometer_calibration(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_SET_GYROSCOPE_CALIBRATION:
+                response = new PSMoveProtocol::Response;
+                handle_request__set_gyroscope_calibration(context, response);
                 break;
 
             // Tracker Requests
@@ -452,6 +461,9 @@ protected:
                 case CommonControllerState::PSNavi:
                     controller_info->set_controller_type(PSMoveProtocol::PSNAVI);
                     break;
+                case CommonControllerState::PSDualShock4:
+                    controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
+                    break;
                 default:
                     assert(0 && "Unhandled controller type");
                 }
@@ -498,6 +510,7 @@ protected:
                 streamInfo.include_position_data = request.include_position_data();
                 streamInfo.include_physics_data = request.include_physics_data();
                 streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
+                streamInfo.include_calibrated_sensor_data = request.include_calibrated_sensor_data();
                 streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
 
                 if (streamInfo.include_position_data)
@@ -705,7 +718,8 @@ protected:
 
         if (ControllerView && 
             ControllerView->getIsBluetooth() &&
-            ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+            (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove ||
+             ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4))
         {
             // Give up control of our existing tracking color
             const eCommonTrackingColorID eOldColorID = ControllerView->getTrackingColorID();
@@ -728,11 +742,13 @@ protected:
         }
     }
 
-    inline void set_magnetometer_config_vector(
+    inline void set_config_vector(
         const PSMoveProtocol::FloatVector &source_vector,
-        Eigen::Vector3f &target_vector)
+        CommonDeviceVector &target_vector)
     {
-        target_vector = Eigen::Vector3f(source_vector.i(), source_vector.j(), source_vector.k());
+        target_vector.i = source_vector.i();
+        target_vector.j = source_vector.j();
+        target_vector.k = source_vector.k();
     }
 
     void handle_request__set_magnetometer_calibration(
@@ -751,27 +767,127 @@ protected:
             const PSMoveProtocol::Request_RequestSetMagnetometerCalibration &request= 
                 context.request->set_magnetometer_calibration_request();
 
-            set_magnetometer_config_vector(request.ellipse_center(), config->magnetometer_ellipsoid.center);
-            set_magnetometer_config_vector(request.ellipse_extents(), config->magnetometer_ellipsoid.extents);
-            set_magnetometer_config_vector(request.magnetometer_identity(), config->magnetometer_identity);
-            config->magnetometer_ellipsoid.error = request.ellipse_fit_error();
+            set_config_vector(request.ellipse_center(), config->magnetometer_center);
+            set_config_vector(request.ellipse_extents(), config->magnetometer_extents);
+            set_config_vector(request.magnetometer_identity(), config->magnetometer_identity);
+            config->magnetometer_error = request.ellipse_fit_error();
 
             {
-                Eigen::Vector3f basis_x, basis_y, basis_z;
+                CommonDeviceVector basis_x, basis_y, basis_z;
 
-                set_magnetometer_config_vector(request.ellipse_basis_x(), basis_x);
-                set_magnetometer_config_vector(request.ellipse_basis_y(), basis_y);
-                set_magnetometer_config_vector(request.ellipse_basis_z(), basis_z);
+                set_config_vector(request.ellipse_basis_x(), basis_x);
+                set_config_vector(request.ellipse_basis_y(), basis_y);
+                set_config_vector(request.ellipse_basis_z(), basis_z);
 
-                config->magnetometer_ellipsoid.basis.col(0) = basis_x;
-                config->magnetometer_ellipsoid.basis.col(1) = basis_y;
-                config->magnetometer_ellipsoid.basis.col(2) = basis_z;
+                config->magnetometer_basis_x = basis_x;
+                config->magnetometer_basis_y = basis_y;
+                config->magnetometer_basis_z = basis_z;
             }
 
             config->save();
 
             // Reset the orientation filter state the calibration changed
-            ControllerView->getOrientationFilter()->resetFilterState();
+            ControllerView->getOrientationFilterMutable()->resetFilterState();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_accelerometer_calibration(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int controller_id = context.request->set_accelerometer_calibration_request().controller_id();
+
+        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        {
+            PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+            PositionFilter *positionFilter= ControllerView->getPositionFilterMutable();
+            PSMoveControllerConfig *config = controller->getConfigMutable();
+
+            const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
+                context.request->set_accelerometer_calibration_request();
+
+            // Save the noise radius in controller config
+            config->accelerometer_noise_radius= request.noise_radius();
+            config->save();
+
+            // Reset the orientation filter state the calibration changed
+            positionFilter->setAccelerometerNoiseRadius(config->accelerometer_noise_radius);
+            positionFilter->resetFilterState();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+        {
+            PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+            PositionFilter *positionFilter= ControllerView->getPositionFilterMutable();
+            PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+
+            const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
+                context.request->set_accelerometer_calibration_request();
+
+            // Save the noise radius in controller config
+            config->accelerometer_noise_radius= request.noise_radius();
+            config->save();
+
+            // Reset the orientation filter state the calibration changed
+            positionFilter->setAccelerometerNoiseRadius(config->accelerometer_noise_radius);
+            positionFilter->resetFilterState();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_gyroscope_calibration(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int controller_id = context.request->set_gyroscope_calibration_request().controller_id();
+
+        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+        {
+            PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+            PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+
+            const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
+                context.request->set_gyroscope_calibration_request();
+
+            config->gyro_drift= request.drift();
+            config->gyro_variance= request.variance();
+            config->save();
+
+            // Reset the orientation filter state the calibration changed
+            ControllerView->getOrientationFilterMutable()->resetFilterState();
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        {
+            PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+            PSMoveControllerConfig *config = controller->getConfigMutable();
+
+            const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
+                context.request->set_gyroscope_calibration_request();
+
+            config->gyro_drift= request.drift();
+            config->gyro_variance= request.variance();
+            config->save();
+
+            // Reset the orientation filter state the calibration changed
+            ControllerView->getOrientationFilterMutable()->resetFilterState();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -1379,7 +1495,8 @@ protected:
                         const auto &psmove_state= controllerDataPacket.psmove_state();
 
                         // Update the rumble
-                        controller_view->setControllerRumble(psmove_state.rumble_value());
+                        const float rumbleValue= static_cast<float>(psmove_state.rumble_value()) / 255.f;
+                        controller_view->setControllerRumble(rumbleValue, CommonControllerState::ChannelAll);
 
                         // Update the override led color
                         {
@@ -1413,6 +1530,45 @@ protected:
                 case CommonDeviceState::eDeviceType::PSNavi:
                     {
                         // Nothing to update...
+                    } break;
+                case CommonDeviceState::eDeviceType::PSDualShock4:
+                    {
+                        const auto &psmove_state= controllerDataPacket.psdualshock4_state();
+
+                        // Update the rumble
+                        const float bigRumbleValue= static_cast<float>(psmove_state.big_rumble_value()) / 255.f;
+                        const float smallRumbleValue= static_cast<float>(psmove_state.small_rumble_value()) / 255.f;
+                        controller_view->setControllerRumble(bigRumbleValue, CommonControllerState::ChannelLeft);
+                        controller_view->setControllerRumble(smallRumbleValue, CommonControllerState::ChannelRight);
+
+                        // Update the override led color
+                        {
+                            unsigned char r = static_cast<unsigned char>(psmove_state.led_r());
+                            unsigned char g = static_cast<unsigned char>(psmove_state.led_g());
+                            unsigned char b = static_cast<unsigned char>(psmove_state.led_b());
+
+                            // (0,0,0) is treated as clearing the override
+                            if (r == 0 && g == 0 && b == 0)
+                            {
+                                if (controller_view->getIsLEDOverrideActive())
+                                {
+                                    // Removes the over led color and restores the tracking color
+                                    // of the controller is currently being tracked
+                                    controller_view->clearLEDOverride();
+                                }
+                            }
+                            // Otherwise we are setting the override to a new color
+                            else
+                            {
+                                // Sets the bulb LED color to some new override color
+                                // If tracking was active this likely will affect controller tracking
+                                controller_view->setLEDOverride(r, g, b);
+                            }
+
+                            // Flag if the LED override is active
+                            // If the stream closes and this flag is active we'll need to clear the led override
+                            streamInfo.led_override_active= controller_view->getIsLEDOverrideActive();
+                        }
                     } break;
                 }
             }

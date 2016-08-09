@@ -1,5 +1,7 @@
 //-- inludes -----
 #include "AppStage_ControllerSettings.h"
+#include "AppStage_AccelerometerCalibration.h"
+#include "AppStage_GyroscopeCalibration.h"
 #include "AppStage_MagnetometerCalibration.h"
 #include "AppStage_MainMenu.h"
 #include "AppStage_PairController.h"
@@ -69,7 +71,8 @@ void AppStage_ControllerSettings::render()
 
                 switch(controllerInfo.ControllerType)
                 {
-                    case PSMoveProtocol::PSMOVE:
+                    case ClientControllerView::eControllerType::PSMove:
+                    case ClientControllerView::eControllerType::PSDualShock4:
                         {
                             const ControllerInfo &controllerInfo = m_bluetoothControllerInfos[m_selectedControllerIndex];
 
@@ -100,9 +103,16 @@ void AppStage_ControllerSettings::render()
                                 break;
                             }
 
-                            drawPSMoveModel(scale2RotateX90, bulb_color);
+                            if (controllerInfo.ControllerType == ClientControllerView::PSMove)
+                            {
+                                drawPSMoveModel(scale2RotateX90, bulb_color);
+                            }
+                            else
+                            {
+                                drawPSDualShock4Model(scale2RotateX90, bulb_color);
+                            }
                         } break;
-                    case PSMoveProtocol::PSNAVI:
+                    case ClientControllerView::eControllerType::PSNavi:
                         {
                             drawPSNaviModel(scale2RotateX90);
                         } break;
@@ -137,7 +147,7 @@ void AppStage_ControllerSettings::renderUI()
     case eControllerMenuState::idle:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::SetNextWindowSize(ImVec2(350, 350));
+            ImGui::SetNextWindowSize(ImVec2(350, 430));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             if (m_hostSerial.length() > 1 && m_hostSerial != "00:00:00:00:00:00")
@@ -208,13 +218,17 @@ void AppStage_ControllerSettings::renderUI()
 
                 switch(controllerInfo.ControllerType)
                 {
-                    case AppStage_ControllerSettings::PSMove:
+                    case ClientControllerView::eControllerType::PSMove:
                         {
                             ImGui::BulletText("Controller Type: PSMove");
                         } break;
-                    case AppStage_ControllerSettings::PSNavi:
+                    case ClientControllerView::eControllerType::PSNavi:
                         {
                             ImGui::BulletText("Controller Type: PSNavi");
+                        } break;
+                    case ClientControllerView::eControllerType::PSDualShock4:
+                        {
+                            ImGui::BulletText("Controller Type: PSDualShock4");
                         } break;
                     default:
                         assert(0 && "Unreachable");
@@ -226,21 +240,55 @@ void AppStage_ControllerSettings::renderUI()
                 ImGui::SameLine();
                 ImGui::TextWrapped("%s", controllerInfo.DevicePath.c_str());
 
-                if (controllerInfo.ControllerType == AppStage_ControllerSettings::PSMove)
+                if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSMove)
                 {
                     if (ImGui::Button("Calibrate Magnetometer"))
                     {
                         m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(false);
                         m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
                     }
-                }
 
-                if (controllerInfo.ControllerType == AppStage_ControllerSettings::PSMove)
-                {
+                    if (ImGui::Button("Calibrate Gyroscope"))
+                    {
+                        m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(false);
+                        m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+                    }
+
                     if (ImGui::Button("Test Orientation"))
                     {
                         m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(true);
                         m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
+                    }
+                }
+
+                if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
+                {
+                    if (ImGui::Button("Calibrate Gyroscope"))
+                    {
+                        m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(false);
+                        m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+                    }
+
+                    if (ImGui::Button("Test Orientation"))
+                    {
+                        m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(true);
+                        m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+                    }
+                }
+
+                if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSMove || 
+                    controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
+                {
+                    if (ImGui::Button("Calibrate Accelerometer"))
+                    {
+                        m_app->getAppStage<AppStage_AccelerometerCalibration>()->setBypassCalibrationFlag(false);
+                        m_app->setAppStage(AppStage_AccelerometerCalibration::APP_STAGE_NAME);
+                    }
+
+                    if (ImGui::Button("Test Accelerometer"))
+                    {
+                        m_app->getAppStage<AppStage_AccelerometerCalibration>()->setBypassCalibrationFlag(true);
+                        m_app->setAppStage(AppStage_AccelerometerCalibration::APP_STAGE_NAME);
                     }
 
                     if (ImGui::Button("Test Rumble"))
@@ -399,10 +447,13 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 switch(ControllerResponse.controller_type())
                 {
                 case PSMoveProtocol::PSMOVE:
-                    ControllerInfo.ControllerType= AppStage_ControllerSettings::PSMove;
+                    ControllerInfo.ControllerType = ClientControllerView::eControllerType::PSMove;
                     break;
                 case PSMoveProtocol::PSNAVI:
-                    ControllerInfo.ControllerType= AppStage_ControllerSettings::PSNavi;
+                    ControllerInfo.ControllerType = ClientControllerView::eControllerType::PSNavi;
+                    break;
+                case PSMoveProtocol::PSDUALSHOCK4:
+                    ControllerInfo.ControllerType = ClientControllerView::eControllerType::PSDualShock4;
                     break;
                 default:
                     assert(0 && "unreachable");

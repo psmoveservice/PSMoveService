@@ -39,6 +39,7 @@ cv::Matx33f psmove_matrix3x3_to_cv_mat33f(const PSMoveMatrix3x3 &in);
 // PSMoveTypes to Eigen types
 Eigen::Vector3f psmove_int_vector3_to_eigen_vector3(const PSMoveIntVector3 &v);
 Eigen::Vector3f psmove_float_vector3_to_eigen_vector3(const PSMoveFloatVector3 &v);
+Eigen::Quaternionf psmove_quaternion_to_eigen_quaternionf(const PSMoveQuaternion &q);
 
 // Eigen types to GLM types
 glm::mat3 eigen_matrix3f_to_glm_mat3(const Eigen::Matrix3f &m);

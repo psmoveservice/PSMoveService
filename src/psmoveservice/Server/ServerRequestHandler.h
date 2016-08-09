@@ -17,6 +17,7 @@ struct ControllerStreamInfo
     bool include_position_data;
     bool include_physics_data;
     bool include_raw_sensor_data;
+    bool include_calibrated_sensor_data;
     bool include_raw_tracker_data;
     bool led_override_active;
     int last_data_input_sequence_number;
@@ -26,6 +27,7 @@ struct ControllerStreamInfo
         include_position_data = false;
         include_physics_data = false;
         include_raw_sensor_data = false;
+        include_calibrated_sensor_data= false;
         include_raw_tracker_data = false;
         led_override_active = false;
         last_data_input_sequence_number = -1;

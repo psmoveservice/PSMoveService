@@ -39,6 +39,8 @@ public:
 
 private:
     void AllocateUniquePSMoveController(int ControllerID);
+    void AllocateUniquePSNaviController(int ControllerID);
+    void AllocateUniqueDualShock4Controller(int ControllerID);
     void AllocateUniquePSMoveTracker(const ClientTrackerInfo &trackerInfo);
     bool ReconnectToPSMoveService();
 
@@ -139,14 +141,27 @@ public:
     enum ePSButtonID
     {
         k_EPSButtonID_PS,
+        k_EPSButtonID_Left,
+        k_EPSButtonID_Up,
+        k_EPSButtonID_Right,
+        k_EPSButtonID_Down,
         k_EPSButtonID_Move,
-        k_EPSButtonID_Select,
-        k_EPSButtonID_Start,
+        k_EPSButtonID_Trackpad,
         k_EPSButtonID_Trigger,
         k_EPSButtonID_Triangle,
-        k_EPSButtonID_Circle,
         k_EPSButtonID_Square,
+        k_EPSButtonID_Circle,
         k_EPSButtonID_Cross,
+        k_EPSButtonID_Select,
+        k_EPSButtonID_Share,
+        k_EPSButtonID_Start,
+        k_EPSButtonID_Options,
+        k_EPSButtonID_L1,
+        k_EPSButtonID_L2,
+        k_EPSButtonID_L3,
+        k_EPSButtonID_R1,
+        k_EPSButtonID_R2,
+        k_EPSButtonID_R3,
 
         k_EPSButtonID_Count
     };
@@ -208,6 +223,9 @@ private:
         vr::IVRSettings *pSettings,
         const CPSMoveControllerLatest::ePSButtonID psButtonID,
         const vr::EVRButtonId defaultVRButtonID);
+
+    // Callbacks
+    static void start_controller_response_callback(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
 };
 
 class CPSMoveTrackerLatest : public CPSMoveTrackedDeviceLatest

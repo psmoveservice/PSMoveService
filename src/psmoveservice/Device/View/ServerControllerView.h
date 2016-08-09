@@ -9,7 +9,7 @@
 #include <chrono>
 
 // -- declarations -----
-struct ControllerPositionEstimation
+struct ControllerOpticalPoseEstimation
 {
     std::chrono::time_point<std::chrono::high_resolution_clock> last_update_timestamp;
     std::chrono::time_point<std::chrono::high_resolution_clock> last_visible_timestamp;
@@ -19,6 +19,9 @@ struct ControllerPositionEstimation
     CommonDeviceTrackingProjection projection;
     bool bCurrentlyTracking;
 
+    CommonDeviceQuaternion orientation;
+    bool bOrientationValid;
+
     inline void clear()
     {
         last_update_timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>();
@@ -27,6 +30,12 @@ struct ControllerPositionEstimation
 
         position.clear();
         bCurrentlyTracking= false;
+
+        orientation.clear();
+        bOrientationValid= false;
+
+        memset(&projection, 0, sizeof(CommonDeviceTrackingProjection));
+        projection.shape_type= eCommonTrackingProjectionType::INVALID_PROJECTION;
     }
 };
 
@@ -40,14 +49,17 @@ public:
     void close() override;
 
     // Compute pose/prediction of tracking blob+IMU state
-    void updatePositionEstimation(TrackerManager* tracker_manager);
+    void updateOpticalPoseEstimation(TrackerManager* tracker_manager);
     void updateStateAndPredict();
 
     // Registers the address of the bluetooth adapter on the host PC with the controller
     bool setHostBluetoothAddress(const std::string &address);
     
     IDeviceInterface* getDevice() const override {return m_device;}
-    inline class OrientationFilter * getOrientationFilter() { return m_orientation_filter; }
+    inline class OrientationFilter * getOrientationFilterMutable() { return m_orientation_filter; }
+    inline const class OrientationFilter * getOrientationFilter() const { return m_orientation_filter; }
+    inline class PositionFilter * getPositionFilterMutable() { return m_position_filter; }
+    inline const class PositionFilter * getPositionFilter() const { return m_position_filter; }
 
     // Estimate the given pose if the controller at some point into the future
     CommonDevicePose getFilteredPose(float time= 0.f) const;
@@ -92,7 +104,7 @@ public:
     void setTrackingColorID(eCommonTrackingColorID colorID);
 
     // Get the tracking is enabled on this controller
-    inline bool getIsTrackingEnabled() const { return m_tracking_enabled && m_multicam_position_estimation != nullptr; }
+    inline bool getIsTrackingEnabled() const { return m_tracking_enabled && m_multicam_pose_estimation != nullptr; }
 
     // Increment the position tracking listener count
     // Starts position tracking this controller if the count was zero
@@ -103,25 +115,25 @@ public:
     void stopTracking();
 
     // Get the tracking shape for the controller
-    bool getTrackingShape(CommonDeviceTrackingShape &outTrackingShape);
+    bool getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const;
 
-    // Get the position estimate relative to the given tracker id
-    inline const ControllerPositionEstimation *getTrackerPositionEstimate(int trackerId) const {
-        return (m_tracker_position_estimation != nullptr) ? &m_tracker_position_estimation[trackerId] : nullptr;
+    // Get the pose estimate relative to the given tracker id
+    inline const ControllerOpticalPoseEstimation *getTrackerPoseEstimate(int trackerId) const {
+        return (m_tracker_pose_estimation != nullptr) ? &m_tracker_pose_estimation[trackerId] : nullptr;
     }
 
-    // Get the position estimate derived from multicam positional tracking
-    inline const ControllerPositionEstimation *getMulticamPositionEstimate() const { 
-        return m_multicam_position_estimation; 
+    // Get the pose estimate derived from multicam pose tracking
+    inline const ControllerOpticalPoseEstimation *getMulticamPoseEstimate() const { 
+        return m_multicam_pose_estimation; 
     }
 
     // return true if one or more cameras saw this controller last update
     inline bool getIsCurrentlyTracking() const { 
-        return getIsTrackingEnabled() ? m_multicam_position_estimation->bCurrentlyTracking : false;
+        return getIsTrackingEnabled() ? m_multicam_pose_estimation->bCurrentlyTracking : false;
     }
 
-    // Set the rumble value between 0-255
-    bool setControllerRumble(int rumble_amount);
+    // Set the rumble value between 0.f-1.f on a channel
+    bool setControllerRumble(float rumble_amount, CommonControllerState::RumbleChannel channel);
 
 protected:
     void set_tracking_enabled_internal(bool bEnabled);
@@ -149,8 +161,8 @@ private:
     IControllerInterface *m_device;
     
     // Filter state
-    ControllerPositionEstimation *m_tracker_position_estimation; // array of size TrackerManager::k_max_devices
-    ControllerPositionEstimation *m_multicam_position_estimation;
+    ControllerOpticalPoseEstimation *m_tracker_pose_estimation; // array of size TrackerManager::k_max_devices
+    ControllerOpticalPoseEstimation *m_multicam_pose_estimation;
     class OrientationFilter *m_orientation_filter;
     class PositionFilter *m_position_filter;
     int m_lastPollSeqNumProcessed;

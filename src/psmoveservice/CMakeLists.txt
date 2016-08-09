@@ -25,7 +25,8 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     #OpenCV extra dependencies: comctl32 gdi32 ole32 setupapi ws2_32 vfw32
     #setupapi required by hidapi
-    list(APPEND PSMOVE_SERVICE_REQ_LIBS bthprops setupapi)
+    #hid required for HidD_SetOutputReport() in DualShock4 controller
+    list(APPEND PSMOVE_SERVICE_REQ_LIBS bthprops setupapi hid)
     IF(MINGW)
         #list(APPEND PSMOVE_SERVICE_REQ_LIBS stdc++)
     ENDIF(MINGW)
@@ -40,10 +41,12 @@ file(GLOB PSMOVESERVICE_CONFIG_SRC
 source_group("Config" FILES ${PSMOVESERVICE_CONFIG_SRC})
 
 file(GLOB PSMOVESERVICE_CONTROLLER_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/PSDualShock4/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/PSDualShock4/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveController/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveController/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.h"    
+    "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.h"
 )
 source_group("Controller" FILES ${PSMOVESERVICE_CONTROLLER_SRC})
 
@@ -113,6 +116,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${CMAKE_CURRENT_LIST_DIR}/OculusHMD
     ${CMAKE_CURRENT_LIST_DIR}/Platform
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig
+    ${CMAKE_CURRENT_LIST_DIR}/PSDualShock4
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveController
     ${CMAKE_CURRENT_LIST_DIR}/PSNaviController
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker

@@ -52,7 +52,6 @@ void AppSubStage_CalibrateWithHMD::exit()
 void AppSubStage_CalibrateWithHMD::update()
 {
     const ClientControllerView *ControllerView = m_parentStage->m_controllerView;
-    const ClientPSMoveView &PSMoveView = ControllerView->GetPSMoveView();
     const ClientHMDView *HMDView = m_parentStage->m_hmdView;
 
     switch (m_menuState)
@@ -76,8 +75,8 @@ void AppSubStage_CalibrateWithHMD::update()
 
                 TrackerCoregistrationData &trackerCoregData = m_trackerCoreg[trackerIndex];
                 PSMovePosition positionOnTracker;
-                if (PSMoveView.GetIsCurrentlyTracking() &&
-                    PSMoveView.GetRawTrackerData().GetPositionOnTrackerId(trackerView->getTrackerId(), positionOnTracker) &&
+                if (ControllerView->GetIsCurrentlyTracking() &&
+                    ControllerView->GetRawTrackerData().GetPositionOnTrackerId(trackerView->getTrackerId(), positionOnTracker) &&
                     trackerCoregData.poseCount < NPOSES)
                 {
                     trackerCoregData.hmd_raw_poses[trackerCoregData.poseCount] = hmdRawPose;
@@ -181,7 +180,6 @@ void AppSubStage_CalibrateWithHMD::render()
     case AppSubStage_CalibrateWithHMD::eMenuState::calibrateStepFailed:
         {
             const ClientControllerView *ControllerView = m_parentStage->m_controllerView;
-            const ClientPSMoveView &PSMoveView = ControllerView->GetPSMoveView();
             const ClientHMDView *HMDView = m_parentStage->m_hmdView;
 
             // Draw all of this data in Chaperone Space, not raw OpenVR tracking space

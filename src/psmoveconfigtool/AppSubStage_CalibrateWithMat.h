@@ -96,6 +96,7 @@ private:
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
     bool m_bForceHMDStable;
+    bool m_bForceControllerStable;
 
     HMDTrackerPoseContext m_hmdTrackerPoseContext;
     PS3EYETrackerPoseContext m_psmoveTrackerPoseContexts[PSMOVESERVICE_MAX_TRACKER_COUNT];

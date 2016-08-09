@@ -622,7 +622,7 @@ void AppStage_ColorCalibration::request_start_controller_stream()
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::start_controller_data_stream(
             m_controllerView,
-            ClientPSMoveAPI::includeRawSensorData | ClientPSMoveAPI::includeRawTrackerData),
+            ClientPSMoveAPI::defaultStreamOptions),
         AppStage_ColorCalibration::handle_start_controller_response, this);
 }
 
@@ -682,7 +682,7 @@ void AppStage_ColorCalibration::request_set_controller_tracking_color(
         assert(0 && "unreachable");
     }
 
-    m_controllerView->GetPSMoveViewMutable().SetLEDOverride(r, g, b);
+    m_controllerView->SetLEDOverride(r, g, b);
 }
 
 void AppStage_ColorCalibration::request_tracker_start_stream()
@@ -1027,10 +1027,7 @@ void AppStage_ColorCalibration::release_devices()
 
     if (m_controllerView != nullptr)
     {
-        if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
-        {
-            m_controllerView->GetPSMoveViewMutable().SetLEDOverride(0, 0, 0);
-        }
+        m_controllerView->SetLEDOverride(0, 0, 0);
 
         if (m_isControllerStreamActive)
         {

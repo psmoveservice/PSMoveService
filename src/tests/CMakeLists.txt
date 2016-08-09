@@ -29,10 +29,14 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ELSE() #Linux
 ENDIF()
 
-IF(MSVC) # Disable asio auto linking in date-time and regex
+IF(MSVC) 
+# Disable asio auto linking in date-time and regex
 add_definitions(-DBOOST_DATE_TIME_NO_LIB)
 add_definitions(-DBOOST_REGEX_NO_LIB)
+# fix: fatal error C1128: number of sections exceeded object file format limit
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 ENDIF()
+
 
 #
 # TEST_CONFIGMANAGER
@@ -229,6 +233,11 @@ list(APPEND TEST_CTRLR_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/PSMoveController)
 list(APPEND TEST_CTRLR_SRC    
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp    
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
     ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
     ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp
     ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.h

@@ -55,14 +55,28 @@ struct CLIENTPSMOVEAPI PSMovePhysicsData
 struct CLIENTPSMOVEAPI PSMoveRawSensorData
 {
     PSMoveIntVector3 Magnetometer;
+    PSMoveIntVector3 Accelerometer;
+    PSMoveIntVector3 Gyroscope;
+
+    inline void Clear()
+    {
+        Magnetometer= *k_psmove_int_vector3_zero;
+        Accelerometer = *k_psmove_int_vector3_zero;
+        Gyroscope = *k_psmove_int_vector3_zero;
+    }
+};
+
+struct CLIENTPSMOVEAPI PSMoveCalibratedSensorData
+{
+    PSMoveFloatVector3 Magnetometer;
     PSMoveFloatVector3 Accelerometer;
     PSMoveFloatVector3 Gyroscope;
 
     inline void Clear()
     {
-        Magnetometer= *k_psmove_int_vector3_zero;
-        Accelerometer= *k_psmove_float_vector3_zero;
-        Gyroscope= *k_psmove_float_vector3_zero;
+        Magnetometer = *k_psmove_float_vector3_zero;
+        Accelerometer = *k_psmove_float_vector3_zero;
+        Gyroscope = *k_psmove_float_vector3_zero;
     }
 };
 
@@ -71,6 +85,7 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
     // Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
     PSMoveScreenLocation ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMovePosition RelativePositions[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMoveQuaternion RelativeOrientations[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMoveTrackingProjection TrackingProjections[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int ValidTrackerLocations;
@@ -81,6 +96,7 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
         {
             ScreenLocations[index] = PSMoveScreenLocation::create(0, 0);
             RelativePositions[index] = *k_psmove_position_origin;
+            RelativeOrientations[index]= *k_psmove_quaternion_identity;
             TrackerIDs[index] = -1;
         }
         ValidTrackerLocations = 0;
@@ -120,6 +136,23 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
         return bFound;
     }
 
+    inline bool GetOrientationOnTrackerId(int trackerId, PSMoveQuaternion &outOrientation) const
+    {
+        bool bFound = false;
+
+        for (int listIndex = 0; listIndex < ValidTrackerLocations; ++listIndex)
+        {
+            if (TrackerIDs[listIndex] == trackerId)
+            {
+                outOrientation = RelativeOrientations[listIndex];
+                bFound = true;
+                break;
+            }
+        }
+
+        return bFound;
+    }
+
     inline bool GetProjectionOnTrackerId(int trackerId, PSMoveTrackingProjection &outProjection) const
     {
         bool bFound = false;
@@ -145,11 +178,14 @@ private:
     bool bHasValidHardwareCalibration;
     bool bIsTrackingEnabled;
     bool bIsCurrentlyTracking;
+    bool bIsOrientationValid;
+    bool bIsPositionValid;
     bool bHasUnpublishedState;
 
     PSMovePose Pose;
     PSMovePhysicsData PhysicsData;
     PSMoveRawSensorData RawSensorData;
+    PSMoveCalibratedSensorData CalibratedSensorData;
     PSMoveRawTrackerData RawTrackerData;
 
     PSMoveButtonState TriangleButton;
@@ -198,6 +234,16 @@ public:
     inline bool GetIsTrackingEnabled() const
     {
         return IsValid() ? bIsTrackingEnabled : false;
+    }
+
+    inline bool GetIsOrientationValid() const
+    {
+        return IsValid() ? bIsOrientationValid : false;
+    }
+
+    inline bool GetIsPositionValid() const
+    {
+        return IsValid() ? bIsPositionValid : false;
     }
 
     inline bool GetHasUnpublishedState() const
@@ -277,8 +323,10 @@ public:
 
     const PSMovePhysicsData &GetPhysicsData() const;
     const PSMoveRawSensorData &GetRawSensorData() const;
-    const PSMoveFloatVector3 &GetIdentityGravityCalibrationDirection() const;
+    const PSMoveCalibratedSensorData &GetCalibratedSensorData() const;
+    bool GetIsStable() const;
     bool GetIsStableAndAlignedWithGravity() const;
+
 
     const PSMoveRawTrackerData &GetRawTrackerData() const;
 };
@@ -408,6 +456,281 @@ public:
     }
 };
 
+struct CLIENTPSMOVEAPI PSDualShock4RawSensorData
+{
+    PSMoveIntVector3 Accelerometer;
+    PSMoveIntVector3 Gyroscope;
+
+    inline void Clear()
+    {
+        Accelerometer = *k_psmove_int_vector3_zero;
+        Gyroscope = *k_psmove_int_vector3_zero;
+    }
+};
+
+struct CLIENTPSMOVEAPI PSDualShock4CalibratedSensorData
+{
+    PSMoveFloatVector3 Accelerometer;
+    PSMoveFloatVector3 Gyroscope;
+
+    inline void Clear()
+    {
+        Accelerometer = *k_psmove_float_vector3_zero;
+        Gyroscope = *k_psmove_float_vector3_zero;
+    }
+};
+
+struct CLIENTPSMOVEAPI ClientPSDualShock4View
+{
+private:
+    bool bValid;
+    bool bHasValidHardwareCalibration;
+    bool bIsTrackingEnabled;
+    bool bIsCurrentlyTracking;
+    bool bIsOrientationValid;
+    bool bIsPositionValid;
+    bool bHasUnpublishedState;
+
+    PSMovePose Pose;
+    PSMovePhysicsData PhysicsData;
+    PSDualShock4RawSensorData RawSensorData;
+    PSDualShock4CalibratedSensorData CalibratedSensorData;
+    PSMoveRawTrackerData RawTrackerData;
+
+    PSMoveButtonState DPadUpButton;
+    PSMoveButtonState DPadDownButton;
+    PSMoveButtonState DPadLeftButton;
+    PSMoveButtonState DPadRightButton;
+
+    PSMoveButtonState SquareButton;
+    PSMoveButtonState CrossButton;
+    PSMoveButtonState CircleButton;
+    PSMoveButtonState TriangleButton;
+
+    PSMoveButtonState L1Button;
+    PSMoveButtonState R1Button;
+    PSMoveButtonState L2Button;
+    PSMoveButtonState R2Button;
+    PSMoveButtonState L3Button;
+    PSMoveButtonState R3Button;
+
+    PSMoveButtonState ShareButton;
+    PSMoveButtonState OptionsButton;
+
+    PSMoveButtonState PSButton;
+    PSMoveButtonState TrackPadButton;
+
+    float LeftAnalogX;
+    float LeftAnalogY;
+    float RightAnalogX;
+    float RightAnalogY;
+    float LeftTriggerValue;
+    float RightTriggerValue;
+
+    unsigned char BigRumble, SmallRumble;
+    unsigned char LED_r, LED_g, LED_b;
+
+public:
+    void Clear();
+    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
+    void Publish(PSMoveProtocol::DeviceInputDataFrame_ControllerDataPacket *data_frame);
+
+    void SetBigRumble(float rumbleFraction);
+    void SetSmallRumble(float rumbleFraction);
+    void SetLEDOverride(unsigned char red, unsigned char g, unsigned char b);
+
+    inline bool IsValid() const
+    {
+        return bValid;
+    }
+
+    inline void SetValid(bool flag)
+    {
+        bValid = flag;
+    }
+
+    inline bool GetHasValidHardwareCalibration() const
+    {
+        return IsValid() ? bHasValidHardwareCalibration : false;
+    }
+
+    inline bool GetIsCurrentlyTracking() const
+    {
+        return IsValid() ? bIsCurrentlyTracking : false;
+    }
+
+    inline bool GetIsTrackingEnabled() const
+    {
+        return IsValid() ? bIsTrackingEnabled : false;
+    }
+
+    inline bool GetIsOrientationValid() const
+    {
+        return IsValid() ? bIsOrientationValid : false;
+    }
+
+    inline bool GetIsPositionValid() const
+    {
+        return IsValid() ? bIsPositionValid : false;
+    }
+
+    inline bool GetHasUnpublishedState() const
+    {
+        return IsValid() ? bHasUnpublishedState : false;
+    }
+
+    inline const PSMovePose &GetPose() const
+    {
+        return IsValid() ? Pose : *k_psmove_pose_identity;
+    }
+
+    inline const PSMovePosition &GetPosition() const
+    {
+        return IsValid() ? Pose.Position : *k_psmove_position_origin;
+    }
+
+    inline const PSMoveQuaternion &GetOrientation() const
+    {
+        return IsValid() ? Pose.Orientation : *k_psmove_quaternion_identity;
+    }
+
+    inline PSMoveButtonState GetButtonDPadUp() const
+    {
+        return IsValid() ? DPadUpButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonDPadDown() const
+    {
+        return IsValid() ? DPadDownButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonDPadLeft() const
+    {
+        return IsValid() ? DPadLeftButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonDPadRight() const
+    {
+        return IsValid() ? DPadRightButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonSquare() const
+    {
+        return IsValid() ? SquareButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonCross() const
+    {
+        return IsValid() ? CrossButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonCircle() const
+    {
+        return IsValid() ? CircleButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonTriangle() const
+    {
+        return IsValid() ? TriangleButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonOptions() const
+    {
+        return IsValid() ? OptionsButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonShare() const
+    {
+        return IsValid() ? ShareButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonPS() const
+    {
+        return IsValid() ? PSButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonTrackpad() const
+    {
+        return IsValid() ? TrackPadButton : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonL1() const
+    {
+        return IsValid() ? L1Button : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonR1() const
+    {
+        return IsValid() ? R1Button : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonL2() const
+    {
+        return IsValid() ? L2Button : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonR2() const
+    {
+        return IsValid() ? R2Button : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonL3() const
+    {
+        return IsValid() ? L3Button : PSMoveButton_UP;
+    }
+
+    inline PSMoveButtonState GetButtonR3() const
+    {
+        return IsValid() ? R3Button : PSMoveButton_UP;
+    }
+
+    inline float GetLeftAnalogX() const
+    {
+        return IsValid() ? LeftAnalogX : 0.f;
+    }
+
+    inline float GetLeftAnalogY() const
+    {
+        return IsValid() ? LeftAnalogY : 0.f;
+    }
+
+    inline float GetRightAnalogX() const
+    {
+        return IsValid() ? RightAnalogX : 0.f;
+    }
+
+    inline float GetRightAnalogY() const
+    {
+        return IsValid() ? RightAnalogY : 0.f;
+    }
+
+    inline float GetLeftTriggerValue() const
+    {
+        return IsValid() ? LeftTriggerValue : 0.f;
+    }
+
+    inline float GetRightTriggerValue() const
+    {
+        return IsValid() ? RightTriggerValue : 0.f;
+    }
+
+    inline float GetBigRumble() const
+    {
+        return IsValid() ? static_cast<float>(BigRumble) / 255.f : 0.f;
+    }
+
+    inline float GetSmallRumble() const
+    {
+        return IsValid() ? static_cast<float>(SmallRumble) / 255.f : 0.f;
+    }
+
+    const PSMovePhysicsData &GetPhysicsData() const;
+    const PSDualShock4RawSensorData &GetRawSensorData() const;
+    const PSDualShock4CalibratedSensorData &GetCalibratedSensorData() const;
+    bool GetIsStable() const;
+    const PSMoveRawTrackerData &GetRawTrackerData() const;
+};
+
 class CLIENTPSMOVEAPI ClientControllerView
 {
 public:
@@ -415,7 +738,8 @@ public:
     {
         None= -1,
         PSMove,
-        PSNavi
+        PSNavi,
+        PSDualShock4
     };
 
 private:
@@ -423,6 +747,7 @@ private:
     {
         ClientPSMoveView PSMoveView;
         ClientPSNaviView PSNaviView;
+        ClientPSDualShock4View PSDualShock4View;
     } ViewState;
     eControllerType ControllerViewType;
 
@@ -501,6 +826,18 @@ public:
         return ViewState.PSNaviView;
     }
 
+    inline const ClientPSDualShock4View &GetPSDualShock4View() const
+    {
+        assert(ControllerViewType == PSDualShock4);
+        return ViewState.PSDualShock4View;
+    }
+
+    inline ClientPSDualShock4View &GetPSDualShock4ViewMutable()
+    {
+        assert(ControllerViewType == PSDualShock4);
+        return ViewState.PSDualShock4View;
+    }
+
     inline bool IsValid() const
     {
         return ControllerID != -1;
@@ -510,6 +847,18 @@ public:
     {
         return (IsValid() && IsConnected);
     }
+
+    const PSMovePose &GetPose() const;
+    const PSMovePosition &GetPosition() const;
+    const PSMoveQuaternion &GetOrientation() const;
+    const PSMovePhysicsData &GetPhysicsData() const;
+    const PSMoveRawTrackerData &GetRawTrackerData() const;
+
+    bool GetIsCurrentlyTracking() const;
+    bool GetIsPoseValid() const;
+    bool GetIsStable() const;
+
+    void SetLEDOverride(unsigned char r, unsigned char g, unsigned char b);
     
     // Statistics
     inline float GetDataFrameFPS() const
