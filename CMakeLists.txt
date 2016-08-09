@@ -42,6 +42,7 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     ExternalProject_Add(opencv
       PREFIX ${ROOT_DIR}/deps/opencv
       GIT_REPOSITORY https://github.com/opencv/opencv.git
+      GIT_SHALLOW 1
       GIT_TAG 3.1.0
       CMAKE_GENERATOR ${gen}
       CMAKE_ARGS
