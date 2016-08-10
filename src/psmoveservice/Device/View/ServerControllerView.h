@@ -76,6 +76,9 @@ public:
     // Returns the serial number for the controller
     std::string getSerial() const;
 
+	// Returns the "controller_" + serial number for the controller
+	std::string getConfigIdentifier() const;
+
     // Gets the host bluetooth address registered with the 
     std::string getAssignedHostBluetoothAddress() const;
 

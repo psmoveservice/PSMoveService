@@ -88,9 +88,9 @@ public:
     bool setOptionIndex(const std::string &option_name, int option_index);
     bool getOptionIndex(const std::string &option_name, int &out_option_index) const;
 
-    void gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
-    void setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset);
-    void getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
+    void gatherTrackingColorPresets(const class ServerControllerView *controller, PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
+    void setTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, const CommonHSVColorRange *preset);
+    void getTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
 
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;

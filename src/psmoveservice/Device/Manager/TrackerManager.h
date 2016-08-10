@@ -14,23 +14,21 @@
 class ServerTrackerView;
 typedef std::shared_ptr<ServerTrackerView> ServerTrackerViewPtr;
 
-//-- constants -----
-extern const CommonHSVColorRange *k_default_color_presets;
-
 //-- definitions -----
 struct TrackerProfile
 {
     float exposure;
     float gain;
-    CommonHSVColorRange color_presets[eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES];
+    CommonHSVColorRangeTable color_preset_table;
 
     inline void clear()
     {
         exposure = 0.f;
         gain = 0;
+		color_preset_table.table_name.clear();
         for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
         {
-            color_presets[preset_index].clear();
+            color_preset_table.color_presets[preset_index].clear();
         }
     }
 };

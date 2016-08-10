@@ -70,6 +70,12 @@ struct CommonHSVColorRange
     }
 };
 
+struct CommonHSVColorRangeTable
+{
+	std::string table_name;
+	CommonHSVColorRange color_presets[eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES];	
+};
+
 struct CommonDeviceVector
 {
     float i, j, k;
@@ -435,8 +441,8 @@ public:
     virtual bool setOptionIndex(const std::string &option_name, int option_index) = 0;
     virtual bool getOptionIndex(const std::string &option_name, int &out_option_index) const = 0;
 
-    virtual void gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const = 0;
-    virtual void setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset) = 0;
-    virtual void getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const = 0;
+    virtual void gatherTrackingColorPresets(const std::string &controller_serial, PSMoveProtocol::Response_ResultTrackerSettings* settings) const = 0;
+    virtual void setTrackingColorPreset(const std::string &controller_serial, eCommonTrackingColorID color, const CommonHSVColorRange *preset) = 0;
+    virtual void getTrackingColorPreset(const std::string &controller_serial, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const = 0;
 };
 #endif // DEVICE_INTERFACE_H

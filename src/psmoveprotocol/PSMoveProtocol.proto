@@ -236,6 +236,7 @@ message Request {
     // Parameters for GET_TRACKER_SETTINGS
     message RequestGetTrackerSettings {
         int32 tracker_id = 1;
+        int32 controller_id = 2;
     }
     RequestGetTrackerSettings request_get_tracker_settings = 18;
 
@@ -264,7 +265,8 @@ message Request {
     // Parameters for SET_TRACKER_COLOR_PRESET
     message RequestSetTrackerColorPreset {
         int32 tracker_id = 1;
-        TrackingColorPreset color_preset = 2;
+        int32 controller_id = 2;
+        TrackingColorPreset color_preset = 3;
     }
     RequestSetTrackerColorPreset request_set_tracker_color_preset = 22;
     
@@ -278,12 +280,14 @@ message Request {
     // Parameters for SAVE_TRACKER_PROFILE
     message RequestSaveTrackerProfile {
         int32 tracker_id = 1;
+        int32 controller_id = 2;
     }
     RequestSaveTrackerProfile request_save_tracker_profile = 24;
     
     // Parameters for APPLY_TRACKER_PROFILE
     message RequestApplyTrackerProfile {
         int32 tracker_id = 1;
+        int32 controller_id = 2;
     }
     RequestApplyTrackerProfile request_apply_tracker_profile = 25;
     

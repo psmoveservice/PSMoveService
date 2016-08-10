@@ -721,19 +721,33 @@ bool ServerTrackerView::getOptionIndex(const std::string &option_name, int &out_
     return m_device->getOptionIndex(option_name, out_option_index);
 }
 
-void ServerTrackerView::gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const
+void ServerTrackerView::gatherTrackingColorPresets(
+	const class ServerControllerView *controller, 
+	PSMoveProtocol::Response_ResultTrackerSettings* settings) const
 {
-    return m_device->gatherTrackingColorPresets(settings);
+	std::string controller_id= (controller != nullptr) ? controller->getConfigIdentifier() : "";
+
+    return m_device->gatherTrackingColorPresets(controller_id, settings);
 }
 
-void ServerTrackerView::setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset)
+void ServerTrackerView::setTrackingColorPreset(
+	const class ServerControllerView *controller,
+	eCommonTrackingColorID color, 
+	const CommonHSVColorRange *preset)
 {
-    return m_device->setTrackingColorPreset(color, preset);
+	std::string controller_id= (controller != nullptr) ? controller->getConfigIdentifier() : "";
+
+    return m_device->setTrackingColorPreset(controller_id, color, preset);
 }
 
-void ServerTrackerView::getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const
+void ServerTrackerView::getTrackingColorPreset(
+	const class ServerControllerView *controller,
+	eCommonTrackingColorID color, 
+	CommonHSVColorRange *out_preset) const
 {
-    return m_device->getTrackingColorPreset(color, out_preset);
+	std::string controller_id= (controller != nullptr) ? controller->getConfigIdentifier() : "";
+
+    return m_device->getTrackingColorPreset(controller_id, color, out_preset);
 }
 
 bool
@@ -759,7 +773,7 @@ ServerTrackerView::computePoseForController(
 
         if (tracked_color_id != eCommonTrackingColorID::INVALID_COLOR)
         {
-            getTrackingColorPreset(tracked_color_id, &hsvColorRange);
+            getTrackingColorPreset(tracked_controller, tracked_color_id, &hsvColorRange);
         }
         else
         {

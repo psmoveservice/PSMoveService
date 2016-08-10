@@ -656,6 +656,22 @@ ServerControllerView::getSerial() const
     return(m_device != nullptr) ? m_device->getSerial() : "";
 }
 
+// Returns the "controller_" + serial number for the controller
+std::string
+ServerControllerView::getConfigIdentifier() const
+{
+	std::string	identifier= "";
+
+	if (m_device != nullptr)
+	{
+		std::string	prefix= "controller_";
+		
+		identifier= prefix+m_device->getSerial();
+	}
+
+	return identifier;
+}
+
 std::string 
 ServerControllerView::getAssignedHostBluetoothAddress() const
 {

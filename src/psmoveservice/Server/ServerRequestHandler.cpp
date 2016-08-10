@@ -429,6 +429,23 @@ protected:
     }
 
     // -- Controller Requests -----
+	inline ServerControllerView *get_controller_view_or_null(int controller_id)
+	{
+		ServerControllerView *controller_view= nullptr;
+
+		if (ServerUtility::is_index_valid(controller_id, m_device_manager.getControllerViewMaxCount()))
+		{
+			ServerControllerViewPtr controller_view_ptr= m_device_manager.getControllerViewPtr(controller_id);
+			
+			if (controller_view_ptr->getIsOpen())
+			{
+				controller_view= controller_view_ptr.get();
+			}
+		}
+
+		return controller_view;
+	}
+
     void handle_request__get_controller_list(
         const RequestContext &context, 
         PSMoveProtocol::Response *response)
@@ -1096,10 +1113,13 @@ protected:
                 PSMoveProtocol::Response_ResultTrackerSettings* settings =
                     response->mutable_result_tracker_settings();
 
+				const int controller_id= context.request->request_get_tracker_settings().controller_id();
+				ServerControllerView *controller_view= get_controller_view_or_null(controller_id);
+
                 settings->set_exposure(static_cast<float>(tracker_view->getExposure()));
                 settings->set_gain(static_cast<float>(tracker_view->getGain()));
                 tracker_view->gatherTrackerOptions(settings);
-                tracker_view->gatherTrackingColorPresets(settings);
+                tracker_view->gatherTrackingColorPresets(controller_view, settings);
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -1242,6 +1262,9 @@ protected:
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
+				const int controller_id= context.request->request_set_tracker_color_preset().controller_id();
+				ServerControllerView *controller_view= get_controller_view_or_null(controller_id);
+
                 const PSMoveProtocol::TrackingColorPreset &colorPreset =
                     context.request->request_set_tracker_color_preset().color_preset();
                 const eCommonTrackingColorID colorType=
@@ -1257,13 +1280,13 @@ protected:
                     hsvColorRange.value_range.center = colorPreset.value_center();
                     hsvColorRange.value_range.range = colorPreset.value_range();
 
-                    tracker_view->setTrackingColorPreset(colorType, &hsvColorRange);
+                    tracker_view->setTrackingColorPreset(controller_view, colorType, &hsvColorRange);
                 }
 
                 // Get the resulting preset from the tracker
                 {
                     CommonHSVColorRange hsvColorRange;
-                    tracker_view->getTrackingColorPreset(colorType, &hsvColorRange);
+                    tracker_view->getTrackingColorPreset(controller_view, colorType, &hsvColorRange);
 
                     PSMoveProtocol::Response_ResultSetTrackerColorPreset *result =
                         response->mutable_result_set_tracker_color_preset();
@@ -1348,6 +1371,9 @@ protected:
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
+				const int controller_id= context.request->request_save_tracker_profile().controller_id();
+				ServerControllerView *controller_view= get_controller_view_or_null(controller_id);
+
                 TrackerProfile trackerProfile;
 
                 trackerProfile.clear();
@@ -1357,8 +1383,9 @@ protected:
                 for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
                 {
                     tracker_view->getTrackingColorPreset(
+						controller_view,
                         static_cast<eCommonTrackingColorID>(preset_index),
-                        &trackerProfile.color_presets[preset_index]);
+                        &trackerProfile.color_preset_table.color_presets[preset_index]);
                 }
 
                 m_device_manager.m_tracker_manager->saveDefaultTrackerProfile(&trackerProfile);
@@ -1389,6 +1416,9 @@ protected:
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
+				const int controller_id= context.request->request_apply_tracker_profile().controller_id();
+				ServerControllerView *controller_view= get_controller_view_or_null(controller_id);
+
                 const TrackerProfile *trackerProfile = 
                     m_device_manager.m_tracker_manager->getDefaultTrackerProfile();
     
@@ -1397,10 +1427,10 @@ protected:
                 tracker_view->setGain(trackerProfile->gain);
                 for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
                 {
-                    const CommonHSVColorRange *preset= &trackerProfile->color_presets[preset_index];
+                    const CommonHSVColorRange *preset= &trackerProfile->color_preset_table.color_presets[preset_index];
                     const eCommonTrackingColorID color_type = static_cast<eCommonTrackingColorID>(preset_index);
 
-                    tracker_view->setTrackingColorPreset(color_type, preset);
+                    tracker_view->setTrackingColorPreset(controller_view, color_type, preset);
                 }
 
                 // Send the profile application result to the client
@@ -1411,7 +1441,7 @@ protected:
                     settings->set_exposure(static_cast<float>(tracker_view->getExposure()));
                     settings->set_gain(static_cast<float>(tracker_view->getGain()));
                     tracker_view->gatherTrackerOptions(settings);
-                    tracker_view->gatherTrackingColorPresets(settings);
+                    tracker_view->gatherTrackingColorPresets(controller_view, settings);
                 }
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
