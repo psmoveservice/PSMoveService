@@ -32,3 +32,6 @@
 [submodule "thirdparty/openvr"]
 	path = thirdparty/openvr
 	url = https://github.com/ValveSoftware/openvr.git
+[submodule "thirdparty/ukf"]
+	path = thirdparty/ukf
+	url = https://github.com/sfwa/ukf.git
