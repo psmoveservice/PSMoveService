@@ -17,6 +17,11 @@
 const char *AppStage_TestRumble::APP_STAGE_NAME = "TestRumble";
 
 //-- constants -----
+
+
+//-- private methods -----
+static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform, const glm::vec3 &bulb_color);
+
 //-- public methods -----
 AppStage_TestRumble::AppStage_TestRumble(App *app)
     : AppStage(app)
@@ -74,7 +79,7 @@ void AppStage_TestRumble::update()
         } break;
     case eMenuState::idle:
         {
-            set_rumble_amount(get_trigger());
+            set_rumble_amounts(get_left_trigger(), get_right_trigger());
         } break;
     default:
         assert(0 && "unreachable");
@@ -99,10 +104,12 @@ void AppStage_TestRumble::render()
         } break;
     case eMenuState::idle:
         {
-            float rumbleAmount = get_rumble_amount();
+            float bigRumbleAmount = get_big_rumble_amount();
+			float smallRumbleAmount = get_small_rumble_amount();
 
             // Draw the psmove model in the middle
-            drawPSMoveModel(scaleAndRotateModelX90, glm::vec3(rumbleAmount, 0.f, 0.f));
+			const float red= fmaxf(bigRumbleAmount, smallRumbleAmount);
+			drawController(m_controllerView, scaleAndRotateModelX90, glm::vec3(red, 0.f, 0.f));
         } break;
     default:
         assert(0 && "unreachable");
@@ -204,7 +211,7 @@ void AppStage_TestRumble::request_exit_to_app_stage(const char *app_stage_name)
     m_app->setAppStage(app_stage_name);
 }
 
-float AppStage_TestRumble::get_trigger() const
+float AppStage_TestRumble::get_left_trigger() const
 {
     float trigger = 0.f;
 
@@ -212,18 +219,47 @@ float AppStage_TestRumble::get_trigger() const
     {
     case ClientControllerView::eControllerType::PSMove:
         {
+			// Only one trigger
             trigger = m_controllerView->GetPSMoveView().GetTriggerValue();
         } break;
     case ClientControllerView::eControllerType::PSNavi:
         {
             trigger = 0.f;
         } break;
+    case ClientControllerView::eControllerType::PSDualShock4:
+        {
+            trigger = m_controllerView->GetPSDualShock4View().GetLeftTriggerValue();
+        } break;
     }
 
     return trigger;
 }
 
-float AppStage_TestRumble::get_rumble_amount() const
+float AppStage_TestRumble::get_right_trigger() const
+{
+    float trigger = 0.f;
+
+    switch (m_controllerView->GetControllerViewType())
+    {
+    case ClientControllerView::eControllerType::PSMove:
+        {
+			// Only one trigger
+            trigger = m_controllerView->GetPSMoveView().GetTriggerValue();
+        } break;
+    case ClientControllerView::eControllerType::PSNavi:
+        {
+            trigger = 0.f;
+        } break;
+    case ClientControllerView::eControllerType::PSDualShock4:
+        {
+            trigger = m_controllerView->GetPSDualShock4View().GetRightTriggerValue();
+        } break;
+    }
+
+    return trigger;
+}
+
+float AppStage_TestRumble::get_big_rumble_amount() const
 {
     float rumble = 0.f;
 
@@ -231,29 +267,83 @@ float AppStage_TestRumble::get_rumble_amount() const
     {
     case ClientControllerView::eControllerType::PSMove:
         {
+			// Only one rumble
             rumble = m_controllerView->GetPSMoveView().GetRumble();
         } break;
     case ClientControllerView::eControllerType::PSNavi:
         {
             rumble = 0.f;
         } break;
+    case ClientControllerView::eControllerType::PSDualShock4:
+        {
+            rumble = m_controllerView->GetPSDualShock4View().GetBigRumble();
+        } break;
     }
 
     return rumble;
 }
 
-void AppStage_TestRumble::set_rumble_amount(float rumble)
+float AppStage_TestRumble::get_small_rumble_amount() const
+{
+    float rumble = 0.f;
+
+    switch (m_controllerView->GetControllerViewType())
+    {
+    case ClientControllerView::eControllerType::PSMove:
+        {
+			// Only one rumble
+            rumble = m_controllerView->GetPSMoveView().GetRumble();
+        } break;
+    case ClientControllerView::eControllerType::PSNavi:
+        {
+            rumble = 0.f;
+        } break;
+    case ClientControllerView::eControllerType::PSDualShock4:
+        {
+            rumble = m_controllerView->GetPSDualShock4View().GetSmallRumble();
+        } break;
+    }
+
+    return rumble;
+}
+
+void AppStage_TestRumble::set_rumble_amounts(float big_rumble, float small_rumble)
 {
     switch (m_controllerView->GetControllerViewType())
     {
     case ClientControllerView::eControllerType::PSMove:
         {
-            m_controllerView->GetPSMoveViewMutable().SetRumble(rumble);
-            m_controllerView->GetPSMoveViewMutable().SetLEDOverride(static_cast<unsigned char>(rumble*255.f), 0, 0);
+            m_controllerView->GetPSMoveViewMutable().SetRumble(fmaxf(big_rumble, small_rumble));
+            m_controllerView->GetPSMoveViewMutable().SetLEDOverride(static_cast<unsigned char>(big_rumble*255.f), 0, 0);
         } break;
     case ClientControllerView::eControllerType::PSNavi:
         {
             // No rumble
         } break;
+    case ClientControllerView::eControllerType::PSDualShock4:
+        {
+			float red= fmaxf(big_rumble, small_rumble);
+
+            m_controllerView->GetPSDualShock4ViewMutable().SetBigRumble(big_rumble);
+			m_controllerView->GetPSDualShock4ViewMutable().SetSmallRumble(small_rumble);
+            m_controllerView->GetPSDualShock4ViewMutable().SetLEDOverride(static_cast<unsigned char>(red*255.f), 0, 0);
+        } break;
+    }
+}
+
+//-- private methods -----
+static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform, const glm::vec3 &bulb_color)
+{
+    switch(controllerView->GetControllerViewType())
+    {
+    case ClientControllerView::PSMove:
+        drawPSMoveModel(transform, bulb_color);
+        break;
+    case ClientControllerView::PSNavi:
+        drawPSNaviModel(transform);
+        break;
+    case ClientControllerView::PSDualShock4:
+        drawPSDualShock4Model(transform, bulb_color);
+        break;
     }
 }

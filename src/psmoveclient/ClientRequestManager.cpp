@@ -205,6 +205,9 @@ public:
                 case PSMoveProtocol::PSNAVI:
                     controllerType = ClientControllerView::PSNavi;
                     break;
+                case PSMoveProtocol::PSDUALSHOCK4:
+                    controllerType = ClientControllerView::PSDualShock4;
+                    break;
                 default:
                     assert(0 && "unreachable");
                     controllerType = ClientControllerView::PSMove;

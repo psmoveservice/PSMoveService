@@ -28,9 +28,11 @@ protected:
     static void handle_release_controller(
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
-    float get_trigger() const;
-    float get_rumble_amount() const;
-    void set_rumble_amount(float rumble);
+    float get_left_trigger() const;
+	float get_right_trigger() const;
+    float get_big_rumble_amount() const;
+	float get_small_rumble_amount() const;
+    void set_rumble_amounts(float big_rumble, float small_rumble);
 
 private:
     enum eMenuState

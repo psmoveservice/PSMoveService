@@ -23,6 +23,9 @@ public:
 
     static const char *APP_STAGE_NAME;
 
+	inline void set_override_controller_id(int controller_id)
+	{ m_overrideControllerId= controller_id; }
+
 protected:
     enum eMenuState
     {
@@ -116,6 +119,7 @@ protected:
 
 private:
     // ClientPSMoveAPI state
+	int m_overrideControllerId;	
     class ClientControllerView *m_controllerView;
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;

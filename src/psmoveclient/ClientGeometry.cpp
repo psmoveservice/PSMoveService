@@ -91,6 +91,16 @@ PSMoveFloatVector2 PSMoveFloatVector2::safe_divide(const PSMoveFloatVector2 &v, 
             !is_nearly_zero(v.j) ? j / v.j : default_result.j);
 }
 
+PSMoveFloatVector2 PSMoveFloatVector2::abs() const
+{
+    return PSMoveFloatVector2::create(fabsf(i), fabsf(j));
+}
+
+PSMoveFloatVector2 PSMoveFloatVector2::square() const
+{
+    return PSMoveFloatVector2::create(i*i, j*j);
+}
+
 float PSMoveFloatVector2::length() const
 {
     return sqrtf(i*i + j*j);
@@ -200,6 +210,16 @@ float PSMoveFloatVector3::normalize_with_default(const PSMoveFloatVector3 &defau
     return divisor;
 }
 
+PSMoveFloatVector3 PSMoveFloatVector3::abs() const
+{
+    return PSMoveFloatVector3::create(fabsf(i), fabsf(j), fabsf(k));
+}
+
+PSMoveFloatVector3 PSMoveFloatVector3::square() const
+{
+    return PSMoveFloatVector3::create(i*i, j*j, k*k);
+}
+
 float PSMoveFloatVector3::minValue() const
 {
     return std::min(std::min(i, j), k);
@@ -276,6 +296,16 @@ PSMoveIntVector3 PSMoveIntVector3::safe_divide(const PSMoveIntVector3 &v, const 
             v.k != 0 ? k/v.k : default_result.k);
 }
 
+PSMoveIntVector3 PSMoveIntVector3::abs() const
+{
+    return PSMoveIntVector3::create(std::abs(i), std::abs(j), std::abs(k));
+}
+
+PSMoveIntVector3 PSMoveIntVector3::square() const
+{
+    return PSMoveIntVector3::create(i*i, j*j, k*k);
+}
+
 int PSMoveIntVector3::lengthSquared() const
 {
     return i*i + j*j + k*k;
@@ -323,6 +353,16 @@ PSMoveFloatVector3 PSMovePosition::operator - (const PSMovePosition &other) cons
     return PSMoveFloatVector3::create(x - other.x, y - other.y, z - other.z);
 }
 
+PSMovePosition PSMovePosition::operator + (const PSMoveFloatVector3 &v) const
+{
+	return PSMovePosition::create(x + v.i, y + v.j, z + v.k);
+}
+
+PSMovePosition PSMovePosition::operator - (const PSMoveFloatVector3 &v) const
+{
+	return PSMovePosition::create(x - v.i, y - v.j, z - v.k);
+}
+
 PSMovePosition PSMovePosition::operator * (const float s) const
 {
     return PSMovePosition::create(x*s, y*s, z*s);
@@ -368,6 +408,15 @@ PSMoveQuaternion PSMoveQuaternion::operator + (const PSMoveQuaternion &other) co
     return PSMoveQuaternion::create(w + other.w, x + other.x, y + other.y, z + other.z);
 }
 
+PSMoveQuaternion PSMoveQuaternion::operator * (const PSMoveQuaternion &other) const
+{
+	return PSMoveQuaternion::create(
+		w*other.w - x*other.x - y*other.y - z*other.z,
+		w*other.x + x*other.w + y*other.z - z*other.y,
+		w*other.y - x*other.z + y*other.w + z*other.x,
+		w*other.z + x*other.y - y*other.x + z*other.w);
+}
+
 PSMoveQuaternion PSMoveQuaternion::unsafe_divide(const float s) const
 {
     return PSMoveQuaternion::create(w / s, x / s, y / s, z / s);
@@ -376,6 +425,37 @@ PSMoveQuaternion PSMoveQuaternion::unsafe_divide(const float s) const
 PSMoveQuaternion PSMoveQuaternion::safe_divide(const float s, const PSMoveQuaternion &default_result) const
 {
     return !is_nearly_zero(s) ? unsafe_divide(s) : default_result;
+}
+
+PSMoveQuaternion PSMoveQuaternion::inverse() const
+{
+	return PSMoveQuaternion::create(w, -x, -y, -z);
+}
+
+PSMoveQuaternion PSMoveQuaternion::concat(const PSMoveQuaternion &first, const PSMoveQuaternion &second)
+{
+	return second * first;
+}
+
+//http://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/transforms/
+PSMoveFloatVector3 PSMoveQuaternion::rotate_vector(const PSMoveFloatVector3 &v) const
+{
+	PSMoveFloatVector3 result;
+
+	result.i = w*w*v.i + 2 * y*w*v.k - 2 * z*w*v.j + x*x*v.i + 2 * y*x*v.j + 2 * z*x*v.k - z*z*v.i - y*y*v.i;
+	result.j = 2 * x*y*v.i + y*y*v.j + 2 * z*y*v.k + 2 * w*z*v.i - z*z*v.j + w*w*v.j - 2 * x*w*v.k - x*x*v.j;
+	result.k = 2 * x*z*v.i + 2 * y*z*v.j + z*z*v.k - 2 * w*y*v.i - y*y*v.k + 2 * w*x*v.j - x*x*v.k + w*w*v.k;
+
+	return result;
+}
+
+PSMovePosition PSMoveQuaternion::rotate_position(const PSMovePosition &p) const
+{
+	PSMoveFloatVector3 v = p.toPSMoveFloatVector3();
+	PSMoveFloatVector3 v_rotated = rotate_vector(v);
+	PSMovePosition p_rotated = v.castToPSMovePosition();
+
+	return p_rotated;
 }
 
 float PSMoveQuaternion::length() const
@@ -407,6 +487,26 @@ PSMoveMatrix3x3 PSMoveMatrix3x3::create(
     return mat;
 }
 
+PSMoveMatrix3x3 PSMoveMatrix3x3::create(const PSMoveQuaternion &q)
+{
+	PSMoveMatrix3x3 mat;
+
+	const float qw = q.w;
+	const float qx = q.x;
+	const float qy = q.y;
+	const float qz = q.z;
+
+	const float qx2 = q.x*q.x;
+	const float qy2 = q.y*q.y;
+	const float qz2 = q.z*q.z;
+
+	mat.m[0][0] = 1.f - 2.f*qy2 - 2.f*qz2; mat.m[0][1] = 2.f*qx*qy - 2.f*qz*qw;   mat.m[0][2] = 2.f*qx*qz + 2.f*qy*qw;
+	mat.m[1][0] = 2.f*qx*qy + 2.f*qz*qw;   mat.m[1][1] = 1.f - 2.f*qx2 - 2.f*qz2; mat.m[1][2] = 2.f*qy*qz - 2.f*qx*qw;
+	mat.m[2][0] = 2.f*qx*qz - 2.f*qy*qw;   mat.m[2][1] = 2.f * qy*qz + 2.f*qx*qw; mat.m[2][2] = 1.f - 2.f*qx2 - 2.f*qy2;
+
+	return mat;
+}
+
 PSMoveFloatVector3 PSMoveMatrix3x3::basis_x() const
 {
     return PSMoveFloatVector3::create(m[0][0], m[0][1], m[0][2]);
@@ -427,6 +527,42 @@ void PSMovePose::Clear()
 {
     Position= *k_psmove_position_origin;
     Orientation = *k_psmove_quaternion_identity;
+}
+
+PSMovePose PSMovePose::inverse() const
+{
+	PSMoveQuaternion q_inv = Orientation.inverse();
+	PSMovePose result;
+
+	result.Orientation = q_inv;
+	result.Position = q_inv.rotate_position(Position) * -1.f;
+
+	return result;
+}
+
+PSMovePose PSMovePose::concat(const PSMovePose &first, const PSMovePose &second)
+{
+	PSMovePose result;
+
+	result.Orientation = PSMoveQuaternion::concat(first.Orientation, second.Orientation);
+	result.Position = second.Orientation.rotate_position(first.Position) + second.Position.toPSMoveFloatVector3();
+
+	return result;
+}
+
+PSMovePosition PSMovePose::apply_transform(const PSMovePosition &p) const
+{
+	PSMovePosition result= Position + Orientation.rotate_vector(p.toPSMoveFloatVector3());
+
+	return result;
+}
+
+PSMovePosition PSMovePose::apply_inverse_transform(const PSMovePosition &p) const
+{
+	PSMoveQuaternion q_inv = Orientation.inverse();
+	PSMovePosition result = (q_inv.rotate_position(p) - q_inv.rotate_position(Position)).castToPSMovePosition();
+
+	return result;
 }
 
 // -- PSMoveFrustum -- 

@@ -11,16 +11,10 @@
 class AppStage_ControllerSettings : public AppStage
 {
 public:
-    enum eControllerType
-    {
-        PSMove,
-        PSNavi
-    };
-
     struct ControllerInfo
     {
         int ControllerID;
-        eControllerType ControllerType;
+        ClientControllerView::eControllerType ControllerType;
         PSMoveTrackingColorType TrackingColorType;
         std::string DevicePath;
         std::string DeviceSerial;

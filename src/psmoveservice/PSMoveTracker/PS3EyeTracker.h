@@ -31,6 +31,9 @@ public:
     
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
+
+	const CommonHSVColorRangeTable *getColorRangeTable(const std::string &table_name) const;
+	inline CommonHSVColorRangeTable *getOrAddColorRangeTable(const std::string &table_name);
     
     bool is_valid;
     long version;
@@ -47,7 +50,8 @@ public:
     double zFar;
     eFOVSetting fovSetting;
     CommonDevicePose pose;
-    CommonHSVColorRange ColorPresets[eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES];
+	CommonHSVColorRangeTable SharedColorPresets;
+	std::vector<CommonHSVColorRangeTable> ControllerColorPresets;
 
     static const int CONFIG_VERSION;
 };
@@ -109,9 +113,9 @@ public:
     void gatherTrackerOptions(PSMoveProtocol::Response_ResultTrackerSettings* settings) const override;
     bool setOptionIndex(const std::string &option_name, int option_index) override;
     bool getOptionIndex(const std::string &option_name, int &out_option_index) const override;
-    void gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const override;
-    void setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset) override;
-    void getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const override;
+    void gatherTrackingColorPresets(const std::string &controller_serial, PSMoveProtocol::Response_ResultTrackerSettings* settings) const override;
+    void setTrackingColorPreset(const std::string &controller_serial, eCommonTrackingColorID color, const CommonHSVColorRange *preset) override;
+    void getTrackingColorPreset(const std::string &controller_serial, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const override;
 
     // -- Getters
     inline const PS3EyeTrackerConfig &getConfig() const

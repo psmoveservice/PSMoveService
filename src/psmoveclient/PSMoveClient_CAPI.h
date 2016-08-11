@@ -59,14 +59,16 @@ typedef enum _PSMControllerDataStreamFlags
     PSMStreamFlags_includePositionData = 0x01,
     PSMStreamFlags_includePhysicsData = 0x02,
     PSMStreamFlags_includeRawSensorData = 0x04,
-    PSMStreamFlags_includeRawTrackerData = 0x08
+	PSMStreamFlags_includeCalibratedSensorData = 0x08,
+    PSMStreamFlags_includeRawTrackerData = 0x10
 } PSMControllerDataStreamFlags;
 
 typedef enum _PSMControllerType
 {
     PSMController_None= -1,
     PSMController_Move,
-    PSMController_Navi
+    PSMController_Navi,
+	PSMController_DualShock4
 } PSMControllerType;
 
 typedef enum _PSMTrackerType
@@ -126,21 +128,13 @@ typedef struct _PSMovePhysicsData
     double       TimeInSeconds;
 } PSMPhysicsData;
 
-typedef struct _PSMRawSensorData
-{
-    PSMVector3i Magnetometer;
-    PSMVector3f Accelerometer;
-    PSMVector3f Gyroscope;
-    double      TimeInSeconds;
-} PSMRawSensorData;
-
 typedef struct _PSMTrackingProjection
 {
     enum eShapeType
     {
         PSMShape_INVALID_PROJECTION = -1,
         PSMShape_Ellipse,
-        PSMShape_Quad,
+        PSMShape_LightBar,
     }                               shape_type;
     union{
         struct {
@@ -150,19 +144,37 @@ typedef struct _PSMTrackingProjection
             float angle;
         } ellipse;
         struct {
-            PSMVector2f corners[4];
-        } quad;
+            PSMVector2f triangle[3];
+			PSMVector2f quad[3];
+        } lightbar;
     }                               shape;
     
 } PSMTrackingProjection;
 
 // Controller State
 //------------------
+typedef struct _PSMPSMPSMoveRawSensorData
+{
+    PSMVector3i Magnetometer;
+    PSMVector3i Accelerometer;
+    PSMVector3i Gyroscope;
+    double      TimeInSeconds;
+} PSMPSMoveRawSensorData;
+
+typedef struct _PSMPSMPSMoveCalibratedSensorData
+{
+    PSMVector3f Magnetometer;
+    PSMVector3f Accelerometer;
+    PSMVector3f Gyroscope;
+    double      TimeInSeconds;
+} PSMPSMoveCalibratedSensorData;
+
 typedef struct _PSMRawTrackerData
 {
     // Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
     PSMVector2f             ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMVector3f             RelativePositions[PSMOVESERVICE_MAX_TRACKER_COUNT];
+	PSMQuatf                RelativeOrientations[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMTrackingProjection   TrackingProjections[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int                     TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int                     ValidTrackerLocations;
@@ -170,55 +182,129 @@ typedef struct _PSMRawTrackerData
 
 typedef struct _PSMPSMove
 {
-    bool                    bHasValidHardwareCalibration;
-    bool                    bIsTrackingEnabled;
-    bool                    bIsCurrentlyTracking;
-    bool                    bHasUnpublishedState;
+    bool                         bHasValidHardwareCalibration;
+    bool                         bIsTrackingEnabled;
+    bool                         bIsCurrentlyTracking;
+    bool                         bIsOrientationValid;
+    bool                         bIsPositionValid;
+    bool                         bHasUnpublishedState;
     
-    char                    DevicePath[256];
-    char                    DeviceSerial[128];
-    char                    AssignedHostSerial[128];
-    bool                 PairedToHost;
-    PSMConnectionType       ConnectionType;
+    char                         DevicePath[256];
+    char                         DeviceSerial[128];
+    char                         AssignedHostSerial[128];
+    bool                         PairedToHost;
+    PSMConnectionType            ConnectionType;
     
-    PSMTrackingColorType    TrackingColorType;
-    PSMPosef                Pose;
-    PSMPhysicsData          PhysicsData;
-    PSMRawSensorData        RawSensorData;
-    PSMRawTrackerData       RawTrackerData;
+    PSMTrackingColorType         TrackingColorType;
+    PSMPosef                     Pose;
+    PSMPhysicsData               PhysicsData;
+    PSMPSMoveRawSensorData          RawSensorData;
+    PSMPSMoveCalibratedSensorData   CalibratedSensorData;
+    PSMRawTrackerData            RawTrackerData;
     
-    PSMButtonState          TriangleButton;
-    PSMButtonState          CircleButton;
-    PSMButtonState          CrossButton;
-    PSMButtonState          SquareButton;
-    PSMButtonState          SelectButton;
-    PSMButtonState          StartButton;
-    PSMButtonState          PSButton;
-    PSMButtonState          MoveButton;
-    PSMButtonState          TriggerButton;
-    unsigned char           TriggerValue;
-    unsigned char           Rumble;
-    unsigned char           LED_r, LED_g, LED_b;
+    PSMButtonState               TriangleButton;
+    PSMButtonState               CircleButton;
+    PSMButtonState               CrossButton;
+    PSMButtonState               SquareButton;
+    PSMButtonState               SelectButton;
+    PSMButtonState               StartButton;
+    PSMButtonState               PSButton;
+    PSMButtonState               MoveButton;
+    PSMButtonState               TriggerButton;
+    unsigned char                TriggerValue;
+    unsigned char                Rumble;
+    unsigned char                LED_r, LED_g, LED_b;
     
 } PSMPSMove;
 
 typedef struct _PSMPSNavi
 {
-    PSMButtonState L1Button;
-    PSMButtonState L2Button;
-    PSMButtonState L3Button;
-    PSMButtonState CircleButton;
-    PSMButtonState CrossButton;
-    PSMButtonState PSButton;
-    PSMButtonState TriggerButton;
-    PSMButtonState DPadUpButton;
-    PSMButtonState DPadRightButton;
-    PSMButtonState DPadDownButton;
-    PSMButtonState DPadLeftButton;
-    unsigned char TriggerValue;
-    unsigned char Stick_XAxis;
-    unsigned char Stick_YAxis;
+    PSMButtonState               L1Button;
+    PSMButtonState               L2Button;
+    PSMButtonState               L3Button;
+    PSMButtonState               CircleButton;
+    PSMButtonState               CrossButton;
+    PSMButtonState               PSButton;
+    PSMButtonState               TriggerButton;
+    PSMButtonState               DPadUpButton;
+    PSMButtonState               DPadRightButton;
+    PSMButtonState               DPadDownButton;
+    PSMButtonState               DPadLeftButton;
+    unsigned char                TriggerValue;
+    float                        Stick_XAxis;
+    float                        Stick_YAxis;
 } PSMPSNavi;
+
+typedef struct _PSMDS4RawSensorData
+{
+    PSMVector3i Accelerometer;
+    PSMVector3i Gyroscope;
+    double      TimeInSeconds;
+} PSMDS4RawSensorData;
+
+typedef struct _PSMDS4CalibratedSensorData
+{
+    PSMVector3f Accelerometer;
+    PSMVector3f Gyroscope;
+    double      TimeInSeconds;
+} PSMDS4CalibratedSensorData;
+
+typedef struct _PSMDualShock4
+{
+    bool                         bHasValidHardwareCalibration;
+    bool                         bIsTrackingEnabled;
+    bool                         bIsCurrentlyTracking;
+    bool                         bIsOrientationValid;
+    bool                         bIsPositionValid;
+    bool                         bHasUnpublishedState;
+    
+    char                         DevicePath[256];
+    char                         DeviceSerial[128];
+    char                         AssignedHostSerial[128];
+    bool                         PairedToHost;
+    PSMConnectionType            ConnectionType;
+    
+    PSMTrackingColorType         TrackingColorType;
+    PSMPosef                     Pose;
+    PSMPhysicsData               PhysicsData;
+    PSMDS4RawSensorData           RawSensorData;
+    PSMDS4CalibratedSensorData    CalibratedSensorData;
+    PSMRawTrackerData            RawTrackerData;
+    
+    PSMButtonState               DPadUpButton;
+    PSMButtonState               DPadDownButton;
+    PSMButtonState               DPadLeftButton;
+    PSMButtonState               DPadRightButton;
+
+    PSMButtonState               SquareButton;
+    PSMButtonState               CrossButton;
+    PSMButtonState               CircleButton;
+    PSMButtonState               TriangleButton;
+
+    PSMButtonState               L1Button;
+    PSMButtonState               R1Button;
+    PSMButtonState               L2Button;
+    PSMButtonState               R2Button;
+    PSMButtonState               L3Button;
+    PSMButtonState               R3Button;
+
+    PSMButtonState               ShareButton;
+    PSMButtonState               OptionsButton;
+
+    PSMButtonState               PSButton;
+    PSMButtonState               TrackPadButton;
+
+    float                        LeftAnalogX;
+    float                        LeftAnalogY;
+    float                        RightAnalogX;
+    float                        RightAnalogY;
+    unsigned char                LeftTriggerValue;
+    unsigned char                RightTriggerValue;
+
+    unsigned char                BigRumble, SmallRumble;
+    unsigned char                LED_r, LED_g, LED_b;
+    
+} PSMDualShock4;
 
 typedef struct _PSMController
 {
@@ -228,6 +314,7 @@ typedef struct _PSMController
     {
         PSMPSMove PSMoveState;
         PSMPSNavi PSNaviState;
+		PSMDualShock4 PSDS4State;
     }               ControllerState;
     bool            bValid;
     int             OutputSequenceNum;

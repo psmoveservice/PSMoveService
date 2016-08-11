@@ -50,9 +50,10 @@ PS3EyeTrackerConfig::PS3EyeTrackerConfig(const std::string &fnamebase)
 {
     pose.clear();
 
+	SharedColorPresets.table_name.clear();
     for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
     {
-        ColorPresets[preset_index] = k_default_color_presets[preset_index];
+        SharedColorPresets.color_presets[preset_index] = k_default_color_presets[preset_index];
     }
 };
 
@@ -84,12 +85,12 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("pose.position.y", pose.Position.y);
     pt.put("pose.position.z", pose.Position.z);
 
-    writeColorPreset(pt, "", "magenta", &ColorPresets[eCommonTrackingColorID::Magenta]);
-    writeColorPreset(pt, "", "cyan", &ColorPresets[eCommonTrackingColorID::Cyan]);
-    writeColorPreset(pt, "", "yellow", &ColorPresets[eCommonTrackingColorID::Yellow]);
-    writeColorPreset(pt, "", "red", &ColorPresets[eCommonTrackingColorID::Red]);
-    writeColorPreset(pt, "", "green", &ColorPresets[eCommonTrackingColorID::Green]);
-    writeColorPreset(pt, "", "blue", &ColorPresets[eCommonTrackingColorID::Blue]);
+	writeColorPropertyPresetTable(&SharedColorPresets, pt);
+
+	for (auto &controller_preset_table : ControllerColorPresets)
+	{
+		writeColorPropertyPresetTable(&controller_preset_table, pt);
+	}
 
     return pt;
 }
@@ -125,12 +126,30 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
         pose.Position.y = pt.get<float>("pose.position.y", 0.0);
         pose.Position.z = pt.get<float>("pose.position.z", 0.0);
 
-        readColorPreset(pt, "", "magenta", &ColorPresets[eCommonTrackingColorID::Magenta], &k_default_color_presets[eCommonTrackingColorID::Magenta]);
-        readColorPreset(pt, "", "cyan", &ColorPresets[eCommonTrackingColorID::Cyan], &k_default_color_presets[eCommonTrackingColorID::Cyan]);
-        readColorPreset(pt, "", "yellow", &ColorPresets[eCommonTrackingColorID::Yellow], &k_default_color_presets[eCommonTrackingColorID::Yellow]);
-        readColorPreset(pt, "", "red", &ColorPresets[eCommonTrackingColorID::Red], &k_default_color_presets[eCommonTrackingColorID::Red]);
-        readColorPreset(pt, "", "green", &ColorPresets[eCommonTrackingColorID::Green], &k_default_color_presets[eCommonTrackingColorID::Green]);
-        readColorPreset(pt, "", "blue", &ColorPresets[eCommonTrackingColorID::Blue], &k_default_color_presets[eCommonTrackingColorID::Blue]);
+		// Read the default preset table
+		readColorPropertyPresetTable(pt, &SharedColorPresets);
+
+		// Read all of the controller preset tables
+		std::string prefix("controller_");
+		for(auto iter = pt.begin(); iter != pt.end(); iter++)
+		{
+			const std::string &entry_name= iter->first;
+			
+			if (entry_name.compare(0, prefix.length(), prefix) == 0)
+			{
+				CommonHSVColorRangeTable table;
+
+				table.table_name= entry_name;
+				for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
+				{
+					table.color_presets[preset_index] = k_default_color_presets[preset_index];
+				}
+
+				readColorPropertyPresetTable(pt, &table);
+
+				ControllerColorPresets.push_back(table);
+			}
+		}
     }
     else
     {
@@ -138,6 +157,62 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
             "Config version " << version << " does not match expected version " <<
             PS3EyeTrackerConfig::CONFIG_VERSION << ", Using defaults.";
     }
+}
+
+const CommonHSVColorRangeTable *
+PS3EyeTrackerConfig::getColorRangeTable(const std::string &table_name) const
+{
+	const CommonHSVColorRangeTable *table= &SharedColorPresets;	
+
+	if (table_name.length() > 0)
+	{
+		for (auto &entry : ControllerColorPresets)
+		{
+			if (entry.table_name == table_name)
+			{
+				table= &entry;
+			}
+		}
+	}
+
+	return table;
+}
+
+inline CommonHSVColorRangeTable *
+PS3EyeTrackerConfig::getOrAddColorRangeTable(const std::string &table_name)
+{
+	CommonHSVColorRangeTable *table= nullptr;	
+
+	if (table_name.length() > 0)
+	{
+		for (auto &entry : ControllerColorPresets)
+		{
+			if (entry.table_name == table_name)
+			{
+				table= &entry;
+			}
+		}
+
+		if (table == nullptr)
+		{
+			CommonHSVColorRangeTable Table;
+
+			Table.table_name= table_name;
+			for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
+			{
+				Table.color_presets[preset_index] = k_default_color_presets[preset_index];
+			}
+
+			ControllerColorPresets.push_back(Table);
+			table= &ControllerColorPresets[ControllerColorPresets.size() - 1];
+		}
+	}
+	else
+	{
+		table= &SharedColorPresets;
+	}
+
+	return table;
 }
 
 // -- PS3EYE Tracker
@@ -523,11 +598,14 @@ bool PS3EyeTracker::getOptionIndex(
 }
 
 void PS3EyeTracker::gatherTrackingColorPresets(
+	const std::string &controller_serial, 
     PSMoveProtocol::Response_ResultTrackerSettings* settings) const
 {
+	const CommonHSVColorRangeTable *table= cfg.getColorRangeTable(controller_serial);
+
     for (int list_index = 0; list_index < MAX_TRACKING_COLOR_TYPES; ++list_index)
     {
-        const CommonHSVColorRange &hsvRange = cfg.ColorPresets[list_index];
+        const CommonHSVColorRange &hsvRange = table->color_presets[list_index];
         const eCommonTrackingColorID colorType = static_cast<eCommonTrackingColorID>(list_index);
 
         PSMoveProtocol::TrackingColorPreset *colorPreset= settings->add_color_presets();
@@ -542,16 +620,22 @@ void PS3EyeTracker::gatherTrackingColorPresets(
 }
 
 void PS3EyeTracker::setTrackingColorPreset(
+	const std::string &controller_serial, 
     eCommonTrackingColorID color, 
     const CommonHSVColorRange *preset)
 {
-    cfg.ColorPresets[color] = *preset;
+	CommonHSVColorRangeTable *table= cfg.getOrAddColorRangeTable(controller_serial);
+
+    table->color_presets[color] = *preset;
     cfg.save();
 }
 
 void PS3EyeTracker::getTrackingColorPreset(
+	const std::string &controller_serial, 
     eCommonTrackingColorID color, 
     CommonHSVColorRange *out_preset) const
 {
-    *out_preset = cfg.ColorPresets[color];
+	const CommonHSVColorRangeTable *table= cfg.getColorRangeTable(controller_serial);
+
+    *out_preset = table->color_presets[color];
 }

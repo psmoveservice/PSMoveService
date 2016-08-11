@@ -331,25 +331,25 @@ int main()
 			std::cout << '\r' <<
 				"# " << std::setw(myw) << std::left << psmstate->RawSequence <<
 				" A(1): " <<
-				std::setw(myw) << std::right << psmstate->Accel[0][0] << "," <<
-				std::setw(myw) << std::right << psmstate->Accel[0][1] << "," <<
-				std::setw(myw) << std::right << psmstate->Accel[0][2] <<
+				std::setw(myw) << std::right << psmstate->RawAccel[0][0] << "," <<
+                std::setw(myw) << std::right << psmstate->RawAccel[0][1] << "," <<
+                std::setw(myw) << std::right << psmstate->RawAccel[0][2] <<
 				"; A(2): " <<
-				std::setw(myw) << std::right << psmstate->Accel[1][0] << "," <<
-				std::setw(myw) << std::right << psmstate->Accel[1][1] << "," <<
-				std::setw(myw) << std::right << psmstate->Accel[1][2] <<
+                std::setw(myw) << std::right << psmstate->RawAccel[1][0] << "," <<
+                std::setw(myw) << std::right << psmstate->RawAccel[1][1] << "," <<
+                std::setw(myw) << std::right << psmstate->RawAccel[1][2] <<
 				"; G(1): " <<
-				std::setw(myw) << std::right << psmstate->Gyro[0][0] << "," <<
-				std::setw(myw) << std::right << psmstate->Gyro[0][1] << "," <<
-				std::setw(myw) << std::right << psmstate->Gyro[0][2] <<
+                std::setw(myw) << std::right << psmstate->RawGyro[0][0] << "," <<
+                std::setw(myw) << std::right << psmstate->RawGyro[0][1] << "," <<
+                std::setw(myw) << std::right << psmstate->RawGyro[0][2] <<
 				"; G(2): " <<
-				std::setw(myw) << std::right << psmstate->Gyro[1][0] << "," <<
-				std::setw(myw) << std::right << psmstate->Gyro[1][1] << "," <<
-				std::setw(myw) << std::right << psmstate->Gyro[1][2] <<
+                std::setw(myw) << std::right << psmstate->RawGyro[1][0] << "," <<
+                std::setw(myw) << std::right << psmstate->RawGyro[1][1] << "," <<
+                std::setw(myw) << std::right << psmstate->RawGyro[1][2] <<
 				"; M: " <<
-				std::setw(myw) << std::right << psmstate->Mag[0] << "," <<
-				std::setw(myw) << std::right << psmstate->Mag[1] << "," <<
-				std::setw(myw) << std::right << psmstate->Mag[2] <<
+                std::setw(myw) << std::right << psmstate->RawMag[0] << "," <<
+                std::setw(myw) << std::right << psmstate->RawMag[1] << "," <<
+                std::setw(myw) << std::right << psmstate->RawMag[2] <<
 				std::flush;
 
             cv::waitKey(16);

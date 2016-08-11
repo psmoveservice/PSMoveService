@@ -977,9 +977,14 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
     
     // Have to declare some variables in case they are used in the switches
     ClientPSMoveView psmview;
+	ClientPSNaviView psnview;
+	ClientPSDualShock4View ds4view;
     PSMovePose pose;
     PSMovePhysicsData phydat;
-    PSMoveRawSensorData raw_sens;
+    PSMoveRawSensorData psm_raw_sens;
+	PSMoveCalibratedSensorData psm_calib_sens;
+	PSDualShock4RawSensorData ds4_raw_sens;
+	PSDualShock4CalibratedSensorData ds4_calib_sens;
     PSMoveRawTrackerData raw_track;
     
     switch (view->GetControllerViewType()) {
@@ -995,6 +1000,8 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
             controller->ControllerState.PSMoveState.bHasValidHardwareCalibration = psmview.GetHasValidHardwareCalibration();
             controller->ControllerState.PSMoveState.bIsTrackingEnabled = psmview.GetIsTrackingEnabled();
             controller->ControllerState.PSMoveState.bIsCurrentlyTracking = psmview.GetIsCurrentlyTracking();
+			controller->ControllerState.PSMoveState.bIsOrientationValid = psmview.GetIsOrientationValid();
+			controller->ControllerState.PSMoveState.bIsPositionValid = psmview.GetIsPositionValid();
             controller->ControllerState.PSMoveState.bHasUnpublishedState = psmview.GetHasUnpublishedState();
 //            is_stable = psmview.GetIsStableAndAlignedWithGravity();
 //            PSMTrackingColorType    TrackingColorType;
@@ -1009,10 +1016,15 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
             controller->ControllerState.PSMoveState.PhysicsData.AngularAcceleration = {phydat.AngularAcceleration.i, phydat.AngularAcceleration.j, phydat.AngularAcceleration.k};
             controller->ControllerState.PSMoveState.PhysicsData.AngularVelocity = {phydat.AngularVelocity.i, phydat.AngularVelocity.j, phydat.AngularVelocity.k};
             
-            raw_sens = psmview.GetRawSensorData();
-            controller->ControllerState.PSMoveState.RawSensorData.Accelerometer = {raw_sens.Accelerometer.i, raw_sens.Accelerometer.j, raw_sens.Accelerometer.k};
-            controller->ControllerState.PSMoveState.RawSensorData.Gyroscope = {raw_sens.Gyroscope.i, raw_sens.Gyroscope.j, raw_sens.Gyroscope.k};
-            controller->ControllerState.PSMoveState.RawSensorData.Magnetometer = {raw_sens.Magnetometer.i, raw_sens.Magnetometer.j, raw_sens.Magnetometer.k};
+            psm_raw_sens = psmview.GetRawSensorData();
+            controller->ControllerState.PSMoveState.RawSensorData.Accelerometer = {psm_raw_sens.Accelerometer.i, psm_raw_sens.Accelerometer.j, psm_raw_sens.Accelerometer.k};
+            controller->ControllerState.PSMoveState.RawSensorData.Gyroscope = {psm_raw_sens.Gyroscope.i, psm_raw_sens.Gyroscope.j, psm_raw_sens.Gyroscope.k};
+            controller->ControllerState.PSMoveState.RawSensorData.Magnetometer = {psm_raw_sens.Magnetometer.i, psm_raw_sens.Magnetometer.j, psm_raw_sens.Magnetometer.k};
+
+            psm_calib_sens = psmview.GetCalibratedSensorData();
+            controller->ControllerState.PSMoveState.CalibratedSensorData.Accelerometer = {psm_calib_sens.Accelerometer.i, psm_calib_sens.Accelerometer.j, psm_calib_sens.Accelerometer.k};
+            controller->ControllerState.PSMoveState.CalibratedSensorData.Gyroscope = {psm_calib_sens.Gyroscope.i, psm_calib_sens.Gyroscope.j, psm_calib_sens.Gyroscope.k};
+            controller->ControllerState.PSMoveState.CalibratedSensorData.Magnetometer = {psm_calib_sens.Magnetometer.i, psm_calib_sens.Magnetometer.j, psm_calib_sens.Magnetometer.k};
             
             raw_track = psmview.GetRawTrackerData();
             std::copy(std::begin(raw_track.TrackerIDs), std::end(raw_track.TrackerIDs), std::begin(controller->ControllerState.PSMoveState.RawTrackerData.TrackerIDs));
@@ -1024,6 +1036,10 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
                 };
                 controller->ControllerState.PSMoveState.RawTrackerData.RelativePositions[track_id] = {
                     raw_track.RelativePositions[track_id].x, raw_track.RelativePositions[track_id].y, raw_track.RelativePositions[track_id].z
+                };
+                controller->ControllerState.PSMoveState.RawTrackerData.RelativeOrientations[track_id] = {
+                    raw_track.RelativeOrientations[track_id].x, raw_track.RelativeOrientations[track_id].y, 
+					raw_track.RelativeOrientations[track_id].z, raw_track.RelativeOrientations[track_id].w
                 };
                 controller->ControllerState.PSMoveState.RawTrackerData.TrackingProjections[track_id].shape_type = PSMTrackingProjection::eShapeType::PSMShape_Ellipse;
                 controller->ControllerState.PSMoveState.RawTrackerData.TrackingProjections[track_id].shape.ellipse.center = {
@@ -1045,10 +1061,125 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
             controller->ControllerState.PSMoveState.TriggerButton = static_cast<PSMButtonState>(psmview.GetButtonTrigger());
             controller->ControllerState.PSMoveState.TriggerValue = static_cast<unsigned char>(psmview.GetTriggerValue() * 255.f);
             controller->ControllerState.PSMoveState.Rumble = static_cast<unsigned char>(psmview.GetRumble() * 255.f);
-//            unsigned char           LED_r, LED_g, LED_b;
             break;
             
-        case ClientControllerView::eControllerType::PSNavi:
+        case ClientControllerView::eControllerType::PSNavi:		
+			psnview = view->GetPSNaviView();	
+
+			controller->ControllerState.PSNaviState.L1Button = static_cast<PSMButtonState>(psnview.GetButtonL1());
+			controller->ControllerState.PSNaviState.L2Button = static_cast<PSMButtonState>(psnview.GetButtonL2());
+			controller->ControllerState.PSNaviState.L3Button = static_cast<PSMButtonState>(psnview.GetButtonL3());
+			controller->ControllerState.PSNaviState.CircleButton = static_cast<PSMButtonState>(psnview.GetButtonCircle());
+			controller->ControllerState.PSNaviState.CrossButton = static_cast<PSMButtonState>(psnview.GetButtonCross());
+			controller->ControllerState.PSNaviState.PSButton = static_cast<PSMButtonState>(psnview.GetButtonPS());
+			controller->ControllerState.PSNaviState.TriggerButton = static_cast<PSMButtonState>(psnview.GetButtonTrigger());
+			controller->ControllerState.PSNaviState.DPadUpButton = static_cast<PSMButtonState>(psnview.GetButtonDPadUp());
+			controller->ControllerState.PSNaviState.DPadRightButton = static_cast<PSMButtonState>(psnview.GetButtonDPadRight());
+			controller->ControllerState.PSNaviState.DPadDownButton = static_cast<PSMButtonState>(psnview.GetButtonDPadDown());
+			controller->ControllerState.PSNaviState.DPadLeftButton = static_cast<PSMButtonState>(psnview.GetButtonDPadLeft());
+			controller->ControllerState.PSNaviState.TriggerValue = static_cast<unsigned char>(psnview.GetTriggerValue() * 255.f);
+			controller->ControllerState.PSNaviState.Stick_XAxis= psnview.GetStickXAxis();
+			controller->ControllerState.PSNaviState.Stick_YAxis= psnview.GetStickYAxis();;
+            break;
+
+        case ClientControllerView::eControllerType::PSDualShock4:
+			ds4view = view->GetPSDualShock4View();
+            // Copy to PSMController
+//            char                    DevicePath[256];
+//            char                    DeviceSerial[128];
+//            char                    AssignedHostSerial[128];
+//            PSMBool                 PairedToHost;
+//            PSMConnectionType       ConnectionType;
+            controller->ControllerState.PSDS4State.bHasValidHardwareCalibration = ds4view.GetHasValidHardwareCalibration();
+            controller->ControllerState.PSDS4State.bIsTrackingEnabled = ds4view.GetIsTrackingEnabled();
+            controller->ControllerState.PSDS4State.bIsCurrentlyTracking = ds4view.GetIsCurrentlyTracking();
+			controller->ControllerState.PSDS4State.bIsOrientationValid = psmview.GetIsOrientationValid();
+			controller->ControllerState.PSDS4State.bIsPositionValid = psmview.GetIsPositionValid();
+            controller->ControllerState.PSDS4State.bHasUnpublishedState = ds4view.GetHasUnpublishedState();
+//            is_stable = ds4view.GetIsStableAndAlignedWithGravity();
+//            PSMTrackingColorType    TrackingColorType;
+            
+            pose = ds4view.GetPose();
+            controller->ControllerState.PSDS4State.Pose.Position = {pose.Position.x, pose.Position.y, pose.Position.z};
+            controller->ControllerState.PSDS4State.Pose.Orientation = {pose.Orientation.x, pose.Orientation.y, pose.Orientation.z, pose.Orientation.w};
+            
+            phydat = ds4view.GetPhysicsData();
+            controller->ControllerState.PSDS4State.PhysicsData.LinearAcceleration = {phydat.Acceleration.i, phydat.Acceleration.j, phydat.Acceleration.k};
+            controller->ControllerState.PSDS4State.PhysicsData.LinearVelocity = {phydat.Velocity.i, phydat.Velocity.j, phydat.Velocity.k};
+            controller->ControllerState.PSDS4State.PhysicsData.AngularAcceleration = {phydat.AngularAcceleration.i, phydat.AngularAcceleration.j, phydat.AngularAcceleration.k};
+            controller->ControllerState.PSDS4State.PhysicsData.AngularVelocity = {phydat.AngularVelocity.i, phydat.AngularVelocity.j, phydat.AngularVelocity.k};
+            
+            ds4_raw_sens = ds4view.GetRawSensorData();
+            controller->ControllerState.PSDS4State.RawSensorData.Accelerometer = {ds4_raw_sens.Accelerometer.i, ds4_raw_sens.Accelerometer.j, ds4_raw_sens.Accelerometer.k};
+            controller->ControllerState.PSDS4State.RawSensorData.Gyroscope = {ds4_raw_sens.Gyroscope.i, ds4_raw_sens.Gyroscope.j, ds4_raw_sens.Gyroscope.k};
+
+            ds4_calib_sens = ds4view.GetCalibratedSensorData();
+            controller->ControllerState.PSDS4State.CalibratedSensorData.Accelerometer = {ds4_calib_sens.Accelerometer.i, ds4_calib_sens.Accelerometer.j, ds4_calib_sens.Accelerometer.k};
+            controller->ControllerState.PSDS4State.CalibratedSensorData.Gyroscope = {ds4_calib_sens.Gyroscope.i, ds4_calib_sens.Gyroscope.j, ds4_calib_sens.Gyroscope.k};
+            
+            raw_track = ds4view.GetRawTrackerData();
+            std::copy(std::begin(raw_track.TrackerIDs), std::end(raw_track.TrackerIDs), std::begin(controller->ControllerState.PSMoveState.RawTrackerData.TrackerIDs));
+            controller->ControllerState.PSDS4State.RawTrackerData.ValidTrackerLocations = raw_track.ValidTrackerLocations;
+            for(auto & track_id : raw_track.TrackerIDs)
+            {
+                controller->ControllerState.PSDS4State.RawTrackerData.ScreenLocations[track_id] = {
+                    raw_track.ScreenLocations[track_id].x, raw_track.ScreenLocations[track_id].y
+                };
+                controller->ControllerState.PSDS4State.RawTrackerData.RelativePositions[track_id] = {
+                    raw_track.RelativePositions[track_id].x, raw_track.RelativePositions[track_id].y, raw_track.RelativePositions[track_id].z
+                };
+                controller->ControllerState.PSDS4State.RawTrackerData.RelativeOrientations[track_id] = {
+                    raw_track.RelativeOrientations[track_id].x, raw_track.RelativeOrientations[track_id].y, 
+					raw_track.RelativeOrientations[track_id].z, raw_track.RelativeOrientations[track_id].w
+                };
+                controller->ControllerState.PSDS4State.RawTrackerData.TrackingProjections[track_id].shape_type = PSMTrackingProjection::eShapeType::PSMShape_LightBar;
+				for (int index = 0; index < 3; ++index)
+				{
+					const PSMoveScreenLocation &pixel= raw_track.TrackingProjections[track_id].shape.lightbar.triangle[index];
+
+					controller->ControllerState.PSDS4State.RawTrackerData.TrackingProjections[track_id].shape.lightbar.triangle[index]=
+						{pixel.x, pixel.y};
+				}
+				for (int index = 0; index < 4; ++index)
+				{
+					const PSMoveScreenLocation &pixel= raw_track.TrackingProjections[track_id].shape.lightbar.quad[index];
+
+					controller->ControllerState.PSDS4State.RawTrackerData.TrackingProjections[track_id].shape.lightbar.quad[index]=
+						{pixel.x, pixel.y};
+				}
+            }
+            
+			controller->ControllerState.PSDS4State.DPadUpButton = static_cast<PSMButtonState>(ds4view.GetButtonDPadUp());
+			controller->ControllerState.PSDS4State.DPadDownButton = static_cast<PSMButtonState>(ds4view.GetButtonDPadDown());
+			controller->ControllerState.PSDS4State.DPadLeftButton = static_cast<PSMButtonState>(ds4view.GetButtonDPadLeft());
+			controller->ControllerState.PSDS4State.DPadRightButton = static_cast<PSMButtonState>(ds4view.GetButtonDPadRight());
+
+            controller->ControllerState.PSDS4State.TriangleButton = static_cast<PSMButtonState>(ds4view.GetButtonTriangle());
+            controller->ControllerState.PSDS4State.CircleButton = static_cast<PSMButtonState>(ds4view.GetButtonCircle());
+            controller->ControllerState.PSDS4State.CrossButton = static_cast<PSMButtonState>(ds4view.GetButtonCross());
+            controller->ControllerState.PSDS4State.SquareButton = static_cast<PSMButtonState>(ds4view.GetButtonSquare());
+
+			controller->ControllerState.PSDS4State.L1Button = static_cast<PSMButtonState>(ds4view.GetButtonL1());
+			controller->ControllerState.PSDS4State.L2Button = static_cast<PSMButtonState>(ds4view.GetButtonL2());
+			controller->ControllerState.PSDS4State.L3Button = static_cast<PSMButtonState>(ds4view.GetButtonL3());
+			controller->ControllerState.PSDS4State.R1Button = static_cast<PSMButtonState>(ds4view.GetButtonR1());
+			controller->ControllerState.PSDS4State.R2Button = static_cast<PSMButtonState>(ds4view.GetButtonR2());
+			controller->ControllerState.PSDS4State.R3Button = static_cast<PSMButtonState>(ds4view.GetButtonR3());
+
+			controller->ControllerState.PSDS4State.ShareButton = static_cast<PSMButtonState>(ds4view.GetButtonShare());
+			controller->ControllerState.PSDS4State.OptionsButton = static_cast<PSMButtonState>(ds4view.GetButtonOptions());
+
+            controller->ControllerState.PSDS4State.PSButton = static_cast<PSMButtonState>(ds4view.GetButtonPS());
+			controller->ControllerState.PSDS4State.TrackPadButton = static_cast<PSMButtonState>(ds4view.GetButtonTrackpad());
+
+			controller->ControllerState.PSDS4State.LeftAnalogX = ds4view.GetLeftAnalogX();
+			controller->ControllerState.PSDS4State.LeftAnalogY = ds4view.GetLeftAnalogY();
+			controller->ControllerState.PSDS4State.RightAnalogX = ds4view.GetRightAnalogX();
+			controller->ControllerState.PSDS4State.RightAnalogY = ds4view.GetRightAnalogY();
+			controller->ControllerState.PSDS4State.RightTriggerValue = static_cast<unsigned char>(ds4view.GetRightTriggerValue() * 255.f);
+            controller->ControllerState.PSDS4State.LeftTriggerValue = static_cast<unsigned char>(ds4view.GetLeftTriggerValue() * 255.f);
+            controller->ControllerState.PSDS4State.BigRumble = static_cast<unsigned char>(ds4view.GetBigRumble() * 255.f);
+			controller->ControllerState.PSDS4State.SmallRumble = static_cast<unsigned char>(ds4view.GetSmallRumble() * 255.f);
             break;
             
         default:

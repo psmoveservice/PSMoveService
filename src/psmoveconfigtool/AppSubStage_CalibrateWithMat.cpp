@@ -91,7 +91,7 @@ void AppSubStage_CalibrateWithMat::update()
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
         {
-            if (ControllerView->GetPSMoveView().GetIsStableAndAlignedWithGravity())
+            if (ControllerView->GetIsStable() || m_bForceControllerStable)
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 
@@ -123,8 +123,7 @@ void AppSubStage_CalibrateWithMat::update()
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
         {
-            const ClientPSMoveView &PSMoveView= ControllerView->GetPSMoveView();
-            const bool bIsStable = PSMoveView.GetIsStableAndAlignedWithGravity();
+            const bool bIsStable = ControllerView->GetIsStable();
 
             // See if any tracker needs more samples
             bool bNeedMoreSamples = false;
@@ -144,7 +143,7 @@ void AppSubStage_CalibrateWithMat::update()
             if (bNeedMoreSamples)
             {
                 // Only record samples when the controller is stable
-                if (bIsStable)
+                if (bIsStable || m_bForceControllerStable)
                 {
                     for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
                         iter != m_parentStage->m_trackerViews.end();
@@ -155,8 +154,8 @@ void AppSubStage_CalibrateWithMat::update()
 
                         PSMoveScreenLocation screenSample;
 
-                        if (PSMoveView.GetIsCurrentlyTracking() &&
-                            PSMoveView.GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample) &&
+                        if (ControllerView->GetIsCurrentlyTracking() &&
+                            ControllerView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample) &&
                             m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount < k_mat_calibration_sample_count)
                         {
                             const int sampleCount = m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount;
@@ -311,8 +310,13 @@ void AppSubStage_CalibrateWithMat::update()
                             glm::vec3 glm_forward2d = glm::normalize(glm::vec3(glm_forward.x, 0.f, glm_forward.z));
 
                             // Compute the yaw angle (amount the z-axis has been rotated to it's current facing)
-                            float cos_yaw = glm::dot(glm_forward2d, glm::vec3(0.f, 0.f, 1.f));
-                            float half_yaw = acosf(clampf(cos_yaw, -1.f, 1.f)) / 2.f;
+                            float cos_yaw = glm::dot(glm_forward2d, glm::vec3(0.f, 0.f, 1.f));						
+							float half_yaw = acosf(clampf(cos_yaw, -1.f, 1.f)) / 2.f;
+							glm::vec3 yaw_axis = glm::cross(glm::vec3(0.f, 0.f, 1.f), glm_forward2d);
+							if (glm::dot(yaw_axis, glm::vec3(0.f, 1.f, 0.f)) < 0)
+							{ 
+								half_yaw = -half_yaw;
+							}
 
                             // Convert this yaw rotation back into a quaternion
                             m_hmdTrackerPoseContext.avgHMDWorldSpaceOrientation =
@@ -410,14 +414,13 @@ void AppSubStage_CalibrateWithMat::render()
             {
                 const ClientTrackerView *TrackerView = m_parentStage->get_render_tracker_view();
                 const ClientControllerView *ControllerView = m_parentStage->m_controllerView;
-                const ClientPSMoveView &PSMoveView = ControllerView->GetPSMoveView();
-                const PSMoveRawTrackerData &RawTrackerData= PSMoveView.GetRawTrackerData();
+                const PSMoveRawTrackerData &RawTrackerData = ControllerView->GetRawTrackerData();
                 const int TrackerID = TrackerView->getTrackerId();
 
                 PSMoveTrackingProjection trackingProjection;
                 PSMoveScreenLocation centerProjection;
 
-                if (PSMoveView.GetIsCurrentlyTracking() &&
+                if (ControllerView->GetIsCurrentlyTracking() &&
                     RawTrackerData.GetPixelLocationOnTrackerId(TrackerID, centerProjection) &&
                     RawTrackerData.GetProjectionOnTrackerId(TrackerID, trackingProjection))
                 {
@@ -426,8 +429,7 @@ void AppSubStage_CalibrateWithMat::render()
                     drawTrackingProjection(
                         &centerProjection,
                         &trackingProjection,
-                        screenSize.i, screenSize.j,
-                        glm::vec3(1.f, 1.f, 1.f));
+                        screenSize.i, screenSize.j);
                 }
             }
         } break;
@@ -523,6 +525,11 @@ void AppSubStage_CalibrateWithMat::renderUI()
                 }
             }
 
+            if (ImGui::Button("Trust me, it's stable"))
+            {
+                m_bForceControllerStable= true;
+            }
+            ImGui::SameLine();
             if (ImGui::Button("Restart Calibration"))
             {
                 setState(AppSubStage_CalibrateWithMat::eMenuState::initial);
@@ -702,6 +709,8 @@ void AppSubStage_CalibrateWithMat::onEnterState(
 
             m_sampleLocationIndex = 0;
             m_bIsStable = false;
+            m_bForceControllerStable = false;
+            m_bForceHMDStable= false;
             m_hmdTrackerPoseContext.clear();
         }
         break;
@@ -717,6 +726,7 @@ void AppSubStage_CalibrateWithMat::onEnterState(
             }
 
             m_bIsStable = false;
+            m_bForceControllerStable= false;
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
         break;

@@ -31,6 +31,9 @@
 build*
 bin*
 
+# Auto-downloaded Dependencies
+deps
+
 # Auto-generated Documentation
 docs
 
@@ -38,3 +41,8 @@ docs
 SetBuildVars.bat
 SetBuildVars_Win32.bat
 SetBuildVars_X64.bat
+
+
+# Allow source model files
+!src/psmoveconfigtool/source_assets/*.obj
+!src/openvr_plugin/resources/*.obj
