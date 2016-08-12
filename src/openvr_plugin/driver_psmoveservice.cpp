@@ -42,14 +42,27 @@ static const float k_fRadiansToDegrees = 180.f / 3.14159265f;
 
 static const char *k_PSButtonNames[CPSMoveControllerLatest::k_EPSButtonID_Count] = {
     "ps",
+    "left",
+    "up",
+    "down",
+    "right",
     "move",
-    "select",
-    "start",
+    "trackpad",
     "trigger",
     "triangle",
-    "circle",
     "square",
-    "cross"
+    "circle",
+    "cross",
+    "select",
+    "share",
+    "start",
+    "options",
+    "l1",
+    "l2",
+    "l3",
+    "r1",
+    "r2",
+    "r3"
 };
 
 static const int k_max_vr_buttons = 37;
@@ -424,12 +437,11 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
         case ClientControllerView::PSMove:
             AllocateUniquePSMoveController(controller_id);
             break;
-        //TODO
-        //case ClientControllerView::PSNavi:
-        //    AllocateUniquePSNaviController(controller_id);
-        //TODO
-        //case ClientControllerView::DualShock4:
-        //    AllocateUniqueDualShock4Controller(controller_id);
+        case ClientControllerView::PSNavi:
+            AllocateUniquePSNaviController(controller_id);
+            break;
+        case ClientControllerView::PSDualShock4:
+            AllocateUniqueDualShock4Controller(controller_id);
             break;
         default:
             break;
@@ -451,7 +463,13 @@ void CServerDriver_PSMoveService::HandleTrackerListReponse(
 void CServerDriver_PSMoveService::HandleHMDTrackingSpaceReponse(
     const ClientPSMoveAPI::ResponsePayload_HMDTrackingSpace *hmdTrackingSpace)
 {
-    m_worldFromDriverPose= hmdTrackingSpace->origin_pose;
+    SetHMDTrackingSpace(hmdTrackingSpace->origin_pose);
+}
+
+void CServerDriver_PSMoveService::SetHMDTrackingSpace(
+    const PSMovePose &origin_pose)
+{
+    m_worldFromDriverPose = origin_pose;
 
     // Tell all the devices that the relationship between the psmove and the OpenVR
     // tracking spaces changed
@@ -461,6 +479,36 @@ void CServerDriver_PSMoveService::HandleHMDTrackingSpaceReponse(
 
         pDevice->RefreshWorldFromDriverPose();
     }
+}
+
+bool CServerDriver_PSMoveService::FindFirstHMDPose(PSMovePose &out_origin_pose)
+{
+    bool bResult = false;
+
+    for (vr::TrackedDeviceIndex_t deviceIndex = 0; !bResult && deviceIndex < GetTrackedDeviceCount(); ++deviceIndex)
+    {
+        vr::ITrackedDeviceServerDriver *Device = GetTrackedDeviceDriver(deviceIndex);
+        vr::ETrackedPropertyError error;
+        int deviceClass = Device->GetInt32TrackedDeviceProperty(vr::Prop_DeviceClass_Int32, &error);
+        
+        if (error == vr::TrackedProp_Success && deviceClass == vr::TrackedDeviceClass_HMD)
+        {
+            vr::DriverPose_t DriverPose = Device->GetPose();
+
+            out_origin_pose.Position.x = static_cast<float>(DriverPose.vecPosition[0]);
+            out_origin_pose.Position.y = static_cast<float>(DriverPose.vecPosition[1]);
+            out_origin_pose.Position.z = static_cast<float>(DriverPose.vecPosition[2]);
+
+            out_origin_pose.Orientation.w = static_cast<float>(DriverPose.qRotation.w);
+            out_origin_pose.Orientation.x = static_cast<float>(DriverPose.qRotation.x);
+            out_origin_pose.Orientation.y = static_cast<float>(DriverPose.qRotation.y);
+            out_origin_pose.Orientation.z = static_cast<float>(DriverPose.qRotation.z);
+
+            bResult = true;
+        }
+    }
+
+    return bResult;
 }
 
 static void GenerateControllerSerialNumber( char *p, int psize, int controller )
@@ -477,6 +525,40 @@ void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerI
     {
         DriverLog( "added new psmove controller %s\n", buf );
         m_vecTrackedDevices.push_back( new CPSMoveControllerLatest( m_pDriverHost, ControllerID ) );
+
+        if (m_pDriverHost)
+        {
+            m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSerialNumber());
+        }
+    }
+}
+
+void CServerDriver_PSMoveService::AllocateUniquePSNaviController(int ControllerID)
+{
+    char buf[256];
+    GenerateControllerSerialNumber(buf, sizeof(buf), ControllerID);
+
+    if (!FindTrackedDeviceDriver(buf))
+    {
+        DriverLog("added new ps navi controller %s\n", buf);
+        m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID));
+
+        if (m_pDriverHost)
+        {
+            m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSerialNumber());
+        }
+    }
+}
+
+void CServerDriver_PSMoveService::AllocateUniqueDualShock4Controller(int ControllerID)
+{
+    char buf[256];
+    GenerateControllerSerialNumber(buf, sizeof(buf), ControllerID);
+
+    if (!FindTrackedDeviceDriver(buf))
+    {
+        DriverLog("added new ps dualshock4 controller %s\n", buf);
+        m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID));
 
         if (m_pDriverHost)
         {
@@ -902,16 +984,29 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
     // Map every button to the system button initially
     memset(psButtonIDToVRButtonID, vr::k_EButton_System, k_EPSButtonID_Count*sizeof(vr::EVRButtonId));
 
-    // Load the button remapping from the settings for all possible controller buttons
+    // Load the button remapping from the settings for all possible controller buttons   
     LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_PS, vr::k_EButton_System);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Left, vr::k_EButton_DPad_Left);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Up, vr::k_EButton_DPad_Up);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Right, vr::k_EButton_DPad_Right);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Down, vr::k_EButton_DPad_Down);
     LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Move, vr::k_EButton_SteamVR_Touchpad);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Trackpad, vr::k_EButton_SteamVR_Touchpad);
     LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Trigger, vr::k_EButton_SteamVR_Trigger);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Triangle, vr::k_EButton_ApplicationMenu);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Square, vr::k_EButton_Dashboard_Back);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Circle, vr::k_EButton_A);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Cross, (vr::EVRButtonId)8);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Select, (vr::EVRButtonId)9);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Start, (vr::EVRButtonId)10);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Triangle, (vr::EVRButtonId)8);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Square, (vr::EVRButtonId)9);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Circle, (vr::EVRButtonId)10);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Cross, (vr::EVRButtonId)11);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Select, vr::k_EButton_Grip);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Share, vr::k_EButton_ApplicationMenu);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Start, vr::k_EButton_ApplicationMenu);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Options, vr::k_EButton_ApplicationMenu);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_L1, vr::k_EButton_SteamVR_Trigger);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_L2, vr::k_EButton_SteamVR_Trigger);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_L3, vr::k_EButton_Grip);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R1, vr::k_EButton_SteamVR_Trigger);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R2, vr::k_EButton_SteamVR_Trigger);
+    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R3, vr::k_EButton_Grip);    
 }
 
 CPSMoveControllerLatest::~CPSMoveControllerLatest()
@@ -961,12 +1056,26 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(uint32_t unObjectId)
         // Transform used to convert from PSMove Tracking space to OpenVR Tracking Space
         RefreshWorldFromDriverPose();
 
-        ClientPSMoveAPI::start_controller_data_stream(
-            m_controller_view, 
-            ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includePhysicsData);
+        ClientPSMoveAPI::register_callback(
+            ClientPSMoveAPI::start_controller_data_stream(
+                m_controller_view, 
+                ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includePhysicsData),
+            CPSMoveControllerLatest::start_controller_response_callback,
+            this);
     }
 
     return result;
+}
+
+void CPSMoveControllerLatest::start_controller_response_callback(
+    const ClientPSMoveAPI::ResponseMessage *response, void *userdata)
+{
+    CPSMoveControllerLatest *controller= reinterpret_cast<CPSMoveControllerLatest *>(userdata);
+
+    if (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    {
+        controller->m_properties_dirty= true;
+    }
 }
 
 void CPSMoveControllerLatest::Deactivate()
@@ -1086,14 +1195,27 @@ uint64_t CPSMoveControllerLatest::GetUint64TrackedDeviceProperty(
     case vr::Prop_SupportedButtons_Uint64:
         ulRetVal = 
             vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_PS]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Left]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Up]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Right]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Down]) |
             vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Move]) |
-            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Select]) |
-            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Start]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Trackpad]) |
             vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Trigger]) |
             vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Triangle]) |
-            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Circle]) |
             vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Square]) |
-            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Cross]);
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Circle]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Cross]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Select]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Share]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Start]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Options]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L1]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L2]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L3]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_R1]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_R2]) |
+            vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_R3]);
         *pError = vr::TrackedProp_Success;
         break;
 
@@ -1123,7 +1245,20 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
         // The {psmove} syntax lets us refer to rendermodels that are installed
         // in the driver's own resources/rendermodels directory.  The driver can
         // still refer to SteamVR models like "generic_hmd".
-        ssRetVal << "{psmove}psmove_controller";
+        switch(m_controller_view->GetControllerViewType())
+        {
+        case ClientControllerView::PSMove:
+            ssRetVal << "{psmove}psmove_controller";
+            break;
+        case ClientControllerView::PSNavi:
+            ssRetVal << "{psmove}navi_controller";
+            break;
+        case ClientControllerView::PSDualShock4:
+            ssRetVal << "{psmove}dualshock4_controller";
+            break;
+        default:
+            ssRetVal << "generic_controller";
+        }
         break;
     }
 
@@ -1181,41 +1316,172 @@ void CPSMoveControllerLatest::UpdateControllerState()
     assert(m_controller_view != nullptr);
     assert(m_controller_view->GetIsConnected());
 
-    const ClientPSMoveView &clientView= m_controller_view->GetPSMoveView();
     vr::VRControllerState_t NewState = { 0 };
 
     // Changing unPacketNum tells anyone polling state that something might have
     // changed.  We don't try to be precise about that here.
     NewState.unPacketNum = m_ControllerState.unPacketNum + 1;
-
-    bool bStartWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Start])) > 0;
-    bool bSelectWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Select])) > 0;
-
-    // If start and select are released at the same time, recenter the controller orientation pose 
-    if (bStartWasPressed && !clientView.GetButtonStart() &&
-        bSelectWasPressed && !clientView.GetButtonSelect())
+   
+    switch (m_controller_view->GetControllerViewType())
     {
-        ClientPSMoveAPI::reset_pose(m_controller_view);
-    }
+    case ClientControllerView::eControllerType::PSMove:
+        {
+            const ClientPSMoveView &clientView = m_controller_view->GetPSMoveView();
 
-    if (clientView.GetButtonCircle())
-        NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Circle]);
-    if (clientView.GetButtonCross())
-        NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Cross]);
-    if (clientView.GetButtonMove())
-        NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Move]);
-    if (clientView.GetButtonPS())
-        NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_PS]);
-    if (clientView.GetButtonSelect())
-        NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Select]);
-    if (clientView.GetButtonSquare())
-        NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Square]);
-    if (clientView.GetButtonStart())
-        NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Start]);
-    if (clientView.GetButtonTriangle())
-        NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Triangle]);
-    if (clientView.GetButtonTrigger())
-        NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Trigger]);
+            bool bStartWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Start])) > 0;
+            bool bSelectWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Select])) > 0;
+
+            bool bSquareWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Square])) > 0;
+            bool bCrossWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Cross])) > 0;
+            bool bTriangleWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Triangle])) > 0;
+            bool bCircleWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Circle])) > 0;
+
+            // If start and select are released at the same time, recenter the controller orientation pose 
+            if (bStartWasPressed && !clientView.GetButtonStart() &&
+                bSelectWasPressed && !clientView.GetButtonSelect())
+            {
+                ClientPSMoveAPI::reset_pose(m_controller_view);
+            }
+
+            // If square, cross, triangle, and circle are released at the same time, re-align the psmove tracking space with the  
+            if (bSquareWasPressed && !clientView.GetButtonSquare() &&
+                bCrossWasPressed && !clientView.GetButtonCross() &&
+                bTriangleWasPressed && !clientView.GetButtonTriangle() &&
+                bCircleWasPressed && !clientView.GetButtonCircle())
+            {
+                //RealignHMDTrackingSpace();
+            }
+
+            if (clientView.GetButtonCircle())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Circle]);
+            if (clientView.GetButtonCross())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Cross]);
+            if (clientView.GetButtonMove())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Move]);
+            if (clientView.GetButtonPS())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_PS]);
+            if (clientView.GetButtonSelect())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Select]);
+            if (clientView.GetButtonSquare())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Square]);
+            if (clientView.GetButtonStart())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Start]);
+            if (clientView.GetButtonTriangle())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Triangle]);
+            if (clientView.GetButtonTrigger())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Trigger]);
+
+            NewState.rAxis[1].x = clientView.GetTriggerValue();
+            NewState.rAxis[1].y = 0.f;
+
+            if (NewState.rAxis[1].x != m_ControllerState.rAxis[1].x)
+                m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1]);
+        } break;
+    case ClientControllerView::eControllerType::PSNavi:
+        {
+            const ClientPSNaviView &clientView = m_controller_view->GetPSNaviView();
+
+            if (clientView.GetButtonL1())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L1]);
+            if (clientView.GetButtonL2())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L2]);
+            if (clientView.GetButtonL3())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L3]);
+            if (clientView.GetButtonCircle())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Circle]);
+            if (clientView.GetButtonCross())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Cross]);
+            if (clientView.GetButtonPS())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_PS]);
+            if (clientView.GetButtonTrigger())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Trigger]);
+            if (clientView.GetButtonDPadUp())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Up]);
+            if (clientView.GetButtonDPadDown())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Down]);
+            if (clientView.GetButtonDPadLeft())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Left]);
+            if (clientView.GetButtonDPadRight())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Right]);
+
+            NewState.rAxis[0].x = clientView.GetStickXAxis();
+            NewState.rAxis[0].y = clientView.GetStickYAxis();
+
+            NewState.rAxis[1].x = clientView.GetTriggerValue();
+            NewState.rAxis[1].y = 0.f;
+
+            if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x || NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
+                m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
+            if (NewState.rAxis[1].x != m_ControllerState.rAxis[1].x)
+                m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1]);
+        } break;
+    case ClientControllerView::eControllerType::PSDualShock4:
+        {
+            const ClientPSDualShock4View &clientView = m_controller_view->GetPSDualShock4View();
+
+            if (clientView.GetButtonL1())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L1]);
+            if (clientView.GetButtonL2())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L2]);
+            if (clientView.GetButtonL3())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L3]);
+            if (clientView.GetButtonR1())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_R1]);
+            if (clientView.GetButtonR2())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_R2]);
+            if (clientView.GetButtonR3())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_R3]);
+
+            if (clientView.GetButtonCircle())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Circle]);
+            if (clientView.GetButtonCross())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Cross]);
+            if (clientView.GetButtonSquare())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Square]);
+            if (clientView.GetButtonTriangle())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Triangle]);
+
+            if (clientView.GetButtonDPadUp())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Up]);
+            if (clientView.GetButtonDPadDown())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Down]);
+            if (clientView.GetButtonDPadLeft())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Left]);
+            if (clientView.GetButtonDPadRight())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Right]);
+
+            if (clientView.GetButtonOptions())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Options]);
+            if (clientView.GetButtonShare())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Share]);
+            if (clientView.GetButtonTrackpad())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Trackpad]);
+            if (clientView.GetButtonPS())
+                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_PS]);
+
+            NewState.rAxis[0].x = clientView.GetLeftAnalogX();
+            NewState.rAxis[0].y = -clientView.GetLeftAnalogY();
+
+            NewState.rAxis[1].x = clientView.GetLeftTriggerValue();
+            NewState.rAxis[1].y = 0.f;
+
+            NewState.rAxis[2].x = clientView.GetRightAnalogX();
+            NewState.rAxis[2].y = -clientView.GetRightAnalogY();
+
+            NewState.rAxis[3].x = clientView.GetRightTriggerValue();
+            NewState.rAxis[3].y = 0.f;
+
+            if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x || NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
+                m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
+            if (NewState.rAxis[1].x != m_ControllerState.rAxis[1].x)
+                m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1]);
+
+            if (NewState.rAxis[2].x != m_ControllerState.rAxis[2].x || NewState.rAxis[2].y != m_ControllerState.rAxis[2].y)
+                m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 2, NewState.rAxis[2]);
+            if (NewState.rAxis[3].x != m_ControllerState.rAxis[3].x)
+                m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 3, NewState.rAxis[3]);
+        } break;
+    }
 
     // All pressed buttons are touched
     NewState.ulButtonTouched |= NewState.ulButtonPressed;
@@ -1228,13 +1494,66 @@ void CPSMoveControllerLatest::UpdateControllerState()
     SendButtonUpdates( &vr::IServerDriverHost::TrackedDeviceButtonUnpressed, ulChangedPressed & ~NewState.ulButtonPressed );
     SendButtonUpdates( &vr::IServerDriverHost::TrackedDeviceButtonUntouched, ulChangedTouched & ~NewState.ulButtonTouched );
 
-    NewState.rAxis[1].x = clientView.GetTriggerValue();
-    NewState.rAxis[1].y = 0.f;
-
-    if ( NewState.rAxis[1].x != m_ControllerState.rAxis[1].x )
-        m_pDriverHost->TrackedDeviceAxisUpdated( m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1] );
-
     m_ControllerState = NewState;
+}
+
+PSMoveQuaternion ExtractYawQuaternion(const PSMoveQuaternion &q)
+{
+    // Convert the quaternion to a basis matrix
+    const PSMoveMatrix3x3 hmd_orientation = PSMoveMatrix3x3::create(q);
+
+    // Extract the forward (z-axis) vector from the basis
+    const PSMoveFloatVector3 global_forward = PSMoveFloatVector3::create(0.f, 0.f, 1.f);
+    const PSMoveFloatVector3 &forward = hmd_orientation.basis_z();
+
+    // Compute the yaw angle (amount the z-axis has been rotated to it's current facing)
+    const float cos_yaw = PSMoveFloatVector3::dot(forward, global_forward);
+    const float half_yaw = acosf(fminf(fmaxf(cos_yaw, -1.f), 1.f)) / 2.f;
+
+    // Convert this yaw rotation back into a quaternion
+    PSMoveQuaternion yaw_quaternion =
+        PSMoveQuaternion::create(
+            cosf(half_yaw), // w = cos(theta/2)
+            0.f, sinf(half_yaw), 0.f); // (x, y, z) = sin(theta/2)*axis, where axis = (0, 1, 0)
+
+    return yaw_quaternion;
+}
+
+void CPSMoveControllerLatest::RealignHMDTrackingSpace()
+{
+    PSMovePose hmd_pose_meters;
+    if (g_ServerTrackedDeviceProvider.FindFirstHMDPose(hmd_pose_meters))
+    {
+        // Make the HMD orientation only contain a yaw
+        hmd_pose_meters.Orientation = ExtractYawQuaternion(hmd_pose_meters.Orientation);
+
+        // Get the current pose of this psmove (in meters)
+        PSMovePose psmove_pose_meters;
+        psmove_pose_meters.Position.x = static_cast<float>(m_Pose.vecPosition[0]);
+        psmove_pose_meters.Position.y = static_cast<float>(m_Pose.vecPosition[1]);
+        psmove_pose_meters.Position.z = static_cast<float>(m_Pose.vecPosition[2]);
+        psmove_pose_meters.Orientation.w = static_cast<float>(m_Pose.qRotation.w);
+        psmove_pose_meters.Orientation.x = static_cast<float>(m_Pose.qRotation.x);
+        psmove_pose_meters.Orientation.y = static_cast<float>(m_Pose.qRotation.y);
+        psmove_pose_meters.Orientation.z = static_cast<float>(m_Pose.qRotation.z);
+
+        // Make the PSMove orientation only contain a yaw
+        psmove_pose_meters.Orientation = ExtractYawQuaternion(psmove_pose_meters.Orientation);
+
+        // Create a transform that brings the psmove back to the psmove tracking space origin
+        PSMovePose psmove_pose_inv= psmove_pose_meters.inverse();
+
+        // Create a transform that goes from psmove tracking space to hmd tracking space
+        PSMovePose psm_space_to_hmd_space = PSMovePose::concat(psmove_pose_inv, hmd_pose_meters);
+
+        // Create a transform that takes the HMD pose to the PSMove origin
+        PSMovePose hmd_to_psmove_origin = PSMovePose::concat(psmove_pose_inv, psm_space_to_hmd_space);
+
+        // Compute the pose of of the HMD if it were at the PSMove Tracking Origin
+        PSMovePose hmd_at_psmove_origin_pose = PSMovePose::concat(hmd_pose_meters, hmd_to_psmove_origin);
+
+        g_ServerTrackedDeviceProvider.SetHMDTrackingSpace(hmd_at_psmove_origin_pose);
+    }
 }
 
 void CPSMoveControllerLatest::UpdateTrackingState()
@@ -1311,7 +1630,7 @@ void CPSMoveControllerLatest::UpdateTrackingState()
                 m_Pose.vecAngularAcceleration[2] = physicsData.AngularAcceleration.k;
             }
 
-            m_Pose.poseIsValid = view.GetIsCurrentlyTracking();
+            m_Pose.poseIsValid = m_controller_view->GetIsPoseValid();
 
             // This call posts this pose to shared memory, where all clients will have access to it the next
             // moment they want to predict a pose.
@@ -1322,6 +1641,69 @@ void CPSMoveControllerLatest::UpdateTrackingState()
             m_Pose.poseIsValid = false;
 
             // Don't post anything to the driver host
+        } break;
+    case ClientControllerView::eControllerType::PSDualShock4:
+        {
+            const ClientPSDualShock4View &view = m_controller_view->GetPSDualShock4View();
+
+            // No prediction since that's already handled in the psmove service
+            m_Pose.poseTimeOffset = 0.f;
+
+            // Rotate -90 degrees about the x-axis from the current HMD orientation
+            m_Pose.qDriverFromHeadRotation.w = 0.707107;
+            m_Pose.qDriverFromHeadRotation.x = -0.707107;
+            m_Pose.qDriverFromHeadRotation.y = 0.0f;
+            m_Pose.qDriverFromHeadRotation.z = 0.0f;
+            m_Pose.vecDriverFromHeadTranslation[0] = 0.f;
+            m_Pose.vecDriverFromHeadTranslation[1] = 0.f;
+            m_Pose.vecDriverFromHeadTranslation[2] = 0.f;
+
+            // Set position
+            {
+                const PSMovePosition &position = view.GetPosition();
+
+                m_Pose.vecPosition[0] = position.x * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecPosition[1] = position.y * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecPosition[2] = position.z * k_fScalePSMoveAPIToMeters;
+            }
+
+            // Set rotational coordinates
+            {
+                const PSMoveQuaternion &orientation = view.GetOrientation();
+
+                m_Pose.qRotation.w = orientation.w;
+                m_Pose.qRotation.x = orientation.x;
+                m_Pose.qRotation.y = orientation.y;
+                m_Pose.qRotation.z = orientation.z;
+            }
+
+            // Set the physics state of the controller
+            // TODO: Physics data is too noisy for the DS4 right now, causes jitter
+            {
+                const PSMovePhysicsData &physicsData = view.GetPhysicsData();
+
+                m_Pose.vecVelocity[0] = 0.f; // physicsData.Velocity.i * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[1] = 0.f; // physicsData.Velocity.j * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[2] = 0.f; // physicsData.Velocity.k * k_fScalePSMoveAPIToMeters;
+
+                m_Pose.vecAcceleration[0] = 0.f; // physicsData.Acceleration.i * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[1] = 0.f; // physicsData.Acceleration.j * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[2] = 0.f; // physicsData.Acceleration.k * k_fScalePSMoveAPIToMeters;
+
+                m_Pose.vecAngularVelocity[0] = 0.f; // physicsData.AngularVelocity.i;
+                m_Pose.vecAngularVelocity[1] = 0.f; // physicsData.AngularVelocity.j;
+                m_Pose.vecAngularVelocity[2] = 0.f; // physicsData.AngularVelocity.k;
+
+                m_Pose.vecAngularAcceleration[0] = 0.f; // physicsData.AngularAcceleration.i;
+                m_Pose.vecAngularAcceleration[1] = 0.f; // physicsData.AngularAcceleration.j;
+                m_Pose.vecAngularAcceleration[2] = 0.f; // physicsData.AngularAcceleration.k;
+            }
+
+            m_Pose.poseIsValid = m_controller_view->GetIsPoseValid();
+
+            // This call posts this pose to shared memory, where all clients will have access to it the next
+            // moment they want to predict a pose.
+            m_pDriverHost->TrackedDevicePoseUpdated(m_unSteamVRTrackedDeviceId, m_Pose);
         } break;
     }
 }
@@ -1346,7 +1728,7 @@ void CPSMoveControllerLatest::UpdateRumbleState()
     {
         float rumble_fraction = static_cast<float>(m_pendingHapticPulseDuration) / k_max_pulse_microseconds;
 
-        // Unless a zero runble intensity was explicitly set, 
+        // Unless a zero rumble intensity was explicitly set, 
         // don't rumble less than 35% (no enough to feel)
         if (m_pendingHapticPulseDuration != 0)
         {
@@ -1370,6 +1752,9 @@ void CPSMoveControllerLatest::UpdateRumbleState()
             m_controller_view->GetPSMoveViewMutable().SetRumble(rumble_fraction);
             break;
         case ClientControllerView::PSNavi:
+            break;
+        case ClientControllerView::PSDualShock4:
+            m_controller_view->GetPSDualShock4ViewMutable().SetBigRumble(rumble_fraction);
             break;
         default:
             assert(0 && "Unreachable");

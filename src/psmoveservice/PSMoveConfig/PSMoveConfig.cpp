@@ -7,6 +7,20 @@
 
 #include <iostream>
 
+// Format: {hue center, hue range}, {sat center, sat range}, {val center, val range}
+// All hue angles are 60 degrees apart to maximize hue separation for 6 max tracked colors.
+// Hue angle reference: http://i.imgur.com/PKjgfFXm.jpg 
+// Hue angles divide by 2 for opencv which remaps hue range to [0,180]
+const CommonHSVColorRange g_default_color_presets[] = {
+    { { 300 / 2, 10 }, { 255, 32 }, { 255, 32 } }, // Magenta
+    { { 180 / 2, 10 }, { 255, 32 }, { 255, 32 } }, // Cyan
+    { { 60 / 2, 10 }, { 255, 32 }, { 255, 32 } }, // Yellow
+    { { 0, 10 }, { 255, 32 }, { 255, 32 } }, // Red
+    { { 120 / 2, 10 }, { 255, 32 }, { 255, 32 } }, // Green
+    { { 240 / 2, 10 }, { 255, 32 }, { 255, 32 } }, // Blue
+};
+const CommonHSVColorRange *k_default_color_presets = g_default_color_presets;
+
 PSMoveConfig::PSMoveConfig(const std::string &fnamebase)
 : ConfigFileBase(fnamebase)
 {
@@ -61,6 +75,36 @@ PSMoveConfig::load()
     return bLoadedOk;
 }
 
+void
+PSMoveConfig::writeColorPropertyPresetTable(
+	const CommonHSVColorRangeTable *table,
+    boost::property_tree::ptree &pt)
+{
+	const char *profile_name= table->table_name.c_str();
+
+    writeColorPreset(pt, profile_name, "magenta", &table->color_presets[eCommonTrackingColorID::Magenta]);
+    writeColorPreset(pt, profile_name, "cyan", &table->color_presets[eCommonTrackingColorID::Cyan]);
+    writeColorPreset(pt, profile_name, "yellow", &table->color_presets[eCommonTrackingColorID::Yellow]);
+    writeColorPreset(pt, profile_name, "red", &table->color_presets[eCommonTrackingColorID::Red]);
+    writeColorPreset(pt, profile_name, "green", &table->color_presets[eCommonTrackingColorID::Green]);
+    writeColorPreset(pt, profile_name, "blue", &table->color_presets[eCommonTrackingColorID::Blue]);
+}
+
+void
+PSMoveConfig::readColorPropertyPresetTable(
+	const boost::property_tree::ptree &pt,
+	CommonHSVColorRangeTable *table)
+{
+	const char *profile_name= table->table_name.c_str();
+
+    readColorPreset(pt, profile_name, "magenta", &table->color_presets[eCommonTrackingColorID::Magenta], &k_default_color_presets[eCommonTrackingColorID::Magenta]);
+    readColorPreset(pt, profile_name, "cyan", &table->color_presets[eCommonTrackingColorID::Cyan], &k_default_color_presets[eCommonTrackingColorID::Cyan]);
+    readColorPreset(pt, profile_name, "yellow", &table->color_presets[eCommonTrackingColorID::Yellow], &k_default_color_presets[eCommonTrackingColorID::Yellow]);
+    readColorPreset(pt, profile_name, "red", &table->color_presets[eCommonTrackingColorID::Red], &k_default_color_presets[eCommonTrackingColorID::Red]);
+    readColorPreset(pt, profile_name, "green", &table->color_presets[eCommonTrackingColorID::Green], &k_default_color_presets[eCommonTrackingColorID::Green]);
+    readColorPreset(pt, profile_name, "blue", &table->color_presets[eCommonTrackingColorID::Blue], &k_default_color_presets[eCommonTrackingColorID::Blue]);
+}
+
 static void
 writeColorPropertyPreset(
     boost::property_tree::ptree &pt,
@@ -98,7 +142,6 @@ PSMoveConfig::writeColorPreset(
     writeColorPropertyPreset(pt, profile_name, color_name, "value_center", colorPreset->value_range.center);
     writeColorPropertyPreset(pt, profile_name, color_name, "value_range", colorPreset->value_range.range);
 }
-
 
 static void
 readColorPropertyPreset(

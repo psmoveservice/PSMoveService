@@ -123,7 +123,7 @@ public:
     template <typename t_enum_status>
     void setSubStatus_WorkerThread(t_enum_status newSubStatus)
     {
-        assert(isWorkerThread());
+        //assert(isWorkerThread());
         
         // Atomically set the new status on subStatus_WorkerThread
         InterlockedCompareExchange(&subStatus_WorkerThread, static_cast<LONG>(newSubStatus), subStatus_WorkerThread);
@@ -303,6 +303,7 @@ static bool get_bluetooth_device_info(const HANDLE hRadio, const BLUETOOTH_ADDRE
 static bool is_matching_controller_type(const BLUETOOTH_DEVICE_INFO *device_info, const CommonDeviceState::eDeviceType controller_device_type);
 static bool is_device_move_motion_controller(const BLUETOOTH_DEVICE_INFO *device_info);
 static bool is_device_navigation_controller(const BLUETOOTH_DEVICE_INFO *device_info);
+static bool is_device_dualshock4_controller(const BLUETOOTH_DEVICE_INFO *device_info);
 static bool is_hid_service_enabled(const HANDLE hRadio, BLUETOOTH_DEVICE_INFO *device_info);
 static bool patch_registry(const BLUETOOTH_ADDRESS *move_addr, const BLUETOOTH_ADDRESS *radio_addr);
 
@@ -1294,6 +1295,10 @@ is_matching_controller_type(
         {
             matches= is_device_navigation_controller(device_info);
         } break;
+    case CommonDeviceState::PSDualShock4:
+        {
+            matches = is_device_dualshock4_controller(device_info);
+        } break;
     default:
         assert(0 && "unreachable");
     }
@@ -1311,6 +1316,12 @@ static bool
 is_device_navigation_controller(const BLUETOOTH_DEVICE_INFO *device_info)
 {
     return wcscmp(device_info->szName, L"Navigation Controller") == 0;
+}
+
+static bool
+is_device_dualshock4_controller(const BLUETOOTH_DEVICE_INFO *device_info)
+{
+    return wcscmp(device_info->szName, L"Wireless Controller") == 0;
 }
 
 static bool

@@ -96,6 +96,9 @@ private:
                     case PSMController_Navi:
                         controller_type= "PSNavi";
                         break;
+                    case PSMController_DualShock4:
+                        controller_type= "DualShock4";
+                        break;
                     }
 
                     std::cout << "  Controller ID: " << controllerList.controller_id[trkr_ix] << " is a " << controller_type << std::endl;
@@ -120,7 +123,7 @@ private:
             
                 // Register as listener and start stream for each controller
                 unsigned int data_stream_flags = PSMControllerDataStreamFlags::PSMStreamFlags_includePositionData |
-                PSMControllerDataStreamFlags::PSMStreamFlags_includePhysicsData | PSMControllerDataStreamFlags::PSMStreamFlags_includeRawSensorData |
+                PSMControllerDataStreamFlags::PSMStreamFlags_includePhysicsData | PSMControllerDataStreamFlags::PSMStreamFlags_includeCalibratedSensorData |
                 PSMControllerDataStreamFlags::PSMStreamFlags_includeRawTrackerData;
                 PSMResult result;
                 for (int trkr_ix=0; trkr_ix<controllerList.count; ++trkr_ix) {
@@ -149,21 +152,21 @@ private:
         PSMResult result = PSM_Update();
 
         PSMController *controller0= PSM_GetController(controllerList.controller_id[0]);
-        PSMRawSensorData rawsens = controller0->ControllerState.PSMoveState.RawSensorData;
+        PSMPSMoveCalibratedSensorData calibsens = controller0->ControllerState.PSMoveState.CalibratedSensorData;
         
         std::cout << "Controller 0 (AGMXYZ):  ";
         
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << rawsens.Accelerometer.x;
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << rawsens.Accelerometer.y;
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << rawsens.Accelerometer.z;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Accelerometer.x;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Accelerometer.y;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Accelerometer.z;
         
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << rawsens.Gyroscope.x;
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << rawsens.Gyroscope.y;
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << rawsens.Gyroscope.z;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Gyroscope.x;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Gyroscope.y;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Gyroscope.z;
         
-        std::cout << std::setw(5) << std::right << rawsens.Magnetometer.x;
-        std::cout << std::setw(5) << std::right << rawsens.Magnetometer.y;
-        std::cout << std::setw(5) << std::right << rawsens.Magnetometer.z;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Magnetometer.x;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Magnetometer.y;
+        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Magnetometer.z;
         
         PSMVector3f position = controller0->ControllerState.PSMoveState.RawTrackerData.RelativePositions[0];
         std::cout << std::setw(12) << std::right << std::setprecision(6) << position.x;

@@ -33,10 +33,14 @@ public:
 
     void LaunchPSMoveConfigTool();
 
+	void SetHMDTrackingSpace(const PSMovePose &origin_pose);
     inline PSMovePose GetWorldFromDriverPose() const { return m_worldFromDriverPose; }
+	bool FindFirstHMDPose(PSMovePose &out_origin_pose);
 
 private:
     void AllocateUniquePSMoveController(int ControllerID);
+    void AllocateUniquePSNaviController(int ControllerID);
+    void AllocateUniqueDualShock4Controller(int ControllerID);
     void AllocateUniquePSMoveTracker(const ClientTrackerInfo &trackerInfo);
     bool ReconnectToPSMoveService();
 
@@ -54,8 +58,6 @@ private:
     void HandleTrackerListReponse(const ClientPSMoveAPI::ResponsePayload_TrackerList *tracker_list);
     void HandleHMDTrackingSpaceReponse(const ClientPSMoveAPI::ResponsePayload_HMDTrackingSpace *hmdTrackingSpace);
     
-    void CheckForChordedSystemButtons();
-
     void LaunchPSMoveConfigTool( const char * pchDriverInstallDir );
 
     vr::IServerDriverHost* m_pDriverHost;
@@ -139,14 +141,27 @@ public:
     enum ePSButtonID
     {
         k_EPSButtonID_PS,
+        k_EPSButtonID_Left,
+        k_EPSButtonID_Up,
+        k_EPSButtonID_Right,
+        k_EPSButtonID_Down,
         k_EPSButtonID_Move,
-        k_EPSButtonID_Select,
-        k_EPSButtonID_Start,
+        k_EPSButtonID_Trackpad,
         k_EPSButtonID_Trigger,
         k_EPSButtonID_Triangle,
-        k_EPSButtonID_Circle,
         k_EPSButtonID_Square,
+        k_EPSButtonID_Circle,
         k_EPSButtonID_Cross,
+        k_EPSButtonID_Select,
+        k_EPSButtonID_Share,
+        k_EPSButtonID_Start,
+        k_EPSButtonID_Options,
+        k_EPSButtonID_L1,
+        k_EPSButtonID_L2,
+        k_EPSButtonID_L3,
+        k_EPSButtonID_R1,
+        k_EPSButtonID_R2,
+        k_EPSButtonID_R3,
 
         k_EPSButtonID_Count
     };
@@ -178,9 +193,10 @@ private:
     typedef void ( vr::IServerDriverHost::*ButtonUpdate )( uint32_t unWhichDevice, vr::EVRButtonId eButtonId, double eventTimeOffset );
 
     void SendButtonUpdates( ButtonUpdate ButtonEvent, uint64_t ulMask );
+	void RealignHMDTrackingSpace();
     void UpdateControllerState();
     void UpdateTrackingState();
-    void UpdateRumbleState();
+    void UpdateRumbleState();	
 
     // The last received state of a psmove controller from the service
     int m_nControllerId;
@@ -207,6 +223,9 @@ private:
         vr::IVRSettings *pSettings,
         const CPSMoveControllerLatest::ePSButtonID psButtonID,
         const vr::EVRButtonId defaultVRButtonID);
+
+    // Callbacks
+    static void start_controller_response_callback(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
 };
 
 class CPSMoveTrackerLatest : public CPSMoveTrackedDeviceLatest

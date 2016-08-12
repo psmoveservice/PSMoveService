@@ -29,10 +29,14 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ELSE() #Linux
 ENDIF()
 
-IF(MSVC) # Disable asio auto linking in date-time and regex
+IF(MSVC) 
+# Disable asio auto linking in date-time and regex
 add_definitions(-DBOOST_DATE_TIME_NO_LIB)
 add_definitions(-DBOOST_REGEX_NO_LIB)
+# fix: fatal error C1128: number of sections exceeded object file format limit
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 ENDIF()
+
 
 #
 # TEST_CONFIGMANAGER
@@ -92,14 +96,8 @@ list(APPEND TEST_CAMERA_REQ_LIBS ${Boost_LIBRARIES})
 
 # OpenCV
 set(OpenCV_STATIC ON)
+IF(NOT(${CMAKE_SYSTEM_NAME} MATCHES "Windows"))
 FIND_PACKAGE(OpenCV REQUIRED)
-IF ("${OpenCV_LIBS}" STREQUAL "")
-    message("OpenCV Libs was empty! Manually setting.")
-    list(APPEND OpenCV_LIBS opencv_core opencv_imgproc opencv_calib3d opencv_video opencv_features2d opencv_ml opencv_highgui opencv_objdetect)
-ENDIF()
-IF ("${OpenCV_INCLUDE_DIRS}" STREQUAL "" AND ${OpenCV_DIR})
-    message("OpenCV include dirs was empty! Manually setting.")
-    set (OpenCV_INCLUDE_DIRS ${OpenCV_DIR}\include)
 ENDIF()
 list(APPEND TEST_CAMERA_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
 list(APPEND TEST_CAMERA_REQ_LIBS ${OpenCV_LIBS})
@@ -155,6 +153,9 @@ list(APPEND TEST_CAMERA_SRC
 add_executable(test_camera ${CMAKE_CURRENT_LIST_DIR}/test_camera.cpp ${TEST_CAMERA_SRC})
 target_include_directories(test_camera PUBLIC ${TEST_CAMERA_INCL_DIRS})
 target_link_libraries(test_camera ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS})
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+add_dependencies(test_camera opencv)
+ENDIF()
 SET_TARGET_PROPERTIES(test_camera PROPERTIES FOLDER Test)
 
 IF(${ISWIN32})
@@ -232,6 +233,11 @@ list(APPEND TEST_CTRLR_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/PSMoveController)
 list(APPEND TEST_CTRLR_SRC    
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp    
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
     ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
     ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp
     ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.h
@@ -292,9 +298,9 @@ SET_TARGET_PROPERTIES(test_console_CAPI PROPERTIES FOLDER Test)
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 install(TARGETS test_console_CAPI
-    RUNTIME DESTINATION ${ROOT_DIR}/win32/bin
-    LIBRARY DESTINATION ${ROOT_DIR}/win32/lib
-    ARCHIVE DESTINATION ${ROOT_DIR}/win32/lib)
+    RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+    LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+    ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
 

@@ -33,6 +33,9 @@ const char *AppStage_ComputeTrackerPoses::APP_STAGE_NAME = "ComputeTrackerPoses"
 static const glm::vec3 k_hmd_frustum_color = glm::vec3(1.f, 0.788f, 0.055f);
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 
+//-- private methods -----
+static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
+
 //-- public methods -----
 AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
     : AppStage(app)
@@ -268,10 +271,10 @@ void AppStage_ComputeTrackerPoses::render()
 
             // Draw the psmove model
             {
-                PSMovePose psmove_space_pose = m_controllerView->GetPSMoveView().GetPose();
+                PSMovePose psmove_space_pose = m_controllerView->GetPose();
                 glm::mat4 chaperoneSpaceTransform = psmove_tracking_space_to_chaperone_space * psmove_pose_to_glm_mat4(psmove_space_pose);
 
-                drawPSMoveModel(chaperoneSpaceTransform, glm::vec3(1.f, 1.f, 1.f));
+                drawController(m_controllerView, chaperoneSpaceTransform);
                 drawTransformedAxes(chaperoneSpaceTransform, 10.f);
             }
 
@@ -752,19 +755,20 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
             const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list = 
                 &response_message->payload.controller_list;
 
-            int PSMoveControllerId = -1;
+            int trackedControllerId = -1;
             for (int list_index = 0; list_index < controller_list->count; ++list_index)
             {
-                if (controller_list->controller_type[list_index] == ClientControllerView::PSMove)
+                if (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
+                    controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)
                 {
-                    PSMoveControllerId = controller_list->controller_id[list_index];
+                    trackedControllerId = controller_list->controller_id[list_index];
                     break;
                 }
             }
 
-            if (PSMoveControllerId != -1)
+            if (trackedControllerId != -1)
             {
-                thisPtr->request_start_controller_stream(PSMoveControllerId);
+                thisPtr->request_start_controller_stream(trackedControllerId);
             }
             else
             {
@@ -791,7 +795,7 @@ void AppStage_ComputeTrackerPoses::request_start_controller_stream(int Controlle
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::start_controller_data_stream(
             m_controllerView, 
-            ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includeRawSensorData | ClientPSMoveAPI::includeRawTrackerData),
+            ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includeCalibratedSensorData | ClientPSMoveAPI::includeRawTrackerData),
         AppStage_ComputeTrackerPoses::handle_start_controller_response, this);
 }
 
@@ -1023,5 +1027,19 @@ void AppStage_ComputeTrackerPoses::handle_all_devices_ready()
     else
     {
         setState(eMenuState::testTracking);
+    }
+}
+
+//-- private methods -----
+static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform)
+{
+    switch(controllerView->GetControllerViewType())
+    {
+    case ClientControllerView::PSMove:
+        drawPSMoveModel(transform, glm::vec3(1.f, 1.f, 1.f));
+        break;
+    case ClientControllerView::PSDualShock4:
+        drawPSDualShock4Model(transform, glm::vec3(1.f, 1.f, 1.f));
+        break;
     }
 }

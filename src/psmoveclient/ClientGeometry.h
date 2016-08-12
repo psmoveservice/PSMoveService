@@ -24,6 +24,9 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveFloatVector2
     PSMoveFloatVector2 safe_divide(const float s, const PSMoveFloatVector2 &default_result) const;
     PSMoveFloatVector2 safe_divide(const PSMoveFloatVector2 &v, const PSMoveFloatVector2 &default_result) const;
 
+    PSMoveFloatVector2 abs() const;
+    PSMoveFloatVector2 square() const;
+
     float length() const;
     float normalize_with_default(const PSMoveFloatVector2 &default_result);
 
@@ -53,6 +56,9 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveFloatVector3
     PSMoveFloatVector3 safe_divide(const float s, const PSMoveFloatVector3 &default_result) const;
     PSMoveFloatVector3 safe_divide(const PSMoveFloatVector3 &v, const PSMoveFloatVector3 &default_result) const;
     
+    PSMoveFloatVector3 abs() const;
+    PSMoveFloatVector3 square() const;
+
     float length() const;
     float normalize_with_default(const PSMoveFloatVector3 &default_result);
 
@@ -81,6 +87,9 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveIntVector3
     PSMoveIntVector3 safe_divide(const int s, const PSMoveIntVector3 &default_result) const;
     PSMoveIntVector3 safe_divide(const PSMoveIntVector3 &v, const PSMoveIntVector3 &default_result) const;
 
+    PSMoveIntVector3 abs() const;
+    PSMoveIntVector3 square() const;
+
     int lengthSquared() const;
 
     int minValue() const;
@@ -99,6 +108,8 @@ struct PSM_CPP_PUBLIC_CLASS PSMovePosition
 
     PSMoveFloatVector3 toPSMoveFloatVector3() const;
     PSMoveFloatVector3 operator - (const PSMovePosition &other) const;
+	PSMovePosition operator + (const PSMoveFloatVector3 &v) const;
+	PSMovePosition operator - (const PSMoveFloatVector3 &v) const;
     PSMovePosition operator * (const float s) const;
 };
 
@@ -122,9 +133,14 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveQuaternion
     static PSMoveQuaternion create(float w, float x, float y, float z);
 
     PSMoveQuaternion operator + (const PSMoveQuaternion &other) const;
+	PSMoveQuaternion operator * (const PSMoveQuaternion &other) const;
 
     PSMoveQuaternion unsafe_divide(const float s) const;
     PSMoveQuaternion safe_divide(const float s, const PSMoveQuaternion &default_result) const;
+	PSMoveQuaternion inverse() const;
+	static PSMoveQuaternion concat(const PSMoveQuaternion &first, const PSMoveQuaternion &second);
+	PSMoveFloatVector3 rotate_vector(const PSMoveFloatVector3 &v) const;
+	PSMovePosition rotate_position(const PSMovePosition &v) const;
 
     float length() const;
     PSMoveQuaternion &normalize_with_default(const PSMoveQuaternion &default_result);
@@ -138,6 +154,7 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveMatrix3x3
         const PSMoveFloatVector3 &basis_x, 
         const PSMoveFloatVector3 &basis_y,
         const PSMoveFloatVector3 &basis_z);
+	static PSMoveMatrix3x3 create(const PSMoveQuaternion &q);
 
     PSMoveFloatVector3 basis_x() const;
     PSMoveFloatVector3 basis_y() const;
@@ -150,6 +167,10 @@ struct PSM_CPP_PUBLIC_CLASS PSMovePose
     PSMoveQuaternion Orientation;
 
     void Clear();
+	PSMovePose inverse() const;
+	static PSMovePose concat(const PSMovePose &first, const PSMovePose &second);
+	PSMovePosition apply_transform(const PSMovePosition &p) const;
+	PSMovePosition apply_inverse_transform(const PSMovePosition &p) const;
 };
 
 struct PSM_CPP_PUBLIC_CLASS PSMoveFrustum
@@ -168,7 +189,7 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveTrackingProjection
         INVALID_PROJECTION = -1,
 
         Ellipse,
-        Quad,
+        LightBar,
 
         MAX_TRACKING_PROJECTION_TYPES
     };
@@ -182,8 +203,9 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveTrackingProjection
         } ellipse;
 
         struct {
-            PSMoveScreenLocation corners[4];
-        } quad;
+            PSMoveScreenLocation triangle[3];
+            PSMoveScreenLocation quad[4];
+        } lightbar;
     } shape;
 
     eShapeType shape_type;

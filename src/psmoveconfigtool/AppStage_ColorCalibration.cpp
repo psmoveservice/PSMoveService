@@ -127,6 +127,7 @@ public:
 //-- public methods -----
 AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
     : AppStage(app)
+	, m_overrideControllerId(-1)
     , m_controllerView(nullptr)
     , m_isControllerStreamActive(false)
     , m_lastControllerSeqNum(-1)
@@ -156,7 +157,7 @@ void AppStage_ColorCalibration::enter()
 
     // Assume that we can bind to controller 0
     assert(m_controllerView == nullptr);
-    const int ControllerID = 0;
+    const int ControllerID = (m_overrideControllerId != -1) ? m_overrideControllerId : 0;
     m_controllerView = ClientPSMoveAPI::allocate_controller_view(ControllerID);
     m_isControllerStreamActive= false;
     m_lastControllerSeqNum= -1;
@@ -622,7 +623,7 @@ void AppStage_ColorCalibration::request_start_controller_stream()
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::start_controller_data_stream(
             m_controllerView,
-            ClientPSMoveAPI::includeRawSensorData | ClientPSMoveAPI::includeRawTrackerData),
+            ClientPSMoveAPI::defaultStreamOptions),
         AppStage_ColorCalibration::handle_start_controller_response, this);
 }
 
@@ -682,7 +683,7 @@ void AppStage_ColorCalibration::request_set_controller_tracking_color(
         assert(0 && "unreachable");
     }
 
-    m_controllerView->GetPSMoveViewMutable().SetLEDOverride(r, g, b);
+    m_controllerView->SetLEDOverride(r, g, b);
 }
 
 void AppStage_ColorCalibration::request_tracker_start_stream()
@@ -872,6 +873,7 @@ void AppStage_ColorCalibration::request_tracker_set_color_preset(
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_COLOR_PRESET);
     request->mutable_request_set_tracker_color_preset()->set_tracker_id(m_trackerView->getTrackerId());
+	request->mutable_request_set_tracker_color_preset()->set_controller_id(m_overrideControllerId);
 
     {
         PSMoveProtocol::TrackingColorPreset* tracking_color_preset =
@@ -928,6 +930,7 @@ void AppStage_ColorCalibration::request_tracker_get_settings()
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_GET_TRACKER_SETTINGS);
     request->mutable_request_get_tracker_settings()->set_tracker_id(m_trackerView->getTrackerId());
+	request->mutable_request_get_tracker_settings()->set_controller_id(m_overrideControllerId);
 
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::send_opaque_request(&request),
@@ -1003,6 +1006,7 @@ void AppStage_ColorCalibration::request_save_default_tracker_profile()
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SAVE_TRACKER_PROFILE);
     request->mutable_request_save_tracker_profile()->set_tracker_id(m_trackerView->getTrackerId());
+	request->mutable_request_save_tracker_profile()->set_controller_id(m_overrideControllerId);
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }
@@ -1013,6 +1017,7 @@ void AppStage_ColorCalibration::request_apply_default_tracker_profile()
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_APPLY_TRACKER_PROFILE);
     request->mutable_request_save_tracker_profile()->set_tracker_id(m_trackerView->getTrackerId());
+	request->mutable_request_save_tracker_profile()->set_controller_id(m_overrideControllerId);
 
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::send_opaque_request(&request),
@@ -1027,10 +1032,7 @@ void AppStage_ColorCalibration::release_devices()
 
     if (m_controllerView != nullptr)
     {
-        if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
-        {
-            m_controllerView->GetPSMoveViewMutable().SetLEDOverride(0, 0, 0);
-        }
+        m_controllerView->SetLEDOverride(0, 0, 0);
 
         if (m_isControllerStreamActive)
         {

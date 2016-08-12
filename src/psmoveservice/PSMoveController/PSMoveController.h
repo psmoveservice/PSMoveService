@@ -4,10 +4,10 @@
 #include "PSMoveConfig.h"
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
-#include "MathAlignment.h"
+#include "MathUtility.h"
 #include "hidapi.h"
 #include <string>
-#include <vector>
+#include <array>
 #include <deque>
 #include <chrono>
 
@@ -32,23 +32,61 @@ public:
         , is_valid(false)
         , version(CONFIG_VERSION)
         , max_poll_failure_count(100) 
-        , cal_ag_xyz_kb(2, std::vector<std::vector<float>>(3, std::vector<float>(2, 0.f)))
+        , cal_ag_xyz_kb({{ 
+            {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }},
+            {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }} 
+        }})
         , prediction_time(0.f)
+        , accelerometer_noise_radius(0.f)
+        , gyro_variance(1.5f*k_degrees_to_radians) // rad/s^2
+        , gyro_drift(0.9f*k_degrees_to_radians) // rad/s
+        , min_position_quality_screen_area(0.f)
+        , max_position_quality_screen_area(k_real_pi*20.f*20.f) // lightbulb at ideal range is about 40px by 40px 
+        , max_velocity(1.f)
     {
-        magnetometer_ellipsoid.clear();
-        magnetometer_identity = Eigen::Vector3f::Zero();
+        magnetometer_identity.clear();
+        magnetometer_center.clear();
+        magnetometer_basis_x.clear();
+        magnetometer_basis_y.clear();
+        magnetometer_basis_z.clear();
+        magnetometer_extents.clear();
+        magnetometer_error= 0.f;
+        magnetometer_identity.clear();
     };
 
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
+    void getMegnetometerEllipsoid(struct EigenFitEllipsoid *out_ellipsoid);
+
     bool is_valid;
     long version;
     long max_poll_failure_count;
-    std::vector<std::vector<std::vector<float>>> cal_ag_xyz_kb;
-    EigenFitEllipsoid magnetometer_ellipsoid;
-    Eigen::Vector3f magnetometer_identity;
+    std::array<std::array<std::array<float, 2>, 3>, 2> cal_ag_xyz_kb;
+    CommonDeviceVector magnetometer_identity;
+    CommonDeviceVector magnetometer_center;
+    CommonDeviceVector magnetometer_basis_x;
+    CommonDeviceVector magnetometer_basis_y;
+    CommonDeviceVector magnetometer_basis_z;
+    CommonDeviceVector magnetometer_extents;
+    float magnetometer_error;
     float prediction_time;
+
+    // The radius of the accelerometer noise
+    float accelerometer_noise_radius;
+    
+    // The variance of the calibrated gyro readings in rad/s^2
+    float gyro_variance;
+    // The drift of the calibrated gyro readings in rad/second^2
+    float gyro_drift;
+
+    // The pixel area of the tracking projection at which the position quality is 0
+    float min_position_quality_screen_area;
+    // The pixel area of the tracking projection at which the position quality is 1
+    float max_position_quality_screen_area;
+
+    // The maximum velocity allowed in the position filter
+    float max_velocity;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport
@@ -72,9 +110,13 @@ struct PSMoveControllerState : public CommonControllerState
 
     unsigned char TriggerValue;  // 0-255. Average of last two frames.
 
-    std::vector< std::vector<float> > Accel;    // Two frames of 3 dimensions
-    std::vector< std::vector<float> > Gyro;     // Two frames of 3 dimensions
-    std::vector<int> Mag;                       // One frame of 3 dimensions
+    std::array< std::array<int, 3>, 2> RawAccel;    // Two frames of 3 dimensions
+    std::array< std::array<int, 3>, 2> RawGyro;     // Two frames of 3 dimensions
+    std::array<int, 3> RawMag;                      // One frame of 3 dimensions
+
+    std::array< std::array<float, 3>, 2> CalibratedAccel;    // Two frames of 3 dimensions
+    std::array< std::array<float, 3>, 2> CalibratedGyro;     // Two frames of 3 dimensions
+    std::array<float, 3> CalibratedMag;                       // One frame of 3 dimensions
 
     int TempRaw;
 
@@ -106,9 +148,15 @@ struct PSMoveControllerState : public CommonControllerState
 
         TriggerValue= 0;
 
-        Accel = { {0, 0, 0}, {0, 0, 0} };
-        Gyro = { {0, 0, 0}, {0, 0, 0} };
-        Mag = {0, 0, 0};
+        CalibratedAccel = {{
+            {{0, 0, 0}}, 
+            {{0, 0, 0}} 
+        }};
+        CalibratedGyro = {{
+            {{0, 0, 0}}, 
+            {{0, 0, 0}}
+        }};
+        CalibratedMag = {{0, 0, 0}};
 
         TempRaw= 0;
     }

@@ -29,6 +29,7 @@ struct EigenFitEllipse
     Eigen::Vector2f center;
     Eigen::Vector2f extents;
     float angle; // radians
+    float area;
     float error;
 
     void clear()
@@ -36,6 +37,7 @@ struct EigenFitEllipse
         center = Eigen::Vector2f::Zero();
         extents = Eigen::Vector2f::Zero();
         angle = 0.f;
+        area = 0.f;
         error = 0.f;
     }
 
@@ -110,5 +112,13 @@ eigen_alignment_fit_focal_cone_to_sphere(
     const float camera_focal_length, // a.k.a. "f_px"
     Eigen::Vector3f *out_sphere_center,
     EigenFitEllipse *out_ellipse_projection= nullptr);
+
+// Compute the weighted average of multiple quaternions
+bool
+eigen_quaternion_compute_weighted_average(
+    const Eigen::Quaternionf *quaternions,
+    const float *weights,
+    const int count,
+    Eigen::Quaternionf *out_result);
 
 #endif // MATH_UTILITY_h

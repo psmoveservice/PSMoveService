@@ -30,7 +30,7 @@ enum eCommonTrackingShapeType {
     INVALID_SHAPE = -1,
 
     Sphere,
-    PlanarBlob,
+    LightBar,
 
     MAX_TRACKING_SHAPE_TYPES
 };
@@ -39,7 +39,7 @@ enum eCommonTrackingProjectionType {
     INVALID_PROJECTION = -1,
 
     ProjectionType_Ellipse,
-    ProjectionType_Quad,
+    ProjectionType_LightBar,
 
     MAX_TRACKING_PROJECTION_TYPES
 };
@@ -68,6 +68,12 @@ struct CommonHSVColorRange
         saturation_range.clear();
         value_range.clear();
     }
+};
+
+struct CommonHSVColorRangeTable
+{
+	std::string table_name;
+	CommonHSVColorRange color_presets[eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES];	
 };
 
 struct CommonDeviceVector
@@ -165,7 +171,8 @@ struct CommonDeviceState
     {
         PSMove = Controller + 0x00,
         PSNavi = Controller + 0x01,
-        SUPPORTED_CONTROLLER_TYPE_COUNT = Controller + 0x02,
+        PSDualShock4 = Controller + 0x02,
+        SUPPORTED_CONTROLLER_TYPE_COUNT = Controller + 0x03,
         
         PS3EYE = TrackingCamera + 0x00,
         SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x01,
@@ -196,6 +203,9 @@ struct CommonDeviceState
             break;
         case PSNavi:
             result = "PSNavi";
+            break;
+        case PSDualShock4:
+            result = "PSDualShock4";
             break;
         case PS3EYE:
             result = "PSEYE";
@@ -228,6 +238,13 @@ struct CommonControllerState : CommonDeviceState
         Batt_CHARGING_DONE = 0xEF, /*!< Battery is fully charged (on charger) */
     };
 
+    enum RumbleChannel
+    {
+        ChannelAll,
+        ChannelLeft,
+        ChannelRight
+    };
+
     enum BatteryLevel Battery;
     unsigned int AllButtons;                    // all-buttons, used to detect changes
 
@@ -255,9 +272,9 @@ struct CommonDeviceTrackingShape
         } sphere;
 
         struct {
-            float width;
-            float height;
-        } planar_blob;
+            CommonDevicePosition triangle[3];
+            CommonDevicePosition quad[4];
+        } light_bar;
     } shape;
 
     eCommonTrackingShapeType shape_type;
@@ -274,10 +291,12 @@ struct CommonDeviceTrackingProjection
         } ellipse;
 
         struct {
-            CommonDeviceScreenLocation corners[4];
-        } quad;
+            CommonDeviceScreenLocation triangle[3];
+            CommonDeviceScreenLocation quad[4];
+        } lightbar;
     } shape;
 
+    float screen_area; // area in pixels^2
     eCommonTrackingProjectionType shape_type;
 };
 
@@ -422,8 +441,8 @@ public:
     virtual bool setOptionIndex(const std::string &option_name, int option_index) = 0;
     virtual bool getOptionIndex(const std::string &option_name, int &out_option_index) const = 0;
 
-    virtual void gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const = 0;
-    virtual void setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset) = 0;
-    virtual void getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const = 0;
+    virtual void gatherTrackingColorPresets(const std::string &controller_serial, PSMoveProtocol::Response_ResultTrackerSettings* settings) const = 0;
+    virtual void setTrackingColorPreset(const std::string &controller_serial, eCommonTrackingColorID color, const CommonHSVColorRange *preset) = 0;
+    virtual void getTrackingColorPreset(const std::string &controller_serial, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const = 0;
 };
 #endif // DEVICE_INTERFACE_H

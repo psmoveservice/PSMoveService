@@ -62,4 +62,7 @@ eigen_vector3f_divide_by_vector_with_default(
 float 
 eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default_value);
 
+float
+eigen_quaternion_unsigned_angle_between(const Eigen::Quaternionf &a, const Eigen::Quaternionf &b);
+
 #endif // MATH_EIGEN_H
