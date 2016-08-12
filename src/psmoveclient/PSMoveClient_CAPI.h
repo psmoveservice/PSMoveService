@@ -3,6 +3,7 @@
 #include "PSMoveClient_export.h"
 #include "ClientConstants.h"
 #include <stdbool.h>
+//cut_before
 
 // Wrapper Types
 //--------------
@@ -533,4 +534,5 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartTrackerDataStreamAsync(PSMTrackerID trac
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID *out_request_id);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHMDTrackingSpaceSettingsAsync(PSMRequestID *out_request_id);
 
+//cut_after
 #endif
