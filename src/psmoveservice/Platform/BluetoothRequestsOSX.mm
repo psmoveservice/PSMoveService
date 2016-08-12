@@ -373,7 +373,7 @@ AsyncBluetoothPairDeviceRequest::start()
     }
     
     char normalizedHostBTAddress[32];
-    if (!ServerUtility::normalize_bluetooth_address(
+    if (!ServerUtility::bluetooth_cstr_address_normalize(
             hostBTAddress, false, ':',
             normalizedHostBTAddress, sizeof(normalizedHostBTAddress)))
     {
@@ -491,7 +491,7 @@ async_bluetooth_device_operation_worker(void *thread_data)
 
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
      
-    if (!ServerUtility::normalize_bluetooth_address(
+    if (!ServerUtility::bluetooth_cstr_address_normalize(
             state->getControllerAddress(), true, '-', controllerBTAddr, sizeof(controllerBTAddr)))
     {
         SERVER_MT_LOG_ERROR("async_bluetooth_device_operation_worker") << 
