@@ -115,11 +115,11 @@ ControllerManager::resetPose(int controller_id)
 
     if (ControllerPtr)
     {
-        OrientationFilter *filter = ControllerPtr->getOrientationFilterMutable();
+        IPoseFilter *filter = ControllerPtr->getPoseFilterMutable();
 
         if (filter != nullptr)
         {
-            filter->resetOrientation();
+            filter->recenterState();
             bSuccess = true;
         }
     }

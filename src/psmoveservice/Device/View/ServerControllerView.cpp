@@ -7,8 +7,9 @@
 #include "MathAlignment.h"
 #include "ServerLog.h"
 #include "ServerRequestHandler.h"
-#include "OrientationFilter.h"
-#include "PositionFilter.h"
+#include "CompoundPoseFilter.h"
+#include "KalmanPoseFilter.h"
+#include "PoseFilterInterface.h"
 #include "PSDualShock4Controller.h"
 #include "PSMoveController.h"
 #include "PSNaviController.h"
@@ -30,19 +31,23 @@ static const float k_max_time_delta_seconds = 1 / 30.f;
 //-- private methods -----
 static void init_filters_for_psmove(
     const PSMoveController *psmoveController, 
-    OrientationFilter *orientation_filter, PositionFilter *position_filter);
+	PoseFilterSpace **out_pose_filter_space,
+    IPoseFilter **out_pose_filter);
 static void update_filters_for_psmove(
     const PSMoveController *psmoveController, const PSMoveControllerState *psmoveState, const float delta_time,
-    const ControllerOpticalPoseEstimation *positionEstimation,
-    OrientationFilter *orientationFilter, PositionFilter *position_filter);
+    const ControllerOpticalPoseEstimation *positionEstimation, 
+	const PoseFilterSpace *poseFilterSpace,
+    IPoseFilter *pose_filter);
 
 static void init_filters_for_psdualshock4(
-    const PSDualShock4Controller *psdualshock4Controller,
-    OrientationFilter *orientation_filter, PositionFilter *position_filter);
+    const PSDualShock4Controller *psdualshock4Controller, 
+	PoseFilterSpace **out_pose_filter_space,
+	IPoseFilter **out_pose_filter);
 static void update_filters_for_psdualshock4(
     const PSDualShock4Controller *psdualshock4Controller, const PSDualShock4ControllerState *psmoveState, const float delta_time,
     const ControllerOpticalPoseEstimation *positionEstimation,
-    OrientationFilter *orientationFilter, PositionFilter *position_filter);
+	const PoseFilterSpace *poseFilterSpace,
+    IPoseFilter *pose_filter);
 
 static void generate_psmove_data_frame_for_stream(
     const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceOutputDataFramePtr &data_frame);
@@ -61,8 +66,8 @@ ServerControllerView::ServerControllerView(const int device_id)
     , m_device(nullptr)
     , m_tracker_pose_estimation(nullptr)
     , m_multicam_pose_estimation(nullptr)
-    , m_orientation_filter(nullptr)
-    , m_position_filter(nullptr)
+    , m_pose_filter(nullptr)
+    , m_pose_filter_space(nullptr)
     , m_lastPollSeqNumProcessed(-1)
     , m_last_filter_update_timestamp()
     , m_last_filter_update_timestamp_valid(false)
@@ -83,8 +88,10 @@ bool ServerControllerView::allocate_device_interface(
     case CommonDeviceState::PSMove:
         {
             m_device = new PSMoveController();
-            m_orientation_filter = new OrientationFilter();
-            m_position_filter = new PositionFilter();
+
+			init_filters_for_psmove(
+				static_cast<PSMoveController *>(m_device), 
+				&m_pose_filter_space, &m_pose_filter);
 
             m_tracker_pose_estimation = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
             for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
@@ -98,15 +105,16 @@ bool ServerControllerView::allocate_device_interface(
     case CommonDeviceState::PSNavi:
         {
             m_device= new PSNaviController();
-            m_orientation_filter= nullptr;
-            m_position_filter = nullptr;
+            m_pose_filter= nullptr;
             m_multicam_pose_estimation = nullptr;
         } break;
     case CommonDeviceState::PSDualShock4:
         {
             m_device = new PSDualShock4Controller();
-            m_orientation_filter = new OrientationFilter();
-            m_position_filter = new PositionFilter();
+
+			init_filters_for_psdualshock4(
+				static_cast<PSDualShock4Controller *>(m_device),
+				&m_pose_filter_space, &m_pose_filter);
 
             m_tracker_pose_estimation = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
             for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
@@ -138,16 +146,10 @@ void ServerControllerView::free_device_interface()
         m_tracker_pose_estimation = nullptr;
     }
 
-    if (m_orientation_filter != nullptr)
+    if (m_pose_filter != nullptr)
     {
-        delete m_orientation_filter;
-        m_orientation_filter= nullptr;
-    }
-
-    if (m_position_filter != nullptr)
-    {
-        delete m_position_filter;
-        m_position_filter = nullptr;
+        delete m_pose_filter;
+        m_pose_filter= nullptr;
     }
 
     if (m_device != nullptr)
@@ -181,7 +183,7 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
                 // for usb connected controllers
                 if (psmoveController->getIsBluetooth())
                 {
-                    init_filters_for_psmove(psmoveController, m_orientation_filter, m_position_filter);
+                    m_pose_filter->resetState();
                     m_multicam_pose_estimation->clear();
 
                     bAllocateTrackingColor = true;
@@ -189,7 +191,7 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
             } break;
         case CommonDeviceState::PSNavi:
             // No orientation filter for the navi
-            assert(m_orientation_filter == nullptr);
+            assert(m_pose_filter == nullptr);
             break;
         case CommonDeviceState::PSDualShock4:
             {
@@ -199,7 +201,7 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
                 // for usb connected controllers
                 if (psdualshock4Controller->getIsBluetooth())
                 {
-                    init_filters_for_psdualshock4(psdualshock4Controller, m_orientation_filter, m_position_filter);
+					m_pose_filter->resetState();
                     m_multicam_pose_estimation->clear();
 
                     bAllocateTrackingColor = true;
@@ -532,15 +534,14 @@ void ServerControllerView::updateStateAndPredict()
                 update_filters_for_psmove(
                     psmoveController, psmoveState, 
                     per_state_time_delta_seconds,
-                    m_multicam_pose_estimation, 
-                    m_orientation_filter, 
-                    getIsTrackingEnabled() ? m_position_filter : nullptr);
+                    m_multicam_pose_estimation,
+					m_pose_filter_space,
+                    m_pose_filter);
             } break;
         case CommonControllerState::PSNavi:
             {
                 // No orientation or position to update
-                assert(m_orientation_filter == nullptr);
-                assert(m_position_filter == nullptr);
+                assert(m_pose_filter == nullptr);
             } break;
         case CommonControllerState::PSDualShock4:
             {
@@ -553,8 +554,8 @@ void ServerControllerView::updateStateAndPredict()
                     psdualshock4Controller, psdualshock4State,
                     per_state_time_delta_seconds,
                     m_multicam_pose_estimation,
-                    m_orientation_filter,
-                    getIsTrackingEnabled() ? m_position_filter : nullptr);
+					m_pose_filter_space,
+                    m_pose_filter);
             } break;
         default:
             assert(0 && "Unhandled controller type");
@@ -578,19 +579,15 @@ ServerControllerView::getFilteredPose(float time) const
 
     pose.clear();
 
-    if (m_orientation_filter != nullptr)
+    if (m_pose_filter != nullptr)
     {
-        Eigen::Quaternionf orientation= m_orientation_filter->getOrientation(time);
+        const Eigen::Quaternionf orientation= m_pose_filter->getOrientation(time);
+        const Eigen::Vector3f position= m_pose_filter->getPosition(time);
 
         pose.Orientation.w= orientation.w();
         pose.Orientation.x= orientation.x();
         pose.Orientation.y= orientation.y();
         pose.Orientation.z= orientation.z();
-    }
-
-    if (m_position_filter != nullptr)
-    {
-        Eigen::Vector3f position= m_position_filter->getPosition(time);
 
         pose.Position.x= position.x();
         pose.Position.y= position.y();
@@ -605,10 +602,12 @@ ServerControllerView::getFilteredPhysics() const
 {
     CommonDevicePhysics physics;
 
-    if (m_orientation_filter != nullptr)
+    if (m_pose_filter != nullptr)
     {
-        const Eigen::Vector3f first_derivative= m_orientation_filter->getAngularVelocity();
-        const Eigen::Vector3f second_derivative= m_orientation_filter->getAngularAcceleration();
+        const Eigen::Vector3f first_derivative= m_pose_filter->getAngularVelocity();
+        const Eigen::Vector3f second_derivative= m_pose_filter->getAngularAcceleration();
+        const Eigen::Vector3f velocity(m_pose_filter->getVelocity());
+        const Eigen::Vector3f acceleration(m_pose_filter->getAcceleration());
 
         physics.AngularVelocity.i = first_derivative.x();
         physics.AngularVelocity.j = first_derivative.y();
@@ -617,12 +616,6 @@ ServerControllerView::getFilteredPhysics() const
         physics.AngularAcceleration.i = second_derivative.x();
         physics.AngularAcceleration.j = second_derivative.y();
         physics.AngularAcceleration.k = second_derivative.z();
-    }
-
-    if (m_position_filter != nullptr)
-    {
-        Eigen::Vector3f velocity(m_position_filter->getVelocity());
-        Eigen::Vector3f acceleration(m_position_filter->getAcceleration());
 
         physics.Velocity.i = velocity.x();
         physics.Velocity.j = velocity.y();
@@ -940,8 +933,7 @@ static void generate_psmove_data_frame_for_stream(
     DeviceOutputDataFramePtr &data_frame)
 {
     const PSMoveController *psmove_controller= controller_view->castCheckedConst<PSMoveController>();
-    const OrientationFilter *orientation_filter= controller_view->getOrientationFilter();
-    const PositionFilter *position_filter= controller_view->getPositionFilter();
+    const IPoseFilter *pose_filter= controller_view->getPoseFilter();
     const PSMoveControllerConfig *psmove_config= psmove_controller->getConfig();
     const CommonControllerState *controller_state= controller_view->getState();
     const CommonDevicePose controller_pose = controller_view->getFilteredPose(psmove_config->prediction_time);
@@ -957,8 +949,9 @@ static void generate_psmove_data_frame_for_stream(
         psmove_data_frame->set_validhardwarecalibration(psmove_config->is_valid);
         psmove_data_frame->set_iscurrentlytracking(controller_view->getIsCurrentlyTracking());
         psmove_data_frame->set_istrackingenabled(controller_view->getIsTrackingEnabled());
-        psmove_data_frame->set_isorientationvalid(orientation_filter->getIsFusionStateValid());
-        psmove_data_frame->set_ispositionvalid(position_filter->getIsFusionStateValid());
+		//TODO: Collapse these two flags down into isPoseValid
+        psmove_data_frame->set_isorientationvalid(pose_filter->getIsStateValid());
+        psmove_data_frame->set_ispositionvalid(pose_filter->getIsStateValid());
 
         psmove_data_frame->mutable_orientation()->set_w(controller_pose.Orientation.w);
         psmove_data_frame->mutable_orientation()->set_x(controller_pose.Orientation.x);
@@ -1165,8 +1158,7 @@ static void generate_psdualshock4_data_frame_for_stream(
     DeviceOutputDataFramePtr &data_frame)
 {
     const PSDualShock4Controller *ds4_controller = controller_view->castCheckedConst<PSDualShock4Controller>();
-    const OrientationFilter *orientation_filter= controller_view->getOrientationFilter();
-    const PositionFilter *position_filter= controller_view->getPositionFilter();
+    const IPoseFilter *pose_filter= controller_view->getPoseFilter();
     const PSDualShock4ControllerConfig *psmove_config = ds4_controller->getConfig();
     const CommonControllerState *controller_state = controller_view->getState();
     const CommonDevicePose controller_pose = controller_view->getFilteredPose(psmove_config->prediction_time);
@@ -1182,8 +1174,9 @@ static void generate_psdualshock4_data_frame_for_stream(
         psds4_data_frame->set_validhardwarecalibration(psmove_config->is_valid);
         psds4_data_frame->set_iscurrentlytracking(controller_view->getIsCurrentlyTracking());
         psds4_data_frame->set_istrackingenabled(controller_view->getIsTrackingEnabled());
-        psds4_data_frame->set_isorientationvalid(orientation_filter->getIsFusionStateValid());
-        psds4_data_frame->set_ispositionvalid(position_filter->getIsFusionStateValid());
+		//TODO: Collapse these two flags down into isPoseValid
+        psds4_data_frame->set_isorientationvalid(pose_filter->getIsStateValid());
+        psds4_data_frame->set_ispositionvalid(pose_filter->getIsStateValid());
 
         psds4_data_frame->mutable_orientation()->set_w(controller_pose.Orientation.w);
         psds4_data_frame->mutable_orientation()->set_x(controller_pose.Orientation.x);
@@ -1369,44 +1362,36 @@ static void generate_psdualshock4_data_frame_for_stream(
 
 static void
 init_filters_for_psmove(
-    const PSMoveController *psmoveController, 
-    OrientationFilter *orientation_filter,
-    PositionFilter *position_filter)
+    const PSMoveController *psmoveController,
+	PoseFilterSpace **out_pose_filter_space,
+    IPoseFilter **out_pose_filter)
 {
     const PSMoveControllerConfig *psmove_config = psmoveController->getConfig();
 
-    {
-        // Setup the space the orientation filter operates in
-        Eigen::Vector3f identityGravity = Eigen::Vector3f(0.f, 1.f, 0.f);
-        Eigen::Vector3f identityMagnetometer = Eigen::Vector3f(
-            psmove_config->magnetometer_identity.i,
-            psmove_config->magnetometer_identity.j,
-            psmove_config->magnetometer_identity.k);
-        Eigen::Matrix3f calibrationTransform = *k_eigen_identity_pose_laying_flat;
-        Eigen::Matrix3f sensorTransform = *k_eigen_sensor_transform_opengl;
-        OrientationFilterSpace filterSpace(identityGravity, identityMagnetometer, calibrationTransform, sensorTransform);
+    // Setup the space the orientation filter operates in
+    PoseFilterSpace *pose_filter_space = new PoseFilterSpace();
+    pose_filter_space->setIdentityGravity(Eigen::Vector3f(0.f, 1.f, 0.f));
+	pose_filter_space->setIdentityMagnetometer(
+        Eigen::Vector3f(psmove_config->magnetometer_identity.i,
+						psmove_config->magnetometer_identity.j,
+						psmove_config->magnetometer_identity.k));
+	pose_filter_space->setCalibrationTransform(*k_eigen_identity_pose_laying_flat);
+	pose_filter_space->setSensorTransform(*k_eigen_sensor_transform_opengl);
 
-        orientation_filter->setFilterSpace(filterSpace);
+	// Copy the pose filter constants from the controller config
+	PoseFilterConstants constants;
+	constants.orientation_constants.gyro_drift= psmove_config->gyro_drift;
+	constants.orientation_constants.gyro_error= psmove_config->gyro_variance;
+	constants.position_constants.accelerometer_noise_radius= psmove_config->accelerometer_noise_radius;
+	constants.position_constants.max_velocity= psmove_config->max_velocity;
 
-        // Use the complementary MARG fusion filter by default
-        orientation_filter->setFusionType(OrientationFilter::FusionTypeComplementaryMARG);
-        orientation_filter->setGyroscopeError(psmove_config->gyro_variance); 
-        orientation_filter->setGyroscopeDrift(psmove_config->gyro_drift);
-    }
+	// TODO: Allow the config to select the filter type
+	// For now hard code the usage of a compound pose filter
+    CompoundPoseFilter *pose_filter = new CompoundPoseFilter();
+	pose_filter->init(OrientationFilterTypeComplementaryMARG, PositionFilterTypeLowPassOptical, constants);
 
-    {
-        Eigen::Vector3f identityGravity = Eigen::Vector3f(0.f, 1.f, 0.f);
-        Eigen::Matrix3f calibrationTransform = *k_eigen_identity_pose_laying_flat;
-        Eigen::Matrix3f sensorTransform = *k_eigen_sensor_transform_opengl;
-        PositionFilterSpace filterSpace(identityGravity, calibrationTransform, sensorTransform);
-
-        position_filter->setFilterSpace(filterSpace);
-
-        // Use the LowPass filter by default
-        position_filter->setFusionType(PositionFilter::FusionTypeLowPassOptical);
-        position_filter->setAccelerometerNoiseRadius(psmove_config->accelerometer_noise_radius);
-        position_filter->setMaxVelocity(psmove_config->max_velocity);
-    }
+	*out_pose_filter_space= pose_filter_space;
+	*out_pose_filter= pose_filter;
 }
 
 static void                
@@ -1415,18 +1400,44 @@ update_filters_for_psmove(
     const PSMoveControllerState *psmoveState,
     const float delta_time,
     const ControllerOpticalPoseEstimation *poseEstimation,
-    OrientationFilter *orientationFilter,
-    PositionFilter *position_filter)
+	const PoseFilterSpace *poseFilterSpace,
+    IPoseFilter *poseFilter)
 {
     const PSMoveControllerConfig *config = psmoveController->getConfig();
     Eigen::Quaternionf orientationFrames[2] = {Eigen::Quaternionf::Identity(), Eigen::Quaternionf::Identity()};
 
     // Update the orientation filter
-    if (orientationFilter != nullptr)
+    if (poseFilter != nullptr)
     {
-        OrientationSensorPacket sensorPacket;
+        PoseSensorPacket sensorPacket;
 
-        sensorPacket.magnetometer =
+		// PSMove cant do optical orientation
+        sensorPacket.optical_orientation = Eigen::Quaternionf::Identity();
+        sensorPacket.optical_orientation_quality= 0.f;
+
+		// PSMove does have an optical position
+		if (poseEstimation->bCurrentlyTracking)
+		{
+			sensorPacket.optical_position =
+				Eigen::Vector3f(
+					poseEstimation->position.x,
+					poseEstimation->position.y,
+					poseEstimation->position.z);
+			sensorPacket.optical_position_quality=
+				clampf01(
+					safe_divide_with_default(
+						poseEstimation->projection.screen_area - config->min_position_quality_screen_area,
+						config->max_position_quality_screen_area - config->min_position_quality_screen_area,
+						1.f));
+		}
+		else
+		{
+			sensorPacket.optical_position = Eigen::Vector3f::Zero();
+			sensorPacket.optical_position_quality= 0.f;
+		}
+
+		// One magnetometer update for every two accel/gryo readings
+        sensorPacket.imu_magnetometer =
             Eigen::Vector3f(
                 psmoveState->CalibratedMag[0],
                 psmoveState->CalibratedMag[1],
@@ -1435,90 +1446,27 @@ update_filters_for_psmove(
         // Each state update contains two readings (one earlier and one later) of accelerometer and gyro data
         for (int frame = 0; frame < 2; ++frame)
         {
-            sensorPacket.orientation = orientationFilter->getOrientation();
-            sensorPacket.orientation_source = OrientationSource_PreviousFrame;
-            sensorPacket.orientation_quality= -1.f; // not relevant for previous frame
-
-            sensorPacket.accelerometer =
+			PoseFilterPacket filterPacket;
+			
+            sensorPacket.imu_accelerometer =
                 Eigen::Vector3f(
                     psmoveState->CalibratedAccel[frame][0], 
                     psmoveState->CalibratedAccel[frame][1], 
                     psmoveState->CalibratedAccel[frame][2]);
-            sensorPacket.gyroscope =
+            sensorPacket.imu_gyroscope =
                 Eigen::Vector3f(
                     psmoveState->CalibratedGyro[frame][0], 
                     psmoveState->CalibratedGyro[frame][1], 
                     psmoveState->CalibratedGyro[frame][2]);
 
-            // Update the orientation filter using the sensor packet.
-            // NOTE: The magnetometer reading is the same for both sensor readings.
-            orientationFilter->update(delta_time / 2.f, sensorPacket);
-        }
-    }
+			// Create a filter input packet from the sensor data 
+			// and the filter's previous orientation and position
+			poseFilterSpace->createFilterPacket(
+				sensorPacket, 
+				poseFilter->getOrientation(), poseFilter->getPosition(),
+				filterPacket);
 
-    // Update the position filter
-    if (position_filter != nullptr)
-    {
-        PositionSensorPacket sensorPacket;
-
-        if (poseEstimation->bCurrentlyTracking)
-        {
-            sensorPacket.world_position =
-                Eigen::Vector3f(
-                poseEstimation->position.x,
-                poseEstimation->position.y,
-                poseEstimation->position.z);
-            sensorPacket.position_source= PositionSource_Optical;
-            sensorPacket.position_quality= 
-                clampf01(
-                    safe_divide_with_default(
-                        poseEstimation->projection.screen_area - config->min_position_quality_screen_area,
-                        config->max_position_quality_screen_area - config->min_position_quality_screen_area,
-                        1.f));
-        }
-        else
-        {
-            sensorPacket.world_position = position_filter->getPosition();
-            sensorPacket.position_source= PositionSource_PreviousFrame;
-            sensorPacket.position_quality= -1.f; // not relevant for previous frame
-        }
-
-        switch (position_filter->getFusionType())
-        {
-        case PositionFilter::FusionTypeNone:
-        case PositionFilter::FusionTypePassThru:
-        case PositionFilter::FusionTypeLowPassOptical:
-            {
-                // All other filter types don't use transformed IMU data
-                sensorPacket.world_orientation = Eigen::Quaternionf::Identity();
-                sensorPacket.accelerometer= Eigen::Vector3f::Zero();
-
-                // Update the orientation filter using the sensor packet.
-                position_filter->update(delta_time, sensorPacket);
-            } break;
-        case PositionFilter::FusionTypeLowPassIMU:
-        case PositionFilter::FusionTypeComplimentaryOpticalIMU:
-            {
-                // Each state update contains two readings (one earlier and one later) of accelerometer data
-                for (int frame = 0; frame < 2; ++frame)
-                {
-                    // Use the latest estimated orientation for the frame
-                    sensorPacket.world_orientation = orientationFrames[frame];
-
-                    // The filter will use the current orientation and the identity gravity direction
-                    // to subtract out gravity and get acceleration of the controller in world space
-                    sensorPacket.accelerometer =
-                        Eigen::Vector3f(
-                            psmoveState->CalibratedAccel[frame][0], 
-                            psmoveState->CalibratedAccel[frame][1], 
-                            psmoveState->CalibratedAccel[frame][2]);
-
-                    // Update the orientation filter using the sensor packet for each frame.
-                    position_filter->update(delta_time / 2.f, sensorPacket);
-                }
-            } break;
-        default:
-            assert(0 && "unreachable");
+            poseFilter->update(delta_time / 2.f, filterPacket);
         }
     }
 }
@@ -1526,48 +1474,39 @@ update_filters_for_psmove(
 static void
 init_filters_for_psdualshock4(
     const PSDualShock4Controller *psmoveController,
-    OrientationFilter *orientation_filter,
-    PositionFilter *position_filter)
+	PoseFilterSpace **out_pose_filter_space,
+    IPoseFilter **out_pose_filter)
 {
     const PSDualShock4ControllerConfig *ds4_config = psmoveController->getConfig();
 
-    {
-        // Setup the space the orientation filter operates in
-        Eigen::Vector3f identityGravity = 
-            Eigen::Vector3f(
-                ds4_config->identity_gravity_direction.i,
-                ds4_config->identity_gravity_direction.j,
-                ds4_config->identity_gravity_direction.k);
-        Eigen::Vector3f identityMagnetometer = Eigen::Vector3f::Zero(); // No magnetometer on DS4 :(
-        Eigen::Matrix3f calibrationTransform = *k_eigen_identity_pose_upright;
-        Eigen::Matrix3f sensorTransform = *k_eigen_sensor_transform_identity;
-        OrientationFilterSpace filterSpace(identityGravity, identityMagnetometer, calibrationTransform, sensorTransform);
+    // Setup the space the orientation filter operates in
+    PoseFilterSpace *pose_filter_space = new PoseFilterSpace();
+    pose_filter_space->setIdentityGravity(
+		Eigen::Vector3f(
+            ds4_config->identity_gravity_direction.i,
+            ds4_config->identity_gravity_direction.j,
+            ds4_config->identity_gravity_direction.k));
+	pose_filter_space->setIdentityMagnetometer(Eigen::Vector3f::Zero());  // No magnetometer on DS4 :(
+	pose_filter_space->setCalibrationTransform(*k_eigen_identity_pose_upright);
+	pose_filter_space->setSensorTransform(*k_eigen_sensor_transform_identity);
 
-        orientation_filter->setFilterSpace(filterSpace);
+	// Copy the pose filter constants from the controller config
+	PoseFilterConstants constants;
+	constants.orientation_constants.gyro_drift= ds4_config->gyro_drift;
+	constants.orientation_constants.gyro_error= ds4_config->gyro_variance;
+	constants.position_constants.accelerometer_noise_radius= ds4_config->accelerometer_noise_radius;
+	constants.position_constants.max_velocity= ds4_config->max_velocity;
 
-        // Use the complementary ARG fusion filter by default (no magnetometer, use optical to fix drift)
-        orientation_filter->setFusionType(OrientationFilter::FusionTypeComplementaryOpticalARG);
-        orientation_filter->setGyroscopeError(ds4_config->gyro_variance); 
-        orientation_filter->setGyroscopeDrift(ds4_config->gyro_drift);
-    }
+	// TODO: Allow the config to select the filter type
+	// For now hard code the usage of a compound pose filter
+    CompoundPoseFilter *pose_filter = new CompoundPoseFilter();
+	pose_filter->init(
+		OrientationFilterTypeComplementaryOpticalARG, 
+		PositionFilterTypeComplimentaryOpticalIMU, 
+		constants);
 
-    {
-        Eigen::Vector3f identityGravity = 
-            Eigen::Vector3f(
-                ds4_config->identity_gravity_direction.i,
-                ds4_config->identity_gravity_direction.j,
-                ds4_config->identity_gravity_direction.k);
-        Eigen::Matrix3f calibrationTransform = *k_eigen_identity_pose_upright;
-        Eigen::Matrix3f sensorTransform = *k_eigen_sensor_transform_identity;
-        PositionFilterSpace filterSpace(identityGravity, calibrationTransform, sensorTransform);
-
-        position_filter->setFilterSpace(filterSpace);
-
-        // Use the LowPass filter by default
-        position_filter->setFusionType(PositionFilter::FusionTypeComplimentaryOpticalIMU);
-        position_filter->setAccelerometerNoiseRadius(ds4_config->accelerometer_noise_radius);
-        position_filter->setMaxVelocity(ds4_config->max_velocity);
-    }
+	*out_pose_filter_space= pose_filter_space;
+	*out_pose_filter= pose_filter;
 }
 
 static void
@@ -1576,26 +1515,24 @@ update_filters_for_psdualshock4(
     const PSDualShock4ControllerState *psdualShock4State,
     const float delta_time,
     const ControllerOpticalPoseEstimation *poseEstimation,
-    OrientationFilter *orientationFilter,
-    PositionFilter *position_filter)
+	const PoseFilterSpace *poseFilterSpace,
+    IPoseFilter *poseFilter)
 {
     const PSDualShock4ControllerConfig *config = psmoveController->getConfig();
 
-    // Update the orientation filter
-    if (orientationFilter != nullptr)
+    if (poseFilter != nullptr)
     {
-        OrientationSensorPacket sensorPacket;
+        PoseSensorPacket sensorPacket;
 
         if (poseEstimation->bOrientationValid)
         {
-            sensorPacket.orientation = 
+            sensorPacket.optical_orientation = 
                 Eigen::Quaternionf(
                     poseEstimation->orientation.w, 
                     poseEstimation->orientation.x,
                     poseEstimation->orientation.y,
                     poseEstimation->orientation.z);
-            sensorPacket.orientation_source= OrientationSource_Optical;
-            sensorPacket.orientation_quality= 
+            sensorPacket.optical_orientation_quality=
                 clampf01(
                     safe_divide_with_default(
                         poseEstimation->projection.screen_area - config->min_orientation_quality_screen_area,
@@ -1604,42 +1541,18 @@ update_filters_for_psdualshock4(
         }
         else
         {
-            sensorPacket.orientation = orientationFilter->getOrientation();
-            sensorPacket.orientation_source= OrientationSource_PreviousFrame;
-            sensorPacket.orientation_quality= -1.f; // not relevant for previous frame
+            sensorPacket.optical_orientation = Eigen::Quaternionf::Identity();
+            sensorPacket.optical_orientation_quality= 0.f;
         }
-
-        sensorPacket.accelerometer =
-            Eigen::Vector3f(
-                psdualShock4State->CalibratedAccelerometer.i,
-                psdualShock4State->CalibratedAccelerometer.j,
-                psdualShock4State->CalibratedAccelerometer.k);
-        sensorPacket.gyroscope =
-            Eigen::Vector3f(
-                psdualShock4State->CalibratedGyro.i, 
-                psdualShock4State->CalibratedGyro.j,
-                psdualShock4State->CalibratedGyro.k);
-        sensorPacket.magnetometer= Eigen::Vector3f::Zero();
-
-        // Update the orientation filter using the sensor packet.
-        // NOTE: The magnetometer reading is the same for both sensor readings.
-        orientationFilter->update(delta_time, sensorPacket);
-    }
-
-    // Update the position filter
-    if (position_filter != nullptr)
-    {
-        PositionSensorPacket sensorPacket;
 
         if (poseEstimation->bCurrentlyTracking)
         {
-            sensorPacket.world_position =
+            sensorPacket.optical_position =
                 Eigen::Vector3f(
-                poseEstimation->position.x,
-                poseEstimation->position.y,
-                poseEstimation->position.z);
-            sensorPacket.position_source= PositionSource_Optical;
-            sensorPacket.position_quality= 
+                    poseEstimation->position.x,
+                    poseEstimation->position.y,
+                    poseEstimation->position.z);
+            sensorPacket.optical_position_quality= 
                 clampf01(
                     safe_divide_with_default(
                         poseEstimation->projection.screen_area - config->min_position_quality_screen_area,
@@ -1648,23 +1561,33 @@ update_filters_for_psdualshock4(
         }
         else
         {
-            sensorPacket.world_position = position_filter->getPosition();
-            sensorPacket.position_source= PositionSource_PreviousFrame;
-            sensorPacket.position_quality= -1.f; // not relevant for previous frame
+            sensorPacket.optical_position = Eigen::Vector3f::Zero();
+            sensorPacket.optical_position_quality= 0.f;
         }
 
-        // Use the latest estimated orientation 
-        sensorPacket.world_orientation = orientationFilter->getOrientation();
-        
-        // The filter will use the current orientation and the identity gravity direction
-        // to subtract out gravity and get acceleration of the controller in world space
-        sensorPacket.accelerometer =
+        sensorPacket.imu_accelerometer =
             Eigen::Vector3f(
-                psdualShock4State->CalibratedAccelerometer.i, 
-                psdualShock4State->CalibratedAccelerometer.j, 
+                psdualShock4State->CalibratedAccelerometer.i,
+                psdualShock4State->CalibratedAccelerometer.j,
                 psdualShock4State->CalibratedAccelerometer.k);
+        sensorPacket.imu_gyroscope =
+            Eigen::Vector3f(
+                psdualShock4State->CalibratedGyro.i, 
+                psdualShock4State->CalibratedGyro.j,
+                psdualShock4State->CalibratedGyro.k);
+        sensorPacket.imu_gyroscope= Eigen::Vector3f::Zero();
 
-        // Update the orientation filter using the sensor packet.
-        position_filter->update(delta_time, sensorPacket);
+        {
+            PoseFilterPacket filterPacket;
+
+			// Create a filter input packet from the sensor data 
+			// and the filter's previous orientation and position
+			poseFilterSpace->createFilterPacket(
+				sensorPacket, 
+				poseFilter->getOrientation(), poseFilter->getPosition(),
+				filterPacket);
+
+            poseFilter->update(delta_time, filterPacket);
+        }
     }
 }

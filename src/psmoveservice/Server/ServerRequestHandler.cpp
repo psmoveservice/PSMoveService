@@ -804,7 +804,7 @@ protected:
             config->save();
 
             // Reset the orientation filter state the calibration changed
-            ControllerView->getOrientationFilterMutable()->resetFilterState();
+            ControllerView->getPoseFilterMutable()->resetState();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -825,7 +825,7 @@ protected:
         if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
         {
             PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-            PositionFilter *positionFilter= ControllerView->getPositionFilterMutable();
+            IPoseFilter *poseFilter= ControllerView->getPoseFilterMutable();
             PSMoveControllerConfig *config = controller->getConfigMutable();
 
             const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
@@ -836,15 +836,16 @@ protected:
             config->save();
 
             // Reset the orientation filter state the calibration changed
-            positionFilter->setAccelerometerNoiseRadius(config->accelerometer_noise_radius);
-            positionFilter->resetFilterState();
+			//TODO: Update constants
+            //positionFilter->setAccelerometerNoiseRadius(config->accelerometer_noise_radius);
+			poseFilter->resetState();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
         {
             PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-            PositionFilter *positionFilter= ControllerView->getPositionFilterMutable();
+            IPoseFilter *poseFilter= ControllerView->getPoseFilterMutable();
             PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
             const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
@@ -855,8 +856,9 @@ protected:
             config->save();
 
             // Reset the orientation filter state the calibration changed
-            positionFilter->setAccelerometerNoiseRadius(config->accelerometer_noise_radius);
-            positionFilter->resetFilterState();
+			//TODO: Update constants
+            //positionFilter->setAccelerometerNoiseRadius(config->accelerometer_noise_radius);
+            poseFilter->resetState();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -887,7 +889,8 @@ protected:
             config->save();
 
             // Reset the orientation filter state the calibration changed
-            ControllerView->getOrientationFilterMutable()->resetFilterState();
+			//TODO: Update constants
+            ControllerView->getPoseFilterMutable()->resetState();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -904,7 +907,8 @@ protected:
             config->save();
 
             // Reset the orientation filter state the calibration changed
-            ControllerView->getOrientationFilterMutable()->resetFilterState();
+			//TODO: Update constants
+            ControllerView->getPoseFilterMutable()->resetState();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
