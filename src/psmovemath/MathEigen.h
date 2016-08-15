@@ -65,4 +65,14 @@ eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f 
 float
 eigen_quaternion_unsigned_angle_between(const Eigen::Quaternionf &a, const Eigen::Quaternionf &b);
 
+Eigen::Quaternionf
+eigen_angular_velocity_to_quaternion_derivative(
+	const Eigen::Quaternionf &current_orientation,
+	const Eigen::Vector3f &ang_vel);
+
+Eigen::Vector3f
+eigen_quaternion_derivative_to_angular_velocity(
+	const Eigen::Quaternionf &current_orientation,
+	const Eigen::Quaternionf &quaternion_derivative);
+
 #endif // MATH_EIGEN_H

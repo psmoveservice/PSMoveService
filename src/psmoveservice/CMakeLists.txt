@@ -127,8 +127,8 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
 # Eigen math library
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
 
-# UKF (Unscented Kalman Filter) library
-list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/ukf/include/)
+# mherb/Kalman library
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include)
 
 # Boost.Application and type_index are header only (?)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS

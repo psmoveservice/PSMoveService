@@ -76,13 +76,6 @@ struct OrientationFilterState
     }
 };
 
-// -- private methods -----
-static Eigen::Quaternionf
-angular_velocity_to_quaternion_derivative(const Eigen::Quaternionf &current_orientation, const Eigen::Vector3f &ang_vel);
-
-static Eigen::Vector3f
-quaternion_derivative_to_angular_velocity( const Eigen::Quaternionf &current_orientation, const Eigen::Quaternionf &quaternion_derivative);
-
 // -- public interface -----
 //-- Orientation Filter --
 OrientationFilter::OrientationFilter() :
@@ -134,7 +127,7 @@ Eigen::Quaternionf OrientationFilter::getOrientation(float time) const
         if (fabsf(time) > k_real_epsilon)
         {
             const Eigen::Quaternionf &quaternion_derivative=
-                angular_velocity_to_quaternion_derivative(m_state->orientation, m_state->angular_velocity);
+                eigen_angular_velocity_to_quaternion_derivative(m_state->orientation, m_state->angular_velocity);
 
             predicted_orientation= Eigen::Quaternionf(
                 m_state->orientation.coeffs()
@@ -169,7 +162,7 @@ void OrientationFilterPassThru::update(const float delta_time, const PoseFilterP
     const Eigen::Quaternionf orientation_derivative= 
         Eigen::Quaternionf((new_orientation.coeffs() - m_state->orientation.coeffs()) / delta_time);
     const Eigen::Vector3f new_angular_velocity = 
-        quaternion_derivative_to_angular_velocity(new_orientation, orientation_derivative);
+        eigen_quaternion_derivative_to_angular_velocity(new_orientation, orientation_derivative);
     const Eigen::Vector3f new_angular_accelertion = 
         (new_angular_velocity - m_state->angular_velocity) / delta_time;
 
@@ -519,28 +512,4 @@ void OrientationFilterComplementaryMARG::update(const float delta_time, const Po
     // Update the blend weight
     // -- Exponential blend the MG weight from 1 down to k_base_earth_frame_align_weight
     mg_weight = lerp_clampf(mg_weight, k_base_earth_frame_align_weight, 0.9f);
-}
-
-// -- helper functions --
-static Eigen::Quaternionf 
-angular_velocity_to_quaternion_derivative(
-    const Eigen::Quaternionf &current_orientation,
-    const Eigen::Vector3f &ang_vel)
-{
-    Eigen::Quaternionf omega = Eigen::Quaternionf(0.f, ang_vel.x(), ang_vel.y(), ang_vel.z());
-    Eigen::Quaternionf quaternion_derivative = Eigen::Quaternionf(current_orientation.coeffs() * 0.5f) *omega;
-
-    return quaternion_derivative;
-}
-
-static Eigen::Vector3f
-quaternion_derivative_to_angular_velocity(
-    const Eigen::Quaternionf &current_orientation,
-    const Eigen::Quaternionf &quaternion_derivative)
-{
-    Eigen::Quaternionf inv_orientation = current_orientation.conjugate();
-    auto q_ang_vel = (quaternion_derivative*inv_orientation).coeffs() * 2.f;
-    Eigen::Vector3f ang_vel(q_ang_vel.x(), q_ang_vel.y(), q_ang_vel.z());
-
-    return ang_vel;
 }
