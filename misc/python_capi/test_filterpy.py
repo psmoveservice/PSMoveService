@@ -113,7 +113,7 @@ x_init[(st_pos_x, st_pos_y, st_pos_z),] = testdata[0, (obs_track_x, obs_track_y,
 x_init[(st_e_w, st_e_x, st_e_y, st_e_z),] = testdata[0, 12:16]  # Cheating here. I could calculate orientation from accel/gyro but it was already done by PSMoveService.
 
 # Initial state covariance
-P_init = 0.1 * np.eye(NSTATEDIM)  #TODO: Something more realistic.
+P_init = 10.0 * np.eye(NSTATEDIM)  #TODO: Something more realistic.
 
 # Process noise covariance
 Q_init = 0.1*np.eye(NSTATEDIM)
@@ -124,7 +124,7 @@ Q_init[(st_pos_z, st_lvel_z, st_lacc_z),][:,(st_pos_z, st_lvel_z, st_lacc_z)] = 
 #TODO: Q_init for orientation and angular velocity
 
 # Measurement noise covariance
-R_init = np.diag(np.cov(trainingdata[:, :12], rowvar=False)) * np.eye(NOBSDIM)
+R_init = 5.0 * np.diag(np.cov(trainingdata[:, :12], rowvar=False)) * np.eye(NOBSDIM)
 
 points = MerweScaledSigmaPoints(n=NSTATEDIM, alpha=.1, beta=2., kappa=-1)
 
@@ -166,13 +166,19 @@ filt_pos = uxs[:, (st_pos_x, st_pos_y, st_pos_z)]
 diffs = np.linalg.norm(filt_pos-track_pos, axis=1)
 print("Difference mean: {}, std: {}".format(np.mean(diffs), np.std(diffs)))
 
-from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
 fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-pl_tracker, = ax.plot(track_pos[:, 0], track_pos[:, 1], track_pos[:, 2], 'b', label="Original")
-pl_filter, = ax.plot(filt_pos[:, 0], filt_pos[:, 1], filt_pos[:, 2], 'r', label="UKF")
-plt.legend(handles=[pl_tracker, pl_filter])
+ax1 = fig.add_subplot(211, projection='3d')
+pl_tracker, = ax1.plot(track_pos[:, 0], track_pos[:, 1], track_pos[:, 2], 'b', label="Original")
+pl_filter, = ax1.plot(filt_pos[:, 0], filt_pos[:, 1], filt_pos[:, 2], 'r', label="UKF")
+ax1.legend(handles=[pl_tracker, pl_filter])
+
+ax2 = fig.add_subplot(212)
+psm_q, = ax2.plot(observations[:, -1], observations[:, 12], 'b', label="PSMoveService q0")
+ukf_q, = ax2.plot(observations[:, -1], uxs[:, st_e_w], 'r', label="Predicted q0")
+ax2.legend(handles=[psm_q, ukf_q])
 plt.show()
 
 #Additional TODOs:
