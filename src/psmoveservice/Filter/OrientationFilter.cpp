@@ -192,7 +192,7 @@ void OrientationFilterMadgwickARG::update(const float delta_time, const PoseFilt
     if (!current_g.isApprox(Eigen::Vector3f::Zero(), k_normal_epsilon))
     {
         // Get the direction of the gravitational fields in the identity pose		
-        Eigen::Vector3f k_identity_g_direction = packet.gravity_calibration_direction;
+        Eigen::Vector3f k_identity_g_direction = m_constants.gravity_calibration_direction;
 
         // Eqn 15) Applied to the gravity vector
         // Fill in the 3x1 objective function matrix f(SEq, Sa) =|f_g|
@@ -276,10 +276,10 @@ void OrientationFilterMadgwickMARG::update(const float delta_time, const PoseFil
     // but since we've already done the work in calibration to get this vector, let's just use it.
     // This also removes the last assumption in this function about what 
     // the orientation of the identity-pose is (handled by the sensor transform).
-    Eigen::Vector3f k_identity_m_direction = packet.magnetometer_calibration_direction;
+    Eigen::Vector3f k_identity_m_direction = m_constants.magnetometer_calibration_direction;
 
     // Get the direction of the gravitational fields in the identity pose
-    Eigen::Vector3f k_identity_g_direction = packet.gravity_calibration_direction;
+    Eigen::Vector3f k_identity_g_direction = m_constants.gravity_calibration_direction;
 
     // Eqn 15) Applied to the gravity and magnetometer vectors
     // Fill in the 6x1 objective function matrix f(SEq, Sa, Eb, Sm) =|f_g|
@@ -383,7 +383,7 @@ void OrientationFilterComplementaryOpticalARG::update(const float delta_time, co
     if (!current_g.isApprox(Eigen::Vector3f::Zero(), k_normal_epsilon))
     {
         // Get the direction of the gravitational fields in the identity pose		
-        Eigen::Vector3f k_identity_g_direction = packet.gravity_calibration_direction;
+        Eigen::Vector3f k_identity_g_direction = m_constants.gravity_calibration_direction;
 
         // Eqn 15) Applied to the gravity vector
         // Fill in the 3x1 objective function matrix f(SEq, Sa) =|f_g|
@@ -461,10 +461,10 @@ void OrientationFilterComplementaryMARG::update(const float delta_time, const Po
     eigen_vector3f_normalize_with_default(current_m, Eigen::Vector3f::Zero());
 
     // Get the direction of the magnetic fields in the identity pose.	
-    Eigen::Vector3f k_identity_m_direction = packet.magnetometer_calibration_direction;
+    Eigen::Vector3f k_identity_m_direction = m_constants.magnetometer_calibration_direction;
 
     // Get the direction of the gravitational fields in the identity pose
-    Eigen::Vector3f k_identity_g_direction = packet.gravity_calibration_direction;
+    Eigen::Vector3f k_identity_g_direction = m_constants.gravity_calibration_direction;
 
     // Angular Rotation (AR) Update
     //-----------------------------

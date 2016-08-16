@@ -11,7 +11,7 @@ class KalmanPoseFilter : public IPoseFilter
 public:
 	KalmanPoseFilter();
 
-	bool init(const PoseFilterConstants &constant);
+	virtual bool init(const PoseFilterConstants &constant);
 
 	// -- IStateFilter --
 	bool getIsStateValid() const override;
@@ -35,6 +35,7 @@ protected:
 class KalmanPoseFilterDS4 : public KalmanPoseFilter
 {
 public:
+	bool init(const PoseFilterConstants &constant) override;
 	void update(const float delta_time, const PoseFilterPacket &packet) override;
 };
 
@@ -42,6 +43,7 @@ public:
 class PSMovePoseKalmanFilter : public KalmanPoseFilter
 {
 public:
+	bool init(const PoseFilterConstants &constant) override;
 	void update(const float delta_time, const PoseFilterPacket &packet) override;
 };
 

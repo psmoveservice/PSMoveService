@@ -1,9 +1,9 @@
 //-- includes --
 #include "KalmanPoseFilter.h"
 
-#include <kalman/LinearizedMeasurementModel.hpp>
-#include <kalman/LinearizedSystemModel.hpp>
-#include <kalman/UnscentedKalmanFilter.hpp>
+#include <kalman/MeasurementModel.hpp>
+#include <kalman/SystemModel.hpp>
+#include <kalman/SquareRootUnscentedKalmanFilter.hpp>
 
 //-- private definitions --
 enum StateEnum
@@ -203,7 +203,7 @@ public:
 * This is the system model defining how a controller advances from one
 * time-step to the next, i.e. how the system state evolves over time.
 */
-class SystemModel : public Kalman::LinearizedSystemModel<StateVector<float>, ControlVector<float>, Kalman::StandardBase>
+class SystemModel : public Kalman::SystemModel<StateVector<float>, ControlVector<float>, Kalman::SquareRootBase>
 {
 public:
 	inline void set_gravity_identity_direction(const Eigen::Vector3f &gravity) { m_identity_gravity = gravity; }
@@ -275,7 +275,7 @@ protected:
 * This is the measurement model for measuring the position and magnetometer of the PSMove controller.
 * The measurement is given by the optical trackers.
 */
-class PSMove_MeasurementModel : public Kalman::LinearizedMeasurementModel<StateVector<float>, PSMove_MeasurementVector<float>, Kalman::StandardBase>
+class PSMove_MeasurementModel : public Kalman::MeasurementModel<StateVector<float>, PSMove_MeasurementVector<float>, Kalman::SquareRootBase>
 {
 public:
 	inline void set_magnetometer_identity_direction(const Eigen::Vector3f &magnetometer) { m_identity_magnetometer = magnetometer; }
@@ -310,7 +310,7 @@ protected:
 * This is the measurement model for measuring the position and orientation of the DS4 controller.
 * The measurement is given by the optical trackers.
 */
-class DS4_MeasurementModel : public Kalman::LinearizedMeasurementModel<StateVector<float>, DS4_MeasurementVector<float>, Kalman::StandardBase>
+class DS4_MeasurementModel : public Kalman::MeasurementModel<StateVector<float>, DS4_MeasurementVector<float>, Kalman::SquareRootBase>
 {
 public:
 	/**
@@ -350,12 +350,19 @@ public:
 	StateVector<float> state_vector;
 	StateVector<float> state_vector_ukf;
 
+	/// Used to model how the physics of the controller evolves
+	SystemModel system_model;
+
 	/// Unscented Kalman Filter instance
-	Kalman::UnscentedKalmanFilter<StateVector<float>> *ukf;
+	Kalman::SquareRootUnscentedKalmanFilter<StateVector<float>> *ukf;
 
 	KalmanFilterImpl()
 	{
-		ukf = new Kalman::UnscentedKalmanFilter<StateVector<float>>(1);
+		const float alpha = 1.f;
+		const float beta = 2.f;
+		const float kappa = 0.f;
+
+		ukf = new Kalman::SquareRootUnscentedKalmanFilter<StateVector<float>>(alpha, beta, kappa);
 	}
 
 	virtual ~KalmanFilterImpl()
@@ -363,7 +370,7 @@ public:
 		delete ukf;
 	}
 
-	virtual void reset()
+	void init(const PoseFilterConstants &constants)
 	{
 		bIsValid = false;
 		reset_orientation = Eigen::Quaternionf::Identity();
@@ -371,22 +378,105 @@ public:
 		state_vector.setZero();
 		state_vector_ukf.setZero();
 		ukf->init(state_vector);
+
+		init_system_model(constants);
+	}
+
+	void init_system_model(const PoseFilterConstants &constants)
+	{
+		Kalman::Covariance<StateVector<float>> process_covariance = Kalman::Covariance<StateVector<float>>::Zero();
+
+		// TODO: What should these process variances actually be?
+		process_covariance(POSITION_X, POSITION_X) = 1e-2f;
+		process_covariance(POSITION_Y, POSITION_Y) = 1e-2f;
+		process_covariance(POSITION_Z, POSITION_Z) = 1e-2f;
+		process_covariance(LINEAR_VELOCITY_X, LINEAR_VELOCITY_X) = 1e-2f;
+		process_covariance(LINEAR_VELOCITY_Y, LINEAR_VELOCITY_Y) = 1e-2f;
+		process_covariance(LINEAR_VELOCITY_Z, LINEAR_VELOCITY_Z) = 1e-2f;
+		process_covariance(LINEAR_ACCELERATION_X, LINEAR_ACCELERATION_X) = 1e-2f;
+		process_covariance(LINEAR_ACCELERATION_Y, LINEAR_ACCELERATION_Y) = 1e-2f;
+		process_covariance(LINEAR_ACCELERATION_Z, LINEAR_ACCELERATION_Z) = 1e-2f;
+		process_covariance(ORIENTATION_W, ORIENTATION_W) = 1e-2f;
+		process_covariance(ORIENTATION_X, ORIENTATION_X) = 1e-2f;
+		process_covariance(ORIENTATION_Y, ORIENTATION_Y) = 1e-2f;
+		process_covariance(ORIENTATION_Z, ORIENTATION_Z) = 1e-2f;
+		process_covariance(ANGULAR_VELOCITY_X, ANGULAR_VELOCITY_X) = 1e-2f;
+		process_covariance(ANGULAR_VELOCITY_Y, ANGULAR_VELOCITY_Y) = 1e-2f;
+		process_covariance(ANGULAR_VELOCITY_Z, ANGULAR_VELOCITY_Z) = 1e-2f;
+		process_covariance(ANGULAR_ACCELERATION_X, ANGULAR_ACCELERATION_X) = 1e-2f;
+		process_covariance(ANGULAR_ACCELERATION_Y, ANGULAR_ACCELERATION_Y) = 1e-2f;
+		process_covariance(ANGULAR_ACCELERATION_Z, ANGULAR_ACCELERATION_Z) = 1e-2f;
+		process_covariance(GYRO_BIAS_X, GYRO_BIAS_X) = 0.f;
+		process_covariance(GYRO_BIAS_Y, GYRO_BIAS_Y) = 0.f;
+		process_covariance(GYRO_BIAS_Z, GYRO_BIAS_Z) = 0.f;
+
+		system_model.setCovariance(process_covariance);
+		system_model.set_gravity_identity_direction(constants.orientation_constants.gravity_calibration_direction);
+	}
+};
+
+class DS4KalmanFilterImpl : public KalmanFilterImpl
+{
+public:
+	DS4_MeasurementModel measurement_model;
+
+	void init_measurement_model(const PoseFilterConstants &constants)
+	{
+		Kalman::Covariance<DS4_MeasurementVector<float>> measurement_covariance = Kalman::Covariance<DS4_MeasurementVector<float>>::Zero();
+
+		// TODO: What should these noise variances actually be?
+		measurement_covariance(DS4_OPTICAL_POSITION_X, DS4_OPTICAL_POSITION_X) = 1e-2f; // m_constants.position_constants.optical_position_variance
+		measurement_covariance(DS4_OPTICAL_POSITION_Y, DS4_OPTICAL_POSITION_Y) = 1e-2f; // m_constants.position_constants.optical_position_variance
+		measurement_covariance(DS4_OPTICAL_POSITION_Z, DS4_OPTICAL_POSITION_Z) = 1e-2f; // m_constants.position_constants.optical_position_variance
+		measurement_covariance(DS4_OPTICAL_ORIENTATION_W, DS4_OPTICAL_ORIENTATION_W) = 1e-2f; // m_constants.position_constants.optical_orientation_variance
+		measurement_covariance(DS4_OPTICAL_ORIENTATION_X, DS4_OPTICAL_ORIENTATION_X) = 1e-2f; // m_constants.position_constants.optical_orientation_variance 
+		measurement_covariance(DS4_OPTICAL_ORIENTATION_Y, DS4_OPTICAL_ORIENTATION_Y) = 1e-2f; // m_constants.position_constants.optical_orientation_variance
+		measurement_covariance(DS4_OPTICAL_ORIENTATION_Z, DS4_OPTICAL_ORIENTATION_Z) = 1e-2f; // m_constants.position_constants.optical_orientation_variance
+
+		measurement_model.setCovariance(measurement_covariance);
+	}
+};
+
+class PSMoveKalmanFilterImpl : public KalmanFilterImpl
+{
+public:
+	PSMove_MeasurementModel measurement_model;
+
+	void init_measurement_model(const PoseFilterConstants &constants)
+	{
+		Kalman::Covariance<PSMove_MeasurementVector<float>> measurement_covariance = Kalman::Covariance<PSMove_MeasurementVector<float>>::Zero();
+
+		// TODO: What should these noise variances actually be?
+		measurement_covariance(PSMOVE_OPTICAL_POSITION_X, PSMOVE_OPTICAL_POSITION_X) = 1e-2f; // m_constants.position_constants.optical_position_variance
+		measurement_covariance(PSMOVE_OPTICAL_POSITION_Y, PSMOVE_OPTICAL_POSITION_Y) = 1e-2f; // m_constants.position_constants.optical_position_variance
+		measurement_covariance(PSMOVE_OPTICAL_POSITION_Z, PSMOVE_OPTICAL_POSITION_Z) = 1e-2f; // m_constants.position_constants.optical_position_variance
+		measurement_covariance(PSMOVE_MAGNETOMETER_X, PSMOVE_MAGNETOMETER_X) = 1e-2f; // m_constants.orientation_constants.magnetometer_variance
+		measurement_covariance(PSMOVE_MAGNETOMETER_Y, PSMOVE_MAGNETOMETER_Y) = 1e-2f; // m_constants.orientation_constants.magnetometer_variance
+		measurement_covariance(PSMOVE_MAGNETOMETER_Z, PSMOVE_MAGNETOMETER_Z) = 1e-2f; // m_constants.orientation_constants.magnetometer_variance
+
+		measurement_model.setCovariance(measurement_covariance);
+		measurement_model.set_magnetometer_identity_direction(constants.orientation_constants.magnetometer_calibration_direction);
 	}
 };
 
 //-- public interface --
 //-- KalmanFilterOpticalPoseARG --
 KalmanPoseFilter::KalmanPoseFilter() 
-	: m_filter(new KalmanFilterImpl)
+	: m_filter(nullptr)
 {
 	memset(&m_constants, 0, sizeof(PoseFilterConstants));
 }
 
 bool KalmanPoseFilter::init(const PoseFilterConstants &constants)
 {
-	resetState();
 	m_constants = constants;
-	m_filter->reset();
+
+	// cleanup any existing filter
+	if (m_filter != nullptr)
+	{
+		delete m_filter;
+		m_filter;
+	}
 
 	return true;
 }
@@ -398,7 +488,7 @@ bool KalmanPoseFilter::getIsStateValid() const
 
 void KalmanPoseFilter::resetState()
 {
-	m_filter->reset();
+	m_filter->init(m_constants);
 }
 
 void KalmanPoseFilter::recenterState()
@@ -475,38 +565,67 @@ Eigen::Vector3f KalmanPoseFilter::getAcceleration() const
 }
 
 //-- KalmanFilterOpticalPoseARG --
+bool KalmanPoseFilterDS4::init(const PoseFilterConstants &constants)
+{
+	KalmanPoseFilter::init(constants);
+
+	DS4KalmanFilterImpl *filter = new DS4KalmanFilterImpl();
+	filter->init(constants);
+	filter->init_measurement_model(constants);
+	m_filter = filter;
+
+	return true;
+}
+
 void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket &packet)
 {
-	// Treat the accelerometer and gyroscope as control imputs for the physics
+	// Treat the accelerometer and gyroscope as control inputs for the physics
 	ControlVector<float> control_vector;
 	control_vector.set_time_delta(delta_time);
 	control_vector.set_accelerometer(packet.world_accelerometer);
 	control_vector.set_gyroscope(packet.imu_gyroscope);
 
 	// Simulate the physics of the system
-	SystemModel system_model;
-	system_model.set_gravity_identity_direction(packet.gravity_calibration_direction);
-	m_filter->state_vector = system_model.f(m_filter->state_vector, control_vector);
+	m_filter->state_vector = m_filter->system_model.f(m_filter->state_vector, control_vector);
 
 	// Predict state for current time-step using the filters
-	m_filter->state_vector_ukf = m_filter->ukf->predict(system_model, control_vector);
+	m_filter->state_vector_ukf = m_filter->ukf->predict(m_filter->system_model, control_vector);
 
-	// Project the current state onto a predicted measurement
-	DS4_MeasurementModel measurement_model;
+	// Get the measurement model for the DS4 from the derived filter impl
+	DS4_MeasurementModel &measurement_model = static_cast<DS4KalmanFilterImpl *>(m_filter)->measurement_model;
+
+	// Project the current state onto a predicted measurement as a default
+	// in case no observation is available
 	DS4_MeasurementVector<float> measurement = measurement_model.h(m_filter->state_vector);
 
-	// If we have an optical orientation, use that instead
-	//###HipsterSloth $TODO - How do we feed the the orientation quality into the covariances
-	if (packet.optical_orientation_quality > 0.f)
+	if (packet.optical_orientation_quality > 0.f || packet.optical_position_quality > 0.f)
 	{
-		measurement.set_optical_orientation(packet.optical_orientation);
-	}
+		//Kalman::Covariance<DS4_MeasurementVector<float>> covariance = measurement_model.getCovariance();
 
-	// If we have an optical position, use that instead
-	//###HipsterSloth $TODO - How do we feed the the position quality into the covariances
-	if (packet.optical_position_quality > 0.f)
-	{
-		measurement.set_optical_position(packet.optical_position);
+		// If available, use the optical orientation measurement
+		if (packet.optical_orientation_quality > 0.f)
+		{
+			//###HipsterSloth $TODO - Update the the orientation quality in the covariance matrix
+			//covariance(ORIENTATION_W, ORIENTATION_W) = m_constants.orientation_constants.optical_orientation_variance;
+			//covariance(ORIENTATION_X, ORIENTATION_X) = m_constants.orientation_constants.optical_orientation_variance;
+			//covariance(ORIENTATION_Y, ORIENTATION_Y) = m_constants.orientation_constants.optical_orientation_variance;
+			//covariance(ORIENTATION_Z, ORIENTATION_Z) = m_constants.orientation_constants.optical_orientation_variance;
+
+			measurement.set_optical_orientation(packet.optical_orientation);
+		}
+
+		// If available, use the optical position
+		if (packet.optical_position_quality > 0.f)
+		{
+			//###HipsterSloth $TODO - Update the orientation quality in the covariance matrix
+			//covariance(POSITION_X, POSITION_X) = m_constants.position_constants.optical_position_variance;
+			//covariance(POSITION_Y, POSITION_Y) = m_constants.position_constants.optical_position_variance;
+			//covariance(POSITION_Z, POSITION_Z) = m_constants.position_constants.optical_position_variance;
+
+			measurement.set_optical_position(packet.optical_position);
+		}
+
+		//measurement_model.setCovariance(covariance);
 	}
 
 	// Update UKF
@@ -514,6 +633,18 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
 }
 
 //-- PSMovePoseKalmanFilter --
+bool PSMovePoseKalmanFilter::init(const PoseFilterConstants &constants)
+{
+	KalmanPoseFilter::init(constants);
+
+	PSMoveKalmanFilterImpl *filter = new PSMoveKalmanFilterImpl();
+	filter->init(constants);
+	filter->init_measurement_model(constants);
+	m_filter = filter;
+
+	return true;
+}
+
 void PSMovePoseKalmanFilter::update(const float delta_time, const PoseFilterPacket &packet)
 {
 	// Control input
@@ -522,21 +653,25 @@ void PSMovePoseKalmanFilter::update(const float delta_time, const PoseFilterPack
 	control_vector.set_accelerometer(packet.world_accelerometer);
 	control_vector.set_gyroscope(packet.imu_gyroscope);
 
-	// System
-	SystemModel system_model;
-	system_model.set_gravity_identity_direction(packet.gravity_calibration_direction);
+	// Get the measurement model for the PSMove from the derived filter impl
+	PSMove_MeasurementModel &measurement_model = static_cast<PSMoveKalmanFilterImpl *>(m_filter)->measurement_model;
 
-	// Project the current state onto a predicted measurement
-	PSMove_MeasurementModel measurement_model;
-	measurement_model.set_magnetometer_identity_direction(packet.magnetometer_calibration_direction);
+	// Project the current state onto a predicted measurement as a default
+	// in case no observation is available
 	PSMove_MeasurementVector<float> measurement = measurement_model.h(m_filter->state_vector);
 
+	// Always have a magnetometer measurement available
 	measurement.set_magnetometer(packet.imu_magnetometer);
 
-	// If we have an optical position, use that instead
-	//###HipsterSloth $TODO - How do we feed the the position quality into the covariances
+	// If available, use the optical position
 	if (packet.optical_position_quality > 0.f)
 	{
+		//###HipsterSloth $TODO - Feed the position quality into the covariance matrix
+		//Kalman::Covariance<PSMove_MeasurementVector<float><float>> covariance = measurement_model.getCovariance();
+		//covariance(POSITION_X, POSITION_X) = m_constants.position_constants.optical_position_variance;
+		//covariance(POSITION_Y, POSITION_Y) = m_constants.position_constants.optical_position_variance;
+		//covariance(POSITION_Z, POSITION_Z) = m_constants.position_constants.optical_position_variance;
+		//measurement_model.setCovariance(covariance);
 		measurement.set_optical_position(packet.optical_position);
 	}
 

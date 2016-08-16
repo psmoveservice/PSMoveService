@@ -1380,6 +1380,8 @@ init_filters_for_psmove(
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
+	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
+	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
 	constants.orientation_constants.gyro_drift= psmove_config->gyro_drift;
 	constants.orientation_constants.gyro_error= psmove_config->gyro_variance;
 	constants.position_constants.accelerometer_noise_radius= psmove_config->accelerometer_noise_radius;
@@ -1492,6 +1494,8 @@ init_filters_for_psdualshock4(
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
+	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
+	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
 	constants.orientation_constants.gyro_drift= ds4_config->gyro_drift;
 	constants.orientation_constants.gyro_error= ds4_config->gyro_variance;
 	constants.position_constants.accelerometer_noise_radius= ds4_config->accelerometer_noise_radius;

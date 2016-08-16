@@ -72,9 +72,6 @@ void PoseFilterSpace::createFilterPacket(
     outFilterPacket.imu_accelerometer= m_SensorTransform * sensorPacket.imu_accelerometer;
     outFilterPacket.imu_magnetometer= m_SensorTransform * sensorPacket.imu_magnetometer;
         
-    outFilterPacket.gravity_calibration_direction= getGravityCalibrationDirection();
-    outFilterPacket.magnetometer_calibration_direction= getMagnetometerCalibrationDirection();
-
 	outFilterPacket.world_accelerometer=
 		eigen_vector3f_clockwise_rotate(orientation, outFilterPacket.imu_accelerometer);	
 }

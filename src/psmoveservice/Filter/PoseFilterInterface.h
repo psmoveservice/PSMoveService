@@ -48,12 +48,6 @@ struct PoseFilterPacket : PoseSensorPacket
 	/// The current position of the controller
 	Eigen::Vector3f current_position;
 
-    /// The direction of gravity when the controller is in it's calibration pose
-    Eigen::Vector3f gravity_calibration_direction;
-
-    /// The direction of the magnetic field when the controller is in it's calibration pose
-    Eigen::Vector3f magnetometer_calibration_direction;
-
 	/// The accelerometer reading in the world reference frame
 	Eigen::Vector3f world_accelerometer; // g-units
 };
@@ -96,7 +90,16 @@ private:
 /// Filter parameters that remain constant during the lifetime of the the filter
 struct OrientationFilterConstants 
 {
+	/// The direction of gravity when the controller is in it's calibration pose
+	Eigen::Vector3f gravity_calibration_direction; // unit vector
+
+	/// The direction of the magnetic field when the controller is in it's calibration pose
+	Eigen::Vector3f magnetometer_calibration_direction; // unit vector
+
+	/// The variance of the gyroscope over a short period
     float gyro_error; // rad/s^2
+
+	/// The drift of the gyroscope over a long period
     float gyro_drift; // rad/s
 };
 
