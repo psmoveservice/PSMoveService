@@ -174,3 +174,8 @@ pl_tracker, = ax.plot(track_pos[:, 0], track_pos[:, 1], track_pos[:, 2], 'b', la
 pl_filter, = ax.plot(filt_pos[:, 0], filt_pos[:, 1], filt_pos[:, 2], 'r', label="UKF")
 plt.legend(handles=[pl_tracker, pl_filter])
 plt.show()
+
+#Additional TODOs:
+#-handle partial observations (only IMU, only optical tracker)
+#-compensate for sensor offset, lever arm
+#-account for delays in optical measurements
