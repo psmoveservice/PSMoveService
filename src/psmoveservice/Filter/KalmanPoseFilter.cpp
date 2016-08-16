@@ -348,7 +348,6 @@ public:
 
 	/// All state parameters of the controller
 	StateVector<float> state_vector;
-	StateVector<float> state_vector_ukf;
 
 	/// Used to model how the physics of the controller evolves
 	SystemModel system_model;
@@ -376,7 +375,6 @@ public:
 		reset_orientation = Eigen::Quaternionf::Identity();
 		origin_position = Eigen::Vector3f::Zero();
 		state_vector.setZero();
-		state_vector_ukf.setZero();
 		ukf->init(state_vector);
 
 		init_system_model(constants);
@@ -506,7 +504,7 @@ Eigen::Quaternionf KalmanPoseFilter::getOrientation(float time) const
 
 	if (m_filter->bIsValid)
 	{
-		const Eigen::Quaternionf state_orientation = m_filter->state_vector_ukf.get_orientation();
+		const Eigen::Quaternionf state_orientation = m_filter->state_vector.get_orientation();
 		Eigen::Quaternionf predicted_orientation = state_orientation;
 
 		if (fabsf(time) > k_real_epsilon)
@@ -527,12 +525,12 @@ Eigen::Quaternionf KalmanPoseFilter::getOrientation(float time) const
 
 Eigen::Vector3f KalmanPoseFilter::getAngularVelocity() const
 {
-	return m_filter->state_vector_ukf.get_angular_velocity();
+	return m_filter->state_vector.get_angular_velocity();
 }
 
 Eigen::Vector3f KalmanPoseFilter::getAngularAcceleration() const
 {
-	return m_filter->state_vector_ukf.get_angular_acceleration();
+	return m_filter->state_vector.get_angular_acceleration();
 }
 
 Eigen::Vector3f KalmanPoseFilter::getPosition(float time) const
@@ -541,7 +539,7 @@ Eigen::Vector3f KalmanPoseFilter::getPosition(float time) const
 
 	if (m_filter->bIsValid)
 	{
-		Eigen::Vector3f state_position= m_filter->state_vector_ukf.get_position();
+		Eigen::Vector3f state_position= m_filter->state_vector.get_position();
 		Eigen::Vector3f predicted_position =
 			is_nearly_zero(time)
 			? state_position
@@ -556,12 +554,12 @@ Eigen::Vector3f KalmanPoseFilter::getPosition(float time) const
 
 Eigen::Vector3f KalmanPoseFilter::getVelocity() const
 {
-	return m_filter->state_vector_ukf.get_linear_velocity() * k_meters_to_centimeters;
+	return m_filter->state_vector.get_linear_velocity() * k_meters_to_centimeters;
 }
 
 Eigen::Vector3f KalmanPoseFilter::getAcceleration() const
 {
-	return m_filter->state_vector_ukf.get_linear_acceleration() * k_meters_to_centimeters;
+	return m_filter->state_vector.get_linear_acceleration() * k_meters_to_centimeters;
 }
 
 //-- KalmanFilterOpticalPoseARG --
@@ -585,11 +583,8 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
 	control_vector.set_accelerometer(packet.world_accelerometer);
 	control_vector.set_gyroscope(packet.imu_gyroscope);
 
-	// Simulate the physics of the system
-	m_filter->state_vector = m_filter->system_model.f(m_filter->state_vector, control_vector);
-
 	// Predict state for current time-step using the filters
-	m_filter->state_vector_ukf = m_filter->ukf->predict(m_filter->system_model, control_vector);
+	m_filter->state_vector = m_filter->ukf->predict(m_filter->system_model, control_vector);
 
 	// Get the measurement model for the DS4 from the derived filter impl
 	DS4_MeasurementModel &measurement_model = static_cast<DS4KalmanFilterImpl *>(m_filter)->measurement_model;
@@ -629,7 +624,7 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
 	}
 
 	// Update UKF
-	m_filter->state_vector_ukf = m_filter->ukf->update(measurement_model, measurement);
+	m_filter->state_vector = m_filter->ukf->update(measurement_model, measurement);
 }
 
 //-- PSMovePoseKalmanFilter --
@@ -656,6 +651,9 @@ void PSMovePoseKalmanFilter::update(const float delta_time, const PoseFilterPack
 	// Get the measurement model for the PSMove from the derived filter impl
 	PSMove_MeasurementModel &measurement_model = static_cast<PSMoveKalmanFilterImpl *>(m_filter)->measurement_model;
 
+	// Predict state for current time-step using the filters
+	m_filter->state_vector = m_filter->ukf->predict(m_filter->system_model, control_vector);
+
 	// Project the current state onto a predicted measurement as a default
 	// in case no observation is available
 	PSMove_MeasurementVector<float> measurement = measurement_model.h(m_filter->state_vector);
@@ -676,5 +674,5 @@ void PSMovePoseKalmanFilter::update(const float delta_time, const PoseFilterPack
 	}
 
 	// Update UKF
-	m_filter->state_vector_ukf = m_filter->ukf->update(measurement_model, measurement);
+	m_filter->state_vector = m_filter->ukf->update(measurement_model, measurement);
 }
