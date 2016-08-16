@@ -16,7 +16,7 @@ if result == 0:
             result = lib.PSM_StartControllerDataStream(myController.ControllerID, flags, 1000)
             if result == 0:
                 start = time.time()
-                old_data = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0, 0, 0.0, 0.0, 0.0]
+                old_data = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
                 while time.time() - start < 5:
                     now = time.time()
                     result = lib.PSM_Update()
