@@ -43,14 +43,14 @@ st_e_w, st_e_x, st_e_y, st_e_z = 9, 10, 11, 12  #Unit quaternion
 st_avel_x, st_avel_y, st_avel_z = 13, 14, 15  # Angular velocity in rad/s
 NSTATEDIM = 16
 
-def delta_q1(ang_vel, dt):
+def quat_from_ang_vel(ang_vel, dt):
     rot_angle = np.linalg.norm(ang_vel) * dt
     if rot_angle > 0:
         rot_axis = ang_vel / np.linalg.norm(ang_vel)
         result = np.hstack((np.cos(rot_angle/2), rot_axis*np.sin(rot_angle/2)))
     else:
         result = np.asarray([1.0, 0., 0., 0.])
-    return result
+    return result / np.linalg.norm(result)
 
 def process_fun(state, dt):
     """
@@ -67,8 +67,9 @@ def process_fun(state, dt):
     output[(st_lacc_x, st_lacc_y, st_lacc_z),] = state[(st_lacc_x, st_lacc_y, st_lacc_z),]
 
     # Orientation update
-    delta_q = delta_q1(state[(st_avel_x, st_avel_y, st_avel_z),], dt)
-    output[(st_e_w, st_e_x, st_e_y, st_e_z),] = quaternion_multiply(state[(st_e_w, st_e_x, st_e_y, st_e_z),], delta_q)
+    delta_q = quat_from_ang_vel(state[(st_avel_x, st_avel_y, st_avel_z),], dt)
+    q_out = quaternion_multiply(state[(st_e_w, st_e_x, st_e_y, st_e_z),], delta_q)
+    output[(st_e_w, st_e_x, st_e_y, st_e_z),] = q_out / np.linalg.norm(q_out)
     output[(st_avel_x, st_avel_y, st_avel_z),] = state[(st_avel_x, st_avel_y, st_avel_z),]
 
     return output
@@ -129,18 +130,28 @@ R_init = 5.0 * np.diag(np.cov(trainingdata[:, :12], rowvar=False)) * np.eye(NOBS
 points = MerweScaledSigmaPoints(n=NSTATEDIM, alpha=.1, beta=2., kappa=-1)
 
 def x_mean_fn(sigmas, Wm):
-    # TODO: calculate average state from sigma points.
-    # For position, velocity, acceleration, and angular velocity this should be simple
-    # For orientation this is more complicated (what is an average quaternion)?
-    pass
-x_mean_fn = None
+    # Calculate average state from sigma points.
+    # For position, velocity, acceleration, and angular velocity this is simple
+    x = np.dot(Wm, sigmas)
+    # For orientation, we need the weighted average quaternion.
+    #http://stackoverflow.com/questions/12374087/average-of-multiple-quaternions
+    Q = sigmas[:, (st_e_w, st_e_x, st_e_y, st_e_z)].T * Wm
+    eig_val, eig_vec = np.linalg.eig(np.dot(Q, Q.T))
+    q_out = eig_vec[:, np.argmax(eig_val)]
+    q_out /= np.linalg.norm(q_out)
+    # x[(st_e_w, st_e_x, st_e_y, st_e_z),] = q_out  #TODO: Uncomment, but this causes crash
+    # In fact, simply normalizing the quaternion in the state vector causes a crash
+    return x
 
 def residual_x(sigma_point, state_x):
-    #TODO: Calculate difference between predicted sigma point and the mean state
+    #Calculate difference between predicted sigma point and the mean state
     # For position, velocity, acceleration, and angular velocity this should be simple
+    result = np.subtract(sigma_point, state_x)
     # For orientation this is more complicated (what is a quaternion difference)?
-    pass
-residual_x = None
+    qbar_conj = quaternion_conjugate(state_x[(st_e_w, st_e_x, st_e_y, st_e_z),])
+    delta_q = quaternion_multiply(sigma_point[(st_e_w, st_e_x, st_e_y, st_e_z),], qbar_conj)
+    # result[(st_e_w, st_e_x, st_e_y, st_e_z),] = delta_q / np.linalg.norm(delta_q)  #TODO: Uncomment, but this causes crash
+    return result
 
 myUKF = UKF(dim_x=NSTATEDIM, dim_z=NOBSDIM, dt=mean_dt,
             hx=observation_fun, fx=process_fun, points=points,
