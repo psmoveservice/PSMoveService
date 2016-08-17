@@ -16,6 +16,7 @@ extern const Eigen::Matrix3f *k_eigen_sensor_transform_opengl;
 // 1 g-unit is equal 980.66499997877 gal (cm/s²)
 #define k_g_units_to_gal  980.665000f // gal (cm/s²)
 #define k_g_units_to_ms2  9.80665000f // m/s²
+#define k_ms2_to_g_units  1.f/9.80665000f // g-units
 
 #define k_meters_to_centimeters  100.f
 #define k_centimeters_to_meters  0.01f
