@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.0)
 
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 
+# Fix Error C1128 - number of sections exceeded object file format limit: compile with /bigobj
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+endif()
+
 # Dependencies
 set(PSMOVE_SERVICE_INCL_DIRS)
 set(PSMOVE_SERVICE_REQ_LIBS)

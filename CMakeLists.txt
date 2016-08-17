@@ -74,6 +74,7 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         -DBUILD_opencv_python2:BOOL=OFF
         -DBUILD_opencv_python3:BOOL=OFF
         -DPYTHON2_LIBRARY:STRING=C:/Python27/libs/python27.lib
+        -DPYTHON3_LIBRARY:STRING=C:/Python35/libs/python35.lib
       INSTALL_DIR ${ROOT_DIR}/deps/local/
     )
     
