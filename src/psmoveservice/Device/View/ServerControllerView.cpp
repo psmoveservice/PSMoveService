@@ -1383,7 +1383,7 @@ init_filters_for_psmove(
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
 	constants.orientation_constants.gyro_drift= psmove_config->gyro_drift;
-	constants.orientation_constants.gyro_error= psmove_config->gyro_variance;
+	constants.orientation_constants.gyro_variance= psmove_config->gyro_variance;
 	constants.position_constants.accelerometer_noise_radius= psmove_config->accelerometer_noise_radius;
 	constants.position_constants.max_velocity= psmove_config->max_velocity;
 
@@ -1497,7 +1497,7 @@ init_filters_for_psdualshock4(
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
 	constants.orientation_constants.gyro_drift= ds4_config->gyro_drift;
-	constants.orientation_constants.gyro_error= ds4_config->gyro_variance;
+	constants.orientation_constants.gyro_variance= ds4_config->gyro_variance;
 	constants.position_constants.accelerometer_noise_radius= ds4_config->accelerometer_noise_radius;
 	constants.position_constants.max_velocity= ds4_config->max_velocity;
 

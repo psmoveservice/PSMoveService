@@ -215,7 +215,7 @@ void OrientationFilterMadgwickARG::update(const float delta_time, const PoseFilt
 
         // Compute the estimated quaternion rate of change
         // Eqn 43) SEq_est = SEqDot_omega - beta*SEqHatDot
-        const float beta= sqrtf(3.0f / 4.0f) * m_constants.gyro_error;
+        const float beta= sqrtf(3.0f / 4.0f) * m_constants.gyro_variance;
         Eigen::Quaternionf SEqDot_est = Eigen::Quaternionf(SEqDot_omega.coeffs() - SEqHatDot.coeffs()*beta);
 
         // Compute then integrate the estimated quaternion rate
@@ -337,7 +337,7 @@ void OrientationFilterMadgwickMARG::update(const float delta_time, const PoseFil
 
     // Compute the estimated quaternion rate of change
     // Eqn 43) SEq_est = SEqDot_omega - beta*SEqHatDot
-    const float beta= sqrtf(3.0f / 4.0f) * m_constants.gyro_error;
+    const float beta= sqrtf(3.0f / 4.0f) * m_constants.gyro_variance;
     Eigen::Quaternionf SEqDot_est = Eigen::Quaternionf(SEqDot_omega.coeffs() - SEqHatDot.coeffs()*beta);
 
     // Compute then integrate the estimated quaternion rate
@@ -406,7 +406,7 @@ void OrientationFilterComplementaryOpticalARG::update(const float delta_time, co
 
         // Compute the estimated quaternion rate of change
         // Eqn 43) SEq_est = SEqDot_omega - beta*SEqHatDot
-        const float beta= sqrtf(3.0f / 4.0f) * m_constants.gyro_error;
+        const float beta= sqrtf(3.0f / 4.0f) * m_constants.gyro_variance;
         Eigen::Quaternionf SEqDot_est = Eigen::Quaternionf(SEqDot_omega.coeffs() - SEqHatDot.coeffs()*beta);
 
         // Compute then integrate the estimated quaternion rate
