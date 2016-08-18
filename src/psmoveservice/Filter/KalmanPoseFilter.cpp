@@ -1,5 +1,6 @@
 //-- includes --
 #include "KalmanPoseFilter.h"
+#include "MathAlignment.h"
 
 #include <kalman/MeasurementModel.hpp>
 #include <kalman/SystemModel.hpp>
@@ -61,6 +62,15 @@ enum DS4MeasurementEnum {
     DS4_MEASUREMENT_PARAMETER_COUNT
 };
 
+// From: http://nbviewer.jupyter.org/github/rlabbe/Kalman-and-Bayesian-Filters-in-Python/blob/master/10-Unscented-Kalman-Filter.ipynb#Reasonable-Choices-for-the-Parameters
+// beta=2 is a good choice for Gaussian problems, 
+// kappa=3-n where n is the size of x is a good choice for kappa, 
+// 0<=alpha<=1 is an appropriate choice for alpha, 
+// where a larger value for alpha spreads the sigma points further from the mean.
+#define k_ukf_alpha 1.f
+#define k_ukf_beta 2.f
+#define k_ukf_kappa -1.f
+
 //-- private methods ---
 template <class StateType>
 void Q_discrete_3rd_order_white_noise(const float dT, const float var, const int state_index, Kalman::Covariance<StateType> &Q);
@@ -120,6 +130,26 @@ public:
     void set_angular_velocity(const Eigen::Vector3f &v) {
         (*this)[ANGULAR_VELOCITY_X] = v.x(); (*this)[ANGULAR_VELOCITY_Y] = v.y(); (*this)[ANGULAR_VELOCITY_Z] = v.z();
     }
+
+	StateVector addStateDelta(const StateVector &stateDelta)
+	{
+		// Do the default additive delta first
+		StateVector result = (*this) + stateDelta;
+
+		// Extract the orientation quaternion from this state (which is stored as an angle axis vector)
+		const Eigen::Quaternionf orientation = this->get_quaternion();
+
+		// Extract the delta quaternion (which is also stored as an angle axis vector)
+		const Eigen::Quaternionf delta = stateDelta.get_quaternion();
+
+		// Apply the delta to the orientation
+		const Eigen::Quaternionf new_rotation = delta*orientation;
+
+		// Stomp over the simple addition of the angle axis result
+		result.set_quaternion(new_rotation);
+
+		return result;
+	}
 };
 
 template<typename T>
@@ -179,7 +209,7 @@ public:
         return Eigen::AngleAxisf(angle, axis);
     }
     Eigen::Quaternionf get_optical_quaternion() const {
-        return Eigen::Quaternionf(get_angle_axis());
+        return Eigen::Quaternionf(get_optical_angle_axis());
     }
 
     // Mutators
@@ -512,6 +542,141 @@ protected:
     Eigen::Vector3f m_identity_gravity_direction;
 };
 
+class CustomSRUFK : public Kalman::SquareRootUnscentedKalmanFilter<StateVector<float>>
+{
+public:
+	CustomSRUFK(float alpha, float beta, float kappa)
+		: Kalman::SquareRootUnscentedKalmanFilter<StateVector<float>>(alpha, beta, kappa)
+	{ }
+
+protected:
+	/**
+	* @brief Compute sigma points from current state estimate and state covariance
+	*
+	* @note This covers equations (17) and (22) of Algorithm 3.1 in the Paper
+	*/
+	bool computeSigmaPoints()
+	{
+		// Get square root of covariance
+		Kalman::Matrix<float, StateVector<float>::RowsAtCompileTime, StateVector<float>::RowsAtCompileTime> _S = S.matrixL().toDenseMatrix();
+
+		// Set left "block" (first column)
+		sigmaStatePoints.template leftCols<1>() = x;
+
+		// Apply the state delta column by column
+		for (int col_index = 1; col_index <= StateVector<float>::RowsAtCompileTime; ++col_index)
+		{
+			// Set center block with x + gamma * S
+			sigmaStatePoints.col(col_index) = x.addStateDelta(this->gamma * _S.col(col_index));
+
+			// Set right block with x - gamma * S
+			sigmaStatePoints.col(col_index+StateVector<float>::RowsAtCompileTime) = x.addStateDelta(-this->gamma * _S.col(col_index));
+		}
+
+		return true;
+	}
+
+	/**
+	* @brief Compute state prediction from sigma points using pre-computed sigma weights
+	*
+	* @note This covers equations (19) and (24) of Algorithm 3.1 in the Paper
+	*
+	* @param [in] sigmaPoints The computed sigma points of the desired type (state or measurement)
+	* @return The prediction
+	*/
+	StateVector<float> computeStatePredictionFromSigmaPoints(const SigmaPoints<StateVector<float>>& sigmaPoints)
+	{
+		// Use efficient matrix x vector computation to compute a weighted average of the sigma point samples
+		// (the orientation portion will be wrong)
+		StateVector<float> result = sigmaPoints * sigmaWeights_m;
+
+		// Extract the sample orientations from the sigma point orientations
+		Eigen::Quaternionf samples[SigmaPoints<StateVector<float>>::ColsAtCompileTime];
+		float weights[SigmaPoints<StateVector<float>>::ColsAtCompileTime];
+		for (int col_index = 0; col_index <= SigmaPoints<StateVector<float>>::ColsAtCompileTime; ++col_index)
+		{
+			const StateVector<float> sigmaPoint= sigmaPoints.col(col_index);
+			Eigen::Quaternionf sigmaOrientation= sigmaPoint.get_quaternion();
+		}
+
+		// Compute the average of the quaternions
+		Eigen::Quaternionf average_quat;
+		eigen_quaternion_compute_weighted_average(samples, weights, SigmaPoints<StateVector<float>>::ColsAtCompileTime, &average_quat);
+
+		// Stomp the incorrect orientation average
+		result.set_quaternion(average_quat);
+
+		return result;
+	}
+
+	/**
+	* @brief Compute measurement prediction from sigma points using pre-computed sigma weights
+	*
+	* @note This covers equations (19) and (24) of Algorithm 3.1 in the Paper
+	*
+	* @param [in] sigmaPoints The computed sigma points of the desired type (state or measurement)
+	* @return The prediction
+	*/
+	DS4_MeasurementVector<float> computeMeasurementPredictionFromSigmaPoints(const SigmaPoints<DS4_MeasurementVector<float>>& sigmaPoints)
+	{
+		// Use efficient matrix x vector computation to compute a weighted average of the sigma point samples
+		// (the orientation portion will be wrong)
+		DS4_MeasurementVector<float> result= sigmaPoints * sigmaWeights_m;
+
+		// Extract the sample orientations from the sigma point orientations
+		Eigen::Quaternionf samples[SigmaPoints<DS4_MeasurementVector<float>>::ColsAtCompileTime];
+		float weights[SigmaPoints<DS4_MeasurementVector<float>>::ColsAtCompileTime];
+		for (int col_index = 0; col_index <= SigmaPoints<DS4_MeasurementVector<float>>::ColsAtCompileTime; ++col_index)
+		{
+			const DS4_MeasurementVector<float> sigmaPoint = sigmaPoints.col(col_index);
+			Eigen::Quaternionf sigmaOrientation = sigmaPoint.get_optical_quaternion();
+		}
+
+		// Compute the average of the quaternions
+		Eigen::Quaternionf average_quat;
+		eigen_quaternion_compute_weighted_average(samples, weights, SigmaPoints<DS4_MeasurementVector<float>>::ColsAtCompileTime, &average_quat);
+
+		// Stomp the incorrect orientation average
+		result.set_optical_quaternion(average_quat);
+
+		return result;
+	}
+
+	/**
+	* @brief Compute predicted state using system model and control input
+	*
+	* @param [in] s The System Model
+	* @param [in] u The Control input
+	* @return The predicted state
+	*/
+	template<class Control, template<class> class CovarianceBase>
+	State computeStatePrediction(const SystemModelType<Control, CovarianceBase>& s, const Control& u)
+	{
+		// Pass each sigma point through non-linear state transition function
+		computeSigmaPointTransition(s, u);
+
+		// Compute predicted state from predicted sigma points
+		return computeStatePredictionFromSigmaPoints(sigmaStatePoints);
+	}
+
+	/**
+	* @brief Compute predicted measurement using measurement model and predicted sigma measurements
+	*
+	* @param [in] m The Measurement Model
+	* @param [in] sigmaMeasurementPoints The predicted sigma measurement points
+	* @return The predicted measurement
+	*/
+	template<class Measurement, template<class> class CovarianceBase>
+	Measurement computeMeasurementPrediction(const MeasurementModelType<Measurement, CovarianceBase>& m, SigmaPoints<Measurement>& sigmaMeasurementPoints)
+	{
+		// Predict measurements for each sigma point
+		computeSigmaPointMeasurements<Measurement>(m, sigmaMeasurementPoints);
+
+		// Predict measurement from sigma measurement points
+		return computeMeasurementPredictionFromSigmaPoints(sigmaMeasurementPoints);
+	}
+};
+
 class KalmanFilterImpl
 {
 public:
@@ -531,25 +696,11 @@ public:
     SystemModel system_model;
 
     /// Unscented Kalman Filter instance
-    Kalman::SquareRootUnscentedKalmanFilter<StateVector<float>> *ukf;
+	CustomSRUFK ukf;
 
-    KalmanFilterImpl()
+    KalmanFilterImpl() 
+		: ukf(k_ukf_alpha, k_ukf_beta, k_ukf_kappa)
     {
-		// From: http://nbviewer.jupyter.org/github/rlabbe/Kalman-and-Bayesian-Filters-in-Python/blob/master/10-Unscented-Kalman-Filter.ipynb#Reasonable-Choices-for-the-Parameters
-		// beta=2 is a good choice for Gaussian problems, 
-		// kappa=3-n where n is the dimension of x is a good choice for kappa, 
-		// 0<=alpha<=1 is an appropriate choice for alpha, 
-		// where a larger value for alpha spreads the sigma points further from the mean.
-        const float alpha = 1.f;
-        const float beta = 2.f;
-        const float kappa = 0.f; // 0 since filter is 3-dimensional
-
-        ukf = new Kalman::SquareRootUnscentedKalmanFilter<StateVector<float>>(alpha, beta, kappa);
-    }
-
-    virtual ~KalmanFilterImpl()
-    {
-        delete ukf;
     }
 
     virtual void init(const PoseFilterConstants &constants)
@@ -561,7 +712,7 @@ public:
         state_vector.setZero();
 
         system_model.init(constants);
-        ukf->init(state_vector);
+        ukf.init(state_vector);
     }
 };
 
@@ -712,7 +863,7 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
     {
         // Predict state for current time-step using the filters
         m_filter->system_model.set_time_step(delta_time);
-        m_filter->state_vector = m_filter->ukf->predict(m_filter->system_model);
+        m_filter->state_vector = m_filter->ukf.predict(m_filter->system_model);
 
         // Get the measurement model for the DS4 from the derived filter impl
         DS4_MeasurementModel &measurement_model = static_cast<DS4KalmanFilterImpl *>(m_filter)->measurement_model;
@@ -748,7 +899,7 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
         }
 
         // Update UKF
-        m_filter->state_vector = m_filter->ukf->update(measurement_model, measurement);
+        m_filter->state_vector = m_filter->ukf.update(measurement_model, measurement);
     }
     else if (packet.optical_position_quality > 0.f)
     {
@@ -785,7 +936,7 @@ void PSMovePoseKalmanFilter::update(const float delta_time, const PoseFilterPack
     if (m_filter->bIsValid)
     {
         // Predict state for current time-step using the filters
-        m_filter->state_vector = m_filter->ukf->predict(m_filter->system_model);
+        m_filter->state_vector = m_filter->ukf.predict(m_filter->system_model);
 
         // Get the measurement model for the PSMove from the derived filter impl
         PSMove_MeasurementModel &measurement_model = static_cast<PSMoveKalmanFilterImpl *>(m_filter)->measurement_model;
@@ -810,7 +961,7 @@ void PSMovePoseKalmanFilter::update(const float delta_time, const PoseFilterPack
         }
 
         // Update UKF
-        m_filter->state_vector = m_filter->ukf->update(measurement_model, measurement);
+        m_filter->state_vector = m_filter->ukf.update(measurement_model, measurement);
     }
     else if (packet.optical_position_quality > 0.f)
     {
