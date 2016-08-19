@@ -4,7 +4,9 @@
 
 #include <kalman/MeasurementModel.hpp>
 #include <kalman/SystemModel.hpp>
-#include <kalman/SquareRootUnscentedKalmanFilter.hpp>
+#include <kalman/SquareRootBase.hpp>
+#include <kalman/SquareRootFilterBase.hpp>
+#include <kalman/UnscentedKalmanFilterBase.hpp>
 
 //-- constants --
 enum StateEnum
@@ -80,10 +82,10 @@ void Q_discrete_2nd_order_white_noise(const float dT, const float var, const int
 
 //-- private definitions --
 template<typename T>
-class StateVector : public Kalman::Vector<T, STATE_PARAMETER_COUNT>
+class PoseStateVector : public Kalman::Vector<T, STATE_PARAMETER_COUNT>
 {
 public:
-    KALMAN_VECTOR(StateVector, T, STATE_PARAMETER_COUNT)
+    KALMAN_VECTOR(PoseStateVector, T, STATE_PARAMETER_COUNT)
 
     // Accessors
     Eigen::Vector3f get_position() const { 
@@ -131,10 +133,10 @@ public:
         (*this)[ANGULAR_VELOCITY_X] = v.x(); (*this)[ANGULAR_VELOCITY_Y] = v.y(); (*this)[ANGULAR_VELOCITY_Z] = v.z();
     }
 
-	StateVector addStateDelta(const StateVector &stateDelta)
+	PoseStateVector<T> addition(const PoseStateVector<T> &stateDelta) const
 	{
 		// Do the default additive delta first
-		StateVector result = (*this) + stateDelta;
+		PoseStateVector<T> result = (*this) + stateDelta;
 
 		// Extract the orientation quaternion from this state (which is stored as an angle axis vector)
 		const Eigen::Quaternionf orientation = this->get_quaternion();
@@ -150,7 +152,57 @@ public:
 
 		return result;
 	}
+
+	PoseStateVector<T> difference(const PoseStateVector<T> &other) const
+	{
+		// Do the default state vector substraction first
+		PoseStateVector<T> state_diff= (*this) - other;
+		
+		// Extract the orientation quaternion from both states (which is stored as an angle axis vector)
+		const Eigen::Quaternionf q1= this->get_quaternion();
+		const Eigen::Quaternionf q2= other.get_quaternion();
+
+		// Compute the "quaternion difference" i.e. rotation from q1 to q2
+		const Eigen::Quaternionf q_diff= q2*q1.conjugate();
+
+		// Stomp over the simple subtraction of the angle axis result
+		state_diff.set_quaternion(q_diff);
+
+		return state_diff;
+	}
+
+	template<int StateCount>
+	static PoseStateVector<T> computeWeightedStateAverage(
+		const Kalman::Matrix<T, PoseStateVector<T>::RowsAtCompileTime, StateCount>& state_matrix,
+		Kalman::Vector<T, StateCount> weight_vector)
+	{
+		// Use efficient matrix x vector computation to compute a weighted average of the states
+		// (the orientation portion will be wrong)
+		PoseStateVector<T> result= state_matrix * weight_vector;
+
+		// Extract the orientations from the states
+		Eigen::Quaternionf orientations[StateCount];
+		float weights[StateCount];
+		for (int col_index = 0; col_index <= StateCount; ++col_index)
+		{
+			const PoseStateVector<T> measurement = state_matrix.col(col_index);
+			Eigen::Quaternionf orientation = measurement.get_quaternion();
+
+			orientations[col_index]= orientation;
+			weights[col_index]= weight_vector[col_index];
+		}
+
+		// Compute the average of the quaternions
+		Eigen::Quaternionf average_quat;
+		eigen_quaternion_compute_weighted_average(orientations, weights, StateCount, &average_quat);
+
+		// Stomp the incorrect orientation average
+		result.set_quaternion(average_quat);
+
+		return result;
+	}
 };
+typedef PoseStateVector<float> PoseStateVectorf;
 
 template<typename T>
 class PSMove_MeasurementVector : public Kalman::Vector<T, PSMOVE_MEASUREMENT_PARAMETER_COUNT>
@@ -185,7 +237,27 @@ public:
     void set_magnetometer(const Eigen::Vector3f &m) {
         (*this)[PSMOVE_MAGNETOMETER_X] = m.x(); (*this)[PSMOVE_MAGNETOMETER_Y] = m.y(); (*this)[PSMOVE_MAGNETOMETER_Z] = m.z();
     }
+
+	PSMove_MeasurementVector<T> difference(const PSMove_MeasurementVector<T> &other) const
+	{
+		// for the PSMove measurement the difference can be computed 
+		// with simple vector subtraction
+		return (*this) - other;
+	}
+
+	template <int StateCount>
+	static PSMove_MeasurementVector<T> computeWeightedMeasurementAverage(
+		const Kalman::Matrix<T, PSMove_MeasurementVector<T>::RowsAtCompileTime, StateCount>& measurement_matrix,
+		const Kalman::Vector<T, StateCount> &weight_vector)
+	{
+		// Use efficient matrix x vector computation to compute a weighted average of the sigma point samples
+		// (No orientation stored in measurement means this can be simple)
+		PSMove_MeasurementVector<T> result= measurement_matrix * weight_vector;
+
+		return result;
+	}
 };
+typedef PSMove_MeasurementVector<float> PSMove_MeasurementVectorf;
 
 template<typename T>
 class DS4_MeasurementVector : public Kalman::Vector<T, DS4_MEASUREMENT_PARAMETER_COUNT>
@@ -232,7 +304,53 @@ public:
         const Eigen::AngleAxisf angle_axis(q);
         set_angle_axis(angle_axis);
     }
+
+	DS4_MeasurementVector<T> difference(const DS4_MeasurementVector<T> &other) const
+	{
+		DS4_MeasurementVector<T> measurement_diff= (*this) - other;
+		
+		const Eigen::Quaternionf q1= this->get_optical_quaternion();
+		const Eigen::Quaternionf q2= other.get_optical_quaternion();
+		const Eigen::Quaternionf q_diff= q2*q1.conjugate();
+
+		// Stomp the incorrect orientation difference computed by the vector subtraction
+		measurement_diff.set_optical_quaternion(q_diff);
+
+		return measurement_diff;
+	}
+
+	template<int StateCount>
+	static DS4_MeasurementVector<T> computeWeightedMeasurementAverage(
+		const Kalman::Matrix<T, DS4_MeasurementVector<T>::RowsAtCompileTime, StateCount>& measurement_matrix,
+		Kalman::Vector<T, StateCount> weight_vector)
+	{
+		// Use efficient matrix x vector computation to compute a weighted average of the measurements
+		// (the orientation portion will be wrong)
+		DS4_MeasurementVector<T> result= measurement_matrix * weight_vector;
+
+		// Extract the orientations from the measurements
+		Eigen::Quaternionf orientations[StateCount];
+		float weights[StateCount];
+		for (int col_index = 0; col_index <= StateCount; ++col_index)
+		{
+			const DS4_MeasurementVector<T> measurement = measurement_matrix.col(col_index);
+			Eigen::Quaternionf orientation = measurement.get_optical_quaternion();
+
+			orientations[col_index]= orientation;
+			weights[col_index]= weight_vector[col_index];
+		}
+
+		// Compute the average of the quaternions
+		Eigen::Quaternionf average_quat;
+		eigen_quaternion_compute_weighted_average(orientations, weights, StateCount, &average_quat);
+
+		// Stomp the incorrect orientation average
+		result.set_optical_quaternion(average_quat);
+
+		return result;
+	}
 };
+typedef DS4_MeasurementVector<float> DS4_MeasurementVectorf;
 
 /**
 * @brief System model for a controller
@@ -240,7 +358,7 @@ public:
 * This is the system model defining how a controller advances from one
 * time-step to the next, i.e. how the system state evolves over time.
 */
-class SystemModel : public Kalman::SystemModel<StateVector<float>, Kalman::Vector<float, 0>, Kalman::SquareRootBase>
+class PoseSystemModel : public Kalman::SystemModel<PoseStateVectorf, Kalman::Vector<float, 0>, Kalman::SquareRootBase>
 {
 public:
     inline void set_time_step(const float dt) { m_time_step = dt; }
@@ -255,13 +373,13 @@ public:
 		const float angle_axis_variance= constants.orientation_constants.max_orientation_variance;
 
         // Initialize the process covariance matrix Q
-        Kalman::Covariance<StateVector<float>> Q = Kalman::Covariance<StateVector<float>>::Zero();
-        Q_discrete_3rd_order_white_noise<StateVector<float>>(mean_position_dT, position_variance, POSITION_X, Q);
-		Q_discrete_3rd_order_white_noise<StateVector<float>>(mean_position_dT, position_variance, POSITION_Y, Q);
-		Q_discrete_3rd_order_white_noise<StateVector<float>>(mean_position_dT, position_variance, POSITION_Z, Q);
-		Q_discrete_2nd_order_white_noise<StateVector<float>>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_X, Q);
-		Q_discrete_2nd_order_white_noise<StateVector<float>>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Y, Q);
-		Q_discrete_2nd_order_white_noise<StateVector<float>>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Z, Q);
+        Kalman::Covariance<PoseStateVectorf> Q = Kalman::Covariance<PoseStateVectorf>::Zero();
+        Q_discrete_3rd_order_white_noise<PoseStateVectorf>(mean_position_dT, position_variance, POSITION_X, Q);
+		Q_discrete_3rd_order_white_noise<PoseStateVectorf>(mean_position_dT, position_variance, POSITION_Y, Q);
+		Q_discrete_3rd_order_white_noise<PoseStateVectorf>(mean_position_dT, position_variance, POSITION_Z, Q);
+		Q_discrete_2nd_order_white_noise<PoseStateVectorf>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_X, Q);
+		Q_discrete_2nd_order_white_noise<PoseStateVectorf>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Y, Q);
+		Q_discrete_2nd_order_white_noise<PoseStateVectorf>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Z, Q);
         setCovariance(Q);
     }
 
@@ -286,13 +404,13 @@ public:
 				orientation_quality);
 
         // Initialize the process covariance matrix Q
-        Kalman::Covariance<StateVector<float>> Q = getCovariance();
-        Q_discrete_3rd_order_white_noise<StateVector<float>>(mean_position_dT, position_variance, POSITION_X, Q);
-		Q_discrete_3rd_order_white_noise<StateVector<float>>(mean_position_dT, position_variance, POSITION_Y, Q);
-		Q_discrete_3rd_order_white_noise<StateVector<float>>(mean_position_dT, position_variance, POSITION_Z, Q);
-		Q_discrete_2nd_order_white_noise<StateVector<float>>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_X, Q);
-		Q_discrete_2nd_order_white_noise<StateVector<float>>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Y, Q);
-		Q_discrete_2nd_order_white_noise<StateVector<float>>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Z, Q);
+        Kalman::Covariance<PoseStateVectorf> Q = getCovariance();
+        Q_discrete_3rd_order_white_noise<PoseStateVectorf>(mean_position_dT, position_variance, POSITION_X, Q);
+		Q_discrete_3rd_order_white_noise<PoseStateVectorf>(mean_position_dT, position_variance, POSITION_Y, Q);
+		Q_discrete_3rd_order_white_noise<PoseStateVectorf>(mean_position_dT, position_variance, POSITION_Z, Q);
+		Q_discrete_2nd_order_white_noise<PoseStateVectorf>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_X, Q);
+		Q_discrete_2nd_order_white_noise<PoseStateVectorf>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Y, Q);
+		Q_discrete_2nd_order_white_noise<PoseStateVectorf>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Z, Q);
         setCovariance(Q);
 	}
 
@@ -308,10 +426,10 @@ public:
     * @param [in] u The control vector input
     * @returns The (predicted) system state in the next time-step
     */
-    StateVector<float> f(const StateVector<float>& old_state, const Kalman::Vector<float, 0>& control) const
+    PoseStateVectorf f(const PoseStateVectorf& old_state, const Kalman::Vector<float, 0>& control) const
     {
         //! Predicted state vector after transition
-        StateVector<float> new_state;
+        PoseStateVectorf new_state;
 
         // Extract parameters from the old state
         const Eigen::Vector3f old_position = old_state.get_position();
@@ -356,13 +474,13 @@ protected:
 * This is the measurement model for measuring the position and magnetometer of the PSMove controller.
 * The measurement is given by the optical trackers.
 */
-class PSMove_MeasurementModel : public Kalman::MeasurementModel<StateVector<float>, PSMove_MeasurementVector<float>, Kalman::SquareRootBase>
+class PSMove_MeasurementModel : public Kalman::MeasurementModel<PoseStateVectorf, PSMove_MeasurementVectorf, Kalman::SquareRootBase>
 {
 public:
     void init(const PoseFilterConstants &constants)
     {
-        Kalman::Covariance<PSMove_MeasurementVector<float>> R = 
-			Kalman::Covariance<PSMove_MeasurementVector<float>>::Zero();
+        Kalman::Covariance<PSMove_MeasurementVectorf> R = 
+			Kalman::Covariance<PSMove_MeasurementVectorf>::Zero();
 
         const float position_variance= constants.position_constants.max_position_variance;
 		const float magnetometer_variance= constants.orientation_constants.magnetometer_variance;
@@ -392,7 +510,7 @@ public:
 				position_quality);
 
         // Update the measurement covariance R
-        Kalman::Covariance<PSMove_MeasurementVector<float>> R = getCovariance();
+        Kalman::Covariance<PSMove_MeasurementVectorf> R = getCovariance();
         R(PSMOVE_OPTICAL_POSITION_X, PSMOVE_OPTICAL_POSITION_X) = position_variance;
         R(PSMOVE_OPTICAL_POSITION_Y, PSMOVE_OPTICAL_POSITION_Y) = position_variance;
         R(PSMOVE_OPTICAL_POSITION_Z, PSMOVE_OPTICAL_POSITION_Z) = position_variance;
@@ -409,9 +527,9 @@ public:
     * @param [in] x The system state in current time-step
     * @returns The (predicted) sensor measurement for the system state
     */
-    PSMove_MeasurementVector<float> h(const StateVector<float>& x) const
+    PSMove_MeasurementVectorf h(const PoseStateVectorf& x) const
     {
-        PSMove_MeasurementVector<float> predicted_measurement;
+        PSMove_MeasurementVectorf predicted_measurement;
 
         // Use the position and orientation from the state for predictions
         const Eigen::Vector3f position= x.get_position();
@@ -456,13 +574,13 @@ protected:
 * This is the measurement model for measuring the position and orientation of the DS4 controller.
 * The measurement is given by the optical trackers.
 */
-class DS4_MeasurementModel : public Kalman::MeasurementModel<StateVector<float>, DS4_MeasurementVector<float>, Kalman::SquareRootBase>
+class DS4_MeasurementModel : public Kalman::MeasurementModel<PoseStateVectorf, DS4_MeasurementVectorf, Kalman::SquareRootBase>
 {
 public:
     void init(const PoseFilterConstants &constants)
     {
-        Kalman::Covariance<DS4_MeasurementVector<float>> measurement_covariance = 
-			Kalman::Covariance<DS4_MeasurementVector<float>>::Zero();
+        Kalman::Covariance<DS4_MeasurementVectorf> measurement_covariance = 
+			Kalman::Covariance<DS4_MeasurementVectorf>::Zero();
 
         update_measurement_covariance(constants, 0.f, 0.f);
 
@@ -487,8 +605,8 @@ public:
 				orientation_quality);
 
         // Update the measurement covariance R
-        Kalman::Covariance<DS4_MeasurementVector<float>> R = 
-			Kalman::Covariance<DS4_MeasurementVector<float>>::Zero();
+        Kalman::Covariance<DS4_MeasurementVectorf> R = 
+			Kalman::Covariance<DS4_MeasurementVectorf>::Zero();
         R(PSMOVE_OPTICAL_POSITION_X, PSMOVE_OPTICAL_POSITION_X) = position_variance;
         R(PSMOVE_OPTICAL_POSITION_Y, PSMOVE_OPTICAL_POSITION_Y) = position_variance;
         R(PSMOVE_OPTICAL_POSITION_Z, PSMOVE_OPTICAL_POSITION_Z) = position_variance;
@@ -508,9 +626,9 @@ public:
     * @param [in] x The system state in current time-step
     * @returns The (predicted) sensor measurement for the system state
     */
-    DS4_MeasurementVector<float> h(const StateVector<float>& x) const
+    DS4_MeasurementVectorf h(const PoseStateVectorf& x) const
     {
-        DS4_MeasurementVector<float> predicted_measurement;
+        DS4_MeasurementVectorf predicted_measurement;
 
         // Use the position and orientation from the state for predictions
         const Eigen::Vector3f position= x.get_position();
@@ -542,140 +660,316 @@ protected:
     Eigen::Vector3f m_identity_gravity_direction;
 };
 
-class CustomSRUFK : public Kalman::SquareRootUnscentedKalmanFilter<StateVector<float>>
-{
-public:
-	CustomSRUFK(float alpha, float beta, float kappa)
-		: Kalman::SquareRootUnscentedKalmanFilter<StateVector<float>>(alpha, beta, kappa)
-	{ }
-
-protected:
-	/**
-	* @brief Compute sigma points from current state estimate and state covariance
-	*
-	* @note This covers equations (17) and (22) of Algorithm 3.1 in the Paper
-	*/
-	bool computeSigmaPoints()
+/**
+ * @brief Specialized Square Root Unscented Kalman Filter (SR-UKF)
+ *
+ * @note This is the square-root implementation variant of UnscentedKalmanFilter
+ * 
+ * This implementation is based upon [The square-root unscented Kalman filter for state and parameter-estimation](http://dx.doi.org/10.1109/ICASSP.2001.940586) by Rudolph van der Merwe and Eric A. Wan.
+ * Whenever "the paper" is referenced within this file then this paper is meant.
+ *
+ * This is a parallel version of Kalman::SquareRootUnscentedKalmanFilter. 
+ * Because the state and measurement has a weird rotation type in it we have to do 
+ * special work when computing differences, adding deltas, and computing means.
+ * 
+ * @param StateType The vector-type of the system state (usually some type derived from Kalman::Vector)
+ */
+namespace Kalman {
+	class CustomSRUFK : public UnscentedKalmanFilterBase<PoseStateVectorf>,
+						public SquareRootFilterBase<PoseStateVectorf>
 	{
-		// Get square root of covariance
-		Kalman::Matrix<float, StateVector<float>::RowsAtCompileTime, StateVector<float>::RowsAtCompileTime> _S = S.matrixL().toDenseMatrix();
+	public:
+		using Control = Vector<float, 0>;
 
-		// Set left "block" (first column)
-		sigmaStatePoints.template leftCols<1>() = x;
+        //! Unscented Kalman Filter base type
+        typedef UnscentedKalmanFilterBase<PoseStateVectorf> UnscentedBase;
+        
+        //! Square Root Filter base type
+        typedef SquareRootFilterBase<PoseStateVectorf> SquareRootBase;
+        
+        //! Numeric Scalar Type inherited from base
+        using typename UnscentedBase::T;
+        
+        //! State Type inherited from base
+        using typename UnscentedBase::State;
+        
+    protected:
+        //! The number of sigma points (depending on state dimensionality)
+        using UnscentedBase::SigmaPointCount;
+        
+        //! Matrix type containing the sigma state or measurement points
+        template<class Type>
+        using SigmaPoints = typename UnscentedBase::template SigmaPoints<Type>;
+        
+        //! Kalman Gain Matrix Type
+        template<class Measurement>
+        using KalmanGain = Kalman::KalmanGain<State, Measurement>;
 
-		// Apply the state delta column by column
-		for (int col_index = 1; col_index <= StateVector<float>::RowsAtCompileTime; ++col_index)
+    protected:
+        // Member variables
+        
+        //! State Estimate
+        using UnscentedBase::x;
+        
+        //! Square Root of State Covariance
+        using SquareRootBase::S;
+        
+        //! Sigma points (state)
+        using UnscentedBase::sigmaStatePoints;
+
+	public:
+		/**
+			* Constructor
+			* 
+			* See paper for detailed parameter explanation
+			* 
+			* @param alpha Scaling parameter for spread of sigma points (usually \f$ 1E-4 \leq \alpha \leq 1 \f$)
+			* @param beta Parameter for prior knowledge about the distribution (\f$ \beta = 2 \f$ is optimal for Gaussian)
+			* @param kappa Secondary scaling parameter (usually 0)
+			*/
+		CustomSRUFK(float alpha = 1.f, float beta = 2.f, float kappa = 0.f)
+			: UnscentedKalmanFilterBase<PoseStateVectorf>(alpha, beta, kappa)
 		{
-			// Set center block with x + gamma * S
-			sigmaStatePoints.col(col_index) = x.addStateDelta(this->gamma * _S.col(col_index));
-
-			// Set right block with x - gamma * S
-			sigmaStatePoints.col(col_index+StateVector<float>::RowsAtCompileTime) = x.addStateDelta(-this->gamma * _S.col(col_index));
+			// Init covariance to identity
+			S.setIdentity();
 		}
 
-		return true;
-	}
-
-	/**
-	* @brief Compute state prediction from sigma points using pre-computed sigma weights
-	*
-	* @note This covers equations (19) and (24) of Algorithm 3.1 in the Paper
-	*
-	* @param [in] sigmaPoints The computed sigma points of the desired type (state or measurement)
-	* @return The prediction
-	*/
-	StateVector<float> computeStatePredictionFromSigmaPoints(const SigmaPoints<StateVector<float>>& sigmaPoints)
-	{
-		// Use efficient matrix x vector computation to compute a weighted average of the sigma point samples
-		// (the orientation portion will be wrong)
-		StateVector<float> result = sigmaPoints * sigmaWeights_m;
-
-		// Extract the sample orientations from the sigma point orientations
-		Eigen::Quaternionf samples[SigmaPoints<StateVector<float>>::ColsAtCompileTime];
-		float weights[SigmaPoints<StateVector<float>>::ColsAtCompileTime];
-		for (int col_index = 0; col_index <= SigmaPoints<StateVector<float>>::ColsAtCompileTime; ++col_index)
+		/**
+		* @brief Perform filter prediction step using control input \f$u\f$ and corresponding system model
+		*
+		* @param [in] s The System model
+		* @param [in] u The Control input vector
+		* @return The updated state estimate
+		*/
+		const State& predict( const PoseSystemModel& s )
 		{
-			const StateVector<float> sigmaPoint= sigmaPoints.col(col_index);
-			Eigen::Quaternionf sigmaOrientation= sigmaPoint.get_quaternion();
+			// No control parameters            
+			Control u;
+			u.setZero();
+
+			// Compute sigma points
+			computeSigmaPoints();
+
+			// Pass each sigma point through non-linear state transition function
+			computeSigmaPointTransition(s, u);
+
+			// Compute predicted state from predicted sigma points
+			x = State::computeWeightedStateAverage<SigmaPointCount>(sigmaStatePoints, sigmaWeights_m);
+            
+			// Compute the Covariance Square root from sigma points and noise covariance
+			// This covers equations (20) and (21) of Algorithm 3.1 in the Paper
+			{
+				const CovarianceSquareRoot<State> noiseCov= s.getCovarianceSquareRoot();
+
+				// -- Compute QR decomposition of (transposed) augmented matrix
+				// Subtract the x from each sigma point in the right block of the sigmaStatePoints matrix
+				// Part of Eqn 19
+				Matrix<float, State::RowsAtCompileTime, SigmaPointCount-1> rightSigmaPointsMinusMean= 
+					sigmaStatePoints.template rightCols<SigmaPointCount-1>();
+				for (int col_index = 0; col_index <= SigmaPointCount-1; ++col_index)
+				{
+					State sigmaPoint= rightSigmaPointsMinusMean.col(col_index);
+
+					rightSigmaPointsMinusMean.col(col_index)= sigmaPoint.difference(x);
+				}
+
+				// Fill in the weighted sigma point portion of the augmented qr input matrix
+				// Part of Eqn 19
+				Matrix<float, 2*State::RowsAtCompileTime + State::RowsAtCompileTime, State::RowsAtCompileTime> qr_input;
+				qr_input.template topRows<2*State::RowsAtCompileTime>() = 
+					std::sqrt(this->sigmaWeights_c[1]) * rightSigmaPointsMinusMean.transpose();
+
+				// Fill in the noise portion of the augmented qr input matrix
+				// Part of Eqn 19
+				qr_input.template bottomRows<State::RowsAtCompileTime>() = noiseCov.matrixU().toDenseMatrix();
+
+				// TODO: Use ColPivHouseholderQR
+				Eigen::HouseholderQR<decltype(qr_input)> qr( qr_input );
+            
+				// Set R matrix as upper triangular square root
+				S.setU(qr.matrixQR().template topRightCorner<State::RowsAtCompileTime, State::RowsAtCompileTime>());
+            
+				// Perform additional rank 1 update
+				// TODO: According to the paper (Section 3, "Cholesky factor updating") the update
+				//       is defined using the square root of the scalar, however the correct result
+				//       is obtained when using the weight directly rather than using the square root
+				//       It should be checked whether this is a bug in Eigen or in the Paper
+				// T nu = std::copysign( std::sqrt(std::abs(sigmaWeights_c[0])), sigmaWeights_c[0]);
+				float nu = this->sigmaWeights_c[0];
+				State firstSigmaPoint= sigmaStatePoints.template leftCols<1>();
+				S.rankUpdate(firstSigmaPoint.difference(x), nu );
+            
+				assert(S.info() == Eigen::Success);
+			}
+            
+			// Return predicted state
+			return this->getState();
 		}
 
-		// Compute the average of the quaternions
-		Eigen::Quaternionf average_quat;
-		eigen_quaternion_compute_weighted_average(samples, weights, SigmaPoints<StateVector<float>>::ColsAtCompileTime, &average_quat);
-
-		// Stomp the incorrect orientation average
-		result.set_quaternion(average_quat);
-
-		return result;
-	}
-
-	/**
-	* @brief Compute measurement prediction from sigma points using pre-computed sigma weights
-	*
-	* @note This covers equations (19) and (24) of Algorithm 3.1 in the Paper
-	*
-	* @param [in] sigmaPoints The computed sigma points of the desired type (state or measurement)
-	* @return The prediction
-	*/
-	DS4_MeasurementVector<float> computeMeasurementPredictionFromSigmaPoints(const SigmaPoints<DS4_MeasurementVector<float>>& sigmaPoints)
-	{
-		// Use efficient matrix x vector computation to compute a weighted average of the sigma point samples
-		// (the orientation portion will be wrong)
-		DS4_MeasurementVector<float> result= sigmaPoints * sigmaWeights_m;
-
-		// Extract the sample orientations from the sigma point orientations
-		Eigen::Quaternionf samples[SigmaPoints<DS4_MeasurementVector<float>>::ColsAtCompileTime];
-		float weights[SigmaPoints<DS4_MeasurementVector<float>>::ColsAtCompileTime];
-		for (int col_index = 0; col_index <= SigmaPoints<DS4_MeasurementVector<float>>::ColsAtCompileTime; ++col_index)
+		/**
+		 * @brief Perform filter update step using measurement \f$z\f$ and corresponding measurement model
+		 *
+		 * @param [in] m The Measurement model
+		 * @param [in] z The measurement vector
+		 * @return The updated state estimate
+		 */
+		template<class MeasurementModelType, class Measurement>
+		const State& update(
+			const MeasurementModelType& m, 
+			const Measurement& z )
 		{
-			const DS4_MeasurementVector<float> sigmaPoint = sigmaPoints.col(col_index);
-			Eigen::Quaternionf sigmaOrientation = sigmaPoint.get_optical_quaternion();
+			SigmaPoints<Measurement> sigmaMeasurementPoints;
+            
+			// Compute sigma points (using predicted state)
+			computeSigmaPoints();
+            
+			// Predict measurements for each sigma point
+			computeSigmaPointMeasurements<Measurement>(m, sigmaMeasurementPoints);
+
+			// Predict measurement from sigma measurement points
+			// Calls the appropriate function specialization based on measurement type
+			Measurement y= Measurement::computeWeightedMeasurementAverage<SigmaPointCount>(sigmaMeasurementPoints, sigmaWeights_m);
+           
+			// Compute square root innovation covariance
+			// This covers equations (23) and (24) of Algorithm 3.1 in the Paper
+			CovarianceSquareRoot<Measurement> S_y;
+			{
+				const CovarianceSquareRoot<Measurement> noiseCov= m.getCovarianceSquareRoot();
+
+				// -- Compute QR decomposition of (transposed) augmented matrix
+				// Subtract the y from each sigma point in the right block of the sigmaMeasurementPoints matrix
+				// Part of Eqn 23
+				Matrix<float, Measurement::RowsAtCompileTime, SigmaPointCount-1> rightSigmaPointsMinusMean= 
+					sigmaMeasurementPoints.template rightCols<SigmaPointCount-1>();
+				for (int col_index = 0; col_index <= SigmaPointCount-1; ++col_index)
+				{
+					Measurement sigmaPoint= rightSigmaPointsMinusMean.col(col_index);
+
+					rightSigmaPointsMinusMean.col(col_index)= sigmaPoint.difference(y);
+				}
+
+				// Fill in the weighted sigma point portion of the augmented qr input matrix
+				// Part of Eqn 23
+				Matrix<float, 2*State::RowsAtCompileTime + Measurement::RowsAtCompileTime, Measurement::RowsAtCompileTime> qr_input;
+				qr_input.template topRows<2*State::RowsAtCompileTime>() = 
+					std::sqrt(this->sigmaWeights_c[1]) * rightSigmaPointsMinusMean.transpose();
+
+				// Fill in the noise portion of the augmented qr input matrix
+				// Part of Eqn 23 
+				qr_input.template bottomRows<Measurement::RowsAtCompileTime>() = noiseCov.matrixU().toDenseMatrix();
+
+				// TODO: Use ColPivHouseholderQR
+				Eigen::HouseholderQR<decltype(qr_input)> qr( qr_input );
+	            
+				// Set R matrix as upper triangular square root
+				S_y.setU(qr.matrixQR().template topRightCorner<Measurement::RowsAtCompileTime, Measurement::RowsAtCompileTime>());
+	            
+				// Perform additional rank 1 update
+				// TODO: According to the paper (Section 3, "Cholesky factor updating") the update
+				//       is defined using the square root of the scalar, however the correct result
+				//       is obtained when using the weight directly rather than using the square root
+				//       It should be checked whether this is a bug in Eigen or in the Paper
+				// T nu = std::copysign( std::sqrt(std::abs(sigmaWeights_c[0])), sigmaWeights_c[0]);
+				float nu = this->sigmaWeights_c[0];
+				Measurement firstSigmaMeasurementPoint= sigmaMeasurementPoints.template leftCols<1>();
+				S_y.rankUpdate( firstSigmaMeasurementPoint.difference(y), nu );
+	            
+				assert(S_y.info() == Eigen::Success);
+			}
+            		    
+			// Compute the Kalman Gain from predicted measurement and sigma points and the innovation covariance.
+			// 
+			// This covers equations (27) and (28) of Algorithm 3.1 in the Paper
+			//
+			// We need to solve the equation \f$ K (S_y S_y^T) = P \f$ for \f$ K \f$ using backsubstitution.
+			// In order to apply standard backsubstitution using the `solve` method we must bring the
+			// equation into the form
+			// \f[ AX = B \qquad \text{with } A = S_yS_y^T \f]
+			// Thus we transpose the whole equation to obtain
+			// \f{align*}{
+			//   ( K (S_yS_y^T))^T &= P^T \Leftrightarrow \\
+			//   (S_yS_y^T)^T K^T &= P^T \Leftrightarrow \\
+			//   (S_yS_y^T) K^T &= P^T
+			//\f}
+			// Hence our \f$ X := K^T\f$ and \f$ B:= P^T \f$
+			KalmanGain<Measurement> K;
+			{
+				SigmaPoints<State> sigmaStatePointsMinusX;
+				for (int col_index = 0; col_index <= SigmaPoints<State>::ColsAtCompileTime; ++col_index)
+				{
+					State sigmaPoint= sigmaStatePoints.col(col_index);
+
+					sigmaStatePointsMinusX.col(col_index)= sigmaPoint.difference(x);
+				}
+
+				SigmaPoints<Measurement> sigmaMeasurementPointsMinusY;
+				for (int col_index = 0; col_index <= SigmaPoints<Measurement>::ColsAtCompileTime; ++col_index)
+				{
+					Measurement measurement= sigmaMeasurementPoints.col(col_index);
+
+					sigmaMeasurementPointsMinusY.col(col_index)= measurement.difference(y);
+				}
+
+				// Note: The intermediate eval() is needed here (for now) due to a bug in Eigen that occurs
+				// when Measurement::RowsAtCompileTime == 1 AND State::RowsAtCompileTime >= 8
+				decltype(sigmaStatePoints) W = this->sigmaWeights_c.transpose().template replicate<State::RowsAtCompileTime,1>();
+				Matrix<T, State::RowsAtCompileTime, Measurement::RowsAtCompileTime> P
+						= sigmaStatePointsMinusX.cwiseProduct( W ).eval()
+						* sigmaMeasurementPointsMinusY.transpose();
+            
+				K = S_y.solve(P.transpose()).transpose();
+			}
+            
+			// Update state
+			//x += K * ( z - y );
+			x= x.addition(K*z.difference(y));
+            
+			// Update the state covariance matrix using the Kalman Gain and the Innovation Covariance
+			// This covers equations (29) and (30) of Algorithm 3.1 in the Paper
+			{
+				KalmanGain<Measurement> U = K * S_y.matrixL();
+
+				for(int i = 0; i < U.cols(); ++i)
+				{
+					S.rankUpdate( U.col(i), -1 );
+                
+					assert( S.info() != Eigen::NumericalIssue );
+				}            
+			}
+            
+			return this->getState();
 		}
 
-		// Compute the average of the quaternions
-		Eigen::Quaternionf average_quat;
-		eigen_quaternion_compute_weighted_average(samples, weights, SigmaPoints<DS4_MeasurementVector<float>>::ColsAtCompileTime, &average_quat);
+	protected:
+		/**
+		* @brief Compute sigma points from current state estimate and state covariance
+		*
+		* @note This covers equations (17) and (22) of Algorithm 3.1 in the Paper
+		*/
+		bool computeSigmaPoints()
+		{
+			// Get square root of covariance
+			Matrix<float, State::RowsAtCompileTime, State::RowsAtCompileTime> _S = S.matrixL().toDenseMatrix();
 
-		// Stomp the incorrect orientation average
-		result.set_optical_quaternion(average_quat);
+			// Fill in the first column with the state vector 'x'
+			sigmaStatePoints.template leftCols<1>() = x;
 
-		return result;
-	}
+			// Apply the state delta column by column
+			for (int col_index = 1; col_index <= State::RowsAtCompileTime; ++col_index)
+			{
+				// Set center block with x + gamma * S
+				sigmaStatePoints.col(col_index) = 
+					x.addition(this->gamma * _S.col(col_index));
 
-	/**
-	* @brief Compute predicted state using system model and control input
-	*
-	* @param [in] s The System Model
-	* @param [in] u The Control input
-	* @return The predicted state
-	*/
-	template<class Control, template<class> class CovarianceBase>
-	State computeStatePrediction(const SystemModelType<Control, CovarianceBase>& s, const Control& u)
-	{
-		// Pass each sigma point through non-linear state transition function
-		computeSigmaPointTransition(s, u);
+				// Set right block with x - gamma * S
+				sigmaStatePoints.col(col_index+State::RowsAtCompileTime) = 
+					x.addition(-this->gamma * _S.col(col_index));
+			}
 
-		// Compute predicted state from predicted sigma points
-		return computeStatePredictionFromSigmaPoints(sigmaStatePoints);
-	}
-
-	/**
-	* @brief Compute predicted measurement using measurement model and predicted sigma measurements
-	*
-	* @param [in] m The Measurement Model
-	* @param [in] sigmaMeasurementPoints The predicted sigma measurement points
-	* @return The predicted measurement
-	*/
-	template<class Measurement, template<class> class CovarianceBase>
-	Measurement computeMeasurementPrediction(const MeasurementModelType<Measurement, CovarianceBase>& m, SigmaPoints<Measurement>& sigmaMeasurementPoints)
-	{
-		// Predict measurements for each sigma point
-		computeSigmaPointMeasurements<Measurement>(m, sigmaMeasurementPoints);
-
-		// Predict measurement from sigma measurement points
-		return computeMeasurementPredictionFromSigmaPoints(sigmaMeasurementPoints);
-	}
-};
+			return true;
+		}
+	};
+}
 
 class KalmanFilterImpl
 {
@@ -690,13 +984,13 @@ public:
     Eigen::Vector3f origin_position; // meters
 
     /// All state parameters of the controller
-    StateVector<float> state_vector;
+    PoseStateVectorf state_vector;
 
     /// Used to model how the physics of the controller evolves
-    SystemModel system_model;
+    PoseSystemModel system_model;
 
     /// Unscented Kalman Filter instance
-	CustomSRUFK ukf;
+	Kalman::CustomSRUFK ukf;
 
     KalmanFilterImpl() 
 		: ukf(k_ukf_alpha, k_ukf_beta, k_ukf_kappa)
@@ -870,7 +1164,7 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
 
         // Project the current state onto a predicted measurement as a default
         // in case no observation is available
-        DS4_MeasurementVector<float> measurement = measurement_model.h(m_filter->state_vector);
+        DS4_MeasurementVectorf measurement = measurement_model.h(m_filter->state_vector);
 
         // Accelerometer and gyroscope measurements are always available
         measurement.set_accelerometer(packet.imu_accelerometer);
@@ -943,7 +1237,7 @@ void PSMovePoseKalmanFilter::update(const float delta_time, const PoseFilterPack
 
         // Project the current state onto a predicted measurement as a default
         // in case no observation is available
-        PSMove_MeasurementVector<float> measurement = measurement_model.h(m_filter->state_vector);
+        PSMove_MeasurementVectorf measurement = measurement_model.h(m_filter->state_vector);
 
         // Accelerometer, magnetometer and gyroscope measurements are always available
         measurement.set_accelerometer(packet.imu_accelerometer);
@@ -997,7 +1291,11 @@ void Q_discrete_3rd_order_white_noise(
 }
 
 template <class StateType>
-void Q_discrete_2nd_order_white_noise(const float dT, const float var, const int state_index, Kalman::Covariance<StateType> &Q)
+void Q_discrete_2nd_order_white_noise(
+	const float dT, 
+	const float var, 
+	const int state_index, 
+	Kalman::Covariance<StateType> &Q)
 {
     const float dT_squared = dT*dT;
     const float q4 = var * dT_squared*dT_squared;
