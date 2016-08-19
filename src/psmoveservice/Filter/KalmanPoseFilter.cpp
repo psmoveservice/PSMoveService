@@ -5,8 +5,6 @@
 #include <kalman/MeasurementModel.hpp>
 #include <kalman/SystemModel.hpp>
 #include <kalman/SquareRootBase.hpp>
-#include <kalman/SquareRootFilterBase.hpp>
-#include <kalman/UnscentedKalmanFilterBase.hpp>
 
 //-- constants --
 enum StateEnum
@@ -675,48 +673,54 @@ protected:
  * @param StateType The vector-type of the system state (usually some type derived from Kalman::Vector)
  */
 namespace Kalman {
-	class CustomSRUFK : public UnscentedKalmanFilterBase<PoseStateVectorf>,
-						public SquareRootFilterBase<PoseStateVectorf>
+	class PoseSRUFK
 	{
 	public:
 		using Control = Vector<float, 0>;
 
+		//! Type of the state vector
+		typedef PoseStateVectorf State;
+
+		//! The number of sigma points (depending on state dimensionality)
+		static constexpr int SigmaPointCount = 2 * State::RowsAtCompileTime + 1;
+
         //! Unscented Kalman Filter base type
         typedef UnscentedKalmanFilterBase<PoseStateVectorf> UnscentedBase;
         
-        //! Square Root Filter base type
-        typedef SquareRootFilterBase<PoseStateVectorf> SquareRootBase;
-        
-        //! Numeric Scalar Type inherited from base
-        using typename UnscentedBase::T;
-        
-        //! State Type inherited from base
-        using typename UnscentedBase::State;
-        
-    protected:
-        //! The number of sigma points (depending on state dimensionality)
-        using UnscentedBase::SigmaPointCount;
-        
-        //! Matrix type containing the sigma state or measurement points
-        template<class Type>
-        using SigmaPoints = typename UnscentedBase::template SigmaPoints<Type>;
-        
-        //! Kalman Gain Matrix Type
-        template<class Measurement>
-        using KalmanGain = Kalman::KalmanGain<State, Measurement>;
+		//! Vector containg the sigma scaling weights
+		typedef Vector<float, SigmaPointCount> SigmaWeights;
+
+		//! Matrix type containing the sigma state or measurement points
+		template<class Type>
+		using SigmaPoints = Matrix<float, Type::RowsAtCompileTime, SigmaPointCount>;
+
+		//! Kalman Gain Matrix Type
+		template<class Measurement>
+		using KalmanGain = Kalman::KalmanGain<State, Measurement>;
 
     protected:
-        // Member variables
-        
-        //! State Estimate
-        using UnscentedBase::x;
-        
-        //! Square Root of State Covariance
-        using SquareRootBase::S;
-        
-        //! Sigma points (state)
-        using UnscentedBase::sigmaStatePoints;
+		//! Estimated state
+		State x;
 
+		//! Covariance Square Root
+		CovarianceSquareRoot<State> S;
+
+		//! Sigma weights (m)
+		SigmaWeights sigmaWeights_m;
+		
+		//! Sigma weights (c)
+		SigmaWeights sigmaWeights_c;
+
+		//! Sigma points (state)
+		SigmaPoints<State> sigmaStatePoints;
+
+		// Weight parameters
+		float alpha;    //!< Scaling parameter for spread of sigma points (usually \f$ 1E-4 \leq \alpha \leq 1 \f$)
+		float beta;     //!< Parameter for prior knowledge about the distribution (\f$ \beta = 2 \f$ is optimal for Gaussian)
+		float kappa;    //!< Secondary scaling parameter (usually 0)
+		float gamma;    //!< \f$ \gamma = \sqrt{L + \lambda} \f$ with \f$ L \f$ being the state dimensionality
+		float lambda;   //!< \f$ \lambda = \alpha^2 ( L + \kappa ) - L\f$ with \f$ L \f$ being the state dimensionality
+                     
 	public:
 		/**
 			* Constructor
@@ -727,11 +731,24 @@ namespace Kalman {
 			* @param beta Parameter for prior knowledge about the distribution (\f$ \beta = 2 \f$ is optimal for Gaussian)
 			* @param kappa Secondary scaling parameter (usually 0)
 			*/
-		CustomSRUFK(float alpha = 1.f, float beta = 2.f, float kappa = 0.f)
-			: UnscentedKalmanFilterBase<PoseStateVectorf>(alpha, beta, kappa)
+		PoseSRUFK(float _alpha = 1.f, float _beta = 2.f, float _kappa = 0.f)
+			: alpha(_alpha)
+			, beta(_beta)
+			, kappa(_kappa)
 		{
+			// Setup state and covariance
+			x.setZero();
+
 			// Init covariance to identity
 			S.setIdentity();
+
+			// Pre-compute all weights
+			computeSigmaWeights();
+		}
+
+		void init(const State& initialState)
+		{
+			x = initialState;
 		}
 
 		/**
@@ -741,7 +758,7 @@ namespace Kalman {
 		* @param [in] u The Control input vector
 		* @return The updated state estimate
 		*/
-		const State& predict( const PoseSystemModel& s )
+		const State& predict( const PoseSystemModel& system_model )
 		{
 			// No control parameters            
 			Control u;
@@ -751,7 +768,11 @@ namespace Kalman {
 			computeSigmaPoints();
 
 			// Pass each sigma point through non-linear state transition function
-			computeSigmaPointTransition(s, u);
+			// This covers equation (18) of Algorithm 3.1 in the Paper
+			for (int point_index = 0; point_index < SigmaPointCount; ++point_index)
+			{
+				sigmaStatePoints.col(point_index) = system_model.f(sigmaStatePoints.col(point_index), u);
+			}
 
 			// Compute predicted state from predicted sigma points
 			x = State::computeWeightedStateAverage<SigmaPointCount>(sigmaStatePoints, sigmaWeights_m);
@@ -759,7 +780,7 @@ namespace Kalman {
 			// Compute the Covariance Square root from sigma points and noise covariance
 			// This covers equations (20) and (21) of Algorithm 3.1 in the Paper
 			{
-				const CovarianceSquareRoot<State> noiseCov= s.getCovarianceSquareRoot();
+				const CovarianceSquareRoot<State> noiseCov= system_model.getCovarianceSquareRoot();
 
 				// -- Compute QR decomposition of (transposed) augmented matrix
 				// Subtract the x from each sigma point in the right block of the sigmaStatePoints matrix
@@ -803,7 +824,7 @@ namespace Kalman {
 			}
             
 			// Return predicted state
-			return this->getState();
+			return x;
 		}
 
 		/**
@@ -815,7 +836,7 @@ namespace Kalman {
 		 */
 		template<class MeasurementModelType, class Measurement>
 		const State& update(
-			const MeasurementModelType& m, 
+			const MeasurementModelType& measurement_model, 
 			const Measurement& z )
 		{
 			SigmaPoints<Measurement> sigmaMeasurementPoints;
@@ -823,8 +844,12 @@ namespace Kalman {
 			// Compute sigma points (using predicted state)
 			computeSigmaPoints();
             
-			// Predict measurements for each sigma point
-			computeSigmaPointMeasurements<Measurement>(m, sigmaMeasurementPoints);
+			// Predict the expected sigma measurements from predicted sigma states using measurement model
+			// This covers equation (23) of Algorithm 3.1 in the Paper
+			for (int col_index = 0; col_index < SigmaPointCount; ++col_index)
+			{
+				sigmaMeasurementPoints.col(col_index) = measurement_model.h(sigmaStatePoints.col(col_index));
+			}
 
 			// Predict measurement from sigma measurement points
 			// Calls the appropriate function specialization based on measurement type
@@ -834,7 +859,7 @@ namespace Kalman {
 			// This covers equations (23) and (24) of Algorithm 3.1 in the Paper
 			CovarianceSquareRoot<Measurement> S_y;
 			{
-				const CovarianceSquareRoot<Measurement> noiseCov= m.getCovarianceSquareRoot();
+				const CovarianceSquareRoot<Measurement> noiseCov= measurement_model.getCovarianceSquareRoot();
 
 				// -- Compute QR decomposition of (transposed) augmented matrix
 				// Subtract the y from each sigma point in the right block of the sigmaMeasurementPoints matrix
@@ -913,7 +938,7 @@ namespace Kalman {
 				// Note: The intermediate eval() is needed here (for now) due to a bug in Eigen that occurs
 				// when Measurement::RowsAtCompileTime == 1 AND State::RowsAtCompileTime >= 8
 				decltype(sigmaStatePoints) W = this->sigmaWeights_c.transpose().template replicate<State::RowsAtCompileTime,1>();
-				Matrix<T, State::RowsAtCompileTime, Measurement::RowsAtCompileTime> P
+				Matrix<float, State::RowsAtCompileTime, Measurement::RowsAtCompileTime> P
 						= sigmaStatePointsMinusX.cwiseProduct( W ).eval()
 						* sigmaMeasurementPointsMinusY.transpose();
             
@@ -937,10 +962,43 @@ namespace Kalman {
 				}            
 			}
             
-			return this->getState();
+			return x;
 		}
 
 	protected:
+		/**
+		* @brief Compute sigma weights
+		*/
+		void computeSigmaWeights()
+		{
+			const float L = static_cast<float>(State::RowsAtCompileTime);
+
+			lambda = alpha * alpha * (L + kappa) - L;
+			gamma = sqrtf(L + lambda);
+
+			// Make sure L != -lambda to avoid division by zero
+			assert(fabsf(L + lambda) > 1e-6f);
+
+			// Make sure L != -kappa to avoid division by zero
+			assert(fabsf(L + kappa) > 1e-6f);
+
+			float W_m_0 = lambda / (L + lambda);
+			float W_c_0 = W_m_0 + (1.f - alpha*alpha + beta);
+			float W_i = 1.f / (2.f * alpha*alpha * (L + kappa));
+
+			// Make sure W_i > 0 to avoid square-root of negative number
+			assert(W_i > 0.f);
+
+			sigmaWeights_m[0] = W_m_0;
+			sigmaWeights_c[0] = W_c_0;
+
+			for (int point_index = 1; point_index < SigmaPointCount; ++point_index)
+			{
+				sigmaWeights_m[point_index] = W_i;
+				sigmaWeights_c[point_index] = W_i;
+			}
+		}
+
 		/**
 		* @brief Compute sigma points from current state estimate and state covariance
 		*
@@ -990,7 +1048,7 @@ public:
     PoseSystemModel system_model;
 
     /// Unscented Kalman Filter instance
-	Kalman::CustomSRUFK ukf;
+	Kalman::PoseSRUFK ukf;
 
     KalmanFilterImpl() 
 		: ukf(k_ukf_alpha, k_ukf_beta, k_ukf_kappa)
