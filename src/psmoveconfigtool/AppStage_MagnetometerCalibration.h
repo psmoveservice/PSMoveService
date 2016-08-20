@@ -4,29 +4,11 @@
 //-- includes -----
 #include "AppStage.h"
 #include "ClientGeometry.h"
-#include "MathEigen.h"
-#include "MathAlignment.h"
 
 #include <deque>
 #include <chrono>
 
-//-- constants -----
-enum eEllipseFitMethod
-{
-    _ellipse_fit_method_box,
-    _ellipse_fit_method_min_volume,
-};
-
-static const int k_max_magnetometer_samples = 500;
-
 //-- definitions -----
-struct MagnetometerAlignedSamples
-{
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-    Eigen::Vector3f magnetometerEigenSamples[k_max_magnetometer_samples];
-};
-
 class AppStage_MagnetometerCalibration : public AppStage
 {
 public:
@@ -84,16 +66,8 @@ private:
     PSMoveIntVector3 m_lastRawMagnetometer;
     PSMoveFloatVector3 m_lastCalibratedAccelerometer;
 
-    PSMoveIntVector3 m_magnetometerIntSamples[k_max_magnetometer_samples];
-    MagnetometerAlignedSamples *m_alignedSamples;
-    int m_sampleCount;
-    int m_samplePercentage;
-
-    PSMoveIntVector3 m_minSampleExtent;
-    PSMoveIntVector3 m_maxSampleExtent;
-
-    EigenFitEllipsoid m_sampleFitEllipsoid;
-    int m_ellipseFitMethod;
+    struct MagnetometerBoundsStatistics *m_boundsStatistics;
+	struct MagnetometerIdentityStatistics *m_identityStatistics;
 
     int m_led_color_r;
     int m_led_color_g;
@@ -101,9 +75,6 @@ private:
 
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
-
-    PSMoveIntVector3 m_identityPoseMVectorSum;
-    int m_identityPoseSampleCount;   
 };
 
 #endif // APP_STAGE_SELECT_CONTROLLER_H

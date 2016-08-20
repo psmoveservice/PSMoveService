@@ -121,4 +121,11 @@ eigen_quaternion_compute_weighted_average(
     const int count,
     Eigen::Quaternionf *out_result);
 
-#endif // MATH_UTILITY_h
+void 
+eigen_vector3f_compute_mean_and_variance(
+	const Eigen::Vector3f *samples,
+    const int sample_count,
+	Eigen::Vector3f *out_mean,
+    Eigen::Vector3f *out_variance);
+
+#endif // MATH_UTILITY_H

@@ -787,7 +787,8 @@ protected:
             set_config_vector(request.ellipse_center(), config->magnetometer_center);
             set_config_vector(request.ellipse_extents(), config->magnetometer_extents);
             set_config_vector(request.magnetometer_identity(), config->magnetometer_identity);
-            config->magnetometer_error = request.ellipse_fit_error();
+            config->magnetometer_fit_error = request.ellipse_fit_error();
+			config->magnetometer_variance= request.magnetometer_variance();
 
             {
                 CommonDeviceVector basis_x, basis_y, basis_z;

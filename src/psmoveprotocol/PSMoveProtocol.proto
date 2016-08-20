@@ -199,8 +199,9 @@ message Request {
         FloatVector ellipse_basis_x= 4;
         FloatVector ellipse_basis_y= 5;
         FloatVector ellipse_basis_z= 6;
-        float ellipse_fit_error= 7;
+        float ellipse_fit_error= 7;        
         FloatVector magnetometer_identity= 8;
+        float magnetometer_variance= 9;
     }
     RequestSetMagnetometerCalibration set_magnetometer_calibration_request = 13;
     
@@ -208,6 +209,7 @@ message Request {
     message RequestSetAccelerometerCalibration {
         int32 controller_id = 1;
         float noise_radius= 2;
+        float variance= 3;
     }
     RequestSetAccelerometerCalibration set_accelerometer_calibration_request = 14;
     

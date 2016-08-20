@@ -749,3 +749,40 @@ eigen_quaternion_compute_weighted_average(
 
     return success;
 }
+
+void 
+eigen_vector3f_compute_mean_and_variance(
+	const Eigen::Vector3f *samples,
+    const int sample_count,
+	Eigen::Vector3f *out_mean,
+    Eigen::Vector3f *out_variance)
+{
+	Eigen::Vector3f mean= Eigen::Vector3f::Zero();
+	Eigen::Vector3f variance= Eigen::Vector3f::Zero();
+
+	if (sample_count > 0.f)
+	{
+		const float N = static_cast<float>(sample_count);
+
+		for (int sample_index = 0; sample_index < sample_count; sample_index++)
+		{
+			const Eigen::Vector3f &sample= samples[sample_index];
+
+			mean+= sample;
+		}
+		mean/= N;
+
+		// Compute the variance of the (unsigned) sample error, where "error" = abs(omega_sample)
+		for (int sample_index = 0; sample_index < sample_count; sample_index++)
+		{
+			const Eigen::Vector3f &sample= samples[sample_index];
+			const Eigen::Vector3f diff_from_mean= sample - mean;
+
+			variance+= diff_from_mean.cwiseProduct(diff_from_mean);
+		}
+		variance/= (N - 1);
+	}
+	
+	*out_mean= mean;
+	*out_variance= variance;
+}
