@@ -1380,12 +1380,22 @@ init_filters_for_psmove(
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
+
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
 	constants.orientation_constants.gyro_drift= psmove_config->gyro_drift;
 	constants.orientation_constants.gyro_variance= psmove_config->gyro_variance;
+	constants.orientation_constants.mean_update_time_delta= psmove_config->mean_update_time_delta;
+	constants.orientation_constants.min_orientation_variance= psmove_config->orientation_variance;
+	constants.orientation_constants.max_orientation_variance= psmove_config->orientation_variance;
+	constants.orientation_constants.magnetometer_variance= psmove_config->magnetometer_variance;
+
+	constants.position_constants.accelerometer_variance= psmove_config->accelerometer_variance;
 	constants.position_constants.accelerometer_noise_radius= psmove_config->accelerometer_noise_radius;
 	constants.position_constants.max_velocity= psmove_config->max_velocity;
+    constants.position_constants.mean_update_time_delta= psmove_config->mean_update_time_delta;
+    constants.position_constants.min_position_variance= psmove_config->min_position_variance;
+    constants.position_constants.max_position_variance= psmove_config->max_position_variance;
 
 	// TODO: Allow the config to select the filter type
 	// For now hard code the usage of a compound pose filter
@@ -1494,12 +1504,22 @@ init_filters_for_psdualshock4(
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
+
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
 	constants.orientation_constants.gyro_drift= ds4_config->gyro_drift;
+	constants.orientation_constants.mean_update_time_delta= ds4_config->mean_update_time_delta;
+	constants.orientation_constants.min_orientation_variance= ds4_config->min_orientation_variance;
+	constants.orientation_constants.max_orientation_variance= ds4_config->max_orientation_variance;
+	constants.orientation_constants.magnetometer_variance= 0.f; // no magnetometer on ds4
 	constants.orientation_constants.gyro_variance= ds4_config->gyro_variance;
+
+	constants.position_constants.accelerometer_variance= ds4_config->accelerometer_variance;
 	constants.position_constants.accelerometer_noise_radius= ds4_config->accelerometer_noise_radius;
 	constants.position_constants.max_velocity= ds4_config->max_velocity;
+    constants.position_constants.mean_update_time_delta= ds4_config->mean_update_time_delta;
+    constants.position_constants.min_position_variance= ds4_config->min_position_variance;
+    constants.position_constants.max_position_variance= ds4_config->max_position_variance;
 
 	// TODO: Allow the config to select the filter type
 	// For now hard code the usage of a compound pose filter

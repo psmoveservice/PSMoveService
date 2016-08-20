@@ -32,17 +32,24 @@ public:
         , is_valid(false)
         , version(CONFIG_VERSION)
         , max_poll_failure_count(100) 
+        , prediction_time(0.f)
         , cal_ag_xyz_kb({{ 
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }},
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }} 
         }})
-        , prediction_time(0.f)
+        , magnetometer_fit_error(0.f)
+		, magnetometer_variance(0.0001f)
+		, accelerometer_variance(0.0001f)
         , accelerometer_noise_radius(0.f)
         , gyro_variance(1.5f*k_degrees_to_radians) // rad/s^2
         , gyro_drift(0.9f*k_degrees_to_radians) // rad/s
         , min_position_quality_screen_area(0.f)
         , max_position_quality_screen_area(k_real_pi*20.f*20.f) // lightbulb at ideal range is about 40px by 40px 
         , max_velocity(1.f)
+		, mean_update_time_delta(0.008333f)
+		, min_position_variance(0.0001f)
+		, max_position_variance(0.0001f)
+		, orientation_variance(0.0001f)
     {
         magnetometer_identity.clear();
         magnetometer_center.clear();
@@ -50,7 +57,6 @@ public:
         magnetometer_basis_y.clear();
         magnetometer_basis_z.clear();
         magnetometer_extents.clear();
-        magnetometer_error= 0.f;
         magnetometer_identity.clear();
     };
 
@@ -61,32 +67,64 @@ public:
 
     bool is_valid;
     long version;
+
+	// The max number of polling failures before we consider the controller disconnected
     long max_poll_failure_count;
+
+	// The amount of prediction to apply to the controller pose after filtering
+    float prediction_time;
+
+	// The accelerometer and gyroscope scale and bias values read from the USB calibration packet
     std::array<std::array<std::array<float, 2>, 3>, 2> cal_ag_xyz_kb;
+
+	// The direction of the magnetometer when in the identity pose
     CommonDeviceVector magnetometer_identity;
+
+	// The bias of the magnetometer readings
     CommonDeviceVector magnetometer_center;
+
+	// The basis vectors of the best fit ellipsoid (typically i,j,k)
     CommonDeviceVector magnetometer_basis_x;
     CommonDeviceVector magnetometer_basis_y;
     CommonDeviceVector magnetometer_basis_z;
     CommonDeviceVector magnetometer_extents;
-    float magnetometer_error;
-    float prediction_time;
 
-    // The radius of the accelerometer noise
+	// The squared error of the magnetometer fit ellipsoid
+    float magnetometer_fit_error;
+
+	/// The variance of the magnetometer sensor
+	float magnetometer_variance; // units^2
+
+	// The variance of the accelerometer readings
+	float accelerometer_variance; // g-units^2
+
+    // The bounding radius of the accelerometer noise
     float accelerometer_noise_radius;
     
-    // The variance of the calibrated gyro readings in rad/s^2
+    // The variance of the calibrated gyro readings in (rad/s)^2
     float gyro_variance;
-    // The drift of the calibrated gyro readings in rad/second^2
+
+    // The drift of the calibrated gyro readings in rad/s
     float gyro_drift;
 
     // The pixel area of the tracking projection at which the position quality is 0
     float min_position_quality_screen_area;
+
     // The pixel area of the tracking projection at which the position quality is 1
     float max_position_quality_screen_area;
 
-    // The maximum velocity allowed in the position filter
+    // The maximum velocity allowed in the position filter in cm/s
     float max_velocity;
+
+	// The average time between updates in seconds
+    float mean_update_time_delta;
+
+	// The variance of the controller position measured best and worst tracking distances in meters^2
+    float min_position_variance; 
+    float max_position_variance;
+
+	// The variance of the controller orientation (when sitting still) in rad^2
+    float orientation_variance;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport

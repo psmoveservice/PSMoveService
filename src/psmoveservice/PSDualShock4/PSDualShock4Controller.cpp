@@ -276,12 +276,18 @@ PSDualShock4ControllerConfig::config2ptree()
     pt.put("Calibration.Accel.Y.b", accelerometer_bias.j);
     pt.put("Calibration.Accel.Z.b", accelerometer_bias.k);
     pt.put("Calibration.Accel.NoiseRadius", accelerometer_noise_radius);
+	pt.put("Calibration.Accel.Variance", accelerometer_variance);
     pt.put("Calibration.Gyro.Gain", gyro_gain);
     pt.put("Calibration.Gyro.Variance", gyro_variance);
     pt.put("Calibration.Gyro.Drift", gyro_drift);
     pt.put("Calibration.Identity.Gravity.X", identity_gravity_direction.i);
     pt.put("Calibration.Identity.Gravity.Y", identity_gravity_direction.j);
     pt.put("Calibration.Identity.Gravity.Z", identity_gravity_direction.k);
+	pt.put("Calibration.Position.MinVariance", min_position_variance);
+	pt.put("Calibration.Position.MaxVariance", max_position_variance);
+	pt.put("Calibration.Orientation.MinVariance", min_orientation_variance);
+	pt.put("Calibration.Orientation.MaxVariance", max_orientation_variance);
+	pt.put("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
     pt.put("OrientationFilter.MinQualityScreenArea", min_orientation_quality_screen_area);
     pt.put("OrientationFilter.MaxQualityScreenArea", max_orientation_quality_screen_area);
@@ -315,7 +321,13 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         accelerometer_bias.i = pt.get<float>("Calibration.Accel.X.b", accelerometer_bias.i);
         accelerometer_bias.j = pt.get<float>("Calibration.Accel.Y.b", accelerometer_bias.j);
         accelerometer_bias.k = pt.get<float>("Calibration.Accel.Z.b", accelerometer_bias.k);
-        accelerometer_noise_radius = pt.get<float>("Calibration.Accel.NoiseRadius", 0.0f);
+        accelerometer_noise_radius = pt.get<float>("Calibration.Accel.NoiseRadius", accelerometer_noise_radius);
+		accelerometer_variance= pt.get<float>("Calibration.Accel.Variance", accelerometer_variance);
+		min_position_variance= pt.get<float>("Calibration.Position.MinVariance", min_position_variance);
+		max_position_variance= pt.get<float>("Calibration.Position.MaxVariance", max_position_variance);
+		min_orientation_variance= pt.get<float>("Calibration.Orientation.MinVariance", min_orientation_variance);
+		max_orientation_variance= pt.get<float>("Calibration.Orientation.MaxVariance", max_orientation_variance);
+		mean_update_time_delta= pt.get<float>("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
         // Use the current gyroscope values (constructor defaults) as the default values
         gyro_gain= pt.get<float>("Calibration.Gyro.Gain", gyro_gain);

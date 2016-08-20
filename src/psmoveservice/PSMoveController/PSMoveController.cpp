@@ -207,6 +207,7 @@ PSMoveControllerConfig::config2ptree()
     pt.put("Calibration.Accel.Z.k", cal_ag_xyz_kb[0][2][0]);
     pt.put("Calibration.Accel.Z.b", cal_ag_xyz_kb[0][2][1]);
 
+	pt.put("Calibration.Accel.Variance", accelerometer_variance);
     pt.put("Calibration.Accel.NoiseRadius", accelerometer_noise_radius);
 
     pt.put("Calibration.Gyro.X.k", cal_ag_xyz_kb[1][0][0]);
@@ -241,7 +242,15 @@ PSMoveControllerConfig::config2ptree()
     pt.put("Calibration.Magnetometer.Identity.Y", magnetometer_identity.j);
     pt.put("Calibration.Magnetometer.Identity.Z", magnetometer_identity.k);
 
-    pt.put("Calibration.Magnetometer.Error", magnetometer_error);
+    pt.put("Calibration.Magnetometer.Error", magnetometer_fit_error);
+	pt.put("Calibration.Magnetometer.Variance", magnetometer_variance);
+
+	pt.put("Calibration.Position.MinVariance", min_position_variance);
+	pt.put("Calibration.Position.MaxVariance", max_position_variance);
+
+	pt.put("Calibration.Orientation.Variance", orientation_variance);
+
+	pt.put("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
     pt.put("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
     pt.put("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
@@ -269,6 +278,7 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         cal_ag_xyz_kb[0][2][0] = pt.get<float>("Calibration.Accel.Z.k", 1.0f);
         cal_ag_xyz_kb[0][2][1] = pt.get<float>("Calibration.Accel.Z.b", 0.0f);
 
+		accelerometer_variance = pt.get<float>("Calibration.Accel.Variance", accelerometer_variance);
         accelerometer_noise_radius = pt.get<float>("Calibration.Accel.NoiseRadius", 0.0f);
 
         cal_ag_xyz_kb[1][0][0] = pt.get<float>("Calibration.Gyro.X.k", 1.0f);
@@ -305,7 +315,15 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         magnetometer_identity.j = pt.get<float>("Calibration.Magnetometer.Identity.Y", 0.f);
         magnetometer_identity.k = pt.get<float>("Calibration.Magnetometer.Identity.Z", 0.f);
 
-        magnetometer_error= pt.get<float>("Calibration.Magnetometer.Error", 0.f);
+        magnetometer_fit_error= pt.get<float>("Calibration.Magnetometer.Error", 0.f);
+		magnetometer_variance= pt.get<float>("Calibration.Magnetometer.Variance", magnetometer_variance);
+
+		min_position_variance= pt.get<float>("Calibration.Position.MinVariance", min_position_variance);
+		max_position_variance= pt.get<float>("Calibration.Position.MaxVariance", max_position_variance);
+
+		orientation_variance= pt.get<float>("Calibration.Orientation.Variance", orientation_variance);
+
+		mean_update_time_delta= pt.get<float>("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
         // Get the position filter parameters
         min_position_quality_screen_area= pt.get<float>("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
@@ -333,7 +351,7 @@ PSMoveControllerConfig::getMegnetometerEllipsoid(struct EigenFitEllipsoid *out_e
         Eigen::Vector3f(magnetometer_basis_y.i, magnetometer_basis_y.j, magnetometer_basis_y.k);
     out_ellipsoid->basis.col(2) =
         Eigen::Vector3f(magnetometer_basis_z.i, magnetometer_basis_z.j, magnetometer_basis_z.k);
-    out_ellipsoid->error= magnetometer_error;
+    out_ellipsoid->error= magnetometer_fit_error;
 }
 
 // -- PSMove Controller -----
@@ -976,7 +994,6 @@ PSMoveController::poll()
                 newState.RawMag[2] = TWELVE_BIT_SIGNED(((InData->mYlow_mZhigh & 0x0F) << 8) | InData->mZlow);
 
                 // Project the raw magnetometer sample into the space of the ellipsoid
-                // and then normalize it (any deviation from unit length is error)
                 raw_mag = 
                     Eigen::Vector3f(
                         static_cast<float>(newState.RawMag[0]), 
@@ -984,6 +1001,9 @@ PSMoveController::poll()
                         static_cast<float>(newState.RawMag[2]));
                 cfg.getMegnetometerEllipsoid(&ellipsoid);
                 calibrated_mag= eigen_alignment_project_point_on_ellipsoid_basis(raw_mag, ellipsoid);
+
+                // Normalize the projected measurement (any deviation from unit length is error)
+				eigen_vector3f_normalize_with_default(calibrated_mag, Eigen::Vector3f(0.f, 1.f, 0.f));
 
                 // Save the calibrated magnetometer vector
                 newState.CalibratedMag[0] = calibrated_mag.x();

@@ -42,17 +42,23 @@ public:
         : PSMoveConfig(fnamebase)
         , is_valid(false)
         , version(CONFIG_VERSION)
+        , max_poll_failure_count(100)
+        , prediction_time(0.f)
         , accelerometer_noise_radius(0.f)
+		, accelerometer_variance(0.0001f)
         , max_velocity(1.f)
         , gyro_gain(0.f)
         , gyro_variance(0.f)
         , gyro_drift(0.f)
-        , max_poll_failure_count(100)
-        , prediction_time(0.f)
         , min_orientation_quality_screen_area(150.f*34.f*.1f)
         , max_orientation_quality_screen_area(150.f*34.f) // light bar at ideal range looking straight on is about 150px by 34px 
         , min_position_quality_screen_area(75.f*17.f*.25f)
         , max_position_quality_screen_area(75.f*17.f)
+		, mean_update_time_delta(0.016667f)
+		, min_position_variance(0.0001f)
+		, max_position_variance(0.0001f)
+		, min_orientation_variance(0.0001f)
+		, max_orientation_variance(0.0001f)
     {
         // The DS4 uses the BMI055 IMU Chip: 
         // https://www.bosch-sensortec.com/bst/products/all_products/bmi055
@@ -113,10 +119,20 @@ public:
     bool is_valid;
     long version;
 
+	// The max number of polling failures before we consider the controller disconnected
+    long max_poll_failure_count;
+	// The amount of prediction to apply to the controller pose after filtering
+    float prediction_time;
+
     // calibrated_acc= raw_acc*acc_gain + acc_bias
     CommonDeviceVector accelerometer_gain;
     CommonDeviceVector accelerometer_bias;
+
+	// The bounding radius of the accelerometer measurements 
     float accelerometer_noise_radius;
+
+	// The variance of the accelerometer readings
+	float accelerometer_variance; // g-units^2
 
     // Maximum velocity for the controller physics (meters/second)
     float max_velocity;
@@ -141,8 +157,16 @@ public:
     // The pixel area of the tracking projection at which the position quality is 1
     float max_position_quality_screen_area;
 
-    long max_poll_failure_count;
-    float prediction_time;
+	// The average time between updates in seconds
+    float mean_update_time_delta;
+
+	// The variance of the controller position measured best and worst tracking distances in meters^2
+    float min_position_variance; 
+    float max_position_variance;
+
+	// The variance of the controller orientation (when sitting still) in rad^2
+    float min_orientation_variance;
+	float max_orientation_variance;
 };
 
 struct PSDualShock4ControllerState : public CommonControllerState

@@ -119,6 +119,7 @@ struct OrientationFilterConstants
 struct PositionFilterConstants 
 {
     float accelerometer_noise_radius; // meters
+	float accelerometer_variance; // g-units^2
     float max_velocity; // meters/s^2
 
     /// The average time delta between position updates during calibration
