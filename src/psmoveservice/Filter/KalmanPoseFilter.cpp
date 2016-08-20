@@ -367,8 +367,12 @@ public:
         const float mean_orientation_dT= constants.position_constants.mean_update_time_delta;
 
         // Start off using the maximum variance values
-        const float position_variance= constants.position_constants.max_position_variance;
-		const float angle_axis_variance= constants.orientation_constants.max_orientation_variance;
+        const float position_variance= 
+			(constants.position_constants.min_position_variance +
+			constants.position_constants.max_position_variance) * 0.5f;
+		const float angle_axis_variance= 
+			(constants.orientation_constants.min_orientation_variance +
+			constants.orientation_constants.max_orientation_variance) * 0.5f;
 
         // Initialize the process covariance matrix Q
         Kalman::Covariance<PoseStateVectorf> Q = Kalman::Covariance<PoseStateVectorf>::Zero();
@@ -380,37 +384,6 @@ public:
 		Q_discrete_2nd_order_white_noise<PoseStateVectorf>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Z, Q);
         setCovariance(Q);
     }
-
-	void update_process_covariance(
-		const PoseFilterConstants &constants,
-		const float position_quality,
-		const float orientation_quality)
-	{
-        const float mean_position_dT= constants.position_constants.mean_update_time_delta;
-        const float mean_orientation_dT= constants.position_constants.mean_update_time_delta;
-
-        // Start off using the maximum variance values
-        const float position_variance= 
-			lerp_clampf(
-				constants.position_constants.max_position_variance,
-				constants.position_constants.min_position_variance,
-				position_quality);
-		const float angle_axis_variance=
-			lerp_clampf(
-				constants.orientation_constants.max_orientation_variance,
-				constants.orientation_constants.min_orientation_variance,
-				orientation_quality);
-
-        // Initialize the process covariance matrix Q
-        Kalman::Covariance<PoseStateVectorf> Q = getCovariance();
-        Q_discrete_3rd_order_white_noise<PoseStateVectorf>(mean_position_dT, position_variance, POSITION_X, Q);
-		Q_discrete_3rd_order_white_noise<PoseStateVectorf>(mean_position_dT, position_variance, POSITION_Y, Q);
-		Q_discrete_3rd_order_white_noise<PoseStateVectorf>(mean_position_dT, position_variance, POSITION_Z, Q);
-		Q_discrete_2nd_order_white_noise<PoseStateVectorf>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_X, Q);
-		Q_discrete_2nd_order_white_noise<PoseStateVectorf>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Y, Q);
-		Q_discrete_2nd_order_white_noise<PoseStateVectorf>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Z, Q);
-        setCovariance(Q);
-	}
 
     /**
     * @brief Definition of (non-linear) state transition function
@@ -477,20 +450,7 @@ class PSMove_MeasurementModel : public Kalman::MeasurementModel<PoseStateVectorf
 public:
     void init(const PoseFilterConstants &constants)
     {
-        Kalman::Covariance<PSMove_MeasurementVectorf> R = 
-			Kalman::Covariance<PSMove_MeasurementVectorf>::Zero();
-
-        const float position_variance= constants.position_constants.max_position_variance;
-		const float magnetometer_variance= constants.orientation_constants.magnetometer_variance;
-
-        R(PSMOVE_OPTICAL_POSITION_X, PSMOVE_OPTICAL_POSITION_X) = position_variance;
-        R(PSMOVE_OPTICAL_POSITION_Y, PSMOVE_OPTICAL_POSITION_Y) = position_variance;
-        R(PSMOVE_OPTICAL_POSITION_Z, PSMOVE_OPTICAL_POSITION_Z) = position_variance;
-        R(PSMOVE_MAGNETOMETER_X, PSMOVE_MAGNETOMETER_X) = magnetometer_variance;
-        R(PSMOVE_MAGNETOMETER_Y, PSMOVE_MAGNETOMETER_Y) = magnetometer_variance;
-        R(PSMOVE_MAGNETOMETER_Z, PSMOVE_MAGNETOMETER_Z) = magnetometer_variance;
-
-        setCovariance(R);
+		update_measurement_covariance(constants, 0.f);
         
 		m_identity_gravity_direction= constants.orientation_constants.gravity_calibration_direction;
 		m_identity_magnetometer_direction= constants.orientation_constants.magnetometer_calibration_direction;
@@ -501,6 +461,9 @@ public:
 		const float position_quality)
 	{
         // Start off using the maximum variance values
+		const float accelerometer_variance= constants.position_constants.accelerometer_variance;
+		const float gyro_variance= constants.orientation_constants.gyro_variance;
+		const float magnetometer_variance= constants.orientation_constants.magnetometer_variance;
         const float position_variance= 
 			lerp_clampf(
 				constants.position_constants.max_position_variance,
@@ -508,7 +471,17 @@ public:
 				position_quality);
 
         // Update the measurement covariance R
-        Kalman::Covariance<PSMove_MeasurementVectorf> R = getCovariance();
+        Kalman::Covariance<PSMove_MeasurementVectorf> R = 
+			Kalman::Covariance<PSMove_MeasurementVectorf>::Zero();
+		R(PSMOVE_ACCELEROMETER_X, PSMOVE_ACCELEROMETER_X) = accelerometer_variance;
+		R(PSMOVE_ACCELEROMETER_Y, PSMOVE_ACCELEROMETER_Y) = accelerometer_variance;
+		R(PSMOVE_ACCELEROMETER_Z, PSMOVE_ACCELEROMETER_Z) = accelerometer_variance;
+		R(PSMOVE_GYROSCOPE_X, PSMOVE_GYROSCOPE_X)= gyro_variance;
+		R(PSMOVE_GYROSCOPE_Y, PSMOVE_GYROSCOPE_Y)= gyro_variance;
+		R(PSMOVE_GYROSCOPE_Z, PSMOVE_GYROSCOPE_Z)= gyro_variance;
+        R(PSMOVE_MAGNETOMETER_X, PSMOVE_MAGNETOMETER_X) = magnetometer_variance;
+        R(PSMOVE_MAGNETOMETER_Y, PSMOVE_MAGNETOMETER_Y) = magnetometer_variance;
+        R(PSMOVE_MAGNETOMETER_Z, PSMOVE_MAGNETOMETER_Z) = magnetometer_variance;
         R(PSMOVE_OPTICAL_POSITION_X, PSMOVE_OPTICAL_POSITION_X) = position_variance;
         R(PSMOVE_OPTICAL_POSITION_Y, PSMOVE_OPTICAL_POSITION_Y) = position_variance;
         R(PSMOVE_OPTICAL_POSITION_Z, PSMOVE_OPTICAL_POSITION_Z) = position_variance;
@@ -577,10 +550,7 @@ class DS4_MeasurementModel : public Kalman::MeasurementModel<PoseStateVectorf, D
 public:
     void init(const PoseFilterConstants &constants)
     {
-        Kalman::Covariance<DS4_MeasurementVectorf> measurement_covariance = 
-			Kalman::Covariance<DS4_MeasurementVectorf>::Zero();
-
-        update_measurement_covariance(constants, 0.f, 0.f);
+		update_measurement_covariance(constants,0.f, 0.f);
 
 		m_identity_gravity_direction= constants.orientation_constants.gravity_calibration_direction;
     }
@@ -591,6 +561,8 @@ public:
 		const float orientation_quality)
 	{
         // Start off using the maximum variance values
+		const float accelerometer_variance= constants.position_constants.accelerometer_variance;
+		const float gyro_variance= constants.orientation_constants.gyro_variance;
         const float position_variance= 
 			lerp_clampf(
 				constants.position_constants.max_position_variance,
@@ -605,9 +577,15 @@ public:
         // Update the measurement covariance R
         Kalman::Covariance<DS4_MeasurementVectorf> R = 
 			Kalman::Covariance<DS4_MeasurementVectorf>::Zero();
-        R(PSMOVE_OPTICAL_POSITION_X, PSMOVE_OPTICAL_POSITION_X) = position_variance;
-        R(PSMOVE_OPTICAL_POSITION_Y, PSMOVE_OPTICAL_POSITION_Y) = position_variance;
-        R(PSMOVE_OPTICAL_POSITION_Z, PSMOVE_OPTICAL_POSITION_Z) = position_variance;
+		R(DS4_ACCELEROMETER_X, DS4_ACCELEROMETER_X) = accelerometer_variance;
+		R(DS4_ACCELEROMETER_Y, DS4_ACCELEROMETER_Y) = accelerometer_variance;
+		R(DS4_ACCELEROMETER_Z, DS4_ACCELEROMETER_Z) = accelerometer_variance;
+		R(DS4_GYROSCOPE_X, DS4_GYROSCOPE_X)= gyro_variance;
+		R(DS4_GYROSCOPE_Y, DS4_GYROSCOPE_Y)= gyro_variance;
+		R(DS4_GYROSCOPE_Z, DS4_GYROSCOPE_Z)= gyro_variance;
+        R(DS4_OPTICAL_POSITION_X, DS4_OPTICAL_POSITION_X) = position_variance;
+        R(DS4_OPTICAL_POSITION_Y, DS4_OPTICAL_POSITION_Y) = position_variance;
+        R(DS4_OPTICAL_POSITION_Z, DS4_OPTICAL_POSITION_Z) = position_variance;
         R(DS4_OPTICAL_ANGLE_AXIS_X, DS4_OPTICAL_ANGLE_AXIS_X) = angle_axis_variance; 
         R(DS4_OPTICAL_ANGLE_AXIS_Y, DS4_OPTICAL_ANGLE_AXIS_Y) = angle_axis_variance;
         R(DS4_OPTICAL_ANGLE_AXIS_Z, DS4_OPTICAL_ANGLE_AXIS_Z) = angle_axis_variance;
