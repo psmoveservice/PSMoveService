@@ -128,4 +128,10 @@ eigen_vector3f_compute_mean_and_variance(
 	Eigen::Vector3f *out_mean,
     Eigen::Vector3f *out_variance);
 
+// best fit line is of the form y(x) = out_line->x()*x + out_line->y()
+bool
+eigen_alignment_fit_least_squares_line(
+	const Eigen::Vector2f *samples, const int sample_count,
+	Eigen::Vector2f *out_line, float *out_correlation_coefficient);
+
 #endif // MATH_UTILITY_H

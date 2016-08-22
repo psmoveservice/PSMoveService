@@ -33,12 +33,14 @@ static const float k_min_sample_distance = 1000.f;
 static const float k_min_sample_distance_sq = k_min_sample_distance*k_min_sample_distance;
 
 //-- definitions -----
-struct AccelerometerPoseSamples
+struct AccelerometerStatistics
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     PSMoveFloatVector3 accelerometer_samples[k_max_accelerometer_samples];
-    PSMoveFloatVector3 avg_accelerometer_sample;
+	Eigen::Vector3f eigen_accelerometer_samples[k_max_accelerometer_samples];
+    Eigen::Vector3f avg_accelerometer_sample;
+	float noise_variance;
     float noise_radius;
     int sample_count;
 
@@ -48,29 +50,46 @@ struct AccelerometerPoseSamples
         noise_radius= 0.f;
     }
 
-    void computeStatistics()
-    {
-        avg_accelerometer_sample = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
-        for (int sample_index= 0; sample_index < k_max_accelerometer_samples; ++sample_index)
-        {
-            avg_accelerometer_sample= avg_accelerometer_sample + accelerometer_samples[sample_index];
-        }
-        avg_accelerometer_sample= avg_accelerometer_sample.unsafe_divide(static_cast<float>(k_max_accelerometer_samples));
+	bool getIsComplete() const
+	{
+		return sample_count >= k_max_accelerometer_samples;
+	}
 
-        noise_radius= 0;
-        for (int sample_index= 0; sample_index < k_max_accelerometer_samples; ++sample_index)
-        {
-            PSMoveFloatVector3 error= accelerometer_samples[sample_index] - avg_accelerometer_sample;
+	void addSample(const PSMoveFloatVector3 &sample)
+	{
+		if (getIsComplete())
+		{
+			return;
+		}
 
-            noise_radius= fmaxf(noise_radius, error.length());
-        }
-    }
+		accelerometer_samples[sample_count] = sample;
+		eigen_accelerometer_samples[sample_count] = psmove_float_vector3_to_eigen_vector3(sample);
+		++sample_count;
+
+		if (getIsComplete())
+		{
+			// Compute the mean and variance of the accelerometer readings
+			Eigen::Vector3f accelerometer_variance;
+			eigen_vector3f_compute_mean_and_variance(
+				eigen_accelerometer_samples, sample_count, 
+				&avg_accelerometer_sample, &accelerometer_variance);
+			noise_variance = accelerometer_variance.maxCoeff();
+
+			// Compute the bounding radius of the accelerometer error
+			noise_radius = 0;
+			for (int sample_index = 0; sample_index < k_max_accelerometer_samples; ++sample_index)
+			{
+				Eigen::Vector3f error = eigen_accelerometer_samples[sample_index] - avg_accelerometer_sample;
+
+				noise_radius = fmaxf(noise_radius, error.norm());
+			}
+		}
+	}
 };
 
 //-- private methods -----
 static void request_set_accelerometer_calibration(
-    const int controller_id,
-    const float noise_radius);
+    const int controller_id, const float noise_radius, const float noise_variance);
 static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
 
 //-- public methods -----
@@ -81,7 +100,7 @@ AppStage_AccelerometerCalibration::AppStage_AccelerometerCalibration(App *app)
     , m_controllerView(nullptr)
     , m_isControllerStreamActive(false)
     , m_lastControllerSeqNum(-1)
-    , m_noiseSamples(new AccelerometerPoseSamples)
+    , m_noiseSamples(new AccelerometerStatistics)
 {
 }
 
@@ -196,20 +215,16 @@ void AppStage_AccelerometerCalibration::update()
             if (bControllerDataUpdatedThisFrame && m_noiseSamples->sample_count < k_max_accelerometer_samples)
             {
                 // Store the new sample
-                m_noiseSamples->accelerometer_samples[m_noiseSamples->sample_count] = m_lastCalibratedAccelerometer;
-                ++m_noiseSamples->sample_count;
+				m_noiseSamples->addSample(m_lastCalibratedAccelerometer);
 
                 // See if we filled all of the samples for this pose
-                if (m_noiseSamples->sample_count >= k_max_accelerometer_samples)
+                if (m_noiseSamples->getIsComplete())
                 {
-                    // Compute the average gravity value in this pose.
-                    // This assumes that the acceleration noise has a Gaussian distribution.
-                    m_noiseSamples->computeStatistics();
-
                     // Tell the service what the new calibration constraints are
                     request_set_accelerometer_calibration(
                         m_controllerView->GetControllerID(),
-                        m_noiseSamples->noise_radius);
+                        m_noiseSamples->noise_radius,
+						m_noiseSamples->noise_variance);
 
                     m_menuState = AppStage_AccelerometerCalibration::measureComplete;
                 }
@@ -460,7 +475,8 @@ void AppStage_AccelerometerCalibration::renderUI()
 //-- private methods -----
 static void request_set_accelerometer_calibration(
     const int controller_id,
-    const float noise_radius)
+    const float noise_radius,
+	const float noise_variance)
 {
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_ACCELEROMETER_CALIBRATION);
@@ -470,6 +486,7 @@ static void request_set_accelerometer_calibration(
 
     calibration->set_controller_id(controller_id);
     calibration->set_noise_radius(noise_radius);
+	calibration->set_variance(noise_variance);
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }

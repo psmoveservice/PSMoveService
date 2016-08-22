@@ -757,6 +757,8 @@ eigen_vector3f_compute_mean_and_variance(
 	Eigen::Vector3f *out_mean,
     Eigen::Vector3f *out_variance)
 {
+	assert(out_mean != nullptr || out_variance != nullptr);
+
 	Eigen::Vector3f mean= Eigen::Vector3f::Zero();
 	Eigen::Vector3f variance= Eigen::Vector3f::Zero();
 
@@ -773,16 +775,91 @@ eigen_vector3f_compute_mean_and_variance(
 		mean/= N;
 
 		// Compute the variance of the (unsigned) sample error, where "error" = abs(omega_sample)
-		for (int sample_index = 0; sample_index < sample_count; sample_index++)
+		if (out_variance != nullptr)
 		{
-			const Eigen::Vector3f &sample= samples[sample_index];
-			const Eigen::Vector3f diff_from_mean= sample - mean;
+			for (int sample_index = 0; sample_index < sample_count; sample_index++)
+			{
+				const Eigen::Vector3f &sample = samples[sample_index];
+				const Eigen::Vector3f diff_from_mean = sample - mean;
 
-			variance+= diff_from_mean.cwiseProduct(diff_from_mean);
+				variance += diff_from_mean.cwiseProduct(diff_from_mean);
+			}
+			variance /= (N - 1);
 		}
-		variance/= (N - 1);
 	}
 	
-	*out_mean= mean;
-	*out_variance= variance;
+	if (out_mean != nullptr)
+	{
+		*out_mean = mean;
+	}
+
+	if (out_variance != nullptr)
+	{
+		*out_variance = variance;
+	}
+}
+
+// From: http://stackoverflow.com/questions/5083465/fast-efficient-least-squares-fit-algorithm-in-c
+bool 
+eigen_alignment_fit_least_squares_line(
+	const Eigen::Vector2f *samples, const int sample_count, 
+	Eigen::Vector2f *out_line, float *out_correlation_coefficient)
+{
+	const float N = static_cast<float>(sample_count);
+
+	float sumx = 0.f;
+	float sumx2 = 0.f;
+	float sumxy = 0.f;
+	float sumy = 0.f;
+	float sumy2 = 0.f;
+
+	float m, b;
+	bool bSuccess = false;
+
+	for (int i = 0; i < sample_count; i++)
+	{
+		const Eigen::Vector2f &sample = samples[i];
+		const float x_i = sample.x();
+		const float y_i = sample.y();
+
+		sumx += x_i;
+		sumx2 += x_i*x_i;
+		sumxy += x_i*y_i;
+		sumy += y_i;
+		sumy2 += y_i*y_i;
+	}
+
+	const float denom = (N*sumx2 - sumx*sumx);
+
+	if (denom != 0)
+	{
+		m = (N*sumxy - sumx*sumy) / denom;
+		b = (sumy*sumx2 - sumx*sumxy) / denom;
+
+		if (out_correlation_coefficient != nullptr)
+		{
+			// compute correlation coeff
+			*out_correlation_coefficient = (sumxy - sumx*sumy / N) / sqrtf((sumx2 - sqr(sumx) / N) * (sumy2 - sqr(sumy) / N));
+		}
+
+		bSuccess= true;
+	}
+	else
+	{
+		// singular matrix. can't solve the problem.
+		m = 0;
+		b = 0;
+
+		if (out_correlation_coefficient != nullptr)
+		{
+			*out_correlation_coefficient = 0;
+		}
+	}
+
+	if (out_line != nullptr)
+	{
+		*out_line = Eigen::Vector2f(m, b);
+	}
+
+	return bSuccess;
 }

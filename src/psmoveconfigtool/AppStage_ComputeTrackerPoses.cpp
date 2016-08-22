@@ -57,15 +57,21 @@ AppStage_ComputeTrackerPoses::~AppStage_ComputeTrackerPoses()
     delete m_pCalibrateWithMat;
 }
 
-void AppStage_ComputeTrackerPoses::enterStageAndCalibrate(App *app)
+void AppStage_ComputeTrackerPoses::enterStageAndCalibrate(App *app, int desiredControllerID)
 {
-    app->getAppStage<AppStage_ComputeTrackerPoses>()->m_bSkipCalibration = false;
+	AppStage_ComputeTrackerPoses *appStage= app->getAppStage<AppStage_ComputeTrackerPoses>();
+	appStage->m_bSkipCalibration = false;
+	appStage->m_desiredControllerID = desiredControllerID;
+
     app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
 }
 
-void AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(App *app)
+void AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(App *app, int desiredControllerID)
 {
-    app->getAppStage<AppStage_ComputeTrackerPoses>()->m_bSkipCalibration = true;
+	AppStage_ComputeTrackerPoses *appStage = app->getAppStage<AppStage_ComputeTrackerPoses>();
+	appStage->m_bSkipCalibration = true;
+	appStage->m_desiredControllerID = desiredControllerID;
+
     app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
 }
 
@@ -758,8 +764,11 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
             int trackedControllerId = -1;
             for (int list_index = 0; list_index < controller_list->count; ++list_index)
             {
-                if (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
-                    controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)
+				ClientControllerView::eControllerType controllerType = controller_list->controller_type[list_index];
+				int controllerID= controller_list->controller_id[list_index];
+
+                if ((thisPtr->m_desiredControllerID == -1 || thisPtr->m_desiredControllerID == controllerID) &&
+					(controllerType == ClientControllerView::PSMove || controllerType == ClientControllerView::PSDualShock4))
                 {
                     trackedControllerId = controller_list->controller_id[list_index];
                     break;

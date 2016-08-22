@@ -209,6 +209,10 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__set_gyroscope_calibration(context, response);
                 break;
+			case PSMoveProtocol::Request_RequestType_SET_OPTICAL_NOISE_CALIBRATION:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_optical_noise_calibration(context, response);
+				break;
 
             // Tracker Requests
             case PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST:
@@ -805,7 +809,7 @@ protected:
             config->save();
 
             // Reset the orientation filter state the calibration changed
-            ControllerView->getPoseFilterMutable()->resetState();
+            ControllerView->resetPoseFilter();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -826,7 +830,6 @@ protected:
         if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
         {
             PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-            IPoseFilter *poseFilter= ControllerView->getPoseFilterMutable();
             PSMoveControllerConfig *config = controller->getConfigMutable();
 
             const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
@@ -834,19 +837,16 @@ protected:
 
             // Save the noise radius in controller config
             config->accelerometer_noise_radius= request.noise_radius();
+			config->accelerometer_variance = request.variance();
             config->save();
 
-            // Reset the orientation filter state the calibration changed
-			//TODO: Update constants
-            //positionFilter->setAccelerometerNoiseRadius(config->accelerometer_noise_radius);
-			poseFilter->resetState();
+			ControllerView->resetPoseFilter();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
         {
             PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-            IPoseFilter *poseFilter= ControllerView->getPoseFilterMutable();
             PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
             const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
@@ -854,12 +854,10 @@ protected:
 
             // Save the noise radius in controller config
             config->accelerometer_noise_radius= request.noise_radius();
+			config->accelerometer_variance = request.variance();
             config->save();
 
-            // Reset the orientation filter state the calibration changed
-			//TODO: Update constants
-            //positionFilter->setAccelerometerNoiseRadius(config->accelerometer_noise_radius);
-            poseFilter->resetState();
+			ControllerView->resetPoseFilter();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -889,9 +887,7 @@ protected:
             config->gyro_variance= request.variance();
             config->save();
 
-            // Reset the orientation filter state the calibration changed
-			//TODO: Update constants
-            ControllerView->getPoseFilterMutable()->resetState();
+			ControllerView->resetPoseFilter();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -907,9 +903,7 @@ protected:
             config->gyro_variance= request.variance();
             config->save();
 
-            // Reset the orientation filter state the calibration changed
-			//TODO: Update constants
-            ControllerView->getPoseFilterMutable()->resetState();
+			ControllerView->resetPoseFilter();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -918,6 +912,51 @@ protected:
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
+
+	void handle_request__set_optical_noise_calibration(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int controller_id = context.request->request_set_optical_noise_calibration().controller_id();
+
+		ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+		const PSMoveProtocol::Request_RequestSetOpticalNoiseCalibration &request =
+			context.request->request_set_optical_noise_calibration();
+
+		if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+		{
+			PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+			PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+
+			config->position_variance_gain = request.position_variance_gain();
+			config->position_variance_bias = request.position_variance_bias();
+			config->orientation_variance_gain = request.orientation_variance_gain();
+			config->orientation_variance_bias = request.orientation_variance_bias();
+			config->save();
+
+			ControllerView->resetPoseFilter();
+
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+		}
+		else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+		{
+			PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+			PSMoveControllerConfig *config = controller->getConfigMutable();
+
+			config->position_variance_gain = request.position_variance_gain();
+			config->position_variance_bias = request.position_variance_bias();
+			// No optical variance set for the psmove
+			config->save();
+
+			ControllerView->resetPoseFilter();
+
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
 
     // -- tracker requests -----
     inline void common_device_pose_to_protocol_pose(

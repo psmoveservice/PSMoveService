@@ -44,21 +44,20 @@ public:
         , version(CONFIG_VERSION)
         , max_poll_failure_count(100)
         , prediction_time(0.f)
-        , accelerometer_noise_radius(0.f)
-		, accelerometer_variance(0.0001f)
+        , accelerometer_noise_radius(0.015f) // rounded value from config tool measurement (g-units)
+		, accelerometer_variance(1.45e-05f) // rounded value from config tool measurement (g-units^2)
         , max_velocity(1.f)
-        , gyro_gain(0.f)
-        , gyro_variance(0.f)
-        , gyro_drift(0.f)
+        , gyro_variance(4.75e-06f) // rounded value from config tool measurement (rad^2/s^2)
+        , gyro_drift(0.00071f) // rounded value from config tool measurement (rad/s)
         , min_orientation_quality_screen_area(150.f*34.f*.1f)
         , max_orientation_quality_screen_area(150.f*34.f) // light bar at ideal range looking straight on is about 150px by 34px 
         , min_position_quality_screen_area(75.f*17.f*.25f)
         , max_position_quality_screen_area(75.f*17.f)
 		, mean_update_time_delta(0.016667f)
-		, min_position_variance(0.0001f)
-		, max_position_variance(0.0001f)
-		, min_orientation_variance(0.0001f)
-		, max_orientation_variance(0.0001f)
+		, position_variance_gain(0.0f)
+		, position_variance_bias(0.25f) // TODO: Compute this from calibration
+		, orientation_variance_gain(0.f)
+		, orientation_variance_bias(0.005f) // TODO: Compute this from calibration
     {
         // The DS4 uses the BMI055 IMU Chip: 
         // https://www.bosch-sensortec.com/bst/products/all_products/bmi055
@@ -97,14 +96,6 @@ public:
         // and is just in a 4.11 fixed point value (+1 sign bit).
         // This is twice what the stack exchange article recommends.
         gyro_gain= 1.f / 2048.f;
-
-        // This is the variance of the calibrated gyro value recorded for 100 samples
-        // Units in rad/s^2
-        gyro_variance= 1.33875039e-006f;
-
-        // This is the drift of the raw gyro value recorded for 60 seconds
-        // Units rad/s
-        gyro_drift= 0.00110168592f;
 
         // This is the ideal accelerometer reading you get when the DS4 is held such that 
         // the light bar facing is perpendicular to gravity.        
@@ -160,13 +151,21 @@ public:
 	// The average time between updates in seconds
     float mean_update_time_delta;
 
-	// The variance of the controller position measured best and worst tracking distances in meters^2
-    float min_position_variance; 
-    float max_position_variance;
+	// The variance of the controller position as a function of projection area
+    float position_variance_gain; 
+    float position_variance_bias;
 
-	// The variance of the controller orientation (when sitting still) in rad^2
-    float min_orientation_variance;
-	float max_orientation_variance;
+	// The variance of the controller orientation as a function of projection area
+    float orientation_variance_gain;
+	float orientation_variance_bias;
+
+	inline float get_position_variance(float projection_area) const {
+		return fmaxf(projection_area*position_variance_gain + position_variance_bias, 0.f);
+	}
+
+	inline float get_orientation_variance(float projection_area) const {
+		return fmaxf(projection_area*orientation_variance_gain + orientation_variance_bias, 0.f);
+	}
 };
 
 struct PSDualShock4ControllerState : public CommonControllerState

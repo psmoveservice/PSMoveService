@@ -10,7 +10,7 @@
 #include <chrono>
 
 //-- pre-declarations -----
-struct AccelerometerPoseSamples;
+struct AccelerometerStatistics;
 struct EigenFitEllipsoid;
 
 //-- definitions -----
@@ -64,7 +64,7 @@ private:
     PSMoveFloatVector3 m_lastVelocity;
     PSMoveFloatVector3 m_lastCalibratedAccelerometer;
 
-    AccelerometerPoseSamples *m_noiseSamples;
+    AccelerometerStatistics *m_noiseSamples;
 };
 
 #endif // APP_STAGE_ACCELEROMETER_CALIBRATION_H

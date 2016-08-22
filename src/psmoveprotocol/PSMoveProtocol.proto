@@ -117,22 +117,23 @@ message Request {
         SET_MAGNETOMETER_CALIBRATION= 10;
         SET_ACCELEROMETER_CALIBRATION= 11;
         SET_GYROSCOPE_CALIBRATION= 12;
+        SET_OPTICAL_NOISE_CALIBRATION= 13;
 
-        GET_TRACKER_LIST = 13;
-        START_TRACKER_DATA_STREAM = 14;
-        STOP_TRACKER_DATA_STREAM = 15;
-        GET_TRACKER_SETTINGS = 16;
-        SET_TRACKER_EXPOSURE = 17;
-        SET_TRACKER_GAIN = 18;
-        SET_TRACKER_OPTION = 19;
-        SET_TRACKER_COLOR_PRESET = 20;
-        SET_TRACKER_POSE = 21;
-        SAVE_TRACKER_PROFILE = 22;
-        APPLY_TRACKER_PROFILE = 23;
-        SEARCH_FOR_NEW_TRACKERS = 24;
+        GET_TRACKER_LIST = 14;
+        START_TRACKER_DATA_STREAM = 15;
+        STOP_TRACKER_DATA_STREAM = 16;
+        GET_TRACKER_SETTINGS = 17;
+        SET_TRACKER_EXPOSURE = 18;
+        SET_TRACKER_GAIN = 19;
+        SET_TRACKER_OPTION = 20;
+        SET_TRACKER_COLOR_PRESET = 21;
+        SET_TRACKER_POSE = 22;
+        SAVE_TRACKER_PROFILE = 23;
+        APPLY_TRACKER_PROFILE = 24;
+        SEARCH_FOR_NEW_TRACKERS = 25;
         
-        GET_HMD_TRACKING_SPACE_SETTINGS = 25;
-        SET_HMD_TRACKING_SPACE_ORIGIN = 26;
+        GET_HMD_TRACKING_SPACE_SETTINGS = 26;
+        SET_HMD_TRACKING_SPACE_ORIGIN = 27;
     }
     RequestType type = 2;
 
@@ -219,42 +220,54 @@ message Request {
         float variance= 2;
         float drift= 3;
     }
-    RequestSetGyroscopeCalibration set_gyroscope_calibration_request = 15;    
+    RequestSetGyroscopeCalibration set_gyroscope_calibration_request = 15;   
+
+    // Parameters for SET_OPTICAL_NOISE_CALIBRATION
+    message RequestSetOpticalNoiseCalibration {
+        int32 controller_id = 1;
+        // Variance in position as a function of pixel projection area
+        float position_variance_gain = 2;
+        float position_variance_bias = 3;
+        // Variance in orientation as a function of pixel projection area
+        float orientation_variance_gain = 4; // slope
+        float orientation_variance_bias = 5; // offset       
+    }
+    RequestSetOpticalNoiseCalibration request_set_optical_noise_calibration = 16;
     
     // Parameters for START_TRACKER_DATA_STREAM
     // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
     message RequestStartTrackerDataStream {
         int32 tracker_id = 1;
     }
-    RequestStartTrackerDataStream request_start_tracker_data_stream = 16;
+    RequestStartTrackerDataStream request_start_tracker_data_stream = 17;
 
     // Parameters for STOP_TRACKER_DATA_STREAM
     // NOTE: DeviceDataFrame packets will stop streaming to client upon receiving this request
     message RequestStopTrackerDataStream {
         int32 tracker_id = 1;
     }
-    RequestStopTrackerDataStream request_stop_tracker_data_stream = 17;
+    RequestStopTrackerDataStream request_stop_tracker_data_stream = 18;
     
     // Parameters for GET_TRACKER_SETTINGS
     message RequestGetTrackerSettings {
         int32 tracker_id = 1;
         int32 controller_id = 2;
     }
-    RequestGetTrackerSettings request_get_tracker_settings = 18;
+    RequestGetTrackerSettings request_get_tracker_settings = 19;
 
     // Parameters for SET_TRACKER_EXPOSURE
     message RequestSetTrackerExposure {
         int32 tracker_id = 1;
         float value = 2;
     }
-    RequestSetTrackerExposure request_set_tracker_exposure = 19;
+    RequestSetTrackerExposure request_set_tracker_exposure = 20;
 
     // Parameters for SET_TRACKER_GAIN
     message RequestSetTrackerGain {
         int32 tracker_id = 1;
         float value = 2;
     }
-    RequestSetTrackerGain request_set_tracker_gain = 20;
+    RequestSetTrackerGain request_set_tracker_gain = 21;
 
     // Parameters for SET_TRACKER_OPTION
     message RequestSetTrackerOption {
@@ -262,7 +275,7 @@ message Request {
         string option_name = 2;
         int32 option_index = 3;
     }
-    RequestSetTrackerOption request_set_tracker_option = 21;
+    RequestSetTrackerOption request_set_tracker_option = 22;
 
     // Parameters for SET_TRACKER_COLOR_PRESET
     message RequestSetTrackerColorPreset {
@@ -270,28 +283,28 @@ message Request {
         int32 controller_id = 2;
         TrackingColorPreset color_preset = 3;
     }
-    RequestSetTrackerColorPreset request_set_tracker_color_preset = 22;
+    RequestSetTrackerColorPreset request_set_tracker_color_preset = 23;
     
     // Parameters for SET_TRACKER_POSE
     message RequestSetTrackerPose {
         int32 tracker_id = 1;
         Pose pose = 2;
     }
-    RequestSetTrackerPose request_set_tracker_pose = 23;
+    RequestSetTrackerPose request_set_tracker_pose = 24;
     
     // Parameters for SAVE_TRACKER_PROFILE
     message RequestSaveTrackerProfile {
         int32 tracker_id = 1;
         int32 controller_id = 2;
     }
-    RequestSaveTrackerProfile request_save_tracker_profile = 24;
+    RequestSaveTrackerProfile request_save_tracker_profile = 25;
     
     // Parameters for APPLY_TRACKER_PROFILE
     message RequestApplyTrackerProfile {
         int32 tracker_id = 1;
         int32 controller_id = 2;
     }
-    RequestApplyTrackerProfile request_apply_tracker_profile = 25;
+    RequestApplyTrackerProfile request_apply_tracker_profile = 26;
     
     // No Parameters for SEARCH_FOR_NEW_TRACKERS
     
@@ -301,7 +314,7 @@ message Request {
     message RequestSetHMDTrackingSpaceOrigin {
         Pose origin_pose = 1;
     }
-    RequestSetHMDTrackingSpaceOrigin request_set_hmd_tracking_space_origin = 26;
+    RequestSetHMDTrackingSpaceOrigin request_set_hmd_tracking_space_origin = 27;
 }
 
 // Reliable (TCP) responses to requests

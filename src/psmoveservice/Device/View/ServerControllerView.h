@@ -49,6 +49,9 @@ public:
     bool open(const class DeviceEnumerator *enumerator) override;
     void close() override;
 
+	// Recreate and initialize the pose filter for the controller
+	void resetPoseFilter();
+
     // Compute pose/prediction of tracking blob+IMU state
     void updateOpticalPoseEstimation(TrackerManager* tracker_manager);
     void updateStateAndPredict();

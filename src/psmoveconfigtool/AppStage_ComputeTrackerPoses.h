@@ -14,8 +14,8 @@ public:
     AppStage_ComputeTrackerPoses(class App *app);
     ~AppStage_ComputeTrackerPoses();
 
-    static void enterStageAndCalibrate(class App *app);
-    static void enterStageAndSkipCalibration(class App *app);
+    static void enterStageAndCalibrate(class App *app, int desiredControllerID);
+    static void enterStageAndSkipCalibration(class App *app, int desiredControllerID);
 
     virtual void enter() override;
     virtual void exit() override;
@@ -116,6 +116,7 @@ private:
     class ClientControllerView *m_controllerView;
     t_tracker_state_map m_trackerViews;
     int m_pendingTrackerStartCount;
+	int m_desiredControllerID;
 
     int m_renderTrackerIndex;
     t_tracker_state_map_iterator m_renderTrackerIter;

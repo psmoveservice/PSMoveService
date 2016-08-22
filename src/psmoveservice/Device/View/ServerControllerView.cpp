@@ -88,12 +88,8 @@ bool ServerControllerView::allocate_device_interface(
     case CommonDeviceState::PSMove:
         {
             m_device = new PSMoveController();
-
-			init_filters_for_psmove(
-				static_cast<PSMoveController *>(m_device), 
-				&m_pose_filter_space, &m_pose_filter);
-
             m_tracker_pose_estimation = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
+
             for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
             {
                 m_tracker_pose_estimation[tracker_index].clear();
@@ -111,12 +107,8 @@ bool ServerControllerView::allocate_device_interface(
     case CommonDeviceState::PSDualShock4:
         {
             m_device = new PSDualShock4Controller();
-
-			init_filters_for_psdualshock4(
-				static_cast<PSDualShock4Controller *>(m_device),
-				&m_pose_filter_space, &m_pose_filter);
-
             m_tracker_pose_estimation = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
+
             for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
             {
                 m_tracker_pose_estimation[tracker_index].clear();
@@ -128,6 +120,9 @@ bool ServerControllerView::allocate_device_interface(
     default:
         break;
     }
+
+	// Create a pose filter based on the controller type
+	resetPoseFilter();
 
     return m_device != nullptr;
 }
@@ -241,6 +236,39 @@ void ServerControllerView::close()
     }
 
     ServerDeviceView::close();
+}
+
+void ServerControllerView::resetPoseFilter()
+{
+	assert(m_device != nullptr);
+
+	if (m_pose_filter != nullptr)
+	{
+		delete m_pose_filter;
+		m_pose_filter = nullptr;
+	}
+
+	if (m_pose_filter_space != nullptr)
+	{
+		delete m_pose_filter_space;
+		m_pose_filter_space = nullptr;
+	}
+
+	switch (m_device->getDeviceType())
+	{
+	case CommonDeviceState::PSMove:
+	{
+		init_filters_for_psmove(
+			static_cast<PSMoveController *>(m_device),
+			&m_pose_filter_space, &m_pose_filter);
+	} break;
+	case CommonDeviceState::PSDualShock4:
+		{
+			init_filters_for_psdualshock4(
+				static_cast<PSDualShock4Controller *>(m_device),
+				&m_pose_filter_space, &m_pose_filter);
+		} break;
+	}
 }
 
 void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_manager)
@@ -1394,8 +1422,12 @@ init_filters_for_psmove(
 	constants.position_constants.accelerometer_noise_radius= psmove_config->accelerometer_noise_radius;
 	constants.position_constants.max_velocity= psmove_config->max_velocity;
     constants.position_constants.mean_update_time_delta= psmove_config->mean_update_time_delta;
-    constants.position_constants.min_position_variance= psmove_config->min_position_variance;
-    constants.position_constants.max_position_variance= psmove_config->max_position_variance;
+	// min variance at max screen area
+	constants.position_constants.min_position_variance =
+		psmove_config->get_position_variance(psmove_config->max_position_quality_screen_area);
+	// max variance at min screen area
+	constants.position_constants.max_position_variance =
+		psmove_config->get_position_variance(psmove_config->min_position_quality_screen_area);
 
 	// TODO: Allow the config to select the filter type
 	// For now hard code the usage of a compound pose filter
@@ -1509,17 +1541,25 @@ init_filters_for_psdualshock4(
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
 	constants.orientation_constants.gyro_drift= ds4_config->gyro_drift;
 	constants.orientation_constants.mean_update_time_delta= ds4_config->mean_update_time_delta;
-	constants.orientation_constants.min_orientation_variance= ds4_config->min_orientation_variance;
-	constants.orientation_constants.max_orientation_variance= ds4_config->max_orientation_variance;
 	constants.orientation_constants.magnetometer_variance= 0.f; // no magnetometer on ds4
 	constants.orientation_constants.gyro_variance= ds4_config->gyro_variance;
+	// min variance at max screen area
+	constants.orientation_constants.min_orientation_variance =
+		ds4_config->get_orientation_variance(ds4_config->max_orientation_quality_screen_area);
+	// max variance at min screen area
+	constants.orientation_constants.max_orientation_variance =
+		ds4_config->get_orientation_variance(ds4_config->min_orientation_quality_screen_area);
 
 	constants.position_constants.accelerometer_variance= ds4_config->accelerometer_variance;
 	constants.position_constants.accelerometer_noise_radius= ds4_config->accelerometer_noise_radius;
 	constants.position_constants.max_velocity= ds4_config->max_velocity;
     constants.position_constants.mean_update_time_delta= ds4_config->mean_update_time_delta;
-    constants.position_constants.min_position_variance= ds4_config->min_position_variance;
-    constants.position_constants.max_position_variance= ds4_config->max_position_variance;
+	// min variance at max screen area
+	constants.position_constants.min_position_variance =
+		ds4_config->get_position_variance(ds4_config->max_position_quality_screen_area);
+	// max variance at min screen area
+	constants.position_constants.max_position_variance =
+		ds4_config->get_position_variance(ds4_config->min_position_quality_screen_area);
 
 	// TODO: Allow the config to select the filter type
 	// For now hard code the usage of a compound pose filter

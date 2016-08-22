@@ -38,18 +38,18 @@ public:
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }} 
         }})
         , magnetometer_fit_error(0.f)
-		, magnetometer_variance(0.0001f)
-		, accelerometer_variance(0.0001f)
-        , accelerometer_noise_radius(0.f)
-        , gyro_variance(1.5f*k_degrees_to_radians) // rad/s^2
-        , gyro_drift(0.9f*k_degrees_to_radians) // rad/s
+		, magnetometer_variance(0.00059f) // rounded value from config tool measurement
+		, accelerometer_variance(7.2e-06f) // rounded value from config tool measurement
+        , accelerometer_noise_radius(0.014f) // rounded value from config tool measurement
+        , gyro_variance(0.00035f) // rounded value from config tool measurement (rad/s)^2
+        , gyro_drift(0.027f) // rounded value from config tool measurement (rad/s)
         , min_position_quality_screen_area(0.f)
         , max_position_quality_screen_area(k_real_pi*20.f*20.f) // lightbulb at ideal range is about 40px by 40px 
         , max_velocity(1.f)
 		, mean_update_time_delta(0.008333f)
-		, min_position_variance(0.0001f)
-		, max_position_variance(0.0001f)
-		, orientation_variance(0.0001f)
+		, position_variance_gain(0.0f)
+		, position_variance_bias(0.25f) // TODO: Compute this from calibration
+		, orientation_variance(0.005f) // TODO: Compute this from calibration
     {
         magnetometer_identity.clear();
         magnetometer_center.clear();
@@ -119,12 +119,16 @@ public:
 	// The average time between updates in seconds
     float mean_update_time_delta;
 
-	// The variance of the controller position measured best and worst tracking distances in meters^2
-    float min_position_variance; 
-    float max_position_variance;
+	// The variance of the controller position as a function of pixel area
+    float position_variance_gain; 
+    float position_variance_bias;
 
 	// The variance of the controller orientation (when sitting still) in rad^2
     float orientation_variance;
+
+	inline float get_position_variance(float projection_area) const {
+		return fmaxf(projection_area*position_variance_gain + position_variance_bias, 0.f);
+	}
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport

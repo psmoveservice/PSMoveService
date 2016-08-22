@@ -238,23 +238,25 @@ void AppStage_TrackerSettings::renderUI()
 				m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_id(controller_id);
                 m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
             }
+
+			if (m_controllerInfos.size() > 0)
+			{
+				int controllerID = (m_selectedControllerIndex != -1) ? m_controllerInfos[m_selectedControllerIndex].ControllerID : -1;
+
+				if (ImGui::Button("Compute Tracker Poses"))
+				{
+					AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app, controllerID);
+				}
+
+				if (ImGui::Button("Test Tracking"))
+				{
+					AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app, controllerID);
+				}
+			}
         }
 
 
         ImGui::Separator();
-
-        if (m_trackerInfos.size() > 0)
-        {
-            if (ImGui::Button("Compute Tracker Poses"))
-            {
-                AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app);
-            }
-
-            if (ImGui::Button("Test Tracking"))
-            {
-                AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app);
-            }
-        }
 
         if (ImGui::Button("Return to Main Menu"))
         {
