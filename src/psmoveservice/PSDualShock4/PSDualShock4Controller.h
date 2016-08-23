@@ -44,6 +44,8 @@ public:
         , version(CONFIG_VERSION)
         , max_poll_failure_count(100)
         , prediction_time(0.f)
+		, position_filter_type("PoseKalman")
+		, orientation_filter_type("PoseKalman")
         , accelerometer_noise_radius(0.015f) // rounded value from config tool measurement (g-units)
 		, accelerometer_variance(1.45e-05f) // rounded value from config tool measurement (g-units^2)
         , max_velocity(1.f)
@@ -109,6 +111,12 @@ public:
 
     bool is_valid;
     long version;
+
+	// The type of position filter to use
+	std::string position_filter_type;
+
+	// The type of orientation filter to use
+	std::string orientation_filter_type;
 
 	// The max number of polling failures before we consider the controller disconnected
     long max_poll_failure_count;

@@ -33,6 +33,8 @@ public:
         , version(CONFIG_VERSION)
         , max_poll_failure_count(100) 
         , prediction_time(0.f)
+		, position_filter_type("PoseKalman")
+		, orientation_filter_type("PoseKalman")
         , cal_ag_xyz_kb({{ 
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }},
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }} 
@@ -73,6 +75,12 @@ public:
 
 	// The amount of prediction to apply to the controller pose after filtering
     float prediction_time;
+
+	// The type of position filter to use
+	std::string position_filter_type;
+
+	// The type of orientation filter to use
+	std::string orientation_filter_type;
 
 	// The accelerometer and gyroscope scale and bias values read from the USB calibration packet
     std::array<std::array<std::array<float, 2>, 3>, 2> cal_ag_xyz_kb;

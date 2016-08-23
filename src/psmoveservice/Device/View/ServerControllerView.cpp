@@ -29,6 +29,12 @@ static const float k_max_time_delta_seconds = 1 / 30.f;
     bitmask|= (button_state == CommonControllerState::Button_DOWN || button_state == CommonControllerState::Button_PRESSED) ? (0x1 << (bit_index)) : 0x0;
 
 //-- private methods -----
+static IPoseFilter *pose_filter_factory(
+	const CommonDeviceState::eDeviceType deviceType,
+	const std::string &position_filter_type,
+	const std::string &orientation_filter_type,
+	const PoseFilterConstants &constants);
+
 static void init_filters_for_psmove(
     const PSMoveController *psmoveController, 
 	PoseFilterSpace **out_pose_filter_space,
@@ -82,13 +88,14 @@ ServerControllerView::~ServerControllerView()
 
 bool ServerControllerView::allocate_device_interface(
     const class DeviceEnumerator *enumerator)
-{
+{	
     switch (enumerator->get_device_type())
     {
     case CommonDeviceState::PSMove:
         {
             m_device = new PSMoveController();
             m_tracker_pose_estimation = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
+			m_pose_filter= nullptr; // no pose filter until the device is opened
 
             for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
             {
@@ -108,6 +115,7 @@ bool ServerControllerView::allocate_device_interface(
         {
             m_device = new PSDualShock4Controller();
             m_tracker_pose_estimation = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
+			m_pose_filter = nullptr; // no pose filter until the device is opened
 
             for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
             {
@@ -120,9 +128,6 @@ bool ServerControllerView::allocate_device_interface(
     default:
         break;
     }
-
-	// Create a pose filter based on the controller type
-	resetPoseFilter();
 
     return m_device != nullptr;
 }
@@ -178,7 +183,8 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
                 // for usb connected controllers
                 if (psmoveController->getIsBluetooth())
                 {
-                    m_pose_filter->resetState();
+                    // Create a pose filter based on the controller type
+					resetPoseFilter();
                     m_multicam_pose_estimation->clear();
 
                     bAllocateTrackingColor = true;
@@ -196,7 +202,8 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
                 // for usb connected controllers
                 if (psdualshock4Controller->getIsBluetooth())
                 {
-					m_pose_filter->resetState();
+                    // Create a pose filter based on the controller type
+					resetPoseFilter();
                     m_multicam_pose_estimation->clear();
 
                     bAllocateTrackingColor = true;
@@ -472,11 +479,11 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
         {
             Eigen::Quaternionf avg_world_orientation;
 
-            if (eigen_quaternion_compute_weighted_average(
-                controller_world_orientations,
-                controller_orientation_weights,
-                orientations_found,
-                &avg_world_orientation))
+            if (eigen_quaternion_compute_normalized_weighted_average(
+					controller_world_orientations,
+					controller_orientation_weights,
+					orientations_found,
+					&avg_world_orientation))
             {
                 m_multicam_pose_estimation->orientation.w= avg_world_orientation.w();
                 m_multicam_pose_estimation->orientation.x= avg_world_orientation.x();
@@ -1388,6 +1395,125 @@ static void generate_psdualshock4_data_frame_for_stream(
     controller_data_frame->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
 }
 
+static IPoseFilter *
+pose_filter_factory(
+	const CommonDeviceState::eDeviceType deviceType,
+	const std::string &position_filter_type,
+	const std::string &orientation_filter_type,
+	const PoseFilterConstants &constants)
+{
+	static IPoseFilter *filter= nullptr;
+
+	if (position_filter_type == "PoseKalman" && orientation_filter_type == "PoseKalman")
+	{
+		switch (deviceType)
+		{
+		case CommonDeviceState::PSMove:
+			{
+				KalmanPoseFilterPSMove *kalmanFilter = new KalmanPoseFilterPSMove();
+				kalmanFilter->init(constants);
+				filter= kalmanFilter;
+			} break;
+		case CommonDeviceState::PSDualShock4:
+			{
+				KalmanPoseFilterDS4 *kalmanFilter = new KalmanPoseFilterDS4();
+				kalmanFilter->init(constants);
+				filter= kalmanFilter;
+			} break;
+		default:
+			assert(0 && "unreachable");
+		}
+	}
+	else
+	{
+		// Convert the position filter type string into an enum
+		PositionFilterType position_filter_enum= PositionFilterTypeNone;
+		if (position_filter_type == "PassThru")
+		{
+			position_filter_enum= PositionFilterTypePassThru;
+		}
+		else if (position_filter_type == "LowPassOptical")
+		{
+			position_filter_enum= PositionFilterTypeLowPassOptical;
+		}
+		else if (position_filter_type == "LowPassIMU")
+		{
+			position_filter_enum= PositionFilterTypeLowPassIMU;
+		}
+		else if (position_filter_type == "ComplimentaryOpticalIMU")
+		{
+			position_filter_enum= PositionFilterTypeComplimentaryOpticalIMU;
+		}
+		else
+		{
+			SERVER_LOG_INFO("pose_filter_factory()") << 
+				"Unknown position filter type: " << position_filter_type << ". Using default.";
+
+			// fallback to a default based on controller type
+			switch (deviceType)
+			{
+			case CommonDeviceState::PSMove:
+				position_filter_enum= PositionFilterTypeLowPassOptical;
+				break;
+			case CommonDeviceState::PSDualShock4:
+				position_filter_enum= PositionFilterTypeComplimentaryOpticalIMU;
+				break;
+			default:
+				assert(0 && "unreachable");
+			}
+		}
+		
+		// Convert the orientation filter type string into an enum
+		OrientationFilterType orientation_filter_enum= OrientationFilterTypeNone;
+		if (orientation_filter_type == "PassThru")
+		{
+			orientation_filter_enum= OrientationFilterTypePassThru;
+		}
+		else if (orientation_filter_type == "MadgwickARG")
+		{
+			orientation_filter_enum= OrientationFilterTypeMadgwickARG;
+		}
+		else if (orientation_filter_type == "MadgwickMARG")
+		{
+			orientation_filter_enum= OrientationFilterTypeMadgwickMARG;
+		}
+		else if (orientation_filter_type == "ComplementaryOpticalARG")
+		{
+			orientation_filter_enum= OrientationFilterTypeComplementaryOpticalARG;
+		}
+		else if (orientation_filter_type == "ComplementaryMARG")
+		{
+			orientation_filter_enum= OrientationFilterTypeComplementaryMARG;
+		}
+		else
+		{
+			SERVER_LOG_INFO("pose_filter_factory()") << 
+				"Unknown orientation filter type: " << orientation_filter_type << ". Using default.";
+
+			// fallback to a default based on controller type
+			switch (deviceType)
+			{
+			case CommonDeviceState::PSMove:
+				orientation_filter_enum= OrientationFilterTypeComplementaryMARG;
+				break;
+			case CommonDeviceState::PSDualShock4:
+				orientation_filter_enum= OrientationFilterTypeComplementaryOpticalARG;
+				break;
+			default:
+				assert(0 && "unreachable");
+			}
+		}
+
+		CompoundPoseFilter *compound_pose_filter = new CompoundPoseFilter();
+		compound_pose_filter->init(orientation_filter_enum, position_filter_enum, constants);
+		filter= compound_pose_filter;
+	}
+
+	assert(filter != nullptr);
+
+	return filter;
+}
+
 static void
 init_filters_for_psmove(
     const PSMoveController *psmoveController,
@@ -1429,13 +1555,12 @@ init_filters_for_psmove(
 	constants.position_constants.max_position_variance =
 		psmove_config->get_position_variance(psmove_config->min_position_quality_screen_area);
 
-	// TODO: Allow the config to select the filter type
-	// For now hard code the usage of a compound pose filter
-    CompoundPoseFilter *pose_filter = new CompoundPoseFilter();
-	pose_filter->init(OrientationFilterTypeComplementaryMARG, PositionFilterTypeLowPassOptical, constants);
-
 	*out_pose_filter_space= pose_filter_space;
-	*out_pose_filter= pose_filter;
+	*out_pose_filter= pose_filter_factory(
+		CommonDeviceState::eDeviceType::PSMove,
+		psmove_config->position_filter_type,
+		psmove_config->orientation_filter_type,
+		constants);
 }
 
 static void                
@@ -1561,16 +1686,12 @@ init_filters_for_psdualshock4(
 	constants.position_constants.max_position_variance =
 		ds4_config->get_position_variance(ds4_config->min_position_quality_screen_area);
 
-	// TODO: Allow the config to select the filter type
-	// For now hard code the usage of a compound pose filter
-    CompoundPoseFilter *pose_filter = new CompoundPoseFilter();
-	pose_filter->init(
-		OrientationFilterTypeComplementaryOpticalARG, 
-		PositionFilterTypeComplimentaryOpticalIMU, 
-		constants);
-
 	*out_pose_filter_space= pose_filter_space;
-	*out_pose_filter= pose_filter;
+	*out_pose_filter= pose_filter_factory(
+		CommonDeviceState::eDeviceType::PSDualShock4,
+		ds4_config->position_filter_type,
+		ds4_config->orientation_filter_type,
+		constants);
 }
 
 static void

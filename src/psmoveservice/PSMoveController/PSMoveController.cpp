@@ -252,6 +252,9 @@ PSMoveControllerConfig::config2ptree()
 
 	pt.put("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
+	pt.put("OrientationFilter.FilterType", orientation_filter_type);
+
+	pt.put("PositionFilter.FilterType", position_filter_type);
     pt.put("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
     pt.put("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
     pt.put("PositionFilter.MaxVelocity", max_velocity);
@@ -325,7 +328,9 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 
 		mean_update_time_delta= pt.get<float>("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
-        // Get the position filter parameters
+		orientation_filter_type= pt.get<std::string>("OrientationFilter.FilterType", orientation_filter_type);
+
+		position_filter_type= pt.get<std::string>("PositionFilter.FilterType", position_filter_type);
         min_position_quality_screen_area= pt.get<float>("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
         max_position_quality_screen_area= pt.get<float>("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
         max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
