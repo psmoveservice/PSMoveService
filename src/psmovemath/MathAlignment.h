@@ -114,6 +114,18 @@ eigen_alignment_fit_focal_cone_to_sphere(
     EigenFitEllipse *out_ellipse_projection= nullptr);
 
 // Compute the weighted average of multiple quaternions
+// * All weights will be renormalized against the total weight
+// * All input weights must be >= 0
+bool
+eigen_quaternion_compute_normalized_weighted_average(
+    const Eigen::Quaternionf *quaternions,
+    const float *weights,
+    const int count,
+    Eigen::Quaternionf *out_result);
+
+// Compute the weighted average of multiple quaternions
+// * Source weights are NOT renormalized
+// * Source weights can be negative
 bool
 eigen_quaternion_compute_weighted_average(
     const Eigen::Quaternionf *quaternions,

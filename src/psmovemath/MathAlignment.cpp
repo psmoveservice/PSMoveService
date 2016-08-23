@@ -667,7 +667,7 @@ eigen_alignment_fit_focal_cone_to_sphere(
 }
 
 bool
-eigen_quaternion_compute_weighted_average(
+eigen_quaternion_compute_normalized_weighted_average(
     const Eigen::Quaternionf *quaternions,
     const float *weights,
     const int count,
@@ -682,7 +682,9 @@ eigen_quaternion_compute_weighted_average(
     }
     else if (count == 2)
     {
-        const float u= safe_divide_with_default(fabs(weights[1]), fabs(weights[0]) + fabs(weights[1]), 0.f);
+		assert(weights[0] >= 0);
+		assert(weights[1] >= 0);
+        const float u= safe_divide_with_default(weights[1], weights[0] + weights[1], 0.f);
 
         *out_result= eigen_quaternion_normalized_lerp(quaternions[0], quaternions[1], u);
         success= true;
@@ -696,18 +698,94 @@ eigen_quaternion_compute_weighted_average(
         float total_weight= 0.f;
         for (int index = 0; index < count; ++index)
         {
-            total_weight+= fabsf(weights[index]);
+			assert(weights[index] >= 0);
+            total_weight+= weights[index];
         }
 
         for (int index = 0; index < count; ++index)
         {
+			// Normalize the weights against the total weight
             const Eigen::Quaternionf &sample = quaternions[index];
-            const float normalized_weight= safe_divide_with_default(fabsf(weights[index]), total_weight, 1.f);
+            const float normalized_weight= safe_divide_with_default(weights[index], total_weight, 1.f);
 
             const float w= sample.w() * normalized_weight;
             const float x= sample.x() * normalized_weight;
             const float y= sample.y() * normalized_weight;
             const float z= sample.z() * normalized_weight;
+
+            q(0, index) = w;
+            q(1, index) = x;
+            q(2, index) = y;
+            q(3, index) = z;
+
+            q_transpose(index, 0) = w;
+            q_transpose(index, 1) = x;
+            q_transpose(index, 2) = y;
+            q_transpose(index, 3) = z;
+        }
+
+        Eigen::Matrix4f M= q*q_transpose;
+
+        Eigen::EigenSolver<Eigen::Matrix4f> eigsolv(M);
+        if (eigsolv.info() == Eigen::Success)
+        {
+            int largest_row = 0;
+            float largest_eigenvalue = eigsolv.eigenvalues()[0].real();
+            for (int row_ix = 1; row_ix < 4; ++row_ix) 
+            {
+                if (eigsolv.eigenvalues()[row_ix].real() > largest_eigenvalue)
+                {
+                    largest_eigenvalue = eigsolv.eigenvalues()[row_ix].real();
+                    largest_row = row_ix;
+                }                
+            }
+
+            Eigen::Vector4f largest_eigenvector = eigsolv.eigenvectors().col(largest_row).real();
+            float w= largest_eigenvector(0);
+            float x= largest_eigenvector(1);
+            float y= largest_eigenvector(2);
+            float z= largest_eigenvector(3);
+
+            *out_result= Eigen::Quaternionf(w, x, y, z).normalized();
+            success= true;
+        }
+    }
+
+    return success;
+}
+
+bool
+eigen_quaternion_compute_weighted_average(
+    const Eigen::Quaternionf *quaternions,
+    const float *weights,
+    const int count,
+    Eigen::Quaternionf *out_result)
+{
+    bool success = false;
+
+    if (count == 1)
+    {
+        *out_result= quaternions[0];
+        success= true;
+    }
+    else
+    {
+        // http://stackoverflow.com/questions/12374087/average-of-multiple-quaternions
+        Eigen::MatrixXf q(4, count);
+        Eigen::MatrixXf q_transpose(count, 4);
+
+        for (int index = 0; index < count; ++index)
+        {
+            const Eigen::Quaternionf &sample = quaternions[index];
+			const float signed_weight= weights[index];
+            const float unsigned_weight= fabsf(weights[index]);
+
+            const float w= sample.w() * unsigned_weight;
+			// For negative weights, use the conjugate of the quaternion 
+			// (i.e. flip the rotation axis)
+            const float x= sample.x() * signed_weight;
+            const float y= sample.y() * signed_weight;
+            const float z= sample.z() * signed_weight;
 
             q(0, index) = w;
             q(1, index) = x;
