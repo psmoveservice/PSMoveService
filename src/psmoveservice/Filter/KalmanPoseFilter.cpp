@@ -181,7 +181,7 @@ public:
 		// Extract the orientations from the states
 		Eigen::Quaternionf orientations[StateCount];
 		float weights[StateCount];
-		for (int col_index = 0; col_index <= StateCount; ++col_index)
+		for (int col_index = 0; col_index < StateCount; ++col_index)
 		{
 			const PoseStateVector<T> measurement = state_matrix.col(col_index);
 			Eigen::Quaternionf orientation = measurement.get_quaternion();
@@ -765,7 +765,7 @@ namespace Kalman {
 				// Part of Eqn 19
 				Matrix<float, State::RowsAtCompileTime, SigmaPointCount-1> rightSigmaPointsMinusMean= 
 					sigmaStatePoints.template rightCols<SigmaPointCount-1>();
-				for (int col_index = 0; col_index <= SigmaPointCount-1; ++col_index)
+				for (int col_index = 0; col_index < SigmaPointCount-1; ++col_index)
 				{
 					State sigmaPoint= rightSigmaPointsMinusMean.col(col_index);
 
@@ -844,7 +844,7 @@ namespace Kalman {
 				// Part of Eqn 23
 				Matrix<float, Measurement::RowsAtCompileTime, SigmaPointCount-1> rightSigmaPointsMinusMean= 
 					sigmaMeasurementPoints.template rightCols<SigmaPointCount-1>();
-				for (int col_index = 0; col_index <= SigmaPointCount-1; ++col_index)
+				for (int col_index = 0; col_index < SigmaPointCount-1; ++col_index)
 				{
 					Measurement sigmaPoint= rightSigmaPointsMinusMean.col(col_index);
 
@@ -898,7 +898,7 @@ namespace Kalman {
 			KalmanGain<Measurement> K;
 			{
 				SigmaPoints<State> sigmaStatePointsMinusX;
-				for (int col_index = 0; col_index <= SigmaPoints<State>::ColsAtCompileTime; ++col_index)
+				for (int col_index = 0; col_index < SigmaPoints<State>::ColsAtCompileTime; ++col_index)
 				{
 					State sigmaPoint= sigmaStatePoints.col(col_index);
 
@@ -906,7 +906,7 @@ namespace Kalman {
 				}
 
 				SigmaPoints<Measurement> sigmaMeasurementPointsMinusY;
-				for (int col_index = 0; col_index <= SigmaPoints<Measurement>::ColsAtCompileTime; ++col_index)
+				for (int col_index = 0; col_index < SigmaPoints<Measurement>::ColsAtCompileTime; ++col_index)
 				{
 					Measurement measurement= sigmaMeasurementPoints.col(col_index);
 
@@ -991,15 +991,15 @@ namespace Kalman {
 			sigmaStatePoints.template leftCols<1>() = x;
 
 			// Apply the state delta column by column
-			for (int col_index = 1; col_index <= State::RowsAtCompileTime; ++col_index)
+			for (int sigma_point_offset = 0; sigma_point_offset < State::RowsAtCompileTime; ++sigma_point_offset)
 			{
 				// Set center block with x + gamma * S
-				sigmaStatePoints.col(col_index) = 
-					x.addition(this->gamma * _S.col(col_index));
+				sigmaStatePoints.col(1 + sigma_point_offset) = 
+					x.addition(this->gamma * _S.col(sigma_point_offset));
 
 				// Set right block with x - gamma * S
-				sigmaStatePoints.col(col_index+State::RowsAtCompileTime) = 
-					x.addition(-this->gamma * _S.col(col_index));
+				sigmaStatePoints.col(1 + State::RowsAtCompileTime + sigma_point_offset) = 
+					x.addition(-this->gamma * _S.col(sigma_point_offset));
 			}
 
 			return true;
@@ -1012,6 +1012,12 @@ class KalmanFilterImpl
 public:
     /// Is the current fusion state valid
     bool bIsValid;
+
+    /// True if we have seen a valid position measurement (>0 position quality)
+    bool bSeenPositionMeasurement;
+
+	/// True if we have seen a valid orientation measurement (>0 orientation quality)
+	bool bSeenOrientationMeasurement;
 
     /// Quaternion measured when controller points towards camera 
     Eigen::Quaternionf reset_orientation;
@@ -1036,6 +1042,9 @@ public:
     virtual void init(const PoseFilterConstants &constants)
     {
         bIsValid = false;
+		bSeenPositionMeasurement= false;
+		bSeenOrientationMeasurement= false;
+
         reset_orientation = Eigen::Quaternionf::Identity();
         origin_position = Eigen::Vector3f::Zero();
 
@@ -1218,6 +1227,13 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
             if (packet.optical_orientation_quality > 0.f)
             {
                 measurement.set_optical_quaternion(packet.optical_orientation);
+
+				// If this is the first time we have seen the orientation, snap the orientation state
+				if (!m_filter->bSeenOrientationMeasurement)
+				{
+					m_filter->state_vector.set_quaternion(packet.optical_orientation);
+					m_filter->bSeenOrientationMeasurement= true;
+				}
             }
 
             // If available, use the optical position
@@ -1225,20 +1241,37 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
             {
                 // State internally stores position in meters
                 measurement.set_optical_position(packet.optical_position * k_centimeters_to_meters);
+
+				// If this is the first time we have seen the position, snap the position state
+				if (!m_filter->bSeenPositionMeasurement)
+				{
+					m_filter->state_vector.set_position(packet.optical_position * k_centimeters_to_meters);
+					m_filter->bSeenPositionMeasurement= true;
+				}
             }
         }
 
         // Update UKF
         m_filter->state_vector = m_filter->ukf.update(measurement_model, measurement);
     }
-    else if (packet.optical_position_quality > 0.f)
+    else
     {
         m_filter->state_vector.setZero();
-        m_filter->state_vector.set_position(packet.optical_position * k_centimeters_to_meters);
 
-        if (packet.optical_position_quality > 0.f)
+		if (packet.optical_position_quality > 0.f)
+		{
+			m_filter->state_vector.set_position(packet.optical_position * k_centimeters_to_meters);
+			m_filter->bSeenPositionMeasurement= true;
+		}
+		else
+		{
+			m_filter->state_vector.set_position(Eigen::Vector3f::Zero());
+		}
+
+        if (packet.optical_orientation_quality > 0.f)
         {
             m_filter->state_vector.set_quaternion(packet.optical_orientation);
+			m_filter->bSeenOrientationMeasurement= true;
         }
         else
         {
@@ -1250,7 +1283,7 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
 }
 
 //-- PSMovePoseKalmanFilter --
-bool PSMovePoseKalmanFilter::init(const PoseFilterConstants &constants)
+bool KalmanPoseFilterPSMove::init(const PoseFilterConstants &constants)
 {
     KalmanPoseFilter::init(constants);
 
@@ -1261,7 +1294,7 @@ bool PSMovePoseKalmanFilter::init(const PoseFilterConstants &constants)
     return true;
 }
 
-void PSMovePoseKalmanFilter::update(const float delta_time, const PoseFilterPacket &packet)
+void KalmanPoseFilterPSMove::update(const float delta_time, const PoseFilterPacket &packet)
 {
     if (m_filter->bIsValid)
     {
@@ -1288,16 +1321,35 @@ void PSMovePoseKalmanFilter::update(const float delta_time, const PoseFilterPack
 
 			// Assign the latest optical measurement from the packet
             measurement.set_optical_position(packet.optical_position);
+
+			// If this is the first time we have seen the position, snap the position state
+			if (!m_filter->bSeenPositionMeasurement)
+			{
+				m_filter->state_vector.set_position(packet.optical_position * k_centimeters_to_meters);
+				m_filter->bSeenPositionMeasurement= true;
+			}
         }
 
         // Update UKF
         m_filter->state_vector = m_filter->ukf.update(measurement_model, measurement);
     }
-    else if (packet.optical_position_quality > 0.f)
+    else
     {
         m_filter->state_vector.setZero();
-        m_filter->state_vector.set_position(packet.optical_position * k_centimeters_to_meters);
         m_filter->state_vector.set_quaternion(Eigen::Quaternionf::Identity());
+
+		// We always "see" the orientation measurements for the PSMove (MARG state)
+		m_filter->bSeenOrientationMeasurement= true;
+
+		if (packet.optical_position_quality > 0.f)
+		{
+			m_filter->state_vector.set_position(packet.optical_position * k_centimeters_to_meters);
+			m_filter->bSeenPositionMeasurement= true;
+		}
+		else
+		{
+			m_filter->state_vector.set_position(Eigen::Vector3f::Zero());
+		}
 
         m_filter->bIsValid= true;
     }
@@ -1319,11 +1371,14 @@ void Q_discrete_3rd_order_white_noise(
     const float q1 = var * dT;
     const float q0 = var;
 
-    // Q = [.5dt^2, dt, 1]*[.5dt^2, dt, 1]^T * variance
+    // Q = [1, dt, 5dt^2]*[1, dt, .5dt^2]^T * variance
     const int &i= state_index;
-    Q(i+0,i+0) = 0.25f*q4; Q(i+0,i+1) = 0.5f*q3; Q(i+0,i+2) = 0.5f*q2;
-    Q(i+1,i+0) =  0.5f*q3; Q(i+1,i+1) =      q2; Q(i+1,i+2) =      q1;
-    Q(i+2,i+0) =  0.5f*q2; Q(i+2,i+1) =      q1; Q(i+2,i+2) =      q0;
+    //Q(i+0,i+0) = 0.25f*q4; Q(i+0,i+1) = 0.5f*q3; Q(i+0,i+2) = 0.5f*q2;
+    //Q(i+1,i+0) =  0.5f*q3; Q(i+1,i+1) =      q2; Q(i+1,i+2) =      q1;
+    //Q(i+2,i+0) =  0.5f*q2; Q(i+2,i+1) =      q1; Q(i+2,i+2) =      q0;
+    Q(i+0,i+0) = 0.25f*q4; Q(i+0,i+1) = 0.f; Q(i+0,i+2) = 0.f;
+    Q(i+1,i+0) =     0.0f; Q(i+1,i+1) =  q2; Q(i+1,i+2) = 0.f;
+    Q(i+2,i+0) =     0.0f; Q(i+2,i+1) = 0.f; Q(i+2,i+2) =  q0;
 }
 
 template <class StateType>
@@ -1340,6 +1395,8 @@ void Q_discrete_2nd_order_white_noise(
 
     // Q = [.5dt^2, dt]*[.5dt^2, dt]^T * variance
     const int &i= state_index;
-    Q(i+0,i+0) = 0.25f*q4; Q(i+0,i+1) = 0.5f*q3;
-    Q(i+1,i+0) =  0.5f*q3; Q(i+1,i+1) =      q2;
+    //Q(i+0,i+0) = 0.25f*q4; Q(i+0,i+1) = 0.5f*q3;
+    //Q(i+1,i+0) =  0.5f*q3; Q(i+1,i+1) =      q2;
+    Q(i+0,i+0) = 0.25f*q4; Q(i+0,i+1) = 0.f;
+    Q(i+1,i+0) =      0.f; Q(i+1,i+1) =  q2;
 }

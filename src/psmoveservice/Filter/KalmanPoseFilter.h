@@ -40,7 +40,7 @@ public:
 };
 
 /// Kalman Pose filter for Optical Position + Magnetometer + Angular Rate(Gyroscope) + Gravity(Accelerometer)
-class PSMovePoseKalmanFilter : public KalmanPoseFilter
+class KalmanPoseFilterPSMove : public KalmanPoseFilter
 {
 public:
 	bool init(const PoseFilterConstants &constant) override;
