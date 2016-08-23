@@ -34,9 +34,7 @@ end
 
 %% 5. Propagate sigma points through process function
 X_k = nan(filt_struct.Xdim, nsp);
-for sp_ix = 1:nsp
-    X_k(1:filt_struct.Xdim, sp_ix) = process_function(X_t(1:filt_struct.Xdim, sp_ix), X_t(Q_inds, :), dt);
-end
+X_k(1:filt_struct.Xdim, :) = process_function(X_t(1:filt_struct.Xdim, :), X_t(Q_inds, :), dt);
 
 %% 6. Estimate mean state from weighted sum of propagated sigma points
 x_k = sum(bsxfun(@times, filt_struct.weights.wm, X_k), 2);

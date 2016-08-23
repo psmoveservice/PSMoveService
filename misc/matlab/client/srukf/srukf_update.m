@@ -4,14 +4,12 @@ X_k = filt_struct.intermediates.X_k;
 X_k_r = filt_struct.intermediates.X_k_r;
 x_k = filt_struct.intermediates.x_k;
 Sx_k = filt_struct.intermediates.Sx_k;
+
 %% 1. Propagate sigma points through observation function.
 L = filt_struct.Xdim + filt_struct.Q.dim + filt_struct.R.dim;
 nsp = size(X_k, 2);
-Y_k = nan(filt_struct.Odim, nsp);
 R_inds = filt_struct.Xdim + filt_struct.Q.dim + 1 : L;
-for sp_ix = 1:nsp
-    Y_k(:, sp_ix) = observation_function(filt_struct, X_k(:, sp_ix), X_t(R_inds, :));
-end
+Y_k = observation_function(filt_struct, X_k, X_t(R_inds, :));
 
 %% 2. Calculate observation mean.
 y_k = sum(bsxfun(@times, filt_struct.weights.wm, Y_k), 2);

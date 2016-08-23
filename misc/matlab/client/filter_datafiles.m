@@ -7,13 +7,13 @@ special_state_add = @add_axang;
 special_state_sub = @sub_axang;
 special_state_mean = @mean_axang;
 Odim = 12;  % [a.x, a.y, a.z, g.x, g.y, g.z, m.x, m.y, m.z, pos.x, pos.y, pos.z]
-alpha = 1.0;
+alpha = 0.6;
 beta = 2.0;
 kappa = 3 - Xdim;
 Qdim = Xdim;  % Assume process noise is same dimensionality as state vector
 Rdim = Odim;  % Assume observation noise is same dimensionality as obs vec.
-q_scale = 0.1;  %Scale process noise
-r_scale = 1.0;
+q_scale = 10.0;  %Scale process noise
+r_scale = 10.0;
 
 %% Load data from csv
 datadir = fullfile('..','..','test_data');
@@ -136,3 +136,22 @@ for o_ix = 1:size(observations, 1)
 %     end
     
 end
+
+%% Plot results
+
+figure;
+
+subplot(1,2,1)
+pos_est = predicted_state(:, [1 4 7]);
+pos_opt = testdata(:, 10:12);
+plot3(pos_opt(:, 1), pos_opt(:, 2), pos_opt(:, 3), 'r.', 'MarkerSize', 25)
+hold on
+plot3(pos_est(:, 1), pos_est(:, 2), pos_est(:, 3), 'b', 'LineWidth', 3)
+legend('Raw', 'Filtered')
+
+subplot(1,2,2)
+axang_compl = quat2AxisAngle(testdata(:, 13:16)')';
+axang_est = predicted_state(:, [10 12 14]);
+plot(axang_compl, '.', 'MarkerSize', 25)
+hold on
+plot(axang_est, 'b', 'LineWidth', 3)
