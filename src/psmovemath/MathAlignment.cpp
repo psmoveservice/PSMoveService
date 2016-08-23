@@ -275,7 +275,9 @@ eigen_alignment_fit_min_volume_ellipsoid(
         }
 
         // Compute the Ellipsoid A-matrix i.e. (X-c)'*A*(X-c)
-        Eigen::Matrix3f A = (1.f / POINT_DIMENSION) * (P*u.asDiagonal()*P.transpose() - (P*u)*(P*u).transpose()).inverse();
+		Eigen::Matrix3f PuP_trans= P*u.asDiagonal()*P.transpose();
+		Eigen::Matrix3f PuPu_trans= (P*u)*(P*u).transpose();
+        Eigen::Matrix3f A = (1.f / POINT_DIMENSION) * (PuP_trans - PuPu_trans).inverse();
 
         // Compute the singular values of A (where A = U*D*V)
         const Eigen::JacobiSVD<Eigen::Matrix3f> svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
@@ -756,10 +758,10 @@ eigen_quaternion_compute_normalized_weighted_average(
 
 bool
 eigen_quaternion_compute_weighted_average(
-    const Eigen::Quaternionf *quaternions,
-    const float *weights,
+    const Eigen::Quaterniond *quaternions,
+    const double *weights,
     const int count,
-    Eigen::Quaternionf *out_result)
+    Eigen::Quaterniond *out_result)
 {
     bool success = false;
 
@@ -771,21 +773,21 @@ eigen_quaternion_compute_weighted_average(
     else
     {
         // http://stackoverflow.com/questions/12374087/average-of-multiple-quaternions
-        Eigen::MatrixXf q(4, count);
-        Eigen::MatrixXf q_transpose(count, 4);
+        Eigen::MatrixXd q(4, count);
+        Eigen::MatrixXd q_transpose(count, 4);
 
         for (int index = 0; index < count; ++index)
         {
-            const Eigen::Quaternionf &sample = quaternions[index];
-			const float signed_weight= weights[index];
-            const float unsigned_weight= fabsf(weights[index]);
+            const Eigen::Quaterniond &sample = quaternions[index];
+			const double signed_weight= weights[index];
+            const double unsigned_weight= fabs(weights[index]);
 
-            const float w= sample.w() * unsigned_weight;
+            const double w= sample.w() * unsigned_weight;
 			// For negative weights, use the conjugate of the quaternion 
 			// (i.e. flip the rotation axis)
-            const float x= sample.x() * signed_weight;
-            const float y= sample.y() * signed_weight;
-            const float z= sample.z() * signed_weight;
+            const double x= sample.x() * signed_weight;
+            const double y= sample.y() * signed_weight;
+            const double z= sample.z() * signed_weight;
 
             q(0, index) = w;
             q(1, index) = x;
@@ -798,13 +800,13 @@ eigen_quaternion_compute_weighted_average(
             q_transpose(index, 3) = z;
         }
 
-        Eigen::Matrix4f M= q*q_transpose;
+        Eigen::Matrix4d M= q*q_transpose;
 
-        Eigen::EigenSolver<Eigen::Matrix4f> eigsolv(M);
+        Eigen::EigenSolver<Eigen::Matrix4d> eigsolv(M);
         if (eigsolv.info() == Eigen::Success)
         {
             int largest_row = 0;
-            float largest_eigenvalue = eigsolv.eigenvalues()[0].real();
+            double largest_eigenvalue = eigsolv.eigenvalues()[0].real();
             for (int row_ix = 1; row_ix < 4; ++row_ix) 
             {
                 if (eigsolv.eigenvalues()[row_ix].real() > largest_eigenvalue)
@@ -814,13 +816,13 @@ eigen_quaternion_compute_weighted_average(
                 }                
             }
 
-            Eigen::Vector4f largest_eigenvector = eigsolv.eigenvectors().col(largest_row).real();
-            float w= largest_eigenvector(0);
-            float x= largest_eigenvector(1);
-            float y= largest_eigenvector(2);
-            float z= largest_eigenvector(3);
+            Eigen::Vector4d largest_eigenvector = eigsolv.eigenvectors().col(largest_row).real();
+            double w= largest_eigenvector(0);
+            double x= largest_eigenvector(1);
+            double y= largest_eigenvector(2);
+            double z= largest_eigenvector(3);
 
-            *out_result= Eigen::Quaternionf(w, x, y, z).normalized();
+            *out_result= Eigen::Quaterniond(w, x, y, z).normalized();
             success= true;
         }
     }

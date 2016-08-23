@@ -128,10 +128,10 @@ eigen_quaternion_compute_normalized_weighted_average(
 // * Source weights can be negative
 bool
 eigen_quaternion_compute_weighted_average(
-    const Eigen::Quaternionf *quaternions,
-    const float *weights,
+    const Eigen::Quaterniond *quaternions,
+    const double *weights,
     const int count,
-    Eigen::Quaternionf *out_result);
+    Eigen::Quaterniond *out_result);
 
 void 
 eigen_vector3f_compute_mean_and_variance(

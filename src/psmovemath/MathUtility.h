@@ -31,6 +31,9 @@
 #define is_nearly_equal(a, b, epsilon) (fabsf(a-b) <= epsilon)
 #define is_nearly_zero(x) is_nearly_equal(x, 0.0f, k_real_epsilon)
 
+#define is_double_nearly_equal(a, b, epsilon) (fabs(a-b) <= epsilon)
+#define is_double_nearly_zero(x) is_double_nearly_equal(x, 0.0, DBL_EPSILON)
+
 #ifndef sgn
 #define sgn(x) (((x) >= 0) ? 1 : -1)
 #endif

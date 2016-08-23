@@ -106,6 +106,31 @@ eigen_quaternion_normalize_with_default(Eigen::Quaternionf &inout_v, const Eigen
 	return magnitude;
 }
 
+Eigen::Quaterniond
+eigen_quaterniond_safe_divide_with_default(const Eigen::Quaterniond &q, const double divisor, const Eigen::Quaterniond &default_result)
+{
+	Eigen::Quaterniond q_n;
+
+	if (!is_double_nearly_zero(divisor))
+	{
+		q_n = Eigen::Quaterniond(q.coeffs() / divisor);
+	}
+	else
+	{
+		q_n = default_result;
+	}
+
+	return q_n;
+}
+
+double
+eigen_quaterniond_normalize_with_default(Eigen::Quaterniond &inout_v, const Eigen::Quaterniond &default_result)
+{
+	const double magnitude = inout_v.norm();
+	inout_v = eigen_quaterniond_safe_divide_with_default(inout_v, magnitude, default_result);
+	return magnitude;
+}
+
 bool
 eigen_vector3f_is_valid(const Eigen::Vector3f &v)
 {
@@ -167,6 +192,17 @@ eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f 
     return length;
 }
 
+double 
+eigen_vector3d_normalize_with_default(Eigen::Vector3d &v, const Eigen::Vector3d &default_result)
+{
+    const double length= v.norm();
+
+    // Use the default value if v is too tiny
+    v= (length > 0.0001) ? (v / length) : default_result;
+
+    return length;
+}
+
 float
 eigen_quaternion_unsigned_angle_between(const Eigen::Quaternionf &a, const Eigen::Quaternionf &b)
 {
@@ -189,6 +225,17 @@ eigen_angular_velocity_to_quaternion_derivative(
 {
 	Eigen::Quaternionf omega = Eigen::Quaternionf(0.f, ang_vel.x(), ang_vel.y(), ang_vel.z());
 	Eigen::Quaternionf quaternion_derivative = Eigen::Quaternionf(current_orientation.coeffs() * 0.5f) *omega;
+
+	return quaternion_derivative;
+}
+
+Eigen::Quaterniond
+eigen_angular_velocity_to_quaterniond_derivative(
+	const Eigen::Quaterniond &current_orientation,
+	const Eigen::Vector3d &ang_vel)
+{
+	Eigen::Quaterniond omega = Eigen::Quaterniond(0.f, ang_vel.x(), ang_vel.y(), ang_vel.z());
+	Eigen::Quaterniond quaternion_derivative = Eigen::Quaterniond(current_orientation.coeffs() * 0.5f) *omega;
 
 	return quaternion_derivative;
 }

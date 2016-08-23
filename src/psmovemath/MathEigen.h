@@ -35,8 +35,14 @@ eigen_quaternion_normalized_lerp(const Eigen::Quaternionf &a, const Eigen::Quate
 Eigen::Quaternionf
 eigen_quaternion_safe_divide_with_default(const Eigen::Quaternionf &q, const float divisor, const Eigen::Quaternionf &default_result);
 
+Eigen::Quaterniond
+eigen_quaterniond_safe_divide_with_default(const Eigen::Quaterniond &q, const double divisor, const Eigen::Quaterniond &default_result);
+
 float
 eigen_quaternion_normalize_with_default(Eigen::Quaternionf &inout_v, const Eigen::Quaternionf &default_result);
+
+double
+eigen_quaterniond_normalize_with_default(Eigen::Quaterniond &inout_v, const Eigen::Quaterniond &default_result);
 
 bool
 eigen_vector3f_is_valid(const Eigen::Vector3f &v);
@@ -62,6 +68,9 @@ eigen_vector3f_divide_by_vector_with_default(
 float 
 eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default_value);
 
+double 
+eigen_vector3d_normalize_with_default(Eigen::Vector3d &v, const Eigen::Vector3d &default_value);
+
 float
 eigen_quaternion_unsigned_angle_between(const Eigen::Quaternionf &a, const Eigen::Quaternionf &b);
 
@@ -69,6 +78,11 @@ Eigen::Quaternionf
 eigen_angular_velocity_to_quaternion_derivative(
 	const Eigen::Quaternionf &current_orientation,
 	const Eigen::Vector3f &ang_vel);
+
+Eigen::Quaterniond
+eigen_angular_velocity_to_quaterniond_derivative(
+	const Eigen::Quaterniond &current_orientation,
+	const Eigen::Vector3d &ang_vel);
 
 Eigen::Vector3f
 eigen_quaternion_derivative_to_angular_velocity(

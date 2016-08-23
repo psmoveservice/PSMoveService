@@ -67,16 +67,16 @@ enum DS4MeasurementEnum {
 // kappa=3-n where n is the size of x is a good choice for kappa, 
 // 0<=alpha<=1 is an appropriate choice for alpha, 
 // where a larger value for alpha spreads the sigma points further from the mean.
-#define k_ukf_alpha 1.f
-#define k_ukf_beta 2.f
-#define k_ukf_kappa -1.f
+#define k_ukf_alpha 1.0
+#define k_ukf_beta 2.0
+#define k_ukf_kappa -1.0
 
 //-- private methods ---
 template <class StateType>
-void Q_discrete_3rd_order_white_noise(const float dT, const float var, const int state_index, Kalman::Covariance<StateType> &Q);
+void process_3rd_order_noise(const double dT, const double var, const int state_index, Kalman::Covariance<StateType> &Q);
 
 template <class StateType>
-void Q_discrete_2nd_order_white_noise(const float dT, const float var, const int state_index, Kalman::Covariance<StateType> &Q);
+void process_2nd_order_noise(const double dT, const double var, const int state_index, Kalman::Covariance<StateType> &Q);
 
 //-- private definitions --
 template<typename T>
@@ -86,48 +86,48 @@ public:
     KALMAN_VECTOR(PoseStateVector, T, STATE_PARAMETER_COUNT)
 
     // Accessors
-    Eigen::Vector3f get_position() const { 
-        return Eigen::Vector3f((*this)[POSITION_X], (*this)[POSITION_Y], (*this)[POSITION_Z]); 
+    Eigen::Vector3d get_position() const { 
+        return Eigen::Vector3d((*this)[POSITION_X], (*this)[POSITION_Y], (*this)[POSITION_Z]); 
     }
-    Eigen::Vector3f get_linear_velocity() const {
-        return Eigen::Vector3f((*this)[LINEAR_VELOCITY_X], (*this)[LINEAR_VELOCITY_Y], (*this)[LINEAR_VELOCITY_Z]);
+    Eigen::Vector3d get_linear_velocity() const {
+        return Eigen::Vector3d((*this)[LINEAR_VELOCITY_X], (*this)[LINEAR_VELOCITY_Y], (*this)[LINEAR_VELOCITY_Z]);
     }
-    Eigen::Vector3f get_linear_acceleration() const {
-        return Eigen::Vector3f((*this)[LINEAR_ACCELERATION_X], (*this)[LINEAR_ACCELERATION_Y], (*this)[LINEAR_ACCELERATION_Z]);
+    Eigen::Vector3d get_linear_acceleration() const {
+        return Eigen::Vector3d((*this)[LINEAR_ACCELERATION_X], (*this)[LINEAR_ACCELERATION_Y], (*this)[LINEAR_ACCELERATION_Z]);
     }
-    Eigen::AngleAxisf get_angle_axis() const {
-        Eigen::Vector3f axis= Eigen::Vector3f((*this)[ANGLE_AXIS_X], (*this)[ANGLE_AXIS_Y], (*this)[ANGLE_AXIS_Z]);
-        const float angle= eigen_vector3f_normalize_with_default(axis, Eigen::Vector3f::Zero());
-        return Eigen::AngleAxisf(angle, axis);
+    Eigen::AngleAxisd get_angle_axis() const {
+        Eigen::Vector3d axis= Eigen::Vector3d((*this)[ANGLE_AXIS_X], (*this)[ANGLE_AXIS_Y], (*this)[ANGLE_AXIS_Z]);
+        const double angle= eigen_vector3d_normalize_with_default(axis, Eigen::Vector3d::Zero());
+        return Eigen::AngleAxisd(angle, axis);
     }
-    Eigen::Quaternionf get_quaternion() const {
-        return Eigen::Quaternionf(get_angle_axis());
+    Eigen::Quaterniond get_quaternion() const {
+        return Eigen::Quaterniond(get_angle_axis());
     }
-    Eigen::Vector3f get_angular_velocity() const {
-        return Eigen::Vector3f((*this)[ANGULAR_VELOCITY_X], (*this)[ANGULAR_VELOCITY_Y], (*this)[ANGULAR_VELOCITY_Z]);
+    Eigen::Vector3d get_angular_velocity() const {
+        return Eigen::Vector3d((*this)[ANGULAR_VELOCITY_X], (*this)[ANGULAR_VELOCITY_Y], (*this)[ANGULAR_VELOCITY_Z]);
     }
 
     // Mutators
-    void set_position(const Eigen::Vector3f &p) {
+    void set_position(const Eigen::Vector3d &p) {
         (*this)[POSITION_X] = p.x(); (*this)[POSITION_Y] = p.y(); (*this)[POSITION_Z] = p.z();
     }
-    void set_linear_velocity(const Eigen::Vector3f &v) {
+    void set_linear_velocity(const Eigen::Vector3d &v) {
         (*this)[LINEAR_VELOCITY_X] = v.x(); (*this)[LINEAR_VELOCITY_Y] = v.y(); (*this)[LINEAR_VELOCITY_Z] = v.z();
     }
-    void set_linear_acceleration(const Eigen::Vector3f &a) {
+    void set_linear_acceleration(const Eigen::Vector3d &a) {
         (*this)[LINEAR_ACCELERATION_X] = a.x(); (*this)[LINEAR_ACCELERATION_Y] = a.y(); (*this)[LINEAR_ACCELERATION_Z] = a.z();
     }
-    void set_angle_axis(const Eigen::AngleAxisf &a) {        
-        const float angle= a.angle();
+    void set_angle_axis(const Eigen::AngleAxisd &a) {        
+        const double angle= a.angle();
         (*this)[ANGLE_AXIS_X] = a.axis().x() * angle; 
         (*this)[ANGLE_AXIS_Y] = a.axis().y() * angle;
         (*this)[ANGLE_AXIS_Z] = a.axis().z() * angle;
     }
-    void set_quaternion(const Eigen::Quaternionf &q) {
-        const Eigen::AngleAxisf angle_axis(q);
+    void set_quaternion(const Eigen::Quaterniond &q) {
+        const Eigen::AngleAxisd angle_axis(q);
         set_angle_axis(angle_axis);
     }
-    void set_angular_velocity(const Eigen::Vector3f &v) {
+    void set_angular_velocity(const Eigen::Vector3d &v) {
         (*this)[ANGULAR_VELOCITY_X] = v.x(); (*this)[ANGULAR_VELOCITY_Y] = v.y(); (*this)[ANGULAR_VELOCITY_Z] = v.z();
     }
 
@@ -137,13 +137,13 @@ public:
 		PoseStateVector<T> result = (*this) + stateDelta;
 
 		// Extract the orientation quaternion from this state (which is stored as an angle axis vector)
-		const Eigen::Quaternionf orientation = this->get_quaternion();
+		const Eigen::Quaterniond orientation = this->get_quaternion();
 
 		// Extract the delta quaternion (which is also stored as an angle axis vector)
-		const Eigen::Quaternionf delta = stateDelta.get_quaternion();
+		const Eigen::Quaterniond delta = stateDelta.get_quaternion();
 
 		// Apply the delta to the orientation
-		const Eigen::Quaternionf new_rotation = delta*orientation;
+		const Eigen::Quaterniond new_rotation = delta*orientation;
 
 		// Stomp over the simple addition of the angle axis result
 		result.set_quaternion(new_rotation);
@@ -153,15 +153,15 @@ public:
 
 	PoseStateVector<T> difference(const PoseStateVector<T> &other) const
 	{
-		// Do the default state vector substraction first
+		// Do the default state vector subtraction first
 		PoseStateVector<T> state_diff= (*this) - other;
 		
 		// Extract the orientation quaternion from both states (which is stored as an angle axis vector)
-		const Eigen::Quaternionf q1= this->get_quaternion();
-		const Eigen::Quaternionf q2= other.get_quaternion();
+		const Eigen::Quaterniond q1= this->get_quaternion();
+		const Eigen::Quaterniond q2= other.get_quaternion();
 
 		// Compute the "quaternion difference" i.e. rotation from q1 to q2
-		const Eigen::Quaternionf q_diff= q2*q1.conjugate();
+		const Eigen::Quaterniond q_diff= q2*q1.conjugate();
 
 		// Stomp over the simple subtraction of the angle axis result
 		state_diff.set_quaternion(q_diff);
@@ -179,19 +179,19 @@ public:
 		PoseStateVector<T> result= state_matrix * weight_vector;
 
 		// Extract the orientations from the states
-		Eigen::Quaternionf orientations[StateCount];
-		float weights[StateCount];
+		Eigen::Quaterniond orientations[StateCount];
+		double weights[StateCount];
 		for (int col_index = 0; col_index < StateCount; ++col_index)
 		{
 			const PoseStateVector<T> measurement = state_matrix.col(col_index);
-			Eigen::Quaternionf orientation = measurement.get_quaternion();
+			Eigen::Quaterniond orientation = measurement.get_quaternion();
 
 			orientations[col_index]= orientation;
 			weights[col_index]= weight_vector[col_index];
 		}
 
 		// Compute the average of the quaternions
-		Eigen::Quaternionf average_quat;
+		Eigen::Quaterniond average_quat;
 		eigen_quaternion_compute_weighted_average(orientations, weights, StateCount, &average_quat);
 
 		// Stomp the incorrect orientation average
@@ -200,7 +200,7 @@ public:
 		return result;
 	}
 };
-typedef PoseStateVector<float> PoseStateVectorf;
+typedef PoseStateVector<double> PoseStateVectord;
 
 template<typename T>
 class PSMove_MeasurementVector : public Kalman::Vector<T, PSMOVE_MEASUREMENT_PARAMETER_COUNT>
@@ -209,30 +209,30 @@ public:
     KALMAN_VECTOR(PSMove_MeasurementVector, T, PSMOVE_MEASUREMENT_PARAMETER_COUNT)
 
     // Accessors
-    Eigen::Vector3f get_accelerometer() const {
-        return Eigen::Vector3f((*this)[PSMOVE_ACCELEROMETER_X], (*this)[PSMOVE_ACCELEROMETER_Y], (*this)[PSMOVE_ACCELEROMETER_Z]);
+    Eigen::Vector3d get_accelerometer() const {
+        return Eigen::Vector3d((*this)[PSMOVE_ACCELEROMETER_X], (*this)[PSMOVE_ACCELEROMETER_Y], (*this)[PSMOVE_ACCELEROMETER_Z]);
     }
-    Eigen::Vector3f get_gyroscope() const {
-        return Eigen::Vector3f((*this)[PSMOVE_GYROSCOPE_X], (*this)[PSMOVE_GYROSCOPE_Y], (*this)[PSMOVE_GYROSCOPE_Z]);
+    Eigen::Vector3d get_gyroscope() const {
+        return Eigen::Vector3d((*this)[PSMOVE_GYROSCOPE_X], (*this)[PSMOVE_GYROSCOPE_Y], (*this)[PSMOVE_GYROSCOPE_Z]);
     }
-    Eigen::Vector3f get_magnetometer() const {
-        return Eigen::Vector3f((*this)[PSMOVE_MAGNETOMETER_X], (*this)[PSMOVE_MAGNETOMETER_Y], (*this)[PSMOVE_MAGNETOMETER_Z]);
+    Eigen::Vector3d get_magnetometer() const {
+        return Eigen::Vector3d((*this)[PSMOVE_MAGNETOMETER_X], (*this)[PSMOVE_MAGNETOMETER_Y], (*this)[PSMOVE_MAGNETOMETER_Z]);
     }
-    Eigen::Vector3f get_optical_position() const {
-        return Eigen::Vector3f((*this)[PSMOVE_OPTICAL_POSITION_X], (*this)[PSMOVE_OPTICAL_POSITION_Y], (*this)[PSMOVE_OPTICAL_POSITION_Z]);
+    Eigen::Vector3d get_optical_position() const {
+        return Eigen::Vector3d((*this)[PSMOVE_OPTICAL_POSITION_X], (*this)[PSMOVE_OPTICAL_POSITION_Y], (*this)[PSMOVE_OPTICAL_POSITION_Z]);
     }
 
     // Mutators
-    void set_accelerometer(const Eigen::Vector3f &a) {
+    void set_accelerometer(const Eigen::Vector3d &a) {
         (*this)[PSMOVE_ACCELEROMETER_X] = a.x(); (*this)[PSMOVE_ACCELEROMETER_Y] = a.y(); (*this)[PSMOVE_ACCELEROMETER_Z] = a.z();
     }
-    void set_gyroscope(const Eigen::Vector3f &g) {
+    void set_gyroscope(const Eigen::Vector3d &g) {
         (*this)[PSMOVE_GYROSCOPE_X] = g.x(); (*this)[PSMOVE_GYROSCOPE_Y] = g.y(); (*this)[PSMOVE_GYROSCOPE_Z] = g.z();
     }
-    void set_optical_position(const Eigen::Vector3f &p) {
+    void set_optical_position(const Eigen::Vector3d &p) {
         (*this)[PSMOVE_OPTICAL_POSITION_X] = p.x(); (*this)[PSMOVE_OPTICAL_POSITION_Y] = p.y(); (*this)[PSMOVE_OPTICAL_POSITION_Z] = p.z();
     }
-    void set_magnetometer(const Eigen::Vector3f &m) {
+    void set_magnetometer(const Eigen::Vector3d &m) {
         (*this)[PSMOVE_MAGNETOMETER_X] = m.x(); (*this)[PSMOVE_MAGNETOMETER_Y] = m.y(); (*this)[PSMOVE_MAGNETOMETER_Z] = m.z();
     }
 
@@ -255,7 +255,7 @@ public:
 		return result;
 	}
 };
-typedef PSMove_MeasurementVector<float> PSMove_MeasurementVectorf;
+typedef PSMove_MeasurementVector<double> PSMove_MeasurementVectord;
 
 template<typename T>
 class DS4_MeasurementVector : public Kalman::Vector<T, DS4_MEASUREMENT_PARAMETER_COUNT>
@@ -264,42 +264,42 @@ public:
     KALMAN_VECTOR(DS4_MeasurementVector, T, DS4_MEASUREMENT_PARAMETER_COUNT)
 
     // Accessors
-    Eigen::Vector3f get_accelerometer() const {
-        return Eigen::Vector3f((*this)[DS4_ACCELEROMETER_X], (*this)[DS4_ACCELEROMETER_Y], (*this)[DS4_ACCELEROMETER_Z]);
+    Eigen::Vector3d get_accelerometer() const {
+        return Eigen::Vector3d((*this)[DS4_ACCELEROMETER_X], (*this)[DS4_ACCELEROMETER_Y], (*this)[DS4_ACCELEROMETER_Z]);
     }
-    Eigen::Vector3f get_gyroscope() const {
-        return Eigen::Vector3f((*this)[DS4_GYROSCOPE_X], (*this)[DS4_GYROSCOPE_Y], (*this)[DS4_GYROSCOPE_Z]);
+    Eigen::Vector3d get_gyroscope() const {
+        return Eigen::Vector3d((*this)[DS4_GYROSCOPE_X], (*this)[DS4_GYROSCOPE_Y], (*this)[DS4_GYROSCOPE_Z]);
     }
-    Eigen::Vector3f get_optical_position() const {
-        return Eigen::Vector3f((*this)[DS4_OPTICAL_POSITION_X], (*this)[DS4_OPTICAL_POSITION_Y], (*this)[DS4_OPTICAL_POSITION_Z]);
+    Eigen::Vector3d get_optical_position() const {
+        return Eigen::Vector3d((*this)[DS4_OPTICAL_POSITION_X], (*this)[DS4_OPTICAL_POSITION_Y], (*this)[DS4_OPTICAL_POSITION_Z]);
     }
-    Eigen::AngleAxisf get_optical_angle_axis() const {
-        Eigen::Vector3f axis= Eigen::Vector3f((*this)[DS4_OPTICAL_ANGLE_AXIS_X], (*this)[DS4_OPTICAL_ANGLE_AXIS_Y], (*this)[DS4_OPTICAL_ANGLE_AXIS_Z]);
-        const float angle= eigen_vector3f_normalize_with_default(axis, Eigen::Vector3f::Zero());
-        return Eigen::AngleAxisf(angle, axis);
+    Eigen::AngleAxisd get_optical_angle_axis() const {
+        Eigen::Vector3d axis= Eigen::Vector3d((*this)[DS4_OPTICAL_ANGLE_AXIS_X], (*this)[DS4_OPTICAL_ANGLE_AXIS_Y], (*this)[DS4_OPTICAL_ANGLE_AXIS_Z]);
+        const double angle= eigen_vector3d_normalize_with_default(axis, Eigen::Vector3d::Zero());
+        return Eigen::AngleAxisd(angle, axis);
     }
-    Eigen::Quaternionf get_optical_quaternion() const {
-        return Eigen::Quaternionf(get_optical_angle_axis());
+    Eigen::Quaterniond get_optical_quaternion() const {
+        return Eigen::Quaterniond(get_optical_angle_axis());
     }
 
     // Mutators
-    void set_accelerometer(const Eigen::Vector3f &a) {
+    void set_accelerometer(const Eigen::Vector3d &a) {
         (*this)[DS4_ACCELEROMETER_X] = a.x(); (*this)[DS4_ACCELEROMETER_Y] = a.y(); (*this)[DS4_ACCELEROMETER_Z] = a.z();
     }
-    void set_gyroscope(const Eigen::Vector3f &g) {
+    void set_gyroscope(const Eigen::Vector3d &g) {
         (*this)[DS4_GYROSCOPE_X] = g.x(); (*this)[DS4_GYROSCOPE_Y] = g.y(); (*this)[DS4_GYROSCOPE_Z] = g.z();
     }
-    void set_optical_position(const Eigen::Vector3f &p) {
+    void set_optical_position(const Eigen::Vector3d &p) {
         (*this)[DS4_OPTICAL_POSITION_X] = p.x(); (*this)[DS4_OPTICAL_POSITION_Y] = p.y(); (*this)[DS4_OPTICAL_POSITION_Z] = p.z();
     }
-    void set_angle_axis(const Eigen::AngleAxisf &a) {        
-        const float angle= a.angle();
+    void set_angle_axis(const Eigen::AngleAxisd &a) {        
+        const double angle= a.angle();
         (*this)[DS4_OPTICAL_ANGLE_AXIS_X] = a.axis().x() * angle; 
         (*this)[DS4_OPTICAL_ANGLE_AXIS_Y] = a.axis().y() * angle;
         (*this)[DS4_OPTICAL_ANGLE_AXIS_Z] = a.axis().z() * angle;
     }
-    void set_optical_quaternion(const Eigen::Quaternionf &q) {
-        const Eigen::AngleAxisf angle_axis(q);
+    void set_optical_quaternion(const Eigen::Quaterniond &q) {
+        const Eigen::AngleAxisd angle_axis(q);
         set_angle_axis(angle_axis);
     }
 
@@ -307,9 +307,9 @@ public:
 	{
 		DS4_MeasurementVector<T> measurement_diff= (*this) - other;
 		
-		const Eigen::Quaternionf q1= this->get_optical_quaternion();
-		const Eigen::Quaternionf q2= other.get_optical_quaternion();
-		const Eigen::Quaternionf q_diff= q2*q1.conjugate();
+		const Eigen::Quaterniond q1= this->get_optical_quaternion();
+		const Eigen::Quaterniond q2= other.get_optical_quaternion();
+		const Eigen::Quaterniond q_diff= q2*q1.conjugate();
 
 		// Stomp the incorrect orientation difference computed by the vector subtraction
 		measurement_diff.set_optical_quaternion(q_diff);
@@ -327,19 +327,19 @@ public:
 		DS4_MeasurementVector<T> result= measurement_matrix * weight_vector;
 
 		// Extract the orientations from the measurements
-		Eigen::Quaternionf orientations[StateCount];
-		float weights[StateCount];
+		Eigen::Quaterniond orientations[StateCount];
+		double weights[StateCount];
 		for (int col_index = 0; col_index <= StateCount; ++col_index)
 		{
 			const DS4_MeasurementVector<T> measurement = measurement_matrix.col(col_index);
-			Eigen::Quaternionf orientation = measurement.get_optical_quaternion();
+			Eigen::Quaterniond orientation = measurement.get_optical_quaternion();
 
 			orientations[col_index]= orientation;
 			weights[col_index]= weight_vector[col_index];
 		}
 
 		// Compute the average of the quaternions
-		Eigen::Quaternionf average_quat;
+		Eigen::Quaterniond average_quat;
 		eigen_quaternion_compute_weighted_average(orientations, weights, StateCount, &average_quat);
 
 		// Stomp the incorrect orientation average
@@ -348,7 +348,7 @@ public:
 		return result;
 	}
 };
-typedef DS4_MeasurementVector<float> DS4_MeasurementVectorf;
+typedef DS4_MeasurementVector<double> DS4_MeasurementVectord;
 
 /**
 * @brief System model for a controller
@@ -356,32 +356,32 @@ typedef DS4_MeasurementVector<float> DS4_MeasurementVectorf;
 * This is the system model defining how a controller advances from one
 * time-step to the next, i.e. how the system state evolves over time.
 */
-class PoseSystemModel : public Kalman::SystemModel<PoseStateVectorf, Kalman::Vector<float, 0>, Kalman::SquareRootBase>
+class PoseSystemModel : public Kalman::SystemModel<PoseStateVectord, Kalman::Vector<double, 0>, Kalman::SquareRootBase>
 {
 public:
-    inline void set_time_step(const float dt) { m_time_step = dt; }
+    inline void set_time_step(const double dt) { m_time_step = dt; }
 
     void init(const PoseFilterConstants &constants)
     {
-        const float mean_position_dT= constants.position_constants.mean_update_time_delta;
-        const float mean_orientation_dT= constants.position_constants.mean_update_time_delta;
+        const double mean_position_dT= constants.position_constants.mean_update_time_delta;
+        const double mean_orientation_dT= constants.position_constants.mean_update_time_delta;
 
         // Start off using the maximum variance values
-        const float position_variance= 
+        const double position_variance= 
 			(constants.position_constants.min_position_variance +
 			constants.position_constants.max_position_variance) * 0.5f;
-		const float angle_axis_variance= 
+		const double angle_axis_variance= 
 			(constants.orientation_constants.min_orientation_variance +
 			constants.orientation_constants.max_orientation_variance) * 0.5f;
 
         // Initialize the process covariance matrix Q
-        Kalman::Covariance<PoseStateVectorf> Q = Kalman::Covariance<PoseStateVectorf>::Zero();
-        Q_discrete_3rd_order_white_noise<PoseStateVectorf>(mean_position_dT, position_variance, POSITION_X, Q);
-		Q_discrete_3rd_order_white_noise<PoseStateVectorf>(mean_position_dT, position_variance, POSITION_Y, Q);
-		Q_discrete_3rd_order_white_noise<PoseStateVectorf>(mean_position_dT, position_variance, POSITION_Z, Q);
-		Q_discrete_2nd_order_white_noise<PoseStateVectorf>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_X, Q);
-		Q_discrete_2nd_order_white_noise<PoseStateVectorf>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Y, Q);
-		Q_discrete_2nd_order_white_noise<PoseStateVectorf>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Z, Q);
+        Kalman::Covariance<PoseStateVectord> Q = Kalman::Covariance<PoseStateVectord>::Zero();
+        process_3rd_order_noise<PoseStateVectord>(mean_position_dT, position_variance, POSITION_X, Q);
+		process_3rd_order_noise<PoseStateVectord>(mean_position_dT, position_variance, POSITION_Y, Q);
+		process_3rd_order_noise<PoseStateVectord>(mean_position_dT, position_variance, POSITION_Z, Q);
+		process_2nd_order_noise<PoseStateVectord>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_X, Q);
+		process_2nd_order_noise<PoseStateVectord>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Y, Q);
+		process_2nd_order_noise<PoseStateVectord>(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Z, Q);
         setCovariance(Q);
     }
 
@@ -397,33 +397,33 @@ public:
     * @param [in] u The control vector input
     * @returns The (predicted) system state in the next time-step
     */
-    PoseStateVectorf f(const PoseStateVectorf& old_state, const Kalman::Vector<float, 0>& control) const
+    PoseStateVectord f(const PoseStateVectord& old_state, const Kalman::Vector<double, 0>& control) const
     {
         //! Predicted state vector after transition
-        PoseStateVectorf new_state;
+        PoseStateVectord new_state;
 
         // Extract parameters from the old state
-        const Eigen::Vector3f old_position = old_state.get_position();
-        const Eigen::Vector3f old_linear_velocity = old_state.get_linear_velocity();
-        const Eigen::Vector3f old_linear_acceleration = old_state.get_linear_acceleration();
-        const Eigen::Quaternionf old_orientation = old_state.get_quaternion();
-        const Eigen::Vector3f old_angular_velocity = old_state.get_angular_velocity();
+        const Eigen::Vector3d old_position = old_state.get_position();
+        const Eigen::Vector3d old_linear_velocity = old_state.get_linear_velocity();
+        const Eigen::Vector3d old_linear_acceleration = old_state.get_linear_acceleration();
+        const Eigen::Quaterniond old_orientation = old_state.get_quaternion();
+        const Eigen::Vector3d old_angular_velocity = old_state.get_angular_velocity();
 
         // Compute the position state update
-        const Eigen::Vector3f new_position= 
+        const Eigen::Vector3d new_position= 
             old_position 
             + old_linear_velocity*m_time_step 
             + old_linear_acceleration*m_time_step*m_time_step*0.5f;
-        const Eigen::Vector3f new_linear_velocity= old_linear_velocity + old_linear_acceleration*m_time_step;
-        const Eigen::Vector3f &new_linear_acceleration= old_linear_acceleration;
+        const Eigen::Vector3d new_linear_velocity= old_linear_velocity + old_linear_acceleration*m_time_step;
+        const Eigen::Vector3d &new_linear_acceleration= old_linear_acceleration;
 
         // Compute the orientation update
-        const Eigen::Quaternionf quaternion_derivative =
-            eigen_angular_velocity_to_quaternion_derivative(old_orientation, old_angular_velocity);
-        const Eigen::Quaternionf new_orientation = Eigen::Quaternionf(
+        const Eigen::Quaterniond quaternion_derivative =
+            eigen_angular_velocity_to_quaterniond_derivative(old_orientation, old_angular_velocity);
+        const Eigen::Quaterniond new_orientation = Eigen::Quaterniond(
             old_orientation.coeffs()
             + quaternion_derivative.coeffs()*m_time_step).normalized();
-        const Eigen::Vector3f &new_angular_velocity= old_angular_velocity;
+        const Eigen::Vector3d &new_angular_velocity= old_angular_velocity;
 
         // Save results to the new state
         new_state.set_position(new_position);
@@ -436,7 +436,7 @@ public:
     }
 
 protected:
-    float m_time_step;
+    double m_time_step;
 };
 
 /**
@@ -445,15 +445,15 @@ protected:
 * This is the measurement model for measuring the position and magnetometer of the PSMove controller.
 * The measurement is given by the optical trackers.
 */
-class PSMove_MeasurementModel : public Kalman::MeasurementModel<PoseStateVectorf, PSMove_MeasurementVectorf, Kalman::SquareRootBase>
+class PSMove_MeasurementModel : public Kalman::MeasurementModel<PoseStateVectord, PSMove_MeasurementVectord, Kalman::SquareRootBase>
 {
 public:
     void init(const PoseFilterConstants &constants)
     {
 		update_measurement_covariance(constants, 0.f);
         
-		m_identity_gravity_direction= constants.orientation_constants.gravity_calibration_direction;
-		m_identity_magnetometer_direction= constants.orientation_constants.magnetometer_calibration_direction;
+		m_identity_gravity_direction= constants.orientation_constants.gravity_calibration_direction.cast<double>();
+		m_identity_magnetometer_direction= constants.orientation_constants.magnetometer_calibration_direction.cast<double>();
     }
 
 	void update_measurement_covariance(
@@ -461,18 +461,18 @@ public:
 		const float position_quality)
 	{
         // Start off using the maximum variance values
-		const float accelerometer_variance= constants.position_constants.accelerometer_variance;
-		const float gyro_variance= constants.orientation_constants.gyro_variance;
-		const float magnetometer_variance= constants.orientation_constants.magnetometer_variance;
-        const float position_variance= 
+		const double accelerometer_variance= constants.position_constants.accelerometer_variance;
+		const double gyro_variance= constants.orientation_constants.gyro_variance;
+		const double magnetometer_variance= constants.orientation_constants.magnetometer_variance;
+        const double position_variance= 
 			lerp_clampf(
 				constants.position_constants.max_position_variance,
 				constants.position_constants.min_position_variance,
 				position_quality);
 
         // Update the measurement covariance R
-        Kalman::Covariance<PSMove_MeasurementVectorf> R = 
-			Kalman::Covariance<PSMove_MeasurementVectorf>::Zero();
+        Kalman::Covariance<PSMove_MeasurementVectord> R = 
+			Kalman::Covariance<PSMove_MeasurementVectord>::Zero();
 		R(PSMOVE_ACCELEROMETER_X, PSMOVE_ACCELEROMETER_X) = accelerometer_variance;
 		R(PSMOVE_ACCELEROMETER_Y, PSMOVE_ACCELEROMETER_Y) = accelerometer_variance;
 		R(PSMOVE_ACCELEROMETER_Z, PSMOVE_ACCELEROMETER_Z) = accelerometer_variance;
@@ -498,32 +498,32 @@ public:
     * @param [in] x The system state in current time-step
     * @returns The (predicted) sensor measurement for the system state
     */
-    PSMove_MeasurementVectorf h(const PoseStateVectorf& x) const
+    PSMove_MeasurementVectord h(const PoseStateVectord& x) const
     {
-        PSMove_MeasurementVectorf predicted_measurement;
+        PSMove_MeasurementVectord predicted_measurement;
 
         // Use the position and orientation from the state for predictions
-        const Eigen::Vector3f position= x.get_position();
-        const Eigen::Quaternionf orientation= x.get_quaternion();
+        const Eigen::Vector3d position= x.get_position();
+        const Eigen::Quaterniond orientation= x.get_quaternion();
 
         // Use the current linear acceleration from the state to predict
         // what the accelerometer reading will be (in world space)
-        const Eigen::Vector3f gravity_accel_g_units= -m_identity_gravity_direction;
-        const Eigen::Vector3f linear_accel_g_units= x.get_linear_acceleration() * k_ms2_to_g_units;
-        const Eigen::Vector3f accel_world= linear_accel_g_units + gravity_accel_g_units;
-        const Eigen::Quaternionf accel_world_quat(0.f, accel_world.x(), accel_world.y(), accel_world.z());
+        const Eigen::Vector3d gravity_accel_g_units= -m_identity_gravity_direction;
+        const Eigen::Vector3d linear_accel_g_units= x.get_linear_acceleration() * k_ms2_to_g_units;
+        const Eigen::Vector3d accel_world= linear_accel_g_units + gravity_accel_g_units;
+        const Eigen::Quaterniond accel_world_quat(0.f, accel_world.x(), accel_world.y(), accel_world.z());
 
         // Put the accelerometer prediction into the local space of the controller
-        const Eigen::Vector3f accel_local= orientation*(accel_world_quat*orientation.conjugate()).vec();
+        const Eigen::Vector3d accel_local= orientation*(accel_world_quat*orientation.conjugate()).vec();
 
         // Use the angular velocity from the state to predict what the gyro reading will be
-        const Eigen::Vector3f gyro_local= x.get_angular_velocity(); 
+        const Eigen::Vector3d gyro_local= x.get_angular_velocity(); 
 
         // Use the orientation from the state to predict
         // what the magnetometer reading should be
-        const Eigen::Vector3f &mag_world= m_identity_magnetometer_direction;
-        const Eigen::Quaternionf mag_world_quat(0.f, mag_world.x(), mag_world.y(), mag_world.z());
-        const Eigen::Vector3f mag_local= orientation*(mag_world_quat*orientation.conjugate()).vec();
+        const Eigen::Vector3d &mag_world= m_identity_magnetometer_direction;
+        const Eigen::Quaterniond mag_world_quat(0.f, mag_world.x(), mag_world.y(), mag_world.z());
+        const Eigen::Vector3d mag_local= orientation*(mag_world_quat*orientation.conjugate()).vec();
 
         // Save the predictions into the measurement vector
         predicted_measurement.set_accelerometer(accel_local);
@@ -535,8 +535,8 @@ public:
     }
 
 protected:
-    Eigen::Vector3f m_identity_gravity_direction;
-    Eigen::Vector3f m_identity_magnetometer_direction;
+    Eigen::Vector3d m_identity_gravity_direction;
+    Eigen::Vector3d m_identity_magnetometer_direction;
 };
 
 /**
@@ -545,14 +545,14 @@ protected:
 * This is the measurement model for measuring the position and orientation of the DS4 controller.
 * The measurement is given by the optical trackers.
 */
-class DS4_MeasurementModel : public Kalman::MeasurementModel<PoseStateVectorf, DS4_MeasurementVectorf, Kalman::SquareRootBase>
+class DS4_MeasurementModel : public Kalman::MeasurementModel<PoseStateVectord, DS4_MeasurementVectord, Kalman::SquareRootBase>
 {
 public:
     void init(const PoseFilterConstants &constants)
     {
 		update_measurement_covariance(constants,0.f, 0.f);
 
-		m_identity_gravity_direction= constants.orientation_constants.gravity_calibration_direction;
+		m_identity_gravity_direction= constants.orientation_constants.gravity_calibration_direction.cast<double>();
     }
 
 	void update_measurement_covariance(
@@ -561,22 +561,22 @@ public:
 		const float orientation_quality)
 	{
         // Start off using the maximum variance values
-		const float accelerometer_variance= constants.position_constants.accelerometer_variance;
-		const float gyro_variance= constants.orientation_constants.gyro_variance;
-        const float position_variance= 
+		const double accelerometer_variance= constants.position_constants.accelerometer_variance;
+		const double gyro_variance= constants.orientation_constants.gyro_variance;
+        const double position_variance= 
 			lerp_clampf(
 				constants.position_constants.max_position_variance,
 				constants.position_constants.min_position_variance,
 				position_quality);
-		const float angle_axis_variance=
+		const double angle_axis_variance=
 			lerp_clampf(
 				constants.orientation_constants.max_orientation_variance,
 				constants.orientation_constants.min_orientation_variance,
 				orientation_quality);
 
         // Update the measurement covariance R
-        Kalman::Covariance<DS4_MeasurementVectorf> R = 
-			Kalman::Covariance<DS4_MeasurementVectorf>::Zero();
+        Kalman::Covariance<DS4_MeasurementVectord> R = 
+			Kalman::Covariance<DS4_MeasurementVectord>::Zero();
 		R(DS4_ACCELEROMETER_X, DS4_ACCELEROMETER_X) = accelerometer_variance;
 		R(DS4_ACCELEROMETER_Y, DS4_ACCELEROMETER_Y) = accelerometer_variance;
 		R(DS4_ACCELEROMETER_Z, DS4_ACCELEROMETER_Z) = accelerometer_variance;
@@ -602,26 +602,26 @@ public:
     * @param [in] x The system state in current time-step
     * @returns The (predicted) sensor measurement for the system state
     */
-    DS4_MeasurementVectorf h(const PoseStateVectorf& x) const
+    DS4_MeasurementVectord h(const PoseStateVectord& x) const
     {
-        DS4_MeasurementVectorf predicted_measurement;
+        DS4_MeasurementVectord predicted_measurement;
 
         // Use the position and orientation from the state for predictions
-        const Eigen::Vector3f position= x.get_position();
-        const Eigen::Quaternionf orientation= x.get_quaternion();
+        const Eigen::Vector3d position= x.get_position();
+        const Eigen::Quaterniond orientation= x.get_quaternion();
 
         // Use the current linear acceleration from the state to predict
         // what the accelerometer reading will be (in world space)
-        const Eigen::Vector3f gravity_accel_g_units= -m_identity_gravity_direction;
-        const Eigen::Vector3f linear_accel_g_units= x.get_linear_acceleration() * k_ms2_to_g_units;
-        const Eigen::Vector3f accel_world= linear_accel_g_units + gravity_accel_g_units;
-        const Eigen::Quaternionf accel_world_quat(0.f, accel_world.x(), accel_world.y(), accel_world.z());
+        const Eigen::Vector3d gravity_accel_g_units= -m_identity_gravity_direction;
+        const Eigen::Vector3d linear_accel_g_units= x.get_linear_acceleration() * k_ms2_to_g_units;
+        const Eigen::Vector3d accel_world= linear_accel_g_units + gravity_accel_g_units;
+        const Eigen::Quaterniond accel_world_quat(0.f, accel_world.x(), accel_world.y(), accel_world.z());
 
         // Put the accelerometer prediction into the local space of the controller
-        const Eigen::Vector3f accel_local= orientation*(accel_world_quat*orientation.conjugate()).vec();
+        const Eigen::Vector3d accel_local= orientation*(accel_world_quat*orientation.conjugate()).vec();
 
         // Use the angular velocity from the state to predict what the gyro reading will be
-        const Eigen::Vector3f gyro_local= x.get_angular_velocity(); 
+        const Eigen::Vector3d gyro_local= x.get_angular_velocity(); 
 
         // Save the predictions into the measurement vector
         predicted_measurement.set_accelerometer(accel_local);
@@ -633,7 +633,7 @@ public:
     }
 
 protected:
-    Eigen::Vector3f m_identity_gravity_direction;
+    Eigen::Vector3d m_identity_gravity_direction;
 };
 
 /**
@@ -654,23 +654,23 @@ namespace Kalman {
 	class PoseSRUFK
 	{
 	public:
-		using Control = Vector<float, 0>;
+		using Control = Vector<double, 0>;
 
 		//! Type of the state vector
-		typedef PoseStateVectorf State;
+		typedef PoseStateVectord State;
 
 		//! The number of sigma points (depending on state dimensionality)
 		static constexpr int SigmaPointCount = 2 * State::RowsAtCompileTime + 1;
 
         //! Unscented Kalman Filter base type
-        typedef UnscentedKalmanFilterBase<PoseStateVectorf> UnscentedBase;
+        typedef UnscentedKalmanFilterBase<PoseStateVectord> UnscentedBase;
         
 		//! Vector containg the sigma scaling weights
-		typedef Vector<float, SigmaPointCount> SigmaWeights;
+		typedef Vector<double, SigmaPointCount> SigmaWeights;
 
 		//! Matrix type containing the sigma state or measurement points
 		template<class Type>
-		using SigmaPoints = Matrix<float, Type::RowsAtCompileTime, SigmaPointCount>;
+		using SigmaPoints = Matrix<double, Type::RowsAtCompileTime, SigmaPointCount>;
 
 		//! Kalman Gain Matrix Type
 		template<class Measurement>
@@ -693,11 +693,11 @@ namespace Kalman {
 		SigmaPoints<State> sigmaStatePoints;
 
 		// Weight parameters
-		float alpha;    //!< Scaling parameter for spread of sigma points (usually \f$ 1E-4 \leq \alpha \leq 1 \f$)
-		float beta;     //!< Parameter for prior knowledge about the distribution (\f$ \beta = 2 \f$ is optimal for Gaussian)
-		float kappa;    //!< Secondary scaling parameter (usually 0)
-		float gamma;    //!< \f$ \gamma = \sqrt{L + \lambda} \f$ with \f$ L \f$ being the state dimensionality
-		float lambda;   //!< \f$ \lambda = \alpha^2 ( L + \kappa ) - L\f$ with \f$ L \f$ being the state dimensionality
+		double alpha;    //!< Scaling parameter for spread of sigma points (usually \f$ 1E-4 \leq \alpha \leq 1 \f$)
+		double beta;     //!< Parameter for prior knowledge about the distribution (\f$ \beta = 2 \f$ is optimal for Gaussian)
+		double kappa;    //!< Secondary scaling parameter (usually 0)
+		double gamma;    //!< \f$ \gamma = \sqrt{L + \lambda} \f$ with \f$ L \f$ being the state dimensionality
+		double lambda;   //!< \f$ \lambda = \alpha^2 ( L + \kappa ) - L\f$ with \f$ L \f$ being the state dimensionality
                      
 	public:
 		/**
@@ -709,7 +709,7 @@ namespace Kalman {
 			* @param beta Parameter for prior knowledge about the distribution (\f$ \beta = 2 \f$ is optimal for Gaussian)
 			* @param kappa Secondary scaling parameter (usually 0)
 			*/
-		PoseSRUFK(float _alpha = 1.f, float _beta = 2.f, float _kappa = 0.f)
+		PoseSRUFK(double _alpha = 1.0, double _beta = 2.0, double _kappa = 0.0)
 			: alpha(_alpha)
 			, beta(_beta)
 			, kappa(_kappa)
@@ -763,7 +763,7 @@ namespace Kalman {
 				// -- Compute QR decomposition of (transposed) augmented matrix
 				// Subtract the x from each sigma point in the right block of the sigmaStatePoints matrix
 				// Part of Eqn 19
-				Matrix<float, State::RowsAtCompileTime, SigmaPointCount-1> rightSigmaPointsMinusMean= 
+				Matrix<double, State::RowsAtCompileTime, SigmaPointCount-1> rightSigmaPointsMinusMean= 
 					sigmaStatePoints.template rightCols<SigmaPointCount-1>();
 				for (int col_index = 0; col_index < SigmaPointCount-1; ++col_index)
 				{
@@ -774,7 +774,7 @@ namespace Kalman {
 
 				// Fill in the weighted sigma point portion of the augmented qr input matrix
 				// Part of Eqn 19
-				Matrix<float, 2*State::RowsAtCompileTime + State::RowsAtCompileTime, State::RowsAtCompileTime> qr_input;
+				Matrix<double, 2*State::RowsAtCompileTime + State::RowsAtCompileTime, State::RowsAtCompileTime> qr_input;
 				qr_input.template topRows<2*State::RowsAtCompileTime>() = 
 					std::sqrt(this->sigmaWeights_c[1]) * rightSigmaPointsMinusMean.transpose();
 
@@ -794,7 +794,7 @@ namespace Kalman {
 				//       is obtained when using the weight directly rather than using the square root
 				//       It should be checked whether this is a bug in Eigen or in the Paper
 				// T nu = std::copysign( std::sqrt(std::abs(sigmaWeights_c[0])), sigmaWeights_c[0]);
-				float nu = this->sigmaWeights_c[0];
+				double nu = this->sigmaWeights_c[0];
 				State firstSigmaPoint= sigmaStatePoints.template leftCols<1>();
 				S.rankUpdate(firstSigmaPoint.difference(x), nu );
             
@@ -842,7 +842,7 @@ namespace Kalman {
 				// -- Compute QR decomposition of (transposed) augmented matrix
 				// Subtract the y from each sigma point in the right block of the sigmaMeasurementPoints matrix
 				// Part of Eqn 23
-				Matrix<float, Measurement::RowsAtCompileTime, SigmaPointCount-1> rightSigmaPointsMinusMean= 
+				Matrix<double, Measurement::RowsAtCompileTime, SigmaPointCount-1> rightSigmaPointsMinusMean= 
 					sigmaMeasurementPoints.template rightCols<SigmaPointCount-1>();
 				for (int col_index = 0; col_index < SigmaPointCount-1; ++col_index)
 				{
@@ -853,7 +853,7 @@ namespace Kalman {
 
 				// Fill in the weighted sigma point portion of the augmented qr input matrix
 				// Part of Eqn 23
-				Matrix<float, 2*State::RowsAtCompileTime + Measurement::RowsAtCompileTime, Measurement::RowsAtCompileTime> qr_input;
+				Matrix<double, 2*State::RowsAtCompileTime + Measurement::RowsAtCompileTime, Measurement::RowsAtCompileTime> qr_input;
 				qr_input.template topRows<2*State::RowsAtCompileTime>() = 
 					std::sqrt(this->sigmaWeights_c[1]) * rightSigmaPointsMinusMean.transpose();
 
@@ -873,7 +873,7 @@ namespace Kalman {
 				//       is obtained when using the weight directly rather than using the square root
 				//       It should be checked whether this is a bug in Eigen or in the Paper
 				// T nu = std::copysign( std::sqrt(std::abs(sigmaWeights_c[0])), sigmaWeights_c[0]);
-				float nu = this->sigmaWeights_c[0];
+				double nu = this->sigmaWeights_c[0];
 				Measurement firstSigmaMeasurementPoint= sigmaMeasurementPoints.template leftCols<1>();
 				S_y.rankUpdate( firstSigmaMeasurementPoint.difference(y), nu );
 	            
@@ -916,7 +916,7 @@ namespace Kalman {
 				// Note: The intermediate eval() is needed here (for now) due to a bug in Eigen that occurs
 				// when Measurement::RowsAtCompileTime == 1 AND State::RowsAtCompileTime >= 8
 				decltype(sigmaStatePoints) W = this->sigmaWeights_c.transpose().template replicate<State::RowsAtCompileTime,1>();
-				Matrix<float, State::RowsAtCompileTime, Measurement::RowsAtCompileTime> P
+				Matrix<double, State::RowsAtCompileTime, Measurement::RowsAtCompileTime> P
 						= sigmaStatePointsMinusX.cwiseProduct( W ).eval()
 						* sigmaMeasurementPointsMinusY.transpose();
             
@@ -949,23 +949,23 @@ namespace Kalman {
 		*/
 		void computeSigmaWeights()
 		{
-			const float L = static_cast<float>(State::RowsAtCompileTime);
+			const double L = static_cast<double>(State::RowsAtCompileTime);
 
 			lambda = alpha * alpha * (L + kappa) - L;
-			gamma = sqrtf(L + lambda);
+			gamma = sqrt(L + lambda);
 
 			// Make sure L != -lambda to avoid division by zero
-			assert(fabsf(L + lambda) > 1e-6f);
+			assert(fabs(L + lambda) > 1e-6);
 
 			// Make sure L != -kappa to avoid division by zero
-			assert(fabsf(L + kappa) > 1e-6f);
+			assert(fabs(L + kappa) > 1e-6);
 
-			float W_m_0 = lambda / (L + lambda);
-			float W_c_0 = W_m_0 + (1.f - alpha*alpha + beta);
-			float W_i = 1.f / (2.f * alpha*alpha * (L + kappa));
+			double W_m_0 = lambda / (L + lambda);
+			double W_c_0 = W_m_0 + (1.0 - alpha*alpha + beta);
+			double W_i = 1.0 / (2.0 * alpha*alpha * (L + kappa));
 
 			// Make sure W_i > 0 to avoid square-root of negative number
-			assert(W_i > 0.f);
+			assert(W_i > 0.0);
 
 			sigmaWeights_m[0] = W_m_0;
 			sigmaWeights_c[0] = W_c_0;
@@ -985,7 +985,7 @@ namespace Kalman {
 		bool computeSigmaPoints()
 		{
 			// Get square root of covariance
-			Matrix<float, State::RowsAtCompileTime, State::RowsAtCompileTime> _S = S.matrixL().toDenseMatrix();
+			Matrix<double, State::RowsAtCompileTime, State::RowsAtCompileTime> _S = S.matrixL().toDenseMatrix();
 
 			// Fill in the first column with the state vector 'x'
 			sigmaStatePoints.template leftCols<1>() = x;
@@ -1026,7 +1026,7 @@ public:
     Eigen::Vector3f origin_position; // meters
 
     /// All state parameters of the controller
-    PoseStateVectorf state_vector;
+    PoseStateVectord state_vector;
 
     /// Used to model how the physics of the controller evolves
     PoseSystemModel system_model;
@@ -1126,7 +1126,7 @@ Eigen::Quaternionf KalmanPoseFilter::getOrientation(float time) const
 
     if (m_filter->bIsValid)
     {
-        const Eigen::Quaternionf state_orientation = m_filter->state_vector.get_quaternion();
+        const Eigen::Quaternionf state_orientation = m_filter->state_vector.get_quaternion().cast<float>();
         Eigen::Quaternionf predicted_orientation = state_orientation;
 
         if (fabsf(time) > k_real_epsilon)
@@ -1147,7 +1147,9 @@ Eigen::Quaternionf KalmanPoseFilter::getOrientation(float time) const
 
 Eigen::Vector3f KalmanPoseFilter::getAngularVelocity() const
 {
-    return m_filter->state_vector.get_angular_velocity();
+	Eigen::Vector3d ang_vel= m_filter->state_vector.get_angular_velocity();
+	
+    return ang_vel.cast<float>();
 }
 
 Eigen::Vector3f KalmanPoseFilter::getAngularAcceleration() const
@@ -1161,14 +1163,13 @@ Eigen::Vector3f KalmanPoseFilter::getPosition(float time) const
 
     if (m_filter->bIsValid)
     {
-        Eigen::Vector3f state_position= m_filter->state_vector.get_position();
+        Eigen::Vector3f state_position= m_filter->state_vector.get_position().cast<float>();
         Eigen::Vector3f predicted_position =
             is_nearly_zero(time)
             ? state_position
             : state_position + getVelocity() * time;
 
-        result = predicted_position - m_filter->origin_position;
-        result = result * k_meters_to_centimeters;
+        result = (predicted_position - m_filter->origin_position) * k_meters_to_centimeters;
     }
 
     return result;
@@ -1176,12 +1177,16 @@ Eigen::Vector3f KalmanPoseFilter::getPosition(float time) const
 
 Eigen::Vector3f KalmanPoseFilter::getVelocity() const
 {
-    return m_filter->state_vector.get_linear_velocity() * k_meters_to_centimeters;
+	Eigen::Vector3d vel= m_filter->state_vector.get_linear_velocity() * k_meters_to_centimeters;
+
+    return vel.cast<float>();
 }
 
 Eigen::Vector3f KalmanPoseFilter::getAcceleration() const
 {
-    return m_filter->state_vector.get_linear_acceleration() * k_meters_to_centimeters;
+    Eigen::Vector3d accel= m_filter->state_vector.get_linear_acceleration() * k_meters_to_centimeters;
+
+	return accel.cast<float>();
 }
 
 //-- KalmanFilterOpticalPoseARG --
@@ -1209,11 +1214,11 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
 
         // Project the current state onto a predicted measurement as a default
         // in case no observation is available
-        DS4_MeasurementVectorf measurement = measurement_model.h(m_filter->state_vector);
+        DS4_MeasurementVectord measurement = measurement_model.h(m_filter->state_vector);
 
         // Accelerometer and gyroscope measurements are always available
-        measurement.set_accelerometer(packet.imu_accelerometer);
-        measurement.set_gyroscope(packet.imu_gyroscope);
+        measurement.set_accelerometer(packet.imu_accelerometer.cast<double>());
+        measurement.set_gyroscope(packet.imu_gyroscope.cast<double>());
 
         if (packet.optical_orientation_quality > 0.f || packet.optical_position_quality > 0.f)
         {
@@ -1226,12 +1231,12 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
             // If available, use the optical orientation measurement
             if (packet.optical_orientation_quality > 0.f)
             {
-                measurement.set_optical_quaternion(packet.optical_orientation);
+                measurement.set_optical_quaternion(packet.optical_orientation.cast<double>());
 
 				// If this is the first time we have seen the orientation, snap the orientation state
 				if (!m_filter->bSeenOrientationMeasurement)
 				{
-					m_filter->state_vector.set_quaternion(packet.optical_orientation);
+					m_filter->state_vector.set_quaternion(packet.optical_orientation.cast<double>());
 					m_filter->bSeenOrientationMeasurement= true;
 				}
             }
@@ -1239,13 +1244,15 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
             // If available, use the optical position
             if (packet.optical_position_quality > 0.f)
             {
+				Eigen::Vector3f optical_position= packet.optical_position * k_centimeters_to_meters;
+
                 // State internally stores position in meters
-                measurement.set_optical_position(packet.optical_position * k_centimeters_to_meters);
+                measurement.set_optical_position(optical_position.cast<double>());
 
 				// If this is the first time we have seen the position, snap the position state
 				if (!m_filter->bSeenPositionMeasurement)
 				{
-					m_filter->state_vector.set_position(packet.optical_position * k_centimeters_to_meters);
+					m_filter->state_vector.set_position(optical_position.cast<double>());
 					m_filter->bSeenPositionMeasurement= true;
 				}
             }
@@ -1260,22 +1267,24 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
 
 		if (packet.optical_position_quality > 0.f)
 		{
-			m_filter->state_vector.set_position(packet.optical_position * k_centimeters_to_meters);
+			Eigen::Vector3f optical_position= packet.optical_position * k_centimeters_to_meters;
+
+			m_filter->state_vector.set_position(optical_position.cast<double>());
 			m_filter->bSeenPositionMeasurement= true;
 		}
 		else
 		{
-			m_filter->state_vector.set_position(Eigen::Vector3f::Zero());
+			m_filter->state_vector.set_position(Eigen::Vector3d::Zero());
 		}
 
         if (packet.optical_orientation_quality > 0.f)
         {
-            m_filter->state_vector.set_quaternion(packet.optical_orientation);
+            m_filter->state_vector.set_quaternion(packet.optical_orientation.cast<double>());
 			m_filter->bSeenOrientationMeasurement= true;
         }
         else
         {
-            m_filter->state_vector.set_quaternion(Eigen::Quaternionf::Identity());
+            m_filter->state_vector.set_quaternion(Eigen::Quaterniond::Identity());
         }
 
         m_filter->bIsValid= true;
@@ -1306,26 +1315,28 @@ void KalmanPoseFilterPSMove::update(const float delta_time, const PoseFilterPack
 
         // Project the current state onto a predicted measurement as a default
         // in case no observation is available
-        PSMove_MeasurementVectorf measurement = measurement_model.h(m_filter->state_vector);
+        PSMove_MeasurementVectord measurement = measurement_model.h(m_filter->state_vector);
 
         // Accelerometer, magnetometer and gyroscope measurements are always available
-        measurement.set_accelerometer(packet.imu_accelerometer);
-        measurement.set_gyroscope(packet.imu_gyroscope);
-        measurement.set_magnetometer(packet.imu_magnetometer);
+        measurement.set_accelerometer(packet.imu_accelerometer.cast<double>());
+        measurement.set_gyroscope(packet.imu_gyroscope.cast<double>());
+        measurement.set_magnetometer(packet.imu_magnetometer.cast<double>());
 
         // If available, use the optical position
         if (packet.optical_position_quality > 0.f)
         {
+			Eigen::Vector3f optical_position= packet.optical_position * k_centimeters_to_meters;
+
 			// Adjust the amount we trust the optical measurements based on the quality parameters
 			measurement_model.update_measurement_covariance(m_constants, packet.optical_position_quality);
 
 			// Assign the latest optical measurement from the packet
-            measurement.set_optical_position(packet.optical_position);
+            measurement.set_optical_position(optical_position.cast<double>());
 
 			// If this is the first time we have seen the position, snap the position state
 			if (!m_filter->bSeenPositionMeasurement)
 			{
-				m_filter->state_vector.set_position(packet.optical_position * k_centimeters_to_meters);
+				m_filter->state_vector.set_position(optical_position.cast<double>());
 				m_filter->bSeenPositionMeasurement= true;
 			}
         }
@@ -1336,19 +1347,21 @@ void KalmanPoseFilterPSMove::update(const float delta_time, const PoseFilterPack
     else
     {
         m_filter->state_vector.setZero();
-        m_filter->state_vector.set_quaternion(Eigen::Quaternionf::Identity());
+        m_filter->state_vector.set_quaternion(Eigen::Quaterniond::Identity());
 
 		// We always "see" the orientation measurements for the PSMove (MARG state)
 		m_filter->bSeenOrientationMeasurement= true;
 
 		if (packet.optical_position_quality > 0.f)
 		{
-			m_filter->state_vector.set_position(packet.optical_position * k_centimeters_to_meters);
+			Eigen::Vector3f optical_position= packet.optical_position * k_centimeters_to_meters;
+
+			m_filter->state_vector.set_position(optical_position.cast<double>());
 			m_filter->bSeenPositionMeasurement= true;
 		}
 		else
 		{
-			m_filter->state_vector.set_position(Eigen::Vector3f::Zero());
+			m_filter->state_vector.set_position(Eigen::Vector3d::Zero());
 		}
 
         m_filter->bIsValid= true;
@@ -1356,47 +1369,50 @@ void KalmanPoseFilterPSMove::update(const float delta_time, const PoseFilterPack
 }
 
 //-- Private functions --
-// From: Q_discrete_white_noise in https://github.com/rlabbe/filterpy/blob/master/filterpy/common/discretization.py
 template <class StateType>
-void Q_discrete_3rd_order_white_noise(
-    const float dT,
-    const float var,
+void process_3rd_order_noise(
+    const double dT,
+    const double var,
     const int state_index,
     Kalman::Covariance<StateType> &Q)
 {
-    const float dT_squared = dT*dT;
-    const float q4 = var * dT_squared*dT_squared;
-    const float q3 = var * dT_squared*dT;
-    const float q2 = var * dT_squared;
-    const float q1 = var * dT;
-    const float q0 = var;
+    const double dT_2 = dT*dT;
+	const double dT_3 = dT_2*dT;
+	const double dT_4 = dT_2*dT_2;
+	const double dT_5 = dT_3*dT_2;
+	const double dT_6 = dT_3*dT_3;
+	const double dT_7 = dT_4*dT_3;
 
-    // Q = [1, dt, 5dt^2]*[1, dt, .5dt^2]^T * variance
+    const double q7 = var * dT_7;
+    const double q6 = var * dT_6;
+    const double q5 = var * dT_5;
+    const double q4 = var * dT_4;
+    const double q3 = var * dT_3;
+
     const int &i= state_index;
-    //Q(i+0,i+0) = 0.25f*q4; Q(i+0,i+1) = 0.5f*q3; Q(i+0,i+2) = 0.5f*q2;
-    //Q(i+1,i+0) =  0.5f*q3; Q(i+1,i+1) =      q2; Q(i+1,i+2) =      q1;
-    //Q(i+2,i+0) =  0.5f*q2; Q(i+2,i+1) =      q1; Q(i+2,i+2) =      q0;
-    Q(i+0,i+0) = 0.25f*q4; Q(i+0,i+1) = 0.f; Q(i+0,i+2) = 0.f;
-    Q(i+1,i+0) =     0.0f; Q(i+1,i+1) =  q2; Q(i+1,i+2) = 0.f;
-    Q(i+2,i+0) =     0.0f; Q(i+2,i+1) = 0.f; Q(i+2,i+2) =  q0;
+    Q(i+0,i+0) = q7/252.0; Q(i+0,i+1) = q6/72.0; Q(i+0,i+2) = q5/30.0;
+    Q(i+1,i+0) = q6/72.0;  Q(i+1,i+1) = q5/20.0; Q(i+1,i+2) = q4/8.0;
+    Q(i+2,i+0) = q5/30.0;  Q(i+2,i+1) = q4/8.0;  Q(i+2,i+2) = q3/3.0;
 }
 
 template <class StateType>
-void Q_discrete_2nd_order_white_noise(
-	const float dT, 
-	const float var, 
+void process_2nd_order_noise(
+	const double dT, 
+	const double var, 
 	const int state_index, 
 	Kalman::Covariance<StateType> &Q)
 {
-    const float dT_squared = dT*dT;
-    const float q4 = var * dT_squared*dT_squared;
-    const float q3 = var * dT_squared*dT;
-    const float q2 = var * dT_squared;
+    const double dT_2 = dT*dT;
+	const double dT_3 = dT_2*dT;
+	const double dT_4 = dT_2*dT_2;
+	const double dT_5 = dT_3*dT_2;
+
+    const double q5 = var * dT_5;
+    const double q4 = var * dT_4;
+    const double q3 = var * dT_3;
 
     // Q = [.5dt^2, dt]*[.5dt^2, dt]^T * variance
     const int &i= state_index;
-    //Q(i+0,i+0) = 0.25f*q4; Q(i+0,i+1) = 0.5f*q3;
-    //Q(i+1,i+0) =  0.5f*q3; Q(i+1,i+1) =      q2;
-    Q(i+0,i+0) = 0.25f*q4; Q(i+0,i+1) = 0.f;
-    Q(i+1,i+0) =      0.f; Q(i+1,i+1) =  q2;
+    Q(i+0,i+0) = q5/20.0; Q(i+0,i+1) = q4/8.0;
+    Q(i+1,i+0) = q4/8.0;  Q(i+1,i+1) = q3/3.0;
 }
