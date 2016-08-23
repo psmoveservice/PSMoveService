@@ -31,10 +31,13 @@ if isfield(filt_struct, 'special_xinds') && ~isempty(filt_struct.special_xinds)
     X_t(filt_struct.special_xinds, 2:L+1) = filt_struct.special_state_add(x_t(filt_struct.special_xinds), zetaSa(filt_struct.special_xinds, :));
 	X_t(filt_struct.special_xinds, L+2:end) = filt_struct.special_state_sub(x_t(filt_struct.special_xinds), zetaSa(filt_struct.special_xinds, :));
 end
+% Note that
+% X_t(1:Xdim, :) will be the state sigma points.
+% X_t(Q_inds, :) will be used for process noise.
+% X_t(R_inds, :) will be used for observation noise.
 
 %% 5. Propagate sigma points through process function
-X_k = nan(filt_struct.Xdim, nsp);
-X_k(1:filt_struct.Xdim, :) = process_function(X_t(1:filt_struct.Xdim, :), X_t(Q_inds, :), dt);
+X_k = process_function(X_t(1:filt_struct.Xdim, :), X_t(Q_inds, :), dt);
 
 %% 6. Estimate mean state from weighted sum of propagated sigma points
 x_k = sum(bsxfun(@times, filt_struct.weights.wm, X_k), 2);
@@ -53,6 +56,7 @@ end
 %filt_struct.weights.w_qr is scalar
 % QR update of state Cholesky factor.
 
+%filt_struct.weights.w_qr and .w_cholup cannot be negative.x
 [~, Sx_k] = qr((filt_struct.weights.w_qr*X_k_r(:,2:nsp))', 0);
 %NOTE: here Sx_k is the UPPER Cholesky factor (Matlab excentricity)
 if filt_struct.weights.wc(1) > 0

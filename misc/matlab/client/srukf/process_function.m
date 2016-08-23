@@ -20,5 +20,10 @@ new_state([10, 12, 14], :) = add_axang(axang, dt*avel);
 new_state([11, 13, 15], :) = avel;
 
 if ~isempty(process_noise)
-	new_state = new_state + process_noise;
+    %TODO: Handle process_noise having a different dimensionality than
+    %state vector.
+    isaxang = ismember(1:15, [10 12 14]);
+	new_state(~isaxang, :) = new_state(~isaxang, :) + process_noise(~isaxang, :);
+    new_state(isaxang, :) = add_axang(new_state(isaxang, :), process_noise(isaxang, :));
+    %TODO: How does one add noise to an axisAngle?
 end

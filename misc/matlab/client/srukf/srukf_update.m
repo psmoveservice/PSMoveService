@@ -43,6 +43,7 @@ Sy_k = Sy_k';  % We need the lower triangular Cholesky factor
 wc = filt_struct.weights.wc;
 Pxy = zeros(filt_struct.Xdim, filt_struct.Odim);
 for ix = 1:nsp
+    %TODO: Should X_k_r axisAngles be multiplied directly like this?
     Pxy = Pxy + wc(ix) * (X_k_r(:, ix) * Y_k_r(:, ix)');
 end
 %Equivalent to above. I think. Definitely faster.
