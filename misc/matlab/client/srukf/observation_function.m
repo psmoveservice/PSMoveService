@@ -1,10 +1,12 @@
-function predicted_obs = observation_function(filt_struct, state_vector, R)
+function predicted_obs = observation_function(filt_struct, state_vector, observation_noise)
+
+%TODO: Check how srukf handles observation_noise
     
 GRAVITY = filt_struct.consts.GRAVITY;  % Depends on latitude.
 gravity_world = [0;0;-GRAVITY];
 mag_world = filt_struct.consts.MAGFIELD;
 
-predicted_obs = nan(size(R.mu));
+predicted_obs = nan(filt_struct.Odim, 1);
 % Sigma point:
 % posx, velx, accx, posy, vely, accy, posz, velz, accz, angx, avelx, angy, avely, angz, avelz
 % Observation
@@ -30,4 +32,4 @@ predicted_obs(7:9) = rotateAxisAngle(mag_world, quat);
 % Predicted optical tracker position = state position
 predicted_obs(10:12) = state_vector([1 4 7]);
 
-predicted_obs = predicted_obs + R.mu;
+% predicted_obs = predicted_obs + observation_noise;

@@ -7,7 +7,7 @@ special_state_add = @add_axang;
 special_state_sub = @sub_axang;
 special_state_mean = @mean_axang;
 Odim = 12;  % [a.x, a.y, a.z, g.x, g.y, g.z, m.x, m.y, m.z, pos.x, pos.y, pos.z]
-alpha = 0.1;
+alpha = 1.0;
 beta = 2.0;
 kappa = 3 - Xdim;
 Qdim = Xdim;  % Assume process noise is same dimensionality as state vector
@@ -26,14 +26,14 @@ testdata = csvread(fullfile(datadir, 'movement.csv'));
 
 % Initialize state
 % Assume zero initial velocity.
-axang = quat2AxisAngle(testdata(1, [13 14 15 16])');
+axang = quat2AxisAngle(testdata(1, [13 14 15 16])');  %Cheat and use PSMoveService's orientation.
 x_init = [...
     testdata(1,10), 0, 0,...  %p.x, v.x, a.x
     testdata(1,11), 0, 0,...  %p.y, v.y, a.y
     testdata(1,12), 0, 0,...  %p.z, v.z, a.z
-    axang(1), 0,...
-    axang(2), 0,...
-    axang(3), 0,]';
+    axang(1), 0,...           %ang.x, angv.x
+    axang(2), 0,...           %ang.y, angv.y
+    axang(3), 0,]';           %ang.z, angv.z
 clear axang
 
 % TODO: Initial guess at state covariance from trainingdata?
@@ -43,18 +43,18 @@ S_init(1:Xdim+1:end) = 0.1;  % Along the diagonal
 % Prepare process noise
 mean_dt = mean(diff(trainingdata(:, end)));
 Q_cov = zeros(Qdim);
-Q_3 = q_scale * Q_discrete_white_noise(3, mean_dt);
+Q_3 = q_scale * process_noise(3, mean_dt);
 Q_cov(1:3, 1:3) = Q_3;  %Lin-X
 Q_cov(4:6, 4:6) = Q_3;  %Lin-Y
 Q_cov(7:9, 7:9) = Q_3;  %Lin-Z
-Q_2 = q_scale * Q_discrete_white_noise(2, mean_dt);
+Q_2 = q_scale * process_noise(2, mean_dt);
 Q_cov(10:11, 10:11) = Q_2;  % Ang-X
 Q_cov(12:13, 12:13) = Q_2;  % Ang-Y
 Q_cov(14:15, 14:15) = Q_2;  % Ang-Z
 Q_init = struct(...
     'dim', Qdim,...
     'mu', zeros(Qdim, 1),...  % Process noise should be zero-mean, I think.
-    'cov', sqrt(Q_cov));  % TODO: sqrt matrix with chol and '?
+    'cov', chol(Q_cov, 'lower'));  % sqrt matrix
 clear Q_cov Q_3 Q_2
 
 % Prepare observation noise from trainingdata
@@ -64,7 +64,7 @@ R_cov(1:Rdim+1:end) = r_scale * diag(cov(trainingdata(:, 1:Odim)));
 R_init = struct(...
     'dim', Rdim,...
     'mu', zeros(Rdim, 1),...  %TODO: Change elements to non-zero for bias.
-    'cov', sqrt(R_cov));
+    'cov', sqrt(R_cov));  % Only diagonal so no need to chol.
 clear R_cov
 
 % % if doing process noise adaptation, save some variables for later
@@ -85,14 +85,15 @@ filt_struct = struct(...
     'kappa', kappa,...
     'x', x_init,...
     'S', S_init,...  % Lower-triangular Cholesky factor of state covariance
-    'Q', Q_init,...  % Process noise
-    'R', R_init,...  % Observation noise
+    'Q', Q_init,...  % Process noise. sqrt expected.
+    'R', R_init,...  % Observation noise. sqrt expected.
     'last_obs_time', testdata(1, end) - mean_dt,...
     'intermediates', struct(...
-        'X_k', [],...
-        'X_k_r', [],...
-        'x_k', [],...
-        'Sx_k', []),...
+        'X_t', [],...  % Sigma points at time t = k-1
+        'X_k', [],...  % Sigma points propagated through process function to time k
+        'x_k', [],...  % State estimate = weighted sum of sigma points
+        'X_k_r', [],...% Propagated sigma point residuals = (sp - x_k)
+        'Sx_k', []),...% Upper-triangular of propagated sp covariance
     'consts', struct(...
         'GRAVITY', 9.806,...  % Approx grav where recordings took place.
         'MAGFIELD', [0.737549126; 0.675293505; 1]));  % Approx mag field where recordings took place.

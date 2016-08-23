@@ -1,8 +1,10 @@
 function output = mean_axang(axangs, weights)
-%Calculate mean for axang
+%Calculate mean for axang. Do weighted average quaternion.
+%http://stackoverflow.com/a/27410865/1256069
 quats = axisAngle2Quat(axangs);
-full_weights = [weights(1) ones(1, size(axangs, 2)-1) * weights(2)];
-wquats = bsxfun(@times, quats, full_weights);
+wquats = bsxfun(@times, quats, weights);
+neg_bool = weights < 0;
+wquats(:, neg_bool) = bsxfun(@times, abs(weights(neg_bool)), quaternion_conjugate(quats(:, neg_bool)));
 [eig_vecs, eig_vals] = eig(wquats * wquats');
 [~, eig_ix] = max(diag(eig_vals));
 q_out = eig_vecs(:, eig_ix);
