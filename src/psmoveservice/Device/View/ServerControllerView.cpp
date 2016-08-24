@@ -332,7 +332,7 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
                         ControllerOpticalPoseEstimation newTrackerPoseEstimate= trackerPoseEstimateRef;
                         CommonDevicePose poseGuess= {trackerPoseEstimateRef.position, trackerPoseEstimateRef.orientation};
 
-                        if (tracker->computePoseForController(
+                        if (tracker->processProjectionForController(
                                 this, 
                                 trackerPoseEstimateRef.bOrientationValid ? &poseGuess : nullptr,
                                 &newTrackerPoseEstimate))

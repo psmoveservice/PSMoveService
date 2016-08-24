@@ -50,7 +50,7 @@ public:
     double getGain() const;
     void setGain(double value);
     
-    bool computePoseForController(
+    bool processProjectionForController(
         const class ServerControllerView* tracked_controller, 
         const CommonDevicePose *tracker_pose_guess,
         struct ControllerOpticalPoseEstimation *out_pose_estimate);
