@@ -118,6 +118,9 @@ struct OrientationFilterConstants
 /// Filter parameters that remain constant during the lifetime of the the filter
 struct PositionFilterConstants 
 {
+    /// The direction of gravity when the controller is in it's calibration pose
+    Eigen::Vector3f gravity_calibration_direction; // unit vector
+
     float accelerometer_noise_radius; // meters
 	float accelerometer_variance; // g-units^2
     float max_velocity; // meters/s^2

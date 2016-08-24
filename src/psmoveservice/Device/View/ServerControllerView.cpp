@@ -1444,6 +1444,10 @@ pose_filter_factory(
 		{
 			position_filter_enum= PositionFilterTypeComplimentaryOpticalIMU;
 		}
+		else if (position_filter_type == "PositionKalman")
+		{
+			position_filter_enum= PositionFilterTypeKalman;
+		}
 		else
 		{
 			SERVER_LOG_INFO("pose_filter_factory()") << 
@@ -1544,6 +1548,7 @@ init_filters_for_psmove(
 	constants.orientation_constants.max_orientation_variance= psmove_config->orientation_variance;
 	constants.orientation_constants.magnetometer_variance= psmove_config->magnetometer_variance;
 
+	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.position_constants.accelerometer_variance= psmove_config->accelerometer_variance;
 	constants.position_constants.accelerometer_noise_radius= psmove_config->accelerometer_noise_radius;
 	constants.position_constants.max_velocity= psmove_config->max_velocity;

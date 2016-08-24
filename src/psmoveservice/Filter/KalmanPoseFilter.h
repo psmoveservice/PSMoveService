@@ -3,8 +3,6 @@
 
 #include "PoseFilterInterface.h"
 
-#include <kalman/UnscentedKalmanFilter.hpp>
-
 /// Abstract Kalman Pose filter for controllers
 class KalmanPoseFilter : public IPoseFilter
 {

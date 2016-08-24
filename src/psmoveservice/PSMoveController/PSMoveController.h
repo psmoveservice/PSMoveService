@@ -33,8 +33,8 @@ public:
         , version(CONFIG_VERSION)
         , max_poll_failure_count(100) 
         , prediction_time(0.f)
-		, position_filter_type("PoseKalman")
-		, orientation_filter_type("PoseKalman")
+		, position_filter_type("LowPassOptical")
+		, orientation_filter_type("ComplementaryMARG")
         , cal_ag_xyz_kb({{ 
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }},
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }} 

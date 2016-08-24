@@ -5,6 +5,7 @@
 #include <kalman/MeasurementModel.hpp>
 #include <kalman/SystemModel.hpp>
 #include <kalman/SquareRootBase.hpp>
+#include <kalman/UnscentedKalmanFilter.hpp>
 
 //-- constants --
 enum StateEnum

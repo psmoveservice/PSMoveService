@@ -20,6 +20,7 @@ enum PositionFilterType {
     PositionFilterTypeLowPassOptical,
     PositionFilterTypeLowPassIMU,
     PositionFilterTypeComplimentaryOpticalIMU,
+	PositionFilterTypeKalman,
 };
 
 // -- definitions --

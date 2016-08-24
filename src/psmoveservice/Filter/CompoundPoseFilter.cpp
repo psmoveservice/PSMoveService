@@ -2,6 +2,7 @@
 #include "CompoundPoseFilter.h"
 #include "OrientationFilter.h"
 #include "PositionFilter.h"
+#include "KalmanPositionFilter.h"
 
 // -- public interface --
 bool CompoundPoseFilter::init(
@@ -59,6 +60,9 @@ bool CompoundPoseFilter::init(
     case PositionFilterTypeComplimentaryOpticalIMU:
 		m_position_filter = new PositionFilterComplimentaryOpticalIMU;
 		break;
+	case PositionFilterTypeKalman:
+		m_position_filter = new KalmanPositionFilter;
+		break;
 	default:
 		assert(0 && "unreachable");
 	}
@@ -92,7 +96,7 @@ void CompoundPoseFilter::update(
 		PoseFilterPacket position_filter_packet= orientation_filter_packet;
 		position_filter_packet.current_orientation= m_orientation_filter->getOrientation();
 
-		m_orientation_filter->update(delta_time, position_filter_packet);
+		m_position_filter->update(delta_time, position_filter_packet);
 	}
 }
 
