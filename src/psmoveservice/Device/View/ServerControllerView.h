@@ -124,7 +124,7 @@ public:
 
     // Get the pose estimate relative to the given tracker id
     inline const ControllerOpticalPoseEstimation *getTrackerPoseEstimate(int trackerId) const {
-        return (m_tracker_pose_estimation != nullptr) ? &m_tracker_pose_estimation[trackerId] : nullptr;
+        return (m_tracker_pose_estimations != nullptr) ? &m_tracker_pose_estimations[trackerId] : nullptr;
     }
 
     // Get the pose estimate derived from multicam pose tracking
@@ -166,7 +166,7 @@ private:
     IControllerInterface *m_device;
     
     // Filter state
-    ControllerOpticalPoseEstimation *m_tracker_pose_estimation; // array of size TrackerManager::k_max_devices
+    ControllerOpticalPoseEstimation *m_tracker_pose_estimations; // array of size TrackerManager::k_max_devices
     ControllerOpticalPoseEstimation *m_multicam_pose_estimation;
     class IPoseFilter *m_pose_filter;
     class PoseFilterSpace *m_pose_filter_space;

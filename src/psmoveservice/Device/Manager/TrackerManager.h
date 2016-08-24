@@ -64,7 +64,7 @@ public:
         return TrackerManager::k_max_devices;
     }
 
-    ServerTrackerViewPtr getTrackerViewPtr(int device_id);
+    ServerTrackerViewPtr getTrackerViewPtr(int device_id) const;
 
     inline void saveDefaultTrackerProfile(const TrackerProfile *profile)
     {

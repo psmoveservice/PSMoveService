@@ -161,7 +161,7 @@ TrackerManager::allocate_device_view(int device_id)
 }
 
 ServerTrackerViewPtr
-TrackerManager::getTrackerViewPtr(int device_id)
+TrackerManager::getTrackerViewPtr(int device_id) const
 {
     assert(m_deviceViews != nullptr);
 

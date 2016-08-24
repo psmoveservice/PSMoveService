@@ -62,6 +62,31 @@ static void generate_psnavi_data_frame_for_stream(
 static void generate_psdualshock4_data_frame_for_stream(
     const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceOutputDataFramePtr &data_frame);
 
+static void computeSpherePoseForControllerFromSingleTracker(
+	const ServerControllerView *controllerView,
+	const ServerTrackerViewPtr tracker,
+	ControllerOpticalPoseEstimation *tracker_pose_estimation,
+	ControllerOpticalPoseEstimation *multicam_pose_estimation);
+static void computeLightBarPoseForControllerFromSingleTracker(
+	const ServerControllerView *controllerView,
+	const ServerTrackerViewPtr tracker,
+	ControllerOpticalPoseEstimation *tracker_pose_estimation,
+	ControllerOpticalPoseEstimation *multicam_pose_estimation);
+static void computeSpherePoseForControllerFromMultipleTrackers(
+	const ServerControllerView *controllerView,
+	const TrackerManager* tracker_manager,
+	const int *valid_projection_tracker_ids,
+	const int projections_found,
+	ControllerOpticalPoseEstimation *tracker_pose_estimations,
+	ControllerOpticalPoseEstimation *multicam_pose_estimation);
+static void computeLightBarPoseForControllerFromMultipleTrackers(
+	const ServerControllerView *controllerView,
+	const TrackerManager* tracker_manager,
+	const int *valid_projection_tracker_ids,
+	const int projections_found,
+	ControllerOpticalPoseEstimation *tracker_pose_estimations,
+	ControllerOpticalPoseEstimation *multicam_pose_estimation);
+
 //-- public implementation -----
 ServerControllerView::ServerControllerView(const int device_id)
     : ServerDeviceView(device_id)
@@ -70,7 +95,7 @@ ServerControllerView::ServerControllerView(const int device_id)
     , m_tracking_enabled(false)
     , m_LED_override_active(false)
     , m_device(nullptr)
-    , m_tracker_pose_estimation(nullptr)
+    , m_tracker_pose_estimations(nullptr)
     , m_multicam_pose_estimation(nullptr)
     , m_pose_filter(nullptr)
     , m_pose_filter_space(nullptr)
@@ -94,12 +119,12 @@ bool ServerControllerView::allocate_device_interface(
     case CommonDeviceState::PSMove:
         {
             m_device = new PSMoveController();
-            m_tracker_pose_estimation = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
+            m_tracker_pose_estimations = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
 			m_pose_filter= nullptr; // no pose filter until the device is opened
 
             for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
             {
-                m_tracker_pose_estimation[tracker_index].clear();
+                m_tracker_pose_estimations[tracker_index].clear();
             }
 
             m_multicam_pose_estimation = new ControllerOpticalPoseEstimation();
@@ -114,12 +139,12 @@ bool ServerControllerView::allocate_device_interface(
     case CommonDeviceState::PSDualShock4:
         {
             m_device = new PSDualShock4Controller();
-            m_tracker_pose_estimation = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
+            m_tracker_pose_estimations = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
 			m_pose_filter = nullptr; // no pose filter until the device is opened
 
             for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
             {
-                m_tracker_pose_estimation[tracker_index].clear();
+                m_tracker_pose_estimations[tracker_index].clear();
             }
 
             m_multicam_pose_estimation = new ControllerOpticalPoseEstimation();
@@ -140,10 +165,10 @@ void ServerControllerView::free_device_interface()
         m_multicam_pose_estimation= nullptr;
     }
 
-    if (m_tracker_pose_estimation != nullptr)
+    if (m_tracker_pose_estimations != nullptr)
     {
-        delete[] m_tracker_pose_estimation;
-        m_tracker_pose_estimation = nullptr;
+        delete[] m_tracker_pose_estimations;
+        m_tracker_pose_estimations = nullptr;
     }
 
     if (m_pose_filter != nullptr)
@@ -288,21 +313,19 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
     
     if (getIsTrackingEnabled())
     {
-        Eigen::Quaternionf controller_world_orientations[TrackerManager::k_max_devices];
-        float controller_orientation_weights[TrackerManager::k_max_devices];
-        int orientations_found = 0;
+        int valid_projection_tracker_ids[TrackerManager::k_max_devices];
+        int projections_found = 0;
 
-        int valid_position_tracker_ids[TrackerManager::k_max_devices];
-        int positions_found = 0;
+		CommonDeviceTrackingShape trackingShape;
+		m_device->getTrackingShape(trackingShape);
+		assert(trackingShape.shape_type != eCommonTrackingShapeType::INVALID_SHAPE);
 
-        float screen_area_sum= 0;
-
-        // Compute an estimated 3d tracked position of the controller 
-        // from the perspective of each tracker
+        // Find the projection of the controller from the perspective of each tracker.
+		// In the case of sphere projections, go ahead and compute the tracker relative position as well.
         for (int tracker_id = 0; tracker_id < tracker_manager->getMaxDevices(); ++tracker_id)
         {
             ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-            ControllerOpticalPoseEstimation &trackerPoseEstimateRef = m_tracker_pose_estimation[tracker_id];
+            ControllerOpticalPoseEstimation &trackerPoseEstimateRef = m_tracker_pose_estimations[tracker_id];
 
             const bool bWasTracking= trackerPoseEstimateRef.bCurrentlyTracking;
 
@@ -329,22 +352,25 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
                     // attempt to update the tracking location
                     if (tracker->getHasUnpublishedState())
                     {
+						// Create a copy of the pose estimate state so that in event of a 
+						// failure part way through computing the projection we don't
+						// set partially valid state
                         ControllerOpticalPoseEstimation newTrackerPoseEstimate= trackerPoseEstimateRef;
-                        CommonDevicePose poseGuess= {trackerPoseEstimateRef.position, trackerPoseEstimateRef.orientation};
 
-                        if (tracker->processProjectionForController(
+                        if (tracker->computeProjectionForController(
                                 this, 
-                                trackerPoseEstimateRef.bOrientationValid ? &poseGuess : nullptr,
+								&trackingShape,
                                 &newTrackerPoseEstimate))
                         {
                             bIsVisibleThisUpdate= true;
 
+							// Actually apply the pose estimate state
                             trackerPoseEstimateRef= newTrackerPoseEstimate;
                             trackerPoseEstimateRef.last_visible_timestamp = now;
                         }
                     }
 
-                    // If the position estimate isn't too old (or updated this tick), 
+                    // If the projection isn't too old (or updated this tick), 
                     // say we have a valid tracked location
                     if (bWasTracking || bIsVisibleThisUpdate)
                     {
@@ -353,31 +379,10 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
 
                         if (timeSinceLastVisibleMillis.count() < timeoutMilli)
                         {
-                            const float tracker_screen_area= trackerPoseEstimateRef.projection.screen_area;
-
-                            // Sum up the tracking screen area over all of the trackers that can see the controller
-                            screen_area_sum+= tracker_screen_area;
-
-                            // If this tracker has a valid position for the controller
+                            // If this tracker has a valid projection for the controller
                             // add it to the tracker id list
-                            valid_position_tracker_ids[positions_found] = tracker_id;
-                            ++positions_found;
-
-                            // If the pose has a valid tracker relative orientation,
-                            // convert the orientation to world space and add it
-                            // to a weighted list of orientations
-                            if (trackerPoseEstimateRef.bOrientationValid)
-                            {
-                                const CommonDeviceQuaternion &tracker_relative_quaternion = trackerPoseEstimateRef.orientation;
-                                const CommonDeviceQuaternion &world_quaternion =
-                                    tracker->computeWorldOrientation(&tracker_relative_quaternion);
-                                const Eigen::Quaternionf eigen_quaternion(
-                                    world_quaternion.w, world_quaternion.x, world_quaternion.y, world_quaternion.z);
-
-                                controller_world_orientations[orientations_found]= eigen_quaternion;
-                                controller_orientation_weights[orientations_found]= tracker_screen_area;
-                                ++orientations_found;
-                            }
+                            valid_projection_tracker_ids[projections_found] = tracker_id;
+                            ++projections_found;
 
                             // Flag this pose estimate as invalid
                             trackerPoseEstimateRef.bCurrentlyTracking = true;
@@ -391,81 +396,63 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
             trackerPoseEstimateRef.bValidTimestamps = true;
         }
 
-        // If multiple trackers can see the controller, 
-        // triangulate all pairs of trackers and average the results
-        if (positions_found > 1)
+		// How we compute the final world pose estimate varies based on
+		// * Number of trackers that currently have a valid projections of the controller
+		// * The kind of projection shape (psmove sphere or ds4 lightbar)
+        if (projections_found > 1)
         {
-            // Project the tracker relative 3d tracking position back on to the tracker camera plane
-            CommonDeviceScreenLocation position2d_list[TrackerManager::k_max_devices];
-            for (int list_index = 0; list_index < positions_found; ++list_index)
-            {
-                const int tracker_id = valid_position_tracker_ids[list_index];
-                const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-                const ControllerOpticalPoseEstimation &positionEstimate = m_tracker_pose_estimation[tracker_id];
-                
-                position2d_list[list_index] = tracker->projectTrackerRelativePosition(&positionEstimate.position);
-            }
-
-            int pair_count = 0;
-            CommonDevicePosition average_world_position = { 0.f, 0.f, 0.f };
-            for (int list_index = 0; list_index < positions_found; ++list_index)
-            {
-                const int tracker_id = valid_position_tracker_ids[list_index];
-                const CommonDeviceScreenLocation &screen_location = position2d_list[list_index];
-                const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-
-                for (int other_list_index = list_index + 1; other_list_index < positions_found; ++other_list_index)
-                {
-                    const int other_tracker_id = valid_position_tracker_ids[other_list_index];
-                    const CommonDeviceScreenLocation &other_screen_location = position2d_list[other_list_index];
-                    const ServerTrackerViewPtr other_tracker = tracker_manager->getTrackerViewPtr(other_tracker_id);
-
-                    // Using the screen locations on two different trackers we can triangulate a world position
-                    CommonDevicePosition world_position =
-                        ServerTrackerView::triangulateWorldPosition(
-                            tracker.get(), &screen_location,
-                            other_tracker.get(), &other_screen_location);
-
-                    average_world_position.x += world_position.x;
-                    average_world_position.y += world_position.y;
-                    average_world_position.z += world_position.z;
-
-                    ++pair_count;
-                }
-            }
-
-            if (pair_count > 1)
-            {
-                const float N = static_cast<float>(pair_count);
-
-                average_world_position.x /= N;
-                average_world_position.y /= N;
-                average_world_position.z /= N;
-            }
-
-            // Store the averaged tracking position
-            m_multicam_pose_estimation->position = average_world_position;
-            m_multicam_pose_estimation->bCurrentlyTracking = true;
-
-            // Compute the average projection area.
-            // This is proportional to our position tracking quality.
-            m_multicam_pose_estimation->projection.screen_area= 
-                screen_area_sum / static_cast<float>(positions_found);
+			// If multiple trackers can see the controller, 
+			// triangulate all pairs of projections and average the results
+			switch (trackingShape.shape_type)
+			{
+			case eCommonTrackingShapeType::Sphere:
+				computeSpherePoseForControllerFromMultipleTrackers(
+					this,
+					tracker_manager,
+					valid_projection_tracker_ids,
+					projections_found,
+					m_tracker_pose_estimations,
+					m_multicam_pose_estimation);
+				break;
+			case eCommonTrackingShapeType::LightBar:
+				computeLightBarPoseForControllerFromMultipleTrackers(
+					this,
+					tracker_manager,
+					valid_projection_tracker_ids,
+					projections_found,
+					m_tracker_pose_estimations,
+					m_multicam_pose_estimation);
+				break;
+			default:
+				assert(false && "unreachable");
+			}
         }
-        // If only one tracker can see the controller, then just use the position estimate from that
-        else if (positions_found == 1)
+        else if (projections_found == 1)
         {
-            // Put the tracker relative position into world space
-            const int tracker_id = valid_position_tracker_ids[0];
-            const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-            const CommonDevicePosition &tracker_relative_position = m_tracker_pose_estimation[tracker_id].position;
+			const int tracker_id = valid_projection_tracker_ids[0];
+			const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
 
-            // Only one tracker can see the controller
-            m_multicam_pose_estimation->position = tracker->computeWorldPosition(&tracker_relative_position);
-            m_multicam_pose_estimation->bCurrentlyTracking = true;
-
-            // The average screen area is just the sum
-            m_multicam_pose_estimation->projection.screen_area= screen_area_sum;
+			// If only one tracker can see the controller, 
+			// then use the tracker to derive a world space location
+			switch (trackingShape.shape_type)
+			{
+			case eCommonTrackingShapeType::Sphere:
+				computeSpherePoseForControllerFromSingleTracker(
+					this,
+					tracker,
+					&m_tracker_pose_estimations[tracker_id],
+					m_multicam_pose_estimation);
+				break;
+			case eCommonTrackingShapeType::LightBar:
+				computeLightBarPoseForControllerFromSingleTracker(
+					this,
+					tracker,
+					&m_tracker_pose_estimations[tracker_id],
+					m_multicam_pose_estimation);
+				break;
+			default:
+				assert(false && "unreachable");
+			}
         }
         // If no trackers can see the controller, maintain the last known position and time it was seen
         else
@@ -473,36 +460,8 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
             m_multicam_pose_estimation->bCurrentlyTracking= false;
         }
 
-        // Compute a weighted average of all of the orientations we found.
-        // Weighted by the projection area (higher projection area proportional to better quality orientation)        
-        if (orientations_found > 0)
-        {
-            Eigen::Quaternionf avg_world_orientation;
-
-            if (eigen_quaternion_compute_normalized_weighted_average(
-					controller_world_orientations,
-					controller_orientation_weights,
-					orientations_found,
-					&avg_world_orientation))
-            {
-                m_multicam_pose_estimation->orientation.w= avg_world_orientation.w();
-                m_multicam_pose_estimation->orientation.x= avg_world_orientation.x();
-                m_multicam_pose_estimation->orientation.y= avg_world_orientation.y();
-                m_multicam_pose_estimation->orientation.z= avg_world_orientation.z();
-                m_multicam_pose_estimation->bOrientationValid= true;
-            }
-            else
-            {
-                m_multicam_pose_estimation->bOrientationValid= false;
-            }
-        }
-        else
-        {
-            m_multicam_pose_estimation->bOrientationValid= false;
-        }
-
         // Update the position estimation timestamps
-        if (positions_found > 0)
+        if (m_multicam_pose_estimation->bCurrentlyTracking)
         {
             m_multicam_pose_estimation->last_visible_timestamp = now;
         }
@@ -1780,4 +1739,245 @@ update_filters_for_psdualshock4(
             poseFilter->update(delta_time, filterPacket);
         }
     }
+}
+
+static void computeSpherePoseForControllerFromSingleTracker(
+	const ServerControllerView *controllerView,
+	const ServerTrackerViewPtr tracker,
+	ControllerOpticalPoseEstimation *tracker_pose_estimation,
+	ControllerOpticalPoseEstimation *multicam_pose_estimation)
+{
+	// No orientation for the sphere projection
+	multicam_pose_estimation->orientation.clear();
+	multicam_pose_estimation->bOrientationValid = false;
+
+	// For the sphere projection, the tracker relative position has already been computed
+	// Put the tracker relative position into world space
+	multicam_pose_estimation->position = tracker->computeWorldPosition(&tracker_pose_estimation->position);
+	multicam_pose_estimation->bCurrentlyTracking = true;
+
+	// Copy over the screen projection area
+	multicam_pose_estimation->projection.screen_area = tracker_pose_estimation->projection.screen_area;
+}
+
+static void computeLightBarPoseForControllerFromSingleTracker(
+	const ServerControllerView *controllerView,
+	const ServerTrackerViewPtr tracker,
+	ControllerOpticalPoseEstimation *tracker_pose_estimation,
+	ControllerOpticalPoseEstimation *multicam_pose_estimation)
+{
+	CommonDeviceTrackingShape tracking_shape;
+	controllerView->getTrackingShape(tracking_shape);
+
+	// Use the previous pose as a guess to the current pose
+	const bool bPreviousPoseValid = tracker_pose_estimation->bOrientationValid;
+	const CommonDevicePose poseGuess = { tracker_pose_estimation->position, tracker_pose_estimation->orientation };
+
+	// Compute a tracker relative position from the projection
+	if (tracker->computePoseForProjection(
+			&tracker_pose_estimation->projection,
+			&tracking_shape,
+			bPreviousPoseValid ? &poseGuess : nullptr,
+			tracker_pose_estimation))
+	{
+		// If available, put the tracker relative orientation into world space
+		if (tracker_pose_estimation->bOrientationValid)
+		{
+			multicam_pose_estimation->orientation = tracker->computeWorldOrientation(&tracker_pose_estimation->orientation);
+			multicam_pose_estimation->bOrientationValid = true;
+		}
+		else
+		{
+			multicam_pose_estimation->orientation.clear();
+			multicam_pose_estimation->bOrientationValid = false;
+		}
+
+		// Put the tracker relative position into world space
+		multicam_pose_estimation->position = tracker->computeWorldPosition(&tracker_pose_estimation->position);
+		multicam_pose_estimation->bCurrentlyTracking = true;
+
+		// Copy over the screen projection area
+		multicam_pose_estimation->projection.screen_area = tracker_pose_estimation->projection.screen_area;
+	}
+	else
+	{
+		multicam_pose_estimation->bCurrentlyTracking = false;
+	}
+}
+
+static void computeSpherePoseForControllerFromMultipleTrackers(
+	const ServerControllerView *controllerView,
+	const TrackerManager* tracker_manager,
+	const int *valid_projection_tracker_ids,
+	const int projections_found,
+	ControllerOpticalPoseEstimation *tracker_pose_estimations,
+	ControllerOpticalPoseEstimation *multicam_pose_estimation)
+{
+	float screen_area_sum = 0;
+
+	// Project the tracker relative 3d tracking position back on to the tracker camera plane
+	// and sum up the total controller projection area across all trackers
+	CommonDeviceScreenLocation position2d_list[TrackerManager::k_max_devices];
+	for (int list_index = 0; list_index < projections_found; ++list_index)
+	{
+		const int tracker_id = valid_projection_tracker_ids[list_index];
+		const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+		const ControllerOpticalPoseEstimation &poseEstimate = tracker_pose_estimations[tracker_id];
+
+		position2d_list[list_index] = tracker->projectTrackerRelativePosition(&poseEstimate.position);
+		screen_area_sum += poseEstimate.projection.screen_area;
+	}
+
+	// Compute triangulations amongst all pairs of projections
+	int pair_count = 0;
+	CommonDevicePosition average_world_position = { 0.f, 0.f, 0.f };
+	for (int list_index = 0; list_index < projections_found; ++list_index)
+	{
+		const int tracker_id = valid_projection_tracker_ids[list_index];
+		const CommonDeviceScreenLocation &screen_location = position2d_list[list_index];
+		const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+
+		for (int other_list_index = list_index + 1; other_list_index < projections_found; ++other_list_index)
+		{
+			const int other_tracker_id = valid_projection_tracker_ids[other_list_index];
+			const CommonDeviceScreenLocation &other_screen_location = position2d_list[other_list_index];
+			const ServerTrackerViewPtr other_tracker = tracker_manager->getTrackerViewPtr(other_tracker_id);
+
+			// Using the screen locations on two different trackers we can triangulate a world position
+			CommonDevicePosition world_position =
+				ServerTrackerView::triangulateWorldPosition(
+					tracker.get(), &screen_location,
+					other_tracker.get(), &other_screen_location);
+
+			average_world_position.x += world_position.x;
+			average_world_position.y += world_position.y;
+			average_world_position.z += world_position.z;
+
+			++pair_count;
+		}
+	}
+
+	assert(pair_count > 1);
+
+	// Compute the average position
+	{
+		const float N = static_cast<float>(pair_count);
+
+		average_world_position.x /= N;
+		average_world_position.y /= N;
+		average_world_position.z /= N;
+
+		// Store the averaged tracking position
+		multicam_pose_estimation->position = average_world_position;
+		multicam_pose_estimation->bCurrentlyTracking = true;
+	}
+
+	// No orientation for the sphere projection
+	multicam_pose_estimation->orientation.clear();
+	multicam_pose_estimation->bOrientationValid = false;
+
+	// Compute the average projection area.
+	// This is proportional to our position tracking quality.
+	multicam_pose_estimation->projection.screen_area =
+		screen_area_sum / static_cast<float>(projections_found);
+}
+
+static void computeLightBarPoseForControllerFromMultipleTrackers(
+	const ServerControllerView *controllerView,
+	const TrackerManager* tracker_manager,
+	const int *valid_projection_tracker_ids,
+	const int projections_found,
+	ControllerOpticalPoseEstimation *tracker_pose_estimations,
+	ControllerOpticalPoseEstimation *multicam_pose_estimation)
+{
+	const int k_max_pairs = TrackerManager::k_max_devices*(TrackerManager::k_max_devices - 1);
+	Eigen::Quaternionf world_orientations[k_max_pairs];
+	float orientation_weights[k_max_pairs];
+	float screen_area_sum = 0;
+
+	// Compute triangulations amongst all pairs of projections
+	int pair_count = 0;
+	CommonDevicePosition average_world_position = { 0.f, 0.f, 0.f };
+	for (int list_index = 0; list_index < projections_found; ++list_index)
+	{
+		const int tracker_id = valid_projection_tracker_ids[list_index];
+		const CommonDeviceTrackingProjection &projection = tracker_pose_estimations[list_index].projection;
+		const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+
+		screen_area_sum += projection.screen_area;
+
+		for (int other_list_index = list_index + 1; other_list_index < projections_found; ++other_list_index)
+		{
+			const int other_tracker_id = valid_projection_tracker_ids[other_list_index];
+			const CommonDeviceTrackingProjection &other_projection = tracker_pose_estimations[other_list_index].projection;
+			const ServerTrackerViewPtr other_tracker = tracker_manager->getTrackerViewPtr(other_tracker_id);
+
+			// Using the screen locations on two different trackers we can triangulate a world position
+			CommonDevicePose world_pose =
+				ServerTrackerView::triangulateWorldPose(
+					tracker.get(), &projection,
+					other_tracker.get(), &other_projection);
+
+			// Accumulate the position for averaging
+			// TODO: Make this a weighted average
+			average_world_position.x += world_pose.Position.x;
+			average_world_position.y += world_pose.Position.y;
+			average_world_position.z += world_pose.Position.z;
+
+			// Add the quaternion to a list for the purpose of averaging
+			world_orientations[pair_count] = 
+				Eigen::Quaternionf(
+					world_pose.Orientation.w,
+					world_pose.Orientation.x,
+					world_pose.Orientation.y, 
+					world_pose.Orientation.z);
+
+			// Weight the quaternion base on how visible the controller is on each screen
+			orientation_weights[pair_count] = projection.screen_area + other_projection.screen_area;
+
+			++pair_count;
+		}
+	}
+
+	assert(pair_count > 1);
+
+	// Compute the average position
+	{
+		const float N = static_cast<float>(pair_count);
+
+		average_world_position.x /= N;
+		average_world_position.y /= N;
+		average_world_position.z /= N;
+
+		// Store the averaged tracking position
+		multicam_pose_estimation->position = average_world_position;
+		multicam_pose_estimation->bCurrentlyTracking = true;
+	}
+
+	// Compute the average orientation
+	{
+		Eigen::Quaternionf avg_world_orientation;
+
+		if (eigen_quaternion_compute_normalized_weighted_average(
+				world_orientations,
+				orientation_weights,
+				pair_count,
+				&avg_world_orientation))
+		{
+			multicam_pose_estimation->orientation.w = avg_world_orientation.w();
+			multicam_pose_estimation->orientation.x = avg_world_orientation.x();
+			multicam_pose_estimation->orientation.y = avg_world_orientation.y();
+			multicam_pose_estimation->orientation.z = avg_world_orientation.z();
+			multicam_pose_estimation->bOrientationValid = true;
+		}
+		else
+		{
+			multicam_pose_estimation->bOrientationValid = false;
+		}
+	}
+
+	// Compute the average projection area.
+	// This is proportional to our position tracking quality.
+	multicam_pose_estimation->projection.screen_area =
+		screen_area_sum / static_cast<float>(projections_found);
 }

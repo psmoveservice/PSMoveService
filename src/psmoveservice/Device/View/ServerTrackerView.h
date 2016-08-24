@@ -50,10 +50,15 @@ public:
     double getGain() const;
     void setGain(double value);
     
-    bool processProjectionForController(
+    bool computeProjectionForController(
         const class ServerControllerView* tracked_controller, 
-        const CommonDevicePose *tracker_pose_guess,
+		const struct CommonDeviceTrackingShape *tracking_shape,
         struct ControllerOpticalPoseEstimation *out_pose_estimate);
+	bool computePoseForProjection(
+		const struct CommonDeviceTrackingProjection *projection,
+		const struct CommonDeviceTrackingShape *tracking_shape,
+		const struct CommonDevicePose *pose_guess,
+		struct ControllerOpticalPoseEstimation *out_pose_estimate);
 
     CommonDeviceScreenLocation projectTrackerRelativePosition(const CommonDevicePosition *trackerRelativePosition) const;
     

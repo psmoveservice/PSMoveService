@@ -405,11 +405,16 @@ static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const ITrackerInterface *t
 static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const ITrackerInterface *tracker_device);
 static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tracker_device);
 static bool computeTrackerRelativeLightBarProjection(
-    const ITrackerInterface *tracker_device,
-    const CommonDeviceTrackingShape *tracking_shape,
-    const std::vector<cv::Point> &opencv_contour,
-    const CommonDevicePose *tracker_relative_pose_guess,
-    ControllerOpticalPoseEstimation *out_pose_estimate);
+	const ITrackerInterface *tracker_device,
+	const CommonDeviceTrackingShape *tracking_shape,
+	const std::vector<cv::Point> &opencv_contour,
+	CommonDeviceTrackingProjection *out_projection);
+static bool computeTrackerRelativeLightBarPose(
+	const ITrackerInterface *tracker_device,
+	const CommonDeviceTrackingShape *tracking_shape,
+	const CommonDeviceTrackingProjection *projection,
+	const CommonDevicePose *tracker_relative_pose_guess,
+	ControllerOpticalPoseEstimation *out_pose_estimate);
 static bool computeBestFitTriangleForContour(
     const std::vector<cv::Point> &opencv_contour,
     cv::Point2f &out_triangle_top,
@@ -751,19 +756,12 @@ void ServerTrackerView::getTrackingColorPreset(
 }
 
 bool
-ServerTrackerView::processProjectionForController(
+ServerTrackerView::computeProjectionForController(
     const ServerControllerView* tracked_controller,
-    const CommonDevicePose *tracker_pose_guess,
+	const CommonDeviceTrackingShape *tracking_shape,
     ControllerOpticalPoseEstimation *out_pose_estimate)
 {
     bool bSuccess = true;
-
-    // Get the tracking shape used by the controller
-    CommonDeviceTrackingShape tracking_shape;
-    if (bSuccess)
-    {
-        bSuccess = tracked_controller->getTrackingShape(tracking_shape);
-    }
 
     // Get the HSV filter used to find the tracking blob
     CommonHSVColorRange hsvColorRange;
@@ -799,8 +797,9 @@ ServerTrackerView::processProjectionForController(
         // TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
         // Then replace F_PX with -1.
 
-        switch (tracking_shape.shape_type)
+        switch (tracking_shape->shape_type)
         {
+		// For the sphere projection we can go ahead and compute the full pose estimation now
         case eCommonTrackingShapeType::Sphere:
             {                               
                 float frameWidth, frameHeight;
@@ -830,7 +829,7 @@ ServerTrackerView::processProjectionForController(
                 eigen_alignment_fit_focal_cone_to_sphere(
                     eigen_contour.data(),
                     static_cast<int>(eigen_contour.size()),
-                    tracking_shape.shape.sphere.radius,
+                    tracking_shape->shape.sphere.radius,
                     F_PX,
                     &sphere_center,
                     &ellipse_projection);
@@ -852,15 +851,16 @@ ServerTrackerView::processProjectionForController(
 
                 bSuccess = true;
             } break;
+		// For the LightBar projection we only want to compute the projection shape.
+		// The pose estimation is deferred until we know if we can leverage triangulation or not.
         case eCommonTrackingShapeType::LightBar:
             {
                 bSuccess= 
                     computeTrackerRelativeLightBarProjection(
                         m_device,
-                        &tracking_shape,
+                        tracking_shape,
                         biggest_contour,
-                        tracker_pose_guess,
-                        out_pose_estimate);
+                        &out_pose_estimate->projection);
             } break;
         default:
             assert(0 && "Unreachable");
@@ -869,6 +869,39 @@ ServerTrackerView::processProjectionForController(
     }
 
     return bSuccess;
+}
+
+bool 
+ServerTrackerView::computePoseForProjection(
+	const CommonDeviceTrackingProjection *projection,
+	const CommonDeviceTrackingShape *tracking_shape,
+	const CommonDevicePose *pose_guess,
+	ControllerOpticalPoseEstimation *out_pose_estimate)
+{
+	bool bSuccess = false;
+
+	switch (projection->shape_type)
+	{
+	case eCommonTrackingShapeType::Sphere:
+		{
+			// Nothing to do. The pose estimate is already computed in computeProjectionForController()
+			bSuccess = true;
+		} break;
+	case eCommonTrackingShapeType::LightBar:
+		{
+			bSuccess =
+				computeTrackerRelativeLightBarPose(
+					m_device,
+					tracking_shape,
+					projection,
+					pose_guess,
+					out_pose_estimate);
+		} break;
+	default:
+		assert(0 && "Unreachable");
+	}
+
+	return bSuccess;
 }
 
 CommonDevicePosition
@@ -922,9 +955,20 @@ ServerTrackerView::triangulateWorldPose(
     {
     case eCommonTrackingProjectionType::ProjectionType_Ellipse:
         {
+			pose.Position =
+				triangulateWorldPosition(
+					tracker,
+					&tracker_relative_projection->shape.ellipse.center,
+					other_tracker,
+					&other_tracker_relative_projection->shape.ellipse.center);
+			pose.Orientation.clear();
         } break;
     case eCommonTrackingProjectionType::ProjectionType_LightBar:
         {
+			// TODO: 
+			// * Triangulate the 7 points on the lightbar
+			// * compute bast fit plane
+			// * project up and left
         } break;
     default:
         assert(0 && "unreachable");
@@ -1096,8 +1140,7 @@ static bool computeTrackerRelativeLightBarProjection(
     const ITrackerInterface *tracker_device,
     const CommonDeviceTrackingShape *tracking_shape,
     const std::vector<cv::Point> &opencv_contour,
-    const CommonDevicePose *tracker_relative_pose_guess,
-    ControllerOpticalPoseEstimation *out_pose_estimate)
+	CommonDeviceTrackingProjection *out_projection)
 {
     assert(tracking_shape->shape_type == eCommonTrackingShapeType::LightBar);
 
@@ -1105,7 +1148,7 @@ static bool computeTrackerRelativeLightBarProjection(
     int pixelWidth, pixelHeight;
     tracker_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
 
-    bool bValidTrackerPose= true;
+    bool bValidTrackerProjection= true;
     float projectionArea= 0.f;
     std::vector<cv::Point2f> cvImagePoints;
     {
@@ -1113,25 +1156,25 @@ static bool computeTrackerRelativeLightBarProjection(
         cv::Point2f quad_top_right, quad_top_left, quad_bottom_left, quad_bottom_right;
 
         // Create a best fit triangle around the contour
-        bValidTrackerPose= computeBestFitTriangleForContour(
+        bValidTrackerProjection= computeBestFitTriangleForContour(
             opencv_contour, 
             tri_top, tri_bottom_left, tri_bottom_right);
 
         // Also create a best fit quad around the contour
         // Use the best fit triangle to define the orientation
-        if (bValidTrackerPose)
+        if (bValidTrackerProjection)
         {
             // Use the triangle to define an up and a right direction
             const cv::Point2f up_hint= tri_top - 0.5f*(tri_bottom_left + tri_bottom_right);
             const cv::Point2f right_hint= tri_bottom_right - tri_bottom_left;
 
-            bValidTrackerPose= computeBestFitQuadForContour(
+            bValidTrackerProjection= computeBestFitQuadForContour(
                 opencv_contour, 
                 up_hint, right_hint, 
                 quad_top_right, quad_top_left, quad_bottom_left, quad_bottom_right);
         }
 
-        if (bValidTrackerPose)
+        if (bValidTrackerProjection)
         {
             // In practice the best fit triangle top is a bit noisy.
             // Since it should be at the midpoint of the top of the quad we use that instead.
@@ -1163,73 +1206,9 @@ static bool computeTrackerRelativeLightBarProjection(
         }
     }
 
-    // Solve the tracking position using solvePnP
-    if (bValidTrackerPose)
-    {
-        // Copy the object/image point mappings into OpenCV format
-        // Assumed vertex order is:
-        // triangle - right, left, bottom
-        // quad - top right, top left, bottom left, bottom right
-        std::vector<cv::Point3f> cvObjectPoints;
-
-        for (int corner_index= 0; corner_index < 3; ++corner_index)
-        {        
-            const CommonDevicePosition &corner = tracking_shape->shape.light_bar.triangle[corner_index];
-
-            cvObjectPoints.push_back(cv::Point3f(corner.x, corner.y, corner.z));
-        }
-
-        for (int corner_index= 0; corner_index < 4; ++corner_index)
-        {        
-            const CommonDevicePosition &corner = tracking_shape->shape.light_bar.quad[corner_index];
-
-            cvObjectPoints.push_back(cv::Point3f(corner.x, corner.y, corner.z));
-        }
-
-        // Assume no distortion
-        // TODO: Probably should get the distortion coefficients out of the tracker
-        cv::Mat cvDistCoeffs(4, 1, cv::DataType<float>::type);
-        cvDistCoeffs.at<float>(0) = 0;
-        cvDistCoeffs.at<float>(1) = 0;
-        cvDistCoeffs.at<float>(2) = 0;
-        cvDistCoeffs.at<float>(3) = 0;
-
-        // Get the tracker "intrinsic" matrix that encodes the camera FOV
-        cv::Matx33f cvCameraMatrix = computeOpenCVCameraIntrinsicMatrix(tracker_device);
-
-        // Fill out the initial guess in OpenCV format for the contour pose
-        // if a guess pose was provided
-        cv::Mat rvec(3, 1, cv::DataType<double>::type);
-        cv::Mat tvec(3, 1, cv::DataType<double>::type);
-
-        bool bUseExtrinsicGuess= false;
-        if (tracker_relative_pose_guess != nullptr)
-        {
-            const float k_max_valid_guess_distance= 300.f; // cm
-            float guess_position_distance_sqrd= 
-                tracker_relative_pose_guess->Position.x*tracker_relative_pose_guess->Position.x
-                + tracker_relative_pose_guess->Position.y*tracker_relative_pose_guess->Position.y
-                + tracker_relative_pose_guess->Position.z*tracker_relative_pose_guess->Position.z;
-
-            if (guess_position_distance_sqrd < k_max_valid_guess_distance*k_max_valid_guess_distance)
-            {
-                // solvePnP expects a rotation as a Rodrigues (AngleAxis) vector
-                commonDeviceOrientationToOpenCVRodrigues(tracker_relative_pose_guess->Orientation, rvec);
-
-                tvec.at<double>(0)= tracker_relative_pose_guess->Position.x;
-                tvec.at<double>(1)= tracker_relative_pose_guess->Position.y;
-                tvec.at<double>(2)= tracker_relative_pose_guess->Position.z;
-
-                bUseExtrinsicGuess= true;
-            }
-        }
-    }
-
     // Return the projection of the tracking shape
-    if (bValidTrackerPose)
+    if (bValidTrackerProjection)
     {
-        CommonDeviceTrackingProjection *out_projection= &out_pose_estimate->projection;
-
         out_projection->shape_type = eCommonTrackingProjectionType::ProjectionType_LightBar;
 
         for (int vertex_index = 0; vertex_index < 3; ++vertex_index)
@@ -1259,16 +1238,15 @@ static bool computeTrackerRelativeLightBarProjection(
         out_projection->screen_area= projectionArea;
     }
 
-    return bValidTrackerPose;
+    return bValidTrackerProjection;
 }
 
-#if 0
 static bool computeTrackerRelativeLightBarPose(
     const ITrackerInterface *tracker_device,
 	const CommonDeviceTrackingShape *tracking_shape,
 	const CommonDeviceTrackingProjection *projection,
 	const CommonDevicePose *tracker_relative_pose_guess,
-    CommonDevicePose *out_pose)
+	ControllerOpticalPoseEstimation *out_pose_estimate)
 {
 	assert(tracking_shape->shape_type == eCommonTrackingShapeType::LightBar);
     assert(projection->shape_type == eCommonTrackingProjectionType::ProjectionType_LightBar);
@@ -1278,9 +1256,29 @@ static bool computeTrackerRelativeLightBarPose(
     tracker_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
 
     bool bValidTrackerPose= true;
-    float projectionArea= 0.f;
     std::vector<cv::Point2f> cvImagePoints;
 
+	for (int vertex_index = 0; vertex_index < 3; ++vertex_index)
+	{
+		const CommonDeviceScreenLocation &screenLocation= projection->shape.lightbar.triangle[vertex_index];
+
+		// Convert from PSMoveScreenLocation space
+		// i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
+		// into tracker screen locations in OpenCV pixel space
+		// i.e. [0, 0]x[frameWidth, frameHeight]
+		cvImagePoints.push_back(cv::Point2f(screenLocation.x + (pixelWidth / 2), screenLocation.y + (pixelHeight / 2)));
+	}
+
+	for (int vertex_index = 0; vertex_index < 4; ++vertex_index)
+	{
+		const CommonDeviceScreenLocation &screenLocation = projection->shape.lightbar.quad[vertex_index];
+
+		// Convert from PSMoveScreenLocation space
+		// i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
+		// into tracker screen locations in OpenCV pixel space
+		// i.e. [0, 0]x[frameWidth, frameHeight]
+		cvImagePoints.push_back(cv::Point2f(screenLocation.x + (pixelWidth / 2), screenLocation.y + (pixelHeight / 2)));
+	}
 
     // Solve the tracking position using solvePnP
     if (bValidTrackerPose)
@@ -1393,43 +1391,8 @@ static bool computeTrackerRelativeLightBarPose(
         }
     }
 
-    // Return the projection of the tracking shape
-    if (bValidTrackerPose)
-    {
-        CommonDeviceTrackingProjection *out_projection= &out_pose_estimate->projection;
-
-        out_projection->shape_type = eCommonTrackingProjectionType::ProjectionType_LightBar;
-
-        for (int vertex_index = 0; vertex_index < 3; ++vertex_index)
-        {
-            const cv::Point2f &cvPoint = cvImagePoints[vertex_index];
-
-            // Convert the tracker screen locations in OpenCV pixel space
-            // i.e. [0, 0]x[frameWidth, frameHeight]
-            // into PSMoveScreenLocation space
-            // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
-            out_projection->shape.lightbar.triangle[vertex_index] = 
-                { cvPoint.x - (pixelWidth / 2), cvPoint.y - (pixelHeight / 2) };
-        }
-
-        for (int vertex_index = 0; vertex_index < 4; ++vertex_index)
-        {
-            const cv::Point2f &cvPoint = cvImagePoints[vertex_index + 3];
-
-            // Convert the tracker screen locations in OpenCV pixel space
-            // i.e. [0, 0]x[frameWidth, frameHeight]
-            // into PSMoveScreenLocation space
-            // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
-            out_projection->shape.lightbar.quad[vertex_index] = 
-                { cvPoint.x - (pixelWidth / 2), cvPoint.y - (pixelHeight / 2) };
-        }
-
-        out_projection->screen_area= projectionArea;
-    }
-
     return bValidTrackerPose;
 }
-#endif 
 
 static bool computeBestFitTriangleForContour(
     const std::vector<cv::Point> &opencv_contour,
