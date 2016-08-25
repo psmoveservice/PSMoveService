@@ -65,10 +65,22 @@ public:
     CommonDevicePosition computeWorldPosition(const CommonDevicePosition *tracker_relative_position);
     CommonDeviceQuaternion computeWorldOrientation(const CommonDeviceQuaternion *tracker_relative_orientation);
 
-    /// Given screen locations on two different trackers, compute the triangulated world space location
+    CommonDevicePosition computeTrackerPosition(const CommonDevicePosition *world_relative_position);
+    CommonDeviceQuaternion computeTrackerOrientation(const CommonDeviceQuaternion *world_relative_orientation);
+
+    /// Given a single screen location on two different trackers, compute the triangulated world space location
     static CommonDevicePosition triangulateWorldPosition(
         const ServerTrackerView *tracker, const CommonDeviceScreenLocation *screen_location,
         const ServerTrackerView *other_tracker, const CommonDeviceScreenLocation *other_screen_location);
+
+	/// Given a set of screen locations on two different trackers, compute the triangulated world space locations
+	static void triangulateWorldPositions(
+		const ServerTrackerView *tracker, 
+		const CommonDeviceScreenLocation *screen_locations,
+		const ServerTrackerView *other_tracker,
+		const CommonDeviceScreenLocation *other_screen_locations,
+		const int screen_location_count,
+		CommonDevicePosition *out_result);
 
     /// Given screen projections on two different trackers, compute the triangulated world space location
     static CommonDevicePose triangulateWorldPose(

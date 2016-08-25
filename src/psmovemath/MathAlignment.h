@@ -146,4 +146,16 @@ eigen_alignment_fit_least_squares_line(
 	const Eigen::Vector2f *samples, const int sample_count,
 	Eigen::Vector2f *out_line, float *out_correlation_coefficient);
 
+// Computes a best fit plane to the given set of data points
+bool 
+eigen_alignment_fit_least_squares_plane(
+	const Eigen::Vector3f *samples, const int sample_count,
+	Eigen::Vector3f *out_centroid, Eigen::Vector3f *out_normal);
+
+// Project a point set onto a plane and compute the total distance error
+float
+eigen_alignment_project_points_on_plane(
+	const Eigen::Vector3f &centroid, const Eigen::Vector3f &normal,
+	Eigen::Vector3f *samples, const int sample_count);
+
 #endif // MATH_UTILITY_H

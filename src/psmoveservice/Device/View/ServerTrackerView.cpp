@@ -940,6 +940,42 @@ ServerTrackerView::computeWorldOrientation(
     return result;
 }
 
+CommonDevicePosition 
+ServerTrackerView::computeTrackerPosition(
+	const CommonDevicePosition *world_relative_position)
+{
+    const glm::vec4 world_pos(world_relative_position->x, world_relative_position->y, world_relative_position->z, 1.f);
+    const glm::mat4 invCameraTransform= glm::inverse(computeGLMCameraTransformMatrix(m_device));
+    const glm::vec4 rel_pos = invCameraTransform * world_pos;
+    
+    CommonDevicePosition result;
+    result.set(rel_pos.x, rel_pos.y, rel_pos.z);
+
+    return result;
+}
+
+CommonDeviceQuaternion 
+ServerTrackerView::computeTrackerOrientation(
+	const CommonDeviceQuaternion *world_relative_orientation)
+{
+    const glm::quat world_orientation(
+        world_relative_orientation->w,
+        world_relative_orientation->x,
+        world_relative_orientation->y,
+        world_relative_orientation->z);    
+    const glm::quat camera_inv_quat= glm::conjugate(computeGLMCameraTransformQuaternion(m_device));
+    // combined_rotation = second_rotation * first_rotation;
+    const glm::quat rel_quat = camera_inv_quat * world_orientation;
+    
+    CommonDeviceQuaternion result;
+    result.w= rel_quat.w;
+    result.x= rel_quat.x;
+    result.y= rel_quat.y;
+    result.z= rel_quat.z;
+
+    return result;
+}
+
 CommonDevicePose
 ServerTrackerView::triangulateWorldPose(
     const ServerTrackerView *tracker, 
@@ -965,10 +1001,90 @@ ServerTrackerView::triangulateWorldPose(
         } break;
     case eCommonTrackingProjectionType::ProjectionType_LightBar:
         {
-			// TODO: 
-			// * Triangulate the 7 points on the lightbar
-			// * compute bast fit plane
-			// * project up and left
+			// Copy the lightbar triangle and quad screen space points into flat arrays
+			const int k_vertex_count= CommonDeviceTrackingShape::QuadVertexCount+CommonDeviceTrackingShape::TriVertexCount;
+			CommonDeviceScreenLocation screen_locations[k_vertex_count];
+			CommonDeviceScreenLocation other_screen_locations[k_vertex_count];			
+			for (int quad_index = 0; quad_index < CommonDeviceTrackingShape::QuadVertexCount; ++quad_index)
+			{
+				screen_locations[quad_index]= tracker_relative_projection->shape.lightbar.quad[quad_index];
+				other_screen_locations[quad_index]= other_tracker_relative_projection->shape.lightbar.quad[quad_index];
+			}
+			for (int tri_index = 0; tri_index < CommonDeviceTrackingShape::TriVertexCount; ++tri_index)
+			{
+				screen_locations[CommonDeviceTrackingShape::QuadVertexCount + tri_index]= 
+					tracker_relative_projection->shape.lightbar.triangle[tri_index];
+				other_screen_locations[CommonDeviceTrackingShape::QuadVertexCount + tri_index]=
+					other_tracker_relative_projection->shape.lightbar.triangle[tri_index];
+			}
+
+			// Triangulate the 7 points on the lightbar
+			Eigen::Vector3f lightbar_points[k_vertex_count];
+			{
+				CommonDevicePosition world_positions[k_vertex_count];
+				ServerTrackerView::triangulateWorldPositions(
+					tracker, 
+					screen_locations,
+					other_tracker,
+					other_screen_locations,
+					k_vertex_count,
+					world_positions);
+
+				for (int point_index = 0; point_index < k_vertex_count; ++point_index)
+				{
+					const CommonDevicePosition &p= world_positions[point_index];
+
+					lightbar_points[point_index]= Eigen::Vector3f(p.x, p.y, p.z);
+				}
+			}
+
+			// Compute best fit plane for the world space light bar points
+			Eigen::Vector3f centroid, normal;
+			if (eigen_alignment_fit_least_squares_plane(
+					lightbar_points, k_vertex_count,
+					&centroid, &normal))
+			{
+				// Assume that the normal for the projection should be facing the tracker.
+				// Since the projection is planar and both trackers can see the projection
+				// it doesn't matter which tracker we use for the facing test.
+				{
+					const CommonDevicePosition commonTrackerPosition= tracker->getTrackerPose().Position;
+					const Eigen::Vector3f trackerPosition(commonTrackerPosition.x, commonTrackerPosition.y, commonTrackerPosition.z);
+					const Eigen::Vector3f centroidToTracker= trackerPosition - centroid;
+
+					if (centroidToTracker.dot(normal) < 0.f)
+					{
+						normal= -normal;
+					}
+				}
+
+				// Project the lightbar 
+				float projection_error= eigen_alignment_project_points_on_plane(centroid, normal, lightbar_points, k_vertex_count);
+
+				// Compute the orientation of the lightbar
+				// Forward is the normal vector
+				// Up is defined by the orientation of the lightbar vertices
+				{
+					const Eigen::Vector3f &bottom= lightbar_points[CommonDeviceTrackingShape::QuadVertexLowerRight];
+					const Eigen::Vector3f &top= lightbar_points[CommonDeviceTrackingShape::QuadVertexUpperRight];
+					const Eigen::Vector3f up= top - bottom;				
+					const Eigen::Quaternionf q= eigen_quaternion_from_forward_up(normal, up);
+
+					pose.Orientation.w= q.w();
+					pose.Orientation.x= q.x();
+					pose.Orientation.y= q.y();
+					pose.Orientation.z= q.z();
+				}
+
+				// Use the centroid as the world pose location
+				pose.Position.x= centroid.x();
+				pose.Position.y= centroid.y();
+				pose.Position.z= centroid.z();
+			}
+			else
+			{
+				pose.clear();
+			}
         } break;
     default:
         assert(0 && "unreachable");
@@ -1021,6 +1137,58 @@ ServerTrackerView::triangulateWorldPosition(
     result.z = point3D.at<float>(2, 0) / w;
 
     return result;
+}
+
+void
+ServerTrackerView::triangulateWorldPositions(
+    const ServerTrackerView *tracker, 
+    const CommonDeviceScreenLocation *screen_locations,
+    const ServerTrackerView *other_tracker,
+    const CommonDeviceScreenLocation *other_screen_locations,
+	const int screen_location_count,
+	CommonDevicePosition *out_result)
+{
+    // Convert the tracker screen locations in CommonDeviceScreenLocation space
+    // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
+    // into OpenCV pixel space
+    // i.e. [0, 0]x[frameWidth, frameHeight]
+    float screenWidth, screenHeight;
+    tracker->getPixelDimensions(screenWidth, screenHeight);
+
+    float otherScreenWidth, otherScreenHeight;
+    tracker->getPixelDimensions(otherScreenWidth, otherScreenHeight);
+
+	std::vector<cv::Point2f> projPoints1;
+	std::vector<cv::Point2f> projPoints2;
+	for (int point_index = 0; point_index < screen_location_count; ++point_index)
+	{
+		const CommonDeviceScreenLocation &p1= screen_locations[point_index];
+		const CommonDeviceScreenLocation &p2= other_screen_locations[point_index];
+
+		projPoints1.push_back(cv::Point2f(p1.x + (screenWidth / 2), p1.y + (screenHeight / 2)));
+		projPoints2.push_back(cv::Point2f(p2.x + (screenWidth / 2), p2.y + (screenHeight / 2)));
+	}
+
+    // Compute the pinhole camera matrix for each tracker that allows you to raycast
+    // from the tracker center in world space through the screen location, into the world
+    // See: http://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html
+    cv::Mat projMat1 = cv::Mat(computeOpenCVCameraPinholeMatrix(tracker->m_device));
+    cv::Mat projMat2 = cv::Mat(computeOpenCVCameraPinholeMatrix(other_tracker->m_device));
+
+    // Triangulate the world positions from the two cameras
+    cv::Mat points3D(1, screen_location_count, CV_32FC4);
+    cv::triangulatePoints(projMat1, projMat2, projPoints1, projPoints2, points3D);
+
+    // Return the world space positions
+	for (int point_index = 0; point_index < screen_location_count; ++point_index)
+	{
+		CommonDevicePosition &result= out_result[point_index];
+
+		const float w = points3D.at<float>(3, point_index);
+		result.x = points3D.at<float>(0, point_index) / w;
+		result.y = points3D.at<float>(1, point_index) / w;
+		result.z = points3D.at<float>(2, point_index) / w;
+	}
 }
 
 CommonDeviceScreenLocation

@@ -1939,7 +1939,7 @@ static void computeLightBarPoseForControllerFromMultipleTrackers(
 		}
 	}
 
-	assert(pair_count > 1);
+	assert(pair_count >= 1);
 
 	// Compute the average position
 	{

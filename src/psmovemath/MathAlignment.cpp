@@ -943,3 +943,80 @@ eigen_alignment_fit_least_squares_line(
 
 	return bSuccess;
 }
+
+// Modified from: https://gist.github.com/ialhashim/0a2554076a6cf32831ca
+bool 
+eigen_alignment_fit_least_squares_plane(
+	const Eigen::Vector3f *samples, const int sample_count,
+	Eigen::Vector3f *out_centroid, Eigen::Vector3f *out_normal)
+{
+	bool bSuccess= false;
+
+	if (sample_count > 3)
+	{
+		Eigen::Matrix< float, Eigen::Dynamic, Eigen::Dynamic > coord(3, sample_count);
+		for (int i = 0; i < sample_count; ++i)
+		{
+			coord.col(i) = samples[i];
+		}
+
+		// calculate centroid
+		Eigen::Vector3f centroid(coord.row(0).mean(), coord.row(1).mean(), coord.row(2).mean());
+
+		// subtract centroid
+		coord.row(0).array() -= centroid(0);
+		coord.row(1).array() -= centroid(1); 
+		coord.row(2).array() -= centroid(2);
+
+		// we only need the left-singular matrix here
+		//  http://math.stackexchange.com/questions/99299/best-fitting-plane-given-a-set-of-points
+		auto svd = coord.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
+		Eigen::Vector3f plane_normal = svd.matrixU().rightCols<1>();
+		float length= plane_normal.norm();
+
+		if (length > k_real_epsilon)
+		{
+			*out_centroid= centroid;
+			*out_normal= plane_normal / length;
+			bSuccess= true;
+		}
+	}
+	else if (sample_count == 3)
+	{
+		Eigen::Vector3f centroid= (samples[0] + samples[1] + samples[2]) / 3.f;
+		Eigen::Vector3f plane_normal= (samples[1] - samples[0]).cross((samples[2] - samples[0]));
+		float length= plane_normal.norm();
+
+		if (length > k_real_epsilon)
+		{
+			*out_centroid= centroid;
+			*out_normal= plane_normal / length;
+			bSuccess= true;
+		}
+	}
+
+	return bSuccess;
+}
+
+float
+eigen_alignment_project_points_on_plane(
+	const Eigen::Vector3f &centroid, const Eigen::Vector3f &normal,
+	Eigen::Vector3f *samples, const int sample_count)
+{
+	float total_error= 0.f;
+
+	for (int sample_index = 0; sample_index < sample_count; ++sample_index)
+	{
+		const Eigen::Vector3f &sample= samples[sample_index];
+		const Eigen::Vector3f centroidToSample= sample - centroid;
+		const float signedDistanceToPlane= centroidToSample.dot(normal);
+
+		// Move the sample onto the plane
+		samples[sample_index]= sample - normal*signedDistanceToPlane;
+
+		// Add up the total error distances from the plane
+		total_error+= fabsf(signedDistanceToPlane);
+	}
+
+	return total_error;
+}

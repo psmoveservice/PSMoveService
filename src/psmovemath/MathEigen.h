@@ -24,6 +24,11 @@ void
 eigen_quaternion_get_yaw_pitch_roll(
     const Eigen::Quaternionf &q, float *out_yaw_radians, float *out_pitch_radians, float *out_roll_radians);
 
+Eigen::Quaternionf
+eigen_quaternion_from_forward_up(
+	const Eigen::Vector3f &forward,
+	const Eigen::Vector3f &up);
+
 // Creates a quaternion that rotates clockwise about the axis for a positive angle
 // when appied with psmove_vector_clockwise_rotate()
 Eigen::Quaternionf

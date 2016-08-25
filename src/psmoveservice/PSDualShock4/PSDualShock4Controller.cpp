@@ -1002,15 +1002,22 @@ PSDualShock4Controller::getTrackingShape(CommonDeviceTrackingShape &outTrackingS
     // z-axis= from the center out through the extension port
 
     // The triangle connects the mid-points of each light-bar edge (lower right, lower left, upper middle)
-    outTrackingShape.shape.light_bar.triangle[0] = { tri_half_x, -tri_lower_half_y, 0.f };
-    outTrackingShape.shape.light_bar.triangle[1] = { -tri_half_x, -tri_lower_half_y, 0.f };
-    outTrackingShape.shape.light_bar.triangle[2] = { 0.f, quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.triangle[CommonDeviceTrackingShape::TriVertexLowerRight] = 
+		{ tri_half_x, -tri_lower_half_y, 0.f };
+    outTrackingShape.shape.light_bar.triangle[CommonDeviceTrackingShape::TriVertexLowerLeft] = 
+		{ -tri_half_x, -tri_lower_half_y, 0.f };
+    outTrackingShape.shape.light_bar.triangle[CommonDeviceTrackingShape::TriVertexUpperMiddle] = 
+		{ 0.f, quad_half_y, 0.f };
 
     // The quad bounds the light-bar (upper right, upper left, lower left, lower right)
-    outTrackingShape.shape.light_bar.quad[0] = { quad_half_x, quad_half_y, 0.f };
-    outTrackingShape.shape.light_bar.quad[1] = { -quad_half_x, quad_half_y, 0.f };
-    outTrackingShape.shape.light_bar.quad[2] = { -quad_half_x, -quad_half_y, 0.f };
-    outTrackingShape.shape.light_bar.quad[3] = { quad_half_x, -quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexUpperRight] = 
+		{ quad_half_x, quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexUpperLeft] = 
+		{ -quad_half_x, quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexLowerLeft] = 
+		{ -quad_half_x, -quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexLowerRight] = 
+		{ quad_half_x, -quad_half_y, 0.f };
 
     outTrackingShape.shape_type = eCommonTrackingShapeType::LightBar;
 }

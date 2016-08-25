@@ -266,14 +266,32 @@ struct CommonControllerState : CommonDeviceState
 
 struct CommonDeviceTrackingShape
 {
+	enum TriVertexEnum
+	{
+		TriVertexLowerRight= 0,
+		TriVertexLowerLeft= 1,
+		TriVertexUpperMiddle= 2,
+	
+		TriVertexCount
+	};
+	enum QuadVertexEnum
+	{
+		QuadVertexUpperRight= 0,
+		QuadVertexUpperLeft= 1,
+		QuadVertexLowerLeft= 2,
+		QuadVertexLowerRight= 3,
+
+		QuadVertexCount
+	};
+
     union{
         struct {
             float radius;
         } sphere;
 
         struct {
-            CommonDevicePosition triangle[3];
-            CommonDevicePosition quad[4];
+            CommonDevicePosition triangle[TriVertexCount];
+            CommonDevicePosition quad[QuadVertexCount];
         } light_bar;
     } shape;
 
