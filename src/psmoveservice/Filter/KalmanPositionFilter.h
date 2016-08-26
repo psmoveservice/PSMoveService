@@ -25,7 +25,7 @@ public:
 
 protected:
 	PositionFilterConstants m_constants;
-	class KalmanFilterImpl *m_filter;
+	class KalmanPositionFilterImpl *m_filter;
 };
 
 #endif // DEVICE_INTERFACE_H

@@ -26,7 +26,7 @@ public:
 
 protected:
 	PoseFilterConstants m_constants;
-	class KalmanFilterImpl *m_filter;
+	class KalmanPoseFilterImpl *m_filter;
 };
 
 /// Kalman Pose filter for Optical Pose + Angular Rate(Gyroscope) + Gravity(Accelerometer)

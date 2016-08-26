@@ -1008,7 +1008,7 @@ namespace Kalman {
 	};
 }
 
-class KalmanFilterImpl
+class KalmanPoseFilterImpl
 {
 public:
     /// Is the current fusion state valid
@@ -1035,7 +1035,7 @@ public:
     /// Unscented Kalman Filter instance
 	Kalman::PoseSRUFK ukf;
 
-    KalmanFilterImpl() 
+	KalmanPoseFilterImpl()
 		: ukf(k_ukf_alpha, k_ukf_beta, k_ukf_kappa)
     {
     }
@@ -1056,26 +1056,26 @@ public:
     }
 };
 
-class DS4KalmanFilterImpl : public KalmanFilterImpl
+class DS4KalmanPoseFilterImpl : public KalmanPoseFilterImpl
 {
 public:
     DS4_MeasurementModel measurement_model;
 
 	void init(const PoseFilterConstants &constants) override
 	{
-		KalmanFilterImpl::init(constants);
+		KalmanPoseFilterImpl::init(constants);
 		measurement_model.init(constants);
 	}
 };
 
-class PSMoveKalmanFilterImpl : public KalmanFilterImpl
+class PSMoveKalmanPoseFilterImpl : public KalmanPoseFilterImpl
 {
 public:
     PSMove_MeasurementModel measurement_model;
 
 	void init(const PoseFilterConstants &constants) override
 	{
-		KalmanFilterImpl::init(constants);
+		KalmanPoseFilterImpl::init(constants);
 		measurement_model.init(constants);
 	}
 };
@@ -1195,7 +1195,7 @@ bool KalmanPoseFilterDS4::init(const PoseFilterConstants &constants)
 {
     KalmanPoseFilter::init(constants);
 
-    DS4KalmanFilterImpl *filter = new DS4KalmanFilterImpl();
+    DS4KalmanPoseFilterImpl *filter = new DS4KalmanPoseFilterImpl();
     filter->init(constants);
     m_filter = filter;
 
@@ -1211,7 +1211,7 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
         m_filter->state_vector = m_filter->ukf.predict(m_filter->system_model);
 
         // Get the measurement model for the DS4 from the derived filter impl
-        DS4_MeasurementModel &measurement_model = static_cast<DS4KalmanFilterImpl *>(m_filter)->measurement_model;
+        DS4_MeasurementModel &measurement_model = static_cast<DS4KalmanPoseFilterImpl *>(m_filter)->measurement_model;
 
         // Project the current state onto a predicted measurement as a default
         // in case no observation is available
@@ -1297,7 +1297,7 @@ bool KalmanPoseFilterPSMove::init(const PoseFilterConstants &constants)
 {
     KalmanPoseFilter::init(constants);
 
-    PSMoveKalmanFilterImpl *filter = new PSMoveKalmanFilterImpl();
+    PSMoveKalmanPoseFilterImpl *filter = new PSMoveKalmanPoseFilterImpl();
     filter->init(constants);
     m_filter = filter;
 
@@ -1312,7 +1312,7 @@ void KalmanPoseFilterPSMove::update(const float delta_time, const PoseFilterPack
         m_filter->state_vector = m_filter->ukf.predict(m_filter->system_model);
 
         // Get the measurement model for the PSMove from the derived filter impl
-        PSMove_MeasurementModel &measurement_model = static_cast<PSMoveKalmanFilterImpl *>(m_filter)->measurement_model;
+        PSMove_MeasurementModel &measurement_model = static_cast<PSMoveKalmanPoseFilterImpl *>(m_filter)->measurement_model;
 
         // Project the current state onto a predicted measurement as a default
         // in case no observation is available

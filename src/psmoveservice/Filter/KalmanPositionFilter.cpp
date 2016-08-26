@@ -8,7 +8,7 @@
 #include <kalman/UnscentedKalmanFilter.hpp>
 
 //-- constants --
-enum StateEnum
+enum PositionFilterStateEnum
 {
     POSITION_X, // meters
     LINEAR_VELOCITY_X, // meters / s
@@ -23,7 +23,7 @@ enum StateEnum
     STATE_PARAMETER_COUNT
 };
 
-enum MeasurementEnum {
+enum PositionFilterMeasurementEnum {
     ACCELEROMETER_X, // gravity units
     ACCELEROMETER_Y,
     ACCELEROMETER_Z,
@@ -111,7 +111,7 @@ typedef ControllerMeasurementVector<double> ControllerMeasurementVectord;
 * This is the system model defining how a controller advances from one
 * time-step to the next, i.e. how the system state evolves over time.
 */
-class PoseSystemModel : public Kalman::SystemModel<ControllerStateVectord, Kalman::Vector<double, 0>, Kalman::SquareRootBase>
+class ControllerSystemModel : public Kalman::SystemModel<ControllerStateVectord, Kalman::Vector<double, 0>, Kalman::SquareRootBase>
 {
 public:
     inline void set_time_step(const double dt) { m_time_step = dt; }
@@ -360,7 +360,7 @@ namespace Kalman {
 		* @param [in] u The Control input vector
 		* @return The updated state estimate
 		*/
-		const State& predict( const PoseSystemModel& system_model )
+		const State& predict( const ControllerSystemModel& system_model )
 		{
 			// No control parameters            
 			Control u;
@@ -382,7 +382,7 @@ namespace Kalman {
 			// Compute the Covariance Square root from sigma points and noise covariance
 			// This covers equations (20) and (21) of Algorithm 3.1 in the Paper
 			{
-				const CovarianceSquareRoot<State> noiseCov= system_model.getCovarianceSquareRoot();
+				const CovarianceSquareRoot<State> &noiseCov= system_model.getCovarianceSquareRoot();
 
 				// -- Compute QR decomposition of (transposed) augmented matrix
 				// Fill in the weighted sigma point portion of the augmented qr input matrix
@@ -587,7 +587,7 @@ namespace Kalman {
 	};
 }
 
-class KalmanFilterImpl
+class KalmanPositionFilterImpl
 {
 public:
     /// Is the current fusion state valid
@@ -603,7 +603,7 @@ public:
     ControllerStateVectord state_vector;
 
     /// Used to model how the physics of the controller evolves
-    PoseSystemModel system_model;
+    ControllerSystemModel system_model;
 
 	/// Used to project model onto predicted sensor measurements
 	ControllerMeasurementModel measurement_model;
@@ -611,7 +611,7 @@ public:
     /// Unscented Kalman Filter instance
 	Kalman::PositionSRUFK ukf;
 
-    KalmanFilterImpl() 
+    KalmanPositionFilterImpl() 
 		: ukf(k_ukf_alpha, k_ukf_beta, k_ukf_kappa)
     {
     }
@@ -660,7 +660,7 @@ bool KalmanPositionFilter::init(const PositionFilterConstants &constants)
     }
 
 	// Create and initialize the private filter implementation
-    KalmanFilterImpl *filter = new KalmanFilterImpl();
+    KalmanPositionFilterImpl *filter = new KalmanPositionFilterImpl();
     filter->init(constants);
     m_filter = filter;
 
