@@ -64,28 +64,6 @@ eigen_quaternion_get_yaw_pitch_roll(
 	}
 }
 
-Eigen::Quaternionf
-eigen_quaternion_from_forward_up(
-	const Eigen::Vector3f &forward,
-	const Eigen::Vector3f &up)
-{
-	Eigen::Vector3f zVector= forward;				
-	eigen_vector3f_normalize_with_default(zVector, Eigen::Vector3f(0.f, 0.f, 1.f));
-
-	Eigen::Vector3f yVector= up;				
-	eigen_vector3f_normalize_with_default(yVector, Eigen::Vector3f(0.f, 1.f, 0.f));
-
-	Eigen::Vector3f xVector= zVector.cross(yVector);
-	eigen_vector3f_normalize_with_default(xVector, Eigen::Vector3f(1.f, 0.f, 0.f));
-
-	Eigen::Matrix3f basis;
-	basis.col(0)= xVector;
-	basis.col(1)= yVector;
-	basis.col(2)= zVector;
-
-	return Eigen::Quaternionf(basis);	
-}
-
 // Creates a quaternion that rotates clockwise about the axis for a positive angle
 // when appied with psmove_vector_clockwise_rotate()
 Eigen::Quaternionf

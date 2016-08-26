@@ -164,7 +164,7 @@ struct TrackerRelativePoseStatistics
 					// Average together all the samples we captured
 					for (int sampleIndex = 0; sampleIndex < k_mat_calibration_sample_count; ++sampleIndex)
 					{
-						const PSMoveScreenLocation &sample = screenSpacePoints[sampleCount];
+						const PSMoveScreenLocation &sample = screenSpacePoints[sampleIndex];
 
 						avg = avg + sample.toPSMoveFloatVector2();
 					}

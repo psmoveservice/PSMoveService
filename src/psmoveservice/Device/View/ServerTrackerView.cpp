@@ -1065,10 +1065,18 @@ ServerTrackerView::triangulateWorldPose(
 				// Forward is the normal vector
 				// Up is defined by the orientation of the lightbar vertices
 				{
-					const Eigen::Vector3f &bottom= lightbar_points[CommonDeviceTrackingShape::QuadVertexLowerRight];
-					const Eigen::Vector3f &top= lightbar_points[CommonDeviceTrackingShape::QuadVertexUpperRight];
-					const Eigen::Vector3f up= top - bottom;				
-					const Eigen::Quaternionf q= eigen_quaternion_from_forward_up(normal, up);
+					const Eigen::Vector3f &mid_left_vertex= 
+						(lightbar_points[CommonDeviceTrackingShape::QuadVertexUpperLeft] 
+						+ lightbar_points[CommonDeviceTrackingShape::QuadVertexLowerLeft]) / 2.f;
+					const Eigen::Vector3f &mid_right_vertex =
+						(lightbar_points[CommonDeviceTrackingShape::QuadVertexUpperRight]
+						+ lightbar_points[CommonDeviceTrackingShape::QuadVertexLowerRight]) / 2.f;
+					const Eigen::Vector3f right= mid_right_vertex - mid_left_vertex;
+
+					const Eigen::Quaternionf align_normal_rotation= Eigen::Quaternionf::FromTwoVectors(Eigen::Vector3f(0.f, 0.f, -1.f), normal);
+					const Eigen::Vector3f x_axis_in_plane = align_normal_rotation * Eigen::Vector3f(1.f, 0.f, 0.f);
+					const Eigen::Quaternionf align_right_rotation = Eigen::Quaternionf::FromTwoVectors(x_axis_in_plane, right);
+					const Eigen::Quaternionf q = align_right_rotation*align_normal_rotation;
 
 					pose.Orientation.w= q.w();
 					pose.Orientation.x= q.x();
