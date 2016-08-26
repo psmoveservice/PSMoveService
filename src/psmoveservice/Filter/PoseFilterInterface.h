@@ -27,7 +27,7 @@ extern const Eigen::Matrix3f *k_eigen_sensor_transform_opengl;
 struct PoseSensorPacket
 {
     // Optical readings in the world reference frame
-    Eigen::Vector3f optical_position; // cm
+    Eigen::Vector3f optical_position_cm; // cm
     float optical_position_quality; // [0, 1]
 
     Eigen::Quaternionf optical_orientation;
@@ -37,6 +37,11 @@ struct PoseSensorPacket
     Eigen::Vector3f imu_accelerometer; // g-units
     Eigen::Vector3f imu_magnetometer; // unit vector
     Eigen::Vector3f imu_gyroscope; // rad/s
+
+	inline Eigen::Vector3f get_optical_position_in_meters() const
+	{
+		return optical_position_cm * k_centimeters_to_meters;
+	}
 };
 
 /// A snapshot of IMU data transformed into a world space plus world space calibration vectors
@@ -47,10 +52,15 @@ struct PoseFilterPacket : PoseSensorPacket
     Eigen::Quaternionf current_orientation;
 
     /// The current position of the controller
-    Eigen::Vector3f current_position;
+    Eigen::Vector3f current_position_cm;
 
     /// The accelerometer reading in the world reference frame
     Eigen::Vector3f world_accelerometer; // g-units
+
+	inline Eigen::Vector3f get_current_position_in_meters() const
+	{
+		return current_position_cm * k_centimeters_to_meters;
+	}
 };
 
 /// Used to transform sensor data from a controller into an arbitrary space

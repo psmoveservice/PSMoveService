@@ -59,13 +59,13 @@ void PoseFilterSpace::createFilterPacket(
     PoseFilterPacket &outFilterPacket) const
 {
 	outFilterPacket.current_orientation= orientation;
-	outFilterPacket.current_position= position;
+	outFilterPacket.current_position_cm= position;
 
     outFilterPacket.optical_orientation = sensorPacket.optical_orientation;
     outFilterPacket.optical_orientation_quality= sensorPacket.optical_orientation_quality;
 
 	// Positional filtering is done is meters to improve numerical stability
-    outFilterPacket.optical_position = sensorPacket.optical_position * k_centimeters_to_meters;
+    outFilterPacket.optical_position_cm = sensorPacket.optical_position_cm;
     outFilterPacket.optical_position_quality= sensorPacket.optical_position_quality;
 
     outFilterPacket.imu_gyroscope= m_SensorTransform * sensorPacket.imu_gyroscope;

@@ -1560,7 +1560,7 @@ update_filters_for_psmove(
 		// PSMove does have an optical position
 		if (poseEstimation->bCurrentlyTracking)
 		{
-			sensorPacket.optical_position =
+			sensorPacket.optical_position_cm =
 				Eigen::Vector3f(
 					poseEstimation->position.x,
 					poseEstimation->position.y,
@@ -1574,7 +1574,7 @@ update_filters_for_psmove(
 		}
 		else
 		{
-			sensorPacket.optical_position = Eigen::Vector3f::Zero();
+			sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
 			sensorPacket.optical_position_quality= 0.f;
 		}
 
@@ -1648,6 +1648,7 @@ init_filters_for_psdualshock4(
 	constants.orientation_constants.max_orientation_variance =
 		ds4_config->get_orientation_variance(ds4_config->min_orientation_quality_screen_area);
 
+	constants.position_constants.gravity_calibration_direction= pose_filter_space->getGravityCalibrationDirection();
 	constants.position_constants.accelerometer_variance= ds4_config->accelerometer_variance;
 	constants.position_constants.accelerometer_noise_radius= ds4_config->accelerometer_noise_radius;
 	constants.position_constants.max_velocity= ds4_config->max_velocity;
@@ -1705,7 +1706,7 @@ update_filters_for_psdualshock4(
 
         if (poseEstimation->bCurrentlyTracking)
         {
-            sensorPacket.optical_position =
+            sensorPacket.optical_position_cm =
                 Eigen::Vector3f(
                     poseEstimation->position.x,
                     poseEstimation->position.y,
@@ -1719,7 +1720,7 @@ update_filters_for_psdualshock4(
         }
         else
         {
-            sensorPacket.optical_position = Eigen::Vector3f::Zero();
+            sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
             sensorPacket.optical_position_quality= 0.f;
         }
 

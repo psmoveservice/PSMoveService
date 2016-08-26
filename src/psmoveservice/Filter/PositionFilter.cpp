@@ -213,10 +213,10 @@ void PositionFilterPassThru::update(
 	const PoseFilterPacket &packet)
 {
 	// Use the current position if the optical orientation is unavailable
-    const Eigen::Vector3f &new_position= 
+    const Eigen::Vector3f new_position= 
 		(packet.optical_position_quality > 0.f) 
-		? packet.optical_position
-		: packet.current_position;
+		? packet.get_optical_position_in_meters()
+		: packet.get_current_position_in_meters();
 
     // If this is the first filter packet, just accept the current position as gospel
 	m_state->apply_state(
@@ -233,7 +233,7 @@ void PositionFilterLowPassOptical::update(
 	const float delta_time, 
 	const PoseFilterPacket &packet)
 {
-    if (packet.optical_position_quality > 0.f && eigen_vector3f_is_valid(packet.optical_position))
+    if (packet.optical_position_quality > 0.f && eigen_vector3f_is_valid(packet.optical_position_cm))
     {        
 		PositionFilterState new_state;
 
@@ -251,7 +251,7 @@ void PositionFilterLowPassOptical::update(
         else
         {
             // If this is the first filter packet, just accept the position as gospel
-            new_state.position = packet.optical_position;
+            new_state.position = packet.get_optical_position_in_meters();
             new_state.velocity = Eigen::Vector3f::Zero();
             new_state.acceleration = Eigen::Vector3f::Zero();
         }
@@ -298,7 +298,7 @@ void PositionFilterLowPassIMU::update(
         {
             // If this is the first filter packet, just accept the current position as gospel
 			m_state->apply_state(
-				packet.current_position,
+				packet.get_current_position_in_meters(),
 				Eigen::Vector3f::Zero(),
 				Eigen::Vector3f::Zero(),
 				packet.world_accelerometer, 
@@ -384,11 +384,11 @@ void PositionFilterComplimentaryOpticalIMU::update(const float delta_time, const
             m_state->bIsValid = false;
         }
     }
-    else if (packet.optical_position_quality > 0.f && eigen_vector3f_is_valid(packet.optical_position))
+    else if (packet.optical_position_quality > 0.f && eigen_vector3f_is_valid(packet.get_optical_position_in_meters()))
     {
         // If this is the first filter packet, just accept the position and accelerometer as gospel
 		m_state->apply_state(
-			packet.optical_position,
+			packet.get_optical_position_in_meters(),
 			Eigen::Vector3f::Zero(),
 			Eigen::Vector3f::Zero(),
 			packet.world_accelerometer,
@@ -447,13 +447,13 @@ static Eigen::Vector3f lowpass_filter_optical_position(
 
     // Traveling k_max_lowpass_smoothing_distance in one frame should have 0 smoothing
     // Traveling 0+noise cm in one frame should have 60% smoothing
-    Eigen::Vector3f diff = packet->optical_position - state->position;
+    Eigen::Vector3f diff = packet->get_optical_position_in_meters() - state->position;
     float distance = diff.norm();
     float new_position_weight = clampf01(lerpf(0.40f, 1.00f, distance / k_max_lowpass_smoothing_distance));
 
     // New position is blended against the old position
     const Eigen::Vector3f &old_position = state->position;
-    const Eigen::Vector3f &new_position = packet->optical_position;
+    const Eigen::Vector3f new_position = packet->get_optical_position_in_meters();
     const Eigen::Vector3f filtered_new_position = lowpass_filter_vector3f(new_position_weight, old_position, new_position);
 
     return filtered_new_position;

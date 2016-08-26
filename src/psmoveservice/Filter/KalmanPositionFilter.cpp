@@ -690,7 +690,7 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
 
         if (packet.optical_position_quality > 0.f)
         {
-			Eigen::Vector3f optical_position= packet.optical_position * k_centimeters_to_meters;
+			Eigen::Vector3f optical_position= packet.get_optical_position_in_meters();
 
 			// Adjust the amount we trust the optical measurements based on the quality parameters
             measurement_model.update_measurement_covariance(
@@ -717,7 +717,7 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
 
 		if (packet.optical_position_quality > 0.f)
 		{
-			Eigen::Vector3f optical_position= packet.optical_position * k_centimeters_to_meters;
+			Eigen::Vector3f optical_position= packet.get_optical_position_in_meters();
 
 			m_filter->state_vector.set_position(optical_position.cast<double>());
 			m_filter->bSeenPositionMeasurement= true;
