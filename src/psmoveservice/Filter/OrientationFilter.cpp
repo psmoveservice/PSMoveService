@@ -364,6 +364,7 @@ void OrientationFilterComplementaryOpticalARG::update(const float delta_time, co
     if (packet.optical_orientation_quality <= k_real_epsilon)
     {
         OrientationFilterMadgwickARG::update(delta_time, packet);
+		return;
     }
 
     const Eigen::Vector3f &current_omega= packet.imu_gyroscope;
