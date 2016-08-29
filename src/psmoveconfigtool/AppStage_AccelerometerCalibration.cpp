@@ -293,31 +293,72 @@ void AppStage_AccelerometerCalibration::render()
         } break;
     case eCalibrationMenuState::test:
         {
-            const float sampleScale = 1.f;
-            glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
+            //const float sampleScale = 1.f;
+            //glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
 
             drawController(m_controllerView, controllerTransform);
             drawTransformedAxes(controllerTransform, 200.f);
 
             // Draw the current filtered acceleration direction
-            {
-                const float accel_cms2 = m_lastAcceleration.length();
-                glm::vec3 m_start = glm::vec3(0.f);
-                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastAcceleration);
+            //{
+            //    const float accel_cms2 = m_lastAcceleration.length();
+            //    glm::vec3 m_start = glm::vec3(0.f);
+            //    glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastAcceleration);
 
-                drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
-                drawTextAtWorldPosition(sampleTransform, m_end, "A(%.1fcm/s^2)", accel_cms2);
-            }
+            //    drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
+            //    drawTextAtWorldPosition(sampleTransform, m_end, "A(%.1fcm/s^2)", accel_cms2);
+            //}
 
             // Draw the current filtered acceleration direction
-            {
-                const float vel_cms = m_lastVelocity.length();
-                glm::vec3 m_start = glm::vec3(0.f);
-                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastVelocity);
+            //{
+            //    const float vel_cms = m_lastVelocity.length();
+            //    glm::vec3 m_start = glm::vec3(0.f);
+            //    glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastVelocity);
 
-                drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(0.f, 1.f, 0.f));
-                drawTextAtWorldPosition(sampleTransform, m_end, "V(%.1fcm/s)", vel_cms);
-            }
+            //    drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(0.f, 1.f, 0.f));
+            //    drawTextAtWorldPosition(sampleTransform, m_end, "V(%.1fcm/s)", vel_cms);
+            //}
+
+			//### $DEBUG
+			const float sampleScale = 100.f;
+			glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
+
+			{
+				const float accel_g = m_lastCalibratedAccelerometer.length();
+				glm::vec3 m_start = glm::vec3(0.f);
+				glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
+
+				drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 1.f, 1.f));
+				drawTextAtWorldPosition(sampleTransform, m_end, "Am(%.1fg)", accel_g);
+			}
+
+			{
+				Eigen::Quaternionf current_orientation= psmove_quaternion_to_eigen_quaternionf(m_controllerView->GetPose().Orientation);
+
+				const float k_ms2_to_g_units = 1.f / 9.80665000f; // g-units
+
+				static float ACCELEROMETER_IDENTITY_PITCH_DEGREES = -22.67f;
+				const Eigen::Vector3f k_identity_gravity(
+					0.f, 
+					cosf(ACCELEROMETER_IDENTITY_PITCH_DEGREES*k_degrees_to_radians),
+					-sinf(ACCELEROMETER_IDENTITY_PITCH_DEGREES*k_degrees_to_radians));
+
+				// Use the current linear acceleration from the state to predict
+				// what the accelerometer reading will be (in world space)
+				const Eigen::Vector3f gravity_accel_g_units = k_identity_gravity;
+				const Eigen::Vector3f linear_accel_g_units = Eigen::Vector3f::Zero(); //x.get_linear_acceleration() * k_ms2_to_g_units;
+				const Eigen::Vector3f accel_world = linear_accel_g_units + gravity_accel_g_units;
+				const Eigen::Quaternionf accel_world_quat(0.f, accel_world.x(), accel_world.y(), accel_world.z());
+
+				// Put the accelerometer prediction into the local space of the controller
+				const Eigen::Vector3f accel_local = current_orientation.conjugate()*(accel_world_quat*current_orientation).vec();
+
+				glm::vec3 m_start = glm::vec3(0.f);
+				glm::vec3 m_end = eigen_vector3f_to_glm_vec3(accel_local);
+
+				drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
+				drawTextAtWorldPosition(sampleTransform, m_end, "Ap(1.0g)");
+			}
 
         } break;
     default:
