@@ -1734,7 +1734,7 @@ update_filters_for_psdualshock4(
                 psdualShock4State->CalibratedGyro.i, 
                 psdualShock4State->CalibratedGyro.j,
                 psdualShock4State->CalibratedGyro.k);
-        sensorPacket.imu_gyroscope= Eigen::Vector3f::Zero();
+		sensorPacket.imu_magnetometer = Eigen::Vector3f::Zero();
 
         {
             PoseFilterPacket filterPacket;
