@@ -19,7 +19,7 @@ quat = axisAngle2Quat(states([10, 12, 14], :));
 
 % Accelerometer = (linear acceleration + gravity) transformed to controller
 % frame.
-lacc_world = bsxfun(@plus, states([2 5 8], :), gravity_world);  % In m/sec^2
+lacc_world = bsxfun(@plus, states([3 6 9], :), gravity_world);  % In m/sec^2
 lacc_world_g = lacc_world ./ GRAVITY;  % In G units
 predicted_obs(1:3, :) = rotateAxisAngle(lacc_world_g, quat);
 

@@ -3,7 +3,7 @@ X_t = filt_struct.intermediates.X_t;
 X_k = filt_struct.intermediates.X_k;
 X_k_r = filt_struct.intermediates.X_k_r;
 x_k = filt_struct.intermediates.x_k;
-Sx_k = filt_struct.intermediates.Sx_k;
+Sx_k = filt_struct.intermediates.Sx_k;  % Still UPPER
 
 %% 1. Propagate sigma points through observation function.
 L = filt_struct.Xdim + filt_struct.Q.dim + filt_struct.R.dim;
@@ -46,7 +46,7 @@ for ix = 1:nsp
     %TODO: Should X_k_r axisAngles be multiplied directly like this?
     Pxy = Pxy + wc(ix) * (X_k_r(:, ix) * Y_k_r(:, ix)');
 end
-%Equivalent to above. I think. Definitely faster.
+%Equivalent to above, I think (definitely faster):
 % Pxy = wc(1) * X_k_r(:,1) * Y_k_r(:,1)' + wc(2) * X_k_r(:,2:nsp) * Y_k_r(:,2:nsp)';  
 KG = (Pxy/Sy_k')/Sy_k;
 
@@ -67,9 +67,9 @@ end
 %This is equivalent to :  Px = Px_ - KG*Py*KG';
 cov_update_vectors = KG * Sy_k;
 for j=1:filt_struct.Odim
-    Sx_k = cholupdate(Sx_k, cov_update_vectors(:,j), '-');
+    Sx_k = cholupdate(Sx_k, cov_update_vectors(:,j), '-');  % Still UPPER
 end
-filt_struct.S = Sx_k';
+filt_struct.S = Sx_k';  % LOWER sqrt-covariance saved for next predict.
 end
 
 %% Helper functions - Not used because our observations have linear updates.

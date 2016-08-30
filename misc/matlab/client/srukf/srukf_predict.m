@@ -18,7 +18,7 @@ x_t = [filt_struct.x; filt_struct.Q.mu; filt_struct.R.mu];
 
 %% 3. Build augmented sqrt state covariance matrix
 S_a = zeros(L);  % = sqrt(state_covariance)
-S_a(1:filt_struct.Xdim, 1:filt_struct.Xdim) = filt_struct.S;
+S_a(1:filt_struct.Xdim, 1:filt_struct.Xdim) = filt_struct.S;  % LOWER triangular
 Q_inds = filt_struct.Xdim + 1:filt_struct.Xdim + filt_struct.Q.dim;
 S_a(Q_inds, Q_inds) = filt_struct.Q.cov;
 R_inds = filt_struct.Xdim + filt_struct.Q.dim + 1:L;
