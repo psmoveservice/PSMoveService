@@ -166,6 +166,20 @@ public:
         k_EPSButtonID_Count
     };
 
+
+	enum eVRTouchpadDirection
+	{
+		k_EVRTouchpadDirection_None,
+
+		k_EVRTouchpadDirection_Left,
+		k_EVRTouchpadDirection_Up,
+		k_EVRTouchpadDirection_Right,
+		k_EVRTouchpadDirection_Down,
+
+		k_EVRTouchpadDirection_Count
+	};
+
+
     CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int ControllerID );
     virtual ~CPSMoveControllerLatest();
 
@@ -195,6 +209,7 @@ private:
     void SendButtonUpdates( ButtonUpdate ButtonEvent, uint64_t ulMask );
 	void RealignHMDTrackingSpace();
     void UpdateControllerState();
+	void UpdateControllerStateFromPsMoveButtonState(ePSButtonID buttonId, PSMoveButtonState buttonState, vr::VRControllerState_t* pControllerStateToUpdate);
     void UpdateTrackingState();
     void UpdateRumbleState();	
 
@@ -219,10 +234,12 @@ private:
 
     // Button Remapping
     vr::EVRButtonId psButtonIDToVRButtonID[k_EPSButtonID_Count];
+	eVRTouchpadDirection psButtonIDToVrTouchpadDirection[k_EPSButtonID_Count];
     void LoadButtonMapping(
         vr::IVRSettings *pSettings,
         const CPSMoveControllerLatest::ePSButtonID psButtonID,
-        const vr::EVRButtonId defaultVRButtonID);
+        const vr::EVRButtonId defaultVRButtonID,
+		const eVRTouchpadDirection defaultTouchpadDirection);
 
     // Callbacks
     static void start_controller_response_callback(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
