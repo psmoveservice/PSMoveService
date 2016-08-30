@@ -453,18 +453,24 @@ public:
     * @param [in] x The system state in current time-step
     * @returns The (predicted) sensor measurement for the system state
     */
-    PSMove_MeasurementVector h(const PoseStateVector& x) const
+    PSMove_MeasurementVector observation_function(const PoseStateVector& state, const PSMove_MeasurementVector &observation_noise) const
     {
         PSMove_MeasurementVector predicted_measurement;
 
+		// Extract the observations noise
+		const Eigen::Vector3d accel_noise = observation_noise.get_accelerometer();
+		const Eigen::Vector3d mag_noise = observation_noise.get_magnetometer();
+		const Eigen::Vector3d gyro_noise = observation_noise.get_gyroscope();
+		const Eigen::Vector3d position_noise = observation_noise.get_optical_position();
+
         // Use the position and orientation from the state for predictions
-        const Eigen::Vector3d position= x.get_position();
-        const Eigen::Quaterniond orientation= x.get_quaternion();
+        const Eigen::Vector3d position= state.get_position();
+        const Eigen::Quaterniond orientation= state.get_quaternion();
 
         // Use the current linear acceleration from the state to predict
         // what the accelerometer reading will be (in world space)
         const Eigen::Vector3d gravity_accel_g_units= -identity_gravity_direction;
-        const Eigen::Vector3d linear_accel_g_units= x.get_linear_acceleration() * k_ms2_to_g_units;
+        const Eigen::Vector3d linear_accel_g_units= state.get_linear_acceleration() * k_ms2_to_g_units;
         const Eigen::Vector3d accel_world= linear_accel_g_units + gravity_accel_g_units;
         const Eigen::Quaterniond accel_world_quat(0.f, accel_world.x(), accel_world.y(), accel_world.z());
 
@@ -472,7 +478,7 @@ public:
         const Eigen::Vector3d accel_local= orientation*(accel_world_quat*orientation.conjugate()).vec();
 
         // Use the angular velocity from the state to predict what the gyro reading will be
-        const Eigen::Vector3d gyro_local= x.get_angular_velocity(); 
+        const Eigen::Vector3d gyro_local= state.get_angular_velocity(); 
 
         // Use the orientation from the state to predict
         // what the magnetometer reading should be
@@ -481,10 +487,10 @@ public:
         const Eigen::Vector3d mag_local= orientation*(mag_world_quat*orientation.conjugate()).vec();
 
         // Save the predictions into the measurement vector
-        predicted_measurement.set_accelerometer(accel_local);
-        predicted_measurement.set_magnetometer(mag_local);
-        predicted_measurement.set_gyroscope(gyro_local);
-        predicted_measurement.set_optical_position(position);
+        predicted_measurement.set_accelerometer(accel_local + accel_noise);
+        predicted_measurement.set_magnetometer(mag_local + mag_noise);
+        predicted_measurement.set_gyroscope(gyro_local + gyro_noise);
+        predicted_measurement.set_optical_position(position + position_noise);
 
         return predicted_measurement;
     }
@@ -564,18 +570,24 @@ public:
     * @param [in] x The system state in current time-step
     * @returns The (predicted) sensor measurement for the system state
     */
-    DS4_MeasurementVector h(const PoseStateVector& x) const
+    DS4_MeasurementVector observation_function(const PoseStateVector& state, const DS4_MeasurementVector &observation_noise) const
     {
         DS4_MeasurementVector predicted_measurement;
 
+		// Extract the observations noise
+		const Eigen::Vector3d accel_noise= observation_noise.get_accelerometer();
+		const Eigen::Vector3d gyro_noise= observation_noise.get_gyroscope();
+		const Eigen::Vector3d position_noise= observation_noise.get_optical_position();
+		const Eigen::Quaterniond orientation_noise= observation_noise.get_optical_quaternion();
+
         // Use the position and orientation from the state for predictions
-        const Eigen::Vector3d position= x.get_position();
-        const Eigen::Quaterniond orientation= x.get_quaternion();
+        const Eigen::Vector3d position= state.get_position();
+        const Eigen::Quaterniond orientation= state.get_quaternion();
 
         // Use the current linear acceleration from the state to predict
         // what the accelerometer reading will be (in world space)
         const Eigen::Vector3d gravity_accel_g_units= -identity_gravity_direction;
-        const Eigen::Vector3d linear_accel_g_units= x.get_linear_acceleration() * k_ms2_to_g_units;
+        const Eigen::Vector3d linear_accel_g_units= state.get_linear_acceleration() * k_ms2_to_g_units;
         const Eigen::Vector3d accel_world= linear_accel_g_units + gravity_accel_g_units;
         const Eigen::Quaterniond accel_world_quat(0.f, accel_world.x(), accel_world.y(), accel_world.z());
 
@@ -583,13 +595,13 @@ public:
         const Eigen::Vector3d accel_local= orientation*(accel_world_quat*orientation.conjugate()).vec();
 
         // Use the angular velocity from the state to predict what the gyro reading will be
-        const Eigen::Vector3d gyro_local= x.get_angular_velocity(); 
+        const Eigen::Vector3d gyro_local= state.get_angular_velocity(); 
 
         // Save the predictions into the measurement vector
-        predicted_measurement.set_accelerometer(accel_local);
-        predicted_measurement.set_gyroscope(gyro_local);
-        predicted_measurement.set_optical_position(position);
-        predicted_measurement.set_optical_quaternion(orientation);
+        predicted_measurement.set_accelerometer(accel_local + accel_noise);
+        predicted_measurement.set_gyroscope(gyro_local + gyro_noise);
+        predicted_measurement.set_optical_position(position + position_noise);
+        predicted_measurement.set_optical_quaternion(orientation_noise*orientation);
 
         return predicted_measurement;
     }
@@ -690,6 +702,7 @@ class PoseSRUFK
 {
 public:
 	static const int X_DIM = STATE_PARAMETER_COUNT;
+	static const int O_DIM = Measurement::RowsAtCompileTime;
 	static const int Q_DIM = STATE_PARAMETER_COUNT;
 	static const int R_DIM = Measurement::RowsAtCompileTime;
 	static const int L_DIM = X_DIM + Q_DIM + R_DIM;
@@ -851,6 +864,10 @@ public:
 	{
 		const int nsp = SIGMA_POINT_COUNT;
 
+		// In the below variables, the subscripts are as follows
+		// k is the next / predicted time point
+		// t = k - 1 (time point of previous estimate)
+
 		//%% 2. Build augmented state vector
 		Eigen::Matrix<double, L_DIM, 1> x_t;
 		x_t.segment<X_DIM>(0) = x;
@@ -935,7 +952,7 @@ public:
 		//%% 8. Estimate state covariance(sqrt)
 		// w_qr is scalar
 		// QR update of state Cholesky factor.
-		// w_qr and w_cholup cannot be negative x
+		// w_qr and w_cholup cannot be negative
 		Eigen::Matrix<double, nsp - 1, X_DIM > qr_input = (W.w_qr*X_k_r.rightCols<nsp - 1>()).transpose();
 
 		// TODO: Use ColPivHouseholderQR
@@ -949,138 +966,92 @@ public:
 	}
 
 	/**
-		* @brief Perform filter update step using measurement \f$z\f$ and corresponding measurement model
-		*
-		* @param [in] z The measurement vector
-		* @return The updated state estimate
-		*/
-	void update(const Measurement& z)
+	* @brief Perform filter update step using measurement \f$z\f$ and corresponding measurement model
+	*
+	* @param [in] observation The measurement vector
+	*/
+	void update(const Measurement& observation)
 	{
-#if 0
-		SigmaPoints<Measurement> sigmaMeasurementPoints;
-            
-		// Compute sigma points (using predicted state)
-		computeSigmaPoints();
-            
-		// Predict the expected sigma measurements from predicted sigma states using measurement model
-		// This covers equation (23) of Algorithm 3.1 in the Paper
-		for (int col_index = 0; col_index < SIGMA_POINT_COUNT; ++col_index)
+
+		//%% 1. Propagate sigma points through observation function.
+		const int nsp = SIGMA_POINT_COUNT;
+		const int X_inds = 0;
+		const int Q_inds = X_inds + X_DIM;
+		const int R_inds = Q_inds + Q_DIM;
+
+		//Y_k = observation_function(filt_struct, X_k, X_t(R_inds, :));
+		Eigen::Matrix<double, O_DIM, nsp> Y_k;
+		for (int point_index = 0; point_index < nsp; ++point_index)
 		{
-			sigmaMeasurementPoints.col(col_index) = measurement_model.h(sigmaStatePoints.col(col_index));
+			Y_k.col(point_index) =
+				measurement_model.observation_function(
+					X_k.col(point_index), // Slice out the state vector for sigma point
+					X_t.block<R_DIM, 1>(R_inds, point_index)); // Slice out the measurement noise
 		}
 
-		// Predict measurement from sigma measurement points
-		// Calls the appropriate function specialization based on measurement type
-		Measurement y= Measurement::computeWeightedMeasurementAverage(sigmaMeasurementPoints, wm);
-           
-		// Compute square root innovation covariance
-		// This covers equations (23) and (24) of Algorithm 3.1 in the Paper
-		CovarianceSquareRoot<Measurement> S_y;
+		//%% 2. Calculate observation mean.
+		Measurement y_k = Measurement::computeWeightedMeasurementAverage<nsp>(Y_k, W.wm);
+
+		//%% 3. Calculate y - residuals.
+		// Used in observation covariance and state - observation cross - covariance for Kalman gain.
+		Eigen::Matrix<double, O_DIM, nsp>  Y_k_r;
+		for (int col_offset = 0; col_offset < nsp; ++col_offset)
 		{
-			const CovarianceSquareRoot<Measurement> noiseCov= measurement_model.getCovarianceSquareRoot();
-
-			// -- Compute QR decomposition of (transposed) augmented matrix
-			// Subtract the y from each sigma point in the right block of the sigmaMeasurementPoints matrix
-			// Part of Eqn 23
-			Matrix<double, Measurement::RowsAtCompileTime, SIGMA_POINT_COUNT-1> rightSigmaPointsMinusMean= 
-				sigmaMeasurementPoints.template rightCols<SIGMA_POINT_COUNT-1>();
-			for (int col_index = 0; col_index < SIGMA_POINT_COUNT-1; ++col_index)
-			{
-				Measurement sigmaPoint= rightSigmaPointsMinusMean.col(col_index);
-
-				rightSigmaPointsMinusMean.col(col_index)= sigmaPoint.difference(y);
-			}
-
-			// Fill in the weighted sigma point portion of the augmented qr input matrix
-			// Part of Eqn 23
-			Eigen::Matrix<double, 2*STATE_PARAMETER_COUNT + Measurement::RowsAtCompileTime, Measurement::RowsAtCompileTime> qr_input;
-			qr_input.template topRows<2*STATE_PARAMETER_COUNT>() = 
-				std::sqrt(this->wc[1]) * rightSigmaPointsMinusMean.transpose();
-
-			// Fill in the noise portion of the augmented qr input matrix
-			// Part of Eqn 23 
-			qr_input.template bottomRows<Measurement::RowsAtCompileTime>() = noiseCov.matrixU().toDenseMatrix();
-
-			// TODO: Use ColPivHouseholderQR
-			Eigen::HouseholderQR<decltype(qr_input)> qr( qr_input );
-	            
-			// Set R matrix as upper triangular square root
-			S_y.setU(qr.matrixQR().template topRightCorner<Measurement::RowsAtCompileTime, Measurement::RowsAtCompileTime>());
-	            
-			// Perform additional rank 1 update
-			// TODO: According to the paper (Section 3, "Cholesky factor updating") the update
-			//       is defined using the square root of the scalar, however the correct result
-			//       is obtained when using the weight directly rather than using the square root
-			//       It should be checked whether this is a bug in Eigen or in the Paper
-			// T nu = std::copysign( std::sqrt(std::abs(sigmaWeights_c[0])), sigmaWeights_c[0]);
-			double nu = this->wc[0];
-			Measurement firstSigmaMeasurementPoint= sigmaMeasurementPoints.template leftCols<1>();
-			S_y.rankUpdate( firstSigmaMeasurementPoint.difference(y), nu );
-	            
-			assert(S_y.info() == Eigen::Success);
+			Y_k_r.col(col_offset)= Measurement(Y_k.col(col_offset)).difference(y_k);
 		}
-            		    
-		// Compute the Kalman Gain from predicted measurement and sigma points and the innovation covariance.
-		// 
-		// This covers equations (27) and (28) of Algorithm 3.1 in the Paper
-		//
-		// We need to solve the equation \f$ K (S_y S_y^T) = P \f$ for \f$ K \f$ using backsubstitution.
-		// In order to apply standard backsubstitution using the `solve` method we must bring the
-		// equation into the form
-		// \f[ AX = B \qquad \text{with } A = S_yS_y^T \f]
-		// Thus we transpose the whole equation to obtain
-		// \f{align*}{
-		//   ( K (S_yS_y^T))^T &= P^T \Leftrightarrow \\
-		//   (S_yS_y^T)^T K^T &= P^T \Leftrightarrow \\
-		//   (S_yS_y^T) K^T &= P^T
-		//\f}
-		// Hence our \f$ X := K^T\f$ and \f$ B:= P^T \f$
-		Eigen::Matrix<double, STATE_PARAMETER_COUNT, Measurement::RowsAtCompileTime> K;
+
+		//%% 4. Calculate observation sqrt covariance
+		// w_qr is scalar
+		// QR update of state Cholesky factor.
+		// w_qr and w_cholup cannot be negative
+		Eigen::Matrix<double, nsp - 1, O_DIM> qr_input = (W.w_qr*Y_k_r.rightCols<nsp - 1>()).transpose();
+
+		// TODO: Use ColPivHouseholderQR
+		Eigen::HouseholderQR<decltype(qr_input)> qr(qr_input);
+
+		// Set R matrix as upper triangular square root
+		Eigen::Matrix<double, O_DIM, O_DIM > Sy_k = qr.matrixQR().topRightCorner<O_DIM, O_DIM>().triangularView<Eigen::Upper>();
+
+		// Perform additional rank 1 update
+		Sy_k.selfadjointView<Eigen::Upper>().rankUpdate(Y_k_r.leftCols<1>(), W.w_cholup);
+
+		// We need the lower triangular Cholesky factor
+		Sy_k = Sy_k.transpose();
+
+		//%% 5. Calculate Kalman Gain
+		Eigen::Matrix<double, X_DIM, O_DIM> Pxy;
+		Pxy.setZero();
+		for (int point_index = 0; point_index < nsp; ++point_index)
 		{
-			Eigen::Matrix<double, STATE_PARAMETER_COUNT, SIGMA_POINT_COUNT> sigmaStatePointsMinusX;
-			for (int col_index = 0; col_index < SIGMA_POINT_COUNT; ++col_index)
-			{
-				State sigmaPoint= sigmaStatePoints.col(col_index);
-
-				sigmaStatePointsMinusX.col(col_index)= sigmaPoint.difference(x);
-			}
-
-			Eigen::Matrix<double, Measurement::RowsAtCompileTime, SIGMA_POINT_COUNT> sigmaMeasurementPointsMinusY;
-			for (int col_index = 0; col_index < SIGMA_POINT_COUNT; ++col_index)
-			{
-				Measurement measurement= sigmaMeasurementPoints.col(col_index);
-
-				sigmaMeasurementPointsMinusY.col(col_index)= measurement.difference(y);
-			}
-
-			// Note: The intermediate eval() is needed here (for now) due to a bug in Eigen that occurs
-			// when Measurement::RowsAtCompileTime == 1 AND STATE_PARAMETER_COUNT >= 8
-			decltype(sigmaStatePoints) W = this->wc.transpose().template replicate<STATE_PARAMETER_COUNT,1>();
-			Eigen::Matrix<double, STATE_PARAMETER_COUNT, Measurement::RowsAtCompileTime> P
-					= sigmaStatePointsMinusX.cwiseProduct( W ).eval()
-					* sigmaMeasurementPointsMinusY.transpose();
-            
-			K = S_y.solve(P.transpose()).transpose();
+			//%TODO : Should X_k_r axisAngles be multiplied directly like this ?
+			Pxy = Pxy + W.wc(point_index) * (X_k_r.col(point_index) * Y_k_r.col(point_index).transpose());
 		}
-            
-		// Update state
-		//x += K * ( z - y );
-		x= x.addition(K*z.difference(y));
-            
-		// Update the state covariance matrix using the Kalman Gain and the Innovation Covariance
-		// This covers equations (29) and (30) of Algorithm 3.1 in the Paper
+
+		// KG = (Pxy / Sy_k')/Sy_k, where "/" is the "mrdivide" operator in matlab
+		// The following: http://stackoverflow.com/questions/31705168/armadillos-solvea-b-returning-different-answer-from-matlab-eigen
+		// says A mrdivide B is equivalent to the following in Eigen:
+		// A.transpose().colPivHouseholderQr().solve(B.transpose())
+		// Therefore numerator= (Pxy / Sy_k') becomes:
+		Eigen::Matrix<double, X_DIM, O_DIM> numerator= (Pxy.transpose().colPivHouseholderQr().solve(Sy_k));
+		// and KG= numerator/Sy_k becomes:
+		Eigen::Matrix<double, X_DIM, O_DIM> KG = (numerator.transpose().colPivHouseholderQr().solve(Sy_k.transpose()));
+
+		// %% 6. Calculate innovation
+		Measurement innov = observation.difference(y_k);
+
+		// %% 7. State update / correct
+		PoseStateVector upd(KG*innov);
+		x = x_k + upd;
+		PoseStateVector::special_state_add<X_DIM>(x_k, upd, x);
+
+		// %% 8. Covariance update / correct
+		// This is equivalent to : Px = Px_ - KG*Py*KG';
+		Eigen::Matrix<double, X_DIM, O_DIM> cov_update_vectors = KG * Sy_k;
+		for (int j = 0; j < O_DIM; ++j)
 		{
-			Eigen::Matrix<double, Measurement::RowsAtCompileTime, Measurement::RowsAtCompileTime> U;
-			U = K * S_y.matrixL();
-
-			for(int i = 0; i < U.cols(); ++i)
-			{
-				S.rankUpdate( U.col(i), -1 );
-                
-				assert( S.info() != Eigen::NumericalIssue );
-			}            
-		}
-#endif 
+			Sx_k.selfadjointView<Eigen::Lower>().rankUpdate(cov_update_vectors.col(j), -1.0);
+		}		
+		S = Sx_k.transpose();
 	}
 };
 
@@ -1281,7 +1252,7 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
 
         // Project the current state onto a predicted measurement as a default
         // in case no observation is available
-        DS4_MeasurementVector measurement = measurement_model.h(srukf.x);
+        DS4_MeasurementVector measurement = measurement_model.observation_function(srukf.x, DS4_MeasurementVector::Zero());
 
         // Accelerometer and gyroscope measurements are always available
         measurement.set_accelerometer(packet.imu_accelerometer.cast<double>());
@@ -1386,7 +1357,7 @@ void KalmanPoseFilterPSMove::update(const float delta_time, const PoseFilterPack
 
         // Project the current state onto a predicted measurement as a default
         // in case no observation is available
-        PSMove_MeasurementVector measurement = measurement_model.h(srukf.x);
+        PSMove_MeasurementVector measurement = measurement_model.observation_function(srukf.x, PSMove_MeasurementVector::Zero());
 
         // Accelerometer, magnetometer and gyroscope measurements are always available
         measurement.set_accelerometer(packet.imu_accelerometer.cast<double>());
