@@ -1019,6 +1019,21 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
     LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R1, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
     LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R2, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
     LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R3, vr::k_EButton_Grip, k_EVRTouchpadDirection_None);
+
+	// Grab the settings associated with mapping spatial movement to touchpad axes.
+	if (pSettings != nullptr)
+	{
+		vr::EVRSettingsError fetchError;
+		m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis
+			= pSettings->GetBool("psmove", "use_spatial_offset_after_touchpad_press_as_touchpad_axis", true, &fetchError);
+
+		m_fMetersPerTouchpadAxisUnits
+			= pSettings->GetFloat("psmove", "meters_per_touchpad_units", 0.075f, &fetchError);
+
+		DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
+		DriverLog("meters_per_touchpad_units: %f\n", m_fMetersPerTouchpadAxisUnits);
+	}
+
 }
 
 CPSMoveControllerLatest::~CPSMoveControllerLatest()
@@ -1380,13 +1395,48 @@ void CPSMoveControllerLatest::UpdateControllerState()
 			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Triangle, clientView.GetButtonTriangle(), &NewState);
 			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Trigger, clientView.GetButtonTrigger(), &NewState);
 
+
+			if (m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis)
+			{
+				static const uint64_t s_kTouchpadButtonMask = vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
+				if (NewState.ulButtonPressed & s_kTouchpadButtonMask)
+				{
+					if (!(m_ControllerState.ulButtonPressed & s_kTouchpadButtonMask))
+					{
+						// Just pressed.
+						GetMetersPosInControllerRotSpace(&m_posMetersAtTouchpadPressTime);
+//						DriverLog("Touchpad pressed! At (%f, %f, %f) meters relative to orientation\n",
+//							m_posMetersAtTouchpadPressTime.i, m_posMetersAtTouchpadPressTime.j, m_posMetersAtTouchpadPressTime.k);
+					}
+					else
+					{
+						// Held!
+						PSMoveFloatVector3 newPosMeters;
+						GetMetersPosInControllerRotSpace(&newPosMeters);
+
+						PSMoveFloatVector3 offsetMeters = newPosMeters - m_posMetersAtTouchpadPressTime;
+//						DriverLog("Touchpad held! Relative position (%f, %f, %f) meters\n",
+//							offsetMeters.i, offsetMeters.j, offsetMeters.k);
+
+						NewState.rAxis[0].x = offsetMeters.i / m_fMetersPerTouchpadAxisUnits;
+						NewState.rAxis[0].x = fminf( fmaxf(NewState.rAxis[0].x, -1.0f), 1.0f );
+
+						NewState.rAxis[0].y = -offsetMeters.j / m_fMetersPerTouchpadAxisUnits;
+						NewState.rAxis[0].y = fminf(fmaxf(NewState.rAxis[0].y, -1.0f), 1.0f);
+
+//						DriverLog("Touchpad axis at (%f, %f) \n",
+//							NewState.rAxis[0].x, NewState.rAxis[0].y);
+					}
+				}
+			}
+
+
+			if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x || NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
+				m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
+
+
             NewState.rAxis[1].x = clientView.GetTriggerValue();
             NewState.rAxis[1].y = 0.f;
-
-			if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x)
-				m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
-			else if (NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
-				m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
 
 			if (NewState.rAxis[1].x != m_ControllerState.rAxis[1].x)
                 m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1]);
@@ -1564,6 +1614,25 @@ PSMoveQuaternion ExtractYawQuaternion(const PSMoveQuaternion &q)
 
     return yaw_quaternion;
 }
+
+
+void CPSMoveControllerLatest::GetMetersPosInControllerRotSpace(PSMoveFloatVector3* pOutPosition)
+{
+	const ClientPSMoveView &view = m_controller_view->GetPSMoveView();
+
+	const PSMovePosition &position = view.GetPosition();
+
+	PSMoveFloatVector3 unrotatedPositionMeters
+		= PSMoveFloatVector3::create(
+			position.x * k_fScalePSMoveAPIToMeters,
+			position.y * k_fScalePSMoveAPIToMeters,
+			position.z * k_fScalePSMoveAPIToMeters);
+
+	PSMoveQuaternion viewOrientationInverse	= view.GetOrientation().inverse();
+
+	*pOutPosition	= viewOrientationInverse.rotate_vector(unrotatedPositionMeters);
+}
+
 
 void CPSMoveControllerLatest::RealignHMDTrackingSpace()
 {

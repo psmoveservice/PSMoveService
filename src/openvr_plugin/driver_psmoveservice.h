@@ -210,6 +210,7 @@ private:
 	void RealignHMDTrackingSpace();
     void UpdateControllerState();
 	void UpdateControllerStateFromPsMoveButtonState(ePSButtonID buttonId, PSMoveButtonState buttonState, vr::VRControllerState_t* pControllerStateToUpdate);
+	void GetMetersPosInControllerRotSpace(PSMoveFloatVector3* pOutPosition);
     void UpdateTrackingState();
     void UpdateRumbleState();	
 
@@ -240,6 +241,16 @@ private:
         const CPSMoveControllerLatest::ePSButtonID psButtonID,
         const vr::EVRButtonId defaultVRButtonID,
 		const eVRTouchpadDirection defaultTouchpadDirection);
+
+	// Settings values. Used to determine whether we'll map controller movement after touchpad
+	// presses to touchpad axis values.
+	bool m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis;
+	float m_fMetersPerTouchpadAxisUnits;
+
+	// The position of the controller in meters in driver space relative to its own rotation
+	// at the time when the touchpad was most recently pressed (after being up).
+	PSMoveFloatVector3 m_posMetersAtTouchpadPressTime;
+	
 
     // Callbacks
     static void start_controller_response_callback(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
