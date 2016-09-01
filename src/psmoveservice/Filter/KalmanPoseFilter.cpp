@@ -371,7 +371,7 @@ public:
 		// Extract the orientations from the measurements
 		Eigen::Quaterniond orientations[SIGMA_POINT_COUNT];
 		double weights[SIGMA_POINT_COUNT];
-		for (int col_index = 0; col_index <= SIGMA_POINT_COUNT; ++col_index)
+		for (int col_index = 0; col_index < SIGMA_POINT_COUNT; ++col_index)
 		{
 			const DS4_MeasurementVector measurement = measurement_matrix.col(col_index);
 			Eigen::Quaterniond orientation = measurement.get_optical_quaternion();
@@ -959,10 +959,10 @@ public:
 		Eigen::HouseholderQR<decltype(qr_input)> qr(qr_input);
 
 		// Set R matrix as upper triangular square root
-		Sx_k = qr.matrixQR().topRightCorner<X_DIM, X_DIM>().triangularView<Eigen::Upper>();
+		Sx_k = qr.matrixQR().topRightCorner<X_DIM, X_DIM>().triangularView<Eigen::Lower>();
 
 		// Perform additional rank 1 update
-		Sx_k.selfadjointView<Eigen::Upper>().rankUpdate(X_k_r.leftCols<1>(), W.w_cholup);
+		Sx_k.selfadjointView<Eigen::Lower>().rankUpdate(X_k_r.leftCols<1>(), W.w_cholup);
 	}
 
 	/**
@@ -1010,31 +1010,19 @@ public:
 		Eigen::HouseholderQR<decltype(qr_input)> qr(qr_input);
 
 		// Set R matrix as upper triangular square root
-		Eigen::Matrix<double, O_DIM, O_DIM > Sy_k = qr.matrixQR().topRightCorner<O_DIM, O_DIM>().triangularView<Eigen::Upper>();
+		Eigen::Matrix<double, O_DIM, O_DIM > Sy_k = qr.matrixQR().topRightCorner<O_DIM, O_DIM>().triangularView<Eigen::Lower>();
 
 		// Perform additional rank 1 update
-		Sy_k.selfadjointView<Eigen::Upper>().rankUpdate(Y_k_r.leftCols<1>(), W.w_cholup);
-
-		// We need the lower triangular Cholesky factor
-		Sy_k = Sy_k.transpose();
+		Sy_k.selfadjointView<Eigen::Lower>().rankUpdate(Y_k_r.leftCols<1>(), W.w_cholup);
 
 		//%% 5. Calculate Kalman Gain
-		Eigen::Matrix<double, X_DIM, O_DIM> Pxy;
-		Pxy.setZero();
-		for (int point_index = 0; point_index < nsp; ++point_index)
-		{
-			//%TODO : Should X_k_r axisAngles be multiplied directly like this ?
-			Pxy = Pxy + W.wc(point_index) * (X_k_r.col(point_index) * Y_k_r.col(point_index).transpose());
-		}
+		//%TODO : Should X_k_r axisAngles be multiplied directly like this ?
+		Eigen::Matrix<double, 1, nsp> wcT= W.wc.transpose().eval();
+		Eigen::Matrix<double, X_DIM, nsp> wcT_replicated = wcT.replicate<X_DIM, 1>();
+		Eigen::Matrix<double, X_DIM, O_DIM> Pxy = X_k_r.cwiseProduct(wcT_replicated) * Y_k_r.transpose();
 
 		// KG = (Pxy / Sy_k')/Sy_k, where "/" is the "mrdivide" operator in matlab
-		// The following: http://stackoverflow.com/questions/31705168/armadillos-solvea-b-returning-different-answer-from-matlab-eigen
-		// says A mrdivide B is equivalent to the following in Eigen:
-		// A.transpose().colPivHouseholderQr().solve(B.transpose())
-		// Therefore numerator= (Pxy / Sy_k') becomes:
-		Eigen::Matrix<double, X_DIM, O_DIM> numerator= (Pxy.transpose().colPivHouseholderQr().solve(Sy_k));
-		// and KG= numerator/Sy_k becomes:
-		Eigen::Matrix<double, X_DIM, O_DIM> KG = (numerator.transpose().colPivHouseholderQr().solve(Sy_k.transpose()));
+		Eigen::Matrix<double, X_DIM, O_DIM> KG = Sy_k.llt().solve(Pxy.transpose()).transpose();
 
 		// %% 6. Calculate innovation
 		Measurement innov = observation.difference(y_k);
@@ -1051,7 +1039,7 @@ public:
 		{
 			Sx_k.selfadjointView<Eigen::Lower>().rankUpdate(cov_update_vectors.col(j), -1.0);
 		}		
-		S = Sx_k.transpose();
+		S = Sx_k;
 	}
 };
 
