@@ -369,3 +369,39 @@ LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
 ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
+
+#
+# TEST_KALMAN_FILTER
+#
+
+list(APPEND TEST_KALMAN_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/
+    ${ROOT_DIR}/src/psmoveservice/Filter/
+    ${ROOT_DIR}/src/psmoveservice/PSMoveController)
+list(APPEND TEST_KALMAN_SRC    
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp    
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPoseFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPoseFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/PoseFilterInterface.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/PoseFilterInterface.cpp)
+    
+# Eigen math library
+list(APPEND TEST_KALMAN_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)   
+
+add_executable(test_kalman_filter ${CMAKE_CURRENT_LIST_DIR}/test_kalman_filter.cpp ${TEST_KALMAN_SRC})
+target_include_directories(test_kalman_filter PUBLIC ${TEST_KALMAN_INCL_DIRS})
+SET_TARGET_PROPERTIES(test_kalman_filter PROPERTIES FOLDER Test)
+
+# Install
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS test_kalman_filter
+RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+ELSE() #Linux/Darwin
+ENDIF()
