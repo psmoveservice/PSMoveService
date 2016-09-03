@@ -271,8 +271,17 @@ ENDIF()
 #
 # TEST_CONSOLE_CLIENT
 #
-add_executable(test_console_client test_console_client.cpp)
-target_include_directories(test_console_client PUBLIC ${ROOT_DIR}/src/psmoveclient/)
+
+list(APPEND TEST_CLIENT_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/
+    ${ROOT_DIR}/src/psmoveclient/)
+
+list(APPEND TEST_CLIENT_SRC       
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp)
+    
+add_executable(test_console_client test_console_client.cpp ${TEST_CLIENT_SRC})
+target_include_directories(test_console_client PUBLIC ${TEST_CLIENT_INCL_DIRS})
 target_link_libraries(test_console_client PSMoveClient)
 SET_TARGET_PROPERTIES(test_console_client PROPERTIES FOLDER Test)
 
