@@ -82,14 +82,12 @@ static_assert(sizeof(ControllerSample) == sizeof(float)*FIELD_COUNT, "incorrect 
 class ControllerInputStream
 {
 public:
-	static const int COLUMN_COUNT = 18;
-
 	ControllerInputStream(const char *filename)
 		: m_sampleIndex(0)
 		, m_controllerType(Unknown)
 	{
 		char line[512];
-		float columns[COLUMN_COUNT];
+		float columns[FIELD_COUNT];
 
 		FILE *fp = fopen(filename, "rt");
 		if (fp != nullptr)
@@ -99,12 +97,12 @@ public:
 			line[sizeof(line) - 1] = 0;
 			if (fgets(line, sizeof(line) - 1, fp))
 			{				
-				if (stricmp(line, "psmove") == 0)
+				if (strnicmp(line, "psmove", 6) == 0)
 				{
 					m_controllerType = PSMove;
 					bSuccess = true;
 				}
-				else if (stricmp(line, "dualshock4") == 0)
+				else if (strnicmp(line, "dualshock4", 10) == 0)
 				{
 					m_controllerType = DualShock4;
 					bSuccess = true;
@@ -124,13 +122,13 @@ public:
 						const char* last_start = &line[0];
 						int valid_columns = 0;
 
-						size_t cursor;
-						while (cursor < len && valid_columns < COLUMN_COUNT)
+						size_t cursor= 0;
+						while (cursor < len && valid_columns < FIELD_COUNT)
 						{
-							if (line[cursor] == ',')
+							if (line[cursor] == ',' || line[cursor] == '\n')
 							{
 								line[cursor] = '\0';
-								if (stricmp(last_start, szColumnNames[valid_columns]) == 0)
+								if (strnicmp(last_start, szColumnNames[valid_columns], strlen(szColumnNames[valid_columns])) == 0)
 								{
 									cursor++;
 									valid_columns++;
@@ -145,7 +143,7 @@ public:
 							cursor++;
 						}
 
-						if (valid_columns == COLUMN_COUNT)
+						if (valid_columns == FIELD_COUNT)
 						{
 							bSuccess = true;
 						}
@@ -164,10 +162,10 @@ public:
 						const char* last_start = &line[0];
 						int valid_columns = 0;
 
-						size_t cursor;
-						while (cursor < len && valid_columns < COLUMN_COUNT)
+						size_t cursor= 0;
+						while (cursor < len && valid_columns < FIELD_COUNT)
 						{
-							if (line[cursor] == ',')
+							if (line[cursor] == ',' || line[cursor] == '\n')
 							{
 								line[cursor] = '\0';
 								columns[valid_columns] = static_cast<float>(atof(last_start));
@@ -180,11 +178,11 @@ public:
 							cursor++;
 						}
 
-						if (valid_columns == COLUMN_COUNT)
+						if (valid_columns == FIELD_COUNT)
 						{
 							ControllerSample sample;
 
-							memcpy(&sample, columns, sizeof(float)*COLUMN_COUNT);
+							memcpy(&sample, columns, sizeof(float)*FIELD_COUNT);
 							m_samples.push_back(sample);
 						}
 					}
@@ -207,7 +205,10 @@ public:
 
 	const ControllerSample &next()
 	{
-		return m_samples.at(m_sampleIndex);
+		const ControllerSample &sample = m_samples.at(m_sampleIndex);
+		++m_sampleIndex;
+
+		return sample;
 	}
 
 private:
@@ -225,7 +226,7 @@ public:
 
 		if (m_fp != nullptr)
 		{
-			fprintf(m_fp, "TIME, POS_X, POS_Y, POS_Z, VEL_X, VEL_Y, VEL_Z, ACC_X, ACC_Y, ACC_Z, ORI_W, ORI_X, ORI_Y, ORI_Z, AVEL_X, AVEL_Y, AVEL_Z");
+			fprintf(m_fp, "TIME, POS_X, POS_Y, POS_Z, VEL_X, VEL_Y, VEL_Z, ACC_X, ACC_Y, ACC_Z, ORI_W, ORI_X, ORI_Y, ORI_Z, AVEL_X, AVEL_Y, AVEL_Z\n");
 		}
 	}
 
@@ -247,7 +248,7 @@ public:
 			Eigen::Quaternionf quat = pose_filter->getOrientation();
 			Eigen::Vector3f ang_vel = pose_filter->getAngularVelocity();
 
-			fprintf(m_fp, "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f",
+			fprintf(m_fp, "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n",
 				time,
 				pos.x(), pos.y(), pos.z(),
 				vel.x(), vel.y(), vel.z(),
