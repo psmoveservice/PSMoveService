@@ -469,13 +469,12 @@ public:
 
         // Use the current linear acceleration from the state to predict
         // what the accelerometer reading will be (in world space)
-        const Eigen::Vector3d gravity_accel_g_units= -identity_gravity_direction;
+        const Eigen::Vector3d gravity_accel_g_units= identity_gravity_direction;
         const Eigen::Vector3d linear_accel_g_units= state.get_linear_acceleration() * k_ms2_to_g_units;
         const Eigen::Vector3d accel_world= linear_accel_g_units + gravity_accel_g_units;
-        const Eigen::Quaterniond accel_world_quat(0.f, accel_world.x(), accel_world.y(), accel_world.z());
 
         // Put the accelerometer prediction into the local space of the controller
-        const Eigen::Vector3d accel_local= orientation*(accel_world_quat*orientation.conjugate()).vec();
+        const Eigen::Vector3d accel_local= orientation.conjugate()._transformVector(accel_world);
 
         // Use the angular velocity from the state to predict what the gyro reading will be
         const Eigen::Vector3d gyro_local= state.get_angular_velocity(); 
@@ -483,8 +482,7 @@ public:
         // Use the orientation from the state to predict
         // what the magnetometer reading should be
         const Eigen::Vector3d &mag_world= identity_magnetometer_direction;
-        const Eigen::Quaterniond mag_world_quat(0.f, mag_world.x(), mag_world.y(), mag_world.z());
-        const Eigen::Vector3d mag_local= orientation*(mag_world_quat*orientation.conjugate()).vec();
+        const Eigen::Vector3d mag_local= orientation.conjugate()._transformVector(mag_world);
 
         // Save the predictions into the measurement vector
         predicted_measurement.set_accelerometer(accel_local + accel_noise);
