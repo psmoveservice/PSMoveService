@@ -174,6 +174,7 @@ void ClientPSMoveView::ApplyControllerDataFrame(
                 this->RawTrackerData.RelativePositions[listIndex] =
                     PSMovePosition::create(
                         positionOnTracker.x(), positionOnTracker.y(), positionOnTracker.z());
+				this->RawTrackerData.RelativeOrientations[listIndex] = PSMoveQuaternion::create(1.f, 0.f, 0.f, 0.f);
 
                 if (raw_tracker_data.projected_spheres_size() > 0)
                 {
