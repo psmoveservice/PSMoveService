@@ -111,12 +111,12 @@ public:
 
 				if (trackerData.GetOrientationOnTrackerId(0, quat))
 				{
-					position_quality =
+					orientation_quality =
 						clampf01(
 							safe_divide_with_default(
 								projection.get_projection_area() - min_orientation_quality_screen_area,
 								max_orientation_quality_screen_area - min_orientation_quality_screen_area,
-								1.f));
+								0.f));
 				}
 			}
 
