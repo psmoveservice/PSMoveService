@@ -974,6 +974,7 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
     , m_nPoseSequenceNumber(0)
     , m_bIsBatteryCharging(false)
     , m_fBatteryChargeFraction(1.f)
+	, m_bRumbleSuppressed(false)
     , m_pendingHapticPulseDuration(0)
     , m_lastTimeRumbleSent()
     , m_lastTimeRumbleSentValid(false)
@@ -1019,6 +1020,9 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
     LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R1, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
     LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R2, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
     LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R3, vr::k_EButton_Grip, k_EVRTouchpadDirection_None);
+
+	// Load the rumble settings
+	m_bRumbleSuppressed= pSettings->GetBool("psmove", "rumble_suppressed", m_bRumbleSuppressed);
 
 	// Grab the settings associated with mapping spatial movement to touchpad axes.
 	if (pSettings != nullptr)
@@ -1825,67 +1829,75 @@ void CPSMoveControllerLatest::UpdateTrackingState()
 
 void CPSMoveControllerLatest::UpdateRumbleState()
 {
-    const float k_max_rumble_update_rate = 33.f; // Don't bother trying to update the rumble faster than 30fps (33ms)
-    const float k_max_pulse_microseconds = 1000.f; // Docs suggest max pulse duration of 5ms, but we'll call 1ms max
+	if (!m_bRumbleSuppressed)
+	{
+		const float k_max_rumble_update_rate = 33.f; // Don't bother trying to update the rumble faster than 30fps (33ms)
+		const float k_max_pulse_microseconds = 1000.f; // Docs suggest max pulse duration of 5ms, but we'll call 1ms max
 
-    std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-    bool bTimoutElapsed= true;
+		std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+		bool bTimoutElapsed = true;
 
-    if (m_lastTimeRumbleSentValid)
-    {
-        std::chrono::duration<double, std::milli> timeSinceLastSend = now - m_lastTimeRumbleSent;
+		if (m_lastTimeRumbleSentValid)
+		{
+			std::chrono::duration<double, std::milli> timeSinceLastSend = now - m_lastTimeRumbleSent;
 
-        bTimoutElapsed= timeSinceLastSend.count() >= k_max_rumble_update_rate;
-    }
+			bTimoutElapsed = timeSinceLastSend.count() >= k_max_rumble_update_rate;
+		}
 
-    // See if a rumble request hasn't come too recently
-    if (bTimoutElapsed)
-    {
-        float rumble_fraction = static_cast<float>(m_pendingHapticPulseDuration) / k_max_pulse_microseconds;
+		// See if a rumble request hasn't come too recently
+		if (bTimoutElapsed)
+		{
+			float rumble_fraction = static_cast<float>(m_pendingHapticPulseDuration) / k_max_pulse_microseconds;
 
-        // Unless a zero rumble intensity was explicitly set, 
-        // don't rumble less than 35% (no enough to feel)
-        if (m_pendingHapticPulseDuration != 0)
-        {
-            if (rumble_fraction < 0.35f)
-            {
-                // rumble values less 35% isn't noticeable
-                rumble_fraction = 0.35f;
-            }
-        }
+			// Unless a zero rumble intensity was explicitly set, 
+			// don't rumble less than 35% (no enough to feel)
+			if (m_pendingHapticPulseDuration != 0)
+			{
+				if (rumble_fraction < 0.35f)
+				{
+					// rumble values less 35% isn't noticeable
+					rumble_fraction = 0.35f;
+				}
+			}
 
-        // Keep the pulse intensity within reasonable bounds
-        if (rumble_fraction > 1.f)
-        {
-            rumble_fraction = 1.f;
-        }
+			// Keep the pulse intensity within reasonable bounds
+			if (rumble_fraction > 1.f)
+			{
+				rumble_fraction = 1.f;
+			}
 
-        // Actually send the rumble to the server
-        switch (m_controller_view->GetControllerViewType())
-        {
-        case ClientControllerView::PSMove:
-            m_controller_view->GetPSMoveViewMutable().SetRumble(rumble_fraction);
-            break;
-        case ClientControllerView::PSNavi:
-            break;
-        case ClientControllerView::PSDualShock4:
-            m_controller_view->GetPSDualShock4ViewMutable().SetBigRumble(rumble_fraction);
-            break;
-        default:
-            assert(0 && "Unreachable");
-        }
+			// Actually send the rumble to the server
+			switch (m_controller_view->GetControllerViewType())
+			{
+			case ClientControllerView::PSMove:
+				m_controller_view->GetPSMoveViewMutable().SetRumble(rumble_fraction);
+				break;
+			case ClientControllerView::PSNavi:
+				break;
+			case ClientControllerView::PSDualShock4:
+				m_controller_view->GetPSDualShock4ViewMutable().SetBigRumble(rumble_fraction);
+				break;
+			default:
+				assert(0 && "Unreachable");
+			}
 
-        // Remember the last rumble we went and when we sent it
-        m_lastTimeRumbleSent = now;
-        m_lastTimeRumbleSentValid= true;
+			// Remember the last rumble we went and when we sent it
+			m_lastTimeRumbleSent = now;
+			m_lastTimeRumbleSentValid = true;
 
-        // Reset the pending haptic pulse duration.
-        // If another call to TriggerHapticPulse() is made later, it will stomp this value.
-        // If no call to TriggerHapticPulse() is made later, then the next call to UpdateRumbleState()
-        // in k_max_rumble_update_rate milliseconds will set the rumble_fraction to 0.f
-        // This effectively makes the shortest rumble pulse k_max_rumble_update_rate milliseconds.
-        m_pendingHapticPulseDuration = 0;
-    }
+			// Reset the pending haptic pulse duration.
+			// If another call to TriggerHapticPulse() is made later, it will stomp this value.
+			// If no call to TriggerHapticPulse() is made later, then the next call to UpdateRumbleState()
+			// in k_max_rumble_update_rate milliseconds will set the rumble_fraction to 0.f
+			// This effectively makes the shortest rumble pulse k_max_rumble_update_rate milliseconds.
+			m_pendingHapticPulseDuration = 0;
+		}
+	}
+	else
+	{
+		// Reset the pending haptic pulse duration since rumble is suppressed.
+		m_pendingHapticPulseDuration = 0;
+	}
 }
 
 bool CPSMoveControllerLatest::HasControllerId( int ControllerID )

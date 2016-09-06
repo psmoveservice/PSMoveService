@@ -229,6 +229,7 @@ private:
     float m_fBatteryChargeFraction;
 
     // Rumble state
+	bool m_bRumbleSuppressed;
     uint16_t m_pendingHapticPulseDuration;
     std::chrono::time_point<std::chrono::high_resolution_clock> m_lastTimeRumbleSent;
     bool m_lastTimeRumbleSentValid;
