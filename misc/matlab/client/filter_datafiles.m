@@ -12,8 +12,8 @@ beta = 2.0;
 kappa = 3 - Xdim;
 Qdim = Xdim;  % Assume process noise is same dimensionality as state vector
 Rdim = Odim;  % Assume observation noise is same dimensionality as obs vec.
-q_scale = 10.0;  %Scale process noise
-r_scale = 10.0;
+q_scale = 0.01;  % Scale process noise
+r_scale = 0.1;  % Scale observation noise.
 
 %% Load data from csv
 datadir = fullfile('..','..','test_data');
@@ -102,12 +102,13 @@ filt_struct = struct(...
 %% Filter
 %Pre-allocate output variables
 observations = testdata(:, 1:Odim);
+obs_times = testdata(:, end);
 predicted_state = nan(size(observations, 1), Xdim);
 o_ix = 1;
 %%
 for o_ix = 1:size(observations, 1)
     %%
-    dt = observations(o_ix, end) - filt_struct.last_obs_time;
+    dt = obs_times(o_ix) - filt_struct.last_obs_time;
     filt_struct = srukf_predict(filt_struct, dt);
     filt_struct = srukf_update(filt_struct, observations(o_ix, 1:Odim)');
     filt_struct.last_obs_time = observations(o_ix, end);
@@ -152,6 +153,6 @@ legend('Raw', 'Filtered')
 subplot(1,2,2)
 axang_compl = quat2AxisAngle(testdata(:, 13:16)')';
 axang_est = predicted_state(:, [10 12 14]);
-plot(axang_compl, '.', 'MarkerSize', 25)
+plot(axang_est, 'b', 'LineWidth', 1)
 hold on
-plot(axang_est, 'b', 'LineWidth', 3)
+plot(axang_compl, '.', 'MarkerSize', 25)
