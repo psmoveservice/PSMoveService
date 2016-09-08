@@ -12,8 +12,8 @@ beta = 2.0;
 kappa = 3 - Xdim;
 Qdim = Xdim;  % Assume process noise is same dimensionality as state vector
 Rdim = Odim;  % Assume observation noise is same dimensionality as obs vec.
-q_scale = 0.01;  % Scale process noise
-r_scale = 0.1;  % Scale observation noise.
+q_scale = 0.1;  % Scale process noise
+r_scale = 0.01;  % Scale observation noise.
 
 %% Load data from csv
 datadir = fullfile('..','..','test_data');
@@ -142,17 +142,24 @@ end
 
 figure;
 
-subplot(1,2,1)
+subplot(2,1,1)
 pos_est = predicted_state(:, [1 4 7]);
 pos_opt = testdata(:, 10:12);
 plot3(pos_opt(:, 1), pos_opt(:, 2), pos_opt(:, 3), 'r.', 'MarkerSize', 25)
 hold on
 plot3(pos_est(:, 1), pos_est(:, 2), pos_est(:, 3), 'b', 'LineWidth', 3)
 legend('Raw', 'Filtered')
+set(gca, 'Color', 'none')
+grid on
+box on
+ax = gca;
+ax.BoxStyle = 'full';
 
-subplot(1,2,2)
+subplot(2,1,2)
 axang_compl = quat2AxisAngle(testdata(:, 13:16)')';
 axang_est = predicted_state(:, [10 12 14]);
 plot(axang_est, 'b', 'LineWidth', 1)
 hold on
 plot(axang_compl, '.', 'MarkerSize', 25)
+axis tight
+set(gca, 'Color', 'none')
