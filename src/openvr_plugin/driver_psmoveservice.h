@@ -210,7 +210,7 @@ private:
 	void RealignHMDTrackingSpace();
     void UpdateControllerState();
 	void UpdateControllerStateFromPsMoveButtonState(ePSButtonID buttonId, PSMoveButtonState buttonState, vr::VRControllerState_t* pControllerStateToUpdate);
-	void GetMetersPosInControllerRotSpace(PSMoveFloatVector3* pOutPosition);
+	void GetMetersPosInRotSpace(PSMoveFloatVector3* pOutPosition, const PSMoveQuaternion& rRotation );
     void UpdateTrackingState();
     void UpdateRumbleState();	
 
@@ -251,6 +251,10 @@ private:
 	// The position of the controller in meters in driver space relative to its own rotation
 	// at the time when the touchpad was most recently pressed (after being up).
 	PSMoveFloatVector3 m_posMetersAtTouchpadPressTime;
+
+	// The orientation of the controller in driver space at the time when
+	// the touchpad was most recently pressed (after being up).
+	PSMoveQuaternion m_driverSpaceRotationAtTouchpadPressTime;
 	
 
     // Callbacks

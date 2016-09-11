@@ -1408,28 +1408,31 @@ void CPSMoveControllerLatest::UpdateControllerState()
 					if (!(m_ControllerState.ulButtonPressed & s_kTouchpadButtonMask))
 					{
 						// Just pressed.
-						GetMetersPosInControllerRotSpace(&m_posMetersAtTouchpadPressTime);
-//						DriverLog("Touchpad pressed! At (%f, %f, %f) meters relative to orientation\n",
-//							m_posMetersAtTouchpadPressTime.i, m_posMetersAtTouchpadPressTime.j, m_posMetersAtTouchpadPressTime.k);
+						const ClientPSMoveView &view = m_controller_view->GetPSMoveView();
+						m_driverSpaceRotationAtTouchpadPressTime = view.GetOrientation();
+
+						GetMetersPosInRotSpace(&m_posMetersAtTouchpadPressTime, m_driverSpaceRotationAtTouchpadPressTime);
+						DriverLog("Touchpad pressed! At (%f, %f, %f) meters relative to orientation\n",
+							m_posMetersAtTouchpadPressTime.i, m_posMetersAtTouchpadPressTime.j, m_posMetersAtTouchpadPressTime.k);
 					}
 					else
 					{
 						// Held!
 						PSMoveFloatVector3 newPosMeters;
-						GetMetersPosInControllerRotSpace(&newPosMeters);
+						GetMetersPosInRotSpace(&newPosMeters, m_driverSpaceRotationAtTouchpadPressTime);
 
 						PSMoveFloatVector3 offsetMeters = newPosMeters - m_posMetersAtTouchpadPressTime;
-//						DriverLog("Touchpad held! Relative position (%f, %f, %f) meters\n",
-//							offsetMeters.i, offsetMeters.j, offsetMeters.k);
+						//DriverLog("Touchpad held! Relative position (%f, %f, %f) meters\n",
+						//	offsetMeters.i, offsetMeters.j, offsetMeters.k);
 
 						NewState.rAxis[0].x = offsetMeters.i / m_fMetersPerTouchpadAxisUnits;
 						NewState.rAxis[0].x = fminf( fmaxf(NewState.rAxis[0].x, -1.0f), 1.0f );
 
-						NewState.rAxis[0].y = -offsetMeters.j / m_fMetersPerTouchpadAxisUnits;
+						NewState.rAxis[0].y = -offsetMeters.k / m_fMetersPerTouchpadAxisUnits;
 						NewState.rAxis[0].y = fminf(fmaxf(NewState.rAxis[0].y, -1.0f), 1.0f);
 
-//						DriverLog("Touchpad axis at (%f, %f) \n",
-//							NewState.rAxis[0].x, NewState.rAxis[0].y);
+						//DriverLog("Touchpad axis at (%f, %f) \n",
+						//	NewState.rAxis[0].x, NewState.rAxis[0].y);
 					}
 				}
 			}
@@ -1620,7 +1623,7 @@ PSMoveQuaternion ExtractYawQuaternion(const PSMoveQuaternion &q)
 }
 
 
-void CPSMoveControllerLatest::GetMetersPosInControllerRotSpace(PSMoveFloatVector3* pOutPosition)
+void CPSMoveControllerLatest::GetMetersPosInRotSpace(PSMoveFloatVector3* pOutPosition, const PSMoveQuaternion& rRotation )
 {
 	const ClientPSMoveView &view = m_controller_view->GetPSMoveView();
 
@@ -1632,7 +1635,7 @@ void CPSMoveControllerLatest::GetMetersPosInControllerRotSpace(PSMoveFloatVector
 			position.y * k_fScalePSMoveAPIToMeters,
 			position.z * k_fScalePSMoveAPIToMeters);
 
-	PSMoveQuaternion viewOrientationInverse	= view.GetOrientation().inverse();
+	PSMoveQuaternion viewOrientationInverse	= rRotation.inverse();
 
 	*pOutPosition	= viewOrientationInverse.rotate_vector(unrotatedPositionMeters);
 }
