@@ -34,6 +34,8 @@
 #define snprintf _snprintf
 #endif
 
+#define LOG_TOUCHPAD_EMULATION 0
+
 //==================================================================================================
 // Constants
 //==================================================================================================
@@ -1034,8 +1036,10 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 		m_fMetersPerTouchpadAxisUnits
 			= pSettings->GetFloat("psmove", "meters_per_touchpad_units", 0.075f, &fetchError);
 
-		DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
-		DriverLog("meters_per_touchpad_units: %f\n", m_fMetersPerTouchpadAxisUnits);
+		#if LOG_TOUCHPAD_EMULATION != 0
+			DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
+			DriverLog("meters_per_touchpad_units: %f\n", m_fMetersPerTouchpadAxisUnits);
+		#endif
 	}
 
 }
@@ -1412,8 +1416,11 @@ void CPSMoveControllerLatest::UpdateControllerState()
 						m_driverSpaceRotationAtTouchpadPressTime = view.GetOrientation();
 
 						GetMetersPosInRotSpace(&m_posMetersAtTouchpadPressTime, m_driverSpaceRotationAtTouchpadPressTime);
-						DriverLog("Touchpad pressed! At (%f, %f, %f) meters relative to orientation\n",
-							m_posMetersAtTouchpadPressTime.i, m_posMetersAtTouchpadPressTime.j, m_posMetersAtTouchpadPressTime.k);
+
+						#if LOG_TOUCHPAD_EMULATION != 0
+							DriverLog("Touchpad pressed! At (%f, %f, %f) meters relative to orientation\n",
+								m_posMetersAtTouchpadPressTime.i, m_posMetersAtTouchpadPressTime.j, m_posMetersAtTouchpadPressTime.k);
+						#endif
 					}
 					else
 					{
@@ -1422,8 +1429,11 @@ void CPSMoveControllerLatest::UpdateControllerState()
 						GetMetersPosInRotSpace(&newPosMeters, m_driverSpaceRotationAtTouchpadPressTime);
 
 						PSMoveFloatVector3 offsetMeters = newPosMeters - m_posMetersAtTouchpadPressTime;
-						//DriverLog("Touchpad held! Relative position (%f, %f, %f) meters\n",
-						//	offsetMeters.i, offsetMeters.j, offsetMeters.k);
+
+						#if LOG_TOUCHPAD_EMULATION != 0
+							DriverLog("Touchpad held! Relative position (%f, %f, %f) meters\n",
+								offsetMeters.i, offsetMeters.j, offsetMeters.k);
+						#endif
 
 						NewState.rAxis[0].x = offsetMeters.i / m_fMetersPerTouchpadAxisUnits;
 						NewState.rAxis[0].x = fminf( fmaxf(NewState.rAxis[0].x, -1.0f), 1.0f );
@@ -1431,8 +1441,10 @@ void CPSMoveControllerLatest::UpdateControllerState()
 						NewState.rAxis[0].y = -offsetMeters.k / m_fMetersPerTouchpadAxisUnits;
 						NewState.rAxis[0].y = fminf(fmaxf(NewState.rAxis[0].y, -1.0f), 1.0f);
 
-						//DriverLog("Touchpad axis at (%f, %f) \n",
-						//	NewState.rAxis[0].x, NewState.rAxis[0].y);
+						#if LOG_TOUCHPAD_EMULATION != 0
+						DriverLog("Touchpad axis at (%f, %f) \n",
+							NewState.rAxis[0].x, NewState.rAxis[0].y);
+						#endif
 					}
 				}
 			}
