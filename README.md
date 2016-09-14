@@ -9,10 +9,12 @@ You can download prebuilt releases (Windows only at the moment) from the [Releas
 # Building from source
 If you want to make modifications to the service or want to debug it, you can build the project from source by following the  [Building-from-source](https://github.com/cboulay/PSMoveService/wiki/Building-from-source) instructions. Currently supported build platforms are Win10 and OS X with Linux support hopefully coming in the near future.
 
-# Getting Help
-Please start with the [wiki](https://github.com/cboulay/PSMoveService/wiki). If you can't find help with your problem then please search through the issues (especially the closed ones) to see if your problem has been addressed already. If you still find no previous mention of your issue then post a new issue.
+#Getting Help
+Please start with the wiki. If you can't find help with your problem then please search through the issues (especially the closed ones) to see if your problem has been addressed already. If you still find no previous mention of your problem then you have one of two options:
 
-If you are having trouble with a game while trying to use PSMoveService, please be clear about how the problem you are having with the game relates to PSMoveService. For example, saying "I can't throw the ball in X because there appears to be no physics" is a good bug. Saying "I can't get through this game" doesn't help us debug it. Chances are that we don't have the game you are trying to play and have no context for how it's suppose to work. Our time is also stretched thin just trying to get this service working in the first place so please help us by trying to debug the issue as much as you can yourself and posting your findings. Also understand that making a particular game work for you is a low priority for us until we finish getting some major features in place.
+A) Join us in the the [PSMoveService Google Group](https://groups.google.com/forum/#!forum/psmoveservice) to ask your question. There are several people there who have experience debugging problems with the PSMoveService.
+
+B) If your problem actually is a new bug and you have files to attach (logs, pictures, etc) then go ahead and create a new issue. That said, it's probably best to start with the Google Group first anyway since we can help add context before posting an issue.
 
 # Near Term Roadmap
  * Ongoing Stabilization of service and SteamVR plugin

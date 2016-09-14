@@ -166,6 +166,20 @@ public:
         k_EPSButtonID_Count
     };
 
+
+	enum eVRTouchpadDirection
+	{
+		k_EVRTouchpadDirection_None,
+
+		k_EVRTouchpadDirection_Left,
+		k_EVRTouchpadDirection_Up,
+		k_EVRTouchpadDirection_Right,
+		k_EVRTouchpadDirection_Down,
+
+		k_EVRTouchpadDirection_Count
+	};
+
+
     CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int ControllerID );
     virtual ~CPSMoveControllerLatest();
 
@@ -195,6 +209,8 @@ private:
     void SendButtonUpdates( ButtonUpdate ButtonEvent, uint64_t ulMask );
 	void RealignHMDTrackingSpace();
     void UpdateControllerState();
+	void UpdateControllerStateFromPsMoveButtonState(ePSButtonID buttonId, PSMoveButtonState buttonState, vr::VRControllerState_t* pControllerStateToUpdate);
+	void GetMetersPosInRotSpace(PSMoveFloatVector3* pOutPosition, const PSMoveQuaternion& rRotation );
     void UpdateTrackingState();
     void UpdateRumbleState();	
 
@@ -213,16 +229,33 @@ private:
     float m_fBatteryChargeFraction;
 
     // Rumble state
+	bool m_bRumbleSuppressed;
     uint16_t m_pendingHapticPulseDuration;
     std::chrono::time_point<std::chrono::high_resolution_clock> m_lastTimeRumbleSent;
     bool m_lastTimeRumbleSentValid;
 
     // Button Remapping
     vr::EVRButtonId psButtonIDToVRButtonID[k_EPSButtonID_Count];
+	eVRTouchpadDirection psButtonIDToVrTouchpadDirection[k_EPSButtonID_Count];
     void LoadButtonMapping(
         vr::IVRSettings *pSettings,
         const CPSMoveControllerLatest::ePSButtonID psButtonID,
-        const vr::EVRButtonId defaultVRButtonID);
+        const vr::EVRButtonId defaultVRButtonID,
+		const eVRTouchpadDirection defaultTouchpadDirection);
+
+	// Settings values. Used to determine whether we'll map controller movement after touchpad
+	// presses to touchpad axis values.
+	bool m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis;
+	float m_fMetersPerTouchpadAxisUnits;
+
+	// The position of the controller in meters in driver space relative to its own rotation
+	// at the time when the touchpad was most recently pressed (after being up).
+	PSMoveFloatVector3 m_posMetersAtTouchpadPressTime;
+
+	// The orientation of the controller in driver space at the time when
+	// the touchpad was most recently pressed (after being up).
+	PSMoveQuaternion m_driverSpaceRotationAtTouchpadPressTime;
+	
 
     // Callbacks
     static void start_controller_response_callback(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
