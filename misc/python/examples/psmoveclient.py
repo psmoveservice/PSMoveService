@@ -1,5 +1,9 @@
+import sys, os
+sys.path.insert(0, os.path.abspath('..'))
+
 import time
-from _psmoveclient import ffi, lib
+from pypsmove._psmoveclient import ffi, lib
+#TODO: Use python csv writer into ../../
 
 # Then try out the functions
 result = lib.PSM_Initialize(b"localhost", b"9512", 1000)

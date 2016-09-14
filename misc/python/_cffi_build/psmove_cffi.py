@@ -25,6 +25,9 @@ def get_libpath():
         lib_prefix = 'lib'
     else:
         raise RuntimeError("unrecognized operating system:", os_name)
+
+    # TODO: Search ../pypsmmove for the library. If not there, copy from expected build location into that dir.
+
     libpath = os.path.abspath(os.path.join('.', '..', '..', 'build', 'src', 'psmoveclient', 'Debug',
                                            lib_prefix + 'PSMoveClient_CAPI' + lib_suffix + lib_ext))
     if not os.path.isfile(libpath):
@@ -35,10 +38,11 @@ def get_libpath():
     return libpath
 
 def get_headerpath():
-    return os.path.abspath(os.path.join('..', '..', 'src', 'psmoveclient', 'PSMoveClient_CAPI.h'))
+    # TODO: Search for header in ../pypsmove folder. If not there, copy from source into that dir.
+    return os.path.abspath(os.path.join('..', '..', '..', 'src', 'psmoveclient', 'PSMoveClient_CAPI.h'))
 
 def get_cleaned_header():
-    with open(get_headerpath(), 'r') as myfile:
+    with open(os.path.join(get_headerpath(), 'PSMoveClient_CAPI.h'), 'r') as myfile:
         header_dat=myfile.read()
     # Cut the #defines and #ifdefs from the beginning and end
     cut_ix = [ss.start() for ss in re.finditer(r"//cut_before", header_dat)][0]
@@ -56,13 +60,12 @@ def get_cleaned_header():
 
 libpath = get_libpath()
 lib_dir, lib_name = os.path.split(libpath)
-client_dir = os.path.split(get_headerpath())[0]
 ffi = FFI()
-ffi.set_source("_psmoveclient",
+ffi.set_source("pypsmove._psmoveclient",
     """
     #include "PSMoveClient_CAPI.h"
     """,
-    include_dirs=[client_dir],
+    include_dirs=[get_headerpath()],
     libraries=['PSMoveClient_CAPI'], library_dirs=[lib_dir])  #lib_path, os.path.abspath('.')
 ffi.cdef(get_cleaned_header())
 
@@ -70,7 +73,7 @@ ffi.cdef(get_cleaned_header())
 # If we wanted to use the cffi ABI way, we would load the library as follows
 # lib = ffi.dlopen(libpath); 
 # To use the cffi API way, which is more robust, we execute this script to compile a module.
-# See test_psmoveclient.py for an example of how to use the compiled module.
+# See psmoveclient.py for an example of how to use the compiled module.
 
 if __name__ == "__main__":
     copyfile(libpath, os.path.abspath(os.path.join('.', lib_name)))

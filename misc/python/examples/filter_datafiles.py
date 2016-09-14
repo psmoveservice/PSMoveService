@@ -1,15 +1,18 @@
+import sys, os
+sys.path.insert(0, os.path.abspath('..'))
+
 import numpy as np
 import math
 import scipy.linalg
-from transformations import quaternion_matrix, quaternion_conjugate, quaternion_multiply
+from pypsmove.transformations import quaternion_matrix, quaternion_conjugate, quaternion_multiply
 from filterpy.common import Q_discrete_white_noise, dot3
 from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.kalman.unscented_transform import unscented_transform
 from filterpy.kalman.UKF import UnscentedKalmanFilter as UKF
 
 # Load the test data
-trainingdata = np.genfromtxt('stationary.csv', delimiter=',')  # Recorded while controller was stationary upright
-testdata = np.genfromtxt('movement.csv', delimiter=',')  # Recorded while controller was moving around.
+trainingdata = np.genfromtxt(os.path.join('..', '..', 'test_data', 'stationary.csv'), delimiter=',')  # Recorded while controller was stationary upright
+testdata = np.genfromtxt(os.path.join('..', '..', 'test_data', 'movement.csv'), delimiter=',')  # Recorded while controller was moving around.
 mean_dt = np.nanmean(np.diff(trainingdata[:, -1]))
 
 # These were the calibration values taken from PSMoveService when stationary.csv and movement.csv were collected.
