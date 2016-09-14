@@ -14,68 +14,62 @@ enum eControllerType
 	DualShock4
 };
 
+
 enum eControllerSampleFields
 {
-	FIELD_TIME,
+	FIELD_ACCELEROMETER_X,
+	FIELD_ACCELEROMETER_Y,
+	FIELD_ACCELEROMETER_Z,
+	FIELD_GYROSCOPE_X,
+	FIELD_GYROSCOPE_Y,
+	FIELD_GYROSCOPE_Z,
+	FIELD_MAGNETOMETER_X,
+	FIELD_MAGNETOMETER_Y,
+	FIELD_MAGNETOMETER_Z,
 	FIELD_POSITION_X,
 	FIELD_POSITION_Y,
 	FIELD_POSITION_Z,
-	FIELD_POSITION_QUALITY,
 	FIELD_ORIENTATION_W,
 	FIELD_ORIENTATION_X,
 	FIELD_ORIENTATION_Y,
 	FIELD_ORIENTATION_Z,
-	FIELD_ORIENTATION_QUALITY,
-	FIELD_ACCELEROMETER_X,
-	FIELD_ACCELEROMETER_Y,
-	FIELD_ACCELEROMETER_Z,
-	FIELD_MAGNETOMETER_X,
-	FIELD_MAGNETOMETER_Y,
-	FIELD_MAGNETOMETER_Z,
-	FIELD_GYROSCOPE_X,
-	FIELD_GYROSCOPE_Y,
-	FIELD_GYROSCOPE_Z,
+	FIELD_TIME,
 
 	FIELD_COUNT
 };
 
 const char *szColumnNames[FIELD_COUNT] = {
-	"TIME",
+	"ACC_X",
+	"ACC_Y",
+	"ACC_Z",
+	"GYRO_X",
+	"GYRO_Y",
+	"GYRO_Z",
+	"MAG_X",
+	"MAG_Y",
+	"MAG_Z",
 	"POS_X",
 	"POS_Y",
 	"POS_Z",
-	"POS_QUAL",
 	"ORI_W",
 	"ORI_X",
 	"ORI_Y",
 	"ORI_Z",
-	"ORI_QUAL",
-	"ACC_X",
-	"ACC_Y",
-	"ACC_Z",
-	"MAG_X",
-	"MAG_Y",
-	"MAG_Z",
-	"GYRO_X",
-	"GYRO_Y",
-	"GYRO_Z",
+	"TIME"
 };
 
 struct ControllerSample
 {
-	float time; // seconds
+	// Sensor readings in the controller's reference frame
+	float acc[3]; // g-units
+	float gyro[3]; // rad/s
+	float mag[3]; // unit vector
 
 	// Optical readings in the world reference frame
 	float pos[3]; // cm
-	float pos_qual; // [0, 1]
-
 	float ori[4];
-	float ori_qual; // [0, 1]
 
-	// Sensor readings in the controller's reference frame
-	float acc[3]; // g-units
-	float mag[3]; // unit vector
-	float gyro[3]; // rad/s
+	float time; // seconds
 };
 static_assert(sizeof(ControllerSample) == sizeof(float)*FIELD_COUNT, "incorrect field count");
 
@@ -92,64 +86,65 @@ public:
 		FILE *fp = fopen(filename, "rt");
 		if (fp != nullptr)
 		{
-			bool bSuccess = false;
+			bool bSuccess = true;
 
 			line[sizeof(line) - 1] = 0;
-			if (fgets(line, sizeof(line) - 1, fp))
-			{				
-				if (strnicmp(line, "psmove", 6) == 0)
-				{
-					m_controllerType = PSMove;
-					bSuccess = true;
-				}
-				else if (strnicmp(line, "dualshock4", 10) == 0)
-				{
-					m_controllerType = DualShock4;
-					bSuccess = true;
-				}
-			}
+			m_controllerType = PSMove;
+			//if (fgets(line, sizeof(line) - 1, fp))
+			//{				
+			//	if (strnicmp(line, "psmove", 6) == 0)
+			//	{
+			//		m_controllerType = PSMove;
+			//		bSuccess = true;
+			//	}
+			//	else if (strnicmp(line, "dualshock4", 10) == 0)
+			//	{
+			//		m_controllerType = DualShock4;
+			//		bSuccess = true;
+			//	}
+			//}
 
-			if (bSuccess)
-			{
-				bSuccess = false;
+			//if (bSuccess)
+			//{
+			//	bSuccess = false;
 
-				if (fgets(line, sizeof(line) - 1, fp) != nullptr)
-				{
-					size_t len = strlen(line);
+			//	if (fgets(line, sizeof(line) - 1, fp) != nullptr)
+			//	{
+			//		size_t len = strlen(line);
 
-					if (len > 0)
-					{
-						const char* last_start = &line[0];
-						int valid_columns = 0;
+			//		if (len > 0)
+			//		{
+			//			const char* last_start = &line[0];
+			//			int valid_columns = 0;
 
-						size_t cursor= 0;
-						while (cursor < len && valid_columns < FIELD_COUNT)
-						{
-							if (line[cursor] == ',' || line[cursor] == '\n')
-							{
-								line[cursor] = '\0';
-								if (strnicmp(last_start, szColumnNames[valid_columns], strlen(szColumnNames[valid_columns])) == 0)
-								{
-									cursor++;
-									valid_columns++;
-									last_start = &line[cursor];
-								}
-								else
-								{
-									break;
-								}
-							}
+			//			size_t cursor= 0;
+			//			while (cursor < len && valid_columns < FIELD_COUNT)
+			//			{
+			//				if (line[cursor] == ',' || line[cursor] == '\n')
+			//				{
+			//					line[cursor] = '\0';
+			//					if (strnicmp(last_start, szColumnNames[valid_columns], strlen(szColumnNames[valid_columns])) == 0)
+			//					{
+			//						cursor++;
+			//						valid_columns++;
+			//						last_start = &line[cursor];
+			//					}
+			//					else
+			//					{
+			//						break;
+			//					}
+			//				}
 
-							cursor++;
-						}
+			//				cursor++;
+			//			}
 
-						if (valid_columns == FIELD_COUNT)
-						{
-							bSuccess = true;
-						}
-					}
-				}
-			}
+			//			if (valid_columns == FIELD_COUNT)
+			//			{
+			//				bSuccess = true;
+			//			}
+			//		}
+			//	}
+			//}
 
 			if (bSuccess)
 			{
@@ -211,6 +206,10 @@ public:
 		return sample;
 	}
 
+	const ControllerSample &getSample(size_t index) const {
+		return m_samples.at(index);
+	}
+
 private:
 	std::vector<ControllerSample> m_samples;
 	size_t m_sampleIndex;
@@ -262,8 +261,12 @@ private:
 	FILE* m_fp;
 };
 
-static void init_filter_for_psdualshock4(PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter);
-static void init_filter_for_psmove(PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter);
+static void init_filter_for_psdualshock4(
+	const Eigen::Vector3f &initial_position, const Eigen::Quaternionf &initial_orientation,
+	PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter);
+static void init_filter_for_psmove(
+	const Eigen::Vector3f &initial_position, const Eigen::Quaternionf &initial_orientation,
+	PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter);
 
 int main(int argc, char *argv[])
 {   
@@ -279,13 +282,17 @@ int main(int argc, char *argv[])
 	PoseFilterSpace *pose_filter_space= nullptr;
 	IPoseFilter *pose_filter = nullptr;
 
+	const ControllerSample &initialSample = input_stream.getSample(0);
+	Eigen::Vector3f initial_pos(initialSample.pos[0], initialSample.pos[1], initialSample.pos[2]);
+	Eigen::Quaternionf initial_ori(initialSample.ori[0], initialSample.ori[1], initialSample.ori[2], initialSample.ori[3]);
+
 	switch (input_stream.getControllerType())
 	{
 	case PSMove:
-		init_filter_for_psmove(&pose_filter_space, &pose_filter);
+		init_filter_for_psmove(initial_pos*k_centimeters_to_meters, initial_ori, &pose_filter_space, &pose_filter);
 		break;
 	case DualShock4:
-		init_filter_for_psdualshock4(&pose_filter_space, &pose_filter);
+		init_filter_for_psdualshock4(initial_pos*k_centimeters_to_meters, initial_ori, &pose_filter_space, &pose_filter);
 		break;
 	default:
 		break;
@@ -302,9 +309,9 @@ int main(int argc, char *argv[])
 		sensorPacket.imu_gyroscope = Eigen::Vector3f(sample.gyro[0], sample.gyro[1], sample.gyro[2]);
 		sensorPacket.imu_magnetometer = Eigen::Vector3f(sample.mag[0], sample.mag[1], sample.mag[2]);
 		sensorPacket.optical_orientation = Eigen::Quaternionf(sample.ori[0], sample.ori[1], sample.ori[2], sample.ori[3]);
-		sensorPacket.optical_orientation_quality = sample.ori_qual;
+		sensorPacket.optical_orientation_quality = 1.f; // sample.ori_qual;
 		sensorPacket.optical_position_cm = Eigen::Vector3f(sample.pos[0], sample.pos[1], sample.pos[2]);
-		sensorPacket.optical_position_quality = sample.pos_qual;
+		sensorPacket.optical_position_quality = 1.f; // sample.pos_qual;
 
 		PoseFilterPacket filterPacket;
 		pose_filter_space->createFilterPacket(sensorPacket, pose_filter->getOrientation(), pose_filter->getPosition(), filterPacket);
@@ -328,15 +335,17 @@ int main(int argc, char *argv[])
 
 static void
 init_filter_for_psmove(
+	const Eigen::Vector3f &initial_position,
+	const Eigen::Quaternionf &initial_orientation,
 	PoseFilterSpace **out_pose_filter_space,
 	IPoseFilter **out_pose_filter)
 {
 	// Setup the space the orientation filter operates in
 	PoseFilterSpace *pose_filter_space = new PoseFilterSpace();
-	pose_filter_space->setIdentityGravity(Eigen::Vector3f(0.f, 1.f, 0.f));
-	pose_filter_space->setIdentityMagnetometer(Eigen::Vector3f(-0.364768296f, 0.930912316f, -0.0186111741f));
-	pose_filter_space->setCalibrationTransform(*k_eigen_identity_pose_laying_flat);
-	pose_filter_space->setSensorTransform(*k_eigen_sensor_transform_opengl);
+	pose_filter_space->setIdentityGravity(Eigen::Vector3f(0.f, 0.f, -1.f));
+	pose_filter_space->setIdentityMagnetometer(Eigen::Vector3f(0.737549126f, 0.675293505f, 1));
+	pose_filter_space->setCalibrationTransform(*k_eigen_identity_pose_upright);
+	pose_filter_space->setSensorTransform(*k_eigen_sensor_transform_identity);
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
@@ -345,23 +354,23 @@ init_filter_for_psmove(
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
 	constants.orientation_constants.gyro_drift = 0.0272777844f;
 	constants.orientation_constants.gyro_variance = 0.000348962029f;
-	constants.orientation_constants.mean_update_time_delta = 0.00833300035f;
-	constants.orientation_constants.min_orientation_variance = 0.00499999989f;
-	constants.orientation_constants.max_orientation_variance = 0.00499999989f;
+	constants.orientation_constants.mean_update_time_delta = 0.018542f; // from matlab
+	constants.orientation_constants.min_orientation_variance = 1.0f; // from matlab
+	constants.orientation_constants.max_orientation_variance = 1.0f; // from matlab
 	constants.orientation_constants.magnetometer_variance = 0.000590000011f;
 
 	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.position_constants.accelerometer_variance = 7.1999998e-06f;
 	constants.position_constants.accelerometer_noise_radius = 0.0139137721;
 	constants.position_constants.max_velocity = 1.0f;
-	constants.position_constants.mean_update_time_delta = 0.00833300035f;
+	constants.position_constants.mean_update_time_delta = 0.018542f; // from matlab
 	// min variance at max screen area
-	constants.position_constants.min_position_variance = 0.25f;
+	constants.position_constants.min_position_variance = 1.0f; // from matlab
 	// max variance at min screen area
-	constants.position_constants.max_position_variance = 0.25f;
+	constants.position_constants.max_position_variance = 1.0f; // from matlab
 
 	KalmanPoseFilterPSMove *kalmanFilter = new KalmanPoseFilterPSMove();
-	kalmanFilter->init(constants);
+	kalmanFilter->init(constants, initial_position, initial_orientation);
 
 	*out_pose_filter_space = pose_filter_space;
 	*out_pose_filter = kalmanFilter;
@@ -369,6 +378,8 @@ init_filter_for_psmove(
 
 static void
 init_filter_for_psdualshock4(
+	const Eigen::Vector3f &initial_position,
+	const Eigen::Quaternionf &initial_orientation,
 	PoseFilterSpace **out_pose_filter_space,
 	IPoseFilter **out_pose_filter)
 {
@@ -403,7 +414,7 @@ init_filter_for_psdualshock4(
 	constants.position_constants.max_position_variance = 0.25f;
 
 	KalmanPoseFilterDS4 *kalmanFilter= new KalmanPoseFilterDS4();
-	kalmanFilter->init(constants);
+	kalmanFilter->init(constants, initial_position, initial_orientation);
 
 	*out_pose_filter_space = pose_filter_space;
 	*out_pose_filter = kalmanFilter;
