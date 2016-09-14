@@ -6,29 +6,22 @@ x_k = filt_struct.intermediates.x_k;
 Sx_k = filt_struct.intermediates.Sx_k;  % Still UPPER
 
 %% 1. Propagate sigma points through observation function.
-L = filt_struct.Xdim + filt_struct.Q.dim + filt_struct.R.dim;
-nsp = size(X_k, 2);
-R_inds = filt_struct.Xdim + filt_struct.Q.dim + 1 : L;
-Y_k = observation_function(filt_struct, X_k, X_t(R_inds, :));
+zR = filt_struct.R;
+zR.cov = filt_struct.weights.zeta * zR.cov;
+Y_k = observation_function(filt_struct, X_k, zR);
 
 %% 2. Calculate observation mean.
-y_k = sum(bsxfun(@times, filt_struct.weights.wm, Y_k), 2);
-if isfield(filt_struct, 'special_yinds') && ~isempty(filt_struct.special_yinds)
-    y_k(filt_struct.special_yinds) = observation_mean(filt_struct, Y_k(filt_struct.special_yinds, :));
-end
+wm = filt_struct.weights.wm;
+y_k = sum([wm(1) * Y_k(:, 1), wm(2) * Y_k(:, 2:end)], 2);
 
 %% 3. Calculate y-residuals.
 %Used in observation covariance and state-observation cross-covariance for
 %Kalman gain.
 Y_k_r = bsxfun(@minus, Y_k, y_k);
-if isfield(filt_struct, 'special_yinds') && ~isempty(filt_struct.special_yinds)
-    for sp_ix = 1:size(Y_k_r, 2)
-        Y_k_r(filt_struct.special_yinds, sp_ix) = obsdiff(Y_k(filt_struct.special_yinds, sp_ix), y_k(filt_struct.special_yinds));
-    end
-end
 
 %% 4. Calculate observation sqrt covariance
-[~, Sy_k] = qr((filt_struct.weights.w_qr*Y_k_r(:,2:nsp))', 0);
+Sy_k = triu(qr(filt_struct.weights.w_qr*Y_k_r(:,2:end)', 0));
+Sy_k = Sy_k(1:filt_struct.Odim, 1:filt_struct.Odim);
 %NOTE: here Sy is the UPPER Cholesky factor (Matlab excentricity)
 % deal with possible negative zero'th covariance weight
 if filt_struct.weights.wc(1) > 0
@@ -37,31 +30,28 @@ else
     % deal with possible negative zero'th covariance weight
     Sy_k = cholupdate(Sy_k, filt_struct.weights.w_cholup*Y_k_r(:,1), '-');
 end
-Sy_k = Sy_k';  % We need the lower triangular Cholesky factor
+Sy_k = Sy_k';  % We need the LOWER triangular Cholesky factor
     
 %% 5. Calculate Kalman Gain
 wc = filt_struct.weights.wc;
-Pxy = zeros(filt_struct.Xdim, filt_struct.Odim);
-for ix = 1:nsp
-    %TODO: Should X_k_r axisAngles be multiplied directly like this?
-    Pxy = Pxy + wc(ix) * (X_k_r(:, ix) * Y_k_r(:, ix)');
-end
-%Equivalent to above, I think (definitely faster):
-% Pxy = wc(1) * X_k_r(:,1) * Y_k_r(:,1)' + wc(2) * X_k_r(:,2:nsp) * Y_k_r(:,2:nsp)';  
+%First calculate state-observation cross (sqrt) covariance
+Pxy = wc(1) * X_k_r(:,1) * Y_k_r(:,1)' + wc(2) * X_k_r(:,2:end) * Y_k_r(:,2:end)';  
 KG = (Pxy/Sy_k')/Sy_k;
 
 %% 6. Calculate innovation
 innov = observation - y_k;
-if isfield(filt_struct, 'special_yinds') && ~isempty(filt_struct.special_yinds)
-    innov(filt_struct.special_yinds) = obsdiff(observation(filt_struct.special_yinds), y_k(filt_struct.special_yinds));
-end
 
 %% 7. State update / correct
-upd = KG * innov;
-filt_struct.x = x_k + upd;
-if isfield(filt_struct, 'special_xinds') && ~isempty(filt_struct.special_xinds)
-    filt_struct.x(filt_struct.special_xinds) = filt_struct.special_state_add(x_k(filt_struct.special_xinds), upd(filt_struct.special_xinds));
-end
+upd = KG * innov; %ReBeL srukf doesn't do anything special for angles to get upd.
+
+% Update linear parts
+x_lin = [1:9 14 15 16];  % pos, vel, accel, avel
+s_lin = [1:9 11 13 15];  % pos, vel, accel, avel
+filt_struct.x(x_lin) = x_k(x_lin) + upd(s_lin);
+
+x_qinds = 10:13;
+s_ang = [10 12 14];
+filt_struct.x(x_qinds) = quaternion_multiply(x_k(x_qinds), axisAngle2Quat(upd(s_ang)));
 
 %% 8. Covariance update / correct
 %This is equivalent to :  Px = Px_ - KG*Py*KG';

@@ -1,21 +1,22 @@
-function predicted_obs = observation_function(filt_struct, states, observation_noise)
+function predicted_obs = observation_function(filt_struct, states, zR)
+% states is a matrix of state vector columns.
+% State vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, qw, qx, qy, qz, avelx, avely, avelz
+% Return value is a matrix of observation vector columns
+% [a.x, a.y, a.z, g.x, g.y, g.z, m.x, m.y, m.z, pos.x, pos.y, pos.z]'
 
 %TODO: Check how srukf handles observation_noise
-    
+
+% Constants
 GRAVITY = filt_struct.consts.GRAVITY;  % Depends on latitude.
 gravity_world = [0;0;-GRAVITY];
 mag_world = filt_struct.consts.MAGFIELD;
 
-n_obs = size(states, 2);
-predicted_obs = nan(filt_struct.Odim, n_obs);
-% Sigma point:
-% posx, velx, accx, posy, vely, accy, posz, velz, accz, angx, avelx, angy, avely, angz, avelz
-% Observation
-% [a.x, a.y, a.z, g.x, g.y, g.z, m.x, m.y, m.z, pos.x, pos.y, pos.z]
+nsp = size(states, 2);
+predicted_obs = nan(filt_struct.Odim, nsp);
 
 % From the state estimate of the orientation, get the world-to-controller
 % transformation.
-quat = axisAngle2Quat(states([10, 12, 14], :));
+quat = states(10:13, :);
 
 % Accelerometer = (linear acceleration + gravity) transformed to controller
 % frame.
@@ -24,7 +25,7 @@ lacc_world_g = lacc_world ./ GRAVITY;  % In G units
 predicted_obs(1:3, :) = rotateAxisAngle(lacc_world_g, quat);
 
 % Gyroscope = angular velocity
-predicted_obs(4:6, :) = states([11 13 15], :);
+predicted_obs(4:6, :) = states([14 15 16], :);
     
 % Magnetometer = world_mag_vector transformed to controller reference
 % frame
@@ -33,6 +34,11 @@ predicted_obs(7:9, :) = rotateAxisAngle(mag_world, quat);
 % Predicted optical tracker position = state position
 predicted_obs(10:12, :) = states([1 4 7], :);
 
-if ~isempty(observation_noise)
-    predicted_obs = predicted_obs + observation_noise;
+% Any observation bias in zR.mu
+predicted_obs = bsxfun(@plus, predicted_obs, zR.mu);
+
+plus_ix = 1 + 2*filt_struct.Sdim + 2*filt_struct.Q.dim + (1:zR.dim);
+minus_ix = plus_ix + zR.dim;
+predicted_obs(:, plus_ix) = predicted_obs(:, plus_ix) + zR.cov;
+predicted_obs(:, minus_ix) = predicted_obs(:, minus_ix) - zR.cov;
 end

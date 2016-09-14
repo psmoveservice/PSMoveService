@@ -1,19 +1,16 @@
 %% Paths and Constants
 addpath(genpath(fullfile(pwd, 'srukf')));
 
-Xdim = 15;  % posx, velx, accx, posy, vely, accy, posz, velz, accz, angx, avelx, angy, avely, angz, avelz
-special_xinds = [10 12 14];  % angx, angy, angz cannot be added or subtracted
-special_state_add = @add_axang;
-special_state_sub = @sub_axang;
-special_state_mean = @mean_axang;
+Xdim = 16;  % State vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, qw, qx, qy, qz, avelx, avely, avelz
+Sdim = 15;  % State covariance. Rotational covariance represented with angle-axis instead of quaternion. See Qdim below.
 Odim = 12;  % [a.x, a.y, a.z, g.x, g.y, g.z, m.x, m.y, m.z, pos.x, pos.y, pos.z]
 alpha = 0.6;
 beta = 2.0;
 kappa = 3 - Xdim;
-Qdim = Xdim;  % Assume process noise is same dimensionality as state vector
+Qdim = 15;  % Process noise vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, angx, avelx, angy, avely, angz, avelz
 Rdim = Odim;  % Assume observation noise is same dimensionality as obs vec.
-q_scale = 0.1;  % Scale process noise
-r_scale = 0.01;  % Scale observation noise.
+q_scale = 1;  % Scale process noise
+r_scale = 10;  % Scale observation noise.
 
 %% Load data from csv
 datadir = fullfile('..','..','test_data');
@@ -25,20 +22,19 @@ testdata = csvread(fullfile(datadir, 'movement.csv'));
 %% Initialize filter_struct
 
 % Initialize state
-% Assume zero initial velocity.
-axang = quat2AxisAngle(testdata(1, [13 14 15 16])');  %Cheat and use PSMoveService's orientation.
+% Assume zero initial velocity / acceleration / angular velocity.
 x_init = [...
     testdata(1,10), 0, 0,...  %p.x, v.x, a.x
     testdata(1,11), 0, 0,...  %p.y, v.y, a.y
     testdata(1,12), 0, 0,...  %p.z, v.z, a.z
-    axang(1), 0,...           %ang.x, angv.x
-    axang(2), 0,...           %ang.y, angv.y
-    axang(3), 0,]';           %ang.z, angv.z
-clear axang
+    testdata(1,[13 14 15 16]),...,
+    0, 0, 0]';
 
-% TODO: Initial guess at state covariance from trainingdata?
-S_init = zeros(Xdim);
-S_init(1:Xdim+1:end) = 0.1;  % Along the diagonal
+% TODO: Initial guess at state (sqrt) covariance from trainingdata?
+% State sqrt covariance is required to calculate state sigma points.
+% This gets updated on every iteration so initial guess isn't critical.
+S_init = zeros(Sdim);
+S_init(1:Sdim+1:end) = 0.1;  % Along the diagonal
 
 % Prepare process noise
 mean_dt = mean(diff(trainingdata(:, end)));
@@ -47,15 +43,19 @@ Q_3 = q_scale * process_noise(3, mean_dt);
 Q_cov(1:3, 1:3) = Q_3;  %Lin-X
 Q_cov(4:6, 4:6) = Q_3;  %Lin-Y
 Q_cov(7:9, 7:9) = Q_3;  %Lin-Z
+% The following is probably ok for angular velocity,
+% but probably wrong for orientation
 Q_2 = q_scale * process_noise(2, mean_dt);
 Q_cov(10:11, 10:11) = Q_2;  % Ang-X
 Q_cov(12:13, 12:13) = Q_2;  % Ang-Y
 Q_cov(14:15, 14:15) = Q_2;  % Ang-Z
+% Q_cov([10 12 14], [10 12 14]) = 0.1;  %Overwrite ax-angle process noise.
 Q_init = struct(...
     'dim', Qdim,...
     'mu', zeros(Qdim, 1),...  % Process noise should be zero-mean, I think.
     'cov', chol(Q_cov, 'lower'));  % sqrt matrix
 clear Q_cov Q_3 Q_2
+% TODO: Check that the axis-angle noise wraps correctly.
 
 % Prepare observation noise from trainingdata
 % Assume all observation variables are independent.
@@ -75,10 +75,7 @@ clear R_cov
 
 filt_struct = struct(...
     'Xdim', Xdim,...  
-    'special_xinds', special_xinds,...
-    'special_state_add', special_state_add,...
-    'special_state_sub', special_state_sub,...
-    'special_state_mean', special_state_mean,...
+    'Sdim', Sdim,...
     'Odim', Odim,...  
     'alpha', alpha,...
     'beta', beta,...
@@ -97,7 +94,6 @@ filt_struct = struct(...
     'consts', struct(...
         'GRAVITY', 9.806,...  % Approx grav where recordings took place.
         'MAGFIELD', [0.737549126; 0.675293505; 1]));  % Approx mag field where recordings took place.
-
 
 %% Filter
 %Pre-allocate output variables
@@ -157,8 +153,8 @@ ax.BoxStyle = 'full';
 
 subplot(2,1,2)
 axang_compl = quat2AxisAngle(testdata(:, 13:16)')';
-axang_est = predicted_state(:, [10 12 14]);
-plot(axang_est, 'b', 'LineWidth', 1)
+axang_est = quat2AxisAngle(predicted_state(:, 10:13)')';
+plot(axang_est, 'b', 'LineWidth', 3)
 hold on
 plot(axang_compl, '.', 'MarkerSize', 25)
 axis tight
