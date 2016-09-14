@@ -8,6 +8,7 @@ Sx_k = filt_struct.intermediates.Sx_k;  % Still UPPER
 %% 1. Propagate sigma points through observation function.
 zR = filt_struct.R;
 zR.cov = filt_struct.weights.zeta * zR.cov;
+zR.observation = observation; % Just for debugging in observation function.
 Y_k = observation_function(filt_struct, X_k, zR);
 
 %% 2. Calculate observation mean.

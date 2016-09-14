@@ -2,15 +2,18 @@
 addpath(genpath(fullfile(pwd, 'srukf')));
 
 Xdim = 16;  % State vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, qw, qx, qy, qz, avelx, avely, avelz
+            % Units: pos: m, vel: m/s, acc: m/s^2, orient. in quat, avel: rad/s
 Sdim = 15;  % State covariance. Rotational covariance represented with angle-axis instead of quaternion. See Qdim below.
 Odim = 12;  % [a.x, a.y, a.z, g.x, g.y, g.z, m.x, m.y, m.z, pos.x, pos.y, pos.z]
+            % Units: acc: g-units, gyro: rad/s, mag: B-units, pos: cm
 alpha = 0.6;
 beta = 2.0;
 kappa = 3 - Xdim;
 Qdim = 15;  % Process noise vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, angx, avelx, angy, avely, angz, avelz
+            % Units: Same as state vector.
 Rdim = Odim;  % Assume observation noise is same dimensionality as obs vec.
 q_scale = 1;  % Scale process noise
-r_scale = 10;  % Scale observation noise.
+r_scale = 1;  % Scale observation noise.
 
 %% Load data from csv
 datadir = fullfile('..','..','test_data');
@@ -19,18 +22,24 @@ testdata = csvread(fullfile(datadir, 'movement.csv'));
 %load columns are [a.x, a.y, a.z, g.x, g.y, g.z, m.x, m.y, m.z, pos.x,
 %pos.y, pos.z, q.w, q.x, q.y, q.z, time]
 
+% Normalize magnetometer readings.
+mag_ix = 7:9;
+trainingdata(:, mag_ix) = bsxfun(@rdivide, trainingdata(:, mag_ix), sqrt(sum(trainingdata(:, mag_ix).^2, 2)));
+testdata(:, mag_ix) = bsxfun(@rdivide, testdata(:, mag_ix), sqrt(sum(testdata(:, mag_ix).^2, 2)));
+
 %% Initialize filter_struct
 
 % Initialize state
 % Assume zero initial velocity / acceleration / angular velocity.
 x_init = [...
-    testdata(1,10), 0, 0,...  %p.x, v.x, a.x
-    testdata(1,11), 0, 0,...  %p.y, v.y, a.y
-    testdata(1,12), 0, 0,...  %p.z, v.z, a.z
-    testdata(1,[13 14 15 16]),...,
-    0, 0, 0]';
+    0.01*testdata(1,10), 0, 0,...  %p.x, v.x, a.x  (scale position from cm -> m)
+    0.01*testdata(1,11), 0, 0,...  %p.y, v.y, a.y
+    0.01*testdata(1,12), 0, 0,...  %p.z, v.z, a.z
+    testdata(1,[13 14 15 16]),..., %Cheat with estimate from PSMoveService complementary filter. This won't be available usually.
+    0, 0, 0]';  % 0 angular velocity.
 
 % TODO: Initial guess at state (sqrt) covariance from trainingdata?
+% If yes, remember to scale trainingdata (cm -> m) first.
 % State sqrt covariance is required to calculate state sigma points.
 % This gets updated on every iteration so initial guess isn't critical.
 S_init = zeros(Sdim);
@@ -49,6 +58,7 @@ Q_2 = q_scale * process_noise(2, mean_dt);
 Q_cov(10:11, 10:11) = Q_2;  % Ang-X
 Q_cov(12:13, 12:13) = Q_2;  % Ang-Y
 Q_cov(14:15, 14:15) = Q_2;  % Ang-Z
+Q_cov(10:15, 10:15) = 0.1*eye(6);  % Overwrite orientation/angvel process noise.
 % Q_cov([10 12 14], [10 12 14]) = 0.1;  %Overwrite ax-angle process noise.
 Q_init = struct(...
     'dim', Qdim,...
@@ -63,9 +73,11 @@ R_cov = zeros(Rdim);
 R_cov(1:Rdim+1:end) = r_scale * diag(cov(trainingdata(:, 1:Odim)));
 R_init = struct(...
     'dim', Rdim,...
-    'mu', zeros(Rdim, 1),...  %TODO: Change elements to non-zero for bias.
+    'mu', zeros(Rdim, 1),...
     'cov', sqrt(R_cov));  % Only diagonal so no need to chol.
 clear R_cov
+R_init.mu(1:3) = [-0.0156696439, 0.0416475534, -0.0112125874];  %accel_bias
+
 
 % % if doing process noise adaptation, save some variables for later
 % ind1 = 1;
@@ -93,7 +105,7 @@ filt_struct = struct(...
         'Sx_k', []),...% Upper-triangular of propagated sp covariance
     'consts', struct(...
         'GRAVITY', 9.806,...  % Approx grav where recordings took place.
-        'MAGFIELD', [0.737549126; 0.675293505; 1]));  % Approx mag field where recordings took place.
+        'MAGFIELD', [0.737549126; 0.675293505; 0]));  % Approx mag field where recordings took place.
 
 %% Filter
 %Pre-allocate output variables
@@ -134,13 +146,40 @@ for o_ix = 1:size(observations, 1)
     
 end
 
+%% Test observation function rotations
+obs_ix = randi(size(trainingdata, 1));
+measured_orientation = trainingdata(obs_ix,[13 14 15 16])';
+
+%trainingdata recorded while controller was motionless upright.
+
+%accelerometer data should be due to gravity only.
+% In world space, gravity is [0, -G, 0];
+% While the controller is upright, accel due to gravity will be [0, 0, -G].
+% While the controller is horizontal, accel due to gravity will be [0, -G,
+% 0]
+accel = trainingdata(obs_ix, 1:3)';
+gravity_world = [0; -1; 0];  %filt_struct.consts.GRAVITY
+gravity_cntrl = rotateVector(measured_orientation, gravity_world);
+[gravity_cntrl accel]
+
+%magnetometer data should be filt_struct.consts.MAGFIELD rotated to
+%controller frame.
+mag_identity = filt_struct.consts.MAGFIELD;
+magnetometer = trainingdata(obs_ix, 7:9)';
+
+null_quat = [0.5; 0.5; 0.5; -0.5];  % The orientation of the controller when MAGFIELD was measured. Roll +90, Yaw +90
+% delta_quat = quaternion_multiply(measured_orientation, quaternion_conjugate(null_quat));
+delta_quat = quaternion_multiply(null_quat, quaternion_conjugate(measured_orientation));
+mag_cntrl = rotateVector(delta_quat, filt_struct.consts.MAGFIELD);
+[mag_cntrl magnetometer]
+
 %% Plot results
 
 figure;
 
 subplot(2,1,1)
 pos_est = predicted_state(:, [1 4 7]);
-pos_opt = testdata(:, 10:12);
+pos_opt = 0.01 * testdata(:, 10:12); %testdata(:, 10:12);
 plot3(pos_opt(:, 1), pos_opt(:, 2), pos_opt(:, 3), 'r.', 'MarkerSize', 25)
 hold on
 plot3(pos_est(:, 1), pos_est(:, 2), pos_est(:, 3), 'b', 'LineWidth', 3)
@@ -148,6 +187,7 @@ legend('Raw', 'Filtered')
 set(gca, 'Color', 'none')
 grid on
 box on
+axis equal
 ax = gca;
 ax.BoxStyle = 'full';
 

@@ -1,10 +1,13 @@
 function predicted_obs = observation_function(filt_struct, states, zR)
 % states is a matrix of state vector columns.
-% State vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, qw, qx, qy, qz, avelx, avely, avelz
+% state vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, qw, qx, qy, qz, avelx, avely, avelz
+% Units: pos: m, vel: m/s, acc: m/s^2, orient. in quat, avel: rad/s
+%
 % Return value is a matrix of observation vector columns
-% [a.x, a.y, a.z, g.x, g.y, g.z, m.x, m.y, m.z, pos.x, pos.y, pos.z]'
+% observation vector: a.x, a.y, a.z, g.x, g.y, g.z, m.x, m.y, m.z, pos.x, pos.y, pos.z
+% Units: acc: g-units, gyro: rad/s, mag: B-units, pos: cm
 
-%TODO: Check how srukf handles observation_noise
+%TODO: Check how srukf.m handles observation_noise
 
 % Constants
 GRAVITY = filt_struct.consts.GRAVITY;  % Depends on latitude.
@@ -12,7 +15,7 @@ gravity_world = [0;0;-GRAVITY];
 mag_world = filt_struct.consts.MAGFIELD;
 
 nsp = size(states, 2);
-predicted_obs = nan(filt_struct.Odim, nsp);
+predicted_obs = nan(filt_struct.Odim, nsp);  % Output
 
 % From the state estimate of the orientation, get the world-to-controller
 % transformation.
@@ -22,17 +25,19 @@ quat = states(10:13, :);
 % frame.
 lacc_world = bsxfun(@plus, states([3 6 9], :), gravity_world);  % In m/sec^2
 lacc_world_g = lacc_world ./ GRAVITY;  % In G units
-predicted_obs(1:3, :) = rotateAxisAngle(lacc_world_g, quat);
+predicted_obs(1:3, :) = rotateVector(quat, lacc_world_g);
 
-% Gyroscope = angular velocity
+% Gyroscope = angular velocity  (both rad/sec)
 predicted_obs(4:6, :) = states([14 15 16], :);
     
 % Magnetometer = world_mag_vector transformed to controller reference
 % frame
-predicted_obs(7:9, :) = rotateAxisAngle(mag_world, quat);
+null_quat = [0.5; 0.5; 0.5; -0.5];  % The orientation of the controller when MAGFIELD was measured. Roll +90, Yaw +90
+delta_quat = quaternion_multiply(null_quat, quaternion_conjugate(quat));
+predicted_obs(7:9, :) = rotateVector(delta_quat, mag_world);
 
-% Predicted optical tracker position = state position
-predicted_obs(10:12, :) = states([1 4 7], :);
+% Predicted optical tracker observation (cm) = 100 * state position (m)
+predicted_obs(10:12, :) = 100*states([1 4 7], :);
 
 % Any observation bias in zR.mu
 predicted_obs = bsxfun(@plus, predicted_obs, zR.mu);

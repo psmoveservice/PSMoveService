@@ -27,16 +27,16 @@ Sdim = (L - 1) / 2;  % Number of state covariance variables.
 new_states = nan(Xdim, L + 2 * Q.dim);
 
 % Simple Cartesian updates
-pos = old_states([1, 4, 7], :);
-lvel = old_states([2, 5, 8], :);
-lacc = old_states([3, 6, 9], :);
+pos = old_states([1, 4, 7], :);  % In m
+lvel = old_states([2, 5, 8], :);  % In m/s
+lacc = old_states([3, 6, 9], :);  % In m/s^2
 
 new_states([1, 4, 7], 1:L) = pos + dt*lvel + 0.5 * dt * dt * lacc;  % Last term sometimes unused in literature.
 new_states([2, 5, 8], 1:L) = lvel + dt*lacc;
 new_states([3, 6, 9], 1:L) = lacc;
 
 % Assume angular velocity does not change.
-avel = old_states(14:16, :);
+avel = old_states(14:16, :);  % In rad/s
 new_states(14:16, 1:L) = avel;
 
 % Linear-Add process noise to propagated sigma points
@@ -49,7 +49,7 @@ Q_lin = [1:9, 11 13 15];  % Indices into Q of linear components
 % First add bias (Q.mu) to ALL sigma points.
 new_states(x_lin, 1:L) = bsxfun(@plus, new_states(x_lin, 1:L), Q.mu(Q_lin));
 % Second add/subtract noise in extension sigma points.
-x_base = new_states(x_lin, 1);  % Extension sigma points based on 1st index
+x_base = new_states(x_lin, 1);  % Extension SPs based on 1st SP
 new_states(x_lin, L + 1 : end) = repmat(x_base, 1, 2 * Q.dim);  % Initialize with base values.
 new_states(x_lin, L + Q_lin) = new_states(x_lin, L + Q_lin) + Q.cov(Q_lin, Q_lin);  % +zQ
 new_states(x_lin, L + Q.dim + Q_lin) = new_states(x_lin, L + Q.dim + Q_lin) - Q.cov(Q_lin, Q_lin);  % -zQ
@@ -97,12 +97,12 @@ new_states(x_quat, 1:L) = quaternion_multiply(q_old, q_delta);
 %     new_states(x_quat, sp_ix) = q_delta(:, :, sp_ix) * q_old(:, sp_ix);
 % end
 
-% Add bias to all propagated sigma points.
+% Add orientation bias to all propagated sigma points.
 Q_axang = [10 12 14];
 q_bias = axisAngle2Quat(Q.mu(Q_axang));
 new_states(x_quat, 1:L) = quaternion_multiply(new_states(x_quat, 1:L), q_bias);
 
-% 'Add' orientation noise to propagated sigma points.
+% 'Add' orientation noise to propagated extension sigma points.
 q_base = new_states(x_quat, 1);
 new_states(x_quat, L+1:end) = repmat(q_base, 1, 2*Q.dim);
 q_noise = axisAngle2Quat(Q.cov(Q_axang, Q_axang));

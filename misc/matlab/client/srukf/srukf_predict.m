@@ -7,9 +7,16 @@ function filt_struct = srukf_predict(filt_struct, dt)
 
 % Reminder:
 % state vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, qw, qx, qy, qz, avelx, avely, avelz
+% Units: pos: m, vel: m/s, acc: m/s^2, orient. in quat, avel: rad/s
+%
 % state_cov vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, angx, avelx, angy, avely, angz, avelz
+% Units: Same as state vector.
+%
 % process noise vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, angx, avelx, angy, avely, angz, avelz
+% Units: Same as state vector.
+%
 % observation vector: a.x, a.y, a.z, g.x, g.y, g.z, m.x, m.y, m.z, pos.x, pos.y, pos.z
+% Units: acc: g-units, gyro: rad/s, mag: B-units, pos: cm
 
 %% 1. If weights are incorrect shape then reset them
 if ~isfield(filt_struct, 'W')
