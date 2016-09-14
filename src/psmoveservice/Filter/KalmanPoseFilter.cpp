@@ -1,6 +1,7 @@
 //-- includes --
 #include "KalmanPoseFilter.h"
 #include "MathAlignment.h"
+#include <iostream>
 
 //-- constants --
 enum StateEnum
@@ -69,9 +70,9 @@ enum DS4MeasurementEnum {
 // kappa=3-n where n is the size of x is a good choice for kappa, 
 // 0<=alpha<=1 is an appropriate choice for alpha, 
 // where a larger value for alpha spreads the sigma points further from the mean.
-#define k_ukf_alpha 1.0
+#define k_ukf_alpha 0.6
 #define k_ukf_beta 2.0
-#define k_ukf_kappa -1.0
+#define k_ukf_kappa 3 - STATE_PARAMETER_COUNT
 
 //-- private methods ---
 void process_3rd_order_noise(
@@ -175,7 +176,7 @@ public:
 		const Eigen::Quaterniond delta = extract_quaternion<RowsAtCompileTime>(B);
 
 		// Apply the delta to the orientation
-		const Eigen::Quaterniond new_rotation = delta*orientation;
+		const Eigen::Quaterniond new_rotation = orientation*delta;
 
 		// Save the net rotation rotation back in result
 		apply_quaternion<RowsAtCompileTime>(new_rotation, result);
@@ -192,7 +193,7 @@ public:
 		const Eigen::Quaterniond q2= extract_quaternion<RowsAtCompileTime>(B);
 
 		// Compute the "quaternion difference" i.e. rotation from q1 to q2
-		const Eigen::Quaterniond q_diff= q2*q1.conjugate();
+		const Eigen::Quaterniond q_diff= (q1*q2.conjugate()).normalized();
 
 		apply_quaternion<RowsAtCompileTime>(q_diff, result);
 	}
@@ -435,12 +436,26 @@ public:
 		R_cov(PSMOVE_GYROSCOPE_X, PSMOVE_GYROSCOPE_X)= gyro_std_dev;
 		R_cov(PSMOVE_GYROSCOPE_Y, PSMOVE_GYROSCOPE_Y)= gyro_std_dev;
 		R_cov(PSMOVE_GYROSCOPE_Z, PSMOVE_GYROSCOPE_Z)= gyro_std_dev;
-        R_cov(PSMOVE_MAGNETOMETER_X, PSMOVE_MAGNETOMETER_X) = magnetometer_std_dev;
-        R_cov(PSMOVE_MAGNETOMETER_Y, PSMOVE_MAGNETOMETER_Y) = magnetometer_std_dev;
-        R_cov(PSMOVE_MAGNETOMETER_Z, PSMOVE_MAGNETOMETER_Z) = magnetometer_std_dev;
-        R_cov(PSMOVE_OPTICAL_POSITION_X, PSMOVE_OPTICAL_POSITION_X) = position_std_dev;
-        R_cov(PSMOVE_OPTICAL_POSITION_Y, PSMOVE_OPTICAL_POSITION_Y) = position_std_dev;
-        R_cov(PSMOVE_OPTICAL_POSITION_Z, PSMOVE_OPTICAL_POSITION_Z) = position_std_dev;
+		R_cov(PSMOVE_MAGNETOMETER_X, PSMOVE_MAGNETOMETER_X) = magnetometer_std_dev;
+		R_cov(PSMOVE_MAGNETOMETER_Y, PSMOVE_MAGNETOMETER_Y) = magnetometer_std_dev;
+		R_cov(PSMOVE_MAGNETOMETER_Z, PSMOVE_MAGNETOMETER_Z) = magnetometer_std_dev;
+		R_cov(PSMOVE_OPTICAL_POSITION_X, PSMOVE_OPTICAL_POSITION_X) = position_std_dev;
+		R_cov(PSMOVE_OPTICAL_POSITION_Y, PSMOVE_OPTICAL_POSITION_Y) = position_std_dev;
+		R_cov(PSMOVE_OPTICAL_POSITION_Z, PSMOVE_OPTICAL_POSITION_Z) = position_std_dev;
+
+		//###HipsterSloth TESTING DATA FROM MATLAB
+		//R_cov(PSMOVE_ACCELEROMETER_X, PSMOVE_ACCELEROMETER_X) = 0.0077919;
+		//R_cov(PSMOVE_ACCELEROMETER_Y, PSMOVE_ACCELEROMETER_Y) = 0.0080155;
+		//R_cov(PSMOVE_ACCELEROMETER_Z, PSMOVE_ACCELEROMETER_Z) = 0.0071558;
+		//R_cov(PSMOVE_GYROSCOPE_X, PSMOVE_GYROSCOPE_X)= 0.0260997;
+		//R_cov(PSMOVE_GYROSCOPE_Y, PSMOVE_GYROSCOPE_Y)= 0.0262804;
+		//R_cov(PSMOVE_GYROSCOPE_Z, PSMOVE_GYROSCOPE_Z)= 0.0684205;
+		//R_cov(PSMOVE_MAGNETOMETER_X, PSMOVE_MAGNETOMETER_X) = 0.0797833;
+		//R_cov(PSMOVE_MAGNETOMETER_Y, PSMOVE_MAGNETOMETER_Y) = 0.0781690;
+		//R_cov(PSMOVE_MAGNETOMETER_Z, PSMOVE_MAGNETOMETER_Z) = 0.0843755;
+		//R_cov(PSMOVE_OPTICAL_POSITION_X, PSMOVE_OPTICAL_POSITION_X) = 0.2465627;
+		//R_cov(PSMOVE_OPTICAL_POSITION_Y, PSMOVE_OPTICAL_POSITION_Y) = 0.2113885;
+		//R_cov(PSMOVE_OPTICAL_POSITION_Z, PSMOVE_OPTICAL_POSITION_Z) = 0.5015758;
 	}
 
     /**
@@ -474,7 +489,7 @@ public:
         const Eigen::Vector3d accel_world= linear_accel_g_units + gravity_accel_g_units;
 
         // Put the accelerometer prediction into the local space of the controller
-        const Eigen::Vector3d accel_local= orientation.conjugate()._transformVector(accel_world);
+        const Eigen::Vector3d accel_local= orientation._transformVector(accel_world);
 
         // Use the angular velocity from the state to predict what the gyro reading will be
         const Eigen::Vector3d gyro_local= state.get_angular_velocity(); 
@@ -482,7 +497,7 @@ public:
         // Use the orientation from the state to predict
         // what the magnetometer reading should be
         const Eigen::Vector3d &mag_world= identity_magnetometer_direction;
-        const Eigen::Vector3d mag_local= orientation.conjugate()._transformVector(mag_world);
+        const Eigen::Vector3d mag_local= orientation._transformVector(mag_world);
 
         // Save the predictions into the measurement vector
         predicted_measurement.set_accelerometer(accel_local + accel_noise);
@@ -689,8 +704,8 @@ public:
 		}
 
 		// For SRUKF, we also need sqrt of wc_rest for chol update.
-		w_qr = sqrt(wc[2]);
-		w_cholup = sqrt(fabs(wc(1)));
+		w_qr = sqrt(wc[1]);
+		w_cholup = sqrt(fabs(wc(0)));
 	}
 };
 
@@ -750,7 +765,10 @@ public:
 		Q_cov.setIdentity();
 	}
 
-	void init(const PoseFilterConstants &constants)
+	void init(
+		const PoseFilterConstants &constants, 
+		const Eigen::Vector3f &position, 
+		const Eigen::Quaternionf &orientation)
 	{
 		const double mean_position_dT = constants.position_constants.mean_update_time_delta;
 		const double mean_orientation_dT = constants.position_constants.mean_update_time_delta;
@@ -784,6 +802,11 @@ public:
 
 		// Initialize the measurement noise
 		measurement_model.init(constants);
+
+		// Set the initial state
+		x.setZero();
+		x.set_position(position.cast<double>());
+		x.set_quaternion(orientation.cast<double>());
 
 		//%% 1. Initialize the sigma point weights
 		W.init(k_ukf_alpha, k_ukf_beta, k_ukf_kappa);
@@ -911,7 +934,7 @@ public:
 			X_t.block<L_DIM, 1>(0, 1 + col_offset) = add_result;
 
 			//TODO: See if there is a way to pass a block reference into a function
-			Eigen::Matrix<double, L_DIM, 1> sub_result = X_t.block<L_DIM, 1>(0, 1 + col_offset);
+			Eigen::Matrix<double, L_DIM, 1> sub_result = X_t.block<L_DIM, 1>(0, 1 + L_DIM + col_offset);
 			PoseStateVector::special_state_subtract<L_DIM>(
 				x_t,
 				zetaSa_State_i,
@@ -936,15 +959,15 @@ public:
 
 		// %% 7. Get residuals
 		X_k_r = X_k.colwise() - x_k;
-		for (int col_offset = 0; col_offset < L_DIM; ++col_offset)
+		for (int col_offset = 0; col_offset < SIGMA_POINT_COUNT; ++col_offset)
 		{
 			//TODO: See if there is a way to pass a block reference into a function
-			Eigen::Matrix<double, X_DIM, 1> sub_result = X_k.col(col_offset);
+			Eigen::Matrix<double, X_DIM, 1> sub_result = X_k_r.col(col_offset);
 			PoseStateVector::special_state_subtract<X_DIM>(
 				X_k.col(col_offset),
 				x_k,
 				sub_result);
-			X_k.col(col_offset) = sub_result;
+			X_k_r.col(col_offset) = sub_result;
 		}
 
 		//%% 8. Estimate state covariance(sqrt)
@@ -957,10 +980,13 @@ public:
 		Eigen::HouseholderQR<decltype(qr_input)> qr(qr_input);
 
 		// Set R matrix as upper triangular square root
-		Sx_k = qr.matrixQR().topRightCorner<X_DIM, X_DIM>().triangularView<Eigen::Lower>();
+		// NOTE: R matrix is stored in upper triangular half
+		// See: http://math.stackexchange.com/questions/1396308/qr-decomposition-results-in-eigen-library-differs-from-matlab
+		Sx_k = qr.matrixQR().topLeftCorner<X_DIM, X_DIM>().triangularView<Eigen::Upper>();
 
 		// Perform additional rank 1 update
-		Sx_k.selfadjointView<Eigen::Lower>().rankUpdate(X_k_r.leftCols<1>(), W.w_cholup);
+		float wc0_sign = sgn(W.wc(0));
+		Sx_k.selfadjointView<Eigen::Upper>().rankUpdate(X_k_r.leftCols<1>(), W.w_cholup*wc0_sign);
 	}
 
 	/**
@@ -1008,19 +1034,30 @@ public:
 		Eigen::HouseholderQR<decltype(qr_input)> qr(qr_input);
 
 		// Set R matrix as upper triangular square root
-		Eigen::Matrix<double, O_DIM, O_DIM > Sy_k = qr.matrixQR().topRightCorner<O_DIM, O_DIM>().triangularView<Eigen::Lower>();
+		// NOTE: R matrix is stored in upper triangular half
+		// See: http://math.stackexchange.com/questions/1396308/qr-decomposition-results-in-eigen-library-differs-from-matlab
+		Eigen::Matrix<double, O_DIM, O_DIM > Sy_k = qr.matrixQR().topLeftCorner<O_DIM, O_DIM>().triangularView<Eigen::Upper>();
 
 		// Perform additional rank 1 update
-		Sy_k.selfadjointView<Eigen::Lower>().rankUpdate(Y_k_r.leftCols<1>(), W.w_cholup);
+		float wc0_sign = sgn(W.wc(0));
+		Sy_k.selfadjointView<Eigen::Upper>().rankUpdate(Y_k_r.leftCols<1>(), W.w_cholup*wc0_sign);
 
 		//%% 5. Calculate Kalman Gain
-		//%TODO : Should X_k_r axisAngles be multiplied directly like this ?
-		Eigen::Matrix<double, 1, nsp> wcT= W.wc.transpose().eval();
-		Eigen::Matrix<double, X_DIM, nsp> wcT_replicated = wcT.replicate<X_DIM, 1>();
-		Eigen::Matrix<double, X_DIM, O_DIM> Pxy = X_k_r.cwiseProduct(wcT_replicated) * Y_k_r.transpose();
 
-		// KG = (Pxy / Sy_k')/Sy_k, where "/" is the "mrdivide" operator in matlab
-		Eigen::Matrix<double, X_DIM, O_DIM> KG = Sy_k.llt().solve(Pxy.transpose()).transpose();
+
+		const Eigen::Matrix<double, 1, nsp> &wc = W.wc;
+		const Eigen::Matrix<double, X_DIM, nsp> wc_repl = wc.replicate<X_DIM, 1>();
+		const Eigen::Matrix<double, X_DIM, O_DIM> Pxy= 
+			X_k_r.cwiseProduct(wc_repl).eval() * Y_k_r.transpose();
+
+		// In the Matlab code: KG = (Pxy / Sy_k')/Sy_k
+		// where "/" is the "mrdivide" operator, 
+		// x = B/A solves the system of linear equations A*x = B for x. 
+		// I arrived at the following through trial and error
+		Eigen::Matrix<double, O_DIM, X_DIM> numerator = Sy_k.transpose().colPivHouseholderQr().solve(Pxy.transpose());
+		Eigen::Matrix<double, X_DIM, O_DIM> KG = Sy_k.colPivHouseholderQr().solve(numerator).transpose();
+
+		//Eigen::Matrix<double, X_DIM, O_DIM> KG = Pxy * Sy_k.inverse();
 
 		// %% 6. Calculate innovation
 		Measurement innov = observation.difference(y_k);
@@ -1035,9 +1072,9 @@ public:
 		Eigen::Matrix<double, X_DIM, O_DIM> cov_update_vectors = KG * Sy_k;
 		for (int j = 0; j < O_DIM; ++j)
 		{
-			Sx_k.selfadjointView<Eigen::Lower>().rankUpdate(cov_update_vectors.col(j), -1.0);
+			Sx_k.selfadjointView<Eigen::Upper>().rankUpdate(cov_update_vectors.col(j), -1.0);
 		}		
-		S = Sx_k;
+		S = Sx_k.transpose();
 	}
 };
 
@@ -1066,15 +1103,32 @@ public:
     {
     }
 
-    virtual void init(const PoseFilterConstants &constants)
+	virtual void init(
+		const PoseFilterConstants &constants)
+	{
+		bIsValid = false;
+		bSeenPositionMeasurement = true;
+		bSeenOrientationMeasurement = true;
+
+		reset_orientation = Eigen::Quaternionf::Identity();
+		origin_position = Eigen::Vector3f::Zero();
+		state = PoseStateVector::Zero();
+	}
+
+	virtual void init(
+		const PoseFilterConstants &constants,
+		const Eigen::Vector3f &position,
+		const Eigen::Quaternionf &orientation)
     {
-        bIsValid = false;
+        bIsValid = true;
 		bSeenPositionMeasurement= false;
 		bSeenOrientationMeasurement= false;
 
         reset_orientation = Eigen::Quaternionf::Identity();
         origin_position = Eigen::Vector3f::Zero();
 		state = PoseStateVector::Zero();
+		state.set_position(position.cast<double>());
+		state.set_quaternion(orientation.cast<double>());
     }
 };
 
@@ -1083,10 +1137,20 @@ class DS4KalmanPoseFilterImpl : public KalmanPoseFilterImpl
 public:
 	PoseSRUFK<DS4_MeasurementModel, DS4_MeasurementVector> srukf;
 
-	void init(const PoseFilterConstants &constants) override
+	void init(
+		const PoseFilterConstants &constants) override
 	{
 		KalmanPoseFilterImpl::init(constants);
-		srukf.init(constants);
+		srukf.init(constants, Eigen::Vector3f::Zero(), Eigen::Quaternionf::Identity());
+	}
+
+	void init(
+		const PoseFilterConstants &constants,
+		const Eigen::Vector3f &position,
+		const Eigen::Quaternionf &orientation) override
+	{
+		KalmanPoseFilterImpl::init(constants, position, orientation);
+		srukf.init(constants, position, orientation);
 	}
 };
 
@@ -1095,10 +1159,20 @@ class PSMoveKalmanPoseFilterImpl : public KalmanPoseFilterImpl
 public:
 	PoseSRUFK<PSMove_MeasurementModel, PSMove_MeasurementVector> srukf;
 
-	void init(const PoseFilterConstants &constants) override
+	void init(
+		const PoseFilterConstants &constants) override
 	{
 		KalmanPoseFilterImpl::init(constants);
-		srukf.init(constants);
+		srukf.init(constants, Eigen::Vector3f::Zero(), Eigen::Quaternionf::Identity());
+	}
+
+	void init(
+		const PoseFilterConstants &constants, 
+		const Eigen::Vector3f &position,
+		const Eigen::Quaternionf &orientation) override
+	{
+		KalmanPoseFilterImpl::init(constants, position, orientation);
+		srukf.init(constants, position, orientation);
 	}
 };
 
@@ -1110,7 +1184,25 @@ KalmanPoseFilter::KalmanPoseFilter()
     memset(&m_constants, 0, sizeof(PoseFilterConstants));
 }
 
-bool KalmanPoseFilter::init(const PoseFilterConstants &constants)
+bool KalmanPoseFilter::init(
+	const PoseFilterConstants &constants)
+{
+	m_constants = constants;
+
+	// cleanup any existing filter
+	if (m_filter != nullptr)
+	{
+		delete m_filter;
+		m_filter;
+	}
+
+	return true;
+}
+
+bool KalmanPoseFilter::init(
+	const PoseFilterConstants &constants,
+	const Eigen::Vector3f &position, 
+	const Eigen::Quaternionf &orientation)
 {
     m_constants = constants;
 
@@ -1213,12 +1305,27 @@ Eigen::Vector3f KalmanPoseFilter::getAcceleration() const
 }
 
 //-- KalmanFilterOpticalPoseARG --
-bool KalmanPoseFilterDS4::init(const PoseFilterConstants &constants)
+bool KalmanPoseFilterDS4::init(
+	const PoseFilterConstants &constants)
 {
-    KalmanPoseFilter::init(constants);
+	KalmanPoseFilter::init(constants);
+
+	DS4KalmanPoseFilterImpl *filter = new DS4KalmanPoseFilterImpl();
+	filter->init(constants);
+	m_filter = filter;
+
+	return true;
+}
+
+bool KalmanPoseFilterDS4::init(
+	const PoseFilterConstants &constants,
+	const Eigen::Vector3f &position, 
+	const Eigen::Quaternionf &orientation)
+{
+    KalmanPoseFilter::init(constants, position, orientation);
 
     DS4KalmanPoseFilterImpl *filter = new DS4KalmanPoseFilterImpl();
-    filter->init(constants);
+    filter->init(constants, position, orientation);
     m_filter = filter;
 
     return true;
@@ -1319,12 +1426,27 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
 }
 
 //-- PSMovePoseKalmanFilter --
-bool KalmanPoseFilterPSMove::init(const PoseFilterConstants &constants)
+bool KalmanPoseFilterPSMove::init(
+	const PoseFilterConstants &constants)
 {
-    KalmanPoseFilter::init(constants);
+	KalmanPoseFilter::init(constants);
+
+	PSMoveKalmanPoseFilterImpl *filter = new PSMoveKalmanPoseFilterImpl();
+	filter->init(constants);
+	m_filter = filter;
+
+	return true;
+}
+
+bool KalmanPoseFilterPSMove::init(
+	const PoseFilterConstants &constants,
+	const Eigen::Vector3f &position,
+	const Eigen::Quaternionf &orientation)
+{
+    KalmanPoseFilter::init(constants, position, orientation);
 
     PSMoveKalmanPoseFilterImpl *filter = new PSMoveKalmanPoseFilterImpl();
-    filter->init(constants);
+    filter->init(constants, position, orientation);
     m_filter = filter;
 
     return true;
@@ -1355,18 +1477,19 @@ void KalmanPoseFilterPSMove::update(const float delta_time, const PoseFilterPack
         {
 			Eigen::Vector3f optical_position= packet.get_optical_position_in_meters();
 
-			// Adjust the amount we trust the optical measurements based on the quality parameters
-			measurement_model.update_measurement_statistics(m_constants, packet.optical_position_quality);
+			//TODO: Update measurement statistics once we get the filter working
+			//// Adjust the amount we trust the optical measurements based on the quality parameters
+			//measurement_model.update_measurement_statistics(m_constants, packet.optical_position_quality);
 
 			// Assign the latest optical measurement from the packet
             measurement.set_optical_position(optical_position.cast<double>());
 
 			// If this is the first time we have seen the position, snap the position state
-			if (!m_filter->bSeenPositionMeasurement)
-			{
-				srukf.x.set_position(optical_position.cast<double>());
-				m_filter->bSeenPositionMeasurement= true;
-			}
+			//if (!m_filter->bSeenPositionMeasurement)
+			//{
+			//	srukf.x.set_position(optical_position.cast<double>());
+			//	m_filter->bSeenPositionMeasurement= true;
+			//}
         }
 
         // Update UKF
