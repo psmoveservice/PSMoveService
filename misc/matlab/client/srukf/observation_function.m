@@ -11,7 +11,7 @@ function predicted_obs = observation_function(filt_struct, states, zR)
 
 % Constants
 GRAVITY = filt_struct.consts.GRAVITY;  % Depends on latitude.
-gravity_world = [0;0;-GRAVITY];
+gravity_world = [0;GRAVITY;0];
 mag_world = filt_struct.consts.MAGFIELD;
 
 nsp = size(states, 2);
@@ -32,12 +32,10 @@ predicted_obs(4:6, :) = states([14 15 16], :);
     
 % Magnetometer = world_mag_vector transformed to controller reference
 % frame
-null_quat = [0.5; 0.5; 0.5; -0.5];  % The orientation of the controller when MAGFIELD was measured. Roll +90, Yaw +90
-delta_quat = quaternion_multiply(null_quat, quaternion_conjugate(quat));
-predicted_obs(7:9, :) = rotateVector(delta_quat, mag_world);
+predicted_obs(7:9, :) = rotateVector(quat, mag_world);
 
-% Predicted optical tracker observation (cm) = 100 * state position (m)
-predicted_obs(10:12, :) = 100*states([1 4 7], :);
+% Predicted optical tracker observation (m) = state position (m)
+predicted_obs(10:12, :) = states([1 4 7], :);
 
 % Any observation bias in zR.mu
 predicted_obs = bsxfun(@plus, predicted_obs, zR.mu);

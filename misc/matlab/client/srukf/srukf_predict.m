@@ -49,7 +49,7 @@ q = filt_struct.x(x_qinds);  % State orientation as quaternion
 s_ang = [10 12 14];
 S_a = filt_struct.weights.zeta * filt_struct.S(s_ang, s_ang);  % sqrt orientation covariance
 S_q = axisAngle2Quat(S_a);
-X_t(x_qinds, 1 + s_ang) = quaternion_multiply(q, S_q);  % TODO: Check order.
+X_t(x_qinds, 1 + s_ang) = quaternion_multiply(q, S_q);
 X_t(x_qinds, 1 + filt_struct.Sdim + s_ang) = quaternion_multiply(q, quaternion_conjugate(S_q));
 
 % Note: We could add Q (not sqrt) to P (=SS^T) before calculating S, and

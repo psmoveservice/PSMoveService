@@ -36,7 +36,7 @@ Sy_k = Sy_k';  % We need the LOWER triangular Cholesky factor
 %% 5. Calculate Kalman Gain
 wc = filt_struct.weights.wc;
 %First calculate state-observation cross (sqrt) covariance
-Pxy = wc(1) * X_k_r(:,1) * Y_k_r(:,1)' + wc(2) * X_k_r(:,2:end) * Y_k_r(:,2:end)';  
+Pxy = wc(1) * X_k_r(:,1) * Y_k_r(:,1)' + wc(2) * X_k_r(:,2:end) * Y_k_r(:,2:end)';
 KG = (Pxy/Sy_k')/Sy_k;
 
 %% 6. Calculate innovation
@@ -52,7 +52,8 @@ filt_struct.x(x_lin) = x_k(x_lin) + upd(s_lin);
 
 x_qinds = 10:13;
 s_ang = [10 12 14];
-filt_struct.x(x_qinds) = quaternion_multiply(x_k(x_qinds), axisAngle2Quat(upd(s_ang)));
+upd_quat = axisAngle2Quat(upd(s_ang));
+filt_struct.x(x_qinds) = quaternion_multiply(x_k(x_qinds), upd_quat);
 
 %% 8. Covariance update / correct
 %This is equivalent to :  Px = Px_ - KG*Py*KG';
