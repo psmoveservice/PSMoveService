@@ -26,20 +26,22 @@ def get_libpath():
     else:
         raise RuntimeError("unrecognized operating system:", os_name)
 
-    # TODO: Search ../pypsmmove for the library. If not there, copy from expected build location into that dir.
-
-    libpath = os.path.abspath(os.path.join('.', '..', '..', 'build', 'src', 'psmoveclient', 'Debug',
-                                           lib_prefix + 'PSMoveClient_CAPI' + lib_suffix + lib_ext))
+    libname = lib_prefix + 'PSMoveClient_CAPI' + lib_suffix + lib_ext
+    libpath = os.path.abspath(os.path.join('.', '..', '..', 'build', 'src', 'psmoveclient', 'Debug', libname))
     if not os.path.isfile(libpath):
-        libpath = util.find_library(lib_prefix + 'PSMoveClient_CAPI' + lib_suffix + lib_ext)
+        libpath = util.find_library(libname)
     if not libpath:
-        raise RuntimeError("library " + lib_prefix + 'PSMoveClient_CAPI' + lib_suffix + lib_ext + " was not found"
+        raise RuntimeError("library " + libname + " was not found"
                            " - make sure that it is on the search path.")
+
+    # TODO: Search ../pypsmmove for the library. If not there, copy from expected build location into that dir.
+    copyfile(libpath, os.path.abspath(os.path.join('.', 'pypsmove', libname)))
+
     return libpath
 
 def get_headerpath():
     # TODO: Search for header in ../pypsmove folder. If not there, copy from source into that dir.
-    return os.path.abspath(os.path.join('..', '..', '..', 'src', 'psmoveclient', 'PSMoveClient_CAPI.h'))
+    return os.path.abspath(os.path.join('..', '..', 'src', 'psmoveclient'))
 
 def get_cleaned_header():
     with open(os.path.join(get_headerpath(), 'PSMoveClient_CAPI.h'), 'r') as myfile:
@@ -75,8 +77,9 @@ ffi.cdef(get_cleaned_header())
 # To use the cffi API way, which is more robust, we execute this script to compile a module.
 # See psmoveclient.py for an example of how to use the compiled module.
 
+#install_name_tool -change @rpath/libPSMoveClient_CAPI.dylib @loader_path/libPSMoveClient_CAPI.dylib _psmoveclient.cpython-35m-darwin.so
+
 if __name__ == "__main__":
-    copyfile(libpath, os.path.abspath(os.path.join('.', lib_name)))
     ffi.compile(verbose=True)
     if platform.system() == "Darwin":
         from subprocess import call

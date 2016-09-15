@@ -1,5 +1,7 @@
 """Python setup script for the PSMoveService distribution package."""
 
+# Before running this script, make sure the relevant library is in the correct directory.
+
 from setuptools import setup, find_packages
 from os import path
 import platform
