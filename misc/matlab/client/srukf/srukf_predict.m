@@ -1,31 +1,53 @@
 function filt_struct = srukf_predict(filt_struct, dt)
-%
+%filt_struct = srukf_predict(filt_struct, dt)
 
 %In the below variables, the subscripts are as follows
 %k is the next/predicted time point
 %t = k-1 (time point of previous estimate)
 
 % Reminder:
-% state vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, qw, qx, qy, qz, avelx, avely, avelz
-% Units: pos: m, vel: m/s, acc: m/s^2, orient. in quat, avel: rad/s
+% State vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, avelx, avely, avelz, qw, qx, qy, qz
+% Units: pos: m, vel: m/s, acc: m/s^2, avel: rad/s, orientation as quaternion
 %
-% state_cov vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, angx, avelx, angy, avely, angz, avelz
+% state_cov vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, avelx, avely, avelz, angx, angy, angz
 % Units: Same as state vector.
 %
-% process noise vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, angx, avelx, angy, avely, angz, avelz
+% process noise vector: posx, velx, accx, posy, vely, accy, posz, velz, accz, avelx, avely, avelz, angx, angy, angz
 % Units: Same as state vector.
 %
 % observation vector: a.x, a.y, a.z, g.x, g.y, g.z, m.x, m.y, m.z, pos.x, pos.y, pos.z
-% Units: acc: g-units, gyro: rad/s, mag: B-units, pos: cm
+% Units: acc: g-units, gyro: rad/s, mag: normalized B-units, pos: m
 
 %% 1. If weights are incorrect shape then reset them
 if ~isfield(filt_struct, 'W')
-    %TODO: Add more checks.
+    %TODO: Add more checks for individual fields.
     filt_struct = reset_weights(filt_struct);
 end
 
 %% 2. Calculate sigma points
-nsp = 1 + 2 * filt_struct.Sdim;
+% In the paper, the authors create an augmented state variable:
+% [x; Q.mu; R.mu], with length L = Xdim + Q.dim + R.dim
+% Then, when constructing the sigma points, this state vector is repeated
+% 1 + 2*L times (spmat size is L x 1+2*L).
+% Added to this sigmapoint matrix 2:end columns is the zeta-scaled
+% augmented covariance matrix:
+%  [S       zeros   zeros;
+%   zeros   Q.cov   zeros;
+%   zeros   zeros   R.cov]
+% First negative, then positive. So, the resulting sigma point matrix looks
+% like...
+% [ x	x+zS	x       x       x-zS	x       x;
+%   q   q       q+zQ	q       q       q-zQ	q;
+%   r   r       r       r+zR	r       r       r-zR]
+%
+% But only the upper Xdim rows are sent to the process function, and the
+% next Q.dim rows are sent separately as noise to be added to the sigma
+% points. Using () to indicate propagation, our propagated state vectors +
+% Q noise looks like:
+% [(x)+q    (x+zS)+q    (x)+q+zQ	(x)+q   (x-zS)+q    (x)+q-zQ    (x)+q]
+% Notice that we are only propagating x, x+zS, and x-zS. Therefore, those
+% are really the only sigma points we need to create right now.
+nsp = 1 + 2 * filt_struct.S.dim;
 
 % The 1st sigma-point is just the state vector.
 % Each remaining sigma-point is the state +/- the scaled sqrt covariance.
@@ -35,79 +57,71 @@ X_t = repmat(filt_struct.x, 1, nsp);
 % Can't do this because of orientations.
 
 % Some of the state variables (and covariance variables) are simple...
-x_lin = [1:9 14 15 16];  % pos, vel, accel, avel
-simple_x = filt_struct.x(x_lin);
-s_lin = [1:9 11 13 15];  % pos, vel, accel, avel
-simple_zS = filt_struct.weights.zeta * filt_struct.S(s_lin, s_lin);
-X_t(x_lin, 1 + s_lin) = bsxfun(@plus, simple_x, simple_zS);
-X_t(x_lin, 1 + filt_struct.Sdim + s_lin) = bsxfun(@minus, simple_x, simple_zS);
+x_lin = filt_struct.x(filt_struct.x_lin_ix);
+zS_lin = filt_struct.weights.zeta * filt_struct.S.cov(filt_struct.S.lin_ix, :);
+X_t(filt_struct.x_lin_ix, :) = [x_lin bsxfun(@plus, x_lin, zS_lin) bsxfun(@minus, x_lin, zS_lin)];
 
 % But some of the state variables represent orientations, and cannot be
 % simply added or subtracted.
-x_qinds = 10:13;
-q = filt_struct.x(x_qinds);  % State orientation as quaternion
-s_ang = [10 12 14];
-S_a = filt_struct.weights.zeta * filt_struct.S(s_ang, s_ang);  % sqrt orientation covariance
-S_q = axisAngle2Quat(S_a);
-X_t(x_qinds, 1 + s_ang) = quaternion_multiply(q, S_q);
-X_t(x_qinds, 1 + filt_struct.Sdim + s_ang) = quaternion_multiply(q, quaternion_conjugate(S_q));
+x_q = filt_struct.x(filt_struct.x_quat_ix);  % State orientation as quaternion
+S_ang = filt_struct.weights.zeta * filt_struct.S.cov(filt_struct.S.axang_ix, :);  % sqrt orientation covariance
+S_q = axisAngle2Quat(S_ang);
+X_t(filt_struct.x_quat_ix, :) = [x_q quaternion_multiply(x_q, S_q) quaternion_multiply(x_q, quaternion_conjugate(S_q))];
+
+% We now have our minimal sigma points: [x x+zS x-zS]
 
 % Note: We could add Q (not sqrt) to P (=SS^T) before calculating S, and
 % before calculating the sigma points. This would eliminate the need to add
 % Q in the process function.
 
+% % Test mean_quat because we know what the average should be...
+% test_quats = X_t(filt_struct.x_quat_ix, :);
+% test_quats = [test_quats repmat(test_quats(:, 1), 1, 2 * (filt_struct.Q.dim + filt_struct.R.dim))];
+% [test_quats(:, 1) mean_quat(test_quats, filt_struct.weights.wm, 'pivot')]
+
 %% 3. Propagate sigma points through process function
-zQ = filt_struct.Q;
-zQ.cov = filt_struct.weights.zeta * zQ.cov;
-X_k = process_function(X_t, zQ, dt);
-% Note that X_k is larger than X_t because the process noise added more
-% state vectors.
+% Scale noise covariance before passing to process_function.
+Q = filt_struct.Q;
+Q.zcov = filt_struct.weights.zeta * Q.cov;
+X_k = process_function(filt_struct, X_t, dt, Q);
+% Note that X_k is wider than X_t because the addition of the process
+% covariance required more columns.
+% X_k: [(x)+q (x+zS)+q (x-zS)+q (x)+q+zQ (x)+q-zQ]
 
 %% 4. Estimate mean state from weighted sum of propagated sigma points
 x_k = nan(filt_struct.Xdim, 1);
 wm = filt_struct.weights.wm;
-% Extend X_k with 2*filt_struct.R.dim repeats of the first column
-% This emulates the rest of the augmented matrix. It's necessary to extend
-% it here because the weights only work with the correct number of columns.
-X_k = [X_k repmat(X_k(:,1), 1, 2*filt_struct.R.dim)];
-x_k(x_lin) = sum([wm(1) * X_k(x_lin, 1), wm(2) * X_k(x_lin, 2:end)], 2);
 
-%Average of quaternions in X_k(x_qinds, :).
-%For linear variables, weights (wm) scale each column (by ~ 1/L) so their
-%addition results in an average.
-%But we can't do the same thing with orientation.
-%We have a function to do weighted average of quaternions in
-%mean_quat, but this actually averages, instead of sums, so the weight
-%scaling by ~1/L is undesirable. TODO: Can we 'unscale' the weights first?
-%Alternatively, we can calculate the delta orientations in each column,
-%convert to axang, scale and add those, convert to quat, update 0th quat.
-delta_quats = quaternion_multiply(X_k(x_qinds, 2:end), quaternion_conjugate(X_k(x_qinds, 1)));
-delta_axang = sum(wm(2) * quat2AxisAngle(delta_quats), 2);
-delta_quat = axisAngle2Quat(delta_axang);
-x_k(x_qinds) = quaternion_multiply(X_k(x_qinds, 1), delta_quat);
-%TODO: But what about wm(1)?
-%TODO: Test average quaternions function on X_t(x_qinds, :) to see if it
-%returns filt_struct.x(x_qinds)
+% We will eventually need to extend X_k with 2*Rdim (for +/- zR in the
+% observation function). The weights assume that X_k is already this wide,
+% so let's extend it now using repeats of its first column.
+X_k = [X_k repmat(X_k(:,1), 1, 2*filt_struct.R.dim)];
+
+% We can now calculate the average state for the linear part.
+x_k(filt_struct.x_lin_ix) = sum([wm(1) * X_k(filt_struct.x_lin_ix, 1), wm(2) * X_k(filt_struct.x_lin_ix, 2:end)], 2);
+%mean([size(X_k, 2)*wm(1) * X_k(x_lin_ix, 1) size(X_k, 2)*wm(2)*X_k(x_lin_ix, 2:end)], 2);
+
+%Average of quaternions in X_k(x_q_ix, :).
+x_k(filt_struct.x_quat_ix) = mean_quat(X_k(filt_struct.x_quat_ix, :), wm, 'pivot');
 
 %% 5. Get residuals in S-format
-X_k_r = nan(filt_struct.Sdim, size(X_k, 2));
+X_k_r = nan(filt_struct.S.dim, size(X_k, 2));
 % Subtract linear parts
-X_k_r(s_lin, :) = bsxfun(@minus, X_k(x_lin, :), x_k(x_lin));
-%Subtract quaternions
-X_k_r(s_ang, :) = quat2AxisAngle(quaternion_multiply(X_k(x_qinds, :), quaternion_conjugate(x_k(x_qinds))));
+X_k_r(filt_struct.S.lin_ix, :) = bsxfun(@minus, X_k(filt_struct.x_lin_ix, :), x_k(filt_struct.x_lin_ix));
+%Subtract quaternions, store result as AxisAngle.
+X_k_r(filt_struct.S.axang_ix, :) = quat2AxisAngle(quaternion_multiply(X_k(filt_struct.x_quat_ix, :), quaternion_conjugate(x_k(filt_struct.x_quat_ix))));
 
 
 %% 6. Estimate state covariance (sqrt)
 %filt_struct.weights.w_qr is scalar
 % QR update of state Cholesky factor.
 
-% What does it mean to get quaternion (co)variance?
+% What does it mean to get orientation AxisAngle (co)variance?
 % Does the qr update capture this? Probably not.
-% We may need to get Sx_k the slow way.
 
 %filt_struct.weights.w_qr and .w_cholup cannot be negative.
 Sx_k = triu(qr(filt_struct.weights.w_qr*X_k_r(:,2:end)', 0));
-Sx_k = Sx_k(1:filt_struct.Sdim, 1:filt_struct.Sdim);
+Sx_k = Sx_k(1:filt_struct.S.dim, 1:filt_struct.S.dim);
 %NOTE: here Sx_k is the UPPER Cholesky factor (Matlab excentricity)
 if filt_struct.weights.wc(1) > 0
     Sx_k = cholupdate(Sx_k, filt_struct.weights.w_cholup*X_k_r(:,1), '+');
@@ -117,7 +131,6 @@ else
 end
 
 % Save results to filt_struct.intermediates
-filt_struct.intermediates.X_t = X_t;
 filt_struct.intermediates.X_k = X_k;
 filt_struct.intermediates.X_k_r = X_k_r;
 filt_struct.intermediates.x_k = x_k;
@@ -128,7 +141,7 @@ end
 %% Helper functions
 function filt_struct = reset_weights(filt_struct)
 % state dimension
-L = filt_struct.Sdim + filt_struct.Q.dim + filt_struct.R.dim;
+L = filt_struct.S.dim + filt_struct.Q.dim + filt_struct.R.dim;
 
 % For standard UKF, here are the weights...
 

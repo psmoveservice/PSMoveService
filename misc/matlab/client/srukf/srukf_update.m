@@ -1,15 +1,14 @@
 function filt_struct = srukf_update(filt_struct, observation)
-X_t = filt_struct.intermediates.X_t;
 X_k = filt_struct.intermediates.X_k;
 X_k_r = filt_struct.intermediates.X_k_r;
 x_k = filt_struct.intermediates.x_k;
 Sx_k = filt_struct.intermediates.Sx_k;  % Still UPPER
 
 %% 1. Propagate sigma points through observation function.
-zR = filt_struct.R;
-zR.cov = filt_struct.weights.zeta * zR.cov;
-zR.observation = observation; % Just for debugging in observation function.
-Y_k = observation_function(filt_struct, X_k, zR);
+R = filt_struct.R;
+R.zcov = filt_struct.weights.zeta * R.cov;
+R.observation = observation; % Just for debugging in observation function.
+Y_k = observation_function(filt_struct, X_k, R);
 
 %% 2. Calculate observation mean.
 wm = filt_struct.weights.wm;
@@ -46,14 +45,10 @@ innov = observation - y_k;
 upd = KG * innov; %ReBeL srukf doesn't do anything special for angles to get upd.
 
 % Update linear parts
-x_lin = [1:9 14 15 16];  % pos, vel, accel, avel
-s_lin = [1:9 11 13 15];  % pos, vel, accel, avel
-filt_struct.x(x_lin) = x_k(x_lin) + upd(s_lin);
+filt_struct.x(filt_struct.x_lin_ix) = x_k(filt_struct.x_lin_ix) + upd(filt_struct.S.lin_ix);
 
-x_qinds = 10:13;
-s_ang = [10 12 14];
-upd_quat = axisAngle2Quat(upd(s_ang));
-filt_struct.x(x_qinds) = quaternion_multiply(x_k(x_qinds), upd_quat);
+upd_quat = axisAngle2Quat(upd(filt_struct.S.axang_ix));
+filt_struct.x(filt_struct.x_quat_ix) = quaternion_multiply(x_k(filt_struct.x_quat_ix), upd_quat);
 
 %% 8. Covariance update / correct
 %This is equivalent to :  Px = Px_ - KG*Py*KG';
@@ -61,13 +56,5 @@ cov_update_vectors = KG * Sy_k;
 for j=1:filt_struct.Odim
     Sx_k = cholupdate(Sx_k, cov_update_vectors(:,j), '-');  % Still UPPER
 end
-filt_struct.S = Sx_k';  % LOWER sqrt-covariance saved for next predict.
-end
-
-%% Helper functions - Not used because our observations have linear updates.
-function obsmean = observation_mean(filt_struct, obs_sigmapoints)
-end
-
-function obd = obsdiff(obs1, obs2)
-    obd = bsxfun(@minus, obs1, obs2);
+filt_struct.S.cov = Sx_k';  % LOWER sqrt-covariance saved for next predict.
 end
