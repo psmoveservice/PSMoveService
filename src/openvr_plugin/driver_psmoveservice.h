@@ -31,11 +31,10 @@ public:
     virtual void EnterStandby() override;
     virtual void LeaveStandby() override;
 
-    void LaunchPSMoveConfigTool();
+    void LaunchPSMoveMonitor();
 
 	void SetHMDTrackingSpace(const PSMovePose &origin_pose);
     inline PSMovePose GetWorldFromDriverPose() const { return m_worldFromDriverPose; }
-	bool FindFirstHMDPose(PSMovePose &out_origin_pose);
 
 private:
     void AllocateUniquePSMoveController(int ControllerID);
@@ -56,14 +55,13 @@ private:
     void HandleClientPSMoveResponse(const ClientPSMoveAPI::ResponseMessage *response);
     void HandleControllerListReponse(const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list);
     void HandleTrackerListReponse(const ClientPSMoveAPI::ResponsePayload_TrackerList *tracker_list);
-    void HandleHMDTrackingSpaceReponse(const ClientPSMoveAPI::ResponsePayload_HMDTrackingSpace *hmdTrackingSpace);
     
-    void LaunchPSMoveConfigTool( const char * pchDriverInstallDir );
+    void LaunchPSMoveMonitor( const char * pchDriverInstallDir );
 
     vr::IServerDriverHost* m_pDriverHost;
     std::string m_strDriverInstallDir;
 
-    bool m_bLaunchedPSMoveConfigTool;
+    bool m_bLaunchedPSMoveMonitor;
 
     std::vector< CPSMoveTrackedDeviceLatest * > m_vecTrackedDevices;
 
@@ -116,6 +114,9 @@ public:
     virtual void RefreshWorldFromDriverPose();
     virtual const char *GetSerialNumber() const;
 
+	typedef void(*t_hmd_request_callback)(const PSMovePose &hmd_pose_meters, void *userdata);
+	void RequestLatestHMDPose(float maxPoseAgeMilliseconds = 0.f, t_hmd_request_callback callback = nullptr, void *userdata = nullptr);
+
 protected:
     // Handle for calling back into vrserver with events and updates
     vr::IServerDriverHost *m_pDriverHost;
@@ -133,6 +134,14 @@ protected:
     vr::DriverPose_t m_Pose;
     unsigned short m_firmware_revision;
     unsigned short m_hardware_revision;
+
+	// Cached HMD pose received from the monitor_psmove app
+	PSMovePose m_lastHMDPoseInMeters;
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_lastHMDPoseTime;
+	bool m_bIsLastHMDPoseValid;
+
+	t_hmd_request_callback m_hmdResultCallback;
+	void *m_hmdResultUserData;
 };
 
 class CPSMoveControllerLatest : public CPSMoveTrackedDeviceLatest, public vr::IVRControllerComponent
@@ -200,6 +209,7 @@ public:
     // Overridden Implementation of CPSMoveTrackedDeviceLatest
     virtual vr::ETrackedDeviceClass GetTrackedDeviceClass() const override { return vr::TrackedDeviceClass_Controller; }
     virtual void Update() override;
+	virtual void RefreshWorldFromDriverPose() override;
 
     bool HasControllerId(int ControllerID);
 
@@ -207,7 +217,8 @@ private:
     typedef void ( vr::IServerDriverHost::*ButtonUpdate )( uint32_t unWhichDevice, vr::EVRButtonId eButtonId, double eventTimeOffset );
 
     void SendButtonUpdates( ButtonUpdate ButtonEvent, uint64_t ulMask );
-	void RealignHMDTrackingSpace();
+	void StartRealignHMDTrackingSpace();
+	static void FinishRealignHMDTrackingSpace(const PSMovePose &hmd_pose_meters, void *userdata);
     void UpdateControllerState();
 	void UpdateControllerStateFromPsMoveButtonState(ePSButtonID buttonId, PSMoveButtonState buttonState, vr::VRControllerState_t* pControllerStateToUpdate);
 	void GetMetersPosInRotSpace(PSMoveFloatVector3* pOutPosition, const PSMoveQuaternion& rRotation );
@@ -217,6 +228,9 @@ private:
     // The last received state of a psmove controller from the service
     int m_nControllerId;
     ClientControllerView *m_controller_view;
+
+	// Used to report the controllers calibration status
+	vr::ETrackingResult m_trackingStatus;
 
     // Used to deduplicate state data from the sixense driver
     int m_nPoseSequenceNumber;
