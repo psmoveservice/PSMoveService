@@ -16,6 +16,8 @@ A) Join us in the the [PSMoveService Google Group](https://groups.google.com/for
 
 B) If your problem actually is a new bug and you have files to attach (logs, pictures, etc) then go ahead and create a new issue. That said, it's probably best to start with the Google Group first anyway since we can help add context before posting an issue.
 
+The OpenVR driver is technically unsupported. For issues related to OpenVR, calibration, third party applications, specific games, etc., please post in the Google Group first.
+
 # Near Term Roadmap
  * Ongoing Stabilization of service and SteamVR plugin
  * DualShock4 Controller Support
