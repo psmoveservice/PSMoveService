@@ -671,36 +671,14 @@ void CServerDriver_PSMoveService::LaunchPSMoveMonitor( const char * pchDriverIns
 	args_string_builder << "\"" << pchDriverInstallDir << "\\resources\"";
 	const std::string monitor_args = args_string_builder.str();
 
-	std::ostringstream monitor_exe_and_args_string_builder;
-	monitor_exe_and_args_string_builder << monitor_path_and_exe << " " << monitor_args;
-	const std::string monitor_exe_and_args = monitor_exe_and_args_string_builder.str();
-
 	#if LOG_REALIGN_TO_HMD != 0
 		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows full path: %s\n", monitor_path_and_exe.c_str());
 		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows args: %s\n", monitor_args.c_str());
-		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows full path and args: %s\n", monitor_exe_and_args.c_str());
 		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows current directory: %s\n", monitor_path.c_str());
 	#endif
-/*
-	STARTUPINFOA sInfoProcess = { 0 };
-    sInfoProcess.cb = sizeof( STARTUPINFOW );
-    PROCESS_INFORMATION pInfoStartedProcess;
-//  BOOL okay = CreateProcessA(monitor_path_and_exe.c_str(), NULL, NULL, NULL, FALSE, 0, NULL, monitor_path.c_str(), &sInfoProcess, &pInfoStartedProcess );
-	BOOL okay = CreateProcessA(NULL, monitor_exe_and_args.c_str(), NULL, NULL, FALSE, 0, NULL, monitor_path.c_str(), &sInfoProcess, &pInfoStartedProcess);
-
-	if (okay)
-	{
-		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() start monitor_psmove CreateProcessA() successful.\n");
-	}
-	else
-	{
-		DriverLog( "CServerDriver_PSMoveService::LaunchPSMoveMonitor() ERROR! Start monitor_psmove CreateProcessA() failed. Error code: %d.\n", GetLastError() );
-	}
-*/
-
 
 	HINSTANCE shellExecuteResult
-		= ShellExecuteA(NULL, "open", monitor_path_and_exe.c_str(), monitor_args.c_str(), monitor_path.c_str(), SW_SHOW);
+		= ShellExecuteA(NULL, "open", monitor_path_and_exe.c_str(), monitor_args.c_str(), monitor_path.c_str(), SW_HIDE);
 
 	DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() Start monitor_psmove ShellExecuteA() result: %d.\n", shellExecuteResult);
 
@@ -1556,22 +1534,19 @@ void CPSMoveControllerLatest::UpdateControllerState()
             bool bTriangleWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Triangle])) > 0;
             bool bCircleWasPressed = (m_ControllerState.ulButtonPressed & vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Circle])) > 0;
 
-            // If start and select are released at the same time, recenter the controller orientation pose 
-            if (bStartWasPressed && !clientView.GetButtonStart() &&
-                bSelectWasPressed && !clientView.GetButtonSelect())
-            {
-                ClientPSMoveAPI::reset_pose(m_controller_view);
-            }
-
-            // If select and start are released at the same time, re-align the psmove tracking space with the HMD tracking space.
-            if (bSquareWasPressed && !clientView.GetButtonSelect() &&
-                bCrossWasPressed && !clientView.GetButtonStart())
+            // If start was just pressed while and select was held or vice versa,
+			// recenter the controller orientation pose and start the realignment of the controller to HMD tracking space.
+            if ((clientView.GetButtonStart() == PSMoveButton_PRESSED && clientView.GetButtonSelect() == PSMoveButton_PRESSED) ||
+				(clientView.GetButtonStart() == PSMoveButton_PRESSED && clientView.GetButtonSelect() == PSMoveButton_DOWN) ||
+				(clientView.GetButtonStart() == PSMoveButton_DOWN && clientView.GetButtonSelect() == PSMoveButton_PRESSED) )
+                
             {
 				#if LOG_REALIGN_TO_HMD != 0
 					DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling StartRealignHMDTrackingSpace() in response to controller chord.\n");
 				#endif
 
-                StartRealignHMDTrackingSpace();
+				ClientPSMoveAPI::reset_pose(m_controller_view);
+				StartRealignHMDTrackingSpace();
             }
 
 			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Circle, clientView.GetButtonCircle(), &NewState);

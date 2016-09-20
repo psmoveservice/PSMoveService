@@ -46,8 +46,6 @@ protected:
 
 	bool Init()
 	{
-		DebugBreak();
-
 		// Start as "background" application.  This prevents vrserver from being started
 		// on our behalf, and prevents us from keeping vrserver alive when everything else
 		// exits.  This is very important because we're spawning from a driver, and any
