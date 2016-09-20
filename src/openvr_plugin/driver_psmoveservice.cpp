@@ -35,6 +35,7 @@
 #endif
 
 #define LOG_TOUCHPAD_EMULATION 0
+#define LOG_REALIGN_TO_HMD 1
 
 //==================================================================================================
 // Constants
@@ -536,6 +537,10 @@ void CServerDriver_PSMoveService::HandleTrackerListReponse(
 void CServerDriver_PSMoveService::SetHMDTrackingSpace(
     const PSMovePose &origin_pose)
 {
+	#if LOG_REALIGN_TO_HMD != 0
+		DriverLog("Begin CServerDriver_PSMoveService::SetHMDTrackingSpace()\n");
+	#endif
+
     m_worldFromDriverPose = origin_pose;
 
     // Tell all the devices that the relationship between the psmove and the OpenVR
@@ -631,45 +636,81 @@ void CServerDriver_PSMoveService::AllocateUniquePSMoveTracker(const ClientTracke
 // and tell us the pose of the HMD at the moment we want to calibrate.
 void CServerDriver_PSMoveService::LaunchPSMoveMonitor( const char * pchDriverInstallDir )
 {
+	#if LOG_REALIGN_TO_HMD != 0
+		DriverLog("Entered CServerDriver_PSMoveService::LaunchPSMoveMonitor(%s)\n", pchDriverInstallDir );
+	#endif
+
     if ( m_bLaunchedPSMoveMonitor )
+	{
         return;
+	}
 
     m_bLaunchedPSMoveMonitor = true;
 
-    std::ostringstream string_builder;
+    std::ostringstream path_and_executable_string_builder;
 
-    string_builder << pchDriverInstallDir << "\\bin\\";
+    path_and_executable_string_builder << "\"" << pchDriverInstallDir << "\\bin\\";
 #if defined( _WIN64 )
-    string_builder << "win64";
+    path_and_executable_string_builder << "win64";
 #elif defined( _WIN32 )
-    string_builder << "win32";
+    path_and_executable_string_builder << "win32";
 #elif defined(__APPLE__) 
-    string_builder << "osx";
+    path_and_executable_string_builder << "osx";
 #else 
-    #error Do not know how to launch psmove config tool
+    #error Do not know how to launch psmove_monitor
 #endif
-    DriverLog( "monitor_psmove path: %s\n", string_builder.str().c_str() );
+
 
 #if defined( _WIN32 ) || defined( _WIN64 )
-	const std::string monitor_path = string_builder.str();
+	const std::string monitor_path = path_and_executable_string_builder.str() + "\\\"";
 
-	string_builder << "\\monitor_psmove.exe ";
-	string_builder << pchDriverInstallDir;
+	path_and_executable_string_builder << "\\monitor_psmove.exe\"";
+	const std::string monitor_path_and_exe = path_and_executable_string_builder.str();
 
-	const std::string monitor_exe_and_args = string_builder.str();
+	std::ostringstream args_string_builder;
+	args_string_builder << "\"" << pchDriverInstallDir << "\\resources\"";
+	const std::string monitor_args = args_string_builder.str();
 
+	std::ostringstream monitor_exe_and_args_string_builder;
+	monitor_exe_and_args_string_builder << monitor_path_and_exe << " " << monitor_args;
+	const std::string monitor_exe_and_args = monitor_exe_and_args_string_builder.str();
+
+	#if LOG_REALIGN_TO_HMD != 0
+		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows full path: %s\n", monitor_path_and_exe.c_str());
+		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows args: %s\n", monitor_args.c_str());
+		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows full path and args: %s\n", monitor_exe_and_args.c_str());
+		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows current directory: %s\n", monitor_path.c_str());
+	#endif
+/*
 	STARTUPINFOA sInfoProcess = { 0 };
     sInfoProcess.cb = sizeof( STARTUPINFOW );
     PROCESS_INFORMATION pInfoStartedProcess;
-    BOOL okay = CreateProcessA(monitor_exe_and_args.c_str(), NULL, NULL, NULL, FALSE, 0, NULL, monitor_path.c_str(), &sInfoProcess, &pInfoStartedProcess );
-    DriverLog( "start monitor_psmove okay: %d %08x\n", okay, GetLastError() );
+//  BOOL okay = CreateProcessA(monitor_path_and_exe.c_str(), NULL, NULL, NULL, FALSE, 0, NULL, monitor_path.c_str(), &sInfoProcess, &pInfoStartedProcess );
+	BOOL okay = CreateProcessA(NULL, monitor_exe_and_args.c_str(), NULL, NULL, FALSE, 0, NULL, monitor_path.c_str(), &sInfoProcess, &pInfoStartedProcess);
+
+	if (okay)
+	{
+		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() start monitor_psmove CreateProcessA() successful.\n");
+	}
+	else
+	{
+		DriverLog( "CServerDriver_PSMoveService::LaunchPSMoveMonitor() ERROR! Start monitor_psmove CreateProcessA() failed. Error code: %d.\n", GetLastError() );
+	}
+*/
+
+
+	HINSTANCE shellExecuteResult
+		= ShellExecuteA(NULL, "open", monitor_path_and_exe.c_str(), monitor_args.c_str(), monitor_path.c_str(), SW_SHOW);
+
+	DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() Start monitor_psmove ShellExecuteA() result: %d.\n", shellExecuteResult);
+
 #elif defined(__APPLE__) 
     pid_t processId;
     if ((processId = fork()) == 0)
     {
-		string_builder << "\\monitor_psmove";
+		path_and_executable_string_builder << "\\monitor_psmove";
 
-		const std::string monitor_exe_path = string_builder.str();        
+		const std::string monitor_exe_path = path_and_executable_string_builder.str();        
         char * const argv[] = { monitor_exe_path.c_str(), pchDriverInstallDir, NULL };
         
         if (execv(app, argv) < 0)
@@ -687,9 +728,13 @@ void CServerDriver_PSMoveService::LaunchPSMoveMonitor( const char * pchDriverIns
 #endif
 }
 
-/** Launch hydra_monitor if needed (requested by devices as they activate) */
+/** Launch monitor_psmove if needed (requested by devices as they activate) */
 void CServerDriver_PSMoveService::LaunchPSMoveMonitor()
 {
+	#if LOG_REALIGN_TO_HMD != 0
+		DriverLog("Entered CServerDriver_PSMoveService::LaunchPSMoveMonitor()\n");
+	#endif
+
     LaunchPSMoveMonitor( m_strDriverInstallDir.c_str() );
 }
 
@@ -830,6 +875,10 @@ void CPSMoveTrackedDeviceLatest::DebugRequest(
 	ss >> strCmd;
 	if (strCmd == "psmove:hmd_pose")
 	{
+		#if LOG_REALIGN_TO_HMD != 0
+			DriverLog( "CPSMoveTrackedDeviceLatest::DebugRequest(): %s\n", strCmd.c_str() );
+		#endif
+
 		// monitor_psmove is calling us back with HMD tracking information
 		vr::HmdMatrix34_t hmdTransform;
 		for (int i = 0; i < 3; ++i)
@@ -837,8 +886,15 @@ void CPSMoveTrackedDeviceLatest::DebugRequest(
 			for (int j = 0; j < 4; ++j)
 			{
 				ss >> hmdTransform.m[i][j];
+				#if LOG_REALIGN_TO_HMD != 0
+					DriverLog("hmdTransform.m[%d][%d]: %f, ", i, j, hmdTransform.m[i][j]);
+				#endif
 			}
 		}
+
+		#if LOG_REALIGN_TO_HMD != 0
+			DriverLog("\n");
+		#endif
 
 		m_lastHMDPoseInMeters = openvrMatrixExtractPSMovePose(hmdTransform);
 		m_lastHMDPoseTime = std::chrono::high_resolution_clock::now();
@@ -857,6 +913,10 @@ void CPSMoveTrackedDeviceLatest::RequestLatestHMDPose(
 	CPSMoveTrackedDeviceLatest::t_hmd_request_callback callback,
 	void *userdata)
 {
+	#if LOG_REALIGN_TO_HMD != 0
+		DriverLog("Begin CPSMoveTrackedDeviceLatest::RequestLatestHMDPose()\n");
+	#endif
+
 	assert(m_hmdResultCallback == nullptr || m_hmdResultCallback == callback);
 
 	if (m_hmdResultCallback == nullptr)
@@ -1057,6 +1117,10 @@ void CPSMoveTrackedDeviceLatest::Update()
 
 void CPSMoveTrackedDeviceLatest::RefreshWorldFromDriverPose()
 {
+	#if LOG_REALIGN_TO_HMD != 0
+		DriverLog( "Begin CServerDriver_PSMoveService::RefreshWorldFromDriverPose() for device %s\n", GetSerialNumber() );
+	#endif
+
     const PSMovePose worldFromDriverPose = g_ServerTrackedDeviceProvider.GetWorldFromDriverPose();
 
     // Transform used to convert from PSMove Tracking space to OpenVR Tracking Space
@@ -1215,6 +1279,10 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(uint32_t unObjectId)
 
     if (result == vr::VRInitError_None)
     {
+		#if LOG_REALIGN_TO_HMD != 0
+			DriverLog("CPSMoveControllerLatest::Activate(%d) -- calling g_ServerTrackedDeviceProvider.LaunchPSMoveMonitor()\n", unObjectId);
+		#endif
+
 		g_ServerTrackedDeviceProvider.LaunchPSMoveMonitor();
 
         ClientPSMoveAPI::register_callback(
@@ -1495,10 +1563,14 @@ void CPSMoveControllerLatest::UpdateControllerState()
                 ClientPSMoveAPI::reset_pose(m_controller_view);
             }
 
-            // If square, cross, triangle, and circle are released at the same time, re-align the psmove tracking space with the  
+            // If select and start are released at the same time, re-align the psmove tracking space with the HMD tracking space.
             if (bSquareWasPressed && !clientView.GetButtonSelect() &&
                 bCrossWasPressed && !clientView.GetButtonStart())
             {
+				#if LOG_REALIGN_TO_HMD != 0
+					DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling StartRealignHMDTrackingSpace() in response to controller chord.\n");
+				#endif
+
                 StartRealignHMDTrackingSpace();
             }
 
@@ -1762,6 +1834,10 @@ void CPSMoveControllerLatest::GetMetersPosInRotSpace(PSMoveFloatVector3* pOutPos
 
 void CPSMoveControllerLatest::StartRealignHMDTrackingSpace()
 {
+	#if LOG_REALIGN_TO_HMD != 0
+		DriverLog( "Begin CPSMoveControllerLatest::StartRealignHMDTrackingSpace()\n" );
+	#endif
+
 	if (m_trackingStatus != vr::TrackingResult_Calibrating_InProgress)
 	{
 		m_trackingStatus = vr::TrackingResult_Calibrating_InProgress;
@@ -1773,6 +1849,10 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	const PSMovePose &hmd_pose_meters, 
 	void *userdata)
 {
+	#if LOG_REALIGN_TO_HMD != 0
+		DriverLog("Begin CPSMoveControllerLatest::FinishRealignHMDTrackingSpace()\n");
+	#endif
+
 	CPSMoveControllerLatest *controller = reinterpret_cast<CPSMoveControllerLatest *>(userdata);
 
     // Make the HMD orientation only contain a yaw

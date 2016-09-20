@@ -46,6 +46,8 @@ protected:
 
 	bool Init()
 	{
+		DebugBreak();
+
 		// Start as "background" application.  This prevents vrserver from being started
 		// on our behalf, and prevents us from keeping vrserver alive when everything else
 		// exits.  This is very important because we're spawning from a driver, and any
@@ -217,7 +219,7 @@ protected:
 		uint32_t size = vr::VRSystem()->GetStringTrackedDeviceProperty( unTrackedDeviceIndex, vr::Prop_TrackingSystemName_String, rgchTrackingSystemName, sizeof( rgchTrackingSystemName ), &eError );
 		if ( eError == vr::TrackedProp_Success )
 		{
-			if ( strcmp( rgchTrackingSystemName, "psmoveservice" ) == 0 )
+			if ( strcmp( rgchTrackingSystemName, "psmove" ) == 0 )
 			{
 				m_PSMoveDeviceIndexSet.insert( unTrackedDeviceIndex );
 			}
@@ -265,6 +267,20 @@ private:
 
 int main(int argc,char** argv)
 {
+	// Find resource path
+	HMODULE hModule = GetModuleHandleA(NULL);
+	char path[MAX_PATH];
+	GetModuleFileNameA(hModule, path, MAX_PATH);
+
+	char *snip = strstr(path, "\\bin\\");
+	if (snip)
+	{
+		*snip = '\0';
+	}
+
+	std::string overlay_path = std::string(path) + "\\resources\\overlays\\";
+/*
+
     if (argc < 2)
     {
         std::cout << "usage: monitor_psmove.exe [resources_path]" << std::endl;
@@ -273,7 +289,7 @@ int main(int argc,char** argv)
     
     std::string resources_path= argv[1];    
 	std::string overlay_path = resources_path + "\\overlays\\";
-
+*/
 	CPSMoveDriverMonitor psmoveServiceMonitor( overlay_path );
 
 	psmoveServiceMonitor.Run();
