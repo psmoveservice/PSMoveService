@@ -122,15 +122,15 @@ public:
         const double mean_orientation_dT= constants.mean_update_time_delta;
 
         // Start off using the maximum variance values
-        const double position_variance= 
+        const Eigen::Vector3f position_variance= 
 			(constants.min_position_variance +
 			constants.max_position_variance) * 0.5f;
 
         // Initialize the process covariance matrix Q
         Kalman::Covariance<ControllerStateVectord> Q = Kalman::Covariance<ControllerStateVectord>::Zero();
-        process_3rd_order_noise<ControllerStateVectord>(mean_position_dT, position_variance, POSITION_X, Q);
-		process_3rd_order_noise<ControllerStateVectord>(mean_position_dT, position_variance, POSITION_Y, Q);
-		process_3rd_order_noise<ControllerStateVectord>(mean_position_dT, position_variance, POSITION_Z, Q);
+        process_3rd_order_noise<ControllerStateVectord>(mean_position_dT, position_variance.x(), POSITION_X, Q);
+		process_3rd_order_noise<ControllerStateVectord>(mean_position_dT, position_variance.y(), POSITION_Y, Q);
+		process_3rd_order_noise<ControllerStateVectord>(mean_position_dT, position_variance.z(), POSITION_Z, Q);
         setCovariance(Q);
     }
 
@@ -202,22 +202,20 @@ public:
 		const float position_quality)
 	{
         // Start off using the maximum variance values
-		const double accelerometer_variance= constants.accelerometer_variance;
-        const double position_variance= 
-			lerp_clampf(
-				constants.max_position_variance,
-				constants.min_position_variance,
-				position_quality);
+		const Eigen::Vector3f &accelerometer_variance= constants.accelerometer_variance;
+		const Eigen::Vector3f position_variance =
+			position_quality*constants.min_position_variance +
+			(1.f - position_quality)*constants.max_position_variance;
 
         // Update the measurement covariance R
         Kalman::Covariance<ControllerMeasurementVectord> R = 
 			Kalman::Covariance<ControllerMeasurementVectord>::Zero();
-		R(ACCELEROMETER_X, ACCELEROMETER_X) = accelerometer_variance;
-		R(ACCELEROMETER_Y, ACCELEROMETER_Y) = accelerometer_variance;
-		R(ACCELEROMETER_Z, ACCELEROMETER_Z) = accelerometer_variance;
-        R(OPTICAL_POSITION_X, OPTICAL_POSITION_X) = position_variance;
-        R(OPTICAL_POSITION_Y, OPTICAL_POSITION_Y) = position_variance;
-        R(OPTICAL_POSITION_Z, OPTICAL_POSITION_Z) = position_variance;
+		R(ACCELEROMETER_X, ACCELEROMETER_X) = constants.accelerometer_variance.x();
+		R(ACCELEROMETER_Y, ACCELEROMETER_Y) = constants.accelerometer_variance.y();
+		R(ACCELEROMETER_Z, ACCELEROMETER_Z) = constants.accelerometer_variance.z();
+        R(OPTICAL_POSITION_X, OPTICAL_POSITION_X) = position_variance.x();
+        R(OPTICAL_POSITION_Y, OPTICAL_POSITION_Y) = position_variance.y();
+        R(OPTICAL_POSITION_Z, OPTICAL_POSITION_Z) = position_variance.z();
         setCovariance(R);
 	}
 

@@ -18,8 +18,9 @@ extern const Eigen::Matrix3f *k_eigen_sensor_transform_opengl;
 #define k_g_units_to_ms2  9.80665000f // m/s²
 #define k_ms2_to_g_units  1.f/9.80665000f // g-units
 
-#define k_meters_to_centimeters  100.f
-#define k_centimeters_to_meters  0.01f
+//HACK - DO NOT CHECK IN
+#define k_meters_to_centimeters  1.f//100.f
+#define k_centimeters_to_meters  1.f//0.01f
 
 //-- declarations -----
 /// A snapshot of IMU data emitted from a controller
@@ -116,13 +117,13 @@ struct OrientationFilterConstants
     float max_orientation_variance; // rad^2
 
     /// The variance of the gyroscope over a short period
-    float gyro_variance; // (rad/s)^2
+	Eigen::Vector3f gyro_variance; // (rad/s)^2
 
     /// The drift of the gyroscope over a long period
-    float gyro_drift; // rad/s
+	Eigen::Vector3f gyro_drift; // rad/s
 
 	/// The variance of the magnetometer
-	float magnetometer_variance; // units^2
+	Eigen::Vector3f magnetometer_variance; // units^2
 };
 
 /// Filter parameters that remain constant during the lifetime of the the filter
@@ -132,7 +133,7 @@ struct PositionFilterConstants
     Eigen::Vector3f gravity_calibration_direction; // unit vector
 
     float accelerometer_noise_radius; // meters
-	float accelerometer_variance; // g-units^2
+	Eigen::Vector3f accelerometer_variance; // g-units^2
     float max_velocity; // meters/s^2
 
     /// The average time delta between position updates during calibration
@@ -140,8 +141,8 @@ struct PositionFilterConstants
 
     /// The min and max variance of the position (parameterized by position quality)
     /// recorded during calibration
-    float min_position_variance; // meters^2
-    float max_position_variance; // meters^2
+	Eigen::Vector3f min_position_variance; // meters^2
+	Eigen::Vector3f max_position_variance; // meters^2
 };
 
 /// Filter parameters that remain constant during the lifetime of the the filter

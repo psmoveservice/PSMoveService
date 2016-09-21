@@ -1,4 +1,5 @@
 #include "KalmanPoseFilter.h"
+#include "MathAlignment.h"
 
 #if defined(__linux) || defined (__APPLE__)
 #include <unistd.h>
@@ -178,6 +179,38 @@ public:
 							ControllerSample sample;
 
 							memcpy(&sample, columns, sizeof(float)*FIELD_COUNT);
+
+							// Convert the samples in meters to centimeters
+							sample.pos[0] *= k_centimeters_to_meters;
+							sample.pos[1] *= k_centimeters_to_meters;
+							sample.pos[2] *= k_centimeters_to_meters;
+
+							// Normalize the magnetometer readings
+							float mag_scale = sqrtf(
+								sample.mag[0] * sample.mag[0] +
+								sample.mag[1] * sample.mag[1] +
+								sample.mag[2] * sample.mag[2]);
+							sample.mag[0] /= mag_scale;
+							sample.mag[1] /= mag_scale;
+							sample.mag[2] /= mag_scale;
+
+							// PSMoveService default orientation is with the controller vertical, bulb
+							// to the sky, with the trigger to the camera.However, asking for the
+							// rotation from PSMoveState.Pose.Orientation uses the bulb facing the
+							// camera as the default orientation.We will use the provided orientations
+							// for testing, so let's undo their rotations first.
+							if (m_controllerType == PSMove)
+							{
+								Eigen::Quaternionf artificial_rotation(Eigen::AngleAxisf(-k_real_half_pi, Eigen::Vector3f(1.f, 0.f, 0.f)));
+								Eigen::Quaternionf original_quat(sample.ori[0], sample.ori[1], sample.ori[2], sample.ori[3]);
+								Eigen::Quaternionf rotated_quat= original_quat * artificial_rotation;
+
+								sample.ori[0] = rotated_quat.w();
+								sample.ori[1] = rotated_quat.x();
+								sample.ori[2] = rotated_quat.y();
+								sample.ori[3] = rotated_quat.z();
+							}
+
 							m_samples.push_back(sample);
 						}
 					}
@@ -208,6 +241,52 @@ public:
 
 	const ControllerSample &getSample(size_t index) const {
 		return m_samples.at(index);
+	}
+
+	Eigen::Vector3f computeCovarianceSlice(const int field_index) const
+	{
+		assert(field_index >= FIELD_ACCELEROMETER_X && field_index <= FIELD_POSITION_X);
+		assert(field_index % 3 == 0);
+
+		std::vector<Eigen::Vector3f> sample_vectors;
+		for (const ControllerSample &sample : m_samples)
+		{
+			const float *raw_sample = reinterpret_cast<const float *>(&sample);
+			Eigen::Vector3f vector_sample(raw_sample[field_index], raw_sample[field_index + 1], raw_sample[field_index + 2]);
+
+			sample_vectors.push_back(vector_sample);
+		}
+
+		Eigen::Vector3f mean, variance;
+		eigen_vector3f_compute_mean_and_variance(
+			sample_vectors.data(),
+			static_cast<int>(sample_vectors.size()),
+			&mean,
+			&variance);
+
+		return variance;
+	}
+
+	float computeMeanTimeDelta() const
+	{
+		float previous_time = -1.f;
+		float mean_dt = 0.f;
+
+		for (const ControllerSample &sample : m_samples)
+		{
+			if (previous_time >= 0.f)
+			{
+				float dt = sample.time - previous_time;
+
+				mean_dt += dt;
+			}
+
+			previous_time = sample.time;
+		}
+
+		mean_dt /= static_cast<float>(m_samples.size() - 1);
+
+		return mean_dt;
 	}
 
 private:
@@ -262,46 +341,55 @@ private:
 };
 
 static void init_filter_for_psdualshock4(
+	const ControllerInputStream &stationary_stream,
 	const Eigen::Vector3f &initial_position, const Eigen::Quaternionf &initial_orientation,
 	PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter);
 static void init_filter_for_psmove(
+	const ControllerInputStream &stationary_stream,
 	const Eigen::Vector3f &initial_position, const Eigen::Quaternionf &initial_orientation,
 	PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter);
 
 int main(int argc, char *argv[])
 {   
-	if (argc < 3)
+	if (argc < 4)
 	{
-		printf("usage test_kalman_filter <input_file.csv> <output_file.csv>");
+		printf("usage test_kalman_filter <stationary_file.csv> <movement_file.csv> <output_file.csv>");
 		return -1;
 	}
 
-	ControllerInputStream input_stream(argv[1]);
+	ControllerInputStream stationary_stream(argv[1]);
+	ControllerInputStream movement_stream(argv[1]);
 	FilterOutputStream output_stream(argv[2]);
 
 	PoseFilterSpace *pose_filter_space= nullptr;
 	IPoseFilter *pose_filter = nullptr;
 
-	const ControllerSample &initialSample = input_stream.getSample(0);
+	const ControllerSample &initialSample = movement_stream.getSample(0);
 	Eigen::Vector3f initial_pos(initialSample.pos[0], initialSample.pos[1], initialSample.pos[2]);
 	Eigen::Quaternionf initial_ori(initialSample.ori[0], initialSample.ori[1], initialSample.ori[2], initialSample.ori[3]);
 
-	switch (input_stream.getControllerType())
+	switch (movement_stream.getControllerType())
 	{
 	case PSMove:
-		init_filter_for_psmove(initial_pos*k_centimeters_to_meters, initial_ori, &pose_filter_space, &pose_filter);
+		init_filter_for_psmove(
+			stationary_stream,
+			initial_pos, initial_ori, 
+			&pose_filter_space, &pose_filter);
 		break;
 	case DualShock4:
-		init_filter_for_psdualshock4(initial_pos*k_centimeters_to_meters, initial_ori, &pose_filter_space, &pose_filter);
+		init_filter_for_psdualshock4(
+			stationary_stream,
+			initial_pos, initial_ori, 
+			&pose_filter_space, &pose_filter);
 		break;
 	default:
 		break;
 	}
 
-	float lastTime= 0.f;
-	while (input_stream.hasNext())
+	float lastTime= movement_stream.getSample(0).time - stationary_stream.computeMeanTimeDelta();
+	while (movement_stream.hasNext())
 	{
-		ControllerSample sample= input_stream.next();
+		ControllerSample sample= movement_stream.next();
 		float dT = sample.time - lastTime;
 
 		PoseSensorPacket sensorPacket;
@@ -335,6 +423,7 @@ int main(int argc, char *argv[])
 
 static void
 init_filter_for_psmove(
+	const ControllerInputStream &stationary_stream,
 	const Eigen::Vector3f &initial_position,
 	const Eigen::Quaternionf &initial_orientation,
 	PoseFilterSpace **out_pose_filter_space,
@@ -352,22 +441,21 @@ init_filter_for_psmove(
 
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
-	constants.orientation_constants.gyro_drift = 0.0272777844f;
-	constants.orientation_constants.gyro_variance = 0.000348962029f;
-	constants.orientation_constants.mean_update_time_delta = 0.018542f; // from matlab
+	constants.orientation_constants.gyro_drift = Eigen::Vector3f(0.0272777844f, 0.0272777844f, 0.0272777844f);
+	constants.orientation_constants.gyro_variance = stationary_stream.computeCovarianceSlice(FIELD_GYROSCOPE_X);
+	constants.orientation_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
 	constants.orientation_constants.min_orientation_variance = 1.0f; // from matlab
 	constants.orientation_constants.max_orientation_variance = 1.0f; // from matlab
-	constants.orientation_constants.magnetometer_variance = 0.000590000011f;
+	constants.orientation_constants.magnetometer_variance = stationary_stream.computeCovarianceSlice(FIELD_MAGNETOMETER_X);
 
 	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
-	constants.position_constants.accelerometer_variance = 7.1999998e-06f;
+	constants.position_constants.accelerometer_variance = stationary_stream.computeCovarianceSlice(FIELD_ACCELEROMETER_X);
 	constants.position_constants.accelerometer_noise_radius = 0.0139137721;
 	constants.position_constants.max_velocity = 1.0f;
-	constants.position_constants.mean_update_time_delta = 0.018542f; // from matlab
-	// min variance at max screen area
-	constants.position_constants.min_position_variance = 1.0f; // from matlab
-	// max variance at min screen area
-	constants.position_constants.max_position_variance = 1.0f; // from matlab
+	constants.position_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
+	constants.position_constants.min_position_variance =
+		constants.position_constants.max_position_variance =
+			stationary_stream.computeCovarianceSlice(FIELD_POSITION_X);
 
 	KalmanPoseFilterPSMove *kalmanFilter = new KalmanPoseFilterPSMove();
 	kalmanFilter->init(constants, initial_position, initial_orientation);
@@ -378,6 +466,7 @@ init_filter_for_psmove(
 
 static void
 init_filter_for_psdualshock4(
+	const ControllerInputStream &stationary_stream,
 	const Eigen::Vector3f &initial_position,
 	const Eigen::Quaternionf &initial_orientation,
 	PoseFilterSpace **out_pose_filter_space,
@@ -394,24 +483,23 @@ init_filter_for_psdualshock4(
 	PoseFilterConstants constants;
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
-	constants.orientation_constants.gyro_drift = 0.000705962884f;
-	constants.orientation_constants.mean_update_time_delta = 0.0166669991f;
-	constants.orientation_constants.magnetometer_variance = 0.f; // no magnetometer on ds4
-	constants.orientation_constants.gyro_variance = 4.72827696e-06f;
+	constants.orientation_constants.gyro_drift = Eigen::Vector3f(0.000705962884f, 0.000705962884f, 0.000705962884f);
+	constants.orientation_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
+	constants.orientation_constants.magnetometer_variance = Eigen::Vector3f::Zero(); // no magnetometer on ds4
+	constants.orientation_constants.gyro_variance = stationary_stream.computeCovarianceSlice(FIELD_GYROSCOPE_X);
 	// min variance at max screen area
 	constants.orientation_constants.min_orientation_variance = 0.005f;
 	// max variance at min screen area
 	constants.orientation_constants.max_orientation_variance = 0.005f;
 
 	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
-	constants.position_constants.accelerometer_variance = 1.72511263e-05f;
+	constants.position_constants.accelerometer_variance = stationary_stream.computeCovarianceSlice(FIELD_ACCELEROMETER_X);
 	constants.position_constants.accelerometer_noise_radius = 0.0148137454f;
 	constants.position_constants.max_velocity = 1.f;
-	constants.position_constants.mean_update_time_delta = 0.0166669991;
-	// min variance at max screen area
-	constants.position_constants.min_position_variance = 0.25f;
-	// max variance at min screen area
-	constants.position_constants.max_position_variance = 0.25f;
+	constants.position_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
+	constants.position_constants.min_position_variance =
+		constants.position_constants.max_position_variance =
+		stationary_stream.computeCovarianceSlice(FIELD_POSITION_X);
 
 	KalmanPoseFilterDS4 *kalmanFilter= new KalmanPoseFilterDS4();
 	kalmanFilter->init(constants, initial_position, initial_orientation);
