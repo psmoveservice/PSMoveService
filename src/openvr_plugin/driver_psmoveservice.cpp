@@ -8,6 +8,9 @@
 #include "driver_psmoveservice.h"
 #include <sstream>
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 #if defined( _WIN32 )
 #include <windows.h>
 #else
@@ -1231,6 +1234,14 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 			DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
 			DriverLog("meters_per_touchpad_units: %f\n", m_fMetersPerTouchpadAxisUnits);
 		#endif
+
+
+		m_fControllerMetersInFrontOfHmdAtCallibration
+			= pSettings->GetFloat("psmove", "m_fControllerMetersInFrontOfHmdAtCallibration", 0.06f, &fetchError);
+
+		#if LOG_REALIGN_TO_HMD != 0
+			DriverLog("m_fControllerMetersInFrontOfHmdAtCallibration: %d\n", m_fControllerMetersInFrontOfHmdAtCallibration);
+		#endif
 	}
 
 }
@@ -1863,6 +1874,9 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	const PSMovePose &hmd_pose_meters, 
 	void *userdata)
 {
+
+	CPSMoveControllerLatest* pThis = (CPSMoveControllerLatest*)userdata;
+
 	#if LOG_REALIGN_TO_HMD != 0
 		DriverLog("Begin CPSMoveControllerLatest::FinishRealignHMDTrackingSpace()\n");
 	#endif
@@ -1910,38 +1924,56 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
     g_ServerTrackedDeviceProvider.SetHMDTrackingSpace(hmd_at_psmove_origin_pose);
 */
 
-	// We have the transform of the HMD in world space -- hmd_yaw_pose_meters
+	// We have the transform of the HMD in world space. It and the controller aren't quite
+	// aligned -- the controller's local -Z axis (from the center to the glowing ball) is currently pointed 
+	// in the direction of the HMD's local +Y axis, and the controller's position is a few inches ahead of
+	// the HMD's on the HMD's local -Z axis. Transform the HMD's world space transform to where we expect the
+	// controller's world space transform to be.
+	DriverLog("hmd_pose_meters: %s \n", PsMovePoseToString(hmd_pose_meters).c_str());
 
-	// We assume the controller and HMD are aligned, so we also have the transform of the HMD
-	// in driver space, which is the same as the transform of the controller in driver space -- psmove_pose_meters
+	PSMovePosition controllerLocalOffsetFromHmdPosition
+		= PSMovePosition::create(0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCallibration);
+
+	PSMovePose controllerLocalTranslationOffsetFromHmdPose
+		= PSMovePose::create( controllerLocalOffsetFromHmdPosition, PSMoveQuaternion::identity() );
+	DriverLog("controllerLocalTranslationOffsetFromHmdPose: %s \n", PsMovePoseToString(controllerLocalTranslationOffsetFromHmdPose).c_str());
+
+	PSMovePose controllerWorldSpaceTranslationPose
+		= PSMovePose::concat(hmd_pose_meters, controllerLocalTranslationOffsetFromHmdPose);
+	DriverLog("controllerWorldSpaceTranslationPose: %s \n", PsMovePoseToString(controllerWorldSpaceTranslationPose).c_str());
+
+
+	PSMoveFloatVector3 controllerOrientationInHmdSpaceEuler	= PSMoveFloatVector3::create( (float)M_PI_2, 0.0f, 0.0f);
+	PSMoveQuaternion controllerOrientationInHmdSpaceQuat = PSMoveQuaternion::create(controllerOrientationInHmdSpaceEuler);
+	PSMovePose controllerOrientationInHmdSpacePose	= PSMovePose::create( PSMovePosition::identity(), controllerOrientationInHmdSpaceQuat );
+	DriverLog("controllerOrientationInHmdSpacePose: %s \n", PsMovePoseToString(controllerOrientationInHmdSpacePose).c_str());
+
+	PSMovePose controller_world_space_pose = PSMovePose::concat( controllerWorldSpaceTranslationPose, controllerOrientationInHmdSpacePose );
+	DriverLog("controller_world_space_pose: %s \n", PsMovePoseToString(controller_world_space_pose).c_str());
+
+
+	// We have the transform of the controller in world space -- controller_world_space_pose
+
+	// We also have the transform of the controller in driver space -- psmove_pose_meters
 
 	// We need the transform that goes from driver space to world space -- driver_pose_to_world_pose
-	// psmove_pose_meters * driver_pose_to_world_pose = hmd_pose_meters
-	// psmove_pose_meters.inverse() * psmove_pose_meters * driver_pose_to_world_pose = psmove_pose_meters.inverse() * hmd_pose_meters
-	// driver_pose_to_world_pose = psmove_pose_meters.inverse() * hmd_pose_meters
+	// psmove_pose_meters * driver_pose_to_world_pose = controller_world_space_pose
+	// psmove_pose_meters.inverse() * psmove_pose_meters * driver_pose_to_world_pose = psmove_pose_meters.inverse() * controller_world_space_pose
+	// driver_pose_to_world_pose = psmove_pose_meters.inverse() * controller_world_space_pose
 
-	#if LOG_REALIGN_TO_HMD != 0
-		DriverLog("hmd_pose_meters: %s \n", PsMovePoseToString(hmd_pose_meters).c_str());
-		DriverLog("psmove_pose_meters: %s \n", PsMovePoseToString(psmove_pose_meters).c_str());
-	#endif
+
+	DriverLog("psmove_pose_meters: %s \n", PsMovePoseToString(psmove_pose_meters).c_str());
 
 	PSMovePose psmove_pose_inv = psmove_pose_meters.inverse();
+	DriverLog("psmove_pose_inv: %s \n", PsMovePoseToString(psmove_pose_inv).c_str());
 
-	#if LOG_REALIGN_TO_HMD != 0
-		DriverLog("psmove_pose_inv: %s \n", PsMovePoseToString(psmove_pose_inv).c_str());
-	#endif
+	PSMovePose driver_pose_to_world_pose = PSMovePose::concat(psmove_pose_inv, controller_world_space_pose);
+	DriverLog("driver_pose_to_world_pose: %s \n", PsMovePoseToString(driver_pose_to_world_pose).c_str());
 
-	PSMovePose driver_pose_to_world_pose = PSMovePose::concat(psmove_pose_inv, hmd_pose_meters);
 
-	#if LOG_REALIGN_TO_HMD != 0
-		DriverLog("driver_pose_to_world_pose: %s \n", PsMovePoseToString(driver_pose_to_world_pose).c_str());
+	PSMovePose test_composed_controller_world_space = PSMovePose::concat(psmove_pose_meters, driver_pose_to_world_pose);
+	DriverLog("test_composed_controller_world_space: %s \n", PsMovePoseToString(test_composed_controller_world_space).c_str());
 
-		PSMovePose psmove_pose_inv_inv_test = psmove_pose_inv.inverse();
-		DriverLog("psmove_pose_inv_inv_test: %s \n", PsMovePoseToString(psmove_pose_inv_inv_test).c_str());
-
-		PSMovePose psmove_world_pose_test = PSMovePose::concat(psmove_pose_meters, driver_pose_to_world_pose);
-		DriverLog("psmove_world_pose_test: %s \n", PsMovePoseToString(psmove_world_pose_test).c_str());
-	#endif
 
 	g_ServerTrackedDeviceProvider.SetHMDTrackingSpace(driver_pose_to_world_pose);
 

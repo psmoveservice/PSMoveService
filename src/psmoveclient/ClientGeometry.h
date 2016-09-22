@@ -106,6 +106,8 @@ struct CLIENTPSMOVEAPI PSMovePosition
     // psuedo-constructor to keep this a POD type
     static PSMovePosition create(float x, float y, float z);
 
+	static const PSMovePosition& identity();
+
     PSMoveFloatVector3 toPSMoveFloatVector3() const;
     PSMoveFloatVector3 operator - (const PSMovePosition &other) const;
 	PSMovePosition operator + (const PSMoveFloatVector3 &v) const;
@@ -133,6 +135,8 @@ struct CLIENTPSMOVEAPI PSMoveQuaternion
     static PSMoveQuaternion create(float w, float x, float y, float z);
 
 	static PSMoveQuaternion create(const PSMoveFloatVector3 &eulerAngles);
+
+	static const PSMoveQuaternion& identity();
 
     PSMoveQuaternion operator + (const PSMoveQuaternion &other) const;
 	PSMoveQuaternion operator * (const PSMoveQuaternion &other) const;
@@ -167,6 +171,10 @@ struct CLIENTPSMOVEAPI PSMovePose
 {
     PSMovePosition Position;
     PSMoveQuaternion Orientation;
+
+	// psuedo-constructor to keep this a POD type
+	static PSMovePose create(const PSMovePosition& position, const PSMoveQuaternion& orientation);
+	static const PSMovePose& identity();
 
     void Clear();
 	PSMovePose inverse() const;

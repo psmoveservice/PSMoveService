@@ -262,6 +262,10 @@ private:
 	bool m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis;
 	float m_fMetersPerTouchpadAxisUnits;
 
+	// Settings value: used to determine how many meters in front of the HMD the controller
+	// is held when it's being calibrated.
+	float m_fControllerMetersInFrontOfHmdAtCallibration;
+
 	// The position of the controller in meters in driver space relative to its own rotation
 	// at the time when the touchpad was most recently pressed (after being up).
 	PSMoveFloatVector3 m_posMetersAtTouchpadPressTime;

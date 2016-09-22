@@ -343,6 +343,11 @@ PSMovePosition PSMovePosition::create(float x, float y, float z)
     return p;
 }
 
+const PSMovePosition& PSMovePosition::identity()
+{
+	return g_psmove_position_origin;
+}
+
 PSMoveFloatVector3 PSMovePosition::toPSMoveFloatVector3() const
 {
     return PSMoveFloatVector3::create(x, y, z);
@@ -426,6 +431,11 @@ PSMoveQuaternion PSMoveQuaternion::create(const PSMoveFloatVector3 &eulerAngles)
 	return q;
 }
 
+const PSMoveQuaternion& PSMoveQuaternion::identity()
+{
+	return g_psmove_quaternion_identity;
+}
+
 PSMoveQuaternion PSMoveQuaternion::operator + (const PSMoveQuaternion &other) const
 {
     return PSMoveQuaternion::create(w + other.w, x + other.x, y + other.y, z + other.z);
@@ -460,14 +470,28 @@ PSMoveQuaternion PSMoveQuaternion::concat(const PSMoveQuaternion &first, const P
 	return second * first;
 }
 
-//http://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/transforms/
 PSMoveFloatVector3 PSMoveQuaternion::rotate_vector(const PSMoveFloatVector3 &v) const
 {
 	PSMoveFloatVector3 result;
-
+/*
+	//http://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/transforms/
 	result.i = w*w*v.i + 2 * y*w*v.k - 2 * z*w*v.j + x*x*v.i + 2 * y*x*v.j + 2 * z*x*v.k - z*z*v.i - y*y*v.i;
 	result.j = 2 * x*y*v.i + y*y*v.j + 2 * z*y*v.k + 2 * w*z*v.i - z*z*v.j + w*w*v.j - 2 * x*w*v.k - x*x*v.j;
 	result.k = 2 * x*z*v.i + 2 * y*z*v.j + z*z*v.k - 2 * w*y*v.i - y*y*v.k + 2 * w*x*v.j - x*x*v.k + w*w*v.k;
+*/
+
+	// http://gamedev.stackexchange.com/questions/28395/rotating-vector3-by-a-quaternion
+	// Extract the vector part of the quaternion
+	PSMoveFloatVector3 u	= PSMoveFloatVector3::create(x, y, z);
+
+	// Extract the scalar part of the quaternion
+	float s = q.w;
+
+	// Do the math
+	vprime = 2.0f * PSMoveFloatVector3::dot(u, v) * u
+		+ (s*s - PSMoveFloatVector3::dot(u, u)) * v
+		+ 2.0f * s * cross(u, v);
+
 
 	return result;
 }
@@ -546,6 +570,20 @@ PSMoveFloatVector3 PSMoveMatrix3x3::basis_z() const
 }
 
 // -- PSMovePose -- 
+PSMovePose PSMovePose::create(const PSMovePosition& position, const PSMoveQuaternion& orientation)
+{
+	PSMovePose p;
+	p.Position = position;
+	p.Orientation = orientation;
+
+	return p;
+}
+
+const PSMovePose& PSMovePose::identity()
+{
+	return g_psmove_pose_identity;
+}
+
 void PSMovePose::Clear()
 {
     Position= *k_psmove_position_origin;
@@ -568,7 +606,8 @@ PSMovePose PSMovePose::concat(const PSMovePose &first, const PSMovePose &second)
 	PSMovePose result;
 
 	result.Orientation = PSMoveQuaternion::concat(first.Orientation, second.Orientation);
-	result.Position = second.Orientation.rotate_position(first.Position) + second.Position.toPSMoveFloatVector3();
+	//result.Position = second.Orientation.rotate_position(first.Position) + second.Position.toPSMoveFloatVector3();
+	result.Position = first.Position + first.Orientation.rotate_position(second.Position).toPSMoveFloatVector3();
 
 	return result;
 }
