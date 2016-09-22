@@ -1943,7 +1943,7 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	DriverLog("controllerWorldSpaceTranslationPose: %s \n", PsMovePoseToString(controllerWorldSpaceTranslationPose).c_str());
 
 
-	PSMoveFloatVector3 controllerOrientationInHmdSpaceEuler	= PSMoveFloatVector3::create( (float)M_PI_2, 0.0f, 0.0f);
+	PSMoveFloatVector3 controllerOrientationInHmdSpaceEuler	= PSMoveFloatVector3::create( (float)-M_PI_2, 0.0f, 0.0f);
 	PSMoveQuaternion controllerOrientationInHmdSpaceQuat = PSMoveQuaternion::create(controllerOrientationInHmdSpaceEuler);
 	PSMovePose controllerOrientationInHmdSpacePose	= PSMovePose::create( PSMovePosition::identity(), controllerOrientationInHmdSpaceQuat );
 	DriverLog("controllerOrientationInHmdSpacePose: %s \n", PsMovePoseToString(controllerOrientationInHmdSpacePose).c_str());

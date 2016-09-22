@@ -417,10 +417,10 @@ PSMoveQuaternion PSMoveQuaternion::create(const PSMoveFloatVector3 &eulerAngles)
 	// Assuming the angles are in radians.
 	float c1 = cosf(eulerAngles.j / 2);
 	float s1 = sinf(eulerAngles.j / 2);
-	float c2 = cosf(eulerAngles.i / 2);
-	float s2 = sinf(eulerAngles.i / 2);
-	float c3 = cosf(eulerAngles.k / 2);
-	float s3 = sinf(eulerAngles.k / 2);
+	float c2 = cosf(eulerAngles.k / 2);
+	float s2 = sinf(eulerAngles.k / 2);
+	float c3 = cosf(eulerAngles.i / 2);
+	float s3 = sinf(eulerAngles.i / 2);
 	float c1c2 = c1*c2;
 	float s1s2 = s1*s2;
 	q.w = c1c2*c3 - s1s2*s3;
@@ -470,28 +470,14 @@ PSMoveQuaternion PSMoveQuaternion::concat(const PSMoveQuaternion &first, const P
 	return second * first;
 }
 
+//http://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/transforms/
 PSMoveFloatVector3 PSMoveQuaternion::rotate_vector(const PSMoveFloatVector3 &v) const
 {
 	PSMoveFloatVector3 result;
-/*
-	//http://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/transforms/
+	
 	result.i = w*w*v.i + 2 * y*w*v.k - 2 * z*w*v.j + x*x*v.i + 2 * y*x*v.j + 2 * z*x*v.k - z*z*v.i - y*y*v.i;
 	result.j = 2 * x*y*v.i + y*y*v.j + 2 * z*y*v.k + 2 * w*z*v.i - z*z*v.j + w*w*v.j - 2 * x*w*v.k - x*x*v.j;
 	result.k = 2 * x*z*v.i + 2 * y*z*v.j + z*z*v.k - 2 * w*y*v.i - y*y*v.k + 2 * w*x*v.j - x*x*v.k + w*w*v.k;
-*/
-
-	// http://gamedev.stackexchange.com/questions/28395/rotating-vector3-by-a-quaternion
-	// Extract the vector part of the quaternion
-	PSMoveFloatVector3 u	= PSMoveFloatVector3::create(x, y, z);
-
-	// Extract the scalar part of the quaternion
-	float s = q.w;
-
-	// Do the math
-	vprime = 2.0f * PSMoveFloatVector3::dot(u, v) * u
-		+ (s*s - PSMoveFloatVector3::dot(u, u)) * v
-		+ 2.0f * s * cross(u, v);
-
 
 	return result;
 }
@@ -500,7 +486,7 @@ PSMovePosition PSMoveQuaternion::rotate_position(const PSMovePosition &p) const
 {
 	PSMoveFloatVector3 v = p.toPSMoveFloatVector3();
 	PSMoveFloatVector3 v_rotated = rotate_vector(v);
-	PSMovePosition p_rotated = v.castToPSMovePosition();
+	PSMovePosition p_rotated = v_rotated.castToPSMovePosition();
 
 	return p_rotated;
 }
