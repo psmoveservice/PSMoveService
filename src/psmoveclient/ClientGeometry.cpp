@@ -403,6 +403,29 @@ PSMoveQuaternion PSMoveQuaternion::create(float w, float x, float y, float z)
     return q;
 }
 
+// psuedo-constructor to keep this a POD type
+// http://www.euclideanspace.com/maths/geometry/rotations/conversions/eulerToQuaternion/
+PSMoveQuaternion PSMoveQuaternion::create(const PSMoveFloatVector3 &eulerAngles)
+{
+	PSMoveQuaternion q;
+
+	// Assuming the angles are in radians.
+	float c1 = cosf(eulerAngles.j / 2);
+	float s1 = sinf(eulerAngles.j / 2);
+	float c2 = cosf(eulerAngles.i / 2);
+	float s2 = sinf(eulerAngles.i / 2);
+	float c3 = cosf(eulerAngles.k / 2);
+	float s3 = sinf(eulerAngles.k / 2);
+	float c1c2 = c1*c2;
+	float s1s2 = s1*s2;
+	q.w = c1c2*c3 - s1s2*s3;
+	q.x = c1c2*s3 + s1s2*c3;
+	q.y = s1*c2*c3 + c1*s2*s3;
+	q.z = c1*s2*c3 - s1*c2*s3;
+
+	return q;
+}
+
 PSMoveQuaternion PSMoveQuaternion::operator + (const PSMoveQuaternion &other) const
 {
     return PSMoveQuaternion::create(w + other.w, x + other.x, y + other.y, z + other.z);

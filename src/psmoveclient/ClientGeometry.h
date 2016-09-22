@@ -132,6 +132,8 @@ struct CLIENTPSMOVEAPI PSMoveQuaternion
     // psuedo-constructor to keep this a POD type
     static PSMoveQuaternion create(float w, float x, float y, float z);
 
+	static PSMoveQuaternion create(const PSMoveFloatVector3 &eulerAngles);
+
     PSMoveQuaternion operator + (const PSMoveQuaternion &other) const;
 	PSMoveQuaternion operator * (const PSMoveQuaternion &other) const;
 
