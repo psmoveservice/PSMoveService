@@ -1604,7 +1604,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				PSMoveQuaternion controllerBallPointedUpQuat = PSMoveQuaternion::create(controllerBallPointedUpEuler);
 				ClientPSMoveAPI::reset_pose(m_controller_view, controllerBallPointedUpQuat);
 
-				//StartRealignHMDTrackingSpace();
+				StartRealignHMDTrackingSpace();
             }
 
 			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Circle, clientView.GetButtonCircle(), &NewState);
@@ -1891,6 +1891,10 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 
 	CPSMoveControllerLatest *controller = reinterpret_cast<CPSMoveControllerLatest *>(userdata);
 
+	// Leaving out the yaw extraction stuff for now because if this doesn't work without it (aside from some slight tilt)
+	// we're doing it wrong, and I don't want to mask a problem.
+
+/*
     // Make the HMD orientation only contain a yaw
 	PSMovePose hmd_yaw_pose_meters;
 	hmd_yaw_pose_meters.Position = hmd_pose_meters.Position;
@@ -1910,26 +1914,21 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 
 
 	psmove_pose_meters.Orientation = psmove_orientation;
+*/
+
+	// Get the current pose from the controller view instead of using the driver's cached
+	// value because the user may have triggered a pose reset, in which case the driver's
+	// cached pose might not yet be up to date by the time this callback is triggered.
+	PSMovePose psmove_pose_meters = controller->m_controller_view->GetPSMoveView().GetPose();
+	psmove_pose_meters.Position.x *= k_fScalePSMoveAPIToMeters;
+	psmove_pose_meters.Position.y *= k_fScalePSMoveAPIToMeters;
+	psmove_pose_meters.Position.z *= k_fScalePSMoveAPIToMeters;
+
+
+	// Again, leaving out the yaw extraction stuff for now -- see above.
 /*
     // Make the PSMove Pose only contain a yaw
     psmove_pose_meters.Orientation = ExtractYawQuaternion(psmove_orientation);
-*/
-
-/*
-    // Create a transform that brings the psmove back to the psmove tracking space origin
-    PSMovePose psmove_pose_inv= psmove_pose_meters.inverse();
-
-    // Create a transform that goes from psmove tracking space to hmd tracking space
-    PSMovePose psm_space_to_hmd_space = PSMovePose::concat(psmove_pose_inv, hmd_yaw_pose_meters);
-
-    // Create a transform that takes the HMD pose to the PSMove origin
-    PSMovePose hmd_to_psmove_origin = PSMovePose::concat(psmove_pose_inv, psm_space_to_hmd_space);
-
-    // Compute the pose of of the HMD if it were at the PSMove Tracking Origin
-    PSMovePose hmd_at_psmove_origin_pose = PSMovePose::concat(hmd_yaw_pose_meters, hmd_to_psmove_origin);
-
-	// Notify all controllers of the HMD tracking space alignment change
-    g_ServerTrackedDeviceProvider.SetHMDTrackingSpace(hmd_at_psmove_origin_pose);
 */
 
 	// We have the transform of the HMD in world space. It and the controller aren't quite
@@ -1955,11 +1954,11 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	PSMovePose controllerOrientationInHmdSpacePose	= PSMovePose::create( PSMovePosition::identity(), controllerOrientationInHmdSpaceQuat );
 	DriverLog("controllerOrientationInHmdSpacePose: %s \n", PsMovePoseToString(controllerOrientationInHmdSpacePose).c_str());
 
-	PSMovePose controller_world_space_pose = PSMovePose::concat( controllerWorldSpaceTranslationPose, controllerOrientationInHmdSpacePose );
+	PSMovePose controller_world_space_pose = controllerWorldSpaceTranslationPose;
 	DriverLog("controller_world_space_pose: %s \n", PsMovePoseToString(controller_world_space_pose).c_str());
 
 
-	// We have the transform of the controller in world space -- controller_world_space_pose
+	// We now have the transform of the controller in world space -- controller_world_space_pose
 
 	// We also have the transform of the controller in driver space -- psmove_pose_meters
 
