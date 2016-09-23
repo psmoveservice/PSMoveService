@@ -1143,14 +1143,19 @@ void CPSMoveTrackedDeviceLatest::RefreshWorldFromDriverPose()
 
     const PSMovePose worldFromDriverPose = g_ServerTrackedDeviceProvider.GetWorldFromDriverPose();
 
+	#if LOG_REALIGN_TO_HMD != 0
+		DriverLog("worldFromDriverPose: %s \n", PsMovePoseToString(worldFromDriverPose).c_str());
+	#endif
+	
+
     // Transform used to convert from PSMove Tracking space to OpenVR Tracking Space
     m_Pose.qWorldFromDriverRotation.w = worldFromDriverPose.Orientation.w;
     m_Pose.qWorldFromDriverRotation.x = worldFromDriverPose.Orientation.x;
     m_Pose.qWorldFromDriverRotation.y = worldFromDriverPose.Orientation.y;
     m_Pose.qWorldFromDriverRotation.z = worldFromDriverPose.Orientation.z;
-    m_Pose.vecWorldFromDriverTranslation[0] = worldFromDriverPose.Position.x * k_fScalePSMoveAPIToMeters;
-    m_Pose.vecWorldFromDriverTranslation[1] = worldFromDriverPose.Position.y * k_fScalePSMoveAPIToMeters;
-    m_Pose.vecWorldFromDriverTranslation[2] = worldFromDriverPose.Position.z * k_fScalePSMoveAPIToMeters;
+    m_Pose.vecWorldFromDriverTranslation[0] = worldFromDriverPose.Position.x;
+    m_Pose.vecWorldFromDriverTranslation[1] = worldFromDriverPose.Position.y;
+    m_Pose.vecWorldFromDriverTranslation[2] = worldFromDriverPose.Position.z;
 }
 
 const char *CPSMoveTrackedDeviceLatest::GetSerialNumber() const
@@ -1595,7 +1600,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 					DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling StartRealignHMDTrackingSpace() in response to controller chord.\n");
 				#endif
 
-				//ClientPSMoveAPI::reset_pose(m_controller_view);
+				ClientPSMoveAPI::reset_pose(m_controller_view);
 				StartRealignHMDTrackingSpace();
             }
 
@@ -1942,8 +1947,7 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 		= PSMovePose::concat(hmd_pose_meters, controllerLocalTranslationOffsetFromHmdPose);
 	DriverLog("controllerWorldSpaceTranslationPose: %s \n", PsMovePoseToString(controllerWorldSpaceTranslationPose).c_str());
 
-
-	PSMoveFloatVector3 controllerOrientationInHmdSpaceEuler	= PSMoveFloatVector3::create( (float)-M_PI_2, 0.0f, 0.0f);
+	PSMoveFloatVector3 controllerOrientationInHmdSpaceEuler	= PSMoveFloatVector3::create( (float)M_PI_2, 0.0f, 0.0f);
 	PSMoveQuaternion controllerOrientationInHmdSpaceQuat = PSMoveQuaternion::create(controllerOrientationInHmdSpaceEuler);
 	PSMovePose controllerOrientationInHmdSpacePose	= PSMovePose::create( PSMovePosition::identity(), controllerOrientationInHmdSpaceQuat );
 	DriverLog("controllerOrientationInHmdSpacePose: %s \n", PsMovePoseToString(controllerOrientationInHmdSpacePose).c_str());

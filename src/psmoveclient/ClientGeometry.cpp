@@ -467,7 +467,7 @@ PSMoveQuaternion PSMoveQuaternion::inverse() const
 
 PSMoveQuaternion PSMoveQuaternion::concat(const PSMoveQuaternion &first, const PSMoveQuaternion &second)
 {
-	return second * first;
+	return first * second;
 }
 
 //http://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/transforms/
