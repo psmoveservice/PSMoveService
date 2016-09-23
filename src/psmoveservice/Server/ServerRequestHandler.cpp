@@ -595,8 +595,14 @@ protected:
         PSMoveProtocol::Response *response)
     {
         const int controller_id= context.request->reset_pose().controller_id();
+		
+		const Eigen::Quaternionf q_pose(
+			context.request->reset_pose().orientation().w(),
+			context.request->reset_pose().orientation().x(),
+			context.request->reset_pose().orientation().y(),
+			context.request->reset_pose().orientation().z() );
 
-        if (m_device_manager.m_controller_manager->resetPose(controller_id))
+        if (m_device_manager.m_controller_manager->resetPose(controller_id, q_pose))
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }

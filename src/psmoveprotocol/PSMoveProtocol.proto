@@ -163,6 +163,7 @@ message Request {
     // Parameters for RESET_POSE
     message RequestResetPose {
         int32 controller_id = 1;
+		Orientation orientation= 2;
     }
     RequestResetPose reset_pose = 7;   
     

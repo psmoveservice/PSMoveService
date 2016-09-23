@@ -1600,8 +1600,11 @@ void CPSMoveControllerLatest::UpdateControllerState()
 					DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling StartRealignHMDTrackingSpace() in response to controller chord.\n");
 				#endif
 
-				ClientPSMoveAPI::reset_pose(m_controller_view);
-				StartRealignHMDTrackingSpace();
+				PSMoveFloatVector3 controllerBallPointedUpEuler = PSMoveFloatVector3::create((float)M_PI_2, 0.0f, 0.0f);
+				PSMoveQuaternion controllerBallPointedUpQuat = PSMoveQuaternion::create(controllerBallPointedUpEuler);
+				ClientPSMoveAPI::reset_pose(m_controller_view, controllerBallPointedUpQuat);
+
+				//StartRealignHMDTrackingSpace();
             }
 
 			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Circle, clientView.GetButtonCircle(), &NewState);

@@ -264,12 +264,12 @@ void OrientationFilter::setFusionType(OrientationFilter::FusionType fusionType)
     }
 }
 
-void OrientationFilter::resetOrientation()
+void OrientationFilter::resetOrientation(const Eigen::Quaternionf& q_pose)
 {
     Eigen::Quaternionf q_inverse = m_FusionState->orientation.conjugate();
 
     eigen_quaternion_normalize_with_default(q_inverse, Eigen::Quaternionf::Identity());
-    m_FusionState->reset_orientation= q_inverse;
+    m_FusionState->reset_orientation= q_pose*q_inverse;
 }
 
 void OrientationFilter::resetFilterState()

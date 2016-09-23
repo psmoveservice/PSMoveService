@@ -282,7 +282,7 @@ public:
         return request->request_id();
     }
 
-    ClientPSMoveAPI::t_request_id reset_pose(ClientControllerView * view)
+    ClientPSMoveAPI::t_request_id reset_pose(ClientControllerView * view, const PSMoveQuaternion& q_pose)
     {
         CLIENT_LOG_INFO("set_controller_rumble") << "requesting pose reset for PSMoveID: " << view->GetControllerID() << std::endl;
 
@@ -290,6 +290,10 @@ public:
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_RESET_POSE);
         request->mutable_reset_pose()->set_controller_id(view->GetControllerID());
+		request->mutable_reset_pose()->mutable_orientation()->set_w(q_pose.w);
+		request->mutable_reset_pose()->mutable_orientation()->set_x(q_pose.x);
+		request->mutable_reset_pose()->mutable_orientation()->set_y(q_pose.y);
+		request->mutable_reset_pose()->mutable_orientation()->set_z(q_pose.z);
         
         m_request_manager.send_request(request);
 
@@ -811,13 +815,14 @@ ClientPSMoveAPI::set_led_tracking_color(
 
 ClientPSMoveAPI::t_request_id 
 ClientPSMoveAPI::reset_pose(
-    ClientControllerView * view)
+    ClientControllerView * view,
+	const PSMoveQuaternion& q_pose)
 {
     ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::INVALID_REQUEST_ID;
 
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        request_id= ClientPSMoveAPI::m_implementation_ptr->reset_pose(view);
+        request_id= ClientPSMoveAPI::m_implementation_ptr->reset_pose(view, q_pose);
     }
 
     return request_id;

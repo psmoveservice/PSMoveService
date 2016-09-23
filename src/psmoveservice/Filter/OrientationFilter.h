@@ -118,7 +118,7 @@ public:
         m_gyroDrift= gyro_drift;
     }
 
-    void resetOrientation();
+    void resetOrientation(const Eigen::Quaternionf& q_pose);
     void resetFilterState();
     void update(const float delta_time, const OrientationSensorPacket &packet);
 

@@ -194,7 +194,7 @@ public:
     static t_request_id start_controller_data_stream(ClientControllerView *view, unsigned int data_stream_flags);
     static t_request_id stop_controller_data_stream(ClientControllerView *view);
     static t_request_id set_led_tracking_color(ClientControllerView *view, PSMoveTrackingColorType tracking_color);
-    static t_request_id reset_pose(ClientControllerView *view);
+    static t_request_id reset_pose(ClientControllerView *view, const PSMoveQuaternion& q_pose);
 
     /// Tracker Methods
     static ClientTrackerView *allocate_tracker_view(const ClientTrackerInfo &trackerInfo);
