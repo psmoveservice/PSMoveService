@@ -441,14 +441,18 @@ init_filter_for_psmove(
 
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
-	constants.orientation_constants.gyro_drift = Eigen::Vector3f(0.0272777844f, 0.0272777844f, 0.0272777844f);
+	constants.orientation_constants.gyro_drift = Eigen::Vector3f::Zero();
 	constants.orientation_constants.gyro_variance = stationary_stream.computeCovarianceSlice(FIELD_GYROSCOPE_X);
 	constants.orientation_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
 	constants.orientation_constants.min_orientation_variance = 1.0f; // from matlab
 	constants.orientation_constants.max_orientation_variance = 1.0f; // from matlab
+	constants.orientation_constants.min_orientation_drift = 0.0f; // from matlab
+	constants.orientation_constants.max_orientation_drift = 0.0f; // from matlab
+	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero();
 	constants.orientation_constants.magnetometer_variance = stationary_stream.computeCovarianceSlice(FIELD_MAGNETOMETER_X);
 
 	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f(0.0133424997f, 0.0107941628f, 0.0543990135f);
 	constants.position_constants.accelerometer_variance = stationary_stream.computeCovarianceSlice(FIELD_ACCELEROMETER_X);
 	constants.position_constants.accelerometer_noise_radius = 0.0139137721;
 	constants.position_constants.max_velocity = 1.0f;
@@ -456,6 +460,9 @@ init_filter_for_psmove(
 	constants.position_constants.min_position_variance =
 		constants.position_constants.max_position_variance =
 			stationary_stream.computeCovarianceSlice(FIELD_POSITION_X);
+	constants.position_constants.min_position_drift =
+		constants.position_constants.max_position_drift =
+			Eigen::Vector3f::Zero();
 
 	KalmanPoseFilterPSMove *kalmanFilter = new KalmanPoseFilterPSMove();
 	kalmanFilter->init(constants, initial_position, initial_orientation);
@@ -481,25 +488,32 @@ init_filter_for_psdualshock4(
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
+	constants.orientation_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
-	constants.orientation_constants.gyro_drift = Eigen::Vector3f(0.000705962884f, 0.000705962884f, 0.000705962884f);
-	constants.orientation_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
+	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero(); // no magnetometer on ds4
 	constants.orientation_constants.magnetometer_variance = Eigen::Vector3f::Zero(); // no magnetometer on ds4
+	constants.orientation_constants.gyro_drift = Eigen::Vector3f(0.000705962884f, 0.000705962884f, 0.000705962884f);
 	constants.orientation_constants.gyro_variance = stationary_stream.computeCovarianceSlice(FIELD_GYROSCOPE_X);
 	// min variance at max screen area
 	constants.orientation_constants.min_orientation_variance = 0.005f;
+	constants.orientation_constants.min_orientation_drift = 0.f;
 	// max variance at min screen area
 	constants.orientation_constants.max_orientation_variance = 0.005f;
+	constants.orientation_constants.max_orientation_drift = 0.f;
 
 	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
 	constants.position_constants.accelerometer_variance = stationary_stream.computeCovarianceSlice(FIELD_ACCELEROMETER_X);
 	constants.position_constants.accelerometer_noise_radius = 0.0148137454f;
 	constants.position_constants.max_velocity = 1.f;
 	constants.position_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
 	constants.position_constants.min_position_variance =
 		constants.position_constants.max_position_variance =
-		stationary_stream.computeCovarianceSlice(FIELD_POSITION_X);
+			stationary_stream.computeCovarianceSlice(FIELD_POSITION_X);
+	constants.position_constants.min_position_drift =
+		constants.position_constants.max_position_drift = 
+			Eigen::Vector3f::Zero();
 
 	KalmanPoseFilterDS4 *kalmanFilter= new KalmanPoseFilterDS4();
 	kalmanFilter->init(constants, initial_position, initial_orientation);

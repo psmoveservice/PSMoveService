@@ -100,11 +100,11 @@ enum DS4MeasurementEnum {
 //-- private methods ---
 void process_3rd_order_noise(
 	const double dT, const double var, const int state_index, 
-	Eigen::Matrix<double, STATE_PARAMETER_COUNT, STATE_PARAMETER_COUNT> &Q);
+	Eigen::Matrix<double, NOISE_PARAMETER_COUNT, NOISE_PARAMETER_COUNT> &Q);
 
 void process_2nd_order_noise(
 	const double dT, const double var, const int state_index, 
-	Eigen::Matrix<double, STATE_PARAMETER_COUNT, STATE_PARAMETER_COUNT> &Q);
+	Eigen::Matrix<double, NOISE_PARAMETER_COUNT, NOISE_PARAMETER_COUNT> &Q);
 
 //-- private definitions --
 class PoseStateVector : public Eigen::Matrix<double, STATE_PARAMETER_COUNT, 1>
@@ -534,10 +534,25 @@ public:
         // Start off using the maximum standard deviation values
 		const Eigen::Vector3f position_variance =
 			position_quality*constants.position_constants.min_position_variance +
-			(1.f - position_quality)*constants.position_constants.max_position_variance;				
+			(1.f - position_quality)*constants.position_constants.max_position_variance;
+		const Eigen::Vector3f position_drift =
+			position_quality*constants.position_constants.min_position_drift +
+			(1.f - position_quality)*constants.position_constants.max_position_drift;
 
-		// TODO: For now we are assuming the noise is mean-zero
-		R_mu = Eigen::Matrix<double, PSMOVE_MEASUREMENT_PARAMETER_COUNT, 1>::Zero();
+		// Update the biases
+		R_mu(PSMOVE_ACCELEROMETER_X) = constants.position_constants.accelerometer_drift.x();
+		R_mu(PSMOVE_ACCELEROMETER_Y) = constants.position_constants.accelerometer_drift.y();
+		R_mu(PSMOVE_ACCELEROMETER_Z) = constants.position_constants.accelerometer_drift.z();
+		R_mu(PSMOVE_GYROSCOPE_X) = constants.orientation_constants.gyro_drift.x();
+		R_mu(PSMOVE_GYROSCOPE_Y) = constants.orientation_constants.gyro_drift.y();
+		R_mu(PSMOVE_GYROSCOPE_Z) = constants.orientation_constants.gyro_drift.z();
+		R_mu(PSMOVE_MAGNETOMETER_X) = constants.orientation_constants.magnetometer_drift.x();
+		R_mu(PSMOVE_MAGNETOMETER_Y) = constants.orientation_constants.magnetometer_drift.x();
+		R_mu(PSMOVE_MAGNETOMETER_Z) = constants.orientation_constants.magnetometer_drift.x();
+		R_mu(PSMOVE_OPTICAL_POSITION_X) = position_drift.x();
+		R_mu(PSMOVE_OPTICAL_POSITION_Y) = position_drift.x();
+		R_mu(PSMOVE_OPTICAL_POSITION_Z) = position_drift.x();
+
 
         // Update the measurement covariance R
         R_cov = Eigen::Matrix<double, PSMOVE_MEASUREMENT_PARAMETER_COUNT, PSMOVE_MEASUREMENT_PARAMETER_COUNT>::Zero();
@@ -639,21 +654,40 @@ public:
 		const float position_quality,
 		const float orientation_quality)
 	{
-        // Start off using the maximum variance values
 		const Eigen::Vector3f position_variance =
 			position_quality*constants.position_constants.min_position_variance +
 			(1.f - position_quality)*constants.position_constants.max_position_variance;
+		const Eigen::Vector3f position_drift =
+			position_quality*constants.position_constants.min_position_drift +
+			(1.f - position_quality)*constants.position_constants.max_position_drift;
+
 		const double angle_axis_std_dev=
 			sqrt(R_SCALE*lerp_clampf(
 				constants.orientation_constants.max_orientation_variance,
 				constants.orientation_constants.min_orientation_variance,
 				orientation_quality));
+		const double angle_axis_drift =
+			sqrt(R_SCALE*lerp_clampf(
+				constants.orientation_constants.max_orientation_drift,
+				constants.orientation_constants.min_orientation_drift,
+				orientation_quality));
 
-		// TODO: For now we are assuming the noise is mean-zero
-		R_mu = Eigen::Matrix<double, PSMOVE_MEASUREMENT_PARAMETER_COUNT, 1>::Zero();
+		// Update the biases
+		R_mu(DS4_ACCELEROMETER_X) = constants.position_constants.accelerometer_drift.x();
+		R_mu(DS4_ACCELEROMETER_Y) = constants.position_constants.accelerometer_drift.y();
+		R_mu(DS4_ACCELEROMETER_Z) = constants.position_constants.accelerometer_drift.z();
+		R_mu(DS4_GYROSCOPE_X) = constants.orientation_constants.gyro_drift.x();
+		R_mu(DS4_GYROSCOPE_Y) = constants.orientation_constants.gyro_drift.y();
+		R_mu(DS4_GYROSCOPE_Z) = constants.orientation_constants.gyro_drift.z();
+		R_mu(DS4_OPTICAL_POSITION_X) = position_drift.x();
+		R_mu(DS4_OPTICAL_POSITION_Y) = position_drift.x();
+		R_mu(DS4_OPTICAL_POSITION_Z) = position_drift.x();
+		R_mu(DS4_OPTICAL_ANGLE_AXIS_X) = angle_axis_drift;
+		R_mu(DS4_OPTICAL_ANGLE_AXIS_Y) = angle_axis_drift;
+		R_mu(DS4_OPTICAL_ANGLE_AXIS_Z) = angle_axis_drift;
 
         // Update the measurement covariance R
-        R_cov = Eigen::Matrix<double, PSMOVE_MEASUREMENT_PARAMETER_COUNT, PSMOVE_MEASUREMENT_PARAMETER_COUNT>::Zero();
+        R_cov = Eigen::Matrix<double, DS4_MEASUREMENT_PARAMETER_COUNT, DS4_MEASUREMENT_PARAMETER_COUNT>::Zero();
 		R_cov(DS4_ACCELEROMETER_X, DS4_ACCELEROMETER_X) = sqrt(R_SCALE*constants.position_constants.accelerometer_variance.x());
 		R_cov(DS4_ACCELEROMETER_Y, DS4_ACCELEROMETER_Y) = sqrt(R_SCALE*constants.position_constants.accelerometer_variance.y());
 		R_cov(DS4_ACCELEROMETER_Z, DS4_ACCELEROMETER_Z) = sqrt(R_SCALE*constants.position_constants.accelerometer_variance.z());
@@ -831,13 +865,13 @@ public:
 	State x;
 
 	//! Lower-triangular Cholesky factor of state covariance
-	Eigen::Matrix<double, STATE_PARAMETER_COUNT, STATE_PARAMETER_COUNT> S;
+	Eigen::Matrix<double, S_DIM, S_DIM> S;
 
 	//! Process noise mean
-	Eigen::Matrix<double, STATE_PARAMETER_COUNT, 1> Q_mu;
+	Eigen::Matrix<double, Q_DIM, 1> Q_mu;
 
 	//! The "square root" of the process noise covariance a.k.a. the lower part of the Choleskly
-	Eigen::Matrix<double, STATE_PARAMETER_COUNT, STATE_PARAMETER_COUNT> Q_cov;
+	Eigen::Matrix<double, Q_DIM, Q_DIM> Q_cov;
 
 	MeasurementModelType measurement_model;
 
@@ -856,7 +890,7 @@ public:
 	Eigen::Matrix<double, X_DIM, SIGMA_POINT_COUNT> X_k_r;
 
 	// Upper - triangular of propagated sp covariance
-	Eigen::Matrix<double, X_DIM, X_DIM > Sx_k;
+	Eigen::Matrix<double, S_DIM, S_DIM > Sx_k;
                     
 public:
 	PoseSRUFK()
@@ -874,31 +908,33 @@ public:
 		const Eigen::Quaternionf &orientation)
 	{
 		const double mean_position_dT = constants.position_constants.mean_update_time_delta;
-		const double mean_orientation_dT = constants.position_constants.mean_update_time_delta;
+		//const double mean_orientation_dT = constants.position_constants.mean_update_time_delta;
 
 		// Start off using the maximum variance values
-		const Eigen::Vector3f position_variance =
-			(constants.position_constants.min_position_variance +
-				constants.position_constants.max_position_variance) * 0.5f * Q_SCALE;
-		const double angle_axis_variance =
-			(constants.orientation_constants.min_orientation_variance +
-				constants.orientation_constants.max_orientation_variance) * 0.5f* Q_SCALE;
+		//const Eigen::Vector3f position_variance =
+			//(constants.position_constants.min_position_variance +
+			//	constants.position_constants.max_position_variance) * 0.5f * Q_SCALE;
+		//const double angle_axis_variance =
+			//(constants.orientation_constants.min_orientation_variance +
+			//	constants.orientation_constants.max_orientation_variance) * 0.5f* Q_SCALE;
 
 		// TODO: Initial guess at state covariance square root from filter constants?
-		S = Eigen::Matrix<double, STATE_PARAMETER_COUNT, STATE_PARAMETER_COUNT>::Identity() * 0.1;
+		S = Eigen::Matrix<double, S_DIM, S_DIM>::Identity() * 0.01;
 
 		// Process noise should be mean-zero, I think.
-		Q_mu = Eigen::Matrix<double, STATE_PARAMETER_COUNT, 1>::Zero();
+		Q_mu = Eigen::Matrix<double, Q_DIM, 1>::Zero();
 
 		// Initialize the process covariance matrix Q
-		Eigen::Matrix<double, STATE_PARAMETER_COUNT, STATE_PARAMETER_COUNT> Q_cov_init=
-			Eigen::Matrix<double, STATE_PARAMETER_COUNT, STATE_PARAMETER_COUNT>::Zero();
-		process_3rd_order_noise(mean_position_dT, position_variance.x(), POSITION_X, Q_cov_init);
-		process_3rd_order_noise(mean_position_dT, position_variance.y(), POSITION_Y, Q_cov_init);
-		process_3rd_order_noise(mean_position_dT, position_variance.z(), POSITION_Z, Q_cov_init);
-		//process_2nd_order_noise(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_X, Q_cov_init);
-		//process_2nd_order_noise(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Y, Q_cov_init);
-		//process_2nd_order_noise(mean_orientation_dT, angle_axis_variance, ANGLE_AXIS_Z, Q_cov_init);
+		Eigen::Matrix<double, Q_DIM, Q_DIM> Q_cov_init=
+			Eigen::Matrix<double, Q_DIM, Q_DIM>::Zero();
+		process_3rd_order_noise(mean_position_dT, Q_SCALE, POSITION_X, Q_cov_init);
+		process_3rd_order_noise(mean_position_dT, Q_SCALE, POSITION_Y, Q_cov_init);
+		process_3rd_order_noise(mean_position_dT, Q_SCALE, POSITION_Z, Q_cov_init);
+		//process_2nd_order_noise(mean_orientation_dT, Q_SCALE, ANGLE_AXIS_X, Q_cov_init);
+		//process_2nd_order_noise(mean_orientation_dT, Q_SCALE, ANGLE_AXIS_Y, Q_cov_init);
+		//process_2nd_order_noise(mean_orientation_dT, Q_SCALE, ANGLE_AXIS_Z, Q_cov_init);
+		//HACK: Overwrite orientation/angvel process noise.
+		Q_cov_init.block<6, 6>(9, 9) = Eigen::Matrix<double, 6, 6>::Identity()*0.1;
 
 		// Compute the std-deviation Q matrix a.k.a. the sqrt of Q_cov_init a.k.a the Cholesky
 		Q_cov= Q_cov_init.llt().matrixL();
@@ -1630,7 +1666,7 @@ void process_3rd_order_noise(
     const double dT,
     const double var,
     const int state_index,
-	Eigen::Matrix<double, STATE_PARAMETER_COUNT, STATE_PARAMETER_COUNT> &Q)
+	Eigen::Matrix<double, NOISE_PARAMETER_COUNT, NOISE_PARAMETER_COUNT> &Q)
 {
     const double dT_2 = dT*dT;
 	const double dT_3 = dT_2*dT;
@@ -1655,7 +1691,7 @@ void process_2nd_order_noise(
 	const double dT, 
 	const double var, 
 	const int state_index, 
-	Eigen::Matrix<double, STATE_PARAMETER_COUNT, STATE_PARAMETER_COUNT> &Q)
+	Eigen::Matrix<double, NOISE_PARAMETER_COUNT, NOISE_PARAMETER_COUNT> &Q)
 {
     const double dT_2 = dT*dT;
 	const double dT_3 = dT_2*dT;

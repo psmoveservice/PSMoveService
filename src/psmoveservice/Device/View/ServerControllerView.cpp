@@ -1516,12 +1516,16 @@ init_filters_for_psmove(
 	constants.orientation_constants.mean_update_time_delta= psmove_config->mean_update_time_delta;
 	constants.orientation_constants.min_orientation_variance= psmove_config->orientation_variance;
 	constants.orientation_constants.max_orientation_variance= psmove_config->orientation_variance;
+	constants.orientation_constants.min_orientation_drift = 0.f;
+	constants.orientation_constants.max_orientation_drift = 0.f;
 	constants.orientation_constants.magnetometer_variance= 
 		Eigen::Vector3f(psmove_config->magnetometer_variance, psmove_config->magnetometer_variance, psmove_config->magnetometer_variance);
+	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero(); // TODO
 
 	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.position_constants.accelerometer_variance= 
 		Eigen::Vector3f(psmove_config->accelerometer_variance, psmove_config->accelerometer_variance, psmove_config->accelerometer_variance);
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero(); // TODO
 	constants.position_constants.accelerometer_noise_radius= psmove_config->accelerometer_noise_radius;
 	constants.position_constants.max_velocity= psmove_config->max_velocity;
     constants.position_constants.mean_update_time_delta= psmove_config->mean_update_time_delta;
@@ -1531,6 +1535,9 @@ init_filters_for_psmove(
 	// max variance at min screen area
 	const float max_pos_var = psmove_config->get_position_variance(psmove_config->min_position_quality_screen_area);
 	constants.position_constants.max_position_variance = Eigen::Vector3f(max_pos_var, max_pos_var, max_pos_var);
+	// TODO: Assume zero position drift
+	constants.position_constants.min_position_drift = Eigen::Vector3f::Zero();
+	constants.position_constants.max_position_drift = Eigen::Vector3f::Zero();
 
 	*out_pose_filter_space= pose_filter_space;
 	*out_pose_filter= pose_filter_factory(
@@ -1641,20 +1648,24 @@ init_filters_for_psdualshock4(
 
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
-	constants.orientation_constants.gyro_drift= 
-		Eigen::Vector3f(ds4_config->gyro_drift, ds4_config->gyro_drift, ds4_config->gyro_drift);
 	constants.orientation_constants.mean_update_time_delta= ds4_config->mean_update_time_delta;
+	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero(); // no magnetometer on ds4
 	constants.orientation_constants.magnetometer_variance= Eigen::Vector3f::Zero(); // no magnetometer on ds4
+	constants.orientation_constants.gyro_drift =
+		Eigen::Vector3f(ds4_config->gyro_drift, ds4_config->gyro_drift, ds4_config->gyro_drift);
 	constants.orientation_constants.gyro_variance=
 		Eigen::Vector3f(ds4_config->gyro_variance, ds4_config->gyro_variance, ds4_config->gyro_variance);
-	// min variance at max screen area
+	// min variance/drift at max screen area
 	constants.orientation_constants.min_orientation_variance =
 		ds4_config->get_orientation_variance(ds4_config->max_orientation_quality_screen_area);
+	constants.orientation_constants.min_orientation_drift = 0.f;
 	// max variance at min screen area
 	constants.orientation_constants.max_orientation_variance =
 		ds4_config->get_orientation_variance(ds4_config->min_orientation_quality_screen_area);
+	constants.orientation_constants.max_orientation_drift = 0.f;
 
 	constants.position_constants.gravity_calibration_direction= pose_filter_space->getGravityCalibrationDirection();
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
 	constants.position_constants.accelerometer_variance= 
 		Eigen::Vector3f(ds4_config->accelerometer_variance, ds4_config->accelerometer_variance, ds4_config->accelerometer_variance);
 	constants.position_constants.accelerometer_noise_radius= ds4_config->accelerometer_noise_radius;
@@ -1663,9 +1674,11 @@ init_filters_for_psdualshock4(
 	// min variance at max screen area
 	float min_pos_var = ds4_config->get_position_variance(ds4_config->max_position_quality_screen_area);
 	constants.position_constants.min_position_variance = Eigen::Vector3f(min_pos_var, min_pos_var, min_pos_var);
+	constants.position_constants.min_position_drift = Eigen::Vector3f::Zero();
 	// max variance at min screen area
 	float max_pos_var = ds4_config->get_position_variance(ds4_config->min_position_quality_screen_area);
 	constants.position_constants.max_position_variance = Eigen::Vector3f(max_pos_var, max_pos_var, max_pos_var);
+	constants.position_constants.max_position_drift = Eigen::Vector3f::Zero();
 
 	*out_pose_filter_space= pose_filter_space;
 	*out_pose_filter= pose_filter_factory(

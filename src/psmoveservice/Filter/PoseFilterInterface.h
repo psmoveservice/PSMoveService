@@ -111,10 +111,12 @@ struct OrientationFilterConstants
     /// The average time delta between position updates during calibration
     float mean_update_time_delta; // seconds
 
-    /// The min and max variance of the orientation (parameterized by orientation quality)
+    /// The min and max variance/drift of the orientation (parameterized by orientation quality)
     /// recorded during calibration
     float min_orientation_variance; // rad^2
     float max_orientation_variance; // rad^2
+	float min_orientation_drift; // rad
+	float max_orientation_drift; // rad
 
     /// The variance of the gyroscope over a short period
 	Eigen::Vector3f gyro_variance; // (rad/s)^2
@@ -124,6 +126,9 @@ struct OrientationFilterConstants
 
 	/// The variance of the magnetometer
 	Eigen::Vector3f magnetometer_variance; // units^2
+
+	/// The drift of the magnetometer (usually zero)
+	Eigen::Vector3f magnetometer_drift; // units^2
 };
 
 /// Filter parameters that remain constant during the lifetime of the the filter
@@ -134,15 +139,18 @@ struct PositionFilterConstants
 
     float accelerometer_noise_radius; // meters
 	Eigen::Vector3f accelerometer_variance; // g-units^2
+	Eigen::Vector3f accelerometer_drift; // g-units
     float max_velocity; // meters/s^2
 
     /// The average time delta between position updates during calibration
     float mean_update_time_delta; // seconds
 
-    /// The min and max variance of the position (parameterized by position quality)
+    /// The min and max variance/drift of the position (parameterized by position quality)
     /// recorded during calibration
 	Eigen::Vector3f min_position_variance; // meters^2
 	Eigen::Vector3f max_position_variance; // meters^2
+	Eigen::Vector3f max_position_drift; // meters
+	Eigen::Vector3f min_position_drift; // meters
 };
 
 /// Filter parameters that remain constant during the lifetime of the the filter
