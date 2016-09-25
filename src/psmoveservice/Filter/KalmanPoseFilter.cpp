@@ -887,7 +887,7 @@ public:
 	{	
 		// Compute the augmented state size
 		// TODO: this isn't the state size
-		const double L = static_cast<double>(L_DIM);
+		const double L = static_cast<double>(S_DIM + Q_DIM + R_DIM);
 
 		// For standard UKF, here are the weights...
 
