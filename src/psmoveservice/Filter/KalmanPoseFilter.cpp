@@ -107,126 +107,6 @@ void process_2nd_order_noise(
 	Eigen::Matrix<double, NOISE_PARAMETER_COUNT, NOISE_PARAMETER_COUNT> &Q);
 
 //-- private definitions --
-class PoseStateVector : public Eigen::Matrix<double, STATE_PARAMETER_COUNT, 1>
-{
-public:
-	PoseStateVector(void) : Eigen::Matrix<double, STATE_PARAMETER_COUNT, 1>()
-	{ }
-
-	template<typename OtherDerived>
-	PoseStateVector(const Eigen::MatrixBase<OtherDerived>& other) : Eigen::Matrix<double, STATE_PARAMETER_COUNT, 1>(other)
-	{ }
-
-	template<typename OtherDerived>
-	PoseStateVector& operator= (const Eigen::MatrixBase<OtherDerived>& other)
-	{
-		this->Base::operator=(other);
-		return *this;
-	}
-
-    // Accessors
-    Eigen::Vector3d get_position() const { 
-        return Eigen::Vector3d((*this)[POSITION_X], (*this)[POSITION_Y], (*this)[POSITION_Z]); 
-    }
-    Eigen::Vector3d get_linear_velocity() const {
-        return Eigen::Vector3d((*this)[LINEAR_VELOCITY_X], (*this)[LINEAR_VELOCITY_Y], (*this)[LINEAR_VELOCITY_Z]);
-    }
-    Eigen::Vector3d get_linear_acceleration() const {
-        return Eigen::Vector3d((*this)[LINEAR_ACCELERATION_X], (*this)[LINEAR_ACCELERATION_Y], (*this)[LINEAR_ACCELERATION_Z]);
-    }
-	template <int RowsAtCompileTime>
-	static Eigen::Quaterniond extract_quaternion(const Eigen::Matrix<double, RowsAtCompileTime, 1> &M) {
-		return Eigen::Quaterniond(M[ORIENTATION_W], M[ORIENTATION_X], M[ORIENTATION_Y], M[ORIENTATION_Z]);
-	}
-    Eigen::Quaterniond get_quaternion() const {
-        return extract_quaternion<STATE_PARAMETER_COUNT>(*this);
-    }
-    Eigen::Vector3d get_angular_velocity() const {
-        return Eigen::Vector3d((*this)[ANGULAR_VELOCITY_X], (*this)[ANGULAR_VELOCITY_Y], (*this)[ANGULAR_VELOCITY_Z]);
-    }
-
-    // Mutators
-    void set_position(const Eigen::Vector3d &p) {
-        (*this)[POSITION_X] = p.x(); (*this)[POSITION_Y] = p.y(); (*this)[POSITION_Z] = p.z();
-    }
-    void set_linear_velocity(const Eigen::Vector3d &v) {
-        (*this)[LINEAR_VELOCITY_X] = v.x(); (*this)[LINEAR_VELOCITY_Y] = v.y(); (*this)[LINEAR_VELOCITY_Z] = v.z();
-    }
-    void set_linear_acceleration(const Eigen::Vector3d &a) {
-        (*this)[LINEAR_ACCELERATION_X] = a.x(); (*this)[LINEAR_ACCELERATION_Y] = a.y(); (*this)[LINEAR_ACCELERATION_Z] = a.z();
-    }
-	template <int RowsAtCompileTime>
-	static void apply_quaternion(const Eigen::Quaterniond &q, Eigen::Matrix<double, RowsAtCompileTime, 1> &M) {
-		M[ORIENTATION_W] = q.w(); M[ORIENTATION_X] = q.x(); M[ORIENTATION_Y] = q.y(); M[ORIENTATION_Z] = q.z();
-	}
-    void set_quaternion(const Eigen::Quaterniond &q) {
-		apply_quaternion<STATE_PARAMETER_COUNT>(q, *this);
-    }
-    void set_angular_velocity(const Eigen::Vector3d &v) {
-        (*this)[ANGULAR_VELOCITY_X] = v.x(); (*this)[ANGULAR_VELOCITY_Y] = v.y(); (*this)[ANGULAR_VELOCITY_Z] = v.z();
-    }
-
-	template <int RowsAtCompileTime>
-	static void special_state_add(
-		const Eigen::Matrix<double, RowsAtCompileTime, 1> &A,
-		const Eigen::Matrix<double, RowsAtCompileTime, 1> &B, 
-		Eigen::Matrix<double, RowsAtCompileTime, 1> &result) 
-	{
-		// Extract the orientation quaternion from A (which is stored as an angle axis vector)
-		const Eigen::Quaterniond orientation = extract_quaternion<RowsAtCompileTime>(A);
-
-		// Extract the delta quaternion from B (which is also stored as an angle axis vector)
-		const Eigen::Quaterniond delta = extract_quaternion<RowsAtCompileTime>(B);
-
-		// Apply the delta to the orientation
-		const Eigen::Quaterniond new_rotation = orientation*delta;
-
-		// Save the net rotation rotation back in result
-		apply_quaternion<RowsAtCompileTime>(new_rotation, result);
-	}	
-
-	template <int RowsAtCompileTime>
-	static void special_state_subtract(
-		const Eigen::Matrix<double, RowsAtCompileTime, 1> &A,
-		const Eigen::Matrix<double, RowsAtCompileTime, 1> &B,
-		Eigen::Matrix<double, RowsAtCompileTime, 1> &result)
-	{
-		// Extract the orientation quaternion from both states (which is stored as an angle axis vector)
-		const Eigen::Quaterniond q1= extract_quaternion<RowsAtCompileTime>(A);
-		const Eigen::Quaterniond q2= extract_quaternion<RowsAtCompileTime>(B);
-
-		// Compute the "quaternion difference" i.e. rotation from q1 to q2
-		const Eigen::Quaterniond q_diff= (q1*q2.conjugate()).normalized();
-
-		apply_quaternion<RowsAtCompileTime>(q_diff, result);
-	}
-
-	template <int RowsAtCompileTime, int PointCount>
-	static void special_state_mean(
-		const Eigen::Matrix<double, RowsAtCompileTime, PointCount>& state_matrix,
-		const Eigen::Matrix<double, PointCount, 1> weight_vector,
-		Eigen::Matrix<double, RowsAtCompileTime, 1> &result)
-	{
-		// Extract the orientations from the states
-		Eigen::Quaterniond orientations[PointCount];
-		double weights[PointCount];
-		for (int col_index = 0; col_index < PointCount; ++col_index)
-		{
-			Eigen::Quaterniond orientation = extract_quaternion<RowsAtCompileTime>(state_matrix.col(col_index));
-
-			orientations[col_index]= orientation;
-			weights[col_index]= weight_vector[col_index];
-		}
-
-		// Compute the average of the quaternions
-		Eigen::Quaterniond average_quat;
-		eigen_quaternion_compute_weighted_average(orientations, weights, PointCount, &average_quat);
-
-		// Stomp the incorrect orientation average
-		apply_quaternion<RowsAtCompileTime>(average_quat, result);
-	}
-};
-
 class PoseNoiseVector : public Eigen::Matrix<double, NOISE_PARAMETER_COUNT, 1>
 {
 public:
@@ -306,41 +186,228 @@ public:
 		(*this)[NOISE_ANGULAR_VELOCITY_X] = v.x(); (*this)[NOISE_ANGULAR_VELOCITY_Y] = v.y(); (*this)[NOISE_ANGULAR_VELOCITY_Z] = v.z();
 	}
 
-	template <int RowsAtCompileTime>
-	static void special_noise_add(
-		const Eigen::Matrix<double, RowsAtCompileTime, 1> &A,
-		const Eigen::Matrix<double, RowsAtCompileTime, 1> &B,
-		Eigen::Matrix<double, RowsAtCompileTime, 1> &result)
+	PoseNoiseVector negate() const
 	{
-		// Extract the orientation quaternion from A (which is stored as an angle axis vector)
-		const Eigen::Quaterniond orientation = extract_quaternion_noise<RowsAtCompileTime>(A);
+		PoseNoiseVector neg_noise = -(*this);
 
-		// Extract the delta quaternion from B (which is also stored as an angle axis vector)
-		const Eigen::Quaterniond delta = extract_quaternion_noise<RowsAtCompileTime>(B);
+		neg_noise.set_angle_axis_noise(this->get_angle_axis_noise().inverse());
 
-		// Apply the delta to the orientation
-		const Eigen::Quaterniond new_rotation = orientation*delta;
+		return neg_noise;
+	}
+};
 
-		// Save the net rotation rotation back in result
-		apply_quaternion_noise<RowsAtCompileTime>(new_rotation, result);
+class PoseStateVector : public Eigen::Matrix<double, STATE_PARAMETER_COUNT, 1>
+{
+public:
+	PoseStateVector(void) : Eigen::Matrix<double, STATE_PARAMETER_COUNT, 1>()
+	{ }
+
+	template<typename OtherDerived>
+	PoseStateVector(const Eigen::MatrixBase<OtherDerived>& other) : Eigen::Matrix<double, STATE_PARAMETER_COUNT, 1>(other)
+	{ }
+
+	template<typename OtherDerived>
+	PoseStateVector& operator= (const Eigen::MatrixBase<OtherDerived>& other)
+	{
+		this->Base::operator=(other);
+		return *this;
 	}
 
+    // Accessors
+    Eigen::Vector3d get_position() const { 
+        return Eigen::Vector3d((*this)[POSITION_X], (*this)[POSITION_Y], (*this)[POSITION_Z]); 
+    }
+    Eigen::Vector3d get_linear_velocity() const {
+        return Eigen::Vector3d((*this)[LINEAR_VELOCITY_X], (*this)[LINEAR_VELOCITY_Y], (*this)[LINEAR_VELOCITY_Z]);
+    }
+    Eigen::Vector3d get_linear_acceleration() const {
+        return Eigen::Vector3d((*this)[LINEAR_ACCELERATION_X], (*this)[LINEAR_ACCELERATION_Y], (*this)[LINEAR_ACCELERATION_Z]);
+    }
 	template <int RowsAtCompileTime>
-	static void special_noise_subtract(
-		const Eigen::Matrix<double, RowsAtCompileTime, 1> &A,
-		const Eigen::Matrix<double, RowsAtCompileTime, 1> &B,
-		Eigen::Matrix<double, RowsAtCompileTime, 1> &result)
+	static Eigen::Quaterniond extract_quaternion(const Eigen::Matrix<double, RowsAtCompileTime, 1> &M) {
+		return Eigen::Quaterniond(M[ORIENTATION_W], M[ORIENTATION_X], M[ORIENTATION_Y], M[ORIENTATION_Z]);
+	}
+    Eigen::Quaterniond get_quaternion() const {
+        return extract_quaternion<STATE_PARAMETER_COUNT>(*this);
+    }
+    Eigen::Vector3d get_angular_velocity() const {
+        return Eigen::Vector3d((*this)[ANGULAR_VELOCITY_X], (*this)[ANGULAR_VELOCITY_Y], (*this)[ANGULAR_VELOCITY_Z]);
+    }
+
+    // Mutators
+    void set_position(const Eigen::Vector3d &p) {
+        (*this)[POSITION_X] = p.x(); (*this)[POSITION_Y] = p.y(); (*this)[POSITION_Z] = p.z();
+    }
+    void set_linear_velocity(const Eigen::Vector3d &v) {
+        (*this)[LINEAR_VELOCITY_X] = v.x(); (*this)[LINEAR_VELOCITY_Y] = v.y(); (*this)[LINEAR_VELOCITY_Z] = v.z();
+    }
+    void set_linear_acceleration(const Eigen::Vector3d &a) {
+        (*this)[LINEAR_ACCELERATION_X] = a.x(); (*this)[LINEAR_ACCELERATION_Y] = a.y(); (*this)[LINEAR_ACCELERATION_Z] = a.z();
+    }
+	template <int RowsAtCompileTime>
+	static void apply_quaternion(const Eigen::Quaterniond &q, Eigen::Matrix<double, RowsAtCompileTime, 1> &M) {
+		M[ORIENTATION_W] = q.w(); M[ORIENTATION_X] = q.x(); M[ORIENTATION_Y] = q.y(); M[ORIENTATION_Z] = q.z();
+	}
+    void set_quaternion(const Eigen::Quaterniond &q) {
+		apply_quaternion<STATE_PARAMETER_COUNT>(q, *this);
+    }
+    void set_angular_velocity(const Eigen::Vector3d &v) {
+        (*this)[ANGULAR_VELOCITY_X] = v.x(); (*this)[ANGULAR_VELOCITY_Y] = v.y(); (*this)[ANGULAR_VELOCITY_Z] = v.z();
+    }
+
+
+	PoseStateVector operator + (const PoseStateVector &other) const
 	{
+		PoseStateVector result;
+
+		// Add the first 9 rows (position, velocity, and acceleration) the usual way
+		result.head<9>() = this->head<9>() + other.head<9>();
+		// Add the last 3 rows (angular velocity) the usual was
+		result.tail<3>() = this->tail<3>() + other.head<3>();
+
+		// Extract the orientation quaternion from A (which is stored as an angle axis vector)
+		const Eigen::Quaterniond orientation = this->get_quaternion();
+
+		// Extract the delta quaternion from B (which is also stored as an angle axis vector)
+		const Eigen::Quaterniond delta = other.get_quaternion();
+
+		// Apply the delta to the orientation
+		const Eigen::Quaterniond new_rotation = (orientation*delta).normalized();
+
+		// Save the net rotation rotation back in result
+		result.set_quaternion(new_rotation);
+
+		return result;
+	}	
+
+	PoseStateVector operator + (const PoseNoiseVector &other) const
+	{
+		PoseStateVector result;
+
+		// Add the first 9 rows (position, velocity, and acceleration) the usual way
+		result.head<9>() = this->head<9>() + other.head<9>();
+
+		// Extract the orientation quaternion from A (which is stored as an angle axis vector)
+		const Eigen::Quaterniond orientation = this->get_quaternion();
+
+		// Extract the delta noise quaternion from B (which is also stored as an angle axis vector)
+		const Eigen::Quaterniond delta = other.get_quaternion_noise();
+
+		// Apply the noise delta to the orientation
+		const Eigen::Quaterniond new_rotation = (orientation*delta).normalized();
+
+		// Save the net rotation rotation back in result
+		result.set_quaternion(new_rotation);
+
+		// Add the noise angular velocity to this angular velocity
+		result.set_angular_velocity(this->get_angular_velocity() + other.get_angular_velocity_noise());
+
+		return result;
+	}
+
+	PoseStateVector operator - (const PoseStateVector &other) const
+	{
+		PoseStateVector result;
+
+		// Subtract the first 9 rows (position, velocity, and acceleration) the usual way
+		result.head<9>() = this->head<9>() - other.head<9>();
+		// Subtract the last 3 rows (angular velocity) the usual was
+		result.tail<3>() = this->tail<3>() - other.head<3>();
+
 		// Extract the orientation quaternion from both states (which is stored as an angle axis vector)
-		const Eigen::Quaterniond q1 = extract_quaternion_noise<RowsAtCompileTime>(A);
-		const Eigen::Quaterniond q2 = extract_quaternion_noise<RowsAtCompileTime>(B);
+		const Eigen::Quaterniond q1= this->get_quaternion();
+		const Eigen::Quaterniond q2= other.get_quaternion();
+
+		// Compute the "quaternion difference" i.e. rotation from q1 to q2
+		const Eigen::Quaterniond q_diff= (q1*q2.conjugate()).normalized();
+
+		result.set_quaternion(q_diff);
+
+		return result;
+	}
+
+	PoseStateVector operator - (const PoseNoiseVector &other) const
+	{
+		PoseStateVector result;
+
+		// Subtract the first 9 rows (position, velocity, and acceleration) the usual way
+		result.head<9>() = this->head<9>() - other.head<9>();
+
+		// Extract the orientation quaternion from both states (which is stored as an angle axis vector)
+		const Eigen::Quaterniond q1 = this->get_quaternion();
+		const Eigen::Quaterniond q2 = other.get_quaternion_noise();
 
 		// Compute the "quaternion difference" i.e. rotation from q1 to q2
 		const Eigen::Quaterniond q_diff = (q1*q2.conjugate()).normalized();
 
-		apply_quaternion_noise<RowsAtCompileTime>(q_diff, result);
+		result.set_quaternion(q_diff);
+
+		// Subtract the noise angular velocity from this angular velocity
+		result.set_angular_velocity(this->get_angular_velocity() - other.get_angular_velocity_noise());
+
+
+		return result;
+	}
+
+	template <int PointCount>
+	static void special_state_mean(
+		const Eigen::Matrix<double, STATE_PARAMETER_COUNT, PointCount>& state_matrix,
+		const Eigen::Matrix<double, PointCount, 1> weight_vector,
+		PoseStateVector &result)
+	{
+		Eigen::Quaterniond quat_0_inv = extract_quaternion<RowsAtCompileTime>(state_matrix.col(0)).conjugate();
+
+		// Extract the orientations from the states
+		Eigen::Quaterniond orientations[PointCount];
+		double weights[PointCount];
+		for (int col_index = 0; col_index < PointCount; ++col_index)
+		{
+			Eigen::Quaterniond orientation = extract_quaternion<RowsAtCompileTime>(state_matrix.col(col_index));
+
+			orientations[col_index]= orientation;
+			weights[col_index]= weight_vector[col_index];
+		}
+
+		// Compute the average of the quaternions
+		Eigen::Quaterniond average_quat;
+		eigen_quaternion_compute_weighted_average(orientations, weights, PointCount, &average_quat);
+
+		// Stomp the incorrect orientation average
+		apply_quaternion<RowsAtCompileTime>(average_quat, result);
 	}
 };
+
+PoseNoiseVector convert_state_to_noise_vector(const PoseStateVector &state_vector)
+{
+	PoseNoiseVector result;
+
+	// Copy the linear portions straight over (position, velocity, acceleration)
+	result.head<9>() = state_vector.head<9>();
+
+	// Convert the quaternion in the state vector to an angle-axis vector
+	result.set_angle_axis_noise(Eigen::AngleAxisd(state_vector.get_quaternion()));
+
+	// Copy over the angular velocity vector
+	result.set_angular_velocity_noise(state_vector.get_angular_velocity());
+
+	return result;
+}
+
+PoseStateVector convert_noise_to_state_vector(const PoseNoiseVector &noise_vector)
+{
+	PoseStateVector result;
+
+	// Copy the linear portions straight over (position, velocity, acceleration)
+	result.head<9>() = noise_vector.head<9>();
+
+	// Copy the angle-axis vector
+	result.set_quaternion(Eigen::Quaterniond(noise_vector.get_angle_axis_noise()));
+
+	// Copy over the angular velocity vector
+	result.set_angular_velocity(noise_vector.get_angular_velocity_noise());
+
+	return result;
+}
 
 class PSMove_MeasurementVector : public Eigen::Matrix<double, PSMOVE_MEASUREMENT_PARAMETER_COUNT, 1>
 {
@@ -387,11 +454,11 @@ public:
         (*this)[PSMOVE_MAGNETOMETER_X] = m.x(); (*this)[PSMOVE_MAGNETOMETER_Y] = m.y(); (*this)[PSMOVE_MAGNETOMETER_Z] = m.z();
     }
 
-	PSMove_MeasurementVector difference(const PSMove_MeasurementVector &other) const
+	PSMove_MeasurementVector negate() const
 	{
-		// for the PSMove measurement the difference can be computed 
-		// with simple vector subtraction
-		return (*this) - other;
+		// for the PSMove measurement the negation can be computed 
+		// with simple vector negation
+		return (*this) * -1.0;
 	}
 
 	template <int SIGMA_POINT_COUNT>
@@ -464,9 +531,11 @@ public:
         set_angle_axis(angle_axis);
     }
 
-	DS4_MeasurementVector difference(const DS4_MeasurementVector &other) const
+	DS4_MeasurementVector operator - (const DS4_MeasurementVector &other) const
 	{
-		DS4_MeasurementVector measurement_diff= (*this) - other;
+		DS4_MeasurementVector measurement_diff;
+
+		measurement_diff.head<9>() = this->head<9>() - other.head<9>();
 		
 		const Eigen::Quaterniond q1= this->get_optical_quaternion();
 		const Eigen::Quaterniond q2= other.get_optical_quaternion();
@@ -476,6 +545,14 @@ public:
 		measurement_diff.set_optical_quaternion(q_diff);
 
 		return measurement_diff;
+	}
+
+	DS4_MeasurementVector negate() const
+	{
+		// for the DS4 measurement the negation can be computed 
+		// with simple vector negation
+		// (Safe to negate the optical angle axis)
+		return (*this) * -1.0;
 	}
 
 	template <int SIGMA_POINT_COUNT>
@@ -586,7 +663,14 @@ public:
     {
         PSMove_MeasurementVector predicted_measurement;
 
-		// Extract the observations noise
+		// Extract the observation bias
+		const PSMove_MeasurementVector &observation_bias = R_mu;
+		const Eigen::Vector3d accel_bias = observation_bias.get_accelerometer();
+		const Eigen::Vector3d mag_bias = observation_bias.get_magnetometer();
+		const Eigen::Vector3d gyro_bias = observation_bias.get_gyroscope();
+		const Eigen::Vector3d position_bias = observation_bias.get_optical_position();
+
+		// Extract the observation noise
 		const Eigen::Vector3d accel_noise = observation_noise.get_accelerometer();
 		const Eigen::Vector3d mag_noise = observation_noise.get_magnetometer();
 		const Eigen::Vector3d gyro_noise = observation_noise.get_gyroscope();
@@ -603,7 +687,8 @@ public:
         const Eigen::Vector3d accel_world= linear_accel_g_units + gravity_accel_g_units;
 
         // Put the accelerometer prediction into the local space of the controller
-        const Eigen::Vector3d accel_local= orientation._transformVector(accel_world);
+		const Eigen::Quaterniond accel_world_quat(0.f, accel_world.x(), accel_world.y(), accel_world.z());
+		const Eigen::Vector3d accel_local = orientation*(accel_world_quat*orientation.conjugate()).vec();
 
         // Use the angular velocity from the state to predict what the gyro reading will be
         const Eigen::Vector3d gyro_local= state.get_angular_velocity(); 
@@ -611,13 +696,14 @@ public:
         // Use the orientation from the state to predict
         // what the magnetometer reading should be
         const Eigen::Vector3d &mag_world= identity_magnetometer_direction;
-        const Eigen::Vector3d mag_local= orientation._transformVector(mag_world);
+		const Eigen::Quaterniond mag_world_quat(0.f, mag_world.x(), mag_world.y(), mag_world.z());
+        const Eigen::Vector3d mag_local= orientation*(mag_world_quat*orientation.conjugate()).vec();
 
         // Save the predictions into the measurement vector
-        predicted_measurement.set_accelerometer(accel_local + accel_noise);
-        predicted_measurement.set_magnetometer(mag_local + mag_noise);
-        predicted_measurement.set_gyroscope(gyro_local + gyro_noise);
-        predicted_measurement.set_optical_position(position + position_noise);
+        predicted_measurement.set_accelerometer(accel_local + accel_bias + accel_noise);
+        predicted_measurement.set_magnetometer(mag_local + mag_bias + mag_noise);
+        predicted_measurement.set_gyroscope(gyro_local + gyro_bias + gyro_noise);
+        predicted_measurement.set_optical_position(position + position_bias + position_noise);
 
         return predicted_measurement;
     }
@@ -716,6 +802,13 @@ public:
     {
         DS4_MeasurementVector predicted_measurement;
 
+		// Extract the observation bias
+		const DS4_MeasurementVector &observation_bias = R_mu;
+		const Eigen::Vector3d accel_bias = observation_bias.get_accelerometer();
+		const Eigen::Vector3d gyro_bias = observation_bias.get_gyroscope();
+		const Eigen::Vector3d position_bias = observation_bias.get_optical_position();
+		const Eigen::Quaterniond orientation_bias = observation_bias.get_optical_quaternion();
+
 		// Extract the observations noise
 		const Eigen::Vector3d accel_noise= observation_noise.get_accelerometer();
 		const Eigen::Vector3d gyro_noise= observation_noise.get_gyroscope();
@@ -726,8 +819,7 @@ public:
         const Eigen::Vector3d position= state.get_position();
         const Eigen::Quaterniond orientation= state.get_quaternion();
 
-        // Use the current linear acceleration from the state to predict
-        // what the accelerometer reading will be (in world space)
+		// Accelerometer = (linear acceleration + gravity) transformed to controller frame.
         const Eigen::Vector3d gravity_accel_g_units= -identity_gravity_direction;
         const Eigen::Vector3d linear_accel_g_units= state.get_linear_acceleration() * k_ms2_to_g_units;
         const Eigen::Vector3d accel_world= linear_accel_g_units + gravity_accel_g_units;
@@ -736,14 +828,15 @@ public:
         // Put the accelerometer prediction into the local space of the controller
         const Eigen::Vector3d accel_local= orientation*(accel_world_quat*orientation.conjugate()).vec();
 
-        // Use the angular velocity from the state to predict what the gyro reading will be
+        // Gyroscope = angular velocity (both rad/sec)
         const Eigen::Vector3d gyro_local= state.get_angular_velocity(); 
 
         // Save the predictions into the measurement vector
-        predicted_measurement.set_accelerometer(accel_local + accel_noise);
-        predicted_measurement.set_gyroscope(gyro_local + gyro_noise);
-        predicted_measurement.set_optical_position(position + position_noise);
-        predicted_measurement.set_optical_quaternion(orientation_noise*orientation);
+        predicted_measurement.set_accelerometer(accel_local + accel_bias + accel_noise);
+        predicted_measurement.set_gyroscope(gyro_local + gyro_noise + gyro_noise);
+        predicted_measurement.set_optical_position(position + position_bias + position_noise);
+        predicted_measurement.set_optical_quaternion(
+			(orientation_bias*orientation_noise*orientation).normalized());
 
         return predicted_measurement;
     }
@@ -758,18 +851,20 @@ public:
 	Eigen::Matrix<double, DS4_MEASUREMENT_PARAMETER_COUNT, DS4_MEASUREMENT_PARAMETER_COUNT> R_cov;
 };
 
-template <int SIGMA_POINT_COUNT>
+template <int S_DIM, int Q_DIM, int R_DIM>
 class SigmaPointWeights
 {
 public:
+	static const int L_DIM = 1 + 2*S_DIM + 2*Q_DIM + 2*R_DIM;
+
 	/// Scaling factor for the sigma points
 	double zeta;
 
 	/// Sigma weights (m)
-	Eigen::Matrix<double, SIGMA_POINT_COUNT, 1> wm;
+	Eigen::Matrix<double, L_DIM, 1> wm;
 
 	/// Sigma weights (c)
-	Eigen::Matrix<double, SIGMA_POINT_COUNT, 1> wc;
+	Eigen::Matrix<double, L_DIM, 1> wc;
 
 	double w_qr;
 	double w_cholup;
@@ -777,8 +872,8 @@ public:
 	SigmaPointWeights()
 	{
 		zeta = 0.0;
-		wm = Eigen::Matrix<double, SIGMA_POINT_COUNT, 1>::Zero();
-		wc = Eigen::Matrix<double, SIGMA_POINT_COUNT, 1>::Zero();
+		wm = Eigen::Matrix<double, L_DIM, 1>::Zero();
+		wc = Eigen::Matrix<double, L_DIM, 1>::Zero();
 		w_qr = 0.0;
 		w_cholup = 0.0;
 	}
@@ -791,7 +886,8 @@ public:
 	void init(double alpha, double beta, double kappa)
 	{	
 		// Compute the augmented state size
-		const double L = static_cast<double>((SIGMA_POINT_COUNT - 1) / 2);
+		// TODO: this isn't the state size
+		const double L = static_cast<double>(L_DIM);
 
 		// For standard UKF, here are the weights...
 
@@ -816,7 +912,7 @@ public:
 
 		// wm = weights for calculating mean(both process and observation)
 		wm[0] = wm_0;
-		for (int point_index = 1; point_index < SIGMA_POINT_COUNT; ++point_index)
+		for (int point_index = 1; point_index < L_DIM; ++point_index)
 		{
 			wm[point_index] = wm_rest;
 		}
@@ -827,7 +923,7 @@ public:
 
 		// wc = weights for calculating covariance(proc., obs., proc - obs)
 		wc[0] = wc_0;
-		for (int point_index = 1; point_index < SIGMA_POINT_COUNT; ++point_index)
+		for (int point_index = 1; point_index < L_DIM; ++point_index)
 		{
 			wc[point_index] = wc_rest;
 		}
@@ -855,8 +951,8 @@ public:
 	static const int Q_DIM = NOISE_PARAMETER_COUNT;
 	// Assume observation noise is same dimensionality as measurement vector.
 	static const int R_DIM = Measurement::RowsAtCompileTime;
-	static const int L_DIM = X_DIM + Q_DIM + R_DIM;
 	static const int SIGMA_POINT_COUNT = 2 * S_DIM + 1;
+	static const int L_DIM = SIGMA_POINT_COUNT + 2*Q_DIM + 2*R_DIM;
 
 	//! Type of the state vector
 	typedef PoseStateVector State;
@@ -868,26 +964,26 @@ public:
 	Eigen::Matrix<double, S_DIM, S_DIM> S;
 
 	//! Process noise mean
-	Eigen::Matrix<double, Q_DIM, 1> Q_mu;
+	PoseNoiseVector Q_mu;
 
 	//! The "square root" of the process noise covariance a.k.a. the lower part of the Choleskly
 	Eigen::Matrix<double, Q_DIM, Q_DIM> Q_cov;
 
 	MeasurementModelType measurement_model;
 
-	SigmaPointWeights<SIGMA_POINT_COUNT> W;
+	SigmaPointWeights<S_DIM, Q_DIM, R_DIM> W;
 
 	// Sigma points at time t = k - 1
 	Eigen::Matrix<double, X_DIM, SIGMA_POINT_COUNT> X_t;
 
-	// Sigma points propagated through process function to time k
-	Eigen::Matrix<double, X_DIM, SIGMA_POINT_COUNT> X_k;
+	// Augmented Sigma points propagated through process function to time k
+	Eigen::Matrix<double, X_DIM, L_DIM> X_k;
 
 	// State estimate = weighted sum of sigma points
-	Eigen::Matrix<double, X_DIM, 1> x_k;
+	PoseStateVector x_k;
 
 	// Propagated sigma point residuals = (sp - x_k)
-	Eigen::Matrix<double, X_DIM, SIGMA_POINT_COUNT> X_k_r;
+	Eigen::Matrix<double, S_DIM, L_DIM> X_k_r;
 
 	// Upper - triangular of propagated sp covariance
 	Eigen::Matrix<double, S_DIM, S_DIM > Sx_k;
@@ -965,7 +1061,7 @@ public:
 	*/
 	PoseStateVector process_function(
 		const PoseStateVector& old_state,  
-		const PoseStateVector& process_noise,
+		const PoseNoiseVector& zQ_cov,
 		const float deltaTime) const
 	{
 		//! Predicted state vector after transition
@@ -978,32 +1074,49 @@ public:
 		const Eigen::Quaterniond old_orientation = old_state.get_quaternion();
 		const Eigen::Vector3d old_angular_velocity = old_state.get_angular_velocity();
 
-		// Extract parameters from process noise
-		const Eigen::Vector3d position_noise = process_noise.get_position();
-		const Eigen::Vector3d linear_velocity_noise = process_noise.get_linear_velocity();
-		const Eigen::Vector3d linear_acceleration_noise = process_noise.get_linear_acceleration();
-		const Eigen::Quaterniond orientation_noise = process_noise.get_quaternion();
-		const Eigen::Vector3d angular_velocity_noise = process_noise.get_angular_velocity();
+		// Extract parameters from process noise mean
+		const Eigen::Vector3d position_bias = Q_mu.get_position_noise();
+		const Eigen::Vector3d linear_velocity_bias = Q_mu.get_linear_velocity_noise();
+		const Eigen::Vector3d linear_acceleration_bias = Q_mu.get_linear_acceleration_noise();
+		const Eigen::Quaterniond orientation_bias = Q_mu.get_quaternion_noise();
+		const Eigen::Vector3d angular_velocity_bias = Q_mu.get_angular_velocity_noise();
+
+		// Extract parameters from process noise variance
+		const Eigen::Vector3d position_noise = zQ_cov.get_position_noise();
+		const Eigen::Vector3d linear_velocity_noise = zQ_cov.get_linear_velocity_noise();
+		const Eigen::Vector3d linear_acceleration_noise = zQ_cov.get_linear_acceleration_noise();
+		const Eigen::Quaterniond orientation_noise = zQ_cov.get_quaternion_noise();
+		const Eigen::Vector3d angular_velocity_noise = zQ_cov.get_angular_velocity_noise();
 
 		// Compute the position state update
 		const Eigen::Vector3d new_position =
 			old_position
 			+ old_linear_velocity*deltaTime
 			+ old_linear_acceleration*deltaTime*deltaTime*0.5f
+			+ position_bias
 			+ position_noise;
-		const Eigen::Vector3d new_linear_velocity = old_linear_velocity + old_linear_acceleration*deltaTime + linear_velocity_noise;
-		const Eigen::Vector3d &new_linear_acceleration = old_linear_acceleration + linear_acceleration_noise;
+		const Eigen::Vector3d new_linear_velocity = 
+			old_linear_velocity 
+			+ old_linear_acceleration*deltaTime
+			+ linear_velocity_bias
+			+ linear_velocity_noise;
+		const Eigen::Vector3d new_linear_acceleration = 
+			old_linear_acceleration
+			+ linear_acceleration_bias
+			+ linear_acceleration_noise;
+		const Eigen::Vector3d new_angular_velocity =
+			old_angular_velocity
+			+ angular_velocity_bias
+			+ angular_velocity_noise;
 
 		// Compute the orientation update
-		const Eigen::Quaterniond quaternion_derivative =
-			eigen_angular_velocity_to_quaterniond_derivative(old_orientation, old_angular_velocity);
+		// From Kraft or Enayati:
+		const Eigen::Quaterniond q_delta = eigen_angle_axis_to_quaterniond(old_angular_velocity * deltaTime);
 		const Eigen::Quaterniond new_orientation = 
-			orientation_noise *
-			Eigen::Quaterniond(
-				old_orientation.coeffs()
-				+ quaternion_derivative.coeffs()*deltaTime).normalized();
-
-		const Eigen::Vector3d &new_angular_velocity = old_angular_velocity + angular_velocity_noise;
+			(old_orientation 
+			* q_delta
+			* orientation_bias
+			* orientation_noise).normalized();
 
 		// Save results to the new state
 		new_state.set_position(new_position);
@@ -1020,7 +1133,6 @@ public:
 	*
 	* @param [in] deltaTime Seconds since the last update
 	*/
-#if 0
 	void predict(const float deltaTime)
 	{
 		const int nsp = SIGMA_POINT_COUNT;
@@ -1029,90 +1141,69 @@ public:
 		// k is the next / predicted time point
 		// t = k - 1 (time point of previous estimate)
 
-		//%% 2. Build augmented state vector
-		Eigen::Matrix<double, X_DIM, 1> x_t;
-		x_t.segment<X_DIM>(0) = x;
-
-		//%% 3. Build augmented sqrt state covariance matrix
-		const int X_inds = 0;
-		const int Q_inds = X_inds+ X_DIM;
-		const int R_inds = Q_inds+ Q_DIM;
-		Eigen::Matrix<double, L_DIM, L_DIM> S_a= Eigen::Matrix<double, L_DIM, L_DIM>::Zero(); // = sqrt(state_covariance)
-		S_a.block<X_DIM, X_DIM>(X_inds, X_inds) = S;
-		S_a.block<Q_DIM, Q_DIM>(Q_inds, Q_inds) = Q_cov;
-		S_a.block<R_DIM, R_DIM>(R_inds, R_inds) = measurement_model.R_cov;
-
-		//%% 4. Calculate augmented sigma points
-		Eigen::Matrix<double, L_DIM, L_DIM> zetaSa = S_a * W.zeta;
-
-		// Note that for each column in X_t:
-		// The first Xdim rows will be the state sigma points.
-		// The next Qdim rows will be used for process noise.
-		// The last Rdim rows will be used for observation noise.
-
-		// Initially compute the sigma points assuming that that all state
-		// is can added to or subtracted from (not true for the rotation portion)
-		//X_t.leftCols<1>() = x_t;
-		//// Set center block with x_t + zeta * S_a
-		//X_t.block<L_DIM, L_DIM>(0, 1) = zetaSa.colwise() + x_t;
-		//// Set right block with x - zeta * S_a
-		//X_t.rightCols<L_DIM>() = (-zetaSa).colwise() + x_t;
-
-		// Handle the rotation portion next (stomping what was calculated before)
-		for (int col_offset = 0; col_offset < L_DIM; ++col_offset)
+		// 2. Calculate sigma points
+		// The 1st sigma - point is just the state vector.
+		// Each remaining sigma - point is the state + / -the scaled sqrt covariance.
+		X_t.leftCols<1>() = x;
+		for (int col_offset = 0; col_offset < S_DIM; ++col_offset)
 		{
-			const Eigen::Matrix<double, L_DIM, 1> zetaSa_State_i = zetaSa.block<L_DIM, 1>(0, col_offset);
+			// zS is scaled sqrt cov.
+			const PoseNoiseVector zS = S.block<S_DIM, 1>(0, col_offset) * W.zeta;
 
-			//TODO: See if there is a way to pass a block reference into a function
-			Eigen::Matrix<double, L_DIM, 1> add_result = X_t.block<L_DIM, 1>(0, 1 + col_offset);
-			PoseStateVector::special_state_add<L_DIM>(
-				x_t,
-				zetaSa_State_i,
-				add_result);
-			X_t.block<L_DIM, 1>(0, 1 + col_offset) = add_result;
-
-			//TODO: See if there is a way to pass a block reference into a function
-			Eigen::Matrix<double, L_DIM, 1> sub_result = X_t.block<L_DIM, 1>(0, 1 + L_DIM + col_offset);
-			PoseStateVector::special_state_subtract<L_DIM>(
-				x_t,
-				zetaSa_State_i,
-				sub_result);
-			X_t.block<L_DIM, 1>(0, 1 + L_DIM + col_offset) = sub_result;
+			X_t.block<X_DIM, 1>(0, 1 + col_offset) = x + zS;
+			X_t.block<X_DIM, 1>(0, 1 + S_DIM + col_offset) = x - zS;
 		}
 
-		//%% 5. Propagate sigma points through process function
-		// X_k = process_function(X_t(1:filt_struct.Xdim, : ), X_t(Q_inds, :), dt);
+		// 3. Propagate sigma points through process function
+		// Note that X_k is larger than X_t because the process noise added more state vectors.
+		// [p(x_t) + Q_mu | p(x_t + zS) + Q_mu | p(x_t - zS) + Q_mu | p(x_t) + Q_mu + z*Q.cov | p(x_t) + Q_mu - z*Q_cov]
 		for (int point_index = 0; point_index < nsp; ++point_index)
 		{
 			X_k.col(point_index) = 
 				process_function(
-					X_t.block<X_DIM, 1>(0, point_index), // Slice out the state vector for sigma point
-					X_t.block<Q_DIM, 1>(Q_inds, point_index), // Slice out the covariance for the sigma point
+					X_t.col(point_index), 
+					PoseNoiseVector::Zero(),
+					deltaTime);
+		}
+		for (int Q_col = 0; Q_col < Q_DIM; ++Q_col)
+		{
+			const PoseNoiseVector zQ = Q_cov.col(Q_col) * W.zeta;
+
+			X_k.col(nsp + Q_col) =
+				process_function(
+					x,
+					zQ,
+					deltaTime);
+			X_k.col(nsp + Q_DIM + Q_col) =
+				process_function(
+					x,
+					zQ.negate(),
 					deltaTime);
 		}
 
-		// %% 6. Estimate mean state from weighted sum of propagated sigma points
-		x_k = X_k * W.wm;
-		PoseStateVector::special_state_mean<X_DIM, nsp>(X_k, W.wm, x_k);
+		// Extend X_k with 2 * filt_struct.R.dim repeats of the first column
+		// This emulates the rest of the augmented matrix. It's necessary to extend
+		// it here because the weights only work with the correct number of columns.
+		PoseStateVector X_k_0 = X_k.col(0);
+		X_k.rightCols<2 * R_DIM>() = X_k_0.replicate<1, 2*R_DIM>();
 
-		// %% 7. Get residuals
-		X_k_r = X_k.colwise() - x_k;
-		for (int col_offset = 0; col_offset < SIGMA_POINT_COUNT; ++col_offset)
+		// %% 4. Estimate mean state from weighted sum of propagated sigma points
+		x_k = X_k * W.wm;
+		PoseStateVector::special_state_mean<L_DIM>(X_k, W.wm, x_k);
+
+		// %% 5. Get residuals in S - format
+		for (int col_offset = 0; col_offset < L_DIM; ++col_offset)
 		{
-			//TODO: See if there is a way to pass a block reference into a function
-			Eigen::Matrix<double, X_DIM, 1> sub_result = X_k_r.col(col_offset);
-			PoseStateVector::special_state_subtract<X_DIM>(
-				X_k.col(col_offset),
-				x_k,
-				sub_result);
-			X_k_r.col(col_offset) = sub_result;
+			// Subtract the states (with quaternion orientation) 
+			// and then convert to a noise vector (with an angle axis orientation)
+			X_k_r.col(col_offset) = convert_state_to_noise_vector(X_k.col(col_offset) - x_k);
 		}
 
 		//%% 8. Estimate state covariance(sqrt)
 		// w_qr is scalar
 		// QR update of state Cholesky factor.
 		// w_qr and w_cholup cannot be negative
-		Eigen::Matrix<double, nsp - 1, X_DIM > qr_input = (W.w_qr*X_k_r.rightCols<nsp - 1>()).transpose();
+		Eigen::Matrix<double, L_DIM - 1, S_DIM > qr_input = (W.w_qr*X_k_r.rightCols<L_DIM - 1>()).transpose();
 
 		// TODO: Use ColPivHouseholderQR
 		Eigen::HouseholderQR<decltype(qr_input)> qr(qr_input);
@@ -1120,13 +1211,12 @@ public:
 		// Set R matrix as upper triangular square root
 		// NOTE: R matrix is stored in upper triangular half
 		// See: http://math.stackexchange.com/questions/1396308/qr-decomposition-results-in-eigen-library-differs-from-matlab
-		Sx_k = qr.matrixQR().topLeftCorner<X_DIM, X_DIM>().triangularView<Eigen::Upper>();
+		Sx_k = qr.matrixQR().topLeftCorner<S_DIM, S_DIM>().triangularView<Eigen::Upper>();
 
 		// Perform additional rank 1 update
-		float wc0_sign = sgn(W.wc(0));
+		float wc0_sign = static_cast<float>(sgn(W.wc(0)));
 		Sx_k.selfadjointView<Eigen::Upper>().rankUpdate(X_k_r.leftCols<1>(), W.w_cholup*wc0_sign);
 	}
-#endif
 
 	/**
 	* @brief Perform filter update step using measurement \f$z\f$ and corresponding measurement model
@@ -1135,39 +1225,55 @@ public:
 	*/
 	void update(const Measurement& observation)
 	{
-
 		//%% 1. Propagate sigma points through observation function.
 		const int nsp = SIGMA_POINT_COUNT;
-		const int X_inds = 0;
-		const int Q_inds = X_inds + X_DIM;
-		const int R_inds = Q_inds + Q_DIM;
+		const int R_inds = (nsp - 2 * R_DIM);
+		Eigen::Matrix<double, O_DIM, L_DIM> Y_k;
 
-		//Y_k = observation_function(filt_struct, X_k, X_t(R_inds, :));
-		Eigen::Matrix<double, O_DIM, nsp> Y_k;
-		for (int point_index = 0; point_index < nsp; ++point_index)
+		// Pass the first 5 blocks of the sigma points through the observation function
+		// with zero measurement covariance applied
+		// obs([p(x_t) + Q_mu | p(x_t + zS) + Q_mu | p(x_t - zS) + Q_mu | p(x_t) + Q_mu + z*Q.cov | p(x_t) + Q_mu - z*Q_cov], 0)
+		for (int point_index = 0; point_index < R_inds; ++point_index)
 		{
 			Y_k.col(point_index) =
 				measurement_model.observation_function(
-					X_k.col(point_index), // Slice out the state vector for sigma point
-					X_t.block<R_DIM, 1>(R_inds, point_index)); // Slice out the measurement noise
+					X_k.col(point_index),
+					Measurement::Zero()); // zero measurement covariance
+		}
+		// Pass the last two blocks of the sigma points through the observation function
+		// with the scaled measurement covariance applied
+		// obs([p(x_t) + Q_mu], +zR)
+		// obs([p(x_t) + Q_mu], -zR)
+		for (int R_col = 0; R_col < R_DIM; ++R_col)
+		{
+			const Measurement zR = measurement_model.R_cov.col(R_col) * W.zeta;
+
+			Y_k.col(R_inds + R_col) =
+				measurement_model.observation_function(
+					X_k.col(R_inds + R_col),
+					zR);
+			Y_k.col(R_inds + R_DIM + R_col) =
+				measurement_model.observation_function(
+					X_k.col(R_inds + R_DIM + R_col),
+					zR.negate());
 		}
 
 		//%% 2. Calculate observation mean.
-		Measurement y_k = Measurement::computeWeightedMeasurementAverage<nsp>(Y_k, W.wm);
+		Measurement y_k = Measurement::computeWeightedMeasurementAverage<L_DIM>(Y_k, W.wm);
 
 		//%% 3. Calculate y - residuals.
 		// Used in observation covariance and state - observation cross - covariance for Kalman gain.
-		Eigen::Matrix<double, O_DIM, nsp>  Y_k_r;
-		for (int col_offset = 0; col_offset < nsp; ++col_offset)
+		Eigen::Matrix<double, O_DIM, L_DIM>  Y_k_r;
+		for (int col_offset = 0; col_offset < L_DIM; ++col_offset)
 		{
-			Y_k_r.col(col_offset)= Measurement(Y_k.col(col_offset)).difference(y_k);
+			Y_k_r.col(col_offset)= Measurement(Y_k.col(col_offset)) - y_k;
 		}
 
 		//%% 4. Calculate observation sqrt covariance
 		// w_qr is scalar
 		// QR update of state Cholesky factor.
 		// w_qr and w_cholup cannot be negative
-		Eigen::Matrix<double, nsp - 1, O_DIM> qr_input = (W.w_qr*Y_k_r.rightCols<nsp - 1>()).transpose();
+		Eigen::Matrix<double, L_DIM - 1, O_DIM> qr_input = (W.w_qr*Y_k_r.rightCols<L_DIM - 1>()).transpose();
 
 		// TODO: Use ColPivHouseholderQR
 		Eigen::HouseholderQR<decltype(qr_input)> qr(qr_input);
@@ -1182,33 +1288,30 @@ public:
 		Sy_k.selfadjointView<Eigen::Upper>().rankUpdate(Y_k_r.leftCols<1>(), W.w_cholup*wc0_sign);
 
 		//%% 5. Calculate Kalman Gain
-
-
-		const Eigen::Matrix<double, 1, nsp> &wc = W.wc;
-		const Eigen::Matrix<double, X_DIM, nsp> wc_repl = wc.replicate<X_DIM, 1>();
-		const Eigen::Matrix<double, X_DIM, O_DIM> Pxy= 
+		const Eigen::Matrix<double, 1, L_DIM> wc = W.wc.transpose();
+		const Eigen::Matrix<double, S_DIM, L_DIM> wc_repl = wc.replicate<S_DIM, 1>();
+		const Eigen::Matrix<double, S_DIM, O_DIM> Pxy= 
 			X_k_r.cwiseProduct(wc_repl).eval() * Y_k_r.transpose();
 
 		// In the Matlab code: KG = (Pxy / Sy_k')/Sy_k
 		// where "/" is the "mrdivide" operator, 
 		// x = B/A solves the system of linear equations A*x = B for x. 
 		// I arrived at the following through trial and error
-		Eigen::Matrix<double, O_DIM, X_DIM> numerator = Sy_k.transpose().colPivHouseholderQr().solve(Pxy.transpose());
-		Eigen::Matrix<double, X_DIM, O_DIM> KG = Sy_k.colPivHouseholderQr().solve(numerator).transpose();
+		Eigen::Matrix<double, O_DIM, S_DIM> numerator = Sy_k.transpose().colPivHouseholderQr().solve(Pxy.transpose());
+		Eigen::Matrix<double, S_DIM, O_DIM> KG = Sy_k.colPivHouseholderQr().solve(numerator).transpose();
 
 		//Eigen::Matrix<double, X_DIM, O_DIM> KG = Pxy * Sy_k.inverse();
 
 		// %% 6. Calculate innovation
-		Measurement innov = observation.difference(y_k);
+		Measurement innov = observation - y_k;
 
 		// %% 7. State update / correct
-		PoseStateVector upd(KG*innov);
+		PoseStateVector upd= convert_noise_to_state_vector(KG*innov);
 		x = x_k + upd;
-		PoseStateVector::special_state_add<X_DIM>(x_k, upd, x);
 
 		// %% 8. Covariance update / correct
 		// This is equivalent to : Px = Px_ - KG*Py*KG';
-		Eigen::Matrix<double, X_DIM, O_DIM> cov_update_vectors = KG * Sy_k;
+		Eigen::Matrix<double, S_DIM, O_DIM> cov_update_vectors = KG * Sy_k;
 		for (int j = 0; j < O_DIM; ++j)
 		{
 			Sx_k.selfadjointView<Eigen::Upper>().rankUpdate(cov_update_vectors.col(j), -1.0);
@@ -1600,7 +1703,7 @@ void KalmanPoseFilterPSMove::update(const float delta_time, const PoseFilterPack
     if (m_filter->bIsValid)
     {
 		// Predict state for current time-step using the filters
-        //srukf.predict(delta_time);
+        srukf.predict(delta_time);
 
         // Project the current state onto a predicted measurement as a default
         // in case no observation is available

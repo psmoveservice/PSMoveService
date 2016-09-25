@@ -169,53 +169,53 @@ eigen_matrix3f_to_clockwise_quaternion(const Eigen::Matrix3f &m)
 
 Eigen::Vector3f
 eigen_vector3f_divide_by_vector_with_default(
-    const Eigen::Vector3f &v, 
-    const Eigen::Vector3f &divisor, 
-    const Eigen::Vector3f &default_result)
+	const Eigen::Vector3f &v,
+	const Eigen::Vector3f &divisor,
+	const Eigen::Vector3f &default_result)
 {
-    Eigen::Vector3f result(
-        safe_divide_with_default(v.x(), divisor.x(), default_result.x()),
-        safe_divide_with_default(v.y(), divisor.y(), default_result.y()),
-        safe_divide_with_default(v.z(), divisor.z(), default_result.z()));
+	Eigen::Vector3f result(
+		safe_divide_with_default(v.x(), divisor.x(), default_result.x()),
+		safe_divide_with_default(v.y(), divisor.y(), default_result.y()),
+		safe_divide_with_default(v.z(), divisor.z(), default_result.z()));
 
-    return result;
+	return result;
 }
 
-float 
+float
 eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default_result)
 {
-    const float length= v.norm();
+	const float length = v.norm();
 
-    // Use the default value if v is too tiny
-    v= (length > k_normal_epsilon) ? (v / length) : default_result;
+	// Use the default value if v is too tiny
+	v = (length > k_normal_epsilon) ? (v / length) : default_result;
 
-    return length;
+	return length;
 }
 
-double 
+double
 eigen_vector3d_normalize_with_default(Eigen::Vector3d &v, const Eigen::Vector3d &default_result)
 {
-    const double length= v.norm();
+	const double length = v.norm();
 
-    // Use the default value if v is too tiny
-    v= (length > 0.0001) ? (v / length) : default_result;
+	// Use the default value if v is too tiny
+	v = (length > 0.0001) ? (v / length) : default_result;
 
-    return length;
+	return length;
 }
 
 float
 eigen_quaternion_unsigned_angle_between(const Eigen::Quaternionf &a, const Eigen::Quaternionf &b)
 {
-    assert_eigen_quaternion_is_normalized(a);
-    assert_eigen_quaternion_is_normalized(b);
+	assert_eigen_quaternion_is_normalized(a);
+	assert_eigen_quaternion_is_normalized(b);
 
-    const Eigen::Quaternionf b_inv= b.conjugate();
-    const Eigen::Quaternionf q_diff= a*b_inv;
+	const Eigen::Quaternionf b_inv = b.conjugate();
+	const Eigen::Quaternionf q_diff = a*b_inv;
 
-    // w = cos(2*theta)
-    const float radian_diff= fabsf(2.f * acosf(clampf(q_diff.w(), -1.f, 1.f)));
+	// w = cos(2*theta)
+	const float radian_diff = fabsf(2.f * acosf(clampf(q_diff.w(), -1.f, 1.f)));
 
-    return radian_diff;
+	return radian_diff;
 }
 
 Eigen::Quaternionf
@@ -250,4 +250,22 @@ eigen_quaternion_derivative_to_angular_velocity(
 	Eigen::Vector3f ang_vel(q_ang_vel.x(), q_ang_vel.y(), q_ang_vel.z());
 
 	return ang_vel;
+}
+
+Eigen::Quaterniond
+eigen_angle_axis_to_quaterniond(
+	const Eigen::Vector3d &angle_axis)
+{
+	Eigen::Vector3d unit_axis = angle_axis;
+	const double angle = eigen_vector3d_normalize_with_default(unit_axis, Eigen::Vector3d::Zero());
+	return Eigen::Quaterniond(Eigen::AngleAxisd(angle, unit_axis));
+}
+
+Eigen::Quaternionf
+eigen_angle_axis_to_quaternion(
+	const Eigen::Vector3f &angle_axis)
+{
+	Eigen::Vector3f unit_axis = angle_axis;
+	const float angle = eigen_vector3f_normalize_with_default(unit_axis, Eigen::Vector3f::Zero());
+	return Eigen::Quaternionf(Eigen::AngleAxisf(angle, unit_axis));
 }

@@ -203,7 +203,7 @@ public:
 							{
 								Eigen::Quaternionf artificial_rotation(Eigen::AngleAxisf(-k_real_half_pi, Eigen::Vector3f(1.f, 0.f, 0.f)));
 								Eigen::Quaternionf original_quat(sample.ori[0], sample.ori[1], sample.ori[2], sample.ori[3]);
-								Eigen::Quaternionf rotated_quat= original_quat * artificial_rotation;
+								Eigen::Quaternionf rotated_quat= (original_quat * artificial_rotation).normalized();
 
 								sample.ori[0] = rotated_quat.w();
 								sample.ori[1] = rotated_quat.x();

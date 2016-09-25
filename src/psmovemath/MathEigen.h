@@ -94,4 +94,10 @@ eigen_quaternion_derivative_to_angular_velocity(
 	const Eigen::Quaternionf &current_orientation,
 	const Eigen::Quaternionf &quaternion_derivative);
 
+Eigen::Quaterniond
+eigen_angle_axis_to_quaterniond(const Eigen::Vector3d &angle_axis);
+
+Eigen::Quaternionf
+eigen_angle_axis_to_quaternion(const Eigen::Vector3f &angle_axis);
+
 #endif // MATH_EIGEN_H
