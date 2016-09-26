@@ -1826,7 +1826,7 @@ void CPSMoveControllerLatest::UpdateControllerStateFromPsMoveButtonState(ePSButt
 }
 
 
-PSMoveQuaternion ExtractYawQuaternion(const PSMoveQuaternion &q)
+PSMoveQuaternion ExtractHMDYawQuaternion(const PSMoveQuaternion &q)
 {
     // Convert the quaternion to a basis matrix
     const PSMoveMatrix3x3 hmd_orientation = PSMoveMatrix3x3::create(q);
@@ -1846,6 +1846,28 @@ PSMoveQuaternion ExtractYawQuaternion(const PSMoveQuaternion &q)
             0.f, sinf(half_yaw), 0.f); // (x, y, z) = sin(theta/2)*axis, where axis = (0, 1, 0)
 
     return yaw_quaternion;
+}
+
+PSMoveQuaternion ExtractPSMoveYawQuaternion(const PSMoveQuaternion &q)
+{
+	// Convert the quaternion to a basis matrix
+	const PSMoveMatrix3x3 psmove_basis = PSMoveMatrix3x3::create(q);
+
+	// Extract the forward (negative y-axis) vector from the basis
+	const PSMoveFloatVector3 global_forward = PSMoveFloatVector3::create(0.f, 0.f, -1.f);
+	const PSMoveFloatVector3 &forward = psmove_basis.basis_y();
+
+	// Compute the yaw angle (amount the z-axis has been rotated to it's current facing)
+	const float cos_yaw = PSMoveFloatVector3::dot(forward, global_forward);
+	const float yaw = acosf(fminf(fmaxf(cos_yaw, -1.f), 1.f));
+
+	// Convert this yaw rotation back into a quaternion
+	PSMoveQuaternion yaw_quaternion =
+		PSMoveQuaternion::concat(
+			PSMoveQuaternion::create(PSMoveFloatVector3::create((float)1.57079632679489661923, 0.f, 0.f)), // pitch 90 up first
+			PSMoveQuaternion::create(PSMoveFloatVector3::create(0, yaw, 0))); // Then apply the yaw
+
+	return yaw_quaternion;
 }
 
 void CPSMoveControllerLatest::GetMetersPosInRotSpace(PSMoveFloatVector3* pOutPosition, const PSMoveQuaternion& rRotation )
@@ -1879,7 +1901,7 @@ void CPSMoveControllerLatest::StartRealignHMDTrackingSpace()
 }
 
 void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
-	const PSMovePose &hmd_pose_meters, 
+	const PSMovePose &hmd_pose_raw_meters, 
 	void *userdata)
 {
 
@@ -1889,72 +1911,29 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 		DriverLog("Begin CPSMoveControllerLatest::FinishRealignHMDTrackingSpace()\n");
 	#endif
 
-	CPSMoveControllerLatest *controller = reinterpret_cast<CPSMoveControllerLatest *>(userdata);
+	PSMovePose hmd_pose_meters = hmd_pose_raw_meters;
+	DriverLog("hmd_pose_meters(raw): %s \n", PsMovePoseToString(hmd_pose_meters).c_str());
 
-	// Leaving out the yaw extraction stuff for now because if this doesn't work without it (aside from some slight tilt)
-	// we're doing it wrong, and I don't want to mask a problem.
-
-/*
-    // Make the HMD orientation only contain a yaw
-	PSMovePose hmd_yaw_pose_meters;
-	hmd_yaw_pose_meters.Position = hmd_pose_meters.Position;
-	hmd_yaw_pose_meters.Orientation = ExtractYawQuaternion(hmd_pose_meters.Orientation);
-
-	PSMoveQuaternion psmove_orientation;
-	psmove_orientation.w = static_cast<float>(controller->m_Pose.qRotation.w);
-	psmove_orientation.x = static_cast<float>(controller->m_Pose.qRotation.x);
-	psmove_orientation.y = static_cast<float>(controller->m_Pose.qRotation.y);
-	psmove_orientation.z = static_cast<float>(controller->m_Pose.qRotation.z);
-
-    // Get the current pose of this psmove (position in meters)
-    PSMovePose psmove_pose_meters;
-    psmove_pose_meters.Position.x = static_cast<float>(controller->m_Pose.vecPosition[0]);
-    psmove_pose_meters.Position.y = static_cast<float>(controller->m_Pose.vecPosition[1]);
-    psmove_pose_meters.Position.z = static_cast<float>(controller->m_Pose.vecPosition[2]);
-
-
-	psmove_pose_meters.Orientation = psmove_orientation;
-*/
-
-	// Get the current pose from the controller view instead of using the driver's cached
-	// value because the user may have triggered a pose reset, in which case the driver's
-	// cached pose might not yet be up to date by the time this callback is triggered.
-	PSMovePose psmove_pose_meters = controller->m_controller_view->GetPSMoveView().GetPose();
-	psmove_pose_meters.Position.x *= k_fScalePSMoveAPIToMeters;
-	psmove_pose_meters.Position.y *= k_fScalePSMoveAPIToMeters;
-	psmove_pose_meters.Position.z *= k_fScalePSMoveAPIToMeters;
-
-
-	// Again, leaving out the yaw extraction stuff for now -- see above.
-/*
-    // Make the PSMove Pose only contain a yaw
-    psmove_pose_meters.Orientation = ExtractYawQuaternion(psmove_orientation);
-*/
+	// Make the HMD orientation only contain a yaw
+	hmd_pose_meters.Orientation = ExtractHMDYawQuaternion(hmd_pose_raw_meters.Orientation);
+	DriverLog("hmd_pose_meters(yaw-only): %s \n", PsMovePoseToString(hmd_pose_meters).c_str());
 
 	// We have the transform of the HMD in world space. It and the controller aren't quite
 	// aligned -- the controller's local -Z axis (from the center to the glowing ball) is currently pointed 
 	// in the direction of the HMD's local +Y axis, and the controller's position is a few inches ahead of
 	// the HMD's on the HMD's local -Z axis. Transform the HMD's world space transform to where we expect the
 	// controller's world space transform to be.
-	DriverLog("hmd_pose_meters: %s \n", PsMovePoseToString(hmd_pose_meters).c_str());
 
 	PSMovePosition controllerLocalOffsetFromHmdPosition
-		= PSMovePosition::create(0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCallibration);
+		= PSMovePosition::create(0.0f, 0.0f, 1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCallibration);
+	PSMoveQuaternion controllerOrientationInHmdSpaceQuat =
+		PSMoveQuaternion::create(PSMoveFloatVector3::create((float)M_PI_2, 0.0f, 0.0f));
+	PSMovePose controllerPoseRelativeToHMD =
+		PSMovePose::create(controllerLocalOffsetFromHmdPosition, controllerOrientationInHmdSpaceQuat);
+	DriverLog("controllerPoseRelativeToHMD: %s \n", PsMovePoseToString(controllerPoseRelativeToHMD).c_str());
 
-	PSMovePose controllerLocalTranslationOffsetFromHmdPose
-		= PSMovePose::create( controllerLocalOffsetFromHmdPosition, PSMoveQuaternion::identity() );
-	DriverLog("controllerLocalTranslationOffsetFromHmdPose: %s \n", PsMovePoseToString(controllerLocalTranslationOffsetFromHmdPose).c_str());
-
-	PSMovePose controllerWorldSpaceTranslationPose
-		= PSMovePose::concat(hmd_pose_meters, controllerLocalTranslationOffsetFromHmdPose);
-	DriverLog("controllerWorldSpaceTranslationPose: %s \n", PsMovePoseToString(controllerWorldSpaceTranslationPose).c_str());
-
-	PSMoveFloatVector3 controllerOrientationInHmdSpaceEuler	= PSMoveFloatVector3::create( (float)M_PI_2, 0.0f, 0.0f);
-	PSMoveQuaternion controllerOrientationInHmdSpaceQuat = PSMoveQuaternion::create(controllerOrientationInHmdSpaceEuler);
-	PSMovePose controllerOrientationInHmdSpacePose	= PSMovePose::create( PSMovePosition::identity(), controllerOrientationInHmdSpaceQuat );
-	DriverLog("controllerOrientationInHmdSpacePose: %s \n", PsMovePoseToString(controllerOrientationInHmdSpacePose).c_str());
-
-	PSMovePose controller_world_space_pose = PSMovePose::concat(controllerWorldSpaceTranslationPose, controllerOrientationInHmdSpacePose);
+	// Compute the expected psmove controller pose in HMD tracking space (i.e. "World Space")
+	PSMovePose controller_world_space_pose = PSMovePose::concat(controllerPoseRelativeToHMD, hmd_pose_meters);
 	DriverLog("controller_world_space_pose: %s \n", PsMovePoseToString(controller_world_space_pose).c_str());
 
 
@@ -1967,22 +1946,35 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	// psmove_pose_meters.inverse() * psmove_pose_meters * driver_pose_to_world_pose = psmove_pose_meters.inverse() * controller_world_space_pose
 	// driver_pose_to_world_pose = psmove_pose_meters.inverse() * controller_world_space_pose
 
+	CPSMoveControllerLatest *controller = reinterpret_cast<CPSMoveControllerLatest *>(userdata);
 
-	DriverLog("psmove_pose_meters: %s \n", PsMovePoseToString(psmove_pose_meters).c_str());
+	// Get the current pose from the controller view instead of using the driver's cached
+	// value because the user may have triggered a pose reset, in which case the driver's
+	// cached pose might not yet be up to date by the time this callback is triggered.
+	PSMovePose psmove_pose_meters = controller->m_controller_view->GetPSMoveView().GetPose();
+	DriverLog("psmove_pose_meters(raw): %s \n", PsMovePoseToString(psmove_pose_meters).c_str());
+
+	// PSMove Position is in cm, but OpenVR stores position in meters
+	psmove_pose_meters.Position.x *= k_fScalePSMoveAPIToMeters;
+	psmove_pose_meters.Position.y *= k_fScalePSMoveAPIToMeters;
+	psmove_pose_meters.Position.z *= k_fScalePSMoveAPIToMeters;
+
+	// Snap the controller to a +90 degree pitch so that we get a clean yaw
+	psmove_pose_meters.Orientation = ExtractPSMoveYawQuaternion(psmove_pose_meters.Orientation);
+	DriverLog("psmove_pose_meters(yaw-only): %s \n", PsMovePoseToString(psmove_pose_meters).c_str());
 
 	PSMovePose psmove_pose_inv = psmove_pose_meters.inverse();
 	DriverLog("psmove_pose_inv: %s \n", PsMovePoseToString(psmove_pose_inv).c_str());
 
 	PSMovePose driver_pose_to_world_pose = PSMovePose::concat(psmove_pose_inv, controller_world_space_pose);
+	// HACK: Need to invert the orientation to get the right transform. Not sure why yet.
+	driver_pose_to_world_pose.Orientation = driver_pose_to_world_pose.Orientation.inverse();
 	DriverLog("driver_pose_to_world_pose: %s \n", PsMovePoseToString(driver_pose_to_world_pose).c_str());
 
-
-	PSMovePose test_composed_controller_world_space = PSMovePose::concat(psmove_pose_meters, driver_pose_to_world_pose);
-	DriverLog("test_composed_controller_world_space: %s \n", PsMovePoseToString(test_composed_controller_world_space).c_str());
-
+	//PSMovePose test_composed_controller_world_space = PSMovePose::concat(psmove_pose_meters, driver_pose_to_world_pose);
+	//DriverLog("test_composed_controller_world_space: %s \n", PsMovePoseToString(test_composed_controller_world_space).c_str());
 
 	g_ServerTrackedDeviceProvider.SetHMDTrackingSpace(driver_pose_to_world_pose);
-
 }
 
 void CPSMoveControllerLatest::UpdateTrackingState()

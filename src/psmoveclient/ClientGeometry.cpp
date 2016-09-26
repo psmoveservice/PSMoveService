@@ -13,13 +13,13 @@ const PSMoveFloatVector3 *k_psmove_float_vector3_zero= &g_psmove_float_vector3_z
 const PSMoveFloatVector3 g_psmove_float_vector3_one= {1.f, 1.f, 1.f};
 const PSMoveFloatVector3 *k_psmove_float_vector3_one= &g_psmove_float_vector3_one;
 
-const PSMoveFloatVector3 g_psmove_float_vector3_i = { 0.f, 0.f, 0.f };
+const PSMoveFloatVector3 g_psmove_float_vector3_i = { 1.f, 0.f, 0.f };
 const PSMoveFloatVector3 *k_psmove_float_vector3_i = &g_psmove_float_vector3_i;
 
-const PSMoveFloatVector3 g_psmove_float_vector3_j = { 0.f, 0.f, 0.f };
+const PSMoveFloatVector3 g_psmove_float_vector3_j = { 0.f, 1.f, 0.f };
 const PSMoveFloatVector3 *k_psmove_float_vector3_j = &g_psmove_float_vector3_j;
 
-const PSMoveFloatVector3 g_psmove_float_vector3_k = { 0.f, 0.f, 0.f };
+const PSMoveFloatVector3 g_psmove_float_vector3_k = { 0.f, 0.f, 1.f };
 const PSMoveFloatVector3 *k_psmove_float_vector3_k = &g_psmove_float_vector3_k;
 
 const PSMoveIntVector3 g_psmove_int_vector3_zero= {0, 0, 0};
@@ -467,7 +467,7 @@ PSMoveQuaternion PSMoveQuaternion::inverse() const
 
 PSMoveQuaternion PSMoveQuaternion::concat(const PSMoveQuaternion &first, const PSMoveQuaternion &second)
 {
-	return first * second;
+	return second * first;
 }
 
 //http://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/transforms/
@@ -592,8 +592,8 @@ PSMovePose PSMovePose::concat(const PSMovePose &first, const PSMovePose &second)
 	PSMovePose result;
 
 	result.Orientation = PSMoveQuaternion::concat(first.Orientation, second.Orientation);
-	//result.Position = second.Orientation.rotate_position(first.Position) + second.Position.toPSMoveFloatVector3();
-	result.Position = first.Position + first.Orientation.rotate_position(second.Position).toPSMoveFloatVector3();
+	result.Position = second.Orientation.rotate_position(first.Position) + second.Position.toPSMoveFloatVector3();
+	//result.Position = first.Position + first.Orientation.rotate_position(second.Position).toPSMoveFloatVector3();
 
 	return result;
 }
