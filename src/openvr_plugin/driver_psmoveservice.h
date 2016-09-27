@@ -38,7 +38,7 @@ public:
 	bool FindFirstHMDPose(PSMovePose &out_origin_pose);
 
 private:
-    void AllocateUniquePSMoveController(int ControllerID);
+    void AllocateUniquePSMoveController(int ControllerID, const ClientPSMoveAPI::t_response_handle response_handle);
     void AllocateUniquePSNaviController(int ControllerID);
     void AllocateUniqueDualShock4Controller(int ControllerID);
     void AllocateUniquePSMoveTracker(const ClientTrackerInfo &trackerInfo);
@@ -54,7 +54,7 @@ private:
 
     // Response Handling
     void HandleClientPSMoveResponse(const ClientPSMoveAPI::ResponseMessage *response);
-    void HandleControllerListReponse(const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list);
+    void HandleControllerListReponse(const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list, const ClientPSMoveAPI::t_response_handle response_handle);
     void HandleTrackerListReponse(const ClientPSMoveAPI::ResponsePayload_TrackerList *tracker_list);
     void HandleHMDTrackingSpaceReponse(const ClientPSMoveAPI::ResponsePayload_HMDTrackingSpace *hmdTrackingSpace);
     
@@ -62,6 +62,7 @@ private:
 
     vr::IServerDriverHost* m_pDriverHost;
     std::string m_strDriverInstallDir;
+	std::string m_strPSMoveHMDSerialNo;
 
     bool m_bLaunchedPSMoveConfigTool;
 
@@ -180,7 +181,7 @@ public:
 	};
 
 
-    CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int ControllerID );
+    CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int ControllerID, const char *serialNo );
     virtual ~CPSMoveControllerLatest();
 
     // Overridden Implementation of vr::ITrackedDeviceServerDriver
@@ -217,6 +218,7 @@ private:
     // The last received state of a psmove controller from the service
     int m_nControllerId;
     ClientControllerView *m_controller_view;
+	std::string m_strSerialNo;
 
     // Used to deduplicate state data from the sixense driver
     int m_nPoseSequenceNumber;
@@ -233,6 +235,12 @@ private:
     uint16_t m_pendingHapticPulseDuration;
     std::chrono::time_point<std::chrono::high_resolution_clock> m_lastTimeRumbleSent;
     bool m_lastTimeRumbleSentValid;
+
+	//virtual extend controller in meters
+	float m_fVirtuallExtendControllersY;
+	float m_fVirtuallExtendControllersZ;
+
+	
 
     // Button Remapping
     vr::EVRButtonId psButtonIDToVRButtonID[k_EPSButtonID_Count];
