@@ -66,6 +66,7 @@ struct CLIENTPSMOVEAPI PSMoveFloatVector3
     float maxValue() const;
 
     static float dot(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
+	static PSMoveFloatVector3 cross(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
     static PSMoveFloatVector3 min(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
     static PSMoveFloatVector3 max(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
 };

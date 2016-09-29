@@ -235,6 +235,11 @@ float PSMoveFloatVector3::dot(const PSMoveFloatVector3 &a, const PSMoveFloatVect
     return a.i*b.i + a.j*b.j + a.k*b.k;
 }
 
+PSMoveFloatVector3 PSMoveFloatVector3::cross(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b)
+{
+	return PSMoveFloatVector3::create(a.j*b.k - b.j*a.k, a.i*b.k - b.i*a.k, a.i*b.j - b.i*a.j);
+}
+
 PSMoveFloatVector3 PSMoveFloatVector3::min(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b)
 {
     return PSMoveFloatVector3::create(std::min(a.i, b.i), std::min(a.j, b.j), std::min(a.k, b.k));

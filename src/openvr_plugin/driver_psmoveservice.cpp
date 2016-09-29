@@ -1832,12 +1832,22 @@ PSMoveQuaternion ExtractHMDYawQuaternion(const PSMoveQuaternion &q)
     const PSMoveMatrix3x3 hmd_orientation = PSMoveMatrix3x3::create(q);
 
     // Extract the forward (z-axis) vector from the basis
-    const PSMoveFloatVector3 global_forward = PSMoveFloatVector3::create(0.f, 0.f, 1.f);
-    const PSMoveFloatVector3 &forward = hmd_orientation.basis_z();
+	const PSMoveFloatVector3 &global_forward = *k_psmove_float_vector3_k;
+    const PSMoveFloatVector3 forward = hmd_orientation.basis_z();
+	PSMoveFloatVector3 forward2d = PSMoveFloatVector3::create(forward.i, 0.f, forward.k);
+	forward2d.normalize_with_default(global_forward);
 
     // Compute the yaw angle (amount the z-axis has been rotated to it's current facing)
     const float cos_yaw = PSMoveFloatVector3::dot(forward, global_forward);
-    const float half_yaw = acosf(fminf(fmaxf(cos_yaw, -1.f), 1.f)) / 2.f;
+    float half_yaw = acosf(fminf(fmaxf(cos_yaw, -1.f), 1.f)) / 2.f;
+
+	// Flip the sign of the yaw angle depending on if forward2d is to the left or right of global forward
+	const PSMoveFloatVector3 &global_up = *k_psmove_float_vector3_j;
+	PSMoveFloatVector3 yaw_axis = PSMoveFloatVector3::cross(global_forward, forward2d);
+	if (PSMoveFloatVector3::dot(yaw_axis, global_up) < 0)
+	{
+		half_yaw = -half_yaw;
+	}
 
     // Convert this yaw rotation back into a quaternion
     PSMoveQuaternion yaw_quaternion =
@@ -1853,13 +1863,23 @@ PSMoveQuaternion ExtractPSMoveYawQuaternion(const PSMoveQuaternion &q)
 	// Convert the quaternion to a basis matrix
 	const PSMoveMatrix3x3 psmove_basis = PSMoveMatrix3x3::create(q);
 
-	// Extract the forward (negative y-axis) vector from the basis
+	// Extract the forward (negative z-axis) vector from the basis
 	const PSMoveFloatVector3 global_forward = PSMoveFloatVector3::create(0.f, 0.f, -1.f);
 	const PSMoveFloatVector3 &forward = psmove_basis.basis_y();
+	PSMoveFloatVector3 forward2d = PSMoveFloatVector3::create(forward.i, 0.f, forward.k);
+	forward2d.normalize_with_default(global_forward);
 
 	// Compute the yaw angle (amount the z-axis has been rotated to it's current facing)
 	const float cos_yaw = PSMoveFloatVector3::dot(forward, global_forward);
-	const float yaw = acosf(fminf(fmaxf(cos_yaw, -1.f), 1.f));
+	float yaw = acosf(fminf(fmaxf(cos_yaw, -1.f), 1.f));
+
+	// Flip the sign of the yaw angle depending on if forward2d is to the left or right of global forward
+	const PSMoveFloatVector3 &global_up = *k_psmove_float_vector3_j;
+	PSMoveFloatVector3 yaw_axis = PSMoveFloatVector3::cross(global_forward, forward2d);
+	if (PSMoveFloatVector3::dot(yaw_axis, global_up) < 0)
+	{
+		yaw = -yaw;
+	}
 
 	// Convert this yaw rotation back into a quaternion
 	PSMoveQuaternion yaw_quaternion =
@@ -1925,7 +1945,7 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	// controller's world space transform to be.
 
 	PSMovePosition controllerLocalOffsetFromHmdPosition
-		= PSMovePosition::create(0.0f, 0.0f, 1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCallibration);
+		= PSMovePosition::create(0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCallibration);
 	PSMoveQuaternion controllerOrientationInHmdSpaceQuat =
 		PSMoveQuaternion::create(PSMoveFloatVector3::create((float)M_PI_2, 0.0f, 0.0f));
 	PSMovePose controllerPoseRelativeToHMD =
@@ -1967,8 +1987,6 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	DriverLog("psmove_pose_inv: %s \n", PsMovePoseToString(psmove_pose_inv).c_str());
 
 	PSMovePose driver_pose_to_world_pose = PSMovePose::concat(psmove_pose_inv, controller_world_space_pose);
-	// HACK: Need to invert the orientation to get the right transform. Not sure why yet.
-	driver_pose_to_world_pose.Orientation = driver_pose_to_world_pose.Orientation.inverse();
 	DriverLog("driver_pose_to_world_pose: %s \n", PsMovePoseToString(driver_pose_to_world_pose).c_str());
 
 	//PSMovePose test_composed_controller_world_space = PSMovePose::concat(psmove_pose_meters, driver_pose_to_world_pose);
@@ -2234,10 +2252,7 @@ void CPSMoveControllerLatest::RefreshWorldFromDriverPose()
 
 	// Mark the calibration process as done
 	// once we have setup the world from driver pose
-	if (m_trackingStatus == vr::TrackingResult_Calibrating_InProgress)
-	{
-		m_trackingStatus = vr::TrackingResult_Running_OK;
-	}
+	m_trackingStatus = vr::TrackingResult_Running_OK;
 }
 
 //==================================================================================================
