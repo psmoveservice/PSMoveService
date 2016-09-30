@@ -15,7 +15,6 @@
 
 //-- pre-declarations -----
 class ClientControllerView;
-class ClientHMDView;
 
 //-- macros -----
 #ifdef HAS_PROTOCOL_ACCESS
@@ -194,7 +193,7 @@ public:
     static t_request_id start_controller_data_stream(ClientControllerView *view, unsigned int data_stream_flags);
     static t_request_id stop_controller_data_stream(ClientControllerView *view);
     static t_request_id set_led_tracking_color(ClientControllerView *view, PSMoveTrackingColorType tracking_color);
-    static t_request_id reset_pose(ClientControllerView *view);
+    static t_request_id reset_pose(ClientControllerView *view, const PSMoveQuaternion& q_pose);
 
     /// Tracker Methods
     static ClientTrackerView *allocate_tracker_view(const ClientTrackerInfo &trackerInfo);
@@ -203,7 +202,6 @@ public:
     static t_request_id get_tracker_list();
     static t_request_id start_tracker_data_stream(ClientTrackerView *view);
     static t_request_id stop_tracker_data_stream(ClientTrackerView *view);
-    static t_request_id get_hmd_tracking_space_settings();
 
     /// Used to send requests to the server by clients that have protocol access
     static t_request_id send_opaque_request(t_request_handle request_handle);

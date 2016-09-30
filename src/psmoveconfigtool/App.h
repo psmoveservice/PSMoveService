@@ -18,9 +18,6 @@ public:
     App();
     virtual ~App();
 
-    inline class OpenVRContext *getOpenVRContext()
-    { return m_openVRContext; }
-
     inline class Renderer *getRenderer()
     { return m_renderer; }
 
@@ -80,7 +77,6 @@ protected:
 
 private:
     // Contexts
-    class OpenVRContext *m_openVRContext;
     class Renderer *m_renderer;
 
     // Assets (textures, sounds)

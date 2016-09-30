@@ -108,7 +108,7 @@ ControllerManager::setControllerRumble(
 }
 
 bool
-ControllerManager::resetPose(int controller_id)
+ControllerManager::resetPose(int controller_id, const Eigen::Quaternionf& q_pose)
 {
     bool bSuccess = false;
     ServerControllerViewPtr ControllerPtr = getControllerViewPtr(controller_id);
@@ -119,7 +119,7 @@ ControllerManager::resetPose(int controller_id)
 
         if (filter != nullptr)
         {
-            filter->resetOrientation();
+            filter->resetOrientation(q_pose);
             bSuccess = true;
         }
     }
