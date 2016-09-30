@@ -5,8 +5,14 @@
 //==================================================================================================
 // Includes
 //==================================================================================================
+
+#define HAS_PROTOCOL_ACCESS
+
 #include "driver_psmoveservice.h"
 #include <sstream>
+#include "PSMoveProtocol.pb.h"
+#include "ClientPSMoveAPI.h"
+#include <boost/algorithm/string.hpp>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -308,6 +314,14 @@ vr::EVRInitError CServerDriver_PSMoveService::Init(
         initError= vr::VRInitError_Driver_Failed;
     }
 
+	vr::IVRSettings *pSettings = m_pDriverHost->GetSettings(vr::IVRSettings_Version);
+	if (pSettings != NULL) {
+		char buf[256];
+		vr::EVRSettingsError fetchError;
+
+		pSettings->GetString("psmove_settings", "psmove_filter_hmd_serial", buf, sizeof(buf), "", &fetchError);
+		m_strPSMoveHMDSerialNo = boost::to_upper_copy<std::string>(buf);
+	}
     return initError;
 }
 
@@ -504,6 +518,7 @@ void CServerDriver_PSMoveService::HandleTrackerListChanged()
 void CServerDriver_PSMoveService::HandleClientPSMoveResponse(
     const ClientPSMoveAPI::ResponseMessage *response)
 {
+	
     switch (response->payload_type)
     {
     case ClientPSMoveAPI::_responsePayloadType_Empty:
@@ -514,7 +529,7 @@ void CServerDriver_PSMoveService::HandleClientPSMoveResponse(
     case ClientPSMoveAPI::_responsePayloadType_ControllerList:
         DriverLog("NotifyClientPSMoveResponse - Controller Count = %d (request id %d).\n", 
             response->payload.controller_list.count, response->request_id);
-        HandleControllerListReponse(&response->payload.controller_list);
+        HandleControllerListReponse(&response->payload.controller_list, response->opaque_response_handle);
         break;
     case ClientPSMoveAPI::_responsePayloadType_TrackerList:
         DriverLog("NotifyClientPSMoveResponse - Tracker Count = %d (request id %d).\n",
@@ -527,7 +542,8 @@ void CServerDriver_PSMoveService::HandleClientPSMoveResponse(
 }
 
 void CServerDriver_PSMoveService::HandleControllerListReponse(
-    const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list)
+    const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list,
+	const ClientPSMoveAPI::t_response_handle response_handle)
 {
     for (int list_index = 0; list_index < controller_list->count; ++list_index)
     {
@@ -537,7 +553,7 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
         switch (controller_type)
         {
         case ClientControllerView::PSMove:
-            AllocateUniquePSMoveController(controller_id);
+            AllocateUniquePSMoveController(controller_id, response_handle);
             break;
         case ClientControllerView::PSNavi:
             AllocateUniquePSNaviController(controller_id);
@@ -586,20 +602,31 @@ static void GenerateControllerSerialNumber( char *p, int psize, int controller )
     snprintf(p, psize, "psmove_controller%d", controller);
 }
 
-void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerID)
+
+void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerID,	const ClientPSMoveAPI::t_response_handle response_handle)
 {
+	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
     char buf[256];
     GenerateControllerSerialNumber(buf, sizeof(buf), ControllerID);
 
     if ( !FindTrackedDeviceDriver(buf) )
     {
-        DriverLog( "added new psmove controller %s\n", buf );
-        m_vecTrackedDevices.push_back( new CPSMoveControllerLatest( m_pDriverHost, ControllerID ) );
+		const auto &ControllerResponse = response->result_controller_list().controllers(ControllerID);
+		std::string serialNo = ControllerResponse.device_serial();
+		serialNo = boost::to_upper_copy<std::string>(serialNo.c_str());
 
-        if (m_pDriverHost)
-        {
-            m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSerialNumber());
-        }
+		if (0 != m_strPSMoveHMDSerialNo.compare(serialNo)) {
+			DriverLog( "added new psmove controller id: %s, serial: %s\n", buf, serialNo.c_str());
+			m_vecTrackedDevices.push_back( new CPSMoveControllerLatest( m_pDriverHost, ControllerID, serialNo.c_str()) );
+
+			if (m_pDriverHost)
+			{
+				m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSerialNumber());
+			}
+		}
+		else {
+			DriverLog("skipped new psmove controller as configured for HMD tracking, serial: %s\n", serialNo.c_str());
+		}
     }
 }
 
@@ -611,7 +638,7 @@ void CServerDriver_PSMoveService::AllocateUniquePSNaviController(int ControllerI
     if (!FindTrackedDeviceDriver(buf))
     {
         DriverLog("added new ps navi controller %s\n", buf);
-        m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID));
+        m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, NULL));
 
         if (m_pDriverHost)
         {
@@ -628,7 +655,7 @@ void CServerDriver_PSMoveService::AllocateUniqueDualShock4Controller(int Control
     if (!FindTrackedDeviceDriver(buf))
     {
         DriverLog("added new ps dualshock4 controller %s\n", buf);
-        m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID));
+        m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, NULL));
 
         if (m_pDriverHost)
         {
@@ -1167,7 +1194,7 @@ const char *CPSMoveTrackedDeviceLatest::GetSerialNumber() const
 // Controller Driver
 //==================================================================================================
 
-CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int controllerId )
+CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int controllerId, const char *serialNo )
     : CPSMoveTrackedDeviceLatest(pDriverHost)
     , m_nControllerId(controllerId)
     , m_controller_view(nullptr)
@@ -1178,10 +1205,16 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
     , m_pendingHapticPulseDuration(0)
     , m_lastTimeRumbleSent()
     , m_lastTimeRumbleSentValid(false)
+	, m_fVirtuallExtendControllersZ(0.0f)
+	, m_fVirtuallExtendControllersY(0.0f)
 {
     char buf[256];
     GenerateControllerSerialNumber(buf, sizeof(buf), controllerId);
     m_strSerialNumber = buf;
+
+	if (serialNo != NULL) {
+		m_strSerialNo = serialNo;
+	}
 
     // Tell psmoveapi that we are listening to this controller id
     m_controller_view = ClientPSMoveAPI::allocate_controller_view(controllerId);
@@ -1234,6 +1267,9 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 
 		m_fMetersPerTouchpadAxisUnits
 			= pSettings->GetFloat("psmove", "meters_per_touchpad_units", 0.075f, &fetchError);
+
+		m_fVirtuallExtendControllersY = pSettings->GetFloat("psmove_settings", "psmove_extend_y", 0.0f, &fetchError);
+		m_fVirtuallExtendControllersZ = pSettings->GetFloat("psmove_settings", "psmove_extend_z", 0.0f, &fetchError);
 
 		#if LOG_TOUCHPAD_EMULATION != 0
 			DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
@@ -2036,6 +2072,35 @@ void CPSMoveControllerLatest::UpdateTrackingState()
                 m_Pose.vecPosition[1] = position.y * k_fScalePSMoveAPIToMeters;
                 m_Pose.vecPosition[2] = position.z * k_fScalePSMoveAPIToMeters;
             }
+
+			// virtual extend controllers
+			if (m_fVirtuallExtendControllersY != 0.0f || m_fVirtuallExtendControllersZ != 0.0f)
+			{
+				const PSMoveQuaternion &orientation = view.GetOrientation();
+
+				PSMoveFloatVector3 shift;
+				shift = shift.create((float)m_Pose.vecPosition[0], (float)m_Pose.vecPosition[1], (float)m_Pose.vecPosition[2]);
+
+				if (m_fVirtuallExtendControllersZ != 0.0f) {
+
+					PSMoveFloatVector3 local_forward = PSMoveFloatVector3::create(0, 0, -1);
+					PSMoveFloatVector3 global_forward = orientation.rotate_vector(local_forward);
+
+					shift = shift + global_forward*m_fVirtuallExtendControllersZ;
+				}
+
+				if (m_fVirtuallExtendControllersY != 0.0f) {
+
+					PSMoveFloatVector3 local_forward = PSMoveFloatVector3::create(0, -1, 0);
+					PSMoveFloatVector3 global_forward = orientation.rotate_vector(local_forward);
+
+					shift = shift + global_forward*m_fVirtuallExtendControllersY;
+				}
+
+				m_Pose.vecPosition[0] = shift.i;
+				m_Pose.vecPosition[1] = shift.j;
+				m_Pose.vecPosition[2] = shift.k;
+			}
 
             // Set rotational coordinates
             {
