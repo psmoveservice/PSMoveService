@@ -14,6 +14,7 @@ TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
     : PSMoveConfig(fnamebase)
 {
     optical_tracking_timeout= 100;
+	use_bgr_to_hsv_lookup_table = true;
     default_tracker_profile.exposure = 32;
     default_tracker_profile.gain = 32;
 	default_tracker_profile.color_preset_table.table_name= "default_tracker_profile";
@@ -33,6 +34,7 @@ TrackerManagerConfig::config2ptree()
     pt.put("version", TrackerManagerConfig::CONFIG_VERSION);
 
     pt.put("optical_tracking_timeout", optical_tracking_timeout);
+	pt.put("use_bgr_to_hsv_lookup_table", use_bgr_to_hsv_lookup_table);
     
     pt.put("default_tracker_profile.exposure", default_tracker_profile.exposure);
     pt.put("default_tracker_profile.gain", default_tracker_profile.gain);
@@ -58,6 +60,7 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
     if (version == TrackerManagerConfig::CONFIG_VERSION)
     {
         optical_tracking_timeout= pt.get<int>("optical_tracking_timeout", optical_tracking_timeout);
+		use_bgr_to_hsv_lookup_table = pt.get<bool>("use_bgr_to_hsv_lookup_table", use_bgr_to_hsv_lookup_table);
 
         default_tracker_profile.exposure = pt.get<float>("default_tracker_profile.exposure", 32);
         default_tracker_profile.gain = pt.get<float>("default_tracker_profile.gain", 32);

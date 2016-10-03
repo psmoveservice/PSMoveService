@@ -45,6 +45,7 @@ public:
 
     long version;
     int optical_tracking_timeout;
+	bool use_bgr_to_hsv_lookup_table;
     CommonDevicePose hmd_tracking_origin_pose;
     TrackerProfile default_tracker_profile;
 };
