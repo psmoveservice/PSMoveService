@@ -46,7 +46,6 @@ public:
     long version;
     int optical_tracking_timeout;
 	bool use_bgr_to_hsv_lookup_table;
-    CommonDevicePose hmd_tracking_origin_pose;
     TrackerProfile default_tracker_profile;
 };
 
@@ -76,17 +75,6 @@ public:
     inline const TrackerProfile *getDefaultTrackerProfile() const
     {
         return &cfg.default_tracker_profile; 
-    }
-
-    inline void setHmdTrackingOriginPose(const CommonDevicePose &pose)
-    {
-        cfg.hmd_tracking_origin_pose= pose;
-        cfg.save();
-    }
-
-    inline CommonDevicePose getHmdTrackingOriginPose()
-    {
-        return cfg.hmd_tracking_origin_pose;
     }
 
     inline const TrackerManagerConfig& getConfig() const

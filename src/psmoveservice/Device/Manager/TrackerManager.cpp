@@ -22,8 +22,6 @@ TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
     {
         default_tracker_profile.color_preset_table.color_presets[preset_index] = k_default_color_presets[preset_index];
     }
-
-    hmd_tracking_origin_pose.clear();
 };
 
 const boost::property_tree::ptree
@@ -38,14 +36,6 @@ TrackerManagerConfig::config2ptree()
     
     pt.put("default_tracker_profile.exposure", default_tracker_profile.exposure);
     pt.put("default_tracker_profile.gain", default_tracker_profile.gain);
-
-    pt.put("hmd_tracking_space.orientation.w", hmd_tracking_origin_pose.Orientation.w);
-    pt.put("hmd_tracking_space.orientation.x", hmd_tracking_origin_pose.Orientation.x);
-    pt.put("hmd_tracking_space.orientation.y", hmd_tracking_origin_pose.Orientation.y);
-    pt.put("hmd_tracking_space.orientation.z", hmd_tracking_origin_pose.Orientation.z);
-    pt.put("hmd_tracking_space.position.x", hmd_tracking_origin_pose.Position.x);
-    pt.put("hmd_tracking_space.position.y", hmd_tracking_origin_pose.Position.y);
-    pt.put("hmd_tracking_space.position.z", hmd_tracking_origin_pose.Position.z);
 
 	writeColorPropertyPresetTable(&default_tracker_profile.color_preset_table, pt);
 
@@ -64,14 +54,6 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
 
         default_tracker_profile.exposure = pt.get<float>("default_tracker_profile.exposure", 32);
         default_tracker_profile.gain = pt.get<float>("default_tracker_profile.gain", 32);
-
-        hmd_tracking_origin_pose.Orientation.w = pt.get<float>("hmd_tracking_space.orientation.w", 1.0);
-        hmd_tracking_origin_pose.Orientation.x = pt.get<float>("hmd_tracking_space.orientation.x", 0.0);
-        hmd_tracking_origin_pose.Orientation.y = pt.get<float>("hmd_tracking_space.orientation.y", 0.0);
-        hmd_tracking_origin_pose.Orientation.z = pt.get<float>("hmd_tracking_space.orientation.z", 0.0);
-        hmd_tracking_origin_pose.Position.x = pt.get<float>("hmd_tracking_space.position.x", 0.0);
-        hmd_tracking_origin_pose.Position.y = pt.get<float>("hmd_tracking_space.position.y", 0.0);
-        hmd_tracking_origin_pose.Position.z = pt.get<float>("hmd_tracking_space.position.z", 0.0);
 
 		readColorPropertyPresetTable(pt, &default_tracker_profile.color_preset_table);
     }
