@@ -475,7 +475,8 @@ bool PSMoveController::open(
                     loadCalibration();
                 }
 
-                // TODO: Other startup.
+				// Always save the config back out in case some defaults changed
+				cfg.save();
 
                 success= true;
             }
@@ -833,7 +834,6 @@ PSMoveController::loadCalibration()
     }
 
     cfg.is_valid= is_valid;
-    cfg.save();
 }
 
 IControllerInterface::ePollResult

@@ -97,11 +97,11 @@ TrackerManager::startup()
 
     if (bSuccess)
     {
-        if (!cfg.load())
-        {
-            // Save out the defaults if there is no config to load
-            cfg.save();
-        }
+		// Load any config from disk
+		cfg.load();
+
+        // Save back out the config in case there were updated defaults
+        cfg.save();
 
         // Refresh the tracker list
         mark_tracker_list_dirty();
