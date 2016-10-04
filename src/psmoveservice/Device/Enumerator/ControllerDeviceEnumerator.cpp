@@ -85,6 +85,12 @@ bool ControllerDeviceEnumerator::is_valid() const
 {
     bool bIsValid = cur_dev != nullptr;
 
+	//###HipsterSloth $TODO Disable the navi until it actually works
+	if (m_deviceType == CommonDeviceState::PSNavi)
+	{
+		bIsValid = false;
+	}
+
 #ifdef _WIN32
     /**
     * Windows Quirk: Each psmove dev is enumerated 3 times.
