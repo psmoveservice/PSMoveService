@@ -6,6 +6,7 @@
 #include "DeviceTypeManager.h"
 #include "PSMoveProtocol.pb.h"
 #include "TrackerManager.h"
+#include "MathEigen.h"
 
 #include <memory>
 #include <deque>
@@ -42,7 +43,7 @@ public:
     ServerControllerViewPtr getControllerViewPtr(int device_id);
 
     void setControllerRumble(int controller_id, float rumble_amount, CommonControllerState::RumbleChannel channel);
-    bool resetPose(int controller_id);
+    bool resetPose(int controller_id, const Eigen::Quaternionf& q_pose);
 
     eCommonTrackingColorID allocateTrackingColorID();
     void claimTrackingColorID(eCommonTrackingColorID color_id);

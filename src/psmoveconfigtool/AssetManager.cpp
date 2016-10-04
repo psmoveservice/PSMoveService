@@ -14,7 +14,6 @@
 #include <imgui.h>
 
 //-- constants -----
-static const char *k_dk2_texture_filename= "./assets/textures/DK2diffuse.jpg";
 static const char *k_psmove_texture_filename= "./assets/textures/PSMoveDiffuse.jpg";
 static const char *k_psnavi_texture_filename= "./assets/textures/PSNaviDiffuse.jpg";
 static const char *k_psdualshock4_texture_filename = "./assets/textures/PSDS4Diffuse.jpg";
@@ -33,8 +32,7 @@ AssetManager *AssetManager::m_instance= NULL;
 
 //-- public methods -----
 AssetManager::AssetManager()
-    : m_dk2Texture()
-    , m_psmoveTexture()
+    : m_psmoveTexture()
     , m_psnaviTexture()
     , m_defaultFont()
 {
@@ -48,11 +46,6 @@ AssetManager::~AssetManager()
 bool AssetManager::init()
 {
     bool success= true;
-
-    if (success)
-    {
-        success= loadTexture(k_dk2_texture_filename, &m_dk2Texture);
-    }
 
     if (success)
     {
@@ -93,7 +86,6 @@ bool AssetManager::init()
 
 void AssetManager::destroy()
 {
-    m_dk2Texture.dispose();
     m_psmoveTexture.dispose();
     m_psnaviTexture.dispose();
     m_psdualshock4Texture.dispose();

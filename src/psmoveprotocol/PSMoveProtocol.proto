@@ -130,9 +130,6 @@ message Request {
         SAVE_TRACKER_PROFILE = 22;
         APPLY_TRACKER_PROFILE = 23;
         SEARCH_FOR_NEW_TRACKERS = 24;
-        
-        GET_HMD_TRACKING_SPACE_SETTINGS = 25;
-        SET_HMD_TRACKING_SPACE_ORIGIN = 26;
     }
     RequestType type = 2;
 
@@ -163,6 +160,7 @@ message Request {
     // Parameters for RESET_POSE
     message RequestResetPose {
         int32 controller_id = 1;
+		Orientation orientation= 2;
     }
     RequestResetPose reset_pose = 7;   
     
@@ -292,14 +290,6 @@ message Request {
     RequestApplyTrackerProfile request_apply_tracker_profile = 25;
     
     // No Parameters for SEARCH_FOR_NEW_TRACKERS
-    
-    // No Parameters for GET_HMD_TRACKING_SPACE_SETTINGS
-    
-    // Parameters for SET_HMD_TRACKING_SPACE_ORIGIN
-    message RequestSetHMDTrackingSpaceOrigin {
-        Pose origin_pose = 1;
-    }
-    RequestSetHMDTrackingSpaceOrigin request_set_hmd_tracking_space_origin = 26;
 }
 
 // Reliable (TCP) responses to requests
@@ -320,7 +310,6 @@ message Response {
         TRACKER_GAIN_UPDATED= 11;
         TRACKER_OPTION_UPDATED= 12;
         TRACKER_PRESET_UPDATED= 13;
-        HMD_TRACKING_SPACE_SETTINGS= 14;
     }
 
     enum ResultCode {
@@ -440,12 +429,6 @@ message Response {
         TrackingColorPreset new_color_preset = 2;
     }
     ResultSetTrackerColorPreset result_set_tracker_color_preset = 28;
-    
-    // This is returned in response to a GET_HMD_TRACKING_SPACE_SETTINGS request
-    message ResultGetHMDTrackingSpaceSettings {
-        Pose origin_pose = 1;
-    }
-    ResultGetHMDTrackingSpaceSettings result_get_hmd_tracking_space_settings = 29;
 }
 
 // Unreliable (UDP) device data packet sent from service to clients

@@ -83,7 +83,12 @@ DeviceManager::startup()
     bool success= true;
 
     m_config = DeviceManagerConfigPtr(new DeviceManagerConfig);
+
+	// Load the config from disk
     m_config->load();
+
+	// Save the config back out again in case defaults changed
+	m_config->save();
     
     m_controller_manager->reconnect_interval = m_config->controller_reconnect_interval;
     m_controller_manager->poll_interval = m_config->controller_poll_interval;

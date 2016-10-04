@@ -53,9 +53,6 @@ public:
     static AssetManager *getInstance()
     { return m_instance; }
 
-    const TextureAsset *getDK2TextureAsset()
-    { return &m_dk2Texture; }
-
     const TextureAsset *getPSMoveTextureAsset()
     { return &m_psmoveTexture; }
 
@@ -73,7 +70,6 @@ private:
     bool loadFont(const char *filename, float pixelHeight, FontAsset *fontAsset);
 
     // Utility Textures
-    TextureAsset m_dk2Texture;
     TextureAsset m_psmoveTexture;
     TextureAsset m_psnaviTexture;
     TextureAsset m_psdualshock4Texture;

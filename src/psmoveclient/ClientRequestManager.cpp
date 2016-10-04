@@ -159,10 +159,6 @@ public:
                 build_tracker_list_response_message(response, &out_response_message->payload.tracker_list);
                 out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_TrackerList;
                 break;
-            case PSMoveProtocol::Response_ResponseType_HMD_TRACKING_SPACE_SETTINGS:
-                build_hmd_settings_response_message(response, &out_response_message->payload.hmd_tracking_space);
-                out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_HMDTrackingSpace;
-                break;
             default:
                 out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_Empty;
                 break;
@@ -305,16 +301,6 @@ public:
 
         // Record how many trackers we copied into the payload
         tracker_list->count = tracker_count;
-    }
-
-    void build_hmd_settings_response_message(
-        ResponsePtr response,
-        ClientPSMoveAPI::ResponsePayload_HMDTrackingSpace *hmd_tracking_space)
-    {
-        const PSMoveProtocol::Pose &protocol_pose=
-            response->result_get_hmd_tracking_space_settings().origin_pose();
-
-        hmd_tracking_space->origin_pose = protocol_pose_to_psmove_pose(protocol_pose);
     }
 
 private:

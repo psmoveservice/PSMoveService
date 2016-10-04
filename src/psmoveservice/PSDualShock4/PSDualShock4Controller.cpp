@@ -503,6 +503,9 @@ bool PSDualShock4Controller::open(
                 // Load the config file
                 cfg = PSDualShock4ControllerConfig(config_name);
                 cfg.load();
+
+				// Save it back out again in case any defaults changed
+				cfg.save();
             }
 
             // Reset the polling sequence counter

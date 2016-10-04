@@ -308,9 +308,14 @@ bool PS3EyeTracker::open(const DeviceEnumerator *enumerator)
         config_name.append(identifier);
 
         cfg = PS3EyeTrackerConfig(config_name);
+
+		// Load the ps3eye config
         cfg.load();
-        setExposure(cfg.exposure);
-        setGain(cfg.gain);
+		// Save the config back out again in case defaults changed
+		cfg.save();
+
+		VideoCapture->set(cv::CAP_PROP_EXPOSURE, cfg.exposure);
+		VideoCapture->set(cv::CAP_PROP_GAIN, cfg.gain);
     }
 
     return bSuccess;

@@ -14,6 +14,7 @@ TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
     : PSMoveConfig(fnamebase)
 {
     optical_tracking_timeout= 100;
+	use_bgr_to_hsv_lookup_table = true;
     default_tracker_profile.exposure = 32;
     default_tracker_profile.gain = 32;
 	default_tracker_profile.color_preset_table.table_name= "default_tracker_profile";
@@ -21,8 +22,6 @@ TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
     {
         default_tracker_profile.color_preset_table.color_presets[preset_index] = k_default_color_presets[preset_index];
     }
-
-    hmd_tracking_origin_pose.clear();
 };
 
 const boost::property_tree::ptree
@@ -33,17 +32,10 @@ TrackerManagerConfig::config2ptree()
     pt.put("version", TrackerManagerConfig::CONFIG_VERSION);
 
     pt.put("optical_tracking_timeout", optical_tracking_timeout);
+	pt.put("use_bgr_to_hsv_lookup_table", use_bgr_to_hsv_lookup_table);
     
     pt.put("default_tracker_profile.exposure", default_tracker_profile.exposure);
     pt.put("default_tracker_profile.gain", default_tracker_profile.gain);
-
-    pt.put("hmd_tracking_space.orientation.w", hmd_tracking_origin_pose.Orientation.w);
-    pt.put("hmd_tracking_space.orientation.x", hmd_tracking_origin_pose.Orientation.x);
-    pt.put("hmd_tracking_space.orientation.y", hmd_tracking_origin_pose.Orientation.y);
-    pt.put("hmd_tracking_space.orientation.z", hmd_tracking_origin_pose.Orientation.z);
-    pt.put("hmd_tracking_space.position.x", hmd_tracking_origin_pose.Position.x);
-    pt.put("hmd_tracking_space.position.y", hmd_tracking_origin_pose.Position.y);
-    pt.put("hmd_tracking_space.position.z", hmd_tracking_origin_pose.Position.z);
 
 	writeColorPropertyPresetTable(&default_tracker_profile.color_preset_table, pt);
 
@@ -58,17 +50,10 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
     if (version == TrackerManagerConfig::CONFIG_VERSION)
     {
         optical_tracking_timeout= pt.get<int>("optical_tracking_timeout", optical_tracking_timeout);
+		use_bgr_to_hsv_lookup_table = pt.get<bool>("use_bgr_to_hsv_lookup_table", use_bgr_to_hsv_lookup_table);
 
         default_tracker_profile.exposure = pt.get<float>("default_tracker_profile.exposure", 32);
         default_tracker_profile.gain = pt.get<float>("default_tracker_profile.gain", 32);
-
-        hmd_tracking_origin_pose.Orientation.w = pt.get<float>("hmd_tracking_space.orientation.w", 1.0);
-        hmd_tracking_origin_pose.Orientation.x = pt.get<float>("hmd_tracking_space.orientation.x", 0.0);
-        hmd_tracking_origin_pose.Orientation.y = pt.get<float>("hmd_tracking_space.orientation.y", 0.0);
-        hmd_tracking_origin_pose.Orientation.z = pt.get<float>("hmd_tracking_space.orientation.z", 0.0);
-        hmd_tracking_origin_pose.Position.x = pt.get<float>("hmd_tracking_space.position.x", 0.0);
-        hmd_tracking_origin_pose.Position.y = pt.get<float>("hmd_tracking_space.position.y", 0.0);
-        hmd_tracking_origin_pose.Position.z = pt.get<float>("hmd_tracking_space.position.z", 0.0);
 
 		readColorPropertyPresetTable(pt, &default_tracker_profile.color_preset_table);
     }
@@ -94,11 +79,11 @@ TrackerManager::startup()
 
     if (bSuccess)
     {
-        if (!cfg.load())
-        {
-            // Save out the defaults if there is no config to load
-            cfg.save();
-        }
+		// Load any config from disk
+		cfg.load();
+
+        // Save back out the config in case there were updated defaults
+        cfg.save();
 
         // Refresh the tracker list
         mark_tracker_list_dirty();

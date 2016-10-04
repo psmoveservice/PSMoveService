@@ -2,7 +2,6 @@
 #include "AppStage_MainMenu.h"
 #include "AppStage_TrackerSettings.h"
 #include "AppStage_ControllerSettings.h"
-#include "AppStage_HMDSettings.h"
 #include "AppStage_ServiceSettings.h"
 #include "AppStage_TestTracker.h"
 #include "App.h"
@@ -70,18 +69,7 @@ void AppStage_MainMenu::renderUI()
                 ImGuiWindowFlags_NoCollapse;
             ImGui::SetNextWindowPosCenter();
             ImGui::Begin("Main Menu", nullptr, ImVec2(300, 400), k_background_alpha, window_flags);
-    
-            //###HipsterSloth $TODO No service wide settings yet
-            //if (ImGui::Button("Service Settings"))
-            //{
-            //    m_app->setAppStage(AppStage_ServiceSettings::APP_STAGE_NAME);
-            //}
-
-            if (ImGui::Button("HMD Settings"))
-            {
-                m_app->setAppStage(AppStage_HMDSettings::APP_STAGE_NAME);
-            }
-    
+      
             if (ImGui::Button("Controller Settings"))
             {
                 m_app->setAppStage(AppStage_ControllerSettings::APP_STAGE_NAME);
