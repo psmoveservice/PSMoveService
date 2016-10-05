@@ -147,20 +147,20 @@ ControllerManager::allocateTrackingColorID()
 }
 
 void 
-ControllerManager::claimTrackingColorID(eCommonTrackingColorID color_id)
+ControllerManager::claimTrackingColorID(const ServerControllerView *claiming_controller_view, eCommonTrackingColorID color_id)
 {
     bool bColorWasInUse = false;
 
     // If any other controller has this tracking color, make them pick a new color
     for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
     {
-        ServerControllerViewPtr device = getControllerViewPtr(device_id);
+        ServerControllerViewPtr controller_view = getControllerViewPtr(device_id);
 
-        if (device->getIsOpen())
+        if (controller_view->getIsOpen() && controller_view.get() != claiming_controller_view)
         {
-            if (device->getTrackingColorID() == color_id)
+            if (controller_view->getTrackingColorID() == color_id)
             {
-                device->setTrackingColorID(allocateTrackingColorID());
+                controller_view->setTrackingColorID(allocateTrackingColorID());
                 bColorWasInUse = true;
                 break;
             }

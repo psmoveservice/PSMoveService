@@ -346,6 +346,9 @@ public:
     // Sets the address of the bluetooth adapter on the host PC with the controller
     virtual bool setHostBluetoothAddress(const std::string &address) = 0;
 
+	// Sets the tracking color enum of the controller
+	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) = 0;
+
     // -- Getters
     // Returns true if the device is connected via Bluetooth, false if by USB
     virtual bool getIsBluetooth() const = 0;
@@ -364,6 +367,9 @@ public:
 
     // Get the tracking shape use by the controller
     virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const = 0;
+
+	// Get the tracking color enum of the controller
+	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const = 0;
 };
 
 /// Abstract class for Tracker interface. Implemented Tracker classes

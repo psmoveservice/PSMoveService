@@ -54,7 +54,6 @@ static void generate_psdualshock4_data_frame_for_stream(
 //-- public implementation -----
 ServerControllerView::ServerControllerView(const int device_id)
     : ServerDeviceView(device_id)
-    , m_tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
     , m_tracking_listener_count(0)
     , m_tracking_enabled(false)
     , m_LED_override_active(false)
@@ -216,8 +215,27 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
     // If needed for this kind of controller, assign a tracking color id
     if (bAllocateTrackingColor)
     {
-        assert(m_tracking_color_id == eCommonTrackingColorID::INVALID_COLOR);
-        m_tracking_color_id= DeviceManager::getInstance()->m_controller_manager->allocateTrackingColorID();
+		eCommonTrackingColorID tracking_color_id;
+		assert(m_device != nullptr);
+
+		// If this device already has a valid tracked color assigned, 
+		// claim it from the pool (or another controller that had it previously)
+		if (m_device->getTrackingColorID(tracking_color_id) && tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
+		{
+			DeviceManager::getInstance()->m_controller_manager->claimTrackingColorID(this, tracking_color_id);
+		}
+		else
+		{
+			// Allocate a color from the list of remaining available color ids
+			eCommonTrackingColorID allocatedColorID= DeviceManager::getInstance()->m_controller_manager->allocateTrackingColorID();
+
+			// Attempt to assign the tracking color id to the controller
+			if (!m_device->setTrackingColorID(allocatedColorID))
+			{
+				// If the device can't be assigned a tracking color, release the color back to the pool
+				DeviceManager::getInstance()->m_controller_manager->freeTrackingColorID(allocatedColorID);
+			}
+		}
     }
 
     // Clear the filter update timestamp
@@ -231,11 +249,13 @@ void ServerControllerView::close()
 {
     set_tracking_enabled_internal(false);
 
-    if (m_tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
+	eCommonTrackingColorID tracking_color_id= eCommonTrackingColorID::INVALID_COLOR;
+    if (m_device != nullptr && m_device->getTrackingColorID(tracking_color_id))
     {
-        DeviceManager::getInstance()->m_controller_manager->freeTrackingColorID(m_tracking_color_id);
-
-        m_tracking_color_id = eCommonTrackingColorID::INVALID_COLOR;
+		if (tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
+		{
+			DeviceManager::getInstance()->m_controller_manager->freeTrackingColorID(tracking_color_id);
+		}
     }
 
     ServerDeviceView::close();
@@ -711,9 +731,21 @@ void ServerControllerView::clearLEDOverride()
     update_LED_color_internal();
 }
 
+eCommonTrackingColorID ServerControllerView::getTrackingColorID() const
+{
+	eCommonTrackingColorID tracking_color_id = eCommonTrackingColorID::INVALID_COLOR;
+
+	if (m_device != nullptr)
+	{
+		m_device->getTrackingColorID(tracking_color_id);
+	}
+
+	return tracking_color_id;
+}
+
 void ServerControllerView::setTrackingColorID(eCommonTrackingColorID colorID)
 {
-    if (colorID != m_tracking_color_id)
+    if (colorID != getTrackingColorID())
     {
         bool bWasTracking = getIsTrackingEnabled();
 
@@ -722,7 +754,10 @@ void ServerControllerView::setTrackingColorID(eCommonTrackingColorID colorID)
             set_tracking_enabled_internal(false);
         }
 
-        m_tracking_color_id = colorID;
+		if (m_device != nullptr)
+		{
+			m_device->setTrackingColorID(colorID);
+		}
 
         if (bWasTracking)
         {
@@ -758,7 +793,12 @@ void ServerControllerView::set_tracking_enabled_internal(bool bEnabled)
     {
         if (bEnabled)
         {
-            switch (m_tracking_color_id)
+			assert(m_device != nullptr);
+
+			eCommonTrackingColorID tracking_color_id= eCommonTrackingColorID::INVALID_COLOR;
+			m_device->getTrackingColorID(tracking_color_id);
+
+            switch (tracking_color_id)
             {
             case PSMoveProtocol::Magenta:
                 m_tracking_color= std::make_tuple(0xFF, 0x00, 0xFF);
@@ -804,7 +844,6 @@ void ServerControllerView::update_LED_color_internal()
     }
     else if (m_tracking_enabled)
     {
-        assert(m_tracking_color_id != eCommonTrackingColorID::INVALID_COLOR);
         r = std::get<0>(m_tracking_color);
         g = std::get<1>(m_tracking_color);
         b = std::get<2>(m_tracking_color);

@@ -105,6 +105,74 @@ PSMoveConfig::readColorPropertyPresetTable(
     readColorPreset(pt, profile_name, "blue", &table->color_presets[eCommonTrackingColorID::Blue], &k_default_color_presets[eCommonTrackingColorID::Blue]);
 }
 
+void
+PSMoveConfig::writeTrackingColor(
+	boost::property_tree::ptree &pt,
+	int tracking_color_id)
+{
+	switch (tracking_color_id)
+	{
+	case eCommonTrackingColorID::INVALID_COLOR:
+		pt.put("tracking_color", "invalid");
+		break;
+	case eCommonTrackingColorID::Magenta:
+		pt.put("tracking_color", "magenta");
+		break;
+	case eCommonTrackingColorID::Cyan:
+		pt.put("tracking_color", "cyan");
+		break;
+	case eCommonTrackingColorID::Yellow:
+		pt.put("tracking_color", "yellow");
+		break;
+	case eCommonTrackingColorID::Red:
+		pt.put("tracking_color", "red");
+		break;
+	case eCommonTrackingColorID::Green:
+		pt.put("tracking_color", "green");
+		break;
+	case eCommonTrackingColorID::Blue:
+		pt.put("tracking_color", "blue");
+		break;
+	default:
+		assert(false && "unreachable");
+	}
+}
+
+int 
+PSMoveConfig::readTrackingColor(
+	const boost::property_tree::ptree &pt)
+{
+	std::string tracking_color_string = pt.get<std::string>("tracking_color", "invalid");
+	int tracking_color_id = eCommonTrackingColorID::INVALID_COLOR;
+
+	if (tracking_color_string == "magenta")
+	{
+		tracking_color_id = eCommonTrackingColorID::Magenta;
+	}
+	else if (tracking_color_string == "cyan")
+	{
+		tracking_color_id = eCommonTrackingColorID::Cyan;
+	}
+	else if (tracking_color_string == "yellow")
+	{
+		tracking_color_id = eCommonTrackingColorID::Yellow;
+	}
+	else if (tracking_color_string == "red")
+	{
+		tracking_color_id = eCommonTrackingColorID::Red;
+	}
+	else if (tracking_color_string == "green")
+	{
+		tracking_color_id = eCommonTrackingColorID::Green;
+	}
+	else if (tracking_color_string == "blue")
+	{
+		tracking_color_id = eCommonTrackingColorID::Blue;
+	}
+
+	return tracking_color_id;
+}
+
 static void
 writeColorPropertyPreset(
     boost::property_tree::ptree &pt,

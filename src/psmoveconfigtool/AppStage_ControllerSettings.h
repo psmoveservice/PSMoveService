@@ -51,6 +51,10 @@ protected:
         const ClientPSMoveAPI::ResponseMessage *response_message,
         void *userdata);
 
+	void request_set_controller_tracking_color_id(
+		int ControllerID,
+		PSMoveTrackingColorType tracking_color_type);
+
 private:
     enum eControllerMenuState
     {

@@ -146,7 +146,7 @@ void AppStage_ControllerSettings::renderUI()
     case eControllerMenuState::idle:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::SetNextWindowSize(ImVec2(350, 430));
+            ImGui::SetNextWindowSize(ImVec2(350, 440));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             if (m_hostSerial.length() > 1 && m_hostSerial != "00:00:00:00:00:00")
@@ -162,7 +162,7 @@ void AppStage_ControllerSettings::renderUI()
 
             if (m_bluetoothControllerInfos.size() > 0)
             {
-                const ControllerInfo &controllerInfo= m_bluetoothControllerInfos[m_selectedControllerIndex];
+                ControllerInfo &controllerInfo= m_bluetoothControllerInfos[m_selectedControllerIndex];
 
                 if (m_selectedControllerIndex > 0)
                 {
@@ -182,38 +182,23 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
+				// Combo box selection for controller tracking color
+				if (controllerInfo.ControllerType != ClientControllerView::PSNavi)
+				{
+					int newTrackingColorType = controllerInfo.TrackingColorType;
+
+					if (ImGui::Combo("Tracking Color", &newTrackingColorType, "Magenta\0Cyan\0Yellow\0Red\0Green\0Blue\0\0"))
+					{
+						controllerInfo.TrackingColorType = static_cast<PSMoveTrackingColorType>(newTrackingColorType);
+
+						request_set_controller_tracking_color_id(controllerInfo.ControllerID, controllerInfo.TrackingColorType);
+
+						// Re-request the controller list since the tracking colors could changed for other controllers
+						request_controller_list();
+					}
+				}
+
                 ImGui::BulletText("Controller ID: %d", controllerInfo.ControllerID);
-
-                // Display the tracking color being used for the controller
-                {
-                    const char *color_string = "UNKNOWN";
-
-                    switch (controllerInfo.TrackingColorType)
-                    {
-                    case PSMoveTrackingColorType::Magenta:
-                        color_string = "Magenta";
-                        break;
-                    case PSMoveTrackingColorType::Cyan:
-                        color_string = "Cyan";
-                        break;
-                    case PSMoveTrackingColorType::Yellow:
-                        color_string = "Yellow";
-                        break;
-                    case PSMoveTrackingColorType::Red:
-                        color_string = "Red";
-                        break;
-                    case PSMoveTrackingColorType::Green:
-                        color_string = "Green";
-                        break;
-                    case PSMoveTrackingColorType::Blue:
-                        color_string = "Blue";
-                        break;
-                    default:
-                        break;
-                    }
-
-                    ImGui::BulletText("Tracking Color: %s", color_string);
-                }
 
                 switch(controllerInfo.ControllerType)
                 {
@@ -486,7 +471,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 			{
 				// Maintain the same position in the list if possible
 				thisPtr->m_selectedControllerIndex= 
-					(oldSelectedControllerIndex < thisPtr->m_bluetoothControllerInfos.size()) 
+					(oldSelectedControllerIndex < static_cast<int>(thisPtr->m_bluetoothControllerInfos.size())) 
 					? oldSelectedControllerIndex
 					: 0;
 			}
@@ -504,4 +489,17 @@ void AppStage_ControllerSettings::handle_controller_list_response(
             thisPtr->m_menuState= AppStage_ControllerSettings::failedControllerListRequest;
         } break;
     }
+}
+
+void AppStage_ControllerSettings::request_set_controller_tracking_color_id(
+	int ControllerID,
+	PSMoveTrackingColorType tracking_color_type)
+{
+	RequestPtr request(new PSMoveProtocol::Request());
+	request->set_type(PSMoveProtocol::Request_RequestType_SET_LED_TRACKING_COLOR);
+	request->mutable_set_led_tracking_color_request()->set_controller_id(ControllerID);
+	request->mutable_set_led_tracking_color_request()->set_color_type(
+		static_cast<PSMoveProtocol::TrackingColorType>(tracking_color_type));
+
+	ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }

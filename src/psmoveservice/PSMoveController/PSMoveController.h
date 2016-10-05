@@ -43,6 +43,7 @@ public:
         , min_position_quality_screen_area(0.f)
         , max_position_quality_screen_area(k_real_pi*20.f*20.f) // lightbulb at ideal range is about 40px by 40px 
         , max_velocity(1.f)
+		, tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
     {
         magnetometer_identity.clear();
         magnetometer_center.clear();
@@ -87,6 +88,9 @@ public:
 
     // The maximum velocity allowed in the position filter
     float max_velocity;
+
+	// The assigned tracking color for this controller
+	eCommonTrackingColorID tracking_color_id;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport
@@ -183,12 +187,14 @@ public:
     
     // -- IControllerInterface
     virtual bool setHostBluetoothAddress(const std::string &address) override;
+	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) override;
     virtual bool getIsBluetooth() const override;
     virtual std::string getUSBDevicePath() const override;
     virtual std::string getAssignedHostBluetoothAddress() const override;
     virtual std::string getSerial() const override;
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
     virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
+	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
 
     // -- Getters
     inline const PSMoveControllerConfig *getConfig() const

@@ -101,7 +101,7 @@ public:
     inline bool getIsLEDOverrideActive() const { return m_LED_override_active; }
 
     // Get the currently assigned tracking color ID for the controller
-    inline eCommonTrackingColorID getTrackingColorID() const { return m_tracking_color_id; }
+	eCommonTrackingColorID getTrackingColorID() const;
 
     // Set the assigned tracking color ID for the controller
     void setTrackingColorID(eCommonTrackingColorID colorID);
@@ -152,7 +152,6 @@ protected:
 private:
     // Tracking color state
     std::tuple<unsigned char, unsigned char, unsigned char> m_tracking_color;
-    eCommonTrackingColorID m_tracking_color_id;
     int m_tracking_listener_count;
     bool m_tracking_enabled;
     
