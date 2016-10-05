@@ -32,12 +32,15 @@ public:
         struct CommonHSVColorRange *outColorPreset,
         const struct CommonHSVColorRange *defaultPreset);
 
-	void writeColorPropertyPresetTable(
+	static void writeColorPropertyPresetTable(
 		const struct CommonHSVColorRangeTable *table,
 		boost::property_tree::ptree &pt);
-	void readColorPropertyPresetTable(
+	static void readColorPropertyPresetTable(
 		const boost::property_tree::ptree &pt,
 		struct CommonHSVColorRangeTable *table);
+
+	static void writeTrackingColor(boost::property_tree::ptree &pt, int tracking_color_id);
+	static int readTrackingColor(const boost::property_tree::ptree &pt);
 
 private:
     const std::string getConfigPath();

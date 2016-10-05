@@ -239,6 +239,12 @@ void PSNaviController::close()
     }
 }
 
+bool
+PSNaviController::setTrackingColorID(const eCommonTrackingColorID tracking_color_id)
+{
+	return false;
+}
+
 bool 
 PSNaviController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
 {
@@ -550,6 +556,13 @@ PSNaviController::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) 
 {
     // Navi isn't a tracked controller
     outTrackingShape.shape_type= eCommonTrackingShapeType::INVALID_SHAPE;
+}
+
+bool 
+PSNaviController::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const
+{
+	out_tracking_color_id = eCommonTrackingColorID::INVALID_COLOR;
+	return false;
 }
     
 // -- private helper functions -----

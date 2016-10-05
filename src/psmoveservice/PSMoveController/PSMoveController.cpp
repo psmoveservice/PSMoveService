@@ -247,6 +247,8 @@ PSMoveControllerConfig::config2ptree()
     pt.put("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
     pt.put("PositionFilter.MaxVelocity", max_velocity);
 
+	writeTrackingColor(pt, tracking_color_id);
+
     return pt;
 }
 
@@ -311,6 +313,8 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         min_position_quality_screen_area= pt.get<float>("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
         max_position_quality_screen_area= pt.get<float>("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
         max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
+
+		tracking_color_id= static_cast<eCommonTrackingColorID>(readTrackingColor(pt));
     }
     else
     {
@@ -582,6 +586,21 @@ PSMoveController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
     }
 
     return success;
+}
+
+bool
+PSMoveController::setTrackingColorID(const eCommonTrackingColorID tracking_color_id)
+{
+	bool bSuccess = false;
+
+	if (getIsOpen() && getIsBluetooth())
+	{
+		cfg.tracking_color_id = tracking_color_id;
+		cfg.save();
+		bSuccess = true;
+	}
+
+	return bSuccess;
 }
 
 // Getters
@@ -1047,6 +1066,21 @@ PSMoveController::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) 
     outTrackingShape.shape_type= eCommonTrackingShapeType::Sphere;
     outTrackingShape.shape.sphere.radius = PSMOVE_TRACKING_BULB_RADIUS;
 }
+
+bool
+PSMoveController::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const
+{
+	bool bSuccess = false;
+
+	if (getIsOpen() && getIsBluetooth())
+	{
+		out_tracking_color_id = cfg.tracking_color_id;
+		bSuccess = true;
+	}
+
+	return bSuccess;
+}
+
 
 float
 PSMoveController::getTempCelsius() const

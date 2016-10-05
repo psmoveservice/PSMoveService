@@ -734,18 +734,22 @@ protected:
             (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove ||
              ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4))
         {
-            // Give up control of our existing tracking color
-            const eCommonTrackingColorID eOldColorID = ControllerView->getTrackingColorID();
-            if (eOldColorID != eCommonTrackingColorID::INVALID_COLOR)
-            {
-                m_device_manager.m_controller_manager->freeTrackingColorID(eOldColorID);
-            }
+			const eCommonTrackingColorID oldColorID = ControllerView->getTrackingColorID();
 
-            // Take the color from any other controller that might have it
-            m_device_manager.m_controller_manager->claimTrackingColorID(newColorID);
+			if (newColorID != oldColorID)
+			{
+				// Give up control of our existing tracking color
+				if (oldColorID != eCommonTrackingColorID::INVALID_COLOR)
+				{
+					m_device_manager.m_controller_manager->freeTrackingColorID(oldColorID);
+				}
 
-            // Assign the new color to ourselves
-            ControllerView->setTrackingColorID(newColorID);
+				// Take the color from any other controller that might have it
+				m_device_manager.m_controller_manager->claimTrackingColorID(ControllerView.get(), newColorID);
+
+				// Assign the new color to ourselves
+				ControllerView->setTrackingColorID(newColorID);
+			}
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }

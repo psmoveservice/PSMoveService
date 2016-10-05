@@ -46,7 +46,7 @@ public:
     bool resetPose(int controller_id, const Eigen::Quaternionf& q_pose);
 
     eCommonTrackingColorID allocateTrackingColorID();
-    void claimTrackingColorID(eCommonTrackingColorID color_id);
+    void claimTrackingColorID(const ServerControllerView *controller_view, eCommonTrackingColorID color_id);
     void freeTrackingColorID(eCommonTrackingColorID color_id);
 
 protected:
