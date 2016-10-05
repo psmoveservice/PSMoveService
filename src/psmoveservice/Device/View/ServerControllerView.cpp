@@ -1402,8 +1402,8 @@ init_filters_for_psmove(
 
         position_filter->setFilterSpace(filterSpace);
 
-        // Use the LowPass filter by default
-        position_filter->setFusionType(PositionFilter::FusionTypeLowPassOptical);
+        // Use the LowPass + exponential filter by default
+        position_filter->setFusionType(PositionFilter::FusionTypeLowPassExponential);
         position_filter->setAccelerometerNoiseRadius(psmove_config->accelerometer_noise_radius);
         position_filter->setMaxVelocity(psmove_config->max_velocity);
     }
@@ -1488,6 +1488,7 @@ update_filters_for_psmove(
         case PositionFilter::FusionTypeNone:
         case PositionFilter::FusionTypePassThru:
         case PositionFilter::FusionTypeLowPassOptical:
+		case PositionFilter::FusionTypeLowPassExponential:
             {
                 // All other filter types don't use transformed IMU data
                 sensorPacket.world_orientation = Eigen::Quaternionf::Identity();
