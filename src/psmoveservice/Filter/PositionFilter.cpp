@@ -3,6 +3,7 @@
 #include "MathEigen.h"
 #include "ServerLog.h"
 #include <deque>
+#include <list>
 
 //-- constants -----
 // Max length of the position history we keep
@@ -54,6 +55,12 @@ struct PositionSensorFusionState
     /// Position that's considered the origin position 
     Eigen::Vector3f origin_position; // meters
 
+	// required for smoothing position to get velocity
+	std::list<float> exp_delta_time_list;
+	std::list<Eigen::Vector3f> exp_position_list;
+	float exp_delta_time;
+	Eigen::Vector3f exp_velocity;
+
     /// The filter fusion algorithm to use
     PositionFilter::FusionType fusion_type;
 
@@ -70,12 +77,18 @@ struct PositionSensorFusionState
         accelerometer_derivative = Eigen::Vector3f::Zero();
         origin_position = Eigen::Vector3f::Zero();
         bLast_visible_position_timestamp_valid= false;
+		exp_delta_time = 0.f;
+		exp_velocity = Eigen::Vector3f::Zero();
     }
 };
 
 // -- globals -----
 
 // -- private methods -----
+static void position_fusion_lowpass_exponential_update(
+	const float delta_time,
+	const PositionFilterConstants *constants, const PositionFilterSpace *space, const PositionFilterPacket *packet,
+	PositionSensorFusionState *fusion_state);
 static void position_fusion_lowpass_optical_update(
     const float delta_time, 
     const PositionFilterConstants *constants, const PositionFilterSpace *space, const PositionFilterPacket *packet,
@@ -249,6 +262,9 @@ void PositionFilter::update(
     case FusionTypeComplimentaryOpticalIMU:
         position_fusion_complimentary_optical_imu_update(delta_time, &m_FilterConstants, &m_FilterSpace, &filterPacket, m_FusionState);
         break;
+	case FusionTypeLowPassExponential:
+		position_fusion_lowpass_exponential_update(delta_time, &m_FilterConstants, &m_FilterSpace, &filterPacket, m_FusionState);
+		break;
     // TODO: Kalman
     default:
         assert(0 && "unreachable");
@@ -339,6 +355,52 @@ static Eigen::Vector3f lowpass_filter_position(
     const Eigen::Vector3f filtered_new_position = lowpass_filter_vector3f(new_position_weight, old_position, new_position);
 
     return filtered_new_position;
+}
+
+static void
+position_fusion_lowpass_exponential_update(
+	const float delta_time,
+	const PositionFilterConstants *filter_constants,
+	const PositionFilterSpace *filter_space,
+	const PositionFilterPacket *filter_packet,
+	PositionSensorFusionState *fusion_state)
+{
+	if (filter_packet->position_quality > 0.f && eigen_vector3f_is_valid(filter_packet->position))
+	{
+		fusion_state->accelerometer = filter_packet->world_accelerometer;
+		fusion_state->accelerometer_derivative = Eigen::Vector3f::Zero();
+
+		int queueLen = 3;
+		float smooth = 0.6f;
+
+		if (fusion_state->bIsValid)
+		{
+			// New position is blended against the old position
+			fusion_state->position = lowpass_filter_position(filter_packet, fusion_state);
+
+			float q = 0.4f;
+			Eigen::Vector3f prev_position = fusion_state->exp_velocity;
+			float prev_delta_time = fusion_state->exp_delta_time;
+
+			fusion_state->exp_velocity = (fusion_state->position * q) + (prev_position * (1.0f - q));
+			fusion_state->exp_delta_time = (delta_time * q) + (prev_delta_time * (1.0f - q));
+
+			fusion_state->velocity = (fusion_state->exp_velocity - prev_position) / fusion_state->exp_delta_time;
+
+			//fusion_state->velocity = Eigen::Vector3f::Zero();
+			fusion_state->acceleration = Eigen::Vector3f::Zero(); //new_acceleration;
+		}
+		else
+		{
+			// If this is the first filter packet, just accept the position as gospel
+			fusion_state->position = filter_packet->position;
+			fusion_state->velocity = Eigen::Vector3f::Zero();
+			fusion_state->acceleration = Eigen::Vector3f::Zero();
+
+			// Fusion state is valid now that we have one sample
+			fusion_state->bIsValid = true;
+		}
+	}
 }
 
 static void

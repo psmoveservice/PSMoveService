@@ -83,6 +83,7 @@ public:
         FusionTypeLowPassOptical,
         FusionTypeLowPassIMU,
         FusionTypeComplimentaryOpticalIMU,
+		FusionTypeLowPassExponential,
         // TODO: Kalman
     };
 
