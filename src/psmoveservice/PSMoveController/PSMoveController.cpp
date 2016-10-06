@@ -249,6 +249,8 @@ PSMoveControllerConfig::config2ptree()
 
 	writeTrackingColor(pt, tracking_color_id);
 
+	pt.put("enable_filtered_velocity", enable_filtered_velocity);
+
     return pt;
 }
 
@@ -315,6 +317,8 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
 
 		tracking_color_id= static_cast<eCommonTrackingColorID>(readTrackingColor(pt));
+
+		enable_filtered_velocity= pt.get<bool>("enable_filtered_velocity", enable_filtered_velocity);
     }
     else
     {

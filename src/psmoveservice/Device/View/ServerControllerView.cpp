@@ -1441,8 +1441,15 @@ init_filters_for_psmove(
 
         position_filter->setFilterSpace(filterSpace);
 
-        // Use the LowPass + exponential filter by default
-        position_filter->setFusionType(PositionFilter::FusionTypeLowPassExponential);
+        //###HipsterSloth $TODO Proper filter selection
+		if (psmove_config->enable_filtered_velocity)
+		{
+			position_filter->setFusionType(PositionFilter::FusionTypeLowPassExponential);
+		}
+		else
+		{
+			position_filter->setFusionType(PositionFilter::FusionTypeLowPassOptical);
+		}
         position_filter->setAccelerometerNoiseRadius(psmove_config->accelerometer_noise_radius);
         position_filter->setMaxVelocity(psmove_config->max_velocity);
     }
