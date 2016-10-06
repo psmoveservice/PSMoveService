@@ -44,6 +44,7 @@ public:
         , max_position_quality_screen_area(k_real_pi*20.f*20.f) // lightbulb at ideal range is about 40px by 40px 
         , max_velocity(1.f)
 		, tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
+		, enable_filtered_velocity(true)
     {
         magnetometer_identity.clear();
         magnetometer_center.clear();
@@ -91,6 +92,9 @@ public:
 
 	// The assigned tracking color for this controller
 	eCommonTrackingColorID tracking_color_id;
+
+	// Chicken switch for velocity filtering
+	bool enable_filtered_velocity;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport

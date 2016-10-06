@@ -2,13 +2,8 @@
 #include "PositionFilter.h"
 #include "MathEigen.h"
 #include "ServerLog.h"
-#include <deque>
-#include <list>
 
 //-- constants -----
-// Max length of the position history we keep
-#define k_position_history_max 16
-
 // The max distance between samples that we apply low pass filter on the optical position filter
 #define k_max_lowpass_smoothing_distance 10.f * k_centimeters_to_meters // meters
 
@@ -56,8 +51,6 @@ struct PositionSensorFusionState
     Eigen::Vector3f origin_position; // meters
 
 	// required for smoothing position to get velocity
-	std::list<float> exp_delta_time_list;
-	std::list<Eigen::Vector3f> exp_position_list;
 	float exp_delta_time;
 	Eigen::Vector3f exp_velocity;
 
