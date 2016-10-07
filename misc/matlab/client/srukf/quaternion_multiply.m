@@ -1,4 +1,6 @@
 function output = quaternion_multiply(q1, q0)
+% q1 = bsxfun(@rdivide, q1, sqrt(sum(q1.^2, 1)));
+% q0 = bsxfun(@rdivide, q0, sqrt(sum(q0.^2, 1)));
 %Either q1 or q0 must be 4x1, or both must be 4xN
 w0 = q0(1, :);
 x0 = q0(2, :);
