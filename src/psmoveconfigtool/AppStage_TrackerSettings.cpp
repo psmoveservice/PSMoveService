@@ -79,6 +79,19 @@ void AppStage_TrackerSettings::render()
     }
 }
 
+int AppStage_TrackerSettings::get_selected_controller_id() {
+	int controller_id = -1;
+	if (m_selectedControllerIndex != -1)
+	{
+		const AppStage_TrackerSettings::ControllerInfo &controllerInfo =
+			m_controllerInfos[m_selectedControllerIndex];
+
+		controller_id = controllerInfo.ControllerID;
+	}
+
+	return controller_id;
+}
+
 void AppStage_TrackerSettings::renderUI()
 {
     const char *k_window_title = "Tracker Settings";
@@ -226,16 +239,7 @@ void AppStage_TrackerSettings::renderUI()
             //###HipsterSloth $TODO: Localhost only check
             if (ImGui::Button("Calibrate Tracking Colors"))
             {
-				int controller_id= -1;
-				if (m_selectedControllerIndex != -1)
-				{ 
-					const AppStage_TrackerSettings::ControllerInfo &controllerInfo = 
-						m_controllerInfos[m_selectedControllerIndex];
-
-					controller_id = controllerInfo.ControllerID;
-				}
-
-				m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_id(controller_id);
+				m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_id(get_selected_controller_id());
                 m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
             }
         }
@@ -247,12 +251,12 @@ void AppStage_TrackerSettings::renderUI()
         {
             if (ImGui::Button("Compute Tracker Poses"))
             {
-                AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app);
+                AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app, get_selected_controller_id());
             }
 
             if (ImGui::Button("Test Tracking"))
             {
-                AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app);
+                AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app, get_selected_controller_id());
             }
         }
 
