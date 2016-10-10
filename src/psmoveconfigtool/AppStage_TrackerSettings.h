@@ -54,6 +54,8 @@ protected:
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
 
+	int get_selected_controller_id();
+
 protected:
     enum eTrackerMenuState
     {
