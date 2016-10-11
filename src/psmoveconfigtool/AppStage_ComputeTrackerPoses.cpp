@@ -19,6 +19,8 @@
 #include "SDL_keycode.h"
 #include "SDL_opengl.h"
 
+#include "ClientPSMoveAPI.h"
+
 #include <imgui.h>
 #include <sstream>
 
@@ -28,6 +30,7 @@ const char *AppStage_ComputeTrackerPoses::APP_STAGE_NAME = "ComputeTrackerPoses"
 //-- constants -----
 static const glm::vec3 k_hmd_frustum_color = glm::vec3(1.f, 0.788f, 0.055f);
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
+static const glm::vec3 k_psmove_frustum_color_no_track = glm::vec3(1.0f, 0.f, 0.f);
 
 //-- private methods -----
 static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
@@ -41,6 +44,7 @@ AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
     , m_renderTrackerIndex(0)
     , m_pCalibrateWithMat(new AppSubStage_CalibrateWithMat(this))
     , m_bSkipCalibration(false)
+	, m_overrideControllerId(-1)
 { 
     m_renderTrackerIter = m_trackerViews.end();
 }
@@ -50,15 +54,17 @@ AppStage_ComputeTrackerPoses::~AppStage_ComputeTrackerPoses()
     delete m_pCalibrateWithMat;
 }
 
-void AppStage_ComputeTrackerPoses::enterStageAndCalibrate(App *app)
+void AppStage_ComputeTrackerPoses::enterStageAndCalibrate(App *app, int reqeusted_controller_id)
 {
     app->getAppStage<AppStage_ComputeTrackerPoses>()->m_bSkipCalibration = false;
+	app->getAppStage<AppStage_ComputeTrackerPoses>()->m_overrideControllerId = reqeusted_controller_id;
     app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
 }
 
-void AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(App *app)
+void AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(App *app, int reqeusted_controller_id)
 {
     app->getAppStage<AppStage_ComputeTrackerPoses>()->m_bSkipCalibration = true;
+	app->getAppStage<AppStage_ComputeTrackerPoses>()->m_overrideControllerId = reqeusted_controller_id;
     app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
 }
 
@@ -163,11 +169,24 @@ void AppStage_ComputeTrackerPoses::render()
                 {
                     PSMoveFrustum frustum = trackerView->getTrackerFrustum();
 
-                    drawTransformedFrustum(psmove_tracking_space_to_chaperone_space, &frustum, k_psmove_frustum_color);
+					// use color depending on tracking status
+					PSMoveScreenLocation screenSample;
+					glm::vec3 color;
+					if (m_controllerView->GetIsCurrentlyTracking() &&
+						m_controllerView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
+					{
+						color = k_psmove_frustum_color;
+					}
+					else {
+						color = k_psmove_frustum_color_no_track;
+					}
+
+                    drawTransformedFrustum(psmove_tracking_space_to_chaperone_space, &frustum, color);
                 }
 
                 drawTransformedAxes(chaperoneSpaceTransform, 20.f);
             }
+
 
             // Draw the psmove model
             {
@@ -321,6 +340,23 @@ void AppStage_ComputeTrackerPoses::renderUI()
             {
                 m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
+
+			// display tracking quality
+			for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+			{
+				PSMoveScreenLocation screenSample;
+
+				const ClientTrackerView *trackerView = iter->second.trackerView;
+				if (m_controllerView->GetIsCurrentlyTracking() &&
+					m_controllerView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
+				{
+					ImGui::Text("Tracking %d: OK", trackerView->getTrackerId() + 1);
+				}
+				else {
+					ImGui::Text("Tracking %d: FAIL", trackerView->getTrackerId() + 1);
+				}
+			}
+			ImGui::Text("");
 
             ImGui::End();
         }
@@ -565,6 +601,9 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
     const ClientPSMoveAPI::ResponseMessage *response_message,
     void *userdata)
 {
+	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_message->opaque_response_handle);
+	const PSMoveProtocol::Request *request = GET_PSMOVEPROTOCOL_REQUEST(response_message->opaque_request_handle);
+	
     AppStage_ComputeTrackerPoses *thisPtr = static_cast<AppStage_ComputeTrackerPoses *>(userdata);
 
     const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
@@ -578,16 +617,20 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
             const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list = 
                 &response_message->payload.controller_list;
 
-            int trackedControllerId = -1;
-            for (int list_index = 0; list_index < controller_list->count; ++list_index)
-            {
-                if (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
-                    controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)
-                {
-                    trackedControllerId = controller_list->controller_id[list_index];
-                    break;
-                }
-            }
+            int trackedControllerId = thisPtr->m_overrideControllerId;
+
+			if (trackedControllerId == -1)
+			{
+				for (int list_index = 0; list_index < controller_list->count; ++list_index)
+				{
+					if (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
+						controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)
+					{
+						trackedControllerId = controller_list->controller_id[list_index];
+						break;
+					}
+				}
+			}
 
             if (trackedControllerId != -1)
             {
