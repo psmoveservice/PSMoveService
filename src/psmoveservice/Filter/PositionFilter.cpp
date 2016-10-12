@@ -52,7 +52,7 @@ struct PositionSensorFusionState
 
 	// required for smoothing position to get velocity
 	float exp_delta_time;
-	Eigen::Vector3f exp_velocity;
+	Eigen::Vector3f exp_position;
 
     /// The filter fusion algorithm to use
     PositionFilter::FusionType fusion_type;
@@ -71,7 +71,7 @@ struct PositionSensorFusionState
         origin_position = Eigen::Vector3f::Zero();
         bLast_visible_position_timestamp_valid= false;
 		exp_delta_time = 0.f;
-		exp_velocity = Eigen::Vector3f::Zero();
+		exp_position = Eigen::Vector3f::Zero();
     }
 };
 
@@ -372,13 +372,13 @@ position_fusion_lowpass_exponential_update(
 			fusion_state->position = lowpass_filter_position(filter_packet, fusion_state);
 
 			float q = 0.4f;
-			Eigen::Vector3f prev_position = fusion_state->exp_velocity;
+			Eigen::Vector3f prev_position = fusion_state->exp_position;
 			float prev_delta_time = fusion_state->exp_delta_time;
 
-			fusion_state->exp_velocity = (fusion_state->position * q) + (prev_position * (1.0f - q));
+			fusion_state->exp_position = (fusion_state->position * q) + (prev_position * (1.0f - q));
 			fusion_state->exp_delta_time = (delta_time * q) + (prev_delta_time * (1.0f - q));
 
-			fusion_state->velocity = (fusion_state->exp_velocity - prev_position) / fusion_state->exp_delta_time;
+			fusion_state->velocity = (fusion_state->exp_position - prev_position) / fusion_state->exp_delta_time;
 
 			//fusion_state->velocity = Eigen::Vector3f::Zero();
 			fusion_state->acceleration = Eigen::Vector3f::Zero(); //new_acceleration;
