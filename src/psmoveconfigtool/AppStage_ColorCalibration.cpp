@@ -186,7 +186,7 @@ void AppStage_ColorCalibration::update()
     {
         if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
         {
-            request_set_controller_tracking_color(PSMoveTrackingColorType::Magenta);
+            request_set_controller_tracking_color(m_trackingColorType);
             setState(eMenuState::manualConfig);
         }
     }

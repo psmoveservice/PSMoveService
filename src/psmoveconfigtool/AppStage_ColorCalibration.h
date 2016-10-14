@@ -26,6 +26,10 @@ public:
 	inline void set_override_controller_id(int controller_id)
 	{ m_overrideControllerId= controller_id; }
 
+	inline void set_override_controller_tracking_color(PSMoveTrackingColorType tracking_color) {
+		m_trackingColorType = tracking_color;
+	}
+
 protected:
     enum eMenuState
     {
