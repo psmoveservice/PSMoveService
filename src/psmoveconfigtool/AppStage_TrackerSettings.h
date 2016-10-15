@@ -12,6 +12,7 @@ public:
     struct ControllerInfo
     {
         int ControllerID;
+		PSMoveTrackingColorType TrackingColorType;
         ClientControllerView::eControllerType ControllerType;
     };
 
@@ -54,7 +55,7 @@ protected:
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
 
-	int get_selected_controller_id();
+	const ControllerInfo *get_selected_controller();
 
 protected:
     enum eTrackerMenuState

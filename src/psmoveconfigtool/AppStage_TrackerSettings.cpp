@@ -79,17 +79,18 @@ void AppStage_TrackerSettings::render()
     }
 }
 
-int AppStage_TrackerSettings::get_selected_controller_id() {
-	int controller_id = -1;
+const AppStage_TrackerSettings::ControllerInfo *AppStage_TrackerSettings::get_selected_controller() {
+	const ControllerInfo *controller = NULL;
+
 	if (m_selectedControllerIndex != -1)
 	{
 		const AppStage_TrackerSettings::ControllerInfo &controllerInfo =
 			m_controllerInfos[m_selectedControllerIndex];
 
-		controller_id = controllerInfo.ControllerID;
+		controller = &controllerInfo;
 	}
 
-	return controller_id;
+	return controller;
 }
 
 void AppStage_TrackerSettings::renderUI()
@@ -214,7 +215,16 @@ void AppStage_TrackerSettings::renderUI()
 
 					if (controllerInfo.ControllerType == ClientControllerView::PSMove)
 					{ 
-						ImGui::Text("Controller: %d (PSMove)", m_selectedControllerIndex);
+						if (0 <= controllerInfo.TrackingColorType && controllerInfo.TrackingColorType < PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES) {
+							char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
+
+							ImGui::Text("Controller: %d (PSMove) - %s", 
+								m_selectedControllerIndex,
+								colors[controllerInfo.TrackingColorType]);
+						}
+						else {
+							ImGui::Text("Controller: %d (PSMove)", m_selectedControllerIndex);
+						}
 					}
 					else
 					{
@@ -239,7 +249,13 @@ void AppStage_TrackerSettings::renderUI()
             //###HipsterSloth $TODO: Localhost only check
             if (ImGui::Button("Calibrate Tracking Colors"))
             {
-				m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_id(get_selected_controller_id());
+				const ControllerInfo *controler = get_selected_controller();
+				if (controler != NULL) {
+					m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_id(controler->ControllerID);
+					m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_tracking_color(controler->TrackingColorType);
+				}
+
+				
                 m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
             }
         }
@@ -249,14 +265,16 @@ void AppStage_TrackerSettings::renderUI()
 
         if (m_trackerInfos.size() > 0)
         {
+			const ControllerInfo *controller = get_selected_controller();
+
             if (ImGui::Button("Compute Tracker Poses"))
             {
-                AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app, get_selected_controller_id());
+                AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app, controller == NULL ? -1 : controller->ControllerID);
             }
 
             if (ImGui::Button("Test Tracking"))
             {
-                AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app, get_selected_controller_id());
+                AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app, controller == NULL ? -1 : controller->ControllerID);
             }
         }
 
@@ -430,6 +448,7 @@ void AppStage_TrackerSettings::handle_controller_list_response(
                 AppStage_TrackerSettings::ControllerInfo ControllerInfo;
 
                 ControllerInfo.ControllerID= ControllerResponse.controller_id();
+				ControllerInfo.TrackingColorType = (PSMoveTrackingColorType)ControllerResponse.tracking_color_type();
 
                 switch(ControllerResponse.controller_type())
                 {
