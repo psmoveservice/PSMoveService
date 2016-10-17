@@ -281,14 +281,15 @@ static PSMovePose openvrMatrixExtractPSMovePose(const vr::HmdMatrix34_t &openVRT
 
 CServerDriver_PSMoveService::CServerDriver_PSMoveService()
     : m_bLaunchedPSMoveMonitor(false)
+	, m_bInitialized(false)
 {
 }
 
 CServerDriver_PSMoveService::~CServerDriver_PSMoveService()
 {
-    // 10/10/2015 benj:  vrserver is exiting without calling Cleanup() to balance Init()
-    // causing std::thread to call std::terminate
-    Cleanup();
+	// 10/10/2015 benj:  vrserver is exiting without calling Cleanup() to balance Init()
+	// causing std::thread to call std::terminate
+	Cleanup();
 }
 
 vr::EVRInitError CServerDriver_PSMoveService::Init(
@@ -299,48 +300,89 @@ vr::EVRInitError CServerDriver_PSMoveService::Init(
 {
     vr::EVRInitError initError = vr::VRInitError_None;
 
-    InitDriverLog( pDriverLog );
-    m_pDriverHost = pDriverHost;
-    m_strDriverInstallDir = pchDriverInstallDir;
-    
-    // By default, assume the psmove and openvr tracking spaces are the same
-    m_worldFromDriverPose.Clear();
-    
-    // Note that reconnection is a non-blocking async request.
-    // Returning true means we we're able to start trying to connect,
-    // not that we are successfully connected yet.
-    if (!ReconnectToPSMoveService())
-    {
-        initError= vr::VRInitError_Driver_Failed;
-    }
+	DriverLog("CServerDriver_PSMoveService::Init - called.\n");
 
-	vr::IVRSettings *pSettings = m_pDriverHost->GetSettings(vr::IVRSettings_Version);
-	if (pSettings != NULL) {
-		char buf[256];
-		vr::EVRSettingsError fetchError;
+	if (!m_bInitialized)
+	{
+		InitDriverLog(pDriverLog);
+		m_pDriverHost = pDriverHost;
+		m_strDriverInstallDir = pchDriverInstallDir;
 
-		pSettings->GetString("psmove_settings", "psmove_filter_hmd_serial", buf, sizeof(buf), "", &fetchError);
-		m_strPSMoveHMDSerialNo = boost::to_upper_copy<std::string>(buf);
+		DriverLog("CServerDriver_PSMoveService::Init - Initializing.\n");
+
+		// By default, assume the psmove and openvr tracking spaces are the same
+		m_worldFromDriverPose.Clear();
+
+		// Note that reconnection is a non-blocking async request.
+		// Returning true means we we're able to start trying to connect,
+		// not that we are successfully connected yet.
+		if (!ReconnectToPSMoveService())
+		{
+			initError = vr::VRInitError_Driver_Failed;
+		}
+
+		vr::IVRSettings *pSettings = m_pDriverHost->GetSettings(vr::IVRSettings_Version);
+		if (pSettings != NULL) {
+			char buf[256];
+			vr::EVRSettingsError fetchError;
+
+			pSettings->GetString("psmove_settings", "psmove_filter_hmd_serial", buf, sizeof(buf), "", &fetchError);
+			m_strPSMoveHMDSerialNo = boost::to_upper_copy<std::string>(buf);
+		}
+
+		m_bInitialized = true;
 	}
+	else
+	{
+		DriverLog("CServerDriver_PSMoveService::Init - Already Initialized. Ignoring.\n");
+	}
+
     return initError;
 }
 
 bool CServerDriver_PSMoveService::ReconnectToPSMoveService()
 {
+	DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - called.\n");
+
     if (ClientPSMoveAPI::has_started())
     {
+		DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Existing PSMoveService connection active. Shutting down...\n");
         ClientPSMoveAPI::shutdown();
+		DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Existing PSMoveService connection stopped.\n");
     }
+	else
+	{
+		DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Existing PSMoveService connection NOT active.\n");
+	}
 
-    return ClientPSMoveAPI::startup(
+	DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Starting PSMoveService connection...\n");
+    bool bSuccess= ClientPSMoveAPI::startup(
         PSMOVESERVICE_DEFAULT_ADDRESS, 
         PSMOVESERVICE_DEFAULT_PORT, 
         _log_severity_level_warning);
+
+	if (bSuccess)
+	{
+		DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Successfully connected\n");
+	}
+	else
+	{
+		DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Failed to connect!\n");
+	}
+
+	return bSuccess;
 }
 
 void CServerDriver_PSMoveService::Cleanup()
 {
-    ClientPSMoveAPI::shutdown();
+	if (m_bInitialized)
+	{
+		DriverLog("CServerDriver_PSMoveService::Cleanup - Shutting down connection...\n");
+		ClientPSMoveAPI::shutdown();
+		DriverLog("CServerDriver_PSMoveService::Cleanup - Shutdown complete\n");
+
+		m_bInitialized = false;
+	}
 }
 
 const char * const *CServerDriver_PSMoveService::GetInterfaceVersions()
@@ -472,6 +514,8 @@ void CServerDriver_PSMoveService::HandleClientPSMoveEvent(
 
 void CServerDriver_PSMoveService::HandleConnectedToPSMoveService()
 {
+	DriverLog("CServerDriver_PSMoveService::HandleConnectedToPSMoveService - Request controller and tracker lists\n");
+
     // Ask the service for a list of connected controllers
     // Response handled in HandleControllerListReponse()
     ClientPSMoveAPI::get_controller_list();
@@ -483,12 +527,16 @@ void CServerDriver_PSMoveService::HandleConnectedToPSMoveService()
 
 void CServerDriver_PSMoveService::HandleFailedToConnectToPSMoveService()
 {
+	DriverLog("CServerDriver_PSMoveService::HandleFailedToConnectToPSMoveService - Called\n");
+
     // Immediately attempt to reconnect to the service
     ReconnectToPSMoveService();
 }
 
 void CServerDriver_PSMoveService::HandleDisconnectedFromPSMoveService()
 {
+	DriverLog("CServerDriver_PSMoveService::HandleDisconnectedFromPSMoveService - Called\n");
+
     for (auto it = m_vecTrackedDevices.begin(); it != m_vecTrackedDevices.end(); ++it)
     {
         CPSMoveTrackedDeviceLatest *pDevice = *it;
@@ -502,6 +550,8 @@ void CServerDriver_PSMoveService::HandleDisconnectedFromPSMoveService()
 
 void CServerDriver_PSMoveService::HandleControllerListChanged()
 {
+	DriverLog("CServerDriver_PSMoveService::HandleControllerListChanged - Called\n");
+
     // Ask the service for a list of connected controllers
     // Response handled in HandleControllerListReponse()
     ClientPSMoveAPI::get_controller_list();
@@ -509,6 +559,8 @@ void CServerDriver_PSMoveService::HandleControllerListChanged()
 
 void CServerDriver_PSMoveService::HandleTrackerListChanged()
 {
+	DriverLog("CServerDriver_PSMoveService::HandleTrackerListChanged - Called\n");
+
     // Ask the service for a list of connected trackers
     // Response handled in HandleTrackerListReponse()
     ClientPSMoveAPI::get_tracker_list();
@@ -545,6 +597,8 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
     const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list,
 	const ClientPSMoveAPI::t_response_handle response_handle)
 {
+	DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Received %d controllers\n", controller_list->count);
+
     for (int list_index = 0; list_index < controller_list->count; ++list_index)
     {
         int controller_id = controller_list->controller_id[list_index];
@@ -553,12 +607,15 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
         switch (controller_type)
         {
         case ClientControllerView::PSMove:
+			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSMove(%d)\n", controller_id);
             AllocateUniquePSMoveController(controller_id, response_handle);
             break;
         case ClientControllerView::PSNavi:
+			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSNavi(%d)\n", controller_id);
             AllocateUniquePSNaviController(controller_id);
             break;
         case ClientControllerView::PSDualShock4:
+			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSDualShock4(%d)\n", controller_id);
             AllocateUniqueDualShock4Controller(controller_id);
             break;
         default:
@@ -570,6 +627,8 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
 void CServerDriver_PSMoveService::HandleTrackerListReponse(
     const ClientPSMoveAPI::ResponsePayload_TrackerList *tracker_list)
 {
+	DriverLog("CServerDriver_PSMoveService::HandleTrackerListReponse - Received %d trackers\n", tracker_list->count);
+
     for (int list_index = 0; list_index < tracker_list->count; ++list_index)
     {
         const ClientTrackerInfo &trackerInfo = tracker_list->trackers[list_index];
@@ -691,20 +750,20 @@ void CServerDriver_PSMoveService::AllocateUniquePSMoveTracker(const ClientTracke
 // and tell us the pose of the HMD at the moment we want to calibrate.
 void CServerDriver_PSMoveService::LaunchPSMoveMonitor( const char * pchDriverInstallDir )
 {
-	#if LOG_REALIGN_TO_HMD != 0
-		DriverLog("Entered CServerDriver_PSMoveService::LaunchPSMoveMonitor(%s)\n", pchDriverInstallDir );
-	#endif
-
     if ( m_bLaunchedPSMoveMonitor )
 	{
         return;
 	}
 
+#if LOG_REALIGN_TO_HMD != 0
+	DriverLog("Entered CServerDriver_PSMoveService::LaunchPSMoveMonitor(%s)\n", pchDriverInstallDir);
+#endif
+
     m_bLaunchedPSMoveMonitor = true;
 
     std::ostringstream path_and_executable_string_builder;
 
-    path_and_executable_string_builder << "\"" << pchDriverInstallDir << "\\bin\\";
+    path_and_executable_string_builder << pchDriverInstallDir << "\\bin\\";
 #if defined( _WIN64 )
     path_and_executable_string_builder << "win64";
 #elif defined( _WIN32 )
@@ -717,25 +776,29 @@ void CServerDriver_PSMoveService::LaunchPSMoveMonitor( const char * pchDriverIns
 
 
 #if defined( _WIN32 ) || defined( _WIN64 )
-	const std::string monitor_path = path_and_executable_string_builder.str() + "\\\"";
-
-	path_and_executable_string_builder << "\\monitor_psmove.exe\"";
+	path_and_executable_string_builder << "\\monitor_psmove.exe";
 	const std::string monitor_path_and_exe = path_and_executable_string_builder.str();
 
 	std::ostringstream args_string_builder;
-	args_string_builder << "\"" << pchDriverInstallDir << "\\resources\"";
+	args_string_builder << "monitor_psmove.exe \"" << pchDriverInstallDir << "\\resources\"";
 	const std::string monitor_args = args_string_builder.str();
+	
+	char monitor_args_cstr[1024];
+	strncpy_s(monitor_args_cstr, monitor_args.c_str(), sizeof(monitor_args_cstr) - 1);
+	monitor_args_cstr[sizeof(monitor_args_cstr) - 1] = '\0';
 
 	#if LOG_REALIGN_TO_HMD != 0
 		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows full path: %s\n", monitor_path_and_exe.c_str());
-		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows args: %s\n", monitor_args.c_str());
-		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows current directory: %s\n", monitor_path.c_str());
+		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows args: %s\n", monitor_args_cstr);
 	#endif
 
-	HINSTANCE shellExecuteResult
-		= ShellExecuteA(NULL, "open", monitor_path_and_exe.c_str(), monitor_args.c_str(), monitor_path.c_str(), SW_HIDE);
+	STARTUPINFOA sInfoProcess = { 0 };
+	sInfoProcess.cb = sizeof(STARTUPINFOW);
+	PROCESS_INFORMATION pInfoStartedProcess;
+	BOOL bSuccess = CreateProcessA(monitor_path_and_exe.c_str(), monitor_args_cstr, NULL, NULL, FALSE, 0, NULL, NULL, &sInfoProcess, &pInfoStartedProcess);
+	DWORD ErrorCode = (bSuccess == TRUE) ? 0 : GetLastError();
 
-	DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() Start monitor_psmove ShellExecuteA() result: %d.\n", shellExecuteResult);
+	DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() Start monitor_psmove CreateProcessA() result: %d.\n", ErrorCode);
 
 #elif defined(__APPLE__) 
     pid_t processId;
@@ -1281,7 +1344,7 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 			= pSettings->GetFloat("psmove", "m_fControllerMetersInFrontOfHmdAtCallibration", 0.06f, &fetchError);
 
 		#if LOG_REALIGN_TO_HMD != 0
-			DriverLog("m_fControllerMetersInFrontOfHmdAtCallibration: %d\n", m_fControllerMetersInFrontOfHmdAtCallibration);
+			DriverLog("m_fControllerMetersInFrontOfHmdAtCallibration: %f\n", m_fControllerMetersInFrontOfHmdAtCallibration);
 		#endif
 	}
 
@@ -1346,11 +1409,9 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(uint32_t unObjectId)
 {
     vr::EVRInitError result = CPSMoveTrackedDeviceLatest::Activate(unObjectId);
 
-    if (result == vr::VRInitError_None)
-    {
-		#if LOG_REALIGN_TO_HMD != 0
-			DriverLog("CPSMoveControllerLatest::Activate(%d) -- calling g_ServerTrackedDeviceProvider.LaunchPSMoveMonitor()\n", unObjectId);
-		#endif
+    if (result == vr::VRInitError_None)    
+	{
+		DriverLog("CPSMoveControllerLatest::Activate - Controller %d Activated\n", unObjectId);
 
 		g_ServerTrackedDeviceProvider.LaunchPSMoveMonitor();
 
@@ -1372,12 +1433,15 @@ void CPSMoveControllerLatest::start_controller_response_callback(
 
     if (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
     {
+		DriverLog("CPSMoveControllerLatest::start_controller_response_callback - Controller stream started\n");
+
         controller->m_properties_dirty= true;
     }
 }
 
 void CPSMoveControllerLatest::Deactivate()
 {
+	DriverLog("CPSMoveControllerLatest::Deactivate - Controller stream stopped\n");
     ClientPSMoveAPI::stop_controller_data_stream(m_controller_view);
 }
 

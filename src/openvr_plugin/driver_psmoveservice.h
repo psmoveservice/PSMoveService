@@ -63,6 +63,7 @@ private:
 	std::string m_strPSMoveHMDSerialNo;
 
     bool m_bLaunchedPSMoveMonitor;
+	bool m_bInitialized;
 
     std::vector< CPSMoveTrackedDeviceLatest * > m_vecTrackedDevices;
 
