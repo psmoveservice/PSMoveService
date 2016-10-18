@@ -1715,8 +1715,6 @@ void CPSMoveControllerLatest::UpdateControllerState()
 			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Square, clientView.GetButtonSquare(), &NewState);
 			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Start, clientView.GetButtonStart(), &NewState);
 			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Triangle, clientView.GetButtonTriangle(), &NewState);
-			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Trigger, clientView.GetButtonTrigger(), &NewState);
-
 
 			if (m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis)
 			{
@@ -1767,12 +1765,21 @@ void CPSMoveControllerLatest::UpdateControllerState()
 			if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x || NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
 				m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
 
+			// Trigger handling
+			{
+				const float triggerValue= clientView.GetTriggerValue();
 
-            NewState.rAxis[1].x = clientView.GetTriggerValue();
-            NewState.rAxis[1].y = 0.f;
+				NewState.rAxis[1].x = triggerValue;
+				NewState.rAxis[1].y = 0.f;
+				
+				if (triggerValue > 0.1f)
+					NewState.ulButtonTouched |= vr::ButtonMaskFromId(vr::k_EButton_Axis1);
+				if (triggerValue > 0.8f)
+					NewState.ulButtonPressed |= vr::ButtonMaskFromId(vr::k_EButton_Axis1);
 
-			if (NewState.rAxis[1].x != m_ControllerState.rAxis[1].x)
-                m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1]);
+				if (NewState.rAxis[1].x != m_ControllerState.rAxis[1].x)
+					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1]);
+			}
 
         } break;
     case ClientControllerView::eControllerType::PSNavi:
