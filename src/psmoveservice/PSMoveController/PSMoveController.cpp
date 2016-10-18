@@ -699,7 +699,7 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
     {
         int res;
         
-        unsigned char btg[PSMOVE_BTADDR_GET_SIZE];
+        unsigned char btg[PSMOVE_BTADDR_GET_SIZE+1];
         unsigned char ctrl_char_buff[PSMOVE_BTADDR_SIZE];
         unsigned char host_char_buff[PSMOVE_BTADDR_SIZE];
 
@@ -770,7 +770,7 @@ PSMoveController::loadCalibration()
 
     for (int block_index=0; is_valid && block_index<3; block_index++) 
     {
-        unsigned char cal[PSMOVE_CALIBRATION_SIZE];
+        unsigned char cal[PSMOVE_CALIBRATION_SIZE+1]; // +1 for report id at start
         int dest_offset;
         int src_offset;
 
@@ -779,7 +779,7 @@ PSMoveController::loadCalibration()
 
         int res = hid_get_feature_report(HIDDetails.Handle, cal, sizeof(cal));
 
-        if (res == PSMOVE_CALIBRATION_SIZE)
+        if (res == sizeof(cal))
         {
             if (cal[1] == 0x00) 
             {
@@ -823,7 +823,7 @@ PSMoveController::loadCalibration()
 
         if (is_valid)
         {
-            memcpy(hid_cal+dest_offset, cal+src_offset, sizeof(cal)-src_offset);
+            memcpy(hid_cal+dest_offset, cal+src_offset, sizeof(cal)-src_offset-1);
         }
     }
 
