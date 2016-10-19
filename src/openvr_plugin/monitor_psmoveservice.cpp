@@ -91,6 +91,7 @@ protected:
 				switch ( Event.eventType )
 				{
 				case vr::VREvent_Quit:
+				case vr::VREvent_DriverRequestedQuit: // The driver has requested that SteamVR shut down
 					exit( 0 );
 					// NOTREAHED
 
@@ -263,21 +264,35 @@ private:
 	std::set<uint32_t> m_PSMoveDeviceIndexSet;
 };
 
-int main(int argc,char** argv)
+#if defined( WIN32 )
+// http://stackoverflow.com/questions/4191465/how-to-run-only-one-instance-of-application
+BOOL CheckOneInstance()
 {
-	// Find resource path
-	HMODULE hModule = GetModuleHandleA(NULL);
-	char path[MAX_PATH];
-	GetModuleFileNameA(hModule, path, MAX_PATH);
+	HANDLE hStartEvent = CreateEventW(NULL, TRUE, FALSE, L"EVENT_MONITOR_PSMOVE");
 
-	char *snip = strstr(path, "\\bin\\");
-	if (snip)
+	if (GetLastError() == ERROR_ALREADY_EXISTS) 
 	{
-		*snip = '\0';
+		CloseHandle(hStartEvent);
+		hStartEvent = NULL;
+	
+		// already exist
+		return FALSE;
 	}
 
-	std::string overlay_path = std::string(path) + "\\resources\\overlays\\";
-/*
+	// the only instance, start in a usual way
+	return TRUE;
+}
+#endif
+
+int main(int argc,char** argv)
+{
+	#if defined( WIN32 )
+	if (CheckOneInstance() == FALSE)
+	{
+		std::cout << "Instance of monitor_psmove.exe already running. Aborting." << std::endl;
+		return -1;
+	}
+	#endif
 
     if (argc < 2)
     {
@@ -287,7 +302,6 @@ int main(int argc,char** argv)
     
     std::string resources_path= argv[1];    
 	std::string overlay_path = resources_path + "\\overlays\\";
-*/
 	CPSMoveDriverMonitor psmoveServiceMonitor( overlay_path );
 
 	psmoveServiceMonitor.Run();

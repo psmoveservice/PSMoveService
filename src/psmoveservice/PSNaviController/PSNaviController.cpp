@@ -394,7 +394,7 @@ PSNaviController::getBTAddress(std::string& host, std::string& controller)
     {
         int res;
         
-        unsigned char btg[PSNAVI_BTADDR_GET_SIZE];
+        unsigned char btg[PSNAVI_BTADDR_GET_SIZE+1];
         unsigned char ctrl_char_buff[PSNAVI_BTADDR_SIZE];
 
         memset(btg, 0, sizeof(btg));

@@ -694,7 +694,7 @@ PSDualShock4Controller::getBTAddressesViaUSB(std::string& host, std::string& con
     bool success = false;
     int res;
 
-    unsigned char btg[PSDS4_BTADDR_GET_SIZE];
+    unsigned char btg[PSDS4_BTADDR_GET_SIZE + 1];
     unsigned char ctrl_char_buff[PSDS4_BTADDR_SIZE];
     unsigned char host_char_buff[PSDS4_BTADDR_SIZE];
 
