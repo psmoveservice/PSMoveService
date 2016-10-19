@@ -1529,9 +1529,15 @@ int32_t CPSMoveControllerLatest::GetInt32TrackedDeviceProperty(
         break;
 
     case vr::Prop_Axis0Type_Int32:
-        nRetVal = vr::k_eControllerAxis_Trigger;
-        *pError = vr::TrackedProp_Success;
+		// We are reporting a "trackpad" type axis for better compatibility with Vive games
+		nRetVal = vr::k_eControllerAxis_TrackPad;
+		*pError = vr::TrackedProp_Success;
         break;
+
+	case vr::Prop_Axis1Type_Int32:
+		nRetVal = vr::k_eControllerAxis_Trigger;
+		*pError = vr::TrackedProp_Success;
+		break;
 
     default:
         *pError = vr::TrackedProp_ValueNotProvidedByDevice;
