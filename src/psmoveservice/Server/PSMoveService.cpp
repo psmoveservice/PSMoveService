@@ -497,7 +497,7 @@ int PSMoveService::exec(int argc, char *argv[])
     #endif // defined(BOOST_POSIX_API)
 
     // initialize logging system
-    log_init(this->getProgramSettings()->log_level);
+    log_init(this->getProgramSettings()->log_level, "PSMoveService.log");
 
     // Start the service app
     SERVER_LOG_INFO("main") << "Starting PSMoveService";
@@ -566,6 +566,8 @@ int PSMoveService::exec(int argc, char *argv[])
     }
 
     SERVER_LOG_INFO("main") << "Exiting PSMoveService";
+
+	log_dispose();
 
     return 0;
 }

@@ -86,6 +86,8 @@ int main()
     
     // Tear-down hid api
     hid_exit();
+
+	log_dispose();
     
     return 0;
 }
