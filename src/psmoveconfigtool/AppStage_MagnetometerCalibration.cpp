@@ -574,7 +574,7 @@ void AppStage_MagnetometerCalibration::renderUI()
         {
             {
                 ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-                ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
+                ImGui::SetNextWindowSize(ImVec2(k_panel_width, 150));
                 ImGui::Begin(k_window_title, nullptr, window_flags);
 
                 if (m_sampleCount < k_max_magnetometer_samples)
@@ -590,15 +590,17 @@ void AppStage_MagnetometerCalibration::renderUI()
                         "Calibrating Controller ID #%d\n" \
                         "[Step 1 of 2: Measuring extents of the magnetometer - Complete!]\n" \
                         "Press OK to continue", m_controllerView->GetControllerID());
-
-
                 }
+
+				ImGui::Text("Magnetometer: Seq(%d) Raw Sensor(%d,%d,%d)",
+					m_lastControllerSeqNum,
+					m_lastRawMagnetometer.i, m_lastRawMagnetometer.j, m_lastRawMagnetometer.k);
 
                 if (m_samplePercentage < 100)
                 {
                     ImGui::ProgressBar(static_cast<float>(m_samplePercentage) / 100.f, ImVec2(250, 20));
 
-                    if ((m_samplePercentage > 60) && ImGui::Button("Force Accept"))
+                    if (ImGui::Button("Force Accept"))
                     {
                         m_controllerView->GetPSMoveViewMutable().SetLEDOverride(0, 0, 0);
                         m_menuState = waitForGravityAlignment;

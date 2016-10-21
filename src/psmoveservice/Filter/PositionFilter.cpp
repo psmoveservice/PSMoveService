@@ -3,6 +3,8 @@
 #include "MathEigen.h"
 #include "ServerLog.h"
 
+#include <chrono>
+
 //-- constants -----
 // The max distance between samples that we apply low pass filter on the optical position filter
 #define k_max_lowpass_smoothing_distance 10.f * k_centimeters_to_meters // meters
@@ -265,25 +267,25 @@ void PositionFilter::update(
 
     if (!eigen_vector3f_is_valid(m_FusionState->position))
     {
-        SERVER_LOG_WARNING("PositionFilter") << "Position is NaN!" << std::endl;
+        SERVER_LOG_WARNING("PositionFilter") << "Position is NaN!";
         m_FusionState->position = position_backup;
     }
 
     if (!eigen_vector3f_is_valid(m_FusionState->velocity))
     {
-        SERVER_LOG_WARNING("PositionFilter") << "Velocity is NaN!" << std::endl;
+        SERVER_LOG_WARNING("PositionFilter") << "Velocity is NaN!";
         m_FusionState->velocity = velocity_backup;
     }
 
     if (!eigen_vector3f_is_valid(m_FusionState->acceleration))
     {
-        SERVER_LOG_WARNING("PositionFilter") << "Acceleration is NaN!" << std::endl;
+        SERVER_LOG_WARNING("PositionFilter") << "Acceleration is NaN!";
         m_FusionState->acceleration = acceleration_backup;
     }
 
     if (!eigen_vector3f_is_valid(m_FusionState->accelerometer_derivative))
     {
-        SERVER_LOG_WARNING("PositionFilter") << "Jerk is NaN!" << std::endl;
+        SERVER_LOG_WARNING("PositionFilter") << "Jerk is NaN!";
         m_FusionState->accelerometer_derivative = jerk_backup;
     }
 }

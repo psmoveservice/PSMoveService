@@ -803,13 +803,13 @@ protected:
         // No longer is there a pending read
         m_has_pending_udp_read = false;
 
-        SERVER_LOG_DEBUG("ClientNetworkManager::handle_udp_data_frame_received") << "Parsing DataFrame" << std::endl;
+        SERVER_LOG_DEBUG("ClientNetworkManager::handle_udp_data_frame_received") << "Parsing DataFrame";
 
         // TODO: Switch on data frame type to choose which m_packed_data_frame_X to use.
         unsigned msg_len = m_packed_input_dataframe.decode_header(m_input_dataframe_buffer, sizeof(m_input_dataframe_buffer));
         unsigned total_len = HEADER_SIZE + msg_len;
-        SERVER_LOG_DEBUG("    ") << show_hex(m_input_dataframe_buffer, total_len) << std::endl;
-        SERVER_LOG_DEBUG("    ") << msg_len << " bytes" << std::endl;
+        SERVER_LOG_DEBUG("    ") << show_hex(m_input_dataframe_buffer, total_len);
+        SERVER_LOG_DEBUG("    ") << msg_len << " bytes";
 
         // Parse the response buffer
         if (m_packed_input_dataframe.unpack(m_input_dataframe_buffer, total_len))

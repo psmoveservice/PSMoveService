@@ -520,6 +520,14 @@ protected:
                 streamInfo.include_calibrated_sensor_data = request.include_calibrated_sensor_data();
                 streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
 
+				SERVER_LOG_INFO("ServerRequestHandler") << "Start controller(" << controller_id << ") stream ("
+					<< "pos=" << streamInfo.include_position_data
+					<< ",phys=" << streamInfo.include_physics_data
+					<< ",raw_sens=" << streamInfo.include_raw_sensor_data
+					<< ",cal_sens=" << streamInfo.include_calibrated_sensor_data
+					<< ",trkr=" << streamInfo.include_raw_tracker_data
+					<< ")";
+
                 if (streamInfo.include_position_data)
                 {
                     ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
@@ -563,6 +571,8 @@ protected:
                 {
                     controller_view->clearLEDOverride();
                 }
+
+				SERVER_LOG_INFO("ServerRequestHandler") << "Stop controller(" << controller_id << ") stream";
 
                 context.connection_state->active_controller_streams.set(controller_id, false);
                 context.connection_state->active_controller_stream_info[controller_id].Clear();
