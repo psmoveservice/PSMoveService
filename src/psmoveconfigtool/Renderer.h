@@ -100,5 +100,6 @@ void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color);
 void drawPSNaviModel(const glm::mat4 &transform);
 void drawPSDualShock4Model(const glm::mat4 &transform, const glm::vec3 &color);
 void drawPS3EyeModel(const glm::mat4 &transform);
+void drawMorpheusModel(const glm::mat4 &transform);
 
 #endif // RENDERER_H

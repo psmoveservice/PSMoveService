@@ -6,6 +6,7 @@
 #include "ControllerManager.h"
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
+#include "HMDManager.h"
 #include "OrientationFilter.h"
 #include "PositionFilter.h"
 #include "PS3EyeTracker.h"
@@ -16,6 +17,7 @@
 #include "ServerDeviceView.h"
 #include "ServerNetworkManager.h"
 #include "ServerTrackerView.h"
+#include "ServerHMDView.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
 #include "TrackerManager.h"
@@ -35,14 +37,17 @@ struct RequestConnectionState
     int connection_id;
     std::bitset<ControllerManager::k_max_devices> active_controller_streams;
     std::bitset<TrackerManager::k_max_devices> active_tracker_streams;
+    std::bitset<HMDManager::k_max_devices> active_hmd_streams;
     AsyncBluetoothRequest *pending_bluetooth_request;
     ControllerStreamInfo active_controller_stream_info[ControllerManager::k_max_devices];
     TrackerStreamInfo active_tracker_stream_info[TrackerManager::k_max_devices];
+    HMDStreamInfo active_hmd_stream_info[HMDManager::k_max_devices];
 
     RequestConnectionState()
         : connection_id(-1)
         , active_controller_streams()
         , active_tracker_streams()
+        , active_hmd_streams()
         , pending_bluetooth_request(nullptr)
     {
         for (int index = 0; index < ControllerManager::k_max_devices; ++index)
@@ -54,6 +59,11 @@ struct RequestConnectionState
         {
             active_tracker_stream_info[index].Clear();
         }
+        
+        for (int index = 0; index < HMDManager::k_max_devices; ++index)
+        {
+            active_hmd_stream_info->Clear();
+        }        
     }
 };
 typedef boost::shared_ptr<RequestConnectionState> RequestConnectionStatePtr;
@@ -260,6 +270,20 @@ public:
                 handle_request__search_for_new_trackers(context, response);
                 break;
 
+            // HMD Requests
+            case PSMoveProtocol::Request_RequestType_GET_HMD_LIST:
+				response = new PSMoveProtocol::Response;
+                handle_request__get_hmd_list(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_START_HMD_DATA_STREAM:
+				response = new PSMoveProtocol::Response;
+                handle_request__start_hmd_data_stream(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_STOP_HMD_DATA_STREAM:
+				response = new PSMoveProtocol::Response;
+                handle_request__stop_hmd_data_stream(context, response);
+                break;                
+
             default:
                 assert(0 && "Whoops, bad request!");
         }
@@ -396,6 +420,33 @@ public:
             }
         }
     }
+    
+    void publish_hmd_data_frame(
+        class ServerHMDView *hmd_view,
+        ServerRequestHandler::t_generate_hmd_data_frame_for_stream callback)
+    {
+        int hmd_id = hmd_view->getDeviceID();
+
+        // Notify any connections that care about the tracker update
+        for (t_connection_state_iter iter = m_connection_state_map.begin(); iter != m_connection_state_map.end(); ++iter)
+        {
+            int connection_id = iter->first;
+            RequestConnectionStatePtr connection_state = iter->second;
+
+            if (connection_state->active_hmd_streams.test(hmd_id))
+            {
+                const HMDStreamInfo &streamInfo =
+                    connection_state->active_hmd_stream_info[hmd_id];
+
+                // Fill out a data frame specific to this stream using the given callback
+                DeviceOutputDataFramePtr data_frame(new PSMoveProtocol::DeviceOutputDataFrame);
+                callback(hmd_view, &streamInfo, data_frame);
+
+                // Send the hmd data frame over the network
+                ServerNetworkManager::get_instance()->send_device_data_frame(connection_id, data_frame);
+            }
+        }
+    }    
 
 protected:
     RequestConnectionStatePtr FindOrCreateConnectionState(int connection_id)
@@ -1262,8 +1313,8 @@ protected:
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
-				const int controller_id= context.request->request_set_tracker_color_preset().controller_id();
-				ServerControllerView *controller_view= get_controller_view_or_null(controller_id);
+				const auto device_category= context.request->request_set_tracker_color_preset().device_category();
+				const int device_id= context.request->request_set_tracker_color_preset().device_id();
 
                 const PSMoveProtocol::TrackingColorPreset &colorPreset =
                     context.request->request_set_tracker_color_preset().color_preset();
@@ -1271,35 +1322,53 @@ protected:
                     static_cast<eCommonTrackingColorID>(colorPreset.color_type());
 
                 // Set the color preset on the tracker
-                {
-                    CommonHSVColorRange hsvColorRange;
-                    hsvColorRange.hue_range.center= colorPreset.hue_center();
-                    hsvColorRange.hue_range.range = colorPreset.hue_range();
-                    hsvColorRange.saturation_range.center = colorPreset.saturation_center();
-                    hsvColorRange.saturation_range.range = colorPreset.saturation_range();
-                    hsvColorRange.value_range.center = colorPreset.value_center();
-                    hsvColorRange.value_range.range = colorPreset.value_range();
+				CommonHSVColorRange inHSVColorRange;
+				CommonHSVColorRange outHSVColorRange;
+				{
+                    inHSVColorRange.hue_range.center= colorPreset.hue_center();
+                    inHSVColorRange.hue_range.range = colorPreset.hue_range();
+                    inHSVColorRange.saturation_range.center = colorPreset.saturation_center();
+                    inHSVColorRange.saturation_range.range = colorPreset.saturation_range();
+                    inHSVColorRange.value_range.center = colorPreset.value_center();
+                    inHSVColorRange.value_range.range = colorPreset.value_range();
 
-                    tracker_view->setTrackingColorPreset(controller_view, colorType, &hsvColorRange);
+					switch (device_category)
+					{
+					case PSMoveProtocol::Request_RequestSetTrackerColorPreset_DeviceCategory_CONTROLLER:
+						{
+							ServerControllerView *controller_view = get_controller_view_or_null(device_id);
+
+							// Assign the color range
+							tracker_view->setControllerTrackingColorPreset(controller_view, colorType, &inHSVColorRange);
+							// Read back what actually got set
+							tracker_view->getControllerTrackingColorPreset(controller_view, colorType, &outHSVColorRange);
+						} break;
+					case PSMoveProtocol::Request_RequestSetTrackerColorPreset_DeviceCategory_HMD:
+						{
+							ServerHMDView *hmd_view = get_hmd_view_or_null(device_id);
+
+							// Assign the color range
+							tracker_view->setHMDTrackingColorPreset(hmd_view, colorType, &inHSVColorRange);
+							// Read back what actually got set
+							tracker_view->getHMDTrackingColorPreset(hmd_view, colorType, &outHSVColorRange);
+						} break;
+					}
                 }
 
                 // Get the resulting preset from the tracker
                 {
-                    CommonHSVColorRange hsvColorRange;
-                    tracker_view->getTrackingColorPreset(controller_view, colorType, &hsvColorRange);
-
                     PSMoveProtocol::Response_ResultSetTrackerColorPreset *result =
                         response->mutable_result_set_tracker_color_preset();
                     result->set_tracker_id(tracker_id);
 
                     PSMoveProtocol::TrackingColorPreset *presetResult = result->mutable_new_color_preset();
                     presetResult->set_color_type(colorPreset.color_type());
-                    presetResult->set_hue_center(hsvColorRange.hue_range.center);
-                    presetResult->set_hue_range(hsvColorRange.hue_range.range);
-                    presetResult->set_saturation_center(hsvColorRange.saturation_range.center);
-                    presetResult->set_saturation_range(hsvColorRange.saturation_range.range);
-                    presetResult->set_value_center(hsvColorRange.value_range.center);
-                    presetResult->set_value_range(hsvColorRange.value_range.range);
+                    presetResult->set_hue_center(outHSVColorRange.hue_range.center);
+                    presetResult->set_hue_range(outHSVColorRange.hue_range.range);
+                    presetResult->set_saturation_center(outHSVColorRange.saturation_range.center);
+                    presetResult->set_saturation_range(outHSVColorRange.saturation_range.range);
+                    presetResult->set_value_center(outHSVColorRange.value_range.center);
+                    presetResult->set_value_range(outHSVColorRange.value_range.range);
                 }
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
@@ -1382,7 +1451,7 @@ protected:
 
                 for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
                 {
-                    tracker_view->getTrackingColorPreset(
+                    tracker_view->getControllerTrackingColorPreset(
 						controller_view,
                         static_cast<eCommonTrackingColorID>(preset_index),
                         &trackerProfile.color_preset_table.color_presets[preset_index]);
@@ -1430,7 +1499,7 @@ protected:
                     const CommonHSVColorRange *preset= &trackerProfile->color_preset_table.color_presets[preset_index];
                     const eCommonTrackingColorID color_type = static_cast<eCommonTrackingColorID>(preset_index);
 
-                    tracker_view->setTrackingColorPreset(controller_view, color_type, preset);
+                    tracker_view->setControllerTrackingColorPreset(controller_view, color_type, preset);
                 }
 
                 // Send the profile application result to the client
@@ -1468,6 +1537,124 @@ protected:
 
         response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
     }
+    
+    // -- hmd requests -----
+	inline ServerHMDView *get_hmd_view_or_null(int hmd_id)
+	{
+		ServerHMDView *hmd_view = nullptr;
+
+		if (ServerUtility::is_index_valid(hmd_id, m_device_manager.getHMDViewMaxCount()))
+		{
+			ServerHMDViewPtr hmd_view_ptr = m_device_manager.getHMDViewPtr(hmd_id);
+
+			if (hmd_view_ptr->getIsOpen())
+			{
+				hmd_view = hmd_view_ptr.get();
+			}
+		}
+
+		return hmd_view;
+	}
+
+    void handle_request__get_hmd_list(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        PSMoveProtocol::Response_ResultHMDList* list = response->mutable_result_hmd_list();
+
+        for (int hmd_id = 0; hmd_id < m_device_manager.getHMDViewMaxCount(); ++hmd_id)
+        {
+            ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+            if (hmd_view->getIsOpen())
+            {
+                PSMoveProtocol::Response_ResultHMDList_HMDInfo *hmd_info = list->add_hmd_entries();
+
+                switch (hmd_view->getHMDDeviceType())
+                {
+                case CommonHMDState::Morpheus:
+                    hmd_info->set_hmd_type(PSMoveProtocol::Morpheus);
+                    break;
+                default:
+                    assert(0 && "Unhandled tracker type");
+                }
+
+                hmd_info->set_hmd_id(hmd_id);
+                hmd_info->set_device_path(hmd_view->getUSBDevicePath());
+            }
+        }
+
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+    }
+
+    void handle_request__start_hmd_data_stream(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const PSMoveProtocol::Request_RequestStartHmdDataStream& request =
+            context.request->request_start_hmd_data_stream();
+        int hmd_id = request.hmd_id();
+
+        if (ServerUtility::is_index_valid(hmd_id, m_device_manager.getHMDViewMaxCount()))
+        {
+            ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+            if (hmd_view->getIsOpen())
+            {
+                HMDStreamInfo &streamInfo =
+                    context.connection_state->active_hmd_stream_info[hmd_id];
+
+                // The hmd manager will always publish updates regardless of who is listening.
+                // All we have to do is keep track of which connections care about the updates.
+                context.connection_state->active_hmd_streams.set(hmd_id, true);
+
+                // Set control flags for the stream
+                streamInfo.Clear();
+                streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
+
+                // Return the name of the shared memory block the video frames will be written to
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                // Device not opened
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__stop_hmd_data_stream(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        int hmd_id = context.request->request_stop_hmd_data_stream().hmd_id();
+
+        if (ServerUtility::is_index_valid(hmd_id, m_device_manager.getHMDViewMaxCount()))
+        {
+            ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+            if (hmd_view->getIsOpen())
+            {
+                context.connection_state->active_tracker_streams.set(hmd_id, false);
+                context.connection_state->active_tracker_stream_info[hmd_id].Clear();
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                // Device not opened
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }    
 
     // -- Data Frame Updates -----
     void handle_data_frame__controller_packet(
@@ -1649,4 +1836,11 @@ void ServerRequestHandler::publish_tracker_data_frame(
     t_generate_tracker_data_frame_for_stream callback)
 {
     return m_implementation_ptr->publish_tracker_data_frame(tracker_view, callback);
+}
+
+void ServerRequestHandler::publish_hmd_data_frame(
+    class ServerHMDView *hmd_view,
+    t_generate_hmd_data_frame_for_stream callback)
+{
+    return m_implementation_ptr->publish_hmd_data_frame(hmd_view, callback);
 }

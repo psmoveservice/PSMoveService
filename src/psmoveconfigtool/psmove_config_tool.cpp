@@ -4,12 +4,14 @@
 #include "AppStage_ColorCalibration.h"
 #include "AppStage_ComputeTrackerPoses.h"
 #include "AppStage_ControllerSettings.h"
+#include "AppStage_HMDSettings.h"
 #include "AppStage_GyroscopeCalibration.h"
 #include "AppStage_MainMenu.h"
 #include "AppStage_MagnetometerCalibration.h"
 #include "AppStage_PairController.h"
 #include "AppStage_ServiceSettings.h"
 #include "AppStage_TrackerSettings.h"
+#include "AppStage_TestHMD.h"
 #include "AppStage_TestTracker.h"
 #include "AppStage_TestRumble.h"
 
@@ -33,10 +35,12 @@ extern "C" int main(int argc, char *argv[])
     app.registerAppStage<AppStage_ComputeTrackerPoses>();
     app.registerAppStage<AppStage_ControllerSettings>();
     app.registerAppStage<AppStage_GyroscopeCalibration>();
+    app.registerAppStage<AppStage_HMDSettings>();
 	app.registerAppStage<AppStage_MagnetometerCalibration>();
     app.registerAppStage<AppStage_MainMenu>();
     app.registerAppStage<AppStage_PairController>();
     app.registerAppStage<AppStage_ServiceSettings>();
+    app.registerAppStage<AppStage_TestHMD>();
     app.registerAppStage<AppStage_TestRumble>();
     app.registerAppStage<AppStage_TestTracker>();
     app.registerAppStage<AppStage_TrackerSettings>();

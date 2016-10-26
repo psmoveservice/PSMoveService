@@ -1,8 +1,9 @@
 //-- includes -----
-#include "ServerTrackerView.h"
-#include "ServerControllerView.h"
 #include "DeviceEnumerator.h"
 #include "DeviceManager.h"
+#include "ServerTrackerView.h"
+#include "ServerControllerView.h"
+#include "ServerHMDView.h"
 #include "MathUtility.h"
 #include "MathEigen.h"
 #include "MathGLM.h"
@@ -24,6 +25,10 @@
 #include "opencv2/calib3d/calib3d.hpp"
 
 #define USE_OPEN_CV_ELLIPSE_FIT
+
+//-- typedefs ----
+typedef std::vector<cv::Point> t_opencv_contour;
+typedef std::vector<t_opencv_contour> t_opencv_contour_list;
 
 //-- private methods -----
 class SharedVideoFrameReadWriteAccessor
@@ -399,7 +404,7 @@ public:
     // i.e. [0, 0] at lower left  to [frameWidth-1, frameHeight-1] at lower right
     bool computeBiggestContour(
         const CommonHSVColorRange &hsvColorRange,
-        std::vector<cv::Point> &out_biggest_contour)
+		t_opencv_contour &out_biggest_contour)
     {
         // Clamp the HSV image, taking into account wrapping the hue angle
         {
@@ -450,7 +455,7 @@ public:
 
         // Find the largest convex blob in the filtered grayscale buffer
         {
-            std::vector<std::vector<cv::Point> > contours;
+			t_opencv_contour_list contours;
             cv::findContours(*gsLowerBuffer, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 
             if (contours.size() > 0)
@@ -476,7 +481,7 @@ public:
             if (out_biggest_contour.size() > 6)
             {
                 // Remove any points in contour on edge of camera/ROI
-                std::vector<cv::Point>::iterator it = out_biggest_contour.begin();
+				t_opencv_contour::iterator it = out_biggest_contour.begin();
                 while (it != out_biggest_contour.end()) {
                     if (it->x == 0 || it->x == (frameWidth-1) || it->y == 0 || it->y == (frameHeight-1)) 
                     {
@@ -512,16 +517,22 @@ static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tra
 static bool computeTrackerRelativeLightBarContourPose(
     const ITrackerInterface *tracker_device,
     const CommonDeviceTrackingShape *tracking_shape,
-    const std::vector<cv::Point> &opencv_contour,
+    const t_opencv_contour &opencv_contour,
     const CommonDevicePose *tracker_relative_pose_guess,
     ControllerOpticalPoseEstimation *out_pose_estimate);
+static bool computeTrackerRelativePointCloudContourPose(
+	const ITrackerInterface *tracker_device,
+	const CommonDeviceTrackingShape *tracking_shape,
+	const t_opencv_contour_list &opencv_contours,
+	const CommonDevicePose *tracker_relative_pose_guess,
+	HMDOpticalPoseEstimation *out_pose_estimate);
 static bool computeBestFitTriangleForContour(
-    const std::vector<cv::Point> &opencv_contour,
+    const t_opencv_contour &opencv_contour,
     cv::Point2f &out_triangle_top,
     cv::Point2f &out_triangle_bottom_left,
     cv::Point2f &out_triangle_bottom_right);
 static bool computeBestFitQuadForContour(
-    const std::vector<cv::Point> &opencv_contour,
+    const t_opencv_contour &opencv_contour,
     const cv::Point2f &up_hint, 
     const cv::Point2f &right_hint,
     cv::Point2f &top_right,
@@ -733,10 +744,6 @@ void ServerTrackerView::generate_tracker_data_frame_for_stream(
         {
             //TODO: PS3EYE tracker location
         } break;
-    //case CommonDeviceState::RiftDK2Sensor:
-    //    {
-    //        //TODO: RiftDK2Sensor tracker location
-    //    } break;
     default:
         assert(0 && "Unhandled Tracker type");
     }
@@ -835,7 +842,7 @@ void ServerTrackerView::gatherTrackingColorPresets(
     return m_device->gatherTrackingColorPresets(controller_id, settings);
 }
 
-void ServerTrackerView::setTrackingColorPreset(
+void ServerTrackerView::setControllerTrackingColorPreset(
 	const class ServerControllerView *controller,
 	eCommonTrackingColorID color, 
 	const CommonHSVColorRange *preset)
@@ -845,14 +852,34 @@ void ServerTrackerView::setTrackingColorPreset(
     return m_device->setTrackingColorPreset(controller_id, color, preset);
 }
 
-void ServerTrackerView::getTrackingColorPreset(
+void ServerTrackerView::getControllerTrackingColorPreset(
 	const class ServerControllerView *controller,
-	eCommonTrackingColorID color, 
+	eCommonTrackingColorID color,
 	CommonHSVColorRange *out_preset) const
 {
 	std::string controller_id= (controller != nullptr) ? controller->getConfigIdentifier() : "";
 
     return m_device->getTrackingColorPreset(controller_id, color, out_preset);
+}
+
+void ServerTrackerView::setHMDTrackingColorPreset(
+	const class ServerHMDView *hmd,
+	eCommonTrackingColorID color,
+	const CommonHSVColorRange *preset)
+{
+	std::string hmd_id = (hmd != nullptr) ? hmd->getConfigIdentifier() : "";
+
+	return m_device->setTrackingColorPreset(hmd_id, color, preset);
+}
+
+void ServerTrackerView::getHMDTrackingColorPreset(
+	const class ServerHMDView *hmd,
+	eCommonTrackingColorID color,
+	CommonHSVColorRange *out_preset) const
+{
+	std::string hmd_id = (hmd != nullptr) ? hmd->getConfigIdentifier() : "";
+
+	return m_device->getTrackingColorPreset(hmd_id, color, out_preset);
 }
 
 bool
@@ -878,7 +905,7 @@ ServerTrackerView::computePoseForController(
 
         if (tracked_color_id != eCommonTrackingColorID::INVALID_COLOR)
         {
-            getTrackingColorPreset(tracked_controller, tracked_color_id, &hsvColorRange);
+            getControllerTrackingColorPreset(tracked_controller, tracked_color_id, &hsvColorRange);
         }
         else
         {
@@ -887,7 +914,7 @@ ServerTrackerView::computePoseForController(
     }
 
     // Find the contour associated with the controller
-    std::vector<cv::Point> biggest_contour;
+	t_opencv_contour biggest_contour;
     if (bSuccess)
     {
         ///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges. 
@@ -912,7 +939,7 @@ ServerTrackerView::computePoseForController(
                 getPixelDimensions(frameWidth, frameHeight);
 
                 // Compute the convex hull of the contour
-                std::vector<cv::Point> convex_contour;
+				t_opencv_contour convex_contour;
                 cv::convexHull(biggest_contour, convex_contour);
 
                 // Convert opencv_contour in raw pixel space:
@@ -976,6 +1003,77 @@ ServerTrackerView::computePoseForController(
     return bSuccess;
 }
 
+bool ServerTrackerView::computePoseForHMD(
+	const class ServerHMDView* tracked_hmd,
+	const CommonDevicePose *tracker_pose_guess,
+	struct HMDOpticalPoseEstimation *out_pose_estimate)
+{
+	bool bSuccess = true;
+
+	// Get the tracking shape used by the controller
+	CommonDeviceTrackingShape tracking_shape;
+	if (bSuccess)
+	{
+		bSuccess = tracked_hmd->getTrackingShape(tracking_shape);
+	}
+
+	// Get the HSV filter used to find the tracking blob
+	CommonHSVColorRange hsvColorRange;
+	if (bSuccess)
+	{
+		eCommonTrackingColorID tracked_color_id = tracked_hmd->getTrackingColorID();
+
+		if (tracked_color_id != eCommonTrackingColorID::INVALID_COLOR)
+		{
+			getHMDTrackingColorPreset(tracked_hmd, tracked_color_id, &hsvColorRange);
+		}
+		else
+		{
+			bSuccess = false;
+		}
+	}
+
+	// Find the contour associated with the controller
+	t_opencv_contour_list biggest_contours;
+	if (bSuccess)
+	{
+		///###HipsterSloth $TODO - Compute biggest N contours 
+		///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges.
+		//const int k_max_hmd_contour_count= 5;
+		//bSuccess = m_opencv_buffer_state->computeBiggestNContours(hsvColorRange, biggest_contours, k_max_hmd_contour_count);
+	}
+
+	// Compute the tracker relative 3d position of the controller from the contour
+	if (bSuccess)
+	{
+		float F_PX, F_PY;
+		float PrincipalX, PrincipalY;
+		m_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+
+		// TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
+		// Then replace F_PX with -1.
+
+		switch (tracking_shape.shape_type)
+		{
+		case eCommonTrackingShapeType::PointCloud:
+		{
+			bSuccess =
+				computeTrackerRelativePointCloudContourPose(
+					m_device,
+					&tracking_shape,
+					biggest_contours,
+					tracker_pose_guess,
+					out_pose_estimate);
+		} break;
+		default:
+			assert(0 && "Unreachable");
+			break;
+		}
+	}
+
+	return bSuccess;
+}
+
 CommonDevicePosition
 ServerTrackerView::computeWorldPosition(
     const CommonDevicePosition *tracker_relative_position)
@@ -1027,10 +1125,16 @@ ServerTrackerView::triangulateWorldPose(
     {
     case eCommonTrackingProjectionType::ProjectionType_Ellipse:
         {
+			//###HipsterSloth $TODO
         } break;
     case eCommonTrackingProjectionType::ProjectionType_LightBar:
         {
+			//###HipsterSloth $TODO
         } break;
+	case eCommonTrackingProjectionType::ProjectionType_Points:
+		{
+			//###HipsterSloth $TODO
+		} break;
     default:
         assert(0 && "unreachable");
     }
@@ -1200,7 +1304,7 @@ static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tra
 static bool computeTrackerRelativeLightBarContourPose(
     const ITrackerInterface *tracker_device,
     const CommonDeviceTrackingShape *tracking_shape,
-    const std::vector<cv::Point> &opencv_contour,
+    const t_opencv_contour &opencv_contour,
     const CommonDevicePose *tracker_relative_pose_guess,
     ControllerOpticalPoseEstimation *out_pose_estimate)
 {
@@ -1414,6 +1518,54 @@ static bool computeTrackerRelativeLightBarContourPose(
     }
 
     return bValidTrackerPose;
+}
+
+static bool computeTrackerRelativePointCloudContourPose(
+	const ITrackerInterface *tracker_device,
+	const CommonDeviceTrackingShape *tracking_shape,
+	const t_opencv_contour_list &opencv_contours,
+	const CommonDevicePose *tracker_relative_pose_guess,
+	HMDOpticalPoseEstimation *out_pose_estimate)
+{
+	assert(tracking_shape->shape_type == eCommonTrackingShapeType::PointCloud);
+
+	// Get the pixel width and height of the tracker image
+	int pixelWidth, pixelHeight;
+	tracker_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
+
+	bool bValidTrackerPose = false;
+	float projectionArea = 0.f;
+	std::vector<cv::Point2f> cvImagePoints;
+
+	//###HipsterSloth $TODO Compute centers of mass for the contours
+	//###HipsterSloth $TODO Determine what tracking shape point this screen space point corresponds to
+	//###HipsterSloth $TODO Solve the tracking position using solvePnP
+
+	// Return the projection of the tracking shape
+	if (bValidTrackerPose)
+	{
+		CommonDeviceTrackingProjection *out_projection = &out_pose_estimate->projection;
+		const int imagePointCount = static_cast<int>(cvImagePoints.size());
+
+		out_projection->shape_type = eCommonTrackingProjectionType::ProjectionType_Points;
+
+		for (int vertex_index = 0; vertex_index < imagePointCount; ++vertex_index)
+		{
+			const cv::Point2f &cvPoint = cvImagePoints[vertex_index];
+
+			// Convert the tracker screen locations in OpenCV pixel space
+			// i.e. [0, 0]x[frameWidth, frameHeight]
+			// into PSMoveScreenLocation space
+			// i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
+			out_projection->shape.points.point[vertex_index] =
+			{ cvPoint.x - (pixelWidth / 2), cvPoint.y - (pixelHeight / 2) };
+		}
+
+		out_projection->shape.points.point_count = imagePointCount;
+		out_projection->screen_area = projectionArea;
+	}
+
+	return bValidTrackerPose;
 }
 
 static bool computeBestFitTriangleForContour(

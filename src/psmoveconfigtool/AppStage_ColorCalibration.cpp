@@ -873,7 +873,9 @@ void AppStage_ColorCalibration::request_tracker_set_color_preset(
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_COLOR_PRESET);
     request->mutable_request_set_tracker_color_preset()->set_tracker_id(m_trackerView->getTrackerId());
-	request->mutable_request_set_tracker_color_preset()->set_controller_id(m_overrideControllerId);
+	request->mutable_request_set_tracker_color_preset()->set_device_id(m_overrideControllerId);
+	request->mutable_request_set_tracker_color_preset()->set_device_category(
+		PSMoveProtocol::Request_RequestSetTrackerColorPreset_DeviceCategory_CONTROLLER);
 
     {
         PSMoveProtocol::TrackingColorPreset* tracking_color_preset =
