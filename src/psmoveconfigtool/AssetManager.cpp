@@ -17,7 +17,7 @@
 static const char *k_psmove_texture_filename= "./assets/textures/PSMoveDiffuse.jpg";
 static const char *k_psnavi_texture_filename= "./assets/textures/PSNaviDiffuse.jpg";
 static const char *k_psdualshock4_texture_filename = "./assets/textures/PSDS4Diffuse.jpg";
-static const char *k_morpheus_texture_filename = "./assets/textures/PSMoveDiffuse.jpg";
+static const char *k_morpheus_texture_filename = "./assets/textures/MorpheusDiffuse.jpg";
 
 static const char *k_default_font_filename= "./assets/fonts/OpenSans-Regular.ttf";
 static const float k_default_font_pixel_height= 24.f;

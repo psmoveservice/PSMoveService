@@ -21,6 +21,7 @@
 #include "ps3eye_3dmodel.h"
 #include "ds4body_3dmodel.h"
 #include "ds4lightbar_3dmodel.h"
+#include "morpheus_3dmodel.h"
 
 #ifdef _MSC_VER
 #pragma warning (disable: 4505) // unreferenced local function has been removed (stb stuff)
@@ -1103,9 +1104,9 @@ void drawMorpheusModel(const glm::mat4 &transform)
         glEnableClientState(GL_TEXTURE_COORD_ARRAY);
         
         glColor3f(1.f, 1.f, 1.f);
-        glVertexPointer(3, GL_FLOAT, 0, psmovebodyVerts);
-        glTexCoordPointer(2, GL_FLOAT, 0, psmovebodyTexCoords);
-        glDrawArrays(GL_TRIANGLES, 0, psmovebodyNumVerts);
+        glVertexPointer(3, GL_FLOAT, 0, morpheusVerts);
+        glTexCoordPointer(2, GL_FLOAT, 0, morpheusTexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, morpheusNumVerts);
 
         glDisableClientState(GL_VERTEX_ARRAY);
         glDisableClientState(GL_TEXTURE_COORD_ARRAY);
