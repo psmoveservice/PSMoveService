@@ -255,7 +255,11 @@ private:
 	float m_fVirtuallExtendControllersY;
 	float m_fVirtuallExtendControllersZ;
 
-	
+	// delay in resetting touchpad position after touchpad press
+	bool m_bDelayAfterTouchpadPress;
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_lastTouchpadPress;
+	bool m_touchpadDirectionsUsed;
 
     // Button Remapping
     vr::EVRButtonId psButtonIDToVRButtonID[k_EPSButtonID_Count];
