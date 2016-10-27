@@ -1270,10 +1270,14 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
     , m_lastTimeRumbleSentValid(false)
 	, m_fVirtuallExtendControllersZ(0.0f)
 	, m_fVirtuallExtendControllersY(0.0f)
+	, m_bDelayAfterTouchpadPress(false)
+	, m_touchpadDirectionsUsed(false)
 {
     char buf[256];
     GenerateControllerSerialNumber(buf, sizeof(buf), controllerId);
     m_strSerialNumber = buf;
+
+	m_lastTouchpadPress = std::chrono::high_resolution_clock::now();
 
 	if (serialNo != NULL) {
 		m_strSerialNo = serialNo;
@@ -1321,6 +1325,11 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 	// Load the rumble settings
 	m_bRumbleSuppressed= pSettings->GetBool("psmove", "rumble_suppressed", m_bRumbleSuppressed);
 
+	// check if we want to have delay in poisition reset after touchpad pressed
+	m_bDelayAfterTouchpadPress = pSettings->GetBool("psmove", "delay_after_touchpad_press", m_bDelayAfterTouchpadPress);
+
+	DriverLog("Loaded m_bDelayAfterTouchpadPress: %d\n", m_bDelayAfterTouchpadPress);
+
 	// Grab the settings associated with mapping spatial movement to touchpad axes.
 	if (pSettings != nullptr)
 	{
@@ -1333,6 +1342,8 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 
 		m_fVirtuallExtendControllersY = pSettings->GetFloat("psmove_settings", "psmove_extend_y", 0.0f, &fetchError);
 		m_fVirtuallExtendControllersZ = pSettings->GetFloat("psmove_settings", "psmove_extend_z", 0.0f, &fetchError);
+
+	
 
 		#if LOG_TOUCHPAD_EMULATION != 0
 			DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
@@ -1713,6 +1724,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				StartRealignHMDTrackingSpace();
             }
 
+			m_touchpadDirectionsUsed = false;
 			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Circle, clientView.GetButtonCircle(), &NewState);
 			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Cross, clientView.GetButtonCross(), &NewState);
 			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Move, clientView.GetButtonMove(), &NewState);
@@ -1722,12 +1734,26 @@ void CPSMoveControllerLatest::UpdateControllerState()
 			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Start, clientView.GetButtonStart(), &NewState);
 			UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Triangle, clientView.GetButtonTriangle(), &NewState);
 
-			if (m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis)
+			if (m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis && !m_touchpadDirectionsUsed)
 			{
 				static const uint64_t s_kTouchpadButtonMask = vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
 				if (NewState.ulButtonPressed & s_kTouchpadButtonMask)
 				{
-					if (!(m_ControllerState.ulButtonPressed & s_kTouchpadButtonMask))
+					bool touchpad_new_location = true;
+
+					if (m_bDelayAfterTouchpadPress) {
+						static const uint64_t s_kTouchpadButtonMask = vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
+
+						std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+						std::chrono::duration<double, std::milli> time = now - m_lastTouchpadPress;
+						m_lastTouchpadPress = now;
+
+						const float k_max_touchpad_press = 2000.0; // time until coordinates are reset, otherwise assume in last location.
+
+						touchpad_new_location = time.count() >= k_max_touchpad_press;
+					}
+
+					if (touchpad_new_location && (!(m_ControllerState.ulButtonPressed & s_kTouchpadButtonMask)))
 					{
 						// Just pressed.
 						const ClientPSMoveView &view = m_controller_view->GetPSMoveView();
@@ -1917,21 +1943,25 @@ void CPSMoveControllerLatest::UpdateControllerStateFromPsMoveButtonState(ePSButt
 
 		if (psButtonIDToVrTouchpadDirection[buttonId] == k_EVRTouchpadDirection_Left)
 		{
+			m_touchpadDirectionsUsed = true;
 			pControllerStateToUpdate->rAxis[0].x = -1.0f;
 			pControllerStateToUpdate->ulButtonPressed |= vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
 		}
 		else if (psButtonIDToVrTouchpadDirection[buttonId] == k_EVRTouchpadDirection_Right)
 		{
+			m_touchpadDirectionsUsed = true;
 			pControllerStateToUpdate->rAxis[0].x = 1.0f;
 			pControllerStateToUpdate->ulButtonPressed |= vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
 		}
 		else if (psButtonIDToVrTouchpadDirection[buttonId] == k_EVRTouchpadDirection_Up)
 		{
+			m_touchpadDirectionsUsed = true;
 			pControllerStateToUpdate->rAxis[0].y = 1.0f;
 			pControllerStateToUpdate->ulButtonPressed |= vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
 		}
 		else if (psButtonIDToVrTouchpadDirection[buttonId] == k_EVRTouchpadDirection_Down)
 		{
+			m_touchpadDirectionsUsed = true;
 			pControllerStateToUpdate->rAxis[0].y = -1.0f;
 			pControllerStateToUpdate->ulButtonPressed |= vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
 		}
