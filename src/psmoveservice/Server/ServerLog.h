@@ -2,10 +2,8 @@
 #define SERVER_LOG_H
 
 //-- includes -----
-#include <streambuf>
-#include <ostream>
-#include <iostream>
-#include <mutex>
+#include <string>
+#include <sstream>
 
 //-- constants -----
 enum e_log_severity_level
@@ -19,85 +17,50 @@ enum e_log_severity_level
 };
 
 //-- includes -----
-// From: http://stackoverflow.com/questions/760301/implementing-a-no-op-stdostream
-template <class t_char, class traits = std::char_traits<t_char> >
-class NullStreamBuffer: public std::basic_streambuf<t_char, traits> 
-{
-    typename traits::int_type overflow(typename traits::int_type c)
-    {
-        return traits::not_eof(c); // indicate success
-    }
-};
-
-template <class t_char, class traits = std::char_traits<t_char> >
-class NullStream: public std::basic_ostream<t_char, traits> 
-{
-public:
-    NullStream()
-        : std::basic_ios<t_char, traits>(&m_sbuf)
-        , std::basic_ostream<t_char, traits>(&m_sbuf)
-    {
-        this->init(&m_sbuf);
-    }
-
-private:
-    NullStreamBuffer<t_char, traits> m_sbuf;
-};
-
-// From: http://stackoverflow.com/questions/36583873/thread-safe-access-of-stdofstream-member-using-stdmutex-member-and-operator
-//###HipsterSloth $TODO: This is only really thread safe per object added to the stream
-template <class char_type, class traits = std::char_traits<char_type> >
-class ThreadSafeStream
+class LoggerStream
 {
 protected:
-    std::mutex mutex;
-    std::basic_ostream<char_type, traits> *stream;
+	std::ostringstream m_lineBuffer;
+	bool m_bEmitLine;
 
 public:
-    ThreadSafeStream(std::basic_ostream<char_type, traits> *_stream)
-        : stream(_stream)
-    {
-    }
+	LoggerStream(bool bEmit);
+	virtual ~LoggerStream();
 
-    void flush()
-    {
-        std::lock_guard<std::mutex> lock(mutex);
+	// accepts just about anything
+	template<class T>
+	LoggerStream &operator<<(const T &x)
+	{
+		if (m_bEmitLine)
+		{
+			m_lineBuffer << x;
+		}
 
-        stream->flush();
-    }
-
-    template<typename T>
-    ThreadSafeStream<char_type>& operator<<(const T& value)
-    {
-        put(value);
-        return *this;
-    }
+		return *this;
+	}
 
 protected:
-    template<typename T>
-    void put(const T& thing) 
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-
-        *stream << thing;
-    }
+	virtual void write_line();
 };
 
-//-- globals -----
-extern std::ostream g_normal_logger;
-extern NullStream<char> g_null_logger;
+class ThreadSafeLoggerStream : public LoggerStream
+{
+public:
+	ThreadSafeLoggerStream(bool bEmit);
 
-extern ThreadSafeStream<char> g_mt_normal_logger;
-extern ThreadSafeStream<char> g_mt_null_logger;
+protected:
+	void write_line() override;
+};
 
 //-- interface -----
-void log_init(const std::string &log_level);
+void log_init(const std::string &log_level, const std::string &log_filename="");
+void log_dispose();
 bool log_can_emit_level(e_log_severity_level level);
 std::string log_get_timestamp_prefix();
 
 //-- macros -----
-#define SELECT_LOG_STREAM(level) (log_can_emit_level(level) ? g_normal_logger : g_null_logger)
-#define SELECT_MT_LOG_STREAM(level) (log_can_emit_level(level) ? g_mt_normal_logger : g_mt_null_logger)
+#define SELECT_LOG_STREAM(level) LoggerStream(log_can_emit_level(level))
+#define SELECT_MT_LOG_STREAM(level) ThreadSafeLoggerStream(log_can_emit_level(level))
 
 // Non Thread Safe Logger Macros
 // Almost everything is on the main thread, so you almost always want to use these
