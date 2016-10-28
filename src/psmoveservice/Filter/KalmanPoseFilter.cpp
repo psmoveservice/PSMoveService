@@ -1142,6 +1142,29 @@ public:
 		// t = k - 1 (time point of previous estimate)
 
 		// 2. Calculate sigma points
+		// In the paper, the authors create an augmented state variable :
+		//  [x; Q.mu; R.mu], with length L = Xdim + Q.dim + R.dim
+		// Then, when constructing the sigma points, this state vector is repeated
+		// 1 + 2 * L times(spmat size is L x 1 + 2 * L).
+		// Added to this sigmapoint matrix 2 : end columns is the zeta - scaled
+		// augmented covariance matrix :
+		//  [S       zeros   zeros;
+		//   zeros   Q.cov   zeros;
+		//   zeros   zeros   R.cov]
+		// First negative, then positive.So, the resulting sigma point matrix looks
+		// like...
+		//  [x	 x + zS	 x       x      x - zS	x       x;
+		//   q   q       q + zQ	q       q       q - zQ	q;
+		//   r   r       r       r + zR	r       r       r - zR]
+		//
+		// But only the upper Xdim rows are sent to the process function, and the
+		// next Q.dim rows are sent separately as noise to be added to the sigma
+		// points.Using() to indicate propagation, our propagated state vectors +
+		// Q noise looks like :
+		//  [(x)+q(x + zS) + q(x) + q + zQ(x) + q(x - zS) + q(x) + q - zQ(x) + q]
+		// Notice that we are only propagating x, x + zS, and x - zS.Therefore, those
+		// are really the only sigma points we need to create right now.
+
 		// The 1st sigma - point is just the state vector.
 		// Each remaining sigma - point is the state + / -the scaled sqrt covariance.
 		X_t.leftCols<1>() = x;
@@ -1153,6 +1176,11 @@ public:
 			X_t.block<X_DIM, 1>(0, 1 + col_offset) = x + zS;
 			X_t.block<X_DIM, 1>(0, 1 + S_DIM + col_offset) = x - zS;
 		}
+
+		// We now have our minimal sigma points : [x x + zS x - zS]
+		// Note : We could add Q(not sqrt) to P(= SS^T) before calculating S, and
+		// before calculating the sigma points.This would eliminate the need to add
+		// Q in the process function.
 
 		// 3. Propagate sigma points through process function
 		// Note that X_k is larger than X_t because the process noise added more state vectors.
@@ -1187,11 +1215,11 @@ public:
 		PoseStateVector X_k_0 = X_k.col(0);
 		X_k.rightCols<2 * R_DIM>() = X_k_0.replicate<1, 2*R_DIM>();
 
-		// %% 4. Estimate mean state from weighted sum of propagated sigma points
+		// 4. Estimate mean state from weighted sum of propagated sigma points
 		x_k = X_k * W.wm;
 		PoseStateVector::special_state_mean<L_DIM>(X_k, W.wm, x_k);
 
-		// %% 5. Get residuals in S - format
+		// 5. Get residuals in S - format
 		for (int col_offset = 0; col_offset < L_DIM; ++col_offset)
 		{
 			// Subtract the states (with quaternion orientation) 
@@ -1199,7 +1227,7 @@ public:
 			X_k_r.col(col_offset) = convert_state_to_noise_vector(X_k.col(col_offset) - x_k);
 		}
 
-		//%% 8. Estimate state covariance(sqrt)
+		// 6. Estimate state covariance(sqrt)
 		// w_qr is scalar
 		// QR update of state Cholesky factor.
 		// w_qr and w_cholup cannot be negative
@@ -1225,7 +1253,7 @@ public:
 	*/
 	void update(const Measurement& observation)
 	{
-		//%% 1. Propagate sigma points through observation function.
+		// 1. Propagate sigma points through observation function.
 		const int nsp = SIGMA_POINT_COUNT;
 		const int R_inds = (nsp - 2 * R_DIM);
 		Eigen::Matrix<double, O_DIM, L_DIM> Y_k;
@@ -1258,10 +1286,10 @@ public:
 					zR.negate());
 		}
 
-		//%% 2. Calculate observation mean.
+		// 2. Calculate observation mean.
 		Measurement y_k = Measurement::computeWeightedMeasurementAverage<L_DIM>(Y_k, W.wm);
 
-		//%% 3. Calculate y - residuals.
+		// 3. Calculate y - residuals.
 		// Used in observation covariance and state - observation cross - covariance for Kalman gain.
 		Eigen::Matrix<double, O_DIM, L_DIM>  Y_k_r;
 		for (int col_offset = 0; col_offset < L_DIM; ++col_offset)
@@ -1269,7 +1297,7 @@ public:
 			Y_k_r.col(col_offset)= Measurement(Y_k.col(col_offset)) - y_k;
 		}
 
-		//%% 4. Calculate observation sqrt covariance
+		// 4. Calculate observation sqrt covariance
 		// w_qr is scalar
 		// QR update of state Cholesky factor.
 		// w_qr and w_cholup cannot be negative
@@ -1287,7 +1315,8 @@ public:
 		float wc0_sign = (W.wc(0) > 0.f) ? 1.f : -1.f;
 		Sy_k.selfadjointView<Eigen::Upper>().rankUpdate(Y_k_r.leftCols<1>(), W.w_cholup*wc0_sign);
 
-		//%% 5. Calculate Kalman Gain
+		// 5. Calculate Kalman Gain
+		//First calculate state - observation cross(sqrt) covariance
 		const Eigen::Matrix<double, 1, L_DIM> wc = W.wc.transpose();
 		const Eigen::Matrix<double, S_DIM, L_DIM> wc_repl = wc.replicate<S_DIM, 1>();
 		const Eigen::Matrix<double, S_DIM, O_DIM> Pxy= 
@@ -1302,21 +1331,23 @@ public:
 
 		//Eigen::Matrix<double, X_DIM, O_DIM> KG = Pxy * Sy_k.inverse();
 
-		// %% 6. Calculate innovation
+		// 6. Calculate innovation
 		Measurement innov = observation - y_k;
 
-		// %% 7. State update / correct
+		// 7. State update / correct
+		// ReBeL srukf doesn't do anything special for angles to get upd.
 		PoseStateVector upd= convert_noise_to_state_vector(KG*innov);
 		x = x_k + upd;
 
-		// %% 8. Covariance update / correct
+		// 8. Covariance update / correct
 		// This is equivalent to : Px = Px_ - KG*Py*KG';
 		Eigen::Matrix<double, S_DIM, O_DIM> cov_update_vectors = KG * Sy_k;
 		for (int j = 0; j < O_DIM; ++j)
 		{
+			// Still UPPER
 			Sx_k.selfadjointView<Eigen::Upper>().rankUpdate(cov_update_vectors.col(j), -1.0);
 		}		
-		S = Sx_k.transpose();
+		S = Sx_k.transpose(); // LOWER sqrt-covariance saved for next predict.
 	}
 };
 
