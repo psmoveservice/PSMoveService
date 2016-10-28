@@ -118,6 +118,12 @@ struct OrientationFilterConstants
 	float min_orientation_drift; // rad
 	float max_orientation_drift; // rad
 
+	/// The variance of the accelerometer over a short period
+	Eigen::Vector3f accelerometer_variance; // g-units^2
+
+	/// The drift of the accelerometer over a long period
+	Eigen::Vector3f accelerometer_drift; // g-units/s
+
     /// The variance of the gyroscope over a short period
 	Eigen::Vector3f gyro_variance; // (rad/s)^2
 

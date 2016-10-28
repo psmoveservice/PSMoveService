@@ -1577,7 +1577,7 @@ Eigen::Vector3f KalmanPoseFilter::getAcceleration() const
 	return accel.cast<float>();
 }
 
-//-- KalmanFilterOpticalPoseARG --
+//-- KalmanPoseFilterDS4 --
 bool KalmanPoseFilterDS4::init(
 	const PoseFilterConstants &constants)
 {
@@ -1614,7 +1614,7 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
 	if (m_filter->bIsValid)
     {
 		// Predict state for current time-step using the filters
-        //srukf.predict(delta_time);
+        srukf.predict(delta_time);
 
         // Project the current state onto a predicted measurement as a default
         // in case no observation is available

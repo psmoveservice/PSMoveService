@@ -16,14 +16,46 @@ extern const Eigen::Quaternionf *k_eigen_quaternion_zero;
 #define assert_eigen_vector3f_is_normalized(v) assert(is_nearly_equal(v.squaredNorm(), 1.f, k_normal_epsilon))
 #define assert_eigen_quaternion_is_normalized(q) assert(is_nearly_equal(q.squaredNorm(), 1.f, k_normal_epsilon))
 
+namespace Eigen
+{
+	//Euler Convention http://www.euclideanspace.com/maths/geometry/rotations/euler/index.htm
+	// x - forward - bank axis - applied last
+	// y - up - heading axis - applied first
+	// z - right - attitude axis - applied second
+	template <typename T>
+	class EulerAngles : public Matrix<T, 3, 1>
+	{
+	public:
+		inline EulerAngles() : Matrix<T, 3, 1>() {}
+		inline EulerAngles(const Matrix<T, 3, 1> &e)
+		{
+			set(e.x(), e.y(), e.z());
+		}
+		inline EulerAngles(T bank_radians, T heading_radians, T attitude_radians)
+		{
+			set(bank_radians, heading_radians, attitude_radians);
+		}
+
+		inline T get_x_angle() const { return x(); }
+		inline T get_y_angle() const { return y(); }
+		inline T get_z_angle() const { return z(); }
+
+		inline T get_bank_radians() const { return x(); }
+		inline T get_heading_radians() const { return y(); }
+		inline T get_attitude_radians() const { return z(); }
+
+		inline void set(T bank_radians, T heading_radians, T attitude_radians)
+		{
+			x() = (T)wrap_ranged((T)bank_radians, -k_real64_pi, k_real64_pi); // bank in range [-180,180], applied third
+			y() = (T)wrap_ranged((T)heading_radians, -k_real64_pi, k_real64_pi); // heading in range [-180,180], applied first
+			z() = (T)wrap_ranged((T)attitude_radians, -k_real64_half_pi, k_real64_half_pi); // attitude in range [-90,90], applied second
+		}
+	};
+	typedef EulerAngles<float> EulerAnglesf;
+	typedef EulerAngles<double> EulerAnglesd;
+};
+
 //-- interface -----
-Eigen::Quaternionf
-eigen_quaternion_yaw_pitch_roll(float yaw_radians, float pitch_radians, float roll_radians);
-
-void
-eigen_quaternion_get_yaw_pitch_roll(
-    const Eigen::Quaternionf &q, float *out_yaw_radians, float *out_pitch_radians, float *out_roll_radians);
-
 Eigen::Quaternionf
 eigen_quaternion_from_forward_up(
 	const Eigen::Vector3f &forward,
@@ -99,5 +131,18 @@ eigen_angle_axis_to_quaterniond(const Eigen::Vector3d &angle_axis);
 
 Eigen::Quaternionf
 eigen_angle_axis_to_quaternion(const Eigen::Vector3f &angle_axis);
+
+Eigen::Quaterniond
+eigen_euler_angles_to_quaterniond(const Eigen::EulerAnglesd &euler_angles);
+
+Eigen::Quaternionf
+eigen_euler_angles_to_quaternionf(const Eigen::EulerAnglesf &euler_angles);
+
+Eigen::EulerAnglesd
+eigen_quaterniond_to_euler_angles(const Eigen::Quaterniond &q);
+
+Eigen::EulerAnglesf
+eigen_quaternionf_to_euler_angles(const Eigen::Quaternionf &q);
+
 
 #endif // MATH_EIGEN_H
