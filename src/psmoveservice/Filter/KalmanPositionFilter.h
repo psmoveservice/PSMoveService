@@ -18,7 +18,7 @@ public:
 	void resetState() override;
 	void recenterState() override;
 
-	// -- IPoseFilter ---
+	// -- IPositionFilter ---
 	Eigen::Vector3f getPosition(float time = 0.f) const override;
 	Eigen::Vector3f getVelocity() const override;
 	Eigen::Vector3f getAcceleration() const override;
@@ -28,4 +28,4 @@ protected:
 	class KalmanPositionFilterImpl *m_filter;
 };
 
-#endif // DEVICE_INTERFACE_H
+#endif // KALMAN_POSITION_FILTER_H
