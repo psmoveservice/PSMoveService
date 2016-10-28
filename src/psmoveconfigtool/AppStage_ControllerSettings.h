@@ -14,6 +14,8 @@ public:
     struct ControllerInfo
     {
         int ControllerID;
+		int FirmwareVersion;
+		int FirmwareRevision;
         ClientControllerView::eControllerType ControllerType;
         PSMoveTrackingColorType TrackingColorType;
         std::string DevicePath;

@@ -197,6 +197,10 @@ PSMoveControllerConfig::config2ptree()
     pt.put("is_valid", is_valid);
     pt.put("version", PSMoveControllerConfig::CONFIG_VERSION);
 
+	pt.put("firmware_version", firmware_version);
+	pt.put("bt_firmware_version", bt_firmware_version);
+	pt.put("firmware_revision", firmware_revision);
+
     pt.put("prediction_time", prediction_time);
     pt.put("max_poll_failure_count", max_poll_failure_count);
     
@@ -262,6 +266,10 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
     if (version == PSMoveControllerConfig::CONFIG_VERSION)
     {
         is_valid = pt.get<bool>("is_valid", false);
+
+		firmware_version = pt.get<unsigned short>("firmware_version", 0);
+		bt_firmware_version = pt.get<unsigned short>("bt_firmware_version", 0);
+		firmware_revision = pt.get<unsigned short>("firmware_revision", 0);
 
         prediction_time = pt.get<float>("prediction_time", 0.f);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
@@ -448,6 +456,9 @@ bool PSMoveController::open(
 
         if (getIsOpen())  // Controller was opened and has an index
         {
+			// Get the firmware revision being used
+			bool bSaveConfig= loadFirmwareInfo();
+
             // Get the bluetooth address
     #ifdef __APPLE__
             // On my Mac, getting the bt feature report when connected via
@@ -484,7 +495,7 @@ bool PSMoveController::open(
                 }
 
 				// Always save the config back out in case some defaults changed
-				cfg.save();
+				bSaveConfig = true;
 
                 success= true;
             }
@@ -495,6 +506,11 @@ bool PSMoveController::open(
                 SERVER_LOG_ERROR("PSMoveController::open") << "Failed to get bluetooth address of PSMoveController(" << cur_dev_path << ")";
                 success= false;
             }
+
+			if (bSaveConfig)
+			{
+				cfg.save();
+			}
 
             // Reset the polling sequence counter
             NextPollSequenceNumber= 0;
@@ -857,6 +873,71 @@ PSMoveController::loadCalibration()
     }
 
     cfg.is_valid= is_valid;
+}
+
+bool
+PSMoveController::loadFirmwareInfo()
+{
+	bool bFirmwareInfoValid = false;
+
+	unsigned char buf[14];
+	int res;
+	int expected_res = sizeof(buf) - 1;
+	unsigned char *p = buf;
+
+	memset(buf, 0, sizeof(buf));
+	buf[0] = PSMove_Req_GetFirmwareInfo;
+
+	res = hid_get_feature_report(HIDDetails.Handle, buf, sizeof(buf));
+
+	/**
+	* The Bluetooth report contains the Report ID as additional first byte
+	* while the USB report does not. So we need to check the current connection
+	* type in order to determine the correct offset for reading from the report
+	* buffer.
+	**/
+
+	if (getIsBluetooth()) 
+	{
+		expected_res += 1;
+		p = buf + 1;
+	}
+
+	if (res == expected_res)
+	{
+		// NOTE: Each field in the report is stored in Big-Endian byte order
+		cfg.firmware_version = (p[0] << 8) | p[1];
+		cfg.firmware_revision = (p[2] << 8) | p[3];
+		cfg.bt_firmware_version = (p[4] << 8) | p[5];
+
+		bFirmwareInfoValid = true;
+	}
+
+	return bFirmwareInfoValid;
+}
+
+bool
+PSMoveController::enableDFUMode()
+{
+	unsigned char buf[10];
+	int res;
+	char mode_magic_val;
+
+	if (getIsBluetooth())
+	{
+		mode_magic_val = 0x43;
+	}
+	else
+	{
+		mode_magic_val = 0x42;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	buf[0] = PSMove_Req_SetDFUMode;
+	buf[1] = mode_magic_val;
+	res = hid_send_feature_report(HIDDetails.Handle, buf, sizeof(buf));
+
+	return (res == sizeof(buf));
 }
 
 IControllerInterface::ePollResult

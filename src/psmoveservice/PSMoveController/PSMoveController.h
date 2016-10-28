@@ -31,6 +31,9 @@ public:
         : PSMoveConfig(fnamebase)
         , is_valid(false)
         , version(CONFIG_VERSION)
+		, firmware_version(0)
+		, bt_firmware_version(0)
+		, firmware_revision(0)
         , max_poll_failure_count(100) 
         , cal_ag_xyz_kb({{ 
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }},
@@ -63,7 +66,18 @@ public:
 
     bool is_valid;
     long version;
+
+	// Move's firmware version number
+	unsigned short firmware_version;
+
+	// Move Bluetooth module's firmware version number
+	unsigned short bt_firmware_version; 
+
+	// Move's firmware revision number
+	unsigned short firmware_revision;
+
     long max_poll_failure_count;
+
     std::array<std::array<std::array<float, 2>, 3>, 2> cal_ag_xyz_kb;
     CommonDeviceVector magnetometer_identity;
     CommonDeviceVector magnetometer_center;
@@ -220,10 +234,12 @@ public:
     bool setLED(unsigned char r, unsigned char g, unsigned char b); // 0x00..0xff. TODO: vec3
     bool setLEDPWMFrequency(unsigned long freq);    // 733..24e6
     bool setRumbleIntensity(unsigned char value);
+	bool enableDFUMode(); // Device Firmware Update mode
 
 private:    
     bool getBTAddress(std::string& host, std::string& controller);
     void loadCalibration();                         // Use USB or file if on BT
+	bool loadFirmwareInfo();
     
     bool writeDataOut();                            // Setters will call this
     

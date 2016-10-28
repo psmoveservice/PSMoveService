@@ -204,7 +204,9 @@ void AppStage_ControllerSettings::renderUI()
                 {
                     case ClientControllerView::eControllerType::PSMove:
                         {
-                            ImGui::BulletText("Controller Type: PSMove");
+							//###HipsterSloth $TODO - The HID report for fetching the firmware revision doesn't appear to work
+                            //ImGui::BulletText("Controller Type: PSMove (v%d.%d)", controllerInfo.FirmwareVersion, controllerInfo.FirmwareRevision);
+							ImGui::BulletText("Controller Type: PSMove");
                         } break;
                     case ClientControllerView::eControllerType::PSNavi:
                         {
@@ -452,6 +454,8 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 ControllerInfo.PairedToHost=
                     ControllerResponse.assigned_host_serial().length() > 0 && 
                     ControllerResponse.assigned_host_serial() == thisPtr->m_hostSerial;
+				ControllerInfo.FirmwareVersion = ControllerResponse.firmware_version();
+				ControllerInfo.FirmwareRevision = ControllerResponse.firmware_revision();
 
                 // Add the controller to the appropriate connection list
                 switch (ControllerResponse.connection_type())

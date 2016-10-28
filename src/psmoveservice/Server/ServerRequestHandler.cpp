@@ -460,16 +460,30 @@ protected:
             {
                 PSMoveProtocol::Response_ResultControllerList_ControllerInfo *controller_info= list->add_controllers();
 
+				int firmware_version = 0;
+				int firmware_revision = 0;
+
                 switch(controller_view->getControllerDeviceType())
                 {
                 case CommonControllerState::PSMove:
-                    controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
+					{
+						const PSMoveController *psmove_controller = controller_view->castCheckedConst<PSMoveController>();
+						const PSMoveControllerConfig *psmove_config= psmove_controller->getConfig();
+
+						controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
+						firmware_version = psmove_config->firmware_version;
+						firmware_revision = psmove_config->firmware_revision;
+					}
                     break;
                 case CommonControllerState::PSNavi:
-                    controller_info->set_controller_type(PSMoveProtocol::PSNAVI);
+					{
+						controller_info->set_controller_type(PSMoveProtocol::PSNAVI);
+					}
                     break;
                 case CommonControllerState::PSDualShock4:
-                    controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
+					{
+						controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
+					}
                     break;
                 default:
                     assert(0 && "Unhandled controller type");
@@ -485,6 +499,8 @@ protected:
                 controller_info->set_device_path(controller_view->getUSBDevicePath());
                 controller_info->set_device_serial(controller_view->getSerial());
                 controller_info->set_assigned_host_serial(controller_view->getAssignedHostBluetoothAddress());
+				controller_info->set_firmware_version(firmware_version);
+				controller_info->set_firmware_revision(firmware_revision);
             }
         }
 
