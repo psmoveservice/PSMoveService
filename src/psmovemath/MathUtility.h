@@ -21,6 +21,10 @@
 #define k_degrees_to_radians (k_real_pi / 180.f)
 #define k_radians_to_degreees (180.f / k_real_pi)
 
+#define k_real64_pi 3.14159265358979323846
+#define k_real64_two_pi 2.f*k_real64_pi
+#define k_real64_half_pi 0.5f*k_real64_pi
+
 //-- macros ----
 #ifdef isfinite
 #define is_valid_float(x) (!isnan(x) && isfinite(x))
@@ -60,5 +64,6 @@ float radians_to_degrees(float x);
 float wrap_radians(float angle);
 float wrap_degrees(float angle);
 float wrap_range(float value, float range_min, float range_max);
+double wrap_ranged(double value, double range_min, double range_max);
 
 #endif // MATH_UTILITY_h

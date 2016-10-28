@@ -59,3 +59,11 @@ float wrap_range(float value, float range_min, float range_max)
     
     return range_min + fmodf((value - range_min) + range, range);
 }
+
+double wrap_ranged(double value, double range_min, double range_max)
+{
+	assert(range_max > range_min);
+	const double range = range_max - range_min;
+
+	return range_min + fmod((value - range_min) + range, range);
+}
