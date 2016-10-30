@@ -6,6 +6,7 @@
 #include "ServerRequestHandler.h"
 #include "DeviceManager.h"
 #include "ServerLog.h"
+#include "TrackerManager.h"
 
 #include <boost/asio.hpp>
 #include <boost/application.hpp>
@@ -63,6 +64,8 @@ public:
             {
                 m_status = context.find<application::status>();
 
+				const TrackerManagerConfig &cfg = DeviceManager::getInstance()->m_tracker_manager->getConfig();
+
                 while (m_status->state() != application::status::stoped)
                 {
                     if (m_status->state() != application::status::paused)
@@ -70,7 +73,7 @@ public:
                         update();
                     }
 
-                    boost::this_thread::sleep(boost::posix_time::milliseconds(1));
+                    boost::this_thread::sleep(boost::posix_time::milliseconds(cfg.thread_timeout_ms));
                 }
             }
             else
