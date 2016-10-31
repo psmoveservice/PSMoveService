@@ -228,11 +228,18 @@ void AppStage_ControllerSettings::renderUI()
 
                 if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSMove)
                 {
-                    if (ImGui::Button("Calibrate Magnetometer"))
-                    {
-                        m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(false);
-                        m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
-                    }
+					if (controllerInfo.HasMagnetometer)
+					{
+						if (ImGui::Button("Calibrate Magnetometer"))
+						{
+							m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(false);
+							m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
+						}
+					}
+					else
+					{
+						ImGui::TextDisabled("Magnetometer Disabled");
+					}
 
                     if (ImGui::Button("Calibrate Gyroscope"))
                     {
@@ -456,6 +463,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                     ControllerResponse.assigned_host_serial() == thisPtr->m_hostSerial;
 				ControllerInfo.FirmwareVersion = ControllerResponse.firmware_version();
 				ControllerInfo.FirmwareRevision = ControllerResponse.firmware_revision();
+				ControllerInfo.HasMagnetometer = ControllerResponse.has_magnetometer();
 
                 // Add the controller to the appropriate connection list
                 switch (ControllerResponse.connection_type())

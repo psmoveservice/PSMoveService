@@ -222,14 +222,11 @@ public:
     float getTempCelsius() const;
     static CommonDeviceState::eDeviceType getDeviceTypeStatic()
     { return CommonDeviceState::PSMove; }
-    
-    
+	bool getSupportsMagnetometer() const
+	{ return SupportsMagnetometer; }        
     const unsigned long getLEDPWMFrequency() const
-    {
-        return LedPWMF;
-    }
+    { return LedPWMF; }
     
-
     // -- Setters
     bool setLED(unsigned char r, unsigned char g, unsigned char b); // 0x00..0xff. TODO: vec3
     bool setLEDPWMFrequency(unsigned long freq);    // 733..24e6
@@ -247,6 +244,7 @@ private:
     PSMoveControllerConfig cfg;
     PSMoveHIDDetails HIDDetails;
     bool IsBluetooth;                               // true if valid serial number on device opening
+	bool SupportsMagnetometer;                      // true if controller emits valid magnetometer data
 
     // Cached Setter State
     unsigned char LedR, LedG, LedB;

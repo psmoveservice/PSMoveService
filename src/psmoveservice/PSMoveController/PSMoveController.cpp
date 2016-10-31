@@ -46,6 +46,8 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <algorithm>
 #include <vector>
 #include <cstdlib>
+#include <chrono>
+#include <thread>
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #endif
@@ -360,6 +362,7 @@ PSMoveController::PSMoveController()
     , Rumble(0)
     , bWriteStateDirty(false)
     , NextPollSequenceNumber(0)
+	, SupportsMagnetometer(false)
 {
     HIDDetails.Handle = nullptr;
     HIDDetails.Handle_addr = nullptr;
@@ -506,6 +509,40 @@ bool PSMoveController::open(
                 SERVER_LOG_ERROR("PSMoveController::open") << "Failed to get bluetooth address of PSMoveController(" << cur_dev_path << ")";
                 success= false;
             }
+
+			// Poll the controller to see if it emits valid magnetometer data
+			// (Newer firmware doesn't support the magnetometer anymore)
+			if (success && IsBluetooth)
+			{		
+				const int k_max_poll_attempts = 10;
+				int poll_count = 0;
+				bool bReadData = false;
+
+				for (poll_count = 0; poll_count < k_max_poll_attempts && !bReadData; ++poll_count)
+				{
+					if (poll() == IDeviceInterface::ePollResult::_PollResultSuccessNewData)
+					{
+						const PSMoveControllerState *ControllerState = static_cast<const PSMoveControllerState *>(getState());
+
+						SupportsMagnetometer =
+							ControllerState->RawMag[0] != 0 ||
+							ControllerState->RawMag[1] != 0 ||
+							ControllerState->RawMag[2] != 0;
+						bReadData= true;
+					}
+					else
+					{
+						const std::chrono::milliseconds k_WaitForDataMilliseconds(5);
+
+						std::this_thread::sleep_for(k_WaitForDataMilliseconds);
+					}
+				}
+
+				if (poll_count >= k_max_poll_attempts)
+				{
+					SERVER_LOG_ERROR("PSMoveController::open") << "Failed to open read initial controller state after " << k_max_poll_attempts << " attempts.";
+				}
+			}
 
 			if (bSaveConfig)
 			{

@@ -22,6 +22,7 @@ public:
         std::string DeviceSerial;
         std::string AssignedHostSerial;
         bool PairedToHost;
+		bool HasMagnetometer;
     };
 
     AppStage_ControllerSettings(class App *app);

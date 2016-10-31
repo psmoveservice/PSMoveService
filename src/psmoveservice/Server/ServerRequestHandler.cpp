@@ -462,6 +462,7 @@ protected:
 
 				int firmware_version = 0;
 				int firmware_revision = 0;
+				bool has_magnetometer = false;
 
                 switch(controller_view->getControllerDeviceType())
                 {
@@ -473,6 +474,7 @@ protected:
 						controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
 						firmware_version = psmove_config->firmware_version;
 						firmware_revision = psmove_config->firmware_revision;
+						has_magnetometer = psmove_controller->getSupportsMagnetometer();
 					}
                     break;
                 case CommonControllerState::PSNavi:
@@ -501,6 +503,7 @@ protected:
                 controller_info->set_assigned_host_serial(controller_view->getAssignedHostBluetoothAddress());
 				controller_info->set_firmware_version(firmware_version);
 				controller_info->set_firmware_revision(firmware_revision);
+				controller_info->set_has_magnetometer(has_magnetometer);
             }
         }
 
