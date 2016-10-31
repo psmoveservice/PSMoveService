@@ -73,7 +73,7 @@ public:
                         update();
                     }
 
-                    boost::this_thread::sleep(boost::posix_time::milliseconds(cfg.thread_timeout_ms));
+                    boost::this_thread::sleep(boost::posix_time::milliseconds(cfg.tracker_sleep_ms));
                 }
             }
             else
