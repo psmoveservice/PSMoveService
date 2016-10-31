@@ -174,6 +174,16 @@ bool PositionFilter::init(const PositionFilterConstants &constants)
     return true;
 }
 
+bool PositionFilter::init(const PositionFilterConstants &constants, const Eigen::Vector3f &initial_position)
+{
+	resetState();
+	m_constants = constants;
+	m_state->position = initial_position;
+	m_state->bIsValid = true;
+
+	return true;
+}
+
 Eigen::Vector3f PositionFilter::getPosition(float time) const
 {
     Eigen::Vector3f result = Eigen::Vector3f::Zero();

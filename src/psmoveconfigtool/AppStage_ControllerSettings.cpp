@@ -29,6 +29,24 @@
 const char *AppStage_ControllerSettings::APP_STAGE_NAME= "ControllerSettings";
 
 //-- constants -----
+const char* k_position_filter_names[] = { "PassThru", "LowPassOptical", "LowPassIMU", "ComplimentaryOpticalIMU", "PositionKalman" };
+const char* k_psmove_orientation_filter_names[] = { "PassThru", "MadgwickARG", "MadgwickMARG", "ComplementaryMARG", "OrientationKalman" };
+const char* k_ds4_orientation_filter_names[] = { "PassThru", "MadgwickARG", "ComplementaryOpticalARG", "OrientationKalman" };
+
+inline int find_string_entry(const char *string_entry, const char* string_list[], size_t list_size)
+{
+	int found_index = -1;
+	for (size_t test_index = 0; test_index < list_size; ++test_index)
+	{
+		if (strncmp(string_entry, string_list[test_index], 32) == 0)
+		{
+			found_index = static_cast<int>(test_index);
+			break;
+		}
+	}
+
+	return found_index;
+}
 
 //-- public methods -----
 AppStage_ControllerSettings::AppStage_ControllerSettings(App *app) 
@@ -162,7 +180,7 @@ void AppStage_ControllerSettings::renderUI()
 
             if (m_bluetoothControllerInfos.size() > 0)
             {
-                const ControllerInfo &controllerInfo= m_bluetoothControllerInfos[m_selectedControllerIndex];
+                ControllerInfo &controllerInfo= m_bluetoothControllerInfos[m_selectedControllerIndex];
 
                 if (m_selectedControllerIndex > 0)
                 {
@@ -295,6 +313,35 @@ void AppStage_ControllerSettings::renderUI()
                         m_app->setAppStage(AppStage_TestRumble::APP_STAGE_NAME);
                     }
                 }
+
+				if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSMove)
+				{					
+					if (ImGui::Combo("position filter", &controllerInfo.PositionFilterIndex, k_position_filter_names, UI_ARRAYSIZE(k_position_filter_names)))
+					{
+						controllerInfo.PositionFilterName = k_position_filter_names[controllerInfo.PositionFilterIndex];
+						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+					}
+
+					if (ImGui::Combo("orientation filter", &controllerInfo.OrientationFilterIndex, k_psmove_orientation_filter_names, UI_ARRAYSIZE(k_psmove_orientation_filter_names)))
+					{
+						controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[controllerInfo.OrientationFilterIndex];
+						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+					}
+				}
+				else if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
+				{
+					if (ImGui::Combo("position filter", &controllerInfo.PositionFilterIndex, k_position_filter_names, UI_ARRAYSIZE(k_position_filter_names)))
+					{
+						controllerInfo.PositionFilterName = k_position_filter_names[controllerInfo.PositionFilterIndex];
+						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+					}
+
+					if (ImGui::Combo("orientation filter", &controllerInfo.OrientationFilterIndex, k_ds4_orientation_filter_names, UI_ARRAYSIZE(k_ds4_orientation_filter_names)))
+					{
+						controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[controllerInfo.OrientationFilterIndex];
+						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+					}
+				}
             }
             else
             {
@@ -415,6 +462,33 @@ void AppStage_ControllerSettings::request_controller_list()
     }
 }
 
+void AppStage_ControllerSettings::request_set_orientation_filter(
+	const int controller_id,
+	const std::string &filter_name)
+{
+	RequestPtr request(new PSMoveProtocol::Request());
+	request->set_type(PSMoveProtocol::Request_RequestType_SET_ORIENTATION_FILTER);
+
+	request->mutable_request_set_orientation_filter()->set_controller_id(controller_id);
+	request->mutable_request_set_orientation_filter()->set_orientation_filter(filter_name);
+
+	ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+}
+
+void AppStage_ControllerSettings::request_set_position_filter(
+	const int controller_id,
+	const std::string &filter_name)
+{
+	RequestPtr request(new PSMoveProtocol::Request());
+	request->set_type(PSMoveProtocol::Request_RequestType_SET_POSITION_FILTER);
+
+	request->mutable_request_set_position_filter()->set_controller_id(controller_id);
+	request->mutable_request_set_position_filter()->set_position_filter(filter_name);
+
+	ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+
+}
+
 void AppStage_ControllerSettings::handle_controller_list_response(
     const ClientPSMoveAPI::ResponseMessage *response_message,
     void *userdata)
@@ -467,6 +541,60 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 ControllerInfo.PairedToHost=
                     ControllerResponse.assigned_host_serial().length() > 0 && 
                     ControllerResponse.assigned_host_serial() == thisPtr->m_hostSerial;
+				ControllerInfo.OrientationFilterName= ControllerResponse.orientation_filter();
+				ControllerInfo.PositionFilterName = ControllerResponse.position_filter();
+
+				if (ControllerInfo.ControllerType == ClientControllerView::PSMove)
+				{
+					ControllerInfo.OrientationFilterIndex =
+						find_string_entry(
+							ControllerInfo.OrientationFilterName.c_str(),
+							k_psmove_orientation_filter_names,
+							UI_ARRAYSIZE(k_psmove_orientation_filter_names));
+					if (ControllerInfo.OrientationFilterIndex == -1)
+					{
+						ControllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[0];
+						ControllerInfo.OrientationFilterIndex = 0;
+					}
+				}
+				else if (ControllerInfo.ControllerType == ClientControllerView::PSDualShock4)
+				{
+					ControllerInfo.OrientationFilterIndex =
+						find_string_entry(
+							ControllerInfo.OrientationFilterName.c_str(),
+							k_ds4_orientation_filter_names,
+							UI_ARRAYSIZE(k_ds4_orientation_filter_names));
+					if (ControllerInfo.OrientationFilterIndex == -1)
+					{
+						ControllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[0];
+						ControllerInfo.OrientationFilterIndex = 0;
+					}
+				}
+				else
+				{
+					ControllerInfo.OrientationFilterName = "";
+					ControllerInfo.OrientationFilterIndex = -1;
+				}
+
+				if (ControllerInfo.ControllerType == ClientControllerView::PSMove ||
+					ControllerInfo.ControllerType == ClientControllerView::PSDualShock4)
+				{
+					ControllerInfo.PositionFilterIndex =
+						find_string_entry(
+							ControllerInfo.PositionFilterName.c_str(),
+							k_position_filter_names,
+							UI_ARRAYSIZE(k_position_filter_names));
+					if (ControllerInfo.PositionFilterIndex == -1)
+					{
+						ControllerInfo.PositionFilterName = k_position_filter_names[0];
+						ControllerInfo.PositionFilterIndex = 0;
+					}
+				}
+				else
+				{
+					ControllerInfo.PositionFilterName = "";
+					ControllerInfo.PositionFilterIndex = -1;
+				}
 
                 // Add the controller to the appropriate connection list
                 switch (ControllerResponse.connection_type())

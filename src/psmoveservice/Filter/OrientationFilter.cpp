@@ -116,6 +116,16 @@ bool OrientationFilter::init(const OrientationFilterConstants &constants)
     return true;
 }
 
+bool OrientationFilter::init(const OrientationFilterConstants &constants, const Eigen::Quaternionf &initial_orientation)
+{
+	resetState();
+	m_constants = constants;
+	m_state->orientation = initial_orientation;
+	m_state->bIsValid = true;
+
+	return true;
+}
+
 Eigen::Quaternionf OrientationFilter::getOrientation(float time) const
 {
     Eigen::Quaternionf result = Eigen::Quaternionf::Identity();

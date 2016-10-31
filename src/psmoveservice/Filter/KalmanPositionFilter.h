@@ -11,6 +11,7 @@ public:
 	virtual ~KalmanPositionFilter();
 
 	bool init(const PositionFilterConstants &constant) override;
+	bool init(const PositionFilterConstants &constant, const Eigen::Vector3f &initial_position) override;
 	void update(const float delta_time, const PoseFilterPacket &packet) override;
 
 	// -- IStateFilter --

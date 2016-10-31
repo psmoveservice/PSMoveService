@@ -188,6 +188,7 @@ class IOrientationFilter : public IStateFilter
 {
 public:
     virtual bool init(const OrientationFilterConstants &constant) = 0;
+	virtual bool init(const OrientationFilterConstants &constant, const Eigen::Quaternionf &initial_orientation) = 0;
 
     /// Estimate the current orientation of the filter given a time offset into the future
     virtual Eigen::Quaternionf getOrientation(float time = 0.f) const = 0;
@@ -204,6 +205,7 @@ class IPositionFilter : public IStateFilter
 {
 public:
     virtual bool init(const PositionFilterConstants &constant) = 0;
+	virtual bool init(const PositionFilterConstants &constant, const Eigen::Vector3f &initial_position) = 0;
 
     /// Estimate the current position of the filter state given a time offset into the future (meters)
     virtual Eigen::Vector3f getPosition(float time = 0.f) const = 0;

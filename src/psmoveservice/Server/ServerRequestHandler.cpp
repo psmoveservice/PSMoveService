@@ -213,6 +213,14 @@ public:
 				response = new PSMoveProtocol::Response;
 				handle_request__set_optical_noise_calibration(context, response);
 				break;
+			case PSMoveProtocol::Request_RequestType_SET_ORIENTATION_FILTER:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_orientation_filter(context, response);
+				break;
+			case PSMoveProtocol::Request_RequestType_SET_POSITION_FILTER:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_position_filter(context, response);
+				break;
 
             // Tracker Requests
             case PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST:
@@ -474,16 +482,37 @@ protected:
             {
                 PSMoveProtocol::Response_ResultControllerList_ControllerInfo *controller_info= list->add_controllers();
 
+				std::string orientation_filter = "";
+				std::string position_filter = "";
+
                 switch(controller_view->getControllerDeviceType())
                 {
                 case CommonControllerState::PSMove:
-                    controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
+					{
+						const PSMoveController *controller = controller_view->castCheckedConst<PSMoveController>();
+						const PSMoveControllerConfig *config = controller->getConfig();
+
+						orientation_filter = config->orientation_filter_type;
+						position_filter = config->position_filter_type;
+
+						controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
+					}
                     break;
                 case CommonControllerState::PSNavi:
-                    controller_info->set_controller_type(PSMoveProtocol::PSNAVI);
+					{
+						controller_info->set_controller_type(PSMoveProtocol::PSNAVI);
+					}
                     break;
                 case CommonControllerState::PSDualShock4:
-                    controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
+					{
+						const PSDualShock4Controller *controller = controller_view->castCheckedConst<PSDualShock4Controller>();
+						const PSDualShock4ControllerConfig *config = controller->getConfig();
+
+						orientation_filter = config->orientation_filter_type;
+						position_filter = config->position_filter_type;
+
+						controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
+					}
                     break;
                 default:
                     assert(0 && "Unhandled controller type");
@@ -499,6 +528,8 @@ protected:
                 controller_info->set_device_path(controller_view->getUSBDevicePath());
                 controller_info->set_device_serial(controller_view->getSerial());
                 controller_info->set_assigned_host_serial(controller_view->getAssignedHostBluetoothAddress());
+				controller_info->set_orientation_filter(orientation_filter);
+				controller_info->set_position_filter(position_filter);
             }
         }
 
@@ -949,6 +980,98 @@ protected:
 			config->save();
 
 			ControllerView->resetPoseFilter();
+
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
+	void handle_request__set_orientation_filter(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int controller_id = context.request->request_set_orientation_filter().controller_id();
+
+		ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+		const PSMoveProtocol::Request_RequestSetOrientationFilter &request =
+			context.request->request_set_orientation_filter();
+
+		if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+		{
+			PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+			PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+
+			if (config->orientation_filter_type != request.orientation_filter())
+			{
+				config->orientation_filter_type = request.orientation_filter();
+				config->save();
+
+				ControllerView->resetPoseFilter();
+			}
+
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+		}
+		else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+		{
+			PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+			PSMoveControllerConfig *config = controller->getConfigMutable();
+
+			if (config->orientation_filter_type != request.orientation_filter())
+			{
+				config->orientation_filter_type = request.orientation_filter();
+				config->save();
+
+				ControllerView->resetPoseFilter();
+			}
+
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
+	void handle_request__set_position_filter(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int controller_id = context.request->request_set_position_filter().controller_id();
+
+		ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+		const PSMoveProtocol::Request_RequestSetPositionFilter &request =
+			context.request->request_set_position_filter();
+
+		if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+		{
+			PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+			PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+
+			if (config->position_filter_type != request.position_filter())
+			{
+				config->position_filter_type = request.position_filter();
+				config->save();
+
+				ControllerView->resetPoseFilter();
+			}
+
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+		}
+		else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+		{
+			PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+			PSMoveControllerConfig *config = controller->getConfigMutable();
+
+			if (config->position_filter_type != request.position_filter())
+			{
+				config->position_filter_type = request.position_filter();
+				config->save();
+
+				ControllerView->resetPoseFilter();
+			}
 
 			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 		}

@@ -11,9 +11,7 @@ public:
 	virtual ~KalmanOrientationFilter();
 
 	bool init(const OrientationFilterConstants &constant) override;
-	virtual bool init(
-		const OrientationFilterConstants &constants,
-		const Eigen::Quaternionf &orientation);
+	bool init(const OrientationFilterConstants &constant, const Eigen::Quaternionf &initial_orientation) override;
 
 	// -- IStateFilter --
 	bool getIsStateValid() const override;

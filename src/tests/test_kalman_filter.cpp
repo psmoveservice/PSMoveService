@@ -1,4 +1,6 @@
+#include "DeviceInterface.h"
 #include "KalmanPoseFilter.h"
+#include "CompoundPoseFilter.h"
 #include "MathAlignment.h"
 
 #if defined(__linux) || defined (__APPLE__)
@@ -7,14 +9,6 @@
 
 #include <stdio.h>
 #include <vector>
-
-enum eControllerType
-{
-	Unknown,
-	PSMove,
-	DualShock4
-};
-
 
 enum eControllerSampleFields
 {
@@ -79,7 +73,7 @@ class ControllerInputStream
 public:
 	ControllerInputStream(const char *filename)
 		: m_sampleIndex(0)
-		, m_controllerType(Unknown)
+		, m_controllerType(CommonDeviceState::PSMove)
 	{
 		char line[512];
 		float columns[FIELD_COUNT];
@@ -90,62 +84,62 @@ public:
 			bool bSuccess = true;
 
 			line[sizeof(line) - 1] = 0;
-			m_controllerType = PSMove;
-			//if (fgets(line, sizeof(line) - 1, fp))
-			//{				
-			//	if (strnicmp(line, "psmove", 6) == 0)
-			//	{
-			//		m_controllerType = PSMove;
-			//		bSuccess = true;
-			//	}
-			//	else if (strnicmp(line, "dualshock4", 10) == 0)
-			//	{
-			//		m_controllerType = DualShock4;
-			//		bSuccess = true;
-			//	}
-			//}
+			m_controllerType = CommonDeviceState::PSMove;
+			if (fgets(line, sizeof(line) - 1, fp))
+			{				
+				if (strnicmp(line, "psmove", 6) == 0)
+				{
+					m_controllerType = CommonDeviceState::PSMove;
+					bSuccess = true;
+				}
+				else if (strnicmp(line, "dualshock4", 10) == 0)
+				{
+					m_controllerType = CommonDeviceState::PSDualShock4;
+					bSuccess = true;
+				}
+			}
 
-			//if (bSuccess)
-			//{
-			//	bSuccess = false;
+			if (bSuccess)
+			{
+				bSuccess = false;
 
-			//	if (fgets(line, sizeof(line) - 1, fp) != nullptr)
-			//	{
-			//		size_t len = strlen(line);
+				if (fgets(line, sizeof(line) - 1, fp) != nullptr)
+				{
+					size_t len = strlen(line);
 
-			//		if (len > 0)
-			//		{
-			//			const char* last_start = &line[0];
-			//			int valid_columns = 0;
+					if (len > 0)
+					{
+						const char* last_start = &line[0];
+						int valid_columns = 0;
 
-			//			size_t cursor= 0;
-			//			while (cursor < len && valid_columns < FIELD_COUNT)
-			//			{
-			//				if (line[cursor] == ',' || line[cursor] == '\n')
-			//				{
-			//					line[cursor] = '\0';
-			//					if (strnicmp(last_start, szColumnNames[valid_columns], strlen(szColumnNames[valid_columns])) == 0)
-			//					{
-			//						cursor++;
-			//						valid_columns++;
-			//						last_start = &line[cursor];
-			//					}
-			//					else
-			//					{
-			//						break;
-			//					}
-			//				}
+						size_t cursor= 0;
+						while (cursor < len && valid_columns < FIELD_COUNT)
+						{
+							if (line[cursor] == ',' || line[cursor] == '\n')
+							{
+								line[cursor] = '\0';
+								if (strnicmp(last_start, szColumnNames[valid_columns], strlen(szColumnNames[valid_columns])) == 0)
+								{
+									cursor++;
+									valid_columns++;
+									last_start = &line[cursor];
+								}
+								else
+								{
+									break;
+								}
+							}
 
-			//				cursor++;
-			//			}
+							cursor++;
+						}
 
-			//			if (valid_columns == FIELD_COUNT)
-			//			{
-			//				bSuccess = true;
-			//			}
-			//		}
-			//	}
-			//}
+						if (valid_columns == FIELD_COUNT)
+						{
+							bSuccess = true;
+						}
+					}
+				}
+			}
 
 			if (bSuccess)
 			{
@@ -180,7 +174,7 @@ public:
 
 							memcpy(&sample, columns, sizeof(float)*FIELD_COUNT);
 
-							// Convert the samples in meters to centimeters
+							// Convert the samples in centimeters to meters
 							sample.pos[0] *= k_centimeters_to_meters;
 							sample.pos[1] *= k_centimeters_to_meters;
 							sample.pos[2] *= k_centimeters_to_meters;
@@ -199,7 +193,7 @@ public:
 							// rotation from PSMoveState.Pose.Orientation uses the bulb facing the
 							// camera as the default orientation.We will use the provided orientations
 							// for testing, so let's undo their rotations first.
-							if (m_controllerType == PSMove)
+							if (m_controllerType == CommonDeviceState::PSMove)
 							{
 								Eigen::Quaternionf artificial_rotation(Eigen::AngleAxisf(-k_real_half_pi, Eigen::Vector3f(1.f, 0.f, 0.f)));
 								Eigen::Quaternionf original_quat(sample.ori[0], sample.ori[1], sample.ori[2], sample.ori[3]);
@@ -221,9 +215,14 @@ public:
 		}
 	}
 
-	eControllerType getControllerType() const
+	CommonDeviceState::eDeviceType getControllerType() const
 	{
 		return m_controllerType;
+	}
+
+	void reset()
+	{
+		m_sampleIndex = 0;
 	}
 
 	bool hasNext() const
@@ -243,7 +242,10 @@ public:
 		return m_samples.at(index);
 	}
 
-	Eigen::Vector3f computeCovarianceSlice(const int field_index) const
+	void computeSliceStatistics(
+		const int field_index,
+		Eigen::Vector3f *out_mean,
+		Eigen::Vector3f *out_variance) const
 	{
 		assert(field_index >= FIELD_ACCELEROMETER_X && field_index <= FIELD_POSITION_X);
 		assert(field_index % 3 == 0);
@@ -264,7 +266,15 @@ public:
 			&mean,
 			&variance);
 
-		return variance;
+		if (out_mean)
+		{
+			*out_mean = mean;
+		}
+
+		if (out_variance)
+		{
+			*out_variance = variance;
+		}
 	}
 
 	float computeMeanTimeDelta() const
@@ -292,15 +302,18 @@ public:
 private:
 	std::vector<ControllerSample> m_samples;
 	size_t m_sampleIndex;
-	eControllerType m_controllerType;
+	CommonDeviceState::eDeviceType m_controllerType;
 };
 
 class FilterOutputStream
 {
 public:
-	FilterOutputStream(const char *filename)
+	FilterOutputStream(const char *filename_prefix, const char *filename_suffix)
 	{
-		m_fp = fopen(filename, "wt");
+		std::string filename = filename_prefix;
+		filename.append(filename_suffix);
+
+		m_fp = fopen(filename.c_str(), "wt");
 
 		if (m_fp != nullptr)
 		{
@@ -340,13 +353,20 @@ private:
 	FILE* m_fp;
 };
 
+static void apply_filter(
+	const bool bUseCompoundFilter,
+	ControllerInputStream &stationary_stream,
+	ControllerInputStream &movement_stream,
+	FilterOutputStream &output_stream);
 static void init_filter_for_psdualshock4(
 	const ControllerInputStream &stationary_stream,
 	const Eigen::Vector3f &initial_position, const Eigen::Quaternionf &initial_orientation,
+	const bool bUseCompoundFilter,
 	PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter);
 static void init_filter_for_psmove(
 	const ControllerInputStream &stationary_stream,
 	const Eigen::Vector3f &initial_position, const Eigen::Quaternionf &initial_orientation,
+	const bool bUseCompoundFilter,
 	PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter);
 
 int main(int argc, char *argv[])
@@ -358,10 +378,34 @@ int main(int argc, char *argv[])
 	}
 
 	ControllerInputStream stationary_stream(argv[1]);
-	ControllerInputStream movement_stream(argv[1]);
-	FilterOutputStream output_stream(argv[2]);
+	ControllerInputStream movement_stream(argv[2]);
+	
+	FilterOutputStream compoundfilter_output_stream("compoundfilter_", argv[3]);
+	apply_filter(
+		true, // use compound orientation kalman + position kalman filter
+		stationary_stream,
+		movement_stream,
+		compoundfilter_output_stream);
 
-	PoseFilterSpace *pose_filter_space= nullptr;
+	//###HipsterSloth $TODO full pose kalman filter doesn't work yet
+	//FilterOutputStream posefilter_output_stream("posefilter_", argv[3]);
+	//apply_filter(
+	//	false, // use full pose kalman filter
+	//	stationary_stream,
+	//	movement_stream,
+	//	posefilter_output_stream);
+
+	return 0;
+}
+
+static void
+apply_filter(
+	const bool bUseCompoundFilter,
+	ControllerInputStream &stationary_stream,
+	ControllerInputStream &movement_stream,
+	FilterOutputStream &output_stream)
+{
+	PoseFilterSpace *pose_filter_space = nullptr;
 	IPoseFilter *pose_filter = nullptr;
 
 	const ControllerSample &initialSample = movement_stream.getSample(0);
@@ -370,26 +414,30 @@ int main(int argc, char *argv[])
 
 	switch (movement_stream.getControllerType())
 	{
-	case PSMove:
+	case CommonDeviceState::PSMove:
 		init_filter_for_psmove(
 			stationary_stream,
-			initial_pos, initial_ori, 
+			initial_pos, initial_ori,
+			bUseCompoundFilter,
 			&pose_filter_space, &pose_filter);
 		break;
-	case DualShock4:
+	case CommonDeviceState::PSDualShock4:
 		init_filter_for_psdualshock4(
 			stationary_stream,
-			initial_pos, initial_ori, 
+			initial_pos, initial_ori,
+			bUseCompoundFilter,
 			&pose_filter_space, &pose_filter);
 		break;
 	default:
 		break;
 	}
 
-	float lastTime= movement_stream.getSample(0).time - stationary_stream.computeMeanTimeDelta();
+	float lastTime = movement_stream.getSample(0).time - stationary_stream.computeMeanTimeDelta();
+
+	movement_stream.reset();
 	while (movement_stream.hasNext())
 	{
-		ControllerSample sample= movement_stream.next();
+		ControllerSample sample = movement_stream.next();
 		float dT = sample.time - lastTime;
 
 		PoseSensorPacket sensorPacket;
@@ -417,8 +465,6 @@ int main(int argc, char *argv[])
 	{
 		delete pose_filter;
 	}
-
-	return 0;
 }
 
 static void
@@ -426,49 +472,78 @@ init_filter_for_psmove(
 	const ControllerInputStream &stationary_stream,
 	const Eigen::Vector3f &initial_position,
 	const Eigen::Quaternionf &initial_orientation,
+	const bool bUseCompoundFilter,
 	PoseFilterSpace **out_pose_filter_space,
 	IPoseFilter **out_pose_filter)
 {
 	// Setup the space the orientation filter operates in
 	PoseFilterSpace *pose_filter_space = new PoseFilterSpace();
 	pose_filter_space->setIdentityGravity(Eigen::Vector3f(0.f, 0.f, -1.f));
-	pose_filter_space->setIdentityMagnetometer(Eigen::Vector3f(0.737549126f, 0.675293505f, 1));
+	pose_filter_space->setIdentityMagnetometer(Eigen::Vector3f(0.234017432f, 0.873125494f, 0.42765367f));
 	pose_filter_space->setCalibrationTransform(*k_eigen_identity_pose_upright);
 	pose_filter_space->setSensorTransform(*k_eigen_sensor_transform_identity);
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
-
+	constants.orientation_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
-	constants.orientation_constants.gyro_drift = Eigen::Vector3f::Zero();
-	constants.orientation_constants.gyro_variance = stationary_stream.computeCovarianceSlice(FIELD_GYROSCOPE_X);
-	constants.orientation_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
+	stationary_stream.computeSliceStatistics(
+		FIELD_GYROSCOPE_X,
+		&constants.orientation_constants.gyro_drift,
+		&constants.orientation_constants.gyro_variance);
+	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero();
+	stationary_stream.computeSliceStatistics(
+		FIELD_MAGNETOMETER_X,
+		nullptr,
+		&constants.orientation_constants.magnetometer_variance);
 	constants.orientation_constants.min_orientation_variance = 1.0f; // from matlab
 	constants.orientation_constants.max_orientation_variance = 1.0f; // from matlab
 	constants.orientation_constants.min_orientation_drift = 0.0f; // from matlab
 	constants.orientation_constants.max_orientation_drift = 0.0f; // from matlab
-	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero();
-	constants.orientation_constants.magnetometer_variance = stationary_stream.computeCovarianceSlice(FIELD_MAGNETOMETER_X);
 
-	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
-	constants.position_constants.accelerometer_drift = Eigen::Vector3f(0.0133424997f, 0.0107941628f, 0.0543990135f);
-	constants.position_constants.accelerometer_variance = stationary_stream.computeCovarianceSlice(FIELD_ACCELEROMETER_X);
-	constants.position_constants.accelerometer_noise_radius = 0.0139137721;
+	Eigen::Vector3f accelerometer_drift;
+	stationary_stream.computeSliceStatistics(
+		FIELD_ACCELEROMETER_X,
+		&accelerometer_drift,
+		&constants.position_constants.accelerometer_variance);
+	constants.position_constants.accelerometer_drift =
+		accelerometer_drift - Eigen::Vector3f(0.f, 1.f, 0.f);
+	constants.position_constants.accelerometer_noise_radius = 0.0139137721f;
 	constants.position_constants.max_velocity = 1.0f;
-	constants.position_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
-	constants.position_constants.min_position_variance =
-		constants.position_constants.max_position_variance =
-			stationary_stream.computeCovarianceSlice(FIELD_POSITION_X);
-	constants.position_constants.min_position_drift =
-		constants.position_constants.max_position_drift =
-			Eigen::Vector3f::Zero();
 
-	KalmanPoseFilterPSMove *kalmanFilter = new KalmanPoseFilterPSMove();
-	kalmanFilter->init(constants, initial_position, initial_orientation);
+	Eigen::Vector3f position_variance;
+	stationary_stream.computeSliceStatistics(
+		FIELD_POSITION_X,
+		nullptr, 
+		&position_variance);
+	constants.position_constants.min_position_variance = position_variance;
+	constants.position_constants.max_position_variance = position_variance;
+	constants.position_constants.min_position_drift = Eigen::Vector3f::Zero();
+	constants.position_constants.max_position_drift = Eigen::Vector3f::Zero();
+	constants.position_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
+	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
+
+	if (bUseCompoundFilter)
+	{
+		CompoundPoseFilter *compoundFilter = new CompoundPoseFilter();
+		compoundFilter->init(
+			CommonDeviceState::PSMove, 
+			OrientationFilterTypeKalman, PositionFilterTypeKalman, 
+			constants,
+			initial_position, initial_orientation);
+
+		*out_pose_filter = compoundFilter;
+	}
+	else
+	{
+		KalmanPoseFilterPSMove *fullPoseFilter = new KalmanPoseFilterPSMove();
+		fullPoseFilter->init(constants, initial_position, initial_orientation);
+
+		*out_pose_filter = fullPoseFilter;
+	}
 
 	*out_pose_filter_space = pose_filter_space;
-	*out_pose_filter = kalmanFilter;
 }
 
 static void
@@ -476,6 +551,7 @@ init_filter_for_psdualshock4(
 	const ControllerInputStream &stationary_stream,
 	const Eigen::Vector3f &initial_position,
 	const Eigen::Quaternionf &initial_orientation,
+	const bool bUseCompoundFilter,
 	PoseFilterSpace **out_pose_filter_space,
 	IPoseFilter **out_pose_filter)
 {
@@ -493,8 +569,10 @@ init_filter_for_psdualshock4(
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
 	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero(); // no magnetometer on ds4
 	constants.orientation_constants.magnetometer_variance = Eigen::Vector3f::Zero(); // no magnetometer on ds4
-	constants.orientation_constants.gyro_drift = Eigen::Vector3f(0.000705962884f, 0.000705962884f, 0.000705962884f);
-	constants.orientation_constants.gyro_variance = stationary_stream.computeCovarianceSlice(FIELD_GYROSCOPE_X);
+	stationary_stream.computeSliceStatistics(
+		FIELD_GYROSCOPE_X,
+		&constants.orientation_constants.gyro_drift,
+		&constants.orientation_constants.gyro_variance);
 	// min variance at max screen area
 	constants.orientation_constants.min_orientation_variance = 0.005f;
 	constants.orientation_constants.min_orientation_drift = 0.f;
@@ -502,22 +580,46 @@ init_filter_for_psdualshock4(
 	constants.orientation_constants.max_orientation_variance = 0.005f;
 	constants.orientation_constants.max_orientation_drift = 0.f;
 
-	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
-	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
-	constants.position_constants.accelerometer_variance = stationary_stream.computeCovarianceSlice(FIELD_ACCELEROMETER_X);
+	Eigen::Vector3f accelerometer_drift;
+	stationary_stream.computeSliceStatistics(
+		FIELD_ACCELEROMETER_X,
+		&accelerometer_drift,
+		&constants.position_constants.accelerometer_variance);
+	constants.position_constants.accelerometer_drift =
+		accelerometer_drift - Eigen::Vector3f(0.f, 1.f, 0.f);
 	constants.position_constants.accelerometer_noise_radius = 0.0148137454f;
 	constants.position_constants.max_velocity = 1.f;
 	constants.position_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
-	constants.position_constants.min_position_variance =
-		constants.position_constants.max_position_variance =
-			stationary_stream.computeCovarianceSlice(FIELD_POSITION_X);
-	constants.position_constants.min_position_drift =
-		constants.position_constants.max_position_drift = 
-			Eigen::Vector3f::Zero();
+	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 
-	KalmanPoseFilterDS4 *kalmanFilter= new KalmanPoseFilterDS4();
-	kalmanFilter->init(constants, initial_position, initial_orientation);
+	Eigen::Vector3f position_variance;
+	stationary_stream.computeSliceStatistics(
+		FIELD_POSITION_X,
+		nullptr,
+		&position_variance);
+	constants.position_constants.min_position_variance = position_variance;
+	constants.position_constants.max_position_variance = position_variance;
+	constants.position_constants.min_position_drift = Eigen::Vector3f::Zero();
+	constants.position_constants.max_position_drift = Eigen::Vector3f::Zero();
+
+	if (bUseCompoundFilter)
+	{
+		CompoundPoseFilter *compoundFilter = new CompoundPoseFilter();
+		compoundFilter->init(
+			CommonDeviceState::PSDualShock4,
+			OrientationFilterTypeKalman, PositionFilterTypeKalman,
+			constants,
+			initial_position, initial_orientation);
+
+		*out_pose_filter = compoundFilter;
+	}
+	else
+	{
+		KalmanPoseFilterPSMove *fullPoseFilter = new KalmanPoseFilterPSMove();
+		fullPoseFilter->init(constants, initial_position, initial_orientation);
+
+		*out_pose_filter = fullPoseFilter;
+	}
 
 	*out_pose_filter_space = pose_filter_space;
-	*out_pose_filter = kalmanFilter;
 }

@@ -3,16 +3,64 @@
 #include "OrientationFilter.h"
 #include "PositionFilter.h"
 #include "KalmanPositionFilter.h"
+#include "KalmanOrientationFilter.h"
 
 // -- public interface --
 bool CompoundPoseFilter::init(
-	OrientationFilterType orientationFilterType,
-	PositionFilterType positionFilterType,
+	const CommonDeviceState::eDeviceType deviceType,
+	const OrientationFilterType orientationFilterType,
+	const PositionFilterType positionFilterType,
 	const PoseFilterConstants &constant)
 {
-	bool bSuccess= true;
+	bool bSuccess = true;
 
-	dispose();
+	allocate_filters(deviceType, orientationFilterType, positionFilterType, constant);
+
+	if (m_orientation_filter != nullptr)
+	{
+		bSuccess &= m_orientation_filter->init(constant.orientation_constants);
+	}
+
+	if (m_position_filter != nullptr)
+	{
+		bSuccess &= m_position_filter->init(constant.position_constants);
+	}
+
+	return bSuccess;
+}
+
+bool CompoundPoseFilter::init(
+	const CommonDeviceState::eDeviceType deviceType,
+	const OrientationFilterType orientationFilterType,
+	const PositionFilterType positionFilterType,
+	const PoseFilterConstants &constant,
+	const Eigen::Vector3f &initial_position,
+	const Eigen::Quaternionf &initial_orientation)
+{
+	bool bSuccess = true;
+
+	allocate_filters(deviceType, orientationFilterType, positionFilterType, constant);
+
+	if (m_orientation_filter != nullptr)
+	{
+		bSuccess &= m_orientation_filter->init(constant.orientation_constants, initial_orientation);
+	}
+
+	if (m_position_filter != nullptr)
+	{
+		bSuccess &= m_position_filter->init(constant.position_constants, initial_position);
+	}
+
+	return bSuccess;
+}
+
+void CompoundPoseFilter::allocate_filters(
+	const CommonDeviceState::eDeviceType deviceType,
+	const OrientationFilterType orientationFilterType,
+	const PositionFilterType positionFilterType,
+	const PoseFilterConstants &constant)
+{
+	dispose_filters();
 
 	switch(orientationFilterType)
 	{
@@ -34,13 +82,23 @@ bool CompoundPoseFilter::init(
     case OrientationFilterTypeComplementaryMARG:
 		m_orientation_filter = new OrientationFilterComplementaryMARG;
 		break;
+	case OrientationFilterTypeKalman:
+		{
+			switch (deviceType)
+			{
+			case CommonDeviceState::PSDualShock4:
+				m_orientation_filter = new KalmanOrientationFilterDS4;
+				break;
+			case CommonDeviceState::PSMove:
+				m_orientation_filter = new KalmanOrientationFilterPSMove;
+				break;
+			default:
+				assert(0 && "unreachable");
+			}
+		}
+		break;
 	default:
 		assert(0 && "unreachable");
-	}
-
-	if (m_orientation_filter != nullptr)
-	{
-		bSuccess&= m_orientation_filter->init(constant.orientation_constants);
 	}
 
 	switch(positionFilterType)
@@ -66,13 +124,6 @@ bool CompoundPoseFilter::init(
 	default:
 		assert(0 && "unreachable");
 	}
-
-	if (m_position_filter != nullptr)
-	{
-		bSuccess&= m_position_filter->init(constant.position_constants);
-	}
-
-	return bSuccess;
 }
 
 // -- IStateFilter --
@@ -148,7 +199,7 @@ Eigen::Vector3f CompoundPoseFilter::getAcceleration() const
 	return (m_position_filter != nullptr) ? m_position_filter->getAcceleration() : Eigen::Vector3f::Zero();
 }
 
-void CompoundPoseFilter::dispose()
+void CompoundPoseFilter::dispose_filters()
 {
 	if (m_orientation_filter != nullptr)
 	{

@@ -20,6 +20,10 @@ public:
         std::string DeviceSerial;
         std::string AssignedHostSerial;
         bool PairedToHost;
+		int PositionFilterIndex;
+		std::string PositionFilterName;
+		int OrientationFilterIndex;
+		std::string OrientationFilterName;
     };
 
     AppStage_ControllerSettings(class App *app);
@@ -50,6 +54,8 @@ protected:
     static void handle_controller_list_response(
         const ClientPSMoveAPI::ResponseMessage *response_message,
         void *userdata);
+	void request_set_orientation_filter(const int controller_id, const std::string &filter_name);
+	void request_set_position_filter(const int controller_id, const std::string &filter_name);
 
 private:
     enum eControllerMenuState

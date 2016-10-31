@@ -385,8 +385,10 @@ ENDIF()
 
 list(APPEND TEST_KALMAN_INCL_DIRS
     ${ROOT_DIR}/src/psmovemath/
+    ${ROOT_DIR}/src/psmoveservice/Device/Interface
     ${ROOT_DIR}/src/psmoveservice/Filter/
-    ${ROOT_DIR}/src/psmoveservice/PSMoveController)
+    ${ROOT_DIR}/src/psmoveservice/PSMoveController
+    ${ROOT_DIR}/src/psmoveservice/Server/)
 list(APPEND TEST_KALMAN_SRC    
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
     ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
@@ -394,13 +396,26 @@ list(APPEND TEST_KALMAN_SRC
     ${ROOT_DIR}/src/psmovemath/MathEigen.cpp    
     ${ROOT_DIR}/src/psmovemath/MathUtility.h
     ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/CompoundPoseFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/CompoundPoseFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanOrientationFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanOrientationFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPositionFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPositionFilter.cpp
     ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPoseFilter.h
     ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPoseFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/OrientationFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/OrientationFilter.cpp
     ${ROOT_DIR}/src/psmoveservice/Filter/PoseFilterInterface.h
-    ${ROOT_DIR}/src/psmoveservice/Filter/PoseFilterInterface.cpp)
+    ${ROOT_DIR}/src/psmoveservice/Filter/PoseFilterInterface.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/PositionFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/PositionFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp)
     
 # Eigen math library
 list(APPEND TEST_KALMAN_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)   
+list(APPEND TEST_KALMAN_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include/)
 
 add_executable(test_kalman_filter ${CMAKE_CURRENT_LIST_DIR}/test_kalman_filter.cpp ${TEST_KALMAN_SRC})
 target_include_directories(test_kalman_filter PUBLIC ${TEST_KALMAN_INCL_DIRS})

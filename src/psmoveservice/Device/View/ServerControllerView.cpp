@@ -1457,6 +1457,10 @@ pose_filter_factory(
 		{
 			orientation_filter_enum= OrientationFilterTypeComplementaryMARG;
 		}
+		else if (orientation_filter_type == "OrientationKalman")
+		{
+			orientation_filter_enum = OrientationFilterTypeKalman;
+		}
 		else
 		{
 			SERVER_LOG_INFO("pose_filter_factory()") << 
@@ -1477,7 +1481,7 @@ pose_filter_factory(
 		}
 
 		CompoundPoseFilter *compound_pose_filter = new CompoundPoseFilter();
-		compound_pose_filter->init(orientation_filter_enum, position_filter_enum, constants);
+		compound_pose_filter->init(deviceType, orientation_filter_enum, position_filter_enum, constants);
 		filter= compound_pose_filter;
 	}
 

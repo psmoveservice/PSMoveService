@@ -3,6 +3,7 @@
 
 //-- includes -----
 #include "PoseFilterInterface.h"
+#include "DeviceInterface.h"
 
 // -- constants --
 enum OrientationFilterType {
@@ -12,6 +13,7 @@ enum OrientationFilterType {
     OrientationFilterTypeMadgwickMARG,
     OrientationFilterTypeComplementaryOpticalARG,
     OrientationFilterTypeComplementaryMARG,
+	OrientationFilterTypeKalman,
 };
 
 enum PositionFilterType {
@@ -32,12 +34,20 @@ public:
         , m_orientation_filter(nullptr)
     {}
     virtual ~CompoundPoseFilter()
-    { dispose(); }
+    { dispose_filters(); }
 
     bool init(
-        OrientationFilterType orientationFilterType, 
-        PositionFilterType positionFilterType,
+		const CommonDeviceState::eDeviceType deviceType,
+        const OrientationFilterType orientationFilterType, 
+        const PositionFilterType positionFilterType,
         const PoseFilterConstants &constant);
+	bool init(
+		const CommonDeviceState::eDeviceType deviceType,
+		const OrientationFilterType orientationFilterType,
+		const PositionFilterType positionFilterType,
+		const PoseFilterConstants &constant,
+		const Eigen::Vector3f &initial_position,
+		const Eigen::Quaternionf &initial_orientation);
 
     // -- IStateFilter --
     bool getIsStateValid() const override;
@@ -54,7 +64,12 @@ public:
     Eigen::Vector3f getAcceleration() const override;
 
 protected:
-    void dispose();
+	void allocate_filters(
+		const CommonDeviceState::eDeviceType deviceType,
+		const OrientationFilterType orientationFilterType,
+		const PositionFilterType positionFilterType,
+		const PoseFilterConstants &constant);
+    void dispose_filters();
 
     IPositionFilter *m_position_filter;
     IOrientationFilter *m_orientation_filter;
