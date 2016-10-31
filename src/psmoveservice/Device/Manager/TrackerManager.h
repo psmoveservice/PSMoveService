@@ -45,6 +45,7 @@ public:
 
     long version;
     int optical_tracking_timeout;
+	int tracker_sleep_ms;
 	bool use_bgr_to_hsv_lookup_table;
     TrackerProfile default_tracker_profile;
 };
