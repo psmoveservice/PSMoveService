@@ -352,6 +352,13 @@ void AppStage_MagnetometerCalibration::update()
         } break;
     case eCalibrationMenuState::complete:
         {
+			if (m_controllerView->GetPSMoveView().GetTriggerValue() > 0.9f &&
+				m_controllerView->GetPSMoveView().GetButtonMove() == PSMoveButton_PRESSED)
+			{
+				PSMoveFloatVector3 controllerBallPointedUpEuler = PSMoveFloatVector3::create(k_real_half_pi, 0.0f, 0.0f);
+				PSMoveQuaternion controllerBallPointedUpQuat = PSMoveQuaternion::create(controllerBallPointedUpEuler);
+				ClientPSMoveAPI::reset_pose(m_controllerView, controllerBallPointedUpQuat);
+			}
         } break;
     case eCalibrationMenuState::pendingExit:
         {
@@ -739,7 +746,7 @@ void AppStage_MagnetometerCalibration::renderUI()
     case eCalibrationMenuState::complete:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 80));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 120));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             if (m_bBypassCalibration)
@@ -750,6 +757,11 @@ void AppStage_MagnetometerCalibration::renderUI()
             {
                 ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
             }
+
+			ImGui::TextWrapped(
+				"[Hold Trigger and press Move button\n" \
+				"with controller pointed straight up\n" \
+				"to recenter the controller]");
 
             if (ImGui::Button("Ok"))
             {
