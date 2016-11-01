@@ -315,32 +315,34 @@ void AppStage_ControllerSettings::renderUI()
                 }
 
 				if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSMove)
-				{					
+				{		
+					ImGui::PushItemWidth(195);
 					if (ImGui::Combo("position filter", &controllerInfo.PositionFilterIndex, k_position_filter_names, UI_ARRAYSIZE(k_position_filter_names)))
 					{
 						controllerInfo.PositionFilterName = k_position_filter_names[controllerInfo.PositionFilterIndex];
 						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
 					}
-
 					if (ImGui::Combo("orientation filter", &controllerInfo.OrientationFilterIndex, k_psmove_orientation_filter_names, UI_ARRAYSIZE(k_psmove_orientation_filter_names)))
 					{
 						controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[controllerInfo.OrientationFilterIndex];
 						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
 					}
+					ImGui::PopItemWidth();
 				}
 				else if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
 				{
+					ImGui::PushItemWidth(195);
 					if (ImGui::Combo("position filter", &controllerInfo.PositionFilterIndex, k_position_filter_names, UI_ARRAYSIZE(k_position_filter_names)))
 					{
 						controllerInfo.PositionFilterName = k_position_filter_names[controllerInfo.PositionFilterIndex];
 						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
 					}
-
 					if (ImGui::Combo("orientation filter", &controllerInfo.OrientationFilterIndex, k_ds4_orientation_filter_names, UI_ARRAYSIZE(k_ds4_orientation_filter_names)))
 					{
 						controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[controllerInfo.OrientationFilterIndex];
 						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
 					}
+					ImGui::PopItemWidth();
 				}
             }
             else
