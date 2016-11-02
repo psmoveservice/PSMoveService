@@ -12,59 +12,65 @@
 
 enum eControllerSampleFields
 {
-	FIELD_ACCELEROMETER_X,
-	FIELD_ACCELEROMETER_Y,
-	FIELD_ACCELEROMETER_Z,
-	FIELD_GYROSCOPE_X,
-	FIELD_GYROSCOPE_Y,
-	FIELD_GYROSCOPE_Z,
-	FIELD_MAGNETOMETER_X,
-	FIELD_MAGNETOMETER_Y,
-	FIELD_MAGNETOMETER_Z,
+	FIELD_TIME,
 	FIELD_POSITION_X,
 	FIELD_POSITION_Y,
 	FIELD_POSITION_Z,
+	FIELD_POSITION_QUALITY,
 	FIELD_ORIENTATION_W,
 	FIELD_ORIENTATION_X,
 	FIELD_ORIENTATION_Y,
 	FIELD_ORIENTATION_Z,
-	FIELD_TIME,
+	FIELD_ORIENTATION_QUALITY,
+	FIELD_ACCELEROMETER_X,
+	FIELD_ACCELEROMETER_Y,
+	FIELD_ACCELEROMETER_Z,
+	FIELD_MAGNETOMETER_X,
+	FIELD_MAGNETOMETER_Y,
+	FIELD_MAGNETOMETER_Z,
+	FIELD_GYROSCOPE_X,
+	FIELD_GYROSCOPE_Y,
+	FIELD_GYROSCOPE_Z,
 
 	FIELD_COUNT
 };
 
 const char *szColumnNames[FIELD_COUNT] = {
-	"ACC_X",
-	"ACC_Y",
-	"ACC_Z",
-	"GYRO_X",
-	"GYRO_Y",
-	"GYRO_Z",
-	"MAG_X",
-	"MAG_Y",
-	"MAG_Z",
+	"TIME",
 	"POS_X",
 	"POS_Y",
 	"POS_Z",
+	"POS_QUAL",
 	"ORI_W",
 	"ORI_X",
 	"ORI_Y",
 	"ORI_Z",
-	"TIME"
+	"ORI_QUAL",
+	"ACC_X",
+	"ACC_Y",
+	"ACC_Z",
+	"MAG_X",
+	"MAG_Y",
+	"MAG_Z",
+	"GYRO_X",
+	"GYRO_Y",
+	"GYRO_Z"
 };
 
 struct ControllerSample
 {
-	// Sensor readings in the controller's reference frame
-	float acc[3]; // g-units
-	float gyro[3]; // rad/s
-	float mag[3]; // unit vector
+	float time; // seconds
 
 	// Optical readings in the world reference frame
 	float pos[3]; // cm
+	float pos_quality;
 	float ori[4];
+	float ori_quality;
 
-	float time; // seconds
+	// Sensor readings in the controller's reference frame
+	float acc[3]; // g-units
+	float mag[3]; // unit vector
+	float gyro[3]; // rad/s
 };
 static_assert(sizeof(ControllerSample) == sizeof(float)*FIELD_COUNT, "incorrect field count");
 
@@ -184,9 +190,12 @@ public:
 								sample.mag[0] * sample.mag[0] +
 								sample.mag[1] * sample.mag[1] +
 								sample.mag[2] * sample.mag[2]);
-							sample.mag[0] /= mag_scale;
-							sample.mag[1] /= mag_scale;
-							sample.mag[2] /= mag_scale;
+							if (mag_scale > k_real_epsilon)
+							{
+								sample.mag[0] /= mag_scale;
+								sample.mag[1] /= mag_scale;
+								sample.mag[2] /= mag_scale;
+							}
 
 							// PSMoveService default orientation is with the controller vertical, bulb
 							// to the sky, with the trigger to the camera.However, asking for the
@@ -220,6 +229,11 @@ public:
 		return m_controllerType;
 	}
 
+	size_t getSampleCount() const
+	{
+		return m_samples.size();
+	}
+
 	void reset()
 	{
 		m_sampleIndex = 0;
@@ -247,8 +261,8 @@ public:
 		Eigen::Vector3f *out_mean,
 		Eigen::Vector3f *out_variance) const
 	{
-		assert(field_index >= FIELD_ACCELEROMETER_X && field_index <= FIELD_POSITION_X);
-		assert(field_index % 3 == 0);
+		assert(field_index == FIELD_ACCELEROMETER_X || field_index == FIELD_MAGNETOMETER_X ||
+			field_index == FIELD_GYROSCOPE_X || field_index == FIELD_POSITION_X);
 
 		std::vector<Eigen::Vector3f> sample_vectors;
 		for (const ControllerSample &sample : m_samples)
@@ -317,7 +331,7 @@ public:
 
 		if (m_fp != nullptr)
 		{
-			fprintf(m_fp, "TIME, POS_X, POS_Y, POS_Z, VEL_X, VEL_Y, VEL_Z, ACC_X, ACC_Y, ACC_Z, ORI_W, ORI_X, ORI_Y, ORI_Z, AVEL_X, AVEL_Y, AVEL_Z\n");
+			fprintf(m_fp, "TIME, RAW_POS_X, POS_X, RAW_POS_Y, POS_Y, RAW_POS_Z, POS_Z, VEL_X, VEL_Y, VEL_Z, ACC_X, ACC_Y, ACC_Z, RAW_ORI_P, ORI_P, RAW_ORI_Y, ORI_Y, RAW_ORI_R, ORI_R, AVEL_X, AVEL_Y, AVEL_Z\n");
 		}
 	}
 
@@ -329,22 +343,28 @@ public:
 		}
 	}
 
-	void writeFilterState(IPoseFilter *pose_filter, float time)
+	void writeFilterState(ControllerSample &sample, IPoseFilter *pose_filter, float time)
 	{
 		if (m_fp != nullptr)
 		{
+			Eigen::Quaternionf raw_quat = Eigen::Quaternionf(sample.ori[0], sample.ori[1], sample.ori[2], sample.ori[3]);
+			Eigen::EulerAnglesf raw_euler_angles= eigen_quaternionf_to_euler_angles(raw_quat);
+
 			Eigen::Vector3f pos= pose_filter->getPosition();
 			Eigen::Vector3f vel = pose_filter->getVelocity();
 			Eigen::Vector3f acc = pose_filter->getAcceleration();
 			Eigen::Quaternionf quat = pose_filter->getOrientation();
+			Eigen::EulerAnglesf angles = eigen_quaternionf_to_euler_angles(quat);
 			Eigen::Vector3f ang_vel = pose_filter->getAngularVelocity();
 
-			fprintf(m_fp, "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n",
+			fprintf(m_fp, "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n",
 				time,
-				pos.x(), pos.y(), pos.z(),
+				sample.pos[0], pos.x(), sample.pos[1], pos.y(), sample.pos[2], pos.z(),
 				vel.x(), vel.y(), vel.z(),
 				acc.x(), acc.y(), acc.z(),
-				quat.w(), quat.x(), quat.y(), quat.z(),
+				raw_euler_angles.get_attitude_degrees(), angles.get_attitude_degrees(), 
+				raw_euler_angles.get_heading_degrees(), angles.get_heading_degrees(), 
+				raw_euler_angles.get_bank_degrees(), angles.get_bank_degrees(),
 				ang_vel.x(), ang_vel.y(), ang_vel.z());
 		}
 	}
@@ -378,8 +398,19 @@ int main(int argc, char *argv[])
 	}
 
 	ControllerInputStream stationary_stream(argv[1]);
+	if (stationary_stream.getSampleCount() <= 1)
+	{
+		printf("Stationary file: %s, doesn't contain more than one sample", argv[1]);
+		return -1;
+	}
+
 	ControllerInputStream movement_stream(argv[2]);
-	
+	if (movement_stream.getSampleCount() <= 1)
+	{
+		printf("Movement file: %s, doesn't contain more than one sample", argv[2]);
+		return -1;
+	}
+
 	FilterOutputStream compoundfilter_output_stream("compoundfilter_", argv[3]);
 	apply_filter(
 		true, // use compound orientation kalman + position kalman filter
@@ -454,7 +485,7 @@ apply_filter(
 
 		pose_filter->update(dT, filterPacket);
 
-		output_stream.writeFilterState(pose_filter, sample.time);
+		output_stream.writeFilterState(sample, pose_filter, sample.time);
 	}
 
 	if (pose_filter_space != nullptr)
