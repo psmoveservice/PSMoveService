@@ -94,7 +94,7 @@ public:
 
     // Mutators
     void set_euler_angles(const Eigen::EulerAnglesd &e) {
-        (*this)[EULER_ANGLE_BANK] = e.get_x_angle(); (*this)[EULER_ANGLE_HEADING] = e.get_y_angle(); (*this)[EULER_ANGLE_ATTITUDE] = e.get_z_angle();
+        (*this)[EULER_ANGLE_BANK] = e.get_x_radians(); (*this)[EULER_ANGLE_HEADING] = e.get_y_radians(); (*this)[EULER_ANGLE_ATTITUDE] = e.get_z_radians();
     }
 	void set_quaterniond(const Eigen::Quaterniond &d) {
 		set_euler_angles(eigen_quaterniond_to_euler_angles(d));

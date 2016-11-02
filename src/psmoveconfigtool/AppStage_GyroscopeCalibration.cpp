@@ -440,6 +440,11 @@ void AppStage_GyroscopeCalibration::update()
     case eCalibrationMenuState::measureComplete:
     case eCalibrationMenuState::test:
         {
+			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4 &&
+				m_controllerView->GetPSDualShock4View().GetButtonOptions() == PSMoveButton_PRESSED)
+			{
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView));
+			}
         } break;
     default:
         assert(0 && "unreachable");
@@ -686,7 +691,7 @@ void AppStage_GyroscopeCalibration::renderUI()
     case eCalibrationMenuState::test:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 80));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 120));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             if (m_bBypassCalibration)
@@ -697,6 +702,21 @@ void AppStage_GyroscopeCalibration::renderUI()
             {
                 ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
             }
+
+			{
+				const Eigen::Quaternionf eigen_quat = psmove_quaternion_to_eigen_quaternionf(m_controllerView->GetOrientation());
+				const Eigen::EulerAnglesf euler_angles = eigen_quaternionf_to_euler_angles(eigen_quat);
+
+				ImGui::Text("Heading: %.2f, Attitude: %.2f, Bank: %.2f", 
+					euler_angles.get_heading_degrees(), euler_angles.get_attitude_degrees(), euler_angles.get_bank_degrees());
+			}
+
+			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4)
+			{
+				ImGui::TextWrapped(
+					"[Press the Options button with controller pointed straight forward\n" \
+					 "to recenter the controller]");
+			}
 
             if (ImGui::Button("Ok"))
             {

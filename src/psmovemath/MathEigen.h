@@ -15,6 +15,7 @@ extern const Eigen::Quaternionf *k_eigen_quaternion_zero;
 //-- macros -----
 #define assert_eigen_vector3f_is_normalized(v) assert(is_nearly_equal(v.squaredNorm(), 1.f, k_normal_epsilon))
 #define assert_eigen_quaternion_is_normalized(q) assert(is_nearly_equal(q.squaredNorm(), 1.f, k_normal_epsilon))
+#define assert_eigen_quaternions_are_nearly_equal(q1, q2, eps) assert(is_nearly_equal(q1.dot(q2), 1.f, eps) || is_nearly_equal(q1.dot(Eigen::Quaternionf(q2.coeffs()*-1.f)), 1.f, eps))
 
 namespace Eigen
 {
@@ -36,13 +37,21 @@ namespace Eigen
 			set(bank_radians, heading_radians, attitude_radians);
 		}
 
-		inline T get_x_angle() const { return x(); }
-		inline T get_y_angle() const { return y(); }
-		inline T get_z_angle() const { return z(); }
+		inline T get_x_radians() const { return x(); }
+		inline T get_y_radians() const { return y(); }
+		inline T get_z_radians() const { return z(); }
 
-		inline T get_bank_radians() const { return x(); }
-		inline T get_heading_radians() const { return y(); }
-		inline T get_attitude_radians() const { return z(); }
+		inline T get_x_degrees() const { return static_cast<T>(x() * k_real64_radians_to_degreees); }
+		inline T get_y_degrees() const { return static_cast<T>(y() * k_real64_radians_to_degreees); }
+		inline T get_z_degrees() const { return static_cast<T>(z() * k_real64_radians_to_degreees); }
+
+		inline T get_bank_radians() const { return get_x_radians(); }
+		inline T get_heading_radians() const { return get_y_radians(); }
+		inline T get_attitude_radians() const { return get_z_radians(); }
+
+		inline T get_bank_degrees() const { return get_x_degrees(); }
+		inline T get_heading_degrees() const { return get_y_degrees(); }
+		inline T get_attitude_degrees() const { return get_z_degrees(); }
 
 		inline void set(T bank_radians, T heading_radians, T attitude_radians)
 		{
