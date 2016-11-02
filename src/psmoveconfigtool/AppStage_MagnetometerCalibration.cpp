@@ -67,6 +67,8 @@ AppStage_MagnetometerCalibration::AppStage_MagnetometerCalibration(App *app)
     , m_led_color_b(0)
     , m_stableStartTime()
     , m_bIsStable(false)
+	, m_resetPoseButtonPressTime()
+	, m_bResetPoseRequestSent(false)
     , m_identityPoseMVectorSum()
     , m_identityPoseSampleCount(0)
 { 
@@ -352,12 +354,36 @@ void AppStage_MagnetometerCalibration::update()
         } break;
     case eCalibrationMenuState::complete:
         {
-			if (m_controllerView->GetPSMoveView().GetTriggerValue() > 0.9f &&
-				m_controllerView->GetPSMoveView().GetButtonMove() == PSMoveButton_PRESSED)
+			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
 			{
-				PSMoveFloatVector3 controllerBallPointedUpEuler = PSMoveFloatVector3::create(k_real_half_pi, 0.0f, 0.0f);
-				PSMoveQuaternion controllerBallPointedUpQuat = PSMoveQuaternion::create(controllerBallPointedUpEuler);
-				ClientPSMoveAPI::reset_pose(m_controllerView, controllerBallPointedUpQuat);
+				PSMoveButtonState resetPoseButtonState = m_controllerView->GetPSMoveView().GetButtonSelect();
+
+				switch (resetPoseButtonState)
+				{
+				case PSMoveButtonState::PSMoveButton_DOWN:
+					{
+						m_resetPoseButtonPressTime = std::chrono::high_resolution_clock::now();
+					} break;
+				case PSMoveButtonState::PSMoveButton_PRESSED:
+					{
+						if (!m_bResetPoseRequestSent)
+						{
+							const float k_hold_duration_milli = 250.f;
+							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+							std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetPoseButtonPressTime;
+
+							if (pressDurationMilli.count() >= k_hold_duration_milli)
+							{
+								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView, PSMoveQuaternion::identity()));
+								m_bResetPoseRequestSent = true;
+							}
+						}
+					} break;
+				case PSMoveButtonState::PSMoveButton_UP:
+					{
+						m_bResetPoseRequestSent = false;
+					} break;
+				}
 			}
         } break;
     case eCalibrationMenuState::pendingExit:
@@ -759,8 +785,7 @@ void AppStage_MagnetometerCalibration::renderUI()
             }
 
 			ImGui::TextWrapped(
-				"[Hold Trigger and press Move button\n" \
-				"with controller pointed straight up\n" \
+				"[Hold the Select button with controller pointed forward\n" \
 				"to recenter the controller]");
 
             if (ImGui::Button("Ok"))

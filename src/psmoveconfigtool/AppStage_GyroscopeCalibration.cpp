@@ -157,6 +157,8 @@ AppStage_GyroscopeCalibration::AppStage_GyroscopeCalibration(App *app)
     , m_isControllerStreamActive(false)
     , m_lastControllerSeqNum(-1)
     , m_lastRawGyroscope()
+	, m_resetPoseButtonPressTime()
+	, m_bResetPoseRequestSent(false)
     , m_errorSamples(new GyroscopeErrorSamples)
     , m_scaleSamples(new GyroscopeScaleSamples)
 {
@@ -440,15 +442,37 @@ void AppStage_GyroscopeCalibration::update()
     case eCalibrationMenuState::measureComplete:
     case eCalibrationMenuState::test:
         {
-			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove &&
-				m_controllerView->GetPSMoveView().GetTriggerValue() > 0.9f && 
-				m_controllerView->GetPSMoveView().GetButtonMove() == PSMoveButton_PRESSED)
+			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
 			{
-				PSMoveFloatVector3 controllerBallPointedUpEuler = PSMoveFloatVector3::create(k_real_half_pi, 0.0f, 0.0f);
-				PSMoveQuaternion controllerBallPointedUpQuat = PSMoveQuaternion::create(controllerBallPointedUpEuler);
-				ClientPSMoveAPI::reset_pose(m_controllerView, controllerBallPointedUpQuat);
-			}
+				PSMoveButtonState resetPoseButtonState= m_controllerView->GetPSMoveView().GetButtonSelect();
 
+				switch (resetPoseButtonState)
+				{
+				case PSMoveButtonState::PSMoveButton_DOWN:
+					{
+						m_resetPoseButtonPressTime= std::chrono::high_resolution_clock::now();
+					} break;
+				case PSMoveButtonState::PSMoveButton_PRESSED:
+					{
+						if (!m_bResetPoseRequestSent)
+						{
+							const float k_hold_duration_milli = 250.f;
+							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+							std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetPoseButtonPressTime;
+
+							if (pressDurationMilli.count() >= k_hold_duration_milli)
+							{
+								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView, PSMoveQuaternion::identity()));
+								m_bResetPoseRequestSent = true;
+							}
+						}
+					} break;
+				case PSMoveButtonState::PSMoveButton_UP:
+					{
+						m_bResetPoseRequestSent = false;
+					} break;
+				}
+			}
         } break;
     default:
         assert(0 && "unreachable");
@@ -710,8 +734,7 @@ void AppStage_GyroscopeCalibration::renderUI()
 			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
 			{
 				ImGui::TextWrapped(
-					"[Hold Trigger and press Move button\n" \
-					"with controller pointed straight up\n" \
+					"[Hold the Select button with controller pointed forward\n" \
 					"to recenter the controller]");
 			}
 

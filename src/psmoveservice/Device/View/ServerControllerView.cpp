@@ -1427,17 +1427,8 @@ init_filters_for_psmove(
 
         orientation_filter->setFilterSpace(filterSpace);
 
-		if (psmoveController->getSupportsMagnetometer())
-		{
 			// Use the complementary MARG fusion filter by default
-			// if the magnetometer is valid
 			orientation_filter->setFusionType(OrientationFilter::FusionTypeComplementaryMARG);
-		}
-		else
-		{
-			// Otherwise fall back to using the Madgwick AngularRate-Gravity filter
-			orientation_filter->setFusionType(OrientationFilter::FusionTypeMadgwickARG);
-		}
         orientation_filter->setGyroscopeError(psmove_config->gyro_variance); 
         orientation_filter->setGyroscopeDrift(psmove_config->gyro_drift);
     }

@@ -1270,6 +1270,8 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
     , m_pendingHapticPulseDuration(0)
     , m_lastTimeRumbleSent()
     , m_lastTimeRumbleSentValid(false)
+	, m_resetPoseButtonPressTime()
+	, m_bResetPoseRequestSent(false)
 	, m_fVirtuallExtendControllersZ(0.0f)
 	, m_fVirtuallExtendControllersY(0.0f)
 	, m_bDelayAfterTouchpadPress(false)
@@ -1700,33 +1702,68 @@ void CPSMoveControllerLatest::UpdateControllerState()
         {
             const ClientPSMoveView &clientView = m_controller_view->GetPSMoveView();
 
-			bool bStartRealignHMDTriggered =
+			const bool bStartRealignHMDTriggered =
 				(clientView.GetButtonStart() == PSMoveButton_PRESSED && clientView.GetButtonSelect() == PSMoveButton_PRESSED) ||
 				(clientView.GetButtonStart() == PSMoveButton_PRESSED && clientView.GetButtonSelect() == PSMoveButton_DOWN) ||
 				(clientView.GetButtonStart() == PSMoveButton_DOWN && clientView.GetButtonSelect() == PSMoveButton_PRESSED);
-			bool bRecenterTriggered = 
-				(clientView.GetTriggerValue() > 0.9 && clientView.GetButtonMove() == PSMoveButton_PRESSED);
+
+			// See if the recenter button has been held for the requisite amount of time
+			bool bRecenterRequestTriggered = false;
+			{
+				PSMoveButtonState resetPoseButtonState = clientView.GetButtonSelect();
+
+				switch (resetPoseButtonState)
+				{
+				case PSMoveButtonState::PSMoveButton_DOWN:
+					{
+						m_resetPoseButtonPressTime = std::chrono::high_resolution_clock::now();
+					} break;
+				case PSMoveButtonState::PSMoveButton_PRESSED:
+					{
+						if (!m_bResetPoseRequestSent)
+						{
+							const float k_hold_duration_milli = 250.f;
+							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+							std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetPoseButtonPressTime;
+
+							if (pressDurationMilli.count() >= k_hold_duration_milli)
+							{
+								bRecenterRequestTriggered = true;
+							}
+						}
+					} break;
+				case PSMoveButtonState::PSMoveButton_UP:
+					{
+						m_bResetPoseRequestSent = false;
+					} break;
+				}
+			}
 
             // If start was just pressed while and select was held or vice versa,
 			// recenter the controller orientation pose and start the realignment of the controller to HMD tracking space.
-            if (bStartRealignHMDTriggered || bRecenterTriggered)                
+            if (bStartRealignHMDTriggered)                
             {
-				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling ClientPSMoveAPI::reset_pose() in response to controller chord.\n");
-
 				PSMoveFloatVector3 controllerBallPointedUpEuler = PSMoveFloatVector3::create((float)M_PI_2, 0.0f, 0.0f);
 				PSMoveQuaternion controllerBallPointedUpQuat = PSMoveQuaternion::create(controllerBallPointedUpEuler);
-				ClientPSMoveAPI::reset_pose(m_controller_view, controllerBallPointedUpQuat);
 
-				if (bStartRealignHMDTriggered)
-				{
-					#if LOG_REALIGN_TO_HMD != 0
-					DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling StartRealignHMDTrackingSpace() in response to controller chord.\n");
-					#endif
+				#if LOG_REALIGN_TO_HMD != 0
+				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling StartRealignHMDTrackingSpace() in response to controller chord.\n");
+				#endif
 
-					StartRealignHMDTrackingSpace();
-				}
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controller_view, controllerBallPointedUpQuat));
+				m_bResetPoseRequestSent = true;
+
+				StartRealignHMDTrackingSpace();
             }
-			else {
+			else if (bRecenterRequestTriggered)
+			{
+				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling ClientPSMoveAPI::reset_pose() in response to controller button press.\n");
+
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controller_view, PSMoveQuaternion::identity()));
+				m_bResetPoseRequestSent = true;
+			}
+			else 
+			{
 				m_touchpadDirectionsUsed = false;
 				UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Circle, clientView.GetButtonCircle(), &NewState);
 				UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Cross, clientView.GetButtonCross(), &NewState);
