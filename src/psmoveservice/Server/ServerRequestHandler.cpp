@@ -334,21 +334,24 @@ public:
                 const ControllerStreamInfo &streamInfo = connection_state->active_controller_stream_info[controller_id];
                 ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
 
-                // Clear any LED overrides we had active
-                //###HipsterSlot $HACK 
-                // This implicitly assumes that only one connection had an LED override color active.
-                // This is technically true right now because only the config tool sets the override
-                // color for purposes of tracking color calibration, but this could change in the future.
-                if (controller_view->getIsLEDOverrideActive())
-                {
-                    controller_view->clearLEDOverride();
-                }
+				if (controller_view->getIsOpen())
+				{
+					// Clear any LED overrides we had active
+					//###HipsterSlot $HACK 
+					// This implicitly assumes that only one connection had an LED override color active.
+					// This is technically true right now because only the config tool sets the override
+					// color for purposes of tracking color calibration, but this could change in the future.
+					if (controller_view->getIsLEDOverrideActive())
+					{
+						controller_view->clearLEDOverride();
+					}
 
-                // Halt any controller tracking this connection had going on
-                if (streamInfo.include_position_data)
-                {
-                    m_device_manager.getControllerViewPtr(controller_id)->stopTracking();
-                }
+					// Halt any controller tracking this connection had going on
+					if (streamInfo.include_position_data)
+					{
+						m_device_manager.getControllerViewPtr(controller_id)->stopTracking();
+					}
+				}
             }
 
             // Halt any shared memory streams this connection has going
@@ -567,8 +570,6 @@ protected:
 
                 if (streamInfo.include_position_data)
                 {
-                    ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
-
                     controller_view->startTracking();
                 }
 
@@ -652,26 +653,35 @@ protected:
         {
             ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
-            context.connection_state->pending_bluetooth_request =
-                new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
+			if (controllerView->getIsOpen())
+			{
+				context.connection_state->pending_bluetooth_request =
+					new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
 
-            std::string description = context.connection_state->pending_bluetooth_request->getDescription();
+				std::string description = context.connection_state->pending_bluetooth_request->getDescription();
 
-            if (context.connection_state->pending_bluetooth_request->start())
-            {
-                SERVER_LOG_INFO("ServerRequestHandler") << "Async bluetooth request(" << description << ") started.";
+				if (context.connection_state->pending_bluetooth_request->start())
+				{
+					SERVER_LOG_INFO("ServerRequestHandler") << "Async bluetooth request(" << description << ") started.";
 
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-            }
-            else
-            {
-                SERVER_LOG_ERROR("ServerRequestHandler") << "Async bluetooth request(" << description << ") failed to start!";
+					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+				}
+				else
+				{
+					SERVER_LOG_ERROR("ServerRequestHandler") << "Async bluetooth request(" << description << ") failed to start!";
 
-                delete context.connection_state->pending_bluetooth_request;
-                context.connection_state->pending_bluetooth_request = nullptr;
+					delete context.connection_state->pending_bluetooth_request;
+					context.connection_state->pending_bluetooth_request = nullptr;
 
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-            }
+					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+				}
+			}
+			else
+			{
+				SERVER_LOG_ERROR("ServerRequestHandler")
+					<< "Can't start unpair request. Controller not open. Controller ID: "
+					<< controller_id;
+			}
         }
         else
         {
@@ -694,30 +704,39 @@ protected:
         {
             ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
-            context.connection_state->pending_bluetooth_request = 
-                new AsyncBluetoothPairDeviceRequest(connection_id, controllerView);
+			if (controllerView->getIsOpen())
+			{
+				context.connection_state->pending_bluetooth_request =
+					new AsyncBluetoothPairDeviceRequest(connection_id, controllerView);
 
-            if (context.connection_state->pending_bluetooth_request->start())
-            {
-                SERVER_LOG_INFO("ServerRequestHandler") 
-                    << "Async bluetooth request(" 
-                    << context.connection_state->pending_bluetooth_request->getDescription() 
-                    << ") started.";
+				if (context.connection_state->pending_bluetooth_request->start())
+				{
+					SERVER_LOG_INFO("ServerRequestHandler")
+						<< "Async bluetooth request("
+						<< context.connection_state->pending_bluetooth_request->getDescription()
+						<< ") started.";
 
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-            }
-            else
-            {
-                SERVER_LOG_ERROR("ServerRequestHandler") 
-                    << "Async bluetooth request(" 
-                    << context.connection_state->pending_bluetooth_request->getDescription() 
-                    << ") failed to start!";
+					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+				}
+				else
+				{
+					SERVER_LOG_ERROR("ServerRequestHandler")
+						<< "Async bluetooth request("
+						<< context.connection_state->pending_bluetooth_request->getDescription()
+						<< ") failed to start!";
 
-                delete context.connection_state->pending_bluetooth_request;
-                context.connection_state->pending_bluetooth_request= nullptr;
+					delete context.connection_state->pending_bluetooth_request;
+					context.connection_state->pending_bluetooth_request = nullptr;
 
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-            }
+					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+				}
+			}
+			else
+			{
+				SERVER_LOG_ERROR("ServerRequestHandler")
+					<< "Can't start pair request. Controller not open. Controller ID: "
+					<< controller_id;
+			}
         }
         else
         {
@@ -738,8 +757,6 @@ protected:
 
         if (context.connection_state->pending_bluetooth_request != nullptr)
         {
-            ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
-
             SERVER_LOG_INFO("ServerRequestHandler") 
                 << "Async bluetooth request(" 
                 << context.connection_state->pending_bluetooth_request->getDescription() 
@@ -811,7 +828,7 @@ protected:
 
         ServerControllerViewPtr ControllerView= m_device_manager.getControllerViewPtr(controller_id);
 
-        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        if (ControllerView && ControllerView->getIsOpen() && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
         {
             PSMoveController *controller= ControllerView->castChecked<PSMoveController>();
             PSMoveControllerConfig *config= controller->getConfigMutable();
@@ -858,40 +875,47 @@ protected:
 
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
-        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
-        {
-            PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-            PSMoveControllerConfig *config = controller->getConfigMutable();
+		if (ControllerView && ControllerView->getIsOpen())
+		{
+			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+			{
+				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+				PSMoveControllerConfig *config = controller->getConfigMutable();
 
-            const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
-                context.request->set_accelerometer_calibration_request();
+				const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
+					context.request->set_accelerometer_calibration_request();
 
-            // Save the noise radius in controller config
-            config->accelerometer_noise_radius= request.noise_radius();
-			config->accelerometer_variance = request.variance();
-            config->save();
+				// Save the noise radius in controller config
+				config->accelerometer_noise_radius = request.noise_radius();
+				config->accelerometer_variance = request.variance();
+				config->save();
 
-			ControllerView->resetPoseFilter();
+				ControllerView->resetPoseFilter();
 
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-        }
-        else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
-        {
-            PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-            PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+			{
+				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
-            const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
-                context.request->set_accelerometer_calibration_request();
+				const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
+					context.request->set_accelerometer_calibration_request();
 
-            // Save the noise radius in controller config
-            config->accelerometer_noise_radius= request.noise_radius();
-			config->accelerometer_variance = request.variance();
-            config->save();
+				// Save the noise radius in controller config
+				config->accelerometer_noise_radius = request.noise_radius();
+				config->accelerometer_variance = request.variance();
+				config->save();
 
-			ControllerView->resetPoseFilter();
+				ControllerView->resetPoseFilter();
 
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-        }
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
         else
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
@@ -906,38 +930,45 @@ protected:
 
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
-        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
-        {
-            PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-            PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+		if (ControllerView && ControllerView->getIsOpen())
+		{
+			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+			{
+				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
-            const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
-                context.request->set_gyroscope_calibration_request();
+				const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
+					context.request->set_gyroscope_calibration_request();
 
-            config->gyro_drift= request.drift();
-            config->gyro_variance= request.variance();
-            config->save();
+				config->gyro_drift = request.drift();
+				config->gyro_variance = request.variance();
+				config->save();
 
-			ControllerView->resetPoseFilter();
+				ControllerView->resetPoseFilter();
 
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-        }
-        else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
-        {
-            PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-            PSMoveControllerConfig *config = controller->getConfigMutable();
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+			{
+				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+				PSMoveControllerConfig *config = controller->getConfigMutable();
 
-            const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
-                context.request->set_gyroscope_calibration_request();
+				const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
+					context.request->set_gyroscope_calibration_request();
 
-            config->gyro_drift= request.drift();
-            config->gyro_variance= request.variance();
-            config->save();
+				config->gyro_drift = request.drift();
+				config->gyro_variance = request.variance();
+				config->save();
 
-			ControllerView->resetPoseFilter();
+				ControllerView->resetPoseFilter();
 
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-        }
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
         else
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
@@ -954,34 +985,41 @@ protected:
 		const PSMoveProtocol::Request_RequestSetOpticalNoiseCalibration &request =
 			context.request->request_set_optical_noise_calibration();
 
-		if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+		if (ControllerView && ControllerView->getIsOpen())
 		{
-			PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-			PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+			{
+				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
-			config->position_variance_gain = request.position_variance_gain();
-			config->position_variance_bias = request.position_variance_bias();
-			config->orientation_variance_gain = request.orientation_variance_gain();
-			config->orientation_variance_bias = request.orientation_variance_bias();
-			config->save();
+				config->position_variance_gain = request.position_variance_gain();
+				config->position_variance_bias = request.position_variance_bias();
+				config->orientation_variance_gain = request.orientation_variance_gain();
+				config->orientation_variance_bias = request.orientation_variance_bias();
+				config->save();
 
-			ControllerView->resetPoseFilter();
+				ControllerView->resetPoseFilter();
 
-			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-		}
-		else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
-		{
-			PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-			PSMoveControllerConfig *config = controller->getConfigMutable();
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+			{
+				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+				PSMoveControllerConfig *config = controller->getConfigMutable();
 
-			config->position_variance_gain = request.position_variance_gain();
-			config->position_variance_bias = request.position_variance_bias();
-			// No optical variance set for the psmove
-			config->save();
+				config->position_variance_gain = request.position_variance_gain();
+				config->position_variance_bias = request.position_variance_bias();
+				// No optical variance set for the psmove
+				config->save();
 
-			ControllerView->resetPoseFilter();
+				ControllerView->resetPoseFilter();
 
-			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
 		}
 		else
 		{
@@ -999,35 +1037,42 @@ protected:
 		const PSMoveProtocol::Request_RequestSetOrientationFilter &request =
 			context.request->request_set_orientation_filter();
 
-		if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+		if (ControllerView && ControllerView->getIsOpen())
 		{
-			PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-			PSDualShock4ControllerConfig *config = controller->getConfigMutable();
-
-			if (config->orientation_filter_type != request.orientation_filter())
+			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
 			{
-				config->orientation_filter_type = request.orientation_filter();
-				config->save();
+				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
-				ControllerView->resetPoseFilter();
+				if (config->orientation_filter_type != request.orientation_filter())
+				{
+					config->orientation_filter_type = request.orientation_filter();
+					config->save();
+
+					ControllerView->resetPoseFilter();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 			}
-
-			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-		}
-		else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
-		{
-			PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-			PSMoveControllerConfig *config = controller->getConfigMutable();
-
-			if (config->orientation_filter_type != request.orientation_filter())
+			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
 			{
-				config->orientation_filter_type = request.orientation_filter();
-				config->save();
+				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+				PSMoveControllerConfig *config = controller->getConfigMutable();
 
-				ControllerView->resetPoseFilter();
+				if (config->orientation_filter_type != request.orientation_filter())
+				{
+					config->orientation_filter_type = request.orientation_filter();
+					config->save();
+
+					ControllerView->resetPoseFilter();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 			}
-
-			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
 		}
 		else
 		{
@@ -1045,35 +1090,42 @@ protected:
 		const PSMoveProtocol::Request_RequestSetPositionFilter &request =
 			context.request->request_set_position_filter();
 
-		if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+		if (ControllerView && ControllerView->getIsOpen())
 		{
-			PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-			PSDualShock4ControllerConfig *config = controller->getConfigMutable();
-
-			if (config->position_filter_type != request.position_filter())
+			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
 			{
-				config->position_filter_type = request.position_filter();
-				config->save();
+				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
-				ControllerView->resetPoseFilter();
+				if (config->position_filter_type != request.position_filter())
+				{
+					config->position_filter_type = request.position_filter();
+					config->save();
+
+					ControllerView->resetPoseFilter();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 			}
-
-			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-		}
-		else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
-		{
-			PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-			PSMoveControllerConfig *config = controller->getConfigMutable();
-
-			if (config->position_filter_type != request.position_filter())
+			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
 			{
-				config->position_filter_type = request.position_filter();
-				config->save();
+				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+				PSMoveControllerConfig *config = controller->getConfigMutable();
 
-				ControllerView->resetPoseFilter();
+				if (config->position_filter_type != request.position_filter())
+				{
+					config->position_filter_type = request.position_filter();
+					config->save();
+
+					ControllerView->resetPoseFilter();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 			}
-
-			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
 		}
 		else
 		{
