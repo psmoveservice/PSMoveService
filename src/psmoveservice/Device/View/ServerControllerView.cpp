@@ -1655,6 +1655,9 @@ init_filters_for_psdualshock4(
 	constants.orientation_constants.mean_update_time_delta= ds4_config->mean_update_time_delta;
 	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero(); // no magnetometer on ds4
 	constants.orientation_constants.magnetometer_variance= Eigen::Vector3f::Zero(); // no magnetometer on ds4
+	constants.orientation_constants.accelerometer_drift = Eigen::Vector3f::Zero();
+	constants.orientation_constants.accelerometer_variance =
+		Eigen::Vector3f(ds4_config->accelerometer_variance, ds4_config->accelerometer_variance, ds4_config->accelerometer_variance);
 	constants.orientation_constants.gyro_drift =
 		Eigen::Vector3f(ds4_config->gyro_drift, ds4_config->gyro_drift, ds4_config->gyro_drift);
 	constants.orientation_constants.gyro_variance=

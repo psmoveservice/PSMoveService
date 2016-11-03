@@ -56,9 +56,9 @@ public:
         , min_position_quality_screen_area(75.f*17.f*.25f)
         , max_position_quality_screen_area(75.f*17.f)
 		, mean_update_time_delta(0.016667f)
-		, position_variance_gain(0.0f)
+		, position_variance_gain(1.0f / (150.f*34.f))
 		, position_variance_bias(0.25f) // TODO: Compute this from calibration
-		, orientation_variance_gain(0.f)
+		, orientation_variance_gain(0.1f / (150.f*34.f))
 		, orientation_variance_bias(0.005f) // TODO: Compute this from calibration
     {
         // The DS4 uses the BMI055 IMU Chip: 
