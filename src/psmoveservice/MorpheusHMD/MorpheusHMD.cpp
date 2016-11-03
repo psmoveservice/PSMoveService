@@ -6,6 +6,7 @@
 #include "MathUtility.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
+#include "hidapi.h"
 #include <vector>
 #include <cstdlib>
 #ifdef _WIN32
@@ -14,6 +15,9 @@
 #include <math.h>
 
 //-- constants -----
+#define MORPHEUS_SENSOR_INTERFACE 4
+#define MORPHEUS_COMMAND_INTERFACE 5
+
 #define MORPHEUS_HMD_STATE_BUFFER_MAX 4
 #define METERS_TO_CENTIMETERS 100
 
@@ -21,7 +25,11 @@
 class MorpheusHIDDetails 
 {
 public:
-    std::string Device_path;
+	std::string device_identifier;
+    std::string sensor_device_path;
+	hid_device *sensor_device_handle;
+	std::string command_device_path;
+	hid_device *command_device_handle;
 
     MorpheusHIDDetails()
     {
@@ -30,14 +38,61 @@ public:
 
     void Reset()
     {
-        Device_path = "";
+		device_identifier = "";
+        sensor_device_path = "";
+		sensor_device_handle = nullptr;
+		command_device_path = "";
+		command_device_handle = nullptr;
     }
 };
 
-class MorpheusDataInput
+enum eMorpheusButton : unsigned char
 {
-public:
-    //ovrTrackingState TrackingState;
+	VolumePlus = 2,
+	VolumeMinus = 4,
+	MicrophoneMute = 8,
+};
+
+struct MorpheusRawSensorFrame
+{
+	unsigned char accel_x[2];
+	unsigned char accel_y[2];
+	unsigned char accel_z[2];
+	unsigned char gyro_x[2];
+	unsigned char gyro_y[2];
+	unsigned char gyro_z[2];
+};
+
+#pragma pack(1)
+struct MorpheusDataInput
+{
+	eMorpheusButton buttons;					// byte 0
+	unsigned char unk0;							// byte 1
+	unsigned char volume;                       // byte 2
+	unsigned char unk1[5];                      // byte 3-7
+
+	union
+	{
+		unsigned char asByte;
+		struct
+		{
+			unsigned char hmdOnHead : 1;
+			unsigned char displayIsOn : 1;
+			unsigned char HDMIDisconnected : 1;
+			unsigned char microphoneMuted : 1;
+			unsigned char headphonesPresent : 1;
+			unsigned char unk1 : 2;
+			unsigned char timer : 1;
+		};
+	} headsetFlags;								// byte 8
+
+	unsigned char unkFlags;     				// byte 9
+	unsigned char unk2[4];						// byte 10-17
+
+	unsigned short frame;						// byte 18-19
+	MorpheusRawSensorFrame imu_frame_0;         // byte 20-31
+	unsigned char unk3[4];						// byte 32-35
+	MorpheusRawSensorFrame imu_frame_1;         // byte 36-47
 
     MorpheusDataInput()
     {
@@ -46,9 +101,10 @@ public:
 
     void Reset()
     {
-        //memset(&TrackingState, 0, sizeof(ovrTrackingState));
+        memset(this, 0, sizeof(MorpheusDataInput));
     }
 };
+#pragma pack()
 
 // -- public methods
 
@@ -63,13 +119,8 @@ MorpheusHMDConfig::config2ptree()
 	pt.put("is_valid", is_valid);
 	pt.put("version", MorpheusHMDConfig::CONFIG_VERSION);
 
-	pt.put("Calibration.Accel.X.k", accelerometer_gain.i);
-	pt.put("Calibration.Accel.Y.k", accelerometer_gain.j);
-	pt.put("Calibration.Accel.Z.k", accelerometer_gain.k);
-	pt.put("Calibration.Accel.X.b", accelerometer_bias.i);
-	pt.put("Calibration.Accel.Y.b", accelerometer_bias.j);
-	pt.put("Calibration.Accel.Z.b", accelerometer_bias.k);
-	pt.put("Calibration.Accel.NoiseRadius", accelerometer_noise_radius);
+	pt.put("Calibration.Accel.Gain", accelerometer_gain);
+	pt.put("Calibration.Accel.Variance", accelerometer_variance);
 	pt.put("Calibration.Gyro.Gain", gyro_gain);
 	pt.put("Calibration.Gyro.Variance", gyro_variance);
 	pt.put("Calibration.Gyro.Drift", gyro_drift);
@@ -105,13 +156,8 @@ MorpheusHMDConfig::ptree2config(const boost::property_tree::ptree &pt)
 		max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
 
 		// Use the current accelerometer values (constructor defaults) as the default values
-		accelerometer_gain.i = pt.get<float>("Calibration.Accel.X.k", accelerometer_gain.i);
-		accelerometer_gain.j = pt.get<float>("Calibration.Accel.Y.k", accelerometer_gain.j);
-		accelerometer_gain.k = pt.get<float>("Calibration.Accel.Z.k", accelerometer_gain.k);
-		accelerometer_bias.i = pt.get<float>("Calibration.Accel.X.b", accelerometer_bias.i);
-		accelerometer_bias.j = pt.get<float>("Calibration.Accel.Y.b", accelerometer_bias.j);
-		accelerometer_bias.k = pt.get<float>("Calibration.Accel.Z.b", accelerometer_bias.k);
-		accelerometer_noise_radius = pt.get<float>("Calibration.Accel.NoiseRadius", 0.0f);
+		accelerometer_gain = pt.get<float>("Calibration.Accel.Gain", accelerometer_gain);
+		accelerometer_variance = pt.get<float>("Calibration.Accel.Variance", accelerometer_variance);
 
 		// Use the current gyroscope values (constructor defaults) as the default values
 		gyro_gain = pt.get<float>("Calibration.Gyro.Gain", gyro_gain);
@@ -141,6 +187,51 @@ MorpheusHMDConfig::ptree2config(const boost::property_tree::ptree &pt)
             "Config version " << version << " does not match expected version " <<
             MorpheusHMDConfig::CONFIG_VERSION << ", Using defaults.";
     }
+}
+
+// -- Morpheus HMD Sensor Frame -----
+void MorpheusHMDSensorFrame::parse_data_input(
+	const MorpheusHMDConfig *config,
+	const MorpheusRawSensorFrame *data_input)
+{
+	// Piece together the 16-bit accelerometer data
+	short raw_accelX = static_cast<short>((data_input->accel_x[1] << 8) | data_input->accel_x[0]);
+	short raw_accelY = static_cast<short>((data_input->accel_y[1] << 8) | data_input->accel_y[0]);
+	short raw_accelZ = static_cast<short>((data_input->accel_z[1] << 8) | data_input->accel_z[0]);
+
+	// Piece together the 16-bit gyroscope data
+	short raw_gyroX = static_cast<short>((data_input->gyro_x[1] << 8) | data_input->gyro_x[0]);
+	short raw_gyroY = static_cast<short>((data_input->gyro_y[1] << 8) | data_input->gyro_y[0]);
+	short raw_gyroZ = static_cast<short>((data_input->gyro_z[1] << 8) | data_input->gyro_z[0]);
+
+	// Save the raw accelerometer values
+	RawAccel.i = static_cast<int>(raw_accelX);
+	RawAccel.j = static_cast<int>(raw_accelY);
+	RawAccel.k = static_cast<int>(raw_accelZ);
+
+	// Save the raw gyro values
+	RawGyro.i = static_cast<int>(raw_gyroX);
+	RawGyro.j = static_cast<int>(raw_gyroY);
+	RawGyro.k = static_cast<int>(raw_gyroZ);
+
+	// calibrated_acc= raw_acc*acc_gain
+	CalibratedAccel.i = static_cast<float>(raw_accelX) * config->accelerometer_gain;
+	CalibratedAccel.j = static_cast<float>(raw_accelY) * config->accelerometer_gain;
+	CalibratedAccel.k = static_cast<float>(raw_accelZ) * config->accelerometer_gain;
+
+	// calibrated_gyro= raw_gyro*gyro_gain
+	CalibratedGyro.i = static_cast<float>(raw_gyroX) * config->gyro_gain;
+	CalibratedGyro.j = static_cast<float>(raw_gyroY) * config->gyro_gain;
+	CalibratedGyro.k = static_cast<float>(raw_gyroZ) * config->gyro_gain;
+}
+
+// -- Morpheus HMD State -----
+void MorpheusHMDState::parse_data_input(
+	const MorpheusHMDConfig *config, 
+	const struct MorpheusDataInput *data_input)
+{
+	SensorFrames[0].parse_data_input(config, &data_input->imu_frame_0);
+	SensorFrames[1].parse_data_input(config, &data_input->imu_frame_1);
 }
 
 // -- Morpheus HMD -----
@@ -196,20 +287,38 @@ bool MorpheusHMD::open(
     }
     else
     {
-        SERVER_LOG_INFO("MorpheusHMD::open") << "Opening MorpheusHMD(" << cur_dev_path << ")";
-        HIDDetails->Device_path = cur_dev_path;
+		SERVER_LOG_INFO("MorpheusHMD::open") << "Opening MorpheusHMD(" << cur_dev_path << ").";
 
-        // TODO
+		HIDDetails->device_identifier = cur_dev_path;
+
+		HIDDetails->sensor_device_path = pEnum->get_interface_path(MORPHEUS_SENSOR_INTERFACE);
+		HIDDetails->sensor_device_handle = hid_open_path(HIDDetails->sensor_device_path.c_str());
+		if (HIDDetails->sensor_device_handle != nullptr)
+		{
+			hid_set_nonblocking(HIDDetails->sensor_device_handle, 1);
+		}
+
+		HIDDetails->command_device_path = pEnum->get_interface_path(MORPHEUS_COMMAND_INTERFACE);
+		HIDDetails->command_device_handle = hid_open_path(HIDDetails->command_device_path.c_str());
+		if (HIDDetails->command_device_handle != nullptr)
+		{
+			hid_set_nonblocking(HIDDetails->command_device_handle, 1);
+		}
 
         if (getIsOpen())  // Controller was opened and has an index
         {
+			// Always save the config back out in case some defaults changed
+			cfg.save();
+
             // Reset the polling sequence counter
             NextPollSequenceNumber = 0;
+
+			success = true;
         }
         else
         {
             SERVER_LOG_ERROR("MorpheusHMD::open") << "Failed to open MorpheusHMD(" << cur_dev_path << ")";
-            success = false;
+			close();
         }
     }
 
@@ -218,16 +327,26 @@ bool MorpheusHMD::open(
 
 void MorpheusHMD::close()
 {
-    if (getIsOpen())
+    if (HIDDetails->sensor_device_handle != nullptr || HIDDetails->command_device_handle != nullptr)
     {
-        SERVER_LOG_INFO("MorpheusHMD::close") << "Closing MorpheusHMD(" << HIDDetails->Device_path << ")";
+		if (HIDDetails->sensor_device_handle != nullptr)
+		{
+			SERVER_LOG_INFO("MorpheusHMD::close") << "Closing MorpheusHMD(" << HIDDetails->sensor_device_path << ")";
+			hid_close(HIDDetails->sensor_device_handle);
+		}
+
+		if (HIDDetails->command_device_handle != nullptr)
+		{
+			SERVER_LOG_INFO("MorpheusHMD::close") << "Closing MorpheusHMD(" << HIDDetails->command_device_path << ")";
+			hid_close(HIDDetails->command_device_handle);
+		}
 
         HIDDetails->Reset();
         InData->Reset();
     }
     else
     {
-        SERVER_LOG_INFO("MorpheusHMD::close") << "MorpheusHMD(" << HIDDetails->Device_path << ") already closed. Ignoring request.";
+        SERVER_LOG_INFO("MorpheusHMD::close") << "MorpheusHMD already closed. Ignoring request.";
     }
 }
 
@@ -243,7 +362,7 @@ MorpheusHMD::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
     if (pEnum->get_device_type() == getDeviceType())
     {
         const char *enumerator_path = pEnum->get_path();
-        const char *dev_path = HIDDetails->Device_path.c_str();
+        const char *dev_path = HIDDetails->device_identifier.c_str();
 
 #ifdef _WIN32
         matches = _stricmp(dev_path, enumerator_path) == 0;
@@ -264,91 +383,82 @@ MorpheusHMD::getIsReadyToPoll() const
 std::string
 MorpheusHMD::getUSBDevicePath() const
 {
-    return HIDDetails->Device_path;
+    return HIDDetails->sensor_device_path;
 }
 
 bool
 MorpheusHMD::getIsOpen() const
 {
-#if defined(OVR_OS_WIN32)
-    return (HIDDetails->SessionHandle != nullptr);
-#elif defined(OVR_OS_MAC)
-    return (HIDDetails->HmdHandle != nullptr);
-#else
-    return false;
-#endif
+    return HIDDetails->sensor_device_handle != nullptr && HIDDetails->command_device_handle != nullptr;
 }
 
 IControllerInterface::ePollResult
 MorpheusHMD::poll()
 {
-    IControllerInterface::ePollResult result = IControllerInterface::_PollResultFailure;
+	IHMDInterface::ePollResult result = IHMDInterface::_PollResultFailure;
 
-    if (getIsOpen())
-    {        
-        InData->Reset();
+	if (getIsOpen())
+	{
+		static const int k_max_iterations = 32;
 
-        //TODO: Read state
-        /*
-        if ((InData->TrackingState.StatusFlags & ovrStatus_HmdConnected) != 0)
-        {
-            MorpheusHMDState newState;
+		for (int iteration = 0; iteration < k_max_iterations; ++iteration)
+		{
+			// Attempt to read the next update packet from the controller
+			int res = hid_read(HIDDetails->sensor_device_handle, (unsigned char*)InData, sizeof(MorpheusDataInput));
 
-            // Increment the sequence for every new polling packet
-            newState.PollSequenceNumber = NextPollSequenceNumber;
-            ++NextPollSequenceNumber;
+			if (res == 0)
+			{
+				// Device still in valid state
+				result = (iteration == 0)
+					? IHMDInterface::_PollResultSuccessNoData
+					: IHMDInterface::_PollResultSuccessNewData;
 
-            // Copy over the pose
-            {
-                const ovrPoseStatef &ovrPoseState = InData->TrackingState.HeadPose;
-                ovrPosef ovrPose = ovrPoseState.ThePose;
+				// No more data available. Stop iterating.
+				break;
+			}
+			else if (res < 0)
+			{
+				char hidapi_err_mbs[256];
+				bool valid_error_mesg = 
+					ServerUtility::convert_wcs_to_mbs(hid_error(HIDDetails->sensor_device_handle), hidapi_err_mbs, sizeof(hidapi_err_mbs));
 
-                newState.Pose.Position = ovrVector3f_to_CommonDevicePosition(ovrPose.Position, METERS_TO_CENTIMETERS);
-                newState.Pose.Orientation = ovrQuatf_to_CommonDeviceQuaternion(ovrPose.Orientation);
+				// Device no longer in valid state.
+				if (valid_error_mesg)
+				{
+					SERVER_LOG_ERROR("PSMoveController::readDataIn") << "HID ERROR: " << hidapi_err_mbs;
+				}
+				result = IHMDInterface::_PollResultFailure;
 
-                newState.AngularVelocity = 
-                    ovrVector3f_to_CommonDeviceVector(ovrPoseState.AngularVelocity);
-                newState.LinearVelocity =
-                    ovrVector3f_to_CommonDeviceVector(ovrPoseState.LinearVelocity, METERS_TO_CENTIMETERS); // cm/s
-                newState.AngularAcceleration =
-                    ovrVector3f_to_CommonDeviceVector(ovrPoseState.AngularAcceleration);
-                newState.LinearAcceleration =
-                    ovrVector3f_to_CommonDeviceVector(ovrPoseState.LinearAcceleration, METERS_TO_CENTIMETERS); // cm/s^2
-                newState.StateTime = InData->TrackingState.HeadPose.TimeInSeconds;
-            }
+				// No more data available. Stop iterating.
+				break;
+			}
+			else
+			{
+				// New data available. Keep iterating.
+				result = IHMDInterface::_PollResultSuccessNewData;
+			}
 
-            // Copy over the sensor data
-            // TODO: What space is this in?
-            newState.Accelerometer = 
-                ovrVector3f_to_CommonDeviceVector(InData->TrackingState.RawSensorData.Accelerometer, METERS_TO_CENTIMETERS); // cm/s^2
-            newState.Gyro = 
-                ovrVector3f_to_CommonDeviceVector(InData->TrackingState.RawSensorData.Gyro); // rad/s
-            newState.Magnetometer = 
-                ovrVector3f_to_CommonDeviceVector(InData->TrackingState.RawSensorData.Magnetometer); // gauss
-            newState.Temperature = InData->TrackingState.RawSensorData.Temperature; // Celcius
-            newState.IMUSampleTime = InData->TrackingState.RawSensorData.TimeInSeconds;
+			// https://github.com/hrl7/node-psvr/blob/master/lib/psvr.js
+			MorpheusHMDState newState;
 
-            // Make room for new entry if at the max queue size
-            if (HMDStates.size() >= OCULUS_HMD_STATE_BUFFER_MAX)
-            {
-                HMDStates.erase(HMDStates.begin(),
-                    HMDStates.begin() + HMDStates.size() - OCULUS_HMD_STATE_BUFFER_MAX);
-            }
+			// Increment the sequence for every new polling packet
+			newState.PollSequenceNumber = NextPollSequenceNumber;
+			++NextPollSequenceNumber;
 
-            HMDStates.push_back(newState);
+			// Processes the IMU data
+			newState.parse_data_input(&cfg, InData);
 
-            result = IHMDInterface::_PollResultSuccessNewData;
-        }
-        else
-        {
-            SERVER_LOG_ERROR("MorpheusHMD::poll") << "HMD disconnected";
+			// Make room for new entry if at the max queue size
+			if (HMDStates.size() >= MORPHEUS_HMD_STATE_BUFFER_MAX)
+			{
+				HMDStates.erase(HMDStates.begin(), HMDStates.begin() + HMDStates.size() - MORPHEUS_HMD_STATE_BUFFER_MAX);
+			}
 
-            result = IHMDInterface::_PollResultFailure;
-        }
-        */
-    }
+			HMDStates.push_back(newState);
+		}
+	}
 
-    return result;
+	return result;
 }
 
 void
@@ -387,5 +497,3 @@ long MorpheusHMD::getMaxPollFailureCount() const
 {
     return cfg.max_poll_failure_count;
 }
-
-// -- private helper functions -----

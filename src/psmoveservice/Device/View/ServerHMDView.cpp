@@ -687,20 +687,22 @@ update_filters_for_morpheus_hmd(
 		// Each state update contains two readings (one earlier and one later) of accelerometer and gyro data
 		for (int frame = 0; frame < 2; ++frame)
 		{
+			const MorpheusHMDSensorFrame &sensorFrame= morpheusHMDState->SensorFrames[frame];
+
 			sensorPacket.orientation = orientationFilter->getOrientation();
 			sensorPacket.orientation_source = OrientationSource_PreviousFrame;
 			sensorPacket.orientation_quality = -1.f; // not relevant for previous frame
 
 			sensorPacket.accelerometer =
 				Eigen::Vector3f(
-					morpheusHMDState->CalibratedAccel[frame][0],
-					morpheusHMDState->CalibratedAccel[frame][1],
-					morpheusHMDState->CalibratedAccel[frame][2]);
+					sensorFrame.CalibratedAccel.i,
+					sensorFrame.CalibratedAccel.j,
+					sensorFrame.CalibratedAccel.k);
 			sensorPacket.gyroscope =
 				Eigen::Vector3f(
-					morpheusHMDState->CalibratedGyro[frame][0],
-					morpheusHMDState->CalibratedGyro[frame][1],
-					morpheusHMDState->CalibratedGyro[frame][2]);
+					sensorFrame.CalibratedGyro.i,
+					sensorFrame.CalibratedGyro.j,
+					sensorFrame.CalibratedGyro.k);
 
 			// Update the orientation filter using the sensor packet.
 			// NOTE: The magnetometer reading is the same for both sensor readings.
@@ -755,6 +757,8 @@ update_filters_for_morpheus_hmd(
 			// Each state update contains two readings (one earlier and one later) of accelerometer data
 			for (int frame = 0; frame < 2; ++frame)
 			{
+				const MorpheusHMDSensorFrame &sensorFrame = morpheusHMDState->SensorFrames[frame];
+
 				// Use the latest estimated orientation for the frame
 				sensorPacket.world_orientation = orientationFrames[frame];
 
@@ -762,9 +766,9 @@ update_filters_for_morpheus_hmd(
 				// to subtract out gravity and get acceleration of the controller in world space
 				sensorPacket.accelerometer =
 					Eigen::Vector3f(
-						morpheusHMDState->CalibratedAccel[frame][0],
-						morpheusHMDState->CalibratedAccel[frame][1],
-						morpheusHMDState->CalibratedAccel[frame][2]);
+						sensorFrame.CalibratedAccel.i,
+						sensorFrame.CalibratedAccel.j,
+						sensorFrame.CalibratedAccel.k);
 
 				// Update the orientation filter using the sensor packet for each frame.
 				position_filter->update(delta_time / 2.f, sensorPacket);
@@ -852,15 +856,15 @@ static void generate_morpheus_hmd_data_frame_for_stream(
 
 			// Two frames: [[ax0, ay0, az0], [ax1, ay1, az1]] 
 			// Take the most recent frame: [ax1, ay1, az1]
-			raw_sensor_data->mutable_accelerometer()->set_i(morpheus_hmd_state->RawAccel[1][0]);
-			raw_sensor_data->mutable_accelerometer()->set_j(morpheus_hmd_state->RawAccel[1][1]);
-			raw_sensor_data->mutable_accelerometer()->set_k(morpheus_hmd_state->RawAccel[1][2]);
+			raw_sensor_data->mutable_accelerometer()->set_i(morpheus_hmd_state->SensorFrames[1].RawAccel.i);
+			raw_sensor_data->mutable_accelerometer()->set_j(morpheus_hmd_state->SensorFrames[1].RawAccel.j);
+			raw_sensor_data->mutable_accelerometer()->set_k(morpheus_hmd_state->SensorFrames[1].RawAccel.k);
 
 			// Two frames: [[wx0, wy0, wz0], [wx1, wy1, wz1]] 
 			// Take the most recent frame: [wx1, wy1, wz1]
-			raw_sensor_data->mutable_gyroscope()->set_i(morpheus_hmd_state->RawGyro[1][0]);
-			raw_sensor_data->mutable_gyroscope()->set_j(morpheus_hmd_state->RawGyro[1][1]);
-			raw_sensor_data->mutable_gyroscope()->set_k(morpheus_hmd_state->RawGyro[1][2]);
+			raw_sensor_data->mutable_gyroscope()->set_i(morpheus_hmd_state->SensorFrames[1].RawGyro.i);
+			raw_sensor_data->mutable_gyroscope()->set_j(morpheus_hmd_state->SensorFrames[1].RawGyro.j);
+			raw_sensor_data->mutable_gyroscope()->set_k(morpheus_hmd_state->SensorFrames[1].RawGyro.k);
         }
 
 		// If requested, get the raw sensor data for the hmd
@@ -871,15 +875,15 @@ static void generate_morpheus_hmd_data_frame_for_stream(
 
 			// Two frames: [[ax0, ay0, az0], [ax1, ay1, az1]] 
 			// Take the most recent frame: [ax1, ay1, az1]
-			calibrated_sensor_data->mutable_accelerometer()->set_i(morpheus_hmd_state->CalibratedAccel[1][0]);
-			calibrated_sensor_data->mutable_accelerometer()->set_j(morpheus_hmd_state->CalibratedAccel[1][1]);
-			calibrated_sensor_data->mutable_accelerometer()->set_k(morpheus_hmd_state->CalibratedAccel[1][2]);
+			calibrated_sensor_data->mutable_accelerometer()->set_i(morpheus_hmd_state->SensorFrames[1].CalibratedAccel.i);
+			calibrated_sensor_data->mutable_accelerometer()->set_j(morpheus_hmd_state->SensorFrames[1].CalibratedAccel.j);
+			calibrated_sensor_data->mutable_accelerometer()->set_k(morpheus_hmd_state->SensorFrames[1].CalibratedAccel.k);
 
 			// Two frames: [[wx0, wy0, wz0], [wx1, wy1, wz1]] 
 			// Take the most recent frame: [wx1, wy1, wz1]
-			calibrated_sensor_data->mutable_gyroscope()->set_i(morpheus_hmd_state->CalibratedGyro[1][0]);
-			calibrated_sensor_data->mutable_gyroscope()->set_j(morpheus_hmd_state->CalibratedGyro[1][1]);
-			calibrated_sensor_data->mutable_gyroscope()->set_k(morpheus_hmd_state->CalibratedGyro[1][2]);
+			calibrated_sensor_data->mutable_gyroscope()->set_i(morpheus_hmd_state->SensorFrames[1].CalibratedGyro.i);
+			calibrated_sensor_data->mutable_gyroscope()->set_j(morpheus_hmd_state->SensorFrames[1].CalibratedGyro.j);
+			calibrated_sensor_data->mutable_gyroscope()->set_k(morpheus_hmd_state->SensorFrames[1].CalibratedGyro.k);
 		}
 
 		// If requested, get the raw tracker data for the controller

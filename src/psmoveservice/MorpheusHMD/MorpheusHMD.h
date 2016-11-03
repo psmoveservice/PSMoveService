@@ -24,8 +24,9 @@ public:
         : PSMoveConfig(fnamebase)
 		, is_valid(false)
 		, version(CONFIG_VERSION)
-		, accelerometer_noise_radius(0.f)
 		, max_velocity(1.f)
+		, accelerometer_gain(0.f)
+		, accelerometer_variance(0.f)
 		, gyro_gain(0.f)
 		, gyro_variance(0.f)
 		, gyro_drift(0.f)
@@ -51,24 +52,16 @@ public:
 		// It also appears that the raw accelerometer and gyroscope values are pre-calibrated
 		// (there is no sensor calibration report with biases and gains that I can find)
 
-		// Accelerometer gain computed from accelerometer calibration in the config tool is really close to 1/8192.
-		// and is just in a 2.13 fixed point value (+1 sign bit)
+		// Accelerometer gain computed from accelerometer calibration in the config tool is really close to 1/16384.
+		// and is just in a 1.14 fixed point value (+1 sign bit)
 		// This agrees with the stack exchange article
-		accelerometer_gain.i = 1.f / 8192.f;
-		accelerometer_gain.j = 1.f / 8192.f;
-		accelerometer_gain.k = 1.f / 8192.f;
-
-		// Accelerometer bias computed from accelerometer calibration in the config tool is really close to 0
-		// This is because the raw gyro readings are likely pre-calibrated
-		accelerometer_bias.i = 0.f;
-		accelerometer_bias.j = 0.f;
-		accelerometer_bias.k = 0.f;
+		accelerometer_gain = 1.f / 16384.f;
 
 		// Empirical testing of the of the gyro gain looks best at 1/2048.
 		// This implies that gyroscope is returned from the controller is pre-calibrated 
-		// and is just in a 4.11 fixed point value (+1 sign bit).
+		// and is just in a 1.14 fixed point value (+1 sign bit).
 		// This is twice what the stack exchange article recommends.
-		gyro_gain = 1.f / 2048.f;
+		gyro_gain = 1.f / 16384.f;
 
 		// This is the variance of the calibrated gyro value recorded for 100 samples
 		// Units in rad/s^2
@@ -91,10 +84,10 @@ public:
     bool is_valid;
     long version;
 
-	// calibrated_acc= raw_acc*acc_gain + acc_bias
-	CommonDeviceVector accelerometer_gain;
-	CommonDeviceVector accelerometer_bias;
-	float accelerometer_noise_radius;
+	// calibrated_acc= raw_acc*acc_gain
+	float accelerometer_gain;
+	// The variance of the raw gyro readings in rad/sec^2
+	float accelerometer_variance;
 
 	// Maximum velocity for the controller physics (meters/second)
 	float max_velocity;
@@ -125,18 +118,28 @@ public:
 	eCommonTrackingColorID tracking_color_id;
 };
 
+struct MorpheusHMDSensorFrame
+{
+	CommonRawDeviceVector RawAccel;
+	CommonRawDeviceVector RawGyro;
+
+	CommonDeviceVector CalibratedAccel;
+	CommonDeviceVector CalibratedGyro;
+
+	void clear()
+	{
+		RawAccel.clear();
+		RawGyro.clear();
+		CalibratedAccel.clear();
+		CalibratedGyro.clear();
+	}
+
+	void parse_data_input(const MorpheusHMDConfig *config, const struct MorpheusRawSensorFrame *data_input);
+};
+
 struct MorpheusHMDState : public CommonHMDState
 {
-    CommonDeviceVector AngularVelocity;        /// The body's angular velocity in radians per second.
-    CommonDeviceVector LinearVelocity;         /// The body's velocity in meters per second.
-    CommonDeviceVector AngularAcceleration;    /// The body's angular acceleration in radians per second per second.
-    CommonDeviceVector LinearAcceleration;     /// The body's acceleration in meters per second per second.
-
-	std::array< std::array<int, 3>, 2> RawAccel;    // Two frames of 3 dimensions
-	std::array< std::array<int, 3>, 2> RawGyro;     // Two frames of 3 dimensions
-
-	std::array< std::array<float, 3>, 2> CalibratedAccel;    // Two frames of 3 dimensions
-	std::array< std::array<float, 3>, 2> CalibratedGyro;     // Two frames of 3 dimensions
+	std::array< MorpheusHMDSensorFrame, 2> SensorFrames;
 
     MorpheusHMDState()
     {
@@ -146,9 +149,13 @@ struct MorpheusHMDState : public CommonHMDState
     void clear()
     {
         CommonHMDState::clear();
+		DeviceType = Morpheus;
 
-        DeviceType = Morpheus;
+		SensorFrames[0].clear();
+		SensorFrames[1].clear();
     }
+
+	void parse_data_input(const MorpheusHMDConfig *config, const struct MorpheusDataInput *data_input);
 };
 
 class MorpheusHMD : public IHMDInterface 
@@ -202,7 +209,7 @@ private:
 
     // Read HMD State
     int NextPollSequenceNumber;
-    class MorpheusDataInput *InData;                        // Buffer to hold most recent MorpheusAPI tracking state
+    struct MorpheusDataInput *InData;                        // Buffer to hold most recent MorpheusAPI tracking state
     std::deque<MorpheusHMDState> HMDStates;
 };
 

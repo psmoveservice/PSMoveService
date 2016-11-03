@@ -88,6 +88,16 @@ struct CommonDeviceVector
     }
 };
 
+struct CommonRawDeviceVector
+{
+	int i, j, k;
+
+	inline void clear()
+	{
+		i = j = k = 0;
+	}
+};
+
 struct CommonDevicePosition
 {
     float x, y, z;

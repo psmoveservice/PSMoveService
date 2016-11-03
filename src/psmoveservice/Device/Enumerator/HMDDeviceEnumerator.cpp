@@ -4,6 +4,8 @@
 #include "assert.h"
 #include "hidapi.h"
 #include "string.h"
+#include <sstream>
+#include <iomanip>
 
 // -- private definitions -----
 #ifdef _MSC_VER
@@ -22,14 +24,10 @@ USBDeviceInfo g_supported_hmd_infos[MAX_HMD_TYPE_INDEX] = {
 // -- HMDDeviceEnumerator -----
 HMDDeviceEnumerator::HMDDeviceEnumerator()
     : DeviceEnumerator(CommonDeviceState::Morpheus)
-	, devs(nullptr)
-	, cur_dev(nullptr)
 {
     assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_HMD_TYPE_INDEX);
 
-	USBDeviceInfo &dev_info = g_supported_hmd_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
-	devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
-	cur_dev = devs;
+	build_interface_list();
 
 	if (!is_valid())
 	{
@@ -39,14 +37,10 @@ HMDDeviceEnumerator::HMDDeviceEnumerator()
 
 HMDDeviceEnumerator::HMDDeviceEnumerator(CommonDeviceState::eDeviceType deviceType)
     : DeviceEnumerator(deviceType)
-	, devs(nullptr)
-	, cur_dev(nullptr)
 {
     assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_HMD_TYPE_INDEX);
 
-	USBDeviceInfo &dev_info = g_supported_hmd_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
-	devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
-	cur_dev = devs;
+	build_interface_list();
 
 	if (!is_valid())
 	{
@@ -54,34 +48,14 @@ HMDDeviceEnumerator::HMDDeviceEnumerator(CommonDeviceState::eDeviceType deviceTy
 	}
 }
 
-HMDDeviceEnumerator::~HMDDeviceEnumerator()
-{
-	if (devs != nullptr)
-	{
-		hid_free_enumeration(devs);
-	}
-}
-
 const char *HMDDeviceEnumerator::get_path() const
 {
-	return (cur_dev != nullptr) ? cur_dev->path : nullptr;
-}
-
-bool HMDDeviceEnumerator::get_serial_number(char *out_mb_serial, const size_t mb_buffer_size) const
-{
-	bool success = false;
-
-	if (cur_dev != nullptr && cur_dev->serial_number != nullptr)
-	{
-		success = ServerUtility::convert_wcs_to_mbs(cur_dev->serial_number, out_mb_serial, mb_buffer_size);
-	}
-
-	return success;
+	return current_device_identifier.c_str();
 }
 
 bool HMDDeviceEnumerator::is_valid() const
 {
-	return cur_dev != nullptr;
+	return current_device_interfaces.size() > 0;
 }
 
 bool HMDDeviceEnumerator::next()
@@ -90,37 +64,67 @@ bool HMDDeviceEnumerator::next()
 
 	while (!foundValid && m_deviceType < CommonDeviceState::SUPPORTED_HMD_TYPE_COUNT)
 	{
-		if (cur_dev != nullptr)
+		m_deviceType = static_cast<CommonDeviceState::eDeviceType>(m_deviceType + 1);
+
+		if (GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_HMD_TYPE_INDEX)
 		{
-			cur_dev = cur_dev->next;
+			build_interface_list();
+
 			foundValid = is_valid();
 		}
-
-		// If there are more device types to scan
-		// move on to the next vid/pid device enumeration
-		if (!foundValid && cur_dev == nullptr)
+		else
 		{
-			m_deviceType = static_cast<CommonDeviceState::eDeviceType>(m_deviceType + 1);
-
-			// Free any previous enumeration
-			if (devs != nullptr)
-			{
-				hid_free_enumeration(devs);
-				cur_dev = nullptr;
-				devs = nullptr;
-			}
-
-			if (GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_HMD_TYPE_INDEX)
-			{
-				USBDeviceInfo &dev_info = g_supported_hmd_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
-
-				// Create a new HID enumeration
-				devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
-				cur_dev = devs;
-				foundValid = is_valid();
-			}
+			current_device_identifier = "";
+			current_device_interfaces.clear();
 		}
 	}
 
 	return foundValid;
+}
+
+std::string HMDDeviceEnumerator::get_interface_path(int interface_number) const
+{
+	std::string path = "";
+
+	for (int list_index = 0; list_index < current_device_interfaces.size(); ++list_index)
+	{
+		if (current_device_interfaces[list_index].interface_number == interface_number)
+		{
+			path = current_device_interfaces[list_index].device_path;
+			break;
+		}
+	}
+
+	return path;
+}
+
+void HMDDeviceEnumerator::build_interface_list()
+{
+	USBDeviceInfo &dev_info = g_supported_hmd_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
+	hid_device_info * devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
+
+	current_device_identifier = "";
+	current_device_interfaces.clear();
+
+	if (devs != nullptr)
+	{
+		std::stringstream device_id_builder;
+		device_id_builder << 
+			"USB\VID_" << std::hex << std::setfill('0') << std::setw(4) << dev_info.vendor_id <<
+			"&PID_" << std::hex << std::setfill('0') << std::setw(4) << dev_info.product_id;
+
+		current_device_identifier = device_id_builder.str();
+
+		for (hid_device_info *cur_dev = devs; cur_dev != nullptr; cur_dev = cur_dev->next)
+		{
+			HMDDeviceInterface hmd_interface;
+
+			hmd_interface.device_path = cur_dev->path;
+			hmd_interface.interface_number = cur_dev->interface_number;
+
+			current_device_interfaces.push_back(hmd_interface);
+		}
+
+		hid_free_enumeration(devs);
+	}
 }
