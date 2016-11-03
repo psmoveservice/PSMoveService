@@ -7,18 +7,21 @@
 #include <kalman/SquareRootBase.hpp>
 #include <kalman/SquareRootUnscentedKalmanFilter.hpp>
 
+// The kalman filter runs way to slow in a fully unoptimized build.
+// But if we just unoptimize this file in a release build it seems to run ok.
+#if defined(_MSC_VER) && defined(UNOPTIMIZE_KALMAN_FILTERS)
+#pragma optimize( "", off )
+#endif
+
 //-- constants --
 enum OrientationFilterStateEnum
 {
     EULER_ANGLE_BANK, // radians
     ANGULAR_VELOCITY_BANK, // meters / s
-    ANGULAR_ACCELERATION_BANK, // meters /s^2
     EULER_ANGLE_HEADING,
 	ANGULAR_VELOCITY_HEADING,
-	ANGULAR_ACCELERATION_HEADING,
     EULER_ANGLE_ATTITUDE,
     ANGULAR_VELOCITY_ATTITUDE,
-	ANGULAR_ACCELERATION_ATTITUDE,
 
     STATE_PARAMETER_COUNT
 };
@@ -62,7 +65,7 @@ enum DS4MeasurementEnum {
 // where a larger value for alpha spreads the sigma points further from the mean.
 #define k_ukf_alpha 0.6
 #define k_ukf_beta 2.0
-#define k_ukf_kappa -6.0 // 3 - STATE_PARAMETER_COUNT
+#define k_ukf_kappa -3.0 // 3 - STATE_PARAMETER_COUNT
 
 //-- private methods ---
 template <class StateType>
@@ -88,9 +91,6 @@ public:
     Eigen::Vector3d get_angular_velocity() const {
         return Eigen::Vector3d((*this)[ANGULAR_VELOCITY_BANK], (*this)[ANGULAR_VELOCITY_HEADING], (*this)[ANGULAR_VELOCITY_ATTITUDE]);
     }
-    Eigen::Vector3d get_angular_acceleration() const {
-        return Eigen::Vector3d((*this)[ANGULAR_ACCELERATION_BANK], (*this)[ANGULAR_ACCELERATION_HEADING], (*this)[ANGULAR_ACCELERATION_ATTITUDE]);
-    }
 
     // Mutators
     void set_euler_angles(const Eigen::EulerAnglesd &e) {
@@ -101,9 +101,6 @@ public:
 	}
     void set_angular_velocity(const Eigen::Vector3d &v) {
         (*this)[ANGULAR_VELOCITY_BANK] = v.x(); (*this)[ANGULAR_VELOCITY_HEADING] = v.y(); (*this)[ANGULAR_VELOCITY_ATTITUDE] = v.z();
-    }
-    void set_angular_acceleration(const Eigen::Vector3d &a) {
-        (*this)[ANGULAR_ACCELERATION_BANK] = a.x(); (*this)[ANGULAR_ACCELERATION_HEADING] = a.y(); (*this)[ANGULAR_ACCELERATION_ATTITUDE] = a.z();
     }
 };
 typedef OrientationStateVector<double> OrientationStateVectord;
@@ -129,9 +126,9 @@ public:
 
 		// Initialize the process covariance matrix Q
 		Kalman::Covariance<OrientationStateVectord> Q = Kalman::Covariance<OrientationStateVectord>::Zero();
-		process_3rd_order_noise<OrientationStateVectord>(mean_position_dT, orientation_variance, EULER_ANGLE_BANK, Q);
-		process_3rd_order_noise<OrientationStateVectord>(mean_position_dT, orientation_variance, EULER_ANGLE_HEADING, Q);
-		process_3rd_order_noise<OrientationStateVectord>(mean_position_dT, orientation_variance, EULER_ANGLE_ATTITUDE, Q);
+		process_2nd_order_noise<OrientationStateVectord>(mean_position_dT, orientation_variance, EULER_ANGLE_BANK, Q);
+		process_2nd_order_noise<OrientationStateVectord>(mean_position_dT, orientation_variance, EULER_ANGLE_HEADING, Q);
+		process_2nd_order_noise<OrientationStateVectord>(mean_position_dT, orientation_variance, EULER_ANGLE_ATTITUDE, Q);
 		setCovariance(Q);
 	}
 
@@ -155,20 +152,16 @@ public:
 		// Extract parameters from the old state
 		const Eigen::Vector3d old_euler_angles = Eigen::Vector3d(old_state.get_euler_angles());
 		const Eigen::Vector3d old_angular_velocity = old_state.get_angular_velocity();
-		const Eigen::Vector3d old_angular_acceleration = old_state.get_angular_acceleration();
 
 		// Compute the position state update
 		const Eigen::Vector3d new_euler_angles =
 			old_euler_angles
-			+ old_angular_velocity*m_time_step
-			+ old_angular_acceleration*m_time_step*m_time_step*0.5f;
-		const Eigen::Vector3d new_angular_velocity = old_angular_velocity + old_angular_acceleration*m_time_step;
-		const Eigen::Vector3d &new_linear_acceleration = old_angular_acceleration;
+			+ old_angular_velocity*m_time_step;
+		const Eigen::Vector3d new_angular_velocity = old_angular_velocity;
 
 		// Save results to the new state
 		new_state.set_euler_angles(Eigen::EulerAnglesd(new_euler_angles));
 		new_state.set_angular_velocity(new_angular_velocity);
-		new_state.set_angular_acceleration(new_linear_acceleration);
 
 		return new_state;
 	}
@@ -594,9 +587,7 @@ Eigen::Vector3f KalmanOrientationFilter::getAngularVelocity() const
 
 Eigen::Vector3f KalmanOrientationFilter::getAngularAcceleration() const
 {
-	Eigen::Vector3d ang_acc = m_filter->state_vector.get_angular_acceleration();
-
-	return ang_acc.cast<float>();
+	return Eigen::Vector3f::Zero();
 }
 
 //-- KalmanOrientationFilterDS4 --

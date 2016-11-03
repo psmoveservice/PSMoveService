@@ -3,6 +3,12 @@
 #include "MathAlignment.h"
 #include <iostream>
 
+// The kalman filter runs way to slow in a fully unoptimized build.
+// But if we just unoptimize this file in a release build it seems to run ok.
+#if defined(_MSC_VER) && defined(UNOPTIMIZE_KALMAN_FILTERS)
+#pragma optimize( "", off )
+#endif
+
 //-- constants --
 enum StateEnum
 {
