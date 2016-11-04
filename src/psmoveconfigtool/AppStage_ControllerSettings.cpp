@@ -32,7 +32,7 @@ const char *AppStage_ControllerSettings::APP_STAGE_NAME= "ControllerSettings";
 const char* k_position_filter_names[] = { "PassThru", "LowPassOptical", "LowPassIMU", "LowPassExponential", "ComplimentaryOpticalIMU", "PositionKalman" };
 const char* k_psmove_orientation_filter_names[] = { "PassThru", "MadgwickARG", "MadgwickMARG", "ComplementaryMARG", "OrientationKalman" };
 const char* k_ds4_orientation_filter_names[] = { "PassThru", "MadgwickARG", "ComplementaryOpticalARG", "OrientationKalman" };
-const char* k_ds4_gyro_gain_setting_labels[] = { "500deg/s", "1000deg/s", "custom"};
+const char* k_ds4_gyro_gain_setting_labels[] = { "125deg/s", "250deg/s", "500deg/s", "1000deg/s", "2000deg/s", "custom"};
 
 inline int find_string_entry(const char *string_entry, const char* string_list[], size_t list_size)
 {

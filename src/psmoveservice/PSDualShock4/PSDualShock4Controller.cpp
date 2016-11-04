@@ -893,9 +893,9 @@ PSDualShock4Controller::poll()
             // Processes the IMU data
             {
                 // Piece together the 12-bit accelerometer data
-                short raw_accelX = static_cast<short>((InData->accel_x[1] << 8) | InData->accel_x[0]);
-                short raw_accelY = static_cast<short>((InData->accel_y[1] << 8) | InData->accel_y[0]);
-                short raw_accelZ = static_cast<short>((InData->accel_z[1] << 8) | InData->accel_z[0]);
+                short raw_accelX = static_cast<short>((InData->accel_x[1] << 8) | InData->accel_x[0]) >> 4;
+                short raw_accelY = static_cast<short>((InData->accel_y[1] << 8) | InData->accel_y[0]) >> 4;
+                short raw_accelZ = static_cast<short>((InData->accel_z[1] << 8) | InData->accel_z[0]) >> 4;
 
                 // Piece together the 16-bit gyroscope data
                 short raw_gyroX = static_cast<short>((InData->gyro_x[1] << 8) | InData->gyro_x[0]);

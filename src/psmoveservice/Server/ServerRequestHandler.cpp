@@ -509,14 +509,31 @@ protected:
 						const PSDualShock4Controller *controller = controller_view->castCheckedConst<PSDualShock4Controller>();
 						const PSDualShock4ControllerConfig *config = controller->getConfig();
 
-						float gain_divisor = safe_divide_with_default(1.f, config->gyro_gain, 1.f);
-						if (is_nearly_equal(gain_divisor, 2048.f, 1.f))
+						float radian_gain_divisor = safe_divide_with_default(1.f, config->gyro_gain, 1.f);
+						float degree_gain_divisor = radian_gain_divisor * k_degrees_to_radians;
+
+						// Gyro gain mode can vary from controller to controller
+						// Sensitivity values from Pg.15 of:
+						// https://ae-bst.resource.bosch.com/media/_tech/media/datasheets/BST-BMI055-DS000-08.pdf
+						if (is_nearly_equal(degree_gain_divisor, 262.4f, 1.f))
+						{
+							gyro_gain_setting = "125deg/s";
+						}
+						else if (is_nearly_equal(degree_gain_divisor, 131.2, 1.f))
+						{
+							gyro_gain_setting = "250deg/s";
+						}
+						else if (is_nearly_equal(degree_gain_divisor, 65.6, 1.f))
 						{
 							gyro_gain_setting = "500deg/s";
 						}
-						else if (is_nearly_equal(gain_divisor, 1024.f, 1.f))
+						else if (is_nearly_equal(degree_gain_divisor, 32.8, 1.f))
 						{
 							gyro_gain_setting = "1000deg/s";
+						}
+						else if (is_nearly_equal(degree_gain_divisor, 16.4, 1.f))
+						{
+							gyro_gain_setting = "2000deg/s";
 						}
 						else
 						{
@@ -993,14 +1010,31 @@ protected:
 				const std::string gyro_gain_setting = request.gyro_gain_setting();
 				if (gyro_gain_setting.length() > 0)
 				{
+					// Sensitivity values from Pg.15 of:
+					// https://ae-bst.resource.bosch.com/media/_tech/media/datasheets/BST-BMI055-DS000-08.pdf
+					if (gyro_gain_setting == "125deg/s")
+					{
+						config->gyro_gain = 1.f / (262.4f / k_degrees_to_radians);
+						bChanged = true;
+					}
+					if (gyro_gain_setting == "250deg/s")
+					{
+						config->gyro_gain = 1.f / (131.2 / k_degrees_to_radians);
+						bChanged = true;
+					}
 					if (gyro_gain_setting == "500deg/s")
 					{
-						config->gyro_gain = 1.f / 2048.f;
+						config->gyro_gain = 1.f / (65.6 / k_degrees_to_radians);
 						bChanged = true;
 					}
 					else if (gyro_gain_setting == "1000deg/s")
 					{
-						config->gyro_gain = 1.f / 1024.f;
+						config->gyro_gain = 1.f / (32.8 / k_degrees_to_radians);
+						bChanged = true;
+					}
+					else if (gyro_gain_setting == "2000deg/s")
+					{
+						config->gyro_gain = 1.f / (16.4 / k_degrees_to_radians);
 						bChanged = true;
 					}
 				}
