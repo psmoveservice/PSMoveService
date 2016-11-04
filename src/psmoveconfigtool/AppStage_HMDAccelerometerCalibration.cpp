@@ -1,6 +1,6 @@
 //-- inludes -----
-#include "AppStage_AccelerometerCalibration.h"
-#include "AppStage_ControllerSettings.h"
+#include "AppStage_HMDAccelerometerCalibration.h"
+#include "AppStage_HMDSettings.h"
 #include "AppStage_MainMenu.h"
 #include "App.h"
 #include "Camera.h"
@@ -23,7 +23,7 @@
 #include <algorithm>
 
 //-- statics ----
-const char *AppStage_AccelerometerCalibration::APP_STAGE_NAME = "AcceleromterCalibration";
+const char *AppStage_HMDAccelerometerCalibration::APP_STAGE_NAME = "HMDAcceleromterCalibration";
 
 //-- constants -----
 static const double k_stabilize_wait_time_ms = 1000.f;
@@ -33,140 +33,146 @@ static const float k_min_sample_distance = 1000.f;
 static const float k_min_sample_distance_sq = k_min_sample_distance*k_min_sample_distance;
 
 //-- definitions -----
-struct AccelerometerPoseSamples
+struct HMDAccelerometerPoseSamples
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    PSMoveFloatVector3 accelerometer_samples[k_max_accelerometer_samples];
-    PSMoveFloatVector3 avg_accelerometer_sample;
-    float noise_radius;
+	PSMoveFloatVector3 raw_accelerometer_samples[k_max_accelerometer_samples];
+    PSMoveFloatVector3 raw_accelerometer_bias;
+	float raw_variance; // Max raw sensor variance (raw_sensor_units^2)
     int sample_count;
 
     void clear()
     {        
         sample_count= 0;
-        noise_radius= 0.f;
+		raw_accelerometer_bias = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
+		raw_variance = 0.f;
     }
 
     void computeStatistics()
     {
-        avg_accelerometer_sample = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
+		const float N = static_cast<float>(k_max_accelerometer_samples);
+
+		// Compute both mean of signed and unsigned samples
+		PSMoveFloatVector3 mean_acc_abs_error = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
+        raw_accelerometer_bias = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
         for (int sample_index= 0; sample_index < k_max_accelerometer_samples; ++sample_index)
         {
-            avg_accelerometer_sample= avg_accelerometer_sample + accelerometer_samples[sample_index];
-        }
-        avg_accelerometer_sample= avg_accelerometer_sample.unsafe_divide(static_cast<float>(k_max_accelerometer_samples));
+			PSMoveFloatVector3 signed_error_sample = raw_accelerometer_samples[sample_index];
+			PSMoveFloatVector3 unsigned_error_sample = signed_error_sample.abs();
 
-        noise_radius= 0;
-        for (int sample_index= 0; sample_index < k_max_accelerometer_samples; ++sample_index)
-        {
-            PSMoveFloatVector3 error= accelerometer_samples[sample_index] - avg_accelerometer_sample;
-
-            noise_radius= fmaxf(noise_radius, error.length());
+			mean_acc_abs_error = mean_acc_abs_error + unsigned_error_sample;
+            raw_accelerometer_bias= raw_accelerometer_bias + signed_error_sample;
         }
+		mean_acc_abs_error = mean_acc_abs_error.unsafe_divide(N);
+        raw_accelerometer_bias= raw_accelerometer_bias.unsafe_divide(N);
+
+		// Compute the variance of the (unsigned) sample error, where "error" = abs(accelerometer_sample)
+		PSMoveFloatVector3 var_accelerometer = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
+		for (int sample_index = 0; sample_index < sample_count; sample_index++)
+		{
+			PSMoveFloatVector3 unsigned_error_sample = raw_accelerometer_samples[sample_index].abs();
+			PSMoveFloatVector3 diff_from_mean = unsigned_error_sample - mean_acc_abs_error;
+
+			var_accelerometer = var_accelerometer + diff_from_mean.square();
+		}
+		var_accelerometer = var_accelerometer.unsafe_divide(N - 1);
+
+		// Use the max variance of all three axes (should be close)
+		raw_variance = var_accelerometer.maxValue();
     }
 };
 
 //-- private methods -----
-static void request_set_accelerometer_calibration(
+static void request_set_hmd_accelerometer_calibration(
     const int controller_id,
-    const float noise_radius);
-static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
+	const PSMoveFloatVector3 &raw_bias,
+    const float raw_variance);
+static void drawHMD(ClientHMDView *controllerView, const glm::mat4 &transform);
 
 //-- public methods -----
-AppStage_AccelerometerCalibration::AppStage_AccelerometerCalibration(App *app)
+AppStage_HMDAccelerometerCalibration::AppStage_HMDAccelerometerCalibration(App *app)
     : AppStage(app)
-    , m_menuState(AppStage_AccelerometerCalibration::inactive)
+    , m_menuState(AppStage_HMDAccelerometerCalibration::inactive)
     , m_bBypassCalibration(false)
-    , m_controllerView(nullptr)
-    , m_isControllerStreamActive(false)
-    , m_lastControllerSeqNum(-1)
-    , m_noiseSamples(new AccelerometerPoseSamples)
+    , m_hmdView(nullptr)
+    , m_isHMDStreamActive(false)
+    , m_lastHMDSeqNum(-1)
+    , m_noiseSamples(new HMDAccelerometerPoseSamples)
 {
 }
 
-AppStage_AccelerometerCalibration::~AppStage_AccelerometerCalibration()
+AppStage_HMDAccelerometerCalibration::~AppStage_HMDAccelerometerCalibration()
 {
     delete m_noiseSamples;
 }
 
-void AppStage_AccelerometerCalibration::enter()
+void AppStage_HMDAccelerometerCalibration::enter()
 {
-    const AppStage_ControllerSettings *controllerSettings =
-        m_app->getAppStage<AppStage_ControllerSettings>();
-    const AppStage_ControllerSettings::ControllerInfo *controllerInfo =
-        controllerSettings->getSelectedControllerInfo();
+    const AppStage_HMDSettings *hmdSettings = m_app->getAppStage<AppStage_HMDSettings>();
+    const AppStage_HMDSettings::HMDInfo *hmdInfo = hmdSettings->getSelectedHmdInfo();
 
     // Reset the menu state
     m_app->setCameraType(_cameraOrbit);
     m_app->getOrbitCamera()->resetOrientation();
-    m_app->getOrbitCamera()->setCameraOrbitRadius(1000.f); // zoom out to see the magnetometer data at scale
+    m_app->getOrbitCamera()->setCameraOrbitRadius(500.f); // zoom out to see the magnetometer data at scale
 
     m_menuState = eCalibrationMenuState::waitingForStreamStartResponse;
 
     m_noiseSamples->clear();
 
     // Initialize the controller state
-    assert(controllerInfo->ControllerID != -1);
-    assert(m_controllerView == nullptr);
-    m_controllerView = ClientPSMoveAPI::allocate_controller_view(controllerInfo->ControllerID);
+    assert(hmdInfo->HmdID != -1);
+    assert(m_hmdView == nullptr);
+    m_hmdView = ClientPSMoveAPI::allocate_hmd_view(hmdInfo->HmdID);
 
     m_lastCalibratedAccelerometer = *k_psmove_float_vector3_zero;
-    m_lastControllerSeqNum = -1;
+    m_lastHMDSeqNum = -1;
 
     // Start streaming in controller data
-    assert(!m_isControllerStreamActive);
+    assert(!m_isHMDStreamActive);
     ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::start_controller_data_stream(
-            m_controllerView, 
+        ClientPSMoveAPI::start_hmd_data_stream(
+            m_hmdView, 
             ClientPSMoveAPI::includeCalibratedSensorData | 
-            ClientPSMoveAPI::includePhysicsData |
-            ClientPSMoveAPI::includePositionData), // Needed so linear acceleration is computed
-        &AppStage_AccelerometerCalibration::handle_acquire_controller, this);
+            ClientPSMoveAPI::includeRawSensorData),
+        &AppStage_HMDAccelerometerCalibration::handle_acquire_hmd, this);
 }
 
-void AppStage_AccelerometerCalibration::exit()
+void AppStage_HMDAccelerometerCalibration::exit()
 {
-    assert(m_controllerView != nullptr);
-    ClientPSMoveAPI::free_controller_view(m_controllerView);
-    m_controllerView = nullptr;
+    assert(m_hmdView != nullptr);
+    ClientPSMoveAPI::free_hmd_view(m_hmdView);
+    m_hmdView = nullptr;
     m_menuState = eCalibrationMenuState::inactive;
 
     // Reset the orbit camera back to default orientation and scale
     m_app->getOrbitCamera()->reset();
 }
 
-void AppStage_AccelerometerCalibration::update()
+void AppStage_HMDAccelerometerCalibration::update()
 {
     bool bControllerDataUpdatedThisFrame = false;
 
-    if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
+    if (m_isHMDStreamActive && m_hmdView->GetSequenceNum() != m_lastHMDSeqNum)
     {
-        const PSMovePhysicsData &physicsData= m_controllerView->GetPhysicsData();
-
-        switch(m_controllerView->GetControllerViewType())
+        switch(m_hmdView->GetHmdViewType())
         {
-        case ClientControllerView::eControllerType::PSDualShock4:
+		case ClientHMDView::eHMDViewType::Morpheus:
             {
-                const PSDualShock4CalibratedSensorData &calibratedSensorData =
-                    m_controllerView->GetPSDualShock4View().GetCalibratedSensorData();
+				const MorpheusRawSensorData &rawSensorData =
+					m_hmdView->GetMorpheusView().GetRawSensorData();
+                const MorpheusCalibratedSensorData &calibratedSensorData =
+                    m_hmdView->GetMorpheusView().GetCalibratedSensorData();
 
-                m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
-            } break;
-        case ClientControllerView::eControllerType::PSMove:
-            {
-                const PSMoveCalibratedSensorData &calibratedSensorData =
-                    m_controllerView->GetPSMoveView().GetCalibratedSensorData();
-
+				m_lastRawAccelerometer = rawSensorData.Accelerometer;
                 m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
             } break;
         default:
             assert(0 && "unreachable");
         }
 
-        m_lastAcceleration= physicsData.Acceleration;
-        m_lastVelocity= physicsData.Velocity;
-        m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
+        m_lastHMDSeqNum = m_hmdView->GetSequenceNum();
         bControllerDataUpdatedThisFrame = true;
     }
 
@@ -179,16 +185,16 @@ void AppStage_AccelerometerCalibration::update()
                 if (m_bBypassCalibration)
                 {
                     m_app->getOrbitCamera()->resetOrientation();
-                    m_menuState = AppStage_AccelerometerCalibration::test;
+                    m_menuState = AppStage_HMDAccelerometerCalibration::test;
                 }
                 else
                 {
-                    m_menuState = AppStage_AccelerometerCalibration::placeController;
+                    m_menuState = AppStage_HMDAccelerometerCalibration::placeHMD;
                 }
             }
         } break;
     case eCalibrationMenuState::failedStreamStart:
-    case eCalibrationMenuState::placeController:
+    case eCalibrationMenuState::placeHMD:
         {
         } break;
     case eCalibrationMenuState::measureNoise:
@@ -196,7 +202,7 @@ void AppStage_AccelerometerCalibration::update()
             if (bControllerDataUpdatedThisFrame && m_noiseSamples->sample_count < k_max_accelerometer_samples)
             {
                 // Store the new sample
-                m_noiseSamples->accelerometer_samples[m_noiseSamples->sample_count] = m_lastCalibratedAccelerometer;
+                m_noiseSamples->raw_accelerometer_samples[m_noiseSamples->sample_count] = m_lastRawAccelerometer.castToFloatVector3();
                 ++m_noiseSamples->sample_count;
 
                 // See if we filled all of the samples for this pose
@@ -207,11 +213,12 @@ void AppStage_AccelerometerCalibration::update()
                     m_noiseSamples->computeStatistics();
 
                     // Tell the service what the new calibration constraints are
-                    request_set_accelerometer_calibration(
-                        m_controllerView->GetControllerID(),
-                        m_noiseSamples->noise_radius);
+                    request_set_hmd_accelerometer_calibration(
+                        m_hmdView->GetHmdID(),
+                        m_noiseSamples->raw_accelerometer_bias,
+						m_noiseSamples->raw_variance);
 
-                    m_menuState = AppStage_AccelerometerCalibration::measureComplete;
+                    m_menuState = AppStage_HMDAccelerometerCalibration::measureComplete;
                 }
             }
         } break;
@@ -224,21 +231,15 @@ void AppStage_AccelerometerCalibration::update()
     }
 }
 
-void AppStage_AccelerometerCalibration::render()
+void AppStage_HMDAccelerometerCalibration::render()
 {
-    const float modelScale = 18.f;
-    glm::mat4 controllerTransform;
+    const float modelScale = 9.f;
+    glm::mat4 hmdTransform;
 
-    switch(m_controllerView->GetControllerViewType())
+    switch(m_hmdView->GetHmdViewType())
     {
-    case ClientControllerView::PSMove:
-		controllerTransform= 
-			glm::rotate(
-				glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale)),
-				90.f, glm::vec3(1.f, 0.f, 0.f));  
-        break;
-    case ClientControllerView::PSDualShock4:
-        controllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale));
+    case ClientHMDView::Morpheus:
+        hmdTransform = glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale));
         break;
     }
 
@@ -248,29 +249,29 @@ void AppStage_AccelerometerCalibration::render()
     case eCalibrationMenuState::failedStreamStart:
         {
         } break;
-    case eCalibrationMenuState::placeController:
+    case eCalibrationMenuState::placeHMD:
         {
             // Draw the controller model in the pose we want the user place it in
-            drawController(m_controllerView, controllerTransform);
+            drawHMD(m_hmdView, hmdTransform);
         } break;
     case eCalibrationMenuState::measureNoise:
     case eCalibrationMenuState::measureComplete:
         {
-            const float sampleScale = 100.f;
+            const float sampleScale = 0.01f;
             glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
 
             // Draw the controller in the middle            
-            drawController(m_controllerView, controllerTransform);
+            drawHMD(m_hmdView, hmdTransform);
 
             // Draw the sample point cloud around the origin
             drawPointCloud(sampleTransform, glm::vec3(1.f, 1.f, 1.f), 
-                reinterpret_cast<float *>(m_noiseSamples->accelerometer_samples), 
+                reinterpret_cast<float *>(m_noiseSamples->raw_accelerometer_samples), 
                 m_noiseSamples->sample_count);
 
             // Draw the current raw accelerometer direction
             {
                 glm::vec3 m_start = glm::vec3(0.f, 0.f, 0.f);
-                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
+                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastRawAccelerometer.castToFloatVector3());
 
                 drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
                 drawTextAtWorldPosition(sampleTransform, m_end, "A");
@@ -278,42 +279,31 @@ void AppStage_AccelerometerCalibration::render()
         } break;
     case eCalibrationMenuState::test:
         {
-            const float sampleScale = 1.f;
+            const float sampleScale = 10.f;
             glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
 
-            drawController(m_controllerView, controllerTransform);
-            drawTransformedAxes(controllerTransform, 200.f);
+            drawHMD(m_hmdView, hmdTransform);
+            drawTransformedAxes(hmdTransform, 200.f);
 
-            // Draw the current filtered acceleration direction
+            // Draw the current filtered accelerometer direction
             {
-                const float accel_cms2 = m_lastAcceleration.length();
+                const float accel_g = m_lastCalibratedAccelerometer.length();
                 glm::vec3 m_start = glm::vec3(0.f);
-                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastAcceleration);
+                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
 
                 drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
-                drawTextAtWorldPosition(sampleTransform, m_end, "A(%.1fcm/s^2)", accel_cms2);
+                drawTextAtWorldPosition(sampleTransform, m_end, "A(%.1fg)", accel_g);
             }
-
-            // Draw the current filtered acceleration direction
-            {
-                const float vel_cms = m_lastVelocity.length();
-                glm::vec3 m_start = glm::vec3(0.f);
-                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastVelocity);
-
-                drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(0.f, 1.f, 0.f));
-                drawTextAtWorldPosition(sampleTransform, m_end, "V(%.1fcm/s)", vel_cms);
-            }
-
         } break;
     default:
         assert(0 && "unreachable");
     }
 }
 
-void AppStage_AccelerometerCalibration::renderUI()
+void AppStage_HMDAccelerometerCalibration::renderUI()
 {
     const float k_panel_width = 500;
-    const char *k_window_title = "Controller Settings";
+    const char *k_window_title = "HMD Settings";
     const ImGuiWindowFlags window_flags =
         ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize |
@@ -329,7 +319,7 @@ void AppStage_AccelerometerCalibration::renderUI()
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            ImGui::Text("Waiting for controller stream to start...");
+            ImGui::Text("Waiting for hmd stream to start...");
 
             ImGui::End();
         } break;
@@ -339,11 +329,11 @@ void AppStage_AccelerometerCalibration::renderUI()
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            ImGui::Text("Failed to start controller stream!");
+            ImGui::Text("Failed to start hmd stream!");
 
             if (ImGui::Button("Ok"))
             {
-                request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
+                request_exit_to_app_stage(AppStage_HMDSettings::APP_STAGE_NAME);
             }
 
             ImGui::SameLine();
@@ -355,19 +345,16 @@ void AppStage_AccelerometerCalibration::renderUI()
 
             ImGui::End();
         } break;
-    case eCalibrationMenuState::placeController:
+    case eCalibrationMenuState::placeHMD:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-			switch(m_controllerView->GetControllerViewType())
+			switch(m_hmdView->GetHmdViewType())
 			{
-			case ClientControllerView::PSMove:
-				ImGui::Text("Stand the controller on a level surface with the Move button facing you");
-				break;
-			case ClientControllerView::PSDualShock4:
-				ImGui::Text("Lay the controller flat on the table face up");
+			case ClientHMDView::Morpheus:
+				ImGui::Text("Set the HMD on a flat, level surface");
 				break;
 			}
 
@@ -378,7 +365,7 @@ void AppStage_AccelerometerCalibration::renderUI()
             ImGui::SameLine();
             if (ImGui::Button("Cancel"))
             {
-                request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
+                request_exit_to_app_stage(AppStage_HMDSettings::APP_STAGE_NAME);
             }
 
             ImGui::End();
@@ -410,15 +397,14 @@ void AppStage_AccelerometerCalibration::renderUI()
 
             if (ImGui::Button("Ok"))
             {
-                m_controllerView->SetLEDOverride(0, 0, 0);
-                request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
+                request_exit_to_app_stage(AppStage_HMDSettings::APP_STAGE_NAME);
             }
             ImGui::SameLine();
             if (ImGui::Button("Redo"))
             {
                 // Reset the sample info for the current pose
                 m_noiseSamples->clear();
-                m_menuState = eCalibrationMenuState::placeController;
+                m_menuState = eCalibrationMenuState::placeHMD;
             }
 
             ImGui::End();
@@ -431,16 +417,16 @@ void AppStage_AccelerometerCalibration::renderUI()
 
             if (m_bBypassCalibration)
             {
-                ImGui::Text("Testing Calibration of Controller ID #%d", m_controllerView->GetControllerID());
+                ImGui::Text("Testing Calibration of HMD ID #%d", m_hmdView->GetHmdID());
             }
             else
             {
-                ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
+                ImGui::Text("Calibration of HMD ID #%d complete!", m_hmdView->GetHmdID());
             }
 
             if (ImGui::Button("Ok"))
             {
-                request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
+                request_exit_to_app_stage(AppStage_HMDSettings::APP_STAGE_NAME);
             }
 
             ImGui::SameLine();
@@ -458,57 +444,58 @@ void AppStage_AccelerometerCalibration::renderUI()
 }
 
 //-- private methods -----
-static void request_set_accelerometer_calibration(
+static void request_set_hmd_accelerometer_calibration(
     const int controller_id,
-    const float noise_radius)
+	const PSMoveFloatVector3 &raw_bias,
+    const float variance)
 {
     RequestPtr request(new PSMoveProtocol::Request());
-    request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_ACCELEROMETER_CALIBRATION);
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_HMD_ACCELEROMETER_CALIBRATION);
 
-    PSMoveProtocol::Request_RequestSetControllerAccelerometerCalibration *calibration =
-        request->mutable_set_controller_accelerometer_calibration_request();
+    PSMoveProtocol::Request_RequestSetHMDAccelerometerCalibration *calibration =
+        request->mutable_set_hmd_accelerometer_calibration_request();
 
-    calibration->set_controller_id(controller_id);
-    calibration->set_noise_radius(noise_radius);
+    calibration->set_hmd_id(controller_id);
+	calibration->mutable_raw_bias()->set_i(raw_bias.i);
+	calibration->mutable_raw_bias()->set_j(raw_bias.j);
+	calibration->mutable_raw_bias()->set_k(raw_bias.k);
+    calibration->set_raw_variance(variance);
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }
 
-void AppStage_AccelerometerCalibration::handle_acquire_controller(
+void AppStage_HMDAccelerometerCalibration::handle_acquire_hmd(
     const ClientPSMoveAPI::ResponseMessage *response,
     void *userdata)
 {
-    AppStage_AccelerometerCalibration *thisPtr = reinterpret_cast<AppStage_AccelerometerCalibration *>(userdata);
+    AppStage_HMDAccelerometerCalibration *thisPtr = reinterpret_cast<AppStage_HMDAccelerometerCalibration *>(userdata);
 
     if (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
     {
-        thisPtr->m_isControllerStreamActive = true;
-        thisPtr->m_lastControllerSeqNum = -1;
-        // Wait for the first controller packet to show up...
+        thisPtr->m_isHMDStreamActive = true;
+        thisPtr->m_lastHMDSeqNum = -1;
+        // Wait for the first HMD packet to show up...
     }
     else
     {
-        thisPtr->m_menuState = AppStage_AccelerometerCalibration::failedStreamStart;
+        thisPtr->m_menuState = AppStage_HMDAccelerometerCalibration::failedStreamStart;
     }
 }
 
-void AppStage_AccelerometerCalibration::request_exit_to_app_stage(const char *app_stage_name)
+void AppStage_HMDAccelerometerCalibration::request_exit_to_app_stage(const char *app_stage_name)
 {
-    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(m_controllerView));
-    m_isControllerStreamActive= false;
+    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_hmd_data_stream(m_hmdView));
+    m_isHMDStreamActive= false;
     m_app->setAppStage(app_stage_name);
 }
 
 //-- private methods -----
-static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform)
+static void drawHMD(ClientHMDView *hmdView, const glm::mat4 &transform)
 {
-    switch(controllerView->GetControllerViewType())
+    switch(hmdView->GetHmdViewType())
     {
-    case ClientControllerView::PSMove:
-        drawPSMoveModel(transform, glm::vec3(1.f, 1.f, 1.f));
-        break;
-    case ClientControllerView::PSDualShock4:
-        drawPSDualShock4Model(transform, glm::vec3(1.f, 1.f, 1.f));
+    case ClientHMDView::Morpheus:
+        drawMorpheusModel(transform);
         break;
     }
 }

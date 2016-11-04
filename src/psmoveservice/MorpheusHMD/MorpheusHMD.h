@@ -13,7 +13,7 @@
 // The angle the accelerometer reading will be pitched by
 // if the Morpheus is held such that the face plate is perpendicular to the ground
 // i.e. where what we consider the "identity" pose
-#define ACCELEROMETER_IDENTITY_PITCH_DEGREES 0.0f
+#define MORPHEUS_ACCELEROMETER_IDENTITY_PITCH_DEGREES 0.0f
 
 class MorpheusHMDConfig : public PSMoveConfig
 {
@@ -25,11 +25,9 @@ public:
 		, is_valid(false)
 		, version(CONFIG_VERSION)
 		, max_velocity(1.f)
-		, accelerometer_gain(0.f)
-		, accelerometer_variance(0.f)
-		, gyro_gain(0.f)
-		, gyro_variance(0.f)
-		, gyro_drift(0.f)
+		, raw_accelerometer_variance(0.f)
+		, raw_gyro_variance(0.f)
+		, raw_gyro_drift(0.f)
 		, max_poll_failure_count(100)
 		, prediction_time(0.f)
 		, min_orientation_quality_screen_area(150.f*34.f*.1f)
@@ -38,9 +36,9 @@ public:
 		, max_position_quality_screen_area(75.f*17.f)
 		, tracking_color_id(eCommonTrackingColorID::Blue)
     {
-		// The Morpheus I suspect uses the BMI160 IMU Chip: 
+		// The Morpheus uses the BMI055 IMU Chip: 
 		// https://d3nevzfk7ii3be.cloudfront.net/igi/hnlrYUv5BUb6lMoW.huge
-		// http://www.mouser.com/ds/2/783/BST-BMI160-DS000-07-786474.pdf
+		// https://www.bosch-sensortec.com/bst/products/all_products/bmi055
 		//
 		// The Accelerometer can operate in one of 4 modes: 
 		//   ±2g, ±4g, ±8g, ±16g
@@ -49,33 +47,45 @@ public:
 		//   (or ±2.18 rad/s, ±4.36 rad/s, ±8.72 rad/s, ±17.45 rad/s, ±34.9 rad/s)
 		//
 		// I haven't seen any indication that suggests the Morpheus changes modes.
-		// It also appears that the raw accelerometer and gyroscope values are pre-calibrated
-		// (there is no sensor calibration report with biases and gains that I can find)
+		// However we need to calibrate the sensor bias at startup
+		
+		// NOTE: If you are unfamiliar like I was with "LSB/Unit"
+		// see http://stackoverflow.com/questions/19161872/meaning-of-lsb-unit-and-unit-lsb
 
-		// Accelerometer gain computed from accelerometer calibration in the config tool is really close to 1/16384.
-		// and is just in a 1.14 fixed point value (+1 sign bit)
-		// This agrees with the stack exchange article
-		accelerometer_gain = 1.f / 16384.f;
+		// Accelerometer configured at ±2g, 1024 LSB/g
+		accelerometer_gain.i = 1.f / (1024.f*16.f);
+		accelerometer_gain.j = 1.f / (1024.f*16.f);
+		accelerometer_gain.k = 1.f / (1024.f*16.f);
 
-		// Empirical testing of the of the gyro gain looks best at 1/2048.
-		// This implies that gyroscope is returned from the controller is pre-calibrated 
-		// and is just in a 1.14 fixed point value (+1 sign bit).
-		// This is twice what the stack exchange article recommends.
-		gyro_gain = 1.f / 16384.f;
+		// Assume no bias until calibration says otherwise
+		raw_accelerometer_bias.i = 0.f;
+		raw_accelerometer_bias.j = 0.f;
+		raw_accelerometer_bias.k = 0.f;
+
+		// Gyroscope configured at ±250°/s, 131.2f LSB/(°/s)
+		// but we want the calibrated gyro value in radians/s so add in a deg->rad conversion as well
+		gyro_gain.i = k_degrees_to_radians / 131.2f;
+		gyro_gain.j = k_degrees_to_radians / 131.2f;
+		gyro_gain.k = k_degrees_to_radians / 131.2f;
+
+		// Assume no bias until calibration says otherwise
+		raw_gyro_bias.i = 0.f;
+		raw_gyro_bias.j = 0.f;
+		raw_gyro_bias.k = 0.f;
 
 		// This is the variance of the calibrated gyro value recorded for 100 samples
 		// Units in rad/s^2
-		gyro_variance = 1.33875039e-006f;
+		raw_gyro_variance = 1.33875039e-006f;
 
 		// This is the drift of the raw gyro value recorded for 60 seconds
 		// Units rad/s
-		gyro_drift = 0.00110168592f;
+		raw_gyro_drift = 0.00110168592f;
 
 		// This is the ideal accelerometer reading you get when the DS4 is held such that 
 		// the light bar facing is perpendicular to gravity.        
 		identity_gravity_direction.i = 0.f;
-		identity_gravity_direction.j = cosf(ACCELEROMETER_IDENTITY_PITCH_DEGREES*k_degrees_to_radians);
-		identity_gravity_direction.k = -sinf(ACCELEROMETER_IDENTITY_PITCH_DEGREES*k_degrees_to_radians);
+		identity_gravity_direction.j = cosf(MORPHEUS_ACCELEROMETER_IDENTITY_PITCH_DEGREES*k_degrees_to_radians);
+		identity_gravity_direction.k = -sinf(MORPHEUS_ACCELEROMETER_IDENTITY_PITCH_DEGREES*k_degrees_to_radians);
     };
 
     virtual const boost::property_tree::ptree config2ptree();
@@ -84,10 +94,11 @@ public:
     bool is_valid;
     long version;
 
-	// calibrated_acc= raw_acc*acc_gain
-	float accelerometer_gain;
+	// calibrated_acc= raw_acc*acc_gain + acc_bias
+	CommonDeviceVector accelerometer_gain;
+	CommonDeviceVector raw_accelerometer_bias;
 	// The variance of the raw gyro readings in rad/sec^2
-	float accelerometer_variance;
+	float raw_accelerometer_variance;
 
 	// Maximum velocity for the controller physics (meters/second)
 	float max_velocity;
@@ -95,12 +106,13 @@ public:
 	// The calibrated "down" direction
 	CommonDeviceVector identity_gravity_direction;
 
-	// calibrated_gyro= raw_gyro*gyro_gain
-	float gyro_gain;
+	// calibrated_gyro= raw_gyro*gyro_gain + gyro_bias
+	CommonDeviceVector gyro_gain;
+	CommonDeviceVector raw_gyro_bias;
 	// The variance of the raw gyro readings in rad/sec^2
-	float gyro_variance;
+	float raw_gyro_variance;
 	// The drift raw gyro readings in rad/second
-	float gyro_drift;
+	float raw_gyro_drift;
 
 	// The pixel area of the tracking projection at which the orientation quality is 0
 	float min_orientation_quality_screen_area;
@@ -120,6 +132,8 @@ public:
 
 struct MorpheusHMDSensorFrame
 {
+	int SequenceNumber;
+
 	CommonRawDeviceVector RawAccel;
 	CommonRawDeviceVector RawGyro;
 
@@ -128,6 +142,7 @@ struct MorpheusHMDSensorFrame
 
 	void clear()
 	{
+		SequenceNumber = 0;
 		RawAccel.clear();
 		RawGyro.clear();
 		CalibratedAccel.clear();

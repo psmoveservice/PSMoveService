@@ -55,15 +55,17 @@ enum eMorpheusButton : unsigned char
 
 struct MorpheusRawSensorFrame
 {
-	unsigned char accel_x[2];
+	unsigned char seq_frame[2];
+	unsigned char gyro_yaw[2];
+	unsigned char gyro_pitch[2];
+	unsigned char gyro_roll[2];
+	unsigned char accel_x[2]; //It's the X value of the sensor, but it's mounted rotated on the headset
 	unsigned char accel_y[2];
 	unsigned char accel_z[2];
-	unsigned char gyro_x[2];
-	unsigned char gyro_y[2];
-	unsigned char gyro_z[2];
 };
 
 #pragma pack(1)
+//See https://github.com/gusmanb/PSVRFramework/wiki/Sensor-report
 struct MorpheusDataInput
 {
 	eMorpheusButton buttons;					// byte 0
@@ -89,10 +91,18 @@ struct MorpheusDataInput
 	unsigned char unkFlags;     				// byte 9
 	unsigned char unk2[4];						// byte 10-17
 
-	unsigned short frame;						// byte 18-19
-	MorpheusRawSensorFrame imu_frame_0;         // byte 20-31
-	unsigned char unk3[4];						// byte 32-35
-	MorpheusRawSensorFrame imu_frame_1;         // byte 36-47
+	MorpheusRawSensorFrame imu_frame_0;         // byte 18-31
+	unsigned char unk3[2];						// byte 32-33
+	MorpheusRawSensorFrame imu_frame_1;         // byte 34-47
+
+	unsigned char calibration_status;           // byte 48: 255 = boot, 0 - 3 calibrating ? 4 = calibrated, maybe a bit mask with sensor status ? (0 bad, 1 good) ?
+	unsigned char sensors_ready;                // byte 49 
+	unsigned char unk4[3];						// byte 50-52 
+	unsigned char unk5;                         // byte 53: Voltage reference ? starts in 0 and suddenly jumps to 3
+	unsigned char unk6;	                        // byte 54: Voltage value ? starts on 0, ranges very fast to 255, when switched from VR to Cinematic and back varies between 255 and 254 and sometimes oscillates between them
+	unsigned char face_distance[2];             // byte 55-56: Infrared headset sensor, 0 to 1023, used to measure distance between the face / head and visor
+	unsigned char unk7[6];                      // byte 57-62
+	unsigned char sequence;                     // byte 63
 
     MorpheusDataInput()
     {
@@ -119,11 +129,21 @@ MorpheusHMDConfig::config2ptree()
 	pt.put("is_valid", is_valid);
 	pt.put("version", MorpheusHMDConfig::CONFIG_VERSION);
 
-	pt.put("Calibration.Accel.Gain", accelerometer_gain);
-	pt.put("Calibration.Accel.Variance", accelerometer_variance);
-	pt.put("Calibration.Gyro.Gain", gyro_gain);
-	pt.put("Calibration.Gyro.Variance", gyro_variance);
-	pt.put("Calibration.Gyro.Drift", gyro_drift);
+	pt.put("Calibration.Accel.X.k", accelerometer_gain.i);
+	pt.put("Calibration.Accel.Y.k", accelerometer_gain.j);
+	pt.put("Calibration.Accel.Z.k", accelerometer_gain.k);
+	pt.put("Calibration.Accel.X.b", raw_accelerometer_bias.i);
+	pt.put("Calibration.Accel.Y.b", raw_accelerometer_bias.j);
+	pt.put("Calibration.Accel.Z.b", raw_accelerometer_bias.k);
+	pt.put("Calibration.Accel.Variance", raw_accelerometer_variance);
+	pt.put("Calibration.Gyro.X.k", gyro_gain.i);
+	pt.put("Calibration.Gyro.Y.k", gyro_gain.j);
+	pt.put("Calibration.Gyro.Z.k", gyro_gain.k);
+	pt.put("Calibration.Gyro.X.b", raw_gyro_bias.i);
+	pt.put("Calibration.Gyro.Y.b", raw_gyro_bias.j);
+	pt.put("Calibration.Gyro.Z.b", raw_gyro_bias.k);
+	pt.put("Calibration.Gyro.Variance", raw_gyro_variance);
+	pt.put("Calibration.Gyro.Drift", raw_gyro_drift);
 	pt.put("Calibration.Identity.Gravity.X", identity_gravity_direction.i);
 	pt.put("Calibration.Identity.Gravity.Y", identity_gravity_direction.j);
 	pt.put("Calibration.Identity.Gravity.Z", identity_gravity_direction.k);
@@ -156,13 +176,23 @@ MorpheusHMDConfig::ptree2config(const boost::property_tree::ptree &pt)
 		max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
 
 		// Use the current accelerometer values (constructor defaults) as the default values
-		accelerometer_gain = pt.get<float>("Calibration.Accel.Gain", accelerometer_gain);
-		accelerometer_variance = pt.get<float>("Calibration.Accel.Variance", accelerometer_variance);
+		accelerometer_gain.i = pt.get<float>("Calibration.Accel.X.k", accelerometer_gain.i);
+		accelerometer_gain.j = pt.get<float>("Calibration.Accel.Y.k", accelerometer_gain.j);
+		accelerometer_gain.k = pt.get<float>("Calibration.Accel.Z.k", accelerometer_gain.k);
+		raw_accelerometer_bias.i = pt.get<float>("Calibration.Accel.X.b", raw_accelerometer_bias.i);
+		raw_accelerometer_bias.j = pt.get<float>("Calibration.Accel.Y.b", raw_accelerometer_bias.j);
+		raw_accelerometer_bias.k = pt.get<float>("Calibration.Accel.Z.b", raw_accelerometer_bias.k);
+		raw_accelerometer_variance = pt.get<float>("Calibration.Accel.Variance", raw_accelerometer_variance);
 
 		// Use the current gyroscope values (constructor defaults) as the default values
-		gyro_gain = pt.get<float>("Calibration.Gyro.Gain", gyro_gain);
-		gyro_variance = pt.get<float>("Calibration.Gyro.Variance", gyro_variance);
-		gyro_drift = pt.get<float>("Calibration.Gyro.Drift", gyro_drift);
+		gyro_gain.i = pt.get<float>("Calibration.Gyro.X.k", gyro_gain.i);
+		gyro_gain.j = pt.get<float>("Calibration.Gyro.Y.k", gyro_gain.j);
+		gyro_gain.k = pt.get<float>("Calibration.Gyro.Z.k", gyro_gain.k);
+		raw_gyro_bias.i = pt.get<float>("Calibration.Gyro.X.b", raw_gyro_bias.i);
+		raw_gyro_bias.j = pt.get<float>("Calibration.Gyro.Y.b", raw_gyro_bias.j);
+		raw_gyro_bias.k = pt.get<float>("Calibration.Gyro.Z.b", raw_gyro_bias.k);
+		raw_gyro_variance = pt.get<float>("Calibration.Gyro.Variance", raw_gyro_variance);
+		raw_gyro_drift = pt.get<float>("Calibration.Gyro.Drift", raw_gyro_drift);
 
 		// Get the orientation filter parameters
 		min_orientation_quality_screen_area = pt.get<float>("OrientationFilter.MinQualityScreenArea", min_orientation_quality_screen_area);
@@ -194,35 +224,44 @@ void MorpheusHMDSensorFrame::parse_data_input(
 	const MorpheusHMDConfig *config,
 	const MorpheusRawSensorFrame *data_input)
 {
-	// Piece together the 16-bit accelerometer data
-	short raw_accelX = static_cast<short>((data_input->accel_x[1] << 8) | data_input->accel_x[0]);
-	short raw_accelY = static_cast<short>((data_input->accel_y[1] << 8) | data_input->accel_y[0]);
-	short raw_accelZ = static_cast<short>((data_input->accel_z[1] << 8) | data_input->accel_z[0]);
+	short raw_seq = static_cast<short>((data_input->seq_frame[1] << 8) | data_input->seq_frame[0]);
+
+	// Piece together the 12-bit accelerometer data
+	//short raw_accelX = static_cast<short>(((data_input->accel_x[1] << 8) | data_input->accel_x[0]) >> 4);
+	//short raw_accelY = static_cast<short>(((data_input->accel_y[1] << 8) | data_input->accel_y[0]) >> 4);
+	//short raw_accelZ = static_cast<short>(((data_input->accel_z[1] << 8) | data_input->accel_z[0]) >> 4);
+	short raw_accelX = static_cast<short>(((data_input->accel_x[1] << 8) | data_input->accel_x[0]));
+	short raw_accelY = static_cast<short>(((data_input->accel_y[1] << 8) | data_input->accel_y[0]));
+	short raw_accelZ = static_cast<short>(((data_input->accel_z[1] << 8) | data_input->accel_z[0]));
+
 
 	// Piece together the 16-bit gyroscope data
-	short raw_gyroX = static_cast<short>((data_input->gyro_x[1] << 8) | data_input->gyro_x[0]);
-	short raw_gyroY = static_cast<short>((data_input->gyro_y[1] << 8) | data_input->gyro_y[0]);
-	short raw_gyroZ = static_cast<short>((data_input->gyro_z[1] << 8) | data_input->gyro_z[0]);
+	short raw_gyroYaw = static_cast<short>((data_input->gyro_yaw[1] << 8) | data_input->gyro_yaw[0]);
+	short raw_gyroPitch = static_cast<short>((data_input->gyro_pitch[1] << 8) | data_input->gyro_pitch[0]);
+	short raw_gyroRoll = static_cast<short>((data_input->gyro_roll[1] << 8) | data_input->gyro_roll[0]);
+
+	// Save the sequence number
+	SequenceNumber = static_cast<int>(raw_seq);
 
 	// Save the raw accelerometer values
 	RawAccel.i = static_cast<int>(raw_accelX);
-	RawAccel.j = static_cast<int>(raw_accelY);
-	RawAccel.k = static_cast<int>(raw_accelZ);
+	RawAccel.j = static_cast<int>(raw_accelZ); // Swap Z and Y so that Y points up
+	RawAccel.k = static_cast<int>(raw_accelY);
 
 	// Save the raw gyro values
-	RawGyro.i = static_cast<int>(raw_gyroX);
-	RawGyro.j = static_cast<int>(raw_gyroY);
-	RawGyro.k = static_cast<int>(raw_gyroZ);
+	RawGyro.i = static_cast<int>(raw_gyroPitch);
+	RawGyro.j = static_cast<int>(raw_gyroYaw);
+	RawGyro.k = static_cast<int>(raw_gyroRoll);
 
-	// calibrated_acc= raw_acc*acc_gain
-	CalibratedAccel.i = static_cast<float>(raw_accelX) * config->accelerometer_gain;
-	CalibratedAccel.j = static_cast<float>(raw_accelY) * config->accelerometer_gain;
-	CalibratedAccel.k = static_cast<float>(raw_accelZ) * config->accelerometer_gain;
+	// calibrated_acc= (raw_acc - acc_bias) * acc_gain
+	CalibratedAccel.i = (static_cast<float>(raw_accelX) - config->raw_accelerometer_bias.i) * config->accelerometer_gain.i;
+	CalibratedAccel.j = (static_cast<float>(raw_accelZ) - config->raw_accelerometer_bias.j) * config->accelerometer_gain.j;  // Swap Z and Y so that Y points up
+	CalibratedAccel.k = (static_cast<float>(raw_accelY) - config->raw_accelerometer_bias.k) * config->accelerometer_gain.k;
 
-	// calibrated_gyro= raw_gyro*gyro_gain
-	CalibratedGyro.i = static_cast<float>(raw_gyroX) * config->gyro_gain;
-	CalibratedGyro.j = static_cast<float>(raw_gyroY) * config->gyro_gain;
-	CalibratedGyro.k = static_cast<float>(raw_gyroZ) * config->gyro_gain;
+	// calibrated_gyro= (raw_gyro - gyro_bias) * gyro_gain
+	CalibratedGyro.i = (static_cast<float>(raw_gyroPitch) - config->raw_gyro_bias.i) * config->gyro_gain.i;
+	CalibratedGyro.j = (static_cast<float>(raw_gyroYaw) - config->raw_gyro_bias.j) * config->gyro_gain.j;
+	CalibratedGyro.k = (static_cast<float>(raw_gyroRoll) - config->raw_gyro_bias.k) * config->gyro_gain.k;
 }
 
 // -- Morpheus HMD State -----

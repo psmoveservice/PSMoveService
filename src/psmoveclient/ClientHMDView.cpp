@@ -272,3 +272,99 @@ void ClientHMDView::ApplyHMDDataFrame(
         }
     }
 }
+
+const PSMovePose &ClientHMDView::GetPose() const
+{
+	switch (HMDViewType)
+	{
+	case eHMDViewType::Morpheus:
+		return GetMorpheusView().GetPose();
+	default:
+		assert(0 && "invalid HMD type");
+		return *k_psmove_pose_identity;
+	}
+}
+
+const PSMovePosition &ClientHMDView::GetPosition() const
+{
+	switch (HMDViewType)
+	{
+	case eHMDViewType::Morpheus:
+		return GetMorpheusView().GetPosition();
+	default:
+		assert(0 && "invalid HMD type");
+		return *k_psmove_position_origin;
+	}
+}
+
+const PSMoveQuaternion &ClientHMDView::GetOrientation() const
+{
+	switch (HMDViewType)
+	{
+	case eHMDViewType::Morpheus:
+		return GetMorpheusView().GetOrientation();
+	default:
+		assert(0 && "invalid HMD type");
+		return *k_psmove_quaternion_identity;
+	}
+}
+
+const MorpheusPhysicsData &ClientHMDView::GetPhysicsData() const
+{
+	switch (HMDViewType)
+	{
+	case eHMDViewType::Morpheus:
+		return GetMorpheusView().GetPhysicsData();
+	default:
+		assert(0 && "invalid HMD type");
+		return k_empty_physics_data;
+	}
+}
+
+const MorpheusRawTrackerData &ClientHMDView::GetRawTrackerData() const
+{
+	switch (HMDViewType)
+	{
+	case eHMDViewType::Morpheus:
+		return GetMorpheusView().GetRawTrackerData();
+	default:
+		assert(0 && "invalid HMD type");
+		return k_empty_raw_tracker_data;
+	}
+}
+
+bool ClientHMDView::GetIsCurrentlyTracking() const
+{
+	switch (HMDViewType)
+	{
+	case eHMDViewType::Morpheus:
+		return GetMorpheusView().GetIsCurrentlyTracking();
+	default:
+		assert(0 && "invalid HMD type");
+		return false;
+	}
+}
+
+bool ClientHMDView::GetIsPoseValid() const
+{
+	switch (HMDViewType)
+	{
+	case eHMDViewType::Morpheus:
+		return GetMorpheusView().GetIsOrientationValid() && GetMorpheusView().GetIsPositionValid();
+	default:
+		assert(0 && "invalid HMD type");
+		return false;
+	}
+}
+
+bool ClientHMDView::GetIsStable() const
+{
+	switch (HMDViewType)
+	{
+	case eHMDViewType::Morpheus:
+		return GetMorpheusView().GetIsStable();
+	default:
+		assert(0 && "invalid HMD type");
+		return true;
+	}
+}

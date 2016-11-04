@@ -460,10 +460,30 @@ public:
         request->set_type(PSMoveProtocol::Request_RequestType_START_HMD_DATA_STREAM);
         request->mutable_request_start_hmd_data_stream()->set_hmd_id(view->GetHmdID());
 
+		if ((flags & ClientPSMoveAPI::includePositionData) > 0)
+		{
+			request->mutable_request_start_hmd_data_stream()->set_include_position_data(true);
+		}
+
+		if ((flags & ClientPSMoveAPI::includePhysicsData) > 0)
+		{
+			request->mutable_request_start_hmd_data_stream()->set_include_physics_data(true);
+		}
+
         if ((flags & ClientPSMoveAPI::includeRawSensorData) > 0)
         {
             request->mutable_request_start_hmd_data_stream()->set_include_raw_sensor_data(true);
         }
+
+		if ((flags & ClientPSMoveAPI::includeCalibratedSensorData) > 0)
+		{
+			request->mutable_request_start_hmd_data_stream()->set_include_calibrated_sensor_data(true);
+		}
+
+		if ((flags & ClientPSMoveAPI::includeRawTrackerData) > 0)
+		{
+			request->mutable_request_start_hmd_data_stream()->set_include_raw_tracker_data(true);
+		}
 
         m_request_manager.send_request(request);
 

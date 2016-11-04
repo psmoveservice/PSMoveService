@@ -177,6 +177,11 @@ public:
         bValid = flag;
     }
 
+	inline bool GetIsCurrentlyTracking() const
+	{
+		return IsValid() ? bIsCurrentlyTracking : false;
+	}
+
 	inline bool GetIsTrackingEnabled() const
 	{
 		return IsValid() ? bIsTrackingEnabled : false;
@@ -309,6 +314,16 @@ public:
     {
         return (IsValid() && IsConnected);
     }
+
+	const PSMovePose &GetPose() const;
+	const PSMovePosition &GetPosition() const;
+	const PSMoveQuaternion &GetOrientation() const;
+	const MorpheusPhysicsData &GetPhysicsData() const;
+	const MorpheusRawTrackerData &GetRawTrackerData() const;
+
+	bool GetIsCurrentlyTracking() const;
+	bool GetIsPoseValid() const;
+	bool GetIsStable() const;
 
     // Statistics
     inline float GetDataFrameFPS() const

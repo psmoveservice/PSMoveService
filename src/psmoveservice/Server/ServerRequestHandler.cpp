@@ -7,6 +7,7 @@
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
 #include "HMDManager.h"
+#include "MorpheusHMD.h"
 #include "OrientationFilter.h"
 #include "PositionFilter.h"
 #include "PS3EyeTracker.h"
@@ -207,17 +208,17 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__set_led_tracking_color(context, response);
                 break;
-            case PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION:
+            case PSMoveProtocol::Request_RequestType_SET_CONTROLLER_MAGNETOMETER_CALIBRATION:
                 response = new PSMoveProtocol::Response;
-                handle_request__set_magnetometer_calibration(context, response);
+                handle_request__set_controller_magnetometer_calibration(context, response);
                 break;
-            case PSMoveProtocol::Request_RequestType_SET_ACCELEROMETER_CALIBRATION:
+            case PSMoveProtocol::Request_RequestType_SET_CONTROLLER_ACCELEROMETER_CALIBRATION:
                 response = new PSMoveProtocol::Response;
-                handle_request__set_accelerometer_calibration(context, response);
+                handle_request__set_controller_accelerometer_calibration(context, response);
                 break;
-            case PSMoveProtocol::Request_RequestType_SET_GYROSCOPE_CALIBRATION:
+            case PSMoveProtocol::Request_RequestType_SET_CONTROLLER_GYROSCOPE_CALIBRATION:
                 response = new PSMoveProtocol::Response;
-                handle_request__set_gyroscope_calibration(context, response);
+                handle_request__set_controller_gyroscope_calibration(context, response);
                 break;
 
             // Tracker Requests
@@ -283,6 +284,14 @@ public:
 				response = new PSMoveProtocol::Response;
                 handle_request__stop_hmd_data_stream(context, response);
                 break;                
+			case PSMoveProtocol::Request_RequestType_SET_HMD_ACCELEROMETER_CALIBRATION:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_hmd_accelerometer_calibration(context, response);
+				break;
+			case PSMoveProtocol::Request_RequestType_SET_HMD_GYROSCOPE_CALIBRATION:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_hmd_gyroscope_calibration(context, response);
+				break;
 
             default:
                 assert(0 && "Whoops, bad request!");
@@ -361,6 +370,19 @@ public:
                     m_device_manager.getTrackerViewPtr(tracker_id)->stopSharedMemoryVideoStream();
                 }
             }
+
+			// Clean up any hmd state related to this connection
+			for (int hmd_id = 0; hmd_id < HMDManager::k_max_devices; ++hmd_id)
+			{
+				const HMDStreamInfo &streamInfo = connection_state->active_hmd_stream_info[hmd_id];
+				ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+				// Halt any hmd tracking this connection had going on
+				if (streamInfo.include_position_data)
+				{
+					m_device_manager.getHMDViewPtr(hmd_id)->stopTracking();
+				}
+			}
 
             // Remove the connection state from the state map
             m_connection_state_map.erase(iter);
@@ -829,11 +851,11 @@ protected:
         target_vector.k = source_vector.k();
     }
 
-    void handle_request__set_magnetometer_calibration(
+    void handle_request__set_controller_magnetometer_calibration(
         const RequestContext &context, 
         PSMoveProtocol::Response *response)
     {
-        const int controller_id= context.request->set_magnetometer_calibration_request().controller_id();
+        const int controller_id= context.request->set_controller_magnetometer_calibration_request().controller_id();
 
         ServerControllerViewPtr ControllerView= m_device_manager.getControllerViewPtr(controller_id);
 
@@ -842,8 +864,7 @@ protected:
             PSMoveController *controller= ControllerView->castChecked<PSMoveController>();
             PSMoveControllerConfig *config= controller->getConfigMutable();
 
-            const PSMoveProtocol::Request_RequestSetMagnetometerCalibration &request= 
-                context.request->set_magnetometer_calibration_request();
+            const auto &request= context.request->set_controller_magnetometer_calibration_request();
 
             set_config_vector(request.ellipse_center(), config->magnetometer_center);
             set_config_vector(request.ellipse_extents(), config->magnetometer_extents);
@@ -875,11 +896,11 @@ protected:
         }
     }
 
-    void handle_request__set_accelerometer_calibration(
+    void handle_request__set_controller_accelerometer_calibration(
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        const int controller_id = context.request->set_accelerometer_calibration_request().controller_id();
+        const int controller_id = context.request->set_controller_accelerometer_calibration_request().controller_id();
 
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
@@ -889,8 +910,7 @@ protected:
             PositionFilter *positionFilter= ControllerView->getPositionFilterMutable();
             PSMoveControllerConfig *config = controller->getConfigMutable();
 
-            const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
-                context.request->set_accelerometer_calibration_request();
+            const auto &request = context.request->set_controller_accelerometer_calibration_request();
 
             // Save the noise radius in controller config
             config->accelerometer_noise_radius= request.noise_radius();
@@ -908,8 +928,7 @@ protected:
             PositionFilter *positionFilter= ControllerView->getPositionFilterMutable();
             PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
-            const PSMoveProtocol::Request_RequestSetAccelerometerCalibration &request =
-                context.request->set_accelerometer_calibration_request();
+            const auto &request = context.request->set_controller_accelerometer_calibration_request();
 
             // Save the noise radius in controller config
             config->accelerometer_noise_radius= request.noise_radius();
@@ -927,11 +946,11 @@ protected:
         }
     }
 
-    void handle_request__set_gyroscope_calibration(
+    void handle_request__set_controller_gyroscope_calibration(
         const RequestContext &context,
         PSMoveProtocol::Response *response)
     {
-        const int controller_id = context.request->set_gyroscope_calibration_request().controller_id();
+        const int controller_id = context.request->set_controller_gyroscope_calibration_request().controller_id();
 
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
@@ -940,8 +959,7 @@ protected:
             PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
             PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
-            const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
-                context.request->set_gyroscope_calibration_request();
+            const auto &request = context.request->set_controller_gyroscope_calibration_request();
 
             config->gyro_drift= request.drift();
             config->gyro_variance= request.variance();
@@ -957,8 +975,7 @@ protected:
             PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
             PSMoveControllerConfig *config = controller->getConfigMutable();
 
-            const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
-                context.request->set_gyroscope_calibration_request();
+            const auto &request = context.request->set_controller_gyroscope_calibration_request();
 
             config->gyro_drift= request.drift();
             config->gyro_variance= request.variance();
@@ -1620,7 +1637,26 @@ protected:
 
                 // Set control flags for the stream
                 streamInfo.Clear();
-                streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
+				streamInfo.include_position_data = request.include_position_data();
+				streamInfo.include_physics_data = request.include_physics_data();
+				streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
+				streamInfo.include_calibrated_sensor_data = request.include_calibrated_sensor_data();
+				streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
+
+				SERVER_LOG_INFO("ServerRequestHandler") << "Start hmd(" << hmd_id << ") stream ("
+					<< "pos=" << streamInfo.include_position_data
+					<< ",phys=" << streamInfo.include_physics_data
+					<< ",raw_sens=" << streamInfo.include_raw_sensor_data
+					<< ",cal_sens=" << streamInfo.include_calibrated_sensor_data
+					<< ",trkr=" << streamInfo.include_raw_tracker_data
+					<< ")";
+
+				if (streamInfo.include_position_data)
+				{
+					ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+					hmd_view->startTracking();
+				}
 
                 // Return the name of the shared memory block the video frames will be written to
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
@@ -1649,6 +1685,12 @@ protected:
 
             if (hmd_view->getIsOpen())
             {
+				const HMDStreamInfo &streamInfo = context.connection_state->active_hmd_stream_info[hmd_id];
+				if (streamInfo.include_position_data)
+				{
+					hmd_view->stopTracking();
+				}
+
                 context.connection_state->active_tracker_streams.set(hmd_id, false);
                 context.connection_state->active_tracker_stream_info[hmd_id].Clear();
 
@@ -1664,7 +1706,73 @@ protected:
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
-    }    
+    }
+
+	void handle_request__set_hmd_accelerometer_calibration(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int hmd_id = context.request->set_hmd_accelerometer_calibration_request().hmd_id();
+
+		ServerHMDViewPtr HMDView = m_device_manager.getHMDViewPtr(hmd_id);
+
+		if (HMDView && HMDView->getHMDDeviceType() == CommonDeviceState::Morpheus)
+		{
+			MorpheusHMD *hmd = HMDView->castChecked<MorpheusHMD>();
+			PositionFilter *positionFilter = HMDView->getPositionFilterMutable();
+			MorpheusHMDConfig *config = hmd->getConfigMutable();
+
+			const auto &request = context.request->set_hmd_accelerometer_calibration_request();
+
+			// Save the bias, but subtract off 1g from the direction of gravity
+			set_config_vector(request.raw_bias(), config->raw_accelerometer_bias);
+			config->raw_accelerometer_bias.j -= (1.f/config->accelerometer_gain.j);
+
+			config->raw_accelerometer_variance = request.raw_variance();
+			config->save();
+
+			// Reset the orientation filter state the calibration changed
+			positionFilter->setAccelerometerNoiseRadius(config->raw_accelerometer_variance);
+			positionFilter->resetFilterState();
+
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
+	void handle_request__set_hmd_gyroscope_calibration(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int hmd_id = context.request->set_hmd_accelerometer_calibration_request().hmd_id();
+
+		ServerHMDViewPtr HMDView = m_device_manager.getHMDViewPtr(hmd_id);
+
+		if (HMDView && HMDView->getHMDDeviceType() == CommonDeviceState::Morpheus)
+		{
+			MorpheusHMD *hmd = HMDView->castChecked<MorpheusHMD>();
+			MorpheusHMDConfig *config = hmd->getConfigMutable();
+
+			const auto &request = context.request->set_hmd_gyroscope_calibration_request();
+
+			set_config_vector(request.raw_bias(), config->raw_gyro_bias);
+			config->raw_gyro_variance = request.raw_variance();
+			config->raw_gyro_drift = request.raw_drift();
+			config->save();
+
+			// Reset the orientation filter state the calibration changed
+			HMDView->getOrientationFilterMutable()->resetFilterState();
+
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
 
     // -- Data Frame Updates -----
     void handle_data_frame__controller_packet(

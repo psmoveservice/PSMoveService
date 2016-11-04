@@ -118,9 +118,9 @@ message Request {
         PAIR_CONTROLLER= 6;
         CANCEL_BLUETOOTH_REQUEST= 7;
         SET_LED_TRACKING_COLOR= 9;
-        SET_MAGNETOMETER_CALIBRATION= 10;
-        SET_ACCELEROMETER_CALIBRATION= 11;
-        SET_GYROSCOPE_CALIBRATION= 12;
+        SET_CONTROLLER_MAGNETOMETER_CALIBRATION= 10;
+        SET_CONTROLLER_ACCELEROMETER_CALIBRATION= 11;
+        SET_CONTROLLER_GYROSCOPE_CALIBRATION= 12;
 
         GET_TRACKER_LIST = 13;
         START_TRACKER_DATA_STREAM = 14;
@@ -137,7 +137,9 @@ message Request {
         
         GET_HMD_LIST = 25;
         START_HMD_DATA_STREAM = 26;
-        STOP_HMD_DATA_STREAM = 27;          
+        STOP_HMD_DATA_STREAM = 27;     
+        SET_HMD_ACCELEROMETER_CALIBRATION= 28;
+        SET_HMD_GYROSCOPE_CALIBRATION= 29;            
     }
     RequestType type = 2;
 
@@ -197,8 +199,8 @@ message Request {
     }
     RequestSetLEDTrackingColor set_led_tracking_color_request = 12;
     
-    // Parameters for SET_MAGNETOMETER_CALIBRATION
-    message RequestSetMagnetometerCalibration {
+    // Parameters for SET_CONTROLLER_MAGNETOMETER_CALIBRATION
+    message RequestSetControllerMagnetometerCalibration {
         int32 controller_id = 1;
         FloatVector ellipse_center= 2;
         FloatVector ellipse_extents= 3;
@@ -208,22 +210,22 @@ message Request {
         float ellipse_fit_error= 7;
         FloatVector magnetometer_identity= 8;
     }
-    RequestSetMagnetometerCalibration set_magnetometer_calibration_request = 13;
+    RequestSetControllerMagnetometerCalibration set_controller_magnetometer_calibration_request = 13;
     
-    // Parameters for SET_ACCELEROMETER_CALIBRATION
-    message RequestSetAccelerometerCalibration {
+    // Parameters for SET_CONTROLLER_ACCELEROMETER_CALIBRATION
+    message RequestSetControllerAccelerometerCalibration {
         int32 controller_id = 1;
         float noise_radius= 2;
     }
-    RequestSetAccelerometerCalibration set_accelerometer_calibration_request = 14;
+    RequestSetControllerAccelerometerCalibration set_controller_accelerometer_calibration_request = 14;
     
-    // Parameters for SET_GYROSCOPE_CALIBRATION
-    message RequestSetGyroscopeCalibration {
+    // Parameters for SET_CONTROLLER_GYROSCOPE_CALIBRATION
+    message RequestSetControllerGyroscopeCalibration {
         int32 controller_id = 1;
         float variance= 2;
         float drift= 3;
     }
-    RequestSetGyroscopeCalibration set_gyroscope_calibration_request = 15;    
+    RequestSetControllerGyroscopeCalibration set_controller_gyroscope_calibration_request = 15;    
     
     // Parameters for START_TRACKER_DATA_STREAM
     // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
@@ -310,7 +312,11 @@ message Request {
     // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
     message RequestStartHmdDataStream {
         int32 hmd_id = 1;
-        bool include_raw_sensor_data= 2;        
+        bool include_position_data = 2;
+        bool include_physics_data= 3;
+        bool include_raw_sensor_data= 4;
+        bool include_calibrated_sensor_data= 5;        
+        bool include_raw_tracker_data= 6;      
     }
     RequestStartHmdDataStream request_start_hmd_data_stream = 26;
 
@@ -319,7 +325,24 @@ message Request {
     message RequestStopHmdDataStream {
         int32 hmd_id = 1;
     }
-    RequestStopHmdDataStream request_stop_hmd_data_stream = 27;       
+    RequestStopHmdDataStream request_stop_hmd_data_stream = 27;
+
+    // Parameters for SET_HMD_ACCELEROMETER_CALIBRATION
+    message RequestSetHMDAccelerometerCalibration {
+        int32 hmd_id = 1;
+        FloatVector raw_bias= 2;
+        float raw_variance= 3;
+    }
+    RequestSetHMDAccelerometerCalibration set_hmd_accelerometer_calibration_request = 28;
+    
+    // Parameters for SET_HMD_GYROSCOPE_CALIBRATION
+    message RequestSetHMDGyroscopeCalibration {
+        int32 hmd_id = 1;
+        FloatVector raw_bias= 2;
+        float raw_variance= 3;
+        float raw_drift= 4;
+    }
+    RequestSetHMDGyroscopeCalibration set_hmd_gyroscope_calibration_request = 29;  
 }
 
 // Reliable (TCP) responses to requests

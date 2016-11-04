@@ -51,7 +51,7 @@ void AppStage_TestHMD::enter()
     m_lastHmdSeqNum = -1;
 
 	ClientPSMoveAPI::register_callback(
-		ClientPSMoveAPI::start_hmd_data_stream(m_hmdView, ClientPSMoveAPI::includeRawHMDSensorData),
+		ClientPSMoveAPI::start_hmd_data_stream(m_hmdView, ClientPSMoveAPI::includeRawSensorData),
         &AppStage_TestHMD::handle_hmd_start_stream_response, this);
 }
 

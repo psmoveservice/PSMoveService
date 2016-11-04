@@ -1,5 +1,7 @@
 //-- inludes -----
 #include "AppStage_HMDSettings.h"
+#include "AppStage_HMDAccelerometerCalibration.h"
+#include "AppStage_HMDGyroscopeCalibration.h"
 #include "AppStage_MainMenu.h"
 #include "AppStage_TestHMD.h"
 #include "App.h"
@@ -57,7 +59,7 @@ void AppStage_HMDSettings::render()
             {
             case PSMoveProtocol::Morpheus:
                 {
-                    glm::mat4 scale3 = glm::scale(glm::mat4(1.f), glm::vec3(3.f, 3.f, 3.f));
+                    glm::mat4 scale3 = glm::scale(glm::mat4(1.f), glm::vec3(2.f, 2.f, 2.f));
                     drawMorpheusModel(scale3);
                 } break;
             default:
@@ -128,6 +130,36 @@ void AppStage_HMDSettings::renderUI()
                     ++m_selectedHmdIndex;
                 }
             }
+
+			if (hmdInfo.HmdType == ClientHMDView::eHMDViewType::Morpheus)
+			{
+				if (ImGui::Button("Calibrate Accelerometer"))
+				{
+					m_app->getAppStage<AppStage_HMDAccelerometerCalibration>()->setBypassCalibrationFlag(false);
+					m_app->setAppStage(AppStage_HMDAccelerometerCalibration::APP_STAGE_NAME);
+				}
+
+				if (ImGui::Button("Test Accelerometer"))
+				{
+					m_app->getAppStage<AppStage_HMDAccelerometerCalibration>()->setBypassCalibrationFlag(true);
+					m_app->setAppStage(AppStage_HMDAccelerometerCalibration::APP_STAGE_NAME);
+				}
+			}
+
+			if (hmdInfo.HmdType == ClientHMDView::eHMDViewType::Morpheus)
+			{
+				if (ImGui::Button("Calibrate Gyroscope"))
+				{
+					m_app->getAppStage<AppStage_HMDGyroscopeCalibration>()->setBypassCalibrationFlag(false);
+					m_app->setAppStage(AppStage_HMDGyroscopeCalibration::APP_STAGE_NAME);
+				}
+
+				if (ImGui::Button("Test Orientation"))
+				{
+					m_app->getAppStage<AppStage_HMDGyroscopeCalibration>()->setBypassCalibrationFlag(true);
+					m_app->setAppStage(AppStage_HMDGyroscopeCalibration::APP_STAGE_NAME);
+				}
+			}
 
             if (ImGui::Button("Test HMD Tracking"))
             {

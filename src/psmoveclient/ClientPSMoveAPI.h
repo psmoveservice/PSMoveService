@@ -36,7 +36,7 @@ public:
         INVALID_REQUEST_ID= -1
     };
 
-    enum eControllerDataStreamFlags
+    enum eDeviceDataStreamFlags
     {
         defaultStreamOptions = 0x00,
         includePositionData = 0x01,
@@ -44,12 +44,6 @@ public:
         includeRawSensorData = 0x04,
         includeCalibratedSensorData = 0x08,
         includeRawTrackerData = 0x10
-    };
-    
-    enum eHMDDataStreamFlags
-    {
-        defaultHMDStreamOptions = 0x00,
-        includeRawHMDSensorData = 0x01,
     };    
 
     enum eControllerRumbleChannel
