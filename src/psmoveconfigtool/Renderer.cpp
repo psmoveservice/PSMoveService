@@ -19,8 +19,8 @@
 #include "psmovebulb_3dmodel.h"
 #include "psnavi_3dmodel.h"
 #include "ps3eye_3dmodel.h"
-#include "psds4_3dmodel.h"
-#include "dk2_3dmodel.h"
+#include "ds4body_3dmodel.h"
+#include "ds4lightbar_3dmodel.h"
 
 #ifdef _MSC_VER
 #pragma warning (disable: 4505) // unreferenced local function has been removed (stb stuff)
@@ -982,30 +982,6 @@ void drawPoseArrayStrip(const struct PSMovePose *poses, const int poseCount, con
     glEnd();
 }
 
-void drawDK2Model(const glm::mat4 &transform)
-{
-    assert(Renderer::getIsRenderingStage());
-
-    int textureID= AssetManager::getInstance()->getDK2TextureAsset()->texture_id;
-
-    glBindTexture(GL_TEXTURE_2D, textureID);
-    glColor3f(1.f, 1.f, 1.f);
-
-    glPushMatrix();
-        glMultMatrixf(glm::value_ptr(transform));
-        glEnableClientState(GL_VERTEX_ARRAY);
-        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-        glVertexPointer(3, GL_FLOAT, 0, DK2Verts);
-        glTexCoordPointer(2, GL_FLOAT, 0, DK2TexCoords);
-        glDrawArrays(GL_TRIANGLES, 0, DK2NumVerts);
-        glDisableClientState(GL_VERTEX_ARRAY);
-        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-    glPopMatrix();
-
-    // rebind the default texture
-    glBindTexture(GL_TEXTURE_2D, 0); 
-}
-
 void drawPS3EyeModel(const glm::mat4 &transform)
 {
     assert(Renderer::getIsRenderingStage());
@@ -1094,11 +1070,18 @@ void drawPSDualShock4Model(const glm::mat4 &transform, const glm::vec3 &color)
         glMultMatrixf(glm::value_ptr(transform));
         glEnableClientState(GL_VERTEX_ARRAY);
         glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-        glVertexPointer(3, GL_FLOAT, 0, psds4Verts);
-        glTexCoordPointer(2, GL_FLOAT, 0, psds4TexCoords);
-        glDrawArrays(GL_TRIANGLES, 0, psds4NumVerts);
+        
+		glVertexPointer(3, GL_FLOAT, 0, ds4bodyVerts);
+        glTexCoordPointer(2, GL_FLOAT, 0, ds4bodyTexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, ds4bodyNumVerts);
+
+		glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+		glColor3fv(glm::value_ptr(color));
+		glVertexPointer(3, GL_FLOAT, 0, ds4lightbarVerts);
+		glDrawArrays(GL_TRIANGLES, 0, ds4lightbarNumVerts);
+
         glDisableClientState(GL_VERTEX_ARRAY);
-        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
     glPopMatrix();
 
     // rebind the default texture

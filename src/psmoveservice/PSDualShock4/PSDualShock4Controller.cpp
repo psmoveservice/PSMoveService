@@ -302,6 +302,8 @@ PSDualShock4ControllerConfig::config2ptree()
     pt.put("prediction_time", prediction_time);
     pt.put("max_poll_failure_count", max_poll_failure_count);
 
+	writeTrackingColor(pt, tracking_color_id);
+
     return pt;
 }
 
@@ -351,6 +353,9 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         identity_gravity_direction.i= pt.get<float>("Calibration.Identity.Gravity.X", identity_gravity_direction.i);
         identity_gravity_direction.j= pt.get<float>("Calibration.Identity.Gravity.Y", identity_gravity_direction.j);
         identity_gravity_direction.k= pt.get<float>("Calibration.Identity.Gravity.Z", identity_gravity_direction.k);
+
+		// Read the tracking color
+		tracking_color_id = static_cast<eCommonTrackingColorID>(readTrackingColor(pt));
     }
     else
     {
@@ -519,6 +524,9 @@ bool PSDualShock4Controller::open(
                 // Load the config file
                 cfg = PSDualShock4ControllerConfig(config_name);
                 cfg.load();
+
+				// Save it back out again in case any defaults changed
+				cfg.save();
             }
 
             // Reset the polling sequence counter
@@ -615,6 +623,21 @@ PSDualShock4Controller::setHostBluetoothAddress(const std::string &new_host_bt_a
     return success;
 }
 
+bool 
+PSDualShock4Controller::setTrackingColorID(const eCommonTrackingColorID tracking_color_id)
+{
+	bool bSuccess = false;
+
+	if (getIsOpen() && getIsBluetooth())
+	{
+		cfg.tracking_color_id = tracking_color_id;
+		cfg.save();
+		bSuccess = true;
+	}
+
+	return bSuccess;
+}
+
 // Getters
 bool
 PSDualShock4Controller::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
@@ -687,7 +710,7 @@ PSDualShock4Controller::getBTAddressesViaUSB(std::string& host, std::string& con
     bool success = false;
     int res;
 
-    unsigned char btg[PSDS4_BTADDR_GET_SIZE];
+    unsigned char btg[PSDS4_BTADDR_GET_SIZE + 1];
     unsigned char ctrl_char_buff[PSDS4_BTADDR_SIZE];
     unsigned char host_char_buff[PSDS4_BTADDR_SIZE];
 
@@ -1020,6 +1043,20 @@ PSDualShock4Controller::getTrackingShape(CommonDeviceTrackingShape &outTrackingS
 		{ quad_half_x, -quad_half_y, 0.f };
 
     outTrackingShape.shape_type = eCommonTrackingShapeType::LightBar;
+}
+
+bool
+PSDualShock4Controller::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const
+{
+	bool bSuccess = false;
+
+	if (getIsOpen() && getIsBluetooth())
+	{
+		out_tracking_color_id = cfg.tracking_color_id;
+		bSuccess = true;
+	}
+
+	return bSuccess;
 }
 
 long PSDualShock4Controller::getMaxPollFailureCount() const

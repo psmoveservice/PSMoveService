@@ -14,8 +14,8 @@ public:
     AppStage_ComputeTrackerPoses(class App *app);
     ~AppStage_ComputeTrackerPoses();
 
-    static void enterStageAndCalibrate(class App *app, int desiredControllerID);
-    static void enterStageAndSkipCalibration(class App *app, int desiredControllerID);
+    static void enterStageAndCalibrate(class App *app, int reqeusted_controller_id);
+    static void enterStageAndSkipCalibration(class App *app, int reqeusted_controller_id);
 
     virtual void enter() override;
     virtual void exit() override;
@@ -43,12 +43,7 @@ protected:
         pendingTrackerStartRequest,
         failedTrackerStartRequest,
 
-        verifyHMD,
         verifyTrackers,
-
-        selectCalibrationType,
-
-        calibrateWithHMD,
         calibrateWithMat,
 
         testTracking,
@@ -91,9 +86,6 @@ protected:
         const struct PSMovePose *pose, 
         class ClientTrackerView *TrackerView);
 
-    void request_set_hmd_tracking_space_origin(
-        const struct PSMovePose *pose);
-
     void handle_all_devices_ready();
 
     void release_devices();
@@ -112,11 +104,9 @@ private:
     typedef std::map<int, TrackerState>::iterator t_tracker_state_map_iterator;
     typedef std::pair<int, TrackerState> t_id_tracker_state_pair;
     
-    class ClientHMDView *m_hmdView;
     class ClientControllerView *m_controllerView;
     t_tracker_state_map m_trackerViews;
     int m_pendingTrackerStartCount;
-	int m_desiredControllerID;
 
     int m_renderTrackerIndex;
     t_tracker_state_map_iterator m_renderTrackerIter;
@@ -128,6 +118,8 @@ private:
     friend class AppSubStage_CalibrateWithMat;
 
     bool m_bSkipCalibration;
+	int m_overrideControllerId;
+
 };
 
 #endif // APP_STAGE_COMPUTE_TRACKER_POSES_H

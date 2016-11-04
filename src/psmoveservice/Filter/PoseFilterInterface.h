@@ -180,7 +180,7 @@ public:
     virtual void resetState() = 0;
 
     /// The current state becomes the identity pose
-    virtual void recenterState() = 0;
+    virtual void recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose) = 0;
 };
 
 /// Common interface to all orientation filters

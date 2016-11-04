@@ -14,12 +14,15 @@ public:
     struct ControllerInfo
     {
         int ControllerID;
+		int FirmwareVersion;
+		int FirmwareRevision;
         ClientControllerView::eControllerType ControllerType;
         PSMoveTrackingColorType TrackingColorType;
         std::string DevicePath;
         std::string DeviceSerial;
         std::string AssignedHostSerial;
         bool PairedToHost;
+		bool HasMagnetometer;
 		int PositionFilterIndex;
 		std::string PositionFilterName;
 		int OrientationFilterIndex;
@@ -56,6 +59,10 @@ protected:
         void *userdata);
 	void request_set_orientation_filter(const int controller_id, const std::string &filter_name);
 	void request_set_position_filter(const int controller_id, const std::string &filter_name);
+
+	void request_set_controller_tracking_color_id(
+		int ControllerID,
+		PSMoveTrackingColorType tracking_color_type);
 
 private:
     enum eControllerMenuState

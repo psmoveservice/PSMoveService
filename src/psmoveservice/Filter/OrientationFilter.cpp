@@ -50,7 +50,7 @@ struct OrientationFilterState
         }
         else
         {
-            SERVER_LOG_WARNING("OrientationFilter") << "Orientation is NaN!" << std::endl;
+            SERVER_LOG_WARNING("OrientationFilter") << "Orientation is NaN!";
         }
 
         if (eigen_vector3f_is_valid(new_angular_velocity))
@@ -59,7 +59,7 @@ struct OrientationFilterState
         }
         else
         {
-            SERVER_LOG_WARNING("OrientationFilter") << "Angular Velocity is NaN!" << std::endl;
+            SERVER_LOG_WARNING("OrientationFilter") << "Angular Velocity is NaN!";
         }
 
         if (eigen_vector3f_is_valid(new_angular_acceleration))
@@ -68,7 +68,7 @@ struct OrientationFilterState
         }
         else
         {
-            SERVER_LOG_WARNING("OrientationFilter") << "Angular Acceleration is NaN!" << std::endl;
+            SERVER_LOG_WARNING("OrientationFilter") << "Angular Acceleration is NaN!";
         }
 
         // state is valid now that we have had an update
@@ -100,12 +100,12 @@ void OrientationFilter::resetState()
     m_state->reset();
 }
 
-void OrientationFilter::recenterState()
+void OrientationFilter::recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose)
 {
     Eigen::Quaternionf q_inverse = m_state->orientation.conjugate();
 
     eigen_quaternion_normalize_with_default(q_inverse, Eigen::Quaternionf::Identity());
-    m_state->reset_orientation= q_inverse;
+    m_state->reset_orientation= q_pose*q_inverse;
 }
 
 bool OrientationFilter::init(const OrientationFilterConstants &constants)

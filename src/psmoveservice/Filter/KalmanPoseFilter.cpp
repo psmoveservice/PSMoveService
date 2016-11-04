@@ -1505,13 +1505,13 @@ void KalmanPoseFilter::resetState()
     m_filter->init(m_constants);
 }
 
-void KalmanPoseFilter::recenterState()
+void KalmanPoseFilter::recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose)
 {
     Eigen::Quaternionf q_inverse = getOrientation().conjugate();
 
     eigen_quaternion_normalize_with_default(q_inverse, Eigen::Quaternionf::Identity());
-    m_filter->reset_orientation = q_inverse;
-    m_filter->origin_position = getPosition();
+    m_filter->reset_orientation = q_pose*q_inverse;
+    m_filter->origin_position = p_pose + getPosition();
 }
 
 Eigen::Quaternionf KalmanPoseFilter::getOrientation(float time) const

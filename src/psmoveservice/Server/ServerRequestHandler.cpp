@@ -272,16 +272,6 @@ public:
                 handle_request__search_for_new_trackers(context, response);
                 break;
 
-            // HMD Requests
-            case PSMoveProtocol::Request_RequestType_GET_HMD_TRACKING_SPACE_SETTINGS:
-                response = new PSMoveProtocol::Response;
-                handle_request__get_hmd_tracking_space_settings(context, response);
-                break;
-            case PSMoveProtocol::Request_RequestType_SET_HMD_TRACKING_SPACE_ORIGIN:
-                response = new PSMoveProtocol::Response;
-                handle_request__set_hmd_tracking_space_origin(context, response);
-                break;
-
             default:
                 assert(0 && "Whoops, bad request!");
         }
@@ -485,6 +475,10 @@ protected:
             {
                 PSMoveProtocol::Response_ResultControllerList_ControllerInfo *controller_info= list->add_controllers();
 
+				int firmware_version = 0;
+				int firmware_revision = 0;
+				bool has_magnetometer = false;
+
 				std::string orientation_filter = "";
 				std::string position_filter = "";
 
@@ -497,6 +491,9 @@ protected:
 
 						orientation_filter = config->orientation_filter_type;
 						position_filter = config->position_filter_type;
+						firmware_version = config->firmware_version;
+						firmware_revision = config->firmware_revision;
+						has_magnetometer = controller->getSupportsMagnetometer();
 
 						controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
 					}
@@ -531,6 +528,9 @@ protected:
                 controller_info->set_device_path(controller_view->getUSBDevicePath());
                 controller_info->set_device_serial(controller_view->getSerial());
                 controller_info->set_assigned_host_serial(controller_view->getAssignedHostBluetoothAddress());
+				controller_info->set_firmware_version(firmware_version);
+				controller_info->set_firmware_revision(firmware_revision);
+				controller_info->set_has_magnetometer(has_magnetometer);
 				controller_info->set_orientation_filter(orientation_filter);
 				controller_info->set_position_filter(position_filter);
             }
@@ -567,6 +567,14 @@ protected:
                 streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
                 streamInfo.include_calibrated_sensor_data = request.include_calibrated_sensor_data();
                 streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
+
+				SERVER_LOG_INFO("ServerRequestHandler") << "Start controller(" << controller_id << ") stream ("
+					<< "pos=" << streamInfo.include_position_data
+					<< ",phys=" << streamInfo.include_physics_data
+					<< ",raw_sens=" << streamInfo.include_raw_sensor_data
+					<< ",cal_sens=" << streamInfo.include_calibrated_sensor_data
+					<< ",trkr=" << streamInfo.include_raw_tracker_data
+					<< ")";
 
                 if (streamInfo.include_position_data)
                 {
@@ -610,6 +618,8 @@ protected:
                     controller_view->clearLEDOverride();
                 }
 
+				SERVER_LOG_INFO("ServerRequestHandler") << "Stop controller(" << controller_id << ") stream";
+
                 context.connection_state->active_controller_streams.set(controller_id, false);
                 context.connection_state->active_controller_stream_info[controller_id].Clear();
 
@@ -631,8 +641,14 @@ protected:
         PSMoveProtocol::Response *response)
     {
         const int controller_id= context.request->reset_pose().controller_id();
+		
+		const Eigen::Quaternionf q_pose(
+			context.request->reset_pose().orientation().w(),
+			context.request->reset_pose().orientation().x(),
+			context.request->reset_pose().orientation().y(),
+			context.request->reset_pose().orientation().z() );
 
-        if (m_device_manager.m_controller_manager->resetPose(controller_id))
+        if (m_device_manager.m_controller_manager->resetPose(controller_id, q_pose))
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -790,18 +806,22 @@ protected:
             (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove ||
              ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4))
         {
-            // Give up control of our existing tracking color
-            const eCommonTrackingColorID eOldColorID = ControllerView->getTrackingColorID();
-            if (eOldColorID != eCommonTrackingColorID::INVALID_COLOR)
-            {
-                m_device_manager.m_controller_manager->freeTrackingColorID(eOldColorID);
-            }
+			const eCommonTrackingColorID oldColorID = ControllerView->getTrackingColorID();
 
-            // Take the color from any other controller that might have it
-            m_device_manager.m_controller_manager->claimTrackingColorID(newColorID);
+			if (newColorID != oldColorID)
+			{
+				// Give up control of our existing tracking color
+				if (oldColorID != eCommonTrackingColorID::INVALID_COLOR)
+				{
+					m_device_manager.m_controller_manager->freeTrackingColorID(oldColorID);
+				}
 
-            // Assign the new color to ourselves
-            ControllerView->setTrackingColorID(newColorID);
+				// Take the color from any other controller that might have it
+				m_device_manager.m_controller_manager->claimTrackingColorID(ControllerView.get(), newColorID);
+
+				// Assign the new color to ourselves
+				ControllerView->setTrackingColorID(newColorID);
+			}
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -1684,34 +1704,6 @@ protected:
         // Until we have a better solution, best to just shut down all of the trackers
         // and then wait for them to restart next tracker device refresh.
         m_device_manager.m_tracker_manager->closeAllTrackers();
-
-        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-    }
-
-    // -- HMD Requests -----
-    void handle_request__get_hmd_tracking_space_settings(
-        const RequestContext &context,
-        PSMoveProtocol::Response *response)
-    {
-        response->set_type(PSMoveProtocol::Response_ResponseType_HMD_TRACKING_SPACE_SETTINGS);
-
-        PSMoveProtocol::Response_ResultGetHMDTrackingSpaceSettings* settings =
-            response->mutable_result_get_hmd_tracking_space_settings();
-        CommonDevicePose pose = m_device_manager.m_tracker_manager->getHmdTrackingOriginPose();
-
-        common_device_pose_to_protocol_pose(pose, settings->mutable_origin_pose());
-
-        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-    }
-
-    void handle_request__set_hmd_tracking_space_origin(
-        const RequestContext &context,
-        PSMoveProtocol::Response *response)
-    {
-        const PSMoveProtocol::Pose &srcPose = context.request->request_set_hmd_tracking_space_origin().origin_pose();
-        CommonDevicePose destPose = protocol_pose_to_common_device_pose(srcPose);
-
-        m_device_manager.m_tracker_manager->setHmdTrackingOriginPose(destPose);
 
         response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
     }

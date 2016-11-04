@@ -31,6 +31,9 @@ public:
         : PSMoveConfig(fnamebase)
         , is_valid(false)
         , version(CONFIG_VERSION)
+		, firmware_version(0)
+		, bt_firmware_version(0)
+		, firmware_revision(0)
         , max_poll_failure_count(100) 
         , prediction_time(0.f)
 		, position_filter_type("LowPassOptical")
@@ -52,6 +55,7 @@ public:
 		, position_variance_gain(0.0f)
 		, position_variance_bias(0.25f) // TODO: Compute this from calibration
 		, orientation_variance(0.005f) // TODO: Compute this from calibration
+		, tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
     {
         magnetometer_identity.clear();
         magnetometer_center.clear();
@@ -69,6 +73,16 @@ public:
 
     bool is_valid;
     long version;
+
+	// Move's firmware version number
+	unsigned short firmware_version;
+
+	// Move Bluetooth module's firmware version number
+	unsigned short bt_firmware_version; 
+
+	// Move's firmware revision number
+	unsigned short firmware_revision;
+
 
 	// The max number of polling failures before we consider the controller disconnected
     long max_poll_failure_count;
@@ -137,6 +151,9 @@ public:
 	inline float get_position_variance(float projection_area) const {
 		return fmaxf(projection_area*position_variance_gain + position_variance_bias, 0.f);
 	}
+
+	// The assigned tracking color for this controller
+	eCommonTrackingColorID tracking_color_id;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport
@@ -233,12 +250,14 @@ public:
     
     // -- IControllerInterface
     virtual bool setHostBluetoothAddress(const std::string &address) override;
+	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) override;
     virtual bool getIsBluetooth() const override;
     virtual std::string getUSBDevicePath() const override;
     virtual std::string getAssignedHostBluetoothAddress() const override;
     virtual std::string getSerial() const override;
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
     virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
+	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
 
     // -- Getters
     inline const PSMoveControllerConfig *getConfig() const
@@ -248,22 +267,21 @@ public:
     float getTempCelsius() const;
     static CommonDeviceState::eDeviceType getDeviceTypeStatic()
     { return CommonDeviceState::PSMove; }
-    
-    
+	bool getSupportsMagnetometer() const
+	{ return SupportsMagnetometer; }        
     const unsigned long getLEDPWMFrequency() const
-    {
-        return LedPWMF;
-    }
+    { return LedPWMF; }
     
-
     // -- Setters
     bool setLED(unsigned char r, unsigned char g, unsigned char b); // 0x00..0xff. TODO: vec3
     bool setLEDPWMFrequency(unsigned long freq);    // 733..24e6
     bool setRumbleIntensity(unsigned char value);
+	bool enableDFUMode(); // Device Firmware Update mode
 
 private:    
     bool getBTAddress(std::string& host, std::string& controller);
     void loadCalibration();                         // Use USB or file if on BT
+	bool loadFirmwareInfo();
     
     bool writeDataOut();                            // Setters will call this
     
@@ -271,6 +289,7 @@ private:
     PSMoveControllerConfig cfg;
     PSMoveHIDDetails HIDDetails;
     bool IsBluetooth;                               // true if valid serial number on device opening
+	bool SupportsMagnetometer;                      // true if controller emits valid magnetometer data
 
     // Cached Setter State
     unsigned char LedR, LedG, LedB;

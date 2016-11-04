@@ -60,6 +60,7 @@ public:
 		, position_variance_bias(0.25f) // TODO: Compute this from calibration
 		, orientation_variance_gain(0.1f / (150.f*34.f))
 		, orientation_variance_bias(0.005f) // TODO: Compute this from calibration
+		, tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
     {
         // The DS4 uses the BMI055 IMU Chip: 
         // https://www.bosch-sensortec.com/bst/products/all_products/bmi055
@@ -174,6 +175,8 @@ public:
 	inline float get_orientation_variance(float projection_area) const {
 		return fmaxf(projection_area*orientation_variance_gain + orientation_variance_bias, 0.f);
 	}
+
+	eCommonTrackingColorID tracking_color_id;
 };
 
 struct PSDualShock4ControllerState : public CommonControllerState
@@ -291,12 +294,14 @@ public:
 
     // -- IControllerInterface
     virtual bool setHostBluetoothAddress(const std::string &address) override;
+	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) override;
     virtual bool getIsBluetooth() const override;
     virtual std::string getUSBDevicePath() const override;
     virtual std::string getAssignedHostBluetoothAddress() const override;
     virtual std::string getSerial() const override;
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
     virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
+	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
 
     // -- Getters
     inline const PSDualShock4ControllerConfig *getConfig() const

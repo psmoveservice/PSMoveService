@@ -18,8 +18,6 @@ public:
         initial,
         calibrationStepPlacePSMove,
         calibrationStepRecordPSMove,
-        calibrationStepPlaceHMD,
-        calibrationStepRecordHMD,
         calibrationStepComputeTrackerPoses,
 
         calibrateStepSuccess,
@@ -52,11 +50,9 @@ private:
 
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
-    bool m_bForceHMDStable;
     bool m_bForceControllerStable;
 
-    struct HMDTrackerPoseStatistics *m_hmdTrackerPoseStats;
-    struct TrackerRelativePoseStatistics *m_psmoveTrackerPoseStats[PSMOVESERVICE_MAX_TRACKER_COUNT];
+	struct TrackerRelativePoseStatistics *m_psmoveTrackerPoseStats[PSMOVESERVICE_MAX_TRACKER_COUNT];
 
     int m_sampleLocationIndex;
 };

@@ -5,8 +5,5 @@ Created by InfinateXtremer
 Created by InfinateXtremer
 
 -DS4 Controller-
-http://tf3dm.com/3d-model/console-game-controller-68588.html#
-Created by Jonathon Powell
-
--DK2 Model Source-
-William Burke
+Original model extracted by andregm3
+Model Cleanup and texturing by InfinateXtremer

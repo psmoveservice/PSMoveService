@@ -75,6 +75,12 @@ private:
 
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_resetPoseButtonPressTime;
+	bool m_bResetPoseRequestSent;
+
+    PSMoveIntVector3 m_identityPoseMVectorSum;
+    int m_identityPoseSampleCount;   
 };
 
 #endif // APP_STAGE_SELECT_CONTROLLER_H

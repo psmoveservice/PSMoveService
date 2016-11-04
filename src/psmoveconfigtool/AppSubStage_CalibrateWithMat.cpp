@@ -5,10 +5,8 @@
 #include "App.h"
 #include "AssetManager.h"
 #include "Camera.h"
-#include "ClientHMDView.h"
 #include "GeometryUtility.h"
 #include "Logger.h"
-#include "OpenVRContext.h"
 #include "MathAlignment.h"
 #include "MathUtility.h"
 #include "Renderer.h"
@@ -35,7 +33,6 @@ static const int k_mat_sample_location_count = 5;
 // Take 60 samples at each location
 static const int k_mat_calibration_sample_count = 60;
 
-static const glm::vec3 k_hmd_frustum_color = glm::vec3(1.f, 0.788f, 0.055f);
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 
 static const double k_stabilize_wait_time_ms = 1000.f;
@@ -338,10 +335,6 @@ struct HMDTrackerPoseStatistics
 
 
 //-- private methods -----
-static glm::mat4 computePSMoveTrackerToHMDTrackerSpaceTransform(
-    const ClientHMDView *hmdContext,
-    const PSMovePose &psmoveCalibrationOffset,
-    const HMDTrackerPoseStatistics &hmdTrackerPoseContext);
 static bool computeTrackerCameraPose(
     const ClientTrackerView *trackerView,
     TrackerRelativePoseStatistics &trackerCoregData);
@@ -352,15 +345,12 @@ AppSubStage_CalibrateWithMat::AppSubStage_CalibrateWithMat(
     : m_parentStage(parentStage)
     , m_menuState(AppSubStage_CalibrateWithMat::eMenuState::invalid)
     , m_bIsStable(false)
-    , m_bForceHMDStable(false)
 	, m_sampleLocationIndex(0)
 {
 	for (int location_index = 0; location_index < k_mat_sample_location_count; ++location_index)
 	{
 		m_psmoveTrackerPoseStats[location_index] = new TrackerRelativePoseStatistics;
 	}
-
-	m_hmdTrackerPoseStats= new HMDTrackerPoseStatistics;
 }
 
 AppSubStage_CalibrateWithMat::~AppSubStage_CalibrateWithMat()
@@ -369,8 +359,6 @@ AppSubStage_CalibrateWithMat::~AppSubStage_CalibrateWithMat()
 	{
 		delete m_psmoveTrackerPoseStats[location_index];
 	}
-
-	delete m_hmdTrackerPoseStats;
 }
 
 void AppSubStage_CalibrateWithMat::enter()
@@ -386,7 +374,6 @@ void AppSubStage_CalibrateWithMat::exit()
 void AppSubStage_CalibrateWithMat::update()
 {
     const ClientControllerView *ControllerView= m_parentStage->m_controllerView;
-    const ClientHMDView *HMDView = m_parentStage->m_hmdView;
 
     switch (m_menuState)
     {
@@ -487,77 +474,13 @@ void AppSubStage_CalibrateWithMat::update()
                     }
                     else
                     {
-                        // Otherwise we are done with all of the PSMove sample locations.
-                        // Move onto the next phase.
-                        if (m_parentStage->m_hmdView != nullptr)
-                        {
-                            setState(AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD);
-                        }
-                        else
-                        {
-                            setState(AppSubStage_CalibrateWithMat::eMenuState::calibrationStepComputeTrackerPoses);
-                        }
+                        setState(AppSubStage_CalibrateWithMat::eMenuState::calibrationStepComputeTrackerPoses);
                     }
                 }
             }
 
             // Poll the next video frame from the tracker rendering
             m_parentStage->update_tracker_video();
-        } break;
-    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD:
-        {
-            if (HMDView->getIsHMDStableAndAlignedWithGravity() || m_bForceHMDStable)
-            {
-                std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-
-                if (m_bIsStable)
-                {
-                    std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
-
-                    if (stableDuration.count() >= k_stabilize_wait_time_ms)
-                    {
-                        setState(AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD);
-                    }
-                }
-                else
-                {
-                    m_bIsStable = true;
-                    m_stableStartTime = now;
-                }
-            }
-            else
-            {
-                if (m_bIsStable)
-                {
-                    m_bIsStable = false;
-                }
-            }
-        } break;
-    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:
-        {
-            // Only record samples when the controller is stable
-            if (HMDView->getIsHMDStableAndAlignedWithGravity() || m_bForceHMDStable)
-            {
-                if (HMDView->getIsHMDTracking() && !m_hmdTrackerPoseStats->getIsComplete())
-                {
-                    const PSMovePose pose = HMDView->getRawHmdPose();
-
-					m_hmdTrackerPoseStats->addSample(pose);
-
-                    // See if we just read the last sample
-                    if (m_hmdTrackerPoseStats->getIsComplete())
-                    {
-                        // Move onto the next phase.
-                        setState(AppSubStage_CalibrateWithMat::eMenuState::calibrationStepComputeTrackerPoses);
-                    }
-                }
-            }
-            else
-            {
-                // Whoops! The HMD got moved.
-                // Reset the sample count and wait for it to stabilize again
-                setState(AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD);
-            }
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepComputeTrackerPoses:
         {
@@ -589,15 +512,6 @@ void AppSubStage_CalibrateWithMat::update()
                     ClientTrackerView *trackerView = iter->second.trackerView;
 
                     m_parentStage->request_set_tracker_pose(&trackerPose, trackerView);
-                }
-
-                if (HMDView != nullptr)
-                {
-                    PSMovePose hmdPose;
-                    hmdPose.Orientation = m_hmdTrackerPoseStats->avgHMDWorldSpaceOrientation;
-                    hmdPose.Position = m_hmdTrackerPoseStats->avgHMDWorldSpacePoint;
-
-                    m_parentStage->request_set_hmd_tracking_space_origin(&hmdPose);
                 }
             }
 
@@ -682,31 +596,6 @@ void AppSubStage_CalibrateWithMat::render()
                 }
             }
         } break;
-    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD:
-    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:
-        {
-            const ClientHMDView *HMDView = m_parentStage->m_hmdView;
-            const glm::mat4 transform = psmove_pose_to_glm_mat4(HMDView->getChaperoneSpaceHmdPose());
-
-            // Draw the HMD in chaperone space
-            drawDK2Model(transform);
-
-            if (m_menuState == AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD)
-            {
-                drawTransformedAxes(transform, 10.f);
-            }
-            
-            // Draw the chaperone bounds
-            {
-                PSMoveVolume volume;
-
-                if (m_parentStage->m_app->getOpenVRContext()->getChaperoneTrackingVolume(volume))
-                {
-                    drawTransformedVolume(glm::mat4(1.f), &volume, glm::vec3(0.f, 1.f, 1.f));
-                }
-            }
-        }
-        break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepComputeTrackerPoses:
         break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrateStepSuccess:
@@ -786,7 +675,7 @@ void AppSubStage_CalibrateWithMat::renderUI()
             ImGui::SameLine();
             if (ImGui::Button("Cancel"))
             {
-                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
+                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::verifyTrackers);
             }
 
             ImGui::End();
@@ -840,61 +729,7 @@ void AppSubStage_CalibrateWithMat::renderUI()
 
             if (ImGui::Button("Cancel"))
             {
-                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
-            }
-
-            ImGui::End();
-        } break;
-    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD:
-        {
-            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
-            ImGui::Begin(k_window_title, nullptr, window_flags);
-
-            ImGui::Text("Set the HMD at the tracking origin");
-
-            if (m_bIsStable)
-            {
-                std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
-
-                ImGui::Text("[stable for %d/%dms]",
-                    static_cast<int>(stableDuration.count()),
-                    static_cast<int>(k_stabilize_wait_time_ms));
-            }
-            else
-            {
-                ImGui::Text("[Not stable and upright]");
-            }
-
-            ImGui::Separator();
-
-            if (ImGui::Button("Trust me, it's stable"))
-            {
-                m_bForceHMDStable= true;
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Cancel"))
-            {
-                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
-            }
-
-            ImGui::End();
-        } break;
-    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:
-        {
-            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
-            ImGui::Begin(k_window_title, nullptr, window_flags);
-
-            ImGui::Text("Recording HMD sample %d/%d",
-                m_hmdTrackerPoseStats->sampleCount, 
-                k_mat_calibration_sample_count);
-
-            ImGui::Separator();
-
-            if (ImGui::Button("Cancel"))
-            {
-                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::selectCalibrationType);
+                m_parentStage->setState(AppStage_ComputeTrackerPoses::eMenuState::verifyTrackers);
             }
 
             ImGui::End();
@@ -929,8 +764,6 @@ void AppSubStage_CalibrateWithMat::onExitState(
     case AppSubStage_CalibrateWithMat::eMenuState::initial:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
-    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD:
-    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepComputeTrackerPoses:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrateStepSuccess:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrateStepFailed:
@@ -959,8 +792,6 @@ void AppSubStage_CalibrateWithMat::onEnterState(
             m_sampleLocationIndex = 0;
             m_bIsStable = false;
             m_bForceControllerStable = false;
-            m_bForceHMDStable= false;
-            m_hmdTrackerPoseStats->clear();
         }
         break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
@@ -979,14 +810,6 @@ void AppSubStage_CalibrateWithMat::onEnterState(
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
         break;
-    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD:
-        {
-            m_bForceHMDStable = false;
-            m_bIsStable = false;
-            m_hmdTrackerPoseStats->clear();
-        }
-        break;
-    case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepComputeTrackerPoses:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrateStepSuccess:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrateStepFailed:

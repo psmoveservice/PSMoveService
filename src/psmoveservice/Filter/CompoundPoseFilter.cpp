@@ -118,6 +118,9 @@ void CompoundPoseFilter::allocate_filters(
     case PositionFilterTypeComplimentaryOpticalIMU:
 		m_position_filter = new PositionFilterComplimentaryOpticalIMU;
 		break;
+	case PositionFilterTypeLowPassExponential:
+		m_position_filter = new PositionFilterLowPassExponential;
+		break;
 	case PositionFilterTypeKalman:
 		m_position_filter = new KalmanPositionFilter;
 		break;
@@ -160,12 +163,12 @@ void CompoundPoseFilter::resetState()
 	}
 }
 
-void CompoundPoseFilter::recenterState()
+void CompoundPoseFilter::recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose)
 {
 	if (m_orientation_filter != nullptr && m_position_filter != nullptr)
 	{
-		m_orientation_filter->recenterState();
-		m_position_filter->recenterState();
+		m_orientation_filter->recenterState(p_pose, q_pose);
+		m_position_filter->recenterState(p_pose, q_pose);
 	}
 }
 

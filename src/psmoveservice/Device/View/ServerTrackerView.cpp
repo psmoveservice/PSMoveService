@@ -2,6 +2,7 @@
 #include "ServerTrackerView.h"
 #include "ServerControllerView.h"
 #include "DeviceEnumerator.h"
+#include "DeviceManager.h"
 #include "MathUtility.h"
 #include "MathEigen.h"
 #include "MathGLM.h"
@@ -12,6 +13,7 @@
 #include "ServerLog.h"
 #include "ServerRequestHandler.h"
 #include "SharedTrackerState.h"
+#include "TrackerManager.h"
 
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/mapped_region.hpp>
@@ -228,6 +230,90 @@ struct OpenCVPlane2D
     }
 };
 
+class OpenCVBGRToHSVMapper
+{
+public:
+	typedef cv::Point3_<uint8_t> ColorTuple;
+
+	static OpenCVBGRToHSVMapper *allocate()
+	{
+		if (m_refCount == 0)
+		{
+			assert(m_instance == nullptr);
+			m_instance = new OpenCVBGRToHSVMapper();
+		}
+		assert(m_instance != nullptr);
+
+		++m_refCount;
+		return m_instance;
+	}
+
+	static void dispose(OpenCVBGRToHSVMapper *instance)
+	{
+		assert(m_instance != nullptr);
+		assert(m_instance == instance);
+		assert(m_refCount > 0);
+
+		--m_refCount;
+		if (m_refCount <= 0)
+		{
+			delete m_instance;
+			m_instance = nullptr;
+		}
+	}
+
+	void cvtColor(const cv::Mat &bgrBuffer, cv::Mat &hsvBuffer)
+	{
+		hsvBuffer.forEach<ColorTuple>([&bgrBuffer, this](ColorTuple &hsvColor, const int position[]) -> void {
+			const ColorTuple &bgrColor = bgrBuffer.at<ColorTuple>(position[0], position[1]);
+			const int b = bgrColor.x;
+			const int g = bgrColor.y;
+			const int r = bgrColor.z;
+			const int LUTIndex = OpenCVBGRToHSVMapper::getLUTIndex(r, g, b);
+
+			hsvColor = bgr2hsv->at<ColorTuple>(LUTIndex, 0);
+		});
+	}
+
+private:
+	static OpenCVBGRToHSVMapper *m_instance;
+	static int m_refCount;
+
+	OpenCVBGRToHSVMapper()
+	{
+		bgr2hsv = new cv::Mat(256*256*256, 1, CV_8UC3);
+
+		int LUTIndex = 0;
+		for (int r = 0; r < 256; ++r)
+		{
+			for (int g = 0; g < 256; ++g)
+			{
+				for (int b = 0; b < 256; ++b)
+				{
+					bgr2hsv->at<ColorTuple>(LUTIndex, 0) = ColorTuple(b, g, r);
+					++LUTIndex;
+				}
+			}
+		}
+
+		cv::cvtColor(*bgr2hsv, *bgr2hsv, cv::COLOR_BGR2HSV);
+	}
+
+	~OpenCVBGRToHSVMapper()
+	{
+		delete bgr2hsv;
+	}
+
+	static int getLUTIndex(int r, int g, int b)
+	{
+		return (256 * 256)*r + 256*g + b;
+	}
+
+	cv::Mat *bgr2hsv;
+};
+OpenCVBGRToHSVMapper *OpenCVBGRToHSVMapper::m_instance = nullptr;
+int OpenCVBGRToHSVMapper::m_refCount= 0;
+
 class OpenCVBufferState
 {
 public:
@@ -240,11 +326,22 @@ public:
         , gsUpperBuffer(nullptr)
         , maskedBuffer(nullptr)
     {
+		const TrackerManagerConfig &cfg= DeviceManager::getInstance()->m_tracker_manager->getConfig();
+
         bgrBuffer = new cv::Mat(height, width, CV_8UC3);
         hsvBuffer = new cv::Mat(height, width, CV_8UC3);
         gsLowerBuffer = new cv::Mat(height, width, CV_8UC1);
         gsUpperBuffer = new cv::Mat(height, width, CV_8UC1);
         maskedBuffer = new cv::Mat(height, width, CV_8UC3);
+		
+		if (cfg.use_bgr_to_hsv_lookup_table)
+		{
+			bgr2hsv = OpenCVBGRToHSVMapper::allocate();
+		}
+		else
+		{
+			bgr2hsv = nullptr;
+		}
     }
 
     virtual ~OpenCVBufferState()
@@ -252,32 +349,32 @@ public:
         if (maskedBuffer != nullptr)
         {
             delete maskedBuffer;
-            maskedBuffer = nullptr;
         }
 
         if (gsLowerBuffer != nullptr)
         {
             delete gsLowerBuffer;
-            gsLowerBuffer = nullptr;
         }
 
         if (gsUpperBuffer != nullptr)
         {
             delete gsUpperBuffer;
-            gsUpperBuffer = nullptr;
         }
 
         if (hsvBuffer != nullptr)
         {
             delete hsvBuffer;
-            hsvBuffer = nullptr;
         }
 
         if (bgrBuffer != nullptr)
         {
             delete bgrBuffer;
-            bgrBuffer = nullptr;
         }
+
+		if (bgr2hsv != nullptr)
+		{
+			OpenCVBGRToHSVMapper::dispose(bgr2hsv);
+		}
     }
 
     void writeVideoFrame(const unsigned char *video_buffer)
@@ -288,7 +385,14 @@ public:
         cv::flip(videoBufferMat, *bgrBuffer, 1);
 
         // Convert the video buffer to the HSV color space
-        cv::cvtColor(*bgrBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
+		if (bgr2hsv != nullptr)
+		{
+			bgr2hsv->cvtColor(*bgrBuffer, *hsvBuffer);
+		}
+		else
+		{
+			cv::cvtColor(*bgrBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
+		}
     }
 
     // Return points in raw image space:
@@ -396,6 +500,7 @@ public:
     cv::Mat *gsLowerBuffer; // HSV image clamped by HSV range into grayscale mask
     cv::Mat *gsUpperBuffer; // HSV image clamped by HSV range into grayscale mask
     cv::Mat *maskedBuffer; // bgr image ANDed together with grayscale mask
+	OpenCVBGRToHSVMapper *bgr2hsv; // Used to convert an rgb image to an hsv image
 };
 
 // -- Utility Methods -----

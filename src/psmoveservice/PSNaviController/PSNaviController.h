@@ -99,6 +99,7 @@ public:
     virtual IDeviceInterface::ePollResult poll() override;
     virtual void close() override;
     virtual bool setHostBluetoothAddress(const std::string &address) override;
+	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) override;
 
     // -- Getters
     virtual bool getIsBluetooth() const override;
@@ -114,6 +115,7 @@ public:
     virtual long getMaxPollFailureCount() const override;
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
     virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
+	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
         
 private:    
     bool getBTAddress(std::string& host, std::string& controller);

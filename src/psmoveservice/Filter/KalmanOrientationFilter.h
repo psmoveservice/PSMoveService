@@ -16,7 +16,7 @@ public:
 	// -- IStateFilter --
 	bool getIsStateValid() const override;
 	void resetState() override;
-	void recenterState() override;
+	void recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose) override;
 
 	// -- IOrientationFilter ---
 	Eigen::Quaternionf getOrientation(float time = 0.f) const override;

@@ -2,16 +2,12 @@
 #include "AppStage_ComputeTrackerPoses.h"
 #include "AppStage_MainMenu.h"
 #include "AppStage_TrackerSettings.h"
-#include "AppStage_HMDSettings.h"
-#include "AppSubStage_CalibrateWithHMD.h"
 #include "AppSubStage_CalibrateWithMat.h"
 #include "App.h"
 #include "AssetManager.h"
 #include "Camera.h"
-#include "ClientHMDView.h"
 #include "GeometryUtility.h"
 #include "Logger.h"
-#include "OpenVRContext.h"
 #include "MathUtility.h"
 #include "Renderer.h"
 #include "UIConstants.h"
@@ -23,6 +19,8 @@
 #include "SDL_keycode.h"
 #include "SDL_opengl.h"
 
+#include "ClientPSMoveAPI.h"
+
 #include <imgui.h>
 #include <sstream>
 
@@ -32,6 +30,7 @@ const char *AppStage_ComputeTrackerPoses::APP_STAGE_NAME = "ComputeTrackerPoses"
 //-- constants -----
 static const glm::vec3 k_hmd_frustum_color = glm::vec3(1.f, 0.788f, 0.055f);
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
+static const glm::vec3 k_psmove_frustum_color_no_track = glm::vec3(1.0f, 0.f, 0.f);
 
 //-- private methods -----
 static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
@@ -40,51 +39,43 @@ static void drawController(ClientControllerView *controllerView, const glm::mat4
 AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
     : AppStage(app)
     , m_menuState(AppStage_ComputeTrackerPoses::inactive)
-    , m_hmdView(nullptr)
     , m_controllerView(nullptr)
     , m_pendingTrackerStartCount(0)
     , m_renderTrackerIndex(0)
-    , m_pCalibrateWithHMD(new AppSubStage_CalibrateWithHMD(this))
     , m_pCalibrateWithMat(new AppSubStage_CalibrateWithMat(this))
     , m_bSkipCalibration(false)
+	, m_overrideControllerId(-1)
 { 
     m_renderTrackerIter = m_trackerViews.end();
 }
 
 AppStage_ComputeTrackerPoses::~AppStage_ComputeTrackerPoses()
 {
-    delete m_pCalibrateWithHMD;
     delete m_pCalibrateWithMat;
 }
 
-void AppStage_ComputeTrackerPoses::enterStageAndCalibrate(App *app, int desiredControllerID)
+void AppStage_ComputeTrackerPoses::enterStageAndCalibrate(App *app, int reqeusted_controller_id)
 {
 	AppStage_ComputeTrackerPoses *appStage= app->getAppStage<AppStage_ComputeTrackerPoses>();
 	appStage->m_bSkipCalibration = false;
-	appStage->m_desiredControllerID = desiredControllerID;
+	appStage->m_overrideControllerId = reqeusted_controller_id;
 
+	app->getAppStage<AppStage_ComputeTrackerPoses>()->m_overrideControllerId = reqeusted_controller_id;
     app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
 }
 
-void AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(App *app, int desiredControllerID)
+void AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(App *app, int reqeusted_controller_id)
 {
 	AppStage_ComputeTrackerPoses *appStage = app->getAppStage<AppStage_ComputeTrackerPoses>();
 	appStage->m_bSkipCalibration = true;
-	appStage->m_desiredControllerID = desiredControllerID;
+	appStage->m_overrideControllerId = reqeusted_controller_id;
 
+	app->getAppStage<AppStage_ComputeTrackerPoses>()->m_overrideControllerId = reqeusted_controller_id;
     app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
 }
 
 void AppStage_ComputeTrackerPoses::enter()
 {
-    // Allocate a new HMD stream
-    assert(m_hmdView == nullptr);
-
-    if (m_app->getOpenVRContext()->getIsInitialized())
-    {
-        m_hmdView = m_app->getOpenVRContext()->allocateHmdView();
-    }
-
     // Kick off this async request chain with a controller list request
     // -> controller start request
     // -> tracker list request
@@ -116,26 +107,8 @@ void AppStage_ComputeTrackerPoses::update()
     case eMenuState::failedControllerStartRequest:
     case eMenuState::failedTrackerStartRequest:
         break;
-    case eMenuState::verifyHMD:
-        break;
     case eMenuState::verifyTrackers:
         update_tracker_video();
-        break;
-    case eMenuState::selectCalibrationType:
-        break;
-    case eMenuState::calibrateWithHMD:
-        {
-            m_pCalibrateWithHMD->update();
-
-            if (m_pCalibrateWithHMD->getMenuState() == AppSubStage_CalibrateWithHMD::calibrateStepSuccess)
-            {
-                setState(AppStage_ComputeTrackerPoses::eMenuState::testTracking);
-            }
-            else if (m_pCalibrateWithHMD->getMenuState() == AppSubStage_CalibrateWithHMD::calibrateStepFailed)
-            {
-                setState(AppStage_ComputeTrackerPoses::eMenuState::calibrateStepFailed);
-            }
-        }
         break;
     case eMenuState::calibrateWithMat:
         {
@@ -176,41 +149,10 @@ void AppStage_ComputeTrackerPoses::render()
     case eMenuState::failedTrackerListRequest:
     case eMenuState::failedTrackerStartRequest:
         break;
-    case eMenuState::verifyHMD:
-        {
-            // Draw everything in Chaperone tracking space
-            if (m_hmdView != nullptr)
-            {
-                PSMovePose pose = m_hmdView->getChaperoneSpaceHmdPose();
-                glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
-                glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
-
-                glm::mat4 rot = glm::mat4_cast(orientation);
-                glm::mat4 trans = glm::translate(glm::mat4(1.0f), position);
-                glm::mat4 transform = trans * rot;
-
-                drawDK2Model(transform);
-                drawTransformedAxes(transform, 10.f);
-            }
-
-            {
-                PSMoveVolume volume;
-
-                if (m_app->getOpenVRContext()->getChaperoneTrackingVolume(volume))
-                {
-                    drawTransformedVolume(glm::mat4(1.f), &volume, glm::vec3(0.f, 1.f, 1.f));
-                }
-            }
-        } break;
     case eMenuState::verifyTrackers:
         {
             render_tracker_video();
         } break;
-    case eMenuState::selectCalibrationType:
-        break;
-    case eMenuState::calibrateWithHMD:
-        m_pCalibrateWithHMD->render();
-        break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->render();
         break;
@@ -220,42 +162,6 @@ void AppStage_ComputeTrackerPoses::render()
 
             // Draw the chaperone origin axes
             drawTransformedAxes(glm::mat4(1.0f), 100.f);
-
-            // Draw the HMD and tracking volume in chaperone tracking space
-            if (m_hmdView != nullptr)
-            {
-                // Get the transform that goes from PSMove-tracking-space to Raw-HMD-tracking-space.
-                // If the HMD coregistration method was used, this will be the identity pose
-                // because the the trackers were already aligned with Raw HMD tracking space.
-                PSMovePose hmd_raw_pose_at_psmove_origin = m_app->getOpenVRContext()->getRawHMDPoseAtPSMoveTrackingSpaceOrigin();
-                glm::mat4 psmove_to_hmd_raw_transform = psmove_pose_to_glm_mat4(hmd_raw_pose_at_psmove_origin);
-
-                // Get the raw HMD OpenVR transform 
-                PSMovePose hmd_raw_pose = m_hmdView->getRawHmdPose();
-                glm::mat4 hmd_raw_transform = psmove_pose_to_glm_mat4(hmd_raw_pose);
-
-                // Get the Chaperone space HMD transform
-                PSMovePose hmd_chaperone_pose = m_hmdView->getChaperoneSpaceHmdPose();
-                glm::mat4 hmd_chaperone_transform = psmove_pose_to_glm_mat4(hmd_chaperone_pose);
-
-                // Compute a transform to go from HMD raw to chaperone space using the current
-                // raw HMD pose and chaperone HMD pose
-                glm::mat4 raw_to_chaperone_transform = hmd_chaperone_transform * glm::inverse(hmd_raw_transform);
-
-                // Compute the transform that goes from PSMove-tracking-space to Chaperone space
-                psmove_tracking_space_to_chaperone_space = raw_to_chaperone_transform * psmove_to_hmd_raw_transform;
-
-                // Draw the HMD in chaperone space
-                drawDK2Model(hmd_chaperone_transform);
-                drawTransformedAxes(hmd_chaperone_transform, 10.f);
-                
-                // Draw the Chaperone volume 
-                PSMoveVolume volume;
-                if (m_app->getOpenVRContext()->getChaperoneTrackingVolume(volume))
-                {
-                    drawTransformedVolume(glm::mat4(1.f), &volume, glm::vec3(0.f, 1.f, 1.f));
-                }
-            }
 
             // Draw the frustum for each tracking camera.
             // The frustums are defined in PSMove tracking space.
@@ -269,11 +175,24 @@ void AppStage_ComputeTrackerPoses::render()
                 {
                     PSMoveFrustum frustum = trackerView->getTrackerFrustum();
 
-                    drawTransformedFrustum(psmove_tracking_space_to_chaperone_space, &frustum, k_psmove_frustum_color);
+					// use color depending on tracking status
+					PSMoveScreenLocation screenSample;
+					glm::vec3 color;
+					if (m_controllerView->GetIsCurrentlyTracking() &&
+						m_controllerView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
+					{
+						color = k_psmove_frustum_color;
+					}
+					else {
+						color = k_psmove_frustum_color_no_track;
+					}
+
+                    drawTransformedFrustum(psmove_tracking_space_to_chaperone_space, &frustum, color);
                 }
 
                 drawTransformedAxes(chaperoneSpaceTransform, 20.f);
             }
+
 
             // Draw the psmove model
             {
@@ -365,31 +284,6 @@ void AppStage_ComputeTrackerPoses::renderUI()
             ImGui::End();
         } break;
 
-    case eMenuState::verifyHMD:
-        {
-            ImGui::SetNextWindowPosCenter();
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 180));
-            ImGui::Begin(k_window_title, nullptr, window_flags);
-
-            if (m_hmdView != nullptr)
-            {
-                ImGui::Text("Verify that your HMD is tracking correctly");
-                ImGui::Separator();
-
-                if (ImGui::Button("Looks Good!"))
-                {
-                    setState(eMenuState::verifyTrackers);
-                }
-
-                if (ImGui::Button("Hmm... Something is wrong."))
-                {
-                    request_exit_to_app_stage(AppStage_HMDSettings::APP_STAGE_NAME);
-                }
-            }
-
-            ImGui::End();
-        } break;
-
     case eMenuState::verifyTrackers:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - 500.f / 2.f, 20.f));
@@ -416,7 +310,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
             if (ImGui::Button("Looks Good!"))
             {
-                setState(eMenuState::selectCalibrationType);
+                setState(eMenuState::calibrateWithMat);
             }
 
             if (ImGui::Button("Hmm... Something is wrong."))
@@ -425,37 +319,6 @@ void AppStage_ComputeTrackerPoses::renderUI()
             }
 
             ImGui::End();
-        } break;
-
-    case eMenuState::selectCalibrationType:
-        {
-            ImGui::SetNextWindowPosCenter();
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
-            ImGui::Begin(k_window_title, nullptr, window_flags);
-
-            ImGui::Text("Select a camera pose estimation method");
-
-            if (m_hmdView != nullptr && ImGui::Button("Attach PSMove To HMD"))
-            {
-                setState(eMenuState::calibrateWithHMD);
-            }
-
-            if (ImGui::Button("Use Calibration Mat"))
-            {
-                setState(eMenuState::calibrateWithMat);
-            }
-
-            if (ImGui::Button("Cancel"))
-            {
-                m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
-            }
-
-            ImGui::End();
-        } break;
-
-    case eMenuState::calibrateWithHMD:
-        {
-            m_pCalibrateWithHMD->renderUI();
         } break;
 
     case eMenuState::calibrateWithMat:
@@ -475,7 +338,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
                 if (ImGui::Button("Redo Calibration"))
                 {
-                    setState(eMenuState::selectCalibrationType);
+                    setState(eMenuState::verifyTrackers);
                 }
             }
 
@@ -483,6 +346,23 @@ void AppStage_ComputeTrackerPoses::renderUI()
             {
                 m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
+
+			// display tracking quality
+			for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+			{
+				PSMoveScreenLocation screenSample;
+
+				const ClientTrackerView *trackerView = iter->second.trackerView;
+				if (m_controllerView->GetIsCurrentlyTracking() &&
+					m_controllerView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
+				{
+					ImGui::Text("Tracking %d: OK", trackerView->getTrackerId() + 1);
+				}
+				else {
+					ImGui::Text("Tracking %d: FAIL", trackerView->getTrackerId() + 1);
+				}
+			}
+			ImGui::Text("");
 
             ImGui::End();
         }
@@ -498,7 +378,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
             if (ImGui::Button("Restart Calibration"))
             {
-                setState(eMenuState::selectCalibrationType);
+                setState(eMenuState::verifyTrackers);
             }
 
             if (ImGui::Button("Cancel"))
@@ -542,14 +422,7 @@ void AppStage_ComputeTrackerPoses::onExitState(eMenuState newState)
     case eMenuState::failedTrackerListRequest:
     case eMenuState::failedTrackerStartRequest:
         break;
-    case eMenuState::verifyHMD:
-        m_app->setCameraType(_cameraFixed);
-        break;
     case eMenuState::verifyTrackers:
-    case eMenuState::selectCalibrationType:
-        break;
-    case eMenuState::calibrateWithHMD:
-        m_pCalibrateWithHMD->exit();
         break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->exit();
@@ -583,16 +456,8 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
     case eMenuState::failedTrackerListRequest:
     case eMenuState::failedTrackerStartRequest:
         break;
-    case eMenuState::verifyHMD:
-        m_app->setCameraType(_cameraOrbit);
-        break;
     case eMenuState::verifyTrackers:
         m_renderTrackerIter = m_trackerViews.begin();
-        break;
-    case eMenuState::selectCalibrationType:
-        break;
-    case eMenuState::calibrateWithHMD:
-        m_pCalibrateWithHMD->enter();
         break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->enter();
@@ -686,12 +551,6 @@ void AppStage_ComputeTrackerPoses::release_devices()
 {
     //###HipsterSloth $REVIEW Do we care about canceling in-flight requests?
 
-    if (m_hmdView != nullptr)
-    {
-        m_app->getOpenVRContext()->freeHmdView(m_hmdView);
-        m_hmdView = nullptr;
-    }
-
     if (m_controllerView != nullptr)
     {
         ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(m_controllerView));
@@ -748,6 +607,9 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
     const ClientPSMoveAPI::ResponseMessage *response_message,
     void *userdata)
 {
+	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_message->opaque_response_handle);
+	const PSMoveProtocol::Request *request = GET_PSMOVEPROTOCOL_REQUEST(response_message->opaque_request_handle);
+	
     AppStage_ComputeTrackerPoses *thisPtr = static_cast<AppStage_ComputeTrackerPoses *>(userdata);
 
     const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
@@ -761,19 +623,20 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
             const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list = 
                 &response_message->payload.controller_list;
 
-            int trackedControllerId = -1;
-            for (int list_index = 0; list_index < controller_list->count; ++list_index)
-            {
-				ClientControllerView::eControllerType controllerType = controller_list->controller_type[list_index];
-				int controllerID= controller_list->controller_id[list_index];
+            int trackedControllerId = thisPtr->m_overrideControllerId;
 
-                if ((thisPtr->m_desiredControllerID == -1 || thisPtr->m_desiredControllerID == controllerID) &&
-					(controllerType == ClientControllerView::PSMove || controllerType == ClientControllerView::PSDualShock4))
-                {
-                    trackedControllerId = controller_list->controller_id[list_index];
-                    break;
-                }
-            }
+			if (trackedControllerId == -1)
+			{
+				for (int list_index = 0; list_index < controller_list->count; ++list_index)
+				{
+					if (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
+						controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)
+					{
+						trackedControllerId = controller_list->controller_id[list_index];
+						break;
+					}
+				}
+			}
 
             if (trackedControllerId != -1)
             {
@@ -998,40 +861,11 @@ void AppStage_ComputeTrackerPoses::request_set_tracker_pose(
     }
 }
 
-void AppStage_ComputeTrackerPoses::request_set_hmd_tracking_space_origin(
-    const struct PSMovePose *pose)
-{
-    if (m_app->getOpenVRContext()->getIsInitialized())
-    {
-        m_app->getOpenVRContext()->setRawHMDTrackingSpaceOrigin(*pose);
-    }
-
-    // Update the pose on the service
-    {
-        RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_SET_HMD_TRACKING_SPACE_ORIGIN);
-
-        PSMoveProtocol::Request_RequestSetHMDTrackingSpaceOrigin *set_origin_request =
-            request->mutable_request_set_hmd_tracking_space_origin();
-
-        copy_pose_to_request(*pose, set_origin_request->mutable_origin_pose());
-
-        ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
-    }
-}
-
 void AppStage_ComputeTrackerPoses::handle_all_devices_ready()
 {
     if (!m_bSkipCalibration)
     {
-        if (m_hmdView != nullptr)
-        {
-            setState(eMenuState::verifyHMD);
-        }
-        else
-        {
-            setState(eMenuState::verifyTrackers);
-        }
+        setState(eMenuState::verifyTrackers);
     }
     else
     {

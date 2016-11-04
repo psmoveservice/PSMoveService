@@ -2,12 +2,10 @@
 #include "PositionFilter.h"
 #include "MathEigen.h"
 #include "ServerLog.h"
-#include <deque>
+
+#include <chrono>
 
 //-- constants -----
-// Max length of the position history we keep
-#define k_position_history_max 16
-
 // The max distance between samples that we apply low pass filter on the optical position filter
 #define k_max_lowpass_smoothing_distance 10.f * k_centimeters_to_meters // meters
 
@@ -47,6 +45,13 @@ struct PositionFilterState
     /// Position that's considered the origin position 
     Eigen::Vector3f origin_position; // meters
 
+	// required for smoothing position to get velocity
+	float exp_delta_time;
+	Eigen::Vector3f exp_position;
+
+    std::chrono::time_point<std::chrono::high_resolution_clock> last_visible_position_timestamp;
+    bool bLast_visible_position_timestamp_valid;
+
     void reset()
     {
         bIsValid = false;
@@ -56,6 +61,8 @@ struct PositionFilterState
         accelerometer = Eigen::Vector3f::Zero();
         accelerometer_derivative = Eigen::Vector3f::Zero();
         origin_position = Eigen::Vector3f::Zero();
+		exp_delta_time = 0.f;
+		exp_position = Eigen::Vector3f::Zero();
     }
 
 	void apply_state(
@@ -71,7 +78,7 @@ struct PositionFilterState
 		}
 		else
 		{
-			SERVER_LOG_WARNING("PositionFilter") << "Position is NaN!" << std::endl;
+			SERVER_LOG_WARNING("PositionFilter") << "Position is NaN!";
 		}
 
 		if (eigen_vector3f_is_valid(new_velocity))
@@ -80,7 +87,7 @@ struct PositionFilterState
 		}
 		else
 		{
-			SERVER_LOG_WARNING("PositionFilter") << "Velocity is NaN!" << std::endl;
+			SERVER_LOG_WARNING("PositionFilter") << "Velocity is NaN!";
 		}
 
 		if (eigen_vector3f_is_valid(new_acceleration))
@@ -89,7 +96,7 @@ struct PositionFilterState
 		}
 		else
 		{
-			SERVER_LOG_WARNING("PositionFilter") << "Acceleration is NaN!" << std::endl;
+			SERVER_LOG_WARNING("PositionFilter") << "Acceleration is NaN!";
 		}
 
 		if (eigen_vector3f_is_valid(new_accelerometer))
@@ -98,7 +105,7 @@ struct PositionFilterState
 		}
 		else
 		{
-			SERVER_LOG_WARNING("PositionFilter") << "Accelerometer is NaN!" << std::endl;
+			SERVER_LOG_WARNING("PositionFilter") << "Accelerometer is NaN!";
 		}
 
 		if (eigen_vector3f_is_valid(new_accelerometer_derivative))
@@ -107,7 +114,7 @@ struct PositionFilterState
 		}
 		else
 		{
-			SERVER_LOG_WARNING("PositionFilter") << "AccelerometerDerivative is NaN!" << std::endl;
+			SERVER_LOG_WARNING("PositionFilter") << "AccelerometerDerivative is NaN!";
 		}
 
         // state is valid now that we have had an update
@@ -161,9 +168,9 @@ void PositionFilter::resetState()
     m_state->reset();
 }
 
-void PositionFilter::recenterState()
+void PositionFilter::recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose)
 {
-    m_state->origin_position= m_state->position;
+    m_state->origin_position= p_pose + m_state->position;
 }
 
 bool PositionFilter::init(const PositionFilterConstants &constants)
@@ -404,6 +411,47 @@ void PositionFilterComplimentaryOpticalIMU::update(const float delta_time, const
 			packet.world_accelerometer,
 			Eigen::Vector3f::Zero());
     }
+}
+
+// -- PositionFilterComplimentaryOpticalIMU --
+void PositionFilterLowPassExponential::update(const float delta_time, const PoseFilterPacket &packet)
+{
+	if (packet.optical_position_quality > 0.f && eigen_vector3f_is_valid(packet.optical_position_cm))
+	{
+		m_state->accelerometer = packet.world_accelerometer;
+		m_state->accelerometer_derivative = Eigen::Vector3f::Zero();
+
+		int queueLen = 3;
+		float smooth = 0.6f;
+
+		if (m_state->bIsValid)
+		{
+			// New position is blended against the old position
+			m_state->position = lowpass_filter_optical_position(&packet, m_state);
+
+			float q = 0.4f;
+			Eigen::Vector3f prev_position = m_state->exp_position;
+			float prev_delta_time = m_state->exp_delta_time;
+
+			m_state->exp_position = (m_state->position * q) + (prev_position * (1.0f - q));
+			m_state->exp_delta_time = (delta_time * q) + (prev_delta_time * (1.0f - q));
+
+			m_state->velocity = (m_state->exp_position - prev_position) / m_state->exp_delta_time;
+
+			//fusion_state->velocity = Eigen::Vector3f::Zero();
+			m_state->acceleration = Eigen::Vector3f::Zero(); //new_acceleration;
+		}
+		else
+		{
+			// If this is the first filter packet, just accept the position as gospel
+			m_state->position = m_state->position;
+			m_state->velocity = Eigen::Vector3f::Zero();
+			m_state->acceleration = Eigen::Vector3f::Zero();
+
+			// Fusion state is valid now that we have one sample
+			m_state->bIsValid = true;
+		}
+	}
 }
 
 //-- helper functions ---

@@ -453,9 +453,9 @@ void KalmanPositionFilter::resetState()
     m_filter->init(m_constants);
 }
 
-void KalmanPositionFilter::recenterState()
+void KalmanPositionFilter::recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose)
 {
-    m_filter->origin_position = getPosition();
+    m_filter->origin_position = p_pose + getPosition();
 }
 
 Eigen::Vector3f KalmanPositionFilter::getPosition(float time) const

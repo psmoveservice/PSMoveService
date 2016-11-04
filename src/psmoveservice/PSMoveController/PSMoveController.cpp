@@ -46,6 +46,8 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <algorithm>
 #include <vector>
 #include <cstdlib>
+#include <chrono>
+#include <thread>
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #endif
@@ -197,6 +199,10 @@ PSMoveControllerConfig::config2ptree()
     pt.put("is_valid", is_valid);
     pt.put("version", PSMoveControllerConfig::CONFIG_VERSION);
 
+	pt.put("firmware_version", firmware_version);
+	pt.put("bt_firmware_version", bt_firmware_version);
+	pt.put("firmware_revision", firmware_revision);
+
     pt.put("prediction_time", prediction_time);
     pt.put("max_poll_failure_count", max_poll_failure_count);
     
@@ -259,6 +265,8 @@ PSMoveControllerConfig::config2ptree()
     pt.put("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
     pt.put("PositionFilter.MaxVelocity", max_velocity);
 
+	writeTrackingColor(pt, tracking_color_id);
+
     return pt;
 }
 
@@ -270,6 +278,10 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
     if (version == PSMoveControllerConfig::CONFIG_VERSION)
     {
         is_valid = pt.get<bool>("is_valid", false);
+
+		firmware_version = pt.get<unsigned short>("firmware_version", 0);
+		bt_firmware_version = pt.get<unsigned short>("bt_firmware_version", 0);
+		firmware_revision = pt.get<unsigned short>("firmware_revision", 0);
 
         prediction_time = pt.get<float>("prediction_time", 0.f);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
@@ -334,6 +346,8 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         min_position_quality_screen_area= pt.get<float>("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
         max_position_quality_screen_area= pt.get<float>("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
         max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
+
+		tracking_color_id= static_cast<eCommonTrackingColorID>(readTrackingColor(pt));
     }
     else
     {
@@ -367,6 +381,7 @@ PSMoveController::PSMoveController()
     , Rumble(0)
     , bWriteStateDirty(false)
     , NextPollSequenceNumber(0)
+	, SupportsMagnetometer(false)
 {
     HIDDetails.Handle = nullptr;
     HIDDetails.Handle_addr = nullptr;
@@ -463,6 +478,9 @@ bool PSMoveController::open(
 
         if (getIsOpen())  // Controller was opened and has an index
         {
+			// Get the firmware revision being used
+			bool bSaveConfig= loadFirmwareInfo();
+
             // Get the bluetooth address
     #ifdef __APPLE__
             // On my Mac, getting the bt feature report when connected via
@@ -498,7 +516,8 @@ bool PSMoveController::open(
                     loadCalibration();
                 }
 
-                // TODO: Other startup.
+				// Always save the config back out in case some defaults changed
+				bSaveConfig = true;
 
                 success= true;
             }
@@ -509,6 +528,45 @@ bool PSMoveController::open(
                 SERVER_LOG_ERROR("PSMoveController::open") << "Failed to get bluetooth address of PSMoveController(" << cur_dev_path << ")";
                 success= false;
             }
+
+			// Poll the controller to see if it emits valid magnetometer data
+			// (Newer firmware doesn't support the magnetometer anymore)
+			if (success && IsBluetooth)
+			{		
+				const int k_max_poll_attempts = 10;
+				int poll_count = 0;
+				bool bReadData = false;
+
+				for (poll_count = 0; poll_count < k_max_poll_attempts && !bReadData; ++poll_count)
+				{
+					if (poll() == IDeviceInterface::ePollResult::_PollResultSuccessNewData)
+					{
+						const PSMoveControllerState *ControllerState = static_cast<const PSMoveControllerState *>(getState());
+
+						SupportsMagnetometer =
+							ControllerState->RawMag[0] != 0 ||
+							ControllerState->RawMag[1] != 0 ||
+							ControllerState->RawMag[2] != 0;
+						bReadData= true;
+					}
+					else
+					{
+						const std::chrono::milliseconds k_WaitForDataMilliseconds(5);
+
+						std::this_thread::sleep_for(k_WaitForDataMilliseconds);
+					}
+				}
+
+				if (poll_count >= k_max_poll_attempts)
+				{
+					SERVER_LOG_ERROR("PSMoveController::open") << "Failed to open read initial controller state after " << k_max_poll_attempts << " attempts.";
+				}
+			}
+
+			if (bSaveConfig)
+			{
+				cfg.save();
+			}
 
             // Reset the polling sequence counter
             NextPollSequenceNumber= 0;
@@ -606,6 +664,21 @@ PSMoveController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
     return success;
 }
 
+bool
+PSMoveController::setTrackingColorID(const eCommonTrackingColorID tracking_color_id)
+{
+	bool bSuccess = false;
+
+	if (getIsOpen() && getIsBluetooth())
+	{
+		cfg.tracking_color_id = tracking_color_id;
+		cfg.save();
+		bSuccess = true;
+	}
+
+	return bSuccess;
+}
+
 // Getters
 bool 
 PSMoveController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
@@ -698,7 +771,7 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
     {
         int res;
         
-        unsigned char btg[PSMOVE_BTADDR_GET_SIZE];
+        unsigned char btg[PSMOVE_BTADDR_GET_SIZE+1];
         unsigned char ctrl_char_buff[PSMOVE_BTADDR_SIZE];
         unsigned char host_char_buff[PSMOVE_BTADDR_SIZE];
 
@@ -769,7 +842,7 @@ PSMoveController::loadCalibration()
 
     for (int block_index=0; is_valid && block_index<3; block_index++) 
     {
-        unsigned char cal[PSMOVE_CALIBRATION_SIZE];
+        unsigned char cal[PSMOVE_CALIBRATION_SIZE+1]; // +1 for report id at start
         int dest_offset;
         int src_offset;
 
@@ -778,7 +851,7 @@ PSMoveController::loadCalibration()
 
         int res = hid_get_feature_report(HIDDetails.Handle, cal, sizeof(cal));
 
-        if (res == PSMOVE_CALIBRATION_SIZE)
+        if (res == sizeof(cal))
         {
             if (cal[1] == 0x00) 
             {
@@ -822,7 +895,7 @@ PSMoveController::loadCalibration()
 
         if (is_valid)
         {
-            memcpy(hid_cal+dest_offset, cal+src_offset, sizeof(cal)-src_offset);
+            memcpy(hid_cal+dest_offset, cal+src_offset, sizeof(cal)-src_offset-1);
         }
     }
 
@@ -856,7 +929,71 @@ PSMoveController::loadCalibration()
     }
 
     cfg.is_valid= is_valid;
-    cfg.save();
+}
+
+bool
+PSMoveController::loadFirmwareInfo()
+{
+	bool bFirmwareInfoValid = false;
+
+	unsigned char buf[14];
+	int res;
+	int expected_res = sizeof(buf) - 1;
+	unsigned char *p = buf;
+
+	memset(buf, 0, sizeof(buf));
+	buf[0] = PSMove_Req_GetFirmwareInfo;
+
+	res = hid_get_feature_report(HIDDetails.Handle, buf, sizeof(buf));
+
+	/**
+	* The Bluetooth report contains the Report ID as additional first byte
+	* while the USB report does not. So we need to check the current connection
+	* type in order to determine the correct offset for reading from the report
+	* buffer.
+	**/
+
+	if (getIsBluetooth()) 
+	{
+		expected_res += 1;
+		p = buf + 1;
+	}
+
+	if (res == expected_res)
+	{
+		// NOTE: Each field in the report is stored in Big-Endian byte order
+		cfg.firmware_version = (p[0] << 8) | p[1];
+		cfg.firmware_revision = (p[2] << 8) | p[3];
+		cfg.bt_firmware_version = (p[4] << 8) | p[5];
+
+		bFirmwareInfoValid = true;
+	}
+
+	return bFirmwareInfoValid;
+}
+
+bool
+PSMoveController::enableDFUMode()
+{
+	unsigned char buf[10];
+	int res;
+	char mode_magic_val;
+
+	if (getIsBluetooth())
+	{
+		mode_magic_val = 0x43;
+	}
+	else
+	{
+		mode_magic_val = 0x42;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	buf[0] = PSMove_Req_SetDFUMode;
+	buf[1] = mode_magic_val;
+	res = hid_send_feature_report(HIDDetails.Handle, buf, sizeof(buf));
+
+	return (res == sizeof(buf));
 }
 
 IControllerInterface::ePollResult
@@ -1072,6 +1209,21 @@ PSMoveController::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) 
     outTrackingShape.shape_type= eCommonTrackingShapeType::Sphere;
     outTrackingShape.shape.sphere.radius = PSMOVE_TRACKING_BULB_RADIUS;
 }
+
+bool
+PSMoveController::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const
+{
+	bool bSuccess = false;
+
+	if (getIsOpen() && getIsBluetooth())
+	{
+		out_tracking_color_id = cfg.tracking_color_id;
+		bSuccess = true;
+	}
+
+	return bSuccess;
+}
+
 
 float
 PSMoveController::getTempCelsius() const

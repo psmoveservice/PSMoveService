@@ -16,7 +16,7 @@ public:
     //-- IStateFilter --
     bool getIsStateValid() const override;
     void resetState() override;
-    void recenterState() override;
+    void recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose) override;
 
     // -- IOrientationFilter --
     bool init(const PositionFilterConstants &constant) override;
@@ -47,6 +47,12 @@ class PositionFilterLowPassIMU : public PositionFilter
 {
 public:
     void update(const float delta_time, const PoseFilterPacket &packet) override;
+};
+
+class PositionFilterLowPassExponential : public PositionFilter
+{
+public:
+	void update(const float delta_time, const PoseFilterPacket &packet) override;
 };
 
 class PositionFilterComplimentaryOpticalIMU : public PositionFilter

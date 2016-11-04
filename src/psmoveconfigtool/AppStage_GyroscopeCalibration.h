@@ -69,6 +69,9 @@ private:
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
 
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_resetPoseButtonPressTime;
+	bool m_bResetPoseRequestSent;
+
     struct GyroscopeErrorSamples *m_errorSamples;
     struct GyroscopeScaleSamples *m_scaleSamples;
 };
