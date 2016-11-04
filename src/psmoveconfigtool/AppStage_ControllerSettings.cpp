@@ -32,6 +32,7 @@ const char *AppStage_ControllerSettings::APP_STAGE_NAME= "ControllerSettings";
 const char* k_position_filter_names[] = { "PassThru", "LowPassOptical", "LowPassIMU", "LowPassExponential", "ComplimentaryOpticalIMU", "PositionKalman" };
 const char* k_psmove_orientation_filter_names[] = { "PassThru", "MadgwickARG", "MadgwickMARG", "ComplementaryMARG", "OrientationKalman" };
 const char* k_ds4_orientation_filter_names[] = { "PassThru", "MadgwickARG", "ComplementaryOpticalARG", "OrientationKalman" };
+const char* k_ds4_gyro_gain_setting_labels[] = { "500deg/s", "1000deg/s", "custom"};
 
 inline int find_string_entry(const char *string_entry, const char* string_list[], size_t list_size)
 {
@@ -274,12 +275,6 @@ void AppStage_ControllerSettings::renderUI()
 
                 if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
                 {
-                    if (ImGui::Button("Calibrate Gyroscope"))
-                    {
-                        m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(false);
-                        m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
-                    }
-
                     if (ImGui::Button("Test Orientation"))
                     {
                         m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(true);
@@ -290,12 +285,6 @@ void AppStage_ControllerSettings::renderUI()
                 if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSMove || 
                     controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
                 {
-                    if (ImGui::Button("Calibrate Accelerometer"))
-                    {
-                        m_app->getAppStage<AppStage_AccelerometerCalibration>()->setBypassCalibrationFlag(false);
-                        m_app->setAppStage(AppStage_AccelerometerCalibration::APP_STAGE_NAME);
-                    }
-
                     if (ImGui::Button("Test Accelerometer"))
                     {
                         m_app->getAppStage<AppStage_AccelerometerCalibration>()->setBypassCalibrationFlag(true);
@@ -335,6 +324,11 @@ void AppStage_ControllerSettings::renderUI()
 					{
 						controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[controllerInfo.OrientationFilterIndex];
 						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+					}
+					if (ImGui::Combo("Gyro Gain", &controllerInfo.GyroGainIndex, k_ds4_gyro_gain_setting_labels, UI_ARRAYSIZE(k_ds4_gyro_gain_setting_labels)))
+					{
+						controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[controllerInfo.GyroGainIndex];
+						request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
 					}
 					ImGui::PopItemWidth();
 				}
@@ -485,6 +479,24 @@ void AppStage_ControllerSettings::request_set_position_filter(
 
 }
 
+void AppStage_ControllerSettings::request_set_gyroscope_gain_setting(
+	const int controller_id,
+	const std::string& gain_setting)
+{
+	RequestPtr request(new PSMoveProtocol::Request());
+	request->set_type(PSMoveProtocol::Request_RequestType_SET_GYROSCOPE_CALIBRATION);
+
+	PSMoveProtocol::Request_RequestSetGyroscopeCalibration *calibration =
+		request->mutable_set_gyroscope_calibration_request();
+
+	calibration->set_controller_id(controller_id);
+	calibration->set_drift(-1.f); // keep existing drift
+	calibration->set_variance(-1.f); // keep existing variance
+	calibration->set_gyro_gain_setting(gain_setting);
+
+	ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+}
+
 void AppStage_ControllerSettings::handle_controller_list_response(
     const ClientPSMoveAPI::ResponseMessage *response_message,
     void *userdata)
@@ -542,6 +554,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 				ControllerInfo.HasMagnetometer = ControllerResponse.has_magnetometer();
 				ControllerInfo.OrientationFilterName= ControllerResponse.orientation_filter();
 				ControllerInfo.PositionFilterName = ControllerResponse.position_filter();
+				ControllerInfo.GyroGainSetting = ControllerResponse.gyro_gain_setting();
 
 				if (ControllerInfo.ControllerType == ClientControllerView::PSMove)
 				{
@@ -593,6 +606,25 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 				{
 					ControllerInfo.PositionFilterName = "";
 					ControllerInfo.PositionFilterIndex = -1;
+				}
+
+				if (ControllerInfo.ControllerType == ClientControllerView::PSDualShock4)
+				{
+					ControllerInfo.GyroGainIndex =
+						find_string_entry(
+							ControllerInfo.GyroGainSetting.c_str(),
+							k_ds4_gyro_gain_setting_labels,
+							UI_ARRAYSIZE(k_ds4_gyro_gain_setting_labels));
+					if (ControllerInfo.GyroGainIndex == -1)
+					{
+						ControllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[0];
+						ControllerInfo.GyroGainIndex = 0;
+					}
+				}
+				else
+				{
+					ControllerInfo.GyroGainSetting = "";
+					ControllerInfo.GyroGainIndex = -1;
 				}
 
                 // Add the controller to the appropriate connection list

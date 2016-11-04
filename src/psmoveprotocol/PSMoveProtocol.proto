@@ -219,6 +219,7 @@ message Request {
         int32 controller_id = 1;
         float variance= 2;
         float drift= 3;
+		string gyro_gain_setting= 4;
     }
     RequestSetGyroscopeCalibration set_gyroscope_calibration_request = 15;   
 
@@ -382,6 +383,7 @@ message Response {
             bool has_magnetometer = 10;
             string orientation_filter = 11;
             string position_filter = 12;
+			string gyro_gain_setting = 13;
         }
         repeated ControllerInfo controllers = 1;
         string host_serial = 2;

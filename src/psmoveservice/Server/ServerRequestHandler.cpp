@@ -481,6 +481,7 @@ protected:
 
 				std::string orientation_filter = "";
 				std::string position_filter = "";
+				std::string gyro_gain_setting = "";
 
                 switch(controller_view->getControllerDeviceType())
                 {
@@ -508,6 +509,20 @@ protected:
 						const PSDualShock4Controller *controller = controller_view->castCheckedConst<PSDualShock4Controller>();
 						const PSDualShock4ControllerConfig *config = controller->getConfig();
 
+						float gain_divisor = safe_divide_with_default(1.f, config->gyro_gain, 1.f);
+						if (is_nearly_equal(gain_divisor, 2048.f, 1.f))
+						{
+							gyro_gain_setting = "500deg/s";
+						}
+						else if (is_nearly_equal(gain_divisor, 1024.f, 1.f))
+						{
+							gyro_gain_setting = "1000deg/s";
+						}
+						else
+						{
+							gyro_gain_setting = "custom";
+						}
+
 						orientation_filter = config->orientation_filter_type;
 						position_filter = config->position_filter_type;
 
@@ -533,6 +548,7 @@ protected:
 				controller_info->set_has_magnetometer(has_magnetometer);
 				controller_info->set_orientation_filter(orientation_filter);
 				controller_info->set_position_filter(position_filter);
+				controller_info->set_gyro_gain_setting(gyro_gain_setting);
             }
         }
 
@@ -960,9 +976,39 @@ protected:
 				const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
 					context.request->set_gyroscope_calibration_request();
 
-				config->gyro_drift = request.drift();
-				config->gyro_variance = request.variance();
-				config->save();
+				bool bChanged = false;
+
+				if (request.drift() > 0.f)
+				{
+					config->gyro_drift = request.drift();
+					bChanged = true;
+				}
+
+				if (request.variance() > 0.f)
+				{
+					config->gyro_variance = request.variance();
+					bChanged = true;
+				}
+
+				const std::string gyro_gain_setting = request.gyro_gain_setting();
+				if (gyro_gain_setting.length() > 0)
+				{
+					if (gyro_gain_setting == "500deg/s")
+					{
+						config->gyro_gain = 1.f / 2048.f;
+						bChanged = true;
+					}
+					else if (gyro_gain_setting == "1000deg/s")
+					{
+						config->gyro_gain = 1.f / 1024.f;
+						bChanged = true;
+					}
+				}
+
+				if (bChanged)
+				{
+					config->save();
+				}
 
 				ControllerView->resetPoseFilter();
 
@@ -976,10 +1022,25 @@ protected:
 				const PSMoveProtocol::Request_RequestSetGyroscopeCalibration &request =
 					context.request->set_gyroscope_calibration_request();
 
-				config->gyro_drift = request.drift();
-				config->gyro_variance = request.variance();
-				config->save();
+				bool bChanged = false;
 
+				if (request.drift() > 0.f)
+				{
+					config->gyro_drift = request.drift();
+					bChanged = true;
+				}
+
+				if (request.variance() > 0.f)
+				{
+					config->gyro_variance = request.variance();
+					bChanged = true;
+				}
+
+				if (bChanged)
+				{
+					config->save();
+				}
+				
 				ControllerView->resetPoseFilter();
 
 				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);

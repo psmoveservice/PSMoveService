@@ -791,6 +791,7 @@ void AppStage_GyroscopeCalibration::request_set_gyroscope_calibration(
 
     calibration->set_drift(drift);
     calibration->set_variance(variance);
+	calibration->set_gyro_gain_setting(""); // keep existing gain
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }
