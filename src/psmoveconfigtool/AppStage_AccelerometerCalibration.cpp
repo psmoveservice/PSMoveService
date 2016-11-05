@@ -96,6 +96,7 @@ static void drawController(ClientControllerView *controllerView, const glm::mat4
 AppStage_AccelerometerCalibration::AppStage_AccelerometerCalibration(App *app)
     : AppStage(app)
     , m_menuState(AppStage_AccelerometerCalibration::inactive)
+	, m_testMode(AppStage_AccelerometerCalibration::controllerRelative)
     , m_bBypassCalibration(false)
     , m_controllerView(nullptr)
     , m_isControllerStreamActive(false)
@@ -138,9 +139,7 @@ void AppStage_AccelerometerCalibration::enter()
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::start_controller_data_stream(
             m_controllerView, 
-            ClientPSMoveAPI::includeCalibratedSensorData | 
-            ClientPSMoveAPI::includePhysicsData |
-            ClientPSMoveAPI::includePositionData), // Needed so linear acceleration is computed
+            ClientPSMoveAPI::includeCalibratedSensorData),
         &AppStage_AccelerometerCalibration::handle_acquire_controller, this);
 }
 
@@ -161,8 +160,6 @@ void AppStage_AccelerometerCalibration::update()
 
     if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
     {
-        const PSMovePhysicsData &physicsData= m_controllerView->GetPhysicsData();
-
         switch(m_controllerView->GetControllerViewType())
         {
         case ClientControllerView::eControllerType::PSDualShock4:
@@ -183,8 +180,6 @@ void AppStage_AccelerometerCalibration::update()
             assert(0 && "unreachable");
         }
 
-        m_lastAcceleration= physicsData.Acceleration;
-        m_lastVelocity= physicsData.Velocity;
         m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
         bControllerDataUpdatedThisFrame = true;
     }
@@ -233,6 +228,11 @@ void AppStage_AccelerometerCalibration::update()
     case eCalibrationMenuState::measureComplete:
     case eCalibrationMenuState::test:
         {
+			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4 &&
+				m_controllerView->GetPSDualShock4View().GetButtonOptions() == PSMoveButton_PRESSED)
+			{
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView, PSMoveQuaternion::identity()));
+			}
         } break;
     default:
         assert(0 && "unreachable");
@@ -241,19 +241,19 @@ void AppStage_AccelerometerCalibration::update()
 
 void AppStage_AccelerometerCalibration::render()
 {
-    const float modelScale = 18.f;
-    glm::mat4 controllerTransform;
+    const float k_modelScale = 18.f;
+    glm::mat4 displayControllerTransform;
 
     switch(m_controllerView->GetControllerViewType())
     {
     case ClientControllerView::PSMove:
-		controllerTransform= 
+		displayControllerTransform= 
 			glm::rotate(
-				glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale)),
+				glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale)),
 				90.f, glm::vec3(1.f, 0.f, 0.f));  
         break;
     case ClientControllerView::PSDualShock4:
-        controllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale));
+        displayControllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale));
         break;
     }
 
@@ -266,7 +266,7 @@ void AppStage_AccelerometerCalibration::render()
     case eCalibrationMenuState::placeController:
         {
             // Draw the controller model in the pose we want the user place it in
-            drawController(m_controllerView, controllerTransform);
+            drawController(m_controllerView, displayControllerTransform);
         } break;
     case eCalibrationMenuState::measureNoise:
     case eCalibrationMenuState::measureComplete:
@@ -275,7 +275,7 @@ void AppStage_AccelerometerCalibration::render()
             glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
 
             // Draw the controller in the middle            
-            drawController(m_controllerView, controllerTransform);
+            drawController(m_controllerView, displayControllerTransform);
 
             // Draw the sample point cloud around the origin
             drawPointCloud(sampleTransform, glm::vec3(1.f, 1.f, 1.f), 
@@ -293,71 +293,46 @@ void AppStage_AccelerometerCalibration::render()
         } break;
     case eCalibrationMenuState::test:
         {
-            //const float sampleScale = 1.f;
-            //glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
+			const float k_sensorScale = 200.f;
 
+			glm::mat4 controllerTransform;
+			glm::mat4 sensorTransform;
+
+			switch (m_testMode)
+			{
+			case eTestMode::controllerRelative:
+				{
+					controllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale));
+					sensorTransform = glm::scale(glm::mat4(1.f), glm::vec3(k_sensorScale, k_sensorScale, k_sensorScale));
+				} break;
+			case eTestMode::worldRelative:
+				{
+					// Get the orientation of the controller in world space (OpenGL Coordinate System)            
+					glm::quat q = psmove_quaternion_to_glm_quat(m_controllerView->GetOrientation());
+					glm::mat4 worldSpaceOrientation = glm::mat4_cast(q);
+
+					controllerTransform = glm::scale(worldSpaceOrientation, glm::vec3(k_modelScale, k_modelScale, k_modelScale));
+					sensorTransform = glm::scale(worldSpaceOrientation, glm::vec3(k_sensorScale, k_sensorScale, k_sensorScale));
+				} break;
+			default:
+				assert(0 && "unreachable");
+			}
+
+			// Draw the fixed world space axes
+			drawTransformedAxes(glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale)), 200.f);
+
+			// Draw the controller
             drawController(m_controllerView, controllerTransform);
             drawTransformedAxes(controllerTransform, 200.f);
 
-            // Draw the current filtered acceleration direction
-            //{
-            //    const float accel_cms2 = m_lastAcceleration.length();
-            //    glm::vec3 m_start = glm::vec3(0.f);
-            //    glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastAcceleration);
-
-            //    drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
-            //    drawTextAtWorldPosition(sampleTransform, m_end, "A(%.1fcm/s^2)", accel_cms2);
-            //}
-
-            // Draw the current filtered acceleration direction
-            //{
-            //    const float vel_cms = m_lastVelocity.length();
-            //    glm::vec3 m_start = glm::vec3(0.f);
-            //    glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastVelocity);
-
-            //    drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(0.f, 1.f, 0.f));
-            //    drawTextAtWorldPosition(sampleTransform, m_end, "V(%.1fcm/s)", vel_cms);
-            //}
-
-			//### $DEBUG
-			const float sampleScale = 100.f;
-			glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
-
+			// Draw the accelerometer
 			{
 				const float accel_g = m_lastCalibratedAccelerometer.length();
 				glm::vec3 m_start = glm::vec3(0.f);
 				glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
 
-				drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 1.f, 1.f));
-				drawTextAtWorldPosition(sampleTransform, m_end, "Am(%.1fg)", accel_g);
-			}
-
-			{
-				Eigen::Quaternionf current_orientation= psmove_quaternion_to_eigen_quaternionf(m_controllerView->GetPose().Orientation);
-
-				const float k_ms2_to_g_units = 1.f / 9.80665000f; // g-units
-
-				static float ACCELEROMETER_IDENTITY_PITCH_DEGREES = -22.67f;
-				const Eigen::Vector3f k_identity_gravity(
-					0.f, 
-					cosf(ACCELEROMETER_IDENTITY_PITCH_DEGREES*k_degrees_to_radians),
-					-sinf(ACCELEROMETER_IDENTITY_PITCH_DEGREES*k_degrees_to_radians));
-
-				// Use the current linear acceleration from the state to predict
-				// what the accelerometer reading will be (in world space)
-				const Eigen::Vector3f gravity_accel_g_units = k_identity_gravity;
-				const Eigen::Vector3f linear_accel_g_units = Eigen::Vector3f::Zero(); //x.get_linear_acceleration() * k_ms2_to_g_units;
-				const Eigen::Vector3f accel_world = linear_accel_g_units + gravity_accel_g_units;
-				const Eigen::Quaternionf accel_world_quat(0.f, accel_world.x(), accel_world.y(), accel_world.z());
-
-				// Put the accelerometer prediction into the local space of the controller
-				const Eigen::Vector3f accel_local = current_orientation.conjugate()*(accel_world_quat*current_orientation).vec();
-
-				glm::vec3 m_start = glm::vec3(0.f);
-				glm::vec3 m_end = eigen_vector3f_to_glm_vec3(accel_local);
-
-				drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
-				drawTextAtWorldPosition(sampleTransform, m_end, "Ap(1.0g)");
+				drawArrow(sensorTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 1.f, 1.f));
+				drawTextAtWorldPosition(sensorTransform, m_end, "A(%.1fg)", accel_g);
 			}
 
         } break;
@@ -482,7 +457,7 @@ void AppStage_AccelerometerCalibration::renderUI()
     case eCalibrationMenuState::test:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 80));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             if (m_bBypassCalibration)
@@ -493,6 +468,21 @@ void AppStage_AccelerometerCalibration::renderUI()
             {
                 ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
             }
+
+			if (m_testMode == eTestMode::controllerRelative)
+			{
+				if (ImGui::Button("World Relative"))
+				{
+					m_testMode = eTestMode::worldRelative;
+				}
+			}
+			else if (m_testMode == eTestMode::worldRelative)
+			{
+				if (ImGui::Button("Controller Relative"))
+				{
+					m_testMode= eTestMode::controllerRelative;
+				}
+			}				
 
             if (ImGui::Button("Ok"))
             {
