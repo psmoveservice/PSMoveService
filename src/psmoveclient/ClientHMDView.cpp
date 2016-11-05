@@ -53,7 +53,7 @@ bool ClientMorpheusView::GetIsStable() const
 
 bool ClientMorpheusView::GetIsStableAndAlignedWithGravity() const
 {
-	const float k_cosine_10_degrees = 0.984808f;
+	const float k_cosine_20_degrees = 0.9396926f;
 
 	// Get the direction the gravity vector should be pointing 
 	// while the controller is in cradle pose.
@@ -62,7 +62,7 @@ bool ClientMorpheusView::GetIsStableAndAlignedWithGravity() const
 
 	const bool isOk =
 		is_nearly_equal(1.f, acceleration_magnitude, 0.1f) &&
-		PSMoveFloatVector3::dot(k_identity_gravity_calibration_direction, acceleration_direction) >= k_cosine_10_degrees;
+		PSMoveFloatVector3::dot(k_identity_gravity_calibration_direction, acceleration_direction) >= k_cosine_20_degrees;
 
 	return isOk;
 }

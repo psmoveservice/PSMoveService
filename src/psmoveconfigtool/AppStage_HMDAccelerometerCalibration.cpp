@@ -38,14 +38,14 @@ struct HMDAccelerometerPoseSamples
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 	PSMoveFloatVector3 raw_accelerometer_samples[k_max_accelerometer_samples];
-    PSMoveFloatVector3 raw_accelerometer_bias;
+    PSMoveFloatVector3 raw_average_gravity;
 	float raw_variance; // Max raw sensor variance (raw_sensor_units^2)
     int sample_count;
 
     void clear()
     {        
         sample_count= 0;
-		raw_accelerometer_bias = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
+		raw_average_gravity = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
 		raw_variance = 0.f;
     }
 
@@ -55,17 +55,17 @@ struct HMDAccelerometerPoseSamples
 
 		// Compute both mean of signed and unsigned samples
 		PSMoveFloatVector3 mean_acc_abs_error = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
-        raw_accelerometer_bias = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
+        raw_average_gravity = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
         for (int sample_index= 0; sample_index < k_max_accelerometer_samples; ++sample_index)
         {
 			PSMoveFloatVector3 signed_error_sample = raw_accelerometer_samples[sample_index];
 			PSMoveFloatVector3 unsigned_error_sample = signed_error_sample.abs();
 
 			mean_acc_abs_error = mean_acc_abs_error + unsigned_error_sample;
-            raw_accelerometer_bias= raw_accelerometer_bias + signed_error_sample;
+            raw_average_gravity= raw_average_gravity + signed_error_sample;
         }
 		mean_acc_abs_error = mean_acc_abs_error.unsafe_divide(N);
-        raw_accelerometer_bias= raw_accelerometer_bias.unsafe_divide(N);
+        raw_average_gravity= raw_average_gravity.unsafe_divide(N);
 
 		// Compute the variance of the (unsigned) sample error, where "error" = abs(accelerometer_sample)
 		PSMoveFloatVector3 var_accelerometer = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
@@ -215,7 +215,7 @@ void AppStage_HMDAccelerometerCalibration::update()
                     // Tell the service what the new calibration constraints are
                     request_set_hmd_accelerometer_calibration(
                         m_hmdView->GetHmdID(),
-                        m_noiseSamples->raw_accelerometer_bias,
+                        m_noiseSamples->raw_average_gravity,
 						m_noiseSamples->raw_variance);
 
                     m_menuState = AppStage_HMDAccelerometerCalibration::measureComplete;
@@ -257,7 +257,7 @@ void AppStage_HMDAccelerometerCalibration::render()
     case eCalibrationMenuState::measureNoise:
     case eCalibrationMenuState::measureComplete:
         {
-            const float sampleScale = 0.01f;
+            const float sampleScale = 0.1f;
             glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
 
             // Draw the controller in the middle            
@@ -279,11 +279,11 @@ void AppStage_HMDAccelerometerCalibration::render()
         } break;
     case eCalibrationMenuState::test:
         {
-            const float sampleScale = 10.f;
-            glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
+            const float sensorScale = 100.f;
+            glm::mat4 sensorTransform = glm::scale(glm::mat4(1.f), glm::vec3(sensorScale, sensorScale, sensorScale));
 
             drawHMD(m_hmdView, hmdTransform);
-            drawTransformedAxes(hmdTransform, 200.f);
+            drawTransformedAxes(hmdTransform, 500.f);
 
             // Draw the current filtered accelerometer direction
             {
@@ -291,8 +291,8 @@ void AppStage_HMDAccelerometerCalibration::render()
                 glm::vec3 m_start = glm::vec3(0.f);
                 glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
 
-                drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
-                drawTextAtWorldPosition(sampleTransform, m_end, "A(%.1fg)", accel_g);
+                drawArrow(sensorTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
+                drawTextAtWorldPosition(sensorTransform, m_end, "A(%.1fg)", accel_g);
             }
         } break;
     default:
@@ -446,7 +446,7 @@ void AppStage_HMDAccelerometerCalibration::renderUI()
 //-- private methods -----
 static void request_set_hmd_accelerometer_calibration(
     const int controller_id,
-	const PSMoveFloatVector3 &raw_bias,
+	const PSMoveFloatVector3 &raw_average_gravity,
     const float variance)
 {
     RequestPtr request(new PSMoveProtocol::Request());
@@ -456,9 +456,9 @@ static void request_set_hmd_accelerometer_calibration(
         request->mutable_set_hmd_accelerometer_calibration_request();
 
     calibration->set_hmd_id(controller_id);
-	calibration->mutable_raw_bias()->set_i(raw_bias.i);
-	calibration->mutable_raw_bias()->set_j(raw_bias.j);
-	calibration->mutable_raw_bias()->set_k(raw_bias.k);
+	calibration->mutable_raw_average_gravity()->set_i(raw_average_gravity.i);
+	calibration->mutable_raw_average_gravity()->set_j(raw_average_gravity.j);
+	calibration->mutable_raw_average_gravity()->set_k(raw_average_gravity.k);
     calibration->set_raw_variance(variance);
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));

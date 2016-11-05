@@ -69,7 +69,7 @@ private:
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
 
-    struct GyroscopeErrorSamples *m_errorSamples;
+    struct HMDGyroscopeErrorSamples *m_errorSamples;
 };
 
 #endif // APP_STAGE_HMD_GYROSCOPE_CALIBRATION_H

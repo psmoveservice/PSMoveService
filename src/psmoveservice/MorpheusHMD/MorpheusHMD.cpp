@@ -89,7 +89,7 @@ struct MorpheusDataInput
 	} headsetFlags;								// byte 8
 
 	unsigned char unkFlags;     				// byte 9
-	unsigned char unk2[4];						// byte 10-17
+	unsigned char unk2[8];						// byte 10-17
 
 	MorpheusRawSensorFrame imu_frame_0;         // byte 18-31
 	unsigned char unk3[2];						// byte 32-33
@@ -226,27 +226,27 @@ void MorpheusHMDSensorFrame::parse_data_input(
 {
 	short raw_seq = static_cast<short>((data_input->seq_frame[1] << 8) | data_input->seq_frame[0]);
 
-	// Piece together the 12-bit accelerometer data
-	//short raw_accelX = static_cast<short>(((data_input->accel_x[1] << 8) | data_input->accel_x[0]) >> 4);
-	//short raw_accelY = static_cast<short>(((data_input->accel_y[1] << 8) | data_input->accel_y[0]) >> 4);
-	//short raw_accelZ = static_cast<short>(((data_input->accel_z[1] << 8) | data_input->accel_z[0]) >> 4);
-	short raw_accelX = static_cast<short>(((data_input->accel_x[1] << 8) | data_input->accel_x[0]));
-	short raw_accelY = static_cast<short>(((data_input->accel_y[1] << 8) | data_input->accel_y[0]));
-	short raw_accelZ = static_cast<short>(((data_input->accel_z[1] << 8) | data_input->accel_z[0]));
-
+	// Piece together the 12-bit accelerometer data 
+	// rotate data 90degrees about Z so that sensor Y is up, flip X and Z)
+	// +X - goes out the left of the headset
+	// +Y - goes out the top of the headset
+	// +Z - goes out the back of the headset
+	short raw_accelX = static_cast<short>(((data_input->accel_y[1] << 8) | data_input->accel_y[0])) >> 4;						
+	short raw_accelY = static_cast<short>(((data_input->accel_x[1] << 8) | data_input->accel_x[0])) >> 4;
+	short raw_accelZ = -(static_cast<short>(((data_input->accel_z[1] << 8) | data_input->accel_z[0])) >> 4);
 
 	// Piece together the 16-bit gyroscope data
 	short raw_gyroYaw = static_cast<short>((data_input->gyro_yaw[1] << 8) | data_input->gyro_yaw[0]);
 	short raw_gyroPitch = static_cast<short>((data_input->gyro_pitch[1] << 8) | data_input->gyro_pitch[0]);
-	short raw_gyroRoll = static_cast<short>((data_input->gyro_roll[1] << 8) | data_input->gyro_roll[0]);
+	short raw_gyroRoll = -static_cast<short>((data_input->gyro_roll[1] << 8) | data_input->gyro_roll[0]);
 
 	// Save the sequence number
 	SequenceNumber = static_cast<int>(raw_seq);
 
 	// Save the raw accelerometer values
 	RawAccel.i = static_cast<int>(raw_accelX);
-	RawAccel.j = static_cast<int>(raw_accelZ); // Swap Z and Y so that Y points up
-	RawAccel.k = static_cast<int>(raw_accelY);
+	RawAccel.j = static_cast<int>(raw_accelY);
+	RawAccel.k = static_cast<int>(raw_accelZ);
 
 	// Save the raw gyro values
 	RawGyro.i = static_cast<int>(raw_gyroPitch);
@@ -255,8 +255,8 @@ void MorpheusHMDSensorFrame::parse_data_input(
 
 	// calibrated_acc= (raw_acc - acc_bias) * acc_gain
 	CalibratedAccel.i = (static_cast<float>(raw_accelX) - config->raw_accelerometer_bias.i) * config->accelerometer_gain.i;
-	CalibratedAccel.j = (static_cast<float>(raw_accelZ) - config->raw_accelerometer_bias.j) * config->accelerometer_gain.j;  // Swap Z and Y so that Y points up
-	CalibratedAccel.k = (static_cast<float>(raw_accelY) - config->raw_accelerometer_bias.k) * config->accelerometer_gain.k;
+	CalibratedAccel.j = (static_cast<float>(raw_accelY) - config->raw_accelerometer_bias.j) * config->accelerometer_gain.j;
+	CalibratedAccel.k = (static_cast<float>(raw_accelZ) - config->raw_accelerometer_bias.k) * config->accelerometer_gain.k;
 
 	// calibrated_gyro= (raw_gyro - gyro_bias) * gyro_gain
 	CalibratedGyro.i = (static_cast<float>(raw_gyroPitch) - config->raw_gyro_bias.i) * config->gyro_gain.i;

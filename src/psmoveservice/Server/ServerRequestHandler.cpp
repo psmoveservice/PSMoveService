@@ -1724,9 +1724,16 @@ protected:
 
 			const auto &request = context.request->set_hmd_accelerometer_calibration_request();
 
-			// Save the bias, but subtract off 1g from the direction of gravity
-			set_config_vector(request.raw_bias(), config->raw_accelerometer_bias);
-			config->raw_accelerometer_bias.j -= (1.f/config->accelerometer_gain.j);
+			// Compute the bias as 1g subtracted from the measured direction of gravity
+			CommonDeviceVector measured_g;
+			set_config_vector(request.raw_average_gravity(), measured_g);
+			float length = sqrtf(measured_g.i*measured_g.i + measured_g.j*measured_g.j + measured_g.k*measured_g.k);			
+			if (length > k_real_epsilon)
+			{
+				config->raw_accelerometer_bias.i = measured_g.i * (1.f - 1.f/(length*config->accelerometer_gain.i));
+				config->raw_accelerometer_bias.j = measured_g.j * (1.f - 1.f/(length*config->accelerometer_gain.j));
+				config->raw_accelerometer_bias.k = measured_g.k * (1.f - 1.f/(length*config->accelerometer_gain.k));
+			}
 
 			config->raw_accelerometer_variance = request.raw_variance();
 			config->save();

@@ -53,20 +53,20 @@ public:
 		// see http://stackoverflow.com/questions/19161872/meaning-of-lsb-unit-and-unit-lsb
 
 		// Accelerometer configured at ±2g, 1024 LSB/g
-		accelerometer_gain.i = 1.f / (1024.f*16.f);
-		accelerometer_gain.j = 1.f / (1024.f*16.f);
-		accelerometer_gain.k = 1.f / (1024.f*16.f);
+		accelerometer_gain.i = 1.f / (1024.f);
+		accelerometer_gain.j = 1.f / (1024.f);
+		accelerometer_gain.k = 1.f / (1024.f);
 
 		// Assume no bias until calibration says otherwise
 		raw_accelerometer_bias.i = 0.f;
 		raw_accelerometer_bias.j = 0.f;
 		raw_accelerometer_bias.k = 0.f;
 
-		// Gyroscope configured at ±250°/s, 131.2f LSB/(°/s)
+		// Gyroscope configured at ±1000°/s, 32.8 LSB/(°/s)
 		// but we want the calibrated gyro value in radians/s so add in a deg->rad conversion as well
-		gyro_gain.i = k_degrees_to_radians / 131.2f;
-		gyro_gain.j = k_degrees_to_radians / 131.2f;
-		gyro_gain.k = k_degrees_to_radians / 131.2f;
+		gyro_gain.i = 1.f / (32.8f / k_degrees_to_radians);
+		gyro_gain.j = 1.f / (32.8f / k_degrees_to_radians);
+		gyro_gain.k = 1.f / (32.8f / k_degrees_to_radians);
 
 		// Assume no bias until calibration says otherwise
 		raw_gyro_bias.i = 0.f;

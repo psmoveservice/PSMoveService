@@ -31,7 +31,7 @@ const int k_desired_noise_sample_count = 1000;
 const float k_desired_drift_sampling_time = 30.0*1000.f; // milliseconds
 
 //-- definitions -----
-struct GyroscopeErrorSamples
+struct HMDGyroscopeErrorSamples
 {
     PSMoveFloatVector3 raw_gyro_samples[k_desired_noise_sample_count];
 	PSMoveFloatVector3 raw_gyro_bias;
@@ -104,7 +104,7 @@ AppStage_HMDGyroscopeCalibration::AppStage_HMDGyroscopeCalibration(App *app)
     , m_isHMDStreamActive(false)
     , m_lastHMDSeqNum(-1)
     , m_lastRawGyroscope()
-    , m_errorSamples(new GyroscopeErrorSamples)
+    , m_errorSamples(new HMDGyroscopeErrorSamples)
 {
 }
 
@@ -304,7 +304,7 @@ void AppStage_HMDGyroscopeCalibration::update()
 
 void AppStage_HMDGyroscopeCalibration::render()
 {
-	const float modelScale = 1.f;
+	const float modelScale = 9.f;
 	glm::mat4 hmdTransform;
 
 	switch (m_hmdView->GetHmdViewType())

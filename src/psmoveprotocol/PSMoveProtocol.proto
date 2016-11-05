@@ -330,7 +330,7 @@ message Request {
     // Parameters for SET_HMD_ACCELEROMETER_CALIBRATION
     message RequestSetHMDAccelerometerCalibration {
         int32 hmd_id = 1;
-        FloatVector raw_bias= 2;
+        FloatVector raw_average_gravity= 2;
         float raw_variance= 3;
     }
     RequestSetHMDAccelerometerCalibration set_hmd_accelerometer_calibration_request = 28;
