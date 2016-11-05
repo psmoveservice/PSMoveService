@@ -4,6 +4,7 @@
 #include "ServerLog.h"
 #include "ServerTrackerView.h"
 #include "ServerDeviceView.h"
+#include "PSMoveProtocol.pb.h"
 
 //-- constants -----
 
@@ -156,3 +157,7 @@ TrackerManager::getTrackerViewPtr(int device_id)
     return std::static_pointer_cast<ServerTrackerView>(m_deviceViews[device_id]);
 }
 
+int TrackerManager::getListUpdatedResponseType()
+{
+	return PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED;
+}

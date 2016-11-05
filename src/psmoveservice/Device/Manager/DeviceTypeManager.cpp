@@ -1,6 +1,7 @@
 //-- includes -----
 #include "DeviceTypeManager.h"
 #include "DeviceEnumerator.h"
+#include "PSMoveProtocol.pb.h"
 #include "ServerLog.h"
 #include "ServerDeviceView.h"
 #include "ServerNetworkManager.h"
@@ -218,7 +219,7 @@ void
 DeviceTypeManager::send_device_list_changed_notification()
 {
     ResponsePtr response(new PSMoveProtocol::Response);
-    response->set_type(getListUpdatedResponseType());
+    response->set_type(static_cast<PSMoveProtocol::Response_ResponseType>(getListUpdatedResponseType()));
     response->set_request_id(-1);
     response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 
