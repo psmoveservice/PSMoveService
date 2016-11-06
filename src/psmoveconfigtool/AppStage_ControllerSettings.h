@@ -14,12 +14,15 @@ public:
     struct ControllerInfo
     {
         int ControllerID;
+		int FirmwareVersion;
+		int FirmwareRevision;
         ClientControllerView::eControllerType ControllerType;
         PSMoveTrackingColorType TrackingColorType;
         std::string DevicePath;
         std::string DeviceSerial;
         std::string AssignedHostSerial;
         bool PairedToHost;
+		bool HasMagnetometer;
     };
 
     AppStage_ControllerSettings(class App *app);

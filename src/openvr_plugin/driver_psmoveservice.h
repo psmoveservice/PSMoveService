@@ -261,6 +261,9 @@ private:
 	std::chrono::time_point<std::chrono::high_resolution_clock> m_lastTouchpadPress;
 	bool m_touchpadDirectionsUsed;
 
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_resetPoseButtonPressTime;
+	bool m_bResetPoseRequestSent;
+
     // Button Remapping
     vr::EVRButtonId psButtonIDToVRButtonID[k_EPSButtonID_Count];
 	eVRTouchpadDirection psButtonIDToVrTouchpadDirection[k_EPSButtonID_Count];

@@ -346,6 +346,9 @@ message Response {
             string device_path = 5;
             string device_serial = 6;
             string assigned_host_serial = 7;
+            int32 firmware_version = 8;
+            int32 firmware_revision = 9;
+            bool has_magnetometer = 10;
         }
         repeated ControllerInfo controllers = 1;
         string host_serial = 2;

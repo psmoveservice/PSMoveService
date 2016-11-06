@@ -157,6 +157,8 @@ AppStage_GyroscopeCalibration::AppStage_GyroscopeCalibration(App *app)
     , m_isControllerStreamActive(false)
     , m_lastControllerSeqNum(-1)
     , m_lastRawGyroscope()
+	, m_resetPoseButtonPressTime()
+	, m_bResetPoseRequestSent(false)
     , m_errorSamples(new GyroscopeErrorSamples)
     , m_scaleSamples(new GyroscopeScaleSamples)
 {
@@ -440,6 +442,37 @@ void AppStage_GyroscopeCalibration::update()
     case eCalibrationMenuState::measureComplete:
     case eCalibrationMenuState::test:
         {
+			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
+			{
+				PSMoveButtonState resetPoseButtonState= m_controllerView->GetPSMoveView().GetButtonSelect();
+
+				switch (resetPoseButtonState)
+				{
+				case PSMoveButtonState::PSMoveButton_DOWN:
+					{
+						m_resetPoseButtonPressTime= std::chrono::high_resolution_clock::now();
+					} break;
+				case PSMoveButtonState::PSMoveButton_PRESSED:
+					{
+						if (!m_bResetPoseRequestSent)
+						{
+							const float k_hold_duration_milli = 250.f;
+							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+							std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetPoseButtonPressTime;
+
+							if (pressDurationMilli.count() >= k_hold_duration_milli)
+							{
+								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView, PSMoveQuaternion::identity()));
+								m_bResetPoseRequestSent = true;
+							}
+						}
+					} break;
+				case PSMoveButtonState::PSMoveButton_UP:
+					{
+						m_bResetPoseRequestSent = false;
+					} break;
+				}
+			}
         } break;
     default:
         assert(0 && "unreachable");
@@ -686,7 +719,7 @@ void AppStage_GyroscopeCalibration::renderUI()
     case eCalibrationMenuState::test:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 80));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 120));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             if (m_bBypassCalibration)
@@ -697,6 +730,13 @@ void AppStage_GyroscopeCalibration::renderUI()
             {
                 ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
             }
+
+			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
+			{
+				ImGui::TextWrapped(
+					"[Hold the Select button with controller pointed forward\n" \
+					"to recenter the controller]");
+			}
 
             if (ImGui::Button("Ok"))
             {

@@ -7,7 +7,6 @@
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
 #include "PSMoveConfig.h"
-#include "PSMoveProtocol.pb.h"
 
 //-- typedefs -----
 
@@ -90,15 +89,9 @@ protected:
     DeviceEnumerator *allocate_device_enumerator() override;
     void free_device_enumerator(DeviceEnumerator *) override;
     ServerDeviceView *allocate_device_view(int device_id) override;
-
-    const PSMoveProtocol::Response_ResponseType getListUpdatedResponseType() override
-    {
-        return TrackerManager::k_list_udpated_response_type;
-    }
+	int getListUpdatedResponseType() override;
 
 private:
-    static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED;
-
     TrackerManagerConfig cfg;
     bool m_tracker_list_dirty;
 };

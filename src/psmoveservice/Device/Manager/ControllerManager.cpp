@@ -3,6 +3,7 @@
 #include "BluetoothQueries.h"
 #include "ControllerDeviceEnumerator.h"
 #include "OrientationFilter.h"
+#include "PSMoveProtocol.pb.h"
 #include "ServerLog.h"
 #include "ServerControllerView.h"
 #include "ServerDeviceView.h"
@@ -93,6 +94,11 @@ ServerDeviceView *
 ControllerManager::allocate_device_view(int device_id)
 {
     return new ServerControllerView(device_id);
+}
+
+int ControllerManager::getListUpdatedResponseType()
+{
+	return PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;
 }
 
 void

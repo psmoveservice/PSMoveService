@@ -1427,8 +1427,8 @@ init_filters_for_psmove(
 
         orientation_filter->setFilterSpace(filterSpace);
 
-        // Use the complementary MARG fusion filter by default
-        orientation_filter->setFusionType(OrientationFilter::FusionTypeComplementaryMARG);
+			// Use the complementary MARG fusion filter by default
+			orientation_filter->setFusionType(OrientationFilter::FusionTypeComplementaryMARG);
         orientation_filter->setGyroscopeError(psmove_config->gyro_variance); 
         orientation_filter->setGyroscopeDrift(psmove_config->gyro_drift);
     }
