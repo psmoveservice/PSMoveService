@@ -1692,7 +1692,7 @@ protected:
 				}
 
                 context.connection_state->active_hmd_streams.set(hmd_id, false);
-                context.connection_state->active_hmd_streams[hmd_id].Clear();
+                context.connection_state->active_hmd_stream_info[hmd_id].Clear();
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
