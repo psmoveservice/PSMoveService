@@ -7,6 +7,7 @@
 #include "ServerLog.h"
 #include "ServerUtility.h"
 #include "hidapi.h"
+#include "libusb.h"
 #include <vector>
 #include <cstdlib>
 #ifdef _WIN32
@@ -15,23 +16,51 @@
 #include <math.h>
 
 //-- constants -----
+#define MORPHEUS_VENDOR_ID 0x054c
+#define MORPHEUS_PRODUCT_ID 0x09af
+
+#define MORPHEUS_CONFIGURATION_PSVR  1
+#define MORPHEUS_ENDPOINT_IN 0x80
+
 #define MORPHEUS_SENSOR_INTERFACE 4
 #define MORPHEUS_COMMAND_INTERFACE 5
+
+#define MORPHEUS_USB_INTERFACES_MASK_TO_CLAIM ( \
+	(1 << MORPHEUS_COMMAND_INTERFACE) \
+)
+
+#define MORPHEUS_COMMAND_MAGIC 0xAA
+#define MORPHEUS_COMMAND_MAX_PAYLOAD_LEN 60
 
 #define MORPHEUS_HMD_STATE_BUFFER_MAX 4
 #define METERS_TO_CENTIMETERS 100
 
+enum eMorpheusRequestType
+{
+	Morpheus_Req_EnableTracking= 0x11,
+	Morpheus_Req_TurnOffProcessorUnit = 0x13,
+	Morpheus_Req_SetHeadsetPower= 0x17,
+	Morpheus_Req_SetCinematicConfiguration= 0x21,
+	Morpheus_Req_SetVRMode= 0x23,
+};
+
 // -- private definitions -----
-class MorpheusHIDDetails 
+class MorpheusUSBContext 
 {
 public:
 	std::string device_identifier;
+
+	// HIDApi state
     std::string sensor_device_path;
 	hid_device *sensor_device_handle;
-	std::string command_device_path;
-	hid_device *command_device_handle;
+	
+	// LibUSB state
+	libusb_context *usb_context;
+	libusb_device_handle *usb_device_handle;
+	libusb_config_descriptor *usb_device_descriptor;
+	unsigned int usb_claimed_interface_mask;
 
-    MorpheusHIDDetails()
+    MorpheusUSBContext()
     {
         Reset();
     }
@@ -41,8 +70,10 @@ public:
 		device_identifier = "";
         sensor_device_path = "";
 		sensor_device_handle = nullptr;
-		command_device_path = "";
-		command_device_handle = nullptr;
+		usb_context = nullptr;
+		usb_device_handle = nullptr;
+		usb_device_descriptor = nullptr;
+		usb_claimed_interface_mask = 0;
     }
 };
 
@@ -66,7 +97,7 @@ struct MorpheusRawSensorFrame
 
 #pragma pack(1)
 //See https://github.com/gusmanb/PSVRFramework/wiki/Sensor-report
-struct MorpheusDataInput
+struct MorpheusSensorData
 {
 	eMorpheusButton buttons;					// byte 0
 	unsigned char unk0;							// byte 1
@@ -104,20 +135,45 @@ struct MorpheusDataInput
 	unsigned char unk7[6];                      // byte 57-62
 	unsigned char sequence;                     // byte 63
 
-    MorpheusDataInput()
+    MorpheusSensorData()
     {
         Reset();
     }
 
     void Reset()
     {
-        memset(this, 0, sizeof(MorpheusDataInput));
+        memset(this, 0, sizeof(MorpheusSensorData));
     }
+};
+
+struct MorpheusCommandHeader
+{
+	unsigned char request_id;
+	unsigned char command_status;
+	unsigned char magic;
+	unsigned char length;
+};
+
+struct MorpheusCommand
+{
+	MorpheusCommandHeader header;
+	unsigned char payload[MORPHEUS_COMMAND_MAX_PAYLOAD_LEN]; // variable sized payload depending on report id
 };
 #pragma pack()
 
-// -- public methods
+// -- private methods
+static bool morpheus_open_usb_device(MorpheusUSBContext *morpheus_context);
+static void morpheus_close_usb_device(MorpheusUSBContext *morpheus_context);
+static bool morpheus_enable_tracking(MorpheusUSBContext *morpheus_context);
+static bool morpheus_set_headset_power(MorpheusUSBContext *morpheus_context, bool bIsOn);
+static bool morpheus_turn_off_processor_unit(MorpheusUSBContext *morpheus_context);
+static bool morpheus_set_vr_mode(MorpheusUSBContext *morpheus_context, bool bIsOn);
+static bool morpheus_set_cinematic_configuration(
+	MorpheusUSBContext *morpheus_context,
+	unsigned char ScreenDistance, unsigned char ScreenSize, unsigned char Brightness, unsigned char MicVolume, bool UnknownVRSetting);
+static bool morpheus_send_command(MorpheusUSBContext *morpheus_context, MorpheusCommand &command);
 
+// -- public interface
 // -- Morpheus HMD Config
 const int MorpheusHMDConfig::CONFIG_VERSION = 1;
 
@@ -267,7 +323,7 @@ void MorpheusHMDSensorFrame::parse_data_input(
 // -- Morpheus HMD State -----
 void MorpheusHMDState::parse_data_input(
 	const MorpheusHMDConfig *config, 
-	const struct MorpheusDataInput *data_input)
+	const struct MorpheusSensorData *data_input)
 {
 	SensorFrames[0].parse_data_input(config, &data_input->imu_frame_0);
 	SensorFrames[1].parse_data_input(config, &data_input->imu_frame_1);
@@ -276,13 +332,14 @@ void MorpheusHMDState::parse_data_input(
 // -- Morpheus HMD -----
 MorpheusHMD::MorpheusHMD()
     : cfg()
-    , HIDDetails(nullptr)
+    , USBContext(nullptr)
     , NextPollSequenceNumber(0)
     , InData(nullptr)
     , HMDStates()
+	, bIsTracking(false)
 {
-    HIDDetails = new MorpheusHIDDetails;
-    InData = new MorpheusDataInput;
+    USBContext = new MorpheusUSBContext;
+    InData = new MorpheusSensorData;
 
     HMDStates.clear();
 }
@@ -295,7 +352,7 @@ MorpheusHMD::~MorpheusHMD()
     }
 
     delete InData;
-    delete HIDDetails;
+    delete USBContext;
 }
 
 bool MorpheusHMD::open()
@@ -328,21 +385,25 @@ bool MorpheusHMD::open(
     {
 		SERVER_LOG_INFO("MorpheusHMD::open") << "Opening MorpheusHMD(" << cur_dev_path << ").";
 
-		HIDDetails->device_identifier = cur_dev_path;
+		USBContext->device_identifier = cur_dev_path;
 
-		HIDDetails->sensor_device_path = pEnum->get_interface_path(MORPHEUS_SENSOR_INTERFACE);
-		HIDDetails->sensor_device_handle = hid_open_path(HIDDetails->sensor_device_path.c_str());
-		if (HIDDetails->sensor_device_handle != nullptr)
+		// Open the sensor interface using HIDAPI
+		USBContext->sensor_device_path = pEnum->get_interface_path(MORPHEUS_SENSOR_INTERFACE);
+		USBContext->sensor_device_handle = hid_open_path(USBContext->sensor_device_path.c_str());
+		if (USBContext->sensor_device_handle != nullptr)
 		{
-			hid_set_nonblocking(HIDDetails->sensor_device_handle, 1);
+			hid_set_nonblocking(USBContext->sensor_device_handle, 1);
 		}
 
-		HIDDetails->command_device_path = pEnum->get_interface_path(MORPHEUS_COMMAND_INTERFACE);
-		HIDDetails->command_device_handle = hid_open_path(HIDDetails->command_device_path.c_str());
-		if (HIDDetails->command_device_handle != nullptr)
-		{
-			hid_set_nonblocking(HIDDetails->command_device_handle, 1);
-		}
+		// Open the command interface using libusb.
+		// NOTE: Ideally we would use one usb library for both interfaces, but there are some complications.
+		// A) The command interface uses the bulk transfer endpoint and HIDApi doesn't support that endpoint.
+		// B) In Windows, libusb doesn't handle a high frequency of requests coming from two different threads well.
+		// In this case, PS3EyeDriver is constantly sending bulk transfer requests in its own thread to get video frames.
+		// If we started sending control transfer requests for the sensor data in the main thread at the same time
+		// it can lead to a crash. It shouldn't, but this was a problem previously setting video feed properties
+		// from the color config tool while a video feed was running.
+		morpheus_open_usb_device(USBContext);
 
         if (getIsOpen())  // Controller was opened and has an index
         {
@@ -366,21 +427,21 @@ bool MorpheusHMD::open(
 
 void MorpheusHMD::close()
 {
-    if (HIDDetails->sensor_device_handle != nullptr || HIDDetails->command_device_handle != nullptr)
+    if (USBContext->sensor_device_handle != nullptr || USBContext->usb_device_handle != nullptr)
     {
-		if (HIDDetails->sensor_device_handle != nullptr)
+		if (USBContext->sensor_device_handle != nullptr)
 		{
-			SERVER_LOG_INFO("MorpheusHMD::close") << "Closing MorpheusHMD(" << HIDDetails->sensor_device_path << ")";
-			hid_close(HIDDetails->sensor_device_handle);
+			SERVER_LOG_INFO("MorpheusHMD::close") << "Closing MorpheusHMD sensor interface(" << USBContext->sensor_device_path << ")";
+			hid_close(USBContext->sensor_device_handle);
 		}
 
-		if (HIDDetails->command_device_handle != nullptr)
+		if (USBContext->usb_device_handle != nullptr)
 		{
-			SERVER_LOG_INFO("MorpheusHMD::close") << "Closing MorpheusHMD(" << HIDDetails->command_device_path << ")";
-			hid_close(HIDDetails->command_device_handle);
+			SERVER_LOG_INFO("MorpheusHMD::close") << "Closing MorpheusHMD command interface";
+			morpheus_close_usb_device(USBContext);
 		}
 
-        HIDDetails->Reset();
+        USBContext->Reset();
         InData->Reset();
     }
     else
@@ -401,7 +462,7 @@ MorpheusHMD::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
     if (pEnum->get_device_type() == getDeviceType())
     {
         const char *enumerator_path = pEnum->get_path();
-        const char *dev_path = HIDDetails->device_identifier.c_str();
+        const char *dev_path = USBContext->device_identifier.c_str();
 
 #ifdef _WIN32
         matches = _stricmp(dev_path, enumerator_path) == 0;
@@ -422,13 +483,13 @@ MorpheusHMD::getIsReadyToPoll() const
 std::string
 MorpheusHMD::getUSBDevicePath() const
 {
-    return HIDDetails->sensor_device_path;
+    return USBContext->sensor_device_path;
 }
 
 bool
 MorpheusHMD::getIsOpen() const
 {
-    return HIDDetails->sensor_device_handle != nullptr && HIDDetails->command_device_handle != nullptr;
+    return USBContext->sensor_device_handle != nullptr && USBContext->usb_device_handle != nullptr;
 }
 
 IControllerInterface::ePollResult
@@ -443,7 +504,7 @@ MorpheusHMD::poll()
 		for (int iteration = 0; iteration < k_max_iterations; ++iteration)
 		{
 			// Attempt to read the next update packet from the controller
-			int res = hid_read(HIDDetails->sensor_device_handle, (unsigned char*)InData, sizeof(MorpheusDataInput));
+			int res = hid_read(USBContext->sensor_device_handle, (unsigned char*)InData, sizeof(MorpheusSensorData));
 
 			if (res == 0)
 			{
@@ -459,7 +520,7 @@ MorpheusHMD::poll()
 			{
 				char hidapi_err_mbs[256];
 				bool valid_error_mesg = 
-					ServerUtility::convert_wcs_to_mbs(hid_error(HIDDetails->sensor_device_handle), hidapi_err_mbs, sizeof(hidapi_err_mbs));
+					ServerUtility::convert_wcs_to_mbs(hid_error(USBContext->sensor_device_handle), hidapi_err_mbs, sizeof(hidapi_err_mbs));
 
 				// Device no longer in valid state.
 				if (valid_error_mesg)
@@ -535,4 +596,251 @@ MorpheusHMD::getState(
 long MorpheusHMD::getMaxPollFailureCount() const
 {
     return cfg.max_poll_failure_count;
+}
+
+void MorpheusHMD::setTrackingEnabled(bool bEnable)
+{
+	if (USBContext->usb_device_handle != nullptr)
+	{
+		if (!bIsTracking && bEnable)
+		{
+			if (morpheus_set_headset_power(USBContext, true))
+			{
+				if (morpheus_enable_tracking(USBContext))
+				{
+					bIsTracking = true;
+				}
+			}
+		}
+		else if (bIsTracking && !bEnable)
+		{
+			morpheus_set_headset_power(USBContext, false);
+			bIsTracking = false;
+		}
+	}
+}
+
+//-- private morpheus commands ---
+static bool morpheus_open_usb_device(
+	MorpheusUSBContext *morpheus_context)
+{
+	bool bSuccess = true;
+	if (libusb_init(&morpheus_context->usb_context) == LIBUSB_SUCCESS)
+	{
+		libusb_set_debug(morpheus_context->usb_context, 3);
+	}
+	else
+	{
+		SERVER_LOG_ERROR("morpeus_open_usb_device") << "libusb context initialization failed!";
+		bSuccess = false;
+	}
+
+	if (bSuccess)
+	{
+		morpheus_context->usb_device_handle = 
+			libusb_open_device_with_vid_pid(
+				morpheus_context->usb_context,
+				MORPHEUS_VENDOR_ID, MORPHEUS_PRODUCT_ID);
+
+		if (morpheus_context->usb_device_handle == nullptr)
+		{
+			SERVER_LOG_ERROR("morpeus_open_usb_device") << "Morpheus USB device not found!";
+			bSuccess = false;
+		}
+	}
+
+	if (bSuccess)
+	{
+		libusb_device *device = libusb_get_device(morpheus_context->usb_device_handle);
+		int result = libusb_get_config_descriptor_by_value(
+			device, 
+			MORPHEUS_CONFIGURATION_PSVR, 
+			&morpheus_context->usb_device_descriptor);
+
+		if (result != LIBUSB_SUCCESS) 
+		{
+			SERVER_LOG_ERROR("morpeus_open_usb_device") << "Failed to retrieve Morpheus usb config descriptor";
+			bSuccess = false;
+		}
+	}
+
+	for (int interface_index = 0; 
+		 bSuccess && interface_index < morpheus_context->usb_device_descriptor->bNumInterfaces; 
+		 interface_index++) 
+	{
+		int mask = 1 << interface_index;
+
+		if (MORPHEUS_USB_INTERFACES_MASK_TO_CLAIM & mask) 
+		{
+			int result = 0;
+
+			#ifndef _WIN32
+			result = libusb_kernel_driver_active(morpheus_context->usb_device_handle, interface_index);
+			if (result < 0) 
+			{
+				SERVER_LOG_ERROR("morpeus_open_usb_device") << "USB Interface #"<< interface_index <<" driver status failed";
+				bSuccess = false;
+			}
+
+			if (bSuccess && result == 1)
+			{
+				SERVER_LOG_ERROR("morpeus_open_usb_device") << "Detach kernel driver on interface #" << interface_index;
+
+				result = libusb_detach_kernel_driver(morpheus_context->usb_device_handle, interface_index);
+				if (result != LIBUSB_SUCCESS) 
+				{
+					SERVER_LOG_ERROR("morpeus_open_usb_device") << "Interface #" << interface_index << " detach failed";
+					bSuccess = false;
+				}
+			}
+			#endif //_WIN32
+
+			result = libusb_claim_interface(morpheus_context->usb_device_handle, interface_index);
+			if (result == LIBUSB_SUCCESS)
+			{
+				morpheus_context->usb_claimed_interface_mask |= mask;
+			}
+			else
+			{
+				SERVER_LOG_ERROR("morpeus_open_usb_device") << "Interface #" << interface_index << " claim failed";
+				bSuccess = false;
+			}
+		}
+	}
+
+	if (!bSuccess)
+	{
+		morpheus_close_usb_device(morpheus_context);
+	}
+
+	return bSuccess;
+}
+
+static void morpheus_close_usb_device(
+	MorpheusUSBContext *morpheus_context)
+{
+	for (int interface_index = 0; morpheus_context->usb_claimed_interface_mask != 0; ++interface_index) 
+	{
+		int interface_mask = 1 << interface_index;
+
+		if ((morpheus_context->usb_claimed_interface_mask & interface_mask) != 0)
+		{
+			libusb_release_interface(morpheus_context->usb_device_handle, interface_index);
+			morpheus_context->usb_claimed_interface_mask &= ~interface_mask;
+		}
+	}
+
+	if (morpheus_context->usb_device_descriptor != nullptr)
+	{
+		libusb_free_config_descriptor(morpheus_context->usb_device_descriptor);
+		morpheus_context->usb_device_descriptor = nullptr;
+	}
+
+	if (morpheus_context->usb_device_handle != nullptr)
+	{
+		libusb_close(morpheus_context->usb_device_handle);
+		morpheus_context->usb_device_handle = nullptr;
+	}
+
+	if (morpheus_context->usb_context != nullptr)
+	{
+		libusb_exit(morpheus_context->usb_context);
+		morpheus_context->usb_context = nullptr;
+	}
+}
+
+static bool morpheus_enable_tracking(
+	MorpheusUSBContext *morpheus_context)
+{
+	MorpheusCommand command = { 0 };
+	command.header.request_id = Morpheus_Req_EnableTracking;
+	command.header.magic = MORPHEUS_COMMAND_MAGIC;
+	command.header.length = 8;
+	((int*)command.payload)[0] = 0xFFFFFF00; // Magic numbers!  Turns on the VR mode and the blue lights on the front
+	((int*)command.payload)[1] = 0x00000000;
+
+	return morpheus_send_command(morpheus_context, command);
+}
+
+static bool morpheus_set_headset_power(
+	MorpheusUSBContext *morpheus_context,
+	bool bIsOn)
+{
+	MorpheusCommand command = { 0 };
+	command.header.request_id = Morpheus_Req_SetHeadsetPower;
+	command.header.magic = MORPHEUS_COMMAND_MAGIC;
+	command.header.length = 4;
+	((int*)command.payload)[0] = bIsOn ? 0x00000001 : 0x00000000;
+
+	return morpheus_send_command(morpheus_context, command);
+}
+
+static bool morpheus_turn_off_processor_unit(
+	MorpheusUSBContext *morpheus_context)
+{
+	MorpheusCommand command = { 0 };
+	command.header.request_id = Morpheus_Req_TurnOffProcessorUnit;
+	command.header.magic = MORPHEUS_COMMAND_MAGIC;
+	command.header.length = 4;
+	((int*)command.payload)[0] = 0x00000001;
+
+	return morpheus_send_command(morpheus_context, command);
+}
+
+static bool morpheus_set_vr_mode(
+	MorpheusUSBContext *morpheus_context,
+	bool bIsOn)
+{
+	MorpheusCommand command = { 0 };
+	command.header.request_id = Morpheus_Req_SetVRMode;
+	command.header.magic = MORPHEUS_COMMAND_MAGIC;
+	command.header.length = 4;
+	((int*)command.payload)[0] = bIsOn ? 0x00000001 : 0x00000000;
+
+	return morpheus_send_command(morpheus_context, command);
+}
+
+static bool morpheus_set_cinematic_configuration(
+	MorpheusUSBContext *morpheus_context,
+	unsigned char ScreenDistance, 
+	unsigned char ScreenSize, 
+	unsigned char Brightness, 
+	unsigned char MicVolume, 
+	bool UnknownVRSetting)
+{
+	MorpheusCommand command = { 0 };
+	command.header.request_id = Morpheus_Req_SetCinematicConfiguration;
+	command.header.magic = MORPHEUS_COMMAND_MAGIC;
+	command.header.length = 16;
+	command.payload[1] = ScreenSize;
+	command.payload[2] = ScreenDistance;
+	command.payload[10] = Brightness;
+	command.payload[11] = MicVolume;
+	command.payload[14] = UnknownVRSetting ? 0 : 1;
+
+	return morpheus_send_command(morpheus_context, command);
+}
+
+static bool morpheus_send_command(
+	MorpheusUSBContext *morpheus_context,
+	MorpheusCommand &command)
+{
+	const size_t command_length = static_cast<size_t>(command.header.length) + sizeof(command.header);	
+	const int endpointAddress = 
+		(morpheus_context->usb_device_descriptor->interface[MORPHEUS_COMMAND_INTERFACE]
+		.altsetting[0]
+		.endpoint[0]
+		.bEndpointAddress) & ~MORPHEUS_ENDPOINT_IN;
+
+	int transferredByteCount = 0;
+	int result = 
+		libusb_bulk_transfer(
+			morpheus_context->usb_device_handle, 
+			endpointAddress, 
+			(unsigned char *)&command,
+			command_length, 
+			&transferredByteCount, 
+			0);
+
+	return result == LIBUSB_SUCCESS && transferredByteCount == command_length;
 }

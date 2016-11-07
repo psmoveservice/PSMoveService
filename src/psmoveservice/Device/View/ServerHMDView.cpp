@@ -565,13 +565,13 @@ void ServerHMDView::set_tracking_enabled_internal(bool bEnabled)
 {
 	if (m_tracking_enabled != bEnabled)
 	{
-		if (bEnabled)
+		switch (getHMDDeviceType())
 		{
-			// Start tracking setup
-		}
-		else
-		{
-			// Stop tracking teardown
+		case CommonHMDState::Morpheus:
+			castChecked<MorpheusHMD>()->setTrackingEnabled(bEnabled);
+			break;
+		default:
+			assert(0 && "unreachable");
 		}
 
 		m_tracking_enabled = bEnabled;

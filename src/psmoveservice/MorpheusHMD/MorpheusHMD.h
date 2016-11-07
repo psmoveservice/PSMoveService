@@ -170,7 +170,7 @@ struct MorpheusHMDState : public CommonHMDState
 		SensorFrames[1].clear();
     }
 
-	void parse_data_input(const MorpheusHMDConfig *config, const struct MorpheusDataInput *data_input);
+	void parse_data_input(const MorpheusHMDConfig *config, const struct MorpheusSensorData *data_input);
 };
 
 class MorpheusHMD : public IHMDInterface 
@@ -216,16 +216,19 @@ public:
     }
 
     // -- Setters
+	void setTrackingEnabled(bool bEnableTracking);
 
 private:
     // Constant while the HMD is open
     MorpheusHMDConfig cfg;
-    class MorpheusHIDDetails *HIDDetails;                    // Buffer that holds static MorpheusAPI HMD description
+    class MorpheusUSBContext *USBContext;                    // Buffer that holds static MorpheusAPI HMD description
 
     // Read HMD State
     int NextPollSequenceNumber;
-    struct MorpheusDataInput *InData;                        // Buffer to hold most recent MorpheusAPI tracking state
+    struct MorpheusSensorData *InData;                        // Buffer to hold most recent MorpheusAPI tracking state
     std::deque<MorpheusHMDState> HMDStates;
+
+	bool bIsTracking;
 };
 
 #endif // MORPHEUS_HMD_H

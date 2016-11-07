@@ -148,7 +148,8 @@ void AppStage_HMDGyroscopeCalibration::enter()
         ClientPSMoveAPI::start_hmd_data_stream(
             m_hmdView, 
             ClientPSMoveAPI::includeRawSensorData | 
-            ClientPSMoveAPI::includeCalibratedSensorData),
+            ClientPSMoveAPI::includeCalibratedSensorData |
+			ClientPSMoveAPI::includePositionData), // used for correcting yaw drift
         &AppStage_HMDGyroscopeCalibration::handle_acquire_hmd, this);
 }
 
