@@ -24,6 +24,7 @@ public:
         : PSMoveConfig(fnamebase)
 		, is_valid(false)
 		, version(CONFIG_VERSION)
+		, disable_command_interface(false)
 		, max_velocity(1.f)
 		, raw_accelerometer_variance(0.f)
 		, raw_gyro_variance(0.f)
@@ -93,6 +94,9 @@ public:
 
     bool is_valid;
     long version;
+
+	// Flag to disable usage of the command usb interface if other apps want to
+	bool disable_command_interface;
 
 	// calibrated_acc= raw_acc*acc_gain + acc_bias
 	CommonDeviceVector accelerometer_gain;

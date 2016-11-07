@@ -185,6 +185,8 @@ MorpheusHMDConfig::config2ptree()
 	pt.put("is_valid", is_valid);
 	pt.put("version", MorpheusHMDConfig::CONFIG_VERSION);
 
+	pt.put("disable_command_interface", disable_command_interface);
+
 	pt.put("Calibration.Accel.X.k", accelerometer_gain.i);
 	pt.put("Calibration.Accel.Y.k", accelerometer_gain.j);
 	pt.put("Calibration.Accel.Z.k", accelerometer_gain.k);
@@ -228,6 +230,9 @@ MorpheusHMDConfig::ptree2config(const boost::property_tree::ptree &pt)
     if (version == MorpheusHMDConfig::CONFIG_VERSION)
     {
 		is_valid = pt.get<bool>("is_valid", false);
+
+		disable_command_interface= pt.get<bool>("disable_command_interface", disable_command_interface);
+
 		prediction_time = pt.get<float>("prediction_time", 0.f);
 		max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
 
@@ -403,7 +408,14 @@ bool MorpheusHMD::open(
 		// If we started sending control transfer requests for the sensor data in the main thread at the same time
 		// it can lead to a crash. It shouldn't, but this was a problem previously setting video feed properties
 		// from the color config tool while a video feed was running.
-		morpheus_open_usb_device(USBContext);
+		if (!cfg.disable_command_interface)
+		{
+			morpheus_open_usb_device(USBContext);
+		}
+		else
+		{
+			SERVER_LOG_WARNING("MorpheusHMD::open") << "Morpheus command interface is flagged as DISABLED.";
+		}
 
         if (getIsOpen())  // Controller was opened and has an index
         {
@@ -825,22 +837,29 @@ static bool morpheus_send_command(
 	MorpheusUSBContext *morpheus_context,
 	MorpheusCommand &command)
 {
-	const size_t command_length = static_cast<size_t>(command.header.length) + sizeof(command.header);	
-	const int endpointAddress = 
-		(morpheus_context->usb_device_descriptor->interface[MORPHEUS_COMMAND_INTERFACE]
-		.altsetting[0]
-		.endpoint[0]
-		.bEndpointAddress) & ~MORPHEUS_ENDPOINT_IN;
+	if (morpheus_context->usb_device_handle != nullptr)
+	{
+		const size_t command_length = static_cast<size_t>(command.header.length) + sizeof(command.header);
+		const int endpointAddress =
+			(morpheus_context->usb_device_descriptor->interface[MORPHEUS_COMMAND_INTERFACE]
+				.altsetting[0]
+				.endpoint[0]
+				.bEndpointAddress) & ~MORPHEUS_ENDPOINT_IN;
 
-	int transferredByteCount = 0;
-	int result = 
-		libusb_bulk_transfer(
-			morpheus_context->usb_device_handle, 
-			endpointAddress, 
-			(unsigned char *)&command,
-			command_length, 
-			&transferredByteCount, 
-			0);
+		int transferredByteCount = 0;
+		int result =
+			libusb_bulk_transfer(
+				morpheus_context->usb_device_handle,
+				endpointAddress,
+				(unsigned char *)&command,
+				command_length,
+				&transferredByteCount,
+				0);
 
-	return result == LIBUSB_SUCCESS && transferredByteCount == command_length;
+		return result == LIBUSB_SUCCESS && transferredByteCount == command_length;
+	}
+	else
+	{
+		return false;
+	}
 }
