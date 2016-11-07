@@ -93,6 +93,7 @@ public:
     bool getOptionIndex(const std::string &option_name, int &out_option_index) const;
 
     void gatherTrackingColorPresets(const class ServerControllerView *controller, PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
+	void gatherTrackingColorPresets(const class ServerHMDView *hmd, PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
 
     void setControllerTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, const CommonHSVColorRange *preset);
     void getControllerTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;

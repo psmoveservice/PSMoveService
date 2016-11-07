@@ -1190,14 +1190,27 @@ protected:
             {
                 PSMoveProtocol::Response_ResultTrackerSettings* settings =
                     response->mutable_result_tracker_settings();
-
-				const int controller_id= context.request->request_get_tracker_settings().controller_id();
-				ServerControllerView *controller_view= get_controller_view_or_null(controller_id);
+				const int device_id = context.request->request_get_tracker_settings().device_id();
 
                 settings->set_exposure(static_cast<float>(tracker_view->getExposure()));
                 settings->set_gain(static_cast<float>(tracker_view->getGain()));
                 tracker_view->gatherTrackerOptions(settings);
-                tracker_view->gatherTrackingColorPresets(controller_view, settings);
+
+				switch (context.request->request_get_tracker_settings().device_category())
+				{
+				case PSMoveProtocol::Request_RequestGetTrackerSettings_DeviceCategory_CONTROLLER:
+					{
+						ServerControllerView *controller_view = get_controller_view_or_null(device_id);
+
+						tracker_view->gatherTrackingColorPresets(controller_view, settings);
+					} break;
+				case PSMoveProtocol::Request_RequestGetTrackerSettings_DeviceCategory_HMD:
+					{
+						ServerHMDView *hmd_view = get_hmd_view_or_null(device_id);
+
+						tracker_view->gatherTrackingColorPresets(hmd_view, settings);
+					} break;
+				}
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -1608,6 +1621,7 @@ protected:
 
                 hmd_info->set_hmd_id(hmd_id);
                 hmd_info->set_device_path(hmd_view->getUSBDevicePath());
+				hmd_info->set_tracking_color_type(static_cast<PSMoveProtocol::TrackingColorType>(hmd_view->getTrackingColorID()));
             }
         }
 

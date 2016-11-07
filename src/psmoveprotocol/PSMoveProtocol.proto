@@ -244,7 +244,13 @@ message Request {
     // Parameters for GET_TRACKER_SETTINGS
     message RequestGetTrackerSettings {
         int32 tracker_id = 1;
-        int32 controller_id = 2;
+        int32 device_id = 2;        
+        enum DeviceCategory 
+        {
+            CONTROLLER= 0;
+            HMD= 1;        
+        }
+        DeviceCategory device_category= 3; 
     }
     RequestGetTrackerSettings request_get_tracker_settings = 18;
 
@@ -494,6 +500,7 @@ message Response {
             int32 hmd_id= 1;
             HMDType hmd_type = 2;
             string device_path = 3;
+            TrackingColorType tracking_color_type = 4;
         }
         repeated HMDInfo hmd_entries = 1;
     }

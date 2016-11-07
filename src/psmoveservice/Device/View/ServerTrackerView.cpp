@@ -842,6 +842,15 @@ void ServerTrackerView::gatherTrackingColorPresets(
     return m_device->gatherTrackingColorPresets(controller_id, settings);
 }
 
+void ServerTrackerView::gatherTrackingColorPresets(
+	const class ServerHMDView *hmd,
+	PSMoveProtocol::Response_ResultTrackerSettings* settings) const
+{
+	std::string hmd_id = (hmd != nullptr) ? hmd->getConfigIdentifier() : "";
+
+	return m_device->gatherTrackingColorPresets(hmd_id, settings);
+}
+
 void ServerTrackerView::setControllerTrackingColorPreset(
 	const class ServerControllerView *controller,
 	eCommonTrackingColorID color, 
