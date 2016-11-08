@@ -515,3 +515,28 @@ LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
 ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
+
+#
+# UNIT_TESTS
+#
+
+list(APPEND UNIT_TEST_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/)
+list(APPEND UNIT_TEST_SRC    
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
+    ${ROOT_DIR}/src/tests/math_utility_unit_tests.cpp
+    ${ROOT_DIR}/src/tests/unit_test.h)
+    
+add_executable(unit_test_suite ${CMAKE_CURRENT_LIST_DIR}/unit_test_suite.cpp ${UNIT_TEST_SRC})
+target_include_directories(unit_test_suite PUBLIC ${UNIT_TEST_INCL_DIRS})
+SET_TARGET_PROPERTIES(unit_test_suite PROPERTIES FOLDER Test)
+
+# Install
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS unit_test_suite
+RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+ELSE() #Linux/Darwin
+ENDIF()
