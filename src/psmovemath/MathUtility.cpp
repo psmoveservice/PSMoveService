@@ -67,3 +67,21 @@ double wrap_ranged(double value, double range_min, double range_max)
 
 	return range_min + fmod((value - range_min) + range, range);
 }
+
+float wrap_lerpf(float a, float b, float u, float range_min, float range_max)
+{
+	assert(range_max > range_min);
+	const float range = range_max - range_min;
+	float wrapped_a = a;
+	float wrapped_b = b;
+
+	if (fabsf(a - b) >= (range / 2.f))
+	{
+		if (a > b)
+			wrapped_a = wrap_range(a, range_min, range_max) - range;
+		else
+			wrapped_b = wrap_range(b, range_min, range_max) - range;
+	}
+
+	return wrap_range(lerpf(wrapped_a, wrapped_b, u), range_min, range_max);
+}

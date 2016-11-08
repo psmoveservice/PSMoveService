@@ -68,5 +68,6 @@ float wrap_radians(float angle);
 float wrap_degrees(float angle);
 float wrap_range(float value, float range_min, float range_max);
 double wrap_ranged(double value, double range_min, double range_max);
+float wrap_lerpf(float a, float b, float u, float range_min, float range_max);
 
 #endif // MATH_UTILITY_h
