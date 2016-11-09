@@ -445,8 +445,21 @@ void OrientationFilterComplementaryOpticalARG::update(const float delta_time, co
             optical_weight= g_weight_override;
         }
 
-        const Eigen::Quaternionf new_orientation = 
-            eigen_quaternion_normalized_lerp(SEq_new, packet.optical_orientation, optical_weight);   
+		const Eigen::EulerAnglesf optical_euler_angles = eigen_quaternionf_to_euler_angles(packet.optical_orientation);
+		const Eigen::EulerAnglesf SEeuler_new= eigen_quaternionf_to_euler_angles(packet.optical_orientation);
+
+		// Blend in the yaw from the optical orientation
+		const float blended_heading_radians= 
+			wrap_lerpf(
+				SEeuler_new.get_heading_radians(), 
+				optical_euler_angles.get_heading_radians(), 
+				optical_weight, 
+				-k_real_pi, k_real_pi);
+		const Eigen::EulerAnglesf new_euler_angles(
+			SEeuler_new.get_bank_radians(), blended_heading_radians, SEeuler_new.get_attitude_radians());
+		const Eigen::Quaternionf new_orientation =
+			eigen_euler_angles_to_quaternionf(new_euler_angles);
+
         const Eigen::Vector3f &new_angular_velocity= current_omega;
         const Eigen::Vector3f new_angular_acceleration = (current_omega - m_state->angular_velocity) / delta_time;
 
