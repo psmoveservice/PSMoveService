@@ -4,6 +4,7 @@
 #include "ServerLog.h"
 #include "ServerTrackerView.h"
 #include "ServerDeviceView.h"
+#include "MathUtility.h"
 
 //-- constants -----
 
@@ -18,6 +19,7 @@ TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
     default_tracker_profile.exposure = 32;
     default_tracker_profile.gain = 32;
 	default_tracker_profile.color_preset_table.table_name= "default_tracker_profile";
+	global_forward_degrees = 270.f; // Down -Z by default
     for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
     {
         default_tracker_profile.color_preset_table.color_presets[preset_index] = k_default_color_presets[preset_index];
@@ -63,6 +65,42 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
             "Config version " << version << " does not match expected version " <<
             TrackerManagerConfig::CONFIG_VERSION << ", Using defaults.";
     }
+}
+
+CommonDeviceVector 
+TrackerManagerConfig::get_global_forward_axis() const
+{
+	return CommonDeviceVector::create(cosf(global_forward_degrees*k_degrees_to_radians), 0.f, sinf(global_forward_degrees*k_degrees_to_radians));
+}
+
+CommonDeviceVector 
+TrackerManagerConfig::get_global_backward_axis() const
+{
+	return CommonDeviceVector::create(-cosf(global_forward_degrees*k_degrees_to_radians), 0.f, -sinf(global_forward_degrees*k_degrees_to_radians));
+}
+
+CommonDeviceVector
+TrackerManagerConfig::get_global_right_axis() const
+{
+	return CommonDeviceVector::create(-sinf(global_forward_degrees*k_degrees_to_radians), 0.f, cosf(global_forward_degrees*k_degrees_to_radians));
+}
+
+CommonDeviceVector
+TrackerManagerConfig::get_global_left_axis() const
+{
+	return CommonDeviceVector::create(sinf(global_forward_degrees*k_degrees_to_radians), 0.f, -cosf(global_forward_degrees*k_degrees_to_radians));
+}
+
+CommonDeviceVector 
+TrackerManagerConfig::get_global_up_axis() const
+{
+	return CommonDeviceVector::create(0.f, 1.f, 0.f);
+}
+
+CommonDeviceVector 
+TrackerManagerConfig::get_global_down_axis() const
+{
+	return CommonDeviceVector::create(0.f, -1.f, 0.f);
 }
 
 //-- Tracker Manager -----

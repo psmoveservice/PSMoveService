@@ -1027,14 +1027,18 @@ CommonDeviceQuaternion
 ServerTrackerView::computeWorldOrientation(
     const CommonDeviceQuaternion *tracker_relative_orientation)
 {
-    const glm::quat rel_orientation(
+	// Compute a rotations that rotates from +X to global "forward"
+	const TrackerManagerConfig &cfg = DeviceManager::getInstance()->m_tracker_manager->getConfig();
+	const float global_forward_yaw_radians = cfg.global_forward_degrees*k_degrees_to_radians;
+	const glm::quat global_forward_quat= glm::quat(glm::vec3(0.f, global_forward_yaw_radians, 0.f));
+	
+	const glm::quat rel_orientation(
         tracker_relative_orientation->w,
         tracker_relative_orientation->x,
         tracker_relative_orientation->y,
         tracker_relative_orientation->z);    
     const glm::quat camera_quat= computeGLMCameraTransformQuaternion(m_device);
-    // combined_rotation = second_rotation * first_rotation;
-    const glm::quat world_quat = camera_quat * rel_orientation;
+    const glm::quat world_quat = global_forward_quat * camera_quat * rel_orientation;
     
     CommonDeviceQuaternion result;
     result.w= world_quat.w;
@@ -1178,9 +1182,21 @@ ServerTrackerView::triangulateWorldPose(
 						+ lightbar_points[CommonDeviceTrackingShape::QuadVertexLowerRight]) / 2.f;
 					const Eigen::Vector3f right= mid_right_vertex - mid_left_vertex;
 
-					const Eigen::Quaternionf align_normal_rotation= Eigen::Quaternionf::FromTwoVectors(Eigen::Vector3f(0.f, 0.f, -1.f), normal);
-					const Eigen::Vector3f x_axis_in_plane = align_normal_rotation * Eigen::Vector3f(1.f, 0.f, 0.f);
-					const Eigen::Quaternionf align_right_rotation = Eigen::Quaternionf::FromTwoVectors(x_axis_in_plane, right);
+					// Get the global definition of tracking space "forward" and "right"
+					const TrackerManagerConfig &cfg= DeviceManager::getInstance()->m_tracker_manager->getConfig();
+					const CommonDeviceVector &global_forward = cfg.get_global_forward_axis();
+					const CommonDeviceVector &global_right = cfg.get_global_right_axis();
+					const Eigen::Vector3f eigen_global_forward(global_forward.i, global_forward.j, global_forward.k);
+					const Eigen::Vector3f eigen_global_right(global_right.i, global_right.j, global_right.k);
+
+					// Compute the rotation that would align the global forward and right 
+					// with the normal and right vectors computed for the light bar
+					const Eigen::Quaternionf align_normal_rotation= 
+						Eigen::Quaternionf::FromTwoVectors(eigen_global_forward, normal);
+					const Eigen::Vector3f x_axis_in_plane = 
+						align_normal_rotation * eigen_global_right;
+					const Eigen::Quaternionf align_right_rotation = 
+						Eigen::Quaternionf::FromTwoVectors(x_axis_in_plane, right);
 					const Eigen::Quaternionf q = align_right_rotation*align_normal_rotation;
 
 					pose.Orientation.w= q.w();

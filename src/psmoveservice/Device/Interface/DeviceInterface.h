@@ -80,6 +80,21 @@ struct CommonDeviceVector
 {
     float i, j, k;
 
+	inline static CommonDeviceVector create(float _i, float _j, float _k)
+	{
+		CommonDeviceVector result;
+
+		result.set(_i, _j, _k);
+		return result;
+	}
+
+	inline void set(float _i, float _j, float _k)
+	{
+		i = _i;
+		j = _j;
+		k = _k;
+	}
+
     inline void clear()
     {
         i = j = k = 0.f;
