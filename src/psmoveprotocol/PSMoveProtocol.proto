@@ -430,6 +430,7 @@ message Response {
             Pose tracker_pose = 13;
         }
         repeated TrackerInfo trackers = 1;
+		float global_forward_degrees = 2;
     }
     ResultTrackerList result_tracker_list = 23;
     

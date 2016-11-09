@@ -301,6 +301,9 @@ public:
 
         // Record how many trackers we copied into the payload
         tracker_list->count = tracker_count;
+
+		// Copy over the tracking space properties
+		tracker_list->global_forward_degrees= response->result_tracker_list().global_forward_degrees();
     }
 
 private:

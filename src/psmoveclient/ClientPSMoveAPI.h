@@ -112,6 +112,7 @@ public:
     {
         ClientTrackerInfo trackers[PSMOVESERVICE_MAX_TRACKER_COUNT];
         int count;
+		float global_forward_degrees;
     };
 
     struct ResponsePayload_HMDTrackingSpace

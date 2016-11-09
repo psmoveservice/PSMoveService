@@ -193,7 +193,6 @@ void AppStage_ComputeTrackerPoses::render()
                 drawTransformedAxes(chaperoneSpaceTransform, 20.f);
             }
 
-
             // Draw the psmove model
             {
                 PSMovePose psmove_space_pose = m_controllerView->GetPose();

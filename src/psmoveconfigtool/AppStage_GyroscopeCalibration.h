@@ -33,6 +33,29 @@ public:
     }
 
 protected:
+	enum eCalibrationMenuState
+	{
+		inactive,
+
+		pendingTrackerListRequest,
+		failedTrackerListRequest,
+		waitingForStreamStartResponse,
+		failedStreamStart,
+		waitForStable,
+		measureBiasAndDrift,
+		measureScale,
+		measureComplete,
+		test
+	};
+
+	void setState(eCalibrationMenuState newState);
+	void onExitState(eCalibrationMenuState newState);
+	void onEnterState(eCalibrationMenuState newState);
+
+	void request_tracker_list();
+	static void handle_tracker_list_response(
+		const ClientPSMoveAPI::ResponseMessage *response_message,
+		void *userdata);
     void request_set_gyroscope_calibration(const float raw_drift, const float raw_variance);
     static void handle_acquire_controller(
         const ClientPSMoveAPI::ResponseMessage *response,
@@ -40,18 +63,7 @@ protected:
     void request_exit_to_app_stage(const char *app_stage_name);
 
 private:
-    enum eCalibrationMenuState
-    {
-        inactive,
 
-        waitingForStreamStartResponse,
-        failedStreamStart,
-        waitForStable,
-        measureBiasAndDrift,
-        measureScale,
-        measureComplete,
-        test
-    };
     eCalibrationMenuState m_menuState;
     bool m_bBypassCalibration;
 
@@ -74,6 +86,8 @@ private:
 
     struct GyroscopeErrorSamples *m_errorSamples;
     struct GyroscopeScaleSamples *m_scaleSamples;
+
+	ClientPSMoveAPI::ResponsePayload_TrackerList m_trackerList;
 };
 
 #endif // APP_STAGE_GYROSCOPE_CALIBRATION_H

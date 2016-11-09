@@ -1,6 +1,7 @@
 //-- includes -----
 #include "Renderer.h"
 #include "ClientGeometry.h"
+#include "ClientTrackerView.h"
 #include "AssetManager.h"
 #include "Logger.h"
 #include "UIConstants.h"
@@ -10,6 +11,7 @@
 #include "SDL_opengl.h"
 #include "SDL_syswm.h"
 
+#include "GeometryUtility.h"
 #include "MathUtility.h"
 #include "MathGLM.h"
 
@@ -37,6 +39,8 @@ static const float k_camera_z_near= 0.1f;
 static const float k_camera_z_far= 5000.f;
 
 static const ImVec4 k_clear_color = ImColor(114, 144, 154);
+
+static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 
 //-- statics -----
 Renderer *Renderer::m_instance= NULL;
@@ -1086,6 +1090,35 @@ void drawPSDualShock4Model(const glm::mat4 &transform, const glm::vec3 &color)
 
     // rebind the default texture
     glBindTexture(GL_TEXTURE_2D, 0); 
+}
+
+void drawTrackerList(const ClientTrackerInfo *trackerList, const int trackerCount)
+{
+	glm::mat4 psmove_tracking_space_to_chaperone_space = glm::mat4(1.f);
+
+
+	// Draw the frustum for each tracking camera.
+	// The frustums are defined in PSMove tracking space.
+	// We need to transform them into chaperone space to display them along side the HMD.
+	for (int tracker_index = 0; tracker_index < trackerCount; ++tracker_index)
+	{
+		const ClientTrackerInfo *trackerInfo= &trackerList[tracker_index];
+		const PSMovePose tracker_pose = trackerInfo->tracker_pose;
+		const glm::mat4 chaperoneSpaceTransform = psmove_pose_to_glm_mat4(tracker_pose);
+
+		PSMoveFrustum frustum;
+
+		frustum.set_pose(tracker_pose);
+
+		// Convert the FOV angles to radians for rendering purposes
+		frustum.HFOV = trackerInfo->tracker_hfov * k_degrees_to_radians;
+		frustum.VFOV = trackerInfo->tracker_vfov * k_degrees_to_radians;
+		frustum.zNear = trackerInfo->tracker_znear;
+		frustum.zFar = trackerInfo->tracker_zfar;
+
+		drawTransformedFrustum(psmove_tracking_space_to_chaperone_space, &frustum, k_psmove_frustum_color);
+		drawTransformedAxes(chaperoneSpaceTransform, 20.f);
+	}
 }
 
 // -- IMGUI Callbacks -----
