@@ -39,9 +39,25 @@ enum eMorpheusRequestType
 {
 	Morpheus_Req_EnableTracking= 0x11,
 	Morpheus_Req_TurnOffProcessorUnit = 0x13,
+	Morpheus_Req_SetLEDBrightness = 0x15,
 	Morpheus_Req_SetHeadsetPower= 0x17,
 	Morpheus_Req_SetCinematicConfiguration= 0x21,
 	Morpheus_Req_SetVRMode= 0x23,
+};
+
+enum eMorpheusLED
+{
+	_MorpheusLED_A= 1 << 0,
+	_MorpheusLED_B= 1 << 1,
+	_MorpheusLED_C= 1 << 2,
+	_MorpheusLED_D= 1 << 3,
+	_MorpheusLED_E= 1 << 4,
+	_MorpheusLED_F= 1 << 5,
+	_MorpheusLED_G= 1 << 6,
+	_MorpheusLED_H= 1 << 7,
+	_MorpheusLED_I= 1 << 8,
+
+	_MorpheusLED_ALL= 0x1FF
 };
 
 // -- private definitions -----
@@ -166,6 +182,7 @@ static bool morpheus_open_usb_device(MorpheusUSBContext *morpheus_context);
 static void morpheus_close_usb_device(MorpheusUSBContext *morpheus_context);
 static bool morpheus_enable_tracking(MorpheusUSBContext *morpheus_context);
 static bool morpheus_set_headset_power(MorpheusUSBContext *morpheus_context, bool bIsOn);
+static bool morpheus_set_led_brightness(MorpheusUSBContext *morpheus_context, unsigned short led_bitmask, unsigned char intensity);
 static bool morpheus_turn_off_processor_unit(MorpheusUSBContext *morpheus_context);
 static bool morpheus_set_vr_mode(MorpheusUSBContext *morpheus_context, bool bIsOn);
 static bool morpheus_set_cinematic_configuration(
@@ -783,6 +800,27 @@ static bool morpheus_set_headset_power(
 	command.header.magic = MORPHEUS_COMMAND_MAGIC;
 	command.header.length = 4;
 	((int*)command.payload)[0] = bIsOn ? 0x00000001 : 0x00000000;
+
+	return morpheus_send_command(morpheus_context, command);
+}
+
+static bool morpheus_set_led_brightness(
+	MorpheusUSBContext *morpheus_context,
+	unsigned short led_bitmask,
+	unsigned char intensity)
+{
+	MorpheusCommand command = { 0 };
+	command.header.request_id = Morpheus_Req_SetLEDBrightness;
+	command.header.magic = MORPHEUS_COMMAND_MAGIC;
+	command.header.length = 16;
+	((unsigned short*)command.payload)[0] = led_bitmask;
+
+	unsigned short mask = led_bitmask;
+	for (int led_index = 0; led_index < 9; ++led_index)
+	{
+		command.payload[2 + led_index] = ((mask & 0x001) > 0) ? intensity : 0;
+		mask = mask >> 1;
+	}
 
 	return morpheus_send_command(morpheus_context, command);
 }
