@@ -14,6 +14,10 @@
 #define k_normal_epsilon 0.0001f
 #define k_real_epsilon FLT_EPSILON
 
+#define k_real64_positional_epsilon 0.001
+#define k_real64_normal_epsilon 0.0001
+#define k_real64_epsilon DBL_EPSILON
+
 #define k_real_pi 3.14159265f
 #define k_real_two_pi 2.f*k_real_pi
 #define k_real_half_pi 0.5f*k_real_pi

@@ -17,6 +17,10 @@ extern const Eigen::Quaternionf *k_eigen_quaternion_zero;
 #define assert_eigen_quaternion_is_normalized(q) assert(is_nearly_equal(q.squaredNorm(), 1.f, k_normal_epsilon))
 #define assert_eigen_quaternions_are_nearly_equal(q1, q2, eps) assert(is_nearly_equal(q1.dot(q2), 1.f, eps) || is_nearly_equal(q1.dot(Eigen::Quaternionf(q2.coeffs()*-1.f)), 1.f, eps))
 
+#define assert_eigen_vector3d_is_normalized(v) assert(is_double_nearly_equal(v.squaredNorm(), 1.0, k_real64_normal_epsilon))
+#define assert_eigen_quaterniond_is_normalized(q) assert(is_double_nearly_equal(q.squaredNorm(), 1.0, k_real64_normal_epsilon))
+#define assert_eigen_quaternionds_are_nearly_equal(q1, q2, eps) assert(is_double_nearly_equal(q1.dot(q2), 1.0, eps) || is_double_nearly_equal(q1.dot(Eigen::Quaterniond(q2.coeffs()*-1.0)), 1.0, eps))
+
 namespace Eigen
 {
 	//Euler Convention http://www.euclideanspace.com/maths/geometry/rotations/euler/index.htm
@@ -98,6 +102,9 @@ eigen_quaternion_is_valid(const Eigen::Quaternionf &q);
 
 Eigen::Vector3f
 eigen_vector3f_clockwise_rotate(const Eigen::Quaternionf &q, const Eigen::Vector3f &v);
+
+Eigen::Vector3d
+eigen_vector3d_clockwise_rotate(const Eigen::Quaterniond &q, const Eigen::Vector3d &v);
 
 Eigen::Matrix3f
 eigen_quaternion_to_clockwise_matrix3f(const Eigen::Quaternionf &q);

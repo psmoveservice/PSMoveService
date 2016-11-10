@@ -101,6 +101,16 @@ eigen_vector3f_clockwise_rotate(const Eigen::Quaternionf &q, const Eigen::Vector
 	return q.conjugate()._transformVector(v);
 }
 
+Eigen::Vector3d
+eigen_vector3d_clockwise_rotate(const Eigen::Quaterniond &q, const Eigen::Vector3d &v)
+{
+	assert_eigen_quaterniond_is_normalized(q);
+
+	// Eigen rotates counterclockwise (i.e. q*v*q^-1), 
+	// while we want the inverse of that (q^-1*v*q)
+	return q.conjugate()._transformVector(v);
+}
+
 Eigen::Matrix3f
 eigen_quaternion_to_clockwise_matrix3f(const Eigen::Quaternionf &q)
 {

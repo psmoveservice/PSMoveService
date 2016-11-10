@@ -170,6 +170,20 @@ protected:
 	double m_time_step;
 };
 
+class OrientationSRUKF : public Kalman::SquareRootUnscentedKalmanFilter<OrientationStateVectord>
+{
+public:
+	OrientationSRUKF(double alpha = 1.0, double beta = 2.0, double kappa = 0.0)
+		: Kalman::SquareRootUnscentedKalmanFilter<OrientationStateVectord>(alpha, beta, kappa)
+	{
+	}
+
+	State& getStateMutable()
+	{
+		return x;
+	}
+};
+
 template<typename T>
 class PSMove_OrientationMeasurementVector : public Kalman::Vector<T, PSMOVE_MEASUREMENT_PARAMETER_COUNT>
 {
@@ -396,30 +410,37 @@ public:
 	/// Quaternion measured when controller points towards camera 
 	Eigen::Quaternionf reset_orientation;
 
-    /// All state parameters of the controller
-    OrientationStateVectord state_vector;
+	/// The offset of the heading angle to the world space heading angle.
+	/// This is used to keep state heading angle between +/- 90 degrees,
+	/// which allows us to avoid filtering across the +/- 180 degree discontinuity
+	double local_heading_to_world_heading;
 
     /// Used to model how the physics of the controller evolves
     OrientationSystemModel system_model;
 
     /// Unscented Kalman Filter instance
-	Kalman::SquareRootUnscentedKalmanFilter<OrientationStateVectord> ukf;
+	OrientationSRUKF ukf;
 
 	KalmanOrientationFilterImpl()
-		: ukf(k_ukf_alpha, k_ukf_beta, k_ukf_kappa)
+		: bIsValid(false)
+		, bSeenOrientationMeasurement(false)
+		, reset_orientation(Eigen::Quaternionf::Identity())
+		, local_heading_to_world_heading(0.0)
+		, system_model()
+		, ukf(k_ukf_alpha, k_ukf_beta, k_ukf_kappa)
     {
     }
 
     virtual void init(const OrientationFilterConstants &constants)
     {
 		bIsValid = false;
-		bSeenOrientationMeasurement = true;
+		bSeenOrientationMeasurement = false;
 
 		reset_orientation = Eigen::Quaternionf::Identity();
-		state_vector = OrientationStateVectord::Zero();
+		local_heading_to_world_heading = 0.0;
 
         system_model.init(constants);
-        ukf.init(state_vector);
+        ukf.init(OrientationStateVectord::Zero());
     }
 
 	virtual void init(
@@ -427,14 +448,99 @@ public:
 		const Eigen::Quaternionf &orientation)
 	{
 		bIsValid = true;
-		bSeenOrientationMeasurement = false;
+		bSeenOrientationMeasurement = true;
 
 		reset_orientation = Eigen::Quaternionf::Identity();
-		state_vector = OrientationStateVectord::Zero();
+		local_heading_to_world_heading = 0.0;
+
+		OrientationStateVectord state_vector = OrientationStateVectord::Zero();
 		state_vector.set_quaterniond(orientation.cast<double>());
 
 		system_model.init(constants);
 		ukf.init(state_vector);
+		clamp_state_heading();
+	}
+
+	// -- State Orientation Accessors --
+	Eigen::EulerAnglesd get_state_world_euler_angles() const
+	{
+		const Eigen::EulerAnglesd local_euler_angles = ukf.getState().get_euler_angles();
+		const Eigen::EulerAnglesd world_euler_angles(
+			local_euler_angles.get_bank_radians(),
+			wrap_ranged(local_euler_angles.get_heading_radians() + local_heading_to_world_heading, -k_real64_pi, k_real64_pi),
+			local_euler_angles.get_attitude_radians());
+
+		return world_euler_angles;
+	}
+
+	inline Eigen::Quaterniond get_state_world_quaternion() const
+	{
+		return eigen_euler_angles_to_quaterniond(get_state_world_euler_angles());
+	}
+
+	inline Eigen::EulerAnglesd get_state_local_euler_angles() const
+	{
+		return ukf.getState().get_euler_angles();
+	}
+
+	// -- State Orientation Mutators --
+	inline void set_state_world_quaternion(const Eigen::Quaterniond &world_quaternion)
+	{
+		set_state_world_euler_angles(eigen_quaterniond_to_euler_angles(world_quaternion));
+	}
+
+	void set_state_world_euler_angles(const Eigen::EulerAnglesd &world_euler_angles)
+	{
+		local_heading_to_world_heading = 0;
+		set_state_unclamped_local_euler_angles(world_euler_angles);
+	}
+
+	void set_state_unclamped_local_euler_angles(const Eigen::EulerAnglesd &unclamped_local_euler_angles)
+	{
+		const double clamped_local_bank = unclamped_local_euler_angles.get_bank_radians();
+		double clamped_local_heading = unclamped_local_euler_angles.get_heading_radians();
+		const double clamped_local_attitude = unclamped_local_euler_angles.get_attitude_radians();
+
+		while (clamped_local_heading < -k_real64_half_pi || clamped_local_heading > k_real64_half_pi)
+		{
+			if (clamped_local_heading > k_real64_half_pi)
+			{
+				clamped_local_heading -= k_real64_half_pi;
+				local_heading_to_world_heading += k_real64_half_pi;				
+				local_heading_to_world_heading= wrap_ranged(local_heading_to_world_heading, -k_real64_two_pi, k_real64_two_pi);
+			}
+			else // clamped_local_heading < -k_real64_half_pi
+			{
+				clamped_local_heading+= k_real64_half_pi;
+				local_heading_to_world_heading -= k_real64_half_pi;
+				local_heading_to_world_heading= wrap_ranged(local_heading_to_world_heading, -k_real64_two_pi, k_real64_two_pi);
+			}
+		}
+
+		ukf.getStateMutable().set_euler_angles(Eigen::EulerAnglesd(clamped_local_bank, clamped_local_heading, clamped_local_attitude));
+	}
+
+	void clamp_state_heading()
+	{
+		// Assume local heading angle is un-clamped and needs to be pulled in range
+		set_state_unclamped_local_euler_angles(get_state_local_euler_angles());
+	}
+
+	// -- Orientation Space Converters --
+	const Eigen::Vector3d world_vector_to_unclamped_local_vector(const Eigen::Vector3d &world_vector)
+	{
+		const Eigen::EulerAnglesd world_to_local_euler(0.f, -local_heading_to_world_heading, 0.f);
+		const Eigen::Quaterniond world_to_local_quat = eigen_euler_angles_to_quaterniond(world_to_local_euler);
+		const Eigen::Vector3d local_vector= eigen_vector3d_clockwise_rotate(world_to_local_quat, world_vector);
+
+		return local_vector;
+	}
+
+	const double world_heading_to_unclamped_local_heading(const double world_heading)
+	{
+		double local_heading = wrap_ranged(world_heading - local_heading_to_world_heading, -k_real64_pi, k_real64_pi);
+
+		return local_heading;
 	}
 };
 
@@ -559,7 +665,7 @@ Eigen::Quaternionf KalmanOrientationFilter::getOrientation(float time) const
 
 	if (m_filter->bIsValid)
 	{
-		const Eigen::Quaternionf state_orientation = m_filter->state_vector.get_quaterniond().cast<float>();
+		const Eigen::Quaternionf state_orientation = m_filter->get_state_world_quaternion().cast<float>();
 		Eigen::Quaternionf predicted_orientation = state_orientation;
 
 		if (fabsf(time) > k_real_epsilon)
@@ -580,7 +686,7 @@ Eigen::Quaternionf KalmanOrientationFilter::getOrientation(float time) const
 
 Eigen::Vector3f KalmanOrientationFilter::getAngularVelocity() const
 {
-	Eigen::Vector3d ang_vel = m_filter->state_vector.get_angular_velocity();
+	Eigen::Vector3d ang_vel = m_filter->ukf.getState().get_angular_velocity();
 
 	return ang_vel.cast<float>();
 }
@@ -623,50 +729,57 @@ void KalmanOrientationFilterDS4::update(const float delta_time, const PoseFilter
 
 		// Predict state for current time-step using the filters
 		filter->system_model.set_time_step(delta_time);
-		filter->state_vector = m_filter->ukf.predict(filter->system_model);
+		filter->ukf.predict(filter->system_model);
+		filter->clamp_state_heading();
 
 		// Get the measurement model for the DS4 from the derived filter impl
 		DS4_OrientationMeasurementModel &measurement_model = filter->measurement_model;
 
+		// If this is the first time we have seen the orientation, snap the orientation state
+		if (!m_filter->bSeenOrientationMeasurement && packet.optical_orientation_quality > 0.f)
+		{
+			const Eigen::Quaterniond world_quaternion = packet.optical_orientation.cast<double>();
+
+			filter->set_state_world_quaternion(world_quaternion);
+			filter->bSeenOrientationMeasurement = true;
+		}
+
 		// Project the current state onto a predicted measurement as a default
 		// in case no observation is available
-		DS4_OrientationMeasurementVectord measurement = measurement_model.h(filter->state_vector);
+		DS4_OrientationMeasurementVectord local_measurement = measurement_model.h(filter->ukf.getState());
 
-		// Accelerometer and gyroscope measurements are always available
-		measurement.set_accelerometer(packet.imu_accelerometer.cast<double>());
-		measurement.set_gyroscope(packet.imu_gyroscope.cast<double>());
-
+		// If available, use the optical orientation measurement
 		if (packet.optical_orientation_quality > 0.f)
 		{
+			const Eigen::EulerAnglesd world_optical_euler_angles =
+				eigen_quaterniond_to_euler_angles(packet.optical_orientation.cast<double>());
+			const double world_optical_heading = world_optical_euler_angles.get_heading_radians();
+			const double local_optical_heading = filter->world_heading_to_unclamped_local_heading(world_optical_heading);
+
 			// Adjust the amount we trust the optical measurements based on the quality parameters
 			measurement_model.update_measurement_statistics(
 				m_constants,
 				packet.optical_orientation_quality);
 
-			// If available, use the optical orientation measurement
-			if (packet.optical_orientation_quality > 0.f)
-			{
-				const Eigen::EulerAnglesd optical_euler_angles =
-					eigen_quaterniond_to_euler_angles(packet.optical_orientation.cast<double>());
-				const double optical_heading = optical_euler_angles.get_heading_radians();
+			local_measurement.set_optical_euler_heading_angle(local_optical_heading);
+		}
 
-				measurement.set_optical_euler_heading_angle(optical_heading);
+		// Accelerometer and gyroscope measurements are always available
+		{
+			const Eigen::Vector3d world_accelerometer = packet.imu_accelerometer.cast<double>();
+			const Eigen::Vector3d local_accelerometer = filter->world_vector_to_unclamped_local_vector(world_accelerometer);
 
-				// If this is the first time we have seen the orientation, snap the orientation state
-				if (!m_filter->bSeenOrientationMeasurement)
-				{
-					filter->state_vector.set_quaterniond(packet.optical_orientation.cast<double>());
-					m_filter->bSeenOrientationMeasurement = true;
-				}
-			}
+			local_measurement.set_accelerometer(local_accelerometer);
+			local_measurement.set_gyroscope(packet.imu_gyroscope.cast<double>());
 		}
 
 		// Update UKF
-		m_filter->state_vector = filter->ukf.update(measurement_model, measurement);
+		filter->ukf.update(measurement_model, local_measurement);
+		filter->clamp_state_heading();
 	}
 	else
 	{
-		m_filter->state_vector.setZero();
+		m_filter->ukf.init(OrientationStateVectord::Zero());
 		m_filter->bIsValid = true;
 	}
 }
@@ -704,24 +817,32 @@ void KalmanOrientationFilterPSMove::update(const float delta_time, const PoseFil
 
         // Predict state for current time-step using the filters
 		filter->system_model.set_time_step(delta_time);
-		filter->state_vector = m_filter->ukf.predict(filter->system_model);
+		filter->ukf.predict(filter->system_model);
+		filter->clamp_state_heading();
 
         // Get the measurement model for the PSMove from the derived filter impl
 		PSMove_OrientationMeasurementModel &measurement_model = filter->measurement_model;
 
+		// Apply the world-to-local heading transform on the sensor measurements
+		const Eigen::Vector3d world_accelerometer = packet.imu_accelerometer.cast<double>();
+		const Eigen::Vector3d local_accelerometer = filter->world_vector_to_unclamped_local_vector(world_accelerometer);
+		const Eigen::Vector3d world_magnetometer = packet.imu_magnetometer.cast<double>();
+		const Eigen::Vector3d local_magnetometer = filter->world_vector_to_unclamped_local_vector(world_magnetometer);
+
 		// Accelerometer, gyroscope, magnetometer measurements are always available
 		PSMove_OrientationMeasurementVectord measurement = PSMove_OrientationMeasurementVectord::Zero();
-		measurement.set_accelerometer(packet.imu_accelerometer.cast<double>());
+		measurement.set_accelerometer(local_accelerometer);
 		measurement.set_gyroscope(packet.imu_gyroscope.cast<double>());
-		measurement.set_magnetometer(packet.imu_magnetometer.cast<double>());
+		measurement.set_magnetometer(local_magnetometer);
 		m_filter->bSeenOrientationMeasurement = true;
 
         // Update UKF
-        m_filter->state_vector = filter->ukf.update(measurement_model, measurement);
+        filter->ukf.update(measurement_model, measurement);
+		filter->clamp_state_heading();
     }
     else
     {
-        m_filter->state_vector.setZero();
+		m_filter->ukf.init(OrientationStateVectord::Zero());
         m_filter->bIsValid= true;
     }
 }
