@@ -258,7 +258,11 @@ private:
 	// delay in resetting touchpad position after touchpad press
 	bool m_bDelayAfterTouchpadPress;
 
-	std::chrono::time_point<std::chrono::high_resolution_clock> m_lastTouchpadPress;
+	// true while the touchpad is considered active (touched or pressed) 
+	// after the initial touchpad delay, if any
+	bool m_bTouchpadWasActive;
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_lastTouchpadPressTime;
 	bool m_touchpadDirectionsUsed;
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> m_resetPoseButtonPressTime;
