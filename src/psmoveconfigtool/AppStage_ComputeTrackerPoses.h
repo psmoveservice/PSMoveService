@@ -119,7 +119,6 @@ private:
 
     bool m_bSkipCalibration;
 	int m_overrideControllerId;
-
 };
 
 #endif // APP_STAGE_COMPUTE_TRACKER_POSES_H

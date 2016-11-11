@@ -292,7 +292,7 @@ void AppStage_TrackerSettings::renderUI()
 
 				if (m_selectedHmdIndex != -1)
 				{
-					const AppStage_TrackerSettings::HMDInfo &hmdInfo = m_hmdInfos[m_selectedControllerIndex];
+					const AppStage_TrackerSettings::HMDInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
 
 					if (hmdInfo.HmdType == ClientHMDView::Morpheus)
 					{

@@ -1,0 +1,119 @@
+#ifndef APP_STAGE_HMD_MODEL_CALIBRATION_H
+#define APP_STAGE_HMD_MODEL_CALIBRATION_H
+
+//-- includes -----
+#include "AppStage.h"
+#include "ClientGeometry.h"
+#include "ClientPSMoveAPI.h"
+
+#include <deque>
+#include <chrono>
+
+//-- definitions -----
+class AppStage_HMDModelCalibration : public AppStage
+{
+public:
+	enum eMenuState
+	{
+		inactive,
+
+		pendingHmdListRequest,
+		failedHmdListRequest,
+
+		pendingHmdStartRequest,
+		failedHmdStartRequest,
+
+		pendingTrackerListRequest,
+		failedTrackerListRequest,
+
+		pendingTrackerStartRequest,
+		failedTrackerStartRequest,
+
+		verifyTrackers,
+		calibrate,
+		test
+	};
+
+	AppStage_HMDModelCalibration(class App *app);
+	virtual ~AppStage_HMDModelCalibration();
+
+	static void enterStageAndCalibrate(App *app, int reqeusted_hmd_id);
+	static void enterStageAndSkipCalibration(App *app, int reqeusted_hmd_id);
+
+	virtual void enter() override;
+	virtual void exit() override;
+	virtual void update() override;
+	virtual void render() override;
+
+	virtual void renderUI() override;
+
+	static const char *APP_STAGE_NAME;
+
+	inline void setBypassCalibrationFlag(bool bFlag)
+	{
+		m_bBypassCalibration = bFlag;
+	}
+
+protected:
+	void setState(eMenuState newState);
+	void onExitState(eMenuState newState);
+	void onEnterState(eMenuState newState);
+
+	void update_tracker_video();
+	void render_tracker_video();
+	void go_next_tracker();
+	void go_previous_tracker();
+	int get_tracker_count() const;
+	int get_render_tracker_index() const;
+	class ClientTrackerView *get_render_tracker_view() const;
+
+	void request_hmd_list();
+	static void handle_hmd_list_response(
+		const ClientPSMoveAPI::ResponseMessage *response,
+		void *userdata);
+
+	void request_start_hmd_stream(int HmdID);
+	static void handle_start_hmd_response(
+		const ClientPSMoveAPI::ResponseMessage *response_message,
+		void *userdata);
+
+	void request_tracker_list();
+	static void handle_tracker_list_response(
+		const ClientPSMoveAPI::ResponseMessage *response_message,
+		void *userdata);
+
+	void request_tracker_start_stream(const struct ClientTrackerInfo *TrackerInfo, int listIndex);
+	static void handle_tracker_start_stream_response(
+		const ClientPSMoveAPI::ResponseMessage *response,
+		void *userdata);
+
+	void handle_all_devices_ready();
+
+	void release_devices();
+	void request_exit_to_app_stage(const char *app_stage_name);
+
+private:
+	eMenuState m_menuState;
+	bool m_bBypassCalibration;
+
+	struct TrackerState
+	{
+		int listIndex;
+		class ClientTrackerView *trackerView;
+		class TextureAsset *textureAsset;
+	};
+	typedef std::map<int, TrackerState> t_tracker_state_map;
+	typedef std::map<int, TrackerState>::iterator t_tracker_state_map_iterator;
+	typedef std::pair<int, TrackerState> t_id_tracker_state_pair;
+
+	t_tracker_state_map m_trackerViews;
+	int m_pendingTrackerStartCount;
+
+	int m_renderTrackerIndex;
+	t_tracker_state_map_iterator m_renderTrackerIter;
+
+	class ClientHMDView *m_hmdView;
+	int m_overrideHmdId;
+};
+
+#endif // APP_STAGE_HMD_MODEL_CALIBRATION_H

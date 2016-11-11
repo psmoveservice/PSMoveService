@@ -2,6 +2,7 @@
 #include "AppStage_HMDSettings.h"
 #include "AppStage_HMDAccelerometerCalibration.h"
 #include "AppStage_HMDGyroscopeCalibration.h"
+#include "AppStage_HMDModelCalibration.h"
 #include "AppStage_MainMenu.h"
 #include "AppStage_TestHMD.h"
 #include "App.h"
@@ -158,6 +159,14 @@ void AppStage_HMDSettings::renderUI()
 				{
 					m_app->getAppStage<AppStage_HMDGyroscopeCalibration>()->setBypassCalibrationFlag(true);
 					m_app->setAppStage(AppStage_HMDGyroscopeCalibration::APP_STAGE_NAME);
+				}
+			}
+
+			if (hmdInfo.HmdType == ClientHMDView::eHMDViewType::Morpheus)
+			{
+				if (ImGui::Button("Calibrate LED Model"))
+				{
+					AppStage_HMDModelCalibration::enterStageAndCalibrate(m_app, m_selectedHmdIndex);
 				}
 			}
 

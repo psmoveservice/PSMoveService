@@ -1602,6 +1602,8 @@ protected:
     {
         PSMoveProtocol::Response_ResultHMDList* list = response->mutable_result_hmd_list();
 
+		response->set_type(PSMoveProtocol::Response_ResponseType_HMD_LIST);
+
         for (int hmd_id = 0; hmd_id < m_device_manager.getHMDViewMaxCount(); ++hmd_id)
         {
             ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
