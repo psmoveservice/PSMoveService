@@ -1715,11 +1715,11 @@ void CPSMoveControllerLatest::UpdateControllerState()
 
 				switch (resetPoseButtonState)
 				{
-				case PSMoveButtonState::PSMoveButton_DOWN:
+				case PSMoveButtonState::PSMoveButton_PRESSED:
 					{
 						m_resetPoseButtonPressTime = std::chrono::high_resolution_clock::now();
 					} break;
-				case PSMoveButtonState::PSMoveButton_PRESSED:
+				case PSMoveButtonState::PSMoveButton_DOWN:
 					{
 						if (!m_bResetPoseRequestSent)
 						{
@@ -1733,7 +1733,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 							}
 						}
 					} break;
-				case PSMoveButtonState::PSMoveButton_UP:
+				case PSMoveButtonState::PSMoveButton_RELEASED:
 					{
 						m_bResetPoseRequestSent = false;
 					} break;
