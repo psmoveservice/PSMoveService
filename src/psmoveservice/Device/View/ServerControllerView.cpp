@@ -389,6 +389,8 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
                 position2d_list[list_index] = tracker->projectTrackerRelativePosition(&positionEstimate.position);
             }
 
+			const TrackerManagerConfig &cfg = DeviceManager::getInstance()->m_tracker_manager->getConfig();
+
             int pair_count = 0;
             CommonDevicePosition average_world_position = { 0.f, 0.f, 0.f };
             for (int list_index = 0; list_index < positions_found; ++list_index)
@@ -402,6 +404,14 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
                     const int other_tracker_id = valid_position_tracker_ids[other_list_index];
                     const CommonDeviceScreenLocation &other_screen_location = position2d_list[other_list_index];
                     const ServerTrackerViewPtr other_tracker = tracker_manager->getTrackerViewPtr(other_tracker_id);
+
+					// if trackers are on poposite sides
+					if (cfg.exclude_opposed_cameras) {
+						if ((tracker->getTrackerPose().Position.x > 0) == (other_tracker->getTrackerPose().Position.x < 0) &&
+							(tracker->getTrackerPose().Position.z > 0) == (other_tracker->getTrackerPose().Position.z < 0)) {
+							continue;
+						}
+					}
 
                     // Using the screen locations on two different trackers we can triangulate a world position
                     CommonDevicePosition world_position =
