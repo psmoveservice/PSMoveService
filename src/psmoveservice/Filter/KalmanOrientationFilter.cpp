@@ -16,12 +16,12 @@
 //-- constants --
 enum OrientationFilterStateEnum
 {
-    EULER_ANGLE_BANK, // radians
-    ANGULAR_VELOCITY_BANK, // meters / s
+	EULER_ANGLE_ATTITUDE,
+	ANGULAR_VELOCITY_PITCH,
     EULER_ANGLE_HEADING,
-	ANGULAR_VELOCITY_HEADING,
-    EULER_ANGLE_ATTITUDE,
-    ANGULAR_VELOCITY_ATTITUDE,
+	ANGULAR_VELOCITY_YAW,
+	EULER_ANGLE_BANK, // radians
+	ANGULAR_VELOCITY_ROLL, // meters / s
 
     STATE_PARAMETER_COUNT
 };
@@ -30,9 +30,9 @@ enum PSMoveMeasurementEnum {
 	PSMOVE_ACCELEROMETER_X, // gravity units
 	PSMOVE_ACCELEROMETER_Y,
 	PSMOVE_ACCELEROMETER_Z,
-	PSMOVE_GYROSCOPE_X, // radians/s
-	PSMOVE_GYROSCOPE_Y,
-	PSMOVE_GYROSCOPE_Z,
+	PSMOVE_GYROSCOPE_PITCH, // radians/s
+	PSMOVE_GYROSCOPE_YAW,
+	PSMOVE_GYROSCOPE_ROLL,
 	PSMOVE_MAGNETOMETER_X, // unit vector
 	PSMOVE_MAGNETOMETER_Y,
 	PSMOVE_MAGNETOMETER_Z,
@@ -44,19 +44,19 @@ enum DS4MeasurementEnum {
 	DS4_ACCELEROMETER_X, // gravity units
 	DS4_ACCELEROMETER_Y,
 	DS4_ACCELEROMETER_Z,
-	DS4_GYROSCOPE_X, // radians/s
-	DS4_GYROSCOPE_Y,
-	DS4_GYROSCOPE_Z,
+	DS4_GYROSCOPE_PITCH, // radians/s
+	DS4_GYROSCOPE_YAW,
+	DS4_GYROSCOPE_ROLL,
 	DS4_OPTICAL_EULER_ANGLE_HEADING, // radians
 
 	DS4_MEASUREMENT_PARAMETER_COUNT
 };
 
 // Arbitrary tuning scale applied to the measurement noise
-#define R_SCALE 10.0
+#define R_SCALE 1000.0
 
 // Arbitrary tuning scale applied to the process noise
-#define Q_SCALE 10.0
+#define Q_SCALE 10000.0
 
 // From: http://nbviewer.jupyter.org/github/rlabbe/Kalman-and-Bayesian-Filters-in-Python/blob/master/10-Unscented-Kalman-Filter.ipynb#Reasonable-Choices-for-the-Parameters
 // beta=2 is a good choice for Gaussian problems, 
@@ -89,18 +89,18 @@ public:
 		return eigen_euler_angles_to_quaterniond(get_euler_angles());
 	}
     Eigen::Vector3d get_angular_velocity() const {
-        return Eigen::Vector3d((*this)[ANGULAR_VELOCITY_BANK], (*this)[ANGULAR_VELOCITY_HEADING], (*this)[ANGULAR_VELOCITY_ATTITUDE]);
+        return Eigen::Vector3d((*this)[ANGULAR_VELOCITY_PITCH], (*this)[ANGULAR_VELOCITY_YAW], (*this)[ANGULAR_VELOCITY_ROLL]);
     }
 
     // Mutators
     void set_euler_angles(const Eigen::EulerAnglesd &e) {
-        (*this)[EULER_ANGLE_BANK] = e.get_x_radians(); (*this)[EULER_ANGLE_HEADING] = e.get_y_radians(); (*this)[EULER_ANGLE_ATTITUDE] = e.get_z_radians();
+        (*this)[EULER_ANGLE_BANK] = e.get_bank_radians(); (*this)[EULER_ANGLE_HEADING] = e.get_heading_radians(); (*this)[EULER_ANGLE_ATTITUDE] = e.get_attitude_radians();
     }
 	void set_quaterniond(const Eigen::Quaterniond &d) {
 		set_euler_angles(eigen_quaterniond_to_euler_angles(d));
 	}
     void set_angular_velocity(const Eigen::Vector3d &v) {
-        (*this)[ANGULAR_VELOCITY_BANK] = v.x(); (*this)[ANGULAR_VELOCITY_HEADING] = v.y(); (*this)[ANGULAR_VELOCITY_ATTITUDE] = v.z();
+        (*this)[ANGULAR_VELOCITY_PITCH] = v.x(); (*this)[ANGULAR_VELOCITY_YAW] = v.y(); (*this)[ANGULAR_VELOCITY_ROLL] = v.z();
     }
 };
 typedef OrientationStateVector<double> OrientationStateVectord;
@@ -118,17 +118,22 @@ public:
 
 	void init(const OrientationFilterConstants &constants)
 	{
-		const double mean_position_dT = constants.mean_update_time_delta;
+		update_process_noise(constants);
+	}
+
+	void update_process_noise(const OrientationFilterConstants &constants)
+	{
 		const double mean_orientation_dT = constants.mean_update_time_delta;
 
 		// Start off using the maximum variance values
-		const float orientation_variance = (constants.min_orientation_variance + constants.max_orientation_variance) * 0.5f;
+		static float q_scale = Q_SCALE;
+		float orientation_variance = q_scale * (constants.min_orientation_variance + constants.max_orientation_variance) * 0.5f;
 
 		// Initialize the process covariance matrix Q
 		Kalman::Covariance<OrientationStateVectord> Q = Kalman::Covariance<OrientationStateVectord>::Zero();
-		process_2nd_order_noise<OrientationStateVectord>(mean_position_dT, orientation_variance, EULER_ANGLE_BANK, Q);
-		process_2nd_order_noise<OrientationStateVectord>(mean_position_dT, orientation_variance, EULER_ANGLE_HEADING, Q);
-		process_2nd_order_noise<OrientationStateVectord>(mean_position_dT, orientation_variance, EULER_ANGLE_ATTITUDE, Q);
+		process_2nd_order_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_BANK, Q);
+		process_2nd_order_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_HEADING, Q);
+		process_2nd_order_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_ATTITUDE, Q);
 		setCovariance(Q);
 	}
 
@@ -150,18 +155,18 @@ public:
 		OrientationStateVectord new_state;
 
 		// Extract parameters from the old state
-		const Eigen::Vector3d old_euler_angles = Eigen::Vector3d(old_state.get_euler_angles());
-		const Eigen::Vector3d old_angular_velocity = old_state.get_angular_velocity();
+		const Eigen::Quaterniond q_old = old_state.get_quaterniond();
+		const Eigen::Vector3d angular_velocity = old_state.get_angular_velocity();
 
-		// Compute the position state update
-		const Eigen::Vector3d new_euler_angles =
-			old_euler_angles
-			+ old_angular_velocity*m_time_step;
-		const Eigen::Vector3d new_angular_velocity = old_angular_velocity;
+		// Compute the quaternion derivative of the current state
+		// q_new= q + q_dot*dT
+		const Eigen::Quaterniond q_dot = eigen_angular_velocity_to_quaterniond_derivative(q_old, angular_velocity);
+		const Eigen::Quaterniond q_step = Eigen::Quaterniond(q_dot.coeffs() * m_time_step);
+		const Eigen::Quaterniond q_new = Eigen::Quaterniond(q_old.coeffs() + q_step.coeffs());
 
 		// Save results to the new state
-		new_state.set_euler_angles(Eigen::EulerAnglesd(new_euler_angles));
-		new_state.set_angular_velocity(new_angular_velocity);
+		new_state.set_quaterniond(q_new.normalized());
+		new_state.set_angular_velocity(angular_velocity);
 
 		return new_state;
 	}
@@ -195,7 +200,7 @@ public:
 		return Eigen::Vector3d((*this)[PSMOVE_ACCELEROMETER_X], (*this)[PSMOVE_ACCELEROMETER_Y], (*this)[PSMOVE_ACCELEROMETER_Z]);
 	}
 	Eigen::Vector3d get_gyroscope() const {
-		return Eigen::Vector3d((*this)[PSMOVE_GYROSCOPE_X], (*this)[PSMOVE_GYROSCOPE_Y], (*this)[PSMOVE_GYROSCOPE_Z]);
+		return Eigen::Vector3d((*this)[PSMOVE_GYROSCOPE_PITCH], (*this)[PSMOVE_GYROSCOPE_YAW], (*this)[PSMOVE_GYROSCOPE_ROLL]);
 	}
 	Eigen::Vector3d get_magnetometer() const {
 		return Eigen::Vector3d((*this)[PSMOVE_MAGNETOMETER_X], (*this)[PSMOVE_MAGNETOMETER_Y], (*this)[PSMOVE_MAGNETOMETER_Z]);
@@ -206,7 +211,7 @@ public:
 		(*this)[PSMOVE_ACCELEROMETER_X] = a.x(); (*this)[PSMOVE_ACCELEROMETER_Y] = a.y(); (*this)[PSMOVE_ACCELEROMETER_Z] = a.z();
 	}
 	void set_gyroscope(const Eigen::Vector3d &g) {
-		(*this)[PSMOVE_GYROSCOPE_X] = g.x(); (*this)[PSMOVE_GYROSCOPE_Y] = g.y(); (*this)[PSMOVE_GYROSCOPE_Z] = g.z();
+		(*this)[PSMOVE_GYROSCOPE_PITCH] = g.x(); (*this)[PSMOVE_GYROSCOPE_YAW] = g.y(); (*this)[PSMOVE_GYROSCOPE_ROLL] = g.z();
 	}
 	void set_magnetometer(const Eigen::Vector3d &m) {
 		(*this)[PSMOVE_MAGNETOMETER_X] = m.x(); (*this)[PSMOVE_MAGNETOMETER_Y] = m.y(); (*this)[PSMOVE_MAGNETOMETER_Z] = m.z();
@@ -225,7 +230,7 @@ public:
 		return Eigen::Vector3d((*this)[DS4_ACCELEROMETER_X], (*this)[DS4_ACCELEROMETER_Y], (*this)[DS4_ACCELEROMETER_Z]);
 	}
 	Eigen::Vector3d get_gyroscope() const {
-		return Eigen::Vector3d((*this)[DS4_GYROSCOPE_X], (*this)[DS4_GYROSCOPE_Y], (*this)[DS4_GYROSCOPE_Z]);
+		return Eigen::Vector3d((*this)[DS4_GYROSCOPE_PITCH], (*this)[DS4_GYROSCOPE_YAW], (*this)[DS4_GYROSCOPE_ROLL]);
 	}
 	Eigen::Vector3d get_optical_euler_heading_angle() const {
 		return (*this)[DS4_OPTICAL_EULER_ANGLE_HEADING];
@@ -236,7 +241,7 @@ public:
 		(*this)[DS4_ACCELEROMETER_X] = a.x(); (*this)[DS4_ACCELEROMETER_Y] = a.y(); (*this)[DS4_ACCELEROMETER_Z] = a.z();
 	}
 	void set_gyroscope(const Eigen::Vector3d &g) {
-		(*this)[DS4_GYROSCOPE_X] = g.x(); (*this)[DS4_GYROSCOPE_Y] = g.y(); (*this)[DS4_GYROSCOPE_Z] = g.z();
+		(*this)[DS4_GYROSCOPE_PITCH] = g.x(); (*this)[DS4_GYROSCOPE_YAW] = g.y(); (*this)[DS4_GYROSCOPE_ROLL] = g.z();
 	}
 	void set_optical_euler_heading_angle(const double heading_radians) {
 		(*this)[DS4_OPTICAL_EULER_ANGLE_HEADING] = heading_radians;
@@ -261,15 +266,16 @@ public:
 			Kalman::Covariance<PSMove_OrientationMeasurementVectord>::Zero();
 
 		// Only diagonals used so no need to compute Cholesky
-		R(PSMOVE_ACCELEROMETER_X, PSMOVE_ACCELEROMETER_X) = sqrt(R_SCALE*constants.accelerometer_variance.x());
-		R(PSMOVE_ACCELEROMETER_Y, PSMOVE_ACCELEROMETER_Y) = sqrt(R_SCALE*constants.accelerometer_variance.y());
-		R(PSMOVE_ACCELEROMETER_Z, PSMOVE_ACCELEROMETER_Z) = sqrt(R_SCALE*constants.accelerometer_variance.z());
-		R(PSMOVE_GYROSCOPE_X, PSMOVE_GYROSCOPE_X) = sqrt(R_SCALE*constants.gyro_variance.x());
-		R(PSMOVE_GYROSCOPE_Y, PSMOVE_GYROSCOPE_Y) = sqrt(R_SCALE*constants.gyro_variance.y());
-		R(PSMOVE_GYROSCOPE_Z, PSMOVE_GYROSCOPE_Z) = sqrt(R_SCALE*constants.gyro_variance.z());
-		R(PSMOVE_MAGNETOMETER_X, PSMOVE_MAGNETOMETER_X) = sqrt(R_SCALE*constants.magnetometer_variance.x());
-		R(PSMOVE_MAGNETOMETER_Y, PSMOVE_MAGNETOMETER_Y) = sqrt(R_SCALE*constants.magnetometer_variance.y());
-		R(PSMOVE_MAGNETOMETER_Z, PSMOVE_MAGNETOMETER_Z) = sqrt(R_SCALE*constants.magnetometer_variance.z());
+		static float r_scale = R_SCALE;
+		R(PSMOVE_ACCELEROMETER_X, PSMOVE_ACCELEROMETER_X) = sqrt(r_scale*constants.accelerometer_variance.x());
+		R(PSMOVE_ACCELEROMETER_Y, PSMOVE_ACCELEROMETER_Y) = sqrt(r_scale*constants.accelerometer_variance.y());
+		R(PSMOVE_ACCELEROMETER_Z, PSMOVE_ACCELEROMETER_Z) = sqrt(r_scale*constants.accelerometer_variance.z());
+		R(PSMOVE_GYROSCOPE_PITCH, PSMOVE_GYROSCOPE_PITCH) = sqrt(r_scale*constants.gyro_variance.x());
+		R(PSMOVE_GYROSCOPE_YAW, PSMOVE_GYROSCOPE_YAW) = sqrt(r_scale*constants.gyro_variance.y());
+		R(PSMOVE_GYROSCOPE_ROLL, PSMOVE_GYROSCOPE_ROLL) = sqrt(r_scale*constants.gyro_variance.z());
+		R(PSMOVE_MAGNETOMETER_X, PSMOVE_MAGNETOMETER_X) = sqrt(r_scale*constants.magnetometer_variance.x());
+		R(PSMOVE_MAGNETOMETER_Y, PSMOVE_MAGNETOMETER_Y) = sqrt(r_scale*constants.magnetometer_variance.y());
+		R(PSMOVE_MAGNETOMETER_Z, PSMOVE_MAGNETOMETER_Z) = sqrt(r_scale*constants.magnetometer_variance.z());
 
 		identity_gravity_direction = constants.gravity_calibration_direction.cast<double>();
 		identity_magnetometer_direction = constants.magnetometer_calibration_direction.cast<double>();
@@ -345,14 +351,15 @@ public:
 		Kalman::Covariance<DS4_OrientationMeasurementVectord> R =
 			Kalman::Covariance<DS4_OrientationMeasurementVectord>::Zero();
 
-		R(DS4_ACCELEROMETER_X, DS4_ACCELEROMETER_X) = sqrt(R_SCALE*constants.accelerometer_variance.x());
-		R(DS4_ACCELEROMETER_Y, DS4_ACCELEROMETER_Y) = sqrt(R_SCALE*constants.accelerometer_variance.y());
-		R(DS4_ACCELEROMETER_Z, DS4_ACCELEROMETER_Z) = sqrt(R_SCALE*constants.accelerometer_variance.z());
-		R(DS4_GYROSCOPE_X, DS4_GYROSCOPE_X) = sqrt(R_SCALE*constants.gyro_variance.x());
-		R(DS4_GYROSCOPE_Y, DS4_GYROSCOPE_Y) = sqrt(R_SCALE*constants.gyro_variance.y());
-		R(DS4_GYROSCOPE_Z, DS4_GYROSCOPE_Z) = sqrt(R_SCALE*constants.gyro_variance.z());
+		static float r_scale = R_SCALE;
+		R(DS4_ACCELEROMETER_X, DS4_ACCELEROMETER_X) = sqrt(r_scale*constants.accelerometer_variance.x());
+		R(DS4_ACCELEROMETER_Y, DS4_ACCELEROMETER_Y) = sqrt(r_scale*constants.accelerometer_variance.y());
+		R(DS4_ACCELEROMETER_Z, DS4_ACCELEROMETER_Z) = sqrt(r_scale*constants.accelerometer_variance.z());
+		R(DS4_GYROSCOPE_PITCH, DS4_GYROSCOPE_PITCH) = sqrt(r_scale*constants.gyro_variance.x());
+		R(DS4_GYROSCOPE_YAW, DS4_GYROSCOPE_YAW) = sqrt(r_scale*constants.gyro_variance.y());
+		R(DS4_GYROSCOPE_ROLL, DS4_GYROSCOPE_ROLL) = sqrt(r_scale*constants.gyro_variance.z());
 		R(DS4_OPTICAL_EULER_ANGLE_HEADING, DS4_OPTICAL_EULER_ANGLE_HEADING) = 
-			sqrt(R_SCALE*lerp_clampf(
+			sqrt(r_scale*lerp_clampf(
 				constants.max_orientation_variance,
 				constants.min_orientation_variance,
 				orientation_quality));
@@ -726,6 +733,12 @@ void KalmanOrientationFilterDS4::update(const float delta_time, const PoseFilter
 	if (m_filter->bIsValid)
 	{
 		DS4KalmanOrientationFilterImpl *filter = static_cast<DS4KalmanOrientationFilterImpl *>(m_filter);
+
+		static bool bUpdateProcessNoise = false;
+		if (bUpdateProcessNoise)
+		{
+			filter->system_model.update_process_noise(m_constants);
+		}
 
 		// Predict state for current time-step using the filters
 		filter->system_model.set_time_step(delta_time);

@@ -719,7 +719,7 @@ void AppStage_GyroscopeCalibration::renderUI()
     case eCalibrationMenuState::test:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 120));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 140));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             if (m_bBypassCalibration)
@@ -735,8 +735,12 @@ void AppStage_GyroscopeCalibration::renderUI()
 				const Eigen::Quaternionf eigen_quat = psmove_quaternion_to_eigen_quaternionf(m_controllerView->GetOrientation());
 				const Eigen::EulerAnglesf euler_angles = eigen_quaternionf_to_euler_angles(eigen_quat);
 
-				ImGui::Text("Heading: %.2f, Attitude: %.2f, Bank: %.2f", 
-					euler_angles.get_heading_degrees(), euler_angles.get_attitude_degrees(), euler_angles.get_bank_degrees());
+				ImGui::Text("Pitch(x): %.2f, Yaw(y): %.2f, Roll(z): %.2f",
+					m_lastCalibratedGyroscope.i * k_radians_to_degreees, 
+					m_lastCalibratedGyroscope.j * k_radians_to_degreees,
+					m_lastCalibratedGyroscope.k * k_radians_to_degreees);
+				ImGui::Text("Attitude: %.2f, Heading: %.2f, Bank: %.2f", 
+					euler_angles.get_attitude_degrees(), euler_angles.get_heading_degrees(), euler_angles.get_bank_degrees());
 			}
 
 			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4)
