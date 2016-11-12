@@ -49,6 +49,12 @@ enum PositionFilterMeasurementEnum {
 #define k_ukf_beta 2.0
 #define k_ukf_kappa -6.0 // 3 - STATE_PARAMETER_COUNT
 
+// Arbitrary tuning scale applied to the measurement noise
+#define R_SCALE 1000.0
+
+// Arbitrary tuning scale applied to the process noise
+#define Q_SCALE 10000.0
+
 //-- private methods ---
 template <class StateType>
 void process_3rd_order_noise(const double dT, const double var, const int state_index, Kalman::Covariance<StateType> &Q);
@@ -128,15 +134,16 @@ public:
         const double mean_orientation_dT= constants.mean_update_time_delta;
 
         // Start off using the maximum variance values
+		static float q_scale = Q_SCALE;
         const Eigen::Vector3f position_variance= 
 			(constants.min_position_variance +
 			constants.max_position_variance) * 0.5f;
 
         // Initialize the process covariance matrix Q
         Kalman::Covariance<PositionStateVectord> Q = Kalman::Covariance<PositionStateVectord>::Zero();
-        process_3rd_order_noise<PositionStateVectord>(mean_position_dT, position_variance.x(), POSITION_X, Q);
-		process_3rd_order_noise<PositionStateVectord>(mean_position_dT, position_variance.y(), POSITION_Y, Q);
-		process_3rd_order_noise<PositionStateVectord>(mean_position_dT, position_variance.z(), POSITION_Z, Q);
+        process_3rd_order_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance.x(), POSITION_X, Q);
+		process_3rd_order_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance.y(), POSITION_Y, Q);
+		process_3rd_order_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance.z(), POSITION_Z, Q);
         setCovariance(Q);
     }
 
@@ -182,6 +189,20 @@ protected:
     double m_time_step;
 };
 
+class PositionSRUKF : public Kalman::SquareRootUnscentedKalmanFilter<PositionStateVectord>
+{
+public:
+	PositionSRUKF(double alpha = 1.0, double beta = 2.0, double kappa = 0.0)
+		: Kalman::SquareRootUnscentedKalmanFilter<PositionStateVectord>(alpha, beta, kappa)
+	{
+	}
+
+	State& getStateMutable()
+	{
+		return x;
+	}
+};
+
 /**
 * @brief Measurement model for measuring PSMove controller
 *
@@ -214,14 +235,15 @@ public:
 			(1.f - position_quality)*constants.max_position_variance;
 
         // Update the measurement covariance R
+		static float r_scale = R_SCALE;
         Kalman::Covariance<PositionMeasurementVectord> R = 
 			Kalman::Covariance<PositionMeasurementVectord>::Zero();
-		R(ACCELEROMETER_X, ACCELEROMETER_X) = constants.accelerometer_variance.x();
-		R(ACCELEROMETER_Y, ACCELEROMETER_Y) = constants.accelerometer_variance.y();
-		R(ACCELEROMETER_Z, ACCELEROMETER_Z) = constants.accelerometer_variance.z();
-        R(OPTICAL_POSITION_X, OPTICAL_POSITION_X) = position_variance.x();
-        R(OPTICAL_POSITION_Y, OPTICAL_POSITION_Y) = position_variance.y();
-        R(OPTICAL_POSITION_Z, OPTICAL_POSITION_Z) = position_variance.z();
+		R(ACCELEROMETER_X, ACCELEROMETER_X) = r_scale*constants.accelerometer_variance.x();
+		R(ACCELEROMETER_Y, ACCELEROMETER_Y) = r_scale*constants.accelerometer_variance.y();
+		R(ACCELEROMETER_Z, ACCELEROMETER_Z) = r_scale*constants.accelerometer_variance.z();
+        R(OPTICAL_POSITION_X, OPTICAL_POSITION_X) = r_scale*position_variance.x();
+        R(OPTICAL_POSITION_Y, OPTICAL_POSITION_Y) = r_scale*position_variance.y();
+        R(OPTICAL_POSITION_Z, OPTICAL_POSITION_Z) = r_scale*position_variance.z();
         setCovariance(R);
 	}
 
@@ -276,9 +298,6 @@ public:
     /// Position that's considered the origin position 
     Eigen::Vector3f origin_position; // meters
 
-    /// All state parameters of the controller
-    PositionStateVectord state_vector;
-
     /// Used to model how the physics of the controller evolves
     PositionSystemModel system_model;
 
@@ -286,7 +305,7 @@ public:
 	PositionMeasurementModel measurement_model;
 
     /// Unscented Kalman Filter instance
-	Kalman::SquareRootUnscentedKalmanFilter<PositionStateVectord> ukf;
+	PositionSRUKF ukf;
 
     KalmanPositionFilterImpl() 
 		: ukf(k_ukf_alpha, k_ukf_beta, k_ukf_kappa)
@@ -300,11 +319,9 @@ public:
 
         origin_position = Eigen::Vector3f::Zero();
 
-        state_vector.setZero();
-
 		measurement_model.init(constants);
         system_model.init(constants);
-        ukf.init(state_vector);
+        ukf.init(PositionStateVectord::Zero());
     }
 
 	virtual void init(const PositionFilterConstants &constants, const Eigen::Vector3f &initial_position)
@@ -314,7 +331,7 @@ public:
 
 		origin_position = Eigen::Vector3f::Zero();
 
-		state_vector.setZero();
+		PositionStateVectord state_vector = PositionStateVectord::Zero();
 		state_vector.set_position(initial_position.cast<double>());
 
 		measurement_model.init(constants);
@@ -384,7 +401,7 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
     {
         // Predict state for current time-step using the filters
         m_filter->system_model.set_time_step(delta_time);
-        m_filter->state_vector = m_filter->ukf.predict(m_filter->system_model);
+        m_filter->ukf.predict(m_filter->system_model);
 
         // Get the measurement model for the DS4 from the derived filter impl
         PositionMeasurementModel &measurement_model = m_filter->measurement_model;
@@ -395,7 +412,7 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
 
         // Project the current state onto a predicted measurement as a default
         // in case no observation is available
-        PositionMeasurementVectord measurement = measurement_model.h(m_filter->state_vector);
+        PositionMeasurementVectord measurement = measurement_model.h(m_filter->ukf.getState());
 
         // Accelerometer and gyroscope measurements are always available
         measurement.set_accelerometer(packet.imu_accelerometer.cast<double>());
@@ -415,30 +432,27 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
 			// If this is the first time we have seen the position, snap the position state
 			if (!m_filter->bSeenPositionMeasurement)
 			{
-				m_filter->state_vector.set_position(optical_position.cast<double>());
+				m_filter->ukf.getStateMutable().set_position(optical_position.cast<double>());
 				m_filter->bSeenPositionMeasurement= true;
 			}
         }
 
         // Update UKF
-        m_filter->state_vector = m_filter->ukf.update(measurement_model, measurement);
+        m_filter->ukf.update(measurement_model, measurement);
     }
     else
     {
-        m_filter->state_vector.setZero();
+		PositionStateVectord state_vector = PositionStateVectord::Zero();
 
 		if (packet.optical_position_quality > 0.f)
 		{
 			Eigen::Vector3f optical_position= packet.get_optical_position_in_meters();
 
-			m_filter->state_vector.set_position(optical_position.cast<double>());
+			state_vector.set_position(optical_position.cast<double>());
 			m_filter->bSeenPositionMeasurement= true;
 		}
-		else
-		{
-			m_filter->state_vector.set_position(Eigen::Vector3d::Zero());
-		}
 
+		m_filter->ukf.init(state_vector);
         m_filter->bIsValid= true;
     }
 }
@@ -464,7 +478,7 @@ Eigen::Vector3f KalmanPositionFilter::getPosition(float time) const
 
     if (m_filter->bIsValid)
     {
-        Eigen::Vector3f state_position= m_filter->state_vector.get_position().cast<float>();
+        Eigen::Vector3f state_position= m_filter->ukf.getState().get_position().cast<float>();
         Eigen::Vector3f predicted_position =
             is_nearly_zero(time)
             ? state_position
@@ -478,14 +492,14 @@ Eigen::Vector3f KalmanPositionFilter::getPosition(float time) const
 
 Eigen::Vector3f KalmanPositionFilter::getVelocity() const
 {
-	Eigen::Vector3d vel= m_filter->state_vector.get_linear_velocity() * k_meters_to_centimeters;
+	Eigen::Vector3d vel= m_filter->ukf.getState().get_linear_velocity() * k_meters_to_centimeters;
 
     return vel.cast<float>();
 }
 
 Eigen::Vector3f KalmanPositionFilter::getAcceleration() const
 {
-    Eigen::Vector3d accel= m_filter->state_vector.get_linear_acceleration() * k_meters_to_centimeters;
+    Eigen::Vector3d accel= m_filter->ukf.getState().get_linear_acceleration() * k_meters_to_centimeters;
 
 	return accel.cast<float>();
 }
