@@ -56,7 +56,7 @@ enum DS4MeasurementEnum {
 #define R_SCALE 1000.0
 
 // Arbitrary tuning scale applied to the process noise
-#define Q_SCALE 10000.0
+#define Q_SCALE 1.0
 
 // From: http://nbviewer.jupyter.org/github/rlabbe/Kalman-and-Bayesian-Filters-in-Python/blob/master/10-Unscented-Kalman-Filter.ipynb#Reasonable-Choices-for-the-Parameters
 // beta=2 is a good choice for Gaussian problems, 
@@ -69,10 +69,7 @@ enum DS4MeasurementEnum {
 
 //-- private methods ---
 template <class StateType>
-void process_3rd_order_noise(const double dT, const double var, const int state_index, Kalman::Covariance<StateType> &Q);
-
-template <class StateType>
-void process_2nd_order_noise(const double dT, const double var, const int state_index, Kalman::Covariance<StateType> &Q);
+void Q_discrete_2rd_order_white_noise(const double dT, const double var, const int state_index, Kalman::Covariance<StateType> &Q);
 
 //-- private definitions --
 template<typename T>
@@ -131,9 +128,9 @@ public:
 
 		// Initialize the process covariance matrix Q
 		Kalman::Covariance<OrientationStateVectord> Q = Kalman::Covariance<OrientationStateVectord>::Zero();
-		process_2nd_order_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_BANK, Q);
-		process_2nd_order_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_HEADING, Q);
-		process_2nd_order_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_ATTITUDE, Q);
+		Q_discrete_2rd_order_white_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_BANK, Q);
+		Q_discrete_2rd_order_white_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_HEADING, Q);
+		Q_discrete_2rd_order_white_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_ATTITUDE, Q);
 		setCovariance(Q);
 	}
 
@@ -861,34 +858,17 @@ void KalmanOrientationFilterPSMove::update(const float delta_time, const PoseFil
 }
 
 //-- Private functions --
+// Adapted from: https://github.com/rlabbe/filterpy/blob/master/filterpy/common/discretization.py#L52-L53
+
+// Returns the Q matrix for the Discrete Constant White Noise
+// - dT is the time step
+// - var is the variance in the process noise
+// - state_index denotes where in Q the 2x2 covariance matrix should be written
+
+// Q is computed as the G * G^T * variance, where G is the process noise per time step.
+// In other words, G = [[.5dt ^ 2][dt]] ^ T for the constant angular velocity model.
 template <class StateType>
-void process_3rd_order_noise(
-    const double dT,
-    const double var,
-    const int state_index,
-    Kalman::Covariance<StateType> &Q)
-{
-    const double dT_2 = dT*dT;
-	const double dT_3 = dT_2*dT;
-	const double dT_4 = dT_2*dT_2;
-	const double dT_5 = dT_3*dT_2;
-	const double dT_6 = dT_3*dT_3;
-	const double dT_7 = dT_4*dT_3;
-
-    const double q7 = var * dT_7;
-    const double q6 = var * dT_6;
-    const double q5 = var * dT_5;
-    const double q4 = var * dT_4;
-    const double q3 = var * dT_3;
-
-    const int &i= state_index;
-    Q(i+0,i+0) = q7/252.0; Q(i+0,i+1) = q6/72.0; Q(i+0,i+2) = q5/30.0;
-    Q(i+1,i+0) = q6/72.0;  Q(i+1,i+1) = q5/20.0; Q(i+1,i+2) = q4/8.0;
-    Q(i+2,i+0) = q5/30.0;  Q(i+2,i+1) = q4/8.0;  Q(i+2,i+2) = q3/3.0;
-}
-
-template <class StateType>
-void process_2nd_order_noise(
+void Q_discrete_2rd_order_white_noise(
 	const double dT, 
 	const double var, 
 	const int state_index, 
@@ -897,14 +877,13 @@ void process_2nd_order_noise(
     const double dT_2 = dT*dT;
 	const double dT_3 = dT_2*dT;
 	const double dT_4 = dT_2*dT_2;
-	const double dT_5 = dT_3*dT_2;
 
-    const double q5 = var * dT_5;
     const double q4 = var * dT_4;
     const double q3 = var * dT_3;
+    const double q2 = var * dT_2;
 
     // Q = [.5dt^2, dt]*[.5dt^2, dt]^T * variance
     const int &i= state_index;
-    Q(i+0,i+0) = q5/20.0; Q(i+0,i+1) = q4/8.0;
-    Q(i+1,i+0) = q4/8.0;  Q(i+1,i+1) = q3/3.0;
+    Q(i+0,i+0) = 0.25*q4; Q(i+0,i+1) = 0.5*q3;
+    Q(i+1,i+0) =  0.5*q3; Q(i+1,i+1) = q2;
 }

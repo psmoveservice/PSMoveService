@@ -50,17 +50,17 @@ enum PositionFilterMeasurementEnum {
 #define k_ukf_kappa -6.0 // 3 - STATE_PARAMETER_COUNT
 
 // Arbitrary tuning scale applied to the measurement noise
-#define R_SCALE 1000.0
+#define R_ACCELEROMETER_SCALE 10.0
+
+// Arbitrary tuning scale applied to the measurement noise
+#define R_POSITION_SCALE 0.1
 
 // Arbitrary tuning scale applied to the process noise
-#define Q_SCALE 10000.0
+#define Q_SCALE 1.0
 
 //-- private methods ---
 template <class StateType>
-void process_3rd_order_noise(const double dT, const double var, const int state_index, Kalman::Covariance<StateType> &Q);
-
-template <class StateType>
-void process_2nd_order_noise(const double dT, const double var, const int state_index, Kalman::Covariance<StateType> &Q);
+void Q_discrete_3rd_order_white_noise(const double dT, const double var, const int state_index, Kalman::Covariance<StateType> &Q);
 
 //-- private definitions --
 template<typename T>
@@ -130,22 +130,27 @@ public:
 
     void init(const PositionFilterConstants &constants)
     {
-        const double mean_position_dT= constants.mean_update_time_delta;
-        const double mean_orientation_dT= constants.mean_update_time_delta;
-
-        // Start off using the maximum variance values
-		static float q_scale = Q_SCALE;
-        const Eigen::Vector3f position_variance= 
-			(constants.min_position_variance +
-			constants.max_position_variance) * 0.5f;
-
-        // Initialize the process covariance matrix Q
-        Kalman::Covariance<PositionStateVectord> Q = Kalman::Covariance<PositionStateVectord>::Zero();
-        process_3rd_order_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance.x(), POSITION_X, Q);
-		process_3rd_order_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance.y(), POSITION_Y, Q);
-		process_3rd_order_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance.z(), POSITION_Z, Q);
-        setCovariance(Q);
+		update_process_noise(constants);
     }
+
+	void update_process_noise(const PositionFilterConstants &constants)
+	{
+		const double mean_position_dT = constants.mean_update_time_delta;
+		const double mean_orientation_dT = constants.mean_update_time_delta;
+
+		// Start off using the maximum variance values
+		static float q_scale = Q_SCALE;
+		const Eigen::Vector3f position_variance =
+			(constants.min_position_variance +
+				constants.max_position_variance) * 0.5f;
+
+		// Initialize the process covariance matrix Q
+		Kalman::Covariance<PositionStateVectord> Q = Kalman::Covariance<PositionStateVectord>::Zero();
+		Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance.x(), POSITION_X, Q);
+		Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance.y(), POSITION_Y, Q);
+		Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance.z(), POSITION_Z, Q);
+		setCovariance(Q);
+	}
 
     /**
     * @brief Definition of (non-linear) state transition function
@@ -235,15 +240,16 @@ public:
 			(1.f - position_quality)*constants.max_position_variance;
 
         // Update the measurement covariance R
-		static float r_scale = R_SCALE;
+		static float r_accelometer_scale = R_ACCELEROMETER_SCALE;
+		static float r_position_scale = R_POSITION_SCALE;
         Kalman::Covariance<PositionMeasurementVectord> R = 
 			Kalman::Covariance<PositionMeasurementVectord>::Zero();
-		R(ACCELEROMETER_X, ACCELEROMETER_X) = r_scale*constants.accelerometer_variance.x();
-		R(ACCELEROMETER_Y, ACCELEROMETER_Y) = r_scale*constants.accelerometer_variance.y();
-		R(ACCELEROMETER_Z, ACCELEROMETER_Z) = r_scale*constants.accelerometer_variance.z();
-        R(OPTICAL_POSITION_X, OPTICAL_POSITION_X) = r_scale*position_variance.x();
-        R(OPTICAL_POSITION_Y, OPTICAL_POSITION_Y) = r_scale*position_variance.y();
-        R(OPTICAL_POSITION_Z, OPTICAL_POSITION_Z) = r_scale*position_variance.z();
+		R(ACCELEROMETER_X, ACCELEROMETER_X) = r_accelometer_scale*constants.accelerometer_variance.x();
+		R(ACCELEROMETER_Y, ACCELEROMETER_Y) = r_accelometer_scale*constants.accelerometer_variance.y();
+		R(ACCELEROMETER_Z, ACCELEROMETER_Z) = r_accelometer_scale*constants.accelerometer_variance.z();
+        R(OPTICAL_POSITION_X, OPTICAL_POSITION_X) = r_position_scale*position_variance.x();
+        R(OPTICAL_POSITION_Y, OPTICAL_POSITION_Y) = r_position_scale*position_variance.y();
+        R(OPTICAL_POSITION_Z, OPTICAL_POSITION_Z) = r_position_scale*position_variance.z();
         setCovariance(R);
 	}
 
@@ -399,6 +405,12 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
 {
     if (m_filter->bIsValid)
     {
+		static bool bUpdateProcessNoise = false;
+		if (bUpdateProcessNoise)
+		{
+			m_filter->system_model.update_process_noise(m_constants);
+		}
+
         // Predict state for current time-step using the filters
         m_filter->system_model.set_time_step(delta_time);
         m_filter->ukf.predict(m_filter->system_model);
@@ -505,8 +517,17 @@ Eigen::Vector3f KalmanPositionFilter::getAcceleration() const
 }
 
 //-- Private functions --
+// Adapted from: https://github.com/rlabbe/filterpy/blob/master/filterpy/common/discretization.py#L55-L57
+
+// Returns the Q matrix for the Discrete Constant White Noise
+// - dT is the time step
+// - var is the variance in the process noise
+// - state_index denotes where in Q the 3x3 covariance matrix should be written
+
+// Q is computed as the G * G^T * variance, where G is the process noise per time step.
+// In other words, G = [[.5dt^2][dt][1]] ^ T for the constant linear acceleration model.
 template <class StateType>
-void process_3rd_order_noise(
+void Q_discrete_3rd_order_white_noise(
     const double dT,
     const double var,
     const int state_index,
@@ -515,40 +536,14 @@ void process_3rd_order_noise(
     const double dT_2 = dT*dT;
 	const double dT_3 = dT_2*dT;
 	const double dT_4 = dT_2*dT_2;
-	const double dT_5 = dT_3*dT_2;
-	const double dT_6 = dT_3*dT_3;
-	const double dT_7 = dT_4*dT_3;
 
-    const double q7 = var * dT_7;
-    const double q6 = var * dT_6;
-    const double q5 = var * dT_5;
     const double q4 = var * dT_4;
     const double q3 = var * dT_3;
+	const double q2 = var * dT_2;
+	const double q1 = var * dT;
 
     const int &i= state_index;
-    Q(i+0,i+0) = q7/252.0; Q(i+0,i+1) = q6/72.0; Q(i+0,i+2) = q5/30.0;
-    Q(i+1,i+0) = q6/72.0;  Q(i+1,i+1) = q5/20.0; Q(i+1,i+2) = q4/8.0;
-    Q(i+2,i+0) = q5/30.0;  Q(i+2,i+1) = q4/8.0;  Q(i+2,i+2) = q3/3.0;
-}
-
-template <class StateType>
-void process_2nd_order_noise(
-	const double dT, 
-	const double var, 
-	const int state_index, 
-	Kalman::Covariance<StateType> &Q)
-{
-    const double dT_2 = dT*dT;
-	const double dT_3 = dT_2*dT;
-	const double dT_4 = dT_2*dT_2;
-	const double dT_5 = dT_3*dT_2;
-
-    const double q5 = var * dT_5;
-    const double q4 = var * dT_4;
-    const double q3 = var * dT_3;
-
-    // Q = [.5dt^2, dt]*[.5dt^2, dt]^T * variance
-    const int &i= state_index;
-    Q(i+0,i+0) = q5/20.0; Q(i+0,i+1) = q4/8.0;
-    Q(i+1,i+0) = q4/8.0;  Q(i+1,i+1) = q3/3.0;
+    Q(i+0,i+0) = 0.25*q4; Q(i+0,i+1) = 0.5*q3; Q(i+0,i+2) = 0.5*q2;
+    Q(i+1,i+0) =  0.5*q3; Q(i+1,i+1) =     q2; Q(i+1,i+2) =     q1;
+    Q(i+2,i+0) =  0.5*q2; Q(i+2,i+1) =     q1; Q(i+2,i+2) =    1.0;
 }
