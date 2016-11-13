@@ -647,6 +647,27 @@ void drawTrackingProjection(
             glVertex3f(quad[0].x, quad[0].y, 0.5f);
             glEnd();
         } break;
+
+	case PSMoveTrackingProjection::eShapeType::PointCloud:
+		{
+			const PSMoveScreenLocation *points = shapeProjection->shape.pointcloud.points;
+			const int point_count = shapeProjection->shape.pointcloud.point_count;
+
+			// Draw a small red "+" for the center of mass in each tracking blob center
+			for (int point_index = 0; point_index < point_count; ++point_index)
+			{
+				const PSMoveScreenLocation *point = &points[point_index];
+
+				glLineWidth(2.f);
+				glBegin(GL_LINES);
+				glColor3f(1.f, 0.f, 0.f);
+				glVertex3f(point->x - 5.f, point->y, 0.5f);
+				glVertex3f(point->x + 5.f, point->y, 0.5f);
+				glVertex3f(point->x, point->y + 5.f, 0.5f);
+				glVertex3f(point->x, point->y - 5.f, 0.5f);
+				glEnd();
+			}
+		} break;
     }
 
     glLineWidth(1.f);

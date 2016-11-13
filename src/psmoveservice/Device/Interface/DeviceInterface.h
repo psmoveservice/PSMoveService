@@ -302,18 +302,25 @@ struct CommonHMDState : CommonDeviceState
 
 struct CommonDeviceTrackingShape
 {
+	enum eTrackingShapeConstants
+	{
+		TRIANGLE_POINT_COUNT = 3,
+		QUAD_POINT_COUNT = 4,
+		MAX_POINT_CLOUD_POINT_COUNT= 9
+	};
+
     union{
         struct {
             float radius;
         } sphere;
 
         struct {
-            CommonDevicePosition triangle[3];
-            CommonDevicePosition quad[4];
+            CommonDevicePosition triangle[TRIANGLE_POINT_COUNT];
+            CommonDevicePosition quad[QUAD_POINT_COUNT];
         } light_bar;
 
 		struct {
-			CommonDevicePosition point[7];
+			CommonDevicePosition point[MAX_POINT_CLOUD_POINT_COUNT];
 		} point_cloud;
     } shape;
 
@@ -322,6 +329,13 @@ struct CommonDeviceTrackingShape
 
 struct CommonDeviceTrackingProjection
 {
+	enum eTrackingShapeConstants
+	{
+		TRIANGLE_POINT_COUNT = 3,
+		QUAD_POINT_COUNT = 4,
+		MAX_POINT_CLOUD_POINT_COUNT = 6 // at most 6 points visible to a given camera
+	};
+
     union{
         struct {
             CommonDeviceScreenLocation center;
@@ -331,12 +345,12 @@ struct CommonDeviceTrackingProjection
         } ellipse;
 
         struct {
-            CommonDeviceScreenLocation triangle[3];
-            CommonDeviceScreenLocation quad[4];
+            CommonDeviceScreenLocation triangle[TRIANGLE_POINT_COUNT];
+            CommonDeviceScreenLocation quad[QUAD_POINT_COUNT];
         } lightbar;
 
 		struct {
-			CommonDeviceScreenLocation point[5];
+			CommonDeviceScreenLocation point[MAX_POINT_CLOUD_POINT_COUNT];
 			int point_count;
 		} points;
     } shape;

@@ -102,7 +102,7 @@ void AppStage_HMDModelCalibration::update()
 		break;
 	case eMenuState::calibrate:
 	{
-		//TODO
+		update_tracker_video();
 	}
 	break;
 	case eMenuState::test:
@@ -134,7 +134,32 @@ void AppStage_HMDModelCalibration::render()
 			render_tracker_video();
 		} break;
 	case eMenuState::calibrate:
-		//TODO
+		{
+			// Draw the video from the PoV of the current tracker
+			render_tracker_video();
+
+			// Draw the projection shape of the controller in the pov of the current tracker being rendered
+			{
+				const ClientTrackerView *TrackerView = get_render_tracker_view();
+				const MorpheusRawTrackerData &RawTrackerData = m_hmdView->GetRawTrackerData();
+				const int TrackerID = TrackerView->getTrackerId();
+
+				PSMoveTrackingProjection trackingProjection;
+				PSMoveScreenLocation centerProjection;
+
+				if (m_hmdView->GetIsCurrentlyTracking() &&
+					RawTrackerData.GetPixelLocationOnTrackerId(TrackerID, centerProjection) &&
+					RawTrackerData.GetProjectionOnTrackerId(TrackerID, trackingProjection))
+				{
+					const PSMoveFloatVector2 screenSize = TrackerView->getTrackerInfo().tracker_screen_dimensions;
+
+					drawTrackingProjection(
+						&centerProjection,
+						&trackingProjection,
+						screenSize.i, screenSize.j);
+				}
+			}
+		}
 		break;
 	case eMenuState::test:
 		{
@@ -250,7 +275,7 @@ void AppStage_HMDModelCalibration::renderUI()
 
 		if (ImGui::Button("Ok"))
 		{
-			request_exit_to_app_stage(AppStage_HMDModelCalibration::APP_STAGE_NAME);
+			request_exit_to_app_stage(AppStage_HMDSettings::APP_STAGE_NAME);
 		}
 
 		if (ImGui::Button("Return to Main Menu"))
@@ -348,7 +373,7 @@ void AppStage_HMDModelCalibration::renderUI()
 		ImGui::SameLine();
 		if (ImGui::Button("Exit"))
 		{
-			m_app->setAppStage(AppStage_HMDModelCalibration::APP_STAGE_NAME);
+			m_app->setAppStage(AppStage_HMDSettings::APP_STAGE_NAME);
 		}
 
 		ImGui::End();

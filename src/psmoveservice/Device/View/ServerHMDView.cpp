@@ -78,6 +78,15 @@ bool ServerHMDView::allocate_device_interface(const class DeviceEnumerator *enum
             m_device = new MorpheusHMD();
             m_orientation_filter = new OrientationFilter();
             m_position_filter = new PositionFilter();
+
+			m_tracker_pose_estimation = new HMDOpticalPoseEstimation[TrackerManager::k_max_devices];
+			for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
+			{
+				m_tracker_pose_estimation[tracker_index].clear();
+			}
+
+			m_multicam_pose_estimation = new HMDOpticalPoseEstimation();
+			m_multicam_pose_estimation->clear();
         } break;
     default:
         break;
@@ -88,6 +97,30 @@ bool ServerHMDView::allocate_device_interface(const class DeviceEnumerator *enum
 
 void ServerHMDView::free_device_interface()
 {
+	if (m_multicam_pose_estimation != nullptr)
+	{
+		delete m_multicam_pose_estimation;
+		m_multicam_pose_estimation = nullptr;
+	}
+
+	if (m_tracker_pose_estimation != nullptr)
+	{
+		delete[] m_tracker_pose_estimation;
+		m_tracker_pose_estimation = nullptr;
+	}
+
+	if (m_orientation_filter != nullptr)
+	{
+		delete m_orientation_filter;
+		m_orientation_filter = nullptr;
+	}
+
+	if (m_position_filter != nullptr)
+	{
+		delete m_position_filter;
+		m_position_filter = nullptr;
+	}
+
     if (m_device != nullptr)
     {
         delete m_device;
