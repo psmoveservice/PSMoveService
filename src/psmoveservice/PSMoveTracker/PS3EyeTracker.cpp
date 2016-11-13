@@ -87,7 +87,7 @@ PS3EyeTrackerConfig::config2ptree()
 
 	writeColorPropertyPresetTable(&SharedColorPresets, pt);
 
-	for (auto &controller_preset_table : ControllerColorPresets)
+	for (auto &controller_preset_table : DeviceColorPresets)
 	{
 		writeColorPropertyPresetTable(&controller_preset_table, pt);
 	}
@@ -130,12 +130,14 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
 		readColorPropertyPresetTable(pt, &SharedColorPresets);
 
 		// Read all of the controller preset tables
-		std::string prefix("controller_");
+		const std::string controller_prefix("controller_");
+		const std::string hmd_prefix("hmd_");
 		for(auto iter = pt.begin(); iter != pt.end(); iter++)
 		{
 			const std::string &entry_name= iter->first;
 			
-			if (entry_name.compare(0, prefix.length(), prefix) == 0)
+			if (entry_name.compare(0, controller_prefix.length(), controller_prefix) == 0 ||
+				entry_name.compare(0, hmd_prefix.length(), hmd_prefix) == 0)
 			{
 				CommonHSVColorRangeTable table;
 
@@ -147,7 +149,7 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
 
 				readColorPropertyPresetTable(pt, &table);
 
-				ControllerColorPresets.push_back(table);
+				DeviceColorPresets.push_back(table);
 			}
 		}
     }
@@ -166,7 +168,7 @@ PS3EyeTrackerConfig::getColorRangeTable(const std::string &table_name) const
 
 	if (table_name.length() > 0)
 	{
-		for (auto &entry : ControllerColorPresets)
+		for (auto &entry : DeviceColorPresets)
 		{
 			if (entry.table_name == table_name)
 			{
@@ -185,7 +187,7 @@ PS3EyeTrackerConfig::getOrAddColorRangeTable(const std::string &table_name)
 
 	if (table_name.length() > 0)
 	{
-		for (auto &entry : ControllerColorPresets)
+		for (auto &entry : DeviceColorPresets)
 		{
 			if (entry.table_name == table_name)
 			{
@@ -203,8 +205,8 @@ PS3EyeTrackerConfig::getOrAddColorRangeTable(const std::string &table_name)
 				Table.color_presets[preset_index] = k_default_color_presets[preset_index];
 			}
 
-			ControllerColorPresets.push_back(Table);
-			table= &ControllerColorPresets[ControllerColorPresets.size() - 1];
+			DeviceColorPresets.push_back(Table);
+			table= &DeviceColorPresets[DeviceColorPresets.size() - 1];
 		}
 	}
 	else
