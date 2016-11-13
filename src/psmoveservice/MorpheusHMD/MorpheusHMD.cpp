@@ -436,6 +436,17 @@ bool MorpheusHMD::open(
 
         if (getIsOpen())  // Controller was opened and has an index
         {
+			if (USBContext->usb_device_handle != nullptr)
+			{
+				if (morpheus_set_headset_power(USBContext, true))
+				{
+					if (morpheus_enable_tracking(USBContext))
+					{
+						morpheus_set_led_brightness(USBContext, _MorpheusLED_ALL, 0);
+					}
+				}
+			}
+
 			// Always save the config back out in case some defaults changed
 			cfg.save();
 
@@ -467,6 +478,7 @@ void MorpheusHMD::close()
 		if (USBContext->usb_device_handle != nullptr)
 		{
 			SERVER_LOG_INFO("MorpheusHMD::close") << "Closing MorpheusHMD command interface";
+			morpheus_set_headset_power(USBContext, false);
 			morpheus_close_usb_device(USBContext);
 		}
 
@@ -633,17 +645,12 @@ void MorpheusHMD::setTrackingEnabled(bool bEnable)
 	{
 		if (!bIsTracking && bEnable)
 		{
-			if (morpheus_set_headset_power(USBContext, true))
-			{
-				if (morpheus_enable_tracking(USBContext))
-				{
-					bIsTracking = true;
-				}
-			}
+			morpheus_set_led_brightness(USBContext, _MorpheusLED_ALL, 50);
+			bIsTracking = true;
 		}
 		else if (bIsTracking && !bEnable)
 		{
-			morpheus_set_headset_power(USBContext, false);
+			morpheus_set_led_brightness(USBContext, _MorpheusLED_ALL, 0);
 			bIsTracking = false;
 		}
 	}
