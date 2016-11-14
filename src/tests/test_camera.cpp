@@ -148,7 +148,7 @@ int main(int, char**)
             delete state.camera;
         }
     );
-    camera_states.empty();
+    camera_states.clear();
 
     // the camera will be deinitialized automatically in VideoCapture destructor
     return 0;
