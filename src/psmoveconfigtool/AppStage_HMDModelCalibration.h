@@ -81,8 +81,9 @@ protected:
 	static void handle_tracker_list_response(
 		const ClientPSMoveAPI::ResponseMessage *response_message,
 		void *userdata);
+	bool setup_tracker_pair(const ClientPSMoveAPI::ResponsePayload_TrackerList &tracker_list);
 
-	void request_tracker_start_stream(const struct ClientTrackerInfo *TrackerInfo, int listIndex);
+	void request_tracker_start_stream(class ClientTrackerView *tracker_view);
 	static void handle_tracker_start_stream_response(
 		const ClientPSMoveAPI::ResponseMessage *response,
 		void *userdata);
@@ -96,24 +97,12 @@ private:
 	eMenuState m_menuState;
 	bool m_bBypassCalibration;
 
-	struct TrackerState
-	{
-		int listIndex;
-		class ClientTrackerView *trackerView;
-		class TextureAsset *textureAsset;
-	};
-	typedef std::map<int, TrackerState> t_tracker_state_map;
-	typedef std::map<int, TrackerState>::iterator t_tracker_state_map_iterator;
-	typedef std::pair<int, TrackerState> t_id_tracker_state_pair;
-
-	t_tracker_state_map m_trackerViews;
-	int m_pendingTrackerStartCount;
-
-	int m_renderTrackerIndex;
-	t_tracker_state_map_iterator m_renderTrackerIter;
+	struct TrackerPairState *m_trackerPairState;
 
 	class ClientHMDView *m_hmdView;
 	int m_overrideHmdId;
+
+	std::string m_failureDetails;
 };
 
 #endif // APP_STAGE_HMD_MODEL_CALIBRATION_H

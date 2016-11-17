@@ -27,8 +27,40 @@
 const char *AppStage_HMDModelCalibration::APP_STAGE_NAME = "HMDModelCalibration";
 
 //-- constants -----
+static float k_cosine_aligned_camera_angle = cosf(60.f *k_degrees_to_radians);
+
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 static const glm::vec3 k_psmove_frustum_color_no_track = glm::vec3(1.0f, 0.f, 0.f);
+
+//-- private structures -----
+struct TrackerState
+{
+	class ClientTrackerView *trackerView;
+	class TextureAsset *textureAsset;
+};
+
+struct TrackerPairState
+{
+	union
+	{
+		TrackerState list[2];
+		struct
+		{
+			TrackerState a;
+			TrackerState b;
+		} pair;
+	} trackers;
+
+	int pendingTrackerStartCount;
+	int renderTrackerIndex;
+
+	glm::mat3 F_ab; // Fundamental matrix from tracker A to tracker B
+
+	void init()
+	{
+		memset(this, 0, sizeof(TrackerPairState));
+	}
+};
 
 //-- private methods -----
 static void drawHMD(ClientHMDView *hmdView, const glm::mat4 &transform);
@@ -37,16 +69,16 @@ static void drawHMD(ClientHMDView *hmdView, const glm::mat4 &transform);
 AppStage_HMDModelCalibration::AppStage_HMDModelCalibration(App *app)
 	: AppStage(app)
 	, m_menuState(AppStage_HMDModelCalibration::inactive)
+	, m_trackerPairState(new TrackerPairState)
 	, m_hmdView(nullptr)
-	, m_pendingTrackerStartCount(0)
-	, m_renderTrackerIndex(0)
 	, m_bBypassCalibration(false)
 {
-	m_renderTrackerIter = m_trackerViews.end();
+	m_trackerPairState->init();
 }
 
 AppStage_HMDModelCalibration::~AppStage_HMDModelCalibration()
 {
+	delete m_trackerPairState;
 }
 
 void AppStage_HMDModelCalibration::enterStageAndCalibrate(App *app, int requested_hmd_id)
@@ -103,6 +135,33 @@ void AppStage_HMDModelCalibration::update()
 	case eMenuState::calibrate:
 	{
 		update_tracker_video();
+
+		//TODO:
+		/* 
+			// from the tracker center in world space through the screen location, into the world
+			// See: http://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html
+			cv::Mat projMat1 = cv::Mat(computeOpenCVCameraPinholeMatrix(tracker->m_device));
+			cv::Mat projMat2 = cv::Mat(computeOpenCVCameraPinholeMatrix(other_tracker->m_device));
+
+			// Build a set of triangulated points from this frame
+			for each 2d location in tracker A
+				for each 2d location in tracker B
+					See if image point A * Fundamental Matrix * image point B <= tolerance // correspondance test
+						// Triangulate the world position from the two cameras
+						cv::Mat point3D(1, 1, CV_32FC4);
+						cv::triangulatePoints(projMat1, projMat2, projPoints1, projPoints2, point3D);
+						break;
+
+			// Attempt to best align the new triangulated points with the previous frame
+			// using the ICP algorithms
+
+			// Add the points to the their respective bucket
+			// or make a new bucket if no point at that location
+
+			// Create a mesh from the average of the best N buckets
+			// where N is the expected tracking light count from HMD properties
+		*/
+
 	}
 	break;
 	case eMenuState::test:
@@ -169,9 +228,9 @@ void AppStage_HMDModelCalibration::render()
 			// Draw the frustum for each tracking camera.
 			// The frustums are defined in PSMove tracking space.
 			// We need to transform them into chaperone space to display them along side the HMD.
-			for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+			for (int tracker_index = 0; tracker_index < get_tracker_count(); ++tracker_index)
 			{
-				const ClientTrackerView *trackerView = iter->second.trackerView;
+				const ClientTrackerView *trackerView = m_trackerPairState->trackers.list[tracker_index].trackerView;
 				const PSMovePose psmove_space_pose = trackerView->getTrackerPose();
 				const glm::mat4 chaperoneSpaceTransform = psmove_pose_to_glm_mat4(psmove_space_pose);
 
@@ -266,7 +325,8 @@ void AppStage_HMDModelCalibration::renderUI()
 			ImGui::Text("Failed hmd stream start!");
 			break;
 		case eMenuState::failedTrackerListRequest:
-			ImGui::Text("Failed tracker list retrieval!");
+			ImGui::Text("Failed tracker list retrieval:");
+			ImGui::Text(m_failureDetails.c_str());
 			break;
 		case eMenuState::failedTrackerStartRequest:
 			ImGui::Text("Failed tracker stream start!");
@@ -289,25 +349,22 @@ void AppStage_HMDModelCalibration::renderUI()
 	case eMenuState::verifyTrackers:
 	{
 		ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - 500.f / 2.f, 20.f));
-		ImGui::SetNextWindowSize(ImVec2(500.f, (m_trackerViews.size() > 0) ? 150.f : 100.f));
+		ImGui::SetNextWindowSize(ImVec2(500.f, (get_tracker_count() > 0) ? 150.f : 100.f));
 		ImGui::Begin(k_window_title, nullptr, window_flags);
 
 		ImGui::Text("Verify that your tracking cameras can see your HMD");
 		ImGui::Separator();
 
-		if (m_trackerViews.size() > 1)
-		{
-			ImGui::Text("Tracker #%d", m_renderTrackerIndex + 1);
+		ImGui::Text("Tracker #%d", m_trackerPairState->renderTrackerIndex + 1);
 
-			if (ImGui::Button("Previous Tracker"))
-			{
-				go_previous_tracker();
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Next Tracker"))
-			{
-				go_next_tracker();
-			}
+		if (ImGui::Button("Previous Tracker"))
+		{
+			go_previous_tracker();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Next Tracker"))
+		{
+			go_next_tracker();
 		}
 
 		if (ImGui::Button("Looks Good!"))
@@ -329,19 +386,16 @@ void AppStage_HMDModelCalibration::renderUI()
 		ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
 		ImGui::Begin(k_window_title, nullptr, window_flags);
 
-		if (m_trackerViews.size() > 1)
-		{
-			ImGui::Text("Tracker #%d", m_renderTrackerIndex + 1);
+		ImGui::Text("Tracker #%d", m_trackerPairState->renderTrackerIndex + 1);
 
-			if (ImGui::Button("Previous Tracker"))
-			{
-				go_previous_tracker();
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Next Tracker"))
-			{
-				go_next_tracker();
-			}
+		if (ImGui::Button("Previous Tracker"))
+		{
+			go_previous_tracker();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Next Tracker"))
+		{
+			go_next_tracker();
 		}
 
 		ImGui::Separator();
@@ -349,11 +403,11 @@ void AppStage_HMDModelCalibration::renderUI()
 		// TODO: Show calibration progress
 
 		// display tracking quality
-		for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+		for (int tracker_index = 0; tracker_index < get_tracker_count(); ++tracker_index)
 		{
 			PSMoveScreenLocation screenSample;
 
-			const ClientTrackerView *trackerView = iter->second.trackerView;
+			const ClientTrackerView *trackerView = m_trackerPairState->trackers.list[tracker_index].trackerView;
 			if (m_hmdView->GetIsCurrentlyTracking() &&
 				m_hmdView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
 			{
@@ -401,11 +455,11 @@ void AppStage_HMDModelCalibration::renderUI()
 		}
 
 		// display tracking quality
-		for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+		for (int tracker_index = 0; tracker_index < get_tracker_count(); ++tracker_index)
 		{
 			PSMoveScreenLocation screenSample;
 
-			const ClientTrackerView *trackerView = iter->second.trackerView;
+			const ClientTrackerView *trackerView = m_trackerPairState->trackers.list[tracker_index].trackerView;
 			if (m_hmdView->GetIsCurrentlyTracking() &&
 				m_hmdView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
 			{
@@ -474,10 +528,10 @@ void AppStage_HMDModelCalibration::onEnterState(AppStage_HMDModelCalibration::eM
 	case eMenuState::pendingHmdListRequest:
 	case eMenuState::pendingHmdStartRequest:
 	case eMenuState::pendingTrackerListRequest:
+		m_trackerPairState->init();
+		m_failureDetails = "";
 		break;
 	case eMenuState::pendingTrackerStartRequest:
-		m_trackerViews.clear();
-		m_pendingTrackerStartCount = 0;
 		break;
 	case eMenuState::failedHmdListRequest:
 	case eMenuState::failedHmdStartRequest:
@@ -485,7 +539,7 @@ void AppStage_HMDModelCalibration::onEnterState(AppStage_HMDModelCalibration::eM
 	case eMenuState::failedTrackerStartRequest:
 		break;
 	case eMenuState::verifyTrackers:
-		m_renderTrackerIter = m_trackerViews.begin();
+		m_trackerPairState->renderTrackerIndex = 0;
 		break;
 	case eMenuState::calibrate:
 		// TODO
@@ -500,77 +554,48 @@ void AppStage_HMDModelCalibration::onEnterState(AppStage_HMDModelCalibration::eM
 
 void AppStage_HMDModelCalibration::update_tracker_video()
 {
-	if (m_renderTrackerIter != m_trackerViews.end())
+	// Render the latest from the currently active tracker
+	TrackerState &trackerState= m_trackerPairState->trackers.list[m_trackerPairState->renderTrackerIndex];
+	if (trackerState.trackerView != nullptr &&
+		trackerState.trackerView->pollVideoStream())
 	{
-		// Render the latest from the currently active tracker
-		if (m_renderTrackerIter->second.trackerView->pollVideoStream())
-		{
-			m_renderTrackerIter->second.textureAsset->copyBufferIntoTexture(
-				m_renderTrackerIter->second.trackerView->getVideoFrameBuffer());
-		}
+		trackerState.textureAsset->copyBufferIntoTexture(trackerState.trackerView->getVideoFrameBuffer());
 	}
 }
 
 void AppStage_HMDModelCalibration::render_tracker_video()
 {
-	if (m_renderTrackerIter != m_trackerViews.end() &&
-		m_renderTrackerIter->second.textureAsset != nullptr)
+	TrackerState &trackerState = m_trackerPairState->trackers.list[m_trackerPairState->renderTrackerIndex];
+	if (trackerState.trackerView != nullptr &&
+		trackerState.textureAsset != nullptr)
 	{
-		drawFullscreenTexture(m_renderTrackerIter->second.textureAsset->texture_id);
+		drawFullscreenTexture(trackerState.textureAsset->texture_id);
 	}
 }
 
 void AppStage_HMDModelCalibration::go_next_tracker()
 {
-	const int trackerCount = static_cast<int>(m_trackerViews.size());
-
-	if (trackerCount > 1)
-	{
-		m_renderTrackerIndex = (m_renderTrackerIndex + 1) % trackerCount;
-
-		// Find the tracker iterator that corresponds to the render index we want to show
-		for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
-		{
-			if (iter->second.listIndex == m_renderTrackerIndex)
-			{
-				m_renderTrackerIter = iter;
-			}
-		}
-	}
+	m_trackerPairState->renderTrackerIndex = (m_trackerPairState->renderTrackerIndex + 1) % get_tracker_count();
 }
 
 void AppStage_HMDModelCalibration::go_previous_tracker()
-{
-	const int trackerCount = static_cast<int>(m_trackerViews.size());
-
-	if (trackerCount > 1)
-	{
-		m_renderTrackerIndex = (m_renderTrackerIndex + trackerCount - 1) % trackerCount;
-
-		// Find the tracker iterator that corresponds to the render index we want to show
-		for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
-		{
-			if (iter->second.listIndex == m_renderTrackerIndex)
-			{
-				m_renderTrackerIter = iter;
-			}
-		}
-	}
+{	
+	m_trackerPairState->renderTrackerIndex = (m_trackerPairState->renderTrackerIndex + get_tracker_count() - 1) % get_tracker_count();
 }
 
 int AppStage_HMDModelCalibration::get_tracker_count() const
 {
-	return static_cast<int>(m_trackerViews.size());
+	return 2;
 }
 
 int AppStage_HMDModelCalibration::get_render_tracker_index() const
 {
-	return m_renderTrackerIndex;
+	return m_trackerPairState->renderTrackerIndex;
 }
 
 class ClientTrackerView *AppStage_HMDModelCalibration::get_render_tracker_view() const
 {
-	return (m_trackerViews.size() > 0) ? m_renderTrackerIter->second.trackerView : nullptr;
+	return m_trackerPairState->trackers.list[m_trackerPairState->renderTrackerIndex].trackerView;
 }
 
 void AppStage_HMDModelCalibration::release_devices()
@@ -584,9 +609,9 @@ void AppStage_HMDModelCalibration::release_devices()
 		m_hmdView = nullptr;
 	}
 
-	for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+	for (int tracker_index = 0; tracker_index < get_tracker_count(); ++tracker_index)
 	{
-		TrackerState &trackerState = iter->second;
+		TrackerState &trackerState = m_trackerPairState->trackers.list[tracker_index];
 
 		if (trackerState.textureAsset != nullptr)
 		{
@@ -602,11 +627,7 @@ void AppStage_HMDModelCalibration::release_devices()
 		}
 	}
 
-	m_trackerViews.clear();
-	m_pendingTrackerStartCount = 0;
-
-	m_renderTrackerIndex = 0;
-	m_renderTrackerIter = m_trackerViews.end();
+	m_trackerPairState->init();
 }
 
 void AppStage_HMDModelCalibration::request_exit_to_app_stage(const char *app_stage_name)
@@ -744,46 +765,144 @@ void AppStage_HMDModelCalibration::handle_tracker_list_response(
 	{
 		assert(response_message->payload_type == ClientPSMoveAPI::_responsePayloadType_TrackerList);
 		const ClientPSMoveAPI::ResponsePayload_TrackerList &tracker_list = response_message->payload.tracker_list;
-
-		for (int tracker_index = 0; tracker_index < tracker_list.count; ++tracker_index)
+		
+		if (thisPtr->setup_tracker_pair(tracker_list))
 		{
-			const ClientTrackerInfo *TrackerInfo = &tracker_list.trackers[tracker_index];
-
-			thisPtr->request_tracker_start_stream(TrackerInfo, tracker_index);
+			thisPtr->setState(eMenuState::pendingTrackerStartRequest);
+		}
+		else
+		{
+			thisPtr->setState(eMenuState::failedTrackerListRequest);
 		}
 	} break;
 
 	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
 	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
-	{
-		thisPtr->setState(eMenuState::failedTrackerListRequest);
-	} break;
+		{
+			thisPtr->m_failureDetails = "Server Failure";
+			thisPtr->setState(eMenuState::failedTrackerListRequest);
+		} break;
 	}
 }
 
-void AppStage_HMDModelCalibration::request_tracker_start_stream(
-	const ClientTrackerInfo *TrackerInfo,
-	int listIndex)
+bool AppStage_HMDModelCalibration::setup_tracker_pair(const ClientPSMoveAPI::ResponsePayload_TrackerList &tracker_list)
 {
-	TrackerState trackerState;
+	bool bSuccess = true;
 
+	if (tracker_list.count < 2)
+	{
+		m_failureDetails = "Need at least 2 cameras connected!";
+		bSuccess = false;
+	}
+
+	// Find the pair of trackers within the capture constraints
+	if (bSuccess)
+	{
+		int best_pair_a_index = -1;
+		int best_pair_b_index = -1;
+		float best_pair_distance = 0;
+
+		for (int tracker_a_index = 0; tracker_a_index < tracker_list.count; ++tracker_a_index)
+		{
+			const ClientTrackerInfo *tracker_a_info = &tracker_list.trackers[tracker_a_index];
+
+			PSMoveFrustum tracker_a_frustum;
+			tracker_a_frustum.set_pose(tracker_a_info->tracker_pose);
+
+			glm::vec3 tracker_a_pos = psmove_position_to_glm_vec3(tracker_a_frustum.origin);
+			glm::vec3 tracker_a_forward = psmove_float_vector3_to_glm_vec3(tracker_a_frustum.forward);
+
+			for (int tracker_b_index = tracker_a_index+1; tracker_b_index < tracker_list.count; ++tracker_b_index)
+			{
+				const ClientTrackerInfo *tracker_b_info = &tracker_list.trackers[tracker_b_index];
+
+				PSMoveFrustum tracker_b_frustum;
+				tracker_b_frustum.set_pose(tracker_b_info->tracker_pose);
+
+				glm::vec3 tracker_b_pos = psmove_position_to_glm_vec3(tracker_b_frustum.origin);
+				glm::vec3 tracker_b_forward = psmove_float_vector3_to_glm_vec3(tracker_b_frustum.forward);
+
+				if (glm::dot(tracker_a_forward, tracker_b_forward) >= k_cosine_aligned_camera_angle)
+				{
+					const float test_distance = glm::distance(tracker_a_pos, tracker_b_pos);
+
+					if (best_pair_distance <= 0 || test_distance < best_pair_distance)
+					{
+						best_pair_a_index = tracker_a_index;
+						best_pair_b_index = tracker_b_index;
+						best_pair_distance = test_distance;
+					}
+				}
+			}
+		}
+
+		if (best_pair_a_index != -1 && best_pair_b_index != -1)
+		{
+			const ClientTrackerInfo *tracker_a_info = &tracker_list.trackers[best_pair_a_index];
+			const ClientTrackerInfo *tracker_b_info = &tracker_list.trackers[best_pair_b_index];
+
+			// T = Translation from camera A to camera B
+			glm::vec3 a_pos = psmove_position_to_glm_vec3(tracker_a_info->tracker_pose.Position);
+			glm::vec3 b_pos = psmove_position_to_glm_vec3(tracker_b_info->tracker_pose.Position);
+			glm::vec3 T = b_pos - a_pos;
+			//S = |  0  -Tz   Ty |
+			//	  |  Tz   0 - Tx |
+			//	  | -Ty  Tx    0 |
+			glm::mat3 S(glm::vec3(0.f, T.z, -T.y), glm::vec3(-T.z, 0.f, T.x), glm::vec3(T.y, -T.x, 0.f));
+
+			// R = Rotation matrix from camera A to camera B
+			glm::quat a_quat = psmove_quaternion_to_glm_quat(tracker_a_info->tracker_pose.Orientation);
+			glm::quat b_quat = psmove_quaternion_to_glm_quat(tracker_b_info->tracker_pose.Orientation);
+			glm::quat R_quat = glm::conjugate(a_quat) * b_quat;
+			glm::mat3 R = glm::mat3_cast(R_quat);
+
+			// Essential Matrix from A to B, depending on extrinsic parameters
+			glm::mat3 E = R * S;
+
+			// Get the intrinsic matrices for A and B
+			glm::mat3 Ka= psmove_matrix3x3_to_glm_mat3(tracker_a_info->getTrackerIntrinsicMatrix());
+			glm::mat3 Kb = psmove_matrix3x3_to_glm_mat3(tracker_b_info->getTrackerIntrinsicMatrix());
+
+			// Compute the fundamental matrix from camera A to camera B
+			m_trackerPairState->F_ab = glm::transpose(glm::inverse(Kb)) * E * glm::inverse(Ka);
+
+			// Allocate tracker views for A and B
+			m_trackerPairState->trackers.pair.a.trackerView= ClientPSMoveAPI::allocate_tracker_view(*tracker_a_info);
+			m_trackerPairState->trackers.pair.a.textureAsset = nullptr;
+			m_trackerPairState->trackers.pair.b.trackerView = ClientPSMoveAPI::allocate_tracker_view(*tracker_b_info);
+			m_trackerPairState->trackers.pair.b.textureAsset = nullptr;
+		}
+		else
+		{
+			m_failureDetails = "Can't find two cameras facing roughly the same direction!";
+			bSuccess = false;
+		}
+	}
+
+	if (bSuccess)
+	{
+		for (int tracker_index = 0; tracker_index < 2; ++tracker_index)
+		{
+			ClientTrackerView *tracker_view = m_trackerPairState->trackers.list[tracker_index].trackerView;
+
+			request_tracker_start_stream(tracker_view);
+		}
+	}
+
+	return bSuccess;
+}
+
+void AppStage_HMDModelCalibration::request_tracker_start_stream(
+	ClientTrackerView *tracker_view)
+{
 	setState(eMenuState::pendingTrackerStartRequest);
 
-	// Allocate a new tracker view
-	trackerState.listIndex = listIndex;
-	trackerState.trackerView = ClientPSMoveAPI::allocate_tracker_view(*TrackerInfo);
-	trackerState.textureAsset = nullptr;
-
-	// Add the tracker to the list of trackers we're monitoring
-	assert(m_trackerViews.find(TrackerInfo->tracker_id) == m_trackerViews.end());
-	m_trackerViews.insert(t_id_tracker_state_pair(TrackerInfo->tracker_id, trackerState));
-
 	// Increment the number of requests we're waiting to get back
-	++m_pendingTrackerStartCount;
+	++m_trackerPairState->pendingTrackerStartCount;
 
 	// Request data to start streaming to the tracker
 	ClientPSMoveAPI::register_callback(
-		ClientPSMoveAPI::start_tracker_data_stream(trackerState.trackerView),
+		ClientPSMoveAPI::start_tracker_data_stream(tracker_view),
 		AppStage_HMDModelCalibration::handle_tracker_start_stream_response, this);
 }
 
@@ -801,12 +920,11 @@ void AppStage_HMDModelCalibration::handle_tracker_start_stream_response(
 		const PSMoveProtocol::Request *request = GET_PSMOVEPROTOCOL_REQUEST(response_message->opaque_request_handle);
 		const int tracker_id = request->request_start_tracker_data_stream().tracker_id();
 
-		// Get the tracker state associated with the tracker id
-		t_tracker_state_map_iterator trackerStateEntry = thisPtr->m_trackerViews.find(tracker_id);
-		assert(trackerStateEntry != thisPtr->m_trackerViews.end());
+		TrackerState &tracker_A_state = thisPtr->m_trackerPairState->trackers.pair.a;
+		TrackerState &tracker_B_state = thisPtr->m_trackerPairState->trackers.pair.b;
 
 		// The context holds everything a handler needs to evaluate a response
-		TrackerState &trackerState = trackerStateEntry->second;
+		TrackerState &trackerState = (tracker_id == tracker_A_state.trackerView->getTrackerId()) ? tracker_A_state : tracker_B_state;
 
 		// Open the shared memory that the video stream is being written to
 		if (trackerState.trackerView->openVideoStream())
@@ -822,8 +940,8 @@ void AppStage_HMDModelCalibration::handle_tracker_start_stream_response(
 		}
 
 		// See if this was the last tracker we were waiting to get a response from
-		--thisPtr->m_pendingTrackerStartCount;
-		if (thisPtr->m_pendingTrackerStartCount <= 0)
+		--thisPtr->m_trackerPairState->pendingTrackerStartCount;
+		if (thisPtr->m_trackerPairState->pendingTrackerStartCount <= 0)
 		{
 			thisPtr->handle_all_devices_ready();
 		}
