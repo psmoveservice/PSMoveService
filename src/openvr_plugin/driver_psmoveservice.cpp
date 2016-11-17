@@ -1786,15 +1786,19 @@ void CPSMoveControllerLatest::UpdateControllerState()
 					{
 						bool bIsNewTouchpadLocation = true;
 
-						if (m_bDelayAfterTouchpadPress && !m_bTouchpadWasActive)
+						if (m_bDelayAfterTouchpadPress)
 						{
-							const float k_max_touchpad_press = 2000.0; // time until coordinates are reset, otherwise assume in last location.
-
 							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-							std::chrono::duration<double, std::milli> timeSinceActivated = now - m_lastTouchpadPressTime;
+						
+							if (!m_bTouchpadWasActive)
+							{
+								const float k_max_touchpad_press = 2000.0; // time until coordinates are reset, otherwise assume in last location.
+								std::chrono::duration<double, std::milli> timeSinceActivated = now - m_lastTouchpadPressTime;
 
+								bIsNewTouchpadLocation = timeSinceActivated.count() >= k_max_touchpad_press;
+							}
 							m_lastTouchpadPressTime = now;
-							bIsNewTouchpadLocation = timeSinceActivated.count() >= k_max_touchpad_press;
+
 						}
 
 						if (bIsNewTouchpadLocation)
