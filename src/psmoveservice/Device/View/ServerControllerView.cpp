@@ -1119,6 +1119,18 @@ static void generate_psmove_data_frame_for_stream(
                 }
             }
 
+			{
+				const ControllerOpticalPoseEstimation *poseEstimate = controller_view->getMulticamPoseEstimate();
+
+				if (poseEstimate->bCurrentlyTracking)
+				{
+					PSMoveProtocol::Position *position = raw_tracker_data->mutable_multicam_position();
+					position->set_x(poseEstimate->position.x);
+					position->set_y(poseEstimate->position.y);
+					position->set_z(poseEstimate->position.z);
+				}
+			}
+
             raw_tracker_data->set_valid_tracker_count(valid_tracker_count);
         }
 
@@ -1308,8 +1320,6 @@ static void generate_psdualshock4_data_frame_for_stream(
                     const CommonDeviceQuaternion &trackerRelativeOrientation = poseEstimate->orientation;
                     const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
 
-
-
                     // Add the tracker relative 3d pose
                     {
                         PSMoveProtocol::Position *position = raw_tracker_data->add_relative_positions();
@@ -1371,6 +1381,27 @@ static void generate_psdualshock4_data_frame_for_stream(
                     ++valid_tracker_count;
                 }
             }
+
+			{
+				const ControllerOpticalPoseEstimation *poseEstimate = controller_view->getMulticamPoseEstimate();
+
+				if (poseEstimate->bCurrentlyTracking)
+				{
+					PSMoveProtocol::Position *position = raw_tracker_data->mutable_multicam_position();
+					position->set_x(poseEstimate->position.x);
+					position->set_y(poseEstimate->position.y);
+					position->set_z(poseEstimate->position.z);
+
+					if (poseEstimate->bOrientationValid)
+					{
+						PSMoveProtocol::Orientation *orientation = raw_tracker_data->mutable_multicam_orientation();
+						orientation->set_w(poseEstimate->orientation.w);
+						orientation->set_x(poseEstimate->orientation.x);
+						orientation->set_y(poseEstimate->orientation.y);
+						orientation->set_z(poseEstimate->orientation.z);
+					}
+				}
+			}
 
             raw_tracker_data->set_valid_tracker_count(valid_tracker_count);
         }
@@ -1708,11 +1739,9 @@ init_filters_for_psdualshock4(
 	// min variance/drift at max screen area
 	constants.orientation_constants.min_orientation_variance =
 		ds4_config->get_orientation_variance(ds4_config->max_orientation_quality_screen_area);
-	constants.orientation_constants.min_orientation_drift = 0.f;
 	// max variance at min screen area
 	constants.orientation_constants.max_orientation_variance =
 		ds4_config->get_orientation_variance(ds4_config->min_orientation_quality_screen_area);
-	constants.orientation_constants.max_orientation_drift = 0.f;
 
 	constants.position_constants.gravity_calibration_direction= pose_filter_space->getGravityCalibrationDirection();
 	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();

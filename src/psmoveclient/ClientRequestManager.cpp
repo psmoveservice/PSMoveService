@@ -159,6 +159,10 @@ public:
                 build_tracker_list_response_message(response, &out_response_message->payload.tracker_list);
                 out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_TrackerList;
                 break;
+			case PSMoveProtocol::Response_ResponseType_TRACKING_SPACE_SETTINGS:
+				build_tracking_space_response_message(response, &out_response_message->payload.tracking_space);
+				out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_TrackingSpace;
+				break;
             default:
                 out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_Empty;
                 break;
@@ -305,6 +309,13 @@ public:
 		// Copy over the tracking space properties
 		tracker_list->global_forward_degrees= response->result_tracker_list().global_forward_degrees();
     }
+
+	void build_tracking_space_response_message(
+		ResponsePtr response,
+		ClientPSMoveAPI::ResponsePayload_TrackingSpace *tracking_space)
+	{
+		tracking_space->global_forward_degrees = response->result_tracking_space_settings().global_forward_degrees();
+	}
 
 private:
     ClientPSMoveAPI::t_response_callback m_callback;

@@ -90,6 +90,11 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
     int TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int ValidTrackerLocations;
 
+	PSMovePosition MulticamPosition;
+	PSMoveQuaternion MulticamOrientation;
+	bool bMulticamPositionValid;
+	bool bMulticamOrientationValid;
+
     inline void Clear()
     {
         for (int index = 0; index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++index)
@@ -100,6 +105,11 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
             TrackerIDs[index] = -1;
         }
         ValidTrackerLocations = 0;
+
+		MulticamPosition= PSMovePosition::create(0.f, 0.f, 0.f);
+		MulticamOrientation= PSMoveQuaternion::identity();
+		bMulticamPositionValid= false;
+		bMulticamOrientationValid= false;
     }
 
     inline bool GetPixelLocationOnTrackerId(int trackerId, PSMoveScreenLocation &outLocation) const

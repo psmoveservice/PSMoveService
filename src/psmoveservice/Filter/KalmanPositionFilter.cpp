@@ -240,8 +240,8 @@ public:
 			(1.f - position_quality)*constants.max_position_variance;
 
         // Update the measurement covariance R
-		static float r_accelometer_scale = R_ACCELEROMETER_SCALE;
-		static float r_position_scale = R_POSITION_SCALE;
+		static double r_accelometer_scale = R_ACCELEROMETER_SCALE;
+		static double r_position_scale = R_POSITION_SCALE;
         Kalman::Covariance<PositionMeasurementVectord> R = 
 			Kalman::Covariance<PositionMeasurementVectord>::Zero();
 		R(ACCELEROMETER_X, ACCELEROMETER_X) = r_accelometer_scale*constants.accelerometer_variance.x();

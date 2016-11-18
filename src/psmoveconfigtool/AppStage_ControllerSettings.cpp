@@ -1,6 +1,7 @@
 //-- inludes -----
 #include "AppStage_ControllerSettings.h"
 #include "AppStage_AccelerometerCalibration.h"
+#include "AppStage_OpticalCalibration.h"
 #include "AppStage_GyroscopeCalibration.h"
 #include "AppStage_MagnetometerCalibration.h"
 #include "AppStage_MainMenu.h"
@@ -266,6 +267,12 @@ void AppStage_ControllerSettings::renderUI()
                         m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
                     }
 
+					if (ImGui::Button("Calibrate Optical Noise"))
+					{
+						m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
+						m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
+					}
+
                     if (ImGui::Button("Test Orientation"))
                     {
                         m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(true);
@@ -275,6 +282,13 @@ void AppStage_ControllerSettings::renderUI()
 
                 if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
                 {
+
+					if (ImGui::Button("Calibrate Optical Noise"))
+					{
+						m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
+						m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
+					}
+
                     if (ImGui::Button("Test Orientation"))
                     {
                         m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(true);

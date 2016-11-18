@@ -149,6 +149,11 @@ Eigen::Vector3f psmove_float_vector3_to_eigen_vector3(const PSMoveFloatVector3 &
     return Eigen::Vector3f(v.i, v.j, v.k);
 }
 
+Eigen::Vector3f psmove_position_to_eigen_vector3(const PSMovePosition &p)
+{
+	return Eigen::Vector3f(p.x, p.y, p.z);
+}
+
 Eigen::Quaternionf psmove_quaternion_to_eigen_quaternionf(const PSMoveQuaternion &q)
 {
     return Eigen::Quaternionf(q.w, q.x, q.y, q.z);

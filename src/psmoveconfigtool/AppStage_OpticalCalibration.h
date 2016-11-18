@@ -1,5 +1,5 @@
-#ifndef APP_STAGE_GYROSCOPE_CALIBRATION_H
-#define APP_STAGE_GYROSCOPE_CALIBRATION_H
+#ifndef APP_STAGE_OPTICAL_CALIBRATION_H
+#define APP_STAGE_OPTICAL_CALIBRATION_H
 
 //-- includes -----
 #include "AppStage.h"
@@ -12,11 +12,11 @@
 //-- pre-declarations -----
 
 //-- definitions -----
-class AppStage_GyroscopeCalibration : public AppStage
+class AppStage_OpticalCalibration : public AppStage
 {
 public:
-    AppStage_GyroscopeCalibration(class App *app);
-    virtual ~AppStage_GyroscopeCalibration();
+	AppStage_OpticalCalibration(class App *app);
+    virtual ~AppStage_OpticalCalibration();
 
     virtual void enter() override;
     virtual void exit() override;
@@ -37,12 +37,12 @@ protected:
 	{
 		inactive,
 
-		pendingTrackingSpaceSettings,
-		failedTrackingSpaceSettings,
+		pendingTrackerListRequest,
+		failedTrackerListRequest,
 		waitingForStreamStartResponse,
 		failedStreamStart,
 		waitForStable,
-		measureBiasAndDrift,
+		measureOpticalNoise,
 		measureComplete,
 		test
 	};
@@ -51,11 +51,13 @@ protected:
 	void onExitState(eCalibrationMenuState newState);
 	void onEnterState(eCalibrationMenuState newState);
 
-	void request_tracking_space_settings();
-	static void handle_tracking_space_settings_response(
+	void request_tracker_list();
+	static void handle_tracker_list_response(
 		const ClientPSMoveAPI::ResponseMessage *response_message,
 		void *userdata);
-    void request_set_gyroscope_calibration(const float raw_drift, const float raw_variance);
+    void request_set_optical_calibration(
+		const float near_proj_area, const float near_orientation_variance, const float near_position_variance,
+		const float far_proj_area, const float far_orientation_variance, const float far_position_variance);
     static void handle_acquire_controller(
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
@@ -70,21 +72,23 @@ private:
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;
 
-    std::chrono::time_point<std::chrono::high_resolution_clock> m_lastSampleTime;
-    bool m_bLastSampleTimeValid;
+    PSMovePosition m_lastMulticamPosition;
+	PSMoveQuaternion m_lastMulticamOrientation;
+	float m_lastProjectionArea;
+	bool m_bLastMulticamPositionValid;
+	bool m_bLastMulticamOrientationValid;
+	bool m_bLastProjectionAreaValid;
 
-    PSMoveIntVector3 m_lastRawGyroscope;
-    PSMoveFloatVector3 m_lastCalibratedGyroscope;
-    PSMoveFloatVector3 m_lastCalibratedAccelerometer;
-
-    std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
-    bool m_bIsStable;
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_stableAndVisibleStartTime;
+	bool m_bIsStableAndVisible;
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> m_resetPoseButtonPressTime;
 	bool m_bResetPoseRequestSent;
 
-    struct GyroscopeNoiseSamples *m_gyroNoiseSamples;
-	float m_global_forward_degrees;
+    struct PoseNoiseSampleSet *m_poseNoiseSamplesSet;
+	bool m_bReadyForSampling;
+
+	ClientPSMoveAPI::ResponsePayload_TrackerList m_trackerList;
 };
 
-#endif // APP_STAGE_GYROSCOPE_CALIBRATION_H
+#endif // APP_STAGE_OPTICAL_CALIBRATION_H

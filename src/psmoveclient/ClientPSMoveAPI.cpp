@@ -345,6 +345,18 @@ public:
         }
     }
 
+	ClientPSMoveAPI::t_request_id get_tracking_space_settings()
+	{
+		CLIENT_LOG_INFO("get_tracking_space_settings") << "requesting tracking space settings" << std::endl;
+
+		RequestPtr request(new PSMoveProtocol::Request());
+		request->set_type(PSMoveProtocol::Request_RequestType_GET_TRACKING_SPACE_SETTINGS);
+
+		m_request_manager.send_request(request);
+
+		return request->request_id();
+	}
+
     ClientPSMoveAPI::t_request_id get_tracker_list()
     {
         CLIENT_LOG_INFO("get_tracker_list") << "requesting tracker list" << std::endl;
@@ -835,6 +847,19 @@ ClientPSMoveAPI::free_tracker_view(ClientTrackerView *view)
     {
         ClientPSMoveAPI::m_implementation_ptr->free_tracker_view(view);
     }
+}
+
+ClientPSMoveAPI::t_request_id
+ClientPSMoveAPI::get_tracking_space_settings()
+{
+	ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+	if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+	{
+		request_id = ClientPSMoveAPI::m_implementation_ptr->get_tracking_space_settings();
+	}
+
+	return request_id;
 }
 
 ClientPSMoveAPI::t_request_id

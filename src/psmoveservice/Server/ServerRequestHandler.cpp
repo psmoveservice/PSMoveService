@@ -272,7 +272,10 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__search_for_new_trackers(context, response);
                 break;
-
+			case PSMoveProtocol::Request_RequestType_GET_TRACKING_SPACE_SETTINGS:
+				response = new PSMoveProtocol::Response;
+				handle_request__get_tracking_space_settings(context, response);
+				break;
             default:
                 assert(0 && "Whoops, bad request!");
         }
@@ -1816,6 +1819,18 @@ protected:
 
         response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
     }
+
+	void handle_request__get_tracking_space_settings(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		PSMoveProtocol::Response_ResultTrackingSpaceSettings* settings = response->mutable_result_tracking_space_settings();
+
+		response->set_type(PSMoveProtocol::Response_ResponseType_TRACKING_SPACE_SETTINGS);
+
+		settings->set_global_forward_degrees(m_device_manager.m_tracker_manager->getConfig().global_forward_degrees);
+		response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+	}
 
     // -- Data Frame Updates -----
     void handle_data_frame__controller_packet(

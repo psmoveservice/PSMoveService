@@ -132,7 +132,8 @@ message Request {
         SET_TRACKER_POSE = 24;
         SAVE_TRACKER_PROFILE = 25;
         APPLY_TRACKER_PROFILE = 26;
-        SEARCH_FOR_NEW_TRACKERS = 27;
+        SEARCH_FOR_NEW_TRACKERS = 27;		
+		GET_TRACKING_SPACE_SETTINGS = 28;
     }
     RequestType type = 2;
 
@@ -322,6 +323,8 @@ message Request {
     RequestApplyTrackerProfile request_apply_tracker_profile = 28;
     
     // No Parameters for SEARCH_FOR_NEW_TRACKERS
+	
+	// No parameters for GET_TRACKING_SPACE_SETTINGS
 }
 
 // Reliable (TCP) responses to requests
@@ -342,6 +345,7 @@ message Response {
         TRACKER_GAIN_UPDATED= 11;
         TRACKER_OPTION_UPDATED= 12;
         TRACKER_PRESET_UPDATED= 13;
+		TRACKING_SPACE_SETTINGS= 14;
     }
 
     enum ResultCode {
@@ -468,6 +472,12 @@ message Response {
         TrackingColorPreset new_color_preset = 2;
     }
     ResultSetTrackerColorPreset result_set_tracker_color_preset = 28;
+	
+	// This is returned in response to a GET_TRACKING_SPACE_SETTINGS request
+    message ResultTrackingSpaceSettings {
+		float global_forward_degrees = 1;
+    }
+    ResultTrackingSpaceSettings result_tracking_space_settings = 29;	
 }
 
 // Unreliable (UDP) device data packet sent from service to clients
@@ -573,6 +583,7 @@ message DeviceOutputDataFrame
                 repeated Ellipse projected_spheres= 4;
                 repeated Polygon projected_blobs= 5;
                 int32 valid_tracker_count= 6;
+				Position multicam_position= 7;
             }
             RawTrackerData raw_tracker_data = 11;  
 
@@ -654,6 +665,8 @@ message DeviceOutputDataFrame
                 repeated Ellipse projected_spheres= 5;
                 repeated Polygon projected_blobs= 6;
                 int32 valid_tracker_count= 7;
+                Position multicam_position= 8;
+                Orientation multicam_orientation= 9;				
             }
             RawTrackerData raw_tracker_data = 16;  
 

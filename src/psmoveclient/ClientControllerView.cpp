@@ -195,6 +195,16 @@ void ClientPSMoveView::ApplyControllerDataFrame(
                     projection.shape_type = PSMoveTrackingProjection::eShapeType::INVALID_PROJECTION;
                 }
             }            
+
+			if (raw_tracker_data.has_multicam_position())
+			{
+				const PSMoveProtocol::Position &multicam_position = raw_tracker_data.multicam_position();
+
+				this->RawTrackerData.MulticamPosition.x = multicam_position.x();
+				this->RawTrackerData.MulticamPosition.y = multicam_position.y();
+				this->RawTrackerData.MulticamPosition.z = multicam_position.z();
+				this->RawTrackerData.bMulticamPositionValid = true;
+			}
         }
         else
         {
@@ -497,6 +507,27 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
                     projection.shape_type = PSMoveTrackingProjection::eShapeType::INVALID_PROJECTION;
                 }
             }
+
+			if (raw_tracker_data.has_multicam_position())
+			{
+				const PSMoveProtocol::Position &multicam_position = raw_tracker_data.multicam_position();
+
+				this->RawTrackerData.MulticamPosition.x = multicam_position.x();
+				this->RawTrackerData.MulticamPosition.y = multicam_position.y();
+				this->RawTrackerData.MulticamPosition.z = multicam_position.z();
+				this->RawTrackerData.bMulticamPositionValid = true;
+			}
+
+			if (raw_tracker_data.has_multicam_orientation())
+			{
+				const PSMoveProtocol::Orientation &multicam_orientation = raw_tracker_data.multicam_orientation();
+
+				this->RawTrackerData.MulticamOrientation.w = multicam_orientation.w();
+				this->RawTrackerData.MulticamOrientation.x = multicam_orientation.x();
+				this->RawTrackerData.MulticamOrientation.y = multicam_orientation.y();
+				this->RawTrackerData.MulticamOrientation.z = multicam_orientation.z();
+				this->RawTrackerData.bMulticamOrientationValid = true;
+			}
         }
         else
         {

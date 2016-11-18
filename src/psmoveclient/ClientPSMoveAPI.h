@@ -92,7 +92,7 @@ public:
         _responsePayloadType_Empty,
         _responsePayloadType_ControllerList,
         _responsePayloadType_TrackerList,
-        _responsePayloadType_HMDTrackingSpace,
+        _responsePayloadType_TrackingSpace,
 
         _responsePayloadType_Count
     };
@@ -115,9 +115,9 @@ public:
 		float global_forward_degrees;
     };
 
-    struct ResponsePayload_HMDTrackingSpace
+    struct ResponsePayload_TrackingSpace
     {
-        PSMovePose origin_pose;
+		float global_forward_degrees;
     };
 
     struct ResponseMessage
@@ -144,7 +144,7 @@ public:
         {
             ResponsePayload_ControllerList controller_list;
             ResponsePayload_TrackerList tracker_list;
-            ResponsePayload_HMDTrackingSpace hmd_tracking_space;
+			ResponsePayload_TrackingSpace tracking_space;
         } payload;
         eResponsePayloadType payload_type;
     };
@@ -200,7 +200,8 @@ public:
     static ClientTrackerView *allocate_tracker_view(const ClientTrackerInfo &trackerInfo);
     static void free_tracker_view(ClientTrackerView *view);
 
-    static t_request_id get_tracker_list();
+	static t_request_id get_tracking_space_settings();
+	static t_request_id get_tracker_list();
     static t_request_id start_tracker_data_stream(ClientTrackerView *view);
     static t_request_id stop_tracker_data_stream(ClientTrackerView *view);
 
