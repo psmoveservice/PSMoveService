@@ -146,6 +146,12 @@ eigen_alignment_fit_least_squares_line(
 	const Eigen::Vector2f *samples, const int sample_count,
 	Eigen::Vector2f *out_line, float *out_correlation_coefficient);
 
+// best fit curve of the form y(x) = out_curve->y()*exp(out_curve->x()*x), 
+bool
+eigen_alignment_fit_least_squares_exponential(
+	const Eigen::Vector2f *samples, const int sample_count,
+	Eigen::Vector2f *out_curve);
+
 // Computes a best fit plane to the given set of data points
 bool 
 eigen_alignment_fit_least_squares_plane(

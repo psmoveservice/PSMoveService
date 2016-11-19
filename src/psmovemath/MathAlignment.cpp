@@ -684,9 +684,11 @@ eigen_quaternion_compute_normalized_weighted_average(
     }
     else if (count == 2)
     {
-		assert(weights[0] >= 0);
-		assert(weights[1] >= 0);
-        const float u= safe_divide_with_default(weights[1], weights[0] + weights[1], 0.f);
+		assert(weights == nullptr || weights[0] >= 0);
+		assert(weights == nullptr || weights[1] >= 0);
+		const float w0 = (weights != nullptr) ? weights[0] : 0.5f;
+		const float w1 = (weights != nullptr) ? weights[1] : 0.5f;
+        const float u= safe_divide_with_default(w1, w0 + w1, 0.f);
 
         *out_result= eigen_quaternion_normalized_lerp(quaternions[0], quaternions[1], u);
         success= true;
@@ -698,17 +700,21 @@ eigen_quaternion_compute_normalized_weighted_average(
         Eigen::MatrixXf q_transpose(count, 4);
 
         float total_weight= 0.f;
-        for (int index = 0; index < count; ++index)
-        {
-			assert(weights[index] >= 0);
-            total_weight+= weights[index];
-        }
+		if (weights != nullptr)
+		{
+			for (int index = 0; index < count; ++index)
+			{
+				assert(weights[index] >= 0);
+				total_weight += weights[index];
+			}
+		}
 
         for (int index = 0; index < count; ++index)
         {
 			// Normalize the weights against the total weight
             const Eigen::Quaternionf &sample = quaternions[index];
-            const float normalized_weight= safe_divide_with_default(weights[index], total_weight, 1.f);
+			const float weight = (weights != nullptr) ? weights[index] : 0.f;
+            const float normalized_weight= safe_divide_with_default(weight, total_weight, 1.f);
 
             const float w= sample.w() * normalized_weight;
             const float x= sample.x() * normalized_weight;
@@ -779,8 +785,8 @@ eigen_quaternion_compute_weighted_average(
         for (int index = 0; index < count; ++index)
         {
             const Eigen::Quaterniond &sample = quaternions[index];
-			const double signed_weight= weights[index];
-            const double unsigned_weight= fabs(weights[index]);
+			const double signed_weight= (weights != nullptr) ? weights[index] : 1.f;
+            const double unsigned_weight= fabs(signed_weight);
 
             const double w= sample.w() * unsigned_weight;
 			// For negative weights, use the conjugate of the quaternion 
@@ -939,6 +945,58 @@ eigen_alignment_fit_least_squares_line(
 	if (out_line != nullptr)
 	{
 		*out_line = Eigen::Vector2f(m, b);
+	}
+
+	return bSuccess;
+}
+
+// From: http://mathworld.wolfram.com/LeastSquaresFittingExponential.html
+bool
+eigen_alignment_fit_least_squares_exponential(
+	const Eigen::Vector2f *samples, const int sample_count,
+	Eigen::Vector2f *out_curve)
+{
+	const float N = static_cast<float>(sample_count);
+
+	float sum_lny = 0.f;
+	float sum_x2 = 0.f;
+	float sum_x = 0.f;
+	float sum_xlny = 0.f;
+
+	float a, b;
+	bool bSuccess = false;
+
+	for (int i = 0; i < sample_count; i++)
+	{
+		const Eigen::Vector2f &sample = samples[i];
+		const float x_i = sample.x();
+		const float y_i = sample.y();
+		const float log_y_i = logf(y_i);
+
+		sum_lny += log_y_i;
+		sum_x2 += x_i*x_i;
+		sum_x += x_i;
+		sum_xlny += x_i*log_y_i;
+	}
+
+	const float denom = (N*sum_x2 - sum_x*sum_x);
+
+	if (denom != 0)
+	{
+		a = static_cast<float>(exp((sum_lny*sum_x2 - sum_x*sum_xlny) / denom));
+		b = (N*sum_xlny - sum_x*sum_lny) / denom;
+		bSuccess = true;
+	}
+	else
+	{
+		// singular matrix. can't solve the problem.
+		a = 0;
+		b = 0;
+	}
+
+	if (out_curve != nullptr)
+	{
+		*out_curve = Eigen::Vector2f(b, a);
 	}
 
 	return bSuccess;

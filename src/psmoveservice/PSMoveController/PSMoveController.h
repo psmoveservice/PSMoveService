@@ -52,8 +52,8 @@ public:
         , max_position_quality_screen_area(k_real_pi*20.f*20.f) // lightbulb at ideal range is about 40px by 40px 
         , max_velocity(1.f)
 		, mean_update_time_delta(0.008333f)
-		, position_variance_gain(0.0f)
-		, position_variance_bias(0.25f) // TODO: Compute this from calibration
+		, position_variance_exp_fit_a(0.44888f)
+		, position_variance_exp_fit_b(-0.00402f) // TODO: Compute this from calibration
 		, orientation_variance(0.005f) // TODO: Compute this from calibration
 		, tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
     {
@@ -142,14 +142,14 @@ public:
     float mean_update_time_delta;
 
 	// The variance of the controller position as a function of pixel area
-    float position_variance_gain; 
-    float position_variance_bias;
+    float position_variance_exp_fit_a; 
+    float position_variance_exp_fit_b;
 
 	// The variance of the controller orientation (when sitting still) in rad^2
     float orientation_variance;
 
 	inline float get_position_variance(float projection_area) const {
-		return fmaxf(projection_area*position_variance_gain + position_variance_bias, 0.f);
+		return position_variance_exp_fit_a*exp(position_variance_exp_fit_b*projection_area);
 	}
 
 	// The assigned tracking color for this controller

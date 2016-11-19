@@ -56,10 +56,10 @@ public:
         , min_position_quality_screen_area(75.f*17.f*.25f)
         , max_position_quality_screen_area(75.f*17.f)
 		, mean_update_time_delta(0.016667f)
-		, position_variance_gain(1.0f / (150.f*34.f))
-		, position_variance_bias(0.25f) // TODO: Compute this from calibration
-		, orientation_variance_gain(0.1f / (150.f*34.f))
-		, orientation_variance_bias(0.005f) // TODO: Compute this from calibration
+		, position_variance_exp_fit_a(0.44888f)
+		, position_variance_exp_fit_b(-0.00402f) // TODO: Compute this from calibration
+		, orientation_variance_exp_fit_a(0.44888f)
+		, orientation_variance_exp_fit_b(-0.00402f) // TODO: Compute this from calibration
 		, tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
     {
         // The DS4 uses the BMI055 IMU Chip: 
@@ -157,19 +157,19 @@ public:
     float mean_update_time_delta;
 
 	// The variance of the controller position as a function of projection area
-    float position_variance_gain; 
-    float position_variance_bias;
+    float position_variance_exp_fit_a; 
+    float position_variance_exp_fit_b;
 
 	// The variance of the controller orientation as a function of projection area
-    float orientation_variance_gain;
-	float orientation_variance_bias;
+    float orientation_variance_exp_fit_a;
+	float orientation_variance_exp_fit_b;
 
 	inline float get_position_variance(float projection_area) const {
-		return fmaxf(projection_area*position_variance_gain + position_variance_bias, 0.f);
+		return position_variance_exp_fit_a*exp(position_variance_exp_fit_b*projection_area);
 	}
 
 	inline float get_orientation_variance(float projection_area) const {
-		return fmaxf(projection_area*orientation_variance_gain + orientation_variance_bias, 0.f);
+		return orientation_variance_exp_fit_a*exp(orientation_variance_exp_fit_b*projection_area);
 	}
 
 	eCommonTrackingColorID tracking_color_id;

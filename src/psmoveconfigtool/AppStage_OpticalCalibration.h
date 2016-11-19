@@ -56,8 +56,8 @@ protected:
 		const ClientPSMoveAPI::ResponseMessage *response_message,
 		void *userdata);
     void request_set_optical_calibration(
-		const float near_proj_area, const float near_orientation_variance, const float near_position_variance,
-		const float far_proj_area, const float far_orientation_variance, const float far_position_variance);
+		const float position_var_exp_fit_a, const float position_var_exp_fit_b,
+		const float orientation_var_exp_fit_a, const float orientation_var_exp_fit_b);
     static void handle_acquire_controller(
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);

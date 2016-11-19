@@ -28,7 +28,7 @@ const char *AppStage_OpticalCalibration::APP_STAGE_NAME = "OpticalCalibration";
 //-- constants -----
 const double k_stabilize_wait_time_ms = 1000.f;
 const int k_desired_noise_sample_count = 100;
-const int k_sample_location_count = 5;
+const int k_sample_location_count = 10;
 
 //-- definitions -----
 struct PoseNoiseSamplesAtLocation
@@ -57,12 +57,12 @@ struct PoseNoiseSamplesAtLocation
         const float N = static_cast<float>(sample_count);
 
 		// Compute the mean of the projection areas
-		float area_mean = 0.f;
+		avg_proj_area = 0.f;
 		for (int sample_index = 0; sample_index < sample_count; sample_index++)
 		{
-			area_mean += projection_area_samples[sample_index];
+			avg_proj_area += projection_area_samples[sample_index];
 		}
-		area_mean /= N;
+		avg_proj_area /= N;
 
 		// Compute the variance of distance around the mean position
 		Eigen::Vector3f position_variance;
@@ -79,7 +79,7 @@ struct PoseNoiseSamplesAtLocation
 		orientation_variance_scalar = 0.f;
         for (int sample_index = 0; sample_index < sample_count; sample_index++)
         {
-            const Eigen::Quaternionf &sample= orientation_samples[sample_index];
+            const Eigen::Quaternionf &sample= orientation_samples[sample_index].normalized();
 			float diff_from_mean = eigen_quaternion_unsigned_angle_between(sample, orientation_mean);
 
 			orientation_variance_scalar += diff_from_mean*diff_from_mean;
@@ -95,8 +95,8 @@ struct PoseNoiseSampleSet
 	PoseNoiseSamplesAtLocation samplesAtLocation[k_sample_location_count];
 	int completedSampleLocations;
 
-	Eigen::Vector2f orientation_variance_line;
-	Eigen::Vector2f position_variance_line;
+	Eigen::Vector2f orientation_variance_curve;
+	Eigen::Vector2f position_variance_curve;
 
 	float near_proj_area;
 	float far_proj_area;
@@ -114,8 +114,8 @@ struct PoseNoiseSampleSet
 		}
 		completedSampleLocations = 0;
 
-		orientation_variance_line = Eigen::Vector2f::Zero();
-		position_variance_line = Eigen::Vector2f::Zero();
+		orientation_variance_curve = Eigen::Vector2f::Zero();
+		position_variance_curve = Eigen::Vector2f::Zero();
 
 		near_proj_area = 0.f;
 		far_proj_area = 0.f;
@@ -150,23 +150,23 @@ struct PoseNoiseSampleSet
 			}
 		}
 
-		eigen_alignment_fit_least_squares_line(
+		eigen_alignment_fit_least_squares_exponential(
 			orientation_variance_area_samples, k_sample_location_count,
-			&orientation_variance_line, nullptr);
+			&orientation_variance_curve);
 
-		eigen_alignment_fit_least_squares_line(
+		eigen_alignment_fit_least_squares_exponential(
 			position_variance_area_samples, k_sample_location_count,
-			&position_variance_line, nullptr);
+			&position_variance_curve);
 	}
 
 	float getOrientationVarianceForArea(float area) const
 	{
-		return orientation_variance_line.x()*area + orientation_variance_line.y();
+		return orientation_variance_curve.x()*area + orientation_variance_curve.y();
 	}
 
 	float getPositionVarianceForArea(float area) const
 	{
-		return position_variance_line.x()*area + position_variance_line.y();
+		return position_variance_curve.x()*area + position_variance_curve.y();
 	}
 };
 
@@ -347,7 +347,7 @@ void AppStage_OpticalCalibration::update()
 
 					if (stableDuration.count() >= k_stabilize_wait_time_ms)
 					{
-						m_poseNoiseSamplesSet->clear();
+						m_poseNoiseSamplesSet->getCurrentLocationSamples().clear();
 						setState(eCalibrationMenuState::measureOpticalNoise);
 					}
 				}
@@ -403,12 +403,8 @@ void AppStage_OpticalCalibration::update()
 
 						// Tell the server about the new variance calibration
 						request_set_optical_calibration(
-							m_poseNoiseSamplesSet->near_proj_area,
-							m_poseNoiseSamplesSet->getOrientationVarianceForArea(m_poseNoiseSamplesSet->near_proj_area),
-							m_poseNoiseSamplesSet->getPositionVarianceForArea(m_poseNoiseSamplesSet->near_proj_area),
-							m_poseNoiseSamplesSet->far_proj_area,
-							m_poseNoiseSamplesSet->getOrientationVarianceForArea(m_poseNoiseSamplesSet->far_proj_area),
-							m_poseNoiseSamplesSet->getPositionVarianceForArea(m_poseNoiseSamplesSet->far_proj_area));
+							m_poseNoiseSamplesSet->position_variance_curve.y(), m_poseNoiseSamplesSet->position_variance_curve.x(),
+							m_poseNoiseSamplesSet->orientation_variance_curve.y(), m_poseNoiseSamplesSet->orientation_variance_curve.x())
 
 						setState(eCalibrationMenuState::measureComplete);
 					}
@@ -574,11 +570,19 @@ void AppStage_OpticalCalibration::renderUI()
     case eCalibrationMenuState::waitForStable:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 150));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
 			ImGui::Text("Sample Location #%d / %d", m_poseNoiseSamplesSet->completedSampleLocations + 1, k_sample_location_count);
-			ImGui::Text("Tracker Projection Area %.1f pixels^2", m_lastProjectionArea);
+			
+			if (m_bLastProjectionAreaValid)
+			{
+				ImGui::Text("Tracker Projection Area: %.1f pixels^2", m_lastProjectionArea);
+			}
+			else
+			{
+				ImGui::Text("Tracker Projection Area: [Not Visible]");
+			}
 
 			if (!m_bReadyForSampling)
 			{
@@ -606,6 +610,12 @@ void AppStage_OpticalCalibration::renderUI()
 				}
 			}
 
+			if (ImGui::Button("Redo"))
+			{
+				m_poseNoiseSamplesSet->clear();
+				setState(eCalibrationMenuState::waitForStable);
+			}
+			ImGui::SameLine();
 			if (ImGui::Button("Cancel"))
 			{
 				request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
@@ -616,7 +626,7 @@ void AppStage_OpticalCalibration::renderUI()
     case eCalibrationMenuState::measureOpticalNoise:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 150));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
@@ -652,10 +662,7 @@ void AppStage_OpticalCalibration::renderUI()
             ImGui::SameLine();
             if (ImGui::Button("Redo"))
             {
-				for (int location_index = 0; location_index < k_sample_location_count; ++location_index)
-				{
-
-				}
+				m_poseNoiseSamplesSet->clear();
                 setState(eCalibrationMenuState::waitForStable);
             }
             ImGui::SameLine();
@@ -766,14 +773,17 @@ void AppStage_OpticalCalibration::onEnterState(eCalibrationMenuState newState)
 	case eCalibrationMenuState::pendingTrackerListRequest:
 		// Reset the menu state
 		m_app->setCameraType(_cameraOrbit);
-		m_app->getOrbitCamera()->resetOrientation();
-		m_app->getOrbitCamera()->setCameraOrbitRadius(1000.f); // zoom out to see the magnetometer data at scale
+		m_app->getOrbitCamera()->reset();
 		break;
 	case eCalibrationMenuState::failedTrackerListRequest:
 	case eCalibrationMenuState::waitingForStreamStartResponse:
 	case eCalibrationMenuState::failedStreamStart:
 		break;
 	case eCalibrationMenuState::waitForStable:
+		// Align the camera to face along the global forward
+		// NOTE "0" degrees is down +Z in the ConfigTool View (rather than +X in the Service)
+		m_app->getOrbitCamera()->reset();
+		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - 90.f);
 		m_bReadyForSampling = false;
 		break;
 	case eCalibrationMenuState::measureOpticalNoise:
@@ -783,7 +793,7 @@ void AppStage_OpticalCalibration::onEnterState(eCalibrationMenuState newState)
 		m_app->getOrbitCamera()->reset();
 		// Align the camera to face along the global forward
 		// NOTE "0" degrees is down +Z in the ConfigTool View (rather than +X in the Service)
-		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees-90.f);
+		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - 90.f);
 		break;
 	default:
 		assert(0 && "unreachable");
@@ -839,12 +849,8 @@ void AppStage_OpticalCalibration::handle_tracker_list_response(
 }
 
 void AppStage_OpticalCalibration::request_set_optical_calibration(
-	const float near_proj_area, 
-	const float near_orientation_variance,
-	const float near_position_variance,
-	const float far_proj_area,
-	const float far_orientation_variance, 
-	const float far_position_variance)
+	const float position_var_exp_fit_a, const float position_var_exp_fit_b,
+	const float orientation_var_exp_fit_a, const float orientation_var_exp_fit_b)
 {
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_OPTICAL_NOISE_CALIBRATION);
@@ -853,7 +859,10 @@ void AppStage_OpticalCalibration::request_set_optical_calibration(
         request->mutable_request_set_optical_noise_calibration();
 
     calibration->set_controller_id(m_controllerView->GetControllerID());
-	//TODO ...
+	calibration->set_position_variance_exp_fit_a(position_var_exp_fit_a);
+	calibration->set_position_variance_exp_fit_b(position_var_exp_fit_b);
+	calibration->set_orientation_variance_exp_fit_a(orientation_var_exp_fit_a);
+	calibration->set_orientation_variance_exp_fit_b(orientation_var_exp_fit_b);
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }

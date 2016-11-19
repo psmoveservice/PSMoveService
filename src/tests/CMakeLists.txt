@@ -522,9 +522,18 @@ ENDIF()
 
 list(APPEND UNIT_TEST_INCL_DIRS
     ${ROOT_DIR}/src/psmovemath/)
+
+# Eigen math library
+list(APPEND UNIT_TEST_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)   
+
 list(APPEND UNIT_TEST_SRC    
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp	
     ${ROOT_DIR}/src/psmovemath/MathUtility.h
     ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
+	${ROOT_DIR}/src/tests/math_alignment_unit_tests.cpp
     ${ROOT_DIR}/src/tests/math_utility_unit_tests.cpp
     ${ROOT_DIR}/src/tests/unit_test.h)
     

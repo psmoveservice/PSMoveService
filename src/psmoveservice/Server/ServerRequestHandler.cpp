@@ -1123,10 +1123,10 @@ protected:
 				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
 				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
-				config->position_variance_gain = request.position_variance_gain();
-				config->position_variance_bias = request.position_variance_bias();
-				config->orientation_variance_gain = request.orientation_variance_gain();
-				config->orientation_variance_bias = request.orientation_variance_bias();
+				config->position_variance_exp_fit_a = request.position_variance_exp_fit_a();
+				config->position_variance_exp_fit_b = request.position_variance_exp_fit_b();
+				config->orientation_variance_exp_fit_a = request.orientation_variance_exp_fit_a();
+				config->orientation_variance_exp_fit_b = request.orientation_variance_exp_fit_b();
 				config->save();
 
 				ControllerView->resetPoseFilter();
@@ -1138,8 +1138,8 @@ protected:
 				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
 				PSMoveControllerConfig *config = controller->getConfigMutable();
 
-				config->position_variance_gain = request.position_variance_gain();
-				config->position_variance_bias = request.position_variance_bias();
+				config->position_variance_exp_fit_a = request.position_variance_exp_fit_a();
+				config->position_variance_exp_fit_b = request.position_variance_exp_fit_b();
 				// No optical variance set for the psmove
 				config->save();
 

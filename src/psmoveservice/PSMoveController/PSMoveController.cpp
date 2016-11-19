@@ -251,8 +251,8 @@ PSMoveControllerConfig::config2ptree()
     pt.put("Calibration.Magnetometer.Error", magnetometer_fit_error);
 	pt.put("Calibration.Magnetometer.Variance", magnetometer_variance);
 
-	pt.put("Calibration.Position.VarianceGain", position_variance_gain);
-	pt.put("Calibration.Position.VarianceBias", position_variance_bias);
+	pt.put("Calibration.Position.VarianceGain", position_variance_exp_fit_a);
+	pt.put("Calibration.Position.VarianceBias", position_variance_exp_fit_b);
 
 	pt.put("Calibration.Orientation.Variance", orientation_variance);
 
@@ -333,8 +333,8 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         magnetometer_fit_error= pt.get<float>("Calibration.Magnetometer.Error", 0.f);
 		magnetometer_variance= pt.get<float>("Calibration.Magnetometer.Variance", magnetometer_variance);
 
-		position_variance_gain= pt.get<float>("Calibration.Position.VarianceGain", position_variance_gain);
-		position_variance_bias= pt.get<float>("Calibration.Position.VarianceBias", position_variance_bias);
+		position_variance_exp_fit_a= pt.get<float>("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
+		position_variance_exp_fit_b= pt.get<float>("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
 
 		orientation_variance= pt.get<float>("Calibration.Orientation.Variance", orientation_variance);
 
