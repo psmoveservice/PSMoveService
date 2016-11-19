@@ -14,6 +14,7 @@
 #include "PSMoveProtocol.pb.h"
 #include "SharedTrackerState.h"
 #include "MathGLM.h"
+#include "MathEigen.h"
 
 #include "SDL_keycode.h"
 #include "SDL_opengl.h"
@@ -22,15 +23,29 @@
 
 #include <imgui.h>
 #include <sstream>
+#include <vector>
 
 //-- statics ----
 const char *AppStage_HMDModelCalibration::APP_STAGE_NAME = "HMDModelCalibration";
 
 //-- constants -----
+static const int k_morpheus_led_count = 9;
+static const int k_led_position_sample_count = 100;
+
 static float k_cosine_aligned_camera_angle = cosf(60.f *k_degrees_to_radians);
+
+static const float k_point_correspondance_tolerance = 1.f;
 
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 static const glm::vec3 k_psmove_frustum_color_no_track = glm::vec3(1.0f, 0.f, 0.f);
+
+//-- private methods -----
+static glm::mat4 computeGLMCameraTransformMatrix(const ClientTrackerView *tracker_view);
+static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const ClientTrackerView *tracker_view);
+static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const ClientTrackerView *tracker_view);
+static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ClientTrackerView *tracker_view);
+static bool triangulateHMDProjections(ClientHMDView *hmd_view, TrackerPairState *tracker_pair_state, std::vector<Eigen::Vector3f> &out_triangulated_points);
+static void drawHMD(ClientHMDView *hmdView, const glm::mat4 &transform);
 
 //-- private structures -----
 struct TrackerState
@@ -60,16 +75,84 @@ struct TrackerPairState
 	{
 		memset(this, 0, sizeof(TrackerPairState));
 	}
+
+	bool do_points_correspond(
+		const PSMoveScreenLocation &pointA, 
+		const PSMoveScreenLocation &pointB, 
+		float tolerance)
+	{
+		//See if image point A * Fundamental Matrix * image point B <= tolerance
+		const glm::vec3 a(pointA.x, pointA.y, 1.f);
+		const glm::vec3 b(pointB.x, pointB.y, 1.f);
+		const float epipolar_distance = fabs(glm::dot(F_ab * a, b));
+
+		return epipolar_distance <= tolerance;
+	}
 };
 
-//-- private methods -----
-static void drawHMD(ClientHMDView *hmdView, const glm::mat4 &transform);
+struct LEDModelState
+{
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+	Eigen::Vector3f position_samples[k_led_position_sample_count];
+	Eigen::Vector3f average_position;
+	int position_sample_count;
+};
+
+class HMDModelState
+{
+public:
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+	HMDModelState(int trackerLEDCount)
+		: m_trackerLedCount(trackerLEDCount)
+		, m_ledModels(new LEDModelState[trackerLEDCount])
+	{
+		m_transform = Eigen::Affine3d::Identity();
+	}
+
+	~HMDModelState()
+	{
+		delete[] m_ledModels;
+	}
+
+	bool getIsComplete() const
+	{
+		return false;
+	}
+
+	void recordSamples(ClientHMDView *hmd_view, TrackerPairState *tracker_pair_state)
+	{
+		std::vector<Eigen::Vector3f> triangulated_points;
+
+		if (triangulateHMDProjections(hmd_view, tracker_pair_state, triangulated_points))
+		{
+			//TODO:
+			/*
+			// Attempt to best align the new triangulated points with the previous frame
+			// using the ICP algorithms
+
+			// Add the points to the their respective bucket
+			// or make a new bucket if no point at that location
+
+			// Create a mesh from the average of the best N buckets
+			// where N is the expected tracking light count from HMD properties
+			*/
+		}
+	}
+
+private:
+	int m_trackerLedCount;
+	LEDModelState *m_ledModels;
+	Eigen::Affine3d m_transform;
+};
 
 //-- public methods -----
 AppStage_HMDModelCalibration::AppStage_HMDModelCalibration(App *app)
 	: AppStage(app)
 	, m_menuState(AppStage_HMDModelCalibration::inactive)
 	, m_trackerPairState(new TrackerPairState)
+	, m_hmdModelState(nullptr)
 	, m_hmdView(nullptr)
 	, m_bBypassCalibration(false)
 {
@@ -79,6 +162,11 @@ AppStage_HMDModelCalibration::AppStage_HMDModelCalibration(App *app)
 AppStage_HMDModelCalibration::~AppStage_HMDModelCalibration()
 {
 	delete m_trackerPairState;
+
+	if (m_hmdModelState != nullptr)
+	{
+		delete m_hmdModelState;
+	}
 }
 
 void AppStage_HMDModelCalibration::enterStageAndCalibrate(App *app, int requested_hmd_id)
@@ -136,32 +224,15 @@ void AppStage_HMDModelCalibration::update()
 	{
 		update_tracker_video();
 
-		//TODO:
-		/* 
-			// from the tracker center in world space through the screen location, into the world
-			// See: http://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html
-			cv::Mat projMat1 = cv::Mat(computeOpenCVCameraPinholeMatrix(tracker->m_device));
-			cv::Mat projMat2 = cv::Mat(computeOpenCVCameraPinholeMatrix(other_tracker->m_device));
-
-			// Build a set of triangulated points from this frame
-			for each 2d location in tracker A
-				for each 2d location in tracker B
-					See if image point A * Fundamental Matrix * image point B <= tolerance // correspondance test
-						// Triangulate the world position from the two cameras
-						cv::Mat point3D(1, 1, CV_32FC4);
-						cv::triangulatePoints(projMat1, projMat2, projPoints1, projPoints2, point3D);
-						break;
-
-			// Attempt to best align the new triangulated points with the previous frame
-			// using the ICP algorithms
-
-			// Add the points to the their respective bucket
-			// or make a new bucket if no point at that location
-
-			// Create a mesh from the average of the best N buckets
-			// where N is the expected tracking light count from HMD properties
-		*/
-
+		if (!m_hmdModelState->getIsComplete())
+		{
+			m_hmdModelState->recordSamples(m_hmdView, m_trackerPairState);
+		}
+		else
+		{
+			request_set_hmd_led_model_calibration();
+			setState(eMenuState::test);
+		}
 	}
 	break;
 	case eMenuState::test:
@@ -602,6 +673,12 @@ void AppStage_HMDModelCalibration::release_devices()
 {
 	//###HipsterSloth $REVIEW Do we care about canceling in-flight requests?
 
+	if (m_hmdModelState != nullptr)
+	{
+		delete m_hmdModelState;
+		m_hmdModelState = nullptr;
+	}
+
 	if (m_hmdView != nullptr)
 	{
 		ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_hmd_data_stream(m_hmdView));
@@ -671,6 +748,7 @@ void AppStage_HMDModelCalibration::handle_hmd_list_response(
 			&response_message->payload.hmd_list;
 
 		int trackedHmdId = thisPtr->m_overrideHmdId;
+		int trackerLEDCount = 0;
 
 		if (trackedHmdId == -1)
 		{
@@ -679,6 +757,8 @@ void AppStage_HMDModelCalibration::handle_hmd_list_response(
 				if (hmd_list->hmd_type[list_index] == ClientHMDView::Morpheus)
 				{
 					trackedHmdId = hmd_list->hmd_id[list_index];
+					//###HipsterSloth $TODO - This should come as part of the response payload
+					trackerLEDCount = k_morpheus_led_count;
 					break;
 				}
 			}
@@ -686,6 +766,11 @@ void AppStage_HMDModelCalibration::handle_hmd_list_response(
 
 		if (trackedHmdId != -1)
 		{
+			// Create a model for the HMD that corresponds to the number of tracking lights
+			assert(thisPtr->m_hmdModelState == nullptr);
+			thisPtr->m_hmdModelState = new HMDModelState(trackerLEDCount);
+
+			// Start streaming data for the HMD
 			thisPtr->request_start_hmd_stream(trackedHmdId);
 		}
 		else
@@ -955,6 +1040,11 @@ void AppStage_HMDModelCalibration::handle_tracker_start_stream_response(
 	}
 }
 
+void AppStage_HMDModelCalibration::request_set_hmd_led_model_calibration()
+{
+
+}
+
 void AppStage_HMDModelCalibration::handle_all_devices_ready()
 {
 	if (!m_bBypassCalibration)
@@ -968,6 +1058,133 @@ void AppStage_HMDModelCalibration::handle_all_devices_ready()
 }
 
 //-- private methods -----
+static glm::mat4 computeGLMCameraTransformMatrix(const ClientTrackerView *tracker_view)
+{
+
+	const PSMovePose pose = tracker_view->getTrackerPose();
+	const PSMoveQuaternion &quat = pose.Orientation;
+	const PSMovePosition &pos = pose.Position;
+
+	const glm::quat glm_quat(quat.w, quat.x, quat.y, quat.z);
+	const glm::vec3 glm_pos(pos.x, pos.y, pos.z);
+	const glm::mat4 glm_camera_xform = glm_mat4_from_pose(glm_quat, glm_pos);
+
+	return glm_camera_xform;
+}
+
+static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const ClientTrackerView *tracker_view)
+{
+	cv::Matx34f out;
+
+	// Extrinsic matrix is the inverse of the camera pose matrix
+	const glm::mat4 glm_camera_xform = computeGLMCameraTransformMatrix(tracker_view);
+	const glm::mat4 glm_mat = glm::inverse(glm_camera_xform);
+
+	out(0, 0) = glm_mat[0][0]; out(0, 1) = glm_mat[1][0]; out(0, 2) = glm_mat[2][0]; out(0, 3) = glm_mat[3][0];
+	out(1, 0) = glm_mat[0][1]; out(1, 1) = glm_mat[1][1]; out(1, 2) = glm_mat[2][1]; out(1, 3) = glm_mat[3][1];
+	out(2, 0) = glm_mat[0][2]; out(2, 1) = glm_mat[1][2]; out(2, 2) = glm_mat[2][2]; out(2, 3) = glm_mat[3][2];
+
+	return out;
+}
+
+static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const ClientTrackerView *tracker_view)
+{
+	cv::Matx33f out;
+
+	const ClientTrackerInfo &tracker_info = tracker_view->getTrackerInfo();
+	float F_PX = tracker_info.tracker_focal_lengths.i;
+	float F_PY = tracker_info.tracker_focal_lengths.j;
+	float PrincipalX = tracker_info.tracker_principal_point.i;
+	float PrincipalY = tracker_info.tracker_principal_point.j;
+
+	out(0, 0) = F_PX; out(0, 1) = 0.f; out(0, 2) = PrincipalX;
+	out(1, 0) = 0.f; out(1, 1) = F_PY; out(1, 2) = PrincipalY;
+	out(2, 0) = 0.f; out(2, 1) = 0.f; out(2, 2) = 1.f;
+
+	return out;
+}
+
+static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ClientTrackerView *tracker_view)
+{
+	cv::Matx34f extrinsic_matrix = computeOpenCVCameraExtrinsicMatrix(tracker_view);
+	cv::Matx33f intrinsic_matrix = computeOpenCVCameraIntrinsicMatrix(tracker_view);
+	cv::Matx34f pinhole_matrix = intrinsic_matrix * extrinsic_matrix;
+
+	return pinhole_matrix;
+}
+
+static bool triangulateHMDProjections(
+	ClientHMDView *hmd_view, 
+	TrackerPairState *tracker_pair_state,
+	std::vector<Eigen::Vector3f> &out_triangulated_points)
+{
+	const MorpheusRawTrackerData &RawTrackerData = hmd_view->GetRawTrackerData();
+	const ClientTrackerView *TrackerViewA = tracker_pair_state->trackers.pair.a.trackerView;
+	const ClientTrackerView *TrackerViewB = tracker_pair_state->trackers.pair.b.trackerView;
+
+	PSMoveTrackingProjection trackingProjectionA;
+	PSMoveTrackingProjection trackingProjectionB;
+
+	// Triangulate tracking LEDs that both cameras can see
+	if (hmd_view->GetIsCurrentlyTracking() &&
+		RawTrackerData.GetProjectionOnTrackerId(TrackerViewA->getTrackerId(), trackingProjectionA) &&
+		RawTrackerData.GetProjectionOnTrackerId(TrackerViewB->getTrackerId(), trackingProjectionB))
+	{
+		assert(trackingProjectionA.shape_type == PSMoveTrackingProjection::eShapeType::PointCloud);
+		assert(trackingProjectionB.shape_type == PSMoveTrackingProjection::eShapeType::PointCloud);
+
+		const PSMoveScreenLocation *pointsA = trackingProjectionA.shape.pointcloud.points;
+		const PSMoveScreenLocation *pointsB = trackingProjectionB.shape.pointcloud.points;
+		const int point_countA = trackingProjectionA.shape.pointcloud.point_count;
+		const int point_countB = trackingProjectionB.shape.pointcloud.point_count;
+
+		// Convert the tracker screen locations in CommonDeviceScreenLocation space
+		// i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
+		// into OpenCV pixel space
+		// i.e. [0, 0]x[frameWidth, frameHeight]
+		PSMoveFloatVector2 screenASize = TrackerViewA->getTrackerPixelExtents();
+		PSMoveFloatVector2 screenBSize = TrackerViewB->getTrackerPixelExtents();
+
+		// See: http://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html
+		cv::Mat projMatA = cv::Mat(computeOpenCVCameraPinholeMatrix(TrackerViewA));
+		cv::Mat projMatB = cv::Mat(computeOpenCVCameraPinholeMatrix(TrackerViewB));
+
+		// For each point in one tracking projection A, 
+		// try and find the corresponding point in the projection B
+		for (int point_indexA = 0; point_indexA < point_countA; ++point_indexA)
+		{
+			const PSMoveScreenLocation &pointA = pointsA[point_indexA];
+			const cv::Mat cvPointA = cv::Mat(cv::Point2f(pointA.x + (screenASize.i / 2), pointA.y + (screenASize.j / 2)));
+
+			for (int point_indexB = point_indexA + 1; point_indexB < point_countB; ++point_indexB)
+			{
+				const PSMoveScreenLocation &pointB = pointsB[point_indexB];
+				cv::Mat cvPointB = cv::Mat(cv::Point2f(pointB.x + (screenASize.i / 2), pointB.y + (screenASize.j / 2)));
+
+				if (tracker_pair_state->do_points_correspond(pointA, pointB, k_point_correspondance_tolerance))
+				{
+					// Triangulate the world position from the two cameras
+					cv::Mat point3D(1, 1, CV_32FC4);
+					cv::triangulatePoints(projMatA, projMatB, cvPointA, cvPointB, point3D);
+
+					// Get the world space position
+					const float w = point3D.at<float>(3, 0);
+					const Eigen::Vector3f triangulated_point(
+						point3D.at<float>(0, 0) / w,
+						point3D.at<float>(1, 0) / w,
+						point3D.at<float>(2, 0) / w);
+
+					// Add to the list of world space points we saw this frame
+					out_triangulated_points.push_back(triangulated_point);
+				}
+			}
+		}
+	}
+
+	return out_triangulated_points.size() >= 3;
+}
+
+
 static void drawHMD(ClientHMDView *hmdView, const glm::mat4 &transform)
 {
 	switch (hmdView->GetHmdViewType())

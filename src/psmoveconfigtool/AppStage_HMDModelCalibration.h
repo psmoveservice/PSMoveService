@@ -88,6 +88,8 @@ protected:
 		const ClientPSMoveAPI::ResponseMessage *response,
 		void *userdata);
 
+	void request_set_hmd_led_model_calibration();
+
 	void handle_all_devices_ready();
 
 	void release_devices();
@@ -98,6 +100,7 @@ private:
 	bool m_bBypassCalibration;
 
 	struct TrackerPairState *m_trackerPairState;
+	class HMDModelState *m_hmdModelState;
 
 	class ClientHMDView *m_hmdView;
 	int m_overrideHmdId;
