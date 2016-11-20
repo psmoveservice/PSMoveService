@@ -681,6 +681,57 @@ void drawTrackingProjection(
     glPopMatrix();
 }
 
+void drawPointCloudProjection(
+	const struct PSMoveScreenLocation *points,
+	const int point_count, 
+	const float point_size,
+	const glm::vec3 &color,
+	const float trackerWidth, 
+	const float trackerHeight)
+{
+	assert(Renderer::getIsRenderingStage());
+
+	// Clear the depth buffer to allow overdraw 
+	glClear(GL_DEPTH_BUFFER_BIT);
+
+	// Save a backup of the projection matrix 
+	// and replace with a projection that maps the tracker image coordinates over the whole screen
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	glOrtho(-trackerWidth / 2.f, trackerWidth / 2.f, -trackerHeight / 2.f, trackerHeight / 2.f, 1.0f, -1.0f);
+
+	// Save a backup of the modelview matrix and replace with the identity matrix
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+
+	// Draw a small color "+" for each point in the point count
+	glLineWidth(2.f);
+	for (int point_index = 0; point_index < point_count; ++point_index)
+	{
+		const PSMoveScreenLocation *point = &points[point_index];
+
+		glLineWidth(2.f);
+		glBegin(GL_LINES);
+		glColor3fv(glm::value_ptr(color));
+		glVertex3f(point->x - point_size, point->y, 0.5f);
+		glVertex3f(point->x + point_size, point->y, 0.5f);
+		glVertex3f(point->x, point->y + point_size, 0.5f);
+		glVertex3f(point->x, point->y - point_size, 0.5f);
+		glEnd();
+	}
+	glLineWidth(1.f);
+
+	// Restore the projection matrix
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+
+	// Restore the modelview matrix
+	glMatrixMode(GL_MODELVIEW);
+	glPopMatrix();
+}
+
 void drawTransformedVolume(const glm::mat4 &transform, const PSMoveVolume *volume, const glm::vec3 &color)
 {
     assert(Renderer::getIsRenderingStage());
