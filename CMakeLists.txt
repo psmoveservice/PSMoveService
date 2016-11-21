@@ -103,7 +103,7 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # Location of homebrew opencv3
     # Alternatively, can do `brew ln opencv3 --force`
     message("-- Using homebrew opencv3")
-    set(OpenCV_DIR "/usr/local/Cellar/opencv3/3.1.0_1/share/OpenCV")
+    set(OpenCV_DIR "/usr/local/opt/opencv3/share/OpenCV")
 ENDIF()#Windows or Darwin
 ENDIF(NOT OpenCV_DIR)
 LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})

@@ -1,5 +1,7 @@
 # Step into the subdirectories
-add_subdirectory(openvr_plugin)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    add_subdirectory(openvr_plugin)
+ENDIF()
 add_subdirectory(psmoveprotocol)
 add_subdirectory(psmoveservice)
 add_subdirectory(psmoveclient)
