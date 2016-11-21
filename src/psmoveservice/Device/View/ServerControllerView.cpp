@@ -436,8 +436,19 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
                 average_world_position.z /= N;
             }
 
-            // Store the averaged tracking position
-            m_multicam_pose_estimation->position = average_world_position;
+			if (cfg.smooth_controller_position) {
+				// Store the averaged tracking position smoothed with previous positions
+				float q = 0.4;
+
+				m_multicam_pose_estimation->position.x = q * average_world_position.x + (1 - q) * m_multicam_pose_estimation->position.x;
+				m_multicam_pose_estimation->position.y = q * average_world_position.y + (1 - q) * m_multicam_pose_estimation->position.y;
+				m_multicam_pose_estimation->position.z = q * average_world_position.z + (1 - q) * m_multicam_pose_estimation->position.z;
+			}
+			else {
+				// Store the averaged tracking position
+				m_multicam_pose_estimation->position = average_world_position;
+			}
+
             m_multicam_pose_estimation->bCurrentlyTracking = true;
 
             // Compute the average projection area.
