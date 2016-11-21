@@ -7,6 +7,7 @@
 #include "Camera.h"
 #include "GeometryUtility.h"
 #include "Logger.h"
+#include "MathEigen.h"
 #include "MathUtility.h"
 #include "Renderer.h"
 #include "UIConstants.h"
@@ -19,12 +20,20 @@
 #include "SDL_keycode.h"
 #include "SDL_opengl.h"
 
+#include "ICP.h"
+
 #include "ClientPSMoveAPI.h"
 
 #include <imgui.h>
 #include <sstream>
 #include <vector>
 #include <set>
+
+//-- typedefs ----
+namespace SICP
+{
+	typedef Eigen::Matrix<double, 3, Eigen::Dynamic> Vertices;
+};
 
 //-- statics ----
 const char *AppStage_HMDModelCalibration::APP_STAGE_NAME = "HMDModelCalibration";
@@ -37,6 +46,8 @@ static const int k_led_position_sample_count = 100;
 static float k_cosine_aligned_camera_angle = cosf(60.f *k_degrees_to_radians);
 
 static const float k_default_correspondance_tolerance = 0.2f;
+
+static const float k_icp_point_snap_distance = 3.0; // cm
 
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 static const glm::vec3 k_psmove_frustum_color_no_track = glm::vec3(1.0f, 0.f, 0.f);
@@ -95,13 +106,51 @@ struct TrackerPairState
 	}
 };
 
-struct LEDModelState
+struct LEDModelSamples
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 	Eigen::Vector3f position_samples[k_led_position_sample_count];
 	Eigen::Vector3f average_position;
 	int position_sample_count;
+
+	void init()
+	{
+		average_position = Eigen::Vector3f::Zero();
+		position_sample_count = 0;
+	}
+
+	bool add_position(const Eigen::Vector3f &point)
+	{
+		bool bAdded = false;
+
+		if (position_sample_count < k_led_position_sample_count)
+		{
+			position_samples[position_sample_count] = point;
+			++position_sample_count;
+
+			// Recompute the average position
+			if (position_sample_count > 1)
+			{
+				const float N = static_cast<float>(position_sample_count);
+
+				average_position = Eigen::Vector3f::Zero();
+				for (int position_index = 0; position_index < position_sample_count; ++position_index)
+				{
+					average_position += position_samples[position_index];
+				}
+				average_position /= N;
+			}
+			else
+			{
+				average_position = position_samples[0];
+			}
+
+			bAdded = true;
+		}
+
+		return bAdded;
+	}
 };
 
 class HMDModelState
@@ -110,34 +159,111 @@ public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 	HMDModelState(int trackerLEDCount)
-		: m_trackerLedCount(trackerLEDCount)
-		, m_ledModels(new LEDModelState[trackerLEDCount])
+		: m_expectedLEDCount(trackerLEDCount)
+		, m_ledSampleSet(new LEDModelSamples[trackerLEDCount])
+		, m_seenLEDCount(0)
+		, m_totalLEDSampleCount(0)
 	{
-		m_transform = Eigen::Affine3d::Identity();
+		m_icpTransform = Eigen::Affine3d::Identity();
+
+		for (int led_index = 0; led_index < trackerLEDCount; ++led_index)
+		{
+			m_ledSampleSet[led_index].init();
+		}
 	}
 
 	~HMDModelState()
 	{
-		delete[] m_ledModels;
+		delete[] m_ledSampleSet;
 	}
 
 	bool getIsComplete() const
 	{
-		return false;
+		const int expectedSampleCount = m_expectedLEDCount * k_led_position_sample_count;
+
+		return m_totalLEDSampleCount >= expectedSampleCount;
+	}
+
+	float getProgressFraction() const 
+	{
+		const float expectedSampleCount = static_cast<float>(m_seenLEDCount * k_led_position_sample_count);
+		const float fraction = static_cast<float>(m_totalLEDSampleCount) / expectedSampleCount;
+
+		return fraction;
 	}
 
 	void recordSamples(ClientHMDView *hmd_view, TrackerPairState *tracker_pair_state)
 	{
 		if (triangulateHMDProjections(hmd_view, tracker_pair_state, m_lastTriangulatedPoints))
 		{
+			const int source_point_count = static_cast<int>(m_lastTriangulatedPoints.size());
+
+			if (source_point_count >= 3)
+			{
+				if (m_seenLEDCount > 0)
+				{
+					// Copy the triangulated vertices into a 3xN matric the SICP algorithms can use
+					SICP::Vertices icpSourceVertices;
+					icpSourceVertices.resize(Eigen::NoChange, source_point_count);
+					for (int source_index = 0; source_index < source_point_count; ++source_index)
+					{
+						const Eigen::Vector3f &point = m_lastTriangulatedPoints[source_index];
+
+						icpSourceVertices(0, source_index) = point.x();
+						icpSourceVertices(1, source_index) = point.y();
+						icpSourceVertices(2, source_index) = point.z();
+					}
+
+					// Build kd-tree of the current set of target vertices
+					nanoflann::KDTreeAdaptor<SICP::Vertices, 3, nanoflann::metric_L2_Simple> kdtree(m_icpTargetVertices);
+
+					// Attempt to align the new triangulated points with the previously found LED locations
+					// using the ICP algorithm
+					SICP::Parameters params;
+					params.p = .5;
+					params.max_icp = 15;
+					params.print_icpn = true;
+					SICP::point_to_point(icpSourceVertices, m_icpTargetVertices, params);
+
+					// Update the LED models based on the alignment
+					bool bUpdateTargetVertices = false;
+					for (int source_index = 0; source_index < icpSourceVertices.cols(); ++source_index)
+					{
+						const Eigen::Vector3d source_vertex = icpSourceVertices.col(source_index).cast<double>();
+						const int closest_led_index = kdtree.closest(source_vertex.data());
+						const Eigen::Vector3d closest_led_position = m_ledSampleSet[closest_led_index].average_position.cast<double>();
+						const double cloest_distance_sqrd = (closest_led_position - source_vertex).squaredNorm();
+
+						// Add the points to the their respective bucket...
+						if (cloest_distance_sqrd <= k_icp_point_snap_distance)
+						{
+							bUpdateTargetVertices |= add_point_to_led_model(closest_led_index, source_vertex.cast<float>());
+						}
+						// ... or make a new bucket if no point at that location
+						else
+						{
+							bUpdateTargetVertices |= add_led_model(source_vertex.cast<float>());
+						}
+					}
+
+					if (bUpdateTargetVertices)
+					{
+						rebuildTargetVertices();
+					}
+				}
+				else
+				{
+					for (auto it = m_lastTriangulatedPoints.begin(); it != m_lastTriangulatedPoints.end(); ++it)
+					{
+						add_led_model(*it);
+					}
+
+					rebuildTargetVertices();
+				}
+			}
+
 			//TODO:
 			/*
-			// Attempt to best align the new triangulated points with the previous frame
-			// using the ICP algorithms
-
-			// Add the points to the their respective bucket
-			// or make a new bucket if no point at that location
-
 			// Create a mesh from the average of the best N buckets
 			// where N is the expected tracking light count from HMD properties
 			*/
@@ -160,12 +286,61 @@ public:
 		drawPointCloudProjection(projections, point_count, 6.f, glm::vec3(0.f, 1.f, 0.f), tracker_size.i, tracker_size.j);
 	}
 
+protected:
+	bool add_point_to_led_model(const int led_index, const Eigen::Vector3f &point)
+	{
+		bool bAddedPoint = false;
+		LEDModelSamples &ledModel = m_ledSampleSet[led_index];
+
+		if (ledModel.add_position(point))
+		{
+			++m_totalLEDSampleCount;
+			bAddedPoint = true;
+		}
+
+		return bAddedPoint;
+	}
+
+	bool add_led_model(const Eigen::Vector3f &initial_point)
+	{
+		bool bAddedLed = false;
+
+		if (m_seenLEDCount < m_expectedLEDCount)
+		{
+			if (add_point_to_led_model(m_seenLEDCount, initial_point))
+			{
+				++m_seenLEDCount;
+				bAddedLed = true;
+			}
+		}
+
+		return bAddedLed;
+	}
+
+	void rebuildTargetVertices()
+	{
+		m_icpTargetVertices.resize(Eigen::NoChange, m_seenLEDCount);
+
+		for (int led_index = 0; led_index < m_seenLEDCount; ++led_index)
+		{
+			const Eigen::Vector3f &ledSample= m_ledSampleSet[led_index].average_position;
+
+			m_icpTargetVertices(0, led_index) = ledSample.x();
+			m_icpTargetVertices(1, led_index) = ledSample.y();
+			m_icpTargetVertices(2, led_index) = ledSample.z();
+		}
+	}
+
 private:
 	std::vector<Eigen::Vector3f> m_lastTriangulatedPoints;
+	int m_expectedLEDCount;
+	int m_seenLEDCount;
+	int m_totalLEDSampleCount;
 
-	int m_trackerLedCount;
-	LEDModelState *m_ledModels;
-	Eigen::Affine3d m_transform;
+	LEDModelSamples *m_ledSampleSet;
+
+	SICP::Vertices m_icpTargetVertices;
+	Eigen::Affine3d m_icpTransform;
 };
 
 //-- public methods -----
@@ -248,6 +423,10 @@ void AppStage_HMDModelCalibration::update()
 		if (!m_hmdModelState->getIsComplete())
 		{
 			m_hmdModelState->recordSamples(m_hmdView, m_trackerPairState);
+			if (m_hmdModelState->getIsComplete())
+			{
+				setState(eMenuState::test);
+			}
 		}
 		else
 		{
@@ -479,7 +658,7 @@ void AppStage_HMDModelCalibration::renderUI()
 	case eMenuState::calibrate:
 	{
 		ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-		ImGui::SetNextWindowSize(ImVec2(k_panel_width, 160));
+		ImGui::SetNextWindowSize(ImVec2(k_panel_width, 180));
 		ImGui::Begin(k_window_title, nullptr, window_flags);
 
 		ImGui::Text("Tracker #%d", m_trackerPairState->renderTrackerIndex + 1);
@@ -497,6 +676,7 @@ void AppStage_HMDModelCalibration::renderUI()
 		ImGui::Separator();
 
 		// TODO: Show calibration progress
+		ImGui::ProgressBar(m_hmdModelState->getProgressFraction(), ImVec2(250, 20));
 
 		// display tracking quality
 		for (int tracker_index = 0; tracker_index < get_tracker_count(); ++tracker_index)
@@ -784,12 +964,13 @@ void AppStage_HMDModelCalibration::handle_hmd_list_response(
 				if (hmd_list->hmd_type[list_index] == ClientHMDView::Morpheus)
 				{
 					trackedHmdId = hmd_list->hmd_id[list_index];
-					//###HipsterSloth $TODO - This should come as part of the response payload
-					trackerLEDCount = k_morpheus_led_count;
 					break;
 				}
 			}
 		}
+
+		//###HipsterSloth $TODO - This should come as part of the response payload
+		trackerLEDCount = k_morpheus_led_count;
 
 		if (trackedHmdId != -1)
 		{
