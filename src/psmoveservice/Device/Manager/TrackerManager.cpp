@@ -18,6 +18,7 @@ TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
 	tracker_sleep_ms = 1;
 	use_bgr_to_hsv_lookup_table = true;
 	exclude_opposed_cameras = false;
+	smooth_controller_position = false;
     default_tracker_profile.exposure = 32;
     default_tracker_profile.gain = 32;
 	default_tracker_profile.color_preset_table.table_name= "default_tracker_profile";
@@ -39,6 +40,7 @@ TrackerManagerConfig::config2ptree()
 	pt.put("tracker_sleep_ms", tracker_sleep_ms);
 
 	pt.put("excluded_opposed_cameras", exclude_opposed_cameras);	
+	pt.put("smooth_controller_position", smooth_controller_position);
     
     pt.put("default_tracker_profile.exposure", default_tracker_profile.exposure);
     pt.put("default_tracker_profile.gain", default_tracker_profile.gain);
@@ -59,6 +61,7 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
 		use_bgr_to_hsv_lookup_table = pt.get<bool>("use_bgr_to_hsv_lookup_table", use_bgr_to_hsv_lookup_table);
 		tracker_sleep_ms = pt.get<int>("tracker_sleep_ms", tracker_sleep_ms);
 		exclude_opposed_cameras = pt.get<bool>("excluded_opposed_cameras", exclude_opposed_cameras);
+		smooth_controller_position = pt.get<bool>("smooth_controller_position", smooth_controller_position);
 
         default_tracker_profile.exposure = pt.get<float>("default_tracker_profile.exposure", 32);
         default_tracker_profile.gain = pt.get<float>("default_tracker_profile.gain", 32);

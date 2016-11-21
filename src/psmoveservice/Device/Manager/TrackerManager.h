@@ -47,6 +47,7 @@ public:
 	int tracker_sleep_ms;
 	bool use_bgr_to_hsv_lookup_table;
 	bool exclude_opposed_cameras;
+	bool smooth_controller_position;
     TrackerProfile default_tracker_profile;
 };
 
