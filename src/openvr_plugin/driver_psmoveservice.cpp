@@ -1275,13 +1275,14 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 	, m_fVirtuallExtendControllersZ(0.0f)
 	, m_fVirtuallExtendControllersY(0.0f)
 	, m_bDelayAfterTouchpadPress(false)
+	, m_bTouchpadWasActive(false)
 	, m_touchpadDirectionsUsed(false)
 {
     char buf[256];
     GenerateControllerSerialNumber(buf, sizeof(buf), controllerId);
     m_strSerialNumber = buf;
 
-	m_lastTouchpadPress = std::chrono::high_resolution_clock::now();
+	m_lastTouchpadPressTime = std::chrono::high_resolution_clock::now();
 
 	if (serialNo != NULL) {
 		m_strSerialNo = serialNo;
@@ -1714,11 +1715,11 @@ void CPSMoveControllerLatest::UpdateControllerState()
 
 				switch (resetPoseButtonState)
 				{
-				case PSMoveButtonState::PSMoveButton_DOWN:
+				case PSMoveButtonState::PSMoveButton_PRESSED:
 					{
 						m_resetPoseButtonPressTime = std::chrono::high_resolution_clock::now();
 					} break;
-				case PSMoveButtonState::PSMoveButton_PRESSED:
+				case PSMoveButtonState::PSMoveButton_DOWN:
 					{
 						if (!m_bResetPoseRequestSent)
 						{
@@ -1732,7 +1733,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 							}
 						}
 					} break;
-				case PSMoveButtonState::PSMoveButton_UP:
+				case PSMoveButtonState::PSMoveButton_RELEASED:
 					{
 						m_bResetPoseRequestSent = false;
 					} break;
@@ -1764,6 +1765,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 			}
 			else 
 			{
+				// Process all the button mappings (including virtual touchpad buttons)
 				m_touchpadDirectionsUsed = false;
 				UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Circle, clientView.GetButtonCircle(), &NewState);
 				UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Cross, clientView.GetButtonCross(), &NewState);
@@ -1774,63 +1776,71 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Start, clientView.GetButtonStart(), &NewState);
 				UpdateControllerStateFromPsMoveButtonState(k_EPSButtonID_Triangle, clientView.GetButtonTriangle(), &NewState);
 
+				// Handle the virtual touchpad (spatial offset mode)
 				if (m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis && !m_touchpadDirectionsUsed)
 				{
 					static const uint64_t s_kTouchpadButtonMask = vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
-					if ((NewState.ulButtonPressed & s_kTouchpadButtonMask) || (NewState.ulButtonTouched & s_kTouchpadButtonMask))
+					bool bTouchpadIsActive = (NewState.ulButtonPressed & s_kTouchpadButtonMask) || (NewState.ulButtonTouched & s_kTouchpadButtonMask);
+
+					if (bTouchpadIsActive)
 					{
-						bool touchpad_new_location = true;
+						bool bIsNewTouchpadLocation = true;
 
-						if (m_bDelayAfterTouchpadPress) {
-							static const uint64_t s_kTouchpadButtonMask = vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
-
-							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-							std::chrono::duration<double, std::milli> time = now - m_lastTouchpadPress;
-							m_lastTouchpadPress = now;
-
+						if (m_bDelayAfterTouchpadPress && !m_bTouchpadWasActive)
+						{
 							const float k_max_touchpad_press = 2000.0; // time until coordinates are reset, otherwise assume in last location.
 
-							touchpad_new_location = time.count() >= k_max_touchpad_press;
+							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+							std::chrono::duration<double, std::milli> timeSinceActivated = now - m_lastTouchpadPressTime;
+
+							m_lastTouchpadPressTime = now;
+							bIsNewTouchpadLocation = timeSinceActivated.count() >= k_max_touchpad_press;
 						}
 
-						if (touchpad_new_location && (!(m_ControllerState.ulButtonPressed & s_kTouchpadButtonMask) || (m_ControllerState.ulButtonTouched & s_kTouchpadButtonMask)))
+						if (bIsNewTouchpadLocation)
 						{
-							// Just pressed.
-							const ClientPSMoveView &view = m_controller_view->GetPSMoveView();
-							m_driverSpaceRotationAtTouchpadPressTime = view.GetOrientation();
+							if (!m_bTouchpadWasActive)
+							{
+								// Just pressed.
+								const ClientPSMoveView &view = m_controller_view->GetPSMoveView();
+								m_driverSpaceRotationAtTouchpadPressTime = view.GetOrientation();
 
-							GetMetersPosInRotSpace(&m_posMetersAtTouchpadPressTime, m_driverSpaceRotationAtTouchpadPressTime);
+								GetMetersPosInRotSpace(&m_posMetersAtTouchpadPressTime, m_driverSpaceRotationAtTouchpadPressTime);
 
-#if LOG_TOUCHPAD_EMULATION != 0
-							DriverLog("Touchpad pressed! At (%f, %f, %f) meters relative to orientation\n",
-								m_posMetersAtTouchpadPressTime.i, m_posMetersAtTouchpadPressTime.j, m_posMetersAtTouchpadPressTime.k);
-#endif
-						}
-						else
-						{
-							// Held!
-							PSMoveFloatVector3 newPosMeters;
-							GetMetersPosInRotSpace(&newPosMeters, m_driverSpaceRotationAtTouchpadPressTime);
+								#if LOG_TOUCHPAD_EMULATION != 0
+								DriverLog("Touchpad pressed! At (%f, %f, %f) meters relative to orientation\n",
+									m_posMetersAtTouchpadPressTime.i, m_posMetersAtTouchpadPressTime.j, m_posMetersAtTouchpadPressTime.k);
+								#endif
+							}
+							else
+							{
+								// Held!
+								PSMoveFloatVector3 newPosMeters;
+								GetMetersPosInRotSpace(&newPosMeters, m_driverSpaceRotationAtTouchpadPressTime);
 
-							PSMoveFloatVector3 offsetMeters = newPosMeters - m_posMetersAtTouchpadPressTime;
+								PSMoveFloatVector3 offsetMeters = newPosMeters - m_posMetersAtTouchpadPressTime;
 
-#if LOG_TOUCHPAD_EMULATION != 0
-							DriverLog("Touchpad held! Relative position (%f, %f, %f) meters\n",
-								offsetMeters.i, offsetMeters.j, offsetMeters.k);
-#endif
+								#if LOG_TOUCHPAD_EMULATION != 0
+								DriverLog("Touchpad held! Relative position (%f, %f, %f) meters\n",
+									offsetMeters.i, offsetMeters.j, offsetMeters.k);
+								#endif
 
-							NewState.rAxis[0].x = offsetMeters.i / m_fMetersPerTouchpadAxisUnits;
-							NewState.rAxis[0].x = fminf(fmaxf(NewState.rAxis[0].x, -1.0f), 1.0f);
+								NewState.rAxis[0].x = offsetMeters.i / m_fMetersPerTouchpadAxisUnits;
+								NewState.rAxis[0].x = fminf(fmaxf(NewState.rAxis[0].x, -1.0f), 1.0f);
 
-							NewState.rAxis[0].y = -offsetMeters.k / m_fMetersPerTouchpadAxisUnits;
-							NewState.rAxis[0].y = fminf(fmaxf(NewState.rAxis[0].y, -1.0f), 1.0f);
+								NewState.rAxis[0].y = -offsetMeters.k / m_fMetersPerTouchpadAxisUnits;
+								NewState.rAxis[0].y = fminf(fmaxf(NewState.rAxis[0].y, -1.0f), 1.0f);
 
-#if LOG_TOUCHPAD_EMULATION != 0
-							DriverLog("Touchpad axis at (%f, %f) \n",
-								NewState.rAxis[0].x, NewState.rAxis[0].y);
-#endif
+								#if LOG_TOUCHPAD_EMULATION != 0
+								DriverLog("Touchpad axis at (%f, %f) \n",
+									NewState.rAxis[0].x, NewState.rAxis[0].y);
+								#endif
+							}
 						}
 					}
+
+					// Remember if the touchpad was active the previous frame for edge detection
+					m_bTouchpadWasActive = bTouchpadIsActive;
 				}
 
 

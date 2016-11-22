@@ -1893,6 +1893,7 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 	ControllerOpticalPoseEstimation *tracker_pose_estimations,
 	ControllerOpticalPoseEstimation *multicam_pose_estimation)
 {
+	const TrackerManagerConfig &cfg = tracker_manager->getConfig();
 	float screen_area_sum = 0;
 
 	// Project the tracker relative 3d tracking position back on to the tracker camera plane
@@ -1922,6 +1923,15 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 			const int other_tracker_id = valid_projection_tracker_ids[other_list_index];
 			const CommonDeviceScreenLocation &other_screen_location = position2d_list[other_list_index];
 			const ServerTrackerViewPtr other_tracker = tracker_manager->getTrackerViewPtr(other_tracker_id);
+			// if trackers are on poposite sides
+			if (cfg.exclude_opposed_cameras)
+			{
+				if ((tracker->getTrackerPose().Position.x > 0) == (other_tracker->getTrackerPose().Position.x < 0) &&
+					(tracker->getTrackerPose().Position.z > 0) == (other_tracker->getTrackerPose().Position.z < 0)) 
+				{
+					continue;
+				}
+			}
 
 			// Using the screen locations on two different trackers we can triangulate a world position
 			CommonDevicePosition world_position =

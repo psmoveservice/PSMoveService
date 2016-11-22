@@ -7,7 +7,6 @@
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
 #include "PSMoveConfig.h"
-#include "PSMoveProtocol.pb.h"
 
 //-- typedefs -----
 
@@ -45,7 +44,9 @@ public:
 
     long version;
     int optical_tracking_timeout;
+	int tracker_sleep_ms;
 	bool use_bgr_to_hsv_lookup_table;
+	bool exclude_opposed_cameras;
     TrackerProfile default_tracker_profile;
 	float global_forward_degrees;
 
@@ -97,15 +98,9 @@ protected:
     DeviceEnumerator *allocate_device_enumerator() override;
     void free_device_enumerator(DeviceEnumerator *) override;
     ServerDeviceView *allocate_device_view(int device_id) override;
-
-    const PSMoveProtocol::Response_ResponseType getListUpdatedResponseType() override
-    {
-        return TrackerManager::k_list_udpated_response_type;
-    }
+	int getListUpdatedResponseType() override;
 
 private:
-    static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED;
-
     TrackerManagerConfig cfg;
     bool m_tracker_list_dirty;
 };

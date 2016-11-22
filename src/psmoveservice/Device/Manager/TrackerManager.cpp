@@ -5,6 +5,7 @@
 #include "ServerTrackerView.h"
 #include "ServerDeviceView.h"
 #include "MathUtility.h"
+#include "PSMoveProtocol.pb.h"
 
 //-- constants -----
 
@@ -15,7 +16,9 @@ TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
     : PSMoveConfig(fnamebase)
 {
     optical_tracking_timeout= 100;
+	tracker_sleep_ms = 1;
 	use_bgr_to_hsv_lookup_table = true;
+	exclude_opposed_cameras = false;
     default_tracker_profile.exposure = 32;
     default_tracker_profile.gain = 32;
 	default_tracker_profile.color_preset_table.table_name= "default_tracker_profile";
@@ -35,6 +38,9 @@ TrackerManagerConfig::config2ptree()
 
     pt.put("optical_tracking_timeout", optical_tracking_timeout);
 	pt.put("use_bgr_to_hsv_lookup_table", use_bgr_to_hsv_lookup_table);
+	pt.put("tracker_sleep_ms", tracker_sleep_ms);
+
+	pt.put("excluded_opposed_cameras", exclude_opposed_cameras);	
     
     pt.put("default_tracker_profile.exposure", default_tracker_profile.exposure);
     pt.put("default_tracker_profile.gain", default_tracker_profile.gain);
@@ -55,6 +61,8 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
     {
         optical_tracking_timeout= pt.get<int>("optical_tracking_timeout", optical_tracking_timeout);
 		use_bgr_to_hsv_lookup_table = pt.get<bool>("use_bgr_to_hsv_lookup_table", use_bgr_to_hsv_lookup_table);
+		tracker_sleep_ms = pt.get<int>("tracker_sleep_ms", tracker_sleep_ms);
+		exclude_opposed_cameras = pt.get<bool>("excluded_opposed_cameras", exclude_opposed_cameras);
 
         default_tracker_profile.exposure = pt.get<float>("default_tracker_profile.exposure", 32);
         default_tracker_profile.gain = pt.get<float>("default_tracker_profile.gain", 32);
@@ -195,3 +203,7 @@ TrackerManager::getTrackerViewPtr(int device_id) const
     return std::static_pointer_cast<ServerTrackerView>(m_deviceViews[device_id]);
 }
 
+int TrackerManager::getListUpdatedResponseType()
+{
+	return PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED;
+}

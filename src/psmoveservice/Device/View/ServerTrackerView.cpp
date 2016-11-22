@@ -381,8 +381,7 @@ public:
     {
         const cv::Mat videoBufferMat(frameHeight, frameWidth, CV_8UC3, const_cast<unsigned char *>(video_buffer));
 
-        // Copy and Flip image about the x-axis
-        cv::flip(videoBufferMat, *bgrBuffer, 1);
+		videoBufferMat.copyTo(*bgrBuffer);
 
         // Convert the video buffer to the HSV color space
 		if (bgr2hsv != nullptr)
