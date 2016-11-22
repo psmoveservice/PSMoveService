@@ -294,6 +294,8 @@ PSDualShock4ControllerConfig::config2ptree()
 	pt.put("PositionFilter.FilterType", position_filter_type);
     pt.put("PositionFilter.MaxVelocity", max_velocity);
 
+	pt.put("PoseFilter.MinScreenProjectionArea", min_screen_projection_area);
+
     pt.put("prediction_time", prediction_time);
     pt.put("max_poll_failure_count", max_poll_failure_count);
 
@@ -339,6 +341,9 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         // Get the position filter parameters
 		position_filter_type= pt.get<std::string>("PositionFilter.FilterType", position_filter_type);
         max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
+
+		// Get shared filter parameters
+		min_screen_projection_area = pt.get<float>("PoseFilter.MinScreenProjectionArea", min_screen_projection_area);
 
         // Get the calibration direction for "down"
         identity_gravity_direction.i= pt.get<float>("Calibration.Identity.Gravity.X", identity_gravity_direction.i);

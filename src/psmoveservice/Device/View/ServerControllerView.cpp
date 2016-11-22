@@ -1777,12 +1777,16 @@ update_filters_for_psdualshock4(
 
         if (poseEstimation->bCurrentlyTracking)
         {
+			const float screen_area =
+				(poseEstimation->projection.screen_area > config->min_screen_projection_area)
+				? poseEstimation->projection.screen_area : 0.f;
+
             sensorPacket.optical_position_cm =
                 Eigen::Vector3f(
                     poseEstimation->position.x,
                     poseEstimation->position.y,
                     poseEstimation->position.z);
-            sensorPacket.tracking_projection_area= poseEstimation->projection.screen_area;
+            sensorPacket.tracking_projection_area= screen_area;
         }
         else
         {

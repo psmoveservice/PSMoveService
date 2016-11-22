@@ -52,10 +52,11 @@ public:
         , gyro_variance(4.75e-06f) // rounded value from config tool measurement (rad^2/s^2)
         , gyro_drift(0.00071f) // rounded value from config tool measurement (rad/s)
 		, mean_update_time_delta(0.016667f)
-		, position_variance_exp_fit_a(0.44888f)
-		, position_variance_exp_fit_b(-0.00402f) // TODO: Compute this from calibration
-		, orientation_variance_exp_fit_a(0.44888f)
-		, orientation_variance_exp_fit_b(-0.00402f) // TODO: Compute this from calibration
+		, position_variance_exp_fit_a(0.0219580978f)
+		, position_variance_exp_fit_b(-0.00079152541f)
+		, orientation_variance_exp_fit_a(0.119878575f)
+		, orientation_variance_exp_fit_b(-0.00267515215f)
+		, min_screen_projection_area(100.f)
 		, tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
     {
         // The DS4 uses the BMI055 IMU Chip: 
@@ -141,6 +142,9 @@ public:
 
 	// The average time between updates in seconds
     float mean_update_time_delta;
+
+	// Below this projection area size we just consider the projection area 0 for the purpose of filtering
+	float min_screen_projection_area;
 
 	// The variance of the controller position as a function of projection area
     float position_variance_exp_fit_a; 
