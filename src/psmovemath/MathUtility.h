@@ -23,9 +23,9 @@
 
 //-- macros ----
 #ifdef isfinite
-#define is_valid_float(x) (!isnan(x) && isfinite(x))
+#define is_valid_float(x) (!std::isnan(x) && isfinite(x))
 #else
-#define is_valid_float(x) (!isnan(x))
+#define is_valid_float(x) (!std::isnan(x))
 #endif
 
 #define is_nearly_equal(a, b, epsilon) (fabsf(a-b) <= epsilon)
