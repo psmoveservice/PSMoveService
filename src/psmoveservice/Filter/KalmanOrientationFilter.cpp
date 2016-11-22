@@ -53,7 +53,7 @@ enum DS4MeasurementEnum {
 };
 
 // Arbitrary tuning scale applied to the measurement noise
-#define R_SCALE 1000.0
+#define R_SCALE 1.0
 
 // Arbitrary tuning scale applied to the process noise
 #define Q_SCALE 1.0
