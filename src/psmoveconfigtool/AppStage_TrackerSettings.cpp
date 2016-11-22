@@ -286,11 +286,6 @@ void AppStage_TrackerSettings::renderUI()
             {
                 AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app, controller == NULL ? -1 : controller->ControllerID);
             }
-
-            if (ImGui::Button("Test Tracking"))
-            {
-                AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app, controller == NULL ? -1 : controller->ControllerID);
-            }
         }
 
         if (ImGui::Button("Return to Main Menu"))
