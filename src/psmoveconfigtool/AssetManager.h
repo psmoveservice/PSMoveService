@@ -53,15 +53,18 @@ public:
     static AssetManager *getInstance()
     { return m_instance; }
 
-    const TextureAsset *getDK2TextureAsset()
-    { return &m_dk2Texture; }
-
     const TextureAsset *getPSMoveTextureAsset()
     { return &m_psmoveTexture; }
+
+    const TextureAsset *getPSDualShock4TextureAsset()
+    { return &m_psdualshock4Texture; }
 
     const TextureAsset *getPSNaviTextureAsset()
     { return &m_psnaviTexture; }
 
+    const TextureAsset *getMorpheusTextureAsset()
+    { return &m_morpheusTexture; }    
+    
     const FontAsset *getDefaultFont()
     { return &m_defaultFont; }
 
@@ -70,9 +73,10 @@ private:
     bool loadFont(const char *filename, float pixelHeight, FontAsset *fontAsset);
 
     // Utility Textures
-    TextureAsset m_dk2Texture;
     TextureAsset m_psmoveTexture;
     TextureAsset m_psnaviTexture;
+    TextureAsset m_psdualshock4Texture;
+    TextureAsset m_morpheusTexture;
 
     // Font Rendering
     FontAsset m_defaultFont;

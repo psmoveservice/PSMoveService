@@ -113,17 +113,12 @@ private:
 
             // Updates will now automatically get pushed into the controller view
 
-            if (controller_view->GetControllerViewType() == ClientControllerView::PSMove)
+            if (controller_view->GetIsCurrentlyTracking())
             {
-                const ClientPSMoveView &PSMoveView= controller_view->GetPSMoveView();
-                
-                if (PSMoveView.GetIsCurrentlyTracking())
-                {
-                    PSMovePosition controller_position= PSMoveView.GetPosition();
+                PSMovePosition controller_position = controller_view->GetPosition();
 
-                    std::cout << "Controller State: " << std::endl;
-                    std::cout << "  Position (" << controller_position.x << ", " << controller_position.y << ", " << controller_position.z << ")" << std::endl;
-                }
+                std::cout << "Controller State: " << std::endl;
+                std::cout << "  Position (" << controller_position.x << ", " << controller_position.y << ", " << controller_position.z << ")" << std::endl;
             }
         }
         else

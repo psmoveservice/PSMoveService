@@ -1,9 +1,14 @@
 #ifndef PSMOVE_CONFIG_H
 #define PSMOVE_CONFIG_H
 
+//-- includes -----
 #include <string>
 #include <boost/property_tree/ptree.hpp>
 
+//-- constants -----
+extern const struct CommonHSVColorRange *k_default_color_presets;
+
+//-- definitions -----
 class PSMoveConfig {
 public:
     PSMoveConfig(const std::string &fnamebase = std::string("PSMoveConfig"));
@@ -26,6 +31,16 @@ public:
         const char *color_name,
         struct CommonHSVColorRange *outColorPreset,
         const struct CommonHSVColorRange *defaultPreset);
+
+	static void writeColorPropertyPresetTable(
+		const struct CommonHSVColorRangeTable *table,
+		boost::property_tree::ptree &pt);
+	static void readColorPropertyPresetTable(
+		const boost::property_tree::ptree &pt,
+		struct CommonHSVColorRangeTable *table);
+
+	static void writeTrackingColor(boost::property_tree::ptree &pt, int tracking_color_id);
+	static int readTrackingColor(const boost::property_tree::ptree &pt);
 
 private:
     const std::string getConfigPath();

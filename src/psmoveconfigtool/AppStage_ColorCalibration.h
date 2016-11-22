@@ -23,6 +23,16 @@ public:
 
     static const char *APP_STAGE_NAME;
 
+	inline void set_override_controller_id(int controller_id)
+	{ m_overrideControllerId= controller_id; }
+
+	inline void set_override_hmd_id(int hmd_id)
+	{ m_overrideHmdId = hmd_id; }
+
+	inline void set_override_tracking_color(PSMoveTrackingColorType tracking_color) {
+		m_trackingColorType = tracking_color;
+	}
+
 protected:
     enum eMenuState
     {
@@ -32,6 +42,9 @@ protected:
 
         pendingControllerStartRequest,
         failedControllerStartRequest,
+
+		pendingHmdStartRequest,
+		failedHmdStartRequest,
 
         pendingTrackerStartStreamRequest,
         failedTrackerStartStreamRequest,
@@ -69,6 +82,11 @@ protected:
     static void handle_start_controller_response(
         const ClientPSMoveAPI::ResponseMessage *response_message,
         void *userdata);
+
+	void request_start_hmd_stream();
+	static void handle_start_hmd_response(
+		const ClientPSMoveAPI::ResponseMessage *response_message,
+		void *userdata);
 
     void request_set_controller_tracking_color(PSMoveTrackingColorType tracking_color);
 
@@ -116,9 +134,15 @@ protected:
 
 private:
     // ClientPSMoveAPI state
+	int m_overrideControllerId;	
     class ClientControllerView *m_controllerView;
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;
+	int m_overrideHmdId;
+	class ClientHMDView *m_hmdView;
+	bool m_isHmdStreamActive;
+	int m_lastHmdSeqNum;
+
     class ClientTrackerView *m_trackerView;
 
     // Menu state

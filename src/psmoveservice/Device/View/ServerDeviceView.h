@@ -3,6 +3,7 @@
 
 //-- includes -----
 #include "DeviceInterface.h"
+#include <chrono>
 #include <assert.h>
 
 // -- declarations -----
@@ -52,6 +53,8 @@ public:
     bool getIsOpen() const;
     inline bool getHasUnpublishedState()
     { return m_bHasUnpublishedState; }
+    inline std::chrono::time_point<std::chrono::high_resolution_clock> getLastNewDataTimestamp() const
+    { return m_lastNewDataTimestamp; }
     
     // setters
     inline void markStateAsUnpublished()
@@ -65,6 +68,7 @@ protected:
     bool m_bHasUnpublishedState;
     int m_pollNoDataCount;
     int m_sequence_number;
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_lastNewDataTimestamp;
     
 private:
     int m_deviceID;

@@ -18,7 +18,7 @@
 //###bwalker $TODO This haven't been tested yet
 #define PSNAVI_BTADDR_GET_SIZE 16
 #define PSNAVI_BTADDR_SIZE 6
-#define PSNAVI_BTADDR_SET_SIZE 7
+#define PSNAVI_BTADDR_SET_SIZE 10
 #define PSNAVI_STATE_BUFFER_MAX 16
 
 //###bwalker $TODO This haven't been tested yet
@@ -239,6 +239,12 @@ void PSNaviController::close()
     }
 }
 
+bool
+PSNaviController::setTrackingColorID(const eCommonTrackingColorID tracking_color_id)
+{
+	return false;
+}
+
 bool 
 PSNaviController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
 {
@@ -388,7 +394,7 @@ PSNaviController::getBTAddress(std::string& host, std::string& controller)
     {
         int res;
         
-        unsigned char btg[PSNAVI_BTADDR_GET_SIZE];
+        unsigned char btg[PSNAVI_BTADDR_GET_SIZE+1];
         unsigned char ctrl_char_buff[PSNAVI_BTADDR_SIZE];
 
         memset(btg, 0, sizeof(btg));
@@ -550,6 +556,13 @@ PSNaviController::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) 
 {
     // Navi isn't a tracked controller
     outTrackingShape.shape_type= eCommonTrackingShapeType::INVALID_SHAPE;
+}
+
+bool 
+PSNaviController::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const
+{
+	out_tracking_color_id = eCommonTrackingColorID::INVALID_COLOR;
+	return false;
 }
     
 // -- private helper functions -----

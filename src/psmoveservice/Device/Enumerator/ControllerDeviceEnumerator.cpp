@@ -18,7 +18,7 @@
 USBDeviceInfo g_supported_controller_infos[MAX_CONTROLLER_TYPE_INDEX] = {
     { 0x054c, 0x03d5 }, // PSMove
     { 0x054c, 0x042F }, // PSNavi
-    //{0x054c, 0x0268}, // PSDualShock3
+    { 0x054c, 0x05C4 }, // PSDualShock4
 };
 
 // -- ControllerDeviceEnumerator -----
@@ -85,6 +85,12 @@ bool ControllerDeviceEnumerator::is_valid() const
 {
     bool bIsValid = cur_dev != nullptr;
 
+	//###HipsterSloth $TODO Disable the navi until it actually works
+	if (m_deviceType == CommonDeviceState::PSNavi)
+	{
+		bIsValid = false;
+	}
+
 #ifdef _WIN32
     /**
     * Windows Quirk: Each psmove dev is enumerated 3 times.
@@ -104,30 +110,37 @@ bool ControllerDeviceEnumerator::next()
 {
     bool foundValid = false;
 
-    while (cur_dev != nullptr && !foundValid)
+    while (!foundValid && m_deviceType < CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT)
     {
-        cur_dev = cur_dev->next;
-        foundValid = is_valid();
+        if (cur_dev != nullptr)
+        {
+            cur_dev = cur_dev->next;
+            foundValid = is_valid();
+        }
 
         // If there are more device types to scan
         // move on to the next vid/pid device enumeration
-        if (cur_dev == nullptr &&
-            GET_DEVICE_TYPE_CLASS(m_deviceType + 1) == CommonDeviceState::Controller &&
-            (m_deviceType + 1) < CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT)
+        if (!foundValid && cur_dev == nullptr)
         {
             m_deviceType = static_cast<CommonDeviceState::eDeviceType>(m_deviceType + 1);
-            USBDeviceInfo &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
 
             // Free any previous enumeration
             if (devs != nullptr)
             {
                 hid_free_enumeration(devs);
+                cur_dev= nullptr;
+                devs= nullptr;
             }
 
-            // Create a new HID enumeration
-            devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
-            cur_dev = devs;
-            foundValid = false;
+            if (GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX)
+            {
+                USBDeviceInfo &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
+
+                // Create a new HID enumeration
+                devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
+                cur_dev = devs;
+                foundValid = is_valid();
+            }
         }
     }
 

@@ -4,7 +4,6 @@
 //-- includes -----
 #include <memory>
 #include <chrono>
-#include "PSMoveProtocol.pb.h"
 
 //-- typedefs -----
 class ServerDeviceView;
@@ -56,7 +55,7 @@ protected:
 
     void send_device_list_changed_notification();
 
-    virtual const PSMoveProtocol::Response_ResponseType getListUpdatedResponseType() = 0;
+    virtual int getListUpdatedResponseType() = 0;
 
     int find_first_closed_device_device_id();
     int find_open_device_device_id(const class DeviceEnumerator *enumerator);

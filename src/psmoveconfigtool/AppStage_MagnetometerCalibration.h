@@ -81,8 +81,8 @@ private:
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;
 
-    PSMoveIntVector3 m_lastMagnetometer;
-    PSMoveFloatVector3 m_lastAccelerometer;
+    PSMoveIntVector3 m_lastRawMagnetometer;
+    PSMoveFloatVector3 m_lastCalibratedAccelerometer;
 
     PSMoveIntVector3 m_magnetometerIntSamples[k_max_magnetometer_samples];
     MagnetometerAlignedSamples *m_alignedSamples;
@@ -101,6 +101,9 @@ private:
 
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_resetPoseButtonPressTime;
+	bool m_bResetPoseRequestSent;
 
     PSMoveIntVector3 m_identityPoseMVectorSum;
     int m_identityPoseSampleCount;   

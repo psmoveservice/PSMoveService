@@ -19,7 +19,9 @@
 #include "psmovebulb_3dmodel.h"
 #include "psnavi_3dmodel.h"
 #include "ps3eye_3dmodel.h"
-#include "dk2_3dmodel.h"
+#include "ds4body_3dmodel.h"
+#include "ds4lightbar_3dmodel.h"
+#include "morpheus_3dmodel.h"
 
 #include <algorithm>
 
@@ -167,8 +169,7 @@ bool Renderer::init()
         glViewport(0, 0, m_windowWidth, m_windowHeight);
 
         glEnable(GL_LIGHT0);
-        glEnable(GL_TEXTURE_2D);
-        //glShadeModel(GL_SMOOTH);
+        glEnable(GL_TEXTURE_2D);        
         //glClearDepth(1.0f);
         glEnable(GL_DEPTH_TEST);
         //glDepthFunc(GL_LEQUAL);
@@ -444,7 +445,7 @@ void drawTextAtWorldPosition(
     char text[1024];
     va_list args;
     va_start(args, format);
-//    int w = vsnprintf(text, sizeof(text), format, args);
+    int w = vsnprintf(text, sizeof(text), format, args);
     text[sizeof(text)-1] = 0;
     va_end(args);
 
@@ -559,8 +560,7 @@ void drawTrackingProjection(
     const PSMoveScreenLocation *centerProjection,
     const PSMoveTrackingProjection *shapeProjection,
     float trackerWidth, 
-    float trackerHeight,
-    const glm::vec3 &color)
+    float trackerHeight)
 {
     assert(Renderer::getIsRenderingStage());
 
@@ -579,18 +579,17 @@ void drawTrackingProjection(
     glPushMatrix();
     glLoadIdentity();
 
-    glColor3fv(glm::value_ptr(color));
-
     // Draw a small "+" where the center of the projection lies
     glLineWidth(2.f);
     glBegin(GL_LINES);
+        glColor3f(1.f, 1.f, 1.f);
         glVertex3f(centerProjection->x-5.f, centerProjection->y, 0.5f); 
         glVertex3f(centerProjection->x+5.f, centerProjection->y, 0.5f);
         glVertex3f(centerProjection->x, centerProjection->y+5.f, 0.5f); 
         glVertex3f(centerProjection->x, centerProjection->y-5.f, 0.5f);
     glEnd();
 
-    glLineWidth(5.f);
+    glLineWidth(2.f);
     switch (shapeProjection->shape_type)
     {
     case PSMoveTrackingProjection::eShapeType::Ellipse:
@@ -608,6 +607,7 @@ void drawTrackingProjection(
 
             float angle = 0.f;
             glBegin(GL_LINE_STRIP);
+            glColor3f(1.f, 1.f, 1.f);
             for (int index = 0; index <= subdiv; ++index)
             {
                 glm::vec3 point = 
@@ -620,17 +620,56 @@ void drawTrackingProjection(
             }
             glEnd();
         } break;
-    case PSMoveTrackingProjection::eShapeType::Quad:
+    case PSMoveTrackingProjection::eShapeType::LightBar:
         {
-            const PSMoveScreenLocation *corners = shapeProjection->shape.quad.corners;
+            const PSMoveScreenLocation *triangle = shapeProjection->shape.lightbar.triangle;
+            const PSMoveScreenLocation *quad = shapeProjection->shape.lightbar.quad;
             
-            glBegin(GL_QUADS);
-            glVertex3f(corners[0].x, corners[0].y, 0.5f);
-            glVertex3f(corners[1].x, corners[1].y, 0.5f);
-            glVertex3f(corners[2].x, corners[2].y, 0.5f);
-            glVertex3f(corners[3].x, corners[3].y, 0.5f);
+            glBegin(GL_LINE_STRIP);
+            glColor3f(1.f, 0.f, 0.f);
+            glVertex3f(triangle[0].x, triangle[0].y, 0.5f);
+            glColor3f(0.f, 1.f, 0.f);
+            glVertex3f(triangle[1].x, triangle[1].y, 0.5f);
+            glColor3f(0.f, 0.f, 1.f);
+            glVertex3f(triangle[2].x, triangle[2].y, 0.5f); 
+            glColor3f(1.f, 0.f, 0.f);
+            glVertex3f(triangle[0].x, triangle[0].y, 0.5f);
+            glEnd();
+
+            glBegin(GL_LINE_STRIP);
+            glColor3f(1.f, 0.f, 0.f);
+            glVertex3f(quad[0].x, quad[0].y, 0.5f);
+            glColor3f(0.f, 1.f, 0.f);
+            glVertex3f(quad[1].x, quad[1].y, 0.5f);
+            glColor3f(0.f, 0.f, 1.f);
+            glVertex3f(quad[2].x, quad[2].y, 0.5f);
+            glColor3f(1.f, 1.f, 0.f);
+            glVertex3f(quad[3].x, quad[3].y, 0.5f);
+            glColor3f(1.f, 0.f, 0.f);
+            glVertex3f(quad[0].x, quad[0].y, 0.5f);
             glEnd();
         } break;
+
+	case PSMoveTrackingProjection::eShapeType::PointCloud:
+		{
+			const PSMoveScreenLocation *points = shapeProjection->shape.pointcloud.points;
+			const int point_count = shapeProjection->shape.pointcloud.point_count;
+
+			// Draw a small red "+" for the center of mass in each tracking blob center
+			for (int point_index = 0; point_index < point_count; ++point_index)
+			{
+				const PSMoveScreenLocation *point = &points[point_index];
+
+				glLineWidth(2.f);
+				glBegin(GL_LINES);
+				glColor3f(1.f, 0.f, 0.f);
+				glVertex3f(point->x - 5.f, point->y, 0.5f);
+				glVertex3f(point->x + 5.f, point->y, 0.5f);
+				glVertex3f(point->x, point->y + 5.f, 0.5f);
+				glVertex3f(point->x, point->y - 5.f, 0.5f);
+				glEnd();
+			}
+		} break;
     }
 
     glLineWidth(1.f);
@@ -642,6 +681,57 @@ void drawTrackingProjection(
     // Restore the modelview matrix
     glMatrixMode(GL_MODELVIEW);
     glPopMatrix();
+}
+
+void drawPointCloudProjection(
+	const struct PSMoveScreenLocation *points,
+	const int point_count, 
+	const float point_size,
+	const glm::vec3 &color,
+	const float trackerWidth, 
+	const float trackerHeight)
+{
+	assert(Renderer::getIsRenderingStage());
+
+	// Clear the depth buffer to allow overdraw 
+	glClear(GL_DEPTH_BUFFER_BIT);
+
+	// Save a backup of the projection matrix 
+	// and replace with a projection that maps the tracker image coordinates over the whole screen
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	glOrtho(-trackerWidth / 2.f, trackerWidth / 2.f, -trackerHeight / 2.f, trackerHeight / 2.f, 1.0f, -1.0f);
+
+	// Save a backup of the modelview matrix and replace with the identity matrix
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+
+	// Draw a small color "+" for each point in the point count
+	glLineWidth(2.f);
+	for (int point_index = 0; point_index < point_count; ++point_index)
+	{
+		const PSMoveScreenLocation *point = &points[point_index];
+
+		glLineWidth(2.f);
+		glBegin(GL_LINES);
+		glColor3fv(glm::value_ptr(color));
+		glVertex3f(point->x - point_size, point->y, 0.5f);
+		glVertex3f(point->x + point_size, point->y, 0.5f);
+		glVertex3f(point->x, point->y + point_size, 0.5f);
+		glVertex3f(point->x, point->y - point_size, 0.5f);
+		glEnd();
+	}
+	glLineWidth(1.f);
+
+	// Restore the projection matrix
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+
+	// Restore the modelview matrix
+	glMatrixMode(GL_MODELVIEW);
+	glPopMatrix();
 }
 
 void drawTransformedVolume(const glm::mat4 &transform, const PSMoveVolume *volume, const glm::vec3 &color)
@@ -1101,30 +1191,6 @@ void drawPoseArrayStrip(const struct PSMovePose *poses, const int poseCount, con
     glEnd();
 }
 
-void drawDK2Model(const glm::mat4 &transform)
-{
-    assert(Renderer::getIsRenderingStage());
-
-    int textureID= AssetManager::getInstance()->getDK2TextureAsset()->texture_id;
-
-    glBindTexture(GL_TEXTURE_2D, textureID);
-    glColor3f(1.f, 1.f, 1.f);
-
-    glPushMatrix();
-        glMultMatrixf(glm::value_ptr(transform));
-        glEnableClientState(GL_VERTEX_ARRAY);
-        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-        glVertexPointer(3, GL_FLOAT, 0, DK2Verts);
-        glTexCoordPointer(2, GL_FLOAT, 0, DK2TexCoords);
-        glDrawArrays(GL_TRIANGLES, 0, DK2NumVerts);
-        glDisableClientState(GL_VERTEX_ARRAY);
-        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-    glPopMatrix();
-
-    // rebind the default texture
-    glBindTexture(GL_TEXTURE_2D, 0); 
-}
-
 void drawPS3EyeModel(const glm::mat4 &transform)
 {
     assert(Renderer::getIsRenderingStage());
@@ -1194,6 +1260,65 @@ void drawPSNaviModel(const glm::mat4 &transform)
         glDrawArrays(GL_TRIANGLES, 0, psnaviNumVerts);
         glDisableClientState(GL_VERTEX_ARRAY);
         glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    glPopMatrix();
+
+    // rebind the default texture
+    glBindTexture(GL_TEXTURE_2D, 0); 
+}
+
+void drawPSDualShock4Model(const glm::mat4 &transform, const glm::vec3 &color)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    int textureID = AssetManager::getInstance()->getPSDualShock4TextureAsset()->texture_id;
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glColor3f(1.f, 1.f, 1.f);
+
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        
+		glVertexPointer(3, GL_FLOAT, 0, ds4bodyVerts);
+        glTexCoordPointer(2, GL_FLOAT, 0, ds4bodyTexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, ds4bodyNumVerts);
+
+		glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+		glColor3fv(glm::value_ptr(color));
+		glVertexPointer(3, GL_FLOAT, 0, ds4lightbarVerts);
+		glDrawArrays(GL_TRIANGLES, 0, ds4lightbarNumVerts);
+
+        glDisableClientState(GL_VERTEX_ARRAY);
+    glPopMatrix();
+
+    // rebind the default texture
+    glBindTexture(GL_TEXTURE_2D, 0); 
+}
+
+void drawMorpheusModel(const glm::mat4 &transform)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    int textureID= AssetManager::getInstance()->getMorpheusTextureAsset()->texture_id;
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        
+        glColor3f(1.f, 1.f, 1.f);
+        glVertexPointer(3, GL_FLOAT, 0, morpheusVerts);
+        glTexCoordPointer(2, GL_FLOAT, 0, morpheusTexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, morpheusNumVerts);
+
+        glDisableClientState(GL_VERTEX_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
     glPopMatrix();
 
     // rebind the default texture

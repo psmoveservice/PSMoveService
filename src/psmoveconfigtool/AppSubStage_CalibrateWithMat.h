@@ -37,21 +37,6 @@ struct PS3EYETrackerPoseContext
     }
 };
 
-struct HMDTrackerPoseContext
-{
-    PSMovePosition worldSpacePoints[k_mat_calibration_sample_count];
-    PSMoveQuaternion worldSpaceOrientations[k_mat_calibration_sample_count];
-    int worldSpaceSampleCount;
-
-    PSMovePosition avgHMDWorldSpacePoint;
-    PSMoveQuaternion avgHMDWorldSpaceOrientation;
-
-    void clear()
-    {
-        memset(this, 0, sizeof(HMDTrackerPoseContext));
-    }
-};
-
 class AppSubStage_CalibrateWithMat
 {
 public:
@@ -62,8 +47,6 @@ public:
         initial,
         calibrationStepPlacePSMove,
         calibrationStepRecordPSMove,
-        calibrationStepPlaceHMD,
-        calibrationStepRecordHMD,
         calibrationStepComputeTrackerPoses,
 
         calibrateStepSuccess,
@@ -95,9 +78,8 @@ private:
 
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
-    bool m_bForceHMDStable;
+    bool m_bForceControllerStable;
 
-    HMDTrackerPoseContext m_hmdTrackerPoseContext;
     PS3EYETrackerPoseContext m_psmoveTrackerPoseContexts[PSMOVESERVICE_MAX_TRACKER_COUNT];
 
     int m_sampleLocationIndex;

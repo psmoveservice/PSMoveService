@@ -149,6 +149,27 @@ Eigen::Vector3f psmove_float_vector3_to_eigen_vector3(const PSMoveFloatVector3 &
     return Eigen::Vector3f(v.i, v.j, v.k);
 }
 
+Eigen::Vector3f psmove_position_to_eigen_vector3(const PSMovePosition &p)
+{
+	return Eigen::Vector3f(p.x, p.y, p.z);
+}
+
+Eigen::Quaternionf psmove_quaternion_to_eigen_quaternionf(const PSMoveQuaternion &q)
+{
+    return Eigen::Quaternionf(q.w, q.x, q.y, q.z);
+}
+
+Eigen::Matrix3f psmove_matrix3x3_to_eigen_matrix3(const PSMoveMatrix3x3 &m)
+{
+	Eigen::Matrix3f result;
+
+	result << m.basis_x().i, m.basis_x().j, m.basis_x().k,
+		m.basis_y().i, m.basis_y().j, m.basis_y().k,
+		m.basis_z().i, m.basis_z().j, m.basis_z().k;
+
+	return result;
+}
+
 // Eigen types to GLM types
 glm::mat3 eigen_matrix3f_to_glm_mat3(const Eigen::Matrix3f &m)
 {
@@ -163,4 +184,15 @@ glm::mat4 eigen_matrix4f_to_glm_mat4(const Eigen::Matrix4f &m)
 glm::vec3 eigen_vector3f_to_glm_vec3(const Eigen::Vector3f &v)
 {
     return glm::vec3(v.x(), v.y(), v.z());
+}
+
+// Eigen types to PSMove types
+PSMovePosition eigen_vector3f_to_psmove_position(const Eigen::Vector3f &p)
+{
+	return PSMovePosition::create(p.x(), p.y(), p.z());
+}
+
+PSMoveFloatVector3 eigen_vector3f_to_psmove_float_vector3(const Eigen::Vector3f &v)
+{
+	return PSMoveFloatVector3::create(v.x(), v.y(), v.z());
 }

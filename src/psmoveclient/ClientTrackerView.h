@@ -57,6 +57,14 @@ struct CLIENTPSMOVEAPI ClientTrackerInfo
 
     // Camera Extrinsic properties
     PSMovePose tracker_pose;
+
+	inline PSMoveMatrix3x3 getTrackerIntrinsicMatrix() const
+	{
+		return PSMoveMatrix3x3::create(
+			PSMoveFloatVector3::create(tracker_focal_lengths.i, 0.f, tracker_principal_point.i),
+			PSMoveFloatVector3::create(0.f, tracker_focal_lengths.j, tracker_principal_point.j),
+			PSMoveFloatVector3::create(0.f, 0.f, 1.f));
+	}
 };
 
 class CLIENTPSMOVEAPI ClientTrackerView
@@ -125,10 +133,7 @@ public:
 
     inline PSMoveMatrix3x3 getTrackerIntrinsicMatrix() const
     {
-        return PSMoveMatrix3x3::create(
-            PSMoveFloatVector3::create(m_tracker_info.tracker_focal_lengths.i, 0.f, m_tracker_info.tracker_principal_point.i),
-            PSMoveFloatVector3::create(0.f, m_tracker_info.tracker_focal_lengths.j, m_tracker_info.tracker_principal_point.j),
-            PSMoveFloatVector3::create(0.f, 0.f, 1.f));
+		return m_tracker_info.getTrackerIntrinsicMatrix();
     }
 
     inline PSMovePose getTrackerPose() const

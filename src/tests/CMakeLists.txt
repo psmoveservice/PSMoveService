@@ -29,10 +29,14 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ELSE() #Linux
 ENDIF()
 
-IF(MSVC) # Disable asio auto linking in date-time and regex
+IF(MSVC) 
+# Disable asio auto linking in date-time and regex
 add_definitions(-DBOOST_DATE_TIME_NO_LIB)
 add_definitions(-DBOOST_REGEX_NO_LIB)
+# fix: fatal error C1128: number of sections exceeded object file format limit
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 ENDIF()
+
 
 #
 # TEST_CONFIGMANAGER
@@ -85,16 +89,15 @@ SET(TEST_CAMERA_SRC)
 SET(TEST_CAMERA_INCL_DIRS)
 SET(TEST_CAMERA_REQ_LIBS)
 
+# Boost
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic)
+list(APPEND TEST_CAMERA_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND TEST_CAMERA_REQ_LIBS ${Boost_LIBRARIES})
+
 # OpenCV
 set(OpenCV_STATIC ON)
+IF(NOT(${CMAKE_SYSTEM_NAME} MATCHES "Windows"))
 FIND_PACKAGE(OpenCV REQUIRED)
-IF ("${OpenCV_LIBS}" STREQUAL "")
-    message("OpenCV Libs was empty! Manually setting.")
-    list(APPEND OpenCV_LIBS opencv_core opencv_imgproc opencv_calib3d opencv_video opencv_features2d opencv_ml opencv_highgui opencv_objdetect)
-ENDIF()
-IF ("${OpenCV_INCLUDE_DIRS}" STREQUAL "" AND ${OpenCV_DIR})
-    message("OpenCV include dirs was empty! Manually setting.")
-    set (OpenCV_INCLUDE_DIRS ${OpenCV_DIR}\include)
 ENDIF()
 list(APPEND TEST_CAMERA_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
 list(APPEND TEST_CAMERA_REQ_LIBS ${OpenCV_LIBS})
@@ -150,6 +153,9 @@ list(APPEND TEST_CAMERA_SRC
 add_executable(test_camera ${CMAKE_CURRENT_LIST_DIR}/test_camera.cpp ${TEST_CAMERA_SRC})
 target_include_directories(test_camera PUBLIC ${TEST_CAMERA_INCL_DIRS})
 target_link_libraries(test_camera ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS})
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+add_dependencies(test_camera opencv)
+ENDIF()
 SET_TARGET_PROPERTIES(test_camera PROPERTIES FOLDER Test)
 
 IF(${ISWIN32})
@@ -206,7 +212,7 @@ ENDIF()
 
 # Boost
 # TODO: Eliminate boost::filesystem with C++14
-FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS chrono filesystem program_options system thread)
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
 list(APPEND TEST_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
 
@@ -227,6 +233,11 @@ list(APPEND TEST_CTRLR_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/PSMoveController)
 list(APPEND TEST_CTRLR_SRC    
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp    
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
     ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
     ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp
     ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.h
@@ -251,6 +262,92 @@ SET_TARGET_PROPERTIES(test_controller PROPERTIES FOLDER Test)
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     install(TARGETS test_controller
+        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+ELSE() #Linux/Darwin
+ENDIF()
+
+#
+# Set Controller DFU Mode
+#
+
+SET(DFU_CTRLR_SRC)
+SET(DFU_CTRLR_INCL_DIRS)
+SET(DFU_CTRLR_REQ_LIBS)
+
+# Dependencies
+
+# hidapi
+include_directories(${ROOT_DIR}/thirdparty/hidapi/hidapi)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/windows/hid.c)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)      
+ELSE()
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
+ENDIF()
+list(APPEND DFU_CTRLR_SRC ${HIDAPI_SRC})
+
+#Bluetooth
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    list(APPEND DFU_CTRLR_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
+ELSE()
+ENDIF()
+
+# Boost
+# TODO: Eliminate boost::filesystem with C++14
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
+list(APPEND DFU_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND DFU_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
+
+# Eigen math library
+list(APPEND DFU_CTRLR_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
+
+# PSMoveController
+# We are not including the PSMoveService target on purpose, because this only tests
+# a small part of the service and should not depend on the whole thing building.
+list(APPEND DFU_CTRLR_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/
+    ${ROOT_DIR}/src/psmoveservice/
+    ${ROOT_DIR}/src/psmoveservice/Server
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator
+    ${ROOT_DIR}/src/psmoveservice/Device/Interface
+    ${ROOT_DIR}/src/psmoveservice/Platform
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
+    ${ROOT_DIR}/src/psmoveservice/PSMoveController)
+list(APPEND DFU_CTRLR_SRC    
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp    
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
+    ${ROOT_DIR}/src/psmoveservice/PSMoveController/PSMoveController.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveController/PSMoveController.cpp)
+
+# psmoveprotocol
+list(APPEND DFU_CTRLR_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
+list(APPEND DFU_CTRLR_REQ_LIBS PSMoveProtocol)
+
+add_executable(set_controller_dfu_mode ${CMAKE_CURRENT_LIST_DIR}/set_controller_dfu_mode.cpp ${DFU_CTRLR_SRC})
+target_include_directories(set_controller_dfu_mode PUBLIC ${DFU_CTRLR_INCL_DIRS})
+target_link_libraries(set_controller_dfu_mode ${PLATFORM_LIBS} ${DFU_CTRLR_REQ_LIBS})
+SET_TARGET_PROPERTIES(set_controller_dfu_mode PROPERTIES FOLDER Test)
+
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    install(TARGETS set_controller_dfu_mode
         RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
         LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
         ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)

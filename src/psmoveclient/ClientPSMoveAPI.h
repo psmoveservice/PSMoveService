@@ -6,6 +6,7 @@
 #include "ClientConstants.h"
 #include "ClientLog.h"
 #include "ClientControllerView.h"
+#include "ClientHMDView.h"
 #include "ClientTrackerView.h"
 
 #ifdef HAS_PROTOCOL_ACCESS
@@ -15,7 +16,6 @@
 
 //-- pre-declarations -----
 class ClientControllerView;
-class ClientHMDView;
 
 //-- macros -----
 #ifdef HAS_PROTOCOL_ACCESS
@@ -36,13 +36,21 @@ public:
         INVALID_REQUEST_ID= -1
     };
 
-    enum eControllerDataStreamFlags
+    enum eDeviceDataStreamFlags
     {
         defaultStreamOptions = 0x00,
         includePositionData = 0x01,
         includePhysicsData = 0x02,
         includeRawSensorData = 0x04,
-        includeRawTrackerData = 0x08
+        includeCalibratedSensorData = 0x08,
+        includeRawTrackerData = 0x10
+    };    
+
+    enum eControllerRumbleChannel
+    {
+        channelAll,
+        channelLeft,
+        channelRight
     };
 
     // Service Events
@@ -58,6 +66,7 @@ public:
         opaqueServiceEvent, // Need to have protocol access to see what kind of event this is
         controllerListUpdated,
         trackerListUpdated,
+        hmdListUpdated
     };
 
     typedef const void *t_event_data_handle;
@@ -85,7 +94,7 @@ public:
         _responsePayloadType_Empty,
         _responsePayloadType_ControllerList,
         _responsePayloadType_TrackerList,
-        _responsePayloadType_HMDTrackingSpace,
+        _responsePayloadType_HMDList,
 
         _responsePayloadType_Count
     };
@@ -107,9 +116,11 @@ public:
         int count;
     };
 
-    struct ResponsePayload_HMDTrackingSpace
+    struct ResponsePayload_HMDList
     {
-        PSMovePose origin_pose;
+        int hmd_id[PSMOVESERVICE_MAX_HMD_COUNT];
+        ClientHMDView::eHMDViewType hmd_type[PSMOVESERVICE_MAX_HMD_COUNT];
+        int count;
     };
 
     struct ResponseMessage
@@ -136,7 +147,7 @@ public:
         {
             ResponsePayload_ControllerList controller_list;
             ResponsePayload_TrackerList tracker_list;
-            ResponsePayload_HMDTrackingSpace hmd_tracking_space;
+            ResponsePayload_HMDList hmd_list;
         } payload;
         eResponsePayloadType payload_type;
     };
@@ -186,7 +197,7 @@ public:
     static t_request_id start_controller_data_stream(ClientControllerView *view, unsigned int data_stream_flags);
     static t_request_id stop_controller_data_stream(ClientControllerView *view);
     static t_request_id set_led_tracking_color(ClientControllerView *view, PSMoveTrackingColorType tracking_color);
-    static t_request_id reset_pose(ClientControllerView *view);
+    static t_request_id reset_pose(ClientControllerView *view, const PSMoveQuaternion& q_pose);
 
     /// Tracker Methods
     static ClientTrackerView *allocate_tracker_view(const ClientTrackerInfo &trackerInfo);
@@ -195,8 +206,15 @@ public:
     static t_request_id get_tracker_list();
     static t_request_id start_tracker_data_stream(ClientTrackerView *view);
     static t_request_id stop_tracker_data_stream(ClientTrackerView *view);
-    static t_request_id get_hmd_tracking_space_settings();
+    
+    /// HMD Methods
+    static ClientHMDView *allocate_hmd_view(int HmdID);
+    static void free_hmd_view(ClientHMDView *view);    
 
+	static t_request_id get_hmd_list();
+    static t_request_id start_hmd_data_stream(ClientHMDView *view, unsigned int flags);
+    static t_request_id stop_hmd_data_stream(ClientHMDView *view);    
+    
     /// Used to send requests to the server by clients that have protocol access
     static t_request_id send_opaque_request(t_request_handle request_handle);
 

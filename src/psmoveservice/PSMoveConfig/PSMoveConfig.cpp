@@ -7,6 +7,20 @@
 
 #include <iostream>
 
+// Format: {hue center, hue range}, {sat center, sat range}, {val center, val range}
+// All hue angles are 60 degrees apart to maximize hue separation for 6 max tracked colors.
+// Hue angle reference: http://i.imgur.com/PKjgfFXm.jpg 
+// Hue angles divide by 2 for opencv which remaps hue range to [0,180]
+const CommonHSVColorRange g_default_color_presets[] = {
+    { { 300 / 2, 10 }, { 255, 32 }, { 255, 32 } }, // Magenta
+    { { 180 / 2, 10 }, { 255, 32 }, { 255, 32 } }, // Cyan
+    { { 60 / 2, 10 }, { 255, 32 }, { 255, 32 } }, // Yellow
+    { { 0, 10 }, { 255, 32 }, { 255, 32 } }, // Red
+    { { 120 / 2, 10 }, { 255, 32 }, { 255, 32 } }, // Green
+    { { 240 / 2, 10 }, { 255, 32 }, { 255, 32 } }, // Blue
+};
+const CommonHSVColorRange *k_default_color_presets = g_default_color_presets;
+
 PSMoveConfig::PSMoveConfig(const std::string &fnamebase)
 : ConfigFileBase(fnamebase)
 {
@@ -61,6 +75,104 @@ PSMoveConfig::load()
     return bLoadedOk;
 }
 
+void
+PSMoveConfig::writeColorPropertyPresetTable(
+	const CommonHSVColorRangeTable *table,
+    boost::property_tree::ptree &pt)
+{
+	const char *profile_name= table->table_name.c_str();
+
+    writeColorPreset(pt, profile_name, "magenta", &table->color_presets[eCommonTrackingColorID::Magenta]);
+    writeColorPreset(pt, profile_name, "cyan", &table->color_presets[eCommonTrackingColorID::Cyan]);
+    writeColorPreset(pt, profile_name, "yellow", &table->color_presets[eCommonTrackingColorID::Yellow]);
+    writeColorPreset(pt, profile_name, "red", &table->color_presets[eCommonTrackingColorID::Red]);
+    writeColorPreset(pt, profile_name, "green", &table->color_presets[eCommonTrackingColorID::Green]);
+    writeColorPreset(pt, profile_name, "blue", &table->color_presets[eCommonTrackingColorID::Blue]);
+}
+
+void
+PSMoveConfig::readColorPropertyPresetTable(
+	const boost::property_tree::ptree &pt,
+	CommonHSVColorRangeTable *table)
+{
+	const char *profile_name= table->table_name.c_str();
+
+    readColorPreset(pt, profile_name, "magenta", &table->color_presets[eCommonTrackingColorID::Magenta], &k_default_color_presets[eCommonTrackingColorID::Magenta]);
+    readColorPreset(pt, profile_name, "cyan", &table->color_presets[eCommonTrackingColorID::Cyan], &k_default_color_presets[eCommonTrackingColorID::Cyan]);
+    readColorPreset(pt, profile_name, "yellow", &table->color_presets[eCommonTrackingColorID::Yellow], &k_default_color_presets[eCommonTrackingColorID::Yellow]);
+    readColorPreset(pt, profile_name, "red", &table->color_presets[eCommonTrackingColorID::Red], &k_default_color_presets[eCommonTrackingColorID::Red]);
+    readColorPreset(pt, profile_name, "green", &table->color_presets[eCommonTrackingColorID::Green], &k_default_color_presets[eCommonTrackingColorID::Green]);
+    readColorPreset(pt, profile_name, "blue", &table->color_presets[eCommonTrackingColorID::Blue], &k_default_color_presets[eCommonTrackingColorID::Blue]);
+}
+
+void
+PSMoveConfig::writeTrackingColor(
+	boost::property_tree::ptree &pt,
+	int tracking_color_id)
+{
+	switch (tracking_color_id)
+	{
+	case eCommonTrackingColorID::INVALID_COLOR:
+		pt.put("tracking_color", "invalid");
+		break;
+	case eCommonTrackingColorID::Magenta:
+		pt.put("tracking_color", "magenta");
+		break;
+	case eCommonTrackingColorID::Cyan:
+		pt.put("tracking_color", "cyan");
+		break;
+	case eCommonTrackingColorID::Yellow:
+		pt.put("tracking_color", "yellow");
+		break;
+	case eCommonTrackingColorID::Red:
+		pt.put("tracking_color", "red");
+		break;
+	case eCommonTrackingColorID::Green:
+		pt.put("tracking_color", "green");
+		break;
+	case eCommonTrackingColorID::Blue:
+		pt.put("tracking_color", "blue");
+		break;
+	default:
+		assert(false && "unreachable");
+	}
+}
+
+int 
+PSMoveConfig::readTrackingColor(
+	const boost::property_tree::ptree &pt)
+{
+	std::string tracking_color_string = pt.get<std::string>("tracking_color", "invalid");
+	int tracking_color_id = eCommonTrackingColorID::INVALID_COLOR;
+
+	if (tracking_color_string == "magenta")
+	{
+		tracking_color_id = eCommonTrackingColorID::Magenta;
+	}
+	else if (tracking_color_string == "cyan")
+	{
+		tracking_color_id = eCommonTrackingColorID::Cyan;
+	}
+	else if (tracking_color_string == "yellow")
+	{
+		tracking_color_id = eCommonTrackingColorID::Yellow;
+	}
+	else if (tracking_color_string == "red")
+	{
+		tracking_color_id = eCommonTrackingColorID::Red;
+	}
+	else if (tracking_color_string == "green")
+	{
+		tracking_color_id = eCommonTrackingColorID::Green;
+	}
+	else if (tracking_color_string == "blue")
+	{
+		tracking_color_id = eCommonTrackingColorID::Blue;
+	}
+
+	return tracking_color_id;
+}
+
 static void
 writeColorPropertyPreset(
     boost::property_tree::ptree &pt,
@@ -98,7 +210,6 @@ PSMoveConfig::writeColorPreset(
     writeColorPropertyPreset(pt, profile_name, color_name, "value_center", colorPreset->value_range.center);
     writeColorPropertyPreset(pt, profile_name, color_name, "value_range", colorPreset->value_range.range);
 }
-
 
 static void
 readColorPropertyPreset(

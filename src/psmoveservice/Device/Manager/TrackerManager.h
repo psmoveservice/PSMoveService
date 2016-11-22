@@ -7,30 +7,27 @@
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
 #include "PSMoveConfig.h"
-#include "PSMoveProtocol.pb.h"
 
 //-- typedefs -----
 
 class ServerTrackerView;
 typedef std::shared_ptr<ServerTrackerView> ServerTrackerViewPtr;
 
-//-- constants -----
-extern const CommonHSVColorRange *k_default_color_presets;
-
 //-- definitions -----
 struct TrackerProfile
 {
     float exposure;
     float gain;
-    CommonHSVColorRange color_presets[eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES];
+    CommonHSVColorRangeTable color_preset_table;
 
     inline void clear()
     {
         exposure = 0.f;
         gain = 0;
+		color_preset_table.table_name.clear();
         for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
         {
-            color_presets[preset_index].clear();
+            color_preset_table.color_presets[preset_index].clear();
         }
     }
 };
@@ -46,7 +43,10 @@ public:
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
     long version;
-    CommonDevicePose hmd_tracking_origin_pose;
+    int optical_tracking_timeout;
+	int tracker_sleep_ms;
+	bool use_bgr_to_hsv_lookup_table;
+	bool exclude_opposed_cameras;
     TrackerProfile default_tracker_profile;
 };
 
@@ -78,17 +78,10 @@ public:
         return &cfg.default_tracker_profile; 
     }
 
-    inline void setHmdTrackingOriginPose(const CommonDevicePose &pose)
+    inline const TrackerManagerConfig& getConfig() const
     {
-        cfg.hmd_tracking_origin_pose= pose;
-        cfg.save();
+        return cfg;
     }
-
-    inline CommonDevicePose getHmdTrackingOriginPose()
-    {
-        return cfg.hmd_tracking_origin_pose;
-    }
-
 
 protected:
     bool can_update_connected_devices() override;
@@ -97,15 +90,9 @@ protected:
     DeviceEnumerator *allocate_device_enumerator() override;
     void free_device_enumerator(DeviceEnumerator *) override;
     ServerDeviceView *allocate_device_view(int device_id) override;
-
-    const PSMoveProtocol::Response_ResponseType getListUpdatedResponseType() override
-    {
-        return TrackerManager::k_list_udpated_response_type;
-    }
+	int getListUpdatedResponseType() override;
 
 private:
-    static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED;
-
     TrackerManagerConfig cfg;
     bool m_tracker_list_dirty;
 };

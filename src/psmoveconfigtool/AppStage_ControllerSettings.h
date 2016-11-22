@@ -11,21 +11,18 @@
 class AppStage_ControllerSettings : public AppStage
 {
 public:
-    enum eControllerType
-    {
-        PSMove,
-        PSNavi
-    };
-
     struct ControllerInfo
     {
         int ControllerID;
-        eControllerType ControllerType;
+		int FirmwareVersion;
+		int FirmwareRevision;
+        ClientControllerView::eControllerType ControllerType;
         PSMoveTrackingColorType TrackingColorType;
         std::string DevicePath;
         std::string DeviceSerial;
         std::string AssignedHostSerial;
         bool PairedToHost;
+		bool HasMagnetometer;
     };
 
     AppStage_ControllerSettings(class App *app);
@@ -56,6 +53,10 @@ protected:
     static void handle_controller_list_response(
         const ClientPSMoveAPI::ResponseMessage *response_message,
         void *userdata);
+
+	void request_set_controller_tracking_color_id(
+		int ControllerID,
+		PSMoveTrackingColorType tracking_color_type);
 
 private:
     enum eControllerMenuState

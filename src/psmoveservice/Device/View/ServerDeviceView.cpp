@@ -69,8 +69,10 @@ bool ServerDeviceView::poll()
                 if (m_pollNoDataCount > max_failure)
                 {
                     SERVER_LOG_INFO("ServerDeviceView::poll") <<
-                    "Device id " << getDeviceID() << " closing due to no data (" << max_failure << " failed poll attempts)";
-                    device->close();
+                        "Device id " << getDeviceID() << 
+                        " closing due to no data (" << max_failure << 
+                        " failed poll attempts)";
+                    close();
                     
                     bSuccessfullyUpdated= false;
                 }
@@ -80,7 +82,8 @@ bool ServerDeviceView::poll()
         case IDeviceInterface::_PollResultSuccessNewData:
             {
                 m_pollNoDataCount= 0;
-                
+                m_lastNewDataTimestamp= std::chrono::high_resolution_clock::now();
+
                 // If we got new sensor data, then we have new state to publish
                 markStateAsUnpublished();
 
@@ -91,8 +94,8 @@ bool ServerDeviceView::poll()
         case IDeviceInterface::_PollResultFailure:
             {
                 SERVER_LOG_INFO("ServerDeviceView::poll") <<
-                "Device id " << getDeviceID() << " closing due to failed read";
-                device->close();
+                    "Device id " << getDeviceID() << " closing due to failed read";
+                close();
                 
                 bSuccessfullyUpdated= false;
             }

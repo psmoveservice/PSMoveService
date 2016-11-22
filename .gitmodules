@@ -3,7 +3,7 @@
 	url = https://github.com/libusb/libusb.git
 [submodule "thirdparty/hidapi"]
 	path = thirdparty/hidapi
-	url = https://github.com/cboulay/hidapi.git
+	url = https://github.com/signal11/hidapi.git
 [submodule "thirdparty/PS3EYEDriver"]
 	path = thirdparty/PS3EYEDriver
 	url = https://github.com/inspirit/PS3EYEDriver.git

@@ -24,6 +24,9 @@ struct CLIENTPSMOVEAPI PSMoveFloatVector2
     PSMoveFloatVector2 safe_divide(const float s, const PSMoveFloatVector2 &default_result) const;
     PSMoveFloatVector2 safe_divide(const PSMoveFloatVector2 &v, const PSMoveFloatVector2 &default_result) const;
 
+    PSMoveFloatVector2 abs() const;
+    PSMoveFloatVector2 square() const;
+
     float length() const;
     float normalize_with_default(const PSMoveFloatVector2 &default_result);
 
@@ -53,6 +56,9 @@ struct CLIENTPSMOVEAPI PSMoveFloatVector3
     PSMoveFloatVector3 safe_divide(const float s, const PSMoveFloatVector3 &default_result) const;
     PSMoveFloatVector3 safe_divide(const PSMoveFloatVector3 &v, const PSMoveFloatVector3 &default_result) const;
     
+    PSMoveFloatVector3 abs() const;
+    PSMoveFloatVector3 square() const;
+
     float length() const;
     float normalize_with_default(const PSMoveFloatVector3 &default_result);
 
@@ -60,6 +66,7 @@ struct CLIENTPSMOVEAPI PSMoveFloatVector3
     float maxValue() const;
 
     static float dot(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
+	static PSMoveFloatVector3 cross(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
     static PSMoveFloatVector3 min(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
     static PSMoveFloatVector3 max(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
 };
@@ -81,6 +88,9 @@ struct CLIENTPSMOVEAPI PSMoveIntVector3
     PSMoveIntVector3 safe_divide(const int s, const PSMoveIntVector3 &default_result) const;
     PSMoveIntVector3 safe_divide(const PSMoveIntVector3 &v, const PSMoveIntVector3 &default_result) const;
 
+    PSMoveIntVector3 abs() const;
+    PSMoveIntVector3 square() const;
+
     int lengthSquared() const;
 
     int minValue() const;
@@ -97,8 +107,12 @@ struct CLIENTPSMOVEAPI PSMovePosition
     // psuedo-constructor to keep this a POD type
     static PSMovePosition create(float x, float y, float z);
 
+	static const PSMovePosition& identity();
+
     PSMoveFloatVector3 toPSMoveFloatVector3() const;
     PSMoveFloatVector3 operator - (const PSMovePosition &other) const;
+	PSMovePosition operator + (const PSMoveFloatVector3 &v) const;
+	PSMovePosition operator - (const PSMoveFloatVector3 &v) const;
     PSMovePosition operator * (const float s) const;
 };
 
@@ -121,10 +135,19 @@ struct CLIENTPSMOVEAPI PSMoveQuaternion
     // psuedo-constructor to keep this a POD type
     static PSMoveQuaternion create(float w, float x, float y, float z);
 
+	static PSMoveQuaternion create(const PSMoveFloatVector3 &eulerAngles);
+
+	static const PSMoveQuaternion& identity();
+
     PSMoveQuaternion operator + (const PSMoveQuaternion &other) const;
+	PSMoveQuaternion operator * (const PSMoveQuaternion &other) const;
 
     PSMoveQuaternion unsafe_divide(const float s) const;
     PSMoveQuaternion safe_divide(const float s, const PSMoveQuaternion &default_result) const;
+	PSMoveQuaternion inverse() const;
+	static PSMoveQuaternion concat(const PSMoveQuaternion &first, const PSMoveQuaternion &second);
+	PSMoveFloatVector3 rotate_vector(const PSMoveFloatVector3 &v) const;
+	PSMovePosition rotate_position(const PSMovePosition &v) const;
 
     float length() const;
     PSMoveQuaternion &normalize_with_default(const PSMoveQuaternion &default_result);
@@ -138,6 +161,7 @@ struct CLIENTPSMOVEAPI PSMoveMatrix3x3
         const PSMoveFloatVector3 &basis_x, 
         const PSMoveFloatVector3 &basis_y,
         const PSMoveFloatVector3 &basis_z);
+	static PSMoveMatrix3x3 create(const PSMoveQuaternion &q);
 
     PSMoveFloatVector3 basis_x() const;
     PSMoveFloatVector3 basis_y() const;
@@ -149,7 +173,15 @@ struct CLIENTPSMOVEAPI PSMovePose
     PSMovePosition Position;
     PSMoveQuaternion Orientation;
 
+	// psuedo-constructor to keep this a POD type
+	static PSMovePose create(const PSMovePosition& position, const PSMoveQuaternion& orientation);
+	static const PSMovePose& identity();
+
     void Clear();
+	PSMovePose inverse() const;
+	static PSMovePose concat(const PSMovePose &first, const PSMovePose &second);
+	PSMovePosition apply_transform(const PSMovePosition &p) const;
+	PSMovePosition apply_inverse_transform(const PSMovePosition &p) const;
 };
 
 struct CLIENTPSMOVEAPI PSMoveFrustum
@@ -168,7 +200,8 @@ struct CLIENTPSMOVEAPI PSMoveTrackingProjection
         INVALID_PROJECTION = -1,
 
         Ellipse,
-        Quad,
+        LightBar,
+		PointCloud,
 
         MAX_TRACKING_PROJECTION_TYPES
     };
@@ -182,8 +215,14 @@ struct CLIENTPSMOVEAPI PSMoveTrackingProjection
         } ellipse;
 
         struct {
-            PSMoveScreenLocation corners[4];
-        } quad;
+            PSMoveScreenLocation triangle[3];
+            PSMoveScreenLocation quad[4];
+        } lightbar;
+
+		struct {
+			PSMoveScreenLocation points[7];
+			int point_count;
+		} pointcloud;
     } shape;
 
     eShapeType shape_type;

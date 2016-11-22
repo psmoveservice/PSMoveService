@@ -53,18 +53,29 @@ public:
     double getGain() const;
     void setGain(double value);
     
-    bool computePositionForController(
-        class ServerControllerView* tracked_controller, 
-        CommonDevicePosition *out_position,
-        CommonDeviceTrackingProjection *out_projection_shape = nullptr);
+    bool computePoseForController(
+        const class ServerControllerView* tracked_controller, 
+        const CommonDevicePose *tracker_pose_guess,
+        struct ControllerOpticalPoseEstimation *out_pose_estimate);
+	bool computePoseForHMD(
+		const class ServerHMDView* tracked_hmd,
+		const CommonDevicePose *tracker_pose_guess,
+		struct HMDOpticalPoseEstimation *out_pose_estimate);
 
     CommonDeviceScreenLocation projectTrackerRelativePosition(const CommonDevicePosition *trackerRelativePosition) const;
     
     CommonDevicePosition computeWorldPosition(const CommonDevicePosition *tracker_relative_position);
+    CommonDeviceQuaternion computeWorldOrientation(const CommonDeviceQuaternion *tracker_relative_orientation);
 
+    /// Given screen locations on two different trackers, compute the triangulated world space location
     static CommonDevicePosition triangulateWorldPosition(
         const ServerTrackerView *tracker, const CommonDeviceScreenLocation *screen_location,
         const ServerTrackerView *other_tracker, const CommonDeviceScreenLocation *other_screen_location);
+
+    /// Given screen projections on two different trackers, compute the triangulated world space location
+    static CommonDevicePose triangulateWorldPose(
+        const ServerTrackerView *tracker, const CommonDeviceTrackingProjection *tracker_relative_projection,
+        const ServerTrackerView *other_tracker, const CommonDeviceTrackingProjection *other_tracker_relative_projection);
 
     void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
@@ -88,9 +99,14 @@ public:
     bool setOptionIndex(const std::string &option_name, int option_index);
     bool getOptionIndex(const std::string &option_name, int &out_option_index) const;
 
-    void gatherTrackingColorPresets(PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
-    void setTrackingColorPreset(eCommonTrackingColorID color, const CommonHSVColorRange *preset);
-    void getTrackingColorPreset(eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
+    void gatherTrackingColorPresets(const class ServerControllerView *controller, PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
+	void gatherTrackingColorPresets(const class ServerHMDView *hmd, PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
+
+    void setControllerTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, const CommonHSVColorRange *preset);
+    void getControllerTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
+
+	void setHMDTrackingColorPreset(const class ServerHMDView *controller, eCommonTrackingColorID color, const CommonHSVColorRange *preset);
+	void getHMDTrackingColorPreset(const class ServerHMDView *controller, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
 
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;

@@ -1,0 +1,9 @@
+-PS3EYE Camera-
+Created by InfinateXtremer
+
+-PSMove Controller-
+Created by InfinateXtremer
+
+-DS4 Controller-
+Original model extracted by andregm3
+Model Cleanup and texturing by InfinateXtremer

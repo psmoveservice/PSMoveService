@@ -3,6 +3,7 @@
 #include "BluetoothQueries.h"
 #include "ControllerDeviceEnumerator.h"
 #include "OrientationFilter.h"
+#include "PSMoveProtocol.pb.h"
 #include "ServerLog.h"
 #include "ServerControllerView.h"
 #include "ServerDeviceView.h"
@@ -71,7 +72,7 @@ ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
 
 		if (controllerView->getIsOpen() && controllerView->getIsBluetooth())
 		{
-			controllerView->updatePositionEstimation(tracker_manager);
+			controllerView->updateOpticalPoseEstimation(tracker_manager);
 			controllerView->updateStateAndPredict();
 		}
     }
@@ -95,28 +96,36 @@ ControllerManager::allocate_device_view(int device_id)
     return new ServerControllerView(device_id);
 }
 
+int ControllerManager::getListUpdatedResponseType()
+{
+	return PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;
+}
+
 void
-ControllerManager::setControllerRumble(int controller_id, int rumble_amount)
+ControllerManager::setControllerRumble(
+    int controller_id, 
+    float rumble_amount,
+    CommonControllerState::RumbleChannel channel)
 {
     if (ServerUtility::is_index_valid(controller_id, k_max_devices))
     {
-        getControllerViewPtr(controller_id)->setControllerRumble(rumble_amount);
+        getControllerViewPtr(controller_id)->setControllerRumble(rumble_amount, channel);
     }
 }
 
 bool
-ControllerManager::resetPose(int controller_id)
+ControllerManager::resetPose(int controller_id, const Eigen::Quaternionf& q_pose)
 {
     bool bSuccess = false;
     ServerControllerViewPtr ControllerPtr = getControllerViewPtr(controller_id);
 
     if (ControllerPtr)
     {
-        OrientationFilter *filter = ControllerPtr->getOrientationFilter();
+        OrientationFilter *filter = ControllerPtr->getOrientationFilterMutable();
 
         if (filter != nullptr)
         {
-            filter->resetOrientation();
+            filter->resetOrientation(q_pose);
             bSuccess = true;
         }
     }
@@ -144,20 +153,20 @@ ControllerManager::allocateTrackingColorID()
 }
 
 void 
-ControllerManager::claimTrackingColorID(eCommonTrackingColorID color_id)
+ControllerManager::claimTrackingColorID(const ServerControllerView *claiming_controller_view, eCommonTrackingColorID color_id)
 {
     bool bColorWasInUse = false;
 
     // If any other controller has this tracking color, make them pick a new color
     for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
     {
-        ServerControllerViewPtr device = getControllerViewPtr(device_id);
+        ServerControllerViewPtr controller_view = getControllerViewPtr(device_id);
 
-        if (device->getIsOpen())
+        if (controller_view->getIsOpen() && controller_view.get() != claiming_controller_view)
         {
-            if (device->getTrackingColorID() == color_id)
+            if (controller_view->getTrackingColorID() == color_id)
             {
-                device->setTrackingColorID(allocateTrackingColorID());
+                controller_view->setTrackingColorID(allocateTrackingColorID());
                 bColorWasInUse = true;
                 break;
             }

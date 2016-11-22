@@ -54,8 +54,8 @@ AppStage_MagnetometerCalibration::AppStage_MagnetometerCalibration(App *app)
     , m_controllerView(nullptr)
     , m_isControllerStreamActive(false)
     , m_lastControllerSeqNum(-1)
-    , m_lastMagnetometer()
-    , m_lastAccelerometer()
+    , m_lastRawMagnetometer()
+    , m_lastCalibratedAccelerometer()
     , m_alignedSamples(new MagnetometerAlignedSamples)
     , m_sampleCount(0)
     , m_samplePercentage(0)
@@ -67,6 +67,8 @@ AppStage_MagnetometerCalibration::AppStage_MagnetometerCalibration(App *app)
     , m_led_color_b(0)
     , m_stableStartTime()
     , m_bIsStable(false)
+	, m_resetPoseButtonPressTime()
+	, m_bResetPoseRequestSent(false)
     , m_identityPoseMVectorSum()
     , m_identityPoseSampleCount(0)
 { 
@@ -93,8 +95,8 @@ void AppStage_MagnetometerCalibration::enter()
     assert(m_controllerView == nullptr);
     m_controllerView= ClientPSMoveAPI::allocate_controller_view(controllerInfo->ControllerID);
 
-    m_lastMagnetometer= *k_psmove_int_vector3_zero;
-    m_lastAccelerometer= *k_psmove_float_vector3_zero;
+    m_lastRawMagnetometer= *k_psmove_int_vector3_zero;
+    m_lastCalibratedAccelerometer= *k_psmove_float_vector3_zero;
 
     m_sampleCount = 0;
     m_samplePercentage = 0;
@@ -117,7 +119,9 @@ void AppStage_MagnetometerCalibration::enter()
     m_lastControllerSeqNum= -1;
 
     ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::start_controller_data_stream(m_controllerView, ClientPSMoveAPI::includeRawSensorData),
+        ClientPSMoveAPI::start_controller_data_stream(
+            m_controllerView, 
+            ClientPSMoveAPI::includeRawSensorData | ClientPSMoveAPI::includeCalibratedSensorData),
         &AppStage_MagnetometerCalibration::handle_acquire_controller, this);
 }
 
@@ -138,10 +142,11 @@ void AppStage_MagnetometerCalibration::update()
 
     if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
     {
-        const PSMoveRawSensorData &sensorData= m_controllerView->GetPSMoveView().GetRawSensorData();
+        const PSMoveRawSensorData &rawSensorData= m_controllerView->GetPSMoveView().GetRawSensorData();
+        const PSMoveCalibratedSensorData &calibratedSensorData = m_controllerView->GetPSMoveView().GetCalibratedSensorData();
 
-        m_lastMagnetometer= sensorData.Magnetometer;
-        m_lastAccelerometer= sensorData.Accelerometer;
+        m_lastRawMagnetometer = rawSensorData.Magnetometer;
+        m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
         m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
         bControllerDataUpdatedThisFrame= true;
     }
@@ -187,13 +192,13 @@ void AppStage_MagnetometerCalibration::update()
             if (bControllerDataUpdatedThisFrame && m_sampleCount < k_max_magnetometer_samples)
             {
                 // Grow the measurement extents bounding box
-                expandMagnetometerBounds(m_lastMagnetometer, m_minSampleExtent, m_maxSampleExtent);
+                expandMagnetometerBounds(m_lastRawMagnetometer, m_minSampleExtent, m_maxSampleExtent);
 
                 // Make sure this sample isn't too close to another sample
                 bool bTooClose= false;
                 for (int sampleIndex= m_sampleCount-1; sampleIndex >= 0; --sampleIndex)
                 {
-                    const PSMoveIntVector3 diff= m_lastMagnetometer - m_magnetometerIntSamples[sampleIndex];
+                    const PSMoveIntVector3 diff= m_lastRawMagnetometer - m_magnetometerIntSamples[sampleIndex];
                     const int distanceSquared= diff.lengthSquared();
 
                     if (distanceSquared < k_min_sample_distance_sq)
@@ -207,8 +212,8 @@ void AppStage_MagnetometerCalibration::update()
                 if (!bTooClose)
                 {
                     // Store the new sample
-                    m_magnetometerIntSamples[m_sampleCount]= m_lastMagnetometer;
-                    m_alignedSamples->magnetometerEigenSamples[m_sampleCount] = psmove_int_vector3_to_eigen_vector3(m_lastMagnetometer);
+                    m_magnetometerIntSamples[m_sampleCount]= m_lastRawMagnetometer;
+                    m_alignedSamples->magnetometerEigenSamples[m_sampleCount] = psmove_int_vector3_to_eigen_vector3(m_lastRawMagnetometer);
                     ++m_sampleCount;
 
                     // Compute a best fit ellipsoid for the sample points
@@ -287,7 +292,7 @@ void AppStage_MagnetometerCalibration::update()
             {
                 if (bControllerDataUpdatedThisFrame)
                 {
-                    m_identityPoseMVectorSum = m_identityPoseMVectorSum + m_lastMagnetometer;
+                    m_identityPoseMVectorSum = m_identityPoseMVectorSum + m_lastRawMagnetometer;
                     ++m_identityPoseSampleCount;
 
                     if (m_identityPoseSampleCount > k_desired_magnetometer_sample_count)
@@ -309,10 +314,10 @@ void AppStage_MagnetometerCalibration::update()
                         // Tell the psmove service about the new magnetometer settings
                         {                            
                             RequestPtr request(new PSMoveProtocol::Request());
-                            request->set_type(PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION);
+                            request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_MAGNETOMETER_CALIBRATION);
 
-                            PSMoveProtocol::Request_RequestSetMagnetometerCalibration *calibration=
-                                request->mutable_set_magnetometer_calibration_request();
+                            PSMoveProtocol::Request_RequestSetControllerMagnetometerCalibration *calibration=
+                                request->mutable_set_controller_magnetometer_calibration_request();
 
                             calibration->set_controller_id(m_controllerView->GetControllerID());
 
@@ -349,6 +354,37 @@ void AppStage_MagnetometerCalibration::update()
         } break;
     case eCalibrationMenuState::complete:
         {
+			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
+			{
+				PSMoveButtonState resetPoseButtonState = m_controllerView->GetPSMoveView().GetButtonSelect();
+
+				switch (resetPoseButtonState)
+				{
+				case PSMoveButtonState::PSMoveButton_PRESSED:
+					{
+						m_resetPoseButtonPressTime = std::chrono::high_resolution_clock::now();
+					} break;
+				case PSMoveButtonState::PSMoveButton_DOWN:
+					{
+						if (!m_bResetPoseRequestSent)
+						{
+							const float k_hold_duration_milli = 250.f;
+							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+							std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetPoseButtonPressTime;
+
+							if (pressDurationMilli.count() >= k_hold_duration_milli)
+							{
+								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView, PSMoveQuaternion::identity()));
+								m_bResetPoseRequestSent = true;
+							}
+						}
+					} break;
+				case PSMoveButtonState::PSMoveButton_RELEASED:
+					{
+						m_bResetPoseRequestSent = false;
+					} break;
+				}
+			}
         } break;
     case eCalibrationMenuState::pendingExit:
         {
@@ -435,7 +471,7 @@ void AppStage_MagnetometerCalibration::render()
             // Draw the current magnetometer direction
             {
                 glm::vec3 m_start= boxCenter;
-                glm::vec3 m_end= psmove_float_vector3_to_glm_vec3(m_lastMagnetometer.castToFloatVector3());
+                glm::vec3 m_end= psmove_float_vector3_to_glm_vec3(m_lastRawMagnetometer.castToFloatVector3());
 
                 drawArrow(recenterMatrix, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
                 drawTextAtWorldPosition(recenterMatrix, m_end, "M");
@@ -450,7 +486,7 @@ void AppStage_MagnetometerCalibration::render()
                 const float renderScale = 200.f;
                 glm::mat4 renderScaleMatrix = 
                     glm::scale(glm::mat4(1.f), glm::vec3(renderScale, renderScale, renderScale));
-                glm::vec3 g= psmove_float_vector3_to_glm_vec3(m_lastAccelerometer);
+                glm::vec3 g= psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
 
                 drawArrow(
                     renderScaleMatrix,
@@ -467,7 +503,7 @@ void AppStage_MagnetometerCalibration::render()
             // Draw the current magnetometer direction
             {
                 glm::vec3 m_start = boxCenter;
-                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastMagnetometer.castToFloatVector3());
+                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastRawMagnetometer.castToFloatVector3());
 
                 drawArrow(recenterMatrix, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
                 drawTextAtWorldPosition(recenterMatrix, m_end, "M");
@@ -571,7 +607,7 @@ void AppStage_MagnetometerCalibration::renderUI()
         {
             {
                 ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-                ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
+                ImGui::SetNextWindowSize(ImVec2(k_panel_width, 150));
                 ImGui::Begin(k_window_title, nullptr, window_flags);
 
                 if (m_sampleCount < k_max_magnetometer_samples)
@@ -587,15 +623,17 @@ void AppStage_MagnetometerCalibration::renderUI()
                         "Calibrating Controller ID #%d\n" \
                         "[Step 1 of 2: Measuring extents of the magnetometer - Complete!]\n" \
                         "Press OK to continue", m_controllerView->GetControllerID());
-
-
                 }
+
+				ImGui::Text("Magnetometer: Seq(%d) Raw Sensor(%d,%d,%d)",
+					m_lastControllerSeqNum,
+					m_lastRawMagnetometer.i, m_lastRawMagnetometer.j, m_lastRawMagnetometer.k);
 
                 if (m_samplePercentage < 100)
                 {
                     ImGui::ProgressBar(static_cast<float>(m_samplePercentage) / 100.f, ImVec2(250, 20));
 
-                    if ((m_samplePercentage > 60) && ImGui::Button("Force Accept"))
+                    if (ImGui::Button("Force Accept"))
                     {
                         m_controllerView->GetPSMoveViewMutable().SetLEDOverride(0, 0, 0);
                         m_menuState = waitForGravityAlignment;
@@ -734,7 +772,7 @@ void AppStage_MagnetometerCalibration::renderUI()
     case eCalibrationMenuState::complete:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 80));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 120));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             if (m_bBypassCalibration)
@@ -745,6 +783,10 @@ void AppStage_MagnetometerCalibration::renderUI()
             {
                 ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
             }
+
+			ImGui::TextWrapped(
+				"[Hold the Select button with controller pointed forward\n" \
+				"to recenter the controller]");
 
             if (ImGui::Button("Ok"))
             {

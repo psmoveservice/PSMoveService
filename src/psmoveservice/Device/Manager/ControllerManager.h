@@ -6,6 +6,7 @@
 #include "DeviceTypeManager.h"
 #include "PSMoveProtocol.pb.h"
 #include "TrackerManager.h"
+#include "MathEigen.h"
 
 #include <memory>
 #include <deque>
@@ -41,22 +42,18 @@ public:
 
     ServerControllerViewPtr getControllerViewPtr(int device_id);
 
-    void setControllerRumble(int controller_id, int rumble_amount);
-    bool resetPose(int controller_id);
+    void setControllerRumble(int controller_id, float rumble_amount, CommonControllerState::RumbleChannel channel);
+    bool resetPose(int controller_id, const Eigen::Quaternionf& q_pose);
 
     eCommonTrackingColorID allocateTrackingColorID();
-    void claimTrackingColorID(eCommonTrackingColorID color_id);
+    void claimTrackingColorID(const ServerControllerView *controller_view, eCommonTrackingColorID color_id);
     void freeTrackingColorID(eCommonTrackingColorID color_id);
 
 protected:
     class DeviceEnumerator *allocate_device_enumerator() override;
     void free_device_enumerator(class DeviceEnumerator *) override;
     ServerDeviceView *allocate_device_view(int device_id) override;
-
-    const PSMoveProtocol::Response_ResponseType getListUpdatedResponseType() override
-    {
-        return ControllerManager::k_list_udpated_response_type;
-    }
+	int getListUpdatedResponseType() override;
 
 private:
     static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;

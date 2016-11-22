@@ -5,6 +5,8 @@
 #include "AppStage.h"
 #include "ClientPSMoveAPI.h"
 
+#include <vector>
+
 //-- definitions -----
 class AppStage_TestHMD : public AppStage
 {
@@ -21,7 +23,13 @@ public:
     static const char *APP_STAGE_NAME;
 
 protected:
+    static void handle_hmd_start_stream_response(
+		const ClientPSMoveAPI::ResponseMessage *response,
+		void *userdata);
     void request_exit_to_app_stage(const char *app_stage_name);
+    static void handle_hmd_stop_stream_response(
+		const ClientPSMoveAPI::ResponseMessage *response,
+		void *userdata);
 
 private:
     enum eHmdMenuState
@@ -31,11 +39,16 @@ private:
 
         pendingHmdStartStreamRequest,
         failedHmdStartStreamRequest,
+
+        pendingHmdStopStreamRequest,
+        failedHmdStopStreamRequest,
     };
 
     eHmdMenuState m_menuState;
-    class ClientHMDView *m_hmdView;
-    PSMoveVolume m_hmdVolume;
+    const char *m_pendingAppStage;
+
+    ClientHMDView *m_hmdView;
+    bool m_isHmdStreamActive;
     int m_lastHmdSeqNum;
 };
 

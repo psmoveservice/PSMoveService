@@ -405,6 +405,8 @@ protected:
                 
                 eye->setAutogain(false);
                 eye->setAutoWhiteBalance(false);
+
+				eye->setFlip(true, false);
                 
                 m_index = _index;
                 refreshDimensions();

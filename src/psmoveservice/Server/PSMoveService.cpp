@@ -6,6 +6,7 @@
 #include "ServerRequestHandler.h"
 #include "DeviceManager.h"
 #include "ServerLog.h"
+#include "TrackerManager.h"
 
 #include <boost/asio.hpp>
 #include <boost/application.hpp>
@@ -13,14 +14,14 @@
 #include <fstream>
 #include <cstdio>
 #include <string>
+#include <chrono>
+#include <thread>
 #include <signal.h>
 
 // provide setup example for windows service   
 #if defined(BOOST_WINDOWS_API)      
 #include "setup/windows/setup/service_setup.hpp"
 #endif // defined(BOOST_WINDOWS_API)
-
-using namespace boost;
 
 //-- constants -----
 #if defined(BOOST_POSIX_API)
@@ -52,7 +53,7 @@ public:
     }
 
     /// Entry point into boost::application
-    int operator()(application::context& context)
+    int operator()(boost::application::context& context)
     {
         BOOST_APPLICATION_FEATURE_SELECT
 
@@ -61,16 +62,18 @@ public:
         {
             if (startup())
             {
-                m_status = context.find<application::status>();
+                m_status = context.find<boost::application::status>();
 
-                while (m_status->state() != application::status::stoped)
+				const TrackerManagerConfig &cfg = DeviceManager::getInstance()->m_tracker_manager->getConfig();
+
+                while (m_status->state() != boost::application::status::stoped)
                 {
-                    if (m_status->state() != application::status::paused)
+                    if (m_status->state() != boost::application::status::paused)
                     {
                         update();
                     }
 
-                    boost::this_thread::sleep(boost::posix_time::milliseconds(1));
+					std::this_thread::sleep_for(std::chrono::milliseconds(cfg.tracker_sleep_ms));
                 }
             }
             else
@@ -96,34 +99,34 @@ public:
         return 0;
     }
     
-    bool stop(application::context& context)
+    bool stop(boost::application::context& context)
     {
-        if (m_status->state() != application::status::stoped)
+        if (m_status->state() != boost::application::status::stoped)
         {
             SERVER_LOG_WARNING("PSMoveService") << "Received stop request. Stopping Service.";
-            m_status->state(application::status::stoped);
+            m_status->state(boost::application::status::stoped);
         }
 
         return true;
     }
 
-    bool pause(application::context& context)
+    bool pause(boost::application::context& context)
     {
-        if (m_status->state() == application::status::running)
+        if (m_status->state() == boost::application::status::running)
         {
             SERVER_LOG_WARNING("PSMoveService") << "Received pause request. Pausing Service.";
-            m_status->state(application::status::paused);
+            m_status->state(boost::application::status::paused);
         }
 
         return true;
     }
 
-    bool resume(application::context& context)
+    bool resume(boost::application::context& context)
     {
-        if (m_status->state() == application::status::paused)
+        if (m_status->state() == boost::application::status::paused)
         {
             SERVER_LOG_WARNING("PSMoveService") << "Received resume request. Resuming Service.";
-            m_status->state(application::status::running);
+            m_status->state(boost::application::status::running);
         }
 
         return true;
@@ -200,7 +203,7 @@ private:
     {
         // flag the service as stopped
         SERVER_LOG_WARNING("PSMoveService") << "Received termination signal. Stopping Service.";
-        m_status->state(application::status::stoped);
+        m_status->state(boost::application::status::stoped);
     }
 
 private:   
@@ -220,11 +223,11 @@ private:
     ServerNetworkManager m_network_manager;
 
     // Whether the application should keep running or not
-    std::shared_ptr<application::status> m_status;
+    std::shared_ptr<boost::application::status> m_status;
 };
 
 static void parse_program_settings(
-    const program_options::variables_map &options_map,
+    const boost::program_options::variables_map &options_map,
     PSMoveService::ProgramSettings &settings)
 {
     if (options_map.count("log_level"))
@@ -248,7 +251,7 @@ static void parse_program_settings(
 
 #if defined(BOOST_WINDOWS_API) 
 bool win32_service_management_action(
-    const program_options::variables_map &options_map)
+    const boost::program_options::variables_map &options_map)
 {
     HMODULE hModule = GetModuleHandleW(NULL);
     CHAR path[MAX_PATH];
@@ -271,14 +274,14 @@ bool win32_service_management_action(
         }
 
         boost::system::error_code ec;
-        application::example::install_windows_service(
-            application::setup_arg(options_map["name"].as<std::string>()), 
-            application::setup_arg(options_map["display"].as<std::string>()), 
-            application::setup_arg(options_map["description"].as<std::string>()), 
-            application::setup_arg(exe_full_path),
-            application::setup_arg(std::string("")), // username
-            application::setup_arg(std::string("")), // password
-            application::setup_arg(service_options)).install(ec);
+		boost::application::example::install_windows_service(
+            boost::application::setup_arg(options_map["name"].as<std::string>()), 
+            boost::application::setup_arg(options_map["display"].as<std::string>()), 
+            boost::application::setup_arg(options_map["description"].as<std::string>()), 
+            boost::application::setup_arg(exe_full_path),
+            boost::application::setup_arg(std::string("")), // username
+            boost::application::setup_arg(std::string("")), // password
+            boost::application::setup_arg(service_options)).install(ec);
 
         std::cout << ec.message() << std::endl;
 
@@ -288,9 +291,9 @@ bool win32_service_management_action(
     else if (options_map.count("-u")) 
     {
         boost::system::error_code ec;
-        application::example::uninstall_windows_service(
-            application::setup_arg(options_map["name"].as<std::string>()), 
-            application::setup_arg(exe_full_path)).uninstall(ec);
+		boost::application::example::uninstall_windows_service(
+			boost::application::setup_arg(options_map["name"].as<std::string>()),
+			boost::application::setup_arg(exe_full_path)).uninstall(ec);
 
         std::cout << ec.message() << std::endl;
 
@@ -301,8 +304,8 @@ bool win32_service_management_action(
     {
         boost::system::error_code ec;
         bool exist =
-            application::example::check_windows_service(
-                application::setup_arg(options_map["name"].as<std::string>())).exist(ec);
+			boost::application::example::check_windows_service(
+				boost::application::setup_arg(options_map["name"].as<std::string>())).exist(ec);
 
         if(ec)
         {
@@ -434,8 +437,8 @@ int PSMoveService::exec(int argc, char *argv[])
     BOOST_APPLICATION_FEATURE_SELECT
 
     // Parse service options
-    program_options::variables_map options_map;
-    program_options::options_description desc;
+	boost::program_options::variables_map options_map;
+	boost::program_options::options_description desc;
 
     // Extract the executable name
     std::string exe_name = boost::filesystem::path(argv[0]).stem().string();
@@ -444,15 +447,15 @@ int PSMoveService::exec(int argc, char *argv[])
     desc.add_options()
         ("help,h", "Shows help.")
         (",d", "Run as background daemon/service")
-        ("log_level,l", program_options::value<std::string>(), "The level of logging to use: trace, debug, info, warning, error, fatal")
-        ("admin_password,p", program_options::value<std::string>(), "Remember the admin password for this machine (optional)")
+        ("log_level,l", boost::program_options::value<std::string>(), "The level of logging to use: trace, debug, info, warning, error, fatal")
+        ("admin_password,p", boost::program_options::value<std::string>(), "Remember the admin password for this machine (optional)")
 #if defined(BOOST_WINDOWS_API)
         (",i", "install service")
         (",u", "uninstall service")
         (",c", "check service")
-        ("name", program_options::value<std::string>()->default_value(exe_name), "service name")
-        ("display", program_options::value<std::string>()->default_value("PSMove Service"), "service display name (optional, installation only)")
-        ("description", program_options::value<std::string>()->default_value("Manages PSMove controller and broadcasts state to clients"), "service description (optional, installation only)")
+        ("name", boost::program_options::value<std::string>()->default_value(exe_name), "service name")
+        ("display", boost::program_options::value<std::string>()->default_value("PSMove Service"), "service display name (optional, installation only)")
+        ("description", boost::program_options::value<std::string>()->default_value("Manages PSMove controller and broadcasts state to clients"), "service description (optional, installation only)")
 #endif // defined(BOOST_WINDOWS_API) 
         ;
 
@@ -460,7 +463,7 @@ int PSMoveService::exec(int argc, char *argv[])
     try
     {
         // Validate the command line against the arguments description
-        program_options::store(program_options::parse_command_line(argc, argv, desc), options_map);
+		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), options_map);
         
         // Extract the options that should be stored in the program settings
         parse_program_settings(options_map, this->m_settings);
@@ -497,56 +500,56 @@ int PSMoveService::exec(int argc, char *argv[])
     #endif // defined(BOOST_POSIX_API)
 
     // initialize logging system
-    log_init(this->getProgramSettings()->log_level);
+    log_init(this->getProgramSettings()->log_level, "PSMoveService.log");
 
     // Start the service app
     SERVER_LOG_INFO("main") << "Starting PSMoveService";
     try
     {
         PSMoveServiceImpl app;
-        application::context app_context;
+		boost::application::context app_context;
         
         // service aspects
-        app_context.insert<application::path>(
-            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<application::path_default_behaviour>(argc, argv));
+        app_context.insert<boost::application::path>(
+            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<boost::application::path_default_behaviour>(argc, argv));
 
-        app_context.insert<application::args>(
-            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<application::args>(argc, argv));
+        app_context.insert<boost::application::args>(
+            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<boost::application::args>(argc, argv));
         
         // add termination handler
-        application::handler<>::parameter_callback termination_callback
+		boost::application::handler<>::parameter_callback termination_callback
             = boost::bind<bool>(&PSMoveServiceImpl::stop, &app, _1);
 
-        app_context.insert<application::termination_handler>(
-            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<application::termination_handler_default_behaviour>(termination_callback));
+        app_context.insert<boost::application::termination_handler>(
+            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<boost::application::termination_handler_default_behaviour>(termination_callback));
 
         // To  "pause/resume" works, is required to add the 2 handlers.
 #if defined(BOOST_WINDOWS_API) 
         // windows only : add pause handler     
-        application::handler<>::parameter_callback pause_callback
+		boost::application::handler<>::parameter_callback pause_callback
             = boost::bind<bool>(&PSMoveServiceImpl::pause, &app, _1);
 
-        app_context.insert<application::pause_handler>(
-            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<application::pause_handler_default_behaviour>(pause_callback));
+        app_context.insert<boost::application::pause_handler>(
+            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<boost::application::pause_handler_default_behaviour>(pause_callback));
 
         // windows only : add resume handler
-        application::handler<>::parameter_callback resume_callback
+		boost::application::handler<>::parameter_callback resume_callback
             = boost::bind<bool>(&PSMoveServiceImpl::resume, &app, _1);
 
-        app_context.insert<application::resume_handler>(
-            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<application::resume_handler_default_behaviour>(resume_callback));
+        app_context.insert<boost::application::resume_handler>(
+            BOOST_APPLICATION_FEATURE_NS_SELECT::make_shared<boost::application::resume_handler_default_behaviour>(resume_callback));
 #endif // defined(BOOST_WINDOWS_API) 
 
         // my common/server instantiation
 #if defined(BOOST_WINDOWS_API)
         if (options_map.count("-d"))
         {
-            return application::launch<application::server>(app, app_context);
+            return boost::application::launch<boost::application::server>(app, app_context);
         }
         else
 #endif // defined(BOOST_WINDOWS_API)
         {
-            return application::launch<application::common>(app, app_context);
+            return boost::application::launch<boost::application::common>(app, app_context);
         }
     }
     catch (boost::system::system_error& se)
@@ -566,6 +569,8 @@ int PSMoveService::exec(int argc, char *argv[])
     }
 
     SERVER_LOG_INFO("main") << "Exiting PSMoveService";
+
+	log_dispose();
 
     return 0;
 }

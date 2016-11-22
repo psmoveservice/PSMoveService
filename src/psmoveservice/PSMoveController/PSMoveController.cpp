@@ -39,12 +39,15 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "ServerLog.h"
 #include "ServerUtility.h"
 #include "BluetoothQueries.h"
+#include "MathAlignment.h"
 #include <iostream>
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
 #include <vector>
 #include <cstdlib>
+#include <chrono>
+#include <thread>
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #endif
@@ -111,20 +114,6 @@ enum PSMoveButton {
     Btn_PS = 1 << 16,		// PS button, front center
     Btn_MOVE = 1 << 19,		// Move button, big front button
     Btn_T = 1 << 20,		// Trigger, on the back
-
-#if 0
-    /* Not used for now - only on Sixaxis/DS3 or nav controller */
-    Btn_L2 = 1 << 0x00,
-    Btn_R2 = 1 << 0x01,
-    Btn_L1 = 1 << 0x02,
-    Btn_R1 = 1 << 0x03,
-    Btn_L3 = 1 << 0x09,
-    Btn_R3 = 1 << 0x0A,
-    Btn_UP = 1 << 0x0C,
-    Btn_RIGHT = 1 << 0x0D,
-    Btn_DOWN = 1 << 0x0E,
-    Btn_LEFT = 1 << 0x0F,
-#endif
 };
 
 // -- private definitions -----
@@ -210,6 +199,10 @@ PSMoveControllerConfig::config2ptree()
     pt.put("is_valid", is_valid);
     pt.put("version", PSMoveControllerConfig::CONFIG_VERSION);
 
+	pt.put("firmware_version", firmware_version);
+	pt.put("bt_firmware_version", bt_firmware_version);
+	pt.put("firmware_revision", firmware_revision);
+
     pt.put("prediction_time", prediction_time);
     pt.put("max_poll_failure_count", max_poll_failure_count);
     
@@ -219,6 +212,9 @@ PSMoveControllerConfig::config2ptree()
     pt.put("Calibration.Accel.Y.b", cal_ag_xyz_kb[0][1][1]);
     pt.put("Calibration.Accel.Z.k", cal_ag_xyz_kb[0][2][0]);
     pt.put("Calibration.Accel.Z.b", cal_ag_xyz_kb[0][2][1]);
+
+    pt.put("Calibration.Accel.NoiseRadius", accelerometer_noise_radius);
+
     pt.put("Calibration.Gyro.X.k", cal_ag_xyz_kb[1][0][0]);
     pt.put("Calibration.Gyro.X.b", cal_ag_xyz_kb[1][0][1]);
     pt.put("Calibration.Gyro.Y.k", cal_ag_xyz_kb[1][1][0]);
@@ -226,29 +222,40 @@ PSMoveControllerConfig::config2ptree()
     pt.put("Calibration.Gyro.Z.k", cal_ag_xyz_kb[1][2][0]);
     pt.put("Calibration.Gyro.Z.b", cal_ag_xyz_kb[1][2][1]);
 
-    pt.put("Calibration.Magnetometer.Center.X", magnetometer_ellipsoid.center.x());
-    pt.put("Calibration.Magnetometer.Center.Y", magnetometer_ellipsoid.center.y());
-    pt.put("Calibration.Magnetometer.Center.Z", magnetometer_ellipsoid.center.z());
+    pt.put("Calibration.Gyro.Variance", gyro_variance);
+    pt.put("Calibration.Gyro.Drift", gyro_drift);
 
-    pt.put("Calibration.Magnetometer.BasisX.X", magnetometer_ellipsoid.basis.col(0).x());
-    pt.put("Calibration.Magnetometer.BasisX.Y", magnetometer_ellipsoid.basis.col(0).y());
-    pt.put("Calibration.Magnetometer.BasisX.Z", magnetometer_ellipsoid.basis.col(0).z());
-    pt.put("Calibration.Magnetometer.BasisY.X", magnetometer_ellipsoid.basis.col(1).x());
-    pt.put("Calibration.Magnetometer.BasisY.Y", magnetometer_ellipsoid.basis.col(1).y());
-    pt.put("Calibration.Magnetometer.BasisY.Z", magnetometer_ellipsoid.basis.col(1).z());
-    pt.put("Calibration.Magnetometer.BasisZ.X", magnetometer_ellipsoid.basis.col(2).x());
-    pt.put("Calibration.Magnetometer.BasisZ.Y", magnetometer_ellipsoid.basis.col(2).y());
-    pt.put("Calibration.Magnetometer.BasisZ.Z", magnetometer_ellipsoid.basis.col(2).z());
+    pt.put("Calibration.Magnetometer.Center.X", magnetometer_center.i);
+    pt.put("Calibration.Magnetometer.Center.Y", magnetometer_center.j);
+    pt.put("Calibration.Magnetometer.Center.Z", magnetometer_center.k);
 
-    pt.put("Calibration.Magnetometer.Extents.X", magnetometer_ellipsoid.extents.x());
-    pt.put("Calibration.Magnetometer.Extents.Y", magnetometer_ellipsoid.extents.y());
-    pt.put("Calibration.Magnetometer.Extents.Z", magnetometer_ellipsoid.extents.z());
+    pt.put("Calibration.Magnetometer.BasisX.X", magnetometer_basis_x.i);
+    pt.put("Calibration.Magnetometer.BasisX.Y", magnetometer_basis_x.j);
+    pt.put("Calibration.Magnetometer.BasisX.Z", magnetometer_basis_x.k);
+    pt.put("Calibration.Magnetometer.BasisY.X", magnetometer_basis_y.i);
+    pt.put("Calibration.Magnetometer.BasisY.Y", magnetometer_basis_y.j);
+    pt.put("Calibration.Magnetometer.BasisY.Z", magnetometer_basis_y.k);
+    pt.put("Calibration.Magnetometer.BasisZ.X", magnetometer_basis_z.i);
+    pt.put("Calibration.Magnetometer.BasisZ.Y", magnetometer_basis_z.j);
+    pt.put("Calibration.Magnetometer.BasisZ.Z", magnetometer_basis_z.k);
 
-    pt.put("Calibration.Magnetometer.Identity.X", magnetometer_identity.x());
-    pt.put("Calibration.Magnetometer.Identity.Y", magnetometer_identity.y());
-    pt.put("Calibration.Magnetometer.Identity.Z", magnetometer_identity.z());
+    pt.put("Calibration.Magnetometer.Extents.X", magnetometer_extents.i);
+    pt.put("Calibration.Magnetometer.Extents.Y", magnetometer_extents.j);
+    pt.put("Calibration.Magnetometer.Extents.Z", magnetometer_extents.k);
 
-    pt.put("Calibration.Magnetometer.Error", magnetometer_ellipsoid.error);
+    pt.put("Calibration.Magnetometer.Identity.X", magnetometer_identity.i);
+    pt.put("Calibration.Magnetometer.Identity.Y", magnetometer_identity.j);
+    pt.put("Calibration.Magnetometer.Identity.Z", magnetometer_identity.k);
+
+    pt.put("Calibration.Magnetometer.Error", magnetometer_error);
+
+    pt.put("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
+    pt.put("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
+    pt.put("PositionFilter.MaxVelocity", max_velocity);
+
+	writeTrackingColor(pt, tracking_color_id);
+
+	pt.put("enable_filtered_velocity", enable_filtered_velocity);
 
     return pt;
 }
@@ -262,6 +269,10 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
     {
         is_valid = pt.get<bool>("is_valid", false);
 
+		firmware_version = pt.get<unsigned short>("firmware_version", 0);
+		bt_firmware_version = pt.get<unsigned short>("bt_firmware_version", 0);
+		firmware_revision = pt.get<unsigned short>("firmware_revision", 0);
+
         prediction_time = pt.get<float>("prediction_time", 0.f);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
 
@@ -272,6 +283,8 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         cal_ag_xyz_kb[0][2][0] = pt.get<float>("Calibration.Accel.Z.k", 1.0f);
         cal_ag_xyz_kb[0][2][1] = pt.get<float>("Calibration.Accel.Z.b", 0.0f);
 
+        accelerometer_noise_radius = pt.get<float>("Calibration.Accel.NoiseRadius", 0.0f);
+
         cal_ag_xyz_kb[1][0][0] = pt.get<float>("Calibration.Gyro.X.k", 1.0f);
         cal_ag_xyz_kb[1][0][1] = pt.get<float>("Calibration.Gyro.X.b", 0.0f);
         cal_ag_xyz_kb[1][1][0] = pt.get<float>("Calibration.Gyro.Y.k", 1.0f);
@@ -279,37 +292,43 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         cal_ag_xyz_kb[1][2][0] = pt.get<float>("Calibration.Gyro.Z.k", 1.0f);
         cal_ag_xyz_kb[1][2][1] = pt.get<float>("Calibration.Gyro.Z.b", 0.0f);
 
-        magnetometer_ellipsoid.center = Eigen::Vector3f(
-            pt.get<float>("Calibration.Magnetometer.Center.X", 0.f),
-            pt.get<float>("Calibration.Magnetometer.Center.Y", 0.f),
-            pt.get<float>("Calibration.Magnetometer.Center.Z", 0.f));
+        gyro_variance= pt.get<float>("Calibration.Gyro.Variance", gyro_variance);
+        gyro_drift= pt.get<float>("Calibration.Gyro.Drift", gyro_drift);
 
-        magnetometer_ellipsoid.basis.col(0) = Eigen::Vector3f(
-            pt.get<float>("Calibration.Magnetometer.BasisX.X", 1.f),
-            pt.get<float>("Calibration.Magnetometer.BasisX.Y", 0.f),
-            pt.get<float>("Calibration.Magnetometer.BasisX.Z", 0.f));
+        magnetometer_center.i = pt.get<float>("Calibration.Magnetometer.Center.X", 0.f);
+        magnetometer_center.j = pt.get<float>("Calibration.Magnetometer.Center.Y", 0.f);
+        magnetometer_center.k = pt.get<float>("Calibration.Magnetometer.Center.Z", 0.f);
 
-        magnetometer_ellipsoid.basis.col(1) = Eigen::Vector3f(
-            pt.get<float>("Calibration.Magnetometer.BasisY.X", 0.f),
-            pt.get<float>("Calibration.Magnetometer.BasisY.Y", 1.f),
-            pt.get<float>("Calibration.Magnetometer.BasisY.Z", 0.f));
+        magnetometer_basis_x.i = pt.get<float>("Calibration.Magnetometer.BasisX.X", 1.f);
+        magnetometer_basis_x.j = pt.get<float>("Calibration.Magnetometer.BasisX.Y", 0.f);
+        magnetometer_basis_x.k = pt.get<float>("Calibration.Magnetometer.BasisX.Z", 0.f);
 
-        magnetometer_ellipsoid.basis.col(2) = Eigen::Vector3f(
-            pt.get<float>("Calibration.Magnetometer.BasisZ.X", 0.f),
-            pt.get<float>("Calibration.Magnetometer.BasisZ.Y", 0.f),
-            pt.get<float>("Calibration.Magnetometer.BasisZ.Z", 1.f));
+        magnetometer_basis_y.i = pt.get<float>("Calibration.Magnetometer.BasisY.X", 0.f);
+        magnetometer_basis_y.j = pt.get<float>("Calibration.Magnetometer.BasisY.Y", 1.f);
+        magnetometer_basis_y.k = pt.get<float>("Calibration.Magnetometer.BasisY.Z", 0.f);
 
-        magnetometer_ellipsoid.extents = Eigen::Vector3f(
-            pt.get<float>("Calibration.Magnetometer.Extents.X", 0.f),
-            pt.get<float>("Calibration.Magnetometer.Extents.Y", 0.f),
-            pt.get<float>("Calibration.Magnetometer.Extents.Z", 0.f));
+        magnetometer_basis_z.i = pt.get<float>("Calibration.Magnetometer.BasisZ.X", 0.f);
+        magnetometer_basis_z.j = pt.get<float>("Calibration.Magnetometer.BasisZ.Y", 0.f);
+        magnetometer_basis_z.k = pt.get<float>("Calibration.Magnetometer.BasisZ.Z", 1.f);
 
-        magnetometer_identity = Eigen::Vector3f(
-            pt.get<float>("Calibration.Magnetometer.Identity.X", 0.f),
-            pt.get<float>("Calibration.Magnetometer.Identity.Y", 0.f),
-            pt.get<float>("Calibration.Magnetometer.Identity.Z", 0.f));
+        magnetometer_extents.i = pt.get<float>("Calibration.Magnetometer.Extents.X", 0.f);
+        magnetometer_extents.j = pt.get<float>("Calibration.Magnetometer.Extents.Y", 0.f);
+        magnetometer_extents.k = pt.get<float>("Calibration.Magnetometer.Extents.Z", 0.f);
 
-        magnetometer_ellipsoid.error= pt.get<float>("Calibration.Magnetometer.Error", 0.f);
+        magnetometer_identity.i = pt.get<float>("Calibration.Magnetometer.Identity.X", 0.f);
+        magnetometer_identity.j = pt.get<float>("Calibration.Magnetometer.Identity.Y", 0.f);
+        magnetometer_identity.k = pt.get<float>("Calibration.Magnetometer.Identity.Z", 0.f);
+
+        magnetometer_error= pt.get<float>("Calibration.Magnetometer.Error", 0.f);
+
+        // Get the position filter parameters
+        min_position_quality_screen_area= pt.get<float>("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
+        max_position_quality_screen_area= pt.get<float>("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
+        max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
+
+		tracking_color_id= static_cast<eCommonTrackingColorID>(readTrackingColor(pt));
+
+		enable_filtered_velocity= pt.get<bool>("enable_filtered_velocity", enable_filtered_velocity);
     }
     else
     {
@@ -317,6 +336,22 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
             "Config version " << version << " does not match expected version " << 
             PSMoveControllerConfig::CONFIG_VERSION << ", Using defaults.";
     }
+}
+
+void
+PSMoveControllerConfig::getMegnetometerEllipsoid(struct EigenFitEllipsoid *out_ellipsoid)
+{
+    out_ellipsoid->center =
+        Eigen::Vector3f(magnetometer_center.i, magnetometer_center.j, magnetometer_center.k);
+    out_ellipsoid->extents =
+        Eigen::Vector3f(magnetometer_extents.i, magnetometer_extents.j, magnetometer_extents.k);
+    out_ellipsoid->basis.col(0) =
+        Eigen::Vector3f(magnetometer_basis_x.i, magnetometer_basis_x.j, magnetometer_basis_x.k);
+    out_ellipsoid->basis.col(1) =
+        Eigen::Vector3f(magnetometer_basis_y.i, magnetometer_basis_y.j, magnetometer_basis_y.k);
+    out_ellipsoid->basis.col(2) =
+        Eigen::Vector3f(magnetometer_basis_z.i, magnetometer_basis_z.j, magnetometer_basis_z.k);
+    out_ellipsoid->error= magnetometer_error;
 }
 
 // -- PSMove Controller -----
@@ -327,6 +362,7 @@ PSMoveController::PSMoveController()
     , Rumble(0)
     , bWriteStateDirty(false)
     , NextPollSequenceNumber(0)
+	, SupportsMagnetometer(false)
 {
     HIDDetails.Handle = nullptr;
     HIDDetails.Handle_addr = nullptr;
@@ -423,6 +459,9 @@ bool PSMoveController::open(
 
         if (getIsOpen())  // Controller was opened and has an index
         {
+			// Get the firmware revision being used
+			bool bSaveConfig= loadFirmwareInfo();
+
             // Get the bluetooth address
     #ifdef __APPLE__
             // On my Mac, getting the bt feature report when connected via
@@ -458,7 +497,8 @@ bool PSMoveController::open(
                     loadCalibration();
                 }
 
-                // TODO: Other startup.
+				// Always save the config back out in case some defaults changed
+				bSaveConfig = true;
 
                 success= true;
             }
@@ -469,6 +509,45 @@ bool PSMoveController::open(
                 SERVER_LOG_ERROR("PSMoveController::open") << "Failed to get bluetooth address of PSMoveController(" << cur_dev_path << ")";
                 success= false;
             }
+
+			// Poll the controller to see if it emits valid magnetometer data
+			// (Newer firmware doesn't support the magnetometer anymore)
+			if (success && IsBluetooth)
+			{		
+				const int k_max_poll_attempts = 10;
+				int poll_count = 0;
+				bool bReadData = false;
+
+				for (poll_count = 0; poll_count < k_max_poll_attempts && !bReadData; ++poll_count)
+				{
+					if (poll() == IDeviceInterface::ePollResult::_PollResultSuccessNewData)
+					{
+						const PSMoveControllerState *ControllerState = static_cast<const PSMoveControllerState *>(getState());
+
+						SupportsMagnetometer =
+							ControllerState->RawMag[0] != 0 ||
+							ControllerState->RawMag[1] != 0 ||
+							ControllerState->RawMag[2] != 0;
+						bReadData= true;
+					}
+					else
+					{
+						const std::chrono::milliseconds k_WaitForDataMilliseconds(5);
+
+						std::this_thread::sleep_for(k_WaitForDataMilliseconds);
+					}
+				}
+
+				if (poll_count >= k_max_poll_attempts)
+				{
+					SERVER_LOG_ERROR("PSMoveController::open") << "Failed to open read initial controller state after " << k_max_poll_attempts << " attempts.";
+				}
+			}
+
+			if (bSaveConfig)
+			{
+				cfg.save();
+			}
 
             // Reset the polling sequence counter
             NextPollSequenceNumber= 0;
@@ -566,6 +645,21 @@ PSMoveController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
     return success;
 }
 
+bool
+PSMoveController::setTrackingColorID(const eCommonTrackingColorID tracking_color_id)
+{
+	bool bSuccess = false;
+
+	if (getIsOpen() && getIsBluetooth())
+	{
+		cfg.tracking_color_id = tracking_color_id;
+		cfg.save();
+		bSuccess = true;
+	}
+
+	return bSuccess;
+}
+
 // Getters
 bool 
 PSMoveController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
@@ -658,7 +752,7 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
     {
         int res;
         
-        unsigned char btg[PSMOVE_BTADDR_GET_SIZE];
+        unsigned char btg[PSMOVE_BTADDR_GET_SIZE+1];
         unsigned char ctrl_char_buff[PSMOVE_BTADDR_SIZE];
         unsigned char host_char_buff[PSMOVE_BTADDR_SIZE];
 
@@ -719,14 +813,17 @@ PSMoveController::loadCalibration()
     char usb_calibration[PSMOVE_CALIBRATION_BLOB_SIZE];
 
     // Default values are pass-through (raw*1 + 0)
-    cfg.cal_ag_xyz_kb = { { { 1, 0 }, { 1, 0 }, { 1, 0 } }, { { 1, 0 }, { 1, 0 }, { 1, 0 } } };
+    cfg.cal_ag_xyz_kb = {{ 
+            {{ {{ 1, 0 }}, {{ 1, 0 }}, {{ 1, 0 }} }}, 
+            {{ {{ 1, 0 }}, {{ 1, 0 }}, {{ 1, 0 }} }} 
+        }};
 
     // Load the calibration from the controller itself.
     unsigned char hid_cal[PSMOVE_CALIBRATION_BLOB_SIZE];
 
     for (int block_index=0; is_valid && block_index<3; block_index++) 
     {
-        unsigned char cal[PSMOVE_CALIBRATION_SIZE];
+        unsigned char cal[PSMOVE_CALIBRATION_SIZE+1]; // +1 for report id at start
         int dest_offset;
         int src_offset;
 
@@ -735,7 +832,7 @@ PSMoveController::loadCalibration()
 
         int res = hid_get_feature_report(HIDDetails.Handle, cal, sizeof(cal));
 
-        if (res == PSMOVE_CALIBRATION_SIZE)
+        if (res == sizeof(cal))
         {
             if (cal[1] == 0x00) 
             {
@@ -779,7 +876,7 @@ PSMoveController::loadCalibration()
 
         if (is_valid)
         {
-            memcpy(hid_cal+dest_offset, cal+src_offset, sizeof(cal)-src_offset);
+            memcpy(hid_cal+dest_offset, cal+src_offset, sizeof(cal)-src_offset-1);
         }
     }
 
@@ -813,7 +910,71 @@ PSMoveController::loadCalibration()
     }
 
     cfg.is_valid= is_valid;
-    cfg.save();
+}
+
+bool
+PSMoveController::loadFirmwareInfo()
+{
+	bool bFirmwareInfoValid = false;
+
+	unsigned char buf[14];
+	int res;
+	int expected_res = sizeof(buf) - 1;
+	unsigned char *p = buf;
+
+	memset(buf, 0, sizeof(buf));
+	buf[0] = PSMove_Req_GetFirmwareInfo;
+
+	res = hid_get_feature_report(HIDDetails.Handle, buf, sizeof(buf));
+
+	/**
+	* The Bluetooth report contains the Report ID as additional first byte
+	* while the USB report does not. So we need to check the current connection
+	* type in order to determine the correct offset for reading from the report
+	* buffer.
+	**/
+
+	if (getIsBluetooth()) 
+	{
+		expected_res += 1;
+		p = buf + 1;
+	}
+
+	if (res == expected_res)
+	{
+		// NOTE: Each field in the report is stored in Big-Endian byte order
+		cfg.firmware_version = (p[0] << 8) | p[1];
+		cfg.firmware_revision = (p[2] << 8) | p[3];
+		cfg.bt_firmware_version = (p[4] << 8) | p[5];
+
+		bFirmwareInfoValid = true;
+	}
+
+	return bFirmwareInfoValid;
+}
+
+bool
+PSMoveController::enableDFUMode()
+{
+	unsigned char buf[10];
+	int res;
+	char mode_magic_val;
+
+	if (getIsBluetooth())
+	{
+		mode_magic_val = 0x43;
+	}
+	else
+	{
+		mode_magic_val = 0x42;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	buf[0] = PSMove_Req_SetDFUMode;
+	buf[1] = mode_magic_val;
+	res = hid_send_feature_report(HIDDetails.Handle, buf, sizeof(buf));
+
+	return (res == sizeof(buf));
 }
 
 IControllerInterface::ePollResult
@@ -889,43 +1050,87 @@ PSMoveController::poll()
             newState.Move = getButtonState(newState.AllButtons, lastButtons, Btn_MOVE);
             newState.Trigger = getButtonState(newState.AllButtons, lastButtons, Btn_T);
             newState.TriggerValue = (InData->trigger + InData->trigger2) / 2; // TODO: store each frame separately
-        
-            // Sensors (Accel/Gyro/Mag)
-            char* data = (char *)InData;
 
-            // Do Accel and Gyro together.
-            std::vector< std::vector< std::vector<float> > > ag_12_xyz = { { {0, 0, 0}, {0, 0, 0} }, { {0, 0, 0}, {0, 0, 0} } };
-            std::vector<int> sensorOffsets = { offsetof(PSMoveDataInput, aXlow),
-                offsetof(PSMoveDataInput, gXlow) };
-            std::vector<int> frameOffsets = {0, 6};
-            std::vector<int>::size_type s_ix, f_ix;
-            int d_ix;
-            int totalOffset;
-            int val;
-        
-            for (s_ix = 0; s_ix != sensorOffsets.size(); s_ix++) //accel, gyro
+            // Update raw and calibrated accelerometer and gyroscope state
             {
-                for (f_ix = 0; f_ix != frameOffsets.size(); f_ix++) //old, new
+                // Access raw Accel and Gyro state from the DataInput struct as a byte array
+                char* data = (char *)InData;
+
+                // Extract Accelerometer and Gyroscope readings into in a set of two update frames.
+                // Note: The double brackets are an oddity of C++11 static array initialization.
+                std::array<std::array<std::array<int, 3>, 2>, 2> ag_raw_xyz = {{
+                    {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }},
+                    {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }}
+                }};
+                std::array<std::array<std::array<float, 3>, 2>, 2> ag_calibrated_xyz = {{
+                    {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }},
+                    {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }}
+                }};
+                std::array<int, 2> sensorOffsets = {{
+                    offsetof(PSMoveDataInput, aXlow),
+                    offsetof(PSMoveDataInput, gXlow)
+                }};
+                std::array<int, 2> frameOffsets = {{ 0, 6 }};
+
+                for (std::array<int, 2>::size_type s_ix = 0; s_ix != sensorOffsets.size(); s_ix++) //accel, gyro
                 {
-                    for (d_ix = 0; d_ix < 3; d_ix++)  //x, y, z
+                    for (std::array<int, 2>::size_type f_ix = 0; f_ix != frameOffsets.size(); f_ix++) //older, newer
                     {
-                        totalOffset = sensorOffsets[s_ix] + frameOffsets[f_ix] + 2*d_ix;
-                        val = ((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
-                        ag_12_xyz[s_ix][f_ix][d_ix] = (float)val*cfg.cal_ag_xyz_kb[s_ix][d_ix][0] + cfg.cal_ag_xyz_kb[s_ix][d_ix][1];
+                        for (int d_ix = 0; d_ix < 3; d_ix++)  //x, y, z
+                        {
+                            // Offset into PSMoveDataInput
+                            const int totalOffset = sensorOffsets[s_ix] + frameOffsets[f_ix] + 2 * d_ix;
+
+                            // Extract the raw signed 16-bit sensor value from the PSMoveDataInput packet
+                            const int raw_val = ((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
+
+                            // Get the calibration parameters for this sensor value
+                            const float k = cfg.cal_ag_xyz_kb[s_ix][d_ix][0]; // calibration scale
+                            const float b = cfg.cal_ag_xyz_kb[s_ix][d_ix][1]; // calibration offset
+
+                            // Save the raw sensor value
+                            ag_raw_xyz[s_ix][f_ix][d_ix] = raw_val;
+
+                            // Compute the calibrated sensor value
+                            ag_calibrated_xyz[s_ix][f_ix][d_ix] = static_cast<float>(raw_val)*k + b;
+                        }
                     }
                 }
-            }
-            newState.Accel = ag_12_xyz[0];
-            newState.Gyro = ag_12_xyz[1];
-        
-            // Mag
-            newState.Mag = {0, 0, 0};
-            newState.Mag[0] = TWELVE_BIT_SIGNED(((InData->templow_mXhigh & 0x0F) << 8) | InData->mXlow);
-            // The magnetometer y-axis is flipped compared to the accelerometer and gyro.
-            // Flip it back around to get it into the same space.
-            newState.Mag[1] = -TWELVE_BIT_SIGNED((InData->mYhigh << 4) | (InData->mYlow_mZhigh & 0xF0) >> 4);
-            newState.Mag[2] = TWELVE_BIT_SIGNED(((InData->mYlow_mZhigh & 0x0F) << 8) | InData->mZlow);
 
+                newState.RawAccel = ag_raw_xyz[0];
+                newState.RawGyro = ag_raw_xyz[1];
+
+                newState.CalibratedAccel = ag_calibrated_xyz[0];
+                newState.CalibratedGyro = ag_calibrated_xyz[1];
+            }
+
+            // Update the raw and calibrated magnetometer
+            {
+                Eigen::Vector3f raw_mag, calibrated_mag;
+                EigenFitEllipsoid ellipsoid;
+
+                // Save the Raw Magnetometer sensor value (signed 12-bit values)
+                newState.RawMag[0] = TWELVE_BIT_SIGNED(((InData->templow_mXhigh & 0x0F) << 8) | InData->mXlow);
+                // The magnetometer y-axis is flipped compared to the accelerometer and gyro.
+                // Flip it back around to get it into the same space.
+                newState.RawMag[1] = -TWELVE_BIT_SIGNED((InData->mYhigh << 4) | (InData->mYlow_mZhigh & 0xF0) >> 4);
+                newState.RawMag[2] = TWELVE_BIT_SIGNED(((InData->mYlow_mZhigh & 0x0F) << 8) | InData->mZlow);
+
+                // Project the raw magnetometer sample into the space of the ellipsoid
+                // and then normalize it (any deviation from unit length is error)
+                raw_mag = 
+                    Eigen::Vector3f(
+                        static_cast<float>(newState.RawMag[0]), 
+                        static_cast<float>(newState.RawMag[1]),
+                        static_cast<float>(newState.RawMag[2]));
+                cfg.getMegnetometerEllipsoid(&ellipsoid);
+                calibrated_mag= eigen_alignment_project_point_on_ellipsoid_basis(raw_mag, ellipsoid);
+
+                // Save the calibrated magnetometer vector
+                newState.CalibratedMag[0] = calibrated_mag.x();
+                newState.CalibratedMag[1] = calibrated_mag.y();
+                newState.CalibratedMag[2] = calibrated_mag.z();
+            }
         
             // Other
             newState.RawSequence = (InData->buttons4 & 0x0F);
@@ -984,6 +1189,21 @@ PSMoveController::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) 
     outTrackingShape.shape.sphere.radius = PSMOVE_TRACKING_BULB_RADIUS;
 }
 
+bool
+PSMoveController::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const
+{
+	bool bSuccess = false;
+
+	if (getIsOpen() && getIsBluetooth())
+	{
+		out_tracking_color_id = cfg.tracking_color_id;
+		bSuccess = true;
+	}
+
+	return bSuccess;
+}
+
+
 float
 PSMoveController::getTempCelsius() const
 {
@@ -1031,20 +1251,27 @@ long PSMoveController::getMaxPollFailureCount() const
 bool
 PSMoveController::writeDataOut()
 {
-    PSMoveDataOutput data_out = PSMoveDataOutput();  // 0-initialized
-    data_out.type = PSMove_Req_SetLEDs;
-    data_out.rumble2 = 0x00;
-    data_out.r = LedR;
-    data_out.g = LedG;
-    data_out.b = LedB;
-    data_out.rumble = Rumble;
+    bool bSuccess= true;
 
-    // Keep writing state out until the desired LED and Rumble are 0 
-    bWriteStateDirty = LedR != 0 || LedG != 0 || LedB != 0 || Rumble != 0;
-    
-    int res = hid_write(HIDDetails.Handle, (unsigned char*)(&data_out),
-                        sizeof(data_out));
-    return (res == sizeof(data_out));
+    if (bWriteStateDirty)
+    {
+        PSMoveDataOutput data_out = PSMoveDataOutput();  // 0-initialized
+        data_out.type = PSMove_Req_SetLEDs;
+        data_out.rumble2 = 0x00;
+        data_out.r = LedR;
+        data_out.g = LedG;
+        data_out.b = LedB;
+        data_out.rumble = Rumble;
+
+        // Keep writing state out until the desired LED and Rumble are 0 
+        bWriteStateDirty = LedR != 0 || LedG != 0 || LedB != 0 || Rumble != 0;
+
+        int res = hid_write(HIDDetails.Handle, (unsigned char*)(&data_out),
+            sizeof(data_out));
+        bSuccess= (res == sizeof(data_out));
+    }
+
+    return bSuccess;
 }
 
 bool
