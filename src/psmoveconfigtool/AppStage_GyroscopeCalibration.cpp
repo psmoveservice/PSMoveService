@@ -763,10 +763,10 @@ void AppStage_GyroscopeCalibration::request_set_gyroscope_calibration(
     const float variance)
 {
     RequestPtr request(new PSMoveProtocol::Request());
-    request->set_type(PSMoveProtocol::Request_RequestType_SET_GYROSCOPE_CALIBRATION);
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_GYROSCOPE_CALIBRATION);
 
-    PSMoveProtocol::Request_RequestSetGyroscopeCalibration *calibration =
-        request->mutable_set_gyroscope_calibration_request();
+    PSMoveProtocol::Request_RequestSetControllerGyroscopeCalibration *calibration =
+        request->mutable_set_controller_gyroscope_calibration_request();
 
     calibration->set_controller_id(m_controllerView->GetControllerID());
 

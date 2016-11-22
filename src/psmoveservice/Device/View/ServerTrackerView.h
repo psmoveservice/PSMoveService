@@ -54,6 +54,10 @@ public:
         const class ServerControllerView* tracked_controller, 
         const CommonDevicePose *tracker_pose_guess,
         struct ControllerOpticalPoseEstimation *out_pose_estimate);
+	bool computePoseForHMD(
+		const class ServerHMDView* tracked_hmd,
+		const CommonDevicePose *tracker_pose_guess,
+		struct HMDOpticalPoseEstimation *out_pose_estimate);
 
     CommonDeviceScreenLocation projectTrackerRelativePosition(const CommonDevicePosition *trackerRelativePosition) const;
     
@@ -89,8 +93,13 @@ public:
     bool getOptionIndex(const std::string &option_name, int &out_option_index) const;
 
     void gatherTrackingColorPresets(const class ServerControllerView *controller, PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
-    void setTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, const CommonHSVColorRange *preset);
-    void getTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
+	void gatherTrackingColorPresets(const class ServerHMDView *hmd, PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
+
+    void setControllerTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, const CommonHSVColorRange *preset);
+    void getControllerTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
+
+	void setHMDTrackingColorPreset(const class ServerHMDView *controller, eCommonTrackingColorID color, const CommonHSVColorRange *preset);
+	void getHMDTrackingColorPreset(const class ServerHMDView *controller, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
 
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;

@@ -159,6 +159,10 @@ public:
                 build_tracker_list_response_message(response, &out_response_message->payload.tracker_list);
                 out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_TrackerList;
                 break;
+			case PSMoveProtocol::Response_ResponseType_HMD_LIST:
+				build_hmd_list_response_message(response, &out_response_message->payload.hmd_list);
+				out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_HMDList;
+				break;
             default:
                 out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_Empty;
                 break;
@@ -302,6 +306,42 @@ public:
         // Record how many trackers we copied into the payload
         tracker_list->count = tracker_count;
     }
+
+	void build_hmd_list_response_message(
+		ResponsePtr response,
+		ClientPSMoveAPI::ResponsePayload_HMDList *hmd_list)
+	{
+		int src_hmd_count = 0;
+		int dest_hmd_count = 0;
+
+		// Copy the controller entries into the response payload
+		while (src_hmd_count < response->result_hmd_list().hmd_entries_size()
+			&& src_hmd_count < PSMOVESERVICE_MAX_HMD_COUNT)
+		{
+			const auto &HMDResponse = response->result_hmd_list().hmd_entries(src_hmd_count);
+
+			// Convert the PSMoveProtocol HMD enum to the public ClientHMDView enum
+			ClientHMDView::eHMDViewType hmdType;
+			switch (HMDResponse.hmd_type())
+			{
+			case PSMoveProtocol::Morpheus:
+				hmdType = ClientHMDView::Morpheus;
+				break;
+			default:
+				assert(0 && "unreachable");
+				hmdType = ClientHMDView::None;
+			}
+
+			// Add an entry to the hmd list
+			hmd_list->hmd_type[dest_hmd_count] = hmdType;
+			hmd_list->hmd_id[dest_hmd_count] = HMDResponse.hmd_id();
+			++dest_hmd_count;
+			++src_hmd_count;
+		}
+
+		// Record how many controllers we copied into the payload
+		hmd_list->count = dest_hmd_count;
+	}
 
 private:
     ClientPSMoveAPI::t_response_callback m_callback;

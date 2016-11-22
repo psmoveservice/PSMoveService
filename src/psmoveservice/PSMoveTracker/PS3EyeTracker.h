@@ -51,7 +51,7 @@ public:
     eFOVSetting fovSetting;
     CommonDevicePose pose;
 	CommonHSVColorRangeTable SharedColorPresets;
-	std::vector<CommonHSVColorRangeTable> ControllerColorPresets;
+	std::vector<CommonHSVColorRangeTable> DeviceColorPresets;
 
     static const int CONFIG_VERSION;
 };

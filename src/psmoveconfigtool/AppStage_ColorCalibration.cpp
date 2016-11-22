@@ -131,6 +131,10 @@ AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
     , m_controllerView(nullptr)
     , m_isControllerStreamActive(false)
     , m_lastControllerSeqNum(-1)
+	, m_overrideHmdId(-1)
+	, m_hmdView(nullptr)
+	, m_isHmdStreamActive(false)
+	, m_lastHmdSeqNum(-1)
     , m_trackerView(nullptr)
     , m_menuState(AppStage_ColorCalibration::inactive)
     , m_video_buffer_state(nullptr)
@@ -155,12 +159,22 @@ void AppStage_ColorCalibration::enter()
     assert(m_trackerView == nullptr);
     m_trackerView = ClientPSMoveAPI::allocate_tracker_view(*trackerInfo);
 
-    // Assume that we can bind to controller 0
-    assert(m_controllerView == nullptr);
-    const int ControllerID = (m_overrideControllerId != -1) ? m_overrideControllerId : 0;
-    m_controllerView = ClientPSMoveAPI::allocate_controller_view(ControllerID);
-    m_isControllerStreamActive= false;
-    m_lastControllerSeqNum= -1;
+	if (m_overrideHmdId != -1)
+	{
+		assert(m_hmdView == nullptr);
+		m_hmdView = ClientPSMoveAPI::allocate_hmd_view(m_overrideHmdId);
+		m_isHmdStreamActive = false;
+		m_lastHmdSeqNum = -1;
+	}
+	else
+	{
+		// Assume that we can bind to controller 0
+		assert(m_controllerView == nullptr);
+		const int ControllerID = (m_overrideControllerId != -1) ? m_overrideControllerId : 0;
+		m_controllerView = ClientPSMoveAPI::allocate_controller_view(ControllerID);
+		m_isControllerStreamActive = false;
+		m_lastControllerSeqNum = -1;
+	}
 
     // Request to start the tracker
     // Wait for the tracker response before requesting the controller
@@ -189,6 +203,10 @@ void AppStage_ColorCalibration::update()
             request_set_controller_tracking_color(m_trackingColorType);
             setState(eMenuState::manualConfig);
         }
+		else if (m_isHmdStreamActive && m_hmdView->GetSequenceNum() != m_lastHmdSeqNum)
+		{
+			setState(eMenuState::manualConfig);
+		}
     }
 
     // Try and read the next video frame from shared memory
@@ -311,9 +329,6 @@ void AppStage_ColorCalibration::render()
 
 void AppStage_ColorCalibration::renderUI()
 {
-//    const AppStage_TrackerSettings *trackerSettings = m_app->getAppStage<AppStage_TrackerSettings>();
-//    const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
-
     const float k_panel_width = 300.f;
     const char *k_window_title = "Color Calibration";
     const ImGuiWindowFlags window_flags =
@@ -402,15 +417,18 @@ void AppStage_ColorCalibration::renderUI()
                     ImGui::PopID();
                 }
 
-                if (ImGui::Button("Save Default Profile"))
-                {
-                    request_save_default_tracker_profile();
-                }
+				if (m_controllerView != nullptr)
+				{
+					if (ImGui::Button("Save Default Profile"))
+					{
+						request_save_default_tracker_profile();
+					}
 
-                if (ImGui::Button("Apply Default Profile"))
-                {
-                    request_apply_default_tracker_profile();
-                }
+					if (ImGui::Button("Apply Default Profile"))
+					{
+						request_apply_default_tracker_profile();
+					}
+				}
             }
 
             ImGui::End();
@@ -437,23 +455,26 @@ void AppStage_ColorCalibration::renderUI()
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 300));
             ImGui::Begin("Controller Color", nullptr, window_flags);
 
-            if (ImGui::Button("<##Color"))
-            {
-                PSMoveTrackingColorType new_color =
-                    static_cast<PSMoveTrackingColorType>(
-                        (m_trackingColorType + PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES - 1)
-                        % PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES);
-                request_set_controller_tracking_color(new_color);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button(">##Color"))
-            {
-                PSMoveTrackingColorType new_color =
-                    static_cast<PSMoveTrackingColorType>(
-                        (m_trackingColorType + 1) % PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES);
-                request_set_controller_tracking_color(new_color);
-            }
-            ImGui::SameLine();
+			if (m_controllerView != nullptr)
+			{
+				if (ImGui::Button("<##Color"))
+				{
+					PSMoveTrackingColorType new_color =
+						static_cast<PSMoveTrackingColorType>(
+							(m_trackingColorType + PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES - 1)
+							% PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES);
+					request_set_controller_tracking_color(new_color);
+				}
+				ImGui::SameLine();
+				if (ImGui::Button(">##Color"))
+				{
+					PSMoveTrackingColorType new_color =
+						static_cast<PSMoveTrackingColorType>(
+							(m_trackingColorType + 1) % PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES);
+					request_set_controller_tracking_color(new_color);
+				}
+				ImGui::SameLine();
+			}
             ImGui::Text("Tracking Color: %s", k_tracking_color_names[m_trackingColorType]);
 
             // -- Hue --
@@ -562,6 +583,7 @@ void AppStage_ColorCalibration::renderUI()
 
     case eMenuState::pendingTrackerStartStreamRequest:
     case eMenuState::pendingControllerStartRequest:
+	case eMenuState::pendingHmdStartRequest:
     case eMenuState::waitingForStreamStartResponse:
     {
         ImGui::SetNextWindowPosCenter();
@@ -574,6 +596,7 @@ void AppStage_ColorCalibration::renderUI()
     } break;
 
     case eMenuState::failedTrackerStartStreamRequest:
+	case eMenuState::failedHmdStartRequest:
     case eMenuState::failedControllerStartRequest:
     {
         ImGui::SetNextWindowPosCenter();
@@ -584,6 +607,10 @@ void AppStage_ColorCalibration::renderUI()
         {
             ImGui::Text("Failed to start tracker stream!");
         }
+		else if (m_menuState == eMenuState::failedHmdStartRequest)
+		{
+			ImGui::Text("Failed to start controller stream!");
+		}
         else
         {
             ImGui::Text("Failed to start controller stream!");
@@ -686,6 +713,40 @@ void AppStage_ColorCalibration::request_set_controller_tracking_color(
     m_controllerView->SetLEDOverride(r, g, b);
 }
 
+void AppStage_ColorCalibration::request_start_hmd_stream()
+{
+	// Start receiving data from the controller
+	setState(AppStage_ColorCalibration::pendingHmdStartRequest);
+	ClientPSMoveAPI::register_callback(
+		ClientPSMoveAPI::start_hmd_data_stream(
+			m_hmdView,
+			ClientPSMoveAPI::includePositionData), // turns on tracking lights
+		AppStage_ColorCalibration::handle_start_hmd_response, this);
+}
+
+void AppStage_ColorCalibration::handle_start_hmd_response(
+	const ClientPSMoveAPI::ResponseMessage *response_message,
+	void *userdata)
+{
+	AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
+	const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
+
+	switch (ResultCode)
+	{
+	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+		{
+			thisPtr->m_isHmdStreamActive = true;
+			thisPtr->setState(AppStage_ColorCalibration::waitingForStreamStartResponse);
+		} break;
+
+	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
+	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+		{
+			thisPtr->setState(AppStage_ColorCalibration::failedControllerStartRequest);
+		} break;
+	}
+}
+
 void AppStage_ColorCalibration::request_tracker_start_stream()
 {
     if (m_menuState != AppStage_ColorCalibration::pendingTrackerStartStreamRequest)
@@ -718,7 +779,14 @@ void AppStage_ColorCalibration::handle_tracker_start_stream_response(
             }
 
             // Now that the tracker stream is started, start the controller stream
-            thisPtr->request_start_controller_stream();
+			if (thisPtr->m_hmdView != nullptr)
+			{
+				thisPtr->request_start_hmd_stream();
+			}
+			else
+			{
+				thisPtr->request_start_controller_stream();
+			}
         } break;
 
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
@@ -873,7 +941,19 @@ void AppStage_ColorCalibration::request_tracker_set_color_preset(
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_COLOR_PRESET);
     request->mutable_request_set_tracker_color_preset()->set_tracker_id(m_trackerView->getTrackerId());
-	request->mutable_request_set_tracker_color_preset()->set_controller_id(m_overrideControllerId);
+
+	if (m_hmdView != nullptr)
+	{
+		request->mutable_request_set_tracker_color_preset()->set_device_id(m_overrideHmdId);
+		request->mutable_request_set_tracker_color_preset()->set_device_category(
+			PSMoveProtocol::Request_RequestSetTrackerColorPreset_DeviceCategory_HMD);
+	}
+	else
+	{
+		request->mutable_request_set_tracker_color_preset()->set_device_id(m_overrideControllerId);
+		request->mutable_request_set_tracker_color_preset()->set_device_category(
+			PSMoveProtocol::Request_RequestSetTrackerColorPreset_DeviceCategory_CONTROLLER);
+	}
 
     {
         PSMoveProtocol::TrackingColorPreset* tracking_color_preset =
@@ -930,7 +1010,17 @@ void AppStage_ColorCalibration::request_tracker_get_settings()
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_GET_TRACKER_SETTINGS);
     request->mutable_request_get_tracker_settings()->set_tracker_id(m_trackerView->getTrackerId());
-	request->mutable_request_get_tracker_settings()->set_controller_id(m_overrideControllerId);
+
+	if (m_overrideHmdId != -1)
+	{
+		request->mutable_request_get_tracker_settings()->set_device_id(m_overrideHmdId);
+		request->mutable_request_get_tracker_settings()->set_device_category(PSMoveProtocol::Request_RequestGetTrackerSettings_DeviceCategory_HMD);
+	}
+	else
+	{
+		request->mutable_request_get_tracker_settings()->set_device_id(m_overrideControllerId);
+		request->mutable_request_get_tracker_settings()->set_device_category(PSMoveProtocol::Request_RequestGetTrackerSettings_DeviceCategory_CONTROLLER);
+	}
 
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::send_opaque_request(&request),
@@ -1044,6 +1134,19 @@ void AppStage_ColorCalibration::release_devices()
         m_isControllerStreamActive= false;
         m_lastControllerSeqNum= -1;
     }
+
+	if (m_hmdView != nullptr)
+	{
+		if (m_isHmdStreamActive)
+		{
+			ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_hmd_data_stream(m_hmdView));
+		}
+
+		ClientPSMoveAPI::free_hmd_view(m_hmdView);
+		m_hmdView = nullptr;
+		m_isHmdStreamActive = false;
+		m_lastHmdSeqNum = -1;
+	}
 
     if (m_trackerView != nullptr)
     {

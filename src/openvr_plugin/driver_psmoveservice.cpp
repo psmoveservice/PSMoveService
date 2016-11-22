@@ -808,8 +808,8 @@ void CServerDriver_PSMoveService::LaunchPSMoveMonitor( const char * pchDriverIns
     {
 		path_and_executable_string_builder << "\\monitor_psmove";
 
-		const std::string monitor_exe_path = path_and_executable_string_builder.str();        
-        char * const argv[] = { monitor_exe_path.c_str(), pchDriverInstallDir, NULL };
+		const std::string monitor_exe_path = path_and_executable_string_builder.str();
+        const char * argv[] = { monitor_exe_path.c_str(), pchDriverInstallDir, NULL };
         
         if (execv(app, argv) < 0)
         {

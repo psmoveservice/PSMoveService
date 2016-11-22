@@ -6,6 +6,7 @@ set(PSMOVECONFIGTOOL_REQ_LIBS)
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
     ${ROOT_DIR}/thirdparty/eigen/
     ${ROOT_DIR}/thirdparty/glm
+    ${ROOT_DIR}/thirdparty/sparseicp
     ${ROOT_DIR}/thirdparty/stb
     ${ROOT_DIR}/thirdparty/imgui
     ${ROOT_DIR}/src/psmoveclient/

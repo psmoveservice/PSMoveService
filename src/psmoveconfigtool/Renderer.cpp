@@ -21,6 +21,7 @@
 #include "ps3eye_3dmodel.h"
 #include "ds4body_3dmodel.h"
 #include "ds4lightbar_3dmodel.h"
+#include "morpheus_3dmodel.h"
 
 #ifdef _MSC_VER
 #pragma warning (disable: 4505) // unreferenced local function has been removed (stb stuff)
@@ -646,6 +647,27 @@ void drawTrackingProjection(
             glVertex3f(quad[0].x, quad[0].y, 0.5f);
             glEnd();
         } break;
+
+	case PSMoveTrackingProjection::eShapeType::PointCloud:
+		{
+			const PSMoveScreenLocation *points = shapeProjection->shape.pointcloud.points;
+			const int point_count = shapeProjection->shape.pointcloud.point_count;
+
+			// Draw a small red "+" for the center of mass in each tracking blob center
+			for (int point_index = 0; point_index < point_count; ++point_index)
+			{
+				const PSMoveScreenLocation *point = &points[point_index];
+
+				glLineWidth(2.f);
+				glBegin(GL_LINES);
+				glColor3f(1.f, 0.f, 0.f);
+				glVertex3f(point->x - 5.f, point->y, 0.5f);
+				glVertex3f(point->x + 5.f, point->y, 0.5f);
+				glVertex3f(point->x, point->y + 5.f, 0.5f);
+				glVertex3f(point->x, point->y - 5.f, 0.5f);
+				glEnd();
+			}
+		} break;
     }
 
     glLineWidth(1.f);
@@ -657,6 +679,57 @@ void drawTrackingProjection(
     // Restore the modelview matrix
     glMatrixMode(GL_MODELVIEW);
     glPopMatrix();
+}
+
+void drawPointCloudProjection(
+	const struct PSMoveScreenLocation *points,
+	const int point_count, 
+	const float point_size,
+	const glm::vec3 &color,
+	const float trackerWidth, 
+	const float trackerHeight)
+{
+	assert(Renderer::getIsRenderingStage());
+
+	// Clear the depth buffer to allow overdraw 
+	glClear(GL_DEPTH_BUFFER_BIT);
+
+	// Save a backup of the projection matrix 
+	// and replace with a projection that maps the tracker image coordinates over the whole screen
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	glOrtho(-trackerWidth / 2.f, trackerWidth / 2.f, -trackerHeight / 2.f, trackerHeight / 2.f, 1.0f, -1.0f);
+
+	// Save a backup of the modelview matrix and replace with the identity matrix
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+
+	// Draw a small color "+" for each point in the point count
+	glLineWidth(2.f);
+	for (int point_index = 0; point_index < point_count; ++point_index)
+	{
+		const PSMoveScreenLocation *point = &points[point_index];
+
+		glLineWidth(2.f);
+		glBegin(GL_LINES);
+		glColor3fv(glm::value_ptr(color));
+		glVertex3f(point->x - point_size, point->y, 0.5f);
+		glVertex3f(point->x + point_size, point->y, 0.5f);
+		glVertex3f(point->x, point->y + point_size, 0.5f);
+		glVertex3f(point->x, point->y - point_size, 0.5f);
+		glEnd();
+	}
+	glLineWidth(1.f);
+
+	// Restore the projection matrix
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+
+	// Restore the modelview matrix
+	glMatrixMode(GL_MODELVIEW);
+	glPopMatrix();
 }
 
 void drawTransformedVolume(const glm::mat4 &transform, const PSMoveVolume *volume, const glm::vec3 &color)
@@ -1082,6 +1155,34 @@ void drawPSDualShock4Model(const glm::mat4 &transform, const glm::vec3 &color)
 		glDrawArrays(GL_TRIANGLES, 0, ds4lightbarNumVerts);
 
         glDisableClientState(GL_VERTEX_ARRAY);
+    glPopMatrix();
+
+    // rebind the default texture
+    glBindTexture(GL_TEXTURE_2D, 0); 
+}
+
+void drawMorpheusModel(const glm::mat4 &transform)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    int textureID= AssetManager::getInstance()->getMorpheusTextureAsset()->texture_id;
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        
+        glColor3f(1.f, 1.f, 1.f);
+        glVertexPointer(3, GL_FLOAT, 0, morpheusVerts);
+        glTexCoordPointer(2, GL_FLOAT, 0, morpheusTexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, morpheusNumVerts);
+
+        glDisableClientState(GL_VERTEX_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
     glPopMatrix();
 
     // rebind the default texture

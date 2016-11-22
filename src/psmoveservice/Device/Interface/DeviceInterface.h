@@ -31,6 +31,7 @@ enum eCommonTrackingShapeType {
 
     Sphere,
     LightBar,
+	PointCloud,
 
     MAX_TRACKING_SHAPE_TYPES
 };
@@ -40,6 +41,7 @@ enum eCommonTrackingProjectionType {
 
     ProjectionType_Ellipse,
     ProjectionType_LightBar,
+	ProjectionType_Points,
 
     MAX_TRACKING_PROJECTION_TYPES
 };
@@ -84,6 +86,16 @@ struct CommonDeviceVector
     {
         i = j = k = 0.f;
     }
+};
+
+struct CommonRawDeviceVector
+{
+	int i, j, k;
+
+	inline void clear()
+	{
+		i = j = k = 0;
+	}
 };
 
 struct CommonDevicePosition
@@ -164,7 +176,8 @@ struct CommonDeviceState
     enum eDeviceClass
     {
         Controller = 0x00,
-        TrackingCamera = 0x10
+        TrackingCamera = 0x10,
+        HeadMountedDisplay = 0x20
     };
     
     enum eDeviceType
@@ -176,6 +189,9 @@ struct CommonDeviceState
         
         PS3EYE = TrackingCamera + 0x00,
         SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x01,
+        
+        Morpheus = HeadMountedDisplay + 0x00,
+        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01        
     };
     
     eDeviceType DeviceType;
@@ -210,6 +226,9 @@ struct CommonDeviceState
         case PS3EYE:
             result = "PSEYE";
             break;
+        case Morpheus:
+            result = "Morpheus";
+            break;        
         default:
             result = "UNKNOWN";
         }
@@ -264,17 +283,45 @@ struct CommonControllerState : CommonDeviceState
     }
 };
 
+struct CommonHMDState : CommonDeviceState
+{
+    CommonDevicePose Pose;
+
+    inline CommonHMDState()
+    {
+        clear();
+    }
+
+    inline void clear()
+    {
+        CommonDeviceState::clear();
+
+        Pose.clear();
+    }
+};
+
 struct CommonDeviceTrackingShape
 {
+	enum eTrackingShapeConstants
+	{
+		TRIANGLE_POINT_COUNT = 3,
+		QUAD_POINT_COUNT = 4,
+		MAX_POINT_CLOUD_POINT_COUNT= 9
+	};
+
     union{
         struct {
             float radius;
         } sphere;
 
         struct {
-            CommonDevicePosition triangle[3];
-            CommonDevicePosition quad[4];
+            CommonDevicePosition triangle[TRIANGLE_POINT_COUNT];
+            CommonDevicePosition quad[QUAD_POINT_COUNT];
         } light_bar;
+
+		struct {
+			CommonDevicePosition point[MAX_POINT_CLOUD_POINT_COUNT];
+		} point_cloud;
     } shape;
 
     eCommonTrackingShapeType shape_type;
@@ -282,6 +329,13 @@ struct CommonDeviceTrackingShape
 
 struct CommonDeviceTrackingProjection
 {
+	enum eTrackingShapeConstants
+	{
+		TRIANGLE_POINT_COUNT = 3,
+		QUAD_POINT_COUNT = 4,
+		MAX_POINT_CLOUD_POINT_COUNT = 6 // at most 6 points visible to a given camera
+	};
+
     union{
         struct {
             CommonDeviceScreenLocation center;
@@ -291,9 +345,14 @@ struct CommonDeviceTrackingProjection
         } ellipse;
 
         struct {
-            CommonDeviceScreenLocation triangle[3];
-            CommonDeviceScreenLocation quad[4];
+            CommonDeviceScreenLocation triangle[TRIANGLE_POINT_COUNT];
+            CommonDeviceScreenLocation quad[QUAD_POINT_COUNT];
         } lightbar;
+
+		struct {
+			CommonDeviceScreenLocation point[MAX_POINT_CLOUD_POINT_COUNT];
+			int point_count;
+		} points;
     } shape;
 
     float screen_area; // area in pixels^2
@@ -451,4 +510,20 @@ public:
     virtual void setTrackingColorPreset(const std::string &controller_serial, eCommonTrackingColorID color, const CommonHSVColorRange *preset) = 0;
     virtual void getTrackingColorPreset(const std::string &controller_serial, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const = 0;
 };
+
+/// Abstract class for HMD interface. Implemented HMD classes
+class IHMDInterface : public IDeviceInterface
+{
+public:
+    // -- Getters
+    // Returns the full usb device path for the HMD
+    virtual std::string getUSBDevicePath() const = 0;
+
+	// Get the tracking shape use by the controller
+	virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const = 0;
+
+	// Get the tracking color enum of the controller
+	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const = 0;
+};
+
 #endif // DEVICE_INTERFACE_H

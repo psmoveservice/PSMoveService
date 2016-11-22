@@ -35,10 +35,6 @@
 #define sgn(x) (((x) >= 0) ? 1 : -1)
 #endif
 
-#ifndef sqr
-#define sqr(x) (x*x)
-#endif
-
 #ifdef NDEBUG
 #define assert_valid_float(x) assert(is_valid_float(x))
 #else
