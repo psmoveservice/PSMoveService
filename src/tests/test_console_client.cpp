@@ -34,7 +34,7 @@ public:
 				break;
 			}
 
-			fprintf(m_fp, "TIME,POS_X,POS_Y,POS_Z,POS_QUAL,ORI_W,ORI_X,ORI_Y,ORI_Z,ORI_QUAL,ACC_X,ACC_Y,ACC_Z,MAG_X,MAG_Y,MAG_Z,GYRO_X,GYRO_Y,GYRO_Z\n");
+			fprintf(m_fp, "TIME,POS_X,POS_Y,POS_Z,AREA,ORI_W,ORI_X,ORI_Y,ORI_Z,ACC_X,ACC_Y,ACC_Z,MAG_X,MAG_Y,MAG_Z,GYRO_X,GYRO_Y,GYRO_Z\n");
 		}
 	}
 
@@ -57,19 +57,13 @@ public:
 			PSMoveFloatVector3 acc;
 			PSMoveFloatVector3 gyro;
 			PSMoveFloatVector3 mag;
-			float position_quality = 0.f;
-			float orientation_quality = 0.f;
+			float tracker_area = 0.f;
 
 			const std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 			const std::chrono::duration<float, std::milli> time_delta = now - m_startTime;
 			const float time = time_delta.count() / 1000.f;
 
 			PSMoveTrackingProjection projection;
-
-			float min_position_quality_screen_area = 0.f;
-			float max_position_quality_screen_area = 0.f;
-			float min_orientation_quality_screen_area = 0.f;
-			float max_orientation_quality_screen_area = 0.f;
 
 			switch (controller->GetControllerViewType())
 			{
@@ -79,11 +73,6 @@ public:
 					acc = sensorData.Accelerometer;
 					mag = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
 					gyro = sensorData.Gyroscope;
-
-					min_orientation_quality_screen_area = 150.f*34.f*.1f;
-					max_orientation_quality_screen_area = 150.f*34.f;
-					min_position_quality_screen_area = 75.f*17.f*.25f;
-					max_position_quality_screen_area = 75.f*17.f;
 				} break;
 			case ClientControllerView::PSMove:
 				{
@@ -91,9 +80,6 @@ public:
 					acc = sensorData.Accelerometer;
 					mag = sensorData.Magnetometer;
 					gyro = sensorData.Gyroscope;
-
-					min_position_quality_screen_area = 0.f;
-					max_position_quality_screen_area = k_real_pi*20.f*20.f;
 				} break;
 			}
 
@@ -101,29 +87,16 @@ public:
 			{
 				if (trackerData.GetPositionOnTrackerId(0, pos))
 				{
-					position_quality =
-						clampf01(
-							safe_divide_with_default(
-								projection.get_projection_area() - min_position_quality_screen_area,
-								max_position_quality_screen_area - min_position_quality_screen_area,
-								1.f));
+					tracker_area = projection.get_projection_area();
 				}
 
-				if (trackerData.GetOrientationOnTrackerId(0, quat))
-				{
-					orientation_quality =
-						clampf01(
-							safe_divide_with_default(
-								projection.get_projection_area() - min_orientation_quality_screen_area,
-								max_orientation_quality_screen_area - min_orientation_quality_screen_area,
-								0.f));
-				}
+				trackerData.GetOrientationOnTrackerId(0, quat);
 			}
 
-			fprintf(m_fp, "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n",
+			fprintf(m_fp, "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n",
 				time,
-				pos.x, pos.y, pos.z, position_quality,
-				quat.w, quat.x, quat.y, quat.z, orientation_quality,
+				pos.x, pos.y, pos.z, tracker_area,
+				quat.w, quat.x, quat.y, quat.z,
 				acc.i, acc.j, acc.k,
 				mag.i, mag.j, mag.k,
 				gyro.i, gyro.j, gyro.k);

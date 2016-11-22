@@ -16,12 +16,11 @@ enum eControllerSampleFields
 	FIELD_POSITION_X,
 	FIELD_POSITION_Y,
 	FIELD_POSITION_Z,
-	FIELD_POSITION_QUALITY,
+	FIELD_AREA,
 	FIELD_ORIENTATION_W,
 	FIELD_ORIENTATION_X,
 	FIELD_ORIENTATION_Y,
 	FIELD_ORIENTATION_Z,
-	FIELD_ORIENTATION_QUALITY,
 	FIELD_ACCELEROMETER_X,
 	FIELD_ACCELEROMETER_Y,
 	FIELD_ACCELEROMETER_Z,
@@ -40,12 +39,11 @@ const char *szColumnNames[FIELD_COUNT] = {
 	"POS_X",
 	"POS_Y",
 	"POS_Z",
-	"POS_QUAL",
+	"AREA",
 	"ORI_W",
 	"ORI_X",
 	"ORI_Y",
 	"ORI_Z",
-	"ORI_QUAL",
 	"ACC_X",
 	"ACC_Y",
 	"ACC_Z",
@@ -63,9 +61,8 @@ struct ControllerSample
 
 	// Optical readings in the world reference frame
 	float pos[3]; // cm
-	float pos_quality;
+	float area;
 	float ori[4];
-	float ori_quality;
 
 	// Sensor readings in the controller's reference frame
 	float acc[3]; // g-units
@@ -476,9 +473,8 @@ apply_filter(
 		sensorPacket.imu_gyroscope = Eigen::Vector3f(sample.gyro[0], sample.gyro[1], sample.gyro[2]);
 		sensorPacket.imu_magnetometer = Eigen::Vector3f(sample.mag[0], sample.mag[1], sample.mag[2]);
 		sensorPacket.optical_orientation = Eigen::Quaternionf(sample.ori[0], sample.ori[1], sample.ori[2], sample.ori[3]);
-		sensorPacket.optical_orientation_quality = 1.f; // sample.ori_qual;
+		sensorPacket.tracking_projection_area = sample.area;
 		sensorPacket.optical_position_cm = Eigen::Vector3f(sample.pos[0], sample.pos[1], sample.pos[2]);
-		sensorPacket.optical_position_quality = 1.f; // sample.pos_qual;
 
 		PoseFilterPacket filterPacket;
 		pose_filter_space->createFilterPacket(sensorPacket, pose_filter->getOrientation(), pose_filter->getPosition(), filterPacket);
@@ -528,10 +524,9 @@ init_filter_for_psmove(
 		FIELD_MAGNETOMETER_X,
 		nullptr,
 		&constants.orientation_constants.magnetometer_variance);
-	constants.orientation_constants.min_orientation_variance = 1.0f; // from matlab
-	constants.orientation_constants.max_orientation_variance = 1.0f; // from matlab
-	constants.orientation_constants.min_orientation_drift = 0.0f; // from matlab
-	constants.orientation_constants.max_orientation_drift = 0.0f; // from matlab
+	constants.orientation_constants.orientation_variance_curve.A = 0.0f;
+	constants.orientation_constants.orientation_variance_curve.B = 0.0f;
+	constants.orientation_constants.orientation_variance_curve.MaxValue = 0.0f;
 
 	Eigen::Vector3f accelerometer_drift;
 	stationary_stream.computeSliceStatistics(
@@ -548,10 +543,9 @@ init_filter_for_psmove(
 		FIELD_POSITION_X,
 		nullptr, 
 		&position_variance);
-	constants.position_constants.min_position_variance = position_variance;
-	constants.position_constants.max_position_variance = position_variance;
-	constants.position_constants.min_position_drift = Eigen::Vector3f::Zero();
-	constants.position_constants.max_position_drift = Eigen::Vector3f::Zero();
+	constants.position_constants.position_variance_curve.A = 0.44888f;
+	constants.position_constants.position_variance_curve.B = -0.00402f;
+	constants.position_constants.position_variance_curve.MaxValue = 1.0f;
 	constants.position_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
 	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 
@@ -604,12 +598,9 @@ init_filter_for_psdualshock4(
 		FIELD_GYROSCOPE_X,
 		&constants.orientation_constants.gyro_drift,
 		&constants.orientation_constants.gyro_variance);
-	// min variance at max screen area
-	constants.orientation_constants.min_orientation_variance = 0.005f;
-	constants.orientation_constants.min_orientation_drift = 0.f;
-	// max variance at min screen area
-	constants.orientation_constants.max_orientation_variance = 0.005f;
-	constants.orientation_constants.max_orientation_drift = 0.f;
+	constants.orientation_constants.orientation_variance_curve.A = 0.44888f;
+	constants.orientation_constants.orientation_variance_curve.B = -0.00402f;
+	constants.orientation_constants.orientation_variance_curve.MaxValue = 1.0f;
 
 	Eigen::Vector3f accelerometer_drift;
 	stationary_stream.computeSliceStatistics(
@@ -628,10 +619,9 @@ init_filter_for_psdualshock4(
 		FIELD_POSITION_X,
 		nullptr,
 		&position_variance);
-	constants.position_constants.min_position_variance = position_variance;
-	constants.position_constants.max_position_variance = position_variance;
-	constants.position_constants.min_position_drift = Eigen::Vector3f::Zero();
-	constants.position_constants.max_position_drift = Eigen::Vector3f::Zero();
+	constants.position_constants.position_variance_curve.A = 0.44888f;
+	constants.position_constants.position_variance_curve.B = -0.00402f;
+	constants.position_constants.position_variance_curve.MaxValue = 1.0f;
 
 	if (bUseCompoundFilter)
 	{

@@ -228,11 +228,11 @@ message Request {
     message RequestSetOpticalNoiseCalibration {
         int32 controller_id = 1;
         // Variance in position as a function of pixel projection area
-        float position_variance_gain = 2;
-        float position_variance_bias = 3;
+        float position_variance_exp_fit_a = 2;
+        float position_variance_exp_fit_b = 3;
         // Variance in orientation as a function of pixel projection area
-        float orientation_variance_gain = 4; // slope
-        float orientation_variance_bias = 5; // offset       
+        float orientation_variance_exp_fit_a = 4; 
+        float orientation_variance_exp_fit_b = 5;
     }
     RequestSetOpticalNoiseCalibration request_set_optical_noise_calibration = 16;
 

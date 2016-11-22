@@ -48,8 +48,6 @@ public:
         , accelerometer_noise_radius(0.014f) // rounded value from config tool measurement
         , gyro_variance(0.00035f) // rounded value from config tool measurement (rad/s)^2
         , gyro_drift(0.027f) // rounded value from config tool measurement (rad/s)
-        , min_position_quality_screen_area(0.f)
-        , max_position_quality_screen_area(k_real_pi*20.f*20.f) // lightbulb at ideal range is about 40px by 40px 
         , max_velocity(1.f)
 		, mean_update_time_delta(0.008333f)
 		, position_variance_exp_fit_a(0.44888f)
@@ -128,12 +126,6 @@ public:
 
     // The drift of the calibrated gyro readings in rad/s
     float gyro_drift;
-
-    // The pixel area of the tracking projection at which the position quality is 0
-    float min_position_quality_screen_area;
-
-    // The pixel area of the tracking projection at which the position quality is 1
-    float max_position_quality_screen_area;
 
     // The maximum velocity allowed in the position filter in cm/s
     float max_velocity;

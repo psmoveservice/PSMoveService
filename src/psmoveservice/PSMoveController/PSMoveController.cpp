@@ -261,8 +261,6 @@ PSMoveControllerConfig::config2ptree()
 	pt.put("OrientationFilter.FilterType", orientation_filter_type);
 
 	pt.put("PositionFilter.FilterType", position_filter_type);
-    pt.put("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
-    pt.put("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
     pt.put("PositionFilter.MaxVelocity", max_velocity);
 
 	writeTrackingColor(pt, tracking_color_id);
@@ -343,8 +341,6 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 		orientation_filter_type= pt.get<std::string>("OrientationFilter.FilterType", orientation_filter_type);
 
 		position_filter_type= pt.get<std::string>("PositionFilter.FilterType", position_filter_type);
-        min_position_quality_screen_area= pt.get<float>("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
-        max_position_quality_screen_area= pt.get<float>("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
         max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
 
 		tracking_color_id= static_cast<eCommonTrackingColorID>(readTrackingColor(pt));

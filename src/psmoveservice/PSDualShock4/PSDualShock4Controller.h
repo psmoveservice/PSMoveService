@@ -51,10 +51,6 @@ public:
         , max_velocity(1.f)
         , gyro_variance(4.75e-06f) // rounded value from config tool measurement (rad^2/s^2)
         , gyro_drift(0.00071f) // rounded value from config tool measurement (rad/s)
-        , min_orientation_quality_screen_area(150.f*34.f*.1f)
-        , max_orientation_quality_screen_area(150.f*34.f) // light bar at ideal range looking straight on is about 150px by 34px 
-        , min_position_quality_screen_area(75.f*17.f*.25f)
-        , max_position_quality_screen_area(75.f*17.f)
 		, mean_update_time_delta(0.016667f)
 		, position_variance_exp_fit_a(0.44888f)
 		, position_variance_exp_fit_b(-0.00402f) // TODO: Compute this from calibration
@@ -142,16 +138,6 @@ public:
     float gyro_variance;
     // The drift raw gyro readings in rad/second
     float gyro_drift;
-
-    // The pixel area of the tracking projection at which the orientation quality is 0
-    float min_orientation_quality_screen_area;
-    // The pixel area of the tracking projection at which the orientation quality is 1
-    float max_orientation_quality_screen_area;
-
-    // The pixel area of the tracking projection at which the position quality is 0
-    float min_position_quality_screen_area;
-    // The pixel area of the tracking projection at which the position quality is 1
-    float max_position_quality_screen_area;
 
 	// The average time between updates in seconds
     float mean_update_time_delta;

@@ -161,12 +161,12 @@ struct PoseNoiseSampleSet
 
 	float getOrientationVarianceForArea(float area) const
 	{
-		return orientation_variance_curve.x()*area + orientation_variance_curve.y();
+		return orientation_variance_curve.y()*exp(orientation_variance_curve.x()*area);
 	}
 
 	float getPositionVarianceForArea(float area) const
 	{
-		return position_variance_curve.x()*area + position_variance_curve.y();
+		return position_variance_curve.y()*exp(position_variance_curve.x()*area);
 	}
 };
 
@@ -404,7 +404,7 @@ void AppStage_OpticalCalibration::update()
 						// Tell the server about the new variance calibration
 						request_set_optical_calibration(
 							m_poseNoiseSamplesSet->position_variance_curve.y(), m_poseNoiseSamplesSet->position_variance_curve.x(),
-							m_poseNoiseSamplesSet->orientation_variance_curve.y(), m_poseNoiseSamplesSet->orientation_variance_curve.x())
+							m_poseNoiseSamplesSet->orientation_variance_curve.y(), m_poseNoiseSamplesSet->orientation_variance_curve.x());
 
 						setState(eCalibrationMenuState::measureComplete);
 					}
@@ -676,7 +676,7 @@ void AppStage_OpticalCalibration::renderUI()
     case eCalibrationMenuState::test:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 140));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 160));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             if (m_bBypassCalibration)
@@ -686,7 +686,8 @@ void AppStage_OpticalCalibration::renderUI()
             else
             {
                 ImGui::Text("Optical Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
-				ImGui::Text("Projection Area: %.1fpx^2, Position Var: %.4frad^2, Orientation Var: %.4fcm^2", 
+				ImGui::Text("Projection Area: %.1f px^2", m_lastProjectionArea);
+				ImGui::Text("Position Var: %.4f rad^2, Orientation Var: %.4f cm^2", 
 					m_poseNoiseSamplesSet->getPositionVarianceForArea(m_lastProjectionArea),
 					m_poseNoiseSamplesSet->getOrientationVarianceForArea(m_lastProjectionArea));
             }

@@ -165,7 +165,7 @@ void OrientationFilterPassThru::update(const float delta_time, const PoseFilterP
 {
 	// Use the current orientation if the optical orientation is unavailable
     const Eigen::Quaternionf &new_orientation= 
-		(packet.optical_orientation_quality > 0.f) 
+		(packet.tracking_projection_area > 0.f) 
 		? packet.optical_orientation
 		: packet.current_orientation;
 
@@ -371,7 +371,7 @@ void OrientationFilterMadgwickMARG::update(const float delta_time, const PoseFil
 // -- OrientationFilterComplementaryOpticalARG --
 void OrientationFilterComplementaryOpticalARG::update(const float delta_time, const PoseFilterPacket &packet)
 {
-    if (packet.optical_orientation_quality <= k_real_epsilon)
+    if (packet.tracking_projection_area <= k_real_epsilon)
     {
         OrientationFilterMadgwickARG::update(delta_time, packet);
 		return;
@@ -436,8 +436,13 @@ void OrientationFilterComplementaryOpticalARG::update(const float delta_time, co
     // Derive the second derivative
     {
         // The final rotation is a blend between the integrated orientation and absolute optical orientation
+		const float max_variance_fraction =
+			safe_divide_with_default(
+				m_constants.orientation_variance_curve.evaluate(packet.tracking_projection_area),
+				m_constants.orientation_variance_curve.MaxValue,
+				1.f);
         float optical_weight= 
-            clampf(packet.optical_orientation_quality, 0, k_max_optical_orientation_weight);
+			lerp_clampf(1.f - max_variance_fraction, 0, k_max_optical_orientation_weight);
         
         static float g_weight_override= -1.f;
         if (g_weight_override >= 0.f)

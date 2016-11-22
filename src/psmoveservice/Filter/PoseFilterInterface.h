@@ -23,16 +23,26 @@ extern const Eigen::Matrix3f *k_eigen_sensor_transform_opengl;
 #define k_centimeters_to_meters  1.f//0.01f
 
 //-- declarations -----
+struct ExponentialCurve
+{
+	float A;
+	float B;
+	float MaxValue;
+
+	inline float evaluate(float x) const
+	{
+		return fminf(A*exp(B*x), MaxValue);
+	}
+};
+
 /// A snapshot of IMU data emitted from a controller
 /// Intended to only exist on the stack.
 struct PoseSensorPacket
 {
     // Optical readings in the world reference frame
     Eigen::Vector3f optical_position_cm; // cm
-    float optical_position_quality; // [0, 1]
-
     Eigen::Quaternionf optical_orientation;
-    float optical_orientation_quality; // [0, 1]
+    float tracking_projection_area; // pixels^2
 
     // Sensor readings in the controller's reference frame
     Eigen::Vector3f imu_accelerometer; // g-units
@@ -111,12 +121,8 @@ struct OrientationFilterConstants
     /// The average time delta between position updates during calibration
     float mean_update_time_delta; // seconds
 
-    /// The min and max variance/drift of the orientation (parameterized by orientation quality)
-    /// recorded during calibration
-    float min_orientation_variance; // rad^2
-    float max_orientation_variance; // rad^2
-	float min_orientation_drift; // rad
-	float max_orientation_drift; // rad
+	/// Best fit parameters for variance as a function of screen projection area
+	ExponentialCurve orientation_variance_curve;
 
 	/// The variance of the accelerometer over a short period
 	Eigen::Vector3f accelerometer_variance; // g-units^2
@@ -151,12 +157,8 @@ struct PositionFilterConstants
     /// The average time delta between position updates during calibration
     float mean_update_time_delta; // seconds
 
-    /// The min and max variance/drift of the position (parameterized by position quality)
-    /// recorded during calibration
-	Eigen::Vector3f min_position_variance; // meters^2
-	Eigen::Vector3f max_position_variance; // meters^2
-	Eigen::Vector3f max_position_drift; // meters
-	Eigen::Vector3f min_position_drift; // meters
+    /// Best fit parameters for variance as a function of screen projection area
+	ExponentialCurve position_variance_curve;
 };
 
 /// Filter parameters that remain constant during the lifetime of the the filter

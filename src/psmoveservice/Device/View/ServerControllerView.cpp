@@ -1592,10 +1592,9 @@ init_filters_for_psmove(
 	constants.orientation_constants.gyro_variance= 
 		Eigen::Vector3f(psmove_config->gyro_variance, psmove_config->gyro_variance, psmove_config->gyro_variance);
 	constants.orientation_constants.mean_update_time_delta= psmove_config->mean_update_time_delta;
-	constants.orientation_constants.min_orientation_variance= psmove_config->orientation_variance;
-	constants.orientation_constants.max_orientation_variance= psmove_config->orientation_variance;
-	constants.orientation_constants.min_orientation_drift = 0.f;
-	constants.orientation_constants.max_orientation_drift = 0.f;
+	constants.orientation_constants.orientation_variance_curve.A = 0.f;
+	constants.orientation_constants.orientation_variance_curve.B = 0.f;
+	constants.orientation_constants.orientation_variance_curve.MaxValue = 0.f;
 	constants.orientation_constants.magnetometer_variance= 
 		Eigen::Vector3f(psmove_config->magnetometer_variance, psmove_config->magnetometer_variance, psmove_config->magnetometer_variance);
 	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero(); // TODO
@@ -1607,15 +1606,9 @@ init_filters_for_psmove(
 	constants.position_constants.accelerometer_noise_radius= psmove_config->accelerometer_noise_radius;
 	constants.position_constants.max_velocity= psmove_config->max_velocity;
     constants.position_constants.mean_update_time_delta= psmove_config->mean_update_time_delta;
-	// min variance at max screen area
-	const float min_pos_var = psmove_config->get_position_variance(psmove_config->max_position_quality_screen_area);
-	constants.position_constants.min_position_variance = Eigen::Vector3f(min_pos_var, min_pos_var, min_pos_var);
-	// max variance at min screen area
-	const float max_pos_var = psmove_config->get_position_variance(psmove_config->min_position_quality_screen_area);
-	constants.position_constants.max_position_variance = Eigen::Vector3f(max_pos_var, max_pos_var, max_pos_var);
-	// TODO: Assume zero position drift
-	constants.position_constants.min_position_drift = Eigen::Vector3f::Zero();
-	constants.position_constants.max_position_drift = Eigen::Vector3f::Zero();
+	constants.position_constants.position_variance_curve.A = psmove_config->position_variance_exp_fit_a;
+	constants.position_constants.position_variance_curve.B = psmove_config->position_variance_exp_fit_b;
+	constants.position_constants.position_variance_curve.MaxValue = 1.f;
 
 	*out_pose_filter_space= pose_filter_space;
 	*out_pose_filter= pose_filter_factory(
@@ -1644,7 +1637,6 @@ update_filters_for_psmove(
 
 		// PSMove cant do optical orientation
         sensorPacket.optical_orientation = Eigen::Quaternionf::Identity();
-        sensorPacket.optical_orientation_quality= 0.f;
 
 		// PSMove does have an optical position
 		if (poseEstimation->bCurrentlyTracking)
@@ -1654,17 +1646,12 @@ update_filters_for_psmove(
 					poseEstimation->position.x,
 					poseEstimation->position.y,
 					poseEstimation->position.z);
-			sensorPacket.optical_position_quality=
-				clampf01(
-					safe_divide_with_default(
-						poseEstimation->projection.screen_area - config->min_position_quality_screen_area,
-						config->max_position_quality_screen_area - config->min_position_quality_screen_area,
-						1.f));
+			sensorPacket.tracking_projection_area = poseEstimation->projection.screen_area;
 		}
 		else
 		{
 			sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
-			sensorPacket.optical_position_quality= 0.f;
+			sensorPacket.tracking_projection_area= 0.f;
 		}
 
 		// One magnetometer update for every two accel/gryo readings
@@ -1736,12 +1723,9 @@ init_filters_for_psdualshock4(
 		Eigen::Vector3f(ds4_config->gyro_drift, ds4_config->gyro_drift, ds4_config->gyro_drift);
 	constants.orientation_constants.gyro_variance=
 		Eigen::Vector3f(ds4_config->gyro_variance, ds4_config->gyro_variance, ds4_config->gyro_variance);
-	// min variance/drift at max screen area
-	constants.orientation_constants.min_orientation_variance =
-		ds4_config->get_orientation_variance(ds4_config->max_orientation_quality_screen_area);
-	// max variance at min screen area
-	constants.orientation_constants.max_orientation_variance =
-		ds4_config->get_orientation_variance(ds4_config->min_orientation_quality_screen_area);
+	constants.orientation_constants.orientation_variance_curve.A = ds4_config->orientation_variance_exp_fit_a;
+	constants.orientation_constants.orientation_variance_curve.B = ds4_config->orientation_variance_exp_fit_b;
+	constants.orientation_constants.orientation_variance_curve.MaxValue = 1.f;
 
 	constants.position_constants.gravity_calibration_direction= pose_filter_space->getGravityCalibrationDirection();
 	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
@@ -1750,14 +1734,9 @@ init_filters_for_psdualshock4(
 	constants.position_constants.accelerometer_noise_radius= ds4_config->accelerometer_noise_radius;
 	constants.position_constants.max_velocity= ds4_config->max_velocity;
     constants.position_constants.mean_update_time_delta= ds4_config->mean_update_time_delta;
-	// min variance at max screen area
-	float min_pos_var = ds4_config->get_position_variance(ds4_config->max_position_quality_screen_area);
-	constants.position_constants.min_position_variance = Eigen::Vector3f(min_pos_var, min_pos_var, min_pos_var);
-	constants.position_constants.min_position_drift = Eigen::Vector3f::Zero();
-	// max variance at min screen area
-	float max_pos_var = ds4_config->get_position_variance(ds4_config->min_position_quality_screen_area);
-	constants.position_constants.max_position_variance = Eigen::Vector3f(max_pos_var, max_pos_var, max_pos_var);
-	constants.position_constants.max_position_drift = Eigen::Vector3f::Zero();
+	constants.position_constants.position_variance_curve.A = ds4_config->position_variance_exp_fit_a;
+	constants.position_constants.position_variance_curve.B = ds4_config->position_variance_exp_fit_b;
+	constants.position_constants.position_variance_curve.MaxValue = 1.f;
 
 	*out_pose_filter_space= pose_filter_space;
 	*out_pose_filter= pose_filter_factory(
@@ -1790,17 +1769,10 @@ update_filters_for_psdualshock4(
                     poseEstimation->orientation.x,
                     poseEstimation->orientation.y,
                     poseEstimation->orientation.z);
-            sensorPacket.optical_orientation_quality=
-                clampf01(
-                    safe_divide_with_default(
-                        poseEstimation->projection.screen_area - config->min_orientation_quality_screen_area,
-                        config->max_orientation_quality_screen_area - config->min_orientation_quality_screen_area,
-                        1.f));
         }
         else
         {
             sensorPacket.optical_orientation = Eigen::Quaternionf::Identity();
-            sensorPacket.optical_orientation_quality= 0.f;
         }
 
         if (poseEstimation->bCurrentlyTracking)
@@ -1810,17 +1782,12 @@ update_filters_for_psdualshock4(
                     poseEstimation->position.x,
                     poseEstimation->position.y,
                     poseEstimation->position.z);
-            sensorPacket.optical_position_quality= 
-                clampf01(
-                    safe_divide_with_default(
-                        poseEstimation->projection.screen_area - config->min_position_quality_screen_area,
-                        config->max_position_quality_screen_area - config->min_position_quality_screen_area,
-                        1.f));
+            sensorPacket.tracking_projection_area= poseEstimation->projection.screen_area;
         }
         else
         {
             sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
-            sensorPacket.optical_position_quality= 0.f;
+            sensorPacket.tracking_projection_area = 0.f;
         }
 
         sensorPacket.imu_accelerometer =

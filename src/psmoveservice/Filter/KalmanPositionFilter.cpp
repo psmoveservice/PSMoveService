@@ -130,26 +130,33 @@ public:
 
     void init(const PositionFilterConstants &constants)
     {
-		update_process_noise(constants);
+		m_last_tracking_projection_area = -1.f;
+		update_process_noise(constants, 0.f);
     }
 
-	void update_process_noise(const PositionFilterConstants &constants)
+	void update_process_noise(const PositionFilterConstants &constants, const float tracking_projection_area)
 	{
-		const double mean_position_dT = constants.mean_update_time_delta;
-		const double mean_orientation_dT = constants.mean_update_time_delta;
+		// Only update the covariance when there is more than a 10px change in position quality
+		if (m_last_tracking_projection_area < 0.f ||
+			!is_nearly_equal(tracking_projection_area, m_last_tracking_projection_area, 10.f))
+		{
+			const double mean_position_dT = constants.mean_update_time_delta;
+			const double mean_orientation_dT = constants.mean_update_time_delta;
 
-		// Start off using the maximum variance values
-		static float q_scale = Q_SCALE;
-		const Eigen::Vector3f position_variance =
-			(constants.min_position_variance +
-				constants.max_position_variance) * 0.5f;
+			// Start off using the maximum variance values
+			static float q_scale = Q_SCALE;
+			const float position_variance = constants.position_variance_curve.evaluate(tracking_projection_area);
 
-		// Initialize the process covariance matrix Q
-		Kalman::Covariance<PositionStateVectord> Q = Kalman::Covariance<PositionStateVectord>::Zero();
-		Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance.x(), POSITION_X, Q);
-		Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance.y(), POSITION_Y, Q);
-		Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance.z(), POSITION_Z, Q);
-		setCovariance(Q);
+			// Initialize the process covariance matrix Q
+			Kalman::Covariance<PositionStateVectord> Q = Kalman::Covariance<PositionStateVectord>::Zero();
+			Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance, POSITION_X, Q);
+			Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance, POSITION_Y, Q);
+			Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance, POSITION_Z, Q);
+			setCovariance(Q);
+
+			// Keep track last tracking projection area we built the covariance matrix for
+			m_last_tracking_projection_area = tracking_projection_area;
+		}
 	}
 
     /**
@@ -191,6 +198,7 @@ public:
     }
 
 protected:
+	float m_last_tracking_projection_area;
     double m_time_step;
 };
 
@@ -219,6 +227,7 @@ class PositionMeasurementModel : public Kalman::MeasurementModel<PositionStateVe
 public:
     void init(const PositionFilterConstants &constants)
     {
+		m_last_tracking_projection_area = -1.f;
 		update_measurement_covariance(constants, 0.f);
         
 		m_identity_gravity_direction= constants.gravity_calibration_direction.cast<double>();
@@ -231,26 +240,31 @@ public:
 
 	void update_measurement_covariance(
 		const PositionFilterConstants &constants,
-		const float position_quality)
+		const float tracking_projection_area)
 	{
-        // Start off using the maximum variance values
-		const Eigen::Vector3f &accelerometer_variance= constants.accelerometer_variance;
-		const Eigen::Vector3f position_variance =
-			position_quality*constants.min_position_variance +
-			(1.f - position_quality)*constants.max_position_variance;
+		// Only update the covariance when there is more than a 10px change in position quality
+		if (m_last_tracking_projection_area < 0.f ||
+			!is_nearly_equal(tracking_projection_area, m_last_tracking_projection_area, 10.f))
+		{
+			const Eigen::Vector3f &accelerometer_variance = constants.accelerometer_variance;
+			const float position_variance = constants.position_variance_curve.evaluate(tracking_projection_area);
 
-        // Update the measurement covariance R
-		static double r_accelometer_scale = R_ACCELEROMETER_SCALE;
-		static double r_position_scale = R_POSITION_SCALE;
-        Kalman::Covariance<PositionMeasurementVectord> R = 
-			Kalman::Covariance<PositionMeasurementVectord>::Zero();
-		R(ACCELEROMETER_X, ACCELEROMETER_X) = r_accelometer_scale*constants.accelerometer_variance.x();
-		R(ACCELEROMETER_Y, ACCELEROMETER_Y) = r_accelometer_scale*constants.accelerometer_variance.y();
-		R(ACCELEROMETER_Z, ACCELEROMETER_Z) = r_accelometer_scale*constants.accelerometer_variance.z();
-        R(OPTICAL_POSITION_X, OPTICAL_POSITION_X) = r_position_scale*position_variance.x();
-        R(OPTICAL_POSITION_Y, OPTICAL_POSITION_Y) = r_position_scale*position_variance.y();
-        R(OPTICAL_POSITION_Z, OPTICAL_POSITION_Z) = r_position_scale*position_variance.z();
-        setCovariance(R);
+			// Update the measurement covariance R
+			static double r_accelometer_scale = R_ACCELEROMETER_SCALE;
+			static double r_position_scale = R_POSITION_SCALE;
+			Kalman::Covariance<PositionMeasurementVectord> R =
+				Kalman::Covariance<PositionMeasurementVectord>::Zero();
+			R(ACCELEROMETER_X, ACCELEROMETER_X) = r_accelometer_scale*constants.accelerometer_variance.x();
+			R(ACCELEROMETER_Y, ACCELEROMETER_Y) = r_accelometer_scale*constants.accelerometer_variance.y();
+			R(ACCELEROMETER_Z, ACCELEROMETER_Z) = r_accelometer_scale*constants.accelerometer_variance.z();
+			R(OPTICAL_POSITION_X, OPTICAL_POSITION_X) = r_position_scale*position_variance;
+			R(OPTICAL_POSITION_Y, OPTICAL_POSITION_Y) = r_position_scale*position_variance;
+			R(OPTICAL_POSITION_Z, OPTICAL_POSITION_Z) = r_position_scale*position_variance;
+			setCovariance(R);
+
+			// Keep track last position quality we built the covariance matrix for
+			m_last_tracking_projection_area = tracking_projection_area;
+		}
 	}
 
     /**
@@ -290,6 +304,7 @@ public:
 protected:
     Eigen::Vector3d m_identity_gravity_direction;
 	Eigen::Quaterniond m_current_orientation;
+	float m_last_tracking_projection_area;
 };
 
 class KalmanPositionFilterImpl
@@ -405,11 +420,8 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
 {
     if (m_filter->bIsValid)
     {
-		static bool bUpdateProcessNoise = false;
-		if (bUpdateProcessNoise)
-		{
-			m_filter->system_model.update_process_noise(m_constants);
-		}
+		// Adjust the amount we trust the optical state based on the tracking projection area
+		m_filter->system_model.update_process_noise(m_constants, packet.tracking_projection_area);
 
         // Predict state for current time-step using the filters
         m_filter->system_model.set_time_step(delta_time);
@@ -429,14 +441,14 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
         // Accelerometer and gyroscope measurements are always available
         measurement.set_accelerometer(packet.imu_accelerometer.cast<double>());
 
-        if (packet.optical_position_quality > 0.f)
+		// Adjust the amount we trust the optical measurements based on the tracking projection area
+		measurement_model.update_measurement_covariance(
+			m_constants,
+			packet.tracking_projection_area);
+
+        if (packet.tracking_projection_area > 0.f)
         {
 			Eigen::Vector3f optical_position= packet.get_optical_position_in_meters();
-
-			// Adjust the amount we trust the optical measurements based on the quality parameters
-            measurement_model.update_measurement_covariance(
-				m_constants, 
-				packet.optical_position_quality);
 
             // State internally stores position in meters
             measurement.set_optical_position(optical_position.cast<double>());
@@ -456,7 +468,7 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
     {
 		PositionStateVectord state_vector = PositionStateVectord::Zero();
 
-		if (packet.optical_position_quality > 0.f)
+		if (packet.tracking_projection_area > 0.f)
 		{
 			Eigen::Vector3f optical_position= packet.get_optical_position_in_meters();
 

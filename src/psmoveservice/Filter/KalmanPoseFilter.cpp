@@ -612,15 +612,11 @@ public:
 
 	void update_measurement_statistics(
 		const PoseFilterConstants &constants,
-		const float position_quality)
+		const float tracker_projection_area)
 	{
         // Start off using the maximum standard deviation values
-		const Eigen::Vector3f position_variance =
-			position_quality*constants.position_constants.min_position_variance +
-			(1.f - position_quality)*constants.position_constants.max_position_variance;
-		const Eigen::Vector3f position_drift =
-			position_quality*constants.position_constants.min_position_drift +
-			(1.f - position_quality)*constants.position_constants.max_position_drift;
+		const float position_variance =
+			constants.position_constants.position_variance_curve.evaluate(tracker_projection_area);
 
 		// Update the biases
 		R_mu(PSMOVE_ACCELEROMETER_X) = constants.position_constants.accelerometer_drift.x();
@@ -632,9 +628,9 @@ public:
 		R_mu(PSMOVE_MAGNETOMETER_X) = constants.orientation_constants.magnetometer_drift.x();
 		R_mu(PSMOVE_MAGNETOMETER_Y) = constants.orientation_constants.magnetometer_drift.x();
 		R_mu(PSMOVE_MAGNETOMETER_Z) = constants.orientation_constants.magnetometer_drift.x();
-		R_mu(PSMOVE_OPTICAL_POSITION_X) = position_drift.x();
-		R_mu(PSMOVE_OPTICAL_POSITION_Y) = position_drift.x();
-		R_mu(PSMOVE_OPTICAL_POSITION_Z) = position_drift.x();
+		R_mu(PSMOVE_OPTICAL_POSITION_X) = 0.f;
+		R_mu(PSMOVE_OPTICAL_POSITION_Y) = 0.f;
+		R_mu(PSMOVE_OPTICAL_POSITION_Z) = 0.f;
 
 
         // Update the measurement covariance R
@@ -650,9 +646,9 @@ public:
 		R_cov(PSMOVE_MAGNETOMETER_X, PSMOVE_MAGNETOMETER_X) = sqrt(R_SCALE*constants.orientation_constants.magnetometer_variance.x());
 		R_cov(PSMOVE_MAGNETOMETER_Y, PSMOVE_MAGNETOMETER_Y) = sqrt(R_SCALE*constants.orientation_constants.magnetometer_variance.y());
 		R_cov(PSMOVE_MAGNETOMETER_Z, PSMOVE_MAGNETOMETER_Z) = sqrt(R_SCALE*constants.orientation_constants.magnetometer_variance.z());
-		R_cov(PSMOVE_OPTICAL_POSITION_X, PSMOVE_OPTICAL_POSITION_X) = sqrt(R_SCALE*position_variance.x());
-		R_cov(PSMOVE_OPTICAL_POSITION_Y, PSMOVE_OPTICAL_POSITION_Y) = sqrt(R_SCALE*position_variance.y());
-		R_cov(PSMOVE_OPTICAL_POSITION_Z, PSMOVE_OPTICAL_POSITION_Z) = sqrt(R_SCALE*position_variance.z());
+		R_cov(PSMOVE_OPTICAL_POSITION_X, PSMOVE_OPTICAL_POSITION_X) = sqrt(R_SCALE*position_variance);
+		R_cov(PSMOVE_OPTICAL_POSITION_Y, PSMOVE_OPTICAL_POSITION_Y) = sqrt(R_SCALE*position_variance);
+		R_cov(PSMOVE_OPTICAL_POSITION_Z, PSMOVE_OPTICAL_POSITION_Z) = sqrt(R_SCALE*position_variance);
 	}
 
     /**
@@ -736,33 +732,24 @@ class DS4_MeasurementModel
 public:
     void init(const PoseFilterConstants &constants)
     {
-		update_measurement_statistics(constants,0.f, 0.f);
+		update_measurement_statistics(constants, 0.f);
 
 		identity_gravity_direction= constants.orientation_constants.gravity_calibration_direction.cast<double>();
     }
 
 	void update_measurement_statistics(
 		const PoseFilterConstants &constants,
-		const float position_quality,
-		const float orientation_quality)
+		const float tracker_projection_area)
 	{
-		const Eigen::Vector3f position_variance =
-			position_quality*constants.position_constants.min_position_variance +
-			(1.f - position_quality)*constants.position_constants.max_position_variance;
-		const Eigen::Vector3f position_drift =
-			position_quality*constants.position_constants.min_position_drift +
-			(1.f - position_quality)*constants.position_constants.max_position_drift;
+		const float position_variance = 
+			constants.position_constants.position_variance_curve.evaluate(tracker_projection_area);
+		const float orientation_variance =
+			constants.orientation_constants.orientation_variance_curve.evaluate(tracker_projection_area);
 
-		const double angle_axis_std_dev=
-			sqrt(R_SCALE*lerp_clampf(
-				constants.orientation_constants.max_orientation_variance,
-				constants.orientation_constants.min_orientation_variance,
-				orientation_quality));
-		const double angle_axis_drift =
-			sqrt(R_SCALE*lerp_clampf(
-				constants.orientation_constants.max_orientation_drift,
-				constants.orientation_constants.min_orientation_drift,
-				orientation_quality));
+		const float position_drift = 0.f;
+
+		const double angle_axis_std_dev= sqrt(R_SCALE*orientation_variance);
+		const double angle_axis_drift = 0.f;
 
 		// Update the biases
 		R_mu(DS4_ACCELEROMETER_X) = constants.position_constants.accelerometer_drift.x();
@@ -771,9 +758,9 @@ public:
 		R_mu(DS4_GYROSCOPE_X) = constants.orientation_constants.gyro_drift.x();
 		R_mu(DS4_GYROSCOPE_Y) = constants.orientation_constants.gyro_drift.y();
 		R_mu(DS4_GYROSCOPE_Z) = constants.orientation_constants.gyro_drift.z();
-		R_mu(DS4_OPTICAL_POSITION_X) = position_drift.x();
-		R_mu(DS4_OPTICAL_POSITION_Y) = position_drift.x();
-		R_mu(DS4_OPTICAL_POSITION_Z) = position_drift.x();
+		R_mu(DS4_OPTICAL_POSITION_X) = position_drift;
+		R_mu(DS4_OPTICAL_POSITION_Y) = position_drift;
+		R_mu(DS4_OPTICAL_POSITION_Z) = position_drift;
 		R_mu(DS4_OPTICAL_ANGLE_AXIS_X) = angle_axis_drift;
 		R_mu(DS4_OPTICAL_ANGLE_AXIS_Y) = angle_axis_drift;
 		R_mu(DS4_OPTICAL_ANGLE_AXIS_Z) = angle_axis_drift;
@@ -786,9 +773,9 @@ public:
 		R_cov(DS4_GYROSCOPE_X, DS4_GYROSCOPE_X)= sqrt(R_SCALE*constants.orientation_constants.gyro_variance.x());
 		R_cov(DS4_GYROSCOPE_Y, DS4_GYROSCOPE_Y)= sqrt(R_SCALE*constants.orientation_constants.gyro_variance.y());
 		R_cov(DS4_GYROSCOPE_Z, DS4_GYROSCOPE_Z)= sqrt(R_SCALE*constants.orientation_constants.gyro_variance.z());
-		R_cov(DS4_OPTICAL_POSITION_X, DS4_OPTICAL_POSITION_X) = sqrt(R_SCALE*position_variance.x());
-		R_cov(DS4_OPTICAL_POSITION_Y, DS4_OPTICAL_POSITION_Y) = sqrt(R_SCALE*position_variance.y());
-		R_cov(DS4_OPTICAL_POSITION_Z, DS4_OPTICAL_POSITION_Z) = sqrt(R_SCALE*position_variance.z());
+		R_cov(DS4_OPTICAL_POSITION_X, DS4_OPTICAL_POSITION_X) = sqrt(R_SCALE*position_variance);
+		R_cov(DS4_OPTICAL_POSITION_Y, DS4_OPTICAL_POSITION_Y) = sqrt(R_SCALE*position_variance);
+		R_cov(DS4_OPTICAL_POSITION_Z, DS4_OPTICAL_POSITION_Z) = sqrt(R_SCALE*position_variance);
         R_cov(DS4_OPTICAL_ANGLE_AXIS_X, DS4_OPTICAL_ANGLE_AXIS_X) = angle_axis_std_dev; 
         R_cov(DS4_OPTICAL_ANGLE_AXIS_Y, DS4_OPTICAL_ANGLE_AXIS_Y) = angle_axis_std_dev;
         R_cov(DS4_OPTICAL_ANGLE_AXIS_Z, DS4_OPTICAL_ANGLE_AXIS_Z) = angle_axis_std_dev;
@@ -1630,42 +1617,35 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
         measurement.set_accelerometer(packet.imu_accelerometer.cast<double>());
         measurement.set_gyroscope(packet.imu_gyroscope.cast<double>());
 
-        if (packet.optical_orientation_quality > 0.f || packet.optical_position_quality > 0.f)
+		// Adjust the amount we trust the optical measurements based on the quality parameters
+		measurement_model.update_measurement_statistics(
+			m_constants,
+			packet.tracking_projection_area);
+
+        if (packet.tracking_projection_area > 0.f)
         {
-			// Adjust the amount we trust the optical measurements based on the quality parameters
-            measurement_model.update_measurement_statistics(
-				m_constants, 
-				packet.optical_position_quality, 
-				packet.optical_orientation_quality);
+			Eigen::Vector3f optical_position = packet.get_optical_position_in_meters();
 
-            // If available, use the optical orientation measurement
-            if (packet.optical_orientation_quality > 0.f)
-            {
-                measurement.set_optical_quaternion(packet.optical_orientation.cast<double>());
+            // Use the optical orientation measurement
+            measurement.set_optical_quaternion(packet.optical_orientation.cast<double>());
 
-				// If this is the first time we have seen the orientation, snap the orientation state
-				if (!m_filter->bSeenOrientationMeasurement)
-				{
-					srukf.x.set_quaternion(packet.optical_orientation.cast<double>());
-					m_filter->bSeenOrientationMeasurement= true;
-				}
-            }
+			// If this is the first time we have seen the orientation, snap the orientation state
+			if (!m_filter->bSeenOrientationMeasurement)
+			{
+				srukf.x.set_quaternion(packet.optical_orientation.cast<double>());
+				m_filter->bSeenOrientationMeasurement= true;
+			}
 
-            // If available, use the optical position
-            if (packet.optical_position_quality > 0.f)
-            {
-				Eigen::Vector3f optical_position= packet.get_optical_position_in_meters();
+            // Use the optical position
+            // State internally stores position in meters
+            measurement.set_optical_position(optical_position.cast<double>());
 
-                // State internally stores position in meters
-                measurement.set_optical_position(optical_position.cast<double>());
-
-				// If this is the first time we have seen the position, snap the position state
-				if (!m_filter->bSeenPositionMeasurement)
-				{
-					srukf.x.set_position(optical_position.cast<double>());
-					m_filter->bSeenPositionMeasurement= true;
-				}
-            }
+			// If this is the first time we have seen the position, snap the position state
+			if (!m_filter->bSeenPositionMeasurement)
+			{
+				srukf.x.set_position(optical_position.cast<double>());
+				m_filter->bSeenPositionMeasurement= true;
+			}
         }
 
         // Update UKF
@@ -1675,27 +1655,21 @@ void KalmanPoseFilterDS4::update(const float delta_time, const PoseFilterPacket 
     {
         srukf.x.setZero();
 
-		if (packet.optical_position_quality > 0.f)
+		if (packet.tracking_projection_area > 0.f)
 		{
 			Eigen::Vector3f optical_position= packet.get_optical_position_in_meters();
 
 			srukf.x.set_position(optical_position.cast<double>());
 			m_filter->bSeenPositionMeasurement= true;
+
+			srukf.x.set_quaternion(packet.optical_orientation.cast<double>());
+			m_filter->bSeenOrientationMeasurement = true;
 		}
 		else
 		{
 			srukf.x.set_position(Eigen::Vector3d::Zero());
+			srukf.x.set_quaternion(Eigen::Quaterniond::Identity());
 		}
-
-        if (packet.optical_orientation_quality > 0.f)
-        {
-            srukf.x.set_quaternion(packet.optical_orientation.cast<double>());
-			m_filter->bSeenOrientationMeasurement= true;
-        }
-        else
-        {
-            srukf.x.set_quaternion(Eigen::Quaterniond::Identity());
-        }
 
         m_filter->bIsValid= true;
     }
@@ -1752,13 +1726,13 @@ void KalmanPoseFilterPSMove::update(const float delta_time, const PoseFilterPack
         measurement.set_magnetometer(packet.imu_magnetometer.cast<double>());
 
         // If available, use the optical position
-        if (packet.optical_position_quality > 0.f)
+        if (packet.tracking_projection_area > 0.f)
         {
 			Eigen::Vector3f optical_position= packet.get_optical_position_in_meters();
 
 			//TODO: Update measurement statistics once we get the filter working
 			//// Adjust the amount we trust the optical measurements based on the quality parameters
-			//measurement_model.update_measurement_statistics(m_constants, packet.optical_position_quality);
+			//measurement_model.update_measurement_statistics(m_constants, packet.tracking_projection_area);
 
 			// Assign the latest optical measurement from the packet
             measurement.set_optical_position(optical_position.cast<double>());
@@ -1782,7 +1756,7 @@ void KalmanPoseFilterPSMove::update(const float delta_time, const PoseFilterPack
 		// We always "see" the orientation measurements for the PSMove (MARG state)
 		m_filter->bSeenOrientationMeasurement= true;
 
-		if (packet.optical_position_quality > 0.f)
+		if (packet.tracking_projection_area > 0.f)
 		{
 			Eigen::Vector3f optical_position= packet.get_optical_position_in_meters();
 

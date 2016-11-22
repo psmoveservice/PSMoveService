@@ -115,23 +115,32 @@ public:
 
 	void init(const OrientationFilterConstants &constants)
 	{
-		update_process_noise(constants);
+		m_last_tracking_projection_area = -1.f;
+		update_process_noise(constants, 0.f);
 	}
 
-	void update_process_noise(const OrientationFilterConstants &constants)
+	void update_process_noise(const OrientationFilterConstants &constants, float tracking_projection_area)
 	{
-		const double mean_orientation_dT = constants.mean_update_time_delta;
+		// Only update the covariance when there is more than a 10px change in position quality
+		if (m_last_tracking_projection_area < 0.f || 
+			!is_nearly_equal(tracking_projection_area, m_last_tracking_projection_area, 10.f))
+		{
+			const double mean_orientation_dT = constants.mean_update_time_delta;
 
-		// Start off using the maximum variance values
-		static float q_scale = Q_SCALE;
-		float orientation_variance = q_scale * (constants.min_orientation_variance + constants.max_orientation_variance) * 0.5f;
+			// Start off using the maximum variance values
+			static float q_scale = Q_SCALE;
+			float orientation_variance = q_scale * constants.orientation_variance_curve.evaluate(tracking_projection_area);
 
-		// Initialize the process covariance matrix Q
-		Kalman::Covariance<OrientationStateVectord> Q = Kalman::Covariance<OrientationStateVectord>::Zero();
-		Q_discrete_2rd_order_white_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_BANK, Q);
-		Q_discrete_2rd_order_white_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_HEADING, Q);
-		Q_discrete_2rd_order_white_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_ATTITUDE, Q);
-		setCovariance(Q);
+			// Initialize the process covariance matrix Q
+			Kalman::Covariance<OrientationStateVectord> Q = Kalman::Covariance<OrientationStateVectord>::Zero();
+			Q_discrete_2rd_order_white_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_BANK, Q);
+			Q_discrete_2rd_order_white_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_HEADING, Q);
+			Q_discrete_2rd_order_white_noise<OrientationStateVectord>(mean_orientation_dT, orientation_variance, EULER_ANGLE_ATTITUDE, Q);
+			setCovariance(Q);
+
+			// Keep track last tracking projection area we built the covariance matrix for
+			m_last_tracking_projection_area = tracking_projection_area;
+		}
 	}
 
 	/**
@@ -170,6 +179,7 @@ public:
 
 protected:
 	double m_time_step;
+	float m_last_tracking_projection_area;
 };
 
 class OrientationSRUKF : public Kalman::SquareRootUnscentedKalmanFilter<OrientationStateVectord>
@@ -335,6 +345,7 @@ class DS4_OrientationMeasurementModel
 public:
 	void init(const OrientationFilterConstants &constants)
 	{
+		m_last_tracking_projection_area = -1.f;
 		update_measurement_statistics(constants, 0.f);
 
 		identity_gravity_direction = constants.gravity_calibration_direction.cast<double>();
@@ -342,24 +353,29 @@ public:
 
 	void update_measurement_statistics(
 		const OrientationFilterConstants &constants,
-		const float orientation_quality)
+		const float tracking_projection_area)
 	{
-		// Update the measurement covariance R
-		Kalman::Covariance<DS4_OrientationMeasurementVectord> R =
-			Kalman::Covariance<DS4_OrientationMeasurementVectord>::Zero();
+		// Only update the covariance when there is more than a 10px change in position quality
+		if (m_last_tracking_projection_area < 0.f ||
+			!is_nearly_equal(tracking_projection_area, m_last_tracking_projection_area, 10.f))
+		{
+			// Update the measurement covariance R
+			Kalman::Covariance<DS4_OrientationMeasurementVectord> R =
+				Kalman::Covariance<DS4_OrientationMeasurementVectord>::Zero();
+			const float orientation_variance = constants.orientation_variance_curve.evaluate(tracking_projection_area);
 
-		static float r_scale = R_SCALE;
-		R(DS4_ACCELEROMETER_X, DS4_ACCELEROMETER_X) = sqrt(r_scale*constants.accelerometer_variance.x());
-		R(DS4_ACCELEROMETER_Y, DS4_ACCELEROMETER_Y) = sqrt(r_scale*constants.accelerometer_variance.y());
-		R(DS4_ACCELEROMETER_Z, DS4_ACCELEROMETER_Z) = sqrt(r_scale*constants.accelerometer_variance.z());
-		R(DS4_GYROSCOPE_PITCH, DS4_GYROSCOPE_PITCH) = sqrt(r_scale*constants.gyro_variance.x());
-		R(DS4_GYROSCOPE_YAW, DS4_GYROSCOPE_YAW) = sqrt(r_scale*constants.gyro_variance.y());
-		R(DS4_GYROSCOPE_ROLL, DS4_GYROSCOPE_ROLL) = sqrt(r_scale*constants.gyro_variance.z());
-		R(DS4_OPTICAL_EULER_ANGLE_HEADING, DS4_OPTICAL_EULER_ANGLE_HEADING) = 
-			sqrt(r_scale*lerp_clampf(
-				constants.max_orientation_variance,
-				constants.min_orientation_variance,
-				orientation_quality));
+			static float r_scale = R_SCALE;
+			R(DS4_ACCELEROMETER_X, DS4_ACCELEROMETER_X) = sqrt(r_scale*constants.accelerometer_variance.x());
+			R(DS4_ACCELEROMETER_Y, DS4_ACCELEROMETER_Y) = sqrt(r_scale*constants.accelerometer_variance.y());
+			R(DS4_ACCELEROMETER_Z, DS4_ACCELEROMETER_Z) = sqrt(r_scale*constants.accelerometer_variance.z());
+			R(DS4_GYROSCOPE_PITCH, DS4_GYROSCOPE_PITCH) = sqrt(r_scale*constants.gyro_variance.x());
+			R(DS4_GYROSCOPE_YAW, DS4_GYROSCOPE_YAW) = sqrt(r_scale*constants.gyro_variance.y());
+			R(DS4_GYROSCOPE_ROLL, DS4_GYROSCOPE_ROLL) = sqrt(r_scale*constants.gyro_variance.z());
+			R(DS4_OPTICAL_EULER_ANGLE_HEADING, DS4_OPTICAL_EULER_ANGLE_HEADING) = sqrt(r_scale*orientation_variance);
+
+			// Keep track last tracking projection area we built the covariance matrix for
+			m_last_tracking_projection_area = tracking_projection_area;
+		}
 	}
 
 	/**
@@ -399,6 +415,7 @@ public:
 	}
 
 public:
+	float m_last_tracking_projection_area;
 	Eigen::Vector3d identity_gravity_direction;
 };
 
@@ -731,11 +748,8 @@ void KalmanOrientationFilterDS4::update(const float delta_time, const PoseFilter
 	{
 		DS4KalmanOrientationFilterImpl *filter = static_cast<DS4KalmanOrientationFilterImpl *>(m_filter);
 
-		static bool bUpdateProcessNoise = false;
-		if (bUpdateProcessNoise)
-		{
-			filter->system_model.update_process_noise(m_constants);
-		}
+		// Adjust the amount we trust the process model based on the tracking projection area
+		filter->system_model.update_process_noise(m_constants, packet.tracking_projection_area);
 
 		// Predict state for current time-step using the filters
 		filter->system_model.set_time_step(delta_time);
@@ -746,7 +760,7 @@ void KalmanOrientationFilterDS4::update(const float delta_time, const PoseFilter
 		DS4_OrientationMeasurementModel &measurement_model = filter->measurement_model;
 
 		// If this is the first time we have seen the orientation, snap the orientation state
-		if (!m_filter->bSeenOrientationMeasurement && packet.optical_orientation_quality > 0.f)
+		if (!m_filter->bSeenOrientationMeasurement && packet.tracking_projection_area > 0.f)
 		{
 			const Eigen::Quaterniond world_quaternion = packet.optical_orientation.cast<double>();
 
@@ -758,18 +772,18 @@ void KalmanOrientationFilterDS4::update(const float delta_time, const PoseFilter
 		// in case no observation is available
 		DS4_OrientationMeasurementVectord local_measurement = measurement_model.h(filter->ukf.getState());
 
+		// Adjust the amount we trust the optical measurements based on the tracking projection area
+		measurement_model.update_measurement_statistics(
+			m_constants,
+			packet.tracking_projection_area);
+
 		// If available, use the optical orientation measurement
-		if (packet.optical_orientation_quality > 0.f)
+		if (packet.tracking_projection_area > 0.f)
 		{
 			const Eigen::EulerAnglesd world_optical_euler_angles =
 				eigen_quaterniond_to_euler_angles(packet.optical_orientation.cast<double>());
 			const double world_optical_heading = world_optical_euler_angles.get_heading_radians();
 			const double local_optical_heading = filter->world_heading_to_unclamped_local_heading(world_optical_heading);
-
-			// Adjust the amount we trust the optical measurements based on the quality parameters
-			measurement_model.update_measurement_statistics(
-				m_constants,
-				packet.optical_orientation_quality);
 
 			local_measurement.set_optical_euler_heading_angle(local_optical_heading);
 		}
