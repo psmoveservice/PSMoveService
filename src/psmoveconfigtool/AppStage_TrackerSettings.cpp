@@ -3,6 +3,7 @@
 #include "AppStage_TestTracker.h"
 #include "AppStage_ColorCalibration.h"
 #include "AppStage_ComputeTrackerPoses.h"
+#include "AppStage_DistortionCalibration.h"
 #include "AppStage_MainMenu.h"
 #include "App.h"
 #include "Camera.h"
@@ -205,6 +206,12 @@ void AppStage_TrackerSettings::renderUI()
             {
                 m_app->setAppStage(AppStage_TestTracker::APP_STAGE_NAME);
             }
+
+            //###HipsterSloth $TODO: Localhost only check
+            if (ImGui::Button("Calibrate Tracker Distortion"))
+            {
+                m_app->setAppStage(AppStage_DistortionCalibration::APP_STAGE_NAME);
+            }
         }
         else
         {
@@ -234,7 +241,7 @@ void AppStage_TrackerSettings::renderUI()
 					if (controllerInfo.ControllerType == ClientControllerView::PSMove)
 					{ 
 						if (0 <= controllerInfo.TrackingColorType && controllerInfo.TrackingColorType < PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES) {
-							char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
+							const char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
 
 							ImGui::Text("Controller: %d (PSMove) - %s", 
 								m_selectedControllerIndex,
@@ -298,7 +305,7 @@ void AppStage_TrackerSettings::renderUI()
 					{
 						if (0 <= hmdInfo.TrackingColorType && hmdInfo.TrackingColorType < PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES) 
 						{
-							char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
+							const char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
 
 							ImGui::Text("HMD: %d (Morpheus) - %s",
 								m_selectedHmdIndex,

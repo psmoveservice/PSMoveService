@@ -18,6 +18,15 @@ add_library(PSMoveMath STATIC ${PSMOVE_MATH_LIBRARY_SRC})
 if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 endif()
+
 target_include_directories(PSMoveMath PUBLIC ${PSMOVE_MATH_INCL_DIRS} ${CMAKE_CURRENT_BINARY_DIR})
 set_target_properties(PSMoveMath PROPERTIES
-    COMPILE_FLAGS “-DBUILDING_STATIC_LIBRARY -fPIC”)
+    COMPILE_FLAGS "-DBUILDING_STATIC_LIBRARY -fPIC")
+
+#MacOS OpenCV must be self-built, this links against older std, which is hidden
+#Therefore the PSMoveConfigTool must be hidden
+#Therefore this must be hidden.
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    SET_TARGET_PROPERTIES(PSMoveMath
+        PROPERTIES COMPILE_FLAGS "-fvisibility=hidden")
+ENDIF()

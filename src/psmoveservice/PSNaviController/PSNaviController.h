@@ -84,7 +84,7 @@ struct PSNaviControllerState : public CommonControllerState
 class PSNaviController : public IControllerInterface {
 public:
     PSNaviController();
-    ~PSNaviController();
+    virtual ~PSNaviController();
 
     // PSNaviController
     bool open();                                             // Opens the first HID device for the controller

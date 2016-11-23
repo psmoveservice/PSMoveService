@@ -815,6 +815,7 @@ void AppStage_ColorCalibration::request_tracker_set_exposure(double value)
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE);
     request->mutable_request_set_tracker_exposure()->set_tracker_id(m_trackerView->getTrackerId());
     request->mutable_request_set_tracker_exposure()->set_value(static_cast<float>(value));
+    request->mutable_request_set_tracker_exposure()->set_save_setting(true);
 
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::send_opaque_request(&request),
@@ -851,6 +852,7 @@ void AppStage_ColorCalibration::request_tracker_set_gain(double value)
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_GAIN);
     request->mutable_request_set_tracker_gain()->set_tracker_id(m_trackerView->getTrackerId());
     request->mutable_request_set_tracker_gain()->set_value(static_cast<float>(value));
+    request->mutable_request_set_tracker_gain()->set_save_setting(true);
 
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::send_opaque_request(&request),

@@ -49,6 +49,11 @@ struct CLIENTPSMOVEAPI ClientTrackerInfo
     float tracker_vfov; // degrees
     float tracker_znear; // cm
     float tracker_zfar; // cm
+    float tracker_k1;
+    float tracker_k2;
+    float tracker_k3;
+    float tracker_p1;
+    float tracker_p2;
 
     // Camera Extrinsic properties
     PSMovePose tracker_pose;

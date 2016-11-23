@@ -370,6 +370,8 @@ public:
         _PollResultFailure,
     };
     
+	virtual ~IDeviceInterface() {};
+
     // Return true if device path matches
     virtual bool matchesDeviceEnumerator(const class DeviceEnumerator *enumerator) const = 0;
     
@@ -483,6 +485,9 @@ public:
         return result;
     }
     
+    virtual void loadSettings() = 0;
+    virtual void saveSettings() = 0;
+
     virtual void setExposure(double value) = 0;
     virtual double getExposure() const = 0;
 
@@ -491,10 +496,14 @@ public:
 
     virtual void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
-        float &outPrincipalX, float &outPrincipalY) const = 0;
+        float &outPrincipalX, float &outPrincipalY,
+        float &outDistortionK1, float &outDistortionK2, float &outDistortionK3,
+        float &outDistortionP1, float &outDistortionP2) const = 0;
     virtual void setCameraIntrinsics(
         float focalLengthX, float focalLengthY,
-        float principalX, float principalY) = 0;
+        float principalX, float principalY,
+        float distortionK1, float distortionK2, float distortionK3,
+        float distortionP1, float distortionP2) = 0;
 
     virtual CommonDevicePose getTrackerPose() const = 0;
     virtual void setTrackerPose(const struct CommonDevicePose *pose) = 0;

@@ -38,9 +38,9 @@ protected:
     void free_device_enumerator(class DeviceEnumerator *) override;
     ServerDeviceView *allocate_device_view(int device_id) override;
 
-    const PSMoveProtocol::Response_ResponseType getListUpdatedResponseType() override
+    int getListUpdatedResponseType() override
     {
-        return HMDManager::k_list_udpated_response_type;
+        return (int)HMDManager::k_list_udpated_response_type;
     }
 
 private:

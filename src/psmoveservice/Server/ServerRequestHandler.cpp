@@ -258,9 +258,17 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__set_tracker_pose(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SET_TRACKER_INTRINSICS:
+                response = new PSMoveProtocol::Response;
+                handle_request__set_tracker_intrinsics(context, response);
+                break;
             case PSMoveProtocol::Request_RequestType_SAVE_TRACKER_PROFILE:
                 response = new PSMoveProtocol::Response;
                 handle_request__save_tracker_profile(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_RELOAD_TRACKER_SETTINGS:
+                response = new PSMoveProtocol::Response;
+                handle_request__reload_tracker_settings(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_APPLY_TRACKER_PROFILE:
                 response = new PSMoveProtocol::Response;
@@ -1079,10 +1087,16 @@ protected:
 
                 // Get the intrinsic camera lens properties
                 {
-                    float focalLengthX, focalLengthY, principalX, principalY;
                     float pixelWidth, pixelHeight;
+                    float focalLengthX, focalLengthY, principalX, principalY;
+                    float distortionK1, distortionK2, distortionK3;
+                    float distortionP1, distortionP2;
 
-                    tracker_view->getCameraIntrinsics(focalLengthX, focalLengthY, principalX, principalY);
+                    tracker_view->getCameraIntrinsics(
+                        focalLengthX, focalLengthY, 
+                        principalX, principalY,
+                        distortionK1, distortionK2, distortionK3,
+                        distortionP1, distortionP2);
                     tracker_view->getPixelDimensions(pixelWidth, pixelHeight);
 
                     tracker_info->mutable_tracker_focal_lengths()->set_x(focalLengthX);
@@ -1093,6 +1107,12 @@ protected:
 
                     tracker_info->mutable_tracker_screen_dimensions()->set_x(pixelWidth);
                     tracker_info->mutable_tracker_screen_dimensions()->set_y(pixelHeight);
+
+                    tracker_info->set_tracker_k1(distortionK1);
+                    tracker_info->set_tracker_k2(distortionK2);
+                    tracker_info->set_tracker_k3(distortionK3);
+                    tracker_info->set_tracker_p1(distortionP1);
+                    tracker_info->set_tracker_p2(distortionP2);
                 }
 
                 // Get the tracker field of view properties
@@ -1263,6 +1283,12 @@ protected:
                 // Set the desired exposure on the tracker
                 tracker_view->setExposure(desired_exposure);
 
+                // Only save the setting if requested
+                if (context.request->request_set_tracker_exposure().save_setting())
+                {
+                    tracker_view->saveSettings();
+                }
+
                 // Return back the actual exposure that got set
                 result_exposure->set_new_exposure(static_cast<float>(tracker_view->getExposure()));
 
@@ -1297,6 +1323,12 @@ protected:
 
                 // Set the desired gain on the tracker
                 tracker_view->setGain(desired_gain);
+
+                // Only save the setting if requested
+                if (context.request->request_set_tracker_gain().save_setting())
+                {
+                    tracker_view->saveSettings();
+                }
 
                 // Return back the actual gain that got set
                 result_gain->set_new_gain(static_cast<float>(tracker_view->getGain()));
@@ -1340,6 +1372,8 @@ protected:
                     tracker_view->getOptionIndex(option_name, result_option_index);
                     result_gain->set_option_name(option_name);
                     result_gain->set_new_option_index(result_option_index);
+
+                    tracker_view->saveSettings();
 
                     response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
                 }
@@ -1412,6 +1446,7 @@ protected:
 							tracker_view->getHMDTrackingColorPreset(hmd_view, colorType, &outHSVColorRange);
 						} break;
 					}
+//                    tracker_view->saveSettings(); // Carried over from old generic_camera
                 }
 
                 // Get the resulting preset from the tracker
@@ -1474,6 +1509,39 @@ protected:
                 CommonDevicePose destPose = protocol_pose_to_common_device_pose(srcPose);
 
                 tracker_view->setTrackerPose(&destPose);
+                tracker_view->saveSettings();
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_tracker_intrinsics(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_set_tracker_intrinsics().tracker_id();
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {
+                const auto &intrinsics= context.request->request_set_tracker_intrinsics();
+
+                tracker_view->setCameraIntrinsics(
+                    intrinsics.tracker_focal_lengths().x(), intrinsics.tracker_focal_lengths().y(),
+                    intrinsics.tracker_principal_point().x(), intrinsics.tracker_principal_point().y(),
+                    intrinsics.tracker_k1(), intrinsics.tracker_k2(), intrinsics.tracker_k3(),
+                    intrinsics.tracker_p1(), intrinsics.tracker_p2());
+                tracker_view->saveSettings();
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -1572,6 +1640,35 @@ protected:
                     tracker_view->gatherTrackingColorPresets(controller_view, settings);
                 }
 
+                tracker_view->saveSettings();
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__reload_tracker_settings(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int tracker_id = context.request->request_apply_tracker_profile().tracker_id();
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_GENERAL_RESULT);
+
+        if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+            if (tracker_view->getIsOpen())
+            {   
+                tracker_view->loadSettings();
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
             else

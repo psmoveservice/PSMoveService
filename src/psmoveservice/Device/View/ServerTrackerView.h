@@ -44,6 +44,9 @@ public:
     // Returns the name of the shared memory block video frames are written to
     std::string getSharedMemoryStreamName() const;
     
+    void loadSettings();
+    void saveSettings();
+
     double getExposure() const;
     void setExposure(double value);
 
@@ -76,10 +79,14 @@ public:
 
     void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
-        float &outPrincipalX, float &outPrincipalY) const;
+        float &outPrincipalX, float &outPrincipalY,
+        float &outDistortionK1, float &outDistortionK2, float &outDistortionK3,
+        float &outDistortionP1, float &outDistortionP2) const;
     void setCameraIntrinsics(
         float focalLengthX, float focalLengthY,
-        float principalX, float principalY);
+        float principalX, float principalY,
+        float distortionK1, float distortionK2, float distortionK3,
+        float distortionP1, float distortionP2);
 
     CommonDevicePose getTrackerPose() const;
     void setTrackerPose(const struct CommonDevicePose *pose);

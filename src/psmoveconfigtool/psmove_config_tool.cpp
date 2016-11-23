@@ -4,6 +4,7 @@
 #include "AppStage_ColorCalibration.h"
 #include "AppStage_ComputeTrackerPoses.h"
 #include "AppStage_ControllerSettings.h"
+#include "AppStage_DistortionCalibration.h"
 #include "AppStage_HMDAccelerometerCalibration.h"
 #include "AppStage_HMDGyroscopeCalibration.h"
 #include "AppStage_HMDModelCalibration.h"
@@ -37,6 +38,7 @@ extern "C" int main(int argc, char *argv[])
 	app.registerAppStage<AppStage_ColorCalibration>();
     app.registerAppStage<AppStage_ComputeTrackerPoses>();
     app.registerAppStage<AppStage_ControllerSettings>();
+    app.registerAppStage<AppStage_DistortionCalibration>();
     app.registerAppStage<AppStage_GyroscopeCalibration>();
 	app.registerAppStage<AppStage_HMDAccelerometerCalibration>();
 	app.registerAppStage<AppStage_HMDGyroscopeCalibration>();

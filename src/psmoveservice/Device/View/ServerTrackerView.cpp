@@ -322,31 +322,42 @@ int OpenCVBGRToHSVMapper::m_refCount= 0;
 class OpenCVBufferState
 {
 public:
-    OpenCVBufferState(int width, int height)
-        : frameWidth(width)
-        , frameHeight(height)
-        , bgrBuffer(nullptr)
+    OpenCVBufferState(ITrackerInterface *device)
+        : bgrBuffer(nullptr)
+        , bgrUndistortBuffer(nullptr)
         , hsvBuffer(nullptr)
         , gsLowerBuffer(nullptr)
         , gsUpperBuffer(nullptr)
         , maskedBuffer(nullptr)
+        , distortionMapX(nullptr)
+        , distortionMapY(nullptr)
     {
-		const TrackerManagerConfig &cfg= DeviceManager::getInstance()->m_tracker_manager->getConfig();
+        device->getVideoFrameDimensions(&frameWidth, &frameHeight, nullptr);
 
-        bgrBuffer = new cv::Mat(height, width, CV_8UC3);
-        hsvBuffer = new cv::Mat(height, width, CV_8UC3);
-        gsLowerBuffer = new cv::Mat(height, width, CV_8UC1);
-        gsUpperBuffer = new cv::Mat(height, width, CV_8UC1);
-        maskedBuffer = new cv::Mat(height, width, CV_8UC3);
-		
-		if (cfg.use_bgr_to_hsv_lookup_table)
-		{
-			bgr2hsv = OpenCVBGRToHSVMapper::allocate();
-		}
-		else
-		{
-			bgr2hsv = nullptr;
-		}
+        bgrBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+        bgrUndistortBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+        hsvBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+        gsLowerBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
+        gsUpperBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
+        maskedBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+
+        intrinsic_matrix = new cv::Mat(3, 3, CV_64FC1);
+        distortion_coeffs = new cv::Mat(5, 1, CV_64FC1);
+
+        distortionMapX = new cv::Mat(cv::Size(frameWidth, frameHeight), CV_32FC1);
+        distortionMapY = new cv::Mat(cv::Size(frameWidth, frameHeight), CV_32FC1);
+
+        rebuildDistortionMap(device);
+        
+        const TrackerManagerConfig &cfg= DeviceManager::getInstance()->m_tracker_manager->getConfig();
+        if (cfg.use_bgr_to_hsv_lookup_table)
+        {
+            bgr2hsv = OpenCVBGRToHSVMapper::allocate();
+        }
+        else
+        {
+            bgr2hsv = nullptr;
+        }
     }
 
     virtual ~OpenCVBufferState()
@@ -355,31 +366,85 @@ public:
         {
             delete maskedBuffer;
         }
-
+        
         if (gsLowerBuffer != nullptr)
         {
             delete gsLowerBuffer;
         }
-
+        
         if (gsUpperBuffer != nullptr)
         {
             delete gsUpperBuffer;
         }
-
+        
         if (hsvBuffer != nullptr)
         {
             delete hsvBuffer;
         }
-
+        
         if (bgrBuffer != nullptr)
         {
             delete bgrBuffer;
         }
+        
+        if (bgrUndistortBuffer != nullptr)
+        {
+            delete bgrUndistortBuffer;
+        }
+        
+        // TODO: If not nullptr wrapper
+        delete intrinsic_matrix;
+        delete distortion_coeffs;
+        delete distortionMapX;
+        delete distortionMapY;
+        
+        if (bgr2hsv != nullptr)
+        {
+            OpenCVBGRToHSVMapper::dispose(bgr2hsv);
+        }
+    }
 
-		if (bgr2hsv != nullptr)
-		{
-			OpenCVBGRToHSVMapper::dispose(bgr2hsv);
-		}
+    void rebuildDistortionMap(ITrackerInterface *device)
+    {
+        float F_PX, F_PY;
+        float PrincipalX, PrincipalY;
+        float distortionK1, distortionK2, distortionK3;
+        float distortionP1, distortionP2;
+
+        device->getCameraIntrinsics(
+            F_PX, F_PY, 
+            PrincipalX, PrincipalY,
+            distortionK1, distortionK2, distortionK3,
+            distortionP1, distortionP2);
+
+        // Fill in the intrinsic matrix
+        intrinsic_matrix->at<double>(0, 0)= F_PX;
+        intrinsic_matrix->at<double>(1, 0)= 0.0;
+        intrinsic_matrix->at<double>(2, 0)= 0.0;
+
+        intrinsic_matrix->at<double>(0, 1)= 0.0;
+        intrinsic_matrix->at<double>(1, 1)= F_PY;
+        intrinsic_matrix->at<double>(2, 1)= 0.0;
+
+        intrinsic_matrix->at<double>(0, 2)= PrincipalX;
+        intrinsic_matrix->at<double>(1, 2)= PrincipalY;
+        intrinsic_matrix->at<double>(2, 2)= 1.0;
+
+        // Fill in the distortion coefficients
+        distortion_coeffs->at<double>(0, 0)= distortionK1; 
+        distortion_coeffs->at<double>(1, 0)= distortionK2;
+        distortion_coeffs->at<double>(2, 0)= distortionP1;
+        distortion_coeffs->at<double>(3, 0)= distortionP2;
+        distortion_coeffs->at<double>(4, 0)= distortionK3;
+
+        cv::initUndistortRectifyMap(
+            *intrinsic_matrix, *distortion_coeffs, 
+            cv::noArray(), // unneeded rectification transformation computed by stereoRectify()
+                               // newCameraMatrix - can be computed by getOptimalNewCameraMatrix(), but
+            *intrinsic_matrix, // "In case of a monocular camera, newCameraMatrix is usually equal to cameraMatrix"
+            cv::Size(frameWidth, frameHeight),
+            CV_32FC1, // Distortion map type
+            *distortionMapX, *distortionMapY);
     }
 
     void writeVideoFrame(const unsigned char *video_buffer)
@@ -388,14 +453,20 @@ public:
 
 		videoBufferMat.copyTo(*bgrBuffer);
 
+        // Apply the distortion map to the source video frame
+        cv::remap(
+            *bgrBuffer, *bgrUndistortBuffer, 
+            *distortionMapX, *distortionMapY, 
+            cv::INTER_LINEAR, cv::BORDER_CONSTANT);
+
         // Convert the video buffer to the HSV color space
 		if (bgr2hsv != nullptr)
 		{
-			bgr2hsv->cvtColor(*bgrBuffer, *hsvBuffer);
+			bgr2hsv->cvtColor(*bgrUndistortBuffer, *hsvBuffer);
 		}
 		else
 		{
-			cv::cvtColor(*bgrBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
+			cv::cvtColor(*bgrUndistortBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
 		}
     }
 
@@ -522,11 +593,17 @@ public:
 
     int frameWidth;
     int frameHeight;
+
     cv::Mat *bgrBuffer; // source video frame
+    cv::Mat *bgrUndistortBuffer; // undistorted source video frame
     cv::Mat *hsvBuffer; // source frame converted to HSV color space
     cv::Mat *gsLowerBuffer; // HSV image clamped by HSV range into grayscale mask
     cv::Mat *gsUpperBuffer; // HSV image clamped by HSV range into grayscale mask
     cv::Mat *maskedBuffer; // bgr image ANDed together with grayscale mask
+    cv::Mat *intrinsic_matrix;
+    cv::Mat *distortion_coeffs;
+    cv::Mat *distortionMapX;
+    cv::Mat *distortionMapY;
 	OpenCVBGRToHSVMapper *bgr2hsv; // Used to convert an rgb image to an hsv image
 };
 
@@ -653,7 +730,7 @@ bool ServerTrackerView::open(const class DeviceEnumerator *enumerator)
             }
 
             // Allocate the OpenCV scratch buffers used for finding tracking blobs
-            m_opencv_buffer_state = new OpenCVBufferState(width, height);
+            m_opencv_buffer_state = new OpenCVBufferState(m_device);
         }
         else
         {
@@ -773,6 +850,16 @@ void ServerTrackerView::generate_tracker_data_frame_for_stream(
     data_frame->set_device_category(PSMoveProtocol::DeviceOutputDataFrame::TRACKER);
 }
 
+void ServerTrackerView::loadSettings()
+{
+    m_device->loadSettings();
+}
+
+void ServerTrackerView::saveSettings()
+{
+    m_device->saveSettings();
+}
+
 double ServerTrackerView::getExposure() const
 {
     return m_device->getExposure();
@@ -795,18 +882,30 @@ void ServerTrackerView::setGain(double value)
 
 void ServerTrackerView::getCameraIntrinsics(
     float &outFocalLengthX, float &outFocalLengthY,
-    float &outPrincipalX, float &outPrincipalY) const
+    float &outPrincipalX, float &outPrincipalY,
+    float &outDistortionK1, float &outDistortionK2, float &outDistortionK3,
+    float &outDistortionP1, float &outDistortionP2) const
 {
     m_device->getCameraIntrinsics(
         outFocalLengthX, outFocalLengthY,
-        outPrincipalX, outPrincipalY);
+        outPrincipalX, outPrincipalY,
+        outDistortionK1, outDistortionK2, outDistortionK3,
+        outDistortionP1, outDistortionP2);
 }
 
 void ServerTrackerView::setCameraIntrinsics(
     float focalLengthX, float focalLengthY,
-    float principalX, float principalY)
+    float principalX, float principalY,
+    float distortionK1, float distortionK2, float distortionK3,
+    float distortionP1, float distortionP2)
 {
-    m_device->setCameraIntrinsics(focalLengthX, focalLengthY, principalX, principalY);
+    m_device->setCameraIntrinsics(
+        focalLengthX, focalLengthY,
+        principalX, principalY,
+        distortionK1, distortionK2, distortionK3,
+        distortionP1, distortionP2);
+
+    m_opencv_buffer_state->rebuildDistortionMap(m_device);
 }
 
 CommonDevicePose ServerTrackerView::getTrackerPose() const
@@ -957,7 +1056,13 @@ ServerTrackerView::computePoseForController(
     {
         float F_PX, F_PY;
         float PrincipalX, PrincipalY;
-        m_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+        float distortionK1, distortionK2, distortionK3;
+        float distortionP1, distortionP2;
+        m_device->getCameraIntrinsics(
+                                      F_PX, F_PY,
+                                      PrincipalX, PrincipalY,
+                                      distortionK1, distortionK2, distortionK3,
+                                      distortionP1, distortionP2);
 
         // TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
         // Then replace F_PX with -1.
@@ -965,13 +1070,16 @@ ServerTrackerView::computePoseForController(
         switch (tracking_shape.shape_type)
         {
         case eCommonTrackingShapeType::Sphere:
-            {                               
+            {
+                // Compute the convex hull of the contour
+                t_opencv_contour convex_contour;
+                cv::convexHull(biggest_contours[0], convex_contour);
+
+                // TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
+                // Then replace F_PX with -1. 
+
                 float frameWidth, frameHeight;
                 getPixelDimensions(frameWidth, frameHeight);
-
-                // Compute the convex hull of the contour
-				t_opencv_contour convex_contour;
-                cv::convexHull(biggest_contours[0], convex_contour);
 
                 // Convert opencv_contour in raw pixel space:
                 // i.e. [0, 0]x[frameWidth-1, frameHeight-1]
@@ -1077,9 +1185,15 @@ bool ServerTrackerView::computePoseForHMD(
 	// Compute the tracker relative 3d position of the controller from the contour
 	if (bSuccess)
 	{
-		float F_PX, F_PY;
-		float PrincipalX, PrincipalY;
-		m_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+        float F_PX, F_PY;
+        float PrincipalX, PrincipalY;
+        float distortionK1, distortionK2, distortionK3;
+        float distortionP1, distortionP2;
+        m_device->getCameraIntrinsics(
+                                      F_PX, F_PY,
+                                      PrincipalX, PrincipalY,
+                                      distortionK1, distortionK2, distortionK3,
+                                      distortionP1, distortionP2);
 
 		// TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
 		// Then replace F_PX with -1.
@@ -1186,9 +1300,21 @@ ServerTrackerView::triangulateWorldPosition(
     // i.e. [0, 0]x[frameWidth, frameHeight]
     float screenWidth, screenHeight;
     tracker->getPixelDimensions(screenWidth, screenHeight);
-
+    
     float otherScreenWidth, otherScreenHeight;
     tracker->getPixelDimensions(otherScreenWidth, otherScreenHeight);
+
+
+    float F_PX, F_PY;
+    float PrincipalX, PrincipalY;
+    float distortionK1, distortionK2, distortionK3;
+    float distortionP1, distortionP2;
+
+    tracker->getCameraIntrinsics(
+        F_PX, F_PY, 
+        PrincipalX, PrincipalY,
+        distortionK1, distortionK2, distortionK3,
+        distortionP1, distortionP2);
 
     cv::Mat projPoints1 = 
         cv::Mat(cv::Point2f(
@@ -1314,7 +1440,13 @@ static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const ITrackerInterface *t
 
     float F_PX, F_PY;
     float PrincipalX, PrincipalY;
-    tracker_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+    float distortionK1, distortionK2, distortionK3;
+    float distortionP1, distortionP2;
+    tracker_device->getCameraIntrinsics(
+                                  F_PX, F_PY,
+                                  PrincipalX, PrincipalY,
+                                  distortionK1, distortionK2, distortionK3,
+                                  distortionP1, distortionP2);
 
     out(0, 0) = F_PX; out(0, 1) = 0.f; out(0, 2) = PrincipalX;
     out(1, 0) = 0.f; out(1, 1) = F_PY; out(1, 2) = PrincipalY;

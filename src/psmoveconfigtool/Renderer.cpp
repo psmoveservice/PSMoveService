@@ -23,6 +23,8 @@
 #include "ds4lightbar_3dmodel.h"
 #include "morpheus_3dmodel.h"
 
+#include <algorithm>
+
 #ifdef _MSC_VER
 #pragma warning (disable: 4505) // unreferenced local function has been removed (stb stuff)
 #pragma warning (disable: 4996) // 'This function or variable may be unsafe': strcpy, strdup, sprintf, vsnprintf, sscanf, fopen
@@ -1040,6 +1042,140 @@ void drawLineStrip(const glm::mat4 &transform, const glm::vec3 &color, const flo
     glPopMatrix();
 }
 
+void drawQuadList2d(const float trackerWidth, const float trackerHeight, const glm::vec3 &color, const float *points2d, const int point_count)
+{
+    assert(Renderer::getIsRenderingStage());
+    assert((point_count % 4) == 0);
+
+    // Clear the depth buffer to allow overdraw 
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Save a backup of the projection matrix 
+    // and replace with a projection that maps the tracker image coordinates over the whole screen
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0.f, trackerWidth, trackerHeight, 0, 1.0f, -1.0f);
+
+    // Save a backup of the modelview matrix and replace with the identity matrix
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    // Draw line strip connecting all of the points on the line strip
+    glColor3fv(glm::value_ptr(color));
+    glBegin(GL_LINES);
+    for (int sampleIndex= 0; sampleIndex < point_count; sampleIndex+=4)
+    {
+        glVertex3f(points2d[sampleIndex*2+0], points2d[sampleIndex*2+1], 0.5f);
+        glVertex3f(points2d[sampleIndex*2+2], points2d[sampleIndex*2+3], 0.5f);
+
+        glVertex3f(points2d[sampleIndex*2+2], points2d[sampleIndex*2+3], 0.5f);
+        glVertex3f(points2d[sampleIndex*2+4], points2d[sampleIndex*2+5], 0.5f);
+
+        glVertex3f(points2d[sampleIndex*2+4], points2d[sampleIndex*2+5], 0.5f);
+        glVertex3f(points2d[sampleIndex*2+6], points2d[sampleIndex*2+7], 0.5f);
+
+        glVertex3f(points2d[sampleIndex*2+6], points2d[sampleIndex*2+7], 0.5f);
+        glVertex3f(points2d[sampleIndex*2+0], points2d[sampleIndex*2+1], 0.5f);
+    }
+    glEnd();
+
+    // Restore the projection matrix
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+
+    // Restore the modelview matrix
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+}
+
+void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, const float *points2d, const int point_count, bool validPoints)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    // Clear the depth buffer to allow overdraw 
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Save a backup of the projection matrix 
+    // and replace with a projection that maps the tracker image coordinates over the whole screen
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0.f, trackerWidth, trackerHeight, 0, 1.0f, -1.0f);
+
+    // Save a backup of the modelview matrix and replace with the identity matrix
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    // Draw line strip connecting all of the corners on the chessboard
+    glBegin(GL_LINE_STRIP);
+    for (int sampleIndex= 0; sampleIndex < point_count; ++sampleIndex)
+    {
+        if (validPoints)
+        {
+            // Match how OpenCV colors the line strip (red -> blue i.e. hue angle 0 to 255 degrees)
+            const float hue= static_cast<float>(sampleIndex * 255 / point_count);
+            float r, g, b;
+
+            HSVtoRGB(hue, 1.f, 1.f, r, g, b);
+            glColor3f(r, g, b);
+        }
+        else
+        {
+            glColor3f(1.f, 0.f, 0.f);
+        }
+
+        glVertex3f(points2d[sampleIndex*2+0], points2d[sampleIndex*2+1], 0.5f);
+    }
+    glEnd();
+
+    // Draw circles at each corner
+    for (int sampleIndex= 0; sampleIndex < point_count; ++sampleIndex)
+    {
+        const float radius= 2.f;
+        const int subdiv = 8;
+        const float angleStep = k_real_two_pi / static_cast<float>(subdiv);
+        float angle = 0.f;
+
+        if (validPoints)
+        {
+            // Match how OpenCV colors the line strip (red -> blue i.e. hue angle 0 to 255 degrees)
+            const float hue= static_cast<float>(sampleIndex * 255 / point_count);
+            float r, g, b;
+
+            HSVtoRGB(hue, 1.f, 1.f, r, g, b);
+            glColor3f(r, g, b);
+        }
+        else
+        {
+            glColor3f(1.f, 0.f, 0.f);
+        }
+
+        glBegin(GL_LINE_STRIP);
+        for (int index = 0; index <= subdiv; ++index)
+        {
+            glm::vec3 point(
+                radius*cosf(angle) + points2d[sampleIndex*2+0],
+                radius*sinf(angle) + points2d[sampleIndex*2+1],
+                0.5f);
+
+            glVertex3fv(glm::value_ptr(point));
+            angle += angleStep;
+        }
+        glEnd();
+    }
+
+    // Restore the projection matrix
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+
+    // Restore the modelview matrix
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+}
+
 void drawPoseArrayStrip(const struct PSMovePose *poses, const int poseCount, const glm::vec3 &color)
 {
     glColor3fv(glm::value_ptr(color));
@@ -1276,4 +1412,104 @@ static void ImGui_ImplSdl_RenderDrawLists(ImDrawData* draw_data)
     glPopMatrix();
     glPopAttrib();
     glViewport(last_viewport[0], last_viewport[1], (GLsizei)last_viewport[2], (GLsizei)last_viewport[3]);
+}
+
+
+//-- Utilities -----
+// From: https://www.cs.rit.edu/~ncs/color/t_convert.html
+// r,g,b values are from 0 to 1
+// h = [0,360], s = [0,1], v = [0,1]
+//		if s == 0, then h = -1 (undefined)
+void RGBtoHSV(float r, float g, float b, float &h, float &s, float &v)
+{
+    float min = std::min(std::min(r, g), b);
+    float max = std::max(std::max(r, g), b);
+
+    v = max;				// v
+    float delta = max - min;
+    if( max != 0 )
+    {
+        s = delta / max;		// s
+    }
+    else 
+    {
+        // r = g = b = 0		// s = 0, v is undefined
+        s = 0;
+        h = -1;
+        return;
+    }
+
+    if( r == max )
+    {
+        h = ( g - b ) / delta;		// between yellow & magenta
+    }
+    else if( g == max )
+    {
+        h = 2 + ( b - r ) / delta;	// between cyan & yellow
+    }
+    else
+    {
+        h = 4 + ( r - g ) / delta;	// between magenta & cyan
+    }
+
+    h *= 60;				// degrees
+    if( h < 0 )
+    {
+        h += 360;
+    }
+}
+
+// From: https://www.cs.rit.edu/~ncs/color/t_convert.html
+// r,g,b values are from 0 to 1
+// h = [0,360], s = [0,1], v = [0,1]
+//		if s == 0, then h = -1 (undefined)
+void HSVtoRGB(float h, float s, float v, float &r, float &g, float &b)
+{
+    if( s == 0 ) 
+    {
+        // achromatic (grey)
+        r = g = b = v;
+        return;
+    }
+
+    const float sector = h / 60;			// sector 0 to 5
+    const int i = static_cast<int>(floorf( sector ));
+    const float f = sector - i;			// factorial part of h
+    const float p = v * ( 1 - s );
+    const float q = v * ( 1 - s * f );
+    const float t = v * ( 1 - s * ( 1 - f ) );
+
+    switch( i ) 
+    {
+    case 0:
+        r = v;
+        g = t;
+        b = p;
+        break;
+    case 1:
+        r = q;
+        g = v;
+        b = p;
+        break;
+    case 2:
+        r = p;
+        g = v;
+        b = t;
+        break;
+    case 3:
+        r = p;
+        g = q;
+        b = v;
+        break;
+    case 4:
+        r = t;
+        g = p;
+        b = v;
+        break;
+    default:		// case 5:
+        r = v;
+        g = p;
+        b = q;
+        break;
+    }
 }
