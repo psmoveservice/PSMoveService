@@ -40,6 +40,7 @@ cv::Matx33f psmove_matrix3x3_to_cv_mat33f(const PSMoveMatrix3x3 &in);
 Eigen::Vector3f psmove_int_vector3_to_eigen_vector3(const PSMoveIntVector3 &v);
 Eigen::Vector3f psmove_float_vector3_to_eigen_vector3(const PSMoveFloatVector3 &p);
 Eigen::Vector3f psmove_position_to_eigen_vector3(const PSMovePosition &v);
+Eigen::Vector3f psmove_position_to_eigen_vector3(const PSMovePosition &p);
 Eigen::Quaternionf psmove_quaternion_to_eigen_quaternionf(const PSMoveQuaternion &q);
 Eigen::Matrix3f psmove_matrix3x3_to_eigen_matrix3(const PSMoveMatrix3x3 &m);
 

@@ -360,8 +360,17 @@ ENDIF()
 #
 # TEST_CONSOLE_CLIENT
 #
-add_executable(test_console_client test_console_client.cpp)
-target_include_directories(test_console_client PUBLIC ${ROOT_DIR}/src/psmoveclient/)
+
+list(APPEND TEST_CLIENT_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/
+    ${ROOT_DIR}/src/psmoveclient/)
+
+list(APPEND TEST_CLIENT_SRC       
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp)
+    
+add_executable(test_console_client test_console_client.cpp ${TEST_CLIENT_SRC})
+target_include_directories(test_console_client PUBLIC ${TEST_CLIENT_INCL_DIRS})
 target_link_libraries(test_console_client PSMoveClient)
 SET_TARGET_PROPERTIES(test_console_client PROPERTIES FOLDER Test)
 
@@ -453,6 +462,91 @@ SET_TARGET_PROPERTIES(test_optical_tracker PROPERTIES FOLDER Test)
 # Install
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 install(TARGETS test_optical_tracker
+RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+ELSE() #Linux/Darwin
+ENDIF()
+
+#
+# TEST_KALMAN_FILTER
+#
+
+list(APPEND TEST_KALMAN_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/
+    ${ROOT_DIR}/src/psmoveservice/Device/Interface
+    ${ROOT_DIR}/src/psmoveservice/Filter/
+    ${ROOT_DIR}/src/psmoveservice/PSMoveController
+    ${ROOT_DIR}/src/psmoveservice/Server/)
+list(APPEND TEST_KALMAN_SRC    
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp    
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/CompoundPoseFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/CompoundPoseFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanOrientationFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanOrientationFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPositionFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPositionFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPoseFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPoseFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/OrientationFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/OrientationFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/PoseFilterInterface.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/PoseFilterInterface.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/PositionFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/PositionFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp)
+    
+# Eigen math library
+list(APPEND TEST_KALMAN_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)   
+list(APPEND TEST_KALMAN_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include/)
+
+add_executable(test_kalman_filter ${CMAKE_CURRENT_LIST_DIR}/test_kalman_filter.cpp ${TEST_KALMAN_SRC})
+target_include_directories(test_kalman_filter PUBLIC ${TEST_KALMAN_INCL_DIRS})
+SET_TARGET_PROPERTIES(test_kalman_filter PROPERTIES FOLDER Test)
+
+# Install
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS test_kalman_filter
+RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+ELSE() #Linux/Darwin
+ENDIF()
+
+#
+# UNIT_TESTS
+#
+
+list(APPEND UNIT_TEST_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/)
+
+# Eigen math library
+list(APPEND UNIT_TEST_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)   
+
+list(APPEND UNIT_TEST_SRC    
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp	
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
+	${ROOT_DIR}/src/tests/math_alignment_unit_tests.cpp
+    ${ROOT_DIR}/src/tests/math_utility_unit_tests.cpp
+    ${ROOT_DIR}/src/tests/unit_test.h)
+    
+add_executable(unit_test_suite ${CMAKE_CURRENT_LIST_DIR}/unit_test_suite.cpp ${UNIT_TEST_SRC})
+target_include_directories(unit_test_suite PUBLIC ${UNIT_TEST_INCL_DIRS})
+SET_TARGET_PROPERTIES(unit_test_suite PROPERTIES FOLDER Test)
+
+# Install
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS unit_test_suite
 RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
 LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
 ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)

@@ -90,6 +90,16 @@ void Camera::setCameraOrbitLocation(float yawDegrees, float pitchDegrees, float 
     publishCameraViewMatrix();
 }
 
+void Camera::setCameraOrbitYaw(float yawDegrees)
+{
+	setCameraOrbitLocation(yawDegrees, m_cameraOrbitPitchDegrees, m_cameraOrbitRadius);
+}
+
+void Camera::setCameraOrbitPitch(float pitchDegrees)
+{
+	setCameraOrbitLocation(m_cameraOrbitYawDegrees, pitchDegrees, m_cameraOrbitRadius);
+}
+
 void Camera::setCameraOrbitRadius(float radius)
 {
     setCameraOrbitLocation(m_cameraOrbitYawDegrees, m_cameraOrbitPitchDegrees, radius);

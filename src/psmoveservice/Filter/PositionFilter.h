@@ -2,126 +2,73 @@
 #define POSITION_FILTER_H
 
 //-- includes -----
-#include "MathEigen.h"
+#include "PoseFilterInterface.h"
+#include <chrono>
 
-//-- constants -----
-enum PositionSource
-{
-    PositionSource_PreviousFrame,
-    PositionSource_Optical
-};
-
-//-- declarations -----
-/// A snapshot of raw IMU data emitted from a device
-struct PositionSensorPacket
-{
-    Eigen::Vector3f world_position;
-    PositionSource position_source;
-    float position_quality; // [0, 1]
-
-    Eigen::Quaternionf world_orientation; // output from orientation filter
-    Eigen::Vector3f accelerometer;
-};
-
-/// A snapshot of raw IMU data transformed by a filter space so that it can be used to update an position filter
-struct PositionFilterPacket
-{
-    Eigen::Vector3f position;
-    PositionSource position_source;
-    float position_quality; // [0, 1]
-
-    Eigen::Vector3f world_accelerometer;
-};
-
-/// Filter parameters that remain constant during the lifetime of the the filter
-struct PositionFilterConstants 
-{
-    float accelerometerNoiseRadius;
-    float maxVelocity;
-};
-
-/// Used to transform sensor data from a device into an arbitrary space
-class PositionFilterSpace
+//-- definitions -----
+/// Abstract base class for all orientation only filters
+class PositionFilter : public IPositionFilter
 {
 public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-    PositionFilterSpace();
-    PositionFilterSpace(
-        const Eigen::Vector3f &identityGravity,
-        const Eigen::Matrix3f &calibrationTransform,
-        const Eigen::Matrix3f &sensorTransform);
-
-    Eigen::Vector3f getGravityCalibrationDirection() const;
-
-    inline void setCalibrationTransform(const Eigen::Matrix3f &calibrationTransform)
-    { m_CalibrationTransform= calibrationTransform; }
-    inline void setSensorTransform(const Eigen::Matrix3f &sensorTransform)
-    { m_SensorTransform= sensorTransform; }
-
-
-    void convertSensorPacketToFilterPacket(
-        const PositionSensorPacket &sensorPacket,
-        PositionFilterPacket &outFilterPacket) const;
-
-private:
-    Eigen::Vector3f m_IdentityGravity;
-
-    Eigen::Matrix3f m_CalibrationTransform;
-    Eigen::Matrix3f m_SensorTransform;
-};
-
-/// A stateful filter used to fuse IMU sensor data into a position in a desired filter space
-class PositionFilter
-{
-public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-    enum FusionType {
-        FusionTypeNone,
-        FusionTypePassThru,
-        FusionTypeLowPassOptical,
-        FusionTypeLowPassIMU,
-        FusionTypeComplimentaryOpticalIMU,
-		FusionTypeLowPassExponential,
-        // TODO: Kalman
-    };
-
     PositionFilter();
     virtual ~PositionFilter();
 
-    inline PositionFilterSpace &getFilterSpace()
-    {
-        return m_FilterSpace;
-    }
+    //-- IStateFilter --
+    bool getIsStateValid() const override;
+    void resetState() override;
+    void recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose) override;
 
-    FusionType getFusionType() const;
-    bool getIsFusionStateValid() const;
-    /// Estimate the current position of the filter given a time offset into the future
-    Eigen::Vector3f getPosition(float time = 0.f) const;
-    Eigen::Vector3f getVelocity() const;
-    Eigen::Vector3f getAcceleration() const;
+    // -- IOrientationFilter --
+    bool init(const PositionFilterConstants &constant) override;
+	bool init(const PositionFilterConstants &constant, const Eigen::Vector3f &initial_position) override;
+    Eigen::Vector3f getPosition(float time = 0.f) const override;
+    Eigen::Vector3f getVelocity() const override;
+    Eigen::Vector3f getAcceleration() const override;
 
-    void setFilterSpace(const PositionFilterSpace &filterSpace);
-    void setFusionType(FusionType fusionType);
+protected:
+    PositionFilterConstants m_constants;
+    struct PositionFilterState *m_state;
+};
 
-    inline void setAccelerometerNoiseRadius(float noiseRadius)
-    {
-        m_FilterConstants.accelerometerNoiseRadius= noiseRadius;
-    }
-    inline void setMaxVelocity(float maxVelocity)
-    {
-        m_FilterConstants.maxVelocity= maxVelocity;
-    }
+/// Just use the optical orientation passed in unfiltered
+class PositionFilterPassThru : public PositionFilter
+{
+public:
+    void update(const float delta_time, const PoseFilterPacket &packet) override;
+};
 
-    void resetPosition();
-    void resetFilterState();
-    void update(const float delta_time, const PositionSensorPacket &packet);
+class PositionFilterLowPassOptical : public PositionFilter
+{
+public:
+    void update(const float delta_time, const PoseFilterPacket &packet) override;
+};
+
+class PositionFilterLowPassIMU : public PositionFilter
+{
+public:
+    void update(const float delta_time, const PoseFilterPacket &packet) override;
+};
+
+class PositionFilterLowPassExponential : public PositionFilter
+{
+public:
+	void update(const float delta_time, const PoseFilterPacket &packet) override;
+};
+
+class PositionFilterComplimentaryOpticalIMU : public PositionFilter
+{
+public:
+	PositionFilterComplimentaryOpticalIMU()
+		: PositionFilter()
+		, bLast_visible_position_timestamp_valid(false)
+	{}
+
+	void resetState() override;
+    void update(const float delta_time, const PoseFilterPacket &packet) override;
 
 private:
-    PositionFilterConstants m_FilterConstants;
-    PositionFilterSpace m_FilterSpace;
-    struct PositionSensorFusionState *m_FusionState;
+    std::chrono::time_point<std::chrono::high_resolution_clock> last_visible_position_timestamp;
+    bool bLast_visible_position_timestamp_valid;
 };
 
 #endif // POSITION_FILTER_H

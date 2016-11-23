@@ -114,11 +114,54 @@ eigen_alignment_fit_focal_cone_to_sphere(
     EigenFitEllipse *out_ellipse_projection= nullptr);
 
 // Compute the weighted average of multiple quaternions
+// * All weights will be renormalized against the total weight
+// * All input weights must be >= 0
 bool
-eigen_quaternion_compute_weighted_average(
+eigen_quaternion_compute_normalized_weighted_average(
     const Eigen::Quaternionf *quaternions,
     const float *weights,
     const int count,
     Eigen::Quaternionf *out_result);
 
-#endif // MATH_UTILITY_h
+// Compute the weighted average of multiple quaternions
+// * Source weights are NOT renormalized
+// * Source weights can be negative
+bool
+eigen_quaternion_compute_weighted_average(
+    const Eigen::Quaterniond *quaternions,
+    const double *weights,
+    const int count,
+    Eigen::Quaterniond *out_result);
+
+void 
+eigen_vector3f_compute_mean_and_variance(
+	const Eigen::Vector3f *samples,
+    const int sample_count,
+	Eigen::Vector3f *out_mean,
+    Eigen::Vector3f *out_variance);
+
+// best fit line is of the form y(x) = out_line->x()*x + out_line->y()
+bool
+eigen_alignment_fit_least_squares_line(
+	const Eigen::Vector2f *samples, const int sample_count,
+	Eigen::Vector2f *out_line, float *out_correlation_coefficient);
+
+// best fit curve of the form y(x) = out_curve->y()*exp(out_curve->x()*x), 
+bool
+eigen_alignment_fit_least_squares_exponential(
+	const Eigen::Vector2f *samples, const int sample_count,
+	Eigen::Vector2f *out_curve);
+
+// Computes a best fit plane to the given set of data points
+bool 
+eigen_alignment_fit_least_squares_plane(
+	const Eigen::Vector3f *samples, const int sample_count,
+	Eigen::Vector3f *out_centroid, Eigen::Vector3f *out_normal);
+
+// Project a point set onto a plane and compute the total distance error
+float
+eigen_alignment_project_points_on_plane(
+	const Eigen::Vector3f &centroid, const Eigen::Vector3f &normal,
+	Eigen::Vector3f *samples, const int sample_count);
+
+#endif // MATH_UTILITY_H

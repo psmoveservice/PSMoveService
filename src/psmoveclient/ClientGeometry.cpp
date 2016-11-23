@@ -633,3 +633,26 @@ void PSMoveFrustum::set_pose(const PSMovePose &pose)
 
     origin = PSMovePosition::create(glm_mat4[3].x, glm_mat4[3].y, glm_mat4[3].z);
 }
+
+// -- PSMoveTrackingProjection -- 
+float PSMoveTrackingProjection::get_projection_area() const
+{
+	float area = 0.f;
+
+	switch (shape_type)
+	{
+	case PSMoveTrackingProjection::Ellipse:
+		{
+			area = k_real_pi*shape.ellipse.half_x_extent*shape.ellipse.half_y_extent;
+		} break;
+	case PSMoveTrackingProjection::LightBar:
+		{
+			PSMoveFloatVector2 edge1 = shape.lightbar.quad[0] - shape.lightbar.quad[1];
+			PSMoveFloatVector2 edge2 = shape.lightbar.quad[0] - shape.lightbar.quad[3];
+
+			area = edge1.length()*edge2.length();
+		} break;
+	}
+
+	return area;
+}

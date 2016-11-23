@@ -3,9 +3,10 @@
 #include "ServerHMDView.h"
 #include "MathAlignment.h"
 #include "MorpheusHMD.h"
-#include "OrientationFilter.h"
-#include "PositionFilter.h"
+#include "CompoundPoseFilter.h"
+#include "PoseFilterInterface.h"
 #include "PSMoveProtocol.pb.h"
+#include "ServerLog.h"
 #include "ServerRequestHandler.h"
 #include "ServerTrackerView.h"
 #include "TrackerManager.h"
@@ -16,12 +17,15 @@ static const float k_max_time_delta_seconds = 1 / 30.f;
 
 //-- private methods -----
 static void init_filters_for_morpheus_hmd(
-    const MorpheusHMD *morpheusHMD,
-    OrientationFilter *orientation_filter, PositionFilter *position_filter);
+	const MorpheusHMD *morpheusHMD, PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter);
+static IPoseFilter *pose_filter_factory(
+	const CommonDeviceState::eDeviceType deviceType,
+	const std::string &position_filter_type, const std::string &orientation_filter_type,
+	const PoseFilterConstants &constants);
 static void update_filters_for_morpheus_hmd(
 	const MorpheusHMD *morpheusHMD, const MorpheusHMDState *morpheusHMDState,
-	const float delta_time, const HMDOpticalPoseEstimation *poseEstimation,
-	OrientationFilter *orientationFilter, PositionFilter *position_filter);
+	const float delta_time,
+	const HMDOpticalPoseEstimation *poseEstimation, const PoseFilterSpace *poseFilterSpace, IPoseFilter *poseFilter);
 static void generate_morpheus_hmd_data_frame_for_stream(
     const ServerHMDView *hmd_view, const HMDStreamInfo *stream_info,
     DeviceOutputDataFramePtr &data_frame);
@@ -41,8 +45,8 @@ ServerHMDView::ServerHMDView(const int device_id)
 	, m_device(nullptr)
 	, m_tracker_pose_estimation(nullptr)
 	, m_multicam_pose_estimation(nullptr)
-	, m_orientation_filter(nullptr)
-	, m_position_filter(nullptr)
+	, m_pose_filter(nullptr)
+	, m_pose_filter_space(nullptr)
 	, m_lastPollSeqNumProcessed(-1)
 	, m_last_filter_update_timestamp()
 	, m_last_filter_update_timestamp_valid(false)
@@ -51,22 +55,6 @@ ServerHMDView::ServerHMDView(const int device_id)
 
 ServerHMDView::~ServerHMDView()
 {
-    if (m_orientation_filter != nullptr)
-    {
-        delete m_orientation_filter;
-        m_orientation_filter = nullptr;
-    }
-
-    if (m_position_filter != nullptr)
-    {
-        delete m_position_filter;
-        m_position_filter = nullptr;
-    }
-
-    if (m_device != nullptr)
-    {
-        delete m_device;
-    }
 }
 
 bool ServerHMDView::allocate_device_interface(const class DeviceEnumerator *enumerator)
@@ -76,8 +64,7 @@ bool ServerHMDView::allocate_device_interface(const class DeviceEnumerator *enum
     case CommonDeviceState::Morpheus:
         {
             m_device = new MorpheusHMD();
-            m_orientation_filter = new OrientationFilter();
-            m_position_filter = new PositionFilter();
+			m_pose_filter = nullptr; // no pose filter until the device is opened
 
 			m_tracker_pose_estimation = new HMDOpticalPoseEstimation[TrackerManager::k_max_devices];
 			for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
@@ -109,16 +96,16 @@ void ServerHMDView::free_device_interface()
 		m_tracker_pose_estimation = nullptr;
 	}
 
-	if (m_orientation_filter != nullptr)
+	if (m_pose_filter_space != nullptr)
 	{
-		delete m_orientation_filter;
-		m_orientation_filter = nullptr;
+		delete m_pose_filter_space;
+		m_pose_filter_space = nullptr;
 	}
 
-	if (m_position_filter != nullptr)
+	if (m_pose_filter != nullptr)
 	{
-		delete m_position_filter;
-		m_position_filter = nullptr;
+		delete m_pose_filter;
+		m_pose_filter = nullptr;
 	}
 
     if (m_device != nullptr)
@@ -138,23 +125,52 @@ bool ServerHMDView::open(const class DeviceEnumerator *enumerator)
     {
         IDeviceInterface *device = getDevice();
 
-        switch (device->getDeviceType())
-        {
-        case CommonDeviceState::Morpheus:
-            {
-                const MorpheusHMD *morpheusHMD = this->castCheckedConst<MorpheusHMD>();
-
-                init_filters_for_morpheus_hmd(morpheusHMD, m_orientation_filter, m_position_filter);
-            } break;
-        default:
-            break;
-        }
+		switch (device->getDeviceType())
+		{
+		case CommonDeviceState::Morpheus:
+			{
+				// Create a pose filter based on the HMD type
+				resetPoseFilter();
+				m_multicam_pose_estimation->clear();
+			} break;
+		default:
+			break;
+		}
 
         // Reset the poll sequence number high water mark
         m_lastPollSeqNumProcessed = -1;
     }
 
     return bSuccess;
+}
+
+void ServerHMDView::resetPoseFilter()
+{
+	assert(m_device != nullptr);
+
+	if (m_pose_filter != nullptr)
+	{
+		delete m_pose_filter;
+		m_pose_filter = nullptr;
+	}
+
+	if (m_pose_filter_space != nullptr)
+	{
+		delete m_pose_filter_space;
+		m_pose_filter_space = nullptr;
+	}
+
+	switch (m_device->getDeviceType())
+	{
+	case CommonDeviceState::Morpheus:
+		{
+			const MorpheusHMD *morpheusHMD = this->castCheckedConst<MorpheusHMD>();
+
+			init_filters_for_morpheus_hmd(morpheusHMD, &m_pose_filter_space, &m_pose_filter);
+		} break;
+	default:
+		break;
+	}
 }
 
 void ServerHMDView::updateOpticalPoseEstimation(TrackerManager* tracker_manager)
@@ -358,11 +374,11 @@ void ServerHMDView::updateOpticalPoseEstimation(TrackerManager* tracker_manager)
 		{
 			Eigen::Quaternionf avg_world_orientation;
 
-			if (eigen_quaternion_compute_weighted_average(
-				hmd_world_orientations,
-				hmd_orientation_weights,
-				orientations_found,
-				&avg_world_orientation))
+			if (eigen_quaternion_compute_normalized_weighted_average(
+					hmd_world_orientations,
+					hmd_orientation_weights,
+					orientations_found,
+					&avg_world_orientation))
 			{
 				m_multicam_pose_estimation->orientation.w = avg_world_orientation.w();
 				m_multicam_pose_estimation->orientation.x = avg_world_orientation.x();
@@ -449,8 +465,8 @@ void ServerHMDView::updateStateAndPredict()
 				morpheusHMD, morpheusHMDState,
 				per_state_time_delta_seconds,
 				m_multicam_pose_estimation,
-				m_orientation_filter,
-				getIsTrackingEnabled() ? m_position_filter : nullptr);
+				m_pose_filter_space,
+				m_pose_filter);
 		} break;
 		default:
 			assert(0 && "Unhandled HMD type");
@@ -468,19 +484,15 @@ ServerHMDView::getFilteredPose(float time) const
 
 	pose.clear();
 
-	if (m_orientation_filter != nullptr)
+	if (m_pose_filter != nullptr)
 	{
-		Eigen::Quaternionf orientation = m_orientation_filter->getOrientation(time);
+		const Eigen::Quaternionf orientation = m_pose_filter->getOrientation(time);
+		const Eigen::Vector3f position = m_pose_filter->getPosition(time);
 
 		pose.Orientation.w = orientation.w();
 		pose.Orientation.x = orientation.x();
 		pose.Orientation.y = orientation.y();
 		pose.Orientation.z = orientation.z();
-	}
-
-	if (m_position_filter != nullptr)
-	{
-		Eigen::Vector3f position = m_position_filter->getPosition(time);
 
 		pose.Position.x = position.x();
 		pose.Position.y = position.y();
@@ -495,10 +507,12 @@ ServerHMDView::getFilteredPhysics() const
 {
 	CommonDevicePhysics physics;
 
-	if (m_orientation_filter != nullptr)
+	if (m_pose_filter != nullptr)
 	{
-		const Eigen::Vector3f first_derivative = m_orientation_filter->getAngularVelocity();
-		const Eigen::Vector3f second_derivative = m_orientation_filter->getAngularAcceleration();
+		const Eigen::Vector3f first_derivative = m_pose_filter->getAngularVelocity();
+		const Eigen::Vector3f second_derivative = m_pose_filter->getAngularAcceleration();
+		const Eigen::Vector3f velocity(m_pose_filter->getVelocity());
+		const Eigen::Vector3f acceleration(m_pose_filter->getAcceleration());
 
 		physics.AngularVelocity.i = first_derivative.x();
 		physics.AngularVelocity.j = first_derivative.y();
@@ -507,12 +521,6 @@ ServerHMDView::getFilteredPhysics() const
 		physics.AngularAcceleration.i = second_derivative.x();
 		physics.AngularAcceleration.j = second_derivative.y();
 		physics.AngularAcceleration.k = second_derivative.z();
-	}
-
-	if (m_position_filter != nullptr)
-	{
-		Eigen::Vector3f velocity(m_position_filter->getVelocity());
-		Eigen::Vector3f acceleration(m_position_filter->getAcceleration());
 
 		physics.Velocity.i = velocity.x();
 		physics.Velocity.j = velocity.y();
@@ -667,34 +675,148 @@ void ServerHMDView::generate_hmd_data_frame_for_stream(
 static void
 init_filters_for_morpheus_hmd(
     const MorpheusHMD *morpheusHMD,
-    OrientationFilter *orientation_filter,
-    PositionFilter *position_filter)
+	PoseFilterSpace **out_pose_filter_space,
+	IPoseFilter **out_pose_filter)
 {
-    const MorpheusHMDConfig *psmove_config = morpheusHMD->getConfig();
+    const MorpheusHMDConfig *hmd_config = morpheusHMD->getConfig();
 
-    {
-        // Setup the space the orientation filter operates in
-        Eigen::Vector3f identityGravity = Eigen::Vector3f::Zero();
-        Eigen::Vector3f identityMagnetometer = Eigen::Vector3f::Zero();
-        Eigen::Matrix3f calibrationTransform = Eigen::Matrix3f::Identity();
-        Eigen::Matrix3f sensorTransform = Eigen::Matrix3f::Identity();
-        OrientationFilterSpace filterSpace(identityGravity, identityMagnetometer, calibrationTransform, sensorTransform);
-        orientation_filter->setFilterSpace(filterSpace);
+	// Setup the space the pose filter operates in
+	PoseFilterSpace *pose_filter_space = new PoseFilterSpace();
+	pose_filter_space->setIdentityGravity(Eigen::Vector3f(0.f, 1.f, 0.f));
+	pose_filter_space->setIdentityMagnetometer(Eigen::Vector3f::Zero());
+	pose_filter_space->setCalibrationTransform(*k_eigen_identity_pose_upright);
+	pose_filter_space->setSensorTransform(*k_eigen_sensor_transform_identity);
 
-        // Filter the orientation based on a blend of the optical orientation + IMU
-        orientation_filter->setFusionType(OrientationFilter::FusionTypeComplementaryOpticalARG);
-    }
+	CommonDeviceVector accel_var = hmd_config->get_calibrated_accelerometer_variance();
+	CommonDeviceVector gyro_var = hmd_config->get_calibrated_gyro_variance();
+	CommonDeviceVector gyro_drift = hmd_config->get_calibrated_gyro_drift();
 
-    {
-        // Setup the space the position filter operates in
-		Eigen::Vector3f identityGravity = Eigen::Vector3f(0.f, 1.f, 0.f);
-		Eigen::Matrix3f calibrationTransform = *k_eigen_identity_pose_laying_flat;
-		Eigen::Matrix3f sensorTransform = *k_eigen_sensor_transform_opengl;
-		PositionFilterSpace filterSpace(identityGravity, calibrationTransform, sensorTransform);
+	// Copy the pose filter constants from the controller config
+	PoseFilterConstants constants;
 
-        position_filter->setFilterSpace(filterSpace);
-        position_filter->setFusionType(PositionFilter::FusionTypeComplimentaryOpticalIMU);
-    }
+	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
+	constants.orientation_constants.accelerometer_variance = Eigen::Vector3f(accel_var.i, accel_var.j, accel_var.k);
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
+	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
+	constants.orientation_constants.gyro_drift = Eigen::Vector3f(gyro_drift.i, gyro_drift.j, gyro_drift.k);
+	constants.orientation_constants.gyro_variance = Eigen::Vector3f(gyro_var.i, gyro_var.j, gyro_var.k);
+	constants.orientation_constants.mean_update_time_delta = hmd_config->mean_update_time_delta;
+	constants.orientation_constants.orientation_variance_curve.A = hmd_config->orientation_variance;
+	constants.orientation_constants.orientation_variance_curve.B = 0.f;
+	constants.orientation_constants.orientation_variance_curve.MaxValue = 1.f;
+	constants.orientation_constants.magnetometer_variance = Eigen::Vector3f::Zero();
+	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero();
+
+	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
+	constants.position_constants.accelerometer_variance = Eigen::Vector3f(accel_var.i, accel_var.j, accel_var.k);
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
+	constants.position_constants.accelerometer_noise_radius = 0.f; // TODO
+	constants.position_constants.max_velocity = hmd_config->max_velocity;
+	constants.position_constants.mean_update_time_delta = hmd_config->mean_update_time_delta;
+	constants.position_constants.position_variance_curve.A = hmd_config->position_variance_exp_fit_a;
+	constants.position_constants.position_variance_curve.B = hmd_config->position_variance_exp_fit_b;
+	constants.position_constants.position_variance_curve.MaxValue = 1.f;
+
+	*out_pose_filter_space = pose_filter_space;
+	*out_pose_filter = pose_filter_factory(
+		CommonDeviceState::eDeviceType::PSMove,
+		hmd_config->position_filter_type,
+		hmd_config->orientation_filter_type,
+		constants);
+}
+
+static IPoseFilter *
+pose_filter_factory(
+	const CommonDeviceState::eDeviceType deviceType,
+	const std::string &position_filter_type,
+	const std::string &orientation_filter_type,
+	const PoseFilterConstants &constants)
+{
+	static IPoseFilter *filter = nullptr;
+
+	// Convert the position filter type string into an enum
+	PositionFilterType position_filter_enum = PositionFilterTypeNone;
+	if (position_filter_type == "PassThru")
+	{
+		position_filter_enum = PositionFilterTypePassThru;
+	}
+	else if (position_filter_type == "LowPassOptical")
+	{
+		position_filter_enum = PositionFilterTypeLowPassOptical;
+	}
+	else if (position_filter_type == "LowPassIMU")
+	{
+		position_filter_enum = PositionFilterTypeLowPassIMU;
+	}
+	else if (position_filter_type == "LowPassExponential")
+	{
+		position_filter_enum = PositionFilterTypeLowPassExponential;
+	}
+	else if (position_filter_type == "ComplimentaryOpticalIMU")
+	{
+		position_filter_enum = PositionFilterTypeComplimentaryOpticalIMU;
+	}
+	else if (position_filter_type == "PositionKalman")
+	{
+		position_filter_enum = PositionFilterTypeKalman;
+	}
+	else
+	{
+		SERVER_LOG_INFO("pose_filter_factory()") <<
+			"Unknown position filter type: " << position_filter_type << ". Using default.";
+
+		// fallback to a default based on hmd type
+		switch (deviceType)
+		{
+		case CommonDeviceState::Morpheus:
+			position_filter_enum = PositionFilterTypeLowPassIMU;
+			break;
+		default:
+			assert(0 && "unreachable");
+		}
+	}
+
+	// Convert the orientation filter type string into an enum
+	OrientationFilterType orientation_filter_enum = OrientationFilterTypeNone;
+	if (orientation_filter_type == "PassThru")
+	{
+		orientation_filter_enum = OrientationFilterTypePassThru;
+	}
+	else if (orientation_filter_type == "MadgwickARG")
+	{
+		orientation_filter_enum = OrientationFilterTypeMadgwickARG;
+	}
+	else if (orientation_filter_type == "ComplementaryOpticalARG")
+	{
+		orientation_filter_enum = OrientationFilterTypeComplementaryOpticalARG;
+	}
+	else if (orientation_filter_type == "OrientationKalman")
+	{
+		orientation_filter_enum = OrientationFilterTypeKalman;
+	}
+	else
+	{
+		SERVER_LOG_INFO("pose_filter_factory()") <<
+			"Unknown orientation filter type: " << orientation_filter_type << ". Using default.";
+
+		// fallback to a default based on controller type
+		switch (deviceType)
+		{
+		case CommonDeviceState::Morpheus:
+			orientation_filter_enum = OrientationFilterTypeComplementaryOpticalARG;
+			break;
+		default:
+			assert(0 && "unreachable");
+		}
+	}
+
+	CompoundPoseFilter *compound_pose_filter = new CompoundPoseFilter();
+	compound_pose_filter->init(deviceType, orientation_filter_enum, position_filter_enum, constants);
+	filter = compound_pose_filter;
+
+	assert(filter != nullptr);
+
+	return filter;
 }
 
 static void
@@ -703,112 +825,76 @@ update_filters_for_morpheus_hmd(
     const MorpheusHMDState *morpheusHMDState,
 	const float delta_time,
 	const HMDOpticalPoseEstimation *poseEstimation,
-    OrientationFilter *orientationFilter,
-    PositionFilter *position_filter)
+	const PoseFilterSpace *poseFilterSpace,
+	IPoseFilter *poseFilter)
 {
     const MorpheusHMDConfig *config = morpheusHMD->getConfig();
 
-	Eigen::Quaternionf orientationFrames[2] = { Eigen::Quaternionf::Identity(), Eigen::Quaternionf::Identity() };
-
 	// Update the orientation filter
-	if (orientationFilter != nullptr)
+	if (poseFilter != nullptr)
 	{
-		OrientationSensorPacket sensorPacket;
+		PoseSensorPacket sensorPacket;
 
-		sensorPacket.magnetometer = Eigen::Vector3f::Zero();
+		sensorPacket.imu_magnetometer = Eigen::Vector3f::Zero();
+
+		if (poseEstimation->bOrientationValid)
+		{
+			sensorPacket.optical_orientation =
+				Eigen::Quaternionf(
+					poseEstimation->orientation.w,
+					poseEstimation->orientation.x,
+					poseEstimation->orientation.y,
+					poseEstimation->orientation.z);
+		}
+		else
+		{
+			sensorPacket.optical_orientation = Eigen::Quaternionf::Identity();
+		}
+
+		if (poseEstimation->bCurrentlyTracking)
+		{
+			sensorPacket.optical_position_cm =
+				Eigen::Vector3f(
+					poseEstimation->position.x,
+					poseEstimation->position.y,
+					poseEstimation->position.z);
+			sensorPacket.tracking_projection_area = poseEstimation->projection.screen_area;
+		}
+		else
+		{
+			sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
+			sensorPacket.tracking_projection_area = 0.f;
+		}
 
 		// Each state update contains two readings (one earlier and one later) of accelerometer and gyro data
 		for (int frame = 0; frame < 2; ++frame)
 		{
 			const MorpheusHMDSensorFrame &sensorFrame= morpheusHMDState->SensorFrames[frame];
 
-			sensorPacket.orientation = orientationFilter->getOrientation();
-			sensorPacket.orientation_source = OrientationSource_PreviousFrame;
-			sensorPacket.orientation_quality = -1.f; // not relevant for previous frame
-
-			sensorPacket.accelerometer =
+			sensorPacket.imu_accelerometer =
 				Eigen::Vector3f(
 					sensorFrame.CalibratedAccel.i,
 					sensorFrame.CalibratedAccel.j,
 					sensorFrame.CalibratedAccel.k);
-			sensorPacket.gyroscope =
+			sensorPacket.imu_gyroscope =
 				Eigen::Vector3f(
 					sensorFrame.CalibratedGyro.i,
 					sensorFrame.CalibratedGyro.j,
 					sensorFrame.CalibratedGyro.k);
+			sensorPacket.imu_magnetometer = Eigen::Vector3f::Zero();
 
-			// Update the orientation filter using the sensor packet.
-			// NOTE: The magnetometer reading is the same for both sensor readings.
-			orientationFilter->update(delta_time / 2.f, sensorPacket);
-		}
-	}
-
-	// Update the position filter
-	if (position_filter != nullptr)
-	{
-		PositionSensorPacket sensorPacket;
-
-		if (poseEstimation->bCurrentlyTracking)
-		{
-			sensorPacket.world_position =
-				Eigen::Vector3f(
-					poseEstimation->position.x,
-					poseEstimation->position.y,
-					poseEstimation->position.z);
-			sensorPacket.position_source = PositionSource_Optical;
-			sensorPacket.position_quality =
-				clampf01(
-					safe_divide_with_default(
-						poseEstimation->projection.screen_area - config->min_position_quality_screen_area,
-						config->max_position_quality_screen_area - config->min_position_quality_screen_area,
-						1.f));
-		}
-		else
-		{
-			sensorPacket.world_position = position_filter->getPosition();
-			sensorPacket.position_source = PositionSource_PreviousFrame;
-			sensorPacket.position_quality = -1.f; // not relevant for previous frame
-		}
-
-		switch (position_filter->getFusionType())
-		{
-		case PositionFilter::FusionTypeNone:
-		case PositionFilter::FusionTypePassThru:
-		case PositionFilter::FusionTypeLowPassOptical:
-		case PositionFilter::FusionTypeLowPassExponential:
-		{
-			// All other filter types don't use transformed IMU data
-			sensorPacket.world_orientation = Eigen::Quaternionf::Identity();
-			sensorPacket.accelerometer = Eigen::Vector3f::Zero();
-
-			// Update the orientation filter using the sensor packet.
-			position_filter->update(delta_time, sensorPacket);
-		} break;
-		case PositionFilter::FusionTypeLowPassIMU:
-		case PositionFilter::FusionTypeComplimentaryOpticalIMU:
-		{
-			// Each state update contains two readings (one earlier and one later) of accelerometer data
-			for (int frame = 0; frame < 2; ++frame)
 			{
-				const MorpheusHMDSensorFrame &sensorFrame = morpheusHMDState->SensorFrames[frame];
+				PoseFilterPacket filterPacket;
 
-				// Use the latest estimated orientation for the frame
-				sensorPacket.world_orientation = orientationFrames[frame];
+				// Create a filter input packet from the sensor data 
+				// and the filter's previous orientation and position
+				poseFilterSpace->createFilterPacket(
+					sensorPacket,
+					poseFilter->getOrientation(), poseFilter->getPosition(),
+					filterPacket);
 
-				// The filter will use the current orientation and the identity gravity direction
-				// to subtract out gravity and get acceleration of the controller in world space
-				sensorPacket.accelerometer =
-					Eigen::Vector3f(
-						sensorFrame.CalibratedAccel.i,
-						sensorFrame.CalibratedAccel.j,
-						sensorFrame.CalibratedAccel.k);
-
-				// Update the orientation filter using the sensor packet for each frame.
-				position_filter->update(delta_time / 2.f, sensorPacket);
+				poseFilter->update(delta_time / 2.f, filterPacket);
 			}
-		} break;
-		default:
-			assert(0 && "unreachable");
 		}
 	}
 }
@@ -820,8 +906,7 @@ static void generate_morpheus_hmd_data_frame_for_stream(
 {
     const MorpheusHMD *morpheus_hmd = hmd_view->castCheckedConst<MorpheusHMD>();
     const MorpheusHMDConfig *morpheus_config = morpheus_hmd->getConfig();
-	const OrientationFilter *orientation_filter = hmd_view->getOrientationFilter();
-	const PositionFilter *position_filter = hmd_view->getPositionFilter();
+	const IPoseFilter *pose_filter = hmd_view->getPoseFilter();
     const CommonHMDState *hmd_state = hmd_view->getState();
     const CommonDevicePose hmd_pose = hmd_view->getFilteredPose();
 
@@ -837,8 +922,8 @@ static void generate_morpheus_hmd_data_frame_for_stream(
 
 		morpheus_data_frame->set_iscurrentlytracking(hmd_view->getIsCurrentlyTracking());
 		morpheus_data_frame->set_istrackingenabled(hmd_view->getIsTrackingEnabled());
-		morpheus_data_frame->set_isorientationvalid(orientation_filter->getIsFusionStateValid());
-		morpheus_data_frame->set_ispositionvalid(position_filter->getIsFusionStateValid());
+		morpheus_data_frame->set_isorientationvalid(pose_filter->getIsStateValid());
+		morpheus_data_frame->set_ispositionvalid(pose_filter->getIsStateValid());
 
 		morpheus_data_frame->mutable_orientation()->set_w(hmd_pose.Orientation.w);
 		morpheus_data_frame->mutable_orientation()->set_x(hmd_pose.Orientation.x);

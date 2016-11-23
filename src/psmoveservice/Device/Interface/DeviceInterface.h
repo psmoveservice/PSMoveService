@@ -82,6 +82,21 @@ struct CommonDeviceVector
 {
     float i, j, k;
 
+	inline static CommonDeviceVector create(float _i, float _j, float _k)
+	{
+		CommonDeviceVector result;
+
+		result.set(_i, _j, _k);
+		return result;
+	}
+
+	inline void set(float _i, float _j, float _k)
+	{
+		i = _i;
+		j = _j;
+		k = _k;
+	}
+
     inline void clear()
     {
         i = j = k = 0.f;
@@ -307,6 +322,23 @@ struct CommonDeviceTrackingShape
 		TRIANGLE_POINT_COUNT = 3,
 		QUAD_POINT_COUNT = 4,
 		MAX_POINT_CLOUD_POINT_COUNT= 9
+	};
+	enum TriVertexEnum
+	{
+		TriVertexLowerRight= 0,
+		TriVertexLowerLeft= 1,
+		TriVertexUpperMiddle= 2,
+	
+		TriVertexCount
+	};
+	enum QuadVertexEnum
+	{
+		QuadVertexUpperRight= 0,
+		QuadVertexUpperLeft= 1,
+		QuadVertexLowerLeft= 2,
+		QuadVertexLowerRight= 3,
+
+		QuadVertexCount
 	};
 
     union{

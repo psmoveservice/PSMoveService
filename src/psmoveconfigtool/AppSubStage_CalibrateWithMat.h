@@ -7,36 +7,7 @@
 #include <chrono>
 #include <string.h>  // Required for memset in Xcode
 
-//-- constants -----
-// Sample 5 points - The psmove standing on the 4 corners and the center of a sheet of paper
-static const int k_mat_sample_location_count = 5;
-
-// Take 60 samples at each location
-static const int k_mat_calibration_sample_count = 60;
-
 //-- definitions -----
-struct PS3EYETrackerPoseContext
-{
-    PSMoveScreenLocation screenSpacePoints[k_mat_calibration_sample_count];
-    int screenSpacePointCount;
-
-    PSMoveScreenLocation avgScreenSpacePointAtLocation[k_mat_sample_location_count];
-
-    PSMovePose trackerPose;
-    float reprojectionError;
-    bool bValidTrackerPose;
-
-    void clear()
-    {
-        memset(screenSpacePoints, 0, sizeof(PSMoveScreenLocation)*k_mat_calibration_sample_count);
-        memset(avgScreenSpacePointAtLocation, 0, sizeof(PSMoveScreenLocation)*k_mat_sample_location_count);
-        screenSpacePointCount = 0;
-        trackerPose= *k_psmove_pose_identity;
-        reprojectionError = 0.f;
-        bValidTrackerPose = false;
-    }
-};
-
 class AppSubStage_CalibrateWithMat
 {
 public:
@@ -54,6 +25,7 @@ public:
     };
 
     AppSubStage_CalibrateWithMat(class AppStage_ComputeTrackerPoses *parentStage);
+	virtual ~AppSubStage_CalibrateWithMat();
 
     void enter();
     void exit();
@@ -80,7 +52,7 @@ private:
     bool m_bIsStable;
     bool m_bForceControllerStable;
 
-    PS3EYETrackerPoseContext m_psmoveTrackerPoseContexts[PSMOVESERVICE_MAX_TRACKER_COUNT];
+	struct TrackerRelativePoseStatistics *m_psmoveTrackerPoseStats[PSMOVESERVICE_MAX_TRACKER_COUNT];
 
     int m_sampleLocationIndex;
 };

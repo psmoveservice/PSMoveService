@@ -12,58 +12,6 @@ const Eigen::Quaternionf g_eigen_quaternion_zero = Eigen::Quaternionf( 0, 0, 0, 
 const Eigen::Quaternionf *k_eigen_quaternion_zero = &g_eigen_quaternion_zero;
 
 //-- public methods -----
-Eigen::Quaternionf
-eigen_quaternion_yaw_pitch_roll(float yaw_radians, float pitch_radians, float roll_radians)
-{
-	// Assuming the angles are in radians.
-	//(x=pitch, y=yaw, z=roll)
-	const float cx = cosf(pitch_radians / 2.f);
-	const float sx = sinf(pitch_radians / 2.f);
-	const float cy = cosf(yaw_radians / 2.f);
-	const float sy = sinf(yaw_radians / 2.f);
-	const float cz = cosf(roll_radians / 2.f);
-	const float sz = sinf(roll_radians / 2.f);
-	Eigen::Quaternionf q(
-		cx*cy*cz + sx*sy*sz,
-		sx*cy*cz - cx*sy*sz,
-		cx*sy*cz + sx*cy*sz,
-		cx*cy*sz - sx*sy*cz);
-
-	return q;
-}
-
-void
-eigen_quaternion_get_yaw_pitch_roll(
-    const Eigen::Quaternionf &q, float *out_yaw_radians, float *out_pitch_radians, float *out_roll_radians)
-{
-	float test = q.x()*q.y() + q.z()*q.w();
-
-	if (test > 0.499f)
-	{
-		// singularity at north pole
-		*out_yaw_radians = 2.f * atan2f(q.x(), q.w());
-		*out_roll_radians = k_real_pi / 2.f;
-		*out_pitch_radians = 0.f;
-	}
-	else if (test < -0.499f)
-	{
-		// singularity at south pole
-		*out_yaw_radians = -2.f * atan2f(q.x(), q.w());
-		*out_roll_radians = -k_real_pi / 2.f;
-		*out_pitch_radians = 0.f;
-	}
-	else
-	{
-		float sqx = q.x()*q.x();
-		float sqy = q.y()*q.y();
-		float sqz = q.z()*q.z();
-
-		*out_yaw_radians = atan2f(2.f*q.y()*q.w() - 2.f*q.x()*q.z(), 1.f - 2.f*sqy - 2.f*sqz);
-		*out_roll_radians = asinf(2.f*test);
-		*out_pitch_radians = atan2f(2.f*q.x()*q.w() - 2.f*q.y()*q.z(), 1.f - 2.f*sqx - 2.f*sqz);
-	}
-}
-
 // Creates a quaternion that rotates clockwise about the axis for a positive angle
 // when appied with psmove_vector_clockwise_rotate()
 Eigen::Quaternionf
@@ -106,6 +54,31 @@ eigen_quaternion_normalize_with_default(Eigen::Quaternionf &inout_v, const Eigen
 	return magnitude;
 }
 
+Eigen::Quaterniond
+eigen_quaterniond_safe_divide_with_default(const Eigen::Quaterniond &q, const double divisor, const Eigen::Quaterniond &default_result)
+{
+	Eigen::Quaterniond q_n;
+
+	if (!is_double_nearly_zero(divisor))
+	{
+		q_n = Eigen::Quaterniond(q.coeffs() / divisor);
+	}
+	else
+	{
+		q_n = default_result;
+	}
+
+	return q_n;
+}
+
+double
+eigen_quaterniond_normalize_with_default(Eigen::Quaterniond &inout_v, const Eigen::Quaterniond &default_result)
+{
+	const double magnitude = inout_v.norm();
+	inout_v = eigen_quaterniond_safe_divide_with_default(inout_v, magnitude, default_result);
+	return magnitude;
+}
+
 bool
 eigen_vector3f_is_valid(const Eigen::Vector3f &v)
 {
@@ -128,6 +101,16 @@ eigen_vector3f_clockwise_rotate(const Eigen::Quaternionf &q, const Eigen::Vector
 	return q.conjugate()._transformVector(v);
 }
 
+Eigen::Vector3d
+eigen_vector3d_clockwise_rotate(const Eigen::Quaterniond &q, const Eigen::Vector3d &v)
+{
+	assert_eigen_quaterniond_is_normalized(q);
+
+	// Eigen rotates counterclockwise (i.e. q*v*q^-1), 
+	// while we want the inverse of that (q^-1*v*q)
+	return q.conjugate()._transformVector(v);
+}
+
 Eigen::Matrix3f
 eigen_quaternion_to_clockwise_matrix3f(const Eigen::Quaternionf &q)
 {
@@ -144,40 +127,191 @@ eigen_matrix3f_to_clockwise_quaternion(const Eigen::Matrix3f &m)
 
 Eigen::Vector3f
 eigen_vector3f_divide_by_vector_with_default(
-    const Eigen::Vector3f &v, 
-    const Eigen::Vector3f &divisor, 
-    const Eigen::Vector3f &default_result)
+	const Eigen::Vector3f &v,
+	const Eigen::Vector3f &divisor,
+	const Eigen::Vector3f &default_result)
 {
-    Eigen::Vector3f result(
-        safe_divide_with_default(v.x(), divisor.x(), default_result.x()),
-        safe_divide_with_default(v.y(), divisor.y(), default_result.y()),
-        safe_divide_with_default(v.z(), divisor.z(), default_result.z()));
+	Eigen::Vector3f result(
+		safe_divide_with_default(v.x(), divisor.x(), default_result.x()),
+		safe_divide_with_default(v.y(), divisor.y(), default_result.y()),
+		safe_divide_with_default(v.z(), divisor.z(), default_result.z()));
 
-    return result;
+	return result;
 }
 
-float 
+float
 eigen_vector3f_normalize_with_default(Eigen::Vector3f &v, const Eigen::Vector3f &default_result)
 {
-    const float length= v.norm();
+	const float length = v.norm();
 
-    // Use the default value if v is too tiny
-    v= (length > k_normal_epsilon) ? (v / length) : default_result;
+	// Use the default value if v is too tiny
+	v = (length > k_normal_epsilon) ? (v / length) : default_result;
 
-    return length;
+	return length;
+}
+
+double
+eigen_vector3d_normalize_with_default(Eigen::Vector3d &v, const Eigen::Vector3d &default_result)
+{
+	const double length = v.norm();
+
+	// Use the default value if v is too tiny
+	v = (length > 0.0001) ? (v / length) : default_result;
+
+	return length;
 }
 
 float
 eigen_quaternion_unsigned_angle_between(const Eigen::Quaternionf &a, const Eigen::Quaternionf &b)
 {
-    assert_eigen_quaternion_is_normalized(a);
-    assert_eigen_quaternion_is_normalized(b);
+	assert_eigen_quaternion_is_normalized(a);
+	assert_eigen_quaternion_is_normalized(b);
 
-    const Eigen::Quaternionf b_inv= b.conjugate();
-    const Eigen::Quaternionf q_diff= a*b_inv;
+	const float radian_diff = fabsf(a.angularDistance(b));
 
-    // w = cos(2*theta)
-    const float radian_diff= fabsf(2.f * acosf(clampf(q_diff.w(), -1.f, 1.f)));
+	return radian_diff;
+}
 
-    return radian_diff;
+Eigen::Quaternionf
+eigen_angular_velocity_to_quaternion_derivative(
+	const Eigen::Quaternionf &current_orientation,
+	const Eigen::Vector3f &ang_vel)
+{
+	Eigen::Quaternionf omega = Eigen::Quaternionf(0.f, ang_vel.x(), ang_vel.y(), ang_vel.z());
+	Eigen::Quaternionf quaternion_derivative = Eigen::Quaternionf(current_orientation.coeffs() * 0.5f) *omega;
+
+	return quaternion_derivative;
+}
+
+Eigen::Quaterniond
+eigen_angular_velocity_to_quaterniond_derivative(
+	const Eigen::Quaterniond &current_orientation,
+	const Eigen::Vector3d &ang_vel)
+{
+	Eigen::Quaterniond omega = Eigen::Quaterniond(0.f, ang_vel.x(), ang_vel.y(), ang_vel.z());
+	Eigen::Quaterniond quaternion_derivative = Eigen::Quaterniond(current_orientation.coeffs() * 0.5f) *omega;
+
+	return quaternion_derivative;
+}
+
+Eigen::Vector3f
+eigen_quaternion_derivative_to_angular_velocity(
+	const Eigen::Quaternionf &current_orientation,
+	const Eigen::Quaternionf &quaternion_derivative)
+{
+	Eigen::Quaternionf inv_orientation = current_orientation.conjugate();
+	auto q_ang_vel = (quaternion_derivative*inv_orientation).coeffs() * 2.f;
+	Eigen::Vector3f ang_vel(q_ang_vel.x(), q_ang_vel.y(), q_ang_vel.z());
+
+	return ang_vel;
+}
+
+Eigen::Quaterniond
+eigen_angle_axis_to_quaterniond(
+	const Eigen::Vector3d &angle_axis)
+{
+	Eigen::Vector3d unit_axis = angle_axis;
+	const double angle = eigen_vector3d_normalize_with_default(unit_axis, Eigen::Vector3d::Zero());
+	return Eigen::Quaterniond(Eigen::AngleAxisd(angle, unit_axis));
+}
+
+Eigen::Quaternionf
+eigen_angle_axis_to_quaternion(
+	const Eigen::Vector3f &angle_axis)
+{
+	Eigen::Vector3f unit_axis = angle_axis;
+	const float angle = eigen_vector3f_normalize_with_default(unit_axis, Eigen::Vector3f::Zero());
+	return Eigen::Quaternionf(Eigen::AngleAxisf(angle, unit_axis));
+}
+
+//http://www.euclideanspace.com/maths/geometry/rotations/conversions/eulerToQuaternion/
+// NOTE: bank and attitude axes are swapped compared formula in original link
+template<typename T>
+Eigen::Quaternion<T> eigen_euler_angles_to_quaternion(const Eigen::EulerAngles<T> &euler_angles)
+{
+	const T attitude_radians = euler_angles.get_bank_radians(); // k
+	const T heading_radians = euler_angles.get_heading_radians(); // j
+	const T bank_radians = euler_angles.get_attitude_radians(); // i
+
+	const double c1 = cos(heading_radians / 2.0);
+	const double s1 = sin(heading_radians / 2.0);
+	const double c2 = cos(attitude_radians / 2.0);
+	const double s2 = sin(attitude_radians / 2.0);
+	const double c3 = cos(bank_radians / 2.0);
+	const double s3 = sin(bank_radians / 2.0);
+	Eigen::Quaternion<T> q(
+		static_cast<T>(c1*c2*c3 - s1*s2*s3), // w = cos(theta/2)
+		static_cast<T>(s1*s2*c3 + c1*c2*s3), // x = v.i*sin(theta/2)
+		static_cast<T>(s1*c2*c3 + c1*s2*s3), // y = v.j*sin(theta/2)
+		static_cast<T>(c1*s2*c3 - s1*c2*s3));// z = v.k*sin(theta/2)
+
+	return q;
+}
+
+//http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/
+// NOTE: bank and attitude axes are swapped compared formula in original link
+template<typename T>
+Eigen::EulerAngles<T> eigen_quaternion_to_euler_angles(const Eigen::Quaternion<T> &q)
+{
+	double heading_radians, attitude_radians, bank_radians;
+
+	double qw = static_cast<double>(q.w());
+	double qx = static_cast<double>(q.x());
+	double qy = static_cast<double>(q.y());
+	double qz = static_cast<double>(q.z());
+	double test = qx*qy + qz*qw;
+
+	if (test > 0.4999999)
+	{
+		// singularity at north pole
+		heading_radians = 2.0 * atan2(qx, qw);
+		attitude_radians = k_real64_half_pi / 2.f;
+		bank_radians = 0.f;
+	}
+	else if (test < -0.4999999)
+	{
+		// singularity at south pole
+		heading_radians = -2.0 * atan2(qx, qw);
+		attitude_radians = -k_real64_half_pi / 2.0;
+		bank_radians = 0.0;
+	}
+	else
+	{
+		double sqx = qx*qx;
+		double sqy = qy*qy;
+		double sqz = qz*qz;
+
+		heading_radians = atan2(2.0*qy*qw - 2.0*qx*qz, 1.0 - 2.0*sqy - 2.0*sqz);
+		attitude_radians = asin(2.0*test);
+		bank_radians = atan2(2.0*qx*qw - 2.0*qy*qz, 1.0 - 2.0*sqx - 2.0*sqz);
+	}
+
+	return Eigen::EulerAngles<T>(
+		static_cast<T>(attitude_radians),
+		static_cast<T>(heading_radians),
+		static_cast<T>(bank_radians));
+}
+
+Eigen::Quaterniond
+eigen_euler_angles_to_quaterniond(const Eigen::EulerAnglesd &euler_angles)
+{
+	return eigen_euler_angles_to_quaternion<double>(euler_angles);
+}
+
+Eigen::Quaternionf
+eigen_euler_angles_to_quaternionf(const Eigen::EulerAnglesf &euler_angles)
+{
+	return eigen_euler_angles_to_quaternion<float>(euler_angles);
+}
+
+Eigen::EulerAnglesd
+eigen_quaterniond_to_euler_angles(const Eigen::Quaterniond &q)
+{
+	return eigen_quaternion_to_euler_angles<double>(q);
+}
+
+Eigen::EulerAnglesf
+eigen_quaternionf_to_euler_angles(const Eigen::Quaternionf &q)
+{
+	return eigen_quaternion_to_euler_angles<float>(q);
 }

@@ -7,10 +7,13 @@
 #include "Camera.h"
 #include "GeometryUtility.h"
 #include "Logger.h"
+#include "MathAlignment.h"
 #include "MathUtility.h"
 #include "Renderer.h"
 #include "UIConstants.h"
 #include "MathGLM.h"
+#include "PSMoveProtocolInterface.h"
+#include "PSMoveProtocol.pb.h"
 
 #include "SDL_keycode.h"
 #include "SDL_opengl.h"
@@ -21,8 +24,15 @@
 #include <imgui.h>
 #include <vector>
 
+//#define COMPUTE_OPTICAL_VARIANCES
+
 //-- constants -----
-static const glm::vec3 k_hmd_frustum_color = glm::vec3(1.f, 0.788f, 0.055f);
+// Sample 5 points - The psmove standing on the 4 corners and the center of a sheet of paper
+static const int k_mat_sample_location_count = 5;
+
+// Take 60 samples at each location
+static const int k_mat_calibration_sample_count = 60;
+
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 
 static const double k_stabilize_wait_time_ms = 1000.f;
@@ -46,10 +56,288 @@ static const char *k_sample_location_names[k_mat_sample_location_count] = {
     "+X-Z Corner"
 };
 
+//-- private definitions -----
+struct TrackerRelativePoseStatistics
+{
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+	// N samples for the current sampling location
+	PSMoveScreenLocation screenSpacePoints[k_mat_calibration_sample_count];
+	float screenSpaceArea[k_mat_calibration_sample_count];
+	Eigen::Vector3f trackerSpacePoints[k_mat_calibration_sample_count];
+	Eigen::Vector3f trackerSpaceOrientations[k_mat_calibration_sample_count]; // angle-axis
+	int sampleCount;
+
+	// Average for each sampling location
+	PSMoveScreenLocation avgScreenSpacePointAtLocation[k_mat_sample_location_count];
+	float avgScreenSpaceArea[k_mat_sample_location_count];
+	Eigen::Vector3f avgTrackerSpacePointAtLocation[k_mat_sample_location_count];
+	float trackerSpacePointMaxVarianceAtLocation[k_mat_sample_location_count];
+	float trackerSpaceOrientationMaxVarianceAtLocation[k_mat_sample_location_count];
+
+	// Best fit lines for position and orientation variance 
+	// as a linear function of tracking projection pixel area 
+	Eigen::Vector2f positionVarianceLine;
+	Eigen::Vector2f orientationVarianceLine;
+
+	PSMovePose trackerPose;
+	float reprojectionError;
+	bool bValidTrackerPose;
+
+	TrackerRelativePoseStatistics()
+	{
+		clearAll();
+	}
+
+	bool getIsComplete() const
+	{
+		return sampleCount >= k_mat_calibration_sample_count;
+	}
+
+	void clearLastSampleBatch()
+	{
+		memset(screenSpacePoints, 0, sizeof(PSMoveScreenLocation)*k_mat_calibration_sample_count);
+		memset(screenSpaceArea, 0, sizeof(float)*k_mat_calibration_sample_count);
+		memset(trackerSpacePoints, 0, sizeof(Eigen::Vector3f)*k_mat_calibration_sample_count);
+		memset(trackerSpaceOrientations, 0, sizeof(Eigen::Vector3f)*k_mat_calibration_sample_count);
+		sampleCount = 0;
+	}
+
+	void clearAll()
+	{
+		clearLastSampleBatch();
+
+		memset(avgScreenSpacePointAtLocation, 0, sizeof(PSMoveScreenLocation)*k_mat_sample_location_count);
+		memset(avgScreenSpaceArea, 0, sizeof(float)*k_mat_sample_location_count);
+		memset(avgTrackerSpacePointAtLocation, 0, sizeof(Eigen::Vector3f)*k_mat_sample_location_count);
+		memset(trackerSpacePointMaxVarianceAtLocation, 0, sizeof(float)*k_mat_sample_location_count);
+		memset(trackerSpaceOrientationMaxVarianceAtLocation, 0, sizeof(float)*k_mat_sample_location_count);
+
+		trackerPose = *k_psmove_pose_identity;
+		reprojectionError = 0.f;
+		bValidTrackerPose = false;
+	}
+
+	void addSample(const ClientTrackerView *trackerView, const ClientControllerView *controllerView, const int sampleLocationIndex)
+	{
+		const PSMoveRawTrackerData &trackerData= controllerView->GetRawTrackerData();
+		const int trackerID= trackerView->getTrackerId();
+
+		PSMoveScreenLocation screenSample;
+		PSMoveTrackingProjection screenProjection;
+		PSMovePosition trackerRelativePosition;
+		PSMoveQuaternion trackerRelativeOrientation;
+		
+		if (!getIsComplete() &&
+			trackerData.GetPixelLocationOnTrackerId(trackerID, screenSample) &&
+			trackerData.GetProjectionOnTrackerId(trackerID, screenProjection) &&
+			trackerData.GetPositionOnTrackerId(trackerID, trackerRelativePosition))
+		{
+			Eigen::Vector3f trackerRelativeScaledAngleAxis = Eigen::Vector3f::Zero();
+
+			// Orientation isn't available on the psmove
+			if (trackerData.GetOrientationOnTrackerId(trackerID, trackerRelativeOrientation))
+			{
+				Eigen::Quaternionf trackerRelativeQuaternion = psmove_quaternion_to_eigen_quaternionf(trackerRelativeOrientation);
+				Eigen::AngleAxisf trackerRelativeAngleAxis(trackerRelativeQuaternion);
+				
+				trackerRelativeScaledAngleAxis = trackerRelativeAngleAxis.axis() * trackerRelativeAngleAxis.angle();
+			}
+
+			screenSpacePoints[sampleCount] = screenSample;
+			screenSpaceArea[sampleCount] = screenProjection.get_projection_area();
+			trackerSpacePoints[sampleCount] = psmove_float_vector3_to_eigen_vector3(trackerRelativePosition.toPSMoveFloatVector3());
+			trackerSpaceOrientations[sampleCount] = trackerRelativeScaledAngleAxis;
+			++sampleCount;
+
+			if (getIsComplete())
+			{
+				const float N = static_cast<float>(k_mat_calibration_sample_count);
+
+				// Compute the average screen space location
+				{
+					PSMoveFloatVector2 avg = PSMoveFloatVector2::create(0, 0);
+
+					// Average together all the samples we captured
+					for (int sampleIndex = 0; sampleIndex < k_mat_calibration_sample_count; ++sampleIndex)
+					{
+						const PSMoveScreenLocation &sample = screenSpacePoints[sampleIndex];
+
+						avg = avg + sample.toPSMoveFloatVector2();
+					}
+					avg = avg.unsafe_divide(N);
+
+					// Save the average sample for this tracker at this location
+					avgScreenSpacePointAtLocation[sampleLocationIndex] =
+						PSMoveScreenLocation::create(avg.i, avg.j);
+				}
+
+				// Compute the mean pixel tracking projection area
+				{
+					float avg = 0;
+
+					for (int sampleIndex = 0; sampleIndex < k_mat_calibration_sample_count; ++sampleIndex)
+					{
+						avg += screenSpaceArea[sampleIndex];
+					}
+
+					avgScreenSpaceArea[sampleLocationIndex] = avg / N;
+				}
+
+#ifdef COMPUTE_OPTICAL_VARIANCES
+				// Compute the mean and variance of the tracker relative position at the sample location
+				Eigen::Vector3f trackerSpacePointVariance;
+				eigen_vector3f_compute_mean_and_variance(
+					trackerSpacePoints, 
+					k_mat_calibration_sample_count, 
+					&avgTrackerSpacePointAtLocation[sampleLocationIndex],
+					&trackerSpacePointVariance);
+				trackerSpacePointMaxVarianceAtLocation[sampleLocationIndex] = trackerSpacePointVariance.maxCoeff();
+
+				// Compute the mean and variance of the tracker relative orientation at the sample location
+				Eigen::Vector3f trackerSpaceOrientationVariance;
+				eigen_vector3f_compute_mean_and_variance(
+					trackerSpaceOrientations,
+					k_mat_calibration_sample_count,
+					nullptr, // Don't need the mean since we don't care how the controller was oriented during sampling
+					&trackerSpaceOrientationVariance);
+				trackerSpaceOrientationMaxVarianceAtLocation[sampleLocationIndex] = trackerSpaceOrientationVariance.maxCoeff();
+#endif // COMPUTE_OPTICAL_VARIANCES
+			}
+		}
+	}
+
+	static bool computeVarianceBestFitLines(
+		TrackerRelativePoseStatistics **trackerStatsList, int trackerCount,
+		Eigen::Vector2f &out_position_variance_line, Eigen::Vector2f &out_orientation_variance_line)
+	{
+		Eigen::Vector2f area_positionvariance_samples[k_mat_sample_location_count*PSMOVESERVICE_MAX_TRACKER_COUNT];
+		Eigen::Vector2f area_orientationvariance_samples[k_mat_sample_location_count*PSMOVESERVICE_MAX_TRACKER_COUNT];
+		int sample_count = 0;
+
+		for (int tracker_index = 0; tracker_index < trackerCount; ++tracker_index)
+		{
+			const TrackerRelativePoseStatistics *trackerStats = trackerStatsList[tracker_index];
+
+			// Build lists mapping projection area on a given tracker to variance measurement
+			for (int location_index = 0; location_index < k_mat_sample_location_count; ++location_index)
+			{
+				const float area = trackerStats->avgScreenSpaceArea[location_index];
+				const float positionVariance = trackerStats->trackerSpacePointMaxVarianceAtLocation[location_index];
+				const float orientationVariance = trackerStats->trackerSpaceOrientationMaxVarianceAtLocation[location_index];
+
+				area_positionvariance_samples[sample_count] = Eigen::Vector2f(area, positionVariance);
+				area_orientationvariance_samples[sample_count] = Eigen::Vector2f(area, orientationVariance);
+				++sample_count;
+			}
+		}
+
+		// Compute best fit lines for the area-variance tables		
+		bool bSuccess = true;
+		bSuccess&= eigen_alignment_fit_least_squares_line(
+				area_positionvariance_samples, sample_count,
+				&out_position_variance_line, nullptr);
+		bSuccess&= eigen_alignment_fit_least_squares_line(
+			area_orientationvariance_samples, sample_count,
+			&out_orientation_variance_line, nullptr);
+
+		return bSuccess;
+	}
+};
+
+struct HMDTrackerPoseStatistics
+{
+	PSMovePosition worldSpacePoints[k_mat_calibration_sample_count];
+	PSMoveQuaternion worldSpaceOrientations[k_mat_calibration_sample_count];
+	int sampleCount;
+
+	PSMovePosition avgHMDWorldSpacePoint;
+	PSMoveQuaternion avgHMDWorldSpaceOrientation;
+
+	HMDTrackerPoseStatistics()
+	{
+		clear();
+	}
+
+	bool getIsComplete() const
+	{
+		return sampleCount >= k_mat_calibration_sample_count;
+	}
+
+	void clear()
+	{
+		memset(this, 0, sizeof(HMDTrackerPoseStatistics));
+	}
+
+	void addSample(const PSMovePose &pose)
+	{
+		if (getIsComplete())
+		{
+			return;
+		}
+
+		worldSpacePoints[sampleCount] = pose.Position;
+		worldSpaceOrientations[sampleCount] = pose.Orientation;
+		++sampleCount;
+
+		// See if we just read the last sample
+		if (getIsComplete())
+		{
+			const float N = static_cast<float>(k_mat_sample_location_count);
+			PSMoveFloatVector3 avgPosition = *k_psmove_float_vector3_zero;
+			PSMoveQuaternion avgOrientation = *k_psmove_quaternion_identity;
+
+			// Average together all the samples we captured
+			for (int sampleIndex = 0; sampleIndex < k_mat_sample_location_count; ++sampleIndex)
+			{
+				const PSMovePosition &posSample = worldSpacePoints[sampleCount];
+				const PSMoveQuaternion &orientationSample = worldSpaceOrientations[sampleCount];
+
+				avgPosition = avgPosition + posSample.toPSMoveFloatVector3();
+				avgOrientation = avgOrientation + orientationSample;
+			}
+
+			// Save the average sample for the HMD
+			avgHMDWorldSpacePoint = avgPosition.unsafe_divide(N).castToPSMovePosition();
+
+			// --Constrain the rotation to just be a yaw (rotation about y-axis) 
+			// Compute the average pose quaternion
+			PSMoveQuaternion avg_quaternion =
+				avgOrientation.unsafe_divide(N).normalize_with_default(*k_psmove_quaternion_identity);
+			glm::quat glm_quat = psmove_quaternion_to_glm_quat(avg_quaternion);
+
+			// Convert the pose quaternion into a set of basis vectors
+			glm::mat3 glm_mat3 = glm::mat3_cast(glm_quat);
+
+			// Extract the forward (z-axis) vector from the basis
+			glm::vec3 glm_forward = glm_mat3[2];
+
+			// Project the forward vector onto the x-z plane
+			glm::vec3 glm_forward2d = glm::normalize(glm::vec3(glm_forward.x, 0.f, glm_forward.z));
+
+			// Compute the yaw angle (amount the z-axis has been rotated to it's current facing)
+			float cos_yaw = glm::dot(glm_forward2d, glm::vec3(0.f, 0.f, 1.f));
+			float half_yaw = acosf(clampf(cos_yaw, -1.f, 1.f)) / 2.f;
+			glm::vec3 yaw_axis = glm::cross(glm::vec3(0.f, 0.f, 1.f), glm_forward2d);
+			if (glm::dot(yaw_axis, glm::vec3(0.f, 1.f, 0.f)) < 0)
+			{
+				half_yaw = -half_yaw;
+			}
+
+			// Convert this yaw rotation back into a quaternion
+			avgHMDWorldSpaceOrientation =
+				PSMoveQuaternion::create(
+					cosf(half_yaw), // w = cos(theta/2)
+					0.f, sinf(half_yaw), 0.f); // (x, y, z) = sin(theta/2)*axis, where axis = (0, 1, 0)
+		}
+	}
+};
+
+
 //-- private methods -----
 static bool computeTrackerCameraPose(
     const ClientTrackerView *trackerView,
-    PS3EYETrackerPoseContext &trackerCoregData);
+    TrackerRelativePoseStatistics &trackerCoregData);
 
 //-- public methods -----
 AppSubStage_CalibrateWithMat::AppSubStage_CalibrateWithMat(
@@ -57,7 +345,20 @@ AppSubStage_CalibrateWithMat::AppSubStage_CalibrateWithMat(
     : m_parentStage(parentStage)
     , m_menuState(AppSubStage_CalibrateWithMat::eMenuState::invalid)
     , m_bIsStable(false)
+	, m_sampleLocationIndex(0)
 {
+	for (int location_index = 0; location_index < k_mat_sample_location_count; ++location_index)
+	{
+		m_psmoveTrackerPoseStats[location_index] = new TrackerRelativePoseStatistics;
+	}
+}
+
+AppSubStage_CalibrateWithMat::~AppSubStage_CalibrateWithMat()
+{
+	for (int location_index = 0; location_index < k_mat_sample_location_count; ++location_index)
+	{
+		delete m_psmoveTrackerPoseStats[location_index];
+	}
 }
 
 void AppSubStage_CalibrateWithMat::enter()
@@ -125,7 +426,7 @@ void AppSubStage_CalibrateWithMat::update()
             {
                 const int trackerIndex = iter->second.listIndex;
 
-                if (m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount < k_mat_calibration_sample_count)
+                if (!m_psmoveTrackerPoseStats[trackerIndex]->getIsComplete())
                 {
                     bNeedMoreSamples = true;
                     break;
@@ -144,37 +445,9 @@ void AppSubStage_CalibrateWithMat::update()
                         const int trackerIndex = iter->second.listIndex;
                         const ClientTrackerView *trackerView = iter->second.trackerView;
 
-                        PSMoveScreenLocation screenSample;
-
-                        if (ControllerView->GetIsCurrentlyTracking() &&
-                            ControllerView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample) &&
-                            m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount < k_mat_calibration_sample_count)
+                        if (ControllerView->GetIsCurrentlyTracking())
                         {
-                            const int sampleCount = m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount;
-
-                            m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePoints[sampleCount] = screenSample;
-                            ++m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount;
-
-                            // See if we just read the last sample
-                            if (m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount >= k_mat_calibration_sample_count)
-                            {
-                                const float N = static_cast<float>(k_mat_calibration_sample_count);
-                                PSMoveFloatVector2 avg = PSMoveFloatVector2::create( 0, 0 );
-
-                                // Average together all the samples we captured
-                                for (int sampleIndex = 0; sampleIndex < k_mat_calibration_sample_count; ++sampleIndex)
-                                {
-                                    const PSMoveScreenLocation &sample =
-                                        m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePoints[sampleCount];
-
-                                    avg = avg + sample.toPSMoveFloatVector2();
-                                }
-                                avg= avg.unsafe_divide(N);
-
-                                // Save the average sample for this tracker at this location
-                                m_psmoveTrackerPoseContexts[trackerIndex].avgScreenSpacePointAtLocation[m_sampleLocationIndex] = 
-                                    PSMoveScreenLocation::create(avg.i, avg.j);
-                            }
+							m_psmoveTrackerPoseStats[trackerIndex]->addSample(trackerView, ControllerView, m_sampleLocationIndex);
                         }
                     }
                 }
@@ -220,7 +493,7 @@ void AppSubStage_CalibrateWithMat::update()
             {
                 const int trackerIndex = iter->second.listIndex;
                 const ClientTrackerView *trackerView = iter->second.trackerView;
-                PS3EYETrackerPoseContext &trackerSampleData = m_psmoveTrackerPoseContexts[trackerIndex];
+                TrackerRelativePoseStatistics &trackerSampleData = *m_psmoveTrackerPoseStats[trackerIndex];
 
                 bSuccess&= computeTrackerCameraPose(trackerView, trackerSampleData);
             }
@@ -233,7 +506,7 @@ void AppSubStage_CalibrateWithMat::update()
                     ++iter)
                 {
                     const int trackerIndex = iter->second.listIndex;
-                    const PS3EYETrackerPoseContext &trackerSampleData = m_psmoveTrackerPoseContexts[trackerIndex];
+                    const TrackerRelativePoseStatistics &trackerSampleData = *m_psmoveTrackerPoseStats[trackerIndex];
                     const PSMovePose trackerPose = trackerSampleData.trackerPose;
 
                     ClientTrackerView *trackerView = iter->second.trackerView;
@@ -241,6 +514,34 @@ void AppSubStage_CalibrateWithMat::update()
                     m_parentStage->request_set_tracker_pose(&trackerPose, trackerView);
                 }
             }
+
+			#ifdef COMPUTE_OPTICAL_VARIANCES
+			if (bSuccess)
+			{
+				int trackerCount= static_cast<int>(m_parentStage->m_trackerViews.size());
+				Eigen::Vector2f positionVarianceLine;
+				Eigen::Vector2f orientationVarianceLine;
+
+				if (TrackerRelativePoseStatistics::computeVarianceBestFitLines(
+						m_psmoveTrackerPoseStats, trackerCount,
+						positionVarianceLine, orientationVarianceLine))
+				{
+					RequestPtr request(new PSMoveProtocol::Request());
+					request->set_type(PSMoveProtocol::Request_RequestType_SET_OPTICAL_NOISE_CALIBRATION);
+
+					PSMoveProtocol::Request_RequestSetOpticalNoiseCalibration *set_calib_request =
+						request->mutable_request_set_optical_noise_calibration();
+
+					set_calib_request->set_controller_id(ControllerView->GetControllerID());
+					set_calib_request->set_position_variance_gain(positionVarianceLine.x());
+					set_calib_request->set_position_variance_bias(positionVarianceLine.y());
+					set_calib_request->set_orientation_variance_gain(orientationVarianceLine.x());
+					set_calib_request->set_orientation_variance_bias(orientationVarianceLine.y());
+
+					ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+				}
+			}
+			#endif // COMPUTE_OPTICAL_VARIANCES
 
             if (bSuccess)
             {
@@ -391,7 +692,7 @@ void AppSubStage_CalibrateWithMat::renderUI()
             bool bAnyTrackersSampling = false;
             for (int tracker_index = 0; tracker_index < m_parentStage->get_tracker_count(); ++tracker_index)
             {
-                const int sampleCount = m_psmoveTrackerPoseContexts[tracker_index].screenSpacePointCount;
+                const int sampleCount = m_psmoveTrackerPoseStats[tracker_index]->sampleCount;
 
                 if (sampleCount < k_mat_calibration_sample_count)
                 {
@@ -485,7 +786,7 @@ void AppSubStage_CalibrateWithMat::onEnterState(
             {
                 const int trackerIndex = iter->second.listIndex;
 
-                m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount = 0;
+                m_psmoveTrackerPoseStats[trackerIndex]->clearAll();
             }
 
             m_sampleLocationIndex = 0;
@@ -501,7 +802,7 @@ void AppSubStage_CalibrateWithMat::onEnterState(
             {
                 const int trackerIndex = iter->second.listIndex;
 
-                m_psmoveTrackerPoseContexts[trackerIndex].screenSpacePointCount = 0;
+                m_psmoveTrackerPoseStats[trackerIndex]->clearLastSampleBatch();
             }
 
             m_bIsStable = false;
@@ -522,7 +823,7 @@ void AppSubStage_CalibrateWithMat::onEnterState(
 static bool
 computeTrackerCameraPose(
     const ClientTrackerView *trackerView,
-    PS3EYETrackerPoseContext &trackerCoregData)
+    TrackerRelativePoseStatistics &trackerCoregData)
 {
     // Get the pixel width and height of the tracker image
     const PSMoveFloatVector2 trackerPixelDimensions = trackerView->getTrackerPixelExtents();

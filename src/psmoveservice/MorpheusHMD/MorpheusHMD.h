@@ -25,16 +25,18 @@ public:
 		, is_valid(false)
 		, version(CONFIG_VERSION)
 		, disable_command_interface(false)
+		, position_filter_type("LowPassOptical")
+		, orientation_filter_type("MadgwickARG")
 		, max_velocity(1.f)
 		, raw_accelerometer_variance(0.f)
 		, raw_gyro_variance(0.f)
 		, raw_gyro_drift(0.f)
 		, max_poll_failure_count(100)
 		, prediction_time(0.f)
-		, min_orientation_quality_screen_area(150.f*34.f*.1f)
-		, max_orientation_quality_screen_area(150.f*34.f) // light bar at ideal range looking straight on is about 150px by 34px 
-		, min_position_quality_screen_area(75.f*17.f*.25f)
-		, max_position_quality_screen_area(75.f*17.f)
+		, mean_update_time_delta(0.008333f)
+		, position_variance_exp_fit_a(0.0994158462f)
+		, position_variance_exp_fit_b(-0.000567041978f)
+		, orientation_variance(0.005f)
 		, tracking_color_id(eCommonTrackingColorID::Blue)
     {
 		// The Morpheus uses the BMI055 IMU Chip: 
@@ -98,11 +100,24 @@ public:
 	// Flag to disable usage of the command usb interface if other apps want to
 	bool disable_command_interface;
 
+	// The type of position filter to use
+	std::string position_filter_type;
+
+	// The type of orientation filter to use
+	std::string orientation_filter_type;
+
 	// calibrated_acc= raw_acc*acc_gain + acc_bias
 	CommonDeviceVector accelerometer_gain;
 	CommonDeviceVector raw_accelerometer_bias;
 	// The variance of the raw gyro readings in rad/sec^2
 	float raw_accelerometer_variance;
+
+	inline CommonDeviceVector get_calibrated_accelerometer_variance() const {
+		return CommonDeviceVector::create(
+			accelerometer_gain.i*raw_accelerometer_variance, 
+			accelerometer_gain.j*raw_accelerometer_variance,
+			accelerometer_gain.k*raw_accelerometer_variance);
+	}
 
 	// Maximum velocity for the controller physics (meters/second)
 	float max_velocity;
@@ -118,15 +133,28 @@ public:
 	// The drift raw gyro readings in rad/second
 	float raw_gyro_drift;
 
-	// The pixel area of the tracking projection at which the orientation quality is 0
-	float min_orientation_quality_screen_area;
-	// The pixel area of the tracking projection at which the orientation quality is 1
-	float max_orientation_quality_screen_area;
+	inline CommonDeviceVector get_calibrated_gyro_variance() const {
+		return CommonDeviceVector::create(
+			gyro_gain.i*raw_gyro_variance, gyro_gain.j*raw_gyro_variance, gyro_gain.k*raw_gyro_variance);
+	}
+	inline CommonDeviceVector get_calibrated_gyro_drift() const {
+		return CommonDeviceVector::create(
+			gyro_gain.i*raw_gyro_drift, gyro_gain.j*raw_gyro_drift, gyro_gain.k*raw_gyro_drift);
+	}
 
-	// The pixel area of the tracking projection at which the position quality is 0
-	float min_position_quality_screen_area;
-	// The pixel area of the tracking projection at which the position quality is 1
-	float max_position_quality_screen_area;
+	// The average time between updates in seconds
+	float mean_update_time_delta;
+
+	// The variance of the controller position as a function of pixel area
+	float position_variance_exp_fit_a;
+	float position_variance_exp_fit_b;
+
+	// The variance of the controller orientation (when sitting still) in rad^2
+	float orientation_variance;
+
+	inline float get_position_variance(float projection_area) const {
+		return position_variance_exp_fit_a*exp(position_variance_exp_fit_b*projection_area);
+	}
 
     long max_poll_failure_count;
 	float prediction_time;

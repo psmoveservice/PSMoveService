@@ -12,6 +12,7 @@
 #include "AppStage_GyroscopeCalibration.h"
 #include "AppStage_MainMenu.h"
 #include "AppStage_MagnetometerCalibration.h"
+#include "AppStage_OpticalCalibration.h"
 #include "AppStage_PairController.h"
 #include "AppStage_ServiceSettings.h"
 #include "AppStage_TrackerSettings.h"
@@ -46,6 +47,7 @@ extern "C" int main(int argc, char *argv[])
     app.registerAppStage<AppStage_HMDSettings>();
 	app.registerAppStage<AppStage_MagnetometerCalibration>();
     app.registerAppStage<AppStage_MainMenu>();
+	app.registerAppStage<AppStage_OpticalCalibration>();
     app.registerAppStage<AppStage_PairController>();
     app.registerAppStage<AppStage_ServiceSettings>();
     app.registerAppStage<AppStage_TestHMD>();

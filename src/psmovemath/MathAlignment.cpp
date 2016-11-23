@@ -275,7 +275,9 @@ eigen_alignment_fit_min_volume_ellipsoid(
         }
 
         // Compute the Ellipsoid A-matrix i.e. (X-c)'*A*(X-c)
-        Eigen::Matrix3f A = (1.f / POINT_DIMENSION) * (P*u.asDiagonal()*P.transpose() - (P*u)*(P*u).transpose()).inverse();
+		Eigen::Matrix3f PuP_trans= P*u.asDiagonal()*P.transpose();
+		Eigen::Matrix3f PuPu_trans= (P*u)*(P*u).transpose();
+        Eigen::Matrix3f A = (1.f / POINT_DIMENSION) * (PuP_trans - PuPu_trans).inverse();
 
         // Compute the singular values of A (where A = U*D*V)
         const Eigen::JacobiSVD<Eigen::Matrix3f> svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
@@ -667,7 +669,7 @@ eigen_alignment_fit_focal_cone_to_sphere(
 }
 
 bool
-eigen_quaternion_compute_weighted_average(
+eigen_quaternion_compute_normalized_weighted_average(
     const Eigen::Quaternionf *quaternions,
     const float *weights,
     const int count,
@@ -682,7 +684,11 @@ eigen_quaternion_compute_weighted_average(
     }
     else if (count == 2)
     {
-        const float u= safe_divide_with_default(fabs(weights[1]), fabs(weights[0]) + fabs(weights[1]), 0.f);
+		assert(weights == nullptr || weights[0] >= 0);
+		assert(weights == nullptr || weights[1] >= 0);
+		const float w0 = (weights != nullptr) ? weights[0] : 0.5f;
+		const float w1 = (weights != nullptr) ? weights[1] : 0.5f;
+        const float u= safe_divide_with_default(w1, w0 + w1, 0.f);
 
         *out_result= eigen_quaternion_normalized_lerp(quaternions[0], quaternions[1], u);
         success= true;
@@ -694,15 +700,21 @@ eigen_quaternion_compute_weighted_average(
         Eigen::MatrixXf q_transpose(count, 4);
 
         float total_weight= 0.f;
-        for (int index = 0; index < count; ++index)
-        {
-            total_weight+= fabsf(weights[index]);
-        }
+		if (weights != nullptr)
+		{
+			for (int index = 0; index < count; ++index)
+			{
+				assert(weights[index] >= 0);
+				total_weight += weights[index];
+			}
+		}
 
         for (int index = 0; index < count; ++index)
         {
+			// Normalize the weights against the total weight
             const Eigen::Quaternionf &sample = quaternions[index];
-            const float normalized_weight= safe_divide_with_default(fabsf(weights[index]), total_weight, 1.f);
+			const float weight = (weights != nullptr) ? weights[index] : 0.f;
+            const float normalized_weight= safe_divide_with_default(weight, total_weight, 1.f);
 
             const float w= sample.w() * normalized_weight;
             const float x= sample.x() * normalized_weight;
@@ -748,4 +760,321 @@ eigen_quaternion_compute_weighted_average(
     }
 
     return success;
+}
+
+bool
+eigen_quaternion_compute_weighted_average(
+    const Eigen::Quaterniond *quaternions,
+    const double *weights,
+    const int count,
+    Eigen::Quaterniond *out_result)
+{
+    bool success = false;
+
+    if (count == 1)
+    {
+        *out_result= quaternions[0];
+        success= true;
+    }
+    else
+    {
+        // http://stackoverflow.com/questions/12374087/average-of-multiple-quaternions
+        Eigen::MatrixXd q(4, count);
+        Eigen::MatrixXd q_transpose(count, 4);
+
+        for (int index = 0; index < count; ++index)
+        {
+            const Eigen::Quaterniond &sample = quaternions[index];
+			const double signed_weight= (weights != nullptr) ? weights[index] : 1.f;
+            const double unsigned_weight= fabs(signed_weight);
+
+            const double w= sample.w() * unsigned_weight;
+			// For negative weights, use the conjugate of the quaternion 
+			// (i.e. flip the rotation axis)
+            const double x= sample.x() * signed_weight;
+            const double y= sample.y() * signed_weight;
+            const double z= sample.z() * signed_weight;
+
+            q(0, index) = w;
+            q(1, index) = x;
+            q(2, index) = y;
+            q(3, index) = z;
+
+            q_transpose(index, 0) = w;
+            q_transpose(index, 1) = x;
+            q_transpose(index, 2) = y;
+            q_transpose(index, 3) = z;
+        }
+
+        Eigen::Matrix4d M= q*q_transpose;
+
+        Eigen::EigenSolver<Eigen::Matrix4d> eigsolv(M);
+        if (eigsolv.info() == Eigen::Success)
+        {
+            int largest_row = 0;
+            double largest_eigenvalue = eigsolv.eigenvalues()[0].real();
+            for (int row_ix = 1; row_ix < 4; ++row_ix) 
+            {
+                if (eigsolv.eigenvalues()[row_ix].real() > largest_eigenvalue)
+                {
+                    largest_eigenvalue = eigsolv.eigenvalues()[row_ix].real();
+                    largest_row = row_ix;
+                }                
+            }
+
+            Eigen::Vector4d largest_eigenvector = eigsolv.eigenvectors().col(largest_row).real();
+            double w= largest_eigenvector(0);
+            double x= largest_eigenvector(1);
+            double y= largest_eigenvector(2);
+            double z= largest_eigenvector(3);
+
+            *out_result= Eigen::Quaterniond(w, x, y, z).normalized();
+            success= true;
+        }
+    }
+
+    return success;
+}
+
+void 
+eigen_vector3f_compute_mean_and_variance(
+	const Eigen::Vector3f *samples,
+    const int sample_count,
+	Eigen::Vector3f *out_mean,
+    Eigen::Vector3f *out_variance)
+{
+	assert(out_mean != nullptr || out_variance != nullptr);
+
+	Eigen::Vector3f mean= Eigen::Vector3f::Zero();
+	Eigen::Vector3f variance= Eigen::Vector3f::Zero();
+
+	if (sample_count > 0.f)
+	{
+		const float N = static_cast<float>(sample_count);
+
+		for (int sample_index = 0; sample_index < sample_count; sample_index++)
+		{
+			const Eigen::Vector3f &sample= samples[sample_index];
+
+			mean+= sample;
+		}
+		mean/= N;
+
+		// Compute the variance of the (unsigned) sample error, where "error" = abs(omega_sample)
+		if (out_variance != nullptr)
+		{
+			for (int sample_index = 0; sample_index < sample_count; sample_index++)
+			{
+				const Eigen::Vector3f &sample = samples[sample_index];
+				const Eigen::Vector3f diff_from_mean = sample - mean;
+
+				variance += diff_from_mean.cwiseProduct(diff_from_mean);
+			}
+			variance /= (N - 1);
+		}
+	}
+	
+	if (out_mean != nullptr)
+	{
+		*out_mean = mean;
+	}
+
+	if (out_variance != nullptr)
+	{
+		*out_variance = variance;
+	}
+}
+
+// From: http://stackoverflow.com/questions/5083465/fast-efficient-least-squares-fit-algorithm-in-c
+bool 
+eigen_alignment_fit_least_squares_line(
+	const Eigen::Vector2f *samples, const int sample_count, 
+	Eigen::Vector2f *out_line, float *out_correlation_coefficient)
+{
+	const float N = static_cast<float>(sample_count);
+
+	float sumx = 0.f;
+	float sumx2 = 0.f;
+	float sumxy = 0.f;
+	float sumy = 0.f;
+	float sumy2 = 0.f;
+
+	float m, b;
+	bool bSuccess = false;
+
+	for (int i = 0; i < sample_count; i++)
+	{
+		const Eigen::Vector2f &sample = samples[i];
+		const float x_i = sample.x();
+		const float y_i = sample.y();
+
+		sumx += x_i;
+		sumx2 += x_i*x_i;
+		sumxy += x_i*y_i;
+		sumy += y_i;
+		sumy2 += y_i*y_i;
+	}
+
+	const float denom = (N*sumx2 - sumx*sumx);
+
+	if (denom != 0)
+	{
+		m = (N*sumxy - sumx*sumy) / denom;
+		b = (sumy*sumx2 - sumx*sumxy) / denom;
+
+		if (out_correlation_coefficient != nullptr)
+		{
+			// compute correlation coeff
+			*out_correlation_coefficient = (sumxy - sumx*sumy / N) / sqrtf((sumx2 - (sumx*sumx) / N) * (sumy2 - (sumy*sumy) / N));
+		}
+
+		bSuccess= true;
+	}
+	else
+	{
+		// singular matrix. can't solve the problem.
+		m = 0;
+		b = 0;
+
+		if (out_correlation_coefficient != nullptr)
+		{
+			*out_correlation_coefficient = 0;
+		}
+	}
+
+	if (out_line != nullptr)
+	{
+		*out_line = Eigen::Vector2f(m, b);
+	}
+
+	return bSuccess;
+}
+
+// From: http://mathworld.wolfram.com/LeastSquaresFittingExponential.html
+bool
+eigen_alignment_fit_least_squares_exponential(
+	const Eigen::Vector2f *samples, const int sample_count,
+	Eigen::Vector2f *out_curve)
+{
+	const float N = static_cast<float>(sample_count);
+
+	float sum_lny = 0.f;
+	float sum_x2 = 0.f;
+	float sum_x = 0.f;
+	float sum_xlny = 0.f;
+
+	float a, b;
+	bool bSuccess = false;
+
+	for (int i = 0; i < sample_count; i++)
+	{
+		const Eigen::Vector2f &sample = samples[i];
+		const float x_i = sample.x();
+		const float y_i = sample.y();
+		const float log_y_i = logf(y_i);
+
+		sum_lny += log_y_i;
+		sum_x2 += x_i*x_i;
+		sum_x += x_i;
+		sum_xlny += x_i*log_y_i;
+	}
+
+	const float denom = (N*sum_x2 - sum_x*sum_x);
+
+	if (denom != 0)
+	{
+		a = static_cast<float>(exp((sum_lny*sum_x2 - sum_x*sum_xlny) / denom));
+		b = (N*sum_xlny - sum_x*sum_lny) / denom;
+		bSuccess = true;
+	}
+	else
+	{
+		// singular matrix. can't solve the problem.
+		a = 0;
+		b = 0;
+	}
+
+	if (out_curve != nullptr)
+	{
+		*out_curve = Eigen::Vector2f(b, a);
+	}
+
+	return bSuccess;
+}
+
+// Modified from: https://gist.github.com/ialhashim/0a2554076a6cf32831ca
+bool 
+eigen_alignment_fit_least_squares_plane(
+	const Eigen::Vector3f *samples, const int sample_count,
+	Eigen::Vector3f *out_centroid, Eigen::Vector3f *out_normal)
+{
+	bool bSuccess= false;
+
+	if (sample_count > 3)
+	{
+		Eigen::Matrix< float, Eigen::Dynamic, Eigen::Dynamic > coord(3, sample_count);
+		for (int i = 0; i < sample_count; ++i)
+		{
+			coord.col(i) = samples[i];
+		}
+
+		// calculate centroid
+		Eigen::Vector3f centroid(coord.row(0).mean(), coord.row(1).mean(), coord.row(2).mean());
+
+		// subtract centroid
+		coord.row(0).array() -= centroid(0);
+		coord.row(1).array() -= centroid(1); 
+		coord.row(2).array() -= centroid(2);
+
+		// we only need the left-singular matrix here
+		//  http://math.stackexchange.com/questions/99299/best-fitting-plane-given-a-set-of-points
+		auto svd = coord.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
+		Eigen::Vector3f plane_normal = svd.matrixU().rightCols<1>();
+		float length= plane_normal.norm();
+
+		if (length > k_real_epsilon)
+		{
+			*out_centroid= centroid;
+			*out_normal= plane_normal / length;
+			bSuccess= true;
+		}
+	}
+	else if (sample_count == 3)
+	{
+		Eigen::Vector3f centroid= (samples[0] + samples[1] + samples[2]) / 3.f;
+		Eigen::Vector3f plane_normal= (samples[1] - samples[0]).cross((samples[2] - samples[0]));
+		float length= plane_normal.norm();
+
+		if (length > k_real_epsilon)
+		{
+			*out_centroid= centroid;
+			*out_normal= plane_normal / length;
+			bSuccess= true;
+		}
+	}
+
+	return bSuccess;
+}
+
+float
+eigen_alignment_project_points_on_plane(
+	const Eigen::Vector3f &centroid, const Eigen::Vector3f &normal,
+	Eigen::Vector3f *samples, const int sample_count)
+{
+	float total_error= 0.f;
+
+	for (int sample_index = 0; sample_index < sample_count; ++sample_index)
+	{
+		const Eigen::Vector3f &sample= samples[sample_index];
+		const Eigen::Vector3f centroidToSample= sample - centroid;
+		const float signedDistanceToPlane= centroidToSample.dot(normal);
+
+		// Move the sample onto the plane
+		samples[sample_index]= sample - normal*signedDistanceToPlane;
+
+		// Add up the total error distances from the plane
+		total_error+= fabsf(signedDistanceToPlane);
+	}
+
+	return total_error;
 }

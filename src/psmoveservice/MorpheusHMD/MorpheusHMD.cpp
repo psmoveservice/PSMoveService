@@ -223,12 +223,16 @@ MorpheusHMDConfig::config2ptree()
 	pt.put("Calibration.Identity.Gravity.Y", identity_gravity_direction.j);
 	pt.put("Calibration.Identity.Gravity.Z", identity_gravity_direction.k);
 
-	pt.put("OrientationFilter.MinQualityScreenArea", min_orientation_quality_screen_area);
-	pt.put("OrientationFilter.MaxQualityScreenArea", max_orientation_quality_screen_area);
+	pt.put("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
+	pt.put("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
 
-	pt.put("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
-	pt.put("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
+	pt.put("Calibration.Orientation.Variance", orientation_variance);
 
+	pt.put("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
+
+	pt.put("OrientationFilter.FilterType", orientation_filter_type);
+
+	pt.put("PositionFilter.FilterType", position_filter_type);
 	pt.put("PositionFilter.MaxVelocity", max_velocity);
 
 	pt.put("prediction_time", prediction_time);
@@ -272,13 +276,16 @@ MorpheusHMDConfig::ptree2config(const boost::property_tree::ptree &pt)
 		raw_gyro_variance = pt.get<float>("Calibration.Gyro.Variance", raw_gyro_variance);
 		raw_gyro_drift = pt.get<float>("Calibration.Gyro.Drift", raw_gyro_drift);
 
-		// Get the orientation filter parameters
-		min_orientation_quality_screen_area = pt.get<float>("OrientationFilter.MinQualityScreenArea", min_orientation_quality_screen_area);
-		max_orientation_quality_screen_area = pt.get<float>("OrientationFilter.MaxQualityScreenArea", max_orientation_quality_screen_area);
+		position_variance_exp_fit_a = pt.get<float>("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
+		position_variance_exp_fit_b = pt.get<float>("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
 
-		// Get the position filter parameters
-		min_position_quality_screen_area = pt.get<float>("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
-		max_position_quality_screen_area = pt.get<float>("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
+		orientation_variance = pt.get<float>("Calibration.Orientation.Variance", orientation_variance);
+
+		mean_update_time_delta = pt.get<float>("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
+
+		orientation_filter_type = pt.get<std::string>("OrientationFilter.FilterType", orientation_filter_type);
+
+		position_filter_type = pt.get<std::string>("PositionFilter.FilterType", position_filter_type);
 		max_velocity = pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
 
 		// Get the calibration direction for "down"

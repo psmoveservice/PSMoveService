@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.0)
 
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 
+# Fix Error C1128 - number of sections exceeded object file format limit: compile with /bigobj
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+endif()
+
 # Dependencies
 set(PSMOVE_SERVICE_INCL_DIRS)
 set(PSMOVE_SERVICE_REQ_LIBS)
@@ -132,6 +137,9 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
 
 # Eigen math library
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
+
+# mherb/Kalman library
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include)
 
 # Boost.Application and type_index are header only (?)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS

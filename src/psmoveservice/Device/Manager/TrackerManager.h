@@ -48,6 +48,14 @@ public:
 	bool use_bgr_to_hsv_lookup_table;
 	bool exclude_opposed_cameras;
     TrackerProfile default_tracker_profile;
+	float global_forward_degrees;
+
+	CommonDeviceVector get_global_forward_axis() const;
+	CommonDeviceVector get_global_backward_axis() const;
+	CommonDeviceVector get_global_right_axis() const;
+	CommonDeviceVector get_global_left_axis() const;
+	CommonDeviceVector get_global_up_axis() const;
+	CommonDeviceVector get_global_down_axis() const;
 };
 
 class TrackerManager : public DeviceTypeManager
@@ -65,7 +73,7 @@ public:
         return TrackerManager::k_max_devices;
     }
 
-    ServerTrackerViewPtr getTrackerViewPtr(int device_id);
+    ServerTrackerViewPtr getTrackerViewPtr(int device_id) const;
 
     inline void saveDefaultTrackerProfile(const TrackerProfile *profile)
     {

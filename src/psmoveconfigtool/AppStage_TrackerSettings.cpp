@@ -340,6 +340,21 @@ void AppStage_TrackerSettings::renderUI()
 					m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
 				}
 			}
+
+			if (m_controllerInfos.size() > 0)
+			{
+				int controllerID = (m_selectedControllerIndex != -1) ? m_controllerInfos[m_selectedControllerIndex].ControllerID : -1;
+
+				if (ImGui::Button("Compute Tracker Poses"))
+				{
+					AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app, controllerID);
+				}
+
+				if (ImGui::Button("Test Tracking"))
+				{
+					AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app, controllerID);
+				}
+			}
         }
 
         ImGui::Separator();
@@ -351,11 +366,6 @@ void AppStage_TrackerSettings::renderUI()
             if (ImGui::Button("Compute Tracker Poses"))
             {
                 AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app, controller == NULL ? -1 : controller->ControllerID);
-            }
-
-            if (ImGui::Button("Test Tracking"))
-            {
-                AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app, controller == NULL ? -1 : controller->ControllerID);
             }
         }
 

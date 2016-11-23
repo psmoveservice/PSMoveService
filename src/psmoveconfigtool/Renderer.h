@@ -4,6 +4,9 @@
 //-- includes -----
 #include <glm/glm.hpp>
 
+//-- pre-declatations -----
+struct ClientTrackerInfo;
+
 //-- typedefs -----
 typedef union SDL_Event SDL_Event;
 
@@ -103,6 +106,7 @@ void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color);
 void drawPSNaviModel(const glm::mat4 &transform);
 void drawPSDualShock4Model(const glm::mat4 &transform, const glm::vec3 &color);
 void drawPS3EyeModel(const glm::mat4 &transform);
+void drawTrackerList(const ClientTrackerInfo *trackerList, const int trackerCount);
 void drawMorpheusModel(const glm::mat4 &transform);
 
 //-- Utilities -----

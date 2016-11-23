@@ -6,6 +6,7 @@
 #include "ControllerManager.h"
 #include "DeviceManager.h"
 #include "DeviceEnumerator.h"
+#include "MathEigen.h"
 #include "HMDManager.h"
 #include "MorpheusHMD.h"
 #include "OrientationFilter.h"
@@ -220,6 +221,18 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__set_controller_gyroscope_calibration(context, response);
                 break;
+			case PSMoveProtocol::Request_RequestType_SET_OPTICAL_NOISE_CALIBRATION:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_optical_noise_calibration(context, response);
+				break;
+			case PSMoveProtocol::Request_RequestType_SET_ORIENTATION_FILTER:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_orientation_filter(context, response);
+				break;
+			case PSMoveProtocol::Request_RequestType_SET_POSITION_FILTER:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_position_filter(context, response);
+				break;
 
             // Tracker Requests
             case PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST:
@@ -278,7 +291,10 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__search_for_new_trackers(context, response);
                 break;
-
+			case PSMoveProtocol::Request_RequestType_GET_TRACKING_SPACE_SETTINGS:
+				response = new PSMoveProtocol::Response;
+				handle_request__get_tracking_space_settings(context, response);
+				break;
             // HMD Requests
             case PSMoveProtocol::Request_RequestType_GET_HMD_LIST:
 				response = new PSMoveProtocol::Response;
@@ -353,21 +369,24 @@ public:
                 const ControllerStreamInfo &streamInfo = connection_state->active_controller_stream_info[controller_id];
                 ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
 
-                // Clear any LED overrides we had active
-                //###HipsterSlot $HACK 
-                // This implicitly assumes that only one connection had an LED override color active.
-                // This is technically true right now because only the config tool sets the override
-                // color for purposes of tracking color calibration, but this could change in the future.
-                if (controller_view->getIsLEDOverrideActive())
-                {
-                    controller_view->clearLEDOverride();
-                }
+				if (controller_view->getIsOpen())
+				{
+					// Clear any LED overrides we had active
+					//###HipsterSlot $HACK 
+					// This implicitly assumes that only one connection had an LED override color active.
+					// This is technically true right now because only the config tool sets the override
+					// color for purposes of tracking color calibration, but this could change in the future.
+					if (controller_view->getIsLEDOverrideActive())
+					{
+						controller_view->clearLEDOverride();
+					}
 
-                // Halt any controller tracking this connection had going on
-                if (streamInfo.include_position_data)
-                {
-                    m_device_manager.getControllerViewPtr(controller_id)->stopTracking();
-                }
+					// Halt any controller tracking this connection had going on
+					if (streamInfo.include_position_data)
+					{
+						m_device_manager.getControllerViewPtr(controller_id)->stopTracking();
+					}
+				}
             }
 
             // Halt any shared memory streams this connection has going
@@ -545,17 +564,24 @@ protected:
 				int firmware_revision = 0;
 				bool has_magnetometer = false;
 
+				std::string orientation_filter = "";
+				std::string position_filter = "";
+				std::string gyro_gain_setting = "";
+
                 switch(controller_view->getControllerDeviceType())
                 {
                 case CommonControllerState::PSMove:
 					{
-						const PSMoveController *psmove_controller = controller_view->castCheckedConst<PSMoveController>();
-						const PSMoveControllerConfig *psmove_config= psmove_controller->getConfig();
+						const PSMoveController *controller = controller_view->castCheckedConst<PSMoveController>();
+						const PSMoveControllerConfig *config = controller->getConfig();
+
+						orientation_filter = config->orientation_filter_type;
+						position_filter = config->position_filter_type;
+						firmware_version = config->firmware_version;
+						firmware_revision = config->firmware_revision;
+						has_magnetometer = controller->getSupportsMagnetometer();
 
 						controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
-						firmware_version = psmove_config->firmware_version;
-						firmware_revision = psmove_config->firmware_revision;
-						has_magnetometer = psmove_controller->getSupportsMagnetometer();
 					}
                     break;
                 case CommonControllerState::PSNavi:
@@ -565,6 +591,43 @@ protected:
                     break;
                 case CommonControllerState::PSDualShock4:
 					{
+						const PSDualShock4Controller *controller = controller_view->castCheckedConst<PSDualShock4Controller>();
+						const PSDualShock4ControllerConfig *config = controller->getConfig();
+
+						float radian_gain_divisor = safe_divide_with_default(1.f, config->gyro_gain, 1.f);
+						float degree_gain_divisor = radian_gain_divisor * k_degrees_to_radians;
+
+						// Gyro gain mode can vary from controller to controller
+						// Sensitivity values from Pg.15 of:
+						// https://ae-bst.resource.bosch.com/media/_tech/media/datasheets/BST-BMI055-DS000-08.pdf
+						if (is_nearly_equal(degree_gain_divisor, 262.4f, 1.f))
+						{
+							gyro_gain_setting = "125deg/s";
+						}
+						else if (is_nearly_equal(degree_gain_divisor, 131.2f, 1.f))
+						{
+							gyro_gain_setting = "250deg/s";
+						}
+						else if (is_nearly_equal(degree_gain_divisor, 65.6f, 1.f))
+						{
+							gyro_gain_setting = "500deg/s";
+						}
+						else if (is_nearly_equal(degree_gain_divisor, 32.8f, 1.f))
+						{
+							gyro_gain_setting = "1000deg/s";
+						}
+						else if (is_nearly_equal(degree_gain_divisor, 16.4f, 1.f))
+						{
+							gyro_gain_setting = "2000deg/s";
+						}
+						else
+						{
+							gyro_gain_setting = "custom";
+						}
+
+						orientation_filter = config->orientation_filter_type;
+						position_filter = config->position_filter_type;
+
 						controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
 					}
                     break;
@@ -585,6 +648,9 @@ protected:
 				controller_info->set_firmware_version(firmware_version);
 				controller_info->set_firmware_revision(firmware_revision);
 				controller_info->set_has_magnetometer(has_magnetometer);
+				controller_info->set_orientation_filter(orientation_filter);
+				controller_info->set_position_filter(position_filter);
+				controller_info->set_gyro_gain_setting(gyro_gain_setting);
             }
         }
 
@@ -630,8 +696,6 @@ protected:
 
                 if (streamInfo.include_position_data)
                 {
-                    ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
-
                     controller_view->startTracking();
                 }
 
@@ -696,13 +760,25 @@ protected:
     {
         const int controller_id= context.request->reset_pose().controller_id();
 		
+		// Get the pose that we expect the controller to be in (relative to the pose it's in by default).
+		// For example, the psmove controller's default mesh has it laying flat,
+		// but when we call reset_pose in the HMD alignment tool, we expect the controller is pointing up.
 		const Eigen::Quaternionf q_pose(
 			context.request->reset_pose().orientation().w(),
 			context.request->reset_pose().orientation().x(),
 			context.request->reset_pose().orientation().y(),
 			context.request->reset_pose().orientation().z() );
 
-        if (m_device_manager.m_controller_manager->resetPose(controller_id, q_pose))
+		// Align to the global forward (not necessarily pointing down +X)
+		const float global_forward_degrees =
+			m_device_manager.m_tracker_manager->getConfig().global_forward_degrees
+			//###HipsterSloth $TODO - The controller default meshes are aligned down Z, not X
+			- 90.f;
+		const float global_forward_radians = global_forward_degrees * k_degrees_to_radians;
+		const Eigen::EulerAnglesf global_forward_euler(Eigen::Vector3f(0.f, global_forward_radians, 0.f));
+		const Eigen::Quaternionf global_forward_quat = eigen_euler_angles_to_quaternionf(global_forward_euler);
+
+        if (m_device_manager.m_controller_manager->resetPose(controller_id, q_pose*global_forward_quat))
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -723,26 +799,35 @@ protected:
         {
             ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
-            context.connection_state->pending_bluetooth_request =
-                new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
+			if (controllerView->getIsOpen())
+			{
+				context.connection_state->pending_bluetooth_request =
+					new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
 
-            std::string description = context.connection_state->pending_bluetooth_request->getDescription();
+				std::string description = context.connection_state->pending_bluetooth_request->getDescription();
 
-            if (context.connection_state->pending_bluetooth_request->start())
-            {
-                SERVER_LOG_INFO("ServerRequestHandler") << "Async bluetooth request(" << description << ") started.";
+				if (context.connection_state->pending_bluetooth_request->start())
+				{
+					SERVER_LOG_INFO("ServerRequestHandler") << "Async bluetooth request(" << description << ") started.";
 
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-            }
-            else
-            {
-                SERVER_LOG_ERROR("ServerRequestHandler") << "Async bluetooth request(" << description << ") failed to start!";
+					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+				}
+				else
+				{
+					SERVER_LOG_ERROR("ServerRequestHandler") << "Async bluetooth request(" << description << ") failed to start!";
 
-                delete context.connection_state->pending_bluetooth_request;
-                context.connection_state->pending_bluetooth_request = nullptr;
+					delete context.connection_state->pending_bluetooth_request;
+					context.connection_state->pending_bluetooth_request = nullptr;
 
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-            }
+					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+				}
+			}
+			else
+			{
+				SERVER_LOG_ERROR("ServerRequestHandler")
+					<< "Can't start unpair request. Controller not open. Controller ID: "
+					<< controller_id;
+			}
         }
         else
         {
@@ -765,30 +850,39 @@ protected:
         {
             ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
 
-            context.connection_state->pending_bluetooth_request = 
-                new AsyncBluetoothPairDeviceRequest(connection_id, controllerView);
+			if (controllerView->getIsOpen())
+			{
+				context.connection_state->pending_bluetooth_request =
+					new AsyncBluetoothPairDeviceRequest(connection_id, controllerView);
 
-            if (context.connection_state->pending_bluetooth_request->start())
-            {
-                SERVER_LOG_INFO("ServerRequestHandler") 
-                    << "Async bluetooth request(" 
-                    << context.connection_state->pending_bluetooth_request->getDescription() 
-                    << ") started.";
+				if (context.connection_state->pending_bluetooth_request->start())
+				{
+					SERVER_LOG_INFO("ServerRequestHandler")
+						<< "Async bluetooth request("
+						<< context.connection_state->pending_bluetooth_request->getDescription()
+						<< ") started.";
 
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-            }
-            else
-            {
-                SERVER_LOG_ERROR("ServerRequestHandler") 
-                    << "Async bluetooth request(" 
-                    << context.connection_state->pending_bluetooth_request->getDescription() 
-                    << ") failed to start!";
+					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+				}
+				else
+				{
+					SERVER_LOG_ERROR("ServerRequestHandler")
+						<< "Async bluetooth request("
+						<< context.connection_state->pending_bluetooth_request->getDescription()
+						<< ") failed to start!";
 
-                delete context.connection_state->pending_bluetooth_request;
-                context.connection_state->pending_bluetooth_request= nullptr;
+					delete context.connection_state->pending_bluetooth_request;
+					context.connection_state->pending_bluetooth_request = nullptr;
 
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-            }
+					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+				}
+			}
+			else
+			{
+				SERVER_LOG_ERROR("ServerRequestHandler")
+					<< "Can't start pair request. Controller not open. Controller ID: "
+					<< controller_id;
+			}
         }
         else
         {
@@ -809,8 +903,6 @@ protected:
 
         if (context.connection_state->pending_bluetooth_request != nullptr)
         {
-            ServerControllerViewPtr controllerView= m_device_manager.getControllerViewPtr(controller_id);
-
             SERVER_LOG_INFO("ServerRequestHandler") 
                 << "Async bluetooth request(" 
                 << context.connection_state->pending_bluetooth_request->getDescription() 
@@ -886,7 +978,7 @@ protected:
 
         ServerControllerViewPtr ControllerView= m_device_manager.getControllerViewPtr(controller_id);
 
-        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+        if (ControllerView && ControllerView->getIsOpen() && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
         {
             PSMoveController *controller= ControllerView->castChecked<PSMoveController>();
             PSMoveControllerConfig *config= controller->getConfigMutable();
@@ -896,7 +988,8 @@ protected:
             set_config_vector(request.ellipse_center(), config->magnetometer_center);
             set_config_vector(request.ellipse_extents(), config->magnetometer_extents);
             set_config_vector(request.magnetometer_identity(), config->magnetometer_identity);
-            config->magnetometer_error = request.ellipse_fit_error();
+            config->magnetometer_fit_error = request.ellipse_fit_error();
+			config->magnetometer_variance= request.magnetometer_variance();
 
             {
                 CommonDeviceVector basis_x, basis_y, basis_z;
@@ -913,7 +1006,7 @@ protected:
             config->save();
 
             // Reset the orientation filter state the calibration changed
-            ControllerView->getOrientationFilterMutable()->resetFilterState();
+            ControllerView->resetPoseFilter();
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
@@ -931,42 +1024,45 @@ protected:
 
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
-        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
-        {
-            PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-            PositionFilter *positionFilter= ControllerView->getPositionFilterMutable();
-            PSMoveControllerConfig *config = controller->getConfigMutable();
+		if (ControllerView && ControllerView->getIsOpen())
+		{
+			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+			{
+				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+				PSMoveControllerConfig *config = controller->getConfigMutable();
 
             const auto &request = context.request->set_controller_accelerometer_calibration_request();
 
-            // Save the noise radius in controller config
-            config->accelerometer_noise_radius= request.noise_radius();
-            config->save();
+				// Save the noise radius in controller config
+				config->accelerometer_noise_radius = request.noise_radius();
+				config->accelerometer_variance = request.variance();
+				config->save();
 
-            // Reset the orientation filter state the calibration changed
-            positionFilter->setAccelerometerNoiseRadius(config->accelerometer_noise_radius);
-            positionFilter->resetFilterState();
+				ControllerView->resetPoseFilter();
 
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-        }
-        else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
-        {
-            PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-            PositionFilter *positionFilter= ControllerView->getPositionFilterMutable();
-            PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+			{
+				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
             const auto &request = context.request->set_controller_accelerometer_calibration_request();
 
-            // Save the noise radius in controller config
-            config->accelerometer_noise_radius= request.noise_radius();
-            config->save();
+				// Save the noise radius in controller config
+				config->accelerometer_noise_radius = request.noise_radius();
+				config->accelerometer_variance = request.variance();
+				config->save();
 
-            // Reset the orientation filter state the calibration changed
-            positionFilter->setAccelerometerNoiseRadius(config->accelerometer_noise_radius);
-            positionFilter->resetFilterState();
+				ControllerView->resetPoseFilter();
 
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-        }
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
         else
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
@@ -981,43 +1077,269 @@ protected:
 
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
-        if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
-        {
-            PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-            PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+		if (ControllerView && ControllerView->getIsOpen())
+		{
+			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+			{
+				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
             const auto &request = context.request->set_controller_gyroscope_calibration_request();
 
-            config->gyro_drift= request.drift();
-            config->gyro_variance= request.variance();
-            config->save();
+				bool bChanged = false;
 
-            // Reset the orientation filter state the calibration changed
-            ControllerView->getOrientationFilterMutable()->resetFilterState();
+				if (request.drift() > 0.f)
+				{
+					config->gyro_drift = request.drift();
+					bChanged = true;
+				}
 
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-        }
-        else if (ControllerView && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
-        {
-            PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-            PSMoveControllerConfig *config = controller->getConfigMutable();
+				if (request.variance() > 0.f)
+				{
+					config->gyro_variance = request.variance();
+					bChanged = true;
+				}
 
-            const auto &request = context.request->set_controller_gyroscope_calibration_request();
+				const std::string gyro_gain_setting = request.gyro_gain_setting();
+				if (gyro_gain_setting.length() > 0)
+				{
+					// Sensitivity values from Pg.15 of:
+					// https://ae-bst.resource.bosch.com/media/_tech/media/datasheets/BST-BMI055-DS000-08.pdf
+					if (gyro_gain_setting == "125deg/s")
+					{
+						config->gyro_gain = 1.f / (262.4f / k_degrees_to_radians);
+						bChanged = true;
+					}
+					if (gyro_gain_setting == "250deg/s")
+					{
+						config->gyro_gain = 1.f / (131.2f / k_degrees_to_radians);
+						bChanged = true;
+					}
+					if (gyro_gain_setting == "500deg/s")
+					{
+						config->gyro_gain = 1.f / (65.6f / k_degrees_to_radians);
+						bChanged = true;
+					}
+					else if (gyro_gain_setting == "1000deg/s")
+					{
+						config->gyro_gain = 1.f / (32.8f / k_degrees_to_radians);
+						bChanged = true;
+					}
+					else if (gyro_gain_setting == "2000deg/s")
+					{
+						config->gyro_gain = 1.f / (16.4f / k_degrees_to_radians);
+						bChanged = true;
+					}
+				}
 
-            config->gyro_drift= request.drift();
-            config->gyro_variance= request.variance();
-            config->save();
+				if (bChanged)
+				{
+					config->save();
+				}
 
-            // Reset the orientation filter state the calibration changed
-            ControllerView->getOrientationFilterMutable()->resetFilterState();
+				ControllerView->resetPoseFilter();
 
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-        }
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+			{
+				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+				PSMoveControllerConfig *config = controller->getConfigMutable();
+
+				const PSMoveProtocol::Request_RequestSetControllerGyroscopeCalibration &request =
+					context.request->set_controller_gyroscope_calibration_request();
+
+				bool bChanged = false;
+
+				if (request.drift() > 0.f)
+				{
+					config->gyro_drift = request.drift();
+					bChanged = true;
+				}
+
+				if (request.variance() > 0.f)
+				{
+					config->gyro_variance = request.variance();
+					bChanged = true;
+				}
+
+				if (bChanged)
+				{
+					config->save();
+				}
+				
+				ControllerView->resetPoseFilter();
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
         else
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
+
+	void handle_request__set_optical_noise_calibration(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int controller_id = context.request->request_set_optical_noise_calibration().controller_id();
+
+		ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+		const PSMoveProtocol::Request_RequestSetOpticalNoiseCalibration &request =
+			context.request->request_set_optical_noise_calibration();
+
+		if (ControllerView && ControllerView->getIsOpen())
+		{
+			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+			{
+				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+
+				config->position_variance_exp_fit_a = request.position_variance_exp_fit_a();
+				config->position_variance_exp_fit_b = request.position_variance_exp_fit_b();
+				config->orientation_variance_exp_fit_a = request.orientation_variance_exp_fit_a();
+				config->orientation_variance_exp_fit_b = request.orientation_variance_exp_fit_b();
+				config->save();
+
+				ControllerView->resetPoseFilter();
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+			{
+				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+				PSMoveControllerConfig *config = controller->getConfigMutable();
+
+				config->position_variance_exp_fit_a = request.position_variance_exp_fit_a();
+				config->position_variance_exp_fit_b = request.position_variance_exp_fit_b();
+				// No optical variance set for the psmove
+				config->save();
+
+				ControllerView->resetPoseFilter();
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
+	void handle_request__set_orientation_filter(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int controller_id = context.request->request_set_orientation_filter().controller_id();
+
+		ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+		const PSMoveProtocol::Request_RequestSetOrientationFilter &request =
+			context.request->request_set_orientation_filter();
+
+		if (ControllerView && ControllerView->getIsOpen())
+		{
+			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+			{
+				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+
+				if (config->orientation_filter_type != request.orientation_filter())
+				{
+					config->orientation_filter_type = request.orientation_filter();
+					config->save();
+
+					ControllerView->resetPoseFilter();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+			{
+				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+				PSMoveControllerConfig *config = controller->getConfigMutable();
+
+				if (config->orientation_filter_type != request.orientation_filter())
+				{
+					config->orientation_filter_type = request.orientation_filter();
+					config->save();
+
+					ControllerView->resetPoseFilter();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
+	void handle_request__set_position_filter(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int controller_id = context.request->request_set_position_filter().controller_id();
+
+		ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+		const PSMoveProtocol::Request_RequestSetPositionFilter &request =
+			context.request->request_set_position_filter();
+
+		if (ControllerView && ControllerView->getIsOpen())
+		{
+			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+			{
+				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+
+				if (config->position_filter_type != request.position_filter())
+				{
+					config->position_filter_type = request.position_filter();
+					config->save();
+
+					ControllerView->resetPoseFilter();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+			{
+				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+				PSMoveControllerConfig *config = controller->getConfigMutable();
+
+				if (config->position_filter_type != request.position_filter())
+				{
+					config->position_filter_type = request.position_filter();
+					config->save();
+
+					ControllerView->resetPoseFilter();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
 
     // -- tracker requests -----
     inline void common_device_pose_to_protocol_pose(
@@ -1138,6 +1460,7 @@ protected:
             }
         }
 
+		list->set_global_forward_degrees(m_device_manager.m_tracker_manager->getConfig().global_forward_degrees);
         response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
     }
 
@@ -1694,6 +2017,17 @@ protected:
         response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
     }
     
+	void handle_request__get_tracking_space_settings(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		PSMoveProtocol::Response_ResultTrackingSpaceSettings* settings = response->mutable_result_tracking_space_settings();
+
+		response->set_type(PSMoveProtocol::Response_ResponseType_TRACKING_SPACE_SETTINGS);
+
+		settings->set_global_forward_degrees(m_device_manager.m_tracker_manager->getConfig().global_forward_degrees);
+		response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+	}
     // -- hmd requests -----
 	inline ServerHMDView *get_hmd_view_or_null(int hmd_id)
 	{
@@ -1851,7 +2185,7 @@ protected:
 		if (HMDView && HMDView->getHMDDeviceType() == CommonDeviceState::Morpheus)
 		{
 			MorpheusHMD *hmd = HMDView->castChecked<MorpheusHMD>();
-			PositionFilter *positionFilter = HMDView->getPositionFilterMutable();
+			IPoseFilter *poseFilter = HMDView->getPoseFilterMutable();
 			MorpheusHMDConfig *config = hmd->getConfigMutable();
 
 			const auto &request = context.request->set_hmd_accelerometer_calibration_request();
@@ -1871,8 +2205,7 @@ protected:
 			config->save();
 
 			// Reset the orientation filter state the calibration changed
-			positionFilter->setAccelerometerNoiseRadius(config->raw_accelerometer_variance);
-			positionFilter->resetFilterState();
+			poseFilter->resetState();
 
 			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 		}
@@ -1903,7 +2236,7 @@ protected:
 			config->save();
 
 			// Reset the orientation filter state the calibration changed
-			HMDView->getOrientationFilterMutable()->resetFilterState();
+			HMDView->getPoseFilterMutable()->resetState();
 
 			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 		}

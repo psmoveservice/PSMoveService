@@ -42,17 +42,21 @@ public:
         : PSMoveConfig(fnamebase)
         , is_valid(false)
         , version(CONFIG_VERSION)
-        , accelerometer_noise_radius(0.f)
-        , max_velocity(1.f)
-        , gyro_gain(0.f)
-        , gyro_variance(0.f)
-        , gyro_drift(0.f)
         , max_poll_failure_count(100)
         , prediction_time(0.f)
-        , min_orientation_quality_screen_area(150.f*34.f*.1f)
-        , max_orientation_quality_screen_area(150.f*34.f) // light bar at ideal range looking straight on is about 150px by 34px 
-        , min_position_quality_screen_area(75.f*17.f*.25f)
-        , max_position_quality_screen_area(75.f*17.f)
+		, position_filter_type("ComplimentaryOpticalIMU")
+		, orientation_filter_type("ComplementaryOpticalARG")
+        , accelerometer_noise_radius(0.015f) // rounded value from config tool measurement (g-units)
+		, accelerometer_variance(1.45e-05f) // rounded value from config tool measurement (g-units^2)
+        , max_velocity(1.f)
+        , gyro_variance(4.75e-06f) // rounded value from config tool measurement (rad^2/s^2)
+        , gyro_drift(0.00071f) // rounded value from config tool measurement (rad/s)
+		, mean_update_time_delta(0.016667f)
+		, position_variance_exp_fit_a(0.0219580978f)
+		, position_variance_exp_fit_b(-0.00079152541f)
+		, orientation_variance_exp_fit_a(0.119878575f)
+		, orientation_variance_exp_fit_b(-0.00267515215f)
+		, min_screen_projection_area(100.f)
 		, tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
     {
         // The DS4 uses the BMI055 IMU Chip: 
@@ -60,26 +64,23 @@ public:
         //
         // The Accelerometer can operate in one of 4 modes: 
         //   ±2g, ±4g, ±8g, ±16g
+		// The raw sensor bits can be converted to units of 'g' by dividing with the following "Sensitivity" values
+		//   1024, 512, 256, 128 [units=LSB/g]
+
         // The Gyroscope can operate in one of 5 modes: 
         //   ±125°/s, ±250°/s, ±500°/s, ±1000°/s, ±2000°/s
         //   (or ±2.18 rad/s, ±4.36 rad/s, ±8.72 rad/s, ±17.45 rad/s, ±34.9 rad/s)
-        //
-        // I haven't seen any indication that suggests the DS4 changes modes.
-        // It also appears that the raw accelerometer and gyroscope values are pre-calibrated
-        // (there is no sensor calibration report with biases and gains that I can find)
-
-        // The following guide: 
-        // http://gamedev.stackexchange.com/questions/87106/accessing-dualshock-4-motion-sensor-in-windows-ideally-unity/87178#87178
-        // suggests that:
-        //  -raw accelerometer value should be divided by 8192 to get g/s
-        //  -raw gyroscope value should be divided by 1024 to get rad/s
-
+		// The raw sensor bits can be converted to units of '°/s' by dividing with following "Sensitivity" values
+		//   262.4, 131.2, 65.6, 32.8, 16.4 [units=LSB/°/s]
+		// or converted to units of 'rad/s' with these "Sensitivity" values
+		//   15034.4, 7517.2, 3758.6, 1879.3, 939.7 [units=LSB/rad/s]
+        
         // Accelerometer gain computed from accelerometer calibration in the config tool is really close to 1/8192.
-        // and is just in a 2.13 fixed point value (+1 sign bit)
-        // This agrees with the stack exchange article
-        accelerometer_gain.i = 1.f / 8192.f;
-        accelerometer_gain.j = 1.f / 8192.f;
-        accelerometer_gain.k = 1.f / 8192.f;
+        // Since the accelerometer is 12-bit we have to >> 4 bits (divide by 16) to get the true raw sensor bits
+		// That means the "Sensitivity" is 512 and thus the accelerometer mode is ±4g
+		accelerometer_gain.i = 1.f / 512.f;
+		accelerometer_gain.j = 1.f / 512.f;
+		accelerometer_gain.k = 1.f / 512.f;
         
         // Accelerometer bias computed from accelerometer calibration in the config tool is really close to 0
         // This is because the raw gyro readings are likely pre-calibrated
@@ -87,19 +88,10 @@ public:
         accelerometer_bias.j = 0.f;
         accelerometer_bias.k = 0.f;
 
-        // Empirical testing of the of the gyro gain looks best at 1/2048.
-        // This implies that gyroscope is returned from the controller is pre-calibrated 
-        // and is just in a 4.11 fixed point value (+1 sign bit).
-        // This is twice what the stack exchange article recommends.
-        gyro_gain= 1.f / 2048.f;
-
-        // This is the variance of the calibrated gyro value recorded for 100 samples
-        // Units in rad/s^2
-        gyro_variance= 1.33875039e-006f;
-
-        // This is the drift of the raw gyro value recorded for 60 seconds
-        // Units rad/s
-        gyro_drift= 0.00110168592f;
+		// Gyro gain mode can vary from controller to controller
+		// Initially assume that this controller is using the '±2000°/s' mode 
+		// and use the appropriate LSB/rad/s "Sensitivity"
+        gyro_gain= 1.f / (16.4f / k_degrees_to_radians);
 
         // This is the ideal accelerometer reading you get when the DS4 is held such that 
         // the light bar facing is perpendicular to gravity.        
@@ -114,10 +106,26 @@ public:
     bool is_valid;
     long version;
 
+	// The type of position filter to use
+	std::string position_filter_type;
+
+	// The type of orientation filter to use
+	std::string orientation_filter_type;
+
+	// The max number of polling failures before we consider the controller disconnected
+    long max_poll_failure_count;
+	// The amount of prediction to apply to the controller pose after filtering
+    float prediction_time;
+
     // calibrated_acc= raw_acc*acc_gain + acc_bias
     CommonDeviceVector accelerometer_gain;
     CommonDeviceVector accelerometer_bias;
+
+	// The bounding radius of the accelerometer measurements 
     float accelerometer_noise_radius;
+
+	// The variance of the accelerometer readings
+	float accelerometer_variance; // g-units^2
 
     // Maximum velocity for the controller physics (meters/second)
     float max_velocity;
@@ -132,18 +140,27 @@ public:
     // The drift raw gyro readings in rad/second
     float gyro_drift;
 
-    // The pixel area of the tracking projection at which the orientation quality is 0
-    float min_orientation_quality_screen_area;
-    // The pixel area of the tracking projection at which the orientation quality is 1
-    float max_orientation_quality_screen_area;
+	// The average time between updates in seconds
+    float mean_update_time_delta;
 
-    // The pixel area of the tracking projection at which the position quality is 0
-    float min_position_quality_screen_area;
-    // The pixel area of the tracking projection at which the position quality is 1
-    float max_position_quality_screen_area;
+	// Below this projection area size we just consider the projection area 0 for the purpose of filtering
+	float min_screen_projection_area;
 
-    long max_poll_failure_count;
-    float prediction_time;
+	// The variance of the controller position as a function of projection area
+    float position_variance_exp_fit_a; 
+    float position_variance_exp_fit_b;
+
+	// The variance of the controller orientation as a function of projection area
+    float orientation_variance_exp_fit_a;
+	float orientation_variance_exp_fit_b;
+
+	inline float get_position_variance(float projection_area) const {
+		return position_variance_exp_fit_a*exp(position_variance_exp_fit_b*projection_area);
+	}
+
+	inline float get_orientation_variance(float projection_area) const {
+		return orientation_variance_exp_fit_a*exp(orientation_variance_exp_fit_b*projection_area);
+	}
 
 	eCommonTrackingColorID tracking_color_id;
 };

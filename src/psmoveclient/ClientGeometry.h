@@ -226,6 +226,8 @@ struct CLIENTPSMOVEAPI PSMoveTrackingProjection
     } shape;
 
     eShapeType shape_type;
+
+	float get_projection_area() const;
 };
 
 struct CLIENTPSMOVEAPI PSMoveVolume
