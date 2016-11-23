@@ -181,7 +181,7 @@ class MorpheusHMD : public IHMDInterface
 {
 public:
     MorpheusHMD();
-    ~MorpheusHMD();
+    virtual ~MorpheusHMD();
 
     // MorpheusHMD
     bool open(); // Opens the first HID device for the controller

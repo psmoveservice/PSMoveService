@@ -567,7 +567,7 @@ const struct CommonHMDState * ServerHMDView::getState(
 {
     const struct CommonDeviceState *device_state = m_device->getState(lookBack);
     assert(device_state == nullptr ||
-        (device_state->DeviceType >= CommonDeviceState::HeadMountedDisplay &&
+        ((int)device_state->DeviceType >= (int)CommonDeviceState::HeadMountedDisplay &&
         device_state->DeviceType < CommonDeviceState::SUPPORTED_HMD_TYPE_COUNT));
 
     return static_cast<const CommonHMDState *>(device_state);

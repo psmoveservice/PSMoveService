@@ -370,6 +370,8 @@ public:
         _PollResultFailure,
     };
     
+	virtual ~IDeviceInterface() {};
+
     // Return true if device path matches
     virtual bool matchesDeviceEnumerator(const class DeviceEnumerator *enumerator) const = 0;
     

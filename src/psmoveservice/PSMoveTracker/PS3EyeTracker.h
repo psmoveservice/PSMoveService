@@ -79,7 +79,7 @@ struct PS3EyeTrackerState : public CommonDeviceState
 class PS3EyeTracker : public ITrackerInterface {
 public:
     PS3EyeTracker();
-    ~PS3EyeTracker();
+    virtual ~PS3EyeTracker();
         
     // PSMoveTracker
     bool open(); // Opens the first HID device for the controller

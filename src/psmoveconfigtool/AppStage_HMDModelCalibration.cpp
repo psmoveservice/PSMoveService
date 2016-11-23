@@ -600,8 +600,11 @@ void AppStage_HMDModelCalibration::renderUI()
 			ImGui::Text("Failed hmd stream start!");
 			break;
 		case eMenuState::failedTrackerListRequest:
-			ImGui::Text("Failed tracker list retrieval:");
-			ImGui::Text(m_failureDetails.c_str());
+			{
+				const char * szFailure = m_failureDetails.c_str();
+				ImGui::Text("Failed tracker list retrieval:");
+				ImGui::Text(szFailure);
+			}
 			break;
 		case eMenuState::failedTrackerStartRequest:
 			ImGui::Text("Failed tracker stream start!");

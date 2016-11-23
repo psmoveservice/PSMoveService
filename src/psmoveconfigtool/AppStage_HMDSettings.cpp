@@ -132,7 +132,7 @@ void AppStage_HMDSettings::renderUI()
                 }
             }
 
-			if (hmdInfo.HmdType == ClientHMDView::eHMDViewType::Morpheus)
+			if (hmdInfo.HmdType == AppStage_HMDSettings::eHMDType::Morpheus)
 			{
 				if (ImGui::Button("Calibrate Accelerometer"))
 				{
@@ -147,7 +147,7 @@ void AppStage_HMDSettings::renderUI()
 				}
 			}
 
-			if (hmdInfo.HmdType == ClientHMDView::eHMDViewType::Morpheus)
+			if (hmdInfo.HmdType == AppStage_HMDSettings::eHMDType::Morpheus)
 			{
 				if (ImGui::Button("Calibrate Gyroscope"))
 				{
@@ -162,7 +162,7 @@ void AppStage_HMDSettings::renderUI()
 				}
 			}
 
-			if (hmdInfo.HmdType == ClientHMDView::eHMDViewType::Morpheus)
+			if (hmdInfo.HmdType == AppStage_HMDSettings::eHMDType::Morpheus)
 			{
 				if (ImGui::Button("Calibrate LED Model"))
 				{

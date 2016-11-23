@@ -110,7 +110,7 @@ void HMDDeviceEnumerator::build_interface_list()
 	{
 		std::stringstream device_id_builder;
 		device_id_builder << 
-			"USB\VID_" << std::hex << std::setfill('0') << std::setw(4) << dev_info.vendor_id <<
+			"USB\\VID_" << std::hex << std::setfill('0') << std::setw(4) << dev_info.vendor_id <<
 			"&PID_" << std::hex << std::setfill('0') << std::setw(4) << dev_info.product_id;
 
 		current_device_identifier = device_id_builder.str();

@@ -97,7 +97,7 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         set(OPENCV_LIBS_DIR ${ROOT_DIR}/deps/local/x86/vc14/staticlib)
     endif()    
     
-    foreach(__CVLIB core calib3d features2d imgproc imgcodecs ml highgui objdetect video videoio)
+    foreach(__CVLIB core calib3d features2d flann imgproc imgcodecs ml highgui objdetect video videoio)
         set(OpenCV_${__CVLIB}_LIBRARY debug ${OPENCV_LIBS_DIR}/opencv_${__CVLIB}310d.lib optimized ${OPENCV_LIBS_DIR}/opencv_${__CVLIB}310.lib CACHE STRING "" FORCE)
         set(OpenCV_LIBS ${OpenCV_LIBS} ${OpenCV_${__CVLIB}_LIBRARY})
     endforeach(__CVLIB)    
