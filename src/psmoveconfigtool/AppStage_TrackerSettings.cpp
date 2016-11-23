@@ -241,7 +241,7 @@ void AppStage_TrackerSettings::renderUI()
 					if (controllerInfo.ControllerType == ClientControllerView::PSMove)
 					{ 
 						if (0 <= controllerInfo.TrackingColorType && controllerInfo.TrackingColorType < PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES) {
-							char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
+							const char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
 
 							ImGui::Text("Controller: %d (PSMove) - %s", 
 								m_selectedControllerIndex,
@@ -305,7 +305,7 @@ void AppStage_TrackerSettings::renderUI()
 					{
 						if (0 <= hmdInfo.TrackingColorType && hmdInfo.TrackingColorType < PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES) 
 						{
-							char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
+							const char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
 
 							ImGui::Text("HMD: %d (Morpheus) - %s",
 								m_selectedHmdIndex,

@@ -13,6 +13,13 @@ IF (NOT MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch")
 ENDIF()
 
+# Disable GLM warnings in Darwin
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    #warning: 'register' storage class specifier is deprecated and incompatible with C++1z
+    #warning: operator '<<' has lower precedence than '-'; '-' will be evaluated first
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register -Wno-shift-op-parentheses")
+ENDIF()
+
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Shared architecture label used for install folder locations
@@ -101,12 +108,11 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     endforeach(__CVLIB)     
     
     LIST(APPEND OpenCV_LIBS vfw32.lib)
-    
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # Location of homebrew opencv3
     # Alternatively, can do `brew ln opencv3 --force`
-    message(status ”Using homebrew opencv3")
-    set(OpenCV_DIR "/usr/local/Cellar/opencv3/3.1.0_1/share/OpenCV")
+    MESSAGE(STATUS "Using homebrew opencv3")
+    set(OpenCV_DIR "/usr/local/opt/opencv3/share/OpenCV")
 ELSE()
     message(status “Using OpenCV in /usr/local/share/OpenCV”)
     set(OpenCV_DIR “/usr/local/share/OpenCV”)
@@ -168,6 +174,11 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES .a .lib .so .dylib .dll)  # Prefer static libs
 find_package(Protobuf REQUIRED)
 set(CMAKE_FIND_LIBRARY_SUFFIXES "${PROTOBUF_ORIG_FIND_LIBRARY_SUFFIXES}")  # Restore original
 include_directories(${CMAKE_BINARY_DIR}/psmoveprotocol)  # This is where the .proto files are compiled to.
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    # protobuf current generates many warnings in MacOS:
+    #'OSMemoryBarrier' is deprecated: first deprecated in macOS 10.12 - Use std::atomic_thread_fence() from <atomic> instead
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+ENDIF()
 
 # Step into the subdirectories
 add_subdirectory(src)

@@ -115,6 +115,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"
     list(APPEND TEST_CAMERA_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
     list(APPEND TEST_CAMERA_REQ_LIBS ${LIBUSB_LIBRARIES})
     add_definitions(-DHAVE_PS3EYE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-braced-scalar-init")
 ENDIF()
 
 # CL EYE - only on Win32
