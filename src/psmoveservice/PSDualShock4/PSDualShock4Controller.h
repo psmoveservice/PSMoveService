@@ -262,7 +262,7 @@ struct PSDualShock4ControllerState : public CommonControllerState
 class PSDualShock4Controller : public IControllerInterface {
 public:
     PSDualShock4Controller();
-    ~PSDualShock4Controller();
+    virtual ~PSDualShock4Controller();
 
     // PSMoveController
     bool open(); // Opens the first HID device for the controller

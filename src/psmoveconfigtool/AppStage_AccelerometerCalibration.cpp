@@ -510,10 +510,10 @@ static void request_set_accelerometer_calibration(
 	const float noise_variance)
 {
     RequestPtr request(new PSMoveProtocol::Request());
-    request->set_type(PSMoveProtocol::Request_RequestType_SET_ACCELEROMETER_CALIBRATION);
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_ACCELEROMETER_CALIBRATION);
 
-    PSMoveProtocol::Request_RequestSetAccelerometerCalibration *calibration =
-        request->mutable_set_accelerometer_calibration_request();
+    PSMoveProtocol::Request_RequestSetControllerAccelerometerCalibration *calibration =
+        request->mutable_set_controller_accelerometer_calibration_request();
 
     calibration->set_controller_id(controller_id);
     calibration->set_noise_radius(noise_radius);

@@ -925,7 +925,7 @@ eigen_alignment_fit_least_squares_line(
 		if (out_correlation_coefficient != nullptr)
 		{
 			// compute correlation coeff
-			*out_correlation_coefficient = (sumxy - sumx*sumy / N) / sqrtf((sumx2 - sqr(sumx) / N) * (sumy2 - sqr(sumy) / N));
+			*out_correlation_coefficient = (sumxy - sumx*sumy / N) / sqrtf((sumx2 - (sumx*sumx) / N) * (sumy2 - (sumy*sumy) / N));
 		}
 
 		bSuccess= true;

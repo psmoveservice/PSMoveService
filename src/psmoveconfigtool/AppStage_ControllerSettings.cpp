@@ -498,10 +498,10 @@ void AppStage_ControllerSettings::request_set_gyroscope_gain_setting(
 	const std::string& gain_setting)
 {
 	RequestPtr request(new PSMoveProtocol::Request());
-	request->set_type(PSMoveProtocol::Request_RequestType_SET_GYROSCOPE_CALIBRATION);
+	request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_GYROSCOPE_CALIBRATION);
 
-	PSMoveProtocol::Request_RequestSetGyroscopeCalibration *calibration =
-		request->mutable_set_gyroscope_calibration_request();
+	PSMoveProtocol::Request_RequestSetControllerGyroscopeCalibration *calibration =
+		request->mutable_set_controller_gyroscope_calibration_request();
 
 	calibration->set_controller_id(controller_id);
 	calibration->set_drift(-1.f); // keep existing drift

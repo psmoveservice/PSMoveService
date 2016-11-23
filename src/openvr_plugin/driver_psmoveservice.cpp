@@ -808,8 +808,8 @@ void CServerDriver_PSMoveService::LaunchPSMoveMonitor( const char * pchDriverIns
     {
 		path_and_executable_string_builder << "\\monitor_psmove";
 
-		const std::string monitor_exe_path = path_and_executable_string_builder.str();        
-        char * const argv[] = { monitor_exe_path.c_str(), pchDriverInstallDir, NULL };
+		const std::string monitor_exe_path = path_and_executable_string_builder.str();
+        const char * argv[] = { monitor_exe_path.c_str(), pchDriverInstallDir, NULL };
         
         if (execv(app, argv) < 0)
         {
@@ -1786,15 +1786,19 @@ void CPSMoveControllerLatest::UpdateControllerState()
 					{
 						bool bIsNewTouchpadLocation = true;
 
-						if (m_bDelayAfterTouchpadPress && !m_bTouchpadWasActive)
+						if (m_bDelayAfterTouchpadPress)
 						{
-							const float k_max_touchpad_press = 2000.0; // time until coordinates are reset, otherwise assume in last location.
-
 							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-							std::chrono::duration<double, std::milli> timeSinceActivated = now - m_lastTouchpadPressTime;
+						
+							if (!m_bTouchpadWasActive)
+							{
+								const float k_max_touchpad_press = 2000.0; // time until coordinates are reset, otherwise assume in last location.
+								std::chrono::duration<double, std::milli> timeSinceActivated = now - m_lastTouchpadPressTime;
 
+								bIsNewTouchpadLocation = timeSinceActivated.count() >= k_max_touchpad_press;
+							}
 							m_lastTouchpadPressTime = now;
-							bIsNewTouchpadLocation = timeSinceActivated.count() >= k_max_touchpad_press;
+
 						}
 
 						if (bIsNewTouchpadLocation)

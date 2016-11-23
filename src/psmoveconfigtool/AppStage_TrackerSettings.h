@@ -16,6 +16,13 @@ public:
         ClientControllerView::eControllerType ControllerType;
     };
 
+	struct HMDInfo
+	{
+		int HmdID;
+		PSMoveTrackingColorType TrackingColorType;
+		ClientHMDView::eHMDViewType HmdType;
+	};
+
     AppStage_TrackerSettings(class App *app);
 
     inline const ClientTrackerInfo *getSelectedTrackerInfo() const
@@ -50,12 +57,18 @@ protected:
         const ClientPSMoveAPI::ResponseMessage *response_message,
         void *userdata);
 
+	void request_hmd_list();
+	static void handle_hmd_list_response(
+		const ClientPSMoveAPI::ResponseMessage *response_message,
+		void *userdata);
+
     void request_search_for_new_trackers();
     static void handle_search_for_new_trackers_response(
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
 
 	const ControllerInfo *get_selected_controller();
+	const HMDInfo *get_selected_hmd();
 
 protected:
     enum eTrackerMenuState
@@ -67,15 +80,19 @@ protected:
         failedTrackerListRequest,
 		pendingControllerListRequest,
 		failedControllerListRequest,
+		pendingHmdListRequest,
+		failedHmdListRequest,
         pendingSearchForNewTrackersRequest,
     };
     eTrackerMenuState m_menuState;
 
     std::vector<ClientTrackerInfo> m_trackerInfos;
 	std::vector<ControllerInfo> m_controllerInfos;
+	std::vector<HMDInfo> m_hmdInfos;
 
     int m_selectedTrackerIndex;
 	int m_selectedControllerIndex;
+	int m_selectedHmdIndex;
 };
 
 #endif // APP_STAGE_TRACKER_SETTINGS_H

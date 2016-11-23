@@ -159,6 +159,10 @@ public:
                 build_tracker_list_response_message(response, &out_response_message->payload.tracker_list);
                 out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_TrackerList;
                 break;
+			case PSMoveProtocol::Response_ResponseType_HMD_LIST:
+				build_hmd_list_response_message(response, &out_response_message->payload.hmd_list);
+				out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_HMDList;
+				break;
 			case PSMoveProtocol::Response_ResponseType_TRACKING_SPACE_SETTINGS:
 				build_tracking_space_response_message(response, &out_response_message->payload.tracking_space);
 				out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_TrackingSpace;
@@ -295,6 +299,12 @@ public:
             TrackerInfo.tracker_znear = TrackerResponse.tracker_znear();
             TrackerInfo.tracker_zfar = TrackerResponse.tracker_zfar();
 
+            TrackerInfo.tracker_k1 = TrackerResponse.tracker_k1();
+            TrackerInfo.tracker_k2 = TrackerResponse.tracker_k2();
+            TrackerInfo.tracker_k3 = TrackerResponse.tracker_k3();
+            TrackerInfo.tracker_p1 = TrackerResponse.tracker_p1();
+            TrackerInfo.tracker_p2 = TrackerResponse.tracker_p2();
+
             strncpy(TrackerInfo.device_path, TrackerResponse.device_path().c_str(), sizeof(TrackerInfo.device_path));
             strncpy(TrackerInfo.shared_memory_name, TrackerResponse.shared_memory_name().c_str(), sizeof(TrackerInfo.shared_memory_name));
 
@@ -309,6 +319,42 @@ public:
 		// Copy over the tracking space properties
 		tracker_list->global_forward_degrees= response->result_tracker_list().global_forward_degrees();
     }
+
+	void build_hmd_list_response_message(
+		ResponsePtr response,
+		ClientPSMoveAPI::ResponsePayload_HMDList *hmd_list)
+	{
+		int src_hmd_count = 0;
+		int dest_hmd_count = 0;
+
+		// Copy the controller entries into the response payload
+		while (src_hmd_count < response->result_hmd_list().hmd_entries_size()
+			&& src_hmd_count < PSMOVESERVICE_MAX_HMD_COUNT)
+		{
+			const auto &HMDResponse = response->result_hmd_list().hmd_entries(src_hmd_count);
+
+			// Convert the PSMoveProtocol HMD enum to the public ClientHMDView enum
+			ClientHMDView::eHMDViewType hmdType;
+			switch (HMDResponse.hmd_type())
+			{
+			case PSMoveProtocol::Morpheus:
+				hmdType = ClientHMDView::Morpheus;
+				break;
+			default:
+				assert(0 && "unreachable");
+				hmdType = ClientHMDView::None;
+			}
+
+			// Add an entry to the hmd list
+			hmd_list->hmd_type[dest_hmd_count] = hmdType;
+			hmd_list->hmd_id[dest_hmd_count] = HMDResponse.hmd_id();
+			++dest_hmd_count;
+			++src_hmd_count;
+		}
+
+		// Record how many controllers we copied into the payload
+		hmd_list->count = dest_hmd_count;
+	}
 
 	void build_tracking_space_response_message(
 		ResponsePtr response,

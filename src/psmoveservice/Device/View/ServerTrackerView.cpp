@@ -1,8 +1,9 @@
 //-- includes -----
-#include "ServerTrackerView.h"
-#include "ServerControllerView.h"
 #include "DeviceEnumerator.h"
 #include "DeviceManager.h"
+#include "ServerTrackerView.h"
+#include "ServerControllerView.h"
+#include "ServerHMDView.h"
 #include "MathUtility.h"
 #include "MathEigen.h"
 #include "MathGLM.h"
@@ -24,6 +25,10 @@
 #include "opencv2/calib3d/calib3d.hpp"
 
 #define USE_OPEN_CV_ELLIPSE_FIT
+
+//-- typedefs ----
+typedef std::vector<cv::Point> t_opencv_contour;
+typedef std::vector<t_opencv_contour> t_opencv_contour_list;
 
 //-- private methods -----
 class SharedVideoFrameReadWriteAccessor
@@ -317,31 +322,42 @@ int OpenCVBGRToHSVMapper::m_refCount= 0;
 class OpenCVBufferState
 {
 public:
-    OpenCVBufferState(int width, int height)
-        : frameWidth(width)
-        , frameHeight(height)
-        , bgrBuffer(nullptr)
+    OpenCVBufferState(ITrackerInterface *device)
+        : bgrBuffer(nullptr)
+        , bgrUndistortBuffer(nullptr)
         , hsvBuffer(nullptr)
         , gsLowerBuffer(nullptr)
         , gsUpperBuffer(nullptr)
         , maskedBuffer(nullptr)
+        , distortionMapX(nullptr)
+        , distortionMapY(nullptr)
     {
-		const TrackerManagerConfig &cfg= DeviceManager::getInstance()->m_tracker_manager->getConfig();
+        device->getVideoFrameDimensions(&frameWidth, &frameHeight, nullptr);
 
-        bgrBuffer = new cv::Mat(height, width, CV_8UC3);
-        hsvBuffer = new cv::Mat(height, width, CV_8UC3);
-        gsLowerBuffer = new cv::Mat(height, width, CV_8UC1);
-        gsUpperBuffer = new cv::Mat(height, width, CV_8UC1);
-        maskedBuffer = new cv::Mat(height, width, CV_8UC3);
-		
-		if (cfg.use_bgr_to_hsv_lookup_table)
-		{
-			bgr2hsv = OpenCVBGRToHSVMapper::allocate();
-		}
-		else
-		{
-			bgr2hsv = nullptr;
-		}
+        bgrBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+        bgrUndistortBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+        hsvBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+        gsLowerBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
+        gsUpperBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
+        maskedBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+
+        intrinsic_matrix = new cv::Mat(3, 3, CV_64FC1);
+        distortion_coeffs = new cv::Mat(5, 1, CV_64FC1);
+
+        distortionMapX = new cv::Mat(cv::Size(frameWidth, frameHeight), CV_32FC1);
+        distortionMapY = new cv::Mat(cv::Size(frameWidth, frameHeight), CV_32FC1);
+
+        rebuildDistortionMap(device);
+        
+        const TrackerManagerConfig &cfg= DeviceManager::getInstance()->m_tracker_manager->getConfig();
+        if (cfg.use_bgr_to_hsv_lookup_table)
+        {
+            bgr2hsv = OpenCVBGRToHSVMapper::allocate();
+        }
+        else
+        {
+            bgr2hsv = nullptr;
+        }
     }
 
     virtual ~OpenCVBufferState()
@@ -350,31 +366,85 @@ public:
         {
             delete maskedBuffer;
         }
-
+        
         if (gsLowerBuffer != nullptr)
         {
             delete gsLowerBuffer;
         }
-
+        
         if (gsUpperBuffer != nullptr)
         {
             delete gsUpperBuffer;
         }
-
+        
         if (hsvBuffer != nullptr)
         {
             delete hsvBuffer;
         }
-
+        
         if (bgrBuffer != nullptr)
         {
             delete bgrBuffer;
         }
+        
+        if (bgrUndistortBuffer != nullptr)
+        {
+            delete bgrUndistortBuffer;
+        }
+        
+        // TODO: If not nullptr wrapper
+        delete intrinsic_matrix;
+        delete distortion_coeffs;
+        delete distortionMapX;
+        delete distortionMapY;
+        
+        if (bgr2hsv != nullptr)
+        {
+            OpenCVBGRToHSVMapper::dispose(bgr2hsv);
+        }
+    }
 
-		if (bgr2hsv != nullptr)
-		{
-			OpenCVBGRToHSVMapper::dispose(bgr2hsv);
-		}
+    void rebuildDistortionMap(ITrackerInterface *device)
+    {
+        float F_PX, F_PY;
+        float PrincipalX, PrincipalY;
+        float distortionK1, distortionK2, distortionK3;
+        float distortionP1, distortionP2;
+
+        device->getCameraIntrinsics(
+            F_PX, F_PY, 
+            PrincipalX, PrincipalY,
+            distortionK1, distortionK2, distortionK3,
+            distortionP1, distortionP2);
+
+        // Fill in the intrinsic matrix
+        intrinsic_matrix->at<double>(0, 0)= F_PX;
+        intrinsic_matrix->at<double>(1, 0)= 0.0;
+        intrinsic_matrix->at<double>(2, 0)= 0.0;
+
+        intrinsic_matrix->at<double>(0, 1)= 0.0;
+        intrinsic_matrix->at<double>(1, 1)= F_PY;
+        intrinsic_matrix->at<double>(2, 1)= 0.0;
+
+        intrinsic_matrix->at<double>(0, 2)= PrincipalX;
+        intrinsic_matrix->at<double>(1, 2)= PrincipalY;
+        intrinsic_matrix->at<double>(2, 2)= 1.0;
+
+        // Fill in the distortion coefficients
+        distortion_coeffs->at<double>(0, 0)= distortionK1; 
+        distortion_coeffs->at<double>(1, 0)= distortionK2;
+        distortion_coeffs->at<double>(2, 0)= distortionP1;
+        distortion_coeffs->at<double>(3, 0)= distortionP2;
+        distortion_coeffs->at<double>(4, 0)= distortionK3;
+
+        cv::initUndistortRectifyMap(
+            *intrinsic_matrix, *distortion_coeffs, 
+            cv::noArray(), // unneeded rectification transformation computed by stereoRectify()
+                               // newCameraMatrix - can be computed by getOptimalNewCameraMatrix(), but
+            *intrinsic_matrix, // "In case of a monocular camera, newCameraMatrix is usually equal to cameraMatrix"
+            cv::Size(frameWidth, frameHeight),
+            CV_32FC1, // Distortion map type
+            *distortionMapX, *distortionMapY);
     }
 
     void writeVideoFrame(const unsigned char *video_buffer)
@@ -383,22 +453,29 @@ public:
 
 		videoBufferMat.copyTo(*bgrBuffer);
 
+        // Apply the distortion map to the source video frame
+        cv::remap(
+            *bgrBuffer, *bgrUndistortBuffer, 
+            *distortionMapX, *distortionMapY, 
+            cv::INTER_LINEAR, cv::BORDER_CONSTANT);
+
         // Convert the video buffer to the HSV color space
 		if (bgr2hsv != nullptr)
 		{
-			bgr2hsv->cvtColor(*bgrBuffer, *hsvBuffer);
+			bgr2hsv->cvtColor(*bgrUndistortBuffer, *hsvBuffer);
 		}
 		else
 		{
-			cv::cvtColor(*bgrBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
+			cv::cvtColor(*bgrUndistortBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
 		}
     }
 
     // Return points in raw image space:
     // i.e. [0, 0] at lower left  to [frameWidth-1, frameHeight-1] at lower right
-    bool computeBiggestContour(
+    bool computeBiggestNContours(
         const CommonHSVColorRange &hsvColorRange,
-        std::vector<cv::Point> &out_biggest_contour)
+		t_opencv_contour_list &out_biggest_N_contours,
+		const int max_contour_count)
     {
         // Clamp the HSV image, taking into account wrapping the hue angle
         {
@@ -449,56 +526,84 @@ public:
 
         // Find the largest convex blob in the filtered grayscale buffer
         {
-            std::vector<std::vector<cv::Point> > contours;
+			struct ContourInfo
+			{
+				int contour_index;
+				double contour_area;
+			};
+			std::vector<ContourInfo> sorted_contour_list;
+
+			// Find all counters in the image buffer
+			t_opencv_contour_list contours;
             cv::findContours(*gsLowerBuffer, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 
-            if (contours.size() > 0)
+			// Compute the area of each contour
+			int contour_index = 0;
+            for (auto it = contours.begin(); it != contours.end(); ++it) 
             {
-                double contArea = 0;
-                double newArea = 0;
-                for (auto it = contours.begin(); it != contours.end(); ++it) 
-                {
-                    newArea = cv::contourArea(*it);
+				const double contour_area = cv::contourArea(*it);
+				const ContourInfo contour_info = { contour_index, contour_area };
 
-                    if (newArea > contArea)
-                    {
-                        contArea = newArea;
-                        out_biggest_contour = *it;
-                    }
-                }
+				sorted_contour_list.push_back(contour_info);
+				++contour_index;
             }
+			
+			// Sort the list of contours by area, largest to smallest
+			if (sorted_contour_list.size() > 1)
+			{
+				std::sort(
+					sorted_contour_list.begin(), sorted_contour_list.end(), 
+					[](const ContourInfo &a, const ContourInfo &b) {
+						return b.contour_area < a.contour_area;
+				});
+			}
 
-            //TODO: If our contour is suddenly much smaller than last frame,
-            // but is next to an almost-as-big contour, then maybe these
-            // 2 contours should be joined.
-            // (i.e. if a finger is blocking the middle of the bulb)
-            if (out_biggest_contour.size() > 6)
-            {
-                // Remove any points in contour on edge of camera/ROI
-                std::vector<cv::Point>::iterator it = out_biggest_contour.begin();
-                while (it != out_biggest_contour.end()) {
-                    if (it->x == 0 || it->x == (frameWidth-1) || it->y == 0 || it->y == (frameHeight-1)) 
-                    {
-                        it = out_biggest_contour.erase(it);
-                    }
-                    else 
-                    {
-                        ++it;
-                    }
-                }
-            }
+			// Copy up to N valid contours
+			for (auto it = sorted_contour_list.begin(); 
+				it != sorted_contour_list.end() && static_cast<int>(out_biggest_N_contours.size()) < max_contour_count; 
+				++it)
+			{
+				const ContourInfo &contour_info = *it;
+				t_opencv_contour &contour = contours[contour_info.contour_index];
+
+				if (contour.size() > 6)
+				{
+					// Remove any points in contour on edge of camera/ROI
+					t_opencv_contour::iterator it = contour.begin();
+					while (it != contour.end()) 
+					{
+						if (it->x == 0 || it->x == (frameWidth - 1) || it->y == 0 || it->y == (frameHeight - 1))
+						{
+							it = contour.erase(it);
+						}
+						else
+						{
+							++it;
+						}
+					}
+
+					// Add cleaned up contour to the output list
+					out_biggest_N_contours.push_back(contour);
+				}
+			}
         }
 
-        return (out_biggest_contour.size() > 5);
+        return (out_biggest_N_contours.size() > 0);
     }
 
     int frameWidth;
     int frameHeight;
+
     cv::Mat *bgrBuffer; // source video frame
+    cv::Mat *bgrUndistortBuffer; // undistorted source video frame
     cv::Mat *hsvBuffer; // source frame converted to HSV color space
     cv::Mat *gsLowerBuffer; // HSV image clamped by HSV range into grayscale mask
     cv::Mat *gsUpperBuffer; // HSV image clamped by HSV range into grayscale mask
     cv::Mat *maskedBuffer; // bgr image ANDed together with grayscale mask
+    cv::Mat *intrinsic_matrix;
+    cv::Mat *distortion_coeffs;
+    cv::Mat *distortionMapX;
+    cv::Mat *distortionMapY;
 	OpenCVBGRToHSVMapper *bgr2hsv; // Used to convert an rgb image to an hsv image
 };
 
@@ -511,7 +616,7 @@ static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tra
 static bool computeTrackerRelativeLightBarProjection(
 	const ITrackerInterface *tracker_device,
 	const CommonDeviceTrackingShape *tracking_shape,
-	const std::vector<cv::Point> &opencv_contour,
+	const t_opencv_contour &opencv_contour,
 	CommonDeviceTrackingProjection *out_projection);
 static bool computeTrackerRelativeLightBarPose(
 	const ITrackerInterface *tracker_device,
@@ -519,13 +624,19 @@ static bool computeTrackerRelativeLightBarPose(
 	const CommonDeviceTrackingProjection *projection,
 	const CommonDevicePose *tracker_relative_pose_guess,
 	ControllerOpticalPoseEstimation *out_pose_estimate);
+static bool computeTrackerRelativePointCloudContourPose(
+	const ITrackerInterface *tracker_device,
+	const CommonDeviceTrackingShape *tracking_shape,
+	const t_opencv_contour_list &opencv_contours,
+	const CommonDevicePose *tracker_relative_pose_guess,
+	HMDOpticalPoseEstimation *out_pose_estimate);
 static bool computeBestFitTriangleForContour(
-    const std::vector<cv::Point> &opencv_contour,
+    const t_opencv_contour &opencv_contour,
     cv::Point2f &out_triangle_top,
     cv::Point2f &out_triangle_bottom_left,
     cv::Point2f &out_triangle_bottom_right);
 static bool computeBestFitQuadForContour(
-    const std::vector<cv::Point> &opencv_contour,
+    const t_opencv_contour &opencv_contour,
     const cv::Point2f &up_hint, 
     const cv::Point2f &right_hint,
     cv::Point2f &top_right,
@@ -624,7 +735,7 @@ bool ServerTrackerView::open(const class DeviceEnumerator *enumerator)
             }
 
             // Allocate the OpenCV scratch buffers used for finding tracking blobs
-            m_opencv_buffer_state = new OpenCVBufferState(width, height);
+            m_opencv_buffer_state = new OpenCVBufferState(m_device);
         }
         else
         {
@@ -737,15 +848,21 @@ void ServerTrackerView::generate_tracker_data_frame_for_stream(
         {
             //TODO: PS3EYE tracker location
         } break;
-    //case CommonDeviceState::RiftDK2Sensor:
-    //    {
-    //        //TODO: RiftDK2Sensor tracker location
-    //    } break;
     default:
         assert(0 && "Unhandled Tracker type");
     }
 
     data_frame->set_device_category(PSMoveProtocol::DeviceOutputDataFrame::TRACKER);
+}
+
+void ServerTrackerView::loadSettings()
+{
+    m_device->loadSettings();
+}
+
+void ServerTrackerView::saveSettings()
+{
+    m_device->saveSettings();
 }
 
 double ServerTrackerView::getExposure() const
@@ -770,18 +887,30 @@ void ServerTrackerView::setGain(double value)
 
 void ServerTrackerView::getCameraIntrinsics(
     float &outFocalLengthX, float &outFocalLengthY,
-    float &outPrincipalX, float &outPrincipalY) const
+    float &outPrincipalX, float &outPrincipalY,
+    float &outDistortionK1, float &outDistortionK2, float &outDistortionK3,
+    float &outDistortionP1, float &outDistortionP2) const
 {
     m_device->getCameraIntrinsics(
         outFocalLengthX, outFocalLengthY,
-        outPrincipalX, outPrincipalY);
+        outPrincipalX, outPrincipalY,
+        outDistortionK1, outDistortionK2, outDistortionK3,
+        outDistortionP1, outDistortionP2);
 }
 
 void ServerTrackerView::setCameraIntrinsics(
     float focalLengthX, float focalLengthY,
-    float principalX, float principalY)
+    float principalX, float principalY,
+    float distortionK1, float distortionK2, float distortionK3,
+    float distortionP1, float distortionP2)
 {
-    m_device->setCameraIntrinsics(focalLengthX, focalLengthY, principalX, principalY);
+    m_device->setCameraIntrinsics(
+        focalLengthX, focalLengthY,
+        principalX, principalY,
+        distortionK1, distortionK2, distortionK3,
+        distortionP1, distortionP2);
+
+    m_opencv_buffer_state->rebuildDistortionMap(m_device);
 }
 
 CommonDevicePose ServerTrackerView::getTrackerPose() const
@@ -839,7 +968,16 @@ void ServerTrackerView::gatherTrackingColorPresets(
     return m_device->gatherTrackingColorPresets(controller_id, settings);
 }
 
-void ServerTrackerView::setTrackingColorPreset(
+void ServerTrackerView::gatherTrackingColorPresets(
+	const class ServerHMDView *hmd,
+	PSMoveProtocol::Response_ResultTrackerSettings* settings) const
+{
+	std::string hmd_id = (hmd != nullptr) ? hmd->getConfigIdentifier() : "";
+
+	return m_device->gatherTrackingColorPresets(hmd_id, settings);
+}
+
+void ServerTrackerView::setControllerTrackingColorPreset(
 	const class ServerControllerView *controller,
 	eCommonTrackingColorID color, 
 	const CommonHSVColorRange *preset)
@@ -849,14 +987,34 @@ void ServerTrackerView::setTrackingColorPreset(
     return m_device->setTrackingColorPreset(controller_id, color, preset);
 }
 
-void ServerTrackerView::getTrackingColorPreset(
+void ServerTrackerView::getControllerTrackingColorPreset(
 	const class ServerControllerView *controller,
-	eCommonTrackingColorID color, 
+	eCommonTrackingColorID color,
 	CommonHSVColorRange *out_preset) const
 {
 	std::string controller_id= (controller != nullptr) ? controller->getConfigIdentifier() : "";
 
     return m_device->getTrackingColorPreset(controller_id, color, out_preset);
+}
+
+void ServerTrackerView::setHMDTrackingColorPreset(
+	const class ServerHMDView *hmd,
+	eCommonTrackingColorID color,
+	const CommonHSVColorRange *preset)
+{
+	std::string hmd_id = (hmd != nullptr) ? hmd->getConfigIdentifier() : "";
+
+	return m_device->setTrackingColorPreset(hmd_id, color, preset);
+}
+
+void ServerTrackerView::getHMDTrackingColorPreset(
+	const class ServerHMDView *hmd,
+	eCommonTrackingColorID color,
+	CommonHSVColorRange *out_preset) const
+{
+	std::string hmd_id = (hmd != nullptr) ? hmd->getConfigIdentifier() : "";
+
+	return m_device->getTrackingColorPreset(hmd_id, color, out_preset);
 }
 
 bool
@@ -875,7 +1033,7 @@ ServerTrackerView::computeProjectionForController(
 
         if (tracked_color_id != eCommonTrackingColorID::INVALID_COLOR)
         {
-            getTrackingColorPreset(tracked_controller, tracked_color_id, &hsvColorRange);
+            getControllerTrackingColorPreset(tracked_controller, tracked_color_id, &hsvColorRange);
         }
         else
         {
@@ -884,11 +1042,11 @@ ServerTrackerView::computeProjectionForController(
     }
 
     // Find the contour associated with the controller
-    std::vector<cv::Point> biggest_contour;
+	t_opencv_contour_list biggest_contours;
     if (bSuccess)
     {
         ///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges. 
-        bSuccess = m_opencv_buffer_state->computeBiggestContour(hsvColorRange, biggest_contour);
+        bSuccess = m_opencv_buffer_state->computeBiggestNContours(hsvColorRange, biggest_contours, 1);
     }
 
     // Compute the tracker relative 3d position of the controller from the contour
@@ -896,7 +1054,13 @@ ServerTrackerView::computeProjectionForController(
     {
         float F_PX, F_PY;
         float PrincipalX, PrincipalY;
-        m_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+        float distortionK1, distortionK2, distortionK3;
+        float distortionP1, distortionP2;
+        m_device->getCameraIntrinsics(
+                                      F_PX, F_PY,
+                                      PrincipalX, PrincipalY,
+                                      distortionK1, distortionK2, distortionK3,
+                                      distortionP1, distortionP2);
 
         // TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
         // Then replace F_PX with -1.
@@ -905,13 +1069,16 @@ ServerTrackerView::computeProjectionForController(
         {
 		// For the sphere projection we can go ahead and compute the full pose estimation now
         case eCommonTrackingShapeType::Sphere:
-            {                               
+            {
+                // Compute the convex hull of the contour
+                t_opencv_contour convex_contour;
+                cv::convexHull(biggest_contours[0], convex_contour);
+
+                // TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
+                // Then replace F_PX with -1. 
+
                 float frameWidth, frameHeight;
                 getPixelDimensions(frameWidth, frameHeight);
-
-                // Compute the convex hull of the contour
-                std::vector<cv::Point> convex_contour;
-                cv::convexHull(biggest_contour, convex_contour);
 
                 // Convert opencv_contour in raw pixel space:
                 // i.e. [0, 0]x[frameWidth-1, frameHeight-1]
@@ -963,7 +1130,7 @@ ServerTrackerView::computeProjectionForController(
                     computeTrackerRelativeLightBarProjection(
                         m_device,
                         tracking_shape,
-                        biggest_contour,
+                        biggest_contours[0],
                         &out_pose_estimate->projection);
             } break;
         default:
@@ -1003,6 +1170,83 @@ ServerTrackerView::computePoseForProjection(
 		} break;
 	default:
 		assert(0 && "Unreachable");
+	}
+
+	return bSuccess;
+}
+
+bool ServerTrackerView::computePoseForHMD(
+	const class ServerHMDView* tracked_hmd,
+	const CommonDevicePose *tracker_pose_guess,
+	struct HMDOpticalPoseEstimation *out_pose_estimate)
+{
+	bool bSuccess = true;
+
+	// Get the tracking shape used by the controller
+	CommonDeviceTrackingShape tracking_shape;
+	if (bSuccess)
+	{
+		bSuccess = tracked_hmd->getTrackingShape(tracking_shape);
+	}
+
+	// Get the HSV filter used to find the tracking blob
+	CommonHSVColorRange hsvColorRange;
+	if (bSuccess)
+	{
+		eCommonTrackingColorID tracked_color_id = tracked_hmd->getTrackingColorID();
+
+		if (tracked_color_id != eCommonTrackingColorID::INVALID_COLOR)
+		{
+			getHMDTrackingColorPreset(tracked_hmd, tracked_color_id, &hsvColorRange);
+		}
+		else
+		{
+			bSuccess = false;
+		}
+	}
+
+	// Find the N best contours associated with the HMD
+	t_opencv_contour_list biggest_contours;
+	if (bSuccess)
+	{
+		///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges.
+		bSuccess = 
+			m_opencv_buffer_state->computeBiggestNContours(
+				hsvColorRange, biggest_contours, CommonDeviceTrackingProjection::MAX_POINT_CLOUD_POINT_COUNT);
+	}
+
+	// Compute the tracker relative 3d position of the controller from the contour
+	if (bSuccess)
+	{
+        float F_PX, F_PY;
+        float PrincipalX, PrincipalY;
+        float distortionK1, distortionK2, distortionK3;
+        float distortionP1, distortionP2;
+        m_device->getCameraIntrinsics(
+                                      F_PX, F_PY,
+                                      PrincipalX, PrincipalY,
+                                      distortionK1, distortionK2, distortionK3,
+                                      distortionP1, distortionP2);
+
+		// TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
+		// Then replace F_PX with -1.
+
+		switch (tracking_shape.shape_type)
+		{
+		case eCommonTrackingShapeType::PointCloud:
+		{
+			bSuccess =
+				computeTrackerRelativePointCloudContourPose(
+					m_device,
+					&tracking_shape,
+					biggest_contours,
+					tracker_pose_guess,
+					out_pose_estimate);
+		} break;
+		default:
+			assert(0 && "Unreachable");
+			break;
+		}
 	}
 
 	return bSuccess;
@@ -1214,6 +1458,10 @@ ServerTrackerView::triangulateWorldPose(
 				pose.clear();
 			}
         } break;
+	case eCommonTrackingProjectionType::ProjectionType_Points:
+		{
+			//###HipsterSloth $TODO
+		} break;
     default:
         assert(0 && "unreachable");
     }
@@ -1234,9 +1482,21 @@ ServerTrackerView::triangulateWorldPosition(
     // i.e. [0, 0]x[frameWidth, frameHeight]
     float screenWidth, screenHeight;
     tracker->getPixelDimensions(screenWidth, screenHeight);
-
+    
     float otherScreenWidth, otherScreenHeight;
     tracker->getPixelDimensions(otherScreenWidth, otherScreenHeight);
+
+
+    float F_PX, F_PY;
+    float PrincipalX, PrincipalY;
+    float distortionK1, distortionK2, distortionK3;
+    float distortionP1, distortionP2;
+
+    tracker->getCameraIntrinsics(
+        F_PX, F_PY, 
+        PrincipalX, PrincipalY,
+        distortionK1, distortionK2, distortionK3,
+        distortionP1, distortionP2);
 
     cv::Mat projPoints1 = 
         cv::Mat(cv::Point2f(
@@ -1414,7 +1674,13 @@ static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const ITrackerInterface *t
 
     float F_PX, F_PY;
     float PrincipalX, PrincipalY;
-    tracker_device->getCameraIntrinsics(F_PX, F_PY, PrincipalX, PrincipalY);
+    float distortionK1, distortionK2, distortionK3;
+    float distortionP1, distortionP2;
+    tracker_device->getCameraIntrinsics(
+                                  F_PX, F_PY,
+                                  PrincipalX, PrincipalY,
+                                  distortionK1, distortionK2, distortionK3,
+                                  distortionP1, distortionP2);
 
     out(0, 0) = F_PX; out(0, 1) = 0.f; out(0, 2) = PrincipalX;
     out(1, 0) = 0.f; out(1, 1) = F_PY; out(1, 2) = PrincipalY;
@@ -1435,7 +1701,7 @@ static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tra
 static bool computeTrackerRelativeLightBarProjection(
     const ITrackerInterface *tracker_device,
     const CommonDeviceTrackingShape *tracking_shape,
-    const std::vector<cv::Point> &opencv_contour,
+    const t_opencv_contour &opencv_contour,
 	CommonDeviceTrackingProjection *out_projection)
 {
     assert(tracking_shape->shape_type == eCommonTrackingShapeType::LightBar);
@@ -1688,6 +1954,66 @@ static bool computeTrackerRelativeLightBarPose(
     }
 
     return bValidTrackerPose;
+}
+
+static bool computeTrackerRelativePointCloudContourPose(
+	const ITrackerInterface *tracker_device,
+	const CommonDeviceTrackingShape *tracking_shape,
+	const t_opencv_contour_list &opencv_contours,
+	const CommonDevicePose *tracker_relative_pose_guess,
+	HMDOpticalPoseEstimation *out_pose_estimate)
+{
+	assert(tracking_shape->shape_type == eCommonTrackingShapeType::PointCloud);
+
+	// Get the pixel width and height of the tracker image
+	int pixelWidth, pixelHeight;
+	tracker_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
+
+	bool bValidTrackerPose = true;
+	float projectionArea = 0.f;
+
+	// Compute centers of mass for the contours
+	std::vector<cv::Point2f> cvImagePoints;
+	for (auto it = opencv_contours.begin(); it != opencv_contours.end(); ++it)
+	{
+		cv::Moments mu = cv::moments(*it);
+		cv::Point2f massCenter =
+			cv::Point2f(
+				static_cast<float>(mu.m10 / mu.m00) - (pixelWidth / 2), 
+				(pixelHeight / 2) - static_cast<float>(mu.m01 / mu.m00));
+
+		cvImagePoints.push_back(massCenter);
+	}
+
+	if (cvImagePoints.size() >= 3)
+	{
+		//###HipsterSloth $TODO Solve the pose using SoftPOSIT
+		out_pose_estimate->position.clear();
+		out_pose_estimate->orientation.clear();
+		out_pose_estimate->bOrientationValid = false;
+		bValidTrackerPose = true;
+	}
+
+	// Return the projection of the tracking shape
+	if (bValidTrackerPose)
+	{
+		CommonDeviceTrackingProjection *out_projection = &out_pose_estimate->projection;
+		const int imagePointCount = static_cast<int>(cvImagePoints.size());
+
+		out_projection->shape_type = eCommonTrackingProjectionType::ProjectionType_Points;
+
+		for (int vertex_index = 0; vertex_index < imagePointCount; ++vertex_index)
+		{
+			const cv::Point2f &cvPoint = cvImagePoints[vertex_index];
+
+			out_projection->shape.points.point[vertex_index] = {cvPoint.x, cvPoint.y};
+		}
+
+		out_projection->shape.points.point_count = imagePointCount;
+		out_projection->screen_area = projectionArea;
+	}
+
+	return bValidTrackerPose;
 }
 
 static bool computeBestFitTriangleForContour(

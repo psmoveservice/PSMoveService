@@ -1,7 +1,7 @@
 //-- includes -----
 #include "ClientNetworkManager.h"
 #include "ClientLog.h"
-#include "packedmessage.h"
+#include "PackedMessage.h"
 #include "PSMoveProtocol.pb.h"
 #include <cassert>
 #include <iostream>

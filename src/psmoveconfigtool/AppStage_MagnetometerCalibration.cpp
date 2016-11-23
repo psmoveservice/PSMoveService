@@ -426,10 +426,10 @@ void AppStage_MagnetometerCalibration::update()
 
                         // Tell the psmove service about the new magnetometer settings
                         RequestPtr request(new PSMoveProtocol::Request());
-                        request->set_type(PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION);
+                        request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_MAGNETOMETER_CALIBRATION);
 
-                        PSMoveProtocol::Request_RequestSetMagnetometerCalibration *calibration=
-                            request->mutable_set_magnetometer_calibration_request();
+                        PSMoveProtocol::Request_RequestSetControllerMagnetometerCalibration *calibration=
+                                request->mutable_set_controller_magnetometer_calibration_request();
 
                         calibration->set_controller_id(m_controllerView->GetControllerID());
 

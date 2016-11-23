@@ -224,7 +224,7 @@ struct PSMoveControllerState : public CommonControllerState
 class PSMoveController : public IControllerInterface {
 public:
     PSMoveController();
-    ~PSMoveController();
+    virtual ~PSMoveController();
 
     // PSMoveController
     bool open(); // Opens the first HID device for the controller

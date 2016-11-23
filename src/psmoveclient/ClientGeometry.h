@@ -201,6 +201,7 @@ struct CLIENTPSMOVEAPI PSMoveTrackingProjection
 
         Ellipse,
         LightBar,
+		PointCloud,
 
         MAX_TRACKING_PROJECTION_TYPES
     };
@@ -217,6 +218,11 @@ struct CLIENTPSMOVEAPI PSMoveTrackingProjection
             PSMoveScreenLocation triangle[3];
             PSMoveScreenLocation quad[4];
         } lightbar;
+
+		struct {
+			PSMoveScreenLocation points[7];
+			int point_count;
+		} pointcloud;
     } shape;
 
     eShapeType shape_type;
