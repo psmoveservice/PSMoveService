@@ -251,8 +251,8 @@ PSMoveControllerConfig::config2ptree()
     pt.put("Calibration.Magnetometer.Error", magnetometer_fit_error);
 	pt.put("Calibration.Magnetometer.Variance", magnetometer_variance);
 
-	pt.put("Calibration.Position.VarianceGain", position_variance_exp_fit_a);
-	pt.put("Calibration.Position.VarianceBias", position_variance_exp_fit_b);
+	pt.put("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
+	pt.put("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
 
 	pt.put("Calibration.Orientation.Variance", orientation_variance);
 

@@ -50,9 +50,9 @@ public:
         , gyro_drift(0.027f) // rounded value from config tool measurement (rad/s)
         , max_velocity(1.f)
 		, mean_update_time_delta(0.008333f)
-		, position_variance_exp_fit_a(0.44888f)
-		, position_variance_exp_fit_b(-0.00402f) // TODO: Compute this from calibration
-		, orientation_variance(0.005f) // TODO: Compute this from calibration
+		, position_variance_exp_fit_a(0.0994158462f)
+		, position_variance_exp_fit_b(-0.000567041978f)
+		, orientation_variance(0.005f)
 		, tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
     {
         magnetometer_identity.clear();

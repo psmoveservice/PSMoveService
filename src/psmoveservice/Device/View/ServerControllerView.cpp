@@ -1586,23 +1586,26 @@ init_filters_for_psmove(
 	PoseFilterConstants constants;
 
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
+	constants.orientation_constants.accelerometer_variance =
+		Eigen::Vector3f(psmove_config->accelerometer_variance, psmove_config->accelerometer_variance, psmove_config->accelerometer_variance);
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
 	constants.orientation_constants.gyro_drift= 
 		Eigen::Vector3f(psmove_config->gyro_drift, psmove_config->gyro_drift, psmove_config->gyro_drift);
 	constants.orientation_constants.gyro_variance= 
 		Eigen::Vector3f(psmove_config->gyro_variance, psmove_config->gyro_variance, psmove_config->gyro_variance);
 	constants.orientation_constants.mean_update_time_delta= psmove_config->mean_update_time_delta;
-	constants.orientation_constants.orientation_variance_curve.A = 0.f;
+	constants.orientation_constants.orientation_variance_curve.A = psmove_config->orientation_variance;
 	constants.orientation_constants.orientation_variance_curve.B = 0.f;
-	constants.orientation_constants.orientation_variance_curve.MaxValue = 0.f;
+	constants.orientation_constants.orientation_variance_curve.MaxValue = 1.f;
 	constants.orientation_constants.magnetometer_variance= 
 		Eigen::Vector3f(psmove_config->magnetometer_variance, psmove_config->magnetometer_variance, psmove_config->magnetometer_variance);
-	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero(); // TODO
+	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero();
 
 	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.position_constants.accelerometer_variance= 
 		Eigen::Vector3f(psmove_config->accelerometer_variance, psmove_config->accelerometer_variance, psmove_config->accelerometer_variance);
-	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero(); // TODO
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
 	constants.position_constants.accelerometer_noise_radius= psmove_config->accelerometer_noise_radius;
 	constants.position_constants.max_velocity= psmove_config->max_velocity;
     constants.position_constants.mean_update_time_delta= psmove_config->mean_update_time_delta;

@@ -74,6 +74,7 @@ private:
 
     PSMovePosition m_lastMulticamPosition;
 	PSMoveQuaternion m_lastMulticamOrientation;
+	PSMovePose m_lastControllerPose;
 	float m_lastProjectionArea;
 	bool m_bLastMulticamPositionValid;
 	bool m_bLastMulticamOrientationValid;

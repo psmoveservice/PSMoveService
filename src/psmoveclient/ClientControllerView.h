@@ -335,6 +335,7 @@ public:
     const PSMoveRawSensorData &GetRawSensorData() const;
     const PSMoveCalibratedSensorData &GetCalibratedSensorData() const;
     bool GetIsStable() const;
+	bool GetIsGyroStable() const;
     bool GetIsStableAndAlignedWithGravity() const;
 
 
@@ -738,6 +739,7 @@ public:
     const PSDualShock4RawSensorData &GetRawSensorData() const;
     const PSDualShock4CalibratedSensorData &GetCalibratedSensorData() const;
     bool GetIsStable() const;
+	bool GetIsGyroStable() const;
     const PSMoveRawTrackerData &GetRawTrackerData() const;
 };
 
@@ -866,6 +868,7 @@ public:
 
     bool GetIsCurrentlyTracking() const;
     bool GetIsPoseValid() const;
+	bool GetIsGyroStable() const;
     bool GetIsStable() const;
 
     void SetLEDOverride(unsigned char r, unsigned char g, unsigned char b);

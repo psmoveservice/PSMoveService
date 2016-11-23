@@ -193,6 +193,7 @@ AppStage_OpticalCalibration::AppStage_OpticalCalibration(App *app)
 {
 	m_lastMulticamPosition = *k_psmove_position_origin;
 	m_lastMulticamOrientation = PSMoveQuaternion::identity();
+	m_lastControllerPose = PSMovePose::identity();
 	memset(&m_trackerList, 0, sizeof(m_trackerList));
 }
 
@@ -224,6 +225,7 @@ void AppStage_OpticalCalibration::enter()
     m_lastControllerSeqNum = -1;
 	m_lastMulticamPosition = *k_psmove_position_origin;
 	m_lastMulticamOrientation = PSMoveQuaternion::identity();
+	m_lastControllerPose = PSMovePose::identity();
 	m_bLastMulticamPositionValid = false;
 	m_bLastMulticamOrientationValid = false;
 
@@ -275,7 +277,7 @@ void AppStage_OpticalCalibration::update()
 				rawTrackerData = m_controllerView->GetPSMoveView().GetRawTrackerData();
 
 				m_lastMulticamOrientation = PSMoveQuaternion::identity();
-				m_bLastMulticamPositionValid = true;
+				m_bLastMulticamOrientationValid = true;
             }
             break;
         }
@@ -285,6 +287,9 @@ void AppStage_OpticalCalibration::update()
 			m_lastMulticamPosition = rawTrackerData.MulticamPosition;
 			m_bLastMulticamPositionValid = true;
 		}
+
+		// Get the latest filtered controller pose
+		m_lastControllerPose = m_controllerView->GetPose();
 
 		// Compute the current projection area as the average of the projection areas
 		// for each tracker that can see the controller
@@ -339,7 +344,7 @@ void AppStage_OpticalCalibration::update()
 	case eCalibrationMenuState::failedTrackerListRequest:
 	case eCalibrationMenuState::waitForStable:
 		{
-			if (m_bReadyForSampling && m_controllerView->GetIsStable() && m_controllerView->GetIsCurrentlyTracking())
+			if (m_bReadyForSampling && m_controllerView->GetIsGyroStable() && m_controllerView->GetIsCurrentlyTracking())
 			{
 				if (m_bIsStableAndVisible)
 				{
@@ -367,7 +372,7 @@ void AppStage_OpticalCalibration::update()
 		} break;
     case eCalibrationMenuState::measureOpticalNoise:
         {
-            if (m_controllerView->GetIsStable())
+            if (m_controllerView->GetIsGyroStable())
             {
 				PoseNoiseSamplesAtLocation &poseNoiseSamples = m_poseNoiseSamplesSet->getCurrentLocationSamples();
 
@@ -402,9 +407,18 @@ void AppStage_OpticalCalibration::update()
 						m_poseNoiseSamplesSet->computeVarianceBestFit();
 
 						// Tell the server about the new variance calibration
-						request_set_optical_calibration(
-							m_poseNoiseSamplesSet->position_variance_curve.y(), m_poseNoiseSamplesSet->position_variance_curve.x(),
-							m_poseNoiseSamplesSet->orientation_variance_curve.y(), m_poseNoiseSamplesSet->orientation_variance_curve.x());
+						if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4)
+						{
+							request_set_optical_calibration(
+								m_poseNoiseSamplesSet->position_variance_curve.y(), m_poseNoiseSamplesSet->position_variance_curve.x(),
+								m_poseNoiseSamplesSet->orientation_variance_curve.y(), m_poseNoiseSamplesSet->orientation_variance_curve.x());
+						}
+						else
+						{
+							request_set_optical_calibration(
+								m_poseNoiseSamplesSet->position_variance_curve.y(), m_poseNoiseSamplesSet->position_variance_curve.x(),
+								0.f, 0.f);
+						}
 
 						setState(eCalibrationMenuState::measureComplete);
 					}
@@ -474,6 +488,21 @@ void AppStage_OpticalCalibration::render()
             glm::scale(glm::mat4(1.f), glm::vec3(bigModelScale, bigModelScale, bigModelScale)),
             90.f, glm::vec3(1.f, 0.f, 0.f));  
 
+	glm::mat4 controllerWorldTransform= glm::mat4(1.f);
+	if (m_lastControllerSeqNum != -1 && 
+		m_isControllerStreamActive &&
+		m_controllerView->GetIsCurrentlyTracking())
+	{
+		PSMovePose psmove_space_pose = PSMovePose::create(m_lastMulticamPosition, m_lastMulticamOrientation);
+
+		if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
+		{
+			psmove_space_pose.Orientation = m_lastControllerPose.Orientation;
+		}
+
+		controllerWorldTransform = psmove_pose_to_glm_mat4(psmove_space_pose);
+	}
+
     switch (m_menuState)
     {
 	case eCalibrationMenuState::pendingTrackerListRequest:
@@ -488,11 +517,8 @@ void AppStage_OpticalCalibration::render()
 			// Show the controller with optically derived pose
 			if (m_controllerView->GetIsCurrentlyTracking())
 			{
-				PSMovePose psmove_space_pose = PSMovePose::create(m_lastMulticamPosition, m_lastMulticamOrientation);
-				glm::mat4 worldTransform = psmove_pose_to_glm_mat4(psmove_space_pose);
-
-				drawController(m_controllerView, worldTransform);
-				drawTransformedAxes(worldTransform, 200.f);
+				drawController(m_controllerView, controllerWorldTransform);
+				drawTransformedAxes(controllerWorldTransform, 200.f);
 			}
 
 			drawTransformedAxes(glm::mat4(1.f), 200.f);
@@ -505,11 +531,8 @@ void AppStage_OpticalCalibration::render()
             if (m_controllerView->GetIsCurrentlyTracking() &&
                 m_bLastMulticamPositionValid && m_bLastMulticamOrientationValid)
             {
-				PSMovePose psmove_space_pose = m_controllerView->GetPose();
-				glm::mat4 worldTransform = psmove_pose_to_glm_mat4(psmove_space_pose);
-
-                drawController(m_controllerView, worldTransform);
-				drawTransformedAxes(worldTransform, 200.f);
+                drawController(m_controllerView, controllerWorldTransform);
+				drawTransformedAxes(controllerWorldTransform, 200.f);
             }
 
 			drawTransformedAxes(glm::mat4(1.f), 200.f);
@@ -687,9 +710,18 @@ void AppStage_OpticalCalibration::renderUI()
             {
                 ImGui::Text("Optical Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
 				ImGui::Text("Projection Area: %.1f px^2", m_lastProjectionArea);
-				ImGui::Text("Position Var: %.4f rad^2, Orientation Var: %.4f cm^2", 
-					m_poseNoiseSamplesSet->getPositionVarianceForArea(m_lastProjectionArea),
-					m_poseNoiseSamplesSet->getOrientationVarianceForArea(m_lastProjectionArea));
+
+				if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4)
+				{
+					ImGui::Text("Position Var: %.4f cm^2, Orientation Var: %.4f rad^2",
+						m_poseNoiseSamplesSet->getPositionVarianceForArea(m_lastProjectionArea),
+						m_poseNoiseSamplesSet->getOrientationVarianceForArea(m_lastProjectionArea));
+				}
+				else
+				{
+					ImGui::Text("Position Var: %.4f cm^2",
+						m_poseNoiseSamplesSet->getPositionVarianceForArea(m_lastProjectionArea));
+				}
             }
 
 			{
@@ -781,10 +813,12 @@ void AppStage_OpticalCalibration::onEnterState(eCalibrationMenuState newState)
 	case eCalibrationMenuState::failedStreamStart:
 		break;
 	case eCalibrationMenuState::waitForStable:
+		m_stableAndVisibleStartTime = std::chrono::high_resolution_clock::now();
 		// Align the camera to face along the global forward
 		// NOTE "0" degrees is down +Z in the ConfigTool View (rather than +X in the Service)
 		m_app->getOrbitCamera()->reset();
 		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - 90.f);
+		m_app->getOrbitCamera()->setCameraOrbitRadius(200);
 		m_bReadyForSampling = false;
 		break;
 	case eCalibrationMenuState::measureOpticalNoise:
@@ -795,6 +829,7 @@ void AppStage_OpticalCalibration::onEnterState(eCalibrationMenuState newState)
 		// Align the camera to face along the global forward
 		// NOTE "0" degrees is down +Z in the ConfigTool View (rather than +X in the Service)
 		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - 90.f);
+		m_app->getOrbitCamera()->setCameraOrbitRadius(200);
 		break;
 	default:
 		assert(0 && "unreachable");

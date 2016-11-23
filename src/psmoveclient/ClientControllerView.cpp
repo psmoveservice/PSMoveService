@@ -71,6 +71,15 @@ bool ClientPSMoveView::GetIsStable() const
     return GetIsStableAndAlignedWithGravity();
 }
 
+bool ClientPSMoveView::GetIsGyroStable() const
+{
+	const float k_gyro_noise = 10.f*k_degrees_to_radians; // noise threshold in rad/sec
+	const float worst_rotation_rate = fabsf(CalibratedSensorData.Gyroscope.maxValue());
+	const bool isOk = worst_rotation_rate < k_gyro_noise;
+
+	return isOk;
+}
+
 bool ClientPSMoveView::GetIsStableAndAlignedWithGravity() const
 {
     const float k_cosine_10_degrees = 0.984808f;
@@ -664,13 +673,18 @@ const PSDualShock4CalibratedSensorData &ClientPSDualShock4View::GetCalibratedSen
     return IsValid() ? CalibratedSensorData : k_empty_ds4_calibrated_sensor_data;
 }
 
-bool ClientPSDualShock4View::GetIsStable() const
+bool ClientPSDualShock4View::GetIsGyroStable() const
 {
     const float k_gyro_noise= 10.f*k_degrees_to_radians; // noise threshold in rad/sec
     const float worst_rotation_rate = fabsf(CalibratedSensorData.Gyroscope.maxValue());
     const bool isOk = worst_rotation_rate < k_gyro_noise;
 
     return isOk;
+}
+
+bool ClientPSDualShock4View::GetIsStable() const
+{
+	return GetIsGyroStable();
 }
 
 const PSMoveRawTrackerData &ClientPSDualShock4View::GetRawTrackerData() const
@@ -928,6 +942,23 @@ bool ClientControllerView::GetIsPoseValid() const
         assert(0 && "invalid controller type");
         return false;
     }
+}
+
+bool ClientControllerView::GetIsGyroStable() const
+{
+	switch (ControllerViewType)
+	{
+	case eControllerType::PSMove:
+		return GetPSMoveView().GetIsGyroStable();
+	case eControllerType::PSNavi:
+		// Always stable! (no physics)
+		return true;
+	case eControllerType::PSDualShock4:
+		return GetPSDualShock4View().GetIsGyroStable();
+	default:
+		assert(0 && "invalid controller type");
+		return true;
+	}
 }
 
 bool ClientControllerView::GetIsStable() const
