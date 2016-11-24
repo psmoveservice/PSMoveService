@@ -53,6 +53,7 @@ ELSE()
     # TODO: Convert this to ExternalProject_Add
     MESSAGE(STATUS "Using Eigen3 in submodule")
     LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/thirdparty/eigen/cmake")
+    SET(ENV{EIGEN3_ROOT} "${CMAKE_CURRENT_LIST_DIR}/thirdparty/eigen")
     find_package(Eigen3 REQUIRED)
 ENDIF()
 

@@ -10,6 +10,10 @@
 #include <stdio.h>
 #include <vector>
 
+#if _MSC_VER
+#define strncasecmp(a, b, n) _strnicmp(a,b,n)
+#endif
+
 enum eControllerSampleFields
 {
 	FIELD_TIME,
