@@ -4,7 +4,7 @@ set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(PSMOVE_MATH_INCL_DIRS)
 
 list(APPEND PSMOVE_MATH_INCL_DIRS
-    ${ROOT_DIR}/thirdparty/eigen/
+    ${EIGEN3_INCLUDE_DIR}
     ${ROOT_DIR}/thirdparty/glm/)
 
 # Source files that are needed for the static library

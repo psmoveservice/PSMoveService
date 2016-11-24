@@ -220,7 +220,7 @@ list(APPEND TEST_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
 
 # Eigen math library
-list(APPEND TEST_CTRLR_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
+list(APPEND TEST_CTRLR_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
 
 # PSMoveController
 # We are not including the PSMoveService target on purpose, because this only tests
@@ -306,7 +306,7 @@ list(APPEND DFU_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND DFU_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
 
 # Eigen math library
-list(APPEND DFU_CTRLR_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
+list(APPEND DFU_CTRLR_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
 
 # PSMoveController
 # We are not including the PSMoveService target on purpose, because this only tests
@@ -503,7 +503,7 @@ list(APPEND TEST_KALMAN_SRC
     ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp)
     
 # Eigen math library
-list(APPEND TEST_KALMAN_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)   
+list(APPEND TEST_KALMAN_INCL_DIRS ${EIGEN3_INCLUDE_DIR})   
 list(APPEND TEST_KALMAN_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include/)
 
 add_executable(test_kalman_filter ${CMAKE_CURRENT_LIST_DIR}/test_kalman_filter.cpp ${TEST_KALMAN_SRC})
@@ -527,7 +527,7 @@ list(APPEND UNIT_TEST_INCL_DIRS
     ${ROOT_DIR}/src/psmovemath/)
 
 # Eigen math library
-list(APPEND UNIT_TEST_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)   
+list(APPEND UNIT_TEST_INCL_DIRS ${EIGEN3_INCLUDE_DIR})   
 
 list(APPEND UNIT_TEST_SRC    
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h

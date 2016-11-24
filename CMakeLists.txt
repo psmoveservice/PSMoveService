@@ -45,6 +45,17 @@ endif()
 # (installed via homebrew on Mac or apt-get in Linux/Ubuntu)
 # In MSVC, we auto-download the source and make it an external_project
 
+# Eigen3
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    MESSAGE(STATUS "Using homebrew Eigen3")
+    find_package(Eigen3 REQUIRED CONFIG PATHS /usr/local/opt/eigen/lib/cmake/eigen3)
+ELSE()
+    # TODO: Convert this to ExternalProject_Add
+    MESSAGE(STATUS "Using Eigen3 in submodule")
+    LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/thirdparty/eigen/cmake")
+    find_package(Eigen3 REQUIRED)
+ENDIF()
+
 # OpenCV
 # Override by adding "-DOpenCV_DIR=C:\path\to\opencv\build" to your cmake command
 IF(NOT OpenCV_DIR)
