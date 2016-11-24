@@ -40,10 +40,11 @@ static const char *k_video_display_mode_names[] = {
     "Undistorted"
 };
 
-#define PATTERN_W 6 // Internal corners
-#define PATTERN_H 9
+#define PATTERN_W 9 // Internal corners
+#define PATTERN_H 6
 #define CORNER_COUNT (PATTERN_W*PATTERN_H)
-#define DESIRED_CAPTURE_BOARD_COUNT 20
+#define SQUARE_LEN_MM 24
+#define DESIRED_CAPTURE_BOARD_COUNT 12
 
 #define BOARD_MOVED_PIXEL_DIST 5
 #define BOARD_MOVED_ERROR_SUM BOARD_MOVED_PIXEL_DIST*CORNER_COUNT
@@ -106,7 +107,6 @@ public:
         lastValidImagePoints.clear();
         quadList.clear();
         imagePointsList.clear();
-        objectPointsList.clear();
     }
 
     void resetCalibrationState()
@@ -231,19 +231,6 @@ public:
                     // If it's a valid new location, append it to the board list
                     if (bCurrentImagePointsValid && appWantsAppend)
                     {
-                        // Generate the object points for each corner of the board
-                        std::vector<cv::Point3f> new_object_points;
-
-                        for (int corner_index = 0; corner_index < CORNER_COUNT; ++corner_index) 
-                        {
-                            cv::Point3f object_point(
-                                static_cast<float>(corner_index) / static_cast<float>(PATTERN_W),
-                                static_cast<float>(corner_index % PATTERN_W),
-                                0.f);
-
-                            new_object_points.push_back(object_point);
-                        }
-
                         // Keep track of the corners of all of the chessboards we sample
                         quadList.push_back(new_image_points[0]);
                         quadList.push_back(new_image_points[PATTERN_W - 1]);
@@ -252,7 +239,6 @@ public:
 
                         // Append the new images points and object points
                         imagePointsList.push_back(new_image_points);
-                        objectPointsList.push_back(new_object_points);
 
                         // Remember the last valid captured points
                         lastValidImagePoints= currentImagePoints;
@@ -311,6 +297,12 @@ public:
 
         if (capturedBoardCount >= DESIRED_CAPTURE_BOARD_COUNT)
         {
+            // Only need to calculate objectPointsList once,
+            // then resize for each set of image points.
+            std::vector<std::vector<cv::Point3f> > objectPointsList(1);
+            calcBoardCornerPositions(objectPointsList[0]);
+            objectPointsList.resize(imagePointsList.size(), objectPointsList[0]);
+            
             // Compute the camera intrinsic matrix and distortion parameters
             reprojectionError= 
                 cv::calibrateCamera(
@@ -341,6 +333,19 @@ public:
             CV_32FC1, // Distortion map type
             *distortionMapX, *distortionMapY);
     }
+    
+    void calcBoardCornerPositions(std::vector<cv::Point3f>& corners)
+    {
+        corners.clear();
+        
+        for( int i = 0; i < PATTERN_H; ++i )
+        {
+            for( int j = 0; j < PATTERN_W; ++j )
+            {
+                corners.push_back(cv::Point3f(float(j*SQUARE_LEN_MM), float(i*SQUARE_LEN_MM), 0.f));
+            }
+        }
+    }
 
     const ClientTrackerInfo &trackerInfo;
     int frameWidth;
@@ -359,7 +364,6 @@ public:
     bool bCurrentImagePointsValid;
     std::vector<cv::Point2f> quadList;
     std::vector<std::vector<cv::Point2f>> imagePointsList;
-    std::vector<std::vector<cv::Point3f>> objectPointsList;
 
     // Calibration state
     double reprojectionError;
@@ -397,7 +401,7 @@ void AppStage_DistortionCalibration::enter()
     m_tracker_view= ClientPSMoveAPI::allocate_tracker_view(*trackerInfo);
 
     // Crank up the exposure and gain so that we can see the chessboard
-    request_tracker_set_temp_exposure(255.f);
+    request_tracker_set_temp_exposure(128.f);
     request_tracker_set_temp_gain(128.f);
 
     assert(!m_bStreamIsActive);
@@ -463,11 +467,37 @@ void AppStage_DistortionCalibration::update()
 
                 if (m_opencv_state->capturedBoardCount >= DESIRED_CAPTURE_BOARD_COUNT)
                 {
+                    
+                    m_opencv_state->computeCameraCalibration(); //Will update intrinsic_matrix and distortion_coeffs
                     cv::Mat *intrinsic_matrix= m_opencv_state->intrinsic_matrix;
                     cv::Mat *distortion_coeffs= m_opencv_state->distortion_coeffs;
-
-                    m_opencv_state->computeCameraCalibration();
-
+                    
+                    
+                    float frameWidth= static_cast<float>(m_opencv_state->frameWidth);
+                    float frameHeight= static_cast<float>(m_opencv_state->frameHeight);
+                    
+//                    double apertureWidthmm = 3.984;
+//                    double apertureHeightmm = 2.952;
+//                    double fovX;
+//                    double fovY;
+//                    double focalLength;
+//                    double aspectRatio;
+//                    cv::Point2d principalPoint;
+//                    cv::calibrationMatrixValues(*intrinsic_matrix,
+//                                                cv::Size(frameWidth, frameHeight),
+//                                                apertureWidthmm,
+//                                                apertureHeightmm,
+//                                                fovX,
+//                                                fovY,
+//                                                focalLength,
+//                                                principalPoint,
+//                                                aspectRatio);
+//                    std::cout << "fovX: " << fovX << "; fovY: " << fovY;
+//                    std::cout << "; focalLength: " << focalLength;
+//                    std::cout << "; aspectRatio: " << aspectRatio;
+//                    std::cout << "; principalPoint: " << principalPoint.x << ", " << principalPoint.y;
+//                    std::cout << std::endl;
+                    
                     const float f_x= static_cast<float>(intrinsic_matrix->at<double>(0, 0));
                     const float f_y= static_cast<float>(intrinsic_matrix->at<double>(1, 1));
                     const float p_x= static_cast<float>(intrinsic_matrix->at<double>(0, 2));
@@ -478,6 +508,10 @@ void AppStage_DistortionCalibration::update()
                     const float p_1= static_cast<float>(distortion_coeffs->at<double>(2, 0));
                     const float p_2= static_cast<float>(distortion_coeffs->at<double>(3, 0));
                     const float k_3= static_cast<float>(distortion_coeffs->at<double>(4, 0));
+                    
+                    double fovx = 2 * atan(frameWidth / (2 * f_x)) * 180.0 / CV_PI;
+                    double fovy = 2 * atan(frameHeight / (2 * f_y)) * 180.0 / CV_PI;
+                    std::cout << "Manual fov x: " << fovx << "; y: " << fovy << std::endl;
 
                     // Update the camera intrinsics for this camera
                     request_tracker_set_intrinsic(
@@ -646,6 +680,7 @@ void AppStage_DistortionCalibration::renderUI()
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Calibration complete!");
+            ImGui::Text("Error: %f", m_opencv_state->reprojectionError);
 
             if (ImGui::Button("Ok"))
             {
