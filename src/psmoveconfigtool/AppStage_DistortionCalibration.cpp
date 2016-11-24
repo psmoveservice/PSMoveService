@@ -40,7 +40,7 @@ static const char *k_video_display_mode_names[] = {
     "Undistorted"
 };
 
-#define PATTERN_W 7 // Internal corners
+#define PATTERN_W 6 // Internal corners
 #define PATTERN_H 9
 #define CORNER_COUNT (PATTERN_W*PATTERN_H)
 #define DESIRED_CAPTURE_BOARD_COUNT 20
@@ -155,8 +155,9 @@ public:
             cv::INTER_LINEAR, cv::BORDER_CONSTANT);
     }
 
-    void findAndAppendNewChessBoard()
+    void findAndAppendNewChessBoard(bool appWantsAppend)
     {
+        
         if (capturedBoardCount < DESIRED_CAPTURE_BOARD_COUNT)
         {
             std::vector<cv::Point2f> new_image_points;
@@ -184,7 +185,6 @@ public:
                 if (new_image_points.size() == CORNER_COUNT) 
                 {
                     bCurrentImagePointsValid= false;
-
                     // See if the board is stationary (didn't move much since last frame)
                     if (currentImagePoints.size() > 0)
                     {
@@ -201,6 +201,7 @@ public:
                     }
                     else
                     {
+                        // We don't have previous capture.
                         bCurrentImagePointsValid= true;
                     }
 
@@ -228,7 +229,7 @@ public:
                     }
 
                     // If it's a valid new location, append it to the board list
-                    if (bCurrentImagePointsValid)
+                    if (bCurrentImagePointsValid && appWantsAppend)
                     {
                         // Generate the object points for each corner of the board
                         std::vector<cv::Point3f> new_object_points;
@@ -374,13 +375,13 @@ public:
 AppStage_DistortionCalibration::AppStage_DistortionCalibration(App *app)
     : AppStage(app)
     , m_menuState(AppStage_DistortionCalibration::inactive)
+    , m_videoDisplayMode(AppStage_DistortionCalibration::eVideoDisplayMode::mode_bgr)
     , m_trackerExposure(0.0)
     , m_trackerGain(0.0)
     , m_bStreamIsActive(false)
     , m_tracker_view(nullptr)
     , m_video_texture(nullptr)
     , m_opencv_state(nullptr)
-    , m_videoDisplayMode(AppStage_DistortionCalibration::eVideoDisplayMode::mode_bgr)
 { }
 
 void AppStage_DistortionCalibration::enter()
@@ -455,8 +456,10 @@ void AppStage_DistortionCalibration::update()
 
             if (m_menuState == AppStage_DistortionCalibration::capture)
             {
+                
                 // Update the chess board capture state
-                m_opencv_state->findAndAppendNewChessBoard();
+                ImGuiIO io_state = ImGui::GetIO();
+                m_opencv_state->findAndAppendNewChessBoard(io_state.KeysDown[32]);
 
                 if (m_opencv_state->capturedBoardCount >= DESIRED_CAPTURE_BOARD_COUNT)
                 {
@@ -626,6 +629,10 @@ void AppStage_DistortionCalibration::renderUI()
                 if (ImGui::Button("Cancel"))
                 {
                     request_exit();
+                }
+                if (m_opencv_state->bCurrentImagePointsValid)
+                {
+                    ImGui::Text("Press spacebar to capture");
                 }
 
                 ImGui::End();
