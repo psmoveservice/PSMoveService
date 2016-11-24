@@ -35,19 +35,25 @@ public:
 		, bt_firmware_version(0)
 		, firmware_revision(0)
         , max_poll_failure_count(100) 
+        , prediction_time(0.f)
+		, position_filter_type("LowPassOptical")
+		, orientation_filter_type("ComplementaryMARG")
         , cal_ag_xyz_kb({{ 
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }},
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }} 
         }})
-        , prediction_time(0.f)
-        , accelerometer_noise_radius(0.f)
-        , gyro_variance(1.5f*k_degrees_to_radians) // rad/s^2
-        , gyro_drift(0.9f*k_degrees_to_radians) // rad/s
-        , min_position_quality_screen_area(0.f)
-        , max_position_quality_screen_area(k_real_pi*20.f*20.f) // lightbulb at ideal range is about 40px by 40px 
+        , magnetometer_fit_error(0.f)
+		, magnetometer_variance(0.00059f) // rounded value from config tool measurement
+		, accelerometer_variance(7.2e-06f) // rounded value from config tool measurement
+        , accelerometer_noise_radius(0.014f) // rounded value from config tool measurement
+        , gyro_variance(0.00035f) // rounded value from config tool measurement (rad/s)^2
+        , gyro_drift(0.027f) // rounded value from config tool measurement (rad/s)
         , max_velocity(1.f)
+		, mean_update_time_delta(0.008333f)
+		, position_variance_exp_fit_a(0.0994158462f)
+		, position_variance_exp_fit_b(-0.000567041978f)
+		, orientation_variance(0.005f)
 		, tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
-		, enable_filtered_velocity(true)
     {
         magnetometer_identity.clear();
         magnetometer_center.clear();
@@ -55,7 +61,6 @@ public:
         magnetometer_basis_y.clear();
         magnetometer_basis_z.clear();
         magnetometer_extents.clear();
-        magnetometer_error= 0.f;
         magnetometer_identity.clear();
     };
 
@@ -76,39 +81,71 @@ public:
 	// Move's firmware revision number
 	unsigned short firmware_revision;
 
+
+	// The max number of polling failures before we consider the controller disconnected
     long max_poll_failure_count;
 
+	// The amount of prediction to apply to the controller pose after filtering
+    float prediction_time;
+
+	// The type of position filter to use
+	std::string position_filter_type;
+
+	// The type of orientation filter to use
+	std::string orientation_filter_type;
+
+	// The accelerometer and gyroscope scale and bias values read from the USB calibration packet
     std::array<std::array<std::array<float, 2>, 3>, 2> cal_ag_xyz_kb;
+
+	// The direction of the magnetometer when in the identity pose
     CommonDeviceVector magnetometer_identity;
+
+	// The bias of the magnetometer readings
     CommonDeviceVector magnetometer_center;
+
+	// The basis vectors of the best fit ellipsoid (typically i,j,k)
     CommonDeviceVector magnetometer_basis_x;
     CommonDeviceVector magnetometer_basis_y;
     CommonDeviceVector magnetometer_basis_z;
     CommonDeviceVector magnetometer_extents;
-    float magnetometer_error;
-    float prediction_time;
 
-    // The radius of the accelerometer noise
+	// The squared error of the magnetometer fit ellipsoid
+    float magnetometer_fit_error;
+
+	/// The variance of the magnetometer sensor
+	float magnetometer_variance; // units^2
+
+	// The variance of the accelerometer readings
+	float accelerometer_variance; // g-units^2
+
+    // The bounding radius of the accelerometer noise
     float accelerometer_noise_radius;
     
-    // The variance of the calibrated gyro readings in rad/s^2
+    // The variance of the calibrated gyro readings in (rad/s)^2
     float gyro_variance;
-    // The drift of the calibrated gyro readings in rad/second^2
+
+    // The drift of the calibrated gyro readings in rad/s
     float gyro_drift;
 
-    // The pixel area of the tracking projection at which the position quality is 0
-    float min_position_quality_screen_area;
-    // The pixel area of the tracking projection at which the position quality is 1
-    float max_position_quality_screen_area;
-
-    // The maximum velocity allowed in the position filter
+    // The maximum velocity allowed in the position filter in cm/s
     float max_velocity;
+
+	// The average time between updates in seconds
+    float mean_update_time_delta;
+
+	// The variance of the controller position as a function of pixel area
+    float position_variance_exp_fit_a; 
+    float position_variance_exp_fit_b;
+
+	// The variance of the controller orientation (when sitting still) in rad^2
+    float orientation_variance;
+
+	inline float get_position_variance(float projection_area) const {
+		return position_variance_exp_fit_a*exp(position_variance_exp_fit_b*projection_area);
+	}
 
 	// The assigned tracking color for this controller
 	eCommonTrackingColorID tracking_color_id;
-
-	// Chicken switch for velocity filtering
-	bool enable_filtered_velocity;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport
@@ -187,7 +224,7 @@ struct PSMoveControllerState : public CommonControllerState
 class PSMoveController : public IControllerInterface {
 public:
     PSMoveController();
-    ~PSMoveController();
+    virtual ~PSMoveController();
 
     // PSMoveController
     bool open(); // Opens the first HID device for the controller

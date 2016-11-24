@@ -62,6 +62,9 @@ public:
     const TextureAsset *getPSNaviTextureAsset()
     { return &m_psnaviTexture; }
 
+    const TextureAsset *getMorpheusTextureAsset()
+    { return &m_morpheusTexture; }    
+    
     const FontAsset *getDefaultFont()
     { return &m_defaultFont; }
 
@@ -73,6 +76,7 @@ private:
     TextureAsset m_psmoveTexture;
     TextureAsset m_psnaviTexture;
     TextureAsset m_psdualshock4Texture;
+    TextureAsset m_morpheusTexture;
 
     // Font Rendering
     FontAsset m_defaultFont;

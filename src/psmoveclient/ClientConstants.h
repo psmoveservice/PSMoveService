@@ -11,4 +11,7 @@
 // See TrackerManager.h in PSMoveService
 #define PSMOVESERVICE_MAX_TRACKER_COUNT  4
 
+// See HMDManager.h in PSMoveService
+#define PSMOVESERVICE_MAX_HMD_COUNT  1
+
 #endif // CLIENT_CONSTANTS_H

@@ -7,6 +7,7 @@
 #include "PSMoveProtocolInterface.h"
 #include "TrackerManager.h"
 #include <chrono>
+#include <vector>
 
 // -- declarations -----
 struct ControllerOpticalPoseEstimation
@@ -48,6 +49,9 @@ public:
     bool open(const class DeviceEnumerator *enumerator) override;
     void close() override;
 
+	// Recreate and initialize the pose filter for the controller
+	void resetPoseFilter();
+
     // Compute pose/prediction of tracking blob+IMU state
     void updateOpticalPoseEstimation(TrackerManager* tracker_manager);
     void updateStateAndPredict();
@@ -56,10 +60,8 @@ public:
     bool setHostBluetoothAddress(const std::string &address);
     
     IDeviceInterface* getDevice() const override {return m_device;}
-    inline class OrientationFilter * getOrientationFilterMutable() { return m_orientation_filter; }
-    inline const class OrientationFilter * getOrientationFilter() const { return m_orientation_filter; }
-    inline class PositionFilter * getPositionFilterMutable() { return m_position_filter; }
-    inline const class PositionFilter * getPositionFilter() const { return m_position_filter; }
+    inline class IPoseFilter * getPoseFilterMutable() { return m_pose_filter; }
+    inline const class IPoseFilter * getPoseFilter() const { return m_pose_filter; }
 
     // Estimate the given pose if the controller at some point into the future
     CommonDevicePose getFilteredPose(float time= 0.f) const;
@@ -122,7 +124,7 @@ public:
 
     // Get the pose estimate relative to the given tracker id
     inline const ControllerOpticalPoseEstimation *getTrackerPoseEstimate(int trackerId) const {
-        return (m_tracker_pose_estimation != nullptr) ? &m_tracker_pose_estimation[trackerId] : nullptr;
+        return (m_tracker_pose_estimations != nullptr) ? &m_tracker_pose_estimations[trackerId] : nullptr;
     }
 
     // Get the pose estimate derived from multicam pose tracking
@@ -163,10 +165,10 @@ private:
     IControllerInterface *m_device;
     
     // Filter state
-    ControllerOpticalPoseEstimation *m_tracker_pose_estimation; // array of size TrackerManager::k_max_devices
+    ControllerOpticalPoseEstimation *m_tracker_pose_estimations; // array of size TrackerManager::k_max_devices
     ControllerOpticalPoseEstimation *m_multicam_pose_estimation;
-    class OrientationFilter *m_orientation_filter;
-    class PositionFilter *m_position_filter;
+    class IPoseFilter *m_pose_filter;
+    class PoseFilterSpace *m_pose_filter_space;
     int m_lastPollSeqNumProcessed;
     std::chrono::time_point<std::chrono::high_resolution_clock> m_last_filter_update_timestamp;
     bool m_last_filter_update_timestamp_valid;

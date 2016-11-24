@@ -33,12 +33,14 @@ static const float k_min_sample_distance = 1000.f;
 static const float k_min_sample_distance_sq = k_min_sample_distance*k_min_sample_distance;
 
 //-- definitions -----
-struct AccelerometerPoseSamples
+struct AccelerometerStatistics
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     PSMoveFloatVector3 accelerometer_samples[k_max_accelerometer_samples];
-    PSMoveFloatVector3 avg_accelerometer_sample;
+	Eigen::Vector3f eigen_accelerometer_samples[k_max_accelerometer_samples];
+    Eigen::Vector3f avg_accelerometer_sample;
+	float noise_variance;
     float noise_radius;
     int sample_count;
 
@@ -48,40 +50,58 @@ struct AccelerometerPoseSamples
         noise_radius= 0.f;
     }
 
-    void computeStatistics()
-    {
-        avg_accelerometer_sample = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
-        for (int sample_index= 0; sample_index < k_max_accelerometer_samples; ++sample_index)
-        {
-            avg_accelerometer_sample= avg_accelerometer_sample + accelerometer_samples[sample_index];
-        }
-        avg_accelerometer_sample= avg_accelerometer_sample.unsafe_divide(static_cast<float>(k_max_accelerometer_samples));
+	bool getIsComplete() const
+	{
+		return sample_count >= k_max_accelerometer_samples;
+	}
 
-        noise_radius= 0;
-        for (int sample_index= 0; sample_index < k_max_accelerometer_samples; ++sample_index)
-        {
-            PSMoveFloatVector3 error= accelerometer_samples[sample_index] - avg_accelerometer_sample;
+	void addSample(const PSMoveFloatVector3 &sample)
+	{
+		if (getIsComplete())
+		{
+			return;
+		}
 
-            noise_radius= fmaxf(noise_radius, error.length());
-        }
-    }
+		accelerometer_samples[sample_count] = sample;
+		eigen_accelerometer_samples[sample_count] = psmove_float_vector3_to_eigen_vector3(sample);
+		++sample_count;
+
+		if (getIsComplete())
+		{
+			// Compute the mean and variance of the accelerometer readings
+			Eigen::Vector3f accelerometer_variance;
+			eigen_vector3f_compute_mean_and_variance(
+				eigen_accelerometer_samples, sample_count, 
+				&avg_accelerometer_sample, &accelerometer_variance);
+			noise_variance = accelerometer_variance.maxCoeff();
+
+			// Compute the bounding radius of the accelerometer error
+			noise_radius = 0;
+			for (int sample_index = 0; sample_index < k_max_accelerometer_samples; ++sample_index)
+			{
+				Eigen::Vector3f error = eigen_accelerometer_samples[sample_index] - avg_accelerometer_sample;
+
+				noise_radius = fmaxf(noise_radius, error.norm());
+			}
+		}
+	}
 };
 
 //-- private methods -----
 static void request_set_accelerometer_calibration(
-    const int controller_id,
-    const float noise_radius);
+    const int controller_id, const float noise_radius, const float noise_variance);
 static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
 
 //-- public methods -----
 AppStage_AccelerometerCalibration::AppStage_AccelerometerCalibration(App *app)
     : AppStage(app)
     , m_menuState(AppStage_AccelerometerCalibration::inactive)
+	, m_testMode(AppStage_AccelerometerCalibration::controllerRelative)
     , m_bBypassCalibration(false)
     , m_controllerView(nullptr)
     , m_isControllerStreamActive(false)
     , m_lastControllerSeqNum(-1)
-    , m_noiseSamples(new AccelerometerPoseSamples)
+    , m_noiseSamples(new AccelerometerStatistics)
 {
 }
 
@@ -119,9 +139,7 @@ void AppStage_AccelerometerCalibration::enter()
     ClientPSMoveAPI::register_callback(
         ClientPSMoveAPI::start_controller_data_stream(
             m_controllerView, 
-            ClientPSMoveAPI::includeCalibratedSensorData | 
-            ClientPSMoveAPI::includePhysicsData |
-            ClientPSMoveAPI::includePositionData), // Needed so linear acceleration is computed
+            ClientPSMoveAPI::includeCalibratedSensorData),
         &AppStage_AccelerometerCalibration::handle_acquire_controller, this);
 }
 
@@ -142,8 +160,6 @@ void AppStage_AccelerometerCalibration::update()
 
     if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
     {
-        const PSMovePhysicsData &physicsData= m_controllerView->GetPhysicsData();
-
         switch(m_controllerView->GetControllerViewType())
         {
         case ClientControllerView::eControllerType::PSDualShock4:
@@ -164,8 +180,6 @@ void AppStage_AccelerometerCalibration::update()
             assert(0 && "unreachable");
         }
 
-        m_lastAcceleration= physicsData.Acceleration;
-        m_lastVelocity= physicsData.Velocity;
         m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
         bControllerDataUpdatedThisFrame = true;
     }
@@ -196,20 +210,16 @@ void AppStage_AccelerometerCalibration::update()
             if (bControllerDataUpdatedThisFrame && m_noiseSamples->sample_count < k_max_accelerometer_samples)
             {
                 // Store the new sample
-                m_noiseSamples->accelerometer_samples[m_noiseSamples->sample_count] = m_lastCalibratedAccelerometer;
-                ++m_noiseSamples->sample_count;
+				m_noiseSamples->addSample(m_lastCalibratedAccelerometer);
 
                 // See if we filled all of the samples for this pose
-                if (m_noiseSamples->sample_count >= k_max_accelerometer_samples)
+                if (m_noiseSamples->getIsComplete())
                 {
-                    // Compute the average gravity value in this pose.
-                    // This assumes that the acceleration noise has a Gaussian distribution.
-                    m_noiseSamples->computeStatistics();
-
                     // Tell the service what the new calibration constraints are
                     request_set_accelerometer_calibration(
                         m_controllerView->GetControllerID(),
-                        m_noiseSamples->noise_radius);
+                        m_noiseSamples->noise_radius,
+						m_noiseSamples->noise_variance);
 
                     m_menuState = AppStage_AccelerometerCalibration::measureComplete;
                 }
@@ -218,6 +228,11 @@ void AppStage_AccelerometerCalibration::update()
     case eCalibrationMenuState::measureComplete:
     case eCalibrationMenuState::test:
         {
+			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4 &&
+				m_controllerView->GetPSDualShock4View().GetButtonOptions() == PSMoveButton_PRESSED)
+			{
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView, PSMoveQuaternion::identity()));
+			}
         } break;
     default:
         assert(0 && "unreachable");
@@ -226,19 +241,19 @@ void AppStage_AccelerometerCalibration::update()
 
 void AppStage_AccelerometerCalibration::render()
 {
-    const float modelScale = 18.f;
-    glm::mat4 controllerTransform;
+    const float k_modelScale = 18.f;
+    glm::mat4 displayControllerTransform;
 
     switch(m_controllerView->GetControllerViewType())
     {
     case ClientControllerView::PSMove:
-		controllerTransform= 
+		displayControllerTransform= 
 			glm::rotate(
-				glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale)),
+				glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale)),
 				90.f, glm::vec3(1.f, 0.f, 0.f));  
         break;
     case ClientControllerView::PSDualShock4:
-        controllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale));
+        displayControllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale));
         break;
     }
 
@@ -251,7 +266,7 @@ void AppStage_AccelerometerCalibration::render()
     case eCalibrationMenuState::placeController:
         {
             // Draw the controller model in the pose we want the user place it in
-            drawController(m_controllerView, controllerTransform);
+            drawController(m_controllerView, displayControllerTransform);
         } break;
     case eCalibrationMenuState::measureNoise:
     case eCalibrationMenuState::measureComplete:
@@ -260,7 +275,7 @@ void AppStage_AccelerometerCalibration::render()
             glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
 
             // Draw the controller in the middle            
-            drawController(m_controllerView, controllerTransform);
+            drawController(m_controllerView, displayControllerTransform);
 
             // Draw the sample point cloud around the origin
             drawPointCloud(sampleTransform, glm::vec3(1.f, 1.f, 1.f), 
@@ -278,31 +293,47 @@ void AppStage_AccelerometerCalibration::render()
         } break;
     case eCalibrationMenuState::test:
         {
-            const float sampleScale = 1.f;
-            glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
+			const float k_sensorScale = 200.f;
 
+			glm::mat4 controllerTransform;
+			glm::mat4 sensorTransform;
+
+			switch (m_testMode)
+			{
+			case eTestMode::controllerRelative:
+				{
+					controllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale));
+					sensorTransform = glm::scale(glm::mat4(1.f), glm::vec3(k_sensorScale, k_sensorScale, k_sensorScale));
+				} break;
+			case eTestMode::worldRelative:
+				{
+					// Get the orientation of the controller in world space (OpenGL Coordinate System)            
+					glm::quat q = psmove_quaternion_to_glm_quat(m_controllerView->GetOrientation());
+					glm::mat4 worldSpaceOrientation = glm::mat4_cast(q);
+
+					controllerTransform = glm::scale(worldSpaceOrientation, glm::vec3(k_modelScale, k_modelScale, k_modelScale));
+					sensorTransform = glm::scale(worldSpaceOrientation, glm::vec3(k_sensorScale, k_sensorScale, k_sensorScale));
+				} break;
+			default:
+				assert(0 && "unreachable");
+			}
+
+			// Draw the fixed world space axes
+			drawTransformedAxes(glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale)), 200.f);
+
+			// Draw the controller
             drawController(m_controllerView, controllerTransform);
             drawTransformedAxes(controllerTransform, 200.f);
 
-            // Draw the current filtered acceleration direction
-            {
-                const float accel_cms2 = m_lastAcceleration.length();
-                glm::vec3 m_start = glm::vec3(0.f);
-                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastAcceleration);
+			// Draw the accelerometer
+			{
+				const float accel_g = m_lastCalibratedAccelerometer.length();
+				glm::vec3 m_start = glm::vec3(0.f);
+				glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
 
-                drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
-                drawTextAtWorldPosition(sampleTransform, m_end, "A(%.1fcm/s^2)", accel_cms2);
-            }
-
-            // Draw the current filtered acceleration direction
-            {
-                const float vel_cms = m_lastVelocity.length();
-                glm::vec3 m_start = glm::vec3(0.f);
-                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastVelocity);
-
-                drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(0.f, 1.f, 0.f));
-                drawTextAtWorldPosition(sampleTransform, m_end, "V(%.1fcm/s)", vel_cms);
-            }
+				drawArrow(sensorTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 1.f, 1.f));
+				drawTextAtWorldPosition(sensorTransform, m_end, "A(%.1fg)", accel_g);
+			}
 
         } break;
     default:
@@ -426,7 +457,7 @@ void AppStage_AccelerometerCalibration::renderUI()
     case eCalibrationMenuState::test:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 80));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             if (m_bBypassCalibration)
@@ -437,6 +468,21 @@ void AppStage_AccelerometerCalibration::renderUI()
             {
                 ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
             }
+
+			if (m_testMode == eTestMode::controllerRelative)
+			{
+				if (ImGui::Button("World Relative"))
+				{
+					m_testMode = eTestMode::worldRelative;
+				}
+			}
+			else if (m_testMode == eTestMode::worldRelative)
+			{
+				if (ImGui::Button("Controller Relative"))
+				{
+					m_testMode= eTestMode::controllerRelative;
+				}
+			}				
 
             if (ImGui::Button("Ok"))
             {
@@ -460,16 +506,18 @@ void AppStage_AccelerometerCalibration::renderUI()
 //-- private methods -----
 static void request_set_accelerometer_calibration(
     const int controller_id,
-    const float noise_radius)
+    const float noise_radius,
+	const float noise_variance)
 {
     RequestPtr request(new PSMoveProtocol::Request());
-    request->set_type(PSMoveProtocol::Request_RequestType_SET_ACCELEROMETER_CALIBRATION);
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_ACCELEROMETER_CALIBRATION);
 
-    PSMoveProtocol::Request_RequestSetAccelerometerCalibration *calibration =
-        request->mutable_set_accelerometer_calibration_request();
+    PSMoveProtocol::Request_RequestSetControllerAccelerometerCalibration *calibration =
+        request->mutable_set_controller_accelerometer_calibration_request();
 
     calibration->set_controller_id(controller_id);
     calibration->set_noise_radius(noise_radius);
+	calibration->set_variance(noise_variance);
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }

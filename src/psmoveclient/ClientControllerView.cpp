@@ -71,6 +71,15 @@ bool ClientPSMoveView::GetIsStable() const
     return GetIsStableAndAlignedWithGravity();
 }
 
+bool ClientPSMoveView::GetIsGyroStable() const
+{
+	const float k_gyro_noise = 10.f*k_degrees_to_radians; // noise threshold in rad/sec
+	const float worst_rotation_rate = fabsf(CalibratedSensorData.Gyroscope.maxValue());
+	const bool isOk = worst_rotation_rate < k_gyro_noise;
+
+	return isOk;
+}
+
 bool ClientPSMoveView::GetIsStableAndAlignedWithGravity() const
 {
     const float k_cosine_10_degrees = 0.984808f;
@@ -174,6 +183,7 @@ void ClientPSMoveView::ApplyControllerDataFrame(
                 this->RawTrackerData.RelativePositions[listIndex] =
                     PSMovePosition::create(
                         positionOnTracker.x(), positionOnTracker.y(), positionOnTracker.z());
+				this->RawTrackerData.RelativeOrientations[listIndex] = PSMoveQuaternion::create(1.f, 0.f, 0.f, 0.f);
 
                 if (raw_tracker_data.projected_spheres_size() > 0)
                 {
@@ -194,6 +204,16 @@ void ClientPSMoveView::ApplyControllerDataFrame(
                     projection.shape_type = PSMoveTrackingProjection::eShapeType::INVALID_PROJECTION;
                 }
             }            
+
+			if (raw_tracker_data.has_multicam_position())
+			{
+				const PSMoveProtocol::Position &multicam_position = raw_tracker_data.multicam_position();
+
+				this->RawTrackerData.MulticamPosition.x = multicam_position.x();
+				this->RawTrackerData.MulticamPosition.y = multicam_position.y();
+				this->RawTrackerData.MulticamPosition.z = multicam_position.z();
+				this->RawTrackerData.bMulticamPositionValid = true;
+			}
         }
         else
         {
@@ -496,6 +516,27 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
                     projection.shape_type = PSMoveTrackingProjection::eShapeType::INVALID_PROJECTION;
                 }
             }
+
+			if (raw_tracker_data.has_multicam_position())
+			{
+				const PSMoveProtocol::Position &multicam_position = raw_tracker_data.multicam_position();
+
+				this->RawTrackerData.MulticamPosition.x = multicam_position.x();
+				this->RawTrackerData.MulticamPosition.y = multicam_position.y();
+				this->RawTrackerData.MulticamPosition.z = multicam_position.z();
+				this->RawTrackerData.bMulticamPositionValid = true;
+			}
+
+			if (raw_tracker_data.has_multicam_orientation())
+			{
+				const PSMoveProtocol::Orientation &multicam_orientation = raw_tracker_data.multicam_orientation();
+
+				this->RawTrackerData.MulticamOrientation.w = multicam_orientation.w();
+				this->RawTrackerData.MulticamOrientation.x = multicam_orientation.x();
+				this->RawTrackerData.MulticamOrientation.y = multicam_orientation.y();
+				this->RawTrackerData.MulticamOrientation.z = multicam_orientation.z();
+				this->RawTrackerData.bMulticamOrientationValid = true;
+			}
         }
         else
         {
@@ -632,13 +673,18 @@ const PSDualShock4CalibratedSensorData &ClientPSDualShock4View::GetCalibratedSen
     return IsValid() ? CalibratedSensorData : k_empty_ds4_calibrated_sensor_data;
 }
 
-bool ClientPSDualShock4View::GetIsStable() const
+bool ClientPSDualShock4View::GetIsGyroStable() const
 {
     const float k_gyro_noise= 10.f*k_degrees_to_radians; // noise threshold in rad/sec
     const float worst_rotation_rate = fabsf(CalibratedSensorData.Gyroscope.maxValue());
     const bool isOk = worst_rotation_rate < k_gyro_noise;
 
     return isOk;
+}
+
+bool ClientPSDualShock4View::GetIsStable() const
+{
+	return GetIsGyroStable();
 }
 
 const PSMoveRawTrackerData &ClientPSDualShock4View::GetRawTrackerData() const
@@ -896,6 +942,23 @@ bool ClientControllerView::GetIsPoseValid() const
         assert(0 && "invalid controller type");
         return false;
     }
+}
+
+bool ClientControllerView::GetIsGyroStable() const
+{
+	switch (ControllerViewType)
+	{
+	case eControllerType::PSMove:
+		return GetPSMoveView().GetIsGyroStable();
+	case eControllerType::PSNavi:
+		// Always stable! (no physics)
+		return true;
+	case eControllerType::PSDualShock4:
+		return GetPSDualShock4View().GetIsGyroStable();
+	default:
+		assert(0 && "invalid controller type");
+		return true;
+	}
 }
 
 bool ClientControllerView::GetIsStable() const

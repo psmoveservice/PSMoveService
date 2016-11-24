@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.0)
 
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 
+# Fix Error C1128 - number of sections exceeded object file format limit: compile with /bigobj
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+endif()
+
 # Dependencies
 set(PSMOVE_SERVICE_INCL_DIRS)
 set(PSMOVE_SERVICE_REQ_LIBS)
@@ -74,6 +79,12 @@ file(GLOB PSMOVESERVICE_DEVICE_VIEW_SRC
 )
 source_group("Device\\View" FILES ${PSMOVESERVICE_DEVICE_VIEW_SRC})
 
+file(GLOB PSMOVESERVICE_HMD_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/MorpheusHMD/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/MorpheusHMD/*.h"
+)
+source_group("HMD" FILES ${PSMOVESERVICE_HMD_SRC})
+
 file(GLOB PSMOVESERVICE_FILTER_SRC
     "${CMAKE_CURRENT_LIST_DIR}/Filter/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Filter/*.h"        
@@ -113,7 +124,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${CMAKE_CURRENT_LIST_DIR}/Device/Manager
     ${CMAKE_CURRENT_LIST_DIR}/Device/View
     ${CMAKE_CURRENT_LIST_DIR}/Filter
-    ${CMAKE_CURRENT_LIST_DIR}/OculusHMD
+    ${CMAKE_CURRENT_LIST_DIR}/MorpheusHMD
     ${CMAKE_CURRENT_LIST_DIR}/Platform
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig
     ${CMAKE_CURRENT_LIST_DIR}/PSDualShock4
@@ -126,6 +137,9 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
 
 # Eigen math library
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
+
+# mherb/Kalman library
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include)
 
 # Boost.Application and type_index are header only (?)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
@@ -203,6 +217,9 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"
     list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
     list(APPEND PSMOVE_SERVICE_REQ_LIBS ${LIBUSB_LIBRARIES})
     add_definitions(-DHAVE_PS3EYE)
+    IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-braced-scalar-init")
+    ENDIF()
 ENDIF()
 
 # CL EYE - only on Win32

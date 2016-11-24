@@ -56,14 +56,20 @@ AppStage_ComputeTrackerPoses::~AppStage_ComputeTrackerPoses()
 
 void AppStage_ComputeTrackerPoses::enterStageAndCalibrate(App *app, int reqeusted_controller_id)
 {
-    app->getAppStage<AppStage_ComputeTrackerPoses>()->m_bSkipCalibration = false;
+	AppStage_ComputeTrackerPoses *appStage= app->getAppStage<AppStage_ComputeTrackerPoses>();
+	appStage->m_bSkipCalibration = false;
+	appStage->m_overrideControllerId = reqeusted_controller_id;
+
 	app->getAppStage<AppStage_ComputeTrackerPoses>()->m_overrideControllerId = reqeusted_controller_id;
     app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
 }
 
 void AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(App *app, int reqeusted_controller_id)
 {
-    app->getAppStage<AppStage_ComputeTrackerPoses>()->m_bSkipCalibration = true;
+	AppStage_ComputeTrackerPoses *appStage = app->getAppStage<AppStage_ComputeTrackerPoses>();
+	appStage->m_bSkipCalibration = true;
+	appStage->m_overrideControllerId = reqeusted_controller_id;
+
 	app->getAppStage<AppStage_ComputeTrackerPoses>()->m_overrideControllerId = reqeusted_controller_id;
     app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
 }
@@ -186,7 +192,6 @@ void AppStage_ComputeTrackerPoses::render()
 
                 drawTransformedAxes(chaperoneSpaceTransform, 20.f);
             }
-
 
             // Draw the psmove model
             {

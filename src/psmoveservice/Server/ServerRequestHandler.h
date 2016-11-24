@@ -44,6 +44,24 @@ struct TrackerStreamInfo
     }
 };
 
+struct HMDStreamInfo
+{
+	bool include_position_data;
+	bool include_physics_data;
+	bool include_raw_sensor_data;
+	bool include_calibrated_sensor_data;
+	bool include_raw_tracker_data;
+
+    inline void Clear()
+    {
+		include_position_data = false;
+		include_physics_data = false;
+		include_raw_sensor_data = false;
+		include_calibrated_sensor_data = false;
+		include_raw_tracker_data = false;
+    }
+};
+
 class ServerRequestHandler 
 {
 public:
@@ -85,6 +103,18 @@ public:
         DeviceOutputDataFramePtr &data_frame);
     void publish_tracker_data_frame(
         class ServerTrackerView *tracker_view, t_generate_tracker_data_frame_for_stream callback);
+        
+    /// When publishing hmd data to all listening connections
+    /// we need to provide a callback that will fill out a data frame given:
+    /// * A \ref ServerHMDView we want to publish to all listening connections
+    /// * A \ref HMDStreamInfo that describes what info the connection wants
+    /// This callback will be called for each listening connection
+    typedef void(*t_generate_hmd_data_frame_for_stream)(
+        const class ServerHMDView *hmd_view,
+        const HMDStreamInfo *stream_info,
+        DeviceOutputDataFramePtr &data_frame);
+    void publish_hmd_data_frame(
+        class ServerHMDView *hmd_view, t_generate_hmd_data_frame_for_stream callback);        
 
 private:
     // private implementation - same lifetime as the ServerRequestHandler

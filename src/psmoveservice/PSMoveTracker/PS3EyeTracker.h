@@ -48,10 +48,16 @@ public:
     double vfov;
     double zNear;
     double zFar;
+    double distortionK1;
+    double distortionK2;
+    double distortionK3;
+    double distortionP1;
+    double distortionP2;
+
     eFOVSetting fovSetting;
     CommonDevicePose pose;
 	CommonHSVColorRangeTable SharedColorPresets;
-	std::vector<CommonHSVColorRangeTable> ControllerColorPresets;
+	std::vector<CommonHSVColorRangeTable> DeviceColorPresets;
 
     static const int CONFIG_VERSION;
 };
@@ -73,7 +79,7 @@ struct PS3EyeTrackerState : public CommonDeviceState
 class PS3EyeTracker : public ITrackerInterface {
 public:
     PS3EyeTracker();
-    ~PS3EyeTracker();
+    virtual ~PS3EyeTracker();
         
     // PSMoveTracker
     bool open(); // Opens the first HID device for the controller
@@ -96,16 +102,22 @@ public:
     std::string getUSBDevicePath() const override;
     bool getVideoFrameDimensions(int *out_width, int *out_height, int *out_stride) const override;
     const unsigned char *getVideoFrameBuffer() const override;
+    void loadSettings() override;
+    void saveSettings() override;
     void setExposure(double value) override;
     double getExposure() const override;
 	void setGain(double value) override;
 	double getGain() const override;
     void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
-        float &outPrincipalX, float &outPrincipalY) const override;
+        float &outPrincipalX, float &outPrincipalY,
+        float &outDistortionK1, float &outDistortionK2, float &outDistortionK3,
+        float &outDistortionP1, float &outDistortionP2) const override;
     void setCameraIntrinsics(
         float focalLengthX, float focalLengthY,
-        float principalX, float principalY) override;
+        float principalX, float principalY,
+        float distortionK1, float distortionK2, float distortionK3,
+        float distortionP1, float distortionP2) override;
     CommonDevicePose getTrackerPose() const override;
     void setTrackerPose(const struct CommonDevicePose *pose) override;
     void getFOV(float &outHFOV, float &outVFOV) const override;

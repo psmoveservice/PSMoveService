@@ -107,9 +107,11 @@ ControllerManager::setControllerRumble(
     float rumble_amount,
     CommonControllerState::RumbleChannel channel)
 {
-    if (ServerUtility::is_index_valid(controller_id, k_max_devices))
+	ServerControllerViewPtr controllerView = getControllerViewPtr(controller_id);
+
+    if (controllerView && controllerView->getIsOpen())
     {
-        getControllerViewPtr(controller_id)->setControllerRumble(rumble_amount, channel);
+        controllerView->setControllerRumble(rumble_amount, channel);
     }
 }
 
@@ -117,15 +119,15 @@ bool
 ControllerManager::resetPose(int controller_id, const Eigen::Quaternionf& q_pose)
 {
     bool bSuccess = false;
-    ServerControllerViewPtr ControllerPtr = getControllerViewPtr(controller_id);
+    ServerControllerViewPtr controllerView = getControllerViewPtr(controller_id);
 
-    if (ControllerPtr)
+    if (controllerView && controllerView->getIsOpen())
     {
-        OrientationFilter *filter = ControllerPtr->getOrientationFilterMutable();
+        IPoseFilter *filter = controllerView->getPoseFilterMutable();
 
         if (filter != nullptr)
         {
-            filter->resetOrientation(q_pose);
+            filter->recenterState(Eigen::Vector3f::Zero(), q_pose);
             bSuccess = true;
         }
     }

@@ -276,20 +276,25 @@ PSDualShock4ControllerConfig::config2ptree()
     pt.put("Calibration.Accel.Y.b", accelerometer_bias.j);
     pt.put("Calibration.Accel.Z.b", accelerometer_bias.k);
     pt.put("Calibration.Accel.NoiseRadius", accelerometer_noise_radius);
+	pt.put("Calibration.Accel.Variance", accelerometer_variance);
     pt.put("Calibration.Gyro.Gain", gyro_gain);
     pt.put("Calibration.Gyro.Variance", gyro_variance);
     pt.put("Calibration.Gyro.Drift", gyro_drift);
     pt.put("Calibration.Identity.Gravity.X", identity_gravity_direction.i);
     pt.put("Calibration.Identity.Gravity.Y", identity_gravity_direction.j);
     pt.put("Calibration.Identity.Gravity.Z", identity_gravity_direction.k);
+	pt.put("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
+	pt.put("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
+	pt.put("Calibration.Orientation.VarianceExpFitA", orientation_variance_exp_fit_a);
+	pt.put("Calibration.Orientation.VarianceExpFitB", orientation_variance_exp_fit_b);
+	pt.put("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
-    pt.put("OrientationFilter.MinQualityScreenArea", min_orientation_quality_screen_area);
-    pt.put("OrientationFilter.MaxQualityScreenArea", max_orientation_quality_screen_area);
+	pt.put("OrientationFilter.FilterType", orientation_filter_type);
 
-    pt.put("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
-    pt.put("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
-
+	pt.put("PositionFilter.FilterType", position_filter_type);
     pt.put("PositionFilter.MaxVelocity", max_velocity);
+
+	pt.put("PoseFilter.MinScreenProjectionArea", min_screen_projection_area);
 
     pt.put("prediction_time", prediction_time);
     pt.put("max_poll_failure_count", max_poll_failure_count);
@@ -317,7 +322,13 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         accelerometer_bias.i = pt.get<float>("Calibration.Accel.X.b", accelerometer_bias.i);
         accelerometer_bias.j = pt.get<float>("Calibration.Accel.Y.b", accelerometer_bias.j);
         accelerometer_bias.k = pt.get<float>("Calibration.Accel.Z.b", accelerometer_bias.k);
-        accelerometer_noise_radius = pt.get<float>("Calibration.Accel.NoiseRadius", 0.0f);
+        accelerometer_noise_radius = pt.get<float>("Calibration.Accel.NoiseRadius", accelerometer_noise_radius);
+		accelerometer_variance= pt.get<float>("Calibration.Accel.Variance", accelerometer_variance);
+		position_variance_exp_fit_a= pt.get<float>("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
+		position_variance_exp_fit_b= pt.get<float>("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
+		orientation_variance_exp_fit_a= pt.get<float>("Calibration.Orientation.VarianceExpFitA", orientation_variance_exp_fit_a);
+		orientation_variance_exp_fit_b= pt.get<float>("Calibration.Orientation.VarianceExpFitB", orientation_variance_exp_fit_b);
+		mean_update_time_delta= pt.get<float>("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
         // Use the current gyroscope values (constructor defaults) as the default values
         gyro_gain= pt.get<float>("Calibration.Gyro.Gain", gyro_gain);
@@ -325,13 +336,14 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         gyro_drift= pt.get<float>("Calibration.Gyro.Drift", gyro_drift);
 
         // Get the orientation filter parameters
-        min_orientation_quality_screen_area= pt.get<float>("OrientationFilter.MinQualityScreenArea", min_orientation_quality_screen_area);
-        max_orientation_quality_screen_area= pt.get<float>("OrientationFilter.MaxQualityScreenArea", max_orientation_quality_screen_area);
+		orientation_filter_type= pt.get<std::string>("OrientationFilter.FilterType", orientation_filter_type);
 
         // Get the position filter parameters
-        min_position_quality_screen_area= pt.get<float>("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
-        max_position_quality_screen_area= pt.get<float>("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
+		position_filter_type= pt.get<std::string>("PositionFilter.FilterType", position_filter_type);
         max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
+
+		// Get shared filter parameters
+		min_screen_projection_area = pt.get<float>("PoseFilter.MinScreenProjectionArea", min_screen_projection_area);
 
         // Get the calibration direction for "down"
         identity_gravity_direction.i= pt.get<float>("Calibration.Identity.Gravity.X", identity_gravity_direction.i);
@@ -877,9 +889,9 @@ PSDualShock4Controller::poll()
             // Processes the IMU data
             {
                 // Piece together the 12-bit accelerometer data
-                short raw_accelX = static_cast<short>((InData->accel_x[1] << 8) | InData->accel_x[0]);
-                short raw_accelY = static_cast<short>((InData->accel_y[1] << 8) | InData->accel_y[0]);
-                short raw_accelZ = static_cast<short>((InData->accel_z[1] << 8) | InData->accel_z[0]);
+                short raw_accelX = static_cast<short>((InData->accel_x[1] << 8) | InData->accel_x[0]) >> 4;
+                short raw_accelY = static_cast<short>((InData->accel_y[1] << 8) | InData->accel_y[0]) >> 4;
+                short raw_accelZ = static_cast<short>((InData->accel_z[1] << 8) | InData->accel_z[0]) >> 4;
 
                 // Piece together the 16-bit gyroscope data
                 short raw_gyroX = static_cast<short>((InData->gyro_x[1] << 8) | InData->gyro_x[0]);
@@ -1009,15 +1021,22 @@ PSDualShock4Controller::getTrackingShape(CommonDeviceTrackingShape &outTrackingS
     // z-axis= from the center out through the extension port
 
     // The triangle connects the mid-points of each light-bar edge (lower right, lower left, upper middle)
-    outTrackingShape.shape.light_bar.triangle[0] = { tri_half_x, -tri_lower_half_y, 0.f };
-    outTrackingShape.shape.light_bar.triangle[1] = { -tri_half_x, -tri_lower_half_y, 0.f };
-    outTrackingShape.shape.light_bar.triangle[2] = { 0.f, quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.triangle[CommonDeviceTrackingShape::TriVertexLowerRight] = 
+		{ tri_half_x, -tri_lower_half_y, 0.f };
+    outTrackingShape.shape.light_bar.triangle[CommonDeviceTrackingShape::TriVertexLowerLeft] = 
+		{ -tri_half_x, -tri_lower_half_y, 0.f };
+    outTrackingShape.shape.light_bar.triangle[CommonDeviceTrackingShape::TriVertexUpperMiddle] = 
+		{ 0.f, quad_half_y, 0.f };
 
     // The quad bounds the light-bar (upper right, upper left, lower left, lower right)
-    outTrackingShape.shape.light_bar.quad[0] = { quad_half_x, quad_half_y, 0.f };
-    outTrackingShape.shape.light_bar.quad[1] = { -quad_half_x, quad_half_y, 0.f };
-    outTrackingShape.shape.light_bar.quad[2] = { -quad_half_x, -quad_half_y, 0.f };
-    outTrackingShape.shape.light_bar.quad[3] = { quad_half_x, -quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexUpperRight] = 
+		{ quad_half_x, quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexUpperLeft] = 
+		{ -quad_half_x, quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexLowerLeft] = 
+		{ -quad_half_x, -quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexLowerRight] = 
+		{ quad_half_x, -quad_half_y, 0.f };
 
     outTrackingShape.shape_type = eCommonTrackingShapeType::LightBar;
 }

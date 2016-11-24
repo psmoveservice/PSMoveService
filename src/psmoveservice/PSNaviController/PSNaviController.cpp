@@ -18,7 +18,7 @@
 //###bwalker $TODO This haven't been tested yet
 #define PSNAVI_BTADDR_GET_SIZE 16
 #define PSNAVI_BTADDR_SIZE 6
-#define PSNAVI_BTADDR_SET_SIZE 7
+#define PSNAVI_BTADDR_SET_SIZE 10
 #define PSNAVI_STATE_BUFFER_MAX 16
 
 //###bwalker $TODO This haven't been tested yet

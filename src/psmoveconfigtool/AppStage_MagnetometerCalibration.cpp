@@ -25,24 +25,200 @@
 const char *AppStage_MagnetometerCalibration::APP_STAGE_NAME= "MagnetometerCalibration";
 
 //-- constants -----
-const int k_sample_count_target = 200;
-const int k_sample_range_target= 280;
-const double k_stabilize_wait_time_ms= 1000.f;
-const int k_desired_magnetometer_sample_count= 100;
-const int k_min_sample_distance= 20;
-const int k_min_sample_distance_sq= k_min_sample_distance*k_min_sample_distance;
+static const int k_max_bounds_magnetometer_samples = 500;
+static const int k_sample_count_target = 200;
+static const int k_sample_range_target= 280;
+static const double k_stabilize_wait_time_ms= 1000.f;
+static const int k_max_identity_magnetometer_samples= 100;
+static const int k_min_sample_distance= 20;
+static const int k_min_sample_distance_sq= k_min_sample_distance*k_min_sample_distance;
+
+enum eEllipseFitMethod
+{
+    _ellipse_fit_method_box,
+    _ellipse_fit_method_min_volume,
+};
 
 //-- private methods -----
-static void expandMagnetometerBounds(
-    const PSMoveIntVector3 &sample, PSMoveIntVector3 &minSampleExtents, PSMoveIntVector3 &maxSampleExtents);
-static int computeMagnetometerCalibrationMinRange(
-    const PSMoveIntVector3 &minSampleExtents, const PSMoveIntVector3 &maxSampleExtents);
-static int computeMagnetometerCalibrationMaxRange(
-    const PSMoveIntVector3 &minSampleExtents, const PSMoveIntVector3 &maxSampleExtents);
-static PSMoveFloatVector3 computeNormalizedMagnetometerVector(
-    const PSMoveIntVector3 &sample,
-    const PSMoveIntVector3 &minSampleExtents,
-    const PSMoveIntVector3 &maxSampleExtents);
+struct MagnetometerBoundsStatistics
+{
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    PSMoveIntVector3 magnetometerIntSamples[k_max_bounds_magnetometer_samples];
+    Eigen::Vector3f magnetometerEigenSamples[k_max_bounds_magnetometer_samples];
+    int sampleCount;
+    int samplePercentage;
+
+    PSMoveIntVector3 minSampleExtent;
+    PSMoveIntVector3 maxSampleExtent;
+
+    EigenFitEllipsoid sampleFitEllipsoid;
+    int ellipseFitMethod;
+
+	MagnetometerBoundsStatistics()
+		: sampleCount(0)
+		, samplePercentage(0)
+		, minSampleExtent()
+		, maxSampleExtent()
+		, ellipseFitMethod(_ellipse_fit_method_box)
+	{
+		clear();
+	}
+
+	bool getIsComplete() const 
+	{
+		return sampleCount >= k_max_bounds_magnetometer_samples;
+	}
+
+	void clear()
+	{
+		sampleCount= 0;
+		samplePercentage= 0;
+
+		minSampleExtent= *k_psmove_int_vector3_zero;
+		maxSampleExtent= *k_psmove_int_vector3_zero;
+
+		sampleFitEllipsoid.clear();
+	}
+
+	bool addSample(const PSMoveIntVector3 &sample)
+	{
+		bool bSuccess= sampleCount < k_max_bounds_magnetometer_samples;
+
+		if (bSuccess)
+		{
+			// Grow the measurement extents bounding box
+			expandMagnetometerBounds(sample);
+
+			// Make sure this sample isn't too close to another sample
+			for (int sampleIndex= sampleCount-1; sampleIndex >= 0; --sampleIndex)
+			{
+				const PSMoveIntVector3 diff= sample - magnetometerIntSamples[sampleIndex];
+				const int distanceSquared= diff.lengthSquared();
+
+				if (distanceSquared < k_min_sample_distance_sq)
+				{
+					bSuccess= false;
+					break;
+				}
+			}
+		}
+
+		if (bSuccess)
+		{
+            // Store the new sample
+            magnetometerIntSamples[sampleCount]= sample;
+            magnetometerEigenSamples[sampleCount] = psmove_int_vector3_to_eigen_vector3(sample);
+            ++sampleCount;
+
+            // Compute a best fit ellipsoid for the sample points
+            switch (ellipseFitMethod)
+            {
+            case _ellipse_fit_method_box:
+                eigen_alignment_fit_bounding_box_ellipsoid(
+                    magnetometerEigenSamples, sampleCount, sampleFitEllipsoid);
+                break;
+            case _ellipse_fit_method_min_volume:
+                eigen_alignment_fit_min_volume_ellipsoid(
+                    magnetometerEigenSamples, sampleCount, 0.0001f, sampleFitEllipsoid);
+                break;
+            }
+
+            // Update the extents progress based on min extent size
+            int minRange = computeMagnetometerCalibrationMinRange();
+            if (minRange > 0)
+            {
+                samplePercentage = 
+                    std::min(
+                        std::min((100 * sampleCount) / k_sample_count_target, 100),
+                        std::min((100 * minRange) / k_sample_range_target, 100));
+            }
+		}
+
+		return bSuccess;
+	}
+
+private:
+	void expandMagnetometerBounds(const PSMoveIntVector3 &sample)
+	{
+		minSampleExtent= PSMoveIntVector3::min(minSampleExtent, sample);
+		maxSampleExtent= PSMoveIntVector3::max(maxSampleExtent, sample);
+	}
+
+	int computeMagnetometerCalibrationMinRange()
+	{
+		PSMoveIntVector3 extents= maxSampleExtent - minSampleExtent;
+
+		return extents.minValue();
+	}
+
+	int computeMagnetometerCalibrationMaxRange()
+	{
+		PSMoveIntVector3 extents= maxSampleExtent - minSampleExtent;
+
+		return extents.maxValue();
+	}
+};
+
+struct MagnetometerIdentityStatistics
+{
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+	// Samples of the magnetometer in the space
+    Eigen::Vector3f magnetometerEllipsoidSamples[k_max_identity_magnetometer_samples];
+    int sampleCount;
+
+	Eigen::Vector3f magnetometerIdentity;
+	float magnetometerVariance;
+
+	MagnetometerIdentityStatistics()
+	{
+		clear();
+	}
+
+	bool getIsComplete() const 
+	{
+		return sampleCount >= k_max_identity_magnetometer_samples;
+	}
+
+	void clear()
+	{
+		sampleCount= 0;
+		magnetometerIdentity= Eigen::Vector3f::Zero();
+		magnetometerVariance= 0.f;
+	}
+
+	void addSample(const Eigen::Vector3f &ellipsoid_sample)
+	{
+		if (sampleCount < k_max_identity_magnetometer_samples)
+		{
+            magnetometerEllipsoidSamples[sampleCount] = ellipsoid_sample;
+			++sampleCount;
+
+			// If we just added the last sample, compute the statistics
+			if (sampleCount >= k_max_identity_magnetometer_samples)
+			{
+				Eigen::Vector3f meanVector;
+				Eigen::Vector3f varianceVector;
+
+				// Compute the mean and variance samples
+				eigen_vector3f_compute_mean_and_variance(
+					magnetometerEllipsoidSamples,
+					k_max_identity_magnetometer_samples,
+					&magnetometerIdentity,
+					&varianceVector);
+				
+				// The mean vector should be close to the unit length
+				// but normalize it just in case 
+				eigen_vector3f_normalize_with_default(magnetometerIdentity, Eigen::Vector3f(0.f, 1.f, 0.f));
+
+				// Only the the max component of the variance
+				magnetometerVariance= varianceVector.maxCoeff();
+			}
+		}
+	}
+};
+
 static void write_calibration_parameter(const Eigen::Vector3f &in_vector, PSMoveProtocol::FloatVector *out_vector);
 
 //-- public methods -----
@@ -56,12 +232,8 @@ AppStage_MagnetometerCalibration::AppStage_MagnetometerCalibration(App *app)
     , m_lastControllerSeqNum(-1)
     , m_lastRawMagnetometer()
     , m_lastCalibratedAccelerometer()
-    , m_alignedSamples(new MagnetometerAlignedSamples)
-    , m_sampleCount(0)
-    , m_samplePercentage(0)
-    , m_minSampleExtent()
-    , m_maxSampleExtent()
-    , m_ellipseFitMethod(_ellipse_fit_method_box)
+    , m_boundsStatistics(new MagnetometerBoundsStatistics)
+	, m_identityStatistics(new MagnetometerIdentityStatistics)
     , m_led_color_r(0)
     , m_led_color_g(0)
     , m_led_color_b(0)
@@ -76,8 +248,10 @@ AppStage_MagnetometerCalibration::AppStage_MagnetometerCalibration(App *app)
 
 AppStage_MagnetometerCalibration::~AppStage_MagnetometerCalibration()
 {
-    delete m_alignedSamples;
-    m_alignedSamples = nullptr;
+    delete m_boundsStatistics;
+    m_boundsStatistics = nullptr;
+	delete m_identityStatistics;
+	m_identityStatistics = nullptr;
 }
 
 void AppStage_MagnetometerCalibration::enter()
@@ -98,11 +272,8 @@ void AppStage_MagnetometerCalibration::enter()
     m_lastRawMagnetometer= *k_psmove_int_vector3_zero;
     m_lastCalibratedAccelerometer= *k_psmove_float_vector3_zero;
 
-    m_sampleCount = 0;
-    m_samplePercentage = 0;
-
-    m_minSampleExtent= *k_psmove_int_vector3_zero;
-    m_maxSampleExtent= *k_psmove_int_vector3_zero;
+	m_boundsStatistics->clear();
+	m_identityStatistics->clear();
 
     m_led_color_r= 0;
     m_led_color_g= 0;
@@ -110,9 +281,6 @@ void AppStage_MagnetometerCalibration::enter()
 
 	m_stableStartTime = std::chrono::time_point<std::chrono::high_resolution_clock>();
     m_bIsStable= false;
-
-    m_identityPoseMVectorSum= *k_psmove_int_vector3_zero;
-    m_identityPoseSampleCount= 0;
 
     m_menuState= eCalibrationMenuState::waitingForStreamStartResponse;
     assert(!m_isControllerStreamActive);
@@ -159,11 +327,7 @@ void AppStage_MagnetometerCalibration::update()
             {
                 if (m_controllerView->GetPSMoveView().GetHasValidHardwareCalibration())
                 {
-                    m_sampleCount = 0;
-                    m_samplePercentage = 0;
-
-                    m_minSampleExtent= *k_psmove_int_vector3_zero;
-                    m_maxSampleExtent= *k_psmove_int_vector3_zero;
+					m_boundsStatistics->clear();
                     
                     m_led_color_r= 255; m_led_color_g= 0; m_led_color_b= 0;
 
@@ -189,68 +353,22 @@ void AppStage_MagnetometerCalibration::update()
         } break;
     case eCalibrationMenuState::measureBExtents:
         {
-            if (bControllerDataUpdatedThisFrame && m_sampleCount < k_max_magnetometer_samples)
+            if (bControllerDataUpdatedThisFrame && !m_boundsStatistics->getIsComplete())
             {
-                // Grow the measurement extents bounding box
-                expandMagnetometerBounds(m_lastRawMagnetometer, m_minSampleExtent, m_maxSampleExtent);
+				if (m_boundsStatistics->addSample(m_lastRawMagnetometer))
+				{
+                    int led_color_r = (255 * (100 - m_boundsStatistics->samplePercentage)) / 100;
+                    int led_color_g = (255 * m_boundsStatistics->samplePercentage) / 100;
+                    int led_color_b = 0;
 
-                // Make sure this sample isn't too close to another sample
-                bool bTooClose= false;
-                for (int sampleIndex= m_sampleCount-1; sampleIndex >= 0; --sampleIndex)
-                {
-                    const PSMoveIntVector3 diff= m_lastRawMagnetometer - m_magnetometerIntSamples[sampleIndex];
-                    const int distanceSquared= diff.lengthSquared();
-
-                    if (distanceSquared < k_min_sample_distance_sq)
+                    // Send request to change led color, don't care about callback
+                    if (led_color_r != m_led_color_r || led_color_g != m_led_color_g || led_color_b != m_led_color_b)
                     {
-                        bTooClose= true;
-                        break;
-                    }
-                }
-
-                // Display the last N samples
-                if (!bTooClose)
-                {
-                    // Store the new sample
-                    m_magnetometerIntSamples[m_sampleCount]= m_lastRawMagnetometer;
-                    m_alignedSamples->magnetometerEigenSamples[m_sampleCount] = psmove_int_vector3_to_eigen_vector3(m_lastRawMagnetometer);
-                    ++m_sampleCount;
-
-                    // Compute a best fit ellipsoid for the sample points
-                    switch (m_ellipseFitMethod)
-                    {
-                    case _ellipse_fit_method_box:
-                        eigen_alignment_fit_bounding_box_ellipsoid(
-                            m_alignedSamples->magnetometerEigenSamples, m_sampleCount, m_sampleFitEllipsoid);
-                        break;
-                    case _ellipse_fit_method_min_volume:
-                        eigen_alignment_fit_min_volume_ellipsoid(
-                            m_alignedSamples->magnetometerEigenSamples, m_sampleCount, 0.0001f, m_sampleFitEllipsoid);
-                        break;
-                    }
-
-                    // Update the extents progress based on min extent size
-                    int minRange = computeMagnetometerCalibrationMinRange(m_minSampleExtent, m_maxSampleExtent);
-                    if (minRange > 0)
-                    {
-                        m_samplePercentage = 
-                            std::min(
-                                std::min((100 * m_sampleCount) / k_sample_count_target, 100),
-                                std::min((100 * minRange) / k_sample_range_target, 100));
-
-                        int led_color_r = (255 * (100 - m_samplePercentage)) / 100;
-                        int led_color_g = (255 * m_samplePercentage) / 100;
-                        int led_color_b = 0;
-
-                        // Send request to change led color, don't care about callback
-                        if (led_color_r != m_led_color_r || led_color_g != m_led_color_g || led_color_b != m_led_color_b)
-                        {
-                            m_led_color_r = led_color_r;
-                            m_led_color_g = led_color_g;
-                            m_led_color_b = led_color_b;
+                        m_led_color_r = led_color_r;
+                        m_led_color_g = led_color_g;
+                        m_led_color_b = led_color_b;
                             
-                            m_controllerView->GetPSMoveViewMutable().SetLEDOverride(m_led_color_r, m_led_color_g, m_led_color_b);
-                        }
+                        m_controllerView->GetPSMoveViewMutable().SetLEDOverride(m_led_color_r, m_led_color_g, m_led_color_b);
                     }
                 }
             }
@@ -267,8 +385,7 @@ void AppStage_MagnetometerCalibration::update()
     
                     if (stableDuration.count() >= k_stabilize_wait_time_ms)
                     {
-                        m_identityPoseMVectorSum= *k_psmove_int_vector3_zero;
-                        m_identityPoseSampleCount = 0;
+                        m_identityStatistics->clear();
                         m_menuState= AppStage_MagnetometerCalibration::measureBDirection;
                     }
                 }
@@ -292,48 +409,43 @@ void AppStage_MagnetometerCalibration::update()
             {
                 if (bControllerDataUpdatedThisFrame)
                 {
-                    m_identityPoseMVectorSum = m_identityPoseMVectorSum + m_lastRawMagnetometer;
-                    ++m_identityPoseSampleCount;
+                    // Project the magnetometer sample into the space of the ellipsoid
+                    Eigen::Vector3f ellipsoid_sample =
+                        eigen_alignment_project_point_on_ellipsoid_basis(
+                            psmove_float_vector3_to_eigen_vector3(m_lastRawMagnetometer.castToFloatVector3()),
+                            m_boundsStatistics->sampleFitEllipsoid);                   
 
-                    if (m_identityPoseSampleCount > k_desired_magnetometer_sample_count)
+					// Add the normalized sample to the 
+					m_identityStatistics->addSample(ellipsoid_sample);
+
+                    if (m_identityStatistics->getIsComplete())
                     {
-                        float N= static_cast<float>(m_identityPoseSampleCount);
-
-                        // The average magnetometer direction was recorded while the controller
-                        // was in the cradle pose
-                        PSMoveFloatVector3 identityPoseAvg= m_identityPoseMVectorSum.castToFloatVector3().unsafe_divide(N);
-
-                        // Project the averaged magnetometer sample into the space of the ellipse
-                        // And then normalize it (any deviation from unit length is error)
-                        Eigen::Vector3f projected_sample =
-                            eigen_alignment_project_point_on_ellipsoid_basis(
-                                psmove_float_vector3_to_eigen_vector3(identityPoseAvg),
-                                m_sampleFitEllipsoid);
-                        eigen_vector3f_normalize_with_default(projected_sample, Eigen::Vector3f(0.f, 1.f, 0.f));
+						const EigenFitEllipsoid &ellipsoid= m_boundsStatistics->sampleFitEllipsoid;
+						const Eigen::Vector3f &magnetometerIdentity= m_identityStatistics->magnetometerIdentity;
+						const float magnetometerVariance= m_identityStatistics->magnetometerVariance;
 
                         // Tell the psmove service about the new magnetometer settings
-                        {                            
-                            RequestPtr request(new PSMoveProtocol::Request());
-                            request->set_type(PSMoveProtocol::Request_RequestType_SET_MAGNETOMETER_CALIBRATION);
+                        RequestPtr request(new PSMoveProtocol::Request());
+                        request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_MAGNETOMETER_CALIBRATION);
 
-                            PSMoveProtocol::Request_RequestSetMagnetometerCalibration *calibration=
-                                request->mutable_set_magnetometer_calibration_request();
+                        PSMoveProtocol::Request_RequestSetControllerMagnetometerCalibration *calibration=
+                                request->mutable_set_controller_magnetometer_calibration_request();
 
-                            calibration->set_controller_id(m_controllerView->GetControllerID());
+                        calibration->set_controller_id(m_controllerView->GetControllerID());
 
-                            write_calibration_parameter(m_sampleFitEllipsoid.center, calibration->mutable_ellipse_center());
-                            write_calibration_parameter(m_sampleFitEllipsoid.extents, calibration->mutable_ellipse_extents());
-                            write_calibration_parameter(m_sampleFitEllipsoid.basis.col(0), calibration->mutable_ellipse_basis_x());
-                            write_calibration_parameter(m_sampleFitEllipsoid.basis.col(1), calibration->mutable_ellipse_basis_y());
-                            write_calibration_parameter(m_sampleFitEllipsoid.basis.col(2), calibration->mutable_ellipse_basis_z());
-                            calibration->set_ellipse_fit_error(m_sampleFitEllipsoid.error);
+                        write_calibration_parameter(ellipsoid.center, calibration->mutable_ellipse_center());
+                        write_calibration_parameter(ellipsoid.extents, calibration->mutable_ellipse_extents());
+                        write_calibration_parameter(ellipsoid.basis.col(0), calibration->mutable_ellipse_basis_x());
+                        write_calibration_parameter(ellipsoid.basis.col(1), calibration->mutable_ellipse_basis_y());
+                        write_calibration_parameter(ellipsoid.basis.col(2), calibration->mutable_ellipse_basis_z());
+                        calibration->set_ellipse_fit_error(ellipsoid.error);
+						calibration->set_magnetometer_variance(magnetometerVariance);
 
-                            write_calibration_parameter(projected_sample, calibration->mutable_magnetometer_identity());
+                        write_calibration_parameter(magnetometerIdentity, calibration->mutable_magnetometer_identity());
 
-                            ClientPSMoveAPI::register_callback(
-                                ClientPSMoveAPI::send_opaque_request(&request), 
-                                AppStage_MagnetometerCalibration::handle_set_magnetometer_calibration, this);
-                        }
+                        ClientPSMoveAPI::register_callback(
+                            ClientPSMoveAPI::send_opaque_request(&request), 
+                            AppStage_MagnetometerCalibration::handle_set_magnetometer_calibration, this);
 
                         // Wait for the response
                         m_menuState= AppStage_MagnetometerCalibration::waitForSetCalibrationResponse;
@@ -402,15 +514,19 @@ void AppStage_MagnetometerCalibration::render()
             glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale)),
             90.f, glm::vec3(1.f, 0.f, 0.f));  
     
-    PSMoveIntVector3 rawSampleExtents = (m_maxSampleExtent - m_minSampleExtent).unsafe_divide(2);
+	const EigenFitEllipsoid &sampleFitEllipsoid= m_boundsStatistics->sampleFitEllipsoid;	
+    const PSMoveIntVector3 &minSampleExtent= m_boundsStatistics->minSampleExtent;
+    const PSMoveIntVector3 &maxSampleExtent= m_boundsStatistics->maxSampleExtent;
 
-    glm::vec3 boxMin = psmove_float_vector3_to_glm_vec3(m_minSampleExtent.castToFloatVector3());
-    glm::vec3 boxMax = psmove_float_vector3_to_glm_vec3(m_maxSampleExtent.castToFloatVector3());
+    PSMoveIntVector3 rawSampleExtents = (maxSampleExtent - minSampleExtent).unsafe_divide(2);
+
+    glm::vec3 boxMin = psmove_float_vector3_to_glm_vec3(minSampleExtent.castToFloatVector3());
+    glm::vec3 boxMax = psmove_float_vector3_to_glm_vec3(maxSampleExtent.castToFloatVector3());
     glm::vec3 boxCenter = (boxMax + boxMin) * 0.5f;
     glm::vec3 boxExtents = (boxMax - boxMin) * 0.5f;
 
     glm::mat4 recenterMatrix = 
-        glm::translate(glm::mat4(1.f), -eigen_vector3f_to_glm_vec3(m_sampleFitEllipsoid.center));
+        glm::translate(glm::mat4(1.f), -eigen_vector3f_to_glm_vec3(sampleFitEllipsoid.center));
 
     switch (m_menuState)
     {
@@ -435,16 +551,16 @@ void AppStage_MagnetometerCalibration::render()
             drawPointCloud(
                 recenterMatrix,
                 glm::vec3(1.f, 1.f, 1.f),
-                reinterpret_cast<float *>(&m_alignedSamples->magnetometerEigenSamples[0]),
-                m_sampleCount);
+                reinterpret_cast<float *>(&m_boundsStatistics->magnetometerEigenSamples[0]),
+                m_boundsStatistics->sampleCount);
 
             // Draw the sample bounding box
             // Label the min and max corners with the min and max magnetometer readings
             drawTransformedBox(recenterMatrix, boxMin, boxMax, glm::vec3(1.f, 1.f, 1.f));
             drawTextAtWorldPosition(recenterMatrix, boxMin, "%d,%d,%d",
-                                    m_minSampleExtent.i, m_minSampleExtent.j, m_minSampleExtent.k);
+                                    minSampleExtent.i, minSampleExtent.j, minSampleExtent.k);
             drawTextAtWorldPosition(recenterMatrix, boxMax, "%d,%d,%d",
-                                    m_maxSampleExtent.i, m_maxSampleExtent.j, m_maxSampleExtent.k);
+                                    maxSampleExtent.i, maxSampleExtent.j, maxSampleExtent.k);
 
             // Draw and label the extent axes
             drawTransformedAxes(glm::mat4(1.f), boxExtents.x, boxExtents.y, boxExtents.z);
@@ -454,9 +570,9 @@ void AppStage_MagnetometerCalibration::render()
 
             // Draw the best fit ellipsoid
             {
-                glm::mat3 basis = eigen_matrix3f_to_glm_mat3(m_sampleFitEllipsoid.basis);
-                glm::vec3 center = eigen_vector3f_to_glm_vec3(m_sampleFitEllipsoid.center);
-                glm::vec3 extents = eigen_vector3f_to_glm_vec3(m_sampleFitEllipsoid.extents);
+                glm::mat3 basis = eigen_matrix3f_to_glm_mat3(sampleFitEllipsoid.basis);
+                glm::vec3 center = eigen_vector3f_to_glm_vec3(sampleFitEllipsoid.center);
+                glm::vec3 extents = eigen_vector3f_to_glm_vec3(sampleFitEllipsoid.extents);
 
                 drawEllipsoid(
                     recenterMatrix,
@@ -465,7 +581,7 @@ void AppStage_MagnetometerCalibration::render()
                 drawTextAtWorldPosition(
                     recenterMatrix,
                     center - basis[0]*extents.x,
-                    "E:%.1f", m_sampleFitEllipsoid.error);
+                    "E:%.1f", sampleFitEllipsoid.error);
             }
 
             // Draw the current magnetometer direction
@@ -610,7 +726,7 @@ void AppStage_MagnetometerCalibration::renderUI()
                 ImGui::SetNextWindowSize(ImVec2(k_panel_width, 150));
                 ImGui::Begin(k_window_title, nullptr, window_flags);
 
-                if (m_sampleCount < k_max_magnetometer_samples)
+                if (!m_boundsStatistics->getIsComplete())
                 {
                     ImGui::TextWrapped(
                         "Calibrating Controller ID #%d\n" \
@@ -629,9 +745,9 @@ void AppStage_MagnetometerCalibration::renderUI()
 					m_lastControllerSeqNum,
 					m_lastRawMagnetometer.i, m_lastRawMagnetometer.j, m_lastRawMagnetometer.k);
 
-                if (m_samplePercentage < 100)
+                if (m_boundsStatistics->samplePercentage < 100)
                 {
-                    ImGui::ProgressBar(static_cast<float>(m_samplePercentage) / 100.f, ImVec2(250, 20));
+                    ImGui::ProgressBar(static_cast<float>(m_boundsStatistics->samplePercentage) / 100.f, ImVec2(250, 20));
 
                     if (ImGui::Button("Force Accept"))
                     {
@@ -663,18 +779,23 @@ void AppStage_MagnetometerCalibration::renderUI()
                 ImGui::SetNextWindowSize(ImVec2(170.f, 80.f));
                 ImGui::Begin("Ellipse Fitting Mode", nullptr, window_flags);
 
-                if (ImGui::RadioButton("Bounds Fitting", &m_ellipseFitMethod, _ellipse_fit_method_box))
+                if (ImGui::RadioButton("Bounds Fitting", &m_boundsStatistics->ellipseFitMethod, _ellipse_fit_method_box))
                 {
                     // Refit to a box
                     eigen_alignment_fit_bounding_box_ellipsoid(
-                        m_alignedSamples->magnetometerEigenSamples, m_sampleCount, m_sampleFitEllipsoid);
+                        m_boundsStatistics->magnetometerEigenSamples, 
+						m_boundsStatistics->sampleCount, 
+						m_boundsStatistics->sampleFitEllipsoid);
                 }
 
-                if (ImGui::RadioButton("Min Volume Fitting", &m_ellipseFitMethod, _ellipse_fit_method_min_volume))
+                if (ImGui::RadioButton("Min Volume Fitting", &m_boundsStatistics->ellipseFitMethod, _ellipse_fit_method_min_volume))
                 {
                     // Re-fit using min bounds
                     eigen_alignment_fit_min_volume_ellipsoid(
-                        m_alignedSamples->magnetometerEigenSamples, m_sampleCount, 0.0001f, m_sampleFitEllipsoid);
+                        m_boundsStatistics->magnetometerEigenSamples, 
+						m_boundsStatistics->sampleCount, 
+						0.0001f, 
+						m_boundsStatistics->sampleFitEllipsoid);
                 }
 
                 ImGui::End();
@@ -726,7 +847,7 @@ void AppStage_MagnetometerCalibration::renderUI()
                 "Measurement will start once the controller is aligned with gravity and stable.");
 
             ImGui::ProgressBar(
-                static_cast<float>(m_identityPoseSampleCount) / static_cast<float>(k_desired_magnetometer_sample_count), 
+                static_cast<float>(m_identityStatistics->sampleCount) / static_cast<float>(k_max_identity_magnetometer_samples), 
                 ImVec2(250, 20));
             ImGui::Spacing();
 
@@ -890,53 +1011,6 @@ void AppStage_MagnetometerCalibration::handle_set_magnetometer_calibration(
 }
 
 //-- private methods -----
-static void expandMagnetometerBounds(
-    const PSMoveIntVector3 &sample,
-    PSMoveIntVector3 &minSampleExtents,
-    PSMoveIntVector3 &maxSampleExtents)
-{
-    minSampleExtents= PSMoveIntVector3::min(minSampleExtents, sample);
-    maxSampleExtents= PSMoveIntVector3::max(maxSampleExtents, sample);
-}
-
-static int computeMagnetometerCalibrationMinRange(
-    const PSMoveIntVector3 &minSampleExtents,
-    const PSMoveIntVector3 &maxSampleExtents)
-{
-    PSMoveIntVector3 extents= maxSampleExtents - minSampleExtents;
-
-    return extents.minValue();
-}
-
-static int computeMagnetometerCalibrationMaxRange(
-    const PSMoveIntVector3 &minSampleExtents,
-    const PSMoveIntVector3 &maxSampleExtents)
-{
-    PSMoveIntVector3 extents= maxSampleExtents - minSampleExtents;
-
-    return extents.maxValue();
-}
-
-PSMoveFloatVector3 computeNormalizedMagnetometerVector(
-    const PSMoveIntVector3 &sample,
-    const PSMoveIntVector3 &minSampleExtents,
-    const PSMoveIntVector3 &maxSampleExtents)
-{
-    PSMoveFloatVector3 range = (maxSampleExtents - minSampleExtents).castToFloatVector3();
-    PSMoveFloatVector3 offset = (sample - minSampleExtents).castToFloatVector3();
-
-    // 2*(raw-move->magnetometer_min)/(move->magnetometer_max - move->magnetometer_min) - <1,1,1>
-    PSMoveFloatVector3 result= offset.safe_divide(range, *k_psmove_float_vector3_zero)*2.f - *k_psmove_float_vector3_one;
-
-    // The magnetometer y-axis is flipped compared to the accelerometer and gyro.
-    // Flip it back around to get it into the same space.
-    result.j = -result.j;
-
-    result.normalize_with_default(*k_psmove_float_vector3_zero);
-
-    return result;
-}
-
 static void
 write_calibration_parameter(
     const Eigen::Vector3f &in_vector,
