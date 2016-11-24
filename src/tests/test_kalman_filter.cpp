@@ -90,12 +90,12 @@ public:
 			m_controllerType = CommonDeviceState::PSMove;
 			if (fgets(line, sizeof(line) - 1, fp))
 			{				
-				if (strnicmp(line, "psmove", 6) == 0)
+				if (strncasecmp(line, "psmove", 6) == 0)
 				{
 					m_controllerType = CommonDeviceState::PSMove;
 					bSuccess = true;
 				}
-				else if (strnicmp(line, "dualshock4", 10) == 0)
+				else if (strncasecmp(line, "dualshock4", 10) == 0)
 				{
 					m_controllerType = CommonDeviceState::PSDualShock4;
 					bSuccess = true;
@@ -121,7 +121,7 @@ public:
 							if (line[cursor] == ',' || line[cursor] == '\n')
 							{
 								line[cursor] = '\0';
-								if (strnicmp(last_start, szColumnNames[valid_columns], strlen(szColumnNames[valid_columns])) == 0)
+								if (strncasecmp(last_start, szColumnNames[valid_columns], strlen(szColumnNames[valid_columns])) == 0)
 								{
 									cursor++;
 									valid_columns++;
