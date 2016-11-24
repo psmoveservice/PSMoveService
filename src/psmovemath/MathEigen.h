@@ -28,11 +28,11 @@ namespace Eigen
 	// y - up - heading axis - applied first
 	// z - right - attitude axis - applied second
 	template <typename T>
-	class EulerAngles : public Matrix<T, 3, 1>
+    class EulerAngles : public Eigen::Matrix<T, 3, 1>
 	{
 	public:
-		inline EulerAngles() : Matrix<T, 3, 1>() {}
-		inline EulerAngles(const Matrix<T, 3, 1> &e)
+		inline EulerAngles() : Eigen::Matrix<T, 3, 1>() {}
+		inline EulerAngles(const Eigen::Matrix<T, 3, 1> &e)
 		{
 			set(e.x(), e.y(), e.z());
 		}
@@ -41,13 +41,13 @@ namespace Eigen
 			set(bank_radians, heading_radians, attitude_radians);
 		}
 
-		inline T get_x_radians() const { return x(); }
-		inline T get_y_radians() const { return y(); }
-		inline T get_z_radians() const { return z(); }
+        inline T get_x_radians() const { return (*this)(0,0);}
+		inline T get_y_radians() const { return (*this)(1,0); }
+		inline T get_z_radians() const { return (*this)(2,0); }
 
-		inline T get_x_degrees() const { return static_cast<T>(x() * k_real64_radians_to_degreees); }
-		inline T get_y_degrees() const { return static_cast<T>(y() * k_real64_radians_to_degreees); }
-		inline T get_z_degrees() const { return static_cast<T>(z() * k_real64_radians_to_degreees); }
+		inline T get_x_degrees() const { return static_cast<T>((*this)(0,0) * k_real64_radians_to_degreees); }
+		inline T get_y_degrees() const { return static_cast<T>((*this)(1,0) * k_real64_radians_to_degreees); }
+		inline T get_z_degrees() const { return static_cast<T>((*this)(2,0) * k_real64_radians_to_degreees); }
 
 		inline T get_bank_radians() const { return get_x_radians(); }
 		inline T get_heading_radians() const { return get_y_radians(); }
@@ -59,9 +59,9 @@ namespace Eigen
 
 		inline void set(T bank_radians, T heading_radians, T attitude_radians)
 		{
-			x() = (T)wrap_ranged((T)bank_radians, -k_real64_pi, k_real64_pi); // bank in range [-180,180], applied third
-			y() = (T)wrap_ranged((T)heading_radians, -k_real64_pi, k_real64_pi); // heading in range [-180,180], applied first
-			z() = (T)wrap_ranged((T)attitude_radians, -k_real64_half_pi, k_real64_half_pi); // attitude in range [-90,90], applied second
+			(*this)(0,0) = (T)wrap_ranged((T)bank_radians, -k_real64_pi, k_real64_pi); // bank in range [-180,180], applied third
+			(*this)(1,0) = (T)wrap_ranged((T)heading_radians, -k_real64_pi, k_real64_pi); // heading in range [-180,180], applied first
+			(*this)(2,0) = (T)wrap_ranged((T)attitude_radians, -k_real64_half_pi, k_real64_half_pi); // attitude in range [-90,90], applied second
 		}
 	};
 	typedef EulerAngles<float> EulerAnglesf;

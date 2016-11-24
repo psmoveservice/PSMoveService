@@ -1023,7 +1023,7 @@ public:
 		//process_2nd_order_noise(mean_orientation_dT, Q_SCALE, ANGLE_AXIS_Y, Q_cov_init);
 		//process_2nd_order_noise(mean_orientation_dT, Q_SCALE, ANGLE_AXIS_Z, Q_cov_init);
 		//HACK: Overwrite orientation/angvel process noise.
-		Q_cov_init.block<6, 6>(9, 9) = Eigen::Matrix<double, 6, 6>::Identity()*0.1;
+//		Q_cov_init.block<6, 6>(9, 9) = Eigen::Matrix<double, 6, 6>::Identity()*0.1;
 
 		// Compute the std-deviation Q matrix a.k.a. the sqrt of Q_cov_init a.k.a the Cholesky
 		Q_cov= Q_cov_init.llt().matrixL();
@@ -1160,6 +1160,7 @@ public:
 
 		// The 1st sigma - point is just the state vector.
 		// Each remaining sigma - point is the state + / -the scaled sqrt covariance.
+/*
 		X_t.leftCols<1>() = x;
 		for (int col_offset = 0; col_offset < S_DIM; ++col_offset)
 		{
@@ -1169,7 +1170,7 @@ public:
 			X_t.block<X_DIM, 1>(0, 1 + col_offset) = x + zS;
 			X_t.block<X_DIM, 1>(0, 1 + S_DIM + col_offset) = x - zS;
 		}
-
+*/
 		// We now have our minimal sigma points : [x x + zS x - zS]
 		// Note : We could add Q(not sqrt) to P(= SS^T) before calculating S, and
 		// before calculating the sigma points.This would eliminate the need to add
@@ -1206,7 +1207,7 @@ public:
 		// This emulates the rest of the augmented matrix. It's necessary to extend
 		// it here because the weights only work with the correct number of columns.
 		PoseStateVector X_k_0 = X_k.col(0);
-		X_k.rightCols<2 * R_DIM>() = X_k_0.replicate<1, 2*R_DIM>();
+//		X_k.rightCols<2 * R_DIM>() = X_k_0.replicate<1, 2*R_DIM>();
 
 		// 4. Estimate mean state from weighted sum of propagated sigma points
 		x_k = X_k * W.wm;
@@ -1224,19 +1225,19 @@ public:
 		// w_qr is scalar
 		// QR update of state Cholesky factor.
 		// w_qr and w_cholup cannot be negative
-		Eigen::Matrix<double, L_DIM - 1, S_DIM > qr_input = (W.w_qr*X_k_r.rightCols<L_DIM - 1>()).transpose();
+//		Eigen::Matrix<double, L_DIM - 1, S_DIM > qr_input = (W.w_qr*X_k_r.rightCols<L_DIM - 1>()).transpose();
 
 		// TODO: Use ColPivHouseholderQR
-		Eigen::HouseholderQR<decltype(qr_input)> qr(qr_input);
+//		Eigen::HouseholderQR<decltype(qr_input)> qr(qr_input);
 
 		// Set R matrix as upper triangular square root
 		// NOTE: R matrix is stored in upper triangular half
 		// See: http://math.stackexchange.com/questions/1396308/qr-decomposition-results-in-eigen-library-differs-from-matlab
-		Sx_k = qr.matrixQR().topLeftCorner<S_DIM, S_DIM>().triangularView<Eigen::Upper>();
+//		Sx_k = qr.matrixQR().topLeftCorner<S_DIM, S_DIM>().triangularView<Eigen::Upper>();
 
 		// Perform additional rank 1 update
 		float wc0_sign = static_cast<float>(sgn(W.wc(0)));
-		Sx_k.selfadjointView<Eigen::Upper>().rankUpdate(X_k_r.leftCols<1>(), W.w_cholup*wc0_sign);
+//		Sx_k.selfadjointView<Eigen::Upper>().rankUpdate(X_k_r.leftCols<1>(), W.w_cholup*wc0_sign);
 	}
 
 	/**
@@ -1246,6 +1247,7 @@ public:
 	*/
 	void update(const Measurement& observation)
 	{
+/*
 		// 1. Propagate sigma points through observation function.
 		const int nsp = SIGMA_POINT_COUNT;
 		const int R_inds = (nsp - 2 * R_DIM);
@@ -1284,12 +1286,13 @@ public:
 
 		// 3. Calculate y - residuals.
 		// Used in observation covariance and state - observation cross - covariance for Kalman gain.
+
 		Eigen::Matrix<double, O_DIM, L_DIM>  Y_k_r;
 		for (int col_offset = 0; col_offset < L_DIM; ++col_offset)
 		{
 			Y_k_r.col(col_offset)= Measurement(Y_k.col(col_offset)) - y_k;
 		}
-
+        
 		// 4. Calculate observation sqrt covariance
 		// w_qr is scalar
 		// QR update of state Cholesky factor.
@@ -1312,7 +1315,7 @@ public:
 		//First calculate state - observation cross(sqrt) covariance
 		const Eigen::Matrix<double, 1, L_DIM> wc = W.wc.transpose();
 		const Eigen::Matrix<double, S_DIM, L_DIM> wc_repl = wc.replicate<S_DIM, 1>();
-		const Eigen::Matrix<double, S_DIM, O_DIM> Pxy= 
+		const Eigen::Matrix<double, S_DIM, O_DIM> Pxy=
 			X_k_r.cwiseProduct(wc_repl).eval() * Y_k_r.transpose();
 
 		// In the Matlab code: KG = (Pxy / Sy_k')/Sy_k
@@ -1339,8 +1342,10 @@ public:
 		{
 			// Still UPPER
 			Sx_k.selfadjointView<Eigen::Upper>().rankUpdate(cov_update_vectors.col(j), -1.0);
-		}		
+		}
+
 		S = Sx_k.transpose(); // LOWER sqrt-covariance saved for next predict.
+*/
 	}
 };
 
