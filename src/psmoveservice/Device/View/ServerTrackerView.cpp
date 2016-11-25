@@ -1073,35 +1073,38 @@ ServerTrackerView::computeProjectionForController(
                 // Compute the convex hull of the contour
                 t_opencv_contour convex_contour;
                 cv::convexHull(biggest_contours[0], convex_contour);
+                
+                cv::Matx33d camera_matrix(F_PX, 0.0, PrincipalX,
+                                          0.0, F_PY, PrincipalY,
+                                          0.0, 0.0, 1.0 );
+                std::vector<double> dist_coeffs = {distortionK1, distortionK2, distortionP1, distortionP2, distortionK3};
+                
+                t_opencv_contour undistort_contour;
+                cv::undistortPoints(convex_contour, undistort_contour,
+                                    camera_matrix,
+                                    dist_coeffs);
 
-                // TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
-                // Then replace F_PX with -1. 
-
-                float frameWidth, frameHeight;
-                getPixelDimensions(frameWidth, frameHeight);
-
-                // Convert opencv_contour in raw pixel space:
-                // i.e. [0, 0]x[frameWidth-1, frameHeight-1]
-                // eigen_contour in CommonDeviceScreenLocation space:
-                // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]   
-                // TODO: Replace this with cv::undistortPoints
-                //http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
+//                float frameWidth, frameHeight;
+//                getPixelDimensions(frameWidth, frameHeight);
+                
+                // Convert t_opencv_contour to std::vector<Eigen::Vector2f>
                 std::vector<Eigen::Vector2f> eigen_contour;
                 std::for_each(
-                    convex_contour.begin(),
-                    convex_contour.end(),
-                    [frameWidth, frameHeight, &eigen_contour](cv::Point& p) {
-                        eigen_contour.push_back(Eigen::Vector2f(p.x - (frameWidth / 2), (frameHeight / 2) - p.y));
-                    });
+                              undistort_contour.begin(),
+                              undistort_contour.end(),
+                              [&eigen_contour](cv::Point& p) {
+                                  eigen_contour.push_back(Eigen::Vector2f(p.x, p.y));
+                              });
 
                 // Compute the sphere center AND the projected ellipse
+                
                 Eigen::Vector3f sphere_center;
                 EigenFitEllipse ellipse_projection;
                 eigen_alignment_fit_focal_cone_to_sphere(
                     eigen_contour.data(),
-                    static_cast<int>(eigen_contour.size()),
+                    static_cast<int>(undistort_contour.size()),
                     tracking_shape->shape.sphere.radius,
-                    F_PX,
+                    -1,
                     &sphere_center,
                     &ellipse_projection);
 
