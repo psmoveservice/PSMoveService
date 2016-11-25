@@ -767,7 +767,11 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
     {
         int res;
         
+#if defined (__APPLE__)
+        unsigned char btg[PSMOVE_BTADDR_GET_SIZE];
+#else
         unsigned char btg[PSMOVE_BTADDR_GET_SIZE+1];
+#endif
         unsigned char ctrl_char_buff[PSMOVE_BTADDR_SIZE];
         unsigned char host_char_buff[PSMOVE_BTADDR_SIZE];
 
