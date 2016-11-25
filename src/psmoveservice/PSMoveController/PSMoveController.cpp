@@ -59,6 +59,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #define PSMOVE_BTADDR_GET_SIZE 16
 #define PSMOVE_BTADDR_SET_SIZE 23
 #define PSMOVE_BTADDR_SIZE 6
+#define PSMOVE_FW_GET_SIZE 13
 #define PSMOVE_CALIBRATION_SIZE 49 /* Buffer size for calibration data */
 #define PSMOVE_CALIBRATION_BLOB_SIZE (PSMOVE_CALIBRATION_SIZE*3 - 2*2) /* Three blocks, minus header (2 bytes) for blocks 2,3 */
 #define PSMOVE_STATE_BUFFER_MAX 16
@@ -765,18 +766,25 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
     }
     else
     {
-        int res;
-        
-#if defined (__APPLE__)
-        unsigned char btg[PSMOVE_BTADDR_GET_SIZE];
-#else
         unsigned char btg[PSMOVE_BTADDR_GET_SIZE+1];
-#endif
         unsigned char ctrl_char_buff[PSMOVE_BTADDR_SIZE];
         unsigned char host_char_buff[PSMOVE_BTADDR_SIZE];
-
+        
+        int res;
+        int expected_res = sizeof(btg) - 1;
+        unsigned char *p = btg;
+        
         memset(btg, 0, sizeof(btg));
         btg[0] = PSMove_Req_GetBTAddr;
+        //Unlike the firmware request, this request always returns the request
+        //key in the first byte.
+        p = btg + 1;
+        
+        //Only in Windows does the res value reflect that the first byte is the request key.
+#if defined (_WIN32)
+        expected_res++;
+#endif
+        
         /* _WIN32 only has move->handle_addr for getting bluetooth address. */
         if (HIDDetails.Handle_addr) {
             res = hid_get_feature_report(HIDDetails.Handle_addr, btg, sizeof(btg));
@@ -784,14 +792,16 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
         else {
             res = hid_get_feature_report(HIDDetails.Handle, btg, sizeof(btg));
         }
+        
 
-        if (res == sizeof(btg)) {
 
-            memcpy(host_char_buff, btg + 10, PSMOVE_BTADDR_SIZE);
-            host = btAddrUcharToString(host_char_buff);
+        if (res == expected_res) {
 
-            memcpy(ctrl_char_buff, btg + 1, PSMOVE_BTADDR_SIZE);
+            memcpy(ctrl_char_buff, p, PSMOVE_BTADDR_SIZE);
             controller = btAddrUcharToString(ctrl_char_buff);
+            
+            memcpy(host_char_buff, p + 9, PSMOVE_BTADDR_SIZE);
+            host = btAddrUcharToString(host_char_buff);
 
             success = true;
         }
@@ -845,13 +855,17 @@ PSMoveController::loadCalibration()
         unsigned char cal[PSMOVE_CALIBRATION_SIZE+1]; // +1 for report id at start
         int dest_offset;
         int src_offset;
+        int expected_res = PSMOVE_CALIBRATION_SIZE;
+#if defined(_WIN32)
+        expected_res--;
+#endif
 
         memset(cal, 0, sizeof(cal));
         cal[0] = PSMove_Req_GetCalibration;
 
         int res = hid_get_feature_report(HIDDetails.Handle, cal, sizeof(cal));
 
-        if (res == sizeof(cal))
+        if (res == expected_res)
         {
             if (cal[1] == 0x00) 
             {
@@ -936,7 +950,7 @@ PSMoveController::loadFirmwareInfo()
 {
 	bool bFirmwareInfoValid = false;
 
-	unsigned char buf[14];
+	unsigned char buf[PSMOVE_FW_GET_SIZE+1];
 	int res;
 	int expected_res = sizeof(buf) - 1;
 	unsigned char *p = buf;
@@ -952,7 +966,6 @@ PSMoveController::loadFirmwareInfo()
 	* type in order to determine the correct offset for reading from the report
 	* buffer.
 	**/
-
 	if (getIsBluetooth()) 
 	{
 		expected_res += 1;
