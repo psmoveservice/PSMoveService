@@ -857,7 +857,7 @@ PSMoveController::loadCalibration()
         int src_offset;
         int expected_res = PSMOVE_CALIBRATION_SIZE;
 #if defined(_WIN32)
-        expected_res--;
+        expected_res++;
 #endif
 
         memset(cal, 0, sizeof(cal));
