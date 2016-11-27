@@ -949,39 +949,40 @@ bool
 PSMoveController::loadFirmwareInfo()
 {
 	bool bFirmwareInfoValid = false;
+    
+    if (!getIsBluetooth())
+    {
+        unsigned char buf[PSMOVE_FW_GET_SIZE+1];
+        int res;
+        int expected_res = sizeof(buf) - 1;
+        unsigned char *p = buf;
 
-	unsigned char buf[PSMOVE_FW_GET_SIZE+1];
-	int res;
-	int expected_res = sizeof(buf) - 1;
-	unsigned char *p = buf;
+        memset(buf, 0, sizeof(buf));
+        buf[0] = PSMove_Req_GetFirmwareInfo;
 
-	memset(buf, 0, sizeof(buf));
-	buf[0] = PSMove_Req_GetFirmwareInfo;
+        res = hid_get_feature_report(HIDDetails.Handle, buf, sizeof(buf));
 
-	res = hid_get_feature_report(HIDDetails.Handle, buf, sizeof(buf));
-
-	/**
-	* The Bluetooth report contains the Report ID as additional first byte
-	* while the USB report does not. So we need to check the current connection
-	* type in order to determine the correct offset for reading from the report
-	* buffer.
-	**/
-	if (getIsBluetooth()) 
-	{
+        /**
+        * The Bluetooth report contains the Report ID as additional first byte
+        * while the USB report does not. So we need to check the current connection
+        * type in order to determine the correct offset for reading from the report
+        * buffer.
+        **/
+	
 		expected_res += 1;
 		p = buf + 1;
+        
+        if (res == expected_res)
+        {
+            // NOTE: Each field in the report is stored in Big-Endian byte order
+            cfg.firmware_version = (p[0] << 8) | p[1];
+            cfg.firmware_revision = (p[2] << 8) | p[3];
+            cfg.bt_firmware_version = (p[4] << 8) | p[5];
+            
+            bFirmwareInfoValid = true;
+        }
 	}
-
-	if (res == expected_res)
-	{
-		// NOTE: Each field in the report is stored in Big-Endian byte order
-		cfg.firmware_version = (p[0] << 8) | p[1];
-		cfg.firmware_revision = (p[2] << 8) | p[3];
-		cfg.bt_firmware_version = (p[4] << 8) | p[5];
-
-		bFirmwareInfoValid = true;
-	}
-
+    
 	return bFirmwareInfoValid;
 }
 
