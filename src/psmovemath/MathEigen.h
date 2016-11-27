@@ -59,9 +59,9 @@ namespace Eigen
 
 		inline void set(T bank_radians, T heading_radians, T attitude_radians)
 		{
-			(*this)(0,0) = (T)wrap_ranged((T)bank_radians, -k_real64_pi, k_real64_pi); // bank in range [-180,180], applied third
-			(*this)(1,0) = (T)wrap_ranged((T)heading_radians, -k_real64_pi, k_real64_pi); // heading in range [-180,180], applied first
-			(*this)(2,0) = (T)wrap_ranged((T)attitude_radians, -k_real64_half_pi, k_real64_half_pi); // attitude in range [-90,90], applied second
+			(*this)(0,0) = (T)wrap_ranged((T)bank_radians, -k_real64_pi - k_real64_normal_epsilon, k_real64_pi + k_real64_normal_epsilon); // bank in range [-180,180], applied third
+			(*this)(1,0) = (T)wrap_ranged((T)heading_radians, -k_real64_pi - k_real64_normal_epsilon, k_real64_pi + k_real64_normal_epsilon); // heading in range [-180,180], applied first
+			(*this)(2,0) = (T)wrap_ranged((T)attitude_radians, -k_real64_half_pi - k_real64_normal_epsilon, k_real64_half_pi + k_real64_normal_epsilon); // attitude in range [-90,90], applied second
 		}
 	};
 	typedef EulerAngles<float> EulerAnglesf;
@@ -78,6 +78,21 @@ eigen_quaternion_from_forward_up(
 // when appied with psmove_vector_clockwise_rotate()
 Eigen::Quaternionf
 eigen_quaternion_angle_axis(float radians, const Eigen::Vector3f &axis);
+
+template <typename T>
+Eigen::Quaternion<T>
+eigen_quaternion_inverse(const Eigen::Quaternion<T> &q)
+{
+	assert_eigen_quaterniond_is_normalized(q);
+	return q.conjugate();
+}
+
+template <typename T>
+Eigen::Quaternion<T>
+eigen_quaternion_concatenate(const Eigen::Quaternion<T> &first, const Eigen::Quaternion<T> &second)
+{
+	return first * second;
+}
 
 Eigen::Quaternionf
 eigen_quaternion_normalized_lerp(const Eigen::Quaternionf &a, const Eigen::Quaternionf &b, const float u);
@@ -141,6 +156,11 @@ Eigen::Vector3f
 eigen_quaternion_derivative_to_angular_velocity(
 	const Eigen::Quaternionf &current_orientation,
 	const Eigen::Quaternionf &quaternion_derivative);
+
+Eigen::Vector3d
+eigen_quaterniond_derivative_to_angular_velocity(
+	const Eigen::Quaterniond &current_orientation,
+	const Eigen::Quaterniond &quaternion_derivative);
 
 Eigen::Quaterniond
 eigen_angle_axis_to_quaterniond(const Eigen::Vector3d &angle_axis);

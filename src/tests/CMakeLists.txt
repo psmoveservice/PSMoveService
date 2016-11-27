@@ -537,6 +537,7 @@ list(APPEND UNIT_TEST_SRC
     ${ROOT_DIR}/src/psmovemath/MathUtility.h
     ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
 	${ROOT_DIR}/src/tests/math_alignment_unit_tests.cpp
+    ${ROOT_DIR}/src/tests/math_eigen_unit_tests.cpp
     ${ROOT_DIR}/src/tests/math_utility_unit_tests.cpp
     ${ROOT_DIR}/src/tests/unit_test.h)
     

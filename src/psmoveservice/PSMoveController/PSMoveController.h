@@ -52,7 +52,7 @@ public:
 		, mean_update_time_delta(0.008333f)
 		, position_variance_exp_fit_a(0.0994158462f)
 		, position_variance_exp_fit_b(-0.000567041978f)
-		, orientation_variance(0.005f)
+		, orientation_variance(18.75f)
 		, tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
     {
         magnetometer_identity.clear();
