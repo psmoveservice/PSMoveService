@@ -206,6 +206,18 @@ eigen_quaternion_derivative_to_angular_velocity(
 	return ang_vel;
 }
 
+Eigen::Vector3d
+eigen_quaterniond_derivative_to_angular_velocity(
+	const Eigen::Quaterniond &current_orientation,
+	const Eigen::Quaterniond &quaternion_derivative)
+{
+	Eigen::Quaterniond inv_orientation = current_orientation.conjugate();
+	auto q_ang_vel = (quaternion_derivative*inv_orientation).coeffs() * 2.f;
+	Eigen::Vector3d ang_vel(q_ang_vel.x(), q_ang_vel.y(), q_ang_vel.z());
+
+	return ang_vel;
+}
+
 Eigen::Quaterniond
 eigen_angle_axis_to_quaterniond(
 	const Eigen::Vector3d &angle_axis)
@@ -225,55 +237,55 @@ eigen_angle_axis_to_quaternion(
 }
 
 //http://www.euclideanspace.com/maths/geometry/rotations/conversions/eulerToQuaternion/
-// NOTE: bank and attitude axes are swapped compared formula in original link
 template<typename T>
 Eigen::Quaternion<T> eigen_euler_angles_to_quaternion(const Eigen::EulerAngles<T> &euler_angles)
 {
-	const T attitude_radians = euler_angles.get_bank_radians(); // k
+	const T attitude_radians = euler_angles.get_attitude_radians(); // i
 	const T heading_radians = euler_angles.get_heading_radians(); // j
-	const T bank_radians = euler_angles.get_attitude_radians(); // i
+	const T bank_radians = euler_angles.get_bank_radians(); // k
 
-	const double c1 = cos(heading_radians / 2.0);
-	const double s1 = sin(heading_radians / 2.0);
-	const double c2 = cos(attitude_radians / 2.0);
-	const double s2 = sin(attitude_radians / 2.0);
-	const double c3 = cos(bank_radians / 2.0);
-	const double s3 = sin(bank_radians / 2.0);
+	// Assuming the angles are in radians.
+	//(x=pitch, y=yaw, z=roll)
+	const double c1 = cos(attitude_radians / 2.f);
+	const double s1 = sin(attitude_radians / 2.f);
+	const double c2 = cos(heading_radians / 2.f);
+	const double s2 = sin(heading_radians / 2.f);
+	const double c3 = cos(bank_radians / 2.f);
+	const double s3 = sin(bank_radians / 2.f);
 	Eigen::Quaternion<T> q(
-		static_cast<T>(c1*c2*c3 - s1*s2*s3), // w = cos(theta/2)
-		static_cast<T>(s1*s2*c3 + c1*c2*s3), // x = v.i*sin(theta/2)
-		static_cast<T>(s1*c2*c3 + c1*s2*s3), // y = v.j*sin(theta/2)
-		static_cast<T>(c1*s2*c3 - s1*c2*s3));// z = v.k*sin(theta/2)
+		static_cast<T>(c1*c2*c3 + s1*s2*s3),  // w = cos(theta/2)
+		static_cast<T>(s1*c2*c3 - c1*s2*s3),  // x = v.i*sin(theta/2)
+		static_cast<T>(c1*s2*c3 + s1*c2*s3),  // y = v.j*sin(theta/2)
+		static_cast<T>(c1*c2*s3 - s1*s2*c3)); // z = v.k*sin(theta/2)
 
 	return q;
 }
 
 //http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/
-// NOTE: bank and attitude axes are swapped compared formula in original link
 template<typename T>
 Eigen::EulerAngles<T> eigen_quaternion_to_euler_angles(const Eigen::Quaternion<T> &q)
 {
-	double heading_radians, attitude_radians, bank_radians;
-
 	double qw = static_cast<double>(q.w());
 	double qx = static_cast<double>(q.x());
 	double qy = static_cast<double>(q.y());
 	double qz = static_cast<double>(q.z());
 	double test = qx*qy + qz*qw;
 
-	if (test > 0.4999999)
+	double attitude_radians, heading_radians, bank_radians;
+
+	if (test > 0.4999)
 	{
 		// singularity at north pole
 		heading_radians = 2.0 * atan2(qx, qw);
-		attitude_radians = k_real64_half_pi / 2.f;
-		bank_radians = 0.f;
+		bank_radians = k_real64_half_pi;
+		attitude_radians = 0.0;
 	}
-	else if (test < -0.4999999)
+	else if (test < -0.4999)
 	{
 		// singularity at south pole
 		heading_radians = -2.0 * atan2(qx, qw);
-		attitude_radians = -k_real64_half_pi / 2.0;
-		bank_radians = 0.0;
+		bank_radians = -k_real64_half_pi;
+		attitude_radians = 0.0;
 	}
 	else
 	{
@@ -282,14 +294,14 @@ Eigen::EulerAngles<T> eigen_quaternion_to_euler_angles(const Eigen::Quaternion<T
 		double sqz = qz*qz;
 
 		heading_radians = atan2(2.0*qy*qw - 2.0*qx*qz, 1.0 - 2.0*sqy - 2.0*sqz);
-		attitude_radians = asin(2.0*test);
-		bank_radians = atan2(2.0*qx*qw - 2.0*qy*qz, 1.0 - 2.0*sqx - 2.0*sqz);
+		bank_radians = asin(2.0*test);
+		attitude_radians = atan2(2.0*qx*qw - 2.0*qy*qz, 1.0 - 2.0*sqx - 2.0*sqz);
 	}
 
 	return Eigen::EulerAngles<T>(
-		static_cast<T>(attitude_radians),
+		static_cast<T>(bank_radians),
 		static_cast<T>(heading_radians),
-		static_cast<T>(bank_radians));
+		static_cast<T>(attitude_radians));
 }
 
 Eigen::Quaterniond

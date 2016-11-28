@@ -11,6 +11,7 @@ main(int argc, char* argv[])
 {
 	UNIT_TEST_SUITE_BEGIN()
 		UNIT_TEST_SUITE_CALL_CPP_MODULE(run_math_alignment_unit_tests);
+		UNIT_TEST_SUITE_CALL_CPP_MODULE(run_math_eigen_unit_tests);
 		UNIT_TEST_SUITE_CALL_CPP_MODULE(run_math_utility_unit_tests);
 	UNIT_TEST_SUITE_END()
 

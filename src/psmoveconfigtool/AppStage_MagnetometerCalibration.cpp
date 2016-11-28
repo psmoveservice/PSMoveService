@@ -905,6 +905,14 @@ void AppStage_MagnetometerCalibration::renderUI()
                 ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
             }
 
+			{
+				const Eigen::Quaternionf eigen_quat = psmove_quaternion_to_eigen_quaternionf(m_controllerView->GetOrientation());
+				const Eigen::EulerAnglesf euler_angles = eigen_quaternionf_to_euler_angles(eigen_quat);
+
+				ImGui::Text("Attitude: %.2f, Heading: %.2f, Bank: %.2f",
+					euler_angles.get_attitude_degrees(), euler_angles.get_heading_degrees(), euler_angles.get_bank_degrees());
+			}
+
 			ImGui::TextWrapped(
 				"[Hold the Select button with controller pointed forward\n" \
 				"to recenter the controller]");
