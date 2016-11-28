@@ -475,8 +475,13 @@ public:
     bool computeBiggestNContours(
         const CommonHSVColorRange &hsvColorRange,
 		t_opencv_contour_list &out_biggest_N_contours,
-		const int max_contour_count)
+        std::vector<double> &out_contour_areas,
+		const int max_contour_count,
+        const int min_points_in_contour = 6)
     {
+        out_biggest_N_contours.clear();
+        out_contour_areas.clear();
+        
         // Clamp the HSV image, taking into account wrapping the hue angle
         {
             const float hue_min = hsvColorRange.hue_range.center - hsvColorRange.hue_range.range;
@@ -535,7 +540,8 @@ public:
 
 			// Find all counters in the image buffer
 			t_opencv_contour_list contours;
-            cv::findContours(*gsLowerBuffer, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+            cv::findContours(*gsLowerBuffer, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);  //CV_CHAIN_APPROX_NONE
+                                                                                                   //TODO: Use offset argument.
 
 			// Compute the area of each contour
 			int contour_index = 0;
@@ -566,9 +572,11 @@ public:
 				const ContourInfo &contour_info = *it;
 				t_opencv_contour &contour = contours[contour_info.contour_index];
 
-				if (contour.size() > 6)
+                if (contour.size() > min_points_in_contour)
 				{
 					// Remove any points in contour on edge of camera/ROI
+                    // TODO: Contours touching image border will be clipped,
+                    // so this might not be necessary.
 					t_opencv_contour::iterator it = contour.begin();
 					while (it != contour.end()) 
 					{
@@ -584,6 +592,8 @@ public:
 
 					// Add cleaned up contour to the output list
 					out_biggest_N_contours.push_back(contour);
+                    // Add its area to the output list too.
+                    out_contour_areas.push_back(contour_info.contour_area);
 				}
 			}
         }
@@ -1043,25 +1053,17 @@ ServerTrackerView::computeProjectionForController(
 
     // Find the contour associated with the controller
 	t_opencv_contour_list biggest_contours;
+    std::vector<double> contour_areas;
     if (bSuccess)
     {
-        ///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges. 
-        bSuccess = m_opencv_buffer_state->computeBiggestNContours(hsvColorRange, biggest_contours, 1);
+        ///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges.
+        //cv::findContours can pass in an offset when using ROIs.
+        bSuccess = m_opencv_buffer_state->computeBiggestNContours(hsvColorRange, biggest_contours, contour_areas, 1);
     }
 
     // Compute the tracker relative 3d position of the controller from the contour
     if (bSuccess)
     {
-        float F_PX, F_PY;
-        float PrincipalX, PrincipalY;
-        float distortionK1, distortionK2, distortionK3;
-        float distortionP1, distortionP2;
-        m_device->getCameraIntrinsics(
-                                      F_PX, F_PY,
-                                      PrincipalX, PrincipalY,
-                                      distortionK1, distortionK2, distortionK3,
-                                      distortionP1, distortionP2);
-
         // TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
         // Then replace F_PX with -1.
 
@@ -1070,41 +1072,66 @@ ServerTrackerView::computeProjectionForController(
 		// For the sphere projection we can go ahead and compute the full pose estimation now
         case eCommonTrackingShapeType::Sphere:
             {
+                // Get parameters needed for undistortion.
+                // TODO: Move this out of the switch and undistort the biggest
+                // contour common for all tracking shape types.
+                float F_PX, F_PY;
+                float PrincipalX, PrincipalY;
+                float distortionK1, distortionK2, distortionK3;
+                float distortionP1, distortionP2;
+                m_device->getCameraIntrinsics(
+                                              F_PX, F_PY,
+                                              PrincipalX, PrincipalY,
+                                              distortionK1, distortionK2, distortionK3,
+                                              distortionP1, distortionP2);
+                cv::Matx33f camera_matrix(F_PX,     0.0,    PrincipalX,
+                                          0.0,      -F_PY,  PrincipalY,  //Negate F_PY because +Y is down on the image.
+                                          0.0,      0.0,    1.0 );
+                std::vector<float> dist_coeffs = {distortionK1, distortionK2, distortionP1, distortionP2, distortionK3};
+                
                 // Compute the convex hull of the contour
                 t_opencv_contour convex_contour;
                 cv::convexHull(biggest_contours[0], convex_contour);
                 
-                cv::Matx33d camera_matrix(F_PX, 0.0, PrincipalX,
-                                          0.0, F_PY, PrincipalY,
-                                          0.0, 0.0, 1.0 );
-                std::vector<double> dist_coeffs = {distortionK1, distortionK2, distortionP1, distortionP2, distortionK3};
+                // Convert integer to float
+                std::vector<cv::Point2f> convex_contour_f;
+                cv::Mat(convex_contour).convertTo(convex_contour_f, cv::Mat(convex_contour_f).type());
                 
-                t_opencv_contour undistort_contour;
-                cv::undistortPoints(convex_contour, undistort_contour,
+                // Undistort points
+                std::vector<cv::Point2f> undistort_contour;
+                cv::undistortPoints(convex_contour_f, undistort_contour,
                                     camera_matrix,
-                                    dist_coeffs);
+                                    dist_coeffs);//,
+//                                    cv::noArray(),
+//                                    camera_matrix);
+                // Note: if we get omit the last two arguments, then
+                // undistort_contour points are in 'normalized' space.
+                // i.e., they are relative to their F_PX,F_PY
+                // We then have to change F_PX in eigen_alignment_fit_focal_cone_to_sphere
+                // below to something in this normalized space (+1, -1?)
 
 //                float frameWidth, frameHeight;
 //                getPixelDimensions(frameWidth, frameHeight);
                 
-                // Convert t_opencv_contour to std::vector<Eigen::Vector2f>
+                // Convert undistort_contour to std::vector<Eigen::Vector2f>
+                // It would be great if there were some mappings that eliminated
+                // the need for a copy. Such things exist for Mats. Then we would
+                // have to change eigen_alignment_fit_focal_cone_to_sphere
                 std::vector<Eigen::Vector2f> eigen_contour;
-                std::for_each(
-                              undistort_contour.begin(),
+                std::for_each(undistort_contour.begin(),
                               undistort_contour.end(),
-                              [&eigen_contour](cv::Point& p) {
+                              [&eigen_contour](cv::Point2f& p) {
                                   eigen_contour.push_back(Eigen::Vector2f(p.x, p.y));
                               });
 
                 // Compute the sphere center AND the projected ellipse
-                
                 Eigen::Vector3f sphere_center;
                 EigenFitEllipse ellipse_projection;
                 eigen_alignment_fit_focal_cone_to_sphere(
                     eigen_contour.data(),
                     static_cast<int>(undistort_contour.size()),
                     tracking_shape->shape.sphere.radius,
-                    -1,
+                    1, //Why am I not negating this?
                     &sphere_center,
                     &ellipse_projection);
 
@@ -1210,12 +1237,13 @@ bool ServerTrackerView::computePoseForHMD(
 
 	// Find the N best contours associated with the HMD
 	t_opencv_contour_list biggest_contours;
+    std::vector<double> contour_areas;
 	if (bSuccess)
 	{
 		///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges.
 		bSuccess = 
 			m_opencv_buffer_state->computeBiggestNContours(
-				hsvColorRange, biggest_contours, CommonDeviceTrackingProjection::MAX_POINT_CLOUD_POINT_COUNT);
+				hsvColorRange, biggest_contours, contour_areas, CommonDeviceTrackingProjection::MAX_POINT_CLOUD_POINT_COUNT);
 	}
 
 	// Compute the tracker relative 3d position of the controller from the contour
