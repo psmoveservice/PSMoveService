@@ -30,6 +30,24 @@
 typedef std::vector<cv::Point> t_opencv_contour;
 typedef std::vector<t_opencv_contour> t_opencv_contour_list;
 
+
+struct ScopedNanoTimer
+{
+    std::string section_name;
+    std::chrono::high_resolution_clock::time_point t0;
+    ScopedNanoTimer(const char *name)
+    : section_name(name)
+    , t0(std::chrono::high_resolution_clock::now())
+    {
+    }
+    ~ScopedNanoTimer(void)
+    {
+        auto  t1 = std::chrono::high_resolution_clock::now();
+        auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+        SERVER_LOG_INFO(section_name.c_str()) << "took " << nanos << "ns";
+    }
+};
+
 //-- private methods -----
 class SharedVideoFrameReadWriteAccessor
 {
@@ -1123,20 +1141,24 @@ ServerTrackerView::computeProjectionForController(
                 // Compute the sphere center AND the projected ellipse
                 Eigen::Vector3f sphere_center;
                 EigenFitEllipse ellipse_projection;
-#if true
+
                 //New way with Eigen matrix as a remap of cv matrix.
+                {
+                ScopedNanoTimer timer("eigen_matrix");
                 cv::Mat cv_mat(undistort_contour.size(), 2, CV_32F, undistort_contour.data());
-                std::cout << cv_mat << std::endl;
                 Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_mat(cv_mat.ptr<float>(), cv_mat.rows, cv_mat.cols);
-                eigen_alignment_fit_focal_cone_to_sphere(
-                    eig_mat,
-                    tracking_shape->shape.sphere.radius,
-                    1, //I was expecting to negate this...
-                    &sphere_center,
-                    &ellipse_projection,
-                    F_PX);
-#else
+                eigen_alignment_fit_focal_cone_to_sphere(eig_mat,
+                                                         eig_mat.rows(),
+                                                         tracking_shape->shape.sphere.radius,
+                                                         1, //I was expecting to negate this...
+                                                         &sphere_center,
+                                                         &ellipse_projection,
+                                                         F_PX);
+                }
+
                 // Old way with std::vector<Eigen::Vector2f>
+                {
+                    ScopedNanoTimer timer("eigen_contour_copy");
                 std::vector<Eigen::Vector2f> eigen_contour;
                 std::for_each(undistort_contour.begin(),
                               undistort_contour.end(),
@@ -1150,7 +1172,8 @@ ServerTrackerView::computeProjectionForController(
                                                          &sphere_center,
                                                          &ellipse_projection,
                                                          F_PX);
-#endif
+                }
+
 
                 out_pose_estimate->position.set(sphere_center.x(), sphere_center.y(), sphere_center.z());
                 out_pose_estimate->bCurrentlyTracking = true;

@@ -500,10 +500,11 @@ eigen_alignment_compute_ellipse_fit_error(
 
 
 float
-eigen_alignment_compute_ellipse_fit_error(const Eigen::MatrixXf point_mat,
+eigen_alignment_compute_ellipse_fit_error(const Eigen::MatrixXf &point_mat,
+                                          const int point_count,
                                           const EigenFitEllipse &ellipse)
 {
-    const int point_count = point_mat.rows();
+    float error = 0.f;
     
     // Get the semi-axis lengths of the ellipse
     float b_x_x = cosf(ellipse.angle);
@@ -523,7 +524,13 @@ eigen_alignment_compute_ellipse_fit_error(const Eigen::MatrixXf point_mat,
     // |E(x, y, x)| gives us distance from the surface, which will treat as an error
     point_reproj.col(0) = point_reproj.col(0) / ellipse.extents.x();
     point_reproj.col(1) = point_reproj.col(1) / ellipse.extents.y();
-    return ((point_reproj.rowwise().squaredNorm() - Eigen::VectorXf::Ones(point_count)).cwiseAbs()).sum();
+    
+//    return ((point_reproj.rowwise().squaredNorm() - Eigen::VectorXf::Ones(point_count)).cwiseAbs()).sum();
+    for (int i = 0; i < point_count; ++i)
+    {
+        error += fabsf(point_reproj(i, 0)*point_reproj(i, 0) + point_reproj(i, 1)*point_reproj(i, 1) - 1);
+    }
+    return error;
 }
 
 
@@ -718,14 +725,14 @@ eigen_alignment_fit_focal_cone_to_sphere(
 }
 
 void
-eigen_alignment_fit_focal_cone_to_sphere(const Eigen::MatrixXf point_mat,
+eigen_alignment_fit_focal_cone_to_sphere(const Eigen::MatrixXf &point_mat,
+                                         const int point_count,
                                          const float sphere_radius,
                                          const float focal_length_pts, // a.k.a. "f_px"
                                          Eigen::Vector3f *out_sphere_center,
                                          EigenFitEllipse *out_ellipse_projection,
                                          float focal_length_proj)
 {
-    const int point_count = point_mat.rows();
     
     if (focal_length_proj == 0.f)
     {
@@ -736,11 +743,14 @@ eigen_alignment_fit_focal_cone_to_sphere(const Eigen::MatrixXf point_mat,
     // best fits the given convex contour
     float zz = focal_length_pts * focal_length_pts;
     
-    Eigen::MatrixXf A = Eigen::MatrixXf::Ones(point_count, 3);
+    Eigen::MatrixXf A(point_count, 3);
     A.leftCols(2) = point_mat;
-    A.col(2) *= focal_length_pts;
-    A.col(2) = A.rowwise().norm();
-    A.col(2) *= -1;
+    //rowwise().squaredNorm() seems to be slower than doing it manually.
+    for (int i = 0; i<point_count; ++i)
+    {
+        float norm_A = sqrt(point_mat(i, 0)*point_mat(i, 0) + point_mat(i, 1)*point_mat(i, 1) + zz);
+        A(i, 2) = -norm_A;
+    }
     
     Eigen::VectorXf b(point_count);
     b.fill(-zz);
@@ -764,6 +774,7 @@ eigen_alignment_fit_focal_cone_to_sphere(const Eigen::MatrixXf point_mat,
         
         out_ellipse_projection->error=
             eigen_alignment_compute_ellipse_fit_error(point_mat,
+                                                      point_count,
                                                       *out_ellipse_projection);
     }
 }
