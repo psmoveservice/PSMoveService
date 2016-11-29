@@ -529,6 +529,8 @@ public:
                     *gsLowerBuffer);
             }
         }
+        
+        //TODO: Why no blurring of the gsLowerBuffer?
 
         // Find the largest convex blob in the filtered grayscale buffer
         {
@@ -600,6 +602,47 @@ public:
         }
 
         return (out_biggest_N_contours.size() > 0);
+    }
+    
+    void
+    draw_contour(const t_opencv_contour &contour)
+    {
+        // This is useful for debugging
+        std::vector<t_opencv_contour> contours = {contour};
+        cv::Moments mu(cv::moments(contour));
+        cv::Point2f massCenter = cv::Point2f(static_cast<float>(mu.m10 / mu.m00),
+                                             static_cast<float>(mu.m01 / mu.m00));
+        cv::drawContours(*bgrBuffer, contours, 0, cv::Scalar(255, 255, 255));
+        cv::rectangle(*bgrBuffer, cv::boundingRect(contour), cv::Scalar(255, 255, 255));
+        cv::drawMarker(*bgrBuffer, massCenter, cv::Scalar(255, 255, 255));
+//        float contourArea = mu.m00;
+    }
+    
+    void
+    draw_pose(const ControllerOpticalPoseEstimation &pose_estimate,
+              const cv::Matx33f &intrinsic_matrix)
+    {
+        if (pose_estimate.projection.shape_type == eCommonTrackingProjectionType::ProjectionType_Ellipse)
+        {
+            
+            //Create cv::ellipse from pose_estimate
+            cv::Point ell_center(pose_estimate.projection.shape.ellipse.center.x,
+                                 pose_estimate.projection.shape.ellipse.center.y);
+            cv::Size ell_size(pose_estimate.projection.shape.ellipse.half_x_extent,
+                              pose_estimate.projection.shape.ellipse.half_y_extent);
+            
+            //Undo offset created by undistort
+            ell_center.x += intrinsic_matrix.val[2];
+            ell_center.y += intrinsic_matrix.val[5];
+            
+            //Draw ellipse on bgrBuffer
+            cv::ellipse(*bgrBuffer,
+                        ell_center,
+                        ell_size,
+                        pose_estimate.projection.shape.ellipse.angle,
+                        0, 360, cv::Scalar(0, 0, 255));
+            cv::drawMarker(*bgrBuffer, ell_center, cv::Scalar(0, 0, 255));
+        }
     }
 
     int frameWidth;
@@ -793,12 +836,6 @@ bool ServerTrackerView::poll()
             if (m_opencv_buffer_state != nullptr)
             {
                 m_opencv_buffer_state->writeVideoFrame(buffer);
-
-                // Copy the video frame to shared memory (if requested)
-                if (m_shared_memory_accesor != nullptr && m_shared_memory_video_stream_count > 0)
-                {
-                    m_shared_memory_accesor->writeVideoFrame(m_opencv_buffer_state->bgrBuffer->data);
-                }
             }
         }
     }
@@ -835,6 +872,12 @@ void ServerTrackerView::free_device_interface()
 
 void ServerTrackerView::publish_device_data_frame()
 {
+    // Copy the video frame to shared memory (if requested)
+    if (m_shared_memory_accesor != nullptr && m_shared_memory_video_stream_count > 0)
+    {
+        m_shared_memory_accesor->writeVideoFrame(m_opencv_buffer_state->bgrBuffer->data);
+    }
+    
     // Tell the server request handler we want to send out tracker updates.
     // This will call generate_tracker_data_frame_for_stream for each listening connection.
     ServerRequestHandler::get_instance()->publish_tracker_data_frame(
@@ -1065,19 +1108,6 @@ ServerTrackerView::computeProjectionForController(
     // Process the contour for its 2D and 3D pose.
     if (bSuccess)
     {
-        // TODO: Save out the contour itself.
-        // This is useful for debugging, and when an ellipse is unneeded,
-        // or it is too small for a good fit, some simpler metrics can be used.
-        // From moments we can get center of mass and area.
-        // We can also calculate its bounding rect (useful for ROI).
-//        float frameWidth, frameHeight;
-//        getPixelDimensions(frameWidth, frameHeight);
-//        cv::Moments mu(cv::moments(biggest_contours[0]));
-//        float contourArea = mu.m00;
-//        cv::Point2f massCenter = cv::Point2f(static_cast<float>(mu.m10 / mu.m00) - (frameWidth / 2),
-//                                             (frameHeight / 2) - static_cast<float>(mu.m01 / mu.m00));
-//        cv::Rect boundRect(cv::boundingRect(biggest_contours[0]));
-        
         // Compute the tracker relative 3d position of the controller from the contour
         switch (tracking_shape->shape_type)
         {
@@ -1103,6 +1133,7 @@ ServerTrackerView::computeProjectionForController(
                 // Compute the convex hull of the contour
                 t_opencv_contour convex_contour;
                 cv::convexHull(biggest_contours[0], convex_contour);
+                m_opencv_buffer_state->draw_contour(convex_contour);
                 
                 // Convert integer to float
                 std::vector<cv::Point2f> convex_contour_f;
@@ -1136,8 +1167,12 @@ ServerTrackerView::computeProjectionForController(
                                                          tracking_shape->shape.sphere.radius,
                                                          1, //I was expecting to negate this...
                                                          &sphere_center,
-                                                         &ellipse_projection,
-                                                         F_PX);
+                                                         &ellipse_projection);
+                
+                
+                ellipse_projection.center.x() = ellipse_projection.center.x()*camera_matrix.val[0];// + camera_matrix.val[2];
+                ellipse_projection.center.y() = ellipse_projection.center.y()*camera_matrix.val[4];// + camera_matrix.val[5];
+                ellipse_projection.extents *= camera_matrix.val[0];
 
                 out_pose_estimate->position.set(sphere_center.x(), sphere_center.y(), sphere_center.z());
                 out_pose_estimate->bCurrentlyTracking = true;
@@ -1153,6 +1188,10 @@ ServerTrackerView::computeProjectionForController(
                 out_pose_estimate->projection.shape.ellipse.half_y_extent = ellipse_projection.extents.y();
                 out_pose_estimate->projection.shape.ellipse.angle = ellipse_projection.angle;
                 out_pose_estimate->projection.screen_area= ellipse_projection.area;
+                
+                //Draw results onto m_opencv_buffer_state
+                m_opencv_buffer_state->draw_pose(*out_pose_estimate,
+                                                 camera_matrix);
 
                 bSuccess = true;
             } break;

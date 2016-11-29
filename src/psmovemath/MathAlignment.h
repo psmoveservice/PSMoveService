@@ -118,8 +118,7 @@ eigen_alignment_fit_focal_cone_to_sphere(
     const float sphere_radius,
     const float focal_length_pts, // a.k.a. "f_px"
     Eigen::Vector3f *out_sphere_center,
-    EigenFitEllipse *out_ellipse_projection= nullptr,
-    float focal_length_proj = 0.f);
+    EigenFitEllipse *out_ellipse_projection= nullptr);
 
 // Compute the weighted average of multiple quaternions
 // * All weights will be renormalized against the total weight

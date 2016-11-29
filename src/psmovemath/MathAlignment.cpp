@@ -641,14 +641,8 @@ eigen_alignment_fit_focal_cone_to_sphere(
     const float sphere_radius,
     const float focal_length_pts, // a.k.a. "f_px"
     Eigen::Vector3f *out_sphere_center,
-    EigenFitEllipse *out_ellipse_projection,
-    float focal_length_proj)
+    EigenFitEllipse *out_ellipse_projection)
 {
-    if (focal_length_proj == 0.f)
-    {
-        focal_length_proj = focal_length_pts;
-    }
-    
     // Compute the sphere position whose projection on the focal plane
     // best fits the given convex contour
     float zz = focal_length_pts * focal_length_pts;
@@ -680,7 +674,7 @@ eigen_alignment_fit_focal_cone_to_sphere(
     if (out_ellipse_projection != nullptr)
     {
         eigen_alignment_project_ellipse(out_sphere_center, k,
-                                        focal_length_proj, zz,
+                                        focal_length_pts, zz,
                                         out_ellipse_projection);
         
         out_ellipse_projection->error=

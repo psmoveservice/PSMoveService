@@ -389,6 +389,12 @@ struct CommonDeviceTrackingProjection
 
     float screen_area; // area in pixels^2
     eCommonTrackingProjectionType shape_type;
+    
+    struct {
+        CommonDeviceScreenLocation center_of_mass;
+        CommonDeviceScreenLocation bounding_rect[4];
+        float area;
+    } basic;
 };
 
 /// Abstract base class for any device interface. Further defined in specific device abstractions.
