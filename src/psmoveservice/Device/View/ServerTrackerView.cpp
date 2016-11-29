@@ -1060,13 +1060,24 @@ ServerTrackerView::computeProjectionForController(
         //cv::findContours can pass in an offset when using ROIs.
         bSuccess = m_opencv_buffer_state->computeBiggestNContours(hsvColorRange, biggest_contours, contour_areas, 1);
     }
-
-    // Compute the tracker relative 3d position of the controller from the contour
+    
+    // Process the contour for its 2D and 3D pose.
     if (bSuccess)
     {
-        // TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
-        // Then replace F_PX with -1.
-
+        // TODO: Save out the contour itself.
+        // This is useful for debugging, and when an ellipse is unneeded,
+        // or it is too small for a good fit, some simpler metrics can be used.
+        // From moments we can get center of mass and area.
+        // We can also calculate its bounding rect (useful for ROI).
+//        float frameWidth, frameHeight;
+//        getPixelDimensions(frameWidth, frameHeight);
+//        cv::Moments mu(cv::moments(biggest_contours[0]));
+//        float contourArea = mu.m00;
+//        cv::Point2f massCenter = cv::Point2f(static_cast<float>(mu.m10 / mu.m00) - (frameWidth / 2),
+//                                             (frameHeight / 2) - static_cast<float>(mu.m01 / mu.m00));
+//        cv::Rect boundRect(cv::boundingRect(biggest_contours[0]));
+        
+        // Compute the tracker relative 3d position of the controller from the contour
         switch (tracking_shape->shape_type)
         {
 		// For the sphere projection we can go ahead and compute the full pose estimation now
@@ -1087,7 +1098,6 @@ ServerTrackerView::computeProjectionForController(
                 cv::Matx33f camera_matrix(F_PX,     0.0,    PrincipalX,
                                           0.0,      -F_PY,  PrincipalY,  //Negate F_PY because +Y is down on the image.
                                           0.0,      0.0,    1.0 );
-                std::vector<float> dist_coeffs = {distortionK1, distortionK2, distortionP1, distortionP2, distortionK3};
                 
                 // Compute the convex hull of the contour
                 t_opencv_contour convex_contour;
@@ -1101,39 +1111,46 @@ ServerTrackerView::computeProjectionForController(
                 std::vector<cv::Point2f> undistort_contour;
                 cv::undistortPoints(convex_contour_f, undistort_contour,
                                     camera_matrix,
-                                    dist_coeffs);//,
+                                    std::vector<float> {distortionK1, distortionK2, distortionP1, distortionP2, distortionK3});//,
 //                                    cv::noArray(),
 //                                    camera_matrix);
-                // Note: if we get omit the last two arguments, then
+                // Note: if we omit the last two arguments, then
                 // undistort_contour points are in 'normalized' space.
                 // i.e., they are relative to their F_PX,F_PY
                 // We then have to change F_PX in eigen_alignment_fit_focal_cone_to_sphere
-                // below to something in this normalized space (+1, -1?)
-
-//                float frameWidth, frameHeight;
-//                getPixelDimensions(frameWidth, frameHeight);
+                // below to the focal length this normalized space (i.e., +1, -1?)
                 
-                // Convert undistort_contour to std::vector<Eigen::Vector2f>
-                // It would be great if there were some mappings that eliminated
-                // the need for a copy. Such things exist for Mats. Then we would
-                // have to change eigen_alignment_fit_focal_cone_to_sphere
+                // Compute the sphere center AND the projected ellipse
+                Eigen::Vector3f sphere_center;
+                EigenFitEllipse ellipse_projection;
+#if true
+                //New way with Eigen matrix as a remap of cv matrix.
+                cv::Mat cv_mat(undistort_contour.size(), 2, CV_32F, undistort_contour.data());
+                std::cout << cv_mat << std::endl;
+                Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_mat(cv_mat.ptr<float>(), cv_mat.rows, cv_mat.cols);
+                eigen_alignment_fit_focal_cone_to_sphere(
+                    eig_mat,
+                    tracking_shape->shape.sphere.radius,
+                    1, //I was expecting to negate this...
+                    &sphere_center,
+                    &ellipse_projection,
+                    F_PX);
+#else
+                // Old way with std::vector<Eigen::Vector2f>
                 std::vector<Eigen::Vector2f> eigen_contour;
                 std::for_each(undistort_contour.begin(),
                               undistort_contour.end(),
                               [&eigen_contour](cv::Point2f& p) {
                                   eigen_contour.push_back(Eigen::Vector2f(p.x, p.y));
                               });
-
-                // Compute the sphere center AND the projected ellipse
-                Eigen::Vector3f sphere_center;
-                EigenFitEllipse ellipse_projection;
-                eigen_alignment_fit_focal_cone_to_sphere(
-                    eigen_contour.data(),
-                    static_cast<int>(undistort_contour.size()),
-                    tracking_shape->shape.sphere.radius,
-                    1, //Why am I not negating this?
-                    &sphere_center,
-                    &ellipse_projection);
+                eigen_alignment_fit_focal_cone_to_sphere(eigen_contour.data(),
+                                                         eigen_contour.size(),
+                                                         tracking_shape->shape.sphere.radius,
+                                                         1, //I was expecting to negate this...
+                                                         &sphere_center,
+                                                         &ellipse_projection,
+                                                         F_PX);
+#endif
 
                 out_pose_estimate->position.set(sphere_center.x(), sphere_center.y(), sphere_center.z());
                 out_pose_estimate->bCurrentlyTracking = true;

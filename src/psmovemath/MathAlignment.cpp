@@ -2,6 +2,7 @@
 #include "MathAlignment.h"
 #include "Eigen/SVD"
 #include "Eigen/Dense"
+#include <iostream>
 
 //-- public methods -----
 Eigen::Quaternionf
@@ -498,6 +499,87 @@ eigen_alignment_compute_ellipse_fit_error(
 }
 
 
+float
+eigen_alignment_compute_ellipse_fit_error(const Eigen::MatrixXf point_mat,
+                                          const EigenFitEllipse &ellipse)
+{
+    const int point_count = point_mat.rows();
+    
+    // Get the semi-axis lengths of the ellipse
+    float b_x_x = cosf(ellipse.angle);
+    float b_x_y = sinf(ellipse.angle);
+    Eigen::Matrix2f new_bases;
+    new_bases <<    b_x_x, -b_x_y,
+                    b_x_y, b_x_x;
+    
+    // Project the point, relative to ellipsoid center, onto basis
+    Eigen::MatrixXf point_reproj(point_count, 2);
+    point_reproj << (point_mat.rowwise() - ellipse.center.transpose()) * new_bases;
+    
+    // Compute the general ellipsoid equation: E(x, y, x)= (x^2/a^2) + (y^2/b^2) + (z^2/x^2) - 1
+    // E(x, y, x) = 0 means the point is on the surface
+    // E(x, y, x) > 0 means the point is above the surface
+    // E(x, y, x) < 0 means the point is below the surface
+    // |E(x, y, x)| gives us distance from the surface, which will treat as an error
+    point_reproj.col(0) = point_reproj.col(0) / ellipse.extents.x();
+    point_reproj.col(1) = point_reproj.col(1) / ellipse.extents.y();
+    return ((point_reproj.rowwise().squaredNorm() - Eigen::VectorXf::Ones(point_count)).cwiseAbs()).sum();
+}
+
+
+void
+eigen_alignment_project_ellipse(Eigen::Vector3f *sphere_center,
+                                float k,
+                                float focal_length_proj,
+                                float zz,
+                                EigenFitEllipse *out_ellipse_projection)
+{
+    // Get conical parameters
+    float xx = sphere_center->x() * sphere_center->x();
+    float yy = sphere_center->y() * sphere_center->y();
+    float _zz = sphere_center->z() * sphere_center->z();
+    float m = k*(xx + yy + _zz);
+    float a = xx - m;
+    float b = 2 * sphere_center->x()*sphere_center->y();
+    float c = yy - m;
+    float d = 2 * sphere_center->x()*sphere_center->z()*focal_length_proj;
+    float f = 2 * sphere_center->y()*sphere_center->z()*focal_length_proj;
+    float g = zz * (_zz - m);
+    
+    // Convert conical to parametric
+    // http://mathworld.wolfram.com/Ellipse.html Eqns 19-23
+    b /= 2;
+    d /= 2;
+    f /= 2;
+    float bb = b*b;
+    float off_d = bb - a*c;
+    float h_ = (c*d - b*f) / off_d;
+    float k_ = (a*f - b*d) / off_d;
+    float semi_n = a*f*f + c*d*d + g*bb - 2 * b*d*f - a*c*g;
+    float semi_d_2 = sqrt((a - c)*(a - c) + 4 * bb);
+    float semi_d_3 = -1 * (a + c);
+    float a_ = sqrt(2 * semi_n / (off_d * (semi_d_2 + semi_d_3)));
+    float b_ = sqrt(2 * semi_n / (off_d * (-1 * semi_d_2 + semi_d_3)));
+    float tau = 0;
+    
+    if (b != 0)
+    {
+        tau = atan2f(2 * b, a - c) / 2;
+    }
+    
+    Eigen::Vector2f center;
+    center << h_, k_;
+    
+    Eigen::Vector2f extents;
+    extents << a_, b_;
+    
+    out_ellipse_projection->center = center;
+    out_ellipse_projection->extents = extents;
+    out_ellipse_projection->angle = tau;
+    out_ellipse_projection->area = k_real_pi*a_*b_;
+}
+
+
 // Comments reference diagram in "Analytic solution after ellipse fitting"
 // from: https://github.com/cboulay/PSMoveService/wiki/Optical-Tracker-Algorithms
 void
@@ -585,13 +667,19 @@ eigen_alignment_fit_focal_cone_to_sphere(
     const Eigen::Vector2f *points,
     const int point_count,
     const float sphere_radius,
-    const float camera_focal_length, // a.k.a. "f_px"
+    const float focal_length_pts, // a.k.a. "f_px"
     Eigen::Vector3f *out_sphere_center,
-    EigenFitEllipse *out_ellipse_projection)
+    EigenFitEllipse *out_ellipse_projection,
+    float focal_length_proj)
 {
+    if (focal_length_proj == 0.f)
+    {
+        focal_length_proj = focal_length_pts;
+    }
+    
     // Compute the sphere position whose projection on the focal plane
     // best fits the given convex contour
-    float zz = camera_focal_length * camera_focal_length;
+    float zz = focal_length_pts * focal_length_pts;
 
     Eigen::MatrixXf A(point_count, 3);
     for (int i = 0; i<point_count; ++i)
@@ -613,58 +701,70 @@ eigen_alignment_fit_focal_cone_to_sphere(
     float k = cos_theta * cos_theta;
     float norm_B = sphere_radius / sqrt(1 - k);
 
-    *out_sphere_center << Bx_By_c[0], Bx_By_c[1], camera_focal_length;
+    *out_sphere_center << Bx_By_c[0], Bx_By_c[1], focal_length_pts;
     *out_sphere_center *= (norm_B / norm_norm_B);
 
     // Optionally compute the best fit ellipse
     if (out_ellipse_projection != nullptr)
     {
-        // Get conical parameters
-        float xx = out_sphere_center->x() * out_sphere_center->x();
-        float yy = out_sphere_center->y() * out_sphere_center->y();
-        float _zz = out_sphere_center->z() * out_sphere_center->z();
-        float m = k*(xx + yy + _zz);
-        float a = xx - m;
-        float b = 2 * out_sphere_center->x()*out_sphere_center->y();
-        float c = yy - m;
-        float d = 2 * out_sphere_center->x()*out_sphere_center->z()*camera_focal_length;
-        float f = 2 * out_sphere_center->y()*out_sphere_center->z()*camera_focal_length;
-        float g = zz * (_zz - m);
-
-        // Convert conical to parametric
-        // http://mathworld.wolfram.com/Ellipse.html Eqns 19-23
-        b /= 2;
-        d /= 2;
-        f /= 2;
-        float bb = b*b;
-        float off_d = bb - a*c;
-        float h_ = (c*d - b*f) / off_d;
-        float k_ = (a*f - b*d) / off_d;
-        float semi_n = a*f*f + c*d*d + g*bb - 2 * b*d*f - a*c*g;
-        float semi_d_2 = sqrt((a - c)*(a - c) + 4 * bb);
-        float semi_d_3 = -1 * (a + c);
-        float a_ = sqrt(2 * semi_n / (off_d * (semi_d_2 + semi_d_3)));
-        float b_ = sqrt(2 * semi_n / (off_d * (-1 * semi_d_2 + semi_d_3)));
-        float tau = 0;
-
-        if (b != 0)
-        {
-            tau = atan2f(2 * b, a - c) / 2;
-        }
-
-        Eigen::Vector2f center;
-        center << h_, k_;
-
-        Eigen::Vector2f extents;
-        extents << a_, b_;
-
-        out_ellipse_projection->center = center;
-        out_ellipse_projection->extents = extents;
-        out_ellipse_projection->angle = tau;
-        out_ellipse_projection->area = k_real_pi*a_*b_;
+        eigen_alignment_project_ellipse(out_sphere_center, k,
+                                        focal_length_proj, zz,
+                                        out_ellipse_projection);
+        
         out_ellipse_projection->error=
             eigen_alignment_compute_ellipse_fit_error(
                 points, point_count, *out_ellipse_projection);
+    }
+}
+
+void
+eigen_alignment_fit_focal_cone_to_sphere(const Eigen::MatrixXf point_mat,
+                                         const float sphere_radius,
+                                         const float focal_length_pts, // a.k.a. "f_px"
+                                         Eigen::Vector3f *out_sphere_center,
+                                         EigenFitEllipse *out_ellipse_projection,
+                                         float focal_length_proj)
+{
+    const int point_count = point_mat.rows();
+    
+    if (focal_length_proj == 0.f)
+    {
+        focal_length_proj = focal_length_pts;
+    }
+    
+    // Compute the sphere position whose projection on the focal plane
+    // best fits the given convex contour
+    float zz = focal_length_pts * focal_length_pts;
+    
+    Eigen::MatrixXf A = Eigen::MatrixXf::Ones(point_count, 3);
+    A.leftCols(2) = point_mat;
+    A.col(2) *= focal_length_pts;
+    A.col(2) = A.rowwise().norm();
+    A.col(2) *= -1;
+    
+    Eigen::VectorXf b(point_count);
+    b.fill(-zz);
+    Eigen::Vector3f Bx_By_c = A.colPivHouseholderQr().solve(b);
+    float norm_norm_B = sqrt(Bx_By_c[0] * Bx_By_c[0] +
+                             Bx_By_c[1] * Bx_By_c[1] +
+                             zz);
+    float cos_theta = Bx_By_c[2] / norm_norm_B;
+    float k = cos_theta * cos_theta;
+    float norm_B = sphere_radius / sqrt(1 - k);
+    
+    *out_sphere_center << Bx_By_c[0], Bx_By_c[1], focal_length_pts;
+    *out_sphere_center *= (norm_B / norm_norm_B);
+    
+    // Optionally compute the best fit ellipse
+    if (out_ellipse_projection != nullptr)
+    {
+        eigen_alignment_project_ellipse(out_sphere_center, k,
+                                        focal_length_proj, zz,
+                                        out_ellipse_projection);
+        
+        out_ellipse_projection->error=
+            eigen_alignment_compute_ellipse_fit_error(point_mat,
+                                                      *out_ellipse_projection);
     }
 }
 
