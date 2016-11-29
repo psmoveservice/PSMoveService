@@ -95,11 +95,6 @@ eigen_alignment_compute_ellipse_fit_error(
     const Eigen::Vector2f *points, const int point_count,
     const EigenFitEllipse &ellipsoid);
 
-float
-eigen_alignment_compute_ellipse_fit_error(const Eigen::MatrixXf *point_mat,
-                                          const int point_count,
-                                          const EigenFitEllipse &ellipsoid);
-
 void
 eigen_alignment_project_ellipse(Eigen::Vector3f *sphere_center,
                                 float k,
@@ -125,15 +120,6 @@ eigen_alignment_fit_focal_cone_to_sphere(
     Eigen::Vector3f *out_sphere_center,
     EigenFitEllipse *out_ellipse_projection= nullptr,
     float focal_length_proj = 0.f);
-
-void
-eigen_alignment_fit_focal_cone_to_sphere(const Eigen::MatrixXf &point_mat,
-                                         const int point_count,
-                                         const float sphere_radius,
-                                         const float focal_length_pts, // a.k.a. "f_px"
-                                         Eigen::Vector3f *out_sphere_center,
-                                         EigenFitEllipse *out_ellipse_projection,
-                                         float focal_length_proj);
 
 // Compute the weighted average of multiple quaternions
 // * All weights will be renormalized against the total weight
