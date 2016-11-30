@@ -289,10 +289,9 @@ public:
         const Eigen::Vector3d gravity_accel_g_units= -m_identity_gravity_direction;
         const Eigen::Vector3d linear_accel_g_units= x.get_linear_acceleration() * k_ms2_to_g_units;
         const Eigen::Vector3d accel_world= linear_accel_g_units + gravity_accel_g_units;
-        const Eigen::Quaterniond accel_world_quat(0.f, accel_world.x(), accel_world.y(), accel_world.z());
 
         // Put the accelerometer prediction into the local space of the controller
-        const Eigen::Vector3d accel_local= m_current_orientation*(accel_world_quat*m_current_orientation.conjugate()).vec();
+        const Eigen::Vector3d accel_local= eigen_vector3d_clockwise_rotate(m_current_orientation, accel_world);
 
         // Save the predictions into the measurement vector
         predicted_measurement.set_accelerometer(accel_local);

@@ -1590,6 +1590,7 @@ init_filters_for_psmove(
 		Eigen::Vector3f(psmove_config->accelerometer_variance, psmove_config->accelerometer_variance, psmove_config->accelerometer_variance);
 	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
+
 	constants.orientation_constants.gyro_drift= 
 		Eigen::Vector3f(psmove_config->gyro_drift, psmove_config->gyro_drift, psmove_config->gyro_drift);
 	constants.orientation_constants.gyro_variance= 
@@ -1597,7 +1598,7 @@ init_filters_for_psmove(
 	constants.orientation_constants.mean_update_time_delta= psmove_config->mean_update_time_delta;
 	constants.orientation_constants.orientation_variance_curve.A = psmove_config->orientation_variance;
 	constants.orientation_constants.orientation_variance_curve.B = 0.f;
-	constants.orientation_constants.orientation_variance_curve.MaxValue = 1.f;
+	constants.orientation_constants.orientation_variance_curve.MaxValue = psmove_config->orientation_variance;
 	constants.orientation_constants.magnetometer_variance= 
 		Eigen::Vector3f(psmove_config->magnetometer_variance, psmove_config->magnetometer_variance, psmove_config->magnetometer_variance);
 	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero();
