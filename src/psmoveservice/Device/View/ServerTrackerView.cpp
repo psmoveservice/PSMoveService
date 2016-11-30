@@ -325,18 +325,14 @@ class OpenCVBufferState
 public:
     OpenCVBufferState(ITrackerInterface *device)
         : bgrBuffer(nullptr)
-        , bgrUndistortBuffer(nullptr)
         , hsvBuffer(nullptr)
         , gsLowerBuffer(nullptr)
         , gsUpperBuffer(nullptr)
         , maskedBuffer(nullptr)
-        , distortionMapX(nullptr)
-        , distortionMapY(nullptr)
     {
         device->getVideoFrameDimensions(&frameWidth, &frameHeight, nullptr);
 
         bgrBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
-        bgrUndistortBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
         hsvBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
         gsLowerBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
         gsUpperBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
@@ -344,12 +340,9 @@ public:
 
         intrinsic_matrix = new cv::Mat(3, 3, CV_64FC1);
         distortion_coeffs = new cv::Mat(5, 1, CV_64FC1);
-
-        distortionMapX = new cv::Mat(cv::Size(frameWidth, frameHeight), CV_32FC1);
-        distortionMapY = new cv::Mat(cv::Size(frameWidth, frameHeight), CV_32FC1);
-
-        rebuildDistortionMap(device);
         
+		rebuildDistortionParameters(device);
+
         const TrackerManagerConfig &cfg= DeviceManager::getInstance()->m_tracker_manager->getConfig();
         if (cfg.use_bgr_to_hsv_lookup_table)
         {
@@ -387,17 +380,10 @@ public:
         {
             delete bgrBuffer;
         }
-        
-        if (bgrUndistortBuffer != nullptr)
-        {
-            delete bgrUndistortBuffer;
-        }
-        
+               
         // TODO: If not nullptr wrapper
         delete intrinsic_matrix;
         delete distortion_coeffs;
-        delete distortionMapX;
-        delete distortionMapY;
         
         if (bgr2hsv != nullptr)
         {
@@ -405,7 +391,7 @@ public:
         }
     }
 
-    void rebuildDistortionMap(ITrackerInterface *device)
+    void rebuildDistortionParameters(ITrackerInterface *device)
     {
         float F_PX, F_PY;
         float PrincipalX, PrincipalY;
@@ -437,15 +423,6 @@ public:
         distortion_coeffs->at<double>(2, 0)= distortionP1;
         distortion_coeffs->at<double>(3, 0)= distortionP2;
         distortion_coeffs->at<double>(4, 0)= distortionK3;
-
-        cv::initUndistortRectifyMap(
-            *intrinsic_matrix, *distortion_coeffs, 
-            cv::noArray(), // unneeded rectification transformation computed by stereoRectify()
-                               // newCameraMatrix - can be computed by getOptimalNewCameraMatrix(), but
-            *intrinsic_matrix, // "In case of a monocular camera, newCameraMatrix is usually equal to cameraMatrix"
-            cv::Size(frameWidth, frameHeight),
-            CV_32FC1, // Distortion map type
-            *distortionMapX, *distortionMapY);
     }
 
     void writeVideoFrame(const unsigned char *video_buffer)
@@ -454,20 +431,14 @@ public:
 
 		videoBufferMat.copyTo(*bgrBuffer);
 
-        // Apply the distortion map to the source video frame
-        cv::remap(
-            *bgrBuffer, *bgrUndistortBuffer, 
-            *distortionMapX, *distortionMapY, 
-            cv::INTER_LINEAR, cv::BORDER_CONSTANT);
-
         // Convert the video buffer to the HSV color space
 		if (bgr2hsv != nullptr)
 		{
-			bgr2hsv->cvtColor(*bgrUndistortBuffer, *hsvBuffer);
+			bgr2hsv->cvtColor(*bgrBuffer, *hsvBuffer);
 		}
 		else
 		{
-			cv::cvtColor(*bgrUndistortBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
+			cv::cvtColor(*bgrBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
 		}
     }
 
@@ -649,15 +620,12 @@ public:
     int frameHeight;
 
     cv::Mat *bgrBuffer; // source video frame
-    cv::Mat *bgrUndistortBuffer; // undistorted source video frame
     cv::Mat *hsvBuffer; // source frame converted to HSV color space
     cv::Mat *gsLowerBuffer; // HSV image clamped by HSV range into grayscale mask
     cv::Mat *gsUpperBuffer; // HSV image clamped by HSV range into grayscale mask
     cv::Mat *maskedBuffer; // bgr image ANDed together with grayscale mask
     cv::Mat *intrinsic_matrix;
     cv::Mat *distortion_coeffs;
-    cv::Mat *distortionMapX;
-    cv::Mat *distortionMapY;
 	OpenCVBGRToHSVMapper *bgr2hsv; // Used to convert an rgb image to an hsv image
 };
 
@@ -964,7 +932,7 @@ void ServerTrackerView::setCameraIntrinsics(
         distortionK1, distortionK2, distortionK3,
         distortionP1, distortionP2);
 
-    m_opencv_buffer_state->rebuildDistortionMap(m_device);
+    m_opencv_buffer_state->rebuildDistortionParameters(m_device);
 }
 
 CommonDevicePose ServerTrackerView::getTrackerPose() const
