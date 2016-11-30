@@ -4,6 +4,7 @@
 //-- includes -----
 #include "ServerDeviceView.h"
 #include "PSMoveProtocolInterface.h"
+#include <vector>
 
 // -- pre-declarations -----
 namespace PSMoveProtocol
@@ -66,7 +67,10 @@ public:
 		const class ServerHMDView* tracked_hmd,
 		const CommonDevicePose *tracker_pose_guess,
 		struct HMDOpticalPoseEstimation *out_pose_estimate);
-
+    
+    std::vector<CommonDeviceScreenLocation> projectTrackerRelativePositions(
+                                const std::vector<CommonDevicePosition> &objectPositions) const;
+    
     CommonDeviceScreenLocation projectTrackerRelativePosition(const CommonDevicePosition *trackerRelativePosition) const;
     
     CommonDevicePosition computeWorldPosition(const CommonDevicePosition *tracker_relative_position);
