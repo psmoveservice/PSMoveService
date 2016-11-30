@@ -4,21 +4,9 @@
 #include "PSMoveConfig.h"
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
-#include "hidapi.h"
 #include <string>
 #include <vector>
 #include <deque>
-
-struct PSNaviHIDDetails {
-    std::string Device_path;
-    hid_device *Handle;
-    std::string Device_path_addr; // only needed by Win > 8.1, otherwise ignored.
-    hid_device *Handle_addr; // only needed by Win > 8.1, otherwise ignored.
-    std::string Bt_addr;
-    std::string Host_bt_addr;
-};
-
-struct PSNaviDataInput;  // See .cpp for full declaration
 
 class PSNaviControllerConfig : public PSMoveConfig
 {
@@ -118,16 +106,22 @@ public:
 	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
         
 private:    
-    bool getBTAddress(std::string& host, std::string& controller);
+	bool setInputStreamEnabled();
+    bool getHostBTAddress(std::string& out_host);
+	bool getControllerBTAddress(std::string& out_controller);
+
+	IControllerInterface::ePollResult pollUSB();
+	IControllerInterface::ePollResult pollBluetooth();
+	void parseInputData();
     
     // Constant while a controller is open
     PSNaviControllerConfig cfg;
-    PSNaviHIDDetails HIDDetails;
+	class PSNaviUSBContext *USBContext;
     bool IsBluetooth;                               // true if valid serial number on device opening
 
     // Read Controller State
     int NextPollSequenceNumber;
     std::deque<PSNaviControllerState> ControllerStates;
-    PSNaviDataInput* InData;                        // Buffer to copy hidapi reports into
+    unsigned char InBuffer[64];                        // Buffer to copy hidapi reports into
 };
 #endif // PSMOVE_CONTROLLER_H

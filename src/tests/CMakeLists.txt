@@ -186,12 +186,12 @@ ELSE() #Linux/Darwin
 ENDIF()
 
 #
-# Test Controller
+# Test PSMove Controller
 #
 
-SET(TEST_CTRLR_SRC)
-SET(TEST_CTRLR_INCL_DIRS)
-SET(TEST_CTRLR_REQ_LIBS)
+SET(TEST_PSMOVE_SRC)
+SET(TEST_PSMOVE_INCL_DIRS)
+SET(TEST_PSMOVE_REQ_LIBS)
 
 # Dependencies
 
@@ -204,28 +204,33 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 ELSE()
     set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
 ENDIF()
-list(APPEND TEST_CTRLR_SRC ${HIDAPI_SRC})
+list(APPEND TEST_PSMOVE_SRC ${HIDAPI_SRC})
+
+# libusb
+find_package(USB1 REQUIRED)
+list(APPEND TEST_PSMOVE_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
+list(APPEND TEST_PSMOVE_REQ_LIBS ${LIBUSB_LIBRARIES})
 
 #Bluetooth
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    list(APPEND TEST_CTRLR_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
+    list(APPEND TEST_PSMOVE_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
 ELSE()
 ENDIF()
 
 # Boost
 # TODO: Eliminate boost::filesystem with C++14
 FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
-list(APPEND TEST_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
-list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
+list(APPEND TEST_PSMOVE_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND TEST_PSMOVE_REQ_LIBS ${Boost_LIBRARIES})
 
 # Eigen math library
-list(APPEND TEST_CTRLR_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
+list(APPEND TEST_PSMOVE_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
 
 # PSMoveController
 # We are not including the PSMoveService target on purpose, because this only tests
 # a small part of the service and should not depend on the whole thing building.
-list(APPEND TEST_CTRLR_INCL_DIRS
+list(APPEND TEST_PSMOVE_INCL_DIRS
     ${ROOT_DIR}/src/psmovemath/
     ${ROOT_DIR}/src/psmoveservice/
     ${ROOT_DIR}/src/psmoveservice/Server
@@ -234,7 +239,7 @@ list(APPEND TEST_CTRLR_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/Platform
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
     ${ROOT_DIR}/src/psmoveservice/PSMoveController)
-list(APPEND TEST_CTRLR_SRC    
+list(APPEND TEST_PSMOVE_SRC    
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
     ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
     ${ROOT_DIR}/src/psmovemath/MathEigen.h
@@ -247,6 +252,10 @@ list(APPEND TEST_CTRLR_SRC
     ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.h    
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerLibUSBDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerLibUSBDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
@@ -254,17 +263,17 @@ list(APPEND TEST_CTRLR_SRC
     ${ROOT_DIR}/src/psmoveservice/PSMoveController/PSMoveController.cpp)
 
 # psmoveprotocol
-list(APPEND TEST_CTRLR_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
-list(APPEND TEST_CTRLR_REQ_LIBS PSMoveProtocol)
+list(APPEND TEST_PSMOVE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
+list(APPEND TEST_PSMOVE_REQ_LIBS PSMoveProtocol)
 
-add_executable(test_controller ${CMAKE_CURRENT_LIST_DIR}/test_controller.cpp ${TEST_CTRLR_SRC})
-target_include_directories(test_controller PUBLIC ${TEST_CTRLR_INCL_DIRS})
-target_link_libraries(test_controller ${PLATFORM_LIBS} ${TEST_CTRLR_REQ_LIBS})
-SET_TARGET_PROPERTIES(test_controller PROPERTIES FOLDER Test)
+add_executable(test_psmove_controller ${CMAKE_CURRENT_LIST_DIR}/test_psmove_controller.cpp ${TEST_PSMOVE_SRC})
+target_include_directories(test_psmove_controller PUBLIC ${TEST_PSMOVE_INCL_DIRS})
+target_link_libraries(test_psmove_controller ${PLATFORM_LIBS} ${TEST_PSMOVE_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_psmove_controller PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    install(TARGETS test_controller
+    install(TARGETS test_psmove_controller
         RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
         LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
         ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
@@ -272,12 +281,12 @@ ELSE() #Linux/Darwin
 ENDIF()
 
 #
-# Set Controller DFU Mode
+# Test Navi Controller
 #
 
-SET(DFU_CTRLR_SRC)
-SET(DFU_CTRLR_INCL_DIRS)
-SET(DFU_CTRLR_REQ_LIBS)
+SET(TEST_NAVI_SRC)
+SET(TEST_NAVI_INCL_DIRS)
+SET(TEST_NAVI_REQ_LIBS)
 
 # Dependencies
 
@@ -290,28 +299,33 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 ELSE()
     set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
 ENDIF()
-list(APPEND DFU_CTRLR_SRC ${HIDAPI_SRC})
+list(APPEND TEST_NAVI_SRC ${HIDAPI_SRC})
+
+# libusb
+find_package(USB1 REQUIRED)
+list(APPEND TEST_NAVI_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
+list(APPEND TEST_NAVI_REQ_LIBS ${LIBUSB_LIBRARIES})
 
 #Bluetooth
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    list(APPEND DFU_CTRLR_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
+    list(APPEND TEST_NAVI_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
 ELSE()
 ENDIF()
 
 # Boost
 # TODO: Eliminate boost::filesystem with C++14
 FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
-list(APPEND DFU_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
-list(APPEND DFU_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
+list(APPEND TEST_NAVI_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND TEST_NAVI_REQ_LIBS ${Boost_LIBRARIES})
 
 # Eigen math library
-list(APPEND DFU_CTRLR_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
+list(APPEND TEST_NAVI_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
 
 # PSMoveController
 # We are not including the PSMoveService target on purpose, because this only tests
 # a small part of the service and should not depend on the whole thing building.
-list(APPEND DFU_CTRLR_INCL_DIRS
+list(APPEND TEST_NAVI_INCL_DIRS
     ${ROOT_DIR}/src/psmovemath/
     ${ROOT_DIR}/src/psmoveservice/
     ${ROOT_DIR}/src/psmoveservice/Server
@@ -319,8 +333,8 @@ list(APPEND DFU_CTRLR_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/Device/Interface
     ${ROOT_DIR}/src/psmoveservice/Platform
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
-    ${ROOT_DIR}/src/psmoveservice/PSMoveController)
-list(APPEND DFU_CTRLR_SRC    
+    ${ROOT_DIR}/src/psmoveservice/PSNaviController)
+list(APPEND TEST_NAVI_SRC    
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
     ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
     ${ROOT_DIR}/src/psmovemath/MathEigen.h
@@ -333,24 +347,28 @@ list(APPEND DFU_CTRLR_SRC
     ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.h    
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerLibUSBDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerLibUSBDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
-    ${ROOT_DIR}/src/psmoveservice/PSMoveController/PSMoveController.h
-    ${ROOT_DIR}/src/psmoveservice/PSMoveController/PSMoveController.cpp)
+    ${ROOT_DIR}/src/psmoveservice/PSNaviController/PSNaviController.h
+    ${ROOT_DIR}/src/psmoveservice/PSNaviController/PSNaviController.cpp)
 
 # psmoveprotocol
-list(APPEND DFU_CTRLR_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
-list(APPEND DFU_CTRLR_REQ_LIBS PSMoveProtocol)
+list(APPEND TEST_NAVI_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
+list(APPEND TEST_NAVI_REQ_LIBS PSMoveProtocol)
 
-add_executable(set_controller_dfu_mode ${CMAKE_CURRENT_LIST_DIR}/set_controller_dfu_mode.cpp ${DFU_CTRLR_SRC})
-target_include_directories(set_controller_dfu_mode PUBLIC ${DFU_CTRLR_INCL_DIRS})
-target_link_libraries(set_controller_dfu_mode ${PLATFORM_LIBS} ${DFU_CTRLR_REQ_LIBS})
-SET_TARGET_PROPERTIES(set_controller_dfu_mode PROPERTIES FOLDER Test)
+add_executable(test_navi_controller ${CMAKE_CURRENT_LIST_DIR}/test_navi_controller.cpp ${TEST_NAVI_SRC})
+target_include_directories(test_navi_controller PUBLIC ${TEST_NAVI_INCL_DIRS})
+target_link_libraries(test_navi_controller ${PLATFORM_LIBS} ${TEST_NAVI_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_navi_controller PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    install(TARGETS set_controller_dfu_mode
+    install(TARGETS test_navi_controller
         RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
         LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
         ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
@@ -454,9 +472,9 @@ ENDIF()
 # TEST_OPTICAL_TRACKER
 #
 
-add_executable(test_optical_tracker ${CMAKE_CURRENT_LIST_DIR}/test_optical_tracker.cpp ${TEST_CAMERA_SRC} ${TEST_CTRLR_SRC})
-target_include_directories(test_optical_tracker PUBLIC ${TEST_CAMERA_INCL_DIRS} ${TEST_CTRLR_INCL_DIRS})
-target_link_libraries(test_optical_tracker ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS} ${TEST_CTRLR_REQ_LIBS})
+add_executable(test_optical_tracker ${CMAKE_CURRENT_LIST_DIR}/test_optical_tracker.cpp ${TEST_CAMERA_SRC} ${TEST_PSMOVE_SRC})
+target_include_directories(test_optical_tracker PUBLIC ${TEST_CAMERA_INCL_DIRS} ${TEST_PSMOVE_INCL_DIRS})
+target_link_libraries(test_optical_tracker ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS} ${TEST_PSMOVE_REQ_LIBS})
 SET_TARGET_PROPERTIES(test_optical_tracker PROPERTIES FOLDER Test)
 
 # Install

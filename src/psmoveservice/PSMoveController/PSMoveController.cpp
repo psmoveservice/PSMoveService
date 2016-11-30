@@ -177,8 +177,8 @@ struct PSMoveDataInput {
 };
 
 // -- private prototypes -----
-static std::string btAddrUcharToString(const unsigned char* addr_buff);
-static bool stringToBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size);
+static std::string PSMoveBTAddrUcharToString(const unsigned char* addr_buff);
+static bool stringToPSMoveBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size);
 static int decodeCalibration(char *data, int offset);
 static int psmove_decode_16bit(char *data, int offset);
 inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
@@ -406,7 +406,7 @@ PSMoveController::~PSMoveController()
 
 bool PSMoveController::open()
 {
-    ControllerDeviceEnumerator enumerator(CommonControllerState::PSMove);
+    ControllerDeviceEnumerator enumerator(ControllerDeviceEnumerator::CommunicationType_HID, CommonControllerState::PSMove);
     bool success= false;
 
     if (enumerator.is_valid())
@@ -611,7 +611,7 @@ PSMoveController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
     bts[0] = PSMove_Req_SetBTAddr;
 
     unsigned char addr[6];
-    if (stringToBTAddrUchar(new_host_bt_addr, addr, sizeof(addr)))
+    if (stringToPSMoveBTAddrUchar(new_host_bt_addr, addr, sizeof(addr)))
     {
         int res;
 
@@ -784,10 +784,10 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
         if (res == sizeof(btg)) {
 
             memcpy(host_char_buff, btg + 10, PSMOVE_BTADDR_SIZE);
-            host = btAddrUcharToString(host_char_buff);
+            host = PSMoveBTAddrUcharToString(host_char_buff);
 
             memcpy(ctrl_char_buff, btg + 1, PSMOVE_BTADDR_SIZE);
-            controller = btAddrUcharToString(ctrl_char_buff);
+            controller = PSMoveBTAddrUcharToString(ctrl_char_buff);
 
             success = true;
         }
@@ -1345,7 +1345,7 @@ PSMoveController::setLEDPWMFrequency(unsigned long freq)
 
 // -- private helper functions -----
 static std::string
-btAddrUcharToString(const unsigned char* addr_buff)
+PSMoveBTAddrUcharToString(const unsigned char* addr_buff)
 {
     // http://stackoverflow.com/questions/11181251/saving-hex-values-to-a-c-string
     std::ostringstream stream;
@@ -1362,7 +1362,7 @@ btAddrUcharToString(const unsigned char* addr_buff)
 }
 
 static bool
-stringToBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size)
+stringToPSMoveBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size)
 {
     bool success= false;
 

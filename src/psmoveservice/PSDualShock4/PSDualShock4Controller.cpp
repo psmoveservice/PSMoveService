@@ -404,7 +404,7 @@ PSDualShock4Controller::~PSDualShock4Controller()
 
 bool PSDualShock4Controller::open()
 {
-    ControllerDeviceEnumerator enumerator(CommonControllerState::PSMove);
+    ControllerDeviceEnumerator enumerator(ControllerDeviceEnumerator::CommunicationType_HID, CommonControllerState::PSDualShock4);
     bool success = false;
 
     if (enumerator.is_valid())

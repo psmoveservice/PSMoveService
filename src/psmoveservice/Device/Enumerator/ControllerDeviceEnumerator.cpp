@@ -1,107 +1,154 @@
 // -- includes -----
 #include "ControllerDeviceEnumerator.h"
-#include "ServerUtility.h"
+#include "ControllerHidDeviceEnumerator.h"
+#include "ControllerLibUSBDeviceEnumerator.h"
 #include "assert.h"
-#include "hidapi.h"
 #include "string.h"
 
-// -- private definitions -----
-#ifdef _MSC_VER
-#pragma warning (disable: 4996) // 'This function or variable may be unsafe': snprintf
-#define snprintf _snprintf
-#endif
-
-// -- macros ----
-#define MAX_CONTROLLER_TYPE_INDEX           GET_DEVICE_TYPE_INDEX(CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT)
-
 // -- globals -----
-USBDeviceInfo g_supported_controller_infos[MAX_CONTROLLER_TYPE_INDEX] = {
-    { 0x054c, 0x03d5 }, // PSMove
-    { 0x054c, 0x042F }, // PSNavi
-    { 0x054c, 0x05C4 }, // PSDualShock4
-};
 
 // -- ControllerDeviceEnumerator -----
-ControllerDeviceEnumerator::ControllerDeviceEnumerator()
-    : DeviceEnumerator(CommonDeviceState::PSMove)
-    , devs(nullptr)
-    , cur_dev(nullptr)
+ControllerDeviceEnumerator::ControllerDeviceEnumerator(
+	eAPIType _apiType)
+	: DeviceEnumerator(CommonDeviceState::PSMove)
+	, api_type(_apiType)
+	, enumerators(nullptr)
+	, enumerator_count(0)
+	, enumerator_index(0)
 {
-    assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
+	switch (_apiType)
+	{
+	case eAPIType::CommunicationType_HID:
+		enumerators = new DeviceEnumerator *[1];
+		enumerators[0] = new ControllerHidDeviceEnumerator(CommonDeviceState::PSMove);
+		enumerator_count = 1;
+		break;
+	case eAPIType::CommunicationType_LIBUSB:
+		enumerators = new DeviceEnumerator *[1];
+		enumerators[0] = new ControllerLibUSBDeviceEnumerator(CommonDeviceState::PSMove);
+		enumerator_count = 1;
+		break;
+	case eAPIType::CommunicationType_ALL:
+		enumerators = new DeviceEnumerator *[2];
+		enumerators[0] = new ControllerHidDeviceEnumerator(CommonDeviceState::PSMove);
+		enumerators[1] = new ControllerLibUSBDeviceEnumerator(CommonDeviceState::PSMove);
+		enumerator_count = 2;
+		break;
+	}
 
-    USBDeviceInfo &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
-    devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
-    cur_dev = devs;
-
-    if (!is_valid())
+	if (is_valid())
+	{
+		m_deviceType= enumerators[enumerator_index]->get_device_type();
+	}
+	else
     {
         next();
     }
 }
 
-ControllerDeviceEnumerator::ControllerDeviceEnumerator(CommonDeviceState::eDeviceType deviceType)
+ControllerDeviceEnumerator::ControllerDeviceEnumerator(
+	eAPIType _apiType,
+	CommonDeviceState::eDeviceType deviceType)
     : DeviceEnumerator(deviceType)
-    , devs(nullptr)
-    , cur_dev(nullptr)
+	, api_type(_apiType)
+	, enumerators(nullptr)
+	, enumerator_count(0)
+	, enumerator_index(0)
 {
-    assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
+	switch (_apiType)
+	{
+	case eAPIType::CommunicationType_HID:
+		enumerators = new DeviceEnumerator *[1];
+		enumerators[0] = new ControllerHidDeviceEnumerator(deviceType);
+		enumerator_count = 1;
+		break;
+	case eAPIType::CommunicationType_LIBUSB:
+		enumerators = new DeviceEnumerator *[1];
+		enumerators[0] = new ControllerLibUSBDeviceEnumerator(deviceType);
+		enumerator_count = 1;
+		break;
+	case eAPIType::CommunicationType_ALL:
+		enumerators = new DeviceEnumerator *[2];
+		enumerators[0] = new ControllerHidDeviceEnumerator(deviceType);
+		enumerators[1] = new ControllerLibUSBDeviceEnumerator(deviceType);
+		enumerator_count = 2;
+		break;
+	}
 
-    USBDeviceInfo &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
-    devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
-    cur_dev = devs;
-
-    if (!is_valid())
-    {
-        next();
-    }
+	if (is_valid())
+	{
+		m_deviceType = enumerators[enumerator_index]->get_device_type();
+	}
+	else
+	{
+		next();
+	}
 }
 
 ControllerDeviceEnumerator::~ControllerDeviceEnumerator()
 {
-    if (devs != nullptr)
-    {
-        hid_free_enumeration(devs);
-    }
+	for (int index = 0; index < enumerator_count; ++index)
+	{
+		delete enumerators[index];
+	}
+	delete[] enumerators;
 }
 
 const char *ControllerDeviceEnumerator::get_path() const
 {
-    return (cur_dev != nullptr) ? cur_dev->path : nullptr;
+    return (enumerator_index < enumerator_count) ? enumerators[enumerator_index]->get_path() : nullptr;
 }
 
 bool ControllerDeviceEnumerator::get_serial_number(char *out_mb_serial, const size_t mb_buffer_size) const
 {
     bool success = false;
 
-    if (cur_dev != nullptr && cur_dev->serial_number != nullptr)
+    if ((api_type == eAPIType::CommunicationType_HID) ||
+		(api_type == eAPIType::CommunicationType_ALL && enumerator_index == 0))
     {
-        success = ServerUtility::convert_wcs_to_mbs(cur_dev->serial_number, out_mb_serial, mb_buffer_size);
+		ControllerHidDeviceEnumerator *hid_enumerator = static_cast<ControllerHidDeviceEnumerator *>(enumerators[enumerator_index]);
+
+        success = hid_enumerator->get_serial_number(out_mb_serial, mb_buffer_size);
     }
 
     return success;
 }
 
-bool ControllerDeviceEnumerator::is_valid() const
+ControllerDeviceEnumerator::eAPIType ControllerDeviceEnumerator::get_api_type() const
 {
-    bool bIsValid = cur_dev != nullptr;
+	ControllerDeviceEnumerator::eAPIType result= ControllerDeviceEnumerator::CommunicationType_INVALID;
 
-	//###HipsterSloth $TODO Disable the navi until it actually works
-	if (m_deviceType == CommonDeviceState::PSNavi)
+	switch (api_type)
 	{
-		bIsValid = false;
+	case eAPIType::CommunicationType_HID:
+		result = (enumerator_index < enumerator_count) ? ControllerDeviceEnumerator::CommunicationType_HID : ControllerDeviceEnumerator::CommunicationType_INVALID;
+		break;
+	case eAPIType::CommunicationType_LIBUSB:
+		result = (enumerator_index < enumerator_count) ? ControllerDeviceEnumerator::CommunicationType_LIBUSB : ControllerDeviceEnumerator::CommunicationType_INVALID;
+		break;
+	case eAPIType::CommunicationType_ALL:
+		if (enumerator_index < enumerator_count)
+		{
+			result = (enumerator_index == 0) ? ControllerDeviceEnumerator::CommunicationType_HID : ControllerDeviceEnumerator::CommunicationType_LIBUSB;
+		}
+		else
+		{
+			result = ControllerDeviceEnumerator::CommunicationType_INVALID;
+		}
+		break;
 	}
 
-#ifdef _WIN32
-    /**
-    * Windows Quirk: Each psmove dev is enumerated 3 times.
-    * The one with "&col01#" in the path is the one we will get most of our data from. Only count this one.
-    * The one with "&col02#" in the path is the one we will get the bluetooth address from.
-    **/
-    if (bIsValid && m_deviceType == CommonDeviceState::PSMove && strstr(cur_dev->path, "&col01#") == nullptr)
-    {
-        bIsValid = false;
-    }
-#endif
+	return result;
+}
+
+bool ControllerDeviceEnumerator::is_valid() const
+{
+    bool bIsValid = false;
+
+	if (enumerator_index < enumerator_count)
+	{
+		bIsValid = enumerators[enumerator_index]->is_valid();
+	}
 
     return bIsValid;
 }
@@ -110,39 +157,27 @@ bool ControllerDeviceEnumerator::next()
 {
     bool foundValid = false;
 
-    while (!foundValid && m_deviceType < CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT)
+    while (!foundValid && enumerator_index < enumerator_count)
     {
-        if (cur_dev != nullptr)
-        {
-            cur_dev = cur_dev->next;
-            foundValid = is_valid();
-        }
-
-        // If there are more device types to scan
-        // move on to the next vid/pid device enumeration
-        if (!foundValid && cur_dev == nullptr)
-        {
-            m_deviceType = static_cast<CommonDeviceState::eDeviceType>(m_deviceType + 1);
-
-            // Free any previous enumeration
-            if (devs != nullptr)
-            {
-                hid_free_enumeration(devs);
-                cur_dev= nullptr;
-                devs= nullptr;
-            }
-
-            if (GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX)
-            {
-                USBDeviceInfo &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
-
-                // Create a new HID enumeration
-                devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
-                cur_dev = devs;
-                foundValid = is_valid();
-            }
-        }
+		if (enumerators[enumerator_index]->is_valid())
+		{
+			enumerators[enumerator_index]->next();
+			foundValid = enumerators[enumerator_index]->is_valid();
+		}
+		else
+		{
+			++enumerator_index;
+		}
     }
+
+	if (foundValid)
+	{
+		m_deviceType = enumerators[enumerator_index]->get_device_type();
+	}
+	else
+	{
+		m_deviceType = CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT; // invalid
+	}
 
     return foundValid;
 }

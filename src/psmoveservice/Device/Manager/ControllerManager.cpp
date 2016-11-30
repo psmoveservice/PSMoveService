@@ -81,7 +81,7 @@ ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
 DeviceEnumerator *
 ControllerManager::allocate_device_enumerator()
 {
-    return new ControllerDeviceEnumerator;
+    return new ControllerDeviceEnumerator(ControllerDeviceEnumerator::CommunicationType_HID);
 }
 
 void
