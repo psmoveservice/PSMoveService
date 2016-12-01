@@ -43,7 +43,7 @@ static const char *k_video_display_mode_names[] = {
 #define PATTERN_W 9 // Internal corners
 #define PATTERN_H 6
 #define CORNER_COUNT (PATTERN_W*PATTERN_H)
-#define SQUARE_LEN_MM 24
+#define DEFAULT_SQUARE_LEN_MM 24
 #define DESIRED_CAPTURE_BOARD_COUNT 12
 
 #define BOARD_MOVED_PIXEL_DIST 5
@@ -291,7 +291,7 @@ public:
         return fabsf(safe_divide_with_default(area, line_length, 0.f));
     }
 
-    bool computeCameraCalibration()
+    bool computeCameraCalibration(const float square_length_mm)
     {
         bool bSuccess= false;
 
@@ -300,7 +300,7 @@ public:
             // Only need to calculate objectPointsList once,
             // then resize for each set of image points.
             std::vector<std::vector<cv::Point3f> > objectPointsList(1);
-            calcBoardCornerPositions(objectPointsList[0]);
+            calcBoardCornerPositions(square_length_mm, objectPointsList[0]);
             objectPointsList.resize(imagePointsList.size(), objectPointsList[0]);
             
             // Compute the camera intrinsic matrix and distortion parameters
@@ -334,7 +334,7 @@ public:
             *distortionMapX, *distortionMapY);
     }
     
-    void calcBoardCornerPositions(std::vector<cv::Point3f>& corners)
+    void calcBoardCornerPositions(const float square_length_mm, std::vector<cv::Point3f>& corners)
     {
         corners.clear();
         
@@ -342,7 +342,7 @@ public:
         {
             for( int j = 0; j < PATTERN_W; ++j )
             {
-                corners.push_back(cv::Point3f(float(j*SQUARE_LEN_MM), float(i*SQUARE_LEN_MM), 0.f));
+                corners.push_back(cv::Point3f(float(j*square_length_mm), float(i*square_length_mm), 0.f));
             }
         }
     }
@@ -380,6 +380,7 @@ AppStage_DistortionCalibration::AppStage_DistortionCalibration(App *app)
     : AppStage(app)
     , m_menuState(AppStage_DistortionCalibration::inactive)
     , m_videoDisplayMode(AppStage_DistortionCalibration::eVideoDisplayMode::mode_bgr)
+	, m_square_length_mm(DEFAULT_SQUARE_LEN_MM)
     , m_trackerExposure(0.0)
     , m_trackerGain(0.0)
     , m_bStreamIsActive(false)
@@ -400,7 +401,9 @@ void AppStage_DistortionCalibration::enter()
     assert(m_tracker_view == nullptr);
     m_tracker_view= ClientPSMoveAPI::allocate_tracker_view(*trackerInfo);
 
-    // Crank up the exposure and gain so that we can see the chessboard
+	m_square_length_mm = DEFAULT_SQUARE_LEN_MM;
+
+	// Crank up the exposure and gain so that we can see the chessboard
     request_tracker_set_temp_exposure(128.f);
     request_tracker_set_temp_gain(128.f);
 
@@ -468,7 +471,7 @@ void AppStage_DistortionCalibration::update()
                 if (m_opencv_state->capturedBoardCount >= DESIRED_CAPTURE_BOARD_COUNT)
                 {
                     
-                    m_opencv_state->computeCameraCalibration(); //Will update intrinsic_matrix and distortion_coeffs
+                    m_opencv_state->computeCameraCalibration(m_square_length_mm); //Will update intrinsic_matrix and distortion_coeffs
                     cv::Mat *intrinsic_matrix= m_opencv_state->intrinsic_matrix;
                     cv::Mat *distortion_coeffs= m_opencv_state->distortion_coeffs;
                     
@@ -592,7 +595,44 @@ void AppStage_DistortionCalibration::renderUI()
 
     switch (m_menuState)
     {
-    case eTrackerMenuState::capture:
+	case eMenuState::enterBoardSettings:
+		{
+			const float k_wide_panel_width = 350.f;
+			ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_wide_panel_width / 2.f, 20.f));
+			ImGui::SetNextWindowSize(ImVec2(k_wide_panel_width, 100));
+
+			ImGui::Begin("Enter Calibration Settings", nullptr, window_flags);
+
+			ImGui::PushItemWidth(100.f);
+			if (ImGui::InputFloat("Square Length (mm)", &m_square_length_mm, 0.5f, 1.f, 1))
+			{
+				if (m_square_length_mm < 1.f)
+				{
+					m_square_length_mm = 1.f;
+				}
+
+				if (m_square_length_mm > 100.f)
+				{
+					m_square_length_mm = 100.f;
+				}
+			}
+			ImGui::PopItemWidth();
+
+			ImGui::Spacing();
+
+			if (ImGui::Button("Ok"))
+			{
+				m_menuState = eMenuState::capture;
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Cancel"))
+			{
+				request_exit();
+			}
+
+			ImGui::End();
+		} break;
+    case eMenuState::capture:
         {
             assert (m_opencv_state != nullptr);
 
@@ -673,7 +713,7 @@ void AppStage_DistortionCalibration::renderUI()
             }
         } break;
 
-    case eTrackerMenuState::complete:
+    case eMenuState::complete:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 10.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 110));
@@ -692,13 +732,13 @@ void AppStage_DistortionCalibration::renderUI()
                 m_opencv_state->resetCaptureState();
                 m_opencv_state->resetCalibrationState();
                 m_videoDisplayMode= AppStage_DistortionCalibration::mode_bgr;
-                m_menuState= eTrackerMenuState::capture;
+                m_menuState= eMenuState::capture;
             }
 
             ImGui::End();
         } break;
 
-    case eTrackerMenuState::pendingTrackerStartStreamRequest:
+    case eMenuState::pendingTrackerStartStreamRequest:
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 50));
@@ -709,14 +749,14 @@ void AppStage_DistortionCalibration::renderUI()
             ImGui::End();
         } break;
 
-    case eTrackerMenuState::failedTrackerStartStreamRequest:
-    case eTrackerMenuState::failedTrackerOpenStreamRequest:
+    case eMenuState::failedTrackerStartStreamRequest:
+    case eMenuState::failedTrackerOpenStreamRequest:
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            if (m_menuState == eTrackerMenuState::failedTrackerStartStreamRequest)
+            if (m_menuState == eMenuState::failedTrackerStartStreamRequest)
                 ImGui::Text("Failed to start tracker stream!");
             else
                 ImGui::Text("Failed to open tracker stream!");
@@ -734,7 +774,7 @@ void AppStage_DistortionCalibration::renderUI()
             ImGui::End();
         } break;
 
-    case eTrackerMenuState::pendingTrackerStopStreamRequest:
+    case eMenuState::pendingTrackerStopStreamRequest:
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 50));
@@ -745,7 +785,7 @@ void AppStage_DistortionCalibration::renderUI()
             ImGui::End();
         } break;
 
-    case eTrackerMenuState::failedTrackerStopStreamRequest:
+    case eMenuState::failedTrackerStopStreamRequest:
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
@@ -818,7 +858,7 @@ void AppStage_DistortionCalibration::handle_tracker_start_stream_response(
                 thisPtr->m_opencv_state = new OpenCVBufferState(trackerInfo);
 
                 // Start capturing chess boards
-                thisPtr->m_menuState = AppStage_DistortionCalibration::capture;
+                thisPtr->m_menuState = AppStage_DistortionCalibration::enterBoardSettings;
             }
             else
             {
