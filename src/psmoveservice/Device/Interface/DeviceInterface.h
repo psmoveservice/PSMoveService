@@ -353,6 +353,7 @@ struct CommonDeviceTrackingShape
 
 		struct {
 			CommonDevicePosition point[MAX_POINT_CLOUD_POINT_COUNT];
+			int point_count;
 		} point_cloud;
     } shape;
 

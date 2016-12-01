@@ -1156,34 +1156,66 @@ ServerTrackerView::computeProjectionForController(
                        tracker_position.z);
                 br.set(tracker_position.x+tracking_shape->shape.sphere.radius,
                        tracker_position.y-tracking_shape->shape.sphere.radius,
-                       tracker_position.z);
-                
-                //TODO: Move the rest out of this case as it should be common for all shapes.
-                //Assuming all shapes can be defined by their bounding box.
-                std::vector<CommonDevicePosition> trps{tl, br};
-                std::vector<CommonDeviceScreenLocation> screen_locs = projectTrackerRelativePositions(trps);
-                cv::Size roi_size(screen_locs[1].x-screen_locs[0].x, screen_locs[1].y-screen_locs[0].y);
-                ROI = cv::Rect2i(cv::Point2i(screen_locs[0].x - roi_size.width/2,
-                                             screen_locs[0].y - roi_size.height/2),
-                                 roi_size);
-                ROI += roi_size;  // Double its size.
+                       tracker_position.z);               
             } break;
                 
             case eCommonTrackingShapeType::LightBar:
             {
-                
+				// Compute the bounding radius of the lightbar tracking shape
+				const auto &shape_tl = tracking_shape->shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexUpperLeft];
+				const auto &shape_br = tracking_shape->shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexLowerRight];
+				const CommonDeviceVector half_vec = { (shape_tl.x - shape_br.x)*0.5f, (shape_tl.y - shape_br.y)*0.5f, (shape_tl.z - shape_br.z)*0.5f };
+				const auto shape_radius = fmaxf(sqrtf(half_vec.i*half_vec.i + half_vec.j*half_vec.j + half_vec.k*half_vec.k), 1.f);
+
+				// Simply: center - shape_radius, center + shape_radius.
+				tl.set(tracker_position.x - shape_radius,
+					tracker_position.y + shape_radius,
+					tracker_position.z);
+				br.set(tracker_position.x + shape_radius,
+					tracker_position.y - shape_radius,
+					tracker_position.z);
             } break;
                 
             case eCommonTrackingShapeType::PointCloud:
             {
-                
+				// Compute the bounding radius of the point cloud
+				CommonDevicePosition shape_tl = tracking_shape->shape.point_cloud.point[0];
+				CommonDevicePosition shape_br = tracking_shape->shape.point_cloud.point[0];
+				for (int point_index = 1; point_index < tracking_shape->shape.point_cloud.point_count; ++point_index)
+				{
+					const CommonDevicePosition &point = tracking_shape->shape.point_cloud.point[point_index];
+					shape_tl.set(fmaxf(shape_tl.x, point.x), fmaxf(shape_tl.y, point.y), fmaxf(shape_tl.z, point.z));
+					shape_br.set(fminf(shape_br.x, point.x), fminf(shape_br.y, point.y), fminf(shape_br.z, point.z));
+				}
+				const CommonDeviceVector half_vec = { (shape_tl.x - shape_br.x)*0.5f, (shape_tl.y - shape_br.y)*0.5f, (shape_tl.z - shape_br.z)*0.5f };
+				const auto shape_radius = fmaxf(sqrtf(half_vec.i*half_vec.i + half_vec.j*half_vec.j + half_vec.k*half_vec.k), 1.f);
+
+				// Simply: center - shape_radius, center + shape_radius.
+				tl.set(tracker_position.x - shape_radius,
+					tracker_position.y + shape_radius,
+					tracker_position.z);
+				br.set(tracker_position.x + shape_radius,
+					tracker_position.y - shape_radius,
+					tracker_position.z);
             } break;
                 
             default:
             {
-                // TODO: ROI is whole image
+				assert(false && "unreachable");
             } break;
         }
+
+		// Compute the ROI from the projecting bounding box
+		{
+			std::vector<CommonDevicePosition> trps{ tl, br };
+			std::vector<CommonDeviceScreenLocation> screen_locs = projectTrackerRelativePositions(trps);
+
+			cv::Size roi_size(screen_locs[1].x - screen_locs[0].x, screen_locs[1].y - screen_locs[0].y);
+			ROI = cv::Rect2i(cv::Point2i(screen_locs[0].x - roi_size.width / 2,
+				screen_locs[0].y - roi_size.height / 2),
+				roi_size);
+			ROI += roi_size;  // Double its size.
+		}
     }
     m_opencv_buffer_state->applyROI(ROI);
 
