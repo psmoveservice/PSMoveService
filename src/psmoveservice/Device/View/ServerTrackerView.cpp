@@ -25,6 +25,8 @@
 #include "opencv2/opencv.hpp"
 #include "opencv2/calib3d/calib3d.hpp"
 
+#include <algorithm>
+
 #define USE_OPEN_CV_ELLIPSE_FIT
 
 //-- typedefs ----
@@ -326,6 +328,7 @@ class OpenCVBufferState
 public:
     OpenCVBufferState(ITrackerInterface *device)
         : bgrBuffer(nullptr)
+        , bgrShmemBuffer(nullptr)
         , hsvBuffer(nullptr)
         , gsLowerBuffer(nullptr)
         , gsUpperBuffer(nullptr)
@@ -334,11 +337,12 @@ public:
         device->getVideoFrameDimensions(&frameWidth, &frameHeight, nullptr);
 
         bgrBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
+        bgrShmemBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
         hsvBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
         gsLowerBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
         gsUpperBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
         maskedBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
-
+        
         intrinsic_matrix = new cv::Mat(3, 3, CV_64FC1);
         distortion_coeffs = new cv::Mat(5, 1, CV_64FC1);
         
@@ -353,6 +357,9 @@ public:
         {
             bgr2hsv = nullptr;
         }
+        
+        //Apply default ROI (full frame).
+        applyROI(cv::Rect2i(cv::Point(0,0), cv::Size(frameWidth, frameHeight)));
     }
 
     virtual ~OpenCVBufferState()
@@ -377,12 +384,17 @@ public:
             delete hsvBuffer;
         }
         
+        if (bgrShmemBuffer != nullptr)
+        {
+            delete bgrShmemBuffer;
+        }
+        
         if (bgrBuffer != nullptr)
         {
             delete bgrBuffer;
         }
                
-        // TODO: If not nullptr wrapper
+        // TODO: If not nullptr wrapper?
         delete intrinsic_matrix;
         delete distortion_coeffs;
         
@@ -431,16 +443,54 @@ public:
         const cv::Mat videoBufferMat(frameHeight, frameWidth, CV_8UC3, const_cast<unsigned char *>(video_buffer));
 
 		videoBufferMat.copyTo(*bgrBuffer);
-
+        videoBufferMat.copyTo(*bgrShmemBuffer);
+    }
+    
+    void updateHsvBuffer()
+    {
         // Convert the video buffer to the HSV color space
-		if (bgr2hsv != nullptr)
-		{
-			bgr2hsv->cvtColor(*bgrBuffer, *hsvBuffer);
-		}
-		else
-		{
-			cv::cvtColor(*bgrBuffer, *hsvBuffer, cv::COLOR_BGR2HSV);
-		}
+        if (bgr2hsv != nullptr)
+        {
+            bgr2hsv->cvtColor(bgrROI, hsvROI);
+        }
+        else
+        {
+            cv::cvtColor(bgrROI, hsvROI, cv::COLOR_BGR2HSV);
+        }
+    }
+    
+    void applyROI(cv::Rect2i ROI)
+    {
+        //Clamp it
+        if (ROI.x < 0)
+        {
+            ROI.x = 0;
+        }
+        if (ROI.y < 0)
+        {
+            ROI.y = 0;
+        }
+        if (ROI.br().x > frameWidth)
+        {
+            ROI.width = frameWidth - ROI.x;
+        }
+        if (ROI.br().y > frameHeight)
+        {
+            ROI.height = frameHeight - ROI.y;
+        }
+        
+        //Create the ROI matrices.
+        //It's not a full copy, so this isn't too slow.
+        //adjustROI is probably slightly faster but I ran into trouble with it.
+        bgrROI = cv::Mat(*bgrBuffer, ROI);
+        hsvROI = cv::Mat(*hsvBuffer, ROI);
+        gsLowerROI = cv::Mat(*gsLowerBuffer, ROI);
+        gsUpperROI = cv::Mat(*gsUpperBuffer, ROI);
+        
+        updateHsvBuffer();
+        
+        //Draw ROI.
+        cv::rectangle(*bgrShmemBuffer, ROI, cv::Scalar(255, 0, 0));
     }
 
     // Return points in raw image space:
@@ -467,38 +517,38 @@ public:
             if (hue_min < 0)
             {
                 cv::inRange(
-                    *hsvBuffer,
+                    hsvROI,
                     cv::Scalar(0, saturation_min, value_min),
                     cv::Scalar(clampf(hue_max, 0, 180), saturation_max, value_max),
-                    *gsLowerBuffer);
+                    gsLowerROI);
                 cv::inRange(
-                    *hsvBuffer,
+                    hsvROI,
                     cv::Scalar(clampf(180 + hue_min, 0, 180), saturation_min, value_min),
                     cv::Scalar(180, saturation_max, value_max),
-                    *gsUpperBuffer);
-                cv::bitwise_or(*gsLowerBuffer, *gsUpperBuffer, *gsLowerBuffer);
+                    gsUpperROI);
+                cv::bitwise_or(gsLowerROI, gsUpperROI, gsLowerROI);
             }
             else if (hue_max > 180)
             {
                 cv::inRange(
-                    *hsvBuffer,
+                    hsvROI,
                     cv::Scalar(0, saturation_min, value_min),
                     cv::Scalar(clampf(hue_max - 180, 0, 180), saturation_max, value_max),
-                    *gsLowerBuffer);
+                    gsLowerROI);
                 cv::inRange(
-                    *hsvBuffer,
+                    hsvROI,
                     cv::Scalar(clampf(hue_min, 0, 180), saturation_min, value_min),
                     cv::Scalar(180, saturation_max, value_max),
-                    *gsUpperBuffer);
-                cv::bitwise_or(*gsLowerBuffer, *gsUpperBuffer, *gsLowerBuffer);
+                    gsUpperROI);
+                cv::bitwise_or(gsLowerROI, gsUpperROI, gsLowerROI);
             }
             else
             {
                 cv::inRange(
-                    *hsvBuffer,
+                    hsvROI,
                     cv::Scalar(hue_min, saturation_min, value_min),
                     cv::Scalar(hue_max, saturation_max, value_max),
-                    *gsLowerBuffer);
+                    gsLowerROI);
             }
         }
         
@@ -515,9 +565,9 @@ public:
 
 			// Find all counters in the image buffer
             cv::Size size; cv::Point ofs;
-            gsLowerBuffer->locateROI(size, ofs);
+            gsLowerROI.locateROI(size, ofs);
 			t_opencv_contour_list contours;
-            cv::findContours(*gsLowerBuffer,
+            cv::findContours(gsLowerROI,
                              contours,
                              CV_RETR_EXTERNAL,
                              CV_CHAIN_APPROX_SIMPLE,  //CV_CHAIN_APPROX_NONE?
@@ -589,9 +639,9 @@ public:
         cv::Moments mu(cv::moments(contour));
         cv::Point2f massCenter = cv::Point2f(static_cast<float>(mu.m10 / mu.m00),
                                              static_cast<float>(mu.m01 / mu.m00));
-        cv::drawContours(*bgrBuffer, contours, 0, cv::Scalar(255, 255, 255));
-        cv::rectangle(*bgrBuffer, cv::boundingRect(contour), cv::Scalar(255, 255, 255));
-        cv::drawMarker(*bgrBuffer, massCenter, cv::Scalar(255, 255, 255));
+        cv::drawContours(*bgrShmemBuffer, contours, 0, cv::Scalar(255, 255, 255));
+        cv::rectangle(*bgrShmemBuffer, cv::boundingRect(contour), cv::Scalar(255, 255, 255));
+        cv::drawMarker(*bgrShmemBuffer, massCenter, cv::Scalar(255, 255, 255));
 //        float contourArea = mu.m00;
     }
     
@@ -612,13 +662,13 @@ public:
             ell_center.x += intrinsic_matrix.val[2];
             ell_center.y += intrinsic_matrix.val[5];
             
-            //Draw ellipse on bgrBuffer
-            cv::ellipse(*bgrBuffer,
+            //Draw ellipse on bgrShmemBuffer
+            cv::ellipse(*bgrShmemBuffer,
                         ell_center,
                         ell_size,
                         pose_estimate.projection.shape.ellipse.angle,
                         0, 360, cv::Scalar(0, 0, 255));
-            cv::drawMarker(*bgrBuffer, ell_center, cv::Scalar(0, 0, 255));
+            cv::drawMarker(*bgrShmemBuffer, ell_center, cv::Scalar(0, 0, 255));
         }
     }
 
@@ -626,9 +676,14 @@ public:
     int frameHeight;
 
     cv::Mat *bgrBuffer; // source video frame
+    cv::Mat *bgrShmemBuffer; //Frame onto which we draw debug lines, and transmit via shared mem.
+    cv::Mat bgrROI;
     cv::Mat *hsvBuffer; // source frame converted to HSV color space
+    cv::Mat hsvROI;
     cv::Mat *gsLowerBuffer; // HSV image clamped by HSV range into grayscale mask
+    cv::Mat gsLowerROI;
     cv::Mat *gsUpperBuffer; // HSV image clamped by HSV range into grayscale mask
+    cv::Mat gsUpperROI;
     cv::Mat *maskedBuffer; // bgr image ANDed together with grayscale mask
     cv::Mat *intrinsic_matrix;
     cv::Mat *distortion_coeffs;
@@ -849,7 +904,7 @@ void ServerTrackerView::publish_device_data_frame()
     // Copy the video frame to shared memory (if requested)
     if (m_shared_memory_accesor != nullptr && m_shared_memory_video_stream_count > 0)
     {
-        m_shared_memory_accesor->writeVideoFrame(m_opencv_buffer_state->bgrBuffer->data);
+        m_shared_memory_accesor->writeVideoFrame(m_opencv_buffer_state->bgrShmemBuffer->data);
     }
     
     // Tell the server request handler we want to send out tracker updates.
@@ -1069,7 +1124,7 @@ ServerTrackerView::computeProjectionForController(
         }
     }
     
-    // Calculate expected ROI
+    // Get expected ROI
     // Default to full screen.
     float screenWidth, screenHeight;
     this->getPixelDimensions(screenWidth, screenHeight);
@@ -1082,7 +1137,7 @@ ServerTrackerView::computeProjectionForController(
     {
         // Get the (predicted) position in world space.
         const IPoseFilter* pose_filter = tracked_controller->getPoseFilter();
-        Eigen::Vector3f position = pose_filter->getPosition(0.f);  //TODO: Replace 0.f with the tracker time.
+        Eigen::Vector3f position = pose_filter->getPosition(0.f);  //TODO: Replace 0.f with the tracker update time.
         CommonDevicePosition world_position;
         world_position.set(position.x(), position.y(), position.z());
         
@@ -1095,7 +1150,7 @@ ServerTrackerView::computeProjectionForController(
         {
             case eCommonTrackingShapeType::Sphere:
             {
-                // Simply center - radius, center + radius.
+                // Simply: center - radius, center + radius.
                 tl.set(tracker_position.x-tracking_shape->shape.sphere.radius,
                        tracker_position.y+tracking_shape->shape.sphere.radius,
                        tracker_position.z);
@@ -1112,9 +1167,6 @@ ServerTrackerView::computeProjectionForController(
                                              screen_locs[0].y - roi_size.height/2),
                                  roi_size);
                 ROI += roi_size;  // Double its size.
-                
-                //Draw it
-                cv::rectangle(*m_opencv_buffer_state->bgrBuffer, ROI, cv::Scalar(255, 0, 0));
             } break;
                 
             case eCommonTrackingShapeType::LightBar:
@@ -1133,7 +1185,7 @@ ServerTrackerView::computeProjectionForController(
             } break;
         }
     }
-    
+    m_opencv_buffer_state->applyROI(ROI);
 
     // Find the contour associated with the controller
 	t_opencv_contour_list biggest_contours;
