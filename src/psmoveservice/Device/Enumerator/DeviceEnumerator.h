@@ -5,18 +5,7 @@
 #include "DeviceInterface.h"
 #include "stdlib.h" // size_t
 
-// -- macros ----
-#define MAX_USB_DEVICE_PORT_PATH 7
-#define GET_DEVICE_TYPE_INDEX(device_type)  (device_type & 0x0f)
-#define GET_DEVICE_TYPE_CLASS(device_type)  (device_type & 0xf0)
-
 // -- definitions -----
-struct USBDeviceInfo
-{
-    unsigned short vendor_id;
-    unsigned short product_id;
-};
-
 class DeviceEnumerator
 {
 public:

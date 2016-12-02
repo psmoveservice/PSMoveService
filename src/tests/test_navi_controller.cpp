@@ -1,5 +1,6 @@
 #include "PSNaviController.h"
 #include "ServerLog.h"
+#include "USBDeviceManager.h"
 #include "hidapi.h"
 #include "stdio.h"
 #include <string>
@@ -11,6 +12,12 @@
 #include <unistd.h>
 #endif
 
+// List of all possible USB devices that we want to connect to via libusb
+// VendorID, ProductID
+USBDeviceFilter k_usb_device_whitelist[1] = {
+	{ 0x054c, 0x042F }, // PSNavi
+};
+
 int main()
 {
     log_init("info");
@@ -21,6 +28,14 @@ int main()
         return -1;
     }
 
+	// Manages all control and bulk transfer requests in another thread
+	USBDeviceManager usb_device_manager(k_usb_device_whitelist, 1);
+	if (!usb_device_manager.startup())
+	{
+		printf("Failed to initialize usb device manager\n");
+		return -1;
+	}
+
     PSNaviController navi;
 
 	printf("Attempting to open first Navi Controller...\n");
@@ -28,7 +43,7 @@ int main()
 	{
 		printf("Successfully opened Navi Controller!\n");
 
-			const PSNaviControllerState *navi_state = nullptr;
+		const PSNaviControllerState *navi_state = nullptr;
 
 		if (navi.getIsBluetooth())
 		{
@@ -64,6 +79,7 @@ int main()
 				navi_state->Stick_XAxis,
 				navi_state->Stick_YAxis);
 
+			usb_device_manager.update();
 #ifdef _WIN32
 			_sleep(5); // 5 msec
 #else
@@ -79,6 +95,8 @@ int main()
 		printf("Failed to open Navi Controller...\n");
 	}
     
+	usb_device_manager.shutdown();
+
     // Tear-down hid api
     hid_exit();
 

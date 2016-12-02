@@ -255,8 +255,14 @@ PS3EyeTracker::~PS3EyeTracker()
 // PSMoveTracker
 bool PS3EyeTracker::open() // Opens the first HID device for the tracker
 {
-    TrackerDeviceEnumerator enumerator(CommonControllerState::PS3EYE);
+    TrackerDeviceEnumerator enumerator;
     bool success = false;
+
+    // Skip over everything that isn't a PS3EYE
+    while (enumerator.is_valid() && enumerator.get_device_type() != CommonDeviceState::PS3EYE)
+    {
+        enumerator.next();
+    }
 
     if (enumerator.is_valid())
     {

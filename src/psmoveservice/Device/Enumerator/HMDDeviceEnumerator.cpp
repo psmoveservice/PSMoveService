@@ -1,6 +1,7 @@
 // -- includes -----
 #include "HMDDeviceEnumerator.h"
 #include "ServerUtility.h"
+#include "USBDeviceInfo.h" // for MAX_USB_DEVICE_PORT_PATH, t_usb_device_handle
 #include "assert.h"
 #include "hidapi.h"
 #include "string.h"
@@ -17,7 +18,7 @@
 #define MAX_HMD_TYPE_INDEX                  GET_DEVICE_TYPE_INDEX(CommonDeviceState::SUPPORTED_HMD_TYPE_COUNT)
 
 // -- globals -----
-USBDeviceInfo g_supported_hmd_infos[MAX_HMD_TYPE_INDEX] = {
+USBDeviceFilter g_supported_hmd_infos[MAX_HMD_TYPE_INDEX] = {
     { 0x054c, 0x09af }, // Sony Morpheus
 };
 
@@ -100,7 +101,7 @@ std::string HMDDeviceEnumerator::get_interface_path(int interface_number) const
 
 void HMDDeviceEnumerator::build_interface_list()
 {
-	USBDeviceInfo &dev_info = g_supported_hmd_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
+	USBDeviceFilter &dev_info = g_supported_hmd_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
 	hid_device_info * devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
 
 	current_device_identifier = "";

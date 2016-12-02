@@ -1,31 +1,27 @@
 #ifndef CONTROLLER_LIBUSB_DEVICE_ENUMERATOR_H
 #define CONTROLLER_LIBUSB_DEVICE_ENUMERATOR_H
 
+//-- includes -----
 #include "DeviceEnumerator.h"
+#include "USBDeviceInfo.h" // for MAX_USB_DEVICE_PORT_PATH, t_usb_device_handle
 
+//-- definitions -----
 class ControllerLibUSBDeviceEnumerator : public DeviceEnumerator
 {
 public:
 	ControllerLibUSBDeviceEnumerator();
 	ControllerLibUSBDeviceEnumerator(CommonDeviceState::eDeviceType deviceType);
-	~ControllerLibUSBDeviceEnumerator();
 
 	bool is_valid() const override;
 	bool next() override;
 	const char *get_path() const override;
-	inline int get_contoller_index() const { return controller_index; }
-
-protected:
-	bool recompute_current_device_validity();
+	inline int get_contoller_index() const { return m_controllerIndex; }
+	inline t_usb_device_handle get_usb_device_handle() const { return m_USBDeviceHandle; }
 
 private:
-	char cur_path[256];
-	struct libusb_context* usb_context;
-	struct libusb_device **devs, *cur_dev;
-	unsigned char dev_port_numbers[MAX_USB_DEVICE_PORT_PATH];
-	int dev_index, dev_count;
-	int controller_index;
-	bool dev_valid;
+	char m_currentUSBPath[256];
+	t_usb_device_handle m_USBDeviceHandle;
+	int m_controllerIndex;
 };
 
 #endif // CONTROLLER_LIBUSB_DEVICE_ENUMERATOR_H

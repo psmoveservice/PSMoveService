@@ -114,6 +114,21 @@ bool ControllerDeviceEnumerator::get_serial_number(char *out_mb_serial, const si
     return success;
 }
 
+t_usb_device_handle ControllerDeviceEnumerator::get_usb_device_handle() const
+{
+	t_usb_device_handle result = k_invalid_usb_device_handle;
+
+	if ((api_type == eAPIType::CommunicationType_LIBUSB) ||
+		(api_type == eAPIType::CommunicationType_ALL && enumerator_index == 1))
+	{
+		ControllerLibUSBDeviceEnumerator *libusb_enumerator = static_cast<ControllerLibUSBDeviceEnumerator *>(enumerators[enumerator_index]);
+
+		result = libusb_enumerator->get_usb_device_handle();
+	}
+
+	return result;
+}
+
 ControllerDeviceEnumerator::eAPIType ControllerDeviceEnumerator::get_api_type() const
 {
 	ControllerDeviceEnumerator::eAPIType result= ControllerDeviceEnumerator::CommunicationType_INVALID;

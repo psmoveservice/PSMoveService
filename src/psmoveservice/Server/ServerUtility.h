@@ -4,6 +4,12 @@
 #include "stdlib.h" // size_t
 #include <string>
 
+//-- macros -----
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(_A) (sizeof(_A) / sizeof((_A)[0]))
+#endif
+
+//-- utility methods -----
 namespace ServerUtility
 {
     template <typename t_index>
@@ -44,6 +50,12 @@ namespace ServerUtility
     /// \param addr_buf_size The size of the target buffer
     /// \return true of the string could be parse and the target array could hold the octets
     bool bluetooth_string_address_to_bytes(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size);
+	
+    /// Sets the name of the current thread
+    void set_current_thread_name(const char* thread_name);
+
+    /// Sleeps the current thread for the given number of milliseconds
+    void sleep_ms(int milliseconds);	
 };
 
 #endif // SERVER_REQUEST_HANDLER_H

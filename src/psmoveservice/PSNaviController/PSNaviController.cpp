@@ -3,9 +3,9 @@
 #include "ControllerDeviceEnumerator.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
+#include "USBDeviceManager.h"
 
 #include "hidapi.h"
-#include "libusb.h"
 
 #include <iostream>
 #include <sstream>
@@ -28,21 +28,8 @@
 // source: http://forums.pcsx2.net/attachment.php?aid=49785
 
 //-- constants -----
-// HID Class-Specific Requests values. See section 7.2 of the HID specifications 
-#define HID_GET_REPORT                0x01 
-#define HID_GET_IDLE                  0x02 
-#define HID_GET_PROTOCOL              0x03 
-#define HID_SET_REPORT                0x09 
-#define HID_SET_IDLE                  0x0A 
-#define HID_SET_PROTOCOL              0x0B 
-#define HID_REPORT_TYPE_INPUT         0x01 
-#define HID_REPORT_TYPE_OUTPUT        0x02 
-#define HID_REPORT_TYPE_FEATURE       0x03 
-
-#define CTRL_IN        LIBUSB_ENDPOINT_IN|LIBUSB_REQUEST_TYPE_CLASS|LIBUSB_RECIPIENT_INTERFACE 
-#define CTRL_OUT    LIBUSB_ENDPOINT_OUT|LIBUSB_REQUEST_TYPE_CLASS|LIBUSB_RECIPIENT_INTERFACE 
-
 #define CONTROL_TRANSFER_TIMEOUT	  500 /* timeout in ms */
+#define INTERRUPT_TRANSFER_TIMEOUT	  500 /* timeout in ms */
 
 #define PSNAVI_VENDOR_ID 0x054c
 #define PSNAVI_PRODUCT_ID 0x042F
@@ -104,10 +91,8 @@ public:
 	hid_device *hid_device_handle;
 
 	// LibUSB state
-	libusb_context *usb_context;
-	libusb_device_handle *usb_device_handle;
-	libusb_config_descriptor *usb_device_descriptor;
-	unsigned int usb_claimed_interface_mask;
+	std::string usb_device_path;
+	t_usb_device_handle usb_device_handle;
 
 	PSNaviUSBContext()
 	{
@@ -121,10 +106,8 @@ public:
 		controller_bluetooth_address = "";
 		hid_device_path = "";
 		hid_device_handle = nullptr;
-		usb_context = nullptr;
-		usb_device_handle = nullptr;
-		usb_device_descriptor = nullptr;
-		usb_claimed_interface_mask = 0;
+		usb_device_path = "";
+		usb_device_handle = k_invalid_usb_device_handle;
 	}
 };
 
@@ -160,11 +143,9 @@ inline enum CommonControllerState::ButtonState getButtonState(unsigned int butto
 static int navi_hid_get_feature_report(hid_device *dev, unsigned char *data, size_t length);
 inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size);
 
-static bool psnavi_open_usb_device(PSNaviUSBContext *navi_context);
-static void psnavi_close_usb_device(PSNaviUSBContext *navi_context);
-static int psnavi_get_usb_feature_report(PSNaviUSBContext *navi_context, unsigned char *report_bytes, size_t report_size);
-static int psnavi_send_usb_feature_report(PSNaviUSBContext *navi_context, unsigned char *report_bytes, size_t report_size);
-static int psnavi_read_usb_interrupt_pipe(PSNaviUSBContext *navi_context, unsigned char *buffer, size_t max_buffer_size);
+static int psnavi_get_usb_feature_report(t_usb_device_handle device_handle, unsigned char *report_bytes, size_t report_size);
+static int psnavi_send_usb_feature_report(t_usb_device_handle device_handle, unsigned char *report_bytes, size_t report_size);
+static int psnavi_read_usb_interrupt_pipe(t_usb_device_handle device_handle, unsigned char *buffer, size_t max_buffer_size);
 
 // -- public methods
 
@@ -254,8 +235,20 @@ bool PSNaviController::open(
 		}
 		else
 		{
+			USBDeviceManager *usbMgr = USBDeviceManager::getInstance();
+			t_usb_device_handle usb_dev_handle= pEnum->get_usb_device_handle();
+			
+			if (usbMgr->openUSBDevice(usb_dev_handle))
+			{
+				SERVER_LOG_INFO("PSNaviController::open") << "  Successfully opened usb handle " << usb_dev_handle;
+				USBContext->usb_device_path = cur_dev_path;
+				USBContext->usb_device_handle = usb_dev_handle;
+			}
+			else
+			{
+				SERVER_LOG_ERROR("PSNaviController::open") << "  Failed to open usb handle " << usb_dev_handle;
+			}
 			IsBluetooth = false;
-			psnavi_open_usb_device(USBContext);
 		}
 
         if (getIsOpen())  // Controller was opened and has an index
@@ -310,6 +303,8 @@ void PSNaviController::close()
 {
     if (getIsOpen())
     {
+		USBDeviceManager *usbMgr = USBDeviceManager::getInstance();
+
         SERVER_LOG_INFO("PSNaviController::close") << "Closing PSNaviController(" << USBContext->hid_device_path << ")";
 
         if (USBContext->hid_device_handle != nullptr)
@@ -318,7 +313,11 @@ void PSNaviController::close()
 			USBContext->hid_device_handle= nullptr;
         }
 
-		psnavi_close_usb_device(USBContext);
+		if (USBContext->usb_device_handle != k_invalid_usb_device_handle)
+		{
+			usbMgr->closeUSBDevice(USBContext->usb_device_handle);
+			USBContext->usb_device_handle = k_invalid_usb_device_handle;
+		}
 
 		USBContext->Reset();
     }
@@ -353,7 +352,7 @@ PSNaviController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
         /* Copy 6 bytes from addr into bts[3]..bts[8] */
         memcpy(&bts[3], addr, sizeof(addr));
 
-        res = psnavi_send_usb_feature_report(USBContext, bts, sizeof(bts));
+        res = psnavi_send_usb_feature_report(USBContext->usb_device_handle, bts, sizeof(bts));
         if (res == sizeof(bts))
         {
             success= true;
@@ -377,8 +376,18 @@ PSNaviController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) co
 
     if (pEnum->get_device_type() == CommonControllerState::PSNavi)
     {
-        const char *enumerator_path= pEnum->get_path();
-        const char *dev_path= USBContext->hid_device_path.c_str();
+		const char *enumerator_path = pEnum->get_path();
+		const char *dev_path = nullptr;
+
+		switch (pEnum->get_api_type())
+		{
+		case ControllerDeviceEnumerator::CommunicationType_HID:
+			dev_path = USBContext->hid_device_path.c_str();
+			break;
+		case ControllerDeviceEnumerator::CommunicationType_LIBUSB:
+			dev_path = USBContext->usb_device_path.c_str();
+			break;
+		}
 
     #ifdef _WIN32
         matches= _stricmp(dev_path, enumerator_path) == 0;
@@ -423,7 +432,7 @@ PSNaviController::getAssignedHostBluetoothAddress() const
 bool
 PSNaviController::getIsOpen() const
 {
-    return (USBContext->hid_device_handle != nullptr) || (USBContext->usb_device_handle != nullptr);
+    return (USBContext->hid_device_handle != nullptr) || (USBContext->usb_device_handle != k_invalid_usb_device_handle);
 }
 
 CommonDeviceState::eDeviceType
@@ -474,7 +483,7 @@ PSNaviController::setInputStreamEnabled()
 		report_bytes[3] = 0x00;
 		report_bytes[4] = 0x00;
 
-		int res = psnavi_send_usb_feature_report(USBContext, report_bytes, sizeof(report_bytes));
+		int res = psnavi_send_usb_feature_report(USBContext->usb_device_handle, report_bytes, sizeof(report_bytes));
 		if (res == sizeof(report_bytes))
 		{
 			bSuccess = true;
@@ -514,7 +523,7 @@ PSNaviController::getHostBTAddress(std::string& host)
 	}
 	else
 	{
-		int res = psnavi_get_usb_feature_report(USBContext, btg, sizeof(btg));
+		int res = psnavi_get_usb_feature_report(USBContext->usb_device_handle, btg, sizeof(btg));
 		if (res == sizeof(btg))
 		{
 			bSuccess = true;
@@ -560,7 +569,7 @@ PSNaviController::getControllerBTAddress(std::string& controller)
 	}
 	else
 	{
-		int res = psnavi_get_usb_feature_report(USBContext, btg, sizeof(btg));
+		int res = psnavi_get_usb_feature_report(USBContext->usb_device_handle, btg, sizeof(btg));
 		if (res == sizeof(btg))
 		{
 			bSuccess = true;
@@ -603,7 +612,7 @@ PSNaviController::pollUSB()
 	assert(!getIsBluetooth());
 
 	IControllerInterface::ePollResult poll_result;
-	int res = psnavi_read_usb_interrupt_pipe(USBContext, InBuffer, sizeof(InBuffer));
+	int res = psnavi_read_usb_interrupt_pipe(USBContext->usb_device_handle, InBuffer, sizeof(InBuffer));
 
 	if (res < 0)
 	{
@@ -686,8 +695,8 @@ PSNaviController::parseInputData()
 
 	// Buttons
 	newState.AllButtons =
-		(InData->buttons1) |          // |Left|Down|Right|Up|-|-|L3|-
-		(InData->buttons2 << 8) |               // |Cross|-|Circle|-|L1|-|-|L2|
+		(InData->buttons1) |               // |Left|Down|Right|Up|-|-|L3|-
+		(InData->buttons2 << 8) |          // |Cross|-|Circle|-|L1|-|-|L2|
 		((InData->buttons3 & 0x01) << 16); // |-|-|-|-|-|-|-|PS|
 
 	unsigned int lastButtons = ControllerStates.empty() ? 0 : ControllerStates.back().AllButtons;
@@ -822,155 +831,46 @@ inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_
     return ServerUtility::convert_wcs_to_mbs(hid_error(dev), out_mb_error, mb_buffer_size);
 }
 
-static bool 
-psnavi_open_usb_device(PSNaviUSBContext *navi_context)
-{
-	bool bSuccess = true;
-	if (libusb_init(&navi_context->usb_context) == LIBUSB_SUCCESS)
-	{
-		libusb_set_debug(navi_context->usb_context, 3);
-	}
-	else
-	{
-		SERVER_LOG_ERROR("psnavi_open_usb_device") << "libusb context initialization failed!";
-		bSuccess = false;
-	}
-
-	if (bSuccess)
-	{
-		//###HipsterSloth $HACK This approach only works for one connected controller
-		navi_context->usb_device_handle =
-			libusb_open_device_with_vid_pid(
-				navi_context->usb_context,
-				PSNAVI_VENDOR_ID, PSNAVI_PRODUCT_ID);
-
-		if (navi_context->usb_device_handle == nullptr)
-		{
-			SERVER_LOG_ERROR("psnavi_open_usb_device") << "PSNavi USB device not found!";
-			bSuccess = false;
-		}
-	}
-
-	if (bSuccess)
-	{
-		libusb_device *device = libusb_get_device(navi_context->usb_device_handle);
-		int result = libusb_get_config_descriptor_by_value(
-			device,
-			PSNAVI_CONFIGURATION_VALUE,
-			&navi_context->usb_device_descriptor);
-
-		if (result != LIBUSB_SUCCESS)
-		{
-			SERVER_LOG_ERROR("psnavi_open_usb_device") << "Failed to retrieve Morpheus usb config descriptor";
-			bSuccess = false;
-		}
-	}
-
-	for (int interface_index = 0;
-		bSuccess && interface_index < navi_context->usb_device_descriptor->bNumInterfaces;
-		interface_index++)
-	{
-		int mask = 1 << interface_index;
-
-		if (PSNAVI_USB_INTERFACES_MASK_TO_CLAIM & mask)
-		{
-			int result = 0;
-
-#ifndef _WIN32
-			result = libusb_kernel_driver_active(navi_context->usb_device_handle, interface_index);
-			if (result < 0)
-			{
-				SERVER_LOG_ERROR("psnavi_open_usb_device") << "USB Interface #" << interface_index << " driver status failed";
-				bSuccess = false;
-			}
-
-			if (bSuccess && result == 1)
-			{
-				SERVER_LOG_ERROR("morpeus_open_usb_device") << "Detach kernel driver on interface #" << interface_index;
-
-				result = libusb_detach_kernel_driver(navi_context->usb_device_handle, interface_index);
-				if (result != LIBUSB_SUCCESS)
-				{
-					SERVER_LOG_ERROR("psnavi_open_usb_device") << "Interface #" << interface_index << " detach failed";
-					bSuccess = false;
-				}
-			}
-#endif //_WIN32
-
-			result = libusb_claim_interface(navi_context->usb_device_handle, interface_index);
-			if (result == LIBUSB_SUCCESS)
-			{
-				navi_context->usb_claimed_interface_mask |= mask;
-			}
-			else
-			{
-				SERVER_LOG_ERROR("psnavi_open_usb_device") << "Interface #" << interface_index << " claim failed";
-				bSuccess = false;
-			}
-		}
-	}
-
-	if (!bSuccess)
-	{
-		psnavi_close_usb_device(navi_context);
-	}
-
-	return bSuccess;
-}
-
-static void 
-psnavi_close_usb_device(PSNaviUSBContext *navi_context)
-{
-	for (int interface_index = 0; navi_context->usb_claimed_interface_mask != 0; ++interface_index)
-	{
-		int interface_mask = 1 << interface_index;
-
-		if ((navi_context->usb_claimed_interface_mask & interface_mask) != 0)
-		{
-			libusb_release_interface(navi_context->usb_device_handle, interface_index);
-			navi_context->usb_claimed_interface_mask &= ~interface_mask;
-		}
-	}
-
-	if (navi_context->usb_device_descriptor != nullptr)
-	{
-		libusb_free_config_descriptor(navi_context->usb_device_descriptor);
-		navi_context->usb_device_descriptor = nullptr;
-	}
-
-	if (navi_context->usb_device_handle != nullptr)
-	{
-		libusb_close(navi_context->usb_device_handle);
-		navi_context->usb_device_handle = nullptr;
-	}
-
-	if (navi_context->usb_context != nullptr)
-	{
-		libusb_exit(navi_context->usb_context);
-		navi_context->usb_context = nullptr;
-	}
-}
-
 static int 
 psnavi_get_usb_feature_report(
-	PSNaviUSBContext *navi_context,
+	t_usb_device_handle device_handle,
 	unsigned char *report_bytes,
 	size_t report_size)
 {
-	int result = libusb_control_transfer(
-		navi_context->usb_device_handle, 
-		CTRL_IN, 
-		HID_GET_REPORT, 
-		(HID_REPORT_TYPE_FEATURE << 8) | report_bytes[0],
-		0, 
-		report_bytes,
-		static_cast<uint16_t>(report_size), 
-		CONTROL_TRANSFER_TIMEOUT);
+	USBDeviceManager *usbMgr= USBDeviceManager::getInstance();
+	int result = 0;
+	
+	USBTransferRequest transfer_request;
+	transfer_request.request_type = _USBRequestType_ControlTransfer;
 
-	if (result < LIBUSB_SUCCESS) 
+	USBRequestPayload_ControlTransfer &control_transfer= transfer_request.payload.control_transfer;
+	control_transfer.usb_device_handle = device_handle;
+	control_transfer.bmRequestType = USB_CTRL_IN;
+	control_transfer.bRequest = HID_GET_REPORT;
+	control_transfer.wValue = (HID_REPORT_TYPE_FEATURE << 8) | report_bytes[0];
+	control_transfer.wIndex = 0;
+	control_transfer.wLength = static_cast<uint16_t>(report_size);
+	control_transfer.timeout = CONTROL_TRANSFER_TIMEOUT;
+
+	USBTransferResult transfer_result= usbMgr->submitTransferRequestBlocking(transfer_request);
+	assert(transfer_result.result_type == _USBResultType_ControlTransfer);
+
+	if (transfer_result.payload.control_transfer.result_code == _USBResultCode_Completed)
 	{
-		const char * error_text = libusb_strerror(static_cast<libusb_error>(result));
-		SERVER_LOG_ERROR("psnavi_get_usb_hid_report") << "Control transfer failed with error: " << error_text;
+		size_t byte_count = std::min(static_cast<size_t>(transfer_result.payload.control_transfer.dataLength), report_size);
+		
+		if (byte_count > 0)
+		{
+			memcpy(report_bytes, transfer_result.payload.control_transfer.data, byte_count);
+		}
+
+		result = transfer_result.payload.control_transfer.dataLength;
+	}
+	else
+	{
+		const char * error_text = USBDeviceManager::getErrorString(transfer_result.payload.control_transfer.result_code);
+		SERVER_LOG_ERROR("psnavi_get_usb_feature_report") << "Control transfer failed with error: " << error_text;
+		result= -static_cast<int>(transfer_result.payload.control_transfer.result_code);
 	}
 
 	return result;
@@ -978,29 +878,38 @@ psnavi_get_usb_feature_report(
 
 static int
 psnavi_send_usb_feature_report(
-	PSNaviUSBContext *navi_context,
+	t_usb_device_handle device_handle,
 	unsigned char *report_bytes,
 	size_t report_size)
 {
-	int result = libusb_control_transfer(
-		navi_context->usb_device_handle, 
-		CTRL_OUT, 
-		HID_SET_REPORT, 
-		(HID_REPORT_TYPE_FEATURE << 8) | report_bytes[0],
-		0,
-		report_bytes+1, // don't send the report id
-		static_cast<uint16_t>(report_size-1), // don't include the report id in the size
-		CONTROL_TRANSFER_TIMEOUT);
+	USBDeviceManager *usbMgr = USBDeviceManager::getInstance();
+	int result = 0;
 
-	if (result >= 0)
+	USBTransferRequest transfer_request;
+	transfer_request.request_type = _USBRequestType_ControlTransfer;
+
+	USBRequestPayload_ControlTransfer &control_transfer = transfer_request.payload.control_transfer;
+	control_transfer.usb_device_handle = device_handle;
+	control_transfer.bmRequestType = USB_CTRL_OUT;
+	control_transfer.bRequest = HID_SET_REPORT;
+	control_transfer.wValue = (HID_REPORT_TYPE_FEATURE << 8) | report_bytes[0];
+	control_transfer.wIndex = 0;
+	memcpy(control_transfer.data, report_bytes + 1, report_size - 1);
+	control_transfer.wLength = static_cast<uint16_t>(report_size-1); // don't include the report id in the size
+	control_transfer.timeout = CONTROL_TRANSFER_TIMEOUT;
+
+	USBTransferResult transfer_result = usbMgr->submitTransferRequestBlocking(transfer_request);
+	assert(transfer_result.result_type == _USBResultType_ControlTransfer);
+
+	if (transfer_result.payload.control_transfer.result_code == _USBResultCode_Completed)
 	{
-		// add the report id size back in the result
-		++result;
+		result = transfer_result.payload.control_transfer.dataLength;
 	}
 	else
 	{
-		const char * error_text = libusb_strerror(static_cast<libusb_error>(result));
-		SERVER_LOG_ERROR("psnavi_get_usb_hid_report") << "Control transfer failed with error: " << error_text;
+		const char * error_text = USBDeviceManager::getErrorString(transfer_result.payload.control_transfer.result_code);
+		SERVER_LOG_ERROR("psnavi_send_usb_feature_report") << "Control transfer failed with error: " << error_text;
+		result = -static_cast<int>(transfer_result.payload.control_transfer.result_code);
 	}
 
 	return result;
@@ -1008,27 +917,41 @@ psnavi_send_usb_feature_report(
 
 static int
 psnavi_read_usb_interrupt_pipe(
-	PSNaviUSBContext *navi_context,
+	t_usb_device_handle device_handle,
 	unsigned char *buffer,
 	size_t max_buffer_size)
 {
-	int actual_length = 0;
-	int result = libusb_interrupt_transfer(
-		navi_context->usb_device_handle, 
-		0x81,
-		buffer, 
-		max_buffer_size,
-		&actual_length, 
-		0);
+	USBDeviceManager *usbMgr = USBDeviceManager::getInstance();
+	int result = 0;
 
-	if (result >= 0)
+	USBTransferRequest transfer_request;
+	transfer_request.request_type = _USBRequestType_InterruptTransfer;
+
+	USBRequestPayload_InterruptTransfer &interrupt_transfer = transfer_request.payload.interrupt_transfer;
+	interrupt_transfer.usb_device_handle = device_handle;
+	interrupt_transfer.endpoint = 0x81;
+	interrupt_transfer.length = static_cast<unsigned int>(max_buffer_size);
+	interrupt_transfer.timeout = INTERRUPT_TRANSFER_TIMEOUT;
+
+	USBTransferResult transfer_result = usbMgr->submitTransferRequestBlocking(transfer_request);
+	assert(transfer_result.result_type == _USBResultType_InterrupTransfer);
+
+	if (transfer_result.payload.interrupt_transfer.result_code == _USBResultCode_Completed)
 	{
-		result = actual_length;
+		size_t byte_count = std::min(static_cast<size_t>(transfer_result.payload.interrupt_transfer.dataLength), max_buffer_size);
+
+		if (byte_count > 0)
+		{
+			memcpy(buffer, transfer_result.payload.interrupt_transfer.data, byte_count);
+		}
+
+		result = transfer_result.payload.interrupt_transfer.dataLength;
 	}
 	else
 	{
-		const char * error_text = libusb_strerror(static_cast<libusb_error>(result));
-		SERVER_LOG_ERROR("psnavi_read_usb_interrupt_pipe") << "Control transfer failed with error: " << error_text;
+		const char * error_text = USBDeviceManager::getErrorString(transfer_result.payload.interrupt_transfer.result_code);
+		SERVER_LOG_ERROR("psnavi_read_usb_interrupt_pipe") << "interrupt transfer failed with error: " << error_text;
+		result = -static_cast<int>(transfer_result.payload.interrupt_transfer.result_code);
 	}
 
 	return result;
