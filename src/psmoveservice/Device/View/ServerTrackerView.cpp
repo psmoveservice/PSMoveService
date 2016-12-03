@@ -30,9 +30,11 @@
 #define USE_OPEN_CV_ELLIPSE_FIT
 
 //-- typedefs ----
-typedef std::vector<cv::Point> t_opencv_contour;
-typedef std::vector<t_opencv_contour> t_opencv_contour_list;
+typedef std::vector<cv::Point> t_opencv_int_contour;
+typedef std::vector<t_opencv_int_contour> t_opencv_int_contour_list;
 
+typedef std::vector<cv::Point2f> t_opencv_float_contour;
+typedef std::vector<t_opencv_float_contour> t_opencv_float_contour_list;
 
 //-- private methods -----
 class SharedVideoFrameReadWriteAccessor
@@ -418,7 +420,10 @@ public:
     
     void applyROI(cv::Rect2i ROI)
     {
-        //Clamp it
+		//Clamp it
+		ROI.width = std::min(ROI.width, frameWidth);
+		ROI.height = std::min(ROI.height, frameHeight);
+
         if (ROI.x < 0)
         {
             ROI.x = 0;
@@ -429,11 +434,11 @@ public:
         }
         if (ROI.br().x > frameWidth)
         {
-            ROI.width = frameWidth - ROI.x;
+            ROI.x = std::max(frameWidth - ROI.width, 0);
         }
         if (ROI.br().y > frameHeight)
         {
-            ROI.height = frameHeight - ROI.y;
+            ROI.y = std::max(frameHeight - ROI.height, 0);
         }
         
         //Create the ROI matrices.
@@ -454,7 +459,7 @@ public:
     // i.e. [0, 0] at lower left  to [frameWidth-1, frameHeight-1] at lower right
     bool computeBiggestNContours(
         const CommonHSVColorRange &hsvColorRange,
-		t_opencv_contour_list &out_biggest_N_contours,
+		t_opencv_int_contour_list &out_biggest_N_contours,
         std::vector<double> &out_contour_areas,
 		const int max_contour_count,
         const int min_points_in_contour = 6)
@@ -523,7 +528,7 @@ public:
 			// Find all counters in the image buffer
             cv::Size size; cv::Point ofs;
             gsLowerROI.locateROI(size, ofs);
-			t_opencv_contour_list contours;
+			t_opencv_int_contour_list contours;
             cv::findContours(gsLowerROI,
                              contours,
                              CV_RETR_EXTERNAL,
@@ -557,14 +562,14 @@ public:
 				++it)
 			{
 				const ContourInfo &contour_info = *it;
-				t_opencv_contour &contour = contours[contour_info.contour_index];
+				t_opencv_int_contour &contour = contours[contour_info.contour_index];
 
                 if (contour.size() > min_points_in_contour)
 				{
 					// Remove any points in contour on edge of camera/ROI
                     // TODO: Contours touching image border will be clipped,
                     // so this might not be necessary.
-					t_opencv_contour::iterator it = contour.begin();
+					t_opencv_int_contour::iterator it = contour.begin();
 					while (it != contour.end()) 
 					{
 						if (it->x == 0 || it->x == (frameWidth - 1) || it->y == 0 || it->y == (frameHeight - 1))
@@ -589,43 +594,96 @@ public:
     }
     
     void
-    draw_contour(const t_opencv_contour &contour)
+    draw_contour(const t_opencv_int_contour &contour)
     {
         // Draws the contour directly onto the shared mem buffer.
         // This is useful for debugging
-        std::vector<t_opencv_contour> contours = {contour};
+        std::vector<t_opencv_int_contour> contours = {contour};
         cv::Moments mu(cv::moments(contour));
         cv::Point2f massCenter = cv::Point2f(static_cast<float>(mu.m10 / mu.m00),
                                              static_cast<float>(mu.m01 / mu.m00));
         cv::drawContours(*bgrShmemBuffer, contours, 0, cv::Scalar(255, 255, 255));
         cv::rectangle(*bgrShmemBuffer, cv::boundingRect(contour), cv::Scalar(255, 255, 255));
         cv::drawMarker(*bgrShmemBuffer, massCenter, cv::Scalar(255, 255, 255));
-//        float contourArea = mu.m00;
     }
     
     void
-    draw_pose_projection(const ControllerOpticalPoseEstimation &pose_estimate)
+    draw_pose_projection(const CommonDeviceTrackingProjection &pose_projection)
     {
         // Draw the projection of the pose onto the shared mem buffer.
-        if (pose_estimate.projection.shape_type == eCommonTrackingProjectionType::ProjectionType_Ellipse)
-        {
-            // For the sphere, its ellipse projection parameters should already
-            // be calculated, so we can use those parameters to draw an ellipse.
-            
-            //Create cv::ellipse from pose_estimate
-            cv::Point ell_center(pose_estimate.projection.shape.ellipse.center.x,
-                                 pose_estimate.projection.shape.ellipse.center.y);
-            cv::Size ell_size(pose_estimate.projection.shape.ellipse.half_x_extent,
-                              pose_estimate.projection.shape.ellipse.half_y_extent);
-            
-            //Draw ellipse on bgrShmemBuffer
-            cv::ellipse(*bgrShmemBuffer,
-                        ell_center,
-                        ell_size,
-                        pose_estimate.projection.shape.ellipse.angle,
-                        0, 360, cv::Scalar(0, 0, 255));
-            cv::drawMarker(*bgrShmemBuffer, ell_center, cv::Scalar(0, 0, 255));
-        }
+		switch (pose_projection.shape_type)
+		{
+		case eCommonTrackingProjectionType::ProjectionType_Ellipse:
+			{
+				// For the sphere, its ellipse projection parameters should already
+				// be calculated, so we can use those parameters to draw an ellipse.
+
+				//Create cv::ellipse from pose_estimate
+				cv::Point ell_center(
+					static_cast<int>(pose_projection.shape.ellipse.center.x),
+					static_cast<int>(pose_projection.shape.ellipse.center.y));
+				cv::Size ell_size(
+					static_cast<int>(pose_projection.shape.ellipse.half_x_extent),
+					static_cast<int>(pose_projection.shape.ellipse.half_y_extent));
+
+				//Draw ellipse on bgrShmemBuffer
+				cv::ellipse(*bgrShmemBuffer,
+					ell_center,
+					ell_size,
+					pose_projection.shape.ellipse.angle,
+					0, 360, cv::Scalar(0, 0, 255));
+				cv::drawMarker(*bgrShmemBuffer, ell_center, cv::Scalar(0, 0, 255));
+			} break;
+		case eCommonTrackingProjectionType::ProjectionType_LightBar:
+			{
+				int prev_point_index;
+
+				//###HipsterSloth $TODO - Get rid of the frameWidth and frameHeight offsets once I cleanup
+				// the tracking projection half screen offsets everywhere else
+
+				prev_point_index = CommonDeviceTrackingShape::QuadVertexCount - 1;
+				for (int point_index = 0; point_index < CommonDeviceTrackingShape::QuadVertexCount; ++point_index)
+				{
+					cv::Point pt1(
+						static_cast<int>(pose_projection.shape.lightbar.quad[prev_point_index].x + (frameWidth / 2)),
+						static_cast<int>(pose_projection.shape.lightbar.quad[prev_point_index].y + (frameHeight / 2)));
+					cv::Point pt2(
+						static_cast<int>(pose_projection.shape.lightbar.quad[point_index].x + (frameWidth / 2)),
+						static_cast<int>(pose_projection.shape.lightbar.quad[point_index].y + (frameHeight / 2)));
+					cv::line(*bgrShmemBuffer, pt1, pt2, cv::Scalar(0, 0, 255));
+
+					prev_point_index = point_index;
+				}
+
+				prev_point_index = CommonDeviceTrackingShape::TriVertexCount - 1;
+				for (int point_index = 0; point_index < CommonDeviceTrackingShape::TriVertexCount; ++point_index)
+				{
+					cv::Point pt1(
+						static_cast<int>(pose_projection.shape.lightbar.triangle[prev_point_index].x + (frameWidth / 2)),
+						static_cast<int>(pose_projection.shape.lightbar.triangle[prev_point_index].y + (frameHeight /2)));
+					cv::Point pt2(
+						static_cast<int>(pose_projection.shape.lightbar.triangle[point_index].x + (frameWidth / 2)),
+						static_cast<int>(pose_projection.shape.lightbar.triangle[point_index].y + (frameHeight / 2)));
+					cv::line(*bgrShmemBuffer, pt1, pt2, cv::Scalar(0, 0, 255));
+
+					prev_point_index = point_index;
+				}
+				
+			} break;
+		case eCommonTrackingProjectionType::ProjectionType_Points:
+			{
+				for (int point_index = 0; point_index < pose_projection.shape.points.point_count; ++point_index)
+				{
+					cv::Point pt(
+						static_cast<int>(pose_projection.shape.points.point[point_index].x),
+						static_cast<int>(pose_projection.shape.points.point[point_index].y));
+					cv::drawMarker(*bgrShmemBuffer, pt, cv::Scalar(0, 0, 255));
+				}
+			} break;
+		default:
+			assert(false && "unreachable");
+			break;
+		}		
     }
 
     int frameWidth;
@@ -657,7 +715,7 @@ static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tra
 static bool computeTrackerRelativeLightBarProjection(
 	const ITrackerInterface *tracker_device,
 	const CommonDeviceTrackingShape *tracking_shape,
-	const t_opencv_contour &opencv_contour,
+	const t_opencv_float_contour &opencv_contour,
 	CommonDeviceTrackingProjection *out_projection);
 static bool computeTrackerRelativeLightBarPose(
 	const ITrackerInterface *tracker_device,
@@ -668,16 +726,20 @@ static bool computeTrackerRelativeLightBarPose(
 static bool computeTrackerRelativePointCloudContourPose(
 	const ITrackerInterface *tracker_device,
 	const CommonDeviceTrackingShape *tracking_shape,
-	const t_opencv_contour_list &opencv_contours,
+	const t_opencv_float_contour_list &opencv_contours,
 	const CommonDevicePose *tracker_relative_pose_guess,
 	HMDOpticalPoseEstimation *out_pose_estimate);
+static cv::Rect2i computeTrackerROIForPoseProjection(
+	const ServerTrackerView *tracker,
+	const IPoseFilter* pose_filter,
+	const CommonDeviceTrackingShape *tracking_shape);
 static bool computeBestFitTriangleForContour(
-    const t_opencv_contour &opencv_contour,
+    const t_opencv_float_contour &opencv_contour,
     cv::Point2f &out_triangle_top,
     cv::Point2f &out_triangle_bottom_left,
     cv::Point2f &out_triangle_bottom_right);
 static bool computeBestFitQuadForContour(
-    const t_opencv_contour &opencv_contour,
+    const t_opencv_float_contour &opencv_contour,
     const cv::Point2f &up_hint, 
     const cv::Point2f &right_hint,
     cv::Point2f &top_right,
@@ -1079,104 +1141,16 @@ ServerTrackerView::computeProjectionForController(
             bSuccess = false;
         }
     }
-    
-    // Get expected ROI
-    // Default to full screen.
-    float screenWidth, screenHeight;
-    this->getPixelDimensions(screenWidth, screenHeight);
-    cv::Rect2i ROI(0, 0, screenWidth, screenHeight);
-    
-    //Calculate a more refined ROI.
-    //Based on the physical limits of the object's bounding box
-    //projected onto the image.
-    if (tracked_controller->getIsCurrentlyTracking())
-    {
-        // Get the (predicted) position in world space.
-        const IPoseFilter* pose_filter = tracked_controller->getPoseFilter();
-        Eigen::Vector3f position = pose_filter->getPosition(0.f);  //TODO: Replace 0.f with the tracker update time.
-        CommonDevicePosition world_position;
-        world_position.set(position.x(), position.y(), position.z());
-        
-        // Get the (predicted) position in tracker-local space.
-        CommonDevicePosition tracker_position = computeTrackerPosition(&world_position);
-        
-        // Project the position +/- object extents onto the image.
-        CommonDevicePosition tl, br;
-        switch (tracking_shape->shape_type)
-        {
-            case eCommonTrackingShapeType::Sphere:
-            {
-                // Simply: center - radius, center + radius.
-                tl.set(tracker_position.x-tracking_shape->shape.sphere.radius,
-                       tracker_position.y+tracking_shape->shape.sphere.radius,
-                       tracker_position.z);
-                br.set(tracker_position.x+tracking_shape->shape.sphere.radius,
-                       tracker_position.y-tracking_shape->shape.sphere.radius,
-                       tracker_position.z);               
-            } break;
-                
-            case eCommonTrackingShapeType::LightBar:
-            {
-				// Compute the bounding radius of the lightbar tracking shape
-				const auto &shape_tl = tracking_shape->shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexUpperLeft];
-				const auto &shape_br = tracking_shape->shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexLowerRight];
-				const CommonDeviceVector half_vec = { (shape_tl.x - shape_br.x)*0.5f, (shape_tl.y - shape_br.y)*0.5f, (shape_tl.z - shape_br.z)*0.5f };
-				const auto shape_radius = fmaxf(sqrtf(half_vec.i*half_vec.i + half_vec.j*half_vec.j + half_vec.k*half_vec.k), 1.f);
 
-				// Simply: center - shape_radius, center + shape_radius.
-				tl.set(tracker_position.x - shape_radius,
-					tracker_position.y + shape_radius,
-					tracker_position.z);
-				br.set(tracker_position.x + shape_radius,
-					tracker_position.y - shape_radius,
-					tracker_position.z);
-            } break;
-                
-            case eCommonTrackingShapeType::PointCloud:
-            {
-				// Compute the bounding radius of the point cloud
-				CommonDevicePosition shape_tl = tracking_shape->shape.point_cloud.point[0];
-				CommonDevicePosition shape_br = tracking_shape->shape.point_cloud.point[0];
-				for (int point_index = 1; point_index < tracking_shape->shape.point_cloud.point_count; ++point_index)
-				{
-					const CommonDevicePosition &point = tracking_shape->shape.point_cloud.point[point_index];
-					shape_tl.set(fmaxf(shape_tl.x, point.x), fmaxf(shape_tl.y, point.y), fmaxf(shape_tl.z, point.z));
-					shape_br.set(fminf(shape_br.x, point.x), fminf(shape_br.y, point.y), fminf(shape_br.z, point.z));
-				}
-				const CommonDeviceVector half_vec = { (shape_tl.x - shape_br.x)*0.5f, (shape_tl.y - shape_br.y)*0.5f, (shape_tl.z - shape_br.z)*0.5f };
-				const auto shape_radius = fmaxf(sqrtf(half_vec.i*half_vec.i + half_vec.j*half_vec.j + half_vec.k*half_vec.k), 1.f);
-
-				// Simply: center - shape_radius, center + shape_radius.
-				tl.set(tracker_position.x - shape_radius,
-					tracker_position.y + shape_radius,
-					tracker_position.z);
-				br.set(tracker_position.x + shape_radius,
-					tracker_position.y - shape_radius,
-					tracker_position.z);
-            } break;
-                
-            default:
-            {
-				assert(false && "unreachable");
-            } break;
-        }
-
-		// Compute the ROI from the projecting bounding box
-		{
-			std::vector<CommonDevicePosition> trps{ tl, br };
-			std::vector<CommonDeviceScreenLocation> screen_locs = projectTrackerRelativePositions(trps);
-
-			cv::Size roi_size(screen_locs[1].x - screen_locs[0].x, screen_locs[1].y - screen_locs[0].y);
-			ROI = cv::Rect2i(cv::Point2i(screen_locs[0].x - roi_size.width / 2,
-				screen_locs[0].y - roi_size.height / 2),
-				roi_size);
-			ROI += roi_size;  // Double its size.
-		}
-    }
+	// Compute a region of interest in the tracker buffer around where we expect to find the tracking shape
+	cv::Rect2i ROI= computeTrackerROIForPoseProjection(
+		this, 
+		(tracked_controller->getIsCurrentlyTracking()) ? tracked_controller->getPoseFilter() : nullptr,
+		tracking_shape);
     m_opencv_buffer_state->applyROI(ROI);
 
     // Find the contour associated with the controller
-	t_opencv_contour_list biggest_contours;
+	t_opencv_int_contour_list biggest_contours;
     std::vector<double> contour_areas;
     if (bSuccess)
     {
@@ -1186,36 +1160,34 @@ ServerTrackerView::computeProjectionForController(
     // Process the contour for its 2D and 3D pose.
     if (bSuccess)
     {
-        
-        // Compute the convex hull of the contour
-        t_opencv_contour convex_contour;
-        cv::convexHull(biggest_contours[0], convex_contour);
-        m_opencv_buffer_state->draw_contour(convex_contour);
-        
-        // Convert integer to float
-        std::vector<cv::Point2f> convex_contour_f;
-        cv::Mat(convex_contour).convertTo(convex_contour_f, cv::Mat(convex_contour_f).type());
-        
         // Get camera parameters.
         // Needed for undistortion.
         cv::Matx33f camera_matrix;
         cv::Matx<float, 5, 1> distortions;
         computeOpenCVCameraIntrinsicMatrix(m_device, camera_matrix, distortions);
-        
-        std::vector<cv::Point2f> undistort_contour;  //destination for undistorted contour
-        
+                
         // Compute the tracker relative 3d position of the controller from the contour
         switch (tracking_shape->shape_type)
         {
 		// For the sphere projection we can go ahead and compute the full pose estimation now
         case eCommonTrackingShapeType::Sphere:
             {
+				// Compute the convex hull of the contour
+				t_opencv_int_contour convex_contour;
+				cv::convexHull(biggest_contours[0], convex_contour);
+				m_opencv_buffer_state->draw_contour(convex_contour);
+
+				// Convert integer to float
+				t_opencv_float_contour convex_contour_f;
+				cv::Mat(convex_contour).convertTo(convex_contour_f, cv::Mat(convex_contour_f).type());
+
                 // Undistort points
+				t_opencv_float_contour undistort_contour;  //destination for undistorted contour
                 cv::undistortPoints(convex_contour_f, undistort_contour,
                                     camera_matrix,
                                     distortions);//,
-//                                    cv::noArray(),
-//                                    camera_matrix);
+                                    //cv::noArray(),
+                                    //camera_matrix);
                 // Note: if we omit the last two arguments, then
                 // undistort_contour points are in 'normalized' space.
                 // i.e., they are relative to their F_PX,F_PY
@@ -1231,7 +1203,7 @@ ServerTrackerView::computeProjectionForController(
                                   eigen_contour.push_back(Eigen::Vector2f(p.x, p.y));
                               });
                 eigen_alignment_fit_focal_cone_to_sphere(eigen_contour.data(),
-                                                         eigen_contour.size(),
+														 static_cast<int>(eigen_contour.size()),
                                                          tracking_shape->shape.sphere.radius,
                                                          1, //I was expecting this to be -1. Is it +1 because we're using -F_PY?
                                                          &sphere_center,
@@ -1260,7 +1232,7 @@ ServerTrackerView::computeProjectionForController(
                 out_pose_estimate->projection.shape.ellipse.half_y_extent = ellipse_projection.extents.y()*camera_matrix.val[0];
                 
                 //Draw results onto m_opencv_buffer_state
-                m_opencv_buffer_state->draw_pose_projection(*out_pose_estimate);
+                m_opencv_buffer_state->draw_pose_projection(out_pose_estimate->projection);
 
                 bSuccess = true;
             } break;
@@ -1268,19 +1240,31 @@ ServerTrackerView::computeProjectionForController(
 		// The pose estimation is deferred until we know if we can leverage triangulation or not.
         case eCommonTrackingShapeType::LightBar:
             {
-                //@HipsterSloth, you probably want to undistortPoints
-                //then use undistort_contour in computeTrackerRelativeLightBarProjection
-//                cv::undistortPoints(convex_contour_f, undistort_contour,
-//                                    camera_matrix,
-//                                    std::vector<float> {distortionK1, distortionK2, distortionP1, distortionP2, distortionK3},
-//                                    cv::noArray(),
-//                                    camera_matrix);
+				// Draw the raw source contour
+				m_opencv_buffer_state->draw_contour(biggest_contours[0]);
+
+				// Convert integer contour to float
+				t_opencv_float_contour biggest_contour_f;
+				cv::Mat(biggest_contours[0]).convertTo(biggest_contour_f, cv::Mat(biggest_contour_f).type());
+
+                // Compute an undistorted version of the contour
+				t_opencv_float_contour undistort_contour;
+                cv::undistortPoints(biggest_contour_f, undistort_contour,
+                                    camera_matrix,
+									distortions,
+                                    cv::noArray(),
+                                    camera_matrix);
+
+				// Compute the lightbar tracking projection from the undistored contour
                 bSuccess=
                     computeTrackerRelativeLightBarProjection(
                         m_device,
                         tracking_shape,
-                        biggest_contours[0],
+						undistort_contour,
                         &out_pose_estimate->projection);
+
+				//Draw results onto m_opencv_buffer_state
+				m_opencv_buffer_state->draw_pose_projection(out_pose_estimate->projection);
             } break;
         default:
             assert(0 && "Unreachable");
@@ -1354,11 +1338,15 @@ bool ServerTrackerView::computePoseForHMD(
 		}
 	}
     
-    //@HipsterSloth. TODO: Calculate ROI of union of predicted projected point clouds.
-    //Then m_opencv_buffer_state->applyROI(ROI);
+	// Compute a region of interest in the tracker buffer around where we expect to find the tracking shape
+	cv::Rect2i ROI = computeTrackerROIForPoseProjection(
+			this, 
+			(tracked_hmd->getIsCurrentlyTracking()) ? tracked_hmd->getPoseFilter() : nullptr, 
+			&tracking_shape);
+	m_opencv_buffer_state->applyROI(ROI);
 
 	// Find the N best contours associated with the HMD
-	t_opencv_contour_list biggest_contours;
+	t_opencv_int_contour_list biggest_contours;
     std::vector<double> contour_areas;
 	if (bSuccess)
 	{
@@ -1373,36 +1361,44 @@ bool ServerTrackerView::computePoseForHMD(
         cv::Matx33f camera_matrix;
         cv::Matx<float, 5, 1> distortions;
         computeOpenCVCameraIntrinsicMatrix(m_device, camera_matrix, distortions);
-//        std::vector<t_opencv_contour> convex_contours;
-//        std::vector<std::vector<cv::Point2f>> convex_contours_f;
-//        std::vector<std::vector<cv::Point2f>> undistort_contours;
-//        //@HipsterSloth. TODO: Do the following for each contour.
-//        //Calculate convex hull
-//        cv::convexHull(biggest_contours[0], convex_contours[0]);
-//        m_opencv_buffer_state->draw_contour(convex_contours[0]);
-//        //Convert integer to float
-//        cv::Mat(convex_contours[0]).convertTo(convex_contours_f[0], cv::Mat(convex_contours_f).type());
-//        //Undistort. If computeTrackerRelativePointCloudContourPose would prefer
-//        //the undistort_contours to be in normalized space then omit the last
-//        //two arguments.
-//        cv::undistortPoints(convex_contours_f[0], undistort_contours[0],
-//                            camera_matrix,
-//                            distortions,
-//                            cv::noArray(),
-//                            camera_matrix);
+
+		// Undistort the source contours
+		t_opencv_float_contour_list undistorted_contours;
+		for (auto it = biggest_contours.begin(); it != biggest_contours.end(); ++it)
+		{
+			// Draw the source contour
+			m_opencv_buffer_state->draw_contour(*it);
+
+			// Convert integer contour to float
+			t_opencv_float_contour biggest_contour_f;
+			cv::Mat(*it).convertTo(biggest_contour_f, cv::Mat(biggest_contour_f).type());
+
+			// Compute an undistorted version of the contour
+			t_opencv_float_contour undistort_contour;
+			cv::undistortPoints(biggest_contour_f, undistort_contour,
+				camera_matrix,
+				distortions,
+				cv::noArray(),
+				camera_matrix);
+
+			undistorted_contours.push_back(biggest_contour_f);
+		}
 
 		switch (tracking_shape.shape_type)
 		{
 		case eCommonTrackingShapeType::PointCloud:
-		{
-			bSuccess =
-				computeTrackerRelativePointCloudContourPose(
-					m_device,
-					&tracking_shape,
-					biggest_contours,
-					tracker_pose_guess,
-					out_pose_estimate);
-		} break;
+			{
+				bSuccess =
+					computeTrackerRelativePointCloudContourPose(
+						m_device,
+						&tracking_shape,
+						undistorted_contours,
+						tracker_pose_guess,
+						out_pose_estimate);
+
+				//Draw results onto m_opencv_buffer_state
+				m_opencv_buffer_state->draw_pose_projection(out_pose_estimate->projection);
+			} break;
 		default:
 			assert(0 && "Unreachable");
 			break;
@@ -1414,7 +1410,7 @@ bool ServerTrackerView::computePoseForHMD(
 
 CommonDevicePosition
 ServerTrackerView::computeWorldPosition(
-    const CommonDevicePosition *tracker_relative_position)
+    const CommonDevicePosition *tracker_relative_position) const
 {
     const glm::vec4 rel_pos(tracker_relative_position->x, tracker_relative_position->y, tracker_relative_position->z, 1.f);
     const glm::mat4 cameraTransform= computeGLMCameraTransformMatrix(m_device);
@@ -1428,7 +1424,7 @@ ServerTrackerView::computeWorldPosition(
 
 CommonDeviceQuaternion
 ServerTrackerView::computeWorldOrientation(
-    const CommonDeviceQuaternion *tracker_relative_orientation)
+    const CommonDeviceQuaternion *tracker_relative_orientation) const
 {
 	// Compute a rotations that rotates from +X to global "forward"
 	const TrackerManagerConfig &cfg = DeviceManager::getInstance()->m_tracker_manager->getConfig();
@@ -1454,7 +1450,7 @@ ServerTrackerView::computeWorldOrientation(
 
 CommonDevicePosition 
 ServerTrackerView::computeTrackerPosition(
-	const CommonDevicePosition *world_relative_position)
+	const CommonDevicePosition *world_relative_position) const
 {
     const glm::vec4 world_pos(world_relative_position->x, world_relative_position->y, world_relative_position->z, 1.f);
     const glm::mat4 invCameraTransform= glm::inverse(computeGLMCameraTransformMatrix(m_device));
@@ -1468,7 +1464,7 @@ ServerTrackerView::computeTrackerPosition(
 
 CommonDeviceQuaternion 
 ServerTrackerView::computeTrackerOrientation(
-	const CommonDeviceQuaternion *world_relative_orientation)
+	const CommonDeviceQuaternion *world_relative_orientation) const
 {
     const glm::quat world_orientation(
         world_relative_orientation->w,
@@ -1862,7 +1858,7 @@ static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tra
 static bool computeTrackerRelativeLightBarProjection(
     const ITrackerInterface *tracker_device,
     const CommonDeviceTrackingShape *tracking_shape,
-    const t_opencv_contour &opencv_contour,
+    const t_opencv_float_contour &opencv_contour,
 	CommonDeviceTrackingProjection *out_projection)
 {
     assert(tracking_shape->shape_type == eCommonTrackingShapeType::LightBar);
@@ -1916,16 +1912,7 @@ static bool computeTrackerRelativeLightBarProjection(
             projectionArea= 
                 static_cast<float>(
                     cv::norm(quad_bottom_right-quad_bottom_left)
-                    *cv::norm(quad_bottom_left-quad_top_left));
-
-            // Image pixel coordinates
-            // intrinsic camera transform
-            for (auto list_index = 0; list_index < cvImagePoints.size(); ++list_index)
-            {
-                cv::Point2f &cvPoint= cvImagePoints[list_index];
-
-                cvPoint.y= pixelHeight - cvPoint.y;
-            }                    
+                    *cv::norm(quad_bottom_left-quad_top_left));                   
         }
     }
 
@@ -1985,22 +1972,14 @@ static bool computeTrackerRelativeLightBarPose(
 	{
 		const CommonDeviceScreenLocation &screenLocation= projection->shape.lightbar.triangle[vertex_index];
 
-		// Convert from PSMoveScreenLocation space
-		// i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
-		// into tracker screen locations in OpenCV pixel space
-		// i.e. [0, 0]x[frameWidth, frameHeight]
-		cvImagePoints.push_back(cv::Point2f(screenLocation.x + (pixelWidth / 2), screenLocation.y + (pixelHeight / 2)));
+		cvImagePoints.push_back(cv::Point2f(screenLocation.x, screenLocation.y));
 	}
 
 	for (int vertex_index = 0; vertex_index < 4; ++vertex_index)
 	{
 		const CommonDeviceScreenLocation &screenLocation = projection->shape.lightbar.quad[vertex_index];
 
-		// Convert from PSMoveScreenLocation space
-		// i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
-		// into tracker screen locations in OpenCV pixel space
-		// i.e. [0, 0]x[frameWidth, frameHeight]
-		cvImagePoints.push_back(cv::Point2f(screenLocation.x + (pixelWidth / 2), screenLocation.y + (pixelHeight / 2)));
+		cvImagePoints.push_back(cv::Point2f(screenLocation.x, screenLocation.y));
 	}
 
     // Solve the tracking position using solvePnP
@@ -2114,7 +2093,7 @@ static bool computeTrackerRelativeLightBarPose(
 static bool computeTrackerRelativePointCloudContourPose(
 	const ITrackerInterface *tracker_device,
 	const CommonDeviceTrackingShape *tracking_shape,
-	const t_opencv_contour_list &opencv_contours,
+	const t_opencv_float_contour_list &opencv_contours,
 	const CommonDevicePose *tracker_relative_pose_guess,
 	HMDOpticalPoseEstimation *out_pose_estimate)
 {
@@ -2128,7 +2107,7 @@ static bool computeTrackerRelativePointCloudContourPose(
 	float projectionArea = 0.f;
 
 	// Compute centers of mass for the contours
-	std::vector<cv::Point2f> cvImagePoints;
+	t_opencv_float_contour cvImagePoints;
 	for (auto it = opencv_contours.begin(); it != opencv_contours.end(); ++it)
 	{
 		cv::Moments mu = cv::moments(*it);
@@ -2171,14 +2150,127 @@ static bool computeTrackerRelativePointCloudContourPose(
 	return bValidTrackerPose;
 }
 
+static cv::Rect2i computeTrackerROIForPoseProjection(
+	const ServerTrackerView *tracker,
+	const IPoseFilter* pose_filter,
+	const CommonDeviceTrackingShape *tracking_shape)
+{
+	// Get expected ROI
+	// Default to full screen.
+	float screenWidth, screenHeight;
+	tracker->getPixelDimensions(screenWidth, screenHeight);
+	cv::Rect2i ROI(0, 0, static_cast<int>(screenWidth), static_cast<int>(screenHeight));
+
+	//Calculate a more refined ROI.
+	//Based on the physical limits of the object's bounding box
+	//projected onto the image.
+	if (pose_filter != nullptr)
+	{
+		// Get the (predicted) position in world space.
+		Eigen::Vector3f position = pose_filter->getPosition(0.f);  //TODO: Replace 0.f with the tracker update time.
+		CommonDevicePosition world_position;
+		world_position.set(position.x(), position.y(), position.z());
+
+		// Get the (predicted) position in tracker-local space.
+		CommonDevicePosition tracker_position = tracker->computeTrackerPosition(&world_position);
+
+		// Project the position +/- object extents onto the image.
+		CommonDevicePosition tl, br;
+		switch (tracking_shape->shape_type)
+		{
+		case eCommonTrackingShapeType::Sphere:
+			{
+				// Simply: center - radius, center + radius.
+				tl.set(tracker_position.x - tracking_shape->shape.sphere.radius,
+					tracker_position.y + tracking_shape->shape.sphere.radius,
+					tracker_position.z);
+				br.set(tracker_position.x + tracking_shape->shape.sphere.radius,
+					tracker_position.y - tracking_shape->shape.sphere.radius,
+					tracker_position.z);
+			} break;
+
+		case eCommonTrackingShapeType::LightBar:
+			{
+				// Compute the bounding radius of the lightbar tracking shape
+				const auto &shape_tl = tracking_shape->shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexUpperLeft];
+				const auto &shape_br = tracking_shape->shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexLowerRight];
+				const CommonDeviceVector half_vec = { (shape_tl.x - shape_br.x)*0.5f, (shape_tl.y - shape_br.y)*0.5f, (shape_tl.z - shape_br.z)*0.5f };
+				const auto shape_radius = fmaxf(sqrtf(half_vec.i*half_vec.i + half_vec.j*half_vec.j + half_vec.k*half_vec.k), 1.f);
+
+				// Simply: center - shape_radius, center + shape_radius.
+				tl.set(tracker_position.x - shape_radius,
+					tracker_position.y + shape_radius,
+					tracker_position.z);
+				br.set(tracker_position.x + shape_radius,
+					tracker_position.y - shape_radius,
+					tracker_position.z);
+			} break;
+
+		case eCommonTrackingShapeType::PointCloud:
+			{
+				// Compute the bounding radius of the point cloud
+				CommonDevicePosition shape_tl = tracking_shape->shape.point_cloud.point[0];
+				CommonDevicePosition shape_br = tracking_shape->shape.point_cloud.point[0];
+				for (int point_index = 1; point_index < tracking_shape->shape.point_cloud.point_count; ++point_index)
+				{
+					const CommonDevicePosition &point = tracking_shape->shape.point_cloud.point[point_index];
+					shape_tl.set(fmaxf(shape_tl.x, point.x), fmaxf(shape_tl.y, point.y), fmaxf(shape_tl.z, point.z));
+					shape_br.set(fminf(shape_br.x, point.x), fminf(shape_br.y, point.y), fminf(shape_br.z, point.z));
+				}
+				const CommonDeviceVector half_vec = { (shape_tl.x - shape_br.x)*0.5f, (shape_tl.y - shape_br.y)*0.5f, (shape_tl.z - shape_br.z)*0.5f };
+				const auto shape_radius = fmaxf(sqrtf(half_vec.i*half_vec.i + half_vec.j*half_vec.j + half_vec.k*half_vec.k), 1.f);
+
+				// Simply: center - shape_radius, center + shape_radius.
+				tl.set(tracker_position.x - shape_radius,
+					tracker_position.y + shape_radius,
+					tracker_position.z);
+				br.set(tracker_position.x + shape_radius,
+					tracker_position.y - shape_radius,
+					tracker_position.z);
+			} break;
+
+		default:
+			{
+				assert(false && "unreachable");
+			} break;
+		}
+
+		// Compute the ROI from the projecting bounding box
+		{
+			std::vector<CommonDevicePosition> trps{ tl, br };
+			std::vector<CommonDeviceScreenLocation> screen_locs = tracker->projectTrackerRelativePositions(trps);
+
+			const int proj_min_x = static_cast<int>(std::min(screen_locs[0].x, screen_locs[1].x));
+			const int proj_max_x = static_cast<int>(std::max(screen_locs[0].x, screen_locs[1].x));
+			const int proj_min_y = static_cast<int>(std::min(screen_locs[0].y, screen_locs[1].y));
+			const int proj_max_y = static_cast<int>(std::max(screen_locs[0].y, screen_locs[1].y));
+
+			const int proj_width = proj_max_x - proj_min_x;
+			const int proj_height = proj_max_y - proj_min_y;
+
+			const cv::Point2i roi_center(proj_min_x + proj_width/2, proj_min_y + proj_height/2);
+
+			const int safe_proj_width = std::max(proj_width, 10);
+			const int safe_proj_height = std::max(proj_height, 10);
+
+			const cv::Point2i roi_top_left = roi_center + cv::Point2i(-safe_proj_width, -safe_proj_height);
+			const cv::Size roi_size(2*safe_proj_width, 2*safe_proj_height);
+
+			ROI = cv::Rect2i(roi_top_left, roi_size);
+		}
+	}
+
+	return ROI;
+}
+
 static bool computeBestFitTriangleForContour(
-    const std::vector<cv::Point> &opencv_contour,
+    const t_opencv_float_contour &opencv_contour,
     cv::Point2f &out_triangle_top,
     cv::Point2f &out_triangle_bottom_left,
     cv::Point2f &out_triangle_bottom_right)
 {
     // Compute the tightest possible bounding triangle for the given contour
-    std::vector<cv::Point2f> cv_min_triangle;
+	t_opencv_float_contour cv_min_triangle;
     cv::minEnclosingTriangle(opencv_contour, cv_min_triangle);
 
     if (cv_min_triangle.size() != 3)
@@ -2190,7 +2282,7 @@ static bool computeBestFitTriangleForContour(
     cv::Point2f best_fit_origin_12 = (cv_min_triangle[1] + cv_min_triangle[2]) / 2.f;
     cv::Point2f best_fit_origin_20 = (cv_min_triangle[2] + cv_min_triangle[0]) / 2.f;
 
-    std::vector<cv::Point2f> cv_midpoint_triangle;
+	t_opencv_float_contour cv_midpoint_triangle;
     cv_midpoint_triangle.push_back(best_fit_origin_01);
     cv_midpoint_triangle.push_back(best_fit_origin_12);
     cv_midpoint_triangle.push_back(best_fit_origin_20);
@@ -2257,7 +2349,7 @@ static bool computeBestFitTriangleForContour(
 }
 
 static bool computeBestFitQuadForContour(
-    const std::vector<cv::Point> &opencv_contour,
+    const t_opencv_float_contour &opencv_contour,
     const cv::Point2f &up_hint, 
     const cv::Point2f &right_hint,
     cv::Point2f &top_right,
