@@ -327,7 +327,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
     case eMenuState::testTracking:
         {
-            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
+            ImGui::SetNextWindowPos(ImVec2(20.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
