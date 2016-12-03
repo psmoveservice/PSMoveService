@@ -343,11 +343,6 @@ public:
         gsUpperBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC1);
         maskedBuffer = new cv::Mat(frameHeight, frameWidth, CV_8UC3);
         
-        intrinsic_matrix = new cv::Mat(3, 3, CV_64FC1);
-        distortion_coeffs = new cv::Mat(5, 1, CV_64FC1);
-        
-		rebuildDistortionParameters(device);
-
         const TrackerManagerConfig &cfg= DeviceManager::getInstance()->m_tracker_manager->getConfig();
         if (cfg.use_bgr_to_hsv_lookup_table)
         {
@@ -393,49 +388,11 @@ public:
         {
             delete bgrBuffer;
         }
-               
-        // TODO: If not nullptr wrapper?
-        delete intrinsic_matrix;
-        delete distortion_coeffs;
         
         if (bgr2hsv != nullptr)
         {
             OpenCVBGRToHSVMapper::dispose(bgr2hsv);
         }
-    }
-
-    void rebuildDistortionParameters(ITrackerInterface *device)
-    {
-        float F_PX, F_PY;
-        float PrincipalX, PrincipalY;
-        float distortionK1, distortionK2, distortionK3;
-        float distortionP1, distortionP2;
-
-        device->getCameraIntrinsics(
-            F_PX, F_PY, 
-            PrincipalX, PrincipalY,
-            distortionK1, distortionK2, distortionK3,
-            distortionP1, distortionP2);
-
-        // Fill in the intrinsic matrix
-        intrinsic_matrix->at<double>(0, 0)= F_PX;
-        intrinsic_matrix->at<double>(1, 0)= 0.0;
-        intrinsic_matrix->at<double>(2, 0)= 0.0;
-
-        intrinsic_matrix->at<double>(0, 1)= 0.0;
-        intrinsic_matrix->at<double>(1, 1)= F_PY;
-        intrinsic_matrix->at<double>(2, 1)= 0.0;
-
-        intrinsic_matrix->at<double>(0, 2)= PrincipalX;
-        intrinsic_matrix->at<double>(1, 2)= PrincipalY;
-        intrinsic_matrix->at<double>(2, 2)= 1.0;
-
-        // Fill in the distortion coefficients
-        distortion_coeffs->at<double>(0, 0)= distortionK1; 
-        distortion_coeffs->at<double>(1, 0)= distortionK2;
-        distortion_coeffs->at<double>(2, 0)= distortionP1;
-        distortion_coeffs->at<double>(3, 0)= distortionP2;
-        distortion_coeffs->at<double>(4, 0)= distortionK3;
     }
 
     void writeVideoFrame(const unsigned char *video_buffer)
@@ -634,6 +591,7 @@ public:
     void
     draw_contour(const t_opencv_contour &contour)
     {
+        // Draws the contour directly onto the shared mem buffer.
         // This is useful for debugging
         std::vector<t_opencv_contour> contours = {contour};
         cv::Moments mu(cv::moments(contour));
@@ -646,21 +604,19 @@ public:
     }
     
     void
-    draw_pose(const ControllerOpticalPoseEstimation &pose_estimate,
-              const cv::Matx33f &intrinsic_matrix)
+    draw_pose_projection(const ControllerOpticalPoseEstimation &pose_estimate)
     {
+        // Draw the projection of the pose onto the shared mem buffer.
         if (pose_estimate.projection.shape_type == eCommonTrackingProjectionType::ProjectionType_Ellipse)
         {
+            // For the sphere, its ellipse projection parameters should already
+            // be calculated, so we can use those parameters to draw an ellipse.
             
             //Create cv::ellipse from pose_estimate
             cv::Point ell_center(pose_estimate.projection.shape.ellipse.center.x,
                                  pose_estimate.projection.shape.ellipse.center.y);
             cv::Size ell_size(pose_estimate.projection.shape.ellipse.half_x_extent,
                               pose_estimate.projection.shape.ellipse.half_y_extent);
-            
-            //Undo offset created by undistort
-            ell_center.x += intrinsic_matrix.val[2];
-            ell_center.y += intrinsic_matrix.val[5];
             
             //Draw ellipse on bgrShmemBuffer
             cv::ellipse(*bgrShmemBuffer,
@@ -685,16 +641,18 @@ public:
     cv::Mat *gsUpperBuffer; // HSV image clamped by HSV range into grayscale mask
     cv::Mat gsUpperROI;
     cv::Mat *maskedBuffer; // bgr image ANDed together with grayscale mask
-    cv::Mat *intrinsic_matrix;
-    cv::Mat *distortion_coeffs;
 	OpenCVBGRToHSVMapper *bgr2hsv; // Used to convert an rgb image to an hsv image
 };
 
 // -- Utility Methods -----
 static glm::quat computeGLMCameraTransformQuaternion(const ITrackerInterface *tracker_device);
 static glm::mat4 computeGLMCameraTransformMatrix(const ITrackerInterface *tracker_device);
-static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const ITrackerInterface *tracker_device);
-static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const ITrackerInterface *tracker_device);
+static void computeOpenCVCameraExtrinsicMatrix(const ITrackerInterface *tracker_device,
+                                                      cv::Matx34f &extrinsicOut);
+cv::Mat cvDistCoeffs = cv::Mat(4, 1, cv::DataType<float>::type, 0.f);
+static void computeOpenCVCameraIntrinsicMatrix(const ITrackerInterface *tracker_device,
+                                               cv::Matx33f &intrinsicOut,
+                                               cv::Matx<float, 5, 1> &distortionOut);
 static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tracker_device);
 static bool computeTrackerRelativeLightBarProjection(
 	const ITrackerInterface *tracker_device,
@@ -861,7 +819,7 @@ bool ServerTrackerView::poll()
 
         if (buffer != nullptr)
         {
-            // Cache the raw video frame and convert it to an HSV buffer for filtering later
+            // Cache the raw video frame
             if (m_opencv_buffer_state != nullptr)
             {
                 m_opencv_buffer_state->writeVideoFrame(buffer);
@@ -992,8 +950,6 @@ void ServerTrackerView::setCameraIntrinsics(
         principalX, principalY,
         distortionK1, distortionK2, distortionK3,
         distortionP1, distortionP2);
-
-    m_opencv_buffer_state->rebuildDistortionParameters(m_device);
 }
 
 CommonDevicePose ServerTrackerView::getTrackerPose() const
@@ -1224,57 +1180,45 @@ ServerTrackerView::computeProjectionForController(
     std::vector<double> contour_areas;
     if (bSuccess)
     {
-//        cv::Mat roi(img, cv::Rect(10,10,100,100));
-        ///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges.
-        //cv::findContours can pass in an offset when using ROIs.
         bSuccess = m_opencv_buffer_state->computeBiggestNContours(hsvColorRange, biggest_contours, contour_areas, 1);
     }
     
     // Process the contour for its 2D and 3D pose.
     if (bSuccess)
     {
+        
+        // Compute the convex hull of the contour
+        t_opencv_contour convex_contour;
+        cv::convexHull(biggest_contours[0], convex_contour);
+        m_opencv_buffer_state->draw_contour(convex_contour);
+        
+        // Convert integer to float
+        std::vector<cv::Point2f> convex_contour_f;
+        cv::Mat(convex_contour).convertTo(convex_contour_f, cv::Mat(convex_contour_f).type());
+        
+        // Get camera parameters.
+        // Needed for undistortion.
+        cv::Matx33f camera_matrix;
+        cv::Matx<float, 5, 1> distortions;
+        computeOpenCVCameraIntrinsicMatrix(m_device, camera_matrix, distortions);
+        
+        std::vector<cv::Point2f> undistort_contour;  //destination for undistorted contour
+        
         // Compute the tracker relative 3d position of the controller from the contour
         switch (tracking_shape->shape_type)
         {
 		// For the sphere projection we can go ahead and compute the full pose estimation now
         case eCommonTrackingShapeType::Sphere:
             {
-                
-                // Compute the convex hull of the contour
-                t_opencv_contour convex_contour;
-                cv::convexHull(biggest_contours[0], convex_contour);
-                m_opencv_buffer_state->draw_contour(convex_contour);
-                
-                // Convert integer to float
-                std::vector<cv::Point2f> convex_contour_f;
-                cv::Mat(convex_contour).convertTo(convex_contour_f, cv::Mat(convex_contour_f).type());
-                
-                // Get camera parameters.
-                // Needed for undistortion.
-                float F_PX, F_PY;
-                float PrincipalX, PrincipalY;
-                float distortionK1, distortionK2, distortionK3;
-                float distortionP1, distortionP2;
-                m_device->getCameraIntrinsics(F_PX, F_PY,
-                                              PrincipalX, PrincipalY,
-                                              distortionK1, distortionK2, distortionK3,
-                                              distortionP1, distortionP2);
-                cv::Matx33f camera_matrix(F_PX,     0.0,    PrincipalX,
-                                          0.0,      -F_PY,  PrincipalY,  //Negate F_PY because +Y is down on the image.
-                                          0.0,      0.0,    1.0 );
-                
                 // Undistort points
-                std::vector<cv::Point2f> undistort_contour;
                 cv::undistortPoints(convex_contour_f, undistort_contour,
                                     camera_matrix,
-                                    std::vector<float> {distortionK1, distortionK2, distortionP1, distortionP2, distortionK3});//,
+                                    distortions);//,
 //                                    cv::noArray(),
 //                                    camera_matrix);
                 // Note: if we omit the last two arguments, then
                 // undistort_contour points are in 'normalized' space.
                 // i.e., they are relative to their F_PX,F_PY
-                // We then have to change F_PX in eigen_alignment_fit_focal_cone_to_sphere
-                // below to the focal length this normalized space (i.e., +1, -1?)
                 
                 // Compute the sphere center AND the projected ellipse
                 Eigen::Vector3f sphere_center;
@@ -1289,33 +1233,34 @@ ServerTrackerView::computeProjectionForController(
                 eigen_alignment_fit_focal_cone_to_sphere(eigen_contour.data(),
                                                          eigen_contour.size(),
                                                          tracking_shape->shape.sphere.radius,
-                                                         1, //I was expecting to negate this...
+                                                         1, //I was expecting this to be -1. Is it +1 because we're using -F_PY?
                                                          &sphere_center,
                                                          &ellipse_projection);
                 
-                
-                ellipse_projection.center.x() = ellipse_projection.center.x()*camera_matrix.val[0];// + camera_matrix.val[2];
-                ellipse_projection.center.y() = ellipse_projection.center.y()*camera_matrix.val[4];// + camera_matrix.val[5];
-                ellipse_projection.extents *= camera_matrix.val[0];
-
+                //Save the optically-estimate 3D pose.
                 out_pose_estimate->position.set(sphere_center.x(), sphere_center.y(), sphere_center.z());
                 out_pose_estimate->bCurrentlyTracking = true;
-
                 // Not possible to get an orientation off of a sphere
                 out_pose_estimate->orientation.clear();
                 out_pose_estimate->bOrientationValid = false;
 
                 // Save off the projection of the sphere (an ellipse)
-                out_pose_estimate->projection.shape_type = eCommonTrackingProjectionType::ProjectionType_Ellipse;
-                out_pose_estimate->projection.shape.ellipse.center.set(ellipse_projection.center.x(), ellipse_projection.center.y());
-                out_pose_estimate->projection.shape.ellipse.half_x_extent = ellipse_projection.extents.x();
-                out_pose_estimate->projection.shape.ellipse.half_y_extent = ellipse_projection.extents.y();
                 out_pose_estimate->projection.shape.ellipse.angle = ellipse_projection.angle;
                 out_pose_estimate->projection.screen_area= ellipse_projection.area;
+                //The ellipse projection is still in normalized space.
+                //i.e., it is a 2-dimensional ellipse floating somewhere.
+                //We must reproject it onto the camera.
+                //TODO: Use opencv's project points instead of manual way below
+                //because it will account for distortion, at least for the center point.
+                out_pose_estimate->projection.shape_type = eCommonTrackingProjectionType::ProjectionType_Ellipse;
+                out_pose_estimate->projection.shape.ellipse.center.set(
+                    ellipse_projection.center.x()*camera_matrix.val[0] + camera_matrix.val[2],
+                    ellipse_projection.center.y()*camera_matrix.val[4] + camera_matrix.val[5]);
+                out_pose_estimate->projection.shape.ellipse.half_x_extent = ellipse_projection.extents.x()*camera_matrix.val[0];
+                out_pose_estimate->projection.shape.ellipse.half_y_extent = ellipse_projection.extents.y()*camera_matrix.val[0];
                 
                 //Draw results onto m_opencv_buffer_state
-                m_opencv_buffer_state->draw_pose(*out_pose_estimate,
-                                                 camera_matrix);
+                m_opencv_buffer_state->draw_pose_projection(*out_pose_estimate);
 
                 bSuccess = true;
             } break;
@@ -1323,7 +1268,14 @@ ServerTrackerView::computeProjectionForController(
 		// The pose estimation is deferred until we know if we can leverage triangulation or not.
         case eCommonTrackingShapeType::LightBar:
             {
-                bSuccess= 
+                //@HipsterSloth, you probably want to undistortPoints
+                //then use undistort_contour in computeTrackerRelativeLightBarProjection
+//                cv::undistortPoints(convex_contour_f, undistort_contour,
+//                                    camera_matrix,
+//                                    std::vector<float> {distortionK1, distortionK2, distortionP1, distortionP2, distortionK3},
+//                                    cv::noArray(),
+//                                    camera_matrix);
+                bSuccess=
                     computeTrackerRelativeLightBarProjection(
                         m_device,
                         tracking_shape,
@@ -1401,13 +1353,15 @@ bool ServerTrackerView::computePoseForHMD(
 			bSuccess = false;
 		}
 	}
+    
+    //@HipsterSloth. TODO: Calculate ROI of union of predicted projected point clouds.
+    //Then m_opencv_buffer_state->applyROI(ROI);
 
 	// Find the N best contours associated with the HMD
 	t_opencv_contour_list biggest_contours;
     std::vector<double> contour_areas;
 	if (bSuccess)
 	{
-		///###HipsterSloth $TODO - ROI seed on last known position, clamp to frame edges.
 		bSuccess = 
 			m_opencv_buffer_state->computeBiggestNContours(
 				hsvColorRange, biggest_contours, contour_areas, CommonDeviceTrackingProjection::MAX_POINT_CLOUD_POINT_COUNT);
@@ -1416,18 +1370,26 @@ bool ServerTrackerView::computePoseForHMD(
 	// Compute the tracker relative 3d position of the controller from the contour
 	if (bSuccess)
 	{
-        float F_PX, F_PY;
-        float PrincipalX, PrincipalY;
-        float distortionK1, distortionK2, distortionK3;
-        float distortionP1, distortionP2;
-        m_device->getCameraIntrinsics(
-                                      F_PX, F_PY,
-                                      PrincipalX, PrincipalY,
-                                      distortionK1, distortionK2, distortionK3,
-                                      distortionP1, distortionP2);
-
-		// TODO: cv::undistortPoints  http://docs.opencv.org/3.1.0/da/d54/group__imgproc__transform.html#ga55c716492470bfe86b0ee9bf3a1f0f7e&gsc.tab=0
-		// Then replace F_PX with -1.
+        cv::Matx33f camera_matrix;
+        cv::Matx<float, 5, 1> distortions;
+        computeOpenCVCameraIntrinsicMatrix(m_device, camera_matrix, distortions);
+//        std::vector<t_opencv_contour> convex_contours;
+//        std::vector<std::vector<cv::Point2f>> convex_contours_f;
+//        std::vector<std::vector<cv::Point2f>> undistort_contours;
+//        //@HipsterSloth. TODO: Do the following for each contour.
+//        //Calculate convex hull
+//        cv::convexHull(biggest_contours[0], convex_contours[0]);
+//        m_opencv_buffer_state->draw_contour(convex_contours[0]);
+//        //Convert integer to float
+//        cv::Mat(convex_contours[0]).convertTo(convex_contours_f[0], cv::Mat(convex_contours_f).type());
+//        //Undistort. If computeTrackerRelativePointCloudContourPose would prefer
+//        //the undistort_contours to be in normalized space then omit the last
+//        //two arguments.
+//        cv::undistortPoints(convex_contours_f[0], undistort_contours[0],
+//                            camera_matrix,
+//                            distortions,
+//                            cv::noArray(),
+//                            camera_matrix);
 
 		switch (tracking_shape.shape_type)
 		{
@@ -1684,18 +1646,6 @@ ServerTrackerView::triangulateWorldPosition(
     float otherScreenWidth, otherScreenHeight;
     tracker->getPixelDimensions(otherScreenWidth, otherScreenHeight);
 
-
-    float F_PX, F_PY;
-    float PrincipalX, PrincipalY;
-    float distortionK1, distortionK2, distortionK3;
-    float distortionP1, distortionP2;
-
-    tracker->getCameraIntrinsics(
-        F_PX, F_PY, 
-        PrincipalX, PrincipalY,
-        distortionK1, distortionK2, distortionK3,
-        distortionP1, distortionP2);
-
     cv::Mat projPoints1 = 
         cv::Mat(cv::Point2f(
             screen_location->x + (screenWidth / 2), 
@@ -1734,6 +1684,10 @@ ServerTrackerView::triangulateWorldPositions(
 	const int screen_location_count,
 	CommonDevicePosition *out_result)
 {
+    // @HipsterSloth: The screen_locations coming in could potentially be in
+    // normalized space if you used that option in undistortPoints.
+    // Or they could be in the regular coordinate system but undistorted.
+    
     // Convert the tracker screen locations in CommonDeviceScreenLocation space
     // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
     // into OpenCV pixel space
@@ -1781,26 +1735,9 @@ ServerTrackerView::triangulateWorldPositions(
 std::vector<CommonDeviceScreenLocation>
 ServerTrackerView::projectTrackerRelativePositions(const std::vector<CommonDevicePosition> &objectPositions) const
 {
-    float F_PX, F_PY;
-    float PrincipalX, PrincipalY;
-    float distortionK1, distortionK2, distortionK3;
-    float distortionP1, distortionP2;
-    m_device->getCameraIntrinsics(F_PX, F_PY,
-                                  PrincipalX, PrincipalY,
-                                  distortionK1, distortionK2, distortionK3,
-                                  distortionP1, distortionP2);
-    
-    cv::Matx33f camera_matrix(F_PX,     0.0,    PrincipalX,
-                              0.0,      -F_PY,  PrincipalY,  //Negate F_PY because +Y is down on the image.
-                              0.0,      0.0,    1.0 );
-    
-    // Distortion coefficients into a matrix
-    cv::Mat cvDistCoeffs(5, 1, cv::DataType<float>::type);
-    cvDistCoeffs.at<float>(0) = distortionK1;
-    cvDistCoeffs.at<float>(1) = distortionK2;
-    cvDistCoeffs.at<float>(2) = distortionP1;
-    cvDistCoeffs.at<float>(3) = distortionP2;
-    cvDistCoeffs.at<float>(4) = distortionK3;
+    cv::Matx33f camera_matrix;
+    cv::Matx<float, 5, 1> distortions;
+    computeOpenCVCameraIntrinsicMatrix(m_device, camera_matrix, distortions);
     
     // Use the identity transform for tracker relative positions
     cv::Mat rvec(3, 1, cv::DataType<double>::type, double(0));
@@ -1820,7 +1757,7 @@ ServerTrackerView::projectTrackerRelativePositions(const std::vector<CommonDevic
                       rvec,
                       tvec,
                       camera_matrix,
-                      cvDistCoeffs,
+                      distortions,
                       projectedPoints);
     
     std::vector<CommonDeviceScreenLocation> screenLocations;
@@ -1881,10 +1818,9 @@ static glm::mat4 computeGLMCameraTransformMatrix(const ITrackerInterface *tracke
     return glm_camera_xform;
 }
 
-static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const ITrackerInterface *tracker_device)
+static void computeOpenCVCameraExtrinsicMatrix(const ITrackerInterface *tracker_device,
+                                               cv::Matx34f &out)
 {
-    cv::Matx34f out;
-
     // Extrinsic matrix is the inverse of the camera pose matrix
     const glm::mat4 glm_camera_xform = computeGLMCameraTransformMatrix(tracker_device);
     const glm::mat4 glm_mat = glm::inverse(glm_camera_xform);
@@ -1892,35 +1828,32 @@ static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const ITrackerInterface *t
     out(0, 0) = glm_mat[0][0]; out(0, 1) = glm_mat[1][0]; out(0, 2) = glm_mat[2][0]; out(0, 3) = glm_mat[3][0];
     out(1, 0) = glm_mat[0][1]; out(1, 1) = glm_mat[1][1]; out(1, 2) = glm_mat[2][1]; out(1, 3) = glm_mat[3][1];
     out(2, 0) = glm_mat[0][2]; out(2, 1) = glm_mat[1][2]; out(2, 2) = glm_mat[2][2]; out(2, 3) = glm_mat[3][2];
-
-    return out;
 }
 
-static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const ITrackerInterface *tracker_device)
+static void computeOpenCVCameraIntrinsicMatrix(const ITrackerInterface *tracker_device,
+                                               cv::Matx33f &intrinsicOut,
+                                               cv::Matx<float, 5, 1> &distortionOut)
 {
-    cv::Matx33f out;
+    tracker_device->getCameraIntrinsics(intrinsicOut(0, 0), intrinsicOut(1, 1),  //F_PX, F_PY
+                                        intrinsicOut(0, 2), intrinsicOut(1, 2), //PrincipalX, Y
+                                        distortionOut(0, 0), distortionOut(1, 0), distortionOut(4, 0), //K1, K2, K3
+                                        distortionOut(2, 0), distortionOut(3, 0));  //P1, P2
+    
+    intrinsicOut(1, 1) *= -1;  //Negate F_PY because the screen coordinate system has +Y down.
 
-    float F_PX, F_PY;
-    float PrincipalX, PrincipalY;
-    float distortionK1, distortionK2, distortionK3;
-    float distortionP1, distortionP2;
-    tracker_device->getCameraIntrinsics(
-                                  F_PX, F_PY,
-                                  PrincipalX, PrincipalY,
-                                  distortionK1, distortionK2, distortionK3,
-                                  distortionP1, distortionP2);
-
-    out(0, 0) = F_PX; out(0, 1) = 0.f; out(0, 2) = PrincipalX;
-    out(1, 0) = 0.f; out(1, 1) = F_PY; out(1, 2) = PrincipalY;
-    out(2, 0) = 0.f; out(2, 1) = 0.f; out(2, 2) = 1.f;
-
-    return out;
+    // Fill the rest of the matrix with corrext values.
+                                intrinsicOut(0, 1) = 0.f;
+    intrinsicOut(1, 0) = 0.f;
+    intrinsicOut(2, 0) = 0.f;   intrinsicOut(2, 1) = 0.f;   intrinsicOut(2, 2) = 1.f;
 }
 
 static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tracker_device)
 {
-    cv::Matx34f extrinsic_matrix = computeOpenCVCameraExtrinsicMatrix(tracker_device);
-    cv::Matx33f intrinsic_matrix = computeOpenCVCameraIntrinsicMatrix(tracker_device);
+    cv::Matx34f extrinsic_matrix;
+    computeOpenCVCameraExtrinsicMatrix(tracker_device, extrinsic_matrix);
+    cv::Matx33f intrinsic_matrix;
+    cv::Matx<float, 5, 1> distortion;
+    computeOpenCVCameraIntrinsicMatrix(tracker_device, intrinsic_matrix, distortion);
     cv::Matx34f pinhole_matrix = intrinsic_matrix * extrinsic_matrix;
 
     return pinhole_matrix;
@@ -2093,16 +2026,10 @@ static bool computeTrackerRelativeLightBarPose(
             cvObjectPoints.push_back(cv::Point3f(corner.x, corner.y, corner.z));
         }
 
-        // Assume no distortion
-        // TODO: Probably should get the distortion coefficients out of the tracker
-        cv::Mat cvDistCoeffs(4, 1, cv::DataType<float>::type);
-        cvDistCoeffs.at<float>(0) = 0;
-        cvDistCoeffs.at<float>(1) = 0;
-        cvDistCoeffs.at<float>(2) = 0;
-        cvDistCoeffs.at<float>(3) = 0;
-
         // Get the tracker "intrinsic" matrix that encodes the camera FOV
-        cv::Matx33f cvCameraMatrix = computeOpenCVCameraIntrinsicMatrix(tracker_device);
+        cv::Matx33f cvCameraMatrix;
+        cv::Matx<float, 5, 1> cvDistCoeffs;
+        computeOpenCVCameraIntrinsicMatrix(tracker_device, cvCameraMatrix, cvDistCoeffs);
 
         // Fill out the initial guess in OpenCV format for the contour pose
         // if a guess pose was provided
