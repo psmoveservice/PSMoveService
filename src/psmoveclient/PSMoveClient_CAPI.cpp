@@ -520,7 +520,7 @@ PSMResult PSM_ResetControllerPoseAsync(PSMControllerID controller_id, PSMRequest
     if (IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         ClientControllerView *view = g_controller_views[controller_id];
-        ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::reset_pose(view);
+        ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::reset_pose(view, PSMoveQuaternion::identity());
 
         if (out_request_id != nullptr)
         {
@@ -541,7 +541,7 @@ PSMResult PSM_ResetControllerPose(PSMControllerID controller_id, int timeout_ms)
     {
         ClientControllerView *view = g_controller_views[controller_id];
 
-        result= blockUntilResponse(ClientPSMoveAPI::reset_pose(view), timeout_ms);
+        result= blockUntilResponse(ClientPSMoveAPI::reset_pose(view, PSMoveQuaternion::identity()), timeout_ms);
     }
 
     return result;
@@ -688,7 +688,7 @@ PSMResult PSM_GetHMDTrackingSpaceSettings(PSMHMDTrackingSpace *out_tracking_spac
     PSMResult result= PSMResult_Error;
 
     CallbackResultCapture resultState;
-    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::get_hmd_tracking_space_settings();
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::get_tracking_space_settings();
     ClientPSMoveAPI::register_callback(request_id,
                                        CallbackResultCapture::response_callback,
                                        &resultState);
@@ -786,7 +786,7 @@ PSMResult PSM_StopTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID *
 
 PSMResult PSM_GetHMDTrackingSpaceSettingsAsync(PSMRequestID *out_request_id)
 {
-    ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::get_hmd_tracking_space_settings();
+    ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::get_tracking_space_settings();
 
     if (out_request_id != nullptr)
     {
@@ -954,10 +954,10 @@ static void extractResponseMessage(const ClientPSMoveAPI::ResponseMessage *respo
         static_assert(sizeof(PSMTrackerList) == sizeof(ClientPSMoveAPI::ResponsePayload_TrackerList), "Response payload types changed!");
         memcpy(&response->payload.tracker_list, &response_internal->payload.tracker_list, sizeof(PSMTrackerList));
         break;
-    case ClientPSMoveAPI::_responsePayloadType_HMDTrackingSpace:
+    case _PSMResponseMessage::_responsePayloadType_HMDTrackingSpace:
         response->payload_type= PSMResponseMessage::_responsePayloadType_HMDTrackingSpace;
-        static_assert(sizeof(PSMHMDTrackingSpace) == sizeof(ClientPSMoveAPI::ResponsePayload_HMDTrackingSpace), "Response payload types changed!");
-        memcpy(&response->payload.hmd_tracking_space, &response_internal->payload.hmd_tracking_space, sizeof(PSMHMDTrackingSpace));
+        static_assert(sizeof(PSMHMDTrackingSpace) == sizeof(ClientPSMoveAPI::ResponsePayload_TrackingSpace), "Response payload types changed!");
+        memcpy(&response->payload.hmd_tracking_space, &response_internal->payload.tracking_space, sizeof(PSMHMDTrackingSpace));
         break;
     default:
         assert(0 && "unreachable");

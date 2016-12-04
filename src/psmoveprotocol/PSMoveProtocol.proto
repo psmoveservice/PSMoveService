@@ -177,7 +177,7 @@ message Request {
     // Parameters for RESET_POSE
     message RequestResetPose {
         int32 controller_id = 1;
-		Orientation orientation= 2;
+        Orientation orientation= 2;
     }
     RequestResetPose reset_pose = 7;   
     
@@ -233,7 +233,7 @@ message Request {
         int32 controller_id = 1;
         float variance= 2;
         float drift= 3;
-		string gyro_gain_setting= 4;
+        string gyro_gain_setting= 4;
     }
     RequestSetControllerGyroscopeCalibration set_controller_gyroscope_calibration_request = 15;
     // Parameters for SET_OPTICAL_NOISE_CALIBRATION
@@ -408,8 +408,8 @@ message Request {
         float raw_drift= 4;
     }
     RequestSetHMDGyroscopeCalibration set_hmd_gyroscope_calibration_request = 34;
-	
-	// No parameters for GET_TRACKING_SPACE_SETTINGS
+
+    // No parameters for GET_TRACKING_SPACE_SETTINGS
 }
 
 // Reliable (TCP) responses to requests
@@ -419,20 +419,21 @@ message Response {
         GENERAL_RESULT= 0;
         CONNECTION_INFO= 1;
         CONTROLLER_LIST= 2;
-        CONTROLLER_LIST_UPDATED= 3;
-        UNPAIR_REQUEST_COMPLETED= 4;
-        PAIR_REQUEST_COMPLETED= 5;
-        BLUETOOTH_REQUEST_PROGRESS= 6;
-        TRACKER_LIST= 7;
-        TRACKER_LIST_UPDATED= 8;
-        TRACKER_SETTINGS= 9;
-        TRACKER_EXPOSURE_UPDATED= 10;
-        TRACKER_GAIN_UPDATED= 11;
-        TRACKER_OPTION_UPDATED= 12;
-        TRACKER_PRESET_UPDATED= 13;
-		TRACKING_SPACE_SETTINGS= 14;
-        HMD_LIST= 15;
-        HMD_LIST_UPDATED= 16;
+        CONTROLLER_STREAM_STARTED= 3;
+        CONTROLLER_LIST_UPDATED= 4;
+        UNPAIR_REQUEST_COMPLETED= 5;
+        PAIR_REQUEST_COMPLETED= 6;
+        BLUETOOTH_REQUEST_PROGRESS= 7;
+        TRACKER_LIST= 8;
+        TRACKER_LIST_UPDATED= 9;
+        TRACKER_SETTINGS= 10;
+        TRACKER_EXPOSURE_UPDATED= 11;
+        TRACKER_GAIN_UPDATED= 12;
+        TRACKER_OPTION_UPDATED= 13;
+        TRACKER_PRESET_UPDATED= 14;
+        TRACKING_SPACE_SETTINGS= 15;
+        HMD_LIST= 16;
+        HMD_LIST_UPDATED= 17;
     }
 
     enum ResultCode {
@@ -454,6 +455,12 @@ message Response {
     }
     ResultConnectionInfo result_connection_info = 20;
     
+    // Parameters for CONTROLLER_STREAM_STARTED
+    message ResultControllerStreamStarted {
+        DeviceOutputDataFrame initial_data_frame= 1;
+    }
+    ResultControllerStreamStarted result_controller_stream_started= 21;
+    
     // Parameters for CONTROLLER_LIST
     // This is returned in response to a GET_CONTROLLER_LIST request
     message ResultControllerList {
@@ -474,12 +481,12 @@ message Response {
             bool has_magnetometer = 10;
             string orientation_filter = 11;
             string position_filter = 12;
-			string gyro_gain_setting = 13;
+            string gyro_gain_setting = 13;
         }
         repeated ControllerInfo controllers = 1;
         string host_serial = 2;
     }
-    ResultControllerList result_controller_list = 21;    
+    ResultControllerList result_controller_list = 22;    
     
     // No parameters for CONTROLLER_LIST_UPDATED
     // No parameters for UNPAIR_REQUEST_COMPLETED
@@ -491,7 +498,7 @@ message Response {
         int32 steps_completed = 2;
         int32 total_steps = 3;
     }
-    ResultBluetoothRequestProgress result_bluetooth_request_progress = 22;
+    ResultBluetoothRequestProgress result_bluetooth_request_progress = 23;
    
     // Parameters for TRACKER_LIST
     // This is returned in response to a GET_TRACKER_LIST request
@@ -526,9 +533,9 @@ message Response {
             Pose tracker_pose = 18;
         }
         repeated TrackerInfo trackers = 1;
-		float global_forward_degrees = 2;
+        float global_forward_degrees = 2;
     }
-    ResultTrackerList result_tracker_list = 23;
+    ResultTrackerList result_tracker_list = 24;
     
     // This is returned in response to a GET_TRACKER_SETTINGS or APPLY_TRACKER_PROFILE request
     message ResultTrackerSettings {
@@ -537,39 +544,40 @@ message Response {
         repeated OptionSet option_sets= 3; 
         repeated TrackingColorPreset color_presets = 4;
     }
-    ResultTrackerSettings result_tracker_settings = 24;
+    ResultTrackerSettings result_tracker_settings = 25;
     
     // This is returned in response to a SET_TRACKER_EXPOSURE request
     message ResultSetTrackerExposure {
         float new_exposure= 1;
     }
-    ResultSetTrackerExposure result_set_tracker_exposure = 25;
+    ResultSetTrackerExposure result_set_tracker_exposure = 26;
 
     // This is returned in response to a SET_TRACKER_GAIN request
     message ResultSetTrackerGain {
         float new_gain= 1;
     }
-    ResultSetTrackerGain result_set_tracker_gain = 26;
+    ResultSetTrackerGain result_set_tracker_gain = 27;
     
     // This is returned in response to a SET_TRACKER_OPTION request
     message ResultSetTrackerOption {
         string option_name = 1;
         int32 new_option_index = 2;
     }
-    ResultSetTrackerOption result_set_tracker_option = 27;
+    ResultSetTrackerOption result_set_tracker_option = 28;
     
     // This is returned in response to a SET_TRACKER_COLOR_PRESET request
     message ResultSetTrackerColorPreset {
         int32 tracker_id = 1;
         TrackingColorPreset new_color_preset = 2;
     }
-    ResultSetTrackerColorPreset result_set_tracker_color_preset = 28;
-	
-	// This is returned in response to a GET_TRACKING_SPACE_SETTINGS request
-    message ResultTrackingSpaceSettings {
-		float global_forward_degrees = 1;
+    ResultSetTrackerColorPreset result_set_tracker_color_preset = 29;
+
+    // This is returned in response to a GET_TRACKING_SPACE_SETTINGS request
+    message ResultTrackingSpaceSettings
+    {
+        float global_forward_degrees = 1;
     }
-    ResultTrackingSpaceSettings result_tracking_space_settings = 29;	
+    ResultTrackingSpaceSettings result_tracking_space_settings = 30;
     
     // No parameters for HMD_LIST_UPDATED
     
@@ -584,7 +592,7 @@ message Response {
         }
         repeated HMDInfo hmd_entries = 1;
     }
-    ResultHMDList result_hmd_list = 30;        
+    ResultHMDList result_hmd_list = 31;
 }
 
 // Unreliable (UDP) device data packet sent from service to clients
@@ -691,7 +699,7 @@ message DeviceOutputDataFrame
                 repeated Ellipse projected_spheres= 4;
                 repeated Polygon projected_blobs= 5;
                 int32 valid_tracker_count= 6;
-				Position multicam_position= 7;
+                Position multicam_position= 7;
             }
             RawTrackerData raw_tracker_data = 11;  
 

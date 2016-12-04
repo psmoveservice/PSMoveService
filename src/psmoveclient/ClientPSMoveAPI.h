@@ -116,7 +116,7 @@ public:
     {
         ClientTrackerInfo trackers[PSMOVESERVICE_MAX_TRACKER_COUNT];
         int count;
-		float global_forward_degrees;
+        float global_forward_degrees;
     };
 
     struct ResponsePayload_HMDList
@@ -156,7 +156,7 @@ public:
             ResponsePayload_ControllerList controller_list;
             ResponsePayload_TrackerList tracker_list;
             ResponsePayload_HMDList hmd_list;
-			ResponsePayload_TrackingSpace tracking_space;
+            ResponsePayload_TrackingSpace tracking_space;
         } payload;
         eResponsePayloadType payload_type;
     };

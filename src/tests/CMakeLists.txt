@@ -587,4 +587,3 @@ target_link_libraries(test_hidapi_sierra ${PLATFORM_LIBS})
 #target_link_libraries(test_hidapi_sierra /usr/local/opt/hidapi/lib/libhidapi.dylib)
 SET_TARGET_PROPERTIES(test_hidapi_sierra PROPERTIES FOLDER Test)
 ENDIF()
->>>>>>> master
