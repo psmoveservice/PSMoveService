@@ -35,7 +35,10 @@ public:
     ClientPSMoveAPIImpl(
         const std::string &host, 
         const std::string &port)
-        : m_request_manager(ClientPSMoveAPIImpl::handle_response_message, this)
+        : m_request_manager(
+                            this,  // IDataFrameListener
+                            ClientPSMoveAPIImpl::handle_response_message,
+                            this)  // ClientPSMoveAPIImpl::handle_response_message userdata
         , m_network_manager(
             host, port, 
             this, // IDataFrameListener
@@ -171,7 +174,7 @@ public:
             m_controller_view_map.insert(t_id_controller_view_pair(ControllerID, view));
         }
 
-        // Keep track of how many clients are listening to this view
+        // Increment the number of objects that are registered to listen in on this controller on this client
         view->IncListenerCount();        
         
         return view;
@@ -195,6 +198,13 @@ public:
             // Remove the entry from the map
             m_controller_view_map.erase(view_entry);
         }
+    }
+    
+    ClientControllerView* get_controller_view(int controller_id)
+    {
+        t_controller_view_map_iterator view_entry= m_controller_view_map.find(controller_id);
+        assert(view_entry != m_controller_view_map.end());
+        return view_entry->second;
     }
 
     ClientPSMoveAPI::t_request_id get_controller_list()
@@ -528,7 +538,7 @@ public:
     }    
     
     // IDataFrameListener
-    virtual void handle_data_frame(DeviceOutputDataFramePtr data_frame) override
+    virtual void handle_data_frame(const PSMoveProtocol::DeviceOutputDataFrame *data_frame) override
     {
         switch (data_frame->device_category())
         {
@@ -775,6 +785,18 @@ public:
 
             if (iter != m_pending_request_map.end())
             {
+                const PendingRequest &pendingRequest = iter->second;
+                
+                // Notify the response callback that the request was canceled
+                if (pendingRequest.response_callback != nullptr)
+                {
+                    ClientPSMoveAPI::ResponseMessage response;
+                    memset(&response, 0, sizeof(ClientPSMoveAPI::ResponseMessage));
+                    response.result_code= ClientPSMoveAPI::_clientPSMoveResultCode_canceled;
+                    response.request_id= request_id;
+                    response.payload_type= ClientPSMoveAPI::_responsePayloadType_Empty;
+                    pendingRequest.response_callback(&response, pendingRequest.response_userdata);
+                }
                 m_pending_request_map.erase(iter);
                 bSuccess = true;
             }
@@ -897,7 +919,17 @@ void ClientPSMoveAPI::free_controller_view(ClientControllerView * view)
     }
 }
 
-ClientPSMoveAPI::t_request_id 
+ClientControllerView * ClientPSMoveAPI::get_controller_view(int controller_id)
+{
+    ClientControllerView * view = nullptr;
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        view = ClientPSMoveAPI::m_implementation_ptr->get_controller_view(controller_id);
+    }
+    return view;
+}
+
+ClientPSMoveAPI::t_request_id
 ClientPSMoveAPI::get_controller_list()
 {
     ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;

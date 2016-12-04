@@ -372,6 +372,7 @@ list(APPEND TEST_CLIENT_SRC
 add_executable(test_console_client test_console_client.cpp ${TEST_CLIENT_SRC})
 target_include_directories(test_console_client PUBLIC ${TEST_CLIENT_INCL_DIRS})
 target_link_libraries(test_console_client PSMoveClient)
+target_compile_definitions(test_console_client PRIVATE PSMOVECLIENT_CPP_API)
 SET_TARGET_PROPERTIES(test_console_client PROPERTIES FOLDER Test)
 
 # Install    
@@ -380,6 +381,22 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
         LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
         ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+ELSE() #Linux/Darwin
+ENDIF()
+
+#
+# TEST_CONSOLE_CAPI
+#
+add_executable(test_console_CAPI test_console_CAPI.cpp)
+target_include_directories(test_console_CAPI PUBLIC ${ROOT_DIR}/src/psmoveclient/)
+target_link_libraries(test_console_CAPI PSMoveClient_CAPI)
+SET_TARGET_PROPERTIES(test_console_CAPI PROPERTIES FOLDER Test)
+# Install
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS test_console_CAPI
+    RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+    LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+    ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
 

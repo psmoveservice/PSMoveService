@@ -2,7 +2,7 @@
 #define CLIENT_PSMOVE_API_H
 
 //-- includes -----
-#include "ClientConfig.h"
+#include "PSMoveClient_export.h"
 #include "ClientConstants.h"
 #include "ClientLog.h"
 #include "ClientControllerView.h"
@@ -28,7 +28,7 @@ class ClientControllerView;
 #endif // HAS_PROTOCOL_ACCESS
 
 //-- interface -----
-class CLIENTPSMOVEAPI ClientPSMoveAPI
+class PSM_CPP_PUBLIC_CLASS ClientPSMoveAPI
 {
 public:
     enum eClientAPIConstants
@@ -210,6 +210,7 @@ public:
     /// Tracker Methods
     static ClientTrackerView *allocate_tracker_view(const ClientTrackerInfo &trackerInfo);
     static void free_tracker_view(ClientTrackerView *view);
+    static ClientControllerView *get_controller_view(int controller_id);
 
 	static t_request_id get_tracking_space_settings();
 	static t_request_id get_tracker_list();

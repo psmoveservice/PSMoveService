@@ -31,6 +31,7 @@ target_link_libraries(driver_psmove ${OPENVR_PLUGIN_REQ_LIBS})
 add_executable(monitor_psmove monitor_psmoveservice.cpp)
 target_include_directories(monitor_psmove PUBLIC ${OPENVR_MONITOR_INCL_DIRS})
 target_link_libraries(monitor_psmove ${OPENVR_LIBRARIES})
+target_compile_definitions(monitor_psmove PRIVATE PSMOVECLIENT_CPP_API)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
