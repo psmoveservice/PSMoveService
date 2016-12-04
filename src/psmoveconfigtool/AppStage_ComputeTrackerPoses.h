@@ -47,6 +47,7 @@ protected:
         calibrateWithMat,
 
         testTracking,
+		showTrackerVideo,
         calibrateStepFailed,
     };
 

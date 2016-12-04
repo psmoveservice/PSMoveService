@@ -126,6 +126,9 @@ void AppStage_ComputeTrackerPoses::update()
         break;
     case eMenuState::testTracking:
         break;
+	case eMenuState::showTrackerVideo:
+		update_tracker_video();
+		break;
     case eMenuState::calibrateStepFailed:
         break;
     default:
@@ -158,8 +161,6 @@ void AppStage_ComputeTrackerPoses::render()
         break;
     case eMenuState::testTracking:
         {
-            glm::mat4 psmove_tracking_space_to_chaperone_space = glm::mat4(1.f);
-
             // Draw the chaperone origin axes
             drawTransformedAxes(glm::mat4(1.0f), 100.f);
 
@@ -169,8 +170,8 @@ void AppStage_ComputeTrackerPoses::render()
             for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
             {
                 const ClientTrackerView *trackerView = iter->second.trackerView;
-                const PSMovePose psmove_space_pose = trackerView->getTrackerPose();
-                const glm::mat4 chaperoneSpaceTransform = psmove_tracking_space_to_chaperone_space * psmove_pose_to_glm_mat4(psmove_space_pose);
+                const PSMovePose trackerPose = trackerView->getTrackerPose();
+                const glm::mat4 trackerMat4 = psmove_pose_to_glm_mat4(trackerPose);
 
                 {
                     PSMoveFrustum frustum = trackerView->getTrackerFrustum();
@@ -183,26 +184,32 @@ void AppStage_ComputeTrackerPoses::render()
 					{
 						color = k_psmove_frustum_color;
 					}
-					else {
+					else 
+					{
 						color = k_psmove_frustum_color_no_track;
 					}
 
-                    drawTransformedFrustum(psmove_tracking_space_to_chaperone_space, &frustum, color);
+					drawTextAtWorldPosition(glm::mat4(1.f), psmove_position_to_glm_vec3(trackerPose.Position), "#%d", trackerView->getTrackerId());
+                    drawTransformedFrustum(glm::mat4(1.f), &frustum, color);
                 }
 
-                drawTransformedAxes(chaperoneSpaceTransform, 20.f);
+                drawTransformedAxes(trackerMat4, 20.f);
             }
 
             // Draw the psmove model
             {
-                PSMovePose psmove_space_pose = m_controllerView->GetPose();
-                glm::mat4 chaperoneSpaceTransform = psmove_tracking_space_to_chaperone_space * psmove_pose_to_glm_mat4(psmove_space_pose);
+                PSMovePose controllerPose = m_controllerView->GetPose();
+                glm::mat4 controllerMat4 = psmove_pose_to_glm_mat4(controllerPose);
 
-                drawController(m_controllerView, chaperoneSpaceTransform);
-                drawTransformedAxes(chaperoneSpaceTransform, 10.f);
+                drawController(m_controllerView, controllerMat4);
+                drawTransformedAxes(controllerMat4, 10.f);
             }
 
         } break;
+	case eMenuState::showTrackerVideo:
+		{
+			render_tracker_video();
+		} break;
     case eMenuState::calibrateStepFailed:
         break;
     default:
@@ -328,44 +335,77 @@ void AppStage_ComputeTrackerPoses::renderUI()
     case eMenuState::testTracking:
         {
             ImGui::SetNextWindowPos(ImVec2(20.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
-            ImGui::Begin(k_window_title, nullptr, window_flags);
+            ImGui::SetNextWindowSize(ImVec2(250.f, 260.f));
+            ImGui::Begin("Test Tracking", nullptr, window_flags);
 
-            if (!m_bSkipCalibration)
-            {
-                ImGui::Text("Calibration Complete");
-
-                if (ImGui::Button("Redo Calibration"))
-                {
-                    setState(eMenuState::verifyTrackers);
-                }
-            }
-
-            if (ImGui::Button("Exit"))
-            {
-                m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
-            }
-
-			// display tracking quality
+			// display per tracker UI
 			for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
 			{
+				const ClientTrackerView *trackerView = iter->second.trackerView;
 				PSMoveScreenLocation screenSample;
 
-				const ClientTrackerView *trackerView = iter->second.trackerView;
+				ImGui::PushItemWidth(125.f);
 				if (m_controllerView->GetIsCurrentlyTracking() &&
 					m_controllerView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
 				{
-					ImGui::Text("Tracking %d: OK", trackerView->getTrackerId() + 1);
+					ImGui::Text("Tracker #%d: OK", trackerView->getTrackerId());
 				}
-				else {
-					ImGui::Text("Tracking %d: FAIL", trackerView->getTrackerId() + 1);
+				else 
+				{
+					ImGui::Text("Tracker #%d: FAIL", trackerView->getTrackerId());
+				}
+				ImGui::PopItemWidth();
+
+				ImGui::SameLine();
+
+				ImGui::PushItemWidth(100.f);
+				ImGui::PushID(trackerView->getTrackerId());
+				if (ImGui::Button("Tracker Video"))
+				{
+					m_renderTrackerIter = iter;
+					setState(eMenuState::showTrackerVideo);
+				}
+				ImGui::PopID();
+				ImGui::PopItemWidth();
+			}
+
+			ImGui::Separator();
+
+			if (!m_bSkipCalibration)
+			{
+				ImGui::Text("Calibration Complete");
+
+				if (ImGui::Button("Redo Calibration"))
+				{
+					setState(eMenuState::verifyTrackers);
 				}
 			}
-			ImGui::Text("");
+
+			if (ImGui::Button("Exit"))
+			{
+				m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
+			}
 
             ImGui::End();
         }
         break;
+
+	case eMenuState::showTrackerVideo:
+		{
+			ImGui::SetNextWindowPos(ImVec2(20.f, 20.f));
+			ImGui::SetNextWindowSize(ImVec2(200, 100));
+			ImGui::Begin("Tracker Video Feed", nullptr, window_flags);
+
+			ImGui::Text("Tracker ID: #%d", m_renderTrackerIter->second.trackerView->getTrackerId());
+
+			if (ImGui::Button("Return"))
+			{
+				setState(eMenuState::testTracking);
+			}
+
+			ImGui::End();
+		}
+		break;
 
     case eMenuState::calibrateStepFailed:
         {
@@ -429,6 +469,8 @@ void AppStage_ComputeTrackerPoses::onExitState(eMenuState newState)
     case eMenuState::testTracking:
         m_app->setCameraType(_cameraFixed);
         break;
+	case eMenuState::showTrackerVideo:
+		break;
     case eMenuState::calibrateStepFailed:
         break;
     default:
@@ -464,6 +506,8 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
     case eMenuState::testTracking:
         m_app->setCameraType(_cameraOrbit);
         break;
+	case eMenuState::showTrackerVideo:
+		break;
     case eMenuState::calibrateStepFailed:
         break;
     default:
@@ -661,15 +705,21 @@ void AppStage_ComputeTrackerPoses::request_start_controller_stream(int Controlle
     assert(m_controllerView == nullptr);
     m_controllerView= ClientPSMoveAPI::allocate_controller_view(ControllerID);
 
+	unsigned int flags =
+		ClientPSMoveAPI::includePositionData |
+		ClientPSMoveAPI::includeCalibratedSensorData |
+		ClientPSMoveAPI::includeRawTrackerData;
+
+	// If we are jumping straight to testing, we want the ROI optimization on
+	if (!m_bSkipCalibration)
+	{
+		flags|= ClientPSMoveAPI::disableROI;
+	}
+
     // Start receiving data from the controller
     setState(AppStage_ComputeTrackerPoses::pendingControllerStartRequest);
     ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::start_controller_data_stream(
-            m_controllerView, 
-            ClientPSMoveAPI::includePositionData | 
-			ClientPSMoveAPI::includeCalibratedSensorData | 
-			ClientPSMoveAPI::includeRawTrackerData | 
-			ClientPSMoveAPI::disableROI),
+        ClientPSMoveAPI::start_controller_data_stream(m_controllerView, flags),
         AppStage_ComputeTrackerPoses::handle_start_controller_response, this);
 }
 
