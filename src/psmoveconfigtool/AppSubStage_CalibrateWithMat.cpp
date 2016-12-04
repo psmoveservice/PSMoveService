@@ -572,29 +572,6 @@ void AppSubStage_CalibrateWithMat::render()
         {
             // Draw the video from the PoV of the current tracker
             m_parentStage->render_tracker_video();
-
-            // Draw the projection shape of the controller in the pov of the current tracker being rendered
-            {
-                const ClientTrackerView *TrackerView = m_parentStage->get_render_tracker_view();
-                const ClientControllerView *ControllerView = m_parentStage->m_controllerView;
-                const PSMoveRawTrackerData &RawTrackerData = ControllerView->GetRawTrackerData();
-                const int TrackerID = TrackerView->getTrackerId();
-
-                PSMoveTrackingProjection trackingProjection;
-                PSMoveScreenLocation centerProjection;
-
-                if (ControllerView->GetIsCurrentlyTracking() &&
-                    RawTrackerData.GetPixelLocationOnTrackerId(TrackerID, centerProjection) &&
-                    RawTrackerData.GetProjectionOnTrackerId(TrackerID, trackingProjection))
-                {
-                    const PSMoveFloatVector2 screenSize= TrackerView->getTrackerInfo().tracker_screen_dimensions;
-
-                    drawTrackingProjection(
-                        &centerProjection,
-                        &trackingProjection,
-                        screenSize.i, screenSize.j);
-                }
-            }
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepComputeTrackerPoses:
         break;

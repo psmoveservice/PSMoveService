@@ -730,6 +730,7 @@ static bool computeTrackerRelativePointCloudContourPose(
 	const CommonDevicePose *tracker_relative_pose_guess,
 	HMDOpticalPoseEstimation *out_pose_estimate);
 static cv::Rect2i computeTrackerROIForPoseProjection(
+	const bool disabled_roi,
 	const ServerTrackerView *tracker,
 	const IPoseFilter* pose_filter,
 	const CommonDeviceTrackingShape *tracking_shape);
@@ -1144,6 +1145,7 @@ ServerTrackerView::computeProjectionForController(
 
 	// Compute a region of interest in the tracker buffer around where we expect to find the tracking shape
 	cv::Rect2i ROI= computeTrackerROIForPoseProjection(
+		tracked_controller->getIsROIDisabled() || DeviceManager::getInstance()->m_tracker_manager->getConfig().disable_roi,
 		this, 
 		(tracked_controller->getIsCurrentlyTracking()) ? tracked_controller->getPoseFilter() : nullptr,
 		tracking_shape);
@@ -1340,6 +1342,7 @@ bool ServerTrackerView::computePoseForHMD(
     
 	// Compute a region of interest in the tracker buffer around where we expect to find the tracking shape
 	cv::Rect2i ROI = computeTrackerROIForPoseProjection(
+			tracked_hmd->getIsROIDisabled() || DeviceManager::getInstance()->m_tracker_manager->getConfig().disable_roi,
 			this, 
 			(tracked_hmd->getIsCurrentlyTracking()) ? tracked_hmd->getPoseFilter() : nullptr, 
 			&tracking_shape);
@@ -2151,6 +2154,7 @@ static bool computeTrackerRelativePointCloudContourPose(
 }
 
 static cv::Rect2i computeTrackerROIForPoseProjection(
+	const bool roi_disabled,
 	const ServerTrackerView *tracker,
 	const IPoseFilter* pose_filter,
 	const CommonDeviceTrackingShape *tracking_shape)
@@ -2164,7 +2168,7 @@ static cv::Rect2i computeTrackerROIForPoseProjection(
 	//Calculate a more refined ROI.
 	//Based on the physical limits of the object's bounding box
 	//projected onto the image.
-	if (pose_filter != nullptr)
+	if (!roi_disabled && pose_filter != nullptr)
 	{
 		// Get the (predicted) position in world space.
 		Eigen::Vector3f position = pose_filter->getPosition(0.f);  //TODO: Replace 0.f with the tracker update time.

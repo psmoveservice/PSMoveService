@@ -470,27 +470,6 @@ void AppStage_HMDModelCalibration::render()
 			// Draw the video from the PoV of the current tracker
 			render_tracker_video();
 
-			// Draw the projection shape of the controller in the pov of the current tracker being rendered
-			{
-				const MorpheusRawTrackerData &RawTrackerData = m_hmdView->GetRawTrackerData();
-				const int TrackerID = TrackerView->getTrackerId();
-
-				PSMoveTrackingProjection trackingProjection;
-				PSMoveScreenLocation centerProjection;
-
-				if (m_hmdView->GetIsCurrentlyTracking() &&
-					RawTrackerData.GetPixelLocationOnTrackerId(TrackerID, centerProjection) &&
-					RawTrackerData.GetProjectionOnTrackerId(TrackerID, trackingProjection))
-				{
-					const PSMoveFloatVector2 screenSize = TrackerView->getTrackerInfo().tracker_screen_dimensions;
-
-					drawTrackingProjection(
-						&centerProjection,
-						&trackingProjection,
-						screenSize.i, screenSize.j);
-				}
-			}
-
 			// Draw the current state of the HMD model being generated
 			m_hmdModelState->render(TrackerView);
 		}
@@ -1009,7 +988,10 @@ void AppStage_HMDModelCalibration::request_start_hmd_stream(int HmdID)
 	ClientPSMoveAPI::register_callback(
 		ClientPSMoveAPI::start_hmd_data_stream(
 			m_hmdView,
-			ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includeCalibratedSensorData | ClientPSMoveAPI::includeRawTrackerData),
+			ClientPSMoveAPI::includePositionData | 
+			ClientPSMoveAPI::includeCalibratedSensorData | 
+			ClientPSMoveAPI::includeRawTrackerData |
+			ClientPSMoveAPI::disableROI),
 		AppStage_HMDModelCalibration::handle_start_hmd_response, this);
 }
 

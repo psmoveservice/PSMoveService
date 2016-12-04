@@ -247,6 +247,11 @@ public:
             request->mutable_request_start_psmove_data_stream()->set_include_physics_data(true);
         }
 
+		if ((flags & ClientPSMoveAPI::disableROI) > 0)
+		{
+			request->mutable_request_start_psmove_data_stream()->set_disable_roi(true);
+		}
+
         m_request_manager.send_request(request);
 
         return request->request_id();
@@ -495,6 +500,11 @@ public:
 		if ((flags & ClientPSMoveAPI::includeRawTrackerData) > 0)
 		{
 			request->mutable_request_start_hmd_data_stream()->set_include_raw_tracker_data(true);
+		}
+
+		if ((flags & ClientPSMoveAPI::disableROI) > 0)
+		{
+			request->mutable_request_start_hmd_data_stream()->set_disable_roi(true);
 		}
 
         m_request_manager.send_request(request);
