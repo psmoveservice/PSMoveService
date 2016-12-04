@@ -638,18 +638,15 @@ public:
 			{
 				int prev_point_index;
 
-				//###HipsterSloth $TODO - Get rid of the frameWidth and frameHeight offsets once I cleanup
-				// the tracking projection half screen offsets everywhere else
-
 				prev_point_index = CommonDeviceTrackingShape::QuadVertexCount - 1;
 				for (int point_index = 0; point_index < CommonDeviceTrackingShape::QuadVertexCount; ++point_index)
 				{
 					cv::Point pt1(
-						static_cast<int>(pose_projection.shape.lightbar.quad[prev_point_index].x + (frameWidth / 2)),
-						static_cast<int>(pose_projection.shape.lightbar.quad[prev_point_index].y + (frameHeight / 2)));
+						static_cast<int>(pose_projection.shape.lightbar.quad[prev_point_index].x),
+						static_cast<int>(pose_projection.shape.lightbar.quad[prev_point_index].y));
 					cv::Point pt2(
-						static_cast<int>(pose_projection.shape.lightbar.quad[point_index].x + (frameWidth / 2)),
-						static_cast<int>(pose_projection.shape.lightbar.quad[point_index].y + (frameHeight / 2)));
+						static_cast<int>(pose_projection.shape.lightbar.quad[point_index].x),
+						static_cast<int>(pose_projection.shape.lightbar.quad[point_index].y));
 					cv::line(*bgrShmemBuffer, pt1, pt2, cv::Scalar(0, 0, 255));
 
 					prev_point_index = point_index;
@@ -659,11 +656,11 @@ public:
 				for (int point_index = 0; point_index < CommonDeviceTrackingShape::TriVertexCount; ++point_index)
 				{
 					cv::Point pt1(
-						static_cast<int>(pose_projection.shape.lightbar.triangle[prev_point_index].x + (frameWidth / 2)),
-						static_cast<int>(pose_projection.shape.lightbar.triangle[prev_point_index].y + (frameHeight /2)));
+						static_cast<int>(pose_projection.shape.lightbar.triangle[prev_point_index].x),
+						static_cast<int>(pose_projection.shape.lightbar.triangle[prev_point_index].y));
 					cv::Point pt2(
-						static_cast<int>(pose_projection.shape.lightbar.triangle[point_index].x + (frameWidth / 2)),
-						static_cast<int>(pose_projection.shape.lightbar.triangle[point_index].y + (frameHeight / 2)));
+						static_cast<int>(pose_projection.shape.lightbar.triangle[point_index].x),
+						static_cast<int>(pose_projection.shape.lightbar.triangle[point_index].y));
 					cv::line(*bgrShmemBuffer, pt1, pt2, cv::Scalar(0, 0, 255));
 
 					prev_point_index = point_index;
@@ -713,7 +710,6 @@ static void computeOpenCVCameraIntrinsicMatrix(const ITrackerInterface *tracker_
                                                cv::Matx<float, 5, 1> &distortionOut);
 static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tracker_device);
 static bool computeTrackerRelativeLightBarProjection(
-	const ITrackerInterface *tracker_device,
 	const CommonDeviceTrackingShape *tracking_shape,
 	const t_opencv_float_contour &opencv_contour,
 	CommonDeviceTrackingProjection *out_projection);
@@ -1260,7 +1256,6 @@ ServerTrackerView::computeProjectionForController(
 				// Compute the lightbar tracking projection from the undistored contour
                 bSuccess=
                     computeTrackerRelativeLightBarProjection(
-                        m_device,
                         tracking_shape,
 						undistort_contour,
                         &out_pose_estimate->projection);
@@ -1635,24 +1630,14 @@ ServerTrackerView::triangulateWorldPosition(
     const ServerTrackerView *other_tracker,
     const CommonDeviceScreenLocation *other_screen_location)
 {
-    // Convert the tracker screen locations in CommonDeviceScreenLocation space
-    // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
-    // into OpenCV pixel space
-    // i.e. [0, 0]x[frameWidth, frameHeight]
     float screenWidth, screenHeight;
     tracker->getPixelDimensions(screenWidth, screenHeight);
     
     float otherScreenWidth, otherScreenHeight;
     tracker->getPixelDimensions(otherScreenWidth, otherScreenHeight);
 
-    cv::Mat projPoints1 = 
-        cv::Mat(cv::Point2f(
-            screen_location->x + (screenWidth / 2), 
-            screen_location->y + (screenHeight / 2)));
-    cv::Mat projPoints2 = 
-        cv::Mat(cv::Point2f(
-            other_screen_location->x + (otherScreenWidth / 2),
-            other_screen_location->y + (otherScreenHeight / 2)));
+    cv::Mat projPoints1 = cv::Mat(cv::Point2f(screen_location->x, screen_location->y));
+    cv::Mat projPoints2 = cv::Mat(cv::Point2f(other_screen_location->x, other_screen_location->y));
 
     // Compute the pinhole camera matrix for each tracker that allows you to raycast
     // from the tracker center in world space through the screen location, into the world
@@ -1683,14 +1668,6 @@ ServerTrackerView::triangulateWorldPositions(
 	const int screen_location_count,
 	CommonDevicePosition *out_result)
 {
-    // @HipsterSloth: The screen_locations coming in could potentially be in
-    // normalized space if you used that option in undistortPoints.
-    // Or they could be in the regular coordinate system but undistorted.
-    
-    // Convert the tracker screen locations in CommonDeviceScreenLocation space
-    // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
-    // into OpenCV pixel space
-    // i.e. [0, 0]x[frameWidth, frameHeight]
     float screenWidth, screenHeight;
     tracker->getPixelDimensions(screenWidth, screenHeight);
 
@@ -1704,8 +1681,8 @@ ServerTrackerView::triangulateWorldPositions(
 		const CommonDeviceScreenLocation &p1= screen_locations[point_index];
 		const CommonDeviceScreenLocation &p2= other_screen_locations[point_index];
 
-		projPoints1.push_back(cv::Point2f(p1.x + (screenWidth / 2), p1.y + (screenHeight / 2)));
-		projPoints2.push_back(cv::Point2f(p2.x + (screenWidth / 2), p2.y + (screenHeight / 2)));
+		projPoints1.push_back(cv::Point2f(p1.x, p1.y));
+		projPoints2.push_back(cv::Point2f(p2.x, p2.y));
 	}
 
     // Compute the pinhole camera matrix for each tracker that allows you to raycast
@@ -1774,18 +1751,6 @@ ServerTrackerView::projectTrackerRelativePosition(const CommonDevicePosition *tr
 {
     std::vector<CommonDevicePosition> trp_vec {*trackerRelativePosition};
     CommonDeviceScreenLocation screenLocation = projectTrackerRelativePositions(trp_vec)[0];
-
-    // cv::projectPoints() returns position in pixel coordinates where:
-    //  (0, 0) is the lower left of the screen and +y is pointing up
-    // Convert this to CommonDeviceScreenLocation space where:
-    //  (0, 0) in the center of the screen with +y is pointing up
-    {
-        float screenWidth, screenHeight;
-        getPixelDimensions(screenWidth, screenHeight);
-
-        screenLocation.x = screenLocation.x - (screenWidth / 2);
-        screenLocation.y = screenLocation.y - (screenHeight / 2);
-    }
 
     return screenLocation;
 }
@@ -1859,16 +1824,11 @@ static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ITrackerInterface *tra
 }
 
 static bool computeTrackerRelativeLightBarProjection(
-    const ITrackerInterface *tracker_device,
     const CommonDeviceTrackingShape *tracking_shape,
     const t_opencv_float_contour &opencv_contour,
 	CommonDeviceTrackingProjection *out_projection)
 {
     assert(tracking_shape->shape_type == eCommonTrackingShapeType::LightBar);
-
-    // Get the pixel width and height of the tracker image
-    int pixelWidth, pixelHeight;
-    tracker_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
 
     bool bValidTrackerProjection= true;
     float projectionArea= 0.f;
@@ -1928,24 +1888,14 @@ static bool computeTrackerRelativeLightBarProjection(
         {
             const cv::Point2f &cvPoint = cvImagePoints[vertex_index];
 
-            // Convert the tracker screen locations in OpenCV pixel space
-            // i.e. [0, 0]x[frameWidth, frameHeight]
-            // into PSMoveScreenLocation space
-            // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
-            out_projection->shape.lightbar.triangle[vertex_index] = 
-                { cvPoint.x - (pixelWidth / 2), cvPoint.y - (pixelHeight / 2) };
+            out_projection->shape.lightbar.triangle[vertex_index] = { cvPoint.x, cvPoint.y };
         }
 
         for (int vertex_index = 0; vertex_index < 4; ++vertex_index)
         {
             const cv::Point2f &cvPoint = cvImagePoints[vertex_index + 3];
 
-            // Convert the tracker screen locations in OpenCV pixel space
-            // i.e. [0, 0]x[frameWidth, frameHeight]
-            // into PSMoveScreenLocation space
-            // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
-            out_projection->shape.lightbar.quad[vertex_index] = 
-                { cvPoint.x - (pixelWidth / 2), cvPoint.y - (pixelHeight / 2) };
+            out_projection->shape.lightbar.quad[vertex_index] = { cvPoint.x, cvPoint.y };
         }
 
         out_projection->screen_area= projectionArea;
@@ -1963,10 +1913,6 @@ static bool computeTrackerRelativeLightBarPose(
 {
 	assert(tracking_shape->shape_type == eCommonTrackingShapeType::LightBar);
     assert(projection->shape_type == eCommonTrackingProjectionType::ProjectionType_LightBar);
-
-    // Get the pixel width and height of the tracker image
-    int pixelWidth, pixelHeight;
-    tracker_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
 
     bool bValidTrackerPose= true;
     std::vector<cv::Point2f> cvImagePoints;
