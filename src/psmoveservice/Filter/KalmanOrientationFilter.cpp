@@ -336,7 +336,7 @@ public:
 
 		// Use the orientation from the state for prediction
 		const Eigen::Quaterniond error_orientation = x.get_error_quaterniond();
-		const Eigen::Quaterniond world_to_local_orientation = eigen_quaternion_concatenate(m_last_world_orientation, error_orientation);
+		const Eigen::Quaterniond world_to_local_orientation = eigen_quaternion_concatenate(m_last_world_orientation, error_orientation).normalized();
 
 		// Use the current orientation from the state to predict
 		// what the accelerometer reading will be (in the space of the controller)
@@ -432,7 +432,7 @@ public:
 
 		// Use the orientation from the state for prediction
 		const Eigen::Quaterniond error_orientation = x.get_error_quaterniond();
-		const Eigen::Quaterniond world_to_local_orientation = eigen_quaternion_concatenate(m_last_world_orientation, error_orientation);
+		const Eigen::Quaterniond world_to_local_orientation = eigen_quaternion_concatenate(m_last_world_orientation, error_orientation).normalized();
 		const Eigen::EulerAnglesd euler_angles = eigen_quaterniond_to_euler_angles(world_to_local_orientation);
 		const double heading_angle = euler_angles.get_heading_radians();
 

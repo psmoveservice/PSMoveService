@@ -381,6 +381,12 @@ public:
 						controller_view->clearLEDOverride();
 					}
 
+					// If this connection had ROI disabled, pop the ROI supression request
+					if (streamInfo.disable_roi)
+					{
+						controller_view->popDisableROI();
+					}
+
 					// Halt any controller tracking this connection had going on
 					if (streamInfo.include_position_data)
 					{
@@ -403,6 +409,12 @@ public:
 			{
 				const HMDStreamInfo &streamInfo = connection_state->active_hmd_stream_info[hmd_id];
 				ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+				// Undo the ROI suppression
+				if (streamInfo.disable_roi)
+				{
+					m_device_manager.getHMDViewPtr(hmd_id)->popDisableROI();
+				}
 
 				// Halt any hmd tracking this connection had going on
 				if (streamInfo.include_position_data)
@@ -685,6 +697,7 @@ protected:
                 streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
                 streamInfo.include_calibrated_sensor_data = request.include_calibrated_sensor_data();
                 streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
+				streamInfo.disable_roi = request.disable_roi();
 
 				SERVER_LOG_INFO("ServerRequestHandler") << "Start controller(" << controller_id << ") stream ("
 					<< "pos=" << streamInfo.include_position_data
@@ -692,12 +705,18 @@ protected:
 					<< ",raw_sens=" << streamInfo.include_raw_sensor_data
 					<< ",cal_sens=" << streamInfo.include_calibrated_sensor_data
 					<< ",trkr=" << streamInfo.include_raw_tracker_data
+					<< ",roi=" << streamInfo.disable_roi
 					<< ")";
 
                 if (streamInfo.include_position_data)
                 {
                     controller_view->startTracking();
                 }
+
+				if (streamInfo.disable_roi)
+				{
+					controller_view->pushDisableROI();
+				}
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -726,6 +745,11 @@ protected:
 
             if (controller_view->getIsBluetooth())
             {
+				if (streamInfo.disable_roi)
+				{
+					controller_view->popDisableROI();
+				}
+
                 if (streamInfo.include_position_data)
                 {
                     controller_view->stopTracking();
@@ -2108,6 +2132,7 @@ protected:
 				streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
 				streamInfo.include_calibrated_sensor_data = request.include_calibrated_sensor_data();
 				streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
+				streamInfo.disable_roi = request.disable_roi();
 
 				SERVER_LOG_INFO("ServerRequestHandler") << "Start hmd(" << hmd_id << ") stream ("
 					<< "pos=" << streamInfo.include_position_data
@@ -2115,7 +2140,15 @@ protected:
 					<< ",raw_sens=" << streamInfo.include_raw_sensor_data
 					<< ",cal_sens=" << streamInfo.include_calibrated_sensor_data
 					<< ",trkr=" << streamInfo.include_raw_tracker_data
+					<< ",roi=" << streamInfo.disable_roi
 					<< ")";
+
+				if (streamInfo.disable_roi)
+				{
+					ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+					hmd_view->pushDisableROI();
+				}
 
 				if (streamInfo.include_position_data)
 				{
@@ -2152,6 +2185,12 @@ protected:
             if (hmd_view->getIsOpen())
             {
 				const HMDStreamInfo &streamInfo = context.connection_state->active_hmd_stream_info[hmd_id];
+
+				if (streamInfo.disable_roi)
+				{
+					hmd_view->popDisableROI();
+				}
+
 				if (streamInfo.include_position_data)
 				{
 					hmd_view->stopTracking();

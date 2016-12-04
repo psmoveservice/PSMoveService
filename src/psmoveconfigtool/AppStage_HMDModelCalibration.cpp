@@ -470,27 +470,6 @@ void AppStage_HMDModelCalibration::render()
 			// Draw the video from the PoV of the current tracker
 			render_tracker_video();
 
-			// Draw the projection shape of the controller in the pov of the current tracker being rendered
-			{
-				const MorpheusRawTrackerData &RawTrackerData = m_hmdView->GetRawTrackerData();
-				const int TrackerID = TrackerView->getTrackerId();
-
-				PSMoveTrackingProjection trackingProjection;
-				PSMoveScreenLocation centerProjection;
-
-				if (m_hmdView->GetIsCurrentlyTracking() &&
-					RawTrackerData.GetPixelLocationOnTrackerId(TrackerID, centerProjection) &&
-					RawTrackerData.GetProjectionOnTrackerId(TrackerID, trackingProjection))
-				{
-					const PSMoveFloatVector2 screenSize = TrackerView->getTrackerInfo().tracker_screen_dimensions;
-
-					drawTrackingProjection(
-						&centerProjection,
-						&trackingProjection,
-						screenSize.i, screenSize.j);
-				}
-			}
-
 			// Draw the current state of the HMD model being generated
 			m_hmdModelState->render(TrackerView);
 		}
@@ -1009,7 +988,10 @@ void AppStage_HMDModelCalibration::request_start_hmd_stream(int HmdID)
 	ClientPSMoveAPI::register_callback(
 		ClientPSMoveAPI::start_hmd_data_stream(
 			m_hmdView,
-			ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includeCalibratedSensorData | ClientPSMoveAPI::includeRawTrackerData),
+			ClientPSMoveAPI::includePositionData | 
+			ClientPSMoveAPI::includeCalibratedSensorData | 
+			ClientPSMoveAPI::includeRawTrackerData |
+			ClientPSMoveAPI::disableROI),
 		AppStage_HMDModelCalibration::handle_start_hmd_response, this);
 }
 
@@ -1351,13 +1333,6 @@ static bool triangulateHMDProjections(
 		const int point_countA = trackingProjectionA.shape.pointcloud.point_count;
 		const int point_countB = trackingProjectionB.shape.pointcloud.point_count;
 
-		// Convert the tracker screen locations in CommonDeviceScreenLocation space
-		// i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
-		// into OpenCV pixel space
-		// i.e. [0, 0]x[frameWidth, frameHeight]
-		PSMoveFloatVector2 screenASize = TrackerViewA->getTrackerPixelExtents();
-		PSMoveFloatVector2 screenBSize = TrackerViewB->getTrackerPixelExtents();
-
 		// See: http://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html
 		cv::Mat projMatA = cv::Mat(computeOpenCVCameraPinholeMatrix(TrackerViewA));
 		cv::Mat projMatB = cv::Mat(computeOpenCVCameraPinholeMatrix(TrackerViewB));
@@ -1374,13 +1349,13 @@ static bool triangulateHMDProjections(
 		for (int point_indexA = 0; point_indexA < point_countA; ++point_indexA)
 		{
 			const PSMoveScreenLocation &pointA = pointsA[point_indexA];
-			const cv::Mat cvPointA = cv::Mat(cv::Point2f(pointA.x + (screenASize.i / 2), pointA.y + (screenASize.j / 2)));
+			const cv::Mat cvPointA = cv::Mat(cv::Point2f(pointA.x, pointA.y));
 
 			for (auto it = pointBIndices.begin(); it != pointBIndices.end(); )
 			{
 				const int point_indexB = *it;
 				const PSMoveScreenLocation &pointB = pointsB[point_indexB];
-				cv::Mat cvPointB = cv::Mat(cv::Point2f(pointB.x + (screenASize.i / 2), pointB.y + (screenASize.j / 2)));
+				cv::Mat cvPointB = cv::Mat(cv::Point2f(pointB.x, pointB.y));
 
 				if (tracker_pair_state->do_points_correspond(cvPointA, cvPointB, tracker_pair_state->tolerance))
 				{
@@ -1417,8 +1392,6 @@ static PSMoveScreenLocation projectWorldPositionOnTracker(
 	const PSMovePosition &worldSpacePosition,
 	const ClientTrackerView *trackerView)
 {
-	PSMoveScreenLocation screenLocation;
-
 	// Assume no distortion
 	// TODO: Probably should get the distortion coefficients out of the tracker
 	cv::Mat cvDistCoeffs(4, 1, cv::DataType<float>::type);
@@ -1449,16 +1422,7 @@ static PSMoveScreenLocation projectWorldPositionOnTracker(
 	std::vector<cv::Point2f> projectedPoints;
 	cv::projectPoints(cvObjectPoints, rvec, tvec, cvCameraMatrix, cvDistCoeffs, projectedPoints);
 
-	// cv::projectPoints() returns position in pixel coordinates where:
-	//  (0, 0) is the lower left of the screen and +y is pointing up
-	// Convert this to CommonDeviceScreenLocation space where:
-	//  (0, 0) in the center of the screen with +y is pointing up
-	{
-		PSMoveFloatVector2 screenSize = trackerView->getTrackerPixelExtents();
-
-		screenLocation.x = projectedPoints[0].x - (screenSize.i / 2);
-		screenLocation.y = projectedPoints[0].y - (screenSize.j / 2);
-	}
+	PSMoveScreenLocation screenLocation = PSMoveScreenLocation::create(projectedPoints[0].x, projectedPoints[1].y);
 
 	return screenLocation;
 }

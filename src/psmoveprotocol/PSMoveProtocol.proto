@@ -163,6 +163,7 @@ message Request {
         bool include_raw_sensor_data= 4;
         bool include_calibrated_sensor_data= 5;        
         bool include_raw_tracker_data= 6;
+        bool disable_roi= 7;
     }
     RequestStartPSMoveDataStream request_start_psmove_data_stream = 4;
 
@@ -378,7 +379,8 @@ message Request {
         bool include_physics_data= 3;
         bool include_raw_sensor_data= 4;
         bool include_calibrated_sensor_data= 5;        
-        bool include_raw_tracker_data= 6;      
+        bool include_raw_tracker_data= 6;
+        bool disable_roi= 7;
     }
     RequestStartHmdDataStream request_start_hmd_data_stream = 31;
 

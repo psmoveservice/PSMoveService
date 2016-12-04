@@ -560,133 +560,6 @@ void drawFullscreenTexture(const unsigned int texture_id)
     glPopMatrix();
 }
 
-void drawTrackingProjection(
-    const PSMoveScreenLocation *centerProjection,
-    const PSMoveTrackingProjection *shapeProjection,
-    float trackerWidth, 
-    float trackerHeight)
-{
-    assert(Renderer::getIsRenderingStage());
-
-    // Clear the depth buffer to allow overdraw 
-    glClear(GL_DEPTH_BUFFER_BIT);
-
-    // Save a backup of the projection matrix 
-    // and replace with a projection that maps the tracker image coordinates over the whole screen
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(-trackerWidth / 2.f, trackerWidth / 2.f, -trackerHeight / 2.f, trackerHeight / 2.f, 1.0f, -1.0f);
-
-    // Save a backup of the modelview matrix and replace with the identity matrix
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-
-    // Draw a small "+" where the center of the projection lies
-    glLineWidth(2.f);
-    glBegin(GL_LINES);
-        glColor3f(1.f, 1.f, 1.f);
-        glVertex3f(centerProjection->x-5.f, centerProjection->y, 0.5f); 
-        glVertex3f(centerProjection->x+5.f, centerProjection->y, 0.5f);
-        glVertex3f(centerProjection->x, centerProjection->y+5.f, 0.5f); 
-        glVertex3f(centerProjection->x, centerProjection->y-5.f, 0.5f);
-    glEnd();
-
-    glLineWidth(2.f);
-    switch (shapeProjection->shape_type)
-    {
-    case PSMoveTrackingProjection::eShapeType::Ellipse:
-        {
-            const int subdiv = 64;
-            const float angleStep = k_real_two_pi / static_cast<float>(subdiv);
-
-            const float x_extent = shapeProjection->shape.ellipse.half_x_extent;
-            const float y_extent = shapeProjection->shape.ellipse.half_y_extent;
-            const float rot_angle = shapeProjection->shape.ellipse.angle;
-
-            glm::vec3 x_axis(cosf(rot_angle), sinf(rot_angle), 0.f);
-            glm::vec3 y_axis(sinf(rot_angle), -cosf(rot_angle), 0.f);
-            glm::vec3 center(shapeProjection->shape.ellipse.center.x, shapeProjection->shape.ellipse.center.y, 0.5f);
-
-            float angle = 0.f;
-            glBegin(GL_LINE_STRIP);
-            glColor3f(1.f, 1.f, 1.f);
-            for (int index = 0; index <= subdiv; ++index)
-            {
-                glm::vec3 point = 
-                    x_axis*x_extent*cosf(angle)
-                    + y_axis*y_extent*sinf(angle)
-                    + center;
-
-                glVertex3fv(glm::value_ptr(point));
-                angle += angleStep;
-            }
-            glEnd();
-        } break;
-    case PSMoveTrackingProjection::eShapeType::LightBar:
-        {
-            const PSMoveScreenLocation *triangle = shapeProjection->shape.lightbar.triangle;
-            const PSMoveScreenLocation *quad = shapeProjection->shape.lightbar.quad;
-            
-            glBegin(GL_LINE_STRIP);
-            glColor3f(1.f, 0.f, 0.f);
-            glVertex3f(triangle[0].x, triangle[0].y, 0.5f);
-            glColor3f(0.f, 1.f, 0.f);
-            glVertex3f(triangle[1].x, triangle[1].y, 0.5f);
-            glColor3f(0.f, 0.f, 1.f);
-            glVertex3f(triangle[2].x, triangle[2].y, 0.5f); 
-            glColor3f(1.f, 0.f, 0.f);
-            glVertex3f(triangle[0].x, triangle[0].y, 0.5f);
-            glEnd();
-
-            glBegin(GL_LINE_STRIP);
-            glColor3f(1.f, 0.f, 0.f);
-            glVertex3f(quad[0].x, quad[0].y, 0.5f);
-            glColor3f(0.f, 1.f, 0.f);
-            glVertex3f(quad[1].x, quad[1].y, 0.5f);
-            glColor3f(0.f, 0.f, 1.f);
-            glVertex3f(quad[2].x, quad[2].y, 0.5f);
-            glColor3f(1.f, 1.f, 0.f);
-            glVertex3f(quad[3].x, quad[3].y, 0.5f);
-            glColor3f(1.f, 0.f, 0.f);
-            glVertex3f(quad[0].x, quad[0].y, 0.5f);
-            glEnd();
-        } break;
-
-	case PSMoveTrackingProjection::eShapeType::PointCloud:
-		{
-			const PSMoveScreenLocation *points = shapeProjection->shape.pointcloud.points;
-			const int point_count = shapeProjection->shape.pointcloud.point_count;
-
-			// Draw a small red "+" for the center of mass in each tracking blob center
-			for (int point_index = 0; point_index < point_count; ++point_index)
-			{
-				const PSMoveScreenLocation *point = &points[point_index];
-
-				glLineWidth(2.f);
-				glBegin(GL_LINES);
-				glColor3f(1.f, 0.f, 0.f);
-				glVertex3f(point->x - 5.f, point->y, 0.5f);
-				glVertex3f(point->x + 5.f, point->y, 0.5f);
-				glVertex3f(point->x, point->y + 5.f, 0.5f);
-				glVertex3f(point->x, point->y - 5.f, 0.5f);
-				glEnd();
-			}
-		} break;
-    }
-
-    glLineWidth(1.f);
-
-    // Restore the projection matrix
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-
-    // Restore the modelview matrix
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-}
-
 void drawPointCloudProjection(
 	const struct PSMoveScreenLocation *points,
 	const int point_count, 
@@ -705,7 +578,7 @@ void drawPointCloudProjection(
 	glMatrixMode(GL_PROJECTION);
 	glPushMatrix();
 	glLoadIdentity();
-	glOrtho(-trackerWidth / 2.f, trackerWidth / 2.f, -trackerHeight / 2.f, trackerHeight / 2.f, 1.0f, -1.0f);
+	glOrtho(0.f, trackerWidth - 1.f, trackerHeight - 1.f, 0.f, 1.0f, -1.0f);
 
 	// Save a backup of the modelview matrix and replace with the identity matrix
 	glMatrixMode(GL_MODELVIEW);
