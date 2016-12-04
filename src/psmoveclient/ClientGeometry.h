@@ -116,7 +116,7 @@ struct PSM_CPP_PUBLIC_CLASS PSMovePosition
     PSMovePosition operator * (const float s) const;
 };
 
-/// A screen location in the space [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]    
+/// A screen location in the space upper left:[0, 0] -> lower right[frameWidth-1, frameHeight-1]
 struct PSM_CPP_PUBLIC_CLASS PSMoveScreenLocation
 {
     float x, y;

@@ -553,7 +553,7 @@ list(APPEND UNIT_TEST_SRC
     ${ROOT_DIR}/src/psmovemath/MathEigen.cpp	
     ${ROOT_DIR}/src/psmovemath/MathUtility.h
     ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
-	${ROOT_DIR}/src/tests/math_alignment_unit_tests.cpp
+    ${ROOT_DIR}/src/tests/math_alignment_unit_tests.cpp
     ${ROOT_DIR}/src/tests/math_eigen_unit_tests.cpp
     ${ROOT_DIR}/src/tests/math_utility_unit_tests.cpp
     ${ROOT_DIR}/src/tests/unit_test.h)
@@ -570,3 +570,21 @@ LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
 ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
+
+
+#
+# Test hidapi in MacOS Sierra
+#
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+add_executable(test_hidapi_sierra
+    ${CMAKE_CURRENT_LIST_DIR}/test_hidapi_sierra.cpp
+    ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)
+target_include_directories(test_hidapi_sierra
+    PUBLIC
+    ${ROOT_DIR}/thirdparty/hidapi/hidapi)
+    #/usr/local/opt/hidapi/include/hidapi
+target_link_libraries(test_hidapi_sierra ${PLATFORM_LIBS})
+#target_link_libraries(test_hidapi_sierra /usr/local/opt/hidapi/lib/libhidapi.dylib)
+SET_TARGET_PROPERTIES(test_hidapi_sierra PROPERTIES FOLDER Test)
+ENDIF()
+>>>>>>> master

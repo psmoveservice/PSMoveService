@@ -4,6 +4,7 @@
 //-- includes -----
 #include "ServerDeviceView.h"
 #include "PSMoveProtocolInterface.h"
+#include <vector>
 
 // -- pre-declarations -----
 namespace PSMoveProtocol
@@ -66,14 +67,17 @@ public:
 		const class ServerHMDView* tracked_hmd,
 		const CommonDevicePose *tracker_pose_guess,
 		struct HMDOpticalPoseEstimation *out_pose_estimate);
-
+    
+    std::vector<CommonDeviceScreenLocation> projectTrackerRelativePositions(
+                                const std::vector<CommonDevicePosition> &objectPositions) const;
+    
     CommonDeviceScreenLocation projectTrackerRelativePosition(const CommonDevicePosition *trackerRelativePosition) const;
     
-    CommonDevicePosition computeWorldPosition(const CommonDevicePosition *tracker_relative_position);
-    CommonDeviceQuaternion computeWorldOrientation(const CommonDeviceQuaternion *tracker_relative_orientation);
+    CommonDevicePosition computeWorldPosition(const CommonDevicePosition *tracker_relative_position) const;
+    CommonDeviceQuaternion computeWorldOrientation(const CommonDeviceQuaternion *tracker_relative_orientation) const;
 
-    CommonDevicePosition computeTrackerPosition(const CommonDevicePosition *world_relative_position);
-    CommonDeviceQuaternion computeTrackerOrientation(const CommonDeviceQuaternion *world_relative_orientation);
+    CommonDevicePosition computeTrackerPosition(const CommonDevicePosition *world_relative_position) const;
+    CommonDeviceQuaternion computeTrackerOrientation(const CommonDeviceQuaternion *world_relative_orientation) const;
 
     /// Given a single screen location on two different trackers, compute the triangulated world space location
     static CommonDevicePosition triangulateWorldPosition(
