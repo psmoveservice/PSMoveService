@@ -130,7 +130,7 @@ struct CommonDevicePosition
     }
 };
 
-/// A screen location in the space [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]    
+/// A screen location in the space upper left:[0, 0] -> lower right[frameWidth-1, frameHeight-1]  
 struct CommonDeviceScreenLocation
 {
     float x, y;
@@ -353,6 +353,7 @@ struct CommonDeviceTrackingShape
 
 		struct {
 			CommonDevicePosition point[MAX_POINT_CLOUD_POINT_COUNT];
+			int point_count;
 		} point_cloud;
     } shape;
 
@@ -389,6 +390,12 @@ struct CommonDeviceTrackingProjection
 
     float screen_area; // area in pixels^2
     eCommonTrackingProjectionType shape_type;
+    
+    struct {
+        CommonDeviceScreenLocation center_of_mass;
+        CommonDeviceScreenLocation bounding_rect[4];
+        float area;
+    } basic;
 };
 
 /// Abstract base class for any device interface. Further defined in specific device abstractions.
@@ -520,10 +527,10 @@ public:
     virtual void loadSettings() = 0;
     virtual void saveSettings() = 0;
 
-    virtual void setExposure(double value) = 0;
+    virtual void setExposure(double value, bool bUpdateConfig) = 0;
     virtual double getExposure() const = 0;
 
-	virtual void setGain(double value) = 0;
+	virtual void setGain(double value, bool bUpdateConfig) = 0;
 	virtual double getGain() const = 0;
 
     virtual void getCameraIntrinsics(

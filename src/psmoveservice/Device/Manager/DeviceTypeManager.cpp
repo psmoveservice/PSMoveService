@@ -129,12 +129,12 @@ DeviceTypeManager::update_connected_devices()
                 // New controller connected case
                 else
                 {
-                    int device_id = find_first_closed_device_device_id();
+                    int device_id_ = find_first_closed_device_device_id();
 
-                    if (device_id != -1)
+                    if (device_id_ != -1)
                     {
                         // Fetch the controller from it's existing controller slot
-                        ServerDeviceViewPtr availableDeviceView = getDeviceViewPtr(device_id);
+                        ServerDeviceViewPtr availableDeviceView = getDeviceViewPtr(device_id_);
 
                         // Attempt to open the device
                         if (availableDeviceView->open(enumerator))
@@ -143,10 +143,10 @@ DeviceTypeManager::update_connected_devices()
                                 CommonDeviceState::getDeviceTypeString(availableDeviceView->getDevice()->getDeviceType());
 
                             SERVER_LOG_INFO("DeviceTypeManager::update_connected_devices") <<
-                                "Device device_id " << device_id << " (" << device_type_name << ") opened";
+                                "Device device_id " << device_id_ << " (" << device_type_name << ") opened";
 
                             // Mark the device as having showed up in the enumerator
-                            exists_in_enumerator[device_id] = true;
+                            exists_in_enumerator[device_id_] = true;
 
                             // Send notificiation to clients that a new device was added
                             bSendControllerUpdatedNotification = true;
@@ -154,7 +154,7 @@ DeviceTypeManager::update_connected_devices()
                         else
                         {
                             SERVER_LOG_ERROR("DeviceTypeManager::update_connected_devices") << 
-                                "Device device_id " << device_id << " (" << enumerator->get_path() << ") failed to open!";
+                                "Device device_id " << device_id_ << " (" << enumerator->get_path() << ") failed to open!";
                         }
                     }
                     else

@@ -46,9 +46,11 @@ protected:
     void close_shared_memory_stream();
     
 private:
-    enum eTrackerMenuState
+    enum eMenuState
     {
         inactive,
+		showWarning,
+		enterBoardSettings,
         capture,
         complete,
 
@@ -70,8 +72,11 @@ private:
     };
 
     // Menu state
-    eTrackerMenuState m_menuState;
+    eMenuState m_menuState;
     eVideoDisplayMode m_videoDisplayMode;
+
+	// Board Settings
+	float m_square_length_mm;
 
     // Tracker Settings state
     float m_trackerExposure;

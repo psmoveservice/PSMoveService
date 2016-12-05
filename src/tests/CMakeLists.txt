@@ -372,6 +372,7 @@ list(APPEND TEST_CLIENT_SRC
 add_executable(test_console_client test_console_client.cpp ${TEST_CLIENT_SRC})
 target_include_directories(test_console_client PUBLIC ${TEST_CLIENT_INCL_DIRS})
 target_link_libraries(test_console_client PSMoveClient)
+target_compile_definitions(test_console_client PRIVATE PSMOVECLIENT_CPP_API)
 SET_TARGET_PROPERTIES(test_console_client PROPERTIES FOLDER Test)
 
 # Install    
@@ -380,6 +381,22 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
         LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
         ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+ELSE() #Linux/Darwin
+ENDIF()
+
+#
+# TEST_CONSOLE_CAPI
+#
+add_executable(test_console_CAPI test_console_CAPI.cpp)
+target_include_directories(test_console_CAPI PUBLIC ${ROOT_DIR}/src/psmoveclient/)
+target_link_libraries(test_console_CAPI PSMoveClient_CAPI)
+SET_TARGET_PROPERTIES(test_console_CAPI PROPERTIES FOLDER Test)
+# Install
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS test_console_CAPI
+    RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+    LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+    ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
 ENDIF()
 
@@ -536,7 +553,7 @@ list(APPEND UNIT_TEST_SRC
     ${ROOT_DIR}/src/psmovemath/MathEigen.cpp	
     ${ROOT_DIR}/src/psmovemath/MathUtility.h
     ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
-	${ROOT_DIR}/src/tests/math_alignment_unit_tests.cpp
+    ${ROOT_DIR}/src/tests/math_alignment_unit_tests.cpp
     ${ROOT_DIR}/src/tests/math_eigen_unit_tests.cpp
     ${ROOT_DIR}/src/tests/math_utility_unit_tests.cpp
     ${ROOT_DIR}/src/tests/unit_test.h)
@@ -552,4 +569,21 @@ RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
 LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
 ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
+ENDIF()
+
+
+#
+# Test hidapi in MacOS Sierra
+#
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+add_executable(test_hidapi_sierra
+    ${CMAKE_CURRENT_LIST_DIR}/test_hidapi_sierra.cpp
+    ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)
+target_include_directories(test_hidapi_sierra
+    PUBLIC
+    ${ROOT_DIR}/thirdparty/hidapi/hidapi)
+    #/usr/local/opt/hidapi/include/hidapi
+target_link_libraries(test_hidapi_sierra ${PLATFORM_LIBS})
+#target_link_libraries(test_hidapi_sierra /usr/local/opt/hidapi/lib/libhidapi.dylib)
+SET_TARGET_PROPERTIES(test_hidapi_sierra PROPERTIES FOLDER Test)
 ENDIF()

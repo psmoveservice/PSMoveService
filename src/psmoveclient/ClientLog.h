@@ -2,7 +2,7 @@
 #define CLIENT_LOG_H
 
 //-- includes -----
-#include "ClientConfig.h"
+#include "PSMoveClient_export.h"
 #include <streambuf>
 #include <ostream>
 #include <iostream>
@@ -45,12 +45,12 @@ private:
 };
 
 //-- externs -----
-CLIENTPSMOVEAPI extern std::ostream g_normal_logger;
-CLIENTPSMOVEAPI extern NullStream<char> g_null_logger;
+PSM_CPP_PUBLIC_CLASS extern std::ostream g_normal_logger;
+PSM_CPP_PUBLIC_CLASS extern NullStream<char> g_null_logger;
 
 //-- interface -----
-void log_init(e_log_severity_level level);
-CLIENTPSMOVEAPI bool log_can_emit_level(e_log_severity_level level);
+PSM_CPP_PRIVATE_FUNCTION(void) log_init(e_log_severity_level level);
+PSM_CPP_PUBLIC_FUNCTION(bool) log_can_emit_level(e_log_severity_level level);
 
 //-- macros -----
 #define SELECT_LOG_STREAM(level) (log_can_emit_level(level) ? g_normal_logger : g_null_logger)

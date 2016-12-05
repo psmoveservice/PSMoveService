@@ -610,7 +610,7 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
         {
         case ClientControllerView::PSMove:
 			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSMove(%d)\n", controller_id);
-            AllocateUniquePSMoveController(controller_id, response_handle);
+            AllocateUniquePSMoveController(controller_id, list_index, response_handle);
             break;
         case ClientControllerView::PSNavi:
 			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSNavi(%d)\n", controller_id);
@@ -664,7 +664,7 @@ static void GenerateControllerSerialNumber( char *p, int psize, int controller )
 }
 
 
-void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerID,	const ClientPSMoveAPI::t_response_handle response_handle)
+void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerID, int ControllerListIndex,	const ClientPSMoveAPI::t_response_handle response_handle)
 {
 	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
     char buf[256];
@@ -672,7 +672,7 @@ void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerI
 
     if ( !FindTrackedDeviceDriver(buf) )
     {
-		const auto &ControllerResponse = response->result_controller_list().controllers(ControllerID);
+		const auto &ControllerResponse = response->result_controller_list().controllers(ControllerListIndex);
 		std::string serialNo = ControllerResponse.device_serial();
 		serialNo = boost::to_upper_copy<std::string>(serialNo.c_str());
 

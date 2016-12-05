@@ -95,12 +95,19 @@ eigen_alignment_compute_ellipse_fit_error(
     const Eigen::Vector2f *points, const int point_count,
     const EigenFitEllipse &ellipsoid);
 
+void
+eigen_alignment_project_ellipse(Eigen::Vector3f *sphere_center,
+                                float k,
+                                float focal_length_proj,
+                                float zz,
+                                EigenFitEllipse *out_ellipse_projection);
+
 // Method of cboulay
 void
 eigen_alignment_fit_focal_cone_to_sphere(
     const EigenFitEllipse &ellipse_projection,
     const float sphere_radius,
-    const float camera_focal_length,
+    const float focal_length_pts,
     Eigen::Vector3f *out_sphere_center);
 
 // Method of Doc_ok
@@ -109,7 +116,7 @@ eigen_alignment_fit_focal_cone_to_sphere(
     const Eigen::Vector2f *points,
     const int point_count,
     const float sphere_radius,
-    const float camera_focal_length, // a.k.a. "f_px"
+    const float focal_length_pts, // a.k.a. "f_px"
     Eigen::Vector3f *out_sphere_center,
     EigenFitEllipse *out_ellipse_projection= nullptr);
 

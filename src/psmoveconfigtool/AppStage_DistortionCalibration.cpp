@@ -40,10 +40,11 @@ static const char *k_video_display_mode_names[] = {
     "Undistorted"
 };
 
-#define PATTERN_W 7 // Internal corners
-#define PATTERN_H 9
+#define PATTERN_W 9 // Internal corners
+#define PATTERN_H 6
 #define CORNER_COUNT (PATTERN_W*PATTERN_H)
-#define DESIRED_CAPTURE_BOARD_COUNT 20
+#define DEFAULT_SQUARE_LEN_MM 24
+#define DESIRED_CAPTURE_BOARD_COUNT 12
 
 #define BOARD_MOVED_PIXEL_DIST 5
 #define BOARD_MOVED_ERROR_SUM BOARD_MOVED_PIXEL_DIST*CORNER_COUNT
@@ -106,7 +107,6 @@ public:
         lastValidImagePoints.clear();
         quadList.clear();
         imagePointsList.clear();
-        objectPointsList.clear();
     }
 
     void resetCalibrationState()
@@ -155,8 +155,9 @@ public:
             cv::INTER_LINEAR, cv::BORDER_CONSTANT);
     }
 
-    void findAndAppendNewChessBoard()
+    void findAndAppendNewChessBoard(bool appWantsAppend)
     {
+        
         if (capturedBoardCount < DESIRED_CAPTURE_BOARD_COUNT)
         {
             std::vector<cv::Point2f> new_image_points;
@@ -184,7 +185,6 @@ public:
                 if (new_image_points.size() == CORNER_COUNT) 
                 {
                     bCurrentImagePointsValid= false;
-
                     // See if the board is stationary (didn't move much since last frame)
                     if (currentImagePoints.size() > 0)
                     {
@@ -201,6 +201,7 @@ public:
                     }
                     else
                     {
+                        // We don't have previous capture.
                         bCurrentImagePointsValid= true;
                     }
 
@@ -228,21 +229,8 @@ public:
                     }
 
                     // If it's a valid new location, append it to the board list
-                    if (bCurrentImagePointsValid)
+                    if (bCurrentImagePointsValid && appWantsAppend)
                     {
-                        // Generate the object points for each corner of the board
-                        std::vector<cv::Point3f> new_object_points;
-
-                        for (int corner_index = 0; corner_index < CORNER_COUNT; ++corner_index) 
-                        {
-                            cv::Point3f object_point(
-                                static_cast<float>(corner_index) / static_cast<float>(PATTERN_W),
-                                static_cast<float>(corner_index % PATTERN_W),
-                                0.f);
-
-                            new_object_points.push_back(object_point);
-                        }
-
                         // Keep track of the corners of all of the chessboards we sample
                         quadList.push_back(new_image_points[0]);
                         quadList.push_back(new_image_points[PATTERN_W - 1]);
@@ -251,7 +239,6 @@ public:
 
                         // Append the new images points and object points
                         imagePointsList.push_back(new_image_points);
-                        objectPointsList.push_back(new_object_points);
 
                         // Remember the last valid captured points
                         lastValidImagePoints= currentImagePoints;
@@ -304,12 +291,18 @@ public:
         return fabsf(safe_divide_with_default(area, line_length, 0.f));
     }
 
-    bool computeCameraCalibration()
+    bool computeCameraCalibration(const float square_length_mm)
     {
         bool bSuccess= false;
 
         if (capturedBoardCount >= DESIRED_CAPTURE_BOARD_COUNT)
         {
+            // Only need to calculate objectPointsList once,
+            // then resize for each set of image points.
+            std::vector<std::vector<cv::Point3f> > objectPointsList(1);
+            calcBoardCornerPositions(square_length_mm, objectPointsList[0]);
+            objectPointsList.resize(imagePointsList.size(), objectPointsList[0]);
+            
             // Compute the camera intrinsic matrix and distortion parameters
             reprojectionError= 
                 cv::calibrateCamera(
@@ -340,6 +333,19 @@ public:
             CV_32FC1, // Distortion map type
             *distortionMapX, *distortionMapY);
     }
+    
+    void calcBoardCornerPositions(const float square_length_mm, std::vector<cv::Point3f>& corners)
+    {
+        corners.clear();
+        
+        for( int i = 0; i < PATTERN_H; ++i )
+        {
+            for( int j = 0; j < PATTERN_W; ++j )
+            {
+                corners.push_back(cv::Point3f(float(j*square_length_mm), float(i*square_length_mm), 0.f));
+            }
+        }
+    }
 
     const ClientTrackerInfo &trackerInfo;
     int frameWidth;
@@ -358,7 +364,6 @@ public:
     bool bCurrentImagePointsValid;
     std::vector<cv::Point2f> quadList;
     std::vector<std::vector<cv::Point2f>> imagePointsList;
-    std::vector<std::vector<cv::Point3f>> objectPointsList;
 
     // Calibration state
     double reprojectionError;
@@ -374,13 +379,14 @@ public:
 AppStage_DistortionCalibration::AppStage_DistortionCalibration(App *app)
     : AppStage(app)
     , m_menuState(AppStage_DistortionCalibration::inactive)
+    , m_videoDisplayMode(AppStage_DistortionCalibration::eVideoDisplayMode::mode_bgr)
+	, m_square_length_mm(DEFAULT_SQUARE_LEN_MM)
     , m_trackerExposure(0.0)
     , m_trackerGain(0.0)
     , m_bStreamIsActive(false)
     , m_tracker_view(nullptr)
     , m_video_texture(nullptr)
     , m_opencv_state(nullptr)
-    , m_videoDisplayMode(AppStage_DistortionCalibration::eVideoDisplayMode::mode_bgr)
 { }
 
 void AppStage_DistortionCalibration::enter()
@@ -395,12 +401,10 @@ void AppStage_DistortionCalibration::enter()
     assert(m_tracker_view == nullptr);
     m_tracker_view= ClientPSMoveAPI::allocate_tracker_view(*trackerInfo);
 
-    // Crank up the exposure and gain so that we can see the chessboard
-    request_tracker_set_temp_exposure(255.f);
-    request_tracker_set_temp_gain(128.f);
+	m_square_length_mm = DEFAULT_SQUARE_LEN_MM;
 
-    assert(!m_bStreamIsActive);
-    request_tracker_start_stream();
+	assert(!m_bStreamIsActive);
+	request_tracker_start_stream();
 }
 
 void AppStage_DistortionCalibration::exit()
@@ -455,16 +459,44 @@ void AppStage_DistortionCalibration::update()
 
             if (m_menuState == AppStage_DistortionCalibration::capture)
             {
+                
                 // Update the chess board capture state
-                m_opencv_state->findAndAppendNewChessBoard();
+                ImGuiIO io_state = ImGui::GetIO();
+                m_opencv_state->findAndAppendNewChessBoard(io_state.KeysDown[32]);
 
                 if (m_opencv_state->capturedBoardCount >= DESIRED_CAPTURE_BOARD_COUNT)
                 {
+                    
+                    m_opencv_state->computeCameraCalibration(m_square_length_mm); //Will update intrinsic_matrix and distortion_coeffs
                     cv::Mat *intrinsic_matrix= m_opencv_state->intrinsic_matrix;
                     cv::Mat *distortion_coeffs= m_opencv_state->distortion_coeffs;
-
-                    m_opencv_state->computeCameraCalibration();
-
+                    
+                    
+                    float frameWidth= static_cast<float>(m_opencv_state->frameWidth);
+                    float frameHeight= static_cast<float>(m_opencv_state->frameHeight);
+                    
+//                    double apertureWidthmm = 3.984;
+//                    double apertureHeightmm = 2.952;
+//                    double fovX;
+//                    double fovY;
+//                    double focalLength;
+//                    double aspectRatio;
+//                    cv::Point2d principalPoint;
+//                    cv::calibrationMatrixValues(*intrinsic_matrix,
+//                                                cv::Size(frameWidth, frameHeight),
+//                                                apertureWidthmm,
+//                                                apertureHeightmm,
+//                                                fovX,
+//                                                fovY,
+//                                                focalLength,
+//                                                principalPoint,
+//                                                aspectRatio);
+//                    std::cout << "fovX: " << fovX << "; fovY: " << fovY;
+//                    std::cout << "; focalLength: " << focalLength;
+//                    std::cout << "; aspectRatio: " << aspectRatio;
+//                    std::cout << "; principalPoint: " << principalPoint.x << ", " << principalPoint.y;
+//                    std::cout << std::endl;
+                    
                     const float f_x= static_cast<float>(intrinsic_matrix->at<double>(0, 0));
                     const float f_y= static_cast<float>(intrinsic_matrix->at<double>(1, 1));
                     const float p_x= static_cast<float>(intrinsic_matrix->at<double>(0, 2));
@@ -475,6 +507,10 @@ void AppStage_DistortionCalibration::update()
                     const float p_1= static_cast<float>(distortion_coeffs->at<double>(2, 0));
                     const float p_2= static_cast<float>(distortion_coeffs->at<double>(3, 0));
                     const float k_3= static_cast<float>(distortion_coeffs->at<double>(4, 0));
+                    
+                    double fovx = 2 * atan(frameWidth / (2 * f_x)) * 180.0 / CV_PI;
+                    double fovy = 2 * atan(frameHeight / (2 * f_y)) * 180.0 / CV_PI;
+                    std::cout << "Manual fov x: " << fovx << "; y: " << fovy << std::endl;
 
                     // Update the camera intrinsics for this camera
                     request_tracker_set_intrinsic(
@@ -555,7 +591,75 @@ void AppStage_DistortionCalibration::renderUI()
 
     switch (m_menuState)
     {
-    case eTrackerMenuState::capture:
+	case eMenuState::showWarning:
+		{
+			const float k_wide_panel_width = 350.f;
+			ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_wide_panel_width / 2.f, 20.f));
+			ImGui::SetNextWindowSize(ImVec2(k_wide_panel_width, 130));
+
+			ImGui::Begin("WARNING", nullptr, window_flags);
+
+			ImGui::TextWrapped(
+				"The tracker you want to calibrate already has pre-computed distortion and focal lengths." \
+				"If you proceed you will be overriding these defaults.");
+
+			ImGui::Spacing();
+
+			if (ImGui::Button("Continue"))
+			{
+				m_menuState = eMenuState::enterBoardSettings;
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Cancel"))
+			{
+				request_exit();
+			}
+
+			ImGui::End();
+		} break;
+	case eMenuState::enterBoardSettings:
+		{
+			const float k_wide_panel_width = 350.f;
+			ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_wide_panel_width / 2.f, 20.f));
+			ImGui::SetNextWindowSize(ImVec2(k_wide_panel_width, 100));
+
+			ImGui::Begin("Enter Calibration Settings", nullptr, window_flags);
+
+			ImGui::PushItemWidth(100.f);
+			if (ImGui::InputFloat("Square Length (mm)", &m_square_length_mm, 0.5f, 1.f, 1))
+			{
+				if (m_square_length_mm < 1.f)
+				{
+					m_square_length_mm = 1.f;
+				}
+
+				if (m_square_length_mm > 100.f)
+				{
+					m_square_length_mm = 100.f;
+				}
+			}
+			ImGui::PopItemWidth();
+
+			ImGui::Spacing();
+
+			if (ImGui::Button("Ok"))
+			{
+				// Crank up the exposure and gain so that we can see the chessboard
+				// These overrides will get rolled back once tracker gets closed
+				request_tracker_set_temp_exposure(128.f);
+				request_tracker_set_temp_gain(128.f);
+
+				m_menuState = eMenuState::capture;
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Cancel"))
+			{
+				request_exit();
+			}
+
+			ImGui::End();
+		} break;
+    case eMenuState::capture:
         {
             assert (m_opencv_state != nullptr);
 
@@ -627,18 +731,23 @@ void AppStage_DistortionCalibration::renderUI()
                 {
                     request_exit();
                 }
+                if (m_opencv_state->bCurrentImagePointsValid)
+                {
+                    ImGui::Text("Press spacebar to capture");
+                }
 
                 ImGui::End();
             }
         } break;
 
-    case eTrackerMenuState::complete:
+    case eMenuState::complete:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 10.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 110));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Calibration complete!");
+            ImGui::Text("Error: %f", m_opencv_state->reprojectionError);
 
             if (ImGui::Button("Ok"))
             {
@@ -650,13 +759,13 @@ void AppStage_DistortionCalibration::renderUI()
                 m_opencv_state->resetCaptureState();
                 m_opencv_state->resetCalibrationState();
                 m_videoDisplayMode= AppStage_DistortionCalibration::mode_bgr;
-                m_menuState= eTrackerMenuState::capture;
+                m_menuState= eMenuState::capture;
             }
 
             ImGui::End();
         } break;
 
-    case eTrackerMenuState::pendingTrackerStartStreamRequest:
+    case eMenuState::pendingTrackerStartStreamRequest:
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 50));
@@ -667,14 +776,14 @@ void AppStage_DistortionCalibration::renderUI()
             ImGui::End();
         } break;
 
-    case eTrackerMenuState::failedTrackerStartStreamRequest:
-    case eTrackerMenuState::failedTrackerOpenStreamRequest:
+    case eMenuState::failedTrackerStartStreamRequest:
+    case eMenuState::failedTrackerOpenStreamRequest:
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            if (m_menuState == eTrackerMenuState::failedTrackerStartStreamRequest)
+            if (m_menuState == eMenuState::failedTrackerStartStreamRequest)
                 ImGui::Text("Failed to start tracker stream!");
             else
                 ImGui::Text("Failed to open tracker stream!");
@@ -692,7 +801,7 @@ void AppStage_DistortionCalibration::renderUI()
             ImGui::End();
         } break;
 
-    case eTrackerMenuState::pendingTrackerStopStreamRequest:
+    case eMenuState::pendingTrackerStopStreamRequest:
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 50));
@@ -703,7 +812,7 @@ void AppStage_DistortionCalibration::renderUI()
             ImGui::End();
         } break;
 
-    case eTrackerMenuState::failedTrackerStopStreamRequest:
+    case eMenuState::failedTrackerStopStreamRequest:
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
@@ -775,8 +884,16 @@ void AppStage_DistortionCalibration::handle_tracker_start_stream_response(
                 // Allocate an opencv buffer 
                 thisPtr->m_opencv_state = new OpenCVBufferState(trackerInfo);
 
-                // Start capturing chess boards
-                thisPtr->m_menuState = AppStage_DistortionCalibration::capture;
+				// Warn the user if they are about to change the distortion calibration settings for the PS3EYE
+				if (trackerInfo.tracker_type == eTrackerType::PS3Eye)
+				{
+					thisPtr->m_menuState = AppStage_DistortionCalibration::showWarning;
+				}
+				else
+				{
+					// Start capturing chess boards
+					thisPtr->m_menuState = AppStage_DistortionCalibration::enterBoardSettings;
+				}
             }
             else
             {

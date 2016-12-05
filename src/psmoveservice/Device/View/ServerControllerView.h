@@ -122,6 +122,15 @@ public:
     // Get the tracking shape for the controller
     bool getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const;
 
+	// Get if the region-of-interest optimization is disabled for this controller
+	inline bool getIsROIDisabled() const { return m_roi_disable_count > 0; }
+	
+	// Request the controller to not use the ROI optimization
+	inline void pushDisableROI() { ++m_roi_disable_count; }
+
+	// Undo the request to not use the ROI optimization
+	inline void popDisableROI() { assert(m_roi_disable_count > 0); --m_roi_disable_count;  }
+
     // Get the pose estimate relative to the given tracker id
     inline const ControllerOpticalPoseEstimation *getTrackerPoseEstimate(int trackerId) const {
         return (m_tracker_pose_estimations != nullptr) ? &m_tracker_pose_estimations[trackerId] : nullptr;
@@ -149,13 +158,16 @@ protected:
     static void generate_controller_data_frame_for_stream(
         const ServerControllerView *controller_view,
         const struct ControllerStreamInfo *stream_info,
-        DeviceOutputDataFramePtr &data_frame);
+        PSMoveProtocol::DeviceOutputDataFrame *data_frame);
 
 private:
     // Tracking color state
     std::tuple<unsigned char, unsigned char, unsigned char> m_tracking_color;
     int m_tracking_listener_count;
     bool m_tracking_enabled;
+
+	// Region-of-Interest state
+	int m_roi_disable_count;
     
     // Override color state
     std::tuple<unsigned char, unsigned char, unsigned char> m_LED_override_color;

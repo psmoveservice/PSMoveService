@@ -527,10 +527,14 @@ void PS3EyeTracker::saveSettings()
     cfg.save();
 }
 
-void PS3EyeTracker::setExposure(double value)
+void PS3EyeTracker::setExposure(double value, bool bUpdateConfig)
 {
     VideoCapture->set(cv::CAP_PROP_EXPOSURE, value);
-    cfg.exposure = value;
+
+	if (bUpdateConfig)
+	{
+		cfg.exposure = value;
+	}
 }
 
 double PS3EyeTracker::getExposure() const
@@ -538,10 +542,14 @@ double PS3EyeTracker::getExposure() const
     return VideoCapture->get(cv::CAP_PROP_EXPOSURE);
 }
 
-void PS3EyeTracker::setGain(double value)
+void PS3EyeTracker::setGain(double value, bool bUpdateConfig)
 {
 	VideoCapture->set(cv::CAP_PROP_GAIN, value);
-	cfg.gain = value;
+
+	if (bUpdateConfig)
+	{
+		cfg.gain = value;
+	}
 }
 
 double PS3EyeTracker::getGain() const

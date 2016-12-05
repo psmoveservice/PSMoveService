@@ -381,6 +381,12 @@ public:
 						controller_view->clearLEDOverride();
 					}
 
+					// If this connection had ROI disabled, pop the ROI supression request
+					if (streamInfo.disable_roi)
+					{
+						controller_view->popDisableROI();
+					}
+
 					// Halt any controller tracking this connection had going on
 					if (streamInfo.include_position_data)
 					{
@@ -389,10 +395,17 @@ public:
 				}
             }
 
-            // Halt any shared memory streams this connection has going
+            
             for (int tracker_id = 0; tracker_id < TrackerManager::k_max_devices; ++tracker_id)
             {
-                if (connection_state->active_tracker_stream_info[tracker_id].streaming_video_data)
+				// Restore any overridden camera settings from the config
+				if (connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override)
+				{
+					m_device_manager.getTrackerViewPtr(tracker_id)->loadSettings();
+				}
+
+				// Halt any shared memory streams this connection has going
+				if (connection_state->active_tracker_stream_info[tracker_id].streaming_video_data)
                 {
                     m_device_manager.getTrackerViewPtr(tracker_id)->stopSharedMemoryVideoStream();
                 }
@@ -403,6 +416,12 @@ public:
 			{
 				const HMDStreamInfo &streamInfo = connection_state->active_hmd_stream_info[hmd_id];
 				ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+				// Undo the ROI suppression
+				if (streamInfo.disable_roi)
+				{
+					m_device_manager.getHMDViewPtr(hmd_id)->popDisableROI();
+				}
 
 				// Halt any hmd tracking this connection had going on
 				if (streamInfo.include_position_data)
@@ -435,7 +454,7 @@ public:
 
                 // Fill out a data frame specific to this stream using the given callback
                 DeviceOutputDataFramePtr data_frame(new PSMoveProtocol::DeviceOutputDataFrame);
-                callback(controller_view, &streamInfo, data_frame);
+                callback(controller_view, &streamInfo, data_frame.get());
 
                 // Send the controller data frame over the network
                 ServerNetworkManager::get_instance()->send_device_data_frame(connection_id, data_frame);
@@ -664,6 +683,7 @@ protected:
         const PSMoveProtocol::Request_RequestStartPSMoveDataStream& request=
             context.request->request_start_psmove_data_stream();
         int controller_id= request.controller_id();
+//        response->set_type(PSMoveProtocol::Response_ResponseType_CONTROLLER_STREAM_STARTED);
 
         if (ServerUtility::is_index_valid(controller_id, m_device_manager.getControllerViewMaxCount()))
         {
@@ -685,6 +705,7 @@ protected:
                 streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
                 streamInfo.include_calibrated_sensor_data = request.include_calibrated_sensor_data();
                 streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
+				streamInfo.disable_roi = request.disable_roi();
 
 				SERVER_LOG_INFO("ServerRequestHandler") << "Start controller(" << controller_id << ") stream ("
 					<< "pos=" << streamInfo.include_position_data
@@ -692,12 +713,26 @@ protected:
 					<< ",raw_sens=" << streamInfo.include_raw_sensor_data
 					<< ",cal_sens=" << streamInfo.include_calibrated_sensor_data
 					<< ",trkr=" << streamInfo.include_raw_tracker_data
+					<< ",roi=" << streamInfo.disable_roi
 					<< ")";
 
                 if (streamInfo.include_position_data)
                 {
                     controller_view->startTracking();
                 }
+                
+//                // Attach the initial state of the controller
+//                {
+//                    auto *stream_started_response= response->mutable_result_controller_stream_started();
+//                    PSMoveProtocol::DeviceOutputDataFrame* data_frame= stream_started_response->mutable_initial_data_frame();
+//                    
+//                    ServerControllerView::generate_controller_data_frame_for_stream(controller_view.get(), &streamInfo, data_frame);
+//                }
+
+				if (streamInfo.disable_roi)
+				{
+					controller_view->pushDisableROI();
+				}
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -726,6 +761,11 @@ protected:
 
             if (controller_view->getIsBluetooth())
             {
+				if (streamInfo.disable_roi)
+				{
+					controller_view->popDisableROI();
+				}
+
                 if (streamInfo.include_position_data)
                 {
                     controller_view->stopTracking();
@@ -1521,6 +1561,12 @@ protected:
                 context.connection_state->active_tracker_streams.set(tracker_id, false);
                 context.connection_state->active_tracker_stream_info[tracker_id].Clear();
 
+				// Restore any overridden camera settings from the config
+				if (context.connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override)
+				{
+					tracker_view->loadSettings();
+				}
+
                 // Decrement the number of stream listeners
                 tracker_view->stopSharedMemoryVideoStream();
 
@@ -1599,18 +1645,23 @@ protected:
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
+				const bool bSaveSetting= context.request->request_set_tracker_exposure().save_setting();
                 const float desired_exposure = context.request->request_set_tracker_exposure().value();
                 PSMoveProtocol::Response_ResultSetTrackerExposure* result_exposure =
                     response->mutable_result_set_tracker_exposure();
 
                 // Set the desired exposure on the tracker
-                tracker_view->setExposure(desired_exposure);
+                tracker_view->setExposure(desired_exposure, bSaveSetting);
 
                 // Only save the setting if requested
-                if (context.request->request_set_tracker_exposure().save_setting())
+                if (bSaveSetting)
                 {
                     tracker_view->saveSettings();
                 }
+				else
+				{
+					context.connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override = true;
+				}
 
                 // Return back the actual exposure that got set
                 result_exposure->set_new_exposure(static_cast<float>(tracker_view->getExposure()));
@@ -1640,18 +1691,23 @@ protected:
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
+				const bool bSaveSetting = context.request->request_set_tracker_exposure().save_setting();
                 const double desired_gain = context.request->request_set_tracker_gain().value();
                 PSMoveProtocol::Response_ResultSetTrackerGain* result_gain =
                     response->mutable_result_set_tracker_gain();
 
                 // Set the desired gain on the tracker
-                tracker_view->setGain(desired_gain);
+                tracker_view->setGain(desired_gain, bSaveSetting);
 
                 // Only save the setting if requested
-                if (context.request->request_set_tracker_gain().save_setting())
+                if (bSaveSetting)
                 {
                     tracker_view->saveSettings();
                 }
+				else
+				{
+					context.connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override = true;
+				}
 
                 // Return back the actual gain that got set
                 result_gain->set_new_gain(static_cast<float>(tracker_view->getGain()));
@@ -1942,8 +1998,8 @@ protected:
                     m_device_manager.m_tracker_manager->getDefaultTrackerProfile();
     
                 // Apply the profile to the tracker
-                tracker_view->setExposure(trackerProfile->exposure);
-                tracker_view->setGain(trackerProfile->gain);
+                tracker_view->setExposure(trackerProfile->exposure, true);
+                tracker_view->setGain(trackerProfile->gain, true);
                 for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
                 {
                     const CommonHSVColorRange *preset= &trackerProfile->color_preset_table.color_presets[preset_index];
@@ -2108,6 +2164,7 @@ protected:
 				streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
 				streamInfo.include_calibrated_sensor_data = request.include_calibrated_sensor_data();
 				streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
+				streamInfo.disable_roi = request.disable_roi();
 
 				SERVER_LOG_INFO("ServerRequestHandler") << "Start hmd(" << hmd_id << ") stream ("
 					<< "pos=" << streamInfo.include_position_data
@@ -2115,7 +2172,15 @@ protected:
 					<< ",raw_sens=" << streamInfo.include_raw_sensor_data
 					<< ",cal_sens=" << streamInfo.include_calibrated_sensor_data
 					<< ",trkr=" << streamInfo.include_raw_tracker_data
+					<< ",roi=" << streamInfo.disable_roi
 					<< ")";
+
+				if (streamInfo.disable_roi)
+				{
+					ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+					hmd_view->pushDisableROI();
+				}
 
 				if (streamInfo.include_position_data)
 				{
@@ -2152,6 +2217,12 @@ protected:
             if (hmd_view->getIsOpen())
             {
 				const HMDStreamInfo &streamInfo = context.connection_state->active_hmd_stream_info[hmd_id];
+
+				if (streamInfo.disable_roi)
+				{
+					hmd_view->popDisableROI();
+				}
+
 				if (streamInfo.include_position_data)
 				{
 					hmd_view->stopTracking();

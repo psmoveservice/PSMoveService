@@ -104,9 +104,9 @@ public:
     const unsigned char *getVideoFrameBuffer() const override;
     void loadSettings() override;
     void saveSettings() override;
-    void setExposure(double value) override;
+    void setExposure(double value, bool bUpdateConfig) override;
     double getExposure() const override;
-	void setGain(double value) override;
+	void setGain(double value, bool bUpdateConfig) override;
 	double getGain() const override;
     void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,

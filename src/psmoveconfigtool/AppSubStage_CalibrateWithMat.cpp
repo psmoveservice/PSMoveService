@@ -24,8 +24,6 @@
 #include <imgui.h>
 #include <vector>
 
-//#define COMPUTE_OPTICAL_VARIANCES
-
 //-- constants -----
 // Sample 5 points - The psmove standing on the 4 corners and the center of a sheet of paper
 static const int k_mat_sample_location_count = 5;
@@ -63,22 +61,12 @@ struct TrackerRelativePoseStatistics
 
 	// N samples for the current sampling location
 	PSMoveScreenLocation screenSpacePoints[k_mat_calibration_sample_count];
-	float screenSpaceArea[k_mat_calibration_sample_count];
 	Eigen::Vector3f trackerSpacePoints[k_mat_calibration_sample_count];
-	Eigen::Vector3f trackerSpaceOrientations[k_mat_calibration_sample_count]; // angle-axis
 	int sampleCount;
 
 	// Average for each sampling location
 	PSMoveScreenLocation avgScreenSpacePointAtLocation[k_mat_sample_location_count];
-	float avgScreenSpaceArea[k_mat_sample_location_count];
 	Eigen::Vector3f avgTrackerSpacePointAtLocation[k_mat_sample_location_count];
-	float trackerSpacePointMaxVarianceAtLocation[k_mat_sample_location_count];
-	float trackerSpaceOrientationMaxVarianceAtLocation[k_mat_sample_location_count];
-
-	// Best fit lines for position and orientation variance 
-	// as a linear function of tracking projection pixel area 
-	Eigen::Vector2f positionVarianceLine;
-	Eigen::Vector2f orientationVarianceLine;
 
 	PSMovePose trackerPose;
 	float reprojectionError;
@@ -97,9 +85,7 @@ struct TrackerRelativePoseStatistics
 	void clearLastSampleBatch()
 	{
 		memset(screenSpacePoints, 0, sizeof(PSMoveScreenLocation)*k_mat_calibration_sample_count);
-		memset(screenSpaceArea, 0, sizeof(float)*k_mat_calibration_sample_count);
 		memset(trackerSpacePoints, 0, sizeof(Eigen::Vector3f)*k_mat_calibration_sample_count);
-		memset(trackerSpaceOrientations, 0, sizeof(Eigen::Vector3f)*k_mat_calibration_sample_count);
 		sampleCount = 0;
 	}
 
@@ -108,10 +94,7 @@ struct TrackerRelativePoseStatistics
 		clearLastSampleBatch();
 
 		memset(avgScreenSpacePointAtLocation, 0, sizeof(PSMoveScreenLocation)*k_mat_sample_location_count);
-		memset(avgScreenSpaceArea, 0, sizeof(float)*k_mat_sample_location_count);
 		memset(avgTrackerSpacePointAtLocation, 0, sizeof(Eigen::Vector3f)*k_mat_sample_location_count);
-		memset(trackerSpacePointMaxVarianceAtLocation, 0, sizeof(float)*k_mat_sample_location_count);
-		memset(trackerSpaceOrientationMaxVarianceAtLocation, 0, sizeof(float)*k_mat_sample_location_count);
 
 		trackerPose = *k_psmove_pose_identity;
 		reprojectionError = 0.f;
@@ -124,30 +107,14 @@ struct TrackerRelativePoseStatistics
 		const int trackerID= trackerView->getTrackerId();
 
 		PSMoveScreenLocation screenSample;
-		PSMoveTrackingProjection screenProjection;
 		PSMovePosition trackerRelativePosition;
-		PSMoveQuaternion trackerRelativeOrientation;
 		
 		if (!getIsComplete() &&
 			trackerData.GetPixelLocationOnTrackerId(trackerID, screenSample) &&
-			trackerData.GetProjectionOnTrackerId(trackerID, screenProjection) &&
 			trackerData.GetPositionOnTrackerId(trackerID, trackerRelativePosition))
 		{
-			Eigen::Vector3f trackerRelativeScaledAngleAxis = Eigen::Vector3f::Zero();
-
-			// Orientation isn't available on the psmove
-			if (trackerData.GetOrientationOnTrackerId(trackerID, trackerRelativeOrientation))
-			{
-				Eigen::Quaternionf trackerRelativeQuaternion = psmove_quaternion_to_eigen_quaternionf(trackerRelativeOrientation);
-				Eigen::AngleAxisf trackerRelativeAngleAxis(trackerRelativeQuaternion);
-				
-				trackerRelativeScaledAngleAxis = trackerRelativeAngleAxis.axis() * trackerRelativeAngleAxis.angle();
-			}
-
 			screenSpacePoints[sampleCount] = screenSample;
-			screenSpaceArea[sampleCount] = screenProjection.get_projection_area();
 			trackerSpacePoints[sampleCount] = psmove_float_vector3_to_eigen_vector3(trackerRelativePosition.toPSMoveFloatVector3());
-			trackerSpaceOrientations[sampleCount] = trackerRelativeScaledAngleAxis;
 			++sampleCount;
 
 			if (getIsComplete())
@@ -171,168 +138,10 @@ struct TrackerRelativePoseStatistics
 					avgScreenSpacePointAtLocation[sampleLocationIndex] =
 						PSMoveScreenLocation::create(avg.i, avg.j);
 				}
-
-				// Compute the mean pixel tracking projection area
-				{
-					float avg = 0;
-
-					for (int sampleIndex = 0; sampleIndex < k_mat_calibration_sample_count; ++sampleIndex)
-					{
-						avg += screenSpaceArea[sampleIndex];
-					}
-
-					avgScreenSpaceArea[sampleLocationIndex] = avg / N;
-				}
-
-#ifdef COMPUTE_OPTICAL_VARIANCES
-				// Compute the mean and variance of the tracker relative position at the sample location
-				Eigen::Vector3f trackerSpacePointVariance;
-				eigen_vector3f_compute_mean_and_variance(
-					trackerSpacePoints, 
-					k_mat_calibration_sample_count, 
-					&avgTrackerSpacePointAtLocation[sampleLocationIndex],
-					&trackerSpacePointVariance);
-				trackerSpacePointMaxVarianceAtLocation[sampleLocationIndex] = trackerSpacePointVariance.maxCoeff();
-
-				// Compute the mean and variance of the tracker relative orientation at the sample location
-				Eigen::Vector3f trackerSpaceOrientationVariance;
-				eigen_vector3f_compute_mean_and_variance(
-					trackerSpaceOrientations,
-					k_mat_calibration_sample_count,
-					nullptr, // Don't need the mean since we don't care how the controller was oriented during sampling
-					&trackerSpaceOrientationVariance);
-				trackerSpaceOrientationMaxVarianceAtLocation[sampleLocationIndex] = trackerSpaceOrientationVariance.maxCoeff();
-#endif // COMPUTE_OPTICAL_VARIANCES
 			}
-		}
-	}
-
-	static bool computeVarianceBestFitLines(
-		TrackerRelativePoseStatistics **trackerStatsList, int trackerCount,
-		Eigen::Vector2f &out_position_variance_line, Eigen::Vector2f &out_orientation_variance_line)
-	{
-		Eigen::Vector2f area_positionvariance_samples[k_mat_sample_location_count*PSMOVESERVICE_MAX_TRACKER_COUNT];
-		Eigen::Vector2f area_orientationvariance_samples[k_mat_sample_location_count*PSMOVESERVICE_MAX_TRACKER_COUNT];
-		int sample_count = 0;
-
-		for (int tracker_index = 0; tracker_index < trackerCount; ++tracker_index)
-		{
-			const TrackerRelativePoseStatistics *trackerStats = trackerStatsList[tracker_index];
-
-			// Build lists mapping projection area on a given tracker to variance measurement
-			for (int location_index = 0; location_index < k_mat_sample_location_count; ++location_index)
-			{
-				const float area = trackerStats->avgScreenSpaceArea[location_index];
-				const float positionVariance = trackerStats->trackerSpacePointMaxVarianceAtLocation[location_index];
-				const float orientationVariance = trackerStats->trackerSpaceOrientationMaxVarianceAtLocation[location_index];
-
-				area_positionvariance_samples[sample_count] = Eigen::Vector2f(area, positionVariance);
-				area_orientationvariance_samples[sample_count] = Eigen::Vector2f(area, orientationVariance);
-				++sample_count;
-			}
-		}
-
-		// Compute best fit lines for the area-variance tables		
-		bool bSuccess = true;
-		bSuccess&= eigen_alignment_fit_least_squares_line(
-				area_positionvariance_samples, sample_count,
-				&out_position_variance_line, nullptr);
-		bSuccess&= eigen_alignment_fit_least_squares_line(
-			area_orientationvariance_samples, sample_count,
-			&out_orientation_variance_line, nullptr);
-
-		return bSuccess;
-	}
-};
-
-struct HMDTrackerPoseStatistics
-{
-	PSMovePosition worldSpacePoints[k_mat_calibration_sample_count];
-	PSMoveQuaternion worldSpaceOrientations[k_mat_calibration_sample_count];
-	int sampleCount;
-
-	PSMovePosition avgHMDWorldSpacePoint;
-	PSMoveQuaternion avgHMDWorldSpaceOrientation;
-
-	HMDTrackerPoseStatistics()
-	{
-		clear();
-	}
-
-	bool getIsComplete() const
-	{
-		return sampleCount >= k_mat_calibration_sample_count;
-	}
-
-	void clear()
-	{
-		memset(this, 0, sizeof(HMDTrackerPoseStatistics));
-	}
-
-	void addSample(const PSMovePose &pose)
-	{
-		if (getIsComplete())
-		{
-			return;
-		}
-
-		worldSpacePoints[sampleCount] = pose.Position;
-		worldSpaceOrientations[sampleCount] = pose.Orientation;
-		++sampleCount;
-
-		// See if we just read the last sample
-		if (getIsComplete())
-		{
-			const float N = static_cast<float>(k_mat_sample_location_count);
-			PSMoveFloatVector3 avgPosition = *k_psmove_float_vector3_zero;
-			PSMoveQuaternion avgOrientation = *k_psmove_quaternion_identity;
-
-			// Average together all the samples we captured
-			for (int sampleIndex = 0; sampleIndex < k_mat_sample_location_count; ++sampleIndex)
-			{
-				const PSMovePosition &posSample = worldSpacePoints[sampleCount];
-				const PSMoveQuaternion &orientationSample = worldSpaceOrientations[sampleCount];
-
-				avgPosition = avgPosition + posSample.toPSMoveFloatVector3();
-				avgOrientation = avgOrientation + orientationSample;
-			}
-
-			// Save the average sample for the HMD
-			avgHMDWorldSpacePoint = avgPosition.unsafe_divide(N).castToPSMovePosition();
-
-			// --Constrain the rotation to just be a yaw (rotation about y-axis) 
-			// Compute the average pose quaternion
-			PSMoveQuaternion avg_quaternion =
-				avgOrientation.unsafe_divide(N).normalize_with_default(*k_psmove_quaternion_identity);
-			glm::quat glm_quat = psmove_quaternion_to_glm_quat(avg_quaternion);
-
-			// Convert the pose quaternion into a set of basis vectors
-			glm::mat3 glm_mat3 = glm::mat3_cast(glm_quat);
-
-			// Extract the forward (z-axis) vector from the basis
-			glm::vec3 glm_forward = glm_mat3[2];
-
-			// Project the forward vector onto the x-z plane
-			glm::vec3 glm_forward2d = glm::normalize(glm::vec3(glm_forward.x, 0.f, glm_forward.z));
-
-			// Compute the yaw angle (amount the z-axis has been rotated to it's current facing)
-			float cos_yaw = glm::dot(glm_forward2d, glm::vec3(0.f, 0.f, 1.f));
-			float half_yaw = acosf(clampf(cos_yaw, -1.f, 1.f)) / 2.f;
-			glm::vec3 yaw_axis = glm::cross(glm::vec3(0.f, 0.f, 1.f), glm_forward2d);
-			if (glm::dot(yaw_axis, glm::vec3(0.f, 1.f, 0.f)) < 0)
-			{
-				half_yaw = -half_yaw;
-			}
-
-			// Convert this yaw rotation back into a quaternion
-			avgHMDWorldSpaceOrientation =
-				PSMoveQuaternion::create(
-					cosf(half_yaw), // w = cos(theta/2)
-					0.f, sinf(half_yaw), 0.f); // (x, y, z) = sin(theta/2)*axis, where axis = (0, 1, 0)
 		}
 	}
 };
-
 
 //-- private methods -----
 static bool computeTrackerCameraPose(
@@ -515,34 +324,6 @@ void AppSubStage_CalibrateWithMat::update()
                 }
             }
 
-			#ifdef COMPUTE_OPTICAL_VARIANCES
-			if (bSuccess)
-			{
-				int trackerCount= static_cast<int>(m_parentStage->m_trackerViews.size());
-				Eigen::Vector2f positionVarianceLine;
-				Eigen::Vector2f orientationVarianceLine;
-
-				if (TrackerRelativePoseStatistics::computeVarianceBestFitLines(
-						m_psmoveTrackerPoseStats, trackerCount,
-						positionVarianceLine, orientationVarianceLine))
-				{
-					RequestPtr request(new PSMoveProtocol::Request());
-					request->set_type(PSMoveProtocol::Request_RequestType_SET_OPTICAL_NOISE_CALIBRATION);
-
-					PSMoveProtocol::Request_RequestSetOpticalNoiseCalibration *set_calib_request =
-						request->mutable_request_set_optical_noise_calibration();
-
-					set_calib_request->set_controller_id(ControllerView->GetControllerID());
-					set_calib_request->set_position_variance_gain(positionVarianceLine.x());
-					set_calib_request->set_position_variance_bias(positionVarianceLine.y());
-					set_calib_request->set_orientation_variance_gain(orientationVarianceLine.x());
-					set_calib_request->set_orientation_variance_bias(orientationVarianceLine.y());
-
-					ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
-				}
-			}
-			#endif // COMPUTE_OPTICAL_VARIANCES
-
             if (bSuccess)
             {
                 setState(AppSubStage_CalibrateWithMat::eMenuState::calibrateStepSuccess);
@@ -572,29 +353,6 @@ void AppSubStage_CalibrateWithMat::render()
         {
             // Draw the video from the PoV of the current tracker
             m_parentStage->render_tracker_video();
-
-            // Draw the projection shape of the controller in the pov of the current tracker being rendered
-            {
-                const ClientTrackerView *TrackerView = m_parentStage->get_render_tracker_view();
-                const ClientControllerView *ControllerView = m_parentStage->m_controllerView;
-                const PSMoveRawTrackerData &RawTrackerData = ControllerView->GetRawTrackerData();
-                const int TrackerID = TrackerView->getTrackerId();
-
-                PSMoveTrackingProjection trackingProjection;
-                PSMoveScreenLocation centerProjection;
-
-                if (ControllerView->GetIsCurrentlyTracking() &&
-                    RawTrackerData.GetPixelLocationOnTrackerId(TrackerID, centerProjection) &&
-                    RawTrackerData.GetProjectionOnTrackerId(TrackerID, trackingProjection))
-                {
-                    const PSMoveFloatVector2 screenSize= TrackerView->getTrackerInfo().tracker_screen_dimensions;
-
-                    drawTrackingProjection(
-                        &centerProjection,
-                        &trackingProjection,
-                        screenSize.i, screenSize.j);
-                }
-            }
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepComputeTrackerPoses:
         break;
@@ -845,14 +603,9 @@ computeTrackerCameraPose(
         // Add in the psmove calibration origin offset
         cvObjectPoints.push_back(cv::Point3f(worldPoint.x, worldPoint.y, worldPoint.z));
 
-        // Convert the tracker screen locations in PSMoveScreenLocation space
-        // i.e. [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2] 
-        // into OpenCV pixel space
-        // i.e. [0, 0]x[frameWidth, frameHeight]
-        cvImagePoints.push_back(
-            cv::Point2f(
-                screenPoint.x + (trackerPixelDimensions.i / 2), 
-                screenPoint.y + (trackerPixelDimensions.j / 2)));
+		//###HipsterSloth $TODO for some reason I need to invert the y points to get the correct tracker locations
+		// I suspect this has something to do with how I am constructing the intrinsic matrix
+        cvImagePoints.push_back(cv::Point2f(screenPoint.x, trackerPixelDimensions.j - screenPoint.y));
     }
 
     // Assume no distortion
