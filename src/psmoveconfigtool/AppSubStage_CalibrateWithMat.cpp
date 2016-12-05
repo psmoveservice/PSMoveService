@@ -602,7 +602,10 @@ computeTrackerCameraPose(
 
         // Add in the psmove calibration origin offset
         cvObjectPoints.push_back(cv::Point3f(worldPoint.x, worldPoint.y, worldPoint.z));
-        cvImagePoints.push_back(cv::Point2f(screenPoint.x, screenPoint.y));
+
+		//###HipsterSloth $TODO for some reason I need to invert the y points to get the correct tracker locations
+		// I suspect this has something to do with how I am constructing the intrinsic matrix
+        cvImagePoints.push_back(cv::Point2f(screenPoint.x, trackerPixelDimensions.j - screenPoint.y));
     }
 
     // Assume no distortion
