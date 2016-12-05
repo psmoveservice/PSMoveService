@@ -49,6 +49,7 @@ private:
     enum eMenuState
     {
         inactive,
+		showWarning,
 		enterBoardSettings,
         capture,
         complete,

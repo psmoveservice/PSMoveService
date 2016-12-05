@@ -395,10 +395,17 @@ public:
 				}
             }
 
-            // Halt any shared memory streams this connection has going
+            
             for (int tracker_id = 0; tracker_id < TrackerManager::k_max_devices; ++tracker_id)
             {
-                if (connection_state->active_tracker_stream_info[tracker_id].streaming_video_data)
+				// Restore any overridden camera settings from the config
+				if (connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override)
+				{
+					m_device_manager.getTrackerViewPtr(tracker_id)->loadSettings();
+				}
+
+				// Halt any shared memory streams this connection has going
+				if (connection_state->active_tracker_stream_info[tracker_id].streaming_video_data)
                 {
                     m_device_manager.getTrackerViewPtr(tracker_id)->stopSharedMemoryVideoStream();
                 }
@@ -1554,6 +1561,12 @@ protected:
                 context.connection_state->active_tracker_streams.set(tracker_id, false);
                 context.connection_state->active_tracker_stream_info[tracker_id].Clear();
 
+				// Restore any overridden camera settings from the config
+				if (context.connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override)
+				{
+					tracker_view->loadSettings();
+				}
+
                 // Decrement the number of stream listeners
                 tracker_view->stopSharedMemoryVideoStream();
 
@@ -1632,18 +1645,23 @@ protected:
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
+				const bool bSaveSetting= context.request->request_set_tracker_exposure().save_setting();
                 const float desired_exposure = context.request->request_set_tracker_exposure().value();
                 PSMoveProtocol::Response_ResultSetTrackerExposure* result_exposure =
                     response->mutable_result_set_tracker_exposure();
 
                 // Set the desired exposure on the tracker
-                tracker_view->setExposure(desired_exposure);
+                tracker_view->setExposure(desired_exposure, bSaveSetting);
 
                 // Only save the setting if requested
-                if (context.request->request_set_tracker_exposure().save_setting())
+                if (bSaveSetting)
                 {
                     tracker_view->saveSettings();
                 }
+				else
+				{
+					context.connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override = true;
+				}
 
                 // Return back the actual exposure that got set
                 result_exposure->set_new_exposure(static_cast<float>(tracker_view->getExposure()));
@@ -1673,18 +1691,23 @@ protected:
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
+				const bool bSaveSetting = context.request->request_set_tracker_exposure().save_setting();
                 const double desired_gain = context.request->request_set_tracker_gain().value();
                 PSMoveProtocol::Response_ResultSetTrackerGain* result_gain =
                     response->mutable_result_set_tracker_gain();
 
                 // Set the desired gain on the tracker
-                tracker_view->setGain(desired_gain);
+                tracker_view->setGain(desired_gain, bSaveSetting);
 
                 // Only save the setting if requested
-                if (context.request->request_set_tracker_gain().save_setting())
+                if (bSaveSetting)
                 {
                     tracker_view->saveSettings();
                 }
+				else
+				{
+					context.connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override = true;
+				}
 
                 // Return back the actual gain that got set
                 result_gain->set_new_gain(static_cast<float>(tracker_view->getGain()));
@@ -1975,8 +1998,8 @@ protected:
                     m_device_manager.m_tracker_manager->getDefaultTrackerProfile();
     
                 // Apply the profile to the tracker
-                tracker_view->setExposure(trackerProfile->exposure);
-                tracker_view->setGain(trackerProfile->gain);
+                tracker_view->setExposure(trackerProfile->exposure, true);
+                tracker_view->setGain(trackerProfile->gain, true);
                 for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
                 {
                     const CommonHSVColorRange *preset= &trackerProfile->color_preset_table.color_presets[preset_index];

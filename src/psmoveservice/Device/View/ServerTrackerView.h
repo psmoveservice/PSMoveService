@@ -49,10 +49,10 @@ public:
     void saveSettings();
 
     double getExposure() const;
-    void setExposure(double value);
+    void setExposure(double value, bool bUpdateConfig);
 
     double getGain() const;
-    void setGain(double value);
+    void setGain(double value, bool bUpdateConfig);
     
     bool computeProjectionForController(
         const class ServerControllerView* tracked_controller, 

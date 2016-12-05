@@ -39,10 +39,12 @@ struct ControllerStreamInfo
 struct TrackerStreamInfo
 {
     bool streaming_video_data;
+	bool has_temp_settings_override;
 
     inline void Clear()
     {
         streaming_video_data = false;
+		has_temp_settings_override = false;
     }
 };
 

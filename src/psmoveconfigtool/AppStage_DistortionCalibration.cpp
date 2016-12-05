@@ -403,12 +403,8 @@ void AppStage_DistortionCalibration::enter()
 
 	m_square_length_mm = DEFAULT_SQUARE_LEN_MM;
 
-	// Crank up the exposure and gain so that we can see the chessboard
-    request_tracker_set_temp_exposure(128.f);
-    request_tracker_set_temp_gain(128.f);
-
-    assert(!m_bStreamIsActive);
-    request_tracker_start_stream();
+	assert(!m_bStreamIsActive);
+	request_tracker_start_stream();
 }
 
 void AppStage_DistortionCalibration::exit()
@@ -595,6 +591,32 @@ void AppStage_DistortionCalibration::renderUI()
 
     switch (m_menuState)
     {
+	case eMenuState::showWarning:
+		{
+			const float k_wide_panel_width = 350.f;
+			ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_wide_panel_width / 2.f, 20.f));
+			ImGui::SetNextWindowSize(ImVec2(k_wide_panel_width, 130));
+
+			ImGui::Begin("WARNING", nullptr, window_flags);
+
+			ImGui::TextWrapped(
+				"The tracker you want to calibrate already has pre-computed distortion and focal lengths." \
+				"If you proceed you will be overriding these defaults.");
+
+			ImGui::Spacing();
+
+			if (ImGui::Button("Continue"))
+			{
+				m_menuState = eMenuState::enterBoardSettings;
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Cancel"))
+			{
+				request_exit();
+			}
+
+			ImGui::End();
+		} break;
 	case eMenuState::enterBoardSettings:
 		{
 			const float k_wide_panel_width = 350.f;
@@ -622,6 +644,11 @@ void AppStage_DistortionCalibration::renderUI()
 
 			if (ImGui::Button("Ok"))
 			{
+				// Crank up the exposure and gain so that we can see the chessboard
+				// These overrides will get rolled back once tracker gets closed
+				request_tracker_set_temp_exposure(128.f);
+				request_tracker_set_temp_gain(128.f);
+
 				m_menuState = eMenuState::capture;
 			}
 			ImGui::SameLine();
@@ -857,8 +884,16 @@ void AppStage_DistortionCalibration::handle_tracker_start_stream_response(
                 // Allocate an opencv buffer 
                 thisPtr->m_opencv_state = new OpenCVBufferState(trackerInfo);
 
-                // Start capturing chess boards
-                thisPtr->m_menuState = AppStage_DistortionCalibration::enterBoardSettings;
+				// Warn the user if they are about to change the distortion calibration settings for the PS3EYE
+				if (trackerInfo.tracker_type == eTrackerType::PS3Eye)
+				{
+					thisPtr->m_menuState = AppStage_DistortionCalibration::showWarning;
+				}
+				else
+				{
+					// Start capturing chess boards
+					thisPtr->m_menuState = AppStage_DistortionCalibration::enterBoardSettings;
+				}
             }
             else
             {

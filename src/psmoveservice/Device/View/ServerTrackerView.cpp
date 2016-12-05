@@ -970,9 +970,9 @@ double ServerTrackerView::getExposure() const
     return m_device->getExposure();
 }
 
-void ServerTrackerView::setExposure(double value)
+void ServerTrackerView::setExposure(double value, bool bUpdateConfig)
 {
-    m_device->setExposure(value);
+    m_device->setExposure(value, bUpdateConfig);
 }
 
 double ServerTrackerView::getGain() const
@@ -980,9 +980,9 @@ double ServerTrackerView::getGain() const
 	return m_device->getGain();
 }
 
-void ServerTrackerView::setGain(double value)
+void ServerTrackerView::setGain(double value, bool bUpdateConfig)
 {
-	m_device->setGain(value);
+	m_device->setGain(value, bUpdateConfig);
 }
 
 void ServerTrackerView::getCameraIntrinsics(
