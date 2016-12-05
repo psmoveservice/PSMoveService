@@ -2,13 +2,13 @@
 #define CLIENT_GEOMETRY_H
 
 //-- includes -----
-#include "ClientConfig.h"
+#include "PSMoveClient_export.h"
 
 //-- pre-declarations -----
 struct PSMovePosition;
 
 //-- declarations -----
-struct CLIENTPSMOVEAPI PSMoveFloatVector2
+struct PSM_CPP_PUBLIC_CLASS PSMoveFloatVector2
 {
     float i, j;
 
@@ -38,7 +38,7 @@ struct CLIENTPSMOVEAPI PSMoveFloatVector2
     static PSMoveFloatVector2 max(const PSMoveFloatVector2 &a, const PSMoveFloatVector2 &b);
 };
 
-struct CLIENTPSMOVEAPI PSMoveFloatVector3
+struct PSM_CPP_PUBLIC_CLASS PSMoveFloatVector3
 {
     float i, j, k;
 
@@ -71,7 +71,7 @@ struct CLIENTPSMOVEAPI PSMoveFloatVector3
     static PSMoveFloatVector3 max(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
 };
 
-struct CLIENTPSMOVEAPI PSMoveIntVector3
+struct PSM_CPP_PUBLIC_CLASS PSMoveIntVector3
 {
     int i, j, k;
 
@@ -100,7 +100,7 @@ struct CLIENTPSMOVEAPI PSMoveIntVector3
     static PSMoveIntVector3 max(const PSMoveIntVector3 &a, const PSMoveIntVector3 &b);
 };
 
-struct CLIENTPSMOVEAPI PSMovePosition
+struct PSM_CPP_PUBLIC_CLASS PSMovePosition
 {
     float x, y, z;
 
@@ -116,8 +116,8 @@ struct CLIENTPSMOVEAPI PSMovePosition
     PSMovePosition operator * (const float s) const;
 };
 
-/// A screen location in the space upper left:[0, 0] -> lower right[frameWidth-1, frameHeight-1]      
-struct CLIENTPSMOVEAPI PSMoveScreenLocation
+/// A screen location in the space upper left:[0, 0] -> lower right[frameWidth-1, frameHeight-1]
+struct PSM_CPP_PUBLIC_CLASS PSMoveScreenLocation
 {
     float x, y;
 
@@ -128,7 +128,7 @@ struct CLIENTPSMOVEAPI PSMoveScreenLocation
     PSMoveFloatVector2 operator - (const PSMoveScreenLocation &other) const;
 };
 
-struct CLIENTPSMOVEAPI PSMoveQuaternion
+struct PSM_CPP_PUBLIC_CLASS PSMoveQuaternion
 {
     float w, x, y, z;
 
@@ -153,7 +153,7 @@ struct CLIENTPSMOVEAPI PSMoveQuaternion
     PSMoveQuaternion &normalize_with_default(const PSMoveQuaternion &default_result);
 };
 
-struct CLIENTPSMOVEAPI PSMoveMatrix3x3
+struct PSM_CPP_PUBLIC_CLASS PSMoveMatrix3x3
 {
     float m[3][3]; // storage is row major order: [x0,x1,x2,y0,y1,y1,z0,z1,z2]
 
@@ -168,7 +168,7 @@ struct CLIENTPSMOVEAPI PSMoveMatrix3x3
     PSMoveFloatVector3 basis_z() const;
 };
 
-struct CLIENTPSMOVEAPI PSMovePose
+struct PSM_CPP_PUBLIC_CLASS PSMovePose
 {
     PSMovePosition Position;
     PSMoveQuaternion Orientation;
@@ -184,7 +184,7 @@ struct CLIENTPSMOVEAPI PSMovePose
 	PSMovePosition apply_inverse_transform(const PSMovePosition &p) const;
 };
 
-struct CLIENTPSMOVEAPI PSMoveFrustum
+struct PSM_CPP_PUBLIC_CLASS PSMoveFrustum
 {
     PSMovePosition origin; // cm
     PSMoveFloatVector3 forward, left, up;
@@ -194,7 +194,7 @@ struct CLIENTPSMOVEAPI PSMoveFrustum
     void set_pose(const PSMovePose &pose);
 };
 
-struct CLIENTPSMOVEAPI PSMoveTrackingProjection
+struct PSM_CPP_PUBLIC_CLASS PSMoveTrackingProjection
 {
     enum eShapeType {
         INVALID_PROJECTION = -1,
@@ -230,7 +230,7 @@ struct CLIENTPSMOVEAPI PSMoveTrackingProjection
 	float get_projection_area() const;
 };
 
-struct CLIENTPSMOVEAPI PSMoveVolume
+struct PSM_CPP_PUBLIC_CLASS PSMoveVolume
 {
     PSMovePosition vertices[4];
     int vertex_count;
@@ -238,16 +238,16 @@ struct CLIENTPSMOVEAPI PSMoveVolume
 };
 
 //-- constants -----
-CLIENTPSMOVEAPI extern const PSMoveIntVector3 *k_psmove_int_vector3_zero;
-CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_zero;
-CLIENTPSMOVEAPI extern const PSMoveIntVector3 *k_psmove_int_vector3_one;
-CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_one;
-CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_i;
-CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_j;
-CLIENTPSMOVEAPI extern const PSMoveFloatVector3 *k_psmove_float_vector3_k;
-CLIENTPSMOVEAPI extern const PSMovePosition *k_psmove_position_origin;
-CLIENTPSMOVEAPI extern const PSMoveQuaternion *k_psmove_quaternion_identity;
-CLIENTPSMOVEAPI extern const PSMoveMatrix3x3 *k_psmove_matrix_identity;
-CLIENTPSMOVEAPI extern const PSMovePose *k_psmove_pose_identity;
+PSM_CPP_PUBLIC_CLASS extern const PSMoveIntVector3 *k_psmove_int_vector3_zero;
+PSM_CPP_PUBLIC_CLASS extern const PSMoveFloatVector3 *k_psmove_float_vector3_zero;
+PSM_CPP_PUBLIC_CLASS extern const PSMoveIntVector3 *k_psmove_int_vector3_one;
+PSM_CPP_PUBLIC_CLASS extern const PSMoveFloatVector3 *k_psmove_float_vector3_one;
+PSM_CPP_PUBLIC_CLASS extern const PSMoveFloatVector3 *k_psmove_float_vector3_i;
+PSM_CPP_PUBLIC_CLASS extern const PSMoveFloatVector3 *k_psmove_float_vector3_j;
+PSM_CPP_PUBLIC_CLASS extern const PSMoveFloatVector3 *k_psmove_float_vector3_k;
+PSM_CPP_PUBLIC_CLASS extern const PSMovePosition *k_psmove_position_origin;
+PSM_CPP_PUBLIC_CLASS extern const PSMoveQuaternion *k_psmove_quaternion_identity;
+PSM_CPP_PUBLIC_CLASS extern const PSMoveMatrix3x3 *k_psmove_matrix_identity;
+PSM_CPP_PUBLIC_CLASS extern const PSMovePose *k_psmove_pose_identity;
 
 #endif // CLIENT_GEOMETRY_H

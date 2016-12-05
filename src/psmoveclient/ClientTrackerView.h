@@ -2,7 +2,7 @@
 #define CLIENT_TRACKER_VIEW_H
 
 //-- includes -----
-#include "ClientConfig.h"
+#include "PSMoveClient_export.h"
 #include "ClientGeometry.h"
 #include <cassert>
 
@@ -28,7 +28,7 @@ enum eTrackerDriver
 };
 
 //-- declarations -----
-struct CLIENTPSMOVEAPI ClientTrackerInfo
+struct PSM_CPP_PUBLIC_CLASS ClientTrackerInfo
 {
     // ID of the tracker in the service
     int tracker_id;
@@ -67,7 +67,7 @@ struct CLIENTPSMOVEAPI ClientTrackerInfo
 	}
 };
 
-class CLIENTPSMOVEAPI ClientTrackerView
+class PSM_CPP_PUBLIC_CLASS ClientTrackerView
 {
 private:
     ClientTrackerInfo m_tracker_info;
@@ -177,11 +177,21 @@ public:
     const unsigned char *getVideoFrameBuffer() const;
 
     PSMoveFrustum getTrackerFrustum() const;
+    
+    inline class SharedVideoFrameReadOnlyAccessor *getSharedMemoryAccessor() const
+    {
+        return m_shared_memory_accesor;
+    }
 
     // Statistics
     inline float GetDataFrameFPS() const
     {
         return data_frame_average_fps;
+    }
+    
+    inline long long GetDataFrameLastReceivedTime() const
+    {
+        return m_data_frame_last_received_time;
     }
 };
 #endif // CLIENT_TRACKER_VIEW_H

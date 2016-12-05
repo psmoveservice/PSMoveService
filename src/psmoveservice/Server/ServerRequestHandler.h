@@ -92,7 +92,7 @@ public:
     typedef void (*t_generate_controller_data_frame_for_stream)(
             const class ServerControllerView *controller_view,
             const ControllerStreamInfo *stream_info,
-            DeviceOutputDataFramePtr &data_frame);
+            PSMoveProtocol::DeviceOutputDataFrame *data_frame);
     void publish_controller_data_frame(
         class ServerControllerView *controller_view, t_generate_controller_data_frame_for_stream callback);
 

@@ -158,7 +158,7 @@ protected:
     static void generate_controller_data_frame_for_stream(
         const ServerControllerView *controller_view,
         const struct ControllerStreamInfo *stream_info,
-        DeviceOutputDataFramePtr &data_frame);
+        PSMoveProtocol::DeviceOutputDataFrame *data_frame);
 
 private:
     // Tracking color state
