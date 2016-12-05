@@ -2,6 +2,7 @@
 #define CLIENT_NETWORK_MANAGER_H
 
 //-- includes ----
+#include "PSMoveClient_export.h"
 #include "PSMoveProtocolInterface.h"
 #include "ClientNetworkInterface.h"
 
@@ -9,7 +10,7 @@
 // -Server Network Manager-
 // Maintains TCP/UDP connection state with PSMoveService.
 // Routes requests to the given request handler.
-class ClientNetworkManager 
+class PSM_CPP_PRIVATE_CLASS ClientNetworkManager 
 {
 public:
     ClientNetworkManager(

@@ -447,7 +447,7 @@ public:
 
                 // Fill out a data frame specific to this stream using the given callback
                 DeviceOutputDataFramePtr data_frame(new PSMoveProtocol::DeviceOutputDataFrame);
-                callback(controller_view, &streamInfo, data_frame);
+                callback(controller_view, &streamInfo, data_frame.get());
 
                 // Send the controller data frame over the network
                 ServerNetworkManager::get_instance()->send_device_data_frame(connection_id, data_frame);
@@ -676,6 +676,7 @@ protected:
         const PSMoveProtocol::Request_RequestStartPSMoveDataStream& request=
             context.request->request_start_psmove_data_stream();
         int controller_id= request.controller_id();
+//        response->set_type(PSMoveProtocol::Response_ResponseType_CONTROLLER_STREAM_STARTED);
 
         if (ServerUtility::is_index_valid(controller_id, m_device_manager.getControllerViewMaxCount()))
         {
@@ -712,6 +713,14 @@ protected:
                 {
                     controller_view->startTracking();
                 }
+                
+//                // Attach the initial state of the controller
+//                {
+//                    auto *stream_started_response= response->mutable_result_controller_stream_started();
+//                    PSMoveProtocol::DeviceOutputDataFrame* data_frame= stream_started_response->mutable_initial_data_frame();
+//                    
+//                    ServerControllerView::generate_controller_data_frame_for_stream(controller_view.get(), &streamInfo, data_frame);
+//                }
 
 				if (streamInfo.disable_roi)
 				{

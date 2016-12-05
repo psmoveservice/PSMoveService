@@ -75,7 +75,9 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ENDIF()
 
 # Allow access to the protocol buffers (extracting response parameters)
-target_compile_definitions(PSMoveConfigTool PRIVATE HAS_PROTOCOL_ACCESS)
+target_compile_definitions(PSMoveConfigTool
+    PRIVATE HAS_PROTOCOL_ACCESS
+    PRIVATE PSMOVECLIENT_CPP_API)
 
 #MacOS OpenCV must be self-built, this links against older std, which is hidden
 #Therefore the PSMoveConfigTool must be hidden

@@ -56,11 +56,11 @@ static void update_filters_for_psdualshock4(
     IPoseFilter *pose_filter);
 
 static void generate_psmove_data_frame_for_stream(
-    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceOutputDataFramePtr &data_frame);
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, PSMoveProtocol::DeviceOutputDataFrame *data_frame);
 static void generate_psnavi_data_frame_for_stream(
-    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceOutputDataFramePtr &data_frame);
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, PSMoveProtocol::DeviceOutputDataFrame *data_frame);
 static void generate_psdualshock4_data_frame_for_stream(
-    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, DeviceOutputDataFramePtr &data_frame);
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, PSMoveProtocol::DeviceOutputDataFrame *data_frame);
 
 static void computeSpherePoseForControllerFromSingleTracker(
 	const ServerControllerView *controllerView,
@@ -931,7 +931,7 @@ void ServerControllerView::publish_device_data_frame()
 void ServerControllerView::generate_controller_data_frame_for_stream(
     const ServerControllerView *controller_view,
     const ControllerStreamInfo *stream_info,
-    DeviceOutputDataFramePtr &data_frame)
+    PSMoveProtocol::DeviceOutputDataFrame *data_frame)
 {
     PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *controller_data_frame= 
         data_frame->mutable_controller_data_packet();
@@ -964,7 +964,7 @@ void ServerControllerView::generate_controller_data_frame_for_stream(
 static void generate_psmove_data_frame_for_stream(
     const ServerControllerView *controller_view,
     const ControllerStreamInfo *stream_info,
-    DeviceOutputDataFramePtr &data_frame)
+    PSMoveProtocol::DeviceOutputDataFrame *data_frame)
 {
     const PSMoveController *psmove_controller= controller_view->castCheckedConst<PSMoveController>();
     const IPoseFilter *pose_filter= controller_view->getPoseFilter();
@@ -1165,7 +1165,7 @@ static void generate_psmove_data_frame_for_stream(
 static void generate_psnavi_data_frame_for_stream(
     const ServerControllerView *controller_view,
     const ControllerStreamInfo *stream_info,
-    DeviceOutputDataFramePtr &data_frame)
+    PSMoveProtocol::DeviceOutputDataFrame *data_frame)
 {
     PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *controller_data_frame = data_frame->mutable_controller_data_packet();
     PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket_PSNaviState *psnavi_data_frame = controller_data_frame->mutable_psnavi_state();
@@ -1201,7 +1201,7 @@ static void generate_psnavi_data_frame_for_stream(
 static void generate_psdualshock4_data_frame_for_stream(
     const ServerControllerView *controller_view,
     const ControllerStreamInfo *stream_info,
-    DeviceOutputDataFramePtr &data_frame)
+    PSMoveProtocol::DeviceOutputDataFrame *data_frame)
 {
     const PSDualShock4Controller *ds4_controller = controller_view->castCheckedConst<PSDualShock4Controller>();
     const IPoseFilter *pose_filter= controller_view->getPoseFilter();

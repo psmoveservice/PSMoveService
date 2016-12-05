@@ -2,7 +2,7 @@
 #define CLIENT_HMD_VIEW_H
 
 //-- includes -----
-#include "ClientConfig.h"
+#include "PSMoveClient_export.h"
 #include "ClientConstants.h"
 #include "ClientGeometry.h"
 #include <cassert>
@@ -17,7 +17,7 @@ namespace PSMoveProtocol
 //-- constants -----
 
 //-- declarations -----
-struct CLIENTPSMOVEAPI MorpheusPhysicsData
+struct PSM_CPP_PUBLIC_CLASS MorpheusPhysicsData
 {
 	PSMoveFloatVector3 Velocity;
 	PSMoveFloatVector3 Acceleration;
@@ -33,7 +33,7 @@ struct CLIENTPSMOVEAPI MorpheusPhysicsData
 	}
 };
 
-struct CLIENTPSMOVEAPI MorpheusRawSensorData
+struct PSM_CPP_PUBLIC_CLASS MorpheusRawSensorData
 {
 	PSMoveIntVector3 Accelerometer;
 	PSMoveIntVector3 Gyroscope;
@@ -45,7 +45,7 @@ struct CLIENTPSMOVEAPI MorpheusRawSensorData
     }
 };
 
-struct CLIENTPSMOVEAPI MorpheusCalibratedSensorData
+struct PSM_CPP_PUBLIC_CLASS MorpheusCalibratedSensorData
 {
 	PSMoveFloatVector3 Accelerometer;
 	PSMoveFloatVector3 Gyroscope;
@@ -57,7 +57,7 @@ struct CLIENTPSMOVEAPI MorpheusCalibratedSensorData
 	}
 };
 
-struct CLIENTPSMOVEAPI MorpheusRawTrackerData
+struct PSM_CPP_PUBLIC_CLASS MorpheusRawTrackerData
 {
 	// Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
 	PSMoveScreenLocation ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
@@ -148,7 +148,7 @@ struct CLIENTPSMOVEAPI MorpheusRawTrackerData
 	}
 };
 
-struct CLIENTPSMOVEAPI ClientMorpheusView
+struct PSM_CPP_PUBLIC_CLASS ClientMorpheusView
 {
 private:
 	bool bValid;
@@ -220,7 +220,7 @@ public:
 	bool GetIsStableAndAlignedWithGravity() const;
 };
 
-class CLIENTPSMOVEAPI ClientHMDView
+class PSM_CPP_PUBLIC_CLASS ClientHMDView
 {
 public:
     enum eHMDViewType
