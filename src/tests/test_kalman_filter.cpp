@@ -481,7 +481,7 @@ apply_filter(
 		sensorPacket.optical_position_cm = Eigen::Vector3f(sample.pos[0], sample.pos[1], sample.pos[2]);
 
 		PoseFilterPacket filterPacket;
-		pose_filter_space->createFilterPacket(sensorPacket, pose_filter->getOrientation(), pose_filter->getPosition(), filterPacket);
+		pose_filter_space->createFilterPacket(sensorPacket, pose_filter, filterPacket);
 
 		pose_filter->update(dT, filterPacket);
 

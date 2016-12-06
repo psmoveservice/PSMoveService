@@ -818,7 +818,7 @@ protected:
 		const Eigen::EulerAnglesf global_forward_euler(Eigen::Vector3f(0.f, global_forward_radians, 0.f));
 		const Eigen::Quaternionf global_forward_quat = eigen_euler_angles_to_quaternionf(global_forward_euler);
 
-        if (m_device_manager.m_controller_manager->resetPose(controller_id, q_pose*global_forward_quat))
+        if (m_device_manager.m_controller_manager->resetPose(controller_id, eigen_quaternion_concatenate(q_pose, global_forward_quat)))
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }

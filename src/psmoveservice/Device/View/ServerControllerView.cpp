@@ -1686,7 +1686,7 @@ update_filters_for_psmove(
 			// and the filter's previous orientation and position
 			poseFilterSpace->createFilterPacket(
 				sensorPacket, 
-				poseFilter->getOrientation(), poseFilter->getPosition(),
+				poseFilter,
 				filterPacket);
 
             poseFilter->update(delta_time / 2.f, filterPacket);
@@ -1818,7 +1818,7 @@ update_filters_for_psdualshock4(
 			// and the filter's previous orientation and position
 			poseFilterSpace->createFilterPacket(
 				sensorPacket, 
-				poseFilter->getOrientation(), poseFilter->getPosition(),
+				poseFilter,
 				filterPacket);
 
             poseFilter->update(delta_time, filterPacket);
