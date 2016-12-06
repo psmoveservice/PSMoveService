@@ -470,6 +470,14 @@ public:
 
 	// Get the tracking color enum of the controller
 	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const = 0;
+
+	// Get the identity forward direction yaw direction relative to the global +X axis
+	// * 0 degrees would mean that the controller model was pointing down the globals +X axis 
+	//   when the controller had the identity pose 
+	// * 90 degrees would mean that the controller model was pointing down the globals +Z axis 
+	//   when the controller had the identity pose
+	// ...
+	virtual float getIdentityForwardDegrees() const = 0;
 };
 
 /// Abstract class for Tracker interface. Implemented Tracker classes

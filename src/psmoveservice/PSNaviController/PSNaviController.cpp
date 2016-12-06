@@ -564,6 +564,12 @@ PSNaviController::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_
 	out_tracking_color_id = eCommonTrackingColorID::INVALID_COLOR;
 	return false;
 }
+
+float PSNaviController::getIdentityForwardDegrees() const
+{
+	// Controller model points down the -Z axis when it has the identity orientation
+	return 270.f;
+}
     
 // -- private helper functions -----
 static std::string

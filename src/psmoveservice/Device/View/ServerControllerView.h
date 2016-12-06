@@ -49,6 +49,11 @@ public:
     bool open(const class DeviceEnumerator *enumerator) override;
     void close() override;
 
+	// Tell the pose filter that the controller is aligned with global forward 
+	// with the given pose relative to it's identity pose.
+	// Recenter the pose filter state accordingly.
+	bool recenterOrientation(const CommonDeviceQuaternion& q_pose_relative_to_identity_pose);
+
 	// Recreate and initialize the pose filter for the controller
 	void resetPoseFilter();
 

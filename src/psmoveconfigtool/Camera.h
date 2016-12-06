@@ -5,6 +5,8 @@
 #include <glm/glm.hpp>
 
 //-- constants -----
+const float k_camera_default_forward_degrees = 270.f;
+
 enum eCameraType
 {
     _cameraNone,

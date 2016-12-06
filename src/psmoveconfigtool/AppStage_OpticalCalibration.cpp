@@ -817,7 +817,7 @@ void AppStage_OpticalCalibration::onEnterState(eCalibrationMenuState newState)
 		// Align the camera to face along the global forward
 		// NOTE "0" degrees is down +Z in the ConfigTool View (rather than +X in the Service)
 		m_app->getOrbitCamera()->reset();
-		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - 90.f);
+		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - k_camera_default_forward_degrees);
 		m_app->getOrbitCamera()->setCameraOrbitRadius(200);
 		m_bReadyForSampling = false;
 		break;
@@ -828,7 +828,7 @@ void AppStage_OpticalCalibration::onEnterState(eCalibrationMenuState newState)
 		m_app->getOrbitCamera()->reset();
 		// Align the camera to face along the global forward
 		// NOTE "0" degrees is down +Z in the ConfigTool View (rather than +X in the Service)
-		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - 90.f);
+		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - k_camera_default_forward_degrees);
 		m_app->getOrbitCamera()->setCameraOrbitRadius(200);
 		break;
 	default:

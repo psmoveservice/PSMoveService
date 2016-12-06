@@ -643,9 +643,7 @@ void AppStage_GyroscopeCalibration::onEnterState(eCalibrationMenuState newState)
 	case eCalibrationMenuState::test:
 		m_app->setCameraType(_cameraOrbit);
 		m_app->getOrbitCamera()->reset();
-		// Align the camera to face along the global forward
-		// NOTE "0" degrees is down +Z in the ConfigTool View (rather than +X in the Service)
-		m_app->getOrbitCamera()->setCameraOrbitYaw(m_global_forward_degrees - 90.f);
+		m_app->getOrbitCamera()->setCameraOrbitYaw(m_global_forward_degrees - k_camera_default_forward_degrees);
 		break;
 	default:
 		assert(0 && "unreachable");

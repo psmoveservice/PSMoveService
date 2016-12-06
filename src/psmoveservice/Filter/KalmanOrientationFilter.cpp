@@ -495,9 +495,6 @@ public:
     /// Unscented Kalman Filter instance
 	OrientationSRUKF ukf;
 
-	/// Quaternion measured when controller points towards camera 
-	Eigen::Quaternionf reset_orientation;
-
 	/// The final output of this filter.
 	/// This isn't part of the UKF state vector because it's non-linear.
 	/// Instead we store "error euler angles" in the UKF state vector and then apply it 
@@ -507,7 +504,6 @@ public:
 	KalmanOrientationFilterImpl()
 		: bIsValid(false)
 		, bSeenOrientationMeasurement(false)
-		, reset_orientation(Eigen::Quaternionf::Identity())
 		, world_orientation(Eigen::Quaternionf::Identity())
 		, system_model()
 		, ukf(k_ukf_alpha, k_ukf_beta, k_ukf_kappa)
@@ -519,7 +515,6 @@ public:
 		bIsValid = false;
 		bSeenOrientationMeasurement = false;
 
-		reset_orientation = Eigen::Quaternionf::Identity();
 		world_orientation = Eigen::Quaterniond::Identity();
 
         system_model.init(constants);
@@ -533,7 +528,6 @@ public:
 		bIsValid = true;
 		bSeenOrientationMeasurement = true;
 
-		reset_orientation = Eigen::Quaternionf::Identity();
 		world_orientation = orientation.cast<double>();
 
 		system_model.init(constants);
@@ -671,10 +665,7 @@ void KalmanOrientationFilter::resetState()
 
 void KalmanOrientationFilter::recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose)
 {
-	Eigen::Quaternionf q_inverse = getOrientation().conjugate();
-
-	eigen_quaternion_normalize_with_default(q_inverse, Eigen::Quaternionf::Identity());
-	m_filter->reset_orientation = q_pose*q_inverse;
+	m_filter->world_orientation = q_pose.cast<double>();
 }
 
 Eigen::Quaternionf KalmanOrientationFilter::getOrientation(float time) const
@@ -696,7 +687,7 @@ Eigen::Quaternionf KalmanOrientationFilter::getOrientation(float time) const
 				+ quaternion_derivative.coeffs()*time).normalized();
 		}
 
-		result = m_filter->reset_orientation * predicted_orientation;
+		result = predicted_orientation;
 	}
 
 	return result;

@@ -799,28 +799,24 @@ protected:
         PSMoveProtocol::Response *response)
     {
         const int controller_id= context.request->reset_pose().controller_id();
-		
-		// Get the pose that we expect the controller to be in (relative to the pose it's in by default).
-		// For example, the psmove controller's default mesh has it laying flat,
-		// but when we call reset_pose in the HMD alignment tool, we expect the controller is pointing up.
-		const Eigen::Quaternionf q_pose(
-			context.request->reset_pose().orientation().w(),
-			context.request->reset_pose().orientation().x(),
-			context.request->reset_pose().orientation().y(),
-			context.request->reset_pose().orientation().z() );
+		ServerControllerViewPtr controllerView = m_device_manager.getControllerViewPtr(controller_id);
 
-		// Align to the global forward (not necessarily pointing down +X)
-		const float global_forward_degrees =
-			m_device_manager.m_tracker_manager->getConfig().global_forward_degrees
-			//###HipsterSloth $TODO - The controller default meshes are aligned down Z, not X
-			- 90.f;
-		const float global_forward_radians = global_forward_degrees * k_degrees_to_radians;
-		const Eigen::EulerAnglesf global_forward_euler(Eigen::Vector3f(0.f, global_forward_radians, 0.f));
-		const Eigen::Quaternionf global_forward_quat = eigen_euler_angles_to_quaternionf(global_forward_euler);
+		CommonDeviceQuaternion q_pose;
+		q_pose.w= context.request->reset_pose().orientation().w();
+		q_pose.x= context.request->reset_pose().orientation().x();
+		q_pose.y= context.request->reset_pose().orientation().y();
+		q_pose.z= context.request->reset_pose().orientation().z();
 
-        if (m_device_manager.m_controller_manager->resetPose(controller_id, eigen_quaternion_concatenate(q_pose, global_forward_quat)))
-        {
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+		if (controllerView->getIsOpen())
+		{
+			if (controllerView->recenterOrientation(q_pose))
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
         }
         else
         {

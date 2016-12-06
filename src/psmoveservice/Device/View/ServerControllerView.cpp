@@ -291,6 +291,53 @@ void ServerControllerView::close()
     ServerDeviceView::close();
 }
 
+bool ServerControllerView::recenterOrientation(const CommonDeviceQuaternion& q_pose_relative_to_identity_pose)
+{
+	bool bSuccess = false;
+	IPoseFilter *filter = getPoseFilterMutable();
+
+	if (filter != nullptr)
+	{
+		// Get the pose that we expect the controller to be in (relative to the pose it's in by default).
+		// For example, the psmove controller's default mesh has it laying flat,
+		// but when we call reset_pose in the HMD alignment tool, we expect the controller is pointing up.
+		const Eigen::Quaternionf q_pose(
+			q_pose_relative_to_identity_pose.w,
+			q_pose_relative_to_identity_pose.x,
+			q_pose_relative_to_identity_pose.y,
+			q_pose_relative_to_identity_pose.z);
+
+		// Get the rotation that would align the global +X axis with the global forward direction
+		const float global_forward_degrees = DeviceManager::getInstance()->m_tracker_manager->getConfig().global_forward_degrees;
+		const float global_forward_radians = global_forward_degrees * k_degrees_to_radians;
+		const Eigen::EulerAnglesf global_forward_euler(Eigen::Vector3f(0.f, global_forward_radians, 0.f));
+		const Eigen::Quaternionf global_forward_quat = eigen_euler_angles_to_quaternionf(global_forward_euler);
+
+		// Get the rotation that would align the global +X axis with the controller identity forward
+		const float controller_forward_degrees = m_device->getIdentityForwardDegrees();
+		const float controller_forward_radians = global_forward_degrees * k_degrees_to_radians;
+		const Eigen::EulerAnglesf controller_forward_euler(Eigen::Vector3f(0.f, controller_forward_radians, 0.f));
+		const Eigen::Quaternionf controller_forward_quat = eigen_euler_angles_to_quaternionf(controller_forward_euler);
+
+		// Compute the relative rotation from global forward to controller identity forward.
+		// If the controllers identity forward and global forward are the same this will cancel out.
+		// Usually both are -Z.
+		const Eigen::Quaternionf identity_pose_relative_to_global_forward= 
+			eigen_quaternion_concatenate(global_forward_quat.conjugate(), controller_forward_quat);
+
+		// Compute the pose that the controller claims to be in relative to global forward.
+		// For the normal re-centering case q_pose_relative_to_identity_pose is the identity quaternion.
+		const Eigen::Quaternionf controller_pose_relative_to_global_forward=
+			eigen_quaternion_concatenate(q_pose, identity_pose_relative_to_global_forward);
+
+		// Tell the pose filter that the orientation state should now be relative to controller_pose_relative_to_global_forward
+		filter->recenterState(Eigen::Vector3f::Zero(), controller_pose_relative_to_global_forward);
+		bSuccess = true;
+	}
+
+	return bSuccess;
+}
+
 void ServerControllerView::resetPoseFilter()
 {
 	assert(m_device != nullptr);

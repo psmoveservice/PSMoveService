@@ -1238,6 +1238,11 @@ PSMoveController::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_
 	return bSuccess;
 }
 
+float PSMoveController::getIdentityForwardDegrees() const
+{
+	// Controller model points down the -Z axis when it has the identity orientation
+	return 270.f;
+}
 
 float
 PSMoveController::getTempCelsius() const
