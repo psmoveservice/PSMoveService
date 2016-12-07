@@ -87,7 +87,7 @@ private:
 	bool m_bResetPoseRequestSent;
 
     struct PoseNoiseSampleSet *m_poseNoiseSamplesSet;
-	bool m_bReadyForSampling;
+	bool m_bWaitForSampleButtonRelease;
 
 	ClientPSMoveAPI::ResponsePayload_TrackerList m_trackerList;
 };
