@@ -113,7 +113,7 @@ message Request {
         GET_CONTROLLER_LIST = 0;
         START_CONTROLLER_DATA_STREAM = 1;
         STOP_CONTROLLER_DATA_STREAM = 2;
-        RESET_POSE = 4;
+        RESET_ORIENTATION = 4;
         UNPAIR_CONTROLLER= 5;
         PAIR_CONTROLLER= 6;
         CANCEL_BLUETOOTH_REQUEST= 7;
@@ -174,12 +174,12 @@ message Request {
     }
     RequestStopPSMoveDataStream request_stop_psmove_data_stream = 5;
 
-    // Parameters for RESET_POSE
+    // Parameters for RESET_ORIENTATION
     message RequestResetPose {
         int32 controller_id = 1;
         Orientation orientation= 2;
     }
-    RequestResetPose reset_pose = 7;   
+    RequestResetPose reset_orientation = 7;   
     
     // Parameters for UNPAIR_CONTROLLER
     message RequestUnpairController {

@@ -458,7 +458,7 @@ void AppStage_OpticalCalibration::update()
 
 							if (pressDurationMilli.count() >= k_hold_duration_milli)
 							{
-								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView, PSMoveQuaternion::identity()));
+								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
 								m_bResetPoseRequestSent = true;
 							}
 						}
@@ -472,7 +472,7 @@ void AppStage_OpticalCalibration::update()
 			else if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4 &&
 					m_controllerView->GetPSDualShock4View().GetButtonOptions() == PSMoveButton_PRESSED)
 			{
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView, PSMoveQuaternion::identity()));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
 			}
         } break;
     default:

@@ -189,9 +189,9 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__stop_controller_data_stream(context, response);
                 break;
-            case PSMoveProtocol::Request_RequestType_RESET_POSE:
+            case PSMoveProtocol::Request_RequestType_RESET_ORIENTATION:
                 response = new PSMoveProtocol::Response;
-                handle_request__reset_pose(context, response);
+                handle_request__reset_orientation(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_UNPAIR_CONTROLLER:
                 response = new PSMoveProtocol::Response;
@@ -794,18 +794,18 @@ protected:
         }
     }
 
-    void handle_request__reset_pose(
+    void handle_request__reset_orientation(
         const RequestContext &context, 
         PSMoveProtocol::Response *response)
     {
-        const int controller_id= context.request->reset_pose().controller_id();
+        const int controller_id= context.request->reset_orientation().controller_id();
 		ServerControllerViewPtr controllerView = m_device_manager.getControllerViewPtr(controller_id);
 
 		CommonDeviceQuaternion q_pose;
-		q_pose.w= context.request->reset_pose().orientation().w();
-		q_pose.x= context.request->reset_pose().orientation().x();
-		q_pose.y= context.request->reset_pose().orientation().y();
-		q_pose.z= context.request->reset_pose().orientation().z();
+		q_pose.w= context.request->reset_orientation().orientation().w();
+		q_pose.x= context.request->reset_orientation().orientation().x();
+		q_pose.y= context.request->reset_orientation().orientation().y();
+		q_pose.z= context.request->reset_orientation().orientation().z();
 
 		if (controllerView->getIsOpen())
 		{

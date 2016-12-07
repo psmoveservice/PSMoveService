@@ -168,9 +168,8 @@ void PositionFilter::resetState()
     m_state->reset();
 }
 
-void PositionFilter::recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose)
+void PositionFilter::recenterOrientation(const Eigen::Quaternionf& q_pose)
 {
-    m_state->origin_position= p_pose + m_state->position;
 }
 
 bool PositionFilter::init(const PositionFilterConstants &constants)

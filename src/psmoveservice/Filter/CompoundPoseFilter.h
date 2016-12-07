@@ -54,7 +54,7 @@ public:
     bool getIsStateValid() const override;
     void update(const float delta_time, const PoseFilterPacket &packet) override;
     void resetState() override;
-    void recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose) override;
+	void recenterOrientation(const Eigen::Quaternionf& q_pose) override;
 
     // -- IPoseFilter ---
     Eigen::Quaternionf getOrientation(float time = 0.f) const override;

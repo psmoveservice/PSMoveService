@@ -663,7 +663,7 @@ void KalmanOrientationFilter::resetState()
 	m_filter->init(m_constants);
 }
 
-void KalmanOrientationFilter::recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose)
+void KalmanOrientationFilter::recenterOrientation(const Eigen::Quaternionf& q_pose)
 {
 	m_filter->world_orientation = q_pose.cast<double>();
 }

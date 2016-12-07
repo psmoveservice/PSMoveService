@@ -486,7 +486,7 @@ void AppStage_MagnetometerCalibration::update()
 
 							if (pressDurationMilli.count() >= k_hold_duration_milli)
 							{
-								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView, PSMoveQuaternion::identity()));
+								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
 								m_bResetPoseRequestSent = true;
 							}
 						}

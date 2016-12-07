@@ -231,7 +231,7 @@ void AppStage_AccelerometerCalibration::update()
 			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4 &&
 				m_controllerView->GetPSDualShock4View().GetButtonOptions() == PSMoveButton_PRESSED)
 			{
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView, PSMoveQuaternion::identity()));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
 			}
         } break;
     default:

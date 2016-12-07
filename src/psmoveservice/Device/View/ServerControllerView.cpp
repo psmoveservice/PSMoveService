@@ -300,7 +300,7 @@ bool ServerControllerView::recenterOrientation(const CommonDeviceQuaternion& q_p
 	{
 		// Get the pose that we expect the controller to be in (relative to the pose it's in by default).
 		// For example, the psmove controller's default mesh has it laying flat,
-		// but when we call reset_pose in the HMD alignment tool, we expect the controller is pointing up.
+		// but when we call reset_orientation in the HMD alignment tool, we expect the controller is pointing up.
 		const Eigen::Quaternionf q_pose(
 			q_pose_relative_to_identity_pose.w,
 			q_pose_relative_to_identity_pose.x,
@@ -331,7 +331,7 @@ bool ServerControllerView::recenterOrientation(const CommonDeviceQuaternion& q_p
 			eigen_quaternion_concatenate(q_pose, identity_pose_relative_to_global_forward);
 
 		// Tell the pose filter that the orientation state should now be relative to controller_pose_relative_to_global_forward
-		filter->recenterState(Eigen::Vector3f::Zero(), controller_pose_relative_to_global_forward);
+		filter->recenterOrientation(controller_pose_relative_to_global_forward);
 		bSuccess = true;
 	}
 

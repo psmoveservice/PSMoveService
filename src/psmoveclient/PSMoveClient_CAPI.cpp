@@ -520,7 +520,7 @@ PSMResult PSM_ResetControllerPoseAsync(PSMControllerID controller_id, PSMRequest
     if (IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         ClientControllerView *view = g_controller_views[controller_id];
-        ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::reset_pose(view, PSMoveQuaternion::identity());
+        ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::reset_orientation(view, PSMoveQuaternion::identity());
 
         if (out_request_id != nullptr)
         {
@@ -533,15 +533,16 @@ PSMResult PSM_ResetControllerPoseAsync(PSMControllerID controller_id, PSMRequest
     return result;
 }
 
-PSMResult PSM_ResetControllerPose(PSMControllerID controller_id, int timeout_ms)
+PSMResult PSM_ResetControllerOrientation(PSMControllerID controller_id, PSMQuatf *q_pose, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
     if (IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         ClientControllerView *view = g_controller_views[controller_id];
+		PSMoveQuaternion q= PSMoveQuaternion::create(q_pose->w, q_pose->x, q_pose->y, q_pose->z);
 
-        result= blockUntilResponse(ClientPSMoveAPI::reset_pose(view, PSMoveQuaternion::identity()), timeout_ms);
+        result= blockUntilResponse(ClientPSMoveAPI::reset_orientation(view, q), timeout_ms);
     }
 
     return result;
