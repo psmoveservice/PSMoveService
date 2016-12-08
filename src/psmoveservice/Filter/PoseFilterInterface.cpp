@@ -54,12 +54,15 @@ Eigen::Vector3f PoseFilterSpace::getMagnetometerCalibrationDirection() const
 
 void PoseFilterSpace::createFilterPacket(
     const PoseSensorPacket &sensorPacket,
-	const Eigen::Quaternionf &orientation,
-	const Eigen::Vector3f &position,
+	const IPoseFilter *poseFilter,
     PoseFilterPacket &outFilterPacket) const
 {
-	outFilterPacket.current_orientation= orientation;
-	outFilterPacket.current_position_cm= position;
+	poseFilter->getOrientation(), poseFilter->getPosition(),
+
+	outFilterPacket.current_orientation= poseFilter->getOrientation();
+	outFilterPacket.current_position_cm= poseFilter->getPosition();
+	outFilterPacket.current_linear_velocity_cm_s = poseFilter->getVelocity();
+	outFilterPacket.current_linear_acceleration_cm_s2 = poseFilter->getAcceleration();
 
     outFilterPacket.optical_orientation = sensorPacket.optical_orientation;
 
@@ -72,5 +75,5 @@ void PoseFilterSpace::createFilterPacket(
     outFilterPacket.imu_magnetometer= m_SensorTransform * sensorPacket.imu_magnetometer;
         
 	outFilterPacket.world_accelerometer=
-		eigen_vector3f_clockwise_rotate(orientation, outFilterPacket.imu_accelerometer);	
+		eigen_vector3f_clockwise_rotate(outFilterPacket.current_orientation, outFilterPacket.imu_accelerometer);
 }

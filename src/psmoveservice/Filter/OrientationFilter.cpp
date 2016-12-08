@@ -100,7 +100,7 @@ void OrientationFilter::resetState()
     m_state->reset();
 }
 
-void OrientationFilter::recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose)
+void OrientationFilter::recenterOrientation(const Eigen::Quaternionf& q_pose)
 {
     Eigen::Quaternionf q_inverse = m_state->orientation.conjugate();
 

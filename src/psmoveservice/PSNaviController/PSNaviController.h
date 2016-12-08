@@ -116,6 +116,7 @@ public:
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
     virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
 	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
+	virtual float getIdentityForwardDegrees() const override;
         
 private:    
     bool getBTAddress(std::string& host, std::string& controller);

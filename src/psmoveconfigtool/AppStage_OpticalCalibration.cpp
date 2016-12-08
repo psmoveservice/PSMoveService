@@ -172,6 +172,7 @@ struct PoseNoiseSampleSet
 
 
 //-- private methods -----
+static bool isPressingSamplingButton(const ClientControllerView *controllerView);
 static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
 
 //-- public methods -----
@@ -189,7 +190,7 @@ AppStage_OpticalCalibration::AppStage_OpticalCalibration(App *app)
 	, m_resetPoseButtonPressTime()
 	, m_bResetPoseRequestSent(false)
     , m_poseNoiseSamplesSet(new PoseNoiseSampleSet)
-	, m_bReadyForSampling(false)
+	, m_bWaitForSampleButtonRelease(false)
 {
 	m_lastMulticamPosition = *k_psmove_position_origin;
 	m_lastMulticamOrientation = PSMoveQuaternion::identity();
@@ -344,7 +345,16 @@ void AppStage_OpticalCalibration::update()
 	case eCalibrationMenuState::failedTrackerListRequest:
 	case eCalibrationMenuState::waitForStable:
 		{
-			if (m_bReadyForSampling && m_controllerView->GetIsGyroStable() && m_controllerView->GetIsCurrentlyTracking())
+			if (m_bWaitForSampleButtonRelease && 
+				!isPressingSamplingButton(m_controllerView))
+			{
+				m_bWaitForSampleButtonRelease = false;
+			}
+
+			if (!m_bWaitForSampleButtonRelease && 
+				m_controllerView->GetIsGyroStable() && 
+				m_controllerView->GetIsCurrentlyTracking() && 
+				isPressingSamplingButton(m_controllerView))
 			{
 				if (m_bIsStableAndVisible)
 				{
@@ -372,7 +382,8 @@ void AppStage_OpticalCalibration::update()
 		} break;
     case eCalibrationMenuState::measureOpticalNoise:
         {
-            if (m_controllerView->GetIsGyroStable())
+            if (m_controllerView->GetIsGyroStable() && 
+				isPressingSamplingButton(m_controllerView))
             {
 				PoseNoiseSamplesAtLocation &poseNoiseSamples = m_poseNoiseSamplesSet->getCurrentLocationSamples();
 
@@ -425,6 +436,7 @@ void AppStage_OpticalCalibration::update()
 					// Otherwise move on to the next location
 					else
 					{
+						m_bWaitForSampleButtonRelease = true;
 						setState(eCalibrationMenuState::waitForStable);
 					}
                 }
@@ -458,7 +470,7 @@ void AppStage_OpticalCalibration::update()
 
 							if (pressDurationMilli.count() >= k_hold_duration_milli)
 							{
-								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView, PSMoveQuaternion::identity()));
+								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
 								m_bResetPoseRequestSent = true;
 							}
 						}
@@ -472,7 +484,7 @@ void AppStage_OpticalCalibration::update()
 			else if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4 &&
 					m_controllerView->GetPSDualShock4View().GetButtonOptions() == PSMoveButton_PRESSED)
 			{
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView, PSMoveQuaternion::identity()));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
 			}
         } break;
     default:
@@ -607,16 +619,31 @@ void AppStage_OpticalCalibration::renderUI()
 				ImGui::Text("Tracker Projection Area: [Not Visible]");
 			}
 
-			if (!m_bReadyForSampling)
+			if (m_bWaitForSampleButtonRelease)
 			{
-				if (ImGui::Button("Start Sampling"))
+				switch (m_controllerView->GetControllerViewType())
 				{
-					m_bReadyForSampling = true;
+				case ClientControllerView::PSMove:
+					ImGui::Text("Release the Move button.");
+					break;
+				case ClientControllerView::PSDualShock4:
+					ImGui::Text("Release the X button.");
+					break;
 				}
 			}
 			else
 			{
-				ImGui::TextWrapped("[Measurement will start once the controller is held still the tracking light is visible to cameras.]");
+				switch (m_controllerView->GetControllerViewType())
+				{
+				case ClientControllerView::PSMove:
+					ImGui::Text("Hold the controller still and press the Move button.");
+					ImGui::Text("Measurement will start once tracking light is visible to cameras.");
+					break;
+				case ClientControllerView::PSDualShock4:
+					ImGui::TextWrapped("Hold the controller still and press the X button.");
+					ImGui::TextWrapped("Measurement will start once tracking light is visible to cameras.");
+					break;
+				}
 
 				if (m_bIsStableAndVisible)
 				{
@@ -817,9 +844,8 @@ void AppStage_OpticalCalibration::onEnterState(eCalibrationMenuState newState)
 		// Align the camera to face along the global forward
 		// NOTE "0" degrees is down +Z in the ConfigTool View (rather than +X in the Service)
 		m_app->getOrbitCamera()->reset();
-		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - 90.f);
+		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - k_camera_default_forward_degrees);
 		m_app->getOrbitCamera()->setCameraOrbitRadius(200);
-		m_bReadyForSampling = false;
 		break;
 	case eCalibrationMenuState::measureOpticalNoise:
 	case eCalibrationMenuState::measureComplete:
@@ -828,7 +854,7 @@ void AppStage_OpticalCalibration::onEnterState(eCalibrationMenuState newState)
 		m_app->getOrbitCamera()->reset();
 		// Align the camera to face along the global forward
 		// NOTE "0" degrees is down +Z in the ConfigTool View (rather than +X in the Service)
-		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - 90.f);
+		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - k_camera_default_forward_degrees);
 		m_app->getOrbitCamera()->setCameraOrbitRadius(200);
 		break;
 	default:
@@ -929,6 +955,23 @@ void AppStage_OpticalCalibration::request_exit_to_app_stage(const char *app_stag
 }
 
 //-- private methods -----
+static bool isPressingSamplingButton(const ClientControllerView *controllerView)
+{
+	bool bIsPressingButton = false;
+
+	switch (controllerView->GetControllerViewType())
+	{
+	case ClientControllerView::PSMove:
+		bIsPressingButton = controllerView->GetPSMoveView().GetButtonMove() == PSMoveButton_DOWN;
+		break;
+	case ClientControllerView::PSDualShock4:
+		bIsPressingButton = controllerView->GetPSDualShock4View().GetButtonCross() == PSMoveButton_DOWN;
+		break;
+	}
+
+	return bIsPressingButton;
+}
+
 static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform)
 {
     switch(controllerView->GetControllerViewType())

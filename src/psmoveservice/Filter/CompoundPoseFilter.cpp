@@ -163,12 +163,11 @@ void CompoundPoseFilter::resetState()
 	}
 }
 
-void CompoundPoseFilter::recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose)
+void CompoundPoseFilter::recenterOrientation(const Eigen::Quaternionf& q_pose)
 {
-	if (m_orientation_filter != nullptr && m_position_filter != nullptr)
+	if (m_orientation_filter != nullptr)
 	{
-		m_orientation_filter->recenterState(p_pose, q_pose);
-		m_position_filter->recenterState(p_pose, q_pose);
+		m_orientation_filter->recenterOrientation(q_pose);
 	}
 }
 

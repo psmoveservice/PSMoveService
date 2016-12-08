@@ -36,7 +36,7 @@ public:
 		, firmware_revision(0)
         , max_poll_failure_count(100) 
         , prediction_time(0.f)
-		, position_filter_type("LowPassOptical")
+		, position_filter_type("LowPassExponential")
 		, orientation_filter_type("ComplementaryMARG")
         , cal_ag_xyz_kb({{ 
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }},
@@ -250,6 +250,7 @@ public:
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
     virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
 	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
+	virtual float getIdentityForwardDegrees() const override;
 
     // -- Getters
     inline const PSMoveControllerConfig *getConfig() const

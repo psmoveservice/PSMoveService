@@ -5,9 +5,6 @@
 //==================================================================================================
 // Includes
 //==================================================================================================
-
-#define HAS_PROTOCOL_ACCESS
-
 #include "driver_psmoveservice.h"
 #include <sstream>
 #include "PSMoveProtocol.pb.h"
@@ -1751,16 +1748,16 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling StartRealignHMDTrackingSpace() in response to controller chord.\n");
 				#endif
 
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controller_view, controllerBallPointedUpQuat));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controller_view, controllerBallPointedUpQuat));
 				m_bResetPoseRequestSent = true;
 
 				StartRealignHMDTrackingSpace();
             }
 			else if (bRecenterRequestTriggered)
 			{
-				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling ClientPSMoveAPI::reset_pose() in response to controller button press.\n");
+				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling ClientPSMoveAPI::reset_orientation() in response to controller button press.\n");
 
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controller_view, PSMoveQuaternion::identity()));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controller_view, PSMoveQuaternion::identity()));
 				m_bResetPoseRequestSent = true;
 			}
 			else 
@@ -1913,7 +1910,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 
 			if (clientView.GetButtonOptions() == PSMoveButton_PRESSED)
 			{
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controller_view, PSMoveQuaternion::identity()));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controller_view, PSMoveQuaternion::identity()));
 			}
 			else
 			{
@@ -2199,8 +2196,8 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	PSMovePose driver_pose_to_world_pose = PSMovePose::concat(psmove_pose_inv, controller_world_space_pose);
 	DriverLog("driver_pose_to_world_pose: %s \n", PsMovePoseToString(driver_pose_to_world_pose).c_str());
 
-	//PSMovePose test_composed_controller_world_space = PSMovePose::concat(psmove_pose_meters, driver_pose_to_world_pose);
-	//DriverLog("test_composed_controller_world_space: %s \n", PsMovePoseToString(test_composed_controller_world_space).c_str());
+	PSMovePose test_composed_controller_world_space = PSMovePose::concat(psmove_pose_meters, driver_pose_to_world_pose);
+	DriverLog("test_composed_controller_world_space: %s \n", PsMovePoseToString(test_composed_controller_world_space).c_str());
 
 	g_ServerTrackedDeviceProvider.SetHMDTrackingSpace(driver_pose_to_world_pose);
 }

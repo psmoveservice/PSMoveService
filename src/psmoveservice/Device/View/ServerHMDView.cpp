@@ -891,7 +891,7 @@ update_filters_for_morpheus_hmd(
 				// and the filter's previous orientation and position
 				poseFilterSpace->createFilterPacket(
 					sensorPacket,
-					poseFilter->getOrientation(), poseFilter->getPosition(),
+					poseFilter,
 					filterPacket);
 
 				poseFilter->update(delta_time / 2.f, filterPacket);

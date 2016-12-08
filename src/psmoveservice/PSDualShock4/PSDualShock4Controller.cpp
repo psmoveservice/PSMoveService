@@ -1055,6 +1055,12 @@ PSDualShock4Controller::getTrackingColorID(eCommonTrackingColorID &out_tracking_
 	return bSuccess;
 }
 
+float PSDualShock4Controller::getIdentityForwardDegrees() const
+{
+	// Controller model points down the +Z axis when it has the identity orientation
+	return 270.f;
+}
+
 long PSDualShock4Controller::getMaxPollFailureCount() const
 {
     return cfg.max_poll_failure_count;

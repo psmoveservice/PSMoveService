@@ -65,12 +65,28 @@ struct PoseFilterPacket : PoseSensorPacket
     /// The current position of the controller
     Eigen::Vector3f current_position_cm;
 
+	/// The current position of the controller
+	Eigen::Vector3f current_linear_velocity_cm_s;
+
+	/// The current acceleration of the controller
+	Eigen::Vector3f current_linear_acceleration_cm_s2;
+
     /// The accelerometer reading in the world reference frame
     Eigen::Vector3f world_accelerometer; // g-units
 
 	inline Eigen::Vector3f get_current_position_in_meters() const
 	{
 		return current_position_cm * k_centimeters_to_meters;
+	}
+
+	inline Eigen::Vector3f get_current_velocity_in_meters_per_second() const
+	{
+		return current_linear_velocity_cm_s * k_centimeters_to_meters;
+	}
+
+	inline Eigen::Vector3f get_current_acceleration_in_meters_per_second_squared() const
+	{
+		return current_linear_acceleration_cm_s2 * k_centimeters_to_meters;
 	}
 };
 
@@ -97,8 +113,7 @@ public:
 
     void createFilterPacket(
         const PoseSensorPacket &sensorPacket,
-        const Eigen::Quaternionf &orientation,
-        const Eigen::Vector3f &position,
+		const class IPoseFilter *poseFilter,
         PoseFilterPacket &outFilterPacket) const;
 
 private:
@@ -182,7 +197,7 @@ public:
     virtual void resetState() = 0;
 
     /// The current state becomes the identity pose
-    virtual void recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose) = 0;
+    virtual void recenterOrientation(const Eigen::Quaternionf& q_pose) = 0;
 };
 
 /// Common interface to all orientation filters
@@ -212,10 +227,10 @@ public:
     /// Estimate the current position of the filter state given a time offset into the future (meters)
     virtual Eigen::Vector3f getPosition(float time = 0.f) const = 0;
 
-    /// Get the current velocity of the filter state (m/s)
+    /// Get the current velocity of the filter state (cm/s)
     virtual Eigen::Vector3f getVelocity() const = 0;
 
-    /// Get the current velocity of the filter state (m/s^2)
+    /// Get the current velocity of the filter state (cm/s^2)
     virtual Eigen::Vector3f getAcceleration() const = 0;
 };
 
@@ -235,10 +250,10 @@ public:
     /// Estimate the current position of the filter state given a time offset into the future (meters)
     virtual Eigen::Vector3f getPosition(float time = 0.f) const = 0;
 
-    /// Get the current velocity of the filter state (m/s)
+    /// Get the current velocity of the filter state (cm/s)
     virtual Eigen::Vector3f getVelocity() const = 0;
 
-    /// Get the current velocity of the filter state (m/s^2)
+    /// Get the current velocity of the filter state (cm/s^2)
     virtual Eigen::Vector3f getAcceleration() const = 0;
 };
 
