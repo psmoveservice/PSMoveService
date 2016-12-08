@@ -30,6 +30,12 @@
 const char *AppStage_ControllerSettings::APP_STAGE_NAME= "ControllerSettings";
 
 //-- constants -----
+const int k_default_position_filter_index = 3; // LowPassExponential
+const int k_default_psmove_orientation_filter_index = 3; // ComplementaryMARG
+const int k_default_ds4_position_filter_index = 5; // PositionKalman
+const int k_default_ds4_orientation_filter_index = 3; // OrientationKalman
+const int k_default_ds4_gyro_gain_index = 4; // 2000deg/s
+
 const char* k_position_filter_names[] = { "PassThru", "LowPassOptical", "LowPassIMU", "LowPassExponential", "ComplimentaryOpticalIMU", "PositionKalman" };
 const char* k_psmove_orientation_filter_names[] = { "PassThru", "MadgwickARG", "MadgwickMARG", "ComplementaryMARG", "OrientationKalman" };
 const char* k_ds4_orientation_filter_names[] = { "PassThru", "MadgwickARG", "ComplementaryOpticalARG", "OrientationKalman" };
@@ -242,9 +248,6 @@ void AppStage_ControllerSettings::renderUI()
 
                 ImGui::BulletText("Device Serial: %s", controllerInfo.DeviceSerial.c_str());
                 ImGui::BulletText("Assigned Host Serial: %s", controllerInfo.AssignedHostSerial.c_str());
-                ImGui::BulletText("Device Path:");
-                ImGui::SameLine();
-                ImGui::TextWrapped("%s", controllerInfo.DevicePath.c_str());
 
                 if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSMove)
                 {
@@ -324,6 +327,15 @@ void AppStage_ControllerSettings::renderUI()
 						controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[controllerInfo.OrientationFilterIndex];
 						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
 					}
+					if (ImGui::Button("Reset Filter Defaults"))
+					{
+						controllerInfo.PositionFilterIndex = k_default_position_filter_index;
+						controllerInfo.OrientationFilterIndex = k_default_psmove_orientation_filter_index;
+						controllerInfo.PositionFilterName = k_psmove_orientation_filter_names[k_default_position_filter_index];
+						controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[k_default_psmove_orientation_filter_index];
+						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+					}
 					ImGui::PopItemWidth();
 				}
 				else if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
@@ -342,6 +354,18 @@ void AppStage_ControllerSettings::renderUI()
 					if (ImGui::Combo("Gyro Gain", &controllerInfo.GyroGainIndex, k_ds4_gyro_gain_setting_labels, UI_ARRAYSIZE(k_ds4_gyro_gain_setting_labels)))
 					{
 						controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[controllerInfo.GyroGainIndex];
+						request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
+					}
+					if (ImGui::Button("Reset Filter Defaults"))
+					{
+						controllerInfo.PositionFilterIndex = k_default_ds4_position_filter_index;
+						controllerInfo.OrientationFilterIndex = k_default_ds4_orientation_filter_index;
+						controllerInfo.GyroGainIndex = k_default_ds4_gyro_gain_index;
+						controllerInfo.PositionFilterName = k_position_filter_names[k_default_ds4_position_filter_index];
+						controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[k_default_ds4_orientation_filter_index];
+						controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[k_default_ds4_gyro_gain_index];
+						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
 						request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
 					}
 					ImGui::PopItemWidth();
