@@ -338,7 +338,7 @@ void AppStage_GyroscopeCalibration::update()
 
 void AppStage_GyroscopeCalibration::render()
 {
-    const float bigModelScale = 18.f;
+    const float bigModelScale = 10.f;
     glm::mat4 scaleAndRotateModelX90= 
         glm::rotate(
             glm::scale(glm::mat4(1.f), glm::vec3(bigModelScale, bigModelScale, bigModelScale)),
@@ -361,7 +361,7 @@ void AppStage_GyroscopeCalibration::render()
                 const float renderScale = 200.f;
                 glm::mat4 renderScaleMatrix = 
                     glm::scale(glm::mat4(1.f), glm::vec3(renderScale, renderScale, renderScale));
-                glm::vec3 g= psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
+                glm::vec3 g= -psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
 
                 drawArrow(
                     renderScaleMatrix,
@@ -640,6 +640,11 @@ void AppStage_GyroscopeCalibration::onEnterState(eCalibrationMenuState newState)
 	case eCalibrationMenuState::measureBiasAndDrift:
 		break;
 	case eCalibrationMenuState::measureComplete:
+		// Reset the menu state
+		m_app->setCameraType(_cameraOrbit);
+		m_app->getOrbitCamera()->resetOrientation();
+		m_app->getOrbitCamera()->setCameraOrbitRadius(1000.f); // zoom out to see the accelerometer data at scale
+		break;
 	case eCalibrationMenuState::test:
 		m_app->setCameraType(_cameraOrbit);
 		m_app->getOrbitCamera()->reset();
