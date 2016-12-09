@@ -236,6 +236,7 @@ public:
     std::string getUSBDevicePath() const override;
 	void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
 	bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
+	float getPredictionTime() const override;
 
     // -- Getters
     inline const MorpheusHMDConfig *getConfig() const

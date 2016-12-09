@@ -634,6 +634,12 @@ MorpheusHMD::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) c
 	return true;
 }
 
+float 
+MorpheusHMD::getPredictionTime() const
+{
+	return getConfig()->prediction_time;
+}
+
 const CommonDeviceState *
 MorpheusHMD::getState(
     int lookBack) const

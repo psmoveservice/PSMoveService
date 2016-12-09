@@ -1244,6 +1244,11 @@ float PSMoveController::getIdentityForwardDegrees() const
 	return 270.f;
 }
 
+float PSMoveController::getPredictionTime() const
+{
+	return getConfig()->prediction_time;
+}
+
 float
 PSMoveController::getTempCelsius() const
 {

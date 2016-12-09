@@ -640,6 +640,11 @@ eCommonTrackingColorID ServerHMDView::getTrackingColorID() const
 	return tracking_color_id;
 }
 
+float ServerHMDView::getROIPredictionTime() const
+{
+	return m_device->getPredictionTime();
+}
+
 void ServerHMDView::publish_device_data_frame()
 {
     // Tell the server request handler we want to send out HMD updates.

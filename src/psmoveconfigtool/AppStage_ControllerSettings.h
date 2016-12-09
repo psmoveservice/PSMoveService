@@ -29,6 +29,7 @@ public:
 		std::string OrientationFilterName;
 		int GyroGainIndex;
 		std::string GyroGainSetting;
+		float PredictionTime;
     };
 
     AppStage_ControllerSettings(class App *app);
@@ -62,6 +63,7 @@ protected:
 	void request_set_orientation_filter(const int controller_id, const std::string &filter_name);
 	void request_set_position_filter(const int controller_id, const std::string &filter_name);
 	void request_set_gyroscope_gain_setting(const int controller_id, const std::string& gain_setting);
+	void request_set_controller_prediction(const int controller_id, float prediction_time);
 
 	void request_set_controller_tracking_color_id(
 		int ControllerID,

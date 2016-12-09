@@ -99,7 +99,7 @@ void AppStage_HMDSettings::renderUI()
 
         if (m_hmdInfos.size() > 0)
         {
-            const HMDInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
+            HMDInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
 
             ImGui::Text("HMD: %d", m_selectedHmdIndex);
             ImGui::Text("  HMD ID: %d", hmdInfo.HmdID);
@@ -174,6 +174,35 @@ void AppStage_HMDSettings::renderUI()
             {
                 m_app->setAppStage(AppStage_TestHMD::APP_STAGE_NAME);
             }
+
+			{
+				ImGui::PushItemWidth(195);
+				//###HipterSloth $TODO Add filter settings
+				//if (ImGui::Combo("position filter", &controllerInfo.PositionFilterIndex, k_position_filter_names, UI_ARRAYSIZE(k_position_filter_names)))
+				//{
+				//	controllerInfo.PositionFilterName = k_position_filter_names[controllerInfo.PositionFilterIndex];
+				//	request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+				//}
+				//if (ImGui::Combo("orientation filter", &controllerInfo.OrientationFilterIndex, k_psmove_orientation_filter_names, UI_ARRAYSIZE(k_psmove_orientation_filter_names)))
+				//{
+				//	controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[controllerInfo.OrientationFilterIndex];
+				//	request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+				//}
+				if (ImGui::SliderFloat("Prediction Time", &hmdInfo.PredictionTime, 0.f, 1.f))
+				{
+					request_set_hmd_prediction(hmdInfo.HmdID, hmdInfo.PredictionTime);
+				}
+				//if (ImGui::Button("Reset Filter Defaults"))
+				//{
+				//	controllerInfo.PositionFilterIndex = k_default_position_filter_index;
+				//	controllerInfo.OrientationFilterIndex = k_default_psmove_orientation_filter_index;
+				//	controllerInfo.PositionFilterName = k_psmove_orientation_filter_names[k_default_position_filter_index];
+				//	controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[k_default_psmove_orientation_filter_index];
+				//	request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+				//	request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+				//}
+				ImGui::PopItemWidth();
+			}
         }
         else
         {
@@ -259,6 +288,20 @@ void AppStage_HMDSettings::request_hmd_list()
     }
 }
 
+void AppStage_HMDSettings::request_set_hmd_prediction(const int hmd_id, float prediction_time)
+{
+	RequestPtr request(new PSMoveProtocol::Request());
+	request->set_type(PSMoveProtocol::Request_RequestType_SET_HMD_PREDICTION_TIME);
+
+	PSMoveProtocol::Request_RequestSetHMDPredictionTime *calibration =
+		request->mutable_request_set_hmd_prediction_time();
+
+	calibration->set_hmd_id(hmd_id);
+	calibration->set_prediction_time(prediction_time);
+
+	ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+}
+
 void AppStage_HMDSettings::handle_hmd_list_response(
 	const ClientPSMoveAPI::ResponseMessage *response,
 	void *userdata)
@@ -291,6 +334,7 @@ void AppStage_HMDSettings::handle_hmd_list_response(
                 }
 
                 HmdInfo.DevicePath = HmdResponse.device_path();
+				HmdInfo.PredictionTime = HmdResponse.prediction_time();
 
                 thisPtr->m_hmdInfos.push_back(HmdInfo);
             }

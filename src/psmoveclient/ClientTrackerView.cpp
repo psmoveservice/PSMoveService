@@ -10,6 +10,7 @@
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/sync/scoped_lock.hpp>
+#include <thread>
 #include <memory>
 
 //-- pre-declarations -----
@@ -262,7 +263,20 @@ bool ClientTrackerView::openVideoStream()
 
         if (m_shared_memory_accesor->initialize(m_tracker_info.shared_memory_name))
         {
-            bSuccess = m_shared_memory_accesor->readVideoFrame();
+			static const int k_max_read_attempt_count = 10;
+			int read_attempt = 0;
+
+			bSuccess = false;
+			while (!bSuccess && read_attempt < k_max_read_attempt_count)
+			{
+				bSuccess = m_shared_memory_accesor->readVideoFrame();
+				++read_attempt;
+
+				if (!bSuccess)
+				{
+					std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				}
+			}
         }
     }
     else
