@@ -1061,6 +1061,11 @@ float PSDualShock4Controller::getIdentityForwardDegrees() const
 	return 270.f;
 }
 
+float PSDualShock4Controller::getPredictionTime() const
+{
+	return getConfig()->prediction_time;
+}
+
 long PSDualShock4Controller::getMaxPollFailureCount() const
 {
     return cfg.max_poll_failure_count;

@@ -478,6 +478,9 @@ public:
 	//   when the controller had the identity pose
 	// ...
 	virtual float getIdentityForwardDegrees() const = 0;
+
+	// Get the state prediction time specified in the controller config
+	virtual float getPredictionTime() const = 0;
 };
 
 /// Abstract class for Tracker interface. Implemented Tracker classes
@@ -580,6 +583,9 @@ public:
 
 	// Get the tracking color enum of the controller
 	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const = 0;
+
+	// Get the state prediction time from the HMD config
+	virtual float getPredictionTime() const = 0;
 };
 
 #endif // DEVICE_INTERFACE_H

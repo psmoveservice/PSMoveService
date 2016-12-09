@@ -727,6 +727,7 @@ static bool computeTrackerRelativePointCloudContourPose(
 	HMDOpticalPoseEstimation *out_pose_estimate);
 static cv::Rect2i computeTrackerROIForPoseProjection(
 	const bool disabled_roi,
+	const float prediction_time,
 	const ServerTrackerView *tracker,
 	const IPoseFilter* pose_filter,
 	const CommonDeviceTrackingShape *tracking_shape);
@@ -1142,6 +1143,7 @@ ServerTrackerView::computeProjectionForController(
 	// Compute a region of interest in the tracker buffer around where we expect to find the tracking shape
 	cv::Rect2i ROI= computeTrackerROIForPoseProjection(
 		tracked_controller->getIsROIDisabled() || DeviceManager::getInstance()->m_tracker_manager->getConfig().disable_roi,
+		tracked_controller->getROIPredictionTime(),
 		this, 
 		(tracked_controller->getIsCurrentlyTracking()) ? tracked_controller->getPoseFilter() : nullptr,
 		tracking_shape);
@@ -1338,6 +1340,7 @@ bool ServerTrackerView::computePoseForHMD(
 	// Compute a region of interest in the tracker buffer around where we expect to find the tracking shape
 	cv::Rect2i ROI = computeTrackerROIForPoseProjection(
 			tracked_hmd->getIsROIDisabled() || DeviceManager::getInstance()->m_tracker_manager->getConfig().disable_roi,
+			tracked_hmd->getROIPredictionTime(),
 			this, 
 			(tracked_hmd->getIsCurrentlyTracking()) ? tracked_hmd->getPoseFilter() : nullptr, 
 			&tracking_shape);
@@ -2101,6 +2104,7 @@ static bool computeTrackerRelativePointCloudContourPose(
 
 static cv::Rect2i computeTrackerROIForPoseProjection(
 	const bool roi_disabled,
+	const float prediction_time,
 	const ServerTrackerView *tracker,
 	const IPoseFilter* pose_filter,
 	const CommonDeviceTrackingShape *tracking_shape)
@@ -2117,7 +2121,7 @@ static cv::Rect2i computeTrackerROIForPoseProjection(
 	if (!roi_disabled && pose_filter != nullptr)
 	{
 		// Get the (predicted) position in world space.
-		Eigen::Vector3f position = pose_filter->getPosition(0.f);  //TODO: Replace 0.f with the tracker update time.
+		Eigen::Vector3f position = pose_filter->getPosition(prediction_time); 
 		CommonDevicePosition world_position;
 		world_position.set(position.x(), position.y(), position.z());
 

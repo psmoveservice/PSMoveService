@@ -570,6 +570,11 @@ float PSNaviController::getIdentityForwardDegrees() const
 	// Controller model points down the -Z axis when it has the identity orientation
 	return 270.f;
 }
+
+float PSNaviController::getPredictionTime() const
+{
+	return 0.f; // No state prediction on the psnavi
+}
     
 // -- private helper functions -----
 static std::string

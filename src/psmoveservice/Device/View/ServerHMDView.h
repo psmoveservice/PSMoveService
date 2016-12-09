@@ -103,6 +103,9 @@ public:
 	// Undo the request to not use the ROI optimization
 	inline void popDisableROI() { assert(m_roi_disable_count > 0); --m_roi_disable_count; }
 
+	// get the prediction time used for region of interest calculation
+	float getROIPredictionTime() const;
+
 	// Get the pose estimate relative to the given tracker id
 	inline const HMDOpticalPoseEstimation *getTrackerPoseEstimate(int trackerId) const {
 		return (m_tracker_pose_estimation != nullptr) ? &m_tracker_pose_estimation[trackerId] : nullptr;

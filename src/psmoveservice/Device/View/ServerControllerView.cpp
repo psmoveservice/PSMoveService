@@ -915,6 +915,11 @@ bool ServerControllerView::getTrackingShape(CommonDeviceTrackingShape &trackingS
     return trackingShape.shape_type != eCommonTrackingShapeType::INVALID_SHAPE;
 }
 
+float ServerControllerView::getROIPredictionTime() const
+{
+	return m_device->getPredictionTime();
+}
+
 // Set the rumble value between 0.f - 1.f on a given channel
 bool ServerControllerView::setControllerRumble(
     float rumble_amount,

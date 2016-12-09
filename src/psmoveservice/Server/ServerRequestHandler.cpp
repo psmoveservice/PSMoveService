@@ -233,6 +233,10 @@ public:
 				response = new PSMoveProtocol::Response;
 				handle_request__set_position_filter(context, response);
 				break;
+			case PSMoveProtocol::Request_RequestType_SET_CONTROLLER_PREDICTION_TIME:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_controller_prediction_time(context, response);
+				break;
 
             // Tracker Requests
             case PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST:
@@ -315,6 +319,10 @@ public:
 			case PSMoveProtocol::Request_RequestType_SET_HMD_GYROSCOPE_CALIBRATION:
 				response = new PSMoveProtocol::Response;
 				handle_request__set_hmd_gyroscope_calibration(context, response);
+				break;
+			case PSMoveProtocol::Request_RequestType_SET_HMD_PREDICTION_TIME:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_hmd_prediction_time(context, response);
 				break;
 
             default:
@@ -587,6 +595,8 @@ protected:
 				std::string position_filter = "";
 				std::string gyro_gain_setting = "";
 
+				float prediction_time = 0.f;
+
                 switch(controller_view->getControllerDeviceType())
                 {
                 case CommonControllerState::PSMove:
@@ -598,6 +608,7 @@ protected:
 						position_filter = config->position_filter_type;
 						firmware_version = config->firmware_version;
 						firmware_revision = config->firmware_revision;
+						prediction_time = config->prediction_time;
 						has_magnetometer = controller->getSupportsMagnetometer();
 
 						controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
@@ -646,6 +657,7 @@ protected:
 
 						orientation_filter = config->orientation_filter_type;
 						position_filter = config->position_filter_type;
+						prediction_time = config->prediction_time;
 
 						controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
 					}
@@ -670,6 +682,7 @@ protected:
 				controller_info->set_orientation_filter(orientation_filter);
 				controller_info->set_position_filter(position_filter);
 				controller_info->set_gyro_gain_setting(gyro_gain_setting);
+				controller_info->set_prediction_time(prediction_time);
             }
         }
 
@@ -1362,6 +1375,55 @@ protected:
 					config->save();
 
 					ControllerView->resetPoseFilter();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
+	void handle_request__set_controller_prediction_time(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int controller_id = context.request->request_set_controller_prediction_time().controller_id();
+
+		ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+		const PSMoveProtocol::Request_RequestSetControllerPredictionTime &request =
+			context.request->request_set_controller_prediction_time();
+
+		if (ControllerView && ControllerView->getIsOpen())
+		{
+			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+			{
+				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+
+				if (config->prediction_time != request.prediction_time())
+				{
+					config->prediction_time = request.prediction_time();
+					config->save();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+			{
+				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+				PSMoveControllerConfig *config = controller->getConfigMutable();
+
+				if (config->prediction_time != request.prediction_time())
+				{
+					config->prediction_time = request.prediction_time();
+					config->save();
 				}
 
 				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
@@ -2117,7 +2179,13 @@ protected:
                 switch (hmd_view->getHMDDeviceType())
                 {
                 case CommonHMDState::Morpheus:
-                    hmd_info->set_hmd_type(PSMoveProtocol::Morpheus);
+					{
+						const MorpheusHMD *morpheusHMD= hmd_view->castCheckedConst<MorpheusHMD>();
+						const MorpheusHMDConfig *config= morpheusHMD->getConfig();
+
+						hmd_info->set_hmd_type(PSMoveProtocol::Morpheus);
+						hmd_info->set_prediction_time(config->prediction_time);
+					}
                     break;
                 default:
                     assert(0 && "Unhandled tracker type");
@@ -2306,6 +2374,42 @@ protected:
 			HMDView->getPoseFilterMutable()->resetState();
 
 			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
+	void handle_request__set_hmd_prediction_time(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int hmd_id = context.request->request_set_hmd_prediction_time().hmd_id();
+
+		ServerHMDViewPtr HmdView = m_device_manager.getHMDViewPtr(hmd_id);
+		const PSMoveProtocol::Request_RequestSetHMDPredictionTime &request =
+			context.request->request_set_hmd_prediction_time();
+
+		if (HmdView && HmdView->getIsOpen())
+		{
+			if (HmdView->getHMDDeviceType() == CommonDeviceState::Morpheus)
+			{
+				MorpheusHMD *controller = HmdView->castChecked<MorpheusHMD>();
+				MorpheusHMDConfig *config = controller->getConfigMutable();
+
+				if (config->prediction_time != request.prediction_time())
+				{
+					config->prediction_time = request.prediction_time();
+					config->save();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
 		}
 		else
 		{

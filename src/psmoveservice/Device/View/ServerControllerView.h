@@ -136,6 +136,9 @@ public:
 	// Undo the request to not use the ROI optimization
 	inline void popDisableROI() { assert(m_roi_disable_count > 0); --m_roi_disable_count;  }
 
+	// Get the prediction time used for ROI tracking
+	float getROIPredictionTime() const;
+
     // Get the pose estimate relative to the given tracker id
     inline const ControllerOpticalPoseEstimation *getTrackerPoseEstimate(int trackerId) const {
         return (m_tracker_pose_estimations != nullptr) ? &m_tracker_pose_estimations[trackerId] : nullptr;
