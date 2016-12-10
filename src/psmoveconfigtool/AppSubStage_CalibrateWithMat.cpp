@@ -182,7 +182,7 @@ void AppSubStage_CalibrateWithMat::exit()
 
 void AppSubStage_CalibrateWithMat::update()
 {
-    const ClientControllerView *ControllerView= m_parentStage->m_controllerView;
+    const ClientControllerView *ControllerView= m_parentStage->get_calibration_controller_view();
 
     switch (m_menuState)
     {
