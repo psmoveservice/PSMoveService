@@ -241,10 +241,10 @@ message Request {
     // Parameters for SET_OPTICAL_NOISE_CALIBRATION
     message RequestSetOpticalNoiseCalibration {
         int32 controller_id = 1;
-        // Variance in position as a function of pixel projection area
+        // Variance(cm^2) in position as a function of pixel projection area
         float position_variance_exp_fit_a = 2;
         float position_variance_exp_fit_b = 3;
-        // Variance in orientation as a function of pixel projection area
+        // Variance(rad^2) in orientation as a function of pixel projection area
         float orientation_variance_exp_fit_a = 4; 
         float orientation_variance_exp_fit_b = 5;
     }
@@ -682,7 +682,7 @@ message DeviceOutputDataFrame
             bool IsPositionValid= 5;
 
             // Tracking position in the space of the HMD tracking camera
-            Position position = 6;
+            Position position_cm = 6;
 
             // Tracking orientation in the frame of the local magnetic field
             Orientation orientation = 7;
@@ -712,22 +712,22 @@ message DeviceOutputDataFrame
             message RawTrackerData
             {
                 repeated Pixel screen_locations= 1;
-                repeated Position relative_positions= 2;
+                repeated Position relative_positions_cm= 2;
                 repeated int32 tracker_ids= 3;
                 repeated Ellipse projected_spheres= 4;
                 repeated Polygon projected_blobs= 5;
                 int32 valid_tracker_count= 6;
-                Position multicam_position= 7;
+                Position multicam_position_cm= 7;
             }
             RawTrackerData raw_tracker_data = 11;  
 
             // Only valid if include_physics_data=true in START_CONTROLLER_DATA_STREAM request
             message PhysicsData
             {
-                FloatVector velocity= 1;
-                FloatVector acceleration= 2;
-                FloatVector angular_velocity= 3;
-                FloatVector angular_acceleration= 4; 
+                FloatVector velocity_cm_per_sec= 1;
+                FloatVector acceleration_cm_per_sec_sqr= 2;
+                FloatVector angular_velocity_rad_per_sec= 3;
+                FloatVector angular_acceleration_rad_per_sec_sqr= 4; 
             }
             PhysicsData physics_data = 12;             
         }
@@ -758,7 +758,7 @@ message DeviceOutputDataFrame
             bool IsPositionValid= 5;
 
             // Tracking position in the space of the HMD tracking camera
-            Position position = 6;
+            Position position_cm = 6;
 
             // Tracking orientation in the frame of the local magnetic field
             Orientation orientation = 7;
@@ -793,24 +793,24 @@ message DeviceOutputDataFrame
             message RawTrackerData
             {
                 repeated Pixel screen_locations= 1;
-                repeated Position relative_positions= 2;
+                repeated Position relative_positions_cm= 2;
                 repeated Orientation relative_orientations= 3;
                 repeated int32 tracker_ids= 4;
                 repeated Ellipse projected_spheres= 5;
                 repeated Polygon projected_blobs= 6;
                 int32 valid_tracker_count= 7;
-                Position multicam_position= 8;
-                Orientation multicam_orientation= 9;				
+                Position multicam_position_cm= 8;
+                Orientation multicam_orientation= 9;
             }
             RawTrackerData raw_tracker_data = 16;  
 
             // Only valid if include_physics_data=true in START_CONTROLLER_DATA_STREAM request
             message PhysicsData
             {
-                FloatVector velocity= 1;
-                FloatVector acceleration= 2;
-                FloatVector angular_velocity= 3;
-                FloatVector angular_acceleration= 4; 
+                FloatVector velocity_cm_per_sec= 1;
+                FloatVector acceleration_cm_per_sec_sqr= 2;
+                FloatVector angular_velocity_rad_per_sec= 3;
+                FloatVector angular_acceleration_rad_per_sec_sqr= 4; 
             }
             PhysicsData physics_data = 17;             
         }
@@ -862,7 +862,7 @@ message DeviceOutputDataFrame
             bool IsPositionValid= 4;
 
             // Tracking position in the space of the HMD tracking camera
-            Position position = 5;
+            Position position_cm = 5;
 
             // Tracking orientation in the frame of the HMD tracking camera
             Orientation orientation = 6;
@@ -887,7 +887,7 @@ message DeviceOutputDataFrame
             message RawTrackerData
             {
                 repeated Pixel screen_locations= 1;
-                repeated Position relative_positions= 2;
+                repeated Position relative_positions_cm= 2;
                 repeated Orientation relative_orientations= 3;
                 repeated int32 tracker_ids= 4;
                 repeated Polygon projected_point_cloud= 5;
@@ -898,10 +898,10 @@ message DeviceOutputDataFrame
             // Only valid if include_physics_data=true in START_HMD_DATA_STREAM request
             message PhysicsData
             {
-                FloatVector velocity= 1;
-                FloatVector acceleration= 2;
-                FloatVector angular_velocity= 3;
-                FloatVector angular_acceleration= 4; 
+                FloatVector velocity_cm_per_sec= 1;
+                FloatVector acceleration_cm_per_sec_sqr= 2;
+                FloatVector angular_velocity_rad_per_sec= 3;
+                FloatVector angular_acceleration_rad_per_sec_sqr= 4; 
             }
             PhysicsData physics_data = 10;            
         }

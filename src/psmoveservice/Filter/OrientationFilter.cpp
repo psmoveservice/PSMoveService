@@ -150,12 +150,12 @@ Eigen::Quaternionf OrientationFilter::getOrientation(float time) const
     return result;
 }
 
-Eigen::Vector3f OrientationFilter::getAngularVelocity() const
+Eigen::Vector3f OrientationFilter::getAngularVelocityRadPerSec() const
 {
     return m_state->bIsValid ? m_state->angular_velocity : Eigen::Vector3f::Zero();
 }
 
-Eigen::Vector3f OrientationFilter::getAngularAcceleration() const
+Eigen::Vector3f OrientationFilter::getAngularAccelerationRadPerSecSqr() const
 {
     return m_state->bIsValid ? m_state->angular_acceleration : Eigen::Vector3f::Zero();
 }
@@ -165,7 +165,7 @@ void OrientationFilterPassThru::update(const float delta_time, const PoseFilterP
 {
 	// Use the current orientation if the optical orientation is unavailable
     const Eigen::Quaternionf &new_orientation= 
-		(packet.tracking_projection_area > 0.f) 
+		(packet.tracking_projection_area_px_sqr > 0.f) 
 		? packet.optical_orientation
 		: packet.current_orientation;
 
@@ -185,9 +185,9 @@ void OrientationFilterPassThru::update(const float delta_time, const PoseFilterP
 // https://www.samba.org/tridge/UAV/madgwick_internal_report.pdf
 void OrientationFilterMadgwickARG::update(const float delta_time, const PoseFilterPacket &packet)
 {
-    const Eigen::Vector3f &current_omega= packet.imu_gyroscope;
+    const Eigen::Vector3f &current_omega= packet.imu_gyroscope_rad_per_sec;
 
-    Eigen::Vector3f current_g= packet.imu_accelerometer;
+    Eigen::Vector3f current_g= packet.imu_accelerometer_g_units;
     eigen_vector3f_normalize_with_default(current_g, Eigen::Vector3f::Zero());
 
     // Current orientation from earth frame to sensor frame
@@ -263,12 +263,12 @@ void OrientationFilterMadgwickMARG::resetState()
 
 void OrientationFilterMadgwickMARG::update(const float delta_time, const PoseFilterPacket &packet)
 {
-    const Eigen::Vector3f &current_omega= packet.imu_gyroscope;
+    const Eigen::Vector3f &current_omega= packet.imu_gyroscope_rad_per_sec;
 
-    Eigen::Vector3f current_g= packet.imu_accelerometer;
+    Eigen::Vector3f current_g= packet.imu_accelerometer_g_units;
     eigen_vector3f_normalize_with_default(current_g, Eigen::Vector3f::Zero());
 
-    Eigen::Vector3f current_m= packet.imu_magnetometer;
+    Eigen::Vector3f current_m= packet.imu_magnetometer_unit;
     eigen_vector3f_normalize_with_default(current_m, Eigen::Vector3f::Zero());
 
     // If there isn't a valid magnetometer or accelerometer vector, fall back to the IMU style update
@@ -371,15 +371,15 @@ void OrientationFilterMadgwickMARG::update(const float delta_time, const PoseFil
 // -- OrientationFilterComplementaryOpticalARG --
 void OrientationFilterComplementaryOpticalARG::update(const float delta_time, const PoseFilterPacket &packet)
 {
-    if (packet.tracking_projection_area <= k_real_epsilon)
+    if (packet.tracking_projection_area_px_sqr <= k_real_epsilon)
     {
         OrientationFilterMadgwickARG::update(delta_time, packet);
 		return;
     }
 
-    const Eigen::Vector3f &current_omega= packet.imu_gyroscope;
+    const Eigen::Vector3f &current_omega= packet.imu_gyroscope_rad_per_sec;
 
-    Eigen::Vector3f current_g= packet.imu_accelerometer;
+    Eigen::Vector3f current_g= packet.imu_accelerometer_g_units;
     eigen_vector3f_normalize_with_default(current_g, Eigen::Vector3f::Zero());
 
     // Current orientation from earth frame to sensor frame
@@ -438,7 +438,7 @@ void OrientationFilterComplementaryOpticalARG::update(const float delta_time, co
         // The final rotation is a blend between the integrated orientation and absolute optical orientation
 		const float max_variance_fraction =
 			safe_divide_with_default(
-				m_constants.orientation_variance_curve.evaluate(packet.tracking_projection_area),
+				m_constants.orientation_variance_curve.evaluate(packet.tracking_projection_area_px_sqr),
 				m_constants.orientation_variance_curve.MaxValue,
 				1.f);
         float optical_weight= 
@@ -481,12 +481,12 @@ void OrientationFilterComplementaryMARG::resetState()
 
 void OrientationFilterComplementaryMARG::update(const float delta_time, const PoseFilterPacket &packet)
 {
-    const Eigen::Vector3f &current_omega= packet.imu_gyroscope;
+    const Eigen::Vector3f &current_omega= packet.imu_gyroscope_rad_per_sec;
 
-    Eigen::Vector3f current_g= packet.imu_accelerometer;
+    Eigen::Vector3f current_g= packet.imu_accelerometer_g_units;
     eigen_vector3f_normalize_with_default(current_g, Eigen::Vector3f::Zero());
 
-    Eigen::Vector3f current_m= packet.imu_magnetometer;
+    Eigen::Vector3f current_m= packet.imu_magnetometer_unit;
     eigen_vector3f_normalize_with_default(current_m, Eigen::Vector3f::Zero());
 
     // Get the direction of the magnetic fields in the identity pose.	

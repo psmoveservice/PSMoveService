@@ -1221,7 +1221,7 @@ void
 PSMoveController::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const
 {
     outTrackingShape.shape_type= eCommonTrackingShapeType::Sphere;
-    outTrackingShape.shape.sphere.radius = PSMOVE_TRACKING_BULB_RADIUS;
+    outTrackingShape.shape.sphere.radius_cm = PSMOVE_TRACKING_BULB_RADIUS;
 }
 
 bool

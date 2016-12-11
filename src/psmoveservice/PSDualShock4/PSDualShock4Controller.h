@@ -146,7 +146,7 @@ public:
 	// Below this projection area size we just consider the projection area 0 for the purpose of filtering
 	float min_screen_projection_area;
 
-	// The variance of the controller position as a function of projection area
+	// The variance(cm^2) of the controller position as a function of projection area
     float position_variance_exp_fit_a; 
     float position_variance_exp_fit_b;
 

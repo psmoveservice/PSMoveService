@@ -119,9 +119,9 @@ void ClientPSMoveView::ApplyControllerDataFrame(
         this->Pose.Orientation.y= psmove_data_frame.orientation().y();
         this->Pose.Orientation.z= psmove_data_frame.orientation().z();
 
-        this->Pose.Position.x= psmove_data_frame.position().x();
-        this->Pose.Position.y= psmove_data_frame.position().y();
-        this->Pose.Position.z= psmove_data_frame.position().z();
+        this->Pose.Position.x= psmove_data_frame.position_cm().x();
+        this->Pose.Position.y= psmove_data_frame.position_cm().y();
+        this->Pose.Position.z= psmove_data_frame.position_cm().z();
 
         if (psmove_data_frame.has_raw_sensor_data())
         {
@@ -175,12 +175,12 @@ void ClientPSMoveView::ApplyControllerDataFrame(
             for (int listIndex = 0; listIndex < this->RawTrackerData.ValidTrackerLocations; ++listIndex)
             {
                 const PSMoveProtocol::Pixel &locationOnTracker = raw_tracker_data.screen_locations(listIndex);
-                const PSMoveProtocol::Position &positionOnTracker = raw_tracker_data.relative_positions(listIndex);
+                const PSMoveProtocol::Position &positionOnTracker = raw_tracker_data.relative_positions_cm(listIndex);
 
                 this->RawTrackerData.TrackerIDs[listIndex]= raw_tracker_data.tracker_ids(listIndex);
                 this->RawTrackerData.ScreenLocations[listIndex] =
                     PSMoveScreenLocation::create(locationOnTracker.x(), locationOnTracker.y());
-                this->RawTrackerData.RelativePositions[listIndex] =
+                this->RawTrackerData.RelativePositionsCm[listIndex] =
                     PSMovePosition::create(
                         positionOnTracker.x(), positionOnTracker.y(), positionOnTracker.z());
 				this->RawTrackerData.RelativeOrientations[listIndex] = PSMoveQuaternion::create(1.f, 0.f, 0.f, 0.f);
@@ -205,13 +205,13 @@ void ClientPSMoveView::ApplyControllerDataFrame(
                 }
             }            
 
-			if (raw_tracker_data.has_multicam_position())
+			if (raw_tracker_data.has_multicam_position_cm())
 			{
-				const PSMoveProtocol::Position &multicam_position = raw_tracker_data.multicam_position();
+				const PSMoveProtocol::Position &multicam_position = raw_tracker_data.multicam_position_cm();
 
-				this->RawTrackerData.MulticamPosition.x = multicam_position.x();
-				this->RawTrackerData.MulticamPosition.y = multicam_position.y();
-				this->RawTrackerData.MulticamPosition.z = multicam_position.z();
+				this->RawTrackerData.MulticamPositionCm.x = multicam_position.x();
+				this->RawTrackerData.MulticamPositionCm.y = multicam_position.y();
+				this->RawTrackerData.MulticamPositionCm.z = multicam_position.z();
 				this->RawTrackerData.bMulticamPositionValid = true;
 			}
         }
@@ -224,21 +224,21 @@ void ClientPSMoveView::ApplyControllerDataFrame(
         {
             const auto &raw_physics_data = psmove_data_frame.physics_data();
 
-            this->PhysicsData.Velocity.i = raw_physics_data.velocity().i();
-            this->PhysicsData.Velocity.j = raw_physics_data.velocity().j();
-            this->PhysicsData.Velocity.k = raw_physics_data.velocity().k();
+            this->PhysicsData.VelocityCmPerSec.i = raw_physics_data.velocity_cm_per_sec().i();
+            this->PhysicsData.VelocityCmPerSec.j = raw_physics_data.velocity_cm_per_sec().j();
+            this->PhysicsData.VelocityCmPerSec.k = raw_physics_data.velocity_cm_per_sec().k();
 
-            this->PhysicsData.Acceleration.i = raw_physics_data.acceleration().i();
-            this->PhysicsData.Acceleration.j = raw_physics_data.acceleration().j();
-            this->PhysicsData.Acceleration.k = raw_physics_data.acceleration().k();
+            this->PhysicsData.AccelerationCmPerSecSqr.i = raw_physics_data.acceleration_cm_per_sec_sqr().i();
+            this->PhysicsData.AccelerationCmPerSecSqr.j = raw_physics_data.acceleration_cm_per_sec_sqr().j();
+            this->PhysicsData.AccelerationCmPerSecSqr.k = raw_physics_data.acceleration_cm_per_sec_sqr().k();
 
-            this->PhysicsData.AngularVelocity.i = raw_physics_data.angular_velocity().i();
-            this->PhysicsData.AngularVelocity.j = raw_physics_data.angular_velocity().j();
-            this->PhysicsData.AngularVelocity.k = raw_physics_data.angular_velocity().k();
+            this->PhysicsData.AngularVelocityRadPerSec.i = raw_physics_data.angular_velocity_rad_per_sec().i();
+            this->PhysicsData.AngularVelocityRadPerSec.j = raw_physics_data.angular_velocity_rad_per_sec().j();
+            this->PhysicsData.AngularVelocityRadPerSec.k = raw_physics_data.angular_velocity_rad_per_sec().k();
 
-            this->PhysicsData.AngularAcceleration.i = raw_physics_data.angular_acceleration().i();
-            this->PhysicsData.AngularAcceleration.j = raw_physics_data.angular_acceleration().j();
-            this->PhysicsData.AngularAcceleration.k = raw_physics_data.angular_acceleration().k();
+            this->PhysicsData.AngularAccelerationRadPerSecSqr.i = raw_physics_data.angular_acceleration_rad_per_sec_sqr().i();
+            this->PhysicsData.AngularAccelerationRadPerSecSqr.j = raw_physics_data.angular_acceleration_rad_per_sec_sqr().j();
+            this->PhysicsData.AngularAccelerationRadPerSecSqr.k = raw_physics_data.angular_acceleration_rad_per_sec_sqr().k();
         }
         else
         {
@@ -425,9 +425,9 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
         this->Pose.Orientation.y = psds4_data_frame.orientation().y();
         this->Pose.Orientation.z = psds4_data_frame.orientation().z();
 
-        this->Pose.Position.x = psds4_data_frame.position().x();
-        this->Pose.Position.y = psds4_data_frame.position().y();
-        this->Pose.Position.z = psds4_data_frame.position().z();
+        this->Pose.Position.x = psds4_data_frame.position_cm().x();
+        this->Pose.Position.y = psds4_data_frame.position_cm().y();
+        this->Pose.Position.z = psds4_data_frame.position_cm().z();
 
         if (psds4_data_frame.has_raw_sensor_data())
         {
@@ -473,15 +473,15 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
             for (int listIndex = 0; listIndex < this->RawTrackerData.ValidTrackerLocations; ++listIndex)
             {
                 const PSMoveProtocol::Pixel &locationOnTracker = raw_tracker_data.screen_locations(listIndex);
-                const PSMoveProtocol::Position &positionOnTracker = raw_tracker_data.relative_positions(listIndex);
+                const PSMoveProtocol::Position &positionOnTrackerCm = raw_tracker_data.relative_positions_cm(listIndex);
                 const PSMoveProtocol::Orientation &orientationOnTracker = raw_tracker_data.relative_orientations(listIndex);
 
                 this->RawTrackerData.TrackerIDs[listIndex] = raw_tracker_data.tracker_ids(listIndex);
                 this->RawTrackerData.ScreenLocations[listIndex] =
                     PSMoveScreenLocation::create(locationOnTracker.x(), locationOnTracker.y());
-                this->RawTrackerData.RelativePositions[listIndex] =
+                this->RawTrackerData.RelativePositionsCm[listIndex] =
                     PSMovePosition::create(
-                        positionOnTracker.x(), positionOnTracker.y(), positionOnTracker.z());
+                        positionOnTrackerCm.x(), positionOnTrackerCm.y(), positionOnTrackerCm.z());
                 this->RawTrackerData.RelativeOrientations[listIndex] =
                     PSMoveQuaternion::create(
                         orientationOnTracker.w(), orientationOnTracker.x(), orientationOnTracker.y(), orientationOnTracker.z());
@@ -517,13 +517,13 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
                 }
             }
 
-			if (raw_tracker_data.has_multicam_position())
+			if (raw_tracker_data.has_multicam_position_cm())
 			{
-				const PSMoveProtocol::Position &multicam_position = raw_tracker_data.multicam_position();
+				const PSMoveProtocol::Position &multicam_position_cm = raw_tracker_data.multicam_position_cm();
 
-				this->RawTrackerData.MulticamPosition.x = multicam_position.x();
-				this->RawTrackerData.MulticamPosition.y = multicam_position.y();
-				this->RawTrackerData.MulticamPosition.z = multicam_position.z();
+				this->RawTrackerData.MulticamPositionCm.x = multicam_position_cm.x();
+				this->RawTrackerData.MulticamPositionCm.y = multicam_position_cm.y();
+				this->RawTrackerData.MulticamPositionCm.z = multicam_position_cm.z();
 				this->RawTrackerData.bMulticamPositionValid = true;
 			}
 
@@ -547,21 +547,21 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
         {
             const auto &raw_physics_data = psds4_data_frame.physics_data();
 
-            this->PhysicsData.Velocity.i = raw_physics_data.velocity().i();
-            this->PhysicsData.Velocity.j = raw_physics_data.velocity().j();
-            this->PhysicsData.Velocity.k = raw_physics_data.velocity().k();
+            this->PhysicsData.VelocityCmPerSec.i = raw_physics_data.velocity_cm_per_sec().i();
+            this->PhysicsData.VelocityCmPerSec.j = raw_physics_data.velocity_cm_per_sec().j();
+            this->PhysicsData.VelocityCmPerSec.k = raw_physics_data.velocity_cm_per_sec().k();
 
-            this->PhysicsData.Acceleration.i = raw_physics_data.acceleration().i();
-            this->PhysicsData.Acceleration.j = raw_physics_data.acceleration().j();
-            this->PhysicsData.Acceleration.k = raw_physics_data.acceleration().k();
+            this->PhysicsData.AccelerationCmPerSecSqr.i = raw_physics_data.acceleration_cm_per_sec_sqr().i();
+            this->PhysicsData.AccelerationCmPerSecSqr.j = raw_physics_data.acceleration_cm_per_sec_sqr().j();
+            this->PhysicsData.AccelerationCmPerSecSqr.k = raw_physics_data.acceleration_cm_per_sec_sqr().k();
 
-            this->PhysicsData.AngularVelocity.i = raw_physics_data.velocity().i();
-            this->PhysicsData.AngularVelocity.j = raw_physics_data.velocity().j();
-            this->PhysicsData.AngularVelocity.k = raw_physics_data.velocity().k();
+            this->PhysicsData.AngularVelocityRadPerSec.i = raw_physics_data.angular_velocity_rad_per_sec().i();
+            this->PhysicsData.AngularVelocityRadPerSec.j = raw_physics_data.angular_velocity_rad_per_sec().j();
+            this->PhysicsData.AngularVelocityRadPerSec.k = raw_physics_data.angular_velocity_rad_per_sec().k();
 
-            this->PhysicsData.AngularAcceleration.i = raw_physics_data.angular_acceleration().i();
-            this->PhysicsData.AngularAcceleration.j = raw_physics_data.angular_acceleration().j();
-            this->PhysicsData.AngularAcceleration.k = raw_physics_data.angular_acceleration().k();
+            this->PhysicsData.AngularAccelerationRadPerSecSqr.i = raw_physics_data.angular_acceleration_rad_per_sec_sqr().i();
+            this->PhysicsData.AngularAccelerationRadPerSecSqr.j = raw_physics_data.angular_acceleration_rad_per_sec_sqr().j();
+            this->PhysicsData.AngularAccelerationRadPerSecSqr.k = raw_physics_data.angular_acceleration_rad_per_sec_sqr().k();
         }
         else
         {

@@ -176,7 +176,6 @@ void AppStage_ComputeTrackerPoses::render()
                 PSMoveFrustum frustum = trackerView->getTrackerFrustum();
 
 				// use color depending on tracking status
-				PSMoveScreenLocation screenSample;
 				glm::vec3 color= does_tracker_see_any_controller(trackerView) ? k_psmove_frustum_color : k_psmove_frustum_color_no_track;
 
 				drawTextAtWorldPosition(glm::mat4(1.f), psmove_position_to_glm_vec3(trackerPose.Position), "#%d", trackerView->getTrackerId());
@@ -200,6 +199,28 @@ void AppStage_ComputeTrackerPoses::render()
 				}
                 drawController(controllerView, controllerMat4, trackingColorType);
                 drawTransformedAxes(controllerMat4, 10.f);
+
+				// Draw the acceleration and velocity arrows
+				{
+					const PSMovePhysicsData &physicsData = controllerView->GetPhysicsData();
+					const glm::mat4 originMat4= glm::translate(glm::mat4(1.f), psmove_position_to_glm_vec3(controllerPose.Position));
+					const glm::vec3 vel_endpoint = psmove_float_vector3_to_glm_vec3(physicsData.VelocityCmPerSec)*k_centimeters_to_meters;
+					const glm::vec3 acc_endpoint = psmove_float_vector3_to_glm_vec3(physicsData.AccelerationCmPerSecSqr)*k_centimeters_to_meters;
+					
+					const float vel= glm::length(vel_endpoint);
+					if (vel > k_positional_epsilon)
+					{
+						drawArrow(originMat4, glm::vec3(0.f), vel_endpoint, 0.1f, glm::vec3(0.f, 1.f, 1.f));
+						//drawTextAtWorldPosition(originMat4, vel_endpoint, "v=%.2fm/s", vel);
+					}
+
+					const float acc = glm::length(acc_endpoint);
+					if (acc > k_positional_epsilon)
+					{
+						drawArrow(originMat4, glm::vec3(0.f), acc_endpoint, 0.1f, glm::vec3(1.f, 1.f, 0.f));
+						//drawTextAtWorldPosition(originMat4, acc_endpoint, "a=%.2fm/s^2", acc);
+					}
+				}
             }
 
         } break;

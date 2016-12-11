@@ -2287,21 +2287,21 @@ void CPSMoveControllerLatest::UpdateTrackingState()
             {
                 const PSMovePhysicsData &physicsData= view.GetPhysicsData();
 
-                m_Pose.vecVelocity[0] = physicsData.Velocity.i * k_fScalePSMoveAPIToMeters;
-                m_Pose.vecVelocity[1] = physicsData.Velocity.j * k_fScalePSMoveAPIToMeters;
-                m_Pose.vecVelocity[2] = physicsData.Velocity.k * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[0] = physicsData.VelocityCmPerSec.i * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[1] = physicsData.VelocityCmPerSec.j * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[2] = physicsData.VelocityCmPerSec.k * k_fScalePSMoveAPIToMeters;
 
-                m_Pose.vecAcceleration[0] = physicsData.Acceleration.i * k_fScalePSMoveAPIToMeters;
-                m_Pose.vecAcceleration[1] = physicsData.Acceleration.j * k_fScalePSMoveAPIToMeters;
-                m_Pose.vecAcceleration[2] = physicsData.Acceleration.k * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[0] = physicsData.AccelerationCmPerSecSqr.i * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[1] = physicsData.AccelerationCmPerSecSqr.j * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[2] = physicsData.AccelerationCmPerSecSqr.k * k_fScalePSMoveAPIToMeters;
 
-                m_Pose.vecAngularVelocity[0] = physicsData.AngularVelocity.i;
-                m_Pose.vecAngularVelocity[1] = physicsData.AngularVelocity.j;
-                m_Pose.vecAngularVelocity[2] = physicsData.AngularVelocity.k;
+                m_Pose.vecAngularVelocity[0] = physicsData.AngularVelocityRadPerSec.i;
+                m_Pose.vecAngularVelocity[1] = physicsData.AngularVelocityRadPerSec.j;
+                m_Pose.vecAngularVelocity[2] = physicsData.AngularVelocityRadPerSec.k;
 
-                m_Pose.vecAngularAcceleration[0] = physicsData.AngularAcceleration.i;
-                m_Pose.vecAngularAcceleration[1] = physicsData.AngularAcceleration.j;
-                m_Pose.vecAngularAcceleration[2] = physicsData.AngularAcceleration.k;
+                m_Pose.vecAngularAcceleration[0] = physicsData.AngularAccelerationRadPerSecSqr.i;
+                m_Pose.vecAngularAcceleration[1] = physicsData.AngularAccelerationRadPerSecSqr.j;
+                m_Pose.vecAngularAcceleration[2] = physicsData.AngularAccelerationRadPerSecSqr.k;
             }
 
             m_Pose.poseIsValid = m_controller_view->GetIsPoseValid();

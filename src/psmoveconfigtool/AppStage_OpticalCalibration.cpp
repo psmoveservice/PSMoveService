@@ -35,21 +35,21 @@ struct PoseNoiseSamplesAtLocation
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-	Eigen::Vector3f position_samples[k_desired_noise_sample_count];
+	Eigen::Vector3f position_samples_cm[k_desired_noise_sample_count];
     Eigen::Quaternionf orientation_samples[k_desired_noise_sample_count];
 	float projection_area_samples[k_desired_noise_sample_count];
 	int sample_count;
 
-	float position_variance_scalar; // cm^2
-    float orientation_variance_scalar; // radians^2
-	float avg_proj_area; // pixels^2
+	float position_variance_scalar_cm_sqr; // cm^2
+    float orientation_variance_scalar_rad_sqr; // radians^2
+	float avg_proj_area_px_sqr; // pixels^2
 
     void clear()
     {
         sample_count= 0;
-		position_variance_scalar = 0;
-		orientation_variance_scalar = 0.f;
-		avg_proj_area = 0.f;
+		position_variance_scalar_cm_sqr = 0;
+		orientation_variance_scalar_rad_sqr = 0.f;
+		avg_proj_area_px_sqr = 0.f;
     }
 
     void computeStatistics()
@@ -57,18 +57,18 @@ struct PoseNoiseSamplesAtLocation
         const float N = static_cast<float>(sample_count);
 
 		// Compute the mean of the projection areas
-		avg_proj_area = 0.f;
+		avg_proj_area_px_sqr = 0.f;
 		for (int sample_index = 0; sample_index < sample_count; sample_index++)
 		{
-			avg_proj_area += projection_area_samples[sample_index];
+			avg_proj_area_px_sqr += projection_area_samples[sample_index];
 		}
-		avg_proj_area /= N;
+		avg_proj_area_px_sqr /= N;
 
 		// Compute the variance of distance around the mean position
-		Eigen::Vector3f position_variance;
+		Eigen::Vector3f position_variance_cm_sqr;
 		eigen_vector3f_compute_mean_and_variance(
-			position_samples, sample_count, nullptr, &position_variance);
-		position_variance_scalar = fmaxf(fmaxf(position_variance.x(), position_variance.y()), position_variance.z());
+			position_samples_cm, sample_count, nullptr, &position_variance_cm_sqr);
+		position_variance_scalar_cm_sqr = fmaxf(fmaxf(position_variance_cm_sqr.x(), position_variance_cm_sqr.y()), position_variance_cm_sqr.z());
 
 		// Compute the average(mean) of the orientation samples
 		Eigen::Quaternionf orientation_mean;
@@ -76,15 +76,15 @@ struct PoseNoiseSamplesAtLocation
 			orientation_samples, nullptr, sample_count, &orientation_mean);
 
         // Compute the variance in the angle of orientation around the mean
-		orientation_variance_scalar = 0.f;
+		orientation_variance_scalar_rad_sqr = 0.f;
         for (int sample_index = 0; sample_index < sample_count; sample_index++)
         {
             const Eigen::Quaternionf &sample= orientation_samples[sample_index].normalized();
 			float diff_from_mean = eigen_quaternion_unsigned_angle_between(sample, orientation_mean);
 
-			orientation_variance_scalar += diff_from_mean*diff_from_mean;
+			orientation_variance_scalar_rad_sqr += diff_from_mean*diff_from_mean;
         }
-		orientation_variance_scalar /= (N - 1.f);
+		orientation_variance_scalar_rad_sqr /= (N - 1.f);
     }
 };
 
@@ -130,23 +130,23 @@ struct PoseNoiseSampleSet
 		Eigen::Vector2f position_variance_area_samples[k_sample_location_count];
 		for (int location_index = 0; location_index < k_sample_location_count; ++location_index)
 		{
-			const float projection_area = samplesAtLocation[location_index].avg_proj_area;
-			const float orientation_variance = samplesAtLocation[location_index].orientation_variance_scalar;
-			const float position_variance = samplesAtLocation[location_index].position_variance_scalar;
+			const float projection_area_px_sqr = samplesAtLocation[location_index].avg_proj_area_px_sqr;
+			const float orientation_variance = samplesAtLocation[location_index].orientation_variance_scalar_rad_sqr;
+			const float position_variance_cm_sqr = samplesAtLocation[location_index].position_variance_scalar_cm_sqr;
 
-			orientation_variance_area_samples[location_index] = Eigen::Vector2f(projection_area, orientation_variance);
-			position_variance_area_samples[location_index] = Eigen::Vector2f(projection_area, position_variance);
+			orientation_variance_area_samples[location_index] = Eigen::Vector2f(projection_area_px_sqr, orientation_variance);
+			position_variance_area_samples[location_index] = Eigen::Vector2f(projection_area_px_sqr, position_variance_cm_sqr);
 
 			// Find the projection area closest for the closest sample
-			if (near_proj_area < 0 || projection_area > near_proj_area)
+			if (near_proj_area < 0 || projection_area_px_sqr > near_proj_area)
 			{
-				near_proj_area = projection_area;
+				near_proj_area = projection_area_px_sqr;
 			}
 
 			// Find the projection area closest for the farthest sample
-			if (far_proj_area < 0 || projection_area < far_proj_area)
+			if (far_proj_area < 0 || projection_area_px_sqr < far_proj_area)
 			{
-				far_proj_area = projection_area;
+				far_proj_area = projection_area_px_sqr;
 			}
 		}
 
@@ -192,7 +192,7 @@ AppStage_OpticalCalibration::AppStage_OpticalCalibration(App *app)
     , m_poseNoiseSamplesSet(new PoseNoiseSampleSet)
 	, m_bWaitForSampleButtonRelease(false)
 {
-	m_lastMulticamPosition = *k_psmove_position_origin;
+	m_lastMulticamPositionCm = *k_psmove_position_origin;
 	m_lastMulticamOrientation = PSMoveQuaternion::identity();
 	m_lastControllerPose = PSMovePose::identity();
 	memset(&m_trackerList, 0, sizeof(m_trackerList));
@@ -224,7 +224,7 @@ void AppStage_OpticalCalibration::enter()
 	m_bIsStableAndVisible = false;
 
     m_lastControllerSeqNum = -1;
-	m_lastMulticamPosition = *k_psmove_position_origin;
+	m_lastMulticamPositionCm = *k_psmove_position_origin;
 	m_lastMulticamOrientation = PSMoveQuaternion::identity();
 	m_lastControllerPose = PSMovePose::identity();
 	m_bLastMulticamPositionValid = false;
@@ -285,7 +285,7 @@ void AppStage_OpticalCalibration::update()
 
 		if (rawTrackerData.bMulticamPositionValid)
 		{
-			m_lastMulticamPosition = rawTrackerData.MulticamPosition;
+			m_lastMulticamPositionCm = rawTrackerData.MulticamPositionCm;
 			m_bLastMulticamPositionValid = true;
 		}
 
@@ -391,8 +391,8 @@ void AppStage_OpticalCalibration::update()
                 if (poseNoiseSamples.sample_count < k_desired_noise_sample_count &&
 					m_bLastMulticamOrientationValid && m_bLastMulticamPositionValid && m_bLastProjectionAreaValid)
                 {
-					poseNoiseSamples.position_samples[poseNoiseSamples.sample_count] = 
-						psmove_position_to_eigen_vector3(m_lastMulticamPosition);
+					poseNoiseSamples.position_samples_cm[poseNoiseSamples.sample_count] = 
+						psmove_position_to_eigen_vector3(m_lastMulticamPositionCm);
 					poseNoiseSamples.orientation_samples[poseNoiseSamples.sample_count] =
 						psmove_quaternion_to_eigen_quaternionf(m_lastMulticamOrientation);
 					poseNoiseSamples.projection_area_samples[poseNoiseSamples.sample_count] =
@@ -505,7 +505,8 @@ void AppStage_OpticalCalibration::render()
 		m_isControllerStreamActive &&
 		m_controllerView->GetIsCurrentlyTracking())
 	{
-		PSMovePose psmove_space_pose = PSMovePose::create(m_lastMulticamPosition, m_lastMulticamOrientation);
+		PSMovePose psmove_space_pose = 
+			PSMovePose::create(m_lastMulticamPositionCm, m_lastMulticamOrientation);
 
 		if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
 		{

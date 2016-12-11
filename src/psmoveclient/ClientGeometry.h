@@ -4,6 +4,10 @@
 //-- includes -----
 #include "PSMoveClient_export.h"
 
+//-- constants -----
+#define k_meters_to_centimeters  100.f
+#define k_centimeters_to_meters  0.01f
+
 //-- pre-declarations -----
 struct PSMovePosition;
 

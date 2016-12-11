@@ -1012,10 +1012,10 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
             controller->ControllerState.PSMoveState.Pose.Orientation = {pose.Orientation.x, pose.Orientation.y, pose.Orientation.z, pose.Orientation.w};
             
             phydat = psmview.GetPhysicsData();
-            controller->ControllerState.PSMoveState.PhysicsData.LinearAcceleration = {phydat.Acceleration.i, phydat.Acceleration.j, phydat.Acceleration.k};
-            controller->ControllerState.PSMoveState.PhysicsData.LinearVelocity = {phydat.Velocity.i, phydat.Velocity.j, phydat.Velocity.k};
-            controller->ControllerState.PSMoveState.PhysicsData.AngularAcceleration = {phydat.AngularAcceleration.i, phydat.AngularAcceleration.j, phydat.AngularAcceleration.k};
-            controller->ControllerState.PSMoveState.PhysicsData.AngularVelocity = {phydat.AngularVelocity.i, phydat.AngularVelocity.j, phydat.AngularVelocity.k};
+            controller->ControllerState.PSMoveState.PhysicsData.LinearAcceleration = {phydat.AccelerationCmPerSecSqr.i, phydat.AccelerationCmPerSecSqr.j, phydat.AccelerationCmPerSecSqr.k};
+            controller->ControllerState.PSMoveState.PhysicsData.LinearVelocity = {phydat.VelocityCmPerSec.i, phydat.VelocityCmPerSec.j, phydat.VelocityCmPerSec.k};
+            controller->ControllerState.PSMoveState.PhysicsData.AngularAcceleration = {phydat.AngularAccelerationRadPerSecSqr.i, phydat.AngularAccelerationRadPerSecSqr.j, phydat.AngularAccelerationRadPerSecSqr.k};
+            controller->ControllerState.PSMoveState.PhysicsData.AngularVelocity = {phydat.AngularVelocityRadPerSec.i, phydat.AngularVelocityRadPerSec.j, phydat.AngularVelocityRadPerSec.k};
             
             psm_raw_sens = psmview.GetRawSensorData();
             controller->ControllerState.PSMoveState.RawSensorData.Accelerometer = {psm_raw_sens.Accelerometer.i, psm_raw_sens.Accelerometer.j, psm_raw_sens.Accelerometer.k};
@@ -1036,7 +1036,7 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
                     raw_track.ScreenLocations[track_id].x, raw_track.ScreenLocations[track_id].y
                 };
                 controller->ControllerState.PSMoveState.RawTrackerData.RelativePositions[track_id] = {
-                    raw_track.RelativePositions[track_id].x, raw_track.RelativePositions[track_id].y, raw_track.RelativePositions[track_id].z
+                    raw_track.RelativePositionsCm[track_id].x, raw_track.RelativePositionsCm[track_id].y, raw_track.RelativePositionsCm[track_id].z
                 };
                 controller->ControllerState.PSMoveState.RawTrackerData.RelativeOrientations[track_id] = {
                     raw_track.RelativeOrientations[track_id].x, raw_track.RelativeOrientations[track_id].y, 
@@ -1105,10 +1105,10 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
             controller->ControllerState.PSDS4State.Pose.Orientation = {pose.Orientation.x, pose.Orientation.y, pose.Orientation.z, pose.Orientation.w};
             
             phydat = ds4view.GetPhysicsData();
-            controller->ControllerState.PSDS4State.PhysicsData.LinearAcceleration = {phydat.Acceleration.i, phydat.Acceleration.j, phydat.Acceleration.k};
-            controller->ControllerState.PSDS4State.PhysicsData.LinearVelocity = {phydat.Velocity.i, phydat.Velocity.j, phydat.Velocity.k};
-            controller->ControllerState.PSDS4State.PhysicsData.AngularAcceleration = {phydat.AngularAcceleration.i, phydat.AngularAcceleration.j, phydat.AngularAcceleration.k};
-            controller->ControllerState.PSDS4State.PhysicsData.AngularVelocity = {phydat.AngularVelocity.i, phydat.AngularVelocity.j, phydat.AngularVelocity.k};
+            controller->ControllerState.PSDS4State.PhysicsData.LinearAcceleration = {phydat.AccelerationCmPerSecSqr.i, phydat.AccelerationCmPerSecSqr.j, phydat.AccelerationCmPerSecSqr.k};
+            controller->ControllerState.PSDS4State.PhysicsData.LinearVelocity = {phydat.VelocityCmPerSec.i, phydat.VelocityCmPerSec.j, phydat.VelocityCmPerSec.k};
+            controller->ControllerState.PSDS4State.PhysicsData.AngularAcceleration = {phydat.AngularAccelerationRadPerSecSqr.i, phydat.AngularAccelerationRadPerSecSqr.j, phydat.AngularAccelerationRadPerSecSqr.k};
+            controller->ControllerState.PSDS4State.PhysicsData.AngularVelocity = {phydat.AngularVelocityRadPerSec.i, phydat.AngularVelocityRadPerSec.j, phydat.AngularVelocityRadPerSec.k};
             
             ds4_raw_sens = ds4view.GetRawSensorData();
             controller->ControllerState.PSDS4State.RawSensorData.Accelerometer = {ds4_raw_sens.Accelerometer.i, ds4_raw_sens.Accelerometer.j, ds4_raw_sens.Accelerometer.k};
@@ -1127,7 +1127,7 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
                     raw_track.ScreenLocations[track_id].x, raw_track.ScreenLocations[track_id].y
                 };
                 controller->ControllerState.PSDS4State.RawTrackerData.RelativePositions[track_id] = {
-                    raw_track.RelativePositions[track_id].x, raw_track.RelativePositions[track_id].y, raw_track.RelativePositions[track_id].z
+                    raw_track.RelativePositionsCm[track_id].x, raw_track.RelativePositionsCm[track_id].y, raw_track.RelativePositionsCm[track_id].z
                 };
                 controller->ControllerState.PSDS4State.RawTrackerData.RelativeOrientations[track_id] = {
                     raw_track.RelativeOrientations[track_id].x, raw_track.RelativeOrientations[track_id].y, 

@@ -38,17 +38,17 @@ enum PSMoveTrackingColorType {
 //-- declarations -----
 struct PSM_CPP_PUBLIC_CLASS PSMovePhysicsData
 {
-    PSMoveFloatVector3 Velocity;
-    PSMoveFloatVector3 Acceleration;
-    PSMoveFloatVector3 AngularVelocity;
-    PSMoveFloatVector3 AngularAcceleration;
+    PSMoveFloatVector3 VelocityCmPerSec;
+    PSMoveFloatVector3 AccelerationCmPerSecSqr;
+    PSMoveFloatVector3 AngularVelocityRadPerSec;
+    PSMoveFloatVector3 AngularAccelerationRadPerSecSqr;
 
     inline void Clear()
     {
-        Velocity = *k_psmove_float_vector3_zero;
-        Acceleration = *k_psmove_float_vector3_zero;
-        AngularVelocity = *k_psmove_float_vector3_zero;
-        AngularAcceleration = *k_psmove_float_vector3_zero;
+        VelocityCmPerSec = *k_psmove_float_vector3_zero;
+        AccelerationCmPerSecSqr = *k_psmove_float_vector3_zero;
+        AngularVelocityRadPerSec = *k_psmove_float_vector3_zero;
+        AngularAccelerationRadPerSecSqr = *k_psmove_float_vector3_zero;
     }
 };
 
@@ -84,13 +84,13 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveRawTrackerData
 {
     // Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
     PSMoveScreenLocation ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
-    PSMovePosition RelativePositions[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMovePosition RelativePositionsCm[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMoveQuaternion RelativeOrientations[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMoveTrackingProjection TrackingProjections[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int ValidTrackerLocations;
 
-	PSMovePosition MulticamPosition;
+	PSMovePosition MulticamPositionCm;
 	PSMoveQuaternion MulticamOrientation;
 	bool bMulticamPositionValid;
 	bool bMulticamOrientationValid;
@@ -100,13 +100,13 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveRawTrackerData
         for (int index = 0; index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++index)
         {
             ScreenLocations[index] = PSMoveScreenLocation::create(0, 0);
-            RelativePositions[index] = *k_psmove_position_origin;
+            RelativePositionsCm[index] = *k_psmove_position_origin;
             RelativeOrientations[index]= *k_psmove_quaternion_identity;
             TrackerIDs[index] = -1;
         }
         ValidTrackerLocations = 0;
 
-		MulticamPosition= PSMovePosition::create(0.f, 0.f, 0.f);
+		MulticamPositionCm= PSMovePosition::create(0.f, 0.f, 0.f);
 		MulticamOrientation= PSMoveQuaternion::identity();
 		bMulticamPositionValid= false;
 		bMulticamOrientationValid= false;
@@ -137,7 +137,7 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveRawTrackerData
         {
             if (TrackerIDs[listIndex] == trackerId)
             {
-                outPosition = RelativePositions[listIndex];
+                outPosition = RelativePositionsCm[listIndex];
                 bFound = true;
                 break;
             }

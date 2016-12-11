@@ -91,9 +91,9 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("pose.orientation.x", pose.Orientation.x);
     pt.put("pose.orientation.y", pose.Orientation.y);
     pt.put("pose.orientation.z", pose.Orientation.z);
-    pt.put("pose.position.x", pose.Position.x);
-    pt.put("pose.position.y", pose.Position.y);
-    pt.put("pose.position.z", pose.Position.z);
+    pt.put("pose.position.x", pose.PositionCm.x);
+    pt.put("pose.position.y", pose.PositionCm.y);
+    pt.put("pose.position.z", pose.PositionCm.z);
 
 	writeColorPropertyPresetTable(&SharedColorPresets, pt);
 
@@ -137,9 +137,9 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
         pose.Orientation.x = pt.get<float>("pose.orientation.x", 0.0);
         pose.Orientation.y = pt.get<float>("pose.orientation.y", 0.0);
         pose.Orientation.z = pt.get<float>("pose.orientation.z", 0.0);
-        pose.Position.x = pt.get<float>("pose.position.x", 0.0);
-        pose.Position.y = pt.get<float>("pose.position.y", 0.0);
-        pose.Position.z = pt.get<float>("pose.position.z", 0.0);
+        pose.PositionCm.x = pt.get<float>("pose.position.x", 0.0);
+        pose.PositionCm.y = pt.get<float>("pose.position.y", 0.0);
+        pose.PositionCm.z = pt.get<float>("pose.position.z", 0.0);
 
 		// Read the default preset table
 		readColorPropertyPresetTable(pt, &SharedColorPresets);
