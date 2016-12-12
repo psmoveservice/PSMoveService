@@ -13,6 +13,9 @@
 #pragma optimize( "", off )
 #endif
 
+#define UPDATE_VELOCITY_WITH_ACCELERATION 0
+#define ACCELEROMETER_FIXUP_HACKS 0
+
 //-- constants --
 enum PositionFilterStateEnum
 {
@@ -186,12 +189,22 @@ public:
         const Eigen::Vector3d old_linear_acceleration_m_per_sec_sqr = old_state.get_linear_acceleration_m_per_sec_sqr();
 
         // Compute the position state update
+#if UPDATE_VELOCITY_WITH_ACCELERATION
         const Eigen::Vector3d new_position_meters= 
             old_position_meters 
             + old_linear_velocity_m_per_sec*m_time_step 
             + old_linear_acceleration_m_per_sec_sqr*m_time_step*m_time_step*0.5f;
         const Eigen::Vector3d new_linear_velocity_m_per_sec= old_linear_velocity_m_per_sec + old_linear_acceleration_m_per_sec_sqr*m_time_step;
-        const Eigen::Vector3d &new_linear_acceleration_m_per_sec_sqr= old_linear_acceleration_m_per_sec_sqr;
+#else
+		const Eigen::Vector3d new_position_meters =
+			old_position_meters
+			+ old_linear_velocity_m_per_sec*m_time_step;
+		const Eigen::Vector3d new_linear_velocity_m_per_sec = 
+			(m_time_step > k_real64_normal_epsilon) 
+			? (new_position_meters - old_position_meters) / m_time_step
+			: old_linear_velocity_m_per_sec;
+#endif
+		const Eigen::Vector3d &new_linear_acceleration_m_per_sec_sqr = old_linear_acceleration_m_per_sec_sqr;
 
         // Save results to the new state
         new_state.set_position_meters(new_position_meters);
@@ -439,14 +452,50 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
 
 		// Update the measurement model with the latest controller orientation.
 		// This comes from the orientation filter, which ran before this filter.
-		measurement_model.set_current_orientation(packet.current_orientation.cast<double>());
+		Eigen::Quaterniond current_orientation= packet.current_orientation.cast<double>();
+		measurement_model.set_current_orientation(current_orientation);
 
         // Project the current state onto a predicted measurement as a default
         // in case no observation is available
         PositionMeasurementVectord measurement = measurement_model.h(m_filter->ukf.getState());
 
-        // Accelerometer and gyroscope measurements are always available
-        measurement.set_accelerometer_g_units(packet.imu_accelerometer_g_units.cast<double>());
+		Eigen::Vector3d accelerometer = packet.imu_accelerometer_g_units.cast<double>();
+
+#if ACCELEROMETER_FIXUP_HACKS
+		// Hacks to deal with accelerometer measurement issues
+		{			
+			const double acc_magnitude = accelerometer.norm();
+			const double bias_tolerance = 0.1f;
+			const double alignment_tolerance = 0.984807753; // cos(10 degrees)
+
+			const Eigen::Vector3d acc_local_g =
+				eigen_vector3d_clockwise_rotate(current_orientation, m_constants.gravity_calibration_direction.cast<double>());
+
+			//###HipsterSloth $TODO If there is any error in our orientation we don't correctly subtract
+			// out the effect of gravity. This manifests as a phantom lateral linear acceleration 
+			// that drives the velocity in the direction of the bias.
+			// As a work around, we snap the accelerometer direction to the predicted gravity direction
+			// if it's within an angular tolerance of the predicted gravity direction
+			Eigen::Vector3d acc_normalized = accelerometer / acc_magnitude;
+			if (acc_normalized.dot(acc_local_g) >= alignment_tolerance)
+			{
+				accelerometer = acc_local_g * acc_magnitude;
+				acc_normalized = acc_local_g;
+			}
+
+			//###HipsterSloth $TODO If there is any bias in our accelerometer magnitude it manifests
+			// as a phantom linear acceleration that drives the velocity in the direction of the bias.
+			// As a work around, we normalize the accelerometer reading for any accelerometer magnitudes
+			// within a tolerance of 1.0
+			if (fabs(acc_magnitude - 1.0) < bias_tolerance)
+			{
+				accelerometer = acc_normalized;
+			}
+		}
+#endif
+
+		// Accelerometer and gyroscope measurements are always available
+		measurement.set_accelerometer_g_units(accelerometer);
 
 		// Adjust the amount we trust the optical measurements based on the tracking projection area
 		measurement_model.update_measurement_covariance(
