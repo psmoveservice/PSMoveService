@@ -204,14 +204,14 @@ void AppStage_ComputeTrackerPoses::render()
 				{
 					const PSMovePhysicsData &physicsData = controllerView->GetPhysicsData();
 					const glm::mat4 originMat4= glm::translate(glm::mat4(1.f), psmove_position_to_glm_vec3(controllerPose.Position));
-					const glm::vec3 vel_endpoint = psmove_float_vector3_to_glm_vec3(physicsData.VelocityCmPerSec)*k_centimeters_to_meters;
+					const glm::vec3 vel_endpoint = psmove_float_vector3_to_glm_vec3(physicsData.VelocityCmPerSec);
 					const glm::vec3 acc_endpoint = psmove_float_vector3_to_glm_vec3(physicsData.AccelerationCmPerSecSqr)*k_centimeters_to_meters;
 					
 					const float vel= glm::length(vel_endpoint);
 					if (vel > k_positional_epsilon)
 					{
 						drawArrow(originMat4, glm::vec3(0.f), vel_endpoint, 0.1f, glm::vec3(0.f, 1.f, 1.f));
-						//drawTextAtWorldPosition(originMat4, vel_endpoint, "v=%.2fm/s", vel);
+						//drawTextAtWorldPosition(originMat4, vel_endpoint, "v=%.2fcm/s", vel);
 					}
 
 					const float acc = glm::length(acc_endpoint);
