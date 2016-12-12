@@ -337,7 +337,7 @@ void AppStage_ControllerSettings::renderUI()
 					{
 						controllerInfo.PositionFilterIndex = k_default_position_filter_index;
 						controllerInfo.OrientationFilterIndex = k_default_psmove_orientation_filter_index;
-						controllerInfo.PositionFilterName = k_psmove_orientation_filter_names[k_default_position_filter_index];
+						controllerInfo.PositionFilterName = k_position_filter_names[k_default_position_filter_index];
 						controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[k_default_psmove_orientation_filter_index];
 						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
 						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
