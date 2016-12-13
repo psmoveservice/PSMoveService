@@ -72,7 +72,7 @@ private:
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;
 
-    PSMovePosition m_lastMulticamPosition;
+    PSMovePosition m_lastMulticamPositionCm;
 	PSMoveQuaternion m_lastMulticamOrientation;
 	PSMovePose m_lastControllerPose;
 	float m_lastProjectionArea;
@@ -87,7 +87,7 @@ private:
 	bool m_bResetPoseRequestSent;
 
     struct PoseNoiseSampleSet *m_poseNoiseSamplesSet;
-	bool m_bReadyForSampling;
+	bool m_bWaitForSampleButtonRelease;
 
 	ClientPSMoveAPI::ResponsePayload_TrackerList m_trackerList;
 };

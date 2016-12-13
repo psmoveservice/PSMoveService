@@ -89,9 +89,9 @@ void ClientMorpheusView::ApplyHMDDataFrame(
 		this->Pose.Orientation.y = morpheus_data_frame.orientation().y();
 		this->Pose.Orientation.z = morpheus_data_frame.orientation().z();
 
-		this->Pose.Position.x = morpheus_data_frame.position().x();
-		this->Pose.Position.y = morpheus_data_frame.position().y();
-		this->Pose.Position.z = morpheus_data_frame.position().z();
+		this->Pose.Position.x = morpheus_data_frame.position_cm().x();
+		this->Pose.Position.y = morpheus_data_frame.position_cm().y();
+		this->Pose.Position.z = morpheus_data_frame.position_cm().z();
 
 		if (morpheus_data_frame.has_raw_sensor_data())
 		{
@@ -137,14 +137,14 @@ void ClientMorpheusView::ApplyHMDDataFrame(
 			for (int listIndex = 0; listIndex < this->RawTrackerData.ValidTrackerLocations; ++listIndex)
 			{
 				const PSMoveProtocol::Pixel &locationOnTracker = raw_tracker_data.screen_locations(listIndex);
-				const PSMoveProtocol::Position &positionOnTracker = raw_tracker_data.relative_positions(listIndex);
+				const PSMoveProtocol::Position &positionOnTrackerCm = raw_tracker_data.relative_positions_cm(listIndex);
 
 				this->RawTrackerData.TrackerIDs[listIndex] = raw_tracker_data.tracker_ids(listIndex);
 				this->RawTrackerData.ScreenLocations[listIndex] =
 					PSMoveScreenLocation::create(locationOnTracker.x(), locationOnTracker.y());
-				this->RawTrackerData.RelativePositions[listIndex] =
+				this->RawTrackerData.RelativePositionsCm[listIndex] =
 					PSMovePosition::create(
-						positionOnTracker.x(), positionOnTracker.y(), positionOnTracker.z());
+						positionOnTrackerCm.x(), positionOnTrackerCm.y(), positionOnTrackerCm.z());
 
 				if (raw_tracker_data.projected_point_cloud_size() > 0)
 				{
@@ -178,21 +178,21 @@ void ClientMorpheusView::ApplyHMDDataFrame(
 		{
 			const auto &raw_physics_data = morpheus_data_frame.physics_data();
 
-			this->PhysicsData.Velocity.i = raw_physics_data.velocity().i();
-			this->PhysicsData.Velocity.j = raw_physics_data.velocity().j();
-			this->PhysicsData.Velocity.k = raw_physics_data.velocity().k();
+			this->PhysicsData.VelocityCmPerSec.i = raw_physics_data.velocity_cm_per_sec().i();
+			this->PhysicsData.VelocityCmPerSec.j = raw_physics_data.velocity_cm_per_sec().j();
+			this->PhysicsData.VelocityCmPerSec.k = raw_physics_data.velocity_cm_per_sec().k();
 
-			this->PhysicsData.Acceleration.i = raw_physics_data.acceleration().i();
-			this->PhysicsData.Acceleration.j = raw_physics_data.acceleration().j();
-			this->PhysicsData.Acceleration.k = raw_physics_data.acceleration().k();
+			this->PhysicsData.AccelerationCmPerSecSqr.i = raw_physics_data.acceleration_cm_per_sec_sqr().i();
+			this->PhysicsData.AccelerationCmPerSecSqr.j = raw_physics_data.acceleration_cm_per_sec_sqr().j();
+			this->PhysicsData.AccelerationCmPerSecSqr.k = raw_physics_data.acceleration_cm_per_sec_sqr().k();
 
-			this->PhysicsData.AngularVelocity.i = raw_physics_data.angular_velocity().i();
-			this->PhysicsData.AngularVelocity.j = raw_physics_data.angular_velocity().j();
-			this->PhysicsData.AngularVelocity.k = raw_physics_data.angular_velocity().k();
+			this->PhysicsData.AngularVelocityRadPerSec.i = raw_physics_data.angular_velocity_rad_per_sec().i();
+			this->PhysicsData.AngularVelocityRadPerSec.j = raw_physics_data.angular_velocity_rad_per_sec().j();
+			this->PhysicsData.AngularVelocityRadPerSec.k = raw_physics_data.angular_velocity_rad_per_sec().k();
 
-			this->PhysicsData.AngularAcceleration.i = raw_physics_data.angular_acceleration().i();
-			this->PhysicsData.AngularAcceleration.j = raw_physics_data.angular_acceleration().j();
-			this->PhysicsData.AngularAcceleration.k = raw_physics_data.angular_acceleration().k();
+			this->PhysicsData.AngularAccelerationRadPerSecSqr.i = raw_physics_data.angular_acceleration_rad_per_sec_sqr().i();
+			this->PhysicsData.AngularAccelerationRadPerSecSqr.j = raw_physics_data.angular_acceleration_rad_per_sec_sqr().j();
+			this->PhysicsData.AngularAccelerationRadPerSecSqr.k = raw_physics_data.angular_acceleration_rad_per_sec_sqr().k();
 		}
 		else
 		{

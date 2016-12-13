@@ -231,7 +231,7 @@ void AppStage_AccelerometerCalibration::update()
 			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4 &&
 				m_controllerView->GetPSDualShock4View().GetButtonOptions() == PSMoveButton_PRESSED)
 			{
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controllerView, PSMoveQuaternion::identity()));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
 			}
         } break;
     default:
@@ -242,18 +242,18 @@ void AppStage_AccelerometerCalibration::update()
 void AppStage_AccelerometerCalibration::render()
 {
     const float k_modelScale = 18.f;
-    glm::mat4 displayControllerTransform;
+    glm::mat4 defaultControllerTransform;
 
     switch(m_controllerView->GetControllerViewType())
     {
     case ClientControllerView::PSMove:
-		displayControllerTransform= 
+		defaultControllerTransform= 
 			glm::rotate(
 				glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale)),
 				90.f, glm::vec3(1.f, 0.f, 0.f));  
         break;
     case ClientControllerView::PSDualShock4:
-        displayControllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale));
+        defaultControllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale));
         break;
     }
 
@@ -266,7 +266,7 @@ void AppStage_AccelerometerCalibration::render()
     case eCalibrationMenuState::placeController:
         {
             // Draw the controller model in the pose we want the user place it in
-            drawController(m_controllerView, displayControllerTransform);
+            drawController(m_controllerView, defaultControllerTransform);
         } break;
     case eCalibrationMenuState::measureNoise:
     case eCalibrationMenuState::measureComplete:
@@ -275,7 +275,7 @@ void AppStage_AccelerometerCalibration::render()
             glm::mat4 sampleTransform = glm::scale(glm::mat4(1.f), glm::vec3(sampleScale, sampleScale, sampleScale));
 
             // Draw the controller in the middle            
-            drawController(m_controllerView, displayControllerTransform);
+            drawController(m_controllerView, defaultControllerTransform);
 
             // Draw the sample point cloud around the origin
             drawPointCloud(sampleTransform, glm::vec3(1.f, 1.f, 1.f), 
@@ -302,7 +302,7 @@ void AppStage_AccelerometerCalibration::render()
 			{
 			case eTestMode::controllerRelative:
 				{
-					controllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale));
+					controllerTransform = defaultControllerTransform;
 					sensorTransform = glm::scale(glm::mat4(1.f), glm::vec3(k_sensorScale, k_sensorScale, k_sensorScale));
 				} break;
 			case eTestMode::worldRelative:

@@ -273,13 +273,11 @@ void AppStage_TrackerSettings::renderUI()
 				//###HipsterSloth $TODO: Localhost only check
 				if (ImGui::Button("Calibrate Controller Tracking Colors"))
 				{
-					const ControllerInfo *controler = get_selected_controller();
-					if (controler != NULL) {
-						m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_id(controler->ControllerID);
-						m_app->getAppStage<AppStage_ColorCalibration>()->set_override_tracking_color(controler->TrackingColorType);
+					const ControllerInfo *controller = get_selected_controller();
+					if (controller != NULL) {
+						m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_id(controller->ControllerID);
+						m_app->getAppStage<AppStage_ColorCalibration>()->set_override_tracking_color(controller->TrackingColorType);
 					}
-
-
 					m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
 				}
 			}
@@ -353,7 +351,7 @@ void AppStage_TrackerSettings::renderUI()
 				if (ImGui::Button("Test Tracking"))
 				{
 					AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app, controllerID);
-				}
+                }
 			}
         }
 

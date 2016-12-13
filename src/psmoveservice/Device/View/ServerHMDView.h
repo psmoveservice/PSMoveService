@@ -94,6 +94,18 @@ public:
 	// Get the currently assigned tracking color ID for the controller
 	eCommonTrackingColorID getTrackingColorID() const;
 
+	// Get if the region-of-interest optimization is disabled for this HMD
+	inline bool getIsROIDisabled() const { return m_roi_disable_count > 0; }
+
+	// Request the HMD to not use the ROI optimization
+	inline void pushDisableROI() { ++m_roi_disable_count; }
+
+	// Undo the request to not use the ROI optimization
+	inline void popDisableROI() { assert(m_roi_disable_count > 0); --m_roi_disable_count; }
+
+	// get the prediction time used for region of interest calculation
+	float getROIPredictionTime() const;
+
 	// Get the pose estimate relative to the given tracker id
 	inline const HMDOpticalPoseEstimation *getTrackerPoseEstimate(int trackerId) const {
 		return (m_tracker_pose_estimation != nullptr) ? &m_tracker_pose_estimation[trackerId] : nullptr;
@@ -123,6 +135,9 @@ private:
 	// Tracking color state
 	int m_tracking_listener_count;
 	bool m_tracking_enabled;
+
+	// ROI state
+	int m_roi_disable_count;
 
 	// Device State
     IHMDInterface *m_device;

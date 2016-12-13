@@ -351,12 +351,12 @@ public:
 			Eigen::Quaternionf raw_quat = Eigen::Quaternionf(sample.ori[0], sample.ori[1], sample.ori[2], sample.ori[3]);
 			Eigen::EulerAnglesf raw_euler_angles= eigen_quaternionf_to_euler_angles(raw_quat);
 
-			Eigen::Vector3f pos= pose_filter->getPosition();
-			Eigen::Vector3f vel = pose_filter->getVelocity();
-			Eigen::Vector3f acc = pose_filter->getAcceleration();
+			Eigen::Vector3f pos= pose_filter->getPositionCm();
+			Eigen::Vector3f vel = pose_filter->getVelocityCmPerSec();
+			Eigen::Vector3f acc = pose_filter->getAccelerationCmPerSecSqr();
 			Eigen::Quaternionf quat = pose_filter->getOrientation();
 			Eigen::EulerAnglesf angles = eigen_quaternionf_to_euler_angles(quat);
-			Eigen::Vector3f ang_vel = pose_filter->getAngularVelocity();
+			Eigen::Vector3f ang_vel = pose_filter->getAngularVelocityRadPerSec();
 
 			fprintf(m_fp, "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n",
 				time,
@@ -473,15 +473,15 @@ apply_filter(
 		float dT = sample.time - lastTime;
 
 		PoseSensorPacket sensorPacket;
-		sensorPacket.imu_accelerometer = Eigen::Vector3f(sample.acc[0], sample.acc[1], sample.acc[2]);
-		sensorPacket.imu_gyroscope = Eigen::Vector3f(sample.gyro[0], sample.gyro[1], sample.gyro[2]);
-		sensorPacket.imu_magnetometer = Eigen::Vector3f(sample.mag[0], sample.mag[1], sample.mag[2]);
+		sensorPacket.imu_accelerometer_g_units = Eigen::Vector3f(sample.acc[0], sample.acc[1], sample.acc[2]);
+		sensorPacket.imu_gyroscope_rad_per_sec = Eigen::Vector3f(sample.gyro[0], sample.gyro[1], sample.gyro[2]);
+		sensorPacket.imu_magnetometer_unit = Eigen::Vector3f(sample.mag[0], sample.mag[1], sample.mag[2]);
 		sensorPacket.optical_orientation = Eigen::Quaternionf(sample.ori[0], sample.ori[1], sample.ori[2], sample.ori[3]);
-		sensorPacket.tracking_projection_area = sample.area;
+		sensorPacket.tracking_projection_area_px_sqr = sample.area;
 		sensorPacket.optical_position_cm = Eigen::Vector3f(sample.pos[0], sample.pos[1], sample.pos[2]);
 
 		PoseFilterPacket filterPacket;
-		pose_filter_space->createFilterPacket(sensorPacket, pose_filter->getOrientation(), pose_filter->getPosition(), filterPacket);
+		pose_filter_space->createFilterPacket(sensorPacket, pose_filter, filterPacket);
 
 		pose_filter->update(dT, filterPacket);
 

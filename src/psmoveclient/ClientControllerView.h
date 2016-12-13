@@ -2,7 +2,7 @@
 #define CLIENT_CONTROLLER_VIEW_H
 
 //-- includes -----
-#include "ClientConfig.h"
+#include "PSMoveClient_export.h"
 #include "ClientConstants.h"
 #include "ClientGeometry.h"
 #include <cassert>
@@ -36,23 +36,23 @@ enum PSMoveTrackingColorType {
 };
 
 //-- declarations -----
-struct CLIENTPSMOVEAPI PSMovePhysicsData
+struct PSM_CPP_PUBLIC_CLASS PSMovePhysicsData
 {
-    PSMoveFloatVector3 Velocity;
-    PSMoveFloatVector3 Acceleration;
-    PSMoveFloatVector3 AngularVelocity;
-    PSMoveFloatVector3 AngularAcceleration;
+    PSMoveFloatVector3 VelocityCmPerSec;
+    PSMoveFloatVector3 AccelerationCmPerSecSqr;
+    PSMoveFloatVector3 AngularVelocityRadPerSec;
+    PSMoveFloatVector3 AngularAccelerationRadPerSecSqr;
 
     inline void Clear()
     {
-        Velocity = *k_psmove_float_vector3_zero;
-        Acceleration = *k_psmove_float_vector3_zero;
-        AngularVelocity = *k_psmove_float_vector3_zero;
-        AngularAcceleration = *k_psmove_float_vector3_zero;
+        VelocityCmPerSec = *k_psmove_float_vector3_zero;
+        AccelerationCmPerSecSqr = *k_psmove_float_vector3_zero;
+        AngularVelocityRadPerSec = *k_psmove_float_vector3_zero;
+        AngularAccelerationRadPerSecSqr = *k_psmove_float_vector3_zero;
     }
 };
 
-struct CLIENTPSMOVEAPI PSMoveRawSensorData
+struct PSM_CPP_PUBLIC_CLASS PSMoveRawSensorData
 {
     PSMoveIntVector3 Magnetometer;
     PSMoveIntVector3 Accelerometer;
@@ -66,7 +66,7 @@ struct CLIENTPSMOVEAPI PSMoveRawSensorData
     }
 };
 
-struct CLIENTPSMOVEAPI PSMoveCalibratedSensorData
+struct PSM_CPP_PUBLIC_CLASS PSMoveCalibratedSensorData
 {
     PSMoveFloatVector3 Magnetometer;
     PSMoveFloatVector3 Accelerometer;
@@ -80,17 +80,17 @@ struct CLIENTPSMOVEAPI PSMoveCalibratedSensorData
     }
 };
 
-struct CLIENTPSMOVEAPI PSMoveRawTrackerData
+struct PSM_CPP_PUBLIC_CLASS PSMoveRawTrackerData
 {
     // Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
     PSMoveScreenLocation ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
-    PSMovePosition RelativePositions[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMovePosition RelativePositionsCm[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMoveQuaternion RelativeOrientations[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMoveTrackingProjection TrackingProjections[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int ValidTrackerLocations;
 
-	PSMovePosition MulticamPosition;
+	PSMovePosition MulticamPositionCm;
 	PSMoveQuaternion MulticamOrientation;
 	bool bMulticamPositionValid;
 	bool bMulticamOrientationValid;
@@ -100,13 +100,13 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
         for (int index = 0; index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++index)
         {
             ScreenLocations[index] = PSMoveScreenLocation::create(0, 0);
-            RelativePositions[index] = *k_psmove_position_origin;
+            RelativePositionsCm[index] = *k_psmove_position_origin;
             RelativeOrientations[index]= *k_psmove_quaternion_identity;
             TrackerIDs[index] = -1;
         }
         ValidTrackerLocations = 0;
 
-		MulticamPosition= PSMovePosition::create(0.f, 0.f, 0.f);
+		MulticamPositionCm= PSMovePosition::create(0.f, 0.f, 0.f);
 		MulticamOrientation= PSMoveQuaternion::identity();
 		bMulticamPositionValid= false;
 		bMulticamOrientationValid= false;
@@ -137,7 +137,7 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
         {
             if (TrackerIDs[listIndex] == trackerId)
             {
-                outPosition = RelativePositions[listIndex];
+                outPosition = RelativePositionsCm[listIndex];
                 bFound = true;
                 break;
             }
@@ -181,7 +181,7 @@ struct CLIENTPSMOVEAPI PSMoveRawTrackerData
     }
 };
 
-struct CLIENTPSMOVEAPI ClientPSMoveView
+struct PSM_CPP_PUBLIC_CLASS ClientPSMoveView
 {
 private:
     bool bValid;
@@ -342,7 +342,7 @@ public:
     const PSMoveRawTrackerData &GetRawTrackerData() const;
 };
 
-class CLIENTPSMOVEAPI ClientPSNaviView
+class PSM_CPP_PUBLIC_CLASS ClientPSNaviView
 {
 private:
     bool bValid;
@@ -467,7 +467,7 @@ public:
     }
 };
 
-struct CLIENTPSMOVEAPI PSDualShock4RawSensorData
+struct PSM_CPP_PUBLIC_CLASS PSDualShock4RawSensorData
 {
     PSMoveIntVector3 Accelerometer;
     PSMoveIntVector3 Gyroscope;
@@ -479,7 +479,7 @@ struct CLIENTPSMOVEAPI PSDualShock4RawSensorData
     }
 };
 
-struct CLIENTPSMOVEAPI PSDualShock4CalibratedSensorData
+struct PSM_CPP_PUBLIC_CLASS PSDualShock4CalibratedSensorData
 {
     PSMoveFloatVector3 Accelerometer;
     PSMoveFloatVector3 Gyroscope;
@@ -491,7 +491,7 @@ struct CLIENTPSMOVEAPI PSDualShock4CalibratedSensorData
     }
 };
 
-struct CLIENTPSMOVEAPI ClientPSDualShock4View
+struct PSM_CPP_PUBLIC_CLASS ClientPSDualShock4View
 {
 private:
     bool bValid;
@@ -743,7 +743,7 @@ public:
     const PSMoveRawTrackerData &GetRawTrackerData() const;
 };
 
-class CLIENTPSMOVEAPI ClientControllerView
+class PSM_CPP_PUBLIC_CLASS ClientControllerView
 {
 public:
     enum eControllerType

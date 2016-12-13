@@ -2,7 +2,7 @@
 #define CLIENT_HMD_VIEW_H
 
 //-- includes -----
-#include "ClientConfig.h"
+#include "PSMoveClient_export.h"
 #include "ClientConstants.h"
 #include "ClientGeometry.h"
 #include <cassert>
@@ -17,23 +17,23 @@ namespace PSMoveProtocol
 //-- constants -----
 
 //-- declarations -----
-struct CLIENTPSMOVEAPI MorpheusPhysicsData
+struct PSM_CPP_PUBLIC_CLASS MorpheusPhysicsData
 {
-	PSMoveFloatVector3 Velocity;
-	PSMoveFloatVector3 Acceleration;
-	PSMoveFloatVector3 AngularVelocity;
-	PSMoveFloatVector3 AngularAcceleration;
+	PSMoveFloatVector3 VelocityCmPerSec;
+	PSMoveFloatVector3 AccelerationCmPerSecSqr;
+	PSMoveFloatVector3 AngularVelocityRadPerSec;
+	PSMoveFloatVector3 AngularAccelerationRadPerSecSqr;
 
 	inline void Clear()
 	{
-		Velocity = *k_psmove_float_vector3_zero;
-		Acceleration = *k_psmove_float_vector3_zero;
-		AngularVelocity = *k_psmove_float_vector3_zero;
-		AngularAcceleration = *k_psmove_float_vector3_zero;
+		VelocityCmPerSec = *k_psmove_float_vector3_zero;
+		AccelerationCmPerSecSqr = *k_psmove_float_vector3_zero;
+		AngularVelocityRadPerSec = *k_psmove_float_vector3_zero;
+		AngularAccelerationRadPerSecSqr = *k_psmove_float_vector3_zero;
 	}
 };
 
-struct CLIENTPSMOVEAPI MorpheusRawSensorData
+struct PSM_CPP_PUBLIC_CLASS MorpheusRawSensorData
 {
 	PSMoveIntVector3 Accelerometer;
 	PSMoveIntVector3 Gyroscope;
@@ -45,7 +45,7 @@ struct CLIENTPSMOVEAPI MorpheusRawSensorData
     }
 };
 
-struct CLIENTPSMOVEAPI MorpheusCalibratedSensorData
+struct PSM_CPP_PUBLIC_CLASS MorpheusCalibratedSensorData
 {
 	PSMoveFloatVector3 Accelerometer;
 	PSMoveFloatVector3 Gyroscope;
@@ -57,11 +57,11 @@ struct CLIENTPSMOVEAPI MorpheusCalibratedSensorData
 	}
 };
 
-struct CLIENTPSMOVEAPI MorpheusRawTrackerData
+struct PSM_CPP_PUBLIC_CLASS MorpheusRawTrackerData
 {
 	// Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
 	PSMoveScreenLocation ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
-	PSMovePosition RelativePositions[PSMOVESERVICE_MAX_TRACKER_COUNT];
+	PSMovePosition RelativePositionsCm[PSMOVESERVICE_MAX_TRACKER_COUNT];
 	PSMoveQuaternion RelativeOrientations[PSMOVESERVICE_MAX_TRACKER_COUNT];
 	PSMoveTrackingProjection TrackingProjections[PSMOVESERVICE_MAX_TRACKER_COUNT];
 	int TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
@@ -72,7 +72,7 @@ struct CLIENTPSMOVEAPI MorpheusRawTrackerData
 		for (int index = 0; index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++index)
 		{
 			ScreenLocations[index] = PSMoveScreenLocation::create(0, 0);
-			RelativePositions[index] = *k_psmove_position_origin;
+			RelativePositionsCm[index] = *k_psmove_position_origin;
 			RelativeOrientations[index] = *k_psmove_quaternion_identity;
 			TrackerIDs[index] = -1;
 		}
@@ -104,7 +104,7 @@ struct CLIENTPSMOVEAPI MorpheusRawTrackerData
 		{
 			if (TrackerIDs[listIndex] == trackerId)
 			{
-				outPosition = RelativePositions[listIndex];
+				outPosition = RelativePositionsCm[listIndex];
 				bFound = true;
 				break;
 			}
@@ -148,7 +148,7 @@ struct CLIENTPSMOVEAPI MorpheusRawTrackerData
 	}
 };
 
-struct CLIENTPSMOVEAPI ClientMorpheusView
+struct PSM_CPP_PUBLIC_CLASS ClientMorpheusView
 {
 private:
 	bool bValid;
@@ -220,7 +220,7 @@ public:
 	bool GetIsStableAndAlignedWithGravity() const;
 };
 
-class CLIENTPSMOVEAPI ClientHMDView
+class PSM_CPP_PUBLIC_CLASS ClientHMDView
 {
 public:
     enum eHMDViewType

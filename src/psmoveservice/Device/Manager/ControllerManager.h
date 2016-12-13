@@ -43,7 +43,6 @@ public:
     ServerControllerViewPtr getControllerViewPtr(int device_id);
 
     void setControllerRumble(int controller_id, float rumble_amount, CommonControllerState::RumbleChannel channel);
-    bool resetPose(int controller_id, const Eigen::Quaternionf& q_pose);
 
     eCommonTrackingColorID allocateTrackingColorID();
     void claimTrackingColorID(const ServerControllerView *controller_view, eCommonTrackingColorID color_id);

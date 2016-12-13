@@ -2,14 +2,17 @@
 #define REQUEST_MANAGER_H
 
 //-- includes -----
+#include "PSMoveClient_export.h"
 #include "PSMoveProtocolInterface.h"
 #include "ClientPSMoveAPI.h"
 
 //-- definitions -----
-class ClientRequestManager : public IResponseListener
+class PSM_CPP_PRIVATE_CLASS ClientRequestManager : public IResponseListener
 {
 public:
-    ClientRequestManager(ClientPSMoveAPI::t_response_callback callback, void *userdata);
+    ClientRequestManager(IDataFrameListener *dataFrameListener,
+                         ClientPSMoveAPI::t_response_callback callback,
+                         void *userdata);
     virtual ~ClientRequestManager();
 
     void send_request(RequestPtr request);

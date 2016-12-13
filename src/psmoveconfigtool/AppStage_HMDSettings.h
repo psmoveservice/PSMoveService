@@ -18,6 +18,7 @@ public:
         int HmdID;
         eHMDType HmdType;
         std::string DevicePath;
+		float PredictionTime;
     };
 
 
@@ -49,6 +50,8 @@ protected:
 	static void handle_hmd_list_response(
 		const ClientPSMoveAPI::ResponseMessage *response,
 		void *userdata);
+
+	void request_set_hmd_prediction(const int hmd_id, float prediction_time);
 
 private:
     enum eHmdMenuState

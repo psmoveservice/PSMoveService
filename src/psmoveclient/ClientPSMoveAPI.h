@@ -2,7 +2,7 @@
 #define CLIENT_PSMOVE_API_H
 
 //-- includes -----
-#include "ClientConfig.h"
+#include "PSMoveClient_export.h"
 #include "ClientConstants.h"
 #include "ClientLog.h"
 #include "ClientControllerView.h"
@@ -28,7 +28,7 @@ class ClientControllerView;
 #endif // HAS_PROTOCOL_ACCESS
 
 //-- interface -----
-class CLIENTPSMOVEAPI ClientPSMoveAPI
+class PSM_CPP_PUBLIC_CLASS ClientPSMoveAPI
 {
 public:
     enum eClientAPIConstants
@@ -43,7 +43,8 @@ public:
         includePhysicsData = 0x02,
         includeRawSensorData = 0x04,
         includeCalibratedSensorData = 0x08,
-        includeRawTrackerData = 0x10
+        includeRawTrackerData = 0x10,
+		disableROI = 0x20,
     };    
 
     enum eControllerRumbleChannel
@@ -115,7 +116,7 @@ public:
     {
         ClientTrackerInfo trackers[PSMOVESERVICE_MAX_TRACKER_COUNT];
         int count;
-		float global_forward_degrees;
+        float global_forward_degrees;
     };
 
     struct ResponsePayload_HMDList
@@ -155,7 +156,7 @@ public:
             ResponsePayload_ControllerList controller_list;
             ResponsePayload_TrackerList tracker_list;
             ResponsePayload_HMDList hmd_list;
-			ResponsePayload_TrackingSpace tracking_space;
+            ResponsePayload_TrackingSpace tracking_space;
         } payload;
         eResponsePayloadType payload_type;
     };
@@ -205,11 +206,12 @@ public:
     static t_request_id start_controller_data_stream(ClientControllerView *view, unsigned int data_stream_flags);
     static t_request_id stop_controller_data_stream(ClientControllerView *view);
     static t_request_id set_led_tracking_color(ClientControllerView *view, PSMoveTrackingColorType tracking_color);
-    static t_request_id reset_pose(ClientControllerView *view, const PSMoveQuaternion& q_pose);
+    static t_request_id reset_orientation(ClientControllerView *view, const PSMoveQuaternion& q_pose);
 
     /// Tracker Methods
     static ClientTrackerView *allocate_tracker_view(const ClientTrackerInfo &trackerInfo);
     static void free_tracker_view(ClientTrackerView *view);
+    static ClientControllerView *get_controller_view(int controller_id);
 
 	static t_request_id get_tracking_space_settings();
 	static t_request_id get_tracker_list();

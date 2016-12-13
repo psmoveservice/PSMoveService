@@ -5,9 +5,6 @@
 //==================================================================================================
 // Includes
 //==================================================================================================
-
-#define HAS_PROTOCOL_ACCESS
-
 #include "driver_psmoveservice.h"
 #include <sstream>
 #include "PSMoveProtocol.pb.h"
@@ -610,7 +607,7 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
         {
         case ClientControllerView::PSMove:
 			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSMove(%d)\n", controller_id);
-            AllocateUniquePSMoveController(controller_id, response_handle);
+            AllocateUniquePSMoveController(controller_id, list_index, response_handle);
             break;
         case ClientControllerView::PSNavi:
 			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSNavi(%d)\n", controller_id);
@@ -664,7 +661,7 @@ static void GenerateControllerSerialNumber( char *p, int psize, int controller )
 }
 
 
-void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerID,	const ClientPSMoveAPI::t_response_handle response_handle)
+void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerID, int ControllerListIndex,	const ClientPSMoveAPI::t_response_handle response_handle)
 {
 	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
     char buf[256];
@@ -672,7 +669,7 @@ void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerI
 
     if ( !FindTrackedDeviceDriver(buf) )
     {
-		const auto &ControllerResponse = response->result_controller_list().controllers(ControllerID);
+		const auto &ControllerResponse = response->result_controller_list().controllers(ControllerListIndex);
 		std::string serialNo = ControllerResponse.device_serial();
 		serialNo = boost::to_upper_copy<std::string>(serialNo.c_str());
 
@@ -1751,16 +1748,16 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling StartRealignHMDTrackingSpace() in response to controller chord.\n");
 				#endif
 
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controller_view, controllerBallPointedUpQuat));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controller_view, controllerBallPointedUpQuat));
 				m_bResetPoseRequestSent = true;
 
 				StartRealignHMDTrackingSpace();
             }
 			else if (bRecenterRequestTriggered)
 			{
-				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling ClientPSMoveAPI::reset_pose() in response to controller button press.\n");
+				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling ClientPSMoveAPI::reset_orientation() in response to controller button press.\n");
 
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controller_view, PSMoveQuaternion::identity()));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controller_view, PSMoveQuaternion::identity()));
 				m_bResetPoseRequestSent = true;
 			}
 			else 
@@ -1913,7 +1910,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 
 			if (clientView.GetButtonOptions() == PSMoveButton_PRESSED)
 			{
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_pose(m_controller_view, PSMoveQuaternion::identity()));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controller_view, PSMoveQuaternion::identity()));
 			}
 			else
 			{
@@ -2199,8 +2196,8 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	PSMovePose driver_pose_to_world_pose = PSMovePose::concat(psmove_pose_inv, controller_world_space_pose);
 	DriverLog("driver_pose_to_world_pose: %s \n", PsMovePoseToString(driver_pose_to_world_pose).c_str());
 
-	//PSMovePose test_composed_controller_world_space = PSMovePose::concat(psmove_pose_meters, driver_pose_to_world_pose);
-	//DriverLog("test_composed_controller_world_space: %s \n", PsMovePoseToString(test_composed_controller_world_space).c_str());
+	PSMovePose test_composed_controller_world_space = PSMovePose::concat(psmove_pose_meters, driver_pose_to_world_pose);
+	DriverLog("test_composed_controller_world_space: %s \n", PsMovePoseToString(test_composed_controller_world_space).c_str());
 
 	g_ServerTrackedDeviceProvider.SetHMDTrackingSpace(driver_pose_to_world_pose);
 }
@@ -2290,21 +2287,21 @@ void CPSMoveControllerLatest::UpdateTrackingState()
             {
                 const PSMovePhysicsData &physicsData= view.GetPhysicsData();
 
-                m_Pose.vecVelocity[0] = physicsData.Velocity.i * k_fScalePSMoveAPIToMeters;
-                m_Pose.vecVelocity[1] = physicsData.Velocity.j * k_fScalePSMoveAPIToMeters;
-                m_Pose.vecVelocity[2] = physicsData.Velocity.k * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[0] = physicsData.VelocityCmPerSec.i * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[1] = physicsData.VelocityCmPerSec.j * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[2] = physicsData.VelocityCmPerSec.k * k_fScalePSMoveAPIToMeters;
 
-                m_Pose.vecAcceleration[0] = physicsData.Acceleration.i * k_fScalePSMoveAPIToMeters;
-                m_Pose.vecAcceleration[1] = physicsData.Acceleration.j * k_fScalePSMoveAPIToMeters;
-                m_Pose.vecAcceleration[2] = physicsData.Acceleration.k * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[0] = physicsData.AccelerationCmPerSecSqr.i * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[1] = physicsData.AccelerationCmPerSecSqr.j * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[2] = physicsData.AccelerationCmPerSecSqr.k * k_fScalePSMoveAPIToMeters;
 
-                m_Pose.vecAngularVelocity[0] = physicsData.AngularVelocity.i;
-                m_Pose.vecAngularVelocity[1] = physicsData.AngularVelocity.j;
-                m_Pose.vecAngularVelocity[2] = physicsData.AngularVelocity.k;
+                m_Pose.vecAngularVelocity[0] = physicsData.AngularVelocityRadPerSec.i;
+                m_Pose.vecAngularVelocity[1] = physicsData.AngularVelocityRadPerSec.j;
+                m_Pose.vecAngularVelocity[2] = physicsData.AngularVelocityRadPerSec.k;
 
-                m_Pose.vecAngularAcceleration[0] = physicsData.AngularAcceleration.i;
-                m_Pose.vecAngularAcceleration[1] = physicsData.AngularAcceleration.j;
-                m_Pose.vecAngularAcceleration[2] = physicsData.AngularAcceleration.k;
+                m_Pose.vecAngularAcceleration[0] = physicsData.AngularAccelerationRadPerSecSqr.i;
+                m_Pose.vecAngularAcceleration[1] = physicsData.AngularAccelerationRadPerSecSqr.j;
+                m_Pose.vecAngularAcceleration[2] = physicsData.AngularAccelerationRadPerSecSqr.k;
             }
 
             m_Pose.poseIsValid = m_controller_view->GetIsPoseValid();

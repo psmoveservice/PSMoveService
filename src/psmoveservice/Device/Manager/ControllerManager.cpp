@@ -115,26 +115,6 @@ ControllerManager::setControllerRumble(
     }
 }
 
-bool
-ControllerManager::resetPose(int controller_id, const Eigen::Quaternionf& q_pose)
-{
-    bool bSuccess = false;
-    ServerControllerViewPtr controllerView = getControllerViewPtr(controller_id);
-
-    if (controllerView && controllerView->getIsOpen())
-    {
-        IPoseFilter *filter = controllerView->getPoseFilterMutable();
-
-        if (filter != nullptr)
-        {
-            filter->recenterState(Eigen::Vector3f::Zero(), q_pose);
-            bSuccess = true;
-        }
-    }
-
-    return bSuccess;
-}
-
 ServerControllerViewPtr
 ControllerManager::getControllerViewPtr(int device_id)
 {

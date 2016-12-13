@@ -613,14 +613,18 @@ void
 MorpheusHMD::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const
 {
 	outTrackingShape.shape_type = eCommonTrackingShapeType::PointCloud;
-	//###HipsterSloth $TODO - Fill in points
-	outTrackingShape.shape.point_cloud.point[0].set(0.f, 0.f, 0.f);
-	outTrackingShape.shape.point_cloud.point[1].set(0.f, 0.f, 0.f);
-	outTrackingShape.shape.point_cloud.point[2].set(0.f, 0.f, 0.f);
-	outTrackingShape.shape.point_cloud.point[3].set(0.f, 0.f, 0.f);
-	outTrackingShape.shape.point_cloud.point[4].set(0.f, 0.f, 0.f);
-	outTrackingShape.shape.point_cloud.point[5].set(0.f, 0.f, 0.f);
-	outTrackingShape.shape.point_cloud.point[6].set(0.f, 0.f, 0.f);
+	//###HipsterSloth TODO: These are just me eye balling the LED centers with a ruler
+	// This should really be computed using the calibration tool
+	outTrackingShape.shape.point_cloud.point[0].set(0.f, 0.f, 0.f); // 0
+	outTrackingShape.shape.point_cloud.point[1].set(8.f, 4.5f, -2.5f); // 1
+	outTrackingShape.shape.point_cloud.point[2].set(9.f, 0.f, -10.f); // 2
+	outTrackingShape.shape.point_cloud.point[3].set(8.f, -4.5f, -2.5f); // 3
+	outTrackingShape.shape.point_cloud.point[4].set(-8.f, 4.5f, -2.5f); // 4
+	outTrackingShape.shape.point_cloud.point[5].set(-9.f, 0.f, -10.f); // 5
+	outTrackingShape.shape.point_cloud.point[6].set(-8.f, -4.5f, -2.5f); // 6
+	outTrackingShape.shape.point_cloud.point[7].set(6.f, -1.f, -24.f); // 7
+	outTrackingShape.shape.point_cloud.point[8].set(-6.f, -1.f, -24.f); // 8
+	outTrackingShape.shape.point_cloud.point_count = 9;
 }
 
 bool 
@@ -628,6 +632,12 @@ MorpheusHMD::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) c
 {
 	out_tracking_color_id = eCommonTrackingColorID::Blue;
 	return true;
+}
+
+float 
+MorpheusHMD::getPredictionTime() const
+{
+	return getConfig()->prediction_time;
 }
 
 const CommonDeviceState *

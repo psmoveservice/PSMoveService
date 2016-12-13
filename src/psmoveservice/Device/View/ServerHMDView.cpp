@@ -42,6 +42,7 @@ ServerHMDView::ServerHMDView(const int device_id)
 	: ServerDeviceView(device_id)
 	, m_tracking_listener_count(0)
 	, m_tracking_enabled(false)
+	, m_roi_disable_count(0)
 	, m_device(nullptr)
 	, m_tracker_pose_estimation(nullptr)
 	, m_multicam_pose_estimation(nullptr)
@@ -487,16 +488,16 @@ ServerHMDView::getFilteredPose(float time) const
 	if (m_pose_filter != nullptr)
 	{
 		const Eigen::Quaternionf orientation = m_pose_filter->getOrientation(time);
-		const Eigen::Vector3f position = m_pose_filter->getPosition(time);
+		const Eigen::Vector3f position_cm = m_pose_filter->getPositionCm(time);
 
 		pose.Orientation.w = orientation.w();
 		pose.Orientation.x = orientation.x();
 		pose.Orientation.y = orientation.y();
 		pose.Orientation.z = orientation.z();
 
-		pose.Position.x = position.x();
-		pose.Position.y = position.y();
-		pose.Position.z = position.z();
+		pose.PositionCm.x = position_cm.x();
+		pose.PositionCm.y = position_cm.y();
+		pose.PositionCm.z = position_cm.z();
 	}
 
 	return pose;
@@ -509,26 +510,26 @@ ServerHMDView::getFilteredPhysics() const
 
 	if (m_pose_filter != nullptr)
 	{
-		const Eigen::Vector3f first_derivative = m_pose_filter->getAngularVelocity();
-		const Eigen::Vector3f second_derivative = m_pose_filter->getAngularAcceleration();
-		const Eigen::Vector3f velocity(m_pose_filter->getVelocity());
-		const Eigen::Vector3f acceleration(m_pose_filter->getAcceleration());
+		const Eigen::Vector3f first_derivative = m_pose_filter->getAngularVelocityRadPerSec();
+		const Eigen::Vector3f second_derivative = m_pose_filter->getAngularAccelerationRadPerSecSqr();
+		const Eigen::Vector3f velocity(m_pose_filter->getVelocityCmPerSec());
+		const Eigen::Vector3f acceleration(m_pose_filter->getAccelerationCmPerSecSqr());
 
-		physics.AngularVelocity.i = first_derivative.x();
-		physics.AngularVelocity.j = first_derivative.y();
-		physics.AngularVelocity.k = first_derivative.z();
+		physics.AngularVelocityRadPerSec.i = first_derivative.x();
+		physics.AngularVelocityRadPerSec.j = first_derivative.y();
+		physics.AngularVelocityRadPerSec.k = first_derivative.z();
 
-		physics.AngularAcceleration.i = second_derivative.x();
-		physics.AngularAcceleration.j = second_derivative.y();
-		physics.AngularAcceleration.k = second_derivative.z();
+		physics.AngularAccelerationRadPerSecSqr.i = second_derivative.x();
+		physics.AngularAccelerationRadPerSecSqr.j = second_derivative.y();
+		physics.AngularAccelerationRadPerSecSqr.k = second_derivative.z();
 
-		physics.Velocity.i = velocity.x();
-		physics.Velocity.j = velocity.y();
-		physics.Velocity.k = velocity.z();
+		physics.VelocityCmPerSec.i = velocity.x();
+		physics.VelocityCmPerSec.j = velocity.y();
+		physics.VelocityCmPerSec.k = velocity.z();
 
-		physics.Acceleration.i = acceleration.x();
-		physics.Acceleration.j = acceleration.y();
-		physics.Acceleration.k = acceleration.z();
+		physics.AccelerationCmPerSecSqr.i = acceleration.x();
+		physics.AccelerationCmPerSecSqr.j = acceleration.y();
+		physics.AccelerationCmPerSecSqr.k = acceleration.z();
 	}
 
 	return physics;
@@ -637,6 +638,11 @@ eCommonTrackingColorID ServerHMDView::getTrackingColorID() const
 	}
 
 	return tracking_color_id;
+}
+
+float ServerHMDView::getROIPredictionTime() const
+{
+	return m_device->getPredictionTime();
 }
 
 void ServerHMDView::publish_device_data_frame()
@@ -835,7 +841,7 @@ update_filters_for_morpheus_hmd(
 	{
 		PoseSensorPacket sensorPacket;
 
-		sensorPacket.imu_magnetometer = Eigen::Vector3f::Zero();
+		sensorPacket.imu_magnetometer_unit = Eigen::Vector3f::Zero();
 
 		if (poseEstimation->bOrientationValid)
 		{
@@ -858,12 +864,12 @@ update_filters_for_morpheus_hmd(
 					poseEstimation->position.x,
 					poseEstimation->position.y,
 					poseEstimation->position.z);
-			sensorPacket.tracking_projection_area = poseEstimation->projection.screen_area;
+			sensorPacket.tracking_projection_area_px_sqr = poseEstimation->projection.screen_area;
 		}
 		else
 		{
 			sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
-			sensorPacket.tracking_projection_area = 0.f;
+			sensorPacket.tracking_projection_area_px_sqr = 0.f;
 		}
 
 		// Each state update contains two readings (one earlier and one later) of accelerometer and gyro data
@@ -871,17 +877,17 @@ update_filters_for_morpheus_hmd(
 		{
 			const MorpheusHMDSensorFrame &sensorFrame= morpheusHMDState->SensorFrames[frame];
 
-			sensorPacket.imu_accelerometer =
+			sensorPacket.imu_accelerometer_g_units =
 				Eigen::Vector3f(
 					sensorFrame.CalibratedAccel.i,
 					sensorFrame.CalibratedAccel.j,
 					sensorFrame.CalibratedAccel.k);
-			sensorPacket.imu_gyroscope =
+			sensorPacket.imu_gyroscope_rad_per_sec =
 				Eigen::Vector3f(
 					sensorFrame.CalibratedGyro.i,
 					sensorFrame.CalibratedGyro.j,
 					sensorFrame.CalibratedGyro.k);
-			sensorPacket.imu_magnetometer = Eigen::Vector3f::Zero();
+			sensorPacket.imu_magnetometer_unit = Eigen::Vector3f::Zero();
 
 			{
 				PoseFilterPacket filterPacket;
@@ -890,7 +896,7 @@ update_filters_for_morpheus_hmd(
 				// and the filter's previous orientation and position
 				poseFilterSpace->createFilterPacket(
 					sensorPacket,
-					poseFilter->getOrientation(), poseFilter->getPosition(),
+					poseFilter,
 					filterPacket);
 
 				poseFilter->update(delta_time / 2.f, filterPacket);
@@ -932,15 +938,15 @@ static void generate_morpheus_hmd_data_frame_for_stream(
 
 		if (stream_info->include_position_data)
 		{
-			morpheus_data_frame->mutable_position()->set_x(hmd_pose.Position.x);
-			morpheus_data_frame->mutable_position()->set_y(hmd_pose.Position.y);
-			morpheus_data_frame->mutable_position()->set_z(hmd_pose.Position.z);
+			morpheus_data_frame->mutable_position_cm()->set_x(hmd_pose.PositionCm.x);
+			morpheus_data_frame->mutable_position_cm()->set_y(hmd_pose.PositionCm.y);
+			morpheus_data_frame->mutable_position_cm()->set_z(hmd_pose.PositionCm.z);
 		}
 		else
 		{
-			morpheus_data_frame->mutable_position()->set_x(0);
-			morpheus_data_frame->mutable_position()->set_y(0);
-			morpheus_data_frame->mutable_position()->set_z(0);
+			morpheus_data_frame->mutable_position_cm()->set_x(0);
+			morpheus_data_frame->mutable_position_cm()->set_y(0);
+			morpheus_data_frame->mutable_position_cm()->set_z(0);
 		}
 
 		// If requested, get the raw sensor data for the hmd
@@ -949,21 +955,21 @@ static void generate_morpheus_hmd_data_frame_for_stream(
 			const CommonDevicePhysics hmd_physics = hmd_view->getFilteredPhysics();
 			auto *physics_data = morpheus_data_frame->mutable_physics_data();
 
-			physics_data->mutable_velocity()->set_i(hmd_physics.Velocity.i);
-			physics_data->mutable_velocity()->set_j(hmd_physics.Velocity.j);
-			physics_data->mutable_velocity()->set_k(hmd_physics.Velocity.k);
+			physics_data->mutable_velocity_cm_per_sec()->set_i(hmd_physics.VelocityCmPerSec.i);
+			physics_data->mutable_velocity_cm_per_sec()->set_j(hmd_physics.VelocityCmPerSec.j);
+			physics_data->mutable_velocity_cm_per_sec()->set_k(hmd_physics.VelocityCmPerSec.k);
 
-			physics_data->mutable_acceleration()->set_i(hmd_physics.Acceleration.i);
-			physics_data->mutable_acceleration()->set_j(hmd_physics.Acceleration.j);
-			physics_data->mutable_acceleration()->set_k(hmd_physics.Acceleration.k);
+			physics_data->mutable_acceleration_cm_per_sec_sqr()->set_i(hmd_physics.AccelerationCmPerSecSqr.i);
+			physics_data->mutable_acceleration_cm_per_sec_sqr()->set_j(hmd_physics.AccelerationCmPerSecSqr.j);
+			physics_data->mutable_acceleration_cm_per_sec_sqr()->set_k(hmd_physics.AccelerationCmPerSecSqr.k);
 
-			physics_data->mutable_angular_velocity()->set_i(hmd_physics.AngularVelocity.i);
-			physics_data->mutable_angular_velocity()->set_j(hmd_physics.AngularVelocity.j);
-			physics_data->mutable_angular_velocity()->set_k(hmd_physics.AngularVelocity.k);
+			physics_data->mutable_angular_velocity_rad_per_sec()->set_i(hmd_physics.AngularVelocityRadPerSec.i);
+			physics_data->mutable_angular_velocity_rad_per_sec()->set_j(hmd_physics.AngularVelocityRadPerSec.j);
+			physics_data->mutable_angular_velocity_rad_per_sec()->set_k(hmd_physics.AngularVelocityRadPerSec.k);
 
-			physics_data->mutable_angular_acceleration()->set_i(hmd_physics.AngularAcceleration.i);
-			physics_data->mutable_angular_acceleration()->set_j(hmd_physics.AngularAcceleration.j);
-			physics_data->mutable_angular_acceleration()->set_k(hmd_physics.AngularAcceleration.k);
+			physics_data->mutable_angular_acceleration_rad_per_sec_sqr()->set_i(hmd_physics.AngularAccelerationRadPerSecSqr.i);
+			physics_data->mutable_angular_acceleration_rad_per_sec_sqr()->set_j(hmd_physics.AngularAccelerationRadPerSecSqr.j);
+			physics_data->mutable_angular_acceleration_rad_per_sec_sqr()->set_k(hmd_physics.AngularAccelerationRadPerSecSqr.k);
 		}
 
         // If requested, get the raw sensor data for the hmd
@@ -1031,7 +1037,7 @@ static void generate_morpheus_hmd_data_frame_for_stream(
 
 					// Add the tracker relative 3d position
 					{
-						PSMoveProtocol::Position *position = raw_tracker_data->add_relative_positions();
+						PSMoveProtocol::Position *position = raw_tracker_data->add_relative_positions_cm();
 
 						position->set_x(trackerRelativePosition.x);
 						position->set_y(trackerRelativePosition.y);

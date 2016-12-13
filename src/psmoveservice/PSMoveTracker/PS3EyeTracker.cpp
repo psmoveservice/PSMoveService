@@ -38,10 +38,10 @@ PS3EyeTrackerConfig::PS3EyeTrackerConfig(const std::string &fnamebase)
     , max_poll_failure_count(100)
     , exposure(32)
     , gain(32)
-    , focalLengthX(1034.1484375) // pixels
-    , focalLengthY(1034.1484375) // pixels
-    , principalX(273.9329833984375) // pixels
-    , principalY(290.45953369140625) // pixels
+    , focalLengthX(554.2563) // pixels
+    , focalLengthY(554.2563) // pixels
+    , principalX(320.0) // pixels
+    , principalY(240.0) // pixels
     , hfov(60.0) // degrees
     , vfov(45.0) // degrees
     , zNear(10.0) // cm
@@ -91,9 +91,9 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("pose.orientation.x", pose.Orientation.x);
     pt.put("pose.orientation.y", pose.Orientation.y);
     pt.put("pose.orientation.z", pose.Orientation.z);
-    pt.put("pose.position.x", pose.Position.x);
-    pt.put("pose.position.y", pose.Position.y);
-    pt.put("pose.position.z", pose.Position.z);
+    pt.put("pose.position.x", pose.PositionCm.x);
+    pt.put("pose.position.y", pose.PositionCm.y);
+    pt.put("pose.position.z", pose.PositionCm.z);
 
 	writeColorPropertyPresetTable(&SharedColorPresets, pt);
 
@@ -137,9 +137,9 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
         pose.Orientation.x = pt.get<float>("pose.orientation.x", 0.0);
         pose.Orientation.y = pt.get<float>("pose.orientation.y", 0.0);
         pose.Orientation.z = pt.get<float>("pose.orientation.z", 0.0);
-        pose.Position.x = pt.get<float>("pose.position.x", 0.0);
-        pose.Position.y = pt.get<float>("pose.position.y", 0.0);
-        pose.Position.z = pt.get<float>("pose.position.z", 0.0);
+        pose.PositionCm.x = pt.get<float>("pose.position.x", 0.0);
+        pose.PositionCm.y = pt.get<float>("pose.position.y", 0.0);
+        pose.PositionCm.z = pt.get<float>("pose.position.z", 0.0);
 
 		// Read the default preset table
 		readColorPropertyPresetTable(pt, &SharedColorPresets);
@@ -533,10 +533,14 @@ void PS3EyeTracker::saveSettings()
     cfg.save();
 }
 
-void PS3EyeTracker::setExposure(double value)
+void PS3EyeTracker::setExposure(double value, bool bUpdateConfig)
 {
     VideoCapture->set(cv::CAP_PROP_EXPOSURE, value);
-    cfg.exposure = value;
+
+	if (bUpdateConfig)
+	{
+		cfg.exposure = value;
+	}
 }
 
 double PS3EyeTracker::getExposure() const
@@ -544,10 +548,14 @@ double PS3EyeTracker::getExposure() const
     return VideoCapture->get(cv::CAP_PROP_EXPOSURE);
 }
 
-void PS3EyeTracker::setGain(double value)
+void PS3EyeTracker::setGain(double value, bool bUpdateConfig)
 {
 	VideoCapture->set(cv::CAP_PROP_GAIN, value);
-	cfg.gain = value;
+
+	if (bUpdateConfig)
+	{
+		cfg.gain = value;
+	}
 }
 
 double PS3EyeTracker::getGain() const

@@ -36,7 +36,7 @@ public:
 		, firmware_revision(0)
         , max_poll_failure_count(100) 
         , prediction_time(0.f)
-		, position_filter_type("LowPassOptical")
+		, position_filter_type("LowPassExponential")
 		, orientation_filter_type("ComplementaryMARG")
         , cal_ag_xyz_kb({{ 
             {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }},
@@ -133,7 +133,7 @@ public:
 	// The average time between updates in seconds
     float mean_update_time_delta;
 
-	// The variance of the controller position as a function of pixel area
+	// The variance(cm^2) of the controller position (meters^2) as a function of pixel area
     float position_variance_exp_fit_a; 
     float position_variance_exp_fit_b;
 
@@ -250,6 +250,8 @@ public:
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
     virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
 	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
+	virtual float getIdentityForwardDegrees() const override;
+	virtual float getPredictionTime() const override;
 
     // -- Getters
     inline const PSMoveControllerConfig *getConfig() const

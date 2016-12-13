@@ -130,7 +130,7 @@ struct CommonDevicePosition
     }
 };
 
-/// A screen location in the space [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]    
+/// A screen location in the space upper left:[0, 0] -> lower right[frameWidth-1, frameHeight-1]  
 struct CommonDeviceScreenLocation
 {
     float x, y;
@@ -160,29 +160,29 @@ struct CommonDeviceQuaternion
 
 struct CommonDevicePose
 {
-    CommonDevicePosition Position;
+    CommonDevicePosition PositionCm;
     CommonDeviceQuaternion Orientation;
 
     void clear()
     {
-        Position.clear();
+        PositionCm.clear();
         Orientation.clear();
     }
 };
 
 struct CommonDevicePhysics
 {
-    CommonDeviceVector Velocity;
-    CommonDeviceVector Acceleration;
-    CommonDeviceVector AngularVelocity;
-    CommonDeviceVector AngularAcceleration;
+    CommonDeviceVector VelocityCmPerSec;
+    CommonDeviceVector AccelerationCmPerSecSqr;
+    CommonDeviceVector AngularVelocityRadPerSec;
+    CommonDeviceVector AngularAccelerationRadPerSecSqr;
 
     void clear()
     {
-        Velocity.clear();
-        Acceleration.clear();
-        AngularVelocity.clear();
-        AngularAcceleration.clear();
+        VelocityCmPerSec.clear();
+        AccelerationCmPerSecSqr.clear();
+        AngularVelocityRadPerSec.clear();
+        AngularAccelerationRadPerSecSqr.clear();
     }
 };
 
@@ -343,7 +343,7 @@ struct CommonDeviceTrackingShape
 
     union{
         struct {
-            float radius;
+            float radius_cm;
         } sphere;
 
         struct {
@@ -353,6 +353,7 @@ struct CommonDeviceTrackingShape
 
 		struct {
 			CommonDevicePosition point[MAX_POINT_CLOUD_POINT_COUNT];
+			int point_count;
 		} point_cloud;
     } shape;
 
@@ -389,6 +390,12 @@ struct CommonDeviceTrackingProjection
 
     float screen_area; // area in pixels^2
     eCommonTrackingProjectionType shape_type;
+    
+    struct {
+        CommonDeviceScreenLocation center_of_mass;
+        CommonDeviceScreenLocation bounding_rect[4];
+        float area;
+    } basic;
 };
 
 /// Abstract base class for any device interface. Further defined in specific device abstractions.
@@ -463,6 +470,17 @@ public:
 
 	// Get the tracking color enum of the controller
 	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const = 0;
+
+	// Get the identity forward direction yaw direction relative to the global +X axis
+	// * 0 degrees would mean that the controller model was pointing down the globals +X axis 
+	//   when the controller had the identity pose 
+	// * 90 degrees would mean that the controller model was pointing down the globals +Z axis 
+	//   when the controller had the identity pose
+	// ...
+	virtual float getIdentityForwardDegrees() const = 0;
+
+	// Get the state prediction time specified in the controller config
+	virtual float getPredictionTime() const = 0;
 };
 
 /// Abstract class for Tracker interface. Implemented Tracker classes
@@ -520,10 +538,10 @@ public:
     virtual void loadSettings() = 0;
     virtual void saveSettings() = 0;
 
-    virtual void setExposure(double value) = 0;
+    virtual void setExposure(double value, bool bUpdateConfig) = 0;
     virtual double getExposure() const = 0;
 
-	virtual void setGain(double value) = 0;
+	virtual void setGain(double value, bool bUpdateConfig) = 0;
 	virtual double getGain() const = 0;
 
     virtual void getCameraIntrinsics(
@@ -565,6 +583,9 @@ public:
 
 	// Get the tracking color enum of the controller
 	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const = 0;
+
+	// Get the state prediction time from the HMD config
+	virtual float getPredictionTime() const = 0;
 };
 
 #endif // DEVICE_INTERFACE_H

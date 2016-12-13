@@ -163,12 +163,11 @@ void CompoundPoseFilter::resetState()
 	}
 }
 
-void CompoundPoseFilter::recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose)
+void CompoundPoseFilter::recenterOrientation(const Eigen::Quaternionf& q_pose)
 {
-	if (m_orientation_filter != nullptr && m_position_filter != nullptr)
+	if (m_orientation_filter != nullptr)
 	{
-		m_orientation_filter->recenterState(p_pose, q_pose);
-		m_position_filter->recenterState(p_pose, q_pose);
+		m_orientation_filter->recenterOrientation(q_pose);
 	}
 }
 
@@ -177,29 +176,29 @@ Eigen::Quaternionf CompoundPoseFilter::getOrientation(float time) const
 	return (m_orientation_filter != nullptr) ? m_orientation_filter->getOrientation(time) : Eigen::Quaternionf::Identity();
 }
 
-Eigen::Vector3f CompoundPoseFilter::getAngularVelocity() const
+Eigen::Vector3f CompoundPoseFilter::getAngularVelocityRadPerSec() const
 {
-	return (m_orientation_filter != nullptr) ? m_orientation_filter->getAngularVelocity() : Eigen::Vector3f::Zero();
+	return (m_orientation_filter != nullptr) ? m_orientation_filter->getAngularVelocityRadPerSec() : Eigen::Vector3f::Zero();
 }
 
-Eigen::Vector3f CompoundPoseFilter::getAngularAcceleration() const
+Eigen::Vector3f CompoundPoseFilter::getAngularAccelerationRadPerSecSqr() const
 {
-	return (m_orientation_filter != nullptr) ? m_orientation_filter->getAngularAcceleration() : Eigen::Vector3f::Zero();
+	return (m_orientation_filter != nullptr) ? m_orientation_filter->getAngularAccelerationRadPerSecSqr() : Eigen::Vector3f::Zero();
 }
 
-Eigen::Vector3f CompoundPoseFilter::getPosition(float time) const
+Eigen::Vector3f CompoundPoseFilter::getPositionCm(float time) const
 {
-	return (m_position_filter != nullptr) ? m_position_filter->getPosition(time) : Eigen::Vector3f::Zero();
+	return (m_position_filter != nullptr) ? m_position_filter->getPositionCm(time) : Eigen::Vector3f::Zero();
 }
 
-Eigen::Vector3f CompoundPoseFilter::getVelocity() const
+Eigen::Vector3f CompoundPoseFilter::getVelocityCmPerSec() const
 {
-	return (m_position_filter != nullptr) ? m_position_filter->getVelocity() : Eigen::Vector3f::Zero();
+	return (m_position_filter != nullptr) ? m_position_filter->getVelocityCmPerSec() : Eigen::Vector3f::Zero();
 }
 
-Eigen::Vector3f CompoundPoseFilter::getAcceleration() const
+Eigen::Vector3f CompoundPoseFilter::getAccelerationCmPerSecSqr() const
 {
-	return (m_position_filter != nullptr) ? m_position_filter->getAcceleration() : Eigen::Vector3f::Zero();
+	return (m_position_filter != nullptr) ? m_position_filter->getAccelerationCmPerSecSqr() : Eigen::Vector3f::Zero();
 }
 
 void CompoundPoseFilter::dispose_filters()

@@ -54,15 +54,15 @@ public:
     bool getIsStateValid() const override;
     void update(const float delta_time, const PoseFilterPacket &packet) override;
     void resetState() override;
-    void recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose) override;
+	void recenterOrientation(const Eigen::Quaternionf& q_pose) override;
 
     // -- IPoseFilter ---
     Eigen::Quaternionf getOrientation(float time = 0.f) const override;
-    Eigen::Vector3f getAngularVelocity() const override;
-    Eigen::Vector3f getAngularAcceleration() const override;
-    Eigen::Vector3f getPosition(float time = 0.f) const override;
-    Eigen::Vector3f getVelocity() const override;
-    Eigen::Vector3f getAcceleration() const override;
+    Eigen::Vector3f getAngularVelocityRadPerSec() const override;
+    Eigen::Vector3f getAngularAccelerationRadPerSecSqr() const override;
+    Eigen::Vector3f getPositionCm(float time = 0.f) const override;
+    Eigen::Vector3f getVelocityCmPerSec() const override;
+    Eigen::Vector3f getAccelerationCmPerSecSqr() const override;
 
 protected:
 	void allocate_filters(

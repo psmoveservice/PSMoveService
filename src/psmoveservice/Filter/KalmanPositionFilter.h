@@ -17,12 +17,12 @@ public:
 	// -- IStateFilter --
 	bool getIsStateValid() const override;
 	void resetState() override;
-	void recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose) override;
+	void recenterOrientation(const Eigen::Quaternionf& q_pose) override;
 
 	// -- IPositionFilter ---
-	Eigen::Vector3f getPosition(float time = 0.f) const override;
-	Eigen::Vector3f getVelocity() const override;
-	Eigen::Vector3f getAcceleration() const override;
+	Eigen::Vector3f getPositionCm(float time = 0.f) const override;
+	Eigen::Vector3f getVelocityCmPerSec() const override;
+	Eigen::Vector3f getAccelerationCmPerSecSqr() const override;
 
 protected:
 	PositionFilterConstants m_constants;

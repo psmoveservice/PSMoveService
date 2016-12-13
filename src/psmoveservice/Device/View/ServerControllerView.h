@@ -16,7 +16,7 @@ struct ControllerOpticalPoseEstimation
     std::chrono::time_point<std::chrono::high_resolution_clock> last_visible_timestamp;
     bool bValidTimestamps;
 
-    CommonDevicePosition position;
+    CommonDevicePosition position_cm; // centimeters
     CommonDeviceTrackingProjection projection;
     bool bCurrentlyTracking;
 
@@ -29,7 +29,7 @@ struct ControllerOpticalPoseEstimation
         last_visible_timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>();
         bValidTimestamps= false;
 
-        position.clear();
+        position_cm.clear();
         bCurrentlyTracking= false;
 
         orientation.clear();
@@ -48,6 +48,11 @@ public:
 
     bool open(const class DeviceEnumerator *enumerator) override;
     void close() override;
+
+	// Tell the pose filter that the controller is aligned with global forward 
+	// with the given pose relative to it's identity pose.
+	// Recenter the pose filter state accordingly.
+	bool recenterOrientation(const CommonDeviceQuaternion& q_pose_relative_to_identity_pose);
 
 	// Recreate and initialize the pose filter for the controller
 	void resetPoseFilter();
@@ -122,6 +127,18 @@ public:
     // Get the tracking shape for the controller
     bool getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const;
 
+	// Get if the region-of-interest optimization is disabled for this controller
+	inline bool getIsROIDisabled() const { return m_roi_disable_count > 0; }
+	
+	// Request the controller to not use the ROI optimization
+	inline void pushDisableROI() { ++m_roi_disable_count; }
+
+	// Undo the request to not use the ROI optimization
+	inline void popDisableROI() { assert(m_roi_disable_count > 0); --m_roi_disable_count;  }
+
+	// Get the prediction time used for ROI tracking
+	float getROIPredictionTime() const;
+
     // Get the pose estimate relative to the given tracker id
     inline const ControllerOpticalPoseEstimation *getTrackerPoseEstimate(int trackerId) const {
         return (m_tracker_pose_estimations != nullptr) ? &m_tracker_pose_estimations[trackerId] : nullptr;
@@ -149,13 +166,16 @@ protected:
     static void generate_controller_data_frame_for_stream(
         const ServerControllerView *controller_view,
         const struct ControllerStreamInfo *stream_info,
-        DeviceOutputDataFramePtr &data_frame);
+        PSMoveProtocol::DeviceOutputDataFrame *data_frame);
 
 private:
     // Tracking color state
     std::tuple<unsigned char, unsigned char, unsigned char> m_tracking_color;
     int m_tracking_listener_count;
     bool m_tracking_enabled;
+
+	// Region-of-Interest state
+	int m_roi_disable_count;
     
     // Override color state
     std::tuple<unsigned char, unsigned char, unsigned char> m_LED_override_color;

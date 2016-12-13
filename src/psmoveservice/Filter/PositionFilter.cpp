@@ -34,13 +34,13 @@ struct PositionFilterState
     bool bIsValid;
 
     /// Current Sensor State of the filter
-    Eigen::Vector3f accelerometer; // (g-unit)
-    Eigen::Vector3f accelerometer_derivative; // rate of change of the accelerometer in g-unit/s
+    Eigen::Vector3f accelerometer_g_units; // (g-unit)
+    Eigen::Vector3f accelerometer_derivative_g_per_sec; // rate of change of the accelerometer in g-unit/s
 
     /// Current Physics State of the filter
-    Eigen::Vector3f position; // meters
-    Eigen::Vector3f velocity; // meters/s
-    Eigen::Vector3f acceleration; // accelerometer minus gravity in meters/s^2
+    Eigen::Vector3f position_meters; // meters
+    Eigen::Vector3f velocity_m_per_sec; // meters/s
+    Eigen::Vector3f acceleration_m_per_sec_sqr; // accelerometer minus gravity in meters/s^2
 
     /// Position that's considered the origin position 
     Eigen::Vector3f origin_position; // meters
@@ -55,62 +55,62 @@ struct PositionFilterState
     void reset()
     {
         bIsValid = false;
-        position = Eigen::Vector3f::Zero();
-        velocity = Eigen::Vector3f::Zero();
-        acceleration = Eigen::Vector3f::Zero();
-        accelerometer = Eigen::Vector3f::Zero();
-        accelerometer_derivative = Eigen::Vector3f::Zero();
+        position_meters = Eigen::Vector3f::Zero();
+        velocity_m_per_sec = Eigen::Vector3f::Zero();
+        acceleration_m_per_sec_sqr = Eigen::Vector3f::Zero();
+        accelerometer_g_units = Eigen::Vector3f::Zero();
+        accelerometer_derivative_g_per_sec = Eigen::Vector3f::Zero();
         origin_position = Eigen::Vector3f::Zero();
 		exp_delta_time = 0.f;
 		exp_position = Eigen::Vector3f::Zero();
     }
 
 	void apply_state(
-		const Eigen::Vector3f &new_position,
-		const Eigen::Vector3f &new_velocity,
-		const Eigen::Vector3f &new_acceleration,
-		const Eigen::Vector3f &new_accelerometer,
-		const Eigen::Vector3f &new_accelerometer_derivative)
+		const Eigen::Vector3f &new_position_m,
+		const Eigen::Vector3f &new_velocity_m_per_sec,
+		const Eigen::Vector3f &new_acceleration_m_per_sec_sqr,
+		const Eigen::Vector3f &new_accelerometer_g_units,
+		const Eigen::Vector3f &new_accelerometer_derivative_g_per_sec)
 	{
-		if (eigen_vector3f_is_valid(new_position))
+		if (eigen_vector3f_is_valid(new_position_m))
 		{
-			position = new_position;
+			position_meters = new_position_m;
 		}
 		else
 		{
 			SERVER_LOG_WARNING("PositionFilter") << "Position is NaN!";
 		}
 
-		if (eigen_vector3f_is_valid(new_velocity))
+		if (eigen_vector3f_is_valid(new_velocity_m_per_sec))
 		{
-			velocity = new_velocity;
+			velocity_m_per_sec = new_velocity_m_per_sec;
 		}
 		else
 		{
 			SERVER_LOG_WARNING("PositionFilter") << "Velocity is NaN!";
 		}
 
-		if (eigen_vector3f_is_valid(new_acceleration))
+		if (eigen_vector3f_is_valid(new_acceleration_m_per_sec_sqr))
 		{
-			acceleration = new_acceleration;
+			acceleration_m_per_sec_sqr = new_acceleration_m_per_sec_sqr;
 		}
 		else
 		{
 			SERVER_LOG_WARNING("PositionFilter") << "Acceleration is NaN!";
 		}
 
-		if (eigen_vector3f_is_valid(new_accelerometer))
+		if (eigen_vector3f_is_valid(new_accelerometer_g_units))
 		{
-			accelerometer = new_accelerometer;
+			accelerometer_g_units = new_accelerometer_g_units;
 		}
 		else
 		{
 			SERVER_LOG_WARNING("PositionFilter") << "Accelerometer is NaN!";
 		}
 
-		if (eigen_vector3f_is_valid(new_accelerometer_derivative))
+		if (eigen_vector3f_is_valid(new_accelerometer_derivative_g_per_sec))
 		{
-			accelerometer_derivative = new_accelerometer_derivative;
+			accelerometer_derivative_g_per_sec = new_accelerometer_derivative_g_per_sec;
 		}
 		else
 		{
@@ -168,9 +168,8 @@ void PositionFilter::resetState()
     m_state->reset();
 }
 
-void PositionFilter::recenterState(const Eigen::Vector3f& p_pose, const Eigen::Quaternionf& q_pose)
+void PositionFilter::recenterOrientation(const Eigen::Quaternionf& q_pose)
 {
-    m_state->origin_position= p_pose + m_state->position;
 }
 
 bool PositionFilter::init(const PositionFilterConstants &constants)
@@ -185,13 +184,13 @@ bool PositionFilter::init(const PositionFilterConstants &constants, const Eigen:
 {
 	resetState();
 	m_constants = constants;
-	m_state->position = initial_position;
+	m_state->position_meters = initial_position;
 	m_state->bIsValid = true;
 
 	return true;
 }
 
-Eigen::Vector3f PositionFilter::getPosition(float time) const
+Eigen::Vector3f PositionFilter::getPositionCm(float time) const
 {
     Eigen::Vector3f result = Eigen::Vector3f::Zero();
 
@@ -199,8 +198,8 @@ Eigen::Vector3f PositionFilter::getPosition(float time) const
     {
         Eigen::Vector3f predicted_position = 
             is_nearly_zero(time)
-            ? m_state->position
-            : m_state->position + m_state->velocity * time;
+            ? m_state->position_meters
+            : m_state->position_meters + m_state->velocity_m_per_sec * time;
 
         result= predicted_position - m_state->origin_position;
         result= result * k_meters_to_centimeters;
@@ -209,16 +208,16 @@ Eigen::Vector3f PositionFilter::getPosition(float time) const
     return result;
 }
 
-Eigen::Vector3f PositionFilter::getVelocity() const
+Eigen::Vector3f PositionFilter::getVelocityCmPerSec() const
 {
-    Eigen::Vector3f result= m_state->velocity * k_meters_to_centimeters;
+    Eigen::Vector3f result= m_state->velocity_m_per_sec * k_meters_to_centimeters;
 
     return (m_state->bIsValid) ? result : Eigen::Vector3f::Zero();
 }
 
-Eigen::Vector3f PositionFilter::getAcceleration() const
+Eigen::Vector3f PositionFilter::getAccelerationCmPerSecSqr() const
 {
-    Eigen::Vector3f result= m_state->acceleration * k_meters_to_centimeters;
+    Eigen::Vector3f result= m_state->acceleration_m_per_sec_sqr * k_meters_to_centimeters;
 
     return (m_state->bIsValid) ? result : Eigen::Vector3f::Zero();
 }
@@ -231,7 +230,7 @@ void PositionFilterPassThru::update(
 {
 	// Use the current position if the optical orientation is unavailable
     const Eigen::Vector3f new_position= 
-		(packet.tracking_projection_area > 0.f) 
+		(packet.tracking_projection_area_px_sqr > 0.f) 
 		? packet.get_optical_position_in_meters()
 		: packet.get_current_position_in_meters();
 
@@ -250,35 +249,35 @@ void PositionFilterLowPassOptical::update(
 	const float delta_time, 
 	const PoseFilterPacket &packet)
 {
-    if (packet.tracking_projection_area > 0.f && eigen_vector3f_is_valid(packet.optical_position_cm))
+    if (packet.tracking_projection_area_px_sqr > 0.f && eigen_vector3f_is_valid(packet.optical_position_cm))
     {        
 		PositionFilterState new_state;
 
-        new_state.accelerometer= packet.world_accelerometer;
-        new_state.accelerometer_derivative= Eigen::Vector3f::Zero();
+        new_state.accelerometer_g_units= packet.world_accelerometer;
+        new_state.accelerometer_derivative_g_per_sec= Eigen::Vector3f::Zero();
 
         if (m_state->bIsValid)
         {
             // New position is blended against the old position
-            new_state.position = lowpass_filter_optical_position(&packet, m_state);
+            new_state.position_meters = lowpass_filter_optical_position(&packet, m_state);
             //###HipsterSloth $TODO derivatives of source signal, even a low pass filtered one, is too noisy
-            new_state.velocity = Eigen::Vector3f::Zero(); // new_velocity;
-            new_state.acceleration = Eigen::Vector3f::Zero(); //new_acceleration;
+            new_state.velocity_m_per_sec = Eigen::Vector3f::Zero(); // new_velocity;
+            new_state.acceleration_m_per_sec_sqr = Eigen::Vector3f::Zero(); //new_acceleration;
         }
         else
         {
             // If this is the first filter packet, just accept the position as gospel
-            new_state.position = packet.get_optical_position_in_meters();
-            new_state.velocity = Eigen::Vector3f::Zero();
-            new_state.acceleration = Eigen::Vector3f::Zero();
+            new_state.position_meters = packet.get_optical_position_in_meters();
+            new_state.velocity_m_per_sec = Eigen::Vector3f::Zero();
+            new_state.acceleration_m_per_sec_sqr = Eigen::Vector3f::Zero();
         }
 
 		m_state->apply_state(
-			new_state.position,
-			new_state.velocity,
-			new_state.acceleration,
-			new_state.accelerometer, 
-			new_state.accelerometer_derivative);
+			new_state.position_meters,
+			new_state.velocity_m_per_sec,
+			new_state.acceleration_m_per_sec_sqr,
+			new_state.accelerometer_g_units, 
+			new_state.accelerometer_derivative_g_per_sec);
     }
 	else
 	{
@@ -291,7 +290,7 @@ void PositionFilterLowPassIMU::update(
 	const float delta_time,
 	const PoseFilterPacket &packet)
 {
-    if (eigen_vector3f_is_valid(packet.imu_accelerometer))
+    if (eigen_vector3f_is_valid(packet.imu_accelerometer_g_units))
     {
         if (m_state->bIsValid)
         {
@@ -305,11 +304,11 @@ void PositionFilterLowPassIMU::update(
                 &new_state);
 
 			m_state->apply_state(
-				new_state.position,
-				new_state.velocity,
-				new_state.acceleration,
-				new_state.accelerometer, 
-				new_state.accelerometer_derivative);
+				new_state.position_meters,
+				new_state.velocity_m_per_sec,
+				new_state.acceleration_m_per_sec_sqr,
+				new_state.accelerometer_g_units, 
+				new_state.accelerometer_derivative_g_per_sec);
         }
         else
         {
@@ -332,7 +331,7 @@ void PositionFilterComplimentaryOpticalIMU::resetState()
 
 void PositionFilterComplimentaryOpticalIMU::update(const float delta_time, const PoseFilterPacket &packet)
 {
-    if (packet.tracking_projection_area > 0)
+    if (packet.tracking_projection_area_px_sqr > 0)
     {
         last_visible_position_timestamp= std::chrono::high_resolution_clock::now();
         bLast_visible_position_timestamp_valid= true;
@@ -367,9 +366,9 @@ void PositionFilterComplimentaryOpticalIMU::update(const float delta_time, const
                 m_state,
                 &new_imu_state);
 
-            if (packet.tracking_projection_area > 0)
+            if (packet.tracking_projection_area_px_sqr > 0)
             {
-				const Eigen::Vector3f &imu_position= new_imu_state.position;
+				const Eigen::Vector3f &imu_position= new_imu_state.position_meters;
 
                 // Compute a low-pass filter on the optical position update
                 Eigen::Vector3f optical_position = lowpass_filter_optical_position(&packet, m_state);
@@ -377,7 +376,7 @@ void PositionFilterComplimentaryOpticalIMU::update(const float delta_time, const
                 // Blend the optical and IMU derived positions based on optical tracking quality
 				const float max_variance_fraction=
 					safe_divide_with_default(
-						m_constants.position_variance_curve.evaluate(packet.tracking_projection_area),
+						m_constants.position_variance_curve.evaluate(packet.tracking_projection_area_px_sqr),
 						m_constants.position_variance_curve.MaxValue,
 						1.f);
 				const float optical_weight = clampf01(1.f - max_variance_fraction);
@@ -385,28 +384,28 @@ void PositionFilterComplimentaryOpticalIMU::update(const float delta_time, const
             }
             else
             {
-                new_position= new_imu_state.position;
+                new_position= new_imu_state.position_meters;
             }
 
 			m_state->apply_state(
 				new_position,
-				new_imu_state.velocity,
-				new_imu_state.acceleration,
-				new_imu_state.accelerometer, 
-				new_imu_state.accelerometer_derivative);
+				new_imu_state.velocity_m_per_sec,
+				new_imu_state.acceleration_m_per_sec_sqr,
+				new_imu_state.accelerometer_g_units, 
+				new_imu_state.accelerometer_derivative_g_per_sec);
         }
         else
         {
             // Zero out the derived state, but leave the sensor state and position state alone
-            m_state->velocity = Eigen::Vector3f::Zero();
-            m_state->acceleration = Eigen::Vector3f::Zero();
-            m_state->accelerometer_derivative = Eigen::Vector3f::Zero();
+            m_state->velocity_m_per_sec = Eigen::Vector3f::Zero();
+            m_state->acceleration_m_per_sec_sqr = Eigen::Vector3f::Zero();
+            m_state->accelerometer_derivative_g_per_sec = Eigen::Vector3f::Zero();
 
             // Fusion state is no longer valid
             m_state->bIsValid = false;
         }
     }
-    else if (packet.tracking_projection_area > 0.f && eigen_vector3f_is_valid(packet.get_optical_position_in_meters()))
+    else if (packet.tracking_projection_area_px_sqr > 0.f && eigen_vector3f_is_valid(packet.get_optical_position_in_meters()))
     {
         // If this is the first filter packet, just accept the position and accelerometer as gospel
 		m_state->apply_state(
@@ -421,10 +420,10 @@ void PositionFilterComplimentaryOpticalIMU::update(const float delta_time, const
 // -- PositionFilterComplimentaryOpticalIMU --
 void PositionFilterLowPassExponential::update(const float delta_time, const PoseFilterPacket &packet)
 {
-	if (packet.tracking_projection_area > 0.f && eigen_vector3f_is_valid(packet.optical_position_cm))
+	if (packet.tracking_projection_area_px_sqr > 0.f && eigen_vector3f_is_valid(packet.optical_position_cm))
 	{
-		m_state->accelerometer = packet.world_accelerometer;
-		m_state->accelerometer_derivative = Eigen::Vector3f::Zero();
+		m_state->accelerometer_g_units = packet.world_accelerometer;
+		m_state->accelerometer_derivative_g_per_sec = Eigen::Vector3f::Zero();
 
 		int queueLen = 3;
 		float smooth = 0.6f;
@@ -432,26 +431,26 @@ void PositionFilterLowPassExponential::update(const float delta_time, const Pose
 		if (m_state->bIsValid)
 		{
 			// New position is blended against the old position
-			m_state->position = lowpass_filter_optical_position(&packet, m_state);
+			m_state->position_meters = lowpass_filter_optical_position(&packet, m_state);
 
 			float q = 0.4f;
 			Eigen::Vector3f prev_position = m_state->exp_position;
 			float prev_delta_time = m_state->exp_delta_time;
 
-			m_state->exp_position = (m_state->position * q) + (prev_position * (1.0f - q));
+			m_state->exp_position = (m_state->position_meters * q) + (prev_position * (1.0f - q));
 			m_state->exp_delta_time = (delta_time * q) + (prev_delta_time * (1.0f - q));
 
-			m_state->velocity = (m_state->exp_position - prev_position) / m_state->exp_delta_time;
+			m_state->velocity_m_per_sec = (m_state->exp_position - prev_position) / m_state->exp_delta_time;
 
 			//fusion_state->velocity = Eigen::Vector3f::Zero();
-			m_state->acceleration = Eigen::Vector3f::Zero(); //new_acceleration;
+			m_state->acceleration_m_per_sec_sqr = Eigen::Vector3f::Zero(); //new_acceleration;
 		}
 		else
 		{
 			// If this is the first filter packet, just accept the position as gospel
-			m_state->position = m_state->position;
-			m_state->velocity = Eigen::Vector3f::Zero();
-			m_state->acceleration = Eigen::Vector3f::Zero();
+			m_state->position_meters = m_state->position_meters;
+			m_state->velocity_m_per_sec = Eigen::Vector3f::Zero();
+			m_state->acceleration_m_per_sec_sqr = Eigen::Vector3f::Zero();
 
 			// Fusion state is valid now that we have one sample
 			m_state->bIsValid = true;
@@ -506,16 +505,16 @@ static Eigen::Vector3f lowpass_filter_optical_position(
     const PositionFilterState *state)
 {
     assert(state->bIsValid);
-	assert(packet->tracking_projection_area > 0.f);
+	assert(packet->tracking_projection_area_px_sqr > 0.f);
 
     // Traveling k_max_lowpass_smoothing_distance in one frame should have 0 smoothing
     // Traveling 0+noise cm in one frame should have 60% smoothing
-    Eigen::Vector3f diff = packet->get_optical_position_in_meters() - state->position;
+    Eigen::Vector3f diff = packet->get_optical_position_in_meters() - state->position_meters;
     float distance = diff.norm();
     float new_position_weight = clampf01(lerpf(0.40f, 1.00f, distance / k_max_lowpass_smoothing_distance));
 
     // New position is blended against the old position
-    const Eigen::Vector3f &old_position = state->position;
+    const Eigen::Vector3f &old_position = state->position_meters;
     const Eigen::Vector3f new_position = packet->get_optical_position_in_meters();
     const Eigen::Vector3f filtered_new_position = lowpass_filter_vector3f(new_position_weight, old_position, new_position);
 
@@ -534,13 +533,13 @@ static void lowpass_filter_imu_step(
     if (delta_time > k_real_epsilon)
     {
         // Gather sensor state from the previous frame
-        const Eigen::Vector3f &old_accelerometer= old_state->accelerometer;
-        const Eigen::Vector3f &old_accelerometer_derivative= old_state->accelerometer_derivative;
+        const Eigen::Vector3f &old_accelerometer= old_state->accelerometer_g_units;
+        const Eigen::Vector3f &old_accelerometer_derivative= old_state->accelerometer_derivative_g_per_sec;
 
         // Gather physics state from the previous frame
-        const Eigen::Vector3f &old_position = old_state->position;
-        const Eigen::Vector3f &old_velocity = old_state->velocity;
-        const Eigen::Vector3f &old_acceleration = old_state->acceleration;
+        const Eigen::Vector3f &old_position = old_state->position_meters;
+        const Eigen::Vector3f &old_velocity = old_state->velocity_m_per_sec;
+        const Eigen::Vector3f &old_acceleration = old_state->acceleration_m_per_sec_sqr;
 
         // Gather new sensor readings
         // Need to negate the accelerometer reading since it points the opposite direction of gravity)
@@ -603,13 +602,13 @@ static void lowpass_filter_imu_step(
             + old_position;
 
         // Save out the updated sensor state
-        new_state->accelerometer= new_accelerometer;
-        new_state->accelerometer_derivative= new_accelerometer_derivative;
+        new_state->accelerometer_g_units= new_accelerometer;
+        new_state->accelerometer_derivative_g_per_sec= new_accelerometer_derivative;
 
         // Save out the updated fusion state
-        new_state->acceleration = new_acceleration;
-        new_state->velocity = new_velocity;
-        new_state->position= new_position;
+        new_state->acceleration_m_per_sec_sqr = new_acceleration;
+        new_state->velocity_m_per_sec = new_velocity;
+        new_state->position_meters= new_position;
     }
     else
     {

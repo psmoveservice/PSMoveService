@@ -189,9 +189,9 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__stop_controller_data_stream(context, response);
                 break;
-            case PSMoveProtocol::Request_RequestType_RESET_POSE:
+            case PSMoveProtocol::Request_RequestType_RESET_ORIENTATION:
                 response = new PSMoveProtocol::Response;
-                handle_request__reset_pose(context, response);
+                handle_request__reset_orientation(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_UNPAIR_CONTROLLER:
                 response = new PSMoveProtocol::Response;
@@ -232,6 +232,10 @@ public:
 			case PSMoveProtocol::Request_RequestType_SET_POSITION_FILTER:
 				response = new PSMoveProtocol::Response;
 				handle_request__set_position_filter(context, response);
+				break;
+			case PSMoveProtocol::Request_RequestType_SET_CONTROLLER_PREDICTION_TIME:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_controller_prediction_time(context, response);
 				break;
 
             // Tracker Requests
@@ -316,6 +320,10 @@ public:
 				response = new PSMoveProtocol::Response;
 				handle_request__set_hmd_gyroscope_calibration(context, response);
 				break;
+			case PSMoveProtocol::Request_RequestType_SET_HMD_PREDICTION_TIME:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_hmd_prediction_time(context, response);
+				break;
 
             default:
                 assert(0 && "Whoops, bad request!");
@@ -381,6 +389,12 @@ public:
 						controller_view->clearLEDOverride();
 					}
 
+					// If this connection had ROI disabled, pop the ROI supression request
+					if (streamInfo.disable_roi)
+					{
+						controller_view->popDisableROI();
+					}
+
 					// Halt any controller tracking this connection had going on
 					if (streamInfo.include_position_data)
 					{
@@ -389,10 +403,17 @@ public:
 				}
             }
 
-            // Halt any shared memory streams this connection has going
+            
             for (int tracker_id = 0; tracker_id < TrackerManager::k_max_devices; ++tracker_id)
             {
-                if (connection_state->active_tracker_stream_info[tracker_id].streaming_video_data)
+				// Restore any overridden camera settings from the config
+				if (connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override)
+				{
+					m_device_manager.getTrackerViewPtr(tracker_id)->loadSettings();
+				}
+
+				// Halt any shared memory streams this connection has going
+				if (connection_state->active_tracker_stream_info[tracker_id].streaming_video_data)
                 {
                     m_device_manager.getTrackerViewPtr(tracker_id)->stopSharedMemoryVideoStream();
                 }
@@ -403,6 +424,12 @@ public:
 			{
 				const HMDStreamInfo &streamInfo = connection_state->active_hmd_stream_info[hmd_id];
 				ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+				// Undo the ROI suppression
+				if (streamInfo.disable_roi)
+				{
+					m_device_manager.getHMDViewPtr(hmd_id)->popDisableROI();
+				}
 
 				// Halt any hmd tracking this connection had going on
 				if (streamInfo.include_position_data)
@@ -435,7 +462,7 @@ public:
 
                 // Fill out a data frame specific to this stream using the given callback
                 DeviceOutputDataFramePtr data_frame(new PSMoveProtocol::DeviceOutputDataFrame);
-                callback(controller_view, &streamInfo, data_frame);
+                callback(controller_view, &streamInfo, data_frame.get());
 
                 // Send the controller data frame over the network
                 ServerNetworkManager::get_instance()->send_device_data_frame(connection_id, data_frame);
@@ -568,6 +595,8 @@ protected:
 				std::string position_filter = "";
 				std::string gyro_gain_setting = "";
 
+				float prediction_time = 0.f;
+
                 switch(controller_view->getControllerDeviceType())
                 {
                 case CommonControllerState::PSMove:
@@ -579,6 +608,7 @@ protected:
 						position_filter = config->position_filter_type;
 						firmware_version = config->firmware_version;
 						firmware_revision = config->firmware_revision;
+						prediction_time = config->prediction_time;
 						has_magnetometer = controller->getSupportsMagnetometer();
 
 						controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
@@ -627,6 +657,7 @@ protected:
 
 						orientation_filter = config->orientation_filter_type;
 						position_filter = config->position_filter_type;
+						prediction_time = config->prediction_time;
 
 						controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
 					}
@@ -651,6 +682,7 @@ protected:
 				controller_info->set_orientation_filter(orientation_filter);
 				controller_info->set_position_filter(position_filter);
 				controller_info->set_gyro_gain_setting(gyro_gain_setting);
+				controller_info->set_prediction_time(prediction_time);
             }
         }
 
@@ -664,6 +696,7 @@ protected:
         const PSMoveProtocol::Request_RequestStartPSMoveDataStream& request=
             context.request->request_start_psmove_data_stream();
         int controller_id= request.controller_id();
+//        response->set_type(PSMoveProtocol::Response_ResponseType_CONTROLLER_STREAM_STARTED);
 
         if (ServerUtility::is_index_valid(controller_id, m_device_manager.getControllerViewMaxCount()))
         {
@@ -685,6 +718,7 @@ protected:
                 streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
                 streamInfo.include_calibrated_sensor_data = request.include_calibrated_sensor_data();
                 streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
+				streamInfo.disable_roi = request.disable_roi();
 
 				SERVER_LOG_INFO("ServerRequestHandler") << "Start controller(" << controller_id << ") stream ("
 					<< "pos=" << streamInfo.include_position_data
@@ -692,12 +726,26 @@ protected:
 					<< ",raw_sens=" << streamInfo.include_raw_sensor_data
 					<< ",cal_sens=" << streamInfo.include_calibrated_sensor_data
 					<< ",trkr=" << streamInfo.include_raw_tracker_data
+					<< ",roi=" << streamInfo.disable_roi
 					<< ")";
 
                 if (streamInfo.include_position_data)
                 {
                     controller_view->startTracking();
                 }
+                
+//                // Attach the initial state of the controller
+//                {
+//                    auto *stream_started_response= response->mutable_result_controller_stream_started();
+//                    PSMoveProtocol::DeviceOutputDataFrame* data_frame= stream_started_response->mutable_initial_data_frame();
+//                    
+//                    ServerControllerView::generate_controller_data_frame_for_stream(controller_view.get(), &streamInfo, data_frame);
+//                }
+
+				if (streamInfo.disable_roi)
+				{
+					controller_view->pushDisableROI();
+				}
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -726,6 +774,11 @@ protected:
 
             if (controller_view->getIsBluetooth())
             {
+				if (streamInfo.disable_roi)
+				{
+					controller_view->popDisableROI();
+				}
+
                 if (streamInfo.include_position_data)
                 {
                     controller_view->stopTracking();
@@ -754,33 +807,29 @@ protected:
         }
     }
 
-    void handle_request__reset_pose(
+    void handle_request__reset_orientation(
         const RequestContext &context, 
         PSMoveProtocol::Response *response)
     {
-        const int controller_id= context.request->reset_pose().controller_id();
-		
-		// Get the pose that we expect the controller to be in (relative to the pose it's in by default).
-		// For example, the psmove controller's default mesh has it laying flat,
-		// but when we call reset_pose in the HMD alignment tool, we expect the controller is pointing up.
-		const Eigen::Quaternionf q_pose(
-			context.request->reset_pose().orientation().w(),
-			context.request->reset_pose().orientation().x(),
-			context.request->reset_pose().orientation().y(),
-			context.request->reset_pose().orientation().z() );
+        const int controller_id= context.request->reset_orientation().controller_id();
+		ServerControllerViewPtr controllerView = m_device_manager.getControllerViewPtr(controller_id);
 
-		// Align to the global forward (not necessarily pointing down +X)
-		const float global_forward_degrees =
-			m_device_manager.m_tracker_manager->getConfig().global_forward_degrees
-			//###HipsterSloth $TODO - The controller default meshes are aligned down Z, not X
-			- 90.f;
-		const float global_forward_radians = global_forward_degrees * k_degrees_to_radians;
-		const Eigen::EulerAnglesf global_forward_euler(Eigen::Vector3f(0.f, global_forward_radians, 0.f));
-		const Eigen::Quaternionf global_forward_quat = eigen_euler_angles_to_quaternionf(global_forward_euler);
+		CommonDeviceQuaternion q_pose;
+		q_pose.w= context.request->reset_orientation().orientation().w();
+		q_pose.x= context.request->reset_orientation().orientation().x();
+		q_pose.y= context.request->reset_orientation().orientation().y();
+		q_pose.z= context.request->reset_orientation().orientation().z();
 
-        if (m_device_manager.m_controller_manager->resetPose(controller_id, q_pose*global_forward_quat))
-        {
-            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+		if (controllerView->getIsOpen())
+		{
+			if (controllerView->recenterOrientation(q_pose))
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
         }
         else
         {
@@ -1341,6 +1390,55 @@ protected:
 		}
 	}
 
+	void handle_request__set_controller_prediction_time(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int controller_id = context.request->request_set_controller_prediction_time().controller_id();
+
+		ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+		const PSMoveProtocol::Request_RequestSetControllerPredictionTime &request =
+			context.request->request_set_controller_prediction_time();
+
+		if (ControllerView && ControllerView->getIsOpen())
+		{
+			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
+			{
+				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+
+				if (config->prediction_time != request.prediction_time())
+				{
+					config->prediction_time = request.prediction_time();
+					config->save();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
+			{
+				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+				PSMoveControllerConfig *config = controller->getConfigMutable();
+
+				if (config->prediction_time != request.prediction_time())
+				{
+					config->prediction_time = request.prediction_time();
+					config->save();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
     // -- tracker requests -----
     inline void common_device_pose_to_protocol_pose(
         const CommonDevicePose &pose, 
@@ -1354,9 +1452,9 @@ protected:
         orietation->set_y(pose.Orientation.y);
         orietation->set_z(pose.Orientation.z);
 
-        position->set_x(pose.Position.x);
-        position->set_y(pose.Position.y);
-        position->set_z(pose.Position.z);
+        position->set_x(pose.PositionCm.x);
+        position->set_y(pose.PositionCm.y);
+        position->set_z(pose.PositionCm.z);
     }
 
     void handle_request__get_tracker_list(
@@ -1521,6 +1619,12 @@ protected:
                 context.connection_state->active_tracker_streams.set(tracker_id, false);
                 context.connection_state->active_tracker_stream_info[tracker_id].Clear();
 
+				// Restore any overridden camera settings from the config
+				if (context.connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override)
+				{
+					tracker_view->loadSettings();
+				}
+
                 // Decrement the number of stream listeners
                 tracker_view->stopSharedMemoryVideoStream();
 
@@ -1599,18 +1703,23 @@ protected:
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
+				const bool bSaveSetting= context.request->request_set_tracker_exposure().save_setting();
                 const float desired_exposure = context.request->request_set_tracker_exposure().value();
                 PSMoveProtocol::Response_ResultSetTrackerExposure* result_exposure =
                     response->mutable_result_set_tracker_exposure();
 
                 // Set the desired exposure on the tracker
-                tracker_view->setExposure(desired_exposure);
+                tracker_view->setExposure(desired_exposure, bSaveSetting);
 
                 // Only save the setting if requested
-                if (context.request->request_set_tracker_exposure().save_setting())
+                if (bSaveSetting)
                 {
                     tracker_view->saveSettings();
                 }
+				else
+				{
+					context.connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override = true;
+				}
 
                 // Return back the actual exposure that got set
                 result_exposure->set_new_exposure(static_cast<float>(tracker_view->getExposure()));
@@ -1640,18 +1749,23 @@ protected:
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
+				const bool bSaveSetting = context.request->request_set_tracker_exposure().save_setting();
                 const double desired_gain = context.request->request_set_tracker_gain().value();
                 PSMoveProtocol::Response_ResultSetTrackerGain* result_gain =
                     response->mutable_result_set_tracker_gain();
 
                 // Set the desired gain on the tracker
-                tracker_view->setGain(desired_gain);
+                tracker_view->setGain(desired_gain, bSaveSetting);
 
                 // Only save the setting if requested
-                if (context.request->request_set_tracker_gain().save_setting())
+                if (bSaveSetting)
                 {
                     tracker_view->saveSettings();
                 }
+				else
+				{
+					context.connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override = true;
+				}
 
                 // Return back the actual gain that got set
                 result_gain->set_new_gain(static_cast<float>(tracker_view->getGain()));
@@ -1810,9 +1924,9 @@ protected:
         result.Orientation.y = pose.orientation().y();
         result.Orientation.z = pose.orientation().z();
 
-        result.Position.x = pose.position().x();
-        result.Position.y = pose.position().y();
-        result.Position.z = pose.position().z();
+        result.PositionCm.x = pose.position().x();
+        result.PositionCm.y = pose.position().y();
+        result.PositionCm.z = pose.position().z();
 
         return result;
     }
@@ -1942,8 +2056,8 @@ protected:
                     m_device_manager.m_tracker_manager->getDefaultTrackerProfile();
     
                 // Apply the profile to the tracker
-                tracker_view->setExposure(trackerProfile->exposure);
-                tracker_view->setGain(trackerProfile->gain);
+                tracker_view->setExposure(trackerProfile->exposure, true);
+                tracker_view->setGain(trackerProfile->gain, true);
                 for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
                 {
                     const CommonHSVColorRange *preset= &trackerProfile->color_preset_table.color_presets[preset_index];
@@ -2065,7 +2179,13 @@ protected:
                 switch (hmd_view->getHMDDeviceType())
                 {
                 case CommonHMDState::Morpheus:
-                    hmd_info->set_hmd_type(PSMoveProtocol::Morpheus);
+					{
+						const MorpheusHMD *morpheusHMD= hmd_view->castCheckedConst<MorpheusHMD>();
+						const MorpheusHMDConfig *config= morpheusHMD->getConfig();
+
+						hmd_info->set_hmd_type(PSMoveProtocol::Morpheus);
+						hmd_info->set_prediction_time(config->prediction_time);
+					}
                     break;
                 default:
                     assert(0 && "Unhandled tracker type");
@@ -2108,6 +2228,7 @@ protected:
 				streamInfo.include_raw_sensor_data = request.include_raw_sensor_data();
 				streamInfo.include_calibrated_sensor_data = request.include_calibrated_sensor_data();
 				streamInfo.include_raw_tracker_data = request.include_raw_tracker_data();
+				streamInfo.disable_roi = request.disable_roi();
 
 				SERVER_LOG_INFO("ServerRequestHandler") << "Start hmd(" << hmd_id << ") stream ("
 					<< "pos=" << streamInfo.include_position_data
@@ -2115,7 +2236,15 @@ protected:
 					<< ",raw_sens=" << streamInfo.include_raw_sensor_data
 					<< ",cal_sens=" << streamInfo.include_calibrated_sensor_data
 					<< ",trkr=" << streamInfo.include_raw_tracker_data
+					<< ",roi=" << streamInfo.disable_roi
 					<< ")";
+
+				if (streamInfo.disable_roi)
+				{
+					ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+
+					hmd_view->pushDisableROI();
+				}
 
 				if (streamInfo.include_position_data)
 				{
@@ -2152,6 +2281,12 @@ protected:
             if (hmd_view->getIsOpen())
             {
 				const HMDStreamInfo &streamInfo = context.connection_state->active_hmd_stream_info[hmd_id];
+
+				if (streamInfo.disable_roi)
+				{
+					hmd_view->popDisableROI();
+				}
+
 				if (streamInfo.include_position_data)
 				{
 					hmd_view->stopTracking();
@@ -2239,6 +2374,42 @@ protected:
 			HMDView->getPoseFilterMutable()->resetState();
 
 			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
+	void handle_request__set_hmd_prediction_time(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int hmd_id = context.request->request_set_hmd_prediction_time().hmd_id();
+
+		ServerHMDViewPtr HmdView = m_device_manager.getHMDViewPtr(hmd_id);
+		const PSMoveProtocol::Request_RequestSetHMDPredictionTime &request =
+			context.request->request_set_hmd_prediction_time();
+
+		if (HmdView && HmdView->getIsOpen())
+		{
+			if (HmdView->getHMDDeviceType() == CommonDeviceState::Morpheus)
+			{
+				MorpheusHMD *controller = HmdView->castChecked<MorpheusHMD>();
+				MorpheusHMDConfig *config = controller->getConfigMutable();
+
+				if (config->prediction_time != request.prediction_time())
+				{
+					config->prediction_time = request.prediction_time();
+					config->save();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
 		}
 		else
 		{

@@ -146,7 +146,7 @@ public:
 	// Below this projection area size we just consider the projection area 0 for the purpose of filtering
 	float min_screen_projection_area;
 
-	// The variance of the controller position as a function of projection area
+	// The variance(cm^2) of the controller position as a function of projection area
     float position_variance_exp_fit_a; 
     float position_variance_exp_fit_b;
 
@@ -288,6 +288,8 @@ public:
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
     virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
 	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
+	virtual float getIdentityForwardDegrees() const override;
+	virtual float getPredictionTime() const override;
 
     // -- Getters
     inline const PSDualShock4ControllerConfig *getConfig() const

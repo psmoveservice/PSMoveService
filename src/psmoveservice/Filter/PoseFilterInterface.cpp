@@ -54,23 +54,26 @@ Eigen::Vector3f PoseFilterSpace::getMagnetometerCalibrationDirection() const
 
 void PoseFilterSpace::createFilterPacket(
     const PoseSensorPacket &sensorPacket,
-	const Eigen::Quaternionf &orientation,
-	const Eigen::Vector3f &position,
+	const IPoseFilter *poseFilter,
     PoseFilterPacket &outFilterPacket) const
 {
-	outFilterPacket.current_orientation= orientation;
-	outFilterPacket.current_position_cm= position;
+	poseFilter->getOrientation(), poseFilter->getPositionCm(),
+
+	outFilterPacket.current_orientation= poseFilter->getOrientation();
+	outFilterPacket.current_position_cm= poseFilter->getPositionCm();
+	outFilterPacket.current_linear_velocity_cm_s = poseFilter->getVelocityCmPerSec();
+	outFilterPacket.current_linear_acceleration_cm_s2 = poseFilter->getAccelerationCmPerSecSqr();
 
     outFilterPacket.optical_orientation = sensorPacket.optical_orientation;
 
 	// Positional filtering is done is meters to improve numerical stability
     outFilterPacket.optical_position_cm = sensorPacket.optical_position_cm;
-    outFilterPacket.tracking_projection_area= sensorPacket.tracking_projection_area;
+    outFilterPacket.tracking_projection_area_px_sqr= sensorPacket.tracking_projection_area_px_sqr;
 
-    outFilterPacket.imu_gyroscope= m_SensorTransform * sensorPacket.imu_gyroscope;
-    outFilterPacket.imu_accelerometer= m_SensorTransform * sensorPacket.imu_accelerometer;
-    outFilterPacket.imu_magnetometer= m_SensorTransform * sensorPacket.imu_magnetometer;
+    outFilterPacket.imu_gyroscope_rad_per_sec= m_SensorTransform * sensorPacket.imu_gyroscope_rad_per_sec;
+    outFilterPacket.imu_accelerometer_g_units= m_SensorTransform * sensorPacket.imu_accelerometer_g_units;
+    outFilterPacket.imu_magnetometer_unit= m_SensorTransform * sensorPacket.imu_magnetometer_unit;
         
 	outFilterPacket.world_accelerometer=
-		eigen_vector3f_clockwise_rotate(orientation, outFilterPacket.imu_accelerometer);	
+		eigen_vector3f_clockwise_rotate(outFilterPacket.current_orientation, outFilterPacket.imu_accelerometer_g_units);
 }

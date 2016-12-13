@@ -47,6 +47,7 @@ protected:
         calibrateWithMat,
 
         testTracking,
+		showTrackerVideo,
         calibrateStepFailed,
     };
 
@@ -61,13 +62,14 @@ protected:
     int get_tracker_count() const;
     int get_render_tracker_index() const;
     class ClientTrackerView *get_render_tracker_view() const;
+	class ClientControllerView *get_calibration_controller_view() const;
 
     void request_controller_list();
     static void handle_controller_list_response(
         const ClientPSMoveAPI::ResponseMessage *response_message,
         void *userdata);
 
-    void request_start_controller_stream(int ControllerID);
+    void request_start_controller_stream(int ControllerID, int listIndex, PSMoveTrackingColorType trackingColorType);
     static void handle_start_controller_response(
         const ClientPSMoveAPI::ResponseMessage *response_message,
         void *userdata);
@@ -87,6 +89,7 @@ protected:
         class ClientTrackerView *TrackerView);
 
     void handle_all_devices_ready();
+	bool does_tracker_see_any_controller(const ClientTrackerView *trackerView);
 
     void release_devices();
     void request_exit_to_app_stage(const char *app_stage_name);
@@ -103,10 +106,22 @@ private:
     typedef std::map<int, TrackerState> t_tracker_state_map;
     typedef std::map<int, TrackerState>::iterator t_tracker_state_map_iterator;
     typedef std::pair<int, TrackerState> t_id_tracker_state_pair;
-    
-    class ClientControllerView *m_controllerView;
+
+	struct ControllerState
+	{
+		int listIndex;
+		PSMoveTrackingColorType trackingColorType;
+		class ClientControllerView *controllerView;
+	};
+	typedef std::map<int, ControllerState> t_controller_state_map;
+	typedef std::map<int, ControllerState>::iterator t_controller_state_map_iterator;
+	typedef std::pair<int, ControllerState> t_id_controller_state_pair;
+
     t_tracker_state_map m_trackerViews;
     int m_pendingTrackerStartCount;
+
+	t_controller_state_map m_controllerViews;
+	int m_pendingControllerStartCount;
 
     int m_renderTrackerIndex;
     t_tracker_state_map_iterator m_renderTrackerIter;
