@@ -1,7 +1,7 @@
 // -- includes -----
 #include "ControllerDeviceEnumerator.h"
 #include "ControllerHidDeviceEnumerator.h"
-#include "ControllerLibUSBDeviceEnumerator.h"
+#include "ControllerUSBDeviceEnumerator.h"
 #include "assert.h"
 #include "string.h"
 
@@ -23,15 +23,15 @@ ControllerDeviceEnumerator::ControllerDeviceEnumerator(
 		enumerators[0] = new ControllerHidDeviceEnumerator(CommonDeviceState::PSMove);
 		enumerator_count = 1;
 		break;
-	case eAPIType::CommunicationType_LIBUSB:
+	case eAPIType::CommunicationType_USB:
 		enumerators = new DeviceEnumerator *[1];
-		enumerators[0] = new ControllerLibUSBDeviceEnumerator(CommonDeviceState::PSMove);
+		enumerators[0] = new ControllerUSBDeviceEnumerator(CommonDeviceState::PSMove);
 		enumerator_count = 1;
 		break;
 	case eAPIType::CommunicationType_ALL:
 		enumerators = new DeviceEnumerator *[2];
 		enumerators[0] = new ControllerHidDeviceEnumerator(CommonDeviceState::PSMove);
-		enumerators[1] = new ControllerLibUSBDeviceEnumerator(CommonDeviceState::PSMove);
+		enumerators[1] = new ControllerUSBDeviceEnumerator(CommonDeviceState::PSMove);
 		enumerator_count = 2;
 		break;
 	}
@@ -62,15 +62,15 @@ ControllerDeviceEnumerator::ControllerDeviceEnumerator(
 		enumerators[0] = new ControllerHidDeviceEnumerator(deviceType);
 		enumerator_count = 1;
 		break;
-	case eAPIType::CommunicationType_LIBUSB:
+	case eAPIType::CommunicationType_USB:
 		enumerators = new DeviceEnumerator *[1];
-		enumerators[0] = new ControllerLibUSBDeviceEnumerator(deviceType);
+		enumerators[0] = new ControllerUSBDeviceEnumerator(deviceType);
 		enumerator_count = 1;
 		break;
 	case eAPIType::CommunicationType_ALL:
 		enumerators = new DeviceEnumerator *[2];
 		enumerators[0] = new ControllerHidDeviceEnumerator(deviceType);
-		enumerators[1] = new ControllerLibUSBDeviceEnumerator(deviceType);
+		enumerators[1] = new ControllerUSBDeviceEnumerator(deviceType);
 		enumerator_count = 2;
 		break;
 	}
@@ -114,21 +114,6 @@ bool ControllerDeviceEnumerator::get_serial_number(char *out_mb_serial, const si
     return success;
 }
 
-t_usb_device_handle ControllerDeviceEnumerator::get_usb_device_handle() const
-{
-	t_usb_device_handle result = k_invalid_usb_device_handle;
-
-	if ((api_type == eAPIType::CommunicationType_LIBUSB) ||
-		(api_type == eAPIType::CommunicationType_ALL && enumerator_index == 1))
-	{
-		ControllerLibUSBDeviceEnumerator *libusb_enumerator = static_cast<ControllerLibUSBDeviceEnumerator *>(enumerators[enumerator_index]);
-
-		result = libusb_enumerator->get_usb_device_handle();
-	}
-
-	return result;
-}
-
 ControllerDeviceEnumerator::eAPIType ControllerDeviceEnumerator::get_api_type() const
 {
 	ControllerDeviceEnumerator::eAPIType result= ControllerDeviceEnumerator::CommunicationType_INVALID;
@@ -138,13 +123,13 @@ ControllerDeviceEnumerator::eAPIType ControllerDeviceEnumerator::get_api_type() 
 	case eAPIType::CommunicationType_HID:
 		result = (enumerator_index < enumerator_count) ? ControllerDeviceEnumerator::CommunicationType_HID : ControllerDeviceEnumerator::CommunicationType_INVALID;
 		break;
-	case eAPIType::CommunicationType_LIBUSB:
-		result = (enumerator_index < enumerator_count) ? ControllerDeviceEnumerator::CommunicationType_LIBUSB : ControllerDeviceEnumerator::CommunicationType_INVALID;
+	case eAPIType::CommunicationType_USB:
+		result = (enumerator_index < enumerator_count) ? ControllerDeviceEnumerator::CommunicationType_USB : ControllerDeviceEnumerator::CommunicationType_INVALID;
 		break;
 	case eAPIType::CommunicationType_ALL:
 		if (enumerator_index < enumerator_count)
 		{
-			result = (enumerator_index == 0) ? ControllerDeviceEnumerator::CommunicationType_HID : ControllerDeviceEnumerator::CommunicationType_LIBUSB;
+			result = (enumerator_index == 0) ? ControllerDeviceEnumerator::CommunicationType_HID : ControllerDeviceEnumerator::CommunicationType_USB;
 		}
 		else
 		{
@@ -154,6 +139,60 @@ ControllerDeviceEnumerator::eAPIType ControllerDeviceEnumerator::get_api_type() 
 	}
 
 	return result;
+}
+
+const ControllerHidDeviceEnumerator *ControllerDeviceEnumerator::get_hid_controller_enumerator() const
+{
+	ControllerHidDeviceEnumerator *enumerator = nullptr;
+
+	switch (api_type)
+	{
+	case eAPIType::CommunicationType_HID:
+		enumerator = (enumerator_index < enumerator_count) ? static_cast<ControllerHidDeviceEnumerator *>(enumerators[0]) : nullptr;
+		break;
+	case eAPIType::CommunicationType_USB:
+		enumerator = nullptr;
+		break;
+	case eAPIType::CommunicationType_ALL:
+		if (enumerator_index < enumerator_count)
+		{
+			enumerator = (enumerator_index == 0) ? static_cast<ControllerHidDeviceEnumerator *>(enumerators[0]) : nullptr;
+		}
+		else
+		{
+			enumerator = nullptr;
+		}
+		break;
+	}
+
+	return enumerator;
+}
+
+const ControllerUSBDeviceEnumerator *ControllerDeviceEnumerator::get_usb_controller_enumerator() const
+{
+	ControllerUSBDeviceEnumerator *enumerator = nullptr;
+
+	switch (api_type)
+	{
+	case eAPIType::CommunicationType_HID:
+		enumerator = nullptr;
+		break;
+	case eAPIType::CommunicationType_USB:
+		enumerator = (enumerator_index < enumerator_count) ? static_cast<ControllerUSBDeviceEnumerator *>(enumerators[0]) : nullptr;
+		break;
+	case eAPIType::CommunicationType_ALL:
+		if (enumerator_index < enumerator_count)
+		{
+			enumerator = (enumerator_index == 1) ? static_cast<ControllerUSBDeviceEnumerator *>(enumerators[1]) : nullptr;
+		}
+		else
+		{
+			enumerator = nullptr;
+		}
+		break;
+	}
+
+	return enumerator;
 }
 
 bool ControllerDeviceEnumerator::is_valid() const

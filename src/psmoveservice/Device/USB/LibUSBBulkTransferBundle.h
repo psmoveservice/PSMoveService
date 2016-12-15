@@ -1,43 +1,32 @@
-#ifndef USB_BULK_TRANSFER_BUNDLE_H
-#define USB_BULK_TRANSFER_BUNDLE_H
+#ifndef LIB_USB_BULK_TRANSFER_BUNDLE_H
+#define LIB_USB_BULK_TRANSFER_BUNDLE_H
 
 //-- includes -----
+#include "USBApiInterface.h"
 #include "USBDeviceRequest.h"
 
 //-- definitions -----
 /// Internal class used to manage a set of libusb bulk transfer packets.
-class USBBulkTransferBundle
+class LibUSBBulkTransferBundle : public IUSBBulkTransferBundle
 {
 public:
-    USBBulkTransferBundle(
-        const USBRequestPayload_BulkTransfer &request,
-        struct libusb_device *dev,
-        struct libusb_device_handle *dev_handle);
-    virtual ~USBBulkTransferBundle();
+    LibUSBBulkTransferBundle(
+        const USBDeviceState *device_state,
+		const struct USBRequestPayload_BulkTransfer *request);
+    virtual ~LibUSBBulkTransferBundle();
 
     // Interface
-    bool initialize();
-    bool startTransfers();
-    void cancelTransfers();
+    bool initialize() override;
+    bool startTransfers() override;
+    void cancelTransfers() override;
 
     // Events
     void notifyActiveTransfersDecremented();
 
     // Accessors
-    inline const USBRequestPayload_BulkTransfer &getTransferRequest() const
-    {
-        return m_request;
-    }
-
-    inline t_usb_device_handle getUSBDeviceHandle() const
-    {
-        return m_request.usb_device_handle;
-    }
-
-    inline int getActiveTransferCount() const
-    {
-        return m_active_transfer_count;
-    }
+	const USBRequestPayload_BulkTransfer &getTransferRequest() const override;
+	t_usb_device_handle getUSBDeviceHandle() const override;
+	int getActiveTransferCount() const override;
 
     // Helpers
     // Search for an input transfer endpoint in the endpoint descriptor

@@ -32,15 +32,6 @@
 
 const int PSMOVE_SERVER_PORT = 9512;
 
-//-- constants -----
-// List of all possible USB devices that we want to connect to via libusb
-// VendorID, ProductID
-USBDeviceFilter k_usb_device_whitelist[2] = {
-	{ 0x054c, 0x042F }, // PSNavi
-	{ 0x1415, 0x2000 }, // PS3Eye
-    //{ 0x05a9, 0x058a }, // PS4 Camera - TODO
-};
-
 //-- definitions -----
 class PSMoveServiceImpl
 {
@@ -48,7 +39,7 @@ public:
     PSMoveServiceImpl()
         : m_io_service()
         , m_signals(m_io_service)
-        , m_usb_device_manager(k_usb_device_whitelist, 2)
+        , m_usb_device_manager(_USBApiType_LibUSB)
         , m_device_manager()
         , m_request_handler(&m_device_manager)
         , m_network_manager(&m_io_service, PSMOVE_SERVER_PORT, &m_request_handler)

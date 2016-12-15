@@ -1,64 +1,40 @@
 //-- includes -----
+#include "USBApiInterface.h"
 #include "USBDeviceManager.h"
 #include "USBDeviceInfo.h"
-#include "USBBulkTransferBundle.h"
+#include "LibUSBBulkTransferBundle.h"
+#include "LibUSBApi.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
-
-#include "libusb.h"
 
 #include <atomic>
 #include <thread>
 #include <vector>
+#include <map>
 
 #include <boost/lockfree/spsc_queue.hpp>
 
-//-- macros -----
-//#define DEBUG_USBDEVICEMANAGER
-#if defined(DEBUG_USBDEVICEMANAGER)
-#define debug(...) fprintf(stdout, __VA_ARGS__)
-#else
-#define debug(...) 
-#endif
+//-- typedefs -----
+typedef std::map<t_usb_device_handle, USBDeviceState *> t_usb_device_map;
+typedef std::map<t_usb_device_handle, USBDeviceState *>::iterator t_usb_device_map_iterator;
+typedef std::pair<t_usb_device_handle, USBDeviceState *> t_handle_usb_device_pair;
 
 //-- private implementation -----
 // -USBAsyncRequestManagerImpl-
 /// Internal implementation of the USB async request manager.
 class USBDeviceManagerImpl
 {
-protected:
-    struct RequestState
-    {
-        USBTransferRequest request;
-        std::function<void(USBTransferResult&)> callback;
-    };
-
-    struct ResultState
-    {
-        USBTransferResult result;
-        std::function<void(USBTransferResult&)> callback;
-    };
-
-    struct LibUSBDeviceState
-    {
-        t_usb_device_handle handle;
-        libusb_device *device;
-        libusb_device_handle *device_handle;
-        bool is_interface_claimed;
-    };
-
 public:
-    USBDeviceManagerImpl(struct USBDeviceFilter *device_whitelist, size_t device_whitelist_length)
-        : m_usb_context(nullptr)
+    USBDeviceManagerImpl(eUSBApiType apiType)
+        : m_api_type(apiType)
+		, m_usb_api(nullptr)
         , m_exit_signaled({ false })
         , m_active_control_transfers(0)
 		, m_active_interrupt_transfers(0)
         , m_thread_started(false)
+		, m_next_usb_device_handle(0)
     {
-        for (size_t list_index = 0; list_index < device_whitelist_length; ++list_index)
-        {
-            m_device_whitelist.push_back(device_whitelist[list_index]);
-        }
+
     }
 
     virtual ~USBDeviceManagerImpl()
@@ -70,12 +46,35 @@ public:
     {
         bool bSuccess= true;
 
-        SERVER_LOG_INFO("USBAsyncRequestManager::startup") << "Initializing libusb context";
-        libusb_init(&m_usb_context);
-        libusb_set_debug(m_usb_context, 1);
+		if (m_usb_api == nullptr)
+		{
+			switch (m_api_type)
+			{
+			case _USBApiType_LibUSB:
+				m_usb_api = new LibUSBApi;
+				break;
+			case _USBApiType_WinUSB:
+				//###HipsterSloth $TODO actually implement WinUSB interface
+				m_usb_api = new LibUSBApi;
+				break;
+			default:
+				assert(0 && "unreachable");
+				break;
+			}
 
-        // Get a list of all of the available USB devices that are on the white-list
-        rebuildFilteredDeviceList();
+			if (m_usb_api->startup())
+			{
+				SERVER_LOG_INFO("USBAsyncRequestManager::startup") << "Initialized USB API";
+			}
+			else
+			{
+				SERVER_LOG_ERROR("USBAsyncRequestManager::startup") << "Failed to initialize USB API";
+			}
+		}
+		else
+		{
+			SERVER_LOG_WARNING("USBAsyncRequestManager::startup") << "USB API aready initialized";
+		}
 
         return bSuccess;
     }
@@ -121,192 +120,56 @@ public:
         // Cleanup any requests
         requestProcessingTeardown();
 
-        if (m_usb_context != nullptr)
+        if (m_usb_api != nullptr)
         {
             // Unref any libusb devices
             freeDeviceStateList();
 
-            // Free the libusb context
-            libusb_exit(m_usb_context);
-            m_usb_context= nullptr;
+            // Free the usb context
+			delete m_usb_api;
+            m_usb_api= nullptr;
+			m_api_type = _USBApiType_INVALID;
         }
     }
 
     // -- Device Actions ----
-    bool openUSBDevice(t_usb_device_handle handle)
+	t_usb_device_handle openUSBDevice(struct USBDeviceEnumerator* enumerator)
     {
-        bool bOpened= false;
+		t_usb_device_handle handle= k_invalid_usb_device_handle;
 
         if (!getIsUSBDeviceOpen(handle))
         {
-            LibUSBDeviceState *state= get_libusb_state_from_handle(handle);
+			USBDeviceState *state = m_usb_api->open_usb_device(enumerator);
 
             if (state != nullptr)
             {
-                int res = libusb_open(state->device, &state->device_handle);
-                if (res == 0)
-                {
-                    res = libusb_claim_interface(state->device_handle, 0);
-                    if (res == 0)
-                    {
-                        state->is_interface_claimed = true;
-                        bOpened = true;
+				handle = m_next_usb_device_handle;
+				state->public_handle = m_next_usb_device_handle;
+				++m_next_usb_device_handle;
 
-                        SERVER_LOG_INFO("USBAsyncRequestManager::openUSBDevice") << "Successfully opened device " << handle;
-                    }
-                    else
-                    {
-                        SERVER_LOG_ERROR("USBAsyncRequestManager::openUSBDevice") << "Failed to claim USB device: " << res;
-                    }
-                }
-                else
-                {
-                    SERVER_LOG_ERROR("USBAsyncRequestManager::openUSBDevice") << "Failed to open USB device: " << res;
-                }
-            }
-            else
-            {
-                SERVER_LOG_ERROR("USBAsyncRequestManager::openUSBDevice") << "Invalid device handle: " << handle;
-            }
-
-            if (!bOpened)
-            {
-                closeUSBDevice(handle);
+				m_device_state_map.insert(t_handle_usb_device_pair(state->public_handle, state));
             }
         }
 
-        return bOpened;
+        return handle;
     }
 
     void closeUSBDevice(t_usb_device_handle handle)
     {
-        LibUSBDeviceState *state = get_libusb_state_from_handle(handle);
+		t_usb_device_map_iterator iter= m_device_state_map.find(handle);
 
-        if (state->is_interface_claimed)
-        {
-            SERVER_LOG_INFO("USBAsyncRequestManager::closeUSBDevice") << "Released USB interface on handle " << handle;
-            libusb_release_interface(state->device_handle, 0);
-            state->is_interface_claimed= false;
-        }
+		if (iter != m_device_state_map.end())
+		{
+			USBDeviceState *usb_device_state= iter->second;
 
-        if (state->device_handle != nullptr)
-        {
-            SERVER_LOG_INFO("USBAsyncRequestManager::closeUSBDevice") << "Close USB device on handle " << handle;
-            libusb_close(state->device_handle);
-            state->device_handle= nullptr;
-        }
-    }
-
-    // -- Device Queries ----
-    int getUSBDeviceCount() const
-    {
-        return static_cast<int>(m_device_state_list.size());
-    }
-
-    t_usb_device_handle getFirstUSBDeviceHandle() const
-    {
-        return (m_device_state_list.size() > 0) ? static_cast<t_usb_device_handle>(0) : k_invalid_usb_device_handle;
-    }
-
-    t_usb_device_handle getNextUSBDeviceHandle(t_usb_device_handle handle) const
-    {
-        int device_index= static_cast<int>(handle);
-
-        return (device_index + 1 < getUSBDeviceCount()) ? static_cast<t_usb_device_handle>(device_index + 1) : k_invalid_usb_device_handle;
-    }
-
-    bool getUSBDeviceInfo(t_usb_device_handle handle, USBDeviceFilter &outDeviceInfo) const
-    {
-        bool bSuccess= false;
-        const libusb_device *dev = get_libusb_device_from_handle_const(handle);
-
-        if (dev != nullptr)
-        {
-            struct libusb_device_descriptor dev_desc;
-            libusb_get_device_descriptor(const_cast<libusb_device *>(dev), &dev_desc);
-
-            outDeviceInfo.product_id= dev_desc.idProduct;
-            outDeviceInfo.vendor_id= dev_desc.idVendor;
-            bSuccess= true;
-        }
-
-        return bSuccess;
-    }
-
-    bool getUSBDevicePath(t_usb_device_handle handle, char *outBuffer, size_t bufferSize) const
-    {
-        bool bSuccess = false;
-        int device_index = static_cast<int>(handle);        
-
-        if (device_index >= 0 && device_index < getUSBDeviceCount())
-        {
-            libusb_device *dev = m_device_state_list[device_index].device;
-
-            struct libusb_device_descriptor dev_desc;
-            libusb_get_device_descriptor(dev, &dev_desc);
-
-            //###HipsterSloth $TODO Put bus/port numbers here
-            int nCharsWritten= 
-                ServerUtility::format_string(
-                    outBuffer, bufferSize,
-                    "USB\\VID_%04X&PID_%04X\\%d",
-                    dev_desc.idVendor, dev_desc.idProduct, device_index);
-
-            bSuccess = (nCharsWritten > 0);
-        }
-
-        return bSuccess;
-    }
-
-    bool getUSBDevicePortPath(t_usb_device_handle handle, char *outBuffer, size_t bufferSize) const
-    {
-        bool bSuccess = false;
-        int device_index = static_cast<int>(handle);        
-
-        if (device_index >= 0 && device_index < getUSBDeviceCount())
-        {
-            libusb_device *device = m_device_state_list[device_index].device;
-            uint8_t port_numbers[MAX_USB_DEVICE_PORT_PATH];
-
-            memset(outBuffer, 0, bufferSize);
-
-            memset(port_numbers, 0, sizeof(port_numbers));
-            int port_count = libusb_get_port_numbers(device, port_numbers, MAX_USB_DEVICE_PORT_PATH);
-            int bus_id = libusb_get_bus_number(device);
-
-            ServerUtility::format_string(outBuffer, bufferSize, "b%d", bus_id);
-            if (port_count > 0)
-            {
-                bSuccess = true;
-
-                for (int port_index = 0; port_index < port_count; ++port_index)
-                {
-                    uint8_t port_number = port_numbers[port_index];
-
-                    if (ServerUtility::format_string(
-                            outBuffer, bufferSize, 
-                            (port_index == 0) ? "%s_p%d" : "%s.%d", 
-                            outBuffer, port_number) < 0)
-                    {
-                        bSuccess = false;
-                        break;
-                    }
-                }
-            }
-        }
-
-        return bSuccess;
+			m_device_state_map.erase(iter);
+			m_usb_api->close_usb_device(usb_device_state);
+		}
     }
 
     bool getIsUSBDeviceOpen(t_usb_device_handle handle) const
     {
-        bool bIsOpen= false;
-        const LibUSBDeviceState *state= get_libusb_state_from_handle_const(handle);
-
-        if (state != nullptr)
-        {
-            bIsOpen= (state->device_handle != nullptr);
-        }
+		bool bIsOpen= (m_device_state_map.find(handle) != m_device_state_map.end());
 
         return bIsOpen;
     }
@@ -314,7 +177,7 @@ public:
     // -- Request Queue ----
     bool submitTransferRequest(const USBTransferRequest &request, std::function<void(USBTransferResult&)> callback)
     {
-        RequestState requestState = {request, callback};
+		USBTransferRequestState requestState = {request, callback};
         bool bAddedRequest= false;
 
         if (request_queue.push(requestState))
@@ -326,6 +189,79 @@ public:
 
         return bAddedRequest;
     }
+
+	// -- accessors ----
+	inline const IUSBApi *getUSBApiConst() const { return m_usb_api; }
+	inline IUSBApi *getUSBApi() { return m_usb_api; }
+
+	bool getUsbDeviceFilter(t_usb_device_handle handle, USBDeviceFilter &outDeviceInfo)
+	{
+		t_usb_device_map_iterator iter = m_device_state_map.find(handle);
+		bool bSuccess = false;
+
+		if (iter != m_device_state_map.end())
+		{
+			bSuccess= m_usb_api->get_usb_device_filter(iter->second, &outDeviceInfo);
+		}
+
+		return bSuccess;
+	}
+
+	bool getUsbDeviceFullPath(t_usb_device_handle handle, char *outBuffer, size_t bufferSize)
+	{
+		t_usb_device_map_iterator iter = m_device_state_map.find(handle);
+		bool bSuccess = false;
+
+		if (iter != m_device_state_map.end())
+		{
+			bSuccess = m_usb_api->get_usb_device_path(iter->second, outBuffer, bufferSize);
+		}
+
+		return bSuccess;
+	}
+
+	bool getUsbDevicePortPath(t_usb_device_handle handle, char *outBuffer, size_t bufferSize)
+	{
+		t_usb_device_map_iterator iter = m_device_state_map.find(handle);
+		bool bSuccess = false;
+
+		if (iter != m_device_state_map.end())
+		{
+			bSuccess = m_usb_api->get_usb_device_port_path(iter->second, outBuffer, bufferSize);
+		}
+
+		return bSuccess;
+	}
+
+	bool getUsbDeviceIsOpen(t_usb_device_handle handle)
+	{
+		t_usb_device_map_iterator iter = m_device_state_map.find(handle);
+		const bool bIsOpen = (iter != m_device_state_map.end());
+
+		return bIsOpen;
+	}
+
+	void postUSBTransferResult(const USBTransferResult &result, std::function<void(USBTransferResult&)> callback)
+	{
+		USBTransferResultState state = { result, callback };
+
+		// If a control transfer just completed (successfully or unsuccessfully)
+		// decrement the outstanding control transfer count
+		if (result.result_type == _USBResultType_ControlTransfer)
+		{
+			assert(m_active_control_transfers > 0);
+			--m_active_control_transfers;
+		}
+		// If a interrupt transfer just completed (successfully or unsuccessfully)
+		// decrement the outstanding interrupt transfer count
+		else if (result.result_type == _USBResultType_InterrupTransfer)
+		{
+			assert(m_active_interrupt_transfers > 0);
+			--m_active_interrupt_transfers;
+		}
+
+		result_queue.push(state);
+	}
 
 protected:
     void startWorkerThread()
@@ -343,7 +279,7 @@ protected:
         bool bHadRequests= false;
 
         // Process incoming USB transfer requests
-        RequestState requestState;
+		USBTransferRequestState requestState;
         while (request_queue.pop(requestState))
         {
             switch (requestState.request.request_type)
@@ -376,13 +312,7 @@ protected:
             // keep polling until we get the result back
             while (poll_count == 0 || m_active_control_transfers > 0 || m_active_interrupt_transfers > 0)
             {
-                struct timeval tv;
-                tv.tv_sec = 0;
-                tv.tv_usec = 50 * 1000; // ms
-
-                // Give libusb a change to process transfer requests and post events
-                libusb_handle_events_timeout_completed(m_usb_context, &tv, NULL);
-
+				m_usb_api->poll();
                 ++poll_count;
             }
 
@@ -395,7 +325,7 @@ protected:
 
     void processResults()
     {
-        ResultState resultState;
+        USBTransferResultState resultState;
 
         // Process all pending results
         while (result_queue.pop(resultState))
@@ -413,7 +343,7 @@ protected:
         // Cancel all active transfers
         while (m_active_bulk_transfer_bundles.size() > 0)
         {
-            USBBulkTransferBundle *bundle= m_active_bulk_transfer_bundles.back();
+            IUSBBulkTransferBundle *bundle= m_active_bulk_transfer_bundles.back();
             m_active_bulk_transfer_bundles.pop_back();
             bundle->cancelTransfers();
             m_canceled_bulk_transfer_bundles.push_back(bundle);
@@ -422,12 +352,7 @@ protected:
         // Wait for the canceled bulk transfers and control transfers to exit
         while (m_canceled_bulk_transfer_bundles.size() > 0 || m_active_control_transfers > 0 || m_active_interrupt_transfers > 0)
         {
-            struct timeval tv;
-            tv.tv_sec = 0;
-            tv.tv_usec = 50 * 1000; // ms
-
-            // Give libusb a change to process the cancellation requests
-            libusb_handle_events_timeout_completed(m_usb_context, &tv, NULL);
+			m_usb_api->poll();
 
             // Cleanup any requests that no longer have any pending cancellations
             cleanupCanceledRequests();
@@ -456,7 +381,7 @@ protected:
     {
         for (auto it = m_canceled_bulk_transfer_bundles.begin(); it != m_canceled_bulk_transfer_bundles.end(); ++it)
         {
-            USBBulkTransferBundle *bundle = *it;
+            IUSBBulkTransferBundle *bundle = *it;
 
             //###HipsterSloth $TODO Timeout the cancellation?
             if (bundle->getActiveTransferCount() == 0)
@@ -467,15 +392,17 @@ protected:
         }
     }
 
-	void handleInterruptTransferRequest(const RequestState &requestState)
+	void handleInterruptTransferRequest(const USBTransferRequestState &requestState)
 	{
 		const USBRequestPayload_InterruptTransfer &request = requestState.request.payload.interrupt_transfer;
 
-		LibUSBDeviceState *state = get_libusb_state_from_handle(request.usb_device_handle);
+		t_usb_device_map_iterator iter = m_device_state_map.find(request.usb_device_handle);
+		USBDeviceState *state = iter->second;
+
 		eUSBResultCode result_code;
 		bool bSuccess = true;
 
-#if defined(DEBUG_USBDEVICEMANAGER)
+#if defined(DEBUG_USB)
 		if ((request.endpoint & LIBUSB_ENDPOINT_DIR_MASK) == LIBUSB_ENDPOINT_OUT)
 		{
 			debug("USBMgr REQUEST: interrupt transfer write - dev: %d, endpoint: 0x%X, datalen: %d\n",
@@ -494,80 +421,12 @@ protected:
 
 		if (state != nullptr)
 		{
-			RequestState *requestStateOnHeap = nullptr;
-			struct libusb_transfer *transfer;
-			unsigned char *buffer;
+			++m_active_interrupt_transfers;
 
-			if (bSuccess)
+			result_code= m_usb_api->submit_interrupt_transfer(state, &requestState);
+			if (result_code != _USBResultCode_Started)
 			{
-				transfer = libusb_alloc_transfer(0);
-				if (transfer == nullptr)
-				{
-					result_code = _USBResultCode_NoMemory;
-					bSuccess = false;
-				}
-			}
-
-			if (bSuccess)
-			{
-				requestStateOnHeap = new RequestState;
-				if (requestStateOnHeap == nullptr)
-				{
-					result_code = _USBResultCode_NoMemory;
-					bSuccess = false;
-				}
-			}
-
-			if (bSuccess)
-			{
-				int libusb_result = LIBUSB_SUCCESS;
-
-				// Make a copy of the request on the heap so that it's safe
-				// to point to in the transfer userdata
-				requestStateOnHeap->request = requestState.request;
-				requestStateOnHeap->callback = requestState.callback;
-
-				libusb_fill_interrupt_transfer(
-					transfer,
-					state->device_handle,
-					requestStateOnHeap->request.payload.interrupt_transfer.endpoint,
-					requestStateOnHeap->request.payload.interrupt_transfer.data,
-					requestStateOnHeap->request.payload.interrupt_transfer.length,
-					interrupt_transfer_cb,
-					requestStateOnHeap,
-					request.timeout);
-
-				libusb_result = libusb_submit_transfer(transfer);
-				if (libusb_result == LIBUSB_SUCCESS)
-				{
-					// One more active interrupt transfer
-					++m_active_interrupt_transfers;
-
-					result_code = _USBResultCode_Started;
-				}
-				else
-				{
-					result_code = _USBResultCode_SubmitFailed;
-					bSuccess = false;
-				}
-			}
-
-			if (!bSuccess)
-			{
-				if (transfer != nullptr)
-				{
-					libusb_free_transfer(transfer);
-				}
-
-				if (buffer != nullptr)
-				{
-					free(buffer);
-				}
-
-				if (requestStateOnHeap != nullptr)
-				{
-					delete requestStateOnHeap;
-				}
+				--m_active_interrupt_transfers;
 			}
 		}
 		else
@@ -590,15 +449,17 @@ protected:
 		}
 	}
 
-    void handleControlTransferRequest(const RequestState &requestState)
+    void handleControlTransferRequest(const USBTransferRequestState &requestState)
     {
         const USBRequestPayload_ControlTransfer &request = requestState.request.payload.control_transfer;
 
-        LibUSBDeviceState *state = get_libusb_state_from_handle(request.usb_device_handle);
+		t_usb_device_map_iterator iter = m_device_state_map.find(request.usb_device_handle);
+		USBDeviceState *state = iter->second;
+
         eUSBResultCode result_code;
         bool bSuccess= true;
 
-#if defined(DEBUG_USBDEVICEMANAGER)
+#if defined(DEBUG_USB)
         if ((request.bmRequestType & LIBUSB_ENDPOINT_DIR_MASK) == LIBUSB_ENDPOINT_OUT)
         {
             debug("USBMgr REQUEST: control transfer write - dev: %d, reg: 0x%X, value: 0x%x\n", 
@@ -614,111 +475,21 @@ protected:
         }
 #endif
 
-        if (state != nullptr)
-        {
-            RequestState *requestStateOnHeap= nullptr;
-            struct libusb_transfer *transfer;
-            unsigned char *buffer;
+		if (state != nullptr)
+		{
+			++m_active_control_transfers;
 
-            if (bSuccess)
-            {
-                transfer = libusb_alloc_transfer(0);
-                if (transfer == nullptr)
-                {
-                    result_code = _USBResultCode_NoMemory;
-                    bSuccess= false;
-                }
-            }
-
-            if (bSuccess)
-            {
-                buffer = (unsigned char*)malloc(LIBUSB_CONTROL_SETUP_SIZE + request.wLength);
-                if (buffer == nullptr)
-                {
-                    result_code = _USBResultCode_NoMemory;
-                    bSuccess= false;
-                }
-            }
-
-            if (bSuccess)
-            {
-                requestStateOnHeap= new RequestState;
-                if (requestStateOnHeap == nullptr)
-                {
-                    result_code = _USBResultCode_NoMemory;
-                    bSuccess= false;
-                }
-            }
-
-            if (bSuccess)
-            {
-                int libusb_result= LIBUSB_SUCCESS;
-
-                libusb_fill_control_setup(
-                    buffer,
-                    request.bmRequestType,
-                    request.bRequest,
-                    request.wValue,
-                    request.wIndex,
-                    request.wLength);
-
-                if ((request.bmRequestType & LIBUSB_ENDPOINT_DIR_MASK) == LIBUSB_ENDPOINT_OUT)
-                {
-                    memcpy(buffer + LIBUSB_CONTROL_SETUP_SIZE, request.data, request.wLength);
-                }
-
-                // Make a copy of the request on the heap so that it's safe
-                // to point to in the transfer userdata
-                requestStateOnHeap->request= requestState.request;
-                requestStateOnHeap->callback= requestState.callback;
-
-                libusb_fill_control_transfer(
-                    transfer,
-                    state->device_handle,
-                    buffer,
-                    control_transfer_cb,
-                    requestStateOnHeap,
-                    request.timeout);
-                transfer->flags = LIBUSB_TRANSFER_FREE_BUFFER;
-
-                libusb_result = libusb_submit_transfer(transfer);
-                if (libusb_result == LIBUSB_SUCCESS)
-                {
-                    // One more active control transfer
-                    ++m_active_control_transfers;
-
-                    result_code = _USBResultCode_Started;
-                }
-                else
-                {
-                    result_code = _USBResultCode_SubmitFailed;
-                    bSuccess= false;
-                }
-            }
-
-            if (!bSuccess)
-            {
-                if (transfer != nullptr)
-                {
-                    libusb_free_transfer(transfer);
-                }
-
-                if (buffer != nullptr)
-                {
-                    free(buffer);
-                }
-
-                if (requestStateOnHeap != nullptr)
-                {
-                    delete requestStateOnHeap;
-                }
-            }
-        }
-        else
-        {
-            result_code = _USBResultCode_BadHandle;
-            bSuccess= false;
-        }
+			result_code = m_usb_api->submit_control_transfer(state, &requestState);
+			if (result_code != _USBResultCode_Started)
+			{
+				--m_active_control_transfers;
+			}
+		}
+		else
+		{
+			result_code = _USBResultCode_BadHandle;
+			bSuccess = false;
+		}
 
         // If the control transfer didn't successfully start, post a failure result now
         if (!bSuccess)
@@ -734,245 +505,69 @@ protected:
         }
     }
 
-	static void LIBUSB_CALL interrupt_transfer_cb(struct libusb_transfer *transfer)
-	{
-		const RequestState *requestStateOnHeap = reinterpret_cast<const RequestState *>(transfer->user_data);
-		const USBRequestPayload_InterruptTransfer *request = &requestStateOnHeap->request.payload.interrupt_transfer;
-
-		USBTransferResult result;
-
-		memset(&result, 0, sizeof(USBTransferResult));
-		result.result_type = _USBResultType_InterrupTransfer;
-		result.payload.control_transfer.usb_device_handle = request->usb_device_handle;
-
-		if ((request->endpoint & LIBUSB_ENDPOINT_DIR_MASK) == LIBUSB_ENDPOINT_IN &&
-			transfer->actual_length > 0)
-		{
-			// Libusb will write the result on the request data buffer since that's the buffer pointer we gave it
-			memcpy(&result.payload.control_transfer.data, request->data, transfer->actual_length);
-		}
-		result.payload.control_transfer.dataLength = transfer->actual_length;
-
-		switch (transfer->status)
-		{
-		case LIBUSB_TRANSFER_COMPLETED:
-			result.payload.control_transfer.result_code = _USBResultCode_Completed;
-			break;
-		case LIBUSB_TRANSFER_TIMED_OUT:
-			result.payload.control_transfer.result_code = _USBResultCode_TimedOut;
-			break;
-		case LIBUSB_TRANSFER_STALL:
-			result.payload.control_transfer.result_code = _USBResultCode_Pipe;
-			break;
-		case LIBUSB_TRANSFER_NO_DEVICE:
-			result.payload.control_transfer.result_code = _USBResultCode_DeviceNotOpen;
-			break;
-		case LIBUSB_TRANSFER_OVERFLOW:
-			result.payload.control_transfer.result_code = _USBResultCode_Overflow;
-			break;
-		case LIBUSB_TRANSFER_ERROR:
-			result.payload.control_transfer.result_code = _USBResultCode_GeneralError;
-			break;
-		case LIBUSB_TRANSFER_CANCELLED:
-			result.payload.control_transfer.result_code = _USBResultCode_Canceled;
-			break;
-		default:
-			result.payload.control_transfer.result_code = _USBResultCode_GeneralError;
-		}
-
-#if defined(DEBUG_USBDEVICEMANAGER)
-		if ((request->endpoint & LIBUSB_ENDPOINT_DIR_MASK) == LIBUSB_ENDPOINT_OUT)
-		{
-			debug("USBMgr RESULT: interrupt transfer write - dev: %d, endpoint: 0x%X, length: %d -> %s\n",
-				requestStateOnHeap->request.payload.control_transfer.usb_device_handle,
-				request->endpoint,
-				request->length,
-				transfer->status == LIBUSB_TRANSFER_COMPLETED ? "SUCCESS" : "FAILED");
-		}
-		else
-		{
-			debug("USBMgr RESULT: control transfer read - dev: %d, endpoint: 0x%X, length: %d -> 0x%X (%s)\n",
-				requestStateOnHeap->request.payload.control_transfer.usb_device_handle,
-				request->endpoint,
-				request->length,
-				transfer->status == LIBUSB_TRANSFER_COMPLETED ? "SUCCESS" : "FAILED");
-		}
-#endif
-
-		// Add the result to the outgoing result queue
-		USBDeviceManager::getInstance()->getImplementation()->postUSBTransferResult(result, requestStateOnHeap->callback);
-
-		// Free request state stored in the heap now that the result is posted
-		delete requestStateOnHeap;
-
-		// Free the libusb allocated transfer
-		libusb_free_transfer(transfer);
-	}
-
-    static void LIBUSB_CALL control_transfer_cb(struct libusb_transfer *transfer)
-    {
-        const RequestState *requestStateOnHeap = reinterpret_cast<const RequestState *>(transfer->user_data);
-        const USBRequestPayload_ControlTransfer *request= &requestStateOnHeap->request.payload.control_transfer;
-
-        USBTransferResult result;
-
-        memset(&result, 0, sizeof(USBTransferResult));
-        result.result_type= _USBResultType_ControlTransfer;
-        result.payload.control_transfer.usb_device_handle= request->usb_device_handle;
-                
-        if ((request->bmRequestType & LIBUSB_ENDPOINT_DIR_MASK) == LIBUSB_ENDPOINT_IN && 
-            transfer->actual_length > 0)
-        {
-            memcpy(&result.payload.control_transfer.data, libusb_control_transfer_get_data(transfer), transfer->actual_length);
-        }        
-		result.payload.control_transfer.dataLength = transfer->actual_length;
-
-        switch (transfer->status) 
-        {
-        case LIBUSB_TRANSFER_COMPLETED:
-            result.payload.control_transfer.result_code= _USBResultCode_Completed;
-            break;
-        case LIBUSB_TRANSFER_TIMED_OUT:
-            result.payload.control_transfer.result_code = _USBResultCode_TimedOut;
-            break;
-        case LIBUSB_TRANSFER_STALL:
-            result.payload.control_transfer.result_code = _USBResultCode_Pipe;
-            break;
-        case LIBUSB_TRANSFER_NO_DEVICE:
-            result.payload.control_transfer.result_code = _USBResultCode_DeviceNotOpen;
-            break;
-        case LIBUSB_TRANSFER_OVERFLOW:
-            result.payload.control_transfer.result_code = _USBResultCode_Overflow;
-            break;
-        case LIBUSB_TRANSFER_ERROR:
-            result.payload.control_transfer.result_code = _USBResultCode_GeneralError;
-            break;
-        case LIBUSB_TRANSFER_CANCELLED:
-            result.payload.control_transfer.result_code = _USBResultCode_Canceled;
-            break;
-        default:
-            result.payload.control_transfer.result_code = _USBResultCode_GeneralError;
-        }
-
-#if defined(DEBUG_USBDEVICEMANAGER)
-        if ((request->bmRequestType & LIBUSB_ENDPOINT_DIR_MASK) == LIBUSB_ENDPOINT_OUT)
-        {
-            debug("USBMgr RESULT: control transfer write - dev: %d, reg: 0x%X, value: 0x%x -> %s\n", 
-                requestStateOnHeap->request.payload.control_transfer.usb_device_handle,
-                request->wIndex,
-                request->data[0],
-                transfer->status == LIBUSB_TRANSFER_COMPLETED ? "SUCCESS" : "FAILED");
-        }
-        else
-        {
-            debug("USBMgr RESULT: control transfer read - dev: %d, reg: 0x%X -> 0x%X (%s)\n", 
-                requestStateOnHeap->request.payload.control_transfer.usb_device_handle,
-                request->wIndex,
-                result.payload.control_transfer.data,
-                transfer->status == LIBUSB_TRANSFER_COMPLETED ? "SUCCESS" : "FAILED");
-        }
-#endif
-
-        // Add the result to the outgoing result queue
-        USBDeviceManager::getInstance()->getImplementation()->postUSBTransferResult(result, requestStateOnHeap->callback);
-
-        // Free request state stored in the heap now that the result is posted
-        delete requestStateOnHeap;
-
-        // Free the libusb allocated transfer
-        libusb_free_transfer(transfer);
-    }
-
-    void postUSBTransferResult(const USBTransferResult &result, std::function<void(USBTransferResult&)> callback)
-    {
-        ResultState state = {result, callback};
-
-        // If a control transfer just completed (successfully or unsuccessfully)
-        // decrement the outstanding control transfer count
-        if (result.result_type == _USBResultType_ControlTransfer)
-        {
-            assert(m_active_control_transfers > 0);
-            --m_active_control_transfers;
-        }
-		// If a interrupt transfer just completed (successfully or unsuccessfully)
-		// decrement the outstanding interrupt transfer count
-		else if (result.result_type == _USBResultType_InterrupTransfer)
-		{
-			assert(m_active_interrupt_transfers > 0);
-			--m_active_interrupt_transfers;
-		}
-
-        result_queue.push(state);
-    }
-
-    void handleStartBulkTransferRequest(const RequestState &requestState)
+    void handleStartBulkTransferRequest(const USBTransferRequestState &requestState)
     {
         const USBRequestPayload_BulkTransfer &request= requestState.request.payload.start_bulk_transfer;
 
-        LibUSBDeviceState *state = get_libusb_state_from_handle(request.usb_device_handle);
-        eUSBResultCode result_code;
+		t_usb_device_map_iterator iter = m_device_state_map.find(request.usb_device_handle);
+		USBDeviceState *state = iter->second;
+
+		eUSBResultCode result_code;
+		bool bSuccess = true;
 
         if (state != nullptr)
         {
-            if (state->device_handle != nullptr)
+            // Only start a bulk transfer if the device doesn't have one going already
+            auto it = std::find_if(
+                m_active_bulk_transfer_bundles.begin(),
+                m_active_bulk_transfer_bundles.end(),
+                [&request](const IUSBBulkTransferBundle *bundle) {
+                    return bundle->getUSBDeviceHandle() == request.usb_device_handle;
+            });
+
+            if (it == m_active_bulk_transfer_bundles.end())
             {
-                // Only start a bulk transfer if the device doesn't have one going already
-                auto it = std::find_if(
-                    m_active_bulk_transfer_bundles.begin(),
-                    m_active_bulk_transfer_bundles.end(),
-                    [&request](const USBBulkTransferBundle *bundle) {
-                        return bundle->getUSBDeviceHandle() == request.usb_device_handle;
-                });
+                IUSBBulkTransferBundle *bundle = m_usb_api->allocate_bulk_transfer_bundle(state, &requestState.request.payload.start_bulk_transfer);
 
-                if (it == m_active_bulk_transfer_bundles.end())
+                // Allocate and initialize the bulk transfers
+                if (bundle->initialize())
                 {
-                    USBBulkTransferBundle *bundle = 
-                        new USBBulkTransferBundle(request, state->device, state->device_handle);
-
-                    // Allocate and initialize the bulk transfers
-                    if (bundle->initialize())
+                    // Attempt to start all the transfers
+                    if (bundle->startTransfers())
                     {
-                        // Attempt to start all the transfers
-                        if (bundle->startTransfers())
-                        {
-                            // Success! Add the bundle to the list of active bundles
-                            m_active_bulk_transfer_bundles.push_back(bundle);
-                            result_code = _USBResultCode_Started;
-                        }
-                        else
-                        {                            
-                            // Unable to start all of the transfers in the bundle
-                            if (bundle->getActiveTransferCount() > 0)
-                            {
-                                // If any transfers started we have to cancel the ones that started
-                                // and wait for the cancellation request to complete.
-                                bundle->cancelTransfers();
-                                m_canceled_bulk_transfer_bundles.push_back(bundle);
-                            }
-                            else
-                            {
-                                // No transfer requests started.
-                                // Delete the bundle right away.
-                                delete bundle;
-                            }
-
-                            result_code = _USBResultCode_SubmitFailed;
-                        }
+                        // Success! Add the bundle to the list of active bundles
+                        m_active_bulk_transfer_bundles.push_back(bundle);
+                        result_code = _USBResultCode_Started;
                     }
                     else
-                    {
-                        result_code = _USBResultCode_NoMemory;
-                        delete bundle;
+                    {                            
+                        // Unable to start all of the transfers in the bundle
+                        if (bundle->getActiveTransferCount() > 0)
+                        {
+                            // If any transfers started we have to cancel the ones that started
+                            // and wait for the cancellation request to complete.
+                            bundle->cancelTransfers();
+                            m_canceled_bulk_transfer_bundles.push_back(bundle);
+                        }
+                        else
+                        {
+                            // No transfer requests started.
+                            // Delete the bundle right away.
+                            delete bundle;
+                        }
+
+                        result_code = _USBResultCode_SubmitFailed;
                     }
                 }
                 else
                 {
-                    result_code = _USBResultCode_TransferAlreadyStarted;
+                    result_code = _USBResultCode_NoMemory;
+                    delete bundle;
                 }
             }
             else
             {
-                result_code = _USBResultCode_DeviceNotOpen;
+                result_code = _USBResultCode_TransferAlreadyStarted;
             }
         }
         else
@@ -992,25 +587,28 @@ protected:
         }
     }
 
-    void handleCancelBulkTransferRequest(const RequestState &requestState)
+    void handleCancelBulkTransferRequest(const USBTransferRequestState &requestState)
     {
         const USBRequestPayload_CancelBulkTransfer &request= requestState.request.payload.cancel_bulk_transfer;
 
-        libusb_device *dev = get_libusb_device_from_handle(request.usb_device_handle);
+		t_usb_device_map_iterator iter = m_device_state_map.find(request.usb_device_handle);
+
         eUSBResultCode result_code;
 
-        if (dev != nullptr)
+        if (iter != m_device_state_map.end())
         {
-            auto it = std::find_if(
+			USBDeviceState *state = iter->second;
+
+			auto it = std::find_if(
                 m_active_bulk_transfer_bundles.begin(),
                 m_active_bulk_transfer_bundles.end(),
-                [&request](const USBBulkTransferBundle *bundle) {
+                [&request](const IUSBBulkTransferBundle *bundle) {
                     return bundle->getUSBDeviceHandle() == request.usb_device_handle;
                 });
 
             if (it != m_active_bulk_transfer_bundles.end())
             {
-                USBBulkTransferBundle *bundle = *it;
+                IUSBBulkTransferBundle *bundle = *it;
 
                 // Tell the bundle to cancel all active transfers.
                 // This is an asynchronous operation.
@@ -1068,142 +666,28 @@ protected:
         }
     }
 
-    inline const LibUSBDeviceState *get_libusb_state_from_handle_const(t_usb_device_handle handle) const
-    {
-        const LibUSBDeviceState *state = nullptr;
-        int device_index = static_cast<int>(handle);
-
-        if (device_index >= 0 && device_index < getUSBDeviceCount())
-        {
-            state = &m_device_state_list[device_index];
-        }
-
-        return state;
-    }
-
-    inline LibUSBDeviceState *get_libusb_state_from_handle(t_usb_device_handle handle)
-    {
-        return const_cast<LibUSBDeviceState *>(get_libusb_state_from_handle_const(handle));
-    }
-
-    inline const libusb_device *get_libusb_device_from_handle_const(t_usb_device_handle handle) const
-    {
-        const LibUSBDeviceState *state= get_libusb_state_from_handle_const(handle);
-        const libusb_device *device= nullptr;
-
-        if (state != nullptr)
-        {
-            device = state->device;
-        }
-
-        return device;
-    }
-
-    inline libusb_device *get_libusb_device_from_handle(t_usb_device_handle handle)
-    {
-        return const_cast<libusb_device *>(get_libusb_device_from_handle_const(handle));
-    }
-
-    void rebuildFilteredDeviceList()
-    {
-        libusb_device **device_list;
-        if (libusb_get_device_list(m_usb_context, &device_list) < 0)
-        {
-            SERVER_LOG_INFO("USBAsyncRequestManager::rebuildFilteredDeviceList") << "Unable to fetch device list.";
-        }
-
-        unsigned char dev_port_numbers[MAX_USB_DEVICE_PORT_PATH] = { 0 };
-        for (int i= 0; device_list[i] != NULL; ++i)
-        {
-            libusb_device *dev= device_list[i];
-
-            if (isDeviceInWhitelist(dev))
-            {
-                uint8_t port_numbers[MAX_USB_DEVICE_PORT_PATH];
-                memset(port_numbers, 0, sizeof(port_numbers));
-                int elements_filled = libusb_get_port_numbers(dev, port_numbers, MAX_USB_DEVICE_PORT_PATH);
-
-                if (elements_filled > 0)
-                {
-                    // Make sure this device is actually different from the last device we looked at
-                    // (i.e. has a different device port path)
-                    if (memcmp(port_numbers, dev_port_numbers, sizeof(port_numbers)) != 0)
-                    {
-                        libusb_device_handle *devhandle;
-                        int libusb_result = libusb_open(dev, &devhandle);
-
-                        if (libusb_result == LIBUSB_SUCCESS || libusb_result == LIBUSB_ERROR_ACCESS)
-                        {
-                            if (libusb_result == LIBUSB_SUCCESS)
-                            {
-                                libusb_close(devhandle);
-
-                                // Add a device state entry to the list
-                                {
-                                    LibUSBDeviceState device_state;
-
-                                    // The "handle" is really just an index into the device state list
-                                    device_state.handle= static_cast<t_usb_device_handle>(m_device_state_list.size());
-                                    device_state.device = dev;
-                                    device_state.device_handle = nullptr;
-                                    device_state.is_interface_claimed = false;
-
-                                    m_device_state_list.push_back(device_state);
-                                }
-
-                                libusb_ref_device(dev);
-                            }
-
-                            // Cache the port number for the last valid device found
-                            memcpy(dev_port_numbers, port_numbers, sizeof(port_numbers));
-                        }
-                    }
-                }
-            }
-        }
-
-        libusb_free_device_list(device_list, 1);
-    }
-
     void freeDeviceStateList()
     {
-        for (auto it = m_device_state_list.begin(); it != m_device_state_list.end(); ++it)
+        for (auto it = m_device_state_map.begin(); it != m_device_state_map.end(); ++it)
         {
-            const LibUSBDeviceState &device_state= *it;
-
-            closeUSBDevice(device_state.handle);
-            libusb_unref_device(device_state.device);
+            m_usb_api->close_usb_device(it->second);
         }
-        m_device_state_list.clear();
-    }
 
-    bool isDeviceInWhitelist(libusb_device *dev)
-    {
-        libusb_device_descriptor desc;
-        libusb_get_device_descriptor(dev, &desc);
-
-        auto iter= std::find_if(
-            m_device_whitelist.begin(), 
-            m_device_whitelist.end(), 
-            [&desc](const USBDeviceFilter &entry)->bool 
-            {
-                return desc.idVendor == entry.vendor_id && desc.idProduct == entry.product_id;
-            });
-        
-        return iter != m_device_whitelist.end();
+		m_device_state_map.clear();
     }
 
 private:
     // Multithreaded state
-    libusb_context* m_usb_context;
+	eUSBApiType m_api_type;
+	IUSBApi *m_usb_api;
     bool m_bUseMultithreading;
     std::atomic_bool m_exit_signaled;
-    boost::lockfree::spsc_queue<RequestState, boost::lockfree::capacity<128> > request_queue;
-    boost::lockfree::spsc_queue<ResultState, boost::lockfree::capacity<128> > result_queue;
+    boost::lockfree::spsc_queue<USBTransferRequestState, boost::lockfree::capacity<128> > request_queue;
+    boost::lockfree::spsc_queue<USBTransferResultState, boost::lockfree::capacity<128> > result_queue;
 
     // Worker thread state
-    std::vector<USBBulkTransferBundle *> m_active_bulk_transfer_bundles;
-    std::vector<USBBulkTransferBundle *> m_canceled_bulk_transfer_bundles;
+    std::vector<IUSBBulkTransferBundle *> m_active_bulk_transfer_bundles;
+    std::vector<IUSBBulkTransferBundle *> m_canceled_bulk_transfer_bundles;
     int m_active_control_transfers;
 	int m_active_interrupt_transfers;
 
@@ -1211,14 +695,15 @@ private:
     bool m_thread_started;
     std::thread m_worker_thread;
     std::vector<USBDeviceFilter> m_device_whitelist;
-    std::vector<LibUSBDeviceState> m_device_state_list;
+	t_usb_device_map m_device_state_map;
+	t_usb_device_handle m_next_usb_device_handle;
 };
 
 //-- public interface -----
 USBDeviceManager *USBDeviceManager::m_instance = NULL;
 
-USBDeviceManager::USBDeviceManager(struct USBDeviceFilter *device_whitelist, size_t device_whitelist_length)
-    : m_implementation_ptr(new USBDeviceManagerImpl(device_whitelist, device_whitelist_length))
+USBDeviceManager::USBDeviceManager(eUSBApiType apiType)
+    : m_implementation_ptr(new USBDeviceManagerImpl(apiType))
 {
 }
 
@@ -1253,22 +738,109 @@ void USBDeviceManager::shutdown()
     m_instance = NULL;
 }
 
-bool USBDeviceManager::openUSBDevice(t_usb_device_handle handle)
+// -- Device Enumeration ----
+USBDeviceEnumerator* usb_device_enumerator_allocate()
 {
-    return m_implementation_ptr->openUSBDevice(handle);
+	return USBDeviceManager::getInstance()->getImplementation()->getUSBApi()->device_enumerator_create();
 }
 
-void USBDeviceManager::closeUSBDevice(t_usb_device_handle handle)
+bool usb_device_enumerator_is_valid(struct USBDeviceEnumerator* enumerator)
 {
-    m_implementation_ptr->closeUSBDevice(handle);
+	return USBDeviceManager::getInstance()->getImplementation()->getUSBApi()->device_enumerator_is_valid(enumerator);
 }
 
-int USBDeviceManager::getUSBDeviceCount() const
+bool usb_device_enumerator_get_filter(struct USBDeviceEnumerator* enumerator, USBDeviceFilter &outDeviceInfo)
 {
-    return m_implementation_ptr->getUSBDeviceCount();
+	return USBDeviceManager::getInstance()->getImplementation()->getUSBApi()->device_enumerator_get_filter(enumerator, &outDeviceInfo);
 }
 
-const char *USBDeviceManager::getErrorString(eUSBResultCode result_code)
+void usb_device_enumerator_next(struct USBDeviceEnumerator* enumerator)
+{
+	USBDeviceManager::getInstance()->getImplementation()->getUSBApi()->device_enumerator_next(enumerator);
+}
+
+void usb_device_enumerator_free(struct USBDeviceEnumerator* enumerator)
+{
+	USBDeviceManager::getInstance()->getImplementation()->getUSBApi()->device_enumerator_dispose(enumerator);
+}
+
+bool usb_device_enumerator_get_path(struct USBDeviceEnumerator* enumerator, char *outBuffer, size_t bufferSize)
+{
+	return USBDeviceManager::getInstance()->getImplementation()->getUSBApi()->device_enumerator_get_path(enumerator, outBuffer, bufferSize);
+}
+
+// -- Device Actions ----
+t_usb_device_handle usb_device_open(struct USBDeviceEnumerator* enumerator)
+{
+	return USBDeviceManager::getInstance()->getImplementation()->openUSBDevice(enumerator);
+}
+
+void usb_device_close(t_usb_device_handle usb_device_handle)
+{
+	USBDeviceManager::getInstance()->getImplementation()->closeUSBDevice(usb_device_handle);
+}
+
+bool usb_device_submit_transfer_request_async(
+	const USBTransferRequest &request,
+	std::function<void(USBTransferResult&)> callback)
+{
+	return USBDeviceManager::getInstance()->getImplementation()->submitTransferRequest(request, callback);
+}
+
+// Send the transfer request to the worker thread and block until it completes
+USBTransferResult usb_device_submit_transfer_request_blocking(const USBTransferRequest &request)
+{
+	USBDeviceManagerImpl *deviceManagerImpl= USBDeviceManager::getInstance()->getImplementation();
+
+	USBTransferResult result;
+	bool bIsPending = true;
+
+	// Submit the async usb control transfer request to the worker thread
+	deviceManagerImpl->submitTransferRequest(
+		request,
+		[&result, &bIsPending](USBTransferResult &r)
+		{
+			result = r;
+			bIsPending = false;
+		}
+	);
+
+	// Spin until the transfer completes
+	while (bIsPending)
+	{
+		// Give the worker thread a chance to do work
+		ServerUtility::sleep_ms(1);
+
+		// Poll to see if the transfer completed
+		// (will execute the callback on completion)
+		deviceManagerImpl->update();
+	}
+
+	return result;
+}
+
+// -- Device Queries ----
+bool usb_device_get_filter(t_usb_device_handle handle, USBDeviceFilter &outDeviceInfo)
+{
+	return USBDeviceManager::getInstance()->getImplementation()->getUsbDeviceFilter(handle, outDeviceInfo);
+}
+
+bool usb_device_get_full_path(t_usb_device_handle handle, char *outBuffer, size_t bufferSize)
+{
+	return USBDeviceManager::getInstance()->getImplementation()->getUsbDeviceFullPath(handle, outBuffer, bufferSize);
+}
+
+bool usb_device_get_port_path(t_usb_device_handle handle, char *outBuffer, size_t bufferSize)
+{
+	return USBDeviceManager::getInstance()->getImplementation()->getUsbDevicePortPath(handle, outBuffer, bufferSize);
+}
+
+bool usb_device_get_is_open(t_usb_device_handle handle)
+{
+	return USBDeviceManager::getInstance()->getImplementation()->getUsbDeviceIsOpen(handle);
+}
+
+const char *usb_device_get_error_string(eUSBResultCode result_code)
 {
 	const char *result = "UNKNOWN USB ERROR";
 
@@ -1317,69 +889,8 @@ const char *USBDeviceManager::getErrorString(eUSBResultCode result_code)
 	return result;
 }
 
-t_usb_device_handle USBDeviceManager::getFirstUSBDeviceHandle() const
+// -- Notifications ----
+void usb_device_post_transfer_result(const USBTransferResult &result, std::function<void(USBTransferResult&)> callback)
 {
-    return m_implementation_ptr->getFirstUSBDeviceHandle();
-}
-
-t_usb_device_handle USBDeviceManager::getNextUSBDeviceHandle(t_usb_device_handle handle) const
-{
-    return m_implementation_ptr->getNextUSBDeviceHandle(handle);
-}
-
-bool USBDeviceManager::getUSBDeviceInfo(t_usb_device_handle handle, USBDeviceFilter &outDeviceInfo) const
-{
-    return m_implementation_ptr->getUSBDeviceInfo(handle, outDeviceInfo);
-}
-
-bool USBDeviceManager::getUSBDevicePath(t_usb_device_handle handle, char *outBuffer, size_t bufferSize) const
-{
-    return m_implementation_ptr->getUSBDevicePath(handle, outBuffer, bufferSize);
-}
-
-bool USBDeviceManager::getUSBDevicePortPath(t_usb_device_handle handle, char *outBuffer, size_t bufferSize) const
-{
-    return m_implementation_ptr->getUSBDevicePortPath(handle, outBuffer, bufferSize);
-}
-
-bool USBDeviceManager::getIsUSBDeviceOpen(t_usb_device_handle handle) const
-{
-    return m_implementation_ptr->getIsUSBDeviceOpen(handle);
-}
-
-bool USBDeviceManager::submitTransferRequestAsync(
-    const USBTransferRequest &request,
-    std::function<void(USBTransferResult&)> callback)
-{
-    return m_implementation_ptr->submitTransferRequest(request, callback);
-}
-
-USBTransferResult USBDeviceManager::submitTransferRequestBlocking(
-	const USBTransferRequest &request)
-{
-	USBTransferResult result;
-	bool bIsPending = true;
-
-	// Submit the async usb control transfer request to the worker thread
-	m_implementation_ptr->submitTransferRequest(
-		request,
-		[&result, &bIsPending](USBTransferResult &r)
-		{
-			result = r;
-			bIsPending = false;
-		}
-	);
-
-	// Spin until the transfer completes
-	while (bIsPending)
-	{
-		// Give the worker thread a chance to do work
-		ServerUtility::sleep_ms(1);
-
-		// Poll to see if the transfer completed
-		// (will execute the callback on completion)
-		m_implementation_ptr->update();
-	}
-
-	return result;
+	return USBDeviceManager::getInstance()->getImplementation()->postUSBTransferResult(result, callback);
 }

@@ -1,5 +1,5 @@
 // -- includes -----
-#include "ControllerLibUSBDeviceEnumerator.h"
+#include "ControllerUSBDeviceEnumerator.h"
 #include "ServerUtility.h"
 #include "USBDeviceManager.h"
 #include "assert.h"
@@ -29,24 +29,24 @@ LibUSBDeviceFilter g_supported_libusb_controller_filters[MAX_CONTROLLER_TYPE_IND
 };
 
 // -- private prototypes -----
-static bool get_usb_controller_type(t_usb_device_handle usb_device_handle, CommonDeviceState::eDeviceType &out_device_type);
+static bool get_usb_controller_type(USBDeviceEnumerator* enumerator, CommonDeviceState::eDeviceType &out_device_type);
 
 // -- methods -----
-ControllerLibUSBDeviceEnumerator::ControllerLibUSBDeviceEnumerator()
+ControllerUSBDeviceEnumerator::ControllerUSBDeviceEnumerator()
 	: DeviceEnumerator(CommonDeviceState::PSNavi)
-	, m_USBDeviceHandle(k_invalid_usb_device_handle)
+	, m_usb_enumerator(nullptr)
 	, m_controllerIndex(0)
 {
 	USBDeviceManager *usbRequestMgr = USBDeviceManager::getInstance();
 
 	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
-	m_USBDeviceHandle = usbRequestMgr->getFirstUSBDeviceHandle();
+	m_usb_enumerator = usb_device_enumerator_allocate();
 
 	// If the first USB device handle isn't a tracker, move on to the next device
-	if (get_usb_controller_type(m_USBDeviceHandle, m_deviceType))
+	if (get_usb_controller_type(m_usb_enumerator, m_deviceType))
 	{
 		// Cache the current usb path
-		usbRequestMgr->getUSBDevicePath(m_USBDeviceHandle, m_currentUSBPath, sizeof(m_currentUSBPath));
+		usb_device_enumerator_get_path(m_usb_enumerator, m_currentUSBPath, sizeof(m_currentUSBPath));		
 	}
 	else
 	{
@@ -54,21 +54,21 @@ ControllerLibUSBDeviceEnumerator::ControllerLibUSBDeviceEnumerator()
 	}
 }
 
-ControllerLibUSBDeviceEnumerator::ControllerLibUSBDeviceEnumerator(CommonDeviceState::eDeviceType deviceType)
+ControllerUSBDeviceEnumerator::ControllerUSBDeviceEnumerator(CommonDeviceState::eDeviceType deviceType)
 	: DeviceEnumerator(deviceType)
-	, m_USBDeviceHandle(k_invalid_usb_device_handle)
+	, m_usb_enumerator(nullptr)
 	, m_controllerIndex(0)
 {
 	USBDeviceManager *usbRequestMgr = USBDeviceManager::getInstance();
 
 	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
-	m_USBDeviceHandle = usbRequestMgr->getFirstUSBDeviceHandle();
+	m_usb_enumerator = usb_device_enumerator_allocate();
 
 	// If the first USB device handle isn't a tracker, move on to the next device
-	if (get_usb_controller_type(m_USBDeviceHandle, m_deviceType))
+	if (get_usb_controller_type(m_usb_enumerator, m_deviceType))
 	{
-		// Cache the current usb path
-		usbRequestMgr->getUSBDevicePath(m_USBDeviceHandle, m_currentUSBPath, sizeof(m_currentUSBPath));
+		// Cache the current USB path
+		usb_device_enumerator_get_path(m_usb_enumerator, m_currentUSBPath, sizeof(m_currentUSBPath));
 	}
 	else
 	{
@@ -76,7 +76,16 @@ ControllerLibUSBDeviceEnumerator::ControllerLibUSBDeviceEnumerator(CommonDeviceS
 	}
 }
 
-const char *ControllerLibUSBDeviceEnumerator::get_path() const
+ControllerUSBDeviceEnumerator::~ControllerUSBDeviceEnumerator()
+{
+	if (m_usb_enumerator != nullptr)
+	{
+		usb_device_enumerator_free(m_usb_enumerator);
+	}
+}
+
+
+const char *ControllerUSBDeviceEnumerator::get_path() const
 {
 	const char *result = nullptr;
 
@@ -89,24 +98,24 @@ const char *ControllerLibUSBDeviceEnumerator::get_path() const
 	return result;
 }
 
-bool ControllerLibUSBDeviceEnumerator::is_valid() const
+bool ControllerUSBDeviceEnumerator::is_valid() const
 {
-	return m_USBDeviceHandle != k_invalid_usb_device_handle;
+	return m_usb_enumerator != nullptr && usb_device_enumerator_is_valid(m_usb_enumerator);
 }
 
-bool ControllerLibUSBDeviceEnumerator::next()
+bool ControllerUSBDeviceEnumerator::next()
 {
 	USBDeviceManager *usbRequestMgr = USBDeviceManager::getInstance();
 	bool foundValid = false;
 
 	while (is_valid() && !foundValid)
 	{
-		m_USBDeviceHandle = usbRequestMgr->getNextUSBDeviceHandle(m_USBDeviceHandle);
+		usb_device_enumerator_next(m_usb_enumerator);
 
-		if (is_valid() && get_usb_controller_type(m_USBDeviceHandle, m_deviceType))
+		if (is_valid() && get_usb_controller_type(m_usb_enumerator, m_deviceType))
 		{
 			// Cache the path to the device
-			usbRequestMgr->getUSBDevicePath(m_USBDeviceHandle, m_currentUSBPath, sizeof(m_currentUSBPath));
+			usb_device_enumerator_get_path(m_usb_enumerator, m_currentUSBPath, sizeof(m_currentUSBPath));
 			foundValid = true;
 			break;
 		}
@@ -121,12 +130,12 @@ bool ControllerLibUSBDeviceEnumerator::next()
 }
 
 //-- private methods -----
-static bool get_usb_controller_type(t_usb_device_handle usb_device_handle, CommonDeviceState::eDeviceType &out_device_type)
+static bool get_usb_controller_type(USBDeviceEnumerator *enumerator, CommonDeviceState::eDeviceType &out_device_type)
 {
 	USBDeviceFilter devInfo;
 	bool bIsValidDevice = false;
 
-	if (USBDeviceManager::getInstance()->getUSBDeviceInfo(usb_device_handle, devInfo))
+	if (usb_device_enumerator_get_filter(enumerator, devInfo))
 	{
 		// See if the next filtered device is a camera that we care about
 		for (int tracker_type_index = 0; tracker_type_index < MAX_CONTROLLER_TYPE_INDEX; ++tracker_type_index)

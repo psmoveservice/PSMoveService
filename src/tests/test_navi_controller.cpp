@@ -12,12 +12,6 @@
 #include <unistd.h>
 #endif
 
-// List of all possible USB devices that we want to connect to via libusb
-// VendorID, ProductID
-USBDeviceFilter k_usb_device_whitelist[1] = {
-	{ 0x054c, 0x042F }, // PSNavi
-};
-
 int main()
 {
     log_init("info");
@@ -29,7 +23,7 @@ int main()
     }
 
 	// Manages all control and bulk transfer requests in another thread
-	USBDeviceManager usb_device_manager(k_usb_device_whitelist, 1);
+	USBDeviceManager usb_device_manager(_USBApiType_LibUSB);
 	if (!usb_device_manager.startup())
 	{
 		printf("Failed to initialize usb device manager\n");

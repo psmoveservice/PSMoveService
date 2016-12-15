@@ -2,7 +2,9 @@
 #define USB_DEVICE_REQUEST_H
 
 //-- includes -----
+#include "USBApiInterface.h"
 #include "USBDeviceInfo.h"
+#include <functional>
 
 //-- constants -----
 // HID Class-Specific Requests values. See section 7.2 of the HID specifications 
@@ -69,26 +71,6 @@ enum eUSBTransferResultType
 	_USBResultType_InterrupTransfer,
     _USBResultType_ControlTransfer,
     _USBResultType_BulkTransfer
-};
-
-enum eUSBResultCode
-{
-    // Success Codes
-    _USBResultCode_Started,
-    _USBResultCode_Canceled,
-    _USBResultCode_Completed,
-
-    // Failure Codes
-    _USBResultCode_GeneralError,
-    _USBResultCode_BadHandle,
-    _USBResultCode_NoMemory,
-    _USBResultCode_SubmitFailed,
-    _USBResultCode_DeviceNotOpen,
-    _USBResultCode_TransferNotActive,
-    _USBResultCode_TransferAlreadyStarted,
-    _USBResultCode_Overflow,
-    _USBResultCode_Pipe,
-    _USBResultCode_TimedOut
 };
 
 #define MAX_INTERRUPT_TRANSFER_PAYLOAD 64
@@ -180,6 +162,18 @@ struct USBTransferResult
         USBResultPayload_BulkTransfer bulk_transfer;
     } payload;
     eUSBTransferResultType result_type;
+};
+
+struct USBTransferRequestState
+{
+	USBTransferRequest request;
+	std::function<void(USBTransferResult&)> callback;
+};
+
+struct USBTransferResultState
+{
+	USBTransferResult result;
+	std::function<void(USBTransferResult&)> callback;
 };
 
 #endif // USB_DEVICE_REQUEST_H

@@ -1,7 +1,9 @@
 //-- includes -----
-#include "USBBulkTransferBundle.h"
+#include "LibUSBBulkTransferBundle.h"
+#include "LibUSBApi.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
+#include "USBDeviceRequest.h"
 
 #include "libusb.h"
 
@@ -12,21 +14,22 @@
 static void LIBUSB_CALL transfer_callback_function(struct libusb_transfer *bulk_transfer);
 
 //-- implementation -----
-USBBulkTransferBundle::USBBulkTransferBundle(
-    const USBRequestPayload_BulkTransfer &request,
-    libusb_device *dev,
-    libusb_device_handle *dev_handle)
-    : m_request(request)
-    , m_device(dev)
-    , m_device_handle(dev_handle)
+LibUSBBulkTransferBundle::LibUSBBulkTransferBundle(
+	const USBDeviceState *state,
+	const USBRequestPayload_BulkTransfer *request)
+    : IUSBBulkTransferBundle(state, request)
+	, m_request(*request)
+    , m_device(static_cast<const LibUSBDeviceState *>(state)->device)
+    , m_device_handle(static_cast<const LibUSBDeviceState *>(state)->device_handle)
     , m_active_transfer_count(0)
     , m_is_canceled(false)
     , bulk_transfer_requests(nullptr)
     , transfer_buffer(nullptr)
 {
+	
 }
 
-USBBulkTransferBundle::~USBBulkTransferBundle()
+LibUSBBulkTransferBundle::~LibUSBBulkTransferBundle()
 {
     dispose();
 
@@ -36,7 +39,7 @@ USBBulkTransferBundle::~USBBulkTransferBundle()
     }
 }
 
-bool USBBulkTransferBundle::initialize()
+bool LibUSBBulkTransferBundle::initialize()
 {
     bool bSuccess = (m_active_transfer_count == 0);
     uint8_t bulk_endpoint = 0;
@@ -116,7 +119,7 @@ bool USBBulkTransferBundle::initialize()
     return bSuccess;
 }
 
-void USBBulkTransferBundle::dispose()
+void LibUSBBulkTransferBundle::dispose()
 {
     assert(m_active_transfer_count == 0);
 
@@ -143,7 +146,7 @@ void USBBulkTransferBundle::dispose()
     }
 }
 
-bool USBBulkTransferBundle::startTransfers()
+bool LibUSBBulkTransferBundle::startTransfers()
 {
     bool bSuccess = (m_active_transfer_count == 0 && !m_is_canceled);
 
@@ -169,7 +172,7 @@ bool USBBulkTransferBundle::startTransfers()
     return bSuccess;
 }
 
-void USBBulkTransferBundle::notifyActiveTransfersDecremented()
+void LibUSBBulkTransferBundle::notifyActiveTransfersDecremented()
 {
     assert(m_active_transfer_count > 0);
     --m_active_transfer_count;
@@ -177,7 +180,7 @@ void USBBulkTransferBundle::notifyActiveTransfersDecremented()
 
 static void LIBUSB_CALL transfer_callback_function(struct libusb_transfer *bulk_transfer)
 {
-    USBBulkTransferBundle *bundle = reinterpret_cast<USBBulkTransferBundle*>(bulk_transfer->user_data);
+    LibUSBBulkTransferBundle *bundle = reinterpret_cast<LibUSBBulkTransferBundle*>(bulk_transfer->user_data);
     const auto &request = bundle->getTransferRequest();
     enum libusb_transfer_status status = bulk_transfer->status;
 
@@ -214,7 +217,7 @@ static void LIBUSB_CALL transfer_callback_function(struct libusb_transfer *bulk_
     }
 }
 
-void USBBulkTransferBundle::cancelTransfers()
+void LibUSBBulkTransferBundle::cancelTransfers()
 {
     assert(bulk_transfer_requests != nullptr);
 
@@ -236,7 +239,7 @@ void USBBulkTransferBundle::cancelTransfers()
 
 // Search for an input transfer endpoint in the endpoint descriptor
 // of the device interfaces alt_settings
-bool USBBulkTransferBundle::find_bulk_transfer_endpoint(struct libusb_device *device, uint8_t &out_endpoint_addr)
+bool LibUSBBulkTransferBundle::find_bulk_transfer_endpoint(struct libusb_device *device, uint8_t &out_endpoint_addr)
 {
     bool bSuccess = false;
     libusb_config_descriptor *config = nullptr;
@@ -278,4 +281,20 @@ bool USBBulkTransferBundle::find_bulk_transfer_endpoint(struct libusb_device *de
     }
 
     return bSuccess;
+}
+
+// Accessors
+const USBRequestPayload_BulkTransfer &LibUSBBulkTransferBundle::getTransferRequest() const
+{
+	return m_request;
+}
+
+t_usb_device_handle LibUSBBulkTransferBundle::getUSBDeviceHandle() const
+{
+	return m_request.usb_device_handle;
+}
+
+int LibUSBBulkTransferBundle::getActiveTransferCount() const
+{
+	return m_active_transfer_count;
 }

@@ -256,11 +256,12 @@ list(APPEND TEST_PSMOVE_SRC
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.h    
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.cpp
-    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerLibUSBDeviceEnumerator.h    
-    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerLibUSBDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.h
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.cpp
-    ${ROOT_DIR}/src/psmoveservice/Device/USB/USBBulkTransferBundle.cpp        
+    ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBApi.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBBulkTransferBundle.cpp        
     ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
@@ -356,11 +357,12 @@ list(APPEND TEST_NAVI_SRC
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.h    
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.cpp
-    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerLibUSBDeviceEnumerator.h    
-    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerLibUSBDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.h
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.cpp
-    ${ROOT_DIR}/src/psmoveservice/Device/USB/USBBulkTransferBundle.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBApi.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBBulkTransferBundle.cpp
     ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp

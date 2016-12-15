@@ -1,6 +1,7 @@
 //-- includes -----
 #include "PSNaviController.h"
 #include "ControllerDeviceEnumerator.h"
+#include "ControllerUSBDeviceEnumerator.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
 #include "USBDeviceManager.h"
@@ -186,7 +187,7 @@ PSNaviController::~PSNaviController()
 
 bool PSNaviController::open()
 {
-    ControllerDeviceEnumerator enumerator(ControllerDeviceEnumerator::CommunicationType_LIBUSB, CommonControllerState::PSNavi);
+    ControllerDeviceEnumerator enumerator(ControllerDeviceEnumerator::CommunicationType_USB, CommonControllerState::PSNavi);
     bool success= false;
 
     if (enumerator.is_valid())
@@ -235,18 +236,19 @@ bool PSNaviController::open(
 		}
 		else
 		{
-			USBDeviceManager *usbMgr = USBDeviceManager::getInstance();
-			t_usb_device_handle usb_dev_handle= pEnum->get_usb_device_handle();
-			
-			if (usbMgr->openUSBDevice(usb_dev_handle))
+			const ControllerUSBDeviceEnumerator *usbControllerEnum= pEnum->get_usb_controller_enumerator();
+			assert(usbControllerEnum != nullptr);
+			const t_usb_device_handle usb_device_handle = usb_device_open(usbControllerEnum->get_usb_device_enumerator());
+
+			if (usb_device_handle != k_invalid_usb_device_handle)
 			{
-				SERVER_LOG_INFO("PSNaviController::open") << "  Successfully opened usb handle " << usb_dev_handle;
+				SERVER_LOG_INFO("PSNaviController::open") << "  Successfully opened USB handle " << usb_device_handle;
 				USBContext->usb_device_path = cur_dev_path;
-				USBContext->usb_device_handle = usb_dev_handle;
+				USBContext->usb_device_handle = usb_device_handle;
 			}
 			else
 			{
-				SERVER_LOG_ERROR("PSNaviController::open") << "  Failed to open usb handle " << usb_dev_handle;
+				SERVER_LOG_ERROR("PSNaviController::open") << "  Failed to open USB handle " << usb_device_handle;
 			}
 			IsBluetooth = false;
 		}
@@ -315,7 +317,7 @@ void PSNaviController::close()
 
 		if (USBContext->usb_device_handle != k_invalid_usb_device_handle)
 		{
-			usbMgr->closeUSBDevice(USBContext->usb_device_handle);
+			usb_device_close(USBContext->usb_device_handle);
 			USBContext->usb_device_handle = k_invalid_usb_device_handle;
 		}
 
@@ -384,7 +386,7 @@ PSNaviController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) co
 		case ControllerDeviceEnumerator::CommunicationType_HID:
 			dev_path = USBContext->hid_device_path.c_str();
 			break;
-		case ControllerDeviceEnumerator::CommunicationType_LIBUSB:
+		case ControllerDeviceEnumerator::CommunicationType_USB:
 			dev_path = USBContext->usb_device_path.c_str();
 			break;
 		}
@@ -863,7 +865,7 @@ psnavi_get_usb_feature_report(
 	control_transfer.wLength = static_cast<uint16_t>(report_size);
 	control_transfer.timeout = CONTROL_TRANSFER_TIMEOUT;
 
-	USBTransferResult transfer_result= usbMgr->submitTransferRequestBlocking(transfer_request);
+	USBTransferResult transfer_result= usb_device_submit_transfer_request_blocking(transfer_request);
 	assert(transfer_result.result_type == _USBResultType_ControlTransfer);
 
 	if (transfer_result.payload.control_transfer.result_code == _USBResultCode_Completed)
@@ -879,7 +881,7 @@ psnavi_get_usb_feature_report(
 	}
 	else
 	{
-		const char * error_text = USBDeviceManager::getErrorString(transfer_result.payload.control_transfer.result_code);
+		const char * error_text = usb_device_get_error_string(transfer_result.payload.control_transfer.result_code);
 		SERVER_LOG_ERROR("psnavi_get_usb_feature_report") << "Control transfer failed with error: " << error_text;
 		result= -static_cast<int>(transfer_result.payload.control_transfer.result_code);
 	}
@@ -909,7 +911,7 @@ psnavi_send_usb_feature_report(
 	control_transfer.wLength = static_cast<uint16_t>(report_size-1); // don't include the report id in the size
 	control_transfer.timeout = CONTROL_TRANSFER_TIMEOUT;
 
-	USBTransferResult transfer_result = usbMgr->submitTransferRequestBlocking(transfer_request);
+	USBTransferResult transfer_result = usb_device_submit_transfer_request_blocking(transfer_request);
 	assert(transfer_result.result_type == _USBResultType_ControlTransfer);
 
 	if (transfer_result.payload.control_transfer.result_code == _USBResultCode_Completed)
@@ -918,7 +920,7 @@ psnavi_send_usb_feature_report(
 	}
 	else
 	{
-		const char * error_text = USBDeviceManager::getErrorString(transfer_result.payload.control_transfer.result_code);
+		const char * error_text = usb_device_get_error_string(transfer_result.payload.control_transfer.result_code);
 		SERVER_LOG_ERROR("psnavi_send_usb_feature_report") << "Control transfer failed with error: " << error_text;
 		result = -static_cast<int>(transfer_result.payload.control_transfer.result_code);
 	}
@@ -944,7 +946,7 @@ psnavi_read_usb_interrupt_pipe(
 	interrupt_transfer.length = static_cast<unsigned int>(max_buffer_size);
 	interrupt_transfer.timeout = INTERRUPT_TRANSFER_TIMEOUT;
 
-	USBTransferResult transfer_result = usbMgr->submitTransferRequestBlocking(transfer_request);
+	USBTransferResult transfer_result = usb_device_submit_transfer_request_blocking(transfer_request);
 	assert(transfer_result.result_type == _USBResultType_InterrupTransfer);
 
 	if (transfer_result.payload.interrupt_transfer.result_code == _USBResultCode_Completed)
@@ -960,7 +962,7 @@ psnavi_read_usb_interrupt_pipe(
 	}
 	else
 	{
-		const char * error_text = USBDeviceManager::getErrorString(transfer_result.payload.interrupt_transfer.result_code);
+		const char * error_text = usb_device_get_error_string(transfer_result.payload.interrupt_transfer.result_code);
 		SERVER_LOG_ERROR("psnavi_read_usb_interrupt_pipe") << "interrupt transfer failed with error: " << error_text;
 		result = -static_cast<int>(transfer_result.payload.interrupt_transfer.result_code);
 	}

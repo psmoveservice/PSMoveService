@@ -3,23 +3,24 @@
 
 //-- includes -----
 #include "DeviceEnumerator.h"
-#include "USBDeviceInfo.h" // for MAX_USB_DEVICE_PORT_PATH, t_usb_device_handle
+#include "USBApiInterface.h"
 
 //-- definitions -----
 class TrackerDeviceEnumerator : public DeviceEnumerator
 {
 public:
     TrackerDeviceEnumerator();
+	~TrackerDeviceEnumerator();
 
     bool is_valid() const override;
     bool next() override;
     const char *get_path() const override;
     inline int get_camera_index() const { return m_cameraIndex; }
-    inline t_usb_device_handle get_usb_device_handle() const { return m_USBDeviceHandle; }
+	inline struct USBDeviceEnumerator* get_usb_device_enumerator() const { return m_usb_enumerator; }
 
 private:
     char m_currentUSBPath[256];
-    t_usb_device_handle m_USBDeviceHandle;
+	struct USBDeviceEnumerator* m_usb_enumerator;
     int m_cameraIndex;
 };
 

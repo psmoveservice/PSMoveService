@@ -5,12 +5,21 @@
 #include "USBDeviceRequest.h"
 #include <functional>
 
+//-- constants -----
+enum eUSBApiType
+{
+	_USBApiType_INVALID= -1,
+
+	_USBApiType_LibUSB,
+	_USBApiType_WinUSB,
+};
+
 //-- definitions -----
 /// Manages async control and bulk transfer requests to usb devices via libusb.
 class USBDeviceManager
 {
 public:
-    USBDeviceManager(struct USBDeviceFilter *device_whitelist, size_t device_whitelist_length);
+    USBDeviceManager(eUSBApiType apiType);
     virtual ~USBDeviceManager();
 
     static inline USBDeviceManager *getInstance()
@@ -28,30 +37,6 @@ public:
     void update();  /**< Process events from the libusb thread. */
     void shutdown();/**< Shutdown the libusb thread. */
 
-    // -- Device Actions ----
-    bool openUSBDevice(t_usb_device_handle handle);
-    void closeUSBDevice(t_usb_device_handle handle);
-
-    // -- Device Queries ----
-	static const char *getErrorString(eUSBResultCode result_code);
-    int getUSBDeviceCount() const;
-    t_usb_device_handle getFirstUSBDeviceHandle() const;
-    t_usb_device_handle getNextUSBDeviceHandle(t_usb_device_handle handle) const;
-    bool getUSBDeviceInfo(t_usb_device_handle handle, USBDeviceFilter &outDeviceInfo) const;
-    bool getUSBDevicePath(t_usb_device_handle handle, char *outBuffer, size_t bufferSize) const;
-    bool getUSBDevicePortPath(t_usb_device_handle handle, char *outBuffer, size_t bufferSize) const;
-    bool getIsUSBDeviceOpen(t_usb_device_handle handle) const;
-
-    // -- Request Queue ----
-    // Send the transfer request to the worker thread asynchronously
-    bool submitTransferRequestAsync(
-        const USBTransferRequest &request,
-        std::function<void(USBTransferResult&)> callback = noop_transfer_result_callback);
-	// Send the transfer request to the worker thread and block until it completes
-	USBTransferResult submitTransferRequestBlocking(const USBTransferRequest &request);
-
-    static void noop_transfer_result_callback(USBTransferResult &result) {};
-
 private:
     // Always use the overloaded constructor
     USBDeviceManager();
@@ -63,5 +48,35 @@ private:
     /// Assigned in startup, cleared in teardown
     static USBDeviceManager *m_instance;
 };
+
+// -- Device Enumeration ----
+struct USBDeviceEnumerator* usb_device_enumerator_allocate();
+bool usb_device_enumerator_is_valid(struct USBDeviceEnumerator* enumerator);
+bool usb_device_enumerator_get_filter(struct USBDeviceEnumerator* enumerator, USBDeviceFilter &outDeviceInfo);
+void usb_device_enumerator_next(struct USBDeviceEnumerator* enumerator);
+void usb_device_enumerator_free(struct USBDeviceEnumerator* enumerator);
+bool usb_device_enumerator_get_path(struct USBDeviceEnumerator* enumerator, char *outBuffer, size_t bufferSize);
+
+// -- Device Actions ----
+t_usb_device_handle usb_device_open(struct USBDeviceEnumerator* enumerator);
+void usb_device_close(t_usb_device_handle usb_device_handle);
+
+// Send the transfer request to the worker thread asynchronously
+bool usb_device_submit_transfer_request_async(
+	const USBTransferRequest &request,
+	std::function<void(USBTransferResult&)> callback = [](USBTransferResult &result) {});
+
+// Send the transfer request to the worker thread and block until it completes
+USBTransferResult usb_device_submit_transfer_request_blocking(const USBTransferRequest &request);
+
+// -- Device Queries ----
+bool usb_device_get_filter(t_usb_device_handle handle, USBDeviceFilter &outDeviceInfo);
+bool usb_device_get_full_path(t_usb_device_handle handle, char *outBuffer, size_t bufferSize);
+bool usb_device_get_port_path(t_usb_device_handle handle, char *outBuffer, size_t bufferSize);
+bool usb_device_get_is_open(t_usb_device_handle handle);
+const char *usb_device_get_error_string(eUSBResultCode result_code);
+
+// -- Notifications ----
+void usb_device_post_transfer_result(const USBTransferResult &result, std::function<void(USBTransferResult&)> callback);
 
 #endif  // USB_DEVICE_MANAGER_H
