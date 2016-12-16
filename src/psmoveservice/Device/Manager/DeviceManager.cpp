@@ -3,6 +3,7 @@
 
 #include "ControllerManager.h"
 #include "DeviceEnumerator.h"
+#include "DevicePlatformManager.h"
 #include "HMDManager.h"
 #include "OrientationFilter.h"
 #include "ServerControllerView.h"
@@ -78,6 +79,11 @@ DeviceManager *DeviceManager::m_instance= nullptr;
 
 DeviceManager::DeviceManager()
     : m_config() // NULL config until startup
+#ifdef WIN32
+	, m_platform_manager(new DevicePlatformManager(_eDevicePlatformApiType_Win32))
+#else
+	, m_platform_manager(new DevicePlatformManager(_eDevicePlatformApiType_None))
+#endif
     , m_controller_manager(new ControllerManager())
     , m_tracker_manager(new TrackerManager())
     , m_hmd_manager(new HMDManager())
@@ -89,6 +95,7 @@ DeviceManager::~DeviceManager()
     delete m_controller_manager;
     delete m_tracker_manager;
     delete m_hmd_manager;
+	delete m_platform_manager;
 }
 
 bool
@@ -104,6 +111,25 @@ DeviceManager::startup()
 	// Save the config back out again in case defaults changed
 	m_config->save();
     
+	success &= m_platform_manager->startup();
+
+
+	// Register for hotplug events if this platform supports them
+	int controller_reconnect_interval = m_config->controller_reconnect_interval;
+	int tracker_reconnect_interval = m_config->tracker_reconnect_interval;
+	int hmd_reconnect_interval = m_config->hmd_reconnect_interval;
+	if (success && m_platform_manager->get_api_type() != _eDevicePlatformApiType_None)
+	{
+		m_platform_manager->registerHotplugListener(CommonDeviceState::Controller, m_controller_manager);
+		controller_reconnect_interval = -1;
+
+		m_platform_manager->registerHotplugListener(CommonDeviceState::TrackingCamera, m_tracker_manager);
+		tracker_reconnect_interval = -1;
+
+		m_platform_manager->registerHotplugListener(CommonDeviceState::HeadMountedDisplay, m_hmd_manager);
+		hmd_reconnect_interval = -1;
+	}
+
     m_controller_manager->reconnect_interval = m_config->controller_reconnect_interval;
     m_controller_manager->poll_interval = m_config->controller_poll_interval;
     success &= m_controller_manager->startup();
@@ -124,6 +150,8 @@ DeviceManager::startup()
 void
 DeviceManager::update()
 {
+	m_platform_manager->poll(); // Send device hotplug events
+
     m_controller_manager->poll(); // Update controller counts and poll button/IMU state
     m_tracker_manager->poll(); // Update tracker count and poll video frames
     m_hmd_manager->poll(); // Update HMD count and poll IMU state
@@ -144,6 +172,8 @@ DeviceManager::shutdown()
     m_controller_manager->shutdown();
     m_tracker_manager->shutdown();
     m_hmd_manager->shutdown();
+
+	m_platform_manager->shutdown();
 
     m_instance= nullptr;
 }

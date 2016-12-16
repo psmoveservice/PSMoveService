@@ -2,6 +2,8 @@
 #define DEVICE_TYPE_MANAGER_H
 
 //-- includes -----
+#include "DevicePlatformManager.h"
+
 #include <memory>
 #include <chrono>
 
@@ -11,7 +13,7 @@ typedef std::shared_ptr<ServerDeviceView> ServerDeviceViewPtr;
 
 //-- definitions -----
 /// ABC for device managers for controllers, trackers, hmds.
-class DeviceTypeManager
+class DeviceTypeManager : public IDeviceHotplugListener
 {
 public:
     DeviceTypeManager(const int recon_int = 1000, const int poll_int = 2);
@@ -33,6 +35,10 @@ public:
     Server<Type>ViewPtr get<Type>ViewPtr(int device_id) functions instead.
     */
     ServerDeviceViewPtr getDeviceViewPtr(int device_id);
+
+	// IDeviceHotplugListener
+	void handle_device_connected(enum DeviceClass device_class, const std::string &device_path) override;
+	void handle_device_disconnected(enum DeviceClass device_class, const std::string &device_path) override;
 
     int reconnect_interval;
     int poll_interval;
@@ -64,6 +70,8 @@ protected:
     std::chrono::time_point<std::chrono::high_resolution_clock> m_last_poll_time;
 
     ServerDeviceViewPtr *m_deviceViews;
+
+	bool m_bIsDeviceListDirty;
 };
 
 #endif // DEVICE_TYPE_MANAGER
