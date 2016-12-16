@@ -192,6 +192,17 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 ELSE()
 ENDIF()
 
+# Platform Specific Device Management
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    # Windows utilities for querying driver infomation (provider name)
+    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Platform)
+    list(APPEND PSMOVESERVICE_SRC
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/DevicePlatformAPIWin32.h
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/DevicePlatformAPIWin32.cpp)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+ELSE()
+ENDIF()
+
 # PSMoveDataFrame
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol/)
 list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveProtocol)
@@ -246,12 +257,6 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
     find_package(USB1 REQUIRED)
     list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
     list(APPEND PSMOVE_SERVICE_REQ_LIBS ${LIBUSB_LIBRARIES})
-
-    # Windows utilities for querying driver infomation (provider name)
-    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Platform)
-    list(APPEND PSMOVESERVICE_SRC
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/USBDeviceInterfaceWin32.h
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/USBDeviceInterfaceWin32.cpp)
 ENDIF()
 
 add_executable(PSMoveService ${PSMOVESERVICE_SRC})

@@ -20,7 +20,7 @@ DevicePlatformManager::DevicePlatformManager(enum eDevicePlatformApiType api_typ
 		break;
 #ifdef WIN32
 	case _eDevicePlatformApiType_Win32:
-		m_api = new DeviceHotplugAPIWin32;
+		m_api = new DevicePlatformAPIWin32;
 		break;
 #endif
 	default:

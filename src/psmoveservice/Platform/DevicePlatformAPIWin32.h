@@ -5,11 +5,11 @@
 #include "DevicePlatformInterface.h"
 
 // -- definitions -----
-class DeviceHotplugAPIWin32 : public IDevicePlatformAPI
+class DevicePlatformAPIWin32 : public IDevicePlatformAPI
 {
 public:
-	DeviceHotplugAPIWin32();
-	virtual ~DeviceHotplugAPIWin32();
+	DevicePlatformAPIWin32();
+	virtual ~DevicePlatformAPIWin32();
 
 	// System
 	bool startup(IDeviceHotplugListener *broadcaster) override;

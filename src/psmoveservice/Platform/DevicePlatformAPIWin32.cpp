@@ -112,18 +112,18 @@ static HDEVNOTIFY register_device_class_notification(HWND__* hwnd, const GUID &g
 static LRESULT message_handler(HWND__* hwnd, UINT uint, WPARAM wparam, LPARAM lparam);
 
 // -- definitions -----
-DeviceHotplugAPIWin32::DeviceHotplugAPIWin32()
+DevicePlatformAPIWin32::DevicePlatformAPIWin32()
 {
 
 }
 
-DeviceHotplugAPIWin32::~DeviceHotplugAPIWin32()
+DevicePlatformAPIWin32::~DevicePlatformAPIWin32()
 {
 
 }
 
 // System
-bool DeviceHotplugAPIWin32::startup(IDeviceHotplugListener *broadcaster)
+bool DevicePlatformAPIWin32::startup(IDeviceHotplugListener *broadcaster)
 {
 	bool bSuccess = true;
 
@@ -166,7 +166,7 @@ bool DeviceHotplugAPIWin32::startup(IDeviceHotplugListener *broadcaster)
 	return bSuccess;
 }
 
-void DeviceHotplugAPIWin32::poll()
+void DevicePlatformAPIWin32::poll()
 {
 	MSG msg;
 	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
@@ -176,7 +176,7 @@ void DeviceHotplugAPIWin32::poll()
 	}
 }
 
-void DeviceHotplugAPIWin32::shutdown()
+void DevicePlatformAPIWin32::shutdown()
 {
 	if (g_hImageDeviceNotify != nullptr)
 	{
@@ -204,7 +204,7 @@ void DeviceHotplugAPIWin32::shutdown()
 }
 
 // Queries
-bool DeviceHotplugAPIWin32::get_device_property(
+bool DevicePlatformAPIWin32::get_device_property(
 	const DeviceClass deviceClass,
 	const int vendor_id,
 	const int product_id,
