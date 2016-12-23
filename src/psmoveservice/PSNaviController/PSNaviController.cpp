@@ -6,8 +6,6 @@
 #include "ServerUtility.h"
 #include "USBDeviceManager.h"
 
-#include "hidapi.h"
-
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -83,13 +81,11 @@ enum PSNaviButton {
 class PSNaviUSBContext
 {
 public:
+	int vendor_id;
+	int product_id;
 	std::string device_identifier;
 	std::string host_bluetooth_address;
 	std::string controller_bluetooth_address;
-
-	// HIDApi state
-	std::string hid_device_path;
-	hid_device *hid_device_handle;
 
 	// LibUSB state
 	std::string usb_device_path;
@@ -102,11 +98,11 @@ public:
 
 	void Reset()
 	{
+		vendor_id= -1;
+		product_id= -1;
 		device_identifier = "";
 		host_bluetooth_address = "";
 		controller_bluetooth_address = "";
-		hid_device_path = "";
-		hid_device_handle = nullptr;
 		usb_device_path = "";
 		usb_device_handle = k_invalid_usb_device_handle;
 	}
@@ -140,9 +136,6 @@ struct PSNaviDataInput {
 static std::string NaviBTAddrUcharToString(const unsigned char* addr_buff);
 static bool stringToNaviBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size);
 inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
-
-static int navi_hid_get_feature_report(hid_device *dev, unsigned char *data, size_t length);
-inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size);
 
 static int psnavi_get_usb_feature_report(t_usb_device_handle device_handle, unsigned char *report_bytes, size_t report_size);
 static int psnavi_send_usb_feature_report(t_usb_device_handle device_handle, unsigned char *report_bytes, size_t report_size);
@@ -213,28 +206,12 @@ bool PSNaviController::open(
     }
     else
     {
-        char cur_dev_serial_number[256];
-
         SERVER_LOG_INFO("PSNaviController::open") << "Opening PSNaviController(" << cur_dev_path << ")";
 
-		if (pEnum->get_api_type() == ControllerDeviceEnumerator::CommunicationType_HID)
-		{
-			if (pEnum->get_serial_number(cur_dev_serial_number, sizeof(cur_dev_serial_number)))
-			{
-				SERVER_LOG_INFO("PSNaviController::open") << "  with serial_number: " << cur_dev_serial_number;
-			}
-			else
-			{
-				cur_dev_serial_number[0] = '\0';
-				SERVER_LOG_INFO("PSNaviController::open") << "  with EMPTY serial_number";
-			}
+		USBContext->vendor_id = pEnum->get_vendor_id();
+		USBContext->product_id = pEnum->get_product_id();
 
-			USBContext->hid_device_path = cur_dev_path;
-			USBContext->hid_device_handle = hid_open_path(USBContext->hid_device_path.c_str());
-			hid_set_nonblocking(USBContext->hid_device_handle, 1);
-			IsBluetooth = strlen(cur_dev_serial_number) > 0;
-		}
-		else
+		if (pEnum->get_api_type() == ControllerDeviceEnumerator::CommunicationType_USB)
 		{
 			const ControllerUSBDeviceEnumerator *usbControllerEnum= pEnum->get_usb_controller_enumerator();
 			assert(usbControllerEnum != nullptr);
@@ -250,15 +227,14 @@ bool PSNaviController::open(
 			{
 				SERVER_LOG_ERROR("PSNaviController::open") << "  Failed to open USB handle " << usb_device_handle;
 			}
-			IsBluetooth = false;
 		}
 
         if (getIsOpen())  // Controller was opened and has an index
         {
 			// Get the bluetooth address
-            if (getHostBTAddress(USBContext->host_bluetooth_address) &&
+			if (getHostBTAddress(USBContext->host_bluetooth_address) &&
 				getControllerBTAddress(USBContext->controller_bluetooth_address))
-            {
+			{
 				// Build a unique name for the config file using bluetooth address of the controller
 				char szConfigSuffix[18];
 				ServerUtility::bluetooth_cstr_address_normalize(
@@ -278,15 +254,15 @@ bool PSNaviController::open(
 				// Tell the controller to start sending input data packets
 				setInputStreamEnabled();
 
-                success= true;
-            }
-            else
-            {
-                // If serial is still bad, maybe we have a disconnected
-                // controller still showing up in hidapi
-                SERVER_LOG_ERROR("PSNaviController::open") << "Failed to get bluetooth address of PSNaviController(" << cur_dev_path << ")";
-                success= false;
-            }
+				success = true;
+			}
+			else
+			{
+				// If serial is still bad, maybe we have a disconnected
+				// controller still showing up in hidapi
+				SERVER_LOG_ERROR("PSNaviController::open") << "Failed to get bluetooth address of PSNaviController(" << cur_dev_path << ")";
+				success = false;
+			}
 
             // Reset the polling sequence counter
             NextPollSequenceNumber= 0;
@@ -307,13 +283,7 @@ void PSNaviController::close()
     {
 		USBDeviceManager *usbMgr = USBDeviceManager::getInstance();
 
-        SERVER_LOG_INFO("PSNaviController::close") << "Closing PSNaviController(" << USBContext->hid_device_path << ")";
-
-        if (USBContext->hid_device_handle != nullptr)
-        {
-            hid_close(USBContext->hid_device_handle);
-			USBContext->hid_device_handle= nullptr;
-        }
+        SERVER_LOG_INFO("PSNaviController::close") << "Closing PSNaviController(" << USBContext->usb_device_path << ")";
 
 		if (USBContext->usb_device_handle != k_invalid_usb_device_handle)
 		{
@@ -325,7 +295,7 @@ void PSNaviController::close()
     }
     else
     {
-        SERVER_LOG_INFO("PSNaviController::close") << "PSNaviController(" << USBContext->hid_device_path << ") already closed. Ignoring request.";
+        SERVER_LOG_INFO("PSNaviController::close") << "PSNaviController(" << USBContext->usb_device_path << ") already closed. Ignoring request.";
     }
 }
 
@@ -355,7 +325,7 @@ PSNaviController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
         memcpy(&bts[3], addr, sizeof(addr));
 
         res = psnavi_send_usb_feature_report(USBContext->usb_device_handle, bts, sizeof(bts));
-        if (res == sizeof(bts))
+        if (res == sizeof(bts) )
         {
             success= true;
         }
@@ -384,7 +354,7 @@ PSNaviController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) co
 		switch (pEnum->get_api_type())
 		{
 		case ControllerDeviceEnumerator::CommunicationType_HID:
-			dev_path = USBContext->hid_device_path.c_str();
+			dev_path = "<INVALID>";
 			break;
 		case ControllerDeviceEnumerator::CommunicationType_USB:
 			dev_path = USBContext->usb_device_path.c_str();
@@ -404,7 +374,8 @@ PSNaviController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) co
 bool 
 PSNaviController::getIsBluetooth() const
 { 
-    return IsBluetooth; 
+	// Bluetooth connections are currently not supported for the PSNavi
+    return false; 
 }
 
 bool
@@ -416,7 +387,19 @@ PSNaviController::getIsReadyToPoll() const
 std::string 
 PSNaviController::getUSBDevicePath() const
 {
-    return USBContext->hid_device_path;
+    return USBContext->usb_device_path;
+}
+
+int
+PSNaviController::getVendorID() const
+{
+	return USBContext->vendor_id;
+}
+
+int
+PSNaviController::getProductID() const
+{
+	return USBContext->product_id;
 }
 
 std::string 
@@ -434,7 +417,7 @@ PSNaviController::getAssignedHostBluetoothAddress() const
 bool
 PSNaviController::getIsOpen() const
 {
-    return (USBContext->hid_device_handle != nullptr) || (USBContext->usb_device_handle != k_invalid_usb_device_handle);
+    return (USBContext->usb_device_handle != k_invalid_usb_device_handle);
 }
 
 CommonDeviceState::eDeviceType
@@ -448,48 +431,19 @@ PSNaviController::setInputStreamEnabled()
 { 
 	bool bSuccess = false;
 
-	if (getIsBluetooth())
+	unsigned char report_bytes[5];
+
+	// Command used to enable the Dualshock 3 and Navigation controller to send data via USB
+	report_bytes[0] = PSNavi_Req_SetInputStreamEnabled; // Report ID
+	report_bytes[1] = 0x42; // Special PS3 Controller enable commands
+	report_bytes[2] = 0x0c;
+	report_bytes[3] = 0x00;
+	report_bytes[4] = 0x00;
+
+	int res = psnavi_send_usb_feature_report(USBContext->usb_device_handle, report_bytes, sizeof(report_bytes));
+	if (res == sizeof(report_bytes))
 	{
-		unsigned char report_bytes[6];
-
-		report_bytes[0] = 0x53; // HID BT Set_report (0x50) | Report Type (Feature 0x03)
-		report_bytes[1] = PSNavi_Req_SetInputStreamEnabled; // Report ID
-		report_bytes[2] = 0x42; // Special PS3 Controller enable commands
-		report_bytes[3] = 0x03;
-		report_bytes[4] = 0x00;
-		report_bytes[5] = 0x00;
-
-		int res = hid_send_feature_report(USBContext->hid_device_handle, report_bytes, sizeof(report_bytes));
-		if (res == sizeof(report_bytes))
-		{
-			bSuccess = true;
-		}
-		else
-		{
-			char hidapi_err_mbs[256];
-
-			if (hid_error_mbs(USBContext->hid_device_handle, hidapi_err_mbs, sizeof(hidapi_err_mbs)))
-			{
-				SERVER_LOG_ERROR("PSNaviController::sendDataStreamEnableCommand") << "HID ERROR: " << hidapi_err_mbs;
-			}
-		}
-	}
-	else
-	{
-		unsigned char report_bytes[5];
-
-		// Command used to enable the Dualshock 3 and Navigation controller to send data via USB
-		report_bytes[0] = PSNavi_Req_SetInputStreamEnabled; // Report ID
-		report_bytes[1] = 0x42; // Special PS3 Controller enable commands
-		report_bytes[2] = 0x0c;
-		report_bytes[3] = 0x00;
-		report_bytes[4] = 0x00;
-
-		int res = psnavi_send_usb_feature_report(USBContext->usb_device_handle, report_bytes, sizeof(report_bytes));
-		if (res == sizeof(report_bytes))
-		{
-			bSuccess = true;
-		}
+		bSuccess = true;
 	}
 
 	return bSuccess;
@@ -506,30 +460,10 @@ PSNaviController::getHostBTAddress(std::string& host)
     memset(btg, 0, sizeof(btg));
     btg[0] = PSNavi_Req_GetHostBTAddr;
 
-	if (getIsBluetooth())
+	int res = psnavi_get_usb_feature_report(USBContext->usb_device_handle, btg, sizeof(btg));
+	if (res == sizeof(btg))
 	{
-		int res = hid_get_feature_report(USBContext->hid_device_handle, btg, sizeof(btg));
-		if (res == sizeof(btg))
-		{
-			bSuccess = true;
-		}
-		else
-		{
-			char hidapi_err_mbs[256];
-
-			if (hid_error_mbs(USBContext->hid_device_handle, hidapi_err_mbs, sizeof(hidapi_err_mbs)))
-			{
-				SERVER_LOG_ERROR("PSNaviController::getHostBTAddress") << "HID ERROR: " << hidapi_err_mbs;
-			}
-		}
-	}
-	else
-	{
-		int res = psnavi_get_usb_feature_report(USBContext->usb_device_handle, btg, sizeof(btg));
-		if (res == sizeof(btg))
-		{
-			bSuccess = true;
-		}
+		bSuccess = true;
 	}
 
 	if (bSuccess)
@@ -552,35 +486,15 @@ PSNaviController::getControllerBTAddress(std::string& controller)
 	memset(btg, 0, sizeof(btg));
 	btg[0] = PSNavi_Req_GetControllerBTAddr;
 
-	if (getIsBluetooth())
+	int res = psnavi_get_usb_feature_report(USBContext->usb_device_handle, btg, sizeof(btg));
+	if (res == sizeof(btg))
 	{
-		int res = hid_get_feature_report(USBContext->hid_device_handle, btg, sizeof(btg));
-		if (res == sizeof(btg))
-		{
-			bSuccess = true;
-		}
-		else
-		{
-			char hidapi_err_mbs[256];
-
-			if (hid_error_mbs(USBContext->hid_device_handle, hidapi_err_mbs, sizeof(hidapi_err_mbs)))
-			{
-				SERVER_LOG_ERROR("PSNaviController::getHostBTAddress") << "HID ERROR: " << hidapi_err_mbs;
-			}
-		}
-	}
-	else
-	{
-		int res = psnavi_get_usb_feature_report(USBContext->usb_device_handle, btg, sizeof(btg));
-		if (res == sizeof(btg))
-		{
-			bSuccess = true;
-		}
+		bSuccess = true;
 	}
 
 	if (bSuccess)
 	{
-		memcpy(ctrl_char_buff, btg + 3, PSNAVI_BTADDR_SIZE);
+		memcpy(ctrl_char_buff, btg + 4, PSNAVI_BTADDR_SIZE);
 		controller = NaviBTAddrUcharToString(ctrl_char_buff);
 	}
 
@@ -594,11 +508,12 @@ PSNaviController::poll()
       
     if (getIsOpen())
     {
-		if (getIsBluetooth())
-		{
-			result = pollBluetooth();
-		}
-		else
+		// One day perhaps...
+		//if (getIsBluetooth())
+		//{
+		//	result = pollBluetooth();
+		//}
+		//else
 		{
 			result = pollUSB();
 		}
@@ -628,56 +543,6 @@ PSNaviController::pollUSB()
 	{
 		parseInputData();
 		poll_result = IControllerInterface::_PollResultSuccessNewData;
-	}
-
-	return poll_result;
-}
-
-IControllerInterface::ePollResult
-PSNaviController::pollBluetooth()
-{
-	IControllerInterface::ePollResult poll_result = IControllerInterface::_PollResultFailure;
-
-	static const int k_max_iterations = 32;
-
-	for (int iteration = 0; iteration < k_max_iterations; ++iteration)
-	{
-		// Attempt to read the next update packet from the controller
-		InBuffer[0]= PSNavi_Req_GetInput;
-		int res = hid_read(USBContext->hid_device_handle, InBuffer, sizeof(PSNaviDataInput));
-
-		if (res == 0)
-		{
-			// Device still in valid state
-			poll_result = (iteration == 0)
-				? IControllerInterface::_PollResultSuccessNoData
-				: IControllerInterface::_PollResultSuccessNewData;
-
-			// No more data available. Stop iterating.
-			break;
-		}
-		else if (res < 0)
-		{
-			char hidapi_err_mbs[256];
-			bool valid_error_mesg = hid_error_mbs(USBContext->hid_device_handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
-
-			// Device no longer in valid state.
-			if (valid_error_mesg)
-			{
-				SERVER_LOG_ERROR("PSMoveController::readDataIn") << "HID ERROR: " << hidapi_err_mbs;
-			}
-
-			poll_result = IControllerInterface::_PollResultFailure;
-
-			// No more data available. Stop iterating.
-			break;
-		}
-		else
-		{
-			// New data available. Keep iterating.
-			parseInputData();
-			poll_result = IControllerInterface::_PollResultSuccessNewData;
-		}
 	}
 
 	return poll_result;
@@ -839,11 +704,6 @@ getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask)
     return (enum CommonControllerState::ButtonState)((((lastButtons & buttonMask) > 0) << 1) + ((buttons & buttonMask)>0));
 }
 
-inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size)
-{
-    return ServerUtility::convert_wcs_to_mbs(hid_error(dev), out_mb_error, mb_buffer_size);
-}
-
 static int 
 psnavi_get_usb_feature_report(
 	t_usb_device_handle device_handle,
@@ -916,7 +776,7 @@ psnavi_send_usb_feature_report(
 
 	if (transfer_result.payload.control_transfer.result_code == _USBResultCode_Completed)
 	{
-		result = transfer_result.payload.control_transfer.dataLength;
+		result = transfer_result.payload.control_transfer.dataLength + 1;
 	}
 	else
 	{

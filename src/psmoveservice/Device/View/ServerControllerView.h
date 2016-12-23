@@ -80,7 +80,13 @@ public:
     // Returns the full usb device path for the controller
     std::string getUSBDevicePath() const;
 
-    // Returns the serial number for the controller
+	// Returns the vendor ID of the controller
+	int getVendorID() const;
+
+	// Returns the product ID of the controller
+	int getProductID() const;
+
+	// Returns the serial number for the controller
     std::string getSerial() const;
 
 	// Returns the "controller_" + serial number for the controller

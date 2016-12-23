@@ -93,6 +93,8 @@ public:
     virtual bool getIsBluetooth() const override;
     virtual bool getIsReadyToPoll() const override;
     virtual std::string getUSBDevicePath() const override;
+	virtual int getVendorID() const override;
+	virtual int getProductID() const override;
     virtual std::string getSerial() const override;
     virtual std::string getAssignedHostBluetoothAddress() const override;
     virtual bool getIsOpen() const override;
@@ -113,7 +115,6 @@ private:
 	bool getControllerBTAddress(std::string& out_controller);
 
 	IControllerInterface::ePollResult pollUSB();
-	IControllerInterface::ePollResult pollBluetooth();
 	void parseInputData();
     
     // Constant while a controller is open

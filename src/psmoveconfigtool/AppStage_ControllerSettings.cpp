@@ -94,14 +94,14 @@ void AppStage_ControllerSettings::render()
         {
             if (m_selectedControllerIndex >= 0)
             {
-                const ControllerInfo &controllerInfo= m_bluetoothControllerInfos[m_selectedControllerIndex];
+                const ControllerInfo &controllerInfo= m_usableControllerInfos[m_selectedControllerIndex];
 
                 switch(controllerInfo.ControllerType)
                 {
                     case ClientControllerView::eControllerType::PSMove:
                     case ClientControllerView::eControllerType::PSDualShock4:
                         {
-                            const ControllerInfo &controllerInfo = m_bluetoothControllerInfos[m_selectedControllerIndex];
+                            const ControllerInfo &controllerInfo = m_usableControllerInfos[m_selectedControllerIndex];
 
                             // Display the tracking color being used for the controller
                             glm::vec3 bulb_color = glm::vec3(1.f, 1.f, 1.f);
@@ -188,9 +188,9 @@ void AppStage_ControllerSettings::renderUI()
             
             ImGui::Separator();
 
-            if (m_bluetoothControllerInfos.size() > 0)
+            if (m_usableControllerInfos.size() > 0)
             {
-                ControllerInfo &controllerInfo= m_bluetoothControllerInfos[m_selectedControllerIndex];
+                ControllerInfo &controllerInfo= m_usableControllerInfos[m_selectedControllerIndex];
 
                 if (m_selectedControllerIndex > 0)
                 {
@@ -201,7 +201,7 @@ void AppStage_ControllerSettings::renderUI()
                     ImGui::SameLine();
                 }
                 ImGui::Text("Controller: %d", m_selectedControllerIndex);
-                if (m_selectedControllerIndex + 1 < static_cast<int>(m_bluetoothControllerInfos.size()))
+                if (m_selectedControllerIndex + 1 < static_cast<int>(m_usableControllerInfos.size()))
                 {
                     ImGui::SameLine();
                     if (ImGui::Button(">##ControllerIndex"))
@@ -383,17 +383,17 @@ void AppStage_ControllerSettings::renderUI()
             }
             else
             {
-                ImGui::Text("No Bluetooth connected controllers");
+                ImGui::Text("No connected usable controllers");
             }
 
             ImGui::Separator();
 
             // If there are any controllers waiting to be paired, 
             // just present the first one as an option
-            if (m_usbControllerInfos.size() > 0)
+            if (m_awaitingPairingControllerInfos.size() > 0)
             {
                 // Only consider the first controller connected via usb
-                ControllerInfo &controllerInfo = m_usbControllerInfos[0];
+                ControllerInfo &controllerInfo = m_awaitingPairingControllerInfos[0];
 
                 // We can only unpair controllers connected via usb
                 if (controllerInfo.PairedToHost)
@@ -415,7 +415,7 @@ void AppStage_ControllerSettings::renderUI()
             }
             else
             {
-                ImGui::Text("No USB connected controllers");
+                ImGui::Text("No controllers awaiting pairing");
             }
 
             ImGui::Separator();
@@ -579,8 +579,8 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 
             thisPtr->m_hostSerial = response->result_controller_list().host_serial();
 			thisPtr->m_selectedControllerIndex= -1;
-			thisPtr->m_bluetoothControllerInfos.clear();
-			thisPtr->m_usbControllerInfos.clear();
+			thisPtr->m_usableControllerInfos.clear();
+			thisPtr->m_awaitingPairingControllerInfos.clear();
 
             for (int controller_index= 0; controller_index < response->result_controller_list().controllers_size(); ++controller_index)
             {
@@ -693,30 +693,29 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 				}
 
                 // Add the controller to the appropriate connection list
-                switch (ControllerResponse.connection_type())
-                {
-                case PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH:
-                    thisPtr->m_bluetoothControllerInfos.push_back(ControllerInfo);
-                    break;
-                case PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_USB:
-                    thisPtr->m_usbControllerInfos.push_back(ControllerInfo);
-                    break;
-                default:
-                    assert(0 && "unreachable");
-                }
+				
+				if (ControllerResponse.connection_type() == PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH ||
+					ControllerResponse.controller_type() == PSMoveProtocol::PSNAVI) // Don't currently attempt to pair navi controller
+				{
+					thisPtr->m_usableControllerInfos.push_back(ControllerInfo);
+				}
+				else
+				{
+					thisPtr->m_awaitingPairingControllerInfos.push_back(ControllerInfo);
+				}
             }
 
 			if (oldSelectedControllerIndex != -1)
 			{
 				// Maintain the same position in the list if possible
 				thisPtr->m_selectedControllerIndex= 
-					(oldSelectedControllerIndex < static_cast<int>(thisPtr->m_bluetoothControllerInfos.size())) 
+					(oldSelectedControllerIndex < static_cast<int>(thisPtr->m_usableControllerInfos.size())) 
 					? oldSelectedControllerIndex
 					: 0;
 			}
 			else
 			{
-	            thisPtr->m_selectedControllerIndex= (thisPtr->m_bluetoothControllerInfos.size() > 0) ? 0 : -1;
+	            thisPtr->m_selectedControllerIndex= (thisPtr->m_usableControllerInfos.size() > 0) ? 0 : -1;
 			}
 
             thisPtr->m_menuState= AppStage_ControllerSettings::idle;

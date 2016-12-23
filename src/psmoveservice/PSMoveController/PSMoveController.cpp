@@ -380,6 +380,8 @@ PSMoveController::PSMoveController()
     , NextPollSequenceNumber(0)
 	, SupportsMagnetometer(false)
 {
+	HIDDetails.vendor_id = -1;
+	HIDDetails.product_id = -1;
     HIDDetails.Handle = nullptr;
     HIDDetails.Handle_addr = nullptr;
     
@@ -447,6 +449,8 @@ bool PSMoveController::open(
             SERVER_LOG_INFO("PSMoveController::open") << "  with EMPTY serial_number";
         }
 
+		HIDDetails.vendor_id = pEnum->get_vendor_id();
+		HIDDetails.product_id = pEnum->get_product_id();
         HIDDetails.Device_path = cur_dev_path;
     #ifdef _WIN32
         HIDDetails.Device_path_addr = HIDDetails.Device_path;
@@ -716,6 +720,18 @@ std::string
 PSMoveController::getUSBDevicePath() const
 {
     return HIDDetails.Device_path;
+}
+
+int
+PSMoveController::getVendorID() const
+{
+	return HIDDetails.vendor_id;
+}
+
+int
+PSMoveController::getProductID() const
+{
+	return HIDDetails.product_id;
 }
 
 std::string 

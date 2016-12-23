@@ -24,6 +24,8 @@
 #define ACCELEROMETER_IDENTITY_PITCH_DEGREES 22.667f
 
 struct PSDualShock4HIDDetails {
+	int vendor_id;
+	int product_id;
     std::string Device_path;
     hid_device *Handle;
     std::string Bt_addr;      // The bluetooth address of the controller
@@ -283,6 +285,8 @@ public:
 	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) override;
     virtual bool getIsBluetooth() const override;
     virtual std::string getUSBDevicePath() const override;
+	virtual int getVendorID() const override;
+	virtual int getProductID() const override;
     virtual std::string getAssignedHostBluetoothAddress() const override;
     virtual std::string getSerial() const override;
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;

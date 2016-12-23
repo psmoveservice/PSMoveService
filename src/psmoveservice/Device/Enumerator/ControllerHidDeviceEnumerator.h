@@ -12,6 +12,8 @@ public:
 
 	bool is_valid() const override;
 	bool next() override;
+	int get_vendor_id() const override;
+	int get_product_id() const override;
 	const char *get_path() const override;
 
 	bool get_serial_number(char *out_mb_serial, const size_t mb_buffer_size) const;

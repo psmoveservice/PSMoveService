@@ -23,6 +23,8 @@ public:
     bool next() override;
     const char *get_path() const override;
 
+	int get_vendor_id() const;
+	int get_product_id() const;
     bool get_serial_number(char *out_mb_serial, const size_t mb_buffer_size) const;
 	eAPIType get_api_type() const;
 	const class ControllerHidDeviceEnumerator *get_hid_controller_enumerator() const;

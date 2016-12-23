@@ -130,15 +130,15 @@ DeviceManager::startup()
 		hmd_reconnect_interval = -1;
 	}
 
-    m_controller_manager->reconnect_interval = m_config->controller_reconnect_interval;
+    m_controller_manager->reconnect_interval = controller_reconnect_interval;
     m_controller_manager->poll_interval = m_config->controller_poll_interval;
     success &= m_controller_manager->startup();
     
-    m_tracker_manager->reconnect_interval = m_config->tracker_reconnect_interval;
+    m_tracker_manager->reconnect_interval = tracker_reconnect_interval;
     m_tracker_manager->poll_interval = m_config->tracker_poll_interval;
     success &= m_tracker_manager->startup();
 
-    m_hmd_manager->reconnect_interval = m_config->hmd_reconnect_interval;
+    m_hmd_manager->reconnect_interval = hmd_reconnect_interval;
     m_hmd_manager->poll_interval = m_config->hmd_poll_interval;
     success &= m_hmd_manager->startup();    
     

@@ -54,6 +54,16 @@ const char *HMDDeviceEnumerator::get_path() const
 	return current_device_identifier.c_str();
 }
 
+int HMDDeviceEnumerator::get_vendor_id() const
+{
+	return is_valid() ? g_supported_hmd_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)].vendor_id : -1;
+}
+
+int HMDDeviceEnumerator::get_product_id() const
+{
+	return is_valid() ? g_supported_hmd_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)].product_id : -1;
+}
+
 bool HMDDeviceEnumerator::is_valid() const
 {
 	return current_device_interfaces.size() > 0;

@@ -16,10 +16,17 @@
 #define MAX_CONTROLLER_TYPE_INDEX           GET_DEVICE_TYPE_INDEX(CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT)
 
 // -- globals -----
-USBDeviceFilter g_supported_controller_infos[MAX_CONTROLLER_TYPE_INDEX] = {
-	{ 0x054c, 0x03d5 }, // PSMove
-	{ 0x054c, 0x042F }, // PSNavi
-	{ 0x054c, 0x05C4 }, // PSDualShock4
+struct HIDApiDeviceFilter
+{
+	USBDeviceFilter filter;
+	bool bHIDApiSupported;
+};
+
+
+HIDApiDeviceFilter g_supported_controller_infos[MAX_CONTROLLER_TYPE_INDEX] = {
+	{ 0x054c, 0x03d5, true}, // PSMove
+	{ 0x054c, 0x0268, false}, // PSNavi/DualShock3 (sadly these controllers don't properly support HID
+	{ 0x054c, 0x05C4, true}, // PSDualShock4
 };
 
 // -- ControllerHidDeviceEnumerator -----
@@ -30,8 +37,8 @@ ControllerHidDeviceEnumerator::ControllerHidDeviceEnumerator()
 {
 	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
 
-	USBDeviceFilter &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
-	devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
+	HIDApiDeviceFilter &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
+	devs = hid_enumerate(dev_info.filter.vendor_id, dev_info.filter.product_id);
 	cur_dev = devs;
 
 	if (!is_valid())
@@ -48,8 +55,8 @@ ControllerHidDeviceEnumerator::ControllerHidDeviceEnumerator(
 {
 	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
 
-	USBDeviceFilter &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
-	devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
+	HIDApiDeviceFilter &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
+	devs = hid_enumerate(dev_info.filter.vendor_id, dev_info.filter.product_id);
 	cur_dev = devs;
 
 	if (!is_valid())
@@ -64,6 +71,16 @@ ControllerHidDeviceEnumerator::~ControllerHidDeviceEnumerator()
 	{
 		hid_free_enumeration(devs);
 	}
+}
+
+int ControllerHidDeviceEnumerator::get_vendor_id() const
+{
+	return (cur_dev != nullptr) ? cur_dev->vendor_id : -1;
+}
+
+int ControllerHidDeviceEnumerator::get_product_id() const
+{
+	return (cur_dev != nullptr) ? cur_dev->product_id : -1;
 }
 
 const char *ControllerHidDeviceEnumerator::get_path() const
@@ -130,12 +147,15 @@ bool ControllerHidDeviceEnumerator::next()
 
 			if (GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX)
 			{
-				USBDeviceFilter &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
+				HIDApiDeviceFilter &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
 
-				// Create a new HID enumeration
-				devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
-				cur_dev = devs;
-				foundValid = is_valid();
+				if (dev_info.bHIDApiSupported)
+				{
+					// Create a new HID enumeration
+					devs = hid_enumerate(dev_info.filter.vendor_id, dev_info.filter.product_id);
+					cur_dev = devs;
+					foundValid = is_valid();
+				}
 			}
 		}
 	}

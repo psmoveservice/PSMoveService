@@ -704,6 +704,20 @@ ServerControllerView::getUSBDevicePath() const
     return (m_device != nullptr) ? m_device->getUSBDevicePath() : "";
 }
 
+// Returns the vendor ID of the controller
+int 
+ServerControllerView::getVendorID() const
+{
+	return (m_device != nullptr) ? m_device->getVendorID() : -1;
+}
+
+// Returns the product ID of the controller
+int 
+ServerControllerView::getProductID() const
+{
+	return (m_device != nullptr) ? m_device->getProductID() : -1;
+}
+
 // Returns the serial number for the controller
 std::string 
 ServerControllerView::getSerial() const

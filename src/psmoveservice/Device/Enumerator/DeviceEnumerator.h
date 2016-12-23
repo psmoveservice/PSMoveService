@@ -19,6 +19,8 @@ public:
 
     virtual bool is_valid() const =0;
     virtual bool next()=0;
+	virtual int get_vendor_id() const =0;
+	virtual int get_product_id() const =0;
     virtual const char *get_path() const =0;
     
     inline CommonDeviceState::eDeviceType get_device_type() const

@@ -14,6 +14,8 @@ public:
 
     bool is_valid() const override;
     bool next() override;
+	int get_vendor_id() const;
+	int get_product_id() const;
     const char *get_path() const override;
     inline int get_camera_index() const { return m_cameraIndex; }
 	inline struct USBDeviceEnumerator* get_usb_device_enumerator() const { return m_usb_enumerator; }

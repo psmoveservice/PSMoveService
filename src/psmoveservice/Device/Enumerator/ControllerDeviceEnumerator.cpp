@@ -99,6 +99,16 @@ const char *ControllerDeviceEnumerator::get_path() const
     return (enumerator_index < enumerator_count) ? enumerators[enumerator_index]->get_path() : nullptr;
 }
 
+int ControllerDeviceEnumerator::get_vendor_id() const
+{
+	return (enumerator_index < enumerator_count) ? enumerators[enumerator_index]->get_vendor_id() : -1;
+}
+
+int ControllerDeviceEnumerator::get_product_id() const
+{
+	return (enumerator_index < enumerator_count) ? enumerators[enumerator_index]->get_product_id() : -1;
+}
+
 bool ControllerDeviceEnumerator::get_serial_number(char *out_mb_serial, const size_t mb_buffer_size) const
 {
     bool success = false;
@@ -221,6 +231,11 @@ bool ControllerDeviceEnumerator::next()
 		else
 		{
 			++enumerator_index;
+
+			if (enumerator_index < enumerator_count)
+			{
+				foundValid = enumerators[enumerator_index]->is_valid();
+			}
 		}
     }
 

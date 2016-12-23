@@ -38,7 +38,7 @@ public:
     { 
         return 
             (m_selectedControllerIndex != -1) 
-            ? &m_bluetoothControllerInfos[m_selectedControllerIndex] 
+            ? &m_usableControllerInfos[m_selectedControllerIndex] 
             : nullptr; 
     }
 
@@ -80,8 +80,8 @@ private:
     };
     eControllerMenuState m_menuState;
 
-    std::vector<ControllerInfo> m_bluetoothControllerInfos;
-    std::vector<ControllerInfo> m_usbControllerInfos;
+    std::vector<ControllerInfo> m_usableControllerInfos;
+    std::vector<ControllerInfo> m_awaitingPairingControllerInfos;
     std::string m_hostSerial;
 
     int m_selectedControllerIndex;

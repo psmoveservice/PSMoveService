@@ -55,6 +55,32 @@ TrackerDeviceEnumerator::~TrackerDeviceEnumerator()
 	}
 }
 
+int TrackerDeviceEnumerator::get_vendor_id() const
+{
+	USBDeviceFilter devInfo;
+	int vendor_id = -1;
+
+	if (is_valid() && usb_device_enumerator_get_filter(m_usb_enumerator, devInfo))
+	{
+		vendor_id = devInfo.vendor_id;
+	}
+
+	return vendor_id;
+}
+
+int TrackerDeviceEnumerator::get_product_id() const
+{
+	USBDeviceFilter devInfo;
+	int product_id = -1;
+
+	if (is_valid() && usb_device_enumerator_get_filter(m_usb_enumerator, devInfo))
+	{
+		product_id = devInfo.product_id;
+	}
+
+	return product_id;
+}
+
 const char *TrackerDeviceEnumerator::get_path() const
 {
     const char *result = nullptr;
