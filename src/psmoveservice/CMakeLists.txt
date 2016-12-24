@@ -192,6 +192,17 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 ELSE()
 ENDIF()
 
+# libstem_gamepad
+include_directories(${ROOT_DIR}/thirdparty/libstem_gamepad/source)
+list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_private.c)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_windows_dinput.c)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_macosx.c)
+ELSE()
+    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_linux.c)
+ENDIF()
+
 # Platform Specific Device Management
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     # Windows utilities for querying driver infomation (provider name)
