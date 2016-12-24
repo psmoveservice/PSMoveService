@@ -1,5 +1,5 @@
 // -- include -----
-#include "DevicePlatformAPIWin32.h"
+#include "PlatformDeviceAPIWin32.h"
 #include "ServerLog.h"
 
 #define ANSI
@@ -112,18 +112,18 @@ static HDEVNOTIFY register_device_class_notification(HWND__* hwnd, const GUID &g
 static LRESULT message_handler(HWND__* hwnd, UINT uint, WPARAM wparam, LPARAM lparam);
 
 // -- definitions -----
-DevicePlatformAPIWin32::DevicePlatformAPIWin32()
+PlatformDeviceAPIWin32::PlatformDeviceAPIWin32()
 {
 
 }
 
-DevicePlatformAPIWin32::~DevicePlatformAPIWin32()
+PlatformDeviceAPIWin32::~PlatformDeviceAPIWin32()
 {
 
 }
 
 // System
-bool DevicePlatformAPIWin32::startup(IDeviceHotplugListener *broadcaster)
+bool PlatformDeviceAPIWin32::startup(IDeviceHotplugListener *broadcaster)
 {
 	bool bSuccess = true;
 
@@ -166,7 +166,7 @@ bool DevicePlatformAPIWin32::startup(IDeviceHotplugListener *broadcaster)
 	return bSuccess;
 }
 
-void DevicePlatformAPIWin32::poll()
+void PlatformDeviceAPIWin32::poll()
 {
 	MSG msg;
 	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0)
@@ -176,7 +176,7 @@ void DevicePlatformAPIWin32::poll()
 	}
 }
 
-void DevicePlatformAPIWin32::shutdown()
+void PlatformDeviceAPIWin32::shutdown()
 {
 	if (g_hImageDeviceNotify != nullptr)
 	{
@@ -204,7 +204,7 @@ void DevicePlatformAPIWin32::shutdown()
 }
 
 // Queries
-bool DevicePlatformAPIWin32::get_device_property(
+bool PlatformDeviceAPIWin32::get_device_property(
 	const DeviceClass deviceClass,
 	const int vendor_id,
 	const int product_id,

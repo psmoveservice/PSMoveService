@@ -2,7 +2,7 @@
 #define DEVICE_TYPE_MANAGER_H
 
 //-- includes -----
-#include "DevicePlatformManager.h"
+#include "PlatformDeviceManager.h"
 
 #include <memory>
 #include <chrono>

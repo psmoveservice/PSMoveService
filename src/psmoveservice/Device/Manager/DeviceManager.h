@@ -50,7 +50,7 @@ private:
     static DeviceManager *m_instance;
 
 public:
-	class DevicePlatformManager *m_platform_manager;
+	class PlatformDeviceManager *m_platform_manager;
     class ControllerManager *m_controller_manager;
     class TrackerManager *m_tracker_manager;
     class HMDManager *m_hmd_manager;

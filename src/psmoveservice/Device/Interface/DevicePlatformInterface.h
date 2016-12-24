@@ -23,11 +23,11 @@ public:
 	virtual void handle_device_disconnected(enum DeviceClass device_class, const std::string &device_path) = 0;
 };
 
-class IDevicePlatformAPI
+class IPlatformDeviceAPI
 {
 public:
-	IDevicePlatformAPI() {}
-	virtual ~IDevicePlatformAPI() {}
+	IPlatformDeviceAPI() {}
+	virtual ~IPlatformDeviceAPI() {}
 
 	// System
 	virtual bool startup(IDeviceHotplugListener *broadcaster) = 0;

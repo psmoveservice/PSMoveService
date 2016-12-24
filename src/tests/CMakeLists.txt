@@ -139,7 +139,7 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
 
     # Windows utilities for querying driver infomation (provider name)
     list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Platform)
-    list(APPEND TEST_CAMERA_SRC ${ROOT_DIR}/src/psmoveservice/Platform/USBDeviceInterfaceWin32.cpp)
+    list(APPEND TEST_CAMERA_SRC ${ROOT_DIR}/src/psmoveservice/Platform/PlatformDeviceAPIWin32.cpp)
 ENDIF()
 
 # Our custom OpenCV VideoCapture classes

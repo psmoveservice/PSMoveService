@@ -3,7 +3,7 @@
 
 #include "ControllerManager.h"
 #include "DeviceEnumerator.h"
-#include "DevicePlatformManager.h"
+#include "PlatformDeviceManager.h"
 #include "HMDManager.h"
 #include "OrientationFilter.h"
 #include "ServerControllerView.h"
@@ -80,9 +80,9 @@ DeviceManager *DeviceManager::m_instance= nullptr;
 DeviceManager::DeviceManager()
     : m_config() // NULL config until startup
 #ifdef WIN32
-	, m_platform_manager(new DevicePlatformManager(_eDevicePlatformApiType_Win32))
+	, m_platform_manager(new PlatformDeviceManager(_eDevicePlatformApiType_Win32))
 #else
-	, m_platform_manager(new DevicePlatformManager(_eDevicePlatformApiType_None))
+	, m_platform_manager(new PlatformDeviceManager(_eDevicePlatformApiType_None))
 #endif
     , m_controller_manager(new ControllerManager())
     , m_tracker_manager(new TrackerManager())

@@ -1,15 +1,15 @@
-#ifndef DEVICE_PLATFORM_API_WIN32_H
-#define DEVICE_PLATFORM_API_WIN32_H
+#ifndef PLATFORM_DEVICE_API_WIN32_H
+#define PLATFORM_DEVICE_API_WIN32_H
 
 // -- include -----
 #include "DevicePlatformInterface.h"
 
 // -- definitions -----
-class DevicePlatformAPIWin32 : public IDevicePlatformAPI
+class PlatformDeviceAPIWin32 : public IPlatformDeviceAPI
 {
 public:
-	DevicePlatformAPIWin32();
-	virtual ~DevicePlatformAPIWin32();
+	PlatformDeviceAPIWin32();
+	virtual ~PlatformDeviceAPIWin32();
 
 	// System
 	bool startup(IDeviceHotplugListener *broadcaster) override;
@@ -26,4 +26,4 @@ public:
 		const int buffer_size) override;
 };
 
-#endif // DEVICE_PLATFORM_API_WIN32_H
+#endif // PLATFORM_DEVICE_API_WIN32_H

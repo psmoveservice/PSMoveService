@@ -1,5 +1,5 @@
-#ifndef DEVICE_HOTPLUG_NOTIFIER_H
-#define DEVICE_HOTPLUG_NOTIFIER_H
+#ifndef PLATFORM_DEVICE_MANAGER_H
+#define PLATFORM_DEVICE_MANAGER_H
 
 // -- include ----
 #include "DevicePlatformInterface.h"
@@ -23,13 +23,13 @@ struct DeviceHotplugListener
 	IDeviceHotplugListener *listener;
 };
 
-class DevicePlatformManager : public IDeviceHotplugListener
+class PlatformDeviceManager : public IDeviceHotplugListener
 {
 public:
-	DevicePlatformManager(enum eDevicePlatformApiType api_type);
-	virtual ~DevicePlatformManager();
+	PlatformDeviceManager(enum eDevicePlatformApiType api_type);
+	virtual ~PlatformDeviceManager();
 
-	static inline DevicePlatformManager *getInstance()
+	static inline PlatformDeviceManager *getInstance()
 	{
 		return m_instance;
 	}
@@ -57,14 +57,14 @@ public:
 private:
 	/// Singleton instance of the class
 	/// Assigned in startup, cleared in teardown
-	static DevicePlatformManager *m_instance;
+	static PlatformDeviceManager *m_instance;
 
 	// OS specific implementation of hotplug notification
 	eDevicePlatformApiType m_api_type;
-	IDevicePlatformAPI *m_api;
+	IPlatformDeviceAPI *m_api;
 
 	// List of registered hot-plug listeners
 	std::vector<DeviceHotplugListener> m_listeners;
 };
 
-#endif // DEVICE_HOTPLUG_NOTIFIER_H
+#endif // PLATFORM_DEVICE_MANAGER_H

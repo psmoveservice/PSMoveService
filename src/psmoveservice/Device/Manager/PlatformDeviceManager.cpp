@@ -1,15 +1,15 @@
 //-- includes -----
-#include "DevicePlatformManager.h"
+#include "PlatformDeviceManager.h"
 #ifdef WIN32
-#include "DevicePlatformAPIWin32.h"
+#include "PlatformDeviceAPIWin32.h"
 #endif // WIN32
 #include <assert.h>
 
 // -- statics -----
-DevicePlatformManager *DevicePlatformManager::m_instance = nullptr;
+PlatformDeviceManager *PlatformDeviceManager::m_instance = nullptr;
 
 // -- public interface -----
-DevicePlatformManager::DevicePlatformManager(enum eDevicePlatformApiType api_type)
+PlatformDeviceManager::PlatformDeviceManager(enum eDevicePlatformApiType api_type)
 	: m_api_type(api_type)
 	, m_api(nullptr)
 {
@@ -20,7 +20,7 @@ DevicePlatformManager::DevicePlatformManager(enum eDevicePlatformApiType api_typ
 		break;
 #ifdef WIN32
 	case _eDevicePlatformApiType_Win32:
-		m_api = new DevicePlatformAPIWin32;
+		m_api = new PlatformDeviceAPIWin32;
 		break;
 #endif
 	default:
@@ -29,7 +29,7 @@ DevicePlatformManager::DevicePlatformManager(enum eDevicePlatformApiType api_typ
 	}
 }
 
-DevicePlatformManager::~DevicePlatformManager()
+PlatformDeviceManager::~PlatformDeviceManager()
 {
 	if (m_api != nullptr)
 	{
@@ -38,7 +38,7 @@ DevicePlatformManager::~DevicePlatformManager()
 }
 
 // -- System ----
-bool DevicePlatformManager::startup()
+bool PlatformDeviceManager::startup()
 {
 	bool bSuccess = true;
 
@@ -55,7 +55,7 @@ bool DevicePlatformManager::startup()
 	return bSuccess;
 }
 
-void DevicePlatformManager::poll()
+void PlatformDeviceManager::poll()
 {
 	if (m_api != nullptr)
 	{
@@ -63,7 +63,7 @@ void DevicePlatformManager::poll()
 	}
 }
 
-void DevicePlatformManager::shutdown()
+void PlatformDeviceManager::shutdown()
 {
 	if (m_api != nullptr)
 	{
@@ -74,7 +74,7 @@ void DevicePlatformManager::shutdown()
 }
 
 // -- Queries ---
-bool DevicePlatformManager::get_device_property(
+bool PlatformDeviceManager::get_device_property(
 	const DeviceClass deviceClass,
 	const int vendor_id,
 	const int product_id,
@@ -93,7 +93,7 @@ bool DevicePlatformManager::get_device_property(
 }
 
 // -- Notification --
-void DevicePlatformManager::registerHotplugListener(const CommonDeviceState::eDeviceClass deviceClass, IDeviceHotplugListener *listener)
+void PlatformDeviceManager::registerHotplugListener(const CommonDeviceState::eDeviceClass deviceClass, IDeviceHotplugListener *listener)
 {
 	DeviceHotplugListener entry;
 	entry.listener = listener;
@@ -114,7 +114,7 @@ void DevicePlatformManager::registerHotplugListener(const CommonDeviceState::eDe
 	m_listeners.push_back(entry);
 }
 
-void DevicePlatformManager::handle_device_connected(enum DeviceClass device_class, const std::string &device_path)
+void PlatformDeviceManager::handle_device_connected(enum DeviceClass device_class, const std::string &device_path)
 {
 	for (auto &it = m_listeners.begin(); it != m_listeners.end(); ++it)
 	{
@@ -125,7 +125,7 @@ void DevicePlatformManager::handle_device_connected(enum DeviceClass device_clas
 	}
 }
 
-void DevicePlatformManager::handle_device_disconnected(enum DeviceClass device_class, const std::string &device_path)
+void PlatformDeviceManager::handle_device_disconnected(enum DeviceClass device_class, const std::string &device_path)
 {
 	for (auto &it = m_listeners.begin(); it != m_listeners.end(); ++it)
 	{
