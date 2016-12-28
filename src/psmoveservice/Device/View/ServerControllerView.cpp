@@ -398,7 +398,7 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
             const bool bWasTracking= trackerPoseEstimateRef.bCurrentlyTracking;
 
             // Assume we're going to lose tracking this frame
-            trackerPoseEstimateRef.bCurrentlyTracking = false;
+            bool bCurrentlyTracking = false;
 
             if (tracker->getIsOpen())
             {
@@ -453,7 +453,7 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
                             ++projections_found;
 
                             // Flag this pose estimate as invalid
-                            trackerPoseEstimateRef.bCurrentlyTracking = true;
+                            bCurrentlyTracking = true;
                         }
                     }
                 }
@@ -462,6 +462,7 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
             // Keep track of the last time the position estimate was updated
             trackerPoseEstimateRef.last_update_timestamp = now;
             trackerPoseEstimateRef.bValidTimestamps = true;
+			trackerPoseEstimateRef.bCurrentlyTracking = bCurrentlyTracking;
         }
 
 		// How we compute the final world pose estimate varies based on

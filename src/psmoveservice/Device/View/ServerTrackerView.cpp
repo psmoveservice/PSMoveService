@@ -29,6 +29,9 @@
 
 #define USE_OPEN_CV_ELLIPSE_FIT
 
+//-- constants ----
+static const int k_min_roi_size= 32;
+
 //-- typedefs ----
 typedef std::vector<cv::Point> t_opencv_int_contour;
 typedef std::vector<t_opencv_int_contour> t_opencv_int_contour_list;
@@ -1141,13 +1144,18 @@ ServerTrackerView::computeProjectionForController(
     }
 
 	// Compute a region of interest in the tracker buffer around where we expect to find the tracking shape
-	const bool bRoiDisabled = tracked_controller->getIsROIDisabled() || DeviceManager::getInstance()->m_tracker_manager->getConfig().disable_roi;
-	const bool bIsTracking = tracked_controller->getIsCurrentlyTracking();
+	const TrackerManagerConfig &trackerMgrConfig= DeviceManager::getInstance()->m_tracker_manager->getConfig();
+	const bool bRoiDisabled = tracked_controller->getIsROIDisabled() || trackerMgrConfig.disable_roi;
+
+	const ControllerOpticalPoseEstimation *priorPoseEst= 
+		tracked_controller->getTrackerPoseEstimate(this->getDeviceID());
+	const bool bIsTracking = priorPoseEst->bCurrentlyTracking;
+
 	cv::Rect2i ROI= computeTrackerROIForPoseProjection(
 		bRoiDisabled,
 		this,		
 		bIsTracking ? tracked_controller->getPoseFilter() : nullptr,
-		bIsTracking ? &tracked_controller->getTrackerPoseEstimate(this->getDeviceID())->projection : nullptr,
+		bIsTracking ? &priorPoseEst->projection : nullptr,
 		tracking_shape);
 
     m_opencv_buffer_state->applyROI(ROI);
@@ -1233,6 +1241,8 @@ ServerTrackerView::computeProjectionForController(
                     ellipse_projection.center.y()*camera_matrix.val[4] + camera_matrix.val[5]);
                 out_pose_estimate->projection.shape.ellipse.half_x_extent = ellipse_projection.extents.x()*camera_matrix.val[0];
                 out_pose_estimate->projection.shape.ellipse.half_y_extent = ellipse_projection.extents.y()*camera_matrix.val[0];
+				out_pose_estimate->projection.screen_area=
+					k_real_pi*out_pose_estimate->projection.shape.ellipse.half_x_extent*out_pose_estimate->projection.shape.ellipse.half_y_extent;
                 
                 //Draw results onto m_opencv_buffer_state
                 m_opencv_buffer_state->draw_pose_projection(out_pose_estimate->projection);
@@ -1273,6 +1283,19 @@ ServerTrackerView::computeProjectionForController(
             break;
         }
     }
+
+	// Throw out the result if the contour we found was too small and 
+	// we were using an ROI less that the size of the full screen
+	if (bSuccess && !bRoiDisabled)
+	{
+		float screenWidth, screenHeight;
+		getPixelDimensions(screenWidth, screenHeight);
+
+		if (ROI.width < screenWidth || ROI.height < screenHeight)
+		{
+			bSuccess= out_pose_estimate->projection.screen_area >= trackerMgrConfig.min_valid_projection_area;
+		}
+	}
 
     return bSuccess;
 }
@@ -2252,8 +2275,8 @@ static cv::Rect2i computeTrackerROIForPoseProjection(
 
 			const cv::Point2i roi_center(static_cast<int>(projection_pixel_center.x), static_cast<int>(projection_pixel_center.y));
 
-			const int safe_proj_width = std::max(proj_width, 10);
-			const int safe_proj_height = std::max(proj_height, 10);
+			const int safe_proj_width = std::max(proj_width, k_min_roi_size);
+			const int safe_proj_height = std::max(proj_height, k_min_roi_size);
 
 			const cv::Point2i roi_top_left = roi_center + cv::Point2i(-safe_proj_width, -safe_proj_height);
 			const cv::Size roi_size(2*safe_proj_width, 2*safe_proj_height);
