@@ -1625,7 +1625,7 @@ ServerTrackerView::triangulateWorldPose(
 						align_normal_rotation * eigen_global_right;
 					const Eigen::Quaternionf align_right_rotation = 
 						Eigen::Quaternionf::FromTwoVectors(x_axis_in_plane, right);
-					const Eigen::Quaternionf q = align_right_rotation*align_normal_rotation;
+					const Eigen::Quaternionf q = (align_right_rotation*align_normal_rotation).normalized();
 
 					pose.Orientation.w= q.w();
 					pose.Orientation.x= q.x();
@@ -2521,11 +2521,23 @@ static void angleAxisVectorToCommonDeviceOrientation(
     if (!is_nearly_zero(radians))
     {
         const float sin_theta_over_two = sinf(radians * 0.5f);
+        const float w = cosf(radians * 0.5f);
+        const float x = axis_x * sin_theta_over_two;
+        const float y = axis_y * sin_theta_over_two;
+        const float z = axis_z * sin_theta_over_two;
+		const float length = sqrtf(w*w + x*x + y*y + z*z);
 
-        orientation.w = cosf(radians * 0.5f);
-        orientation.x = axis_x * sin_theta_over_two;
-        orientation.y = axis_y * sin_theta_over_two;
-        orientation.z = axis_z * sin_theta_over_two;
+		if (length > k_normal_epsilon)
+		{
+			orientation.w = w / length;
+			orientation.x = x / length;
+			orientation.y = y / length;
+			orientation.z = z / length;
+		}
+		else
+		{
+			orientation.clear();
+		}
     }
     else
     {
