@@ -15,14 +15,14 @@
 #define MAX_CONTROLLER_TYPE_INDEX               GET_DEVICE_TYPE_INDEX(CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT)
 
 // -- globals -----
-struct USBApiDeviceFilter
+struct GamepadFilter
 {
 	USBDeviceFilter filter;
 	bool bUSBApiSupported;
 };
 
 // NOTE: This list must match the controller order in CommonDeviceState::eDeviceType
-USBApiDeviceFilter g_supported_libusb_controller_filters[MAX_CONTROLLER_TYPE_INDEX] = {
+GamepadFilter g_supported_libusb_controller_filters[MAX_CONTROLLER_TYPE_INDEX] = {
 	{ 0x054c, 0x03d5, false }, // PSMove
 	{ 0x054c, 0x042F, true }, // PSNavi
 	{ 0x054c, 0x05C4, false }, // PSDualShock4
@@ -165,7 +165,7 @@ static bool get_usb_controller_type(USBDeviceEnumerator *enumerator, CommonDevic
 		// See if the next filtered device is a controller type that we care about
 		for (int tracker_type_index = 0; tracker_type_index < MAX_CONTROLLER_TYPE_INDEX; ++tracker_type_index)
 		{
-			const USBApiDeviceFilter &supported_type = g_supported_libusb_controller_filters[tracker_type_index];
+			const GamepadFilter &supported_type = g_supported_libusb_controller_filters[tracker_type_index];
 
 			if (supported_type.bUSBApiSupported &&
 				devInfo.product_id == supported_type.filter.product_id &&

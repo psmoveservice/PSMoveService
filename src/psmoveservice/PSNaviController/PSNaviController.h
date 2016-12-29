@@ -110,16 +110,17 @@ public:
 	virtual float getPredictionTime() const override;
         
 private:    
-	bool setInputStreamEnabled();
-    bool getHostBTAddress(std::string& out_host);
-	bool getControllerBTAddress(std::string& out_controller);
+	bool setInputStreamEnabledOverUSB();
+    bool getHostBTAddressOverUSB(std::string& out_host);
+	bool getControllerBTAddressOverUSB(std::string& out_controller);
 
 	IControllerInterface::ePollResult pollUSB();
+	IControllerInterface::ePollResult pollGamepad();
 	void parseInputData();
     
     // Constant while a controller is open
     PSNaviControllerConfig cfg;
-	class PSNaviUSBContext *USBContext;
+	class PSNaviAPIContext *APIContext;
     bool IsBluetooth;                               // true if valid serial number on device opening
 
     // Read Controller State

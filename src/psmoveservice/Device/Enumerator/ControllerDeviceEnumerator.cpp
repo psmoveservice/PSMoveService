@@ -2,6 +2,7 @@
 #include "ControllerDeviceEnumerator.h"
 #include "ControllerHidDeviceEnumerator.h"
 #include "ControllerUSBDeviceEnumerator.h"
+#include "ControllerGamepadEnumerator.h"
 #include "assert.h"
 #include "string.h"
 
@@ -10,7 +11,7 @@
 // -- ControllerDeviceEnumerator -----
 ControllerDeviceEnumerator::ControllerDeviceEnumerator(
 	eAPIType _apiType)
-	: DeviceEnumerator(CommonDeviceState::PSMove)
+	: DeviceEnumerator()
 	, api_type(_apiType)
 	, enumerators(nullptr)
 	, enumerator_count(0)
@@ -20,19 +21,25 @@ ControllerDeviceEnumerator::ControllerDeviceEnumerator(
 	{
 	case eAPIType::CommunicationType_HID:
 		enumerators = new DeviceEnumerator *[1];
-		enumerators[0] = new ControllerHidDeviceEnumerator(CommonDeviceState::PSMove);
+		enumerators[0] = new ControllerHidDeviceEnumerator;
 		enumerator_count = 1;
 		break;
 	case eAPIType::CommunicationType_USB:
 		enumerators = new DeviceEnumerator *[1];
-		enumerators[0] = new ControllerUSBDeviceEnumerator(CommonDeviceState::PSMove);
+		enumerators[0] = new ControllerUSBDeviceEnumerator;
+		enumerator_count = 1;
+		break;
+	case eAPIType::CommunicationType_GAMEPAD:
+		enumerators = new DeviceEnumerator *[1];
+		enumerators[0] = new ControllerGamepadEnumerator;
 		enumerator_count = 1;
 		break;
 	case eAPIType::CommunicationType_ALL:
-		enumerators = new DeviceEnumerator *[2];
-		enumerators[0] = new ControllerHidDeviceEnumerator(CommonDeviceState::PSMove);
-		enumerators[1] = new ControllerUSBDeviceEnumerator(CommonDeviceState::PSMove);
-		enumerator_count = 2;
+		enumerators = new DeviceEnumerator *[3];
+		enumerators[0] = new ControllerHidDeviceEnumerator;
+		enumerators[1] = new ControllerUSBDeviceEnumerator;
+		enumerators[2] = new ControllerGamepadEnumerator;
+		enumerator_count = 3;
 		break;
 	}
 
@@ -67,11 +74,17 @@ ControllerDeviceEnumerator::ControllerDeviceEnumerator(
 		enumerators[0] = new ControllerUSBDeviceEnumerator(deviceType);
 		enumerator_count = 1;
 		break;
+	case eAPIType::CommunicationType_GAMEPAD:
+		enumerators = new DeviceEnumerator *[1];
+		enumerators[0] = new ControllerGamepadEnumerator(deviceType);
+		enumerator_count = 1;
+		break;
 	case eAPIType::CommunicationType_ALL:
-		enumerators = new DeviceEnumerator *[2];
+		enumerators = new DeviceEnumerator *[3];
 		enumerators[0] = new ControllerHidDeviceEnumerator(deviceType);
 		enumerators[1] = new ControllerUSBDeviceEnumerator(deviceType);
-		enumerator_count = 2;
+		enumerators[2] = new ControllerGamepadEnumerator(deviceType);
+		enumerator_count = 3;
 		break;
 	}
 
@@ -136,10 +149,27 @@ ControllerDeviceEnumerator::eAPIType ControllerDeviceEnumerator::get_api_type() 
 	case eAPIType::CommunicationType_USB:
 		result = (enumerator_index < enumerator_count) ? ControllerDeviceEnumerator::CommunicationType_USB : ControllerDeviceEnumerator::CommunicationType_INVALID;
 		break;
+	case eAPIType::CommunicationType_GAMEPAD:
+		result = (enumerator_index < enumerator_count) ? ControllerDeviceEnumerator::CommunicationType_GAMEPAD : ControllerDeviceEnumerator::CommunicationType_INVALID;
+		break;
 	case eAPIType::CommunicationType_ALL:
 		if (enumerator_index < enumerator_count)
 		{
-			result = (enumerator_index == 0) ? ControllerDeviceEnumerator::CommunicationType_HID : ControllerDeviceEnumerator::CommunicationType_USB;
+			switch (enumerator_index)
+			{
+			case 0:
+				result = ControllerDeviceEnumerator::CommunicationType_HID;
+				break;
+			case 1:
+				result = ControllerDeviceEnumerator::CommunicationType_USB;
+				break;
+			case 2:
+				result = ControllerDeviceEnumerator::CommunicationType_GAMEPAD;
+				break;
+			default:
+				result = ControllerDeviceEnumerator::CommunicationType_INVALID;
+				break;
+			}
 		}
 		else
 		{
@@ -161,6 +191,9 @@ const ControllerHidDeviceEnumerator *ControllerDeviceEnumerator::get_hid_control
 		enumerator = (enumerator_index < enumerator_count) ? static_cast<ControllerHidDeviceEnumerator *>(enumerators[0]) : nullptr;
 		break;
 	case eAPIType::CommunicationType_USB:
+		enumerator = nullptr;
+		break;
+	case eAPIType::CommunicationType_GAMEPAD:
 		enumerator = nullptr;
 		break;
 	case eAPIType::CommunicationType_ALL:
@@ -190,10 +223,43 @@ const ControllerUSBDeviceEnumerator *ControllerDeviceEnumerator::get_usb_control
 	case eAPIType::CommunicationType_USB:
 		enumerator = (enumerator_index < enumerator_count) ? static_cast<ControllerUSBDeviceEnumerator *>(enumerators[0]) : nullptr;
 		break;
+	case eAPIType::CommunicationType_GAMEPAD:
+		enumerator = nullptr;
+		break;
 	case eAPIType::CommunicationType_ALL:
 		if (enumerator_index < enumerator_count)
 		{
 			enumerator = (enumerator_index == 1) ? static_cast<ControllerUSBDeviceEnumerator *>(enumerators[1]) : nullptr;
+		}
+		else
+		{
+			enumerator = nullptr;
+		}
+		break;
+	}
+
+	return enumerator;
+}
+
+const ControllerGamepadEnumerator *ControllerDeviceEnumerator::get_gamepad_controller_enumerator() const
+{
+	ControllerGamepadEnumerator *enumerator = nullptr;
+
+	switch (api_type)
+	{
+	case eAPIType::CommunicationType_HID:
+		enumerator = nullptr;
+		break;
+	case eAPIType::CommunicationType_USB:
+		enumerator = nullptr;
+		break;
+	case eAPIType::CommunicationType_GAMEPAD:
+		enumerator = (enumerator_index < enumerator_count) ? static_cast<ControllerGamepadEnumerator *>(enumerators[0]) : nullptr;
+		break;
+	case eAPIType::CommunicationType_ALL:
+		if (enumerator_index < enumerator_count)
+		{
+			enumerator = (enumerator_index == 2) ? static_cast<ControllerGamepadEnumerator *>(enumerators[2]) : nullptr;
 		}
 		else
 		{

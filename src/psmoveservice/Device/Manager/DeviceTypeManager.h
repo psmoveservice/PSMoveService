@@ -44,7 +44,7 @@ public:
     int poll_interval;
 
 protected:
-    void poll_devices();
+    virtual void poll_devices();
 
     /** This method tries make the list of open devices in m_devices match
     the list of connected devices in the device enumerator.

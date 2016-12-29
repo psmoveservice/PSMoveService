@@ -2,9 +2,12 @@
 #include "PSNaviController.h"
 #include "ControllerDeviceEnumerator.h"
 #include "ControllerUSBDeviceEnumerator.h"
+#include "ControllerGamepadEnumerator.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
 #include "USBDeviceManager.h"
+
+#include "gamepad/Gamepad.h"
 
 #include <iostream>
 #include <sstream>
@@ -78,7 +81,7 @@ enum PSNaviButton {
 };
 
 // -- private definitions -----
-class PSNaviUSBContext
+class PSNaviAPIContext
 {
 public:
 	int vendor_id;
@@ -91,7 +94,11 @@ public:
 	std::string usb_device_path;
 	t_usb_device_handle usb_device_handle;
 
-	PSNaviUSBContext()
+	// Gamepad state
+	std::string gamepad_device_path;
+	int gamepad_index;
+
+	PSNaviAPIContext()
 	{
 		Reset();
 	}
@@ -105,6 +112,8 @@ public:
 		controller_bluetooth_address = "";
 		usb_device_path = "";
 		usb_device_handle = k_invalid_usb_device_handle;
+		gamepad_device_path = "";
+		gamepad_index = -1;
 	}
 };
 
@@ -135,6 +144,7 @@ struct PSNaviDataInput {
 // -- private prototypes -----
 static std::string NaviBTAddrUcharToString(const unsigned char* addr_buff);
 static bool stringToNaviBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size);
+inline void setButtonBit(unsigned int buttons, unsigned int button_bit, bool is_pressed);
 inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
 
 static int psnavi_get_usb_feature_report(t_usb_device_handle device_handle, unsigned char *report_bytes, size_t report_size);
@@ -163,7 +173,15 @@ PSNaviControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 // -- PSMove Controller -----
 PSNaviController::PSNaviController()
 {   
-	USBContext = new PSNaviUSBContext();
+	APIContext = new PSNaviAPIContext();
+
+    // Make sure there is an initial empty state in the tracker queue
+    {     
+        PSNaviControllerState empty_state;
+
+        empty_state.clear();
+        ControllerStates.push_back(empty_state);
+    }
 
     NextPollSequenceNumber= 0;
 }
@@ -175,7 +193,7 @@ PSNaviController::~PSNaviController()
         SERVER_LOG_ERROR("~PSNaviController") << "Controller deleted without calling close() first!";
     }
 
-	delete USBContext;
+	delete APIContext;
 }
 
 bool PSNaviController::open()
@@ -208,8 +226,8 @@ bool PSNaviController::open(
     {
         SERVER_LOG_INFO("PSNaviController::open") << "Opening PSNaviController(" << cur_dev_path << ")";
 
-		USBContext->vendor_id = pEnum->get_vendor_id();
-		USBContext->product_id = pEnum->get_product_id();
+		APIContext->vendor_id = pEnum->get_vendor_id();
+		APIContext->product_id = pEnum->get_product_id();
 
 		if (pEnum->get_api_type() == ControllerDeviceEnumerator::CommunicationType_USB)
 		{
@@ -220,48 +238,91 @@ bool PSNaviController::open(
 			if (usb_device_handle != k_invalid_usb_device_handle)
 			{
 				SERVER_LOG_INFO("PSNaviController::open") << "  Successfully opened USB handle " << usb_device_handle;
-				USBContext->usb_device_path = cur_dev_path;
-				USBContext->usb_device_handle = usb_device_handle;
+				APIContext->usb_device_path = cur_dev_path;
+				APIContext->usb_device_handle = usb_device_handle;
 			}
 			else
 			{
 				SERVER_LOG_ERROR("PSNaviController::open") << "  Failed to open USB handle " << usb_device_handle;
 			}
 		}
+		else if (pEnum->get_api_type() == ControllerDeviceEnumerator::CommunicationType_GAMEPAD)
+		{
+			const ControllerGamepadEnumerator *gamepadControllerEnum = pEnum->get_gamepad_controller_enumerator();
+			assert(gamepadControllerEnum != nullptr);
+			const int gamepad_index = gamepadControllerEnum->get_contoller_index();
+
+			if (gamepad_index != -1)
+			{
+				const Gamepad_device * gamepad = Gamepad_deviceAtIndex(static_cast<unsigned int>(gamepad_index));
+
+				char device_path[255];
+				ServerUtility::format_string(device_path, sizeof(device_path), "%s #%d", gamepad->description, gamepad_index);
+
+				SERVER_LOG_INFO("PSNaviController::open") << "  Successfully opened gamepad: " << device_path;
+				APIContext->gamepad_index = gamepad_index;
+				APIContext->gamepad_device_path = device_path;
+
+				// Sadly this info available to us through the gamepad api
+				APIContext->host_bluetooth_address= "00:00:00:00:00:00";
+				APIContext->controller_bluetooth_address= "00:00:00:00:00:00";
+			}
+			else
+			{
+				SERVER_LOG_ERROR("PSNaviController::open") << "  Failed to open gamepad";
+			}
+		}
 
         if (getIsOpen())  // Controller was opened and has an index
         {
-			// Get the bluetooth address
-			if (getHostBTAddress(USBContext->host_bluetooth_address) &&
-				getControllerBTAddress(USBContext->controller_bluetooth_address))
+			if (pEnum->get_api_type() == ControllerDeviceEnumerator::CommunicationType_USB)
 			{
-				// Build a unique name for the config file using bluetooth address of the controller
-				char szConfigSuffix[18];
-				ServerUtility::bluetooth_cstr_address_normalize(
-					USBContext->controller_bluetooth_address.c_str(), true, '_',
-					szConfigSuffix, sizeof(szConfigSuffix));
+				// Get the bluetooth address
+				if (getHostBTAddressOverUSB(APIContext->host_bluetooth_address) &&
+					getControllerBTAddressOverUSB(APIContext->controller_bluetooth_address))
+				{
+					// Build a unique name for the config file using bluetooth address of the controller
+					char szConfigSuffix[18];
+					ServerUtility::bluetooth_cstr_address_normalize(
+						APIContext->controller_bluetooth_address.c_str(), true, '_',
+						szConfigSuffix, sizeof(szConfigSuffix));
 
-				std::string config_name("psnavi_");
-				config_name += szConfigSuffix;
+					std::string config_name("psnavi_");
+					config_name += szConfigSuffix;
+
+					// Load the config file
+					cfg = PSNaviControllerConfig(config_name);
+					cfg.load();
+
+					// Save it back out again in case any defaults changed
+					cfg.save();
+
+					// Tell the controller to start sending input data packets
+					setInputStreamEnabledOverUSB();
+
+					success = true;
+				}
+				else
+				{
+					// If serial is still bad, maybe we have a disconnected
+					// controller still showing up in hidapi
+					SERVER_LOG_ERROR("PSNaviController::open") << "Failed to get bluetooth address of PSNaviController(" << cur_dev_path << ")";
+					success = false;
+				}
+			}
+			else if (pEnum->get_api_type() == ControllerDeviceEnumerator::CommunicationType_GAMEPAD)
+			{
+				char config_name[255];
+				ServerUtility::format_string(config_name, sizeof(config_name), "psnavi_gamepad_%d", APIContext->gamepad_index);
 
 				// Load the config file
-				cfg = PSNaviControllerConfig(config_name);
+				cfg = PSNaviControllerConfig(std::string(config_name));
 				cfg.load();
 
 				// Save it back out again in case any defaults changed
 				cfg.save();
 
-				// Tell the controller to start sending input data packets
-				setInputStreamEnabled();
-
 				success = true;
-			}
-			else
-			{
-				// If serial is still bad, maybe we have a disconnected
-				// controller still showing up in hidapi
-				SERVER_LOG_ERROR("PSNaviController::open") << "Failed to get bluetooth address of PSNaviController(" << cur_dev_path << ")";
-				success = false;
 			}
 
             // Reset the polling sequence counter
@@ -281,21 +342,25 @@ void PSNaviController::close()
 {
     if (getIsOpen())
     {
-		USBDeviceManager *usbMgr = USBDeviceManager::getInstance();
-
-        SERVER_LOG_INFO("PSNaviController::close") << "Closing PSNaviController(" << USBContext->usb_device_path << ")";
-
-		if (USBContext->usb_device_handle != k_invalid_usb_device_handle)
+		if (APIContext->usb_device_handle != k_invalid_usb_device_handle)
 		{
-			usb_device_close(USBContext->usb_device_handle);
-			USBContext->usb_device_handle = k_invalid_usb_device_handle;
+			USBDeviceManager *usbMgr = USBDeviceManager::getInstance();
+
+			SERVER_LOG_INFO("PSNaviController::close") << "Closing PSNaviController(" << APIContext->usb_device_path << ")";
+			usb_device_close(APIContext->usb_device_handle);
+			APIContext->usb_device_handle = k_invalid_usb_device_handle;
+		}
+		else if (APIContext->gamepad_index != -1)
+		{
+			SERVER_LOG_INFO("PSNaviController::close") << "Closing PSNaviController(" << APIContext->gamepad_index << ")";
+			APIContext->gamepad_index = -1;
 		}
 
-		USBContext->Reset();
+		APIContext->Reset();
     }
     else
     {
-        SERVER_LOG_INFO("PSNaviController::close") << "PSNaviController(" << USBContext->usb_device_path << ") already closed. Ignoring request.";
+        SERVER_LOG_INFO("PSNaviController::close") << "PSNaviController(" << APIContext->usb_device_path << ") already closed. Ignoring request.";
     }
 }
 
@@ -309,31 +374,39 @@ bool
 PSNaviController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
 {
     bool success= false;
-    unsigned char bts[PSNAVI_HOST_BTADDR_BUF_SIZE];
 
-    memset(bts, 0, sizeof(bts));
-    bts[0] = PSNavi_Req_SetHostBTAddr;
-    bts[1] = 0x00;
-    bts[2] = 0x00;
+	if (APIContext->usb_device_handle != k_invalid_usb_device_handle)
+	{
+		unsigned char bts[PSNAVI_HOST_BTADDR_BUF_SIZE];
 
-    unsigned char addr[6];
-    if (stringToNaviBTAddrUchar(new_host_bt_addr, addr, sizeof(addr)))
-    {
-        int res;
+		memset(bts, 0, sizeof(bts));
+		bts[0] = PSNavi_Req_SetHostBTAddr;
+		bts[1] = 0x00;
+		bts[2] = 0x00;
 
-        /* Copy 6 bytes from addr into bts[3]..bts[8] */
-        memcpy(&bts[3], addr, sizeof(addr));
+		unsigned char addr[6];
+		if (stringToNaviBTAddrUchar(new_host_bt_addr, addr, sizeof(addr)))
+		{
+			int res;
 
-        res = psnavi_send_usb_feature_report(USBContext->usb_device_handle, bts, sizeof(bts));
-        if (res == sizeof(bts) )
-        {
-            success= true;
-        }
-    }
-    else
-    {
-        SERVER_LOG_ERROR("PSNaviController::setBTAddress") << "Malformed address: " << new_host_bt_addr;
-    }
+			/* Copy 6 bytes from addr into bts[3]..bts[8] */
+			memcpy(&bts[3], addr, sizeof(addr));
+
+			res = psnavi_send_usb_feature_report(APIContext->usb_device_handle, bts, sizeof(bts));
+			if (res == sizeof(bts) )
+			{
+				success= true;
+			}
+		}
+		else
+		{
+			SERVER_LOG_ERROR("PSNaviController::setBTAddress") << "Malformed address: " << new_host_bt_addr;
+		}
+	}
+	else
+	{
+		SERVER_LOG_ERROR("PSNaviController::setBTAddress") << "Can't set bluetooth address using gampad api";
+	}
 
     return success;
 }
@@ -343,22 +416,24 @@ PSNaviController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
 bool 
 PSNaviController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
 {
-    const ControllerDeviceEnumerator *pEnum = static_cast<const ControllerDeviceEnumerator *>(enumerator);
     bool matches= false;
 
-    if (pEnum->get_device_type() == CommonControllerState::PSNavi)
+    if (enumerator->get_device_type() == CommonControllerState::PSNavi)
     {
-		const char *enumerator_path = pEnum->get_path();
+		const char *enumerator_path = enumerator->get_path();
 		const char *dev_path = nullptr;
 
-		switch (pEnum->get_api_type())
+		if (APIContext->usb_device_handle != k_invalid_usb_device_handle)
 		{
-		case ControllerDeviceEnumerator::CommunicationType_HID:
+			dev_path = APIContext->usb_device_path.c_str();
+		}
+		else if (APIContext->gamepad_index != -1)
+		{
+			dev_path = APIContext->gamepad_device_path.c_str();
+		}
+		else
+		{
 			dev_path = "<INVALID>";
-			break;
-		case ControllerDeviceEnumerator::CommunicationType_USB:
-			dev_path = USBContext->usb_device_path.c_str();
-			break;
 		}
 
     #ifdef _WIN32
@@ -374,50 +449,50 @@ PSNaviController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) co
 bool 
 PSNaviController::getIsBluetooth() const
 { 
-	// Bluetooth connections are currently not supported for the PSNavi
-    return false; 
+	// Assumed bluetooth connection if the controller is connected through the gamepad interface
+    return APIContext->gamepad_index != -1;
 }
 
 bool
 PSNaviController::getIsReadyToPoll() const
 {
-    return (getIsOpen() && getIsBluetooth());
+    return getIsOpen();
 }
 
 std::string 
 PSNaviController::getUSBDevicePath() const
 {
-    return USBContext->usb_device_path;
+    return APIContext->usb_device_path;
 }
 
 int
 PSNaviController::getVendorID() const
 {
-	return USBContext->vendor_id;
+	return APIContext->vendor_id;
 }
 
 int
 PSNaviController::getProductID() const
 {
-	return USBContext->product_id;
+	return APIContext->product_id;
 }
 
 std::string 
 PSNaviController::getSerial() const
 {
-    return USBContext->controller_bluetooth_address;
+    return APIContext->controller_bluetooth_address;
 }
 
 std::string 
 PSNaviController::getAssignedHostBluetoothAddress() const
 {
-    return USBContext->host_bluetooth_address;
+    return APIContext->host_bluetooth_address;
 }
 
 bool
 PSNaviController::getIsOpen() const
 {
-    return (USBContext->usb_device_handle != k_invalid_usb_device_handle);
+    return (APIContext->usb_device_handle != k_invalid_usb_device_handle || APIContext->gamepad_index != -1);
 }
 
 CommonDeviceState::eDeviceType
@@ -427,7 +502,7 @@ PSNaviController::getDeviceType() const
 }
 
 bool
-PSNaviController::setInputStreamEnabled()
+PSNaviController::setInputStreamEnabledOverUSB()
 { 
 	bool bSuccess = false;
 
@@ -440,7 +515,7 @@ PSNaviController::setInputStreamEnabled()
 	report_bytes[3] = 0x00;
 	report_bytes[4] = 0x00;
 
-	int res = psnavi_send_usb_feature_report(USBContext->usb_device_handle, report_bytes, sizeof(report_bytes));
+	int res = psnavi_send_usb_feature_report(APIContext->usb_device_handle, report_bytes, sizeof(report_bytes));
 	if (res == sizeof(report_bytes))
 	{
 		bSuccess = true;
@@ -450,7 +525,7 @@ PSNaviController::setInputStreamEnabled()
 }
 
 bool
-PSNaviController::getHostBTAddress(std::string& host)
+PSNaviController::getHostBTAddressOverUSB(std::string& host)
 {
     bool bSuccess = false;
         
@@ -460,7 +535,7 @@ PSNaviController::getHostBTAddress(std::string& host)
     memset(btg, 0, sizeof(btg));
     btg[0] = PSNavi_Req_GetHostBTAddr;
 
-	int res = psnavi_get_usb_feature_report(USBContext->usb_device_handle, btg, sizeof(btg));
+	int res = psnavi_get_usb_feature_report(APIContext->usb_device_handle, btg, sizeof(btg));
 	if (res == sizeof(btg))
 	{
 		bSuccess = true;
@@ -476,7 +551,7 @@ PSNaviController::getHostBTAddress(std::string& host)
 }
 
 bool
-PSNaviController::getControllerBTAddress(std::string& controller)
+PSNaviController::getControllerBTAddressOverUSB(std::string& controller)
 {
 	bool bSuccess = false;
 
@@ -486,7 +561,7 @@ PSNaviController::getControllerBTAddress(std::string& controller)
 	memset(btg, 0, sizeof(btg));
 	btg[0] = PSNavi_Req_GetControllerBTAddr;
 
-	int res = psnavi_get_usb_feature_report(USBContext->usb_device_handle, btg, sizeof(btg));
+	int res = psnavi_get_usb_feature_report(APIContext->usb_device_handle, btg, sizeof(btg));
 	if (res == sizeof(btg))
 	{
 		bSuccess = true;
@@ -508,18 +583,85 @@ PSNaviController::poll()
       
     if (getIsOpen())
     {
-		// One day perhaps...
-		//if (getIsBluetooth())
-		//{
-		//	result = pollBluetooth();
-		//}
-		//else
+		if (APIContext->usb_device_handle != k_invalid_usb_device_handle)
 		{
-			result = pollUSB();
+			result = pollUSB();			
+		}
+		else if (APIContext->gamepad_index != -1)
+		{
+			// For the gamepad case, just consider the current state is new data
+			result = pollGamepad();
 		}
     }
 
     return result;
+}
+
+IControllerInterface::ePollResult
+PSNaviController::pollGamepad()
+{
+	assert(getIsOpen());
+
+	const Gamepad_device * gamepad = Gamepad_deviceAtIndex(static_cast<unsigned int>(APIContext->gamepad_index));
+	PSNaviControllerState newState;
+
+	// Increment the sequence for every new polling packet
+	newState.PollSequenceNumber = NextPollSequenceNumber;
+	++NextPollSequenceNumber;
+
+	// New Button State
+	bool bIsCrossPressed= gamepad->buttonStates[0];
+	bool bIsCirclePressed= gamepad->buttonStates[1];
+	bool bIsL1Pressed= gamepad->buttonStates[4];
+	bool bIsL2Pressed= gamepad->axisStates[2] >= .9f;
+	bool bIsL3Pressed= gamepad->buttonStates[8];
+	bool bIsDPadLeftPressed= gamepad->axisStates[5] <= -0.99f;
+	bool bIsDPadRightPressed= gamepad->axisStates[5] >= 0.99f;
+	bool bIsDPadUpPressed= gamepad->axisStates[6] <= -0.99f;
+	bool bIsDPadDownPressed= gamepad->axisStates[6] >= 0.99f;
+
+	newState.AllButtons = 0;
+	setButtonBit(newState.AllButtons, Btn_UP, bIsDPadUpPressed);
+	setButtonBit(newState.AllButtons, Btn_DOWN, bIsDPadDownPressed);
+	setButtonBit(newState.AllButtons, Btn_LEFT, bIsDPadLeftPressed);
+	setButtonBit(newState.AllButtons, Btn_RIGHT, bIsDPadRightPressed);
+	setButtonBit(newState.AllButtons, Btn_CROSS, bIsCrossPressed);
+	setButtonBit(newState.AllButtons, Btn_CIRCLE, bIsCirclePressed);
+	setButtonBit(newState.AllButtons, Btn_L1, bIsL1Pressed);
+	setButtonBit(newState.AllButtons, Btn_L2, bIsL2Pressed);
+	setButtonBit(newState.AllButtons, Btn_L3, bIsL3Pressed);
+
+	// Button de-bounce
+	unsigned int lastButtons = ControllerStates.empty() ? 0 : ControllerStates.back().AllButtons;
+	newState.DPad_Up = getButtonState(newState.AllButtons, lastButtons, Btn_UP);
+	newState.DPad_Down = getButtonState(newState.AllButtons, lastButtons, Btn_DOWN);
+	newState.DPad_Left = getButtonState(newState.AllButtons, lastButtons, Btn_LEFT);
+	newState.DPad_Right = getButtonState(newState.AllButtons, lastButtons, Btn_RIGHT);
+	newState.Circle = getButtonState(newState.AllButtons, lastButtons, Btn_CIRCLE);
+	newState.Cross = getButtonState(newState.AllButtons, lastButtons, Btn_CROSS);
+	newState.PS = getButtonState(newState.AllButtons, lastButtons, Btn_PS);
+	newState.L1 = getButtonState(newState.AllButtons, lastButtons, Btn_L1);
+	newState.L2 = getButtonState(newState.AllButtons, lastButtons, Btn_L2);
+	newState.L3 = getButtonState(newState.AllButtons, lastButtons, Btn_L3);
+
+	// Analog triggers
+	newState.Stick_XAxis = static_cast<unsigned char>((gamepad->axisStates[0] + 1.f) * 127.f);
+	newState.Stick_YAxis = static_cast<unsigned char>((gamepad->axisStates[1] + 1.f) * 127.f);
+	newState.Trigger = static_cast<unsigned char>(gamepad->axisStates[2] * 255.f);
+
+	// Can't report the true battery state
+	newState.Battery = CommonControllerState::Batt_MAX;
+
+	// Make room for new entry if at the max queue size
+	if (ControllerStates.size() >= PSNAVI_STATE_BUFFER_MAX)
+	{
+		ControllerStates.erase(ControllerStates.begin(),
+			ControllerStates.begin() + ControllerStates.size() - PSNAVI_STATE_BUFFER_MAX);
+	}
+
+	ControllerStates.push_back(newState);
+
+	return IControllerInterface::_PollResultSuccessNewData;
 }
 
 IControllerInterface::ePollResult
@@ -529,7 +671,7 @@ PSNaviController::pollUSB()
 	assert(!getIsBluetooth());
 
 	IControllerInterface::ePollResult poll_result;
-	int res = psnavi_read_usb_interrupt_pipe(USBContext->usb_device_handle, InBuffer, sizeof(InBuffer));
+	int res = psnavi_read_usb_interrupt_pipe(APIContext->usb_device_handle, InBuffer, sizeof(InBuffer));
 
 	if (res < 0)
 	{
@@ -696,6 +838,19 @@ stringToNaviBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const
     }
 
     return success;
+}
+
+inline void 
+setButtonBit(unsigned int buttons, unsigned int button_bit, bool is_pressed)
+{
+	if (is_pressed)
+	{
+		buttons|= (1 << button_bit);
+	}
+	else
+	{
+		buttons&= ~(1 << button_bit);
+	}
 }
 
 inline enum CommonControllerState::ButtonState
