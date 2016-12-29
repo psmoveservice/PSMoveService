@@ -723,24 +723,23 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
 			}
 			else
 			{
-				int trackedControllerId = thisPtr->m_overrideControllerId;
+				int trackedControllerId = -1;
 				int trackedControllerListIndex = -1;
 				PSMoveTrackingColorType trackingColorType;
 
-				if (trackedControllerId == -1)
+				for (int list_index = 0; list_index < controller_list->count; ++list_index)
 				{
-					for (int list_index = 0; list_index < controller_list->count; ++list_index)
+					if (controller_list->controller_id[list_index] == thisPtr->m_overrideControllerId ||
+						(thisPtr->m_overrideControllerId == -1 &&
+						 (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
+						 controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)))
 					{
-						if (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
-							controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)
-						{
-							const auto &protocolControllerResponse = response->result_controller_list().controllers(list_index);
+						const auto &protocolControllerResponse = response->result_controller_list().controllers(list_index);
 
-							trackingColorType = static_cast<PSMoveTrackingColorType>(protocolControllerResponse.tracking_color_type());
-							trackedControllerId = controller_list->controller_id[list_index];
-							trackedControllerListIndex = list_index;
-							break;
-						}
+						trackingColorType = static_cast<PSMoveTrackingColorType>(protocolControllerResponse.tracking_color_type());
+						trackedControllerId = controller_list->controller_id[list_index];
+						trackedControllerListIndex = list_index;
+						break;
 					}
 				}
 
