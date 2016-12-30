@@ -432,17 +432,19 @@ void OrientationFilterComplementaryOpticalARG::update(const float delta_time, co
     // Make sure the net quaternion is a pure rotation quaternion
     SEq_new.normalize();
 
-    // Save the new quaternion and first derivative back into the orientation state
-    // Derive the second derivative
+	// Blend with optical yaw
+	Eigen::Quaternionf blended_orientation_new = SEq_new;
+	if (packet.tracking_projection_area_px_sqr > 0)
     {
         // The final rotation is a blend between the integrated orientation and absolute optical orientation
-		const float max_variance_fraction =
+		const float fraction_of_max_orientation_variance =
 			safe_divide_with_default(
 				m_constants.orientation_variance_curve.evaluate(packet.tracking_projection_area_px_sqr),
 				m_constants.orientation_variance_curve.MaxValue,
 				1.f);
+		const float optical_orientation_quality = clampf01(1.f - fraction_of_max_orientation_variance);
         float optical_weight= 
-			lerp_clampf(1.f - max_variance_fraction, 0, k_max_optical_orientation_weight);
+			lerp_clampf(0, k_max_optical_orientation_weight, optical_orientation_quality);
         
         static float g_weight_override= -1.f;
         if (g_weight_override >= 0.f)
@@ -450,26 +452,30 @@ void OrientationFilterComplementaryOpticalARG::update(const float delta_time, co
             optical_weight= g_weight_override;
         }
 
-		const Eigen::EulerAnglesf optical_euler_angles = eigen_quaternionf_to_euler_angles(packet.optical_orientation);
-		const Eigen::EulerAnglesf SEeuler_new= eigen_quaternionf_to_euler_angles(packet.optical_orientation);
+		blended_orientation_new= eigen_quaternion_normalized_lerp(SEq_new, packet.optical_orientation, optical_weight);
 
-		// Blend in the yaw from the optical orientation
-		const float blended_heading_radians= 
-			wrap_lerpf(
-				SEeuler_new.get_heading_radians(), 
-				optical_euler_angles.get_heading_radians(), 
-				optical_weight, 
-				-k_real_pi, k_real_pi);
-		const Eigen::EulerAnglesf new_euler_angles(
-			SEeuler_new.get_bank_radians(), blended_heading_radians, SEeuler_new.get_attitude_radians());
-		const Eigen::Quaternionf new_orientation =
-			eigen_euler_angles_to_quaternionf(new_euler_angles);
+		//const Eigen::EulerAnglesf optical_euler_angles = eigen_quaternionf_to_euler_angles(packet.optical_orientation);
+		//const Eigen::EulerAnglesf SEeuler_new= eigen_quaternionf_to_euler_angles(SEq_new);
 
-        const Eigen::Vector3f &new_angular_velocity= current_omega;
-        const Eigen::Vector3f new_angular_acceleration = (current_omega - m_state->angular_velocity) / delta_time;
+		//// Blend in the yaw from the optical orientation
+		//const float blended_heading_radians= 
+		//	wrap_lerpf(
+		//		SEeuler_new.get_heading_radians(), 
+		//		optical_euler_angles.get_heading_radians(), 
+		//		optical_weight, 
+		//		-k_real_pi, k_real_pi);
+		//const Eigen::EulerAnglesf new_euler_angles(
+		//	SEeuler_new.get_bank_radians(), blended_heading_radians, SEeuler_new.get_attitude_radians());
 
-        m_state->apply_state(new_orientation, new_angular_velocity, new_angular_acceleration);
+		//blended_orientation_new = eigen_euler_angles_to_quaternionf(new_euler_angles);
     }
+
+	{
+		// Compute the angular acceleration from the time derivative of the angular velocity
+		const Eigen::Vector3f new_angular_acceleration = (current_omega - m_state->angular_velocity) / delta_time;
+
+		m_state->apply_state(blended_orientation_new, current_omega, new_angular_acceleration);
+	}
 }
 
 // -- OrientationFilterComplementaryMARG --
