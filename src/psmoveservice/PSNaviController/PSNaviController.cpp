@@ -144,7 +144,7 @@ struct PSNaviDataInput {
 // -- private prototypes -----
 static std::string NaviBTAddrUcharToString(const unsigned char* addr_buff);
 static bool stringToNaviBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size);
-inline void setButtonBit(unsigned int buttons, unsigned int button_bit, bool is_pressed);
+inline void setButtonBit(unsigned int &buttons, unsigned int button_mask, bool is_pressed);
 inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
 
 static int psnavi_get_usb_feature_report(t_usb_device_handle device_handle, unsigned char *report_bytes, size_t report_size);
@@ -198,7 +198,7 @@ PSNaviController::~PSNaviController()
 
 bool PSNaviController::open()
 {
-    ControllerDeviceEnumerator enumerator(ControllerDeviceEnumerator::CommunicationType_USB, CommonControllerState::PSNavi);
+    ControllerDeviceEnumerator enumerator(ControllerDeviceEnumerator::CommunicationType_ALL, CommonControllerState::PSNavi);
     bool success= false;
 
     if (enumerator.is_valid())
@@ -256,20 +256,27 @@ bool PSNaviController::open(
 			{
 				const Gamepad_device * gamepad = Gamepad_deviceAtIndex(static_cast<unsigned int>(gamepad_index));
 
-				char device_path[255];
-				ServerUtility::format_string(device_path, sizeof(device_path), "%s #%d", gamepad->description, gamepad_index);
+				if (gamepad != nullptr)
+				{
+					char device_path[255];
+					ServerUtility::format_string(device_path, sizeof(device_path), "%s #%d", gamepad->description, gamepad_index);
 
-				SERVER_LOG_INFO("PSNaviController::open") << "  Successfully opened gamepad: " << device_path;
-				APIContext->gamepad_index = gamepad_index;
-				APIContext->gamepad_device_path = device_path;
+					SERVER_LOG_INFO("PSNaviController::open") << "  Successfully opened gamepad: " << device_path;
+					APIContext->gamepad_index = gamepad_index;
+					APIContext->gamepad_device_path = device_path;
 
-				// Sadly this info available to us through the gamepad api
-				APIContext->host_bluetooth_address= "00:00:00:00:00:00";
-				APIContext->controller_bluetooth_address= "00:00:00:00:00:00";
+					// Sadly this info available to us through the gamepad api
+					APIContext->host_bluetooth_address= "00:00:00:00:00:00";
+					APIContext->controller_bluetooth_address= "00:00:00:00:00:00";
+				}
+				else
+				{
+					SERVER_LOG_ERROR("PSNaviController::open") << "  Failed to open gamepad (gamepad disconnected)";
+				}
 			}
 			else
 			{
-				SERVER_LOG_ERROR("PSNaviController::open") << "  Failed to open gamepad";
+				SERVER_LOG_ERROR("PSNaviController::open") << "  Failed to open gamepad (invalid game index)";
 			}
 		}
 
@@ -603,65 +610,74 @@ PSNaviController::pollGamepad()
 	assert(getIsOpen());
 
 	const Gamepad_device * gamepad = Gamepad_deviceAtIndex(static_cast<unsigned int>(APIContext->gamepad_index));
-	PSNaviControllerState newState;
+	IControllerInterface::ePollResult result= IControllerInterface::_PollResultSuccessNewData;
 
-	// Increment the sequence for every new polling packet
-	newState.PollSequenceNumber = NextPollSequenceNumber;
-	++NextPollSequenceNumber;
-
-	// New Button State
-	bool bIsCrossPressed= gamepad->buttonStates[0];
-	bool bIsCirclePressed= gamepad->buttonStates[1];
-	bool bIsL1Pressed= gamepad->buttonStates[4];
-	bool bIsL2Pressed= gamepad->axisStates[2] >= .9f;
-	bool bIsL3Pressed= gamepad->buttonStates[8];
-	bool bIsDPadLeftPressed= gamepad->axisStates[5] <= -0.99f;
-	bool bIsDPadRightPressed= gamepad->axisStates[5] >= 0.99f;
-	bool bIsDPadUpPressed= gamepad->axisStates[6] <= -0.99f;
-	bool bIsDPadDownPressed= gamepad->axisStates[6] >= 0.99f;
-
-	newState.AllButtons = 0;
-	setButtonBit(newState.AllButtons, Btn_UP, bIsDPadUpPressed);
-	setButtonBit(newState.AllButtons, Btn_DOWN, bIsDPadDownPressed);
-	setButtonBit(newState.AllButtons, Btn_LEFT, bIsDPadLeftPressed);
-	setButtonBit(newState.AllButtons, Btn_RIGHT, bIsDPadRightPressed);
-	setButtonBit(newState.AllButtons, Btn_CROSS, bIsCrossPressed);
-	setButtonBit(newState.AllButtons, Btn_CIRCLE, bIsCirclePressed);
-	setButtonBit(newState.AllButtons, Btn_L1, bIsL1Pressed);
-	setButtonBit(newState.AllButtons, Btn_L2, bIsL2Pressed);
-	setButtonBit(newState.AllButtons, Btn_L3, bIsL3Pressed);
-
-	// Button de-bounce
-	unsigned int lastButtons = ControllerStates.empty() ? 0 : ControllerStates.back().AllButtons;
-	newState.DPad_Up = getButtonState(newState.AllButtons, lastButtons, Btn_UP);
-	newState.DPad_Down = getButtonState(newState.AllButtons, lastButtons, Btn_DOWN);
-	newState.DPad_Left = getButtonState(newState.AllButtons, lastButtons, Btn_LEFT);
-	newState.DPad_Right = getButtonState(newState.AllButtons, lastButtons, Btn_RIGHT);
-	newState.Circle = getButtonState(newState.AllButtons, lastButtons, Btn_CIRCLE);
-	newState.Cross = getButtonState(newState.AllButtons, lastButtons, Btn_CROSS);
-	newState.PS = getButtonState(newState.AllButtons, lastButtons, Btn_PS);
-	newState.L1 = getButtonState(newState.AllButtons, lastButtons, Btn_L1);
-	newState.L2 = getButtonState(newState.AllButtons, lastButtons, Btn_L2);
-	newState.L3 = getButtonState(newState.AllButtons, lastButtons, Btn_L3);
-
-	// Analog triggers
-	newState.Stick_XAxis = static_cast<unsigned char>((gamepad->axisStates[0] + 1.f) * 127.f);
-	newState.Stick_YAxis = static_cast<unsigned char>((gamepad->axisStates[1] + 1.f) * 127.f);
-	newState.Trigger = static_cast<unsigned char>(gamepad->axisStates[2] * 255.f);
-
-	// Can't report the true battery state
-	newState.Battery = CommonControllerState::Batt_MAX;
-
-	// Make room for new entry if at the max queue size
-	if (ControllerStates.size() >= PSNAVI_STATE_BUFFER_MAX)
+	if (gamepad != nullptr)
 	{
-		ControllerStates.erase(ControllerStates.begin(),
-			ControllerStates.begin() + ControllerStates.size() - PSNAVI_STATE_BUFFER_MAX);
+		PSNaviControllerState newState;
+
+		// Increment the sequence for every new polling packet
+		newState.PollSequenceNumber = NextPollSequenceNumber;
+		++NextPollSequenceNumber;
+
+		// New Button State
+		bool bIsCrossPressed= gamepad->buttonStates[0];
+		bool bIsCirclePressed= gamepad->buttonStates[1];
+		bool bIsL1Pressed= gamepad->buttonStates[4];
+		bool bIsL2Pressed= gamepad->axisStates[2] >= .9f;
+		bool bIsL3Pressed= gamepad->buttonStates[8];
+		bool bIsDPadLeftPressed= gamepad->axisStates[5] <= -0.99f;
+		bool bIsDPadRightPressed= gamepad->axisStates[5] >= 0.99f;
+		bool bIsDPadUpPressed= gamepad->axisStates[6] <= -0.99f;
+		bool bIsDPadDownPressed= gamepad->axisStates[6] >= 0.99f;
+
+		newState.AllButtons = 0;
+		setButtonBit(newState.AllButtons, Btn_UP, bIsDPadUpPressed);
+		setButtonBit(newState.AllButtons, Btn_DOWN, bIsDPadDownPressed);
+		setButtonBit(newState.AllButtons, Btn_LEFT, bIsDPadLeftPressed);
+		setButtonBit(newState.AllButtons, Btn_RIGHT, bIsDPadRightPressed);
+		setButtonBit(newState.AllButtons, Btn_CROSS, bIsCrossPressed);
+		setButtonBit(newState.AllButtons, Btn_CIRCLE, bIsCirclePressed);
+		setButtonBit(newState.AllButtons, Btn_L1, bIsL1Pressed);
+		setButtonBit(newState.AllButtons, Btn_L2, bIsL2Pressed);
+		setButtonBit(newState.AllButtons, Btn_L3, bIsL3Pressed);
+
+		// Button de-bounce
+		unsigned int lastButtons = ControllerStates.empty() ? 0 : ControllerStates.back().AllButtons;
+		newState.DPad_Up = getButtonState(newState.AllButtons, lastButtons, Btn_UP);
+		newState.DPad_Down = getButtonState(newState.AllButtons, lastButtons, Btn_DOWN);
+		newState.DPad_Left = getButtonState(newState.AllButtons, lastButtons, Btn_LEFT);
+		newState.DPad_Right = getButtonState(newState.AllButtons, lastButtons, Btn_RIGHT);
+		newState.Circle = getButtonState(newState.AllButtons, lastButtons, Btn_CIRCLE);
+		newState.Cross = getButtonState(newState.AllButtons, lastButtons, Btn_CROSS);
+		newState.PS = getButtonState(newState.AllButtons, lastButtons, Btn_PS);
+		newState.L1 = getButtonState(newState.AllButtons, lastButtons, Btn_L1);
+		newState.L2 = getButtonState(newState.AllButtons, lastButtons, Btn_L2);
+		newState.L3 = getButtonState(newState.AllButtons, lastButtons, Btn_L3);
+
+		// Analog triggers
+		newState.Stick_XAxis = static_cast<unsigned char>((gamepad->axisStates[0] + 1.f) * 127.f);
+		newState.Stick_YAxis = static_cast<unsigned char>((gamepad->axisStates[1] + 1.f) * 127.f);
+		newState.Trigger = static_cast<unsigned char>(gamepad->axisStates[2] * 255.f);
+
+		// Can't report the true battery state
+		newState.Battery = CommonControllerState::Batt_MAX;
+
+		// Make room for new entry if at the max queue size
+		if (ControllerStates.size() >= PSNAVI_STATE_BUFFER_MAX)
+		{
+			ControllerStates.erase(ControllerStates.begin(),
+				ControllerStates.begin() + ControllerStates.size() - PSNAVI_STATE_BUFFER_MAX);
+		}
+
+		ControllerStates.push_back(newState);
+	}
+	else
+	{
+		result= IControllerInterface::_PollResultFailure;
 	}
 
-	ControllerStates.push_back(newState);
-
-	return IControllerInterface::_PollResultSuccessNewData;
+	return result;
 }
 
 IControllerInterface::ePollResult
@@ -841,15 +857,15 @@ stringToNaviBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const
 }
 
 inline void 
-setButtonBit(unsigned int buttons, unsigned int button_bit, bool is_pressed)
+setButtonBit(unsigned int &buttons, unsigned int button_mask, bool is_pressed)
 {
 	if (is_pressed)
 	{
-		buttons|= (1 << button_bit);
+		buttons|= button_mask;
 	}
 	else
 	{
-		buttons&= ~(1 << button_bit);
+		buttons&= ~button_mask;
 	}
 }
 

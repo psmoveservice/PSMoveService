@@ -3,6 +3,7 @@
 #include "USBDeviceManager.h"
 #include "hidapi.h"
 #include "stdio.h"
+#include "gamepad/Gamepad.h"
 #include <string>
 
 // For sleep
@@ -15,6 +16,9 @@
 int main()
 {
     log_init("info");
+
+	Gamepad_init();
+	Gamepad_processEvents();
 
     if (hid_init() == -1)
     {
@@ -49,13 +53,15 @@ int main()
 
 			printf("Connected via USB\n");
 			printf("Assigned BT host address: %s\n", hostBTAddress.c_str());
-		}
+		}		
 
 		navi.poll();
 		navi_state = static_cast<const PSNaviControllerState *>(navi.getState());
 
 		while (navi_state->PS != CommonControllerState::Button_DOWN)
 		{
+			Gamepad_processEvents();
+
 			navi.poll();
 			navi_state = static_cast<const PSNaviControllerState *>(navi.getState());
 
@@ -93,6 +99,9 @@ int main()
 
     // Tear-down hid api
     hid_exit();
+
+	// Shutdown the gamepad api
+	Gamepad_shutdown();
 
 	log_dispose();
     
