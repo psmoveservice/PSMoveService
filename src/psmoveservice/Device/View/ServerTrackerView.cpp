@@ -39,6 +39,10 @@ typedef std::vector<t_opencv_int_contour> t_opencv_int_contour_list;
 typedef std::vector<cv::Point2f> t_opencv_float_contour;
 typedef std::vector<t_opencv_float_contour> t_opencv_float_contour_list;
 
+//-- template utility methods
+template<typename t_opencv_contour_type>
+cv::Point2f computeSafeCenterOfMassForContour(const t_opencv_contour_type &contour);
+
 //-- private methods -----
 class SharedVideoFrameReadWriteAccessor
 {
@@ -602,9 +606,7 @@ public:
         // Draws the contour directly onto the shared mem buffer.
         // This is useful for debugging
         std::vector<t_opencv_int_contour> contours = {contour};
-        cv::Moments mu(cv::moments(contour));
-        cv::Point2f massCenter = cv::Point2f(static_cast<float>(mu.m10 / mu.m00),
-                                             static_cast<float>(mu.m01 / mu.m00));
+		const cv::Point2f massCenter = computeSafeCenterOfMassForContour<t_opencv_int_contour>(contour);
         cv::drawContours(*bgrShmemBuffer, contours, 0, cv::Scalar(255, 255, 255));
         cv::rectangle(*bgrShmemBuffer, cv::boundingRect(contour), cv::Scalar(255, 255, 255));
         cv::drawMarker(*bgrShmemBuffer, massCenter, cv::Scalar(255, 255, 255));
@@ -2079,10 +2081,6 @@ static bool computeTrackerRelativePointCloudContourPose(
 {
 	assert(tracking_shape->shape_type == eCommonTrackingShapeType::PointCloud);
 
-	// Get the pixel width and height of the tracker image
-	int pixelWidth, pixelHeight;
-	tracker_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
-
 	bool bValidTrackerPose = true;
 	float projectionArea = 0.f;
 
@@ -2090,11 +2088,7 @@ static bool computeTrackerRelativePointCloudContourPose(
 	t_opencv_float_contour cvImagePoints;
 	for (auto it = opencv_contours.begin(); it != opencv_contours.end(); ++it)
 	{
-		cv::Moments mu = cv::moments(*it);
-		cv::Point2f massCenter =
-			cv::Point2f(
-				static_cast<float>(mu.m10 / mu.m00) - (pixelWidth / 2), 
-				(pixelHeight / 2) - static_cast<float>(mu.m01 / mu.m00));
+		cv::Point2f massCenter= computeSafeCenterOfMassForContour<t_opencv_float_contour>(*it);
 
 		cvImagePoints.push_back(massCenter);
 	}
@@ -2316,9 +2310,7 @@ static bool computeBestFitTriangleForContour(
     // This is the bottom of the triangle.
     int topCornerIndex = -1;
     {
-        cv::Moments mu = cv::moments(opencv_contour);
-        cv::Point2f massCenter = 
-            cv::Point2f(static_cast<float>(mu.m10 / mu.m00), static_cast<float>(mu.m01 / mu.m00));
+		const cv::Point2f massCenter = computeSafeCenterOfMassForContour<t_opencv_float_contour>(opencv_contour);
 
         double bestDistance = k_real_max;
         for (int cornerIndex = 0; cornerIndex < 3; ++cornerIndex)
@@ -2437,6 +2429,42 @@ static bool computeBestFitQuadForContour(
     bottom_left= cv_min_box.center - quad_half_up - quad_half_right;
 
     return true;
+}
+
+template<typename t_opencv_contour_type>
+cv::Point2f computeSafeCenterOfMassForContour(const t_opencv_contour_type &contour)
+{
+	cv::Moments mu(cv::moments(contour));
+	cv::Point2f massCenter;
+		
+	// mu.m00 is zero for contours of zero area.
+	// Fallback to standard centroid in this case.
+
+	if (!is_double_nearly_zero(mu.m00))
+	{
+		massCenter= cv::Point2f(static_cast<float>(mu.m10 / mu.m00), static_cast<float>(mu.m01 / mu.m00));
+	}
+	else
+	{
+		massCenter.x = 0.f;
+		massCenter.y = 0.f;
+
+		for (const cv::Point &int_point : contour)
+		{
+			massCenter.x += static_cast<float>(int_point.x);
+			massCenter.y += static_cast<float>(int_point.y);
+		}
+
+		if (contour.size() > 1)
+		{
+			const float N = static_cast<float>(contour.size());
+
+			massCenter.x /= N;
+			massCenter.y /= N;
+		}
+	}
+
+	return massCenter;
 }
 
 // http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToAngle/index.htm
