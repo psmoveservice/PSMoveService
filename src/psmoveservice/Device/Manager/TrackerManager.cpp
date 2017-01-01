@@ -20,7 +20,7 @@ TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
 	use_bgr_to_hsv_lookup_table = true;
 	exclude_opposed_cameras = false;
 	min_valid_projection_area= 16;
-	disable_roi = true;
+	disable_roi = false;
     default_tracker_profile.exposure = 32;
     default_tracker_profile.gain = 32;
 	default_tracker_profile.color_preset_table.table_name= "default_tracker_profile";
