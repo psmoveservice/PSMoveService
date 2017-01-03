@@ -83,7 +83,7 @@ bool g_bIsConnected= false;
 bool g_bHasConnectionStatusChanged= false;
 bool g_bHasControllerListChanged= false;
 bool g_bHasTrackerListChanged= false;
-
+bool g_bHasHMDListChanged= false;
 
 // -- public interface -----
 const char* PSM_GetVersionString()
@@ -123,6 +123,15 @@ bool PSM_HasTrackerListChanged()
     g_bHasTrackerListChanged= false;
 
     return result;
+}
+
+bool PSM_HasHMDListChanged()
+{
+	bool result= g_bHasHMDListChanged;
+
+	g_bHasHMDListChanged= false;
+
+	return result;
 }
 
 PSMResult PSM_Initialize(const char* host, const char* port, int timeout_ms)
@@ -196,7 +205,7 @@ PSMResult PSM_Shutdown()
 
     for (PSMTrackerID tracker_id= 0; tracker_id < PSMOVESERVICE_MAX_TRACKER_COUNT; ++tracker_id)    
     {
-        if (g_controller_views[tracker_id] != nullptr)
+        if (g_tracker_views[tracker_id] != nullptr)
         {
             ClientPSMoveAPI::free_tracker_view(g_tracker_views[tracker_id]);
             g_tracker_views[tracker_id]= nullptr;
@@ -408,16 +417,22 @@ PSMResult PSM_StartControllerDataStreamAsync(PSMControllerID controller_id, unsi
 
     if (IS_VALID_CONTROLLER_INDEX(controller_id))
     {
-//        PSMController *controller= &g_controllers[controller_id];
-        ClientControllerView * view = g_controller_views[controller_id];
-        ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::start_controller_data_stream(view, data_stream_flags);
+        PSMController *controller= &g_controllers[controller_id];
 
-        if (out_request_id != nullptr)
-        {
-            *out_request_id= static_cast<PSMRequestID>(req_id);
-        }
+		if (controller->ListenerCount > 0)
+		{
+	        ClientControllerView * view = g_controller_views[controller_id];
+			assert(view != nullptr);
 
-        result= (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+			ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::start_controller_data_stream(view, data_stream_flags);
+
+			if (out_request_id != nullptr)
+			{
+				*out_request_id= static_cast<PSMRequestID>(req_id);
+			}
+
+			result= (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+		}
     }
 
     return result;
@@ -430,14 +445,19 @@ PSMResult PSM_StartControllerDataStream(PSMControllerID controller_id, unsigned 
     if (IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMController *controller= &g_controllers[controller_id];
-        ClientControllerView *view = g_controller_views[controller_id];
 
-        result= blockUntilResponse(ClientPSMoveAPI::start_controller_data_stream(view, data_stream_flags), timeout_ms);
+		if (controller->ListenerCount > 0)
+		{
+	        ClientControllerView *view = g_controller_views[controller_id];
+			assert (view != nullptr);
+
+			result= blockUntilResponse(ClientPSMoveAPI::start_controller_data_stream(view, data_stream_flags), timeout_ms);
         
-        if (result == PSMResult_Success)
-        {
-            extractControllerState(view, controller);
-        }
+			if (result == PSMResult_Success)
+			{
+				extractControllerState(view, controller);
+			}
+		}
     }
 
     return result;
@@ -449,15 +469,22 @@ PSMResult PSM_StopControllerDataStreamAsync(PSMControllerID controller_id, PSMRe
 
     if (IS_VALID_CONTROLLER_INDEX(controller_id))
     {
-        ClientControllerView *view = g_controller_views[controller_id];
-        ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::stop_controller_data_stream(view);
+		PSMController *controller= &g_controllers[controller_id];        
 
-        if (out_request_id != nullptr)
-        {
-            *out_request_id= static_cast<PSMRequestID>(req_id);
-        }
+		if (controller->ListenerCount > 0)
+		{
+			ClientControllerView *view = g_controller_views[controller_id];
+			assert(view != nullptr);
 
-        result= (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+			ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::stop_controller_data_stream(view);
+
+			if (out_request_id != nullptr)
+			{
+				*out_request_id= static_cast<PSMRequestID>(req_id);
+			}
+
+			result= (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+		}
     }
 
     return result;
@@ -469,9 +496,15 @@ PSMResult PSM_StopControllerDataStream(PSMControllerID controller_id, int timeou
 
     if (IS_VALID_CONTROLLER_INDEX(controller_id))
     {
-        ClientControllerView *view = g_controller_views[controller_id];
+		PSMController *controller= &g_controllers[controller_id];        
 
-        result= blockUntilResponse(ClientPSMoveAPI::stop_controller_data_stream(view), timeout_ms);
+		if (controller->ListenerCount > 0)
+		{
+			ClientControllerView *view = g_controller_views[controller_id];
+			assert(view != nullptr);
+
+			result= blockUntilResponse(ClientPSMoveAPI::stop_controller_data_stream(view), timeout_ms);
+		}
     }
 
     return result;
@@ -483,15 +516,22 @@ PSMResult PSM_SetControllerLEDColorAsync(PSMControllerID controller_id, PSMTrack
 
     if (IS_VALID_CONTROLLER_INDEX(controller_id))
     {
-        ClientControllerView *view = g_controller_views[controller_id];
-        ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::set_led_tracking_color(view, static_cast<PSMoveTrackingColorType>(tracking_color));
+		PSMController *controller= &g_controllers[controller_id];
 
-        if (out_request_id != nullptr)
-        {
-            *out_request_id= static_cast<PSMRequestID>(req_id);
-        }
+		if (controller->ListenerCount > 0)
+		{
+			ClientControllerView *view = g_controller_views[controller_id];
+			assert(view != nullptr);
 
-        result= (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+			ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::set_led_tracking_color(view, static_cast<PSMoveTrackingColorType>(tracking_color));
+
+			if (out_request_id != nullptr)
+			{
+				*out_request_id= static_cast<PSMRequestID>(req_id);
+			}
+
+			result= (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+		}
     }
 
     return result;
@@ -503,11 +543,17 @@ PSMResult PSM_SetControllerLEDColor(PSMControllerID controller_id, PSMTrackingCo
 
     if (IS_VALID_CONTROLLER_INDEX(controller_id))
     {
-        ClientControllerView *view = g_controller_views[controller_id];
+		PSMController *controller= &g_controllers[controller_id];
 
-        result= blockUntilResponse(
-            ClientPSMoveAPI::set_led_tracking_color(view, static_cast<PSMoveTrackingColorType>(tracking_color)), 
-            timeout_ms);
+		if (controller->ListenerCount > 0)
+		{
+			ClientControllerView *view = g_controller_views[controller_id];
+			assert(view != nullptr);
+
+			result= blockUntilResponse(
+				ClientPSMoveAPI::set_led_tracking_color(view, static_cast<PSMoveTrackingColorType>(tracking_color)), 
+				timeout_ms);
+		}
     }
 
     return result;
@@ -519,15 +565,22 @@ PSMResult PSM_ResetControllerPoseAsync(PSMControllerID controller_id, PSMRequest
 
     if (IS_VALID_CONTROLLER_INDEX(controller_id))
     {
-        ClientControllerView *view = g_controller_views[controller_id];
-        ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::reset_orientation(view, PSMoveQuaternion::identity());
+		PSMController *controller= &g_controllers[controller_id];
 
-        if (out_request_id != nullptr)
-        {
-            *out_request_id= static_cast<PSMRequestID>(req_id);
-        }
+		if (controller->ListenerCount > 0)
+		{
+			ClientControllerView *view = g_controller_views[controller_id];
+			assert(view != nullptr);
 
-        result= (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+			ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::reset_orientation(view, PSMoveQuaternion::identity());
+
+			if (out_request_id != nullptr)
+			{
+				*out_request_id= static_cast<PSMRequestID>(req_id);
+			}
+
+			result= (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
+		}
     }
 
     return result;
@@ -539,10 +592,17 @@ PSMResult PSM_ResetControllerOrientation(PSMControllerID controller_id, PSMQuatf
 
     if (IS_VALID_CONTROLLER_INDEX(controller_id))
     {
-        ClientControllerView *view = g_controller_views[controller_id];
-		PSMoveQuaternion q= PSMoveQuaternion::create(q_pose->w, q_pose->x, q_pose->y, q_pose->z);
+		PSMController *controller= &g_controllers[controller_id];
 
-        result= blockUntilResponse(ClientPSMoveAPI::reset_orientation(view, q), timeout_ms);
+		if (controller->ListenerCount > 0)
+		{
+			ClientControllerView *view = g_controller_views[controller_id];
+			assert(view != nullptr);
+
+			PSMoveQuaternion q= PSMoveQuaternion::create(q_pose->w, q_pose->x, q_pose->y, q_pose->z);
+
+			result= blockUntilResponse(ClientPSMoveAPI::reset_orientation(view, q), timeout_ms);
+		}
     }
 
     return result;
@@ -684,7 +744,7 @@ PSMResult PSM_StopTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms)
     return result;
 }
 
-PSMResult PSM_GetHMDTrackingSpaceSettings(PSMHMDTrackingSpace *out_tracking_space, int timeout_ms)
+PSMResult PSM_GetHMDTrackingSpaceSettings(PSMTrackingSpace *out_tracking_space, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
@@ -713,7 +773,7 @@ PSMResult PSM_GetHMDTrackingSpaceSettings(PSMHMDTrackingSpace *out_tracking_spac
         PSMResponseMessage response;
         extractResponseMessage(&resultState.out_response, &response);
 
-        *out_tracking_space= response.payload.hmd_tracking_space;
+        *out_tracking_space= response.payload.tracking_space;
         result= PSMResult_Success;
     }
     
@@ -955,10 +1015,15 @@ static void extractResponseMessage(const ClientPSMoveAPI::ResponseMessage *respo
         static_assert(sizeof(PSMTrackerList) == sizeof(ClientPSMoveAPI::ResponsePayload_TrackerList), "Response payload types changed!");
         memcpy(&response->payload.tracker_list, &response_internal->payload.tracker_list, sizeof(PSMTrackerList));
         break;
-    case _PSMResponseMessage::_responsePayloadType_HMDTrackingSpace:
-        response->payload_type= PSMResponseMessage::_responsePayloadType_HMDTrackingSpace;
-        static_assert(sizeof(PSMHMDTrackingSpace) == sizeof(ClientPSMoveAPI::ResponsePayload_TrackingSpace), "Response payload types changed!");
-        memcpy(&response->payload.hmd_tracking_space, &response_internal->payload.tracking_space, sizeof(PSMHMDTrackingSpace));
+    case _PSMResponseMessage::_responsePayloadType_TrackingSpace:
+        response->payload_type= PSMResponseMessage::_responsePayloadType_TrackingSpace;
+        static_assert(sizeof(PSMTrackingSpace) == sizeof(ClientPSMoveAPI::ResponsePayload_TrackingSpace), "Response payload types changed!");
+        memcpy(&response->payload.tracking_space, &response_internal->payload.tracking_space, sizeof(PSMTrackingSpace));
+        break;
+	case _PSMResponseMessage::_responsePayloadType_HmdList:
+        response->payload_type= PSMResponseMessage::_responsePayloadType_HmdList;
+        static_assert(sizeof(PSMHMDList) == sizeof(ClientPSMoveAPI::ResponsePayload_HMDList), "Response payload types changed!");
+        memcpy(&response->payload.hmd_list, &response_internal->payload.hmd_list, sizeof(PSMHMDList));
         break;
     default:
         assert(0 && "unreachable");
@@ -1224,6 +1289,9 @@ static void processEvent(ClientPSMoveAPI::EventMessage *event_message)
         break;
     case PSMEventMessage::eEventType::PSMEvent_trackerListUpdated:
         g_bHasTrackerListChanged= true;
+        break;
+    case PSMEventMessage::eEventType::PSMEvent_hmdListUpdated:
+        g_bHasHMDListChanged= true;
         break;
     default:
         assert(0 && "unreachable");
