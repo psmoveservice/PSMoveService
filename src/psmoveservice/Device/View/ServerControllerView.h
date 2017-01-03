@@ -16,7 +16,7 @@ struct ControllerOpticalPoseEstimation
     std::chrono::time_point<std::chrono::high_resolution_clock> last_visible_timestamp;
     bool bValidTimestamps;
 
-    CommonDevicePosition position;
+    CommonDevicePosition position_cm; // centimeters
     CommonDeviceTrackingProjection projection;
     bool bCurrentlyTracking;
 
@@ -29,7 +29,7 @@ struct ControllerOpticalPoseEstimation
         last_visible_timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>();
         bValidTimestamps= false;
 
-        position.clear();
+        position_cm.clear();
         bCurrentlyTracking= false;
 
         orientation.clear();

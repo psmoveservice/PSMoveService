@@ -19,7 +19,8 @@ TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
 	tracker_sleep_ms = 1;
 	use_bgr_to_hsv_lookup_table = true;
 	exclude_opposed_cameras = false;
-	disable_roi = true;
+	min_valid_projection_area= 16;
+	disable_roi = false;
     default_tracker_profile.exposure = 32;
     default_tracker_profile.gain = 32;
 	default_tracker_profile.color_preset_table.table_name= "default_tracker_profile";
@@ -42,6 +43,8 @@ TrackerManagerConfig::config2ptree()
 	pt.put("tracker_sleep_ms", tracker_sleep_ms);
 
 	pt.put("excluded_opposed_cameras", exclude_opposed_cameras);	
+
+	pt.put("min_valid_projection_area", min_valid_projection_area);	
 
 	pt.put("disable_roi", disable_roi);
     
@@ -66,6 +69,7 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
 		use_bgr_to_hsv_lookup_table = pt.get<bool>("use_bgr_to_hsv_lookup_table", use_bgr_to_hsv_lookup_table);
 		tracker_sleep_ms = pt.get<int>("tracker_sleep_ms", tracker_sleep_ms);
 		exclude_opposed_cameras = pt.get<bool>("excluded_opposed_cameras", exclude_opposed_cameras);
+		min_valid_projection_area = pt.get<float>("min_valid_projection_area", min_valid_projection_area);	
 		disable_roi = pt.get<bool>("disable_roi", disable_roi);
         default_tracker_profile.exposure = pt.get<float>("default_tracker_profile.exposure", 32);
         default_tracker_profile.gain = pt.get<float>("default_tracker_profile.gain", 32);

@@ -677,18 +677,32 @@ void AppStage_GyroscopeCalibration::handle_tracking_space_settings_response(
 	{
 	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
 		{
+			const AppStage_ControllerSettings *controllerSettings =
+				thisPtr->m_app->getAppStage<AppStage_ControllerSettings>();
+			const AppStage_ControllerSettings::ControllerInfo *controllerInfo =
+				controllerSettings->getSelectedControllerInfo();
+
 			assert(response_message->payload_type == ClientPSMoveAPI::_responsePayloadType_TrackingSpace);
 
 			// Save the tracking space settings (used in rendering)
 			thisPtr->m_global_forward_degrees = response_message->payload.tracking_space.global_forward_degrees;
+
+			unsigned int stream_flags = 
+				ClientPSMoveAPI::includeRawSensorData | 
+				ClientPSMoveAPI::includeCalibratedSensorData;
+
+			if (controllerInfo->ControllerType == ClientControllerView::PSDualShock4)
+			{
+				// Need to turn on optical tracking for the DS4 so that we have get optical orientation
+				stream_flags |= ClientPSMoveAPI::includePositionData;
+			}
 
 			// Start streaming in controller data
 			assert(!thisPtr->m_isControllerStreamActive);
 			ClientPSMoveAPI::register_callback(
 				ClientPSMoveAPI::start_controller_data_stream(
 					thisPtr->m_controllerView,
-					ClientPSMoveAPI::includeRawSensorData |
-					ClientPSMoveAPI::includeCalibratedSensorData),
+					stream_flags),
 				&AppStage_GyroscopeCalibration::handle_acquire_controller, thisPtr);
 
 			thisPtr->setState(eCalibrationMenuState::waitingForStreamStartResponse);

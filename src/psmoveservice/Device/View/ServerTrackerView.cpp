@@ -29,12 +29,19 @@
 
 #define USE_OPEN_CV_ELLIPSE_FIT
 
+//-- constants ----
+static const int k_min_roi_size= 32;
+
 //-- typedefs ----
 typedef std::vector<cv::Point> t_opencv_int_contour;
 typedef std::vector<t_opencv_int_contour> t_opencv_int_contour_list;
 
 typedef std::vector<cv::Point2f> t_opencv_float_contour;
 typedef std::vector<t_opencv_float_contour> t_opencv_float_contour_list;
+
+//-- template utility methods
+template<typename t_opencv_contour_type>
+cv::Point2f computeSafeCenterOfMassForContour(const t_opencv_contour_type &contour);
 
 //-- private methods -----
 class SharedVideoFrameReadWriteAccessor
@@ -599,9 +606,7 @@ public:
         // Draws the contour directly onto the shared mem buffer.
         // This is useful for debugging
         std::vector<t_opencv_int_contour> contours = {contour};
-        cv::Moments mu(cv::moments(contour));
-        cv::Point2f massCenter = cv::Point2f(static_cast<float>(mu.m10 / mu.m00),
-                                             static_cast<float>(mu.m01 / mu.m00));
+		const cv::Point2f massCenter = computeSafeCenterOfMassForContour<t_opencv_int_contour>(contour);
         cv::drawContours(*bgrShmemBuffer, contours, 0, cv::Scalar(255, 255, 255));
         cv::rectangle(*bgrShmemBuffer, cv::boundingRect(contour), cv::Scalar(255, 255, 255));
         cv::drawMarker(*bgrShmemBuffer, massCenter, cv::Scalar(255, 255, 255));
@@ -727,9 +732,9 @@ static bool computeTrackerRelativePointCloudContourPose(
 	HMDOpticalPoseEstimation *out_pose_estimate);
 static cv::Rect2i computeTrackerROIForPoseProjection(
 	const bool disabled_roi,
-	const float prediction_time,
 	const ServerTrackerView *tracker,
 	const IPoseFilter* pose_filter,
+	const CommonDeviceTrackingProjection *prior_tracking_projection,
 	const CommonDeviceTrackingShape *tracking_shape);
 static bool computeBestFitTriangleForContour(
     const t_opencv_float_contour &opencv_contour,
@@ -1141,12 +1146,20 @@ ServerTrackerView::computeProjectionForController(
     }
 
 	// Compute a region of interest in the tracker buffer around where we expect to find the tracking shape
+	const TrackerManagerConfig &trackerMgrConfig= DeviceManager::getInstance()->m_tracker_manager->getConfig();
+	const bool bRoiDisabled = tracked_controller->getIsROIDisabled() || trackerMgrConfig.disable_roi;
+
+	const ControllerOpticalPoseEstimation *priorPoseEst= 
+		tracked_controller->getTrackerPoseEstimate(this->getDeviceID());
+	const bool bIsTracking = priorPoseEst->bCurrentlyTracking;
+
 	cv::Rect2i ROI= computeTrackerROIForPoseProjection(
-		tracked_controller->getIsROIDisabled() || DeviceManager::getInstance()->m_tracker_manager->getConfig().disable_roi,
-		tracked_controller->getROIPredictionTime(),
-		this, 
-		(tracked_controller->getIsCurrentlyTracking()) ? tracked_controller->getPoseFilter() : nullptr,
+		bRoiDisabled,
+		this,		
+		bIsTracking ? tracked_controller->getPoseFilter() : nullptr,
+		bIsTracking ? &priorPoseEst->projection : nullptr,
 		tracking_shape);
+
     m_opencv_buffer_state->applyROI(ROI);
 
     // Find the contour associated with the controller
@@ -1204,13 +1217,13 @@ ServerTrackerView::computeProjectionForController(
                               });
                 eigen_alignment_fit_focal_cone_to_sphere(eigen_contour.data(),
 														 static_cast<int>(eigen_contour.size()),
-                                                         tracking_shape->shape.sphere.radius,
+                                                         tracking_shape->shape.sphere.radius_cm,
                                                          1, //I was expecting this to be -1. Is it +1 because we're using -F_PY?
                                                          &sphere_center,
                                                          &ellipse_projection);
                 
                 //Save the optically-estimate 3D pose.
-                out_pose_estimate->position.set(sphere_center.x(), sphere_center.y(), sphere_center.z());
+                out_pose_estimate->position_cm.set(sphere_center.x(), sphere_center.y(), sphere_center.z());
                 out_pose_estimate->bCurrentlyTracking = true;
                 // Not possible to get an orientation off of a sphere
                 out_pose_estimate->orientation.clear();
@@ -1230,6 +1243,8 @@ ServerTrackerView::computeProjectionForController(
                     ellipse_projection.center.y()*camera_matrix.val[4] + camera_matrix.val[5]);
                 out_pose_estimate->projection.shape.ellipse.half_x_extent = ellipse_projection.extents.x()*camera_matrix.val[0];
                 out_pose_estimate->projection.shape.ellipse.half_y_extent = ellipse_projection.extents.y()*camera_matrix.val[0];
+				out_pose_estimate->projection.screen_area=
+					k_real_pi*out_pose_estimate->projection.shape.ellipse.half_x_extent*out_pose_estimate->projection.shape.ellipse.half_y_extent;
                 
                 //Draw results onto m_opencv_buffer_state
                 m_opencv_buffer_state->draw_pose_projection(out_pose_estimate->projection);
@@ -1270,6 +1285,19 @@ ServerTrackerView::computeProjectionForController(
             break;
         }
     }
+
+	// Throw out the result if the contour we found was too small and 
+	// we were using an ROI less that the size of the full screen
+	if (bSuccess && !bRoiDisabled)
+	{
+		float screenWidth, screenHeight;
+		getPixelDimensions(screenWidth, screenHeight);
+
+		if (ROI.width < screenWidth || ROI.height < screenHeight)
+		{
+			bSuccess= out_pose_estimate->projection.screen_area >= trackerMgrConfig.min_valid_projection_area;
+		}
+	}
 
     return bSuccess;
 }
@@ -1338,12 +1366,14 @@ bool ServerTrackerView::computePoseForHMD(
 	}
     
 	// Compute a region of interest in the tracker buffer around where we expect to find the tracking shape
+	const bool bRoiDisabled = tracked_hmd->getIsROIDisabled() || DeviceManager::getInstance()->m_tracker_manager->getConfig().disable_roi;
+	const bool bIsTracking = tracked_hmd->getIsCurrentlyTracking();
 	cv::Rect2i ROI = computeTrackerROIForPoseProjection(
-			tracked_hmd->getIsROIDisabled() || DeviceManager::getInstance()->m_tracker_manager->getConfig().disable_roi,
-			tracked_hmd->getROIPredictionTime(),
-			this, 
-			(tracked_hmd->getIsCurrentlyTracking()) ? tracked_hmd->getPoseFilter() : nullptr, 
-			&tracking_shape);
+		bRoiDisabled,
+		this, 
+		bIsTracking ? tracked_hmd->getPoseFilter() : nullptr,
+		bIsTracking ? &tracked_hmd->getTrackerPoseEstimate(this->getDeviceID())->projection : nullptr,
+		&tracking_shape);
 	m_opencv_buffer_state->applyROI(ROI);
 
 	// Find the N best contours associated with the HMD
@@ -1500,7 +1530,7 @@ ServerTrackerView::triangulateWorldPose(
     {
     case eCommonTrackingProjectionType::ProjectionType_Ellipse:
         {
-			pose.Position =
+			pose.PositionCm =
 				triangulateWorldPosition(
 					tracker,
 					&tracker_relative_projection->shape.ellipse.center,
@@ -1557,7 +1587,7 @@ ServerTrackerView::triangulateWorldPose(
 				// Since the projection is planar and both trackers can see the projection
 				// it doesn't matter which tracker we use for the facing test.
 				{
-					const CommonDevicePosition commonTrackerPosition= tracker->getTrackerPose().Position;
+					const CommonDevicePosition commonTrackerPosition= tracker->getTrackerPose().PositionCm;
 					const Eigen::Vector3f trackerPosition(commonTrackerPosition.x, commonTrackerPosition.y, commonTrackerPosition.z);
 					const Eigen::Vector3f centroidToTracker= trackerPosition - centroid;
 
@@ -1597,7 +1627,7 @@ ServerTrackerView::triangulateWorldPose(
 						align_normal_rotation * eigen_global_right;
 					const Eigen::Quaternionf align_right_rotation = 
 						Eigen::Quaternionf::FromTwoVectors(x_axis_in_plane, right);
-					const Eigen::Quaternionf q = align_right_rotation*align_normal_rotation;
+					const Eigen::Quaternionf q = (align_right_rotation*align_normal_rotation).normalized();
 
 					pose.Orientation.w= q.w();
 					pose.Orientation.x= q.x();
@@ -1606,9 +1636,9 @@ ServerTrackerView::triangulateWorldPose(
 				}
 
 				// Use the centroid as the world pose location
-				pose.Position.x= centroid.x();
-				pose.Position.y= centroid.y();
-				pose.Position.z= centroid.z();
+				pose.PositionCm.x= centroid.x();
+				pose.PositionCm.y= centroid.y();
+				pose.PositionCm.z= centroid.z();
 			}
 			else
 			{
@@ -1776,7 +1806,7 @@ static glm::mat4 computeGLMCameraTransformMatrix(const ITrackerInterface *tracke
 
     const CommonDevicePose pose = tracker_device->getTrackerPose();
     const CommonDeviceQuaternion &quat = pose.Orientation;
-    const CommonDevicePosition &pos = pose.Position;
+    const CommonDevicePosition &pos = pose.PositionCm;
 
     const glm::quat glm_quat(quat.w, quat.x, quat.y, quat.z);
     const glm::vec3 glm_pos(pos.x, pos.y, pos.z);
@@ -1972,18 +2002,18 @@ static bool computeTrackerRelativeLightBarPose(
         {
             const float k_max_valid_guess_distance= 300.f; // cm
             float guess_position_distance_sqrd= 
-                tracker_relative_pose_guess->Position.x*tracker_relative_pose_guess->Position.x
-                + tracker_relative_pose_guess->Position.y*tracker_relative_pose_guess->Position.y
-                + tracker_relative_pose_guess->Position.z*tracker_relative_pose_guess->Position.z;
+                tracker_relative_pose_guess->PositionCm.x*tracker_relative_pose_guess->PositionCm.x
+                + tracker_relative_pose_guess->PositionCm.y*tracker_relative_pose_guess->PositionCm.y
+                + tracker_relative_pose_guess->PositionCm.z*tracker_relative_pose_guess->PositionCm.z;
 
             if (guess_position_distance_sqrd < k_max_valid_guess_distance*k_max_valid_guess_distance)
             {
                 // solvePnP expects a rotation as a Rodrigues (AngleAxis) vector
                 commonDeviceOrientationToOpenCVRodrigues(tracker_relative_pose_guess->Orientation, rvec);
 
-                tvec.at<double>(0)= tracker_relative_pose_guess->Position.x;
-                tvec.at<double>(1)= tracker_relative_pose_guess->Position.y;
-                tvec.at<double>(2)= tracker_relative_pose_guess->Position.z;
+                tvec.at<double>(0)= tracker_relative_pose_guess->PositionCm.x;
+                tvec.at<double>(1)= tracker_relative_pose_guess->PositionCm.y;
+                tvec.at<double>(2)= tracker_relative_pose_guess->PositionCm.z;
 
                 bUseExtrinsicGuess= true;
             }
@@ -2028,7 +2058,7 @@ static bool computeTrackerRelativeLightBarPose(
 
             // Return the position in the pose
             {
-                CommonDevicePosition &position= out_pose_estimate->position;
+                CommonDevicePosition &position= out_pose_estimate->position_cm;
 
                 position.x = static_cast<float>(tvec.at<double>(0));
                 position.y = static_cast<float>(tvec.at<double>(1));
@@ -2051,10 +2081,6 @@ static bool computeTrackerRelativePointCloudContourPose(
 {
 	assert(tracking_shape->shape_type == eCommonTrackingShapeType::PointCloud);
 
-	// Get the pixel width and height of the tracker image
-	int pixelWidth, pixelHeight;
-	tracker_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
-
 	bool bValidTrackerPose = true;
 	float projectionArea = 0.f;
 
@@ -2062,11 +2088,7 @@ static bool computeTrackerRelativePointCloudContourPose(
 	t_opencv_float_contour cvImagePoints;
 	for (auto it = opencv_contours.begin(); it != opencv_contours.end(); ++it)
 	{
-		cv::Moments mu = cv::moments(*it);
-		cv::Point2f massCenter =
-			cv::Point2f(
-				static_cast<float>(mu.m10 / mu.m00) - (pixelWidth / 2), 
-				(pixelHeight / 2) - static_cast<float>(mu.m01 / mu.m00));
+		cv::Point2f massCenter= computeSafeCenterOfMassForContour<t_opencv_float_contour>(*it);
 
 		cvImagePoints.push_back(massCenter);
 	}
@@ -2104,9 +2126,9 @@ static bool computeTrackerRelativePointCloudContourPose(
 
 static cv::Rect2i computeTrackerROIForPoseProjection(
 	const bool roi_disabled,
-	const float prediction_time,
 	const ServerTrackerView *tracker,
 	const IPoseFilter* pose_filter,
+	const CommonDeviceTrackingProjection *prior_tracking_projection,
 	const CommonDeviceTrackingShape *tracking_shape)
 {
 	// Get expected ROI
@@ -2118,29 +2140,29 @@ static cv::Rect2i computeTrackerROIForPoseProjection(
 	//Calculate a more refined ROI.
 	//Based on the physical limits of the object's bounding box
 	//projected onto the image.
-	if (!roi_disabled && pose_filter != nullptr)
+	if (!roi_disabled && pose_filter != nullptr && prior_tracking_projection != nullptr)
 	{
 		// Get the (predicted) position in world space.
-		Eigen::Vector3f position = pose_filter->getPosition(prediction_time); 
-		CommonDevicePosition world_position;
-		world_position.set(position.x(), position.y(), position.z());
+		Eigen::Vector3f position_cm = pose_filter->getPositionCm(0.f); 
+		CommonDevicePosition world_position_cm;
+		world_position_cm.set(position_cm.x(), position_cm.y(), position_cm.z());
 
 		// Get the (predicted) position in tracker-local space.
-		CommonDevicePosition tracker_position = tracker->computeTrackerPosition(&world_position);
+		CommonDevicePosition tracker_position_cm = tracker->computeTrackerPosition(&world_position_cm);
 
-		// Project the position +/- object extents onto the image.
+		// Project the state computed position +/- object extents onto the image.
 		CommonDevicePosition tl, br;
 		switch (tracking_shape->shape_type)
 		{
 		case eCommonTrackingShapeType::Sphere:
 			{
 				// Simply: center - radius, center + radius.
-				tl.set(tracker_position.x - tracking_shape->shape.sphere.radius,
-					tracker_position.y + tracking_shape->shape.sphere.radius,
-					tracker_position.z);
-				br.set(tracker_position.x + tracking_shape->shape.sphere.radius,
-					tracker_position.y - tracking_shape->shape.sphere.radius,
-					tracker_position.z);
+				tl.set(tracker_position_cm.x - tracking_shape->shape.sphere.radius_cm,
+					tracker_position_cm.y + tracking_shape->shape.sphere.radius_cm,
+					tracker_position_cm.z);
+				br.set(tracker_position_cm.x + tracking_shape->shape.sphere.radius_cm,
+					tracker_position_cm.y - tracking_shape->shape.sphere.radius_cm,
+					tracker_position_cm.z);
 			} break;
 
 		case eCommonTrackingShapeType::LightBar:
@@ -2152,12 +2174,12 @@ static cv::Rect2i computeTrackerROIForPoseProjection(
 				const auto shape_radius = fmaxf(sqrtf(half_vec.i*half_vec.i + half_vec.j*half_vec.j + half_vec.k*half_vec.k), 1.f);
 
 				// Simply: center - shape_radius, center + shape_radius.
-				tl.set(tracker_position.x - shape_radius,
-					tracker_position.y + shape_radius,
-					tracker_position.z);
-				br.set(tracker_position.x + shape_radius,
-					tracker_position.y - shape_radius,
-					tracker_position.z);
+				tl.set(tracker_position_cm.x - shape_radius,
+					tracker_position_cm.y + shape_radius,
+					tracker_position_cm.z);
+				br.set(tracker_position_cm.x + shape_radius,
+					tracker_position_cm.y - shape_radius,
+					tracker_position_cm.z);
 			} break;
 
 		case eCommonTrackingShapeType::PointCloud:
@@ -2175,12 +2197,12 @@ static cv::Rect2i computeTrackerROIForPoseProjection(
 				const auto shape_radius = fmaxf(sqrtf(half_vec.i*half_vec.i + half_vec.j*half_vec.j + half_vec.k*half_vec.k), 1.f);
 
 				// Simply: center - shape_radius, center + shape_radius.
-				tl.set(tracker_position.x - shape_radius,
-					tracker_position.y + shape_radius,
-					tracker_position.z);
-				br.set(tracker_position.x + shape_radius,
-					tracker_position.y - shape_radius,
-					tracker_position.z);
+				tl.set(tracker_position_cm.x - shape_radius,
+					tracker_position_cm.y + shape_radius,
+					tracker_position_cm.z);
+				br.set(tracker_position_cm.x + shape_radius,
+					tracker_position_cm.y - shape_radius,
+					tracker_position_cm.z);
 			} break;
 
 		default:
@@ -2189,7 +2211,50 @@ static cv::Rect2i computeTrackerROIForPoseProjection(
 			} break;
 		}
 
-		// Compute the ROI from the projecting bounding box
+		// Extract the pixel projection center from the previous frame's projection.
+		CommonDeviceScreenLocation projection_pixel_center;
+		projection_pixel_center.clear();
+
+		switch (prior_tracking_projection->shape_type)
+		{
+		case eCommonTrackingProjectionType::ProjectionType_Ellipse:
+			{
+				// Use the center of the ellipsoid projection for the ROI area
+				projection_pixel_center = prior_tracking_projection->shape.ellipse.center;
+			} break;
+
+		case eCommonTrackingProjectionType::ProjectionType_LightBar:
+			{
+				// Use the center of the quad projection for the ROI area
+				const auto proj_tl = prior_tracking_projection->shape.lightbar.quad[CommonDeviceTrackingShape::QuadVertexUpperLeft];
+				const auto proj_br = prior_tracking_projection->shape.lightbar.quad[CommonDeviceTrackingShape::QuadVertexLowerRight];
+
+				projection_pixel_center.set(0.5f * (proj_tl.x + proj_br.x), 0.5f * (proj_tl.y + proj_br.y));
+			} break;
+
+		case eCommonTrackingProjectionType::ProjectionType_Points:
+			{
+				// Compute the centroid of the projection pixels
+				for (int point_index = 0; point_index < prior_tracking_projection->shape.points.point_count; ++point_index)
+				{
+					const auto &pixel = prior_tracking_projection->shape.points.point[point_index];
+
+					projection_pixel_center.x += pixel.x;
+					projection_pixel_center.y += pixel.y;
+				}
+				const float N = static_cast<float>(prior_tracking_projection->shape.points.point_count);
+				projection_pixel_center.x /= N;
+				projection_pixel_center.y /= N;
+			} break;
+
+		default:
+			{
+				assert(false && "unreachable");
+			} break;
+		}
+
+		// The center of the ROI is the pixel projection center from last frame
+		// The size of the ROI computed by projecting the bounding box 
 		{
 			std::vector<CommonDevicePosition> trps{ tl, br };
 			std::vector<CommonDeviceScreenLocation> screen_locs = tracker->projectTrackerRelativePositions(trps);
@@ -2202,10 +2267,10 @@ static cv::Rect2i computeTrackerROIForPoseProjection(
 			const int proj_width = proj_max_x - proj_min_x;
 			const int proj_height = proj_max_y - proj_min_y;
 
-			const cv::Point2i roi_center(proj_min_x + proj_width/2, proj_min_y + proj_height/2);
+			const cv::Point2i roi_center(static_cast<int>(projection_pixel_center.x), static_cast<int>(projection_pixel_center.y));
 
-			const int safe_proj_width = std::max(proj_width, 10);
-			const int safe_proj_height = std::max(proj_height, 10);
+			const int safe_proj_width = std::max(proj_width, k_min_roi_size);
+			const int safe_proj_height = std::max(proj_height, k_min_roi_size);
 
 			const cv::Point2i roi_top_left = roi_center + cv::Point2i(-safe_proj_width, -safe_proj_height);
 			const cv::Size roi_size(2*safe_proj_width, 2*safe_proj_height);
@@ -2245,9 +2310,7 @@ static bool computeBestFitTriangleForContour(
     // This is the bottom of the triangle.
     int topCornerIndex = -1;
     {
-        cv::Moments mu = cv::moments(opencv_contour);
-        cv::Point2f massCenter = 
-            cv::Point2f(static_cast<float>(mu.m10 / mu.m00), static_cast<float>(mu.m01 / mu.m00));
+		const cv::Point2f massCenter = computeSafeCenterOfMassForContour<t_opencv_float_contour>(opencv_contour);
 
         double bestDistance = k_real_max;
         for (int cornerIndex = 0; cornerIndex < 3; ++cornerIndex)
@@ -2368,6 +2431,42 @@ static bool computeBestFitQuadForContour(
     return true;
 }
 
+template<typename t_opencv_contour_type>
+cv::Point2f computeSafeCenterOfMassForContour(const t_opencv_contour_type &contour)
+{
+	cv::Moments mu(cv::moments(contour));
+	cv::Point2f massCenter;
+		
+	// mu.m00 is zero for contours of zero area.
+	// Fallback to standard centroid in this case.
+
+	if (!is_double_nearly_zero(mu.m00))
+	{
+		massCenter= cv::Point2f(static_cast<float>(mu.m10 / mu.m00), static_cast<float>(mu.m01 / mu.m00));
+	}
+	else
+	{
+		massCenter.x = 0.f;
+		massCenter.y = 0.f;
+
+		for (const cv::Point &int_point : contour)
+		{
+			massCenter.x += static_cast<float>(int_point.x);
+			massCenter.y += static_cast<float>(int_point.y);
+		}
+
+		if (contour.size() > 1)
+		{
+			const float N = static_cast<float>(contour.size());
+
+			massCenter.x /= N;
+			massCenter.y /= N;
+		}
+	}
+
+	return massCenter;
+}
+
 // http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToAngle/index.htm
 static void commonDeviceOrientationToOpenCVRodrigues(
     const CommonDeviceQuaternion &orientation,
@@ -2450,11 +2549,23 @@ static void angleAxisVectorToCommonDeviceOrientation(
     if (!is_nearly_zero(radians))
     {
         const float sin_theta_over_two = sinf(radians * 0.5f);
+        const float w = cosf(radians * 0.5f);
+        const float x = axis_x * sin_theta_over_two;
+        const float y = axis_y * sin_theta_over_two;
+        const float z = axis_z * sin_theta_over_two;
+		const float length = sqrtf(w*w + x*x + y*y + z*z);
 
-        orientation.w = cosf(radians * 0.5f);
-        orientation.x = axis_x * sin_theta_over_two;
-        orientation.y = axis_y * sin_theta_over_two;
-        orientation.z = axis_z * sin_theta_over_two;
+		if (length > k_normal_epsilon)
+		{
+			orientation.w = w / length;
+			orientation.x = x / length;
+			orientation.y = y / length;
+			orientation.z = z / length;
+		}
+		else
+		{
+			orientation.clear();
+		}
     }
     else
     {

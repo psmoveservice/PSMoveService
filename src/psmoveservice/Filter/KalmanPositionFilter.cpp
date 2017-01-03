@@ -13,6 +13,9 @@
 #pragma optimize( "", off )
 #endif
 
+#define UPDATE_VELOCITY_WITH_ACCELERATION 0
+#define ACCELEROMETER_FIXUP_HACKS 0
+
 //-- constants --
 enum PositionFilterStateEnum
 {
@@ -50,10 +53,10 @@ enum PositionFilterMeasurementEnum {
 #define k_ukf_kappa -6.0 // 3 - STATE_PARAMETER_COUNT
 
 // Arbitrary tuning scale applied to the measurement noise
-#define R_ACCELEROMETER_SCALE 10.0
+#define R_ACCELEROMETER_SCALE 1.0
 
 // Arbitrary tuning scale applied to the measurement noise
-#define R_POSITION_SCALE 0.1
+#define R_POSITION_SCALE 1.0
 
 // Arbitrary tuning scale applied to the process noise
 #define Q_SCALE 1.0
@@ -70,24 +73,24 @@ public:
     KALMAN_VECTOR(PositionStateVector, T, STATE_PARAMETER_COUNT)
 
     // Accessors
-    Eigen::Vector3d get_position() const { 
+    Eigen::Vector3d get_position_meters() const { 
         return Eigen::Vector3d((*this)[POSITION_X], (*this)[POSITION_Y], (*this)[POSITION_Z]); 
     }
-    Eigen::Vector3d get_linear_velocity() const {
+    Eigen::Vector3d get_linear_velocity_m_per_sec() const {
         return Eigen::Vector3d((*this)[LINEAR_VELOCITY_X], (*this)[LINEAR_VELOCITY_Y], (*this)[LINEAR_VELOCITY_Z]);
     }
-    Eigen::Vector3d get_linear_acceleration() const {
+    Eigen::Vector3d get_linear_acceleration_m_per_sec_sqr() const {
         return Eigen::Vector3d((*this)[LINEAR_ACCELERATION_X], (*this)[LINEAR_ACCELERATION_Y], (*this)[LINEAR_ACCELERATION_Z]);
     }
 
     // Mutators
-    void set_position(const Eigen::Vector3d &p) {
+    void set_position_meters(const Eigen::Vector3d &p) {
         (*this)[POSITION_X] = p.x(); (*this)[POSITION_Y] = p.y(); (*this)[POSITION_Z] = p.z();
     }
-    void set_linear_velocity(const Eigen::Vector3d &v) {
+    void set_linear_velocity_m_per_sec(const Eigen::Vector3d &v) {
         (*this)[LINEAR_VELOCITY_X] = v.x(); (*this)[LINEAR_VELOCITY_Y] = v.y(); (*this)[LINEAR_VELOCITY_Z] = v.z();
     }
-    void set_linear_acceleration(const Eigen::Vector3d &a) {
+    void set_linear_acceleration_m_per_sec_sqr(const Eigen::Vector3d &a) {
         (*this)[LINEAR_ACCELERATION_X] = a.x(); (*this)[LINEAR_ACCELERATION_Y] = a.y(); (*this)[LINEAR_ACCELERATION_Z] = a.z();
     }
 };
@@ -100,18 +103,18 @@ public:
     KALMAN_VECTOR(PositionMeasurementVector, T, MEASUREMENT_PARAMETER_COUNT)
 
     // Accessors
-    Eigen::Vector3d get_accelerometer() const {
+    Eigen::Vector3d get_accelerometer_g_units() const {
         return Eigen::Vector3d((*this)[ACCELEROMETER_X], (*this)[ACCELEROMETER_Y], (*this)[ACCELEROMETER_Z]);
     }
-    Eigen::Vector3d get_optical_position() const {
+    Eigen::Vector3d get_optical_position_meters() const {
         return Eigen::Vector3d((*this)[OPTICAL_POSITION_X], (*this)[OPTICAL_POSITION_Y], (*this)[OPTICAL_POSITION_Z]);
     }
 
     // Mutators
-    void set_accelerometer(const Eigen::Vector3d &a) {
+    void set_accelerometer_g_units(const Eigen::Vector3d &a) {
         (*this)[ACCELEROMETER_X] = a.x(); (*this)[ACCELEROMETER_Y] = a.y(); (*this)[ACCELEROMETER_Z] = a.z();
     }
-    void set_optical_position(const Eigen::Vector3d &p) {
+    void set_optical_position_meters(const Eigen::Vector3d &p) {
         (*this)[OPTICAL_POSITION_X] = p.x(); (*this)[OPTICAL_POSITION_Y] = p.y(); (*this)[OPTICAL_POSITION_Z] = p.z();
     }
 };
@@ -130,32 +133,36 @@ public:
 
     void init(const PositionFilterConstants &constants)
     {
-		m_last_tracking_projection_area = -1.f;
+		m_last_tracking_projection_area_px_sqr = -1.f;
 		update_process_noise(constants, 0.f);
     }
 
-	void update_process_noise(const PositionFilterConstants &constants, const float tracking_projection_area)
+	void update_process_noise(const PositionFilterConstants &constants, const float tracking_projection_area_px_sqr)
 	{
 		// Only update the covariance when there is more than a 10px change in position quality
-		if (m_last_tracking_projection_area < 0.f ||
-			!is_nearly_equal(tracking_projection_area, m_last_tracking_projection_area, 10.f))
+		if (m_last_tracking_projection_area_px_sqr < 0.f ||
+			!is_nearly_equal(tracking_projection_area_px_sqr, m_last_tracking_projection_area_px_sqr, 10.f))
 		{
 			const double mean_position_dT = constants.mean_update_time_delta;
 			const double mean_orientation_dT = constants.mean_update_time_delta;
 
 			// Start off using the maximum variance values
-			static float q_scale = Q_SCALE;
-			const float position_variance = constants.position_variance_curve.evaluate(tracking_projection_area);
+			static double q_scale = Q_SCALE;
+			const double position_variance_cm_sqr = static_cast<double>(constants.position_variance_curve.evaluate(tracking_projection_area_px_sqr));
+			// variance_meters = variance_cm * (0.01)^2 because ...
+			// var(k*x) = sum(k*x_i - k*mu)^2/(N-1) = k^2*sum(x_i - mu)^2/(N-1)
+			// where k = k_centimeters_to_meters = 0.01
+			const double position_variance_m_sqr = k_centimeters_to_meters*k_centimeters_to_meters*position_variance_cm_sqr;
 
 			// Initialize the process covariance matrix Q
 			Kalman::Covariance<PositionStateVectord> Q = Kalman::Covariance<PositionStateVectord>::Zero();
-			Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance, POSITION_X, Q);
-			Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance, POSITION_Y, Q);
-			Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance, POSITION_Z, Q);
+			Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance_m_sqr, POSITION_X, Q);
+			Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance_m_sqr, POSITION_Y, Q);
+			Q_discrete_3rd_order_white_noise<PositionStateVectord>(mean_position_dT, q_scale*position_variance_m_sqr, POSITION_Z, Q);
 			setCovariance(Q);
 
 			// Keep track last tracking projection area we built the covariance matrix for
-			m_last_tracking_projection_area = tracking_projection_area;
+			m_last_tracking_projection_area_px_sqr = tracking_projection_area_px_sqr;
 		}
 	}
 
@@ -177,28 +184,38 @@ public:
         PositionStateVectord new_state;
 
         // Extract parameters from the old state
-        const Eigen::Vector3d old_position = old_state.get_position();
-        const Eigen::Vector3d old_linear_velocity = old_state.get_linear_velocity();
-        const Eigen::Vector3d old_linear_acceleration = old_state.get_linear_acceleration();
+        const Eigen::Vector3d old_position_meters = old_state.get_position_meters();
+        const Eigen::Vector3d old_linear_velocity_m_per_sec = old_state.get_linear_velocity_m_per_sec();
+        const Eigen::Vector3d old_linear_acceleration_m_per_sec_sqr = old_state.get_linear_acceleration_m_per_sec_sqr();
 
         // Compute the position state update
-        const Eigen::Vector3d new_position= 
-            old_position 
-            + old_linear_velocity*m_time_step 
-            + old_linear_acceleration*m_time_step*m_time_step*0.5f;
-        const Eigen::Vector3d new_linear_velocity= old_linear_velocity + old_linear_acceleration*m_time_step;
-        const Eigen::Vector3d &new_linear_acceleration= old_linear_acceleration;
+#if UPDATE_VELOCITY_WITH_ACCELERATION
+        const Eigen::Vector3d new_position_meters= 
+            old_position_meters 
+            + old_linear_velocity_m_per_sec*m_time_step 
+            + old_linear_acceleration_m_per_sec_sqr*m_time_step*m_time_step*0.5f;
+        const Eigen::Vector3d new_linear_velocity_m_per_sec= old_linear_velocity_m_per_sec + old_linear_acceleration_m_per_sec_sqr*m_time_step;
+#else
+		const Eigen::Vector3d new_position_meters =
+			old_position_meters
+			+ old_linear_velocity_m_per_sec*m_time_step;
+		const Eigen::Vector3d new_linear_velocity_m_per_sec = 
+			(m_time_step > k_real64_normal_epsilon) 
+			? (new_position_meters - old_position_meters) / m_time_step
+			: old_linear_velocity_m_per_sec;
+#endif
+		const Eigen::Vector3d &new_linear_acceleration_m_per_sec_sqr = old_linear_acceleration_m_per_sec_sqr;
 
         // Save results to the new state
-        new_state.set_position(new_position);
-        new_state.set_linear_velocity(new_linear_velocity);
-        new_state.set_linear_acceleration(new_linear_acceleration);
+        new_state.set_position_meters(new_position_meters);
+        new_state.set_linear_velocity_m_per_sec(new_linear_velocity_m_per_sec);
+        new_state.set_linear_acceleration_m_per_sec_sqr(new_linear_acceleration_m_per_sec_sqr);
 
         return new_state;
     }
 
 protected:
-	float m_last_tracking_projection_area;
+	float m_last_tracking_projection_area_px_sqr;
     double m_time_step;
 };
 
@@ -227,7 +244,7 @@ class PositionMeasurementModel : public Kalman::MeasurementModel<PositionStateVe
 public:
     void init(const PositionFilterConstants &constants)
     {
-		m_last_tracking_projection_area = -1.f;
+		m_last_tracking_projection_area_px_sqr = -1.f;
 		update_measurement_covariance(constants, 0.f);
         
 		m_identity_gravity_direction= constants.gravity_calibration_direction.cast<double>();
@@ -240,14 +257,18 @@ public:
 
 	void update_measurement_covariance(
 		const PositionFilterConstants &constants,
-		const float tracking_projection_area)
+		const float tracking_projection_area_px_sqr)
 	{
 		// Only update the covariance when there is more than a 10px change in position quality
-		if (m_last_tracking_projection_area < 0.f ||
-			!is_nearly_equal(tracking_projection_area, m_last_tracking_projection_area, 10.f))
+		if (m_last_tracking_projection_area_px_sqr < 0.f ||
+			!is_nearly_equal(tracking_projection_area_px_sqr, m_last_tracking_projection_area_px_sqr, 10.f))
 		{
 			const Eigen::Vector3f &accelerometer_variance = constants.accelerometer_variance;
-			const float position_variance = constants.position_variance_curve.evaluate(tracking_projection_area);
+			const double position_variance_cm_sqr = static_cast<double>(constants.position_variance_curve.evaluate(tracking_projection_area_px_sqr));
+			// variance_meters = variance_cm * (0.01)^2 because ...
+			// var(k*x) = sum(k*x_i - k*mu)^2/(N-1) = k^2*sum(x_i - mu)^2/(N-1)
+			// where k = k_centimeters_to_meters = 0.01
+			const double position_variance_m_sqr = k_centimeters_to_meters*k_centimeters_to_meters*position_variance_cm_sqr;
 
 			// Update the measurement covariance R
 			static double r_accelometer_scale = R_ACCELEROMETER_SCALE;
@@ -257,13 +278,13 @@ public:
 			R(ACCELEROMETER_X, ACCELEROMETER_X) = r_accelometer_scale*constants.accelerometer_variance.x();
 			R(ACCELEROMETER_Y, ACCELEROMETER_Y) = r_accelometer_scale*constants.accelerometer_variance.y();
 			R(ACCELEROMETER_Z, ACCELEROMETER_Z) = r_accelometer_scale*constants.accelerometer_variance.z();
-			R(OPTICAL_POSITION_X, OPTICAL_POSITION_X) = r_position_scale*position_variance;
-			R(OPTICAL_POSITION_Y, OPTICAL_POSITION_Y) = r_position_scale*position_variance;
-			R(OPTICAL_POSITION_Z, OPTICAL_POSITION_Z) = r_position_scale*position_variance;
+			R(OPTICAL_POSITION_X, OPTICAL_POSITION_X) = r_position_scale*position_variance_m_sqr;
+			R(OPTICAL_POSITION_Y, OPTICAL_POSITION_Y) = r_position_scale*position_variance_m_sqr;
+			R(OPTICAL_POSITION_Z, OPTICAL_POSITION_Z) = r_position_scale*position_variance_m_sqr;
 			setCovariance(R);
 
 			// Keep track last position quality we built the covariance matrix for
-			m_last_tracking_projection_area = tracking_projection_area;
+			m_last_tracking_projection_area_px_sqr = tracking_projection_area_px_sqr;
 		}
 	}
 
@@ -282,20 +303,20 @@ public:
         PositionMeasurementVectord predicted_measurement;
 
         // Use the position and orientation from the state for predictions
-        const Eigen::Vector3d position= x.get_position();
+        const Eigen::Vector3d position_meters= x.get_position_meters();
 
         // Use the current linear acceleration from the state to predict
         // what the accelerometer reading will be (in world space)
-        const Eigen::Vector3d gravity_accel_g_units= -m_identity_gravity_direction;
-        const Eigen::Vector3d linear_accel_g_units= x.get_linear_acceleration() * k_ms2_to_g_units;
-        const Eigen::Vector3d accel_world= linear_accel_g_units + gravity_accel_g_units;
+        const Eigen::Vector3d gravity_accel_g_units= m_identity_gravity_direction;
+        const Eigen::Vector3d linear_accel_g_units= x.get_linear_acceleration_m_per_sec_sqr() * k_ms2_to_g_units;
+        const Eigen::Vector3d accel_world_g_units= linear_accel_g_units + gravity_accel_g_units;
 
         // Put the accelerometer prediction into the local space of the controller
-        const Eigen::Vector3d accel_local= eigen_vector3d_clockwise_rotate(m_current_orientation, accel_world);
+        const Eigen::Vector3d accel_local_g_units= eigen_vector3d_clockwise_rotate(m_current_orientation, accel_world_g_units);
 
         // Save the predictions into the measurement vector
-        predicted_measurement.set_accelerometer(accel_local);
-        predicted_measurement.set_optical_position(position);
+        predicted_measurement.set_accelerometer_g_units(accel_local_g_units);
+        predicted_measurement.set_optical_position_meters(position_meters);
 
         return predicted_measurement;
     }
@@ -303,7 +324,7 @@ public:
 protected:
     Eigen::Vector3d m_identity_gravity_direction;
 	Eigen::Quaterniond m_current_orientation;
-	float m_last_tracking_projection_area;
+	float m_last_tracking_projection_area_px_sqr;
 };
 
 class KalmanPositionFilterImpl
@@ -316,7 +337,7 @@ public:
     bool bSeenPositionMeasurement;
 
     /// Position that's considered the origin position 
-    Eigen::Vector3f origin_position; // meters
+    Eigen::Vector3f origin_position_meters; // meters
 
     /// Used to model how the physics of the controller evolves
     PositionSystemModel system_model;
@@ -337,22 +358,22 @@ public:
         bIsValid = false;
 		bSeenPositionMeasurement= false;
 
-        origin_position = Eigen::Vector3f::Zero();
+        origin_position_meters = Eigen::Vector3f::Zero();
 
 		measurement_model.init(constants);
         system_model.init(constants);
         ukf.init(PositionStateVectord::Zero());
     }
 
-	virtual void init(const PositionFilterConstants &constants, const Eigen::Vector3f &initial_position)
+	virtual void init(const PositionFilterConstants &constants, const Eigen::Vector3f &initial_position_meters)
 	{
 		bIsValid = true;
 		bSeenPositionMeasurement = true;
 
-		origin_position = Eigen::Vector3f::Zero();
+		origin_position_meters = Eigen::Vector3f::Zero();
 
 		PositionStateVectord state_vector = PositionStateVectord::Zero();
-		state_vector.set_position(initial_position.cast<double>());
+		state_vector.set_position_meters(initial_position_meters.cast<double>());
 
 		measurement_model.init(constants);
 		system_model.init(constants);
@@ -396,7 +417,7 @@ bool KalmanPositionFilter::init(const PositionFilterConstants &constants)
     return true;
 }
 
-bool KalmanPositionFilter::init(const PositionFilterConstants &constants, const Eigen::Vector3f &initial_position)
+bool KalmanPositionFilter::init(const PositionFilterConstants &constants, const Eigen::Vector3f &initial_position_meters)
 {
 	m_constants = constants;
 
@@ -409,7 +430,7 @@ bool KalmanPositionFilter::init(const PositionFilterConstants &constants, const 
 
 	// Create and initialize the private filter implementation
 	KalmanPositionFilterImpl *filter = new KalmanPositionFilterImpl();
-	filter->init(constants, initial_position);
+	filter->init(constants, initial_position_meters);
 	m_filter = filter;
 
 	return true;
@@ -420,7 +441,7 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
     if (m_filter->bIsValid)
     {
 		// Adjust the amount we trust the optical state based on the tracking projection area
-		m_filter->system_model.update_process_noise(m_constants, packet.tracking_projection_area);
+		m_filter->system_model.update_process_noise(m_constants, packet.tracking_projection_area_px_sqr);
 
         // Predict state for current time-step using the filters
         m_filter->system_model.set_time_step(delta_time);
@@ -431,31 +452,67 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
 
 		// Update the measurement model with the latest controller orientation.
 		// This comes from the orientation filter, which ran before this filter.
-		measurement_model.set_current_orientation(packet.current_orientation.cast<double>());
+		Eigen::Quaterniond current_orientation= packet.current_orientation.cast<double>();
+		measurement_model.set_current_orientation(current_orientation);
 
         // Project the current state onto a predicted measurement as a default
         // in case no observation is available
         PositionMeasurementVectord measurement = measurement_model.h(m_filter->ukf.getState());
 
-        // Accelerometer and gyroscope measurements are always available
-        measurement.set_accelerometer(packet.imu_accelerometer.cast<double>());
+		Eigen::Vector3d accelerometer = packet.imu_accelerometer_g_units.cast<double>();
+
+#if ACCELEROMETER_FIXUP_HACKS
+		// Hacks to deal with accelerometer measurement issues
+		{			
+			const double acc_magnitude = accelerometer.norm();
+			const double bias_tolerance = 0.1f;
+			const double alignment_tolerance = 0.984807753; // cos(10 degrees)
+
+			const Eigen::Vector3d acc_local_g =
+				eigen_vector3d_clockwise_rotate(current_orientation, m_constants.gravity_calibration_direction.cast<double>());
+
+			//###HipsterSloth $TODO If there is any error in our orientation we don't correctly subtract
+			// out the effect of gravity. This manifests as a phantom lateral linear acceleration 
+			// that drives the velocity in the direction of the bias.
+			// As a work around, we snap the accelerometer direction to the predicted gravity direction
+			// if it's within an angular tolerance of the predicted gravity direction
+			Eigen::Vector3d acc_normalized = accelerometer / acc_magnitude;
+			if (acc_normalized.dot(acc_local_g) >= alignment_tolerance)
+			{
+				accelerometer = acc_local_g * acc_magnitude;
+				acc_normalized = acc_local_g;
+			}
+
+			//###HipsterSloth $TODO If there is any bias in our accelerometer magnitude it manifests
+			// as a phantom linear acceleration that drives the velocity in the direction of the bias.
+			// As a work around, we normalize the accelerometer reading for any accelerometer magnitudes
+			// within a tolerance of 1.0
+			if (fabs(acc_magnitude - 1.0) < bias_tolerance)
+			{
+				accelerometer = acc_normalized;
+			}
+		}
+#endif
+
+		// Accelerometer and gyroscope measurements are always available
+		measurement.set_accelerometer_g_units(accelerometer);
 
 		// Adjust the amount we trust the optical measurements based on the tracking projection area
 		measurement_model.update_measurement_covariance(
 			m_constants,
-			packet.tracking_projection_area);
+			packet.tracking_projection_area_px_sqr);
 
-        if (packet.tracking_projection_area > 0.f)
+        if (packet.tracking_projection_area_px_sqr > 0.f)
         {
-			Eigen::Vector3f optical_position= packet.get_optical_position_in_meters();
+			Eigen::Vector3f optical_position_meters= packet.get_optical_position_in_meters();
 
             // State internally stores position in meters
-            measurement.set_optical_position(optical_position.cast<double>());
+            measurement.set_optical_position_meters(optical_position_meters.cast<double>());
 
 			// If this is the first time we have seen the position, snap the position state
 			if (!m_filter->bSeenPositionMeasurement)
 			{
-				m_filter->ukf.getStateMutable().set_position(optical_position.cast<double>());
+				m_filter->ukf.getStateMutable().set_position_meters(optical_position_meters.cast<double>());
 				m_filter->bSeenPositionMeasurement= true;
 			}
         }
@@ -467,11 +524,11 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
     {
 		PositionStateVectord state_vector = PositionStateVectord::Zero();
 
-		if (packet.tracking_projection_area > 0.f)
+		if (packet.tracking_projection_area_px_sqr > 0.f)
 		{
-			Eigen::Vector3f optical_position= packet.get_optical_position_in_meters();
+			Eigen::Vector3f optical_position_meters= packet.get_optical_position_in_meters();
 
-			state_vector.set_position(optical_position.cast<double>());
+			state_vector.set_position_meters(optical_position_meters.cast<double>());
 			m_filter->bSeenPositionMeasurement= true;
 		}
 
@@ -494,34 +551,35 @@ void KalmanPositionFilter::recenterOrientation(const Eigen::Quaternionf& q_pose)
 {
 }
 
-Eigen::Vector3f KalmanPositionFilter::getPosition(float time) const
+Eigen::Vector3f KalmanPositionFilter::getPositionCm(float time) const
 {
     Eigen::Vector3f result = Eigen::Vector3f::Zero();
 
     if (m_filter->bIsValid)
     {
-        Eigen::Vector3f state_position= m_filter->ukf.getState().get_position().cast<float>();
+        Eigen::Vector3f state_position_meters= m_filter->ukf.getState().get_position_meters().cast<float>();
+		Eigen::Vector3f state_velocity_m_per_sec = m_filter->ukf.getState().get_linear_velocity_m_per_sec().cast<float>();
         Eigen::Vector3f predicted_position =
             is_nearly_zero(time)
-            ? state_position
-            : state_position + getVelocity() * time;
+            ? state_position_meters
+            : state_position_meters + state_velocity_m_per_sec * time;
 
-        result = (predicted_position - m_filter->origin_position) * k_meters_to_centimeters;
+        result = (predicted_position - m_filter->origin_position_meters) * k_meters_to_centimeters;
     }
 
     return result;
 }
 
-Eigen::Vector3f KalmanPositionFilter::getVelocity() const
+Eigen::Vector3f KalmanPositionFilter::getVelocityCmPerSec() const
 {
-	Eigen::Vector3d vel= m_filter->ukf.getState().get_linear_velocity() * k_meters_to_centimeters;
+	Eigen::Vector3d vel= m_filter->ukf.getState().get_linear_velocity_m_per_sec() * k_meters_to_centimeters;
 
     return vel.cast<float>();
 }
 
-Eigen::Vector3f KalmanPositionFilter::getAcceleration() const
+Eigen::Vector3f KalmanPositionFilter::getAccelerationCmPerSecSqr() const
 {
-    Eigen::Vector3d accel= m_filter->ukf.getState().get_linear_acceleration() * k_meters_to_centimeters;
+    Eigen::Vector3d accel= m_filter->ukf.getState().get_linear_acceleration_m_per_sec_sqr() * k_meters_to_centimeters;
 
 	return accel.cast<float>();
 }

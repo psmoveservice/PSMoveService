@@ -133,7 +133,7 @@ public:
 	// The average time between updates in seconds
     float mean_update_time_delta;
 
-	// The variance of the controller position as a function of pixel area
+	// The variance(cm^2) of the controller position (meters^2) as a function of pixel area
     float position_variance_exp_fit_a; 
     float position_variance_exp_fit_b;
 

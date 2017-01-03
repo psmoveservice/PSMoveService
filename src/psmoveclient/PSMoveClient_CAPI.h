@@ -14,6 +14,7 @@ typedef const void *PSMEventDataHandle;
 
 typedef int PSMControllerID;
 typedef int PSMTrackerID;
+typedef int PSMHmdID;
 
 // Shared Constants
 //-----------------
@@ -77,6 +78,12 @@ typedef enum _PSMTrackerType
     PSMTracker_None= -1,
     PSMTracker_PS3Eye
 } PSMTrackerType;
+
+typedef enum _PSMHmdType
+{
+    PSMHmd_None= -1,
+	PSMHmd_Morpheus= -1,
+} PSMHmdType;
 
 typedef enum _PSMTrackerDriver
 {
@@ -390,6 +397,7 @@ typedef struct _PSMEventMessage
         PSMEvent_opaqueServiceEvent, // Need to have protocol access to see what kind of event this is
         PSMEvent_controllerListUpdated,
         PSMEvent_trackerListUpdated,
+		PSMEvent_hmdListUpdated,
     } event_type;
 
     // Opaque handle that can be converted to a <const PSMoveProtocol::Response *> pointer
@@ -413,12 +421,18 @@ typedef struct _PSMTrackerList
     float global_forward_degrees;
 } PSMTrackerList;
 
-
-typedef struct _PSMHMDTrackingSpace
+typedef struct _PSMHMDList
 {
-//    PSMPosef origin_pose;
+    PSMHmdID hmd_id[PSMOVESERVICE_MAX_HMD_COUNT];
+    PSMHmdType hmd_type[PSMOVESERVICE_MAX_HMD_COUNT];
+    int count;
+} PSMHMDList;
+
+typedef struct _PSMTrackingSpace
+{
     float global_forward_degrees;
-} PSMHMDTrackingSpace;
+} PSMTrackingSpace;
+
 
 typedef struct _PSMResponseMessage
 {
@@ -444,7 +458,8 @@ typedef struct _PSMResponseMessage
     {
         PSMControllerList controller_list;
         PSMTrackerList tracker_list;
-        PSMHMDTrackingSpace hmd_tracking_space;
+		PSMHMDList hmd_list;
+        PSMTrackingSpace tracking_space;
     } payload;
 
     enum eResponsePayloadType
@@ -452,7 +467,8 @@ typedef struct _PSMResponseMessage
         _responsePayloadType_Empty,
         _responsePayloadType_ControllerList,
         _responsePayloadType_TrackerList,
-        _responsePayloadType_HMDTrackingSpace,
+        _responsePayloadType_TrackingSpace,
+		_responsePayloadType_HmdList,
 
         _responsePayloadType_Count
     } payload_type;
@@ -498,6 +514,7 @@ PSM_PUBLIC_FUNCTION(bool) PSM_GetIsConnected();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasConnectionStatusChanged();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasControllerListChanged();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasTrackerListChanged();
+PSM_PUBLIC_FUNCTION(bool) PSM_HasHMDListChanged();
 
 /// Async Message Handling API
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_PollNextMessage(PSMMessage *message, size_t message_size);
@@ -534,7 +551,7 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_FreeTrackerListener(PSMTrackerID controller_i
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerList(PSMTrackerList *out_tracker_list, int timeout_ms);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHMDTrackingSpaceSettings(PSMHMDTrackingSpace *out_tracking_space, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHMDTrackingSpaceSettings(PSMTrackingSpace *out_tracking_space, int timeout_ms);
 
 /// Async Tracker Methods
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerListAsync(PSMRequestID *out_request_id);

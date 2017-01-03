@@ -33,14 +33,14 @@ static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 static const glm::vec3 k_psmove_frustum_color_no_track = glm::vec3(1.0f, 0.f, 0.f);
 
 //-- private methods -----
-static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
+static void drawController(const ClientControllerView *controllerView, const glm::mat4 &transform, const PSMoveTrackingColorType trackingColorType);
 
 //-- public methods -----
 AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
     : AppStage(app)
     , m_menuState(AppStage_ComputeTrackerPoses::inactive)
-    , m_controllerView(nullptr)
     , m_pendingTrackerStartCount(0)
+	, m_pendingControllerStartCount(0)
     , m_renderTrackerIndex(0)
     , m_pCalibrateWithMat(new AppSubStage_CalibrateWithMat(this))
     , m_bSkipCalibration(false)
@@ -167,42 +167,60 @@ void AppStage_ComputeTrackerPoses::render()
             // Draw the frustum for each tracking camera.
             // The frustums are defined in PSMove tracking space.
             // We need to transform them into chaperone space to display them along side the HMD.
-            for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+            for (t_tracker_state_map_iterator tracker_iter = m_trackerViews.begin(); tracker_iter != m_trackerViews.end(); ++tracker_iter)
             {
-                const ClientTrackerView *trackerView = iter->second.trackerView;
+                const ClientTrackerView *trackerView = tracker_iter->second.trackerView;
                 const PSMovePose trackerPose = trackerView->getTrackerPose();
                 const glm::mat4 trackerMat4 = psmove_pose_to_glm_mat4(trackerPose);
 
-                {
-                    PSMoveFrustum frustum = trackerView->getTrackerFrustum();
+                PSMoveFrustum frustum = trackerView->getTrackerFrustum();
 
-					// use color depending on tracking status
-					PSMoveScreenLocation screenSample;
-					glm::vec3 color;
-					if (m_controllerView->GetIsCurrentlyTracking() &&
-						m_controllerView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
-					{
-						color = k_psmove_frustum_color;
-					}
-					else 
-					{
-						color = k_psmove_frustum_color_no_track;
-					}
+				// use color depending on tracking status
+				glm::vec3 color= does_tracker_see_any_controller(trackerView) ? k_psmove_frustum_color : k_psmove_frustum_color_no_track;
 
-					drawTextAtWorldPosition(glm::mat4(1.f), psmove_position_to_glm_vec3(trackerPose.Position), "#%d", trackerView->getTrackerId());
-                    drawTransformedFrustum(glm::mat4(1.f), &frustum, color);
-                }
+				drawTextAtWorldPosition(glm::mat4(1.f), psmove_position_to_glm_vec3(trackerPose.Position), "#%d", trackerView->getTrackerId());
+                drawTransformedFrustum(glm::mat4(1.f), &frustum, color);
 
                 drawTransformedAxes(trackerMat4, 20.f);
             }
 
             // Draw the psmove model
+			for (t_controller_state_map_iterator controller_iter = m_controllerViews.begin(); controller_iter != m_controllerViews.end(); ++controller_iter)
             {
-                PSMovePose controllerPose = m_controllerView->GetPose();
+				const ClientControllerView *controllerView = controller_iter->second.controllerView;
+				const PSMoveTrackingColorType trackingColorType= controller_iter->second.trackingColorType;
+
+                PSMovePose controllerPose = controllerView->GetPose();
                 glm::mat4 controllerMat4 = psmove_pose_to_glm_mat4(controllerPose);
 
-                drawController(m_controllerView, controllerMat4);
+				if (m_controllerViews.size() > 1)
+				{
+					drawTextAtWorldPosition(glm::mat4(1.f), psmove_position_to_glm_vec3(controllerPose.Position), "#%d", controllerView->GetControllerID());
+				}
+                drawController(controllerView, controllerMat4, trackingColorType);
                 drawTransformedAxes(controllerMat4, 10.f);
+
+				// Draw the acceleration and velocity arrows
+				{
+					const PSMovePhysicsData &physicsData = controllerView->GetPhysicsData();
+					const glm::mat4 originMat4= glm::translate(glm::mat4(1.f), psmove_position_to_glm_vec3(controllerPose.Position));
+					const glm::vec3 vel_endpoint = psmove_float_vector3_to_glm_vec3(physicsData.VelocityCmPerSec);
+					const glm::vec3 acc_endpoint = psmove_float_vector3_to_glm_vec3(physicsData.AccelerationCmPerSecSqr)*k_centimeters_to_meters;
+					
+					const float vel= glm::length(vel_endpoint);
+					if (vel > k_positional_epsilon)
+					{
+						drawArrow(originMat4, glm::vec3(0.f), vel_endpoint, 0.1f, glm::vec3(0.f, 1.f, 1.f));
+						//drawTextAtWorldPosition(originMat4, vel_endpoint, "v=%.2fcm/s", vel);
+					}
+
+					const float acc = glm::length(acc_endpoint);
+					if (acc > k_positional_epsilon)
+					{
+						drawArrow(originMat4, glm::vec3(0.f), acc_endpoint, 0.1f, glm::vec3(1.f, 1.f, 0.f));
+						//drawTextAtWorldPosition(originMat4, acc_endpoint, "a=%.2fm/s^2", acc);
+					}
+				}
             }
 
         } break;
@@ -342,11 +360,9 @@ void AppStage_ComputeTrackerPoses::renderUI()
 			for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
 			{
 				const ClientTrackerView *trackerView = iter->second.trackerView;
-				PSMoveScreenLocation screenSample;
 
 				ImGui::PushItemWidth(125.f);
-				if (m_controllerView->GetIsCurrentlyTracking() &&
-					m_controllerView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
+				if (does_tracker_see_any_controller(trackerView))
 				{
 					ImGui::Text("Tracker #%d: OK", trackerView->getTrackerId());
 				}
@@ -485,7 +501,11 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
     case eMenuState::inactive:
         break;
     case eMenuState::pendingControllerListRequest:
+		break;
     case eMenuState::pendingControllerStartRequest:
+		m_controllerViews.clear();
+		m_pendingControllerStartCount = 0;
+		break;
     case eMenuState::pendingTrackerListRequest:
         break;
     case eMenuState::pendingTrackerStartRequest:
@@ -590,16 +610,28 @@ class ClientTrackerView *AppStage_ComputeTrackerPoses::get_render_tracker_view()
     return (m_trackerViews.size() > 0) ? m_renderTrackerIter->second.trackerView : nullptr;
 }
 
+class ClientControllerView *AppStage_ComputeTrackerPoses::get_calibration_controller_view() const
+{
+	return (m_controllerViews.size() > 0) ? m_controllerViews.begin()->second.controllerView : nullptr;
+}
+
 void AppStage_ComputeTrackerPoses::release_devices()
 {
     //###HipsterSloth $REVIEW Do we care about canceling in-flight requests?
 
-    if (m_controllerView != nullptr)
-    {
-        ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(m_controllerView));
-        ClientPSMoveAPI::free_controller_view(m_controllerView);
-        m_controllerView = nullptr;
-    }
+	for (t_controller_state_map_iterator iter = m_controllerViews.begin(); iter != m_controllerViews.end(); ++iter)
+	{
+		ControllerState &controllerState = iter->second;
+
+		if (controllerState.controllerView != nullptr)
+		{
+			ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(controllerState.controllerView));
+			ClientPSMoveAPI::free_controller_view(controllerState.controllerView);
+		}
+	}
+
+	m_controllerViews.clear();
+	m_pendingControllerStartCount = 0;
 
     for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
     {
@@ -656,7 +688,6 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
     AppStage_ComputeTrackerPoses *thisPtr = static_cast<AppStage_ComputeTrackerPoses *>(userdata);
 
     const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
-//    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
 
     switch (ResultCode)
     {
@@ -664,31 +695,63 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
         {
             assert(response_message->payload_type == ClientPSMoveAPI::_responsePayloadType_ControllerList);
             const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list = 
-                &response_message->payload.controller_list;
+                &response_message->payload.controller_list;			
 
-            int trackedControllerId = thisPtr->m_overrideControllerId;
-
-			if (trackedControllerId == -1)
+			if (thisPtr->m_bSkipCalibration)
 			{
+				bool bStartedAnyControllers = false;
+
 				for (int list_index = 0; list_index < controller_list->count; ++list_index)
 				{
 					if (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
 						controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)
 					{
+						int trackedControllerId = controller_list->controller_id[list_index];
+						const auto &protocolControllerResponse = response->result_controller_list().controllers(list_index);
+						const PSMoveTrackingColorType trackingColorType=
+							static_cast<PSMoveTrackingColorType>(protocolControllerResponse.tracking_color_type());
+
+						thisPtr->request_start_controller_stream(trackedControllerId, list_index, trackingColorType);
+						bStartedAnyControllers = true;
+					}
+				}
+
+				if (!bStartedAnyControllers)
+				{
+					thisPtr->setState(AppStage_ComputeTrackerPoses::failedControllerListRequest);
+				}
+			}
+			else
+			{
+				int trackedControllerId = -1;
+				int trackedControllerListIndex = -1;
+				PSMoveTrackingColorType trackingColorType;
+
+				for (int list_index = 0; list_index < controller_list->count; ++list_index)
+				{
+					if (controller_list->controller_id[list_index] == thisPtr->m_overrideControllerId ||
+						(thisPtr->m_overrideControllerId == -1 &&
+						 (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
+						 controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)))
+					{
+						const auto &protocolControllerResponse = response->result_controller_list().controllers(list_index);
+
+						trackingColorType = static_cast<PSMoveTrackingColorType>(protocolControllerResponse.tracking_color_type());
 						trackedControllerId = controller_list->controller_id[list_index];
+						trackedControllerListIndex = list_index;
 						break;
 					}
 				}
-			}
 
-            if (trackedControllerId != -1)
-            {
-                thisPtr->request_start_controller_stream(trackedControllerId);
-            }
-            else
-            {
-                thisPtr->setState(AppStage_ComputeTrackerPoses::failedControllerListRequest);
-            }
+				if (trackedControllerId != -1)
+				{
+					thisPtr->request_start_controller_stream(trackedControllerId, trackedControllerListIndex, trackingColorType);
+				}
+				else
+				{
+					thisPtr->setState(AppStage_ComputeTrackerPoses::failedControllerListRequest);
+				}
+			}
         } break;
 
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
@@ -699,16 +762,32 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
     }
 }
 
-void AppStage_ComputeTrackerPoses::request_start_controller_stream(int ControllerID)
+void AppStage_ComputeTrackerPoses::request_start_controller_stream(
+	int ControllerID,
+	int listIndex,
+	PSMoveTrackingColorType trackingColorType)
 {
-    // Allocate a controller view to track controller state
-    assert(m_controllerView == nullptr);
-    m_controllerView= ClientPSMoveAPI::allocate_controller_view(ControllerID);
+	ControllerState controllerState;
+
+	setState(eMenuState::pendingControllerStartRequest);
+
+	// Allocate a new controller view
+	controllerState.listIndex = listIndex;
+	controllerState.controllerView = ClientPSMoveAPI::allocate_controller_view(ControllerID);
+	controllerState.trackingColorType = trackingColorType;
+
+	// Add the controller to the list of controllers we're monitoring
+	assert(m_controllerViews.find(ControllerID) == m_controllerViews.end());
+	m_controllerViews.insert(t_id_controller_state_pair(ControllerID, controllerState));
+
+	// Increment the number of requests we're waiting to get back
+	++m_pendingControllerStartCount;
 
 	unsigned int flags =
 		ClientPSMoveAPI::includePositionData |
 		ClientPSMoveAPI::includeCalibratedSensorData |
-		ClientPSMoveAPI::includeRawTrackerData;
+		ClientPSMoveAPI::includeRawTrackerData | 
+		ClientPSMoveAPI::includePhysicsData;
 
 	// If we are jumping straight to testing, we want the ROI optimization on
 	if (!m_bSkipCalibration)
@@ -717,9 +796,8 @@ void AppStage_ComputeTrackerPoses::request_start_controller_stream(int Controlle
 	}
 
     // Start receiving data from the controller
-    setState(AppStage_ComputeTrackerPoses::pendingControllerStartRequest);
     ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::start_controller_data_stream(m_controllerView, flags),
+        ClientPSMoveAPI::start_controller_data_stream(controllerState.controllerView, flags),
         AppStage_ComputeTrackerPoses::handle_start_controller_response, this);
 }
 
@@ -730,13 +808,18 @@ void AppStage_ComputeTrackerPoses::handle_start_controller_response(
     AppStage_ComputeTrackerPoses *thisPtr = static_cast<AppStage_ComputeTrackerPoses *>(userdata);
 
     const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
-//    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
 
     switch (ResultCode)
     {
     case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
-            thisPtr->request_tracker_list();
+			// See if this was the last controller we were waiting to get a response from
+			--thisPtr->m_pendingControllerStartCount;
+			if (thisPtr->m_pendingControllerStartCount <= 0)
+			{
+				// Move on to the controllers
+				thisPtr->request_tracker_list();
+			}
         } break;
 
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
@@ -925,16 +1008,65 @@ void AppStage_ComputeTrackerPoses::handle_all_devices_ready()
     }
 }
 
-//-- private methods -----
-static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform)
+bool AppStage_ComputeTrackerPoses::does_tracker_see_any_controller(const ClientTrackerView *trackerView)
 {
+	bool bTrackerSeesAnyController = false;
+	for (t_controller_state_map_iterator controller_iter = m_controllerViews.begin(); controller_iter != m_controllerViews.end(); ++controller_iter)
+	{
+		const ClientControllerView *controllerView = controller_iter->second.controllerView;
+
+		PSMoveScreenLocation screenSample;
+		glm::vec3 color;
+		if (controllerView->GetIsCurrentlyTracking() &&
+			controllerView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
+		{
+			bTrackerSeesAnyController = true;
+			break;
+		}
+	}
+
+	return bTrackerSeesAnyController;
+}
+
+//-- private methods -----
+static void drawController(
+	const ClientControllerView *controllerView, 
+	const glm::mat4 &transform, 
+	const PSMoveTrackingColorType trackingColorType)
+{
+	glm::vec3 bulb_color = glm::vec3(1.f, 1.f, 1.f);
+
+	switch (trackingColorType)
+	{
+	case PSMoveTrackingColorType::Magenta:
+		bulb_color = glm::vec3(1.f, 0.f, 1.f);
+		break;
+	case PSMoveTrackingColorType::Cyan:
+		bulb_color = glm::vec3(0.f, 1.f, 1.f);
+		break;
+	case PSMoveTrackingColorType::Yellow:
+		bulb_color = glm::vec3(1.f, 1.f, 0.f);
+		break;
+	case PSMoveTrackingColorType::Red:
+		bulb_color = glm::vec3(1.f, 0.f, 0.f);
+		break;
+	case PSMoveTrackingColorType::Green:
+		bulb_color = glm::vec3(0.f, 1.f, 0.f);
+		break;
+	case PSMoveTrackingColorType::Blue:
+		bulb_color = glm::vec3(0.f, 0.f, 1.f);
+		break;
+	default:
+		break;
+	}
+
     switch(controllerView->GetControllerViewType())
     {
     case ClientControllerView::PSMove:
-        drawPSMoveModel(transform, glm::vec3(1.f, 1.f, 1.f));
+        drawPSMoveModel(transform, bulb_color);
         break;
     case ClientControllerView::PSDualShock4:
-        drawPSDualShock4Model(transform, glm::vec3(1.f, 1.f, 1.f));
+        drawPSDualShock4Model(transform, bulb_color);
         break;
     }
 }

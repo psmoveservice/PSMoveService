@@ -11,9 +11,9 @@
 #define PSM_PRODUCT_VERSION 0
 #define PSM_MAJOR_VERSION   9
 #define PSM_PHASE           alpha
-#define PSM_MINOR_VERSION   5
-#define PSM_PATCH_VERSION   5
-#define PSM_BUILD_NUMBER    8
+#define PSM_MINOR_VERSION   6
+#define PSM_PATCH_VERSION   0
+#define PSM_BUILD_NUMBER    7
 
 /// "Product.Major-Phase Minor.Patch"
 #if !defined(PSM_VERSION_STRING)

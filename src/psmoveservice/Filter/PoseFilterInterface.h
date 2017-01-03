@@ -18,9 +18,8 @@ extern const Eigen::Matrix3f *k_eigen_sensor_transform_opengl;
 #define k_g_units_to_ms2  9.80665000f // m/s²
 #define k_ms2_to_g_units  1.f/9.80665000f // g-units
 
-//HACK - DO NOT CHECK IN
-#define k_meters_to_centimeters  1.f//100.f
-#define k_centimeters_to_meters  1.f//0.01f
+#define k_meters_to_centimeters  100.f
+#define k_centimeters_to_meters  0.01f
 
 //-- declarations -----
 struct ExponentialCurve
@@ -42,12 +41,12 @@ struct PoseSensorPacket
     // Optical readings in the world reference frame
     Eigen::Vector3f optical_position_cm; // cm
     Eigen::Quaternionf optical_orientation;
-    float tracking_projection_area; // pixels^2
+    float tracking_projection_area_px_sqr; // pixels^2
 
     // Sensor readings in the controller's reference frame
-    Eigen::Vector3f imu_accelerometer; // g-units
-    Eigen::Vector3f imu_magnetometer; // unit vector
-    Eigen::Vector3f imu_gyroscope; // rad/s
+    Eigen::Vector3f imu_accelerometer_g_units; // g-units
+    Eigen::Vector3f imu_magnetometer_unit; // unit vector
+    Eigen::Vector3f imu_gyroscope_rad_per_sec; // rad/s
 
 	inline Eigen::Vector3f get_optical_position_in_meters() const
 	{
@@ -172,7 +171,7 @@ struct PositionFilterConstants
     /// The average time delta between position updates during calibration
     float mean_update_time_delta; // seconds
 
-    /// Best fit parameters for variance as a function of screen projection area
+    /// Best fit parameters for position variance (meters^2) as a function of screen projection area
 	ExponentialCurve position_variance_curve;
 };
 
@@ -211,10 +210,10 @@ public:
     virtual Eigen::Quaternionf getOrientation(float time = 0.f) const = 0;
 
     /// Get the current world space angular velocity of the filter state (rad/s)
-    virtual Eigen::Vector3f getAngularVelocity() const = 0;
+    virtual Eigen::Vector3f getAngularVelocityRadPerSec() const = 0;
 
     /// Get the current world space angular acceleration of the filter state (rad/s^2)
-    virtual Eigen::Vector3f getAngularAcceleration() const = 0;
+    virtual Eigen::Vector3f getAngularAccelerationRadPerSecSqr() const = 0;
 };
 
 /// Common interface to all position filters
@@ -225,13 +224,13 @@ public:
 	virtual bool init(const PositionFilterConstants &constant, const Eigen::Vector3f &initial_position) = 0;
 
     /// Estimate the current position of the filter state given a time offset into the future (meters)
-    virtual Eigen::Vector3f getPosition(float time = 0.f) const = 0;
+    virtual Eigen::Vector3f getPositionCm(float time = 0.f) const = 0;
 
     /// Get the current velocity of the filter state (cm/s)
-    virtual Eigen::Vector3f getVelocity() const = 0;
+    virtual Eigen::Vector3f getVelocityCmPerSec() const = 0;
 
     /// Get the current velocity of the filter state (cm/s^2)
-    virtual Eigen::Vector3f getAcceleration() const = 0;
+    virtual Eigen::Vector3f getAccelerationCmPerSecSqr() const = 0;
 };
 
 /// Common interface to all pose filters (filter orientation and position simultaneously)
@@ -242,19 +241,19 @@ public:
     virtual Eigen::Quaternionf getOrientation(float time = 0.f) const = 0;
 
     /// Get the current world space angular velocity of the filter state (rad/s)
-    virtual Eigen::Vector3f getAngularVelocity() const = 0;
+    virtual Eigen::Vector3f getAngularVelocityRadPerSec() const = 0;
 
     /// Get the current world space angular acceleration of the filter state (rad/s^2)
-    virtual Eigen::Vector3f getAngularAcceleration() const = 0;
+    virtual Eigen::Vector3f getAngularAccelerationRadPerSecSqr() const = 0;
 
-    /// Estimate the current position of the filter state given a time offset into the future (meters)
-    virtual Eigen::Vector3f getPosition(float time = 0.f) const = 0;
+    /// Estimate the current position of the filter state given a time offset into the future (centimeters)
+    virtual Eigen::Vector3f getPositionCm(float time = 0.f) const = 0;
 
     /// Get the current velocity of the filter state (cm/s)
-    virtual Eigen::Vector3f getVelocity() const = 0;
+    virtual Eigen::Vector3f getVelocityCmPerSec() const = 0;
 
     /// Get the current velocity of the filter state (cm/s^2)
-    virtual Eigen::Vector3f getAcceleration() const = 0;
+    virtual Eigen::Vector3f getAccelerationCmPerSecSqr() const = 0;
 };
 
 #endif // POSE_FILTER_INTERFACE_H

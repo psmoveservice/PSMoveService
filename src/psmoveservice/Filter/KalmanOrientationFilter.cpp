@@ -96,7 +96,7 @@ public:
 	Eigen::Quaterniond get_error_quaterniond_dot() const {
 		return Eigen::Quaterniond((*this)[ERROR_Q_DOT_W], (*this)[ERROR_Q_DOT_X], (*this)[ERROR_Q_DOT_Y], (*this)[ERROR_Q_DOT_Z]);
 	}
-    Eigen::Vector3d get_angular_velocity() const {
+    Eigen::Vector3d get_angular_velocity_rad_per_sec() const {
 		Eigen::Quaterniond q = get_error_quaterniond();
 		Eigen::Quaterniond q_dot= get_error_quaterniond_dot();
 		return eigen_quaterniond_derivative_to_angular_velocity(q, q_dot);
@@ -115,7 +115,7 @@ public:
 		(*this)[ERROR_Q_DOT_Y] = q_dot.y();
 		(*this)[ERROR_Q_DOT_Z] = q_dot.z();
 	}
-    void set_angular_velocity(const Eigen::Vector3d &v) {
+    void set_angular_velocity_rad_per_sec(const Eigen::Vector3d &v) {
 		Eigen::Quaterniond q = get_error_quaterniond();
 		Eigen::Quaterniond q_dot = eigen_angular_velocity_to_quaterniond_derivative(q, v);
         (*this)[ERROR_Q_DOT_W] = q_dot.w();
@@ -314,7 +314,7 @@ public:
 		identity_gravity_direction = constants.gravity_calibration_direction.cast<double>();
 		identity_magnetometer_direction = constants.magnetometer_calibration_direction.cast<double>();
 		m_last_world_orientation = Eigen::Quaterniond::Identity();
-		m_last_world_linear_acceleration = Eigen::Vector3d::Zero();
+		m_last_world_linear_acceleration_m_per_sec_sqr = Eigen::Vector3d::Zero();
 	}
 
 	void update_world_orientation(const Eigen::Quaterniond &orientation)
@@ -322,9 +322,9 @@ public:
 		m_last_world_orientation = orientation;
 	}
 
-	void update_world_linear_acceleration(const Eigen::Vector3d &linear_acceleration)
+	void update_world_linear_acceleration_m_per_sec_sqr(const Eigen::Vector3d &linear_acceleration)
 	{
-		m_last_world_linear_acceleration = linear_acceleration;
+		m_last_world_linear_acceleration_m_per_sec_sqr = linear_acceleration;
 	}
 
 	/**
@@ -354,7 +354,7 @@ public:
 		const Eigen::Vector3d accel_local = eigen_vector3d_clockwise_rotate(world_to_local_orientation, accel_world);
 
 		// Use the angular velocity from the state to predict what the gyro reading will be
-		const Eigen::Vector3d gyro_local = x.get_angular_velocity();
+		const Eigen::Vector3d gyro_local = x.get_angular_velocity_rad_per_sec();
 
 		// Use the orientation from the state to predict
 		// what the magnetometer reading should be (in the space of the controller)
@@ -373,7 +373,7 @@ public:
 	Eigen::Vector3d identity_gravity_direction;
 	Eigen::Vector3d identity_magnetometer_direction;
 	Eigen::Quaterniond m_last_world_orientation;
-	Eigen::Vector3d m_last_world_linear_acceleration;
+	Eigen::Vector3d m_last_world_linear_acceleration_m_per_sec_sqr;
 };
 
 /**
@@ -458,12 +458,12 @@ public:
 		// and the current orientation from the state to predict
 		// what the accelerometer reading will be (in the space of the controller)
 		const Eigen::Vector3d &gravity_accel_g_units = identity_gravity_direction;
-		const Eigen::Vector3d linear_accel_g_units = Eigen::Vector3d::Zero(); // m_last_world_linear_acceleration * k_ms2_to_g_units;
+		const Eigen::Vector3d linear_accel_g_units = m_last_world_linear_acceleration * k_ms2_to_g_units;
 		const Eigen::Vector3d accel_world = linear_accel_g_units + gravity_accel_g_units;
 		const Eigen::Vector3d accel_local = eigen_vector3d_clockwise_rotate(world_to_local_orientation, accel_world);
 
 		// Use the angular velocity from the state to predict what the gyro reading will be
-		const Eigen::Vector3d gyro_local = x.get_angular_velocity();
+		const Eigen::Vector3d gyro_local = x.get_angular_velocity_rad_per_sec();
 
 		// Save the predictions into the measurement vector
 		predicted_measurement.set_accelerometer(accel_local);
@@ -680,7 +680,7 @@ Eigen::Quaternionf KalmanOrientationFilter::getOrientation(float time) const
 		if (fabsf(time) > k_real_epsilon)
 		{
 			const Eigen::Quaternionf &quaternion_derivative =
-				eigen_angular_velocity_to_quaternion_derivative(result, getAngularVelocity());
+				eigen_angular_velocity_to_quaternion_derivative(result, getAngularVelocityRadPerSec());
 
 			predicted_orientation = Eigen::Quaternionf(
 				state_orientation.coeffs()
@@ -693,14 +693,14 @@ Eigen::Quaternionf KalmanOrientationFilter::getOrientation(float time) const
 	return result;
 }
 
-Eigen::Vector3f KalmanOrientationFilter::getAngularVelocity() const
+Eigen::Vector3f KalmanOrientationFilter::getAngularVelocityRadPerSec() const
 {
-	Eigen::Vector3d ang_vel = m_filter->ukf.getState().get_angular_velocity();
+	Eigen::Vector3d ang_vel = m_filter->ukf.getState().get_angular_velocity_rad_per_sec();
 
 	return ang_vel.cast<float>();
 }
 
-Eigen::Vector3f KalmanOrientationFilter::getAngularAcceleration() const
+Eigen::Vector3f KalmanOrientationFilter::getAngularAccelerationRadPerSecSqr() const
 {
 	return Eigen::Vector3f::Zero();
 }
@@ -737,7 +737,7 @@ void KalmanOrientationFilterDS4::update(const float delta_time, const PoseFilter
 		DS4KalmanOrientationFilterImpl *filter = static_cast<DS4KalmanOrientationFilterImpl *>(m_filter);
 
 		// Adjust the amount we trust the process model based on the tracking projection area
-		filter->system_model.update_process_noise(m_constants, packet.tracking_projection_area);
+		filter->system_model.update_process_noise(m_constants, packet.tracking_projection_area_px_sqr);
 
 		// Predict state for current time-step using the filters
 		filter->system_model.set_time_step(delta_time);
@@ -751,7 +751,7 @@ void KalmanOrientationFilterDS4::update(const float delta_time, const PoseFilter
 			packet.get_current_acceleration_in_meters_per_second_squared().cast<double>());
 
 		// If this is the first time we have seen an orientation measurement, snap the orientation state
-		if (!m_filter->bSeenOrientationMeasurement && packet.tracking_projection_area > 0.f)
+		if (!m_filter->bSeenOrientationMeasurement && packet.tracking_projection_area_px_sqr > 0.f)
 		{
 			const Eigen::Quaterniond world_quaternion = packet.optical_orientation.cast<double>();
 
@@ -768,10 +768,10 @@ void KalmanOrientationFilterDS4::update(const float delta_time, const PoseFilter
 		// Adjust the amount we trust the optical measurements based on the tracking projection area
 		measurement_model.update_measurement_statistics(
 			m_constants,
-			packet.tracking_projection_area);
+			packet.tracking_projection_area_px_sqr);
 
 		// If available, use the optical orientation measurement
-		if (packet.tracking_projection_area > 0.f)
+		if (packet.tracking_projection_area_px_sqr > 0.f)
 		{
 			const Eigen::EulerAnglesd world_optical_euler_angles =
 				eigen_quaterniond_to_euler_angles(packet.optical_orientation.cast<double>());
@@ -782,10 +782,10 @@ void KalmanOrientationFilterDS4::update(const float delta_time, const PoseFilter
 
 		// Accelerometer and gyroscope measurements are always available
 		{
-			const Eigen::Vector3d world_accelerometer = packet.imu_accelerometer.cast<double>();
+			const Eigen::Vector3d world_accelerometer = packet.imu_accelerometer_g_units.cast<double>();
 
 			local_measurement.set_accelerometer(world_accelerometer);
-			local_measurement.set_gyroscope(packet.imu_gyroscope.cast<double>());
+			local_measurement.set_gyroscope(packet.imu_gyroscope_rad_per_sec.cast<double>());
 		}
 
 		// Update UKF
@@ -845,17 +845,17 @@ void KalmanOrientationFilterPSMove::update(const float delta_time, const PoseFil
 		PSMove_OrientationMeasurementModel &measurement_model = filter->measurement_model;
 
 		// Update the linear acceleration on the measurement model with last frames acceleration state
-		measurement_model.update_world_linear_acceleration(
+		measurement_model.update_world_linear_acceleration_m_per_sec_sqr(
 			packet.get_current_acceleration_in_meters_per_second_squared().cast<double>());
 
 		// If this is the first time we have seen an orientation measurement, 
 		// snap the orientation state to a best fit alignment of the sensor measurements.
 		if (!m_filter->bSeenOrientationMeasurement)
 		{
-			Eigen::Vector3f current_g = packet.imu_accelerometer;
+			Eigen::Vector3f current_g = packet.imu_accelerometer_g_units;
 			eigen_vector3f_normalize_with_default(current_g, Eigen::Vector3f::Zero());
 
-			Eigen::Vector3f current_m = packet.imu_magnetometer;
+			Eigen::Vector3f current_m = packet.imu_magnetometer_unit;
 			eigen_vector3f_normalize_with_default(current_m, Eigen::Vector3f::Zero());
 
 			const Eigen::Vector3f* mg_from[2] = { &m_constants.gravity_calibration_direction, &m_constants.magnetometer_calibration_direction };
@@ -876,9 +876,9 @@ void KalmanOrientationFilterPSMove::update(const float delta_time, const PoseFil
 
 		// Accelerometer, gyroscope, magnetometer measurements are always available
 		PSMove_OrientationMeasurementVectord measurement = PSMove_OrientationMeasurementVectord::Zero();
-		measurement.set_accelerometer(packet.imu_accelerometer.cast<double>());
-		measurement.set_gyroscope(packet.imu_gyroscope.cast<double>());
-		measurement.set_magnetometer(packet.imu_magnetometer.cast<double>());
+		measurement.set_accelerometer(packet.imu_accelerometer_g_units.cast<double>());
+		measurement.set_gyroscope(packet.imu_gyroscope_rad_per_sec.cast<double>());
+		measurement.set_magnetometer(packet.imu_magnetometer_unit.cast<double>());
 		m_filter->bSeenOrientationMeasurement = true;
 
         // Update UKF

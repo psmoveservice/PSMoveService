@@ -72,7 +72,7 @@ private:
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;
 
-    PSMovePosition m_lastMulticamPosition;
+    PSMovePosition m_lastMulticamPositionCm;
 	PSMoveQuaternion m_lastMulticamOrientation;
 	PSMovePose m_lastControllerPose;
 	float m_lastProjectionArea;

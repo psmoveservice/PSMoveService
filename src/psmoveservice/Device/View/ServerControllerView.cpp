@@ -398,7 +398,7 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
             const bool bWasTracking= trackerPoseEstimateRef.bCurrentlyTracking;
 
             // Assume we're going to lose tracking this frame
-            trackerPoseEstimateRef.bCurrentlyTracking = false;
+            bool bCurrentlyTracking = false;
 
             if (tracker->getIsOpen())
             {
@@ -453,7 +453,7 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
                             ++projections_found;
 
                             // Flag this pose estimate as invalid
-                            trackerPoseEstimateRef.bCurrentlyTracking = true;
+                            bCurrentlyTracking = true;
                         }
                     }
                 }
@@ -462,6 +462,7 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
             // Keep track of the last time the position estimate was updated
             trackerPoseEstimateRef.last_update_timestamp = now;
             trackerPoseEstimateRef.bValidTimestamps = true;
+			trackerPoseEstimateRef.bCurrentlyTracking = bCurrentlyTracking;
         }
 
 		// How we compute the final world pose estimate varies based on
@@ -644,16 +645,16 @@ ServerControllerView::getFilteredPose(float time) const
     if (m_pose_filter != nullptr)
     {
         const Eigen::Quaternionf orientation= m_pose_filter->getOrientation(time);
-        const Eigen::Vector3f position= m_pose_filter->getPosition(time);
+        const Eigen::Vector3f position_cm= m_pose_filter->getPositionCm(time);
 
         pose.Orientation.w= orientation.w();
         pose.Orientation.x= orientation.x();
         pose.Orientation.y= orientation.y();
         pose.Orientation.z= orientation.z();
 
-        pose.Position.x= position.x();
-        pose.Position.y= position.y();
-        pose.Position.z= position.z();
+        pose.PositionCm.x= position_cm.x();
+        pose.PositionCm.y= position_cm.y();
+        pose.PositionCm.z= position_cm.z();
     }
 
     return pose;
@@ -666,26 +667,26 @@ ServerControllerView::getFilteredPhysics() const
 
     if (m_pose_filter != nullptr)
     {
-        const Eigen::Vector3f first_derivative= m_pose_filter->getAngularVelocity();
-        const Eigen::Vector3f second_derivative= m_pose_filter->getAngularAcceleration();
-        const Eigen::Vector3f velocity(m_pose_filter->getVelocity());
-        const Eigen::Vector3f acceleration(m_pose_filter->getAcceleration());
+        const Eigen::Vector3f first_derivative= m_pose_filter->getAngularVelocityRadPerSec();
+        const Eigen::Vector3f second_derivative= m_pose_filter->getAngularAccelerationRadPerSecSqr();
+        const Eigen::Vector3f velocity(m_pose_filter->getVelocityCmPerSec());
+        const Eigen::Vector3f acceleration(m_pose_filter->getAccelerationCmPerSecSqr());
 
-        physics.AngularVelocity.i = first_derivative.x();
-        physics.AngularVelocity.j = first_derivative.y();
-        physics.AngularVelocity.k = first_derivative.z();
+        physics.AngularVelocityRadPerSec.i = first_derivative.x();
+        physics.AngularVelocityRadPerSec.j = first_derivative.y();
+        physics.AngularVelocityRadPerSec.k = first_derivative.z();
 
-        physics.AngularAcceleration.i = second_derivative.x();
-        physics.AngularAcceleration.j = second_derivative.y();
-        physics.AngularAcceleration.k = second_derivative.z();
+        physics.AngularAccelerationRadPerSecSqr.i = second_derivative.x();
+        physics.AngularAccelerationRadPerSecSqr.j = second_derivative.y();
+        physics.AngularAccelerationRadPerSecSqr.k = second_derivative.z();
 
-        physics.Velocity.i = velocity.x();
-        physics.Velocity.j = velocity.y();
-        physics.Velocity.k = velocity.z();
+        physics.VelocityCmPerSec.i = velocity.x();
+        physics.VelocityCmPerSec.j = velocity.y();
+        physics.VelocityCmPerSec.k = velocity.z();
 
-        physics.Acceleration.i = acceleration.x();
-        physics.Acceleration.j = acceleration.y();
-        physics.Acceleration.k = acceleration.z();
+        physics.AccelerationCmPerSecSqr.i = acceleration.x();
+        physics.AccelerationCmPerSecSqr.j = acceleration.y();
+        physics.AccelerationCmPerSecSqr.k = acceleration.z();
     }
 
     return physics;
@@ -917,7 +918,14 @@ bool ServerControllerView::getTrackingShape(CommonDeviceTrackingShape &trackingS
 
 float ServerControllerView::getROIPredictionTime() const
 {
-	return m_device->getPredictionTime();
+	static float k_max_roi_prediction_speec_cm = 30.f;
+	static float k_max_roi_prediction_time = 0.1f;
+
+	const Eigen::Vector3f velocityCmPerSec= getPoseFilter()->getVelocityCmPerSec();
+	const float speedCmPerSec= velocityCmPerSec.norm();
+	const float predictionTime = clampf01(speedCmPerSec / k_max_roi_prediction_speec_cm)*k_max_roi_prediction_time;
+
+	return predictionTime;
 }
 
 // Set the rumble value between 0.f - 1.f on a given channel
@@ -1046,15 +1054,15 @@ static void generate_psmove_data_frame_for_stream(
 
         if (stream_info->include_position_data)
         {
-            psmove_data_frame->mutable_position()->set_x(controller_pose.Position.x);
-            psmove_data_frame->mutable_position()->set_y(controller_pose.Position.y);
-            psmove_data_frame->mutable_position()->set_z(controller_pose.Position.z);
+            psmove_data_frame->mutable_position_cm()->set_x(controller_pose.PositionCm.x);
+            psmove_data_frame->mutable_position_cm()->set_y(controller_pose.PositionCm.y);
+            psmove_data_frame->mutable_position_cm()->set_z(controller_pose.PositionCm.z);
         }
         else
         {
-            psmove_data_frame->mutable_position()->set_x(0);
-            psmove_data_frame->mutable_position()->set_y(0);
-            psmove_data_frame->mutable_position()->set_z(0);
+            psmove_data_frame->mutable_position_cm()->set_x(0);
+            psmove_data_frame->mutable_position_cm()->set_y(0);
+            psmove_data_frame->mutable_position_cm()->set_z(0);
         }
 
         psmove_data_frame->set_trigger_value(psmove_state->TriggerValue);
@@ -1130,7 +1138,7 @@ static void generate_psmove_data_frame_for_stream(
 
                 if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
                 {
-                    const CommonDevicePosition &trackerRelativePosition = positionEstimate->position;
+                    const CommonDevicePosition &trackerRelativePosition = positionEstimate->position_cm;
                     const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
 
                     // Project the 3d camera position back onto the tracker screen
@@ -1145,11 +1153,11 @@ static void generate_psmove_data_frame_for_stream(
 
                     // Add the tracker relative 3d position
                     {
-                        PSMoveProtocol::Position *position= raw_tracker_data->add_relative_positions();
+                        PSMoveProtocol::Position *position_cm= raw_tracker_data->add_relative_positions_cm();
                         
-                        position->set_x(trackerRelativePosition.x);
-                        position->set_y(trackerRelativePosition.y);
-                        position->set_z(trackerRelativePosition.z);
+                        position_cm->set_x(trackerRelativePosition.x);
+                        position_cm->set_y(trackerRelativePosition.y);
+                        position_cm->set_z(trackerRelativePosition.z);
                     }
 
                     // Add the tracker relative projection shapes
@@ -1177,10 +1185,10 @@ static void generate_psmove_data_frame_for_stream(
 
 				if (poseEstimate->bCurrentlyTracking)
 				{
-					PSMoveProtocol::Position *position = raw_tracker_data->mutable_multicam_position();
-					position->set_x(poseEstimate->position.x);
-					position->set_y(poseEstimate->position.y);
-					position->set_z(poseEstimate->position.z);
+					PSMoveProtocol::Position *position_cm = raw_tracker_data->mutable_multicam_position_cm();
+					position_cm->set_x(poseEstimate->position_cm.x);
+					position_cm->set_y(poseEstimate->position_cm.y);
+					position_cm->set_z(poseEstimate->position_cm.z);
 				}
 			}
 
@@ -1193,21 +1201,21 @@ static void generate_psmove_data_frame_for_stream(
             const CommonDevicePhysics controller_physics = controller_view->getFilteredPhysics();
             auto *physics_data = psmove_data_frame->mutable_physics_data();
 
-            physics_data->mutable_velocity()->set_i(controller_physics.Velocity.i);
-            physics_data->mutable_velocity()->set_j(controller_physics.Velocity.j);
-            physics_data->mutable_velocity()->set_k(controller_physics.Velocity.k);
+            physics_data->mutable_velocity_cm_per_sec()->set_i(controller_physics.VelocityCmPerSec.i);
+            physics_data->mutable_velocity_cm_per_sec()->set_j(controller_physics.VelocityCmPerSec.j);
+            physics_data->mutable_velocity_cm_per_sec()->set_k(controller_physics.VelocityCmPerSec.k);
 
-            physics_data->mutable_acceleration()->set_i(controller_physics.Acceleration.i);
-            physics_data->mutable_acceleration()->set_j(controller_physics.Acceleration.j);
-            physics_data->mutable_acceleration()->set_k(controller_physics.Acceleration.k);
+            physics_data->mutable_acceleration_cm_per_sec_sqr()->set_i(controller_physics.AccelerationCmPerSecSqr.i);
+            physics_data->mutable_acceleration_cm_per_sec_sqr()->set_j(controller_physics.AccelerationCmPerSecSqr.j);
+            physics_data->mutable_acceleration_cm_per_sec_sqr()->set_k(controller_physics.AccelerationCmPerSecSqr.k);
 
-            physics_data->mutable_angular_velocity()->set_i(controller_physics.AngularVelocity.i);
-            physics_data->mutable_angular_velocity()->set_j(controller_physics.AngularVelocity.j);
-            physics_data->mutable_angular_velocity()->set_k(controller_physics.AngularVelocity.k);
+            physics_data->mutable_angular_velocity_rad_per_sec()->set_i(controller_physics.AngularVelocityRadPerSec.i);
+            physics_data->mutable_angular_velocity_rad_per_sec()->set_j(controller_physics.AngularVelocityRadPerSec.j);
+            physics_data->mutable_angular_velocity_rad_per_sec()->set_k(controller_physics.AngularVelocityRadPerSec.k);
 
-            physics_data->mutable_angular_acceleration()->set_i(controller_physics.AngularAcceleration.i);
-            physics_data->mutable_angular_acceleration()->set_j(controller_physics.AngularAcceleration.j);
-            physics_data->mutable_angular_acceleration()->set_k(controller_physics.AngularAcceleration.k);
+            physics_data->mutable_angular_acceleration_rad_per_sec_sqr()->set_i(controller_physics.AngularAccelerationRadPerSecSqr.i);
+            physics_data->mutable_angular_acceleration_rad_per_sec_sqr()->set_j(controller_physics.AngularAccelerationRadPerSecSqr.j);
+            physics_data->mutable_angular_acceleration_rad_per_sec_sqr()->set_k(controller_physics.AngularAccelerationRadPerSecSqr.k);
         }
     }   
 
@@ -1283,15 +1291,15 @@ static void generate_psdualshock4_data_frame_for_stream(
 
         if (stream_info->include_position_data)
         {
-            psds4_data_frame->mutable_position()->set_x(controller_pose.Position.x);
-            psds4_data_frame->mutable_position()->set_y(controller_pose.Position.y);
-            psds4_data_frame->mutable_position()->set_z(controller_pose.Position.z);
+            psds4_data_frame->mutable_position_cm()->set_x(controller_pose.PositionCm.x);
+            psds4_data_frame->mutable_position_cm()->set_y(controller_pose.PositionCm.y);
+            psds4_data_frame->mutable_position_cm()->set_z(controller_pose.PositionCm.z);
         }
         else
         {
-            psds4_data_frame->mutable_position()->set_x(0);
-            psds4_data_frame->mutable_position()->set_y(0);
-            psds4_data_frame->mutable_position()->set_z(0);
+            psds4_data_frame->mutable_position_cm()->set_x(0);
+            psds4_data_frame->mutable_position_cm()->set_y(0);
+            psds4_data_frame->mutable_position_cm()->set_z(0);
         }
 
         psds4_data_frame->set_left_thumbstick_x(psds4_state->LeftAnalogX);
@@ -1369,13 +1377,13 @@ static void generate_psdualshock4_data_frame_for_stream(
 
                 if (poseEstimate != nullptr && poseEstimate->bCurrentlyTracking)
                 {
-                    const CommonDevicePosition &trackerRelativePosition = poseEstimate->position;
+                    const CommonDevicePosition &trackerRelativePosition = poseEstimate->position_cm;
                     const CommonDeviceQuaternion &trackerRelativeOrientation = poseEstimate->orientation;
                     const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
 
                     // Add the tracker relative 3d pose
                     {
-                        PSMoveProtocol::Position *position = raw_tracker_data->add_relative_positions();
+                        PSMoveProtocol::Position *position = raw_tracker_data->add_relative_positions_cm();
                         PSMoveProtocol::Orientation *orientation = raw_tracker_data->add_relative_orientations();
 
                         position->set_x(trackerRelativePosition.x);
@@ -1440,10 +1448,10 @@ static void generate_psdualshock4_data_frame_for_stream(
 
 				if (poseEstimate->bCurrentlyTracking)
 				{
-					PSMoveProtocol::Position *position = raw_tracker_data->mutable_multicam_position();
-					position->set_x(poseEstimate->position.x);
-					position->set_y(poseEstimate->position.y);
-					position->set_z(poseEstimate->position.z);
+					PSMoveProtocol::Position *position = raw_tracker_data->mutable_multicam_position_cm();
+					position->set_x(poseEstimate->position_cm.x);
+					position->set_y(poseEstimate->position_cm.y);
+					position->set_z(poseEstimate->position_cm.z);
 
 					if (poseEstimate->bOrientationValid)
 					{
@@ -1465,21 +1473,21 @@ static void generate_psdualshock4_data_frame_for_stream(
             const CommonDevicePhysics controller_physics = controller_view->getFilteredPhysics();
             auto *physics_data = psds4_data_frame->mutable_physics_data();
 
-            physics_data->mutable_velocity()->set_i(controller_physics.Velocity.i);
-            physics_data->mutable_velocity()->set_j(controller_physics.Velocity.j);
-            physics_data->mutable_velocity()->set_k(controller_physics.Velocity.k);
+            physics_data->mutable_velocity_cm_per_sec()->set_i(controller_physics.VelocityCmPerSec.i);
+            physics_data->mutable_velocity_cm_per_sec()->set_j(controller_physics.VelocityCmPerSec.j);
+            physics_data->mutable_velocity_cm_per_sec()->set_k(controller_physics.VelocityCmPerSec.k);
 
-            physics_data->mutable_acceleration()->set_i(controller_physics.Acceleration.i);
-            physics_data->mutable_acceleration()->set_j(controller_physics.Acceleration.j);
-            physics_data->mutable_acceleration()->set_k(controller_physics.Acceleration.k);
+            physics_data->mutable_acceleration_cm_per_sec_sqr()->set_i(controller_physics.AccelerationCmPerSecSqr.i);
+            physics_data->mutable_acceleration_cm_per_sec_sqr()->set_j(controller_physics.AccelerationCmPerSecSqr.j);
+            physics_data->mutable_acceleration_cm_per_sec_sqr()->set_k(controller_physics.AccelerationCmPerSecSqr.k);
 
-            physics_data->mutable_angular_velocity()->set_i(controller_physics.AngularVelocity.i);
-            physics_data->mutable_angular_velocity()->set_j(controller_physics.AngularVelocity.j);
-            physics_data->mutable_angular_velocity()->set_k(controller_physics.AngularVelocity.k);
+            physics_data->mutable_angular_velocity_rad_per_sec()->set_i(controller_physics.AngularVelocityRadPerSec.i);
+            physics_data->mutable_angular_velocity_rad_per_sec()->set_j(controller_physics.AngularVelocityRadPerSec.j);
+            physics_data->mutable_angular_velocity_rad_per_sec()->set_k(controller_physics.AngularVelocityRadPerSec.k);
 
-            physics_data->mutable_angular_acceleration()->set_i(controller_physics.AngularAcceleration.i);
-            physics_data->mutable_angular_acceleration()->set_j(controller_physics.AngularAcceleration.j);
-            physics_data->mutable_angular_acceleration()->set_k(controller_physics.AngularAcceleration.k);
+            physics_data->mutable_angular_acceleration_rad_per_sec_sqr()->set_i(controller_physics.AngularAccelerationRadPerSecSqr.i);
+            physics_data->mutable_angular_acceleration_rad_per_sec_sqr()->set_j(controller_physics.AngularAccelerationRadPerSecSqr.j);
+            physics_data->mutable_angular_acceleration_rad_per_sec_sqr()->set_k(controller_physics.AngularAccelerationRadPerSecSqr.k);
         }
     }
 
@@ -1700,19 +1708,19 @@ update_filters_for_psmove(
 		{
 			sensorPacket.optical_position_cm =
 				Eigen::Vector3f(
-					poseEstimation->position.x,
-					poseEstimation->position.y,
-					poseEstimation->position.z);
-			sensorPacket.tracking_projection_area = poseEstimation->projection.screen_area;
+					poseEstimation->position_cm.x,
+					poseEstimation->position_cm.y,
+					poseEstimation->position_cm.z);
+			sensorPacket.tracking_projection_area_px_sqr = poseEstimation->projection.screen_area;
 		}
 		else
 		{
 			sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
-			sensorPacket.tracking_projection_area= 0.f;
+			sensorPacket.tracking_projection_area_px_sqr= 0.f;
 		}
 
 		// One magnetometer update for every two accel/gryo readings
-        sensorPacket.imu_magnetometer =
+        sensorPacket.imu_magnetometer_unit =
             Eigen::Vector3f(
                 psmoveState->CalibratedMag[0],
                 psmoveState->CalibratedMag[1],
@@ -1723,12 +1731,12 @@ update_filters_for_psmove(
         {
 			PoseFilterPacket filterPacket;
 			
-            sensorPacket.imu_accelerometer =
+            sensorPacket.imu_accelerometer_g_units =
                 Eigen::Vector3f(
                     psmoveState->CalibratedAccel[frame][0], 
                     psmoveState->CalibratedAccel[frame][1], 
                     psmoveState->CalibratedAccel[frame][2]);
-            sensorPacket.imu_gyroscope =
+            sensorPacket.imu_gyroscope_rad_per_sec =
                 Eigen::Vector3f(
                     psmoveState->CalibratedGyro[frame][0], 
                     psmoveState->CalibratedGyro[frame][1], 
@@ -1840,28 +1848,28 @@ update_filters_for_psdualshock4(
 
             sensorPacket.optical_position_cm =
                 Eigen::Vector3f(
-                    poseEstimation->position.x,
-                    poseEstimation->position.y,
-                    poseEstimation->position.z);
-            sensorPacket.tracking_projection_area= screen_area;
+                    poseEstimation->position_cm.x,
+                    poseEstimation->position_cm.y,
+                    poseEstimation->position_cm.z);
+            sensorPacket.tracking_projection_area_px_sqr= screen_area;
         }
         else
         {
             sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
-            sensorPacket.tracking_projection_area = 0.f;
+            sensorPacket.tracking_projection_area_px_sqr = 0.f;
         }
 
-        sensorPacket.imu_accelerometer =
+        sensorPacket.imu_accelerometer_g_units =
             Eigen::Vector3f(
                 psdualShock4State->CalibratedAccelerometer.i,
                 psdualShock4State->CalibratedAccelerometer.j,
                 psdualShock4State->CalibratedAccelerometer.k);
-        sensorPacket.imu_gyroscope =
+        sensorPacket.imu_gyroscope_rad_per_sec =
             Eigen::Vector3f(
                 psdualShock4State->CalibratedGyro.i, 
                 psdualShock4State->CalibratedGyro.j,
                 psdualShock4State->CalibratedGyro.k);
-		sensorPacket.imu_magnetometer = Eigen::Vector3f::Zero();
+		sensorPacket.imu_magnetometer_unit = Eigen::Vector3f::Zero();
 
         {
             PoseFilterPacket filterPacket;
@@ -1890,7 +1898,7 @@ static void computeSpherePoseForControllerFromSingleTracker(
 
 	// For the sphere projection, the tracker relative position has already been computed
 	// Put the tracker relative position into world space
-	multicam_pose_estimation->position = tracker->computeWorldPosition(&tracker_pose_estimation->position);
+	multicam_pose_estimation->position_cm = tracker->computeWorldPosition(&tracker_pose_estimation->position_cm);
 	multicam_pose_estimation->bCurrentlyTracking = true;
 
 	// Copy over the screen projection area
@@ -1908,7 +1916,7 @@ static void computeLightBarPoseForControllerFromSingleTracker(
 
 	// Use the previous pose as a guess to the current pose
 	const bool bPreviousPoseValid = tracker_pose_estimation->bOrientationValid;
-	const CommonDevicePose poseGuess = { tracker_pose_estimation->position, tracker_pose_estimation->orientation };
+	const CommonDevicePose poseGuess = { tracker_pose_estimation->position_cm, tracker_pose_estimation->orientation };
 
 	// Compute a tracker relative position from the projection
 	if (tracker->computePoseForProjection(
@@ -1930,7 +1938,7 @@ static void computeLightBarPoseForControllerFromSingleTracker(
 		}
 
 		// Put the tracker relative position into world space
-		multicam_pose_estimation->position = tracker->computeWorldPosition(&tracker_pose_estimation->position);
+		multicam_pose_estimation->position_cm = tracker->computeWorldPosition(&tracker_pose_estimation->position_cm);
 		multicam_pose_estimation->bCurrentlyTracking = true;
 
 		// Copy over the screen projection area
@@ -1962,7 +1970,7 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 		const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
 		const ControllerOpticalPoseEstimation &poseEstimate = tracker_pose_estimations[tracker_id];
 
-		position2d_list[list_index] = tracker->projectTrackerRelativePosition(&poseEstimate.position);
+		position2d_list[list_index] = tracker->projectTrackerRelativePosition(&poseEstimate.position_cm);
 		screen_area_sum += poseEstimate.projection.screen_area;
 	}
 
@@ -1983,8 +1991,8 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 			// if trackers are on poposite sides
 			if (cfg.exclude_opposed_cameras)
 			{
-				if ((tracker->getTrackerPose().Position.x > 0) == (other_tracker->getTrackerPose().Position.x < 0) &&
-					(tracker->getTrackerPose().Position.z > 0) == (other_tracker->getTrackerPose().Position.z < 0)) 
+				if ((tracker->getTrackerPose().PositionCm.x > 0) == (other_tracker->getTrackerPose().PositionCm.x < 0) &&
+					(tracker->getTrackerPose().PositionCm.z > 0) == (other_tracker->getTrackerPose().PositionCm.z < 0)) 
 				{
 					continue;
 				}
@@ -2015,7 +2023,7 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 		average_world_position.z /= N;
 
 		// Store the averaged tracking position
-		multicam_pose_estimation->position = average_world_position;
+		multicam_pose_estimation->position_cm = average_world_position;
 		multicam_pose_estimation->bCurrentlyTracking = true;
 	}
 
@@ -2067,9 +2075,9 @@ static void computeLightBarPoseForControllerFromMultipleTrackers(
 
 			// Accumulate the position for averaging
 			// TODO: Make this a weighted average
-			average_world_position.x += world_pose.Position.x;
-			average_world_position.y += world_pose.Position.y;
-			average_world_position.z += world_pose.Position.z;
+			average_world_position.x += world_pose.PositionCm.x;
+			average_world_position.y += world_pose.PositionCm.y;
+			average_world_position.z += world_pose.PositionCm.z;
 
 			// Add the quaternion to a list for the purpose of averaging
 			world_orientations[pair_count] = 
@@ -2097,7 +2105,7 @@ static void computeLightBarPoseForControllerFromMultipleTrackers(
 		average_world_position.z /= N;
 
 		// Store the averaged tracking position
-		multicam_pose_estimation->position = average_world_position;
+		multicam_pose_estimation->position_cm = average_world_position;
 		multicam_pose_estimation->bCurrentlyTracking = true;
 	}
 

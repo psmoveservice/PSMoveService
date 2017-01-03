@@ -174,16 +174,18 @@ private:
         switch (event_type)
         {
         case ClientPSMoveAPI::connectedToService:
-            std::cout << "PSMoveConsoleClient - Connected to service" << std::endl;
+			{
+				std::cout << "PSMoveConsoleClient - Connected to service" << std::endl;
 
-            // Once created, updates will automatically get pushed into this view
-            controller_view= ClientPSMoveAPI::allocate_controller_view(0);
+				// Once created, updates will automatically get pushed into this view
+				controller_view= ClientPSMoveAPI::allocate_controller_view(0);
 
-            // Kick off request to start streaming data from the first controller
-            start_stream_request_id= 
-                ClientPSMoveAPI::start_controller_data_stream(
-                    controller_view, 
-					ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includeRawTrackerData | ClientPSMoveAPI::includeCalibratedSensorData);
+				// Kick off request to start streaming data from the first controller
+				start_stream_request_id= 
+					ClientPSMoveAPI::start_controller_data_stream(
+						controller_view, 
+						ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includeRawTrackerData | ClientPSMoveAPI::includeCalibratedSensorData);
+			}
             break;
         case ClientPSMoveAPI::failedToConnectToService:
             std::cout << "PSMoveConsoleClient - Failed to connect to service" << std::endl;
@@ -195,7 +197,28 @@ private:
             break;
         case ClientPSMoveAPI::opaqueServiceEvent:
             std::cout << "PSMoveConsoleClient - Opaque service event(%d)" << static_cast<int>(event_type) << std::endl;
-            m_keepRunning= false;
+            break;
+        case ClientPSMoveAPI::controllerListUpdated:
+			{
+				std::cout << "PSMoveConsoleClient - Controller List Changed" << std::endl;
+
+				// Stop the current controller stream
+				std::cout << "PSMoveConsoleClient - Halting controller stream" << std::endl;
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(controller_view));
+
+				// Attempt to restart it
+				std::cout << "PSMoveConsoleClient - Attempting controller stream restart" << std::endl;
+				start_stream_request_id= 
+					ClientPSMoveAPI::start_controller_data_stream(
+						controller_view, 
+						ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includeRawTrackerData | ClientPSMoveAPI::includeCalibratedSensorData);
+			}
+            break;
+        case ClientPSMoveAPI::trackerListUpdated:
+            std::cout << "PSMoveConsoleClient - Tracker List Changed" << std::endl;
+            break;
+        case ClientPSMoveAPI::hmdListUpdated:
+            std::cout << "PSMoveConsoleClient - HMD List changed" << std::endl;
             break;
         default:
             assert(0 && "Unhandled event type");
@@ -212,7 +235,7 @@ private:
         }
         else
         {
-            std::cout << "PSMoveConsoleClient - failed to acquire controller " << std::endl;
+            std::cout << "PSMoveConsoleClient - failed to (re)acquire controller " << std::endl;
             m_keepRunning= false;
         }
     }

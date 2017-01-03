@@ -160,29 +160,29 @@ struct CommonDeviceQuaternion
 
 struct CommonDevicePose
 {
-    CommonDevicePosition Position;
+    CommonDevicePosition PositionCm;
     CommonDeviceQuaternion Orientation;
 
     void clear()
     {
-        Position.clear();
+        PositionCm.clear();
         Orientation.clear();
     }
 };
 
 struct CommonDevicePhysics
 {
-    CommonDeviceVector Velocity;
-    CommonDeviceVector Acceleration;
-    CommonDeviceVector AngularVelocity;
-    CommonDeviceVector AngularAcceleration;
+    CommonDeviceVector VelocityCmPerSec;
+    CommonDeviceVector AccelerationCmPerSecSqr;
+    CommonDeviceVector AngularVelocityRadPerSec;
+    CommonDeviceVector AngularAccelerationRadPerSecSqr;
 
     void clear()
     {
-        Velocity.clear();
-        Acceleration.clear();
-        AngularVelocity.clear();
-        AngularAcceleration.clear();
+        VelocityCmPerSec.clear();
+        AccelerationCmPerSecSqr.clear();
+        AngularVelocityRadPerSec.clear();
+        AngularAccelerationRadPerSecSqr.clear();
     }
 };
 
@@ -343,7 +343,7 @@ struct CommonDeviceTrackingShape
 
     union{
         struct {
-            float radius;
+            float radius_cm;
         } sphere;
 
         struct {

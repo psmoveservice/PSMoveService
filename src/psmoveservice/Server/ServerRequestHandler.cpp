@@ -1452,9 +1452,9 @@ protected:
         orietation->set_y(pose.Orientation.y);
         orietation->set_z(pose.Orientation.z);
 
-        position->set_x(pose.Position.x);
-        position->set_y(pose.Position.y);
-        position->set_z(pose.Position.z);
+        position->set_x(pose.PositionCm.x);
+        position->set_y(pose.PositionCm.y);
+        position->set_z(pose.PositionCm.z);
     }
 
     void handle_request__get_tracker_list(
@@ -1924,9 +1924,9 @@ protected:
         result.Orientation.y = pose.orientation().y();
         result.Orientation.z = pose.orientation().z();
 
-        result.Position.x = pose.position().x();
-        result.Position.y = pose.position().y();
-        result.Position.z = pose.position().z();
+        result.PositionCm.x = pose.position().x();
+        result.PositionCm.y = pose.position().y();
+        result.PositionCm.z = pose.position().z();
 
         return result;
     }
