@@ -14,12 +14,14 @@ public:
     PSNaviControllerConfig(const std::string &fnamebase = "PSNaviControllerConfig")
         : PSMoveConfig(fnamebase)
         , max_poll_failure_count(1000) // ms
+		, attached_to_controller("")
     {};
 
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
     long max_poll_failure_count;
+	std::string attached_to_controller;
 };
 
 // https://code.google.com/p/moveonpc/wiki/NavigationInputReport
@@ -79,6 +81,8 @@ public:
 
     // -- Getters
     inline const PSNaviControllerConfig &getConfig() const
+    { return cfg; }
+    inline PSNaviControllerConfig &getConfigMutable()
     { return cfg; }
 
     // IControllerInterface

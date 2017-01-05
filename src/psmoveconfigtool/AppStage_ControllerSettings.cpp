@@ -343,7 +343,7 @@ void AppStage_ControllerSettings::renderUI()
 						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
 					}
 					ImGui::PopItemWidth();
-				}
+				}				
 				else if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
 				{
 					ImGui::PushItemWidth(195);
@@ -377,6 +377,26 @@ void AppStage_ControllerSettings::renderUI()
 						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
 						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
 						request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
+					}
+					ImGui::PopItemWidth();
+				}
+
+				if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSNavi && 
+					controllerInfo.PotentialParentControllerSerials.size() > 0)
+				{
+					ImGui::PushItemWidth(195);					
+					if (ImGui::Combo(
+							"Parent Controller", 
+							&controllerInfo.AssignedParentControllerIndex, 
+							ControllerInfo::ParentControllerComboItemGetter, 
+							&controllerInfo, 
+							static_cast<int>(controllerInfo.PotentialParentControllerSerials.size())))
+					{
+						std::string parentControllerSerial= controllerInfo.PotentialParentControllerSerials[controllerInfo.AssignedParentControllerIndex];
+
+						controllerInfo.AssignedParentControllerSerial = parentControllerSerial;
+
+						request_set_parent_controller_id(controllerInfo.ControllerID, find_controller_id_by_serial(parentControllerSerial));
 					}
 					ImGui::PopItemWidth();
 				}
@@ -610,6 +630,9 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 ControllerInfo.DevicePath= ControllerResponse.device_path();
                 ControllerInfo.DeviceSerial= ControllerResponse.device_serial();
                 ControllerInfo.AssignedHostSerial= ControllerResponse.assigned_host_serial();
+				ControllerInfo.AssignedParentControllerSerial= ControllerResponse.parent_controller_serial();
+				ControllerInfo.AssignedParentControllerIndex= -1;
+				ControllerInfo.PotentialParentControllerSerials.clear();
                 ControllerInfo.PairedToHost=
                     ControllerResponse.assigned_host_serial().length() > 0 && 
                     ControllerResponse.assigned_host_serial() == thisPtr->m_hostSerial;
@@ -705,6 +728,28 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 				}
             }
 
+			// Build a list of potential parent controllers for each navi controller
+			// and assign the index current parent controller serial
+			for (ControllerInfo &navi_info : thisPtr->m_usableControllerInfos)
+			{
+				if (navi_info.ControllerType != ClientControllerView::PSNavi)
+					continue;
+
+				for (ControllerInfo &psmove_info : thisPtr->m_usableControllerInfos)
+				{
+					if (psmove_info.ControllerType != ClientControllerView::PSMove)
+						continue;
+
+					if (navi_info.AssignedParentControllerSerial.length() > 0 &&
+						navi_info.AssignedParentControllerSerial == psmove_info.DeviceSerial)
+					{
+						navi_info.AssignedParentControllerIndex= static_cast<int>(navi_info.PotentialParentControllerSerials.size());
+					}
+
+					navi_info.PotentialParentControllerSerials.push_back(psmove_info.DeviceSerial);
+				}
+			}
+
 			if (oldSelectedControllerIndex != -1)
 			{
 				// Maintain the same position in the list if possible
@@ -729,6 +774,22 @@ void AppStage_ControllerSettings::handle_controller_list_response(
     }
 }
 
+int AppStage_ControllerSettings::find_controller_id_by_serial(std::string controller_serial) const
+{
+	int ControllerID= -1;
+
+	for (const ControllerInfo &info : m_usableControllerInfos)
+	{
+		if (info.DeviceSerial == controller_serial)
+		{
+			ControllerID= info.ControllerID;
+			break;
+		}
+	}
+
+	return ControllerID;
+}
+
 void AppStage_ControllerSettings::request_set_controller_tracking_color_id(
 	int ControllerID,
 	PSMoveTrackingColorType tracking_color_type)
@@ -740,4 +801,19 @@ void AppStage_ControllerSettings::request_set_controller_tracking_color_id(
 		static_cast<PSMoveProtocol::TrackingColorType>(tracking_color_type));
 
 	ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+}
+
+void AppStage_ControllerSettings::request_set_parent_controller_id(
+	int ControllerID,
+	int ParentControllerID)
+{
+	if (ControllerID != -1 && ParentControllerID != -1)
+	{
+		RequestPtr request(new PSMoveProtocol::Request());
+		request->set_type(PSMoveProtocol::Request_RequestType_SET_ATTACHED_CONTROLLER);
+		request->mutable_request_set_attached_controller()->set_child_controller_id(ControllerID);
+		request->mutable_request_set_attached_controller()->set_parent_controller_id(ParentControllerID);
+
+		ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+	}
 }

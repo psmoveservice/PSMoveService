@@ -14,6 +14,7 @@
 #include "PS3EyeTracker.h"
 #include "PSDualShock4Controller.h"
 #include "PSMoveController.h"
+#include "PSNaviController.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerControllerView.h"
 #include "ServerDeviceView.h"
@@ -236,6 +237,10 @@ public:
 			case PSMoveProtocol::Request_RequestType_SET_CONTROLLER_PREDICTION_TIME:
 				response = new PSMoveProtocol::Response;
 				handle_request__set_controller_prediction_time(context, response);
+				break;
+			case PSMoveProtocol::Request_RequestType_SET_ATTACHED_CONTROLLER:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_attached_controller(context, response);
 				break;
 
             // Tracker Requests
@@ -591,6 +596,7 @@ protected:
 				int firmware_revision = 0;
 				bool has_magnetometer = false;
 
+				std::string parent_controller_serial = "";
 				std::string orientation_filter = "";
 				std::string position_filter = "";
 				std::string gyro_gain_setting = "";
@@ -616,7 +622,11 @@ protected:
                     break;
                 case CommonControllerState::PSNavi:
 					{
+						const PSNaviController *controller = controller_view->castCheckedConst<PSNaviController>();
+						const PSNaviControllerConfig &config = controller->getConfig();
+
 						controller_info->set_controller_type(PSMoveProtocol::PSNAVI);
+						parent_controller_serial = config.attached_to_controller;					
 					}
                     break;
                 case CommonControllerState::PSDualShock4:
@@ -676,6 +686,7 @@ protected:
                 controller_info->set_device_path(controller_view->getUSBDevicePath());
                 controller_info->set_device_serial(controller_view->getSerial());
                 controller_info->set_assigned_host_serial(controller_view->getAssignedHostBluetoothAddress());
+				controller_info->set_parent_controller_serial(parent_controller_serial);
 				controller_info->set_firmware_version(firmware_version);
 				controller_info->set_firmware_revision(firmware_revision);
 				controller_info->set_has_magnetometer(has_magnetometer);
@@ -1425,6 +1436,44 @@ protected:
 					config->prediction_time = request.prediction_time();
 					config->save();
 				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
+	void handle_request__set_attached_controller(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int child_controller_id = context.request->request_set_attached_controller().child_controller_id();
+		const int parent_controller_id = context.request->request_set_attached_controller().parent_controller_id();
+
+		ServerControllerViewPtr ChildControllerView = m_device_manager.getControllerViewPtr(child_controller_id);
+		ServerControllerViewPtr ParentControllerView = m_device_manager.getControllerViewPtr(parent_controller_id);
+
+		if (ChildControllerView && ChildControllerView->getIsOpen() &&
+			ParentControllerView && ParentControllerView->getIsOpen() &&
+			ChildControllerView != ParentControllerView)
+		{
+			if (ParentControllerView->getControllerDeviceType() == CommonDeviceState::PSMove && 
+				ChildControllerView->getControllerDeviceType() == CommonDeviceState::PSNavi)
+			{
+				const PSMoveController *psmove = ParentControllerView->castChecked<PSMoveController>();
+
+				PSNaviController *psnavi = ChildControllerView->castChecked<PSNaviController>();
+				PSNaviControllerConfig &psnavi_config = psnavi->getConfigMutable();
+
+				psnavi_config.attached_to_controller = psmove->getSerial();
+				psnavi_config.save();
 
 				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 			}

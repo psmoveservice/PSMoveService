@@ -160,6 +160,7 @@ PSNaviControllerConfig::config2ptree()
     boost::property_tree::ptree pt;
 
     pt.put("max_poll_failute_count", max_poll_failure_count);
+	pt.put("attached_to_controller", attached_to_controller);
 
     return pt;
 }
@@ -168,6 +169,7 @@ void
 PSNaviControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 {
     max_poll_failure_count = pt.get<long>("max_poll_failute_count", 100);
+	attached_to_controller= pt.get<std::string>("attached_to_controller", "");
 }
 
 // -- PSMove Controller -----

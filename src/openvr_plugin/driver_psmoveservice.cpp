@@ -410,7 +410,7 @@ vr::ITrackedDeviceServerDriver * CServerDriver_PSMoveService::FindTrackedDeviceD
 {
     for (auto it = m_vecTrackedDevices.begin(); it != m_vecTrackedDevices.end(); ++it)
     {
-        if ( 0 == strcmp( ( *it )->GetSerialNumber(), pchId ) )
+        if ( 0 == strcmp( ( *it )->GetSteamVRIdentifier(), pchId ) )
         {
             return *it;
         }
@@ -506,7 +506,9 @@ void CServerDriver_PSMoveService::HandleClientPSMoveEvent(
     case ClientPSMoveAPI::trackerListUpdated:
         HandleTrackerListChanged();
         break;
-
+    case ClientPSMoveAPI::hmdListUpdated:
+        // don't care
+        break;
     //###HipsterSloth $TODO - Need a notification for when a tracker pose changes
     }
 }
@@ -598,6 +600,7 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
 {
 	DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Received %d controllers\n", controller_list->count);
 
+	bool bAnyNaviControllers= false;
     for (int list_index = 0; list_index < controller_list->count; ++list_index)
     {
         int controller_id = controller_list->controller_id[list_index];
@@ -610,17 +613,32 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
             AllocateUniquePSMoveController(controller_id, list_index, response_handle);
             break;
         case ClientControllerView::PSNavi:
-			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSNavi(%d)\n", controller_id);
-            AllocateUniquePSNaviController(controller_id);
+			// Take care of this is the second pass once all of the PSMove controllers have been setup
+			bAnyNaviControllers= true;
             break;
         case ClientControllerView::PSDualShock4:
 			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSDualShock4(%d)\n", controller_id);
-            AllocateUniqueDualShock4Controller(controller_id);
+            AllocateUniqueDualShock4Controller(controller_id, list_index, response_handle);
             break;
         default:
             break;
         }
     }
+
+	if (bAnyNaviControllers)
+	{
+		for (int list_index = 0; list_index < controller_list->count; ++list_index)
+		{
+			int controller_id = controller_list->controller_id[list_index];
+			ClientControllerView::eControllerType controller_type = controller_list->controller_type[list_index];
+
+			if (controller_type == ClientControllerView::PSNavi)
+			{
+				DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Attach PSNavi(%d)\n", controller_id);
+				AttachPSNaviToParentController(controller_id, list_index, response_handle);
+			}
+		}
+	}
 }
 
 void CServerDriver_PSMoveService::HandleTrackerListReponse(
@@ -655,7 +673,7 @@ void CServerDriver_PSMoveService::SetHMDTrackingSpace(
     }
 }
 
-static void GenerateControllerSerialNumber( char *p, int psize, int controller )
+static void GenerateControllerSteamVRIdentifier( char *p, int psize, int controller )
 {
     snprintf(p, psize, "psmove_controller%d", controller);
 }
@@ -665,7 +683,7 @@ void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerI
 {
 	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
     char buf[256];
-    GenerateControllerSerialNumber(buf, sizeof(buf), ControllerID);
+    GenerateControllerSteamVRIdentifier(buf, sizeof(buf), ControllerID);
 
     if ( !FindTrackedDeviceDriver(buf) )
     {
@@ -673,53 +691,92 @@ void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerI
 		std::string serialNo = ControllerResponse.device_serial();
 		serialNo = boost::to_upper_copy<std::string>(serialNo.c_str());
 
-		if (0 != m_strPSMoveHMDSerialNo.compare(serialNo)) {
+		if (0 != m_strPSMoveHMDSerialNo.compare(serialNo)) 
+		{
 			DriverLog( "added new psmove controller id: %s, serial: %s\n", buf, serialNo.c_str());
-			m_vecTrackedDevices.push_back( new CPSMoveControllerLatest( m_pDriverHost, ControllerID, serialNo.c_str()) );
+			m_vecTrackedDevices.push_back( new CPSMoveControllerLatest( m_pDriverHost, ControllerID, ClientControllerView::PSMove, serialNo.c_str()) );
 
 			if (m_pDriverHost)
 			{
-				m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSerialNumber());
+				m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSteamVRIdentifier());
 			}
 		}
-		else {
+		else
+		{
 			DriverLog("skipped new psmove controller as configured for HMD tracking, serial: %s\n", serialNo.c_str());
 		}
     }
 }
 
-void CServerDriver_PSMoveService::AllocateUniquePSNaviController(int ControllerID)
+
+void CServerDriver_PSMoveService::AllocateUniqueDualShock4Controller(int ControllerID, int ControllerListIndex, const ClientPSMoveAPI::t_response_handle response_handle)
 {
+	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
     char buf[256];
-    GenerateControllerSerialNumber(buf, sizeof(buf), ControllerID);
+    GenerateControllerSteamVRIdentifier(buf, sizeof(buf), ControllerID);
 
     if (!FindTrackedDeviceDriver(buf))
     {
-        DriverLog("added new ps navi controller %s\n", buf);
-        m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, NULL));
+		const auto &ControllerResponse = response->result_controller_list().controllers(ControllerListIndex);
+		std::string serialNo = ControllerResponse.device_serial();
+		serialNo = boost::to_upper_copy<std::string>(serialNo.c_str());
 
-        if (m_pDriverHost)
-        {
-            m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSerialNumber());
-        }
+		DriverLog("added new ps dualshock4 controller %s\n", buf);
+		m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, ClientControllerView::PSDualShock4, serialNo.c_str()));
+
+		if (m_pDriverHost)
+		{
+			m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSteamVRIdentifier());
+		}
     }
 }
 
-void CServerDriver_PSMoveService::AllocateUniqueDualShock4Controller(int ControllerID)
+void CServerDriver_PSMoveService::AttachPSNaviToParentController(int NaviControllerID, int ControllerListIndex, const ClientPSMoveAPI::t_response_handle response_handle)
 {
-    char buf[256];
-    GenerateControllerSerialNumber(buf, sizeof(buf), ControllerID);
+	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+	const auto &ControllerResponse = response->result_controller_list().controllers(ControllerListIndex);
+	std::string naviSerialNo = ControllerResponse.device_serial();
+	std::string parentSerialNo = ControllerResponse.parent_controller_serial();
+	parentSerialNo = boost::to_upper_copy<std::string>(parentSerialNo.c_str());
 
-    if (!FindTrackedDeviceDriver(buf))
-    {
-        DriverLog("added new ps dualshock4 controller %s\n", buf);
-        m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, NULL));
+	bool bFoundParent= false;
 
-        if (m_pDriverHost)
-        {
-            m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSerialNumber());
-        }
-    }
+	for (CPSMoveTrackedDeviceLatest *trackedDevice : m_vecTrackedDevices)
+	{
+		if (trackedDevice->GetTrackedDeviceClass() == vr::TrackedDeviceClass_Controller)
+		{
+			CPSMoveControllerLatest *test_controller= static_cast<CPSMoveControllerLatest *>(trackedDevice);
+			const std::string testSerialNo= test_controller->getPSMControllerSerialNo();
+				
+			if (testSerialNo == parentSerialNo)
+			{
+				bFoundParent= true;
+
+				if (test_controller->getPSMControllerType() == ClientControllerView::PSMove)
+				{
+					if (test_controller->AttachChildPSMController(NaviControllerID, ClientControllerView::PSNavi, naviSerialNo))
+					{
+						DriverLog("Attached navi controller serial %s to controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
+					}
+					else
+					{
+						DriverLog("Failed to attach navi controller serial %s to controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
+					}
+				}
+				else
+				{
+					DriverLog("Failed to attach navi controller serial %s to non-psmove controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
+				}
+
+				break;
+			}
+		}
+	}
+
+	if (!bFoundParent)
+	{
+		DriverLog("Failed to find parent controller serial %s for navi controller serial %s\n", parentSerialNo.c_str(), naviSerialNo.c_str());
+	}
 }
 
 static void GenerateTrackerSerialNumber(char *p, int psize, int tracker)
@@ -739,7 +796,7 @@ void CServerDriver_PSMoveService::AllocateUniquePSMoveTracker(const ClientTracke
 
         if (m_pDriverHost)
         {
-            m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSerialNumber());
+            m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSteamVRIdentifier());
         }
     }
 }
@@ -937,7 +994,7 @@ CPSMoveTrackedDeviceLatest::~CPSMoveTrackedDeviceLatest()
 // Shared Implementation of vr::ITrackedDeviceServerDriver
 vr::EVRInitError CPSMoveTrackedDeviceLatest::Activate(uint32_t unObjectId)
 {
-    DriverLog("CPSMoveTrackedDeviceLatest::Activate: %s is object id %d\n", GetSerialNumber(), unObjectId);
+    DriverLog("CPSMoveTrackedDeviceLatest::Activate: %s is object id %d\n", GetSteamVRIdentifier(), unObjectId);
     m_unSteamVRTrackedDeviceId = unObjectId;
 
     return vr::VRInitError_None;
@@ -945,7 +1002,7 @@ vr::EVRInitError CPSMoveTrackedDeviceLatest::Activate(uint32_t unObjectId)
 
 void CPSMoveTrackedDeviceLatest::Deactivate() 
 {
-    DriverLog("CPSMoveTrackedDeviceLatest::Deactivate: %s was object id %d\n", GetSerialNumber(), m_unSteamVRTrackedDeviceId);
+    DriverLog("CPSMoveTrackedDeviceLatest::Deactivate: %s was object id %d\n", GetSteamVRIdentifier(), m_unSteamVRTrackedDeviceId);
     m_unSteamVRTrackedDeviceId = vr::k_unTrackedDeviceIndexInvalid;
 }
 
@@ -1165,7 +1222,7 @@ uint32_t CPSMoveTrackedDeviceLatest::GetStringTrackedDeviceProperty(
     switch (prop)
     {
     case vr::Prop_SerialNumber_String:
-        ssRetVal << m_strSerialNumber;
+        ssRetVal << m_strSteamVRSerialNo;
         break;
 
     case vr::Prop_ManufacturerName_String:
@@ -1227,7 +1284,7 @@ void CPSMoveTrackedDeviceLatest::Update()
 void CPSMoveTrackedDeviceLatest::RefreshWorldFromDriverPose()
 {
 	#if LOG_REALIGN_TO_HMD != 0
-		DriverLog( "Begin CServerDriver_PSMoveService::RefreshWorldFromDriverPose() for device %s\n", GetSerialNumber() );
+		DriverLog( "Begin CServerDriver_PSMoveService::RefreshWorldFromDriverPose() for device %s\n", GetSteamVRIdentifier() );
 	#endif
 
     const PSMovePose worldFromDriverPose = g_ServerTrackedDeviceProvider.GetWorldFromDriverPose();
@@ -1247,19 +1304,27 @@ void CPSMoveTrackedDeviceLatest::RefreshWorldFromDriverPose()
     m_Pose.vecWorldFromDriverTranslation[2] = worldFromDriverPose.Position.z;
 }
 
-const char *CPSMoveTrackedDeviceLatest::GetSerialNumber() const
+const char *CPSMoveTrackedDeviceLatest::GetSteamVRIdentifier() const
 {
-    return m_strSerialNumber.c_str();
+    return m_strSteamVRSerialNo.c_str();
 }
 
 //==================================================================================================
 // Controller Driver
 //==================================================================================================
 
-CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int controllerId, const char *serialNo )
+CPSMoveControllerLatest::CPSMoveControllerLatest( 
+	vr::IServerDriverHost * pDriverHost,
+	int controllerId, 
+	ClientControllerView::eControllerType controllerType,
+	const char *serialNo)
     : CPSMoveTrackedDeviceLatest(pDriverHost)
-    , m_nControllerId(controllerId)
-    , m_controller_view(nullptr)
+    , m_nPSMControllerId(controllerId)
+	, m_PSMControllerType(controllerType)
+    , m_PSMControllerView(nullptr)
+    , m_nPSMChildControllerId(-1)
+	, m_PSMChildControllerType(ClientControllerView::None)
+    , m_PSMChildControllerView(nullptr)
     , m_nPoseSequenceNumber(0)
     , m_bIsBatteryCharging(false)
     , m_fBatteryChargeFraction(1.f)
@@ -1276,17 +1341,17 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 	, m_touchpadDirectionsUsed(false)
 {
     char buf[256];
-    GenerateControllerSerialNumber(buf, sizeof(buf), controllerId);
-    m_strSerialNumber = buf;
+    GenerateControllerSteamVRIdentifier(buf, sizeof(buf), controllerId);
+    m_strSteamVRSerialNo = buf;
 
 	m_lastTouchpadPressTime = std::chrono::high_resolution_clock::now();
 
 	if (serialNo != NULL) {
-		m_strSerialNo = serialNo;
+		m_strPSMControllerSerialNo = serialNo;
 	}
 
-    // Tell psmoveapi that we are listening to this controller id
-    m_controller_view = ClientPSMoveAPI::allocate_controller_view(controllerId);
+    // Tell PSM Client API that we are listening to this controller id
+    m_PSMControllerView = ClientPSMoveAPI::allocate_controller_view(controllerId);
 
     memset(&m_ControllerState, 0, sizeof(vr::VRControllerState_t));
 	m_trackingStatus = vr::TrackingResult_Uninitialized;
@@ -1365,7 +1430,12 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 
 CPSMoveControllerLatest::~CPSMoveControllerLatest()
 {
-    ClientPSMoveAPI::free_controller_view(m_controller_view);
+	if (m_PSMChildControllerView != nullptr)
+	{
+		ClientPSMoveAPI::free_controller_view(m_PSMChildControllerView);
+	}
+
+    ClientPSMoveAPI::free_controller_view(m_PSMControllerView);
 }
 
 void CPSMoveControllerLatest::LoadButtonMapping(
@@ -1430,7 +1500,7 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(uint32_t unObjectId)
 
         ClientPSMoveAPI::register_callback(
             ClientPSMoveAPI::start_controller_data_stream(
-                m_controller_view, 
+                m_PSMControllerView, 
                 ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includePhysicsData),
             CPSMoveControllerLatest::start_controller_response_callback,
             this);
@@ -1455,7 +1525,7 @@ void CPSMoveControllerLatest::start_controller_response_callback(
 void CPSMoveControllerLatest::Deactivate()
 {
 	DriverLog("CPSMoveControllerLatest::Deactivate - Controller stream stopped\n");
-    ClientPSMoveAPI::stop_controller_data_stream(m_controller_view);
+    ClientPSMoveAPI::stop_controller_data_stream(m_PSMControllerView);
 }
 
 void *CPSMoveControllerLatest::GetComponent(const char *pchComponentNameAndVersion)
@@ -1614,13 +1684,10 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
         // The {psmove} syntax lets us refer to rendermodels that are installed
         // in the driver's own resources/rendermodels directory.  The driver can
         // still refer to SteamVR models like "generic_hmd".
-        switch(m_controller_view->GetControllerViewType())
+        switch(m_PSMControllerType)
         {
         case ClientControllerView::PSMove:
             ssRetVal << "{psmove}psmove_controller";
-            break;
-        case ClientControllerView::PSNavi:
-            ssRetVal << "{psmove}navi_controller";
             break;
         case ClientControllerView::PSDualShock4:
             ssRetVal << "{psmove}dualshock4_controller";
@@ -1685,8 +1752,8 @@ void CPSMoveControllerLatest::SendButtonUpdates( ButtonUpdate ButtonEvent, uint6
 
 void CPSMoveControllerLatest::UpdateControllerState()
 {
-    assert(m_controller_view != nullptr);
-    assert(m_controller_view->GetIsConnected());
+    assert(m_PSMControllerView != nullptr);
+    assert(m_PSMControllerView->GetIsConnected());
 
     vr::VRControllerState_t NewState = { 0 };
 
@@ -1694,11 +1761,11 @@ void CPSMoveControllerLatest::UpdateControllerState()
     // changed.  We don't try to be precise about that here.
     NewState.unPacketNum = m_ControllerState.unPacketNum + 1;
    
-    switch (m_controller_view->GetControllerViewType())
+    switch (m_PSMControllerView->GetControllerViewType())
     {
     case ClientControllerView::eControllerType::PSMove:
         {
-            const ClientPSMoveView &clientView = m_controller_view->GetPSMoveView();
+            const ClientPSMoveView &clientView = m_PSMControllerView->GetPSMoveView();
 
 			const bool bStartRealignHMDTriggered =
 				(clientView.GetButtonStart() == PSMoveButton_PRESSED && clientView.GetButtonSelect() == PSMoveButton_PRESSED) ||
@@ -1748,7 +1815,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling StartRealignHMDTrackingSpace() in response to controller chord.\n");
 				#endif
 
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controller_view, controllerBallPointedUpQuat));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_PSMControllerView, controllerBallPointedUpQuat));
 				m_bResetPoseRequestSent = true;
 
 				StartRealignHMDTrackingSpace();
@@ -1757,7 +1824,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 			{
 				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling ClientPSMoveAPI::reset_orientation() in response to controller button press.\n");
 
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controller_view, PSMoveQuaternion::identity()));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_PSMControllerView, PSMoveQuaternion::identity()));
 				m_bResetPoseRequestSent = true;
 			}
 			else 
@@ -1803,7 +1870,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 							if (!m_bTouchpadWasActive)
 							{
 								// Just pressed.
-								const ClientPSMoveView &view = m_controller_view->GetPSMoveView();
+								const ClientPSMoveView &view = m_PSMControllerView->GetPSMoveView();
 								m_driverSpaceRotationAtTouchpadPressTime = view.GetOrientation();
 
 								GetMetersPosInRotSpace(&m_posMetersAtTouchpadPressTime, m_driverSpaceRotationAtTouchpadPressTime);
@@ -1865,52 +1932,54 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				}
 			}
 
-        } break;
-    case ClientControllerView::eControllerType::PSNavi:
-        {
-            const ClientPSNaviView &clientView = m_controller_view->GetPSNaviView();
+			// Handle attached child controller last
+			if (m_PSMChildControllerView != nullptr && 
+				m_PSMChildControllerType == ClientControllerView::eControllerType::PSNavi)
+			{
+				const ClientPSNaviView &clientView = m_PSMChildControllerView->GetPSNaviView();
 
-            if (clientView.GetButtonL1())
-                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L1]);
-            if (clientView.GetButtonL2())
-                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L2]);
-            if (clientView.GetButtonL3())
-                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L3]);
-            if (clientView.GetButtonCircle())
-                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Circle]);
-            if (clientView.GetButtonCross())
-                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Cross]);
-            if (clientView.GetButtonPS())
-                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_PS]);
-            if (clientView.GetButtonTrigger())
-                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Trigger]);
-            if (clientView.GetButtonDPadUp())
-                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Up]);
-            if (clientView.GetButtonDPadDown())
-                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Down]);
-            if (clientView.GetButtonDPadLeft())
-                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Left]);
-            if (clientView.GetButtonDPadRight())
-                NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Right]);
+				if (clientView.GetButtonL1())
+					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L1]);
+				if (clientView.GetButtonL2())
+					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L2]);
+				if (clientView.GetButtonL3())
+					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_L3]);
+				if (clientView.GetButtonCircle())
+					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Circle]);
+				if (clientView.GetButtonCross())
+					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Cross]);
+				if (clientView.GetButtonPS())
+					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_PS]);
+				if (clientView.GetButtonTrigger())
+					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Trigger]);
+				if (clientView.GetButtonDPadUp())
+					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Up]);
+				if (clientView.GetButtonDPadDown())
+					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Down]);
+				if (clientView.GetButtonDPadLeft())
+					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Left]);
+				if (clientView.GetButtonDPadRight())
+					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSButtonID_Right]);
 
-            NewState.rAxis[0].x = clientView.GetStickXAxis();
-            NewState.rAxis[0].y = clientView.GetStickYAxis();
+				NewState.rAxis[0].x = clientView.GetStickXAxis();
+				NewState.rAxis[0].y = clientView.GetStickYAxis();
 
-            NewState.rAxis[1].x = clientView.GetTriggerValue();
-            NewState.rAxis[1].y = 0.f;
+				NewState.rAxis[1].x = clientView.GetTriggerValue();
+				NewState.rAxis[1].y = 0.f;
 
-            if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x || NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
-                m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
-            if (NewState.rAxis[1].x != m_ControllerState.rAxis[1].x)
-                m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1]);
+				if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x || NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
+					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
+				if (NewState.rAxis[1].x != m_ControllerState.rAxis[1].x)
+					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1]);
+			}
         } break;
     case ClientControllerView::eControllerType::PSDualShock4:
         {
-            const ClientPSDualShock4View &clientView = m_controller_view->GetPSDualShock4View();
+            const ClientPSDualShock4View &clientView = m_PSMControllerView->GetPSDualShock4View();
 
 			if (clientView.GetButtonOptions() == PSMoveButton_PRESSED)
 			{
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controller_view, PSMoveQuaternion::identity()));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_PSMControllerView, PSMoveQuaternion::identity()));
 			}
 			else
 			{
@@ -2099,7 +2168,7 @@ PSMoveQuaternion ExtractPSMoveYawQuaternion(const PSMoveQuaternion &q)
 
 void CPSMoveControllerLatest::GetMetersPosInRotSpace(PSMoveFloatVector3* pOutPosition, const PSMoveQuaternion& rRotation )
 {
-	const ClientPSMoveView &view = m_controller_view->GetPSMoveView();
+	const ClientPSMoveView &view = m_PSMControllerView->GetPSMoveView();
 
 	const PSMovePosition &position = view.GetPosition();
 
@@ -2178,7 +2247,7 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	// Get the current pose from the controller view instead of using the driver's cached
 	// value because the user may have triggered a pose reset, in which case the driver's
 	// cached pose might not yet be up to date by the time this callback is triggered.
-	PSMovePose psmove_pose_meters = controller->m_controller_view->GetPSMoveView().GetPose();
+	PSMovePose psmove_pose_meters = controller->m_PSMControllerView->GetPSMoveView().GetPose();
 	DriverLog("psmove_pose_meters(raw): %s \n", PsMovePoseToString(psmove_pose_meters).c_str());
 
 	// PSMove Position is in cm, but OpenVR stores position in meters
@@ -2204,24 +2273,24 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 
 void CPSMoveControllerLatest::UpdateTrackingState()
 {
-    assert(m_controller_view != nullptr);
-    assert(m_controller_view->GetIsConnected());
+    assert(m_PSMControllerView != nullptr);
+    assert(m_PSMControllerView->GetIsConnected());
 
 	// The tracking status will be one of the following states:
     m_Pose.result = m_trackingStatus;
 
-    m_Pose.deviceIsConnected = m_controller_view->GetIsConnected();
+    m_Pose.deviceIsConnected = m_PSMControllerView->GetIsConnected();
 
     // These should always be false from any modern driver.  These are for Oculus DK1-like
     // rotation-only tracking.  Support for that has likely rotted in vrserver.
     m_Pose.willDriftInYaw = false;
     m_Pose.shouldApplyHeadModel = false;
 
-    switch (m_controller_view->GetControllerViewType())
+    switch (m_PSMControllerView->GetControllerViewType())
     {
     case ClientControllerView::eControllerType::PSMove:
         {
-            const ClientPSMoveView &view= m_controller_view->GetPSMoveView();
+            const ClientPSMoveView &view= m_PSMControllerView->GetPSMoveView();
 
             // No prediction since that's already handled in the psmove service
             m_Pose.poseTimeOffset = 0.f;
@@ -2304,21 +2373,15 @@ void CPSMoveControllerLatest::UpdateTrackingState()
                 m_Pose.vecAngularAcceleration[2] = physicsData.AngularAccelerationRadPerSecSqr.k;
             }
 
-            m_Pose.poseIsValid = m_controller_view->GetIsPoseValid();
+            m_Pose.poseIsValid = m_PSMControllerView->GetIsPoseValid();
 
             // This call posts this pose to shared memory, where all clients will have access to it the next
             // moment they want to predict a pose.
             m_pDriverHost->TrackedDevicePoseUpdated(m_unSteamVRTrackedDeviceId, m_Pose);
         } break;
-    case ClientControllerView::eControllerType::PSNavi:
-        {
-            m_Pose.poseIsValid = false;
-
-            // Don't post anything to the driver host
-        } break;
     case ClientControllerView::eControllerType::PSDualShock4:
         {
-            const ClientPSDualShock4View &view = m_controller_view->GetPSDualShock4View();
+            const ClientPSDualShock4View &view = m_PSMControllerView->GetPSDualShock4View();
 
             // No prediction since that's already handled in the psmove service
             m_Pose.poseTimeOffset = 0.f;
@@ -2373,7 +2436,7 @@ void CPSMoveControllerLatest::UpdateTrackingState()
                 m_Pose.vecAngularAcceleration[2] = 0.f; // physicsData.AngularAcceleration.k;
             }
 
-            m_Pose.poseIsValid = m_controller_view->GetIsPoseValid();
+            m_Pose.poseIsValid = m_PSMControllerView->GetIsPoseValid();
 
             // This call posts this pose to shared memory, where all clients will have access to it the next
             // moment they want to predict a pose.
@@ -2422,15 +2485,13 @@ void CPSMoveControllerLatest::UpdateRumbleState()
 			}
 
 			// Actually send the rumble to the server
-			switch (m_controller_view->GetControllerViewType())
+			switch (m_PSMControllerView->GetControllerViewType())
 			{
 			case ClientControllerView::PSMove:
-				m_controller_view->GetPSMoveViewMutable().SetRumble(rumble_fraction);
-				break;
-			case ClientControllerView::PSNavi:
+				m_PSMControllerView->GetPSMoveViewMutable().SetRumble(rumble_fraction);
 				break;
 			case ClientControllerView::PSDualShock4:
-				m_controller_view->GetPSDualShock4ViewMutable().SetBigRumble(rumble_fraction);
+				m_PSMControllerView->GetPSDualShock4ViewMutable().SetBigRumble(rumble_fraction);
 				break;
 			default:
 				assert(0 && "Unreachable");
@@ -2455,18 +2516,13 @@ void CPSMoveControllerLatest::UpdateRumbleState()
 	}
 }
 
-bool CPSMoveControllerLatest::HasControllerId( int ControllerID )
-{
-    return ControllerID == m_nControllerId;
-}
-
 void CPSMoveControllerLatest::Update()
 {
     CPSMoveTrackedDeviceLatest::Update();
 
-    if (IsActivated() && m_controller_view->GetIsConnected())
+    if (IsActivated() && m_PSMControllerView->GetIsConnected())
     {
-        int seq_num= m_controller_view->GetOutputSequenceNum();
+        int seq_num= m_PSMControllerView->GetOutputSequenceNum();
 
         // Only other updating incoming state if it actually changed
         if (m_nPoseSequenceNumber != seq_num)
@@ -2491,6 +2547,30 @@ void CPSMoveControllerLatest::RefreshWorldFromDriverPose()
 	m_trackingStatus = vr::TrackingResult_Running_OK;
 }
 
+bool CPSMoveControllerLatest::AttachChildPSMController(
+	int ChildControllerId,
+	ClientControllerView::eControllerType ChildControllerType,
+	const std::string &ChildControllerSerialNo)
+{
+	bool bSuccess= false;
+
+	if (m_nPSMChildControllerId == -1 && m_nPSMChildControllerId != m_nPSMControllerId)
+	{
+		m_nPSMChildControllerId= ChildControllerId;
+		m_PSMChildControllerType= ChildControllerType;
+		m_PSMChildControllerView= ClientPSMoveAPI::allocate_controller_view(m_nPSMChildControllerId);
+
+        ClientPSMoveAPI::register_callback(
+            ClientPSMoveAPI::start_controller_data_stream(m_PSMChildControllerView, ClientPSMoveAPI::defaultStreamOptions),
+            CPSMoveControllerLatest::start_controller_response_callback,
+            this);
+		
+		bSuccess= true;
+	}
+
+	return bSuccess;
+}
+
 //==================================================================================================
 // Tracker Driver
 //==================================================================================================
@@ -2501,7 +2581,7 @@ CPSMoveTrackerLatest::CPSMoveTrackerLatest(vr::IServerDriverHost * pDriverHost, 
 {
     char buf[256];
     GenerateTrackerSerialNumber(buf, sizeof(buf), trackerInfo.tracker_id);
-    m_strSerialNumber = buf;
+    m_strSteamVRSerialNo = buf;
 
     SetClientTrackerInfo(trackerInfo);
 

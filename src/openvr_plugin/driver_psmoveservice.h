@@ -38,8 +38,8 @@ public:
 
 private:
     void AllocateUniquePSMoveController(int ControllerID, int ControllerListIndex, const ClientPSMoveAPI::t_response_handle response_handle);
-    void AllocateUniquePSNaviController(int ControllerID);
-    void AllocateUniqueDualShock4Controller(int ControllerID);
+    void AttachPSNaviToParentController(int ControllerID, int ControllerListIndex, const ClientPSMoveAPI::t_response_handle response_handle);
+    void AllocateUniqueDualShock4Controller(int ControllerID, int ControllerListIndex, const ClientPSMoveAPI::t_response_handle response_handle);
     void AllocateUniquePSMoveTracker(const ClientTrackerInfo &trackerInfo);
     bool ReconnectToPSMoveService();
 
@@ -114,7 +114,7 @@ public:
     virtual bool IsActivated() const;
     virtual void Update();
     virtual void RefreshWorldFromDriverPose();
-    virtual const char *GetSerialNumber() const;
+    virtual const char *GetSteamVRIdentifier() const;
 
 	typedef void(*t_hmd_request_callback)(const PSMovePose &hmd_pose_meters, void *userdata);
 	void RequestLatestHMDPose(float maxPoseAgeMilliseconds = 0.f, t_hmd_request_callback callback = nullptr, void *userdata = nullptr);
@@ -124,7 +124,7 @@ protected:
     vr::IServerDriverHost *m_pDriverHost;
     
     // Tracked device identification
-    std::string m_strSerialNumber;
+    std::string m_strSteamVRSerialNo;
 
     // Assigned by vrserver upon Activate().  The same ID visible to clients
     uint32_t m_unSteamVRTrackedDeviceId;
@@ -191,7 +191,7 @@ public:
 	};
 
 
-    CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int ControllerID, const char *serialNo );
+    CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int ControllerID, ClientControllerView::eControllerType controllerType, const char *serialNo );
     virtual ~CPSMoveControllerLatest();
 
     // Overridden Implementation of vr::ITrackedDeviceServerDriver
@@ -213,7 +213,12 @@ public:
     virtual void Update() override;
 	virtual void RefreshWorldFromDriverPose() override;
 
-    bool HasControllerId(int ControllerID);
+	// CPSMoveControllerLatest Interface 
+	bool AttachChildPSMController(int ChildControllerId, ClientControllerView::eControllerType controllerType, const std::string &ChildControllerSerialNo);
+    inline bool HasPSMControllerId(int ControllerID) const { return ControllerID == m_nPSMControllerId; }
+	inline const ClientControllerView * getPSMControllerView() const { return m_PSMControllerView; }
+	inline std::string getPSMControllerSerialNo() const { return m_strPSMControllerSerialNo; }
+	inline ClientControllerView::eControllerType getPSMControllerType() const { return m_PSMControllerType; }
 
 private:
     typedef void ( vr::IServerDriverHost::*ButtonUpdate )( uint32_t unWhichDevice, vr::EVRButtonId eButtonId, double eventTimeOffset );
@@ -227,15 +232,22 @@ private:
     void UpdateTrackingState();
     void UpdateRumbleState();	
 
-    // The last received state of a psmove controller from the service
-    int m_nControllerId;
-    ClientControllerView *m_controller_view;
-	std::string m_strSerialNo;
+    // Controller State
+    int m_nPSMControllerId;
+	ClientControllerView::eControllerType m_PSMControllerType;
+    ClientControllerView *m_PSMControllerView;
+	std::string m_strPSMControllerSerialNo;
+
+    // Child Controller State
+    int m_nPSMChildControllerId;
+	ClientControllerView::eControllerType m_PSMChildControllerType;
+    ClientControllerView *m_PSMChildControllerView;
+	std::string m_strPSMChildControllerSerialNo;
 
 	// Used to report the controllers calibration status
 	vr::ETrackingResult m_trackingStatus;
 
-    // Used to deduplicate state data from the sixense driver
+    // Used to ignore old state from PSM Service
     int m_nPoseSequenceNumber;
 
     // To main structures for passing state to vrserver
