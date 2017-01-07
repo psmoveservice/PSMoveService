@@ -4,6 +4,7 @@
 #include "ClientTrackerView.h"
 #include "AssetManager.h"
 #include "Logger.h"
+#include "ProtocolVersion.h"
 #include "UIConstants.h"
 
 #include "SDL.h"
@@ -95,13 +96,16 @@ bool Renderer::init()
 
     if (success)
     {
+		char szWindowTitle[128];
+
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
         SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
 
-        m_window = SDL_CreateWindow("PSMove Config Tool",
+		snprintf(szWindowTitle, sizeof(szWindowTitle), "PSMove Config Tool v%s", PSM_DETAILED_VERSION_STRING);
+        m_window = SDL_CreateWindow(szWindowTitle,
             SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED,
             k_window_pixel_width, k_window_pixel_height,
