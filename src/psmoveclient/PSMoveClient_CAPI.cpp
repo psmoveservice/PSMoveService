@@ -2,7 +2,7 @@
 #include <map>
 #include "PSMoveClient_CAPI.h"
 #include "ClientPSMoveAPI.h"
-#include "ClientVersion.h"
+#include "ProtocolVersion.h"
 #include "PSMoveProtocol.pb.h"
 #include <assert.h>
 

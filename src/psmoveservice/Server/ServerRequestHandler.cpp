@@ -11,6 +11,7 @@
 #include "MorpheusHMD.h"
 #include "OrientationFilter.h"
 #include "PositionFilter.h"
+#include "ProtocolVersion.h"
 #include "PS3EyeTracker.h"
 #include "PSDualShock4Controller.h"
 #include "PSMoveController.h"
@@ -299,6 +300,7 @@ public:
 				response = new PSMoveProtocol::Response;
 				handle_request__get_tracking_space_settings(context, response);
 				break;
+
             // HMD Requests
             case PSMoveProtocol::Request_RequestType_GET_HMD_LIST:
 				response = new PSMoveProtocol::Response;
@@ -323,6 +325,12 @@ public:
 			case PSMoveProtocol::Request_RequestType_SET_HMD_PREDICTION_TIME:
 				response = new PSMoveProtocol::Response;
 				handle_request__set_hmd_prediction_time(context, response);
+				break;
+
+			// General Service Requests
+			case PSMoveProtocol::Request_RequestType_GET_SERVICE_VERSION:
+				response = new PSMoveProtocol::Response;
+				handle_request__get_service_version(context, response);
 				break;
 
             default:
@@ -2415,6 +2423,18 @@ protected:
 		{
 			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
 		}
+	}
+
+	void handle_request__get_service_version(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		PSMoveProtocol::Response_ResultServiceVersion* version_info = response->mutable_result_service_version();
+
+		response->set_type(PSMoveProtocol::Response_ResponseType_SERVICE_VERSION);
+
+		version_info->set_version(PSM_DETAILED_VERSION_STRING);
+		response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 	}
 
     // -- Data Frame Updates -----

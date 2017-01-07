@@ -172,9 +172,9 @@ void OrientationFilterPassThru::update(const float delta_time, const PoseFilterP
     const Eigen::Quaternionf orientation_derivative= 
         Eigen::Quaternionf((new_orientation.coeffs() - m_state->orientation.coeffs()) / delta_time);
     const Eigen::Vector3f new_angular_velocity = 
-        eigen_quaternion_derivative_to_angular_velocity(new_orientation, orientation_derivative);
+        Eigen::Vector3f::Zero(); //eigen_quaternion_derivative_to_angular_velocity(new_orientation, orientation_derivative);		
     const Eigen::Vector3f new_angular_accelertion = 
-        (new_angular_velocity - m_state->angular_velocity) / delta_time;
+        Eigen::Vector3f::Zero(); //(new_angular_velocity - m_state->angular_velocity) / delta_time;
 
     m_state->apply_state(new_orientation, new_angular_velocity, new_angular_accelertion);
 }
@@ -244,8 +244,8 @@ void OrientationFilterMadgwickARG::update(const float delta_time, const PoseFilt
     // Derive the second derivative
     {
         const Eigen::Quaternionf &new_orientation = SEq_new;
-        const Eigen::Vector3f new_angular_velocity= current_omega;
-        const Eigen::Vector3f new_angular_acceleration= (current_omega - m_state->angular_velocity) / delta_time;
+        const Eigen::Vector3f new_angular_velocity= Eigen::Vector3f::Zero(); // current_omega;
+        const Eigen::Vector3f new_angular_acceleration= Eigen::Vector3f::Zero(); // (current_omega - m_state->angular_velocity) / delta_time;
 
         m_state->apply_state(new_orientation, new_angular_velocity, new_angular_acceleration);
     }
@@ -361,8 +361,8 @@ void OrientationFilterMadgwickMARG::update(const float delta_time, const PoseFil
     // Derive the second derivative
     {
         const Eigen::Quaternionf &new_orientation = SEq_new;
-        const Eigen::Vector3f new_angular_velocity(corrected_omega.x(), corrected_omega.y(), corrected_omega.z());
-        const Eigen::Vector3f new_angular_acceleration = (new_angular_velocity - m_state->angular_velocity) / delta_time;
+        const Eigen::Vector3f new_angular_velocity = Eigen::Vector3f::Zero(); //(corrected_omega.x(), corrected_omega.y(), corrected_omega.z());
+        const Eigen::Vector3f new_angular_acceleration = Eigen::Vector3f::Zero(); //(new_angular_velocity - m_state->angular_velocity) / delta_time;
 
         m_state->apply_state(new_orientation, new_angular_velocity, new_angular_acceleration);
     }
@@ -472,9 +472,10 @@ void OrientationFilterComplementaryOpticalARG::update(const float delta_time, co
 
 	{
 		// Compute the angular acceleration from the time derivative of the angular velocity
-		const Eigen::Vector3f new_angular_acceleration = (current_omega - m_state->angular_velocity) / delta_time;
+		const Eigen::Vector3f new_angular_velocity = Eigen::Vector3f::Zero(); //current_omega;
+		const Eigen::Vector3f new_angular_acceleration = Eigen::Vector3f::Zero(); // (current_omega - m_state->angular_velocity) / delta_time;
 
-		m_state->apply_state(blended_orientation_new, current_omega, new_angular_acceleration);
+		m_state->apply_state(blended_orientation_new, new_angular_velocity, new_angular_acceleration);
 	}
 }
 
@@ -538,8 +539,8 @@ void OrientationFilterComplementaryMARG::update(const float delta_time, const Po
         // The final rotation is a blend between the integrated orientation and absolute rotation from the earth-frame
         const Eigen::Quaternionf new_orientation = 
             eigen_quaternion_normalized_lerp(ar_orientation, mg_orientation, mg_weight);            
-        const Eigen::Vector3f &new_angular_velocity= current_omega;
-        const Eigen::Vector3f new_angular_acceleration = (current_omega - m_state->angular_velocity) / delta_time;
+        const Eigen::Vector3f new_angular_velocity= Eigen::Vector3f::Zero(); // current_omega;
+        const Eigen::Vector3f new_angular_acceleration = Eigen::Vector3f::Zero(); // (current_omega - m_state->angular_velocity) / delta_time;
 
         m_state->apply_state(new_orientation, new_angular_velocity, new_angular_acceleration);
     }
