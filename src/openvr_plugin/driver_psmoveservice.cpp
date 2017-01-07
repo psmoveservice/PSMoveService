@@ -7,6 +7,8 @@
 //==================================================================================================
 #include "driver_psmoveservice.h"
 #include <sstream>
+#include "ProtocolVersion.h"
+#include "PSMoveProtocolInterface.h"
 #include "PSMoveProtocol.pb.h"
 #include "ClientPSMoveAPI.h"
 #include <boost/algorithm/string.hpp>
@@ -515,14 +517,58 @@ void CServerDriver_PSMoveService::HandleConnectedToPSMoveService()
 {
 	DriverLog("CServerDriver_PSMoveService::HandleConnectedToPSMoveService - Request controller and tracker lists\n");
 
-    // Ask the service for a list of connected controllers
-    // Response handled in HandleControllerListReponse()
-    ClientPSMoveAPI::get_controller_list();
+	// Ask the service for the current version of the protocol first
+	RequestPtr request(new PSMoveProtocol::Request());
+	request->set_type(PSMoveProtocol::Request_RequestType_GET_SERVICE_VERSION);
 
-    // Ask the service for a list of connected trackers
-    // Response handled in HandleTrackerListReponse()
-    ClientPSMoveAPI::get_tracker_list();
+	ClientPSMoveAPI::register_callback(
+		ClientPSMoveAPI::send_opaque_request(&request),
+		CServerDriver_PSMoveService::HandleServiceVersionResponse, this);
 }
+
+void CServerDriver_PSMoveService::HandleServiceVersionResponse(
+    const ClientPSMoveAPI::ResponseMessage *response,
+    void *userdata)
+{
+    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response->result_code;
+    ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
+    CServerDriver_PSMoveService *thisPtr = static_cast<CServerDriver_PSMoveService *>(userdata);
+
+    switch (ResultCode)
+    {
+    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+        {
+			const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+			const std::string service_version= response->result_service_version().version();
+			const std::string local_version= PSM_DETAILED_VERSION_STRING;
+
+			if (service_version == local_version)
+			{
+				DriverLog("CServerDriver_PSMoveService::HandleServiceVersionResponse - Received expected protocol version %s\n", service_version.c_str());
+
+				// Ask the service for a list of connected controllers
+				// Response handled in HandleControllerListReponse()
+				ClientPSMoveAPI::get_controller_list();
+
+				// Ask the service for a list of connected trackers
+				// Response handled in HandleTrackerListReponse()
+				ClientPSMoveAPI::get_tracker_list();
+			}
+			else
+			{
+				DriverLog("CServerDriver_PSMoveService::HandleServiceVersionResponse - Protocol mismatch! Expected %s, got %s. Please reinstall the PSMove Driver!\n",
+						local_version.c_str(), service_version.c_str());
+				thisPtr->Cleanup();
+			}
+        } break;
+    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
+    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+        {
+			DriverLog("CServerDriver_PSMoveService::HandleServiceVersionResponse - Failed to get protocol version\n");
+        } break;
+    }
+}
+
 
 void CServerDriver_PSMoveService::HandleFailedToConnectToPSMoveService()
 {
@@ -675,7 +721,7 @@ void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerI
 
 		if (0 != m_strPSMoveHMDSerialNo.compare(serialNo)) {
 			DriverLog( "added new psmove controller id: %s, serial: %s\n", buf, serialNo.c_str());
-			m_vecTrackedDevices.push_back( new CPSMoveControllerLatest( m_pDriverHost, ControllerID, serialNo.c_str()) );
+			m_vecTrackedDevices.push_back( new CPSMoveControllerLatest( m_pDriverHost, ControllerID, ClientControllerView::PSMove, serialNo.c_str()) );
 
 			if (m_pDriverHost)
 			{
@@ -696,7 +742,7 @@ void CServerDriver_PSMoveService::AllocateUniquePSNaviController(int ControllerI
     if (!FindTrackedDeviceDriver(buf))
     {
         DriverLog("added new ps navi controller %s\n", buf);
-        m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, NULL));
+        m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, ClientControllerView::PSNavi, NULL));
 
         if (m_pDriverHost)
         {
@@ -713,7 +759,7 @@ void CServerDriver_PSMoveService::AllocateUniqueDualShock4Controller(int Control
     if (!FindTrackedDeviceDriver(buf))
     {
         DriverLog("added new ps dualshock4 controller %s\n", buf);
-        m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, NULL));
+        m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, ClientControllerView::PSDualShock4, NULL));
 
         if (m_pDriverHost)
         {
@@ -1256,9 +1302,10 @@ const char *CPSMoveTrackedDeviceLatest::GetSerialNumber() const
 // Controller Driver
 //==================================================================================================
 
-CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int controllerId, const char *serialNo )
+CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int controllerId, ClientControllerView::eControllerType controllerType, const char *serialNo )
     : CPSMoveTrackedDeviceLatest(pDriverHost)
     , m_nControllerId(controllerId)
+	, m_PSMControllerType(controllerType)
     , m_controller_view(nullptr)
     , m_nPoseSequenceNumber(0)
     , m_bIsBatteryCharging(false)
@@ -1614,7 +1661,7 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
         // The {psmove} syntax lets us refer to rendermodels that are installed
         // in the driver's own resources/rendermodels directory.  The driver can
         // still refer to SteamVR models like "generic_hmd".
-        switch(m_controller_view->GetControllerViewType())
+        switch(m_PSMControllerType)
         {
         case ClientControllerView::PSMove:
             ssRetVal << "{psmove}psmove_controller";

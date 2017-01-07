@@ -48,6 +48,7 @@ private:
     void HandleConnectedToPSMoveService();
     void HandleFailedToConnectToPSMoveService();
     void HandleDisconnectedFromPSMoveService();
+	static void HandleServiceVersionResponse(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
     void HandleControllerListChanged();
     void HandleTrackerListChanged();
 
@@ -191,7 +192,7 @@ public:
 	};
 
 
-    CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int ControllerID, const char *serialNo );
+    CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int ControllerID, ClientControllerView::eControllerType controllerType, const char *serialNo );
     virtual ~CPSMoveControllerLatest();
 
     // Overridden Implementation of vr::ITrackedDeviceServerDriver
@@ -213,6 +214,8 @@ public:
     virtual void Update() override;
 	virtual void RefreshWorldFromDriverPose() override;
 
+	// CPSMoveControllerLatest Interface 
+ 	inline ClientControllerView::eControllerType getPSMControllerType() const { return m_PSMControllerType; }
     bool HasControllerId(int ControllerID);
 
 private:
@@ -229,6 +232,7 @@ private:
 
     // The last received state of a psmove controller from the service
     int m_nControllerId;
+	ClientControllerView::eControllerType m_PSMControllerType;
     ClientControllerView *m_controller_view;
 	std::string m_strSerialNo;
 
