@@ -5,7 +5,9 @@
 #include "ServerNetworkManager.h"
 #include "ServerRequestHandler.h"
 #include "DeviceManager.h"
+#include "ProtocolVersion.h"
 #include "ServerLog.h"
+#include "SharedTrackerState.h"
 #include "TrackerManager.h"
 
 #include <boost/asio.hpp>
@@ -137,6 +139,20 @@ private:
     bool startup()
     {
         bool success= true;
+
+		/** Make sure the shared memory directory exists (if non-default path is defined) */
+		#if defined(BOOST_INTERPROCESS_SHARED_DIR_PATH)
+		boost::filesystem::path shared_mem_dir(BOOST_INTERPROCESS_SHARED_DIR_PATH);
+		boost::system::error_code ec;
+		if (!boost::filesystem::create_directory(shared_mem_dir, ec))
+		{
+			if(ec.value() != boost::interprocess::already_exists_error && ec.value() != boost::interprocess::no_error)
+			{
+				SERVER_LOG_FATAL("PSMoveService") << "Failed to create the shared memory directory: " << ec.message();
+				success= false;
+			}
+		}
+		#endif // BOOST_INTERPROCESS_SHARED_DIR_PATH
         
         /** Start listening for client connections */
         if (success)
@@ -503,7 +519,7 @@ int PSMoveService::exec(int argc, char *argv[])
     log_init(this->getProgramSettings()->log_level, "PSMoveService.log");
 
     // Start the service app
-    SERVER_LOG_INFO("main") << "Starting PSMoveService";
+    SERVER_LOG_INFO("main") << "Starting PSMoveService v" << PSM_DETAILED_VERSION_STRING;
     try
     {
         PSMoveServiceImpl app;
