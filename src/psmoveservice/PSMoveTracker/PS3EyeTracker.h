@@ -36,7 +36,6 @@ public:
 	inline CommonHSVColorRangeTable *getOrAddColorRangeTable(const std::string &table_name);
     
     bool is_valid;
-    long version;
     long max_poll_failure_count;
     double exposure;
 	double gain;
@@ -60,6 +59,7 @@ public:
 	std::vector<CommonHSVColorRangeTable> DeviceColorPresets;
 
     static const int CONFIG_VERSION;
+	static const int LENS_CALIBRATION_VERSION;
 };
 
 struct PS3EyeTrackerState : public CommonDeviceState
