@@ -2012,10 +2012,8 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 		}
 	}
 
-	assert(pair_count >= 1);
-
 	// Compute the average position
-	{
+	if (pair_count >= 1) {
 		const float N = static_cast<float>(pair_count);
 
 		average_world_position.x /= N;
