@@ -1976,6 +1976,7 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 
 	// Compute triangulations amongst all pairs of projections
 	int pair_count = 0;
+	int biggest_prjection_id = -1;
 	CommonDevicePosition average_world_position = { 0.f, 0.f, 0.f };
 	for (int list_index = 0; list_index < projections_found; ++list_index)
 	{
@@ -1992,8 +1993,13 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 			if (cfg.exclude_opposed_cameras)
 			{
 				if ((tracker->getTrackerPose().PositionCm.x > 0) == (other_tracker->getTrackerPose().PositionCm.x < 0) &&
-					(tracker->getTrackerPose().PositionCm.z > 0) == (other_tracker->getTrackerPose().PositionCm.z < 0)) 
+					(tracker->getTrackerPose().PositionCm.z > 0) == (other_tracker->getTrackerPose().PositionCm.z < 0))
 				{
+					float screen_area = tracker_pose_estimations[tracker_id].projection.screen_area;
+					float other_screen_area = tracker_pose_estimations[other_tracker_id].projection.screen_area;
+
+					biggest_prjection_id = screen_area > other_screen_area ? tracker_id : other_tracker_id;
+
 					continue;
 				}
 			}
@@ -2012,8 +2018,19 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 		}
 	}
 
-	// Compute the average position
-	if (pair_count >= 1) {
+	if (pair_count == 0 && biggest_prjection_id >= 0)
+	{
+		// Position not triangulated from opposed camera, estimate from one tracker only.
+
+		computeLightBarPoseForControllerFromSingleTracker(
+			controllerView,
+			tracker_manager->getTrackerViewPtr(biggest_prjection_id),
+			&tracker_pose_estimations[biggest_prjection_id],
+			multicam_pose_estimation);		
+	}
+	else 
+	{
+		// Compute the average position
 		const float N = static_cast<float>(pair_count);
 
 		average_world_position.x /= N;
