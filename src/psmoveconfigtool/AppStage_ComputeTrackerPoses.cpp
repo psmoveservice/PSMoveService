@@ -697,10 +697,11 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
             const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list = 
                 &response_message->payload.controller_list;			
 
-			if (thisPtr->m_bSkipCalibration)
+			if (thisPtr->m_overrideControllerId == -1)
 			{
 				bool bStartedAnyControllers = false;
 
+				// Start all psmove and dual shock 4 controllers
 				for (int list_index = 0; list_index < controller_list->count; ++list_index)
 				{
 					if (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
@@ -727,12 +728,10 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
 				int trackedControllerListIndex = -1;
 				PSMoveTrackingColorType trackingColorType;
 
+				// Start only the selected controller
 				for (int list_index = 0; list_index < controller_list->count; ++list_index)
 				{
-					if (controller_list->controller_id[list_index] == thisPtr->m_overrideControllerId ||
-						(thisPtr->m_overrideControllerId == -1 &&
-						 (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
-						 controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)))
+					if (controller_list->controller_id[list_index] == thisPtr->m_overrideControllerId)
 					{
 						const auto &protocolControllerResponse = response->result_controller_list().controllers(list_index);
 
