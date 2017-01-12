@@ -2022,7 +2022,7 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 	{
 		// Position not triangulated from opposed camera, estimate from one tracker only.
 
-		computeLightBarPoseForControllerFromSingleTracker(
+		computeSpherePoseForControllerFromSingleTracker(
 			controllerView,
 			tracker_manager->getTrackerViewPtr(biggest_prjection_id),
 			&tracker_pose_estimations[biggest_prjection_id],
