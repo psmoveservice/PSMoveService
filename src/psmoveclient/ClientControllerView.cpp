@@ -932,7 +932,7 @@ bool ClientControllerView::GetIsPoseValid() const
     switch (ControllerViewType)
     {
     case eControllerType::PSMove:
-        return GetPSMoveView().GetIsOrientationValid() && GetPSMoveView().GetIsPositionValid();
+        return GetPSMoveView().GetIsOrientationValid() && GetPSMoveView().GetIsPositionValid() && GetPSMoveView().GetIsCurrentlyTracking();
     case eControllerType::PSNavi:
         // Never Tracking!
         return false;

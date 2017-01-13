@@ -42,6 +42,7 @@ public:
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
+	bool ignore_pose_from_one_tracker;
     long version;
     int optical_tracking_timeout;
 	int tracker_sleep_ms;

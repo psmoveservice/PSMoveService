@@ -496,7 +496,7 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
 				assert(false && "unreachable");
 			}
         }
-        else if (projections_found == 1)
+        else if (projections_found == 1 && !DeviceManager::getInstance()->m_tracker_manager->getConfig().ignore_pose_from_one_tracker)
         {
 			const int tracker_id = valid_projection_tracker_ids[0];
 			const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
@@ -2018,7 +2018,7 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 		}
 	}
 
-	if (pair_count == 0 && biggest_prjection_id >= 0)
+	if (pair_count == 0 && biggest_prjection_id >= 0 && !DeviceManager::getInstance()->m_tracker_manager->getConfig().ignore_pose_from_one_tracker)
 	{
 		// Position not triangulated from opposed camera, estimate from one tracker only.
 
@@ -2028,7 +2028,7 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 			&tracker_pose_estimations[biggest_prjection_id],
 			multicam_pose_estimation);		
 	}
-	else 
+	else if(pair_count > 0)
 	{
 		// Compute the average position
 		const float N = static_cast<float>(pair_count);
@@ -2039,6 +2039,7 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 
 		// Store the averaged tracking position
 		multicam_pose_estimation->position_cm = average_world_position;
+
 		multicam_pose_estimation->bCurrentlyTracking = true;
 	}
 
