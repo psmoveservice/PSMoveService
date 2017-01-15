@@ -427,27 +427,31 @@ public:
     
     void applyROI(cv::Rect2i ROI)
     {
-		//Clamp it
-		ROI.width = std::min(ROI.width, frameWidth);
-		ROI.height = std::min(ROI.height, frameHeight);
+		// Make sure the ROI box is always clamped in bounds of the frame buffer
+		int x0= std::min(std::max(ROI.tl().x, 0), frameWidth-1);
+		int y0= std::min(std::max(ROI.tl().y, 0), frameHeight-1);
+		int x1= std::min(std::max(ROI.br().x, 0), frameWidth-1);
+		int y1= std::min(std::max(ROI.br().y, 0), frameHeight-1);
+		int clamped_width = std::max(x1-x0, 0);
+		int clamped_height = std::max(y1-y0, 0);
 
-        if (ROI.x < 0)
-        {
-            ROI.x = 0;
-        }
-        if (ROI.y < 0)
-        {
-            ROI.y = 0;
-        }
-        if (ROI.br().x > frameWidth)
-        {
-            ROI.x = std::max(frameWidth - ROI.width, 0);
-        }
-        if (ROI.br().y > frameHeight)
-        {
-            ROI.y = std::max(frameHeight - ROI.height, 0);
-        }
-        
+		// If the clamped ROI ends up being zero-width or zero-height, 
+		// just make it full screen
+		if (clamped_width > 0 && clamped_height > 0)
+		{
+			ROI.x= x0;
+			ROI.y= y0;
+			ROI.width = clamped_width;
+			ROI.height = clamped_height;
+		}
+		else
+		{
+			ROI.x= 0;
+			ROI.y= 0;
+			ROI.width = frameWidth;
+			ROI.height = frameHeight;
+		}
+       
         //Create the ROI matrices.
         //It's not a full copy, so this isn't too slow.
         //adjustROI is probably slightly faster but I ran into trouble with it.
