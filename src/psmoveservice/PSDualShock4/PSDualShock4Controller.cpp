@@ -1,8 +1,6 @@
 //-- includes -----
 #include "PSDualShock4Controller.h"
 #include "ControllerDeviceEnumerator.h"
-#include "ControllerManager.h"
-#include "DeviceManager.h"
 #include "MathUtility.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
@@ -404,7 +402,7 @@ PSDualShock4Controller::~PSDualShock4Controller()
 
 bool PSDualShock4Controller::open()
 {
-    ControllerDeviceEnumerator enumerator(CommonControllerState::PSMove);
+    ControllerDeviceEnumerator enumerator(CommonControllerState::PSDualShock4);
     bool success = false;
 
     if (enumerator.is_valid())
@@ -484,9 +482,11 @@ bool PSDualShock4Controller::open(
                 // Save the controller address as a std::string
                 HIDDetails.Bt_addr = std::string(szNormalizedControllerAddress);
 
-                // Use the cached host bluetooth address at service startup.
-                // On windows, calling bluetooth_get_host_address() can sometimes be a really long blocking call.
-                HIDDetails.Host_bt_addr = DeviceManager::getInstance()->m_controller_manager->getCachedBluetoothHostAddress();
+				// Get the (possibly cached) bluetooth address of the first bluetooth adapter
+				if (!bluetooth_get_host_address(HIDDetails.Host_bt_addr))
+				{
+					HIDDetails.Host_bt_addr= "00:00:00:00:00:00";
+				}
 
                 success = true;
             }

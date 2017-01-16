@@ -104,7 +104,7 @@ void AppStage_PairController::renderUI()
     case eControllerMenuState::pendingControllerPairRequest:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin(k_window_title, nullptr, ImVec2(350, 300), k_background_alpha, window_flags);
+            ImGui::Begin(k_window_title, nullptr, ImVec2(400, 300), k_background_alpha, window_flags);
 
             // Show progress
             if (m_pair_steps_total > 0)
@@ -116,25 +116,24 @@ void AppStage_PairController::renderUI()
 				if (m_controllerType == ClientControllerView::PSDualShock4)
 				{
 					ImGui::TextWrapped(
-						"Unplug the controller.\n" \
+						"Unplug the DualShock4 form USB.\n" \
 						"\n"
-						"Now press and hold the controller's PS and SHARE buttons.\n" \
-						"The lightbar will start flashing.\n" \
+						"Then press and HOLD the DualShock4's PS and SHARE buttons.\n" \
+						"After a moment, the lightbar will start flashing rapidly.\n" \
 						"Repeat this until the controller completes pairing");
 				}
 				else
 				{
 					ImGui::TextWrapped(
-						"Unplug the controller.\n" \
+						"Unplug the PSMove from USB.\n" \
 						"\n"
-						"Now press the controller's PS button.\n" \
+						"Then press the PSMove's PS button.\n" \
 						"The red status LED will start blinking.\n" \
 						"Whenever it goes off, press the PS button again.\n" \
 						"Repeat this until the status LED finally remains lit.");
 				}
-				//To pair the DS4 with your computer, first put the controller into pairing mode by press and HOLDING the Playstation button and Share button at the same time. Hold these buttons until the light bar starts rapidly flashing.
 
-                ImGui::ProgressBar(fraction, ImVec2(250, 40), progress_label.str().c_str());
+                ImGui::ProgressBar(fraction, ImVec2(300, 40), progress_label.str().c_str());
             }
             else
             {
