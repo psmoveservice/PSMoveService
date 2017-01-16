@@ -1458,7 +1458,7 @@ public:
 KalmanPoseFilter::KalmanPoseFilter() 
     : m_filter(nullptr)
 {
-    memset(&m_constants, 0, sizeof(PoseFilterConstants));
+	m_constants.clear();
 }
 
 bool KalmanPoseFilter::init(

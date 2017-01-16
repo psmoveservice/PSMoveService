@@ -699,6 +699,7 @@ init_filters_for_morpheus_hmd(
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
+	constants.clear();
 
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.accelerometer_variance = Eigen::Vector3f(accel_var.i, accel_var.j, accel_var.k);

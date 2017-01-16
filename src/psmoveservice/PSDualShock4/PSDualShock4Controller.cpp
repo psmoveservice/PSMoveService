@@ -292,6 +292,9 @@ PSDualShock4ControllerConfig::config2ptree()
 	pt.put("PositionFilter.FilterType", position_filter_type);
     pt.put("PositionFilter.MaxVelocity", max_velocity);
 
+	pt.put("PositionFilter.UseLinearAcceleration", position_use_linear_acceleration);
+	pt.put("PositionFilter.ApplyGravityMask", position_apply_gravity_mask);
+
 	pt.put("PoseFilter.MinScreenProjectionArea", min_screen_projection_area);
 
     pt.put("prediction_time", prediction_time);
@@ -339,6 +342,8 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         // Get the position filter parameters
 		position_filter_type= pt.get<std::string>("PositionFilter.FilterType", position_filter_type);
         max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
+		position_use_linear_acceleration= pt.get<float>("PositionFilter.UseLinearAcceleration", position_use_linear_acceleration);
+		position_apply_gravity_mask= pt.get<float>("PositionFilter.ApplyGravityMask", position_apply_gravity_mask);
 
 		// Get shared filter parameters
 		min_screen_projection_area = pt.get<float>("PoseFilter.MinScreenProjectionArea", min_screen_projection_area);

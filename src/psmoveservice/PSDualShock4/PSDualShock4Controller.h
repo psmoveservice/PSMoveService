@@ -52,6 +52,8 @@ public:
         , gyro_variance(4.75e-06f) // rounded value from config tool measurement (rad^2/s^2)
         , gyro_drift(0.00071f) // rounded value from config tool measurement (rad/s)
 		, mean_update_time_delta(0.016667f)
+		, position_use_linear_acceleration(true)
+		, position_apply_gravity_mask(true)
 		, position_variance_exp_fit_a(0.0219580978f)
 		, position_variance_exp_fit_b(-0.00079152541f)
 		, orientation_variance_exp_fit_a(0.119878575f)
@@ -145,6 +147,12 @@ public:
 
 	// Below this projection area size we just consider the projection area 0 for the purpose of filtering
 	float min_screen_projection_area;
+
+	// When enabled attempt to extract linear acceleration from the accelerometer (Kalman filter only)
+	bool position_use_linear_acceleration;
+
+	// Dampen linear accelerations near the predicted gravity measurement (Kalman filter only)
+	bool position_apply_gravity_mask;
 
 	// The variance(cm^2) of the controller position as a function of projection area
     float position_variance_exp_fit_a; 

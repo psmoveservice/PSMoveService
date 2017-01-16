@@ -458,7 +458,7 @@ public:
 		// and the current orientation from the state to predict
 		// what the accelerometer reading will be (in the space of the controller)
 		const Eigen::Vector3d &gravity_accel_g_units = identity_gravity_direction;
-		const Eigen::Vector3d linear_accel_g_units = m_last_world_linear_acceleration * k_ms2_to_g_units;
+		const Eigen::Vector3d linear_accel_g_units = Eigen::Vector3d::Zero(); //m_last_world_linear_acceleration * k_ms2_to_g_units;
 		const Eigen::Vector3d accel_world = linear_accel_g_units + gravity_accel_g_units;
 		const Eigen::Vector3d accel_local = eigen_vector3d_clockwise_rotate(world_to_local_orientation, accel_world);
 
