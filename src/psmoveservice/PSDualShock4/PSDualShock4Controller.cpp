@@ -342,8 +342,8 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         // Get the position filter parameters
 		position_filter_type= pt.get<std::string>("PositionFilter.FilterType", position_filter_type);
         max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
-		position_use_linear_acceleration= pt.get<float>("PositionFilter.UseLinearAcceleration", position_use_linear_acceleration);
-		position_apply_gravity_mask= pt.get<float>("PositionFilter.ApplyGravityMask", position_apply_gravity_mask);
+		position_use_linear_acceleration= pt.get<bool>("PositionFilter.UseLinearAcceleration", position_use_linear_acceleration);
+		position_apply_gravity_mask= pt.get<bool>("PositionFilter.ApplyGravityMask", position_apply_gravity_mask);
 
 		// Get shared filter parameters
 		min_screen_projection_area = pt.get<float>("PoseFilter.MinScreenProjectionArea", min_screen_projection_area);
@@ -1227,11 +1227,11 @@ static int hid_set_output_report(hid_device *dev, const unsigned char *data, siz
         length = dev_internal->output_report_length;
     }
 
-    res = HidD_SetOutputReport(dev_internal->device_handle, buf, length);
+    res = HidD_SetOutputReport(dev_internal->device_handle, buf, static_cast<ULONG>(length));
 
     if (res == TRUE)
     {
-        bytes_written = length;
+        bytes_written = static_cast<DWORD>(length);
     }
     else
     {
