@@ -827,15 +827,11 @@ void AppStage_OpticalCalibration::onEnterState(eCalibrationMenuState newState)
 			switch (m_controllerView->GetControllerViewType())
 			{
 			case ClientControllerView::PSDualShock4:
-				{
-					m_controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
-				}
+				m_controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
 				break;
 			case ClientControllerView::PSMove:
-				{
-					m_controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
-				}
-			break;
+				m_controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
+				break;
 			}
 
 			m_app->setCameraType(_cameraOrbit);

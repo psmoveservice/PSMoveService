@@ -323,10 +323,10 @@ void AppStage_MagnetometerCalibration::update()
         {
             if (bControllerDataUpdatedThisFrame)
             {
-				m_controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
-
                 if (m_controllerView->GetPSMoveView().GetHasValidHardwareCalibration())
                 {
+					m_controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
+
 					m_boundsStatistics->clear();
                     
                     m_led_color_r= 255; m_led_color_g= 0; m_led_color_b= 0;

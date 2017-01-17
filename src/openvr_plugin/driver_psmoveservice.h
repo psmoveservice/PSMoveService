@@ -256,8 +256,8 @@ private:
     bool m_lastTimeRumbleSentValid;
 
 	//virtual extend controller in meters
-	float m_fVirtuallExtendControllersY;
-	float m_fVirtuallExtendControllersZ;
+	float m_fVirtuallExtendControllersYMeters;
+	float m_fVirtuallExtendControllersZMeters;
 
 	// delay in resetting touchpad position after touchpad press
 	bool m_bDelayAfterTouchpadPress;
@@ -277,6 +277,7 @@ private:
 	eVRTouchpadDirection psButtonIDToVrTouchpadDirection[k_EPSButtonID_Count];
     void LoadButtonMapping(
         vr::IVRSettings *pSettings,
+		const ClientControllerView::eControllerType controllerType,
         const CPSMoveControllerLatest::ePSButtonID psButtonID,
         const vr::EVRButtonId defaultVRButtonID,
 		const eVRTouchpadDirection defaultTouchpadDirection);
@@ -288,7 +289,7 @@ private:
 
 	// Settings value: used to determine how many meters in front of the HMD the controller
 	// is held when it's being calibrated.
-	float m_fControllerMetersInFrontOfHmdAtCallibration;
+	float m_fControllerMetersInFrontOfHmdAtCalibration;
 
 	// The position of the controller in meters in driver space relative to its own rotation
 	// at the time when the touchpad was most recently pressed (after being up).

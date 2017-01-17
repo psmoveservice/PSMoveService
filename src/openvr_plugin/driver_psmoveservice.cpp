@@ -1316,11 +1316,13 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
     , m_lastTimeRumbleSentValid(false)
 	, m_resetPoseButtonPressTime()
 	, m_bResetPoseRequestSent(false)
-	, m_fVirtuallExtendControllersZ(0.0f)
-	, m_fVirtuallExtendControllersY(0.0f)
+	, m_fVirtuallExtendControllersZMeters(0.0f)
+	, m_fVirtuallExtendControllersYMeters(0.0f)
 	, m_bDelayAfterTouchpadPress(false)
 	, m_bTouchpadWasActive(false)
+	, m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis(false)
 	, m_touchpadDirectionsUsed(false)
+	, m_fControllerMetersInFrontOfHmdAtCalibration(0.f)
 {
     char buf[256];
     GenerateControllerSerialNumber(buf, sizeof(buf), controllerId);
@@ -1347,67 +1349,76 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 	// Map every button to not be associated with any touchpad direction, initially
 	memset(psButtonIDToVrTouchpadDirection, k_EVRTouchpadDirection_None, k_EPSButtonID_Count*sizeof(vr::EVRButtonId));
 
-    // Load the button remapping from the settings for all possible controller buttons   
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_PS, vr::k_EButton_System, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Left, vr::k_EButton_DPad_Left, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Up, vr::k_EButton_DPad_Up, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Right, vr::k_EButton_DPad_Right, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Down, vr::k_EButton_DPad_Down, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Move, vr::k_EButton_SteamVR_Touchpad, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Trackpad, vr::k_EButton_SteamVR_Touchpad, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Trigger, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Triangle, (vr::EVRButtonId)8, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Square, (vr::EVRButtonId)9, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Circle, (vr::EVRButtonId)10, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Cross, (vr::EVRButtonId)11, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Select, vr::k_EButton_Grip, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Share, vr::k_EButton_ApplicationMenu, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Start, vr::k_EButton_ApplicationMenu, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_Options, vr::k_EButton_ApplicationMenu, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_L1, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_L2, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_L3, vr::k_EButton_Grip, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R1, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R2, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
-    LoadButtonMapping(pSettings, ePSButtonID::k_EPSButtonID_R3, vr::k_EButton_Grip, k_EVRTouchpadDirection_None);
-
-	// Load the rumble settings
-	m_bRumbleSuppressed= pSettings->GetBool("psmove", "rumble_suppressed", m_bRumbleSuppressed);
-
-	// check if we want to have delay in poisition reset after touchpad pressed
-	m_bDelayAfterTouchpadPress = pSettings->GetBool("psmove", "delay_after_touchpad_press", m_bDelayAfterTouchpadPress);
-
-	DriverLog("Loaded m_bDelayAfterTouchpadPress: %d\n", m_bDelayAfterTouchpadPress);
-
-	// Grab the settings associated with mapping spatial movement to touchpad axes.
 	if (pSettings != nullptr)
 	{
 		vr::EVRSettingsError fetchError;
-		m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis
-			= pSettings->GetBool("psmove", "use_spatial_offset_after_touchpad_press_as_touchpad_axis", true, &fetchError);
 
-		m_fMetersPerTouchpadAxisUnits
-			= pSettings->GetFloat("psmove", "meters_per_touchpad_units", 0.075f, &fetchError);
+		// Load the button/touchpad remapping from the settings for all possible controller buttons   
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_PS, vr::k_EButton_System, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Left, vr::k_EButton_DPad_Left, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Up, vr::k_EButton_DPad_Up, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Right, vr::k_EButton_DPad_Right, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Down, vr::k_EButton_DPad_Down, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Move, vr::k_EButton_SteamVR_Touchpad, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Trackpad, vr::k_EButton_SteamVR_Touchpad, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Trigger, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Triangle, (vr::EVRButtonId)8, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Square, (vr::EVRButtonId)9, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Circle, (vr::EVRButtonId)10, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Cross, (vr::EVRButtonId)11, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Select, vr::k_EButton_Grip, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Share, vr::k_EButton_ApplicationMenu, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Start, vr::k_EButton_ApplicationMenu, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Options, vr::k_EButton_ApplicationMenu, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_L1, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_L2, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_L3, vr::k_EButton_Grip, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_R1, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_R2, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
+		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_R3, vr::k_EButton_Grip, k_EVRTouchpadDirection_None);
 
-		m_fVirtuallExtendControllersY = pSettings->GetFloat("psmove_settings", "psmove_extend_y", 0.0f, &fetchError);
-		m_fVirtuallExtendControllersZ = pSettings->GetFloat("psmove_settings", "psmove_extend_z", 0.0f, &fetchError);
+		switch (controllerType)
+		{
+		case ClientControllerView::PSMove:
+			{
+				// Touch pad settings
+				m_bDelayAfterTouchpadPress = pSettings->GetBool("psmove_touchpad", "delay_after_touchpad_press", m_bDelayAfterTouchpadPress);
+				m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis
+					= pSettings->GetBool("psmove", "use_spatial_offset_after_touchpad_press_as_touchpad_axis", true, &fetchError);
+				m_fMetersPerTouchpadAxisUnits
+					= pSettings->GetFloat("psmove", "meters_per_touchpad_units", .075f, &fetchError);
 
-	
+				// General Settings
+				m_bRumbleSuppressed= pSettings->GetBool("psmove_settings", "rumble_suppressed", m_bRumbleSuppressed);
+				m_fVirtuallExtendControllersYMeters = pSettings->GetFloat("psmove_settings", "psmove_extend_y", 0.0f, &fetchError);
+				m_fVirtuallExtendControllersZMeters = pSettings->GetFloat("psmove_settings", "psmove_extend_z", 0.0f, &fetchError);
+				m_fControllerMetersInFrontOfHmdAtCalibration
+					= pSettings->GetFloat("psmove", "m_fControllerMetersInFrontOfHmdAtCallibration", 0.06f, &fetchError);
 
-		#if LOG_TOUCHPAD_EMULATION != 0
-			DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
-			DriverLog("meters_per_touchpad_units: %f\n", m_fMetersPerTouchpadAxisUnits);
-		#endif
+				#if LOG_TOUCHPAD_EMULATION != 0
+				DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
+				DriverLog("meters_per_touchpad_units: %f\n", m_fMetersPerTouchpadAxisUnits);
+				#endif
 
+				#if LOG_REALIGN_TO_HMD != 0
+				DriverLog("m_fControllerMetersInFrontOfHmdAtCalibration(psmove): %f\n", m_fControllerMetersInFrontOfHmdAtCalibration);
+				#endif
+			}
+			break;
+		case ClientControllerView::PSDualShock4:
+			{
+				// General Settings
+				m_bRumbleSuppressed= pSettings->GetBool("dualshock4_settings", "rumble_suppressed", m_bRumbleSuppressed);
+				m_fControllerMetersInFrontOfHmdAtCalibration
+					= pSettings->GetFloat("dualshock4_settings", "cm_in_front_of_hmd_at_calibration", 16.f, &fetchError) / 100.f;
 
-		m_fControllerMetersInFrontOfHmdAtCallibration
-			= pSettings->GetFloat("psmove", "m_fControllerMetersInFrontOfHmdAtCallibration", 0.06f, &fetchError);
-
-		#if LOG_REALIGN_TO_HMD != 0
-			DriverLog("m_fControllerMetersInFrontOfHmdAtCallibration: %f\n", m_fControllerMetersInFrontOfHmdAtCallibration);
-		#endif
+				#if LOG_REALIGN_TO_HMD != 0
+				DriverLog("m_fControllerMetersInFrontOfHmdAtCalibration(ds4): %f\n", m_fControllerMetersInFrontOfHmdAtCalibration);
+				#endif
+			}
+			break;
+		}
 	}
-
 }
 
 CPSMoveControllerLatest::~CPSMoveControllerLatest()
@@ -1417,6 +1428,7 @@ CPSMoveControllerLatest::~CPSMoveControllerLatest()
 
 void CPSMoveControllerLatest::LoadButtonMapping(
     vr::IVRSettings *pSettings,
+	const ClientControllerView::eControllerType controllerType,
     const CPSMoveControllerLatest::ePSButtonID psButtonID,
     const vr::EVRButtonId defaultVRButtonID,
 	const eVRTouchpadDirection defaultTouchpadDirection)
@@ -1430,7 +1442,26 @@ void CPSMoveControllerLatest::LoadButtonMapping(
         const char *szPSButtonName = k_PSButtonNames[psButtonID];
         char remapButtonToButtonString[32];
         vr::EVRSettingsError fetchError;
-        pSettings->GetString("psmove", szPSButtonName, remapButtonToButtonString, 32, "", &fetchError);
+
+		const char *szButtonSectionName= "";
+		const char *szTouchpadSectionName= "";
+		switch (controllerType)
+		{
+		case ClientControllerView::PSMove:
+			szButtonSectionName= "psmove";
+			szTouchpadSectionName= "psmove_touchpad_directions";
+			break;
+		case ClientControllerView::PSDualShock4:
+			szButtonSectionName= "dualshock4_button";
+			szTouchpadSectionName= "dualshock4_touchpad";
+			break;
+		case ClientControllerView::PSNavi:
+			szButtonSectionName= "psnavi_button";
+			szTouchpadSectionName= "panavi_touchpad";
+			break;
+		}
+
+        pSettings->GetString(szButtonSectionName, szPSButtonName, remapButtonToButtonString, 32, "", &fetchError);
 
         if (fetchError == vr::VRSettingsError_None)
         {
@@ -1445,7 +1476,7 @@ void CPSMoveControllerLatest::LoadButtonMapping(
         }
 
 		char remapButtonToTouchpadDirectionString[32];
-		pSettings->GetString("psmove_touchpad_directions", szPSButtonName, remapButtonToTouchpadDirectionString, 32, "", &fetchError);
+		pSettings->GetString(szTouchpadSectionName, szPSButtonName, remapButtonToTouchpadDirectionString, 32, "", &fetchError);
 
 		if (fetchError == vr::VRSettingsError_None)
 		{
@@ -2257,13 +2288,13 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 		controllerOrientationInHmdSpaceQuat =
 			PSMoveQuaternion::create(PSMoveFloatVector3::create((float)M_PI_2, 0.0f, 0.0f));
 		controllerLocalOffsetFromHmdPosition
-			= PSMovePosition::create(0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCallibration);
+			= PSMovePosition::create(0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCalibration);
 	}
 	else if (pThis->m_PSMControllerType == ClientControllerView::PSDualShock4)
 	{
 		// Translation) The controller's position is a few inches ahead of the HMD's on the HMD's local -Z axis. 
 		controllerLocalOffsetFromHmdPosition
-			= PSMovePosition::create(0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCallibration);
+			= PSMovePosition::create(0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCalibration);
 	}
 
 	// Transform the HMD's world space transform to where we expect the controller's world space transform to be.
@@ -2272,7 +2303,7 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 
 	DriverLog("controllerPoseRelativeToHMD: %s \n", PsMovePoseToString(controllerPoseRelativeToHMD).c_str());
 
-	// Compute the expected psmove controller pose in HMD tracking space (i.e. "World Space")
+	// Compute the expected controller pose in HMD tracking space (i.e. "World Space")
 	PSMovePose controller_world_space_pose = PSMovePose::concat(controllerPoseRelativeToHMD, hmd_pose_meters);
 	DriverLog("controller_world_space_pose: %s \n", PsMovePoseToString(controller_world_space_pose).c_str());
 
@@ -2291,25 +2322,32 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	// Get the current pose from the controller view instead of using the driver's cached
 	// value because the user may have triggered a pose reset, in which case the driver's
 	// cached pose might not yet be up to date by the time this callback is triggered.
-	PSMovePose psmove_pose_meters = controller->m_controller_view->GetPSMoveView().GetPose();
-	DriverLog("psmove_pose_meters(raw): %s \n", PsMovePoseToString(psmove_pose_meters).c_str());
+	PSMovePose controller_pose_meters = controller->m_controller_view->GetPose();
+	DriverLog("controller_pose_meters(raw): %s \n", PsMovePoseToString(controller_pose_meters).c_str());
 
 	// PSMove Position is in cm, but OpenVR stores position in meters
-	psmove_pose_meters.Position.x *= k_fScalePSMoveAPIToMeters;
-	psmove_pose_meters.Position.y *= k_fScalePSMoveAPIToMeters;
-	psmove_pose_meters.Position.z *= k_fScalePSMoveAPIToMeters;
+	controller_pose_meters.Position.x *= k_fScalePSMoveAPIToMeters;
+	controller_pose_meters.Position.y *= k_fScalePSMoveAPIToMeters;
+	controller_pose_meters.Position.z *= k_fScalePSMoveAPIToMeters;
 
-	// Snap the controller to a +90 degree pitch so that we get a clean yaw
-	psmove_pose_meters.Orientation = ExtractPSMoveYawQuaternion(psmove_pose_meters.Orientation);
-	DriverLog("psmove_pose_meters(yaw-only): %s \n", PsMovePoseToString(psmove_pose_meters).c_str());
+	// Extract only the yaw from the controller orientation (assume it's mostly held upright)
+	if (pThis->m_PSMControllerType == ClientControllerView::PSMove)
+	{
+		controller_pose_meters.Orientation = ExtractPSMoveYawQuaternion(controller_pose_meters.Orientation);
+	}
+	else if (pThis->m_PSMControllerType == ClientControllerView::PSDualShock4)
+	{
+		controller_pose_meters.Orientation = PSMoveQuaternion::identity();
+	}
+	DriverLog("controller_pose_meters(yaw-only): %s \n", PsMovePoseToString(controller_pose_meters).c_str());
 
-	PSMovePose psmove_pose_inv = psmove_pose_meters.inverse();
-	DriverLog("psmove_pose_inv: %s \n", PsMovePoseToString(psmove_pose_inv).c_str());
+	PSMovePose controller_pose_inv = controller_pose_meters.inverse();
+	DriverLog("controller_pose_inv: %s \n", PsMovePoseToString(controller_pose_inv).c_str());
 
-	PSMovePose driver_pose_to_world_pose = PSMovePose::concat(psmove_pose_inv, controller_world_space_pose);
+	PSMovePose driver_pose_to_world_pose = PSMovePose::concat(controller_pose_inv, controller_world_space_pose);
 	DriverLog("driver_pose_to_world_pose: %s \n", PsMovePoseToString(driver_pose_to_world_pose).c_str());
 
-	PSMovePose test_composed_controller_world_space = PSMovePose::concat(psmove_pose_meters, driver_pose_to_world_pose);
+	PSMovePose test_composed_controller_world_space = PSMovePose::concat(controller_pose_meters, driver_pose_to_world_pose);
 	DriverLog("test_composed_controller_world_space: %s \n", PsMovePoseToString(test_composed_controller_world_space).c_str());
 
 	g_ServerTrackedDeviceProvider.SetHMDTrackingSpace(driver_pose_to_world_pose);
@@ -2358,27 +2396,27 @@ void CPSMoveControllerLatest::UpdateTrackingState()
             }
 
 			// virtual extend controllers
-			if (m_fVirtuallExtendControllersY != 0.0f || m_fVirtuallExtendControllersZ != 0.0f)
+			if (m_fVirtuallExtendControllersYMeters != 0.0f || m_fVirtuallExtendControllersZMeters != 0.0f)
 			{
 				const PSMoveQuaternion &orientation = view.GetOrientation();
 
 				PSMoveFloatVector3 shift;
 				shift = shift.create((float)m_Pose.vecPosition[0], (float)m_Pose.vecPosition[1], (float)m_Pose.vecPosition[2]);
 
-				if (m_fVirtuallExtendControllersZ != 0.0f) {
+				if (m_fVirtuallExtendControllersZMeters != 0.0f) {
 
 					PSMoveFloatVector3 local_forward = PSMoveFloatVector3::create(0, 0, -1);
 					PSMoveFloatVector3 global_forward = orientation.rotate_vector(local_forward);
 
-					shift = shift + global_forward*m_fVirtuallExtendControllersZ;
+					shift = shift + global_forward*m_fVirtuallExtendControllersZMeters;
 				}
 
-				if (m_fVirtuallExtendControllersY != 0.0f) {
+				if (m_fVirtuallExtendControllersYMeters != 0.0f) {
 
 					PSMoveFloatVector3 local_forward = PSMoveFloatVector3::create(0, -1, 0);
 					PSMoveFloatVector3 global_forward = orientation.rotate_vector(local_forward);
 
-					shift = shift + global_forward*m_fVirtuallExtendControllersY;
+					shift = shift + global_forward*m_fVirtuallExtendControllersYMeters;
 				}
 
 				m_Pose.vecPosition[0] = shift.i;
@@ -2437,8 +2475,8 @@ void CPSMoveControllerLatest::UpdateTrackingState()
             m_Pose.poseTimeOffset = 0.f;
 
             // Rotate -90 degrees about the x-axis from the current HMD orientation
-            m_Pose.qDriverFromHeadRotation.w = 0.707107;
-            m_Pose.qDriverFromHeadRotation.x = -0.707107;
+            m_Pose.qDriverFromHeadRotation.w = 1.f;
+            m_Pose.qDriverFromHeadRotation.x = 0.0f;
             m_Pose.qDriverFromHeadRotation.y = 0.0f;
             m_Pose.qDriverFromHeadRotation.z = 0.0f;
             m_Pose.vecDriverFromHeadTranslation[0] = 0.f;

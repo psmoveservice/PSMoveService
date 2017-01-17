@@ -533,7 +533,7 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
 				switch (controllerView->GetControllerViewType())
 				{
 				case ClientControllerView::PSMove:
-					controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
+					controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
 					break;
 				case ClientControllerView::PSDualShock4:
 					controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
