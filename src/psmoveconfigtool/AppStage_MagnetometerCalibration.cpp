@@ -239,8 +239,6 @@ AppStage_MagnetometerCalibration::AppStage_MagnetometerCalibration(App *app)
     , m_led_color_b(0)
     , m_stableStartTime()
     , m_bIsStable(false)
-	, m_resetPoseButtonPressTime()
-	, m_bResetPoseRequestSent(false)
     , m_identityPoseMVectorSum()
     , m_identityPoseSampleCount(0)
 { 
@@ -325,6 +323,8 @@ void AppStage_MagnetometerCalibration::update()
         {
             if (bControllerDataUpdatedThisFrame)
             {
+				m_controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
+
                 if (m_controllerView->GetPSMoveView().GetHasValidHardwareCalibration())
                 {
 					m_boundsStatistics->clear();
@@ -466,37 +466,6 @@ void AppStage_MagnetometerCalibration::update()
         } break;
     case eCalibrationMenuState::complete:
         {
-			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
-			{
-				PSMoveButtonState resetPoseButtonState = m_controllerView->GetPSMoveView().GetButtonSelect();
-
-				switch (resetPoseButtonState)
-				{
-				case PSMoveButtonState::PSMoveButton_PRESSED:
-					{
-						m_resetPoseButtonPressTime = std::chrono::high_resolution_clock::now();
-					} break;
-				case PSMoveButtonState::PSMoveButton_DOWN:
-					{
-						if (!m_bResetPoseRequestSent)
-						{
-							const float k_hold_duration_milli = 250.f;
-							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-							std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetPoseButtonPressTime;
-
-							if (pressDurationMilli.count() >= k_hold_duration_milli)
-							{
-								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
-								m_bResetPoseRequestSent = true;
-							}
-						}
-					} break;
-				case PSMoveButtonState::PSMoveButton_RELEASED:
-					{
-						m_bResetPoseRequestSent = false;
-					} break;
-				}
-			}
         } break;
     case eCalibrationMenuState::pendingExit:
         {

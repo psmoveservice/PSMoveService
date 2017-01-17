@@ -20,6 +20,7 @@
 #include "SDL_opengl.h"
 
 #include "ClientPSMoveAPI.h"
+#include "ClientControllerView.h"
 
 #include <imgui.h>
 #include <sstream>
@@ -524,7 +525,24 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
         m_pCalibrateWithMat->enter();
         break;
     case eMenuState::testTracking:
-        m_app->setCameraType(_cameraOrbit);
+		{
+			for (t_controller_state_map_iterator controller_iter = m_controllerViews.begin(); controller_iter != m_controllerViews.end(); ++controller_iter)
+			{
+				ClientControllerView *controllerView = controller_iter->second.controllerView;
+
+				switch (controllerView->GetControllerViewType())
+				{
+				case ClientControllerView::PSMove:
+					controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
+					break;
+				case ClientControllerView::PSDualShock4:
+					controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
+					break;
+				}
+			}
+
+			m_app->setCameraType(_cameraOrbit);
+		}
         break;
 	case eMenuState::showTrackerVideo:
 		break;

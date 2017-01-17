@@ -98,8 +98,6 @@ AppStage_GyroscopeCalibration::AppStage_GyroscopeCalibration(App *app)
     , m_isControllerStreamActive(false)
     , m_lastControllerSeqNum(-1)
     , m_lastRawGyroscope()
-	, m_resetPoseButtonPressTime()
-	, m_bResetPoseRequestSent(false)
     , m_gyroNoiseSamples(new GyroscopeNoiseSamples)
 {
 }
@@ -294,42 +292,6 @@ void AppStage_GyroscopeCalibration::update()
     case eCalibrationMenuState::measureComplete:
     case eCalibrationMenuState::test:
         {
-			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
-			{
-				PSMoveButtonState resetPoseButtonState= m_controllerView->GetPSMoveView().GetButtonSelect();
-
-				switch (resetPoseButtonState)
-				{
-				case PSMoveButtonState::PSMoveButton_PRESSED:
-					{
-						m_resetPoseButtonPressTime= std::chrono::high_resolution_clock::now();
-					} break;
-				case PSMoveButtonState::PSMoveButton_DOWN:
-					{
-						if (!m_bResetPoseRequestSent)
-						{
-							const float k_hold_duration_milli = 250.f;
-							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-							std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetPoseButtonPressTime;
-
-							if (pressDurationMilli.count() >= k_hold_duration_milli)
-							{
-								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
-								m_bResetPoseRequestSent = true;
-							}
-						}
-					} break;
-				case PSMoveButtonState::PSMoveButton_RELEASED:
-					{
-						m_bResetPoseRequestSent = false;
-					} break;
-				}
-			}
-			else if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4 &&
-					m_controllerView->GetPSDualShock4View().GetButtonOptions() == PSMoveButton_PRESSED)
-			{
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
-			}
         } break;
     default:
         assert(0 && "unreachable");
@@ -646,9 +608,25 @@ void AppStage_GyroscopeCalibration::onEnterState(eCalibrationMenuState newState)
 		m_app->getOrbitCamera()->setCameraOrbitRadius(1000.f); // zoom out to see the accelerometer data at scale
 		break;
 	case eCalibrationMenuState::test:
-		m_app->setCameraType(_cameraOrbit);
-		m_app->getOrbitCamera()->reset();
-		m_app->getOrbitCamera()->setCameraOrbitYaw(m_global_forward_degrees - k_camera_default_forward_degrees);
+		{
+			switch (m_controllerView->GetControllerViewType())
+			{
+			case ClientControllerView::PSDualShock4:
+				{
+					m_controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
+				}
+				break;
+			case ClientControllerView::PSMove:
+				{
+					m_controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
+				}
+				break;
+			}
+
+			m_app->setCameraType(_cameraOrbit);
+			m_app->getOrbitCamera()->reset();
+			m_app->getOrbitCamera()->setCameraOrbitYaw(m_global_forward_degrees - k_camera_default_forward_degrees);
+		}
 		break;
 	default:
 		assert(0 && "unreachable");

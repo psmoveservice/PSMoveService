@@ -187,8 +187,6 @@ AppStage_OpticalCalibration::AppStage_OpticalCalibration(App *app)
 	, m_bIsStableAndVisible(false)
 	, m_bLastMulticamPositionValid(false)
 	, m_bLastMulticamOrientationValid(false)
-	, m_resetPoseButtonPressTime()
-	, m_bResetPoseRequestSent(false)
     , m_poseNoiseSamplesSet(new PoseNoiseSampleSet)
 	, m_bWaitForSampleButtonRelease(false)
 {
@@ -450,42 +448,7 @@ void AppStage_OpticalCalibration::update()
     case eCalibrationMenuState::measureComplete:
     case eCalibrationMenuState::test:
         {
-			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
-			{
-				PSMoveButtonState resetPoseButtonState= m_controllerView->GetPSMoveView().GetButtonSelect();
 
-				switch (resetPoseButtonState)
-				{
-				case PSMoveButtonState::PSMoveButton_DOWN:
-					{
-						m_resetPoseButtonPressTime= std::chrono::high_resolution_clock::now();
-					} break;
-				case PSMoveButtonState::PSMoveButton_PRESSED:
-					{
-						if (!m_bResetPoseRequestSent)
-						{
-							const float k_hold_duration_milli = 250.f;
-							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-							std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetPoseButtonPressTime;
-
-							if (pressDurationMilli.count() >= k_hold_duration_milli)
-							{
-								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
-								m_bResetPoseRequestSent = true;
-							}
-						}
-					} break;
-				case PSMoveButtonState::PSMoveButton_UP:
-					{
-						m_bResetPoseRequestSent = false;
-					} break;
-				}
-			}
-			else if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4 &&
-					m_controllerView->GetPSDualShock4View().GetButtonOptions() == PSMoveButton_PRESSED)
-			{
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
-			}
         } break;
     default:
         assert(0 && "unreachable");
@@ -850,13 +813,38 @@ void AppStage_OpticalCalibration::onEnterState(eCalibrationMenuState newState)
 		break;
 	case eCalibrationMenuState::measureOpticalNoise:
 	case eCalibrationMenuState::measureComplete:
+		{
+			m_app->setCameraType(_cameraOrbit);
+			m_app->getOrbitCamera()->reset();
+			// Align the camera to face along the global forward
+			// NOTE "0" degrees is down +Z in the ConfigTool View (rather than +X in the Service)
+			m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - k_camera_default_forward_degrees);
+			m_app->getOrbitCamera()->setCameraOrbitRadius(200);
+		}
+		break;
 	case eCalibrationMenuState::test:
-		m_app->setCameraType(_cameraOrbit);
-		m_app->getOrbitCamera()->reset();
-		// Align the camera to face along the global forward
-		// NOTE "0" degrees is down +Z in the ConfigTool View (rather than +X in the Service)
-		m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - k_camera_default_forward_degrees);
-		m_app->getOrbitCamera()->setCameraOrbitRadius(200);
+		{
+			switch (m_controllerView->GetControllerViewType())
+			{
+			case ClientControllerView::PSDualShock4:
+				{
+					m_controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
+				}
+				break;
+			case ClientControllerView::PSMove:
+				{
+					m_controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
+				}
+			break;
+			}
+
+			m_app->setCameraType(_cameraOrbit);
+			m_app->getOrbitCamera()->reset();
+			// Align the camera to face along the global forward
+			// NOTE "0" degrees is down +Z in the ConfigTool View (rather than +X in the Service)
+			m_app->getOrbitCamera()->setCameraOrbitYaw(m_trackerList.global_forward_degrees - k_camera_default_forward_degrees);
+			m_app->getOrbitCamera()->setCameraOrbitRadius(200);
+		}
 		break;
 	default:
 		assert(0 && "unreachable");

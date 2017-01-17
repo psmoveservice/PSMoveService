@@ -1784,7 +1784,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				}
 			}
 
-            // If start was just pressed while and select was held or vice versa,
+            // If START was just pressed while and SELECT was held or vice versa,
 			// recenter the controller orientation pose and start the realignment of the controller to HMD tracking space.
             if (bStartRealignHMDTriggered)                
             {
@@ -1955,9 +1955,62 @@ void CPSMoveControllerLatest::UpdateControllerState()
         {
             const ClientPSDualShock4View &clientView = m_controller_view->GetPSDualShock4View();
 
-			if (clientView.GetButtonOptions() == PSMoveButton_PRESSED)
+			const bool bStartRealignHMDTriggered =
+				(clientView.GetButtonShare() == PSMoveButton_PRESSED && clientView.GetButtonOptions() == PSMoveButton_PRESSED) ||
+				(clientView.GetButtonShare() == PSMoveButton_PRESSED && clientView.GetButtonOptions() == PSMoveButton_DOWN) ||
+				(clientView.GetButtonShare() == PSMoveButton_DOWN && clientView.GetButtonOptions() == PSMoveButton_PRESSED);
+
+			// See if the recenter button has been held for the requisite amount of time
+			bool bRecenterRequestTriggered = false;
 			{
+				PSMoveButtonState resetPoseButtonState = clientView.GetButtonOptions();
+
+				switch (resetPoseButtonState)
+				{
+				case PSMoveButtonState::PSMoveButton_PRESSED:
+					{
+						m_resetPoseButtonPressTime = std::chrono::high_resolution_clock::now();
+					} break;
+				case PSMoveButtonState::PSMoveButton_DOWN:
+				{
+					if (!m_bResetPoseRequestSent)
+					{
+						const float k_hold_duration_milli = 250.f;
+						std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+						std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetPoseButtonPressTime;
+
+						if (pressDurationMilli.count() >= k_hold_duration_milli)
+						{
+							bRecenterRequestTriggered = true;
+						}
+					}
+				} break;
+				case PSMoveButtonState::PSMoveButton_RELEASED:
+					{
+						m_bResetPoseRequestSent = false;
+					} break;
+				}
+			}
+
+			// If SHARE was just pressed while and OPTIONS was held or vice versa,
+			// recenter the controller orientation pose and start the realignment of the controller to HMD tracking space.
+			if (bStartRealignHMDTriggered)
+			{
+				#if LOG_REALIGN_TO_HMD != 0
+				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling StartRealignHMDTrackingSpace() in response to controller chord.\n");
+				#endif
+
 				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controller_view, PSMoveQuaternion::identity()));
+				m_bResetPoseRequestSent = true;
+
+				StartRealignHMDTrackingSpace();
+			}
+			else if (bRecenterRequestTriggered)
+			{
+				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling ClientPSMoveAPI::reset_orientation() in response to controller button press.\n");
+
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controller_view, PSMoveQuaternion::identity()));
+				m_bResetPoseRequestSent = true;
 			}
 			else
 			{
@@ -2192,18 +2245,31 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	hmd_pose_meters.Orientation = ExtractHMDYawQuaternion(hmd_pose_raw_meters.Orientation);
 	DriverLog("hmd_pose_meters(yaw-only): %s \n", PsMovePoseToString(hmd_pose_meters).c_str());
 
-	// We have the transform of the HMD in world space. It and the controller aren't quite
-	// aligned -- the controller's local -Z axis (from the center to the glowing ball) is currently pointed 
-	// in the direction of the HMD's local +Y axis, and the controller's position is a few inches ahead of
-	// the HMD's on the HMD's local -Z axis. Transform the HMD's world space transform to where we expect the
-	// controller's world space transform to be.
+	// We have the transform of the HMD in world space. 
+	// However the HMD and the controller aren't quite aligned depending on the controller type:
+	PSMoveQuaternion controllerOrientationInHmdSpaceQuat= PSMoveQuaternion::identity();
+	PSMovePosition controllerLocalOffsetFromHmdPosition= PSMovePosition::identity();
+	if (pThis->m_PSMControllerType == ClientControllerView::PSMove)
+	{
+		// Rotation) The controller's local -Z axis (from the center to the glowing ball) is currently pointed 
+		//    in the direction of the HMD's local +Y axis, 
+		// Translation) The controller's position is a few inches ahead of the HMD's on the HMD's local -Z axis. 
+		controllerOrientationInHmdSpaceQuat =
+			PSMoveQuaternion::create(PSMoveFloatVector3::create((float)M_PI_2, 0.0f, 0.0f));
+		controllerLocalOffsetFromHmdPosition
+			= PSMovePosition::create(0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCallibration);
+	}
+	else if (pThis->m_PSMControllerType == ClientControllerView::PSDualShock4)
+	{
+		// Translation) The controller's position is a few inches ahead of the HMD's on the HMD's local -Z axis. 
+		controllerLocalOffsetFromHmdPosition
+			= PSMovePosition::create(0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCallibration);
+	}
 
-	PSMovePosition controllerLocalOffsetFromHmdPosition
-		= PSMovePosition::create(0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCallibration);
-	PSMoveQuaternion controllerOrientationInHmdSpaceQuat =
-		PSMoveQuaternion::create(PSMoveFloatVector3::create((float)M_PI_2, 0.0f, 0.0f));
+	// Transform the HMD's world space transform to where we expect the controller's world space transform to be.
 	PSMovePose controllerPoseRelativeToHMD =
 		PSMovePose::create(controllerLocalOffsetFromHmdPosition, controllerOrientationInHmdSpaceQuat);
+
 	DriverLog("controllerPoseRelativeToHMD: %s \n", PsMovePoseToString(controllerPoseRelativeToHMD).c_str());
 
 	// Compute the expected psmove controller pose in HMD tracking space (i.e. "World Space")
