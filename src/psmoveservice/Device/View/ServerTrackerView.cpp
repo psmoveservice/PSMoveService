@@ -2294,7 +2294,16 @@ static bool computeBestFitTriangleForContour(
 {
     // Compute the tightest possible bounding triangle for the given contour
 	t_opencv_float_contour cv_min_triangle;
-    cv::minEnclosingTriangle(opencv_contour, cv_min_triangle);
+
+	try
+	{
+		cv::minEnclosingTriangle(opencv_contour, cv_min_triangle);
+	}
+	catch( cv::Exception& e )
+	{
+		SERVER_LOG_INFO("computeBestFitTriangleForContour") << e.what();
+		return false;
+	}
 
     if (cv_min_triangle.size() != 3)
     {
