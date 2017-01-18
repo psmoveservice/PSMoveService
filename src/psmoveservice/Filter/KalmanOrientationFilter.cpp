@@ -666,6 +666,7 @@ void KalmanOrientationFilter::resetState()
 void KalmanOrientationFilter::recenterOrientation(const Eigen::Quaternionf& q_pose)
 {
 	m_filter->world_orientation = q_pose.cast<double>();
+	m_filter->ukf.init(OrientationStateVectord::Identity());
 }
 
 Eigen::Quaternionf KalmanOrientationFilter::getOrientation(float time) const
