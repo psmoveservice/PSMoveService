@@ -83,7 +83,7 @@ public:
     virtual void Cleanup() override;
     virtual bool BIsHmdPresent( const char * pchUserConfigDir ) override;
     virtual vr::EVRInitError SetDisplayId( const char * pchDisplayId ) override;
-    virtual vr::HiddenAreaMesh_t GetHiddenAreaMesh( vr::EVREye eEye ) override;
+	virtual vr::HiddenAreaMesh_t GetHiddenAreaMesh( vr::EVREye eEye, vr::EHiddenAreaMeshType type ) override;
     virtual uint32_t GetMCImage( uint32_t *pImgWidth, uint32_t *pImgHeight, uint32_t *pChannels, void *pDataBuffer, uint32_t unBufferLen ) override;
 
 private:
@@ -99,7 +99,7 @@ public:
     // Shared Implementation of vr::ITrackedDeviceServerDriver
     virtual vr::EVRInitError Activate(uint32_t unObjectId) override;
     virtual void Deactivate() override;
-    virtual void PowerOff() override;
+    virtual void EnterStandby() override;
     virtual void *GetComponent(const char *pchComponentNameAndVersion) override;
     virtual void DebugRequest(const char * pchRequest, char * pchResponseBuffer, uint32_t unResponseBufferSize) override;
     virtual vr::DriverPose_t GetPose() override;
@@ -281,6 +281,8 @@ private:
         const CPSMoveControllerLatest::ePSButtonID psButtonID,
         const vr::EVRButtonId defaultVRButtonID,
 		const eVRTouchpadDirection defaultTouchpadDirection);
+	bool LoadBool(vr::IVRSettings *pSettings, const char *pchSection, const char *pchSettingsKey, const bool bDefaultValue);
+	float LoadFloat(vr::IVRSettings *pSettings, const char *pchSection, const char *pchSettingsKey, const float fDefaultValue);
 
 	// Settings values. Used to determine whether we'll map controller movement after touchpad
 	// presses to touchpad axis values.

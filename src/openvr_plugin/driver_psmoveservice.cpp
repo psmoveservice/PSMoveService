@@ -327,7 +327,7 @@ vr::EVRInitError CServerDriver_PSMoveService::Init(
 			char buf[256];
 			vr::EVRSettingsError fetchError;
 
-			pSettings->GetString("psmove_settings", "psmove_filter_hmd_serial", buf, sizeof(buf), "", &fetchError);
+			pSettings->GetString("psmove_settings", "psmove_filter_hmd_serial", buf, sizeof(buf), &fetchError);
 			m_strPSMoveHMDSerialNo = boost::to_upper_copy<std::string>(buf);
 		}
 
@@ -930,7 +930,7 @@ vr::EVRInitError CClientDriver_PSMoveService::SetDisplayId( const char * pchDisp
     //return vr::VRInitError_Driver_HmdUnknown;
 }
 
-vr::HiddenAreaMesh_t CClientDriver_PSMoveService::GetHiddenAreaMesh( vr::EVREye eEye )
+vr::HiddenAreaMesh_t CClientDriver_PSMoveService::GetHiddenAreaMesh( vr::EVREye eEye, vr::EHiddenAreaMeshType type )
 {
     vr::HiddenAreaMesh_t hiddenAreaMesh= vr::HiddenAreaMesh_t();
 
@@ -995,7 +995,7 @@ void CPSMoveTrackedDeviceLatest::Deactivate()
     m_unSteamVRTrackedDeviceId = vr::k_unTrackedDeviceIndexInvalid;
 }
 
-void CPSMoveTrackedDeviceLatest::PowerOff()
+void CPSMoveTrackedDeviceLatest::EnterStandby()
 {
     //###HipsterSloth $TODO - No good way to do this at the moment
 }
@@ -1351,8 +1351,6 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 
 	if (pSettings != nullptr)
 	{
-		vr::EVRSettingsError fetchError;
-
 		// Load the button/touchpad remapping from the settings for all possible controller buttons   
 		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_PS, vr::k_EButton_System, k_EVRTouchpadDirection_None);
 		LoadButtonMapping(pSettings, controllerType, ePSButtonID::k_EPSButtonID_Left, vr::k_EButton_DPad_Left, k_EVRTouchpadDirection_None);
@@ -1382,18 +1380,19 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 		case ClientControllerView::PSMove:
 			{
 				// Touch pad settings
-				m_bDelayAfterTouchpadPress = pSettings->GetBool("psmove_touchpad", "delay_after_touchpad_press", m_bDelayAfterTouchpadPress);
-				m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis
-					= pSettings->GetBool("psmove", "use_spatial_offset_after_touchpad_press_as_touchpad_axis", true, &fetchError);
-				m_fMetersPerTouchpadAxisUnits
-					= pSettings->GetFloat("psmove", "meters_per_touchpad_units", .075f, &fetchError);
+				m_bDelayAfterTouchpadPress = 
+					LoadBool(pSettings, "psmove_touchpad", "delay_after_touchpad_press", m_bDelayAfterTouchpadPress);
+				m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis= 
+					LoadBool(pSettings, "psmove", "use_spatial_offset_after_touchpad_press_as_touchpad_axis", false);
+				m_fMetersPerTouchpadAxisUnits= 
+					LoadFloat(pSettings, "psmove", "meters_per_touchpad_units", .075f);
 
 				// General Settings
-				m_bRumbleSuppressed= pSettings->GetBool("psmove_settings", "rumble_suppressed", m_bRumbleSuppressed);
-				m_fVirtuallExtendControllersYMeters = pSettings->GetFloat("psmove_settings", "psmove_extend_y", 0.0f, &fetchError);
-				m_fVirtuallExtendControllersZMeters = pSettings->GetFloat("psmove_settings", "psmove_extend_z", 0.0f, &fetchError);
-				m_fControllerMetersInFrontOfHmdAtCalibration
-					= pSettings->GetFloat("psmove", "m_fControllerMetersInFrontOfHmdAtCallibration", 0.06f, &fetchError);
+				m_bRumbleSuppressed= LoadBool(pSettings, "psmove_settings", "rumble_suppressed", m_bRumbleSuppressed);
+				m_fVirtuallExtendControllersYMeters = LoadFloat(pSettings, "psmove_settings", "psmove_extend_y", 0.0f);
+				m_fVirtuallExtendControllersZMeters = LoadFloat(pSettings, "psmove_settings", "psmove_extend_z", 0.0f);
+				m_fControllerMetersInFrontOfHmdAtCalibration= 
+					LoadFloat(pSettings, "psmove", "m_fControllerMetersInFrontOfHmdAtCallibration", 0.06f);
 
 				#if LOG_TOUCHPAD_EMULATION != 0
 				DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
@@ -1408,9 +1407,9 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 		case ClientControllerView::PSDualShock4:
 			{
 				// General Settings
-				m_bRumbleSuppressed= pSettings->GetBool("dualshock4_settings", "rumble_suppressed", m_bRumbleSuppressed);
-				m_fControllerMetersInFrontOfHmdAtCalibration
-					= pSettings->GetFloat("dualshock4_settings", "cm_in_front_of_hmd_at_calibration", 16.f, &fetchError) / 100.f;
+				m_bRumbleSuppressed= LoadBool(pSettings, "dualshock4_settings", "rumble_suppressed", m_bRumbleSuppressed);
+				m_fControllerMetersInFrontOfHmdAtCalibration= 
+					LoadFloat(pSettings, "dualshock4_settings", "cm_in_front_of_hmd_at_calibration", 16.f) / 100.f;
 
 				#if LOG_REALIGN_TO_HMD != 0
 				DriverLog("m_fControllerMetersInFrontOfHmdAtCalibration(ds4): %f\n", m_fControllerMetersInFrontOfHmdAtCalibration);
@@ -1461,7 +1460,7 @@ void CPSMoveControllerLatest::LoadButtonMapping(
 			break;
 		}
 
-        pSettings->GetString(szButtonSectionName, szPSButtonName, remapButtonToButtonString, 32, "", &fetchError);
+        pSettings->GetString(szButtonSectionName, szPSButtonName, remapButtonToButtonString, 32, &fetchError);
 
         if (fetchError == vr::VRSettingsError_None)
         {
@@ -1476,7 +1475,7 @@ void CPSMoveControllerLatest::LoadButtonMapping(
         }
 
 		char remapButtonToTouchpadDirectionString[32];
-		pSettings->GetString(szTouchpadSectionName, szPSButtonName, remapButtonToTouchpadDirectionString, 32, "", &fetchError);
+		pSettings->GetString(szTouchpadSectionName, szPSButtonName, remapButtonToTouchpadDirectionString, 32, &fetchError);
 
 		if (fetchError == vr::VRSettingsError_None)
 		{
@@ -1494,6 +1493,40 @@ void CPSMoveControllerLatest::LoadButtonMapping(
     // Save the mapping
     psButtonIDToVRButtonID[psButtonID] = vrButtonID;
 	psButtonIDToVrTouchpadDirection[psButtonID] = vrTouchpadDirection;
+}
+
+bool CPSMoveControllerLatest::LoadBool(
+    vr::IVRSettings *pSettings,
+	const char *pchSection,
+	const char *pchSettingsKey,
+	const bool bDefaultValue)
+{
+	vr::EVRSettingsError eError;
+	bool bResult= pSettings->GetBool(pchSection, pchSettingsKey, &eError);
+
+	if (eError != vr::VRSettingsError_None)
+	{
+		bResult= bDefaultValue;
+	}
+	
+	return bResult;
+}
+
+float CPSMoveControllerLatest::LoadFloat(
+    vr::IVRSettings *pSettings,
+	const char *pchSection,
+	const char *pchSettingsKey,
+	const float fDefaultValue)
+{
+	vr::EVRSettingsError eError;
+	float fResult= pSettings->GetFloat(pchSection, pchSettingsKey, &eError);
+
+	if (eError != vr::VRSettingsError_None)
+	{
+		fResult= fDefaultValue;
+	}
+	
+	return fResult;
 }
 
 vr::EVRInitError CPSMoveControllerLatest::Activate(uint32_t unObjectId)
