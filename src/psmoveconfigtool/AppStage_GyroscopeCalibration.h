@@ -79,6 +79,7 @@ private:
 
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
+	bool m_bForceControllerStable;
 
     struct GyroscopeNoiseSamples *m_gyroNoiseSamples;
 	float m_global_forward_degrees;

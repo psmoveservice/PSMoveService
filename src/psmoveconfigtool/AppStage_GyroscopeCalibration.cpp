@@ -127,6 +127,7 @@ void AppStage_GyroscopeCalibration::enter()
 
     m_stableStartTime = std::chrono::time_point<std::chrono::high_resolution_clock>();
     m_bIsStable= false;
+	m_bForceControllerStable= false;
 
 	// Initialize the controller state
 	assert(controllerInfo->ControllerID != -1);
@@ -220,9 +221,9 @@ void AppStage_GyroscopeCalibration::update()
         } break;
     case eCalibrationMenuState::waitForStable:
         {
-            if (m_controllerView->GetIsStable())
+            if (m_controllerView->GetIsStable() || m_bForceControllerStable)
             {
-                if (m_bIsStable)
+                if (m_bIsStable || m_bForceControllerStable)
                 {
                     std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
     
@@ -249,7 +250,7 @@ void AppStage_GyroscopeCalibration::update()
         } break;
     case eCalibrationMenuState::measureBiasAndDrift: // PSMove and DS4
         {
-            if (m_controllerView->GetIsStable())
+            if (m_controllerView->GetIsStable() || m_bForceControllerStable)
             {
                 const std::chrono::duration<float, std::milli> sampleDurationMilli = now - m_gyroNoiseSamples->sampleStartTime;
                 const float deltaTimeSeconds= sampleTimeDeltaMilli.count()/1000.f;
@@ -415,7 +416,7 @@ void AppStage_GyroscopeCalibration::renderUI()
                 "Set the controller down on a level surface.\n" \
                 "Measurement will start once the controller is aligned with gravity and stable.");
 
-            if (m_bIsStable)
+            if (m_bIsStable || m_bForceControllerStable)
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
@@ -429,6 +430,11 @@ void AppStage_GyroscopeCalibration::renderUI()
                 ImGui::Text("Controller Destabilized! Waiting for stabilization..");
             }
 
+            if (ImGui::Button("Trust me, it's stable"))
+            {
+                m_bForceControllerStable= true;
+            }
+            ImGui::SameLine();
             if (ImGui::Button("Cancel"))
             {
                 request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
@@ -598,7 +604,11 @@ void AppStage_GyroscopeCalibration::onEnterState(eCalibrationMenuState newState)
 	case eCalibrationMenuState::failedTrackingSpaceSettings:
 	case eCalibrationMenuState::waitingForStreamStartResponse:
 	case eCalibrationMenuState::failedStreamStart:
+		break;
 	case eCalibrationMenuState::waitForStable:
+		m_bForceControllerStable= false;
+		m_bIsStable= false;
+		break;
 	case eCalibrationMenuState::measureBiasAndDrift:
 		break;
 	case eCalibrationMenuState::measureComplete:
