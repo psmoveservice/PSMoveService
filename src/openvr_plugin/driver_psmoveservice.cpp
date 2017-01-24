@@ -1743,6 +1743,33 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
     case vr::Prop_TrackingSystemName_String:
         ssRetVal << "psmoveservice";
         break;
+	case vr::Prop_IconPathName_String:
+        ssRetVal << "icons";
+		break;
+	case vr::Prop_NamedIconPathDeviceOff_String:
+        ssRetVal << "controller_status_off.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceSearching_String:
+        ssRetVal << "controller_status_ready.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceSearchingAlert_String:
+        ssRetVal << "controller_status_ready_alert.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceReady_String:
+        ssRetVal << "controller_status_ready.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceReadyAlert_String:
+        ssRetVal << "controller_status_ready_alert.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceNotReady_String:
+        ssRetVal << "controller_status_error.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceStandby_String:
+        ssRetVal << "controller_status_ready.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceAlertLow_String:
+        ssRetVal << "controller_status_ready_low.png";
+        break;
     }
 
     std::string sRetVal = ssRetVal.str();
@@ -2862,6 +2889,34 @@ uint32_t CPSMoveTrackerLatest::GetStringTrackedDeviceProperty(
 
     case vr::Prop_ModeLabel_String:
         ssRetVal << m_tracker_info.tracker_id;
+        break;
+
+	case vr::Prop_IconPathName_String:
+        ssRetVal << "resources/icons";
+        break;
+	case vr::Prop_NamedIconPathDeviceOff_String:
+        ssRetVal << "base_status_off.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceSearching_String:
+        ssRetVal << "base_status_ready.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceSearchingAlert_String:
+        ssRetVal << "base_status_ready_alert.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceReady_String:
+        ssRetVal << "base_status_ready.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceReadyAlert_String:
+        ssRetVal << "base_status_ready_alert.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceNotReady_String:
+        ssRetVal << "base_status_error.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceStandby_String:
+        ssRetVal << "base_status_ready.png";
+        break;
+	case vr::Prop_NamedIconPathDeviceAlertLow_String:
+        ssRetVal << "base_status_ready_low.png";
         break;
     }
 
