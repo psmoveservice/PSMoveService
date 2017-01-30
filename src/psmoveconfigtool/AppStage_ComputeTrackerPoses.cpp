@@ -3,6 +3,7 @@
 #include "AppStage_MainMenu.h"
 #include "AppStage_TrackerSettings.h"
 #include "AppSubStage_CalibrateWithMat.h"
+#include "AppSubStage_StereoCalibrate.h"
 #include "App.h"
 #include "AssetManager.h"
 #include "Camera.h"
@@ -44,6 +45,7 @@ AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
 	, m_pendingControllerStartCount(0)
     , m_renderTrackerIndex(0)
     , m_pCalibrateWithMat(new AppSubStage_CalibrateWithMat(this))
+	, m_pStereoCalibrate(new AppSubStage_StereoCalibrate(this))
     , m_bSkipCalibration(false)
 	, m_overrideControllerId(-1)
 { 
@@ -111,6 +113,8 @@ void AppStage_ComputeTrackerPoses::update()
     case eMenuState::verifyTrackers:
         update_tracker_video();
         break;
+	case eMenuState::selectCalibrationMethod:
+		break;
     case eMenuState::calibrateWithMat:
         {
             m_pCalibrateWithMat->update();
@@ -120,6 +124,20 @@ void AppStage_ComputeTrackerPoses::update()
                 setState(AppStage_ComputeTrackerPoses::eMenuState::testTracking);
             }
             else if (m_pCalibrateWithMat->getMenuState() == AppSubStage_CalibrateWithMat::calibrateStepFailed)
+            {
+                setState(AppStage_ComputeTrackerPoses::eMenuState::calibrateStepFailed);
+            }
+        }
+        break;
+    case eMenuState::stereoCalibrate:
+        {
+            m_pStereoCalibrate->update();
+
+            if (m_pStereoCalibrate->getMenuState() == AppSubStage_StereoCalibrate::calibrateStepSuccess)
+            {
+                setState(AppStage_ComputeTrackerPoses::eMenuState::testTracking);
+            }
+            else if (m_pStereoCalibrate->getMenuState() == AppSubStage_StereoCalibrate::calibrateStepFailed)
             {
                 setState(AppStage_ComputeTrackerPoses::eMenuState::calibrateStepFailed);
             }
@@ -157,8 +175,13 @@ void AppStage_ComputeTrackerPoses::render()
         {
             render_tracker_video();
         } break;
+	case eMenuState::selectCalibrationMethod:
+		break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->render();
+        break;
+    case eMenuState::stereoCalibrate:
+        m_pStereoCalibrate->render();
         break;
     case eMenuState::testTracking:
         {
@@ -335,7 +358,15 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
             if (ImGui::Button("Looks Good!"))
             {
-                setState(eMenuState::calibrateWithMat);
+				if (m_trackerViews.size() == 2)
+				{
+					// only consider stereo camera calibration when there are two trackers
+					setState(eMenuState::selectCalibrationMethod);
+				}
+				else
+				{
+					setState(eMenuState::calibrateWithMat);
+				}
             }
 
             if (ImGui::Button("Hmm... Something is wrong."))
@@ -346,9 +377,37 @@ void AppStage_ComputeTrackerPoses::renderUI()
             ImGui::End();
         } break;
 
+	case eMenuState::selectCalibrationMethod:
+		{
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - 500.f / 2.f, 20.f));
+            ImGui::SetNextWindowSize(ImVec2(500.f, 150.f));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
+
+            ImGui::Text("Select a calibration method");
+            ImGui::Separator();
+			ImGui::TextWrapped("Use 'Stereo Camera' if you have two cameras rigidly aligned side by side a few centimeters apart, otherwise use 'Calibration Mat'.");
+			ImGui::Separator();
+
+            if (ImGui::Button("Calibration Mat"))
+            {
+                setState(eMenuState::calibrateWithMat);
+            }
+            if (ImGui::Button("Stereo Camera"))
+            {
+                setState(eMenuState::stereoCalibrate);
+            }
+
+            ImGui::End();
+		} break;
+
     case eMenuState::calibrateWithMat:
         {
             m_pCalibrateWithMat->renderUI();
+        } break;
+
+    case eMenuState::stereoCalibrate:
+        {
+            m_pStereoCalibrate->renderUI();
         } break;
 
     case eMenuState::testTracking:
@@ -480,9 +539,14 @@ void AppStage_ComputeTrackerPoses::onExitState(eMenuState newState)
         break;
     case eMenuState::verifyTrackers:
         break;
+	case eMenuState::selectCalibrationMethod:
+        break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->exit();
         break;
+	case eMenuState::stereoCalibrate:
+		m_pStereoCalibrate->exit();
+		break;
     case eMenuState::testTracking:
         m_app->setCameraType(_cameraFixed);
         break;
@@ -521,8 +585,13 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
     case eMenuState::verifyTrackers:
         m_renderTrackerIter = m_trackerViews.begin();
         break;
+	case eMenuState::selectCalibrationMethod:
+        break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->enter();
+        break;
+    case eMenuState::stereoCalibrate:
+        m_pStereoCalibrate->enter();
         break;
     case eMenuState::testTracking:
 		{
