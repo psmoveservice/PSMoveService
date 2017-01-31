@@ -1,6 +1,7 @@
 //-- includes -----
 #include "ClientControllerView.h"
 #include "ClientNetworkManager.h"
+#include "ClientPSMoveAPI.h"
 #include "PSMoveProtocolInterface.h"
 #include "PSMoveProtocol.pb.h"
 #include "MathUtility.h"
@@ -49,6 +50,10 @@ void ClientPSMoveView::Clear()
     TriggerButton= PSMoveButton_UP;
 
     TriggerValue= 0;
+
+	ResetPoseButtonPressTime = 0;
+	bResetPoseRequestSent = false;
+	bPoseResetButtonEnabled = false;
 }
 
 const PSMovePhysicsData &ClientPSMoveView::GetPhysicsData() const
@@ -102,6 +107,7 @@ const PSMoveRawTrackerData &ClientPSMoveView::GetRawTrackerData() const
 }
 
 void ClientPSMoveView::ApplyControllerDataFrame(
+	class ClientControllerView *parentView,
     const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame)
 {
     if (data_frame->isconnected())
@@ -260,11 +266,53 @@ void ClientPSMoveView::ApplyControllerDataFrame(
         this->TriggerValue= static_cast<unsigned char>(psmove_data_frame.trigger_value());
 
         this->bValid= true;
+
+		// Fire off a recenter action if the recenter button has been held for long enough
+		ProcessRecenterAction(parentView);
     }
     else
     {
         Clear();
     }
+}
+
+void ClientPSMoveView::ProcessRecenterAction(class ClientControllerView *parentView)
+{
+	if (bPoseResetButtonEnabled)
+	{
+		long long now =
+			std::chrono::duration_cast< std::chrono::milliseconds >(
+				std::chrono::system_clock::now().time_since_epoch()).count();
+
+		PSMoveButtonState resetPoseButtonState = GetButtonSelect();
+
+		switch (resetPoseButtonState)
+		{
+		case PSMoveButtonState::PSMoveButton_PRESSED:
+			{
+				ResetPoseButtonPressTime = now;
+			} break;
+		case PSMoveButtonState::PSMoveButton_DOWN:
+			{
+				if (!bResetPoseRequestSent)
+				{
+					const long long k_hold_duration_milli = 250;
+					long long pressDurationMilli = now - ResetPoseButtonPressTime;
+
+					if (pressDurationMilli >= k_hold_duration_milli)
+					{
+						ClientPSMoveAPI::eat_response(
+							ClientPSMoveAPI::reset_orientation(parentView, PSMoveQuaternion::identity()));
+						bResetPoseRequestSent = true;
+					}
+				}
+			} break;
+		case PSMoveButtonState::PSMoveButton_RELEASED:
+			{
+				bResetPoseRequestSent = false;
+			} break;
+		}
+	}
 }
 
 void ClientPSMoveView::Publish(
@@ -406,9 +454,15 @@ void ClientPSDualShock4View::Clear()
     RightAnalogY = 0.f;
     LeftTriggerValue = 0.f;
     RightTriggerValue = 0.f;
+
+	ResetPoseButtonPressTime = 0;
+	bResetPoseRequestSent= false;
+	bPoseResetButtonEnabled = false;
 }
 
-void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame)
+void ClientPSDualShock4View::ApplyControllerDataFrame(
+	class ClientControllerView *parentView,
+	const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame)
 {
     if (data_frame->isconnected())
     {
@@ -601,11 +655,53 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
         this->RightTriggerValue = psds4_data_frame.right_trigger_value();
 
         this->bValid = true;
+
+		// Fire off the recenter action if the recenter button has been held long enough
+		ProcessRecenterAction(parentView);
     }
     else
     {
         Clear();
     }
+}
+
+void ClientPSDualShock4View::ProcessRecenterAction(class ClientControllerView *parentView)
+{
+	if (bPoseResetButtonEnabled)
+	{
+		long long now =
+			std::chrono::duration_cast< std::chrono::milliseconds >(
+				std::chrono::system_clock::now().time_since_epoch()).count();
+
+		PSMoveButtonState resetPoseButtonState = GetButtonOptions();
+
+		switch (resetPoseButtonState)
+		{
+		case PSMoveButtonState::PSMoveButton_PRESSED:
+			{
+				ResetPoseButtonPressTime = now;
+			} break;
+		case PSMoveButtonState::PSMoveButton_DOWN:
+			{
+				if (!bResetPoseRequestSent)
+				{
+					const long long k_hold_duration_milli = 250;
+					long long pressDurationMilli = now - ResetPoseButtonPressTime;
+
+					if (pressDurationMilli >= k_hold_duration_milli)
+					{
+						ClientPSMoveAPI::eat_response(
+							ClientPSMoveAPI::reset_orientation(parentView, PSMoveQuaternion::identity()));
+						bResetPoseRequestSent = true;
+					}
+				}
+			} break;
+		case PSMoveButtonState::PSMoveButton_RELEASED:
+			{
+				bResetPoseRequestSent = false;
+			} break;
+		}
+	}
 }
 
 void ClientPSDualShock4View::Publish(
@@ -750,7 +846,7 @@ void ClientControllerView::ApplyControllerDataFrame(
         case PSMoveProtocol::PSMOVE:
             {
                 this->ControllerViewType= PSMove;
-                this->ViewState.PSMoveView.ApplyControllerDataFrame(data_frame);
+                this->ViewState.PSMoveView.ApplyControllerDataFrame(this, data_frame);
             } break;
 
         case PSMoveProtocol::PSNAVI:
@@ -762,7 +858,7 @@ void ClientControllerView::ApplyControllerDataFrame(
             case PSMoveProtocol::PSDUALSHOCK4:
             {
                 this->ControllerViewType = PSDualShock4;
-                this->ViewState.PSDualShock4View.ApplyControllerDataFrame(data_frame);
+                this->ViewState.PSDualShock4View.ApplyControllerDataFrame(this, data_frame);
             } break;
 
             default:

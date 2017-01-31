@@ -1094,3 +1094,31 @@ eigen_alignment_project_points_on_plane(
 
 	return total_error;
 }
+
+void
+eigen_alignment_compute_camera_fundamental_matrix(
+	const Eigen::Vector3f &Ta,
+	const Eigen::Vector3f &Tb,
+	const Eigen::Quaternionf &Qa,
+	const Eigen::Quaternionf &Qb,
+	const Eigen::Matrix3f &Ka,
+	const Eigen::Matrix3f &Kb,
+	Eigen::Matrix3f &F_ab)
+{
+	// T = Translation from camera A to camera B
+	Eigen::Vector3f T = Tb - Ta;
+	Eigen::Matrix3f S;
+	S << 0.f, T.z(), -T.y(),
+		-T.z(), 0.f, T.x(),
+		T.y(), -T.x(), 0.f;
+
+	// R = Rotation matrix from camera A to camera B
+	Eigen::Quaternionf R_quat = Qa.conjugate() * Qb;
+	Eigen::Matrix3f R = R_quat.toRotationMatrix();
+
+	// Essential Matrix from A to B, depending on extrinsic parameters
+	Eigen::Matrix3f E = R * S;
+
+	// Compute the fundamental matrix from camera A to camera B
+	F_ab = Kb.inverse().transpose() * E * Ka.inverse();
+}

@@ -98,8 +98,6 @@ AppStage_GyroscopeCalibration::AppStage_GyroscopeCalibration(App *app)
     , m_isControllerStreamActive(false)
     , m_lastControllerSeqNum(-1)
     , m_lastRawGyroscope()
-	, m_resetPoseButtonPressTime()
-	, m_bResetPoseRequestSent(false)
     , m_gyroNoiseSamples(new GyroscopeNoiseSamples)
 {
 }
@@ -129,6 +127,7 @@ void AppStage_GyroscopeCalibration::enter()
 
     m_stableStartTime = std::chrono::time_point<std::chrono::high_resolution_clock>();
     m_bIsStable= false;
+	m_bForceControllerStable= false;
 
 	// Initialize the controller state
 	assert(controllerInfo->ControllerID != -1);
@@ -222,9 +221,9 @@ void AppStage_GyroscopeCalibration::update()
         } break;
     case eCalibrationMenuState::waitForStable:
         {
-            if (m_controllerView->GetIsStable())
+            if (m_controllerView->GetIsStable() || m_bForceControllerStable)
             {
-                if (m_bIsStable)
+                if (m_bIsStable || m_bForceControllerStable)
                 {
                     std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
     
@@ -251,7 +250,7 @@ void AppStage_GyroscopeCalibration::update()
         } break;
     case eCalibrationMenuState::measureBiasAndDrift: // PSMove and DS4
         {
-            if (m_controllerView->GetIsStable())
+            if (m_controllerView->GetIsStable() || m_bForceControllerStable)
             {
                 const std::chrono::duration<float, std::milli> sampleDurationMilli = now - m_gyroNoiseSamples->sampleStartTime;
                 const float deltaTimeSeconds= sampleTimeDeltaMilli.count()/1000.f;
@@ -294,42 +293,6 @@ void AppStage_GyroscopeCalibration::update()
     case eCalibrationMenuState::measureComplete:
     case eCalibrationMenuState::test:
         {
-			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
-			{
-				PSMoveButtonState resetPoseButtonState= m_controllerView->GetPSMoveView().GetButtonSelect();
-
-				switch (resetPoseButtonState)
-				{
-				case PSMoveButtonState::PSMoveButton_PRESSED:
-					{
-						m_resetPoseButtonPressTime= std::chrono::high_resolution_clock::now();
-					} break;
-				case PSMoveButtonState::PSMoveButton_DOWN:
-					{
-						if (!m_bResetPoseRequestSent)
-						{
-							const float k_hold_duration_milli = 250.f;
-							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-							std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetPoseButtonPressTime;
-
-							if (pressDurationMilli.count() >= k_hold_duration_milli)
-							{
-								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
-								m_bResetPoseRequestSent = true;
-							}
-						}
-					} break;
-				case PSMoveButtonState::PSMoveButton_RELEASED:
-					{
-						m_bResetPoseRequestSent = false;
-					} break;
-				}
-			}
-			else if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4 &&
-					m_controllerView->GetPSDualShock4View().GetButtonOptions() == PSMoveButton_PRESSED)
-			{
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
-			}
         } break;
     default:
         assert(0 && "unreachable");
@@ -453,7 +416,7 @@ void AppStage_GyroscopeCalibration::renderUI()
                 "Set the controller down on a level surface.\n" \
                 "Measurement will start once the controller is aligned with gravity and stable.");
 
-            if (m_bIsStable)
+            if (m_bIsStable || m_bForceControllerStable)
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
@@ -467,6 +430,11 @@ void AppStage_GyroscopeCalibration::renderUI()
                 ImGui::Text("Controller Destabilized! Waiting for stabilization..");
             }
 
+            if (ImGui::Button("Trust me, it's stable"))
+            {
+                m_bForceControllerStable= true;
+            }
+            ImGui::SameLine();
             if (ImGui::Button("Cancel"))
             {
                 request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
@@ -636,7 +604,11 @@ void AppStage_GyroscopeCalibration::onEnterState(eCalibrationMenuState newState)
 	case eCalibrationMenuState::failedTrackingSpaceSettings:
 	case eCalibrationMenuState::waitingForStreamStartResponse:
 	case eCalibrationMenuState::failedStreamStart:
+		break;
 	case eCalibrationMenuState::waitForStable:
+		m_bForceControllerStable= false;
+		m_bIsStable= false;
+		break;
 	case eCalibrationMenuState::measureBiasAndDrift:
 		break;
 	case eCalibrationMenuState::measureComplete:
@@ -646,9 +618,21 @@ void AppStage_GyroscopeCalibration::onEnterState(eCalibrationMenuState newState)
 		m_app->getOrbitCamera()->setCameraOrbitRadius(1000.f); // zoom out to see the accelerometer data at scale
 		break;
 	case eCalibrationMenuState::test:
-		m_app->setCameraType(_cameraOrbit);
-		m_app->getOrbitCamera()->reset();
-		m_app->getOrbitCamera()->setCameraOrbitYaw(m_global_forward_degrees - k_camera_default_forward_degrees);
+		{
+			switch (m_controllerView->GetControllerViewType())
+			{
+			case ClientControllerView::PSDualShock4:
+				m_controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
+				break;
+			case ClientControllerView::PSMove:
+				m_controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
+				break;
+			}
+
+			m_app->setCameraType(_cameraOrbit);
+			m_app->getOrbitCamera()->reset();
+			m_app->getOrbitCamera()->setCameraOrbitYaw(m_global_forward_degrees - k_camera_default_forward_degrees);
+		}
 		break;
 	default:
 		assert(0 && "unreachable");

@@ -239,8 +239,7 @@ AppStage_MagnetometerCalibration::AppStage_MagnetometerCalibration(App *app)
     , m_led_color_b(0)
     , m_stableStartTime()
     , m_bIsStable(false)
-	, m_resetPoseButtonPressTime()
-	, m_bResetPoseRequestSent(false)
+	, m_bForceControllerStable(false)
     , m_identityPoseMVectorSum()
     , m_identityPoseSampleCount(0)
 { 
@@ -281,6 +280,7 @@ void AppStage_MagnetometerCalibration::enter()
 
 	m_stableStartTime = std::chrono::time_point<std::chrono::high_resolution_clock>();
     m_bIsStable= false;
+	m_bForceControllerStable= false;
 
     m_menuState= eCalibrationMenuState::waitingForStreamStartResponse;
     assert(!m_isControllerStreamActive);
@@ -327,6 +327,8 @@ void AppStage_MagnetometerCalibration::update()
             {
                 if (m_controllerView->GetPSMoveView().GetHasValidHardwareCalibration())
                 {
+					m_controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
+
 					m_boundsStatistics->clear();
                     
                     m_led_color_r= 255; m_led_color_g= 0; m_led_color_b= 0;
@@ -375,11 +377,11 @@ void AppStage_MagnetometerCalibration::update()
         } break;
     case eCalibrationMenuState::waitForGravityAlignment:
         {
-            if (m_controllerView->GetPSMoveView().GetIsStableAndAlignedWithGravity())
+            if (m_controllerView->GetPSMoveView().GetIsStableAndAlignedWithGravity() || m_bForceControllerStable)
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 
-                if (m_bIsStable)
+                if (m_bIsStable || m_bForceControllerStable)
                 {
                     std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
     
@@ -405,7 +407,7 @@ void AppStage_MagnetometerCalibration::update()
         } break;
     case eCalibrationMenuState::measureBDirection:
         {
-            if (m_controllerView->GetPSMoveView().GetIsStableAndAlignedWithGravity())
+            if (m_controllerView->GetPSMoveView().GetIsStableAndAlignedWithGravity() || m_bForceControllerStable)
             {
                 if (bControllerDataUpdatedThisFrame)
                 {
@@ -466,37 +468,6 @@ void AppStage_MagnetometerCalibration::update()
         } break;
     case eCalibrationMenuState::complete:
         {
-			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
-			{
-				PSMoveButtonState resetPoseButtonState = m_controllerView->GetPSMoveView().GetButtonSelect();
-
-				switch (resetPoseButtonState)
-				{
-				case PSMoveButtonState::PSMoveButton_PRESSED:
-					{
-						m_resetPoseButtonPressTime = std::chrono::high_resolution_clock::now();
-					} break;
-				case PSMoveButtonState::PSMoveButton_DOWN:
-					{
-						if (!m_bResetPoseRequestSent)
-						{
-							const float k_hold_duration_milli = 250.f;
-							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-							std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetPoseButtonPressTime;
-
-							if (pressDurationMilli.count() >= k_hold_duration_milli)
-							{
-								ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
-								m_bResetPoseRequestSent = true;
-							}
-						}
-					} break;
-				case PSMoveButtonState::PSMoveButton_RELEASED:
-					{
-						m_bResetPoseRequestSent = false;
-					} break;
-				}
-			}
         } break;
     case eCalibrationMenuState::pendingExit:
         {
@@ -813,7 +784,7 @@ void AppStage_MagnetometerCalibration::renderUI()
                 "This will be the default orientation of the move controller.\n" \
                 "Measurement will start once the controller is aligned with gravity and stable.");
 
-            if (m_bIsStable)
+            if (m_bIsStable || m_bForceControllerStable)
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
@@ -827,6 +798,11 @@ void AppStage_MagnetometerCalibration::renderUI()
                 ImGui::Text("Move Destabilized! Waiting for stabilization..");
             }
 
+            if (ImGui::Button("Trust me, it's stable"))
+            {
+                m_bForceControllerStable= true;
+            }
+            ImGui::SameLine();
             if (ImGui::Button("Cancel"))
             {
                 request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);

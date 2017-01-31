@@ -400,7 +400,7 @@ void AppStage_ControllerSettings::renderUI()
                 {
                     if (ImGui::Button("Unpair USB Controller"))
                     {
-                        m_app->getAppStage<AppStage_PairController>()->request_controller_unpair(controllerInfo.ControllerID);
+                        m_app->getAppStage<AppStage_PairController>()->request_controller_unpair(controllerInfo.ControllerID, controllerInfo.ControllerType);
                         m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
                     }
                 }
@@ -408,7 +408,7 @@ void AppStage_ControllerSettings::renderUI()
                 {
                     if (ImGui::Button("Pair USB Controller"))
                     {
-                        m_app->getAppStage<AppStage_PairController>()->request_controller_pair(controllerInfo.ControllerID);
+                        m_app->getAppStage<AppStage_PairController>()->request_controller_pair(controllerInfo.ControllerID, controllerInfo.ControllerType);
                         m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
                     }
                 }

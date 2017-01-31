@@ -1645,6 +1645,7 @@ init_filters_for_psmove(
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
+	constants.clear();
 
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.accelerometer_variance =
@@ -1775,6 +1776,7 @@ init_filters_for_psdualshock4(
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
+	constants.clear();
 
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
@@ -1792,6 +1794,8 @@ init_filters_for_psdualshock4(
 	constants.orientation_constants.orientation_variance_curve.B = ds4_config->orientation_variance_exp_fit_b;
 	constants.orientation_constants.orientation_variance_curve.MaxValue = 1.f;
 
+	constants.position_constants.use_linear_acceleration = ds4_config->position_use_linear_acceleration;
+	constants.position_constants.apply_gravity_mask = ds4_config->position_apply_gravity_mask;
 	constants.position_constants.gravity_calibration_direction= pose_filter_space->getGravityCalibrationDirection();
 	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
 	constants.position_constants.accelerometer_variance= 

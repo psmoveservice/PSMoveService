@@ -21,8 +21,8 @@ public:
 
     static const char *APP_STAGE_NAME;
 
-    void request_controller_unpair(int controllerId);
-    void request_controller_pair(int controllerId);
+    void request_controller_unpair(int controllerId, ClientControllerView::eControllerType controllerType);
+    void request_controller_pair(int controllerId, ClientControllerView::eControllerType controllerType);
     void request_cancel_bluetooth_operation(int controllerID);
 
 protected:
@@ -66,6 +66,9 @@ private:
     
     int m_pair_steps_completed;
     int m_pair_steps_total;
+
+	int m_controllerID;
+	ClientControllerView::eControllerType m_controllerType;
 };
 
 #endif // APP_STAGE_PAIR_CONTROLLER_H

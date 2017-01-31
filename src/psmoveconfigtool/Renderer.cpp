@@ -1076,18 +1076,25 @@ void drawPS3EyeModel(const glm::mat4 &transform)
 {
     assert(Renderer::getIsRenderingStage());
 
+    int textureID= AssetManager::getInstance()->getPS3EyeTextureAsset()->texture_id;
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
     glColor3f(1.f, 1.f, 1.f);
 
     glPushMatrix();
         glMultMatrixf(glm::value_ptr(transform));
         glEnableClientState(GL_VERTEX_ARRAY);
-        glEnableClientState(GL_NORMAL_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
         glVertexPointer(3, GL_FLOAT, 0, ps3eyeVerts);
-        glNormalPointer(GL_FLOAT, 0, ps3eyeNormals);
+        glTexCoordPointer(2, GL_FLOAT, 0, ps3eyeTexCoords);
         glDrawArrays(GL_TRIANGLES, 0, ps3eyeNumVerts);
         glDisableClientState(GL_VERTEX_ARRAY);
-        glDisableClientState(GL_NORMAL_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
     glPopMatrix();
+
+    // rebind the default texture
+    glBindTexture(GL_TEXTURE_2D, 0); 
 }
 
 void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color)

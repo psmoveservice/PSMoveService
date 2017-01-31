@@ -213,9 +213,13 @@ private:
     unsigned char Rumble;
     unsigned char LED_r, LED_g, LED_b;
 
+	long long ResetPoseButtonPressTime;
+	bool bResetPoseRequestSent;
+	bool bPoseResetButtonEnabled;
+
 public:
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
+    void ApplyControllerDataFrame(class ClientControllerView *parentView, const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
     void Publish(PSMoveProtocol::DeviceInputDataFrame_ControllerDataPacket *data_frame);
 
     void SetRumble(float rumbleFraction);
@@ -340,6 +344,14 @@ public:
 
 
     const PSMoveRawTrackerData &GetRawTrackerData() const;
+
+	inline void SetPoseResetButtonEnabled(bool bEnabled)
+	{
+		bPoseResetButtonEnabled = bEnabled;
+	}
+
+protected:
+	void ProcessRecenterAction(class ClientControllerView *parentView);
 };
 
 class PSM_CPP_PUBLIC_CLASS ClientPSNaviView
@@ -541,9 +553,13 @@ private:
     unsigned char BigRumble, SmallRumble;
     unsigned char LED_r, LED_g, LED_b;
 
+	long long ResetPoseButtonPressTime;
+	bool bResetPoseRequestSent;
+	bool bPoseResetButtonEnabled;
+
 public:
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
+    void ApplyControllerDataFrame(class ClientControllerView *parentView, const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
     void Publish(PSMoveProtocol::DeviceInputDataFrame_ControllerDataPacket *data_frame);
 
     void SetBigRumble(float rumbleFraction);
@@ -741,6 +757,14 @@ public:
     bool GetIsStable() const;
 	bool GetIsGyroStable() const;
     const PSMoveRawTrackerData &GetRawTrackerData() const;
+
+	inline void SetPoseResetButtonEnabled(bool bEnabled)
+	{
+		bPoseResetButtonEnabled = bEnabled;
+	}
+
+protected:
+	void ProcessRecenterAction(class ClientControllerView *parentView);
 };
 
 class PSM_CPP_PUBLIC_CLASS ClientControllerView

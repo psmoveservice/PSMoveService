@@ -176,7 +176,8 @@ list(APPEND PSMOVESERVICE_SRC
     ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueries.h)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     list(APPEND PSMOVESERVICE_SRC
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsWin32.cpp)
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsWin32.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesWin32.cpp)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     list(APPEND PSMOVESERVICE_SRC
         ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsOSX.mm
