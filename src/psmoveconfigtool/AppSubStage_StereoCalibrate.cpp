@@ -25,8 +25,8 @@
 #include <vector>
 
 //-- constants -----
-const float k_default_lens_separation= 8.5f; // cm
-const float k_default_origin_offset= 75.f; // cm
+const float k_default_lens_separation= 8.8f; // cm
+const float k_default_origin_offset= 150.f; // cm
 const float k_max_epipolar_dist_error= 1.f; // px
 
 const int k_desired_valid_sample_count= 100;
