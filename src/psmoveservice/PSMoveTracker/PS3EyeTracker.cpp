@@ -31,6 +31,7 @@ public:
 // -- public methods
 // -- PS3EYE Controller Config
 const int PS3EyeTrackerConfig::CONFIG_VERSION = 7;
+const int PS3EyeTrackerConfig::LENS_CALIBRATION_VERSION= 1;
 
 PS3EyeTrackerConfig::PS3EyeTrackerConfig(const std::string &fnamebase)
     : PSMoveConfig(fnamebase)
@@ -46,11 +47,11 @@ PS3EyeTrackerConfig::PS3EyeTrackerConfig(const std::string &fnamebase)
     , vfov(45.0) // degrees
     , zNear(10.0) // cm
     , zFar(200.0) // cm
-    , distortionK1(0.92773741483688354)
-    , distortionK2(-2.7479372024536133)
-    , distortionK3(15.096343994140625)
-    , distortionP1(0.075812220573425293)
-    , distortionP2(-0.04500984400510788)
+    , distortionK1(-0.10771770030260086)
+    , distortionK2(0.1213262677192688)
+    , distortionK3(0.04875476285815239)
+    , distortionP1(0.00091733073350042105)
+    , distortionP2(0.00010589254816295579)
     , fovSetting(BlueDot)
 {
     pose.clear();
@@ -69,6 +70,7 @@ PS3EyeTrackerConfig::config2ptree()
 
     pt.put("is_valid", is_valid);
     pt.put("version", PS3EyeTrackerConfig::CONFIG_VERSION);
+	pt.put("lens_calibration_version", PS3EyeTrackerConfig::LENS_CALIBRATION_VERSION);
     pt.put("max_poll_failure_count", max_poll_failure_count);
     pt.put("exposure", exposure);
 	pt.put("gain", gain);
@@ -108,27 +110,38 @@ PS3EyeTrackerConfig::config2ptree()
 void
 PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
 {
-    version = pt.get<int>("version", 0);
-
-    if (version == PS3EyeTrackerConfig::CONFIG_VERSION)
+    int config_version = pt.get<int>("version", 0);
+    if (config_version == PS3EyeTrackerConfig::CONFIG_VERSION)
     {
         is_valid = pt.get<bool>("is_valid", false);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
         exposure = pt.get<double>("exposure", 32);
 		gain = pt.get<double>("gain", 32);
-        focalLengthX = pt.get<double>("focalLengthX", 554.2563);
-        focalLengthY = pt.get<double>("focalLengthY", 554.2563);
-        principalX = pt.get<double>("principalX", 320.0);
-        principalY = pt.get<double>("principalY", 240.0);
         hfov = pt.get<double>("hfov", 60.0);
         vfov = pt.get<double>("vfov", 45.0);
         zNear = pt.get<double>("zNear", 10.0);
         zFar = pt.get<double>("zFar", 200.0);
-        distortionK1 = pt.get<double>("distortionK1", 0.0);
-        distortionK2 = pt.get<double>("distortionK2", 0.0);
-        distortionK3 = pt.get<double>("distortionK3", 0.0);
-        distortionP1 = pt.get<double>("distortionP1", 0.0);
-        distortionP2 = pt.get<double>("distortionP2", 0.0);
+
+		int lens_calibration_version = pt.get<int>("lens_calibration_version", 0);
+		if (lens_calibration_version == PS3EyeTrackerConfig::LENS_CALIBRATION_VERSION)
+		{
+			focalLengthX = pt.get<double>("focalLengthX", focalLengthX);
+			focalLengthY = pt.get<double>("focalLengthY", focalLengthY);
+			principalX = pt.get<double>("principalX", principalX);
+			principalY = pt.get<double>("principalY", principalY);
+			distortionK1 = pt.get<double>("distortionK1", distortionK1);
+			distortionK2 = pt.get<double>("distortionK2", distortionK2);
+			distortionK3 = pt.get<double>("distortionK3", distortionK3);
+			distortionP1 = pt.get<double>("distortionP1", distortionP1);
+			distortionP2 = pt.get<double>("distortionP2", distortionP2);
+		}
+		else
+		{
+			SERVER_LOG_WARNING("PS3EyeTrackerConfig") <<
+				"Config version " << lens_calibration_version << " does not match expected version " <<
+				PS3EyeTrackerConfig::LENS_CALIBRATION_VERSION << ", Using defaults.";
+		}
+
         fovSetting = 
             static_cast<PS3EyeTrackerConfig::eFOVSetting>(
                 pt.get<int>("fovSetting", PS3EyeTrackerConfig::eFOVSetting::BlueDot));
@@ -171,7 +184,7 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
     else
     {
         SERVER_LOG_WARNING("PS3EyeTrackerConfig") <<
-            "Config version " << version << " does not match expected version " <<
+            "Config version " << config_version << " does not match expected version " <<
             PS3EyeTrackerConfig::CONFIG_VERSION << ", Using defaults.";
     }
 }

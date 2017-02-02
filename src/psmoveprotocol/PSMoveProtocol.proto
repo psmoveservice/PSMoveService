@@ -149,6 +149,8 @@ message Request {
         SET_HMD_ACCELEROMETER_CALIBRATION= 36;
         SET_HMD_GYROSCOPE_CALIBRATION= 37;
         SET_HMD_PREDICTION_TIME= 38;
+        
+        GET_SERVICE_VERSION= 38;        
     }
     RequestType type = 2;
 
@@ -458,6 +460,7 @@ message Response {
         TRACKING_SPACE_SETTINGS= 15;
         HMD_LIST= 16;
         HMD_LIST_UPDATED= 17;
+        SERVICE_VERSION= 18;
     }
 
     enum ResultCode {
@@ -620,6 +623,12 @@ message Response {
         repeated HMDInfo hmd_entries = 1;
     }
     ResultHMDList result_hmd_list = 31;
+    
+    // Parameters for SERVICE_VERSION
+    message ResultServiceVersion{
+        string version= 1;
+    }
+    ResultServiceVersion result_service_version = 32;    
 }
 
 // Unreliable (UDP) device data packet sent from service to clients

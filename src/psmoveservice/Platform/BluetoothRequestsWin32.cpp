@@ -39,6 +39,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 // -- includes -----
 #include "BluetoothRequests.h"
+#include "BluetoothQueries.h"
 #include "DeviceManager.h"
 #include "ServerControllerView.h"
 #include "ServerNetworkManager.h"
@@ -310,47 +311,6 @@ static bool patch_registry(const BLUETOOTH_ADDRESS *move_addr, const BLUETOOTH_A
 static void send_unpair_completed_notification_to_client(int connectionID, PSMoveProtocol::Response_ResultCode resultCode);
 static void send_pair_completed_notification_to_client(int connectionID, PSMoveProtocol::Response_ResultCode resultCode);
 static void send_progress_notification_to_client(int connectionID, int controllerID, int stepsCompleted, int totalSteps);
-
-//-- Queries -----
-bool bluetooth_get_host_address(std::string &out_address)
-{
-    bool bSuccess = true;
-    HANDLE hRadio;
-
-    if (find_first_bluetooth_radio(&hRadio) && hRadio != INVALID_HANDLE_VALUE)
-    {
-        SERVER_LOG_INFO("bluetooth_get_host_address") << "Found a bluetooth radio";
-    }
-    else
-    {
-        SERVER_LOG_ERROR("bluetooth_get_host_address") << "Failed to find a bluetooth radio";
-        bSuccess = false;
-    }
-
-    if (bSuccess)
-    {
-        BLUETOOTH_RADIO_INFO radioInfo;
-        memset(&radioInfo, 0, sizeof(BLUETOOTH_RADIO_INFO));
-        radioInfo.dwSize = sizeof(BLUETOOTH_RADIO_INFO);
-
-        DWORD result = BluetoothGetRadioInfo(hRadio, &radioInfo);
-
-        if (result == ERROR_SUCCESS)
-        {
-            SERVER_LOG_INFO("bluetooth_get_host_address") << "Retrieved radio info";
-            out_address = bluetooth_address_to_string(&radioInfo.address);
-        }
-        else
-        {
-            SERVER_LOG_ERROR("bluetooth_get_host_address")
-                << "Failed to retrieve radio info (Error Code: "
-                << std::hex << std::setfill('0') << std::setw(8) << result;
-            bSuccess = false;
-        }
-    }
-
-    return bSuccess;
-}
 
 // -- AsyncBluetoothUnpairDeviceRequest -----
 AsyncBluetoothUnpairDeviceRequest::AsyncBluetoothUnpairDeviceRequest(

@@ -29,12 +29,19 @@
 
 #define USE_OPEN_CV_ELLIPSE_FIT
 
+//-- constants ----
+static const int k_min_roi_size= 32;
+
 //-- typedefs ----
 typedef std::vector<cv::Point> t_opencv_int_contour;
 typedef std::vector<t_opencv_int_contour> t_opencv_int_contour_list;
 
 typedef std::vector<cv::Point2f> t_opencv_float_contour;
 typedef std::vector<t_opencv_float_contour> t_opencv_float_contour_list;
+
+//-- template utility methods
+template<typename t_opencv_contour_type>
+cv::Point2f computeSafeCenterOfMassForContour(const t_opencv_contour_type &contour);
 
 //-- private methods -----
 class SharedVideoFrameReadWriteAccessor
@@ -420,27 +427,31 @@ public:
     
     void applyROI(cv::Rect2i ROI)
     {
-		//Clamp it
-		ROI.width = std::min(ROI.width, frameWidth);
-		ROI.height = std::min(ROI.height, frameHeight);
+		// Make sure the ROI box is always clamped in bounds of the frame buffer
+		int x0= std::min(std::max(ROI.tl().x, 0), frameWidth-1);
+		int y0= std::min(std::max(ROI.tl().y, 0), frameHeight-1);
+		int x1= std::min(std::max(ROI.br().x, 0), frameWidth-1);
+		int y1= std::min(std::max(ROI.br().y, 0), frameHeight-1);
+		int clamped_width = std::max(x1-x0, 0);
+		int clamped_height = std::max(y1-y0, 0);
 
-        if (ROI.x < 0)
-        {
-            ROI.x = 0;
-        }
-        if (ROI.y < 0)
-        {
-            ROI.y = 0;
-        }
-        if (ROI.br().x > frameWidth)
-        {
-            ROI.x = std::max(frameWidth - ROI.width, 0);
-        }
-        if (ROI.br().y > frameHeight)
-        {
-            ROI.y = std::max(frameHeight - ROI.height, 0);
-        }
-        
+		// If the clamped ROI ends up being zero-width or zero-height, 
+		// just make it full screen
+		if (clamped_width > 0 && clamped_height > 0)
+		{
+			ROI.x= x0;
+			ROI.y= y0;
+			ROI.width = clamped_width;
+			ROI.height = clamped_height;
+		}
+		else
+		{
+			ROI.x= 0;
+			ROI.y= 0;
+			ROI.width = frameWidth;
+			ROI.height = frameHeight;
+		}
+       
         //Create the ROI matrices.
         //It's not a full copy, so this isn't too slow.
         //adjustROI is probably slightly faster but I ran into trouble with it.
@@ -599,9 +610,7 @@ public:
         // Draws the contour directly onto the shared mem buffer.
         // This is useful for debugging
         std::vector<t_opencv_int_contour> contours = {contour};
-        cv::Moments mu(cv::moments(contour));
-        cv::Point2f massCenter = cv::Point2f(static_cast<float>(mu.m10 / mu.m00),
-                                             static_cast<float>(mu.m01 / mu.m00));
+		const cv::Point2f massCenter = computeSafeCenterOfMassForContour<t_opencv_int_contour>(contour);
         cv::drawContours(*bgrShmemBuffer, contours, 0, cv::Scalar(255, 255, 255));
         cv::rectangle(*bgrShmemBuffer, cv::boundingRect(contour), cv::Scalar(255, 255, 255));
         cv::drawMarker(*bgrShmemBuffer, massCenter, cv::Scalar(255, 255, 255));
@@ -1141,13 +1150,18 @@ ServerTrackerView::computeProjectionForController(
     }
 
 	// Compute a region of interest in the tracker buffer around where we expect to find the tracking shape
-	const bool bRoiDisabled = tracked_controller->getIsROIDisabled() || DeviceManager::getInstance()->m_tracker_manager->getConfig().disable_roi;
-	const bool bIsTracking = tracked_controller->getIsCurrentlyTracking();
+	const TrackerManagerConfig &trackerMgrConfig= DeviceManager::getInstance()->m_tracker_manager->getConfig();
+	const bool bRoiDisabled = tracked_controller->getIsROIDisabled() || trackerMgrConfig.disable_roi;
+
+	const ControllerOpticalPoseEstimation *priorPoseEst= 
+		tracked_controller->getTrackerPoseEstimate(this->getDeviceID());
+	const bool bIsTracking = priorPoseEst->bCurrentlyTracking;
+
 	cv::Rect2i ROI= computeTrackerROIForPoseProjection(
 		bRoiDisabled,
 		this,		
 		bIsTracking ? tracked_controller->getPoseFilter() : nullptr,
-		bIsTracking ? &tracked_controller->getTrackerPoseEstimate(this->getDeviceID())->projection : nullptr,
+		bIsTracking ? &priorPoseEst->projection : nullptr,
 		tracking_shape);
 
     m_opencv_buffer_state->applyROI(ROI);
@@ -1233,6 +1247,8 @@ ServerTrackerView::computeProjectionForController(
                     ellipse_projection.center.y()*camera_matrix.val[4] + camera_matrix.val[5]);
                 out_pose_estimate->projection.shape.ellipse.half_x_extent = ellipse_projection.extents.x()*camera_matrix.val[0];
                 out_pose_estimate->projection.shape.ellipse.half_y_extent = ellipse_projection.extents.y()*camera_matrix.val[0];
+				out_pose_estimate->projection.screen_area=
+					k_real_pi*out_pose_estimate->projection.shape.ellipse.half_x_extent*out_pose_estimate->projection.shape.ellipse.half_y_extent;
                 
                 //Draw results onto m_opencv_buffer_state
                 m_opencv_buffer_state->draw_pose_projection(out_pose_estimate->projection);
@@ -1273,6 +1289,19 @@ ServerTrackerView::computeProjectionForController(
             break;
         }
     }
+
+	// Throw out the result if the contour we found was too small and 
+	// we were using an ROI less that the size of the full screen
+	if (bSuccess && !bRoiDisabled)
+	{
+		float screenWidth, screenHeight;
+		getPixelDimensions(screenWidth, screenHeight);
+
+		if (ROI.width < screenWidth || ROI.height < screenHeight)
+		{
+			bSuccess= out_pose_estimate->projection.screen_area >= trackerMgrConfig.min_valid_projection_area;
+		}
+	}
 
     return bSuccess;
 }
@@ -1602,7 +1631,7 @@ ServerTrackerView::triangulateWorldPose(
 						align_normal_rotation * eigen_global_right;
 					const Eigen::Quaternionf align_right_rotation = 
 						Eigen::Quaternionf::FromTwoVectors(x_axis_in_plane, right);
-					const Eigen::Quaternionf q = align_right_rotation*align_normal_rotation;
+					const Eigen::Quaternionf q = (align_right_rotation*align_normal_rotation).normalized();
 
 					pose.Orientation.w= q.w();
 					pose.Orientation.x= q.x();
@@ -2056,10 +2085,6 @@ static bool computeTrackerRelativePointCloudContourPose(
 {
 	assert(tracking_shape->shape_type == eCommonTrackingShapeType::PointCloud);
 
-	// Get the pixel width and height of the tracker image
-	int pixelWidth, pixelHeight;
-	tracker_device->getVideoFrameDimensions(&pixelWidth, &pixelHeight, nullptr);
-
 	bool bValidTrackerPose = true;
 	float projectionArea = 0.f;
 
@@ -2067,11 +2092,7 @@ static bool computeTrackerRelativePointCloudContourPose(
 	t_opencv_float_contour cvImagePoints;
 	for (auto it = opencv_contours.begin(); it != opencv_contours.end(); ++it)
 	{
-		cv::Moments mu = cv::moments(*it);
-		cv::Point2f massCenter =
-			cv::Point2f(
-				static_cast<float>(mu.m10 / mu.m00) - (pixelWidth / 2), 
-				(pixelHeight / 2) - static_cast<float>(mu.m01 / mu.m00));
+		cv::Point2f massCenter= computeSafeCenterOfMassForContour<t_opencv_float_contour>(*it);
 
 		cvImagePoints.push_back(massCenter);
 	}
@@ -2252,8 +2273,8 @@ static cv::Rect2i computeTrackerROIForPoseProjection(
 
 			const cv::Point2i roi_center(static_cast<int>(projection_pixel_center.x), static_cast<int>(projection_pixel_center.y));
 
-			const int safe_proj_width = std::max(proj_width, 10);
-			const int safe_proj_height = std::max(proj_height, 10);
+			const int safe_proj_width = std::max(proj_width, k_min_roi_size);
+			const int safe_proj_height = std::max(proj_height, k_min_roi_size);
 
 			const cv::Point2i roi_top_left = roi_center + cv::Point2i(-safe_proj_width, -safe_proj_height);
 			const cv::Size roi_size(2*safe_proj_width, 2*safe_proj_height);
@@ -2273,7 +2294,16 @@ static bool computeBestFitTriangleForContour(
 {
     // Compute the tightest possible bounding triangle for the given contour
 	t_opencv_float_contour cv_min_triangle;
-    cv::minEnclosingTriangle(opencv_contour, cv_min_triangle);
+
+	try
+	{
+		cv::minEnclosingTriangle(opencv_contour, cv_min_triangle);
+	}
+	catch( cv::Exception& e )
+	{
+		SERVER_LOG_INFO("computeBestFitTriangleForContour") << e.what();
+		return false;
+	}
 
     if (cv_min_triangle.size() != 3)
     {
@@ -2293,9 +2323,7 @@ static bool computeBestFitTriangleForContour(
     // This is the bottom of the triangle.
     int topCornerIndex = -1;
     {
-        cv::Moments mu = cv::moments(opencv_contour);
-        cv::Point2f massCenter = 
-            cv::Point2f(static_cast<float>(mu.m10 / mu.m00), static_cast<float>(mu.m01 / mu.m00));
+		const cv::Point2f massCenter = computeSafeCenterOfMassForContour<t_opencv_float_contour>(opencv_contour);
 
         double bestDistance = k_real_max;
         for (int cornerIndex = 0; cornerIndex < 3; ++cornerIndex)
@@ -2416,6 +2444,42 @@ static bool computeBestFitQuadForContour(
     return true;
 }
 
+template<typename t_opencv_contour_type>
+cv::Point2f computeSafeCenterOfMassForContour(const t_opencv_contour_type &contour)
+{
+	cv::Moments mu(cv::moments(contour));
+	cv::Point2f massCenter;
+		
+	// mu.m00 is zero for contours of zero area.
+	// Fallback to standard centroid in this case.
+
+	if (!is_double_nearly_zero(mu.m00))
+	{
+		massCenter= cv::Point2f(static_cast<float>(mu.m10 / mu.m00), static_cast<float>(mu.m01 / mu.m00));
+	}
+	else
+	{
+		massCenter.x = 0.f;
+		massCenter.y = 0.f;
+
+		for (const cv::Point &int_point : contour)
+		{
+			massCenter.x += static_cast<float>(int_point.x);
+			massCenter.y += static_cast<float>(int_point.y);
+		}
+
+		if (contour.size() > 1)
+		{
+			const float N = static_cast<float>(contour.size());
+
+			massCenter.x /= N;
+			massCenter.y /= N;
+		}
+	}
+
+	return massCenter;
+}
+
 // http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToAngle/index.htm
 static void commonDeviceOrientationToOpenCVRodrigues(
     const CommonDeviceQuaternion &orientation,
@@ -2498,11 +2562,23 @@ static void angleAxisVectorToCommonDeviceOrientation(
     if (!is_nearly_zero(radians))
     {
         const float sin_theta_over_two = sinf(radians * 0.5f);
+        const float w = cosf(radians * 0.5f);
+        const float x = axis_x * sin_theta_over_two;
+        const float y = axis_y * sin_theta_over_two;
+        const float z = axis_z * sin_theta_over_two;
+		const float length = sqrtf(w*w + x*x + y*y + z*z);
 
-        orientation.w = cosf(radians * 0.5f);
-        orientation.x = axis_x * sin_theta_over_two;
-        orientation.y = axis_y * sin_theta_over_two;
-        orientation.z = axis_z * sin_theta_over_two;
+		if (length > k_normal_epsilon)
+		{
+			orientation.w = w / length;
+			orientation.x = x / length;
+			orientation.y = y / length;
+			orientation.z = z / length;
+		}
+		else
+		{
+			orientation.clear();
+		}
     }
     else
     {

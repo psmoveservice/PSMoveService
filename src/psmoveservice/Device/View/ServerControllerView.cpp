@@ -398,7 +398,7 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
             const bool bWasTracking= trackerPoseEstimateRef.bCurrentlyTracking;
 
             // Assume we're going to lose tracking this frame
-            trackerPoseEstimateRef.bCurrentlyTracking = false;
+            bool bCurrentlyTracking = false;
 
             if (tracker->getIsOpen())
             {
@@ -453,7 +453,7 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
                             ++projections_found;
 
                             // Flag this pose estimate as invalid
-                            trackerPoseEstimateRef.bCurrentlyTracking = true;
+                            bCurrentlyTracking = true;
                         }
                     }
                 }
@@ -462,6 +462,7 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
             // Keep track of the last time the position estimate was updated
             trackerPoseEstimateRef.last_update_timestamp = now;
             trackerPoseEstimateRef.bValidTimestamps = true;
+			trackerPoseEstimateRef.bCurrentlyTracking = bCurrentlyTracking;
         }
 
 		// How we compute the final world pose estimate varies based on
@@ -495,7 +496,7 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
 				assert(false && "unreachable");
 			}
         }
-        else if (projections_found == 1)
+        else if (projections_found == 1 && !DeviceManager::getInstance()->m_tracker_manager->getConfig().ignore_pose_from_one_tracker)
         {
 			const int tracker_id = valid_projection_tracker_ids[0];
 			const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
@@ -1658,6 +1659,7 @@ init_filters_for_psmove(
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
+	constants.clear();
 
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.accelerometer_variance =
@@ -1788,6 +1790,7 @@ init_filters_for_psdualshock4(
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
+	constants.clear();
 
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
@@ -1805,6 +1808,8 @@ init_filters_for_psdualshock4(
 	constants.orientation_constants.orientation_variance_curve.B = ds4_config->orientation_variance_exp_fit_b;
 	constants.orientation_constants.orientation_variance_curve.MaxValue = 1.f;
 
+	constants.position_constants.use_linear_acceleration = ds4_config->position_use_linear_acceleration;
+	constants.position_constants.apply_gravity_mask = ds4_config->position_apply_gravity_mask;
 	constants.position_constants.gravity_calibration_direction= pose_filter_space->getGravityCalibrationDirection();
 	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
 	constants.position_constants.accelerometer_variance= 
@@ -1989,6 +1994,7 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 
 	// Compute triangulations amongst all pairs of projections
 	int pair_count = 0;
+	int biggest_prjection_id = -1;
 	CommonDevicePosition average_world_position = { 0.f, 0.f, 0.f };
 	for (int list_index = 0; list_index < projections_found; ++list_index)
 	{
@@ -2005,8 +2011,13 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 			if (cfg.exclude_opposed_cameras)
 			{
 				if ((tracker->getTrackerPose().PositionCm.x > 0) == (other_tracker->getTrackerPose().PositionCm.x < 0) &&
-					(tracker->getTrackerPose().PositionCm.z > 0) == (other_tracker->getTrackerPose().PositionCm.z < 0)) 
+					(tracker->getTrackerPose().PositionCm.z > 0) == (other_tracker->getTrackerPose().PositionCm.z < 0))
 				{
+					float screen_area = tracker_pose_estimations[tracker_id].projection.screen_area;
+					float other_screen_area = tracker_pose_estimations[other_tracker_id].projection.screen_area;
+
+					biggest_prjection_id = screen_area > other_screen_area ? tracker_id : other_tracker_id;
+
 					continue;
 				}
 			}
@@ -2025,10 +2036,19 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 		}
 	}
 
-	assert(pair_count >= 1);
-
-	// Compute the average position
+	if (pair_count == 0 && biggest_prjection_id >= 0 && !DeviceManager::getInstance()->m_tracker_manager->getConfig().ignore_pose_from_one_tracker)
 	{
+		// Position not triangulated from opposed camera, estimate from one tracker only.
+
+		computeSpherePoseForControllerFromSingleTracker(
+			controllerView,
+			tracker_manager->getTrackerViewPtr(biggest_prjection_id),
+			&tracker_pose_estimations[biggest_prjection_id],
+			multicam_pose_estimation);		
+	}
+	else if(pair_count > 0)
+	{
+		// Compute the average position
 		const float N = static_cast<float>(pair_count);
 
 		average_world_position.x /= N;
@@ -2037,6 +2057,7 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 
 		// Store the averaged tracking position
 		multicam_pose_estimation->position_cm = average_world_position;
+
 		multicam_pose_estimation->bCurrentlyTracking = true;
 	}
 

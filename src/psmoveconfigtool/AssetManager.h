@@ -53,6 +53,9 @@ public:
     static AssetManager *getInstance()
     { return m_instance; }
 
+    const TextureAsset *getPS3EyeTextureAsset()
+    { return &m_ps3eyeTexture; }
+
     const TextureAsset *getPSMoveTextureAsset()
     { return &m_psmoveTexture; }
 
@@ -73,6 +76,7 @@ private:
     bool loadFont(const char *filename, float pixelHeight, FontAsset *fontAsset);
 
     // Utility Textures
+	TextureAsset m_ps3eyeTexture;
     TextureAsset m_psmoveTexture;
     TextureAsset m_psnaviTexture;
     TextureAsset m_psdualshock4Texture;

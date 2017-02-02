@@ -619,21 +619,24 @@ public:
 		// variance_meters = variance_cm * (0.01)^2 because ...
 		// var(k*x) = sum(k*x_i - k*mu)^2/(N-1) = k^2*sum(x_i - mu)^2/(N-1)
 		// where k = k_centimeters_to_meters = 0.01
-		const float position_variance_m_sqr = k_centimeters_to_meters*k_centimeters_to_meters*position_variance_cm_sqr;
+		const double position_variance_m_sqr = k_centimeters_to_meters*k_centimeters_to_meters*position_variance_cm_sqr;
 
 		// Update the biases
-		R_mu(PSMOVE_ACCELEROMETER_X) = constants.position_constants.accelerometer_drift.x();
-		R_mu(PSMOVE_ACCELEROMETER_Y) = constants.position_constants.accelerometer_drift.y();
-		R_mu(PSMOVE_ACCELEROMETER_Z) = constants.position_constants.accelerometer_drift.z();
-		R_mu(PSMOVE_GYROSCOPE_X) = constants.orientation_constants.gyro_drift.x();
-		R_mu(PSMOVE_GYROSCOPE_Y) = constants.orientation_constants.gyro_drift.y();
-		R_mu(PSMOVE_GYROSCOPE_Z) = constants.orientation_constants.gyro_drift.z();
-		R_mu(PSMOVE_MAGNETOMETER_X) = constants.orientation_constants.magnetometer_drift.x();
-		R_mu(PSMOVE_MAGNETOMETER_Y) = constants.orientation_constants.magnetometer_drift.x();
-		R_mu(PSMOVE_MAGNETOMETER_Z) = constants.orientation_constants.magnetometer_drift.x();
-		R_mu(PSMOVE_OPTICAL_POSITION_X) = 0.f;
-		R_mu(PSMOVE_OPTICAL_POSITION_Y) = 0.f;
-		R_mu(PSMOVE_OPTICAL_POSITION_Z) = 0.f;
+		Eigen::Vector3d acc_drift = constants.position_constants.accelerometer_drift.cast<double>();
+		Eigen::Vector3d gyro_drift = constants.orientation_constants.gyro_drift.cast<double>();
+		Eigen::Vector3d mag_drift = constants.orientation_constants.magnetometer_drift.cast<double>();
+		R_mu(PSMOVE_ACCELEROMETER_X, 1) = acc_drift.x();
+		R_mu(PSMOVE_ACCELEROMETER_Y, 1) = acc_drift.y();
+		R_mu(PSMOVE_ACCELEROMETER_Z, 1) = acc_drift.z();
+		R_mu(PSMOVE_GYROSCOPE_X, 1) = gyro_drift.x();
+		R_mu(PSMOVE_GYROSCOPE_Y, 1) = gyro_drift.y();
+		R_mu(PSMOVE_GYROSCOPE_Z, 1) = gyro_drift.z();
+		R_mu(PSMOVE_MAGNETOMETER_X, 1) = mag_drift.x();
+		R_mu(PSMOVE_MAGNETOMETER_Y, 1) = mag_drift.y();
+		R_mu(PSMOVE_MAGNETOMETER_Z, 1) = mag_drift.z();
+		R_mu(PSMOVE_OPTICAL_POSITION_X, 1) = 0.0;
+		R_mu(PSMOVE_OPTICAL_POSITION_Y, 1) = 0.0;
+		R_mu(PSMOVE_OPTICAL_POSITION_Z, 1) = 0.0;
 
 
         // Update the measurement covariance R
@@ -748,8 +751,8 @@ public:
 		// variance_meters = variance_cm * (0.01)^2 because ...
 		// var(k*x) = sum(k*x_i - k*mu)^2/(N-1) = k^2*sum(x_i - mu)^2/(N-1)
 		// where k = k_centimeters_to_meters = 0.01
-		const float position_variance_m_sqr = k_centimeters_to_meters*k_centimeters_to_meters*position_variance_cm_sqr;
-		const float orientation_variance =
+		const double position_variance_m_sqr = k_centimeters_to_meters*k_centimeters_to_meters*position_variance_cm_sqr;
+		const double orientation_variance =
 			constants.orientation_constants.orientation_variance_curve.evaluate(tracking_projection_area_px_sqr);
 
 		const float position_drift = 0.f;
@@ -758,18 +761,20 @@ public:
 		const double angle_axis_drift = 0.f;
 
 		// Update the biases
-		R_mu(DS4_ACCELEROMETER_X) = constants.position_constants.accelerometer_drift.x();
-		R_mu(DS4_ACCELEROMETER_Y) = constants.position_constants.accelerometer_drift.y();
-		R_mu(DS4_ACCELEROMETER_Z) = constants.position_constants.accelerometer_drift.z();
-		R_mu(DS4_GYROSCOPE_X) = constants.orientation_constants.gyro_drift.x();
-		R_mu(DS4_GYROSCOPE_Y) = constants.orientation_constants.gyro_drift.y();
-		R_mu(DS4_GYROSCOPE_Z) = constants.orientation_constants.gyro_drift.z();
-		R_mu(DS4_OPTICAL_POSITION_X) = position_drift;
-		R_mu(DS4_OPTICAL_POSITION_Y) = position_drift;
-		R_mu(DS4_OPTICAL_POSITION_Z) = position_drift;
-		R_mu(DS4_OPTICAL_ANGLE_AXIS_X) = angle_axis_drift;
-		R_mu(DS4_OPTICAL_ANGLE_AXIS_Y) = angle_axis_drift;
-		R_mu(DS4_OPTICAL_ANGLE_AXIS_Z) = angle_axis_drift;
+		const Eigen::Vector3d acc_drift = constants.position_constants.accelerometer_drift.cast<double>();
+		const Eigen::Vector3d gyro_drift = constants.orientation_constants.gyro_drift.cast<double>();
+		R_mu(DS4_ACCELEROMETER_X, 1) = acc_drift.x();
+		R_mu(DS4_ACCELEROMETER_Y, 1) = acc_drift.y();
+		R_mu(DS4_ACCELEROMETER_Z, 1) = acc_drift.z();
+		R_mu(DS4_GYROSCOPE_X, 1) = gyro_drift.x();
+		R_mu(DS4_GYROSCOPE_Y, 1) = gyro_drift.y();
+		R_mu(DS4_GYROSCOPE_Z, 1) = gyro_drift.z();
+		R_mu(DS4_OPTICAL_POSITION_X, 1) = position_drift;
+		R_mu(DS4_OPTICAL_POSITION_Y, 1) = position_drift;
+		R_mu(DS4_OPTICAL_POSITION_Z, 1) = position_drift;
+		R_mu(DS4_OPTICAL_ANGLE_AXIS_X, 1) = angle_axis_drift;
+		R_mu(DS4_OPTICAL_ANGLE_AXIS_Y, 1) = angle_axis_drift;
+		R_mu(DS4_OPTICAL_ANGLE_AXIS_Z, 1) = angle_axis_drift;
 
         // Update the measurement covariance R
         R_cov = Eigen::Matrix<double, DS4_MEASUREMENT_PARAMETER_COUNT, DS4_MEASUREMENT_PARAMETER_COUNT>::Zero();
@@ -1458,7 +1463,7 @@ public:
 KalmanPoseFilter::KalmanPoseFilter() 
     : m_filter(nullptr)
 {
-    memset(&m_constants, 0, sizeof(PoseFilterConstants));
+	m_constants.clear();
 }
 
 bool KalmanPoseFilter::init(

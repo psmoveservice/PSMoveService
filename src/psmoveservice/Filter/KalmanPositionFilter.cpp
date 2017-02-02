@@ -13,9 +13,6 @@
 #pragma optimize( "", off )
 #endif
 
-#define UPDATE_VELOCITY_WITH_ACCELERATION 0
-#define ACCELEROMETER_FIXUP_HACKS 0
-
 //-- constants --
 enum PositionFilterStateEnum
 {
@@ -133,6 +130,7 @@ public:
 
     void init(const PositionFilterConstants &constants)
     {
+		use_linear_acceleration = constants.use_linear_acceleration;
 		m_last_tracking_projection_area_px_sqr = -1.f;
 		update_process_noise(constants, 0.f);
     }
@@ -189,21 +187,29 @@ public:
         const Eigen::Vector3d old_linear_acceleration_m_per_sec_sqr = old_state.get_linear_acceleration_m_per_sec_sqr();
 
         // Compute the position state update
-#if UPDATE_VELOCITY_WITH_ACCELERATION
-        const Eigen::Vector3d new_position_meters= 
-            old_position_meters 
-            + old_linear_velocity_m_per_sec*m_time_step 
-            + old_linear_acceleration_m_per_sec_sqr*m_time_step*m_time_step*0.5f;
-        const Eigen::Vector3d new_linear_velocity_m_per_sec= old_linear_velocity_m_per_sec + old_linear_acceleration_m_per_sec_sqr*m_time_step;
-#else
-		const Eigen::Vector3d new_position_meters =
-			old_position_meters
-			+ old_linear_velocity_m_per_sec*m_time_step;
-		const Eigen::Vector3d new_linear_velocity_m_per_sec = 
-			(m_time_step > k_real64_normal_epsilon) 
-			? (new_position_meters - old_position_meters) / m_time_step
-			: old_linear_velocity_m_per_sec;
-#endif
+		Eigen::Vector3d new_position_meters;
+		Eigen::Vector3d new_linear_velocity_m_per_sec;
+		if (use_linear_acceleration)
+		{
+			new_position_meters =
+				old_position_meters
+				+ old_linear_velocity_m_per_sec*m_time_step
+				+ old_linear_acceleration_m_per_sec_sqr*m_time_step*m_time_step*0.5f;			
+			new_linear_velocity_m_per_sec = 
+				old_linear_velocity_m_per_sec 
+				+ old_linear_acceleration_m_per_sec_sqr*m_time_step;
+		}
+		else
+		{
+			new_position_meters =
+				old_position_meters
+				+ old_linear_velocity_m_per_sec*m_time_step;			
+			new_linear_velocity_m_per_sec =
+				(m_time_step > k_real64_normal_epsilon)
+				? (new_position_meters - old_position_meters) / m_time_step
+				: old_linear_velocity_m_per_sec;
+		}
+
 		const Eigen::Vector3d &new_linear_acceleration_m_per_sec_sqr = old_linear_acceleration_m_per_sec_sqr;
 
         // Save results to the new state
@@ -215,6 +221,7 @@ public:
     }
 
 protected:
+	bool use_linear_acceleration;
 	float m_last_tracking_projection_area_px_sqr;
     double m_time_step;
 };
@@ -461,8 +468,8 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
 
 		Eigen::Vector3d accelerometer = packet.imu_accelerometer_g_units.cast<double>();
 
-#if ACCELEROMETER_FIXUP_HACKS
 		// Hacks to deal with accelerometer measurement issues
+		if (m_constants.apply_gravity_mask)
 		{			
 			const double acc_magnitude = accelerometer.norm();
 			const double bias_tolerance = 0.1f;
@@ -492,7 +499,6 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
 				accelerometer = acc_normalized;
 			}
 		}
-#endif
 
 		// Accelerometer and gyroscope measurements are always available
 		measurement.set_accelerometer_g_units(accelerometer);

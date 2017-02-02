@@ -3,6 +3,7 @@
 #include "AppStage_MainMenu.h"
 #include "AppStage_TrackerSettings.h"
 #include "AppSubStage_CalibrateWithMat.h"
+#include "AppSubStage_StereoCalibrate.h"
 #include "App.h"
 #include "AssetManager.h"
 #include "Camera.h"
@@ -20,6 +21,7 @@
 #include "SDL_opengl.h"
 
 #include "ClientPSMoveAPI.h"
+#include "ClientControllerView.h"
 
 #include <imgui.h>
 #include <sstream>
@@ -43,6 +45,7 @@ AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
 	, m_pendingControllerStartCount(0)
     , m_renderTrackerIndex(0)
     , m_pCalibrateWithMat(new AppSubStage_CalibrateWithMat(this))
+	, m_pStereoCalibrate(new AppSubStage_StereoCalibrate(this))
     , m_bSkipCalibration(false)
 	, m_overrideControllerId(-1)
 { 
@@ -110,6 +113,8 @@ void AppStage_ComputeTrackerPoses::update()
     case eMenuState::verifyTrackers:
         update_tracker_video();
         break;
+	case eMenuState::selectCalibrationMethod:
+		break;
     case eMenuState::calibrateWithMat:
         {
             m_pCalibrateWithMat->update();
@@ -119,6 +124,20 @@ void AppStage_ComputeTrackerPoses::update()
                 setState(AppStage_ComputeTrackerPoses::eMenuState::testTracking);
             }
             else if (m_pCalibrateWithMat->getMenuState() == AppSubStage_CalibrateWithMat::calibrateStepFailed)
+            {
+                setState(AppStage_ComputeTrackerPoses::eMenuState::calibrateStepFailed);
+            }
+        }
+        break;
+    case eMenuState::stereoCalibrate:
+        {
+            m_pStereoCalibrate->update();
+
+            if (m_pStereoCalibrate->getMenuState() == AppSubStage_StereoCalibrate::calibrateStepSuccess)
+            {
+                setState(AppStage_ComputeTrackerPoses::eMenuState::testTracking);
+            }
+            else if (m_pStereoCalibrate->getMenuState() == AppSubStage_StereoCalibrate::calibrateStepFailed)
             {
                 setState(AppStage_ComputeTrackerPoses::eMenuState::calibrateStepFailed);
             }
@@ -156,8 +175,13 @@ void AppStage_ComputeTrackerPoses::render()
         {
             render_tracker_video();
         } break;
+	case eMenuState::selectCalibrationMethod:
+		break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->render();
+        break;
+    case eMenuState::stereoCalibrate:
+        m_pStereoCalibrate->render();
         break;
     case eMenuState::testTracking:
         {
@@ -334,7 +358,15 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
             if (ImGui::Button("Looks Good!"))
             {
-                setState(eMenuState::calibrateWithMat);
+				if (m_trackerViews.size() == 2)
+				{
+					// only consider stereo camera calibration when there are two trackers
+					setState(eMenuState::selectCalibrationMethod);
+				}
+				else
+				{
+					setState(eMenuState::calibrateWithMat);
+				}
             }
 
             if (ImGui::Button("Hmm... Something is wrong."))
@@ -345,9 +377,37 @@ void AppStage_ComputeTrackerPoses::renderUI()
             ImGui::End();
         } break;
 
+	case eMenuState::selectCalibrationMethod:
+		{
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - 500.f / 2.f, 20.f));
+            ImGui::SetNextWindowSize(ImVec2(500.f, 150.f));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
+
+            ImGui::Text("Select a calibration method");
+            ImGui::Separator();
+			ImGui::TextWrapped("Use 'Stereo Camera' if you have two cameras rigidly aligned side by side a few centimeters apart, otherwise use 'Calibration Mat'.");
+			ImGui::Separator();
+
+            if (ImGui::Button("Calibration Mat"))
+            {
+                setState(eMenuState::calibrateWithMat);
+            }
+            if (ImGui::Button("Stereo Camera"))
+            {
+                setState(eMenuState::stereoCalibrate);
+            }
+
+            ImGui::End();
+		} break;
+
     case eMenuState::calibrateWithMat:
         {
             m_pCalibrateWithMat->renderUI();
+        } break;
+
+    case eMenuState::stereoCalibrate:
+        {
+            m_pStereoCalibrate->renderUI();
         } break;
 
     case eMenuState::testTracking:
@@ -479,9 +539,14 @@ void AppStage_ComputeTrackerPoses::onExitState(eMenuState newState)
         break;
     case eMenuState::verifyTrackers:
         break;
+	case eMenuState::selectCalibrationMethod:
+        break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->exit();
         break;
+	case eMenuState::stereoCalibrate:
+		m_pStereoCalibrate->exit();
+		break;
     case eMenuState::testTracking:
         m_app->setCameraType(_cameraFixed);
         break;
@@ -520,11 +585,33 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
     case eMenuState::verifyTrackers:
         m_renderTrackerIter = m_trackerViews.begin();
         break;
+	case eMenuState::selectCalibrationMethod:
+        break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->enter();
         break;
+    case eMenuState::stereoCalibrate:
+        m_pStereoCalibrate->enter();
+        break;
     case eMenuState::testTracking:
-        m_app->setCameraType(_cameraOrbit);
+		{
+			for (t_controller_state_map_iterator controller_iter = m_controllerViews.begin(); controller_iter != m_controllerViews.end(); ++controller_iter)
+			{
+				ClientControllerView *controllerView = controller_iter->second.controllerView;
+
+				switch (controllerView->GetControllerViewType())
+				{
+				case ClientControllerView::PSMove:
+					controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
+					break;
+				case ClientControllerView::PSDualShock4:
+					controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
+					break;
+				}
+			}
+
+			m_app->setCameraType(_cameraOrbit);
+		}
         break;
 	case eMenuState::showTrackerVideo:
 		break;
@@ -697,10 +784,11 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
             const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list = 
                 &response_message->payload.controller_list;			
 
-			if (thisPtr->m_bSkipCalibration)
+			if (thisPtr->m_overrideControllerId == -1)
 			{
 				bool bStartedAnyControllers = false;
 
+				// Start all psmove and dual shock 4 controllers
 				for (int list_index = 0; list_index < controller_list->count; ++list_index)
 				{
 					if (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
@@ -723,24 +811,21 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
 			}
 			else
 			{
-				int trackedControllerId = thisPtr->m_overrideControllerId;
+				int trackedControllerId = -1;
 				int trackedControllerListIndex = -1;
 				PSMoveTrackingColorType trackingColorType;
 
-				if (trackedControllerId == -1)
+				// Start only the selected controller
+				for (int list_index = 0; list_index < controller_list->count; ++list_index)
 				{
-					for (int list_index = 0; list_index < controller_list->count; ++list_index)
+					if (controller_list->controller_id[list_index] == thisPtr->m_overrideControllerId)
 					{
-						if (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
-							controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)
-						{
-							const auto &protocolControllerResponse = response->result_controller_list().controllers(list_index);
+						const auto &protocolControllerResponse = response->result_controller_list().controllers(list_index);
 
-							trackingColorType = static_cast<PSMoveTrackingColorType>(protocolControllerResponse.tracking_color_type());
-							trackedControllerId = controller_list->controller_id[list_index];
-							trackedControllerListIndex = list_index;
-							break;
-						}
+						trackingColorType = static_cast<PSMoveTrackingColorType>(protocolControllerResponse.tracking_color_type());
+						trackedControllerId = controller_list->controller_id[list_index];
+						trackedControllerListIndex = list_index;
+						break;
 					}
 				}
 

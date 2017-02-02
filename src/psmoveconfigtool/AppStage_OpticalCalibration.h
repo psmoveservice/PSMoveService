@@ -83,9 +83,6 @@ private:
 	std::chrono::time_point<std::chrono::high_resolution_clock> m_stableAndVisibleStartTime;
 	bool m_bIsStableAndVisible;
 
-	std::chrono::time_point<std::chrono::high_resolution_clock> m_resetPoseButtonPressTime;
-	bool m_bResetPoseRequestSent;
-
     struct PoseNoiseSampleSet *m_poseNoiseSamplesSet;
 	bool m_bWaitForSampleButtonRelease;
 

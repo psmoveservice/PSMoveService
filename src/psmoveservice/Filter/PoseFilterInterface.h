@@ -32,6 +32,13 @@ struct ExponentialCurve
 	{
 		return fminf(A*exp(B*x), MaxValue);
 	}
+
+	inline void clear()
+	{
+		A = 0.f;
+		B = 0.f;
+		MaxValue = 1.f;
+	}
 };
 
 /// A snapshot of IMU data emitted from a controller
@@ -155,11 +162,33 @@ struct OrientationFilterConstants
 
 	/// The drift of the magnetometer (usually zero)
 	Eigen::Vector3f magnetometer_drift; // units^2
+
+	inline void clear()
+	{
+		gravity_calibration_direction = Eigen::Vector3f::Zero();
+		magnetometer_calibration_direction = Eigen::Vector3f::Zero();
+		mean_update_time_delta = 0.f;
+		orientation_variance_curve.clear();
+		accelerometer_variance = Eigen::Vector3f::Zero();
+		accelerometer_drift = Eigen::Vector3f::Zero();
+		gyro_variance = Eigen::Vector3f::Zero();
+		gyro_drift = Eigen::Vector3f::Zero();
+		magnetometer_variance = Eigen::Vector3f::Zero();
+		magnetometer_drift = Eigen::Vector3f::Zero();
+	}
 };
 
 /// Filter parameters that remain constant during the lifetime of the the filter
 struct PositionFilterConstants 
 {
+	/// When enabled attempt to extract linear acceleration from the accelerometer
+	/// and use it to update our physics state
+	bool use_linear_acceleration;
+
+	/// Dampen linear accelerations near the predicted gravity measurement
+	/// This is used to fight phantom accelerations due to misaligned orientation
+	bool apply_gravity_mask;
+
     /// The direction of gravity when the controller is in it's calibration pose
     Eigen::Vector3f gravity_calibration_direction; // unit vector
 
@@ -173,6 +202,19 @@ struct PositionFilterConstants
 
     /// Best fit parameters for position variance (meters^2) as a function of screen projection area
 	ExponentialCurve position_variance_curve;
+
+	void clear()
+	{
+		use_linear_acceleration = false;
+		apply_gravity_mask = false;
+		gravity_calibration_direction = Eigen::Vector3f::Zero();
+		accelerometer_noise_radius = 0.f;
+		accelerometer_variance = Eigen::Vector3f::Zero();
+		accelerometer_drift = Eigen::Vector3f::Zero();
+		max_velocity = 0.f;
+		mean_update_time_delta = 0.f;
+		position_variance_curve.clear();
+	}
 };
 
 /// Filter parameters that remain constant during the lifetime of the the filter
@@ -180,6 +222,12 @@ struct PoseFilterConstants
 {
     OrientationFilterConstants orientation_constants;
     PositionFilterConstants position_constants;
+
+	void clear()
+	{
+		orientation_constants.clear();
+		position_constants.clear();
+	}
 };
 
 /// Common interface to all state filters

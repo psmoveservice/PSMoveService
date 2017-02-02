@@ -192,7 +192,7 @@ static bool morpheus_send_command(MorpheusUSBContext *morpheus_context, Morpheus
 
 // -- public interface
 // -- Morpheus HMD Config
-const int MorpheusHMDConfig::CONFIG_VERSION = 1;
+const int MorpheusHMDConfig::CONFIG_VERSION = 2;
 
 const boost::property_tree::ptree
 MorpheusHMDConfig::config2ptree()

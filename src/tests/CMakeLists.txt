@@ -442,6 +442,101 @@ ELSE() #Linux/Darwin
 ENDIF()
 
 #
+# Test DS4 Controller
+#
+
+SET(TEST_DS4_CTRLR_SRC)
+SET(TEST_DS4_CTRLR_INCL_DIRS)
+SET(TEST_DS4_CTRLR_REQ_LIBS)
+
+# Dependencies
+
+# Platform specific libraries
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    #hid required for HidD_SetOutputReport() in DualShock4 controller
+    list(APPEND TEST_DS4_CTRLR_REQ_LIBS bthprops hid)
+ELSE() #Linux
+ENDIF()
+
+# hidapi
+include_directories(${ROOT_DIR}/thirdparty/hidapi/hidapi)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/windows/hid.c)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)      
+ELSE()
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
+ENDIF()
+list(APPEND TEST_DS4_CTRLR_SRC ${HIDAPI_SRC})
+
+#Bluetooth
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    list(APPEND TEST_DS4_CTRLR_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesWin32.cpp)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    list(APPEND TEST_DS4_CTRLR_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
+ELSE()
+ENDIF()
+
+# Boost
+# TODO: Eliminate boost::filesystem with C++14
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
+list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND TEST_DS4_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
+
+# Eigen math library
+list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
+
+# PSMoveController
+# We are not including the PSMoveService target on purpose, because this only tests
+# a small part of the service and should not depend on the whole thing building.
+list(APPEND TEST_DS4_CTRLR_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/
+    ${ROOT_DIR}/src/psmoveservice/
+    ${ROOT_DIR}/src/psmoveservice/Server
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator
+    ${ROOT_DIR}/src/psmoveservice/Device/Interface
+    ${ROOT_DIR}/src/psmoveservice/Platform
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
+    ${ROOT_DIR}/src/psmoveservice/PSDualShock4)
+list(APPEND TEST_DS4_CTRLR_SRC    
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp    
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
+    ${ROOT_DIR}/src/psmoveservice/PSDualShock4/PSDualShock4Controller.h
+    ${ROOT_DIR}/src/psmoveservice/PSDualShock4/PSDualShock4Controller.cpp)
+
+# psmoveprotocol
+list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
+list(APPEND TEST_DS4_CTRLR_REQ_LIBS PSMoveProtocol)
+
+add_executable(test_ds4_controller ${CMAKE_CURRENT_LIST_DIR}/test_ds4_controller.cpp ${TEST_DS4_CTRLR_SRC})
+target_include_directories(test_ds4_controller PUBLIC ${TEST_DS4_CTRLR_INCL_DIRS})
+target_link_libraries(test_ds4_controller ${PLATFORM_LIBS} ${TEST_DS4_CTRLR_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_ds4_controller PROPERTIES FOLDER Test)
+
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    install(TARGETS test_ds4_controller
+        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+ELSE() #Linux/Darwin
+ENDIF()
+
+#
 # TEST_CONSOLE_CAPI
 #
 add_executable(test_console_CAPI test_console_CAPI.cpp)

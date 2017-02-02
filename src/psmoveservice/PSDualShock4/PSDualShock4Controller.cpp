@@ -1,8 +1,6 @@
 //-- includes -----
 #include "PSDualShock4Controller.h"
 #include "ControllerDeviceEnumerator.h"
-#include "ControllerManager.h"
-#include "DeviceManager.h"
 #include "MathUtility.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
@@ -294,6 +292,9 @@ PSDualShock4ControllerConfig::config2ptree()
 	pt.put("PositionFilter.FilterType", position_filter_type);
     pt.put("PositionFilter.MaxVelocity", max_velocity);
 
+	pt.put("PositionFilter.UseLinearAcceleration", position_use_linear_acceleration);
+	pt.put("PositionFilter.ApplyGravityMask", position_apply_gravity_mask);
+
 	pt.put("PoseFilter.MinScreenProjectionArea", min_screen_projection_area);
 
     pt.put("prediction_time", prediction_time);
@@ -341,6 +342,8 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         // Get the position filter parameters
 		position_filter_type= pt.get<std::string>("PositionFilter.FilterType", position_filter_type);
         max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
+		position_use_linear_acceleration= pt.get<bool>("PositionFilter.UseLinearAcceleration", position_use_linear_acceleration);
+		position_apply_gravity_mask= pt.get<bool>("PositionFilter.ApplyGravityMask", position_apply_gravity_mask);
 
 		// Get shared filter parameters
 		min_screen_projection_area = pt.get<float>("PoseFilter.MinScreenProjectionArea", min_screen_projection_area);
@@ -488,9 +491,11 @@ bool PSDualShock4Controller::open(
                 // Save the controller address as a std::string
                 HIDDetails.Bt_addr = std::string(szNormalizedControllerAddress);
 
-                // Use the cached host bluetooth address at service startup.
-                // On windows, calling bluetooth_get_host_address() can sometimes be a really long blocking call.
-                HIDDetails.Host_bt_addr = DeviceManager::getInstance()->m_controller_manager->getCachedBluetoothHostAddress();
+				// Get the (possibly cached) bluetooth address of the first bluetooth adapter
+				if (!bluetooth_get_host_address(HIDDetails.Host_bt_addr))
+				{
+					HIDDetails.Host_bt_addr= "00:00:00:00:00:00";
+				}
 
                 success = true;
             }
@@ -1238,11 +1243,11 @@ static int hid_set_output_report(hid_device *dev, const unsigned char *data, siz
         length = dev_internal->output_report_length;
     }
 
-    res = HidD_SetOutputReport(dev_internal->device_handle, buf, length);
+    res = HidD_SetOutputReport(dev_internal->device_handle, buf, static_cast<ULONG>(length));
 
     if (res == TRUE)
     {
-        bytes_written = length;
+        bytes_written = static_cast<DWORD>(length);
     }
     else
     {

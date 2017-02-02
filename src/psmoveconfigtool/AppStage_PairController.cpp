@@ -32,6 +32,8 @@ AppStage_PairController::AppStage_PairController(App *app)
     , m_pendingBluetoothOpControllerIndex(-1)
     , m_pair_steps_completed(0)
     , m_pair_steps_total(0)
+	, m_controllerID(-1)
+	, m_controllerType(ClientControllerView::eControllerType::None)
 { }
 
 void AppStage_PairController::enter()
@@ -102,7 +104,7 @@ void AppStage_PairController::renderUI()
     case eControllerMenuState::pendingControllerPairRequest:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin(k_window_title, nullptr, ImVec2(350, 300), k_background_alpha, window_flags);
+            ImGui::Begin(k_window_title, nullptr, ImVec2(400, 300), k_background_alpha, window_flags);
 
             // Show progress
             if (m_pair_steps_total > 0)
@@ -111,15 +113,27 @@ void AppStage_PairController::renderUI()
                 std::stringstream progress_label;
                 progress_label << "Step " << m_pair_steps_completed << "/" << m_pair_steps_total;
 
-                ImGui::TextWrapped(
-                    "Unplug the controller.\n" \
-                    "\n"
-                    "Now press the controller's PS button.\n" \
-                    "The red status LED will start blinking.\n" \
-                    "Whenever it goes off, press the PS button again.\n" \
-                    "Repeat this until the status LED finally remains lit.");
+				if (m_controllerType == ClientControllerView::PSDualShock4)
+				{
+					ImGui::TextWrapped(
+						"Unplug the DualShock4 form USB.\n" \
+						"\n"
+						"Then press and HOLD the DualShock4's PS and SHARE buttons.\n" \
+						"After a moment, the lightbar will start flashing rapidly.\n" \
+						"Repeat this until the controller completes pairing");
+				}
+				else
+				{
+					ImGui::TextWrapped(
+						"Unplug the PSMove from USB.\n" \
+						"\n"
+						"Then press the PSMove's PS button.\n" \
+						"The red status LED will start blinking.\n" \
+						"Whenever it goes off, press the PS button again.\n" \
+						"Repeat this until the status LED finally remains lit.");
+				}
 
-                ImGui::ProgressBar(fraction, ImVec2(250, 40), progress_label.str().c_str());
+                ImGui::ProgressBar(fraction, ImVec2(300, 40), progress_label.str().c_str());
             }
             else
             {
@@ -224,11 +238,15 @@ bool AppStage_PairController::onClientAPIEvent(
 }
 
 void AppStage_PairController::request_controller_unpair(
-    int controllerID)
+    int controllerID,
+	ClientControllerView::eControllerType controllerType)
 {
     if (m_menuState != AppStage_PairController::pendingControllerUnpairRequest && 
         m_menuState != AppStage_PairController::pendingControllerPairRequest)
     {
+		m_controllerID= controllerID;
+		m_controllerType= controllerType;
+
         m_menuState= AppStage_PairController::pendingControllerUnpairRequest;
         m_pendingBluetoothOpControllerIndex= controllerID;
 
@@ -288,11 +306,15 @@ void AppStage_PairController::handle_controller_unpair_end_event(
 }
 
 void AppStage_PairController::request_controller_pair(
-    int controllerID)
+    int controllerID,
+	ClientControllerView::eControllerType controllerType)
 {
     if (m_menuState != AppStage_PairController::pendingControllerUnpairRequest && 
         m_menuState != AppStage_PairController::pendingControllerPairRequest)
     {
+		m_controllerID= controllerID;
+		m_controllerType= controllerType;
+
         m_menuState= AppStage_PairController::pendingControllerPairRequest;
         m_pendingBluetoothOpControllerIndex= controllerID;
         m_pair_steps_completed = 0;

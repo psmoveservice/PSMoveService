@@ -4,6 +4,7 @@
 #include "ClientTrackerView.h"
 #include "AssetManager.h"
 #include "Logger.h"
+#include "ProtocolVersion.h"
 #include "UIConstants.h"
 
 #include "SDL.h"
@@ -95,13 +96,16 @@ bool Renderer::init()
 
     if (success)
     {
+		char szWindowTitle[128];
+
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
         SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
 
-        m_window = SDL_CreateWindow("PSMove Config Tool",
+		snprintf(szWindowTitle, sizeof(szWindowTitle), "PSMove Config Tool v%s", PSM_DETAILED_VERSION_STRING);
+        m_window = SDL_CreateWindow(szWindowTitle,
             SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED,
             k_window_pixel_width, k_window_pixel_height,
@@ -1072,18 +1076,25 @@ void drawPS3EyeModel(const glm::mat4 &transform)
 {
     assert(Renderer::getIsRenderingStage());
 
+    int textureID= AssetManager::getInstance()->getPS3EyeTextureAsset()->texture_id;
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
     glColor3f(1.f, 1.f, 1.f);
 
     glPushMatrix();
         glMultMatrixf(glm::value_ptr(transform));
         glEnableClientState(GL_VERTEX_ARRAY);
-        glEnableClientState(GL_NORMAL_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
         glVertexPointer(3, GL_FLOAT, 0, ps3eyeVerts);
-        glNormalPointer(GL_FLOAT, 0, ps3eyeNormals);
+        glTexCoordPointer(2, GL_FLOAT, 0, ps3eyeTexCoords);
         glDrawArrays(GL_TRIANGLES, 0, ps3eyeNumVerts);
         glDisableClientState(GL_VERTEX_ARRAY);
-        glDisableClientState(GL_NORMAL_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
     glPopMatrix();
+
+    // rebind the default texture
+    glBindTexture(GL_TEXTURE_2D, 0); 
 }
 
 void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color)

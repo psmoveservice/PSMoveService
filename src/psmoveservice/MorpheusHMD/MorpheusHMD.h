@@ -24,7 +24,7 @@ public:
         : PSMoveConfig(fnamebase)
 		, is_valid(false)
 		, version(CONFIG_VERSION)
-		, disable_command_interface(false)
+		, disable_command_interface(true)
 		, position_filter_type("LowPassOptical")
 		, orientation_filter_type("MadgwickARG")
 		, max_velocity(1.f)

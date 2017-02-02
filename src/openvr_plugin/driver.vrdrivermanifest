@@ -1,0 +1,10 @@
+{
+	"alwaysActivate": true,
+	"name" : "psmove",
+	"directory" : "",
+	"resourceOnly" : false,
+	"other_presence" :
+	[
+		"0x054c.*"        
+	]
+}

@@ -11,6 +11,27 @@
 class AppStage_ComputeTrackerPoses : public AppStage
 {
 public:
+    struct TrackerState
+    {
+        int listIndex;
+        class ClientTrackerView *trackerView;
+        class TextureAsset *textureAsset;
+    };
+    typedef std::map<int, TrackerState> t_tracker_state_map;
+    typedef std::map<int, TrackerState>::iterator t_tracker_state_map_iterator;
+	typedef std::map<int, TrackerState>::const_iterator t_tracker_state_map_iterator_const;
+    typedef std::pair<int, TrackerState> t_id_tracker_state_pair;
+
+	struct ControllerState
+	{
+		int listIndex;
+		PSMoveTrackingColorType trackingColorType;
+		class ClientControllerView *controllerView;
+	};
+	typedef std::map<int, ControllerState> t_controller_state_map;
+	typedef std::map<int, ControllerState>::iterator t_controller_state_map_iterator;
+	typedef std::pair<int, ControllerState> t_id_controller_state_pair;
+
     AppStage_ComputeTrackerPoses(class App *app);
     ~AppStage_ComputeTrackerPoses();
 
@@ -44,7 +65,9 @@ protected:
         failedTrackerStartRequest,
 
         verifyTrackers,
+		selectCalibrationMethod,
         calibrateWithMat,
+		stereoCalibrate,
 
         testTracking,
 		showTrackerVideo,
@@ -94,28 +117,8 @@ protected:
     void release_devices();
     void request_exit_to_app_stage(const char *app_stage_name);
 
-private:
+protected:
     eMenuState m_menuState;
-
-    struct TrackerState
-    {
-        int listIndex;
-        class ClientTrackerView *trackerView;
-        class TextureAsset *textureAsset;
-    };
-    typedef std::map<int, TrackerState> t_tracker_state_map;
-    typedef std::map<int, TrackerState>::iterator t_tracker_state_map_iterator;
-    typedef std::pair<int, TrackerState> t_id_tracker_state_pair;
-
-	struct ControllerState
-	{
-		int listIndex;
-		PSMoveTrackingColorType trackingColorType;
-		class ClientControllerView *controllerView;
-	};
-	typedef std::map<int, ControllerState> t_controller_state_map;
-	typedef std::map<int, ControllerState>::iterator t_controller_state_map_iterator;
-	typedef std::pair<int, ControllerState> t_id_controller_state_pair;
 
     t_tracker_state_map m_trackerViews;
     int m_pendingTrackerStartCount;
@@ -131,6 +134,9 @@ private:
 
     class AppSubStage_CalibrateWithMat *m_pCalibrateWithMat;
     friend class AppSubStage_CalibrateWithMat;
+
+    class AppSubStage_StereoCalibrate *m_pStereoCalibrate;
+    friend class AppSubStage_StereoCalibrate;
 
     bool m_bSkipCalibration;
 	int m_overrideControllerId;

@@ -516,6 +516,8 @@ init_filter_for_psmove(
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
+	constants.clear();
+
 	constants.orientation_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
@@ -593,6 +595,8 @@ init_filter_for_psdualshock4(
 
 	// Copy the pose filter constants from the controller config
 	PoseFilterConstants constants;
+	constants.clear();
+
 	constants.orientation_constants.mean_update_time_delta = stationary_stream.computeMeanTimeDelta();
 	constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
 	constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();

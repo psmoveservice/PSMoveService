@@ -42,11 +42,13 @@ public:
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
+	bool ignore_pose_from_one_tracker;
     long version;
     int optical_tracking_timeout;
 	int tracker_sleep_ms;
 	bool use_bgr_to_hsv_lookup_table;
 	bool exclude_opposed_cameras;
+	int min_valid_projection_area;
 	bool disable_roi;
     TrackerProfile default_tracker_profile;
 	float global_forward_degrees;

@@ -171,4 +171,16 @@ eigen_alignment_project_points_on_plane(
 	const Eigen::Vector3f &centroid, const Eigen::Vector3f &normal,
 	Eigen::Vector3f *samples, const int sample_count);
 
+// Compute the "Fundamental" camera matrix. 
+// Used to convert a pixel location in one camera to pixel location on another camera.
+void
+eigen_alignment_compute_camera_fundamental_matrix(
+	const Eigen::Vector3f &Ta, // world space translation of camera A
+	const Eigen::Vector3f &Tb, // world space translation of camera B
+	const Eigen::Quaternionf &Qa, // world space rotation of camera A
+	const Eigen::Quaternionf &Qb, // world space rotation of camera B
+	const Eigen::Matrix3f &Ka, // intrinsic matrix of camera A
+	const Eigen::Matrix3f &Kb, // intrinsic matrix of camera B
+	Eigen::Matrix3f &F_ab); // Output Fundamental matric F_ab
+
 #endif // MATH_UTILITY_H

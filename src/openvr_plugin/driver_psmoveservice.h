@@ -48,6 +48,7 @@ private:
     void HandleConnectedToPSMoveService();
     void HandleFailedToConnectToPSMoveService();
     void HandleDisconnectedFromPSMoveService();
+	static void HandleServiceVersionResponse(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
     void HandleControllerListChanged();
     void HandleTrackerListChanged();
 
@@ -82,7 +83,7 @@ public:
     virtual void Cleanup() override;
     virtual bool BIsHmdPresent( const char * pchUserConfigDir ) override;
     virtual vr::EVRInitError SetDisplayId( const char * pchDisplayId ) override;
-    virtual vr::HiddenAreaMesh_t GetHiddenAreaMesh( vr::EVREye eEye ) override;
+	virtual vr::HiddenAreaMesh_t GetHiddenAreaMesh( vr::EVREye eEye, vr::EHiddenAreaMeshType type ) override;
     virtual uint32_t GetMCImage( uint32_t *pImgWidth, uint32_t *pImgHeight, uint32_t *pChannels, void *pDataBuffer, uint32_t unBufferLen ) override;
 
 private:
@@ -98,7 +99,7 @@ public:
     // Shared Implementation of vr::ITrackedDeviceServerDriver
     virtual vr::EVRInitError Activate(uint32_t unObjectId) override;
     virtual void Deactivate() override;
-    virtual void PowerOff() override;
+    virtual void EnterStandby() override;
     virtual void *GetComponent(const char *pchComponentNameAndVersion) override;
     virtual void DebugRequest(const char * pchRequest, char * pchResponseBuffer, uint32_t unResponseBufferSize) override;
     virtual vr::DriverPose_t GetPose() override;
@@ -214,6 +215,9 @@ public:
 	virtual void RefreshWorldFromDriverPose() override;
 
 	// CPSMoveControllerLatest Interface 
+ 	inline ClientControllerView::eControllerType getPSMControllerType() const { return m_PSMControllerType; }
+    bool HasControllerId(int ControllerID);
+	// CPSMoveControllerLatest Interface 
 	bool AttachChildPSMController(int ChildControllerId, ClientControllerView::eControllerType controllerType, const std::string &ChildControllerSerialNo);
     inline bool HasPSMControllerId(int ControllerID) const { return ControllerID == m_nPSMControllerId; }
 	inline const ClientControllerView * getPSMControllerView() const { return m_PSMControllerView; }
@@ -264,8 +268,8 @@ private:
     bool m_lastTimeRumbleSentValid;
 
 	//virtual extend controller in meters
-	float m_fVirtuallExtendControllersY;
-	float m_fVirtuallExtendControllersZ;
+	float m_fVirtuallExtendControllersYMeters;
+	float m_fVirtuallExtendControllersZMeters;
 
 	// delay in resetting touchpad position after touchpad press
 	bool m_bDelayAfterTouchpadPress;
@@ -285,9 +289,12 @@ private:
 	eVRTouchpadDirection psButtonIDToVrTouchpadDirection[k_EPSButtonID_Count];
     void LoadButtonMapping(
         vr::IVRSettings *pSettings,
+		const ClientControllerView::eControllerType controllerType,
         const CPSMoveControllerLatest::ePSButtonID psButtonID,
         const vr::EVRButtonId defaultVRButtonID,
 		const eVRTouchpadDirection defaultTouchpadDirection);
+	bool LoadBool(vr::IVRSettings *pSettings, const char *pchSection, const char *pchSettingsKey, const bool bDefaultValue);
+	float LoadFloat(vr::IVRSettings *pSettings, const char *pchSection, const char *pchSettingsKey, const float fDefaultValue);
 
 	// Settings values. Used to determine whether we'll map controller movement after touchpad
 	// presses to touchpad axis values.
@@ -296,7 +303,7 @@ private:
 
 	// Settings value: used to determine how many meters in front of the HMD the controller
 	// is held when it's being calibrated.
-	float m_fControllerMetersInFrontOfHmdAtCallibration;
+	float m_fControllerMetersInFrontOfHmdAtCalibration;
 
 	// The position of the controller in meters in driver space relative to its own rotation
 	// at the time when the touchpad was most recently pressed (after being up).
