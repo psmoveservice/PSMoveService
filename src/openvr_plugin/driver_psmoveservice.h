@@ -215,9 +215,7 @@ public:
 	virtual void RefreshWorldFromDriverPose() override;
 
 	// CPSMoveControllerLatest Interface 
- 	inline ClientControllerView::eControllerType getPSMControllerType() const { return m_PSMControllerType; }
     bool HasControllerId(int ControllerID);
-	// CPSMoveControllerLatest Interface 
 	bool AttachChildPSMController(int ChildControllerId, ClientControllerView::eControllerType controllerType, const std::string &ChildControllerSerialNo);
     inline bool HasPSMControllerId(int ControllerID) const { return ControllerID == m_nPSMControllerId; }
 	inline const ClientControllerView * getPSMControllerView() const { return m_PSMControllerView; }

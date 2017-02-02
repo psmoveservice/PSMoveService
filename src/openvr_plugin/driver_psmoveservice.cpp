@@ -2168,7 +2168,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 			{
 				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling ClientPSMoveAPI::reset_orientation() in response to controller button press.\n");
 
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controller_view, PSMoveQuaternion::identity()));
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_PSMControllerView, PSMoveQuaternion::identity()));
 				m_bResetPoseRequestSent = true;
 			}
 			else

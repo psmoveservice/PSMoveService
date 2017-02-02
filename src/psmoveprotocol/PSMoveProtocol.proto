@@ -150,7 +150,7 @@ message Request {
         SET_HMD_GYROSCOPE_CALIBRATION= 37;
         SET_HMD_PREDICTION_TIME= 38;
         
-        GET_SERVICE_VERSION= 38;        
+        GET_SERVICE_VERSION= 39;        
     }
     RequestType type = 2;
 
