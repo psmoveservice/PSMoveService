@@ -43,6 +43,11 @@ struct USBDeviceEnumerator
 struct USBDeviceState
 {
 	t_usb_device_handle public_handle;
+
+	void clear()
+	{
+		public_handle= k_invalid_usb_device_handle;
+	}
 };
 
 //-- interface -----

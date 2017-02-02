@@ -8,6 +8,15 @@ struct LibUSBDeviceState : USBDeviceState
 	struct libusb_device *device;
 	struct libusb_device_handle *device_handle;
 	bool is_interface_claimed;
+
+	void clear()
+	{
+		USBDeviceState::clear();
+
+		device= nullptr;
+		device_handle= nullptr;
+		is_interface_claimed= false;
+	}
 };
 
 class LibUSBApi : public IUSBApi

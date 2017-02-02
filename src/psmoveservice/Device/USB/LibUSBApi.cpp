@@ -153,7 +153,7 @@ USBDeviceState *LibUSBApi::open_usb_device(USBDeviceEnumerator* enumerator)
 		bool bOpened = false;
 		
 		libusb_device_state = new LibUSBDeviceState;
-		memset(libusb_device_state, 0, sizeof(LibUSBDeviceState));
+		libusb_device_state->clear();
 
 		libusb_device_state->device = libusb_enumerator->device_list[libusb_enumerator->device_index];
 		libusb_ref_device(libusb_device_state->device);
@@ -182,7 +182,7 @@ USBDeviceState *LibUSBApi::open_usb_device(USBDeviceEnumerator* enumerator)
 		if (!bOpened)
 		{
 			close_usb_device(libusb_device_state);
-			delete libusb_device_state;
+			libusb_device_state= nullptr;
 		}
 	}
 
