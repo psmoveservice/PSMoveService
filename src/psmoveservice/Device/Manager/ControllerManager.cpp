@@ -46,7 +46,7 @@ ControllerManager::startup()
         }
     }
 
-	if (success)
+	if (success && gamepad_api_enabled)
 	{
 		Gamepad_init();
 	}
@@ -71,7 +71,10 @@ ControllerManager::shutdown()
 	hid_exit();
 
 	// Shutdown the gamepad api
-	Gamepad_shutdown();
+	if (gamepad_api_enabled)
+	{
+		Gamepad_shutdown();
+	}
 }
 
 void
@@ -93,7 +96,7 @@ void
 ControllerManager::poll_devices()
 {
 	// Poll all gamepads before updating the individual controllers
-	if (can_poll_connected_devices())
+	if (gamepad_api_enabled && can_poll_connected_devices())
 	{
 		Gamepad_processEvents();
 	}

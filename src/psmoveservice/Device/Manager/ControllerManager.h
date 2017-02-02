@@ -58,6 +58,9 @@ protected:
     ServerDeviceView *allocate_device_view(int device_id) override;
 	int getListUpdatedResponseType() override;
 
+public:
+	bool gamepad_api_enabled;
+
 private:
     static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;
     std::deque<eCommonTrackingColorID> m_available_controller_color_ids;
