@@ -10,7 +10,7 @@ class ControllerUSBDeviceEnumerator : public DeviceEnumerator
 {
 public:
 	ControllerUSBDeviceEnumerator();
-	ControllerUSBDeviceEnumerator(CommonDeviceState::eDeviceType deviceType);
+	ControllerUSBDeviceEnumerator(CommonDeviceState::eDeviceType deviceTypeFilter);
 	~ControllerUSBDeviceEnumerator();
 
 	bool is_valid() const override;

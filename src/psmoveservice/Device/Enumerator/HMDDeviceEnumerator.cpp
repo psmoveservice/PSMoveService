@@ -26,19 +26,7 @@ USBDeviceFilter g_supported_hmd_infos[MAX_HMD_TYPE_INDEX] = {
 HMDDeviceEnumerator::HMDDeviceEnumerator()
     : DeviceEnumerator(CommonDeviceState::Morpheus)
 {
-    assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_HMD_TYPE_INDEX);
-
-	build_interface_list();
-
-	if (!is_valid())
-	{
-		next();
-	}
-}
-
-HMDDeviceEnumerator::HMDDeviceEnumerator(CommonDeviceState::eDeviceType deviceType)
-    : DeviceEnumerator(deviceType)
-{
+	m_deviceType= CommonDeviceState::Morpheus;
     assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_HMD_TYPE_INDEX);
 
 	build_interface_list();

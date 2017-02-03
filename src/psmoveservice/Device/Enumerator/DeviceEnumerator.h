@@ -9,11 +9,13 @@
 class DeviceEnumerator
 {
 public:
-    DeviceEnumerator() : 
-        m_deviceType(static_cast<CommonDeviceState::eDeviceType>(0))
+    DeviceEnumerator() 
+		: m_deviceType(CommonDeviceState::INVALID_DEVICE_TYPE)
+		, m_deviceTypeFilter(CommonDeviceState::INVALID_DEVICE_TYPE)
     { }
-    DeviceEnumerator(CommonDeviceState::eDeviceType deviceType) : 
-        m_deviceType(deviceType)
+    DeviceEnumerator(CommonDeviceState::eDeviceType deviceTypeFilter)
+		: m_deviceType(CommonDeviceState::INVALID_DEVICE_TYPE)
+		, m_deviceTypeFilter(deviceTypeFilter)
     { }
     virtual ~DeviceEnumerator() {}
 
@@ -27,8 +29,15 @@ public:
     {
         return m_deviceType;
     }
+
+    inline CommonDeviceState::eDeviceType get_device_type_filter() const
+    {
+        return m_deviceTypeFilter;
+    }
+
 protected:
     CommonDeviceState::eDeviceType m_deviceType;
+	CommonDeviceState::eDeviceType m_deviceTypeFilter;
 };
 
 #endif // DEVICE_ENUMERATOR_H

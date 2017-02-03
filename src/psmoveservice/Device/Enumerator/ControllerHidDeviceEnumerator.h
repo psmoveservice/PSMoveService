@@ -7,7 +7,7 @@ class ControllerHidDeviceEnumerator : public DeviceEnumerator
 {
 public:
 	ControllerHidDeviceEnumerator();
-	ControllerHidDeviceEnumerator(CommonDeviceState::eDeviceType deviceType);
+	ControllerHidDeviceEnumerator(CommonDeviceState::eDeviceType deviceTypeFilter);
 	~ControllerHidDeviceEnumerator();
 
 	bool is_valid() const override;

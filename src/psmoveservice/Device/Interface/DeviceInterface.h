@@ -206,7 +206,9 @@ struct CommonDeviceState
         SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x01,
         
         Morpheus = HeadMountedDisplay + 0x00,
-        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01        
+        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01,
+
+		INVALID_DEVICE_TYPE= 0xFF,
     };
     
     eDeviceType DeviceType;

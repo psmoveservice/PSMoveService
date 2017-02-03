@@ -55,8 +55,8 @@ ControllerDeviceEnumerator::ControllerDeviceEnumerator(
 
 ControllerDeviceEnumerator::ControllerDeviceEnumerator(
 	eAPIType _apiType,
-	CommonDeviceState::eDeviceType deviceType)
-    : DeviceEnumerator(deviceType)
+	CommonDeviceState::eDeviceType deviceTypeFilter)
+    : DeviceEnumerator(deviceTypeFilter)
 	, api_type(_apiType)
 	, enumerators(nullptr)
 	, enumerator_count(0)
@@ -66,24 +66,24 @@ ControllerDeviceEnumerator::ControllerDeviceEnumerator(
 	{
 	case eAPIType::CommunicationType_HID:
 		enumerators = new DeviceEnumerator *[1];
-		enumerators[0] = new ControllerHidDeviceEnumerator(deviceType);
+		enumerators[0] = new ControllerHidDeviceEnumerator(deviceTypeFilter);
 		enumerator_count = 1;
 		break;
 	case eAPIType::CommunicationType_USB:
 		enumerators = new DeviceEnumerator *[1];
-		enumerators[0] = new ControllerUSBDeviceEnumerator(deviceType);
+		enumerators[0] = new ControllerUSBDeviceEnumerator(deviceTypeFilter);
 		enumerator_count = 1;
 		break;
 	case eAPIType::CommunicationType_GAMEPAD:
 		enumerators = new DeviceEnumerator *[1];
-		enumerators[0] = new ControllerGamepadEnumerator(deviceType);
+		enumerators[0] = new ControllerGamepadEnumerator(deviceTypeFilter);
 		enumerator_count = 1;
 		break;
 	case eAPIType::CommunicationType_ALL:
 		enumerators = new DeviceEnumerator *[3];
-		enumerators[0] = new ControllerHidDeviceEnumerator(deviceType);
-		enumerators[1] = new ControllerUSBDeviceEnumerator(deviceType);
-		enumerators[2] = new ControllerGamepadEnumerator(deviceType);
+		enumerators[0] = new ControllerHidDeviceEnumerator(deviceTypeFilter);
+		enumerators[1] = new ControllerUSBDeviceEnumerator(deviceTypeFilter);
+		enumerators[2] = new ControllerGamepadEnumerator(deviceTypeFilter);
 		enumerator_count = 3;
 		break;
 	}

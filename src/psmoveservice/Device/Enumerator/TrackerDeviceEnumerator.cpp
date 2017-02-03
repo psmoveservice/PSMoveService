@@ -22,24 +22,26 @@ USBDeviceFilter k_supported_tracker_infos[MAX_CAMERA_TYPE_INDEX] = {
 };
 
 // -- private prototypes -----
-static bool get_usb_tracker_type(USBDeviceEnumerator* enumerator, CommonDeviceState::eDeviceType &out_device_type);
+static bool is_tracker_supported(USBDeviceEnumerator* enumerator, CommonDeviceState::eDeviceType device_type_filter, CommonDeviceState::eDeviceType &out_device_type);
 
 // -- methods -----
 TrackerDeviceEnumerator::TrackerDeviceEnumerator()
-	: DeviceEnumerator(CommonDeviceState::PS3EYE)
+	: DeviceEnumerator()
 	, m_usb_enumerator(nullptr)
-    , m_cameraIndex(0)
+    , m_cameraIndex(-1)
 {
 	USBDeviceManager *usbRequestMgr = USBDeviceManager::getInstance();
 
+	m_deviceType= CommonDeviceState::PS3EYE;
 	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CAMERA_TYPE_INDEX);
 	m_usb_enumerator = usb_device_enumerator_allocate();
 
 	// If the first USB device handle isn't a tracker, move on to the next device
-	if (get_usb_tracker_type(m_usb_enumerator, m_deviceType))
+	if (is_tracker_supported(m_usb_enumerator, m_deviceTypeFilter, m_deviceType))
 	{
 		// Cache the current usb path
 		usb_device_enumerator_get_path(m_usb_enumerator, m_currentUSBPath, sizeof(m_currentUSBPath));
+		m_cameraIndex= 0;
 	}
 	else
 	{
@@ -108,7 +110,7 @@ bool TrackerDeviceEnumerator::next()
 	{
 		usb_device_enumerator_next(m_usb_enumerator);
 
-		if (is_valid() && get_usb_tracker_type(m_usb_enumerator, m_deviceType))
+		if (is_valid() && is_tracker_supported(m_usb_enumerator, m_deviceTypeFilter, m_deviceType))
 		{
 			// Cache the path to the device
 			usb_device_enumerator_get_path(m_usb_enumerator, m_currentUSBPath, sizeof(m_currentUSBPath));
@@ -126,7 +128,10 @@ bool TrackerDeviceEnumerator::next()
 }
 
 //-- private methods -----
-static bool get_usb_tracker_type(USBDeviceEnumerator *enumerator, CommonDeviceState::eDeviceType &out_device_type)
+static bool is_tracker_supported(
+	USBDeviceEnumerator *enumerator, 
+	CommonDeviceState::eDeviceType device_type_filter,
+	CommonDeviceState::eDeviceType &out_device_type)
 {
 	USBDeviceFilter devInfo;
 	bool bIsValidDevice = false;
@@ -141,9 +146,16 @@ static bool get_usb_tracker_type(USBDeviceEnumerator *enumerator, CommonDeviceSt
 			if (devInfo.product_id == supported_type.product_id &&
 				devInfo.vendor_id == supported_type.vendor_id)
 			{
-				out_device_type = static_cast<CommonDeviceState::eDeviceType>(CommonDeviceState::TrackingCamera + tracker_type_index);
-				bIsValidDevice = true;
-				break;
+				CommonDeviceState::eDeviceType device_type = 
+					static_cast<CommonDeviceState::eDeviceType>(CommonDeviceState::TrackingCamera + tracker_type_index);
+
+				if (device_type_filter == CommonDeviceState::INVALID_DEVICE_TYPE || // i.e. no filter
+					device_type_filter == device_type)
+				{
+					out_device_type = device_type;
+					bIsValidDevice = true;
+					break;
+				}
 			}
 		}
 	}

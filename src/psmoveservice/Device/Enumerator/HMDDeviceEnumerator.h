@@ -17,7 +17,6 @@ class HMDDeviceEnumerator : public DeviceEnumerator
 {
 public:
     HMDDeviceEnumerator();
-    HMDDeviceEnumerator(CommonDeviceState::eDeviceType deviceType);
 
     bool is_valid() const override;
     bool next() override;

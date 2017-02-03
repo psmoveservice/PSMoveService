@@ -29,23 +29,25 @@ GamepadFilter g_supported_libusb_controller_filters[MAX_CONTROLLER_TYPE_INDEX] =
 };
 
 // -- private prototypes -----
-static bool get_usb_controller_type(USBDeviceEnumerator* enumerator, CommonDeviceState::eDeviceType &out_device_type);
+static bool is_controller_supported(USBDeviceEnumerator *enumerator, CommonDeviceState::eDeviceType device_type_filter, CommonDeviceState::eDeviceType &out_device_type);
 
 // -- methods -----
 ControllerUSBDeviceEnumerator::ControllerUSBDeviceEnumerator()
-	: DeviceEnumerator(CommonDeviceState::PSMove)
+	: DeviceEnumerator()
 	, m_usb_enumerator(nullptr)
-	, m_controllerIndex(0)
+	, m_controllerIndex(-1)
 {
 	USBDeviceManager *usbRequestMgr = USBDeviceManager::getInstance();
 
+	m_deviceType= CommonDeviceState::PSMove;
 	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
 	m_usb_enumerator = usb_device_enumerator_allocate();
 
-	if (get_usb_controller_type(m_usb_enumerator, m_deviceType))
+	if (is_controller_supported(m_usb_enumerator, m_deviceTypeFilter, m_deviceType))
 	{
 		// Cache the current usb path
-		usb_device_enumerator_get_path(m_usb_enumerator, m_currentUSBPath, sizeof(m_currentUSBPath));		
+		usb_device_enumerator_get_path(m_usb_enumerator, m_currentUSBPath, sizeof(m_currentUSBPath));
+		m_controllerIndex = 0;
 	}
 	else
 	{
@@ -53,21 +55,23 @@ ControllerUSBDeviceEnumerator::ControllerUSBDeviceEnumerator()
 	}
 }
 
-ControllerUSBDeviceEnumerator::ControllerUSBDeviceEnumerator(CommonDeviceState::eDeviceType deviceType)
-	: DeviceEnumerator(deviceType)
+ControllerUSBDeviceEnumerator::ControllerUSBDeviceEnumerator(CommonDeviceState::eDeviceType deviceTypeFilter)
+	: DeviceEnumerator(deviceTypeFilter)
 	, m_usb_enumerator(nullptr)
-	, m_controllerIndex(0)
+	, m_controllerIndex(-1)
 {
 	USBDeviceManager *usbRequestMgr = USBDeviceManager::getInstance();
 
+	m_deviceType= CommonDeviceState::PSMove;
 	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
 	m_usb_enumerator = usb_device_enumerator_allocate();
 
 	// If the first USB device handle isn't a tracker, move on to the next device
-	if (get_usb_controller_type(m_usb_enumerator, m_deviceType))
+	if (is_controller_supported(m_usb_enumerator, m_deviceTypeFilter, m_deviceType))
 	{
 		// Cache the current USB path
 		usb_device_enumerator_get_path(m_usb_enumerator, m_currentUSBPath, sizeof(m_currentUSBPath));
+		m_controllerIndex = 0;
 	}
 	else
 	{
@@ -137,7 +141,7 @@ bool ControllerUSBDeviceEnumerator::next()
 	{
 		usb_device_enumerator_next(m_usb_enumerator);
 
-		if (is_valid() && get_usb_controller_type(m_usb_enumerator, m_deviceType))
+		if (is_valid() && is_controller_supported(m_usb_enumerator, m_deviceTypeFilter, m_deviceType))
 		{
 			// Cache the path to the device
 			usb_device_enumerator_get_path(m_usb_enumerator, m_currentUSBPath, sizeof(m_currentUSBPath));
@@ -155,7 +159,10 @@ bool ControllerUSBDeviceEnumerator::next()
 }
 
 //-- private methods -----
-static bool get_usb_controller_type(USBDeviceEnumerator *enumerator, CommonDeviceState::eDeviceType &out_device_type)
+static bool is_controller_supported(
+	USBDeviceEnumerator *enumerator, 
+	CommonDeviceState::eDeviceType device_type_filter,
+	CommonDeviceState::eDeviceType &out_device_type)
 {
 	USBDeviceFilter devInfo;
 	bool bIsValidDevice = false;
@@ -171,9 +178,16 @@ static bool get_usb_controller_type(USBDeviceEnumerator *enumerator, CommonDevic
 				devInfo.product_id == supported_type.filter.product_id &&
 				devInfo.vendor_id == supported_type.filter.vendor_id)
 			{
-				out_device_type = static_cast<CommonDeviceState::eDeviceType>(CommonDeviceState::Controller + tracker_type_index);
-				bIsValidDevice = true;
-				break;
+				
+				CommonDeviceState::eDeviceType device_type =
+					static_cast<CommonDeviceState::eDeviceType>(CommonDeviceState::Controller + tracker_type_index);
+
+				if (device_type_filter == device_type || device_type_filter == CommonDeviceState::INVALID_DEVICE_TYPE)
+				{
+					out_device_type= device_type;
+					bIsValidDevice = true;
+					break;
+				}				
 			}
 		}
 	}

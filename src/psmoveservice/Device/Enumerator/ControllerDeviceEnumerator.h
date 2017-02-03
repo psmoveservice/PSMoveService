@@ -17,7 +17,7 @@ public:
 	};
 
     ControllerDeviceEnumerator(eAPIType api_type);
-    ControllerDeviceEnumerator(eAPIType api_type, CommonDeviceState::eDeviceType deviceType);
+    ControllerDeviceEnumerator(eAPIType api_type, CommonDeviceState::eDeviceType deviceTypeFilter);
     ~ControllerDeviceEnumerator();
 
     bool is_valid() const override;

@@ -31,10 +31,11 @@ HIDApiDeviceFilter g_supported_controller_infos[MAX_CONTROLLER_TYPE_INDEX] = {
 
 // -- ControllerHidDeviceEnumerator -----
 ControllerHidDeviceEnumerator::ControllerHidDeviceEnumerator()
-	: DeviceEnumerator(CommonDeviceState::PSMove)
+	: DeviceEnumerator()
 	, devs(nullptr)
 	, cur_dev(nullptr)
 {
+	m_deviceType= CommonDeviceState::PSMove;
 	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
 
 	HIDApiDeviceFilter &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
@@ -48,11 +49,13 @@ ControllerHidDeviceEnumerator::ControllerHidDeviceEnumerator()
 }
 
 ControllerHidDeviceEnumerator::ControllerHidDeviceEnumerator(
-	CommonDeviceState::eDeviceType deviceType)
-	: DeviceEnumerator(deviceType)
+	CommonDeviceState::eDeviceType deviceTypeFilter)
+	: DeviceEnumerator(deviceTypeFilter)
 	, devs(nullptr)
 	, cur_dev(nullptr)
 {
+	m_deviceType= deviceTypeFilter;
+	m_deviceTypeFilter= deviceTypeFilter;
 	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
 
 	HIDApiDeviceFilter &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
@@ -145,7 +148,8 @@ bool ControllerHidDeviceEnumerator::next()
 				devs = nullptr;
 			}
 
-			if (GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX)
+			if (GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX && 
+				(m_deviceType == m_deviceTypeFilter || m_deviceTypeFilter == CommonDeviceState::INVALID_DEVICE_TYPE))
 			{
 				HIDApiDeviceFilter &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
 
