@@ -4,6 +4,7 @@
 //-- includes -----
 #include "PoseFilterInterface.h"
 #include <chrono>
+#include <list>
 
 //-- definitions -----
 /// Abstract base class for all orientation only filters
@@ -53,6 +54,9 @@ class PositionFilterLowPassExponential : public PositionFilter
 {
 public:
 	void update(const float delta_time, const PoseFilterPacket &packet) override;
+	std::list<float> timeList;
+	std::list<Eigen::Vector3f> positionList;
+	Eigen::Vector3f prevVelocity;
 };
 
 class PositionFilterComplimentaryOpticalIMU : public PositionFilter

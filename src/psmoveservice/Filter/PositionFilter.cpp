@@ -4,6 +4,7 @@
 #include "ServerLog.h"
 
 #include <chrono>
+#include <numeric>
 
 //-- constants -----
 // The max distance between samples that we apply low pass filter on the optical position filter
@@ -45,10 +46,6 @@ struct PositionFilterState
     /// Position that's considered the origin position 
     Eigen::Vector3f origin_position; // meters
 
-	// required for smoothing position to get velocity
-	float exp_delta_time;
-	Eigen::Vector3f exp_position;
-
     std::chrono::time_point<std::chrono::high_resolution_clock> last_visible_position_timestamp;
     bool bLast_visible_position_timestamp_valid;
 
@@ -61,8 +58,6 @@ struct PositionFilterState
         accelerometer_g_units = Eigen::Vector3f::Zero();
         accelerometer_derivative_g_per_sec = Eigen::Vector3f::Zero();
         origin_position = Eigen::Vector3f::Zero();
-		exp_delta_time = 0.f;
-		exp_position = Eigen::Vector3f::Zero();
     }
 
 	void apply_state(
@@ -425,24 +420,39 @@ void PositionFilterLowPassExponential::update(const float delta_time, const Pose
 		m_state->accelerometer_g_units = packet.world_accelerometer;
 		m_state->accelerometer_derivative_g_per_sec = Eigen::Vector3f::Zero();
 
-		int queueLen = 3;
-		float smooth = 0.6f;
+		int queueLen = 20;
+		float smooth = 0.8f;
+		float smoothv = 0.4f;
 
 		if (m_state->bIsValid)
 		{
 			// New position is blended against the old position
 			m_state->position_meters = lowpass_filter_optical_position(&packet, m_state);
 
-			float q = 0.4f;
-			Eigen::Vector3f prev_position = m_state->exp_position;
-			float prev_delta_time = m_state->exp_delta_time;
+			timeList.push_back(delta_time);
+			if (timeList.size() > queueLen)
+				timeList.pop_front();
+			float totalTime = 0.f;
+			for (std::list<float>::iterator it = timeList.begin(); it != timeList.end(); it++)
+				totalTime += *it;
 
-			m_state->exp_position = (m_state->position_meters * q) + (prev_position * (1.0f - q));
-			m_state->exp_delta_time = (delta_time * q) + (prev_delta_time * (1.0f - q));
+			Eigen::Vector3f oldPosition = *(positionList.begin());
+			Eigen::Vector3f expPosition = (m_state->position_meters * smooth) + (oldPosition * (1.0f - smooth));
+			positionList.push_back(expPosition);
+			if (positionList.size() > queueLen)
+				positionList.pop_front();
 
-			m_state->velocity_m_per_sec = (m_state->exp_position - prev_position) / m_state->exp_delta_time;
+			if (totalTime > 0.f)
+			{
 
-			//fusion_state->velocity = Eigen::Vector3f::Zero();
+				Eigen::Vector3f newvVelocity = (positionList.back() - positionList.front()) / totalTime;
+				prevVelocity = (newvVelocity * smooth) + (prevVelocity * (1.0f - smooth));
+				m_state->velocity_m_per_sec = prevVelocity;
+			}
+			else {
+				m_state->velocity_m_per_sec = Eigen::Vector3f::Zero();
+			}
+
 			m_state->acceleration_m_per_sec_sqr = Eigen::Vector3f::Zero(); //new_acceleration;
 		}
 		else
@@ -451,6 +461,12 @@ void PositionFilterLowPassExponential::update(const float delta_time, const Pose
 			m_state->position_meters = m_state->position_meters;
 			m_state->velocity_m_per_sec = Eigen::Vector3f::Zero();
 			m_state->acceleration_m_per_sec_sqr = Eigen::Vector3f::Zero();
+
+
+			while (timeList.size() < queueLen)
+				timeList.push_back(delta_time);
+			while (positionList.size() < queueLen)
+				positionList.push_back(m_state->position_meters);
 
 			// Fusion state is valid now that we have one sample
 			m_state->bIsValid = true;
