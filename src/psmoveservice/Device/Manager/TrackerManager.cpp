@@ -15,6 +15,8 @@ const int TrackerManagerConfig::CONFIG_VERSION = 2;
 TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
     : PSMoveConfig(fnamebase)
 {
+
+	controller_position_smoothing = 0.f;
 	ignore_pose_from_one_tracker = false;
     optical_tracking_timeout= 100;
 	tracker_sleep_ms = 1;
@@ -39,6 +41,7 @@ TrackerManagerConfig::config2ptree()
 
     pt.put("version", TrackerManagerConfig::CONFIG_VERSION);
 
+	pt.put("controller_position_smoothing", controller_position_smoothing);
 	pt.put("ignore_pose_from_one_tracker", ignore_pose_from_one_tracker);
     pt.put("optical_tracking_timeout", optical_tracking_timeout);
 	pt.put("use_bgr_to_hsv_lookup_table", use_bgr_to_hsv_lookup_table);
@@ -67,6 +70,7 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
 
     if (version == TrackerManagerConfig::CONFIG_VERSION)
     {
+		controller_position_smoothing = pt.get<float>("controller_position_smoothing", controller_position_smoothing);
 		ignore_pose_from_one_tracker = pt.get<bool>("ignore_pose_from_one_tracker", ignore_pose_from_one_tracker);
         optical_tracking_timeout= pt.get<int>("optical_tracking_timeout", optical_tracking_timeout);
 		use_bgr_to_hsv_lookup_table = pt.get<bool>("use_bgr_to_hsv_lookup_table", use_bgr_to_hsv_lookup_table);
