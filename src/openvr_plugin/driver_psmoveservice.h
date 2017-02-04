@@ -37,9 +37,9 @@ public:
     inline PSMovePose GetWorldFromDriverPose() const { return m_worldFromDriverPose; }
 
 private:
-    void AllocateUniquePSMoveController(int ControllerID, int ControllerListIndex, const ClientPSMoveAPI::t_response_handle response_handle);
-    void AttachPSNaviToParentController(int ControllerID, int ControllerListIndex, const ClientPSMoveAPI::t_response_handle response_handle);
-    void AllocateUniqueDualShock4Controller(int ControllerID, int ControllerListIndex, const ClientPSMoveAPI::t_response_handle response_handle);
+    void AllocateUniquePSMoveController(int ControllerID, const ClientPSMoveAPI::t_response_handle response_handle);
+    void AttachPSNaviToParentController(int ControllerID,  const ClientPSMoveAPI::t_response_handle response_handle);
+    void AllocateUniqueDualShock4Controller(int ControllerID, const ClientPSMoveAPI::t_response_handle response_handle);
     void AllocateUniquePSMoveTracker(const ClientTrackerInfo &trackerInfo);
     bool ReconnectToPSMoveService();
 
