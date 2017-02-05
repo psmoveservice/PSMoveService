@@ -215,8 +215,9 @@ public:
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST);
 
-        // Don't include controllers connected via USB for normal controller list requests
-        request->mutable_request_get_controller_list()->set_include_usb_controllers(false);
+        // Include controllers connected via USB
+		// We'll filter out the usb controllers we don't care (i.e. non-navi) about on the client
+        request->mutable_request_get_controller_list()->set_include_usb_controllers(true);
 
         m_request_manager.send_request(request);
 

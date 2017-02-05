@@ -386,7 +386,7 @@ MorpheusHMD::~MorpheusHMD()
 
 bool MorpheusHMD::open()
 {
-    HMDDeviceEnumerator enumerator(CommonDeviceState::Morpheus);
+    HMDDeviceEnumerator enumerator;
     bool success = false;
 
     if (enumerator.is_valid())

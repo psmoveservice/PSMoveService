@@ -77,10 +77,19 @@ public:
     // Returns true if the device is connected via Bluetooth, false if by USB
     bool getIsBluetooth() const;
 
+	// Returns true if the device can stream controller data over it's current connection type (Bluetooth/USB)
+	bool getIsStreamable() const;
+
     // Returns the full usb device path for the controller
     std::string getUSBDevicePath() const;
 
-    // Returns the serial number for the controller
+	// Returns the vendor ID of the controller
+	int getVendorID() const;
+
+	// Returns the product ID of the controller
+	int getProductID() const;
+
+	// Returns the serial number for the controller
     std::string getSerial() const;
 
 	// Returns the "controller_" + serial number for the controller
@@ -157,16 +166,17 @@ public:
     // Set the rumble value between 0.f-1.f on a channel
     bool setControllerRumble(float rumble_amount, CommonControllerState::RumbleChannel channel);
 
+    static void generate_controller_data_frame_for_stream(
+        const ServerControllerView *controller_view,
+        const struct ControllerStreamInfo *stream_info,
+        PSMoveProtocol::DeviceOutputDataFrame *data_frame);
+
 protected:
     void set_tracking_enabled_internal(bool bEnabled);
     void update_LED_color_internal();
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
     void free_device_interface() override;
     void publish_device_data_frame() override;
-    static void generate_controller_data_frame_for_stream(
-        const ServerControllerView *controller_view,
-        const struct ControllerStreamInfo *stream_info,
-        PSMoveProtocol::DeviceOutputDataFrame *data_frame);
 
 private:
     // Tracking color state

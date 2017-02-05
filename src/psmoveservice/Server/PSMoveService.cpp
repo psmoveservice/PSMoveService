@@ -9,6 +9,7 @@
 #include "ServerLog.h"
 #include "SharedTrackerState.h"
 #include "TrackerManager.h"
+#include "USBDeviceManager.h"
 
 #include <boost/asio.hpp>
 #include <boost/application.hpp>
@@ -40,6 +41,7 @@ public:
     PSMoveServiceImpl()
         : m_io_service()
         , m_signals(m_io_service)
+        , m_usb_device_manager(_USBApiType_LibUSB)
         , m_device_manager()
         , m_request_handler(&m_device_manager)
         , m_network_manager(&m_io_service, PSMOVE_SERVER_PORT, &m_request_handler)
@@ -164,6 +166,16 @@ private:
             }
         }
 
+        /** Setup the usb async transfer thread before we attempt to initialize the trackers */
+        if (success)
+        {
+            if (!m_usb_device_manager.startup())
+            {
+                SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the usb async request manager";
+                success = false;
+            }
+        }
+
         /** Setup the controller manager */
         if (success)
         {
@@ -193,6 +205,9 @@ private:
         /** Update an async requests still waiting to complete */
         m_request_handler.update();
 
+        /** Process any async results from the USB transfer thread */
+        m_usb_device_manager.update();
+
         /**
          Update the list of active tracked controllers
          Send controller updates to the client
@@ -207,6 +222,9 @@ private:
     {
         // Kill any pending request state
         m_request_handler.shutdown();
+
+        // Shutdown the usb async request thread
+        m_usb_device_manager.shutdown();
 
         // Close all active network connections
         m_network_manager.shutdown();
@@ -228,6 +246,9 @@ private:
        
     // The signal_set is used to register for process termination notifications.
     boost::asio::signal_set m_signals;
+
+    // Manages all control and bulk transfer requests in another thread
+    USBDeviceManager m_usb_device_manager;
 
     // Keep track of currently connected devices (PSMove controllers, cameras, HMDs)
     DeviceManager m_device_manager;

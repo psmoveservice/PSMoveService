@@ -193,29 +193,36 @@ public:
                 && src_controller_count < PSMOVESERVICE_MAX_CONTROLLER_COUNT)
         {
             const auto &ControllerResponse = response->result_controller_list().controllers(src_controller_count);
+            const bool bIsBluetooth=
+				ControllerResponse.connection_type() == PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH;
 
-            // As far as the publicly facing API is concerned, don't show the USB connected controllers
-            if (ControllerResponse.connection_type() ==
-                PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH)
+			// For some controllers, we only include them in the public facing controller list
+			// if the controller is currently connected via bluetooth
+			bool bIsPublicFacingController= false;
+
+            // Convert the PSMoveProtocol controller enum to the public ClientControllerView enum
+            ClientControllerView::eControllerType controllerType;
+            switch (ControllerResponse.controller_type())
             {
-                // Convert the PSMoveProtocol controller enum to the public ClientControllerView enum
-                ClientControllerView::eControllerType controllerType;
-                switch (ControllerResponse.controller_type())
-                {
-                case PSMoveProtocol::PSMOVE:
-                    controllerType = ClientControllerView::PSMove;
-                    break;
-                case PSMoveProtocol::PSNAVI:
-                    controllerType = ClientControllerView::PSNavi;
-                    break;
-                case PSMoveProtocol::PSDUALSHOCK4:
-                    controllerType = ClientControllerView::PSDualShock4;
-                    break;
-                default:
-                    assert(0 && "unreachable");
-                    controllerType = ClientControllerView::PSMove;
-                }
+            case PSMoveProtocol::PSMOVE:
+				bIsPublicFacingController= bIsBluetooth;
+                controllerType = ClientControllerView::PSMove;
+                break;
+            case PSMoveProtocol::PSNAVI:
+				bIsPublicFacingController= true;
+                controllerType = ClientControllerView::PSNavi;
+                break;
+            case PSMoveProtocol::PSDUALSHOCK4:
+				bIsPublicFacingController= bIsBluetooth;
+                controllerType = ClientControllerView::PSDualShock4;
+                break;
+            default:
+                assert(0 && "unreachable");
+                controllerType = ClientControllerView::PSMove;
+            }
 
+			if (bIsPublicFacingController)
+			{
                 // Add an entry to the controller list
                 controller_list->controller_type[dest_controller_count] = controllerType;
                 controller_list->controller_id[dest_controller_count] = ControllerResponse.controller_id();

@@ -206,7 +206,9 @@ struct CommonDeviceState
         SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x01,
         
         Morpheus = HeadMountedDisplay + 0x00,
-        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01        
+        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01,
+
+		INVALID_DEVICE_TYPE= 0xFF,
     };
     
     eDeviceType DeviceType;
@@ -455,6 +457,12 @@ public:
 
     // Returns the full usb device path for the controller
     virtual std::string getUSBDevicePath() const = 0;
+
+	// Returns the vendor ID of the controller
+	virtual int getVendorID() const = 0;
+
+	// Returns the product ID of the controller
+	virtual int getProductID() const = 0;
 
     // Gets the bluetooth address of the adapter on the host PC that's registered with the controller
     virtual std::string getAssignedHostBluetoothAddress() const = 0;

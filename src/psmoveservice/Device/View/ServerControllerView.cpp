@@ -698,11 +698,49 @@ ServerControllerView::getIsBluetooth() const
     return (m_device != nullptr) ? m_device->getIsBluetooth() : false;
 }
 
+bool
+ServerControllerView::getIsStreamable() const
+{
+	bool bIsStreamableController= false;
+
+	if (getIsOpen())
+	{
+		switch (getControllerDeviceType())
+		{
+		case CommonDeviceState::PSMove:
+		case CommonDeviceState::PSDualShock4:
+			{
+				bIsStreamableController= getIsBluetooth();
+			} break;
+		case CommonDeviceState::PSNavi:
+			{
+				bIsStreamableController= true;
+			} break;
+		}
+	}
+
+	return bIsStreamableController;
+}
+
 // Returns the full usb device path for the controller
 std::string 
 ServerControllerView::getUSBDevicePath() const
 {
     return (m_device != nullptr) ? m_device->getUSBDevicePath() : "";
+}
+
+// Returns the vendor ID of the controller
+int 
+ServerControllerView::getVendorID() const
+{
+	return (m_device != nullptr) ? m_device->getVendorID() : -1;
+}
+
+// Returns the product ID of the controller
+int 
+ServerControllerView::getProductID() const
+{
+	return (m_device != nullptr) ? m_device->getProductID() : -1;
 }
 
 // Returns the serial number for the controller

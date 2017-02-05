@@ -49,10 +49,17 @@ public:
     void freeTrackingColorID(eCommonTrackingColorID color_id);
 
 protected:
+	// Fetch latest controller state
+	void poll_devices() override;
+
+	// Controller enumerator methods
     class DeviceEnumerator *allocate_device_enumerator() override;
     void free_device_enumerator(class DeviceEnumerator *) override;
     ServerDeviceView *allocate_device_view(int device_id) override;
 	int getListUpdatedResponseType() override;
+
+public:
+	bool gamepad_api_enabled;
 
 private:
     static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;

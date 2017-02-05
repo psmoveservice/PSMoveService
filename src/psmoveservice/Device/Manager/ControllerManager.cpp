@@ -2,6 +2,7 @@
 #include "ControllerManager.h"
 #include "BluetoothQueries.h"
 #include "ControllerDeviceEnumerator.h"
+#include "ControllerGamepadEnumerator.h"
 #include "OrientationFilter.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerLog.h"
@@ -9,7 +10,9 @@
 #include "ServerDeviceView.h"
 #include "ServerNetworkManager.h"
 #include "ServerUtility.h"
+
 #include "hidapi.h"
+#include "gamepad/Gamepad.h"
 
 //-- methods -----
 ControllerManager::ControllerManager()
@@ -43,57 +46,80 @@ ControllerManager::startup()
         }
     }
 
+	if (success && gamepad_api_enabled)
+	{
+		Gamepad_init();
+	}
+
     if (success)
     {
         if (!bluetooth_get_host_address(m_bluetooth_host_address))
-        {
-            m_bluetooth_host_address= "00:00:00:00:00:00";
-        }
-    }
+		{
+			m_bluetooth_host_address = "00:00:00:00:00:00";
+		}
+	}
 
-    return success;
+	return success;
 }
 
 void
 ControllerManager::shutdown()
 {
-    DeviceTypeManager::shutdown();
+	DeviceTypeManager::shutdown();
 
-    // Shutdown HIDAPI
-    hid_exit();
+	// Shutdown HIDAPI
+	hid_exit();
+
+	// Shutdown the gamepad api
+	if (gamepad_api_enabled)
+	{
+		Gamepad_shutdown();
+	}
 }
 
 void
 ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
 {
-    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
-    {
-        ServerControllerViewPtr controllerView = getControllerViewPtr(device_id);
+	for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+	{
+		ServerControllerViewPtr controllerView = getControllerViewPtr(device_id);
 
 		if (controllerView->getIsOpen() && controllerView->getIsBluetooth())
 		{
 			controllerView->updateOpticalPoseEstimation(tracker_manager);
 			controllerView->updateStateAndPredict();
 		}
-    }
+	}
+}
+
+void
+ControllerManager::poll_devices()
+{
+	// Poll all gamepads before updating the individual controllers
+	if (gamepad_api_enabled && can_poll_connected_devices())
+	{
+		Gamepad_processEvents();
+	}
+
+	DeviceTypeManager::poll_devices();
 }
 
 DeviceEnumerator *
 ControllerManager::allocate_device_enumerator()
 {
-    return new ControllerDeviceEnumerator;
+	return new ControllerDeviceEnumerator(ControllerDeviceEnumerator::CommunicationType_ALL);
 }
 
 void
 ControllerManager::free_device_enumerator(DeviceEnumerator *enumerator)
 {
-    delete static_cast<ControllerDeviceEnumerator *>(enumerator);
+	delete static_cast<ControllerDeviceEnumerator *>(enumerator);
 }
 
 ServerDeviceView *
 ControllerManager::allocate_device_view(int device_id)
 {
-    return new ServerControllerView(device_id);
+	return new ServerControllerView(device_id);
 }
 
 int ControllerManager::getListUpdatedResponseType()
