@@ -715,13 +715,15 @@ protected:
         const PSMoveProtocol::Request_RequestStartPSMoveDataStream& request=
             context.request->request_start_psmove_data_stream();
         int controller_id= request.controller_id();
-//        response->set_type(PSMoveProtocol::Response_ResponseType_CONTROLLER_STREAM_STARTED);
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_CONTROLLER_STREAM_STARTED);
 
         if (ServerUtility::is_index_valid(controller_id, m_device_manager.getControllerViewMaxCount()))
         {
             ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
 
-            if (controller_view->getIsBluetooth())
+			// Some controllers can only be streamed when connected via bluetooth
+            if (controller_view->getIsStreamable())
             {
                 ControllerStreamInfo &streamInfo =
                     context.connection_state->active_controller_stream_info[controller_id];
@@ -753,13 +755,13 @@ protected:
                     controller_view->startTracking();
                 }
                 
-//                // Attach the initial state of the controller
-//                {
-//                    auto *stream_started_response= response->mutable_result_controller_stream_started();
-//                    PSMoveProtocol::DeviceOutputDataFrame* data_frame= stream_started_response->mutable_initial_data_frame();
-//                    
-//                    ServerControllerView::generate_controller_data_frame_for_stream(controller_view.get(), &streamInfo, data_frame);
-//                }
+                // Attach the initial state of the controller
+                {
+                    auto *stream_started_response= response->mutable_result_controller_stream_started();
+                    PSMoveProtocol::DeviceOutputDataFrame* data_frame= stream_started_response->mutable_initial_data_frame();
+                    
+                    ServerControllerView::generate_controller_data_frame_for_stream(controller_view.get(), &streamInfo, data_frame);
+                }
 
 				if (streamInfo.disable_roi)
 				{
@@ -770,11 +772,14 @@ protected:
             }
             else
             {
+				SERVER_LOG_INFO("ServerRequestHandler") << "Failed to start controller(" << controller_id << ") stream: Not on stream-able connection.";
+
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
             }
         }
         else
         {
+			SERVER_LOG_INFO("ServerRequestHandler") << "Failed to start controller(" << controller_id << ") stream: Invalid controller id.";
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
@@ -791,7 +796,7 @@ protected:
             ControllerStreamInfo &streamInfo =
                 context.connection_state->active_controller_stream_info[controller_id];
 
-            if (controller_view->getIsBluetooth())
+            if (controller_view->getIsStreamable())
             {
 				if (streamInfo.disable_roi)
 				{
@@ -1000,7 +1005,7 @@ protected:
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
         if (ControllerView && 
-            ControllerView->getIsBluetooth() &&
+            ControllerView->getIsStreamable() &&
             (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove ||
              ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4))
         {
@@ -2499,9 +2504,9 @@ protected:
             ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
             ControllerStreamInfo &streamInfo = connection_state->active_controller_stream_info[controller_id];
 
-            // Don't consider this data frame if the controller is USB connected
+            // Don't consider this data frame if the controller isn't in a streamable connection
             // or if the sequence number is old
-            if (controller_view->getIsBluetooth() && 
+            if (controller_view->getIsStreamable() && 
                 controllerDataPacket.sequence_num() > streamInfo.last_data_input_sequence_number)
             {
                 // Remember the last sequence number we received from this connection

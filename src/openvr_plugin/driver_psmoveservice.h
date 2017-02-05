@@ -150,6 +150,16 @@ protected:
 class CPSMoveControllerLatest : public CPSMoveTrackedDeviceLatest, public vr::IVRControllerComponent
 {
 public:
+	// Mirrors definition in ClientControllerView::eControllerType
+    enum ePSControllerType
+    {
+        k_EPSControllerType_Move,
+        k_EPSControllerType_Navi,
+        k_EPSControllerType_DS4,
+
+		k_EPSControllerType_Count
+    };
+
     enum ePSButtonID
     {
         k_EPSButtonID_PS,
@@ -177,7 +187,6 @@ public:
 
         k_EPSButtonID_Count
     };
-
 
 	enum eVRTouchpadDirection
 	{
@@ -229,7 +238,7 @@ private:
 	void StartRealignHMDTrackingSpace();
 	static void FinishRealignHMDTrackingSpace(const PSMovePose &hmd_pose_meters, void *userdata);
     void UpdateControllerState();
-	void UpdateControllerStateFromPsMoveButtonState(ePSButtonID buttonId, PSMoveButtonState buttonState, vr::VRControllerState_t* pControllerStateToUpdate);
+	void UpdateControllerStateFromPsMoveButtonState(ePSControllerType controllerType, ePSButtonID buttonId, PSMoveButtonState buttonState, vr::VRControllerState_t* pControllerStateToUpdate);
 	void GetMetersPosInRotSpace(PSMoveFloatVector3* pOutPosition, const PSMoveQuaternion& rRotation );
     void UpdateTrackingState();
     void UpdateRumbleState();	
@@ -283,11 +292,11 @@ private:
 	bool m_bResetPoseRequestSent;
 
     // Button Remapping
-    vr::EVRButtonId psButtonIDToVRButtonID[k_EPSButtonID_Count];
-	eVRTouchpadDirection psButtonIDToVrTouchpadDirection[k_EPSButtonID_Count];
+    vr::EVRButtonId psButtonIDToVRButtonID[k_EPSControllerType_Count][k_EPSButtonID_Count];
+	eVRTouchpadDirection psButtonIDToVrTouchpadDirection[k_EPSControllerType_Count][k_EPSButtonID_Count];
     void LoadButtonMapping(
         vr::IVRSettings *pSettings,
-		const ClientControllerView::eControllerType controllerType,
+		const CPSMoveControllerLatest::ePSControllerType controllerType,
         const CPSMoveControllerLatest::ePSButtonID psButtonID,
         const vr::EVRButtonId defaultVRButtonID,
 		const eVRTouchpadDirection defaultTouchpadDirection);
