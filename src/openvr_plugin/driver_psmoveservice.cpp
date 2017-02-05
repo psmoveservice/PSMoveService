@@ -1323,6 +1323,7 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 	, m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis(false)
 	, m_touchpadDirectionsUsed(false)
 	, m_fControllerMetersInFrontOfHmdAtCalibration(0.f)
+	, m_bUseControllerOrientationInHMDAlignment(false)
 {
     char buf[256];
     GenerateControllerSerialNumber(buf, sizeof(buf), controllerId);
@@ -1393,6 +1394,7 @@ CPSMoveControllerLatest::CPSMoveControllerLatest( vr::IServerDriverHost * pDrive
 				m_fVirtuallExtendControllersZMeters = LoadFloat(pSettings, "psmove_settings", "psmove_extend_z", 0.0f);
 				m_fControllerMetersInFrontOfHmdAtCalibration= 
 					LoadFloat(pSettings, "psmove", "m_fControllerMetersInFrontOfHmdAtCallibration", 0.06f);
+				m_bUseControllerOrientationInHMDAlignment= LoadBool(pSettings, "psmove_settings", "use_orientation_in_alignment", true);
 
 				#if LOG_TOUCHPAD_EMULATION != 0
 				DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
@@ -2390,16 +2392,25 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	controller_pose_meters.Position.y *= k_fScalePSMoveAPIToMeters;
 	controller_pose_meters.Position.z *= k_fScalePSMoveAPIToMeters;
 
-	// Extract only the yaw from the controller orientation (assume it's mostly held upright)
 	if (pThis->m_PSMControllerType == ClientControllerView::PSMove)
 	{
-		controller_pose_meters.Orientation = ExtractPSMoveYawQuaternion(controller_pose_meters.Orientation);
+		if (pThis->m_bUseControllerOrientationInHMDAlignment)
+		{
+			// Extract only the yaw from the controller orientation (assume it's mostly held upright)
+			controller_pose_meters.Orientation = ExtractPSMoveYawQuaternion(controller_pose_meters.Orientation);
+			DriverLog("controller_pose_meters(yaw-only): %s \n", PsMovePoseToString(controller_pose_meters).c_str());
+		}
+		else
+		{
+			controller_pose_meters.Orientation = PSMoveQuaternion::create(PSMoveFloatVector3::create((float)M_PI_2, 0.0f, 0.0f));
+			DriverLog("controller_pose_meters(no-rotation): %s \n", PsMovePoseToString(controller_pose_meters).c_str());
+		}
 	}
 	else if (pThis->m_PSMControllerType == ClientControllerView::PSDualShock4)
 	{
 		controller_pose_meters.Orientation = PSMoveQuaternion::identity();
-	}
-	DriverLog("controller_pose_meters(yaw-only): %s \n", PsMovePoseToString(controller_pose_meters).c_str());
+		DriverLog("controller_pose_meters(no-rotation): %s \n", PsMovePoseToString(controller_pose_meters).c_str());
+	}	
 
 	PSMovePose controller_pose_inv = controller_pose_meters.inverse();
 	DriverLog("controller_pose_inv: %s \n", PsMovePoseToString(controller_pose_inv).c_str());

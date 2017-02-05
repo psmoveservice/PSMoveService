@@ -300,7 +300,9 @@ private:
 	// The orientation of the controller in driver space at the time when
 	// the touchpad was most recently pressed (after being up).
 	PSMoveQuaternion m_driverSpaceRotationAtTouchpadPressTime;
-	
+
+	// Flag to tell if we should use the controller orientation as part of the controller alignment
+	bool m_bUseControllerOrientationInHMDAlignment;
 
     // Callbacks
     static void start_controller_response_callback(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
