@@ -374,6 +374,8 @@ PSDualShock4Controller::PSDualShock4Controller()
     , bWriteStateDirty(false)
     , NextPollSequenceNumber(0)
 {
+	HIDDetails.vendor_id = -1;
+	HIDDetails.product_id = -1;
     HIDDetails.Handle = nullptr;
 
     InData = new PSDualShock4DataInput;
@@ -407,7 +409,7 @@ PSDualShock4Controller::~PSDualShock4Controller()
 
 bool PSDualShock4Controller::open()
 {
-    ControllerDeviceEnumerator enumerator(CommonControllerState::PSDualShock4);
+    ControllerDeviceEnumerator enumerator(ControllerDeviceEnumerator::CommunicationType_HID, CommonControllerState::PSDualShock4);
     bool success = false;
 
     if (enumerator.is_valid())
@@ -448,6 +450,8 @@ bool PSDualShock4Controller::open(
         }
 
         // Attempt to open the controller 
+		HIDDetails.vendor_id = pEnum->get_vendor_id();
+		HIDDetails.product_id = pEnum->get_product_id();
         HIDDetails.Device_path = cur_dev_path;
         HIDDetails.Handle = hid_open_path(HIDDetails.Device_path.c_str());
 
@@ -679,6 +683,18 @@ std::string
 PSDualShock4Controller::getUSBDevicePath() const
 {
     return HIDDetails.Device_path;
+}
+
+int
+PSDualShock4Controller::getVendorID() const
+{
+	return HIDDetails.vendor_id;
+}
+
+int 
+PSDualShock4Controller::getProductID() const
+{
+	return HIDDetails.product_id;
 }
 
 std::string

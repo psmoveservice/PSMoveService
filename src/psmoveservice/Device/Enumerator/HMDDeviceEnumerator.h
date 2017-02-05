@@ -17,10 +17,11 @@ class HMDDeviceEnumerator : public DeviceEnumerator
 {
 public:
     HMDDeviceEnumerator();
-    HMDDeviceEnumerator(CommonDeviceState::eDeviceType deviceType);
 
     bool is_valid() const override;
     bool next() override;
+	int get_vendor_id() const;
+	int get_product_id() const;
     const char *get_path() const override;
 
 	std::string get_interface_path(int interface_number) const;

@@ -5,6 +5,9 @@
 #include "DeviceEnumerator.h"
 #include "HMDManager.h"
 #include "OrientationFilter.h"
+#ifdef WIN32
+#include "PlatformDeviceAPIWin32.h"
+#endif // WIN32
 #include "ServerControllerView.h"
 #include "ServerHMDView.h"
 #include "ServerTrackerView.h"
@@ -16,6 +19,7 @@
 #include "PSMoveProtocol.pb.h"
 #include "PSMoveConfig.h"
 #include "TrackerManager.h"
+
 #include <chrono>
 
 //-- constants -----
@@ -36,7 +40,8 @@ public:
         , tracker_reconnect_interval(k_default_tracker_reconnect_interval)
         , tracker_poll_interval(k_default_tracker_poll_interval)
         , hmd_reconnect_interval(k_default_hmd_reconnect_interval)
-        , hmd_poll_interval(k_default_hmd_poll_interval)        
+        , hmd_poll_interval(k_default_hmd_poll_interval)
+		, gamepad_api_enabled(false)
     {};
 
     const boost::property_tree::ptree
@@ -49,7 +54,8 @@ public:
         pt.put("tracker_reconnect_interval", tracker_reconnect_interval);
         pt.put("tracker_poll_interval", tracker_poll_interval);
         pt.put("hmd_reconnect_interval", hmd_reconnect_interval);
-        pt.put("hmd_poll_interval", hmd_poll_interval);        
+        pt.put("hmd_poll_interval", hmd_poll_interval); 
+		pt.put("gamepad_api_enabled", gamepad_api_enabled);
 
         return pt;
     }
@@ -62,7 +68,8 @@ public:
         tracker_reconnect_interval = pt.get<int>("tracker_reconnect_interval", k_default_tracker_reconnect_interval);
         tracker_poll_interval = pt.get<int>("tracker_poll_interval", k_default_tracker_poll_interval);
         hmd_reconnect_interval = pt.get<int>("hmd_reconnect_interval", k_default_hmd_reconnect_interval);
-        hmd_poll_interval = pt.get<int>("hmd_poll_interval", k_default_hmd_poll_interval);        
+        hmd_poll_interval = pt.get<int>("hmd_poll_interval", k_default_hmd_poll_interval);
+		gamepad_api_enabled = pt.get<bool>("gamepad_api_enabled", gamepad_api_enabled);
     }
 
     int controller_reconnect_interval;
@@ -71,6 +78,7 @@ public:
     int tracker_poll_interval;
     int hmd_reconnect_interval;
     int hmd_poll_interval;    
+	bool gamepad_api_enabled;
 };
 
 // DeviceManager - This is the interface used by PSMoveService
@@ -78,10 +86,16 @@ DeviceManager *DeviceManager::m_instance= nullptr;
 
 DeviceManager::DeviceManager()
     : m_config() // NULL config until startup
+	, m_platform_api_type(_eDevicePlatformApiType_None)
+	, m_platform_api(nullptr)
     , m_controller_manager(new ControllerManager())
     , m_tracker_manager(new TrackerManager())
     , m_hmd_manager(new HMDManager())
 {
+#ifdef WIN32
+	m_platform_api_type = _eDevicePlatformApiType_Win32;
+	m_platform_api = new PlatformDeviceAPIWin32;
+#endif
 }
 
 DeviceManager::~DeviceManager()
@@ -89,6 +103,11 @@ DeviceManager::~DeviceManager()
     delete m_controller_manager;
     delete m_tracker_manager;
     delete m_hmd_manager;
+
+	if (m_platform_api != nullptr)
+	{
+		delete m_platform_api;
+	}
 }
 
 bool
@@ -104,15 +123,37 @@ DeviceManager::startup()
 	// Save the config back out again in case defaults changed
 	m_config->save();
     
-    m_controller_manager->reconnect_interval = m_config->controller_reconnect_interval;
+	if (m_platform_api != nullptr)
+	{
+		success &= m_platform_api->startup(this);
+	}
+
+	// Register for hotplug events if this platform supports them
+	int controller_reconnect_interval = m_config->controller_reconnect_interval;
+	int tracker_reconnect_interval = m_config->tracker_reconnect_interval;
+	int hmd_reconnect_interval = m_config->hmd_reconnect_interval;
+	if (success && m_platform_api_type != _eDevicePlatformApiType_None)
+	{
+		registerHotplugListener(CommonDeviceState::Controller, m_controller_manager);
+		controller_reconnect_interval = -1;
+
+		registerHotplugListener(CommonDeviceState::TrackingCamera, m_tracker_manager);
+		tracker_reconnect_interval = -1;
+
+		registerHotplugListener(CommonDeviceState::HeadMountedDisplay, m_hmd_manager);
+		hmd_reconnect_interval = -1;
+	}
+
+    m_controller_manager->reconnect_interval = controller_reconnect_interval;
     m_controller_manager->poll_interval = m_config->controller_poll_interval;
+	m_controller_manager->gamepad_api_enabled= m_config->gamepad_api_enabled;
     success &= m_controller_manager->startup();
     
-    m_tracker_manager->reconnect_interval = m_config->tracker_reconnect_interval;
+    m_tracker_manager->reconnect_interval = tracker_reconnect_interval;
     m_tracker_manager->poll_interval = m_config->tracker_poll_interval;
     success &= m_tracker_manager->startup();
 
-    m_hmd_manager->reconnect_interval = m_config->hmd_reconnect_interval;
+    m_hmd_manager->reconnect_interval = hmd_reconnect_interval;
     m_hmd_manager->poll_interval = m_config->hmd_poll_interval;
     success &= m_hmd_manager->startup();    
     
@@ -124,6 +165,11 @@ DeviceManager::startup()
 void
 DeviceManager::update()
 {
+	if (m_platform_api != nullptr)
+	{
+		m_platform_api->poll(); // Send device hotplug events
+	}
+
     m_controller_manager->poll(); // Update controller counts and poll button/IMU state
     m_tracker_manager->poll(); // Update tracker count and poll video frames
     m_hmd_manager->poll(); // Update HMD count and poll IMU state
@@ -145,7 +191,32 @@ DeviceManager::shutdown()
     m_tracker_manager->shutdown();
     m_hmd_manager->shutdown();
 
+	if (m_platform_api != nullptr)
+	{
+		m_platform_api->shutdown();
+	}
+
     m_instance= nullptr;
+}
+
+// -- Queries ---
+bool 
+DeviceManager::get_device_property(
+	const DeviceClass deviceClass,
+	const int vendor_id,
+	const int product_id,
+	const char *property_name,
+	char *buffer,
+	const int buffer_size)
+{
+	bool bSuccess = false;
+
+	if (m_platform_api != nullptr)
+	{
+		bSuccess = m_platform_api->get_device_property(deviceClass, vendor_id, product_id, property_name, buffer, buffer_size);
+	}
+
+	return bSuccess;
 }
 
 int 
@@ -200,4 +271,51 @@ DeviceManager::getHMDViewPtr(int hmd_id)
     }
 
     return result;
+}
+
+// -- Notification --
+void
+DeviceManager::registerHotplugListener(const CommonDeviceState::eDeviceClass deviceClass, IDeviceHotplugListener *listener)
+{
+	DeviceHotplugListener entry;
+	entry.listener = listener;
+
+	switch (deviceClass)
+	{
+	case CommonDeviceState::Controller:
+	case CommonDeviceState::HeadMountedDisplay:
+		entry.device_class = DeviceClass::DeviceClass_HID;
+		break;
+	case CommonDeviceState::TrackingCamera:
+		entry.device_class = DeviceClass::DeviceClass_Camera;
+		break;
+	default:
+		break;
+	}
+
+	m_listeners.push_back(entry);
+}
+
+void
+DeviceManager::handle_device_connected(enum DeviceClass device_class, const std::string &device_path)
+{
+	for (auto &it = m_listeners.begin(); it != m_listeners.end(); ++it)
+	{
+		if (it->device_class == device_class)
+		{
+			it->listener->handle_device_connected(device_class, device_path);
+		}
+	}
+}
+
+void
+DeviceManager::handle_device_disconnected(enum DeviceClass device_class, const std::string &device_path)
+{
+	for (auto &it = m_listeners.begin(); it != m_listeners.end(); ++it)
+	{
+		if (it->device_class == device_class)
+		{
+			it->listener->handle_device_disconnected(device_class, device_path);
+		}
+	}
 }

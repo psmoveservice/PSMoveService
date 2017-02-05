@@ -15,6 +15,7 @@
 #include "PS3EyeTracker.h"
 #include "PSDualShock4Controller.h"
 #include "PSMoveController.h"
+#include "PSNaviController.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerControllerView.h"
 #include "ServerDeviceView.h"
@@ -237,6 +238,10 @@ public:
 			case PSMoveProtocol::Request_RequestType_SET_CONTROLLER_PREDICTION_TIME:
 				response = new PSMoveProtocol::Response;
 				handle_request__set_controller_prediction_time(context, response);
+				break;
+			case PSMoveProtocol::Request_RequestType_SET_ATTACHED_CONTROLLER:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_attached_controller(context, response);
 				break;
 
             // Tracker Requests
@@ -599,6 +604,7 @@ protected:
 				int firmware_revision = 0;
 				bool has_magnetometer = false;
 
+				std::string parent_controller_serial = "";
 				std::string orientation_filter = "";
 				std::string position_filter = "";
 				std::string gyro_gain_setting = "";
@@ -624,7 +630,11 @@ protected:
                     break;
                 case CommonControllerState::PSNavi:
 					{
+						const PSNaviController *controller = controller_view->castCheckedConst<PSNaviController>();
+						const PSNaviControllerConfig &config = controller->getConfig();
+
 						controller_info->set_controller_type(PSMoveProtocol::PSNAVI);
+						parent_controller_serial = config.attached_to_controller;					
 					}
                     break;
                 case CommonControllerState::PSDualShock4:
@@ -684,6 +694,7 @@ protected:
                 controller_info->set_device_path(controller_view->getUSBDevicePath());
                 controller_info->set_device_serial(controller_view->getSerial());
                 controller_info->set_assigned_host_serial(controller_view->getAssignedHostBluetoothAddress());
+				controller_info->set_parent_controller_serial(parent_controller_serial);
 				controller_info->set_firmware_version(firmware_version);
 				controller_info->set_firmware_revision(firmware_revision);
 				controller_info->set_has_magnetometer(has_magnetometer);
@@ -704,13 +715,15 @@ protected:
         const PSMoveProtocol::Request_RequestStartPSMoveDataStream& request=
             context.request->request_start_psmove_data_stream();
         int controller_id= request.controller_id();
-//        response->set_type(PSMoveProtocol::Response_ResponseType_CONTROLLER_STREAM_STARTED);
+
+        response->set_type(PSMoveProtocol::Response_ResponseType_CONTROLLER_STREAM_STARTED);
 
         if (ServerUtility::is_index_valid(controller_id, m_device_manager.getControllerViewMaxCount()))
         {
             ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
 
-            if (controller_view->getIsBluetooth())
+			// Some controllers can only be streamed when connected via bluetooth
+            if (controller_view->getIsStreamable())
             {
                 ControllerStreamInfo &streamInfo =
                     context.connection_state->active_controller_stream_info[controller_id];
@@ -742,13 +755,13 @@ protected:
                     controller_view->startTracking();
                 }
                 
-//                // Attach the initial state of the controller
-//                {
-//                    auto *stream_started_response= response->mutable_result_controller_stream_started();
-//                    PSMoveProtocol::DeviceOutputDataFrame* data_frame= stream_started_response->mutable_initial_data_frame();
-//                    
-//                    ServerControllerView::generate_controller_data_frame_for_stream(controller_view.get(), &streamInfo, data_frame);
-//                }
+                // Attach the initial state of the controller
+                {
+                    auto *stream_started_response= response->mutable_result_controller_stream_started();
+                    PSMoveProtocol::DeviceOutputDataFrame* data_frame= stream_started_response->mutable_initial_data_frame();
+                    
+                    ServerControllerView::generate_controller_data_frame_for_stream(controller_view.get(), &streamInfo, data_frame);
+                }
 
 				if (streamInfo.disable_roi)
 				{
@@ -759,11 +772,14 @@ protected:
             }
             else
             {
+				SERVER_LOG_INFO("ServerRequestHandler") << "Failed to start controller(" << controller_id << ") stream: Not on stream-able connection.";
+
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
             }
         }
         else
         {
+			SERVER_LOG_INFO("ServerRequestHandler") << "Failed to start controller(" << controller_id << ") stream: Invalid controller id.";
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
@@ -780,7 +796,7 @@ protected:
             ControllerStreamInfo &streamInfo =
                 context.connection_state->active_controller_stream_info[controller_id];
 
-            if (controller_view->getIsBluetooth())
+            if (controller_view->getIsStreamable())
             {
 				if (streamInfo.disable_roi)
 				{
@@ -989,7 +1005,7 @@ protected:
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
         if (ControllerView && 
-            ControllerView->getIsBluetooth() &&
+            ControllerView->getIsStreamable() &&
             (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove ||
              ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4))
         {
@@ -1433,6 +1449,44 @@ protected:
 					config->prediction_time = request.prediction_time();
 					config->save();
 				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
+	void handle_request__set_attached_controller(
+		const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int child_controller_id = context.request->request_set_attached_controller().child_controller_id();
+		const int parent_controller_id = context.request->request_set_attached_controller().parent_controller_id();
+
+		ServerControllerViewPtr ChildControllerView = m_device_manager.getControllerViewPtr(child_controller_id);
+		ServerControllerViewPtr ParentControllerView = m_device_manager.getControllerViewPtr(parent_controller_id);
+
+		if (ChildControllerView && ChildControllerView->getIsOpen() &&
+			ParentControllerView && ParentControllerView->getIsOpen() &&
+			ChildControllerView != ParentControllerView)
+		{
+			if (ParentControllerView->getControllerDeviceType() == CommonDeviceState::PSMove && 
+				ChildControllerView->getControllerDeviceType() == CommonDeviceState::PSNavi)
+			{
+				const PSMoveController *psmove = ParentControllerView->castChecked<PSMoveController>();
+
+				PSNaviController *psnavi = ChildControllerView->castChecked<PSNaviController>();
+				PSNaviControllerConfig &psnavi_config = psnavi->getConfigMutable();
+
+				psnavi_config.attached_to_controller = psmove->getSerial();
+				psnavi_config.save();
 
 				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 			}
@@ -2450,9 +2504,9 @@ protected:
             ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
             ControllerStreamInfo &streamInfo = connection_state->active_controller_stream_info[controller_id];
 
-            // Don't consider this data frame if the controller is USB connected
+            // Don't consider this data frame if the controller isn't in a streamable connection
             // or if the sequence number is old
-            if (controller_view->getIsBluetooth() && 
+            if (controller_view->getIsStreamable() && 
                 controllerDataPacket.sequence_num() > streamInfo.last_data_input_sequence_number)
             {
                 // Remember the last sequence number we received from this connection

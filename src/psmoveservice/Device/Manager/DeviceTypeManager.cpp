@@ -14,6 +14,7 @@ DeviceTypeManager::DeviceTypeManager(const int recon_int, const int poll_int)
     : reconnect_interval(recon_int)
     , poll_interval(poll_int)
     , m_deviceViews(nullptr)
+	, m_bIsDeviceListDirty(false)
 {
 }
 
@@ -38,6 +39,9 @@ DeviceTypeManager::startup()
 
         m_deviceViews[device_id] = deviceView;
     }
+
+	// Rebuild the device list the first chance we get
+	m_bIsDeviceListDirty = true;
 
     return true;
 }
@@ -82,11 +86,21 @@ DeviceTypeManager::poll()
     }
 
     // See if it's time to try update the list of connected devices
-    std::chrono::duration<double, std::milli> reconnect_diff = now - m_last_reconnect_time;
-    if (reconnect_diff.count() >= reconnect_interval)
+	if (reconnect_interval > 0)
+	{
+		std::chrono::duration<double, std::milli> reconnect_diff = now - m_last_reconnect_time;
+
+		if (reconnect_diff.count() >= reconnect_interval)
+		{
+			m_bIsDeviceListDirty = true;
+		}
+	}
+
+	if (m_bIsDeviceListDirty)
     {
         if (update_connected_devices())
         {
+			m_bIsDeviceListDirty = false;
             m_last_reconnect_time = now;
         }
     }
@@ -258,6 +272,7 @@ DeviceTypeManager::poll_devices()
     }
 }
 
+
 int
 DeviceTypeManager::find_open_device_device_id(const DeviceEnumerator *enumerator)
 {
@@ -300,4 +315,16 @@ DeviceTypeManager::getDeviceViewPtr(int device_id)
     assert(m_deviceViews != nullptr);
 
     return m_deviceViews[device_id];
+}
+
+void 
+DeviceTypeManager::handle_device_connected(enum DeviceClass device_class, const std::string &device_path)
+{
+	m_bIsDeviceListDirty = true;
+}
+
+void 
+DeviceTypeManager::handle_device_disconnected(enum DeviceClass device_class, const std::string &device_path)
+{
+	m_bIsDeviceListDirty = true;
 }

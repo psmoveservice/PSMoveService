@@ -5,39 +5,39 @@
 #include "DeviceInterface.h"
 #include "stdlib.h" // size_t
 
-// -- macros ----
-#define MAX_USB_DEVICE_PORT_PATH 7
-#define GET_DEVICE_TYPE_INDEX(device_type)  (device_type & 0x0f)
-#define GET_DEVICE_TYPE_CLASS(device_type)  (device_type & 0xf0)
-
 // -- definitions -----
-struct USBDeviceInfo
-{
-    unsigned short vendor_id;
-    unsigned short product_id;
-};
-
 class DeviceEnumerator
 {
 public:
-    DeviceEnumerator() : 
-        m_deviceType(static_cast<CommonDeviceState::eDeviceType>(0))
+    DeviceEnumerator() 
+		: m_deviceType(CommonDeviceState::INVALID_DEVICE_TYPE)
+		, m_deviceTypeFilter(CommonDeviceState::INVALID_DEVICE_TYPE)
     { }
-    DeviceEnumerator(CommonDeviceState::eDeviceType deviceType) : 
-        m_deviceType(deviceType)
+    DeviceEnumerator(CommonDeviceState::eDeviceType deviceTypeFilter)
+		: m_deviceType(CommonDeviceState::INVALID_DEVICE_TYPE)
+		, m_deviceTypeFilter(deviceTypeFilter)
     { }
     virtual ~DeviceEnumerator() {}
 
     virtual bool is_valid() const =0;
     virtual bool next()=0;
+	virtual int get_vendor_id() const =0;
+	virtual int get_product_id() const =0;
     virtual const char *get_path() const =0;
     
     inline CommonDeviceState::eDeviceType get_device_type() const
     {
         return m_deviceType;
     }
+
+    inline CommonDeviceState::eDeviceType get_device_type_filter() const
+    {
+        return m_deviceTypeFilter;
+    }
+
 protected:
     CommonDeviceState::eDeviceType m_deviceType;
+	CommonDeviceState::eDeviceType m_deviceTypeFilter;
 };
 
 #endif // DEVICE_ENUMERATOR_H
