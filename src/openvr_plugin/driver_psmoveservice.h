@@ -301,6 +301,7 @@ private:
         const vr::EVRButtonId defaultVRButtonID,
 		const eVRTouchpadDirection defaultTouchpadDirection);
 	bool LoadBool(vr::IVRSettings *pSettings, const char *pchSection, const char *pchSettingsKey, const bool bDefaultValue);
+	int LoadInt(vr::IVRSettings *pSettings, const char *pchSection, const char *pchSettingsKey, const int iDefaultValue);
 	float LoadFloat(vr::IVRSettings *pSettings, const char *pchSection, const char *pchSettingsKey, const float fDefaultValue);
 
 	// Settings values. Used to determine whether we'll map controller movement after touchpad
@@ -322,6 +323,15 @@ private:
 
 	// Flag to tell if we should use the controller orientation as part of the controller alignment
 	bool m_bUseControllerOrientationInHMDAlignment;
+
+	// The axis to use for trigger input
+	int m_triggerAxisIndex;
+
+	// The size of the deadzone for the controller's thumbstick
+	float m_thumbstickDeadzone;
+
+	// Treat a thumbstick touch also as a press
+	bool m_bThumbstickTouchAsPress;
 
     // Callbacks
     static void start_controller_response_callback(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
