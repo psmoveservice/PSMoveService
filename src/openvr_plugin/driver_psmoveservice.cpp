@@ -1498,6 +1498,38 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_L1, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_L2, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_L3, vr::k_EButton_Grip, k_EVRTouchpadDirection_None);
+
+			// Trigger mapping
+			m_triggerAxisIndex = LoadInt(pSettings, "psmove", "trigger_axis_index", 1);
+
+			// Touch pad settings
+			m_bDelayAfterTouchpadPress = 
+				LoadBool(pSettings, "psmove_touchpad", "delay_after_touchpad_press", m_bDelayAfterTouchpadPress);
+			m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis= 
+				LoadBool(pSettings, "psmove", "use_spatial_offset_after_touchpad_press_as_touchpad_axis", false);
+			m_fMetersPerTouchpadAxisUnits= 
+				LoadFloat(pSettings, "psmove", "meters_per_touchpad_units", .075f);
+
+			// General Settings
+			m_bRumbleSuppressed= LoadBool(pSettings, "psmove_settings", "rumble_suppressed", m_bRumbleSuppressed);
+			m_fVirtuallExtendControllersYMeters = LoadFloat(pSettings, "psmove_settings", "psmove_extend_y", 0.0f);
+			m_fVirtuallExtendControllersZMeters = LoadFloat(pSettings, "psmove_settings", "psmove_extend_z", 0.0f);
+			m_fControllerMetersInFrontOfHmdAtCalibration= 
+				LoadFloat(pSettings, "psmove", "m_fControllerMetersInFrontOfHmdAtCallibration", 0.06f);
+			m_bUseControllerOrientationInHMDAlignment= LoadBool(pSettings, "psmove_settings", "use_orientation_in_alignment", true);
+
+			m_thumbstickDeadzone = 
+				fminf(fmaxf(LoadFloat(pSettings, "psnavi_settings", "thumbstick_deadzone_radius", k_defaultThumbstickDeadZoneRadius), 0.f), 0.99f);
+			m_bThumbstickTouchAsPress= LoadBool(pSettings, "psnavi_settings", "thumbstick_touch_as_press", true);
+
+			#if LOG_TOUCHPAD_EMULATION != 0
+			DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
+			DriverLog("meters_per_touchpad_units: %f\n", m_fMetersPerTouchpadAxisUnits);
+			#endif
+
+			#if LOG_REALIGN_TO_HMD != 0
+			DriverLog("m_fControllerMetersInFrontOfHmdAtCalibration(psmove): %f\n", m_fControllerMetersInFrontOfHmdAtCalibration);
+			#endif
 		}
 		else if (controllerType == ClientControllerView::PSDualShock4)
 		{
@@ -1519,64 +1551,15 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 			LoadButtonMapping(pSettings, k_EPSControllerType_DS4, k_EPSButtonID_R1, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_DS4, k_EPSButtonID_R2, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_DS4, k_EPSButtonID_R3, vr::k_EButton_Grip, k_EVRTouchpadDirection_None);
-		}
 
-		switch (controllerType)
-		{
-		case ClientControllerView::PSMove:
-			{
-				// Trigger mapping
-				m_triggerAxisIndex = LoadInt(pSettings, "psmove", "trigger_axis_index", 1);
+			// General Settings
+			m_bRumbleSuppressed= LoadBool(pSettings, "dualshock4_settings", "rumble_suppressed", m_bRumbleSuppressed);
+			m_fControllerMetersInFrontOfHmdAtCalibration= 
+				LoadFloat(pSettings, "dualshock4_settings", "cm_in_front_of_hmd_at_calibration", 16.f) / 100.f;
 
-				// Touch pad settings
-				m_bDelayAfterTouchpadPress = 
-					LoadBool(pSettings, "psmove_touchpad", "delay_after_touchpad_press", m_bDelayAfterTouchpadPress);
-				m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis= 
-					LoadBool(pSettings, "psmove", "use_spatial_offset_after_touchpad_press_as_touchpad_axis", false);
-				m_fMetersPerTouchpadAxisUnits= 
-					LoadFloat(pSettings, "psmove", "meters_per_touchpad_units", .075f);
-
-				// General Settings
-				m_bRumbleSuppressed= LoadBool(pSettings, "psmove_settings", "rumble_suppressed", m_bRumbleSuppressed);
-				m_fVirtuallExtendControllersYMeters = LoadFloat(pSettings, "psmove_settings", "psmove_extend_y", 0.0f);
-				m_fVirtuallExtendControllersZMeters = LoadFloat(pSettings, "psmove_settings", "psmove_extend_z", 0.0f);
-				m_fControllerMetersInFrontOfHmdAtCalibration= 
-					LoadFloat(pSettings, "psmove", "m_fControllerMetersInFrontOfHmdAtCallibration", 0.06f);
-				m_bUseControllerOrientationInHMDAlignment= LoadBool(pSettings, "psmove_settings", "use_orientation_in_alignment", true);
-
-				#if LOG_TOUCHPAD_EMULATION != 0
-				DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
-				DriverLog("meters_per_touchpad_units: %f\n", m_fMetersPerTouchpadAxisUnits);
-				#endif
-
-				#if LOG_REALIGN_TO_HMD != 0
-				DriverLog("m_fControllerMetersInFrontOfHmdAtCalibration(psmove): %f\n", m_fControllerMetersInFrontOfHmdAtCalibration);
-				#endif
-			}
-			break;
-		case ClientControllerView::PSNavi:
-			{
-				// Trigger mapping
-				m_triggerAxisIndex = LoadInt(pSettings, "psnavi_button", "trigger_axis_index", 1);
-
-				// General Settings
-				m_thumbstickDeadzone = 
-					fminf(fmaxf(LoadFloat(pSettings, "psnavi_settings", "thumbstick_deadzone_radius", k_defaultThumbstickDeadZoneRadius), 0.f), 0.99f);
-				m_bThumbstickTouchAsPress= LoadBool(pSettings, "psnavi_settings", "thumbstick_touch_as_press", true);
-			}
-			break;
-		case ClientControllerView::PSDualShock4:
-			{
-				// General Settings
-				m_bRumbleSuppressed= LoadBool(pSettings, "dualshock4_settings", "rumble_suppressed", m_bRumbleSuppressed);
-				m_fControllerMetersInFrontOfHmdAtCalibration= 
-					LoadFloat(pSettings, "dualshock4_settings", "cm_in_front_of_hmd_at_calibration", 16.f) / 100.f;
-
-				#if LOG_REALIGN_TO_HMD != 0
-				DriverLog("m_fControllerMetersInFrontOfHmdAtCalibration(ds4): %f\n", m_fControllerMetersInFrontOfHmdAtCalibration);
-				#endif
-			}
-			break;
+			#if LOG_REALIGN_TO_HMD != 0
+			DriverLog("m_fControllerMetersInFrontOfHmdAtCalibration(ds4): %f\n", m_fControllerMetersInFrontOfHmdAtCalibration);
+			#endif
 		}
 	}
 }
