@@ -112,10 +112,18 @@ bool TrackerDeviceEnumerator::next()
 
 		if (is_valid() && is_tracker_supported(m_usb_enumerator, m_deviceTypeFilter, m_deviceType))
 		{
+			char newUSBPath[256];
+
 			// Cache the path to the device
-			usb_device_enumerator_get_path(m_usb_enumerator, m_currentUSBPath, sizeof(m_currentUSBPath));
-			foundValid = true;
-			break;
+			usb_device_enumerator_get_path(m_usb_enumerator, newUSBPath, sizeof(newUSBPath));
+
+			// Skip the entry if it was the same as the last one
+			if (strncmp(newUSBPath, m_currentUSBPath, sizeof(m_currentUSBPath)) != 0)
+			{
+				strncpy(m_currentUSBPath, newUSBPath, sizeof(m_currentUSBPath));
+				foundValid = true;
+				break;
+			}
 		}
 	}
 
