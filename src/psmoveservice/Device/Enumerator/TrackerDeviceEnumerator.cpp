@@ -120,9 +120,18 @@ bool TrackerDeviceEnumerator::next()
 			// Skip the entry if it was the same as the last one
 			if (strncmp(newUSBPath, m_currentUSBPath, sizeof(m_currentUSBPath)) != 0)
 			{
+				// Remember the last unique 
 				strncpy(m_currentUSBPath, newUSBPath, sizeof(m_currentUSBPath));
-				foundValid = true;
-				break;
+
+				// Test open the device
+				t_usb_device_handle device_handle= usb_device_open(m_usb_enumerator);
+				if (device_handle != k_invalid_usb_device_handle)
+				{
+					usb_device_close(device_handle);
+
+					foundValid = true;
+					break;
+				}
 			}
 		}
 	}
