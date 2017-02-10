@@ -13,7 +13,7 @@
 #define PSM_PHASE           alpha
 #define PSM_MINOR_VERSION   7
 #define PSM_PATCH_VERSION   0
-#define PSM_BUILD_NUMBER    4
+#define PSM_BUILD_NUMBER    5
 
 /// "Product.Major-Phase Minor.Patch"
 #if !defined(PSM_VERSION_STRING)
