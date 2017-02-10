@@ -284,6 +284,15 @@ static void parse_program_settings(
     {
         settings.admin_password.clear();
     }
+
+	if (options_map.count("working_directory"))
+	{
+		settings.working_directory = options_map["working_directory"].as<std::string>();
+	}
+	else
+	{
+		settings.working_directory.clear();
+	}
 }
 
 #if defined(BOOST_WINDOWS_API) 
@@ -308,6 +317,15 @@ bool win32_service_management_action(
 
             service_options+= " --log_level ";
             service_options+= log_level;
+        }
+
+        if (options_map.count("working_directory"))
+        {
+            std::string working_directory= options_map["working_directory"].as<std::string>();
+
+            service_options+= " --working_directory \"";
+            service_options+= working_directory;
+			service_options+= "\"";
         }
 
         boost::system::error_code ec;
@@ -486,6 +504,7 @@ int PSMoveService::exec(int argc, char *argv[])
         (",d", "Run as background daemon/service")
         ("log_level,l", boost::program_options::value<std::string>(), "The level of logging to use: trace, debug, info, warning, error, fatal")
         ("admin_password,p", boost::program_options::value<std::string>(), "Remember the admin password for this machine (optional)")
+		("working_directory", boost::program_options::value<std::string>(), "service working directory (optional)")
 #if defined(BOOST_WINDOWS_API)
         (",i", "install service")
         (",u", "uninstall service")
@@ -535,6 +554,19 @@ int PSMoveService::exec(int argc, char *argv[])
         daemonize();
     }
     #endif // defined(BOOST_POSIX_API)
+
+	// Set the current working directory
+	if (!this->getProgramSettings()->working_directory.empty())
+	{
+		std::cout << "Setting working directory to: " << this->getProgramSettings()->working_directory << std::endl;
+
+		boost::system::error_code ec;
+		boost::filesystem::current_path( this->getProgramSettings()->working_directory, ec);
+		if (ec.value() != boost::system::errc::success)
+		{
+			std::cerr << "Failed to set working directory: " << ec.message() << std::endl;
+		}
+	}
 
     // initialize logging system
     log_init(this->getProgramSettings()->log_level, "PSMoveService.log");
