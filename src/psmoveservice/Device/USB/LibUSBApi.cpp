@@ -159,7 +159,7 @@ USBDeviceState *LibUSBApi::open_usb_device(USBDeviceEnumerator* enumerator)
 		libusb_ref_device(libusb_device_state->device);
 
 		int res = libusb_open(libusb_device_state->device, &libusb_device_state->device_handle);
-		if (res == 0)
+		if (res == LIBUSB_SUCCESS)
 		{
 			res = libusb_claim_interface(libusb_device_state->device_handle, 0);
 			if (res == 0)
@@ -171,12 +171,12 @@ USBDeviceState *LibUSBApi::open_usb_device(USBDeviceEnumerator* enumerator)
 			}
 			else
 			{
-				SERVER_LOG_ERROR("USBAsyncRequestManager::openUSBDevice") << "Failed to claim USB device: " << res;
+				SERVER_LOG_ERROR("USBAsyncRequestManager::openUSBDevice") << "Failed to claim USB device: " << libusb_error_name(res);
 			}
 		}
 		else
 		{
-			SERVER_LOG_ERROR("USBAsyncRequestManager::openUSBDevice") << "Failed to open USB device: " << res;
+			SERVER_LOG_ERROR("USBAsyncRequestManager::openUSBDevice") << "Failed to open USB device: " << libusb_error_name(res);
 		}
 
 		if (!bOpened)
@@ -217,6 +217,44 @@ void LibUSBApi::close_usb_device(USBDeviceState* device_state)
 
 		delete libusb_device_state;
 	}
+}
+
+bool LibUSBApi::can_usb_device_be_opened(USBDeviceEnumerator* enumerator, char *outReason, size_t bufferSize)
+{
+	LibUSBDeviceEnumerator *libusb_enumerator = static_cast<LibUSBDeviceEnumerator *>(enumerator);
+	bool bCanBeOpened= false;
+
+	if (device_enumerator_is_valid(enumerator))
+	{
+		bool bOpened = false;
+		
+		struct libusb_device *device = libusb_enumerator->device_list[libusb_enumerator->device_index];
+		struct libusb_device_handle *device_handle= nullptr;
+
+		int libusb_result = libusb_open(device, &device_handle);
+
+		// Can be opened if we can open the device now or it's already opened
+		if (libusb_result == LIBUSB_SUCCESS || libusb_result == LIBUSB_ERROR_ACCESS)
+		{
+			if (libusb_result == LIBUSB_SUCCESS)
+			{
+				strncpy(outReason, "SUCCESS(can be opened)", bufferSize);
+				libusb_close(device_handle);
+			}
+			else
+			{
+				strncpy(outReason, "SUCCESS(already opened)", bufferSize);
+			}
+			
+			bCanBeOpened= true;
+		}
+		else
+		{
+			strncpy(outReason, libusb_strerror(static_cast<libusb_error>(libusb_result)), bufferSize);
+		}
+	}
+
+	return bCanBeOpened;
 }
 
 eUSBResultCode LibUSBApi::submit_interrupt_transfer(

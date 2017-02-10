@@ -137,18 +137,15 @@ public:
     {
 		t_usb_device_handle handle= k_invalid_usb_device_handle;
 
-        if (!getIsUSBDeviceOpen(handle))
+		USBDeviceState *state = m_usb_api->open_usb_device(enumerator);
+
+        if (state != nullptr)
         {
-			USBDeviceState *state = m_usb_api->open_usb_device(enumerator);
+			handle = m_next_usb_device_handle;
+			state->public_handle = m_next_usb_device_handle;
+			++m_next_usb_device_handle;
 
-            if (state != nullptr)
-            {
-				handle = m_next_usb_device_handle;
-				state->public_handle = m_next_usb_device_handle;
-				++m_next_usb_device_handle;
-
-				m_device_state_map.insert(t_handle_usb_device_pair(state->public_handle, state));
-            }
+			m_device_state_map.insert(t_handle_usb_device_pair(state->public_handle, state));
         }
 
         return handle;
@@ -166,6 +163,11 @@ public:
 			m_usb_api->close_usb_device(usb_device_state);
 		}
     }
+
+	bool canUSBDeviceBeOpened(struct USBDeviceEnumerator* enumerator, char *outReason, size_t bufferSize)
+	{
+		return m_usb_api->can_usb_device_be_opened(enumerator, outReason, bufferSize);
+	}
 
     bool getIsUSBDeviceOpen(t_usb_device_handle handle) const
     {
@@ -778,6 +780,11 @@ t_usb_device_handle usb_device_open(struct USBDeviceEnumerator* enumerator)
 void usb_device_close(t_usb_device_handle usb_device_handle)
 {
 	USBDeviceManager::getInstance()->getImplementation()->closeUSBDevice(usb_device_handle);
+}
+
+bool usb_device_can_be_opened(struct USBDeviceEnumerator* enumerator, char *outReason, size_t bufferSize)
+{
+	return USBDeviceManager::getInstance()->getImplementation()->canUSBDeviceBeOpened(enumerator, outReason, bufferSize);
 }
 
 bool usb_device_submit_transfer_request_async(
