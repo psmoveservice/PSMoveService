@@ -31,8 +31,8 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     #OpenCV extra dependencies: comctl32 gdi32 ole32 setupapi ws2_32 vfw32
     #setupapi required by hidapi
     #hid required for HidD_SetOutputReport() in DualShock4 controller
-    #winmm required by libstem_gamepad
-    list(APPEND PSMOVE_SERVICE_REQ_LIBS bthprops setupapi hid winmm)
+    #dinput8 required by libstem_gamepad
+    list(APPEND PSMOVE_SERVICE_REQ_LIBS bthprops setupapi hid dinput8)
     IF(MINGW)
         #list(APPEND PSMOVE_SERVICE_REQ_LIBS stdc++)
     ENDIF(MINGW)
@@ -198,7 +198,7 @@ ENDIF()
 include_directories(${ROOT_DIR}/thirdparty/libstem_gamepad/source)
 list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_private.c)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_windows_mm.c)
+    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_windows_dinput.c)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_macosx.c)
 ELSE()

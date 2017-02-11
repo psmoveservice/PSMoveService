@@ -70,6 +70,7 @@ public:
 
 	virtual USBDeviceState *open_usb_device(USBDeviceEnumerator* enumerator) = 0;
 	virtual void close_usb_device(USBDeviceState* device_state) = 0;
+	virtual bool can_usb_device_be_opened(struct USBDeviceEnumerator* enumerator, char *outReason, size_t bufferSize) = 0;
 
 	virtual eUSBResultCode submit_interrupt_transfer(const USBDeviceState* device_state, const struct USBTransferRequestState *requestStateOnHeap) = 0;
 	virtual eUSBResultCode submit_control_transfer(const USBDeviceState* device_state, const struct USBTransferRequestState *requestStateOnHeap) = 0;

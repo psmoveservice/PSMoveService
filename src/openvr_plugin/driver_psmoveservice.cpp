@@ -52,6 +52,7 @@ static const float k_fScalePSMoveAPIToMeters = 0.01f;  // psmove driver in cm
 static const float k_fRadiansToDegrees = 180.f / 3.14159265f;
 
 static const int k_touchpadTouchMapping = (vr::EVRButtonId)31;
+static const float k_defaultThumbstickDeadZoneRadius = 0.1f;
 
 static const char *k_PSButtonNames[CPSMoveControllerLatest::k_EPSButtonID_Count] = {
     "ps",
@@ -1440,6 +1441,9 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 	, m_touchpadDirectionsUsed(false)
 	, m_fControllerMetersInFrontOfHmdAtCalibration(0.f)
 	, m_bUseControllerOrientationInHMDAlignment(false)
+	, m_triggerAxisIndex(1)
+	, m_thumbstickDeadzone(k_defaultThumbstickDeadZoneRadius)
+	, m_bThumbstickTouchAsPress(true)
 {
     char buf[256];
     GenerateControllerSteamVRIdentifier(buf, sizeof(buf), controllerId);
@@ -1489,12 +1493,43 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Right, vr::k_EButton_DPad_Right, k_EVRTouchpadDirection_Right);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Down, vr::k_EButton_DPad_Down, k_EVRTouchpadDirection_Down);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Move, vr::k_EButton_SteamVR_Touchpad, k_EVRTouchpadDirection_None);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Trigger, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Circle, (vr::EVRButtonId)10, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Cross, (vr::EVRButtonId)11, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_L1, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_L2, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_L3, vr::k_EButton_Grip, k_EVRTouchpadDirection_None);
+
+			// Trigger mapping
+			m_triggerAxisIndex = LoadInt(pSettings, "psmove", "trigger_axis_index", 1);
+
+			// Touch pad settings
+			m_bDelayAfterTouchpadPress = 
+				LoadBool(pSettings, "psmove_touchpad", "delay_after_touchpad_press", m_bDelayAfterTouchpadPress);
+			m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis= 
+				LoadBool(pSettings, "psmove", "use_spatial_offset_after_touchpad_press_as_touchpad_axis", false);
+			m_fMetersPerTouchpadAxisUnits= 
+				LoadFloat(pSettings, "psmove", "meters_per_touchpad_units", .075f);
+
+			// General Settings
+			m_bRumbleSuppressed= LoadBool(pSettings, "psmove_settings", "rumble_suppressed", m_bRumbleSuppressed);
+			m_fVirtuallExtendControllersYMeters = LoadFloat(pSettings, "psmove_settings", "psmove_extend_y", 0.0f);
+			m_fVirtuallExtendControllersZMeters = LoadFloat(pSettings, "psmove_settings", "psmove_extend_z", 0.0f);
+			m_fControllerMetersInFrontOfHmdAtCalibration= 
+				LoadFloat(pSettings, "psmove", "m_fControllerMetersInFrontOfHmdAtCallibration", 0.06f);
+			m_bUseControllerOrientationInHMDAlignment= LoadBool(pSettings, "psmove_settings", "use_orientation_in_alignment", true);
+
+			m_thumbstickDeadzone = 
+				fminf(fmaxf(LoadFloat(pSettings, "psnavi_settings", "thumbstick_deadzone_radius", k_defaultThumbstickDeadZoneRadius), 0.f), 0.99f);
+			m_bThumbstickTouchAsPress= LoadBool(pSettings, "psnavi_settings", "thumbstick_touch_as_press", true);
+
+			#if LOG_TOUCHPAD_EMULATION != 0
+			DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
+			DriverLog("meters_per_touchpad_units: %f\n", m_fMetersPerTouchpadAxisUnits);
+			#endif
+
+			#if LOG_REALIGN_TO_HMD != 0
+			DriverLog("m_fControllerMetersInFrontOfHmdAtCalibration(psmove): %f\n", m_fControllerMetersInFrontOfHmdAtCalibration);
+			#endif
 		}
 		else if (controllerType == ClientControllerView::PSDualShock4)
 		{
@@ -1516,50 +1551,15 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 			LoadButtonMapping(pSettings, k_EPSControllerType_DS4, k_EPSButtonID_R1, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_DS4, k_EPSButtonID_R2, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_DS4, k_EPSButtonID_R3, vr::k_EButton_Grip, k_EVRTouchpadDirection_None);
-		}
 
-		switch (controllerType)
-		{
-		case ClientControllerView::PSMove:
-			{
-				// Touch pad settings
-				m_bDelayAfterTouchpadPress = 
-					LoadBool(pSettings, "psmove_touchpad", "delay_after_touchpad_press", m_bDelayAfterTouchpadPress);
-				m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis= 
-					LoadBool(pSettings, "psmove", "use_spatial_offset_after_touchpad_press_as_touchpad_axis", false);
-				m_fMetersPerTouchpadAxisUnits= 
-					LoadFloat(pSettings, "psmove", "meters_per_touchpad_units", .075f);
+			// General Settings
+			m_bRumbleSuppressed= LoadBool(pSettings, "dualshock4_settings", "rumble_suppressed", m_bRumbleSuppressed);
+			m_fControllerMetersInFrontOfHmdAtCalibration= 
+				LoadFloat(pSettings, "dualshock4_settings", "cm_in_front_of_hmd_at_calibration", 16.f) / 100.f;
 
-				// General Settings
-				m_bRumbleSuppressed= LoadBool(pSettings, "psmove_settings", "rumble_suppressed", m_bRumbleSuppressed);
-				m_fVirtuallExtendControllersYMeters = LoadFloat(pSettings, "psmove_settings", "psmove_extend_y", 0.0f);
-				m_fVirtuallExtendControllersZMeters = LoadFloat(pSettings, "psmove_settings", "psmove_extend_z", 0.0f);
-				m_fControllerMetersInFrontOfHmdAtCalibration= 
-					LoadFloat(pSettings, "psmove", "m_fControllerMetersInFrontOfHmdAtCallibration", 0.06f);
-				m_bUseControllerOrientationInHMDAlignment= LoadBool(pSettings, "psmove_settings", "use_orientation_in_alignment", true);
-
-				#if LOG_TOUCHPAD_EMULATION != 0
-				DriverLog("use_spatial_offset_after_touchpad_press_as_touchpad_axis: %d\n", m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis);
-				DriverLog("meters_per_touchpad_units: %f\n", m_fMetersPerTouchpadAxisUnits);
-				#endif
-
-				#if LOG_REALIGN_TO_HMD != 0
-				DriverLog("m_fControllerMetersInFrontOfHmdAtCalibration(psmove): %f\n", m_fControllerMetersInFrontOfHmdAtCalibration);
-				#endif
-			}
-			break;
-		case ClientControllerView::PSDualShock4:
-			{
-				// General Settings
-				m_bRumbleSuppressed= LoadBool(pSettings, "dualshock4_settings", "rumble_suppressed", m_bRumbleSuppressed);
-				m_fControllerMetersInFrontOfHmdAtCalibration= 
-					LoadFloat(pSettings, "dualshock4_settings", "cm_in_front_of_hmd_at_calibration", 16.f) / 100.f;
-
-				#if LOG_REALIGN_TO_HMD != 0
-				DriverLog("m_fControllerMetersInFrontOfHmdAtCalibration(ds4): %f\n", m_fControllerMetersInFrontOfHmdAtCalibration);
-				#endif
-			}
-			break;
+			#if LOG_REALIGN_TO_HMD != 0
+			DriverLog("m_fControllerMetersInFrontOfHmdAtCalibration(ds4): %f\n", m_fControllerMetersInFrontOfHmdAtCalibration);
+			#endif
 		}
 	}
 }
@@ -1661,6 +1661,23 @@ bool CPSMoveControllerLatest::LoadBool(
 	}
 	
 	return bResult;
+}
+
+int CPSMoveControllerLatest::LoadInt(
+    vr::IVRSettings *pSettings,
+	const char *pchSection,
+	const char *pchSettingsKey,
+	const int iDefaultValue)
+{
+	vr::EVRSettingsError eError;
+	int iResult= pSettings->GetInt32(pchSection, pchSettingsKey, &eError);
+
+	if (eError != vr::VRSettingsError_None)
+	{
+		iResult= iDefaultValue;
+	}
+	
+	return iResult;
 }
 
 float CPSMoveControllerLatest::LoadFloat(
@@ -2048,10 +2065,14 @@ void CPSMoveControllerLatest::UpdateControllerState()
 			}
 			else 
 			{
+				const bool bHasChildNavi= 
+					m_PSMChildControllerView != nullptr && 
+					m_PSMChildControllerView->GetControllerViewType() == ClientControllerView::eControllerType::PSNavi;
+
 				// Process all the button mappings 
 				// ------
 
-				// Handle including virtual touchpad buttons on the controller
+				// Handle buttons/virtual touchpad buttons on the psmove
 				m_touchpadDirectionsUsed = false;
 				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Circle, clientView.GetButtonCircle(), &NewState);
 				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Cross, clientView.GetButtonCross(), &NewState);
@@ -2061,10 +2082,10 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Square, clientView.GetButtonSquare(), &NewState);
 				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Start, clientView.GetButtonStart(), &NewState);
 				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Triangle, clientView.GetButtonTriangle(), &NewState);
+				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Trigger, clientView.GetButtonTrigger(), &NewState);
 
-				// Handle including virtual touchpad buttons on the controller on the attached child controller
-				if (m_PSMChildControllerView != nullptr && 
-					m_PSMChildControllerView->GetControllerViewType() == ClientControllerView::PSNavi)
+				// Handle buttons/virtual touchpad buttons on the psnavi
+				if (bHasChildNavi)
 				{
 					const ClientPSNaviView &naviClientView = m_PSMChildControllerView->GetPSNaviView();
 
@@ -2080,137 +2101,144 @@ void CPSMoveControllerLatest::UpdateControllerState()
 					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_L3, naviClientView.GetButtonL3(), &NewState);
 				}
 
-				// Handle the virtual touchpad (spatial offset mode)
-				if (m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis && !m_touchpadDirectionsUsed)
+				// Touchpad handling
+				if (!m_touchpadDirectionsUsed)
 				{
 					static const uint64_t s_kTouchpadButtonMask = vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
-					bool bTouchpadIsActive = (NewState.ulButtonPressed & s_kTouchpadButtonMask) || (NewState.ulButtonTouched & s_kTouchpadButtonMask);
 
-					if (bTouchpadIsActive)
+					// PSNavi TouchPad Handling (i.e. thumbstick as touchpad)
+					if (bHasChildNavi)
 					{
-						bool bIsNewTouchpadLocation = true;
+						const ClientPSNaviView &naviClientView = m_PSMChildControllerView->GetPSNaviView();
+						const float thumbStickX = naviClientView.GetStickXAxis();
+						const float thumbStickY = naviClientView.GetStickYAxis();
+						const float thumbStickRadialDist= sqrtf(thumbStickX*thumbStickX + thumbStickY*thumbStickY);
 
-						if (m_bDelayAfterTouchpadPress)
+						if (thumbStickRadialDist >= m_thumbstickDeadzone)
 						{
-							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-						
-							if (!m_bTouchpadWasActive)
+							// Rescale the thumbstick position to hide the dead zone
+							const float rescaledRadius= (thumbStickRadialDist - m_thumbstickDeadzone) / (1.f - m_thumbstickDeadzone);
+
+							// Set the thumbstick axis
+							NewState.rAxis[0].x = (rescaledRadius / thumbStickRadialDist) * thumbStickX;
+							NewState.rAxis[0].y = (rescaledRadius / thumbStickRadialDist) * thumbStickY;
+
+							// Also make sure the touchpad is considered "touched" 
+							// if the thumbstick is outside of the deadzone
+							NewState.ulButtonTouched |= s_kTouchpadButtonMask;
+
+							// If desired, also treat the touch as a press
+							if (m_bThumbstickTouchAsPress)
 							{
-								const float k_max_touchpad_press = 2000.0; // time until coordinates are reset, otherwise assume in last location.
-								std::chrono::duration<double, std::milli> timeSinceActivated = now - m_lastTouchpadPressTime;
-
-								bIsNewTouchpadLocation = timeSinceActivated.count() >= k_max_touchpad_press;
-							}
-							m_lastTouchpadPressTime = now;
-
-						}
-
-						if (bIsNewTouchpadLocation)
-						{
-							if (!m_bTouchpadWasActive)
-							{
-								// Just pressed.
-								const ClientPSMoveView &view = m_PSMControllerView->GetPSMoveView();
-								m_driverSpaceRotationAtTouchpadPressTime = view.GetOrientation();
-
-								GetMetersPosInRotSpace(&m_posMetersAtTouchpadPressTime, m_driverSpaceRotationAtTouchpadPressTime);
-
-								#if LOG_TOUCHPAD_EMULATION != 0
-								DriverLog("Touchpad pressed! At (%f, %f, %f) meters relative to orientation\n",
-									m_posMetersAtTouchpadPressTime.i, m_posMetersAtTouchpadPressTime.j, m_posMetersAtTouchpadPressTime.k);
-								#endif
-							}
-							else
-							{
-								// Held!
-								PSMoveFloatVector3 newPosMeters;
-								GetMetersPosInRotSpace(&newPosMeters, m_driverSpaceRotationAtTouchpadPressTime);
-
-								PSMoveFloatVector3 offsetMeters = newPosMeters - m_posMetersAtTouchpadPressTime;
-
-								#if LOG_TOUCHPAD_EMULATION != 0
-								DriverLog("Touchpad held! Relative position (%f, %f, %f) meters\n",
-									offsetMeters.i, offsetMeters.j, offsetMeters.k);
-								#endif
-
-								NewState.rAxis[0].x = offsetMeters.i / m_fMetersPerTouchpadAxisUnits;
-								NewState.rAxis[0].x = fminf(fmaxf(NewState.rAxis[0].x, -1.0f), 1.0f);
-
-								NewState.rAxis[0].y = -offsetMeters.k / m_fMetersPerTouchpadAxisUnits;
-								NewState.rAxis[0].y = fminf(fmaxf(NewState.rAxis[0].y, -1.0f), 1.0f);
-
-								#if LOG_TOUCHPAD_EMULATION != 0
-								DriverLog("Touchpad axis at (%f, %f) \n",
-									NewState.rAxis[0].x, NewState.rAxis[0].y);
-								#endif
+								NewState.ulButtonPressed |= s_kTouchpadButtonMask;
 							}
 						}
 					}
+					// Virtual TouchPad h=Handling (i.e. controller spatial offset as touchpad) 
+					else if (m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis)
+					{
+						bool bTouchpadIsActive = (NewState.ulButtonPressed & s_kTouchpadButtonMask) || (NewState.ulButtonTouched & s_kTouchpadButtonMask);
 
-					// Remember if the touchpad was active the previous frame for edge detection
-					m_bTouchpadWasActive = bTouchpadIsActive;
+						if (bTouchpadIsActive)
+						{
+							bool bIsNewTouchpadLocation = true;
+
+							if (m_bDelayAfterTouchpadPress)
+							{					
+								std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+
+								if (!m_bTouchpadWasActive)
+								{
+									const float k_max_touchpad_press = 2000.0; // time until coordinates are reset, otherwise assume in last location.
+									std::chrono::duration<double, std::milli> timeSinceActivated = now - m_lastTouchpadPressTime;
+
+									bIsNewTouchpadLocation = timeSinceActivated.count() >= k_max_touchpad_press;
+								}
+								m_lastTouchpadPressTime = now;
+
+							}
+
+							if (bIsNewTouchpadLocation)
+							{
+								if (!m_bTouchpadWasActive)
+								{
+									// Just pressed.
+									const ClientPSMoveView &view = m_PSMControllerView->GetPSMoveView();
+									m_driverSpaceRotationAtTouchpadPressTime = view.GetOrientation();
+
+									GetMetersPosInRotSpace(&m_posMetersAtTouchpadPressTime, m_driverSpaceRotationAtTouchpadPressTime);
+
+									#if LOG_TOUCHPAD_EMULATION != 0
+									DriverLog("Touchpad pressed! At (%f, %f, %f) meters relative to orientation\n",
+										m_posMetersAtTouchpadPressTime.i, m_posMetersAtTouchpadPressTime.j, m_posMetersAtTouchpadPressTime.k);
+									#endif
+								}
+								else
+								{
+									// Held!
+									PSMoveFloatVector3 newPosMeters;
+									GetMetersPosInRotSpace(&newPosMeters, m_driverSpaceRotationAtTouchpadPressTime);
+
+									PSMoveFloatVector3 offsetMeters = newPosMeters - m_posMetersAtTouchpadPressTime;
+
+									#if LOG_TOUCHPAD_EMULATION != 0
+									DriverLog("Touchpad held! Relative position (%f, %f, %f) meters\n",
+										offsetMeters.i, offsetMeters.j, offsetMeters.k);
+									#endif
+
+									NewState.rAxis[0].x = offsetMeters.i / m_fMetersPerTouchpadAxisUnits;
+									NewState.rAxis[0].x = fminf(fmaxf(NewState.rAxis[0].x, -1.0f), 1.0f);
+
+									NewState.rAxis[0].y = -offsetMeters.k / m_fMetersPerTouchpadAxisUnits;
+									NewState.rAxis[0].y = fminf(fmaxf(NewState.rAxis[0].y, -1.0f), 1.0f);
+
+									#if LOG_TOUCHPAD_EMULATION != 0
+									DriverLog("Touchpad axis at (%f, %f) \n",
+										NewState.rAxis[0].x, NewState.rAxis[0].y);
+									#endif
+								}
+							}
+						}
+
+						// Remember if the touchpad was active the previous frame for edge detection
+						m_bTouchpadWasActive = bTouchpadIsActive;
+					}
 				}
 
-
-				if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x || NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
-					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
-
-				// Trigger handling
+				// Touchpad SteamVR Events
+				if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x || 
+					NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
 				{
-					const float triggerValue = clientView.GetTriggerValue();
-
-					NewState.rAxis[1].x = triggerValue;
-					NewState.rAxis[1].y = 0.f;
-
-					if (triggerValue > 0.1f)
-						NewState.ulButtonTouched |= vr::ButtonMaskFromId(vr::k_EButton_Axis1);
-					if (triggerValue > 0.8f)
-						NewState.ulButtonPressed |= vr::ButtonMaskFromId(vr::k_EButton_Axis1);
-
-					if (NewState.rAxis[1].x != m_ControllerState.rAxis[1].x)
-						m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1]);
-				}
-			}
-
-			// Handle attached child controller last
-			if (m_PSMChildControllerView != nullptr && 
-				m_PSMChildControllerView->GetControllerViewType() == ClientControllerView::eControllerType::PSNavi)
-			{
-				const ClientPSNaviView &naviClientView = m_PSMChildControllerView->GetPSNaviView();
-
-				if (naviClientView.GetButtonL1())
-					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_Navi][k_EPSButtonID_L1]);
-				if (naviClientView.GetButtonL2())
-					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_Navi][k_EPSButtonID_L2]);
-				if (naviClientView.GetButtonL3())
-					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_Navi][k_EPSButtonID_L3]);
-				if (naviClientView.GetButtonCircle())
-					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_Navi][k_EPSButtonID_Circle]);
-				if (naviClientView.GetButtonCross())
-					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_Navi][k_EPSButtonID_Cross]);
-				if (naviClientView.GetButtonPS())
-					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_Navi][k_EPSButtonID_PS]);
-				if (naviClientView.GetButtonTrigger())
-					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_Navi][k_EPSButtonID_Trigger]);
-				if (naviClientView.GetButtonDPadUp())
-					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_Navi][k_EPSButtonID_Up]);
-				if (naviClientView.GetButtonDPadDown())
-					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_Navi][k_EPSButtonID_Down]);
-				if (naviClientView.GetButtonDPadLeft())
-					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_Navi][k_EPSButtonID_Left]);
-				if (naviClientView.GetButtonDPadRight())
-					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_Navi][k_EPSButtonID_Right]);
-
-				NewState.rAxis[0].x = naviClientView.GetStickXAxis();
-				NewState.rAxis[0].y = -naviClientView.GetStickYAxis(); // y-axis is flipped from what you expect in SteamVR
-
-				NewState.rAxis[1].x = naviClientView.GetTriggerValue();
-				NewState.rAxis[1].y = 0.f;
-
-				if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x || NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
 					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
-				if (NewState.rAxis[1].x != m_ControllerState.rAxis[1].x)
-					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1]);
+				}
+
+				// PSMove Trigger handling
+				NewState.rAxis[m_triggerAxisIndex].x = clientView.GetTriggerValue();
+				NewState.rAxis[m_triggerAxisIndex].y = 0.f;
+
+				// Attached PSNavi Trigger handling
+				if (bHasChildNavi)
+				{
+					const ClientPSNaviView &naviClientView = m_PSMChildControllerView->GetPSNaviView();
+
+					NewState.rAxis[m_triggerAxisIndex].x = fmaxf(NewState.rAxis[m_triggerAxisIndex].x, naviClientView.GetTriggerValue());
+				}
+
+				// Trigger SteamVR Events
+				if (NewState.rAxis[m_triggerAxisIndex].x != m_ControllerState.rAxis[m_triggerAxisIndex].x)
+				{
+					if (NewState.rAxis[m_triggerAxisIndex].x > 0.1f)
+					{
+						NewState.ulButtonTouched |= vr::ButtonMaskFromId(static_cast<vr::EVRButtonId>(vr::k_EButton_Axis0 + m_triggerAxisIndex));
+					}
+
+					if (NewState.rAxis[m_triggerAxisIndex].x > 0.8f)
+					{
+						NewState.ulButtonPressed |= vr::ButtonMaskFromId(static_cast<vr::EVRButtonId>(vr::k_EButton_Axis0 + m_triggerAxisIndex));
+					}
+
+					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, m_triggerAxisIndex, NewState.rAxis[m_triggerAxisIndex]);
+				}
 			}
         } break;
     case ClientControllerView::eControllerType::PSDualShock4:

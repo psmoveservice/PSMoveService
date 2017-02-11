@@ -38,6 +38,7 @@ public:
 
 	USBDeviceState *open_usb_device(USBDeviceEnumerator* enumerator) override;
 	void close_usb_device(USBDeviceState* device_state) override;
+	bool can_usb_device_be_opened(struct USBDeviceEnumerator* enumerator, char *outReason, size_t bufferSize) override;
 
 	eUSBResultCode submit_interrupt_transfer(const USBDeviceState* device_state, const struct USBTransferRequestState *requestState) override;
 	eUSBResultCode submit_control_transfer(const USBDeviceState* device_state, const struct USBTransferRequestState *requestState) override;

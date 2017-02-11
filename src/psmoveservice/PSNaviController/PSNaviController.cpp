@@ -623,15 +623,16 @@ PSNaviController::pollGamepad()
 		++NextPollSequenceNumber;
 
 		// New Button State
-		bool bIsCrossPressed= gamepad->buttonStates[0];
-		bool bIsCirclePressed= gamepad->buttonStates[1];
-		bool bIsL1Pressed= gamepad->buttonStates[4];
-		bool bIsL2Pressed= gamepad->axisStates[2] >= .9f;
-		bool bIsL3Pressed= gamepad->buttonStates[8];
-		bool bIsDPadLeftPressed= gamepad->axisStates[5] <= -0.99f;
-		bool bIsDPadRightPressed= gamepad->axisStates[5] >= 0.99f;
-		bool bIsDPadUpPressed= gamepad->axisStates[6] <= -0.99f;
-		bool bIsDPadDownPressed= gamepad->axisStates[6] >= 0.99f;
+		bool bIsDPadUpPressed= gamepad->buttonStates[0];
+		bool bIsDPadDownPressed= gamepad->buttonStates[1];
+		bool bIsDPadLeftPressed= gamepad->buttonStates[2];
+		bool bIsDPadRightPressed= gamepad->buttonStates[3];
+		bool bIsL2Pressed= gamepad->axisStates[4] >= .9f;
+		bool bIsL3Pressed= gamepad->buttonStates[6];
+		bool bIsL1Pressed= gamepad->buttonStates[8];
+		bool bIsCrossPressed= gamepad->buttonStates[10];
+		bool bIsCirclePressed= gamepad->buttonStates[11];
+		bool bIsPSPressed = gamepad->buttonStates[14];
 
 		newState.AllButtons = 0;
 		setButtonBit(newState.AllButtons, Btn_UP, bIsDPadUpPressed);
@@ -643,6 +644,7 @@ PSNaviController::pollGamepad()
 		setButtonBit(newState.AllButtons, Btn_L1, bIsL1Pressed);
 		setButtonBit(newState.AllButtons, Btn_L2, bIsL2Pressed);
 		setButtonBit(newState.AllButtons, Btn_L3, bIsL3Pressed);
+		setButtonBit(newState.AllButtons, Btn_PS, bIsPSPressed);
 
 		// Button de-bounce
 		unsigned int lastButtons = ControllerStates.empty() ? 0 : ControllerStates.back().AllButtons;
@@ -660,7 +662,7 @@ PSNaviController::pollGamepad()
 		// Analog triggers
 		newState.Stick_XAxis = static_cast<unsigned char>((gamepad->axisStates[0] + 1.f) * 127.f);
 		newState.Stick_YAxis = static_cast<unsigned char>((gamepad->axisStates[1] + 1.f) * 127.f);
-		newState.Trigger = static_cast<unsigned char>(gamepad->axisStates[2] * 255.f);
+		newState.Trigger = static_cast<unsigned char>((gamepad->axisStates[4] + 1.f) * 127.f);
 
 		// Can't report the true battery state
 		newState.Battery = CommonControllerState::Batt_MAX;

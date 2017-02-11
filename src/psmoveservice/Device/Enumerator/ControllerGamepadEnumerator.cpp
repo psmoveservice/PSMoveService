@@ -30,7 +30,6 @@ GamepadAPIDeviceFilter g_supported_controller_infos[MAX_CONTROLLER_TYPE_INDEX] =
 	{ 0x054c, 0x05C4, false}, // PSDualShock4
 };
 
-
 static bool is_gamepad_supported(
 	int gamepad_index, 
 	CommonDeviceState::eDeviceType device_type_filter,
@@ -94,13 +93,7 @@ bool ControllerGamepadEnumerator::next()
 		{
 			ServerUtility::format_string(m_currentUSBPath, sizeof(m_currentUSBPath), "gamepad_%d", m_controllerIndex);		
 			foundValid = true;
-			break;
 		}
-	}
-
-	if (foundValid)
-	{
-		++m_controllerIndex;
 	}
 
 	return foundValid;

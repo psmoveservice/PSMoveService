@@ -50,24 +50,25 @@ DeviceTypeManager::startup()
 void
 DeviceTypeManager::shutdown()
 {
-    assert(m_deviceViews != nullptr);
+	if (m_deviceViews != nullptr)
+	{
+		// Close any controllers that were opened
+		for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+		{
+			ServerDeviceViewPtr device = m_deviceViews[device_id];
 
-    // Close any controllers that were opened
-    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
-    {
-        ServerDeviceViewPtr device = m_deviceViews[device_id];
+			if (device->getIsOpen())
+			{
+				device->close();
+			}
 
-        if (device->getIsOpen())
-        {
-            device->close();
-        }
+			m_deviceViews[device_id] = ServerDeviceViewPtr();
+		}
 
-        m_deviceViews[device_id] = ServerDeviceViewPtr();
-    }
-
-    // Free the device view pointer list
-    delete[] m_deviceViews;
-    m_deviceViews = nullptr;
+		// Free the device view pointer list
+		delete[] m_deviceViews;
+		m_deviceViews = nullptr;
+	}
 }
 
 /// Calls poll_devices and update_connected_devices if poll_interval and reconnect_interval has elapsed, respectively.

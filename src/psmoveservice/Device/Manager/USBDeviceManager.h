@@ -70,6 +70,7 @@ bool usb_device_submit_transfer_request_async(
 USBTransferResult usb_device_submit_transfer_request_blocking(const USBTransferRequest &request);
 
 // -- Device Queries ----
+bool usb_device_can_be_opened(struct USBDeviceEnumerator* enumerator, char *outReason, size_t bufferSize);
 bool usb_device_get_filter(t_usb_device_handle handle, USBDeviceFilter &outDeviceInfo);
 bool usb_device_get_full_path(t_usb_device_handle handle, char *outBuffer, size_t bufferSize);
 bool usb_device_get_port_path(t_usb_device_handle handle, char *outBuffer, size_t bufferSize);

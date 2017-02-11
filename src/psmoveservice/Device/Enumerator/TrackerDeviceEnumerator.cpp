@@ -2,6 +2,7 @@
 #include "TrackerDeviceEnumerator.h"
 #include "ServerUtility.h"
 #include "USBDeviceManager.h"
+#include "ServerLog.h"
 #include "assert.h"
 #include "string.h"
 
@@ -112,10 +113,29 @@ bool TrackerDeviceEnumerator::next()
 
 		if (is_valid() && is_tracker_supported(m_usb_enumerator, m_deviceTypeFilter, m_deviceType))
 		{
+			char newUSBPath[256];
+
 			// Cache the path to the device
-			usb_device_enumerator_get_path(m_usb_enumerator, m_currentUSBPath, sizeof(m_currentUSBPath));
-			foundValid = true;
-			break;
+			usb_device_enumerator_get_path(m_usb_enumerator, newUSBPath, sizeof(newUSBPath));
+
+			// Skip the entry if it was the same as the last one
+			if (strncmp(newUSBPath, m_currentUSBPath, sizeof(m_currentUSBPath)) != 0)
+			{
+				// Remember the last unique 
+				strncpy(m_currentUSBPath, newUSBPath, sizeof(m_currentUSBPath));
+
+				// Test open the device
+				char errorReason[256];
+				if (usb_device_can_be_opened(m_usb_enumerator, errorReason, sizeof(errorReason)))
+				{
+					foundValid = true;
+					break;
+				}
+				else
+				{
+					SERVER_LOG_INFO("TrackerDeviceEnumerator") << "Skipping device (" <<  newUSBPath << ") - " << errorReason;
+				}
+			}
 		}
 	}
 
