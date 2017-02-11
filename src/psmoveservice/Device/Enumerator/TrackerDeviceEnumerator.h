@@ -20,6 +20,9 @@ public:
     inline int get_camera_index() const { return m_cameraIndex; }
 	inline struct USBDeviceEnumerator* get_usb_device_enumerator() const { return m_usb_enumerator; }
 
+protected: 
+	bool testUSBEnumerator();
+
 private:
     char m_currentUSBPath[256];
 	struct USBDeviceEnumerator* m_usb_enumerator;
