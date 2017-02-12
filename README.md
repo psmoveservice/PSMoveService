@@ -16,6 +16,8 @@ A) Join us in the the [PSMoveService Google Group](https://groups.google.com/for
 
 B) If your problem actually is a new bug and you have files to attach (logs, pictures, etc) then go ahead and create a new issue. That said, it's probably best to start with the Google Group first anyway since we can help add context before posting an issue.
 
+The OpenVR driver is technically unsupported. For issues related to OpenVR, calibration, third party applications, specific games, etc., please post in the Google Group first.
+
 # Near Term Roadmap
  * Ongoing Stabilization of service and SteamVR plugin
  * DualShock4 Controller Support
@@ -31,10 +33,14 @@ B) If your problem actually is a new bug and you have files to attach (logs, pic
  * Linux support
  * Integration with OSVR
 
-#Attribution
+#Attribution and Thanks
 Special thanks to the following people who helped make this project possible:
 * Thomas Perl and his [psmoveapi](https://github.com/thp/psmoveapi) project which laid the groundwork for this project.
-* Alexander Nitch and his work on [psmove-pair-win](https://github.com/nitsch/psmove-pair-win) that enabled psmove controller pairing over Bluetooth on Windows. Alex also did nearly all of the investigation into the PSMove communication protocol.
+* Alexander Nitsch and his work on [psmove-pair-win](https://github.com/nitsch/psmove-pair-win) that enabled psmove controller pairing over Bluetooth on Windows. Alex also did nearly all of the investigation into the PSMove communication protocol.
 * Eugene Zatepyakin and his [PS3EYEDriver](https://github.com/inspirit/PS3EYEDriver) project which enabled access to the PS3Eye camera.
 * Ritesh Oedayrajsingh Varma and his work on [PS3EYEDriver](https://github.com/rovarma/PS3EYEDriver) enabling improved camera polling performance (consistent 60fps)
 * Frédéric Lopez and his work on [PS-Move-Setup](https://github.com/Fredz66/PS-Move-Setup) that enabled co registration of  and HMD with the PSMove.
+* Greg New - Improvements to the SteamVR plugin and config tool
+* YossiMH - Improvements to touch pad mappings and help with the HMD/Controller alignment tool
+* William (zelmon64) - Beta testing and troubleshooting hero
+* Antonio Jose Ramos Marquez - Work on PS4EyeDriver and PSX hardware reverse engineering

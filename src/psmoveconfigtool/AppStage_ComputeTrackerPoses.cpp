@@ -2,16 +2,13 @@
 #include "AppStage_ComputeTrackerPoses.h"
 #include "AppStage_MainMenu.h"
 #include "AppStage_TrackerSettings.h"
-#include "AppStage_HMDSettings.h"
-#include "AppSubStage_CalibrateWithHMD.h"
 #include "AppSubStage_CalibrateWithMat.h"
+#include "AppSubStage_StereoCalibrate.h"
 #include "App.h"
 #include "AssetManager.h"
 #include "Camera.h"
-#include "ClientHMDView.h"
 #include "GeometryUtility.h"
 #include "Logger.h"
-#include "OpenVRContext.h"
 #include "MathUtility.h"
 #include "Renderer.h"
 #include "UIConstants.h"
@@ -23,6 +20,9 @@
 #include "SDL_keycode.h"
 #include "SDL_opengl.h"
 
+#include "ClientPSMoveAPI.h"
+#include "ClientControllerView.h"
+
 #include <imgui.h>
 #include <sstream>
 
@@ -32,53 +32,53 @@ const char *AppStage_ComputeTrackerPoses::APP_STAGE_NAME = "ComputeTrackerPoses"
 //-- constants -----
 static const glm::vec3 k_hmd_frustum_color = glm::vec3(1.f, 0.788f, 0.055f);
 static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
+static const glm::vec3 k_psmove_frustum_color_no_track = glm::vec3(1.0f, 0.f, 0.f);
 
 //-- private methods -----
-static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
+static void drawController(const ClientControllerView *controllerView, const glm::mat4 &transform, const PSMoveTrackingColorType trackingColorType);
 
 //-- public methods -----
 AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
     : AppStage(app)
     , m_menuState(AppStage_ComputeTrackerPoses::inactive)
-    , m_hmdView(nullptr)
-    , m_controllerView(nullptr)
     , m_pendingTrackerStartCount(0)
+	, m_pendingControllerStartCount(0)
     , m_renderTrackerIndex(0)
-    , m_pCalibrateWithHMD(new AppSubStage_CalibrateWithHMD(this))
     , m_pCalibrateWithMat(new AppSubStage_CalibrateWithMat(this))
+	, m_pStereoCalibrate(new AppSubStage_StereoCalibrate(this))
     , m_bSkipCalibration(false)
+	, m_overrideControllerId(-1)
 { 
     m_renderTrackerIter = m_trackerViews.end();
 }
 
 AppStage_ComputeTrackerPoses::~AppStage_ComputeTrackerPoses()
 {
-    delete m_pCalibrateWithHMD;
     delete m_pCalibrateWithMat;
 }
 
-void AppStage_ComputeTrackerPoses::enterStageAndCalibrate(App *app)
+void AppStage_ComputeTrackerPoses::enterStageAndCalibrate(App *app, int reqeusted_controller_id)
 {
-    app->getAppStage<AppStage_ComputeTrackerPoses>()->m_bSkipCalibration = false;
+	AppStage_ComputeTrackerPoses *appStage= app->getAppStage<AppStage_ComputeTrackerPoses>();
+	appStage->m_bSkipCalibration = false;
+	appStage->m_overrideControllerId = reqeusted_controller_id;
+
+	app->getAppStage<AppStage_ComputeTrackerPoses>()->m_overrideControllerId = reqeusted_controller_id;
     app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
 }
 
-void AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(App *app)
+void AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(App *app, int reqeusted_controller_id)
 {
-    app->getAppStage<AppStage_ComputeTrackerPoses>()->m_bSkipCalibration = true;
+	AppStage_ComputeTrackerPoses *appStage = app->getAppStage<AppStage_ComputeTrackerPoses>();
+	appStage->m_bSkipCalibration = true;
+	appStage->m_overrideControllerId = reqeusted_controller_id;
+
+	app->getAppStage<AppStage_ComputeTrackerPoses>()->m_overrideControllerId = reqeusted_controller_id;
     app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
 }
 
 void AppStage_ComputeTrackerPoses::enter()
 {
-    // Allocate a new HMD stream
-    assert(m_hmdView == nullptr);
-
-    if (m_app->getOpenVRContext()->getIsInitialized())
-    {
-        m_hmdView = m_app->getOpenVRContext()->allocateHmdView();
-    }
-
     // Kick off this async request chain with a controller list request
     // -> controller start request
     // -> tracker list request
@@ -110,27 +110,11 @@ void AppStage_ComputeTrackerPoses::update()
     case eMenuState::failedControllerStartRequest:
     case eMenuState::failedTrackerStartRequest:
         break;
-    case eMenuState::verifyHMD:
-        break;
     case eMenuState::verifyTrackers:
         update_tracker_video();
         break;
-    case eMenuState::selectCalibrationType:
-        break;
-    case eMenuState::calibrateWithHMD:
-        {
-            m_pCalibrateWithHMD->update();
-
-            if (m_pCalibrateWithHMD->getMenuState() == AppSubStage_CalibrateWithHMD::calibrateStepSuccess)
-            {
-                setState(AppStage_ComputeTrackerPoses::eMenuState::testTracking);
-            }
-            else if (m_pCalibrateWithHMD->getMenuState() == AppSubStage_CalibrateWithHMD::calibrateStepFailed)
-            {
-                setState(AppStage_ComputeTrackerPoses::eMenuState::calibrateStepFailed);
-            }
-        }
-        break;
+	case eMenuState::selectCalibrationMethod:
+		break;
     case eMenuState::calibrateWithMat:
         {
             m_pCalibrateWithMat->update();
@@ -145,8 +129,25 @@ void AppStage_ComputeTrackerPoses::update()
             }
         }
         break;
+    case eMenuState::stereoCalibrate:
+        {
+            m_pStereoCalibrate->update();
+
+            if (m_pStereoCalibrate->getMenuState() == AppSubStage_StereoCalibrate::calibrateStepSuccess)
+            {
+                setState(AppStage_ComputeTrackerPoses::eMenuState::testTracking);
+            }
+            else if (m_pStereoCalibrate->getMenuState() == AppSubStage_StereoCalibrate::calibrateStepFailed)
+            {
+                setState(AppStage_ComputeTrackerPoses::eMenuState::calibrateStepFailed);
+            }
+        }
+        break;
     case eMenuState::testTracking:
         break;
+	case eMenuState::showTrackerVideo:
+		update_tracker_video();
+		break;
     case eMenuState::calibrateStepFailed:
         break;
     default:
@@ -170,115 +171,87 @@ void AppStage_ComputeTrackerPoses::render()
     case eMenuState::failedTrackerListRequest:
     case eMenuState::failedTrackerStartRequest:
         break;
-    case eMenuState::verifyHMD:
-        {
-            // Draw everything in Chaperone tracking space
-            if (m_hmdView != nullptr)
-            {
-                PSMovePose pose = m_hmdView->getChaperoneSpaceHmdPose();
-                glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
-                glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
-
-                glm::mat4 rot = glm::mat4_cast(orientation);
-                glm::mat4 trans = glm::translate(glm::mat4(1.0f), position);
-                glm::mat4 transform = trans * rot;
-
-                drawDK2Model(transform);
-                drawTransformedAxes(transform, 10.f);
-            }
-
-            {
-                PSMoveVolume volume;
-
-                if (m_app->getOpenVRContext()->getChaperoneTrackingVolume(volume))
-                {
-                    drawTransformedVolume(glm::mat4(1.f), &volume, glm::vec3(0.f, 1.f, 1.f));
-                }
-            }
-        } break;
     case eMenuState::verifyTrackers:
         {
             render_tracker_video();
         } break;
-    case eMenuState::selectCalibrationType:
-        break;
-    case eMenuState::calibrateWithHMD:
-        m_pCalibrateWithHMD->render();
-        break;
+	case eMenuState::selectCalibrationMethod:
+		break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->render();
         break;
+    case eMenuState::stereoCalibrate:
+        m_pStereoCalibrate->render();
+        break;
     case eMenuState::testTracking:
         {
-            glm::mat4 psmove_tracking_space_to_chaperone_space = glm::mat4(1.f);
-
             // Draw the chaperone origin axes
             drawTransformedAxes(glm::mat4(1.0f), 100.f);
-
-            // Draw the HMD and tracking volume in chaperone tracking space
-            if (m_hmdView != nullptr)
-            {
-                // Get the transform that goes from PSMove-tracking-space to Raw-HMD-tracking-space.
-                // If the HMD coregistration method was used, this will be the identity pose
-                // because the the trackers were already aligned with Raw HMD tracking space.
-                PSMovePose hmd_raw_pose_at_psmove_origin = m_app->getOpenVRContext()->getRawHMDPoseAtPSMoveTrackingSpaceOrigin();
-                glm::mat4 psmove_to_hmd_raw_transform = psmove_pose_to_glm_mat4(hmd_raw_pose_at_psmove_origin);
-
-                // Get the raw HMD OpenVR transform 
-                PSMovePose hmd_raw_pose = m_hmdView->getRawHmdPose();
-                glm::mat4 hmd_raw_transform = psmove_pose_to_glm_mat4(hmd_raw_pose);
-
-                // Get the Chaperone space HMD transform
-                PSMovePose hmd_chaperone_pose = m_hmdView->getChaperoneSpaceHmdPose();
-                glm::mat4 hmd_chaperone_transform = psmove_pose_to_glm_mat4(hmd_chaperone_pose);
-
-                // Compute a transform to go from HMD raw to chaperone space using the current
-                // raw HMD pose and chaperone HMD pose
-                glm::mat4 raw_to_chaperone_transform = hmd_chaperone_transform * glm::inverse(hmd_raw_transform);
-
-                // Compute the transform that goes from PSMove-tracking-space to Chaperone space
-                psmove_tracking_space_to_chaperone_space = raw_to_chaperone_transform * psmove_to_hmd_raw_transform;
-
-                // Draw the HMD in chaperone space
-                drawDK2Model(hmd_chaperone_transform);
-                drawTransformedAxes(hmd_chaperone_transform, 10.f);
-                
-                // Draw the Chaperone volume 
-                PSMoveVolume volume;
-                if (m_app->getOpenVRContext()->getChaperoneTrackingVolume(volume))
-                {
-                    drawTransformedVolume(glm::mat4(1.f), &volume, glm::vec3(0.f, 1.f, 1.f));
-                }
-            }
 
             // Draw the frustum for each tracking camera.
             // The frustums are defined in PSMove tracking space.
             // We need to transform them into chaperone space to display them along side the HMD.
-            for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+            for (t_tracker_state_map_iterator tracker_iter = m_trackerViews.begin(); tracker_iter != m_trackerViews.end(); ++tracker_iter)
             {
-                const ClientTrackerView *trackerView = iter->second.trackerView;
-                const PSMovePose psmove_space_pose = trackerView->getTrackerPose();
-                const glm::mat4 chaperoneSpaceTransform = psmove_tracking_space_to_chaperone_space * psmove_pose_to_glm_mat4(psmove_space_pose);
+                const ClientTrackerView *trackerView = tracker_iter->second.trackerView;
+                const PSMovePose trackerPose = trackerView->getTrackerPose();
+                const glm::mat4 trackerMat4 = psmove_pose_to_glm_mat4(trackerPose);
 
-                {
-                    PSMoveFrustum frustum = trackerView->getTrackerFrustum();
+                PSMoveFrustum frustum = trackerView->getTrackerFrustum();
 
-                    drawTransformedFrustum(psmove_tracking_space_to_chaperone_space, &frustum, k_psmove_frustum_color);
-                }
+				// use color depending on tracking status
+				glm::vec3 color= does_tracker_see_any_controller(trackerView) ? k_psmove_frustum_color : k_psmove_frustum_color_no_track;
 
-                drawTransformedAxes(chaperoneSpaceTransform, 20.f);
+				drawTextAtWorldPosition(glm::mat4(1.f), psmove_position_to_glm_vec3(trackerPose.Position), "#%d", trackerView->getTrackerId());
+                drawTransformedFrustum(glm::mat4(1.f), &frustum, color);
+
+                drawTransformedAxes(trackerMat4, 20.f);
             }
 
             // Draw the psmove model
+			for (t_controller_state_map_iterator controller_iter = m_controllerViews.begin(); controller_iter != m_controllerViews.end(); ++controller_iter)
             {
-                PSMovePose psmove_space_pose = m_controllerView->GetPose();
-                glm::mat4 chaperoneSpaceTransform = psmove_tracking_space_to_chaperone_space * psmove_pose_to_glm_mat4(psmove_space_pose);
+				const ClientControllerView *controllerView = controller_iter->second.controllerView;
+				const PSMoveTrackingColorType trackingColorType= controller_iter->second.trackingColorType;
 
-                drawController(m_controllerView, chaperoneSpaceTransform);
-                drawTransformedAxes(chaperoneSpaceTransform, 10.f);
+                PSMovePose controllerPose = controllerView->GetPose();
+                glm::mat4 controllerMat4 = psmove_pose_to_glm_mat4(controllerPose);
+
+				if (m_controllerViews.size() > 1)
+				{
+					drawTextAtWorldPosition(glm::mat4(1.f), psmove_position_to_glm_vec3(controllerPose.Position), "#%d", controllerView->GetControllerID());
+				}
+                drawController(controllerView, controllerMat4, trackingColorType);
+                drawTransformedAxes(controllerMat4, 10.f);
+
+				// Draw the acceleration and velocity arrows
+				{
+					const PSMovePhysicsData &physicsData = controllerView->GetPhysicsData();
+					const glm::mat4 originMat4= glm::translate(glm::mat4(1.f), psmove_position_to_glm_vec3(controllerPose.Position));
+					const glm::vec3 vel_endpoint = psmove_float_vector3_to_glm_vec3(physicsData.VelocityCmPerSec);
+					const glm::vec3 acc_endpoint = psmove_float_vector3_to_glm_vec3(physicsData.AccelerationCmPerSecSqr)*k_centimeters_to_meters;
+					
+					const float vel= glm::length(vel_endpoint);
+					if (vel > k_positional_epsilon)
+					{
+						drawArrow(originMat4, glm::vec3(0.f), vel_endpoint, 0.1f, glm::vec3(0.f, 1.f, 1.f));
+						//drawTextAtWorldPosition(originMat4, vel_endpoint, "v=%.2fcm/s", vel);
+					}
+
+					const float acc = glm::length(acc_endpoint);
+					if (acc > k_positional_epsilon)
+					{
+						drawArrow(originMat4, glm::vec3(0.f), acc_endpoint, 0.1f, glm::vec3(1.f, 1.f, 0.f));
+						//drawTextAtWorldPosition(originMat4, acc_endpoint, "a=%.2fm/s^2", acc);
+					}
+				}
             }
 
         } break;
+	case eMenuState::showTrackerVideo:
+		{
+			render_tracker_video();
+		} break;
     case eMenuState::calibrateStepFailed:
         break;
     default:
@@ -359,31 +332,6 @@ void AppStage_ComputeTrackerPoses::renderUI()
             ImGui::End();
         } break;
 
-    case eMenuState::verifyHMD:
-        {
-            ImGui::SetNextWindowPosCenter();
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 180));
-            ImGui::Begin(k_window_title, nullptr, window_flags);
-
-            if (m_hmdView != nullptr)
-            {
-                ImGui::Text("Verify that your HMD is tracking correctly");
-                ImGui::Separator();
-
-                if (ImGui::Button("Looks Good!"))
-                {
-                    setState(eMenuState::verifyTrackers);
-                }
-
-                if (ImGui::Button("Hmm... Something is wrong."))
-                {
-                    request_exit_to_app_stage(AppStage_HMDSettings::APP_STAGE_NAME);
-                }
-            }
-
-            ImGui::End();
-        } break;
-
     case eMenuState::verifyTrackers:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - 500.f / 2.f, 20.f));
@@ -410,7 +358,15 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
             if (ImGui::Button("Looks Good!"))
             {
-                setState(eMenuState::selectCalibrationType);
+				if (m_trackerViews.size() == 2)
+				{
+					// only consider stereo camera calibration when there are two trackers
+					setState(eMenuState::selectCalibrationMethod);
+				}
+				else
+				{
+					setState(eMenuState::calibrateWithMat);
+				}
             }
 
             if (ImGui::Button("Hmm... Something is wrong."))
@@ -421,66 +377,118 @@ void AppStage_ComputeTrackerPoses::renderUI()
             ImGui::End();
         } break;
 
-    case eMenuState::selectCalibrationType:
-        {
-            ImGui::SetNextWindowPosCenter();
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
+	case eMenuState::selectCalibrationMethod:
+		{
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - 500.f / 2.f, 20.f));
+            ImGui::SetNextWindowSize(ImVec2(500.f, 150.f));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            ImGui::Text("Select a camera pose estimation method");
+            ImGui::Text("Select a calibration method");
+            ImGui::Separator();
+			ImGui::TextWrapped("Use 'Stereo Camera' if you have two cameras rigidly aligned side by side a few centimeters apart, otherwise use 'Calibration Mat'.");
+			ImGui::Separator();
 
-            if (m_hmdView != nullptr && ImGui::Button("Attach PSMove To HMD"))
-            {
-                setState(eMenuState::calibrateWithHMD);
-            }
-
-            if (ImGui::Button("Use Calibration Mat"))
+            if (ImGui::Button("Calibration Mat"))
             {
                 setState(eMenuState::calibrateWithMat);
             }
-
-            if (ImGui::Button("Cancel"))
+            if (ImGui::Button("Stereo Camera"))
             {
-                m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                setState(eMenuState::stereoCalibrate);
             }
 
             ImGui::End();
-        } break;
-
-    case eMenuState::calibrateWithHMD:
-        {
-            m_pCalibrateWithHMD->renderUI();
-        } break;
+		} break;
 
     case eMenuState::calibrateWithMat:
         {
             m_pCalibrateWithMat->renderUI();
         } break;
 
+    case eMenuState::stereoCalibrate:
+        {
+            m_pStereoCalibrate->renderUI();
+        } break;
+
     case eMenuState::testTracking:
         {
-            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
-            ImGui::Begin(k_window_title, nullptr, window_flags);
+            ImGui::SetNextWindowPos(ImVec2(20.f, 20.f));
+            ImGui::SetNextWindowSize(ImVec2(250.f, 260.f));
+            ImGui::Begin("Test Tracking", nullptr, window_flags);
 
-            if (!m_bSkipCalibration)
-            {
-                ImGui::Text("Calibration Complete");
+			// display per tracker UI
+			for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
+			{
+				const ClientTrackerView *trackerView = iter->second.trackerView;
 
-                if (ImGui::Button("Redo Calibration"))
-                {
-                    setState(eMenuState::selectCalibrationType);
-                }
-            }
+				ImGui::PushItemWidth(125.f);
+				if (does_tracker_see_any_controller(trackerView))
+				{
+					ImGui::Text("Tracker #%d: OK", trackerView->getTrackerId());
+				}
+				else 
+				{
+					ImGui::Text("Tracker #%d: FAIL", trackerView->getTrackerId());
+				}
+				ImGui::PopItemWidth();
 
-            if (ImGui::Button("Exit"))
-            {
-                m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
-            }
+				ImGui::SameLine();
+
+				ImGui::PushItemWidth(100.f);
+				ImGui::PushID(trackerView->getTrackerId());
+				if (m_app->getIsLocalServer())
+				{
+					if (ImGui::Button("Tracker Video"))
+					{
+						m_renderTrackerIter = iter;
+						setState(eMenuState::showTrackerVideo);
+					}
+				}
+				else
+				{
+					ImGui::TextDisabled("Tracker Video");
+				}
+				ImGui::PopID();
+				ImGui::PopItemWidth();
+			}
+
+			ImGui::Separator();
+
+			if (!m_bSkipCalibration)
+			{
+				ImGui::Text("Calibration Complete");
+
+				if (ImGui::Button("Redo Calibration"))
+				{
+					setState(eMenuState::verifyTrackers);
+				}
+			}
+
+			if (ImGui::Button("Exit"))
+			{
+				m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
+			}
 
             ImGui::End();
         }
         break;
+
+	case eMenuState::showTrackerVideo:
+		{
+			ImGui::SetNextWindowPos(ImVec2(20.f, 20.f));
+			ImGui::SetNextWindowSize(ImVec2(200, 100));
+			ImGui::Begin("Tracker Video Feed", nullptr, window_flags);
+
+			ImGui::Text("Tracker ID: #%d", m_renderTrackerIter->second.trackerView->getTrackerId());
+
+			if (ImGui::Button("Return"))
+			{
+				setState(eMenuState::testTracking);
+			}
+
+			ImGui::End();
+		}
+		break;
 
     case eMenuState::calibrateStepFailed:
         {
@@ -492,7 +500,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
             if (ImGui::Button("Restart Calibration"))
             {
-                setState(eMenuState::selectCalibrationType);
+                setState(eMenuState::verifyTrackers);
             }
 
             if (ImGui::Button("Cancel"))
@@ -536,21 +544,21 @@ void AppStage_ComputeTrackerPoses::onExitState(eMenuState newState)
     case eMenuState::failedTrackerListRequest:
     case eMenuState::failedTrackerStartRequest:
         break;
-    case eMenuState::verifyHMD:
-        m_app->setCameraType(_cameraFixed);
-        break;
     case eMenuState::verifyTrackers:
-    case eMenuState::selectCalibrationType:
         break;
-    case eMenuState::calibrateWithHMD:
-        m_pCalibrateWithHMD->exit();
+	case eMenuState::selectCalibrationMethod:
         break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->exit();
         break;
+	case eMenuState::stereoCalibrate:
+		m_pStereoCalibrate->exit();
+		break;
     case eMenuState::testTracking:
         m_app->setCameraType(_cameraFixed);
         break;
+	case eMenuState::showTrackerVideo:
+		break;
     case eMenuState::calibrateStepFailed:
         break;
     default:
@@ -565,7 +573,11 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
     case eMenuState::inactive:
         break;
     case eMenuState::pendingControllerListRequest:
+		break;
     case eMenuState::pendingControllerStartRequest:
+		m_controllerViews.clear();
+		m_pendingControllerStartCount = 0;
+		break;
     case eMenuState::pendingTrackerListRequest:
         break;
     case eMenuState::pendingTrackerStartRequest:
@@ -577,23 +589,39 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
     case eMenuState::failedTrackerListRequest:
     case eMenuState::failedTrackerStartRequest:
         break;
-    case eMenuState::verifyHMD:
-        m_app->setCameraType(_cameraOrbit);
-        break;
     case eMenuState::verifyTrackers:
         m_renderTrackerIter = m_trackerViews.begin();
         break;
-    case eMenuState::selectCalibrationType:
-        break;
-    case eMenuState::calibrateWithHMD:
-        m_pCalibrateWithHMD->enter();
+	case eMenuState::selectCalibrationMethod:
         break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->enter();
         break;
-    case eMenuState::testTracking:
-        m_app->setCameraType(_cameraOrbit);
+    case eMenuState::stereoCalibrate:
+        m_pStereoCalibrate->enter();
         break;
+    case eMenuState::testTracking:
+		{
+			for (t_controller_state_map_iterator controller_iter = m_controllerViews.begin(); controller_iter != m_controllerViews.end(); ++controller_iter)
+			{
+				ClientControllerView *controllerView = controller_iter->second.controllerView;
+
+				switch (controllerView->GetControllerViewType())
+				{
+				case ClientControllerView::PSMove:
+					controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
+					break;
+				case ClientControllerView::PSDualShock4:
+					controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
+					break;
+				}
+			}
+
+			m_app->setCameraType(_cameraOrbit);
+		}
+        break;
+	case eMenuState::showTrackerVideo:
+		break;
     case eMenuState::calibrateStepFailed:
         break;
     default:
@@ -676,22 +704,28 @@ class ClientTrackerView *AppStage_ComputeTrackerPoses::get_render_tracker_view()
     return (m_trackerViews.size() > 0) ? m_renderTrackerIter->second.trackerView : nullptr;
 }
 
+class ClientControllerView *AppStage_ComputeTrackerPoses::get_calibration_controller_view() const
+{
+	return (m_controllerViews.size() > 0) ? m_controllerViews.begin()->second.controllerView : nullptr;
+}
+
 void AppStage_ComputeTrackerPoses::release_devices()
 {
     //###HipsterSloth $REVIEW Do we care about canceling in-flight requests?
 
-    if (m_hmdView != nullptr)
-    {
-        m_app->getOpenVRContext()->freeHmdView(m_hmdView);
-        m_hmdView = nullptr;
-    }
+	for (t_controller_state_map_iterator iter = m_controllerViews.begin(); iter != m_controllerViews.end(); ++iter)
+	{
+		ControllerState &controllerState = iter->second;
 
-    if (m_controllerView != nullptr)
-    {
-        ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(m_controllerView));
-        ClientPSMoveAPI::free_controller_view(m_controllerView);
-        m_controllerView = nullptr;
-    }
+		if (controllerState.controllerView != nullptr)
+		{
+			ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(controllerState.controllerView));
+			ClientPSMoveAPI::free_controller_view(controllerState.controllerView);
+		}
+	}
+
+	m_controllerViews.clear();
+	m_pendingControllerStartCount = 0;
 
     for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
     {
@@ -742,10 +776,12 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
     const ClientPSMoveAPI::ResponseMessage *response_message,
     void *userdata)
 {
+	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_message->opaque_response_handle);
+	const PSMoveProtocol::Request *request = GET_PSMOVEPROTOCOL_REQUEST(response_message->opaque_request_handle);
+	
     AppStage_ComputeTrackerPoses *thisPtr = static_cast<AppStage_ComputeTrackerPoses *>(userdata);
 
     const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
-//    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
 
     switch (ResultCode)
     {
@@ -753,27 +789,62 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
         {
             assert(response_message->payload_type == ClientPSMoveAPI::_responsePayloadType_ControllerList);
             const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list = 
-                &response_message->payload.controller_list;
+                &response_message->payload.controller_list;			
 
-            int trackedControllerId = -1;
-            for (int list_index = 0; list_index < controller_list->count; ++list_index)
-            {
-                if (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
-                    controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)
-                {
-                    trackedControllerId = controller_list->controller_id[list_index];
-                    break;
-                }
-            }
+			if (thisPtr->m_overrideControllerId == -1)
+			{
+				bool bStartedAnyControllers = false;
 
-            if (trackedControllerId != -1)
-            {
-                thisPtr->request_start_controller_stream(trackedControllerId);
-            }
-            else
-            {
-                thisPtr->setState(AppStage_ComputeTrackerPoses::failedControllerListRequest);
-            }
+				// Start all psmove and dual shock 4 controllers
+				for (int list_index = 0; list_index < controller_list->count; ++list_index)
+				{
+					if (controller_list->controller_type[list_index] == ClientControllerView::PSMove ||
+						controller_list->controller_type[list_index] == ClientControllerView::PSDualShock4)
+					{
+						int trackedControllerId = controller_list->controller_id[list_index];
+						const auto &protocolControllerResponse = response->result_controller_list().controllers(list_index);
+						const PSMoveTrackingColorType trackingColorType=
+							static_cast<PSMoveTrackingColorType>(protocolControllerResponse.tracking_color_type());
+
+						thisPtr->request_start_controller_stream(trackedControllerId, list_index, trackingColorType);
+						bStartedAnyControllers = true;
+					}
+				}
+
+				if (!bStartedAnyControllers)
+				{
+					thisPtr->setState(AppStage_ComputeTrackerPoses::failedControllerListRequest);
+				}
+			}
+			else
+			{
+				int trackedControllerId = -1;
+				int trackedControllerListIndex = -1;
+				PSMoveTrackingColorType trackingColorType;
+
+				// Start only the selected controller
+				for (int list_index = 0; list_index < controller_list->count; ++list_index)
+				{
+					if (controller_list->controller_id[list_index] == thisPtr->m_overrideControllerId)
+					{
+						const auto &protocolControllerResponse = response->result_controller_list().controllers(list_index);
+
+						trackingColorType = static_cast<PSMoveTrackingColorType>(protocolControllerResponse.tracking_color_type());
+						trackedControllerId = controller_list->controller_id[list_index];
+						trackedControllerListIndex = list_index;
+						break;
+					}
+				}
+
+				if (trackedControllerId != -1)
+				{
+					thisPtr->request_start_controller_stream(trackedControllerId, trackedControllerListIndex, trackingColorType);
+				}
+				else
+				{
+					thisPtr->setState(AppStage_ComputeTrackerPoses::failedControllerListRequest);
+				}
+			}
         } break;
 
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
@@ -784,18 +855,42 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
     }
 }
 
-void AppStage_ComputeTrackerPoses::request_start_controller_stream(int ControllerID)
+void AppStage_ComputeTrackerPoses::request_start_controller_stream(
+	int ControllerID,
+	int listIndex,
+	PSMoveTrackingColorType trackingColorType)
 {
-    // Allocate a controller view to track controller state
-    assert(m_controllerView == nullptr);
-    m_controllerView= ClientPSMoveAPI::allocate_controller_view(ControllerID);
+	ControllerState controllerState;
+
+	setState(eMenuState::pendingControllerStartRequest);
+
+	// Allocate a new controller view
+	controllerState.listIndex = listIndex;
+	controllerState.controllerView = ClientPSMoveAPI::allocate_controller_view(ControllerID);
+	controllerState.trackingColorType = trackingColorType;
+
+	// Add the controller to the list of controllers we're monitoring
+	assert(m_controllerViews.find(ControllerID) == m_controllerViews.end());
+	m_controllerViews.insert(t_id_controller_state_pair(ControllerID, controllerState));
+
+	// Increment the number of requests we're waiting to get back
+	++m_pendingControllerStartCount;
+
+	unsigned int flags =
+		ClientPSMoveAPI::includePositionData |
+		ClientPSMoveAPI::includeCalibratedSensorData |
+		ClientPSMoveAPI::includeRawTrackerData | 
+		ClientPSMoveAPI::includePhysicsData;
+
+	// If we are jumping straight to testing, we want the ROI optimization on
+	if (!m_bSkipCalibration)
+	{
+		flags|= ClientPSMoveAPI::disableROI;
+	}
 
     // Start receiving data from the controller
-    setState(AppStage_ComputeTrackerPoses::pendingControllerStartRequest);
     ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::start_controller_data_stream(
-            m_controllerView, 
-            ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includeCalibratedSensorData | ClientPSMoveAPI::includeRawTrackerData),
+        ClientPSMoveAPI::start_controller_data_stream(controllerState.controllerView, flags),
         AppStage_ComputeTrackerPoses::handle_start_controller_response, this);
 }
 
@@ -806,13 +901,18 @@ void AppStage_ComputeTrackerPoses::handle_start_controller_response(
     AppStage_ComputeTrackerPoses *thisPtr = static_cast<AppStage_ComputeTrackerPoses *>(userdata);
 
     const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
-//    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
 
     switch (ResultCode)
     {
     case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
-            thisPtr->request_tracker_list();
+			// See if this was the last controller we were waiting to get a response from
+			--thisPtr->m_pendingControllerStartCount;
+			if (thisPtr->m_pendingControllerStartCount <= 0)
+			{
+				// Move on to the controllers
+				thisPtr->request_tracker_list();
+			}
         } break;
 
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
@@ -989,40 +1089,11 @@ void AppStage_ComputeTrackerPoses::request_set_tracker_pose(
     }
 }
 
-void AppStage_ComputeTrackerPoses::request_set_hmd_tracking_space_origin(
-    const struct PSMovePose *pose)
-{
-    if (m_app->getOpenVRContext()->getIsInitialized())
-    {
-        m_app->getOpenVRContext()->setRawHMDTrackingSpaceOrigin(*pose);
-    }
-
-    // Update the pose on the service
-    {
-        RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_SET_HMD_TRACKING_SPACE_ORIGIN);
-
-        PSMoveProtocol::Request_RequestSetHMDTrackingSpaceOrigin *set_origin_request =
-            request->mutable_request_set_hmd_tracking_space_origin();
-
-        copy_pose_to_request(*pose, set_origin_request->mutable_origin_pose());
-
-        ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
-    }
-}
-
 void AppStage_ComputeTrackerPoses::handle_all_devices_ready()
 {
     if (!m_bSkipCalibration)
     {
-        if (m_hmdView != nullptr)
-        {
-            setState(eMenuState::verifyHMD);
-        }
-        else
-        {
-            setState(eMenuState::verifyTrackers);
-        }
+        setState(eMenuState::verifyTrackers);
     }
     else
     {
@@ -1030,16 +1101,65 @@ void AppStage_ComputeTrackerPoses::handle_all_devices_ready()
     }
 }
 
-//-- private methods -----
-static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform)
+bool AppStage_ComputeTrackerPoses::does_tracker_see_any_controller(const ClientTrackerView *trackerView)
 {
+	bool bTrackerSeesAnyController = false;
+	for (t_controller_state_map_iterator controller_iter = m_controllerViews.begin(); controller_iter != m_controllerViews.end(); ++controller_iter)
+	{
+		const ClientControllerView *controllerView = controller_iter->second.controllerView;
+
+		PSMoveScreenLocation screenSample;
+		glm::vec3 color;
+		if (controllerView->GetIsCurrentlyTracking() &&
+			controllerView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
+		{
+			bTrackerSeesAnyController = true;
+			break;
+		}
+	}
+
+	return bTrackerSeesAnyController;
+}
+
+//-- private methods -----
+static void drawController(
+	const ClientControllerView *controllerView, 
+	const glm::mat4 &transform, 
+	const PSMoveTrackingColorType trackingColorType)
+{
+	glm::vec3 bulb_color = glm::vec3(1.f, 1.f, 1.f);
+
+	switch (trackingColorType)
+	{
+	case PSMoveTrackingColorType::Magenta:
+		bulb_color = glm::vec3(1.f, 0.f, 1.f);
+		break;
+	case PSMoveTrackingColorType::Cyan:
+		bulb_color = glm::vec3(0.f, 1.f, 1.f);
+		break;
+	case PSMoveTrackingColorType::Yellow:
+		bulb_color = glm::vec3(1.f, 1.f, 0.f);
+		break;
+	case PSMoveTrackingColorType::Red:
+		bulb_color = glm::vec3(1.f, 0.f, 0.f);
+		break;
+	case PSMoveTrackingColorType::Green:
+		bulb_color = glm::vec3(0.f, 1.f, 0.f);
+		break;
+	case PSMoveTrackingColorType::Blue:
+		bulb_color = glm::vec3(0.f, 0.f, 1.f);
+		break;
+	default:
+		break;
+	}
+
     switch(controllerView->GetControllerViewType())
     {
     case ClientControllerView::PSMove:
-        drawPSMoveModel(transform, glm::vec3(1.f, 1.f, 1.f));
+        drawPSMoveModel(transform, bulb_color);
         break;
     case ClientControllerView::PSDualShock4:
-        drawPSDualShock4Model(transform, glm::vec3(1.f, 1.f, 1.f));
+        drawPSDualShock4Model(transform, bulb_color);
         break;
     }
 }

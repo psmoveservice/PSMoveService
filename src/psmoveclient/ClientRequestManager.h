@@ -10,7 +10,9 @@
 class PSM_CPP_PRIVATE_CLASS ClientRequestManager : public IResponseListener
 {
 public:
-    ClientRequestManager(IDataFrameListener *dataFrameListener, ClientPSMoveAPI::t_response_callback callback, void *userdata);
+    ClientRequestManager(IDataFrameListener *dataFrameListener,
+                         ClientPSMoveAPI::t_response_callback callback,
+                         void *userdata);
     virtual ~ClientRequestManager();
 
     void send_request(RequestPtr request);

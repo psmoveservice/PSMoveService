@@ -23,7 +23,7 @@ class ClientRequestManagerImpl
 public:
     ClientRequestManagerImpl(
         IDataFrameListener *dataFrameListener,
-        ClientPSMoveAPI::t_response_callback callback, 
+        ClientPSMoveAPI::t_response_callback callback,
         void *userdata)
         : m_dataFrameListener(dataFrameListener)
         , m_callback(callback)
@@ -156,7 +156,6 @@ public:
             case PSMoveProtocol::Response_ResponseType_CONTROLLER_STREAM_STARTED:
                 {
                     const PSMoveProtocol::DeviceOutputDataFrame *dataFrame= &response->result_controller_stream_started().initial_data_frame();
-
                     m_dataFrameListener->handle_data_frame(dataFrame);
                 } break;
             case PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST:
@@ -167,10 +166,14 @@ public:
                 build_tracker_list_response_message(response, &out_response_message->payload.tracker_list);
                 out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_TrackerList;
                 break;
-            case PSMoveProtocol::Response_ResponseType_HMD_TRACKING_SPACE_SETTINGS:
-                build_hmd_settings_response_message(response, &out_response_message->payload.hmd_tracking_space);
-                out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_HMDTrackingSpace;
-                break;
+			case PSMoveProtocol::Response_ResponseType_HMD_LIST:
+				build_hmd_list_response_message(response, &out_response_message->payload.hmd_list);
+				out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_HMDList;
+				break;
+			case PSMoveProtocol::Response_ResponseType_TRACKING_SPACE_SETTINGS:
+				build_tracking_space_response_message(response, &out_response_message->payload.tracking_space);
+				out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_TrackingSpace;
+				break;
             default:
                 out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_Empty;
                 break;
@@ -190,29 +193,36 @@ public:
                 && src_controller_count < PSMOVESERVICE_MAX_CONTROLLER_COUNT)
         {
             const auto &ControllerResponse = response->result_controller_list().controllers(src_controller_count);
+            const bool bIsBluetooth=
+				ControllerResponse.connection_type() == PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH;
 
-            // As far as the publicly facing API is concerned, don't show the USB connected controllers
-            if (ControllerResponse.connection_type() ==
-                PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH)
+			// For some controllers, we only include them in the public facing controller list
+			// if the controller is currently connected via bluetooth
+			bool bIsPublicFacingController= false;
+
+            // Convert the PSMoveProtocol controller enum to the public ClientControllerView enum
+            ClientControllerView::eControllerType controllerType;
+            switch (ControllerResponse.controller_type())
             {
-                // Convert the PSMoveProtocol controller enum to the public ClientControllerView enum
-                ClientControllerView::eControllerType controllerType;
-                switch (ControllerResponse.controller_type())
-                {
-                case PSMoveProtocol::PSMOVE:
-                    controllerType = ClientControllerView::PSMove;
-                    break;
-                case PSMoveProtocol::PSNAVI:
-                    controllerType = ClientControllerView::PSNavi;
-                    break;
-                case PSMoveProtocol::PSDUALSHOCK4:
-                    controllerType = ClientControllerView::PSDualShock4;
-                    break;
-                default:
-                    assert(0 && "unreachable");
-                    controllerType = ClientControllerView::PSMove;
-                }
+            case PSMoveProtocol::PSMOVE:
+				bIsPublicFacingController= bIsBluetooth;
+                controllerType = ClientControllerView::PSMove;
+                break;
+            case PSMoveProtocol::PSNAVI:
+				bIsPublicFacingController= true;
+                controllerType = ClientControllerView::PSNavi;
+                break;
+            case PSMoveProtocol::PSDUALSHOCK4:
+				bIsPublicFacingController= bIsBluetooth;
+                controllerType = ClientControllerView::PSDualShock4;
+                break;
+            default:
+                assert(0 && "unreachable");
+                controllerType = ClientControllerView::PSMove;
+            }
 
+			if (bIsPublicFacingController)
+			{
                 // Add an entry to the controller list
                 controller_list->controller_type[dest_controller_count] = controllerType;
                 controller_list->controller_id[dest_controller_count] = ControllerResponse.controller_id();
@@ -303,6 +313,12 @@ public:
             TrackerInfo.tracker_znear = TrackerResponse.tracker_znear();
             TrackerInfo.tracker_zfar = TrackerResponse.tracker_zfar();
 
+            TrackerInfo.tracker_k1 = TrackerResponse.tracker_k1();
+            TrackerInfo.tracker_k2 = TrackerResponse.tracker_k2();
+            TrackerInfo.tracker_k3 = TrackerResponse.tracker_k3();
+            TrackerInfo.tracker_p1 = TrackerResponse.tracker_p1();
+            TrackerInfo.tracker_p2 = TrackerResponse.tracker_p2();
+
             strncpy(TrackerInfo.device_path, TrackerResponse.device_path().c_str(), sizeof(TrackerInfo.device_path));
             strncpy(TrackerInfo.shared_memory_name, TrackerResponse.shared_memory_name().c_str(), sizeof(TrackerInfo.shared_memory_name));
 
@@ -313,17 +329,53 @@ public:
 
         // Record how many trackers we copied into the payload
         tracker_list->count = tracker_count;
+
+		// Copy over the tracking space properties
+		tracker_list->global_forward_degrees= response->result_tracker_list().global_forward_degrees();
     }
 
-    void build_hmd_settings_response_message(
-        ResponsePtr response,
-        ClientPSMoveAPI::ResponsePayload_HMDTrackingSpace *hmd_tracking_space)
-    {
-        const PSMoveProtocol::Pose &protocol_pose=
-            response->result_get_hmd_tracking_space_settings().origin_pose();
+	void build_hmd_list_response_message(
+		ResponsePtr response,
+		ClientPSMoveAPI::ResponsePayload_HMDList *hmd_list)
+	{
+		int src_hmd_count = 0;
+		int dest_hmd_count = 0;
 
-        hmd_tracking_space->origin_pose = protocol_pose_to_psmove_pose(protocol_pose);
-    }
+		// Copy the controller entries into the response payload
+		while (src_hmd_count < response->result_hmd_list().hmd_entries_size()
+			&& src_hmd_count < PSMOVESERVICE_MAX_HMD_COUNT)
+		{
+			const auto &HMDResponse = response->result_hmd_list().hmd_entries(src_hmd_count);
+
+			// Convert the PSMoveProtocol HMD enum to the public ClientHMDView enum
+			ClientHMDView::eHMDViewType hmdType;
+			switch (HMDResponse.hmd_type())
+			{
+			case PSMoveProtocol::Morpheus:
+				hmdType = ClientHMDView::Morpheus;
+				break;
+			default:
+				assert(0 && "unreachable");
+				hmdType = ClientHMDView::None;
+			}
+
+			// Add an entry to the hmd list
+			hmd_list->hmd_type[dest_hmd_count] = hmdType;
+			hmd_list->hmd_id[dest_hmd_count] = HMDResponse.hmd_id();
+			++dest_hmd_count;
+			++src_hmd_count;
+		}
+
+		// Record how many controllers we copied into the payload
+		hmd_list->count = dest_hmd_count;
+	}
+
+	void build_tracking_space_response_message(
+		ResponsePtr response,
+		ClientPSMoveAPI::ResponsePayload_TrackingSpace *tracking_space)
+	{
+		tracking_space->global_forward_degrees = response->result_tracking_space_settings().global_forward_degrees();
+	}
 
 private:
     IDataFrameListener *m_dataFrameListener;
@@ -342,7 +394,7 @@ private:
 //-- public methods -----
 ClientRequestManager::ClientRequestManager(
     IDataFrameListener *dataFrameListener,
-    ClientPSMoveAPI::t_response_callback callback, 
+    ClientPSMoveAPI::t_response_callback callback,
     void *userdata)
 {
     m_implementation_ptr = new ClientRequestManagerImpl(dataFrameListener, callback, userdata);

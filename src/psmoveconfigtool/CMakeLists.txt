@@ -10,6 +10,7 @@ list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${Boost_LIBRARIES})
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
     ${ROOT_DIR}/thirdparty/eigen/
     ${ROOT_DIR}/thirdparty/glm
+    ${ROOT_DIR}/thirdparty/sparseicp
     ${ROOT_DIR}/thirdparty/stb
     ${ROOT_DIR}/thirdparty/imgui
     ${ROOT_DIR}/src/psmoveclient/
@@ -79,8 +80,15 @@ ENDIF()
 
 # Allow access to the protocol buffers (extracting response parameters)
 target_compile_definitions(PSMoveConfigTool
-	PRIVATE HAS_PROTOCOL_ACCESS
-	PRIVATE PSMOVECLIENT_CPP_API)
+    PRIVATE HAS_PROTOCOL_ACCESS
+    PRIVATE PSMOVECLIENT_CPP_API)
+
+#MacOS OpenCV must be self-built, this links against older std, which is hidden
+#Therefore the PSMoveConfigTool must be hidden
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    SET_TARGET_PROPERTIES(PSMoveConfigTool
+        PROPERTIES COMPILE_FLAGS "-fvisibility=hidden")
+ENDIF()
 
 # Post build dependencies (assets and external DLLs)
 add_custom_command(TARGET PSMoveConfigTool POST_BUILD

@@ -5,6 +5,8 @@
 #include <glm/glm.hpp>
 
 //-- constants -----
+const float k_camera_default_forward_degrees = 270.f;
+
 enum eCameraType
 {
     _cameraNone,
@@ -31,8 +33,10 @@ public:
     void onMouseButtonUp(int buttonIndex);
     void onMouseWheel(int scrollAmount);
 
-    void setIsLocked(bool locked);
+    void setIsLocked(bool locked);	
     void setCameraOrbitLocation(float yawDegrees, float pitchDegrees, float radius);
+	void setCameraOrbitYaw(float yawDegrees);
+	void setCameraOrbitPitch(float pitchDegrees);
     void setCameraOrbitRadius(float radius);
     void resetOrientation();
     void reset();

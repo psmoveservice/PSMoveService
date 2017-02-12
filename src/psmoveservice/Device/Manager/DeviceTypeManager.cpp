@@ -1,6 +1,7 @@
 //-- includes -----
 #include "DeviceTypeManager.h"
 #include "DeviceEnumerator.h"
+#include "PSMoveProtocol.pb.h"
 #include "ServerLog.h"
 #include "ServerDeviceView.h"
 #include "ServerNetworkManager.h"
@@ -13,6 +14,7 @@ DeviceTypeManager::DeviceTypeManager(const int recon_int, const int poll_int)
     : reconnect_interval(recon_int)
     , poll_interval(poll_int)
     , m_deviceViews(nullptr)
+	, m_bIsDeviceListDirty(false)
 {
 }
 
@@ -38,6 +40,9 @@ DeviceTypeManager::startup()
         m_deviceViews[device_id] = deviceView;
     }
 
+	// Rebuild the device list the first chance we get
+	m_bIsDeviceListDirty = true;
+
     return true;
 }
 
@@ -45,24 +50,25 @@ DeviceTypeManager::startup()
 void
 DeviceTypeManager::shutdown()
 {
-    assert(m_deviceViews != nullptr);
+	if (m_deviceViews != nullptr)
+	{
+		// Close any controllers that were opened
+		for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+		{
+			ServerDeviceViewPtr device = m_deviceViews[device_id];
 
-    // Close any controllers that were opened
-    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
-    {
-        ServerDeviceViewPtr device = m_deviceViews[device_id];
+			if (device->getIsOpen())
+			{
+				device->close();
+			}
 
-        if (device->getIsOpen())
-        {
-            device->close();
-        }
+			m_deviceViews[device_id] = ServerDeviceViewPtr();
+		}
 
-        m_deviceViews[device_id] = ServerDeviceViewPtr();
-    }
-
-    // Free the device view pointer list
-    delete[] m_deviceViews;
-    m_deviceViews = nullptr;
+		// Free the device view pointer list
+		delete[] m_deviceViews;
+		m_deviceViews = nullptr;
+	}
 }
 
 /// Calls poll_devices and update_connected_devices if poll_interval and reconnect_interval has elapsed, respectively.
@@ -81,11 +87,21 @@ DeviceTypeManager::poll()
     }
 
     // See if it's time to try update the list of connected devices
-    std::chrono::duration<double, std::milli> reconnect_diff = now - m_last_reconnect_time;
-    if (reconnect_diff.count() >= reconnect_interval)
+	if (reconnect_interval > 0)
+	{
+		std::chrono::duration<double, std::milli> reconnect_diff = now - m_last_reconnect_time;
+
+		if (reconnect_diff.count() >= reconnect_interval)
+		{
+			m_bIsDeviceListDirty = true;
+		}
+	}
+
+	if (m_bIsDeviceListDirty)
     {
         if (update_connected_devices())
         {
+			m_bIsDeviceListDirty = false;
             m_last_reconnect_time = now;
         }
     }
@@ -128,12 +144,12 @@ DeviceTypeManager::update_connected_devices()
                 // New controller connected case
                 else
                 {
-                    int device_id = find_first_closed_device_device_id();
+                    int device_id_ = find_first_closed_device_device_id();
 
-                    if (device_id != -1)
+                    if (device_id_ != -1)
                     {
                         // Fetch the controller from it's existing controller slot
-                        ServerDeviceViewPtr availableDeviceView = getDeviceViewPtr(device_id);
+                        ServerDeviceViewPtr availableDeviceView = getDeviceViewPtr(device_id_);
 
                         // Attempt to open the device
                         if (availableDeviceView->open(enumerator))
@@ -142,10 +158,10 @@ DeviceTypeManager::update_connected_devices()
                                 CommonDeviceState::getDeviceTypeString(availableDeviceView->getDevice()->getDeviceType());
 
                             SERVER_LOG_INFO("DeviceTypeManager::update_connected_devices") <<
-                                "Device device_id " << device_id << " (" << device_type_name << ") opened";
+                                "Device device_id " << device_id_ << " (" << device_type_name << ") opened";
 
                             // Mark the device as having showed up in the enumerator
-                            exists_in_enumerator[device_id] = true;
+                            exists_in_enumerator[device_id_] = true;
 
                             // Send notificiation to clients that a new device was added
                             bSendControllerUpdatedNotification = true;
@@ -153,7 +169,7 @@ DeviceTypeManager::update_connected_devices()
                         else
                         {
                             SERVER_LOG_ERROR("DeviceTypeManager::update_connected_devices") << 
-                                "Device device_id " << device_id << " (" << enumerator->get_path() << ") failed to open!";
+                                "Device device_id " << device_id_ << " (" << enumerator->get_path() << ") failed to open!";
                         }
                     }
                     else
@@ -218,7 +234,7 @@ void
 DeviceTypeManager::send_device_list_changed_notification()
 {
     ResponsePtr response(new PSMoveProtocol::Response);
-    response->set_type(getListUpdatedResponseType());
+    response->set_type(static_cast<PSMoveProtocol::Response_ResponseType>(getListUpdatedResponseType()));
     response->set_request_id(-1);
     response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 
@@ -256,6 +272,7 @@ DeviceTypeManager::poll_devices()
         }
     }
 }
+
 
 int
 DeviceTypeManager::find_open_device_device_id(const DeviceEnumerator *enumerator)
@@ -299,4 +316,16 @@ DeviceTypeManager::getDeviceViewPtr(int device_id)
     assert(m_deviceViews != nullptr);
 
     return m_deviceViews[device_id];
+}
+
+void 
+DeviceTypeManager::handle_device_connected(enum DeviceClass device_class, const std::string &device_path)
+{
+	m_bIsDeviceListDirty = true;
+}
+
+void 
+DeviceTypeManager::handle_device_disconnected(enum DeviceClass device_class, const std::string &device_path)
+{
+	m_bIsDeviceListDirty = true;
 }

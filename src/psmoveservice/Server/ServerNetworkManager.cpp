@@ -31,12 +31,52 @@ typedef map<int, ClientConnectionPtr> t_client_connection_map;
 typedef map<int, ClientConnectionPtr>::iterator t_client_connection_map_iter;
 typedef std::pair<int, ClientConnectionPtr> t_id_client_connection_pair;
 
+//-- constants -----
+const int PSMOVE_SERVER_PORT = 9512;
+
 //-- private implementation -----
 class IServerNetworkEventListener
 {
 public:
 	virtual void handle_client_connection_stopped(int connection_id) = 0;
 };
+
+//-- Tracker Manager Config -----
+const int NetworkManagerConfig::CONFIG_VERSION = 1;
+
+NetworkManagerConfig::NetworkManagerConfig(const std::string &fnamebase)
+    : PSMoveConfig(fnamebase)
+{
+	server_port= PSMOVE_SERVER_PORT;
+};
+
+const boost::property_tree::ptree
+NetworkManagerConfig::config2ptree()
+{
+    boost::property_tree::ptree pt;
+
+    pt.put("version", NetworkManagerConfig::CONFIG_VERSION);
+	pt.put("server_port", server_port);
+
+    return pt;
+}
+
+void
+NetworkManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
+{
+    version = pt.get<int>("version", 0);
+
+    if (version == NetworkManagerConfig::CONFIG_VERSION)
+    {
+		server_port = pt.get<int>("server_port", server_port);
+    }
+    else
+    {
+        SERVER_LOG_WARNING("NetworkManagerConfig") <<
+            "Config version " << version << " does not match expected version " <<
+            NetworkManagerConfig::CONFIG_VERSION << ", Using defaults.";
+    }
+}
 
 // -ClientConnection-
 /**
@@ -508,11 +548,11 @@ int ClientConnection::next_connection_id = 0;
 class ServerNetworkManagerImpl : public IServerNetworkEventListener
 {
 public:
-    ServerNetworkManagerImpl(asio::io_service &io_service, unsigned int port, ServerRequestHandler &requestHandler)
+    ServerNetworkManagerImpl(asio::io_service &io_service, NetworkManagerConfig &cfg, ServerRequestHandler &requestHandler)
         : m_request_handler_ref(requestHandler)
         , m_io_service(io_service)
-        , m_tcp_acceptor(m_io_service, tcp::endpoint(tcp::v4(), port))
-        , m_udp_socket(m_io_service, udp::endpoint(udp::v4(), port))
+        , m_tcp_acceptor(m_io_service, tcp::endpoint(tcp::v4(), cfg.server_port))
+        , m_udp_socket(m_io_service, udp::endpoint(udp::v4(), cfg.server_port))
         , m_udp_connecting_remote_endpoint()
         , m_packed_input_dataframe(std::shared_ptr<PSMoveProtocol::DeviceInputDataFrame>(new PSMoveProtocol::DeviceInputDataFrame()))
         , m_udp_connection_result_write_buffer(false)
@@ -803,13 +843,13 @@ protected:
         // No longer is there a pending read
         m_has_pending_udp_read = false;
 
-        SERVER_LOG_DEBUG("ClientNetworkManager::handle_udp_data_frame_received") << "Parsing DataFrame" << std::endl;
+        SERVER_LOG_DEBUG("ClientNetworkManager::handle_udp_data_frame_received") << "Parsing DataFrame";
 
         // TODO: Switch on data frame type to choose which m_packed_data_frame_X to use.
         unsigned msg_len = m_packed_input_dataframe.decode_header(m_input_dataframe_buffer, sizeof(m_input_dataframe_buffer));
         unsigned total_len = HEADER_SIZE + msg_len;
-        SERVER_LOG_DEBUG("    ") << show_hex(m_input_dataframe_buffer, total_len) << std::endl;
-        SERVER_LOG_DEBUG("    ") << msg_len << " bytes" << std::endl;
+        SERVER_LOG_DEBUG("    ") << show_hex(m_input_dataframe_buffer, total_len);
+        SERVER_LOG_DEBUG("    ") << msg_len << " bytes";
 
         // Parse the response buffer
         if (m_packed_input_dataframe.unpack(m_input_dataframe_buffer, total_len))
@@ -927,10 +967,15 @@ ServerNetworkManager *ServerNetworkManager::m_instance = NULL;
 
 ServerNetworkManager::ServerNetworkManager(
     boost::asio::io_service *io_service,
-    unsigned port,
     ServerRequestHandler *requestHandler)
-    : implementation_ptr(new ServerNetworkManagerImpl(*io_service, port, *requestHandler))
+	: m_cfg()
 {
+	m_cfg.load();
+
+	// Save the config back out in case it doesn't exist
+	m_cfg.save();
+
+	implementation_ptr= new ServerNetworkManagerImpl(*io_service, m_cfg, *requestHandler);
 }
 
 ServerNetworkManager::~ServerNetworkManager()
@@ -948,8 +993,7 @@ ServerNetworkManager::~ServerNetworkManager()
 }
 
 bool ServerNetworkManager::startup()
-{
-    
+{    
     m_instance= this;
     
     implementation_ptr->start_connection_accept();

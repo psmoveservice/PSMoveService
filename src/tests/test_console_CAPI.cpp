@@ -82,54 +82,27 @@ private:
 
             if (success)
             {
-                PSM_GetControllerList(&controllerList, PSM_DEFAULT_TIMEOUT);
-                std::cout << "Found " << controllerList.count << " controllers." << std::endl;
-                for (int trkr_ix=0; trkr_ix<controllerList.count; ++trkr_ix) 
-                {
-                    const char *controller_type= "NONE";
-
-                    switch (controllerList.controller_type[trkr_ix])
-                    {
-                    case PSMController_Move:
-                        controller_type= "PSMove";
-                        break;
-                    case PSMController_Navi:
-                        controller_type= "PSNavi";
-                        break;
-                    case PSMController_DualShock4:
-                        controller_type= "DualShock4";
-                        break;
-                    }
-
-                    std::cout << "  Controller ID: " << controllerList.controller_id[trkr_ix] << " is a " << controller_type << std::endl;
-                }
-
-
-                PSM_GetTrackerList(&trackerList, PSM_DEFAULT_TIMEOUT);
-                std::cout << "Found " << trackerList.count << " trackers." << std::endl;
-                for (int trkr_ix=0; trkr_ix<trackerList.count; ++trkr_ix) 
-                {
-                    const char *tracker_type= "NONE";
-
-                    switch (trackerList.trackers[trkr_ix].tracker_type)
-                    {
-                    case PSMTracker_PS3Eye:
-                        tracker_type= "PS3Eye";
-                        break;
-                    }
-
-                    std::cout << "  Tracker ID: " << trackerList.trackers[trkr_ix].tracker_id << " is a " << tracker_type << std::endl;
-                }
+                rebuildControllerList();
+                rebuildTrackerList();
             
                 // Register as listener and start stream for each controller
-                unsigned int data_stream_flags = PSMControllerDataStreamFlags::PSMStreamFlags_includePositionData |
-                PSMControllerDataStreamFlags::PSMStreamFlags_includePhysicsData | PSMControllerDataStreamFlags::PSMStreamFlags_includeCalibratedSensorData |
-                PSMControllerDataStreamFlags::PSMStreamFlags_includeRawTrackerData;
-                PSMResult result;
-                for (int trkr_ix=0; trkr_ix<controllerList.count; ++trkr_ix) {
-                    result = PSM_AllocateControllerListener(controllerList.controller_id[trkr_ix]);
-                    result = PSM_StartControllerDataStream(controllerList.controller_id[trkr_ix], data_stream_flags, PSM_DEFAULT_TIMEOUT);
-                }
+                unsigned int data_stream_flags = 
+					PSMControllerDataStreamFlags::PSMStreamFlags_includePositionData |
+					PSMControllerDataStreamFlags::PSMStreamFlags_includePhysicsData | 
+					PSMControllerDataStreamFlags::PSMStreamFlags_includeCalibratedSensorData |
+					PSMControllerDataStreamFlags::PSMStreamFlags_includeRawTrackerData;
+                
+				if (controllerList.count > 0) {
+					if (PSM_AllocateControllerListener(controllerList.controller_id[0]) != PSMResult_Success) {
+						success= false;
+					}
+					if (PSM_StartControllerDataStream(controllerList.controller_id[0], data_stream_flags, PSM_DEFAULT_TIMEOUT) != PSMResult_Success) {
+						success= false;
+					}
+				} else {
+					std::cout << "PSMoveConsoleClient::startup() - No controllers found." << std::endl;
+					success = false;
+				}
             }
         }
 
@@ -149,47 +122,136 @@ private:
         std::chrono::milliseconds diff= now - last_report_fps_timestamp;
         
         // Polls events and updates controller state
-        PSMResult result = PSM_Update();
+		if (PSM_Update() != PSMResult_Success)
+		{
+			m_keepRunning= false;
+		}
 
-        PSMController *controller0= PSM_GetController(controllerList.controller_id[0]);
-        PSMPSMoveCalibratedSensorData calibsens = controller0->ControllerState.PSMoveState.CalibratedSensorData;
+		// See if we need to rebuild the controller list
+		if (m_keepRunning && PSM_HasControllerListChanged())
+		{
+            unsigned int data_stream_flags = 
+				PSMControllerDataStreamFlags::PSMStreamFlags_includePositionData |
+				PSMControllerDataStreamFlags::PSMStreamFlags_includePhysicsData | 
+				PSMControllerDataStreamFlags::PSMStreamFlags_includeCalibratedSensorData |
+				PSMControllerDataStreamFlags::PSMStreamFlags_includeRawTrackerData;
+
+			// Stop all controller streams
+            PSM_StopControllerDataStream(controllerList.controller_id[0], PSM_DEFAULT_TIMEOUT);
+
+			// Get the current controller list
+			rebuildControllerList();
+
+			// Restart the controller streams
+			if (controllerList.count > 0) {
+				if (PSM_StartControllerDataStream(controllerList.controller_id[0], data_stream_flags, PSM_DEFAULT_TIMEOUT) != PSMResult_Success) {
+					m_keepRunning= false;
+				}
+			} else {
+				std::cout << "PSMoveConsoleClient::startup() - No controllers found." << std::endl;
+				m_keepRunning = false;
+			}
+		}
+
+		// See if we need to rebuild the tracker list
+		if (m_keepRunning && PSM_HasTrackerListChanged())
+		{
+			rebuildTrackerList();
+		}
+
+		// Get the controller data for the first controller
+		if (m_keepRunning)
+		{
+			PSMController *controller0= PSM_GetController(controllerList.controller_id[0]);
+			PSMPSMoveCalibratedSensorData calibsens = controller0->ControllerState.PSMoveState.CalibratedSensorData;
         
-        std::cout << "Controller 0 (AGMXYZ):  ";
+			std::cout << "Controller 0 (AGMXYZ):  ";
         
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Accelerometer.x;
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Accelerometer.y;
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Accelerometer.z;
+			std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Accelerometer.x;
+			std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Accelerometer.y;
+			std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Accelerometer.z;
         
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Gyroscope.x;
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Gyroscope.y;
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Gyroscope.z;
+			std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Gyroscope.x;
+			std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Gyroscope.y;
+			std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Gyroscope.z;
         
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Magnetometer.x;
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Magnetometer.y;
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Magnetometer.z;
+			std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Magnetometer.x;
+			std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Magnetometer.y;
+			std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Magnetometer.z;
         
-        PSMVector3f position = controller0->ControllerState.PSMoveState.RawTrackerData.RelativePositions[0];
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << position.x;
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << position.y;
-        std::cout << std::setw(12) << std::right << std::setprecision(6) << position.z;
+			PSMVector3f position = controller0->ControllerState.PSMoveState.RawTrackerData.RelativePositions[0];
+			std::cout << std::setw(12) << std::right << std::setprecision(6) << position.x;
+			std::cout << std::setw(12) << std::right << std::setprecision(6) << position.y;
+			std::cout << std::setw(12) << std::right << std::setprecision(6) << position.z;
         
-        std::cout << std::endl;
+			std::cout << std::endl;
         
-        if (controller0->ControllerState.PSMoveState.CrossButton != PSMButtonState_UP)
-        {
-            m_keepRunning = false;
-        }
+			if (controller0->ControllerState.PSMoveState.CrossButton != PSMButtonState_UP)
+			{
+				m_keepRunning = false;
+			}
+		}
     }
 
     void shutdown()
     {
-        for (int ctrl_ix=0; ctrl_ix < controllerList.count; ++ctrl_ix)
+        if (controllerList.count > 0)
         {
-            PSM_StopControllerDataStream(controllerList.controller_id[ctrl_ix], PSM_DEFAULT_TIMEOUT);
-            PSM_FreeControllerListener(controllerList.controller_id[ctrl_ix]);
+            PSM_StopControllerDataStream(controllerList.controller_id[0], PSM_DEFAULT_TIMEOUT);
+            PSM_FreeControllerListener(controllerList.controller_id[0]);
         }
         PSM_Shutdown();
     }
+
+	void rebuildControllerList()
+	{
+		memset(&controllerList, 0, sizeof(PSMControllerList));
+        PSM_GetControllerList(&controllerList, PSM_DEFAULT_TIMEOUT);
+
+        std::cout << "Found " << controllerList.count << " controllers." << std::endl;
+
+        for (int cntlr_ix=0; cntlr_ix<controllerList.count; ++cntlr_ix) 
+        {
+            const char *controller_type= "NONE";
+
+            switch (controllerList.controller_type[cntlr_ix])
+            {
+            case PSMController_Move:
+                controller_type= "PSMove";
+                break;
+            case PSMController_Navi:
+                controller_type= "PSNavi";
+                break;
+            case PSMController_DualShock4:
+                controller_type= "DualShock4";
+                break;
+            }
+
+            std::cout << "  Controller ID: " << controllerList.controller_id[cntlr_ix] << " is a " << controller_type << std::endl;
+        }
+	}
+
+	void rebuildTrackerList()
+	{
+		memset(&trackerList, 0, sizeof(PSMTrackerList));
+        PSM_GetTrackerList(&trackerList, PSM_DEFAULT_TIMEOUT);
+
+        std::cout << "Found " << trackerList.count << " trackers." << std::endl;
+
+        for (int cntlr_ix=0; cntlr_ix<trackerList.count; ++cntlr_ix) 
+        {
+            const char *tracker_type= "NONE";
+
+            switch (trackerList.trackers[cntlr_ix].tracker_type)
+            {
+            case PSMTracker_PS3Eye:
+                tracker_type= "PS3Eye";
+                break;
+            }
+
+            std::cout << "  Tracker ID: " << trackerList.trackers[cntlr_ix].tracker_id << " is a " << tracker_type << std::endl;
+        }
+	}
 
 private:
     bool m_keepRunning;

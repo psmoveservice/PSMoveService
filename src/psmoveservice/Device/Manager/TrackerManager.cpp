@@ -4,6 +4,8 @@
 #include "ServerLog.h"
 #include "ServerTrackerView.h"
 #include "ServerDeviceView.h"
+#include "MathUtility.h"
+#include "PSMoveProtocol.pb.h"
 
 //-- constants -----
 
@@ -13,16 +15,23 @@ const int TrackerManagerConfig::CONFIG_VERSION = 2;
 TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
     : PSMoveConfig(fnamebase)
 {
+
+	controller_position_smoothing = 0.f;
+	ignore_pose_from_one_tracker = false;
     optical_tracking_timeout= 100;
+	tracker_sleep_ms = 1;
+	use_bgr_to_hsv_lookup_table = true;
+	exclude_opposed_cameras = false;
+	min_valid_projection_area= 16;
+	disable_roi = false;
     default_tracker_profile.exposure = 32;
     default_tracker_profile.gain = 32;
 	default_tracker_profile.color_preset_table.table_name= "default_tracker_profile";
+	global_forward_degrees = 270.f; // Down -Z by default
     for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
     {
         default_tracker_profile.color_preset_table.color_presets[preset_index] = k_default_color_presets[preset_index];
     }
-
-    hmd_tracking_origin_pose.clear();
 };
 
 const boost::property_tree::ptree
@@ -32,18 +41,22 @@ TrackerManagerConfig::config2ptree()
 
     pt.put("version", TrackerManagerConfig::CONFIG_VERSION);
 
+	pt.put("controller_position_smoothing", controller_position_smoothing);
+	pt.put("ignore_pose_from_one_tracker", ignore_pose_from_one_tracker);
     pt.put("optical_tracking_timeout", optical_tracking_timeout);
+	pt.put("use_bgr_to_hsv_lookup_table", use_bgr_to_hsv_lookup_table);
+	pt.put("tracker_sleep_ms", tracker_sleep_ms);
+
+	pt.put("excluded_opposed_cameras", exclude_opposed_cameras);	
+
+	pt.put("min_valid_projection_area", min_valid_projection_area);	
+
+	pt.put("disable_roi", disable_roi);
     
     pt.put("default_tracker_profile.exposure", default_tracker_profile.exposure);
     pt.put("default_tracker_profile.gain", default_tracker_profile.gain);
 
-    pt.put("hmd_tracking_space.orientation.w", hmd_tracking_origin_pose.Orientation.w);
-    pt.put("hmd_tracking_space.orientation.x", hmd_tracking_origin_pose.Orientation.x);
-    pt.put("hmd_tracking_space.orientation.y", hmd_tracking_origin_pose.Orientation.y);
-    pt.put("hmd_tracking_space.orientation.z", hmd_tracking_origin_pose.Orientation.z);
-    pt.put("hmd_tracking_space.position.x", hmd_tracking_origin_pose.Position.x);
-    pt.put("hmd_tracking_space.position.y", hmd_tracking_origin_pose.Position.y);
-    pt.put("hmd_tracking_space.position.z", hmd_tracking_origin_pose.Position.z);
+	pt.put("global_forward_degrees", global_forward_degrees);
 
 	writeColorPropertyPresetTable(&default_tracker_profile.color_preset_table, pt);
 
@@ -57,18 +70,18 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
 
     if (version == TrackerManagerConfig::CONFIG_VERSION)
     {
+		controller_position_smoothing = pt.get<float>("controller_position_smoothing", controller_position_smoothing);
+		ignore_pose_from_one_tracker = pt.get<bool>("ignore_pose_from_one_tracker", ignore_pose_from_one_tracker);
         optical_tracking_timeout= pt.get<int>("optical_tracking_timeout", optical_tracking_timeout);
-
+		use_bgr_to_hsv_lookup_table = pt.get<bool>("use_bgr_to_hsv_lookup_table", use_bgr_to_hsv_lookup_table);
+		tracker_sleep_ms = pt.get<int>("tracker_sleep_ms", tracker_sleep_ms);
+		exclude_opposed_cameras = pt.get<bool>("excluded_opposed_cameras", exclude_opposed_cameras);
+		min_valid_projection_area = pt.get<float>("min_valid_projection_area", min_valid_projection_area);	
+		disable_roi = pt.get<bool>("disable_roi", disable_roi);
         default_tracker_profile.exposure = pt.get<float>("default_tracker_profile.exposure", 32);
         default_tracker_profile.gain = pt.get<float>("default_tracker_profile.gain", 32);
 
-        hmd_tracking_origin_pose.Orientation.w = pt.get<float>("hmd_tracking_space.orientation.w", 1.0);
-        hmd_tracking_origin_pose.Orientation.x = pt.get<float>("hmd_tracking_space.orientation.x", 0.0);
-        hmd_tracking_origin_pose.Orientation.y = pt.get<float>("hmd_tracking_space.orientation.y", 0.0);
-        hmd_tracking_origin_pose.Orientation.z = pt.get<float>("hmd_tracking_space.orientation.z", 0.0);
-        hmd_tracking_origin_pose.Position.x = pt.get<float>("hmd_tracking_space.position.x", 0.0);
-        hmd_tracking_origin_pose.Position.y = pt.get<float>("hmd_tracking_space.position.y", 0.0);
-        hmd_tracking_origin_pose.Position.z = pt.get<float>("hmd_tracking_space.position.z", 0.0);
+		global_forward_degrees= pt.get<float>("global_forward_degrees", global_forward_degrees);
 
 		readColorPropertyPresetTable(pt, &default_tracker_profile.color_preset_table);
     }
@@ -78,6 +91,42 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
             "Config version " << version << " does not match expected version " <<
             TrackerManagerConfig::CONFIG_VERSION << ", Using defaults.";
     }
+}
+
+CommonDeviceVector 
+TrackerManagerConfig::get_global_forward_axis() const
+{
+	return CommonDeviceVector::create(cosf(global_forward_degrees*k_degrees_to_radians), 0.f, sinf(global_forward_degrees*k_degrees_to_radians));
+}
+
+CommonDeviceVector 
+TrackerManagerConfig::get_global_backward_axis() const
+{
+	return CommonDeviceVector::create(-cosf(global_forward_degrees*k_degrees_to_radians), 0.f, -sinf(global_forward_degrees*k_degrees_to_radians));
+}
+
+CommonDeviceVector
+TrackerManagerConfig::get_global_right_axis() const
+{
+	return CommonDeviceVector::create(-sinf(global_forward_degrees*k_degrees_to_radians), 0.f, cosf(global_forward_degrees*k_degrees_to_radians));
+}
+
+CommonDeviceVector
+TrackerManagerConfig::get_global_left_axis() const
+{
+	return CommonDeviceVector::create(sinf(global_forward_degrees*k_degrees_to_radians), 0.f, -cosf(global_forward_degrees*k_degrees_to_radians));
+}
+
+CommonDeviceVector 
+TrackerManagerConfig::get_global_up_axis() const
+{
+	return CommonDeviceVector::create(0.f, 1.f, 0.f);
+}
+
+CommonDeviceVector 
+TrackerManagerConfig::get_global_down_axis() const
+{
+	return CommonDeviceVector::create(0.f, -1.f, 0.f);
 }
 
 //-- Tracker Manager -----
@@ -94,11 +143,11 @@ TrackerManager::startup()
 
     if (bSuccess)
     {
-        if (!cfg.load())
-        {
-            // Save out the defaults if there is no config to load
-            cfg.save();
-        }
+		// Load any config from disk
+		cfg.load();
+
+        // Save back out the config in case there were updated defaults
+        cfg.save();
 
         // Refresh the tracker list
         mark_tracker_list_dirty();
@@ -161,10 +210,14 @@ TrackerManager::allocate_device_view(int device_id)
 }
 
 ServerTrackerViewPtr
-TrackerManager::getTrackerViewPtr(int device_id)
+TrackerManager::getTrackerViewPtr(int device_id) const
 {
     assert(m_deviceViews != nullptr);
 
     return std::static_pointer_cast<ServerTrackerView>(m_deviceViews[device_id]);
 }
 
+int TrackerManager::getListUpdatedResponseType()
+{
+	return PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED;
+}

@@ -28,6 +28,7 @@ protected:
         inactive,
         connectedToService,
         pendingConnectToToService,
+		startConnectionToService,
         failedConnectionToService,
         disconnectedFromService,
     };

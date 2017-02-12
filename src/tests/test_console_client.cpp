@@ -1,5 +1,6 @@
 #include "ClientPSMoveAPI.h"
 #include "ClientControllerView.h"
+#include "MathUtility.h"
 #include <chrono>
 
 #if defined(__linux) || defined (__APPLE__)
@@ -11,6 +12,101 @@
 #endif
 
 #define FPS_REPORT_DURATION 500 // ms
+#define CONTROLLER_OUTPUT_FILE "controller_stream.csv"
+
+class ControllerOutputStream
+{
+public:
+	ControllerOutputStream(ClientControllerView *controller, const char *filename)
+	{
+		m_fp = fopen(filename, "wt");
+		m_startTime = std::chrono::high_resolution_clock::now();
+
+		if (m_fp != nullptr)
+		{
+			switch (controller->GetControllerViewType())
+			{
+			case ClientControllerView::PSMove:
+				fprintf(m_fp, "psmove\n");
+				break;
+			case ClientControllerView::PSDualShock4:
+				fprintf(m_fp, "dualshock4\n");
+				break;
+			}
+
+			fprintf(m_fp, "TIME,POS_X,POS_Y,POS_Z,AREA,ORI_W,ORI_X,ORI_Y,ORI_Z,ACC_X,ACC_Y,ACC_Z,MAG_X,MAG_Y,MAG_Z,GYRO_X,GYRO_Y,GYRO_Z\n");
+		}
+	}
+
+	~ControllerOutputStream()
+	{
+		if (m_fp != nullptr)
+		{
+			fclose(m_fp);
+		}
+	}
+
+	void writeControllerState(ClientControllerView *controller)
+	{
+		if (m_fp != nullptr)
+		{
+			const PSMoveRawTrackerData trackerData= controller->GetRawTrackerData();
+
+			PSMovePosition pos = PSMovePosition::create(0.f, 0.f, 0.f);
+			PSMoveQuaternion quat = PSMoveQuaternion::create(1.f, 0.f, 0.f, 0.f);
+			PSMoveFloatVector3 acc;
+			PSMoveFloatVector3 gyro;
+			PSMoveFloatVector3 mag;
+			float tracker_area = 0.f;
+
+			const std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+			const std::chrono::duration<float, std::milli> time_delta = now - m_startTime;
+			const float time = time_delta.count() / 1000.f;
+
+			PSMoveTrackingProjection projection;
+
+			switch (controller->GetControllerViewType())
+			{
+			case ClientControllerView::PSDualShock4:
+				{
+					const PSDualShock4CalibratedSensorData &sensorData = controller->GetPSDualShock4View().GetCalibratedSensorData();
+					acc = sensorData.Accelerometer;
+					mag = PSMoveFloatVector3::create(0.f, 0.f, 0.f);
+					gyro = sensorData.Gyroscope;
+				} break;
+			case ClientControllerView::PSMove:
+				{
+					const PSMoveCalibratedSensorData &sensorData = controller->GetPSMoveView().GetCalibratedSensorData();
+					acc = sensorData.Accelerometer;
+					mag = sensorData.Magnetometer;
+					gyro = sensorData.Gyroscope;
+				} break;
+			}
+
+			if (trackerData.GetProjectionOnTrackerId(0, projection))
+			{
+				if (trackerData.GetPositionOnTrackerId(0, pos))
+				{
+					tracker_area = projection.get_projection_area();
+				}
+
+				trackerData.GetOrientationOnTrackerId(0, quat);
+			}
+
+			fprintf(m_fp, "%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n",
+				time,
+				pos.x, pos.y, pos.z, tracker_area,
+				quat.w, quat.x, quat.y, quat.z,
+				acc.i, acc.j, acc.k,
+				mag.i, mag.j, mag.k,
+				gyro.i, gyro.j, gyro.k);
+		}
+	}
+
+private:
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_startTime;
+	FILE* m_fp;
+};
 
 class PSMoveConsoleClient
 {
@@ -18,7 +114,9 @@ public:
     PSMoveConsoleClient() 
         : m_keepRunning(true)
         , controller_view(nullptr)
+		, output_stream(nullptr)
         , start_stream_request_id(-1)
+		, last_sequence_number(-1)
     {
     }
 
@@ -76,15 +174,18 @@ private:
         switch (event_type)
         {
         case ClientPSMoveAPI::connectedToService:
-            std::cout << "PSMoveConsoleClient - Connected to service" << std::endl;
+			{
+				std::cout << "PSMoveConsoleClient - Connected to service" << std::endl;
 
-            // Once created, updates will automatically get pushed into this view
-            controller_view= ClientPSMoveAPI::allocate_controller_view(0);
+				// Once created, updates will automatically get pushed into this view
+				controller_view= ClientPSMoveAPI::allocate_controller_view(0);
 
-            // Kick off request to start streaming data from the first controller
-            start_stream_request_id= 
-                ClientPSMoveAPI::start_controller_data_stream(
-                    controller_view, ClientPSMoveAPI::includePositionData);
+				// Kick off request to start streaming data from the first controller
+				start_stream_request_id= 
+					ClientPSMoveAPI::start_controller_data_stream(
+						controller_view, 
+						ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includeRawTrackerData | ClientPSMoveAPI::includeCalibratedSensorData);
+			}
             break;
         case ClientPSMoveAPI::failedToConnectToService:
             std::cout << "PSMoveConsoleClient - Failed to connect to service" << std::endl;
@@ -96,7 +197,28 @@ private:
             break;
         case ClientPSMoveAPI::opaqueServiceEvent:
             std::cout << "PSMoveConsoleClient - Opaque service event(%d)" << static_cast<int>(event_type) << std::endl;
-            m_keepRunning= false;
+            break;
+        case ClientPSMoveAPI::controllerListUpdated:
+			{
+				std::cout << "PSMoveConsoleClient - Controller List Changed" << std::endl;
+
+				// Stop the current controller stream
+				std::cout << "PSMoveConsoleClient - Halting controller stream" << std::endl;
+				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(controller_view));
+
+				// Attempt to restart it
+				std::cout << "PSMoveConsoleClient - Attempting controller stream restart" << std::endl;
+				start_stream_request_id= 
+					ClientPSMoveAPI::start_controller_data_stream(
+						controller_view, 
+						ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includeRawTrackerData | ClientPSMoveAPI::includeCalibratedSensorData);
+			}
+            break;
+        case ClientPSMoveAPI::trackerListUpdated:
+            std::cout << "PSMoveConsoleClient - Tracker List Changed" << std::endl;
+            break;
+        case ClientPSMoveAPI::hmdListUpdated:
+            std::cout << "PSMoveConsoleClient - HMD List changed" << std::endl;
             break;
         default:
             assert(0 && "Unhandled event type");
@@ -110,20 +232,10 @@ private:
         {
             std::cout << "PSMoveConsoleClient - Acquired controller " 
                 << controller_view->GetControllerID() << std::endl;
-
-            // Updates will now automatically get pushed into the controller view
-
-            if (controller_view->GetIsCurrentlyTracking())
-            {
-                PSMovePosition controller_position = controller_view->GetPosition();
-
-                std::cout << "Controller State: " << std::endl;
-                std::cout << "  Position (" << controller_position.x << ", " << controller_position.y << ", " << controller_position.z << ")" << std::endl;
-            }
         }
         else
         {
-            std::cout << "PSMoveConsoleClient - failed to acquire controller " << std::endl;
+            std::cout << "PSMoveConsoleClient - failed to (re)acquire controller " << std::endl;
             m_keepRunning= false;
         }
     }
@@ -185,6 +297,35 @@ private:
                     std::chrono::system_clock::now().time_since_epoch() );
             std::chrono::milliseconds diff= now - last_report_fps_timestamp;
 
+			if (controller_view->GetOutputSequenceNum() != last_sequence_number)
+			{
+				last_sequence_number = controller_view->GetOutputSequenceNum();
+
+				// Updates will now automatically get pushed into the controller view
+				if (output_stream == nullptr &&
+					(controller_view->GetControllerViewType() == ClientControllerView::PSDualShock4 ||
+						controller_view->GetControllerViewType() == ClientControllerView::PSMove))
+				{
+					output_stream = new ControllerOutputStream(controller_view, CONTROLLER_OUTPUT_FILE);
+				}
+
+				if (output_stream != nullptr)
+				{
+					output_stream->writeControllerState(controller_view);
+				}
+			}
+
+			if (controller_view->GetControllerViewType() == ClientControllerView::PSDualShock4 &&
+				controller_view->GetPSDualShock4View().GetButtonCross() == PSMoveButton_DOWN)
+			{
+				m_keepRunning = false;
+			}
+			else if (controller_view->GetControllerViewType() == ClientControllerView::PSMove &&
+					controller_view->GetPSMoveView().GetButtonCross() == PSMoveButton_DOWN)
+			{
+				m_keepRunning = false;
+			}
+
             if (diff.count() > FPS_REPORT_DURATION && controller_view->GetDataFrameFPS() > 0)
             {
                 std::cout << "PSMoveConsoleClient - DataFrame Update FPS: " << controller_view->GetDataFrameFPS() << "FPS" << std::endl;
@@ -195,6 +336,12 @@ private:
 
     void shutdown()
     {
+		if (output_stream != nullptr)
+		{
+			delete output_stream;
+			output_stream = nullptr;
+		}
+
         // Free any allocated controller views
         if (controller_view)
         {
@@ -209,8 +356,10 @@ private:
 private:
     bool m_keepRunning;
     ClientControllerView *controller_view;
+	ControllerOutputStream *output_stream;
     std::chrono::milliseconds last_report_fps_timestamp;
     ClientPSMoveAPI::t_request_id start_stream_request_id;
+	int last_sequence_number;
 };
 
 int main(int argc, char *argv[])

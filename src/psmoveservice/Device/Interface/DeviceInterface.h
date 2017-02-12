@@ -31,6 +31,7 @@ enum eCommonTrackingShapeType {
 
     Sphere,
     LightBar,
+	PointCloud,
 
     MAX_TRACKING_SHAPE_TYPES
 };
@@ -40,6 +41,7 @@ enum eCommonTrackingProjectionType {
 
     ProjectionType_Ellipse,
     ProjectionType_LightBar,
+	ProjectionType_Points,
 
     MAX_TRACKING_PROJECTION_TYPES
 };
@@ -80,10 +82,35 @@ struct CommonDeviceVector
 {
     float i, j, k;
 
+	inline static CommonDeviceVector create(float _i, float _j, float _k)
+	{
+		CommonDeviceVector result;
+
+		result.set(_i, _j, _k);
+		return result;
+	}
+
+	inline void set(float _i, float _j, float _k)
+	{
+		i = _i;
+		j = _j;
+		k = _k;
+	}
+
     inline void clear()
     {
         i = j = k = 0.f;
     }
+};
+
+struct CommonRawDeviceVector
+{
+	int i, j, k;
+
+	inline void clear()
+	{
+		i = j = k = 0;
+	}
 };
 
 struct CommonDevicePosition
@@ -103,7 +130,7 @@ struct CommonDevicePosition
     }
 };
 
-/// A screen location in the space [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]    
+/// A screen location in the space upper left:[0, 0] -> lower right[frameWidth-1, frameHeight-1]  
 struct CommonDeviceScreenLocation
 {
     float x, y;
@@ -133,29 +160,29 @@ struct CommonDeviceQuaternion
 
 struct CommonDevicePose
 {
-    CommonDevicePosition Position;
+    CommonDevicePosition PositionCm;
     CommonDeviceQuaternion Orientation;
 
     void clear()
     {
-        Position.clear();
+        PositionCm.clear();
         Orientation.clear();
     }
 };
 
 struct CommonDevicePhysics
 {
-    CommonDeviceVector Velocity;
-    CommonDeviceVector Acceleration;
-    CommonDeviceVector AngularVelocity;
-    CommonDeviceVector AngularAcceleration;
+    CommonDeviceVector VelocityCmPerSec;
+    CommonDeviceVector AccelerationCmPerSecSqr;
+    CommonDeviceVector AngularVelocityRadPerSec;
+    CommonDeviceVector AngularAccelerationRadPerSecSqr;
 
     void clear()
     {
-        Velocity.clear();
-        Acceleration.clear();
-        AngularVelocity.clear();
-        AngularAcceleration.clear();
+        VelocityCmPerSec.clear();
+        AccelerationCmPerSecSqr.clear();
+        AngularVelocityRadPerSec.clear();
+        AngularAccelerationRadPerSecSqr.clear();
     }
 };
 
@@ -164,7 +191,8 @@ struct CommonDeviceState
     enum eDeviceClass
     {
         Controller = 0x00,
-        TrackingCamera = 0x10
+        TrackingCamera = 0x10,
+        HeadMountedDisplay = 0x20
     };
     
     enum eDeviceType
@@ -176,6 +204,11 @@ struct CommonDeviceState
         
         PS3EYE = TrackingCamera + 0x00,
         SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x01,
+        
+        Morpheus = HeadMountedDisplay + 0x00,
+        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01,
+
+		INVALID_DEVICE_TYPE= 0xFF,
     };
     
     eDeviceType DeviceType;
@@ -210,6 +243,9 @@ struct CommonDeviceState
         case PS3EYE:
             result = "PSEYE";
             break;
+        case Morpheus:
+            result = "Morpheus";
+            break;        
         default:
             result = "UNKNOWN";
         }
@@ -264,17 +300,63 @@ struct CommonControllerState : CommonDeviceState
     }
 };
 
+struct CommonHMDState : CommonDeviceState
+{
+    CommonDevicePose Pose;
+
+    inline CommonHMDState()
+    {
+        clear();
+    }
+
+    inline void clear()
+    {
+        CommonDeviceState::clear();
+
+        Pose.clear();
+    }
+};
+
 struct CommonDeviceTrackingShape
 {
+	enum eTrackingShapeConstants
+	{
+		TRIANGLE_POINT_COUNT = 3,
+		QUAD_POINT_COUNT = 4,
+		MAX_POINT_CLOUD_POINT_COUNT= 9
+	};
+	enum TriVertexEnum
+	{
+		TriVertexLowerRight= 0,
+		TriVertexLowerLeft= 1,
+		TriVertexUpperMiddle= 2,
+	
+		TriVertexCount
+	};
+	enum QuadVertexEnum
+	{
+		QuadVertexUpperRight= 0,
+		QuadVertexUpperLeft= 1,
+		QuadVertexLowerLeft= 2,
+		QuadVertexLowerRight= 3,
+
+		QuadVertexCount
+	};
+
     union{
         struct {
-            float radius;
+            float radius_cm;
         } sphere;
 
         struct {
-            CommonDevicePosition triangle[3];
-            CommonDevicePosition quad[4];
+            CommonDevicePosition triangle[TRIANGLE_POINT_COUNT];
+            CommonDevicePosition quad[QUAD_POINT_COUNT];
         } light_bar;
+
+		struct {
+			CommonDevicePosition point[MAX_POINT_CLOUD_POINT_COUNT];
+			int point_count;
+		} point_cloud;
     } shape;
 
     eCommonTrackingShapeType shape_type;
@@ -282,6 +364,13 @@ struct CommonDeviceTrackingShape
 
 struct CommonDeviceTrackingProjection
 {
+	enum eTrackingShapeConstants
+	{
+		TRIANGLE_POINT_COUNT = 3,
+		QUAD_POINT_COUNT = 4,
+		MAX_POINT_CLOUD_POINT_COUNT = 6 // at most 6 points visible to a given camera
+	};
+
     union{
         struct {
             CommonDeviceScreenLocation center;
@@ -291,13 +380,24 @@ struct CommonDeviceTrackingProjection
         } ellipse;
 
         struct {
-            CommonDeviceScreenLocation triangle[3];
-            CommonDeviceScreenLocation quad[4];
+            CommonDeviceScreenLocation triangle[TRIANGLE_POINT_COUNT];
+            CommonDeviceScreenLocation quad[QUAD_POINT_COUNT];
         } lightbar;
+
+		struct {
+			CommonDeviceScreenLocation point[MAX_POINT_CLOUD_POINT_COUNT];
+			int point_count;
+		} points;
     } shape;
 
     float screen_area; // area in pixels^2
     eCommonTrackingProjectionType shape_type;
+    
+    struct {
+        CommonDeviceScreenLocation center_of_mass;
+        CommonDeviceScreenLocation bounding_rect[4];
+        float area;
+    } basic;
 };
 
 /// Abstract base class for any device interface. Further defined in specific device abstractions.
@@ -311,6 +411,8 @@ public:
         _PollResultFailure,
     };
     
+	virtual ~IDeviceInterface() {};
+
     // Return true if device path matches
     virtual bool matchesDeviceEnumerator(const class DeviceEnumerator *enumerator) const = 0;
     
@@ -346,12 +448,21 @@ public:
     // Sets the address of the bluetooth adapter on the host PC with the controller
     virtual bool setHostBluetoothAddress(const std::string &address) = 0;
 
+	// Sets the tracking color enum of the controller
+	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) = 0;
+
     // -- Getters
     // Returns true if the device is connected via Bluetooth, false if by USB
     virtual bool getIsBluetooth() const = 0;
 
     // Returns the full usb device path for the controller
     virtual std::string getUSBDevicePath() const = 0;
+
+	// Returns the vendor ID of the controller
+	virtual int getVendorID() const = 0;
+
+	// Returns the product ID of the controller
+	virtual int getProductID() const = 0;
 
     // Gets the bluetooth address of the adapter on the host PC that's registered with the controller
     virtual std::string getAssignedHostBluetoothAddress() const = 0;
@@ -364,6 +475,20 @@ public:
 
     // Get the tracking shape use by the controller
     virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const = 0;
+
+	// Get the tracking color enum of the controller
+	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const = 0;
+
+	// Get the identity forward direction yaw direction relative to the global +X axis
+	// * 0 degrees would mean that the controller model was pointing down the globals +X axis 
+	//   when the controller had the identity pose 
+	// * 90 degrees would mean that the controller model was pointing down the globals +Z axis 
+	//   when the controller had the identity pose
+	// ...
+	virtual float getIdentityForwardDegrees() const = 0;
+
+	// Get the state prediction time specified in the controller config
+	virtual float getPredictionTime() const = 0;
 };
 
 /// Abstract class for Tracker interface. Implemented Tracker classes
@@ -418,18 +543,25 @@ public:
         return result;
     }
     
-    virtual void setExposure(double value) = 0;
+    virtual void loadSettings() = 0;
+    virtual void saveSettings() = 0;
+
+    virtual void setExposure(double value, bool bUpdateConfig) = 0;
     virtual double getExposure() const = 0;
 
-	virtual void setGain(double value) = 0;
+	virtual void setGain(double value, bool bUpdateConfig) = 0;
 	virtual double getGain() const = 0;
 
     virtual void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
-        float &outPrincipalX, float &outPrincipalY) const = 0;
+        float &outPrincipalX, float &outPrincipalY,
+        float &outDistortionK1, float &outDistortionK2, float &outDistortionK3,
+        float &outDistortionP1, float &outDistortionP2) const = 0;
     virtual void setCameraIntrinsics(
         float focalLengthX, float focalLengthY,
-        float principalX, float principalY) = 0;
+        float principalX, float principalY,
+        float distortionK1, float distortionK2, float distortionK3,
+        float distortionP1, float distortionP2) = 0;
 
     virtual CommonDevicePose getTrackerPose() const = 0;
     virtual void setTrackerPose(const struct CommonDevicePose *pose) = 0;
@@ -445,4 +577,23 @@ public:
     virtual void setTrackingColorPreset(const std::string &controller_serial, eCommonTrackingColorID color, const CommonHSVColorRange *preset) = 0;
     virtual void getTrackingColorPreset(const std::string &controller_serial, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const = 0;
 };
+
+/// Abstract class for HMD interface. Implemented HMD classes
+class IHMDInterface : public IDeviceInterface
+{
+public:
+    // -- Getters
+    // Returns the full usb device path for the HMD
+    virtual std::string getUSBDevicePath() const = 0;
+
+	// Get the tracking shape use by the controller
+	virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const = 0;
+
+	// Get the tracking color enum of the controller
+	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const = 0;
+
+	// Get the state prediction time from the HMD config
+	virtual float getPredictionTime() const = 0;
+};
+
 #endif // DEVICE_INTERFACE_H

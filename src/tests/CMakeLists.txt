@@ -22,7 +22,8 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     #OpenCV extra dependencies: comctl32 gdi32 ole32 setupapi ws2_32 vfw32
     #setupapi required by hidapi
-    list(APPEND PLATFORM_LIBS setupapi)
+    #dinput8 required by libstem_gamepad
+    list(APPEND PLATFORM_LIBS setupapi dinput8)
     IF(MINGW)
         #list(APPEND PLATFORM_LIBS stdc++)
     ENDIF(MINGW)
@@ -115,6 +116,9 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"
     list(APPEND TEST_CAMERA_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
     list(APPEND TEST_CAMERA_REQ_LIBS ${LIBUSB_LIBRARIES})
     add_definitions(-DHAVE_PS3EYE)
+    IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")    
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-braced-scalar-init")
+ENDIF()
 ENDIF()
 
 # CL EYE - only on Win32
@@ -136,7 +140,7 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
 
     # Windows utilities for querying driver infomation (provider name)
     list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Platform)
-    list(APPEND TEST_CAMERA_SRC ${ROOT_DIR}/src/psmoveservice/Platform/USBDeviceInterfaceWin32.cpp)
+    list(APPEND TEST_CAMERA_SRC ${ROOT_DIR}/src/psmoveservice/Platform/PlatformDeviceAPIWin32.cpp)
 ENDIF()
 
 # Our custom OpenCV VideoCapture classes
@@ -183,12 +187,12 @@ ELSE() #Linux/Darwin
 ENDIF()
 
 #
-# Test Controller
+# Test PSMove Controller
 #
 
-SET(TEST_CTRLR_SRC)
-SET(TEST_CTRLR_INCL_DIRS)
-SET(TEST_CTRLR_REQ_LIBS)
+SET(TEST_PSMOVE_SRC)
+SET(TEST_PSMOVE_INCL_DIRS)
+SET(TEST_PSMOVE_REQ_LIBS)
 
 # Dependencies
 
@@ -201,37 +205,55 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 ELSE()
     set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
 ENDIF()
-list(APPEND TEST_CTRLR_SRC ${HIDAPI_SRC})
+list(APPEND TEST_PSMOVE_SRC ${HIDAPI_SRC})
+
+# libusb
+find_package(USB1 REQUIRED)
+list(APPEND TEST_PSMOVE_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
+list(APPEND TEST_PSMOVE_REQ_LIBS ${LIBUSB_LIBRARIES})
 
 #Bluetooth
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    list(APPEND TEST_CTRLR_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
+    list(APPEND TEST_PSMOVE_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
 ELSE()
+ENDIF()
+
+# libstem_gamepad
+include_directories(${ROOT_DIR}/thirdparty/libstem_gamepad/source)
+list(APPEND TEST_PSMOVE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_private.c)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    list(APPEND TEST_PSMOVE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_windows_dinput.c)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    list(APPEND TEST_PSMOVE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_macosx.c)
+ELSE()
+    list(APPEND TEST_PSMOVE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_linux.c)
 ENDIF()
 
 # Boost
 # TODO: Eliminate boost::filesystem with C++14
 FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
-list(APPEND TEST_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
-list(APPEND TEST_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
+list(APPEND TEST_PSMOVE_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND TEST_PSMOVE_REQ_LIBS ${Boost_LIBRARIES})
 
 # Eigen math library
-list(APPEND TEST_CTRLR_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
+list(APPEND TEST_PSMOVE_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
 
 # PSMoveController
 # We are not including the PSMoveService target on purpose, because this only tests
 # a small part of the service and should not depend on the whole thing building.
-list(APPEND TEST_CTRLR_INCL_DIRS
+list(APPEND TEST_PSMOVE_INCL_DIRS
     ${ROOT_DIR}/src/psmovemath/
     ${ROOT_DIR}/src/psmoveservice/
     ${ROOT_DIR}/src/psmoveservice/Server
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator
     ${ROOT_DIR}/src/psmoveservice/Device/Interface
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager
+    ${ROOT_DIR}/src/psmoveservice/Device/USB    
     ${ROOT_DIR}/src/psmoveservice/Platform
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
     ${ROOT_DIR}/src/psmoveservice/PSMoveController)
-list(APPEND TEST_CTRLR_SRC    
+list(APPEND TEST_PSMOVE_SRC    
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
     ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
     ${ROOT_DIR}/src/psmovemath/MathEigen.h
@@ -244,6 +266,16 @@ list(APPEND TEST_CTRLR_SRC
     ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.h    
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerGamepadEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerGamepadEnumerator.cpp    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.h
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBApi.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBBulkTransferBundle.cpp        
     ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
@@ -251,17 +283,131 @@ list(APPEND TEST_CTRLR_SRC
     ${ROOT_DIR}/src/psmoveservice/PSMoveController/PSMoveController.cpp)
 
 # psmoveprotocol
-list(APPEND TEST_CTRLR_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
-list(APPEND TEST_CTRLR_REQ_LIBS PSMoveProtocol)
+list(APPEND TEST_PSMOVE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
+list(APPEND TEST_PSMOVE_REQ_LIBS PSMoveProtocol)
 
-add_executable(test_controller ${CMAKE_CURRENT_LIST_DIR}/test_controller.cpp ${TEST_CTRLR_SRC})
-target_include_directories(test_controller PUBLIC ${TEST_CTRLR_INCL_DIRS})
-target_link_libraries(test_controller ${PLATFORM_LIBS} ${TEST_CTRLR_REQ_LIBS})
-SET_TARGET_PROPERTIES(test_controller PROPERTIES FOLDER Test)
+add_executable(test_psmove_controller ${CMAKE_CURRENT_LIST_DIR}/test_psmove_controller.cpp ${TEST_PSMOVE_SRC})
+target_include_directories(test_psmove_controller PUBLIC ${TEST_PSMOVE_INCL_DIRS})
+target_link_libraries(test_psmove_controller ${PLATFORM_LIBS} ${TEST_PSMOVE_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_psmove_controller PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    install(TARGETS test_controller
+    install(TARGETS test_psmove_controller
+        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+ELSE() #Linux/Darwin
+ENDIF()
+
+#
+# Test Navi Controller
+#
+
+SET(TEST_NAVI_SRC)
+SET(TEST_NAVI_INCL_DIRS)
+SET(TEST_NAVI_REQ_LIBS)
+
+# Dependencies
+
+# hidapi
+include_directories(${ROOT_DIR}/thirdparty/hidapi/hidapi)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/windows/hid.c)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)      
+ELSE()
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
+ENDIF()
+list(APPEND TEST_NAVI_SRC ${HIDAPI_SRC})
+
+# libusb
+find_package(USB1 REQUIRED)
+list(APPEND TEST_NAVI_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
+list(APPEND TEST_NAVI_REQ_LIBS ${LIBUSB_LIBRARIES})
+
+#Bluetooth
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    list(APPEND TEST_NAVI_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
+ELSE()
+ENDIF()
+
+# libstem_gamepad
+include_directories(${ROOT_DIR}/thirdparty/libstem_gamepad/source)
+list(APPEND TEST_NAVI_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_private.c)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    list(APPEND TEST_NAVI_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_windows_dinput.c)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    list(APPEND TEST_NAVI_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_macosx.c)
+ELSE()
+    list(APPEND TEST_NAVI_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_linux.c)
+ENDIF()
+
+# Boost
+# TODO: Eliminate boost::filesystem with C++14
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
+list(APPEND TEST_NAVI_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND TEST_NAVI_REQ_LIBS ${Boost_LIBRARIES})
+
+# Eigen math library
+list(APPEND TEST_NAVI_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
+
+# PSMoveController
+# We are not including the PSMoveService target on purpose, because this only tests
+# a small part of the service and should not depend on the whole thing building.
+list(APPEND TEST_NAVI_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/
+    ${ROOT_DIR}/src/psmoveservice/
+    ${ROOT_DIR}/src/psmoveservice/Server
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator
+    ${ROOT_DIR}/src/psmoveservice/Device/Interface
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager
+    ${ROOT_DIR}/src/psmoveservice/Device/USB
+    ${ROOT_DIR}/src/psmoveservice/Platform
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
+    ${ROOT_DIR}/src/psmoveservice/PSNaviController)
+list(APPEND TEST_NAVI_SRC    
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp    
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerGamepadEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerGamepadEnumerator.cpp        
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.h
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBApi.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBBulkTransferBundle.cpp
+    ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
+    ${ROOT_DIR}/src/psmoveservice/PSNaviController/PSNaviController.h
+    ${ROOT_DIR}/src/psmoveservice/PSNaviController/PSNaviController.cpp)
+
+# psmoveprotocol
+list(APPEND TEST_NAVI_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
+list(APPEND TEST_NAVI_REQ_LIBS PSMoveProtocol)
+
+add_executable(test_navi_controller ${CMAKE_CURRENT_LIST_DIR}/test_navi_controller.cpp ${TEST_NAVI_SRC})
+target_include_directories(test_navi_controller PUBLIC ${TEST_NAVI_INCL_DIRS})
+target_link_libraries(test_navi_controller ${PLATFORM_LIBS} ${TEST_NAVI_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_navi_controller PROPERTIES FOLDER Test)
+
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    install(TARGETS test_navi_controller
         RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
         LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
         ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
@@ -271,16 +417,147 @@ ENDIF()
 #
 # TEST_CONSOLE_CLIENT
 #
-add_executable(test_console_client test_console_client.cpp)
-target_include_directories(test_console_client PUBLIC ${ROOT_DIR}/src/psmoveclient/)
+
+list(APPEND TEST_CLIENT_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/
+    ${ROOT_DIR}/src/psmoveclient/)
+
+list(APPEND TEST_CLIENT_SRC       
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp)
+    
+add_executable(test_console_client test_console_client.cpp ${TEST_CLIENT_SRC})
+target_include_directories(test_console_client PUBLIC ${TEST_CLIENT_INCL_DIRS})
 target_link_libraries(test_console_client PSMoveClient)
-target_compile_definitions(test_console_client
-	PRIVATE PSMOVECLIENT_CPP_API)
+target_compile_definitions(test_console_client PRIVATE PSMOVECLIENT_CPP_API)
 SET_TARGET_PROPERTIES(test_console_client PROPERTIES FOLDER Test)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     install(TARGETS test_console_client
+        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+ELSE() #Linux/Darwin
+ENDIF()
+
+#
+# Test DS4 Controller
+#
+
+SET(TEST_DS4_CTRLR_SRC)
+SET(TEST_DS4_CTRLR_INCL_DIRS)
+SET(TEST_DS4_CTRLR_REQ_LIBS)
+
+# Dependencies
+
+# Platform specific libraries
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    #hid required for HidD_SetOutputReport() in DualShock4 controller
+    list(APPEND TEST_DS4_CTRLR_REQ_LIBS bthprops hid)
+ELSE() #Linux
+ENDIF()
+
+# hidapi
+include_directories(${ROOT_DIR}/thirdparty/hidapi/hidapi)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/windows/hid.c)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)      
+ELSE()
+    set(HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
+ENDIF()
+list(APPEND TEST_DS4_CTRLR_SRC ${HIDAPI_SRC})
+
+# libusb
+find_package(USB1 REQUIRED)
+list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
+list(APPEND TEST_DS4_CTRLR_REQ_LIBS ${LIBUSB_LIBRARIES})
+
+#Bluetooth
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    list(APPEND TEST_DS4_CTRLR_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesWin32.cpp)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    list(APPEND TEST_DS4_CTRLR_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
+ELSE()
+ENDIF()
+
+# libstem_gamepad
+include_directories(${ROOT_DIR}/thirdparty/libstem_gamepad/source)
+list(APPEND TEST_DS4_CTRLR_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_private.c)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    list(APPEND TEST_DS4_CTRLR_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_windows_dinput.c)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    list(APPEND TEST_DS4_CTRLR_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_macosx.c)
+ELSE()
+    list(APPEND TEST_DS4_CTRLR_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_linux.c)
+ENDIF()
+
+# Boost
+# TODO: Eliminate boost::filesystem with C++14
+FIND_PACKAGE(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
+list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND TEST_DS4_CTRLR_REQ_LIBS ${Boost_LIBRARIES})
+
+# Eigen math library
+list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
+
+# PSMoveController
+# We are not including the PSMoveService target on purpose, because this only tests
+# a small part of the service and should not depend on the whole thing building.
+list(APPEND TEST_DS4_CTRLR_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/
+    ${ROOT_DIR}/src/psmoveservice/
+    ${ROOT_DIR}/src/psmoveservice/Server
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator
+    ${ROOT_DIR}/src/psmoveservice/Device/Interface
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager
+    ${ROOT_DIR}/src/psmoveservice/Device/USB
+    ${ROOT_DIR}/src/psmoveservice/Platform
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
+    ${ROOT_DIR}/src/psmoveservice/PSDualShock4)
+list(APPEND TEST_DS4_CTRLR_SRC    
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp    
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerGamepadEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerGamepadEnumerator.cpp        
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.h
+    ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBApi.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBBulkTransferBundle.cpp
+    ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
+    ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
+    ${ROOT_DIR}/src/psmoveservice/PSDualShock4/PSDualShock4Controller.h
+    ${ROOT_DIR}/src/psmoveservice/PSDualShock4/PSDualShock4Controller.cpp)
+
+# psmoveprotocol
+list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
+list(APPEND TEST_DS4_CTRLR_REQ_LIBS PSMoveProtocol)
+
+add_executable(test_ds4_controller ${CMAKE_CURRENT_LIST_DIR}/test_ds4_controller.cpp ${TEST_DS4_CTRLR_SRC})
+target_include_directories(test_ds4_controller PUBLIC ${TEST_DS4_CTRLR_INCL_DIRS})
+target_link_libraries(test_ds4_controller ${PLATFORM_LIBS} ${TEST_DS4_CTRLR_REQ_LIBS})
+SET_TARGET_PROPERTIES(test_ds4_controller PROPERTIES FOLDER Test)
+
+# Install    
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    install(TARGETS test_ds4_controller
         RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
         LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
         ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
@@ -294,8 +571,7 @@ add_executable(test_console_CAPI test_console_CAPI.cpp)
 target_include_directories(test_console_CAPI PUBLIC ${ROOT_DIR}/src/psmoveclient/)
 target_link_libraries(test_console_CAPI PSMoveClient_CAPI)
 SET_TARGET_PROPERTIES(test_console_CAPI PROPERTIES FOLDER Test)
-
-# Install    
+# Install
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 install(TARGETS test_console_CAPI
     RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
@@ -375,9 +651,9 @@ ENDIF()
 # TEST_OPTICAL_TRACKER
 #
 
-add_executable(test_optical_tracker ${CMAKE_CURRENT_LIST_DIR}/test_optical_tracker.cpp ${TEST_CAMERA_SRC} ${TEST_CTRLR_SRC})
-target_include_directories(test_optical_tracker PUBLIC ${TEST_CAMERA_INCL_DIRS} ${TEST_CTRLR_INCL_DIRS})
-target_link_libraries(test_optical_tracker ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS} ${TEST_CTRLR_REQ_LIBS})
+add_executable(test_optical_tracker ${CMAKE_CURRENT_LIST_DIR}/test_optical_tracker.cpp ${TEST_CAMERA_SRC} ${TEST_PSMOVE_SRC})
+target_include_directories(test_optical_tracker PUBLIC ${TEST_CAMERA_INCL_DIRS} ${TEST_PSMOVE_INCL_DIRS})
+target_link_libraries(test_optical_tracker ${PLATFORM_LIBS} ${TEST_CAMERA_REQ_LIBS} ${TEST_PSMOVE_REQ_LIBS})
 SET_TARGET_PROPERTIES(test_optical_tracker PROPERTIES FOLDER Test)
 
 # Install
@@ -387,4 +663,107 @@ RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
 LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
 ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
 ELSE() #Linux/Darwin
+ENDIF()
+
+#
+# TEST_KALMAN_FILTER
+#
+
+list(APPEND TEST_KALMAN_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/
+    ${ROOT_DIR}/src/psmoveservice/Device/Interface
+    ${ROOT_DIR}/src/psmoveservice/Filter/
+    ${ROOT_DIR}/src/psmoveservice/PSMoveController
+    ${ROOT_DIR}/src/psmoveservice/Server/)
+list(APPEND TEST_KALMAN_SRC    
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp    
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/CompoundPoseFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/CompoundPoseFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanOrientationFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanOrientationFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPositionFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPositionFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPoseFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/KalmanPoseFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/OrientationFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/OrientationFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/PoseFilterInterface.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/PoseFilterInterface.cpp
+    ${ROOT_DIR}/src/psmoveservice/Filter/PositionFilter.h
+    ${ROOT_DIR}/src/psmoveservice/Filter/PositionFilter.cpp
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h
+    ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp)
+    
+# Eigen math library
+list(APPEND TEST_KALMAN_INCL_DIRS ${EIGEN3_INCLUDE_DIR})   
+list(APPEND TEST_KALMAN_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include/)
+
+add_executable(test_kalman_filter ${CMAKE_CURRENT_LIST_DIR}/test_kalman_filter.cpp ${TEST_KALMAN_SRC})
+target_include_directories(test_kalman_filter PUBLIC ${TEST_KALMAN_INCL_DIRS})
+SET_TARGET_PROPERTIES(test_kalman_filter PROPERTIES FOLDER Test)
+
+# Install
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS test_kalman_filter
+RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+ELSE() #Linux/Darwin
+ENDIF()
+
+#
+# UNIT_TESTS
+#
+
+list(APPEND UNIT_TEST_INCL_DIRS
+    ${ROOT_DIR}/src/psmovemath/)
+
+# Eigen math library
+list(APPEND UNIT_TEST_INCL_DIRS ${EIGEN3_INCLUDE_DIR})   
+
+list(APPEND UNIT_TEST_SRC    
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.h
+    ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
+    ${ROOT_DIR}/src/psmovemath/MathEigen.h
+    ${ROOT_DIR}/src/psmovemath/MathEigen.cpp	
+    ${ROOT_DIR}/src/psmovemath/MathUtility.h
+    ${ROOT_DIR}/src/psmovemath/MathUtility.cpp
+    ${ROOT_DIR}/src/tests/math_alignment_unit_tests.cpp
+    ${ROOT_DIR}/src/tests/math_eigen_unit_tests.cpp
+    ${ROOT_DIR}/src/tests/math_utility_unit_tests.cpp
+    ${ROOT_DIR}/src/tests/unit_test.h)
+    
+add_executable(unit_test_suite ${CMAKE_CURRENT_LIST_DIR}/unit_test_suite.cpp ${UNIT_TEST_SRC})
+target_include_directories(unit_test_suite PUBLIC ${UNIT_TEST_INCL_DIRS})
+SET_TARGET_PROPERTIES(unit_test_suite PROPERTIES FOLDER Test)
+
+# Install
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+install(TARGETS unit_test_suite
+RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
+ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+ELSE() #Linux/Darwin
+ENDIF()
+
+
+#
+# Test hidapi in MacOS Sierra
+#
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+add_executable(test_hidapi_sierra
+    ${CMAKE_CURRENT_LIST_DIR}/test_hidapi_sierra.cpp
+    ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)
+target_include_directories(test_hidapi_sierra
+    PUBLIC
+    ${ROOT_DIR}/thirdparty/hidapi/hidapi)
+    #/usr/local/opt/hidapi/include/hidapi
+target_link_libraries(test_hidapi_sierra ${PLATFORM_LIBS})
+#target_link_libraries(test_hidapi_sierra /usr/local/opt/hidapi/lib/libhidapi.dylib)
+SET_TARGET_PROPERTIES(test_hidapi_sierra PROPERTIES FOLDER Test)
 ENDIF()

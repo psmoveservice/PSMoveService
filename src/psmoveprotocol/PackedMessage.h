@@ -8,6 +8,7 @@
 #ifndef PACKEDMESSAGE_H
 #define PACKEDMESSAGE_H
 
+#include <cstring>
 #include <string>
 #include <cassert>
 #include <vector>

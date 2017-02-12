@@ -46,6 +46,8 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <algorithm>
 #include <vector>
 #include <cstdlib>
+#include <chrono>
+#include <thread>
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
 #endif
@@ -57,6 +59,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #define PSMOVE_BTADDR_GET_SIZE 16
 #define PSMOVE_BTADDR_SET_SIZE 23
 #define PSMOVE_BTADDR_SIZE 6
+#define PSMOVE_FW_GET_SIZE 13
 #define PSMOVE_CALIBRATION_SIZE 49 /* Buffer size for calibration data */
 #define PSMOVE_CALIBRATION_BLOB_SIZE (PSMOVE_CALIBRATION_SIZE*3 - 2*2) /* Three blocks, minus header (2 bytes) for blocks 2,3 */
 #define PSMOVE_STATE_BUFFER_MAX 16
@@ -175,8 +178,8 @@ struct PSMoveDataInput {
 };
 
 // -- private prototypes -----
-static std::string btAddrUcharToString(const unsigned char* addr_buff);
-static bool stringToBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size);
+static std::string PSMoveBTAddrUcharToString(const unsigned char* addr_buff);
+static bool stringToPSMoveBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size);
 static int decodeCalibration(char *data, int offset);
 static int psmove_decode_16bit(char *data, int offset);
 inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
@@ -197,6 +200,10 @@ PSMoveControllerConfig::config2ptree()
     pt.put("is_valid", is_valid);
     pt.put("version", PSMoveControllerConfig::CONFIG_VERSION);
 
+	pt.put("firmware_version", firmware_version);
+	pt.put("bt_firmware_version", bt_firmware_version);
+	pt.put("firmware_revision", firmware_revision);
+
     pt.put("prediction_time", prediction_time);
     pt.put("max_poll_failure_count", max_poll_failure_count);
     
@@ -207,6 +214,7 @@ PSMoveControllerConfig::config2ptree()
     pt.put("Calibration.Accel.Z.k", cal_ag_xyz_kb[0][2][0]);
     pt.put("Calibration.Accel.Z.b", cal_ag_xyz_kb[0][2][1]);
 
+	pt.put("Calibration.Accel.Variance", accelerometer_variance);
     pt.put("Calibration.Accel.NoiseRadius", accelerometer_noise_radius);
 
     pt.put("Calibration.Gyro.X.k", cal_ag_xyz_kb[1][0][0]);
@@ -241,11 +249,22 @@ PSMoveControllerConfig::config2ptree()
     pt.put("Calibration.Magnetometer.Identity.Y", magnetometer_identity.j);
     pt.put("Calibration.Magnetometer.Identity.Z", magnetometer_identity.k);
 
-    pt.put("Calibration.Magnetometer.Error", magnetometer_error);
+    pt.put("Calibration.Magnetometer.Error", magnetometer_fit_error);
+	pt.put("Calibration.Magnetometer.Variance", magnetometer_variance);
 
-    pt.put("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
-    pt.put("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
+	pt.put("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
+	pt.put("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
+
+	pt.put("Calibration.Orientation.Variance", orientation_variance);
+
+	pt.put("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
+
+	pt.put("OrientationFilter.FilterType", orientation_filter_type);
+
+	pt.put("PositionFilter.FilterType", position_filter_type);
     pt.put("PositionFilter.MaxVelocity", max_velocity);
+
+	writeTrackingColor(pt, tracking_color_id);
 
     return pt;
 }
@@ -259,6 +278,10 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
     {
         is_valid = pt.get<bool>("is_valid", false);
 
+		firmware_version = pt.get<unsigned short>("firmware_version", 0);
+		bt_firmware_version = pt.get<unsigned short>("bt_firmware_version", 0);
+		firmware_revision = pt.get<unsigned short>("firmware_revision", 0);
+
         prediction_time = pt.get<float>("prediction_time", 0.f);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
 
@@ -269,6 +292,7 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         cal_ag_xyz_kb[0][2][0] = pt.get<float>("Calibration.Accel.Z.k", 1.0f);
         cal_ag_xyz_kb[0][2][1] = pt.get<float>("Calibration.Accel.Z.b", 0.0f);
 
+		accelerometer_variance = pt.get<float>("Calibration.Accel.Variance", accelerometer_variance);
         accelerometer_noise_radius = pt.get<float>("Calibration.Accel.NoiseRadius", 0.0f);
 
         cal_ag_xyz_kb[1][0][0] = pt.get<float>("Calibration.Gyro.X.k", 1.0f);
@@ -305,12 +329,22 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         magnetometer_identity.j = pt.get<float>("Calibration.Magnetometer.Identity.Y", 0.f);
         magnetometer_identity.k = pt.get<float>("Calibration.Magnetometer.Identity.Z", 0.f);
 
-        magnetometer_error= pt.get<float>("Calibration.Magnetometer.Error", 0.f);
+        magnetometer_fit_error= pt.get<float>("Calibration.Magnetometer.Error", 0.f);
+		magnetometer_variance= pt.get<float>("Calibration.Magnetometer.Variance", magnetometer_variance);
 
-        // Get the position filter parameters
-        min_position_quality_screen_area= pt.get<float>("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
-        max_position_quality_screen_area= pt.get<float>("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
+		position_variance_exp_fit_a= pt.get<float>("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
+		position_variance_exp_fit_b= pt.get<float>("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
+
+		orientation_variance= pt.get<float>("Calibration.Orientation.Variance", orientation_variance);
+
+		mean_update_time_delta= pt.get<float>("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
+
+		orientation_filter_type= pt.get<std::string>("OrientationFilter.FilterType", orientation_filter_type);
+
+		position_filter_type= pt.get<std::string>("PositionFilter.FilterType", position_filter_type);
         max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
+
+		tracking_color_id= static_cast<eCommonTrackingColorID>(readTrackingColor(pt));
     }
     else
     {
@@ -333,7 +367,7 @@ PSMoveControllerConfig::getMegnetometerEllipsoid(struct EigenFitEllipsoid *out_e
         Eigen::Vector3f(magnetometer_basis_y.i, magnetometer_basis_y.j, magnetometer_basis_y.k);
     out_ellipsoid->basis.col(2) =
         Eigen::Vector3f(magnetometer_basis_z.i, magnetometer_basis_z.j, magnetometer_basis_z.k);
-    out_ellipsoid->error= magnetometer_error;
+    out_ellipsoid->error= magnetometer_fit_error;
 }
 
 // -- PSMove Controller -----
@@ -344,7 +378,10 @@ PSMoveController::PSMoveController()
     , Rumble(0)
     , bWriteStateDirty(false)
     , NextPollSequenceNumber(0)
+	, SupportsMagnetometer(false)
 {
+	HIDDetails.vendor_id = -1;
+	HIDDetails.product_id = -1;
     HIDDetails.Handle = nullptr;
     HIDDetails.Handle_addr = nullptr;
     
@@ -372,7 +409,7 @@ PSMoveController::~PSMoveController()
 
 bool PSMoveController::open()
 {
-    ControllerDeviceEnumerator enumerator(CommonControllerState::PSMove);
+    ControllerDeviceEnumerator enumerator(ControllerDeviceEnumerator::CommunicationType_HID, CommonControllerState::PSMove);
     bool success= false;
 
     if (enumerator.is_valid())
@@ -412,6 +449,8 @@ bool PSMoveController::open(
             SERVER_LOG_INFO("PSMoveController::open") << "  with EMPTY serial_number";
         }
 
+		HIDDetails.vendor_id = pEnum->get_vendor_id();
+		HIDDetails.product_id = pEnum->get_product_id();
         HIDDetails.Device_path = cur_dev_path;
     #ifdef _WIN32
         HIDDetails.Device_path_addr = HIDDetails.Device_path;
@@ -440,6 +479,9 @@ bool PSMoveController::open(
 
         if (getIsOpen())  // Controller was opened and has an index
         {
+			// Get the firmware revision being used
+			bool bSaveConfig= loadFirmwareInfo();
+
             // Get the bluetooth address
     #ifdef __APPLE__
             // On my Mac, getting the bt feature report when connected via
@@ -475,7 +517,8 @@ bool PSMoveController::open(
                     loadCalibration();
                 }
 
-                // TODO: Other startup.
+				// Always save the config back out in case some defaults changed
+				bSaveConfig = true;
 
                 success= true;
             }
@@ -486,6 +529,45 @@ bool PSMoveController::open(
                 SERVER_LOG_ERROR("PSMoveController::open") << "Failed to get bluetooth address of PSMoveController(" << cur_dev_path << ")";
                 success= false;
             }
+
+			// Poll the controller to see if it emits valid magnetometer data
+			// (Newer firmware doesn't support the magnetometer anymore)
+			if (success && IsBluetooth)
+			{		
+				const int k_max_poll_attempts = 10;
+				int poll_count = 0;
+				bool bReadData = false;
+
+				for (poll_count = 0; poll_count < k_max_poll_attempts && !bReadData; ++poll_count)
+				{
+					if (poll() == IDeviceInterface::ePollResult::_PollResultSuccessNewData)
+					{
+						const PSMoveControllerState *ControllerState = static_cast<const PSMoveControllerState *>(getState());
+
+						SupportsMagnetometer =
+							ControllerState->RawMag[0] != 0 ||
+							ControllerState->RawMag[1] != 0 ||
+							ControllerState->RawMag[2] != 0;
+						bReadData= true;
+					}
+					else
+					{
+						const std::chrono::milliseconds k_WaitForDataMilliseconds(5);
+
+						std::this_thread::sleep_for(k_WaitForDataMilliseconds);
+					}
+				}
+
+				if (poll_count >= k_max_poll_attempts)
+				{
+					SERVER_LOG_ERROR("PSMoveController::open") << "Failed to open read initial controller state after " << k_max_poll_attempts << " attempts.";
+				}
+			}
+
+			if (bSaveConfig)
+			{
+				cfg.save();
+			}
 
             // Reset the polling sequence counter
             NextPollSequenceNumber= 0;
@@ -534,7 +616,7 @@ PSMoveController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
     bts[0] = PSMove_Req_SetBTAddr;
 
     unsigned char addr[6];
-    if (stringToBTAddrUchar(new_host_bt_addr, addr, sizeof(addr)))
+    if (stringToPSMoveBTAddrUchar(new_host_bt_addr, addr, sizeof(addr)))
     {
         int res;
 
@@ -583,6 +665,21 @@ PSMoveController::setHostBluetoothAddress(const std::string &new_host_bt_addr)
     return success;
 }
 
+bool
+PSMoveController::setTrackingColorID(const eCommonTrackingColorID tracking_color_id)
+{
+	bool bSuccess = false;
+
+	if (getIsOpen() && getIsBluetooth())
+	{
+		cfg.tracking_color_id = tracking_color_id;
+		cfg.save();
+		bSuccess = true;
+	}
+
+	return bSuccess;
+}
+
 // Getters
 bool 
 PSMoveController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
@@ -623,6 +720,18 @@ std::string
 PSMoveController::getUSBDevicePath() const
 {
     return HIDDetails.Device_path;
+}
+
+int
+PSMoveController::getVendorID() const
+{
+	return HIDDetails.vendor_id;
+}
+
+int
+PSMoveController::getProductID() const
+{
+	return HIDDetails.product_id;
 }
 
 std::string 
@@ -673,14 +782,25 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
     }
     else
     {
-        int res;
-        
-        unsigned char btg[PSMOVE_BTADDR_GET_SIZE];
+        unsigned char btg[PSMOVE_BTADDR_GET_SIZE+1];
         unsigned char ctrl_char_buff[PSMOVE_BTADDR_SIZE];
         unsigned char host_char_buff[PSMOVE_BTADDR_SIZE];
-
+        
+        int res;
+        int expected_res = sizeof(btg) - 1;
+        unsigned char *p = btg;
+        
         memset(btg, 0, sizeof(btg));
         btg[0] = PSMove_Req_GetBTAddr;
+        //Unlike the firmware request, this request always returns the request
+        //key in the first byte.
+        p = btg + 1;
+        
+        //Only in Windows does the res value reflect that the first byte is the request key.
+#if defined (_WIN32)
+        expected_res++;
+#endif
+        
         /* _WIN32 only has move->handle_addr for getting bluetooth address. */
         if (HIDDetails.Handle_addr) {
             res = hid_get_feature_report(HIDDetails.Handle_addr, btg, sizeof(btg));
@@ -688,14 +808,16 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
         else {
             res = hid_get_feature_report(HIDDetails.Handle, btg, sizeof(btg));
         }
+        
 
-        if (res == sizeof(btg)) {
 
-            memcpy(host_char_buff, btg + 10, PSMOVE_BTADDR_SIZE);
-            host = btAddrUcharToString(host_char_buff);
-
-            memcpy(ctrl_char_buff, btg + 1, PSMOVE_BTADDR_SIZE);
-            controller = btAddrUcharToString(ctrl_char_buff);
+        if (res == expected_res)
+		{
+            memcpy(ctrl_char_buff, p, PSMOVE_BTADDR_SIZE);
+            controller = PSMoveBTAddrUcharToString(ctrl_char_buff);
+            
+            memcpy(host_char_buff, p + 9, PSMOVE_BTADDR_SIZE);
+            host = PSMoveBTAddrUcharToString(host_char_buff);
 
             success = true;
         }
@@ -746,16 +868,20 @@ PSMoveController::loadCalibration()
 
     for (int block_index=0; is_valid && block_index<3; block_index++) 
     {
-        unsigned char cal[PSMOVE_CALIBRATION_SIZE];
+        unsigned char cal[PSMOVE_CALIBRATION_SIZE+1]; // +1 for report id at start
         int dest_offset;
         int src_offset;
+        int expected_res = PSMOVE_CALIBRATION_SIZE;
+#if defined(_WIN32)
+        expected_res++;
+#endif
 
         memset(cal, 0, sizeof(cal));
         cal[0] = PSMove_Req_GetCalibration;
 
         int res = hid_get_feature_report(HIDDetails.Handle, cal, sizeof(cal));
 
-        if (res == PSMOVE_CALIBRATION_SIZE)
+        if (res == expected_res)
         {
             if (cal[1] == 0x00) 
             {
@@ -799,7 +925,7 @@ PSMoveController::loadCalibration()
 
         if (is_valid)
         {
-            memcpy(hid_cal+dest_offset, cal+src_offset, sizeof(cal)-src_offset);
+            memcpy(hid_cal+dest_offset, cal+src_offset, sizeof(cal)-src_offset-1);
         }
     }
 
@@ -833,7 +959,71 @@ PSMoveController::loadCalibration()
     }
 
     cfg.is_valid= is_valid;
-    cfg.save();
+}
+
+bool
+PSMoveController::loadFirmwareInfo()
+{
+	bool bFirmwareInfoValid = false;
+    
+    if (!getIsBluetooth())
+    {
+        unsigned char buf[PSMOVE_FW_GET_SIZE+1];
+        int res;
+        int expected_res = sizeof(buf) - 1;
+        unsigned char *p = buf;
+
+        memset(buf, 0, sizeof(buf));
+        buf[0] = PSMove_Req_GetFirmwareInfo;
+
+        res = hid_get_feature_report(HIDDetails.Handle, buf, sizeof(buf));
+
+        /**
+        * The Bluetooth report contains the Report ID as additional first byte
+        * while the USB report does not. So we need to check the current connection
+        * type in order to determine the correct offset for reading from the report
+        * buffer.
+        **/
+	
+		expected_res += 1;
+		p = buf + 1;
+        
+        if (res == expected_res)
+        {
+            // NOTE: Each field in the report is stored in Big-Endian byte order
+            cfg.firmware_version = (p[0] << 8) | p[1];
+            cfg.firmware_revision = (p[2] << 8) | p[3];
+            cfg.bt_firmware_version = (p[4] << 8) | p[5];
+            
+            bFirmwareInfoValid = true;
+        }
+	}
+    
+	return bFirmwareInfoValid;
+}
+
+bool
+PSMoveController::enableDFUMode()
+{
+	unsigned char buf[10];
+	int res;
+	char mode_magic_val;
+
+	if (getIsBluetooth())
+	{
+		mode_magic_val = 0x43;
+	}
+	else
+	{
+		mode_magic_val = 0x42;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	buf[0] = PSMove_Req_SetDFUMode;
+	buf[1] = mode_magic_val;
+	res = hid_send_feature_report(HIDDetails.Handle, buf, sizeof(buf));
+
+	return (res == sizeof(buf));
 }
 
 IControllerInterface::ePollResult
@@ -976,7 +1166,6 @@ PSMoveController::poll()
                 newState.RawMag[2] = TWELVE_BIT_SIGNED(((InData->mYlow_mZhigh & 0x0F) << 8) | InData->mZlow);
 
                 // Project the raw magnetometer sample into the space of the ellipsoid
-                // and then normalize it (any deviation from unit length is error)
                 raw_mag = 
                     Eigen::Vector3f(
                         static_cast<float>(newState.RawMag[0]), 
@@ -984,6 +1173,9 @@ PSMoveController::poll()
                         static_cast<float>(newState.RawMag[2]));
                 cfg.getMegnetometerEllipsoid(&ellipsoid);
                 calibrated_mag= eigen_alignment_project_point_on_ellipsoid_basis(raw_mag, ellipsoid);
+
+                // Normalize the projected measurement (any deviation from unit length is error)
+				eigen_vector3f_normalize_with_default(calibrated_mag, Eigen::Vector3f(0.f, 1.f, 0.f));
 
                 // Save the calibrated magnetometer vector
                 newState.CalibratedMag[0] = calibrated_mag.x();
@@ -1045,7 +1237,32 @@ void
 PSMoveController::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const
 {
     outTrackingShape.shape_type= eCommonTrackingShapeType::Sphere;
-    outTrackingShape.shape.sphere.radius = PSMOVE_TRACKING_BULB_RADIUS;
+    outTrackingShape.shape.sphere.radius_cm = PSMOVE_TRACKING_BULB_RADIUS;
+}
+
+bool
+PSMoveController::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const
+{
+	bool bSuccess = false;
+
+	if (getIsOpen() && getIsBluetooth())
+	{
+		out_tracking_color_id = cfg.tracking_color_id;
+		bSuccess = true;
+	}
+
+	return bSuccess;
+}
+
+float PSMoveController::getIdentityForwardDegrees() const
+{
+	// Controller model points down the -Z axis when it has the identity orientation
+	return 270.f;
+}
+
+float PSMoveController::getPredictionTime() const
+{
+	return getConfig()->prediction_time;
 }
 
 float
@@ -1172,7 +1389,7 @@ PSMoveController::setLEDPWMFrequency(unsigned long freq)
 
 // -- private helper functions -----
 static std::string
-btAddrUcharToString(const unsigned char* addr_buff)
+PSMoveBTAddrUcharToString(const unsigned char* addr_buff)
 {
     // http://stackoverflow.com/questions/11181251/saving-hex-values-to-a-c-string
     std::ostringstream stream;
@@ -1189,7 +1406,7 @@ btAddrUcharToString(const unsigned char* addr_buff)
 }
 
 static bool
-stringToBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size)
+stringToPSMoveBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size)
 {
     bool success= false;
 

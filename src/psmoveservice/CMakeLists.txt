@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.0)
 
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 
+# Fix Error C1128 - number of sections exceeded object file format limit: compile with /bigobj
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+endif()
+
 # Dependencies
 set(PSMOVE_SERVICE_INCL_DIRS)
 set(PSMOVE_SERVICE_REQ_LIBS)
@@ -26,7 +31,8 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     #OpenCV extra dependencies: comctl32 gdi32 ole32 setupapi ws2_32 vfw32
     #setupapi required by hidapi
     #hid required for HidD_SetOutputReport() in DualShock4 controller
-    list(APPEND PSMOVE_SERVICE_REQ_LIBS bthprops setupapi hid)
+    #dinput8 required by libstem_gamepad
+    list(APPEND PSMOVE_SERVICE_REQ_LIBS bthprops setupapi hid dinput8)
     IF(MINGW)
         #list(APPEND PSMOVE_SERVICE_REQ_LIBS stdc++)
     ENDIF(MINGW)
@@ -68,11 +74,23 @@ file(GLOB PSMOVESERVICE_DEVICE_MGR_SRC
 )
 source_group("Device\\Manager" FILES ${PSMOVESERVICE_DEVICE_MGR_SRC})
 
+file(GLOB PSMOVESERVICE_DEVICE_USB_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/Device/USB/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/Device/USB/*.h"    
+)
+source_group("Device\\USB" FILES ${PSMOVESERVICE_DEVICE_USB_SRC})
+
 file(GLOB PSMOVESERVICE_DEVICE_VIEW_SRC
     "${CMAKE_CURRENT_LIST_DIR}/Device/View/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Device/View/*.h"    
 )
 source_group("Device\\View" FILES ${PSMOVESERVICE_DEVICE_VIEW_SRC})
+
+file(GLOB PSMOVESERVICE_HMD_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/MorpheusHMD/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/MorpheusHMD/*.h"
+)
+source_group("HMD" FILES ${PSMOVESERVICE_HMD_SRC})
 
 file(GLOB PSMOVESERVICE_FILTER_SRC
     "${CMAKE_CURRENT_LIST_DIR}/Filter/*.cpp"
@@ -100,6 +118,7 @@ set(PSMOVESERVICE_SRC
     ${PSMOVESERVICE_DEVICE_ENUM_SRC}
     ${PSMOVESERVICE_DEVICE_INT_SRC}
     ${PSMOVESERVICE_DEVICE_MGR_SRC}
+    ${PSMOVESERVICE_DEVICE_USB_SRC}
     ${PSMOVESERVICE_DEVICE_VIEW_SRC}
     ${PSMOVESERVICE_HMD_SRC}
     ${PSMOVESERVICE_FILTER_SRC}
@@ -111,9 +130,10 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${CMAKE_CURRENT_LIST_DIR}/Device/Enumerator
     ${CMAKE_CURRENT_LIST_DIR}/Device/Interface
     ${CMAKE_CURRENT_LIST_DIR}/Device/Manager
+    ${CMAKE_CURRENT_LIST_DIR}/Device/USB
     ${CMAKE_CURRENT_LIST_DIR}/Device/View
     ${CMAKE_CURRENT_LIST_DIR}/Filter
-    ${CMAKE_CURRENT_LIST_DIR}/OculusHMD
+    ${CMAKE_CURRENT_LIST_DIR}/MorpheusHMD
     ${CMAKE_CURRENT_LIST_DIR}/Platform
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig
     ${CMAKE_CURRENT_LIST_DIR}/PSDualShock4
@@ -126,6 +146,9 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
 
 # Eigen math library
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
+
+# mherb/Kalman library
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include)
 
 # Boost.Application and type_index are header only (?)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS
@@ -162,11 +185,34 @@ list(APPEND PSMOVESERVICE_SRC
     ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueries.h)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     list(APPEND PSMOVESERVICE_SRC
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsWin32.cpp)
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsWin32.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesWin32.cpp)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     list(APPEND PSMOVESERVICE_SRC
         ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsOSX.mm
         ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesOSX.mm)
+ELSE()
+ENDIF()
+
+# libstem_gamepad
+include_directories(${ROOT_DIR}/thirdparty/libstem_gamepad/source)
+list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_private.c)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_windows_dinput.c)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_macosx.c)
+ELSE()
+    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_linux.c)
+ENDIF()
+
+# Platform Specific Device Management
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    # Windows utilities for querying driver infomation (provider name)
+    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Platform)
+    list(APPEND PSMOVESERVICE_SRC
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/PlatformDeviceAPIWin32.h
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/PlatformDeviceAPIWin32.cpp)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 ELSE()
 ENDIF()
 
@@ -203,6 +249,9 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"
     list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
     list(APPEND PSMOVE_SERVICE_REQ_LIBS ${LIBUSB_LIBRARIES})
     add_definitions(-DHAVE_PS3EYE)
+    IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-braced-scalar-init")
+    ENDIF()
 ENDIF()
 
 # CL EYE - only on Win32
@@ -221,12 +270,6 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
     find_package(USB1 REQUIRED)
     list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
     list(APPEND PSMOVE_SERVICE_REQ_LIBS ${LIBUSB_LIBRARIES})
-
-    # Windows utilities for querying driver infomation (provider name)
-    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Platform)
-    list(APPEND PSMOVESERVICE_SRC
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/USBDeviceInterfaceWin32.h
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/USBDeviceInterfaceWin32.cpp)
 ENDIF()
 
 add_executable(PSMoveService ${PSMOVESERVICE_SRC})

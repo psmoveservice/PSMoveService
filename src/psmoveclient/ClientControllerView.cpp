@@ -1,6 +1,7 @@
 //-- includes -----
 #include "ClientControllerView.h"
 #include "ClientNetworkManager.h"
+#include "ClientPSMoveAPI.h"
 #include "PSMoveProtocolInterface.h"
 #include "PSMoveProtocol.pb.h"
 #include "MathUtility.h"
@@ -49,6 +50,10 @@ void ClientPSMoveView::Clear()
     TriggerButton= PSMoveButton_UP;
 
     TriggerValue= 0;
+
+	ResetPoseButtonPressTime = 0;
+	bResetPoseRequestSent = false;
+	bPoseResetButtonEnabled = false;
 }
 
 const PSMovePhysicsData &ClientPSMoveView::GetPhysicsData() const
@@ -69,6 +74,15 @@ const PSMoveCalibratedSensorData &ClientPSMoveView::GetCalibratedSensorData() co
 bool ClientPSMoveView::GetIsStable() const
 {
     return GetIsStableAndAlignedWithGravity();
+}
+
+bool ClientPSMoveView::GetIsGyroStable() const
+{
+	const float k_gyro_noise = 10.f*k_degrees_to_radians; // noise threshold in rad/sec
+	const float worst_rotation_rate = fabsf(CalibratedSensorData.Gyroscope.maxValue());
+	const bool isOk = worst_rotation_rate < k_gyro_noise;
+
+	return isOk;
 }
 
 bool ClientPSMoveView::GetIsStableAndAlignedWithGravity() const
@@ -93,6 +107,7 @@ const PSMoveRawTrackerData &ClientPSMoveView::GetRawTrackerData() const
 }
 
 void ClientPSMoveView::ApplyControllerDataFrame(
+	class ClientControllerView *parentView,
     const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame)
 {
     if (data_frame->isconnected())
@@ -110,9 +125,9 @@ void ClientPSMoveView::ApplyControllerDataFrame(
         this->Pose.Orientation.y= psmove_data_frame.orientation().y();
         this->Pose.Orientation.z= psmove_data_frame.orientation().z();
 
-        this->Pose.Position.x= psmove_data_frame.position().x();
-        this->Pose.Position.y= psmove_data_frame.position().y();
-        this->Pose.Position.z= psmove_data_frame.position().z();
+        this->Pose.Position.x= psmove_data_frame.position_cm().x();
+        this->Pose.Position.y= psmove_data_frame.position_cm().y();
+        this->Pose.Position.z= psmove_data_frame.position_cm().z();
 
         if (psmove_data_frame.has_raw_sensor_data())
         {
@@ -166,14 +181,15 @@ void ClientPSMoveView::ApplyControllerDataFrame(
             for (int listIndex = 0; listIndex < this->RawTrackerData.ValidTrackerLocations; ++listIndex)
             {
                 const PSMoveProtocol::Pixel &locationOnTracker = raw_tracker_data.screen_locations(listIndex);
-                const PSMoveProtocol::Position &positionOnTracker = raw_tracker_data.relative_positions(listIndex);
+                const PSMoveProtocol::Position &positionOnTracker = raw_tracker_data.relative_positions_cm(listIndex);
 
                 this->RawTrackerData.TrackerIDs[listIndex]= raw_tracker_data.tracker_ids(listIndex);
                 this->RawTrackerData.ScreenLocations[listIndex] =
                     PSMoveScreenLocation::create(locationOnTracker.x(), locationOnTracker.y());
-                this->RawTrackerData.RelativePositions[listIndex] =
+                this->RawTrackerData.RelativePositionsCm[listIndex] =
                     PSMovePosition::create(
                         positionOnTracker.x(), positionOnTracker.y(), positionOnTracker.z());
+				this->RawTrackerData.RelativeOrientations[listIndex] = PSMoveQuaternion::create(1.f, 0.f, 0.f, 0.f);
 
                 if (raw_tracker_data.projected_spheres_size() > 0)
                 {
@@ -194,6 +210,16 @@ void ClientPSMoveView::ApplyControllerDataFrame(
                     projection.shape_type = PSMoveTrackingProjection::eShapeType::INVALID_PROJECTION;
                 }
             }            
+
+			if (raw_tracker_data.has_multicam_position_cm())
+			{
+				const PSMoveProtocol::Position &multicam_position = raw_tracker_data.multicam_position_cm();
+
+				this->RawTrackerData.MulticamPositionCm.x = multicam_position.x();
+				this->RawTrackerData.MulticamPositionCm.y = multicam_position.y();
+				this->RawTrackerData.MulticamPositionCm.z = multicam_position.z();
+				this->RawTrackerData.bMulticamPositionValid = true;
+			}
         }
         else
         {
@@ -204,21 +230,21 @@ void ClientPSMoveView::ApplyControllerDataFrame(
         {
             const auto &raw_physics_data = psmove_data_frame.physics_data();
 
-            this->PhysicsData.Velocity.i = raw_physics_data.velocity().i();
-            this->PhysicsData.Velocity.j = raw_physics_data.velocity().j();
-            this->PhysicsData.Velocity.k = raw_physics_data.velocity().k();
+            this->PhysicsData.VelocityCmPerSec.i = raw_physics_data.velocity_cm_per_sec().i();
+            this->PhysicsData.VelocityCmPerSec.j = raw_physics_data.velocity_cm_per_sec().j();
+            this->PhysicsData.VelocityCmPerSec.k = raw_physics_data.velocity_cm_per_sec().k();
 
-            this->PhysicsData.Acceleration.i = raw_physics_data.acceleration().i();
-            this->PhysicsData.Acceleration.j = raw_physics_data.acceleration().j();
-            this->PhysicsData.Acceleration.k = raw_physics_data.acceleration().k();
+            this->PhysicsData.AccelerationCmPerSecSqr.i = raw_physics_data.acceleration_cm_per_sec_sqr().i();
+            this->PhysicsData.AccelerationCmPerSecSqr.j = raw_physics_data.acceleration_cm_per_sec_sqr().j();
+            this->PhysicsData.AccelerationCmPerSecSqr.k = raw_physics_data.acceleration_cm_per_sec_sqr().k();
 
-            this->PhysicsData.AngularVelocity.i = raw_physics_data.angular_velocity().i();
-            this->PhysicsData.AngularVelocity.j = raw_physics_data.angular_velocity().j();
-            this->PhysicsData.AngularVelocity.k = raw_physics_data.angular_velocity().k();
+            this->PhysicsData.AngularVelocityRadPerSec.i = raw_physics_data.angular_velocity_rad_per_sec().i();
+            this->PhysicsData.AngularVelocityRadPerSec.j = raw_physics_data.angular_velocity_rad_per_sec().j();
+            this->PhysicsData.AngularVelocityRadPerSec.k = raw_physics_data.angular_velocity_rad_per_sec().k();
 
-            this->PhysicsData.AngularAcceleration.i = raw_physics_data.angular_acceleration().i();
-            this->PhysicsData.AngularAcceleration.j = raw_physics_data.angular_acceleration().j();
-            this->PhysicsData.AngularAcceleration.k = raw_physics_data.angular_acceleration().k();
+            this->PhysicsData.AngularAccelerationRadPerSecSqr.i = raw_physics_data.angular_acceleration_rad_per_sec_sqr().i();
+            this->PhysicsData.AngularAccelerationRadPerSecSqr.j = raw_physics_data.angular_acceleration_rad_per_sec_sqr().j();
+            this->PhysicsData.AngularAccelerationRadPerSecSqr.k = raw_physics_data.angular_acceleration_rad_per_sec_sqr().k();
         }
         else
         {
@@ -240,11 +266,53 @@ void ClientPSMoveView::ApplyControllerDataFrame(
         this->TriggerValue= static_cast<unsigned char>(psmove_data_frame.trigger_value());
 
         this->bValid= true;
+
+		// Fire off a recenter action if the recenter button has been held for long enough
+		ProcessRecenterAction(parentView);
     }
     else
     {
         Clear();
     }
+}
+
+void ClientPSMoveView::ProcessRecenterAction(class ClientControllerView *parentView)
+{
+	if (bPoseResetButtonEnabled)
+	{
+		long long now =
+			std::chrono::duration_cast< std::chrono::milliseconds >(
+				std::chrono::system_clock::now().time_since_epoch()).count();
+
+		PSMoveButtonState resetPoseButtonState = GetButtonSelect();
+
+		switch (resetPoseButtonState)
+		{
+		case PSMoveButtonState::PSMoveButton_PRESSED:
+			{
+				ResetPoseButtonPressTime = now;
+			} break;
+		case PSMoveButtonState::PSMoveButton_DOWN:
+			{
+				if (!bResetPoseRequestSent)
+				{
+					const long long k_hold_duration_milli = 250;
+					long long pressDurationMilli = now - ResetPoseButtonPressTime;
+
+					if (pressDurationMilli >= k_hold_duration_milli)
+					{
+						ClientPSMoveAPI::eat_response(
+							ClientPSMoveAPI::reset_orientation(parentView, PSMoveQuaternion::identity()));
+						bResetPoseRequestSent = true;
+					}
+				}
+			} break;
+		case PSMoveButtonState::PSMoveButton_RELEASED:
+			{
+				bResetPoseRequestSent = false;
+			} break;
+		}
+	}
 }
 
 void ClientPSMoveView::Publish(
@@ -386,9 +454,15 @@ void ClientPSDualShock4View::Clear()
     RightAnalogY = 0.f;
     LeftTriggerValue = 0.f;
     RightTriggerValue = 0.f;
+
+	ResetPoseButtonPressTime = 0;
+	bResetPoseRequestSent= false;
+	bPoseResetButtonEnabled = false;
 }
 
-void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame)
+void ClientPSDualShock4View::ApplyControllerDataFrame(
+	class ClientControllerView *parentView,
+	const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame)
 {
     if (data_frame->isconnected())
     {
@@ -405,9 +479,9 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
         this->Pose.Orientation.y = psds4_data_frame.orientation().y();
         this->Pose.Orientation.z = psds4_data_frame.orientation().z();
 
-        this->Pose.Position.x = psds4_data_frame.position().x();
-        this->Pose.Position.y = psds4_data_frame.position().y();
-        this->Pose.Position.z = psds4_data_frame.position().z();
+        this->Pose.Position.x = psds4_data_frame.position_cm().x();
+        this->Pose.Position.y = psds4_data_frame.position_cm().y();
+        this->Pose.Position.z = psds4_data_frame.position_cm().z();
 
         if (psds4_data_frame.has_raw_sensor_data())
         {
@@ -453,15 +527,15 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
             for (int listIndex = 0; listIndex < this->RawTrackerData.ValidTrackerLocations; ++listIndex)
             {
                 const PSMoveProtocol::Pixel &locationOnTracker = raw_tracker_data.screen_locations(listIndex);
-                const PSMoveProtocol::Position &positionOnTracker = raw_tracker_data.relative_positions(listIndex);
+                const PSMoveProtocol::Position &positionOnTrackerCm = raw_tracker_data.relative_positions_cm(listIndex);
                 const PSMoveProtocol::Orientation &orientationOnTracker = raw_tracker_data.relative_orientations(listIndex);
 
                 this->RawTrackerData.TrackerIDs[listIndex] = raw_tracker_data.tracker_ids(listIndex);
                 this->RawTrackerData.ScreenLocations[listIndex] =
                     PSMoveScreenLocation::create(locationOnTracker.x(), locationOnTracker.y());
-                this->RawTrackerData.RelativePositions[listIndex] =
+                this->RawTrackerData.RelativePositionsCm[listIndex] =
                     PSMovePosition::create(
-                        positionOnTracker.x(), positionOnTracker.y(), positionOnTracker.z());
+                        positionOnTrackerCm.x(), positionOnTrackerCm.y(), positionOnTrackerCm.z());
                 this->RawTrackerData.RelativeOrientations[listIndex] =
                     PSMoveQuaternion::create(
                         orientationOnTracker.w(), orientationOnTracker.x(), orientationOnTracker.y(), orientationOnTracker.z());
@@ -496,6 +570,27 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
                     projection.shape_type = PSMoveTrackingProjection::eShapeType::INVALID_PROJECTION;
                 }
             }
+
+			if (raw_tracker_data.has_multicam_position_cm())
+			{
+				const PSMoveProtocol::Position &multicam_position_cm = raw_tracker_data.multicam_position_cm();
+
+				this->RawTrackerData.MulticamPositionCm.x = multicam_position_cm.x();
+				this->RawTrackerData.MulticamPositionCm.y = multicam_position_cm.y();
+				this->RawTrackerData.MulticamPositionCm.z = multicam_position_cm.z();
+				this->RawTrackerData.bMulticamPositionValid = true;
+			}
+
+			if (raw_tracker_data.has_multicam_orientation())
+			{
+				const PSMoveProtocol::Orientation &multicam_orientation = raw_tracker_data.multicam_orientation();
+
+				this->RawTrackerData.MulticamOrientation.w = multicam_orientation.w();
+				this->RawTrackerData.MulticamOrientation.x = multicam_orientation.x();
+				this->RawTrackerData.MulticamOrientation.y = multicam_orientation.y();
+				this->RawTrackerData.MulticamOrientation.z = multicam_orientation.z();
+				this->RawTrackerData.bMulticamOrientationValid = true;
+			}
         }
         else
         {
@@ -506,21 +601,21 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
         {
             const auto &raw_physics_data = psds4_data_frame.physics_data();
 
-            this->PhysicsData.Velocity.i = raw_physics_data.velocity().i();
-            this->PhysicsData.Velocity.j = raw_physics_data.velocity().j();
-            this->PhysicsData.Velocity.k = raw_physics_data.velocity().k();
+            this->PhysicsData.VelocityCmPerSec.i = raw_physics_data.velocity_cm_per_sec().i();
+            this->PhysicsData.VelocityCmPerSec.j = raw_physics_data.velocity_cm_per_sec().j();
+            this->PhysicsData.VelocityCmPerSec.k = raw_physics_data.velocity_cm_per_sec().k();
 
-            this->PhysicsData.Acceleration.i = raw_physics_data.acceleration().i();
-            this->PhysicsData.Acceleration.j = raw_physics_data.acceleration().j();
-            this->PhysicsData.Acceleration.k = raw_physics_data.acceleration().k();
+            this->PhysicsData.AccelerationCmPerSecSqr.i = raw_physics_data.acceleration_cm_per_sec_sqr().i();
+            this->PhysicsData.AccelerationCmPerSecSqr.j = raw_physics_data.acceleration_cm_per_sec_sqr().j();
+            this->PhysicsData.AccelerationCmPerSecSqr.k = raw_physics_data.acceleration_cm_per_sec_sqr().k();
 
-            this->PhysicsData.AngularVelocity.i = raw_physics_data.velocity().i();
-            this->PhysicsData.AngularVelocity.j = raw_physics_data.velocity().j();
-            this->PhysicsData.AngularVelocity.k = raw_physics_data.velocity().k();
+            this->PhysicsData.AngularVelocityRadPerSec.i = raw_physics_data.angular_velocity_rad_per_sec().i();
+            this->PhysicsData.AngularVelocityRadPerSec.j = raw_physics_data.angular_velocity_rad_per_sec().j();
+            this->PhysicsData.AngularVelocityRadPerSec.k = raw_physics_data.angular_velocity_rad_per_sec().k();
 
-            this->PhysicsData.AngularAcceleration.i = raw_physics_data.angular_acceleration().i();
-            this->PhysicsData.AngularAcceleration.j = raw_physics_data.angular_acceleration().j();
-            this->PhysicsData.AngularAcceleration.k = raw_physics_data.angular_acceleration().k();
+            this->PhysicsData.AngularAccelerationRadPerSecSqr.i = raw_physics_data.angular_acceleration_rad_per_sec_sqr().i();
+            this->PhysicsData.AngularAccelerationRadPerSecSqr.j = raw_physics_data.angular_acceleration_rad_per_sec_sqr().j();
+            this->PhysicsData.AngularAccelerationRadPerSecSqr.k = raw_physics_data.angular_acceleration_rad_per_sec_sqr().k();
         }
         else
         {
@@ -560,11 +655,53 @@ void ClientPSDualShock4View::ApplyControllerDataFrame(const PSMoveProtocol::Devi
         this->RightTriggerValue = psds4_data_frame.right_trigger_value();
 
         this->bValid = true;
+
+		// Fire off the recenter action if the recenter button has been held long enough
+		ProcessRecenterAction(parentView);
     }
     else
     {
         Clear();
     }
+}
+
+void ClientPSDualShock4View::ProcessRecenterAction(class ClientControllerView *parentView)
+{
+	if (bPoseResetButtonEnabled)
+	{
+		long long now =
+			std::chrono::duration_cast< std::chrono::milliseconds >(
+				std::chrono::system_clock::now().time_since_epoch()).count();
+
+		PSMoveButtonState resetPoseButtonState = GetButtonOptions();
+
+		switch (resetPoseButtonState)
+		{
+		case PSMoveButtonState::PSMoveButton_PRESSED:
+			{
+				ResetPoseButtonPressTime = now;
+			} break;
+		case PSMoveButtonState::PSMoveButton_DOWN:
+			{
+				if (!bResetPoseRequestSent)
+				{
+					const long long k_hold_duration_milli = 250;
+					long long pressDurationMilli = now - ResetPoseButtonPressTime;
+
+					if (pressDurationMilli >= k_hold_duration_milli)
+					{
+						ClientPSMoveAPI::eat_response(
+							ClientPSMoveAPI::reset_orientation(parentView, PSMoveQuaternion::identity()));
+						bResetPoseRequestSent = true;
+					}
+				}
+			} break;
+		case PSMoveButtonState::PSMoveButton_RELEASED:
+			{
+				bResetPoseRequestSent = false;
+			} break;
+		}
+	}
 }
 
 void ClientPSDualShock4View::Publish(
@@ -632,13 +769,18 @@ const PSDualShock4CalibratedSensorData &ClientPSDualShock4View::GetCalibratedSen
     return IsValid() ? CalibratedSensorData : k_empty_ds4_calibrated_sensor_data;
 }
 
-bool ClientPSDualShock4View::GetIsStable() const
+bool ClientPSDualShock4View::GetIsGyroStable() const
 {
     const float k_gyro_noise= 10.f*k_degrees_to_radians; // noise threshold in rad/sec
     const float worst_rotation_rate = fabsf(CalibratedSensorData.Gyroscope.maxValue());
     const bool isOk = worst_rotation_rate < k_gyro_noise;
 
     return isOk;
+}
+
+bool ClientPSDualShock4View::GetIsStable() const
+{
+	return GetIsGyroStable();
 }
 
 const PSMoveRawTrackerData &ClientPSDualShock4View::GetRawTrackerData() const
@@ -704,7 +846,7 @@ void ClientControllerView::ApplyControllerDataFrame(
         case PSMoveProtocol::PSMOVE:
             {
                 this->ControllerViewType= PSMove;
-                this->ViewState.PSMoveView.ApplyControllerDataFrame(data_frame);
+                this->ViewState.PSMoveView.ApplyControllerDataFrame(this, data_frame);
             } break;
 
         case PSMoveProtocol::PSNAVI:
@@ -716,7 +858,7 @@ void ClientControllerView::ApplyControllerDataFrame(
             case PSMoveProtocol::PSDUALSHOCK4:
             {
                 this->ControllerViewType = PSDualShock4;
-                this->ViewState.PSDualShock4View.ApplyControllerDataFrame(data_frame);
+                this->ViewState.PSDualShock4View.ApplyControllerDataFrame(this, data_frame);
             } break;
 
             default:
@@ -886,7 +1028,7 @@ bool ClientControllerView::GetIsPoseValid() const
     switch (ControllerViewType)
     {
     case eControllerType::PSMove:
-        return GetPSMoveView().GetIsOrientationValid() && GetPSMoveView().GetIsPositionValid();
+        return GetPSMoveView().GetIsOrientationValid() && GetPSMoveView().GetIsPositionValid() && GetPSMoveView().GetIsCurrentlyTracking();
     case eControllerType::PSNavi:
         // Never Tracking!
         return false;
@@ -896,6 +1038,23 @@ bool ClientControllerView::GetIsPoseValid() const
         assert(0 && "invalid controller type");
         return false;
     }
+}
+
+bool ClientControllerView::GetIsGyroStable() const
+{
+	switch (ControllerViewType)
+	{
+	case eControllerType::PSMove:
+		return GetPSMoveView().GetIsGyroStable();
+	case eControllerType::PSNavi:
+		// Always stable! (no physics)
+		return true;
+	case eControllerType::PSDualShock4:
+		return GetPSDualShock4View().GetIsGyroStable();
+	default:
+		assert(0 && "invalid controller type");
+		return true;
+	}
 }
 
 bool ClientControllerView::GetIsStable() const

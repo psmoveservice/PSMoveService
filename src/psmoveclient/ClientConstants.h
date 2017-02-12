@@ -12,6 +12,9 @@
 // See TrackerManager.h in PSMoveService
 #define PSMOVESERVICE_MAX_TRACKER_COUNT  4
 
+// See HMDManager.h in PSMoveService
+#define PSMOVESERVICE_MAX_HMD_COUNT  1
+
 // Defines a standard _PAUSE function
 #if __cplusplus >= 199711L  // if C++11
     #include <thread>

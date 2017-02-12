@@ -20,29 +20,18 @@
 
 #include <imgui.h>
 
-#include <algorithm>
-
-//###HipsterSloth $NOTE Only used for trying to figure out raw gyro data scale
-//#ifdef MEASURE_RAW_GYRO_SCALE
-
 //-- statics ----
 const char *AppStage_GyroscopeCalibration::APP_STAGE_NAME = "GyroscopeCalibration";
 
 //-- constants -----
-#define MILLI_PER_SECOND 1000
-#define MICRO_PER_SECOND 1000000
-
 const double k_stabilize_wait_time_ms = 1000.f;
 const int k_desired_noise_sample_count = 1000;
 const float k_desired_drift_sampling_time = 30.0*1000.f; // milliseconds
 
 const int k_desired_scale_sample_count = 1000;
 
-const double k_min_valid_scale_time_delta= 0.005; // seconds (200 fps)
-const double k_max_valid_scale_time_delta= 0.05; // seconds (20 fps)
-
 //-- definitions -----
-struct GyroscopeErrorSamples
+struct GyroscopeNoiseSamples
 {
     PSMoveFloatVector3 omega_samples[k_desired_noise_sample_count];
     PSMoveFloatVector3 drift_rotation;
@@ -97,54 +86,6 @@ struct GyroscopeErrorSamples
     }
 };
 
-struct GyroscopeScaleSamples // DS4 only
-{
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    
-    Eigen::Quaternionf lastOpticalOrientation;
-    std::chrono::time_point<std::chrono::high_resolution_clock> lastSampleTime;
-    bool lastSampleTimeValid;
-
-    double scale_samples[k_desired_scale_sample_count];
-    int sample_count;
-
-    double raw_scale_mean;
-    double raw_scale_variance;
-
-    void clear()
-    {
-        lastSampleTimeValid= false;
-        lastOpticalOrientation= Eigen::Quaternionf::Identity();
-        sample_count= 0;
-        raw_scale_mean= 0.f;
-        raw_scale_variance= 0.f;
-    }
-
-    void computeStatistics()
-    {
-        const double N = static_cast<double>(sample_count);
-
-        // Compute the mean of the samples
-        raw_scale_mean= 0.f;
-        for (int sample_index = 0; sample_index < sample_count; sample_index++)
-        {
-            raw_scale_mean+= scale_samples[sample_index];
-        }
-        raw_scale_mean/= N;
-
-        // Compute the variance of the samples
-        raw_scale_variance= 0.f;
-        for (int sample_index = 0; sample_index < sample_count; sample_index++)
-        {
-            const double &sample= scale_samples[sample_index];
-            double diff_from_mean= sample - raw_scale_mean;
-
-            raw_scale_variance+= diff_from_mean*diff_from_mean;
-        }
-        raw_scale_variance/= N - 1.f;
-    }
-};
-
 //-- private methods -----
 static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
 
@@ -157,15 +98,13 @@ AppStage_GyroscopeCalibration::AppStage_GyroscopeCalibration(App *app)
     , m_isControllerStreamActive(false)
     , m_lastControllerSeqNum(-1)
     , m_lastRawGyroscope()
-    , m_errorSamples(new GyroscopeErrorSamples)
-    , m_scaleSamples(new GyroscopeScaleSamples)
+    , m_gyroNoiseSamples(new GyroscopeNoiseSamples)
 {
 }
 
 AppStage_GyroscopeCalibration::~AppStage_GyroscopeCalibration()
 {
-    delete m_errorSamples;
-    delete m_scaleSamples;
+    delete m_gyroNoiseSamples;
 }
 
 void AppStage_GyroscopeCalibration::enter()
@@ -175,21 +114,10 @@ void AppStage_GyroscopeCalibration::enter()
     const AppStage_ControllerSettings::ControllerInfo *controllerInfo =
         controllerSettings->getSelectedControllerInfo();
 
-    // Reset the menu state
-    m_app->setCameraType(_cameraOrbit);
-    m_app->getOrbitCamera()->resetOrientation();
-    m_app->getOrbitCamera()->setCameraOrbitRadius(1000.f); // zoom out to see the magnetometer data at scale
-
-    m_menuState = eCalibrationMenuState::waitingForStreamStartResponse;
+	m_menuState = eCalibrationMenuState::inactive;
 
     // Reset all of the sampling state
-    m_errorSamples->clear();
-    m_scaleSamples->clear();
-
-    // Initialize the controller state
-    assert(controllerInfo->ControllerID != -1);
-    assert(m_controllerView == nullptr);
-    m_controllerView = ClientPSMoveAPI::allocate_controller_view(controllerInfo->ControllerID);
+    m_gyroNoiseSamples->clear();
 
     m_lastRawGyroscope = *k_psmove_int_vector3_zero;
     m_lastControllerSeqNum = -1;
@@ -199,17 +127,15 @@ void AppStage_GyroscopeCalibration::enter()
 
     m_stableStartTime = std::chrono::time_point<std::chrono::high_resolution_clock>();
     m_bIsStable= false;
+	m_bForceControllerStable= false;
 
-    // Start streaming in controller data
-    assert(!m_isControllerStreamActive);
-    ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::start_controller_data_stream(
-            m_controllerView, 
-            ClientPSMoveAPI::includePositionData | 
-            ClientPSMoveAPI::includeRawSensorData | 
-            ClientPSMoveAPI::includeCalibratedSensorData |
-            ClientPSMoveAPI::includeRawTrackerData),
-        &AppStage_GyroscopeCalibration::handle_acquire_controller, this);
+	// Initialize the controller state
+	assert(controllerInfo->ControllerID != -1);
+	assert(m_controllerView == nullptr);
+	m_controllerView = ClientPSMoveAPI::allocate_controller_view(controllerInfo->ControllerID);
+
+	// Get the tracking space settings first (for global forward reference)
+	request_tracking_space_settings();
 }
 
 void AppStage_GyroscopeCalibration::exit()
@@ -217,10 +143,7 @@ void AppStage_GyroscopeCalibration::exit()
     assert(m_controllerView != nullptr);
     ClientPSMoveAPI::free_controller_view(m_controllerView);
     m_controllerView = nullptr;
-    m_menuState = eCalibrationMenuState::inactive;
-
-    // Reset the orbit camera back to default orientation and scale
-    m_app->getOrbitCamera()->reset();
+    setState(eCalibrationMenuState::inactive);
 }
 
 void AppStage_GyroscopeCalibration::update()
@@ -275,37 +198,40 @@ void AppStage_GyroscopeCalibration::update()
 
     switch (m_menuState)
     {
-    case eCalibrationMenuState::waitingForStreamStartResponse:
+	case eCalibrationMenuState::pendingTrackingSpaceSettings:
+		{
+		} break;
+	case eCalibrationMenuState::waitingForStreamStartResponse:
         {
             if (bControllerDataUpdatedThisFrame)
             {
                 if (m_bBypassCalibration)
                 {
-                    m_app->getOrbitCamera()->resetOrientation();
-                    m_menuState = AppStage_GyroscopeCalibration::test;
+                    setState(AppStage_GyroscopeCalibration::test);
                 }
                 else
                 {
-                    m_menuState = AppStage_GyroscopeCalibration::waitForStable;
+                    setState(AppStage_GyroscopeCalibration::waitForStable);
                 }
             }
         } break;
     case eCalibrationMenuState::failedStreamStart:
+	case eCalibrationMenuState::failedTrackingSpaceSettings:
         {
         } break;
     case eCalibrationMenuState::waitForStable:
         {
-            if (m_controllerView->GetIsStable())
+            if (m_controllerView->GetIsStable() || m_bForceControllerStable)
             {
-                if (m_bIsStable)
+                if (m_bIsStable || m_bForceControllerStable)
                 {
                     std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
     
                     if (stableDuration.count() >= k_stabilize_wait_time_ms)
                     {
-                        m_errorSamples->clear();
-                        m_errorSamples->sampleStartTime= now;
-                        m_menuState= eCalibrationMenuState::measureBiasAndDrift;
+                        m_gyroNoiseSamples->clear();
+                        m_gyroNoiseSamples->sampleStartTime= now;
+                        setState(eCalibrationMenuState::measureBiasAndDrift);
                     }
                 }
                 else
@@ -324,117 +250,44 @@ void AppStage_GyroscopeCalibration::update()
         } break;
     case eCalibrationMenuState::measureBiasAndDrift: // PSMove and DS4
         {
-            if (m_controllerView->GetIsStable())
+            if (m_controllerView->GetIsStable() || m_bForceControllerStable)
             {
-                const std::chrono::duration<float, std::milli> sampleDurationMilli = now - m_errorSamples->sampleStartTime;
+                const std::chrono::duration<float, std::milli> sampleDurationMilli = now - m_gyroNoiseSamples->sampleStartTime;
                 const float deltaTimeSeconds= sampleTimeDeltaMilli.count()/1000.f;
 
                 // Accumulate the drift total
                 if (deltaTimeSeconds > 0.f)
                 {
-                    m_errorSamples->drift_rotation= 
-                        m_errorSamples->drift_rotation
+                    m_gyroNoiseSamples->drift_rotation= 
+                        m_gyroNoiseSamples->drift_rotation
                         + m_lastCalibratedGyroscope*deltaTimeSeconds;
                 }
 
                 // Record the next noise sample
-                if (m_errorSamples->sample_count < k_desired_noise_sample_count)
+                if (m_gyroNoiseSamples->sample_count < k_desired_noise_sample_count)
                 {
-                    m_errorSamples->omega_samples[m_errorSamples->sample_count]= m_lastCalibratedGyroscope;
-                    ++m_errorSamples->sample_count;
+                    m_gyroNoiseSamples->omega_samples[m_gyroNoiseSamples->sample_count]= m_lastCalibratedGyroscope;
+                    ++m_gyroNoiseSamples->sample_count;
                 }
 
                 // See if we have completed the sampling period
                 if (sampleDurationMilli.count() >= k_desired_drift_sampling_time)
                 {
                     // Compute bias and drift statistics
-                    m_errorSamples->computeStatistics(sampleDurationMilli);
-
-                    // Start measuring the gyro scale
-                    m_scaleSamples->clear();
+                    m_gyroNoiseSamples->computeStatistics(sampleDurationMilli);
 
                     // Update the gyro config on the service
                     request_set_gyroscope_calibration(
-                        m_errorSamples->drift, 
-                        m_errorSamples->variance);
+                        m_gyroNoiseSamples->drift, 
+                        m_gyroNoiseSamples->variance);
 
-                    #ifdef MEASURE_RAW_GYRO_SCALE
-                    if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4)
-                    {
-                        m_menuState= eCalibrationMenuState::measureScale;
-                    }
-                    else
-                    #endif
-                    {
-                        m_menuState= eCalibrationMenuState::measureComplete;
-                    }
+                    setState(eCalibrationMenuState::measureComplete);
                 }
             }
             else
             {
                 m_bIsStable= false;
-                m_menuState = AppStage_GyroscopeCalibration::waitForStable;
-            }
-        } break;
-    case eCalibrationMenuState::measureScale: // DS4 only
-        {
-            PSMoveQuaternion orientationOnTracker;
-
-            assert(m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4);
-
-            if (!m_controllerView->GetIsStable() &&
-                m_controllerView->GetIsCurrentlyTracking() &&
-                m_controllerView->GetRawTrackerData().GetOrientationOnTrackerId(0, orientationOnTracker) &&
-                m_scaleSamples->sample_count < k_desired_scale_sample_count)
-            {
-                std::chrono::time_point<std::chrono::high_resolution_clock> now = 
-                    std::chrono::high_resolution_clock::now();
-                const Eigen::Quaternionf orientation= 
-                    psmove_quaternion_to_eigen_quaternionf(orientationOnTracker);
-
-                if (m_scaleSamples->lastSampleTimeValid)
-                {
-                    std::chrono::duration<double, std::micro> sampleDurationMicro = 
-                        now - m_scaleSamples->lastSampleTime;
-                    double sampleDurationSeconds= sampleDurationMicro.count() / MICRO_PER_SECOND;
-
-                    if (sampleDurationSeconds >= k_min_valid_scale_time_delta &&
-                        sampleDurationSeconds <= k_max_valid_scale_time_delta)
-                    {
-                        const double optical_radians_between= 
-                            eigen_quaternion_unsigned_angle_between(
-                                m_scaleSamples->lastOpticalOrientation,
-                                orientation);
-                        const double optical_angular_speed= optical_radians_between / sampleDurationSeconds;
-                        
-                        // This assumes that the the length of the gyro vector
-                        // (gyro vector = angular rates on each axis)
-                        // equals the angular speed about the overall rotation axis 
-                        // of the controller, which isn't strictly true
-                        const float raw_gyro_speed= m_lastRawGyroscope.castToFloatVector3().length();
-
-                        if (!is_nearly_zero(raw_gyro_speed))
-                        {
-                            const double raw_gyro_scale= optical_angular_speed / static_cast<double>(raw_gyro_speed);
-
-                            m_scaleSamples->scale_samples[m_scaleSamples->sample_count]= raw_gyro_scale;
-                            ++m_scaleSamples->sample_count;
-
-                            if (m_scaleSamples->sample_count >= k_desired_scale_sample_count)
-                            {
-                                // Compute the scale statistics
-                                m_scaleSamples->computeStatistics();
-
-                                m_menuState= eCalibrationMenuState::measureComplete;
-                            }
-                        }
-                    }
-                }
-
-                m_scaleSamples->lastSampleTime= now;
-                m_scaleSamples->lastOpticalOrientation= 
-                    psmove_quaternion_to_eigen_quaternionf(orientationOnTracker);
-                m_scaleSamples->lastSampleTimeValid= true;
+                setState(AppStage_GyroscopeCalibration::waitForStable);
             }
         } break;
     case eCalibrationMenuState::measureComplete:
@@ -448,16 +301,18 @@ void AppStage_GyroscopeCalibration::update()
 
 void AppStage_GyroscopeCalibration::render()
 {
-    const float modelScale = 18.f;
+    const float bigModelScale = 10.f;
     glm::mat4 scaleAndRotateModelX90= 
         glm::rotate(
-            glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale)),
+            glm::scale(glm::mat4(1.f), glm::vec3(bigModelScale, bigModelScale, bigModelScale)),
             90.f, glm::vec3(1.f, 0.f, 0.f));  
 
     switch (m_menuState)
     {
+	case eCalibrationMenuState::pendingTrackingSpaceSettings:
     case eCalibrationMenuState::waitingForStreamStartResponse:
     case eCalibrationMenuState::failedStreamStart:
+	case eCalibrationMenuState::failedTrackingSpaceSettings:
         {
         } break;
     case eCalibrationMenuState::waitForStable:
@@ -469,7 +324,7 @@ void AppStage_GyroscopeCalibration::render()
                 const float renderScale = 200.f;
                 glm::mat4 renderScaleMatrix = 
                     glm::scale(glm::mat4(1.f), glm::vec3(renderScale, renderScale, renderScale));
-                glm::vec3 g= psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
+                glm::vec3 g= -psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
 
                 drawArrow(
                     renderScaleMatrix,
@@ -483,22 +338,6 @@ void AppStage_GyroscopeCalibration::render()
         {
             drawController(m_controllerView, scaleAndRotateModelX90);
         } break;
-    case eCalibrationMenuState::measureScale:
-        {
-            PSMoveQuaternion orientationOnTracker;
-            
-            // Show the optically derived orientation
-            if (m_controllerView->GetIsCurrentlyTracking() &&
-                m_controllerView->GetRawTrackerData().GetOrientationOnTrackerId(0, orientationOnTracker))
-            {
-                // Get the orientation of the controller in world space (OpenGL Coordinate System)            
-                glm::quat q= psmove_quaternion_to_glm_quat(orientationOnTracker);
-                glm::mat4 trackerSpaceOrientation= glm::mat4_cast(q);
-                glm::mat4 trackerSpaceTransform = glm::scale(trackerSpaceOrientation, glm::vec3(modelScale, modelScale, modelScale));
-
-                drawController(m_controllerView, trackerSpaceTransform);
-            }
-        } break;
     case eCalibrationMenuState::measureComplete:
         {
             drawController(m_controllerView, scaleAndRotateModelX90);
@@ -508,7 +347,7 @@ void AppStage_GyroscopeCalibration::render()
             // Get the orientation of the controller in world space (OpenGL Coordinate System)            
             glm::quat q= psmove_quaternion_to_glm_quat(m_controllerView->GetOrientation());
             glm::mat4 worldSpaceOrientation= glm::mat4_cast(q);
-            glm::mat4 worldTransform = glm::scale(worldSpaceOrientation, glm::vec3(modelScale, modelScale, modelScale));
+            glm::mat4 worldTransform = glm::scale(worldSpaceOrientation, glm::vec3(1.f));
 
             drawController(m_controllerView, worldTransform);
             drawTransformedAxes(worldSpaceOrientation, 200.f);
@@ -532,23 +371,25 @@ void AppStage_GyroscopeCalibration::renderUI()
 
     switch (m_menuState)
     {
+	case eCalibrationMenuState::pendingTrackingSpaceSettings:
     case eCalibrationMenuState::waitingForStreamStartResponse:
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            ImGui::Text("Waiting for controller stream to start...");
+            ImGui::Text("Waiting for server response...");
 
             ImGui::End();
         } break;
     case eCalibrationMenuState::failedStreamStart:
+	case eCalibrationMenuState::failedTrackingSpaceSettings:
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            ImGui::Text("Failed to start controller stream!");
+            ImGui::Text("Failed server request!");
 
             if (ImGui::Button("Ok"))
             {
@@ -575,7 +416,7 @@ void AppStage_GyroscopeCalibration::renderUI()
                 "Set the controller down on a level surface.\n" \
                 "Measurement will start once the controller is aligned with gravity and stable.");
 
-            if (m_bIsStable)
+            if (m_bIsStable || m_bForceControllerStable)
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double, std::milli> stableDuration = now - m_stableStartTime;
@@ -589,6 +430,11 @@ void AppStage_GyroscopeCalibration::renderUI()
                 ImGui::Text("Controller Destabilized! Waiting for stabilization..");
             }
 
+            if (ImGui::Button("Trust me, it's stable"))
+            {
+                m_bForceControllerStable= true;
+            }
+            ImGui::SameLine();
             if (ImGui::Button("Cancel"))
             {
                 request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
@@ -603,11 +449,11 @@ void AppStage_GyroscopeCalibration::renderUI()
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double, std::milli> stableDuration = now - m_errorSamples->sampleStartTime;
+            std::chrono::duration<double, std::milli> stableDuration = now - m_gyroNoiseSamples->sampleStartTime;
             float timeFraction = static_cast<float>(stableDuration.count() / k_desired_drift_sampling_time);
 
             const float sampleFraction = 
-                static_cast<float>(m_errorSamples->sample_count)
+                static_cast<float>(m_gyroNoiseSamples->sample_count)
                 / static_cast<float>(k_desired_noise_sample_count);
 
             ImGui::TextWrapped(
@@ -619,37 +465,6 @@ void AppStage_GyroscopeCalibration::renderUI()
             {
                 request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
             }
-
-            ImGui::End();
-        } break;
-    case eCalibrationMenuState::measureScale:
-        {
-            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
-            ImGui::Begin(k_window_title, nullptr, window_flags);
-
-            ImGui::TextWrapped(
-                "[Step 2 of 2: Computing gyroscope sensor scale]\n" \
-                "Pick up the controller and smoothly twist it around\n" \
-                "with the light bar in view of the camera.");
-
-            if (m_controllerView->GetIsStable())
-            {
-                ImGui::Text("[Controller stationary]");
-            }
-            else if (!m_controllerView->GetIsCurrentlyTracking())
-            {
-                ImGui::Text("[Light bar not in view of tracker 0]");
-            }
-            else
-            {
-                ImGui::Text("Sampling gyroscope scale...");                
-            }
-
-            const float sampleFraction = 
-                static_cast<float>(m_scaleSamples->sample_count)
-                / static_cast<float>(k_desired_scale_sample_count);
-            ImGui::ProgressBar(sampleFraction, ImVec2(250, 20));
 
             ImGui::End();
         } break;
@@ -666,14 +481,13 @@ void AppStage_GyroscopeCalibration::renderUI()
             if (ImGui::Button("Ok"))
             {
                 m_controllerView->SetLEDOverride(0, 0, 0);
-                m_menuState = eCalibrationMenuState::test;
+                setState(eCalibrationMenuState::test);
             }
             ImGui::SameLine();
             if (ImGui::Button("Redo"))
             {
-                m_errorSamples->clear();
-                m_scaleSamples->clear();
-                m_menuState = eCalibrationMenuState::waitForStable;
+                m_gyroNoiseSamples->clear();
+                setState(eCalibrationMenuState::waitForStable);
             }
             ImGui::SameLine();
             if (ImGui::Button("Cancel"))
@@ -686,7 +500,7 @@ void AppStage_GyroscopeCalibration::renderUI()
     case eCalibrationMenuState::test:
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 80));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 140));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             if (m_bBypassCalibration)
@@ -697,6 +511,31 @@ void AppStage_GyroscopeCalibration::renderUI()
             {
                 ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
             }
+
+			{
+				const Eigen::Quaternionf eigen_quat = psmove_quaternion_to_eigen_quaternionf(m_controllerView->GetOrientation());
+				const Eigen::EulerAnglesf euler_angles = eigen_quaternionf_to_euler_angles(eigen_quat);
+
+				ImGui::Text("Pitch(x): %.2f, Yaw(y): %.2f, Roll(z): %.2f",
+					m_lastCalibratedGyroscope.i * k_radians_to_degreees, 
+					m_lastCalibratedGyroscope.j * k_radians_to_degreees,
+					m_lastCalibratedGyroscope.k * k_radians_to_degreees);
+				ImGui::Text("Attitude: %.2f, Heading: %.2f, Bank: %.2f", 
+					euler_angles.get_attitude_degrees(), euler_angles.get_heading_degrees(), euler_angles.get_bank_degrees());
+			}
+
+			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4)
+			{
+				ImGui::TextWrapped(
+					"[Press the Options button with controller pointed straight forward\n" \
+					 "to recenter the controller]");
+			}
+			else if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
+			{
+				ImGui::TextWrapped(
+					"[Hold the Select button with controller pointed forward\n" \
+					"to recenter the controller]");
+			}
 
             if (ImGui::Button("Ok"))
             {
@@ -718,20 +557,164 @@ void AppStage_GyroscopeCalibration::renderUI()
 }
 
 //-- private methods -----
+void AppStage_GyroscopeCalibration::setState(eCalibrationMenuState newState)
+{
+	if (newState != m_menuState)
+	{
+		onExitState(m_menuState);
+		onEnterState(newState);
+
+		m_menuState = newState;
+	}
+}
+
+void AppStage_GyroscopeCalibration::onExitState(eCalibrationMenuState newState)
+{
+	switch (m_menuState)
+	{
+	case eCalibrationMenuState::inactive:
+	case eCalibrationMenuState::pendingTrackingSpaceSettings:
+	case eCalibrationMenuState::failedTrackingSpaceSettings:
+	case eCalibrationMenuState::waitingForStreamStartResponse:
+	case eCalibrationMenuState::failedStreamStart:
+	case eCalibrationMenuState::waitForStable:
+	case eCalibrationMenuState::measureBiasAndDrift:
+	case eCalibrationMenuState::measureComplete:
+	case eCalibrationMenuState::test:
+		break;
+	default:
+		assert(0 && "unreachable");
+	}
+}
+
+void AppStage_GyroscopeCalibration::onEnterState(eCalibrationMenuState newState)
+{
+	switch (newState)
+	{
+	case eCalibrationMenuState::inactive:
+		// Reset the orbit camera back to default orientation and scale
+		m_app->getOrbitCamera()->reset();
+		break;
+	case eCalibrationMenuState::pendingTrackingSpaceSettings:
+		// Reset the menu state
+		m_app->setCameraType(_cameraOrbit);
+		m_app->getOrbitCamera()->resetOrientation();
+		m_app->getOrbitCamera()->setCameraOrbitRadius(1000.f); // zoom out to see the accelerometer data at scale
+		break;
+	case eCalibrationMenuState::failedTrackingSpaceSettings:
+	case eCalibrationMenuState::waitingForStreamStartResponse:
+	case eCalibrationMenuState::failedStreamStart:
+		break;
+	case eCalibrationMenuState::waitForStable:
+		m_bForceControllerStable= false;
+		m_bIsStable= false;
+		break;
+	case eCalibrationMenuState::measureBiasAndDrift:
+		break;
+	case eCalibrationMenuState::measureComplete:
+		// Reset the menu state
+		m_app->setCameraType(_cameraOrbit);
+		m_app->getOrbitCamera()->resetOrientation();
+		m_app->getOrbitCamera()->setCameraOrbitRadius(1000.f); // zoom out to see the accelerometer data at scale
+		break;
+	case eCalibrationMenuState::test:
+		{
+			switch (m_controllerView->GetControllerViewType())
+			{
+			case ClientControllerView::PSDualShock4:
+				m_controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
+				break;
+			case ClientControllerView::PSMove:
+				m_controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
+				break;
+			}
+
+			m_app->setCameraType(_cameraOrbit);
+			m_app->getOrbitCamera()->reset();
+			m_app->getOrbitCamera()->setCameraOrbitYaw(m_global_forward_degrees - k_camera_default_forward_degrees);
+		}
+		break;
+	default:
+		assert(0 && "unreachable");
+	}
+}
+
+void AppStage_GyroscopeCalibration::request_tracking_space_settings()
+{
+	if (m_menuState != eCalibrationMenuState::pendingTrackingSpaceSettings)
+	{
+		setState(eCalibrationMenuState::pendingTrackingSpaceSettings);
+
+		ClientPSMoveAPI::register_callback(
+			ClientPSMoveAPI::get_tracking_space_settings(),
+			AppStage_GyroscopeCalibration::handle_tracking_space_settings_response, this);
+	}
+}
+
+void AppStage_GyroscopeCalibration::handle_tracking_space_settings_response(
+	const ClientPSMoveAPI::ResponseMessage *response_message,
+	void *userdata)
+{
+	AppStage_GyroscopeCalibration *thisPtr = static_cast<AppStage_GyroscopeCalibration *>(userdata);
+
+	switch (response_message->result_code)
+	{
+	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+		{
+			const AppStage_ControllerSettings *controllerSettings =
+				thisPtr->m_app->getAppStage<AppStage_ControllerSettings>();
+			const AppStage_ControllerSettings::ControllerInfo *controllerInfo =
+				controllerSettings->getSelectedControllerInfo();
+
+			assert(response_message->payload_type == ClientPSMoveAPI::_responsePayloadType_TrackingSpace);
+
+			// Save the tracking space settings (used in rendering)
+			thisPtr->m_global_forward_degrees = response_message->payload.tracking_space.global_forward_degrees;
+
+			unsigned int stream_flags = 
+				ClientPSMoveAPI::includeRawSensorData | 
+				ClientPSMoveAPI::includeCalibratedSensorData;
+
+			if (controllerInfo->ControllerType == ClientControllerView::PSDualShock4)
+			{
+				// Need to turn on optical tracking for the DS4 so that we have get optical orientation
+				stream_flags |= ClientPSMoveAPI::includePositionData;
+			}
+
+			// Start streaming in controller data
+			assert(!thisPtr->m_isControllerStreamActive);
+			ClientPSMoveAPI::register_callback(
+				ClientPSMoveAPI::start_controller_data_stream(
+					thisPtr->m_controllerView,
+					stream_flags),
+				&AppStage_GyroscopeCalibration::handle_acquire_controller, thisPtr);
+
+			thisPtr->setState(eCalibrationMenuState::waitingForStreamStartResponse);
+		} break;
+
+	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
+	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+		{
+			thisPtr->setState(eCalibrationMenuState::failedTrackingSpaceSettings);
+		} break;
+	}
+}
+
 void AppStage_GyroscopeCalibration::request_set_gyroscope_calibration(
     const float drift, 
     const float variance)
 {
     RequestPtr request(new PSMoveProtocol::Request());
-    request->set_type(PSMoveProtocol::Request_RequestType_SET_GYROSCOPE_CALIBRATION);
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_GYROSCOPE_CALIBRATION);
 
-    PSMoveProtocol::Request_RequestSetGyroscopeCalibration *calibration =
-        request->mutable_set_gyroscope_calibration_request();
+    PSMoveProtocol::Request_RequestSetControllerGyroscopeCalibration *calibration =
+        request->mutable_set_controller_gyroscope_calibration_request();
 
     calibration->set_controller_id(m_controllerView->GetControllerID());
 
     calibration->set_drift(drift);
     calibration->set_variance(variance);
+	calibration->set_gyro_gain_setting(""); // keep existing gain
 
     ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
 }
@@ -750,7 +733,7 @@ void AppStage_GyroscopeCalibration::handle_acquire_controller(
     }
     else
     {
-        thisPtr->m_menuState = AppStage_GyroscopeCalibration::failedStreamStart;
+        thisPtr->setState(AppStage_GyroscopeCalibration::failedStreamStart);
     }
 }
 

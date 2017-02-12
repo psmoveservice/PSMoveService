@@ -1,8 +1,6 @@
 //-- includes -----
 #include "PSDualShock4Controller.h"
 #include "ControllerDeviceEnumerator.h"
-#include "ControllerManager.h"
-#include "DeviceManager.h"
 #include "MathUtility.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
@@ -276,23 +274,33 @@ PSDualShock4ControllerConfig::config2ptree()
     pt.put("Calibration.Accel.Y.b", accelerometer_bias.j);
     pt.put("Calibration.Accel.Z.b", accelerometer_bias.k);
     pt.put("Calibration.Accel.NoiseRadius", accelerometer_noise_radius);
+	pt.put("Calibration.Accel.Variance", accelerometer_variance);
     pt.put("Calibration.Gyro.Gain", gyro_gain);
     pt.put("Calibration.Gyro.Variance", gyro_variance);
     pt.put("Calibration.Gyro.Drift", gyro_drift);
     pt.put("Calibration.Identity.Gravity.X", identity_gravity_direction.i);
     pt.put("Calibration.Identity.Gravity.Y", identity_gravity_direction.j);
     pt.put("Calibration.Identity.Gravity.Z", identity_gravity_direction.k);
+	pt.put("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
+	pt.put("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
+	pt.put("Calibration.Orientation.VarianceExpFitA", orientation_variance_exp_fit_a);
+	pt.put("Calibration.Orientation.VarianceExpFitB", orientation_variance_exp_fit_b);
+	pt.put("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
-    pt.put("OrientationFilter.MinQualityScreenArea", min_orientation_quality_screen_area);
-    pt.put("OrientationFilter.MaxQualityScreenArea", max_orientation_quality_screen_area);
+	pt.put("OrientationFilter.FilterType", orientation_filter_type);
 
-    pt.put("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
-    pt.put("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
-
+	pt.put("PositionFilter.FilterType", position_filter_type);
     pt.put("PositionFilter.MaxVelocity", max_velocity);
+
+	pt.put("PositionFilter.UseLinearAcceleration", position_use_linear_acceleration);
+	pt.put("PositionFilter.ApplyGravityMask", position_apply_gravity_mask);
+
+	pt.put("PoseFilter.MinScreenProjectionArea", min_screen_projection_area);
 
     pt.put("prediction_time", prediction_time);
     pt.put("max_poll_failure_count", max_poll_failure_count);
+
+	writeTrackingColor(pt, tracking_color_id);
 
     return pt;
 }
@@ -315,7 +323,13 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         accelerometer_bias.i = pt.get<float>("Calibration.Accel.X.b", accelerometer_bias.i);
         accelerometer_bias.j = pt.get<float>("Calibration.Accel.Y.b", accelerometer_bias.j);
         accelerometer_bias.k = pt.get<float>("Calibration.Accel.Z.b", accelerometer_bias.k);
-        accelerometer_noise_radius = pt.get<float>("Calibration.Accel.NoiseRadius", 0.0f);
+        accelerometer_noise_radius = pt.get<float>("Calibration.Accel.NoiseRadius", accelerometer_noise_radius);
+		accelerometer_variance= pt.get<float>("Calibration.Accel.Variance", accelerometer_variance);
+		position_variance_exp_fit_a= pt.get<float>("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
+		position_variance_exp_fit_b= pt.get<float>("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
+		orientation_variance_exp_fit_a= pt.get<float>("Calibration.Orientation.VarianceExpFitA", orientation_variance_exp_fit_a);
+		orientation_variance_exp_fit_b= pt.get<float>("Calibration.Orientation.VarianceExpFitB", orientation_variance_exp_fit_b);
+		mean_update_time_delta= pt.get<float>("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
         // Use the current gyroscope values (constructor defaults) as the default values
         gyro_gain= pt.get<float>("Calibration.Gyro.Gain", gyro_gain);
@@ -323,18 +337,24 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
         gyro_drift= pt.get<float>("Calibration.Gyro.Drift", gyro_drift);
 
         // Get the orientation filter parameters
-        min_orientation_quality_screen_area= pt.get<float>("OrientationFilter.MinQualityScreenArea", min_orientation_quality_screen_area);
-        max_orientation_quality_screen_area= pt.get<float>("OrientationFilter.MaxQualityScreenArea", max_orientation_quality_screen_area);
+		orientation_filter_type= pt.get<std::string>("OrientationFilter.FilterType", orientation_filter_type);
 
         // Get the position filter parameters
-        min_position_quality_screen_area= pt.get<float>("PositionFilter.MinQualityScreenArea", min_position_quality_screen_area);
-        max_position_quality_screen_area= pt.get<float>("PositionFilter.MaxQualityScreenArea", max_position_quality_screen_area);
+		position_filter_type= pt.get<std::string>("PositionFilter.FilterType", position_filter_type);
         max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
+		position_use_linear_acceleration= pt.get<bool>("PositionFilter.UseLinearAcceleration", position_use_linear_acceleration);
+		position_apply_gravity_mask= pt.get<bool>("PositionFilter.ApplyGravityMask", position_apply_gravity_mask);
+
+		// Get shared filter parameters
+		min_screen_projection_area = pt.get<float>("PoseFilter.MinScreenProjectionArea", min_screen_projection_area);
 
         // Get the calibration direction for "down"
         identity_gravity_direction.i= pt.get<float>("Calibration.Identity.Gravity.X", identity_gravity_direction.i);
         identity_gravity_direction.j= pt.get<float>("Calibration.Identity.Gravity.Y", identity_gravity_direction.j);
         identity_gravity_direction.k= pt.get<float>("Calibration.Identity.Gravity.Z", identity_gravity_direction.k);
+
+		// Read the tracking color
+		tracking_color_id = static_cast<eCommonTrackingColorID>(readTrackingColor(pt));
     }
     else
     {
@@ -354,6 +374,8 @@ PSDualShock4Controller::PSDualShock4Controller()
     , bWriteStateDirty(false)
     , NextPollSequenceNumber(0)
 {
+	HIDDetails.vendor_id = -1;
+	HIDDetails.product_id = -1;
     HIDDetails.Handle = nullptr;
 
     InData = new PSDualShock4DataInput;
@@ -387,7 +409,7 @@ PSDualShock4Controller::~PSDualShock4Controller()
 
 bool PSDualShock4Controller::open()
 {
-    ControllerDeviceEnumerator enumerator(CommonControllerState::PSMove);
+    ControllerDeviceEnumerator enumerator(ControllerDeviceEnumerator::CommunicationType_HID, CommonControllerState::PSDualShock4);
     bool success = false;
 
     if (enumerator.is_valid())
@@ -428,6 +450,8 @@ bool PSDualShock4Controller::open(
         }
 
         // Attempt to open the controller 
+		HIDDetails.vendor_id = pEnum->get_vendor_id();
+		HIDDetails.product_id = pEnum->get_product_id();
         HIDDetails.Device_path = cur_dev_path;
         HIDDetails.Handle = hid_open_path(HIDDetails.Device_path.c_str());
 
@@ -467,9 +491,11 @@ bool PSDualShock4Controller::open(
                 // Save the controller address as a std::string
                 HIDDetails.Bt_addr = std::string(szNormalizedControllerAddress);
 
-                // Use the cached host bluetooth address at service startup.
-                // On windows, calling bluetooth_get_host_address() can sometimes be a really long blocking call.
-                HIDDetails.Host_bt_addr = DeviceManager::getInstance()->m_controller_manager->getCachedBluetoothHostAddress();
+				// Get the (possibly cached) bluetooth address of the first bluetooth adapter
+				if (!bluetooth_get_host_address(HIDDetails.Host_bt_addr))
+				{
+					HIDDetails.Host_bt_addr= "00:00:00:00:00:00";
+				}
 
                 success = true;
             }
@@ -503,6 +529,9 @@ bool PSDualShock4Controller::open(
                 // Load the config file
                 cfg = PSDualShock4ControllerConfig(config_name);
                 cfg.load();
+
+				// Save it back out again in case any defaults changed
+				cfg.save();
             }
 
             // Reset the polling sequence counter
@@ -599,6 +628,21 @@ PSDualShock4Controller::setHostBluetoothAddress(const std::string &new_host_bt_a
     return success;
 }
 
+bool 
+PSDualShock4Controller::setTrackingColorID(const eCommonTrackingColorID tracking_color_id)
+{
+	bool bSuccess = false;
+
+	if (getIsOpen() && getIsBluetooth())
+	{
+		cfg.tracking_color_id = tracking_color_id;
+		cfg.save();
+		bSuccess = true;
+	}
+
+	return bSuccess;
+}
+
 // Getters
 bool
 PSDualShock4Controller::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const
@@ -641,6 +685,18 @@ PSDualShock4Controller::getUSBDevicePath() const
     return HIDDetails.Device_path;
 }
 
+int
+PSDualShock4Controller::getVendorID() const
+{
+	return HIDDetails.vendor_id;
+}
+
+int 
+PSDualShock4Controller::getProductID() const
+{
+	return HIDDetails.product_id;
+}
+
 std::string
 PSDualShock4Controller::getSerial() const
 {
@@ -671,7 +727,7 @@ PSDualShock4Controller::getBTAddressesViaUSB(std::string& host, std::string& con
     bool success = false;
     int res;
 
-    unsigned char btg[PSDS4_BTADDR_GET_SIZE];
+    unsigned char btg[PSDS4_BTADDR_GET_SIZE + 1];
     unsigned char ctrl_char_buff[PSDS4_BTADDR_SIZE];
     unsigned char host_char_buff[PSDS4_BTADDR_SIZE];
 
@@ -854,9 +910,9 @@ PSDualShock4Controller::poll()
             // Processes the IMU data
             {
                 // Piece together the 12-bit accelerometer data
-                short raw_accelX = static_cast<short>((InData->accel_x[1] << 8) | InData->accel_x[0]);
-                short raw_accelY = static_cast<short>((InData->accel_y[1] << 8) | InData->accel_y[0]);
-                short raw_accelZ = static_cast<short>((InData->accel_z[1] << 8) | InData->accel_z[0]);
+                short raw_accelX = static_cast<short>((InData->accel_x[1] << 8) | InData->accel_x[0]) >> 4;
+                short raw_accelY = static_cast<short>((InData->accel_y[1] << 8) | InData->accel_y[0]) >> 4;
+                short raw_accelZ = static_cast<short>((InData->accel_z[1] << 8) | InData->accel_z[0]) >> 4;
 
                 // Piece together the 16-bit gyroscope data
                 short raw_gyroX = static_cast<short>((InData->gyro_x[1] << 8) | InData->gyro_x[0]);
@@ -986,17 +1042,49 @@ PSDualShock4Controller::getTrackingShape(CommonDeviceTrackingShape &outTrackingS
     // z-axis= from the center out through the extension port
 
     // The triangle connects the mid-points of each light-bar edge (lower right, lower left, upper middle)
-    outTrackingShape.shape.light_bar.triangle[0] = { tri_half_x, -tri_lower_half_y, 0.f };
-    outTrackingShape.shape.light_bar.triangle[1] = { -tri_half_x, -tri_lower_half_y, 0.f };
-    outTrackingShape.shape.light_bar.triangle[2] = { 0.f, quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.triangle[CommonDeviceTrackingShape::TriVertexLowerRight] = 
+		{ tri_half_x, -tri_lower_half_y, 0.f };
+    outTrackingShape.shape.light_bar.triangle[CommonDeviceTrackingShape::TriVertexLowerLeft] = 
+		{ -tri_half_x, -tri_lower_half_y, 0.f };
+    outTrackingShape.shape.light_bar.triangle[CommonDeviceTrackingShape::TriVertexUpperMiddle] = 
+		{ 0.f, quad_half_y, 0.f };
 
     // The quad bounds the light-bar (upper right, upper left, lower left, lower right)
-    outTrackingShape.shape.light_bar.quad[0] = { quad_half_x, quad_half_y, 0.f };
-    outTrackingShape.shape.light_bar.quad[1] = { -quad_half_x, quad_half_y, 0.f };
-    outTrackingShape.shape.light_bar.quad[2] = { -quad_half_x, -quad_half_y, 0.f };
-    outTrackingShape.shape.light_bar.quad[3] = { quad_half_x, -quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexUpperRight] = 
+		{ quad_half_x, quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexUpperLeft] = 
+		{ -quad_half_x, quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexLowerLeft] = 
+		{ -quad_half_x, -quad_half_y, 0.f };
+    outTrackingShape.shape.light_bar.quad[CommonDeviceTrackingShape::QuadVertexLowerRight] = 
+		{ quad_half_x, -quad_half_y, 0.f };
 
     outTrackingShape.shape_type = eCommonTrackingShapeType::LightBar;
+}
+
+bool
+PSDualShock4Controller::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const
+{
+	bool bSuccess = false;
+
+	if (getIsOpen() && getIsBluetooth())
+	{
+		out_tracking_color_id = cfg.tracking_color_id;
+		bSuccess = true;
+	}
+
+	return bSuccess;
+}
+
+float PSDualShock4Controller::getIdentityForwardDegrees() const
+{
+	// Controller model points down the +Z axis when it has the identity orientation
+	return 270.f;
+}
+
+float PSDualShock4Controller::getPredictionTime() const
+{
+	return getConfig()->prediction_time;
 }
 
 long PSDualShock4Controller::getMaxPollFailureCount() const
@@ -1155,11 +1243,11 @@ static int hid_set_output_report(hid_device *dev, const unsigned char *data, siz
         length = dev_internal->output_report_length;
     }
 
-    res = HidD_SetOutputReport(dev_internal->device_handle, buf, length);
+    res = HidD_SetOutputReport(dev_internal->device_handle, buf, static_cast<ULONG>(length));
 
     if (res == TRUE)
     {
-        bytes_written = length;
+        bytes_written = static_cast<DWORD>(length);
     }
     else
     {

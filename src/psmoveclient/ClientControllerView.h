@@ -38,17 +38,17 @@ enum PSMoveTrackingColorType {
 //-- declarations -----
 struct PSM_CPP_PUBLIC_CLASS PSMovePhysicsData
 {
-    PSMoveFloatVector3 Velocity;
-    PSMoveFloatVector3 Acceleration;
-    PSMoveFloatVector3 AngularVelocity;
-    PSMoveFloatVector3 AngularAcceleration;
+    PSMoveFloatVector3 VelocityCmPerSec;
+    PSMoveFloatVector3 AccelerationCmPerSecSqr;
+    PSMoveFloatVector3 AngularVelocityRadPerSec;
+    PSMoveFloatVector3 AngularAccelerationRadPerSecSqr;
 
     inline void Clear()
     {
-        Velocity = *k_psmove_float_vector3_zero;
-        Acceleration = *k_psmove_float_vector3_zero;
-        AngularVelocity = *k_psmove_float_vector3_zero;
-        AngularAcceleration = *k_psmove_float_vector3_zero;
+        VelocityCmPerSec = *k_psmove_float_vector3_zero;
+        AccelerationCmPerSecSqr = *k_psmove_float_vector3_zero;
+        AngularVelocityRadPerSec = *k_psmove_float_vector3_zero;
+        AngularAccelerationRadPerSecSqr = *k_psmove_float_vector3_zero;
     }
 };
 
@@ -84,22 +84,32 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveRawTrackerData
 {
     // Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
     PSMoveScreenLocation ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
-    PSMovePosition RelativePositions[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMovePosition RelativePositionsCm[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMoveQuaternion RelativeOrientations[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMoveTrackingProjection TrackingProjections[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int ValidTrackerLocations;
+
+	PSMovePosition MulticamPositionCm;
+	PSMoveQuaternion MulticamOrientation;
+	bool bMulticamPositionValid;
+	bool bMulticamOrientationValid;
 
     inline void Clear()
     {
         for (int index = 0; index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++index)
         {
             ScreenLocations[index] = PSMoveScreenLocation::create(0, 0);
-            RelativePositions[index] = *k_psmove_position_origin;
+            RelativePositionsCm[index] = *k_psmove_position_origin;
             RelativeOrientations[index]= *k_psmove_quaternion_identity;
             TrackerIDs[index] = -1;
         }
         ValidTrackerLocations = 0;
+
+		MulticamPositionCm= PSMovePosition::create(0.f, 0.f, 0.f);
+		MulticamOrientation= PSMoveQuaternion::identity();
+		bMulticamPositionValid= false;
+		bMulticamOrientationValid= false;
     }
 
     inline bool GetPixelLocationOnTrackerId(int trackerId, PSMoveScreenLocation &outLocation) const
@@ -127,7 +137,7 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveRawTrackerData
         {
             if (TrackerIDs[listIndex] == trackerId)
             {
-                outPosition = RelativePositions[listIndex];
+                outPosition = RelativePositionsCm[listIndex];
                 bFound = true;
                 break;
             }
@@ -203,9 +213,13 @@ private:
     unsigned char Rumble;
     unsigned char LED_r, LED_g, LED_b;
 
+	long long ResetPoseButtonPressTime;
+	bool bResetPoseRequestSent;
+	bool bPoseResetButtonEnabled;
+
 public:
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
+    void ApplyControllerDataFrame(class ClientControllerView *parentView, const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
     void Publish(PSMoveProtocol::DeviceInputDataFrame_ControllerDataPacket *data_frame);
 
     void SetRumble(float rumbleFraction);
@@ -325,10 +339,19 @@ public:
     const PSMoveRawSensorData &GetRawSensorData() const;
     const PSMoveCalibratedSensorData &GetCalibratedSensorData() const;
     bool GetIsStable() const;
+	bool GetIsGyroStable() const;
     bool GetIsStableAndAlignedWithGravity() const;
 
 
     const PSMoveRawTrackerData &GetRawTrackerData() const;
+
+	inline void SetPoseResetButtonEnabled(bool bEnabled)
+	{
+		bPoseResetButtonEnabled = bEnabled;
+	}
+
+protected:
+	void ProcessRecenterAction(class ClientControllerView *parentView);
 };
 
 class PSM_CPP_PUBLIC_CLASS ClientPSNaviView
@@ -530,9 +553,13 @@ private:
     unsigned char BigRumble, SmallRumble;
     unsigned char LED_r, LED_g, LED_b;
 
+	long long ResetPoseButtonPressTime;
+	bool bResetPoseRequestSent;
+	bool bPoseResetButtonEnabled;
+
 public:
     void Clear();
-    void ApplyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
+    void ApplyControllerDataFrame(class ClientControllerView *parentView, const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket *data_frame);
     void Publish(PSMoveProtocol::DeviceInputDataFrame_ControllerDataPacket *data_frame);
 
     void SetBigRumble(float rumbleFraction);
@@ -728,7 +755,16 @@ public:
     const PSDualShock4RawSensorData &GetRawSensorData() const;
     const PSDualShock4CalibratedSensorData &GetCalibratedSensorData() const;
     bool GetIsStable() const;
+	bool GetIsGyroStable() const;
     const PSMoveRawTrackerData &GetRawTrackerData() const;
+
+	inline void SetPoseResetButtonEnabled(bool bEnabled)
+	{
+		bPoseResetButtonEnabled = bEnabled;
+	}
+
+protected:
+	void ProcessRecenterAction(class ClientControllerView *parentView);
 };
 
 class PSM_CPP_PUBLIC_CLASS ClientControllerView
@@ -856,6 +892,7 @@ public:
 
     bool GetIsCurrentlyTracking() const;
     bool GetIsPoseValid() const;
+	bool GetIsGyroStable() const;
     bool GetIsStable() const;
 
     void SetLEDOverride(unsigned char r, unsigned char g, unsigned char b);

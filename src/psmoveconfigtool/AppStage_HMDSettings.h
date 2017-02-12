@@ -8,11 +8,29 @@
 class AppStage_HMDSettings : public AppStage
 {
 public:
+    enum eHMDType
+    {
+        Morpheus
+    };
+
+    struct HMDInfo
+    {
+        int HmdID;
+        eHMDType HmdType;
+        std::string DevicePath;
+		float PredictionTime;
+    };
+
 
     AppStage_HMDSettings(class App *app);
-    virtual ~AppStage_HMDSettings();
 
-    const struct OpenVRHmdInfo *getSelectedHmdInfo() const;
+    inline const HMDInfo *getSelectedHmdInfo() const
+    {
+        return
+            (m_selectedHmdIndex != -1)
+            ? &m_hmdInfos[m_selectedHmdIndex]
+            : nullptr;
+    }
 
     virtual void enter() override;
     virtual void exit() override;
@@ -24,7 +42,16 @@ public:
     static const char *APP_STAGE_NAME;
 
 protected:
+	virtual bool onClientAPIEvent(
+		ClientPSMoveAPI::eEventType event,
+		ClientPSMoveAPI::t_event_data_handle opaque_event_handle) override;
+
     void request_hmd_list();
+	static void handle_hmd_list_response(
+		const ClientPSMoveAPI::ResponseMessage *response,
+		void *userdata);
+
+	void request_set_hmd_prediction(const int hmd_id, float prediction_time);
 
 private:
     enum eHmdMenuState
@@ -32,12 +59,12 @@ private:
         inactive,
         idle,
 
+        pendingHmdListRequest,
         failedHmdListRequest,
     };
     eHmdMenuState m_menuState;
 
-    struct OpenVRHmdInfo *m_hmdInfos;
-    int m_hmdListCount;
+    std::vector<HMDInfo> m_hmdInfos;
 
     int m_selectedHmdIndex;
 };

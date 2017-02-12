@@ -3,6 +3,7 @@
 #include "AppStage_TestTracker.h"
 #include "AppStage_ColorCalibration.h"
 #include "AppStage_ComputeTrackerPoses.h"
+#include "AppStage_DistortionCalibration.h"
 #include "AppStage_MainMenu.h"
 #include "App.h"
 #include "Camera.h"
@@ -26,6 +27,7 @@ AppStage_TrackerSettings::AppStage_TrackerSettings(App *app)
     , m_menuState(AppStage_TrackerSettings::inactive)
     , m_selectedTrackerIndex(-1)
 	, m_selectedControllerIndex(-1)
+	, m_selectedHmdIndex(-1)
 { }
 
 void AppStage_TrackerSettings::enter()
@@ -71,12 +73,43 @@ void AppStage_TrackerSettings::render()
     case eTrackerMenuState::failedTrackerListRequest:
 	case eTrackerMenuState::pendingControllerListRequest:
 	case eTrackerMenuState::failedControllerListRequest:
+	case eTrackerMenuState::pendingHmdListRequest:
+	case eTrackerMenuState::failedHmdListRequest:
     {
     } break;
 
     default:
         assert(0 && "unreachable");
     }
+}
+
+const AppStage_TrackerSettings::ControllerInfo *AppStage_TrackerSettings::get_selected_controller() {
+	const ControllerInfo *controller = NULL;
+
+	if (m_selectedControllerIndex != -1)
+	{
+		const AppStage_TrackerSettings::ControllerInfo &controllerInfo =
+			m_controllerInfos[m_selectedControllerIndex];
+
+		controller = &controllerInfo;
+	}
+
+	return controller;
+}
+
+const AppStage_TrackerSettings::HMDInfo *AppStage_TrackerSettings::get_selected_hmd()
+{
+	const HMDInfo *hmd = NULL;
+
+	if (m_selectedHmdIndex != -1)
+	{
+		const AppStage_TrackerSettings::HMDInfo &hmdinfo =
+			m_hmdInfos[m_selectedHmdIndex];
+
+		hmd = &hmdinfo;
+	}
+
+	return hmd;
 }
 
 void AppStage_TrackerSettings::renderUI()
@@ -168,11 +201,23 @@ void AppStage_TrackerSettings::renderUI()
             ImGui::SameLine();
             ImGui::TextWrapped("%s", trackerInfo.device_path);
 
-            //###HipsterSloth $TODO: Localhost only check
-            if (ImGui::Button("Test Tracker Video Feed"))
-            {
-                m_app->setAppStage(AppStage_TestTracker::APP_STAGE_NAME);
-            }
+			if (m_app->getIsLocalServer())
+			{
+				if (ImGui::Button("Test Tracker Video Feed"))
+				{
+					m_app->setAppStage(AppStage_TestTracker::APP_STAGE_NAME);
+				}
+
+				if (ImGui::Button("Calibrate Tracker Distortion"))
+				{
+					m_app->setAppStage(AppStage_DistortionCalibration::APP_STAGE_NAME);
+				}
+			}
+			else
+			{
+				ImGui::TextDisabled("Test Tracker Video Feed");
+				ImGui::TextDisabled("Calibrate Tracker Distortion");
+			}
         }
         else
         {
@@ -201,7 +246,16 @@ void AppStage_TrackerSettings::renderUI()
 
 					if (controllerInfo.ControllerType == ClientControllerView::PSMove)
 					{ 
-						ImGui::Text("Controller: %d (PSMove)", m_selectedControllerIndex);
+						if (0 <= controllerInfo.TrackingColorType && controllerInfo.TrackingColorType < PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES) {
+							const char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
+
+							ImGui::Text("Controller: %d (PSMove) - %s", 
+								m_selectedControllerIndex,
+								colors[controllerInfo.TrackingColorType]);
+						}
+						else {
+							ImGui::Text("Controller: %d (PSMove)", m_selectedControllerIndex);
+						}
 					}
 					else
 					{
@@ -221,40 +275,107 @@ void AppStage_TrackerSettings::renderUI()
 						++m_selectedControllerIndex;
 					}
 				}
-			}			
 
-            //###HipsterSloth $TODO: Localhost only check
-            if (ImGui::Button("Calibrate Tracking Colors"))
-            {
-				int controller_id= -1;
-				if (m_selectedControllerIndex != -1)
-				{ 
-					const AppStage_TrackerSettings::ControllerInfo &controllerInfo = 
-						m_controllerInfos[m_selectedControllerIndex];
+				{
+					int controllerID = (m_selectedControllerIndex != -1) ? m_controllerInfos[m_selectedControllerIndex].ControllerID : -1;
 
-					controller_id = controllerInfo.ControllerID;
+					if (m_app->getIsLocalServer())
+					{
+						if (ImGui::Button("Calibrate Controller Tracking Colors"))
+						{
+							const ControllerInfo *controller = get_selected_controller();
+							if (controller != NULL) {
+								m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_id(controller->ControllerID);
+								m_app->getAppStage<AppStage_ColorCalibration>()->set_override_tracking_color(controller->TrackingColorType);
+							}
+							m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
+						}
+
+						if (ImGui::Button("Compute Tracker Poses"))
+						{
+							AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app, controllerID);
+						}
+
+					}
+					else
+					{
+						ImGui::TextDisabled("Calibrate Controller Tracking Colors");
+						ImGui::TextDisabled("Compute Tracker Poses");
+					}
+
+
+					if (ImGui::Button("Test Tracking"))
+					{
+						AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app, controllerID);
+					}
+				}
+			}
+
+			if (m_hmdInfos.size() > 0)
+			{
+				ImGui::Separator();
+
+				if (m_selectedHmdIndex > 0)
+				{
+					if (ImGui::Button("<##HMD"))
+					{
+						--m_selectedHmdIndex;
+					}
+					ImGui::SameLine();
 				}
 
-				m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_id(controller_id);
-                m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
-            }
-        }
+				if (m_selectedHmdIndex != -1)
+				{
+					const AppStage_TrackerSettings::HMDInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
 
+					if (hmdInfo.HmdType == ClientHMDView::Morpheus)
+					{
+						if (0 <= hmdInfo.TrackingColorType && hmdInfo.TrackingColorType < PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES) 
+						{
+							const char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
+
+							ImGui::Text("HMD: %d (Morpheus) - %s",
+								m_selectedHmdIndex,
+								colors[hmdInfo.TrackingColorType]);
+						}
+						else
+						{
+							ImGui::Text("HMD: %d (Morpheus)", m_selectedHmdIndex);
+						}
+					}
+				}
+
+				if (m_selectedHmdIndex + 1 < static_cast<int>(m_hmdInfos.size()))
+				{
+					ImGui::SameLine();
+					if (ImGui::Button(">##HMD"))
+					{
+						++m_selectedHmdIndex;
+					}
+				}
+
+				if (m_app->getIsLocalServer())
+				{
+					if (ImGui::Button("Calibrate HMD Tracking Colors"))
+					{
+						const HMDInfo *hmd = get_selected_hmd();
+						if (hmd != NULL) 
+						{
+							m_app->getAppStage<AppStage_ColorCalibration>()->set_override_hmd_id(hmd->HmdID);
+							m_app->getAppStage<AppStage_ColorCalibration>()->set_override_tracking_color(hmd->TrackingColorType);
+						}
+
+						m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
+					}
+				}
+				else
+				{
+					ImGui::TextDisabled("Calibrate HMD Tracking Colors");
+				}
+			}
+        }
 
         ImGui::Separator();
-
-        if (m_trackerInfos.size() > 0)
-        {
-            if (ImGui::Button("Compute Tracker Poses"))
-            {
-                AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app);
-            }
-
-            if (ImGui::Button("Test Tracking"))
-            {
-                AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app);
-            }
-        }
 
         if (ImGui::Button("Return to Main Menu"))
         {
@@ -266,6 +387,7 @@ void AppStage_TrackerSettings::renderUI()
     case eTrackerMenuState::pendingSearchForNewTrackersRequest:
     case eTrackerMenuState::pendingTrackerListRequest:
 	case eTrackerMenuState::pendingControllerListRequest:
+	case eTrackerMenuState::pendingHmdListRequest:
     {
         ImGui::SetNextWindowPosCenter();
         ImGui::SetNextWindowSize(ImVec2(300, 150));
@@ -277,6 +399,7 @@ void AppStage_TrackerSettings::renderUI()
     } break;
     case eTrackerMenuState::failedTrackerListRequest:
 	case eTrackerMenuState::failedControllerListRequest:
+	case eTrackerMenuState::failedHmdListRequest:
     {
         ImGui::SetNextWindowPosCenter();
         ImGui::SetNextWindowSize(ImVec2(300, 150));
@@ -426,6 +549,7 @@ void AppStage_TrackerSettings::handle_controller_list_response(
                 AppStage_TrackerSettings::ControllerInfo ControllerInfo;
 
                 ControllerInfo.ControllerID= ControllerResponse.controller_id();
+				ControllerInfo.TrackingColorType = (PSMoveTrackingColorType)ControllerResponse.tracking_color_type();
 
                 switch(ControllerResponse.controller_type())
                 {
@@ -458,7 +582,8 @@ void AppStage_TrackerSettings::handle_controller_list_response(
 	            thisPtr->m_selectedControllerIndex= (thisPtr->m_controllerInfos.size() > 0) ? 0 : -1;
 			}
 
-            thisPtr->m_menuState= AppStage_TrackerSettings::idle;
+			// Request the list of HMDs next
+			thisPtr->request_hmd_list();
         } break;
 
         case ClientPSMoveAPI::_clientPSMoveResultCode_error:
@@ -467,6 +592,84 @@ void AppStage_TrackerSettings::handle_controller_list_response(
             thisPtr->m_menuState= AppStage_TrackerSettings::failedControllerListRequest;
         } break;
     }
+}
+
+void AppStage_TrackerSettings::request_hmd_list()
+{
+	if (m_menuState != AppStage_TrackerSettings::pendingHmdListRequest)
+	{
+		m_menuState = AppStage_TrackerSettings::pendingHmdListRequest;
+
+		// Tell the psmove service that we we want a list of HMDs connected to this machine
+		RequestPtr request(new PSMoveProtocol::Request());
+		request->set_type(PSMoveProtocol::Request_RequestType_GET_HMD_LIST);
+
+		ClientPSMoveAPI::register_callback(
+			ClientPSMoveAPI::send_opaque_request(&request),
+			AppStage_TrackerSettings::handle_hmd_list_response, this);
+	}
+}
+
+void AppStage_TrackerSettings::handle_hmd_list_response(
+	const ClientPSMoveAPI::ResponseMessage *response_message,
+	void *userdata)
+{
+	AppStage_TrackerSettings *thisPtr = static_cast<AppStage_TrackerSettings *>(userdata);
+
+	const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
+	const ClientPSMoveAPI::t_response_handle response_handle = response_message->opaque_response_handle;
+
+	switch (ResultCode)
+	{
+	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+	{
+		const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+		int oldSelectedHmdIndex = thisPtr->m_selectedHmdIndex;
+
+		thisPtr->m_hmdInfos.clear();
+
+		for (int hmd_index = 0; hmd_index < response->result_hmd_list().hmd_entries_size(); ++hmd_index)
+		{
+			const auto &HmdResponse = response->result_hmd_list().hmd_entries(hmd_index);
+
+			AppStage_TrackerSettings::HMDInfo HmdInfo;
+
+			HmdInfo.HmdID = HmdResponse.hmd_id();
+			HmdInfo.TrackingColorType = (PSMoveTrackingColorType)HmdResponse.tracking_color_type();
+
+			switch (HmdResponse.hmd_type())
+			{
+			case PSMoveProtocol::Morpheus:
+				HmdInfo.HmdType = ClientHMDView::eHMDViewType::Morpheus;
+				thisPtr->m_hmdInfos.push_back(HmdInfo);
+				break;
+			default:
+				assert(0 && "unreachable");
+			}
+		}
+
+		if (oldSelectedHmdIndex != -1)
+		{
+			// Maintain the same position in the list if possible
+			thisPtr->m_selectedHmdIndex =
+				(oldSelectedHmdIndex < thisPtr->m_hmdInfos.size())
+				? oldSelectedHmdIndex
+				: -1;
+		}
+		else
+		{
+			thisPtr->m_selectedHmdIndex = (thisPtr->m_hmdInfos.size() > 0) ? 0 : -1;
+		}
+
+		thisPtr->m_menuState = AppStage_TrackerSettings::idle;
+	} break;
+
+	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
+	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+	{
+		thisPtr->m_menuState = AppStage_TrackerSettings::failedControllerListRequest;
+	} break;
+	}
 }
 
 void AppStage_TrackerSettings::request_search_for_new_trackers()

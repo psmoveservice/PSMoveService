@@ -2,14 +2,12 @@
 #include "App.h"
 #include "AppStage.h"
 #include "AssetManager.h"
-#include "OpenVRContext.h"
 #include "Renderer.h"
 #include "Logger.h"
 
 //-- public methods -----
 App::App()
-    : m_openVRContext(new OpenVRContext())
-    , m_renderer(new Renderer())
+    : m_renderer(new Renderer())
     , m_assetManager(new AssetManager())
     , m_cameraType(_cameraNone)
     , m_camera(NULL)
@@ -19,6 +17,9 @@ App::App()
     , m_appStage(nullptr)
     , m_bShutdownRequested(false)
 {
+	strncpy(m_serverAddress, PSMOVESERVICE_DEFAULT_ADDRESS, sizeof(m_serverAddress));
+	strncpy(m_serverPort, PSMOVESERVICE_DEFAULT_PORT, sizeof(m_serverPort));
+	m_bIsServerLocal= true;
 }
 
 App::~App()
@@ -28,7 +29,6 @@ App::~App()
         delete iter->second;
     }
 
-    delete m_openVRContext;
     delete m_renderer;
     delete m_assetManager;
 }
@@ -83,8 +83,8 @@ bool App::reconnectToService()
 
     bool success= 
         ClientPSMoveAPI::startup(
-            PSMOVESERVICE_DEFAULT_ADDRESS, //###bwalker $TODO put in config 
-            PSMOVESERVICE_DEFAULT_PORT, //###bwalker $TODO put in config 
+            m_serverAddress,
+            m_serverPort, 
             _log_severity_level_info); //###bwalker $TODO put in config 
 
     return success;
@@ -138,11 +138,6 @@ bool App::init(int argc, char** argv)
 {
     bool success= true;
 
-    if (!m_openVRContext->init())
-    {
-        Log_INFO("App::init", "Failed to initialize OpenVR!");
-    }
-
     if (success && !m_renderer->init())
     {
         Log_ERROR("App::init", "Failed to initialize renderer!");
@@ -186,7 +181,6 @@ void App::destroy()
         iter->second->destroy();
     }
 
-    m_openVRContext->destroy();
     m_assetManager->destroy();
     m_renderer->destroy();
 }
@@ -263,9 +257,6 @@ void App::update()
 {
     // Poll any events from the service
     ClientPSMoveAPI::update();
-
-    // Get the latest HMD state
-    m_openVRContext->update();
 
     // Poll events queued up by the call to ClientPSMoveAPI::update()
     ClientPSMoveAPI::Message message;

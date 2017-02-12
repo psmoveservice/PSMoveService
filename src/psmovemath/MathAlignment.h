@@ -95,12 +95,19 @@ eigen_alignment_compute_ellipse_fit_error(
     const Eigen::Vector2f *points, const int point_count,
     const EigenFitEllipse &ellipsoid);
 
+void
+eigen_alignment_project_ellipse(Eigen::Vector3f *sphere_center,
+                                float k,
+                                float focal_length_proj,
+                                float zz,
+                                EigenFitEllipse *out_ellipse_projection);
+
 // Method of cboulay
 void
 eigen_alignment_fit_focal_cone_to_sphere(
     const EigenFitEllipse &ellipse_projection,
     const float sphere_radius,
-    const float camera_focal_length,
+    const float focal_length_pts,
     Eigen::Vector3f *out_sphere_center);
 
 // Method of Doc_ok
@@ -109,16 +116,71 @@ eigen_alignment_fit_focal_cone_to_sphere(
     const Eigen::Vector2f *points,
     const int point_count,
     const float sphere_radius,
-    const float camera_focal_length, // a.k.a. "f_px"
+    const float focal_length_pts, // a.k.a. "f_px"
     Eigen::Vector3f *out_sphere_center,
     EigenFitEllipse *out_ellipse_projection= nullptr);
 
 // Compute the weighted average of multiple quaternions
+// * All weights will be renormalized against the total weight
+// * All input weights must be >= 0
 bool
-eigen_quaternion_compute_weighted_average(
+eigen_quaternion_compute_normalized_weighted_average(
     const Eigen::Quaternionf *quaternions,
     const float *weights,
     const int count,
     Eigen::Quaternionf *out_result);
 
-#endif // MATH_UTILITY_h
+// Compute the weighted average of multiple quaternions
+// * Source weights are NOT renormalized
+// * Source weights can be negative
+bool
+eigen_quaternion_compute_weighted_average(
+    const Eigen::Quaterniond *quaternions,
+    const double *weights,
+    const int count,
+    Eigen::Quaterniond *out_result);
+
+void 
+eigen_vector3f_compute_mean_and_variance(
+	const Eigen::Vector3f *samples,
+    const int sample_count,
+	Eigen::Vector3f *out_mean,
+    Eigen::Vector3f *out_variance);
+
+// best fit line is of the form y(x) = out_line->x()*x + out_line->y()
+bool
+eigen_alignment_fit_least_squares_line(
+	const Eigen::Vector2f *samples, const int sample_count,
+	Eigen::Vector2f *out_line, float *out_correlation_coefficient);
+
+// best fit curve of the form y(x) = out_curve->y()*exp(out_curve->x()*x), 
+bool
+eigen_alignment_fit_least_squares_exponential(
+	const Eigen::Vector2f *samples, const int sample_count,
+	Eigen::Vector2f *out_curve);
+
+// Computes a best fit plane to the given set of data points
+bool 
+eigen_alignment_fit_least_squares_plane(
+	const Eigen::Vector3f *samples, const int sample_count,
+	Eigen::Vector3f *out_centroid, Eigen::Vector3f *out_normal);
+
+// Project a point set onto a plane and compute the total distance error
+float
+eigen_alignment_project_points_on_plane(
+	const Eigen::Vector3f &centroid, const Eigen::Vector3f &normal,
+	Eigen::Vector3f *samples, const int sample_count);
+
+// Compute the "Fundamental" camera matrix. 
+// Used to convert a pixel location in one camera to pixel location on another camera.
+void
+eigen_alignment_compute_camera_fundamental_matrix(
+	const Eigen::Vector3f &Ta, // world space translation of camera A
+	const Eigen::Vector3f &Tb, // world space translation of camera B
+	const Eigen::Quaternionf &Qa, // world space rotation of camera A
+	const Eigen::Quaternionf &Qb, // world space rotation of camera B
+	const Eigen::Matrix3f &Ka, // intrinsic matrix of camera A
+	const Eigen::Matrix3f &Kb, // intrinsic matrix of camera B
+	Eigen::Matrix3f &F_ab); // Output Fundamental matric F_ab
+
+#endif // MATH_UTILITY_H

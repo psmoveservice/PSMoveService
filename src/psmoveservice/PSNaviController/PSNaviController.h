@@ -4,21 +4,9 @@
 #include "PSMoveConfig.h"
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
-#include "hidapi.h"
 #include <string>
 #include <vector>
 #include <deque>
-
-struct PSNaviHIDDetails {
-    std::string Device_path;
-    hid_device *Handle;
-    std::string Device_path_addr; // only needed by Win > 8.1, otherwise ignored.
-    hid_device *Handle_addr; // only needed by Win > 8.1, otherwise ignored.
-    std::string Bt_addr;
-    std::string Host_bt_addr;
-};
-
-struct PSNaviDataInput;  // See .cpp for full declaration
 
 class PSNaviControllerConfig : public PSMoveConfig
 {
@@ -26,12 +14,14 @@ public:
     PSNaviControllerConfig(const std::string &fnamebase = "PSNaviControllerConfig")
         : PSMoveConfig(fnamebase)
         , max_poll_failure_count(1000) // ms
+		, attached_to_controller("")
     {};
 
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
     long max_poll_failure_count;
+	std::string attached_to_controller;
 };
 
 // https://code.google.com/p/moveonpc/wiki/NavigationInputReport
@@ -84,13 +74,15 @@ struct PSNaviControllerState : public CommonControllerState
 class PSNaviController : public IControllerInterface {
 public:
     PSNaviController();
-    ~PSNaviController();
+    virtual ~PSNaviController();
 
     // PSNaviController
     bool open();                                             // Opens the first HID device for the controller
 
     // -- Getters
     inline const PSNaviControllerConfig &getConfig() const
+    { return cfg; }
+    inline PSNaviControllerConfig &getConfigMutable()
     { return cfg; }
 
     // IControllerInterface
@@ -99,11 +91,14 @@ public:
     virtual IDeviceInterface::ePollResult poll() override;
     virtual void close() override;
     virtual bool setHostBluetoothAddress(const std::string &address) override;
+	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) override;
 
     // -- Getters
     virtual bool getIsBluetooth() const override;
     virtual bool getIsReadyToPoll() const override;
     virtual std::string getUSBDevicePath() const override;
+	virtual int getVendorID() const override;
+	virtual int getProductID() const override;
     virtual std::string getSerial() const override;
     virtual std::string getAssignedHostBluetoothAddress() const override;
     virtual bool getIsOpen() const override;
@@ -114,18 +109,27 @@ public:
     virtual long getMaxPollFailureCount() const override;
     virtual const std::tuple<unsigned char, unsigned char, unsigned char> getColour() const override;
     virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
+	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
+	virtual float getIdentityForwardDegrees() const override;
+	virtual float getPredictionTime() const override;
         
 private:    
-    bool getBTAddress(std::string& host, std::string& controller);
+	bool setInputStreamEnabledOverUSB();
+    bool getHostBTAddressOverUSB(std::string& out_host);
+	bool getControllerBTAddressOverUSB(std::string& out_controller);
+
+	IControllerInterface::ePollResult pollUSB();
+	IControllerInterface::ePollResult pollGamepad();
+	void parseInputData();
     
     // Constant while a controller is open
     PSNaviControllerConfig cfg;
-    PSNaviHIDDetails HIDDetails;
+	class PSNaviAPIContext *APIContext;
     bool IsBluetooth;                               // true if valid serial number on device opening
 
     // Read Controller State
     int NextPollSequenceNumber;
     std::deque<PSNaviControllerState> ControllerStates;
-    PSNaviDataInput* InData;                        // Buffer to copy hidapi reports into
+    unsigned char InBuffer[64];                        // Buffer to copy hidapi reports into
 };
 #endif // PSMOVE_CONTROLLER_H

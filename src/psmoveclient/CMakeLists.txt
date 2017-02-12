@@ -4,6 +4,7 @@ include (GenerateExportHeader)
 #
 # PSMoveClient Shared library
 #
+
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(CMAKE_INSTALL_PREFIX ${ROOT_DIR}/dist)
 
@@ -44,8 +45,7 @@ file(GLOB PSMOVECLIENT_LIBRARY_SRC
 add_library(PSMoveClient SHARED ${PSMOVECLIENT_LIBRARY_SRC})
 target_include_directories(PSMoveClient PUBLIC ${PSMOVE_CLIENT_INCL_DIRS})
 target_link_libraries(PSMoveClient PRIVATE ${PSMOVE_CLIENT_REQ_LIBS})
-target_compile_definitions(PSMoveClient
-	PRIVATE PSMOVECLIENT_CPP_API)
+target_compile_definitions(PSMoveClient PRIVATE PSMOVECLIENT_CPP_API)
 set_target_properties(PSMoveClient PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
 # Install

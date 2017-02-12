@@ -13,13 +13,13 @@ const PSMoveFloatVector3 *k_psmove_float_vector3_zero= &g_psmove_float_vector3_z
 const PSMoveFloatVector3 g_psmove_float_vector3_one= {1.f, 1.f, 1.f};
 const PSMoveFloatVector3 *k_psmove_float_vector3_one= &g_psmove_float_vector3_one;
 
-const PSMoveFloatVector3 g_psmove_float_vector3_i = { 0.f, 0.f, 0.f };
+const PSMoveFloatVector3 g_psmove_float_vector3_i = { 1.f, 0.f, 0.f };
 const PSMoveFloatVector3 *k_psmove_float_vector3_i = &g_psmove_float_vector3_i;
 
-const PSMoveFloatVector3 g_psmove_float_vector3_j = { 0.f, 0.f, 0.f };
+const PSMoveFloatVector3 g_psmove_float_vector3_j = { 0.f, 1.f, 0.f };
 const PSMoveFloatVector3 *k_psmove_float_vector3_j = &g_psmove_float_vector3_j;
 
-const PSMoveFloatVector3 g_psmove_float_vector3_k = { 0.f, 0.f, 0.f };
+const PSMoveFloatVector3 g_psmove_float_vector3_k = { 0.f, 0.f, 1.f };
 const PSMoveFloatVector3 *k_psmove_float_vector3_k = &g_psmove_float_vector3_k;
 
 const PSMoveIntVector3 g_psmove_int_vector3_zero= {0, 0, 0};
@@ -235,6 +235,11 @@ float PSMoveFloatVector3::dot(const PSMoveFloatVector3 &a, const PSMoveFloatVect
     return a.i*b.i + a.j*b.j + a.k*b.k;
 }
 
+PSMoveFloatVector3 PSMoveFloatVector3::cross(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b)
+{
+	return PSMoveFloatVector3::create(a.j*b.k - b.j*a.k, a.i*b.k - b.i*a.k, a.i*b.j - b.i*a.j);
+}
+
 PSMoveFloatVector3 PSMoveFloatVector3::min(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b)
 {
     return PSMoveFloatVector3::create(std::min(a.i, b.i), std::min(a.j, b.j), std::min(a.k, b.k));
@@ -343,6 +348,11 @@ PSMovePosition PSMovePosition::create(float x, float y, float z)
     return p;
 }
 
+const PSMovePosition& PSMovePosition::identity()
+{
+	return g_psmove_position_origin;
+}
+
 PSMoveFloatVector3 PSMovePosition::toPSMoveFloatVector3() const
 {
     return PSMoveFloatVector3::create(x, y, z);
@@ -403,6 +413,34 @@ PSMoveQuaternion PSMoveQuaternion::create(float w, float x, float y, float z)
     return q;
 }
 
+// psuedo-constructor to keep this a POD type
+// http://www.euclideanspace.com/maths/geometry/rotations/conversions/eulerToQuaternion/
+PSMoveQuaternion PSMoveQuaternion::create(const PSMoveFloatVector3 &eulerAngles)
+{
+	PSMoveQuaternion q;
+
+	// Assuming the angles are in radians.
+	float c1 = cosf(eulerAngles.j / 2);
+	float s1 = sinf(eulerAngles.j / 2);
+	float c2 = cosf(eulerAngles.k / 2);
+	float s2 = sinf(eulerAngles.k / 2);
+	float c3 = cosf(eulerAngles.i / 2);
+	float s3 = sinf(eulerAngles.i / 2);
+	float c1c2 = c1*c2;
+	float s1s2 = s1*s2;
+	q.w = c1c2*c3 - s1s2*s3;
+	q.x = c1c2*s3 + s1s2*c3;
+	q.y = s1*c2*c3 + c1*s2*s3;
+	q.z = c1*s2*c3 - s1*c2*s3;
+
+	return q;
+}
+
+const PSMoveQuaternion& PSMoveQuaternion::identity()
+{
+	return g_psmove_quaternion_identity;
+}
+
 PSMoveQuaternion PSMoveQuaternion::operator + (const PSMoveQuaternion &other) const
 {
     return PSMoveQuaternion::create(w + other.w, x + other.x, y + other.y, z + other.z);
@@ -441,7 +479,7 @@ PSMoveQuaternion PSMoveQuaternion::concat(const PSMoveQuaternion &first, const P
 PSMoveFloatVector3 PSMoveQuaternion::rotate_vector(const PSMoveFloatVector3 &v) const
 {
 	PSMoveFloatVector3 result;
-
+	
 	result.i = w*w*v.i + 2 * y*w*v.k - 2 * z*w*v.j + x*x*v.i + 2 * y*x*v.j + 2 * z*x*v.k - z*z*v.i - y*y*v.i;
 	result.j = 2 * x*y*v.i + y*y*v.j + 2 * z*y*v.k + 2 * w*z*v.i - z*z*v.j + w*w*v.j - 2 * x*w*v.k - x*x*v.j;
 	result.k = 2 * x*z*v.i + 2 * y*z*v.j + z*z*v.k - 2 * w*y*v.i - y*y*v.k + 2 * w*x*v.j - x*x*v.k + w*w*v.k;
@@ -453,7 +491,7 @@ PSMovePosition PSMoveQuaternion::rotate_position(const PSMovePosition &p) const
 {
 	PSMoveFloatVector3 v = p.toPSMoveFloatVector3();
 	PSMoveFloatVector3 v_rotated = rotate_vector(v);
-	PSMovePosition p_rotated = v.castToPSMovePosition();
+	PSMovePosition p_rotated = v_rotated.castToPSMovePosition();
 
 	return p_rotated;
 }
@@ -523,6 +561,20 @@ PSMoveFloatVector3 PSMoveMatrix3x3::basis_z() const
 }
 
 // -- PSMovePose -- 
+PSMovePose PSMovePose::create(const PSMovePosition& position, const PSMoveQuaternion& orientation)
+{
+	PSMovePose p;
+	p.Position = position;
+	p.Orientation = orientation;
+
+	return p;
+}
+
+const PSMovePose& PSMovePose::identity()
+{
+	return g_psmove_pose_identity;
+}
+
 void PSMovePose::Clear()
 {
     Position= *k_psmove_position_origin;
@@ -546,6 +598,7 @@ PSMovePose PSMovePose::concat(const PSMovePose &first, const PSMovePose &second)
 
 	result.Orientation = PSMoveQuaternion::concat(first.Orientation, second.Orientation);
 	result.Position = second.Orientation.rotate_position(first.Position) + second.Position.toPSMoveFloatVector3();
+	//result.Position = first.Position + first.Orientation.rotate_position(second.Position).toPSMoveFloatVector3();
 
 	return result;
 }
@@ -579,4 +632,27 @@ void PSMoveFrustum::set_pose(const PSMovePose &pose)
     up = PSMoveFloatVector3::create(glm_mat4[1].x, glm_mat4[1].y, glm_mat4[1].z); // y-axis
 
     origin = PSMovePosition::create(glm_mat4[3].x, glm_mat4[3].y, glm_mat4[3].z);
+}
+
+// -- PSMoveTrackingProjection -- 
+float PSMoveTrackingProjection::get_projection_area() const
+{
+	float area = 0.f;
+
+	switch (shape_type)
+	{
+	case PSMoveTrackingProjection::Ellipse:
+		{
+			area = k_real_pi*shape.ellipse.half_x_extent*shape.ellipse.half_y_extent;
+		} break;
+	case PSMoveTrackingProjection::LightBar:
+		{
+			PSMoveFloatVector2 edge1 = shape.lightbar.quad[0] - shape.lightbar.quad[1];
+			PSMoveFloatVector2 edge2 = shape.lightbar.quad[0] - shape.lightbar.quad[3];
+
+			area = edge1.length()*edge2.length();
+		} break;
+	}
+
+	return area;
 }

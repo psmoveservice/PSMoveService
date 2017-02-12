@@ -1,6 +1,10 @@
 #ifndef SHARED_TRACKER_STATE_H
 #define SHARED_TRACKER_STATE_H
 
+#ifdef WIN32
+#define BOOST_INTERPROCESS_SHARED_DIR_PATH "shared_mem"
+#endif // WIN32
+
 #include <boost/interprocess/sync/interprocess_mutex.hpp>
 
 class SharedVideoFrameHeader

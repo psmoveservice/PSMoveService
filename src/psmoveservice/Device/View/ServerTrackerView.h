@@ -4,6 +4,7 @@
 //-- includes -----
 #include "ServerDeviceView.h"
 #include "PSMoveProtocolInterface.h"
+#include <vector>
 
 // -- pre-declarations -----
 namespace PSMoveProtocol
@@ -44,26 +45,53 @@ public:
     // Returns the name of the shared memory block video frames are written to
     std::string getSharedMemoryStreamName() const;
     
+    void loadSettings();
+    void saveSettings();
+
     double getExposure() const;
-    void setExposure(double value);
+    void setExposure(double value, bool bUpdateConfig);
 
     double getGain() const;
-    void setGain(double value);
+    void setGain(double value, bool bUpdateConfig);
     
-    bool computePoseForController(
+    bool computeProjectionForController(
         const class ServerControllerView* tracked_controller, 
-        const CommonDevicePose *tracker_pose_guess,
+		const struct CommonDeviceTrackingShape *tracking_shape,
         struct ControllerOpticalPoseEstimation *out_pose_estimate);
-
+	bool computePoseForProjection(
+		const struct CommonDeviceTrackingProjection *projection,
+		const struct CommonDeviceTrackingShape *tracking_shape,
+		const struct CommonDevicePose *pose_guess,
+		struct ControllerOpticalPoseEstimation *out_pose_estimate);
+	bool computePoseForHMD(
+		const class ServerHMDView* tracked_hmd,
+		const CommonDevicePose *tracker_pose_guess,
+		struct HMDOpticalPoseEstimation *out_pose_estimate);
+    
+    std::vector<CommonDeviceScreenLocation> projectTrackerRelativePositions(
+                                const std::vector<CommonDevicePosition> &objectPositions) const;
+    
     CommonDeviceScreenLocation projectTrackerRelativePosition(const CommonDevicePosition *trackerRelativePosition) const;
     
-    CommonDevicePosition computeWorldPosition(const CommonDevicePosition *tracker_relative_position);
-    CommonDeviceQuaternion computeWorldOrientation(const CommonDeviceQuaternion *tracker_relative_orientation);
+    CommonDevicePosition computeWorldPosition(const CommonDevicePosition *tracker_relative_position) const;
+    CommonDeviceQuaternion computeWorldOrientation(const CommonDeviceQuaternion *tracker_relative_orientation) const;
 
-    /// Given screen locations on two different trackers, compute the triangulated world space location
+    CommonDevicePosition computeTrackerPosition(const CommonDevicePosition *world_relative_position) const;
+    CommonDeviceQuaternion computeTrackerOrientation(const CommonDeviceQuaternion *world_relative_orientation) const;
+
+    /// Given a single screen location on two different trackers, compute the triangulated world space location
     static CommonDevicePosition triangulateWorldPosition(
         const ServerTrackerView *tracker, const CommonDeviceScreenLocation *screen_location,
         const ServerTrackerView *other_tracker, const CommonDeviceScreenLocation *other_screen_location);
+
+	/// Given a set of screen locations on two different trackers, compute the triangulated world space locations
+	static void triangulateWorldPositions(
+		const ServerTrackerView *tracker, 
+		const CommonDeviceScreenLocation *screen_locations,
+		const ServerTrackerView *other_tracker,
+		const CommonDeviceScreenLocation *other_screen_locations,
+		const int screen_location_count,
+		CommonDevicePosition *out_result);
 
     /// Given screen projections on two different trackers, compute the triangulated world space location
     static CommonDevicePose triangulateWorldPose(
@@ -72,10 +100,14 @@ public:
 
     void getCameraIntrinsics(
         float &outFocalLengthX, float &outFocalLengthY,
-        float &outPrincipalX, float &outPrincipalY) const;
+        float &outPrincipalX, float &outPrincipalY,
+        float &outDistortionK1, float &outDistortionK2, float &outDistortionK3,
+        float &outDistortionP1, float &outDistortionP2) const;
     void setCameraIntrinsics(
         float focalLengthX, float focalLengthY,
-        float principalX, float principalY);
+        float principalX, float principalY,
+        float distortionK1, float distortionK2, float distortionK3,
+        float distortionP1, float distortionP2);
 
     CommonDevicePose getTrackerPose() const;
     void setTrackerPose(const struct CommonDevicePose *pose);
@@ -89,8 +121,13 @@ public:
     bool getOptionIndex(const std::string &option_name, int &out_option_index) const;
 
     void gatherTrackingColorPresets(const class ServerControllerView *controller, PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
-    void setTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, const CommonHSVColorRange *preset);
-    void getTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
+	void gatherTrackingColorPresets(const class ServerHMDView *hmd, PSMoveProtocol::Response_ResultTrackerSettings* settings) const;
+
+    void setControllerTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, const CommonHSVColorRange *preset);
+    void getControllerTrackingColorPreset(const class ServerControllerView *controller, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
+
+	void setHMDTrackingColorPreset(const class ServerHMDView *controller, eCommonTrackingColorID color, const CommonHSVColorRange *preset);
+	void getHMDTrackingColorPreset(const class ServerHMDView *controller, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
 
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;

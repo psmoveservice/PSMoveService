@@ -3,6 +3,7 @@
 
 //-- includes -----
 #include "PSMoveProtocolInterface.h"
+#include "PSMoveConfig.h"
 
 //-- pre-declarations -----
 class ServerRequestHandler;
@@ -14,6 +15,20 @@ namespace boost {
 }
 
 //-- definitions -----
+class NetworkManagerConfig : public PSMoveConfig
+{
+public:
+    static const int CONFIG_VERSION;
+
+    NetworkManagerConfig(const std::string &fnamebase = "NetworkManagerConfig");
+
+    virtual const boost::property_tree::ptree config2ptree();
+    virtual void ptree2config(const boost::property_tree::ptree &pt);
+
+    long version;
+	int server_port;
+};
+
 // -Server Network Manager-
 /// Maintains TCP/UDP connection state with PSMoveClients.
 /// Routes requests to the given request handler.
@@ -23,10 +38,9 @@ public:
     /// Used in PSMoveService::m_network_manager
     /**
      \param io_service Uses default initializer of boost::asio::io_service
-     \param port Default is PSMOVE_SERVER_PORT = 9512
      \param request_handler Default ServerRequestHandler(ControllerManager)
      */
-    ServerNetworkManager(boost::asio::io_service *io_service, unsigned port, ServerRequestHandler *request_handler);
+    ServerNetworkManager(boost::asio::io_service *io_service, ServerRequestHandler *request_handler);
     virtual ~ServerNetworkManager();
 
     static ServerNetworkManager *get_instance() { return m_instance; }
@@ -59,6 +73,9 @@ private:
     /// Must use the overloaded constructor
     ServerNetworkManager();
     
+	/// Configuration settings used by the network manager
+	NetworkManagerConfig m_cfg;
+
     /// private implementation - same lifetime as the NetworkManager
     class ServerNetworkManagerImpl *implementation_ptr;
 

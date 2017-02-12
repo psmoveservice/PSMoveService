@@ -3,6 +3,7 @@
 #include "ClientRequestManager.h"
 #include "ClientNetworkManager.h"
 #include "ClientControllerView.h"
+#include "ClientHMDView.h"
 #include "PSMoveProtocol.pb.h"
 #include <iostream>
 #include <map>
@@ -16,6 +17,10 @@ typedef std::pair<int, ClientControllerView *> t_id_controller_view_pair;
 typedef std::map<int, ClientTrackerView *> t_tracker_view_map;
 typedef std::map<int, ClientTrackerView *>::iterator t_tracker_view_map_iterator;
 typedef std::pair<int, ClientTrackerView *> t_id_tracker_view_pair;
+
+typedef std::map<int, ClientHMDView *> t_hmd_view_map;
+typedef std::map<int, ClientHMDView *>::iterator t_hmd_view_map_iterator;
+typedef std::pair<int, ClientHMDView *> t_id_hmd_view_pair;
 
 typedef std::deque<ClientPSMoveAPI::Message> t_message_queue;
 typedef std::vector<ResponsePtr> t_event_reference_cache;
@@ -31,9 +36,9 @@ public:
         const std::string &host, 
         const std::string &port)
         : m_request_manager(
-            this, // IDataFrameListener
-            ClientPSMoveAPIImpl::handle_response_message, 
-            this) // ClientPSMoveAPIImpl::handle_response_message userdata
+                            this,  // IDataFrameListener
+                            ClientPSMoveAPIImpl::handle_response_message,
+                            this)  // ClientPSMoveAPIImpl::handle_response_message userdata
         , m_network_manager(
             host, port, 
             this, // IDataFrameListener
@@ -211,8 +216,9 @@ public:
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_GET_CONTROLLER_LIST);
 
-        // Don't include controllers connected via USB for normal controller list requests
-        request->mutable_request_get_controller_list()->set_include_usb_controllers(false);
+        // Include controllers connected via USB
+		// We'll filter out the usb controllers we don't care (i.e. non-navi) about on the client
+        request->mutable_request_get_controller_list()->set_include_usb_controllers(true);
 
         m_request_manager.send_request(request);
 
@@ -252,6 +258,11 @@ public:
         {
             request->mutable_request_start_psmove_data_stream()->set_include_physics_data(true);
         }
+
+		if ((flags & ClientPSMoveAPI::disableROI) > 0)
+		{
+			request->mutable_request_start_psmove_data_stream()->set_disable_roi(true);
+		}
 
         m_request_manager.send_request(request);
 
@@ -293,14 +304,18 @@ public:
         return request->request_id();
     }
 
-    ClientPSMoveAPI::t_request_id reset_pose(ClientControllerView * view)
+    ClientPSMoveAPI::t_request_id reset_orientation(ClientControllerView * view, const PSMoveQuaternion& q_pose)
     {
         CLIENT_LOG_INFO("set_controller_rumble") << "requesting pose reset for PSMoveID: " << view->GetControllerID() << std::endl;
 
         // Tell the psmove service to set the current orientation of the given controller as the identity pose
         RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_RESET_POSE);
-        request->mutable_reset_pose()->set_controller_id(view->GetControllerID());
+        request->set_type(PSMoveProtocol::Request_RequestType_RESET_ORIENTATION);
+        request->mutable_reset_orientation()->set_controller_id(view->GetControllerID());
+		request->mutable_reset_orientation()->mutable_orientation()->set_w(q_pose.w);
+		request->mutable_reset_orientation()->mutable_orientation()->set_x(q_pose.x);
+		request->mutable_reset_orientation()->mutable_orientation()->set_y(q_pose.y);
+		request->mutable_reset_orientation()->mutable_orientation()->set_z(q_pose.z);
         
         m_request_manager.send_request(request);
 
@@ -353,6 +368,18 @@ public:
         }
     }
 
+	ClientPSMoveAPI::t_request_id get_tracking_space_settings()
+	{
+		CLIENT_LOG_INFO("get_tracking_space_settings") << "requesting tracking space settings" << std::endl;
+
+		RequestPtr request(new PSMoveProtocol::Request());
+		request->set_type(PSMoveProtocol::Request_RequestType_GET_TRACKING_SPACE_SETTINGS);
+
+		m_request_manager.send_request(request);
+
+		return request->request_id();
+	}
+
     ClientPSMoveAPI::t_request_id get_tracker_list()
     {
         CLIENT_LOG_INFO("get_tracker_list") << "requesting tracker list" << std::endl;
@@ -394,19 +421,125 @@ public:
         return request->request_id();
     }
 
-    ClientPSMoveAPI::t_request_id get_hmd_tracking_space_settings()
+    ClientPSMoveAPI::t_request_id get_hmd_list()
     {
-        CLIENT_LOG_INFO("get_hmd_tracking_space_settings") << "requesting hmd tracking space settings: " << std::endl;
+        CLIENT_LOG_INFO("get_hmd_list") << "requesting hmd list" << std::endl;
 
-        // Tell the psmove service that we want the hmd tracking space settings defined during tracker config
+        // Tell the psmove service that we want a list of all connected HMDs
         RequestPtr request(new PSMoveProtocol::Request());
-        request->set_type(PSMoveProtocol::Request_RequestType_GET_HMD_TRACKING_SPACE_SETTINGS);
+        request->set_type(PSMoveProtocol::Request_RequestType_GET_HMD_LIST);
+
+        m_request_manager.send_request(request);
+
+        return request->request_id();
+    }    
+    
+    ClientHMDView * allocate_hmd_view(int HmdID)
+    {
+        ClientHMDView * view;
+
+        // Use the same view if one already exists for the given hmd id
+        t_hmd_view_map_iterator view_entry = m_hmd_view_map.find(HmdID);
+        if (view_entry != m_hmd_view_map.end())
+        {
+            view = view_entry->second;
+        }
+        else
+        {
+            // Create a new initialized controller view
+            view = new ClientHMDView(HmdID);
+
+            // Add it to the map of HMDs
+            m_hmd_view_map.insert(t_id_hmd_view_pair(HmdID, view));
+        }
+
+        // Keep track of how many clients are listening to this view
+        view->IncListenerCount();
+
+        return view;
+    }
+
+    void free_hmd_view(ClientHMDView * view)
+    {
+        t_hmd_view_map_iterator view_entry = m_hmd_view_map.find(view->GetHmdID());
+        assert(view_entry != m_hmd_view_map.end());
+
+        // Decrease the number of listeners to this view
+        view->DecListenerCount();
+
+        // If no one is listening to this hmd anymore, free it from the map
+        if (view->GetListenerCount() <= 0)
+        {
+            // Free the hmd view allocated in allocate_hmd_view
+            delete view_entry->second;
+            view_entry->second = nullptr;
+
+            // Remove the entry from the map
+            m_hmd_view_map.erase(view_entry);
+        }
+    }
+    
+    ClientPSMoveAPI::t_request_id start_hmd_data_stream(
+        ClientHMDView * view,
+        unsigned int flags)
+    {
+        CLIENT_LOG_INFO("start_hmd_data_stream") << "requesting HMD stream start for HmdID: " << view->GetHmdID() << std::endl;
+
+        // Tell the service that we are acquiring this HMD
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_START_HMD_DATA_STREAM);
+        request->mutable_request_start_hmd_data_stream()->set_hmd_id(view->GetHmdID());
+
+		if ((flags & ClientPSMoveAPI::includePositionData) > 0)
+		{
+			request->mutable_request_start_hmd_data_stream()->set_include_position_data(true);
+		}
+
+		if ((flags & ClientPSMoveAPI::includePhysicsData) > 0)
+		{
+			request->mutable_request_start_hmd_data_stream()->set_include_physics_data(true);
+		}
+
+        if ((flags & ClientPSMoveAPI::includeRawSensorData) > 0)
+        {
+            request->mutable_request_start_hmd_data_stream()->set_include_raw_sensor_data(true);
+        }
+
+		if ((flags & ClientPSMoveAPI::includeCalibratedSensorData) > 0)
+		{
+			request->mutable_request_start_hmd_data_stream()->set_include_calibrated_sensor_data(true);
+		}
+
+		if ((flags & ClientPSMoveAPI::includeRawTrackerData) > 0)
+		{
+			request->mutable_request_start_hmd_data_stream()->set_include_raw_tracker_data(true);
+		}
+
+		if ((flags & ClientPSMoveAPI::disableROI) > 0)
+		{
+			request->mutable_request_start_hmd_data_stream()->set_disable_roi(true);
+		}
 
         m_request_manager.send_request(request);
 
         return request->request_id();
     }
 
+    ClientPSMoveAPI::t_request_id stop_hmd_data_stream(
+        ClientHMDView * view)
+    {
+        CLIENT_LOG_INFO("stop_hmd_data_stream") << "requesting HMD stream stop for HmdID: " << view->GetHmdID() << std::endl;
+
+        // Tell the service that we are releasing this HMD
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_STOP_HMD_DATA_STREAM);
+        request->mutable_request_stop_hmd_data_stream()->set_hmd_id(view->GetHmdID());
+
+        m_request_manager.send_request(request);
+
+        return request->request_id();
+    }
+    
     ClientPSMoveAPI::t_request_id send_opaque_request(
         ClientPSMoveAPI::t_request_handle request_handle)
     {
@@ -415,8 +548,8 @@ public:
         m_request_manager.send_request(request);
 
         return request->request_id();
-    }
-
+    }    
+    
     // IDataFrameListener
     virtual void handle_data_frame(const PSMoveProtocol::DeviceOutputDataFrame *data_frame) override
     {
@@ -456,6 +589,24 @@ public:
                     view->applyTrackerDataFrame(&tracker_packet);
                 }
             } break;
+        case PSMoveProtocol::DeviceOutputDataFrame::HMD:
+            {
+                const PSMoveProtocol::DeviceOutputDataFrame_HMDDataPacket& hmd_packet = data_frame->hmd_data_packet();
+
+                CLIENT_LOG_TRACE("handle_data_frame")
+                    << "received data frame for HmdID: "
+                    << hmd_packet.hmd_id()
+                    << ". Ignoring." << std::endl;
+
+                t_hmd_view_map_iterator view_entry = m_hmd_view_map.find(hmd_packet.hmd_id());
+
+                if (view_entry != m_hmd_view_map.end())
+                {
+                    ClientHMDView * view = view_entry->second;
+
+                    view->ApplyHMDDataFrame(&hmd_packet);
+                }
+            } break;            
         }
     }
 
@@ -475,7 +626,9 @@ public:
         case PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED:
             specificEventType = ClientPSMoveAPI::trackerListUpdated;
             break;
-
+        case PSMoveProtocol::Response_ResponseType_HMD_LIST_UPDATED:
+            specificEventType = ClientPSMoveAPI::hmdListUpdated;
+            break;
         }
 
         enqueue_event_message(specificEventType, notification);
@@ -646,20 +799,17 @@ public:
             if (iter != m_pending_request_map.end())
             {
                 const PendingRequest &pendingRequest = iter->second;
-
+                
                 // Notify the response callback that the request was canceled
                 if (pendingRequest.response_callback != nullptr)
                 {
                     ClientPSMoveAPI::ResponseMessage response;
-
                     memset(&response, 0, sizeof(ClientPSMoveAPI::ResponseMessage));
                     response.result_code= ClientPSMoveAPI::_clientPSMoveResultCode_canceled;
                     response.request_id= request_id;
                     response.payload_type= ClientPSMoveAPI::_responsePayloadType_Empty;
-
                     pendingRequest.response_callback(&response, pendingRequest.response_userdata);
                 }
-
                 m_pending_request_map.erase(iter);
                 bSuccess = true;
             }
@@ -680,6 +830,9 @@ private:
 
     //-- Tracker Views -----
     t_tracker_view_map m_tracker_view_map;
+    
+    //-- HMD Views -----
+    t_hmd_view_map m_hmd_view_map;    
 
     struct PendingRequest
     {
@@ -789,7 +942,7 @@ ClientControllerView * ClientPSMoveAPI::get_controller_view(int controller_id)
     return view;
 }
 
-ClientPSMoveAPI::t_request_id 
+ClientPSMoveAPI::t_request_id
 ClientPSMoveAPI::get_controller_list()
 {
     ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
@@ -847,14 +1000,15 @@ ClientPSMoveAPI::set_led_tracking_color(
 }
 
 ClientPSMoveAPI::t_request_id 
-ClientPSMoveAPI::reset_pose(
-    ClientControllerView * view)
+ClientPSMoveAPI::reset_orientation(
+    ClientControllerView * view,
+	const PSMoveQuaternion& q_pose)
 {
     ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::INVALID_REQUEST_ID;
 
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        request_id= ClientPSMoveAPI::m_implementation_ptr->reset_pose(view);
+        request_id= ClientPSMoveAPI::m_implementation_ptr->reset_orientation(view, q_pose);
     }
 
     return request_id;
@@ -880,6 +1034,19 @@ ClientPSMoveAPI::free_tracker_view(ClientTrackerView *view)
     {
         ClientPSMoveAPI::m_implementation_ptr->free_tracker_view(view);
     }
+}
+
+ClientPSMoveAPI::t_request_id
+ClientPSMoveAPI::get_tracking_space_settings()
+{
+	ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+	if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+	{
+		request_id = ClientPSMoveAPI::m_implementation_ptr->get_tracking_space_settings();
+	}
+
+	return request_id;
 }
 
 ClientPSMoveAPI::t_request_id
@@ -921,14 +1088,63 @@ ClientPSMoveAPI::stop_tracker_data_stream(ClientTrackerView *view)
     return request_id;
 }
 
+ClientHMDView * ClientPSMoveAPI::allocate_hmd_view(int HmdID)
+{
+    ClientHMDView * view;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        view = ClientPSMoveAPI::m_implementation_ptr->allocate_hmd_view(HmdID);
+    }
+
+    return view;
+}
+
+void ClientPSMoveAPI::free_hmd_view(ClientHMDView * view)
+{
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        ClientPSMoveAPI::m_implementation_ptr->free_hmd_view(view);
+    }
+}
+
 ClientPSMoveAPI::t_request_id
-ClientPSMoveAPI::get_hmd_tracking_space_settings()
+ClientPSMoveAPI::get_hmd_list()
 {
     ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
 
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        request_id = ClientPSMoveAPI::m_implementation_ptr->get_hmd_tracking_space_settings();
+        request_id = ClientPSMoveAPI::m_implementation_ptr->get_hmd_list();
+    }
+
+    return request_id;
+}
+
+ClientPSMoveAPI::t_request_id
+ClientPSMoveAPI::start_hmd_data_stream(
+    ClientHMDView * view,
+    unsigned int flags)
+{
+    ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id = ClientPSMoveAPI::m_implementation_ptr->start_hmd_data_stream(view, flags);
+    }
+
+    return request_id;
+}
+
+ClientPSMoveAPI::t_request_id
+ClientPSMoveAPI::stop_hmd_data_stream(
+    ClientHMDView * view)
+{
+    ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id = ClientPSMoveAPI::m_implementation_ptr->stop_hmd_data_stream(view);
     }
 
     return request_id;

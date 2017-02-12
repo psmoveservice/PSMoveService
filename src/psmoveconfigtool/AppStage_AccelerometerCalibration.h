@@ -10,7 +10,7 @@
 #include <chrono>
 
 //-- pre-declarations -----
-struct AccelerometerPoseSamples;
+struct AccelerometerStatistics;
 struct EigenFitEllipsoid;
 
 //-- definitions -----
@@ -54,17 +54,22 @@ private:
     };
     eCalibrationMenuState m_menuState;
 
+	enum eTestMode 
+	{
+		controllerRelative,
+		worldRelative
+	};
+	eTestMode m_testMode;
+
     bool m_bBypassCalibration;
 
     class ClientControllerView *m_controllerView;
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;
 
-    PSMoveFloatVector3 m_lastAcceleration;
-    PSMoveFloatVector3 m_lastVelocity;
     PSMoveFloatVector3 m_lastCalibratedAccelerometer;
 
-    AccelerometerPoseSamples *m_noiseSamples;
+    AccelerometerStatistics *m_noiseSamples;
 };
 
 #endif // APP_STAGE_ACCELEROMETER_CALIBRATION_H

@@ -12,6 +12,7 @@ public:
     {
         std::string log_level;
         std::string admin_password;
+		std::string working_directory;
     };
 
     PSMoveService();

@@ -4,6 +4,10 @@
 //-- includes -----
 #include "PSMoveClient_export.h"
 
+//-- constants -----
+#define k_meters_to_centimeters  100.f
+#define k_centimeters_to_meters  0.01f
+
 //-- pre-declarations -----
 struct PSMovePosition;
 
@@ -66,6 +70,7 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveFloatVector3
     float maxValue() const;
 
     static float dot(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
+	static PSMoveFloatVector3 cross(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
     static PSMoveFloatVector3 min(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
     static PSMoveFloatVector3 max(const PSMoveFloatVector3 &a, const PSMoveFloatVector3 &b);
 };
@@ -106,6 +111,8 @@ struct PSM_CPP_PUBLIC_CLASS PSMovePosition
     // psuedo-constructor to keep this a POD type
     static PSMovePosition create(float x, float y, float z);
 
+	static const PSMovePosition& identity();
+
     PSMoveFloatVector3 toPSMoveFloatVector3() const;
     PSMoveFloatVector3 operator - (const PSMovePosition &other) const;
 	PSMovePosition operator + (const PSMoveFloatVector3 &v) const;
@@ -113,7 +120,7 @@ struct PSM_CPP_PUBLIC_CLASS PSMovePosition
     PSMovePosition operator * (const float s) const;
 };
 
-/// A screen location in the space [-frameWidth/2, -frameHeight/2]x[frameWidth/2, frameHeight/2]    
+/// A screen location in the space upper left:[0, 0] -> lower right[frameWidth-1, frameHeight-1]
 struct PSM_CPP_PUBLIC_CLASS PSMoveScreenLocation
 {
     float x, y;
@@ -131,6 +138,10 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveQuaternion
 
     // psuedo-constructor to keep this a POD type
     static PSMoveQuaternion create(float w, float x, float y, float z);
+
+	static PSMoveQuaternion create(const PSMoveFloatVector3 &eulerAngles);
+
+	static const PSMoveQuaternion& identity();
 
     PSMoveQuaternion operator + (const PSMoveQuaternion &other) const;
 	PSMoveQuaternion operator * (const PSMoveQuaternion &other) const;
@@ -166,6 +177,10 @@ struct PSM_CPP_PUBLIC_CLASS PSMovePose
     PSMovePosition Position;
     PSMoveQuaternion Orientation;
 
+	// psuedo-constructor to keep this a POD type
+	static PSMovePose create(const PSMovePosition& position, const PSMoveQuaternion& orientation);
+	static const PSMovePose& identity();
+
     void Clear();
 	PSMovePose inverse() const;
 	static PSMovePose concat(const PSMovePose &first, const PSMovePose &second);
@@ -190,6 +205,7 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveTrackingProjection
 
         Ellipse,
         LightBar,
+		PointCloud,
 
         MAX_TRACKING_PROJECTION_TYPES
     };
@@ -206,9 +222,16 @@ struct PSM_CPP_PUBLIC_CLASS PSMoveTrackingProjection
             PSMoveScreenLocation triangle[3];
             PSMoveScreenLocation quad[4];
         } lightbar;
+
+		struct {
+			PSMoveScreenLocation points[7];
+			int point_count;
+		} pointcloud;
     } shape;
 
     eShapeType shape_type;
+
+	float get_projection_area() const;
 };
 
 struct PSM_CPP_PUBLIC_CLASS PSMoveVolume

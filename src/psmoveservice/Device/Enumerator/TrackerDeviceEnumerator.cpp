@@ -1,8 +1,9 @@
 // -- includes -----
 #include "TrackerDeviceEnumerator.h"
 #include "ServerUtility.h"
+#include "USBDeviceManager.h"
+#include "ServerLog.h"
 #include "assert.h"
-#include "libusb.h"
 #include "string.h"
 
 // -- private definitions -----
@@ -15,93 +16,80 @@
 #define MAX_CAMERA_TYPE_INDEX               GET_DEVICE_TYPE_INDEX(CommonDeviceState::SUPPORTED_CAMERA_TYPE_COUNT)
 
 // -- globals -----
-USBDeviceInfo g_supported_tracker_infos[MAX_CAMERA_TYPE_INDEX] = {
+// NOTE: This list must match the tracker order in CommonDeviceState::eDeviceType
+USBDeviceFilter k_supported_tracker_infos[MAX_CAMERA_TYPE_INDEX] = {
     { 0x1415, 0x2000 }, // PS3Eye
-    //{0x2833, 0x0201 }, // RiftDK2 Sensor
-    //{0x045e, 0x02ae}, // V1 Kinect
+    //{ 0x05a9, 0x058a }, // PS4 Camera - TODO
 };
+
+// -- private prototypes -----
+static bool is_tracker_supported(USBDeviceEnumerator* enumerator, CommonDeviceState::eDeviceType device_type_filter, CommonDeviceState::eDeviceType &out_device_type);
 
 // -- methods -----
 TrackerDeviceEnumerator::TrackerDeviceEnumerator()
-    : DeviceEnumerator(CommonDeviceState::PS3EYE)
-    , usb_context(nullptr)
-    , devs(nullptr)
-    , cur_dev(nullptr)
-    , dev_index(0)
-    , dev_count(0)
-    , camera_index(-1)
+	: DeviceEnumerator()
+	, m_usb_enumerator(nullptr)
+    , m_cameraIndex(-1)
 {
-    assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CAMERA_TYPE_INDEX);
+	USBDeviceManager *usbRequestMgr = USBDeviceManager::getInstance();
 
-    libusb_init(&usb_context);
-    dev_count = static_cast<int>(libusb_get_device_list(usb_context, &devs));
-    cur_dev = (devs != nullptr) ? devs[0] : nullptr;
-    camera_index = 0;
+	m_deviceType= CommonDeviceState::PS3EYE;
+	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CAMERA_TYPE_INDEX);
+	m_usb_enumerator = usb_device_enumerator_allocate();
 
-    if (!recompute_current_device_validity())
-    {
-        camera_index = -1;
-        next();
-    }
-    else
-    {
-        camera_index = 0;
-    }
-}
-
-TrackerDeviceEnumerator::TrackerDeviceEnumerator(CommonDeviceState::eDeviceType deviceType)
-    : DeviceEnumerator(deviceType)
-    , devs(nullptr)
-    , cur_dev(nullptr)
-    , dev_index(0)
-    , dev_count(0)
-    , camera_index(-1)
-    , dev_valid(false)
-{
-    assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CAMERA_TYPE_INDEX);
-
-    memset(dev_port_numbers, 255, sizeof(dev_port_numbers));
-
-    libusb_init(&usb_context);
-    dev_count = static_cast<int>(libusb_get_device_list(usb_context, &devs));
-    cur_dev = (devs != nullptr) ? devs[0] : nullptr;
-
-    if (!is_valid())
-    {
-        camera_index = -1;
-        next();
-    }
-    else
-    {
-        camera_index = 0;
-    }
+	// If the first USB device handle isn't a tracker, move on to the next device
+	if (testUSBEnumerator())
+	{
+		m_cameraIndex= 0;
+	}
+	else
+	{
+		next();
+	}
 }
 
 TrackerDeviceEnumerator::~TrackerDeviceEnumerator()
 {
-    if (devs != nullptr)
-    {
-        libusb_free_device_list(devs, 1);
-    }
+	if (m_usb_enumerator != nullptr)
+	{
+		usb_device_enumerator_free(m_usb_enumerator);
+	}
+}
 
-    libusb_exit(usb_context);
+int TrackerDeviceEnumerator::get_vendor_id() const
+{
+	USBDeviceFilter devInfo;
+	int vendor_id = -1;
+
+	if (is_valid() && usb_device_enumerator_get_filter(m_usb_enumerator, devInfo))
+	{
+		vendor_id = devInfo.vendor_id;
+	}
+
+	return vendor_id;
+}
+
+int TrackerDeviceEnumerator::get_product_id() const
+{
+	USBDeviceFilter devInfo;
+	int product_id = -1;
+
+	if (is_valid() && usb_device_enumerator_get_filter(m_usb_enumerator, devInfo))
+	{
+		product_id = devInfo.product_id;
+	}
+
+	return product_id;
 }
 
 const char *TrackerDeviceEnumerator::get_path() const
 {
     const char *result = nullptr;
 
-    if (cur_dev != nullptr)
+    if (is_valid())
     {
-        struct libusb_device_descriptor dev_desc;
-        libusb_get_device_descriptor(cur_dev, &dev_desc);
-
-        snprintf(
-            (char *)(cur_path), sizeof(cur_path),
-            "USB\\VID_%04X&PID_%04X\\%d\\%d",
-            dev_desc.idVendor, dev_desc.idProduct, dev_index, camera_index);
-
-        result = cur_path;
+        // Return a pointer to our member variable that has the path cached
+        result= m_currentUSBPath;
     }
 
     return result;
@@ -109,89 +97,93 @@ const char *TrackerDeviceEnumerator::get_path() const
 
 bool TrackerDeviceEnumerator::is_valid() const
 {
-    return dev_valid;
-}
-
-bool TrackerDeviceEnumerator::recompute_current_device_validity()
-{
-    dev_valid = false;
-
-    if (cur_dev != nullptr)
-    {
-        USBDeviceInfo &dev_info = g_supported_tracker_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
-        struct libusb_device_descriptor dev_desc;
-
-        int libusb_result = libusb_get_device_descriptor(cur_dev, &dev_desc);
-
-        if (libusb_result == 0 &&
-            dev_desc.idVendor == dev_info.vendor_id &&
-            dev_desc.idProduct == dev_info.product_id)
-        {
-            uint8_t port_numbers[MAX_USB_DEVICE_PORT_PATH];
-            
-            memset(port_numbers, 0, sizeof(port_numbers));
-            int elements_filled= libusb_get_port_numbers(cur_dev, port_numbers, MAX_USB_DEVICE_PORT_PATH);
-
-            if (elements_filled > 0)
-            {
-                // Make sure this device is actually different from the last device we looked at
-                // (i.e. has a different device port path)
-                if (memcmp(port_numbers, dev_port_numbers, sizeof(port_numbers)) != 0)
-                {
-                    libusb_device_handle *devhandle;
-
-                    // Finally need to test that we can actually open the device
-                    // (or see that device is already open)
-                    libusb_result = libusb_open(cur_dev, &devhandle);
-                    if (libusb_result == LIBUSB_SUCCESS || libusb_result == LIBUSB_ERROR_ACCESS)
-                    {
-                        if (libusb_result == LIBUSB_SUCCESS)
-                        {
-                            libusb_close(devhandle);
-                        }
-
-                        // Cache the port number for the last valid device found
-                        memcpy(dev_port_numbers, port_numbers, sizeof(port_numbers));
-
-                        dev_valid = true;
-                    }
-                }
-            }
-        }
-    }
-
-    return dev_valid;
+	return m_usb_enumerator != nullptr && usb_device_enumerator_is_valid(m_usb_enumerator);
 }
 
 bool TrackerDeviceEnumerator::next()
 {
-    bool foundValid = false;
+	USBDeviceManager *usbRequestMgr = USBDeviceManager::getInstance();
+	bool foundValid = false;
 
-    while (cur_dev != nullptr && !foundValid)
-    {
-        ++dev_index;
-        cur_dev = (dev_index < dev_count) ? devs[dev_index] : nullptr;
-        foundValid = recompute_current_device_validity();
+	while (is_valid() && !foundValid)
+	{
+		usb_device_enumerator_next(m_usb_enumerator);
 
-        // If there are more device types to scan
-        // move on to the next vid/pid device enumeration
-        if (cur_dev == nullptr &&
-            GET_DEVICE_TYPE_CLASS(m_deviceType + 1) == CommonDeviceState::TrackingCamera &&
-            (m_deviceType + 1) < CommonDeviceState::SUPPORTED_CAMERA_TYPE_COUNT)
-        {
-            m_deviceType = static_cast<CommonDeviceState::eDeviceType>(m_deviceType + 1);
+		if (testUSBEnumerator())
+		{
+			foundValid= true;
+		}
+	}
 
-            // Reset the device iterator
-            dev_index = 0;
-            cur_dev = (devs != nullptr) ? devs[0] : nullptr;
-            foundValid = recompute_current_device_validity();
-        }
-    }
+	if (foundValid)
+	{
+		++m_cameraIndex;
+	}
 
-    if (foundValid)
-    {
-        ++camera_index;
-    }
+	return foundValid;
+}
 
-    return foundValid;
+bool TrackerDeviceEnumerator::testUSBEnumerator()
+{
+	bool foundValid= false;
+
+	if (is_valid() && is_tracker_supported(m_usb_enumerator, m_deviceTypeFilter, m_deviceType))
+	{
+		char USBPath[256];
+
+		// Cache the path to the device
+		usb_device_enumerator_get_path(m_usb_enumerator, USBPath, sizeof(USBPath));
+
+		// Test open the device
+		char errorReason[256];
+		if (usb_device_can_be_opened(m_usb_enumerator, errorReason, sizeof(errorReason)))
+		{
+			// Remember the last successfully opened tracker path
+			strncpy(m_currentUSBPath, USBPath, sizeof(m_currentUSBPath));
+
+			foundValid = true;
+		}
+		else
+		{
+			SERVER_LOG_INFO("TrackerDeviceEnumerator") << "Skipping device (" <<  USBPath << ") - " << errorReason;
+		}
+	}
+
+	return foundValid;
+}
+
+//-- private methods -----
+static bool is_tracker_supported(
+	USBDeviceEnumerator *enumerator, 
+	CommonDeviceState::eDeviceType device_type_filter,
+	CommonDeviceState::eDeviceType &out_device_type)
+{
+	USBDeviceFilter devInfo;
+	bool bIsValidDevice = false;
+
+	if (usb_device_enumerator_get_filter(enumerator, devInfo))
+	{
+		// See if the next filtered device is a camera that we care about
+		for (int tracker_type_index = 0; tracker_type_index < MAX_CAMERA_TYPE_INDEX; ++tracker_type_index)
+		{
+			const USBDeviceFilter &supported_type = k_supported_tracker_infos[tracker_type_index];
+
+			if (devInfo.product_id == supported_type.product_id &&
+				devInfo.vendor_id == supported_type.vendor_id)
+			{
+				CommonDeviceState::eDeviceType device_type = 
+					static_cast<CommonDeviceState::eDeviceType>(CommonDeviceState::TrackingCamera + tracker_type_index);
+
+				if (device_type_filter == CommonDeviceState::INVALID_DEVICE_TYPE || // i.e. no filter
+					device_type_filter == device_type)
+				{
+					out_device_type = device_type;
+					bIsValidDevice = true;
+					break;
+				}
+			}
+		}
+	}
+
+	return bIsValidDevice;
 }

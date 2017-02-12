@@ -1,0 +1,20 @@
+{
+    "thumbnail" : "dualshock4_thumbnail.png",
+    "components": {
+        "body": {
+            "filename": "dualshock4_controller.obj",
+            "component_local" : {
+                "origin": [0.0, 0.0, 0.0],
+                "rotate_xyz" : [0.0,0.0,0.0]
+            }
+        },
+        "lightbar": {
+            "filename": "dualshock4_lightbar.obj",
+            "component_local" : {
+                "origin": [0.0, 0.0, 0.0],
+                "rotate_xyz" : [0.0,0.0,0.0]
+            }
+        }        
+    }
+}
+

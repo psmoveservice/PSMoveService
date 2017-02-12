@@ -2,132 +2,90 @@
 #define ORIENTATION_FILTER_H
 
 //-- includes -----
-#include "MathEigen.h"
+#include "PoseFilterInterface.h"
 
-//-- constants -----
-// Calibration Pose transform
-extern const Eigen::Matrix3f *k_eigen_identity_pose_upright;
-extern const Eigen::Matrix3f *k_eigen_identity_pose_laying_flat;
-
-//Sensor Transforms
-extern const Eigen::Matrix3f *k_eigen_sensor_transform_identity;
-extern const Eigen::Matrix3f *k_eigen_sensor_transform_opengl;
-
-enum OrientationSource
-{
-    OrientationSource_PreviousFrame,
-    OrientationSource_Optical
-};
-
-//-- declarations -----
-/// A snapshot of IMU data emitted from a controller
-struct OrientationSensorPacket
-{
-    Eigen::Quaternionf orientation;
-    OrientationSource orientation_source;
-    float orientation_quality; // [0, 1]
-
-    Eigen::Vector3f accelerometer;
-    Eigen::Vector3f magnetometer;
-    Eigen::Vector3f gyroscope;
-};
-
-/// A snapshot of IMU data transformed by a filter space so that it can be used to update an orientation filter
-struct OrientationFilterPacket
-{
-    Eigen::Quaternionf orientation;
-    OrientationSource orientation_source;
-    float orientation_quality; // [0, 1]
-
-    Eigen::Vector3f normalized_accelerometer;
-    Eigen::Vector3f normalized_magnetometer;
-    Eigen::Vector3f gyroscope;
-};
-
-/// Used to transform sensor data from a controller into an arbitrary space
-class OrientationFilterSpace
+//-- definitions --
+/// Abstract base class for all orientation only filters
+class OrientationFilter : public IOrientationFilter
 {
 public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    
-    OrientationFilterSpace();
-    OrientationFilterSpace(
-        const Eigen::Vector3f &identityGravity,
-        const Eigen::Vector3f &identityMagnetometer,
-        const Eigen::Matrix3f &calibrationTransform,
-        const Eigen::Matrix3f &sensorTransform);
-
-    Eigen::Vector3f getGravityCalibrationDirection() const;
-    Eigen::Vector3f getMagnetometerCalibrationDirection() const;
-
-    inline void setCalibrationTransform(const Eigen::Matrix3f &calibrationTransform)
-    { m_CalibrationTransform= calibrationTransform; }
-    inline void setSensorTransform(const Eigen::Matrix3f &sensorTransform)
-    { m_SensorTransform= sensorTransform; }
-
-    void convertSensorPacketToFilterPacket(
-        const OrientationSensorPacket &sensorPacket,
-        OrientationFilterPacket &outFilterPacket) const;
-
-private:
-    Eigen::Vector3f m_IdentityGravity;
-    Eigen::Vector3f m_IdentityMagnetometer;
-
-    Eigen::Matrix3f m_CalibrationTransform;
-    Eigen::Matrix3f m_SensorTransform;
-};
-
-/// A stateful filter used to fuse IMU sensor data into an orientation in a desired filter space
-class OrientationFilter
-{
-public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-    enum FusionType {
-        FusionTypeNone,
-        FusionTypePassThru,
-        FusionTypeMadgwickARG,
-        FusionTypeMadgwickMARG,
-        FusionTypeComplementaryOpticalARG,
-        FusionTypeComplementaryMARG,
-    };
-
     OrientationFilter();
     virtual ~OrientationFilter();
 
-    inline OrientationFilterSpace &getFilterSpace()
-    { return m_FilterSpace; }
+    //-- IStateFilter --
+    bool getIsStateValid() const override;
+    void resetState() override;
+    void recenterOrientation(const Eigen::Quaternionf& q_pose) override;
 
-    FusionType getFusionType() const;
-    bool getIsFusionStateValid() const;
-    // Estimate the current orientation of the filter given a time offset into the future
-    Eigen::Quaternionf getOrientation(float time = 0.f) const;
-    Eigen::Vector3f getAngularVelocity() const;
-    Eigen::Vector3f getAngularAcceleration() const;
+    // -- IOrientationFilter --
+    bool init(const OrientationFilterConstants &constant) override;
+	bool init(const OrientationFilterConstants &constant, const Eigen::Quaternionf &initial_orientation) override;
+    Eigen::Quaternionf getOrientation(float time = 0.f) const override;
+    Eigen::Vector3f getAngularVelocityRadPerSec() const override;
+    Eigen::Vector3f getAngularAccelerationRadPerSecSqr() const override;
 
-    void setFilterSpace(const OrientationFilterSpace &filterSpace);
-    void setFusionType(FusionType fusionType);
+protected:
+    OrientationFilterConstants m_constants;
+    struct OrientationFilterState *m_state;
+};
 
-    // Error Parameters
-    inline void setGyroscopeError(float gyro_error) 
-    {
-        m_gyroError= gyro_error;
-    }
-    inline void setGyroscopeDrift(float gyro_drift)
-    {
-        m_gyroDrift= gyro_drift;
-    }
+/// Just use the optical orientation passed in unfiltered
+class OrientationFilterPassThru : public OrientationFilter
+{
+public:
+    void update(const float delta_time, const PoseFilterPacket &packet) override;
+};
 
-    void resetOrientation();
-    void resetFilterState();
-    void update(const float delta_time, const OrientationSensorPacket &packet);
+/// Angular Rate and Gravity fusion algorithm from Madgwick
+class OrientationFilterMadgwickARG : public OrientationFilter
+{
+public:
+    void update(const float delta_time, const PoseFilterPacket &packet) override;
+};
 
-private:
-    OrientationFilterSpace m_FilterSpace;
-    struct OrientationSensorFusionState *m_FusionState;
+/// Magnetic, Angular Rate, and Gravity fusion algorithm from Madgwick
+class OrientationFilterMadgwickMARG : public OrientationFilterMadgwickARG
+{
+public:
+    OrientationFilterMadgwickMARG()
+        : OrientationFilterMadgwickARG()
+        , m_omega_bias_x(0.f)
+        , m_omega_bias_y(0.f)
+        , m_omega_bias_z(0.f)
+    {}
 
-    float m_gyroError; // rad/s^2
-    float m_gyroDrift; // rad/s
+    void resetState() override;
+    void update(const float delta_time, const PoseFilterPacket &packet) override;
+
+protected:
+    float m_omega_bias_x;
+    float m_omega_bias_y;
+    float m_omega_bias_z;
+};
+
+/// Angular Rate, Gravity, and Optical fusion algorithm
+/// Blends between AngularRate-Grav Madgwick IMU update and optical orientation
+class OrientationFilterComplementaryOpticalARG : public OrientationFilterMadgwickARG
+{
+public:
+    void update(const float delta_time, const PoseFilterPacket &packet) override;
+};
+
+/// Magnetic, Angular Rate, Gravity and fusion algorithm (hybrid Madgwick)
+/// Blends between best fit Mag-Grav alignment and Angular Rate integration
+class OrientationFilterComplementaryMARG : public OrientationFilter
+{
+public:
+    OrientationFilterComplementaryMARG()
+        : OrientationFilter()
+        , mg_weight(1.f)
+    {}
+
+    void resetState() override;
+    void update(const float delta_time, const PoseFilterPacket &packet) override;
+
+protected:
+    float mg_weight;
 };
 
 #endif // ORIENTATION_FILTER_H

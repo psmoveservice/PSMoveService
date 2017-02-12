@@ -2,13 +2,17 @@
 #include "ControllerManager.h"
 #include "BluetoothQueries.h"
 #include "ControllerDeviceEnumerator.h"
+#include "ControllerGamepadEnumerator.h"
 #include "OrientationFilter.h"
+#include "PSMoveProtocol.pb.h"
 #include "ServerLog.h"
 #include "ServerControllerView.h"
 #include "ServerDeviceView.h"
 #include "ServerNetworkManager.h"
 #include "ServerUtility.h"
+
 #include "hidapi.h"
+#include "gamepad/Gamepad.h"
 
 //-- methods -----
 ControllerManager::ControllerManager()
@@ -42,57 +46,85 @@ ControllerManager::startup()
         }
     }
 
+	if (success && gamepad_api_enabled)
+	{
+		Gamepad_init();
+	}
+
     if (success)
     {
         if (!bluetooth_get_host_address(m_bluetooth_host_address))
-        {
-            m_bluetooth_host_address= "00:00:00:00:00:00";
-        }
-    }
+		{
+			m_bluetooth_host_address = "00:00:00:00:00:00";
+		}
+	}
 
-    return success;
+	return success;
 }
 
 void
 ControllerManager::shutdown()
 {
-    DeviceTypeManager::shutdown();
+	DeviceTypeManager::shutdown();
 
-    // Shutdown HIDAPI
-    hid_exit();
+	// Shutdown HIDAPI
+	hid_exit();
+
+	// Shutdown the gamepad api
+	if (gamepad_api_enabled)
+	{
+		Gamepad_shutdown();
+	}
 }
 
 void
 ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
 {
-    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
-    {
-        ServerControllerViewPtr controllerView = getControllerViewPtr(device_id);
+	for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+	{
+		ServerControllerViewPtr controllerView = getControllerViewPtr(device_id);
 
 		if (controllerView->getIsOpen() && controllerView->getIsBluetooth())
 		{
 			controllerView->updateOpticalPoseEstimation(tracker_manager);
 			controllerView->updateStateAndPredict();
 		}
-    }
+	}
+}
+
+void
+ControllerManager::poll_devices()
+{
+	// Poll all gamepads before updating the individual controllers
+	if (gamepad_api_enabled && can_poll_connected_devices())
+	{
+		Gamepad_processEvents();
+	}
+
+	DeviceTypeManager::poll_devices();
 }
 
 DeviceEnumerator *
 ControllerManager::allocate_device_enumerator()
 {
-    return new ControllerDeviceEnumerator;
+	return new ControllerDeviceEnumerator(ControllerDeviceEnumerator::CommunicationType_ALL);
 }
 
 void
 ControllerManager::free_device_enumerator(DeviceEnumerator *enumerator)
 {
-    delete static_cast<ControllerDeviceEnumerator *>(enumerator);
+	delete static_cast<ControllerDeviceEnumerator *>(enumerator);
 }
 
 ServerDeviceView *
 ControllerManager::allocate_device_view(int device_id)
 {
-    return new ServerControllerView(device_id);
+	return new ServerControllerView(device_id);
+}
+
+int ControllerManager::getListUpdatedResponseType()
+{
+	return PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;
 }
 
 void
@@ -101,30 +133,12 @@ ControllerManager::setControllerRumble(
     float rumble_amount,
     CommonControllerState::RumbleChannel channel)
 {
-    if (ServerUtility::is_index_valid(controller_id, k_max_devices))
+	ServerControllerViewPtr controllerView = getControllerViewPtr(controller_id);
+
+    if (controllerView && controllerView->getIsOpen())
     {
-        getControllerViewPtr(controller_id)->setControllerRumble(rumble_amount, channel);
+        controllerView->setControllerRumble(rumble_amount, channel);
     }
-}
-
-bool
-ControllerManager::resetPose(int controller_id)
-{
-    bool bSuccess = false;
-    ServerControllerViewPtr ControllerPtr = getControllerViewPtr(controller_id);
-
-    if (ControllerPtr)
-    {
-        OrientationFilter *filter = ControllerPtr->getOrientationFilterMutable();
-
-        if (filter != nullptr)
-        {
-            filter->resetOrientation();
-            bSuccess = true;
-        }
-    }
-
-    return bSuccess;
 }
 
 ServerControllerViewPtr
@@ -147,20 +161,20 @@ ControllerManager::allocateTrackingColorID()
 }
 
 void 
-ControllerManager::claimTrackingColorID(eCommonTrackingColorID color_id)
+ControllerManager::claimTrackingColorID(const ServerControllerView *claiming_controller_view, eCommonTrackingColorID color_id)
 {
     bool bColorWasInUse = false;
 
     // If any other controller has this tracking color, make them pick a new color
     for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
     {
-        ServerControllerViewPtr device = getControllerViewPtr(device_id);
+        ServerControllerViewPtr controller_view = getControllerViewPtr(device_id);
 
-        if (device->getIsOpen())
+        if (controller_view->getIsOpen() && controller_view.get() != claiming_controller_view)
         {
-            if (device->getTrackingColorID() == color_id)
+            if (controller_view->getTrackingColorID() == color_id)
             {
-                device->setTrackingColorID(allocateTrackingColorID());
+                controller_view->setTrackingColorID(allocateTrackingColorID());
                 bColorWasInUse = true;
                 break;
             }

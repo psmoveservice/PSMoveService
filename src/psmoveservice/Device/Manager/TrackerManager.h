@@ -7,7 +7,6 @@
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
 #include "PSMoveConfig.h"
-#include "PSMoveProtocol.pb.h"
 
 //-- typedefs -----
 
@@ -43,10 +42,24 @@ public:
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
+	float controller_position_smoothing;
+	bool ignore_pose_from_one_tracker;
     long version;
     int optical_tracking_timeout;
-    CommonDevicePose hmd_tracking_origin_pose;
+	int tracker_sleep_ms;
+	bool use_bgr_to_hsv_lookup_table;
+	bool exclude_opposed_cameras;
+	int min_valid_projection_area;
+	bool disable_roi;
     TrackerProfile default_tracker_profile;
+	float global_forward_degrees;
+
+	CommonDeviceVector get_global_forward_axis() const;
+	CommonDeviceVector get_global_backward_axis() const;
+	CommonDeviceVector get_global_right_axis() const;
+	CommonDeviceVector get_global_left_axis() const;
+	CommonDeviceVector get_global_up_axis() const;
+	CommonDeviceVector get_global_down_axis() const;
 };
 
 class TrackerManager : public DeviceTypeManager
@@ -64,7 +77,7 @@ public:
         return TrackerManager::k_max_devices;
     }
 
-    ServerTrackerViewPtr getTrackerViewPtr(int device_id);
+    ServerTrackerViewPtr getTrackerViewPtr(int device_id) const;
 
     inline void saveDefaultTrackerProfile(const TrackerProfile *profile)
     {
@@ -75,17 +88,6 @@ public:
     inline const TrackerProfile *getDefaultTrackerProfile() const
     {
         return &cfg.default_tracker_profile; 
-    }
-
-    inline void setHmdTrackingOriginPose(const CommonDevicePose &pose)
-    {
-        cfg.hmd_tracking_origin_pose= pose;
-        cfg.save();
-    }
-
-    inline CommonDevicePose getHmdTrackingOriginPose()
-    {
-        return cfg.hmd_tracking_origin_pose;
     }
 
     inline const TrackerManagerConfig& getConfig() const
@@ -100,15 +102,9 @@ protected:
     DeviceEnumerator *allocate_device_enumerator() override;
     void free_device_enumerator(DeviceEnumerator *) override;
     ServerDeviceView *allocate_device_view(int device_id) override;
-
-    const PSMoveProtocol::Response_ResponseType getListUpdatedResponseType() override
-    {
-        return TrackerManager::k_list_udpated_response_type;
-    }
+	int getListUpdatedResponseType() override;
 
 private:
-    static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED;
-
     TrackerManagerConfig cfg;
     bool m_tracker_list_dirty;
 };
