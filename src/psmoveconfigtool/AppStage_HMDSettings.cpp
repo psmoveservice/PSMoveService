@@ -81,7 +81,7 @@ void AppStage_HMDSettings::render()
 
 void AppStage_HMDSettings::renderUI()
 {
-    const char *k_window_title = "Tracker Settings";
+    const char *k_window_title = "HMD Settings";
     const ImGuiWindowFlags window_flags =
         ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize |
@@ -164,9 +164,16 @@ void AppStage_HMDSettings::renderUI()
 
 			if (hmdInfo.HmdType == AppStage_HMDSettings::eHMDType::Morpheus)
 			{
-				if (ImGui::Button("Calibrate LED Model"))
+				if (m_app->getIsLocalServer())
 				{
-					AppStage_HMDModelCalibration::enterStageAndCalibrate(m_app, m_selectedHmdIndex);
+					if (ImGui::Button("Calibrate LED Model"))
+					{
+						AppStage_HMDModelCalibration::enterStageAndCalibrate(m_app, m_selectedHmdIndex);
+					}
+				}
+				else
+				{
+					ImGui::TextDisabled("Calibrate LED Model");
 				}
 			}
 

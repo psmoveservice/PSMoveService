@@ -436,10 +436,17 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
 				ImGui::PushItemWidth(100.f);
 				ImGui::PushID(trackerView->getTrackerId());
-				if (ImGui::Button("Tracker Video"))
+				if (m_app->getIsLocalServer())
 				{
-					m_renderTrackerIter = iter;
-					setState(eMenuState::showTrackerVideo);
+					if (ImGui::Button("Tracker Video"))
+					{
+						m_renderTrackerIter = iter;
+						setState(eMenuState::showTrackerVideo);
+					}
+				}
+				else
+				{
+					ImGui::TextDisabled("Tracker Video");
 				}
 				ImGui::PopID();
 				ImGui::PopItemWidth();

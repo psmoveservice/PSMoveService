@@ -39,6 +39,9 @@ public:
     inline void requestShutdown()
     { m_bShutdownRequested= true; }
 
+	inline bool getIsLocalServer() const
+	{ return m_bIsServerLocal; }
+
     bool reconnectToService();
     void setCameraType(eCameraType cameraType);
     void setAppStage(const char *appStageName);
@@ -63,6 +66,12 @@ public:
         t_app_stage *app_stage= getAppStage<t_app_stage>();
         m_eventToFallbackAppStageMap.insert(t_app_stage_event_map_entry(event_type, app_stage));
     }
+
+public:
+	// Network Settings
+	char m_serverAddress[64];
+	char m_serverPort[32];
+	bool m_bIsServerLocal;	
 
 protected:
     bool init(int argc, char** argv);

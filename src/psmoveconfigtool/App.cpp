@@ -17,6 +17,9 @@ App::App()
     , m_appStage(nullptr)
     , m_bShutdownRequested(false)
 {
+	strncpy(m_serverAddress, PSMOVESERVICE_DEFAULT_ADDRESS, sizeof(m_serverAddress));
+	strncpy(m_serverPort, PSMOVESERVICE_DEFAULT_PORT, sizeof(m_serverPort));
+	m_bIsServerLocal= true;
 }
 
 App::~App()
@@ -80,8 +83,8 @@ bool App::reconnectToService()
 
     bool success= 
         ClientPSMoveAPI::startup(
-            PSMOVESERVICE_DEFAULT_ADDRESS, //###bwalker $TODO put in config 
-            PSMOVESERVICE_DEFAULT_PORT, //###bwalker $TODO put in config 
+            m_serverAddress,
+            m_serverPort, 
             _log_severity_level_info); //###bwalker $TODO put in config 
 
     return success;
