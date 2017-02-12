@@ -129,27 +129,23 @@ bool TrackerDeviceEnumerator::testUSBEnumerator()
 
 	if (is_valid() && is_tracker_supported(m_usb_enumerator, m_deviceTypeFilter, m_deviceType))
 	{
-		char newUSBPath[256];
+		char USBPath[256];
 
 		// Cache the path to the device
-		usb_device_enumerator_get_path(m_usb_enumerator, newUSBPath, sizeof(newUSBPath));
+		usb_device_enumerator_get_path(m_usb_enumerator, USBPath, sizeof(USBPath));
 
-		// Skip the entry if it was the same as the last one
-		if (strncmp(newUSBPath, m_currentUSBPath, sizeof(m_currentUSBPath)) != 0)
+		// Test open the device
+		char errorReason[256];
+		if (usb_device_can_be_opened(m_usb_enumerator, errorReason, sizeof(errorReason)))
 		{
-			// Remember the last unique 
-			strncpy(m_currentUSBPath, newUSBPath, sizeof(m_currentUSBPath));
+			// Remember the last successfully opened tracker path
+			strncpy(m_currentUSBPath, USBPath, sizeof(m_currentUSBPath));
 
-			// Test open the device
-			char errorReason[256];
-			if (usb_device_can_be_opened(m_usb_enumerator, errorReason, sizeof(errorReason)))
-			{
-				foundValid = true;
-			}
-			else
-			{
-				SERVER_LOG_INFO("TrackerDeviceEnumerator") << "Skipping device (" <<  newUSBPath << ") - " << errorReason;
-			}
+			foundValid = true;
+		}
+		else
+		{
+			SERVER_LOG_INFO("TrackerDeviceEnumerator") << "Skipping device (" <<  USBPath << ") - " << errorReason;
 		}
 	}
 
