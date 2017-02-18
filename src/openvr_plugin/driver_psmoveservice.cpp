@@ -1941,7 +1941,7 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
         ssRetVal << "psmoveservice";
         break;
 	case vr::Prop_IconPathName_String:
-        ssRetVal << "icons";
+        ssRetVal << "../drivers/psmove/resources/icons";
 		break;
 	case vr::Prop_NamedIconPathDeviceOff_String:
         ssRetVal << "controller_status_off.png";
@@ -3147,7 +3147,7 @@ uint32_t CPSMoveTrackerLatest::GetStringTrackedDeviceProperty(
         break;
 
 	case vr::Prop_IconPathName_String:
-        ssRetVal << "resources/icons";
+        ssRetVal << "../drivers/psmove/resources/icons";
         break;
 	case vr::Prop_NamedIconPathDeviceOff_String:
         ssRetVal << "base_status_off.png";

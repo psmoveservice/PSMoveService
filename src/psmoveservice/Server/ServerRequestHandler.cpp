@@ -1811,7 +1811,7 @@ protected:
             ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
             if (tracker_view->getIsOpen())
             {
-				const bool bSaveSetting = context.request->request_set_tracker_exposure().save_setting();
+				const bool bSaveSetting = context.request->request_set_tracker_gain().save_setting();
                 const double desired_gain = context.request->request_set_tracker_gain().value();
                 PSMoveProtocol::Response_ResultSetTrackerGain* result_gain =
                     response->mutable_result_set_tracker_gain();
