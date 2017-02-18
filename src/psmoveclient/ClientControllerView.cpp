@@ -50,6 +50,7 @@ void ClientPSMoveView::Clear()
     TriggerButton= PSMoveButton_UP;
 
     TriggerValue= 0;
+	BatteryValue = 0;
 
 	ResetPoseButtonPressTime = 0;
 	bResetPoseRequestSent = false;
@@ -264,6 +265,9 @@ void ClientPSMoveView::ApplyControllerDataFrame(
 
         //###bwalker $TODO make sure this is in the range [0, 255]
         this->TriggerValue= static_cast<unsigned char>(psmove_data_frame.trigger_value());
+
+		// Battery level range [0, 5] - EE charging & EF full
+		this->BatteryValue = static_cast<unsigned char>(psmove_data_frame.battery_value());
 
         this->bValid= true;
 

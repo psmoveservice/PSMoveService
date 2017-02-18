@@ -47,34 +47,38 @@ int main()
 			g = (g + 47) % 255;
 			b = (b + 53) % 255;
 			psmove.setLED(r, g, b);
-
+			int mychar = 0x09;
 			int myw = 4;
-			std::cout << '\r' <<
+			std::cout <</* '\r' <<//*
 				"# " << std::setw(myw) << std::left << psmstate->RawSequence <<
 				" A(1): " <<
 				std::setw(myw) << std::right << psmstate->RawAccel[0][0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawAccel[0][1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawAccel[0][2] <<
+				std::setw(myw) << std::right << psmstate->RawAccel[0][1] << "," <<
+				std::setw(myw) << std::right << psmstate->RawAccel[0][2] <<
 				"; A(2): " <<
-                std::setw(myw) << std::right << psmstate->RawAccel[1][0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawAccel[1][1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawAccel[1][2] <<
+				std::setw(myw) << std::right << psmstate->RawAccel[1][0] << "," <<
+				std::setw(myw) << std::right << psmstate->RawAccel[1][1] << "," <<
+				std::setw(myw) << std::right << psmstate->RawAccel[1][2] <<
 				"; G(1): " <<
-                std::setw(myw) << std::right << psmstate->RawGyro[0][0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawGyro[0][1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawGyro[0][2] <<
+				std::setw(myw) << std::right << psmstate->RawGyro[0][0] << "," <<
+				std::setw(myw) << std::right << psmstate->RawGyro[0][1] << "," <<
+				std::setw(myw) << std::right << psmstate->RawGyro[0][2] <<
 				"; G(2): " <<
-                std::setw(myw) << std::right << psmstate->RawGyro[1][0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawGyro[1][1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawGyro[1][2] <<
+				std::setw(myw) << std::right << psmstate->RawGyro[1][0] << "," <<
+				std::setw(myw) << std::right << psmstate->RawGyro[1][1] << "," <<
+				std::setw(myw) << std::right << psmstate->RawGyro[1][2] <<
 				"; M: " <<
-                std::setw(myw) << std::right << psmstate->RawMag[0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawMag[1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawMag[2] <<
-				std::flush;
+				std::setw(myw) << std::right << psmstate->RawMag[0] << "," <<
+				std::setw(myw) << std::right << psmstate->RawMag[1] << "," <<
+				std::setw(myw) << std::right << psmstate->RawMag[2] <<
+				std::flush
+				<<//*/
+				"\nBatt: " << (psmstate->Battery)
+				<< "; BattVal: " << int(psmstate->BatteryValue)
+				<< "; Trig: " << int(psmstate->TriggerValue);
 
 #ifdef _WIN32
-			_sleep(5); // 5 msec
+			_sleep(50); // 5 msec
 #else
             usleep(5000);
 #endif

@@ -1800,7 +1800,7 @@ bool CPSMoveControllerLatest::GetBoolTrackedDeviceProperty(
         *pError = vr::TrackedProp_Success;
         break;
     case vr::Prop_DeviceProvidesBatteryStatus_Bool:
-        bBoolResult = true;
+		bBoolResult = true;
         *pError = vr::TrackedProp_Success;
         break;
     default:
@@ -1820,12 +1820,50 @@ float CPSMoveControllerLatest::GetFloatTrackedDeviceProperty(
     vr::ETrackedPropertyError * pError)
 {
     float floatResult = 0.f;
+	
+	/*
+	const ClientPSMoveView &clientView = m_PSMControllerView->GetPSMoveView();
+	//bool validclient = clientView.IsValid();
+	/*clientView.SetValid(true);
+	float BatteryLevel = clientView.GetBatteryValue();
+	
+	/*
+	if (intBatteryLevel < 6) {
+		m_fBatteryChargeFraction = intBatteryLevel / 5.f;
+	}
+	else { m_fBatteryChargeFraction = 0; }
+	/
+	//BatteryLevel+1
+	if (BatteryLevel < 6.f) {
+		m_fBatteryChargeFraction = BatteryLevel / 5.f;
+	}
+	else { m_fBatteryChargeFraction = 1.f; }
+	//m_fBatteryChargeFraction = 3c / 5.f;
+	*/
 
     switch (prop)
     {
     case vr::Prop_DeviceBatteryPercentage_Float: // 0 is empty, 1 is full
+		m_fBatteryChargeFraction = m_fBatteryChargeFraction * 0.8f;
+		//if (validclient) { floatResult = 1.f; }
+		//else { floatResult = 0.f; }
+		//const ClientPSMoveView &clientView = m_PSMControllerView->GetPSMoveView();
+		//while (!clientView.IsValid()) { }
+		//floatResult = (m_nPSMControllerId +1) / 10.f;
+		//m_fBatteryChargeFraction = clientView.GetTriggerValue();
         floatResult = m_fBatteryChargeFraction;
         *pError = vr::TrackedProp_Success;
+		/*
+		if (clientView.IsValid()) 
+		{ 
+			floatResult = m_fBatteryChargeFraction;
+			*pError = vr::TrackedProp_Success; 
+		}
+		else 
+		{ 
+			floatResult = 0.f; 
+			*pError = vr::TrackedProp_ValueNotProvidedByDevice; }
+		*/
         break;
     default:
         *pError = vr::TrackedProp_ValueNotProvidedByDevice;
@@ -1835,6 +1873,11 @@ float CPSMoveControllerLatest::GetFloatTrackedDeviceProperty(
     {
         floatResult = CPSMoveTrackedDeviceLatest::GetFloatTrackedDeviceProperty(prop, pError);
     }
+	/*
+	if (!validclient) 
+	{ 
+		floatResult = CPSMoveControllerLatest::GetFloatTrackedDeviceProperty(prop, pError);
+	}*/
 
     return floatResult;
 }
@@ -2247,6 +2290,18 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				// PSMove Trigger handling
 				NewState.rAxis[m_triggerAxisIndex].x = clientView.GetTriggerValue();
 				NewState.rAxis[m_triggerAxisIndex].y = 0.f;
+
+				// PSMove Battery handling
+				/*
+				float BatteryLevel = clientView.GetBatteryValue();
+				if (BatteryLevel < 6.f) 
+				{
+					m_fBatteryChargeFraction = BatteryLevel / 5.f;
+				}
+				else { m_fBatteryChargeFraction = 1.f; }
+				*/
+				//m_fBatteryChargeFraction = m_fBatteryChargeFraction * 0.9f;
+				//m_fBatteryChargeFraction = clientView.GetTriggerValue();
 
 				// Attached PSNavi Trigger handling
 				if (bHasChildNavi)

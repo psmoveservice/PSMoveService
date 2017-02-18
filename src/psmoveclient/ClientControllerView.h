@@ -209,6 +209,7 @@ private:
     PSMoveButtonState TriggerButton;
 
     unsigned char TriggerValue;
+	unsigned char BatteryValue;
 
     unsigned char Rumble;
     unsigned char LED_r, LED_g, LED_b;
@@ -329,6 +330,12 @@ public:
     {
         return IsValid() ? ((float)TriggerValue / 255.f) : 0.f;
     }
+
+	inline float GetBatteryValue() const
+	{
+		//return IsValid() ? ((float)BatteryValue) : 10.f;
+		return ((float)BatteryValue);
+	}
 
     inline float GetRumble() const
     {

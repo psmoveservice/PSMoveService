@@ -397,7 +397,7 @@ protected:
             
             eye = devices[_index];
             
-            if (eye && eye->init(640, 480, 60, ps3eye::PS3EYECam::EOutputFormat::Bayer))
+            if (eye && eye->init(640, 480, 40, ps3eye::PS3EYECam::EOutputFormat::Bayer))
             {
                 // Change any default settings here
                 
