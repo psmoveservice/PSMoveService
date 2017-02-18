@@ -212,7 +212,7 @@ public:
     /// Tracker Methods
     static ClientTrackerView *allocate_tracker_view(const ClientTrackerInfo &trackerInfo);
     static void free_tracker_view(ClientTrackerView *view);
-    static ClientControllerView *get_controller_view(int controller_id);
+    static ClientTrackerView *get_tracker_view(int tracker_id);
 
 	static t_request_id get_tracking_space_settings();
 	static t_request_id get_tracker_list();

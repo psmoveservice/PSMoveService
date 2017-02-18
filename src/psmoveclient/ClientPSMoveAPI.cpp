@@ -368,6 +368,13 @@ public:
         }
     }
 
+    ClientTrackerView* get_tracker_view(int tracker_id)
+    {
+        t_tracker_view_map_iterator view_entry= m_tracker_view_map.find(tracker_id);
+        assert(view_entry != m_tracker_view_map.end());
+        return view_entry->second;
+    }
+
 	ClientPSMoveAPI::t_request_id get_tracking_space_settings()
 	{
 		CLIENT_LOG_INFO("get_tracking_space_settings") << "requesting tracking space settings" << std::endl;
@@ -1035,6 +1042,17 @@ ClientPSMoveAPI::free_tracker_view(ClientTrackerView *view)
         ClientPSMoveAPI::m_implementation_ptr->free_tracker_view(view);
     }
 }
+
+ClientTrackerView * ClientPSMoveAPI::get_tracker_view(int tracker_id)
+{
+    ClientTrackerView * view = nullptr;
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        view = ClientPSMoveAPI::m_implementation_ptr->get_tracker_view(tracker_id);
+    }
+    return view;
+}
+
 
 ClientPSMoveAPI::t_request_id
 ClientPSMoveAPI::get_tracking_space_settings()

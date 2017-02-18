@@ -183,11 +183,6 @@ public:
         return m_shared_memory_accesor;
     }
 
-    inline class SharedVideoFrameReadOnlyAccessor *getSharedMemoryAccessor() const 
-    {
-        return m_shared_memory_accesor;
-    }
-
     // Statistics
     inline float GetDataFrameFPS() const
     {
