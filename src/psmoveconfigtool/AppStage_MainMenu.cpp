@@ -44,8 +44,7 @@ void AppStage_MainMenu::enter()
         }
         else
         {
-            m_menuState= AppStage_MainMenu::pendingConnectToToService;
-            m_app->reconnectToService();
+            m_menuState= AppStage_MainMenu::startConnectionToService;
         }
     }
 }
@@ -110,7 +109,9 @@ void AppStage_MainMenu::renderUI()
             }
             ImGui::End();
         } break;
+	case startConnectionToService:
     case failedConnectionToService:
+	case disconnectedFromService:
         {
             ImGuiWindowFlags window_flags = 
                 ImGuiWindowFlags_ShowBorders |
@@ -119,35 +120,27 @@ void AppStage_MainMenu::renderUI()
                 ImGuiWindowFlags_NoScrollbar |
                 ImGuiWindowFlags_NoCollapse;
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin("Status", nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
-            ImGui::Text("Failed to connect to PSMoveService!");
-            
-            if (ImGui::Button("Retry"))
-            {
-                m_menuState= AppStage_MainMenu::pendingConnectToToService;
-                m_app->reconnectToService();
-            }
+            ImGui::Begin("Connect", nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
 
-            if (ImGui::Button("Exit"))
-            {
-                m_app->requestShutdown();
-            }
-
-            ImGui::End();
-        } break;
-    case disconnectedFromService:
-        {
-            ImGuiWindowFlags window_flags = 
-                ImGuiWindowFlags_ShowBorders |
-                ImGuiWindowFlags_NoResize | 
-                ImGuiWindowFlags_NoMove |
-                ImGuiWindowFlags_NoScrollbar |
-                ImGuiWindowFlags_NoCollapse;
-            ImGui::SetNextWindowPosCenter();
-            ImGui::Begin("Status", nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
-            ImGui::Text("Disconnected from PSMoveService!");
+			if (m_menuState == failedConnectionToService)
+			{
+	            ImGui::Text("Failed to connect to PSMoveService!");
+			}
+			else if (m_menuState == disconnectedFromService)
+			{
+				ImGui::Text("Disconnected from PSMoveService!");
+			}
             
-            if (ImGui::Button("Retry"))
+			ImGui::PushItemWidth(125.f);
+			if (ImGui::InputText("Server Address", m_app->m_serverAddress, sizeof(m_app->m_serverAddress), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank))
+			{
+				m_app->m_bIsServerLocal= (strncmp(m_app->m_serverAddress, PSMOVESERVICE_DEFAULT_ADDRESS, sizeof(m_app->m_serverAddress)) == 0);
+			}
+
+			ImGui::InputText("Server Port", m_app->m_serverPort, sizeof(m_app->m_serverPort), ImGuiInputTextFlags_CharsDecimal);
+			ImGui::PopItemWidth();
+
+            if (ImGui::Button("Connect"))
             {
                 m_menuState= AppStage_MainMenu::pendingConnectToToService;
                 m_app->reconnectToService();

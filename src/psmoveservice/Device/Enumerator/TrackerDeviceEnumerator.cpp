@@ -38,10 +38,8 @@ TrackerDeviceEnumerator::TrackerDeviceEnumerator()
 	m_usb_enumerator = usb_device_enumerator_allocate();
 
 	// If the first USB device handle isn't a tracker, move on to the next device
-	if (is_tracker_supported(m_usb_enumerator, m_deviceTypeFilter, m_deviceType))
+	if (testUSBEnumerator())
 	{
-		// Cache the current usb path
-		usb_device_enumerator_get_path(m_usb_enumerator, m_currentUSBPath, sizeof(m_currentUSBPath));
 		m_cameraIndex= 0;
 	}
 	else
@@ -111,37 +109,44 @@ bool TrackerDeviceEnumerator::next()
 	{
 		usb_device_enumerator_next(m_usb_enumerator);
 
-		if (is_valid() && is_tracker_supported(m_usb_enumerator, m_deviceTypeFilter, m_deviceType))
+		if (testUSBEnumerator())
 		{
-			char newUSBPath[256];
-
-			// Cache the path to the device
-			usb_device_enumerator_get_path(m_usb_enumerator, newUSBPath, sizeof(newUSBPath));
-
-			// Skip the entry if it was the same as the last one
-			if (strncmp(newUSBPath, m_currentUSBPath, sizeof(m_currentUSBPath)) != 0)
-			{
-				// Remember the last unique 
-				strncpy(m_currentUSBPath, newUSBPath, sizeof(m_currentUSBPath));
-
-				// Test open the device
-				char errorReason[256];
-				if (usb_device_can_be_opened(m_usb_enumerator, errorReason, sizeof(errorReason)))
-				{
-					foundValid = true;
-					break;
-				}
-				else
-				{
-					SERVER_LOG_INFO("TrackerDeviceEnumerator") << "Skipping device (" <<  newUSBPath << ") - " << errorReason;
-				}
-			}
+			foundValid= true;
 		}
 	}
 
 	if (foundValid)
 	{
 		++m_cameraIndex;
+	}
+
+	return foundValid;
+}
+
+bool TrackerDeviceEnumerator::testUSBEnumerator()
+{
+	bool foundValid= false;
+
+	if (is_valid() && is_tracker_supported(m_usb_enumerator, m_deviceTypeFilter, m_deviceType))
+	{
+		char USBPath[256];
+
+		// Cache the path to the device
+		usb_device_enumerator_get_path(m_usb_enumerator, USBPath, sizeof(USBPath));
+
+		// Test open the device
+		char errorReason[256];
+		if (usb_device_can_be_opened(m_usb_enumerator, errorReason, sizeof(errorReason)))
+		{
+			// Remember the last successfully opened tracker path
+			strncpy(m_currentUSBPath, USBPath, sizeof(m_currentUSBPath));
+
+			foundValid = true;
+		}
+		else
+		{
+			SERVER_LOG_INFO("TrackerDeviceEnumerator") << "Skipping device (" <<  USBPath << ") - " << errorReason;
+		}
 	}
 
 	return foundValid;

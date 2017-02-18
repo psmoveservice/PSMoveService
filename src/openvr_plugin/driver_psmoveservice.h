@@ -62,6 +62,8 @@ private:
     vr::IServerDriverHost* m_pDriverHost;
     std::string m_strDriverInstallDir;
 	std::string m_strPSMoveHMDSerialNo;
+	std::string m_strPSMoveServiceAddress;
+	std::string m_strServerPort;
 
     bool m_bLaunchedPSMoveMonitor;
 	bool m_bInitialized;

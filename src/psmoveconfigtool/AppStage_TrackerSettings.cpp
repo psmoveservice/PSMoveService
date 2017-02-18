@@ -201,17 +201,23 @@ void AppStage_TrackerSettings::renderUI()
             ImGui::SameLine();
             ImGui::TextWrapped("%s", trackerInfo.device_path);
 
-            //###HipsterSloth $TODO: Localhost only check
-            if (ImGui::Button("Test Tracker Video Feed"))
-            {
-                m_app->setAppStage(AppStage_TestTracker::APP_STAGE_NAME);
-            }
+			if (m_app->getIsLocalServer())
+			{
+				if (ImGui::Button("Test Tracker Video Feed"))
+				{
+					m_app->setAppStage(AppStage_TestTracker::APP_STAGE_NAME);
+				}
 
-            //###HipsterSloth $TODO: Localhost only check
-            if (ImGui::Button("Calibrate Tracker Distortion"))
-            {
-                m_app->setAppStage(AppStage_DistortionCalibration::APP_STAGE_NAME);
-            }
+				if (ImGui::Button("Calibrate Tracker Distortion"))
+				{
+					m_app->setAppStage(AppStage_DistortionCalibration::APP_STAGE_NAME);
+				}
+			}
+			else
+			{
+				ImGui::TextDisabled("Test Tracker Video Feed");
+				ImGui::TextDisabled("Calibrate Tracker Distortion");
+			}
         }
         else
         {
@@ -270,24 +276,33 @@ void AppStage_TrackerSettings::renderUI()
 					}
 				}
 
-				//###HipsterSloth $TODO: Localhost only check
-				if (ImGui::Button("Calibrate Controller Tracking Colors"))
-				{
-					const ControllerInfo *controller = get_selected_controller();
-					if (controller != NULL) {
-						m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_id(controller->ControllerID);
-						m_app->getAppStage<AppStage_ColorCalibration>()->set_override_tracking_color(controller->TrackingColorType);
-					}
-					m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
-				}
-
 				{
 					int controllerID = (m_selectedControllerIndex != -1) ? m_controllerInfos[m_selectedControllerIndex].ControllerID : -1;
 
-					if (ImGui::Button("Compute Tracker Poses"))
+					if (m_app->getIsLocalServer())
 					{
-						AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app, controllerID);
+						if (ImGui::Button("Calibrate Controller Tracking Colors"))
+						{
+							const ControllerInfo *controller = get_selected_controller();
+							if (controller != NULL) {
+								m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_id(controller->ControllerID);
+								m_app->getAppStage<AppStage_ColorCalibration>()->set_override_tracking_color(controller->TrackingColorType);
+							}
+							m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
+						}
+
+						if (ImGui::Button("Compute Tracker Poses"))
+						{
+							AppStage_ComputeTrackerPoses::enterStageAndCalibrate(m_app, controllerID);
+						}
+
 					}
+					else
+					{
+						ImGui::TextDisabled("Calibrate Controller Tracking Colors");
+						ImGui::TextDisabled("Compute Tracker Poses");
+					}
+
 
 					if (ImGui::Button("Test Tracking"))
 					{
@@ -339,17 +354,23 @@ void AppStage_TrackerSettings::renderUI()
 					}
 				}
 
-				//###HipsterSloth $TODO: Localhost only check
-				if (ImGui::Button("Calibrate HMD Tracking Colors"))
+				if (m_app->getIsLocalServer())
 				{
-					const HMDInfo *hmd = get_selected_hmd();
-					if (hmd != NULL) 
+					if (ImGui::Button("Calibrate HMD Tracking Colors"))
 					{
-						m_app->getAppStage<AppStage_ColorCalibration>()->set_override_hmd_id(hmd->HmdID);
-						m_app->getAppStage<AppStage_ColorCalibration>()->set_override_tracking_color(hmd->TrackingColorType);
-					}
+						const HMDInfo *hmd = get_selected_hmd();
+						if (hmd != NULL) 
+						{
+							m_app->getAppStage<AppStage_ColorCalibration>()->set_override_hmd_id(hmd->HmdID);
+							m_app->getAppStage<AppStage_ColorCalibration>()->set_override_tracking_color(hmd->TrackingColorType);
+						}
 
-					m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
+						m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
+					}
+				}
+				else
+				{
+					ImGui::TextDisabled("Calibrate HMD Tracking Colors");
 				}
 			}
         }

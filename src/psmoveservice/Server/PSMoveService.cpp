@@ -32,8 +32,6 @@
 #define DAEMON_LOCK_FILE	"psmoveserviced.lock"
 #endif // defined(BOOST_POSIX_API)
 
-const int PSMOVE_SERVER_PORT = 9512;
-
 //-- definitions -----
 class PSMoveServiceImpl
 {
@@ -44,7 +42,7 @@ public:
         , m_usb_device_manager(_USBApiType_LibUSB)
         , m_device_manager()
         , m_request_handler(&m_device_manager)
-        , m_network_manager(&m_io_service, PSMOVE_SERVER_PORT, &m_request_handler)
+        , m_network_manager(&m_io_service, &m_request_handler)
         , m_status()
     {
         // Register to handle the signals that indicate when the server should exit.

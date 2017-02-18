@@ -285,6 +285,8 @@ CServerDriver_PSMoveService::CServerDriver_PSMoveService()
     : m_bLaunchedPSMoveMonitor(false)
 	, m_bInitialized(false)
 {
+	m_strPSMoveServiceAddress= PSMOVESERVICE_DEFAULT_ADDRESS;
+	m_strServerPort= PSMOVESERVICE_DEFAULT_PORT;
 }
 
 CServerDriver_PSMoveService::~CServerDriver_PSMoveService()
@@ -302,13 +304,52 @@ vr::EVRInitError CServerDriver_PSMoveService::Init(
 {
     vr::EVRInitError initError = vr::VRInitError_None;
 
+	InitDriverLog(pDriverLog);
+	m_pDriverHost = pDriverHost;
+	m_strDriverInstallDir = pchDriverInstallDir;
+
 	DriverLog("CServerDriver_PSMoveService::Init - called.\n");
 
 	if (!m_bInitialized)
 	{
-		InitDriverLog(pDriverLog);
-		m_pDriverHost = pDriverHost;
-		m_strDriverInstallDir = pchDriverInstallDir;
+		vr::IVRSettings *pSettings = pDriverHost->GetSettings(vr::IVRSettings_Version);
+		if (pSettings != NULL) 
+		{
+			char buf[256];
+			vr::EVRSettingsError fetchError;
+
+			pSettings->GetString("psmove_settings", "psmove_filter_hmd_serial", buf, sizeof(buf), &fetchError);
+			if (fetchError == vr::VRSettingsError_None)
+			{
+				m_strPSMoveHMDSerialNo = boost::to_upper_copy<std::string>(buf);
+			}
+
+			pSettings->GetString("psmoveservice", "server_address", buf, sizeof(buf), &fetchError);
+			if (fetchError == vr::VRSettingsError_None)
+			{
+				m_strPSMoveServiceAddress= buf;
+				DriverLog("CServerDriver_PSMoveService::Init - Overridden Server Address: %s.\n", m_strPSMoveServiceAddress.c_str());
+			}
+			else
+			{
+				DriverLog("CServerDriver_PSMoveService::Init - Using Default Server Address: %s.\n", m_strPSMoveServiceAddress.c_str());
+			}
+
+			pSettings->GetString("psmoveservice", "server_port", buf, sizeof(buf), &fetchError);
+			if (fetchError == vr::VRSettingsError_None)
+			{
+				m_strServerPort= buf;
+				DriverLog("CServerDriver_PSMoveService::Init - Overridden Server Port: %s.\n", m_strServerPort.c_str());
+			}
+			else
+			{
+				DriverLog("CServerDriver_PSMoveService::Init - Using Default Server Port: %s.\n", m_strServerPort.c_str());
+			}
+		}
+		else
+		{
+			DriverLog("CServerDriver_PSMoveService::Init - NULL settings!.\n");
+		}
 
 		DriverLog("CServerDriver_PSMoveService::Init - Initializing.\n");
 
@@ -321,15 +362,6 @@ vr::EVRInitError CServerDriver_PSMoveService::Init(
 		if (!ReconnectToPSMoveService())
 		{
 			initError = vr::VRInitError_Driver_Failed;
-		}
-
-		vr::IVRSettings *pSettings = m_pDriverHost->GetSettings(vr::IVRSettings_Version);
-		if (pSettings != NULL) {
-			char buf[256];
-			vr::EVRSettingsError fetchError;
-
-			pSettings->GetString("psmove_settings", "psmove_filter_hmd_serial", buf, sizeof(buf), &fetchError);
-			m_strPSMoveHMDSerialNo = boost::to_upper_copy<std::string>(buf);
 		}
 
 		m_bInitialized = true;
@@ -359,8 +391,8 @@ bool CServerDriver_PSMoveService::ReconnectToPSMoveService()
 
 	DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Starting PSMoveService connection...\n");
     bool bSuccess= ClientPSMoveAPI::startup(
-        PSMOVESERVICE_DEFAULT_ADDRESS, 
-        PSMOVESERVICE_DEFAULT_PORT, 
+        m_strPSMoveServiceAddress, 
+        m_strServerPort, 
         _log_severity_level_warning);
 
 	if (bSuccess)
@@ -1909,7 +1941,7 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
         ssRetVal << "psmoveservice";
         break;
 	case vr::Prop_IconPathName_String:
-        ssRetVal << "icons";
+        ssRetVal << "../drivers/psmove/resources/icons";
 		break;
 	case vr::Prop_NamedIconPathDeviceOff_String:
         ssRetVal << "controller_status_off.png";
@@ -3115,7 +3147,7 @@ uint32_t CPSMoveTrackerLatest::GetStringTrackedDeviceProperty(
         break;
 
 	case vr::Prop_IconPathName_String:
-        ssRetVal << "resources/icons";
+        ssRetVal << "../drivers/psmove/resources/icons";
         break;
 	case vr::Prop_NamedIconPathDeviceOff_String:
         ssRetVal << "base_status_off.png";
