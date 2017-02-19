@@ -36,7 +36,7 @@ if result == 0:
                     g = myController.ControllerState.PSMoveState.CalibratedSensorData.Gyroscope
                     m = myController.ControllerState.PSMoveState.CalibratedSensorData.Magnetometer
                     sens = [a.x, a.y, a.z, g.x, g.y, g.z, m.x, m.y, m.z]
-                    pos = myController.ControllerState.PSMoveState.RawTrackerData.RelativePositions[0]
+                    pos = myController.ControllerState.PSMoveState.RawTrackerData.RelativePositionsCm[0]
                     pos = [pos.x, pos.y, pos.z]
                     data = sens+pos
                     if any([data[ix] != old_data[ix] for ix in range(len(data))]):

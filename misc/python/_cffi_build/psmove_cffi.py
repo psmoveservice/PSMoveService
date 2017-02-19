@@ -58,6 +58,7 @@ def get_cleaned_header():
     #TODO: Read constants from ClientConstants.h and parse them to do the following replacements.
     header_dat = re.sub(r"PSMOVESERVICE_MAX_CONTROLLER_COUNT", r"5", header_dat)
     header_dat = re.sub(r"PSMOVESERVICE_MAX_TRACKER_COUNT", r"4", header_dat)
+    header_dat = re.sub(r"PSMOVESERVICE_MAX_HMD_COUNT", r"1", header_dat)
     return header_dat
 
 libpath = get_libpath()
