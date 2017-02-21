@@ -95,6 +95,11 @@ protected:
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
 
+	void request_tracker_set_frame_rate(double value);
+	static void handle_tracker_set_frame_rate_response(
+		const ClientPSMoveAPI::ResponseMessage *response,
+		void *userdata);
+
     void request_tracker_set_exposure(double value);
     static void handle_tracker_set_exposure_response(
         const ClientPSMoveAPI::ResponseMessage *response,
@@ -151,6 +156,7 @@ private:
     eVideoDisplayMode m_videoDisplayMode;
 
     // Tracker Settings state
+	double m_trackerFramerate;
     double m_trackerExposure;
     double m_trackerGain;
     std::vector<TrackerOption> m_trackerOptions;

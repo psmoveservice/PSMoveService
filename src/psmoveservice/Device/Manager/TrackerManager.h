@@ -16,13 +16,15 @@ typedef std::shared_ptr<ServerTrackerView> ServerTrackerViewPtr;
 //-- definitions -----
 struct TrackerProfile
 {
-    float exposure;
+	float frame_rate;
+	float exposure;
     float gain;
     CommonHSVColorRangeTable color_preset_table;
 
     inline void clear()
     {
-        exposure = 0.f;
+		frame_rate = 0.f;
+		exposure = 0.f;
         gain = 0;
 		color_preset_table.table_name.clear();
         for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
