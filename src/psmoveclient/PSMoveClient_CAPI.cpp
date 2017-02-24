@@ -727,7 +727,7 @@ PSMResult PSM_SetControllerRumble(PSMControllerID controller_id, PSMControllerRu
     return result;
 }
 
-PSMResult PSM_ResetControllerPoseAsync(PSMControllerID controller_id, PSMRequestID *out_request_id)
+PSMResult PSM_ResetControllerOrientationAsync(PSMControllerID controller_id, const PSMQuatf *q_pose, PSMRequestID *out_request_id)
 {
     PSMResult result= PSMResult_Error;
 
@@ -740,7 +740,8 @@ PSMResult PSM_ResetControllerPoseAsync(PSMControllerID controller_id, PSMRequest
             ClientControllerView *view = g_controller_views[controller_id];
             assert(view != nullptr);
 
-            ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::reset_orientation(view, PSMoveQuaternion::identity());
+			PSMoveQuaternion q= PSMoveQuaternion::create(q_pose->w, q_pose->x, q_pose->y, q_pose->z);
+            ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::reset_orientation(view, q);
 
             if (out_request_id != nullptr)
             {

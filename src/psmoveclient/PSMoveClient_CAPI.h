@@ -2,6 +2,7 @@
 #define __PSMOVECLIENT_CAPI_H
 #include "PSMoveClient_export.h"
 #include "ClientConstants.h"
+#include "ClientGeometry_CAPI.h"
 #include <stdbool.h>
 //cut_before
 
@@ -101,39 +102,8 @@ typedef enum _PSMTrackerDriver
     PSMDriver_GENERIC_WEBCAM
 } PSMTrackerDriver;
 
-// Client Geometry
-//----------------
-
-/// A 2D vector with float components.
-typedef struct _PSMVector2f
-{
-    float x, y;
-} PSMVector2f;
-
-/// A 3D vector with float components.
-typedef struct _PSMVector3f
-{
-    float x, y, z;
-} PSMVector3f;
-
-/// A 3D vector with int components.
-typedef struct _PSMVector3i
-{
-    int x, y, z;
-} PSMVector3i;
-
-/// A quaternion rotation.
-typedef struct _PSMQuatf
-{
-    float x, y, z, w;
-} PSMQuatf;
-
-/// Position and orientation together.
-typedef struct _PSMPosef
-{
-    PSMVector3f  Position;
-    PSMQuatf     Orientation;
-} PSMPosef;
+// Controller State
+//------------------
 
 typedef struct _PSMovePhysicsData
 {
@@ -144,36 +114,6 @@ typedef struct _PSMovePhysicsData
     double       TimeInSeconds;
 } PSMPhysicsData;
 
-typedef struct _PSMTrackingProjection
-{
-    enum eShapeType
-    {
-        PSMShape_INVALID_PROJECTION = -1,
-        PSMShape_Ellipse,
-        PSMShape_LightBar,
-		PSMShape_PointCloud
-    }                               shape_type;
-    union{
-        struct {
-            PSMVector2f center;
-            float half_x_extent;
-            float half_y_extent;
-            float angle;
-        } ellipse;
-        struct {
-            PSMVector2f triangle[3];
-			PSMVector2f quad[4];
-        } lightbar;
-		struct {
-			PSMVector2f points[7];
-			int point_count;
-		} pointcloud;
-    }                               shape;
-    
-} PSMTrackingProjection;
-
-// Controller State
-//------------------
 typedef struct _PSMPSMoveRawSensorData
 {
     PSMVector3i Magnetometer;
@@ -610,7 +550,7 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerListAsync(PSMRequestID *out_requ
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartControllerDataStreamAsync(PSMControllerID controller_id, unsigned int data_stream_flags, PSMRequestID *out_request_id);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopControllerDataStreamAsync(PSMControllerID controller_id, PSMRequestID *out_request_id);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDColorAsync(PSMControllerID controller_id, PSMTrackingColorType tracking_color, PSMRequestID *out_request_id);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerPoseAsync(PSMControllerID controller_id, PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerOrientationAsync(PSMControllerID controller_id, const PSMQuatf *q_pose, PSMRequestID *out_request_id);
 
 /// Tracker Pool
 PSM_PUBLIC_FUNCTION(PSMTracker *) PSM_GetTracker(PSMTrackerID tracker_id);
@@ -627,7 +567,7 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackingSpaceSettings(PSMTrackingSpace *ou
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerListAsync(PSMRequestID *out_request_id);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID *out_request_id);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID *out_request_id);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHMDTrackingSpaceSettingsAsync(PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackingSpaceSettingsAsync(PSMRequestID *out_request_id);
 
 /// HMD Pool
 PSM_PUBLIC_FUNCTION(PSMHeadMountedDisplay *) PSM_GetHmd(PSMHmdID hmd_id);
