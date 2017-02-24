@@ -2,10 +2,11 @@
 
 //-- included -----
 #include <openvr_driver.h>
-#include "ClientPSMoveAPI.h"
 #include <string>
 #include <vector>
 #include <chrono>
+
+#include "PSMoveClient_CAPI.h"
 
 //-- pre-declarations -----
 class CPSMoveTrackedDeviceLatest;
@@ -33,29 +34,29 @@ public:
 
     void LaunchPSMoveMonitor();
 
-	void SetHMDTrackingSpace(const PSMovePose &origin_pose);
-    inline PSMovePose GetWorldFromDriverPose() const { return m_worldFromDriverPose; }
+	void SetHMDTrackingSpace(const PSMPosef &origin_pose);
+    inline PSMPosef GetWorldFromDriverPose() const { return m_worldFromDriverPose; }
 
 private:
-    void AllocateUniquePSMoveController(int ControllerID, const ClientPSMoveAPI::t_response_handle response_handle);
-    void AttachPSNaviToParentController(int ControllerID,  const ClientPSMoveAPI::t_response_handle response_handle);
-    void AllocateUniqueDualShock4Controller(int ControllerID, const ClientPSMoveAPI::t_response_handle response_handle);
-    void AllocateUniquePSMoveTracker(const ClientTrackerInfo &trackerInfo);
+    void AllocateUniquePSMoveController(int ControllerID, const PSMResponseHandle response_handle);
+    void AttachPSNaviToParentController(int ControllerID,  const PSMResponseHandle response_handle);
+    void AllocateUniqueDualShock4Controller(int ControllerID, const PSMResponseHandle response_handle);
+    void AllocateUniquePSMoveTracker(const PSMClientTrackerInfo *trackerInfo);
     bool ReconnectToPSMoveService();
 
     // Event Handling
-    void HandleClientPSMoveEvent(const ClientPSMoveAPI::EventMessage *event);
+    void HandleClientPSMoveEvent(const PSMMessage *event);
     void HandleConnectedToPSMoveService();
     void HandleFailedToConnectToPSMoveService();
     void HandleDisconnectedFromPSMoveService();
-	static void HandleServiceVersionResponse(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
+	static void HandleServiceVersionResponse(const PSMResponseMessage *response, void *userdata);
     void HandleControllerListChanged();
     void HandleTrackerListChanged();
 
     // Response Handling
-    void HandleClientPSMoveResponse(const ClientPSMoveAPI::ResponseMessage *response);
-    void HandleControllerListReponse(const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list, const ClientPSMoveAPI::t_response_handle response_handle);
-    void HandleTrackerListReponse(const ClientPSMoveAPI::ResponsePayload_TrackerList *tracker_list);
+    void HandleClientPSMoveResponse(const PSMMessage *message);
+    void HandleControllerListReponse(const PSMControllerList *controller_list, const PSMResponseHandle response_handle);
+    void HandleTrackerListReponse(const PSMTrackerList *tracker_list);
     
     void LaunchPSMoveMonitor( const char * pchDriverInstallDir );
 
@@ -71,7 +72,7 @@ private:
     std::vector< CPSMoveTrackedDeviceLatest * > m_vecTrackedDevices;
 
     // HMD Tracking Space
-    PSMovePose m_worldFromDriverPose;
+    PSMPosef m_worldFromDriverPose;
 };
 
 class CClientDriver_PSMoveService : public vr::IClientTrackedDeviceProvider
@@ -119,7 +120,7 @@ public:
     virtual void RefreshWorldFromDriverPose();
     virtual const char *GetSteamVRIdentifier() const;
 
-	typedef void(*t_hmd_request_callback)(const PSMovePose &hmd_pose_meters, void *userdata);
+	typedef void(*t_hmd_request_callback)(const PSMPosef &hmd_pose_meters, void *userdata);
 	void RequestLatestHMDPose(float maxPoseAgeMilliseconds = 0.f, t_hmd_request_callback callback = nullptr, void *userdata = nullptr);
 
 protected:
@@ -141,7 +142,7 @@ protected:
     unsigned short m_hardware_revision;
 
 	// Cached HMD pose received from the monitor_psmove app
-	PSMovePose m_lastHMDPoseInMeters;
+	PSMPosef m_lastHMDPoseInMeters;
 	std::chrono::time_point<std::chrono::high_resolution_clock> m_lastHMDPoseTime;
 	bool m_bIsLastHMDPoseValid;
 
@@ -152,7 +153,7 @@ protected:
 class CPSMoveControllerLatest : public CPSMoveTrackedDeviceLatest, public vr::IVRControllerComponent
 {
 public:
-	// Mirrors definition in ClientControllerView::eControllerType
+	// Mirrors definition in PSMControllerType
     enum ePSControllerType
     {
         k_EPSControllerType_Move,
@@ -203,7 +204,7 @@ public:
 	};
 
 
-    CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int ControllerID, ClientControllerView::eControllerType controllerType, const char *serialNo );
+    CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int ControllerID, PSMControllerType controllerType, const char *serialNo );
     virtual ~CPSMoveControllerLatest();
 
     // Overridden Implementation of vr::ITrackedDeviceServerDriver
@@ -227,34 +228,34 @@ public:
 
 	// CPSMoveControllerLatest Interface 
     bool HasControllerId(int ControllerID);
-	bool AttachChildPSMController(int ChildControllerId, ClientControllerView::eControllerType controllerType, const std::string &ChildControllerSerialNo);
+	bool AttachChildPSMController(int ChildControllerId, PSMControllerType controllerType, const std::string &ChildControllerSerialNo);
     inline bool HasPSMControllerId(int ControllerID) const { return ControllerID == m_nPSMControllerId; }
-	inline const ClientControllerView * getPSMControllerView() const { return m_PSMControllerView; }
+	inline const PSMController * getPSMControllerView() const { return m_PSMControllerView; }
 	inline std::string getPSMControllerSerialNo() const { return m_strPSMControllerSerialNo; }
-	inline ClientControllerView::eControllerType getPSMControllerType() const { return m_PSMControllerType; }
+	inline PSMControllerType getPSMControllerType() const { return m_PSMControllerType; }
 
 private:
     typedef void ( vr::IServerDriverHost::*ButtonUpdate )( uint32_t unWhichDevice, vr::EVRButtonId eButtonId, double eventTimeOffset );
 
     void SendButtonUpdates( ButtonUpdate ButtonEvent, uint64_t ulMask );
 	void StartRealignHMDTrackingSpace();
-	static void FinishRealignHMDTrackingSpace(const PSMovePose &hmd_pose_meters, void *userdata);
+	static void FinishRealignHMDTrackingSpace(const PSMPosef &hmd_pose_meters, void *userdata);
     void UpdateControllerState();
-	void UpdateControllerStateFromPsMoveButtonState(ePSControllerType controllerType, ePSButtonID buttonId, PSMoveButtonState buttonState, vr::VRControllerState_t* pControllerStateToUpdate);
-	void GetMetersPosInRotSpace(PSMoveFloatVector3* pOutPosition, const PSMoveQuaternion& rRotation );
+	void UpdateControllerStateFromPsMoveButtonState(ePSControllerType controllerType, ePSButtonID buttonId, PSMButtonState buttonState, vr::VRControllerState_t* pControllerStateToUpdate);
+	void GetMetersPosInRotSpace(const PSMQuatf *rotation, PSMVector3f* outPosition);
     void UpdateTrackingState();
     void UpdateRumbleState();	
 
     // Controller State
     int m_nPSMControllerId;
-	ClientControllerView::eControllerType m_PSMControllerType;
-    ClientControllerView *m_PSMControllerView;
+	PSMControllerType m_PSMControllerType;
+    PSMController *m_PSMControllerView;
 	std::string m_strPSMControllerSerialNo;
 
     // Child Controller State
     int m_nPSMChildControllerId;
-	ClientControllerView::eControllerType m_PSMChildControllerType;
-    ClientControllerView *m_PSMChildControllerView;
+	PSMControllerType m_PSMChildControllerType;
+    PSMController *m_PSMChildControllerView;
 	std::string m_strPSMChildControllerSerialNo;
 
 	// Used to report the controllers calibration status
@@ -317,11 +318,11 @@ private:
 
 	// The position of the controller in meters in driver space relative to its own rotation
 	// at the time when the touchpad was most recently pressed (after being up).
-	PSMoveFloatVector3 m_posMetersAtTouchpadPressTime;
+	PSMVector3f m_posMetersAtTouchpadPressTime;
 
 	// The orientation of the controller in driver space at the time when
 	// the touchpad was most recently pressed (after being up).
-	PSMoveQuaternion m_driverSpaceRotationAtTouchpadPressTime;
+	PSMQuatf m_driverSpaceRotationAtTouchpadPressTime;
 
 	// Flag to tell if we should use the controller orientation as part of the controller alignment
 	bool m_bUseControllerOrientationInHMDAlignment;
@@ -336,13 +337,13 @@ private:
 	bool m_bThumbstickTouchAsPress;
 
     // Callbacks
-    static void start_controller_response_callback(const ClientPSMoveAPI::ResponseMessage *response, void *userdata);
+    static void start_controller_response_callback(const PSMResponseMessage *response, void *userdata);
 };
 
 class CPSMoveTrackerLatest : public CPSMoveTrackedDeviceLatest
 {
 public:
-    CPSMoveTrackerLatest(vr::IServerDriverHost * pDriverHost, const ClientTrackerInfo &trackerInfo);
+    CPSMoveTrackerLatest(vr::IServerDriverHost * pDriverHost, const PSMClientTrackerInfo *trackerInfo);
     virtual ~CPSMoveTrackerLatest();
 
     // Overridden Implementation of vr::ITrackedDeviceServerDriver
@@ -357,12 +358,12 @@ public:
     virtual void Update() override;
 
     bool HasTrackerId(int ControllerID);
-    void SetClientTrackerInfo(const ClientTrackerInfo &trackerInfo);
+    void SetClientTrackerInfo(const PSMClientTrackerInfo *trackerInfo);
 
 private:
     // Which tracker
     int m_nTrackerId;
 
     // The static information about this tracker
-    ClientTrackerInfo m_tracker_info;
+    PSMClientTrackerInfo m_tracker_info;
 };
