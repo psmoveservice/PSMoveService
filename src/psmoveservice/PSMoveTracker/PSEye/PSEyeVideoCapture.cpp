@@ -323,7 +323,10 @@ public:
             // [0, 255] [120]
             eye->setExposure((int)round(value));
         case CV_CAP_PROP_FPS:
-            return false; //TODO: Modifying FPS probably requires resetting the camera
+			// [15, 20, 30, 40 50, 60, 75]
+			eye->stop();
+			if (!eye->setFrameRate((int)round(value))) return false;
+			eye->start();
         case CV_CAP_PROP_FRAME_HEIGHT:
             return false; //TODO: Modifying frame size probably requires resetting the camera
         case CV_CAP_PROP_FRAME_WIDTH:
@@ -391,13 +394,13 @@ protected:
     {
         // Enumerate libusb devices
         std::vector<ps3eye::PS3EYECam::PS3EYERef> devices = ps3eye::PS3EYECam::getDevices();
-        std::cout << "ps3eye::PS3EYECam::getDevices() found " << devices.size() << " devices." << std::endl;
+		std::cout << "ps3eye::PS3EYECam::getDevices() found " << devices.size() << " devices." << std::endl;
         
         if (devices.size() > (unsigned int)_index) {
             
             eye = devices[_index];
-            
-            if (eye && eye->init(640, 480, 60, ps3eye::PS3EYECam::EOutputFormat::Bayer))
+
+            if (eye && eye->init(640, 480, 15, ps3eye::PS3EYECam::EOutputFormat::Bayer))
             {
                 // Change any default settings here
                 

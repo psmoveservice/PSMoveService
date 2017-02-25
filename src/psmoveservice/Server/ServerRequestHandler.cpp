@@ -261,6 +261,10 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__get_tracker_settings(context, response);
                 break;
+			case PSMoveProtocol::Request_RequestType_SET_TRACKER_FRAMERATE:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_tracker_frame_rate(context, response);
+				break;
             case PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE:
                 response = new PSMoveProtocol::Response;
                 handle_request__set_tracker_exposure(context, response);
@@ -1720,6 +1724,7 @@ protected:
                     response->mutable_result_tracker_settings();
 				const int device_id = context.request->request_get_tracker_settings().device_id();
 
+				settings->set_frame_rate(static_cast<float>(tracker_view->getFramerate()));
                 settings->set_exposure(static_cast<float>(tracker_view->getExposure()));
                 settings->set_gain(static_cast<float>(tracker_view->getGain()));
                 tracker_view->gatherTrackerOptions(settings);
@@ -1752,6 +1757,52 @@ protected:
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
+
+	void handle_request__set_tracker_frame_rate(const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int tracker_id = context.request->request_set_tracker_frame_rate().tracker_id();
+
+		response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_FRAMERATE_UPDATED);
+
+		if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+		{
+			ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+			if (tracker_view->getIsOpen())
+			{
+				const bool bSaveSetting = context.request->request_set_tracker_frame_rate().save_setting();
+				const float desired_framerate = context.request->request_set_tracker_frame_rate().value();
+				PSMoveProtocol::Response_ResultSetTrackerFramerate* result_frame_rate =
+					response->mutable_result_set_tracker_frame_rate();
+
+				// Set the desired framerate on the tracker
+				tracker_view->setFramerate(desired_framerate, bSaveSetting);
+
+				// Only save the setting if requested
+				if (bSaveSetting)
+				{
+					tracker_view->saveSettings();
+				}
+				else
+				{
+					context.connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override = true;
+				}
+
+				// Return back the actual framerate that got set
+				result_frame_rate->set_new_frame_rate(static_cast<float>(tracker_view->getFramerate()));
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
 
     void handle_request__set_tracker_exposure(const RequestContext &context,
         PSMoveProtocol::Response *response)
@@ -2072,6 +2123,7 @@ protected:
                 TrackerProfile trackerProfile;
 
                 trackerProfile.clear();
+				trackerProfile.frame_rate = static_cast<float>(tracker_view->getFramerate());
                 trackerProfile.exposure= static_cast<float>(tracker_view->getExposure());
                 trackerProfile.gain = static_cast<float>(tracker_view->getGain());
 
@@ -2118,6 +2170,7 @@ protected:
                     m_device_manager.m_tracker_manager->getDefaultTrackerProfile();
     
                 // Apply the profile to the tracker
+				tracker_view->setFramerate(trackerProfile->frame_rate, true);
                 tracker_view->setExposure(trackerProfile->exposure, true);
                 tracker_view->setGain(trackerProfile->gain, true);
                 for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
@@ -2133,6 +2186,7 @@ protected:
                     PSMoveProtocol::Response_ResultTrackerSettings* settings =
                         response->mutable_result_tracker_settings();
 
+					settings->set_frame_rate(static_cast<float>(tracker_view->getFramerate()));
                     settings->set_exposure(static_cast<float>(tracker_view->getExposure()));
                     settings->set_gain(static_cast<float>(tracker_view->getGain()));
                     tracker_view->gatherTrackerOptions(settings);

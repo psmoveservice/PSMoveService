@@ -975,6 +975,16 @@ void ServerTrackerView::saveSettings()
     m_device->saveSettings();
 }
 
+double ServerTrackerView::getFramerate() const
+{
+	return m_device->getFramerate();
+}
+
+void ServerTrackerView::setFramerate(double value, bool bUpdateConfig)
+{
+	m_device->setFramerate(value, bUpdateConfig);
+}
+
 double ServerTrackerView::getExposure() const
 {
     return m_device->getExposure();

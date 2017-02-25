@@ -139,6 +139,7 @@ AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
     , m_menuState(AppStage_ColorCalibration::inactive)
     , m_video_buffer_state(nullptr)
     , m_videoDisplayMode(AppStage_ColorCalibration::eVideoDisplayMode::mode_bgr)
+	, m_trackerFramerate(0)
     , m_trackerExposure(0)
     , m_trackerGain(0)
     , m_trackingColorType(PSMoveTrackingColorType::Magenta)
@@ -345,7 +346,7 @@ void AppStage_ColorCalibration::renderUI()
         // Video Control Panel
         {
             ImGui::SetNextWindowPos(ImVec2(10.f, 10.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 200));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 220));
             ImGui::Begin(k_window_title, nullptr, window_flags);
             
             if (ImGui::Button("Return to Tracker Settings"))
@@ -371,6 +372,36 @@ void AppStage_ColorCalibration::renderUI()
                 }
                 ImGui::SameLine();
                 ImGui::Text("Video Filter Mode: %s", k_video_display_mode_names[m_videoDisplayMode]);
+				
+				int frame_rate_positive_change = 10;
+				int frame_rate_negative_change = -10;
+				
+				double val = m_trackerFramerate;
+
+				if (val == 2) { frame_rate_positive_change = 1; frame_rate_negative_change = 0; }
+				else if (val == 3) { frame_rate_positive_change = 2; frame_rate_negative_change = -1; }
+				else if (val == 5) { frame_rate_positive_change = 3; frame_rate_negative_change = -0; }
+				else if (val == 8) { frame_rate_positive_change = 2; frame_rate_negative_change = -3; }
+				else if (val == 10) { frame_rate_positive_change = 5; frame_rate_negative_change = -2; }
+				else if (val == 15) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
+				else if (val == 20) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
+				else if (val == 25) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
+				else if (val == 30) { { frame_rate_negative_change = -5; } }
+				else if (val == 60) { { frame_rate_positive_change = 15; } }
+				else if (val == 75) { frame_rate_positive_change = 0; frame_rate_negative_change = -15; }
+				else if (val == 83) { frame_rate_positive_change = 0; frame_rate_negative_change = -8; }
+
+				if (ImGui::Button("-##Framerate"))
+				{
+					request_tracker_set_frame_rate(m_trackerFramerate + frame_rate_negative_change);
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("+##Framerate"))
+				{
+					request_tracker_set_frame_rate(m_trackerFramerate + frame_rate_positive_change);
+				}
+				ImGui::SameLine();
+				ImGui::Text("Framerate: %f", m_trackerFramerate);
 
                 if (ImGui::Button("-##Exposure"))
                 {
@@ -452,7 +483,7 @@ void AppStage_ColorCalibration::renderUI()
         // Color Control Panel
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - k_panel_width - 10, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 300));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 200));
             ImGui::Begin("Controller Color", nullptr, window_flags);
 
 			if (m_controllerView != nullptr)
@@ -808,6 +839,43 @@ void AppStage_ColorCalibration::release_video_buffers()
     m_video_buffer_state = nullptr;
 }
 
+void AppStage_ColorCalibration::request_tracker_set_frame_rate(double value)
+{
+	// Tell the psmove service that we want to change frame rate.
+	RequestPtr request(new PSMoveProtocol::Request());
+	request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_FRAMERATE);
+	request->mutable_request_set_tracker_frame_rate()->set_tracker_id(m_trackerView->getTrackerId());
+	request->mutable_request_set_tracker_frame_rate()->set_value(static_cast<float>(value));
+	request->mutable_request_set_tracker_frame_rate()->set_save_setting(true);
+
+	ClientPSMoveAPI::register_callback(
+		ClientPSMoveAPI::send_opaque_request(&request),
+		AppStage_ColorCalibration::handle_tracker_set_frame_rate_response, this);
+}
+
+void AppStage_ColorCalibration::handle_tracker_set_frame_rate_response(
+	const ClientPSMoveAPI::ResponseMessage *response,
+	void *userdata)
+{
+	ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response->result_code;
+	ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
+	AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
+
+	switch (ResultCode)
+	{
+	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+	{
+		const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+		thisPtr->m_trackerFramerate = response->result_set_tracker_frame_rate().new_frame_rate();
+	} break;
+	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
+	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+	{
+		CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker frame rate!";
+	} break;
+	}
+}
+
 void AppStage_ColorCalibration::request_tracker_set_exposure(double value)
 {
     // Tell the psmove service that we want to change exposure.
@@ -1042,6 +1110,7 @@ void AppStage_ColorCalibration::handle_tracker_get_settings_response(
     case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
         {
             const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+			thisPtr->m_trackerFramerate = response->result_tracker_settings().frame_rate();
             thisPtr->m_trackerExposure = response->result_tracker_settings().exposure();
             thisPtr->m_trackerGain = response->result_tracker_settings().gain();
 

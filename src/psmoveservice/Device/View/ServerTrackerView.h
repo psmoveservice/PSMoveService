@@ -48,6 +48,9 @@ public:
     void loadSettings();
     void saveSettings();
 
+	double getFramerate() const;
+	void setFramerate(double value, bool bUpdateConfig);
+
     double getExposure() const;
     void setExposure(double value, bool bUpdateConfig);
 
