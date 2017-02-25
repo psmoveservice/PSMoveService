@@ -274,6 +274,7 @@ list(APPEND TEST_PSMOVE_SRC
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.h
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/USB/NullUSBApi.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBApi.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBBulkTransferBundle.cpp        
     ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
@@ -388,6 +389,7 @@ list(APPEND TEST_NAVI_SRC
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.h
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/USB/NullUSBApi.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBApi.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBBulkTransferBundle.cpp
     ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h
@@ -538,6 +540,7 @@ list(APPEND TEST_DS4_CTRLR_SRC
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.h
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/USB/NullUSBApi.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBApi.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/USB/LibUSBBulkTransferBundle.cpp
     ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueries.h

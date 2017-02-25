@@ -39,7 +39,7 @@ public:
     PSMoveServiceImpl()
         : m_io_service()
         , m_signals(m_io_service)
-        , m_usb_device_manager(_USBApiType_LibUSB)
+        , m_usb_device_manager()
         , m_device_manager()
         , m_request_handler(&m_device_manager)
         , m_network_manager(&m_io_service, &m_request_handler)
