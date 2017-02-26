@@ -316,17 +316,21 @@ public:
         case CV_CAP_PROP_BRIGHTNESS:
             // [0, 255] [20]
             eye->setBrightness((int)round(value));
+			break;
         case CV_CAP_PROP_CONTRAST:
             // [0, 255] [37]
             eye->setContrast((int)round(value));
+			break;
         case CV_CAP_PROP_EXPOSURE:
             // [0, 255] [120]
             eye->setExposure((int)round(value));
+			break;
         case CV_CAP_PROP_FPS:
 			// [15, 20, 30, 40 50, 60, 75]
 			eye->stop();
 			if (!eye->setFrameRate((int)round(value))) return false;
 			eye->start();
+			break;
         case CV_CAP_PROP_FRAME_HEIGHT:
             return false; //TODO: Modifying frame size probably requires resetting the camera
         case CV_CAP_PROP_FRAME_WIDTH:
@@ -335,9 +339,11 @@ public:
             // [0, 255] -> [0, 63] [20]
             val = (int)(value * 64.0 / 256.0);
             eye->setGain(val);
+			break;
         case CV_CAP_PROP_HUE:
             // [0, 255] [143]
             eye->setHue((int)round(value));
+			break;
         case CV_CAP_PROP_SHARPNESS:
             // [0, 255] -> [0, 63] [0]
             val = (int)(value * 64.0 / 256.0);
