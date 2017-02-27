@@ -19,7 +19,8 @@ enum eUSBResultCode
 	_USBResultCode_TransferAlreadyStarted,
 	_USBResultCode_Overflow,
 	_USBResultCode_Pipe,
-	_USBResultCode_TimedOut
+	_USBResultCode_TimedOut,
+	_USBResultCode_InvalidAPI
 };
 
 //-- typedefs -----

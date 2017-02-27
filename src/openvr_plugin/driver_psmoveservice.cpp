@@ -1944,28 +1944,28 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
         ssRetVal << "../drivers/psmove/resources/icons";
 		break;
 	case vr::Prop_NamedIconPathDeviceOff_String:
-        ssRetVal << "controller_status_off.png";
+        ssRetVal << "{psmove}controller_status_off.png";
         break;
 	case vr::Prop_NamedIconPathDeviceSearching_String:
-        ssRetVal << "controller_status_ready.png";
+        ssRetVal << "{psmove}controller_status_ready.png";
         break;
 	case vr::Prop_NamedIconPathDeviceSearchingAlert_String:
-        ssRetVal << "controller_status_ready_alert.png";
+        ssRetVal << "{psmove}controller_status_ready_alert.png";
         break;
 	case vr::Prop_NamedIconPathDeviceReady_String:
-        ssRetVal << "controller_status_ready.png";
+        ssRetVal << "{psmove}controller_status_ready.png";
         break;
 	case vr::Prop_NamedIconPathDeviceReadyAlert_String:
-        ssRetVal << "controller_status_ready_alert.png";
+        ssRetVal << "{psmove}controller_status_ready_alert.png";
         break;
 	case vr::Prop_NamedIconPathDeviceNotReady_String:
-        ssRetVal << "controller_status_error.png";
+        ssRetVal << "{psmove}controller_status_error.png";
         break;
 	case vr::Prop_NamedIconPathDeviceStandby_String:
-        ssRetVal << "controller_status_ready.png";
+        ssRetVal << "{psmove}controller_status_ready.png";
         break;
 	case vr::Prop_NamedIconPathDeviceAlertLow_String:
-        ssRetVal << "controller_status_ready_low.png";
+        ssRetVal << "{psmove}controller_status_ready_low.png";
         break;
     }
 
@@ -3150,28 +3150,28 @@ uint32_t CPSMoveTrackerLatest::GetStringTrackedDeviceProperty(
         ssRetVal << "../drivers/psmove/resources/icons";
         break;
 	case vr::Prop_NamedIconPathDeviceOff_String:
-        ssRetVal << "base_status_off.png";
+        ssRetVal << "{psmove}base_status_off.png";
         break;
 	case vr::Prop_NamedIconPathDeviceSearching_String:
-        ssRetVal << "base_status_ready.png";
+        ssRetVal << "{psmove}base_status_ready.png";
         break;
 	case vr::Prop_NamedIconPathDeviceSearchingAlert_String:
-        ssRetVal << "base_status_ready_alert.png";
+        ssRetVal << "{psmove}base_status_ready_alert.png";
         break;
 	case vr::Prop_NamedIconPathDeviceReady_String:
-        ssRetVal << "base_status_ready.png";
+        ssRetVal << "{psmove}base_status_ready.png";
         break;
 	case vr::Prop_NamedIconPathDeviceReadyAlert_String:
-        ssRetVal << "base_status_ready_alert.png";
+        ssRetVal << "{psmove}base_status_ready_alert.png";
         break;
 	case vr::Prop_NamedIconPathDeviceNotReady_String:
-        ssRetVal << "base_status_error.png";
+        ssRetVal << "{psmove}base_status_error.png";
         break;
 	case vr::Prop_NamedIconPathDeviceStandby_String:
-        ssRetVal << "base_status_ready.png";
+        ssRetVal << "{psmove}base_status_ready.png";
         break;
 	case vr::Prop_NamedIconPathDeviceAlertLow_String:
-        ssRetVal << "base_status_ready_low.png";
+        ssRetVal << "{psmove}base_status_ready_low.png";
         break;
     }
 

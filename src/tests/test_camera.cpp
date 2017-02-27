@@ -3,14 +3,20 @@
 #include "opencv2/opencv.hpp"
 #include <algorithm>
 #include <vector>
+#include <chrono>
 
-const std::vector<int> known_keys = {113, 97, 119, 115, 101, 100, 114, 102, 116, 103};
-// q, a, w, s, e, d, r, f, t, g
+const std::vector<int> known_keys = {113, 97, 119, 115, 101, 100, 114, 102, 116, 103, 121, 104};
+// q, a, w, s, e, d, r, f, t, g, y, h
+
+const std::vector<int> known_keys_check = { 32, 122, 120, 99, 118, 98, 110 };
+// SPACEBAR, z, x, c, v, b, n
 
 struct camera_state
 {
     PSEyeVideoCapture *camera;
     std::string identifier;
+	std::chrono::high_resolution_clock::time_point last_ticks;
+	int last_frames;
 };
 
 int main(int, char**)
@@ -18,15 +24,17 @@ int main(int, char**)
     std::vector<camera_state> camera_states;
 
     // Open all available cameras (up to 4 max)
-    for (int camera_index = 0; camera_index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++camera_index)
-    {
+	for (int camera_index = 0; camera_index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++camera_index)
+	{
         PSEyeVideoCapture *camera = new PSEyeVideoCapture(camera_index); // open the default camera
 
         if (camera->isOpened())
         {
             std::string identifier = camera->getUniqueIndentifier();
+			auto last_ticks = std::chrono::high_resolution_clock::now();
+			int last_frames = 0;
 
-            camera_states.push_back({ camera, identifier });
+            camera_states.push_back({ camera, identifier, last_ticks, last_frames });
         }
         else
         {
@@ -57,6 +65,7 @@ int main(int, char**)
                 if (!frame.empty())
                 {
                     imshow(state.identifier.c_str(), frame);
+					state.last_frames++;
                 }
             }
         );
@@ -118,6 +127,15 @@ int main(int, char**)
                 val_diff = (wk == 116) ? 1 : -1;
             }
 
+			// y/h for +/- frame rate
+			// For CL_Eye, don't know
+			if ((wk == 121) || (wk == 104))
+			{
+				cap_prop = CV_CAP_PROP_FPS;
+				prop_str = "CV_CAP_PROP_FPS";
+				val_diff = (wk == 121) ? 10 : -10;
+			}
+
             std::for_each(
                 camera_states.begin(), 
                 camera_states.end(),
@@ -126,7 +144,24 @@ int main(int, char**)
                     double val = state.camera->get(cap_prop);
                     std::cout << state.identifier << ": Value of " << prop_str << " was " << val << std::endl;
 
-                    val += val_diff;
+					switch (cap_prop)
+					{
+					case CV_CAP_PROP_FPS:
+						if (val == 2) { if (val_diff > 0) val_diff = 1; else val_diff = 0; }
+						else if (val == 3) { if (val_diff > 0) val_diff = 2; else val_diff = -1; }
+						else if (val == 5) { if (val_diff > 0) val_diff = 3; else val_diff = -2; }
+						else if (val == 8) { if (val_diff > 0) val_diff = 2; else val_diff = -3; }
+						else if (val == 10) { if (val_diff > 0) val_diff = 5; else val_diff = -2; }
+						else if (val == 15) { if (val_diff > 0) val_diff = 5; else val_diff = -5; }
+						else if (val == 20) { if (val_diff > 0) val_diff = 5; else val_diff = -5; }
+						else if (val == 25) { if (val_diff > 0) val_diff = 5; else val_diff = -5; }
+						else if (val == 30) { if (val_diff < 0) { val_diff = -5; } }
+						else if (val == 60) { if (val_diff > 0) { val_diff = 15; } }
+						else if (val == 75) { if (val_diff > 0) val_diff = 8; else val_diff = -15; }
+						else if (val == 83) { if (val_diff < 0) val_diff = -8; }
+					}
+
+					val += val_diff;
                     state.camera->set(cap_prop, val);
 
                     val = state.camera->get(cap_prop);
@@ -134,6 +169,81 @@ int main(int, char**)
                 }
             );
         }
+		else if (std::find(known_keys_check.begin(), known_keys_check.end(), wk) != known_keys_check.end())
+		{
+			int cap_prop = CV_CAP_PROP_FPS;
+			std::string prop_str("CV_CAP_PROP_FPS");
+
+			// SPACEBAR to check frame rate
+			if ((wk == 32))
+			{
+				cap_prop = CV_CAP_PROP_FPS;
+				prop_str = "CV_CAP_PROP_FPS";
+			}
+
+			// Z to check exposure
+			if ((wk == 122))
+			{
+				cap_prop = CV_CAP_PROP_EXPOSURE;
+				prop_str = "CV_CAP_PROP_EXPOSURE";
+			}
+
+			// X to check contrast
+			if ((wk == 120))
+			{
+				cap_prop = CV_CAP_PROP_CONTRAST;
+				prop_str = "CV_CAP_PROP_CONTRAST";
+			}
+
+			// C to check gain
+			if ((wk == 99))
+			{
+				cap_prop = CV_CAP_PROP_GAIN;
+				prop_str = "CV_CAP_PROP_GAIN";
+			}
+
+			// V to check hue
+			if ((wk == 118))
+			{
+				cap_prop = CV_CAP_PROP_HUE;
+				prop_str = "CV_CAP_PROP_HUE";
+			}
+
+			// B to check sharpness
+			if ((wk == 98))
+			{
+				cap_prop = CV_CAP_PROP_SHARPNESS;
+				prop_str = "CV_CAP_PROP_SHARPNESS";
+			}
+
+			// N to check frame rate
+			if ((wk == 110))
+			{
+				cap_prop = CV_CAP_PROP_FPS;
+				prop_str = "CV_CAP_PROP_FPS";
+			}
+
+			std::for_each(
+				camera_states.begin(),
+				camera_states.end(),
+				[&camera_states, &cap_prop, &prop_str, &wk](camera_state &state) {
+				
+				double val = state.camera->get(cap_prop);
+				auto now_ticks = std::chrono::high_resolution_clock::now();
+				switch (wk)
+				{
+				case 32:
+					std::cout << state.identifier << ": Fame rate is set to " << val << " and was actually " 
+						<< (1000 * state.last_frames / (float(std::chrono::duration<double, std::milli>(now_ticks - state.last_ticks).count()))) << " fps" << std::endl;
+					state.last_ticks = now_ticks;
+					state.last_frames = 0;
+					break;
+				default:
+					std::cout << state.identifier << ": Value of " << prop_str << " is " << val << std::endl;
+				}
+			}
+			);
+		}
         else if (wk > 0)
         {
             std::cout << "Unknown key has code " << wk << std::endl;

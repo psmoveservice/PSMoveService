@@ -27,7 +27,7 @@ int main()
     }
 
 	// Manages all control and bulk transfer requests in another thread
-	USBDeviceManager usb_device_manager(_USBApiType_LibUSB);
+	USBDeviceManager usb_device_manager;
 	if (!usb_device_manager.startup())
 	{
 		printf("Failed to initialize usb device manager\n");

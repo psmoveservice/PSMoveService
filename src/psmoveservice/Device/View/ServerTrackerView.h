@@ -25,7 +25,7 @@ public:
 
     // Starts or stops streaming of the video feed to the shared memory buffer.
     // Keep a ref count of how many clients are following the stream.
-    void startSharedMemoryVideoStream();
+    void startSharedMemoryVideoStream(bool include_debug_rendering);
     void stopSharedMemoryVideoStream();
 
     // Fetch the next video frame and copy to shared memory
@@ -47,6 +47,9 @@ public:
     
     void loadSettings();
     void saveSettings();
+
+	double getFramerate() const;
+	void setFramerate(double value, bool bUpdateConfig);
 
     double getExposure() const;
     void setExposure(double value, bool bUpdateConfig);
@@ -129,6 +132,8 @@ public:
 	void setHMDTrackingColorPreset(const class ServerHMDView *controller, eCommonTrackingColorID color, const CommonHSVColorRange *preset);
 	void getHMDTrackingColorPreset(const class ServerHMDView *controller, eCommonTrackingColorID color, CommonHSVColorRange *out_preset) const;
 
+	inline bool getIsDebugRenderingEnabled() const { return m_include_debug_rendering_count > 0; }
+
 protected:
     bool allocate_device_interface(const class DeviceEnumerator *enumerator) override;
     void free_device_interface() override;
@@ -141,6 +146,7 @@ private:
     char m_shared_memory_name[256];
     class SharedVideoFrameReadWriteAccessor *m_shared_memory_accesor;
     int m_shared_memory_video_stream_count;
+	int m_include_debug_rendering_count;
     class OpenCVBufferState *m_opencv_buffer_state;
     ITrackerInterface *m_device;
 };
