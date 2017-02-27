@@ -30,7 +30,7 @@ public:
 	{ m_overrideHmdId = hmd_id; }
 
 	inline void set_override_tracking_color(PSMoveTrackingColorType tracking_color) {
-		m_trackingColorType = tracking_color;
+		m_masterTrackingColorType = tracking_color;
 	}
 
 protected:
@@ -78,7 +78,7 @@ protected:
 
     void setState(eMenuState newState);
 
-    void request_start_controller_stream();
+    void request_start_controller_streams();
     static void handle_start_controller_response(
         const ClientPSMoveAPI::ResponseMessage *response_message,
         void *userdata);
@@ -88,7 +88,7 @@ protected:
 		const ClientPSMoveAPI::ResponseMessage *response_message,
 		void *userdata);
 
-    void request_set_controller_tracking_color(PSMoveTrackingColorType tracking_color);
+    void request_set_controller_tracking_color(class ClientControllerView *controllerView, PSMoveTrackingColorType tracking_color);
 
     void request_tracker_start_stream();
     static void handle_tracker_start_stream_response(
@@ -134,15 +134,20 @@ protected:
     void release_devices();
     void request_exit_to_app_stage(const char *app_stage_name);
 
+	void request_turn_on_all_tracking_bulbs(bool bEnabled);
+
     inline TrackerColorPreset getColorPreset()
-    { return m_colorPresets[m_trackingColorType]; }
+    { return m_colorPresets[m_masterTrackingColorType]; }
 
 private:
     // ClientPSMoveAPI state
 	int m_overrideControllerId;	
-    class ClientControllerView *m_controllerView;
-    bool m_isControllerStreamActive;
-    int m_lastControllerSeqNum;
+    class ClientControllerView *m_masterControllerView;
+	std::vector<class ClientControllerView *> m_controllerViews;
+	std::vector<PSMoveTrackingColorType> m_controllerTrackingColorTypes;
+	int m_pendingControllerStartCount;
+    bool m_areAllControllerStreamsActive;
+    int m_lastMasterControllerSeqNum;
 	int m_overrideHmdId;
 	class ClientHMDView *m_hmdView;
 	bool m_isHmdStreamActive;
@@ -163,7 +168,8 @@ private:
     TrackerColorPreset m_colorPresets[PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES];
 
     // Color Settings
-    PSMoveTrackingColorType m_trackingColorType;
+	bool m_bTurnOnAllControllers;
+    PSMoveTrackingColorType m_masterTrackingColorType;
 };
 
 #endif // APP_STAGE_COLOR_CALIBRATION_H

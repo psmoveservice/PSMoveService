@@ -33,6 +33,13 @@ public:
             : nullptr;
     }
 
+	inline int get_controller_count() const { return m_controllerInfos.size(); }	
+	inline const ControllerInfo * get_controller_info(int index) const { return &m_controllerInfos[index]; }
+	const ControllerInfo *get_selected_controller();
+
+	const HMDInfo *get_selected_hmd();
+
+
     virtual void enter() override;
     virtual void exit() override;
     virtual void update() override;
@@ -66,9 +73,6 @@ protected:
     static void handle_search_for_new_trackers_response(
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
-
-	const ControllerInfo *get_selected_controller();
-	const HMDInfo *get_selected_hmd();
 
 protected:
     enum eTrackerMenuState
