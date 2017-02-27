@@ -439,7 +439,7 @@ protected:
             }
 
             // Cleanup any requests that no longer have any pending cancellations
-            cleanupCanceledRequests();
+            cleanupCanceledRequests(false);
         }
 
         return bHadRequests;
@@ -472,13 +472,23 @@ protected:
         }
 
         // Wait for the canceled bulk transfers and control transfers to exit
-        while (m_canceled_bulk_transfer_bundles.size() > 0 || m_active_control_transfers > 0 || m_active_interrupt_transfers > 0)
+		const int k_max_cleanup_poll_attempts= 100;
+		int cleanup_attempts= 0;
+        while ((m_canceled_bulk_transfer_bundles.size() > 0 || m_active_control_transfers > 0 || m_active_interrupt_transfers > 0) &&
+				cleanup_attempts < k_max_cleanup_poll_attempts)
         {
 			m_usb_api->poll();
 
             // Cleanup any requests that no longer have any pending cancellations
-            cleanupCanceledRequests();
+            cleanupCanceledRequests(false);
+
+			++cleanup_attempts;
         }
+
+		if (m_canceled_bulk_transfer_bundles.size() > 0)
+		{
+			cleanupCanceledRequests(true);
+		}
     }
 
     void workerThreadFunc()
@@ -499,14 +509,13 @@ protected:
         }
     }
 
-    void cleanupCanceledRequests()
+    void cleanupCanceledRequests(bool bForceCleanup)
     {
         for (auto it = m_canceled_bulk_transfer_bundles.begin(); it != m_canceled_bulk_transfer_bundles.end(); ++it)
         {
             IUSBBulkTransferBundle *bundle = *it;
 
-            //###HipsterSloth $TODO Timeout the cancellation?
-            if (bundle->getActiveTransferCount() == 0)
+            if (bundle->getActiveTransferCount() == 0 || bForceCleanup)
             {
                 m_canceled_bulk_transfer_bundles.erase(it);
                 delete bundle;
