@@ -786,7 +786,7 @@ void AppStage_ColorCalibration::request_tracker_start_stream()
 
         // Tell the psmove service that we want to start streaming data from the tracker
         ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::start_tracker_data_stream(m_trackerView),
+            ClientPSMoveAPI::start_tracker_data_stream(m_trackerView, ClientPSMoveAPI::defaultTrackerOptions),
             AppStage_ColorCalibration::handle_tracker_start_stream_response, this);
     }
 }

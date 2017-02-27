@@ -391,13 +391,19 @@ public:
         return request->request_id();
     }
 
-    ClientPSMoveAPI::t_request_id start_tracker_data_stream(ClientTrackerView *view)
+    ClientPSMoveAPI::t_request_id start_tracker_data_stream(ClientTrackerView *view, unsigned int flags)
     {
         CLIENT_LOG_INFO("start_tracker_data_stream") << "requesting tracker stream start for TrackerID: " << view->getTrackerId() << std::endl;
 
         // Tell the psmove service that we are acquiring this tracker
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_START_TRACKER_DATA_STREAM);
+
+        if ((flags & ClientPSMoveAPI::includeDebugRendering) > 0)
+        {
+            request->mutable_request_start_tracker_data_stream()->set_include_debug_rendering(true);
+        }
+
         request->mutable_request_start_tracker_data_stream()->set_tracker_id(view->getTrackerId());
 
         m_request_manager.send_request(request);
@@ -1061,13 +1067,13 @@ ClientPSMoveAPI::get_tracker_list()
 }
 
 ClientPSMoveAPI::t_request_id 
-ClientPSMoveAPI::start_tracker_data_stream(ClientTrackerView *view)
+ClientPSMoveAPI::start_tracker_data_stream(ClientTrackerView *view, unsigned int tracker_stream_options)
 {
     ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
 
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
-        request_id = ClientPSMoveAPI::m_implementation_ptr->start_tracker_data_stream(view);
+        request_id = ClientPSMoveAPI::m_implementation_ptr->start_tracker_data_stream(view, tracker_stream_options);
     }
 
     return request_id;
