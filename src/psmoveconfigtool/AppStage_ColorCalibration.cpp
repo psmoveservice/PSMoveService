@@ -21,6 +21,8 @@
 
 #include <imgui.h>
 #include <algorithm>
+#include <chrono>
+#include <thread>
 
 #ifdef _MSC_VER
 #pragma warning (disable: 4996) // 'This function or variable may be unsafe': snprintf
@@ -525,7 +527,7 @@ void AppStage_ColorCalibration::renderUI()
 				setState(eMenuState::blank1);
 				request_set_controller_tracking_color(m_masterControllerView, PSMoveTrackingColorType::Magenta);
 				m_masterTrackingColorType = PSMoveTrackingColorType::Magenta;
-				Sleep(auto_calib_sleep);
+				std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
 			}
 			else if (m_bAutoChangeController) {
 				setState(eMenuState::changeController);
@@ -731,20 +733,20 @@ void AppStage_ColorCalibration::renderUI()
 
 		m_masterTrackingColorType = new_color;
 
-		Sleep(auto_calib_sleep);
+		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
 	} break;
 
 	case eMenuState::blank1:
 		setState(eMenuState::blank3);
-		Sleep(auto_calib_sleep);
+		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
 		break;
 	case eMenuState::blank2:
 		setState(eMenuState::blank2);
-		Sleep(auto_calib_sleep);
+		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
 		break;
 	case eMenuState::blank3:
 		setState(eMenuState::autoConfig);
-		Sleep(auto_calib_sleep);
+		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
 		break;
 	case eMenuState::changeController:
 	{
