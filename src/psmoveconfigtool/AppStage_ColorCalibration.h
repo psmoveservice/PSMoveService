@@ -32,6 +32,12 @@ public:
 	inline void set_override_tracking_color(PSMoveTrackingColorType tracking_color) {
 		m_masterTrackingColorType = tracking_color;
 	}
+	
+	inline void set_autoConfig(bool colour, bool controller, bool tracker) {
+		m_bAutoChangeColor = colour;
+		m_bAutoChangeController = controller;
+		m_bAutoChangeTracker = tracker;
+	}
 
 protected:
     enum eMenuState
@@ -39,6 +45,12 @@ protected:
         inactive,
         waitingForStreamStartResponse,
         manualConfig,
+		autoConfig,
+		blank1,
+		blank2,
+		blank3,
+		changeController,
+		changeTracker,
 
         pendingControllerStartRequest,
         failedControllerStartRequest,
@@ -136,6 +148,9 @@ protected:
 
 	void request_turn_on_all_tracking_bulbs(bool bEnabled);
 
+	void request_change_controller(int step);
+	void request_change_tracker(int step);
+
     inline TrackerColorPreset getColorPreset()
     { return m_colorPresets[m_masterTrackingColorType]; }
 
@@ -166,10 +181,17 @@ private:
     double m_trackerGain;
     std::vector<TrackerOption> m_trackerOptions;
     TrackerColorPreset m_colorPresets[PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES];
+	int tracker_count;
+	int tracker_index;
 
     // Color Settings
 	bool m_bTurnOnAllControllers;
     PSMoveTrackingColorType m_masterTrackingColorType;
+
+	// Auto Calibration options
+	bool m_bAutoChangeController;
+	bool m_bAutoChangeColor;
+	bool m_bAutoChangeTracker;
 };
 
 #endif // APP_STAGE_COLOR_CALIBRATION_H
