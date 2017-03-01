@@ -47,7 +47,7 @@ message Ellipse
     Pixel center = 1;
     float half_x_extent = 2;
     float half_y_extent = 3;
-    float angle = 4;    
+    float angle = 4;
 }
 
 message Polygon
@@ -149,8 +149,10 @@ message Request {
         SET_HMD_ACCELEROMETER_CALIBRATION= 36;
         SET_HMD_GYROSCOPE_CALIBRATION= 37;
         SET_HMD_PREDICTION_TIME= 38;
-        
-        GET_SERVICE_VERSION= 39;        
+
+        GET_SERVICE_VERSION= 39;
+
+        SET_TRACKER_FRAMERATE = 40;
     }
     RequestType type = 2;
 
@@ -158,7 +160,7 @@ message Request {
         bool include_usb_controllers = 1;
     }
     RequestGetControllerList request_get_controller_list = 3;
-    
+
     // Parameters for START_CONTROLLER_DATA_STREAM
     // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
     message RequestStartPSMoveDataStream {
@@ -166,7 +168,7 @@ message Request {
         bool include_position_data = 2;
         bool include_physics_data= 3;
         bool include_raw_sensor_data= 4;
-        bool include_calibrated_sensor_data= 5;        
+        bool include_calibrated_sensor_data= 5;
         bool include_raw_tracker_data= 6;
         bool disable_roi= 7;
     }
@@ -184,8 +186,8 @@ message Request {
         int32 controller_id = 1;
         Orientation orientation= 2;
     }
-    RequestResetPose reset_orientation = 7;   
-    
+    RequestResetPose reset_orientation = 7;
+
     // Parameters for UNPAIR_CONTROLLER
     message RequestUnpairController {
         int32 controller_id = 1;
@@ -202,15 +204,15 @@ message Request {
     message RequestCancelBluetoothRequest {
         int32 controller_id = 1;
     }
-    RequestCancelBluetoothRequest cancel_bluetooth_request = 10;    
-    
+    RequestCancelBluetoothRequest cancel_bluetooth_request = 10;
+
     // Parameters for SET_LED_TRACKING_COLOR
     message RequestSetLEDTrackingColor {
         int32 controller_id = 1;
         TrackingColorType color_type = 2;
     }
     RequestSetLEDTrackingColor set_led_tracking_color_request = 12;
-    
+
     // Parameters for SET_CONTROLLER_MAGNETOMETER_CALIBRATION
     message RequestSetControllerMagnetometerCalibration {
         int32 controller_id = 1;
@@ -219,12 +221,12 @@ message Request {
         FloatVector ellipse_basis_x= 4;
         FloatVector ellipse_basis_y= 5;
         FloatVector ellipse_basis_z= 6;
-        float ellipse_fit_error= 7;        
+        float ellipse_fit_error= 7;
         FloatVector magnetometer_identity= 8;
         float magnetometer_variance= 9;
     }
     RequestSetControllerMagnetometerCalibration set_controller_magnetometer_calibration_request = 13;
-    
+
     // Parameters for SET_CONTROLLER_ACCELEROMETER_CALIBRATION
     message RequestSetControllerAccelerometerCalibration {
         int32 controller_id = 1;
@@ -232,7 +234,7 @@ message Request {
         float variance= 3;
     }
     RequestSetControllerAccelerometerCalibration set_controller_accelerometer_calibration_request = 14;
-    
+
     // Parameters for SET_CONTROLLER_GYROSCOPE_CALIBRATION
     message RequestSetControllerGyroscopeCalibration {
         int32 controller_id = 1;
@@ -248,7 +250,7 @@ message Request {
         float position_variance_exp_fit_a = 2;
         float position_variance_exp_fit_b = 3;
         // Variance(rad^2) in orientation as a function of pixel projection area
-        float orientation_variance_exp_fit_a = 4; 
+        float orientation_variance_exp_fit_a = 4;
         float orientation_variance_exp_fit_b = 5;
     }
     RequestSetOpticalNoiseCalibration request_set_optical_noise_calibration = 16;
@@ -259,32 +261,33 @@ message Request {
         string orientation_filter = 2;
     }
     RequestSetOrientationFilter request_set_orientation_filter = 17;
-    
+
     // Parameters for SET_POSITION_FILTER
     message RequestSetPositionFilter {
         int32 controller_id = 1;
         string position_filter = 2;
     }
     RequestSetPositionFilter request_set_position_filter = 18;
-    
+
     // Parameters for SET_CONTROLLER_PREDICTION_TIME
     message RequestSetControllerPredictionTime {
         int32 controller_id = 1;
         float prediction_time = 2;
     }
     RequestSetControllerPredictionTime request_set_controller_prediction_time = 19;
-    
+
     // Parameters SET_ATTACHED_CONTROLLER
     message RequestSetAttachedController {
         int32 child_controller_id = 1;
         int32 parent_controller_id = 2;
     }
     RequestSetAttachedController request_set_attached_controller = 20;
-    
+
     // Parameters for START_TRACKER_DATA_STREAM
     // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
     message RequestStartTrackerDataStream {
         int32 tracker_id = 1;
+        bool include_debug_rendering = 2;
     }
     RequestStartTrackerDataStream request_start_tracker_data_stream = 21;
 
@@ -294,17 +297,17 @@ message Request {
         int32 tracker_id = 1;
     }
     RequestStopTrackerDataStream request_stop_tracker_data_stream = 22;
-    
+
     // Parameters for GET_TRACKER_SETTINGS
     message RequestGetTrackerSettings {
         int32 tracker_id = 1;
-        int32 device_id = 2;        
-        enum DeviceCategory 
+        int32 device_id = 2;
+        enum DeviceCategory
         {
             CONTROLLER= 0;
-            HMD= 1;        
+            HMD= 1;
         }
-        DeviceCategory device_category= 3; 
+        DeviceCategory device_category= 3;
     }
     RequestGetTrackerSettings request_get_tracker_settings = 23;
 
@@ -335,18 +338,18 @@ message Request {
     // Parameters for SET_TRACKER_COLOR_PRESET
     message RequestSetTrackerColorPreset {
         int32 tracker_id = 1;
-        int32 device_id = 2;        
-        enum DeviceCategory 
+        int32 device_id = 2;
+        enum DeviceCategory
         {
             CONTROLLER= 0;
-            HMD= 1;        
+            HMD= 1;
         }
-        DeviceCategory device_category= 3;        
-        
+        DeviceCategory device_category= 3;
+
         TrackingColorPreset color_preset = 4;
     }
     RequestSetTrackerColorPreset request_set_tracker_color_preset = 27;
-    
+
     // Parameters for SET_TRACKER_INTRINSICS
     message RequestSetTrackerIntrinsics {
         int32 tracker_id = 1;
@@ -356,40 +359,40 @@ message Request {
         float tracker_k2= 5;
         float tracker_k3= 6;
         float tracker_p1= 7;
-        float tracker_p2= 8;    
+        float tracker_p2= 8;
     }
     RequestSetTrackerIntrinsics request_set_tracker_intrinsics = 28;
-    
+
     // Parameters for SET_TRACKER_POSE
     message RequestSetTrackerPose {
         int32 tracker_id = 1;
         Pose pose = 2;
     }
     RequestSetTrackerPose request_set_tracker_pose = 29;
-    
+
     // Parameters for RELOAD_TRACKER_SETTINGS
     message RequestReloadTrackerSettings {
       int32 tracker_id = 1;
     }
     RequestReloadTrackerSettings request_reload_tracker_settings = 30;
 
-    
+
     // Parameters for SAVE_TRACKER_PROFILE
     message RequestSaveTrackerProfile {
         int32 tracker_id = 1;
         int32 controller_id = 2;
     }
     RequestSaveTrackerProfile request_save_tracker_profile = 31;
-    
+
     // Parameters for APPLY_TRACKER_PROFILE
     message RequestApplyTrackerProfile {
         int32 tracker_id = 1;
         int32 controller_id = 2;
     }
     RequestApplyTrackerProfile request_apply_tracker_profile = 32;
-    
+
     // No Parameters for SEARCH_FOR_NEW_TRACKERS
-    
+
     // Parameters for START_HMD_DATA_STREAM
     // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
     message RequestStartHmdDataStream {
@@ -397,7 +400,7 @@ message Request {
         bool include_position_data = 2;
         bool include_physics_data= 3;
         bool include_raw_sensor_data= 4;
-        bool include_calibrated_sensor_data= 5;        
+        bool include_calibrated_sensor_data= 5;
         bool include_raw_tracker_data= 6;
         bool disable_roi= 7;
     }
@@ -418,7 +421,7 @@ message Request {
     }
 
     RequestSetHMDAccelerometerCalibration set_hmd_accelerometer_calibration_request = 35;
-    
+
     // Parameters for SET_HMD_GYROSCOPE_CALIBRATION
     message RequestSetHMDGyroscopeCalibration {
         int32 hmd_id = 1;
@@ -429,13 +432,21 @@ message Request {
     RequestSetHMDGyroscopeCalibration set_hmd_gyroscope_calibration_request = 36;
 
     // No parameters for GET_TRACKING_SPACE_SETTINGS
-    
+
     // Parameters for SET_HMD_PREDICTION_TIME
     message RequestSetHMDPredictionTime {
         int32 hmd_id = 1;
         float prediction_time = 2;
     }
-    RequestSetHMDPredictionTime request_set_hmd_prediction_time = 37;    
+    RequestSetHMDPredictionTime request_set_hmd_prediction_time = 37;
+
+    // Parameters for SET_TRACKER_FRAMERATE
+    message RequestSetTrackerFramerate {
+        int32 tracker_id = 1;
+        float value = 2;
+        bool save_setting= 3;
+    }
+    RequestSetTrackerFramerate request_set_tracker_frame_rate = 38;
 }
 
 // Reliable (TCP) responses to requests
@@ -461,6 +472,7 @@ message Response {
         HMD_LIST= 16;
         HMD_LIST_UPDATED= 17;
         SERVICE_VERSION= 18;
+        TRACKER_FRAMERATE_UPDATED= 19;
     }
 
     enum ResultCode {
@@ -472,22 +484,22 @@ message Response {
     ResponseType type = 1;
     int32 request_id = 2; // the request id that spawned this response, -1 if this is a notification
     ResultCode result_code = 3;
-    
+
     // No Parameters for GENERAL_RESULT
-    
+
     // Parameters for CONNECTION_INFO
     // This is returned automatically when connecting via TCP
     message ResultConnectionInfo {
         int32 tcp_connection_id = 1;
     }
     ResultConnectionInfo result_connection_info = 20;
-    
+
     // Parameters for CONTROLLER_STREAM_STARTED
     message ResultControllerStreamStarted {
         DeviceOutputDataFrame initial_data_frame= 1;
     }
     ResultControllerStreamStarted result_controller_stream_started= 21;
-    
+
     // Parameters for CONTROLLER_LIST
     // This is returned in response to a GET_CONTROLLER_LIST request
     message ResultControllerList {
@@ -515,12 +527,12 @@ message Response {
         repeated ControllerInfo controllers = 1;
         string host_serial = 2;
     }
-    ResultControllerList result_controller_list = 22;    
-    
+    ResultControllerList result_controller_list = 22;
+
     // No parameters for CONTROLLER_LIST_UPDATED
     // No parameters for UNPAIR_REQUEST_COMPLETED
     // No parameters for PAIR_REQUEST_COMPLETED
-    
+
     // Parameters for BLUETOOTH_REQUEST_PROGRESS
     message ResultBluetoothRequestProgress {
         int32 controller_id = 1;
@@ -528,22 +540,22 @@ message Response {
         int32 total_steps = 3;
     }
     ResultBluetoothRequestProgress result_bluetooth_request_progress = 23;
-   
+
     // Parameters for TRACKER_LIST
     // This is returned in response to a GET_TRACKER_LIST request
     message ResultTrackerList {
         message TrackerInfo {
             // ID of the tracker in the service
             int32 tracker_id= 1;
-            
+
             // Tracker USB Properties
             TrackerType tracker_type = 2;
             TrackerDriver tracker_driver = 3;
             string device_path = 4;
-            
+
             // Video Stream Properties
             string shared_memory_name = 5;
-            
+
             // Camera Intrinsic Properties
             Pixel tracker_focal_lengths = 6;
             Pixel tracker_principal_point = 7;
@@ -557,7 +569,7 @@ message Response {
             float tracker_k3= 15;
             float tracker_p1= 16;
             float tracker_p2= 17;
-            
+
             // Camera Extrinsic Properties
             Pose tracker_pose = 18;
         }
@@ -565,16 +577,17 @@ message Response {
         float global_forward_degrees = 2;
     }
     ResultTrackerList result_tracker_list = 24;
-    
+
     // This is returned in response to a GET_TRACKER_SETTINGS or APPLY_TRACKER_PROFILE request
     message ResultTrackerSettings {
         float exposure= 1;
         float gain= 2;
-        repeated OptionSet option_sets= 3; 
+        repeated OptionSet option_sets= 3;
         repeated TrackingColorPreset color_presets = 4;
+        float frame_rate= 5;
     }
     ResultTrackerSettings result_tracker_settings = 25;
-    
+
     // This is returned in response to a SET_TRACKER_EXPOSURE request
     message ResultSetTrackerExposure {
         float new_exposure= 1;
@@ -586,14 +599,14 @@ message Response {
         float new_gain= 1;
     }
     ResultSetTrackerGain result_set_tracker_gain = 27;
-    
+
     // This is returned in response to a SET_TRACKER_OPTION request
     message ResultSetTrackerOption {
         string option_name = 1;
         int32 new_option_index = 2;
     }
     ResultSetTrackerOption result_set_tracker_option = 28;
-    
+
     // This is returned in response to a SET_TRACKER_COLOR_PRESET request
     message ResultSetTrackerColorPreset {
         int32 tracker_id = 1;
@@ -607,9 +620,9 @@ message Response {
         float global_forward_degrees = 1;
     }
     ResultTrackingSpaceSettings result_tracking_space_settings = 30;
-    
+
     // No parameters for HMD_LIST_UPDATED
-    
+
     // Parameters for HMD_LIST
     // This is returned in response to a HMD_LIST request
     message ResultHMDList {
@@ -623,26 +636,32 @@ message Response {
         repeated HMDInfo hmd_entries = 1;
     }
     ResultHMDList result_hmd_list = 31;
-    
+
     // Parameters for SERVICE_VERSION
     message ResultServiceVersion{
         string version= 1;
     }
-    ResultServiceVersion result_service_version = 32;    
+    ResultServiceVersion result_service_version = 32;
+
+    // This is returned in response to a SET_TRACKER_FRAMERATE request
+    message ResultSetTrackerFramerate {
+        float new_frame_rate= 1;
+    }
+    ResultSetTrackerFramerate result_set_tracker_frame_rate = 33;
 }
 
 // Unreliable (UDP) device data packet sent from service to clients
-message DeviceOutputDataFrame 
+message DeviceOutputDataFrame
 {
     // The device type
-    enum DeviceCategory 
+    enum DeviceCategory
     {
         CONTROLLER= 0;
         TRACKER= 1;
-        HMD= 2;        
+        HMD= 2;
     }
     DeviceCategory device_category= 1;
-    
+
     // Update packet for a controller
     message ControllerDataPacket
     {
@@ -671,27 +690,27 @@ message DeviceOutputDataFrame
             OPTIONS= 20;
             TRACKPAD= 21;
         }
-        
+
         // The id of controller this data is for
         int32 controller_id= 1;
 
         // Specify the type of controller this data is from
         ControllerType controller_type= 2;
-        
+
         // Monotonically increasing number.
         // Used to throw out old data if it arrives out of order.
         int32 sequence_num= 3;
 
         // Common Controller status flags
         bool IsConnected= 4;
-        
+
         // Raw bitmask of which buttons are currently down
         // Buttons bits are indexed using the ButtonType enum
-        uint32 button_down_bitmask = 5;    
-        
+        uint32 button_down_bitmask = 5;
+
         // PSMove Specific Controller state
         message PSMoveState
-        {   
+        {
             // PSMove Specific flags
             bool ValidHardwareCalibration= 1;
             bool IsTrackingEnabled= 2;
@@ -707,7 +726,7 @@ message DeviceOutputDataFrame
 
             // Trigger analog value [0,255]
             int32 trigger_value = 8;
-            
+
             // Only valid if include_raw_sensor_data=true in START_CONTROLLER_DATA_STREAM request
             message RawSensorData
             {
@@ -716,7 +735,7 @@ message DeviceOutputDataFrame
                 IntVector gyroscope= 3;
             }
             RawSensorData raw_sensor_data = 9;
-            
+
             // Only valid if include_calibrated_sensor_data=true in START_CONTROLLER_DATA_STREAM request
             message CalibratedSensorData
             {
@@ -724,8 +743,8 @@ message DeviceOutputDataFrame
                 FloatVector accelerometer= 2;
                 FloatVector gyroscope= 3;
             }
-            CalibratedSensorData calibrated_sensor_data = 10;            
-            
+            CalibratedSensorData calibrated_sensor_data = 10;
+
             // Only valid if include_raw_tracker_data=true in START_CONTROLLER_DATA_STREAM request
             message RawTrackerData
             {
@@ -737,7 +756,7 @@ message DeviceOutputDataFrame
                 int32 valid_tracker_count= 6;
                 Position multicam_position_cm= 7;
             }
-            RawTrackerData raw_tracker_data = 11;  
+            RawTrackerData raw_tracker_data = 11;
 
             // Only valid if include_physics_data=true in START_CONTROLLER_DATA_STREAM request
             message PhysicsData
@@ -745,29 +764,29 @@ message DeviceOutputDataFrame
                 FloatVector velocity_cm_per_sec= 1;
                 FloatVector acceleration_cm_per_sec_sqr= 2;
                 FloatVector angular_velocity_rad_per_sec= 3;
-                FloatVector angular_acceleration_rad_per_sec_sqr= 4; 
+                FloatVector angular_acceleration_rad_per_sec_sqr= 4;
             }
-            PhysicsData physics_data = 12;             
+            PhysicsData physics_data = 12;
         }
         PSMoveState psmove_state = 6;
-        
+
         // PSMove Specific Controller state
         message PSNaviState
         {
             // Trigger analog value [0,255]
             int32 trigger_value = 1;
-            
+
             // The x-axis stick value, [0,255], Subtract 0x80 to obtain signed values
             int32 stick_xaxis = 2;
-            
+
             // The y-axis stick value, [0,255], Subtract 0x80 to obtain signed values
-            int32 stick_yaxis = 3;        
+            int32 stick_yaxis = 3;
         }
-        PSNaviState psnavi_state = 7;    
-        
+        PSNaviState psnavi_state = 7;
+
         // PSDualShock4 Specific Controller state
         message PSDualShock4State
-        {   
+        {
             // PSDualShock4 Specific flags
             bool ValidHardwareCalibration= 1;
             bool IsTrackingEnabled= 2;
@@ -786,11 +805,11 @@ message DeviceOutputDataFrame
             float left_thumbstick_y = 9;
             float right_thumbstick_x = 10;
             float right_thumbstick_y = 11;
-            
+
             // Trigger analog value [0,1]
             float left_trigger_value = 12;
             float right_trigger_value = 13;
-            
+
             // Only valid if include_raw_sensor_data=true in START_CONTROLLER_DATA_STREAM request
             message RawSensorData
             {
@@ -798,15 +817,15 @@ message DeviceOutputDataFrame
                 IntVector gyroscope= 2;
             }
             RawSensorData raw_sensor_data = 14;
-            
+
             // Only valid if include_calibrated_sensor_data=true in START_CONTROLLER_DATA_STREAM request
             message CalibratedSensorData
             {
                 FloatVector accelerometer= 1;
                 FloatVector gyroscope= 2;
             }
-            CalibratedSensorData calibrated_sensor_data = 15;            
-            
+            CalibratedSensorData calibrated_sensor_data = 15;
+
             // Only valid if include_raw_tracker_data=true in START_CONTROLLER_DATA_STREAM request
             message RawTrackerData
             {
@@ -820,7 +839,7 @@ message DeviceOutputDataFrame
                 Position multicam_position_cm= 8;
                 Orientation multicam_orientation= 9;
             }
-            RawTrackerData raw_tracker_data = 16;  
+            RawTrackerData raw_tracker_data = 16;
 
             // Only valid if include_physics_data=true in START_CONTROLLER_DATA_STREAM request
             message PhysicsData
@@ -828,13 +847,13 @@ message DeviceOutputDataFrame
                 FloatVector velocity_cm_per_sec= 1;
                 FloatVector acceleration_cm_per_sec_sqr= 2;
                 FloatVector angular_velocity_rad_per_sec= 3;
-                FloatVector angular_acceleration_rad_per_sec_sqr= 4; 
+                FloatVector angular_acceleration_rad_per_sec_sqr= 4;
             }
-            PhysicsData physics_data = 17;             
+            PhysicsData physics_data = 17;
         }
-        PSDualShock4State psdualshock4_state = 8;        
+        PSDualShock4State psdualshock4_state = 8;
     }
-    ControllerDataPacket controller_data_packet = 2;    
+    ControllerDataPacket controller_data_packet = 2;
 
     // Update packet for a tracker
     message TrackerDataPacket
@@ -844,16 +863,16 @@ message DeviceOutputDataFrame
 
         // Specify the type of controller this data is from
         TrackerType tracker_type= 2;
-        
+
         // Monotonically increasing number.
         // Used to throw out old data if it arrives out of order.
         int32 sequence_num= 3;
 
         // Common Controller status flags
-        bool IsConnected= 4;                
+        bool IsConnected= 4;
     }
     TrackerDataPacket tracker_data_packet = 3;
-    
+
     // Update packet for an HMD
     message HMDDataPacket
     {
@@ -862,14 +881,14 @@ message DeviceOutputDataFrame
 
         // Specify the type of controller this data is from
         HMDType hmd_type= 2;
-        
+
         // Monotonically increasing number.
         // Used to throw out old data if it arrives out of order.
         int32 sequence_num= 3;
 
         // Common Controller status flags
-        bool IsConnected= 4;        
-        
+        bool IsConnected= 4;
+
         // Morpheus Specific HMD state
         message MorpheusState
         {
@@ -884,7 +903,7 @@ message DeviceOutputDataFrame
 
             // Tracking orientation in the frame of the HMD tracking camera
             Orientation orientation = 6;
-            
+
             // Only valid if include_raw_sensor_data=true in START_HMD_DATA_STREAM request
             message RawSensorData
             {
@@ -892,15 +911,15 @@ message DeviceOutputDataFrame
                 IntVector gyroscope= 2;
             }
             RawSensorData raw_sensor_data = 7;
-            
+
             // Only valid if include_calibrated_sensor_data=true in START_HMD_DATA_STREAM request
             message CalibratedSensorData
             {
                 FloatVector accelerometer= 1;
                 FloatVector gyroscope= 2;
             }
-            CalibratedSensorData calibrated_sensor_data = 8;            
-            
+            CalibratedSensorData calibrated_sensor_data = 8;
+
             // Only valid if include_raw_tracker_data=true in START_HMD_DATA_STREAM request
             message RawTrackerData
             {
@@ -911,7 +930,7 @@ message DeviceOutputDataFrame
                 repeated Polygon projected_point_cloud= 5;
                 int32 valid_tracker_count= 6;
             }
-            RawTrackerData raw_tracker_data = 9;  
+            RawTrackerData raw_tracker_data = 9;
 
             // Only valid if include_physics_data=true in START_HMD_DATA_STREAM request
             message PhysicsData
@@ -919,29 +938,29 @@ message DeviceOutputDataFrame
                 FloatVector velocity_cm_per_sec= 1;
                 FloatVector acceleration_cm_per_sec_sqr= 2;
                 FloatVector angular_velocity_rad_per_sec= 3;
-                FloatVector angular_acceleration_rad_per_sec_sqr= 4; 
+                FloatVector angular_acceleration_rad_per_sec_sqr= 4;
             }
-            PhysicsData physics_data = 10;            
+            PhysicsData physics_data = 10;
         }
-        MorpheusState morpheus_state = 5;          
+        MorpheusState morpheus_state = 5;
     }
-    HMDDataPacket hmd_data_packet = 4;    
+    HMDDataPacket hmd_data_packet = 4;
 }
 
 // Unreliable (UDP) device data packet sent from clients to service
-message DeviceInputDataFrame 
+message DeviceInputDataFrame
 {
     // The id of the connection this data frame came from
     int32 connection_id= 1;
-    
+
     // The device update type
-    enum DeviceCategory 
+    enum DeviceCategory
     {
         INVALID = 0;
         CONTROLLER= 1;
     }
     DeviceCategory device_category= 2;
-    
+
     // Input packet for a controller
     message ControllerDataPacket
     {
@@ -950,14 +969,14 @@ message DeviceInputDataFrame
 
         // Specify the type of controller this data is from
         ControllerType controller_type= 2;
-        
+
         // Monotonically increasing number.
         // Used to throw out old data if it arrives out of order.
         int32 sequence_num= 3;
-        
+
         // PSMove Specific Controller state
         message PSMoveState
-        {   
+        {
             // Analog rumble value [0,255]
             int32 rumble_value = 1;
 
@@ -965,25 +984,25 @@ message DeviceInputDataFrame
             // (0, 0, 0) clears the override and defaults back to tracking color
             int32 led_r = 2;
             int32 led_g = 3;
-            int32 led_b = 4;            
+            int32 led_b = 4;
         }
-        PSMoveState psmove_state = 4;  
-        
+        PSMoveState psmove_state = 4;
+
         // PSDualShock4 Specific Controller state
         message PSDualShock4State
-        {   
+        {
             // Analog rumble value [0,255]
             int32 big_rumble_value = 1;
             // Analog rumble value [0,255]
-            int32 small_rumble_value = 2;            
+            int32 small_rumble_value = 2;
 
             // LED override ([0, 255], [0, 255], [0, 255])
             // (0, 0, 0) clears the override and defaults back to tracking color
             int32 led_r = 3;
             int32 led_g = 4;
-            int32 led_b = 5;            
+            int32 led_b = 5;
         }
-        PSDualShock4State psdualshock4_state = 5;         
+        PSDualShock4State psdualshock4_state = 5;
     }
     ControllerDataPacket controller_data_packet = 3;
 }

@@ -37,6 +37,7 @@ PS3EyeTrackerConfig::PS3EyeTrackerConfig(const std::string &fnamebase)
     : PSMoveConfig(fnamebase)
     , is_valid(false)
     , max_poll_failure_count(100)
+	, frame_rate(40)
     , exposure(32)
     , gain(32)
     , focalLengthX(554.2563) // pixels
@@ -72,6 +73,7 @@ PS3EyeTrackerConfig::config2ptree()
     pt.put("version", PS3EyeTrackerConfig::CONFIG_VERSION);
 	pt.put("lens_calibration_version", PS3EyeTrackerConfig::LENS_CALIBRATION_VERSION);
     pt.put("max_poll_failure_count", max_poll_failure_count);
+	pt.put("frame_rate", frame_rate);
     pt.put("exposure", exposure);
 	pt.put("gain", gain);
     pt.put("focalLengthX", focalLengthX);
@@ -115,6 +117,7 @@ PS3EyeTrackerConfig::ptree2config(const boost::property_tree::ptree &pt)
     {
         is_valid = pt.get<bool>("is_valid", false);
         max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
+		frame_rate = pt.get<double>("frame_rate", 40);
         exposure = pt.get<double>("exposure", 32);
 		gain = pt.get<double>("gain", 32);
         hfov = pt.get<double>("hfov", 60.0);
@@ -352,6 +355,7 @@ bool PS3EyeTracker::open(const DeviceEnumerator *enumerator)
 
 		VideoCapture->set(cv::CAP_PROP_EXPOSURE, cfg.exposure);
 		VideoCapture->set(cv::CAP_PROP_GAIN, cfg.gain);
+		VideoCapture->set(cv::CAP_PROP_FPS, cfg.frame_rate);
     }
 
     return bSuccess;
@@ -525,6 +529,7 @@ const unsigned char *PS3EyeTracker::getVideoFrameBuffer() const
 
 void PS3EyeTracker::loadSettings()
 {
+	const double currentFramerate = VideoCapture->get(cv::CAP_PROP_FPS);
     const double currentExposure= VideoCapture->get(cv::CAP_PROP_EXPOSURE);
     const double currentGain= VideoCapture->get(cv::CAP_PROP_GAIN);
 
@@ -539,11 +544,31 @@ void PS3EyeTracker::loadSettings()
     {
         VideoCapture->set(cv::CAP_PROP_GAIN, cfg.gain);
     }
+
+	if (currentFramerate != cfg.frame_rate)
+	{
+		VideoCapture->set(cv::CAP_PROP_FPS, cfg.frame_rate);
+	}
 }
 
 void PS3EyeTracker::saveSettings()
 {
     cfg.save();
+}
+
+void PS3EyeTracker::setFramerate(double value, bool bUpdateConfig)
+{
+	VideoCapture->set(cv::CAP_PROP_FPS, value);
+
+	if (bUpdateConfig)
+	{
+		cfg.frame_rate = value;
+	}
+}
+
+double PS3EyeTracker::getFramerate() const
+{
+	return VideoCapture->get(cv::CAP_PROP_FPS);
 }
 
 void PS3EyeTracker::setExposure(double value, bool bUpdateConfig)

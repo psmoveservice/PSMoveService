@@ -987,7 +987,9 @@ void AppStage_ComputeTrackerPoses::request_tracker_start_stream(
 
     // Request data to start streaming to the tracker
     ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::start_tracker_data_stream(trackerState.trackerView),
+        ClientPSMoveAPI::start_tracker_data_stream(
+			trackerState.trackerView, 
+			m_bSkipCalibration ? ClientPSMoveAPI::includeDebugRendering : ClientPSMoveAPI::defaultTrackerOptions),
         AppStage_ComputeTrackerPoses::handle_tracker_start_stream_response, this);
 }
 

@@ -32,6 +32,23 @@ public:
             ? &m_trackerInfos[m_selectedTrackerIndex]
             : nullptr;
     }
+	
+	inline void set_selectedTrackerIndex(int index) {
+		m_selectedTrackerIndex = 
+			(index != -1 && index < m_trackerInfos.size())
+			? index
+			: m_selectedTrackerIndex;
+	}
+
+	inline int get_tracker_count() const { return m_trackerInfos.size(); }
+	inline int get_tracker_Index() const { return m_selectedTrackerIndex; }
+
+	inline int get_controller_count() const { return m_controllerInfos.size(); }	
+	inline const ControllerInfo * get_controller_info(int index) const { return &m_controllerInfos[index]; }
+	const ControllerInfo *get_selected_controller();
+
+	const HMDInfo *get_selected_hmd();
+
 
     virtual void enter() override;
     virtual void exit() override;
@@ -66,9 +83,6 @@ protected:
     static void handle_search_for_new_trackers_response(
         const ClientPSMoveAPI::ResponseMessage *response,
         void *userdata);
-
-	const ControllerInfo *get_selected_controller();
-	const HMDInfo *get_selected_hmd();
 
 protected:
     enum eTrackerMenuState

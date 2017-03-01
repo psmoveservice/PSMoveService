@@ -47,6 +47,12 @@ public:
 		disableROI = 0x20,
     };    
 
+    enum eTrackerDataStreamFlags
+    {
+        defaultTrackerOptions = 0x00,
+        includeDebugRendering = 0x01,
+    };  
+
     enum eControllerRumbleChannel
     {
         channelAll,
@@ -216,7 +222,7 @@ public:
 
 	static t_request_id get_tracking_space_settings();
 	static t_request_id get_tracker_list();
-    static t_request_id start_tracker_data_stream(ClientTrackerView *view);
+    static t_request_id start_tracker_data_stream(ClientTrackerView *view, unsigned int data_stream_flags);
     static t_request_id stop_tracker_data_stream(ClientTrackerView *view);
     
     /// HMD Methods

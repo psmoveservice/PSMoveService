@@ -41,7 +41,7 @@ public:
 	virtual void handle_client_connection_stopped(int connection_id) = 0;
 };
 
-//-- Tracker Manager Config -----
+//-- Network Manager Config -----
 const int NetworkManagerConfig::CONFIG_VERSION = 1;
 
 NetworkManagerConfig::NetworkManagerConfig(const std::string &fnamebase)

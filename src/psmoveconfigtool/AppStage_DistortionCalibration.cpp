@@ -846,7 +846,7 @@ void AppStage_DistortionCalibration::request_tracker_start_stream()
 
         // Tell the psmove service that we want to start streaming data from the tracker
         ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::start_tracker_data_stream(m_tracker_view),
+            ClientPSMoveAPI::start_tracker_data_stream(m_tracker_view, ClientPSMoveAPI::defaultTrackerOptions),
             AppStage_DistortionCalibration::handle_tracker_start_stream_response, this);
     }
 }

@@ -4,6 +4,7 @@
 #include "USBDeviceInfo.h"
 #include "LibUSBBulkTransferBundle.h"
 #include "LibUSBApi.h"
+#include "NullUSBApi.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
 
@@ -19,18 +20,65 @@ typedef std::map<t_usb_device_handle, USBDeviceState *> t_usb_device_map;
 typedef std::map<t_usb_device_handle, USBDeviceState *>::iterator t_usb_device_map_iterator;
 typedef std::pair<t_usb_device_handle, USBDeviceState *> t_handle_usb_device_pair;
 
+//-- constants -----
+const char * k_nullusb_api_name= "nullusb_api";
+const char * k_libusb_api_name= "libusb_api";
+const char * k_winusb_api_name= "winusb_api";
+
 //-- private implementation -----
+
+//-- USB Manager Config -----
+const int USBManagerConfig::CONFIG_VERSION = 1;
+
+USBManagerConfig::USBManagerConfig(const std::string &fnamebase)
+    : PSMoveConfig(fnamebase)
+{
+	usb_api_name= k_libusb_api_name;
+	enable_usb_transfers= true;
+};
+
+const boost::property_tree::ptree
+USBManagerConfig::config2ptree()
+{
+    boost::property_tree::ptree pt;
+
+    pt.put("version", USBManagerConfig::CONFIG_VERSION);
+	pt.put("usb_api", usb_api_name);
+	pt.put("enable_usb_transfers", enable_usb_transfers);
+
+    return pt;
+}
+
+void
+USBManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
+{
+    version = pt.get<int>("version", 0);
+
+    if (version == USBManagerConfig::CONFIG_VERSION)
+    {
+		usb_api_name = pt.get<std::string>("usb_api", usb_api_name);
+		enable_usb_transfers = pt.get<bool>("enable_usb_transfers", enable_usb_transfers);
+    }
+    else
+    {
+        SERVER_LOG_WARNING("USBManagerConfig") <<
+            "Config version " << version << " does not match expected version " <<
+            USBManagerConfig::CONFIG_VERSION << ", Using defaults.";
+    }
+}
+
 // -USBAsyncRequestManagerImpl-
 /// Internal implementation of the USB async request manager.
 class USBDeviceManagerImpl
 {
 public:
-    USBDeviceManagerImpl(eUSBApiType apiType)
-        : m_api_type(apiType)
+    USBDeviceManagerImpl()
+        : m_api_type(_USBApiType_INVALID)
 		, m_usb_api(nullptr)
         , m_exit_signaled({ false })
         , m_active_control_transfers(0)
 		, m_active_interrupt_transfers(0)
+		, m_transfers_enabled(false)
         , m_thread_started(false)
 		, m_next_usb_device_handle(0)
     {
@@ -42,19 +90,50 @@ public:
     }
 
     // -- System ----
-    bool startup()
+    bool startup(USBManagerConfig &cfg)
     {
         bool bSuccess= true;
 
+		m_transfers_enabled= cfg.enable_usb_transfers;
+
 		if (m_usb_api == nullptr)
 		{
+			if (cfg.usb_api_name == k_nullusb_api_name)
+			{
+				SERVER_LOG_INFO("USBAsyncRequestManager::startup") << "Requested NullUSBApi";
+				m_api_type= _USBApiType_NullUSB;
+			}
+			else if (cfg.usb_api_name == k_libusb_api_name)
+			{
+				SERVER_LOG_INFO("USBAsyncRequestManager::startup") << "Requested LibUSBApi";
+				m_api_type= _USBApiType_LibUSB;
+			}
+			else if (cfg.usb_api_name == k_winusb_api_name)
+			{
+				SERVER_LOG_INFO("USBAsyncRequestManager::startup") << "Requested WinUSBApi";
+				m_api_type= _USBApiType_WinUSB;
+			}
+			else
+			{
+				SERVER_LOG_WARNING("USBAsyncRequestManager::startup") << "Requested unknown usb_api: \'" << cfg.usb_api_name << "\'. Defaulting to " << k_libusb_api_name;
+				m_api_type= _USBApiType_LibUSB;
+			}
+
 			switch (m_api_type)
 			{
+			case _USBApiType_NullUSB:
+				SERVER_LOG_INFO("USBAsyncRequestManager::startup") << "Creating NullUSBApi";
+				m_usb_api = new NullUSBApi;
+				break;
 			case _USBApiType_LibUSB:
+				SERVER_LOG_INFO("USBAsyncRequestManager::startup") << "Creating LibUSBApi";
 				m_usb_api = new LibUSBApi;
 				break;
 			case _USBApiType_WinUSB:
 				//###HipsterSloth $TODO actually implement WinUSB interface
+				//SERVER_LOG_INFO("USBAsyncRequestManager::startup") << "Creating WinUSBApi";
+				//m_usb_api = new WinUSBApi;
+				SERVER_LOG_INFO("USBAsyncRequestManager::startup") << "Creating LibUSBApi (WinUSBApi not yet implemented)";
 				m_usb_api = new LibUSBApi;
 				break;
 			default:
@@ -88,25 +167,28 @@ public:
             m_exit_signaled= false;
         }
 
-        if (!m_thread_started)
-        {
-            // If the thread isn't running, process the request as well as the results
-            while(processRequests())
-            {
-                processResults();
-            }
+		if (m_transfers_enabled)
+		{
+			if (!m_thread_started)
+			{
+				// If the thread isn't running, process the request as well as the results
+				while(processRequests())
+				{
+					processResults();
+				}
 
-            // If there are bulk transfers now active, start up the worker thread to manage them
-            if (m_active_bulk_transfer_bundles.size() > 0)
-            {
-                startWorkerThread();
-            }
-        }
-        else
-        {
-            // If the thread is running, only process the results since the thread is handling the requests
-            processResults();
-        }
+				// If there are bulk transfers now active, start up the worker thread to manage them
+				if (m_active_bulk_transfer_bundles.size() > 0)
+				{
+					startWorkerThread();
+				}
+			}
+			else
+			{
+				// If the thread is running, only process the results since the thread is handling the requests
+				processResults();
+			}
+		}
     }
 
     void shutdown()
@@ -118,7 +200,10 @@ public:
         }
 
         // Cleanup any requests
-        requestProcessingTeardown();
+		if (m_transfers_enabled)
+		{
+			requestProcessingTeardown();
+		}
 
         if (m_usb_api != nullptr)
         {
@@ -179,15 +264,50 @@ public:
     // -- Request Queue ----
     bool submitTransferRequest(const USBTransferRequest &request, std::function<void(USBTransferResult&)> callback)
     {
-		USBTransferRequestState requestState = {request, callback};
-        bool bAddedRequest= false;
+		bool bAddedRequest= false;
 
-        if (request_queue.push(requestState))
-        {
-            // Give the other thread a chance to process the request
-            ServerUtility::sleep_ms(10);
-            bAddedRequest= true;
-        }
+		if (m_transfers_enabled)
+		{
+			USBTransferRequestState requestState = {request, callback};
+
+			if (request_queue.push(requestState))
+			{
+				// Give the other thread a chance to process the request
+				ServerUtility::sleep_ms(10);
+				bAddedRequest= true;
+			}
+		}
+		else
+		{
+			USBTransferResult result;
+			memset(&result, 0, sizeof(USBTransferResult));
+
+			switch (request.request_type)
+			{
+			case eUSBTransferRequestType::_USBRequestType_InterruptTransfer:
+				result.result_type= _USBResultType_InterrupTransfer;
+				result.payload.interrupt_transfer.result_code= eUSBResultCode::_USBResultCode_SubmitFailed;
+				result.payload.interrupt_transfer.usb_device_handle= request.payload.interrupt_transfer.usb_device_handle;
+				break;
+			case eUSBTransferRequestType::_USBRequestType_ControlTransfer:
+				result.result_type= _USBResultType_ControlTransfer;
+				result.payload.control_transfer.result_code= eUSBResultCode::_USBResultCode_SubmitFailed;
+				result.payload.control_transfer.usb_device_handle= request.payload.control_transfer.usb_device_handle;
+				break;
+			case eUSBTransferRequestType::_USBRequestType_StartBulkTransfer:
+				result.result_type= _USBResultType_BulkTransfer;
+				result.payload.bulk_transfer.result_code= eUSBResultCode::_USBResultCode_SubmitFailed;
+				result.payload.bulk_transfer.usb_device_handle= request.payload.start_bulk_transfer.usb_device_handle;
+				break;
+			case eUSBTransferRequestType::_USBRequestType_CancelBulkTransfer:
+				result.result_type= _USBResultType_BulkTransfer;
+				result.payload.bulk_transfer.result_code= eUSBResultCode::_USBResultCode_SubmitFailed;
+				result.payload.bulk_transfer.usb_device_handle= request.payload.cancel_bulk_transfer.usb_device_handle;
+				break;
+			}
+			
+			callback(result);
+		}
 
         return bAddedRequest;
     }
@@ -319,7 +439,7 @@ protected:
             }
 
             // Cleanup any requests that no longer have any pending cancellations
-            cleanupCanceledRequests();
+            cleanupCanceledRequests(false);
         }
 
         return bHadRequests;
@@ -352,13 +472,23 @@ protected:
         }
 
         // Wait for the canceled bulk transfers and control transfers to exit
-        while (m_canceled_bulk_transfer_bundles.size() > 0 || m_active_control_transfers > 0 || m_active_interrupt_transfers > 0)
+		const int k_max_cleanup_poll_attempts= 100;
+		int cleanup_attempts= 0;
+        while ((m_canceled_bulk_transfer_bundles.size() > 0 || m_active_control_transfers > 0 || m_active_interrupt_transfers > 0) &&
+				cleanup_attempts < k_max_cleanup_poll_attempts)
         {
 			m_usb_api->poll();
 
             // Cleanup any requests that no longer have any pending cancellations
-            cleanupCanceledRequests();
+            cleanupCanceledRequests(false);
+
+			++cleanup_attempts;
         }
+
+		if (m_canceled_bulk_transfer_bundles.size() > 0)
+		{
+			cleanupCanceledRequests(true);
+		}
     }
 
     void workerThreadFunc()
@@ -379,14 +509,13 @@ protected:
         }
     }
 
-    void cleanupCanceledRequests()
+    void cleanupCanceledRequests(bool bForceCleanup)
     {
         for (auto it = m_canceled_bulk_transfer_bundles.begin(); it != m_canceled_bulk_transfer_bundles.end(); ++it)
         {
             IUSBBulkTransferBundle *bundle = *it;
 
-            //###HipsterSloth $TODO Timeout the cancellation?
-            if (bundle->getActiveTransferCount() == 0)
+            if (bundle->getActiveTransferCount() == 0 || bForceCleanup)
             {
                 m_canceled_bulk_transfer_bundles.erase(it);
                 delete bundle;
@@ -694,6 +823,7 @@ private:
 	int m_active_interrupt_transfers;
 
     // Main thread state
+	bool m_transfers_enabled;
     bool m_thread_started;
     std::thread m_worker_thread;
     std::vector<USBDeviceFilter> m_device_whitelist;
@@ -704,9 +834,14 @@ private:
 //-- public interface -----
 USBDeviceManager *USBDeviceManager::m_instance = NULL;
 
-USBDeviceManager::USBDeviceManager(eUSBApiType apiType)
-    : m_implementation_ptr(new USBDeviceManagerImpl(apiType))
+USBDeviceManager::USBDeviceManager()
+    : m_implementation_ptr(new USBDeviceManagerImpl())
+	, m_cfg()
 {
+	m_cfg.load();
+
+	// Save the config back out in case it doesn't exist
+	m_cfg.save();
 }
 
 USBDeviceManager::~USBDeviceManager()
@@ -726,7 +861,7 @@ USBDeviceManager::~USBDeviceManager()
 bool USBDeviceManager::startup()
 {
     m_instance = this;
-    return m_implementation_ptr->startup();
+    return m_implementation_ptr->startup(m_cfg);
 }
 
 void USBDeviceManager::update()

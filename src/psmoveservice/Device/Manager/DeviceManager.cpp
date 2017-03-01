@@ -42,6 +42,7 @@ public:
         , hmd_reconnect_interval(k_default_hmd_reconnect_interval)
         , hmd_poll_interval(k_default_hmd_poll_interval)
 		, gamepad_api_enabled(false)
+		, platform_api_enabled(true)
     {};
 
     const boost::property_tree::ptree
@@ -56,6 +57,7 @@ public:
         pt.put("hmd_reconnect_interval", hmd_reconnect_interval);
         pt.put("hmd_poll_interval", hmd_poll_interval); 
 		pt.put("gamepad_api_enabled", gamepad_api_enabled);
+		pt.put("platform_api_enabled", platform_api_enabled);
 
         return pt;
     }
@@ -70,6 +72,7 @@ public:
         hmd_reconnect_interval = pt.get<int>("hmd_reconnect_interval", k_default_hmd_reconnect_interval);
         hmd_poll_interval = pt.get<int>("hmd_poll_interval", k_default_hmd_poll_interval);
 		gamepad_api_enabled = pt.get<bool>("gamepad_api_enabled", gamepad_api_enabled);
+		platform_api_enabled = pt.get<bool>("platform_api_enabled", platform_api_enabled);
     }
 
     int controller_reconnect_interval;
@@ -79,6 +82,7 @@ public:
     int hmd_reconnect_interval;
     int hmd_poll_interval;    
 	bool gamepad_api_enabled;
+	bool platform_api_enabled;
 };
 
 // DeviceManager - This is the interface used by PSMoveService
@@ -92,10 +96,6 @@ DeviceManager::DeviceManager()
     , m_tracker_manager(new TrackerManager())
     , m_hmd_manager(new HMDManager())
 {
-#ifdef WIN32
-	m_platform_api_type = _eDevicePlatformApiType_Win32;
-	m_platform_api = new PlatformDeviceAPIWin32;
-#endif
 }
 
 DeviceManager::~DeviceManager()
@@ -123,6 +123,20 @@ DeviceManager::startup()
 	// Save the config back out again in case defaults changed
 	m_config->save();
     
+	// Optionally create the platform device hot plug API
+	if (m_config->platform_api_enabled)
+	{
+#ifdef WIN32
+		m_platform_api_type = _eDevicePlatformApiType_Win32;
+		m_platform_api = new PlatformDeviceAPIWin32;
+#endif
+		SERVER_LOG_INFO("DeviceManager::startup") << "Platform Hotplug API is ENABLED";
+	}
+	else
+	{
+		SERVER_LOG_INFO("DeviceManager::startup") << "Platform Hotplug API is DISABLED";
+	}
+
 	if (m_platform_api != nullptr)
 	{
 		success &= m_platform_api->startup(this);
