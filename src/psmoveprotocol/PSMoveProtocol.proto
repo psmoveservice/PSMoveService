@@ -287,7 +287,6 @@ message Request {
     // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
     message RequestStartTrackerDataStream {
         int32 tracker_id = 1;
-        bool include_debug_rendering = 2;
     }
     RequestStartTrackerDataStream request_start_tracker_data_stream = 21;
 

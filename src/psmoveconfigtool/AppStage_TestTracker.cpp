@@ -204,7 +204,7 @@ void AppStage_TestTracker::request_tracker_start_stream()
 
         // Tell the psmove service that we want to start streaming data from the tracker
         ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::start_tracker_data_stream(m_tracker_view, ClientPSMoveAPI::includeDebugRendering),
+            ClientPSMoveAPI::start_tracker_data_stream(m_tracker_view),
             AppStage_TestTracker::handle_tracker_start_stream_response, this);
     }
 }
