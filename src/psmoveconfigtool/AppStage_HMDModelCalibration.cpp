@@ -1180,7 +1180,7 @@ void AppStage_HMDModelCalibration::request_tracker_start_stream(
 
 	// Request data to start streaming to the tracker
 	ClientPSMoveAPI::register_callback(
-		ClientPSMoveAPI::start_tracker_data_stream(tracker_view, ClientPSMoveAPI::includeDebugRendering),
+		ClientPSMoveAPI::start_tracker_data_stream(tracker_view),
 		AppStage_HMDModelCalibration::handle_tracker_start_stream_response, this);
 }
 

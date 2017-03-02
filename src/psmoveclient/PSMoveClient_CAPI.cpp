@@ -716,7 +716,7 @@ PSMResult PSM_GetTrackerList(PSMTrackerList *out_tracker_list, int timeout_ms)
     return result;
 }
 
-PSMResult PSM_StartTrackerDataStream(PSMTrackerID tracker_id, unsigned int data_stream_flags, int timeout_ms)
+PSMResult PSM_StartTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
@@ -724,7 +724,7 @@ PSMResult PSM_StartTrackerDataStream(PSMTrackerID tracker_id, unsigned int data_
     {
         ClientTrackerView *view = g_tracker_views[tracker_id];
 
-        result= blockUntilResponse(ClientPSMoveAPI::start_tracker_data_stream(view, data_stream_flags), timeout_ms);
+        result= blockUntilResponse(ClientPSMoveAPI::start_tracker_data_stream(view), timeout_ms);
     }
 
     return result;
@@ -797,7 +797,7 @@ PSMResult PSM_GetTrackerListAsync(PSMRequestID *out_request_id)
     return result;
 }
 
-PSMResult PSM_StartTrackerDataStreamAsync(PSMTrackerID tracker_id, unsigned int data_stream_flags, PSMRequestID *out_request_id)
+PSMResult PSM_StartTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID *out_request_id)
 {
     PSMResult result= PSMResult_Error;
 
@@ -807,7 +807,7 @@ PSMResult PSM_StartTrackerDataStreamAsync(PSMTrackerID tracker_id, unsigned int 
 
         if (view != nullptr)
         {
-            ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::start_tracker_data_stream(view, data_stream_flags);
+            ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::start_tracker_data_stream(view);
 
             if (out_request_id != nullptr)
             {

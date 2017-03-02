@@ -363,7 +363,7 @@ public:
         }
         
         //Apply default ROI (full frame).
-        applyROI(cv::Rect2i(cv::Point(0,0), cv::Size(frameWidth, frameHeight)), false);
+        applyROI(cv::Rect2i(cv::Point(0,0), cv::Size(frameWidth, frameHeight)));
     }
 
     virtual ~OpenCVBufferState()
@@ -425,7 +425,7 @@ public:
         }
     }
     
-    void applyROI(cv::Rect2i ROI, bool bShowDebugRender)
+    void applyROI(cv::Rect2i ROI)
     {
 		// Make sure the ROI box is always clamped in bounds of the frame buffer
 		int x0= std::min(std::max(ROI.tl().x, 0), frameWidth-1);
@@ -463,10 +463,7 @@ public:
         updateHsvBuffer();
         
         //Draw ROI.
-		if (bShowDebugRender)
-		{
-			cv::rectangle(*bgrShmemBuffer, ROI, cv::Scalar(255, 0, 0));
-		}
+        cv::rectangle(*bgrShmemBuffer, ROI, cv::Scalar(255, 0, 0));
     }
 
     // Return points in raw image space:
@@ -616,7 +613,9 @@ public:
 		const cv::Point2f massCenter = computeSafeCenterOfMassForContour<t_opencv_int_contour>(contour);
         cv::drawContours(*bgrShmemBuffer, contours, 0, cv::Scalar(255, 255, 255));
         cv::rectangle(*bgrShmemBuffer, cv::boundingRect(contour), cv::Scalar(255, 255, 255));
-        cv::drawMarker(*bgrShmemBuffer, massCenter, cv::Scalar(255, 255, 255));
+		cv::drawMarker(*bgrShmemBuffer, massCenter, cv::Scalar(255, 255, 255), 0,
+			(cv::boundingRect(contour).height < cv::boundingRect(contour).width) ?
+			cv::boundingRect(contour).height : cv::boundingRect(contour).width);
     }
     
     void
@@ -644,7 +643,8 @@ public:
 					ell_size,
 					pose_projection.shape.ellipse.angle,
 					0, 360, cv::Scalar(0, 0, 255));
-				cv::drawMarker(*bgrShmemBuffer, ell_center, cv::Scalar(0, 0, 255));
+				cv::drawMarker(*bgrShmemBuffer, ell_center, cv::Scalar(0, 0, 255), 0,
+					(ell_size.height < ell_size.width) ? ell_size.height * 2 : ell_size.width * 2);
 			} break;
 		case eCommonTrackingProjectionType::ProjectionType_LightBar:
 			{
@@ -870,25 +870,15 @@ void ServerTrackerView::close()
     ServerDeviceView::close();
 }
 
-void ServerTrackerView::startSharedMemoryVideoStream(bool include_debug_rendering)
+void ServerTrackerView::startSharedMemoryVideoStream()
 {
     ++m_shared_memory_video_stream_count;
-	
-	if (include_debug_rendering)
-	{
-		++m_include_debug_rendering_count;
-	}
 }
 
 void ServerTrackerView::stopSharedMemoryVideoStream()
 {
     assert(m_shared_memory_video_stream_count > 0);
     --m_shared_memory_video_stream_count;
-
-	if (m_include_debug_rendering_count > 0)
-	{
-		--m_include_debug_rendering_count;
-	}
 }
 
 bool ServerTrackerView::poll()
@@ -1154,7 +1144,6 @@ ServerTrackerView::computeProjectionForController(
 	const CommonDeviceTrackingShape *tracking_shape,
     ControllerOpticalPoseEstimation *out_pose_estimate)
 {
-	const bool bShowDebugRendering= getIsDebugRenderingEnabled();
     bool bSuccess = true;
 
     // Get the HSV filter used to find the tracking blob
@@ -1188,7 +1177,7 @@ ServerTrackerView::computeProjectionForController(
 		bIsTracking ? &priorPoseEst->projection : nullptr,
 		tracking_shape);
 
-    m_opencv_buffer_state->applyROI(ROI, bShowDebugRendering);
+    m_opencv_buffer_state->applyROI(ROI);
 
     // Find the contour associated with the controller
 	t_opencv_int_contour_list biggest_contours;
@@ -1216,11 +1205,7 @@ ServerTrackerView::computeProjectionForController(
 				// Compute the convex hull of the contour
 				t_opencv_int_contour convex_contour;
 				cv::convexHull(biggest_contours[0], convex_contour);
-
-				if (bShowDebugRendering)
-				{
-					m_opencv_buffer_state->draw_contour(convex_contour);
-				}
+				m_opencv_buffer_state->draw_contour(convex_contour);
 
 				// Convert integer to float
 				t_opencv_float_contour convex_contour_f;
@@ -1279,10 +1264,7 @@ ServerTrackerView::computeProjectionForController(
 					k_real_pi*out_pose_estimate->projection.shape.ellipse.half_x_extent*out_pose_estimate->projection.shape.ellipse.half_y_extent;
                 
                 //Draw results onto m_opencv_buffer_state
-				if (bShowDebugRendering)
-				{
-					m_opencv_buffer_state->draw_pose_projection(out_pose_estimate->projection);
-				}
+                m_opencv_buffer_state->draw_pose_projection(out_pose_estimate->projection);
 
                 bSuccess = true;
             } break;
@@ -1291,10 +1273,7 @@ ServerTrackerView::computeProjectionForController(
         case eCommonTrackingShapeType::LightBar:
             {
 				// Draw the raw source contour
-				if (bShowDebugRendering)
-				{
-					m_opencv_buffer_state->draw_contour(biggest_contours[0]);
-				}
+				m_opencv_buffer_state->draw_contour(biggest_contours[0]);
 
 				// Convert integer contour to float
 				t_opencv_float_contour biggest_contour_f;
@@ -1316,10 +1295,7 @@ ServerTrackerView::computeProjectionForController(
                         &out_pose_estimate->projection);
 
 				//Draw results onto m_opencv_buffer_state
-				if (bShowDebugRendering)
-				{
-					m_opencv_buffer_state->draw_pose_projection(out_pose_estimate->projection);
-				}
+				m_opencv_buffer_state->draw_pose_projection(out_pose_estimate->projection);
             } break;
         default:
             assert(0 && "Unreachable");
@@ -1381,7 +1357,6 @@ bool ServerTrackerView::computePoseForHMD(
 	const CommonDevicePose *tracker_pose_guess,
 	struct HMDOpticalPoseEstimation *out_pose_estimate)
 {
-	const bool bShowDebugRendering= getIsDebugRenderingEnabled();
 	bool bSuccess = true;
 
 	// Get the tracking shape used by the controller
@@ -1416,7 +1391,7 @@ bool ServerTrackerView::computePoseForHMD(
 		bIsTracking ? tracked_hmd->getPoseFilter() : nullptr,
 		bIsTracking ? &tracked_hmd->getTrackerPoseEstimate(this->getDeviceID())->projection : nullptr,
 		&tracking_shape);
-	m_opencv_buffer_state->applyROI(ROI, bShowDebugRendering);
+	m_opencv_buffer_state->applyROI(ROI);
 
 	// Find the N best contours associated with the HMD
 	t_opencv_int_contour_list biggest_contours;
@@ -1440,10 +1415,7 @@ bool ServerTrackerView::computePoseForHMD(
 		for (auto it = biggest_contours.begin(); it != biggest_contours.end(); ++it)
 		{
 			// Draw the source contour
-			if (bShowDebugRendering)
-			{
-				m_opencv_buffer_state->draw_contour(*it);
-			}
+			m_opencv_buffer_state->draw_contour(*it);
 
 			// Convert integer contour to float
 			t_opencv_float_contour biggest_contour_f;
@@ -1473,10 +1445,7 @@ bool ServerTrackerView::computePoseForHMD(
 						out_pose_estimate);
 
 				//Draw results onto m_opencv_buffer_state
-				if (bShowDebugRendering)
-				{
-					m_opencv_buffer_state->draw_pose_projection(out_pose_estimate->projection);
-				}
+				m_opencv_buffer_state->draw_pose_projection(out_pose_estimate->projection);
 			} break;
 		default:
 			assert(0 && "Unreachable");
