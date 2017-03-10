@@ -189,6 +189,16 @@ PSMVector3f PSM_Vector3fNormalizeWithDefault(const PSMVector3f *v, const PSMVect
 	return PSM_Vector3fSafeScalarDivide(v, PSM_Vector3fLength(v), default_result);
 }
 
+PSMVector3f PSM_Vector3fNormalizeWithDefaultGetLength(const PSMVector3f *v, const PSMVector3f *default_result, float *out_length)
+{
+	const float length= PSM_Vector3fLength(v);
+		
+	if (out_length)
+		*out_length= length;
+
+	return PSM_Vector3fSafeScalarDivide(v, length, default_result);
+}
+
 float PSM_Vector3fMinValue(const PSMVector3f *v)
 {
 	return fminf(fminf(v->x, v->y), v->z);
@@ -285,6 +295,11 @@ PSMVector3i PSM_Vector3iMin(const PSMVector3i *a, const PSMVector3i *b)
 PSMVector3i PSM_Vector3iMax(const PSMVector3i *a, const PSMVector3i *b)
 {
 	return {std::max(a->x, b->x), std::max(a->y, b->y), std::max(a->z, b->z)};
+}
+
+PSMVector3f PSM_Vector3iCastToFloat(const PSMVector3i *v)
+{
+	return { static_cast<float>(v->x), static_cast<float>(v->y), static_cast<float>(v->z) };
 }
 
 // PSMQuatf Methods
@@ -453,7 +468,7 @@ PSMVector3f PSM_PosefTransformPoint(const PSMPosef *pose, const PSMVector3f *p)
 	return result;
 }
 
-PSMVector3f PSM_PosefInverseTransformPoint(const PSMPosef *pose, PSMVector3f *p)
+PSMVector3f PSM_PosefInverseTransformPoint(const PSMPosef *pose, const PSMVector3f *p)
 {
 	PSMQuatf q_inv = PSM_QuatfConjugate(&pose->Orientation);
 	PSMVector3f unrotate_p= PSM_QuatfRotateVector(&q_inv, p);

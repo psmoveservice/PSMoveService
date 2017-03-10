@@ -39,7 +39,7 @@ static const float k_height_to_psmove_bulb_center = 17.7f; // cm - measured base
 static const float k_sample_x_location_offset = 14.f; // cm - Half the length of a 8.5'x11' sheet of paper
 static const float k_sample_z_location_offset = 10.75f; // cm - Half the length of a 8.5'x11' sheet of paper
 
-static const PSMovePosition k_sample_3d_locations[k_mat_sample_location_count] = {
+static const PSMVector3f k_sample_3d_locations[k_mat_sample_location_count] = {
     { k_sample_x_location_offset, k_height_to_psmove_bulb_center, k_sample_z_location_offset },
     { -k_sample_x_location_offset, k_height_to_psmove_bulb_center, k_sample_z_location_offset },
     { 0.f, k_height_to_psmove_bulb_center, 0.f },
@@ -60,15 +60,15 @@ struct TrackerRelativePoseStatistics
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 	// N samples for the current sampling location
-	PSMoveScreenLocation screenSpacePoints[k_mat_calibration_sample_count];
+	PSMVector2f screenSpacePoints[k_mat_calibration_sample_count];
 	Eigen::Vector3f trackerSpacePoints[k_mat_calibration_sample_count];
 	int sampleCount;
 
 	// Average for each sampling location
-	PSMoveScreenLocation avgScreenSpacePointAtLocation[k_mat_sample_location_count];
+	PSMVector2f avgScreenSpacePointAtLocation[k_mat_sample_location_count];
 	Eigen::Vector3f avgTrackerSpacePointAtLocation[k_mat_sample_location_count];
 
-	PSMovePose trackerPose;
+	PSMPosef trackerPose;
 	float reprojectionError;
 	bool bValidTrackerPose;
 
@@ -84,7 +84,7 @@ struct TrackerRelativePoseStatistics
 
 	void clearLastSampleBatch()
 	{
-		memset(screenSpacePoints, 0, sizeof(PSMoveScreenLocation)*k_mat_calibration_sample_count);
+		memset(screenSpacePoints, 0, sizeof(PSMVector2f)*k_mat_calibration_sample_count);
 		memset(trackerSpacePoints, 0, sizeof(Eigen::Vector3f)*k_mat_calibration_sample_count);
 		sampleCount = 0;
 	}
@@ -93,28 +93,27 @@ struct TrackerRelativePoseStatistics
 	{
 		clearLastSampleBatch();
 
-		memset(avgScreenSpacePointAtLocation, 0, sizeof(PSMoveScreenLocation)*k_mat_sample_location_count);
+		memset(avgScreenSpacePointAtLocation, 0, sizeof(PSMVector2f)*k_mat_sample_location_count);
 		memset(avgTrackerSpacePointAtLocation, 0, sizeof(Eigen::Vector3f)*k_mat_sample_location_count);
 
-		trackerPose = *k_psmove_pose_identity;
+		trackerPose = *k_psm_pose_identity;
 		reprojectionError = 0.f;
 		bValidTrackerPose = false;
 	}
 
-	void addSample(const ClientTrackerView *trackerView, const ClientControllerView *controllerView, const int sampleLocationIndex)
+	void addSample(const PSMTracker *trackerView, const PSMController *controllerView, const int sampleLocationIndex)
 	{
-		const PSMoveRawTrackerData &trackerData= controllerView->GetRawTrackerData();
-		const int trackerID= trackerView->getTrackerId();
+		const int trackerID= trackerView->tracker_info.tracker_id;
 
-		PSMoveScreenLocation screenSample;
-		PSMovePosition trackerRelativePosition;
+		PSMVector2f screenSample;
+		PSMVector3f trackerRelativePosition;
 		
 		if (!getIsComplete() &&
-			trackerData.GetPixelLocationOnTrackerId(trackerID, screenSample) &&
-			trackerData.GetPositionOnTrackerId(trackerID, trackerRelativePosition))
+			PSM_GetControllerPixelLocationOnTracker(controllerView->ControllerID, trackerID, &screenSample) == PSMResult_Success &&
+			PSM_GetControllerPositionOnTracker(controllerView->ControllerID, trackerID, &trackerRelativePosition) == PSMResult_Success)
 		{
 			screenSpacePoints[sampleCount] = screenSample;
-			trackerSpacePoints[sampleCount] = psmove_float_vector3_to_eigen_vector3(trackerRelativePosition.toPSMoveFloatVector3());
+			trackerSpacePoints[sampleCount] = psm_vector3f_to_eigen_vector3(trackerRelativePosition);
 			++sampleCount;
 
 			if (getIsComplete())
@@ -123,20 +122,19 @@ struct TrackerRelativePoseStatistics
 
 				// Compute the average screen space location
 				{
-					PSMoveFloatVector2 avg = PSMoveFloatVector2::create(0, 0);
+					PSMVector2f avg = {0, 0};
 
 					// Average together all the samples we captured
 					for (int sampleIndex = 0; sampleIndex < k_mat_calibration_sample_count; ++sampleIndex)
 					{
-						const PSMoveScreenLocation &sample = screenSpacePoints[sampleIndex];
+						const PSMVector2f &sample = screenSpacePoints[sampleIndex];
 
-						avg = avg + sample.toPSMoveFloatVector2();
+						avg = PSM_Vector2fAdd(&avg, &sample);
 					}
-					avg = avg.unsafe_divide(N);
+					avg = PSM_Vector2fUnsafeScalarDivide(&avg, N);
 
 					// Save the average sample for this tracker at this location
-					avgScreenSpacePointAtLocation[sampleLocationIndex] =
-						PSMoveScreenLocation::create(avg.i, avg.j);
+					avgScreenSpacePointAtLocation[sampleLocationIndex] = avg;
 				}
 			}
 		}
@@ -145,7 +143,7 @@ struct TrackerRelativePoseStatistics
 
 //-- private methods -----
 static bool computeTrackerCameraPose(
-    const ClientTrackerView *trackerView,
+    const PSMTracker *trackerView,
     TrackerRelativePoseStatistics &trackerCoregData);
 
 //-- public methods -----
@@ -182,7 +180,7 @@ void AppSubStage_CalibrateWithMat::exit()
 
 void AppSubStage_CalibrateWithMat::update()
 {
-    const ClientControllerView *ControllerView= m_parentStage->get_calibration_controller_view();
+    const PSMController *ControllerView= m_parentStage->get_calibration_controller_view();
 
     switch (m_menuState)
     {
@@ -193,7 +191,10 @@ void AppSubStage_CalibrateWithMat::update()
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlacePSMove:
         {
-            if (ControllerView->GetIsStable() || m_bForceControllerStable)
+			bool bIsStable= false;
+			bool bCanBeStable= PSM_GetIsControllerStable(ControllerView->ControllerID, &bIsStable) == PSMResult_Success;
+
+            if ((bCanBeStable && bIsStable) || m_bForceControllerStable)
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 
@@ -225,7 +226,8 @@ void AppSubStage_CalibrateWithMat::update()
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordPSMove:
         {
-            const bool bIsStable = ControllerView->GetIsStable();
+			bool bIsStable= false;
+			bool bCanBeStable= PSM_GetIsControllerStable(ControllerView->ControllerID, &bIsStable) == PSMResult_Success;
 
             // See if any tracker needs more samples
             bool bNeedMoreSamples = false;
@@ -245,16 +247,19 @@ void AppSubStage_CalibrateWithMat::update()
             if (bNeedMoreSamples)
             {
                 // Only record samples when the controller is stable
-                if (bIsStable || m_bForceControllerStable)
+                if ((bCanBeStable && bIsStable) || m_bForceControllerStable)
                 {
                     for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
                         iter != m_parentStage->m_trackerViews.end();
                         ++iter)
                     {
                         const int trackerIndex = iter->second.listIndex;
-                        const ClientTrackerView *trackerView = iter->second.trackerView;
+                        const PSMTracker *trackerView = iter->second.trackerView;
 
-                        if (ControllerView->GetIsCurrentlyTracking())
+						bool bIsTracking= false;
+						bool bCanBeTracked= PSM_GetIsControllerTracking(ControllerView->ControllerID, &bIsTracking) == PSMResult_Success;
+
+                        if (bCanBeTracked && bIsTracking)
                         {
 							m_psmoveTrackerPoseStats[trackerIndex]->addSample(trackerView, ControllerView, m_sampleLocationIndex);
                         }
@@ -301,7 +306,7 @@ void AppSubStage_CalibrateWithMat::update()
                 ++iter)
             {
                 const int trackerIndex = iter->second.listIndex;
-                const ClientTrackerView *trackerView = iter->second.trackerView;
+                const PSMTracker *trackerView = iter->second.trackerView;
                 TrackerRelativePoseStatistics &trackerSampleData = *m_psmoveTrackerPoseStats[trackerIndex];
 
                 bSuccess&= computeTrackerCameraPose(trackerView, trackerSampleData);
@@ -316,9 +321,9 @@ void AppSubStage_CalibrateWithMat::update()
                 {
                     const int trackerIndex = iter->second.listIndex;
                     const TrackerRelativePoseStatistics &trackerSampleData = *m_psmoveTrackerPoseStats[trackerIndex];
-                    const PSMovePose trackerPose = trackerSampleData.trackerPose;
+                    const PSMPosef trackerPose = trackerSampleData.trackerPose;
 
-                    ClientTrackerView *trackerView = iter->second.trackerView;
+                    PSMTracker *trackerView = iter->second.trackerView;
 
                     m_parentStage->request_set_tracker_pose(&trackerPose, trackerView);
                 }
@@ -580,14 +585,15 @@ void AppSubStage_CalibrateWithMat::onEnterState(
 //-- math helper functions -----
 static bool
 computeTrackerCameraPose(
-    const ClientTrackerView *trackerView,
+    const PSMTracker *trackerView,
     TrackerRelativePoseStatistics &trackerCoregData)
 {
     // Get the pixel width and height of the tracker image
-    const PSMoveFloatVector2 trackerPixelDimensions = trackerView->getTrackerPixelExtents();
+    const PSMVector2f trackerPixelDimensions = trackerView->tracker_info.tracker_screen_dimensions;
 
     // Get the tracker "intrinsic" matrix that encodes the camera FOV
-    const PSMoveMatrix3x3 cameraMatrix = trackerView->getTrackerIntrinsicMatrix();
+    PSMMatrix3f cameraMatrix;
+	PSM_GetTrackerIntrinsicMatrix(trackerView->tracker_info.tracker_id, &cameraMatrix);
     cv::Matx33f cvCameraMatrix = psmove_matrix3x3_to_cv_mat33f(cameraMatrix);
 
     // Copy the object/image point mappings into OpenCV format
@@ -595,9 +601,9 @@ computeTrackerCameraPose(
     std::vector<cv::Point2f> cvImagePoints;
     for (int locationIndex = 0; locationIndex < k_mat_sample_location_count; ++locationIndex)
     {
-        const PSMoveScreenLocation &screenPoint =
+        const PSMVector2f &screenPoint =
             trackerCoregData.avgScreenSpacePointAtLocation[locationIndex];
-        const PSMovePosition &worldPoint =
+        const PSMVector3f &worldPoint =
             k_sample_3d_locations[locationIndex];
 
         // Add in the psmove calibration origin offset
@@ -605,7 +611,7 @@ computeTrackerCameraPose(
 
 		//###HipsterSloth $TODO for some reason I need to invert the y points to get the correct tracker locations
 		// I suspect this has something to do with how I am constructing the intrinsic matrix
-        cvImagePoints.push_back(cv::Point2f(screenPoint.x, trackerPixelDimensions.j - screenPoint.y));
+        cvImagePoints.push_back(cv::Point2f(screenPoint.x, trackerPixelDimensions.y - screenPoint.y));
     }
 
     // Assume no distortion
@@ -671,7 +677,7 @@ computeTrackerCameraPose(
         glm::mat4 trackerXform = glm::make_mat4(RTMat);
 
         // Save off the tracker pose in MultiCam Tracking space
-        trackerCoregData.trackerPose = glm_mat4_to_psmove_pose(trackerXform);
+        trackerCoregData.trackerPose = glm_mat4_to_psm_posef(trackerXform);
     }
 
     return trackerCoregData.bValidTrackerPose;

@@ -13,6 +13,9 @@
 #define IS_VALID_TRACKER_INDEX(x) ((x) >= 0 && (x) < PSMOVESERVICE_MAX_TRACKER_COUNT)
 #define IS_VALID_HMD_INDEX(x) ((x) >= 0 && (x) < PSMOVESERVICE_MAX_HMD_COUNT)
 
+// -- constants ----
+const PSMVector3f k_identity_gravity_calibration_direction= {0.f, 1.f, 0.f};
+
 // -- private methods -----
 static PSMResult blockUntilResponse(ClientPSMoveAPI::t_request_id req_id, int timeout_ms);
 static void extractResponseMessage(const ClientPSMoveAPI::ResponseMessage *response_internal, PSMResponseMessage *response);
@@ -727,6 +730,320 @@ PSMResult PSM_SetControllerRumble(PSMControllerID controller_id, PSMControllerRu
     return result;
 }
 
+PSMResult PSM_GetControllerOrientation(PSMControllerID controller_id, PSMQuatf *out_orientation)
+{
+    PSMResult result= PSMResult_Error;
+	assert(out_orientation);
+
+    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    {
+        PSMController *controller= &g_controllers[controller_id];
+        
+        switch (controller->ControllerType)
+        {
+        case PSMController_Move:
+            {
+				PSMPSMove State= controller->ControllerState.PSMoveState;
+				*out_orientation = State.Pose.Orientation;
+
+				result= State.bIsOrientationValid ? PSMResult_Success : PSMResult_Error;
+            } break;
+        case PSMController_Navi:
+            break;
+        case PSMController_DualShock4:
+            {
+				PSMDualShock4 State= controller->ControllerState.PSDS4State;
+				*out_orientation = State.Pose.Orientation;
+
+				result= State.bIsOrientationValid ? PSMResult_Success : PSMResult_Error;
+            } break;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetControllerPosition(PSMControllerID controller_id, PSMVector3f *out_position)
+{
+    PSMResult result= PSMResult_Error;
+	assert(out_position);
+
+    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    {
+        PSMController *controller= &g_controllers[controller_id];
+        
+        switch (controller->ControllerType)
+        {
+        case PSMController_Move:
+            {
+				PSMPSMove State= controller->ControllerState.PSMoveState;
+				*out_position = State.Pose.Position;
+
+				result= State.bIsOrientationValid ? PSMResult_Success : PSMResult_Error;
+            } break;
+        case PSMController_Navi:
+            break;
+        case PSMController_DualShock4:
+            {
+				PSMDualShock4 State= controller->ControllerState.PSDS4State;
+				*out_position = State.Pose.Position;
+
+				result= State.bIsOrientationValid ? PSMResult_Success : PSMResult_Error;
+            } break;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetControllerPose(PSMControllerID controller_id, PSMPosef *out_pose)
+{
+    PSMResult result= PSMResult_Error;
+	assert(out_pose);
+
+    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    {
+        PSMController *controller= &g_controllers[controller_id];
+        
+        switch (controller->ControllerType)
+        {
+        case PSMController_Move:
+            {
+				PSMPSMove State= controller->ControllerState.PSMoveState;
+				*out_pose = State.Pose;
+
+				result= (State.bIsOrientationValid && State.bIsPositionValid) ? PSMResult_Success : PSMResult_Error;
+            } break;
+        case PSMController_Navi:
+            break;
+        case PSMController_DualShock4:
+            {
+				PSMDualShock4 State= controller->ControllerState.PSDS4State;
+				*out_pose = State.Pose;
+
+				result= (State.bIsOrientationValid && State.bIsPositionValid) ? PSMResult_Success : PSMResult_Error;
+            } break;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetIsControllerStable(PSMControllerID controller_id, bool *out_is_stable)
+{
+    PSMResult result= PSMResult_Error;
+	assert(out_is_stable);
+
+    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    {
+        PSMController *controller= &g_controllers[controller_id];
+        
+        switch (controller->ControllerType)
+        {
+        case PSMController_Move:
+            {
+				const float k_cosine_10_degrees = 0.984808f;
+
+				// Get the direction the gravity vector should be pointing 
+				// while the controller is in cradle pose.
+				const PSMVector3f acceleration_direction = controller->ControllerState.PSMoveState.CalibratedSensorData.Accelerometer;
+				float acceleration_magnitude;
+				PSM_Vector3fNormalizeWithDefaultGetLength(&acceleration_direction, k_psm_float_vector3_zero, &acceleration_magnitude);
+
+				*out_is_stable =
+					is_nearly_equal(1.f, acceleration_magnitude, 0.1f) &&
+					PSM_Vector3fDot(&k_identity_gravity_calibration_direction, &acceleration_direction) >= k_cosine_10_degrees;
+
+				result= PSMResult_Success;
+            } break;
+        case PSMController_Navi:
+            break;
+        case PSMController_DualShock4:
+            {
+                PSMVector3f gyro= controller->ControllerState.PSDS4State.CalibratedSensorData.Gyroscope;
+                
+				const float k_gyro_noise= 10.f*k_degrees_to_radians; // noise threshold in rad/sec
+				const float worst_rotation_rate = fabsf(PSM_Vector3fMaxValue(&gyro));
+
+				*out_is_stable = worst_rotation_rate < k_gyro_noise;
+
+				result= PSMResult_Success;
+            } break;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetIsControllerTracking(PSMControllerID controller_id, bool *out_is_tracking)
+{
+    PSMResult result= PSMResult_Error;
+	assert(out_is_tracking);
+
+    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    {
+        PSMController *controller= &g_controllers[controller_id];
+        
+        switch (controller->ControllerType)
+        {
+        case PSMController_Move:
+            {
+				*out_is_tracking = controller->ControllerState.PSMoveState.bIsCurrentlyTracking;
+				result= PSMResult_Success;
+            } break;
+        case PSMController_Navi:
+            break;
+        case PSMController_DualShock4:
+            {
+				*out_is_tracking = controller->ControllerState.PSDS4State.bIsCurrentlyTracking;
+				result= PSMResult_Success;
+            } break;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetControllerPixelLocationOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMVector2f *outLocation)
+{
+	assert(outLocation);
+
+    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    {
+        PSMController *controller= &g_controllers[controller_id];
+		PSMRawTrackerData *trackerData= nullptr;
+        
+        switch (controller->ControllerType)
+        {
+        case PSMController_Move:
+			trackerData= &controller->ControllerState.PSMoveState.RawTrackerData;
+            break;
+        case PSMController_DualShock4:
+			trackerData= &controller->ControllerState.PSDS4State.RawTrackerData;
+            break;
+        }
+
+		if (trackerData != nullptr)
+		{
+			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
+			{
+				if (trackerData->TrackerIDs[listIndex] == tracker_id)
+				{
+					*outLocation = trackerData->ScreenLocations[listIndex];
+					return PSMResult_Success;
+				}
+			}
+		}
+	}
+
+    return PSMResult_Error;
+}
+
+PSMResult PSM_GetControllerPositionOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMVector3f *outPosition)
+{
+	assert(outPosition);
+
+    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    {
+        PSMController *controller= &g_controllers[controller_id];
+		PSMRawTrackerData *trackerData= nullptr;
+        
+        switch (controller->ControllerType)
+        {
+        case PSMController_Move:
+			trackerData= &controller->ControllerState.PSMoveState.RawTrackerData;
+            break;
+        case PSMController_DualShock4:
+			trackerData= &controller->ControllerState.PSDS4State.RawTrackerData;
+            break;
+        }
+
+		if (trackerData != nullptr)
+		{
+			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
+			{
+				if (trackerData->TrackerIDs[listIndex] == tracker_id)
+				{
+					*outPosition = trackerData->RelativePositionsCm[listIndex];
+					return PSMResult_Success;
+				}
+			}
+        }
+	}
+
+    return PSMResult_Error;
+}
+
+PSMResult PSM_GetControllerOrientationOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMQuatf *outOrientation)
+{
+	assert(outOrientation);
+
+    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    {
+        PSMController *controller= &g_controllers[controller_id];
+		PSMRawTrackerData *trackerData= nullptr;
+        
+        switch (controller->ControllerType)
+        {
+        case PSMController_Move:
+			trackerData= &controller->ControllerState.PSMoveState.RawTrackerData;
+            break;
+        case PSMController_DualShock4:
+			trackerData= &controller->ControllerState.PSDS4State.RawTrackerData;
+            break;
+        }
+
+		if (trackerData != nullptr)
+		{
+			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
+			{
+				if (trackerData->TrackerIDs[listIndex] == tracker_id)
+				{
+					*outOrientation = trackerData->RelativeOrientations[listIndex];
+					return PSMResult_Success;
+				}
+			}
+        }
+	}
+
+    return PSMResult_Error;
+}
+
+PSMResult PSM_GetControllerProjectionOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMTrackingProjection *outProjection)
+{
+	assert(outProjection);
+
+    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    {
+        PSMController *controller= &g_controllers[controller_id];
+		PSMRawTrackerData *trackerData= nullptr;
+        
+        switch (controller->ControllerType)
+        {
+        case PSMController_Move:
+			trackerData= &controller->ControllerState.PSMoveState.RawTrackerData;
+            break;
+        case PSMController_DualShock4:
+			trackerData= &controller->ControllerState.PSDS4State.RawTrackerData;
+            break;
+        }
+
+		if (trackerData != nullptr)
+		{
+			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
+			{
+				if (trackerData->TrackerIDs[listIndex] == tracker_id)
+				{
+					*outProjection = trackerData->TrackingProjections[listIndex];
+					return PSMResult_Success;
+				}
+			}
+        }
+	}
+
+    return PSMResult_Error;
+}
+
 PSMResult PSM_ResetControllerOrientationAsync(PSMControllerID controller_id, const PSMQuatf *q_pose, PSMRequestID *out_request_id)
 {
     PSMResult result= PSMResult_Error;
@@ -790,7 +1107,7 @@ PSMTracker *PSM_GetTracker(PSMTrackerID tracker_id)
     return tracker;
 }
 
-PSMResult PSM_AllocateTrackerListener(PSMTrackerID tracker_id, PSMClientTrackerInfo *tracker_info)
+PSMResult PSM_AllocateTrackerListener(PSMTrackerID tracker_id, const PSMClientTrackerInfo *tracker_info)
 {
     PSMResult result= PSMResult_Error;
 
@@ -800,7 +1117,7 @@ PSMResult PSM_AllocateTrackerListener(PSMTrackerID tracker_id, PSMClientTrackerI
 
         if (g_tracker_views[tracker_id] == nullptr)
         {
-            ClientTrackerView *view= ClientPSMoveAPI::allocate_tracker_view(*reinterpret_cast<ClientTrackerInfo *>(tracker_info));
+            ClientTrackerView *view= ClientPSMoveAPI::allocate_tracker_view(*reinterpret_cast<const ClientTrackerInfo *>(tracker_info));
 
             g_tracker_views[tracker_id]= view;
 
@@ -844,6 +1161,27 @@ PSMResult PSM_FreeTrackerListener(PSMTrackerID tracker_id)
     }
 
     return result;
+}
+
+/// Tracker State Methods
+PSMResult PSM_GetTrackerIntrinsicMatrix(PSMTrackerID tracker_id, PSMMatrix3f *out_matrix)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+		PSMTracker *tracker= &g_trackers[tracker_id];
+		PSMClientTrackerInfo *tracker_info= &tracker->tracker_info;
+
+		PSMVector3f basis_x= {tracker_info->tracker_focal_lengths.x, 0.f, tracker_info->tracker_principal_point.x};
+		PSMVector3f basis_y= {0.f, tracker_info->tracker_focal_lengths.y, tracker_info->tracker_principal_point.y};
+		PSMVector3f basis_z= {0.f, 0.f, 1.f};
+
+		*out_matrix= PSM_Matrix3fCreate(&basis_x, &basis_y, &basis_z);
+		result= PSMResult_Success;
+	}
+
+	return result;
 }
 
 /// Blocking Tracker Methods
@@ -946,6 +1284,92 @@ PSMResult PSM_GetTrackingSpaceSettings(PSMTrackingSpace *out_tracking_space, int
         result= PSMResult_Success;
     }
     
+    return result;
+}
+
+PSMResult PSM_OpenTrackerVideoStream(PSMTrackerID tracker_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+        ClientTrackerView *view = g_tracker_views[tracker_id];
+
+        result= view->openVideoStream() ? PSMResult_Success : PSMResult_Error;
+    }
+
+    return result;
+}
+
+PSMResult PSM_PollTrackerVideoStream(PSMTrackerID tracker_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+        ClientTrackerView *view = g_tracker_views[tracker_id];
+
+        result= view->pollVideoStream() ? PSMResult_Success : PSMResult_NoData;
+    }
+
+    return result;
+}
+
+PSMResult PSM_CloseTrackerVideoStream(PSMTrackerID tracker_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+        ClientTrackerView *view = g_tracker_views[tracker_id];
+
+        view->closeVideoStream();
+		result= PSMResult_Success;
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetTrackerVideoFrameBuffer(PSMTrackerID tracker_id, const unsigned char **out_buffer)
+{
+    PSMResult result= PSMResult_Error;
+	assert(out_buffer != nullptr);
+
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+        ClientTrackerView *view = g_tracker_views[tracker_id];
+
+        const unsigned char *buffer= view->getVideoFrameBuffer();
+		if (buffer != nullptr)
+		{
+			*out_buffer= buffer;
+			result= PSMResult_Success;
+		}
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetTrackerFrustum(PSMTrackerID tracker_id, PSMFrustum *out_frustum)
+{
+    PSMResult result= PSMResult_Error;
+	assert(out_frustum != nullptr);
+
+    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+		const PSMTracker *tracker= &g_trackers[tracker_id];
+		const PSMClientTrackerInfo *tracker_info= &tracker->tracker_info;
+		PSM_FrustumSetPose(out_frustum, &tracker_info->tracker_pose);
+
+		// Convert the FOV angles to radians for rendering purposes
+		out_frustum->HFOV = tracker_info->tracker_hfov * k_degrees_to_radians;
+		out_frustum->VFOV = tracker_info->tracker_vfov * k_degrees_to_radians;
+		out_frustum->zNear = tracker_info->tracker_znear;
+		out_frustum->zFar = tracker_info->tracker_zfar;
+
+		result= PSMResult_Success;
+	}
+
     return result;
 }
 
@@ -1094,6 +1518,266 @@ PSMResult PSM_FreeHmdListener(PSMHmdID hmd_id)
 
     return result;
 
+}
+
+/// HMD State Methods
+PSMResult PSM_GetHmdOrientation(PSMHmdID hmd_id, PSMQuatf *out_orientation)
+{
+    PSMResult result= PSMResult_Error;
+	assert(out_orientation);
+
+    if (IS_VALID_HMD_INDEX(hmd_id))
+    {
+        PSMHeadMountedDisplay *hmd= &g_HMDs[hmd_id];
+        
+        switch (hmd->HmdType)
+        {
+        case PSMHmd_Morpheus:
+            {
+				PSMMorpheus State= hmd->HmdState.MorpheusState;
+				*out_orientation = State.Pose.Orientation;
+
+				result= State.bIsOrientationValid ? PSMResult_Success : PSMResult_Error;
+            } break;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetHmdPosition(PSMHmdID hmd_id, PSMVector3f *out_position)
+{
+    PSMResult result= PSMResult_Error;
+	assert(out_position);
+
+    if (IS_VALID_HMD_INDEX(hmd_id))
+    {
+        PSMHeadMountedDisplay *hmd= &g_HMDs[hmd_id];
+        
+        switch (hmd->HmdType)
+        {
+        case PSMHmd_Morpheus:
+            {
+				PSMMorpheus State= hmd->HmdState.MorpheusState;
+				*out_position = State.Pose.Position;
+
+				result= State.bIsPositionValid ? PSMResult_Success : PSMResult_Error;
+            } break;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetHmdPose(PSMHmdID hmd_id, PSMPosef *out_pose)
+{
+    PSMResult result= PSMResult_Error;
+	assert(out_pose);
+
+    if (IS_VALID_HMD_INDEX(hmd_id))
+    {
+        PSMHeadMountedDisplay *hmd= &g_HMDs[hmd_id];
+        
+        switch (hmd->HmdType)
+        {
+        case PSMHmd_Morpheus:
+            {
+				PSMMorpheus State= hmd->HmdState.MorpheusState;
+				*out_pose = State.Pose;
+
+				result= (State.bIsOrientationValid && State.bIsPositionValid) ? PSMResult_Success : PSMResult_Error;
+            } break;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetIsHmdStable(PSMHmdID hmd_id, bool *out_is_stable)
+{
+    PSMResult result= PSMResult_Error;
+	assert(out_is_stable);
+
+    if (IS_VALID_HMD_INDEX(hmd_id))
+    {
+        PSMHeadMountedDisplay *hmd= &g_HMDs[hmd_id];
+        
+        switch (hmd->HmdType)
+        {
+        case PSMHmd_Morpheus:
+            {
+				const float k_cosine_20_degrees = 0.9396926f;
+
+				// Get the direction the gravity vector should be pointing 
+				// while the controller is in cradle pose.
+				const PSMVector3f acceleration_direction = hmd->HmdState.MorpheusState.CalibratedSensorData.Accelerometer;
+				float acceleration_magnitude;
+				PSM_Vector3fNormalizeWithDefaultGetLength(&acceleration_direction, k_psm_float_vector3_zero, &acceleration_magnitude);
+
+				*out_is_stable =
+					is_nearly_equal(1.f, acceleration_magnitude, 0.1f) &&
+					PSM_Vector3fDot(&k_identity_gravity_calibration_direction, &acceleration_direction) >= k_cosine_20_degrees;
+
+				result= PSMResult_Success;
+            } break;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetIsHmdTracking(PSMHmdID hmd_id, bool *out_is_tracking)
+{
+    PSMResult result= PSMResult_Error;
+	assert(out_is_tracking);
+
+    if (IS_VALID_HMD_INDEX(hmd_id))
+    {
+        PSMHeadMountedDisplay *hmd= &g_HMDs[hmd_id];
+        
+        switch (hmd->HmdType)
+        {
+        case PSMHmd_Morpheus:
+            {
+				*out_is_tracking = hmd->HmdState.MorpheusState.bIsCurrentlyTracking;
+				result= PSMResult_Success;
+            } break;
+        }
+    }
+
+    return result;
+}
+
+PSMResult PSM_GetHmdPixelLocationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMVector2f *outLocation)
+{
+	assert(outLocation);
+
+    if (IS_VALID_HMD_INDEX(hmd_id))
+    {
+        PSMHeadMountedDisplay *hmd= &g_HMDs[hmd_id];
+		PSMRawTrackerData *trackerData= nullptr;
+        
+        switch (hmd->HmdType)
+        {
+        case PSMHmd_Morpheus:
+            {
+				trackerData= &hmd->HmdState.MorpheusState.RawTrackerData;
+            } break;
+        }
+
+		if (trackerData != nullptr)
+		{
+			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
+			{
+				if (trackerData->TrackerIDs[listIndex] == tracker_id)
+				{
+					*outLocation = trackerData->ScreenLocations[listIndex];
+					return PSMResult_Success;
+				}
+			}
+		}
+	}
+
+    return PSMResult_Error;
+}
+
+PSMResult PSM_GetHmdPositionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMVector3f *outPosition)
+{
+	assert(outPosition);
+
+    if (IS_VALID_HMD_INDEX(hmd_id))
+    {
+        PSMHeadMountedDisplay *hmd= &g_HMDs[hmd_id];
+		PSMRawTrackerData *trackerData= nullptr;
+        
+        switch (hmd->HmdType)
+        {
+        case PSMHmd_Morpheus:
+            {
+				trackerData= &hmd->HmdState.MorpheusState.RawTrackerData;
+            } break;
+        }
+
+		if (trackerData != nullptr)
+		{
+			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
+			{
+				if (trackerData->TrackerIDs[listIndex] == tracker_id)
+				{
+					*outPosition = trackerData->RelativePositionsCm[listIndex];
+					return PSMResult_Success;
+				}
+			}
+        }
+	}
+
+    return PSMResult_Error;
+}
+
+PSMResult PSM_GetHmdOrientationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMQuatf *outOrientation)
+{
+	assert(outOrientation);
+
+    if (IS_VALID_HMD_INDEX(hmd_id))
+    {
+        PSMHeadMountedDisplay *hmd= &g_HMDs[hmd_id];
+		PSMRawTrackerData *trackerData= nullptr;
+        
+        switch (hmd->HmdType)
+        {
+        case PSMHmd_Morpheus:
+            {
+				trackerData= &hmd->HmdState.MorpheusState.RawTrackerData;
+            } break;
+        }
+
+		if (trackerData != nullptr)
+		{
+			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
+			{
+				if (trackerData->TrackerIDs[listIndex] == tracker_id)
+				{
+					*outOrientation = trackerData->RelativeOrientations[listIndex];
+					return PSMResult_Success;
+				}
+			}
+        }
+	}
+
+    return PSMResult_Error;
+}
+
+PSMResult PSM_GetHmdProjectionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMTrackingProjection *outProjection)
+{
+	assert(outProjection);
+
+    if (IS_VALID_HMD_INDEX(hmd_id))
+    {
+        PSMHeadMountedDisplay *hmd= &g_HMDs[hmd_id];
+		PSMRawTrackerData *trackerData= nullptr;
+        
+        switch (hmd->HmdType)
+        {
+        case PSMHmd_Morpheus:
+            {
+				trackerData= &hmd->HmdState.MorpheusState.RawTrackerData;
+            } break;
+        }
+
+		if (trackerData != nullptr)
+		{
+			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
+			{
+				if (trackerData->TrackerIDs[listIndex] == tracker_id)
+				{
+					*outProjection = trackerData->TrackingProjections[listIndex];
+					return PSMResult_Success;
+				}
+			}
+        }
+	}
+
+    return PSMResult_Error;
 }
 
 /// Blocking HMD Methods
@@ -1378,7 +2062,7 @@ static void extractResponseMessage(const ClientPSMoveAPI::ResponseMessage *respo
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
         response->result_code= PSMResult_Error;
         break;
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Canceled:
         response->result_code= PSMResult_Canceled;
         break;
     default:

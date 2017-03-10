@@ -5,6 +5,8 @@
 #include "Renderer.h"
 #include "Logger.h"
 
+#include "PSMoveProtocol.pb.h"
+
 //-- public methods -----
 App::App()
     : m_renderer(new Renderer())
@@ -76,16 +78,16 @@ int App::exec(int argc, char** argv, const char *initial_state_name)
 
 bool App::reconnectToService()
 {
-    if (ClientPSMoveAPI::has_started())
+    if (PSM_GetIsInitialized())
     {
-        ClientPSMoveAPI::shutdown();
+		PSM_Shutdown();
     }
 
     bool success= 
-        ClientPSMoveAPI::startup(
+		PSM_Initialize(
             m_serverAddress,
             m_serverPort, 
-            _log_severity_level_info); //###bwalker $TODO put in config 
+            PSM_DEFAULT_TIMEOUT);
 
     return success;
 }
@@ -220,10 +222,10 @@ void App::onSDLEvent(const SDL_Event &e)
 }
 
 void App::onClientPSMoveEvent(
-    const ClientPSMoveAPI::EventMessage *event)
+    const PSMEventMessage *event)
 {
-    ClientPSMoveAPI::eEventType event_type = event->event_type;
-    ClientPSMoveAPI::t_event_data_handle opaque_event_handle = event->event_data_handle;
+    PSMEventMessage::eEventType event_type = event->event_type;
+    PSMEventDataHandle opaque_event_handle = event->event_data_handle;
 
     // Try giving the event to the current AppStage first
     if (!m_appStage->onClientAPIEvent(event_type, opaque_event_handle))
@@ -241,9 +243,9 @@ void App::onClientPSMoveEvent(
 }
 
 void App::onClientPSMoveResponse(
-    const ClientPSMoveAPI::ResponseMessage *response)
+    const PSMResponseMessage *response)
 {
-    ClientPSMoveAPI::t_request_id request_id= response->request_id;
+    PSMRequestID request_id= response->request_id;
     const PSMoveProtocol::Response *protocol_response = GET_PSMOVEPROTOCOL_RESPONSE(response->opaque_response_handle);
     PSMoveProtocol::Response_ResponseType protocol_response_type= protocol_response->type();
     const std::string& protocol_response_type_name = PSMoveProtocol::Response_ResponseType_Name(protocol_response_type);
@@ -256,18 +258,18 @@ void App::onClientPSMoveResponse(
 void App::update()
 {
     // Poll any events from the service
-    ClientPSMoveAPI::update();
+    PSM_UpdateNoPollMessages();
 
     // Poll events queued up by the call to ClientPSMoveAPI::update()
-    ClientPSMoveAPI::Message message;
-    while (ClientPSMoveAPI::poll_next_message(&message, sizeof(message)))
+    PSMMessage message;
+    while (PSM_PollNextMessage(&message, sizeof(message)))
     {
         switch (message.payload_type)
         {
-        case ClientPSMoveAPI::_messagePayloadType_Response:
+        case PSMMessage::_messagePayloadType_Response:
             onClientPSMoveResponse(&message.response_data);
             break;
-        case ClientPSMoveAPI::_messagePayloadType_Event:
+        case PSMMessage::_messagePayloadType_Event:
             onClientPSMoveEvent(&message.event_data);
             break;
         }

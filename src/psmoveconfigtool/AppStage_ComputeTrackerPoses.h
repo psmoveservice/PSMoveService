@@ -3,7 +3,7 @@
 
 //-- includes -----
 #include "AppStage.h"
-#include "ClientPSMoveAPI.h"
+#include "PSMoveClient_CAPI.h"
 
 #include <map>
 
@@ -14,7 +14,7 @@ public:
     struct TrackerState
     {
         int listIndex;
-        class ClientTrackerView *trackerView;
+        PSMTracker *trackerView;
         class TextureAsset *textureAsset;
     };
     typedef std::map<int, TrackerState> t_tracker_state_map;
@@ -25,8 +25,8 @@ public:
 	struct ControllerState
 	{
 		int listIndex;
-		PSMoveTrackingColorType trackingColorType;
-		class ClientControllerView *controllerView;
+		PSMTrackingColorType trackingColorType;
+		PSMController *controllerView;
 	};
 	typedef std::map<int, ControllerState> t_controller_state_map;
 	typedef std::map<int, ControllerState>::iterator t_controller_state_map_iterator;
@@ -84,35 +84,35 @@ protected:
     void go_previous_tracker();
     int get_tracker_count() const;
     int get_render_tracker_index() const;
-    class ClientTrackerView *get_render_tracker_view() const;
-	class ClientControllerView *get_calibration_controller_view() const;
+    PSMTracker *get_render_tracker_view() const;
+	PSMController *get_calibration_controller_view() const;
 
     void request_controller_list();
     static void handle_controller_list_response(
-        const ClientPSMoveAPI::ResponseMessage *response_message,
+        const PSMResponseMessage *response_message,
         void *userdata);
 
-    void request_start_controller_stream(int ControllerID, int listIndex, PSMoveTrackingColorType trackingColorType);
+    void request_start_controller_stream(int ControllerID, int listIndex, PSMTrackingColorType trackingColorType);
     static void handle_start_controller_response(
-        const ClientPSMoveAPI::ResponseMessage *response_message,
+        const PSMResponseMessage *response_message,
         void *userdata);
 
     void request_tracker_list();
     static void handle_tracker_list_response(
-        const ClientPSMoveAPI::ResponseMessage *response_message,
+        const PSMResponseMessage *response_message,
         void *userdata);
 
-    void request_tracker_start_stream(const struct ClientTrackerInfo *TrackerInfo, int listIndex);
+    void request_tracker_start_stream(const PSMClientTrackerInfo *TrackerInfo, int listIndex);
     static void handle_tracker_start_stream_response(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
 
     void request_set_tracker_pose(
-        const struct PSMovePose *pose, 
-        class ClientTrackerView *TrackerView);
+        const PSMPosef *pose, 
+        PSMTracker *TrackerView);
 
     void handle_all_devices_ready();
-	bool does_tracker_see_any_controller(const ClientTrackerView *trackerView);
+	bool does_tracker_see_any_controller(const PSMTracker *trackerView);
 
     void release_devices();
     void request_exit_to_app_stage(const char *app_stage_name);

@@ -3,7 +3,7 @@
 
 //-- includes -----
 #include "AppStage.h"
-#include "ClientPSMoveAPI.h"
+#include "PSMoveClient_CAPI.h"
 
 #include <vector>
 #include <string>
@@ -29,7 +29,7 @@ public:
 	inline void set_override_hmd_id(int hmd_id)
 	{ m_overrideHmdId = hmd_id; }
 
-	inline void set_override_tracking_color(PSMoveTrackingColorType tracking_color) {
+	inline void set_override_tracking_color(PSMTrackingColorType tracking_color) {
 		m_masterTrackingColorType = tracking_color;
 	}
 	
@@ -92,49 +92,49 @@ protected:
 
     void request_start_controller_streams();
     static void handle_start_controller_response(
-        const ClientPSMoveAPI::ResponseMessage *response_message,
+        const PSMResponseMessage *response_message,
         void *userdata);
 
 	void request_start_hmd_stream();
 	static void handle_start_hmd_response(
-		const ClientPSMoveAPI::ResponseMessage *response_message,
+		const PSMResponseMessage *response_message,
 		void *userdata);
 
-    void request_set_controller_tracking_color(class ClientControllerView *controllerView, PSMoveTrackingColorType tracking_color);
+    void request_set_controller_tracking_color(PSMController *controllerView, PSMTrackingColorType tracking_color);
 
     void request_tracker_start_stream();
     static void handle_tracker_start_stream_response(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
 
 	void request_tracker_set_frame_rate(double value);
 	static void handle_tracker_set_frame_rate_response(
-		const ClientPSMoveAPI::ResponseMessage *response,
+		const PSMResponseMessage *response,
 		void *userdata);
 
     void request_tracker_set_exposure(double value);
     static void handle_tracker_set_exposure_response(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
 
     void request_tracker_set_gain(double value);
     static void handle_tracker_set_gain_response(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
 
     void request_tracker_set_option(TrackerOption &option, int new_option_index);
     static void handle_tracker_set_option_response(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
 
-    void request_tracker_set_color_preset(PSMoveTrackingColorType color_type, TrackerColorPreset &color_preset);
+    void request_tracker_set_color_preset(PSMTrackingColorType color_type, TrackerColorPreset &color_preset);
     static void handle_tracker_set_color_preset_response(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
 
     void request_tracker_get_settings();
     static void handle_tracker_get_settings_response(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
 
     void request_save_default_tracker_profile();
@@ -157,18 +157,18 @@ protected:
 private:
     // ClientPSMoveAPI state
 	int m_overrideControllerId;	
-    class ClientControllerView *m_masterControllerView;
-	std::vector<class ClientControllerView *> m_controllerViews;
-	std::vector<PSMoveTrackingColorType> m_controllerTrackingColorTypes;
+    PSMController *m_masterControllerView;
+	std::vector<PSMController *> m_controllerViews;
+	std::vector<PSMTrackingColorType> m_controllerTrackingColorTypes;
 	int m_pendingControllerStartCount;
     bool m_areAllControllerStreamsActive;
     int m_lastMasterControllerSeqNum;
 	int m_overrideHmdId;
-	class ClientHMDView *m_hmdView;
+	PSMHeadMountedDisplay *m_hmdView;
 	bool m_isHmdStreamActive;
 	int m_lastHmdSeqNum;
 
-    class ClientTrackerView *m_trackerView;
+    PSMTracker *m_trackerView;
 
     // Menu state
     eMenuState m_menuState;
@@ -180,13 +180,13 @@ private:
     double m_trackerExposure;
     double m_trackerGain;
     std::vector<TrackerOption> m_trackerOptions;
-    TrackerColorPreset m_colorPresets[PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES];
+    TrackerColorPreset m_colorPresets[PSMTrackingColorType_MaxColorTypes];
 	int tracker_count;
 	int tracker_index;
 
     // Color Settings
 	bool m_bTurnOnAllControllers;
-    PSMoveTrackingColorType m_masterTrackingColorType;
+    PSMTrackingColorType m_masterTrackingColorType;
 
 	// Auto Calibration options
 	bool m_bAutoChangeController;

@@ -3,9 +3,7 @@
 
 //-- includes -----
 #include <glm/glm.hpp>
-
-//-- pre-declatations -----
-struct ClientTrackerInfo;
+#include "PSMoveClient_CAPI.h"
 
 //-- typedefs -----
 typedef union SDL_Event SDL_Event;
@@ -84,14 +82,14 @@ private:
 void drawArrow(const glm::mat4 &transform, const glm::vec3 &start, const glm::vec3 &end, const float headFraction, const glm::vec3 &color);
 void drawTextAtWorldPosition(const glm::mat4 &transform, const glm::vec3 &position, const char *format, ...) RENDERER_PRINTFARGS(3);
 void drawFullscreenTexture(const unsigned int texture_id);
-void drawPointCloudProjection(const struct PSMoveScreenLocation *points, const int point_count, const float point_size, const glm::vec3 &color, const float trackerWidth, const float trackerHeight);
-void drawTransformedVolume(const glm::mat4 &transform, const struct PSMoveVolume *volume, const glm::vec3 &color);
+void drawPointCloudProjection(const PSMVector2f *points, const int point_count, const float point_size, const glm::vec3 &color, const float trackerWidth, const float trackerHeight);
+void drawTransformedVolume(const glm::mat4 &transform, const PSMVolume *volume, const glm::vec3 &color);
 void drawTransformedAxes(const glm::mat4 &transform, float scale);
 void drawTransformedAxes(const glm::mat4 &transform, float xScale, float yScale, float zScale);
 void drawTransformedBox(const glm::mat4 &transform, const glm::vec3 &half_extents, const glm::vec3 &color);
 void drawTransformedBox(const glm::mat4 &transform, const glm::vec3 &box_min, const glm::vec3 &box_max, const glm::vec3 &color);
 void drawTransformedTexturedCube(const glm::mat4 &transform, int textureId, float scale);
-void drawTransformedFrustum(const glm::mat4 &transform, const struct PSMoveFrustum *frustum, const glm::vec3 &color);
+void drawTransformedFrustum(const glm::mat4 &transform, const PSMFrustum *frustum, const glm::vec3 &color);
 void drawPointCloud(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count);
 void drawEllipsoid(
     const glm::mat4 &transform, const glm::vec3 &color, 
@@ -100,12 +98,12 @@ void drawEllipsoid(
 void drawLineStrip(const glm::mat4 &transform, const glm::vec3 &color, const float *points, const int point_count);
 void drawQuadList2d(const float trackerWidth, const float trackerHeight, const glm::vec3 &color, const float *points2d, const int point_count);
 void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, const float *points2d, const int point_count, bool valid_points);
-void drawPoseArrayStrip(const struct PSMovePose *poses, const int poseCount, const glm::vec3 &color);
+void drawPoseArrayStrip(const PSMPosef *poses, const int poseCount, const glm::vec3 &color);
 void drawPSMoveModel(const glm::mat4 &transform, const glm::vec3 &color);
 void drawPSNaviModel(const glm::mat4 &transform);
 void drawPSDualShock4Model(const glm::mat4 &transform, const glm::vec3 &color);
 void drawPS3EyeModel(const glm::mat4 &transform);
-void drawTrackerList(const ClientTrackerInfo *trackerList, const int trackerCount);
+void drawTrackerList(const PSMClientTrackerInfo *trackerList, const int trackerCount);
 void drawMorpheusModel(const glm::mat4 &transform);
 
 //-- Utilities -----

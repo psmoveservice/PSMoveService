@@ -4,6 +4,10 @@
 #include <stdbool.h>
 //cut_before
 
+//-- constants -----
+#define PSM_METERS_TO_CENTIMETERS  100.f
+#define PSM_CENTIMETERS_TO_METERS  0.01f
+
 /// A 2D vector with float components.
 typedef struct _PSMVector2f
 {
@@ -120,6 +124,7 @@ PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_Vector3fAbs(const PSMVector3f *v);
 PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_Vector3fSquare(const PSMVector3f *v);
 PSM_PUBLIC_FUNCTION(float) PSM_Vector3fLength(const PSMVector3f *v);
 PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_Vector3fNormalizeWithDefault(const PSMVector3f *v, const PSMVector3f *default_result);
+PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_Vector3fNormalizeWithDefaultGetLength(const PSMVector3f *v, const PSMVector3f *default_result, float *out_length);
 PSM_PUBLIC_FUNCTION(float) PSM_Vector3fMinValue(const PSMVector3f *v);
 PSM_PUBLIC_FUNCTION(float) PSM_Vector3fMaxValue(const PSMVector3f *v);
 PSM_PUBLIC_FUNCTION(float) PSM_Vector3fDot(const PSMVector3f *a, const PSMVector3f *b);
@@ -141,6 +146,7 @@ PSM_PUBLIC_FUNCTION(int) PSM_Vector3iMinValue(const PSMVector3i *v);
 PSM_PUBLIC_FUNCTION(int) PSM_Vector3iMaxValue(const PSMVector3i *v);
 PSM_PUBLIC_FUNCTION(PSMVector3i) PSM_Vector3iMin(const PSMVector3i *a, const PSMVector3i *b);
 PSM_PUBLIC_FUNCTION(PSMVector3i) PSM_Vector3iMax(const PSMVector3i *a, const PSMVector3i *b);
+PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_Vector3iCastToFloat(const PSMVector3i *v);
 
 // PSMQuatf Methods
 PSM_PUBLIC_FUNCTION(PSMQuatf) PSM_QuatfCreate(float w, float x, float y, float z);
@@ -168,7 +174,7 @@ PSM_PUBLIC_FUNCTION(PSMPosef) PSM_PosefCreate(const PSMVector3f *position, const
 PSM_PUBLIC_FUNCTION(PSMPosef) PSM_PosefInverse(const PSMPosef *pose);
 PSM_PUBLIC_FUNCTION(PSMPosef) PSM_PosefConcat(const PSMPosef *first, const PSMPosef *second);
 PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_PosefTransformPoint(const PSMPosef *pose, const PSMVector3f *p);
-PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_PosefInverseTransformPoint(const PSMPosef *pose, PSMVector3f *p);
+PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_PosefInverseTransformPoint(const PSMPosef *pose, const PSMVector3f *p);
 
 // PSMFrustumf
 PSM_PUBLIC_FUNCTION(void) PSM_FrustumSetPose(PSMFrustum *frustum, const PSMPosef *pose);

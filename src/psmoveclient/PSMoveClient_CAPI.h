@@ -27,6 +27,7 @@ enum _PSMResult
     PSMResult_Timeout               = 1,
     PSMResult_RequestSent           = 2,
     PSMResult_Canceled              = 3,
+    PSMResult_NoData                = 4,
 };
 typedef enum _PSMResult PSMResult;
 
@@ -54,6 +55,8 @@ typedef enum _PSMTrackingColorType
     PSMTrackingColorType_Red,        // R:0xFF, G:0x00, B:0x00
     PSMTrackingColorType_Green,      // R:0x00, G:0xFF, B:0x00
     PSMTrackingColorType_Blue,       // R:0x00, G:0x00, B:0xFF
+	
+	PSMTrackingColorType_MaxColorTypes
 } PSMTrackingColorType;
 
 typedef enum _PSMControllerDataStreamFlags
@@ -143,7 +146,7 @@ typedef struct _PSMRawTrackerData
     PSMVector3f             RelativePositionsCm[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMQuatf                RelativeOrientations[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMTrackingProjection   TrackingProjections[PSMOVESERVICE_MAX_TRACKER_COUNT];
-    int                     TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMTrackerID            TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int                     ValidTrackerLocations;
 
     // Multicam triangulated position and orientation, pre-filtered
@@ -161,6 +164,7 @@ typedef struct _PSMPSMove
     bool                         bIsOrientationValid;
     bool                         bIsPositionValid;
     bool                         bHasUnpublishedState;
+    bool                         bPoseResetButtonEnabled;
     
     char                         DevicePath[256];
     char                         DeviceSerial[128];
@@ -230,6 +234,7 @@ typedef struct _PSMDualShock4
     bool                         bIsOrientationValid;
     bool                         bIsPositionValid;
     bool                         bHasUnpublishedState;
+    bool                         bPoseResetButtonEnabled;
     
     char                         DevicePath[256];
     char                         DeviceSerial[128];
@@ -548,6 +553,15 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDTrackingColor(PSMControllerID
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerOrientation(PSMControllerID controller_id, PSMQuatf *q_pose, int timeout_ms);
 
 /// Controller State Methods
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerOrientation(PSMControllerID controller_id, PSMQuatf *out_orientation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPosition(PSMControllerID controller_id, PSMVector3f *out_position);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPose(PSMControllerID controller_id, PSMPosef *out_pose);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetIsControllerStable(PSMControllerID controller_id, bool *out_is_stable);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetIsControllerTracking(PSMControllerID controller_id, bool *out_is_tracking);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPixelLocationOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMVector2f *outLocation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPositionOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMVector3f *outPosition);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerOrientationOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMQuatf *outOrientation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerProjectionOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMTrackingProjection *outProjection);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDOverrideColor(PSMControllerID controller_id, unsigned char r, unsigned char g, unsigned char b);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerRumble(PSMControllerID controller_id, PSMControllerRumbleChannel channel, float rumbleFraction);
 
@@ -560,14 +574,22 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerOrientationAsync(PSMController
 
 /// Tracker Pool
 PSM_PUBLIC_FUNCTION(PSMTracker *) PSM_GetTracker(PSMTrackerID tracker_id);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_AllocateTrackerListener(PSMTrackerID tracker_id, PSMClientTrackerInfo *tracker_info);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_AllocateTrackerListener(PSMTrackerID tracker_id, const PSMClientTrackerInfo *tracker_info);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_FreeTrackerListener(PSMTrackerID controller_id);
+
+/// Tracker State Methods
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerIntrinsicMatrix(PSMTrackerID tracker_id, PSMMatrix3f *out_matrix);
 
 /// Blocking Tracker Methods
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerList(PSMTrackerList *out_tracker_list, int timeout_ms);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartTrackerDataStream(PSMTrackerID tracker_id, unsigned int data_stream_flags, int timeout_ms);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackingSpaceSettings(PSMTrackingSpace *out_tracking_space, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_OpenTrackerVideoStream(PSMTrackerID tracker_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_PollTrackerVideoStream(PSMTrackerID tracker_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_CloseTrackerVideoStream(PSMTrackerID tracker_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerVideoFrameBuffer(PSMTrackerID tracker_id, const unsigned char **out_buffer); 
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerFrustum(PSMTrackerID tracker_id, PSMFrustum *out_frustum);
 
 /// Async Tracker Methods
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerListAsync(PSMRequestID *out_request_id);
@@ -579,6 +601,17 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackingSpaceSettingsAsync(PSMRequestID *o
 PSM_PUBLIC_FUNCTION(PSMHeadMountedDisplay *) PSM_GetHmd(PSMHmdID hmd_id);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_AllocateHmdListener(PSMHmdID hmd_id);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_FreeHmdListener(PSMHmdID hmd_id);
+
+/// HMD State Methods
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdOrientation(PSMHmdID hmd_id, PSMQuatf *out_orientation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdPosition(PSMHmdID hmd_id, PSMVector3f *out_position);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdPose(PSMHmdID hmd_id, PSMPosef *out_pose);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetIsHmdStable(PSMHmdID hmd_id, bool *out_is_stable);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetIsHmdTracking(PSMHmdID hmd_id, bool *out_is_tracking);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdPixelLocationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMVector2f *outLocation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdPositionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMVector3f *outPosition);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdOrientationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMQuatf *outOrientation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdProjectionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMTrackingProjection *outProjection);
 
 /// Blocking HMD Methods
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdList(PSMHmdList *out_hmd_list, int timeout_ms);

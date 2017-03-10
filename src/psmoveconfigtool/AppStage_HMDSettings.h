@@ -3,6 +3,7 @@
 
 //-- includes -----
 #include "AppStage.h"
+#include <vector>
 
 //-- definitions -----
 class AppStage_HMDSettings : public AppStage
@@ -42,13 +43,13 @@ public:
     static const char *APP_STAGE_NAME;
 
 protected:
-	virtual bool onClientAPIEvent(
-		ClientPSMoveAPI::eEventType event,
-		ClientPSMoveAPI::t_event_data_handle opaque_event_handle) override;
+    virtual bool onClientAPIEvent(
+        PSMEventMessage::eEventType event, 
+        PSMEventDataHandle opaque_event_handle) override;
 
     void request_hmd_list();
 	static void handle_hmd_list_response(
-		const ClientPSMoveAPI::ResponseMessage *response,
+		const PSMResponseMessage *response,
 		void *userdata);
 
 	void request_set_hmd_prediction(const int hmd_id, float prediction_time);

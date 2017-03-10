@@ -2,7 +2,7 @@
 #define APP_STAGE_COREGISTER_WITH_MAT_H
 
 //-- includes -----
-#include "ClientGeometry.h"
+#include "ClientGeometry_CAPI.h"
 #include "ClientConstants.h"
 #include <chrono>
 #include <string.h>  // Required for memset in Xcode

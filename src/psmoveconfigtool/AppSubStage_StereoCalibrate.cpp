@@ -35,8 +35,8 @@ const int k_max_invalid_sample_count= 100;
 //-- private structures -----
 struct StereoPairSampleState
 {
-	ClientTrackerView *trackerViews[2];
-	PSMovePose trackerPoses[2];
+	PSMTracker *trackerViews[2];
+	PSMPosef trackerPoses[2];
 	Eigen::Matrix3f F_ab; // Fundamental matrix from tracker A to tracker B
 	Eigen::Matrix3f F_ba; // Fundamental matrix from tracker B to tracker A
 	bool bValid;
@@ -49,8 +49,8 @@ struct StereoPairSampleState
 	{
 		trackerViews[0]= nullptr;
 		trackerViews[1]= nullptr;
-		trackerPoses[0].Clear();
-		trackerPoses[1].Clear();
+		trackerPoses[0]= *k_psm_pose_identity;
+		trackerPoses[1]= *k_psm_pose_identity;
 		F_ab= Eigen::Matrix3f::Identity();
 		F_ba= Eigen::Matrix3f::Identity();
 		valid_ab_count= 0;
@@ -74,8 +74,8 @@ struct StereoPairSampleState
 
 		if (tracker_count == 2)
 		{
-			const ClientTrackerInfo &tracker_a_info = trackerViews[0]->getTrackerInfo();
-			const ClientTrackerInfo &tracker_b_info = trackerViews[1]->getTrackerInfo();
+			const PSMClientTrackerInfo &tracker_a_info = trackerViews[0]->tracker_info;
+			const PSMClientTrackerInfo &tracker_b_info = trackerViews[1]->tracker_info;
 
 			float half_seperation= separation / 2.f;
 			Eigen::Vector3f Ta = Eigen::Vector3f(half_seperation, 0.f, -originOffset);
@@ -84,8 +84,12 @@ struct StereoPairSampleState
 			Eigen::Quaternionf Qb = Eigen::Quaternionf::Identity();
 
 			// Get the intrinsic matrices for A and B
-			Eigen::Matrix3f Ka= psmove_matrix3x3_to_eigen_matrix3(tracker_a_info.getTrackerIntrinsicMatrix());
-			Eigen::Matrix3f Kb= psmove_matrix3x3_to_eigen_matrix3(tracker_b_info.getTrackerIntrinsicMatrix());
+			PSMMatrix3f intrinsicMatrixA;
+			PSMMatrix3f intrinsicMatrixB;
+			PSM_GetTrackerIntrinsicMatrix(tracker_a_info.tracker_id, &intrinsicMatrixA);
+			PSM_GetTrackerIntrinsicMatrix(tracker_b_info.tracker_id, &intrinsicMatrixB);
+			Eigen::Matrix3f Ka= psm_matrix3f_to_eigen_matrix3(intrinsicMatrixA);
+			Eigen::Matrix3f Kb= psm_matrix3f_to_eigen_matrix3(intrinsicMatrixB);
 
 			// Compute the fundamental matrix from camera A to camera B
 			eigen_alignment_compute_camera_fundamental_matrix(Ta, Tb, Qa, Qb, Ka, Kb, F_ab);
@@ -94,10 +98,10 @@ struct StereoPairSampleState
 			eigen_alignment_compute_camera_fundamental_matrix(Tb, Ta, Qb, Qa, Kb, Ka, F_ba);
 
 			// Initially assume that tracker 0 is on the right
-			trackerPoses[0].Position= PSMovePosition::create(half_seperation, 0.f, -originOffset);
-			trackerPoses[1].Position= PSMovePosition::create(-half_seperation, 0.f, -originOffset);
-			trackerPoses[0].Orientation= PSMoveQuaternion::identity();
-			trackerPoses[1].Orientation= PSMoveQuaternion::identity();
+			trackerPoses[0].Position= {half_seperation, 0.f, -originOffset};
+			trackerPoses[1].Position= {-half_seperation, 0.f, -originOffset};
+			trackerPoses[0].Orientation= *k_psm_quaternion_identity;
+			trackerPoses[1].Orientation= *k_psm_quaternion_identity;
 
 			bValid= true;
 		}
@@ -121,37 +125,36 @@ struct StereoPairSampleState
 				valid_ba_count >= k_desired_valid_sample_count;
 	}
 
-	const PSMovePose *getTrackerAPose() const
+	const PSMPosef *getTrackerAPose() const
 	{
 		 return valid_ab_count > valid_ba_count ? &trackerPoses[0] : &trackerPoses[1];
 	}
 
-	const PSMovePose *getTrackerBPose() const
+	const PSMPosef *getTrackerBPose() const
 	{
 		 return valid_ab_count > valid_ba_count ? &trackerPoses[1] : &trackerPoses[0];
 	}
 
-	ClientTrackerView *getTrackerAViewMutable() 
+	PSMTracker *getTrackerAViewMutable() 
 	{
 		return trackerViews[0];
 	}
 
-	ClientTrackerView *getTrackerBViewMutable()
+	PSMTracker *getTrackerBViewMutable()
 	{
 		return trackerViews[1];
 	}
 
-	void addSample(const ClientControllerView *controllerView)
+	void addSample(const PSMController *controllerView)
 	{
-		const PSMoveRawTrackerData &trackerData= controllerView->GetRawTrackerData();
-		const int trackerID0= trackerViews[0]->getTrackerId();
-		const int trackerID1= trackerViews[1]->getTrackerId();
+		const int trackerID0= trackerViews[0]->tracker_info.tracker_id;
+		const int trackerID1= trackerViews[1]->tracker_info.tracker_id;
 
-		PSMoveScreenLocation screenSample0, screenSample1;
+		PSMVector2f screenSample0, screenSample1;
 		
 		if (!getIsComplete() &&
-			trackerData.GetPixelLocationOnTrackerId(trackerID0, screenSample0) &&
-			trackerData.GetPixelLocationOnTrackerId(trackerID1, screenSample1))
+			PSM_GetControllerPixelLocationOnTracker(controllerView->ControllerID, trackerID0, &screenSample0) == PSMResult_Success &&
+			PSM_GetControllerPixelLocationOnTracker(controllerView->ControllerID, trackerID1, &screenSample1) == PSMResult_Success)
 		{
 			bool bWithinTolerance= false;
 			const float ab_distance= compute_ab_signed_epipolar_distance(screenSample0, screenSample1);
@@ -198,8 +201,8 @@ struct StereoPairSampleState
 	}
 
 	float compute_ab_signed_epipolar_distance(
-		const PSMoveScreenLocation &point1,
-		const PSMoveScreenLocation &point2)
+		const PSMVector2f &point1,
+		const PSMVector2f &point2)
 	{
 		const Eigen::Vector3f a(point1.x, point1.y, 1.f);
 		const Eigen::Vector3f b(point2.x, point2.y, 1.f);
@@ -209,8 +212,8 @@ struct StereoPairSampleState
 	}
 
 	float compute_ba_signed_epipolar_distance(
-		const PSMoveScreenLocation &point1,
-		const PSMoveScreenLocation &point2)
+		const PSMVector2f &point1,
+		const PSMVector2f &point2)
 	{
 		const Eigen::Vector3f a(point1.x, point1.y, 1.f);
 		const Eigen::Vector3f b(point2.x, point2.y, 1.f);
@@ -249,7 +252,7 @@ void AppSubStage_StereoCalibrate::exit()
 
 void AppSubStage_StereoCalibrate::update()
 {
-    const ClientControllerView *ControllerView= m_parentStage->get_calibration_controller_view();
+    const PSMController *ControllerView= m_parentStage->get_calibration_controller_view();
 
     switch (m_menuState)
     {

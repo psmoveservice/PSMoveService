@@ -3,7 +3,7 @@
 
 //-- includes -----
 #include "AppStage.h"
-#include "ClientPSMoveAPI.h"
+#include "PSMoveClient_CAPI.h"
 
 #include <vector>
 
@@ -19,8 +19,8 @@ public:
 		int AssignedParentControllerIndex;
 		std::string AssignedParentControllerSerial;		
 		std::vector<std::string> PotentialParentControllerSerials;
-        ClientControllerView::eControllerType ControllerType;
-        PSMoveTrackingColorType TrackingColorType;
+        PSMControllerType ControllerType;
+        PSMTrackingColorType TrackingColorType;
         std::string DevicePath;
         std::string DeviceSerial;
         std::string AssignedHostSerial;
@@ -73,12 +73,12 @@ public:
 
 protected:
     virtual bool onClientAPIEvent(
-        ClientPSMoveAPI::eEventType event, 
-        ClientPSMoveAPI::t_event_data_handle opaque_event_handle) override;
+        PSMEventMessage::eEventType event, 
+        PSMEventDataHandle opaque_event_handle) override;
 
     void request_controller_list();
     static void handle_controller_list_response(
-        const ClientPSMoveAPI::ResponseMessage *response_message,
+        const PSMResponseMessage *response_message,
         void *userdata);
 	void request_set_orientation_filter(const int controller_id, const std::string &filter_name);
 	void request_set_position_filter(const int controller_id, const std::string &filter_name);
@@ -89,7 +89,7 @@ protected:
 
 	void request_set_controller_tracking_color_id(
 		int ControllerID,
-		PSMoveTrackingColorType tracking_color_type);
+		PSMTrackingColorType tracking_color_type);
 	void request_set_parent_controller_id(
 		int ControllerID,
 		int ParentControllerID);

@@ -3,8 +3,8 @@
 
 //-- includes -----
 #include "AppStage.h"
-#include "ClientGeometry.h"
-#include "ClientPSMoveAPI.h"
+#include "ClientGeometry_CAPI.h"
+#include "PSMoveClient_CAPI.h"
 
 #include <deque>
 #include <chrono>
@@ -65,27 +65,27 @@ protected:
 	void go_previous_tracker();
 	int get_tracker_count() const;
 	int get_render_tracker_index() const;
-	class ClientTrackerView *get_render_tracker_view() const;
+	PSMTracker *get_render_tracker_view() const;
 
 	void request_hmd_list();
 	static void handle_hmd_list_response(
-		const ClientPSMoveAPI::ResponseMessage *response,
+		const PSMResponseMessage *response,
 		void *userdata);
 
 	void request_start_hmd_stream(int HmdID);
 	static void handle_start_hmd_response(
-		const ClientPSMoveAPI::ResponseMessage *response_message,
+		const PSMResponseMessage *response_message,
 		void *userdata);
 
 	void request_tracker_list();
 	static void handle_tracker_list_response(
-		const ClientPSMoveAPI::ResponseMessage *response_message,
+		const PSMResponseMessage *response_message,
 		void *userdata);
-	bool setup_tracker_pair(const ClientPSMoveAPI::ResponsePayload_TrackerList &tracker_list);
+	bool setup_tracker_pair(const PSMTrackerList &tracker_list);
 
-	void request_tracker_start_stream(class ClientTrackerView *tracker_view);
+	void request_tracker_start_stream(PSMTracker *tracker_view);
 	static void handle_tracker_start_stream_response(
-		const ClientPSMoveAPI::ResponseMessage *response,
+		const PSMResponseMessage *response,
 		void *userdata);
 
 	void request_set_hmd_led_model_calibration();
@@ -102,7 +102,7 @@ private:
 	struct TrackerPairState *m_trackerPairState;
 	class HMDModelState *m_hmdModelState;
 
-	class ClientHMDView *m_hmdView;
+	PSMHeadMountedDisplay *m_hmdView;
 	int m_overrideHmdId;
 
 	std::string m_failureDetails;

@@ -555,7 +555,7 @@ void CServerDriver_PSMoveService::HandleConnectedToPSMoveService()
 	request->set_type(PSMoveProtocol::Request_RequestType_GET_SERVICE_VERSION);
 
 	PSMRequestID request_id;
-	if (PSM_SendOpaqueRequest(&request, &request_id) == PSMResult::PSMResult_RequestSent)
+	if (PSM_SendOpaqueRequest(request.get(), &request_id) == PSMResult::PSMResult_RequestSent)
 	{
 		PSM_RegisterCallback(request_id, CServerDriver_PSMoveService::HandleServiceVersionResponse, this);
 	}
