@@ -221,7 +221,7 @@ float AppStage_TestRumble::get_left_trigger() const
     case PSMController_Move:
         {
 			// Only one trigger
-            trigger = m_controllerView->ControllerState.PSMoveState.TriggerValue;
+            trigger = clampf01(static_cast<float>(m_controllerView->ControllerState.PSMoveState.TriggerValue / 255.f));
         } break;
     case PSMController_Navi:
         {
@@ -229,7 +229,7 @@ float AppStage_TestRumble::get_left_trigger() const
         } break;
     case PSMController_DualShock4:
         {
-            trigger = m_controllerView->ControllerState.PSDS4State.LeftTriggerValue;
+            trigger = clampf01(static_cast<float>(m_controllerView->ControllerState.PSDS4State.LeftTriggerValue / 255.f));
         } break;
     }
 
@@ -245,7 +245,7 @@ float AppStage_TestRumble::get_right_trigger() const
     case PSMController_Move:
         {
 			// Only one trigger
-            trigger = m_controllerView->ControllerState.PSMoveState.TriggerValue;
+            trigger = clampf01(static_cast<float>(m_controllerView->ControllerState.PSMoveState.TriggerValue / 255.f));
         } break;
     case PSMController_Navi:
         {
@@ -253,7 +253,7 @@ float AppStage_TestRumble::get_right_trigger() const
         } break;
     case PSMController_DualShock4:
         {
-            trigger = m_controllerView->ControllerState.PSDS4State.RightTriggerValue;
+            trigger = clampf01(static_cast<float>(m_controllerView->ControllerState.PSDS4State.RightTriggerValue / 255.f));
         } break;
     }
 
@@ -263,23 +263,7 @@ float AppStage_TestRumble::get_right_trigger() const
 float AppStage_TestRumble::get_big_rumble_amount() const
 {
     float rumble = 0.f;
-
-    switch (m_controllerView->ControllerType)
-    {
-    case PSMController_Move:
-        {
-			// Only one rumble
-			rumble = m_controllerView->ControllerState.PSMoveState.Rumble;
-        } break;
-    case PSMController_Navi:
-        {
-            rumble = 0.f;
-        } break;
-    case PSMController_DualShock4:
-        {
-            rumble = m_controllerView->ControllerState.PSDS4State.BigRumble;
-        } break;
-    }
+	PSM_GetControllerRumble(m_controllerView->ControllerID, PSMControllerRumbleChannel_Right, &rumble);
 
     return rumble;
 }
@@ -287,23 +271,7 @@ float AppStage_TestRumble::get_big_rumble_amount() const
 float AppStage_TestRumble::get_small_rumble_amount() const
 {
     float rumble = 0.f;
-
-    switch (m_controllerView->ControllerType)
-    {
-    case PSMController_Move:
-        {
-			// Only one rumble
-            rumble = m_controllerView->ControllerState.PSMoveState.Rumble;
-        } break;
-    case PSMController_Navi:
-        {
-            rumble = 0.f;
-        } break;
-    case PSMController_DualShock4:
-        {
-            rumble = m_controllerView->ControllerState.PSDS4State.SmallRumble;
-        } break;
-    }
+	PSM_GetControllerRumble(m_controllerView->ControllerID, PSMControllerRumbleChannel_Left, &rumble);
 
     return rumble;
 }

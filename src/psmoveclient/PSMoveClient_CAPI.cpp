@@ -657,6 +657,43 @@ PSMResult PSM_SetControllerLEDOverrideColor(PSMControllerID controller_id, unsig
     return result;
 }
 
+PSMResult PSM_GetControllerRumble(PSMControllerID controller_id, PSMControllerRumbleChannel channel, float *out_rumbleFraction)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    {
+        PSMController *controller= &g_controllers[controller_id];
+        unsigned char rumbleByte= 0;
+        
+        switch (controller->ControllerType)
+        {
+        case PSMController_Move:
+            {
+                rumbleByte= controller->ControllerState.PSMoveState.Rumble;
+            } break;
+        case PSMController_Navi:
+            break;
+        case PSMController_DualShock4:
+            {                
+                if (channel == PSMControllerRumbleChannel_Left)
+                {
+                    rumbleByte= controller->ControllerState.PSDS4State.BigRumble;
+                }
+                else if (channel == PSMControllerRumbleChannel_Right)
+                {
+                    rumbleByte= controller->ControllerState.PSDS4State.SmallRumble;
+                }
+            } break;
+        }
+
+        *out_rumbleFraction= clampf01(static_cast<float>(rumbleByte / 255.f));
+        result= PSMResult_Success;
+    }
+
+    return result;
+}
+
 PSMResult PSM_SetControllerRumble(PSMControllerID controller_id, PSMControllerRumbleChannel channel, float rumbleFraction)
 {
     PSMResult result= PSMResult_Error;

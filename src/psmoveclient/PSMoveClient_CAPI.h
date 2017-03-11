@@ -556,6 +556,7 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerOrientation(PSMControllerID co
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerOrientation(PSMControllerID controller_id, PSMQuatf *out_orientation);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPosition(PSMControllerID controller_id, PSMVector3f *out_position);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPose(PSMControllerID controller_id, PSMPosef *out_pose);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerRumble(PSMControllerID controller_id, PSMControllerRumbleChannel channel, float *out_rumbleFraction);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetIsControllerStable(PSMControllerID controller_id, bool *out_is_stable);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetIsControllerTracking(PSMControllerID controller_id, bool *out_is_tracking);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPixelLocationOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMVector2f *outLocation);
