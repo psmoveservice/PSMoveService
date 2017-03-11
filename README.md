@@ -18,16 +18,17 @@ B) If your problem actually is a new bug and you have files to attach (logs, pic
 
 The OpenVR driver is technically unsupported. For issues related to OpenVR, calibration, third party applications, specific games, etc., please post in the Google Group first.
 
-# Near Term Roadmap
- * Ongoing Stabilization of service and SteamVR plugin
- * DualShock4 Controller Support
- * PSNavi Controller Support
- * PS4 Camera Support
- * Support for other webcams (need camera calibration tool)
- * Position smoothing and prediction (via Unscented Kalman Filter)
+# Near Term Goals
+ * Ongoing Stabilization of service
  * C99 client interface to make interfacing with other languages (Python, C#) easier
-
-# Long Term Roadmap
+ * Moving SteamVR plugin into its own github project
+ * Better position smoothing and prediction (via Unscented Kalman Filter)
+ * Virtual controllers (tracking just a lit bulb)
+ 
+# Long Term Goals
+ * Support for other webcams (need camera calibration tool)
+ * Better DualShock4 Controller Tracking
+ * PS4 Camera Support
  * Integration with PSMove-UE4
  * Integration with PSMove-Unity5
  * Linux support
@@ -42,5 +43,5 @@ Special thanks to the following people who helped make this project possible:
 * Frédéric Lopez and his work on [PS-Move-Setup](https://github.com/Fredz66/PS-Move-Setup) that enabled co registration of  and HMD with the PSMove.
 * Greg New - Improvements to the SteamVR plugin and config tool
 * YossiMH - Improvements to touch pad mappings and help with the HMD/Controller alignment tool
-* William (zelmon64) - Beta testing and troubleshooting hero
+* William (zelmon64) - Many improvements to config tool UX, beta testing, and troubleshooting hero
 * Antonio Jose Ramos Marquez - Work on PS4EyeDriver and PSX hardware reverse engineering

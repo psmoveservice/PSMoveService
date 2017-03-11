@@ -21,6 +21,8 @@
 
 #include <imgui.h>
 #include <algorithm>
+#include <chrono>
+#include <thread>
 
 #ifdef _MSC_VER
 #pragma warning (disable: 4996) // 'This function or variable may be unsafe': snprintf
@@ -144,6 +146,10 @@ AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
     , m_trackerExposure(0)
     , m_trackerGain(0)
 	, m_bTurnOnAllControllers(false)
+	, m_bAutoChangeController(false)
+	, m_bAutoChangeColor(false)
+	, m_bAutoChangeTracker(false)
+	, m_bShowWindows(true)
     , m_masterTrackingColorType(PSMoveTrackingColorType::Magenta)
 { 
     memset(m_colorPresets, 0, sizeof(m_colorPresets));
@@ -157,6 +163,9 @@ void AppStage_ColorCalibration::enter()
     assert(trackerInfo->tracker_id != -1);
 
     m_app->setCameraType(_cameraFixed);
+
+	tracker_count = trackerSettings->get_tracker_count();
+	tracker_index = trackerSettings->get_tracker_Index();
 
     // Use the tracker selected from the tracker settings menu
     assert(m_trackerView == nullptr);
@@ -196,6 +205,10 @@ void AppStage_ColorCalibration::enter()
 		m_lastMasterControllerSeqNum = -1;
 		m_bTurnOnAllControllers= false;
 		m_pendingControllerStartCount= false;
+
+		m_bAutoChangeController = (m_bAutoChangeController) ? m_bAutoChangeController : false;
+		m_bAutoChangeColor = (m_bAutoChangeColor) ? m_bAutoChangeColor : false;
+		m_bAutoChangeTracker = (m_bAutoChangeTracker) ? m_bAutoChangeTracker : false;
 	}
 
     // Request to start the tracker
@@ -359,16 +372,23 @@ void AppStage_ColorCalibration::renderUI()
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |
         ImGuiWindowFlags_NoCollapse;
+	int auto_calib_sleep = 150;
 
     switch (m_menuState)
     {
     case eMenuState::manualConfig:
     {
         // Video Control Panel
+		if (m_bShowWindows)
         {
             ImGui::SetNextWindowPos(ImVec2(10.f, 10.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 240));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 260));
             ImGui::Begin(k_window_title, nullptr, window_flags);
+
+			if (ImGui::Button("Return to Main Menu"))
+			{
+				request_exit_to_app_stage(AppStage_MainMenu::APP_STAGE_NAME);
+			}
             
             if (ImGui::Button("Return to Tracker Settings"))
             {
@@ -392,7 +412,7 @@ void AppStage_ColorCalibration::renderUI()
                         (m_videoDisplayMode + 1) % eVideoDisplayMode::MAX_VIDEO_DISPLAY_MODES);
                 }
                 ImGui::SameLine();
-                ImGui::Text("Video Filter Mode: %s", k_video_display_mode_names[m_videoDisplayMode]);
+                ImGui::Text("Video [F]ilter Mode: %s", k_video_display_mode_names[m_videoDisplayMode]);
 				
 				int frame_rate_positive_change = 10;
 				int frame_rate_negative_change = -10;
@@ -422,7 +442,7 @@ void AppStage_ColorCalibration::renderUI()
 					request_tracker_set_frame_rate(m_trackerFramerate + frame_rate_positive_change);
 				}
 				ImGui::SameLine();
-				ImGui::Text("Framerate: %f", m_trackerFramerate);
+				ImGui::Text("Framerate: %.0f", m_trackerFramerate);
 
                 if (ImGui::Button("-##Exposure"))
                 {
@@ -434,7 +454,7 @@ void AppStage_ColorCalibration::renderUI()
                     request_tracker_set_exposure(m_trackerExposure + 8);
                 }
                 ImGui::SameLine();
-                ImGui::Text("Exposure: %f", m_trackerExposure);
+                ImGui::Text("Exposure: %.0f", m_trackerExposure);
 
                 if (ImGui::Button("-##Gain"))
                 {
@@ -446,7 +466,7 @@ void AppStage_ColorCalibration::renderUI()
                     request_tracker_set_gain(m_trackerGain + 8);
                 }
                 ImGui::SameLine();
-                ImGui::Text("Gain: %f", m_trackerGain);
+                ImGui::Text("Gain: %.0f", m_trackerGain);
 
                 // Render all of the option sets fetched from the settings query
                 for (auto it = m_trackerOptions.begin(); it != m_trackerOptions.end(); ++it)
@@ -493,23 +513,61 @@ void AppStage_ColorCalibration::renderUI()
         
         if (ImGui::IsMouseClicked(1) )
         {
-            ImVec2 mousePos = ImGui::GetMousePos();
-            ImVec2 dispSize = ImGui::GetIO().DisplaySize;
-            int img_x = mousePos.x * m_video_buffer_state->hsvBuffer->cols / static_cast<int>(dispSize.x);
-            int img_y = mousePos.y * m_video_buffer_state->hsvBuffer->rows / static_cast<int>(dispSize.y);
-            cv::Vec< unsigned char, 3 > hsv_pixel = m_video_buffer_state->hsvBuffer->at<cv::Vec< unsigned char, 3 >>(cv::Point(img_x, img_y));
-            
-            TrackerColorPreset preset = getColorPreset();
-            preset.hue_center = hsv_pixel[0];
-            preset.saturation_center = hsv_pixel[1];
-            preset.value_center = hsv_pixel[2];
-            request_tracker_set_color_preset(m_masterTrackingColorType, preset);
-        }
+			ImVec2 mousePos = ImGui::GetMousePos();
+			ImVec2 dispSize = ImGui::GetIO().DisplaySize;
+			int img_x = mousePos.x * m_video_buffer_state->hsvBuffer->cols / static_cast<int>(dispSize.x);
+			int img_y = mousePos.y * m_video_buffer_state->hsvBuffer->rows / static_cast<int>(dispSize.y);
+			cv::Vec< unsigned char, 3 > hsv_pixel = m_video_buffer_state->hsvBuffer->at<cv::Vec< unsigned char, 3 >>(cv::Point(img_x, img_y));
+
+			TrackerColorPreset preset = getColorPreset();
+			preset.hue_center = hsv_pixel[0];
+			preset.saturation_center = hsv_pixel[1];
+			preset.value_center = hsv_pixel[2];
+			request_tracker_set_color_preset(m_masterTrackingColorType, preset);
+
+			if (m_bAutoChangeColor) {
+				setState(eMenuState::blank1);
+				request_set_controller_tracking_color(m_masterControllerView, PSMoveTrackingColorType::Magenta);
+				m_masterTrackingColorType = PSMoveTrackingColorType::Magenta;
+				std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
+			}
+			else if (m_bAutoChangeController) {
+				setState(eMenuState::changeController);
+			}
+			else if (m_bAutoChangeTracker) {
+				setState(eMenuState::changeTracker);
+			}
+		}
+
+		// Keyboard shortcuts
+		{
+			// Hide setting windows: space bar
+			if (ImGui::IsKeyReleased(32)) m_bShowWindows = !m_bShowWindows;
+			// Change filter: F
+			if (ImGui::IsKeyReleased(102)) {
+				m_videoDisplayMode =
+					static_cast<eVideoDisplayMode>(
+					(m_videoDisplayMode + 1) % eVideoDisplayMode::MAX_VIDEO_DISPLAY_MODES);
+			}
+			// Change tracker: T
+			if (ImGui::IsKeyReleased(116)) request_change_tracker(1);
+			// Change controller: M
+			if (ImGui::IsKeyReleased(109)) request_change_controller(1);
+			// Change color: C
+			if (ImGui::IsKeyReleased(99)) {
+				PSMoveTrackingColorType new_color =
+					static_cast<PSMoveTrackingColorType>(
+					(m_masterTrackingColorType + 1) % PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES);
+				request_set_controller_tracking_color(m_masterControllerView, new_color);
+				m_masterTrackingColorType = new_color;
+			}
+		}
 
         // Color Control Panel
+		if (m_bShowWindows)
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - k_panel_width - 10, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 200));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 280));
             ImGui::Begin("Controller Color", nullptr, window_flags);
 
 			if (m_masterControllerView != nullptr)
@@ -534,7 +592,7 @@ void AppStage_ColorCalibration::renderUI()
 				}
 				ImGui::SameLine();
 			}
-            ImGui::Text("Tracking Color: %s", k_tracking_color_names[m_masterTrackingColorType]);
+            ImGui::Text("Tracking [C]olor: %s", k_tracking_color_names[m_masterTrackingColorType]);
 
             // -- Hue --
             if (ImGui::Button("-##HueCenter"))
@@ -635,11 +693,98 @@ void AppStage_ColorCalibration::renderUI()
             ImGui::SameLine();
             ImGui::Text("Value Range: %f", getColorPreset().value_range);
 
+			// -- Auto Calibration --
+			ImGui::Text("Auto Change Setings:");
+			ImGui::Checkbox("Color", &m_bAutoChangeColor);
+			ImGui::SameLine();
+			ImGui::Checkbox("Controller", &m_bAutoChangeController);
+			ImGui::SameLine();
+			ImGui::Checkbox("Tracker", &m_bAutoChangeTracker);
 
+			// -- Change Controller --
+			if (ImGui::Button("<##Controller"))
+			{
+				request_change_controller(-1);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button(">##Controller"))
+			{
+				request_change_controller(1);
+			}
+			ImGui::SameLine();
+			ImGui::Text("PS[M]ove Controller ID: %d", m_overrideControllerId);
+
+			// -- Change Tracker --
+			if (ImGui::Button("<##Tracker"))
+			{
+				request_change_tracker(-1);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button(">##Tracker"))
+			{
+				request_change_tracker(1);
+			}
+			ImGui::SameLine();
+			ImGui::Text("[T]racker ID: %d", tracker_index);
+			
             ImGui::End();
         }
     } break;
 
+    case eMenuState::autoConfig:
+	{
+		PSMoveTrackingColorType new_color =
+			static_cast<PSMoveTrackingColorType>(
+			(m_masterTrackingColorType + 1) % PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES);
+
+		ImVec2 mousePos = ImGui::GetMousePos();
+		ImVec2 dispSize = ImGui::GetIO().DisplaySize;
+		int img_x = mousePos.x * m_video_buffer_state->hsvBuffer->cols / static_cast<int>(dispSize.x);
+		int img_y = mousePos.y * m_video_buffer_state->hsvBuffer->rows / static_cast<int>(dispSize.y);
+		cv::Vec< unsigned char, 3 > hsv_pixel = m_video_buffer_state->hsvBuffer->at<cv::Vec< unsigned char, 3 >>(cv::Point(img_x, img_y));
+
+		TrackerColorPreset preset = getColorPreset();
+		preset.hue_center = hsv_pixel[0];
+		preset.saturation_center = hsv_pixel[1];
+		preset.value_center = hsv_pixel[2];
+		request_tracker_set_color_preset(m_masterTrackingColorType, preset);
+
+		request_set_controller_tracking_color(m_masterControllerView, new_color);
+
+		if (new_color == PSMoveTrackingColorType::Magenta) {
+			if (m_bAutoChangeController) setState(eMenuState::changeController);
+			else if (m_bAutoChangeTracker) setState(eMenuState::changeTracker);
+			else setState(eMenuState::manualConfig);
+		}
+		else setState(eMenuState::blank1);
+
+		m_masterTrackingColorType = new_color;
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
+	} break;
+
+	case eMenuState::blank1:
+		setState(eMenuState::blank3);
+		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
+		break;
+	case eMenuState::blank2:
+		setState(eMenuState::blank2);
+		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
+		break;
+	case eMenuState::blank3:
+		setState(eMenuState::autoConfig);
+		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
+		break;
+	case eMenuState::changeController:
+	{
+		setState(eMenuState::manualConfig);
+		request_change_controller(1);
+	}
+		break;
+	case eMenuState::changeTracker:
+		setState(eMenuState::manualConfig);
+		request_change_tracker(1);
+		break;
     case eMenuState::pendingTrackerStartStreamRequest:
     case eMenuState::pendingControllerStartRequest:
 	case eMenuState::pendingHmdStartRequest:
@@ -823,7 +968,7 @@ void AppStage_ColorCalibration::request_tracker_start_stream()
 
         // Tell the psmove service that we want to start streaming data from the tracker
         ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::start_tracker_data_stream(m_trackerView, ClientPSMoveAPI::defaultTrackerOptions),
+            ClientPSMoveAPI::start_tracker_data_stream(m_trackerView),
             AppStage_ColorCalibration::handle_tracker_start_stream_response, this);
     }
 }
@@ -1293,5 +1438,62 @@ void AppStage_ColorCalibration::request_turn_on_all_tracking_bulbs(bool bEnabled
 		{
 			controllerView->SetLEDOverride(0, 0, 0);
 		}
+	}
+}
+
+void AppStage_ColorCalibration::request_change_controller(int step)
+{
+	assert(m_controllerViews.size() == m_controllerTrackingColorTypes.size());
+	//for (int list_index = 0; list_index < m_controllerViews.size(); ++list_index)
+	{
+		ClientControllerView *controllerView = m_controllerViews[m_overrideControllerId];
+
+		if (controllerView == m_masterControllerView) {
+			m_masterControllerView->SetLEDOverride(0, 0, 0);
+			if (m_overrideControllerId + step < m_controllerViews.size() && m_overrideControllerId + step >= 0) {
+				m_overrideControllerId = m_overrideControllerId + step;
+				m_masterControllerView = m_controllerViews[m_overrideControllerId];
+				request_set_controller_tracking_color(m_masterControllerView, m_masterTrackingColorType);
+				//setState(eMenuState::manualConfig);
+			}
+			else if (step > 0) {
+				m_overrideControllerId = 0;
+				m_masterControllerView = m_controllerViews[0];
+				request_set_controller_tracking_color(m_masterControllerView, m_masterTrackingColorType);
+				if (m_bAutoChangeTracker) setState(eMenuState::changeTracker);
+				//else setState(eMenuState::manualConfig);
+			}
+			else {
+				m_overrideControllerId = m_controllerViews.size() -1;
+				m_masterControllerView = m_controllerViews[m_overrideControllerId];
+				request_set_controller_tracking_color(m_masterControllerView, m_masterTrackingColorType);
+				//if (m_bAutoChangeTracker) setState(eMenuState::changeTracker);
+				//else 
+				//	setState(eMenuState::manualConfig);
+			}
+			//break;
+		}
+	}
+}
+
+void AppStage_ColorCalibration::request_change_tracker(int step)
+{
+	m_app->getAppStage<AppStage_ColorCalibration>()->
+	set_autoConfig(m_bAutoChangeColor, m_bAutoChangeController, m_bAutoChangeTracker);
+	//int TrackerId = m_trackerView->getTrackerId();
+	if (tracker_index + step < tracker_count && tracker_index + step >= 0)
+	{
+		m_app->getAppStage<AppStage_TrackerSettings>()->set_selectedTrackerIndex(tracker_index + step);
+		request_exit_to_app_stage(AppStage_ColorCalibration::APP_STAGE_NAME);
+	}
+	else if (step > 0)
+	{
+		m_app->getAppStage<AppStage_TrackerSettings>()->set_selectedTrackerIndex(0);
+		request_exit_to_app_stage(AppStage_ColorCalibration::APP_STAGE_NAME);
+	}
+	else
+	{
+		m_app->getAppStage<AppStage_TrackerSettings>()->set_selectedTrackerIndex(tracker_count -1);
+		request_exit_to_app_stage(AppStage_ColorCalibration::APP_STAGE_NAME);
 	}
 }

@@ -301,7 +301,8 @@ private:
 		const CPSMoveControllerLatest::ePSControllerType controllerType,
         const CPSMoveControllerLatest::ePSButtonID psButtonID,
         const vr::EVRButtonId defaultVRButtonID,
-		const eVRTouchpadDirection defaultTouchpadDirection);
+		const eVRTouchpadDirection defaultTouchpadDirection,
+		int controllerId = -1);
 	bool LoadBool(vr::IVRSettings *pSettings, const char *pchSection, const char *pchSettingsKey, const bool bDefaultValue);
 	int LoadInt(vr::IVRSettings *pSettings, const char *pchSection, const char *pchSettingsKey, const int iDefaultValue);
 	float LoadFloat(vr::IVRSettings *pSettings, const char *pchSection, const char *pchSettingsKey, const float fDefaultValue);
