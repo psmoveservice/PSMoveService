@@ -285,6 +285,12 @@ public:
 class IPoseFilter : public IStateFilter
 {
 public:
+    /// Not true until the filter has updated at least once
+    virtual bool getIsPositionStateValid() const = 0;
+
+    /// Not true until the filter has updated at least once
+    virtual bool getIsOrientationStateValid() const = 0;
+
     /// Estimate the current orientation of the filter given a time offset into the future
     virtual Eigen::Quaternionf getOrientation(float time = 0.f) const = 0;
 

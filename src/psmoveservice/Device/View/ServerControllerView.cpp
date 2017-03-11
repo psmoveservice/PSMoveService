@@ -1081,9 +1081,8 @@ static void generate_psmove_data_frame_for_stream(
         psmove_data_frame->set_validhardwarecalibration(psmove_config->is_valid);
         psmove_data_frame->set_iscurrentlytracking(controller_view->getIsCurrentlyTracking());
         psmove_data_frame->set_istrackingenabled(controller_view->getIsTrackingEnabled());
-		//TODO: Collapse these two flags down into isPoseValid
-        psmove_data_frame->set_isorientationvalid(pose_filter->getIsStateValid());
-        psmove_data_frame->set_ispositionvalid(pose_filter->getIsStateValid());
+        psmove_data_frame->set_isorientationvalid(pose_filter->getIsOrientationStateValid());
+        psmove_data_frame->set_ispositionvalid(pose_filter->getIsPositionStateValid());
 
         psmove_data_frame->mutable_orientation()->set_w(controller_pose.Orientation.w);
         psmove_data_frame->mutable_orientation()->set_x(controller_pose.Orientation.x);
@@ -1319,9 +1318,8 @@ static void generate_psdualshock4_data_frame_for_stream(
         psds4_data_frame->set_validhardwarecalibration(psmove_config->is_valid);
         psds4_data_frame->set_iscurrentlytracking(controller_view->getIsCurrentlyTracking());
         psds4_data_frame->set_istrackingenabled(controller_view->getIsTrackingEnabled());
-		//TODO: Collapse these two flags down into isPoseValid
-        psds4_data_frame->set_isorientationvalid(pose_filter->getIsStateValid());
-        psds4_data_frame->set_ispositionvalid(pose_filter->getIsStateValid());
+        psds4_data_frame->set_isorientationvalid(pose_filter->getIsOrientationStateValid());
+        psds4_data_frame->set_ispositionvalid(pose_filter->getIsPositionStateValid());
 
         psds4_data_frame->mutable_orientation()->set_w(controller_pose.Orientation.w);
         psds4_data_frame->mutable_orientation()->set_x(controller_pose.Orientation.x);

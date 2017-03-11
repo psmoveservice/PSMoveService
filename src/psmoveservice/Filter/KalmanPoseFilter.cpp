@@ -1516,6 +1516,16 @@ void KalmanPoseFilter::recenterOrientation(const Eigen::Quaternionf& q_pose)
     m_filter->reset_orientation = q_pose*q_inverse;
 }
 
+bool KalmanPoseFilter::getIsPositionStateValid() const
+{
+    return m_filter->bIsValid;
+}
+
+bool KalmanPoseFilter::getIsOrientationStateValid() const
+{
+    return m_filter->bIsValid;
+}
+
 Eigen::Quaternionf KalmanPoseFilter::getOrientation(float time) const
 {
     Eigen::Quaternionf result = Eigen::Quaternionf::Identity();
