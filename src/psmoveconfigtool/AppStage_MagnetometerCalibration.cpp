@@ -452,7 +452,7 @@ void AppStage_MagnetometerCalibration::update()
                         write_calibration_parameter(magnetometerIdentity, calibration->mutable_magnetometer_identity());
 
 						PSMRequestID request_id;
-						PSM_SendOpaqueRequest(request.get(), &request_id);
+						PSM_SendOpaqueRequest(&request, &request_id);
 						PSM_RegisterCallback(request_id, AppStage_MagnetometerCalibration::handle_set_magnetometer_calibration, this);
 
                         // Wait for the response

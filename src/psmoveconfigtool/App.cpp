@@ -84,10 +84,9 @@ bool App::reconnectToService()
     }
 
     bool success= 
-		PSM_Initialize(
+		PSM_InitializeAsync(
             m_serverAddress,
-            m_serverPort, 
-            PSM_DEFAULT_TIMEOUT);
+            m_serverPort) == PSMResult_Success;
 
     return success;
 }
@@ -257,23 +256,26 @@ void App::onClientPSMoveResponse(
 
 void App::update()
 {
-    // Poll any events from the service
-    PSM_UpdateNoPollMessages();
+	if (PSM_GetIsInitialized())
+	{
+		// Poll any events from the service
+		PSM_UpdateNoPollMessages();
 
-    // Poll events queued up by the call to ClientPSMoveAPI::update()
-    PSMMessage message;
-    while (PSM_PollNextMessage(&message, sizeof(message)))
-    {
-        switch (message.payload_type)
-        {
-        case PSMMessage::_messagePayloadType_Response:
-            onClientPSMoveResponse(&message.response_data);
-            break;
-        case PSMMessage::_messagePayloadType_Event:
-            onClientPSMoveEvent(&message.event_data);
-            break;
-        }
-    }
+		// Poll events queued up by the call to ClientPSMoveAPI::update()
+		PSMMessage message;
+		while (PSM_PollNextMessage(&message, sizeof(message)) == PSMResult_Success)
+		{
+			switch (message.payload_type)
+			{
+			case PSMMessage::_messagePayloadType_Response:
+				onClientPSMoveResponse(&message.response_data);
+				break;
+			case PSMMessage::_messagePayloadType_Event:
+				onClientPSMoveEvent(&message.event_data);
+				break;
+			}
+		}
+	}
 
     // Update the current app stage last
     if (m_appStage != NULL)

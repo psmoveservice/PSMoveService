@@ -290,7 +290,7 @@ void AppStage_HMDSettings::request_hmd_list()
         request->set_type(PSMoveProtocol::Request_RequestType_GET_HMD_LIST);
 
 		PSMRequestID request_id;
-		PSM_SendOpaqueRequest(request.get(), &request_id);
+		PSM_SendOpaqueRequest(&request, &request_id);
 		PSM_RegisterCallback(request_id, AppStage_HMDSettings::handle_hmd_list_response, this);
     }
 }
@@ -306,7 +306,7 @@ void AppStage_HMDSettings::request_set_hmd_prediction(const int hmd_id, float pr
 	calibration->set_hmd_id(hmd_id);
 	calibration->set_prediction_time(prediction_time);
 
-	PSM_SendOpaqueRequest(request.get(), nullptr);
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_HMDSettings::handle_hmd_list_response(

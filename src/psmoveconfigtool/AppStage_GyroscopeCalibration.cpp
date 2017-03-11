@@ -729,7 +729,7 @@ void AppStage_GyroscopeCalibration::request_set_gyroscope_calibration(
     calibration->set_variance(variance);
 	calibration->set_gyro_gain_setting(""); // keep existing gain
 
-    PSM_SendOpaqueRequest(request.get(), nullptr);
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_GyroscopeCalibration::handle_acquire_controller(

@@ -567,7 +567,7 @@ void AppStage_TrackerSettings::request_controller_list()
         request->mutable_request_get_controller_list()->set_include_usb_controllers(false);
 
 		PSMRequestID request_id;
-		PSM_SendOpaqueRequest(request.get(), &request_id);
+		PSM_SendOpaqueRequest(&request, &request_id);
 		PSM_RegisterCallback(request_id, AppStage_TrackerSettings::handle_controller_list_response, this);
     }
 }
@@ -653,7 +653,7 @@ void AppStage_TrackerSettings::request_hmd_list()
 		request->set_type(PSMoveProtocol::Request_RequestType_GET_HMD_LIST);
 
 		PSMRequestID request_id;
-		PSM_SendOpaqueRequest(request.get(), &request_id);
+		PSM_SendOpaqueRequest(&request, &request_id);
 		PSM_RegisterCallback(request_id, AppStage_TrackerSettings::handle_hmd_list_response, this);
 	}
 }
@@ -731,7 +731,7 @@ void AppStage_TrackerSettings::request_search_for_new_trackers()
     m_trackerInfos.clear();
 
 	PSMRequestID request_id;
-	PSM_SendOpaqueRequest(request.get(), &request_id);
+	PSM_SendOpaqueRequest(&request, &request_id);
 	PSM_RegisterCallback(request_id, AppStage_TrackerSettings::handle_search_for_new_trackers_response, this);
 }
 

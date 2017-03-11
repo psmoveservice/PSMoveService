@@ -515,7 +515,7 @@ void AppStage_ControllerSettings::request_controller_list()
         request->mutable_request_get_controller_list()->set_include_usb_controllers(true);
 
 		PSMRequestID request_id;
-		PSM_SendOpaqueRequest(request.get(), &request_id);
+		PSM_SendOpaqueRequest(&request, &request_id);
 		PSM_RegisterCallback(request_id, AppStage_ControllerSettings::handle_controller_list_response, this);
     }
 }
@@ -530,7 +530,7 @@ void AppStage_ControllerSettings::request_set_orientation_filter(
 	request->mutable_request_set_orientation_filter()->set_controller_id(controller_id);
 	request->mutable_request_set_orientation_filter()->set_orientation_filter(filter_name);
 
-	PSM_SendOpaqueRequest(request.get(), nullptr);
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::request_set_position_filter(
@@ -543,7 +543,7 @@ void AppStage_ControllerSettings::request_set_position_filter(
 	request->mutable_request_set_position_filter()->set_controller_id(controller_id);
 	request->mutable_request_set_position_filter()->set_position_filter(filter_name);
 
-	PSM_SendOpaqueRequest(request.get(), nullptr);
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::request_set_gyroscope_gain_setting(
@@ -561,7 +561,7 @@ void AppStage_ControllerSettings::request_set_gyroscope_gain_setting(
 	calibration->set_variance(-1.f); // keep existing variance
 	calibration->set_gyro_gain_setting(gain_setting);
 
-	PSM_SendOpaqueRequest(request.get(), nullptr);
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::request_set_controller_prediction(
@@ -577,7 +577,7 @@ void AppStage_ControllerSettings::request_set_controller_prediction(
 	calibration->set_controller_id(controller_id);
 	calibration->set_prediction_time(prediction_time); // keep existing drift
 
-	PSM_SendOpaqueRequest(request.get(), nullptr);
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::handle_controller_list_response(
@@ -799,7 +799,7 @@ void AppStage_ControllerSettings::request_set_controller_tracking_color_id(
 	request->mutable_set_led_tracking_color_request()->set_color_type(
 		static_cast<PSMoveProtocol::TrackingColorType>(tracking_color_type));
 
-	PSM_SendOpaqueRequest(request.get(), nullptr);
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::request_set_parent_controller_id(
@@ -813,6 +813,6 @@ void AppStage_ControllerSettings::request_set_parent_controller_id(
 		request->mutable_request_set_attached_controller()->set_child_controller_id(ControllerID);
 		request->mutable_request_set_attached_controller()->set_parent_controller_id(ParentControllerID);
 
-		PSM_SendOpaqueRequest(request.get(), nullptr);
+		PSM_SendOpaqueRequest(&request, nullptr);
 	}
 }

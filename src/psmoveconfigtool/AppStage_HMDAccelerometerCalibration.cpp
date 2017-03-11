@@ -464,7 +464,7 @@ static void request_set_hmd_accelerometer_calibration(
 	calibration->mutable_raw_average_gravity()->set_k(raw_average_gravity.z);
     calibration->set_raw_variance(variance);
 
-    PSM_SendOpaqueRequest(request.get(), nullptr);
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_HMDAccelerometerCalibration::handle_acquire_hmd(

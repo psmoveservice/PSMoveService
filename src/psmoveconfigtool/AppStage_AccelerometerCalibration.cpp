@@ -529,7 +529,7 @@ static void request_set_accelerometer_calibration(
     calibration->set_noise_radius(noise_radius);
 	calibration->set_variance(noise_variance);
 
-    PSM_SendOpaqueRequest(request.get(), nullptr);
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_AccelerometerCalibration::handle_acquire_controller(

@@ -1008,7 +1008,7 @@ void AppStage_ColorCalibration::request_tracker_set_frame_rate(double value)
 	request->mutable_request_set_tracker_frame_rate()->set_save_setting(true);
 
 	PSMRequestID request_id;
-	PSM_SendOpaqueRequest(request.get(), &request_id);
+	PSM_SendOpaqueRequest(&request, &request_id);
 	PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_frame_rate_response, this);
 }
 
@@ -1046,7 +1046,7 @@ void AppStage_ColorCalibration::request_tracker_set_exposure(double value)
     request->mutable_request_set_tracker_exposure()->set_save_setting(true);
 
 	PSMRequestID request_id;
-	PSM_SendOpaqueRequest(request.get(), &request_id);
+	PSM_SendOpaqueRequest(&request, &request_id);
 	PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_exposure_response, this);
 }
 
@@ -1084,7 +1084,7 @@ void AppStage_ColorCalibration::request_tracker_set_gain(double value)
     request->mutable_request_set_tracker_gain()->set_save_setting(true);
 
 	PSMRequestID request_id;
-	PSM_SendOpaqueRequest(request.get(), &request_id);
+	PSM_SendOpaqueRequest(&request, &request_id);
 	PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_gain_response, this);
 }
 
@@ -1124,7 +1124,7 @@ void AppStage_ColorCalibration::request_tracker_set_option(
     request->mutable_request_set_tracker_option()->set_option_index(new_option_index);
 
 	PSMRequestID request_id;
-	PSM_SendOpaqueRequest(request.get(), &request_id);
+	PSM_SendOpaqueRequest(&request, &request_id);
 	PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_option_response, this);
 }
 
@@ -1202,7 +1202,7 @@ void AppStage_ColorCalibration::request_tracker_set_color_preset(
     }
 
 	PSMRequestID request_id;
-	PSM_SendOpaqueRequest(request.get(), &request_id);
+	PSM_SendOpaqueRequest(&request, &request_id);
 	PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_color_preset_response, this);
 }
 
@@ -1257,7 +1257,7 @@ void AppStage_ColorCalibration::request_tracker_get_settings()
 	}
 
 	PSMRequestID request_id;
-	PSM_SendOpaqueRequest(request.get(), &request_id);
+	PSM_SendOpaqueRequest(&request, &request_id);
 	PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_get_settings_response, this);
 }
 
@@ -1334,7 +1334,7 @@ void AppStage_ColorCalibration::request_save_default_tracker_profile()
     request->mutable_request_save_tracker_profile()->set_tracker_id(m_trackerView->tracker_info.tracker_id);
 	request->mutable_request_save_tracker_profile()->set_controller_id(m_overrideControllerId);
 
-	PSM_SendOpaqueRequest(request.get(), nullptr);
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ColorCalibration::request_apply_default_tracker_profile()
@@ -1346,7 +1346,7 @@ void AppStage_ColorCalibration::request_apply_default_tracker_profile()
 	request->mutable_request_save_tracker_profile()->set_controller_id(m_overrideControllerId);
 
 	PSMRequestID request_id;
-	PSM_SendOpaqueRequest(request.get(), &request_id);
+	PSM_SendOpaqueRequest(&request, &request_id);
 	PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_get_settings_response, this);
 }
 
