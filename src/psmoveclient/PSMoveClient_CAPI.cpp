@@ -2099,7 +2099,7 @@ static void extractResponseMessage(const ClientPSMoveAPI::ResponseMessage *respo
     case ClientPSMoveAPI::_clientPSMoveResultCode_error:
         response->result_code= PSMResult_Error;
         break;
-    case PSMResult_Canceled:
+    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
         response->result_code= PSMResult_Canceled;
         break;
     default:
@@ -2183,7 +2183,7 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
             
             pose = psmview.GetPose();
             controller->ControllerState.PSMoveState.Pose.Position = {pose.Position.x, pose.Position.y, pose.Position.z};
-            controller->ControllerState.PSMoveState.Pose.Orientation = {pose.Orientation.x, pose.Orientation.y, pose.Orientation.z, pose.Orientation.w};
+            controller->ControllerState.PSMoveState.Pose.Orientation = PSM_QuatfCreate(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
             
             phydat = psmview.GetPhysicsData();
             controller->ControllerState.PSMoveState.PhysicsData.LinearAccelerationCmPerSecSqr = {phydat.AccelerationCmPerSecSqr.i, phydat.AccelerationCmPerSecSqr.j, phydat.AccelerationCmPerSecSqr.k};
@@ -2282,7 +2282,7 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
             
             pose = ds4view.GetPose();
             controller->ControllerState.PSDS4State.Pose.Position = {pose.Position.x, pose.Position.y, pose.Position.z};
-            controller->ControllerState.PSDS4State.Pose.Orientation = {pose.Orientation.x, pose.Orientation.y, pose.Orientation.z, pose.Orientation.w};
+            controller->ControllerState.PSDS4State.Pose.Orientation = PSM_QuatfCreate(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
             
             phydat = ds4view.GetPhysicsData();
             controller->ControllerState.PSDS4State.PhysicsData.LinearAccelerationCmPerSecSqr = {phydat.AccelerationCmPerSecSqr.i, phydat.AccelerationCmPerSecSqr.j, phydat.AccelerationCmPerSecSqr.k};
@@ -2407,7 +2407,7 @@ static void extractHmdState(const ClientHMDView *view, PSMHeadMountedDisplay *hm
             
             pose = morpheus_view.GetPose();
             hmd->HmdState.MorpheusState.Pose.Position = {pose.Position.x, pose.Position.y, pose.Position.z};
-            hmd->HmdState.MorpheusState.Pose.Orientation = {pose.Orientation.x, pose.Orientation.y, pose.Orientation.z, pose.Orientation.w};
+            hmd->HmdState.MorpheusState.Pose.Orientation = PSM_QuatfCreate(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
             
             phydat = morpheus_view.GetPhysicsData();
             hmd->HmdState.MorpheusState.PhysicsData.LinearAccelerationCmPerSecSqr = {phydat.AccelerationCmPerSecSqr.i, phydat.AccelerationCmPerSecSqr.j, phydat.AccelerationCmPerSecSqr.k};

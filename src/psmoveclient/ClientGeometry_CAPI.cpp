@@ -305,7 +305,7 @@ PSMVector3f PSM_Vector3iCastToFloat(const PSMVector3i *v)
 // PSMQuatf Methods
 PSMQuatf PSM_QuatfCreate(float w, float x, float y, float z)
 {
-	return {x, y, z, w};
+	return {w, x, y, z};
 }
 
 PSMQuatf PSM_QuatfCreateFromAngles(const PSMVector3f *eulerAngles)
@@ -331,25 +331,25 @@ PSMQuatf PSM_QuatfCreateFromAngles(const PSMVector3f *eulerAngles)
 
 PSMQuatf PSM_QuatfAdd(const PSMQuatf *a, const PSMQuatf *b)
 {
-	return {a->x + b->x, a->y + b->y, a->z + b->z, a->w + b->w};
+	return {a->w + b->w, a->x + b->x, a->y + b->y, a->z + b->z};
 }
 
 PSMQuatf PSM_QuatfScale(const PSMQuatf *q, const float s)
 {
-	return {q->x*s, q->y*s, q->z*s, q->w*s};
+	return {q->w*s, q->x*s, q->y*s, q->z*s};
 }
 
 PSMQuatf PSM_QuatfMultiply(const PSMQuatf *a, const PSMQuatf *b)
 {
-	return {a->w*b->x + a->x*b->w + a->y*b->z - a->z*b->y,
+	return {a->w*b->w - a->x*b->x - a->y*b->y - a->z*b->z,
+			a->w*b->x + a->x*b->w + a->y*b->z - a->z*b->y,
 			a->w*b->y - a->x*b->z + a->y*b->w + a->z*b->x,
-			a->w*b->z + a->x*b->y - a->y*b->x + a->z*b->w,
-			a->w*b->w - a->x*b->x - a->y*b->y - a->z*b->z,};
+			a->w*b->z + a->x*b->y - a->y*b->x + a->z*b->w};
 }
 
 PSMQuatf PSM_QuatfUnsafeScalarDivide(const PSMQuatf *q, const float s)
 {
-	return {q->x / s, q->y / s, q->z / s, q->w / s};
+	return {q->w / s, q->x / s, q->y / s, q->z / s};
 }
 
 PSMQuatf PSM_QuatfSafeScalarDivide(const PSMQuatf *q, const float s, const PSMQuatf *default_result)
@@ -359,7 +359,7 @@ PSMQuatf PSM_QuatfSafeScalarDivide(const PSMQuatf *q, const float s, const PSMQu
 
 PSMQuatf PSM_QuatfConjugate(const PSMQuatf *q)
 {
-	return {-q->x, -q->y, -q->z, q->w};
+	return {q->w, -q->x, -q->y, -q->z};
 }
 
 PSMQuatf PSM_QuatfConcat(const PSMQuatf *first, const PSMQuatf *second)
@@ -493,7 +493,6 @@ void PSM_FrustumSetPose(PSMFrustum *frustum, const PSMPosef *pose)
 
     frustum->origin = {glm_mat4[3].x, glm_mat4[3].y, glm_mat4[3].z};
 }
-
 
 // -- PSMoveTrackingProjection -- 
 float PSM_TrackingProjectionGetArea(const PSMTrackingProjection *proj)

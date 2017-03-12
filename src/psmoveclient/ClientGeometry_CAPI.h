@@ -34,7 +34,7 @@ typedef struct _PSMMatrix3f
 /// A quaternion rotation.
 typedef struct _PSMQuatf
 {
-    float x, y, z, w;
+    float w, x, y, z;
 } PSMQuatf;
 
 /// Position and orientation together.
