@@ -1006,6 +1006,7 @@ void AppStage_HMDModelCalibration::handle_hmd_list_response(
 
 	case PSMResult_Error:
 	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 		{
 			thisPtr->setState(AppStage_HMDModelCalibration::failedHmdListRequest);
 		} break;
@@ -1051,6 +1052,7 @@ void AppStage_HMDModelCalibration::handle_start_hmd_response(
 
 	case PSMResult_Error:
 	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 	{
 		thisPtr->setState(AppStage_HMDModelCalibration::failedHmdStartRequest);
 	} break;
@@ -1095,6 +1097,7 @@ void AppStage_HMDModelCalibration::handle_tracker_list_response(
 
 	case PSMResult_Error:
 	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 		{
 			thisPtr->m_failureDetails = "Server Failure";
 			thisPtr->setState(eMenuState::failedTrackerListRequest);
@@ -1254,7 +1257,7 @@ void AppStage_HMDModelCalibration::handle_tracker_start_stream_response(
 		TrackerState &trackerState = (tracker_id == tracker_A_state.trackerView->tracker_info.tracker_id) ? tracker_A_state : tracker_B_state;
 
 		// Open the shared memory that the video stream is being written to
-		if (PSM_OpenTrackerVideoStream(trackerState.trackerView->tracker_info.tracker_id))
+		if (PSM_OpenTrackerVideoStream(trackerState.trackerView->tracker_info.tracker_id) == PSMResult_Success)
 		{
 			// Create a texture to render the video frame to
 			trackerState.textureAsset = new TextureAsset();
@@ -1264,21 +1267,26 @@ void AppStage_HMDModelCalibration::handle_tracker_start_stream_response(
 				GL_RGB, // texture format
 				GL_BGR, // buffer format
 				nullptr);
-		}
 
-		// See if this was the last tracker we were waiting to get a response from
-		--thisPtr->m_trackerPairState->pendingTrackerStartCount;
-		if (thisPtr->m_trackerPairState->pendingTrackerStartCount <= 0)
-		{
-			thisPtr->handle_all_devices_ready();
+			// See if this was the last tracker we were waiting to get a response from
+			--thisPtr->m_trackerPairState->pendingTrackerStartCount;
+			if (thisPtr->m_trackerPairState->pendingTrackerStartCount <= 0)
+			{
+				thisPtr->handle_all_devices_ready();
+			}
 		}
+        else
+        {
+			thisPtr->setState(eMenuState::failedTrackerStartRequest);
+        }
 	} break;
 
 	case PSMResult_Error:
 	case PSMResult_Canceled:
-	{
-		thisPtr->setState(eMenuState::failedTrackerStartRequest);
-	} break;
+	case PSMResult_Timeout:
+		{
+			thisPtr->setState(eMenuState::failedTrackerStartRequest);
+		} break;
 	}
 }
 

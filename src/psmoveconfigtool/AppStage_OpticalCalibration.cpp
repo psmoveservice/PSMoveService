@@ -901,6 +901,7 @@ void AppStage_OpticalCalibration::handle_tracker_list_response(
 
 	case PSMResult_Error:
 	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 		{
 			thisPtr->setState(eCalibrationMenuState::failedTrackerListRequest);
 		} break;

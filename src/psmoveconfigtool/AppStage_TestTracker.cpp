@@ -248,6 +248,7 @@ void AppStage_TestTracker::handle_tracker_start_stream_response(
 
     case PSMResult_Error:
     case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->m_menuState = AppStage_TestTracker::failedTrackerStartStreamRequest;
         } break;
@@ -298,6 +299,7 @@ void AppStage_TestTracker::handle_tracker_stop_stream_response(
 
     case PSMResult_Error:
     case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->m_menuState = AppStage_TestTracker::failedTrackerStopStreamRequest;
         } break;

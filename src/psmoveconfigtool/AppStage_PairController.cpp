@@ -276,6 +276,7 @@ void AppStage_PairController::handle_controller_unpair_start_response(
 
         case PSMResult_Error:
         case PSMResult_Canceled:
+		case PSMResult_Timeout:
         { 
             thisPtr->m_menuState= AppStage_PairController::failedControllerUnpairRequest;
             thisPtr->m_pendingBluetoothOpControllerIndex= -1;
@@ -346,6 +347,7 @@ void AppStage_PairController::handle_controller_pair_start_response(
 
         case PSMResult_Error:
         case PSMResult_Canceled:
+		case PSMResult_Timeout:
         { 
             thisPtr->m_menuState= AppStage_PairController::failedControllerPairRequest;
             thisPtr->m_pendingBluetoothOpControllerIndex= -1;
@@ -424,6 +426,7 @@ void AppStage_PairController::handle_cancel_bluetooth_operation_response(
         {
             case PSMResult_Success:
             case PSMResult_Canceled:
+			case PSMResult_Timeout:
             {
                 // Refresh the list of controllers now that we have confirmation the controller is unpaired
                 thisPtr->m_app->setAppStage(AppStage_ControllerSettings::APP_STAGE_NAME);

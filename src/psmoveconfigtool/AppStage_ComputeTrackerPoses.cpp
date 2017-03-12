@@ -864,6 +864,7 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
 
     case PSMResult_Error:
     case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->setState(AppStage_ComputeTrackerPoses::failedControllerListRequest);
         } break;
@@ -906,7 +907,7 @@ void AppStage_ComputeTrackerPoses::request_start_controller_stream(
 
     // Start receiving data from the controller
 	PSMRequestID request_id;
-	PSM_StartControllerDataStreamAsync(controllerState.controllerView->ControllerID, PSMStreamFlags_defaultStreamOptions, &request_id);
+	PSM_StartControllerDataStreamAsync(controllerState.controllerView->ControllerID, flags, &request_id);
 	PSM_RegisterCallback(request_id, &AppStage_ComputeTrackerPoses::handle_start_controller_response, this);
 }
 
@@ -1058,6 +1059,7 @@ void AppStage_ComputeTrackerPoses::handle_tracker_start_stream_response(
 
     case PSMResult_Error:
     case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->setState(eMenuState::failedTrackerStartRequest);
         } break;

@@ -872,7 +872,7 @@ void AppStage_DistortionCalibration::handle_tracker_start_stream_response(
             thisPtr->m_bStreamIsActive = true;
 
             // Open the shared memory that the video stream is being written to
-            if (PSM_OpenTrackerVideoStream(trackerView->tracker_info.tracker_id))
+            if (PSM_OpenTrackerVideoStream(trackerView->tracker_info.tracker_id) == PSMResult_Success)
             {
                 const PSMClientTrackerInfo &trackerInfo= trackerView->tracker_info;
                 const int width= static_cast<int>(trackerInfo.tracker_screen_dimensions.x);
@@ -960,6 +960,7 @@ void AppStage_DistortionCalibration::handle_tracker_stop_stream_response(
 
     case PSMResult_Error:
     case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->m_menuState = AppStage_DistortionCalibration::failedTrackerStopStreamRequest;
         } break;

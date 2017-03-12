@@ -930,6 +930,7 @@ void AppStage_ColorCalibration::handle_start_hmd_response(
 
 	case PSMResult_Error:
 	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 		{
 			thisPtr->setState(AppStage_ColorCalibration::failedControllerStartRequest);
 		} break;
@@ -1029,6 +1030,7 @@ void AppStage_ColorCalibration::handle_tracker_set_frame_rate_response(
 		} break;
 	case PSMResult_Error:
 	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 		{
 			//###HipsterSloth $TODO - Replace with C_API style log
 			//CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker frame rate!";
@@ -1067,6 +1069,7 @@ void AppStage_ColorCalibration::handle_tracker_set_exposure_response(
         } break;
     case PSMResult_Error:
     case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
 			//###HipsterSloth $TODO - Replace with C_API style log
             //CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker exposure!";
@@ -1105,6 +1108,7 @@ void AppStage_ColorCalibration::handle_tracker_set_gain_response(
         } break;
     case PSMResult_Error:
     case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
 			//###HipsterSloth $TODO - Replace with C_API style log
             //CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker gain!";
@@ -1159,6 +1163,7 @@ void AppStage_ColorCalibration::handle_tracker_set_option_response(
         } break;
     case PSMResult_Error:
     case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
 			//###HipsterSloth $TODO - Replace with C_API style log
             //CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker gain!";
@@ -1231,6 +1236,7 @@ void AppStage_ColorCalibration::handle_tracker_set_color_preset_response(
         } break;
     case PSMResult_Error:
     case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
 			//###HipsterSloth $TODO - Replace with C_API style log
             //CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker presets!";
@@ -1319,6 +1325,7 @@ void AppStage_ColorCalibration::handle_tracker_get_settings_response(
         } break;
     case PSMResult_Error:
     case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
 			//###HipsterSloth $TODO - Replace with C_API style log
             //CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to get the tracker settings!";

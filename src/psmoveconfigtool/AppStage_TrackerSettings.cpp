@@ -547,6 +547,7 @@ void AppStage_TrackerSettings::handle_tracker_list_response(
 
     case PSMResult_Error:
     case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->m_menuState = AppStage_TrackerSettings::failedTrackerListRequest;
         } break;
@@ -636,6 +637,7 @@ void AppStage_TrackerSettings::handle_controller_list_response(
 
         case PSMResult_Error:
         case PSMResult_Canceled:
+		case PSMResult_Timeout:
         { 
             thisPtr->m_menuState= AppStage_TrackerSettings::failedControllerListRequest;
         } break;
@@ -714,6 +716,7 @@ void AppStage_TrackerSettings::handle_hmd_list_response(
 
 	case PSMResult_Error:
 	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 	{
 		thisPtr->m_menuState = AppStage_TrackerSettings::failedControllerListRequest;
 	} break;

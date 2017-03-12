@@ -352,6 +352,7 @@ void AppStage_HMDSettings::handle_hmd_list_response(
 
     case PSMResult_Error:
     case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->m_menuState = AppStage_HMDSettings::failedHmdListRequest;
         } break;

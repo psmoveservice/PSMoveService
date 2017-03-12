@@ -216,6 +216,7 @@ void AppStage_TestHMD::handle_hmd_start_stream_response(
 
     case PSMResult_Error:
     case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->m_menuState = AppStage_TestHMD::failedHmdStartStreamRequest;
         } break;

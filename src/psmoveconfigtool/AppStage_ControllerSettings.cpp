@@ -767,6 +767,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 
         case PSMResult_Error:
         case PSMResult_Canceled:
+		case PSMResult_Timeout:
         { 
             thisPtr->m_menuState= AppStage_ControllerSettings::failedControllerListRequest;
         } break;
