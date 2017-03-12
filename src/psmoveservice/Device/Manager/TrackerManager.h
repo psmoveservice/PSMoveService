@@ -49,7 +49,6 @@ public:
     long version;
     int optical_tracking_timeout;
 	int tracker_sleep_ms;
-	int optical_tracker_skip_frames;
 	bool use_bgr_to_hsv_lookup_table;
 	bool exclude_opposed_cameras;
 	int min_valid_projection_area;

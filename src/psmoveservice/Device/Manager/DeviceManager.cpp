@@ -185,25 +185,7 @@ DeviceManager::update()
 	}
 
     m_controller_manager->poll(); // Update controller counts and poll button/IMU state
-
-	static const TrackerManagerConfig &cfg = DeviceManager::getInstance()->m_tracker_manager->getConfig();
-
-	// Update tracker count and poll video frames
-	if (cfg.optical_tracker_skip_frames > 0)
-	{
-		static int frame = 0;
-
-		if (frame % cfg.optical_tracker_skip_frames == 0) {
-			m_tracker_manager->poll(); 
-			frame = 0;
-		}
-		frame++;
-	}
-	else {
-		m_tracker_manager->poll(); 
-	}
-
-
+    m_tracker_manager->poll(); // Update tracker count and poll video frames
     m_hmd_manager->poll(); // Update HMD count and poll IMU state
 
     m_controller_manager->updateStateAndPredict(m_tracker_manager); // Compute pose/prediction of tracking blob+IMU state
