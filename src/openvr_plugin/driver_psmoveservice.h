@@ -292,6 +292,11 @@ private:
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> m_resetPoseButtonPressTime;
 	bool m_bResetPoseRequestSent;
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_resetAlignButtonPressTime;
+	bool m_bResetAlignRequestSent;
+
+	bool m_bUsePSNaviDPadRecenter;
+	bool m_bUsePSNaviDPadRealign;
 
     // Button Remapping
     vr::EVRButtonId psButtonIDToVRButtonID[k_EPSControllerType_Count][k_EPSButtonID_Count];
