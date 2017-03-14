@@ -292,6 +292,11 @@ private:
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> m_resetPoseButtonPressTime;
 	bool m_bResetPoseRequestSent;
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_resetAlignButtonPressTime;
+	bool m_bResetAlignRequestSent;
+
+	bool m_bUsePSNaviDPadRecenter;
+	bool m_bUsePSNaviDPadRealign;
 
     // Button Remapping
     vr::EVRButtonId psButtonIDToVRButtonID[k_EPSControllerType_Count][k_EPSButtonID_Count];
@@ -301,7 +306,8 @@ private:
 		const CPSMoveControllerLatest::ePSControllerType controllerType,
         const CPSMoveControllerLatest::ePSButtonID psButtonID,
         const vr::EVRButtonId defaultVRButtonID,
-		const eVRTouchpadDirection defaultTouchpadDirection);
+		const eVRTouchpadDirection defaultTouchpadDirection,
+		int controllerId = -1);
 	bool LoadBool(vr::IVRSettings *pSettings, const char *pchSection, const char *pchSettingsKey, const bool bDefaultValue);
 	int LoadInt(vr::IVRSettings *pSettings, const char *pchSection, const char *pchSettingsKey, const int iDefaultValue);
 	float LoadFloat(vr::IVRSettings *pSettings, const char *pchSection, const char *pchSettingsKey, const float fDefaultValue);

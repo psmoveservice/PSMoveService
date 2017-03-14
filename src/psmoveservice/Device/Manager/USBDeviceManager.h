@@ -2,6 +2,7 @@
 #define USB_DEVICE_MANAGER_H
 
 //-- includes -----
+#include "PSMoveConfig.h"
 #include "USBDeviceRequest.h"
 #include <functional>
 
@@ -10,16 +11,32 @@ enum eUSBApiType
 {
 	_USBApiType_INVALID= -1,
 
+	_USBApiType_NullUSB,
 	_USBApiType_LibUSB,
 	_USBApiType_WinUSB,
 };
 
 //-- definitions -----
-/// Manages async control and bulk transfer requests to usb devices via libusb.
+class USBManagerConfig : public PSMoveConfig
+{
+public:
+    static const int CONFIG_VERSION;
+
+    USBManagerConfig(const std::string &fnamebase = "USBManagerConfig");
+
+    virtual const boost::property_tree::ptree config2ptree();
+    virtual void ptree2config(const boost::property_tree::ptree &pt);
+
+    long version;
+	std::string usb_api_name;
+	bool enable_usb_transfers;
+};
+
+/// Manages async control and bulk transfer requests to usb devices via selected usb api.
 class USBDeviceManager
 {
 public:
-    USBDeviceManager(eUSBApiType apiType);
+    USBDeviceManager();
     virtual ~USBDeviceManager();
 
     static inline USBDeviceManager *getInstance()
@@ -38,8 +55,8 @@ public:
     void shutdown();/**< Shutdown the libusb thread. */
 
 private:
-    // Always use the overloaded constructor
-    USBDeviceManager();
+	/// Configuration settings used by the USB manager
+	USBManagerConfig m_cfg;
 
     /// private implementation
     class USBDeviceManagerImpl *m_implementation_ptr;

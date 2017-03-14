@@ -151,6 +151,8 @@ message Request {
         SET_HMD_PREDICTION_TIME= 38;
 
         GET_SERVICE_VERSION= 39;
+
+        SET_TRACKER_FRAMERATE = 40;
     }
     RequestType type = 2;
 
@@ -436,6 +438,14 @@ message Request {
         float prediction_time = 2;
     }
     RequestSetHMDPredictionTime request_set_hmd_prediction_time = 37;
+
+    // Parameters for SET_TRACKER_FRAMERATE
+    message RequestSetTrackerFramerate {
+        int32 tracker_id = 1;
+        float value = 2;
+        bool save_setting= 3;
+    }
+    RequestSetTrackerFramerate request_set_tracker_frame_rate = 38;
 }
 
 // Reliable (TCP) responses to requests
@@ -461,6 +471,7 @@ message Response {
         HMD_LIST= 16;
         HMD_LIST_UPDATED= 17;
         SERVICE_VERSION= 18;
+        TRACKER_FRAMERATE_UPDATED= 19;
     }
 
     enum ResultCode {
@@ -572,6 +583,7 @@ message Response {
         float gain= 2;
         repeated OptionSet option_sets= 3;
         repeated TrackingColorPreset color_presets = 4;
+        float frame_rate= 5;
     }
     ResultTrackerSettings result_tracker_settings = 25;
 
@@ -629,6 +641,12 @@ message Response {
         string version= 1;
     }
     ResultServiceVersion result_service_version = 32;
+
+    // This is returned in response to a SET_TRACKER_FRAMERATE request
+    message ResultSetTrackerFramerate {
+        float new_frame_rate= 1;
+    }
+    ResultSetTrackerFramerate result_set_tracker_frame_rate = 33;
 }
 
 // Unreliable (UDP) device data packet sent from service to clients

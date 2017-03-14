@@ -333,7 +333,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
         } break;
 
     case eMenuState::verifyTrackers:
-        {
+		{
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - 500.f / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(500.f, (m_trackerViews.size() > 0) ? 150.f : 100.f));
             ImGui::Begin(k_window_title, nullptr, window_flags);
@@ -343,7 +343,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
             if (m_trackerViews.size() > 1)
             {
-                ImGui::Text("Tracker #%d", m_renderTrackerIndex + 1);
+                ImGui::Text("Tracker #%d", m_renderTrackerIndex);
 
                 if (ImGui::Button("Previous Tracker"))
                 {
@@ -375,7 +375,8 @@ void AppStage_ComputeTrackerPoses::renderUI()
             }
 
             ImGui::End();
-        } break;
+        }
+		break;
 
 	case eMenuState::selectCalibrationMethod:
 		{
@@ -479,7 +480,25 @@ void AppStage_ComputeTrackerPoses::renderUI()
 			ImGui::SetNextWindowSize(ImVec2(200, 100));
 			ImGui::Begin("Tracker Video Feed", nullptr, window_flags);
 
-			ImGui::Text("Tracker ID: #%d", m_renderTrackerIter->second.trackerView->getTrackerId());
+			//ImGui::Text("Tracker ID: #%d", m_renderTrackerIter->second.trackerView->getTrackerId());
+
+			if (m_trackerViews.size() > 1)
+			{
+				if (ImGui::Button("<##Previous Tracker"))
+				{
+					go_previous_tracker();
+				}
+				ImGui::SameLine();
+				ImGui::Text("Tracker ID: #%d", m_renderTrackerIter->second.trackerView->getTrackerId());
+				ImGui::SameLine();
+				if (ImGui::Button(">##Next Tracker"))
+				{
+					go_next_tracker();
+				}
+			} 
+			else {
+				ImGui::Text("Tracker ID: 0");
+			}
 
 			if (ImGui::Button("Return"))
 			{
@@ -987,7 +1006,7 @@ void AppStage_ComputeTrackerPoses::request_tracker_start_stream(
 
     // Request data to start streaming to the tracker
     ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::start_tracker_data_stream(trackerState.trackerView),
+		ClientPSMoveAPI::start_tracker_data_stream(trackerState.trackerView),
         AppStage_ComputeTrackerPoses::handle_tracker_start_stream_response, this);
 }
 

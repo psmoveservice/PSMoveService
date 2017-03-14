@@ -37,6 +37,7 @@ public:
     
     bool is_valid;
     long max_poll_failure_count;
+	double frame_rate;
     double exposure;
 	double gain;
     double focalLengthX;
@@ -104,6 +105,8 @@ public:
     const unsigned char *getVideoFrameBuffer() const override;
     void loadSettings() override;
     void saveSettings() override;
+	void setFramerate(double value, bool bUpdateConfig) override;
+	double getFramerate() const override;
     void setExposure(double value, bool bUpdateConfig) override;
     double getExposure() const override;
 	void setGain(double value, bool bUpdateConfig) override;

@@ -150,17 +150,29 @@ void AppStage_TrackerSettings::renderUI()
                 {
                     --m_selectedTrackerIndex;
                 }
-                ImGui::SameLine();
             }
+			else {
+				if (ImGui::Button("<##TrackerIndex"))
+				{
+					m_selectedTrackerIndex = static_cast<int>(m_trackerInfos.size()) -1;
+				}
+			}
+			ImGui::SameLine();
             ImGui::Text("Tracker: %d", m_selectedTrackerIndex);
+			ImGui::SameLine();
             if (m_selectedTrackerIndex + 1 < static_cast<int>(m_trackerInfos.size()))
             {
-                ImGui::SameLine();
                 if (ImGui::Button(">##TrackerIndex"))
                 {
                     ++m_selectedTrackerIndex;
                 }
-            }
+			}
+			else {
+				if (ImGui::Button(">##TrackerIndex"))
+				{
+					m_selectedTrackerIndex = 0;
+				}
+			}
 
             ImGui::BulletText("Tracker ID: %d", trackerInfo.tracker_id);
 

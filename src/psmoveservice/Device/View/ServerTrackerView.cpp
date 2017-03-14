@@ -613,7 +613,9 @@ public:
 		const cv::Point2f massCenter = computeSafeCenterOfMassForContour<t_opencv_int_contour>(contour);
         cv::drawContours(*bgrShmemBuffer, contours, 0, cv::Scalar(255, 255, 255));
         cv::rectangle(*bgrShmemBuffer, cv::boundingRect(contour), cv::Scalar(255, 255, 255));
-        cv::drawMarker(*bgrShmemBuffer, massCenter, cv::Scalar(255, 255, 255));
+		cv::drawMarker(*bgrShmemBuffer, massCenter, cv::Scalar(255, 255, 255), 0,
+			(cv::boundingRect(contour).height < cv::boundingRect(contour).width) ?
+			cv::boundingRect(contour).height : cv::boundingRect(contour).width);
     }
     
     void
@@ -641,7 +643,8 @@ public:
 					ell_size,
 					pose_projection.shape.ellipse.angle,
 					0, 360, cv::Scalar(0, 0, 255));
-				cv::drawMarker(*bgrShmemBuffer, ell_center, cv::Scalar(0, 0, 255));
+				cv::drawMarker(*bgrShmemBuffer, ell_center, cv::Scalar(0, 0, 255), 0,
+					(ell_size.height < ell_size.width) ? ell_size.height * 2 : ell_size.width * 2);
 			} break;
 		case eCommonTrackingProjectionType::ProjectionType_LightBar:
 			{
@@ -973,6 +976,16 @@ void ServerTrackerView::loadSettings()
 void ServerTrackerView::saveSettings()
 {
     m_device->saveSettings();
+}
+
+double ServerTrackerView::getFramerate() const
+{
+	return m_device->getFramerate();
+}
+
+void ServerTrackerView::setFramerate(double value, bool bUpdateConfig)
+{
+	m_device->setFramerate(value, bUpdateConfig);
 }
 
 double ServerTrackerView::getExposure() const
