@@ -10,6 +10,17 @@
 #include <unistd.h>
 #endif
 
+const char *BatteryLevelStings[] {
+	"Batt_MIN", // = 0x00, /*!< Battery is almost empty (< 20%) */
+	"Batt_20Percent", // = 0x01, /*!< Battery has at least 20% remaining */
+	"Batt_40Percent", // = 0x02, /*!< Battery has at least 40% remaining */
+	"Batt_60Percent", // = 0x03, /*!< Battery has at least 60% remaining */
+	"Batt_80Percent", // = 0x04, /*!< Battery has at least 80% remaining */
+	"Batt_MAX", // = 0x05, /*!< Battery is fully charged (not on charger) */
+	"Batt_CHARGING", // = 0xEE, /*!< Battery is currently being charged */
+	"Batt_CHARGING_DONE" // = 0xEF, /*!< Battery is fully charged (on charger) */
+};
+
 int main()
 {
     log_init("info");
@@ -47,9 +58,9 @@ int main()
 			g = (g + 47) % 255;
 			b = (b + 53) % 255;
 			psmove.setLED(r, g, b);
-			int mychar = 0x09;
+
 			int myw = 4;
-			std::cout <</* '\r' <<//*
+			std::cout << '\r' <<
 				"# " << std::setw(myw) << std::left << psmstate->RawSequence <<
 				" A(1): " <<
 				std::setw(myw) << std::right << psmstate->RawAccel[0][0] << "," <<
@@ -71,14 +82,12 @@ int main()
 				std::setw(myw) << std::right << psmstate->RawMag[0] << "," <<
 				std::setw(myw) << std::right << psmstate->RawMag[1] << "," <<
 				std::setw(myw) << std::right << psmstate->RawMag[2] <<
-				std::flush
-				<<//*/
-				"\nBatt: " << (psmstate->Battery)
-				<< "; BattVal: " << int(psmstate->BatteryValue)
-				<< "; Trig: " << int(psmstate->TriggerValue);
+				"; B: " << 
+				std::setw(myw) << std::right << BatteryLevelStings[psmstate->BatteryValue] <<
+				std::flush;
 
 #ifdef _WIN32
-			_sleep(50); // 5 msec
+			_sleep(5); // 5 msec
 #else
             usleep(5000);
 #endif

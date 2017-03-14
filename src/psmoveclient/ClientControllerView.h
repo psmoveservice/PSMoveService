@@ -331,10 +331,9 @@ public:
         return IsValid() ? ((float)TriggerValue / 255.f) : 0.f;
     }
 
-	inline float GetBatteryValue() const
+	inline int GetBatteryValue() const
 	{
-		//return IsValid() ? ((float)BatteryValue) : 10.f;
-		return ((float)BatteryValue);
+		return IsValid() ? BatteryValue : 0;
 	}
 
     inline float GetRumble() const
