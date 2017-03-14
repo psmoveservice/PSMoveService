@@ -353,7 +353,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
             if (m_trackerViews.size() > 1)
             {
-                ImGui::Text("Tracker #%d", m_renderTrackerIndex + 1);
+                ImGui::Text("Tracker #%d", m_renderTrackerIndex);
 
                 if (ImGui::Button("Previous Tracker"))
                 {
@@ -385,7 +385,8 @@ void AppStage_ComputeTrackerPoses::renderUI()
             }
 
             ImGui::End();
-        } break;
+        }
+		break;
 
 	case eMenuState::selectCalibrationMethod:
 		{
@@ -489,7 +490,25 @@ void AppStage_ComputeTrackerPoses::renderUI()
 			ImGui::SetNextWindowSize(ImVec2(200, 100));
 			ImGui::Begin("Tracker Video Feed", nullptr, window_flags);
 
-			ImGui::Text("Tracker ID: #%d", m_renderTrackerIter->second.trackerView->tracker_info.tracker_id);
+			//ImGui::Text("Tracker ID: #%d", m_renderTrackerIter->second.trackerView->tracker_info.tracker_id);
+
+			if (m_trackerViews.size() > 1)
+			{
+				if (ImGui::Button("<##Previous Tracker"))
+				{
+					go_previous_tracker();
+				}
+				ImGui::SameLine();
+				ImGui::Text("Tracker ID: #%d", m_renderTrackerIter->second.trackerView->tracker_info.tracker_id);
+				ImGui::SameLine();
+				if (ImGui::Button(">##Next Tracker"))
+				{
+					go_next_tracker();
+				}
+			} 
+			else {
+				ImGui::Text("Tracker ID: 0");
+			}
 
 			if (ImGui::Button("Return"))
 			{
@@ -1009,7 +1028,6 @@ void AppStage_ComputeTrackerPoses::request_tracker_start_stream(
 	PSMRequestID requestID;
 	PSM_StartTrackerDataStreamAsync(
 		TrackerInfo->tracker_id, 
-		m_bSkipCalibration ? PSMTrackerFlags_includeDebugRendering : PSMTrackerFlags_defaultStreamOptions, 
 		&requestID);
 	PSM_RegisterCallback(requestID, AppStage_ComputeTrackerPoses::handle_tracker_start_stream_response, this);
 }

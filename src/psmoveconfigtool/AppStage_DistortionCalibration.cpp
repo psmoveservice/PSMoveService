@@ -851,7 +851,6 @@ void AppStage_DistortionCalibration::request_tracker_start_stream()
 		PSMRequestID requestID;
 		PSM_StartTrackerDataStreamAsync(
 			m_tracker_view->tracker_info.tracker_id, 
-			PSMTrackerFlags_defaultStreamOptions, 
 			&requestID);
 		PSM_RegisterCallback(requestID, AppStage_DistortionCalibration::handle_tracker_start_stream_response, this);
     }

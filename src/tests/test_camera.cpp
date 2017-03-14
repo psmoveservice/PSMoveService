@@ -22,6 +22,25 @@ struct camera_state
 int main(int, char**)
 {
     std::vector<camera_state> camera_states;
+	int frame_rate_init = 40;
+
+	std::cout << "=========CONTROLS=========\n"
+		<< " + | - | value | Variable\n" << "___|___|_______|__________\n"
+		<< " q | a |   z   | Exposure \n"
+		<< " w | s |   x   | Contrast \n"
+		<< " e | d |   c   | Gain \n"
+		<< " r | f |   v   | Hue \n"
+		<< " t | g |   b   | Sharpness \n"
+		<< " y | h |   n   | Fame Rate \n"
+		<< "The space bar calculates the frame rate from the processed frames.\n"
+		<< "The escape key will close the cameras.\n"
+		<< "(focus must be on one of the camera windows to apply)\n"
+		<< std::endl;
+
+	std::cout << "Please enter the initial frame rate for the cameras\n"
+		<< "available values range from 2 to 83 (but 83 is partially corrupt)\n"
+		<< "(higher frame rates will need more USB bandwidth): \n";
+	std::cin >> frame_rate_init;
 
     // Open all available cameras (up to 4 max)
 	for (int camera_index = 0; camera_index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++camera_index)
@@ -31,6 +50,12 @@ int main(int, char**)
         if (camera->isOpened())
         {
             std::string identifier = camera->getUniqueIndentifier();
+
+			if (camera->get(CV_CAP_PROP_FPS) != frame_rate_init)
+			{
+				camera->set(CV_CAP_PROP_FPS, frame_rate_init);
+			}
+
 			auto last_ticks = std::chrono::high_resolution_clock::now();
 			int last_frames = 0;
 

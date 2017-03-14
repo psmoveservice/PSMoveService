@@ -1653,7 +1653,7 @@ protected:
                 streamInfo.streaming_video_data = true;
 
                 // Increment the number of stream listeners
-                tracker_view->startSharedMemoryVideoStream(request.include_debug_rendering());
+                tracker_view->startSharedMemoryVideoStream();
 
                 // Return the name of the shared memory block the video frames will be written to
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);

@@ -1403,6 +1403,10 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
     , m_lastTimeRumbleSentValid(false)
 	, m_resetPoseButtonPressTime()
 	, m_bResetPoseRequestSent(false)
+	, m_resetAlignButtonPressTime()
+	, m_bResetAlignRequestSent(false)
+	, m_bUsePSNaviDPadRecenter(false)
+	, m_bUsePSNaviDPadRealign(false)
 	, m_fVirtuallExtendControllersZMeters(0.0f)
 	, m_fVirtuallExtendControllersYMeters(0.0f)
 	, m_bDelayAfterTouchpadPress(false)
@@ -1449,22 +1453,23 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 		if (controllerType == PSMController_Move)
 		{
 			// Parent controller button mappings
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_PS, vr::k_EButton_System, k_EVRTouchpadDirection_None);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Move, vr::k_EButton_SteamVR_Touchpad, k_EVRTouchpadDirection_None);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Trigger, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Triangle, (vr::EVRButtonId)8, k_EVRTouchpadDirection_None);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Square, (vr::EVRButtonId)9, k_EVRTouchpadDirection_None);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Circle, (vr::EVRButtonId)10, k_EVRTouchpadDirection_None);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Cross, (vr::EVRButtonId)11, k_EVRTouchpadDirection_None);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Select, vr::k_EButton_Grip, k_EVRTouchpadDirection_None);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Start, vr::k_EButton_ApplicationMenu, k_EVRTouchpadDirection_None);
+	
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_PS, vr::k_EButton_System, k_EVRTouchpadDirection_None, controllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Move, vr::k_EButton_SteamVR_Touchpad, k_EVRTouchpadDirection_None, controllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Trigger, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None, controllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Triangle, (vr::EVRButtonId)8, k_EVRTouchpadDirection_None, controllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Square, (vr::EVRButtonId)9, k_EVRTouchpadDirection_None, controllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Circle, (vr::EVRButtonId)10, k_EVRTouchpadDirection_None, controllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Cross, (vr::EVRButtonId)11, k_EVRTouchpadDirection_None, controllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Select, vr::k_EButton_Grip, k_EVRTouchpadDirection_None, controllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Start, vr::k_EButton_ApplicationMenu, k_EVRTouchpadDirection_None, controllerId);
 	
 			// Attached child controller button mappings
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_PS, vr::k_EButton_System, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Left, vr::k_EButton_DPad_Left, k_EVRTouchpadDirection_Left);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Up, vr::k_EButton_DPad_Up, k_EVRTouchpadDirection_Up);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Up, (vr::EVRButtonId)10, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Right, vr::k_EButton_DPad_Right, k_EVRTouchpadDirection_Right);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Down, vr::k_EButton_DPad_Down, k_EVRTouchpadDirection_Down);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Down, (vr::EVRButtonId)10, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Move, vr::k_EButton_SteamVR_Touchpad, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Circle, (vr::EVRButtonId)10, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_Cross, (vr::EVRButtonId)11, k_EVRTouchpadDirection_None);
@@ -1482,6 +1487,30 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 				LoadBool(pSettings, "psmove", "use_spatial_offset_after_touchpad_press_as_touchpad_axis", false);
 			m_fMetersPerTouchpadAxisUnits= 
 				LoadFloat(pSettings, "psmove", "meters_per_touchpad_units", .075f);
+
+			// Chack for PSNavi up/down mappings
+			char remapButtonToButtonString[32];
+			vr::EVRSettingsError fetchError;
+
+			pSettings->GetString("psnavi_button", k_PSButtonNames[k_EPSButtonID_Up], remapButtonToButtonString, 32, &fetchError);
+			if (fetchError != vr::VRSettingsError_None)
+			{
+				pSettings->GetString("psnavi_touchpad", k_PSButtonNames[k_EPSButtonID_Up], remapButtonToButtonString, 32, &fetchError);
+				if (fetchError != vr::VRSettingsError_None)
+				{
+					m_bUsePSNaviDPadRealign = true;
+				}
+			}
+
+			pSettings->GetString("psnavi_button", k_PSButtonNames[k_EPSButtonID_Down], remapButtonToButtonString, 32, &fetchError);
+			if (fetchError != vr::VRSettingsError_None)
+			{
+				pSettings->GetString("psnavi_touchpad", k_PSButtonNames[k_EPSButtonID_Down], remapButtonToButtonString, 32, &fetchError);
+				if (fetchError != vr::VRSettingsError_None)
+				{
+					m_bUsePSNaviDPadRecenter = true;
+				}
+			}
 
 			// General Settings
 			m_bRumbleSuppressed= LoadBool(pSettings, "psmove_settings", "rumble_suppressed", m_bRumbleSuppressed);
@@ -1554,7 +1583,8 @@ void CPSMoveControllerLatest::LoadButtonMapping(
 	const CPSMoveControllerLatest::ePSControllerType controllerType,
     const CPSMoveControllerLatest::ePSButtonID psButtonID,
     const vr::EVRButtonId defaultVRButtonID,
-	const eVRTouchpadDirection defaultTouchpadDirection)
+	const eVRTouchpadDirection defaultTouchpadDirection,
+	int controllerId)
 {
 
     vr::EVRButtonId vrButtonID = defaultVRButtonID;
@@ -1598,6 +1628,40 @@ void CPSMoveControllerLatest::LoadButtonMapping(
             }
         }
 
+		const char *numId = "";
+		if (controllerId == 0) numId = "0";
+		else if (controllerId == 1) numId = "1";
+		else if (controllerId == 2) numId = "2";
+		else if (controllerId == 3) numId = "3";
+		else if (controllerId == 4) numId = "4";
+		else if (controllerId == 5) numId = "5";
+		else if (controllerId == 6) numId = "6";
+		else if (controllerId == 7) numId = "7";
+		else if (controllerId == 8) numId = "8";
+		else if (controllerId == 9) numId = "9";
+
+		if (strcmp(numId, "") != 0)
+		{
+			char buffer[64];
+			strcpy(buffer, szButtonSectionName);
+			strcat(buffer, "_");
+			strcat(buffer, numId);
+			szButtonSectionName = buffer;
+			pSettings->GetString(szButtonSectionName, szPSButtonName, remapButtonToButtonString, 32, &fetchError);
+
+			if (fetchError == vr::VRSettingsError_None)
+			{
+				for (int vr_button_index = 0; vr_button_index < k_max_vr_buttons; ++vr_button_index)
+				{
+					if (strcasecmp(remapButtonToButtonString, k_VRButtonNames[vr_button_index]) == 0)
+					{
+						vrButtonID = static_cast<vr::EVRButtonId>(vr_button_index);
+						break;
+					}
+				}
+			}
+		}
+
 		char remapButtonToTouchpadDirectionString[32];
 		pSettings->GetString(szTouchpadSectionName, szPSButtonName, remapButtonToTouchpadDirectionString, 32, &fetchError);
 
@@ -1609,6 +1673,28 @@ void CPSMoveControllerLatest::LoadButtonMapping(
 				{
 					vrTouchpadDirection = static_cast<eVRTouchpadDirection>(vr_touchpad_direction_index);
 					break;
+				}
+			}
+		}
+
+		if (strcmp(numId, "") != 0)
+		{
+			char buffer[64];
+			strcpy(buffer, szTouchpadSectionName);
+			strcat(buffer, "_");
+			strcat(buffer, numId); 
+			szTouchpadSectionName = buffer;
+			pSettings->GetString(szTouchpadSectionName, szPSButtonName, remapButtonToTouchpadDirectionString, 32, &fetchError);
+
+			if (fetchError == vr::VRSettingsError_None)
+			{
+				for (int vr_touchpad_direction_index = 0; vr_touchpad_direction_index < k_max_vr_touchpad_directions; ++vr_touchpad_direction_index)
+				{
+					if (strcasecmp(remapButtonToTouchpadDirectionString, k_VRTouchpadDirectionNames[vr_touchpad_direction_index]) == 0)
+					{
+						vrTouchpadDirection = static_cast<eVRTouchpadDirection>(vr_touchpad_direction_index);
+						break;
+    }
 				}
 			}
 		}
@@ -1980,15 +2066,61 @@ void CPSMoveControllerLatest::UpdateControllerState()
         {
             const PSMPSMove &clientView = m_PSMControllerView->ControllerState.PSMoveState;
 
-			const bool bStartRealignHMDTriggered =
+			bool bStartRealignHMDTriggered =
 				(clientView.StartButton == PSMButtonState_PRESSED && clientView.SelectButton == PSMButtonState_PRESSED) ||
 				(clientView.StartButton == PSMButtonState_PRESSED && clientView.SelectButton == PSMButtonState_DOWN) ||
 				(clientView.StartButton == PSMButtonState_DOWN && clientView.SelectButton == PSMButtonState_PRESSED);
+
+			// Check if the PSMove has a PSNavi child
+			const bool bHasChildNavi= 
+				m_PSMChildControllerView != nullptr && 
+				m_PSMChildControllerView->ControllerType == PSMController_Move;
 
 			// See if the recenter button has been held for the requisite amount of time
 			bool bRecenterRequestTriggered = false;
 			{
 				PSMButtonState resetPoseButtonState = clientView.SelectButton;
+				PSMButtonState resetAlignButtonState;
+
+				// Use PSNavi D-pad up/down if they are free
+				if (bHasChildNavi)
+				{
+					if (m_bUsePSNaviDPadRealign)
+					{
+						resetAlignButtonState = m_PSMChildControllerView->ControllerState.PSNaviState.DPadUpButton;
+
+						switch (resetAlignButtonState)
+						{
+						case PSMButtonState_PRESSED:
+							{
+								m_resetAlignButtonPressTime = std::chrono::high_resolution_clock::now();
+							} break;
+						case PSMButtonState_DOWN:
+							{
+								if (!m_bResetAlignRequestSent)
+								{
+									const float k_hold_duration_milli = 1000.f;
+									std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+									std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetAlignButtonPressTime;
+
+									if (pressDurationMilli.count() >= k_hold_duration_milli)
+									{
+										bStartRealignHMDTriggered = true;
+									}
+								}
+							} break;
+						case PSMButtonState_RELEASED:
+							{
+								m_bResetAlignRequestSent = false;
+							} break;
+						}
+					}
+					
+					if (m_bUsePSNaviDPadRecenter)
+					{
+						resetPoseButtonState = m_PSMChildControllerView->ControllerState.PSNaviState.DPadDownButton;
+					}
+				}
 
 				switch (resetPoseButtonState)
 				{
@@ -2000,7 +2132,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 					{
 						if (!m_bResetPoseRequestSent)
 						{
-							const float k_hold_duration_milli = 250.f;
+							const float k_hold_duration_milli = (bHasChildNavi) ? 1000.f : 250.f;
 							std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 							std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetPoseButtonPressTime;
 
@@ -2032,6 +2164,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				m_bResetPoseRequestSent = true;
 
 				StartRealignHMDTrackingSpace();
+				m_bResetAlignRequestSent = true;
             }
 			else if (bRecenterRequestTriggered)
 			{
@@ -2042,10 +2175,6 @@ void CPSMoveControllerLatest::UpdateControllerState()
 			}
 			else 
 			{
-				const bool bHasChildNavi= 
-					m_PSMChildControllerView != nullptr && 
-					m_PSMChildControllerView->ControllerType == PSMController_Move;
-
 				// Process all the button mappings 
 				// ------
 

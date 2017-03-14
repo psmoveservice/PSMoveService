@@ -1231,7 +1231,6 @@ void AppStage_HMDModelCalibration::request_tracker_start_stream(
 	PSMRequestID requestID;
 	PSM_StartTrackerDataStreamAsync(
 		tracker_view->tracker_info.tracker_id, 
-		PSMTrackerFlags_includeDebugRendering, 
 		&requestID);
 	PSM_RegisterCallback(requestID, AppStage_HMDModelCalibration::handle_tracker_start_stream_response, this);
 }
