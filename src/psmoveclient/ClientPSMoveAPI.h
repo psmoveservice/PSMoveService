@@ -99,6 +99,7 @@ public:
     enum eResponsePayloadType
     {
         _responsePayloadType_Empty,
+		_responsePayloadType_ServiceVersion,
         _responsePayloadType_ControllerList,
         _responsePayloadType_TrackerList,
         _responsePayloadType_TrackingSpace,
@@ -111,10 +112,17 @@ public:
     typedef const void*t_response_handle;
     typedef void *t_request_handle;
 
+	struct ResponsePayload_ServiceVersion
+	{
+		char version_string[PSMOVESERVICE_MAX_VERSION_STRING_LEN];
+	};
+
     struct ResponsePayload_ControllerList
     {
         int controller_id[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
         ClientControllerView::eControllerType controller_type[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
+        char controller_serial[PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
+        char parent_controller_serial[PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
         int count;
     };
 
@@ -159,6 +167,7 @@ public:
         //----
         union
         {
+			ResponsePayload_ServiceVersion service_version;
             ResponsePayload_ControllerList controller_list;
             ResponsePayload_TrackerList tracker_list;
             ResponsePayload_HMDList hmd_list;
@@ -203,6 +212,9 @@ public:
     static bool poll_next_message(Message *message, size_t message_size);
 
     static void shutdown();
+
+	/// System Methods
+	static t_request_id get_service_version();
 
     /// Controller Methods
     static ClientControllerView *allocate_controller_view(int ControllerID);

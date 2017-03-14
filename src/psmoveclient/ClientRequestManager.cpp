@@ -158,6 +158,10 @@ public:
                     const PSMoveProtocol::DeviceOutputDataFrame *dataFrame= &response->result_controller_stream_started().initial_data_frame();
                     m_dataFrameListener->handle_data_frame(dataFrame);
                 } break;
+			case PSMoveProtocol::Response_ResponseType_SERVICE_VERSION:
+                build_service_version_response_message(response, &out_response_message->payload.service_version);
+                out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_ServiceVersion;
+                break;
             case PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST:
                 build_controller_list_response_message(response, &out_response_message->payload.controller_list);
                 out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_ControllerList;
@@ -180,6 +184,15 @@ public:
             }
         }
     }
+
+	void build_service_version_response_message(
+		ResponsePtr response,
+		ClientPSMoveAPI::ResponsePayload_ServiceVersion *service_version)
+	{
+		const auto &VersionResponse = response->result_service_version();
+
+		strncpy(service_version->version_string, VersionResponse.version().c_str(), PSMOVESERVICE_MAX_VERSION_STRING_LEN);
+	}
 
     void build_controller_list_response_message(
         ResponsePtr response,
@@ -226,6 +239,8 @@ public:
                 // Add an entry to the controller list
                 controller_list->controller_type[dest_controller_count] = controllerType;
                 controller_list->controller_id[dest_controller_count] = ControllerResponse.controller_id();
+				strncpy(&controller_list->controller_serial[dest_controller_count], ControllerResponse.device_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
+				strncpy(&controller_list->parent_controller_serial[dest_controller_count], ControllerResponse.parent_controller_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
                 ++dest_controller_count;
             }
 

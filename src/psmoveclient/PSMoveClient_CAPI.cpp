@@ -5,6 +5,7 @@
 #include "ClientControllerView.h"
 #include "MathUtility.h"
 #include "ProtocolVersion.h"
+#include "PSMoveProtocolInterface.h"
 #include "PSMoveProtocol.pb.h"
 #include <assert.h>
 
@@ -95,7 +96,7 @@ bool g_bHasTrackerListChanged= false;
 bool g_bHasHMDListChanged= false;
 
 // -- public interface -----
-const char* PSM_GetVersionString()
+const char* PSM_GetClientVersionString()
 {
     const char *version_string= PSM_DETAILED_VERSION_STRING;
 
@@ -211,6 +212,59 @@ PSMResult PSM_InitializeAsync(const char* host, const char* port)
     g_bHasControllerListChanged= false;
     g_bHasTrackerListChanged= false;
 	g_bHasHMDListChanged= false;
+
+    return result;
+}
+
+PSMResult PSM_GetServiceVersionString(char *out_version_string, size_t max_version_string, int timeout_ms)
+{
+    PSMResult result= PSMResult_Error;
+
+    CallbackResultCapture resultState;
+    ClientPSMoveAPI::t_request_id request_id= ClientPSMoveAPI::get_service_version();
+    ClientPSMoveAPI::register_callback(request_id,
+                                       CallbackResultCapture::response_callback,
+                                       &resultState);
+
+    CallbackTimeout timeout(timeout_ms);
+    
+    while (!resultState.bReceived && !timeout.HasElapsed())
+    {
+        _PAUSE(10);
+        PSM_Update();
+    }
+    
+    if (timeout.HasElapsed())
+    {
+        ClientPSMoveAPI::cancel_callback(request_id);
+        result= PSMResult_Timeout;
+    }
+    else if (resultState.out_response.result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    {
+        assert(resultState.out_response.payload_type == ClientPSMoveAPI::eResponsePayloadType::_responsePayloadType_HMDList);
+        
+        PSMResponseMessage response;
+        extractResponseMessage(&resultState.out_response, &response);
+		strncpy(out_version_string, response.payload.service_version.version_string, max_version_string);
+
+        result= PSMResult_Success;
+    }
+    
+    return result;
+}
+
+PSMResult PSM_GetServiceVersionStringAsync(PSMRequestID *out_request_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    ClientPSMoveAPI::t_request_id req_id = ClientPSMoveAPI::get_service_version();
+
+    if (out_request_id != nullptr)
+    {
+        *out_request_id= static_cast<PSMRequestID>(req_id);
+    }
+
+    result= (req_id > 0) ? PSMResult_RequestSent : PSMResult_Error;
 
     return result;
 }
@@ -2114,6 +2168,11 @@ static void extractResponseMessage(const ClientPSMoveAPI::ResponseMessage *respo
     case ClientPSMoveAPI::_responsePayloadType_Empty:
         response->payload_type= PSMResponseMessage::_responsePayloadType_Empty;
         break;
+    case ClientPSMoveAPI::_responsePayloadType_ServiceVersion:
+        response->payload_type= PSMResponseMessage::_responsePayloadType_ServiceVersion;
+        static_assert(sizeof(PSMServiceVersion) == sizeof(ClientPSMoveAPI::ResponsePayload_ServiceVersion), "Response payload types changed!");
+        memcpy(&response->payload.service_version, &response_internal->payload.service_version, sizeof(PSMServiceVersion));
+        break;
     case ClientPSMoveAPI::_responsePayloadType_ControllerList:
         response->payload_type= PSMResponseMessage::_responsePayloadType_ControllerList;
         static_assert(sizeof(PSMControllerList) == sizeof(ClientPSMoveAPI::ResponsePayload_ControllerList), "Response payload types changed!");
@@ -2124,12 +2183,12 @@ static void extractResponseMessage(const ClientPSMoveAPI::ResponseMessage *respo
         static_assert(sizeof(PSMTrackerList) == sizeof(ClientPSMoveAPI::ResponsePayload_TrackerList), "Response payload types changed!");
         memcpy(&response->payload.tracker_list, &response_internal->payload.tracker_list, sizeof(PSMTrackerList));
         break;
-    case _PSMResponseMessage::_responsePayloadType_TrackingSpace:
+    case ClientPSMoveAPI::_responsePayloadType_TrackingSpace:
         response->payload_type= PSMResponseMessage::_responsePayloadType_TrackingSpace;
         static_assert(sizeof(PSMTrackingSpace) == sizeof(ClientPSMoveAPI::ResponsePayload_TrackingSpace), "Response payload types changed!");
         memcpy(&response->payload.tracking_space, &response_internal->payload.tracking_space, sizeof(PSMTrackingSpace));
         break;
-	case _PSMResponseMessage::_responsePayloadType_HmdList:
+	case ClientPSMoveAPI::_responsePayloadType_HMDList:
         response->payload_type= PSMResponseMessage::_responsePayloadType_HmdList;
         static_assert(sizeof(PSMHmdList) == sizeof(ClientPSMoveAPI::ResponsePayload_HMDList), "Response payload types changed!");
         memcpy(&response->payload.hmd_list, &response_internal->payload.hmd_list, sizeof(PSMHmdList));

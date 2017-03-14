@@ -73,7 +73,7 @@ private:
         {
             if (PSM_Initialize(PSMOVESERVICE_DEFAULT_ADDRESS, PSMOVESERVICE_DEFAULT_PORT, PSM_DEFAULT_TIMEOUT) == PSMResult_Success)
             {
-                std::cout << "PSMoveConsoleClient::startup() - Initialized client version - " << PSM_GetVersionString() << std::endl;
+                std::cout << "PSMoveConsoleClient::startup() - Initialized client version - " << PSM_GetClientVersionString() << std::endl;
             }
             else
             {

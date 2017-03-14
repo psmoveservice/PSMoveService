@@ -38,9 +38,9 @@ public:
     inline PSMPosef GetWorldFromDriverPose() const { return m_worldFromDriverPose; }
 
 private:
-    void AllocateUniquePSMoveController(int ControllerID, const PSMResponseHandle response_handle);
-    void AttachPSNaviToParentController(int ControllerID,  const PSMResponseHandle response_handle);
-    void AllocateUniqueDualShock4Controller(int ControllerID, const PSMResponseHandle response_handle);
+    void AllocateUniquePSMoveController(int ControllerID, const std::string &ControllerSerial);
+    void AttachPSNaviToParentController(int ControllerID, const std::string &ControllerSerial, const std::string &ParentControllerSerial);
+    void AllocateUniqueDualShock4Controller(int ControllerID, const std::string &ControllerSerial);
     void AllocateUniquePSMoveTracker(const PSMClientTrackerInfo *trackerInfo);
     bool ReconnectToPSMoveService();
 

@@ -423,10 +423,17 @@ typedef struct _PSMEventMessage
 
 // Service Responses
 //------------------
+typedef struct _PSMServiceVersion
+{
+	char version_string[PSMOVESERVICE_MAX_VERSION_STRING_LEN];
+} PSMServiceVersion;
+
 typedef struct _PSMControllerList
 {
     PSMControllerID controller_id[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
     PSMControllerType controller_type[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
+	char controller_serial[PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
+	char parent_controller_serial[PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
     int count;
 } PSMControllerList;
 
@@ -472,6 +479,7 @@ typedef struct _PSMResponseMessage
     //----
     union
     {
+		PSMServiceVersion service_version;
         PSMControllerList controller_list;
         PSMTrackerList tracker_list;
 		PSMHmdList hmd_list;
@@ -481,6 +489,7 @@ typedef struct _PSMResponseMessage
     enum eResponsePayloadType
     {
         _responsePayloadType_Empty,
+		_responsePayloadType_ServiceVersion,
         _responsePayloadType_ControllerList,
         _responsePayloadType_TrackerList,
         _responsePayloadType_TrackingSpace,
@@ -517,21 +526,27 @@ typedef struct _PSMMessage
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_Initialize(const char* host, const char* port, int timeout_ms);  //"localhost", "9512"
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_Shutdown();
 
-// Async Connection Methods
+/// Async Connection Methods
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_InitializeAsync(const char* host, const char* port);  //"localhost", "9512"
 
-// Update
+/// Update
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_Update();
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_UpdateNoPollMessages();
 
-// System Queries
-PSM_PUBLIC_FUNCTION(const char*) PSM_GetVersionString();
+/// System State Queries
+PSM_PUBLIC_FUNCTION(const char*) PSM_GetClientVersionString();
 PSM_PUBLIC_FUNCTION(bool) PSM_GetIsInitialized();
 PSM_PUBLIC_FUNCTION(bool) PSM_GetIsConnected();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasConnectionStatusChanged();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasControllerListChanged();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasTrackerListChanged();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasHMDListChanged();
+
+/// System Blocking Queries
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetServiceVersionString(char *out_version_string, size_t max_version_string, int timeout_ms);
+
+/// System Async Queries
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetServiceVersionStringAsync(PSMRequestID *out_request_id);
 
 /// Async Message Handling API
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_PollNextMessage(PSMMessage *message, size_t message_size);

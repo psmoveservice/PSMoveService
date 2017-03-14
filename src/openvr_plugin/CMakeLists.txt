@@ -29,10 +29,6 @@ add_library(driver_psmove SHARED driver_psmoveservice.cpp)
 target_include_directories(driver_psmove PUBLIC ${OPENVR_PLUGIN_INCL_DIRS})
 target_link_libraries(driver_psmove ${OPENVR_PLUGIN_REQ_LIBS})
 
-# Allow access to the protocol buffers (extracting response parameters)
-target_compile_definitions(driver_psmove
-    PRIVATE HAS_PROTOCOL_ACCESS)
-
 # Monitor app
 add_executable(monitor_psmove monitor_psmoveservice.cpp)
 target_include_directories(monitor_psmove PUBLIC ${OPENVR_MONITOR_INCL_DIRS})

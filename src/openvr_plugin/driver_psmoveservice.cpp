@@ -8,11 +8,12 @@
 #include "driver_psmoveservice.h"
 
 #include "ProtocolVersion.h"
-#include "PSMoveProtocolInterface.h"
-#include "PSMoveProtocol.pb.h"
 
+#include <algorithm>
 #include <sstream>
 #include <string>
+
+#include <assert.h>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -550,15 +551,9 @@ void CServerDriver_PSMoveService::HandleConnectedToPSMoveService()
 {
 	DriverLog("CServerDriver_PSMoveService::HandleConnectedToPSMoveService - Request controller and tracker lists\n");
 
-	// Ask the service for the current version of the protocol first
-	RequestPtr request(new PSMoveProtocol::Request());
-	request->set_type(PSMoveProtocol::Request_RequestType_GET_SERVICE_VERSION);
-
 	PSMRequestID request_id;
-	if (PSM_SendOpaqueRequest(&request, &request_id) == PSMResult::PSMResult_RequestSent)
-	{
-		PSM_RegisterCallback(request_id, CServerDriver_PSMoveService::HandleServiceVersionResponse, this);
-	}
+	PSM_GetServiceVersionStringAsync(&request_id);
+	PSM_RegisterCallback(request_id, CServerDriver_PSMoveService::HandleServiceVersionResponse, this);
 }
 
 void CServerDriver_PSMoveService::HandleServiceVersionResponse(
@@ -573,9 +568,8 @@ void CServerDriver_PSMoveService::HandleServiceVersionResponse(
     {
     case PSMResult::PSMResult_Success:
         {
-			const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-			const std::string service_version= response->result_service_version().version();
-			const std::string local_version= PSM_DETAILED_VERSION_STRING;
+			const std::string service_version= response->payload.service_version.version_string;
+			const std::string local_version= PSM_GetClientVersionString();
 
 			if (service_version == local_version)
 			{
@@ -683,12 +677,13 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
     {
         int controller_id = controller_list->controller_id[list_index];
         PSMControllerType controller_type = controller_list->controller_type[list_index];
+		std::string ControllerSerial(&controller_list->controller_serial[list_index]);
 
         switch (controller_type)
         {
         case PSMControllerType::PSMController_Move:
 			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSMove(%d)\n", controller_id);
-            AllocateUniquePSMoveController(controller_id, response_handle);
+            AllocateUniquePSMoveController(controller_id, ControllerSerial);
             break;
         case PSMControllerType::PSMController_Navi:
 			// Take care of this is the second pass once all of the PSMove controllers have been setup
@@ -696,7 +691,7 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
             break;
         case PSMControllerType::PSMController_DualShock4:
 			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSDualShock4(%d)\n", controller_id);
-            AllocateUniqueDualShock4Controller(controller_id, response_handle);
+            AllocateUniqueDualShock4Controller(controller_id, ControllerSerial);
             break;
         default:
             break;
@@ -709,11 +704,13 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
 		{
 			int controller_id = controller_list->controller_id[list_index];
 			PSMControllerType controller_type = controller_list->controller_type[list_index];
+			std::string ControllerSerial(&controller_list->controller_serial[list_index]);
+			std::string ParentControllerSerial(&controller_list->parent_controller_serial[list_index]);
 
 			if (controller_type == PSMControllerType::PSMController_Navi)
 			{
 				DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Attach PSNavi(%d)\n", controller_id);
-				AttachPSNaviToParentController(controller_id, response_handle);
+				AttachPSNaviToParentController(controller_id, ControllerSerial, ParentControllerSerial);
 			}
 		}
 	}
@@ -757,79 +754,20 @@ static void GenerateControllerSteamVRIdentifier( char *p, int psize, int control
 }
 
 
-void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerID, const PSMResponseHandle response_handle)
+void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerID, const std::string &ControllerSerial)
 {
-	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
     char buf[256];
     GenerateControllerSteamVRIdentifier(buf, sizeof(buf), ControllerID);
 
     if ( !FindTrackedDeviceDriver(buf) )
-    {
-		const PSMoveProtocol::Response_ResultControllerList_ControllerInfo *ControllerResponse= nullptr;
-		for (int ControllerListIndex = 0; ControllerListIndex < response->result_controller_list().controllers_size(); ++ControllerListIndex)
+    {	
+		std::string serialNo = ControllerSerial;
+		std::transform(serialNo.begin(), serialNo.end(), serialNo.begin(), ::toupper);
+
+		if (0 != m_strPSMoveHMDSerialNo.compare(serialNo)) 
 		{
-			const auto &TestControllerResponse = response->result_controller_list().controllers(ControllerListIndex);
-			if (TestControllerResponse.controller_id() == ControllerID)
-			{
-				ControllerResponse= &TestControllerResponse;
-				break;
-			}
-		}
-		
-		if (ControllerResponse != nullptr)
-		{
-			std::string serialNo = ControllerResponse->device_serial();
-			std::transform(serialNo.begin(), serialNo.end(), serialNo.begin(), ::toupper);
-
-			if (0 != m_strPSMoveHMDSerialNo.compare(serialNo)) 
-			{
-				DriverLog( "added new psmove controller id: %s, serial: %s\n", buf, serialNo.c_str());
-				m_vecTrackedDevices.push_back( new CPSMoveControllerLatest( m_pDriverHost, ControllerID, PSMControllerType::PSMController_Move, serialNo.c_str()) );
-
-				if (m_pDriverHost)
-				{
-					m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSteamVRIdentifier());
-				}
-			}
-			else
-			{
-				DriverLog("skipped new psmove controller as configured for HMD tracking, serial: %s\n", serialNo.c_str());
-			}
-		}
-		else
-		{
-			DriverLog( "Failed to find psmove controller id: %s in controller list\n", buf);
-		}
-    }
-}
-
-
-void CServerDriver_PSMoveService::AllocateUniqueDualShock4Controller(int ControllerID, const PSMResponseHandle response_handle)
-{
-	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-    char buf[256];
-    GenerateControllerSteamVRIdentifier(buf, sizeof(buf), ControllerID);
-
-    if (!FindTrackedDeviceDriver(buf))
-    {
-		const PSMoveProtocol::Response_ResultControllerList_ControllerInfo *ControllerResponse= nullptr;
-		for (int ControllerListIndex = 0; ControllerListIndex < response->result_controller_list().controllers_size(); ++ControllerListIndex)
-		{
-			const auto &TestControllerResponse = response->result_controller_list().controllers(ControllerListIndex);
-			if (TestControllerResponse.controller_id() == ControllerID)
-			{
-				ControllerResponse= &TestControllerResponse;
-				break;
-			}
-		}
-
-		if (ControllerResponse != nullptr)
-		{
-			std::string serialNo = ControllerResponse->device_serial();
-			std::transform(serialNo.begin(), serialNo.end(), serialNo.begin(), ::toupper);
-
-			DriverLog("added new ps dualshock4 controller %s\n", buf);
-			m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, PSMControllerType::PSMController_DualShock4, serialNo.c_str()));
+			DriverLog( "added new psmove controller id: %s, serial: %s\n", buf, serialNo.c_str());
+			m_vecTrackedDevices.push_back( new CPSMoveControllerLatest( m_pDriverHost, ControllerID, PSMControllerType::PSMController_Move, serialNo.c_str()) );
 
 			if (m_pDriverHost)
 			{
@@ -838,74 +776,75 @@ void CServerDriver_PSMoveService::AllocateUniqueDualShock4Controller(int Control
 		}
 		else
 		{
-			DriverLog( "Failed to find dualshock4 controller id: %s in controller list\n", buf);
+			DriverLog("skipped new psmove controller as configured for HMD tracking, serial: %s\n", serialNo.c_str());
 		}
     }
 }
 
-void CServerDriver_PSMoveService::AttachPSNaviToParentController(int NaviControllerID, const PSMResponseHandle response_handle)
+
+void CServerDriver_PSMoveService::AllocateUniqueDualShock4Controller(int ControllerID, const std::string &ControllerSerial)
 {
-	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+    char buf[256];
+    GenerateControllerSteamVRIdentifier(buf, sizeof(buf), ControllerID);
 
-	const PSMoveProtocol::Response_ResultControllerList_ControllerInfo *ControllerResponse= nullptr;
-	for (int ControllerListIndex = 0; ControllerListIndex < response->result_controller_list().controllers_size(); ++ControllerListIndex)
-	{
-		const auto &TestControllerResponse = response->result_controller_list().controllers(ControllerListIndex);
-		if (TestControllerResponse.controller_id() == NaviControllerID)
+    if (!FindTrackedDeviceDriver(buf))
+    {
+		std::string serialNo = ControllerSerial;
+		std::transform(serialNo.begin(), serialNo.end(), serialNo.begin(), ::toupper);
+
+		DriverLog("added new ps dualshock4 controller %s\n", buf);
+		m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, PSMControllerType::PSMController_DualShock4, serialNo.c_str()));
+
+		if (m_pDriverHost)
 		{
-			ControllerResponse= &TestControllerResponse;
-			break;
+			m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSteamVRIdentifier());
 		}
-	}
+    }
+}
 
-	if (ControllerResponse != nullptr)
+void CServerDriver_PSMoveService::AttachPSNaviToParentController(int NaviControllerID, const std::string &ControllerSerial, const std::string &ParentControllerSerial)
+{
+	bool bFoundParent= false;
+
+	std::string naviSerialNo = ControllerSerial;
+	std::string parentSerialNo = ParentControllerSerial;
+	std::transform(parentSerialNo.begin(), parentSerialNo.end(), parentSerialNo.begin(), ::toupper);
+
+	for (CPSMoveTrackedDeviceLatest *trackedDevice : m_vecTrackedDevices)
 	{
-		bool bFoundParent= false;
-
-		std::string naviSerialNo = ControllerResponse->device_serial();
-		std::string parentSerialNo = ControllerResponse->parent_controller_serial();
-		std::transform(parentSerialNo.begin(), parentSerialNo.end(), parentSerialNo.begin(), ::toupper);
-
-		for (CPSMoveTrackedDeviceLatest *trackedDevice : m_vecTrackedDevices)
+		if (trackedDevice->GetTrackedDeviceClass() == vr::TrackedDeviceClass_Controller)
 		{
-			if (trackedDevice->GetTrackedDeviceClass() == vr::TrackedDeviceClass_Controller)
-			{
-				CPSMoveControllerLatest *test_controller= static_cast<CPSMoveControllerLatest *>(trackedDevice);
-				const std::string testSerialNo= test_controller->getPSMControllerSerialNo();
+			CPSMoveControllerLatest *test_controller= static_cast<CPSMoveControllerLatest *>(trackedDevice);
+			const std::string testSerialNo= test_controller->getPSMControllerSerialNo();
 				
-				if (testSerialNo == parentSerialNo)
-				{
-					bFoundParent= true;
+			if (testSerialNo == parentSerialNo)
+			{
+				bFoundParent= true;
 
-					if (test_controller->getPSMControllerType() == PSMController_Move)
+				if (test_controller->getPSMControllerType() == PSMController_Move)
+				{
+					if (test_controller->AttachChildPSMController(NaviControllerID, PSMController_Navi, naviSerialNo))
 					{
-						if (test_controller->AttachChildPSMController(NaviControllerID, PSMController_Navi, naviSerialNo))
-						{
-							DriverLog("Attached navi controller serial %s to controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
-						}
-						else
-						{
-							DriverLog("Failed to attach navi controller serial %s to controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
-						}
+						DriverLog("Attached navi controller serial %s to controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
 					}
 					else
 					{
-						DriverLog("Failed to attach navi controller serial %s to non-psmove controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
+						DriverLog("Failed to attach navi controller serial %s to controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
 					}
-
-					break;
 				}
+				else
+				{
+					DriverLog("Failed to attach navi controller serial %s to non-psmove controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
+				}
+
+				break;
 			}
 		}
-
-		if (!bFoundParent)
-		{
-			DriverLog("Failed to find parent controller serial %s for navi controller serial %s\n", parentSerialNo.c_str(), naviSerialNo.c_str());
-		}
 	}
-	else
+
+	if (!bFoundParent)
 	{
-		DriverLog( "Failed to find psnavi controller id: %d in controller list\n", NaviControllerID);
+		DriverLog("Failed to find parent controller serial %s for navi controller serial %s\n", parentSerialNo.c_str(), naviSerialNo.c_str());
 	}
 }
 

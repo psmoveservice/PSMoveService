@@ -154,6 +154,20 @@ public:
         m_pending_request_map.clear();
     }
 
+	// -- System Requests ----
+    ClientPSMoveAPI::t_request_id get_service_version()
+    {
+        CLIENT_LOG_INFO("get_service_version") << "requesting service version" << std::endl;
+
+        // Tell the psmove service that we want the version string
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_GET_SERVICE_VERSION);
+
+        m_request_manager.send_request(request);
+
+        return request->request_id();
+    }
+
     // -- ClientPSMoveAPI Requests -----
     ClientControllerView * allocate_controller_view(int ControllerID)
     {
@@ -923,6 +937,19 @@ void ClientPSMoveAPI::shutdown()
 
         ClientPSMoveAPI::m_implementation_ptr = nullptr;
     }
+}
+
+ClientPSMoveAPI::t_request_id
+ClientPSMoveAPI::get_service_version()
+{
+    ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id = ClientPSMoveAPI::m_implementation_ptr->get_service_version();
+    }
+
+    return request_id;
 }
 
 ClientControllerView * ClientPSMoveAPI::allocate_controller_view(int ControllerID)
