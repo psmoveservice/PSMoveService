@@ -10,6 +10,17 @@
 #include <unistd.h>
 #endif
 
+const char *BatteryLevelStings[] {
+	"Batt_MIN", // = 0x00, /*!< Battery is almost empty (< 20%) */
+	"Batt_20Percent", // = 0x01, /*!< Battery has at least 20% remaining */
+	"Batt_40Percent", // = 0x02, /*!< Battery has at least 40% remaining */
+	"Batt_60Percent", // = 0x03, /*!< Battery has at least 60% remaining */
+	"Batt_80Percent", // = 0x04, /*!< Battery has at least 80% remaining */
+	"Batt_MAX", // = 0x05, /*!< Battery is fully charged (not on charger) */
+	"Batt_CHARGING", // = 0xEE, /*!< Battery is currently being charged */
+	"Batt_CHARGING_DONE" // = 0xEF, /*!< Battery is fully charged (on charger) */
+};
+
 int main()
 {
     log_init("info");
@@ -53,24 +64,26 @@ int main()
 				"# " << std::setw(myw) << std::left << psmstate->RawSequence <<
 				" A(1): " <<
 				std::setw(myw) << std::right << psmstate->RawAccel[0][0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawAccel[0][1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawAccel[0][2] <<
+				std::setw(myw) << std::right << psmstate->RawAccel[0][1] << "," <<
+				std::setw(myw) << std::right << psmstate->RawAccel[0][2] <<
 				"; A(2): " <<
-                std::setw(myw) << std::right << psmstate->RawAccel[1][0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawAccel[1][1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawAccel[1][2] <<
+				std::setw(myw) << std::right << psmstate->RawAccel[1][0] << "," <<
+				std::setw(myw) << std::right << psmstate->RawAccel[1][1] << "," <<
+				std::setw(myw) << std::right << psmstate->RawAccel[1][2] <<
 				"; G(1): " <<
-                std::setw(myw) << std::right << psmstate->RawGyro[0][0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawGyro[0][1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawGyro[0][2] <<
+				std::setw(myw) << std::right << psmstate->RawGyro[0][0] << "," <<
+				std::setw(myw) << std::right << psmstate->RawGyro[0][1] << "," <<
+				std::setw(myw) << std::right << psmstate->RawGyro[0][2] <<
 				"; G(2): " <<
-                std::setw(myw) << std::right << psmstate->RawGyro[1][0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawGyro[1][1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawGyro[1][2] <<
+				std::setw(myw) << std::right << psmstate->RawGyro[1][0] << "," <<
+				std::setw(myw) << std::right << psmstate->RawGyro[1][1] << "," <<
+				std::setw(myw) << std::right << psmstate->RawGyro[1][2] <<
 				"; M: " <<
-                std::setw(myw) << std::right << psmstate->RawMag[0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawMag[1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawMag[2] <<
+				std::setw(myw) << std::right << psmstate->RawMag[0] << "," <<
+				std::setw(myw) << std::right << psmstate->RawMag[1] << "," <<
+				std::setw(myw) << std::right << psmstate->RawMag[2] <<
+				"; B: " << 
+				std::setw(myw) << std::right << BatteryLevelStings[psmstate->BatteryValue] <<
 				std::flush;
 
 #ifdef _WIN32

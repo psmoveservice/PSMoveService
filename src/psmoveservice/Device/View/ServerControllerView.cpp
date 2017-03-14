@@ -1104,6 +1104,7 @@ static void generate_psmove_data_frame_for_stream(
         }
 
         psmove_data_frame->set_trigger_value(psmove_state->TriggerValue);
+		psmove_data_frame->set_battery_value(psmove_state->BatteryValue);
 
         unsigned int button_bitmask= 0;
         SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::TRIANGLE, psmove_state->Triangle);

@@ -1886,7 +1886,7 @@ bool CPSMoveControllerLatest::GetBoolTrackedDeviceProperty(
         *pError = vr::TrackedProp_Success;
         break;
     case vr::Prop_DeviceProvidesBatteryStatus_Bool:
-        bBoolResult = true;
+		bBoolResult = true;
         *pError = vr::TrackedProp_Success;
         break;
     default:
