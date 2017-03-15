@@ -59,6 +59,18 @@ typedef enum _PSMTrackingColorType
 	PSMTrackingColorType_MaxColorTypes
 } PSMTrackingColorType;
 
+typedef enum _PSMBatteryState
+{
+    PSMBattery_0        = 0,
+    PSMBattery_20       = 1,
+    PSMBattery_40       = 2,
+    PSMBattery_60       = 3,
+    PSMBattery_80       = 4,
+    PSMBattery_100      = 5,
+    PSMBattery_Charging = 0xEE,
+    PSMBattery_Charged  = 0xEF
+} PSMBatteryState;
+
 typedef enum _PSMControllerDataStreamFlags
 {
     PSMStreamFlags_defaultStreamOptions = 0x00,
@@ -182,6 +194,7 @@ typedef struct _PSMPSMove
     PSMButtonState               PSButton;
     PSMButtonState               MoveButton;
     PSMButtonState               TriggerButton;
+    PSMBatteryState              BatteryValue;
     unsigned char                TriggerValue;
     unsigned char                Rumble;
     unsigned char                LED_r, LED_g, LED_b;

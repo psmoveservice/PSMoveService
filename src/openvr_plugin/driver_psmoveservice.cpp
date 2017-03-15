@@ -1831,7 +1831,7 @@ bool CPSMoveControllerLatest::GetBoolTrackedDeviceProperty(
         *pError = vr::TrackedProp_Success;
         break;
     case vr::Prop_DeviceProvidesBatteryStatus_Bool:
-        bBoolResult = true;
+        bBoolResult = (m_PSMControllerType == PSMController_Move);
         *pError = vr::TrackedProp_Success;
         break;
     default:
@@ -2344,6 +2344,43 @@ void CPSMoveControllerLatest::UpdateControllerState()
 					}
 
 					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, m_triggerAxisIndex, NewState.rAxis[m_triggerAxisIndex]);
+				}
+
+				// Update the battery charge state
+				switch (m_PSMControllerView->ControllerState.PSMoveState.BatteryValue)
+				{
+				case PSMBattery_0:
+					m_bIsBatteryCharging= false;
+					m_fBatteryChargeFraction= 0.f;
+					break;
+				case PSMBattery_20:
+					m_bIsBatteryCharging= false;
+					m_fBatteryChargeFraction= 0.2f;
+					break;
+				case PSMBattery_40:
+					m_bIsBatteryCharging= false;
+					m_fBatteryChargeFraction= 0.4f;
+					break;
+				case PSMBattery_60:
+					m_bIsBatteryCharging= false;
+					m_fBatteryChargeFraction= 0.6f;
+					break;
+				case PSMBattery_80:
+					m_bIsBatteryCharging= false;
+					m_fBatteryChargeFraction= 0.8f;
+					break;
+				case PSMBattery_100:
+					m_bIsBatteryCharging= false;
+					m_fBatteryChargeFraction= 1.f;
+					break;
+				case PSMBattery_Charging:
+					m_bIsBatteryCharging= true;
+					m_fBatteryChargeFraction= 0.99f; // Don't really know the charge amount in this case
+					break;
+				case PSMBattery_Charged:
+					m_bIsBatteryCharging= true;
+					m_fBatteryChargeFraction= 1.f;
+					break;
 				}
 			}
         } break;
