@@ -320,9 +320,11 @@ void AppStage_AccelerometerCalibration::render()
 					}
 
 					glm::mat4 worldSpaceOrientation = glm::mat4_cast(q);
-
+					
 					controllerTransform = glm::scale(worldSpaceOrientation, glm::vec3(k_modelScale, k_modelScale, k_modelScale));
-					sensorTransform = glm::scale(worldSpaceOrientation, glm::vec3(k_sensorScale, k_sensorScale, k_sensorScale));
+					sensorTransform = glm::rotate(
+						glm::scale(worldSpaceOrientation, glm::vec3(k_sensorScale, k_sensorScale, k_sensorScale)),
+						-90.f, glm::vec3(1.f, 0.f, 0.f));
 				} break;
 			default:
 				assert(0 && "unreachable");
