@@ -2319,7 +2319,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				}
 
 				// PSMove Trigger handling
-				NewState.rAxis[m_triggerAxisIndex].x = clientView.TriggerValue;
+				NewState.rAxis[m_triggerAxisIndex].x = clientView.TriggerValue / 255.f;
 				NewState.rAxis[m_triggerAxisIndex].y = 0.f;
 
 				// Attached PSNavi Trigger handling
@@ -2327,7 +2327,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				{
 					const PSMPSNavi &naviClientView = m_PSMChildControllerView->ControllerState.PSNaviState;
 
-					NewState.rAxis[m_triggerAxisIndex].x = fmaxf(NewState.rAxis[m_triggerAxisIndex].x, naviClientView.TriggerValue);
+					NewState.rAxis[m_triggerAxisIndex].x = fmaxf(NewState.rAxis[m_triggerAxisIndex].x, naviClientView.TriggerValue / 255.f);
 				}
 
 				// Trigger SteamVR Events

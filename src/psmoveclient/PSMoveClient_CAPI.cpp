@@ -2300,7 +2300,7 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
             controller->ControllerState.PSMoveState.MoveButton = static_cast<PSMButtonState>(psmview.GetButtonMove());
             controller->ControllerState.PSMoveState.TriggerButton = static_cast<PSMButtonState>(psmview.GetButtonTrigger());
             controller->ControllerState.PSMoveState.BatteryValue = static_cast<PSMBatteryState>(psmview.GetBatteryValue());
-            controller->ControllerState.PSMoveState.TriggerValue = static_cast<unsigned char>(psmview.GetTriggerValue() * 255.f);
+            controller->ControllerState.PSMoveState.TriggerValue = static_cast<unsigned char>(psmview.GetTriggerValue());
             controller->ControllerState.PSMoveState.Rumble = static_cast<unsigned char>(psmview.GetRumble() * 255.f);
             break;
             
@@ -2318,7 +2318,7 @@ static void extractControllerState(const ClientControllerView *view, PSMControll
 			controller->ControllerState.PSNaviState.DPadRightButton = static_cast<PSMButtonState>(psnview.GetButtonDPadRight());
 			controller->ControllerState.PSNaviState.DPadDownButton = static_cast<PSMButtonState>(psnview.GetButtonDPadDown());
 			controller->ControllerState.PSNaviState.DPadLeftButton = static_cast<PSMButtonState>(psnview.GetButtonDPadLeft());
-			controller->ControllerState.PSNaviState.TriggerValue = static_cast<unsigned char>(psnview.GetTriggerValue() * 255.f);
+			controller->ControllerState.PSNaviState.TriggerValue = static_cast<unsigned char>(psnview.GetTriggerValue());
 			controller->ControllerState.PSNaviState.Stick_XAxis= psnview.GetStickXAxis();
 			controller->ControllerState.PSNaviState.Stick_YAxis= psnview.GetStickYAxis();;
             break;

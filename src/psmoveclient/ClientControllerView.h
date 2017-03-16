@@ -343,9 +343,9 @@ public:
 		return IsValid() ? BatteryValue : PSMoveBattery_0;
 	}
 
-    inline float GetTriggerValue() const
+    inline unsigned char GetTriggerValue() const
     {
-        return IsValid() ? ((float)TriggerValue / 255.f) : 0.f;
+        return IsValid() ? TriggerValue : 0;
     }
 
     inline float GetRumble() const
@@ -463,9 +463,9 @@ public:
         return IsValid() ? DPadLeftButton : PSMoveButton_UP;
     }
 
-    inline float GetTriggerValue() const
+    inline unsigned char GetTriggerValue() const
     {
-        return IsValid() ? ((float)TriggerValue / 255.f) : 0.f;
+        return IsValid() ? TriggerValue : 0;
     }
 
     inline float GetStickXAxis() const
