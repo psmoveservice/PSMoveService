@@ -42,7 +42,6 @@ file(GLOB PSMOVECLIENT_LIBRARY_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.cpp"
 )
 
-# Shared library
 add_library(PSMoveClient SHARED ${PSMOVECLIENT_LIBRARY_SRC})
 target_include_directories(PSMoveClient PUBLIC ${PSMOVE_CLIENT_INCL_DIRS})
 target_link_libraries(PSMoveClient PRIVATE ${PSMOVE_CLIENT_REQ_LIBS})

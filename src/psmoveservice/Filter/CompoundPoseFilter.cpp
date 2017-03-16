@@ -132,9 +132,7 @@ void CompoundPoseFilter::allocate_filters(
 // -- IStateFilter --
 bool CompoundPoseFilter::getIsStateValid() const
 {
-	return 
-		m_orientation_filter != nullptr && m_orientation_filter->getIsStateValid() &&
-		m_position_filter != nullptr && m_position_filter->getIsStateValid();
+	return getIsOrientationStateValid() || getIsPositionStateValid();
 }
 
 void CompoundPoseFilter::update(
@@ -169,6 +167,16 @@ void CompoundPoseFilter::recenterOrientation(const Eigen::Quaternionf& q_pose)
 	{
 		m_orientation_filter->recenterOrientation(q_pose);
 	}
+}
+
+bool CompoundPoseFilter::getIsPositionStateValid() const
+{
+	return m_position_filter != nullptr && m_position_filter->getIsStateValid();
+}
+
+bool CompoundPoseFilter::getIsOrientationStateValid() const
+{
+	return m_orientation_filter != nullptr && m_orientation_filter->getIsStateValid();
 }
 
 Eigen::Quaternionf CompoundPoseFilter::getOrientation(float time) const

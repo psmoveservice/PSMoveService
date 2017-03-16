@@ -766,6 +766,9 @@ message DeviceOutputDataFrame
                 FloatVector angular_acceleration_rad_per_sec_sqr= 4;
             }
             PhysicsData physics_data = 12;
+
+            // Battery charge state value [0,5;EE,EF]
+            int32 battery_value = 13;            
         }
         PSMoveState psmove_state = 6;
 

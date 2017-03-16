@@ -4,15 +4,15 @@
 #include "AppStage_MainMenu.h"
 #include "App.h"
 #include "Camera.h"
-#include "ClientControllerView.h"
 #include "GeometryUtility.h"
 #include "Logger.h"
 #include "MathAlignment.h"
 #include "MathGLM.h"
 #include "MathEigen.h"
 #include "MathUtility.h"
-
+#include "PSMoveClient_CAPI.h"
 #include "PSMoveProtocolInterface.h"
+#include "PSMoveProtocol.pb.h"
 #include "Renderer.h"
 #include "UIConstants.h"
 
@@ -37,7 +37,7 @@ struct AccelerometerStatistics
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    PSMoveFloatVector3 accelerometer_samples[k_max_accelerometer_samples];
+    PSMVector3f accelerometer_samples[k_max_accelerometer_samples];
 	Eigen::Vector3f eigen_accelerometer_samples[k_max_accelerometer_samples];
     Eigen::Vector3f avg_accelerometer_sample;
 	float noise_variance;
@@ -55,7 +55,7 @@ struct AccelerometerStatistics
 		return sample_count >= k_max_accelerometer_samples;
 	}
 
-	void addSample(const PSMoveFloatVector3 &sample)
+	void addSample(const PSMVector3f &sample)
 	{
 		if (getIsComplete())
 		{
@@ -63,7 +63,7 @@ struct AccelerometerStatistics
 		}
 
 		accelerometer_samples[sample_count] = sample;
-		eigen_accelerometer_samples[sample_count] = psmove_float_vector3_to_eigen_vector3(sample);
+		eigen_accelerometer_samples[sample_count] = psm_vector3f_to_eigen_vector3(sample);
 		++sample_count;
 
 		if (getIsComplete())
@@ -90,7 +90,7 @@ struct AccelerometerStatistics
 //-- private methods -----
 static void request_set_accelerometer_calibration(
     const int controller_id, const float noise_radius, const float noise_variance);
-static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
+static void drawController(PSMController *controllerView, const glm::mat4 &transform);
 
 //-- public methods -----
 AppStage_AccelerometerCalibration::AppStage_AccelerometerCalibration(App *app)
@@ -129,24 +129,23 @@ void AppStage_AccelerometerCalibration::enter()
     // Initialize the controller state
     assert(controllerInfo->ControllerID != -1);
     assert(m_controllerView == nullptr);
-    m_controllerView = ClientPSMoveAPI::allocate_controller_view(controllerInfo->ControllerID);
+	PSM_AllocateControllerListener(controllerInfo->ControllerID);
+    m_controllerView = PSM_GetController(controllerInfo->ControllerID);
 
-    m_lastCalibratedAccelerometer = *k_psmove_float_vector3_zero;
+    m_lastCalibratedAccelerometer = *k_psm_float_vector3_zero;
     m_lastControllerSeqNum = -1;
 
     // Start streaming in controller data
     assert(!m_isControllerStreamActive);
-    ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::start_controller_data_stream(
-            m_controllerView, 
-            ClientPSMoveAPI::includeCalibratedSensorData),
-        &AppStage_AccelerometerCalibration::handle_acquire_controller, this);
+	PSMRequestID request_id;
+	PSM_StartControllerDataStreamAsync(m_controllerView->ControllerID, PSMStreamFlags_includeCalibratedSensorData, &request_id);
+	PSM_RegisterCallback(request_id, &AppStage_AccelerometerCalibration::handle_acquire_controller, this);
 }
 
 void AppStage_AccelerometerCalibration::exit()
 {
     assert(m_controllerView != nullptr);
-    ClientPSMoveAPI::free_controller_view(m_controllerView);
+    PSM_FreeControllerListener(m_controllerView->ControllerID);
     m_controllerView = nullptr;
     m_menuState = eCalibrationMenuState::inactive;
 
@@ -158,21 +157,21 @@ void AppStage_AccelerometerCalibration::update()
 {
     bool bControllerDataUpdatedThisFrame = false;
 
-    if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
+    if (m_isControllerStreamActive && m_controllerView->OutputSequenceNum != m_lastControllerSeqNum)
     {
-        switch(m_controllerView->GetControllerViewType())
+        switch(m_controllerView->ControllerType)
         {
-        case ClientControllerView::eControllerType::PSDualShock4:
+        case PSMController_DualShock4:
             {
-                const PSDualShock4CalibratedSensorData &calibratedSensorData =
-                    m_controllerView->GetPSDualShock4View().GetCalibratedSensorData();
+                const PSMDS4CalibratedSensorData &calibratedSensorData =
+                    m_controllerView->ControllerState.PSDS4State.CalibratedSensorData;
 
                 m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
             } break;
-        case ClientControllerView::eControllerType::PSMove:
+        case PSMController_Move:
             {
-                const PSMoveCalibratedSensorData &calibratedSensorData =
-                    m_controllerView->GetPSMoveView().GetCalibratedSensorData();
+                const PSMPSMoveCalibratedSensorData &calibratedSensorData =
+                    m_controllerView->ControllerState.PSMoveState.CalibratedSensorData;
 
                 m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
             } break;
@@ -180,7 +179,7 @@ void AppStage_AccelerometerCalibration::update()
             assert(0 && "unreachable");
         }
 
-        m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
+        m_lastControllerSeqNum = m_controllerView->OutputSequenceNum;
         bControllerDataUpdatedThisFrame = true;
     }
 
@@ -217,7 +216,7 @@ void AppStage_AccelerometerCalibration::update()
                 {
                     // Tell the service what the new calibration constraints are
                     request_set_accelerometer_calibration(
-                        m_controllerView->GetControllerID(),
+                        m_controllerView->ControllerID,
                         m_noiseSamples->noise_radius,
 						m_noiseSamples->noise_variance);
 
@@ -228,10 +227,10 @@ void AppStage_AccelerometerCalibration::update()
     case eCalibrationMenuState::measureComplete:
     case eCalibrationMenuState::test:
         {
-			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4 &&
-				m_controllerView->GetPSDualShock4View().GetButtonOptions() == PSMoveButton_PRESSED)
+			if (m_controllerView->ControllerType == PSMController_DualShock4 &&
+				m_controllerView->ControllerState.PSDS4State.OptionsButton == PSMButtonState_PRESSED)
 			{
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_controllerView, PSMoveQuaternion::identity()));
+				PSM_ResetControllerOrientationAsync(m_controllerView->ControllerID, k_psm_quaternion_identity, nullptr);
 			}
         } break;
     default:
@@ -244,15 +243,15 @@ void AppStage_AccelerometerCalibration::render()
     const float k_modelScale = 18.f;
     glm::mat4 defaultControllerTransform;
 
-    switch(m_controllerView->GetControllerViewType())
+    switch(m_controllerView->ControllerType)
     {
-    case ClientControllerView::PSMove:
+    case PSMController_Move:
 		defaultControllerTransform= 
 			glm::rotate(
 				glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale)),
 				90.f, glm::vec3(1.f, 0.f, 0.f));  
         break;
-    case ClientControllerView::PSDualShock4:
+    case PSMController_DualShock4:
         defaultControllerTransform = glm::scale(glm::mat4(1.f), glm::vec3(k_modelScale, k_modelScale, k_modelScale));
         break;
     }
@@ -285,7 +284,7 @@ void AppStage_AccelerometerCalibration::render()
             // Draw the current raw accelerometer direction
             {
                 glm::vec3 m_start = glm::vec3(0.f, 0.f, 0.f);
-                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
+                glm::vec3 m_end = psm_vector3f_to_glm_vec3(m_lastCalibratedAccelerometer);
 
                 drawArrow(sampleTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
                 drawTextAtWorldPosition(sampleTransform, m_end, "A");
@@ -308,7 +307,18 @@ void AppStage_AccelerometerCalibration::render()
 			case eTestMode::worldRelative:
 				{
 					// Get the orientation of the controller in world space (OpenGL Coordinate System)            
-					glm::quat q = psmove_quaternion_to_glm_quat(m_controllerView->GetOrientation());
+					glm::quat q;
+
+					switch(m_controllerView->ControllerType)
+					{
+					case PSMController_Move:
+						q= psm_quatf_to_glm_quat(m_controllerView->ControllerState.PSMoveState.Pose.Orientation);
+						break;
+					case PSMController_DualShock4:
+						q= psm_quatf_to_glm_quat(m_controllerView->ControllerState.PSDS4State.Pose.Orientation);
+						break;
+					}
+
 					glm::mat4 worldSpaceOrientation = glm::mat4_cast(q);
 
 					controllerTransform = glm::scale(worldSpaceOrientation, glm::vec3(k_modelScale, k_modelScale, k_modelScale));
@@ -327,9 +337,9 @@ void AppStage_AccelerometerCalibration::render()
 
 			// Draw the accelerometer
 			{
-				const float accel_g = m_lastCalibratedAccelerometer.length();
+				const float accel_g = PSM_Vector3fLength(&m_lastCalibratedAccelerometer);
 				glm::vec3 m_start = glm::vec3(0.f);
-				glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
+				glm::vec3 m_end = psm_vector3f_to_glm_vec3(m_lastCalibratedAccelerometer);
 
 				drawArrow(sensorTransform, m_start, m_end, 0.1f, glm::vec3(1.f, 1.f, 1.f));
 				drawTextAtWorldPosition(sensorTransform, m_end, "A(%.1fg)", accel_g);
@@ -392,12 +402,12 @@ void AppStage_AccelerometerCalibration::renderUI()
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-			switch(m_controllerView->GetControllerViewType())
+			switch(m_controllerView->ControllerType)
 			{
-			case ClientControllerView::PSMove:
+			case PSMController_Move:
 				ImGui::Text("Stand the controller on a level surface with the Move button facing you");
 				break;
-			case ClientControllerView::PSDualShock4:
+			case PSMController_DualShock4:
 				ImGui::Text("Lay the controller flat on the table face up");
 				break;
 			}
@@ -441,7 +451,7 @@ void AppStage_AccelerometerCalibration::renderUI()
 
             if (ImGui::Button("Ok"))
             {
-                m_controllerView->SetLEDOverride(0, 0, 0);
+				PSM_SetControllerLEDOverrideColor(m_controllerView->ControllerID, 0, 0, 0);
                 request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
             }
             ImGui::SameLine();
@@ -462,11 +472,11 @@ void AppStage_AccelerometerCalibration::renderUI()
 
             if (m_bBypassCalibration)
             {
-                ImGui::Text("Testing Calibration of Controller ID #%d", m_controllerView->GetControllerID());
+                ImGui::Text("Testing Calibration of Controller ID #%d", m_controllerView->ControllerID);
             }
             else
             {
-                ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
+                ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->ControllerID);
             }
 
 			if (m_testMode == eTestMode::controllerRelative)
@@ -519,16 +529,16 @@ static void request_set_accelerometer_calibration(
     calibration->set_noise_radius(noise_radius);
 	calibration->set_variance(noise_variance);
 
-    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_AccelerometerCalibration::handle_acquire_controller(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_AccelerometerCalibration *thisPtr = reinterpret_cast<AppStage_AccelerometerCalibration *>(userdata);
 
-    if (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (response->result_code == PSMResult_Success)
     {
         thisPtr->m_isControllerStreamActive = true;
         thisPtr->m_lastControllerSeqNum = -1;
@@ -542,20 +552,20 @@ void AppStage_AccelerometerCalibration::handle_acquire_controller(
 
 void AppStage_AccelerometerCalibration::request_exit_to_app_stage(const char *app_stage_name)
 {
-    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(m_controllerView));
+	PSM_StopControllerDataStreamAsync(m_controllerView->ControllerID, nullptr);
     m_isControllerStreamActive= false;
     m_app->setAppStage(app_stage_name);
 }
 
 //-- private methods -----
-static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform)
+static void drawController(PSMController *controllerView, const glm::mat4 &transform)
 {
-    switch(controllerView->GetControllerViewType())
+    switch(controllerView->ControllerType)
     {
-    case ClientControllerView::PSMove:
+    case PSMController_Move:
         drawPSMoveModel(transform, glm::vec3(1.f, 1.f, 1.f));
         break;
-    case ClientControllerView::PSDualShock4:
+    case PSMController_DualShock4:
         drawPSDualShock4Model(transform, glm::vec3(1.f, 1.f, 1.f));
         break;
     }

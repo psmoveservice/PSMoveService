@@ -4,7 +4,6 @@
 #include "AppStage_MainMenu.h"
 #include "App.h"
 #include "Camera.h"
-#include "ClientControllerView.h"
 #include "GeometryUtility.h"
 #include "Logger.h"
 #include "MathAlignment.h"
@@ -13,6 +12,7 @@
 #include "MathUtility.h"
 
 #include "PSMoveProtocolInterface.h"
+#include "PSMoveProtocol.pb.h"
 #include "Renderer.h"
 #include "UIConstants.h"
 
@@ -172,8 +172,8 @@ struct PoseNoiseSampleSet
 
 
 //-- private methods -----
-static bool isPressingSamplingButton(const ClientControllerView *controllerView);
-static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
+static bool isPressingSamplingButton(const PSMController *controllerView);
+static void drawController(PSMController *controllerView, const glm::mat4 &transform);
 
 //-- public methods -----
 AppStage_OpticalCalibration::AppStage_OpticalCalibration(App *app)
@@ -189,10 +189,10 @@ AppStage_OpticalCalibration::AppStage_OpticalCalibration(App *app)
 	, m_bLastMulticamOrientationValid(false)
     , m_poseNoiseSamplesSet(new PoseNoiseSampleSet)
 	, m_bWaitForSampleButtonRelease(false)
-{
-	m_lastMulticamPositionCm = *k_psmove_position_origin;
-	m_lastMulticamOrientation = PSMoveQuaternion::identity();
-	m_lastControllerPose = PSMovePose::identity();
+{	
+	m_lastMulticamPositionCm = *k_psm_float_vector3_zero;
+	m_lastMulticamOrientation = *k_psm_quaternion_identity;
+	m_lastControllerPose = *k_psm_pose_identity;
 	memset(&m_trackerList, 0, sizeof(m_trackerList));
 }
 
@@ -216,15 +216,17 @@ void AppStage_OpticalCalibration::enter()
     // Initialize the controller state
     assert(controllerInfo->ControllerID != -1);
     assert(m_controllerView == nullptr);
-    m_controllerView = ClientPSMoveAPI::allocate_controller_view(controllerInfo->ControllerID);
+	PSM_AllocateControllerListener(controllerInfo->ControllerID);
+	m_controllerView= PSM_GetController(controllerInfo->ControllerID);
+
 
 	m_stableAndVisibleStartTime = std::chrono::time_point<std::chrono::high_resolution_clock>();
 	m_bIsStableAndVisible = false;
 
     m_lastControllerSeqNum = -1;
-	m_lastMulticamPositionCm = *k_psmove_position_origin;
-	m_lastMulticamOrientation = PSMoveQuaternion::identity();
-	m_lastControllerPose = PSMovePose::identity();
+	m_lastMulticamPositionCm = *k_psm_float_vector3_zero;
+	m_lastMulticamOrientation = *k_psm_quaternion_identity;
+	m_lastControllerPose = *k_psm_pose_identity;
 	m_bLastMulticamPositionValid = false;
 	m_bLastMulticamOrientationValid = false;
 
@@ -237,7 +239,7 @@ void AppStage_OpticalCalibration::enter()
 void AppStage_OpticalCalibration::exit()
 {
     assert(m_controllerView != nullptr);
-    ClientPSMoveAPI::free_controller_view(m_controllerView);
+    PSM_FreeControllerListener(m_controllerView->ControllerID);
     m_controllerView = nullptr;
     setState(eCalibrationMenuState::inactive);
 }
@@ -249,33 +251,36 @@ void AppStage_OpticalCalibration::update()
     std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float, std::milli> sampleTimeDeltaMilli(0);
 
-    if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
+    if (m_isControllerStreamActive && m_controllerView->OutputSequenceNum != m_lastControllerSeqNum)
     {
-		PSMoveRawTrackerData rawTrackerData;
-		rawTrackerData.Clear();
+		PSMRawTrackerData rawTrackerData;
+		memset(&rawTrackerData, 0, sizeof(PSMRawTrackerData));
 
 		m_bLastMulticamPositionValid = false;
 		m_bLastMulticamOrientationValid = false;
 		m_bLastProjectionAreaValid = false;
 
-        switch(m_controllerView->GetControllerViewType())
+        switch(m_controllerView->ControllerType)
         {
-        case ClientControllerView::PSDualShock4:
+        case PSMController_DualShock4:
             {
-                rawTrackerData = m_controllerView->GetPSDualShock4View().GetRawTrackerData();
+                rawTrackerData = m_controllerView->ControllerState.PSDS4State.RawTrackerData;
 
 				if (rawTrackerData.bMulticamOrientationValid)
 				{
 					m_lastMulticamOrientation = rawTrackerData.MulticamOrientation;
 					m_bLastMulticamOrientationValid = true;
 				}
+
+				m_lastControllerPose = m_controllerView->ControllerState.PSDS4State.Pose;
             }
             break;
-        case ClientControllerView::PSMove:
+        case PSMController_Move:
             {
-				rawTrackerData = m_controllerView->GetPSMoveView().GetRawTrackerData();
+				rawTrackerData = m_controllerView->ControllerState.PSMoveState.RawTrackerData;
 
-				m_lastMulticamOrientation = PSMoveQuaternion::identity();
+				m_lastControllerPose = m_controllerView->ControllerState.PSMoveState.Pose;
+				m_lastMulticamOrientation = *k_psm_quaternion_identity;
 				m_bLastMulticamOrientationValid = true;
             }
             break;
@@ -287,9 +292,6 @@ void AppStage_OpticalCalibration::update()
 			m_bLastMulticamPositionValid = true;
 		}
 
-		// Get the latest filtered controller pose
-		m_lastControllerPose = m_controllerView->GetPose();
-
 		// Compute the current projection area as the average of the projection areas
 		// for each tracker that can see the controller
 		{
@@ -300,10 +302,10 @@ void AppStage_OpticalCalibration::update()
 			{
 				int trackerId = m_trackerList.trackers[trackerIndex].tracker_id;
 
-				PSMoveTrackingProjection projection;
-				if (rawTrackerData.GetProjectionOnTrackerId(trackerId, projection))
+				PSMTrackingProjection projection;
+				if (PSM_GetControllerProjectionOnTracker(m_controllerView->ControllerID, trackerId, &projection) == PSMResult_Success)
 				{
-					m_lastProjectionArea+= projection.get_projection_area();
+					m_lastProjectionArea+= PSM_TrackingProjectionGetArea(&projection);
 					++projectionCount;
 				}
 			}
@@ -315,7 +317,7 @@ void AppStage_OpticalCalibration::update()
 			}
 		}
 
-        m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
+        m_lastControllerSeqNum = m_controllerView->OutputSequenceNum;
                 
         bControllerDataUpdatedThisFrame = true;
     }
@@ -349,9 +351,11 @@ void AppStage_OpticalCalibration::update()
 				m_bWaitForSampleButtonRelease = false;
 			}
 
+			bool bIsTracking= false;
+			bool bCanBeTracked= PSM_GetIsControllerTracking(m_controllerView->ControllerID, &bIsTracking) == PSMResult_Success;
+
 			if (!m_bWaitForSampleButtonRelease && 
-				m_controllerView->GetIsGyroStable() && 
-				m_controllerView->GetIsCurrentlyTracking() && 
+				bCanBeTracked && bIsTracking && 
 				isPressingSamplingButton(m_controllerView))
 			{
 				if (m_bIsStableAndVisible)
@@ -380,8 +384,7 @@ void AppStage_OpticalCalibration::update()
 		} break;
     case eCalibrationMenuState::measureOpticalNoise:
         {
-            if (m_controllerView->GetIsGyroStable() && 
-				isPressingSamplingButton(m_controllerView))
+            if (isPressingSamplingButton(m_controllerView))
             {
 				PoseNoiseSamplesAtLocation &poseNoiseSamples = m_poseNoiseSamplesSet->getCurrentLocationSamples();
 
@@ -390,9 +393,9 @@ void AppStage_OpticalCalibration::update()
 					m_bLastMulticamOrientationValid && m_bLastMulticamPositionValid && m_bLastProjectionAreaValid)
                 {
 					poseNoiseSamples.position_samples_cm[poseNoiseSamples.sample_count] = 
-						psmove_position_to_eigen_vector3(m_lastMulticamPositionCm);
+						psm_vector3f_to_eigen_vector3(m_lastMulticamPositionCm);
 					poseNoiseSamples.orientation_samples[poseNoiseSamples.sample_count] =
-						psmove_quaternion_to_eigen_quaternionf(m_lastMulticamOrientation);
+						psm_quatf_to_eigen_quaternionf(m_lastMulticamOrientation);
 					poseNoiseSamples.projection_area_samples[poseNoiseSamples.sample_count] =
 						m_lastProjectionArea;
 
@@ -416,7 +419,7 @@ void AppStage_OpticalCalibration::update()
 						m_poseNoiseSamplesSet->computeVarianceBestFit();
 
 						// Tell the server about the new variance calibration
-						if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4)
+						if (m_controllerView->ControllerType == PSMController_DualShock4)
 						{
 							request_set_optical_calibration(
 								m_poseNoiseSamplesSet->position_variance_curve.y(), m_poseNoiseSamplesSet->position_variance_curve.x(),
@@ -465,18 +468,22 @@ void AppStage_OpticalCalibration::render()
 
 	glm::mat4 controllerWorldTransform= glm::mat4(1.f);
 	if (m_lastControllerSeqNum != -1 && 
-		m_isControllerStreamActive &&
-		m_controllerView->GetIsCurrentlyTracking())
+		m_isControllerStreamActive)
 	{
-		PSMovePose psmove_space_pose = 
-			PSMovePose::create(m_lastMulticamPositionCm, m_lastMulticamOrientation);
+		bool bIsTracking= false;
+		bool bCanBeTracked= PSM_GetIsControllerTracking(m_controllerView->ControllerID, &bIsTracking) == PSMResult_Success;
 
-		if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
+		if (bCanBeTracked && bIsTracking)
 		{
-			psmove_space_pose.Orientation = m_lastControllerPose.Orientation;
-		}
+			PSMPosef psmove_space_pose = {m_lastMulticamPositionCm, m_lastMulticamOrientation};
 
-		controllerWorldTransform = psmove_pose_to_glm_mat4(psmove_space_pose);
+			if (m_controllerView->ControllerType == PSMController_Move)
+			{
+				psmove_space_pose.Orientation = m_lastControllerPose.Orientation;
+			}
+
+			controllerWorldTransform = psm_posef_to_glm_mat4(psmove_space_pose);
+		}
 	}
 
     switch (m_menuState)
@@ -490,8 +497,11 @@ void AppStage_OpticalCalibration::render()
     case eCalibrationMenuState::waitForStable:
 	case eCalibrationMenuState::measureOpticalNoise:
 		{
+			bool bIsTracking= false;
+			bool bCanBeTracked= PSM_GetIsControllerTracking(m_controllerView->ControllerID, &bIsTracking) == PSMResult_Success;
+
 			// Show the controller with optically derived pose
-			if (m_controllerView->GetIsCurrentlyTracking())
+			if (bCanBeTracked && bIsTracking)
 			{
 				drawController(m_controllerView, controllerWorldTransform);
 				drawTransformedAxes(controllerWorldTransform, 200.f);
@@ -503,8 +513,11 @@ void AppStage_OpticalCalibration::render()
 	case eCalibrationMenuState::measureComplete:
 	case eCalibrationMenuState::test:
 		{           
+			bool bIsTracking= false;
+			bool bCanBeTracked= PSM_GetIsControllerTracking(m_controllerView->ControllerID, &bIsTracking) == PSMResult_Success;
+
             // Show the controller with filtered pose
-            if (m_controllerView->GetIsCurrentlyTracking() &&
+            if (bCanBeTracked && bIsTracking &&
                 m_bLastMulticamPositionValid && m_bLastMulticamOrientationValid)
             {
                 drawController(m_controllerView, controllerWorldTransform);
@@ -585,25 +598,25 @@ void AppStage_OpticalCalibration::renderUI()
 
 			if (m_bWaitForSampleButtonRelease)
 			{
-				switch (m_controllerView->GetControllerViewType())
+				switch (m_controllerView->ControllerType)
 				{
-				case ClientControllerView::PSMove:
+				case PSMController_Move:
 					ImGui::Text("Release the Move button.");
 					break;
-				case ClientControllerView::PSDualShock4:
+				case PSMController_DualShock4:
 					ImGui::Text("Release the X button.");
 					break;
 				}
 			}
 			else
 			{
-				switch (m_controllerView->GetControllerViewType())
+				switch (m_controllerView->ControllerType)
 				{
-				case ClientControllerView::PSMove:
+				case PSMController_Move:
 					ImGui::Text("Hold the controller still and press the Move button.");
 					ImGui::Text("Measurement will start once tracking light is visible to cameras.");
 					break;
-				case ClientControllerView::PSDualShock4:
+				case PSMController_DualShock4:
 					ImGui::TextWrapped("Hold the controller still and press the X button.");
 					ImGui::TextWrapped("Measurement will start once tracking light is visible to cameras.");
 					break;
@@ -670,7 +683,7 @@ void AppStage_OpticalCalibration::renderUI()
 
             if (ImGui::Button("Ok"))
             {
-                m_controllerView->SetLEDOverride(0, 0, 0);
+				PSM_SetControllerLEDOverrideColor(m_controllerView->ControllerID, 0, 0, 0);
                 setState(eCalibrationMenuState::test);
             }
             ImGui::SameLine();
@@ -695,14 +708,14 @@ void AppStage_OpticalCalibration::renderUI()
 
             if (m_bBypassCalibration)
             {
-                ImGui::Text("Testing Tracking of Controller ID #%d", m_controllerView->GetControllerID());
+                ImGui::Text("Testing Tracking of Controller ID #%d", m_controllerView->ControllerID);
             }
             else
             {
-                ImGui::Text("Optical Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
+                ImGui::Text("Optical Calibration of Controller ID #%d complete!", m_controllerView->ControllerID);
 				ImGui::Text("Projection Area: %.1f px^2", m_lastProjectionArea);
 
-				if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4)
+				if (m_controllerView->ControllerType == PSMController_DualShock4)
 				{
 					ImGui::Text("Position Var: %.4f cm^2, Orientation Var: %.4f rad^2",
 						m_poseNoiseSamplesSet->getPositionVarianceForArea(m_lastProjectionArea),
@@ -715,21 +728,23 @@ void AppStage_OpticalCalibration::renderUI()
 				}
             }
 
+			PSMQuatf orientation;
+			if (PSM_GetControllerOrientation(m_controllerView->ControllerID, &orientation) == PSMResult_Success)
 			{
-				const Eigen::Quaternionf eigen_quat = psmove_quaternion_to_eigen_quaternionf(m_controllerView->GetOrientation());
+				const Eigen::Quaternionf eigen_quat = psm_quatf_to_eigen_quaternionf(orientation);
 				const Eigen::EulerAnglesf euler_angles = eigen_quaternionf_to_euler_angles(eigen_quat);
 
 				ImGui::Text("Attitude: %.2f, Heading: %.2f, Bank: %.2f", 
 					euler_angles.get_attitude_degrees(), euler_angles.get_heading_degrees(), euler_angles.get_bank_degrees());
 			}
 
-			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4)
+			if (m_controllerView->ControllerType == PSMController_DualShock4)
 			{
 				ImGui::TextWrapped(
 					"[Press the Options button with controller pointed straight forward\n" \
 					 "to recenter the controller]");
 			}
-			else if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
+			else if (m_controllerView->ControllerType == PSMController_Move)
 			{
 				ImGui::TextWrapped(
 					"[Hold the Select button with controller pointed forward\n" \
@@ -824,13 +839,13 @@ void AppStage_OpticalCalibration::onEnterState(eCalibrationMenuState newState)
 		break;
 	case eCalibrationMenuState::test:
 		{
-			switch (m_controllerView->GetControllerViewType())
+			switch (m_controllerView->ControllerType)
 			{
-			case ClientControllerView::PSDualShock4:
-				m_controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
+			case PSMController_DualShock4:
+				m_controllerView->ControllerState.PSDS4State.bPoseResetButtonEnabled= true;
 				break;
-			case ClientControllerView::PSMove:
-				m_controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
+			case PSMController_Move:
+				m_controllerView->ControllerState.PSMoveState.bPoseResetButtonEnabled= true;
 				break;
 			}
 
@@ -854,41 +869,39 @@ void AppStage_OpticalCalibration::request_tracker_list()
 	 	setState(eCalibrationMenuState::pendingTrackerListRequest);
 
 		// Tell the psmove service that we we want a list of trackers connected to this machine
-		ClientPSMoveAPI::register_callback(
-			ClientPSMoveAPI::get_tracker_list(),
-			AppStage_OpticalCalibration::handle_tracker_list_response, this);
+		PSMRequestID requestId;
+		PSM_GetTrackerListAsync(&requestId);
+		PSM_RegisterCallback(requestId, AppStage_OpticalCalibration::handle_tracker_list_response, this);
 	}
 }
 
 void AppStage_OpticalCalibration::handle_tracker_list_response(
-	const ClientPSMoveAPI::ResponseMessage *response_message,
+	const PSMResponseMessage *response_message,
 	void *userdata)
 {
 	AppStage_OpticalCalibration *thisPtr = static_cast<AppStage_OpticalCalibration *>(userdata);
 
 	switch (response_message->result_code)
 	{
-	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+	case PSMResult_Success:
 		{
-			assert(response_message->payload_type == ClientPSMoveAPI::_responsePayloadType_TrackerList);
+			assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_TrackerList);
 
 			// Save the controller list state (used in rendering)
 			thisPtr->m_trackerList = response_message->payload.tracker_list;
 
 			// Start streaming in controller data
 			assert(!thisPtr->m_isControllerStreamActive);
-			ClientPSMoveAPI::register_callback(
-				ClientPSMoveAPI::start_controller_data_stream(
-					thisPtr->m_controllerView,
-					ClientPSMoveAPI::includePositionData |
-					ClientPSMoveAPI::includeRawTrackerData),
-				&AppStage_OpticalCalibration::handle_acquire_controller, thisPtr);
+			PSMRequestID request_id;
+			PSM_StartControllerDataStreamAsync(thisPtr->m_controllerView->ControllerID, PSMStreamFlags_includePositionData | PSMStreamFlags_includeRawTrackerData, &request_id);
+			PSM_RegisterCallback(request_id, &AppStage_OpticalCalibration::handle_acquire_controller, thisPtr);
 
 			thisPtr->setState(eCalibrationMenuState::waitingForStreamStartResponse);
 		} break;
 
-	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+	case PSMResult_Error:
+	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 		{
 			thisPtr->setState(eCalibrationMenuState::failedTrackerListRequest);
 		} break;
@@ -905,22 +918,22 @@ void AppStage_OpticalCalibration::request_set_optical_calibration(
     PSMoveProtocol::Request_RequestSetOpticalNoiseCalibration *calibration =
         request->mutable_request_set_optical_noise_calibration();
 
-    calibration->set_controller_id(m_controllerView->GetControllerID());
+    calibration->set_controller_id(m_controllerView->ControllerID);
 	calibration->set_position_variance_exp_fit_a(position_var_exp_fit_a);
 	calibration->set_position_variance_exp_fit_b(position_var_exp_fit_b);
 	calibration->set_orientation_variance_exp_fit_a(orientation_var_exp_fit_a);
 	calibration->set_orientation_variance_exp_fit_b(orientation_var_exp_fit_b);
 
-    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_OpticalCalibration::handle_acquire_controller(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_OpticalCalibration *thisPtr = reinterpret_cast<AppStage_OpticalCalibration *>(userdata);
 
-    if (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (response->result_code == PSMResult_Success)
     {
         thisPtr->m_isControllerStreamActive = true;
         thisPtr->m_lastControllerSeqNum = -1;
@@ -934,37 +947,37 @@ void AppStage_OpticalCalibration::handle_acquire_controller(
 
 void AppStage_OpticalCalibration::request_exit_to_app_stage(const char *app_stage_name)
 {
-    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(m_controllerView));
+	PSM_StopControllerDataStreamAsync(m_controllerView->ControllerID, nullptr);
     m_isControllerStreamActive= false;
     m_app->setAppStage(app_stage_name);
 }
 
 //-- private methods -----
-static bool isPressingSamplingButton(const ClientControllerView *controllerView)
+static bool isPressingSamplingButton(const PSMController *controllerView)
 {
 	bool bIsPressingButton = false;
 
-	switch (controllerView->GetControllerViewType())
+	switch (controllerView->ControllerType)
 	{
-	case ClientControllerView::PSMove:
-		bIsPressingButton = controllerView->GetPSMoveView().GetButtonMove() == PSMoveButton_DOWN;
+	case PSMController_Move:
+		bIsPressingButton = controllerView->ControllerState.PSMoveState.MoveButton == PSMButtonState_DOWN;
 		break;
-	case ClientControllerView::PSDualShock4:
-		bIsPressingButton = controllerView->GetPSDualShock4View().GetButtonCross() == PSMoveButton_DOWN;
+	case PSMController_DualShock4:
+		bIsPressingButton = controllerView->ControllerState.PSDS4State.CrossButton == PSMButtonState_DOWN;
 		break;
 	}
 
 	return bIsPressingButton;
 }
 
-static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform)
+static void drawController(PSMController *controllerView, const glm::mat4 &transform)
 {
-    switch(controllerView->GetControllerViewType())
+    switch(controllerView->ControllerType)
     {
-    case ClientControllerView::PSMove:
+    case PSMController_Move:
         drawPSMoveModel(transform, glm::vec3(1.f, 1.f, 1.f));
         break;
-    case ClientControllerView::PSDualShock4:
+    case PSMController_DualShock4:
         drawPSDualShock4Model(transform, glm::vec3(1.f, 1.f, 1.f));
         break;
     }

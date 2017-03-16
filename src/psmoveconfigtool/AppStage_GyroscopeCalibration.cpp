@@ -4,7 +4,6 @@
 #include "AppStage_MainMenu.h"
 #include "App.h"
 #include "Camera.h"
-#include "ClientControllerView.h"
 #include "GeometryUtility.h"
 #include "Logger.h"
 #include "MathAlignment.h"
@@ -13,6 +12,7 @@
 #include "MathUtility.h"
 
 #include "PSMoveProtocolInterface.h"
+#include "PSMoveProtocol.pb.h"
 #include "Renderer.h"
 #include "UIConstants.h"
 
@@ -33,8 +33,8 @@ const int k_desired_scale_sample_count = 1000;
 //-- definitions -----
 struct GyroscopeNoiseSamples
 {
-    PSMoveFloatVector3 omega_samples[k_desired_noise_sample_count];
-    PSMoveFloatVector3 drift_rotation;
+    PSMVector3f omega_samples[k_desired_noise_sample_count];
+    PSMVector3f drift_rotation;
     std::chrono::time_point<std::chrono::high_resolution_clock> sampleStartTime;
     int sample_count;
 
@@ -43,7 +43,7 @@ struct GyroscopeNoiseSamples
 
     void clear()
     {
-        drift_rotation= PSMoveFloatVector3::create(0, 0, 0);
+        drift_rotation= *k_psm_float_vector3_zero;
         sample_count= 0;
         variance= 0.f;
         drift= 0.f;
@@ -57,37 +57,39 @@ struct GyroscopeNoiseSamples
         // Compute the mean of the error samples, where "error" = abs(omega_sample)
         // If we took the mean of the signed omega samples we'd get a value very 
         // close to zero since the the gyro at rest over a short period has mean-zero noise
-        PSMoveFloatVector3 mean_omega_error= PSMoveFloatVector3::create(0.f, 0.f, 0.f);
+        PSMVector3f mean_omega_error= *k_psm_float_vector3_zero;
         for (int sample_index = 0; sample_index < sample_count; sample_index++)
         {
-            PSMoveFloatVector3 error_sample= omega_samples[sample_index].abs();
+            PSMVector3f error_sample= PSM_Vector3fAbs(&omega_samples[sample_index]);
 
-            mean_omega_error= mean_omega_error + error_sample;
+            mean_omega_error= PSM_Vector3fAdd(&mean_omega_error, &error_sample);
         }
-        mean_omega_error= mean_omega_error.unsafe_divide(N);
+        mean_omega_error= PSM_Vector3fUnsafeScalarDivide(&mean_omega_error, N);
 
         // Compute the variance of the (unsigned) sample error, where "error" = abs(omega_sample)
-        PSMoveFloatVector3 var_omega= PSMoveFloatVector3::create(0.f, 0.f, 0.f);
+        PSMVector3f var_omega= *k_psm_float_vector3_zero;
         for (int sample_index = 0; sample_index < sample_count; sample_index++)
         {
-            PSMoveFloatVector3 error_sample= omega_samples[sample_index].abs();
-            PSMoveFloatVector3 diff_from_mean= error_sample - mean_omega_error;
+            PSMVector3f error_sample= PSM_Vector3fAbs(&omega_samples[sample_index]);
+            PSMVector3f diff_from_mean= PSM_Vector3fSubtract(&error_sample, &mean_omega_error);
+            PSMVector3f diff_from_mean_sqrd= PSM_Vector3fSquare(&diff_from_mean);
 
-            var_omega= var_omega + diff_from_mean.square();
+            var_omega= PSM_Vector3fAdd(&var_omega, &diff_from_mean);
         }
-        var_omega= var_omega.unsafe_divide(N - 1);
+        var_omega= PSM_Vector3fUnsafeScalarDivide(&var_omega, N - 1);
 
         // Use the max variance of all three axes (should be close)
-        variance= var_omega.maxValue();
+        variance= PSM_Vector3fMaxValue(&var_omega);
 
         // Compute the max drift rate we got across a three axis
-        PSMoveFloatVector3 drift_rate= drift_rotation.unsafe_divide(sampleDurationSeconds);
-        drift= drift_rate.abs().maxValue();
+        PSMVector3f drift_rate= PSM_Vector3fUnsafeScalarDivide(&drift_rotation, sampleDurationSeconds);
+        PSMVector3f drift_rate_abs= PSM_Vector3fAbs(&drift_rate);
+        drift= PSM_Vector3fMaxValue(&drift_rate_abs);
     }
 };
 
 //-- private methods -----
-static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform);
+static void drawController(PSMController *controllerView, const glm::mat4 &transform);
 
 //-- public methods -----
 AppStage_GyroscopeCalibration::AppStage_GyroscopeCalibration(App *app)
@@ -119,11 +121,11 @@ void AppStage_GyroscopeCalibration::enter()
     // Reset all of the sampling state
     m_gyroNoiseSamples->clear();
 
-    m_lastRawGyroscope = *k_psmove_int_vector3_zero;
+    m_lastRawGyroscope = *k_psm_int_vector3_zero;
     m_lastControllerSeqNum = -1;
 
-    m_lastCalibratedAccelerometer = *k_psmove_float_vector3_zero;
-    m_lastCalibratedGyroscope = *k_psmove_float_vector3_zero;
+    m_lastCalibratedAccelerometer = *k_psm_float_vector3_zero;
+    m_lastCalibratedGyroscope = *k_psm_float_vector3_zero;
 
     m_stableStartTime = std::chrono::time_point<std::chrono::high_resolution_clock>();
     m_bIsStable= false;
@@ -132,7 +134,8 @@ void AppStage_GyroscopeCalibration::enter()
 	// Initialize the controller state
 	assert(controllerInfo->ControllerID != -1);
 	assert(m_controllerView == nullptr);
-	m_controllerView = ClientPSMoveAPI::allocate_controller_view(controllerInfo->ControllerID);
+	PSM_AllocateControllerListener(controllerInfo->ControllerID);
+	m_controllerView= PSM_GetController(controllerInfo->ControllerID);
 
 	// Get the tracking space settings first (for global forward reference)
 	request_tracking_space_settings();
@@ -141,7 +144,7 @@ void AppStage_GyroscopeCalibration::enter()
 void AppStage_GyroscopeCalibration::exit()
 {
     assert(m_controllerView != nullptr);
-    ClientPSMoveAPI::free_controller_view(m_controllerView);
+    PSM_FreeControllerListener(m_controllerView->ControllerID);
     m_controllerView = nullptr;
     setState(eCalibrationMenuState::inactive);
 }
@@ -153,28 +156,28 @@ void AppStage_GyroscopeCalibration::update()
     std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float, std::milli> sampleTimeDeltaMilli(0);
 
-    if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
+    if (m_isControllerStreamActive && m_controllerView->OutputSequenceNum != m_lastControllerSeqNum)
     {
-        switch(m_controllerView->GetControllerViewType())
+        switch(m_controllerView->ControllerType)
         {
-        case ClientControllerView::PSDualShock4:
+        case PSMController_DualShock4:
             {
-                const PSDualShock4RawSensorData &rawSensorData =
-                    m_controllerView->GetPSDualShock4View().GetRawSensorData();
-                const PSDualShock4CalibratedSensorData &calibratedSensorData =
-                    m_controllerView->GetPSDualShock4View().GetCalibratedSensorData();
+                const PSMDS4RawSensorData &rawSensorData =
+                    m_controllerView->ControllerState.PSDS4State.RawSensorData;
+                const PSMDS4CalibratedSensorData &calibratedSensorData =
+                    m_controllerView->ControllerState.PSDS4State.CalibratedSensorData;
 
                 m_lastRawGyroscope = rawSensorData.Gyroscope;
                 m_lastCalibratedGyroscope = calibratedSensorData.Gyroscope;
                 m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
             }
             break;
-        case ClientControllerView::PSMove:
+        case PSMController_Move:
             {
-                const PSMoveRawSensorData &rawSensorData =
-                    m_controllerView->GetPSMoveView().GetRawSensorData();
-                const PSMoveCalibratedSensorData &calibratedSensorData =
-                    m_controllerView->GetPSMoveView().GetCalibratedSensorData();
+                const PSMPSMoveRawSensorData &rawSensorData =
+                    m_controllerView->ControllerState.PSMoveState.RawSensorData;
+                const PSMPSMoveCalibratedSensorData &calibratedSensorData =
+                    m_controllerView->ControllerState.PSMoveState.CalibratedSensorData;
 
                 m_lastRawGyroscope = rawSensorData.Gyroscope;
                 m_lastCalibratedGyroscope = calibratedSensorData.Gyroscope;
@@ -183,7 +186,7 @@ void AppStage_GyroscopeCalibration::update()
             break;
         }
 
-        m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
+        m_lastControllerSeqNum = m_controllerView->OutputSequenceNum;
         
         if (m_bLastSampleTimeValid)
         {
@@ -221,7 +224,10 @@ void AppStage_GyroscopeCalibration::update()
         } break;
     case eCalibrationMenuState::waitForStable:
         {
-            if (m_controllerView->GetIsStable() || m_bForceControllerStable)
+			bool bIsStable;
+			bool bCanBeStabilized= PSM_GetIsControllerStable(m_controllerView->ControllerID, &bIsStable) == PSMResult_Success;
+
+            if ((bCanBeStabilized && bIsStable) || m_bForceControllerStable)
             {
                 if (m_bIsStable || m_bForceControllerStable)
                 {
@@ -250,7 +256,10 @@ void AppStage_GyroscopeCalibration::update()
         } break;
     case eCalibrationMenuState::measureBiasAndDrift: // PSMove and DS4
         {
-            if (m_controllerView->GetIsStable() || m_bForceControllerStable)
+			bool bIsStable;
+			bool bCanBeStabilized= PSM_GetIsControllerStable(m_controllerView->ControllerID, &bIsStable) == PSMResult_Success;
+
+            if ((bCanBeStabilized && bIsStable) || m_bForceControllerStable)
             {
                 const std::chrono::duration<float, std::milli> sampleDurationMilli = now - m_gyroNoiseSamples->sampleStartTime;
                 const float deltaTimeSeconds= sampleTimeDeltaMilli.count()/1000.f;
@@ -258,9 +267,8 @@ void AppStage_GyroscopeCalibration::update()
                 // Accumulate the drift total
                 if (deltaTimeSeconds > 0.f)
                 {
-                    m_gyroNoiseSamples->drift_rotation= 
-                        m_gyroNoiseSamples->drift_rotation
-                        + m_lastCalibratedGyroscope*deltaTimeSeconds;
+					m_gyroNoiseSamples->drift_rotation= 
+						PSM_Vector3fScaleAndAdd(&m_lastCalibratedGyroscope, deltaTimeSeconds, &m_gyroNoiseSamples->drift_rotation);
                 }
 
                 // Record the next noise sample
@@ -324,7 +332,7 @@ void AppStage_GyroscopeCalibration::render()
                 const float renderScale = 200.f;
                 glm::mat4 renderScaleMatrix = 
                     glm::scale(glm::mat4(1.f), glm::vec3(renderScale, renderScale, renderScale));
-                glm::vec3 g= -psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
+                glm::vec3 g= -psm_vector3f_to_glm_vec3(m_lastCalibratedAccelerometer);
 
                 drawArrow(
                     renderScaleMatrix,
@@ -344,14 +352,18 @@ void AppStage_GyroscopeCalibration::render()
         } break;
     case eCalibrationMenuState::test:
         {
-            // Get the orientation of the controller in world space (OpenGL Coordinate System)            
-            glm::quat q= psmove_quaternion_to_glm_quat(m_controllerView->GetOrientation());
-            glm::mat4 worldSpaceOrientation= glm::mat4_cast(q);
-            glm::mat4 worldTransform = glm::scale(worldSpaceOrientation, glm::vec3(1.f));
+            // Get the orientation of the controller in world space (OpenGL Coordinate System)  
+			PSMQuatf controllerQuat;
+			if (PSM_GetControllerOrientation(m_controllerView->ControllerID, &controllerQuat) == PSMResult_Success)
+			{
+				glm::quat q= psm_quatf_to_glm_quat(controllerQuat);
+				glm::mat4 worldSpaceOrientation= glm::mat4_cast(q);
+				glm::mat4 worldTransform = glm::scale(worldSpaceOrientation, glm::vec3(1.f));
 
-            drawController(m_controllerView, worldTransform);
-            drawTransformedAxes(worldSpaceOrientation, 200.f);
-            drawTransformedAxes(glm::mat4(1.f), 200.f);
+				drawController(m_controllerView, worldTransform);
+				drawTransformedAxes(worldSpaceOrientation, 200.f);
+				drawTransformedAxes(glm::mat4(1.f), 200.f);
+			}
         } break;
     default:
         assert(0 && "unreachable");
@@ -480,7 +492,7 @@ void AppStage_GyroscopeCalibration::renderUI()
 
             if (ImGui::Button("Ok"))
             {
-                m_controllerView->SetLEDOverride(0, 0, 0);
+				PSM_SetControllerLEDOverrideColor(m_controllerView->ControllerID, 0, 0, 0);
                 setState(eCalibrationMenuState::test);
             }
             ImGui::SameLine();
@@ -505,32 +517,34 @@ void AppStage_GyroscopeCalibration::renderUI()
 
             if (m_bBypassCalibration)
             {
-                ImGui::Text("Testing Calibration of Controller ID #%d", m_controllerView->GetControllerID());
+                ImGui::Text("Testing Calibration of Controller ID #%d", m_controllerView->ControllerID);
             }
             else
             {
-                ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
+                ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->ControllerID);
             }
 
+			PSMQuatf controllerQuat;
+			if (PSM_GetControllerOrientation(m_controllerView->ControllerID, &controllerQuat) == PSMResult_Success)
 			{
-				const Eigen::Quaternionf eigen_quat = psmove_quaternion_to_eigen_quaternionf(m_controllerView->GetOrientation());
+				const Eigen::Quaternionf eigen_quat = psm_quatf_to_eigen_quaternionf(controllerQuat);
 				const Eigen::EulerAnglesf euler_angles = eigen_quaternionf_to_euler_angles(eigen_quat);
 
 				ImGui::Text("Pitch(x): %.2f, Yaw(y): %.2f, Roll(z): %.2f",
-					m_lastCalibratedGyroscope.i * k_radians_to_degreees, 
-					m_lastCalibratedGyroscope.j * k_radians_to_degreees,
-					m_lastCalibratedGyroscope.k * k_radians_to_degreees);
+					m_lastCalibratedGyroscope.x * k_radians_to_degreees, 
+					m_lastCalibratedGyroscope.y * k_radians_to_degreees,
+					m_lastCalibratedGyroscope.z * k_radians_to_degreees);
 				ImGui::Text("Attitude: %.2f, Heading: %.2f, Bank: %.2f", 
 					euler_angles.get_attitude_degrees(), euler_angles.get_heading_degrees(), euler_angles.get_bank_degrees());
 			}
 
-			if (m_controllerView->GetControllerViewType() == ClientControllerView::PSDualShock4)
+			if (m_controllerView->ControllerType == PSMController_DualShock4)
 			{
 				ImGui::TextWrapped(
 					"[Press the Options button with controller pointed straight forward\n" \
 					 "to recenter the controller]");
 			}
-			else if (m_controllerView->GetControllerViewType() == ClientControllerView::PSMove)
+			else if (m_controllerView->ControllerType == PSMController_Move)
 			{
 				ImGui::TextWrapped(
 					"[Hold the Select button with controller pointed forward\n" \
@@ -619,13 +633,13 @@ void AppStage_GyroscopeCalibration::onEnterState(eCalibrationMenuState newState)
 		break;
 	case eCalibrationMenuState::test:
 		{
-			switch (m_controllerView->GetControllerViewType())
+			switch (m_controllerView->ControllerType)
 			{
-			case ClientControllerView::PSDualShock4:
-				m_controllerView->GetPSDualShock4ViewMutable().SetPoseResetButtonEnabled(true);
+			case PSMController_DualShock4:
+				m_controllerView->ControllerState.PSDS4State.bPoseResetButtonEnabled= true;
 				break;
-			case ClientControllerView::PSMove:
-				m_controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
+			case PSMController_Move:
+				m_controllerView->ControllerState.PSMoveState.bPoseResetButtonEnabled= true;
 				break;
 			}
 
@@ -645,55 +659,54 @@ void AppStage_GyroscopeCalibration::request_tracking_space_settings()
 	{
 		setState(eCalibrationMenuState::pendingTrackingSpaceSettings);
 
-		ClientPSMoveAPI::register_callback(
-			ClientPSMoveAPI::get_tracking_space_settings(),
-			AppStage_GyroscopeCalibration::handle_tracking_space_settings_response, this);
+		PSMRequestID request_id;
+		PSM_GetTrackingSpaceSettingsAsync(&request_id);
+		PSM_RegisterCallback(request_id, AppStage_GyroscopeCalibration::handle_tracking_space_settings_response, this);
 	}
 }
 
 void AppStage_GyroscopeCalibration::handle_tracking_space_settings_response(
-	const ClientPSMoveAPI::ResponseMessage *response_message,
+	const PSMResponseMessage *response_message,
 	void *userdata)
 {
 	AppStage_GyroscopeCalibration *thisPtr = static_cast<AppStage_GyroscopeCalibration *>(userdata);
 
 	switch (response_message->result_code)
 	{
-	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+	case PSMResult_Success:
 		{
 			const AppStage_ControllerSettings *controllerSettings =
 				thisPtr->m_app->getAppStage<AppStage_ControllerSettings>();
 			const AppStage_ControllerSettings::ControllerInfo *controllerInfo =
 				controllerSettings->getSelectedControllerInfo();
 
-			assert(response_message->payload_type == ClientPSMoveAPI::_responsePayloadType_TrackingSpace);
+			assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_TrackingSpace);
 
 			// Save the tracking space settings (used in rendering)
 			thisPtr->m_global_forward_degrees = response_message->payload.tracking_space.global_forward_degrees;
 
 			unsigned int stream_flags = 
-				ClientPSMoveAPI::includeRawSensorData | 
-				ClientPSMoveAPI::includeCalibratedSensorData;
+				PSMStreamFlags_includeRawSensorData |
+				PSMStreamFlags_includeCalibratedSensorData;
 
-			if (controllerInfo->ControllerType == ClientControllerView::PSDualShock4)
+			if (controllerInfo->ControllerType == PSMController_DualShock4)
 			{
 				// Need to turn on optical tracking for the DS4 so that we have get optical orientation
-				stream_flags |= ClientPSMoveAPI::includePositionData;
+				stream_flags |= PSMStreamFlags_includePositionData;
 			}
 
 			// Start streaming in controller data
 			assert(!thisPtr->m_isControllerStreamActive);
-			ClientPSMoveAPI::register_callback(
-				ClientPSMoveAPI::start_controller_data_stream(
-					thisPtr->m_controllerView,
-					stream_flags),
-				&AppStage_GyroscopeCalibration::handle_acquire_controller, thisPtr);
+			PSMRequestID request_id;
+			PSM_StartControllerDataStreamAsync(thisPtr->m_controllerView->ControllerID, stream_flags, &request_id);
+			PSM_RegisterCallback(request_id, &AppStage_GyroscopeCalibration::handle_acquire_controller, thisPtr);
 
 			thisPtr->setState(eCalibrationMenuState::waitingForStreamStartResponse);
 		} break;
 
-	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+	case PSMResult_Error:
+	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 		{
 			thisPtr->setState(eCalibrationMenuState::failedTrackingSpaceSettings);
 		} break;
@@ -710,22 +723,22 @@ void AppStage_GyroscopeCalibration::request_set_gyroscope_calibration(
     PSMoveProtocol::Request_RequestSetControllerGyroscopeCalibration *calibration =
         request->mutable_set_controller_gyroscope_calibration_request();
 
-    calibration->set_controller_id(m_controllerView->GetControllerID());
+    calibration->set_controller_id(m_controllerView->ControllerID);
 
     calibration->set_drift(drift);
     calibration->set_variance(variance);
 	calibration->set_gyro_gain_setting(""); // keep existing gain
 
-    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_GyroscopeCalibration::handle_acquire_controller(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_GyroscopeCalibration *thisPtr = reinterpret_cast<AppStage_GyroscopeCalibration *>(userdata);
 
-    if (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (response->result_code == PSMResult_Success)
     {
         thisPtr->m_isControllerStreamActive = true;
         thisPtr->m_lastControllerSeqNum = -1;
@@ -739,20 +752,20 @@ void AppStage_GyroscopeCalibration::handle_acquire_controller(
 
 void AppStage_GyroscopeCalibration::request_exit_to_app_stage(const char *app_stage_name)
 {
-    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(m_controllerView));
+	PSM_StopControllerDataStreamAsync(m_controllerView->ControllerID, nullptr);
     m_isControllerStreamActive= false;
     m_app->setAppStage(app_stage_name);
 }
 
 //-- private methods -----
-static void drawController(ClientControllerView *controllerView, const glm::mat4 &transform)
+static void drawController(PSMController *controllerView, const glm::mat4 &transform)
 {
-    switch(controllerView->GetControllerViewType())
+    switch(controllerView->ControllerType)
     {
-    case ClientControllerView::PSMove:
+    case PSMController_Move:
         drawPSMoveModel(transform, glm::vec3(1.f, 1.f, 1.f));
         break;
-    case ClientControllerView::PSDualShock4:
+    case PSMController_DualShock4:
         drawPSDualShock4Model(transform, glm::vec3(1.f, 1.f, 1.f));
         break;
     }

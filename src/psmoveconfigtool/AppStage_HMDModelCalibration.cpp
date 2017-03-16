@@ -22,7 +22,7 @@
 
 #include "ICP.h"
 
-#include "ClientPSMoveAPI.h"
+#include "PSMoveClient_CAPI.h"
 
 #include <imgui.h>
 #include <sstream>
@@ -53,18 +53,18 @@ static const glm::vec3 k_psmove_frustum_color = glm::vec3(0.1f, 0.7f, 0.3f);
 static const glm::vec3 k_psmove_frustum_color_no_track = glm::vec3(1.0f, 0.f, 0.f);
 
 //-- private methods -----
-static glm::mat4 computeGLMCameraTransformMatrix(const ClientTrackerView *tracker_view);
-static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const ClientTrackerView *tracker_view);
-static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const ClientTrackerView *tracker_view);
-static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ClientTrackerView *tracker_view);
-static bool triangulateHMDProjections(ClientHMDView *hmd_view, TrackerPairState *tracker_pair_state, std::vector<Eigen::Vector3f> &out_triangulated_points);
-static PSMoveScreenLocation projectWorldPositionOnTracker(const PSMovePosition &worldSpacePosition, const ClientTrackerView *trackerView);
-static void drawHMD(ClientHMDView *hmdView, const glm::mat4 &transform);
+static glm::mat4 computeGLMCameraTransformMatrix(const PSMTracker *tracker_view);
+static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const PSMTracker *tracker_view);
+static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const PSMTracker *tracker_view);
+static cv::Matx34f computeOpenCVCameraPinholeMatrix(const PSMTracker *tracker_view);
+static bool triangulateHMDProjections(PSMHeadMountedDisplay *hmd_view, TrackerPairState *tracker_pair_state, std::vector<Eigen::Vector3f> &out_triangulated_points);
+static PSMVector2f projectWorldPositionOnTracker(const PSMVector3f &worldSpacePosition, const PSMTracker *trackerView);
+static void drawHMD(PSMHeadMountedDisplay *hmdView, const glm::mat4 &transform);
 
 //-- private structures -----
 struct TrackerState
 {
-	class ClientTrackerView *trackerView;
+	PSMTracker *trackerView;
 	class TextureAsset *textureAsset;
 };
 
@@ -192,7 +192,7 @@ public:
 		return fraction;
 	}
 
-	void recordSamples(ClientHMDView *hmd_view, TrackerPairState *tracker_pair_state)
+	void recordSamples(PSMHeadMountedDisplay *hmd_view, TrackerPairState *tracker_pair_state)
 	{
 		if (triangulateHMDProjections(hmd_view, tracker_pair_state, m_lastTriangulatedPoints))
 		{
@@ -270,20 +270,20 @@ public:
 		}
 	}
 
-	void render(const ClientTrackerView *trackerView) const
+	void render(const PSMTracker *trackerView) const
 	{
-		PSMoveScreenLocation projections[k_max_projection_points];
+		PSMVector2f projections[k_max_projection_points];
 		int point_count = static_cast<int>(m_lastTriangulatedPoints.size());
 
 		for (int point_index = 0; point_index < point_count; ++point_index)
 		{
-			PSMovePosition worldPosition= eigen_vector3f_to_psmove_position(m_lastTriangulatedPoints[point_index]);
+			PSMVector3f worldPosition= eigen_vector3f_to_psm_vector3f(m_lastTriangulatedPoints[point_index]);
 
 			projections[point_index] = projectWorldPositionOnTracker(worldPosition, trackerView);
 		}
 
-		PSMoveFloatVector2 tracker_size= trackerView->getTrackerPixelExtents();
-		drawPointCloudProjection(projections, point_count, 6.f, glm::vec3(0.f, 1.f, 0.f), tracker_size.i, tracker_size.j);
+		PSMVector2f tracker_size= trackerView->tracker_info.tracker_screen_dimensions;
+		drawPointCloudProjection(projections, point_count, 6.f, glm::vec3(0.f, 1.f, 0.f), tracker_size.x, tracker_size.y);
 	}
 
 protected:
@@ -465,7 +465,7 @@ void AppStage_HMDModelCalibration::render()
 		} break;
 	case eMenuState::calibrate:
 		{
-			const ClientTrackerView *TrackerView = get_render_tracker_view();
+			const PSMTracker *TrackerView = get_render_tracker_view();
 
 			// Draw the video from the PoV of the current tracker
 			render_tracker_video();
@@ -484,26 +484,34 @@ void AppStage_HMDModelCalibration::render()
 			// We need to transform them into chaperone space to display them along side the HMD.
 			for (int tracker_index = 0; tracker_index < get_tracker_count(); ++tracker_index)
 			{
-				const ClientTrackerView *trackerView = m_trackerPairState->trackers.list[tracker_index].trackerView;
-				const PSMovePose psmove_space_pose = trackerView->getTrackerPose();
-				const glm::mat4 chaperoneSpaceTransform = psmove_pose_to_glm_mat4(psmove_space_pose);
+				const PSMTracker *trackerView = m_trackerPairState->trackers.list[tracker_index].trackerView;
+				const PSMPosef psmove_space_pose = trackerView->tracker_info.tracker_pose;
+				const glm::mat4 chaperoneSpaceTransform = psm_posef_to_glm_mat4(psmove_space_pose);
 
 				{
-					PSMoveFrustum frustum = trackerView->getTrackerFrustum();
+					PSMFrustum frustum;
+					PSM_GetTrackerFrustum(trackerView->tracker_info.tracker_id, &frustum);
 
 					// use color depending on tracking status
-					PSMoveScreenLocation screenSample;
 					glm::vec3 color;
-					if (m_hmdView->GetIsCurrentlyTracking() &&
-						m_hmdView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
+					bool bIsTracking;
+					if (PSM_GetIsHmdTracking(m_hmdView->HmdID, &bIsTracking) == PSMResult_Success)
 					{
-						color = k_psmove_frustum_color;
+						PSMVector2f screenSample;
+
+						if (bIsTracking && PSM_GetHmdPixelLocationOnTracker(m_hmdView->HmdID, trackerView->tracker_info.tracker_id, &screenSample) == PSMResult_Success)
+						{
+							color = k_psmove_frustum_color;
+						}
+						else
+						{
+							color = k_psmove_frustum_color_no_track;
+						}
 					}
 					else
 					{
 						color = k_psmove_frustum_color_no_track;
 					}
-
 					drawTransformedFrustum(glm::mat4(1.f), &frustum, color);
 				}
 
@@ -513,11 +521,15 @@ void AppStage_HMDModelCalibration::render()
 
 			// Draw the Morpheus model
 			{
-				PSMovePose hmd_pose = m_hmdView->GetPose();
-				glm::mat4 hmd_transform = psmove_pose_to_glm_mat4(hmd_pose);
+				PSMPosef hmd_pose;
+				
+				if (PSM_GetHmdPose(m_hmdView->HmdID, &hmd_pose) == PSMResult_Success)
+				{
+					glm::mat4 hmd_transform = psm_posef_to_glm_mat4(hmd_pose);
 
-				drawHMD(m_hmdView, hmd_transform);
-				drawTransformedAxes(hmd_transform, 10.f);
+					drawHMD(m_hmdView, hmd_transform);
+					drawTransformedAxes(hmd_transform, 10.f);
+				}
 			}
 
 		} break;
@@ -663,16 +675,26 @@ void AppStage_HMDModelCalibration::renderUI()
 		// display tracking quality
 		for (int tracker_index = 0; tracker_index < get_tracker_count(); ++tracker_index)
 		{
-			PSMoveScreenLocation screenSample;
+			const PSMTracker *trackerView = m_trackerPairState->trackers.list[tracker_index].trackerView;
+			const int tracker_id= trackerView->tracker_info.tracker_id;
 
-			const ClientTrackerView *trackerView = m_trackerPairState->trackers.list[tracker_index].trackerView;
-			if (m_hmdView->GetIsCurrentlyTracking() &&
-				m_hmdView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
+			bool bIsTracking;
+			if (PSM_GetIsHmdTracking(m_hmdView->HmdID, &bIsTracking) == PSMResult_Success)
 			{
-				ImGui::Text("Tracking %d: OK", trackerView->getTrackerId() + 1);
+				PSMVector2f screenSample;
+
+				if (bIsTracking && PSM_GetHmdPixelLocationOnTracker(m_hmdView->HmdID, tracker_id, &screenSample) == PSMResult_Success)
+				{
+					ImGui::Text("Tracking %d: OK", tracker_id + 1);
+				}
+				else
+				{
+					ImGui::Text("Tracking %d: FAIL", tracker_id + 1);
+				}
 			}
-			else {
-				ImGui::Text("Tracking %d: FAIL", trackerView->getTrackerId() + 1);
+			else
+			{
+				ImGui::Text("Tracking %d: FAIL", tracker_id + 1);
 			}
 		}
 
@@ -717,16 +739,26 @@ void AppStage_HMDModelCalibration::renderUI()
 		// display tracking quality
 		for (int tracker_index = 0; tracker_index < get_tracker_count(); ++tracker_index)
 		{
-			PSMoveScreenLocation screenSample;
+			const PSMTracker *trackerView = m_trackerPairState->trackers.list[tracker_index].trackerView;
+			const int tracker_id= trackerView->tracker_info.tracker_id;
 
-			const ClientTrackerView *trackerView = m_trackerPairState->trackers.list[tracker_index].trackerView;
-			if (m_hmdView->GetIsCurrentlyTracking() &&
-				m_hmdView->GetRawTrackerData().GetPixelLocationOnTrackerId(trackerView->getTrackerId(), screenSample))
+			bool bIsTracking;
+			if (PSM_GetIsHmdTracking(m_hmdView->HmdID, &bIsTracking) == PSMResult_Success)
 			{
-				ImGui::Text("Tracking %d: OK", trackerView->getTrackerId() + 1);
+				PSMVector2f screenSample;
+
+				if (bIsTracking && PSM_GetHmdPixelLocationOnTracker(m_hmdView->HmdID, tracker_id, &screenSample) == PSMResult_Success)
+				{
+					ImGui::Text("Tracking %d: OK", tracker_id + 1);
+				}
+				else
+				{
+					ImGui::Text("Tracking %d: FAIL", tracker_id + 1);
+				}
 			}
-			else {
-				ImGui::Text("Tracking %d: FAIL", trackerView->getTrackerId() + 1);
+			else
+			{
+				ImGui::Text("Tracking %d: FAIL", tracker_id + 1);
 			}
 		}
 		ImGui::Text("");
@@ -817,9 +849,14 @@ void AppStage_HMDModelCalibration::update_tracker_video()
 	// Render the latest from the currently active tracker
 	TrackerState &trackerState= m_trackerPairState->trackers.list[m_trackerPairState->renderTrackerIndex];
 	if (trackerState.trackerView != nullptr &&
-		trackerState.trackerView->pollVideoStream())
+		PSM_PollTrackerVideoStream(trackerState.trackerView->tracker_info.tracker_id))
 	{
-		trackerState.textureAsset->copyBufferIntoTexture(trackerState.trackerView->getVideoFrameBuffer());
+		const unsigned char *buffer= nullptr;
+
+		if (PSM_GetTrackerVideoFrameBuffer(trackerState.trackerView->tracker_info.tracker_id, &buffer) == PSMResult_Success)
+		{
+			trackerState.textureAsset->copyBufferIntoTexture(buffer);
+		}
 	}
 }
 
@@ -853,7 +890,7 @@ int AppStage_HMDModelCalibration::get_render_tracker_index() const
 	return m_trackerPairState->renderTrackerIndex;
 }
 
-class ClientTrackerView *AppStage_HMDModelCalibration::get_render_tracker_view() const
+PSMTracker *AppStage_HMDModelCalibration::get_render_tracker_view() const
 {
 	return m_trackerPairState->trackers.list[m_trackerPairState->renderTrackerIndex].trackerView;
 }
@@ -870,8 +907,8 @@ void AppStage_HMDModelCalibration::release_devices()
 
 	if (m_hmdView != nullptr)
 	{
-		ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_hmd_data_stream(m_hmdView));
-		ClientPSMoveAPI::free_hmd_view(m_hmdView);
+		PSM_StopHmdDataStreamAsync(m_hmdView->HmdID, nullptr);
+		PSM_FreeHmdListener(m_hmdView->HmdID);
 		m_hmdView = nullptr;
 	}
 
@@ -886,10 +923,9 @@ void AppStage_HMDModelCalibration::release_devices()
 
 		if (trackerState.trackerView != nullptr)
 		{
-			trackerState.trackerView->closeVideoStream();
-
-			ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_tracker_data_stream(trackerState.trackerView));
-			ClientPSMoveAPI::free_tracker_view(trackerState.trackerView);
+			PSM_CloseTrackerVideoStream(trackerState.trackerView->tracker_info.tracker_id);
+			PSM_StopTrackerDataStreamAsync(trackerState.trackerView->tracker_info.tracker_id, nullptr);
+			PSM_FreeTrackerListener(trackerState.trackerView->tracker_info.tracker_id);
 		}
 	}
 
@@ -910,14 +946,14 @@ void AppStage_HMDModelCalibration::request_hmd_list()
 		m_menuState = AppStage_HMDModelCalibration::pendingHmdListRequest;
 
 		// Request a list of controllers back from the server
-		ClientPSMoveAPI::register_callback(
-			ClientPSMoveAPI::get_hmd_list(),
-			AppStage_HMDModelCalibration::handle_hmd_list_response, this);
+		PSMRequestID requestId;
+		PSM_GetHmdListAsync(&requestId);
+		PSM_RegisterCallback(requestId, AppStage_HMDModelCalibration::handle_hmd_list_response, this);
 	}
 }
 
 void AppStage_HMDModelCalibration::handle_hmd_list_response(
-	const ClientPSMoveAPI::ResponseMessage *response_message,
+	const PSMResponseMessage *response_message,
 	void *userdata)
 {
 	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_message->opaque_response_handle);
@@ -925,16 +961,15 @@ void AppStage_HMDModelCalibration::handle_hmd_list_response(
 
 	AppStage_HMDModelCalibration *thisPtr = static_cast<AppStage_HMDModelCalibration *>(userdata);
 
-	const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
+	const PSMResult ResultCode = response_message->result_code;
 
 
 	switch (ResultCode)
 	{
-	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+	case PSMResult_Success:
 	{
-		assert(response_message->payload_type == ClientPSMoveAPI::_responsePayloadType_HMDList);
-		const ClientPSMoveAPI::ResponsePayload_HMDList *hmd_list =
-			&response_message->payload.hmd_list;
+		assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_HmdList);
+		const PSMHmdList *hmd_list = &response_message->payload.hmd_list;
 
 		int trackedHmdId = thisPtr->m_overrideHmdId;
 		int trackerLEDCount = 0;
@@ -943,7 +978,7 @@ void AppStage_HMDModelCalibration::handle_hmd_list_response(
 		{
 			for (int list_index = 0; list_index < hmd_list->count; ++list_index)
 			{
-				if (hmd_list->hmd_type[list_index] == ClientHMDView::Morpheus)
+				if (hmd_list->hmd_type[list_index] == PSMHmd_Morpheus)
 				{
 					trackedHmdId = hmd_list->hmd_id[list_index];
 					break;
@@ -969,8 +1004,9 @@ void AppStage_HMDModelCalibration::handle_hmd_list_response(
 		}
 	} break;
 
-	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+	case PSMResult_Error:
+	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 		{
 			thisPtr->setState(AppStage_HMDModelCalibration::failedHmdListRequest);
 		} break;
@@ -981,37 +1017,42 @@ void AppStage_HMDModelCalibration::request_start_hmd_stream(int HmdID)
 {
 	// Allocate a hmd view to track HMD state
 	assert(m_hmdView == nullptr);
-	m_hmdView = ClientPSMoveAPI::allocate_hmd_view(HmdID);
+	PSM_AllocateHmdListener(HmdID);
+	m_hmdView = PSM_GetHmd(HmdID);
 
 	// Start receiving data from the controller
 	setState(AppStage_HMDModelCalibration::pendingHmdStartRequest);
-	ClientPSMoveAPI::register_callback(
-		ClientPSMoveAPI::start_hmd_data_stream(
-			m_hmdView,
-			ClientPSMoveAPI::includePositionData | 
-			ClientPSMoveAPI::includeCalibratedSensorData | 
-			ClientPSMoveAPI::includeRawTrackerData |
-			ClientPSMoveAPI::disableROI),
-		AppStage_HMDModelCalibration::handle_start_hmd_response, this);
+
+	PSMRequestID requestId;
+	PSM_StartHmdDataStreamAsync(
+		HmdID, 
+		PSMStreamFlags_includePositionData |
+		PSMStreamFlags_includeCalibratedSensorData | 
+		PSMStreamFlags_includeRawSensorData |
+		PSMStreamFlags_disableROI, 
+		&requestId);
+	PSM_RegisterCallback(requestId, &AppStage_HMDModelCalibration::handle_start_hmd_response, this);
+
 }
 
 void AppStage_HMDModelCalibration::handle_start_hmd_response(
-	const ClientPSMoveAPI::ResponseMessage *response_message,
+	const PSMResponseMessage *response_message,
 	void *userdata)
 {
 	AppStage_HMDModelCalibration *thisPtr = static_cast<AppStage_HMDModelCalibration *>(userdata);
 
-	const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
+	const PSMResult ResultCode = response_message->result_code;
 
 	switch (ResultCode)
 	{
-	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+	case PSMResult_Success:
 	{
 		thisPtr->request_tracker_list();
 	} break;
 
-	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+	case PSMResult_Error:
+	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 	{
 		thisPtr->setState(AppStage_HMDModelCalibration::failedHmdStartRequest);
 	} break;
@@ -1025,24 +1066,24 @@ void AppStage_HMDModelCalibration::request_tracker_list()
 		setState(eMenuState::pendingTrackerListRequest);
 
 		// Tell the psmove service that we we want a list of trackers connected to this machine
-		ClientPSMoveAPI::register_callback(
-			ClientPSMoveAPI::get_tracker_list(),
-			AppStage_HMDModelCalibration::handle_tracker_list_response, this);
+		PSMRequestID requestId;
+		PSM_GetTrackerListAsync(&requestId);
+		PSM_RegisterCallback(requestId, AppStage_HMDModelCalibration::handle_tracker_list_response, this);
 	}
 }
 
 void AppStage_HMDModelCalibration::handle_tracker_list_response(
-	const ClientPSMoveAPI::ResponseMessage *response_message,
+	const PSMResponseMessage *response_message,
 	void *userdata)
 {
 	AppStage_HMDModelCalibration *thisPtr = static_cast<AppStage_HMDModelCalibration *>(userdata);
 
 	switch (response_message->result_code)
 	{
-	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+	case PSMResult_Success:
 	{
-		assert(response_message->payload_type == ClientPSMoveAPI::_responsePayloadType_TrackerList);
-		const ClientPSMoveAPI::ResponsePayload_TrackerList &tracker_list = response_message->payload.tracker_list;
+		assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_TrackerList);
+		const PSMTrackerList &tracker_list = response_message->payload.tracker_list;
 		
 		if (thisPtr->setup_tracker_pair(tracker_list))
 		{
@@ -1054,8 +1095,9 @@ void AppStage_HMDModelCalibration::handle_tracker_list_response(
 		}
 	} break;
 
-	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+	case PSMResult_Error:
+	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 		{
 			thisPtr->m_failureDetails = "Server Failure";
 			thisPtr->setState(eMenuState::failedTrackerListRequest);
@@ -1063,7 +1105,7 @@ void AppStage_HMDModelCalibration::handle_tracker_list_response(
 	}
 }
 
-bool AppStage_HMDModelCalibration::setup_tracker_pair(const ClientPSMoveAPI::ResponsePayload_TrackerList &tracker_list)
+bool AppStage_HMDModelCalibration::setup_tracker_pair(const PSMTrackerList &tracker_list)
 {
 	bool bSuccess = true;
 
@@ -1082,23 +1124,23 @@ bool AppStage_HMDModelCalibration::setup_tracker_pair(const ClientPSMoveAPI::Res
 
 		for (int tracker_a_index = 0; tracker_a_index < tracker_list.count; ++tracker_a_index)
 		{
-			const ClientTrackerInfo *tracker_a_info = &tracker_list.trackers[tracker_a_index];
+			const PSMClientTrackerInfo *tracker_a_info = &tracker_list.trackers[tracker_a_index];
 
-			PSMoveFrustum tracker_a_frustum;
-			tracker_a_frustum.set_pose(tracker_a_info->tracker_pose);
+			PSMFrustum tracker_a_frustum;
+			PSM_FrustumSetPose(&tracker_a_frustum, &tracker_a_info->tracker_pose);
 
-			glm::vec3 tracker_a_pos = psmove_position_to_glm_vec3(tracker_a_frustum.origin);
-			glm::vec3 tracker_a_forward = psmove_float_vector3_to_glm_vec3(tracker_a_frustum.forward);
+			glm::vec3 tracker_a_pos = psm_vector3f_to_glm_vec3(tracker_a_frustum.origin);
+			glm::vec3 tracker_a_forward = psm_vector3f_to_glm_vec3(tracker_a_frustum.forward);
 
 			for (int tracker_b_index = tracker_a_index+1; tracker_b_index < tracker_list.count; ++tracker_b_index)
 			{
-				const ClientTrackerInfo *tracker_b_info = &tracker_list.trackers[tracker_b_index];
+				const PSMClientTrackerInfo *tracker_b_info = &tracker_list.trackers[tracker_b_index];
 
-				PSMoveFrustum tracker_b_frustum;
-				tracker_b_frustum.set_pose(tracker_b_info->tracker_pose);
+				PSMFrustum tracker_b_frustum;
+				PSM_FrustumSetPose(&tracker_b_frustum, &tracker_b_info->tracker_pose);
 
-				glm::vec3 tracker_b_pos = psmove_position_to_glm_vec3(tracker_b_frustum.origin);
-				glm::vec3 tracker_b_forward = psmove_float_vector3_to_glm_vec3(tracker_b_frustum.forward);
+				glm::vec3 tracker_b_pos = psm_vector3f_to_glm_vec3(tracker_b_frustum.origin);
+				glm::vec3 tracker_b_forward = psm_vector3f_to_glm_vec3(tracker_b_frustum.forward);
 
 				if (glm::dot(tracker_a_forward, tracker_b_forward) >= k_cosine_aligned_camera_angle)
 				{
@@ -1116,12 +1158,12 @@ bool AppStage_HMDModelCalibration::setup_tracker_pair(const ClientPSMoveAPI::Res
 
 		if (best_pair_a_index != -1 && best_pair_b_index != -1)
 		{
-			const ClientTrackerInfo *tracker_a_info = &tracker_list.trackers[best_pair_a_index];
-			const ClientTrackerInfo *tracker_b_info = &tracker_list.trackers[best_pair_b_index];
+			const PSMClientTrackerInfo *tracker_a_info = &tracker_list.trackers[best_pair_a_index];
+			const PSMClientTrackerInfo *tracker_b_info = &tracker_list.trackers[best_pair_b_index];
 
 			// T = Translation from camera A to camera B
-			Eigen::Vector3f a_pos = psmove_position_to_eigen_vector3(tracker_a_info->tracker_pose.Position);
-			Eigen::Vector3f b_pos = psmove_position_to_eigen_vector3(tracker_b_info->tracker_pose.Position);
+			Eigen::Vector3f a_pos = psm_vector3f_to_eigen_vector3(tracker_a_info->tracker_pose.Position);
+			Eigen::Vector3f b_pos = psm_vector3f_to_eigen_vector3(tracker_b_info->tracker_pose.Position);
 			Eigen::Vector3f T = b_pos - a_pos;
 			Eigen::Matrix3f S;
 			S << 0.f, T.z(), -T.y(),
@@ -1129,8 +1171,8 @@ bool AppStage_HMDModelCalibration::setup_tracker_pair(const ClientPSMoveAPI::Res
 				T.y(), -T.x(), 0.f;
 
 			// R = Rotation matrix from camera A to camera B
-			Eigen::Quaternionf a_quat = psmove_quaternion_to_eigen_quaternionf(tracker_a_info->tracker_pose.Orientation);
-			Eigen::Quaternionf b_quat = psmove_quaternion_to_eigen_quaternionf(tracker_b_info->tracker_pose.Orientation);
+			Eigen::Quaternionf a_quat = psm_quatf_to_eigen_quaternionf(tracker_a_info->tracker_pose.Orientation);
+			Eigen::Quaternionf b_quat = psm_quatf_to_eigen_quaternionf(tracker_b_info->tracker_pose.Orientation);
 			Eigen::Quaternionf R_quat = a_quat.conjugate() * b_quat;
 			Eigen::Matrix3f R = R_quat.toRotationMatrix();
 
@@ -1138,16 +1180,23 @@ bool AppStage_HMDModelCalibration::setup_tracker_pair(const ClientPSMoveAPI::Res
 			Eigen::Matrix3f E = R * S;
 
 			// Get the intrinsic matrices for A and B
-			Eigen::Matrix3f Ka= psmove_matrix3x3_to_eigen_matrix3(tracker_a_info->getTrackerIntrinsicMatrix());
-			Eigen::Matrix3f Kb= psmove_matrix3x3_to_eigen_matrix3(tracker_b_info->getTrackerIntrinsicMatrix());
+			PSMMatrix3f intrinsicA;
+			PSMMatrix3f intrinsicB;
+			PSM_GetTrackerIntrinsicMatrix(tracker_a_info->tracker_id, &intrinsicA);
+			PSM_GetTrackerIntrinsicMatrix(tracker_b_info->tracker_id, &intrinsicB);
+			Eigen::Matrix3f Ka= psm_matrix3f_to_eigen_matrix3(intrinsicA);
+			Eigen::Matrix3f Kb= psm_matrix3f_to_eigen_matrix3(intrinsicB);
 
 			// Compute the fundamental matrix from camera A to camera B
 			m_trackerPairState->F_ab = Kb.inverse().transpose() * E * Ka.inverse();
 
 			// Allocate tracker views for A and B
-			m_trackerPairState->trackers.pair.a.trackerView= ClientPSMoveAPI::allocate_tracker_view(*tracker_a_info);
+			PSM_AllocateTrackerListener(tracker_a_info->tracker_id, tracker_a_info);
+			PSM_AllocateTrackerListener(tracker_b_info->tracker_id, tracker_b_info);
+
+			m_trackerPairState->trackers.pair.a.trackerView= PSM_GetTracker(tracker_a_info->tracker_id);
 			m_trackerPairState->trackers.pair.a.textureAsset = nullptr;
-			m_trackerPairState->trackers.pair.b.trackerView = ClientPSMoveAPI::allocate_tracker_view(*tracker_b_info);
+			m_trackerPairState->trackers.pair.b.trackerView = PSM_GetTracker(tracker_b_info->tracker_id);
 			m_trackerPairState->trackers.pair.b.textureAsset = nullptr;
 		}
 		else
@@ -1161,7 +1210,7 @@ bool AppStage_HMDModelCalibration::setup_tracker_pair(const ClientPSMoveAPI::Res
 	{
 		for (int tracker_index = 0; tracker_index < 2; ++tracker_index)
 		{
-			ClientTrackerView *tracker_view = m_trackerPairState->trackers.list[tracker_index].trackerView;
+			PSMTracker *tracker_view = m_trackerPairState->trackers.list[tracker_index].trackerView;
 
 			request_tracker_start_stream(tracker_view);
 		}
@@ -1171,7 +1220,7 @@ bool AppStage_HMDModelCalibration::setup_tracker_pair(const ClientPSMoveAPI::Res
 }
 
 void AppStage_HMDModelCalibration::request_tracker_start_stream(
-	ClientTrackerView *tracker_view)
+	PSMTracker *tracker_view)
 {
 	setState(eMenuState::pendingTrackerStartRequest);
 
@@ -1179,20 +1228,22 @@ void AppStage_HMDModelCalibration::request_tracker_start_stream(
 	++m_trackerPairState->pendingTrackerStartCount;
 
 	// Request data to start streaming to the tracker
-	ClientPSMoveAPI::register_callback(
-		ClientPSMoveAPI::start_tracker_data_stream(tracker_view),
-		AppStage_HMDModelCalibration::handle_tracker_start_stream_response, this);
+	PSMRequestID requestID;
+	PSM_StartTrackerDataStreamAsync(
+		tracker_view->tracker_info.tracker_id, 
+		&requestID);
+	PSM_RegisterCallback(requestID, AppStage_HMDModelCalibration::handle_tracker_start_stream_response, this);
 }
 
 void AppStage_HMDModelCalibration::handle_tracker_start_stream_response(
-	const ClientPSMoveAPI::ResponseMessage *response_message,
+	const PSMResponseMessage *response_message,
 	void *userdata)
 {
 	AppStage_HMDModelCalibration *thisPtr = static_cast<AppStage_HMDModelCalibration *>(userdata);
 
 	switch (response_message->result_code)
 	{
-	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+	case PSMResult_Success:
 	{
 		// Get the tracker ID this request was for
 		const PSMoveProtocol::Request *request = GET_PSMOVEPROTOCOL_REQUEST(response_message->opaque_request_handle);
@@ -1202,34 +1253,39 @@ void AppStage_HMDModelCalibration::handle_tracker_start_stream_response(
 		TrackerState &tracker_B_state = thisPtr->m_trackerPairState->trackers.pair.b;
 
 		// The context holds everything a handler needs to evaluate a response
-		TrackerState &trackerState = (tracker_id == tracker_A_state.trackerView->getTrackerId()) ? tracker_A_state : tracker_B_state;
+		TrackerState &trackerState = (tracker_id == tracker_A_state.trackerView->tracker_info.tracker_id) ? tracker_A_state : tracker_B_state;
 
 		// Open the shared memory that the video stream is being written to
-		if (trackerState.trackerView->openVideoStream())
+		if (PSM_OpenTrackerVideoStream(trackerState.trackerView->tracker_info.tracker_id) == PSMResult_Success)
 		{
 			// Create a texture to render the video frame to
 			trackerState.textureAsset = new TextureAsset();
 			trackerState.textureAsset->init(
-				trackerState.trackerView->getVideoFrameWidth(),
-				trackerState.trackerView->getVideoFrameHeight(),
+				static_cast<unsigned int>(trackerState.trackerView->tracker_info.tracker_screen_dimensions.x),
+				static_cast<unsigned int>(trackerState.trackerView->tracker_info.tracker_screen_dimensions.y),
 				GL_RGB, // texture format
 				GL_BGR, // buffer format
 				nullptr);
-		}
 
-		// See if this was the last tracker we were waiting to get a response from
-		--thisPtr->m_trackerPairState->pendingTrackerStartCount;
-		if (thisPtr->m_trackerPairState->pendingTrackerStartCount <= 0)
+			// See if this was the last tracker we were waiting to get a response from
+			--thisPtr->m_trackerPairState->pendingTrackerStartCount;
+			if (thisPtr->m_trackerPairState->pendingTrackerStartCount <= 0)
+			{
+				thisPtr->handle_all_devices_ready();
+			}
+		}
+        else
+        {
+			thisPtr->setState(eMenuState::failedTrackerStartRequest);
+        }
+	} break;
+
+	case PSMResult_Error:
+	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 		{
-			thisPtr->handle_all_devices_ready();
-		}
-	} break;
-
-	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
-	{
-		thisPtr->setState(eMenuState::failedTrackerStartRequest);
-	} break;
+			thisPtr->setState(eMenuState::failedTrackerStartRequest);
+		} break;
 	}
 }
 
@@ -1251,12 +1307,12 @@ void AppStage_HMDModelCalibration::handle_all_devices_ready()
 }
 
 //-- private methods -----
-static glm::mat4 computeGLMCameraTransformMatrix(const ClientTrackerView *tracker_view)
+static glm::mat4 computeGLMCameraTransformMatrix(const PSMTracker *tracker_view)
 {
 
-	const PSMovePose pose = tracker_view->getTrackerPose();
-	const PSMoveQuaternion &quat = pose.Orientation;
-	const PSMovePosition &pos = pose.Position;
+	const PSMPosef pose = tracker_view->tracker_info.tracker_pose;
+	const PSMQuatf &quat = pose.Orientation;
+	const PSMVector3f &pos = pose.Position;
 
 	const glm::quat glm_quat(quat.w, quat.x, quat.y, quat.z);
 	const glm::vec3 glm_pos(pos.x, pos.y, pos.z);
@@ -1265,7 +1321,7 @@ static glm::mat4 computeGLMCameraTransformMatrix(const ClientTrackerView *tracke
 	return glm_camera_xform;
 }
 
-static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const ClientTrackerView *tracker_view)
+static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const PSMTracker *tracker_view)
 {
 	cv::Matx34f out;
 
@@ -1280,15 +1336,15 @@ static cv::Matx34f computeOpenCVCameraExtrinsicMatrix(const ClientTrackerView *t
 	return out;
 }
 
-static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const ClientTrackerView *tracker_view)
+static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const PSMTracker *tracker_view)
 {
 	cv::Matx33f out;
 
-	const ClientTrackerInfo &tracker_info = tracker_view->getTrackerInfo();
-	float F_PX = tracker_info.tracker_focal_lengths.i;
-	float F_PY = tracker_info.tracker_focal_lengths.j;
-	float PrincipalX = tracker_info.tracker_principal_point.i;
-	float PrincipalY = tracker_info.tracker_principal_point.j;
+	const PSMClientTrackerInfo &tracker_info = tracker_view->tracker_info;
+	float F_PX = tracker_info.tracker_focal_lengths.x;
+	float F_PY = tracker_info.tracker_focal_lengths.y;
+	float PrincipalX = tracker_info.tracker_principal_point.x;
+	float PrincipalY = tracker_info.tracker_principal_point.y;
 
 	out(0, 0) = F_PX; out(0, 1) = 0.f; out(0, 2) = PrincipalX;
 	out(1, 0) = 0.f; out(1, 1) = F_PY; out(1, 2) = PrincipalY;
@@ -1297,7 +1353,7 @@ static cv::Matx33f computeOpenCVCameraIntrinsicMatrix(const ClientTrackerView *t
 	return out;
 }
 
-static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ClientTrackerView *tracker_view)
+static cv::Matx34f computeOpenCVCameraPinholeMatrix(const PSMTracker *tracker_view)
 {
 	cv::Matx34f extrinsic_matrix = computeOpenCVCameraExtrinsicMatrix(tracker_view);
 	cv::Matx33f intrinsic_matrix = computeOpenCVCameraIntrinsicMatrix(tracker_view);
@@ -1307,90 +1363,93 @@ static cv::Matx34f computeOpenCVCameraPinholeMatrix(const ClientTrackerView *tra
 }
 
 static bool triangulateHMDProjections(
-	ClientHMDView *hmd_view, 
+	PSMHeadMountedDisplay *hmd_view, 
 	TrackerPairState *tracker_pair_state,
 	std::vector<Eigen::Vector3f> &out_triangulated_points)
 {
-	const MorpheusRawTrackerData &RawTrackerData = hmd_view->GetRawTrackerData();
-	const ClientTrackerView *TrackerViewA = tracker_pair_state->trackers.pair.a.trackerView;
-	const ClientTrackerView *TrackerViewB = tracker_pair_state->trackers.pair.b.trackerView;
+	const PSMTracker *TrackerViewA = tracker_pair_state->trackers.pair.a.trackerView;
+	const PSMTracker *TrackerViewB = tracker_pair_state->trackers.pair.b.trackerView;
 
-	PSMoveTrackingProjection trackingProjectionA;
-	PSMoveTrackingProjection trackingProjectionB;
+	PSMTrackingProjection trackingProjectionA;
+	PSMTrackingProjection trackingProjectionB;
 
 	out_triangulated_points.clear();
 
 	// Triangulate tracking LEDs that both cameras can see
-	if (hmd_view->GetIsCurrentlyTracking() &&
-		RawTrackerData.GetProjectionOnTrackerId(TrackerViewA->getTrackerId(), trackingProjectionA) &&
-		RawTrackerData.GetProjectionOnTrackerId(TrackerViewB->getTrackerId(), trackingProjectionB))
+	bool bIsTracking= false;
+	if (PSM_GetIsHmdTracking(hmd_view->HmdID, &bIsTracking) == PSMResult_Success)
 	{
-		assert(trackingProjectionA.shape_type == PSMoveTrackingProjection::eShapeType::PointCloud);
-		assert(trackingProjectionB.shape_type == PSMoveTrackingProjection::eShapeType::PointCloud);
-
-		const PSMoveScreenLocation *pointsA = trackingProjectionA.shape.pointcloud.points;
-		const PSMoveScreenLocation *pointsB = trackingProjectionB.shape.pointcloud.points;
-		const int point_countA = trackingProjectionA.shape.pointcloud.point_count;
-		const int point_countB = trackingProjectionB.shape.pointcloud.point_count;
-
-		// See: http://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html
-		cv::Mat projMatA = cv::Mat(computeOpenCVCameraPinholeMatrix(TrackerViewA));
-		cv::Mat projMatB = cv::Mat(computeOpenCVCameraPinholeMatrix(TrackerViewB));
-
-		// Make a set of the uncorrelated points on trackerB
-		std::set<int> pointBIndices;
-		for (int point_indexB = 0; point_indexB < point_countB; ++point_indexB)
+		if (bIsTracking &&
+			PSM_GetHmdProjectionOnTracker(hmd_view->HmdID, TrackerViewA->tracker_info.tracker_id, &trackingProjectionA) &&
+			PSM_GetHmdProjectionOnTracker(hmd_view->HmdID, TrackerViewB->tracker_info.tracker_id, &trackingProjectionB))
 		{
-			pointBIndices.insert(point_indexB);
-		}
+			assert(trackingProjectionA.shape_type == PSMTrackingProjection::PSMShape_PointCloud);
+			assert(trackingProjectionB.shape_type == PSMTrackingProjection::PSMShape_PointCloud);
 
-		// For each point in one tracking projection A, 
-		// try and find the corresponding point in the projection B
-		for (int point_indexA = 0; point_indexA < point_countA; ++point_indexA)
-		{
-			const PSMoveScreenLocation &pointA = pointsA[point_indexA];
-			const cv::Mat cvPointA = cv::Mat(cv::Point2f(pointA.x, pointA.y));
+			const PSMVector2f *pointsA = trackingProjectionA.shape.pointcloud.points;
+			const PSMVector2f *pointsB = trackingProjectionB.shape.pointcloud.points;
+			const int point_countA = trackingProjectionA.shape.pointcloud.point_count;
+			const int point_countB = trackingProjectionB.shape.pointcloud.point_count;
 
-			for (auto it = pointBIndices.begin(); it != pointBIndices.end(); )
+			// See: http://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html
+			cv::Mat projMatA = cv::Mat(computeOpenCVCameraPinholeMatrix(TrackerViewA));
+			cv::Mat projMatB = cv::Mat(computeOpenCVCameraPinholeMatrix(TrackerViewB));
+
+			// Make a set of the uncorrelated points on trackerB
+			std::set<int> pointBIndices;
+			for (int point_indexB = 0; point_indexB < point_countB; ++point_indexB)
 			{
-				const int point_indexB = *it;
-				const PSMoveScreenLocation &pointB = pointsB[point_indexB];
-				cv::Mat cvPointB = cv::Mat(cv::Point2f(pointB.x, pointB.y));
+				pointBIndices.insert(point_indexB);
+			}
 
-				if (tracker_pair_state->do_points_correspond(cvPointA, cvPointB, tracker_pair_state->tolerance))
+			// For each point in one tracking projection A, 
+			// try and find the corresponding point in the projection B
+			for (int point_indexA = 0; point_indexA < point_countA; ++point_indexA)
+			{
+				const PSMVector2f &pointA = pointsA[point_indexA];
+				const cv::Mat cvPointA = cv::Mat(cv::Point2f(pointA.x, pointA.y));
+
+				for (auto it = pointBIndices.begin(); it != pointBIndices.end(); )
 				{
-					// Triangulate the world position from the two cameras
-					cv::Mat point3D(1, 1, CV_32FC4);
-					cv::triangulatePoints(projMatA, projMatB, cvPointA, cvPointB, point3D);
+					const int point_indexB = *it;
+					const PSMVector2f &pointB = pointsB[point_indexB];
+					cv::Mat cvPointB = cv::Mat(cv::Point2f(pointB.x, pointB.y));
 
-					// Get the world space position
-					const float w = point3D.at<float>(3, 0);
-					const Eigen::Vector3f triangulated_point(
-						point3D.at<float>(0, 0) / w,
-						point3D.at<float>(1, 0) / w,
-						point3D.at<float>(2, 0) / w);
+					if (tracker_pair_state->do_points_correspond(cvPointA, cvPointB, tracker_pair_state->tolerance))
+					{
+						// Triangulate the world position from the two cameras
+						cv::Mat point3D(1, 1, CV_32FC4);
+						cv::triangulatePoints(projMatA, projMatB, cvPointA, cvPointB, point3D);
 
-					// Add to the list of world space points we saw this frame
-					out_triangulated_points.push_back(triangulated_point);
+						// Get the world space position
+						const float w = point3D.at<float>(3, 0);
+						const Eigen::Vector3f triangulated_point(
+							point3D.at<float>(0, 0) / w,
+							point3D.at<float>(1, 0) / w,
+							point3D.at<float>(2, 0) / w);
 
-					// Remove the point index from the set of indices to consider 
-					// so that it's not correlated with another point in tracker A
-					it= pointBIndices.erase(it);
-				}
-				else
-				{
-					++it;
+						// Add to the list of world space points we saw this frame
+						out_triangulated_points.push_back(triangulated_point);
+
+						// Remove the point index from the set of indices to consider 
+						// so that it's not correlated with another point in tracker A
+						it= pointBIndices.erase(it);
+					}
+					else
+					{
+						++it;
+					}
 				}
 			}
-		}
+		} 
 	}
 
 	return out_triangulated_points.size() >= 3;
 }
 
-static PSMoveScreenLocation projectWorldPositionOnTracker(
-	const PSMovePosition &worldSpacePosition,
-	const ClientTrackerView *trackerView)
+static PSMVector2f projectWorldPositionOnTracker(
+	const PSMVector3f &worldSpacePosition,
+	const PSMTracker *trackerView)
 {
 	// Assume no distortion
 	// TODO: Probably should get the distortion coefficients out of the tracker
@@ -1405,7 +1464,7 @@ static PSMoveScreenLocation projectWorldPositionOnTracker(
 	cv::Mat tvec(3, 1, cv::DataType<double>::type, double(0));
 
 	// Convert the world space position into a tracker relative location
-	PSMovePosition trackerRelativePosition = trackerView->getTrackerPose().apply_inverse_transform(worldSpacePosition);
+	PSMVector3f trackerRelativePosition = PSM_PosefInverseTransformPoint(&trackerView->tracker_info.tracker_pose, &worldSpacePosition);
 
 	// Only one point to project
 	std::vector<cv::Point3f> cvObjectPoints;
@@ -1422,16 +1481,16 @@ static PSMoveScreenLocation projectWorldPositionOnTracker(
 	std::vector<cv::Point2f> projectedPoints;
 	cv::projectPoints(cvObjectPoints, rvec, tvec, cvCameraMatrix, cvDistCoeffs, projectedPoints);
 
-	PSMoveScreenLocation screenLocation = PSMoveScreenLocation::create(projectedPoints[0].x, projectedPoints[1].y);
+	PSMVector2f screenLocation = {projectedPoints[0].x, projectedPoints[1].y};
 
 	return screenLocation;
 }
 
-static void drawHMD(ClientHMDView *hmdView, const glm::mat4 &transform)
+static void drawHMD(PSMHeadMountedDisplay *hmdView, const glm::mat4 &transform)
 {
-	switch (hmdView->GetHmdViewType())
+	switch (hmdView->HmdType)
 	{
-	case ClientHMDView::Morpheus:
+	case PSMHmd_Morpheus:
 		drawMorpheusModel(transform);
 		break;
 	}

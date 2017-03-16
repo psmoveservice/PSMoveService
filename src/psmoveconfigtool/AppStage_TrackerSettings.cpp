@@ -7,7 +7,7 @@
 #include "AppStage_MainMenu.h"
 #include "App.h"
 #include "Camera.h"
-#include "ClientPSMoveAPI.h"
+#include "PSMoveClient_CAPI.h"
 #include "Renderer.h"
 #include "UIConstants.h"
 #include "PSMoveProtocolInterface.h"
@@ -53,7 +53,7 @@ void AppStage_TrackerSettings::render()
     {
         if (m_selectedTrackerIndex >= 0)
         {
-            const ClientTrackerInfo &trackerInfo = m_trackerInfos[m_selectedTrackerIndex];
+            const PSMClientTrackerInfo &trackerInfo = m_trackerInfos[m_selectedTrackerIndex];
 
             switch (trackerInfo.tracker_type)
             {
@@ -81,6 +81,42 @@ void AppStage_TrackerSettings::render()
     default:
         assert(0 && "unreachable");
     }
+}
+
+const PSMClientTrackerInfo *AppStage_TrackerSettings::getSelectedTrackerInfo() const
+{
+    return
+        (m_selectedTrackerIndex != -1)
+        ? &m_trackerInfos[m_selectedTrackerIndex]
+        : nullptr;
+}
+	
+void AppStage_TrackerSettings::set_selectedTrackerIndex(int index)
+{
+	m_selectedTrackerIndex = 
+		(index != -1 && index < m_trackerInfos.size())
+		? index
+		: m_selectedTrackerIndex;
+}
+
+int AppStage_TrackerSettings::get_tracker_count() const
+{
+	return static_cast<int>(m_trackerInfos.size()); 
+}
+
+int AppStage_TrackerSettings::get_tracker_Index() const
+{
+	return m_selectedTrackerIndex;
+}
+
+int AppStage_TrackerSettings::get_controller_count() const
+{
+	return static_cast<int>(m_controllerInfos.size());
+}
+
+const AppStage_TrackerSettings::ControllerInfo * AppStage_TrackerSettings::get_controller_info(int index) const
+{
+	return &m_controllerInfos[index];
 }
 
 const AppStage_TrackerSettings::ControllerInfo *AppStage_TrackerSettings::get_selected_controller() {
@@ -142,7 +178,7 @@ void AppStage_TrackerSettings::renderUI()
 
         if (m_trackerInfos.size() > 0)
         {
-            const ClientTrackerInfo &trackerInfo = m_trackerInfos[m_selectedTrackerIndex];
+            const PSMClientTrackerInfo &trackerInfo = m_trackerInfos[m_selectedTrackerIndex];
 
             if (m_selectedTrackerIndex > 0)
             {
@@ -178,7 +214,7 @@ void AppStage_TrackerSettings::renderUI()
 
             switch (trackerInfo.tracker_type)
             {
-            case eTrackerType::PS3Eye:
+            case PSMTracker_PS3Eye:
                 {
                     ImGui::BulletText("Controller Type: PS3 Eye");
                 } break;
@@ -188,19 +224,19 @@ void AppStage_TrackerSettings::renderUI()
 
             switch (trackerInfo.tracker_driver)
             {
-            case eTrackerDriver::LIBUSB:
+            case PSMDriver_LIBUSB:
                 {
                     ImGui::BulletText("Controller Type: LIBUSB");
                 } break;
-            case eTrackerDriver::CL_EYE:
+            case PSMDriver_CL_EYE:
                 {
                     ImGui::BulletText("Controller Type: CLEye");
                 } break;
-            case eTrackerDriver::CL_EYE_MULTICAM:
+            case PSMDriver_CL_EYE_MULTICAM:
                 {
                     ImGui::BulletText("Controller Type: CLEye(Multicam SDK)");
                 } break;
-            case eTrackerDriver::GENERIC_WEBCAM:
+            case PSMDriver_GENERIC_WEBCAM:
                 {
                     ImGui::BulletText("Controller Type: Generic Webcam");
                 } break;
@@ -256,9 +292,9 @@ void AppStage_TrackerSettings::renderUI()
 					const AppStage_TrackerSettings::ControllerInfo &controllerInfo = 
 						m_controllerInfos[m_selectedControllerIndex];
 
-					if (controllerInfo.ControllerType == ClientControllerView::PSMove)
+					if (controllerInfo.ControllerType == PSMController_Move)
 					{ 
-						if (0 <= controllerInfo.TrackingColorType && controllerInfo.TrackingColorType < PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES) {
+						if (0 <= controllerInfo.TrackingColorType && controllerInfo.TrackingColorType < PSMTrackingColorType_MaxColorTypes) {
 							const char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
 
 							ImGui::Text("Controller: %d (PSMove) - %s", 
@@ -340,9 +376,9 @@ void AppStage_TrackerSettings::renderUI()
 				{
 					const AppStage_TrackerSettings::HMDInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
 
-					if (hmdInfo.HmdType == ClientHMDView::Morpheus)
+					if (hmdInfo.HmdType == PSMHmd_Morpheus)
 					{
-						if (0 <= hmdInfo.TrackingColorType && hmdInfo.TrackingColorType < PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES) 
+						if (0 <= hmdInfo.TrackingColorType && hmdInfo.TrackingColorType < PSMTrackingColorType_MaxColorTypes) 
 						{
 							const char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
 
@@ -438,14 +474,14 @@ void AppStage_TrackerSettings::renderUI()
 }
 
 bool AppStage_TrackerSettings::onClientAPIEvent(
-    ClientPSMoveAPI::eEventType event,
-    ClientPSMoveAPI::t_event_data_handle opaque_event_handle)
+    PSMEventMessage::eEventType event, 
+    PSMEventDataHandle opaque_event_handle)
 {
     bool bHandled = false;
 
     switch (event)
     {
-    case ClientPSMoveAPI::controllerListUpdated:
+    case  PSMEventMessage::PSMEvent_controllerListUpdated:
         {
             bHandled = true;
             request_tracker_list();
@@ -462,24 +498,24 @@ void AppStage_TrackerSettings::request_tracker_list()
         m_menuState = AppStage_TrackerSettings::pendingTrackerListRequest;
 
         // Tell the psmove service that we we want a list of trackers connected to this machine
-        ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::get_tracker_list(), 
-            AppStage_TrackerSettings::handle_tracker_list_response, this);
+		PSMRequestID requestId;
+		PSM_GetTrackerListAsync(&requestId);
+		PSM_RegisterCallback(requestId, AppStage_TrackerSettings::handle_tracker_list_response, this);
     }
 }
 
 void AppStage_TrackerSettings::handle_tracker_list_response(
-    const ClientPSMoveAPI::ResponseMessage *response_message,
+    const PSMResponseMessage *response_message,
     void *userdata)
 {
     AppStage_TrackerSettings *thisPtr = static_cast<AppStage_TrackerSettings *>(userdata);
 
     switch (response_message->result_code)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
-            assert(response_message->payload_type == ClientPSMoveAPI::_responsePayloadType_TrackerList);
-            const ClientPSMoveAPI::ResponsePayload_TrackerList &tracker_list= response_message->payload.tracker_list;
+            assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_TrackerList);
+            const PSMTrackerList &tracker_list= response_message->payload.tracker_list;
 			int oldSelectedTrackerIndex= thisPtr->m_selectedTrackerIndex;
 
 			thisPtr->m_selectedTrackerIndex = -1;
@@ -487,7 +523,7 @@ void AppStage_TrackerSettings::handle_tracker_list_response(
 
             for (int tracker_index = 0; tracker_index < tracker_list.count; ++tracker_index)
             {
-                const ClientTrackerInfo &TrackerInfo = tracker_list.trackers[tracker_index];
+                const PSMClientTrackerInfo &TrackerInfo = tracker_list.trackers[tracker_index];
 
                 thisPtr->m_trackerInfos.push_back(TrackerInfo);
             }
@@ -509,8 +545,9 @@ void AppStage_TrackerSettings::handle_tracker_list_response(
             thisPtr->request_controller_list();
         } break;
 
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->m_menuState = AppStage_TrackerSettings::failedTrackerListRequest;
         } break;
@@ -530,24 +567,24 @@ void AppStage_TrackerSettings::request_controller_list()
         // Don't need the usb controllers
         request->mutable_request_get_controller_list()->set_include_usb_controllers(false);
 
-        ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::send_opaque_request(&request), 
-            AppStage_TrackerSettings::handle_controller_list_response, this);
+		PSMRequestID request_id;
+		PSM_SendOpaqueRequest(&request, &request_id);
+		PSM_RegisterCallback(request_id, AppStage_TrackerSettings::handle_controller_list_response, this);
     }
 }
 
 void AppStage_TrackerSettings::handle_controller_list_response(
-    const ClientPSMoveAPI::ResponseMessage *response_message,
+    const PSMResponseMessage *response_message,
     void *userdata)
 {
     AppStage_TrackerSettings *thisPtr= static_cast<AppStage_TrackerSettings *>(userdata);
 
-    const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
-    const ClientPSMoveAPI::t_response_handle response_handle = response_message->opaque_response_handle;
+    const PSMResult ResultCode = response_message->result_code;
+    const PSMResponseHandle response_handle = response_message->opaque_response_handle;
 
     switch(ResultCode)
     {
-        case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+        case PSMResult_Success:
         {
             const PSMoveProtocol::Response *response= GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
 			int oldSelectedControllerIndex= thisPtr->m_selectedControllerIndex;
@@ -561,19 +598,19 @@ void AppStage_TrackerSettings::handle_controller_list_response(
                 AppStage_TrackerSettings::ControllerInfo ControllerInfo;
 
                 ControllerInfo.ControllerID= ControllerResponse.controller_id();
-				ControllerInfo.TrackingColorType = (PSMoveTrackingColorType)ControllerResponse.tracking_color_type();
+				ControllerInfo.TrackingColorType = (PSMTrackingColorType)ControllerResponse.tracking_color_type();
 
                 switch(ControllerResponse.controller_type())
                 {
                 case PSMoveProtocol::PSMOVE:
-                    ControllerInfo.ControllerType = ClientControllerView::eControllerType::PSMove;
+                    ControllerInfo.ControllerType = PSMController_Move;
 					thisPtr->m_controllerInfos.push_back(ControllerInfo);
                     break;
                 case PSMoveProtocol::PSNAVI:
-                    ControllerInfo.ControllerType = ClientControllerView::eControllerType::PSNavi;
+                    ControllerInfo.ControllerType = PSMController_Navi;
                     break;
                 case PSMoveProtocol::PSDUALSHOCK4:
-                    ControllerInfo.ControllerType = ClientControllerView::eControllerType::PSDualShock4;
+                    ControllerInfo.ControllerType = PSMController_DualShock4;
 					thisPtr->m_controllerInfos.push_back(ControllerInfo);
                     break;
                 default:
@@ -598,8 +635,9 @@ void AppStage_TrackerSettings::handle_controller_list_response(
 			thisPtr->request_hmd_list();
         } break;
 
-        case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-        case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+        case PSMResult_Error:
+        case PSMResult_Canceled:
+		case PSMResult_Timeout:
         { 
             thisPtr->m_menuState= AppStage_TrackerSettings::failedControllerListRequest;
         } break;
@@ -616,24 +654,24 @@ void AppStage_TrackerSettings::request_hmd_list()
 		RequestPtr request(new PSMoveProtocol::Request());
 		request->set_type(PSMoveProtocol::Request_RequestType_GET_HMD_LIST);
 
-		ClientPSMoveAPI::register_callback(
-			ClientPSMoveAPI::send_opaque_request(&request),
-			AppStage_TrackerSettings::handle_hmd_list_response, this);
+		PSMRequestID request_id;
+		PSM_SendOpaqueRequest(&request, &request_id);
+		PSM_RegisterCallback(request_id, AppStage_TrackerSettings::handle_hmd_list_response, this);
 	}
 }
 
 void AppStage_TrackerSettings::handle_hmd_list_response(
-	const ClientPSMoveAPI::ResponseMessage *response_message,
+	const PSMResponseMessage *response_message,
 	void *userdata)
 {
 	AppStage_TrackerSettings *thisPtr = static_cast<AppStage_TrackerSettings *>(userdata);
 
-	const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
-	const ClientPSMoveAPI::t_response_handle response_handle = response_message->opaque_response_handle;
+	const PSMResult ResultCode = response_message->result_code;
+	const PSMResponseHandle response_handle = response_message->opaque_response_handle;
 
 	switch (ResultCode)
 	{
-	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+	case PSMResult_Success:
 	{
 		const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
 		int oldSelectedHmdIndex = thisPtr->m_selectedHmdIndex;
@@ -647,12 +685,12 @@ void AppStage_TrackerSettings::handle_hmd_list_response(
 			AppStage_TrackerSettings::HMDInfo HmdInfo;
 
 			HmdInfo.HmdID = HmdResponse.hmd_id();
-			HmdInfo.TrackingColorType = (PSMoveTrackingColorType)HmdResponse.tracking_color_type();
+			HmdInfo.TrackingColorType = (PSMTrackingColorType)HmdResponse.tracking_color_type();
 
 			switch (HmdResponse.hmd_type())
 			{
 			case PSMoveProtocol::Morpheus:
-				HmdInfo.HmdType = ClientHMDView::eHMDViewType::Morpheus;
+				HmdInfo.HmdType = PSMHmd_Morpheus;
 				thisPtr->m_hmdInfos.push_back(HmdInfo);
 				break;
 			default:
@@ -676,8 +714,9 @@ void AppStage_TrackerSettings::handle_hmd_list_response(
 		thisPtr->m_menuState = AppStage_TrackerSettings::idle;
 	} break;
 
-	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+	case PSMResult_Error:
+	case PSMResult_Canceled:
+	case PSMResult_Timeout:
 	{
 		thisPtr->m_menuState = AppStage_TrackerSettings::failedControllerListRequest;
 	} break;
@@ -694,13 +733,13 @@ void AppStage_TrackerSettings::request_search_for_new_trackers()
     m_selectedTrackerIndex = -1;
     m_trackerInfos.clear();
 
-    ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::send_opaque_request(&request),
-        AppStage_TrackerSettings::handle_search_for_new_trackers_response, this);
+	PSMRequestID request_id;
+	PSM_SendOpaqueRequest(&request, &request_id);
+	PSM_RegisterCallback(request_id, AppStage_TrackerSettings::handle_search_for_new_trackers_response, this);
 }
 
 void AppStage_TrackerSettings::handle_search_for_new_trackers_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_TrackerSettings *thisPtr = static_cast<AppStage_TrackerSettings *>(userdata);

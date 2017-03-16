@@ -3,8 +3,8 @@
 
 //-- includes -----
 #include "AppStage.h"
-#include "ClientGeometry.h"
-#include "ClientPSMoveAPI.h"
+#include "ClientGeometry_CAPI.h"
+#include "PSMoveClient_CAPI.h"
 
 #include <deque>
 #include <chrono>
@@ -36,7 +36,7 @@ public:
 
 protected:
     static void handle_acquire_controller(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
     void request_exit_to_app_stage(const char *app_stage_name);
 
@@ -63,11 +63,11 @@ private:
 
     bool m_bBypassCalibration;
 
-    class ClientControllerView *m_controllerView;
+    PSMController *m_controllerView;
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;
 
-    PSMoveFloatVector3 m_lastCalibratedAccelerometer;
+    PSMVector3f m_lastCalibratedAccelerometer;
 
     AccelerometerStatistics *m_noiseSamples;
 };

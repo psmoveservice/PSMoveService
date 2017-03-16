@@ -33,7 +33,7 @@ AppStage_PairController::AppStage_PairController(App *app)
     , m_pair_steps_completed(0)
     , m_pair_steps_total(0)
 	, m_controllerID(-1)
-	, m_controllerType(ClientControllerView::eControllerType::None)
+	, m_controllerType(PSMControllerType::PSMController_None)
 { }
 
 void AppStage_PairController::enter()
@@ -113,7 +113,7 @@ void AppStage_PairController::renderUI()
                 std::stringstream progress_label;
                 progress_label << "Step " << m_pair_steps_completed << "/" << m_pair_steps_total;
 
-				if (m_controllerType == ClientControllerView::PSDualShock4)
+				if (m_controllerType == PSMController_DualShock4)
 				{
 					ImGui::TextWrapped(
 						"Unplug the DualShock4 form USB.\n" \
@@ -202,14 +202,14 @@ void AppStage_PairController::renderUI()
 }
 
 bool AppStage_PairController::onClientAPIEvent(
-    ClientPSMoveAPI::eEventType event,
-    ClientPSMoveAPI::t_event_data_handle opaque_event_handle)
+    PSMEventMessage::eEventType event, 
+    PSMEventDataHandle opaque_event_handle)
 {
     bool bHandled= false;
 
     switch(event)
     {
-    case ClientPSMoveAPI::opaqueServiceEvent:
+    case PSMEventMessage::PSMEvent_opaqueServiceEvent:
         {
             const PSMoveProtocol::Response *event= GET_PSMOVEPROTOCOL_EVENT(opaque_event_handle);
 
@@ -239,7 +239,7 @@ bool AppStage_PairController::onClientAPIEvent(
 
 void AppStage_PairController::request_controller_unpair(
     int controllerID,
-	ClientControllerView::eControllerType controllerType)
+	PSMControllerType controllerType)
 {
     if (m_menuState != AppStage_PairController::pendingControllerUnpairRequest && 
         m_menuState != AppStage_PairController::pendingControllerPairRequest)
@@ -255,27 +255,28 @@ void AppStage_PairController::request_controller_unpair(
         request->set_type(PSMoveProtocol::Request_RequestType_UNPAIR_CONTROLLER);
         request->mutable_unpair_controller()->set_controller_id(controllerID);
 
-        ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::send_opaque_request(&request), 
-            AppStage_PairController::handle_controller_unpair_start_response, this);
+		PSMRequestID request_id;
+		PSM_SendOpaqueRequest(&request, &request_id);
+		PSM_RegisterCallback(request_id, AppStage_PairController::handle_controller_unpair_start_response, this);
     }
 }
 
 void AppStage_PairController::handle_controller_unpair_start_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_PairController *thisPtr= static_cast<AppStage_PairController *>(userdata);
 
     switch(response->result_code)
     {
-        case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+        case PSMResult_Success:
         {
             thisPtr->m_menuState= AppStage_PairController::pendingControllerUnpairRequest;
         } break;
 
-        case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-        case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+        case PSMResult_Error:
+        case PSMResult_Canceled:
+		case PSMResult_Timeout:
         { 
             thisPtr->m_menuState= AppStage_PairController::failedControllerUnpairRequest;
             thisPtr->m_pendingBluetoothOpControllerIndex= -1;
@@ -307,7 +308,7 @@ void AppStage_PairController::handle_controller_unpair_end_event(
 
 void AppStage_PairController::request_controller_pair(
     int controllerID,
-	ClientControllerView::eControllerType controllerType)
+	PSMControllerType controllerType)
 {
     if (m_menuState != AppStage_PairController::pendingControllerUnpairRequest && 
         m_menuState != AppStage_PairController::pendingControllerPairRequest)
@@ -325,27 +326,28 @@ void AppStage_PairController::request_controller_pair(
         request->set_type(PSMoveProtocol::Request_RequestType_PAIR_CONTROLLER);
         request->mutable_pair_controller()->set_controller_id(controllerID);
 
-        ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::send_opaque_request(&request), 
-            AppStage_PairController::handle_controller_pair_start_response, this);
+		PSMRequestID request_id;
+		PSM_SendOpaqueRequest(&request, &request_id);
+		PSM_RegisterCallback(request_id, AppStage_PairController::handle_controller_pair_start_response, this);
     }
 }
 
 void AppStage_PairController::handle_controller_pair_start_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_PairController *thisPtr= static_cast<AppStage_PairController *>(userdata);
 
     switch(response->result_code)
     {
-        case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+        case PSMResult_Success:
         {
             thisPtr->m_menuState= AppStage_PairController::pendingControllerPairRequest;
         } break;
 
-        case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-        case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+        case PSMResult_Error:
+        case PSMResult_Canceled:
+		case PSMResult_Timeout:
         { 
             thisPtr->m_menuState= AppStage_PairController::failedControllerPairRequest;
             thisPtr->m_pendingBluetoothOpControllerIndex= -1;
@@ -403,14 +405,14 @@ void AppStage_PairController::request_cancel_bluetooth_operation(
         request->set_type(PSMoveProtocol::Request_RequestType_CANCEL_BLUETOOTH_REQUEST);
         request->mutable_cancel_bluetooth_request()->set_controller_id(controllerID);
 
-        ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::send_opaque_request(&request), 
-            AppStage_PairController::handle_cancel_bluetooth_operation_response, this);
+		PSMRequestID request_id;
+		PSM_SendOpaqueRequest(&request, &request_id);
+		PSM_RegisterCallback(request_id, AppStage_PairController::handle_cancel_bluetooth_operation_response, this);
     }
 }
 
 void AppStage_PairController::handle_cancel_bluetooth_operation_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_PairController *thisPtr= static_cast<AppStage_PairController *>(userdata);
@@ -422,14 +424,15 @@ void AppStage_PairController::handle_cancel_bluetooth_operation_response(
 
         switch(response->result_code)
         {
-            case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
-            case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+            case PSMResult_Success:
+            case PSMResult_Canceled:
+			case PSMResult_Timeout:
             {
                 // Refresh the list of controllers now that we have confirmation the controller is unpaired
                 thisPtr->m_app->setAppStage(AppStage_ControllerSettings::APP_STAGE_NAME);
             } break;
 
-            case ClientPSMoveAPI::_clientPSMoveResultCode_error:
+            case PSMResult_Error:
             { 
                 thisPtr->m_menuState= AppStage_PairController::failedCancelBluetoothRequest;
             } break;

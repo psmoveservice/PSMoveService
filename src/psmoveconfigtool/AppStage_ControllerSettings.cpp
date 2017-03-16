@@ -98,8 +98,8 @@ void AppStage_ControllerSettings::render()
 
                 switch(controllerInfo.ControllerType)
                 {
-                    case ClientControllerView::eControllerType::PSMove:
-                    case ClientControllerView::eControllerType::PSDualShock4:
+                    case PSMController_Move:
+                    case PSMController_DualShock4:
                         {
                             const ControllerInfo &controllerInfo = m_usableControllerInfos[m_selectedControllerIndex];
 
@@ -108,29 +108,29 @@ void AppStage_ControllerSettings::render()
 
                             switch (controllerInfo.TrackingColorType)
                             {
-                            case PSMoveTrackingColorType::Magenta:
+                            case PSMTrackingColorType_Magenta:
                                 bulb_color = glm::vec3(1.f, 0.f, 1.f);
                                 break;
-                            case PSMoveTrackingColorType::Cyan:
+                            case PSMTrackingColorType_Cyan:
                                 bulb_color = glm::vec3(0.f, 1.f, 1.f);
                                 break;
-                            case PSMoveTrackingColorType::Yellow:
+                            case PSMTrackingColorType_Yellow:
                                 bulb_color = glm::vec3(1.f, 1.f, 0.f);
                                 break;
-                            case PSMoveTrackingColorType::Red:
+                            case PSMTrackingColorType_Red:
                                 bulb_color = glm::vec3(1.f, 0.f, 0.f);
                                 break;
-                            case PSMoveTrackingColorType::Green:
+                            case PSMTrackingColorType_Green:
                                 bulb_color = glm::vec3(0.f, 1.f, 0.f);
                                 break;
-                            case PSMoveTrackingColorType::Blue:
+                            case PSMTrackingColorType_Blue:
                                 bulb_color = glm::vec3(0.f, 0.f, 1.f);
                                 break;
                             default:
                                 break;
                             }
 
-                            if (controllerInfo.ControllerType == ClientControllerView::PSMove)
+                            if (controllerInfo.ControllerType == PSMController_Move)
                             {
                                 drawPSMoveModel(scale2RotateX90, bulb_color);
                             }
@@ -139,7 +139,7 @@ void AppStage_ControllerSettings::render()
                                 drawPSDualShock4Model(scale2RotateX90, bulb_color);
                             }
                         } break;
-                    case ClientControllerView::eControllerType::PSNavi:
+                    case PSMController_Navi:
                         {
                             drawPSNaviModel(scale2RotateX90);
                         } break;
@@ -211,13 +211,13 @@ void AppStage_ControllerSettings::renderUI()
                 }
 
 				// Combo box selection for controller tracking color
-				if (controllerInfo.ControllerType != ClientControllerView::PSNavi)
+				if (controllerInfo.ControllerType != PSMController_Navi)
 				{
 					int newTrackingColorType = controllerInfo.TrackingColorType;
 
 					if (ImGui::Combo("Tracking Color", &newTrackingColorType, "Magenta\0Cyan\0Yellow\0Red\0Green\0Blue\0\0"))
 					{
-						controllerInfo.TrackingColorType = static_cast<PSMoveTrackingColorType>(newTrackingColorType);
+						controllerInfo.TrackingColorType = static_cast<PSMTrackingColorType>(newTrackingColorType);
 
 						request_set_controller_tracking_color_id(controllerInfo.ControllerID, controllerInfo.TrackingColorType);
 
@@ -230,17 +230,17 @@ void AppStage_ControllerSettings::renderUI()
 
                 switch(controllerInfo.ControllerType)
                 {
-                    case ClientControllerView::eControllerType::PSMove:
+                    case PSMController_Move:
                         {
 							//###HipsterSloth $TODO - The HID report for fetching the firmware revision doesn't appear to work
                             //ImGui::BulletText("Controller Type: PSMove (v%d.%d)", controllerInfo.FirmwareVersion, controllerInfo.FirmwareRevision);
 							ImGui::BulletText("Controller Type: PSMove");
                         } break;
-                    case ClientControllerView::eControllerType::PSNavi:
+                    case PSMController_Navi:
                         {
                             ImGui::BulletText("Controller Type: PSNavi");
                         } break;
-                    case ClientControllerView::eControllerType::PSDualShock4:
+                    case PSMController_DualShock4:
                         {
                             ImGui::BulletText("Controller Type: PSDualShock4");
                         } break;
@@ -251,7 +251,7 @@ void AppStage_ControllerSettings::renderUI()
                 ImGui::BulletText("Device Serial: %s", controllerInfo.DeviceSerial.c_str());
                 ImGui::BulletText("Assigned Host Serial: %s", controllerInfo.AssignedHostSerial.c_str());
 
-                if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSMove)
+                if (controllerInfo.ControllerType == PSMController_Move)
                 {
 					if (controllerInfo.HasMagnetometer)
 					{
@@ -285,7 +285,7 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
-                if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
+                if (controllerInfo.ControllerType == PSMController_DualShock4)
                 {
 
 					if (ImGui::Button("Calibrate Optical Noise"))
@@ -301,8 +301,8 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
-                if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSMove || 
-                    controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
+                if (controllerInfo.ControllerType == PSMController_Move || 
+                    controllerInfo.ControllerType == PSMController_DualShock4)
                 {
                     if (ImGui::Button("Test Accelerometer"))
                     {
@@ -316,7 +316,7 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
-				if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSMove)
+				if (controllerInfo.ControllerType == PSMController_Move)
 				{		
 					ImGui::PushItemWidth(195);
 					if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_position_filter_names, UI_ARRAYSIZE(k_position_filter_names)))
@@ -344,7 +344,7 @@ void AppStage_ControllerSettings::renderUI()
 					}
 					ImGui::PopItemWidth();
 				}				
-				else if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSDualShock4)
+				else if (controllerInfo.ControllerType == PSMController_DualShock4)
 				{
 					ImGui::PushItemWidth(195);
 					if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_position_filter_names, UI_ARRAYSIZE(k_position_filter_names)))
@@ -381,7 +381,7 @@ void AppStage_ControllerSettings::renderUI()
 					ImGui::PopItemWidth();
 				}
 
-				if (controllerInfo.ControllerType == ClientControllerView::eControllerType::PSNavi && 
+				if (controllerInfo.ControllerType == PSMController_Navi && 
 					controllerInfo.PotentialParentControllerSerials.size() > 0)
 				{
 					ImGui::PushItemWidth(195);					
@@ -484,14 +484,14 @@ void AppStage_ControllerSettings::renderUI()
 }
 
 bool AppStage_ControllerSettings::onClientAPIEvent(
-    ClientPSMoveAPI::eEventType event, 
-    ClientPSMoveAPI::t_event_data_handle opaque_event_handle)
+    PSMEventMessage::eEventType event, 
+    PSMEventDataHandle opaque_event_handle)
 {
     bool bHandled= false;
 
     switch(event)
     {
-    case ClientPSMoveAPI::controllerListUpdated:
+    case PSMEventMessage::PSMEvent_controllerListUpdated:
         {
             bHandled= true;
             request_controller_list();
@@ -514,9 +514,9 @@ void AppStage_ControllerSettings::request_controller_list()
         // Do get controllers connected bia USB in this menu since we need the info for pairing/unpairing
         request->mutable_request_get_controller_list()->set_include_usb_controllers(true);
 
-        ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::send_opaque_request(&request), 
-            AppStage_ControllerSettings::handle_controller_list_response, this);
+		PSMRequestID request_id;
+		PSM_SendOpaqueRequest(&request, &request_id);
+		PSM_RegisterCallback(request_id, AppStage_ControllerSettings::handle_controller_list_response, this);
     }
 }
 
@@ -530,7 +530,7 @@ void AppStage_ControllerSettings::request_set_orientation_filter(
 	request->mutable_request_set_orientation_filter()->set_controller_id(controller_id);
 	request->mutable_request_set_orientation_filter()->set_orientation_filter(filter_name);
 
-	ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::request_set_position_filter(
@@ -543,8 +543,7 @@ void AppStage_ControllerSettings::request_set_position_filter(
 	request->mutable_request_set_position_filter()->set_controller_id(controller_id);
 	request->mutable_request_set_position_filter()->set_position_filter(filter_name);
 
-	ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
-
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::request_set_gyroscope_gain_setting(
@@ -562,7 +561,7 @@ void AppStage_ControllerSettings::request_set_gyroscope_gain_setting(
 	calibration->set_variance(-1.f); // keep existing variance
 	calibration->set_gyro_gain_setting(gain_setting);
 
-	ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::request_set_controller_prediction(
@@ -578,21 +577,21 @@ void AppStage_ControllerSettings::request_set_controller_prediction(
 	calibration->set_controller_id(controller_id);
 	calibration->set_prediction_time(prediction_time); // keep existing drift
 
-	ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::handle_controller_list_response(
-    const ClientPSMoveAPI::ResponseMessage *response_message,
+    const PSMResponseMessage *response_message,
     void *userdata)
 {
     AppStage_ControllerSettings *thisPtr= static_cast<AppStage_ControllerSettings *>(userdata);
 
-    const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
-    const ClientPSMoveAPI::t_response_handle response_handle = response_message->opaque_response_handle;
+    const PSMResult ResultCode = response_message->result_code;
+    const PSMResponseHandle response_handle = response_message->opaque_response_handle;
 
     switch(ResultCode)
     {
-        case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+        case PSMResult_Success:
         {
             const PSMoveProtocol::Response *response= GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
 			int oldSelectedControllerIndex= thisPtr->m_selectedControllerIndex;
@@ -613,20 +612,20 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 switch(ControllerResponse.controller_type())
                 {
                 case PSMoveProtocol::PSMOVE:
-                    ControllerInfo.ControllerType = ClientControllerView::eControllerType::PSMove;
+                    ControllerInfo.ControllerType = PSMController_Move;
                     break;
                 case PSMoveProtocol::PSNAVI:
-                    ControllerInfo.ControllerType = ClientControllerView::eControllerType::PSNavi;
+                    ControllerInfo.ControllerType = PSMController_Navi;
                     break;
                 case PSMoveProtocol::PSDUALSHOCK4:
-                    ControllerInfo.ControllerType = ClientControllerView::eControllerType::PSDualShock4;
+                    ControllerInfo.ControllerType = PSMController_DualShock4;
                     break;
                 default:
                     assert(0 && "unreachable");
                 }
 
                 ControllerInfo.TrackingColorType = 
-                    static_cast<PSMoveTrackingColorType>(ControllerResponse.tracking_color_type());
+                    static_cast<PSMTrackingColorType>(ControllerResponse.tracking_color_type());
                 ControllerInfo.DevicePath= ControllerResponse.device_path();
                 ControllerInfo.DeviceSerial= ControllerResponse.device_serial();
                 ControllerInfo.AssignedHostSerial= ControllerResponse.assigned_host_serial();
@@ -644,7 +643,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 				ControllerInfo.GyroGainSetting = ControllerResponse.gyro_gain_setting();
 				ControllerInfo.PredictionTime = ControllerResponse.prediction_time();
 
-				if (ControllerInfo.ControllerType == ClientControllerView::PSMove)
+				if (ControllerInfo.ControllerType == PSMController_Move)
 				{
 					ControllerInfo.OrientationFilterIndex =
 						find_string_entry(
@@ -657,7 +656,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 						ControllerInfo.OrientationFilterIndex = 0;
 					}
 				}
-				else if (ControllerInfo.ControllerType == ClientControllerView::PSDualShock4)
+				else if (ControllerInfo.ControllerType == PSMController_DualShock4)
 				{
 					ControllerInfo.OrientationFilterIndex =
 						find_string_entry(
@@ -676,8 +675,8 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 					ControllerInfo.OrientationFilterIndex = -1;
 				}
 
-				if (ControllerInfo.ControllerType == ClientControllerView::PSMove ||
-					ControllerInfo.ControllerType == ClientControllerView::PSDualShock4)
+				if (ControllerInfo.ControllerType == PSMController_Move ||
+					ControllerInfo.ControllerType == PSMController_DualShock4)
 				{
 					ControllerInfo.PositionFilterIndex =
 						find_string_entry(
@@ -696,7 +695,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 					ControllerInfo.PositionFilterIndex = -1;
 				}
 
-				if (ControllerInfo.ControllerType == ClientControllerView::PSDualShock4)
+				if (ControllerInfo.ControllerType == PSMController_DualShock4)
 				{
 					ControllerInfo.GyroGainIndex =
 						find_string_entry(
@@ -732,12 +731,12 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 			// and assign the index current parent controller serial
 			for (ControllerInfo &navi_info : thisPtr->m_usableControllerInfos)
 			{
-				if (navi_info.ControllerType != ClientControllerView::PSNavi)
+				if (navi_info.ControllerType != PSMController_Navi)
 					continue;
 
 				for (ControllerInfo &psmove_info : thisPtr->m_usableControllerInfos)
 				{
-					if (psmove_info.ControllerType != ClientControllerView::PSMove)
+					if (psmove_info.ControllerType != PSMController_Move)
 						continue;
 
 					if (navi_info.AssignedParentControllerSerial.length() > 0 &&
@@ -766,8 +765,9 @@ void AppStage_ControllerSettings::handle_controller_list_response(
             thisPtr->m_menuState= AppStage_ControllerSettings::idle;
         } break;
 
-        case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-        case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+        case PSMResult_Error:
+        case PSMResult_Canceled:
+		case PSMResult_Timeout:
         { 
             thisPtr->m_menuState= AppStage_ControllerSettings::failedControllerListRequest;
         } break;
@@ -792,7 +792,7 @@ int AppStage_ControllerSettings::find_controller_id_by_serial(std::string contro
 
 void AppStage_ControllerSettings::request_set_controller_tracking_color_id(
 	int ControllerID,
-	PSMoveTrackingColorType tracking_color_type)
+	PSMTrackingColorType tracking_color_type)
 {
 	RequestPtr request(new PSMoveProtocol::Request());
 	request->set_type(PSMoveProtocol::Request_RequestType_SET_LED_TRACKING_COLOR);
@@ -800,7 +800,7 @@ void AppStage_ControllerSettings::request_set_controller_tracking_color_id(
 	request->mutable_set_led_tracking_color_request()->set_color_type(
 		static_cast<PSMoveProtocol::TrackingColorType>(tracking_color_type));
 
-	ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::request_set_parent_controller_id(
@@ -814,6 +814,6 @@ void AppStage_ControllerSettings::request_set_parent_controller_id(
 		request->mutable_request_set_attached_controller()->set_child_controller_id(ControllerID);
 		request->mutable_request_set_attached_controller()->set_parent_controller_id(ParentControllerID);
 
-		ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+		PSM_SendOpaqueRequest(&request, nullptr);
 	}
 }

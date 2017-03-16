@@ -2,6 +2,15 @@ set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(PSMOVECONFIGTOOL_INCL_DIRS)
 set(PSMOVECONFIGTOOL_REQ_LIBS)
 
+# Boost
+find_package(Boost 1.61.0 REQUIRED QUIET COMPONENTS date_time)
+list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${Boost_LIBRARIES})
+IF(MSVC) # Disable asio auto linking in date-time and regex
+add_definitions(-DBOOST_DATE_TIME_NO_LIB)
+add_definitions(-DBOOST_REGEX_NO_LIB)
+ENDIF()
+
 # platform independent include paths
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
     ${ROOT_DIR}/thirdparty/eigen/
@@ -16,15 +25,10 @@ list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
 
 # platform independent libraries
 list(APPEND PSMOVECONFIGTOOL_REQ_LIBS 
-    PSMoveClient
+    PSMoveClient_CAPI
     PSMoveMath
     PSMoveProtocol
     ${PROTOBUF_LIBRARIES})
-
-IF(MSVC) # Disable asio auto linking in date-time and regex
-add_definitions(-DBOOST_DATE_TIME_NO_LIB)
-add_definitions(-DBOOST_REGEX_NO_LIB)
-ENDIF()
     
 # platform specific libraries/include paths (OpenGL/SDL)    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -71,13 +75,12 @@ target_include_directories(PSMoveConfigTool PUBLIC ${PSMOVECONFIGTOOL_INCL_DIRS}
 target_link_libraries(PSMoveConfigTool ${PSMOVECONFIGTOOL_REQ_LIBS})
 
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    add_dependencies(PSMoveService opencv)
+add_dependencies(PSMoveService opencv)
 ENDIF()
 
 # Allow access to the protocol buffers (extracting response parameters)
 target_compile_definitions(PSMoveConfigTool
-    PRIVATE HAS_PROTOCOL_ACCESS
-    PRIVATE PSMOVECLIENT_CPP_API)
+    PRIVATE HAS_PROTOCOL_ACCESS)
 
 #MacOS OpenCV must be self-built, this links against older std, which is hidden
 #Therefore the PSMoveConfigTool must be hidden

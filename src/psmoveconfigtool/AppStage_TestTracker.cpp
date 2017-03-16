@@ -43,13 +43,14 @@ void AppStage_TestTracker::enter()
 {
     const AppStage_TrackerSettings *trackerSettings =
         m_app->getAppStage<AppStage_TrackerSettings>();
-    const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
+    const PSMClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
     assert(trackerInfo->tracker_id != -1);
 
     m_app->setCameraType(_cameraFixed);
 
     assert(m_tracker_view == nullptr);
-    m_tracker_view= ClientPSMoveAPI::allocate_tracker_view(*trackerInfo);
+	PSM_AllocateTrackerListener(trackerInfo->tracker_id, trackerInfo);
+	m_tracker_view = PSM_GetTracker(trackerInfo->tracker_id);
 
     assert(!m_bStreamIsActive);
     request_tracker_start_stream();
@@ -59,7 +60,7 @@ void AppStage_TestTracker::exit()
 {
     m_menuState = AppStage_TestTracker::inactive;
 
-    ClientPSMoveAPI::free_tracker_view(m_tracker_view);
+    PSM_FreeTrackerListener(m_tracker_view->tracker_info.tracker_id);
     m_tracker_view = nullptr;
 }
 
@@ -68,9 +69,13 @@ void AppStage_TestTracker::update()
     // Try and read the next video frame from shared memory
     if (m_video_texture != nullptr)
     {
-        if (m_tracker_view->pollVideoStream())
+        if (PSM_PollTrackerVideoStream(m_tracker_view->tracker_info.tracker_id) == PSMResult_Success)
         {
-            m_video_texture->copyBufferIntoTexture(m_tracker_view->getVideoFrameBuffer());
+			const unsigned char *buffer= nullptr;
+			if (PSM_GetTrackerVideoFrameBuffer(m_tracker_view->tracker_info.tracker_id, &buffer) == PSMResult_Success)
+			{
+				m_video_texture->copyBufferIntoTexture(buffer);
+			}
         }
     }
 }
@@ -114,7 +119,7 @@ void AppStage_TestTracker::renderUI()
             {
                 const AppStage_TrackerSettings *trackerSettings =
                     m_app->getAppStage<AppStage_TrackerSettings>();
-                const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
+                const PSMClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
 
                 request_tracker_stop_stream();
             }
@@ -203,43 +208,46 @@ void AppStage_TestTracker::request_tracker_start_stream()
         m_menuState = AppStage_TestTracker::pendingTrackerStartStreamRequest;
 
         // Tell the psmove service that we want to start streaming data from the tracker
-        ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::start_tracker_data_stream(m_tracker_view),
-            AppStage_TestTracker::handle_tracker_start_stream_response, this);
+		PSMRequestID requestID;
+		PSM_StartTrackerDataStreamAsync(
+			m_tracker_view->tracker_info.tracker_id, 
+			&requestID);
+		PSM_RegisterCallback(requestID, AppStage_TestTracker::handle_tracker_start_stream_response, this);
     }
 }
 
 void AppStage_TestTracker::handle_tracker_start_stream_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_TestTracker *thisPtr = static_cast<AppStage_TestTracker *>(userdata);
 
     switch (response->result_code)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
-            ClientTrackerView *trackerView= thisPtr->m_tracker_view;
+            PSMTracker *trackerView= thisPtr->m_tracker_view;
 
             thisPtr->m_bStreamIsActive = true;
             thisPtr->m_menuState = AppStage_TestTracker::idle;
 
             // Open the shared memory that the vidoe stream is being written to
-            if (trackerView->openVideoStream())
+            if (PSM_OpenTrackerVideoStream(trackerView->tracker_info.tracker_id) == PSMResult_Success)
             {
                 // Create a texture to render the video frame to
                 thisPtr->m_video_texture = new TextureAsset();
                 thisPtr->m_video_texture->init(
-                    trackerView->getVideoFrameWidth(),
-                    trackerView->getVideoFrameHeight(),
+                    static_cast<unsigned int>(trackerView->tracker_info.tracker_screen_dimensions.x),
+                    static_cast<unsigned int>(trackerView->tracker_info.tracker_screen_dimensions.y),
                     GL_RGB, // texture format
                     GL_BGR, // buffer format
                     nullptr);
             }
         } break;
 
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->m_menuState = AppStage_TestTracker::failedTrackerStartStreamRequest;
         } break;
@@ -252,15 +260,15 @@ void AppStage_TestTracker::request_tracker_stop_stream()
     {
         m_menuState = AppStage_TestTracker::pendingTrackerStopStreamRequest;
 
-        // Tell the psmove service that we want to stop streaming data from the tracker        
-        ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::stop_tracker_data_stream(m_tracker_view), 
-            AppStage_TestTracker::handle_tracker_stop_stream_response, this);
+        // Tell the psmove service that we want to stop streaming data from the tracker
+		PSMRequestID requestId;
+		PSM_StopTrackerDataStreamAsync(m_tracker_view->tracker_info.tracker_id, &requestId);
+		PSM_RegisterCallback(requestId, AppStage_TestTracker::handle_tracker_stop_stream_response, this);
     }
 }
 
 void AppStage_TestTracker::handle_tracker_stop_stream_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_TestTracker *thisPtr = static_cast<AppStage_TestTracker *>(userdata);
@@ -270,12 +278,12 @@ void AppStage_TestTracker::handle_tracker_stop_stream_response(
 
     switch (response->result_code)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
             thisPtr->m_menuState = AppStage_TestTracker::inactive;
 
             // Close the shared memory buffer
-            thisPtr->m_tracker_view->closeVideoStream();
+			PSM_CloseTrackerVideoStream(thisPtr->m_tracker_view->tracker_info.tracker_id);
 
             // Free the texture we were rendering to
             if (thisPtr->m_video_texture != nullptr)
@@ -288,8 +296,9 @@ void AppStage_TestTracker::handle_tracker_stop_stream_response(
             thisPtr->m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
         } break;
 
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->m_menuState = AppStage_TestTracker::failedTrackerStopStreamRequest;
         } break;

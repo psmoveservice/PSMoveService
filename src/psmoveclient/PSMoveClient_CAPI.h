@@ -2,6 +2,7 @@
 #define __PSMOVECLIENT_CAPI_H
 #include "PSMoveClient_export.h"
 #include "ClientConstants.h"
+#include "ClientGeometry_CAPI.h"
 #include <stdbool.h>
 //cut_before
 
@@ -26,6 +27,7 @@ enum _PSMResult
     PSMResult_Timeout               = 1,
     PSMResult_RequestSent           = 2,
     PSMResult_Canceled              = 3,
+    PSMResult_NoData                = 4,
 };
 typedef enum _PSMResult PSMResult;
 
@@ -53,7 +55,21 @@ typedef enum _PSMTrackingColorType
     PSMTrackingColorType_Red,        // R:0xFF, G:0x00, B:0x00
     PSMTrackingColorType_Green,      // R:0x00, G:0xFF, B:0x00
     PSMTrackingColorType_Blue,       // R:0x00, G:0x00, B:0xFF
+	
+	PSMTrackingColorType_MaxColorTypes
 } PSMTrackingColorType;
+
+typedef enum _PSMBatteryState
+{
+    PSMBattery_0        = 0,
+    PSMBattery_20       = 1,
+    PSMBattery_40       = 2,
+    PSMBattery_60       = 3,
+    PSMBattery_80       = 4,
+    PSMBattery_100      = 5,
+    PSMBattery_Charging = 0xEE,
+    PSMBattery_Charged  = 0xEF
+} PSMBatteryState;
 
 typedef enum _PSMControllerDataStreamFlags
 {
@@ -62,8 +78,16 @@ typedef enum _PSMControllerDataStreamFlags
     PSMStreamFlags_includePhysicsData = 0x02,
     PSMStreamFlags_includeRawSensorData = 0x04,
 	PSMStreamFlags_includeCalibratedSensorData = 0x08,
-    PSMStreamFlags_includeRawTrackerData = 0x10
+    PSMStreamFlags_includeRawTrackerData = 0x10,
+	PSMStreamFlags_disableROI = 0x20,
 } PSMControllerDataStreamFlags;
+
+typedef enum _PSMControllerRumbleChannel
+{
+    PSMControllerRumbleChannel_All,
+    PSMControllerRumbleChannel_Left,
+    PSMControllerRumbleChannel_Right
+} PSMControllerRumbleChannel;
 
 typedef enum _PSMControllerType
 {
@@ -93,75 +117,19 @@ typedef enum _PSMTrackerDriver
     PSMDriver_GENERIC_WEBCAM
 } PSMTrackerDriver;
 
-// Client Geometry
-//----------------
-
-/// A 2D vector with float components.
-typedef struct _PSMVector2f
-{
-    float x, y;
-} PSMVector2f;
-
-/// A 3D vector with float components.
-typedef struct _PSMVector3f
-{
-    float x, y, z;
-} PSMVector3f;
-
-/// A 3D vector with int components.
-typedef struct _PSMVector3i
-{
-    int x, y, z;
-} PSMVector3i;
-
-/// A quaternion rotation.
-typedef struct _PSMQuatf
-{
-    float x, y, z, w;
-} PSMQuatf;
-
-/// Position and orientation together.
-typedef struct _PSMPosef
-{
-    PSMVector3f  Position;
-    PSMQuatf     Orientation;
-} PSMPosef;
+// Controller State
+//------------------
 
 typedef struct _PSMovePhysicsData
 {
-    PSMVector3f LinearVelocity;
-    PSMVector3f LinearAcceleration;
-    PSMVector3f AngularVelocity;
-    PSMVector3f AngularAcceleration;
+    PSMVector3f LinearVelocityCmPerSec;
+    PSMVector3f LinearAccelerationCmPerSecSqr;
+    PSMVector3f AngularVelocityRadPerSec;
+    PSMVector3f AngularAccelerationRadPerSecSqr;
     double       TimeInSeconds;
 } PSMPhysicsData;
 
-typedef struct _PSMTrackingProjection
-{
-    enum eShapeType
-    {
-        PSMShape_INVALID_PROJECTION = -1,
-        PSMShape_Ellipse,
-        PSMShape_LightBar,
-    }                               shape_type;
-    union{
-        struct {
-            PSMVector2f center;
-            float half_x_extent;
-            float half_y_extent;
-            float angle;
-        } ellipse;
-        struct {
-            PSMVector2f triangle[3];
-			PSMVector2f quad[3];
-        } lightbar;
-    }                               shape;
-    
-} PSMTrackingProjection;
-
-// Controller State
-//------------------
-typedef struct _PSMPSMPSMoveRawSensorData
+typedef struct _PSMPSMoveRawSensorData
 {
     PSMVector3i Magnetometer;
     PSMVector3i Accelerometer;
@@ -169,7 +137,7 @@ typedef struct _PSMPSMPSMoveRawSensorData
     double      TimeInSeconds;
 } PSMPSMoveRawSensorData;
 
-typedef struct _PSMPSMPSMoveCalibratedSensorData
+typedef struct _PSMPSMoveCalibratedSensorData
 {
     PSMVector3f Magnetometer;
     PSMVector3f Accelerometer;
@@ -181,11 +149,17 @@ typedef struct _PSMRawTrackerData
 {
     // Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
     PSMVector2f             ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
-    PSMVector3f             RelativePositions[PSMOVESERVICE_MAX_TRACKER_COUNT];
-	PSMQuatf                RelativeOrientations[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMVector3f             RelativePositionsCm[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMQuatf                RelativeOrientations[PSMOVESERVICE_MAX_TRACKER_COUNT];
     PSMTrackingProjection   TrackingProjections[PSMOVESERVICE_MAX_TRACKER_COUNT];
-    int                     TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMTrackerID            TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
     int                     ValidTrackerLocations;
+
+    // Multicam triangulated position and orientation, pre-filtered
+    PSMVector3f             MulticamPositionCm;
+    PSMQuatf                MulticamOrientation;
+    bool                    bMulticamPositionValid;
+    bool                    bMulticamOrientationValid;
 } PSMRawTrackerData;
 
 typedef struct _PSMPSMove
@@ -196,6 +170,7 @@ typedef struct _PSMPSMove
     bool                         bIsOrientationValid;
     bool                         bIsPositionValid;
     bool                         bHasUnpublishedState;
+    bool                         bPoseResetButtonEnabled;
     
     char                         DevicePath[256];
     char                         DeviceSerial[128];
@@ -219,6 +194,7 @@ typedef struct _PSMPSMove
     PSMButtonState               PSButton;
     PSMButtonState               MoveButton;
     PSMButtonState               TriggerButton;
+    PSMBatteryState              BatteryValue;
     unsigned char                TriggerValue;
     unsigned char                Rumble;
     unsigned char                LED_r, LED_g, LED_b;
@@ -265,6 +241,7 @@ typedef struct _PSMDualShock4
     bool                         bIsOrientationValid;
     bool                         bIsPositionValid;
     bool                         bHasUnpublishedState;
+    bool                         bPoseResetButtonEnabled;
     
     char                         DevicePath[256];
     char                         DeviceSerial[128];
@@ -382,6 +359,52 @@ typedef struct _PSMTracker
     void *opaque_shared_memory_accesor;
 } PSMTracker;
 
+// HMD State
+//----------
+typedef struct _PSMMorpheusRawSensorData
+{
+    PSMVector3i Accelerometer;
+    PSMVector3i Gyroscope;
+    double      TimeInSeconds;
+} PSMMorpheusRawSensorData;
+
+typedef struct _PSMMorpheusCalibratedSensorData
+{
+    PSMVector3f Accelerometer;
+    PSMVector3f Gyroscope;
+    double      TimeInSeconds;
+} PSMMorpheusCalibratedSensorData;
+
+typedef struct _PSMMorpheus
+{
+    bool                         bIsTrackingEnabled;
+    bool                         bIsCurrentlyTracking;
+    bool                         bIsOrientationValid;
+    bool                         bIsPositionValid;
+    
+    PSMPosef                     Pose;
+    PSMPhysicsData               PhysicsData;
+    PSMMorpheusRawSensorData     RawSensorData;
+    PSMMorpheusCalibratedSensorData CalibratedSensorData;
+    PSMRawTrackerData            RawTrackerData;
+} PSMMorpheus;
+
+typedef struct _PSMHeadMountedDisplay
+{
+    PSMHmdID HmdID;
+    PSMHmdType HmdType;
+    union
+    {
+        PSMMorpheus  MorpheusState;
+    }               HmdState;
+    bool            bValid;
+    int             OutputSequenceNum;
+    bool            IsConnected;
+    long long       DataFrameLastReceivedTime;
+    float           DataFrameAverageFPS;
+    int             ListenerCount;
+} PSMHeadMountedDisplay;
+
 // Service Events
 //------------------
 typedef struct _PSMEventMessage
@@ -407,10 +430,17 @@ typedef struct _PSMEventMessage
 
 // Service Responses
 //------------------
+typedef struct _PSMServiceVersion
+{
+	char version_string[PSMOVESERVICE_MAX_VERSION_STRING_LEN];
+} PSMServiceVersion;
+
 typedef struct _PSMControllerList
 {
     PSMControllerID controller_id[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
     PSMControllerType controller_type[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
+	char controller_serial[PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
+	char parent_controller_serial[PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
     int count;
 } PSMControllerList;
 
@@ -421,12 +451,12 @@ typedef struct _PSMTrackerList
     float global_forward_degrees;
 } PSMTrackerList;
 
-typedef struct _PSMHMDList
+typedef struct _PSMHmdList
 {
     PSMHmdID hmd_id[PSMOVESERVICE_MAX_HMD_COUNT];
     PSMHmdType hmd_type[PSMOVESERVICE_MAX_HMD_COUNT];
     int count;
-} PSMHMDList;
+} PSMHmdList;
 
 typedef struct _PSMTrackingSpace
 {
@@ -456,15 +486,17 @@ typedef struct _PSMResponseMessage
     //----
     union
     {
+		PSMServiceVersion service_version;
         PSMControllerList controller_list;
         PSMTrackerList tracker_list;
-		PSMHMDList hmd_list;
+		PSMHmdList hmd_list;
         PSMTrackingSpace tracking_space;
     } payload;
 
     enum eResponsePayloadType
     {
         _responsePayloadType_Empty,
+		_responsePayloadType_ServiceVersion,
         _responsePayloadType_ControllerList,
         _responsePayloadType_TrackerList,
         _responsePayloadType_TrackingSpace,
@@ -501,20 +533,27 @@ typedef struct _PSMMessage
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_Initialize(const char* host, const char* port, int timeout_ms);  //"localhost", "9512"
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_Shutdown();
 
-// Async Connection Methods
+/// Async Connection Methods
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_InitializeAsync(const char* host, const char* port);  //"localhost", "9512"
 
-// Update
+/// Update
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_Update();
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_UpdateNoPollMessages();
 
-// System Queries
-PSM_PUBLIC_FUNCTION(const char*) PSM_GetVersionString();
+/// System State Queries
+PSM_PUBLIC_FUNCTION(const char*) PSM_GetClientVersionString();
+PSM_PUBLIC_FUNCTION(bool) PSM_GetIsInitialized();
 PSM_PUBLIC_FUNCTION(bool) PSM_GetIsConnected();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasConnectionStatusChanged();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasControllerListChanged();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasTrackerListChanged();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasHMDListChanged();
+
+/// System Blocking Queries
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetServiceVersionString(char *out_version_string, size_t max_version_string, int timeout_ms);
+
+/// System Async Queries
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetServiceVersionStringAsync(PSMRequestID *out_request_id);
 
 /// Async Message Handling API
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_PollNextMessage(PSMMessage *message, size_t message_size);
@@ -532,32 +571,80 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_FreeControllerListener(PSMControllerID contro
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerList(PSMControllerList *out_controller_list, int timeout_ms);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartControllerDataStream(PSMControllerID controller_id, unsigned int data_stream_flags, int timeout_ms);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopControllerDataStream(PSMControllerID controller_id, int timeout_ms);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDColor(PSMControllerID controller_id, PSMTrackingColorType tracking_color, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDTrackingColor(PSMControllerID controller_id, PSMTrackingColorType tracking_color, int timeout_ms);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerOrientation(PSMControllerID controller_id, PSMQuatf *q_pose, int timeout_ms);
+
+/// Controller State Methods
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerOrientation(PSMControllerID controller_id, PSMQuatf *out_orientation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPosition(PSMControllerID controller_id, PSMVector3f *out_position);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPose(PSMControllerID controller_id, PSMPosef *out_pose);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerRumble(PSMControllerID controller_id, PSMControllerRumbleChannel channel, float *out_rumbleFraction);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetIsControllerStable(PSMControllerID controller_id, bool *out_is_stable);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetIsControllerTracking(PSMControllerID controller_id, bool *out_is_tracking);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPixelLocationOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMVector2f *outLocation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPositionOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMVector3f *outPosition);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerOrientationOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMQuatf *outOrientation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerProjectionOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMTrackingProjection *outProjection);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDOverrideColor(PSMControllerID controller_id, unsigned char r, unsigned char g, unsigned char b);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerRumble(PSMControllerID controller_id, PSMControllerRumbleChannel channel, float rumbleFraction);
 
 /// Async Controller Methods
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerListAsync(PSMRequestID *out_request_id);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartControllerDataStreamAsync(PSMControllerID controller_id, unsigned int data_stream_flags, PSMRequestID *out_request_id);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopControllerDataStreamAsync(PSMControllerID controller_id, PSMRequestID *out_request_id);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDColorAsync(PSMControllerID controller_id, PSMTrackingColorType tracking_color, PSMRequestID *out_request_id);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerPoseAsync(PSMControllerID controller_id, PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerOrientationAsync(PSMControllerID controller_id, const PSMQuatf *q_pose, PSMRequestID *out_request_id);
 
 /// Tracker Pool
 PSM_PUBLIC_FUNCTION(PSMTracker *) PSM_GetTracker(PSMTrackerID tracker_id);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_AllocateTrackerListener(PSMTrackerID tracker_id, PSMClientTrackerInfo *tracker_info);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_AllocateTrackerListener(PSMTrackerID tracker_id, const PSMClientTrackerInfo *tracker_info);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_FreeTrackerListener(PSMTrackerID controller_id);
+
+/// Tracker State Methods
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerIntrinsicMatrix(PSMTrackerID tracker_id, PSMMatrix3f *out_matrix);
 
 /// Blocking Tracker Methods
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerList(PSMTrackerList *out_tracker_list, int timeout_ms);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHMDTrackingSpaceSettings(PSMTrackingSpace *out_tracking_space, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackingSpaceSettings(PSMTrackingSpace *out_tracking_space, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_OpenTrackerVideoStream(PSMTrackerID tracker_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_PollTrackerVideoStream(PSMTrackerID tracker_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_CloseTrackerVideoStream(PSMTrackerID tracker_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerVideoFrameBuffer(PSMTrackerID tracker_id, const unsigned char **out_buffer); 
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerFrustum(PSMTrackerID tracker_id, PSMFrustum *out_frustum);
 
 /// Async Tracker Methods
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerListAsync(PSMRequestID *out_request_id);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID *out_request_id);
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID *out_request_id);
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHMDTrackingSpaceSettingsAsync(PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackingSpaceSettingsAsync(PSMRequestID *out_request_id);
+
+/// HMD Pool
+PSM_PUBLIC_FUNCTION(PSMHeadMountedDisplay *) PSM_GetHmd(PSMHmdID hmd_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_AllocateHmdListener(PSMHmdID hmd_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_FreeHmdListener(PSMHmdID hmd_id);
+
+/// HMD State Methods
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdOrientation(PSMHmdID hmd_id, PSMQuatf *out_orientation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdPosition(PSMHmdID hmd_id, PSMVector3f *out_position);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdPose(PSMHmdID hmd_id, PSMPosef *out_pose);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetIsHmdStable(PSMHmdID hmd_id, bool *out_is_stable);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetIsHmdTracking(PSMHmdID hmd_id, bool *out_is_tracking);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdPixelLocationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMVector2f *outLocation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdPositionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMVector3f *outPosition);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdOrientationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMQuatf *outOrientation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdProjectionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMTrackingProjection *outProjection);
+
+/// Blocking HMD Methods
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdList(PSMHmdList *out_hmd_list, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartHmdDataStream(PSMHmdID hmd_id, unsigned int data_stream_flags, int timeout_ms);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopHmdDataStream(PSMHmdID hmd_id, int timeout_ms);
+
+/// Async HMD Methods
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdListAsync(PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartHmdDataStreamAsync(PSMHmdID hmd_id, unsigned int data_stream_flags, PSMRequestID *out_request_id);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopHmdDataStreamAsync(PSMHmdID hmd_id, PSMRequestID *out_request_id);
 
 //cut_after
 #endif

@@ -6,12 +6,14 @@
 // Includes
 //==================================================================================================
 #include "driver_psmoveservice.h"
-#include <sstream>
+
 #include "ProtocolVersion.h"
-#include "PSMoveProtocolInterface.h"
-#include "PSMoveProtocol.pb.h"
-#include "ClientPSMoveAPI.h"
-#include <boost/algorithm/string.hpp>
+
+#include <algorithm>
+#include <sstream>
+#include <string>
+
+#include <assert.h>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -183,7 +185,7 @@ static void DriverLog( const char *pMsgFormat, ... )
 }
 
 
-static std::string PsMovePositionToString( const PSMovePosition& position )
+static std::string PSMVector3fToString( const PSMVector3f& position )
 {
 	std::ostringstream stringBuilder;
 	stringBuilder << "(" << position.x << ", " << position.y << ", " << position.z << ")";
@@ -191,7 +193,7 @@ static std::string PsMovePositionToString( const PSMovePosition& position )
 }
 
 
-static std::string PsMoveQuaternionToString(const PSMoveQuaternion& rotation)
+static std::string PSMQuatfToString(const PSMQuatf& rotation)
 {
 	std::ostringstream stringBuilder;
 	stringBuilder << "(" << rotation.w << ", " << rotation.x << ", " << rotation.y << ", " << rotation.z << ")";
@@ -199,10 +201,10 @@ static std::string PsMoveQuaternionToString(const PSMoveQuaternion& rotation)
 }
 
 
-static std::string PsMovePoseToString(const PSMovePose& pose)
+static std::string PSMPosefToString(const PSMPosef& pose)
 {
 	std::ostringstream stringBuilder;
-	stringBuilder << "[Pos: " << PsMovePositionToString(pose.Position) << ", Rot:" << PsMoveQuaternionToString(pose.Orientation) << "]";
+	stringBuilder << "[Pos: " << PSMVector3fToString(pose.Position) << ", Rot:" << PSMQuatfToString(pose.Orientation) << "]";
 	return stringBuilder.str();
 }
 
@@ -211,9 +213,9 @@ static std::string PsMovePoseToString(const PSMovePose& pose)
 // Math Helpers
 //==================================================================================================
 // From: http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
-static PSMoveQuaternion openvrMatrixExtractPSMoveQuaternion(const vr::HmdMatrix34_t &openVRTransform)
+static PSMQuatf openvrMatrixExtractPSMQuatf(const vr::HmdMatrix34_t &openVRTransform)
 {
-	PSMoveQuaternion q;
+	PSMQuatf q;
 
 	const float(&a)[3][4] = openVRTransform.m;
 	const float trace = a[0][0] + a[1][1] + a[2][2];
@@ -261,18 +263,19 @@ static PSMoveQuaternion openvrMatrixExtractPSMoveQuaternion(const vr::HmdMatrix3
 	return q;
 }
 
-static PSMovePosition openvrMatrixExtractPSMovePosition(const vr::HmdMatrix34_t &openVRTransform)
+static PSMVector3f openvrMatrixExtractPSMVector3f(const vr::HmdMatrix34_t &openVRTransform)
 {
 	const float(&a)[3][4] = openVRTransform.m;
+	PSMVector3f pos= {a[0][3], a[1][3], a[2][3]};
 
-	return PSMovePosition::create(a[0][3], a[1][3], a[2][3]);
+	return pos;
 }
 
-static PSMovePose openvrMatrixExtractPSMovePose(const vr::HmdMatrix34_t &openVRTransform)
+static PSMPosef openvrMatrixExtractPSMPosef(const vr::HmdMatrix34_t &openVRTransform)
 {
-	PSMovePose pose;
-	pose.Orientation = openvrMatrixExtractPSMoveQuaternion(openVRTransform);
-	pose.Position = openvrMatrixExtractPSMovePosition(openVRTransform);
+	PSMPosef pose;
+	pose.Orientation = openvrMatrixExtractPSMQuatf(openVRTransform);
+	pose.Position = openvrMatrixExtractPSMVector3f(openVRTransform);
 
 	return pose;
 }
@@ -321,7 +324,8 @@ vr::EVRInitError CServerDriver_PSMoveService::Init(
 			pSettings->GetString("psmove_settings", "psmove_filter_hmd_serial", buf, sizeof(buf), &fetchError);
 			if (fetchError == vr::VRSettingsError_None)
 			{
-				m_strPSMoveHMDSerialNo = boost::to_upper_copy<std::string>(buf);
+				m_strPSMoveHMDSerialNo = buf;
+				std::transform(m_strPSMoveHMDSerialNo.begin(), m_strPSMoveHMDSerialNo.end(), m_strPSMoveHMDSerialNo.begin(), ::toupper);
 			}
 
 			pSettings->GetString("psmoveservice", "server_address", buf, sizeof(buf), &fetchError);
@@ -354,7 +358,7 @@ vr::EVRInitError CServerDriver_PSMoveService::Init(
 		DriverLog("CServerDriver_PSMoveService::Init - Initializing.\n");
 
 		// By default, assume the psmove and openvr tracking spaces are the same
-		m_worldFromDriverPose.Clear();
+		m_worldFromDriverPose= *k_psm_pose_identity;
 
 		// Note that reconnection is a non-blocking async request.
 		// Returning true means we we're able to start trying to connect,
@@ -378,10 +382,10 @@ bool CServerDriver_PSMoveService::ReconnectToPSMoveService()
 {
 	DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - called.\n");
 
-    if (ClientPSMoveAPI::has_started())
+    if (PSM_GetIsInitialized())
     {
 		DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Existing PSMoveService connection active. Shutting down...\n");
-        ClientPSMoveAPI::shutdown();
+        PSM_Shutdown();
 		DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Existing PSMoveService connection stopped.\n");
     }
 	else
@@ -390,18 +394,15 @@ bool CServerDriver_PSMoveService::ReconnectToPSMoveService()
 	}
 
 	DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Starting PSMoveService connection...\n");
-    bool bSuccess= ClientPSMoveAPI::startup(
-        m_strPSMoveServiceAddress, 
-        m_strServerPort, 
-        _log_severity_level_warning);
+    bool bSuccess= PSM_InitializeAsync(m_strPSMoveServiceAddress.c_str(), m_strServerPort.c_str()) != PSMResult_Error;
 
 	if (bSuccess)
 	{
-		DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Successfully connected\n");
+		DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Successfully requested connection\n");
 	}
 	else
 	{
-		DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Failed to connect!\n");
+		DriverLog("CServerDriver_PSMoveService::ReconnectToPSMoveService - Failed to request connection!\n");
 	}
 
 	return bSuccess;
@@ -412,7 +413,7 @@ void CServerDriver_PSMoveService::Cleanup()
 	if (m_bInitialized)
 	{
 		DriverLog("CServerDriver_PSMoveService::Cleanup - Shutting down connection...\n");
-		ClientPSMoveAPI::shutdown();
+		PSM_Shutdown();
 		DriverLog("CServerDriver_PSMoveService::Cleanup - Shutdown complete\n");
 
 		m_bInitialized = false;
@@ -456,20 +457,20 @@ vr::ITrackedDeviceServerDriver * CServerDriver_PSMoveService::FindTrackedDeviceD
 
 void CServerDriver_PSMoveService::RunFrame()
 {
-    // Poll any events from the service
-    ClientPSMoveAPI::update();
+    // Update any controllers that are currently listening
+    PSM_UpdateNoPollMessages();
 
-    // Poll events queued up by the call to ClientPSMoveAPI::update()
-    ClientPSMoveAPI::Message message;
-    while (ClientPSMoveAPI::poll_next_message(&message, sizeof(message)))
+    // Poll events queued up by the call to PSM_UpdateNoPollMessages()
+    PSMMessage mesg;
+    while (PSM_PollNextMessage(&mesg, sizeof(PSMMessage)) == PSMResult_Success)
     {
-        switch (message.payload_type)
+        switch (mesg.payload_type)
         {
-        case ClientPSMoveAPI::_messagePayloadType_Response:
-            HandleClientPSMoveResponse(&message.response_data);
+        case PSMMessage::_messagePayloadType_Response:
+            HandleClientPSMoveResponse(&mesg);
             break;
-        case ClientPSMoveAPI::_messagePayloadType_Event:
-            HandleClientPSMoveEvent(&message.event_data);
+        case PSMMessage::_messagePayloadType_Event:
+            HandleClientPSMoveEvent(&mesg);
             break;
         }
     }
@@ -514,34 +515,32 @@ void CServerDriver_PSMoveService::LeaveStandby()
 
 // -- Event Handling -----
 void CServerDriver_PSMoveService::HandleClientPSMoveEvent(
-    const ClientPSMoveAPI::EventMessage *event)
+    const PSMMessage *message)
 {
-    ClientPSMoveAPI::eEventType event_type = event->event_type;
-
-    switch (event_type)
+    switch (message->event_data.event_type)
     {
     // Client Events
-    case ClientPSMoveAPI::connectedToService:
+    case PSMEventMessage::PSMEvent_connectedToService:
         HandleConnectedToPSMoveService();
         break;
-    case ClientPSMoveAPI::failedToConnectToService:
+    case PSMEventMessage::PSMEvent_failedToConnectToService:
         HandleFailedToConnectToPSMoveService();
         break;
-    case ClientPSMoveAPI::disconnectedFromService:
+    case PSMEventMessage::PSMEvent_disconnectedFromService:
         HandleDisconnectedFromPSMoveService();
         break;
 
     // Service Events
-    case ClientPSMoveAPI::opaqueServiceEvent: 
+    case PSMEventMessage::PSMEvent_opaqueServiceEvent: 
         // We don't care about any opaque service events
         break;
-    case ClientPSMoveAPI::controllerListUpdated:
+    case PSMEventMessage::PSMEvent_controllerListUpdated:
         HandleControllerListChanged();
         break;
-    case ClientPSMoveAPI::trackerListUpdated:
+    case PSMEventMessage::PSMEvent_trackerListUpdated:
         HandleTrackerListChanged();
         break;
-    case ClientPSMoveAPI::hmdListUpdated:
+    case PSMEventMessage::PSMEvent_hmdListUpdated:
         // don't care
         break;
     //###HipsterSloth $TODO - Need a notification for when a tracker pose changes
@@ -552,30 +551,25 @@ void CServerDriver_PSMoveService::HandleConnectedToPSMoveService()
 {
 	DriverLog("CServerDriver_PSMoveService::HandleConnectedToPSMoveService - Request controller and tracker lists\n");
 
-	// Ask the service for the current version of the protocol first
-	RequestPtr request(new PSMoveProtocol::Request());
-	request->set_type(PSMoveProtocol::Request_RequestType_GET_SERVICE_VERSION);
-
-	ClientPSMoveAPI::register_callback(
-		ClientPSMoveAPI::send_opaque_request(&request),
-		CServerDriver_PSMoveService::HandleServiceVersionResponse, this);
+	PSMRequestID request_id;
+	PSM_GetServiceVersionStringAsync(&request_id);
+	PSM_RegisterCallback(request_id, CServerDriver_PSMoveService::HandleServiceVersionResponse, this);
 }
 
 void CServerDriver_PSMoveService::HandleServiceVersionResponse(
-    const ClientPSMoveAPI::ResponseMessage *response,
+	const PSMResponseMessage *response,
     void *userdata)
 {
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response->result_code;
-    ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
+    PSMResult ResultCode = response->result_code;
+    PSMResponseHandle response_handle = response->opaque_response_handle;
     CServerDriver_PSMoveService *thisPtr = static_cast<CServerDriver_PSMoveService *>(userdata);
 
     switch (ResultCode)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult::PSMResult_Success:
         {
-			const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-			const std::string service_version= response->result_service_version().version();
-			const std::string local_version= PSM_DETAILED_VERSION_STRING;
+			const std::string service_version= response->payload.service_version.version_string;
+			const std::string local_version= PSM_GetClientVersionString();
 
 			if (service_version == local_version)
 			{
@@ -583,11 +577,11 @@ void CServerDriver_PSMoveService::HandleServiceVersionResponse(
 
 				// Ask the service for a list of connected controllers
 				// Response handled in HandleControllerListReponse()
-				ClientPSMoveAPI::get_controller_list();
+				PSM_GetControllerListAsync(nullptr);
 
 				// Ask the service for a list of connected trackers
 				// Response handled in HandleTrackerListReponse()
-				ClientPSMoveAPI::get_tracker_list();
+				PSM_GetTrackerListAsync(nullptr);
 			}
 			else
 			{
@@ -596,8 +590,8 @@ void CServerDriver_PSMoveService::HandleServiceVersionResponse(
 				thisPtr->Cleanup();
 			}
         } break;
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult::PSMResult_Error:
+    case PSMResult::PSMResult_Canceled:
         {
 			DriverLog("CServerDriver_PSMoveService::HandleServiceVersionResponse - Failed to get protocol version\n");
         } break;
@@ -634,7 +628,7 @@ void CServerDriver_PSMoveService::HandleControllerListChanged()
 
     // Ask the service for a list of connected controllers
     // Response handled in HandleControllerListReponse()
-    ClientPSMoveAPI::get_controller_list();
+    PSM_GetControllerListAsync(nullptr);
 }
 
 void CServerDriver_PSMoveService::HandleTrackerListChanged()
@@ -643,39 +637,38 @@ void CServerDriver_PSMoveService::HandleTrackerListChanged()
 
     // Ask the service for a list of connected trackers
     // Response handled in HandleTrackerListReponse()
-    ClientPSMoveAPI::get_tracker_list();
+    PSM_GetTrackerListAsync(nullptr);
 }
 
 // -- Response Handling -----
 void CServerDriver_PSMoveService::HandleClientPSMoveResponse(
-    const ClientPSMoveAPI::ResponseMessage *response)
-{
-	
-    switch (response->payload_type)
+    const PSMMessage *message)
+{	
+    switch (message->response_data.payload_type)
     {
-    case ClientPSMoveAPI::_responsePayloadType_Empty:
+    case PSMResponseMessage::_responsePayloadType_Empty:
         DriverLog("NotifyClientPSMoveResponse - request id %d returned result %s.\n",
-            response->request_id, 
-            (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok) ? "ok" : "error");
+            message->response_data.request_id, 
+            (message->response_data.result_code == PSMResult::PSMResult_Success) ? "ok" : "error");
         break;
-    case ClientPSMoveAPI::_responsePayloadType_ControllerList:
+    case PSMResponseMessage::_responsePayloadType_ControllerList:
         DriverLog("NotifyClientPSMoveResponse - Controller Count = %d (request id %d).\n", 
-            response->payload.controller_list.count, response->request_id);
-        HandleControllerListReponse(&response->payload.controller_list, response->opaque_response_handle);
+            message->response_data.payload.controller_list.count, message->response_data.request_id);
+        HandleControllerListReponse(&message->response_data.payload.controller_list, message->response_data.opaque_request_handle);
         break;
-    case ClientPSMoveAPI::_responsePayloadType_TrackerList:
+	case PSMResponseMessage::_responsePayloadType_TrackerList:
         DriverLog("NotifyClientPSMoveResponse - Tracker Count = %d (request id %d).\n",
-            response->payload.tracker_list.count, response->request_id);
-        HandleTrackerListReponse(&response->payload.tracker_list);
+            message->response_data.payload.tracker_list.count, message->response_data.request_id);
+        HandleTrackerListReponse(&message->response_data.payload.tracker_list);
         break;
     default:
-        DriverLog("NotifyClientPSMoveResponse - Unhandled response (request id %d).\n", response->request_id);
+        DriverLog("NotifyClientPSMoveResponse - Unhandled response (request id %d).\n", message->response_data.request_id);
     }
 }
 
 void CServerDriver_PSMoveService::HandleControllerListReponse(
-    const ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list,
-	const ClientPSMoveAPI::t_response_handle response_handle)
+    const PSMControllerList *controller_list,
+	const PSMResponseHandle response_handle)
 {
 	DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Received %d controllers\n", controller_list->count);
 
@@ -683,21 +676,22 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
     for (int list_index = 0; list_index < controller_list->count; ++list_index)
     {
         int controller_id = controller_list->controller_id[list_index];
-        ClientControllerView::eControllerType controller_type = controller_list->controller_type[list_index];
+        PSMControllerType controller_type = controller_list->controller_type[list_index];
+		std::string ControllerSerial(&controller_list->controller_serial[list_index]);
 
         switch (controller_type)
         {
-        case ClientControllerView::PSMove:
+        case PSMControllerType::PSMController_Move:
 			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSMove(%d)\n", controller_id);
-            AllocateUniquePSMoveController(controller_id, response_handle);
+            AllocateUniquePSMoveController(controller_id, ControllerSerial);
             break;
-        case ClientControllerView::PSNavi:
+        case PSMControllerType::PSMController_Navi:
 			// Take care of this is the second pass once all of the PSMove controllers have been setup
 			bAnyNaviControllers= true;
             break;
-        case ClientControllerView::PSDualShock4:
+        case PSMControllerType::PSMController_DualShock4:
 			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSDualShock4(%d)\n", controller_id);
-            AllocateUniqueDualShock4Controller(controller_id, response_handle);
+            AllocateUniqueDualShock4Controller(controller_id, ControllerSerial);
             break;
         default:
             break;
@@ -709,32 +703,34 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
 		for (int list_index = 0; list_index < controller_list->count; ++list_index)
 		{
 			int controller_id = controller_list->controller_id[list_index];
-			ClientControllerView::eControllerType controller_type = controller_list->controller_type[list_index];
+			PSMControllerType controller_type = controller_list->controller_type[list_index];
+			std::string ControllerSerial(&controller_list->controller_serial[list_index]);
+			std::string ParentControllerSerial(&controller_list->parent_controller_serial[list_index]);
 
-			if (controller_type == ClientControllerView::PSNavi)
+			if (controller_type == PSMControllerType::PSMController_Navi)
 			{
 				DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Attach PSNavi(%d)\n", controller_id);
-				AttachPSNaviToParentController(controller_id, response_handle);
+				AttachPSNaviToParentController(controller_id, ControllerSerial, ParentControllerSerial);
 			}
 		}
 	}
 }
 
 void CServerDriver_PSMoveService::HandleTrackerListReponse(
-    const ClientPSMoveAPI::ResponsePayload_TrackerList *tracker_list)
+    const PSMTrackerList *tracker_list)
 {
 	DriverLog("CServerDriver_PSMoveService::HandleTrackerListReponse - Received %d trackers\n", tracker_list->count);
 
     for (int list_index = 0; list_index < tracker_list->count; ++list_index)
     {
-        const ClientTrackerInfo &trackerInfo = tracker_list->trackers[list_index];
+        const PSMClientTrackerInfo *trackerInfo = &tracker_list->trackers[list_index];
 
         AllocateUniquePSMoveTracker(trackerInfo);
     }
 }
 
 void CServerDriver_PSMoveService::SetHMDTrackingSpace(
-    const PSMovePose &origin_pose)
+    const PSMPosef &origin_pose)
 {
 	#if LOG_REALIGN_TO_HMD != 0
 		DriverLog("Begin CServerDriver_PSMoveService::SetHMDTrackingSpace()\n");
@@ -758,79 +754,20 @@ static void GenerateControllerSteamVRIdentifier( char *p, int psize, int control
 }
 
 
-void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerID, const ClientPSMoveAPI::t_response_handle response_handle)
+void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerID, const std::string &ControllerSerial)
 {
-	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
     char buf[256];
     GenerateControllerSteamVRIdentifier(buf, sizeof(buf), ControllerID);
 
     if ( !FindTrackedDeviceDriver(buf) )
-    {
-		const PSMoveProtocol::Response_ResultControllerList_ControllerInfo *ControllerResponse= nullptr;
-		for (int ControllerListIndex = 0; ControllerListIndex < response->result_controller_list().controllers_size(); ++ControllerListIndex)
+    {	
+		std::string serialNo = ControllerSerial;
+		std::transform(serialNo.begin(), serialNo.end(), serialNo.begin(), ::toupper);
+
+		if (0 != m_strPSMoveHMDSerialNo.compare(serialNo)) 
 		{
-			const auto &TestControllerResponse = response->result_controller_list().controllers(ControllerListIndex);
-			if (TestControllerResponse.controller_id() == ControllerID)
-			{
-				ControllerResponse= &TestControllerResponse;
-				break;
-			}
-		}
-		
-		if (ControllerResponse != nullptr)
-		{
-			std::string serialNo = ControllerResponse->device_serial();
-			serialNo = boost::to_upper_copy<std::string>(serialNo.c_str());
-
-			if (0 != m_strPSMoveHMDSerialNo.compare(serialNo)) 
-			{
-				DriverLog( "added new psmove controller id: %s, serial: %s\n", buf, serialNo.c_str());
-				m_vecTrackedDevices.push_back( new CPSMoveControllerLatest( m_pDriverHost, ControllerID, ClientControllerView::PSMove, serialNo.c_str()) );
-
-				if (m_pDriverHost)
-				{
-					m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSteamVRIdentifier());
-				}
-			}
-			else
-			{
-				DriverLog("skipped new psmove controller as configured for HMD tracking, serial: %s\n", serialNo.c_str());
-			}
-		}
-		else
-		{
-			DriverLog( "Failed to find psmove controller id: %s in controller list\n", buf);
-		}
-    }
-}
-
-
-void CServerDriver_PSMoveService::AllocateUniqueDualShock4Controller(int ControllerID, const ClientPSMoveAPI::t_response_handle response_handle)
-{
-	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-    char buf[256];
-    GenerateControllerSteamVRIdentifier(buf, sizeof(buf), ControllerID);
-
-    if (!FindTrackedDeviceDriver(buf))
-    {
-		const PSMoveProtocol::Response_ResultControllerList_ControllerInfo *ControllerResponse= nullptr;
-		for (int ControllerListIndex = 0; ControllerListIndex < response->result_controller_list().controllers_size(); ++ControllerListIndex)
-		{
-			const auto &TestControllerResponse = response->result_controller_list().controllers(ControllerListIndex);
-			if (TestControllerResponse.controller_id() == ControllerID)
-			{
-				ControllerResponse= &TestControllerResponse;
-				break;
-			}
-		}
-
-		if (ControllerResponse != nullptr)
-		{
-			std::string serialNo = ControllerResponse->device_serial();
-			serialNo = boost::to_upper_copy<std::string>(serialNo.c_str());
-
-			DriverLog("added new ps dualshock4 controller %s\n", buf);
-			m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, ClientControllerView::PSDualShock4, serialNo.c_str()));
+			DriverLog( "added new psmove controller id: %s, serial: %s\n", buf, serialNo.c_str());
+			m_vecTrackedDevices.push_back( new CPSMoveControllerLatest( m_pDriverHost, ControllerID, PSMControllerType::PSMController_Move, serialNo.c_str()) );
 
 			if (m_pDriverHost)
 			{
@@ -839,74 +776,75 @@ void CServerDriver_PSMoveService::AllocateUniqueDualShock4Controller(int Control
 		}
 		else
 		{
-			DriverLog( "Failed to find dualshock4 controller id: %s in controller list\n", buf);
+			DriverLog("skipped new psmove controller as configured for HMD tracking, serial: %s\n", serialNo.c_str());
 		}
     }
 }
 
-void CServerDriver_PSMoveService::AttachPSNaviToParentController(int NaviControllerID, const ClientPSMoveAPI::t_response_handle response_handle)
+
+void CServerDriver_PSMoveService::AllocateUniqueDualShock4Controller(int ControllerID, const std::string &ControllerSerial)
 {
-	const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+    char buf[256];
+    GenerateControllerSteamVRIdentifier(buf, sizeof(buf), ControllerID);
 
-	const PSMoveProtocol::Response_ResultControllerList_ControllerInfo *ControllerResponse= nullptr;
-	for (int ControllerListIndex = 0; ControllerListIndex < response->result_controller_list().controllers_size(); ++ControllerListIndex)
-	{
-		const auto &TestControllerResponse = response->result_controller_list().controllers(ControllerListIndex);
-		if (TestControllerResponse.controller_id() == NaviControllerID)
+    if (!FindTrackedDeviceDriver(buf))
+    {
+		std::string serialNo = ControllerSerial;
+		std::transform(serialNo.begin(), serialNo.end(), serialNo.begin(), ::toupper);
+
+		DriverLog("added new ps dualshock4 controller %s\n", buf);
+		m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, PSMControllerType::PSMController_DualShock4, serialNo.c_str()));
+
+		if (m_pDriverHost)
 		{
-			ControllerResponse= &TestControllerResponse;
-			break;
+			m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSteamVRIdentifier());
 		}
-	}
+    }
+}
 
-	if (ControllerResponse != nullptr)
+void CServerDriver_PSMoveService::AttachPSNaviToParentController(int NaviControllerID, const std::string &ControllerSerial, const std::string &ParentControllerSerial)
+{
+	bool bFoundParent= false;
+
+	std::string naviSerialNo = ControllerSerial;
+	std::string parentSerialNo = ParentControllerSerial;
+	std::transform(parentSerialNo.begin(), parentSerialNo.end(), parentSerialNo.begin(), ::toupper);
+
+	for (CPSMoveTrackedDeviceLatest *trackedDevice : m_vecTrackedDevices)
 	{
-		bool bFoundParent= false;
-
-		std::string naviSerialNo = ControllerResponse->device_serial();
-		std::string parentSerialNo = ControllerResponse->parent_controller_serial();
-		parentSerialNo = boost::to_upper_copy<std::string>(parentSerialNo.c_str());
-
-		for (CPSMoveTrackedDeviceLatest *trackedDevice : m_vecTrackedDevices)
+		if (trackedDevice->GetTrackedDeviceClass() == vr::TrackedDeviceClass_Controller)
 		{
-			if (trackedDevice->GetTrackedDeviceClass() == vr::TrackedDeviceClass_Controller)
-			{
-				CPSMoveControllerLatest *test_controller= static_cast<CPSMoveControllerLatest *>(trackedDevice);
-				const std::string testSerialNo= test_controller->getPSMControllerSerialNo();
+			CPSMoveControllerLatest *test_controller= static_cast<CPSMoveControllerLatest *>(trackedDevice);
+			const std::string testSerialNo= test_controller->getPSMControllerSerialNo();
 				
-				if (testSerialNo == parentSerialNo)
-				{
-					bFoundParent= true;
+			if (testSerialNo == parentSerialNo)
+			{
+				bFoundParent= true;
 
-					if (test_controller->getPSMControllerType() == ClientControllerView::PSMove)
+				if (test_controller->getPSMControllerType() == PSMController_Move)
+				{
+					if (test_controller->AttachChildPSMController(NaviControllerID, PSMController_Navi, naviSerialNo))
 					{
-						if (test_controller->AttachChildPSMController(NaviControllerID, ClientControllerView::PSNavi, naviSerialNo))
-						{
-							DriverLog("Attached navi controller serial %s to controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
-						}
-						else
-						{
-							DriverLog("Failed to attach navi controller serial %s to controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
-						}
+						DriverLog("Attached navi controller serial %s to controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
 					}
 					else
 					{
-						DriverLog("Failed to attach navi controller serial %s to non-psmove controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
+						DriverLog("Failed to attach navi controller serial %s to controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
 					}
-
-					break;
 				}
+				else
+				{
+					DriverLog("Failed to attach navi controller serial %s to non-psmove controller serial %s\n", naviSerialNo.c_str(), parentSerialNo.c_str());
+				}
+
+				break;
 			}
 		}
-
-		if (!bFoundParent)
-		{
-			DriverLog("Failed to find parent controller serial %s for navi controller serial %s\n", parentSerialNo.c_str(), naviSerialNo.c_str());
-		}
 	}
-	else
+
+	if (!bFoundParent)
 	{
-		DriverLog( "Failed to find psnavi controller id: %d in controller list\n", NaviControllerID);
+		DriverLog("Failed to find parent controller serial %s for navi controller serial %s\n", parentSerialNo.c_str(), naviSerialNo.c_str());
 	}
 }
 
@@ -915,10 +853,10 @@ static void GenerateTrackerSerialNumber(char *p, int psize, int tracker)
     snprintf(p, psize, "psmove_tracker%d", tracker);
 }
 
-void CServerDriver_PSMoveService::AllocateUniquePSMoveTracker(const ClientTrackerInfo &trackerInfo)
+void CServerDriver_PSMoveService::AllocateUniquePSMoveTracker(const PSMClientTrackerInfo *trackerInfo)
 {
     char buf[256];
-    GenerateTrackerSerialNumber(buf, sizeof(buf), trackerInfo.tracker_id);
+    GenerateTrackerSerialNumber(buf, sizeof(buf), trackerInfo->tracker_id);
 
     if (!FindTrackedDeviceDriver(buf))
     {
@@ -1110,7 +1048,7 @@ CPSMoveTrackedDeviceLatest::CPSMoveTrackedDeviceLatest(vr::IServerDriverHost * p
     m_firmware_revision = 0x0001;
     m_hardware_revision = 0x0001;
 
-	m_lastHMDPoseInMeters.Clear();
+	m_lastHMDPoseInMeters= *k_psm_pose_identity;
 	m_lastHMDPoseTime= std::chrono::time_point<std::chrono::high_resolution_clock>();
 	m_bIsLastHMDPoseValid= false;
 	m_hmdResultCallback = nullptr;
@@ -1185,13 +1123,13 @@ void CPSMoveTrackedDeviceLatest::DebugRequest(
 			#endif
 		}
 
-		m_lastHMDPoseInMeters = openvrMatrixExtractPSMovePose(hmdTransform);
+		m_lastHMDPoseInMeters = openvrMatrixExtractPSMPosef(hmdTransform);
 
 		#if LOG_REALIGN_TO_HMD != 0
 			matrixStringBuilder << "\n";
 			DriverLog(matrixStringBuilder.str().c_str());
 
-			DriverLog("Extracted pose: %s \n", PsMovePoseToString(m_lastHMDPoseInMeters).c_str() );
+			DriverLog("Extracted pose: %s \n", PSMPosefToString(m_lastHMDPoseInMeters).c_str() );
 		#endif
 
 		m_lastHMDPoseTime = std::chrono::high_resolution_clock::now();
@@ -1418,10 +1356,10 @@ void CPSMoveTrackedDeviceLatest::RefreshWorldFromDriverPose()
 		DriverLog( "Begin CServerDriver_PSMoveService::RefreshWorldFromDriverPose() for device %s\n", GetSteamVRIdentifier() );
 	#endif
 
-    const PSMovePose worldFromDriverPose = g_ServerTrackedDeviceProvider.GetWorldFromDriverPose();
+    const PSMPosef worldFromDriverPose = g_ServerTrackedDeviceProvider.GetWorldFromDriverPose();
 
 	#if LOG_REALIGN_TO_HMD != 0
-		DriverLog("worldFromDriverPose: %s \n", PsMovePoseToString(worldFromDriverPose).c_str());
+		DriverLog("worldFromDriverPose: %s \n", PSMPosefToString(worldFromDriverPose).c_str());
 	#endif
 	
 
@@ -1447,14 +1385,14 @@ const char *CPSMoveTrackedDeviceLatest::GetSteamVRIdentifier() const
 CPSMoveControllerLatest::CPSMoveControllerLatest( 
 	vr::IServerDriverHost * pDriverHost,
 	int controllerId, 
-	ClientControllerView::eControllerType controllerType,
+	PSMControllerType controllerType,
 	const char *serialNo)
     : CPSMoveTrackedDeviceLatest(pDriverHost)
     , m_nPSMControllerId(controllerId)
 	, m_PSMControllerType(controllerType)
     , m_PSMControllerView(nullptr)
     , m_nPSMChildControllerId(-1)
-	, m_PSMChildControllerType(ClientControllerView::None)
+	, m_PSMChildControllerType(PSMControllerType::PSMController_None)
     , m_PSMChildControllerView(nullptr)
     , m_nPoseSequenceNumber(0)
     , m_bIsBatteryCharging(false)
@@ -1476,6 +1414,8 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 	, m_bUseSpatialOffsetAfterTouchpadPressAsTouchpadAxis(false)
 	, m_touchpadDirectionsUsed(false)
 	, m_fControllerMetersInFrontOfHmdAtCalibration(0.f)
+	, m_posMetersAtTouchpadPressTime(*k_psm_float_vector3_zero)
+	, m_driverSpaceRotationAtTouchpadPressTime(*k_psm_quaternion_identity)
 	, m_bUseControllerOrientationInHMDAlignment(false)
 	, m_triggerAxisIndex(1)
 	, m_thumbstickDeadzone(k_defaultThumbstickDeadZoneRadius)
@@ -1492,7 +1432,8 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 	}
 
     // Tell PSM Client API that we are listening to this controller id
-    m_PSMControllerView = ClientPSMoveAPI::allocate_controller_view(controllerId);
+	PSM_AllocateControllerListener(controllerId);
+    m_PSMControllerView = PSM_GetController(controllerId);
 
     memset(&m_ControllerState, 0, sizeof(vr::VRControllerState_t));
 	m_trackingStatus = vr::TrackingResult_Uninitialized;
@@ -1509,10 +1450,10 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 	if (pSettings != nullptr)
 	{
 		// Load PSMove button/touchpad remapping from the settings for all possible controller buttons
-		if (controllerType == ClientControllerView::PSMove)
+		if (controllerType == PSMController_Move)
 		{
 			// Parent controller button mappings
-
+	
 			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_PS, vr::k_EButton_System, k_EVRTouchpadDirection_None, controllerId);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Move, vr::k_EButton_SteamVR_Touchpad, k_EVRTouchpadDirection_None, controllerId);
 			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Trigger, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None, controllerId);
@@ -1546,7 +1487,7 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 				LoadBool(pSettings, "psmove", "use_spatial_offset_after_touchpad_press_as_touchpad_axis", false);
 			m_fMetersPerTouchpadAxisUnits= 
 				LoadFloat(pSettings, "psmove", "meters_per_touchpad_units", .075f);
-			
+
 			// Chack for PSNavi up/down mappings
 			char remapButtonToButtonString[32];
 			vr::EVRSettingsError fetchError;
@@ -1592,7 +1533,7 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 			DriverLog("m_fControllerMetersInFrontOfHmdAtCalibration(psmove): %f\n", m_fControllerMetersInFrontOfHmdAtCalibration);
 			#endif
 		}
-		else if (controllerType == ClientControllerView::PSDualShock4)
+		else if (controllerType == PSMController_DualShock4)
 		{
 			LoadButtonMapping(pSettings, k_EPSControllerType_DS4, k_EPSButtonID_PS, vr::k_EButton_System, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_DS4, k_EPSButtonID_Left, vr::k_EButton_DPad_Left, k_EVRTouchpadDirection_Left);
@@ -1629,10 +1570,12 @@ CPSMoveControllerLatest::~CPSMoveControllerLatest()
 {
 	if (m_PSMChildControllerView != nullptr)
 	{
-		ClientPSMoveAPI::free_controller_view(m_PSMChildControllerView);
+		PSM_FreeControllerListener(m_PSMChildControllerView->ControllerID);
+		m_PSMChildControllerView= nullptr;
 	}
 
-    ClientPSMoveAPI::free_controller_view(m_PSMControllerView);
+	PSM_FreeControllerListener(m_PSMControllerView->ControllerID);
+    m_PSMControllerView= nullptr;
 }
 
 void CPSMoveControllerLatest::LoadButtonMapping(
@@ -1643,7 +1586,7 @@ void CPSMoveControllerLatest::LoadButtonMapping(
 	const eVRTouchpadDirection defaultTouchpadDirection,
 	int controllerId)
 {
-	
+
     vr::EVRButtonId vrButtonID = defaultVRButtonID;
 	eVRTouchpadDirection vrTouchpadDirection = defaultTouchpadDirection;
 
@@ -1651,7 +1594,7 @@ void CPSMoveControllerLatest::LoadButtonMapping(
     {
         const char *szPSButtonName = k_PSButtonNames[psButtonID];
         char remapButtonToButtonString[32];
-		vr::EVRSettingsError fetchError;
+        vr::EVRSettingsError fetchError;
 
 		const char *szButtonSectionName= "";
 		const char *szTouchpadSectionName= "";
@@ -1751,7 +1694,7 @@ void CPSMoveControllerLatest::LoadButtonMapping(
 					{
 						vrTouchpadDirection = static_cast<eVRTouchpadDirection>(vr_touchpad_direction_index);
 						break;
-					}
+    }
 				}
 			}
 		}
@@ -1825,23 +1768,25 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(uint32_t unObjectId)
 
 		g_ServerTrackedDeviceProvider.LaunchPSMoveMonitor();
 
-        ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::start_controller_data_stream(
-                m_PSMControllerView, 
-                ClientPSMoveAPI::includePositionData | ClientPSMoveAPI::includePhysicsData),
-            CPSMoveControllerLatest::start_controller_response_callback,
-            this);
+		PSMRequestID requestId;
+		if (PSM_StartControllerDataStreamAsync(
+				m_PSMControllerView->ControllerID, 
+				PSMStreamFlags_includePositionData | PSMStreamFlags_includePhysicsData, 
+				&requestId) == PSMResult_Success)
+		{
+			PSM_RegisterCallback(requestId, CPSMoveControllerLatest::start_controller_response_callback, this);
+		}
     }
 
     return result;
 }
 
 void CPSMoveControllerLatest::start_controller_response_callback(
-    const ClientPSMoveAPI::ResponseMessage *response, void *userdata)
+    const PSMResponseMessage *response, void *userdata)
 {
     CPSMoveControllerLatest *controller= reinterpret_cast<CPSMoveControllerLatest *>(userdata);
 
-    if (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (response->result_code == PSMResult::PSMResult_Success)
     {
 		DriverLog("CPSMoveControllerLatest::start_controller_response_callback - Controller stream started\n");
 
@@ -1852,7 +1797,7 @@ void CPSMoveControllerLatest::start_controller_response_callback(
 void CPSMoveControllerLatest::Deactivate()
 {
 	DriverLog("CPSMoveControllerLatest::Deactivate - Controller stream stopped\n");
-    ClientPSMoveAPI::stop_controller_data_stream(m_PSMControllerView);
+    PSM_StopControllerDataStreamAsync(m_PSMControllerView->ControllerID, nullptr);
 }
 
 void *CPSMoveControllerLatest::GetComponent(const char *pchComponentNameAndVersion)
@@ -1886,7 +1831,7 @@ bool CPSMoveControllerLatest::GetBoolTrackedDeviceProperty(
         *pError = vr::TrackedProp_Success;
         break;
     case vr::Prop_DeviceProvidesBatteryStatus_Bool:
-        bBoolResult = true;
+        bBoolResult = (m_PSMControllerType == PSMController_Move);
         *pError = vr::TrackedProp_Success;
         break;
     default:
@@ -2013,10 +1958,10 @@ uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
         // still refer to SteamVR models like "generic_hmd".
         switch(m_PSMControllerType)
         {
-        case ClientControllerView::PSMove:
+        case PSMController_Move:
             ssRetVal << "{psmove}psmove_controller";
             break;
-        case ClientControllerView::PSDualShock4:
+        case PSMController_DualShock4:
             ssRetVal << "{psmove}dualshock4_controller";
             break;
         default:
@@ -2107,7 +2052,7 @@ void CPSMoveControllerLatest::SendButtonUpdates( ButtonUpdate ButtonEvent, uint6
 void CPSMoveControllerLatest::UpdateControllerState()
 {
     assert(m_PSMControllerView != nullptr);
-    assert(m_PSMControllerView->GetIsConnected());
+    assert(m_PSMControllerView->IsConnected);
 
     vr::VRControllerState_t NewState = { 0 };
 
@@ -2115,75 +2060,75 @@ void CPSMoveControllerLatest::UpdateControllerState()
     // changed.  We don't try to be precise about that here.
     NewState.unPacketNum = m_ControllerState.unPacketNum + 1;
    
-    switch (m_PSMControllerView->GetControllerViewType())
+    switch (m_PSMControllerView->ControllerType)
     {
-    case ClientControllerView::eControllerType::PSMove:
+    case PSMController_Move:
         {
-            const ClientPSMoveView &clientView = m_PSMControllerView->GetPSMoveView();
+            const PSMPSMove &clientView = m_PSMControllerView->ControllerState.PSMoveState;
 
 			bool bStartRealignHMDTriggered =
-				(clientView.GetButtonStart() == PSMoveButton_PRESSED && clientView.GetButtonSelect() == PSMoveButton_PRESSED) ||
-				(clientView.GetButtonStart() == PSMoveButton_PRESSED && clientView.GetButtonSelect() == PSMoveButton_DOWN) ||
-				(clientView.GetButtonStart() == PSMoveButton_DOWN && clientView.GetButtonSelect() == PSMoveButton_PRESSED);
+				(clientView.StartButton == PSMButtonState_PRESSED && clientView.SelectButton == PSMButtonState_PRESSED) ||
+				(clientView.StartButton == PSMButtonState_PRESSED && clientView.SelectButton == PSMButtonState_DOWN) ||
+				(clientView.StartButton == PSMButtonState_DOWN && clientView.SelectButton == PSMButtonState_PRESSED);
 
 			// Check if the PSMove has a PSNavi child
-			const bool bHasChildNavi =
-				m_PSMChildControllerView != nullptr &&
-				m_PSMChildControllerView->GetControllerViewType() == ClientControllerView::eControllerType::PSNavi;
+			const bool bHasChildNavi= 
+				m_PSMChildControllerView != nullptr && 
+				m_PSMChildControllerView->ControllerType == PSMController_Move;
 
 			// See if the recenter button has been held for the requisite amount of time
 			bool bRecenterRequestTriggered = false;
 			{
-				PSMoveButtonState resetPoseButtonState = clientView.GetButtonSelect();
-				PSMoveButtonState resetAlignButtonState;
+				PSMButtonState resetPoseButtonState = clientView.SelectButton;
+				PSMButtonState resetAlignButtonState;
 
 				// Use PSNavi D-pad up/down if they are free
 				if (bHasChildNavi)
 				{
 					if (m_bUsePSNaviDPadRealign)
 					{
-						resetAlignButtonState = m_PSMChildControllerView->GetPSNaviView().GetButtonDPadUp();
+						resetAlignButtonState = m_PSMChildControllerView->ControllerState.PSNaviState.DPadUpButton;
 
 						switch (resetAlignButtonState)
 						{
-						case PSMoveButtonState::PSMoveButton_PRESSED:
-						{
-							m_resetAlignButtonPressTime = std::chrono::high_resolution_clock::now();
-						} break;
-						case PSMoveButtonState::PSMoveButton_DOWN:
-						{
-							if (!m_bResetAlignRequestSent)
+						case PSMButtonState_PRESSED:
 							{
-								const float k_hold_duration_milli = 1000.f;
-								std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-								std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetAlignButtonPressTime;
-
-								if (pressDurationMilli.count() >= k_hold_duration_milli)
+								m_resetAlignButtonPressTime = std::chrono::high_resolution_clock::now();
+							} break;
+						case PSMButtonState_DOWN:
+							{
+								if (!m_bResetAlignRequestSent)
 								{
-									bStartRealignHMDTriggered = true;
+									const float k_hold_duration_milli = 1000.f;
+									std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+									std::chrono::duration<float, std::milli> pressDurationMilli = now - m_resetAlignButtonPressTime;
+
+									if (pressDurationMilli.count() >= k_hold_duration_milli)
+									{
+										bStartRealignHMDTriggered = true;
+									}
 								}
-							}
-						} break;
-						case PSMoveButtonState::PSMoveButton_RELEASED:
-						{
-							m_bResetAlignRequestSent = false;
-						} break;
+							} break;
+						case PSMButtonState_RELEASED:
+							{
+								m_bResetAlignRequestSent = false;
+							} break;
 						}
 					}
 					
 					if (m_bUsePSNaviDPadRecenter)
 					{
-						resetPoseButtonState = m_PSMChildControllerView->GetPSNaviView().GetButtonDPadDown();
+						resetPoseButtonState = m_PSMChildControllerView->ControllerState.PSNaviState.DPadDownButton;
 					}
 				}
 
 				switch (resetPoseButtonState)
 				{
-				case PSMoveButtonState::PSMoveButton_PRESSED:
+				case PSMButtonState_PRESSED:
 					{
 						m_resetPoseButtonPressTime = std::chrono::high_resolution_clock::now();
 					} break;
-				case PSMoveButtonState::PSMoveButton_DOWN:
+				case PSMButtonState_DOWN:
 					{
 						if (!m_bResetPoseRequestSent)
 						{
@@ -2197,7 +2142,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 							}
 						}
 					} break;
-				case PSMoveButtonState::PSMoveButton_RELEASED:
+				case PSMButtonState_RELEASED:
 					{
 						m_bResetPoseRequestSent = false;
 					} break;
@@ -2208,14 +2153,14 @@ void CPSMoveControllerLatest::UpdateControllerState()
 			// recenter the controller orientation pose and start the realignment of the controller to HMD tracking space.
             if (bStartRealignHMDTriggered)                
             {
-				PSMoveFloatVector3 controllerBallPointedUpEuler = PSMoveFloatVector3::create((float)M_PI_2, 0.0f, 0.0f);
-				PSMoveQuaternion controllerBallPointedUpQuat = PSMoveQuaternion::create(controllerBallPointedUpEuler);
+				PSMVector3f controllerBallPointedUpEuler = {(float)M_PI_2, 0.0f, 0.0f};
+				PSMQuatf controllerBallPointedUpQuat = PSM_QuatfCreateFromAngles(&controllerBallPointedUpEuler);
 
 				#if LOG_REALIGN_TO_HMD != 0
 				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling StartRealignHMDTrackingSpace() in response to controller chord.\n");
 				#endif
 
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_PSMControllerView, controllerBallPointedUpQuat));
+				PSM_ResetControllerOrientationAsync(m_PSMControllerView->ControllerID, &controllerBallPointedUpQuat, nullptr);
 				m_bResetPoseRequestSent = true;
 
 				StartRealignHMDTrackingSpace();
@@ -2225,7 +2170,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 			{
 				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling ClientPSMoveAPI::reset_orientation() in response to controller button press.\n");
 
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_PSMControllerView, PSMoveQuaternion::identity()));
+				PSM_ResetControllerOrientationAsync(m_PSMControllerView->ControllerID, k_psm_quaternion_identity, nullptr);
 				m_bResetPoseRequestSent = true;
 			}
 			else 
@@ -2235,31 +2180,31 @@ void CPSMoveControllerLatest::UpdateControllerState()
 
 				// Handle buttons/virtual touchpad buttons on the psmove
 				m_touchpadDirectionsUsed = false;
-				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Circle, clientView.GetButtonCircle(), &NewState);
-				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Cross, clientView.GetButtonCross(), &NewState);
-				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Move, clientView.GetButtonMove(), &NewState);
-				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_PS, clientView.GetButtonPS(), &NewState);
-				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Select, clientView.GetButtonSelect(), &NewState);
-				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Square, clientView.GetButtonSquare(), &NewState);
-				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Start, clientView.GetButtonStart(), &NewState);
-				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Triangle, clientView.GetButtonTriangle(), &NewState);
-				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Trigger, clientView.GetButtonTrigger(), &NewState);
+				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Circle, clientView.CircleButton, &NewState);
+				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Cross, clientView.CrossButton, &NewState);
+				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Move, clientView.MoveButton, &NewState);
+				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_PS, clientView.PSButton, &NewState);
+				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Select, clientView.SelectButton, &NewState);
+				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Square, clientView.SquareButton, &NewState);
+				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Start, clientView.StartButton, &NewState);
+				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Triangle, clientView.TriangleButton, &NewState);
+				UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Move, k_EPSButtonID_Trigger, clientView.TriggerButton, &NewState);
 
 				// Handle buttons/virtual touchpad buttons on the psnavi
 				if (bHasChildNavi)
 				{
-					const ClientPSNaviView &naviClientView = m_PSMChildControllerView->GetPSNaviView();
+					const PSMPSNavi &naviClientView = m_PSMChildControllerView->ControllerState.PSNaviState;
 
-					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_Circle, naviClientView.GetButtonCircle(), &NewState);
-					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_Cross, naviClientView.GetButtonCross(), &NewState);
-					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_PS, naviClientView.GetButtonPS(), &NewState);
-					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_Up, naviClientView.GetButtonDPadUp(), &NewState);
-					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_Down, naviClientView.GetButtonDPadDown(), &NewState);
-					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_Left, naviClientView.GetButtonDPadLeft(), &NewState);
-					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_Right, naviClientView.GetButtonDPadRight(), &NewState);
-					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_L1, naviClientView.GetButtonL1(), &NewState);
-					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_L2, naviClientView.GetButtonL2(), &NewState);
-					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_L3, naviClientView.GetButtonL3(), &NewState);
+					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_Circle, naviClientView.CircleButton, &NewState);
+					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_Cross, naviClientView.CrossButton, &NewState);
+					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_PS, naviClientView.PSButton, &NewState);
+					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_Up, naviClientView.DPadUpButton, &NewState);
+					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_Down, naviClientView.DPadDownButton, &NewState);
+					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_Left, naviClientView.DPadLeftButton, &NewState);
+					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_Right, naviClientView.DPadRightButton, &NewState);
+					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_L1, naviClientView.L1Button, &NewState);
+					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_L2, naviClientView.L2Button, &NewState);
+					UpdateControllerStateFromPsMoveButtonState(k_EPSControllerType_Navi, k_EPSButtonID_L3, naviClientView.L3Button, &NewState);
 				}
 
 				// Touchpad handling
@@ -2270,9 +2215,9 @@ void CPSMoveControllerLatest::UpdateControllerState()
 					// PSNavi TouchPad Handling (i.e. thumbstick as touchpad)
 					if (bHasChildNavi)
 					{
-						const ClientPSNaviView &naviClientView = m_PSMChildControllerView->GetPSNaviView();
-						const float thumbStickX = naviClientView.GetStickXAxis();
-						const float thumbStickY = naviClientView.GetStickYAxis();
+						const PSMPSNavi &naviClientView = m_PSMChildControllerView->ControllerState.PSNaviState;
+						const float thumbStickX = naviClientView.Stick_XAxis;
+						const float thumbStickY = naviClientView.Stick_YAxis;
 						const float thumbStickRadialDist= sqrtf(thumbStickX*thumbStickX + thumbStickY*thumbStickY);
 
 						if (thumbStickRadialDist >= m_thumbstickDeadzone)
@@ -2324,33 +2269,33 @@ void CPSMoveControllerLatest::UpdateControllerState()
 								if (!m_bTouchpadWasActive)
 								{
 									// Just pressed.
-									const ClientPSMoveView &view = m_PSMControllerView->GetPSMoveView();
-									m_driverSpaceRotationAtTouchpadPressTime = view.GetOrientation();
+									const PSMPSMove &view = m_PSMControllerView->ControllerState.PSMoveState;
+									m_driverSpaceRotationAtTouchpadPressTime = view.Pose.Orientation;
 
-									GetMetersPosInRotSpace(&m_posMetersAtTouchpadPressTime, m_driverSpaceRotationAtTouchpadPressTime);
+									GetMetersPosInRotSpace(&m_driverSpaceRotationAtTouchpadPressTime, &m_posMetersAtTouchpadPressTime);
 
 									#if LOG_TOUCHPAD_EMULATION != 0
 									DriverLog("Touchpad pressed! At (%f, %f, %f) meters relative to orientation\n",
-										m_posMetersAtTouchpadPressTime.i, m_posMetersAtTouchpadPressTime.j, m_posMetersAtTouchpadPressTime.k);
+										m_posMetersAtTouchpadPressTime.x, m_posMetersAtTouchpadPressTime.y, m_posMetersAtTouchpadPressTime.z);
 									#endif
 								}
 								else
 								{
 									// Held!
-									PSMoveFloatVector3 newPosMeters;
-									GetMetersPosInRotSpace(&newPosMeters, m_driverSpaceRotationAtTouchpadPressTime);
+									PSMVector3f newPosMeters;
+									GetMetersPosInRotSpace(&m_driverSpaceRotationAtTouchpadPressTime, &newPosMeters);
 
-									PSMoveFloatVector3 offsetMeters = newPosMeters - m_posMetersAtTouchpadPressTime;
+									PSMVector3f offsetMeters = PSM_Vector3fSubtract(&newPosMeters, &m_posMetersAtTouchpadPressTime);
 
 									#if LOG_TOUCHPAD_EMULATION != 0
 									DriverLog("Touchpad held! Relative position (%f, %f, %f) meters\n",
-										offsetMeters.i, offsetMeters.j, offsetMeters.k);
+										offsetMeters.x, offsetMeters.y, offsetMeters.z);
 									#endif
 
-									NewState.rAxis[0].x = offsetMeters.i / m_fMetersPerTouchpadAxisUnits;
+									NewState.rAxis[0].x = offsetMeters.x / m_fMetersPerTouchpadAxisUnits;
 									NewState.rAxis[0].x = fminf(fmaxf(NewState.rAxis[0].x, -1.0f), 1.0f);
 
-									NewState.rAxis[0].y = -offsetMeters.k / m_fMetersPerTouchpadAxisUnits;
+									NewState.rAxis[0].y = -offsetMeters.z / m_fMetersPerTouchpadAxisUnits;
 									NewState.rAxis[0].y = fminf(fmaxf(NewState.rAxis[0].y, -1.0f), 1.0f);
 
 									#if LOG_TOUCHPAD_EMULATION != 0
@@ -2374,15 +2319,15 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				}
 
 				// PSMove Trigger handling
-				NewState.rAxis[m_triggerAxisIndex].x = clientView.GetTriggerValue();
+				NewState.rAxis[m_triggerAxisIndex].x = clientView.TriggerValue;
 				NewState.rAxis[m_triggerAxisIndex].y = 0.f;
 
 				// Attached PSNavi Trigger handling
 				if (bHasChildNavi)
 				{
-					const ClientPSNaviView &naviClientView = m_PSMChildControllerView->GetPSNaviView();
+					const PSMPSNavi &naviClientView = m_PSMChildControllerView->ControllerState.PSNaviState;
 
-					NewState.rAxis[m_triggerAxisIndex].x = fmaxf(NewState.rAxis[m_triggerAxisIndex].x, naviClientView.GetTriggerValue());
+					NewState.rAxis[m_triggerAxisIndex].x = fmaxf(NewState.rAxis[m_triggerAxisIndex].x, naviClientView.TriggerValue);
 				}
 
 				// Trigger SteamVR Events
@@ -2400,29 +2345,66 @@ void CPSMoveControllerLatest::UpdateControllerState()
 
 					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, m_triggerAxisIndex, NewState.rAxis[m_triggerAxisIndex]);
 				}
+
+				// Update the battery charge state
+				switch (m_PSMControllerView->ControllerState.PSMoveState.BatteryValue)
+				{
+				case PSMBattery_0:
+					m_bIsBatteryCharging= false;
+					m_fBatteryChargeFraction= 0.f;
+					break;
+				case PSMBattery_20:
+					m_bIsBatteryCharging= false;
+					m_fBatteryChargeFraction= 0.2f;
+					break;
+				case PSMBattery_40:
+					m_bIsBatteryCharging= false;
+					m_fBatteryChargeFraction= 0.4f;
+					break;
+				case PSMBattery_60:
+					m_bIsBatteryCharging= false;
+					m_fBatteryChargeFraction= 0.6f;
+					break;
+				case PSMBattery_80:
+					m_bIsBatteryCharging= false;
+					m_fBatteryChargeFraction= 0.8f;
+					break;
+				case PSMBattery_100:
+					m_bIsBatteryCharging= false;
+					m_fBatteryChargeFraction= 1.f;
+					break;
+				case PSMBattery_Charging:
+					m_bIsBatteryCharging= true;
+					m_fBatteryChargeFraction= 0.99f; // Don't really know the charge amount in this case
+					break;
+				case PSMBattery_Charged:
+					m_bIsBatteryCharging= true;
+					m_fBatteryChargeFraction= 1.f;
+					break;
+				}
 			}
         } break;
-    case ClientControllerView::eControllerType::PSDualShock4:
+    case PSMController_DualShock4:
         {
-            const ClientPSDualShock4View &clientView = m_PSMControllerView->GetPSDualShock4View();
+            const PSMDualShock4 &clientView = m_PSMControllerView->ControllerState.PSDS4State;
 
 			const bool bStartRealignHMDTriggered =
-				(clientView.GetButtonShare() == PSMoveButton_PRESSED && clientView.GetButtonOptions() == PSMoveButton_PRESSED) ||
-				(clientView.GetButtonShare() == PSMoveButton_PRESSED && clientView.GetButtonOptions() == PSMoveButton_DOWN) ||
-				(clientView.GetButtonShare() == PSMoveButton_DOWN && clientView.GetButtonOptions() == PSMoveButton_PRESSED);
+				(clientView.ShareButton == PSMButtonState_PRESSED && clientView.OptionsButton == PSMButtonState_PRESSED) ||
+				(clientView.ShareButton == PSMButtonState_PRESSED && clientView.OptionsButton == PSMButtonState_DOWN) ||
+				(clientView.ShareButton == PSMButtonState_DOWN && clientView.OptionsButton == PSMButtonState_PRESSED);
 
 			// See if the recenter button has been held for the requisite amount of time
 			bool bRecenterRequestTriggered = false;
 			{
-				PSMoveButtonState resetPoseButtonState = clientView.GetButtonOptions();
+				PSMButtonState resetPoseButtonState = clientView.OptionsButton;
 
 				switch (resetPoseButtonState)
 				{
-				case PSMoveButtonState::PSMoveButton_PRESSED:
+				case PSMButtonState_PRESSED:
 					{
 						m_resetPoseButtonPressTime = std::chrono::high_resolution_clock::now();
 					} break;
-				case PSMoveButtonState::PSMoveButton_DOWN:
+				case PSMButtonState_DOWN:
 				{
 					if (!m_bResetPoseRequestSent)
 					{
@@ -2436,7 +2418,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 						}
 					}
 				} break;
-				case PSMoveButtonState::PSMoveButton_RELEASED:
+				case PSMButtonState_RELEASED:
 					{
 						m_bResetPoseRequestSent = false;
 					} break;
@@ -2451,7 +2433,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling StartRealignHMDTrackingSpace() in response to controller chord.\n");
 				#endif
 
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_PSMControllerView, PSMoveQuaternion::identity()));
+				PSM_ResetControllerOrientationAsync(m_PSMControllerView->ControllerID, k_psm_quaternion_identity, nullptr);
 				m_bResetPoseRequestSent = true;
 
 				StartRealignHMDTrackingSpace();
@@ -2460,61 +2442,61 @@ void CPSMoveControllerLatest::UpdateControllerState()
 			{
 				DriverLog("CPSMoveControllerLatest::UpdateControllerState(): Calling ClientPSMoveAPI::reset_orientation() in response to controller button press.\n");
 
-				ClientPSMoveAPI::eat_response(ClientPSMoveAPI::reset_orientation(m_PSMControllerView, PSMoveQuaternion::identity()));
+				PSM_ResetControllerOrientationAsync(m_PSMControllerView->ControllerID, k_psm_quaternion_identity, nullptr);
 				m_bResetPoseRequestSent = true;
 			}
 			else
 			{
-				if (clientView.GetButtonL1())
+				if (clientView.L1Button)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_L1]);
-				if (clientView.GetButtonL2())
+				if (clientView.L2Button)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_L2]);
-				if (clientView.GetButtonL3())
+				if (clientView.L3Button)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_L3]);
-				if (clientView.GetButtonR1())
+				if (clientView.R1Button)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_R1]);
-				if (clientView.GetButtonR2())
+				if (clientView.R2Button)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_R2]);
-				if (clientView.GetButtonR3())
+				if (clientView.R3Button)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_R3]);
 
-				if (clientView.GetButtonCircle())
+				if (clientView.CircleButton)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_Circle]);
-				if (clientView.GetButtonCross())
+				if (clientView.CrossButton)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_Cross]);
-				if (clientView.GetButtonSquare())
+				if (clientView.SquareButton)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_Square]);
-				if (clientView.GetButtonTriangle())
+				if (clientView.TriangleButton)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_Triangle]);
 
-				if (clientView.GetButtonDPadUp())
+				if (clientView.DPadUpButton)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_Up]);
-				if (clientView.GetButtonDPadDown())
+				if (clientView.DPadDownButton)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_Down]);
-				if (clientView.GetButtonDPadLeft())
+				if (clientView.DPadLeftButton)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_Left]);
-				if (clientView.GetButtonDPadRight())
+				if (clientView.DPadRightButton)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_Right]);
 
-				if (clientView.GetButtonOptions())
+				if (clientView.OptionsButton)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_Options]);
-				if (clientView.GetButtonShare())
+				if (clientView.ShareButton)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_Share]);
-				if (clientView.GetButtonTrackpad())
+				if (clientView.TrackPadButton)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_Trackpad]);
-				if (clientView.GetButtonPS())
+				if (clientView.PSButton)
 					NewState.ulButtonPressed |= vr::ButtonMaskFromId(psButtonIDToVRButtonID[k_EPSControllerType_DS4][k_EPSButtonID_PS]);
 
-				NewState.rAxis[0].x = clientView.GetLeftAnalogX();
-				NewState.rAxis[0].y = -clientView.GetLeftAnalogY();
+				NewState.rAxis[0].x = clientView.LeftAnalogX;
+				NewState.rAxis[0].y = -clientView.LeftAnalogY;
 
-				NewState.rAxis[1].x = clientView.GetLeftTriggerValue();
+				NewState.rAxis[1].x = clientView.LeftTriggerValue;
 				NewState.rAxis[1].y = 0.f;
 
-				NewState.rAxis[2].x = clientView.GetRightAnalogX();
-				NewState.rAxis[2].y = -clientView.GetRightAnalogY();
+				NewState.rAxis[2].x = clientView.RightAnalogX;
+				NewState.rAxis[2].y = -clientView.RightAnalogY;
 
-				NewState.rAxis[3].x = clientView.GetRightTriggerValue();
+				NewState.rAxis[3].x = clientView.RightTriggerValue;
 				NewState.rAxis[3].y = 0.f;
 
 				if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x || NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
@@ -2548,10 +2530,10 @@ void CPSMoveControllerLatest::UpdateControllerState()
 void CPSMoveControllerLatest::UpdateControllerStateFromPsMoveButtonState(
 	ePSControllerType controllerType,
 	ePSButtonID buttonId,
-	PSMoveButtonState buttonState, 
+	PSMButtonState buttonState, 
 	vr::VRControllerState_t* pControllerStateToUpdate)
 {
-	if (buttonState & PSMoveButton_PRESSED || buttonState & PSMoveButton_DOWN)
+	if (buttonState & PSMButtonState_PRESSED || buttonState & PSMButtonState_DOWN)
 	{
 		if (psButtonIDToVRButtonID[controllerType][buttonId] == k_touchpadTouchMapping) {
 			pControllerStateToUpdate->ulButtonTouched |= vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
@@ -2588,85 +2570,81 @@ void CPSMoveControllerLatest::UpdateControllerStateFromPsMoveButtonState(
 }
 
 
-PSMoveQuaternion ExtractHMDYawQuaternion(const PSMoveQuaternion &q)
+PSMQuatf ExtractHMDYawQuaternion(const PSMQuatf &q)
 {
     // Convert the quaternion to a basis matrix
-    const PSMoveMatrix3x3 hmd_orientation = PSMoveMatrix3x3::create(q);
+    const PSMMatrix3f hmd_orientation = PSM_Matrix3fCreateFromQuatf(&q);
 
     // Extract the forward (z-axis) vector from the basis
-	const PSMoveFloatVector3 &global_forward = *k_psmove_float_vector3_k;
-    const PSMoveFloatVector3 forward = hmd_orientation.basis_z();
-	PSMoveFloatVector3 forward2d = PSMoveFloatVector3::create(forward.i, 0.f, forward.k);
-	forward2d.normalize_with_default(global_forward);
+    const PSMVector3f forward = PSM_Matrix3fBasisZ(&hmd_orientation);
+	PSMVector3f forward2d = {forward.x, 0.f, forward.z};
+	forward2d= PSM_Vector3fNormalizeWithDefault(&forward2d, k_psm_float_vector3_k);
 
     // Compute the yaw angle (amount the z-axis has been rotated to it's current facing)
-    const float cos_yaw = PSMoveFloatVector3::dot(forward, global_forward);
+    const float cos_yaw = PSM_Vector3fDot(&forward, k_psm_float_vector3_k);
     float half_yaw = acosf(fminf(fmaxf(cos_yaw, -1.f), 1.f)) / 2.f;
 
 	// Flip the sign of the yaw angle depending on if forward2d is to the left or right of global forward
-	const PSMoveFloatVector3 &global_up = *k_psmove_float_vector3_j;
-	PSMoveFloatVector3 yaw_axis = PSMoveFloatVector3::cross(global_forward, forward2d);
-	if (PSMoveFloatVector3::dot(yaw_axis, global_up) < 0)
+	PSMVector3f yaw_axis = PSM_Vector3fCross(k_psm_float_vector3_k, &forward2d);
+	if (PSM_Vector3fDot(&yaw_axis, k_psm_float_vector3_j) < 0)
 	{
 		half_yaw = -half_yaw;
 	}
 
     // Convert this yaw rotation back into a quaternion
-    PSMoveQuaternion yaw_quaternion =
-        PSMoveQuaternion::create(
+    PSMQuatf yaw_quaternion =
+        PSM_QuatfCreate(
             cosf(half_yaw), // w = cos(theta/2)
             0.f, sinf(half_yaw), 0.f); // (x, y, z) = sin(theta/2)*axis, where axis = (0, 1, 0)
 
     return yaw_quaternion;
 }
 
-PSMoveQuaternion ExtractPSMoveYawQuaternion(const PSMoveQuaternion &q)
+PSMQuatf ExtractPSMoveYawQuaternion(const PSMQuatf &q)
 {
 	// Convert the quaternion to a basis matrix
-	const PSMoveMatrix3x3 psmove_basis = PSMoveMatrix3x3::create(q);
+	const PSMMatrix3f psmove_basis = PSM_Matrix3fCreateFromQuatf(&q);
 
 	// Extract the forward (negative z-axis) vector from the basis
-	const PSMoveFloatVector3 global_forward = PSMoveFloatVector3::create(0.f, 0.f, -1.f);
-	const PSMoveFloatVector3 &forward = psmove_basis.basis_y();
-	PSMoveFloatVector3 forward2d = PSMoveFloatVector3::create(forward.i, 0.f, forward.k);
-	forward2d.normalize_with_default(global_forward);
+	const PSMVector3f global_forward = {0.f, 0.f, -1.f};
+	const PSMVector3f &forward = PSM_Matrix3fBasisY(&psmove_basis);
+	PSMVector3f forward2d = {forward.x, 0.f, forward.z};
+	forward2d= PSM_Vector3fNormalizeWithDefault(&forward2d, &global_forward);
 
 	// Compute the yaw angle (amount the z-axis has been rotated to it's current facing)
-	const float cos_yaw = PSMoveFloatVector3::dot(forward, global_forward);
+	const float cos_yaw = PSM_Vector3fDot(&forward, &global_forward);
 	float yaw = acosf(fminf(fmaxf(cos_yaw, -1.f), 1.f));
 
 	// Flip the sign of the yaw angle depending on if forward2d is to the left or right of global forward
-	const PSMoveFloatVector3 &global_up = *k_psmove_float_vector3_j;
-	PSMoveFloatVector3 yaw_axis = PSMoveFloatVector3::cross(global_forward, forward2d);
-	if (PSMoveFloatVector3::dot(yaw_axis, global_up) < 0)
+	const PSMVector3f &global_up = *k_psm_float_vector3_j;
+	PSMVector3f yaw_axis = PSM_Vector3fCross(&global_forward, &forward2d);
+	if (PSM_Vector3fDot(&yaw_axis, &global_up) < 0)
 	{
 		yaw = -yaw;
 	}
 
 	// Convert this yaw rotation back into a quaternion
-	PSMoveQuaternion yaw_quaternion =
-		PSMoveQuaternion::concat(
-			PSMoveQuaternion::create(PSMoveFloatVector3::create((float)1.57079632679489661923, 0.f, 0.f)), // pitch 90 up first
-			PSMoveQuaternion::create(PSMoveFloatVector3::create(0, yaw, 0))); // Then apply the yaw
+	PSMVector3f eulerPitch= {(float)1.57079632679489661923, 0.f, 0.f}; // pitch 90 up first
+	PSMVector3f eulerYaw= {0, yaw, 0};
+	PSMQuatf quatPitch= PSM_QuatfCreateFromAngles(&eulerPitch);
+	PSMQuatf quatYaw= PSM_QuatfCreateFromAngles(&eulerYaw);
+	PSMQuatf yaw_quaternion =
+		PSM_QuatfConcat(
+			&quatPitch, // pitch 90 up first
+			&quatYaw); // Then apply the yaw
 
 	return yaw_quaternion;
 }
 
-void CPSMoveControllerLatest::GetMetersPosInRotSpace(PSMoveFloatVector3* pOutPosition, const PSMoveQuaternion& rRotation )
+void CPSMoveControllerLatest::GetMetersPosInRotSpace(const PSMQuatf *rotation, PSMVector3f* out_position)
 {
-	const ClientPSMoveView &view = m_PSMControllerView->GetPSMoveView();
+	const PSMPSMove &view = m_PSMControllerView->ControllerState.PSMoveState;
+	const PSMVector3f &position = view.Pose.Position;
 
-	const PSMovePosition &position = view.GetPosition();
+	PSMVector3f unrotatedPositionMeters= PSM_Vector3fScale(&position, k_fScalePSMoveAPIToMeters);
+	PSMQuatf viewOrientationInverse	= PSM_QuatfConjugate(rotation);
 
-	PSMoveFloatVector3 unrotatedPositionMeters
-		= PSMoveFloatVector3::create(
-			position.x * k_fScalePSMoveAPIToMeters,
-			position.y * k_fScalePSMoveAPIToMeters,
-			position.z * k_fScalePSMoveAPIToMeters);
-
-	PSMoveQuaternion viewOrientationInverse	= rRotation.inverse();
-
-	*pOutPosition	= viewOrientationInverse.rotate_vector(unrotatedPositionMeters);
+	*out_position = PSM_QuatfRotateVector(&viewOrientationInverse, &unrotatedPositionMeters);
 }
 
 void CPSMoveControllerLatest::StartRealignHMDTrackingSpace()
@@ -2683,7 +2661,7 @@ void CPSMoveControllerLatest::StartRealignHMDTrackingSpace()
 }
 
 void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
-	const PSMovePose &hmd_pose_raw_meters, 
+	const PSMPosef &hmd_pose_raw_meters, 
 	void *userdata)
 {
 
@@ -2693,43 +2671,41 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 		DriverLog("Begin CPSMoveControllerLatest::FinishRealignHMDTrackingSpace()\n");
 	#endif
 
-	PSMovePose hmd_pose_meters = hmd_pose_raw_meters;
-	DriverLog("hmd_pose_meters(raw): %s \n", PsMovePoseToString(hmd_pose_meters).c_str());
+	PSMPosef hmd_pose_meters = hmd_pose_raw_meters;
+	DriverLog("hmd_pose_meters(raw): %s \n", PSMPosefToString(hmd_pose_meters).c_str());
 
 	// Make the HMD orientation only contain a yaw
 	hmd_pose_meters.Orientation = ExtractHMDYawQuaternion(hmd_pose_raw_meters.Orientation);
-	DriverLog("hmd_pose_meters(yaw-only): %s \n", PsMovePoseToString(hmd_pose_meters).c_str());
+	DriverLog("hmd_pose_meters(yaw-only): %s \n", PSMPosefToString(hmd_pose_meters).c_str());
 
 	// We have the transform of the HMD in world space. 
 	// However the HMD and the controller aren't quite aligned depending on the controller type:
-	PSMoveQuaternion controllerOrientationInHmdSpaceQuat= PSMoveQuaternion::identity();
-	PSMovePosition controllerLocalOffsetFromHmdPosition= PSMovePosition::identity();
-	if (pThis->m_PSMControllerType == ClientControllerView::PSMove)
+	PSMQuatf controllerOrientationInHmdSpaceQuat= *k_psm_quaternion_identity;
+	PSMVector3f controllerLocalOffsetFromHmdPosition= *k_psm_float_vector3_zero;
+	if (pThis->m_PSMControllerType == PSMControllerType::PSMController_Move)
 	{
 		// Rotation) The controller's local -Z axis (from the center to the glowing ball) is currently pointed 
 		//    in the direction of the HMD's local +Y axis, 
 		// Translation) The controller's position is a few inches ahead of the HMD's on the HMD's local -Z axis. 
-		controllerOrientationInHmdSpaceQuat =
-			PSMoveQuaternion::create(PSMoveFloatVector3::create((float)M_PI_2, 0.0f, 0.0f));
-		controllerLocalOffsetFromHmdPosition
-			= PSMovePosition::create(0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCalibration);
+		PSMVector3f eulerPitch= {(float)M_PI_2, 0.0f, 0.0f};
+		controllerOrientationInHmdSpaceQuat = PSM_QuatfCreateFromAngles(&eulerPitch);
+		controllerLocalOffsetFromHmdPosition = {0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCalibration};
 	}
-	else if (pThis->m_PSMControllerType == ClientControllerView::PSDualShock4)
+	else if (pThis->m_PSMControllerType == PSMControllerType::PSMController_DualShock4)
 	{
 		// Translation) The controller's position is a few inches ahead of the HMD's on the HMD's local -Z axis. 
-		controllerLocalOffsetFromHmdPosition
-			= PSMovePosition::create(0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCalibration);
+		controllerLocalOffsetFromHmdPosition = {0.0f, 0.0f, -1.0f * pThis->m_fControllerMetersInFrontOfHmdAtCalibration};
 	}
 
 	// Transform the HMD's world space transform to where we expect the controller's world space transform to be.
-	PSMovePose controllerPoseRelativeToHMD =
-		PSMovePose::create(controllerLocalOffsetFromHmdPosition, controllerOrientationInHmdSpaceQuat);
+	PSMPosef controllerPoseRelativeToHMD =
+		PSM_PosefCreate(&controllerLocalOffsetFromHmdPosition, &controllerOrientationInHmdSpaceQuat);
 
-	DriverLog("controllerPoseRelativeToHMD: %s \n", PsMovePoseToString(controllerPoseRelativeToHMD).c_str());
+	DriverLog("controllerPoseRelativeToHMD: %s \n", PSMPosefToString(controllerPoseRelativeToHMD).c_str());
 
 	// Compute the expected controller pose in HMD tracking space (i.e. "World Space")
-	PSMovePose controller_world_space_pose = PSMovePose::concat(controllerPoseRelativeToHMD, hmd_pose_meters);
-	DriverLog("controller_world_space_pose: %s \n", PsMovePoseToString(controller_world_space_pose).c_str());
+	PSMPosef controller_world_space_pose = PSM_PosefConcat(&controllerPoseRelativeToHMD, &hmd_pose_meters);
+	DriverLog("controller_world_space_pose: %s \n", PSMPosefToString(controller_world_space_pose).c_str());
 
 
 	// We now have the transform of the controller in world space -- controller_world_space_pose
@@ -2740,48 +2716,55 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 	// psmove_pose_meters * driver_pose_to_world_pose = controller_world_space_pose
 	// psmove_pose_meters.inverse() * psmove_pose_meters * driver_pose_to_world_pose = psmove_pose_meters.inverse() * controller_world_space_pose
 	// driver_pose_to_world_pose = psmove_pose_meters.inverse() * controller_world_space_pose
-
 	CPSMoveControllerLatest *controller = reinterpret_cast<CPSMoveControllerLatest *>(userdata);
 
 	// Get the current pose from the controller view instead of using the driver's cached
 	// value because the user may have triggered a pose reset, in which case the driver's
 	// cached pose might not yet be up to date by the time this callback is triggered.
-	PSMovePose controller_pose_meters = controller->m_PSMControllerView->GetPose();
-	DriverLog("controller_pose_meters(raw): %s \n", PsMovePoseToString(controller_pose_meters).c_str());
+	PSMPosef controller_pose_meters = *k_psm_pose_identity;
+	if (pThis->m_PSMControllerType == PSMControllerType::PSMController_Move)
+	{
+		controller_pose_meters = controller->m_PSMControllerView->ControllerState.PSMoveState.Pose;
+	}
+	else if (pThis->m_PSMControllerType == PSMControllerType::PSMController_DualShock4)
+	{
+		controller_pose_meters = controller->m_PSMControllerView->ControllerState.PSDS4State.Pose;
+	}
+	DriverLog("controller_pose_meters(raw): %s \n", PSMPosefToString(controller_pose_meters).c_str());
 
 	// PSMove Position is in cm, but OpenVR stores position in meters
-	controller_pose_meters.Position.x *= k_fScalePSMoveAPIToMeters;
-	controller_pose_meters.Position.y *= k_fScalePSMoveAPIToMeters;
-	controller_pose_meters.Position.z *= k_fScalePSMoveAPIToMeters;
+	controller_pose_meters.Position= PSM_Vector3fScale(&controller_pose_meters.Position, k_fScalePSMoveAPIToMeters);
 
-	if (pThis->m_PSMControllerType == ClientControllerView::PSMove)
+	if (pThis->m_PSMControllerType == PSMControllerType::PSMController_Move)
 	{
 		if (pThis->m_bUseControllerOrientationInHMDAlignment)
 		{
 			// Extract only the yaw from the controller orientation (assume it's mostly held upright)
 			controller_pose_meters.Orientation = ExtractPSMoveYawQuaternion(controller_pose_meters.Orientation);
-			DriverLog("controller_pose_meters(yaw-only): %s \n", PsMovePoseToString(controller_pose_meters).c_str());
+			DriverLog("controller_pose_meters(yaw-only): %s \n", PSMPosefToString(controller_pose_meters).c_str());
 		}
 		else
 		{
-			controller_pose_meters.Orientation = PSMoveQuaternion::create(PSMoveFloatVector3::create((float)M_PI_2, 0.0f, 0.0f));
-			DriverLog("controller_pose_meters(no-rotation): %s \n", PsMovePoseToString(controller_pose_meters).c_str());
+			const PSMVector3f eulerPitch= {(float)M_PI_2, 0.0f, 0.0f};
+
+			controller_pose_meters.Orientation = PSM_QuatfCreateFromAngles(&eulerPitch);
+			DriverLog("controller_pose_meters(no-rotation): %s \n", PSMPosefToString(controller_pose_meters).c_str());
 		}
 	}
-	else if (pThis->m_PSMControllerType == ClientControllerView::PSDualShock4)
+	else if (pThis->m_PSMControllerType == PSMControllerType::PSMController_DualShock4)
 	{
-		controller_pose_meters.Orientation = PSMoveQuaternion::identity();
-		DriverLog("controller_pose_meters(no-rotation): %s \n", PsMovePoseToString(controller_pose_meters).c_str());
+		controller_pose_meters.Orientation = *k_psm_quaternion_identity;
+		DriverLog("controller_pose_meters(no-rotation): %s \n", PSMPosefToString(controller_pose_meters).c_str());
 	}	
 
-	PSMovePose controller_pose_inv = controller_pose_meters.inverse();
-	DriverLog("controller_pose_inv: %s \n", PsMovePoseToString(controller_pose_inv).c_str());
+	PSMPosef controller_pose_inv = PSM_PosefInverse(&controller_pose_meters);
+	DriverLog("controller_pose_inv: %s \n", PSMPosefToString(controller_pose_inv).c_str());
 
-	PSMovePose driver_pose_to_world_pose = PSMovePose::concat(controller_pose_inv, controller_world_space_pose);
-	DriverLog("driver_pose_to_world_pose: %s \n", PsMovePoseToString(driver_pose_to_world_pose).c_str());
+	PSMPosef driver_pose_to_world_pose = PSM_PosefConcat(&controller_pose_inv, &controller_world_space_pose);
+	DriverLog("driver_pose_to_world_pose: %s \n", PSMPosefToString(driver_pose_to_world_pose).c_str());
 
-	PSMovePose test_composed_controller_world_space = PSMovePose::concat(controller_pose_meters, driver_pose_to_world_pose);
-	DriverLog("test_composed_controller_world_space: %s \n", PsMovePoseToString(test_composed_controller_world_space).c_str());
+	PSMPosef test_composed_controller_world_space = PSM_PosefConcat(&controller_pose_meters, &driver_pose_to_world_pose);
+	DriverLog("test_composed_controller_world_space: %s \n", PSMPosefToString(test_composed_controller_world_space).c_str());
 
 	g_ServerTrackedDeviceProvider.SetHMDTrackingSpace(driver_pose_to_world_pose);
 }
@@ -2789,23 +2772,23 @@ void CPSMoveControllerLatest::FinishRealignHMDTrackingSpace(
 void CPSMoveControllerLatest::UpdateTrackingState()
 {
     assert(m_PSMControllerView != nullptr);
-    assert(m_PSMControllerView->GetIsConnected());
+    assert(m_PSMControllerView->IsConnected);
 
 	// The tracking status will be one of the following states:
     m_Pose.result = m_trackingStatus;
 
-    m_Pose.deviceIsConnected = m_PSMControllerView->GetIsConnected();
+    m_Pose.deviceIsConnected = m_PSMControllerView->IsConnected;
 
     // These should always be false from any modern driver.  These are for Oculus DK1-like
     // rotation-only tracking.  Support for that has likely rotted in vrserver.
     m_Pose.willDriftInYaw = false;
     m_Pose.shouldApplyHeadModel = false;
 
-    switch (m_PSMControllerView->GetControllerViewType())
+    switch (m_PSMControllerView->ControllerType)
     {
-    case ClientControllerView::eControllerType::PSMove:
+    case PSMControllerType::PSMController_Move:
         {
-            const ClientPSMoveView &view= m_PSMControllerView->GetPSMoveView();
+            const PSMPSMove &view= m_PSMControllerView->ControllerState.PSMoveState;
 
             // No prediction since that's already handled in the psmove service
             m_Pose.poseTimeOffset = 0.f;
@@ -2821,7 +2804,7 @@ void CPSMoveControllerLatest::UpdateTrackingState()
 
             // Set position
             {
-                const PSMovePosition &position = view.GetPosition();
+                const PSMVector3f &position = view.Pose.Position;
 
                 m_Pose.vecPosition[0] = position.x * k_fScalePSMoveAPIToMeters;
                 m_Pose.vecPosition[1] = position.y * k_fScalePSMoveAPIToMeters;
@@ -2831,35 +2814,34 @@ void CPSMoveControllerLatest::UpdateTrackingState()
 			// virtual extend controllers
 			if (m_fVirtuallExtendControllersYMeters != 0.0f || m_fVirtuallExtendControllersZMeters != 0.0f)
 			{
-				const PSMoveQuaternion &orientation = view.GetOrientation();
+				const PSMQuatf &orientation = view.Pose.Orientation;
 
-				PSMoveFloatVector3 shift;
-				shift = shift.create((float)m_Pose.vecPosition[0], (float)m_Pose.vecPosition[1], (float)m_Pose.vecPosition[2]);
+				PSMVector3f shift = {(float)m_Pose.vecPosition[0], (float)m_Pose.vecPosition[1], (float)m_Pose.vecPosition[2]};
 
 				if (m_fVirtuallExtendControllersZMeters != 0.0f) {
 
-					PSMoveFloatVector3 local_forward = PSMoveFloatVector3::create(0, 0, -1);
-					PSMoveFloatVector3 global_forward = orientation.rotate_vector(local_forward);
+					PSMVector3f local_forward = {0, 0, -1};
+					PSMVector3f global_forward = PSM_QuatfRotateVector(&orientation, &local_forward);
 
-					shift = shift + global_forward*m_fVirtuallExtendControllersZMeters;
+					shift = PSM_Vector3fScaleAndAdd(&global_forward, m_fVirtuallExtendControllersZMeters, &shift);
 				}
 
 				if (m_fVirtuallExtendControllersYMeters != 0.0f) {
 
-					PSMoveFloatVector3 local_forward = PSMoveFloatVector3::create(0, -1, 0);
-					PSMoveFloatVector3 global_forward = orientation.rotate_vector(local_forward);
+					PSMVector3f local_forward = {0, -1, 0};
+					PSMVector3f global_forward = PSM_QuatfRotateVector(&orientation, &local_forward);
 
-					shift = shift + global_forward*m_fVirtuallExtendControllersYMeters;
+					shift = PSM_Vector3fScaleAndAdd(&global_forward, m_fVirtuallExtendControllersYMeters, &shift);
 				}
 
-				m_Pose.vecPosition[0] = shift.i;
-				m_Pose.vecPosition[1] = shift.j;
-				m_Pose.vecPosition[2] = shift.k;
+				m_Pose.vecPosition[0] = shift.x;
+				m_Pose.vecPosition[1] = shift.y;
+				m_Pose.vecPosition[2] = shift.z;
 			}
 
             // Set rotational coordinates
             {
-                const PSMoveQuaternion &orientation = view.GetOrientation();
+                const PSMQuatf &orientation = view.Pose.Orientation;
 
                 m_Pose.qRotation.w = orientation.w;
                 m_Pose.qRotation.x = orientation.x;
@@ -2869,34 +2851,36 @@ void CPSMoveControllerLatest::UpdateTrackingState()
 
             // Set the physics state of the controller
             {
-                const PSMovePhysicsData &physicsData= view.GetPhysicsData();
+                const PSMPhysicsData &physicsData= view.PhysicsData;
 
-                m_Pose.vecVelocity[0] = physicsData.VelocityCmPerSec.i * k_fScalePSMoveAPIToMeters;
-                m_Pose.vecVelocity[1] = physicsData.VelocityCmPerSec.j * k_fScalePSMoveAPIToMeters;
-                m_Pose.vecVelocity[2] = physicsData.VelocityCmPerSec.k * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[0] = physicsData.LinearVelocityCmPerSec.x * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[1] = physicsData.LinearVelocityCmPerSec.y * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecVelocity[2] = physicsData.LinearVelocityCmPerSec.z * k_fScalePSMoveAPIToMeters;
 
-                m_Pose.vecAcceleration[0] = physicsData.AccelerationCmPerSecSqr.i * k_fScalePSMoveAPIToMeters;
-                m_Pose.vecAcceleration[1] = physicsData.AccelerationCmPerSecSqr.j * k_fScalePSMoveAPIToMeters;
-                m_Pose.vecAcceleration[2] = physicsData.AccelerationCmPerSecSqr.k * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[0] = physicsData.LinearAccelerationCmPerSecSqr.x * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[1] = physicsData.LinearAccelerationCmPerSecSqr.y * k_fScalePSMoveAPIToMeters;
+                m_Pose.vecAcceleration[2] = physicsData.LinearAccelerationCmPerSecSqr.z * k_fScalePSMoveAPIToMeters;
 
-                m_Pose.vecAngularVelocity[0] = physicsData.AngularVelocityRadPerSec.i;
-                m_Pose.vecAngularVelocity[1] = physicsData.AngularVelocityRadPerSec.j;
-                m_Pose.vecAngularVelocity[2] = physicsData.AngularVelocityRadPerSec.k;
+                m_Pose.vecAngularVelocity[0] = physicsData.AngularVelocityRadPerSec.x;
+                m_Pose.vecAngularVelocity[1] = physicsData.AngularVelocityRadPerSec.y;
+                m_Pose.vecAngularVelocity[2] = physicsData.AngularVelocityRadPerSec.z;
 
-                m_Pose.vecAngularAcceleration[0] = physicsData.AngularAccelerationRadPerSecSqr.i;
-                m_Pose.vecAngularAcceleration[1] = physicsData.AngularAccelerationRadPerSecSqr.j;
-                m_Pose.vecAngularAcceleration[2] = physicsData.AngularAccelerationRadPerSecSqr.k;
+                m_Pose.vecAngularAcceleration[0] = physicsData.AngularAccelerationRadPerSecSqr.x;
+                m_Pose.vecAngularAcceleration[1] = physicsData.AngularAccelerationRadPerSecSqr.y;
+                m_Pose.vecAngularAcceleration[2] = physicsData.AngularAccelerationRadPerSecSqr.z;
             }
 
-            m_Pose.poseIsValid = m_PSMControllerView->GetIsPoseValid();
+            m_Pose.poseIsValid = 
+				m_PSMControllerView->ControllerState.PSMoveState.bIsPositionValid && 
+				m_PSMControllerView->ControllerState.PSMoveState.bIsOrientationValid;
 
             // This call posts this pose to shared memory, where all clients will have access to it the next
             // moment they want to predict a pose.
             m_pDriverHost->TrackedDevicePoseUpdated(m_unSteamVRTrackedDeviceId, m_Pose);
         } break;
-    case ClientControllerView::eControllerType::PSDualShock4:
+    case PSMControllerType::PSMController_DualShock4:
         {
-            const ClientPSDualShock4View &view = m_PSMControllerView->GetPSDualShock4View();
+            const PSMDualShock4 &view = m_PSMControllerView->ControllerState.PSDS4State;
 
             // No prediction since that's already handled in the psmove service
             m_Pose.poseTimeOffset = 0.f;
@@ -2912,7 +2896,7 @@ void CPSMoveControllerLatest::UpdateTrackingState()
 
             // Set position
             {
-                const PSMovePosition &position = view.GetPosition();
+                const PSMVector3f &position = view.Pose.Position;
 
                 m_Pose.vecPosition[0] = position.x * k_fScalePSMoveAPIToMeters;
                 m_Pose.vecPosition[1] = position.y * k_fScalePSMoveAPIToMeters;
@@ -2921,7 +2905,7 @@ void CPSMoveControllerLatest::UpdateTrackingState()
 
             // Set rotational coordinates
             {
-                const PSMoveQuaternion &orientation = view.GetOrientation();
+                const PSMQuatf &orientation = view.Pose.Orientation;
 
                 m_Pose.qRotation.w = orientation.w;
                 m_Pose.qRotation.x = orientation.x;
@@ -2932,7 +2916,7 @@ void CPSMoveControllerLatest::UpdateTrackingState()
             // Set the physics state of the controller
             // TODO: Physics data is too noisy for the DS4 right now, causes jitter
             {
-                const PSMovePhysicsData &physicsData = view.GetPhysicsData();
+                const PSMPhysicsData &physicsData= view.PhysicsData;
 
                 m_Pose.vecVelocity[0] = 0.f; // physicsData.Velocity.i * k_fScalePSMoveAPIToMeters;
                 m_Pose.vecVelocity[1] = 0.f; // physicsData.Velocity.j * k_fScalePSMoveAPIToMeters;
@@ -2951,7 +2935,9 @@ void CPSMoveControllerLatest::UpdateTrackingState()
                 m_Pose.vecAngularAcceleration[2] = 0.f; // physicsData.AngularAcceleration.k;
             }
 
-            m_Pose.poseIsValid = m_PSMControllerView->GetIsPoseValid();
+            m_Pose.poseIsValid =
+				m_PSMControllerView->ControllerState.PSDS4State.bIsPositionValid && 
+				m_PSMControllerView->ControllerState.PSDS4State.bIsOrientationValid;
 
             // This call posts this pose to shared memory, where all clients will have access to it the next
             // moment they want to predict a pose.
@@ -3000,17 +2986,7 @@ void CPSMoveControllerLatest::UpdateRumbleState()
 			}
 
 			// Actually send the rumble to the server
-			switch (m_PSMControllerView->GetControllerViewType())
-			{
-			case ClientControllerView::PSMove:
-				m_PSMControllerView->GetPSMoveViewMutable().SetRumble(rumble_fraction);
-				break;
-			case ClientControllerView::PSDualShock4:
-				m_PSMControllerView->GetPSDualShock4ViewMutable().SetBigRumble(rumble_fraction);
-				break;
-			default:
-				assert(0 && "Unreachable");
-			}
+			PSM_SetControllerRumble(m_PSMControllerView->ControllerID, PSMControllerRumbleChannel_All, rumble_fraction);
 
 			// Remember the last rumble we went and when we sent it
 			m_lastTimeRumbleSent = now;
@@ -3035,9 +3011,9 @@ void CPSMoveControllerLatest::Update()
 {
     CPSMoveTrackedDeviceLatest::Update();
 
-    if (IsActivated() && m_PSMControllerView->GetIsConnected())
+    if (IsActivated() && m_PSMControllerView->IsConnected)
     {
-        int seq_num= m_PSMControllerView->GetOutputSequenceNum();
+        int seq_num= m_PSMControllerView->OutputSequenceNum;
 
         // Only other updating incoming state if it actually changed
         if (m_nPoseSequenceNumber != seq_num)
@@ -3064,23 +3040,29 @@ void CPSMoveControllerLatest::RefreshWorldFromDriverPose()
 
 bool CPSMoveControllerLatest::AttachChildPSMController(
 	int ChildControllerId,
-	ClientControllerView::eControllerType ChildControllerType,
+	PSMControllerType ChildControllerType,
 	const std::string &ChildControllerSerialNo)
 {
 	bool bSuccess= false;
 
-	if (m_nPSMChildControllerId == -1 && m_nPSMChildControllerId != m_nPSMControllerId)
+	if (m_nPSMChildControllerId == -1 && 
+		m_nPSMChildControllerId != m_nPSMControllerId && 
+		PSM_AllocateControllerListener(ChildControllerId) == PSMResult_Success)
 	{
 		m_nPSMChildControllerId= ChildControllerId;
 		m_PSMChildControllerType= ChildControllerType;
-		m_PSMChildControllerView= ClientPSMoveAPI::allocate_controller_view(m_nPSMChildControllerId);
+		m_PSMChildControllerView= PSM_GetController(m_nPSMChildControllerId);
 
-        ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::start_controller_data_stream(m_PSMChildControllerView, ClientPSMoveAPI::defaultStreamOptions),
-            CPSMoveControllerLatest::start_controller_response_callback,
-            this);
-		
-		bSuccess= true;
+		PSMRequestID request_id;
+		if (PSM_StartControllerDataStreamAsync(ChildControllerId, PSMStreamFlags_defaultStreamOptions, &request_id)) 
+		{
+			PSM_RegisterCallback(request_id, CPSMoveControllerLatest::start_controller_response_callback, this);
+			bSuccess= true;
+		}
+		else
+		{
+			PSM_FreeControllerListener(ChildControllerId);
+		}
 	}
 
 	return bSuccess;
@@ -3090,12 +3072,12 @@ bool CPSMoveControllerLatest::AttachChildPSMController(
 // Tracker Driver
 //==================================================================================================
 
-CPSMoveTrackerLatest::CPSMoveTrackerLatest(vr::IServerDriverHost * pDriverHost, const ClientTrackerInfo &trackerInfo)
+CPSMoveTrackerLatest::CPSMoveTrackerLatest(vr::IServerDriverHost * pDriverHost, const PSMClientTrackerInfo *trackerInfo)
     : CPSMoveTrackedDeviceLatest(pDriverHost)
-    , m_nTrackerId(trackerInfo.tracker_id)
+    , m_nTrackerId(trackerInfo->tracker_id)
 {
     char buf[256];
-    GenerateTrackerSerialNumber(buf, sizeof(buf), trackerInfo.tracker_id);
+    GenerateTrackerSerialNumber(buf, sizeof(buf), trackerInfo->tracker_id);
     m_strSteamVRSerialNo = buf;
 
     SetClientTrackerInfo(trackerInfo);
@@ -3166,9 +3148,9 @@ float CPSMoveTrackerLatest::GetFloatTrackedDeviceProperty(
 }
 
 void CPSMoveTrackerLatest::SetClientTrackerInfo(
-    const ClientTrackerInfo &trackerInfo)
+    const PSMClientTrackerInfo *trackerInfo)
 {
-    m_tracker_info = trackerInfo;
+    m_tracker_info = *trackerInfo;
 
     //### HipsterSloth $TODO expose on the pose state if calibration is currently active
     //m_Pose.result = vr::TrackingResult_Calibrating_InProgress;
@@ -3198,7 +3180,7 @@ void CPSMoveTrackerLatest::SetClientTrackerInfo(
 
     // Set position
     {
-        const PSMovePosition &position = m_tracker_info.tracker_pose.Position;
+        const PSMVector3f &position = m_tracker_info.tracker_pose.Position;
 
         m_Pose.vecPosition[0] = position.x * k_fScalePSMoveAPIToMeters;
         m_Pose.vecPosition[1] = position.y * k_fScalePSMoveAPIToMeters;
@@ -3207,7 +3189,7 @@ void CPSMoveTrackerLatest::SetClientTrackerInfo(
 
     // Set rotational coordinates
     {
-        const PSMoveQuaternion &orientation = m_tracker_info.tracker_pose.Orientation;
+        const PSMQuatf &orientation = m_tracker_info.tracker_pose.Orientation;
 
         m_Pose.qRotation.w = orientation.w;
         m_Pose.qRotation.x = orientation.x;

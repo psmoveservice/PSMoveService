@@ -22,6 +22,7 @@ public:
     {
         memset(&controllerList, 0, sizeof(PSMControllerList));
         memset(&trackerList, 0, sizeof(PSMTrackerList));
+		memset(&hmdList, 0, sizeof(PSMHmdList));
     }
 
     int run()
@@ -70,9 +71,9 @@ private:
         // Attempt to connect to the server
         if (success)
         {
-            if (PSM_Initialize("localhost", "9512", PSM_DEFAULT_TIMEOUT) == PSMResult_Success)
+            if (PSM_Initialize(PSMOVESERVICE_DEFAULT_ADDRESS, PSMOVESERVICE_DEFAULT_PORT, PSM_DEFAULT_TIMEOUT) == PSMResult_Success)
             {
-                std::cout << "PSMoveConsoleClient::startup() - Initialized client version - " << PSM_GetVersionString() << std::endl;
+                std::cout << "PSMoveConsoleClient::startup() - Initialized client version - " << PSM_GetClientVersionString() << std::endl;
             }
             else
             {
@@ -84,6 +85,7 @@ private:
             {
                 rebuildControllerList();
                 rebuildTrackerList();
+				rebuildHmdList();
             
                 // Register as listener and start stream for each controller
                 unsigned int data_stream_flags = 
@@ -159,6 +161,12 @@ private:
 			rebuildTrackerList();
 		}
 
+		// See if we need to rebuild the hmd list
+		if (m_keepRunning && PSM_HasHMDListChanged())
+		{
+			rebuildTrackerList();
+		}
+
 		// Get the controller data for the first controller
 		if (m_keepRunning)
 		{
@@ -179,7 +187,7 @@ private:
 			std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Magnetometer.y;
 			std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Magnetometer.z;
         
-			PSMVector3f position = controller0->ControllerState.PSMoveState.RawTrackerData.RelativePositions[0];
+			PSMVector3f position = controller0->ControllerState.PSMoveState.RawTrackerData.RelativePositionsCm[0];
 			std::cout << std::setw(12) << std::right << std::setprecision(6) << position.x;
 			std::cout << std::setw(12) << std::right << std::setprecision(6) << position.y;
 			std::cout << std::setw(12) << std::right << std::setprecision(6) << position.z;
@@ -200,6 +208,9 @@ private:
             PSM_StopControllerDataStream(controllerList.controller_id[0], PSM_DEFAULT_TIMEOUT);
             PSM_FreeControllerListener(controllerList.controller_id[0]);
         }
+		// No tracker data streams started
+		// No HMD data streams started
+
         PSM_Shutdown();
     }
 
@@ -238,18 +249,40 @@ private:
 
         std::cout << "Found " << trackerList.count << " trackers." << std::endl;
 
-        for (int cntlr_ix=0; cntlr_ix<trackerList.count; ++cntlr_ix) 
+        for (int tracker_ix=0; tracker_ix<trackerList.count; ++tracker_ix) 
         {
             const char *tracker_type= "NONE";
 
-            switch (trackerList.trackers[cntlr_ix].tracker_type)
+            switch (trackerList.trackers[tracker_ix].tracker_type)
             {
             case PSMTracker_PS3Eye:
                 tracker_type= "PS3Eye";
                 break;
             }
 
-            std::cout << "  Tracker ID: " << trackerList.trackers[cntlr_ix].tracker_id << " is a " << tracker_type << std::endl;
+            std::cout << "  Tracker ID: " << trackerList.trackers[tracker_ix].tracker_id << " is a " << tracker_type << std::endl;
+        }
+	}
+
+	void rebuildHmdList()
+	{
+		memset(&hmdList, 0, sizeof(PSMHmdList));
+        PSM_GetHmdList(&hmdList, PSM_DEFAULT_TIMEOUT);
+
+        std::cout << "Found " << hmdList.count << " HMDs." << std::endl;
+
+        for (int hmd_ix=0; hmd_ix<hmdList.count; ++hmd_ix) 
+        {
+            const char *hmd_type= "NONE";
+
+            switch (hmdList.hmd_type[hmd_ix])
+            {
+            case PSMHmd_Morpheus:
+                hmd_type= "Morpheus";
+                break;
+            }
+
+            std::cout << "  HMD ID: " << hmdList.hmd_id[hmd_ix] << " is a " << hmd_type << std::endl;
         }
 	}
 
@@ -258,6 +291,7 @@ private:
     std::chrono::milliseconds last_report_fps_timestamp;
     PSMControllerList controllerList;
     PSMTrackerList trackerList;
+	PSMHmdList hmdList;
 };
 
 int main(int argc, char *argv[])

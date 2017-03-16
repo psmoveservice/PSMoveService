@@ -3,7 +3,7 @@
 
 //-- includes -----
 #include "AppStage.h"
-#include "ClientPSMoveAPI.h"
+#include "PSMoveClient_CAPI.h"
 
 #include <vector>
 
@@ -24,11 +24,11 @@ public:
 
 protected:
     static void handle_hmd_start_stream_response(
-		const ClientPSMoveAPI::ResponseMessage *response,
+		const PSMResponseMessage *response,
 		void *userdata);
     void request_exit_to_app_stage(const char *app_stage_name);
     static void handle_hmd_stop_stream_response(
-		const ClientPSMoveAPI::ResponseMessage *response,
+		const PSMResponseMessage *response,
 		void *userdata);
 
 private:
@@ -47,7 +47,7 @@ private:
     eHmdMenuState m_menuState;
     const char *m_pendingAppStage;
 
-    ClientHMDView *m_hmdView;
+    PSMHeadMountedDisplay *m_hmdView;
     bool m_isHmdStreamActive;
     int m_lastHmdSeqNum;
 };

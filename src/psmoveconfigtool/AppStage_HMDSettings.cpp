@@ -260,14 +260,14 @@ void AppStage_HMDSettings::renderUI()
 }
 
 bool AppStage_HMDSettings::onClientAPIEvent(
-    ClientPSMoveAPI::eEventType event,
-    ClientPSMoveAPI::t_event_data_handle opaque_event_handle)
+    PSMEventMessage::eEventType event, 
+    PSMEventDataHandle opaque_event_handle)
 {
     bool bHandled = false;
 
     switch (event)
     {
-    case ClientPSMoveAPI::hmdListUpdated:
+    case PSMEventMessage::PSMEvent_hmdListUpdated:
         {
             bHandled = true;
             request_hmd_list();
@@ -289,9 +289,9 @@ void AppStage_HMDSettings::request_hmd_list()
         RequestPtr request(new PSMoveProtocol::Request());
         request->set_type(PSMoveProtocol::Request_RequestType_GET_HMD_LIST);
 
-		ClientPSMoveAPI::register_callback(
-			ClientPSMoveAPI::send_opaque_request(&request),
-			AppStage_HMDSettings::handle_hmd_list_response, this);
+		PSMRequestID request_id;
+		PSM_SendOpaqueRequest(&request, &request_id);
+		PSM_RegisterCallback(request_id, AppStage_HMDSettings::handle_hmd_list_response, this);
     }
 }
 
@@ -306,20 +306,20 @@ void AppStage_HMDSettings::request_set_hmd_prediction(const int hmd_id, float pr
 	calibration->set_hmd_id(hmd_id);
 	calibration->set_prediction_time(prediction_time);
 
-	ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+	PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_HMDSettings::handle_hmd_list_response(
-	const ClientPSMoveAPI::ResponseMessage *response,
+	const PSMResponseMessage *response,
 	void *userdata)
 {
-	ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response->result_code;
-	ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
+	PSMResult ResultCode = response->result_code;
+	PSMResponseHandle response_handle = response->opaque_response_handle;
     AppStage_HMDSettings *thisPtr = static_cast<AppStage_HMDSettings *>(userdata);
 
     switch (ResultCode)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
             const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
 
@@ -350,8 +350,9 @@ void AppStage_HMDSettings::handle_hmd_list_response(
             thisPtr->m_menuState = AppStage_HMDSettings::idle;
         } break;
 
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->m_menuState = AppStage_HMDSettings::failedHmdListRequest;
         } break;

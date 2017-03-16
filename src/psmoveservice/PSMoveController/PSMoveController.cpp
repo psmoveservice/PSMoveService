@@ -1099,6 +1099,7 @@ PSMoveController::poll()
             newState.Move = getButtonState(newState.AllButtons, lastButtons, Btn_MOVE);
             newState.Trigger = getButtonState(newState.AllButtons, lastButtons, Btn_T);
             newState.TriggerValue = (InData->trigger + InData->trigger2) / 2; // TODO: store each frame separately
+            newState.BatteryValue = (InData->battery);
 
             // Update raw and calibrated accelerometer and gyroscope state
             {

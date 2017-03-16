@@ -41,12 +41,12 @@ static void init_filters_for_psmove(
     IPoseFilter **out_pose_filter);
 static void update_filters_for_psmove(
     const PSMoveController *psmoveController, const PSMoveControllerState *psmoveState, const float delta_time,
-    const ControllerOpticalPoseEstimation *positionEstimation, 
+    const ControllerOpticalPoseEstimation *positionEstimation,
 	const PoseFilterSpace *poseFilterSpace,
     IPoseFilter *pose_filter);
 
 static void init_filters_for_psdualshock4(
-    const PSDualShock4Controller *psdualshock4Controller, 
+    const PSDualShock4Controller *psdualshock4Controller,
 	PoseFilterSpace **out_pose_filter_space,
 	IPoseFilter **out_pose_filter);
 static void update_filters_for_psdualshock4(
@@ -113,7 +113,7 @@ ServerControllerView::~ServerControllerView()
 
 bool ServerControllerView::allocate_device_interface(
     const class DeviceEnumerator *enumerator)
-{	
+{
     switch (enumerator->get_device_type())
     {
     case CommonDeviceState::PSMove:
@@ -253,7 +253,7 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
 		if (m_device->getTrackingColorID(tracking_color_id) && tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
 		{
 			DeviceManager::getInstance()->m_controller_manager->claimTrackingColorID(this, tracking_color_id);
-		}
+    }
 		else
 		{
 			// Allocate a color from the list of remaining available color ids
@@ -285,7 +285,7 @@ void ServerControllerView::close()
 		if (tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
 		{
 			DeviceManager::getInstance()->m_controller_manager->freeTrackingColorID(tracking_color_id);
-		}
+    }
     }
 
     ServerDeviceView::close();
@@ -470,10 +470,10 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
 		// * The kind of projection shape (psmove sphere or ds4 lightbar)
         if (projections_found > 1)
         {
-			// If multiple trackers can see the controller, 
+        // If multiple trackers can see the controller, 
 			// triangulate all pairs of projections and average the results
 			switch (trackingShape.shape_type)
-			{
+        {
 			case eCommonTrackingShapeType::Sphere:
 				computeSpherePoseForControllerFromMultipleTrackers(
 					this,
@@ -494,17 +494,17 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
 				break;
 			default:
 				assert(false && "unreachable");
-			}
+            }
         }
         else if (projections_found == 1 && !DeviceManager::getInstance()->m_tracker_manager->getConfig().ignore_pose_from_one_tracker)
-        {
+            {
 			const int tracker_id = valid_projection_tracker_ids[0];
-			const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+                const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
 
 			// If only one tracker can see the controller, 
 			// then use the tracker to derive a world space location
 			switch (trackingShape.shape_type)
-			{
+                {
 			case eCommonTrackingShapeType::Sphere:
 				computeSpherePoseForControllerFromSingleTracker(
 					this,
@@ -521,8 +521,8 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
 				break;
 			default:
 				assert(false && "unreachable");
-			}
-        }
+                }
+            }
         // If no trackers can see the controller, maintain the last known position and time it was seen
         else
         {
@@ -597,7 +597,7 @@ void ServerControllerView::updateStateAndPredict()
                 update_filters_for_psmove(
                     psmoveController, psmoveState, 
                     per_state_time_delta_seconds,
-                    m_multicam_pose_estimation,
+                    m_multicam_pose_estimation, 
 					m_pose_filter_space,
                     m_pose_filter);
             } break;
@@ -1081,9 +1081,8 @@ static void generate_psmove_data_frame_for_stream(
         psmove_data_frame->set_validhardwarecalibration(psmove_config->is_valid);
         psmove_data_frame->set_iscurrentlytracking(controller_view->getIsCurrentlyTracking());
         psmove_data_frame->set_istrackingenabled(controller_view->getIsTrackingEnabled());
-		//TODO: Collapse these two flags down into isPoseValid
-        psmove_data_frame->set_isorientationvalid(pose_filter->getIsStateValid());
-        psmove_data_frame->set_ispositionvalid(pose_filter->getIsStateValid());
+        psmove_data_frame->set_isorientationvalid(pose_filter->getIsOrientationStateValid());
+        psmove_data_frame->set_ispositionvalid(pose_filter->getIsPositionStateValid());
 
         psmove_data_frame->mutable_orientation()->set_w(controller_pose.Orientation.w);
         psmove_data_frame->mutable_orientation()->set_x(controller_pose.Orientation.x);
@@ -1104,6 +1103,7 @@ static void generate_psmove_data_frame_for_stream(
         }
 
         psmove_data_frame->set_trigger_value(psmove_state->TriggerValue);
+        psmove_data_frame->set_battery_value(psmove_state->BatteryValue);
 
         unsigned int button_bitmask= 0;
         SET_BUTTON_BIT(button_bitmask, PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket::TRIANGLE, psmove_state->Triangle);
@@ -1319,9 +1319,8 @@ static void generate_psdualshock4_data_frame_for_stream(
         psds4_data_frame->set_validhardwarecalibration(psmove_config->is_valid);
         psds4_data_frame->set_iscurrentlytracking(controller_view->getIsCurrentlyTracking());
         psds4_data_frame->set_istrackingenabled(controller_view->getIsTrackingEnabled());
-		//TODO: Collapse these two flags down into isPoseValid
-        psds4_data_frame->set_isorientationvalid(pose_filter->getIsStateValid());
-        psds4_data_frame->set_ispositionvalid(pose_filter->getIsStateValid());
+        psds4_data_frame->set_isorientationvalid(pose_filter->getIsOrientationStateValid());
+        psds4_data_frame->set_ispositionvalid(pose_filter->getIsPositionStateValid());
 
         psds4_data_frame->mutable_orientation()->set_w(controller_pose.Orientation.w);
         psds4_data_frame->mutable_orientation()->set_x(controller_pose.Orientation.x);
@@ -1436,35 +1435,35 @@ static void generate_psdualshock4_data_frame_for_stream(
                     }
 
                     // Add the tracker relative projection shapes
-					{
-						const CommonDeviceTrackingProjection &trackerRelativeProjection =
-							poseEstimate->projection;
+                    {
+                        const CommonDeviceTrackingProjection &trackerRelativeProjection =
+                            poseEstimate->projection;
 
-						assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_LightBar);
-						PSMoveProtocol::Polygon *polygon = raw_tracker_data->add_projected_blobs();
+                        assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_LightBar);
+                        PSMoveProtocol::Polygon *polygon = raw_tracker_data->add_projected_blobs();
 
-						for (int vert_index = 0; vert_index < 3; ++vert_index)
-						{
-							PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
+                        for (int vert_index = 0; vert_index < 3; ++vert_index)
+                        {
+                            PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
 
-							pixel->set_x(trackerRelativeProjection.shape.lightbar.triangle[vert_index].x);
-							pixel->set_y(trackerRelativeProjection.shape.lightbar.triangle[vert_index].y);
-						}
+                            pixel->set_x(trackerRelativeProjection.shape.lightbar.triangle[vert_index].x);
+                            pixel->set_y(trackerRelativeProjection.shape.lightbar.triangle[vert_index].y);
+                        }
 
 						CommonDeviceScreenLocation center_pixel;
 						center_pixel.clear();
 
-						for (int vert_index = 0; vert_index < 4; ++vert_index)
-						{
+                        for (int vert_index = 0; vert_index < 4; ++vert_index)
+                        {
 							const CommonDeviceScreenLocation &screenLocation= trackerRelativeProjection.shape.lightbar.quad[vert_index];
-							PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
+                            PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
 
 							pixel->set_x(screenLocation.x);
 							pixel->set_y(screenLocation.y);
 
 							center_pixel.x += screenLocation.x;
 							center_pixel.y += screenLocation.y;
-						}
+                        }
 
 						center_pixel.x /= 4.f;
 						center_pixel.y /= 4.f;
@@ -1474,7 +1473,7 @@ static void generate_psdualshock4_data_frame_for_stream(
 
 							pixel->set_x(center_pixel.x);
 							pixel->set_y(center_pixel.y);
-						}
+                    }
                     }
 
                     raw_tracker_data->add_tracker_ids(trackerId);
@@ -1666,18 +1665,18 @@ pose_filter_factory(
 
 static void
 init_filters_for_psmove(
-    const PSMoveController *psmoveController,
+    const PSMoveController *psmoveController, 
 	PoseFilterSpace **out_pose_filter_space,
     IPoseFilter **out_pose_filter)
 {
     const PSMoveControllerConfig *psmove_config = psmoveController->getConfig();
 
-    // Setup the space the orientation filter operates in
+        // Setup the space the orientation filter operates in
     PoseFilterSpace *pose_filter_space = new PoseFilterSpace();
     pose_filter_space->setIdentityGravity(Eigen::Vector3f(0.f, 1.f, 0.f));
 	pose_filter_space->setIdentityMagnetometer(
         Eigen::Vector3f(psmove_config->magnetometer_identity.i,
-						psmove_config->magnetometer_identity.j,
+            psmove_config->magnetometer_identity.j,
 						psmove_config->magnetometer_identity.k));
 	pose_filter_space->setCalibrationTransform(*k_eigen_identity_pose_laying_flat);
 	pose_filter_space->setSensorTransform(*k_eigen_sensor_transform_opengl);
@@ -1721,7 +1720,7 @@ init_filters_for_psmove(
 		psmove_config->position_filter_type,
 		psmove_config->orientation_filter_type,
 		constants);
-}
+    }
 
 static void                
 update_filters_for_psmove(
@@ -1747,7 +1746,7 @@ update_filters_for_psmove(
 		if (poseEstimation->bCurrentlyTracking)
 		{
 			sensorPacket.optical_position_cm =
-				Eigen::Vector3f(
+            Eigen::Vector3f(
 					poseEstimation->position_cm.x,
 					poseEstimation->position_cm.y,
 					poseEstimation->position_cm.z);
@@ -1770,7 +1769,7 @@ update_filters_for_psmove(
         for (int frame = 0; frame < 2; ++frame)
         {
 			PoseFilterPacket filterPacket;
-			
+
             sensorPacket.imu_accelerometer_g_units =
                 Eigen::Vector3f(
                     psmoveState->CalibratedAccel[frame][0], 
@@ -1791,8 +1790,8 @@ update_filters_for_psmove(
 
             poseFilter->update(delta_time / 2.f, filterPacket);
         }
-    }
-}
+        }
+                }
 
 static void
 init_filters_for_psdualshock4(
@@ -1802,12 +1801,12 @@ init_filters_for_psdualshock4(
 {
     const PSDualShock4ControllerConfig *ds4_config = psmoveController->getConfig();
 
-    // Setup the space the orientation filter operates in
+        // Setup the space the orientation filter operates in
     PoseFilterSpace *pose_filter_space = new PoseFilterSpace();
     pose_filter_space->setIdentityGravity(
-		Eigen::Vector3f(
-            ds4_config->identity_gravity_direction.i,
-            ds4_config->identity_gravity_direction.j,
+            Eigen::Vector3f(
+                ds4_config->identity_gravity_direction.i,
+                ds4_config->identity_gravity_direction.j,
             ds4_config->identity_gravity_direction.k));
 	pose_filter_space->setIdentityMagnetometer(Eigen::Vector3f::Zero());  // No magnetometer on DS4 :(
 	pose_filter_space->setCalibrationTransform(*k_eigen_identity_pose_upright);
@@ -1852,7 +1851,7 @@ init_filters_for_psdualshock4(
 		ds4_config->position_filter_type,
 		ds4_config->orientation_filter_type,
 		constants);
-}
+    }
 
 static void
 update_filters_for_psdualshock4(
@@ -1890,7 +1889,7 @@ update_filters_for_psdualshock4(
 				? poseEstimation->projection.screen_area : 0.f;
 
             sensorPacket.optical_position_cm =
-                Eigen::Vector3f(
+            Eigen::Vector3f(
                     poseEstimation->position_cm.x,
                     poseEstimation->position_cm.y,
                     poseEstimation->position_cm.z);
@@ -1925,7 +1924,7 @@ update_filters_for_psdualshock4(
 				filterPacket);
 
             poseFilter->update(delta_time, filterPacket);
-        }
+    }
     }
 }
 
@@ -1934,7 +1933,7 @@ static void computeSpherePoseForControllerFromSingleTracker(
 	const ServerTrackerViewPtr tracker,
 	ControllerOpticalPoseEstimation *tracker_pose_estimation,
 	ControllerOpticalPoseEstimation *multicam_pose_estimation)
-{
+    {
 	// No orientation for the sphere projection
 	multicam_pose_estimation->orientation.clear();
 	multicam_pose_estimation->bOrientationValid = false;
@@ -1953,7 +1952,7 @@ static void computeLightBarPoseForControllerFromSingleTracker(
 	const ServerTrackerViewPtr tracker,
 	ControllerOpticalPoseEstimation *tracker_pose_estimation,
 	ControllerOpticalPoseEstimation *multicam_pose_estimation)
-{
+        {
 	CommonDeviceTrackingShape tracking_shape;
 	controllerView->getTrackingShape(tracking_shape);
 
@@ -1973,17 +1972,17 @@ static void computeLightBarPoseForControllerFromSingleTracker(
 		{
 			multicam_pose_estimation->orientation = tracker->computeWorldOrientation(&tracker_pose_estimation->orientation);
 			multicam_pose_estimation->bOrientationValid = true;
-		}
-		else
-		{
+        }
+        else
+        {
 			multicam_pose_estimation->orientation.clear();
 			multicam_pose_estimation->bOrientationValid = false;
-		}
+        }
 
 		// Put the tracker relative position into world space
 		multicam_pose_estimation->position_cm = tracker->computeWorldPosition(&tracker_pose_estimation->position_cm);
 		multicam_pose_estimation->bCurrentlyTracking = true;
-
+        
 		// Copy over the screen projection area
 		multicam_pose_estimation->projection.screen_area = tracker_pose_estimation->projection.screen_area;
 	}
@@ -2015,7 +2014,7 @@ static void computeSpherePoseForControllerFromMultipleTrackers(
 
 		position2d_list[list_index] = tracker->projectTrackerRelativePosition(&poseEstimate.position_cm);
 		screen_area_sum += poseEstimate.projection.screen_area;
-	}
+    }
 
 	// Compute triangulations amongst all pairs of projections
 	int pair_count = 0;

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.2)
 project(PSMoveService VERSION 0.0.1)
 include(ExternalProject)
 
@@ -168,6 +168,8 @@ IF(MSVC)
     foreach(CompilerFlag ${CompilerFlags})
       string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
     endforeach()
+ELSE()
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch")
 ENDIF(MSVC)
 
 # Boost Settings

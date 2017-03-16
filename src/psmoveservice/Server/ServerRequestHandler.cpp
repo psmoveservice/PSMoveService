@@ -67,7 +67,7 @@ struct RequestConnectionState
         for (int index = 0; index < HMDManager::k_max_devices; ++index)
         {
             active_hmd_stream_info->Clear();
-        }        
+    }
     }
 };
 typedef boost::shared_ptr<RequestConnectionState> RequestConnectionStatePtr;
@@ -312,11 +312,11 @@ public:
 
             // HMD Requests
             case PSMoveProtocol::Request_RequestType_GET_HMD_LIST:
-				response = new PSMoveProtocol::Response;
+                response = new PSMoveProtocol::Response;
                 handle_request__get_hmd_list(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_START_HMD_DATA_STREAM:
-				response = new PSMoveProtocol::Response;
+                response = new PSMoveProtocol::Response;
                 handle_request__start_hmd_data_stream(context, response);
                 break;
             case PSMoveProtocol::Request_RequestType_STOP_HMD_DATA_STREAM:
@@ -396,15 +396,15 @@ public:
 
 				if (controller_view->getIsOpen())
 				{
-					// Clear any LED overrides we had active
-					//###HipsterSlot $HACK 
-					// This implicitly assumes that only one connection had an LED override color active.
-					// This is technically true right now because only the config tool sets the override
-					// color for purposes of tracking color calibration, but this could change in the future.
-					if (controller_view->getIsLEDOverrideActive())
-					{
-						controller_view->clearLEDOverride();
-					}
+                // Clear any LED overrides we had active
+                //###HipsterSlot $HACK 
+                // This implicitly assumes that only one connection had an LED override color active.
+                // This is technically true right now because only the config tool sets the override
+                // color for purposes of tracking color calibration, but this could change in the future.
+                if (controller_view->getIsLEDOverrideActive())
+                {
+                    controller_view->clearLEDOverride();
+                }
 
 					// If this connection had ROI disabled, pop the ROI supression request
 					if (streamInfo.disable_roi)
@@ -412,12 +412,12 @@ public:
 						controller_view->popDisableROI();
 					}
 
-					// Halt any controller tracking this connection had going on
-					if (streamInfo.include_position_data)
-					{
-						m_device_manager.getControllerViewPtr(controller_id)->stopTracking();
-					}
-				}
+                // Halt any controller tracking this connection had going on
+                if (streamInfo.include_position_data)
+                {
+                    m_device_manager.getControllerViewPtr(controller_id)->stopTracking();
+                }
+            }
             }
 
             
@@ -430,7 +430,7 @@ public:
 				}
 
 				// Halt any shared memory streams this connection has going
-				if (connection_state->active_tracker_stream_info[tracker_id].streaming_video_data)
+                if (connection_state->active_tracker_stream_info[tracker_id].streaming_video_data)
                 {
                     m_device_manager.getTrackerViewPtr(tracker_id)->stopSharedMemoryVideoStream();
                 }
@@ -513,7 +513,7 @@ public:
             }
         }
     }
-    
+
     void publish_hmd_data_frame(
         class ServerHMDView *hmd_view,
         ServerRequestHandler::t_generate_hmd_data_frame_for_stream callback)
@@ -629,7 +629,7 @@ protected:
 						prediction_time = config->prediction_time;
 						has_magnetometer = controller->getSupportsMagnetometer();
 
-						controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
+                    controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
 					}
                     break;
                 case CommonControllerState::PSNavi:
@@ -637,7 +637,7 @@ protected:
 						const PSNaviController *controller = controller_view->castCheckedConst<PSNaviController>();
 						const PSNaviControllerConfig &config = controller->getConfig();
 
-						controller_info->set_controller_type(PSMoveProtocol::PSNAVI);
+                    controller_info->set_controller_type(PSMoveProtocol::PSNAVI);
 						parent_controller_serial = config.attached_to_controller;					
 					}
                     break;
@@ -681,7 +681,7 @@ protected:
 						position_filter = config->position_filter_type;
 						prediction_time = config->prediction_time;
 
-						controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
+                    controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
 					}
                     break;
                 default:
@@ -849,16 +849,16 @@ protected:
 		q_pose.z= context.request->reset_orientation().orientation().z();
 
 		if (controllerView->getIsOpen())
-		{
+        {
 			if (controllerView->recenterOrientation(q_pose))
 			{
-				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-			}
-			else
-			{
-				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-			}
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
         else
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
@@ -878,30 +878,30 @@ protected:
 
 			if (controllerView->getIsOpen())
 			{
-				context.connection_state->pending_bluetooth_request =
-					new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
+            context.connection_state->pending_bluetooth_request =
+                new AsyncBluetoothUnpairDeviceRequest(connection_id, controllerView);
 
-				std::string description = context.connection_state->pending_bluetooth_request->getDescription();
+            std::string description = context.connection_state->pending_bluetooth_request->getDescription();
 
-				if (context.connection_state->pending_bluetooth_request->start())
-				{
-					SERVER_LOG_INFO("ServerRequestHandler") << "Async bluetooth request(" << description << ") started.";
+            if (context.connection_state->pending_bluetooth_request->start())
+            {
+                SERVER_LOG_INFO("ServerRequestHandler") << "Async bluetooth request(" << description << ") started.";
 
-					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-				}
-				else
-				{
-					SERVER_LOG_ERROR("ServerRequestHandler") << "Async bluetooth request(" << description << ") failed to start!";
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                SERVER_LOG_ERROR("ServerRequestHandler") << "Async bluetooth request(" << description << ") failed to start!";
 
-					delete context.connection_state->pending_bluetooth_request;
-					context.connection_state->pending_bluetooth_request = nullptr;
+                delete context.connection_state->pending_bluetooth_request;
+                context.connection_state->pending_bluetooth_request = nullptr;
 
-					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-				}
-			}
-			else
-			{
-				SERVER_LOG_ERROR("ServerRequestHandler")
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            SERVER_LOG_ERROR("ServerRequestHandler") 
 					<< "Can't start unpair request. Controller not open. Controller ID: "
 					<< controller_id;
 			}
@@ -929,34 +929,34 @@ protected:
 
 			if (controllerView->getIsOpen())
 			{
-				context.connection_state->pending_bluetooth_request =
-					new AsyncBluetoothPairDeviceRequest(connection_id, controllerView);
+            context.connection_state->pending_bluetooth_request = 
+                new AsyncBluetoothPairDeviceRequest(connection_id, controllerView);
 
-				if (context.connection_state->pending_bluetooth_request->start())
-				{
-					SERVER_LOG_INFO("ServerRequestHandler")
-						<< "Async bluetooth request("
-						<< context.connection_state->pending_bluetooth_request->getDescription()
-						<< ") started.";
+            if (context.connection_state->pending_bluetooth_request->start())
+            {
+                SERVER_LOG_INFO("ServerRequestHandler") 
+                    << "Async bluetooth request(" 
+                    << context.connection_state->pending_bluetooth_request->getDescription() 
+                    << ") started.";
 
-					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-				}
-				else
-				{
-					SERVER_LOG_ERROR("ServerRequestHandler")
-						<< "Async bluetooth request("
-						<< context.connection_state->pending_bluetooth_request->getDescription()
-						<< ") failed to start!";
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                SERVER_LOG_ERROR("ServerRequestHandler") 
+                    << "Async bluetooth request(" 
+                    << context.connection_state->pending_bluetooth_request->getDescription() 
+                    << ") failed to start!";
 
-					delete context.connection_state->pending_bluetooth_request;
-					context.connection_state->pending_bluetooth_request = nullptr;
+                delete context.connection_state->pending_bluetooth_request;
+                context.connection_state->pending_bluetooth_request= nullptr;
 
-					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-				}
-			}
-			else
-			{
-				SERVER_LOG_ERROR("ServerRequestHandler")
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            SERVER_LOG_ERROR("ServerRequestHandler") 
 					<< "Can't start pair request. Controller not open. Controller ID: "
 					<< controller_id;
 			}
@@ -1017,17 +1017,17 @@ protected:
 
 			if (newColorID != oldColorID)
 			{
-				// Give up control of our existing tracking color
+            // Give up control of our existing tracking color
 				if (oldColorID != eCommonTrackingColorID::INVALID_COLOR)
-				{
+            {
 					m_device_manager.m_controller_manager->freeTrackingColorID(oldColorID);
-				}
+            }
 
-				// Take the color from any other controller that might have it
+            // Take the color from any other controller that might have it
 				m_device_manager.m_controller_manager->claimTrackingColorID(ControllerView.get(), newColorID);
 
-				// Assign the new color to ourselves
-				ControllerView->setTrackingColorID(newColorID);
+            // Assign the new color to ourselves
+            ControllerView->setTrackingColorID(newColorID);
 			}
 
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
@@ -1102,44 +1102,44 @@ protected:
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
 		if (ControllerView && ControllerView->getIsOpen())
-		{
+        {
 			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
 			{
-				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-				PSMoveControllerConfig *config = controller->getConfigMutable();
+            PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+            PSMoveControllerConfig *config = controller->getConfigMutable();
 
             const auto &request = context.request->set_controller_accelerometer_calibration_request();
 
-				// Save the noise radius in controller config
-				config->accelerometer_noise_radius = request.noise_radius();
+            // Save the noise radius in controller config
+            config->accelerometer_noise_radius= request.noise_radius();
 				config->accelerometer_variance = request.variance();
-				config->save();
+            config->save();
 
 				ControllerView->resetPoseFilter();
 
-				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-			}
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
 			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
-			{
-				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+        {
+            PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+            PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
             const auto &request = context.request->set_controller_accelerometer_calibration_request();
 
-				// Save the noise radius in controller config
-				config->accelerometer_noise_radius = request.noise_radius();
+            // Save the noise radius in controller config
+            config->accelerometer_noise_radius= request.noise_radius();
 				config->accelerometer_variance = request.variance();
-				config->save();
+            config->save();
 
 				ControllerView->resetPoseFilter();
 
-				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-			}
-			else
-			{
-				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-			}
-		}
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
         else
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
@@ -1155,11 +1155,11 @@ protected:
         ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
 
 		if (ControllerView && ControllerView->getIsOpen())
-		{
+        {
 			if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
 			{
-				PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-				PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+            PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+            PSDualShock4ControllerConfig *config = controller->getConfigMutable();
 
             const auto &request = context.request->set_controller_gyroscope_calibration_request();
 
@@ -1167,13 +1167,13 @@ protected:
 
 				if (request.drift() > 0.f)
 				{
-					config->gyro_drift = request.drift();
+            config->gyro_drift= request.drift();
 					bChanged = true;
 				}
 
 				if (request.variance() > 0.f)
 				{
-					config->gyro_variance = request.variance();
+            config->gyro_variance= request.variance();
 					bChanged = true;
 				}
 
@@ -1211,17 +1211,17 @@ protected:
 
 				if (bChanged)
 				{
-					config->save();
+            config->save();
 				}
 
 				ControllerView->resetPoseFilter();
 
-				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-			}
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
 			else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
-			{
-				PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-				PSMoveControllerConfig *config = controller->getConfigMutable();
+        {
+            PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+            PSMoveControllerConfig *config = controller->getConfigMutable();
 
 				const PSMoveProtocol::Request_RequestSetControllerGyroscopeCalibration &request =
 					context.request->set_controller_gyroscope_calibration_request();
@@ -1230,30 +1230,30 @@ protected:
 
 				if (request.drift() > 0.f)
 				{
-					config->gyro_drift = request.drift();
+            config->gyro_drift= request.drift();
 					bChanged = true;
 				}
 
 				if (request.variance() > 0.f)
 				{
-					config->gyro_variance = request.variance();
+            config->gyro_variance= request.variance();
 					bChanged = true;
 				}
 
 				if (bChanged)
 				{
-					config->save();
+            config->save();
 				}
-				
+
 				ControllerView->resetPoseFilter();
 
-				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-			}
-			else
-			{
-				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
-			}
-		}
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
         else
         {
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
@@ -1735,7 +1735,7 @@ protected:
 					{
 						ServerControllerView *controller_view = get_controller_view_or_null(device_id);
 
-						tracker_view->gatherTrackingColorPresets(controller_view, settings);
+                tracker_view->gatherTrackingColorPresets(controller_view, settings);
 					} break;
 				case PSMoveProtocol::Request_RequestGetTrackerSettings_DeviceCategory_HMD:
 					{
@@ -1967,7 +1967,7 @@ protected:
                 // Set the color preset on the tracker
 				CommonHSVColorRange inHSVColorRange;
 				CommonHSVColorRange outHSVColorRange;
-				{
+                {
                     inHSVColorRange.hue_range.center= colorPreset.hue_center();
                     inHSVColorRange.hue_range.range = colorPreset.hue_range();
                     inHSVColorRange.saturation_range.center = colorPreset.saturation_center();
@@ -1995,7 +1995,7 @@ protected:
 							// Read back what actually got set
 							tracker_view->getHMDTrackingColorPreset(hmd_view, colorType, &outHSVColorRange);
 						} break;
-					}
+                }
 //                    tracker_view->saveSettings(); // Carried over from old generic_camera
                 }
 
@@ -2246,11 +2246,11 @@ protected:
 
         response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
     }
-    
+
 	void handle_request__get_tracking_space_settings(
-		const RequestContext &context,
-		PSMoveProtocol::Response *response)
-	{
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
 		PSMoveProtocol::Response_ResultTrackingSpaceSettings* settings = response->mutable_result_tracking_space_settings();
 
 		response->set_type(PSMoveProtocol::Response_ResponseType_TRACKING_SPACE_SETTINGS);
@@ -2370,8 +2370,8 @@ protected:
 				}
 
                 // Return the name of the shared memory block the video frames will be written to
-                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
-            }
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+    }
             else
             {
                 // Device not opened

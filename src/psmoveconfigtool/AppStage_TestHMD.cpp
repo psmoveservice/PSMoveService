@@ -3,12 +3,12 @@
 #include "AppStage_HMDSettings.h"
 #include "AppStage_MainMenu.h"
 #include "App.h"
-#include "ClientHMDView.h"
 #include "Camera.h"
 #include "Logger.h"
 #include "MathUtility.h"
 #include "Renderer.h"
 #include "UIConstants.h"
+#include "PSMoveClient_CAPI.h"
 #include "PSMoveProtocolInterface.h"
 #include "PSMoveProtocol.pb.h"
 #include "SharedTrackerState.h"
@@ -42,7 +42,8 @@ void AppStage_TestHMD::enter()
     assert(hmdInfo->HmdID != -1);
     
     assert(m_hmdView == nullptr);
-    m_hmdView = ClientPSMoveAPI::allocate_hmd_view(hmdInfo->HmdID);
+	PSM_AllocateHmdListener(hmdInfo->HmdID);
+	m_hmdView = PSM_GetHmd(hmdInfo->HmdID);
 
     m_app->setCameraType(_cameraFixed);
 
@@ -50,15 +51,18 @@ void AppStage_TestHMD::enter()
     assert(!m_isHmdStreamActive);
     m_lastHmdSeqNum = -1;
 
-	ClientPSMoveAPI::register_callback(
-		ClientPSMoveAPI::start_hmd_data_stream(m_hmdView, ClientPSMoveAPI::includeRawSensorData),
-        &AppStage_TestHMD::handle_hmd_start_stream_response, this);
+	PSMRequestID requestId;
+	PSM_StartHmdDataStreamAsync(
+		m_hmdView->HmdID, 
+		PSMStreamFlags_includeRawSensorData, 
+		&requestId);
+	PSM_RegisterCallback(requestId, &AppStage_TestHMD::handle_hmd_start_stream_response, this);
 }
 
 void AppStage_TestHMD::exit()
 {
-    assert(m_hmdView != nullptr);
-    ClientPSMoveAPI::free_hmd_view(m_hmdView);
+    assert(m_hmdView != nullptr);	 
+    PSM_FreeHmdListener(m_hmdView->HmdID);
     m_hmdView = nullptr;
 
     m_menuState = eHmdMenuState::inactive;
@@ -68,9 +72,9 @@ void AppStage_TestHMD::update()
 {
     bool bControllerDataUpdatedThisFrame = false;
 
-    if (m_isHmdStreamActive && m_hmdView->GetSequenceNum() != m_lastHmdSeqNum)
+    if (m_isHmdStreamActive && m_hmdView->OutputSequenceNum != m_lastHmdSeqNum)
     {
-        m_lastHmdSeqNum = m_hmdView->GetSequenceNum();
+        m_lastHmdSeqNum = m_hmdView->OutputSequenceNum;
         bControllerDataUpdatedThisFrame = true;
 
         if (m_menuState == eHmdMenuState::pendingHmdStartStreamRequest)
@@ -84,16 +88,19 @@ void AppStage_TestHMD::render()
 {
     if (m_menuState == eHmdMenuState::idle)
     {
-        PSMovePose pose= m_hmdView->GetHmdPose();
-        glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
-        glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
+		PSMPosef pose;
+		if (PSM_GetHmdPose(m_hmdView->HmdID, &pose) == PSMResult_Success)
+		{
+			glm::quat orientation(pose.Orientation.w, pose.Orientation.x, pose.Orientation.y, pose.Orientation.z);
+			glm::vec3 position(pose.Position.x, pose.Position.y, pose.Position.z);
 
-        glm::mat4 rot = glm::mat4_cast(orientation);
-        glm::mat4 trans = glm::translate(glm::mat4(1.0f), position);
-        glm::mat4 transform = trans * rot;
+			glm::mat4 rot = glm::mat4_cast(orientation);
+			glm::mat4 trans = glm::translate(glm::mat4(1.0f), position);
+			glm::mat4 transform = trans * rot;
 
-        drawMorpheusModel(transform);
-        drawTransformedAxes(transform, 10.f);
+			drawMorpheusModel(transform);
+			drawTransformedAxes(transform, 10.f);
+		}
     }
 }
 
@@ -194,21 +201,22 @@ void AppStage_TestHMD::renderUI()
 }
 
 void AppStage_TestHMD::handle_hmd_start_stream_response(
-	const ClientPSMoveAPI::ResponseMessage *response,
+	const PSMResponseMessage *response,
 	void *userdata)
 {
     AppStage_TestHMD *thisPtr = static_cast<AppStage_TestHMD *>(userdata);
 
     switch (response->result_code)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
             thisPtr->m_isHmdStreamActive = true;
             thisPtr->m_lastHmdSeqNum = -1;
         } break;
 
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->m_menuState = AppStage_TestHMD::failedHmdStartStreamRequest;
         } break;
@@ -222,9 +230,10 @@ void AppStage_TestHMD::request_exit_to_app_stage(const char *app_stage_name)
         if (m_isHmdStreamActive)
         {
             m_pendingAppStage = app_stage_name;
-			ClientPSMoveAPI::register_callback(
-				ClientPSMoveAPI::stop_hmd_data_stream(m_hmdView),
-                &AppStage_TestHMD::handle_hmd_stop_stream_response,this);
+
+			PSMRequestID requestId;
+			PSM_StopHmdDataStreamAsync(m_hmdView->HmdID, &requestId);
+			PSM_RegisterCallback(requestId, &AppStage_TestHMD::handle_hmd_stop_stream_response, this);
         }
         else
         {
@@ -234,12 +243,12 @@ void AppStage_TestHMD::request_exit_to_app_stage(const char *app_stage_name)
 }
 
 void AppStage_TestHMD::handle_hmd_stop_stream_response(
-	const ClientPSMoveAPI::ResponseMessage *response,
+	const PSMResponseMessage *response,
 	void *userdata)
 {
     AppStage_TestHMD *thisPtr = static_cast<AppStage_TestHMD *>(userdata);
 
-    if (response->result_code != ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (response->result_code != PSMResult_Success)
     {
         Log_ERROR("AppStage_TestHMD", "Failed to release HMD on server!");
     }

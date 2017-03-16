@@ -3,8 +3,8 @@
 
 //-- includes -----
 #include "AppStage.h"
-#include "ClientGeometry.h"
-#include "ClientPSMoveAPI.h"
+#include "ClientGeometry_CAPI.h"
+#include "PSMoveClient_CAPI.h"
 
 #include <deque>
 #include <chrono>
@@ -53,13 +53,13 @@ protected:
 
 	void request_tracker_list();
 	static void handle_tracker_list_response(
-		const ClientPSMoveAPI::ResponseMessage *response_message,
+		const PSMResponseMessage *response_message,
 		void *userdata);
     void request_set_optical_calibration(
 		const float position_var_exp_fit_a, const float position_var_exp_fit_b,
 		const float orientation_var_exp_fit_a, const float orientation_var_exp_fit_b);
     static void handle_acquire_controller(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
     void request_exit_to_app_stage(const char *app_stage_name);
 
@@ -68,13 +68,13 @@ private:
     eCalibrationMenuState m_menuState;
     bool m_bBypassCalibration;
 
-    class ClientControllerView *m_controllerView;
+    PSMController *m_controllerView;
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;
 
-    PSMovePosition m_lastMulticamPositionCm;
-	PSMoveQuaternion m_lastMulticamOrientation;
-	PSMovePose m_lastControllerPose;
+    PSMVector3f m_lastMulticamPositionCm;
+	PSMQuatf m_lastMulticamOrientation;
+	PSMPosef m_lastControllerPose;
 	float m_lastProjectionArea;
 	bool m_bLastMulticamPositionValid;
 	bool m_bLastMulticamOrientationValid;
@@ -86,7 +86,7 @@ private:
     struct PoseNoiseSampleSet *m_poseNoiseSamplesSet;
 	bool m_bWaitForSampleButtonRelease;
 
-	ClientPSMoveAPI::ResponsePayload_TrackerList m_trackerList;
+	PSMTrackerList m_trackerList;
 };
 
 #endif // APP_STAGE_OPTICAL_CALIBRATION_H

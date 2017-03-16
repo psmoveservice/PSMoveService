@@ -170,6 +170,7 @@ struct PSMoveControllerState : public CommonControllerState
     ButtonState Trigger;
 
     unsigned char TriggerValue;  // 0-255. Average of last two frames.
+    unsigned char BatteryValue;  // 0-5 for level, EE-EF for charging/charged 
 
     std::array< std::array<int, 3>, 2> RawAccel;    // Two frames of 3 dimensions
     std::array< std::array<int, 3>, 2> RawGyro;     // Two frames of 3 dimensions

@@ -4,14 +4,14 @@
 #include "AppStage_MainMenu.h"
 #include "App.h"
 #include "Camera.h"
-#include "ClientPSMoveAPI.h"
-#include "ClientControllerView.h"
+#include "PSMoveClient_CAPI.h"
 #include "GeometryUtility.h"
 #include "Logger.h"
 #include "MathAlignment.h"
 #include "MathGLM.h"
 #include "MathUtility.h"
 #include "PSMoveProtocolInterface.h"
+#include "PSMoveProtocol.pb.h"
 #include "Renderer.h"
 #include "UIConstants.h"
 
@@ -44,13 +44,13 @@ struct MagnetometerBoundsStatistics
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    PSMoveIntVector3 magnetometerIntSamples[k_max_bounds_magnetometer_samples];
+    PSMVector3i magnetometerIntSamples[k_max_bounds_magnetometer_samples];
     Eigen::Vector3f magnetometerEigenSamples[k_max_bounds_magnetometer_samples];
     int sampleCount;
     int samplePercentage;
 
-    PSMoveIntVector3 minSampleExtent;
-    PSMoveIntVector3 maxSampleExtent;
+    PSMVector3i minSampleExtent;
+    PSMVector3i maxSampleExtent;
 
     EigenFitEllipsoid sampleFitEllipsoid;
     int ellipseFitMethod;
@@ -75,13 +75,13 @@ struct MagnetometerBoundsStatistics
 		sampleCount= 0;
 		samplePercentage= 0;
 
-		minSampleExtent= *k_psmove_int_vector3_zero;
-		maxSampleExtent= *k_psmove_int_vector3_zero;
+		minSampleExtent= *k_psm_int_vector3_zero;
+		maxSampleExtent= *k_psm_int_vector3_zero;
 
 		sampleFitEllipsoid.clear();
 	}
 
-	bool addSample(const PSMoveIntVector3 &sample)
+	bool addSample(const PSMVector3i &sample)
 	{
 		bool bSuccess= sampleCount < k_max_bounds_magnetometer_samples;
 
@@ -93,8 +93,8 @@ struct MagnetometerBoundsStatistics
 			// Make sure this sample isn't too close to another sample
 			for (int sampleIndex= sampleCount-1; sampleIndex >= 0; --sampleIndex)
 			{
-				const PSMoveIntVector3 diff= sample - magnetometerIntSamples[sampleIndex];
-				const int distanceSquared= diff.lengthSquared();
+				const PSMVector3i diff= PSM_Vector3iSubtract(&sample, &magnetometerIntSamples[sampleIndex]);
+				const int distanceSquared= PSM_Vector3iLengthSquared(&diff);
 
 				if (distanceSquared < k_min_sample_distance_sq)
 				{
@@ -108,7 +108,7 @@ struct MagnetometerBoundsStatistics
 		{
             // Store the new sample
             magnetometerIntSamples[sampleCount]= sample;
-            magnetometerEigenSamples[sampleCount] = psmove_int_vector3_to_eigen_vector3(sample);
+            magnetometerEigenSamples[sampleCount] = psm_vector3i_to_eigen_vector3(sample);
             ++sampleCount;
 
             // Compute a best fit ellipsoid for the sample points
@@ -139,24 +139,24 @@ struct MagnetometerBoundsStatistics
 	}
 
 private:
-	void expandMagnetometerBounds(const PSMoveIntVector3 &sample)
+	void expandMagnetometerBounds(const PSMVector3i &sample)
 	{
-		minSampleExtent= PSMoveIntVector3::min(minSampleExtent, sample);
-		maxSampleExtent= PSMoveIntVector3::max(maxSampleExtent, sample);
+		minSampleExtent= PSM_Vector3iMin(&minSampleExtent, &sample);
+		maxSampleExtent= PSM_Vector3iMax(&maxSampleExtent, &sample);
 	}
 
 	int computeMagnetometerCalibrationMinRange()
 	{
-		PSMoveIntVector3 extents= maxSampleExtent - minSampleExtent;
+		PSMVector3i extents= PSM_Vector3iSubtract(&maxSampleExtent, &minSampleExtent);
 
-		return extents.minValue();
+		return PSM_Vector3iMinValue(&extents);
 	}
 
 	int computeMagnetometerCalibrationMaxRange()
 	{
-		PSMoveIntVector3 extents= maxSampleExtent - minSampleExtent;
+		PSMVector3i extents= PSM_Vector3iSubtract(&maxSampleExtent, &minSampleExtent);
 
-		return extents.maxValue();
+		return PSM_Vector3iMaxValue(&extents);
 	}
 };
 
@@ -266,10 +266,12 @@ void AppStage_MagnetometerCalibration::enter()
 
     assert(controllerInfo->ControllerID != -1);
     assert(m_controllerView == nullptr);
-    m_controllerView= ClientPSMoveAPI::allocate_controller_view(controllerInfo->ControllerID);
+	PSM_AllocateControllerListener(controllerInfo->ControllerID);
+	m_controllerView= PSM_GetController(controllerInfo->ControllerID);
 
-    m_lastRawMagnetometer= *k_psmove_int_vector3_zero;
-    m_lastCalibratedAccelerometer= *k_psmove_float_vector3_zero;
+
+    m_lastRawMagnetometer= *k_psm_int_vector3_zero;
+    m_lastCalibratedAccelerometer= *k_psm_float_vector3_zero;
 
 	m_boundsStatistics->clear();
 	m_identityStatistics->clear();
@@ -286,17 +288,15 @@ void AppStage_MagnetometerCalibration::enter()
     assert(!m_isControllerStreamActive);
     m_lastControllerSeqNum= -1;
 
-    ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::start_controller_data_stream(
-            m_controllerView, 
-            ClientPSMoveAPI::includeRawSensorData | ClientPSMoveAPI::includeCalibratedSensorData),
-        &AppStage_MagnetometerCalibration::handle_acquire_controller, this);
+	PSMRequestID request_id;
+	PSM_StartControllerDataStreamAsync(m_controllerView->ControllerID, PSMStreamFlags_includeRawSensorData | PSMStreamFlags_includeCalibratedSensorData, &request_id);
+	PSM_RegisterCallback(request_id, &AppStage_MagnetometerCalibration::handle_acquire_controller, this);
 }
 
 void AppStage_MagnetometerCalibration::exit()
 {
     assert(m_controllerView != nullptr);
-    ClientPSMoveAPI::free_controller_view(m_controllerView);
+    PSM_FreeControllerListener(m_controllerView->ControllerID);
     m_controllerView= nullptr;
     m_menuState= eCalibrationMenuState::inactive;
 
@@ -308,14 +308,14 @@ void AppStage_MagnetometerCalibration::update()
 {
     bool bControllerDataUpdatedThisFrame= false;
 
-    if (m_isControllerStreamActive && m_controllerView->GetOutputSequenceNum() != m_lastControllerSeqNum)
+    if (m_isControllerStreamActive && m_controllerView->OutputSequenceNum != m_lastControllerSeqNum)
     {
-        const PSMoveRawSensorData &rawSensorData= m_controllerView->GetPSMoveView().GetRawSensorData();
-        const PSMoveCalibratedSensorData &calibratedSensorData = m_controllerView->GetPSMoveView().GetCalibratedSensorData();
+        const PSMPSMoveRawSensorData &rawSensorData= m_controllerView->ControllerState.PSMoveState.RawSensorData;
+        const PSMPSMoveCalibratedSensorData &calibratedSensorData = m_controllerView->ControllerState.PSMoveState.CalibratedSensorData;
 
         m_lastRawMagnetometer = rawSensorData.Magnetometer;
         m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
-        m_lastControllerSeqNum = m_controllerView->GetOutputSequenceNum();
+        m_lastControllerSeqNum = m_controllerView->OutputSequenceNum;
         bControllerDataUpdatedThisFrame= true;
     }
 
@@ -325,9 +325,9 @@ void AppStage_MagnetometerCalibration::update()
         {
             if (bControllerDataUpdatedThisFrame)
             {
-                if (m_controllerView->GetPSMoveView().GetHasValidHardwareCalibration())
+                if (m_controllerView->ControllerState.PSMoveState.bHasValidHardwareCalibration)
                 {
-					m_controllerView->GetPSMoveViewMutable().SetPoseResetButtonEnabled(true);
+					m_controllerView->ControllerState.PSMoveState.bPoseResetButtonEnabled= true;
 
 					m_boundsStatistics->clear();
                     
@@ -370,14 +370,17 @@ void AppStage_MagnetometerCalibration::update()
                         m_led_color_g = led_color_g;
                         m_led_color_b = led_color_b;
                             
-                        m_controllerView->GetPSMoveViewMutable().SetLEDOverride(m_led_color_r, m_led_color_g, m_led_color_b);
+						PSM_SetControllerLEDOverrideColor(m_controllerView->ControllerID, m_led_color_r, m_led_color_g, m_led_color_b);
                     }
                 }
             }
         } break;
     case eCalibrationMenuState::waitForGravityAlignment:
         {
-            if (m_controllerView->GetPSMoveView().GetIsStableAndAlignedWithGravity() || m_bForceControllerStable)
+			bool bIsStable= false;
+			bool bCanBeStable= PSM_GetIsControllerStable(m_controllerView->ControllerID, &bIsStable) == PSMResult_Success;
+
+            if ((bCanBeStable && bIsStable) || m_bForceControllerStable)
             {
                 std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
 
@@ -407,14 +410,17 @@ void AppStage_MagnetometerCalibration::update()
         } break;
     case eCalibrationMenuState::measureBDirection:
         {
-            if (m_controllerView->GetPSMoveView().GetIsStableAndAlignedWithGravity() || m_bForceControllerStable)
+			bool bIsStable= false;
+			bool bCanBeStable= PSM_GetIsControllerStable(m_controllerView->ControllerID, &bIsStable) == PSMResult_Success;
+
+            if ((bCanBeStable && bIsStable) || m_bForceControllerStable)
             {
                 if (bControllerDataUpdatedThisFrame)
                 {
                     // Project the magnetometer sample into the space of the ellipsoid
                     Eigen::Vector3f ellipsoid_sample =
                         eigen_alignment_project_point_on_ellipsoid_basis(
-                            psmove_float_vector3_to_eigen_vector3(m_lastRawMagnetometer.castToFloatVector3()),
+                            psm_vector3f_to_eigen_vector3(PSM_Vector3iCastToFloat(&m_lastRawMagnetometer)),
                             m_boundsStatistics->sampleFitEllipsoid);                   
 
 					// Add the normalized sample to the 
@@ -433,7 +439,7 @@ void AppStage_MagnetometerCalibration::update()
                         PSMoveProtocol::Request_RequestSetControllerMagnetometerCalibration *calibration=
                                 request->mutable_set_controller_magnetometer_calibration_request();
 
-                        calibration->set_controller_id(m_controllerView->GetControllerID());
+                        calibration->set_controller_id(m_controllerView->ControllerID);
 
                         write_calibration_parameter(ellipsoid.center, calibration->mutable_ellipse_center());
                         write_calibration_parameter(ellipsoid.extents, calibration->mutable_ellipse_extents());
@@ -445,9 +451,9 @@ void AppStage_MagnetometerCalibration::update()
 
                         write_calibration_parameter(magnetometerIdentity, calibration->mutable_magnetometer_identity());
 
-                        ClientPSMoveAPI::register_callback(
-                            ClientPSMoveAPI::send_opaque_request(&request), 
-                            AppStage_MagnetometerCalibration::handle_set_magnetometer_calibration, this);
+						PSMRequestID request_id;
+						PSM_SendOpaqueRequest(&request, &request_id);
+						PSM_RegisterCallback(request_id, AppStage_MagnetometerCalibration::handle_set_magnetometer_calibration, this);
 
                         // Wait for the response
                         m_menuState= AppStage_MagnetometerCalibration::waitForSetCalibrationResponse;
@@ -486,13 +492,14 @@ void AppStage_MagnetometerCalibration::render()
             90.f, glm::vec3(1.f, 0.f, 0.f));  
     
 	const EigenFitEllipsoid &sampleFitEllipsoid= m_boundsStatistics->sampleFitEllipsoid;	
-    const PSMoveIntVector3 &minSampleExtent= m_boundsStatistics->minSampleExtent;
-    const PSMoveIntVector3 &maxSampleExtent= m_boundsStatistics->maxSampleExtent;
+    const PSMVector3i &minSampleExtent= m_boundsStatistics->minSampleExtent;
+    const PSMVector3i &maxSampleExtent= m_boundsStatistics->maxSampleExtent;
 
-    PSMoveIntVector3 rawSampleExtents = (maxSampleExtent - minSampleExtent).unsafe_divide(2);
+	PSMVector3i rawSampleDiff= PSM_Vector3iSubtract(&maxSampleExtent, &minSampleExtent);
+    PSMVector3i rawSampleExtents = PSM_Vector3iUnsafeScalarDivide(&rawSampleDiff, 2);
 
-    glm::vec3 boxMin = psmove_float_vector3_to_glm_vec3(minSampleExtent.castToFloatVector3());
-    glm::vec3 boxMax = psmove_float_vector3_to_glm_vec3(maxSampleExtent.castToFloatVector3());
+    glm::vec3 boxMin = psm_vector3f_to_glm_vec3(PSM_Vector3iCastToFloat(&minSampleExtent));
+    glm::vec3 boxMax = psm_vector3f_to_glm_vec3(PSM_Vector3iCastToFloat(&maxSampleExtent));
     glm::vec3 boxCenter = (boxMax + boxMin) * 0.5f;
     glm::vec3 boxExtents = (boxMax - boxMin) * 0.5f;
 
@@ -529,15 +536,15 @@ void AppStage_MagnetometerCalibration::render()
             // Label the min and max corners with the min and max magnetometer readings
             drawTransformedBox(recenterMatrix, boxMin, boxMax, glm::vec3(1.f, 1.f, 1.f));
             drawTextAtWorldPosition(recenterMatrix, boxMin, "%d,%d,%d",
-                                    minSampleExtent.i, minSampleExtent.j, minSampleExtent.k);
+                                    minSampleExtent.x, minSampleExtent.y, minSampleExtent.z);
             drawTextAtWorldPosition(recenterMatrix, boxMax, "%d,%d,%d",
-                                    maxSampleExtent.i, maxSampleExtent.j, maxSampleExtent.k);
+                                    maxSampleExtent.x, maxSampleExtent.y, maxSampleExtent.z);
 
             // Draw and label the extent axes
             drawTransformedAxes(glm::mat4(1.f), boxExtents.x, boxExtents.y, boxExtents.z);
-            drawTextAtWorldPosition(glm::mat4(1.f), glm::vec3(boxExtents.x, 0.f, 0.f), "%d", rawSampleExtents.i);
-            drawTextAtWorldPosition(glm::mat4(1.f), glm::vec3(0.f, boxExtents.y, 0.f), "%d", rawSampleExtents.j);
-            drawTextAtWorldPosition(glm::mat4(1.f), glm::vec3(0.f, 0.f, boxExtents.z), "%d", rawSampleExtents.k);
+            drawTextAtWorldPosition(glm::mat4(1.f), glm::vec3(boxExtents.x, 0.f, 0.f), "%d", rawSampleExtents.x);
+            drawTextAtWorldPosition(glm::mat4(1.f), glm::vec3(0.f, boxExtents.y, 0.f), "%d", rawSampleExtents.y);
+            drawTextAtWorldPosition(glm::mat4(1.f), glm::vec3(0.f, 0.f, boxExtents.z), "%d", rawSampleExtents.z);
 
             // Draw the best fit ellipsoid
             {
@@ -558,7 +565,7 @@ void AppStage_MagnetometerCalibration::render()
             // Draw the current magnetometer direction
             {
                 glm::vec3 m_start= boxCenter;
-                glm::vec3 m_end= psmove_float_vector3_to_glm_vec3(m_lastRawMagnetometer.castToFloatVector3());
+                glm::vec3 m_end= psm_vector3f_to_glm_vec3(PSM_Vector3iCastToFloat(&m_lastRawMagnetometer));
 
                 drawArrow(recenterMatrix, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
                 drawTextAtWorldPosition(recenterMatrix, m_end, "M");
@@ -573,7 +580,7 @@ void AppStage_MagnetometerCalibration::render()
                 const float renderScale = 200.f;
                 glm::mat4 renderScaleMatrix = 
                     glm::scale(glm::mat4(1.f), glm::vec3(renderScale, renderScale, renderScale));
-                glm::vec3 g= psmove_float_vector3_to_glm_vec3(m_lastCalibratedAccelerometer);
+                glm::vec3 g= psm_vector3f_to_glm_vec3(m_lastCalibratedAccelerometer);
 
                 drawArrow(
                     renderScaleMatrix,
@@ -590,7 +597,7 @@ void AppStage_MagnetometerCalibration::render()
             // Draw the current magnetometer direction
             {
                 glm::vec3 m_start = boxCenter;
-                glm::vec3 m_end = psmove_float_vector3_to_glm_vec3(m_lastRawMagnetometer.castToFloatVector3());
+                glm::vec3 m_end = psm_vector3f_to_glm_vec3(PSM_Vector3iCastToFloat(&m_lastRawMagnetometer));
 
                 drawArrow(recenterMatrix, m_start, m_end, 0.1f, glm::vec3(1.f, 0.f, 0.f));
                 drawTextAtWorldPosition(recenterMatrix, m_end, "M");
@@ -606,12 +613,17 @@ void AppStage_MagnetometerCalibration::render()
     case eCalibrationMenuState::complete:
         {
             // Get the orientation of the controller in world space (OpenGL Coordinate System)            
-            glm::quat q= psmove_quaternion_to_glm_quat(m_controllerView->GetPSMoveView().GetOrientation());
-            glm::mat4 worldSpaceOrientation= glm::mat4_cast(q);
-            glm::mat4 worldTransform = glm::scale(worldSpaceOrientation, glm::vec3(modelScale, modelScale, modelScale));
+			PSMQuatf orientation;
+			
+			if (PSM_GetControllerOrientation(m_controllerView->ControllerID, &orientation) == PSMResult_Success)
+			{
+				glm::quat q= psm_quatf_to_glm_quat(orientation);
+				glm::mat4 worldSpaceOrientation= glm::mat4_cast(q);
+				glm::mat4 worldTransform = glm::scale(worldSpaceOrientation, glm::vec3(modelScale, modelScale, modelScale));
 
-            drawPSMoveModel(worldTransform, glm::vec3(1.f, 1.f, 1.f));
-            drawTransformedAxes(glm::mat4(1.f), 200.f);
+				drawPSMoveModel(worldTransform, glm::vec3(1.f, 1.f, 1.f));
+				drawTransformedAxes(glm::mat4(1.f), 200.f);
+			}
         } break;
     case eCalibrationMenuState::pendingExit:
         {
@@ -702,19 +714,19 @@ void AppStage_MagnetometerCalibration::renderUI()
                     ImGui::TextWrapped(
                         "Calibrating Controller ID #%d\n" \
                         "[Step 1 of 2: Measuring extents of the magnetometer]\n" \
-                        "Rotate the controller in all directions.", m_controllerView->GetControllerID());
+                        "Rotate the controller in all directions.", m_controllerView->ControllerID);
                 }
                 else
                 {
                     ImGui::TextWrapped(
                         "Calibrating Controller ID #%d\n" \
                         "[Step 1 of 2: Measuring extents of the magnetometer - Complete!]\n" \
-                        "Press OK to continue", m_controllerView->GetControllerID());
+                        "Press OK to continue", m_controllerView->ControllerID);
                 }
 
 				ImGui::Text("Magnetometer: Seq(%d) Raw Sensor(%d,%d,%d)",
 					m_lastControllerSeqNum,
-					m_lastRawMagnetometer.i, m_lastRawMagnetometer.j, m_lastRawMagnetometer.k);
+					m_lastRawMagnetometer.x, m_lastRawMagnetometer.y, m_lastRawMagnetometer.z);
 
                 if (m_boundsStatistics->samplePercentage < 100)
                 {
@@ -722,7 +734,7 @@ void AppStage_MagnetometerCalibration::renderUI()
 
                     if (ImGui::Button("Force Accept"))
                     {
-                        m_controllerView->GetPSMoveViewMutable().SetLEDOverride(0, 0, 0);
+						PSM_SetControllerLEDOverrideColor(m_controllerView->ControllerID, 0, 0, 0);
                         m_menuState = waitForGravityAlignment;
                     }
                     ImGui::SameLine();
@@ -731,7 +743,7 @@ void AppStage_MagnetometerCalibration::renderUI()
                 {
                     if (ImGui::Button("Ok"))
                     {
-                        m_controllerView->GetPSMoveViewMutable().SetLEDOverride(0, 0, 0);
+						PSM_SetControllerLEDOverrideColor(m_controllerView->ControllerID, 0, 0, 0);
                         m_menuState = waitForGravityAlignment;
                     }
                     ImGui::SameLine();
@@ -874,15 +886,17 @@ void AppStage_MagnetometerCalibration::renderUI()
 
             if (m_bBypassCalibration)
             {
-                ImGui::Text("Testing Calibration of Controller ID #%d", m_controllerView->GetControllerID());
+                ImGui::Text("Testing Calibration of Controller ID #%d", m_controllerView->ControllerID);
             }
             else
             {
-                ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->GetControllerID());
+                ImGui::Text("Calibration of Controller ID #%d complete!", m_controllerView->ControllerID);
             }
 
+			PSMQuatf orientation;			
+			if (PSM_GetControllerOrientation(m_controllerView->ControllerID, &orientation) == PSMResult_Success)
 			{
-				const Eigen::Quaternionf eigen_quat = psmove_quaternion_to_eigen_quaternionf(m_controllerView->GetOrientation());
+				const Eigen::Quaternionf eigen_quat = psm_quatf_to_eigen_quaternionf(orientation);
 				const Eigen::EulerAnglesf euler_angles = eigen_quaternionf_to_euler_angles(eigen_quat);
 
 				ImGui::Text("Attitude: %.2f, Heading: %.2f, Bank: %.2f",
@@ -924,12 +938,12 @@ void AppStage_MagnetometerCalibration::renderUI()
 
 //-- private methods -----
 void AppStage_MagnetometerCalibration::handle_acquire_controller(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_MagnetometerCalibration *thisPtr= reinterpret_cast<AppStage_MagnetometerCalibration *>(userdata);
 
-    if (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (response->result_code == PSMResult_Success)
     {
         thisPtr->m_isControllerStreamActive= true;
         thisPtr->m_lastControllerSeqNum= -1;
@@ -948,11 +962,11 @@ void AppStage_MagnetometerCalibration::request_exit_to_app_stage(const char *app
         if (m_isControllerStreamActive)
         {
             m_pendingAppStage= app_stage_name;
-            m_controllerView->GetPSMoveViewMutable().SetLEDOverride(0, 0, 0);
+			PSM_SetControllerLEDOverrideColor(m_controllerView->ControllerID, 0, 0, 0);
 
-            ClientPSMoveAPI::register_callback(
-                ClientPSMoveAPI::stop_controller_data_stream(m_controllerView), 
-                &AppStage_MagnetometerCalibration::handle_release_controller, this);
+			PSMRequestID requestId;
+			PSM_StopControllerDataStreamAsync(m_controllerView->ControllerID, &requestId);
+			PSM_RegisterCallback(requestId, &AppStage_MagnetometerCalibration::handle_release_controller, this);
         }
         else
         {
@@ -962,12 +976,12 @@ void AppStage_MagnetometerCalibration::request_exit_to_app_stage(const char *app
 }
 
 void AppStage_MagnetometerCalibration::handle_release_controller(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_MagnetometerCalibration *thisPtr= reinterpret_cast<AppStage_MagnetometerCalibration *>(userdata);
 
-    if (response->result_code != ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (response->result_code != PSMResult_Success)
     {
         Log_ERROR("AppStage_MagnetometerCalibration", "Failed to release controller on server!");
     }
@@ -978,12 +992,12 @@ void AppStage_MagnetometerCalibration::handle_release_controller(
 }
 
 void AppStage_MagnetometerCalibration::handle_set_magnetometer_calibration(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_MagnetometerCalibration *thisPtr= reinterpret_cast<AppStage_MagnetometerCalibration *>(userdata);
 
-    if (response->result_code == ClientPSMoveAPI::_clientPSMoveResultCode_ok)
+    if (response->result_code == PSMResult_Success)
     {
         thisPtr->m_app->getOrbitCamera()->resetOrientation();
         thisPtr->m_menuState= AppStage_MagnetometerCalibration::complete;

@@ -1,7 +1,6 @@
 //-- includes -----
 #include "Renderer.h"
-#include "ClientGeometry.h"
-#include "ClientTrackerView.h"
+#include "ClientGeometry_CAPI.h"
 #include "AssetManager.h"
 #include "Logger.h"
 #include "ProtocolVersion.h"
@@ -565,7 +564,7 @@ void drawFullscreenTexture(const unsigned int texture_id)
 }
 
 void drawPointCloudProjection(
-	const struct PSMoveScreenLocation *points,
+	const PSMVector2f *points,
 	const int point_count, 
 	const float point_size,
 	const glm::vec3 &color,
@@ -593,7 +592,7 @@ void drawPointCloudProjection(
 	glLineWidth(2.f);
 	for (int point_index = 0; point_index < point_count; ++point_index)
 	{
-		const PSMoveScreenLocation *point = &points[point_index];
+		const PSMVector2f *point = &points[point_index];
 
 		glLineWidth(2.f);
 		glBegin(GL_LINES);
@@ -615,7 +614,7 @@ void drawPointCloudProjection(
 	glPopMatrix();
 }
 
-void drawTransformedVolume(const glm::mat4 &transform, const PSMoveVolume *volume, const glm::vec3 &color)
+void drawTransformedVolume(const glm::mat4 &transform, const PSMVolume *volume, const glm::vec3 &color)
 {
     assert(Renderer::getIsRenderingStage());
 
@@ -628,8 +627,8 @@ void drawTransformedVolume(const glm::mat4 &transform, const PSMoveVolume *volum
         int previous_index= volume->vertex_count - 1;
         for (int index = 0; index < volume->vertex_count; ++index)
         {
-            const PSMovePosition &previous_vert = volume->vertices[previous_index];
-            const PSMovePosition &vert = volume->vertices[index];
+            const PSMVector3f &previous_vert = volume->vertices[previous_index];
+            const PSMVector3f &vert = volume->vertices[index];
 
             glm::vec3 prev_lower(previous_vert.x, previous_vert.y, previous_vert.z);
             glm::vec3 prev_upper(previous_vert.x, previous_vert.y + volume->up_height, previous_vert.z);
@@ -766,16 +765,16 @@ void drawTransformedTexturedCube(const glm::mat4 &transform, int textureId, floa
     glBindTexture(GL_TEXTURE_2D, 0); 
 }
 
-void drawTransformedFrustum(const glm::mat4 &transform, const PSMoveFrustum *frustum, const glm::vec3 &color)
+void drawTransformedFrustum(const glm::mat4 &transform, const PSMFrustum *frustum, const glm::vec3 &color)
 {
     assert(Renderer::getIsRenderingStage());
 
     const float HRatio = tanf(frustum->HFOV / 2.f);
     const float VRatio = tanf(frustum->VFOV / 2.f);
 
-    glm::vec3 left(frustum->left.i, frustum->left.j, frustum->left.k);
-    glm::vec3 up(frustum->up.i, frustum->up.j, frustum->up.k);
-    glm::vec3 forward(frustum->forward.i, frustum->forward.j, frustum->forward.k);
+    glm::vec3 left(frustum->left.x, frustum->left.y, frustum->left.z);
+    glm::vec3 up(frustum->up.x, frustum->up.y, frustum->up.z);
+    glm::vec3 forward(frustum->forward.x, frustum->forward.y, frustum->forward.z);
     glm::vec3 origin(frustum->origin.x, frustum->origin.y, frustum->origin.z);
 
     glm::vec3 nearX = left*frustum->zNear*HRatio;
@@ -1057,14 +1056,14 @@ void drawOpenCVChessBoard(const float trackerWidth, const float trackerHeight, c
     glPopMatrix();
 }
 
-void drawPoseArrayStrip(const struct PSMovePose *poses, const int poseCount, const glm::vec3 &color)
+void drawPoseArrayStrip(const PSMPosef *poses, const int poseCount, const glm::vec3 &color)
 {
     glColor3fv(glm::value_ptr(color));
     glBegin(GL_LINE_STRIP);
 
     for (int sampleIndex = 0; sampleIndex < poseCount; ++sampleIndex)
     {
-        const PSMovePose &pose = poses[sampleIndex];
+        const PSMPosef &pose = poses[sampleIndex];
 
         glVertex3f(pose.Position.x, pose.Position.y, pose.Position.z);
     }
@@ -1185,7 +1184,7 @@ void drawPSDualShock4Model(const glm::mat4 &transform, const glm::vec3 &color)
     glBindTexture(GL_TEXTURE_2D, 0); 
 }
 
-void drawTrackerList(const ClientTrackerInfo *trackerList, const int trackerCount)
+void drawTrackerList(const PSMClientTrackerInfo *trackerList, const int trackerCount)
 {
 	glm::mat4 psmove_tracking_space_to_chaperone_space = glm::mat4(1.f);
 
@@ -1195,13 +1194,13 @@ void drawTrackerList(const ClientTrackerInfo *trackerList, const int trackerCoun
 	// We need to transform them into chaperone space to display them along side the HMD.
 	for (int tracker_index = 0; tracker_index < trackerCount; ++tracker_index)
 	{
-		const ClientTrackerInfo *trackerInfo= &trackerList[tracker_index];
-		const PSMovePose tracker_pose = trackerInfo->tracker_pose;
-		const glm::mat4 chaperoneSpaceTransform = psmove_pose_to_glm_mat4(tracker_pose);
+		const PSMClientTrackerInfo *trackerInfo= &trackerList[tracker_index];
+		const PSMPosef tracker_pose = trackerInfo->tracker_pose;
+		const glm::mat4 chaperoneSpaceTransform = psm_posef_to_glm_mat4(tracker_pose);
 
-		PSMoveFrustum frustum;
+		PSMFrustum frustum;
 
-		frustum.set_pose(tracker_pose);
+		PSM_FrustumSetPose(&frustum, &tracker_pose);
 
 		// Convert the FOV angles to radians for rendering purposes
 		frustum.HFOV = trackerInfo->tracker_hfov * k_degrees_to_radians;

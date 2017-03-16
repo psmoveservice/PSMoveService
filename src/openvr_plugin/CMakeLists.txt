@@ -21,7 +21,7 @@ list(APPEND OPENVR_MONITOR_REQ_LIBS ${OPENVR_LIBRARIES})
     
 # platform independent libraries
 list(APPEND OPENVR_PLUGIN_REQ_LIBS 
-    PSMoveClient
+    PSMoveClient_CAPI
     PSMoveProtocol)
 
 # Shared library
@@ -29,16 +29,10 @@ add_library(driver_psmove SHARED driver_psmoveservice.cpp)
 target_include_directories(driver_psmove PUBLIC ${OPENVR_PLUGIN_INCL_DIRS})
 target_link_libraries(driver_psmove ${OPENVR_PLUGIN_REQ_LIBS})
 
-# Allow access to the protocol buffers (extracting response parameters)
-target_compile_definitions(driver_psmove
-    PRIVATE HAS_PROTOCOL_ACCESS
-    PRIVATE PSMOVECLIENT_CPP_API)
-
 # Monitor app
 add_executable(monitor_psmove monitor_psmoveservice.cpp)
 target_include_directories(monitor_psmove PUBLIC ${OPENVR_MONITOR_INCL_DIRS})
 target_link_libraries(monitor_psmove ${OPENVR_LIBRARIES})
-target_compile_definitions(monitor_psmove PRIVATE PSMOVECLIENT_CPP_API)
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")

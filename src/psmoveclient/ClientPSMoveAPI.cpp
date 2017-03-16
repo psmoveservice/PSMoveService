@@ -154,6 +154,20 @@ public:
         m_pending_request_map.clear();
     }
 
+	// -- System Requests ----
+    ClientPSMoveAPI::t_request_id get_service_version()
+    {
+        CLIENT_LOG_INFO("get_service_version") << "requesting service version" << std::endl;
+
+        // Tell the psmove service that we want the version string
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_GET_SERVICE_VERSION);
+
+        m_request_manager.send_request(request);
+
+        return request->request_id();
+    }
+
     // -- ClientPSMoveAPI Requests -----
     ClientControllerView * allocate_controller_view(int ControllerID)
     {
@@ -191,6 +205,7 @@ public:
         // If no one is listening to this controller anymore, free it from the map
         if (view->GetListenerCount() <= 0)
         {
+//            stop_controller_data_stream(view_entry->second);
             // Free the controller view allocated in allocate_controller_view
             delete view_entry->second;
             view_entry->second= nullptr;
@@ -358,12 +373,20 @@ public:
         if (view->getListenerCount() <= 0)
         {
             // Free the tracker view allocated in allocate_tracker_view
+//            stop_tracker_data_stream(view_entry->second);
             delete view_entry->second;
             view_entry->second = nullptr;
 
             // Remove the entry from the map
             m_tracker_view_map.erase(view_entry);
         }
+    }
+
+    ClientTrackerView* get_tracker_view(int tracker_id)
+    {
+        t_tracker_view_map_iterator view_entry= m_tracker_view_map.find(tracker_id);
+        assert(view_entry != m_tracker_view_map.end());
+        return view_entry->second;
     }
 
 	ClientPSMoveAPI::t_request_id get_tracking_space_settings()
@@ -910,6 +933,19 @@ void ClientPSMoveAPI::shutdown()
     }
 }
 
+ClientPSMoveAPI::t_request_id
+ClientPSMoveAPI::get_service_version()
+{
+    ClientPSMoveAPI::t_request_id request_id = ClientPSMoveAPI::INVALID_REQUEST_ID;
+
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        request_id = ClientPSMoveAPI::m_implementation_ptr->get_service_version();
+    }
+
+    return request_id;
+}
+
 ClientControllerView * ClientPSMoveAPI::allocate_controller_view(int ControllerID)
 {
     ClientControllerView * view = nullptr;
@@ -1033,6 +1069,17 @@ ClientPSMoveAPI::free_tracker_view(ClientTrackerView *view)
         ClientPSMoveAPI::m_implementation_ptr->free_tracker_view(view);
     }
 }
+
+ClientTrackerView * ClientPSMoveAPI::get_tracker_view(int tracker_id)
+{
+    ClientTrackerView * view = nullptr;
+    if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
+    {
+        view = ClientPSMoveAPI::m_implementation_ptr->get_tracker_view(tracker_id);
+    }
+    return view;
+}
+
 
 ClientPSMoveAPI::t_request_id
 ClientPSMoveAPI::get_tracking_space_settings()
