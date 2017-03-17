@@ -4,7 +4,29 @@
 #include <algorithm>
 #include <vector>
 #include <chrono>
+#ifdef _WIN32
 #include <ppl.h>
+template<typename It, typename F>
+inline void parallel_for_each(It a, It b, F&& f)
+{
+	Concurrency::parallel_for_each(a, b, std::forward<F>(f));
+}
+#elif __APPLE__
+#include "dispatch/dispatch.h"
+template<typename It, typename F>
+inline void parallel_for_each(It a, It b, F&& f)
+{
+	size_t count = std::distance(a, b);
+	using data_t = std::pair<It, F>;
+	data_t helper = data_t(a, std::forward<F>(f));
+	dispatch_apply_f(count, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), &helper, [](void* ctx, size_t cnt)
+	{
+		data_t* d = static_cast<data_t*>(ctx);
+		auto elem_it = std::next(d->first, cnt);
+		(*d).second(*(elem_it));
+	});
+}
+#endif
 #include <concurrent_vector.h>
 
 const std::vector<int> known_keys = { 113, 97, 119, 115, 101, 100, 114, 102, 116, 103, 121, 104 };
@@ -64,7 +86,7 @@ int main(int, char**)
 		<< "Check the calculated frame rate with the space bar and close cameras with escape \n"
 		;
     // Create a window for each opened camera
-	concurrency::parallel_for_each(
+	parallel_for_each(
         camera_states.begin(), 
         camera_states.end(),
 		[&camera_states](camera_state &state) {

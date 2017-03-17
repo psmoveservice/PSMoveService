@@ -138,8 +138,14 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
     list(APPEND TEST_CAMERA_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
     list(APPEND TEST_CAMERA_REQ_LIBS ${LIBUSB_LIBRARIES})
 
-    # Windows utilities for querying driver infomation (provider name)
+    # Windows utilities for querying driver information (provider name)
+    list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Device/Interface)
+    list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Server)
     list(APPEND TEST_CAMERA_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Platform)
+    list(APPEND TEST_CAMERA_SRC ${ROOT_DIR}/src/psmoveservice/Device/Interface/DevicePlatformInterface.h)
+    list(APPEND TEST_CAMERA_SRC ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h)
+    list(APPEND TEST_CAMERA_SRC ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp)
+    list(APPEND TEST_CAMERA_SRC ${ROOT_DIR}/src/psmoveservice/Platform/PlatformDeviceAPIWin32.h)
     list(APPEND TEST_CAMERA_SRC ${ROOT_DIR}/src/psmoveservice/Platform/PlatformDeviceAPIWin32.cpp)
 ENDIF()
 
@@ -243,8 +249,14 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
     list(APPEND TEST_CAMERA_PARALLEL_REQ_LIBS ${LIBUSB_LIBRARIES})
 
     # Windows utilities for querying driver infomation (provider name)
+    list(APPEND TEST_CAMERA_PARALLEL_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Device/Interface)
+    list(APPEND TEST_CAMERA_PARALLEL_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Server)
     list(APPEND TEST_CAMERA_PARALLEL_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Platform)
-    list(APPEND TEST_CAMERA_PARALLEL_SRC ${ROOT_DIR}/src/psmoveservice/Platform/PlatformDeviceAPIWin32.cpp)
+    list(APPEND TEST_CAMERA_PARALLEL_SRC ${ROOT_DIR}/src/psmoveservice/Device/Interface/DevicePlatformInterface.h)
+    list(APPEND TEST_CAMERA_PARALLEL_SRC ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.h)
+    list(APPEND TEST_CAMERA_PARALLEL_SRC ${ROOT_DIR}/src/psmoveservice/Server/ServerLog.cpp)
+    list(APPEND TEST_CAMERA_PARALLEL_SRC ${ROOT_DIR}/src/psmoveservice/Platform/PlatformDeviceAPIWin32.h)
+    list(APPEND TEST_CAMERA_PARALLEL_SRC ${ROOT_DIR}/src/psmoveservice/Platform/PlatformDeviceAPIWin32.cpp)   
 ENDIF()
 
 # Our custom OpenCV VideoCapture classes
