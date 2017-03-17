@@ -439,8 +439,8 @@ typedef struct _PSMControllerList
 {
     PSMControllerID controller_id[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
     PSMControllerType controller_type[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
-	char controller_serial[PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
-	char parent_controller_serial[PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
+	char controller_serial[PSMOVESERVICE_MAX_CONTROLLER_COUNT][PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
+	char parent_controller_serial[PSMOVESERVICE_MAX_CONTROLLER_COUNT][PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
     int count;
 } PSMControllerList;
 

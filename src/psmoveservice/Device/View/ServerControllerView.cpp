@@ -747,7 +747,7 @@ ServerControllerView::getProductID() const
 std::string 
 ServerControllerView::getSerial() const
 {
-    return(m_device != nullptr) ? m_device->getSerial() : "";
+    return (m_device != nullptr) ? m_device->getSerial() : "";
 }
 
 // Returns the "controller_" + serial number for the controller

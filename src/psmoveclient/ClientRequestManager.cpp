@@ -239,8 +239,8 @@ public:
                 // Add an entry to the controller list
                 controller_list->controller_type[dest_controller_count] = controllerType;
                 controller_list->controller_id[dest_controller_count] = ControllerResponse.controller_id();
-				strncpy(&controller_list->controller_serial[dest_controller_count], ControllerResponse.device_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
-				strncpy(&controller_list->parent_controller_serial[dest_controller_count], ControllerResponse.parent_controller_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
+				strncpy(controller_list->controller_serial[dest_controller_count], ControllerResponse.device_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
+				strncpy(controller_list->parent_controller_serial[dest_controller_count], ControllerResponse.parent_controller_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
                 ++dest_controller_count;
             }
 
