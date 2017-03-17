@@ -160,9 +160,9 @@ public:
 
 	HMDModelState(int trackerLEDCount)
 		: m_expectedLEDCount(trackerLEDCount)
-		, m_ledSampleSet(new LEDModelSamples[trackerLEDCount])
 		, m_seenLEDCount(0)
 		, m_totalLEDSampleCount(0)
+        , m_ledSampleSet(new LEDModelSamples[trackerLEDCount])
 	{
 		m_icpTransform = Eigen::Affine3d::Identity();
 
@@ -347,10 +347,10 @@ private:
 AppStage_HMDModelCalibration::AppStage_HMDModelCalibration(App *app)
 	: AppStage(app)
 	, m_menuState(AppStage_HMDModelCalibration::inactive)
+    , m_bBypassCalibration(false)
 	, m_trackerPairState(new TrackerPairState)
 	, m_hmdModelState(nullptr)
 	, m_hmdView(nullptr)
-	, m_bBypassCalibration(false)
 {
 	m_trackerPairState->init();
 }

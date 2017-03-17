@@ -1135,7 +1135,7 @@ ClientPSMoveAPI::stop_tracker_data_stream(ClientTrackerView *view)
 
 ClientHMDView * ClientPSMoveAPI::allocate_hmd_view(int HmdID)
 {
-    ClientHMDView * view;
+    ClientHMDView * view = nullptr;
 
     if (ClientPSMoveAPI::m_implementation_ptr != nullptr)
     {
