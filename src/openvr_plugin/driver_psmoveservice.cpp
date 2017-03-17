@@ -677,7 +677,7 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
     {
         int controller_id = controller_list->controller_id[list_index];
         PSMControllerType controller_type = controller_list->controller_type[list_index];
-		std::string ControllerSerial(&controller_list->controller_serial[list_index]);
+		std::string ControllerSerial(controller_list->controller_serial[list_index]);
 
         switch (controller_type)
         {
@@ -704,8 +704,8 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
 		{
 			int controller_id = controller_list->controller_id[list_index];
 			PSMControllerType controller_type = controller_list->controller_type[list_index];
-			std::string ControllerSerial(&controller_list->controller_serial[list_index]);
-			std::string ParentControllerSerial(&controller_list->parent_controller_serial[list_index]);
+			std::string ControllerSerial(controller_list->controller_serial[list_index]);
+			std::string ParentControllerSerial(controller_list->parent_controller_serial[list_index]);
 
 			if (controller_type == PSMControllerType::PSMController_Navi)
 			{
@@ -2074,7 +2074,7 @@ void CPSMoveControllerLatest::UpdateControllerState()
 			// Check if the PSMove has a PSNavi child
 			const bool bHasChildNavi= 
 				m_PSMChildControllerView != nullptr && 
-				m_PSMChildControllerView->ControllerType == PSMController_Move;
+				m_PSMChildControllerView->ControllerType == PSMController_Navi;
 
 			// See if the recenter button has been held for the requisite amount of time
 			bool bRecenterRequestTriggered = false;
