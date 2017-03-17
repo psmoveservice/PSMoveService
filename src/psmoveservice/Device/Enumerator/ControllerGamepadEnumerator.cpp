@@ -25,9 +25,9 @@ struct GamepadAPIDeviceFilter
 };
 
 GamepadAPIDeviceFilter g_supported_controller_infos[MAX_CONTROLLER_TYPE_INDEX] = {
-	{ 0x054c, 0x03d5, false}, // PSMove
-	{ 0x045e, 0x028e, true}, // PSNavi pretending to be an XBox 360 controller via ScpService
-	{ 0x054c, 0x05C4, false}, // PSDualShock4
+	{ {0x054c, 0x03d5}, false}, // PSMove
+	{ {0x045e, 0x028e}, true}, // PSNavi pretending to be an XBox 360 controller via ScpService
+	{ {0x054c, 0x05C4}, false}, // PSDualShock4
 };
 
 static bool is_gamepad_supported(
