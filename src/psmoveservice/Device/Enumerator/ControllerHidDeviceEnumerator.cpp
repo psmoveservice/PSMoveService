@@ -23,7 +23,7 @@ struct HIDApiDeviceFilter
 };
 
 
-HIDApiDeviceFilter g_supported_controller_infos[MAX_CONTROLLER_TYPE_INDEX] = {
+HIDApiDeviceFilter g_supported_hid_controller_infos[MAX_CONTROLLER_TYPE_INDEX] = {
 	{ 0x054c, 0x03d5, true}, // PSMove
 	{ 0x054c, 0x0268, false}, // PSNavi/DualShock3 (sadly these controllers don't properly support HID
 	{ 0x054c, 0x05C4, true}, // PSDualShock4
@@ -38,7 +38,7 @@ ControllerHidDeviceEnumerator::ControllerHidDeviceEnumerator()
 	m_deviceType= CommonDeviceState::PSMove;
 	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
 
-	HIDApiDeviceFilter &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
+	HIDApiDeviceFilter &dev_info = g_supported_hid_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
 	devs = hid_enumerate(dev_info.filter.vendor_id, dev_info.filter.product_id);
 	cur_dev = devs;
 
@@ -58,7 +58,7 @@ ControllerHidDeviceEnumerator::ControllerHidDeviceEnumerator(
 	m_deviceTypeFilter= deviceTypeFilter;
 	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
 
-	HIDApiDeviceFilter &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
+	HIDApiDeviceFilter &dev_info = g_supported_hid_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
 	devs = hid_enumerate(dev_info.filter.vendor_id, dev_info.filter.product_id);
 	cur_dev = devs;
 
@@ -151,7 +151,7 @@ bool ControllerHidDeviceEnumerator::next()
 			if (GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX && 
 				(m_deviceType == m_deviceTypeFilter || m_deviceTypeFilter == CommonDeviceState::INVALID_DEVICE_TYPE))
 			{
-				HIDApiDeviceFilter &dev_info = g_supported_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
+				HIDApiDeviceFilter &dev_info = g_supported_hid_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
 
 				if (dev_info.bHIDApiSupported)
 				{

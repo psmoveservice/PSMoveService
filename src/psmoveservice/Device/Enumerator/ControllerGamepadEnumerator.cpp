@@ -24,7 +24,7 @@ struct GamepadAPIDeviceFilter
 	bool bGamepadApiSupported;
 };
 
-GamepadAPIDeviceFilter g_supported_controller_infos[MAX_CONTROLLER_TYPE_INDEX] = {
+GamepadAPIDeviceFilter g_supported_gamepad_infos[MAX_CONTROLLER_TYPE_INDEX] = {
 	{ 0x054c, 0x03d5, false}, // PSMove
 	{ 0x045e, 0x028e, true}, // PSNavi pretending to be an XBox 360 controller via ScpService
 	{ 0x054c, 0x05C4, false}, // PSDualShock4
@@ -114,7 +114,7 @@ static bool is_gamepad_supported(
 		// See if the next filtered device is a controller type that we care about
 		for (int gamepad_type_index = 0; gamepad_type_index < MAX_CONTROLLER_TYPE_INDEX; ++gamepad_type_index)
 		{
-			const GamepadAPIDeviceFilter &supported_type = g_supported_controller_infos[gamepad_type_index];
+			const GamepadAPIDeviceFilter &supported_type = g_supported_gamepad_infos[gamepad_type_index];
 
 			if (supported_type.bGamepadApiSupported &&
 				devInfo->productID == supported_type.filter.product_id &&
