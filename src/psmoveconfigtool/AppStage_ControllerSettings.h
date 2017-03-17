@@ -6,6 +6,7 @@
 #include "PSMoveClient_CAPI.h"
 
 #include <vector>
+#include <string>
 
 //-- definitions -----
 class AppStage_ControllerSettings : public AppStage

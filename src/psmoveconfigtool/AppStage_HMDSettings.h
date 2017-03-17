@@ -4,6 +4,7 @@
 //-- includes -----
 #include "AppStage.h"
 #include <vector>
+#include <string>
 
 //-- definitions -----
 class AppStage_HMDSettings : public AppStage
