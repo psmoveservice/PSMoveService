@@ -327,7 +327,7 @@ DeviceManager::registerHotplugListener(const CommonDeviceState::eDeviceClass dev
 void
 DeviceManager::handle_device_connected(enum DeviceClass device_class, const std::string &device_path)
 {
-	for (auto &it = m_listeners.begin(); it != m_listeners.end(); ++it)
+	for (auto it = m_listeners.begin(); it != m_listeners.end(); ++it)
 	{
 		if (it->device_class == device_class)
 		{
@@ -339,7 +339,7 @@ DeviceManager::handle_device_connected(enum DeviceClass device_class, const std:
 void
 DeviceManager::handle_device_disconnected(enum DeviceClass device_class, const std::string &device_path)
 {
-	for (auto &it = m_listeners.begin(); it != m_listeners.end(); ++it)
+	for (auto it = m_listeners.begin(); it != m_listeners.end(); ++it)
 	{
 		if (it->device_class == device_class)
 		{

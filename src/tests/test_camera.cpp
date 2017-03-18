@@ -200,49 +200,49 @@ int main(int, char**)
 			std::string prop_str("CV_CAP_PROP_FPS");
 
 			// SPACEBAR to check frame rate
-			if ((wk == 32))
+			if (wk == 32)
 			{
 				cap_prop = CV_CAP_PROP_FPS;
 				prop_str = "CV_CAP_PROP_FPS";
 			}
 
 			// Z to check exposure
-			if ((wk == 122))
+			if (wk == 122)
 			{
 				cap_prop = CV_CAP_PROP_EXPOSURE;
 				prop_str = "CV_CAP_PROP_EXPOSURE";
 			}
 
 			// X to check contrast
-			if ((wk == 120))
+			if (wk == 120)
 			{
 				cap_prop = CV_CAP_PROP_CONTRAST;
 				prop_str = "CV_CAP_PROP_CONTRAST";
 			}
 
 			// C to check gain
-			if ((wk == 99))
+			if (wk == 99)
 			{
 				cap_prop = CV_CAP_PROP_GAIN;
 				prop_str = "CV_CAP_PROP_GAIN";
 			}
 
 			// V to check hue
-			if ((wk == 118))
+			if (wk == 118)
 			{
 				cap_prop = CV_CAP_PROP_HUE;
 				prop_str = "CV_CAP_PROP_HUE";
 			}
 
 			// B to check sharpness
-			if ((wk == 98))
+			if (wk == 98)
 			{
 				cap_prop = CV_CAP_PROP_SHARPNESS;
 				prop_str = "CV_CAP_PROP_SHARPNESS";
 			}
 
 			// N to check frame rate
-			if ((wk == 110))
+			if (wk == 110)
 			{
 				cap_prop = CV_CAP_PROP_FPS;
 				prop_str = "CV_CAP_PROP_FPS";

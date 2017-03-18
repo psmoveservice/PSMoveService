@@ -8,6 +8,7 @@
 
 #include <deque>
 #include <chrono>
+#include <string>
 
 //-- definitions -----
 class AppStage_HMDModelCalibration : public AppStage

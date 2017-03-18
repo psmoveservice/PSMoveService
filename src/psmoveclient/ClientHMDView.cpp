@@ -12,7 +12,7 @@ const MorpheusPhysicsData k_empty_physics_data = { { 0.f, 0.f, 0.f },{ 0.f, 0.f,
 const MorpheusRawSensorData k_empty_psmove_raw_sensor_data = { { 0, 0, 0 },{ 0, 0, 0 } };
 const MorpheusCalibratedSensorData k_empty_psmove_calibrated_sensor_data = { { 0.f, 0.f, 0.f },{ 0.f, 0.f, 0.f } };
 const PSMoveFloatVector3 k_identity_gravity_calibration_direction = { 0.f, 1.f, 0.f };
-const MorpheusRawTrackerData k_empty_raw_tracker_data = { 0 };
+const MorpheusRawTrackerData k_empty_raw_tracker_data = { {{0}} };
 
 //-- prototypes ----
 

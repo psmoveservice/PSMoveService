@@ -34,7 +34,7 @@ const PSMovePosition *k_psmove_position_origin= &g_psmove_position_origin;
 const PSMoveQuaternion g_psmove_quaternion_identity= {1.f, 0.f, 0.f, 0.f};
 const PSMoveQuaternion *k_psmove_quaternion_identity= &g_psmove_quaternion_identity;
 
-const PSMoveMatrix3x3 g_psmove_matrix_identity = { 1.f, 0.f, 0.f , 0.f, 1.f, 0.f, 0.f, 0.f, 1.f };
+const PSMoveMatrix3x3 g_psmove_matrix_identity = { {{1.f, 0.f, 0.f} , {0.f, 1.f, 0.f}, {0.f, 0.f, 1.f}} };
 const PSMoveMatrix3x3 *k_psmove_matrix_identity = &g_psmove_matrix_identity;
 
 const PSMovePose g_psmove_pose_identity = { g_psmove_position_origin, g_psmove_quaternion_identity };

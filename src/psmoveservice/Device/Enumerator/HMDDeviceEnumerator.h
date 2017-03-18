@@ -20,8 +20,8 @@ public:
 
     bool is_valid() const override;
     bool next() override;
-	int get_vendor_id() const;
-	int get_product_id() const;
+	int get_vendor_id() const override;
+	int get_product_id() const override;
     const char *get_path() const override;
 
 	std::string get_interface_path(int interface_number) const;

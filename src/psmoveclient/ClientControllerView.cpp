@@ -18,7 +18,7 @@ const PSMoveCalibratedSensorData k_empty_psmove_calibrated_sensor_data = { { 0.f
 const PSDualShock4RawSensorData k_empty_ds4_raw_sensor_data = { { 0, 0, 0 }, { 0, 0, 0 } };
 const PSDualShock4CalibratedSensorData k_empty_ds4_calibrated_sensor_data = { { 0.f, 0.f, 0.f }, { 0.f, 0.f, 0.f } };
 const PSMoveFloatVector3 k_identity_gravity_calibration_direction= {0.f, 1.f, 0.f};
-const PSMoveRawTrackerData k_empty_raw_tracker_data = { 0 };
+const PSMoveRawTrackerData k_empty_raw_tracker_data = { {{0}} };
 
 //-- prototypes ----
 static void update_button_state(PSMoveButtonState &button, unsigned int button_bitmask, unsigned int button_bit);

@@ -1,6 +1,8 @@
 #ifndef USB_API_INTERFACE_H
 #define USB_API_INTERFACE_H
 
+#include <stddef.h>
+
 //-- constants -----
 enum eUSBResultCode
 {
