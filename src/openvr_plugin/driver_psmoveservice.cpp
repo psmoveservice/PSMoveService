@@ -129,6 +129,10 @@ static const char *k_VRTouchpadDirectionNames[k_max_vr_touchpad_directions] = {
 	"touchpad_up",
 	"touchpad_right",
 	"touchpad_down",
+	"touchpad_up-left",
+	"touchpad_up-right",
+	"touchpad_down-left",
+	"touchpad_down-right",
 };
 
 //==================================================================================================
@@ -2563,6 +2567,34 @@ void CPSMoveControllerLatest::UpdateControllerStateFromPsMoveButtonState(
 			{
 				m_touchpadDirectionsUsed = true;
 				pControllerStateToUpdate->rAxis[0].y = -1.0f;
+				pControllerStateToUpdate->ulButtonPressed |= vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
+			}
+			else if (psButtonIDToVrTouchpadDirection[controllerType][buttonId] == k_EVRTouchpadDirection_UpLeft)
+			{
+				m_touchpadDirectionsUsed = true;
+				pControllerStateToUpdate->rAxis[0].x = -0.707f;
+				pControllerStateToUpdate->rAxis[0].y = 0.707f;
+				pControllerStateToUpdate->ulButtonPressed |= vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
+			}
+			else if (psButtonIDToVrTouchpadDirection[controllerType][buttonId] == k_EVRTouchpadDirection_UpRight)
+			{
+				m_touchpadDirectionsUsed = true;
+				pControllerStateToUpdate->rAxis[0].x = 0.707f;
+				pControllerStateToUpdate->rAxis[0].y = 0.707f;
+				pControllerStateToUpdate->ulButtonPressed |= vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
+			}
+			else if (psButtonIDToVrTouchpadDirection[controllerType][buttonId] == k_EVRTouchpadDirection_DownLeft)
+			{
+				m_touchpadDirectionsUsed = true;
+				pControllerStateToUpdate->rAxis[0].x = -0.707f;
+				pControllerStateToUpdate->rAxis[0].y = -0.707f;
+				pControllerStateToUpdate->ulButtonPressed |= vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
+			}
+			else if (psButtonIDToVrTouchpadDirection[controllerType][buttonId] == k_EVRTouchpadDirection_DownRight)
+			{
+				m_touchpadDirectionsUsed = true;
+				pControllerStateToUpdate->rAxis[0].x = 0.707f;
+				pControllerStateToUpdate->rAxis[0].y = -0.707f;
 				pControllerStateToUpdate->ulButtonPressed |= vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
 			}
 		}
