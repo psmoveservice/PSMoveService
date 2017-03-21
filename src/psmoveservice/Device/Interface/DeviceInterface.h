@@ -546,8 +546,14 @@ public:
     virtual void loadSettings() = 0;
     virtual void saveSettings() = 0;
 
-	virtual void setFramerate(double value, bool bUpdateConfig) = 0;
-	virtual double getFramerate() const = 0;
+	virtual void setFrameWidth(double value, bool bUpdateConfig) = 0;
+	virtual double getFrameWidth() const = 0;
+
+	virtual void setFrameHeight(double value, bool bUpdateConfig) = 0;
+	virtual double getFrameHeight() const = 0;
+
+	virtual void setFrameRate(double value, bool bUpdateConfig) = 0;
+	virtual double getFrameRate() const = 0;
 
     virtual void setExposure(double value, bool bUpdateConfig) = 0;
     virtual double getExposure() const = 0;

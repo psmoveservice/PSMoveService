@@ -48,7 +48,6 @@ protected:
 		autoConfig,
 		blank1,
 		blank2,
-		blank3,
 		changeController,
 		changeTracker,
 
@@ -107,6 +106,11 @@ protected:
         const PSMResponseMessage *response,
         void *userdata);
 
+	void request_tracker_set_frame_width(double value);
+	static void handle_tracker_set_frame_width_response(
+		const PSMResponseMessage *response,
+		void *userdata);
+
 	void request_tracker_set_frame_rate(double value);
 	static void handle_tracker_set_frame_rate_response(
 		const PSMResponseMessage *response,
@@ -150,6 +154,7 @@ protected:
 
 	void request_change_controller(int step);
 	void request_change_tracker(int step);
+	void request_refresh_tracker();
 
     inline TrackerColorPreset getColorPreset()
     { return m_colorPresets[m_masterTrackingColorType]; }
@@ -176,7 +181,8 @@ private:
     eVideoDisplayMode m_videoDisplayMode;
 
     // Tracker Settings state
-	double m_trackerFramerate;
+	double m_trackerFrameWidth;
+	double m_trackerFrameRate;
     double m_trackerExposure;
     double m_trackerGain;
     std::vector<TrackerOption> m_trackerOptions;

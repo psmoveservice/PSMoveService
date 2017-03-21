@@ -49,6 +49,8 @@ public:
 
     static const char *APP_STAGE_NAME;
 
+	void gotoColorCalib() { m_gotoColorCalib = true; }
+
 protected:
     virtual bool onClientAPIEvent(
         PSMEventMessage::eEventType event, 
@@ -97,6 +99,8 @@ protected:
     int m_selectedTrackerIndex;
 	int m_selectedControllerIndex;
 	int m_selectedHmdIndex;
+
+	bool m_gotoColorCalib;
 };
 
 #endif // APP_STAGE_TRACKER_SETTINGS_H

@@ -142,7 +142,8 @@ AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
     , m_menuState(AppStage_ColorCalibration::inactive)
     , m_video_buffer_state(nullptr)
     , m_videoDisplayMode(AppStage_ColorCalibration::eVideoDisplayMode::mode_bgr)
-	, m_trackerFramerate(0)
+	, m_trackerFrameWidth(0)
+	, m_trackerFrameRate(0)
     , m_trackerExposure(0)
     , m_trackerGain(0)
 	, m_bTurnOnAllControllers(false)
@@ -386,7 +387,7 @@ void AppStage_ColorCalibration::renderUI()
 		if (m_bShowWindows)
         {
             ImGui::SetNextWindowPos(ImVec2(10.f, 10.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 260));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 280));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
 			if (ImGui::Button("Return to Main Menu"))
@@ -417,36 +418,75 @@ void AppStage_ColorCalibration::renderUI()
                 }
                 ImGui::SameLine();
                 ImGui::Text("Video [F]ilter Mode: %s", k_video_display_mode_names[m_videoDisplayMode]);
+
+				if (ImGui::Button("-##FrameWidth"))
+				{
+					if (m_trackerFrameWidth == 640) request_tracker_set_frame_width(m_trackerFrameWidth - 320);
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("+##FrameWidth"))
+				{
+					if (m_trackerFrameWidth == 320) request_tracker_set_frame_width(m_trackerFrameWidth + 320);
+				}
+				ImGui::SameLine();
+				ImGui::Text("Frame Width: %.0f", m_trackerFrameWidth);
 				
 				int frame_rate_positive_change = 10;
 				int frame_rate_negative_change = -10;
 				
-				double val = m_trackerFramerate;
-
-				if (val == 2) { frame_rate_positive_change = 1; frame_rate_negative_change = 0; }
-				else if (val == 3) { frame_rate_positive_change = 2; frame_rate_negative_change = -1; }
-				else if (val == 5) { frame_rate_positive_change = 3; frame_rate_negative_change = -0; }
-				else if (val == 8) { frame_rate_positive_change = 2; frame_rate_negative_change = -3; }
-				else if (val == 10) { frame_rate_positive_change = 5; frame_rate_negative_change = -2; }
-				else if (val == 15) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
-				else if (val == 20) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
-				else if (val == 25) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
-				else if (val == 30) { { frame_rate_negative_change = -5; } }
-				else if (val == 60) { { frame_rate_positive_change = 15; } }
-				else if (val == 75) { frame_rate_positive_change = 0; frame_rate_negative_change = -15; }
-				else if (val == 83) { frame_rate_positive_change = 0; frame_rate_negative_change = -8; }
-
-				if (ImGui::Button("-##Framerate"))
+				double val = m_trackerFrameRate;
+				if (m_trackerFrameWidth == 320) 
 				{
-					request_tracker_set_frame_rate(m_trackerFramerate + frame_rate_negative_change);
+					if (val == 2) { frame_rate_positive_change = 1; frame_rate_negative_change = 0; }
+					else if (val == 3) { frame_rate_positive_change = 2; frame_rate_negative_change = -1; }
+					else if (val == 5) { frame_rate_positive_change = 2; frame_rate_negative_change = -0; }
+					else if (val == 7) { frame_rate_positive_change = 3; frame_rate_negative_change = -2; }
+					else if (val == 10) { frame_rate_positive_change = 2; frame_rate_negative_change = -3; }
+					else if (val == 12) { frame_rate_positive_change = 3; frame_rate_negative_change = -2; }
+					else if (val == 15) { frame_rate_positive_change = 4; frame_rate_negative_change = -3; }
+					else if (val == 17) { frame_rate_positive_change = 13; frame_rate_negative_change = -4; }
+					else if (val == 30) { frame_rate_positive_change = 7; frame_rate_negative_change = -13; }
+					else if (val == 37) { frame_rate_positive_change = 3; frame_rate_negative_change = -7; }
+					else if (val == 40) { frame_rate_positive_change = 10; frame_rate_negative_change = -3; }
+					else if (val == 50) { frame_rate_positive_change = 10; frame_rate_negative_change = -10; }
+					else if (val == 60) { frame_rate_positive_change = 15; frame_rate_negative_change = -10; }
+					else if (val == 75) { frame_rate_positive_change = 15; frame_rate_negative_change = -15; }
+					else if (val == 90) { frame_rate_positive_change = 10; frame_rate_negative_change = -15; }
+					else if (val == 100) { frame_rate_positive_change = 25; frame_rate_negative_change = -10; }
+					else if (val == 125) { frame_rate_positive_change = 12; frame_rate_negative_change = -25; }
+					else if (val == 137) { frame_rate_positive_change = 13; frame_rate_negative_change = -12; }
+					else if (val == 150) { frame_rate_positive_change = 37; frame_rate_negative_change = -13; }
+					else if (val == 187) { frame_rate_positive_change = 0; frame_rate_negative_change = -37; }
+					else if (val == 205) { frame_rate_positive_change = 0; frame_rate_negative_change = -18; }
+					else if (val == 290) { frame_rate_positive_change = 0; frame_rate_negative_change = -85; }
+				}
+				else 
+				{
+					if (val == 2) { frame_rate_positive_change = 1; frame_rate_negative_change = 0; }
+					else if (val == 3) { frame_rate_positive_change = 2; frame_rate_negative_change = -1; }
+					else if (val == 5) { frame_rate_positive_change = 3; frame_rate_negative_change = -0; }
+					else if (val == 8) { frame_rate_positive_change = 2; frame_rate_negative_change = -3; }
+					else if (val == 10) { frame_rate_positive_change = 5; frame_rate_negative_change = -2; }
+					else if (val == 15) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
+					else if (val == 20) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
+					else if (val == 25) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
+					else if (val == 30) { { frame_rate_negative_change = -5; } }
+					else if (val == 60) { { frame_rate_positive_change = 15; } }
+					else if (val == 75) { frame_rate_positive_change = 0; frame_rate_negative_change = -15; }
+					else if (val == 83) { frame_rate_positive_change = 0; frame_rate_negative_change = -8; }
+				}
+
+				if (ImGui::Button("-##FrameRate"))
+				{
+					request_tracker_set_frame_rate(m_trackerFrameRate + frame_rate_negative_change);
 				}
 				ImGui::SameLine();
-				if (ImGui::Button("+##Framerate"))
+				if (ImGui::Button("+##FrameRate"))
 				{
-					request_tracker_set_frame_rate(m_trackerFramerate + frame_rate_positive_change);
+					request_tracker_set_frame_rate(m_trackerFrameRate + frame_rate_positive_change);
 				}
 				ImGui::SameLine();
-				ImGui::Text("Framerate: %.0f", m_trackerFramerate);
+				ImGui::Text("Frame Rate: %.0f", m_trackerFrameRate);
 
                 if (ImGui::Button("-##Exposure"))
                 {
@@ -768,14 +808,10 @@ void AppStage_ColorCalibration::renderUI()
 	} break;
 
 	case eMenuState::blank1:
-		setState(eMenuState::blank3);
-		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
-		break;
-	case eMenuState::blank2:
 		setState(eMenuState::blank2);
 		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
 		break;
-	case eMenuState::blank3:
+	case eMenuState::blank2:
 		setState(eMenuState::autoConfig);
 		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
 		break;
@@ -1026,11 +1062,54 @@ void AppStage_ColorCalibration::release_video_buffers()
     m_video_buffer_state = nullptr;
 }
 
+void AppStage_ColorCalibration::request_tracker_set_frame_width(double value)
+{
+	// Tell the psmove service that we want to change frame width.
+	RequestPtr request(new PSMoveProtocol::Request());
+	request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_FRAME_WIDTH);
+	request->mutable_request_set_tracker_frame_width()->set_tracker_id(m_trackerView->tracker_info.tracker_id);
+	request->mutable_request_set_tracker_frame_width()->set_value(static_cast<float>(value));
+	request->mutable_request_set_tracker_frame_width()->set_save_setting(true);
+
+	PSMRequestID request_id;
+	PSM_SendOpaqueRequest(&request, &request_id);
+	PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_frame_width_response, this);
+
+	// Exit and re-enter Color Calibration
+	m_app->getAppStage<AppStage_TrackerSettings>()->gotoColorCalib();
+	request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+}
+
+void AppStage_ColorCalibration::handle_tracker_set_frame_width_response(
+	const PSMResponseMessage *response,
+	void *userdata)
+{
+	PSMResult ResultCode = response->result_code;
+	PSMResponseHandle response_handle = response->opaque_response_handle;
+	AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
+
+	switch (ResultCode)
+	{
+	case PSMResult_Success:
+	{
+		const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+		thisPtr->m_trackerFrameWidth = response->result_set_tracker_frame_width().new_frame_width();
+	} break;
+	case PSMResult_Error:
+	case PSMResult_Canceled:
+	case PSMResult_Timeout:
+	{
+		//###HipsterSloth $TODO - Replace with C_API style log
+		//CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker frame width!";
+	} break;
+	}
+}
+
 void AppStage_ColorCalibration::request_tracker_set_frame_rate(double value)
 {
 	// Tell the psmove service that we want to change frame rate.
 	RequestPtr request(new PSMoveProtocol::Request());
-	request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_FRAMERATE);
+	request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_FRAME_RATE);
 	request->mutable_request_set_tracker_frame_rate()->set_tracker_id(m_trackerView->tracker_info.tracker_id);
 	request->mutable_request_set_tracker_frame_rate()->set_value(static_cast<float>(value));
 	request->mutable_request_set_tracker_frame_rate()->set_save_setting(true);
@@ -1053,7 +1132,7 @@ void AppStage_ColorCalibration::handle_tracker_set_frame_rate_response(
 	case PSMResult_Success:
 		{
 			const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-			thisPtr->m_trackerFramerate = response->result_set_tracker_frame_rate().new_frame_rate();
+			thisPtr->m_trackerFrameRate = response->result_set_tracker_frame_rate().new_frame_rate();
 		} break;
 	case PSMResult_Error:
 	case PSMResult_Canceled:
@@ -1307,7 +1386,8 @@ void AppStage_ColorCalibration::handle_tracker_get_settings_response(
     case PSMResult_Success:
         {
             const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-			thisPtr->m_trackerFramerate = response->result_tracker_settings().frame_rate();
+			thisPtr->m_trackerFrameWidth = response->result_tracker_settings().frame_width();
+			thisPtr->m_trackerFrameRate = response->result_tracker_settings().frame_rate();
             thisPtr->m_trackerExposure = response->result_tracker_settings().exposure();
             thisPtr->m_trackerGain = response->result_tracker_settings().gain();
 
@@ -1496,7 +1576,7 @@ void AppStage_ColorCalibration::request_change_controller(int step)
 void AppStage_ColorCalibration::request_change_tracker(int step)
 {
 	m_app->getAppStage<AppStage_ColorCalibration>()->
-	set_autoConfig(m_bAutoChangeColor, m_bAutoChangeController, m_bAutoChangeTracker);
+		set_autoConfig(m_bAutoChangeColor, m_bAutoChangeController, m_bAutoChangeTracker);
 	//int TrackerId = m_trackerView->tracker_info.tracker_id;
 	if (tracker_index + step < tracker_count && tracker_index + step >= 0)
 	{
