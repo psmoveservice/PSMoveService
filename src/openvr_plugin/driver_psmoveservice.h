@@ -200,6 +200,11 @@ public:
 		k_EVRTouchpadDirection_Right,
 		k_EVRTouchpadDirection_Down,
 
+		k_EVRTouchpadDirection_UpLeft,
+		k_EVRTouchpadDirection_UpRight,
+		k_EVRTouchpadDirection_DownLeft,
+		k_EVRTouchpadDirection_DownRight,
+
 		k_EVRTouchpadDirection_Count
 	};
 
