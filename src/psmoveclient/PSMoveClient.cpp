@@ -1862,7 +1862,7 @@ void PSMoveClient::handle_server_connection_opened()
 {
     CLIENT_LOG_INFO("handle_server_connection_opened") << "Connected to service" << std::endl;
 
-    enqueue_event_message(PSMEventMessage::PSMEvent_failedToConnectToService, ResponsePtr());
+    enqueue_event_message(PSMEventMessage::PSMEvent_connectedToService, ResponsePtr());
 }
 
 void PSMoveClient::handle_server_connection_open_failed(const boost::system::error_code& ec)

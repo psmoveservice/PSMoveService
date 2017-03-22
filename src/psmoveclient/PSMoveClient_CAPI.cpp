@@ -11,6 +11,10 @@
 #include <map>
 #include <assert.h>
 
+#ifdef _MSC_VER
+	#pragma warning(disable:4996)  // ignore strncpy warning
+#endif
+
 // -- macros -----
 #define IS_VALID_CONTROLLER_INDEX(x) ((x) >= 0 && (x) < PSMOVESERVICE_MAX_CONTROLLER_COUNT)
 #define IS_VALID_TRACKER_INDEX(x) ((x) >= 0 && (x) < PSMOVESERVICE_MAX_TRACKER_COUNT)
@@ -157,19 +161,20 @@ PSMResult PSM_Initialize(const char* host, const char* port, int timeout_ms)
 {
     PSMResult result = PSMResult_Error;
 
-    if (PSM_InitializeAsync(host, port) == PSMResult_RequestSent)
+    if (PSM_InitializeAsync(host, port) != PSMResult_Error)
     {
         PSMCallbackTimeout timeout(timeout_ms);
 
-        while (!PSM_HasConnectionStatusChanged() && !timeout.HasElapsed())
+        while (!g_psm_client->pollHasConnectionStatusChanged() && !timeout.HasElapsed())
         {
             _PAUSE(10);
-            PSM_Update();            
+			g_psm_client->update();
+			g_psm_client->process_messages();
         }
 
         if (!timeout.HasElapsed())
         {
-            result= PSM_GetIsConnected() ? PSMResult_Success : PSMResult_Error;
+            result= g_psm_client->getIsConnected() ? PSMResult_Success : PSMResult_Error;
         }
         else
         {
@@ -184,7 +189,7 @@ PSMResult PSM_InitializeAsync(const char* host, const char* port)
 {
 	PSMResult result= PSMResult_Error;
 
-	if (g_psm_client != nullptr)
+	if (g_psm_client == nullptr)
 	{
 		std::string s_host(host);
 		std::string s_port(port);
@@ -201,6 +206,8 @@ PSMResult PSM_InitializeAsync(const char* host, const char* port)
 			delete g_psm_client;
 			g_psm_client= nullptr;
 		}
+
+		result= PSMResult_RequestSent;
 	}
 	else
 	{
@@ -269,7 +276,7 @@ PSMResult PSM_UpdateNoPollMessages()
 {
     PSMResult result= PSMResult_Error;
 
-    if (g_psm_client->getIsConnected())
+    if (PSM_GetIsInitialized())
     {
         g_psm_client->update();
 
