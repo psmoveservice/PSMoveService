@@ -37,4 +37,4 @@
 	url = https://github.com/mherb/kalman.git
 [submodule "thirdparty/libstem_gamepad"]
 	path = thirdparty/libstem_gamepad
-	url = https://github.com/ThemsAllTook/libstem_gamepad.git
+	url = https://github.com/cboulay/libstem_gamepad.git

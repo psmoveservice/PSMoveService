@@ -835,8 +835,8 @@ private:
 USBDeviceManager *USBDeviceManager::m_instance = NULL;
 
 USBDeviceManager::USBDeviceManager()
-    : m_implementation_ptr(new USBDeviceManagerImpl())
-	, m_cfg()
+    : m_cfg()
+	, m_implementation_ptr(new USBDeviceManagerImpl())
 {
 	m_cfg.load();
 

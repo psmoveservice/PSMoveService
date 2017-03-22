@@ -27,7 +27,6 @@ inline void parallel_for_each(It a, It b, F&& f)
 	});
 }
 #endif
-#include <concurrent_vector.h>
 
 const std::vector<int> known_keys = { 113, 97, 119, 115, 101, 100, 114, 102, 116, 103, 121, 104 };
 // q, a, w, s, e, d, r, f, t, g, y, h
@@ -46,7 +45,7 @@ struct camera_state
 
 int main(int, char**)
 {
-	concurrency::concurrent_vector<camera_state> camera_states;
+    std::vector<camera_state> camera_states;
 	int frame_rate_init = 40;
 
     // Open all available cameras (up to 30 max)
@@ -212,35 +211,35 @@ int main(int, char**)
 			}
 
 			// Z to check exposure
-			if ((wk == 122))
+			if (wk == 122)
 			{
 				cap_prop = CV_CAP_PROP_EXPOSURE;
 				prop_str = "CV_CAP_PROP_EXPOSURE";
 			}
 
 			// X to check contrast
-			if ((wk == 120))
+			if (wk == 120)
 			{
 				cap_prop = CV_CAP_PROP_CONTRAST;
 				prop_str = "CV_CAP_PROP_CONTRAST";
 			}
 
 			// C to check gain
-			if ((wk == 99))
+			if (wk == 99)
 			{
 				cap_prop = CV_CAP_PROP_GAIN;
 				prop_str = "CV_CAP_PROP_GAIN";
 			}
 
 			// V to check hue
-			if ((wk == 118))
+			if (wk == 118)
 			{
 				cap_prop = CV_CAP_PROP_HUE;
 				prop_str = "CV_CAP_PROP_HUE";
 			}
 
 			// B to check sharpness
-			if ((wk == 98))
+			if (wk == 98)
 			{
 				cap_prop = CV_CAP_PROP_SHARPNESS;
 				prop_str = "CV_CAP_PROP_SHARPNESS";

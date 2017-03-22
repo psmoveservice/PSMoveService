@@ -32,7 +32,7 @@ const PSMVector3f *k_psm_position_origin= &g_psm_position_origin;
 const PSMQuatf g_psm_quaternion_identity= {1.f, 0.f, 0.f, 0.f};
 const PSMQuatf *k_psm_quaternion_identity= &g_psm_quaternion_identity;
 
-const PSMMatrix3f g_psm_matrix_identity = { 1.f, 0.f, 0.f , 0.f, 1.f, 0.f, 0.f, 0.f, 1.f };
+const PSMMatrix3f g_psm_matrix_identity = { {{1.f, 0.f, 0.f} , {0.f, 1.f, 0.f}, {0.f, 0.f, 1.f}} };
 const PSMMatrix3f *k_psm_matrix_identity = &g_psm_matrix_identity;
 
 const PSMPosef g_psm_pose_identity = { g_psm_position_origin, g_psm_quaternion_identity };

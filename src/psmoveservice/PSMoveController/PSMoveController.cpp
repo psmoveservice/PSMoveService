@@ -372,13 +372,13 @@ PSMoveControllerConfig::getMegnetometerEllipsoid(struct EigenFitEllipsoid *out_e
 
 // -- PSMove Controller -----
 PSMoveController::PSMoveController()
-    : LedR(0)
+    : SupportsMagnetometer(false)
+    , LedR(0)
     , LedG(0)
     , LedB(0)
     , Rumble(0)
     , bWriteStateDirty(false)
     , NextPollSequenceNumber(0)
-	, SupportsMagnetometer(false)
 {
 	HIDDetails.vendor_id = -1;
 	HIDDetails.product_id = -1;

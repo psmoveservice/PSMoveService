@@ -24,9 +24,9 @@ struct HIDApiDeviceFilter
 
 
 HIDApiDeviceFilter g_supported_hid_controller_infos[MAX_CONTROLLER_TYPE_INDEX] = {
-	{ 0x054c, 0x03d5, true}, // PSMove
-	{ 0x054c, 0x0268, false}, // PSNavi/DualShock3 (sadly these controllers don't properly support HID
-	{ 0x054c, 0x05C4, true}, // PSDualShock4
+	{ {0x054c, 0x03d5}, true}, // PSMove
+	{ {0x054c, 0x0268}, false}, // PSNavi/DualShock3 (sadly these controllers don't properly support HID
+	{ {0x054c, 0x05C4}, true}, // PSDualShock4
 };
 
 // -- ControllerHidDeviceEnumerator -----

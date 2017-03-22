@@ -23,9 +23,9 @@ struct GamepadFilter
 
 // NOTE: This list must match the controller order in CommonDeviceState::eDeviceType
 GamepadFilter g_supported_libusb_controller_filters[MAX_CONTROLLER_TYPE_INDEX] = {
-	{ 0x054c, 0x03d5, false }, // PSMove
-	{ 0x054c, 0x042F, true }, // PSNavi
-	{ 0x054c, 0x05C4, false }, // PSDualShock4
+	{ {0x054c, 0x03d5}, false }, // PSMove
+	{ {0x054c, 0x042F}, true }, // PSNavi
+	{ {0x054c, 0x05C4}, false }, // PSDualShock4
 };
 
 // -- private prototypes -----
