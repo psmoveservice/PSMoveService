@@ -23,7 +23,7 @@ class ClientRequestManagerImpl
 public:
     ClientRequestManagerImpl(
         IDataFrameListener *dataFrameListener,
-        ClientPSMoveAPI::t_response_callback callback,
+        PSMResponseCallback callback,
         void *userdata)
         : m_dataFrameListener(dataFrameListener)
         , m_callback(callback)
@@ -84,7 +84,7 @@ public:
         // Notify the callback of the response
         if (m_callback != nullptr)
         {
-            ClientPSMoveAPI::ResponseMessage response_message;
+            PSMResponseMessage response_message;
 
             // Generate a client API response message from 
             build_response_message(context.request, response, &response_message);
@@ -99,9 +99,9 @@ public:
     void build_response_message(
         RequestPtr request,
         ResponsePtr response,
-        ClientPSMoveAPI::ResponseMessage *out_response_message)
+        PSMResponseMessage *out_response_message)
     {        
-        memset(out_response_message, 0, sizeof(ClientPSMoveAPI::ResponseMessage));
+        memset(out_response_message, 0, sizeof(PSMResponseMessage));
 
         // Let the response know what request the result came from
         out_response_message->request_id = request->request_id();
@@ -110,13 +110,13 @@ public:
         switch (response->result_code())
         {
         case PSMoveProtocol::Response_ResultCode_RESULT_OK:
-            out_response_message->result_code = ClientPSMoveAPI::_clientPSMoveResultCode_ok;
+            out_response_message->result_code = PSMResult_Success;
             break;
         case PSMoveProtocol::Response_ResultCode_RESULT_ERROR:
-            out_response_message->result_code = ClientPSMoveAPI::_clientPSMoveResultCode_error;
+            out_response_message->result_code = PSMResult_Error;
             break;
         case PSMoveProtocol::Response_ResultCode_RESULT_CANCELED:
-            out_response_message->result_code = ClientPSMoveAPI::_clientPSMoveResultCode_canceled;
+            out_response_message->result_code = PSMResult_Canceled;
             break;
         default:
             assert(false && "Unknown response result code");
@@ -160,26 +160,26 @@ public:
                 } break;
 			case PSMoveProtocol::Response_ResponseType_SERVICE_VERSION:
                 build_service_version_response_message(response, &out_response_message->payload.service_version);
-                out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_ServiceVersion;
+                out_response_message->payload_type = PSMResponseMessage::_responsePayloadType_ServiceVersion;
                 break;
             case PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST:
                 build_controller_list_response_message(response, &out_response_message->payload.controller_list);
-                out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_ControllerList;
+                out_response_message->payload_type = PSMResponseMessage::_responsePayloadType_ControllerList;
                 break;
             case PSMoveProtocol::Response_ResponseType_TRACKER_LIST:
                 build_tracker_list_response_message(response, &out_response_message->payload.tracker_list);
-                out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_TrackerList;
+                out_response_message->payload_type = PSMResponseMessage::_responsePayloadType_TrackerList;
                 break;
 			case PSMoveProtocol::Response_ResponseType_HMD_LIST:
 				build_hmd_list_response_message(response, &out_response_message->payload.hmd_list);
-				out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_HMDList;
+				out_response_message->payload_type = PSMResponseMessage::_responsePayloadType_HmdList;
 				break;
 			case PSMoveProtocol::Response_ResponseType_TRACKING_SPACE_SETTINGS:
 				build_tracking_space_response_message(response, &out_response_message->payload.tracking_space);
-				out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_TrackingSpace;
+				out_response_message->payload_type = PSMResponseMessage::_responsePayloadType_TrackingSpace;
 				break;
             default:
-                out_response_message->payload_type = ClientPSMoveAPI::_responsePayloadType_Empty;
+                out_response_message->payload_type = PSMResponseMessage::_responsePayloadType_Empty;
                 break;
             }
         }
@@ -187,7 +187,7 @@ public:
 
 	void build_service_version_response_message(
 		ResponsePtr response,
-		ClientPSMoveAPI::ResponsePayload_ServiceVersion *service_version)
+		PSMServiceVersion *service_version)
 	{
 		const auto &VersionResponse = response->result_service_version();
 
@@ -196,7 +196,7 @@ public:
 
     void build_controller_list_response_message(
         ResponsePtr response,
-        ClientPSMoveAPI::ResponsePayload_ControllerList *controller_list)
+        PSMControllerList *controller_list)
     {
         int src_controller_count = 0;
         int dest_controller_count= 0;
@@ -214,24 +214,24 @@ public:
 			bool bIsPublicFacingController= false;
 
             // Convert the PSMoveProtocol controller enum to the public ClientControllerView enum
-            ClientControllerView::eControllerType controllerType;
+            PSMControllerType controllerType;
             switch (ControllerResponse.controller_type())
             {
             case PSMoveProtocol::PSMOVE:
 				bIsPublicFacingController= bIsBluetooth;
-                controllerType = ClientControllerView::PSMove;
+                controllerType = PSMController_Move;
                 break;
             case PSMoveProtocol::PSNAVI:
 				bIsPublicFacingController= true;
-                controllerType = ClientControllerView::PSNavi;
+                controllerType = PSMController_Navi;
                 break;
             case PSMoveProtocol::PSDUALSHOCK4:
 				bIsPublicFacingController= bIsBluetooth;
-                controllerType = ClientControllerView::PSDualShock4;
+                controllerType = PSMController_DualShock4;
                 break;
             default:
                 assert(0 && "unreachable");
-                controllerType = ClientControllerView::PSMove;
+                controllerType = PSMController_None;
             }
 
 			if (bIsPublicFacingController)
@@ -251,9 +251,9 @@ public:
         controller_list->count = dest_controller_count;
     }
 
-    inline PSMovePose protocol_pose_to_psmove_pose(const PSMoveProtocol::Pose &pose)
+    inline PSMPosef protocol_pose_to_psmove_pose(const PSMoveProtocol::Pose &pose)
     {
-        PSMovePose result;
+        PSMPosef result;
 
         result.Orientation.w = pose.orientation().w();
         result.Orientation.x = pose.orientation().x();
@@ -269,7 +269,7 @@ public:
 
     void build_tracker_list_response_message(
         ResponsePtr response,
-        ClientPSMoveAPI::ResponsePayload_TrackerList *tracker_list)
+        PSMTrackerList *tracker_list)
     {
         int tracker_count = 0;
 
@@ -278,14 +278,14 @@ public:
             && tracker_count < PSMOVESERVICE_MAX_TRACKER_COUNT)
         {
             const auto &TrackerResponse = response->result_tracker_list().trackers(tracker_count);
-            ClientTrackerInfo &TrackerInfo= tracker_list->trackers[tracker_count];
+            PSMClientTrackerInfo &TrackerInfo= tracker_list->trackers[tracker_count];
 
             TrackerInfo.tracker_id = TrackerResponse.tracker_id();
 
             switch (TrackerResponse.tracker_type())
             {
             case PSMoveProtocol::TrackerType::PS3EYE:
-                TrackerInfo.tracker_type = eTrackerType::PS3Eye;
+                TrackerInfo.tracker_type = PSMTracker_PS3Eye;
                 break;
             default:
                 assert(0 && "unreachable");
@@ -294,33 +294,27 @@ public:
             switch (TrackerResponse.tracker_driver())
             {
             case PSMoveProtocol::TrackerDriver::LIBUSB:
-                TrackerInfo.tracker_driver = eTrackerDriver::LIBUSB;
+                TrackerInfo.tracker_driver = PSMDriver_LIBUSB;
                 break;
             case PSMoveProtocol::TrackerDriver::CL_EYE:
-                TrackerInfo.tracker_driver = eTrackerDriver::CL_EYE;
+                TrackerInfo.tracker_driver = PSMDriver_CL_EYE;
                 break;
             case PSMoveProtocol::TrackerDriver::CL_EYE_MULTICAM:
-                TrackerInfo.tracker_driver = eTrackerDriver::CL_EYE_MULTICAM;
+                TrackerInfo.tracker_driver = PSMDriver_CL_EYE_MULTICAM;
                 break;
             case PSMoveProtocol::TrackerDriver::GENERIC_WEBCAM:
-                TrackerInfo.tracker_driver = eTrackerDriver::GENERIC_WEBCAM;
+                TrackerInfo.tracker_driver = PSMDriver_GENERIC_WEBCAM;
                 break;
             default:
                 assert(0 && "unreachable");
             }
 
             TrackerInfo.tracker_focal_lengths = 
-                PSMoveFloatVector2::create(
-                    TrackerResponse.tracker_focal_lengths().x(), 
-                    TrackerResponse.tracker_focal_lengths().y());
+                { TrackerResponse.tracker_focal_lengths().x(), TrackerResponse.tracker_focal_lengths().y() };
             TrackerInfo.tracker_principal_point =
-                PSMoveFloatVector2::create(
-                    TrackerResponse.tracker_principal_point().x(),
-                    TrackerResponse.tracker_principal_point().y());
+                { TrackerResponse.tracker_principal_point().x(), TrackerResponse.tracker_principal_point().y() };
             TrackerInfo.tracker_screen_dimensions =
-                PSMoveFloatVector2::create(
-                    TrackerResponse.tracker_screen_dimensions().x(),
-                    TrackerResponse.tracker_screen_dimensions().y());
+                { TrackerResponse.tracker_screen_dimensions().x(), TrackerResponse.tracker_screen_dimensions().y() };
 
             TrackerInfo.tracker_hfov = TrackerResponse.tracker_hfov();
             TrackerInfo.tracker_vfov = TrackerResponse.tracker_vfov();
@@ -351,7 +345,7 @@ public:
 
 	void build_hmd_list_response_message(
 		ResponsePtr response,
-		ClientPSMoveAPI::ResponsePayload_HMDList *hmd_list)
+		PSMHmdList *hmd_list)
 	{
 		int src_hmd_count = 0;
 		int dest_hmd_count = 0;
@@ -363,15 +357,15 @@ public:
 			const auto &HMDResponse = response->result_hmd_list().hmd_entries(src_hmd_count);
 
 			// Convert the PSMoveProtocol HMD enum to the public ClientHMDView enum
-			ClientHMDView::eHMDViewType hmdType;
+			PSMHmdType hmdType;
 			switch (HMDResponse.hmd_type())
 			{
 			case PSMoveProtocol::Morpheus:
-				hmdType = ClientHMDView::Morpheus;
+				hmdType = PSMHmd_Morpheus;
 				break;
 			default:
 				assert(0 && "unreachable");
-				hmdType = ClientHMDView::None;
+				hmdType = PSMHmd_None;
 			}
 
 			// Add an entry to the hmd list
@@ -387,14 +381,14 @@ public:
 
 	void build_tracking_space_response_message(
 		ResponsePtr response,
-		ClientPSMoveAPI::ResponsePayload_TrackingSpace *tracking_space)
+		PSMTrackingSpace *tracking_space)
 	{
 		tracking_space->global_forward_degrees = response->result_tracking_space_settings().global_forward_degrees();
 	}
 
 private:
     IDataFrameListener *m_dataFrameListener;
-    ClientPSMoveAPI::t_response_callback m_callback;
+    PSMResponseCallback m_callback;
     void *m_callback_userdata;
     t_request_context_map m_pending_requests;
     int m_next_request_id;
@@ -409,7 +403,7 @@ private:
 //-- public methods -----
 ClientRequestManager::ClientRequestManager(
     IDataFrameListener *dataFrameListener,
-    ClientPSMoveAPI::t_response_callback callback,
+    PSMResponseCallback callback,
     void *userdata)
 {
     m_implementation_ptr = new ClientRequestManagerImpl(dataFrameListener, callback, userdata);

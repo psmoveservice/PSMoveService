@@ -229,7 +229,7 @@ float AppStage_TestRumble::get_left_trigger() const
         } break;
     case PSMController_DualShock4:
         {
-            trigger = clampf01(static_cast<float>(m_controllerView->ControllerState.PSDS4State.LeftTriggerValue / 255.f));
+            trigger = m_controllerView->ControllerState.PSDS4State.LeftTriggerValue;
         } break;
     }
 
@@ -253,7 +253,7 @@ float AppStage_TestRumble::get_right_trigger() const
         } break;
     case PSMController_DualShock4:
         {
-            trigger = clampf01(static_cast<float>(m_controllerView->ControllerState.PSDS4State.RightTriggerValue / 255.f));
+            trigger = m_controllerView->ControllerState.PSDS4State.RightTriggerValue;
         } break;
     }
 
