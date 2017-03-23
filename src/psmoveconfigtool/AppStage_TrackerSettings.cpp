@@ -28,6 +28,7 @@ AppStage_TrackerSettings::AppStage_TrackerSettings(App *app)
     , m_selectedTrackerIndex(-1)
 	, m_selectedControllerIndex(-1)
 	, m_selectedHmdIndex(-1)
+	, m_gotoColorCalib(false)
 { }
 
 void AppStage_TrackerSettings::enter()
@@ -329,7 +330,7 @@ void AppStage_TrackerSettings::renderUI()
 
 					if (m_app->getIsLocalServer())
 					{
-						if (ImGui::Button("Calibrate Controller Tracking Colors"))
+						if (ImGui::Button("Calibrate Controller Tracking Colors") || m_gotoColorCalib)
 						{
 							const ControllerInfo *controller = get_selected_controller();
 							if (controller != NULL) {

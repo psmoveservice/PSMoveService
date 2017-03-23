@@ -152,7 +152,9 @@ message Request {
 
         GET_SERVICE_VERSION= 39;
 
-        SET_TRACKER_FRAMERATE = 40;
+        SET_TRACKER_FRAME_RATE = 40;
+        SET_TRACKER_FRAME_WIDTH = 41;
+        SET_TRACKER_FRAME_HEIGHT = 42;
     }
     RequestType type = 2;
 
@@ -439,13 +441,29 @@ message Request {
     }
     RequestSetHMDPredictionTime request_set_hmd_prediction_time = 37;
 
-    // Parameters for SET_TRACKER_FRAMERATE
-    message RequestSetTrackerFramerate {
+    // Parameters for SET_TRACKER_FRAME_RATE
+    message RequestSetTrackerFrameRate {
         int32 tracker_id = 1;
         float value = 2;
         bool save_setting= 3;
     }
-    RequestSetTrackerFramerate request_set_tracker_frame_rate = 38;
+    RequestSetTrackerFrameRate request_set_tracker_frame_rate = 38;
+
+    // Parameters for SET_TRACKER_FRAME_WIDTH
+    message RequestSetTrackerFrameWidth {
+        int32 tracker_id = 1;
+        float value = 2;
+        bool save_setting= 3;
+    }
+    RequestSetTrackerFrameWidth request_set_tracker_frame_width = 39;
+
+    // Parameters for SET_TRACKER_FRAME_HEIGHT
+    message RequestSetTrackerFrameHeight {
+        int32 tracker_id = 1;
+        float value = 2;
+        bool save_setting= 3;
+    }
+    RequestSetTrackerFrameHeight request_set_tracker_frame_height = 40;
 }
 
 // Reliable (TCP) responses to requests
@@ -471,7 +489,9 @@ message Response {
         HMD_LIST= 16;
         HMD_LIST_UPDATED= 17;
         SERVICE_VERSION= 18;
-        TRACKER_FRAMERATE_UPDATED= 19;
+        TRACKER_FRAME_RATE_UPDATED= 19;
+        TRACKER_FRAME_WIDTH_UPDATED= 20;
+        TRACKER_FRAME_HEIGHT_UPDATED= 21;
     }
 
     enum ResultCode {
@@ -584,6 +604,8 @@ message Response {
         repeated OptionSet option_sets= 3;
         repeated TrackingColorPreset color_presets = 4;
         float frame_rate= 5;
+        float frame_width= 6;
+        float frame_height= 7;
     }
     ResultTrackerSettings result_tracker_settings = 25;
 
@@ -642,11 +664,23 @@ message Response {
     }
     ResultServiceVersion result_service_version = 32;
 
-    // This is returned in response to a SET_TRACKER_FRAMERATE request
-    message ResultSetTrackerFramerate {
+    // This is returned in response to a SET_TRACKER_FRAME_RATE request
+    message ResultSetTrackerFrameRate {
         float new_frame_rate= 1;
     }
-    ResultSetTrackerFramerate result_set_tracker_frame_rate = 33;
+    ResultSetTrackerFrameRate result_set_tracker_frame_rate = 33;
+
+    // This is returned in response to a SET_TRACKER_FRAME_WIDTH request
+    message ResultSetTrackerFrameWidth {
+        float new_frame_width= 1;
+    }
+    ResultSetTrackerFrameWidth result_set_tracker_frame_width = 34;
+
+    // This is returned in response to a SET_TRACKER_FRAME_HEIGHT request
+    message ResultSetTrackerFrameHeight {
+        float new_frame_height= 1;
+    }
+    ResultSetTrackerFrameHeight result_set_tracker_frame_height = 35;
 }
 
 // Unreliable (UDP) device data packet sent from service to clients

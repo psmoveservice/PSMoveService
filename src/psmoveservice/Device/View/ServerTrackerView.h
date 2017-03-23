@@ -48,8 +48,14 @@ public:
     void loadSettings();
     void saveSettings();
 
-	double getFramerate() const;
-	void setFramerate(double value, bool bUpdateConfig);
+	double getFrameWidth() const;
+	void setFrameWidth(double value, bool bUpdateConfig);
+
+	double getFrameHeight() const;
+	void setFrameHeight(double value, bool bUpdateConfig);
+
+	double getFrameRate() const;
+	void setFrameRate(double value, bool bUpdateConfig);
 
     double getExposure() const;
     void setExposure(double value, bool bUpdateConfig);

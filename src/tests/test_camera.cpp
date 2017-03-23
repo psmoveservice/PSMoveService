@@ -5,11 +5,11 @@
 #include <vector>
 #include <chrono>
 
-const std::vector<int> known_keys = {113, 97, 119, 115, 101, 100, 114, 102, 116, 103, 121, 104};
-// q, a, w, s, e, d, r, f, t, g, y, h
+const std::vector<int> known_keys = {113, 97, 119, 115, 101, 100, 114, 102, 116, 103, 121, 104, 117, 106};
+// q, a, w, s, e, d, r, f, t, g, y, h, u, j
 
-const std::vector<int> known_keys_check = { 32, 122, 120, 99, 118, 98, 110 };
-// SPACEBAR, z, x, c, v, b, n
+const std::vector<int> known_keys_check = { 32, 122, 120, 99, 118, 98, 110, 109 };
+// SPACEBAR, z, x, c, v, b, n, m
 
 struct camera_state
 {
@@ -23,6 +23,7 @@ int main(int, char**)
 {
     std::vector<camera_state> camera_states;
 	int frame_rate_init = 40;
+	int frame_width_init = 640;
 
 	std::cout << "=========CONTROLS=========\n"
 		<< " + | - | value | Variable\n" << "___|___|_______|__________\n"
@@ -32,6 +33,7 @@ int main(int, char**)
 		<< " r | f |   v   | Hue \n"
 		<< " t | g |   b   | Sharpness \n"
 		<< " y | h |   n   | Fame Rate \n"
+		<< " u | j |   m   | Fame Width \n"
 		<< "The space bar calculates the frame rate from the processed frames.\n"
 		<< "The escape key will close the cameras.\n"
 		<< "(focus must be on one of the camera windows to apply)\n"
@@ -42,6 +44,9 @@ int main(int, char**)
 		<< "(higher frame rates will need more USB bandwidth): \n";
 	std::cin >> frame_rate_init;
 
+	std::cout << "Please enter the initial frame width for the cameras:\n";
+	std::cin >> frame_width_init;
+
     // Open all available cameras (up to 4 max)
 	for (int camera_index = 0; camera_index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++camera_index)
 	{
@@ -51,10 +56,11 @@ int main(int, char**)
         {
             std::string identifier = camera->getUniqueIndentifier();
 
-			if (camera->get(CV_CAP_PROP_FPS) != frame_rate_init)
-			{
+			if (camera->get(CV_CAP_PROP_FRAME_WIDTH) != frame_width_init) 
+				camera->set(CV_CAP_PROP_FRAME_WIDTH, frame_width_init);
+
+			if (camera->get(CV_CAP_PROP_FPS) != frame_rate_init) 
 				camera->set(CV_CAP_PROP_FPS, frame_rate_init);
-			}
 
 			auto last_ticks = std::chrono::high_resolution_clock::now();
 			int last_frames = 0;
@@ -95,7 +101,7 @@ int main(int, char**)
             }
         );
 
-        int wk = cv::waitKey(10);
+        int wk = cv::waitKey(1);
 
         if (wk == 27)  // Escape
         {
@@ -161,6 +167,15 @@ int main(int, char**)
 				val_diff = (wk == 121) ? 10 : -10;
 			}
 
+			// u/j for +/- frame width
+			// For CL_Eye, don't know
+			if ((wk == 117) || (wk == 106))
+			{
+				cap_prop = CV_CAP_PROP_FRAME_WIDTH;
+				prop_str = "CV_CAP_PROP_FRAME_WIDTH";
+				val_diff = (wk == 117) ? 1 : -1;
+			}
+
             std::for_each(
                 camera_states.begin(), 
                 camera_states.end(),
@@ -171,19 +186,53 @@ int main(int, char**)
 
 					switch (cap_prop)
 					{
+					case CV_CAP_PROP_FRAME_WIDTH:
+						if (val == 320) { if (val_diff > 0) val_diff = 320; else val_diff = 0; }
+						else if (val == 640) { if (val_diff > 0) val_diff = 0; else val_diff = -320; }
+						break;
 					case CV_CAP_PROP_FPS:
-						if (val == 2) { if (val_diff > 0) val_diff = 1; else val_diff = 0; }
-						else if (val == 3) { if (val_diff > 0) val_diff = 2; else val_diff = -1; }
-						else if (val == 5) { if (val_diff > 0) val_diff = 3; else val_diff = -2; }
-						else if (val == 8) { if (val_diff > 0) val_diff = 2; else val_diff = -3; }
-						else if (val == 10) { if (val_diff > 0) val_diff = 5; else val_diff = -2; }
-						else if (val == 15) { if (val_diff > 0) val_diff = 5; else val_diff = -5; }
-						else if (val == 20) { if (val_diff > 0) val_diff = 5; else val_diff = -5; }
-						else if (val == 25) { if (val_diff > 0) val_diff = 5; else val_diff = -5; }
-						else if (val == 30) { if (val_diff < 0) { val_diff = -5; } }
-						else if (val == 60) { if (val_diff > 0) { val_diff = 15; } }
-						else if (val == 75) { if (val_diff > 0) val_diff = 8; else val_diff = -15; }
-						else if (val == 83) { if (val_diff < 0) val_diff = -8; }
+						int frame_width = state.camera->get(CV_CAP_PROP_FRAME_WIDTH);
+						if (frame_width == 640)
+						{
+							if (val == 2) { if (val_diff > 0) val_diff = 1; else val_diff = 0; }
+							else if (val == 3) { if (val_diff > 0) val_diff = 2; else val_diff = -1; }
+							else if (val == 5) { if (val_diff > 0) val_diff = 3; else val_diff = -2; }
+							else if (val == 8) { if (val_diff > 0) val_diff = 2; else val_diff = -3; }
+							else if (val == 10) { if (val_diff > 0) val_diff = 5; else val_diff = -2; }
+							else if (val == 15) { if (val_diff > 0) val_diff = 5; else val_diff = -5; }
+							else if (val == 20) { if (val_diff > 0) val_diff = 5; else val_diff = -5; }
+							else if (val == 25) { if (val_diff > 0) val_diff = 5; else val_diff = -5; }
+							else if (val == 30) { if (val_diff < 0) { val_diff = -5; } }
+							else if (val == 60) { if (val_diff > 0) { val_diff = 15; } }
+							else if (val == 75) { if (val_diff > 0) val_diff = 8; else val_diff = -15; }
+							else if (val == 83) { if (val_diff < 0) val_diff = -8; }
+						}
+						else
+						{
+							if (val == 2) { if (val_diff > 0) val_diff = 1; else val_diff = 0; }
+							else if (val == 3) { if (val_diff > 0) val_diff = 2; else val_diff = -1; }
+							else if (val == 5) { if (val_diff > 0) val_diff = 2; else val_diff = -2; }
+							else if (val == 7) { if (val_diff > 0) val_diff = 3; else val_diff = -2; }
+							else if (val == 10) { if (val_diff > 0) val_diff = 2; else val_diff = -3; }
+							else if (val == 12) { if (val_diff > 0) val_diff = 3; else val_diff = -2; }
+							else if (val == 15) { if (val_diff > 0) val_diff = 2; else val_diff = -3; }
+							else if (val == 17) { if (val_diff > 0) val_diff = 13; else val_diff = -2; }
+							else if (val == 30) { if (val_diff > 0) val_diff = 7; else val_diff = -13; }
+							else if (val == 37) { if (val_diff > 0) val_diff = 3; else val_diff = -7; }
+							else if (val == 40) { if (val_diff > 0) val_diff = 10; else val_diff = -3; }
+							else if (val == 50) { if (val_diff > 0) val_diff = 10; else val_diff = -10; }
+							else if (val == 60) { if (val_diff > 0) val_diff = 15; else val_diff = -10; }
+							else if (val == 75) { if (val_diff > 0) val_diff = 15; else val_diff = -15; }
+							else if (val == 90) { if (val_diff > 0) val_diff = 10; else val_diff = -15; }
+							else if (val == 100) { if (val_diff > 0) val_diff = 25; else val_diff = -10; }
+							else if (val == 125) { if (val_diff > 0) val_diff = 12; else val_diff = -25; }
+							else if (val == 137) { if (val_diff > 0) val_diff = 13; else val_diff = -12; }
+							else if (val == 150) { if (val_diff > 0) val_diff = 37; else val_diff = -13; }
+							else if (val == 187) { if (val_diff > 0) val_diff = 18; else val_diff = -37; }
+							else if (val == 205) { if (val_diff > 0) val_diff = 85; else val_diff = -18; }
+							else if (val == 290) { if (val_diff > 0) val_diff = 0; else val_diff = -85; }
+						}
+						break;
 					}
 
 					val += val_diff;
@@ -246,6 +295,13 @@ int main(int, char**)
 			{
 				cap_prop = CV_CAP_PROP_FPS;
 				prop_str = "CV_CAP_PROP_FPS";
+			}
+
+			// M to check frame width
+			if (wk == 109)
+			{
+				cap_prop = CV_CAP_PROP_FRAME_WIDTH;
+				prop_str = "CV_CAP_PROP_FRAME_WIDTH";
 			}
 
 			std::for_each(

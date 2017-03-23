@@ -332,9 +332,17 @@ public:
 			eye->start();
 			break;
         case CV_CAP_PROP_FRAME_HEIGHT:
-            return false; //TODO: Modifying frame size probably requires resetting the camera
+			eye->stop();
+			if (!eye->setHeight((int)round(value))) return false;
+			eye->start();
+			break;
+            //return false; //TODO: Modifying frame size probably requires resetting the camera
         case CV_CAP_PROP_FRAME_WIDTH:
-            return false;
+			eye->stop();
+			if (!eye->setWidth((int)round(value))) return false;
+			eye->start();
+			break;
+            //return false;
         case CV_CAP_PROP_GAIN:
             // [0, 255] -> [0, 63] [20]
             val = (int)(value * 64.0 / 256.0);

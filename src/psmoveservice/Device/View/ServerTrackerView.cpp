@@ -978,14 +978,110 @@ void ServerTrackerView::saveSettings()
     m_device->saveSettings();
 }
 
-double ServerTrackerView::getFramerate() const
+double ServerTrackerView::getFrameWidth() const
 {
-	return m_device->getFramerate();
+	return m_device->getFrameWidth();
 }
 
-void ServerTrackerView::setFramerate(double value, bool bUpdateConfig)
+void ServerTrackerView::setFrameWidth(double value, bool bUpdateConfig)
 {
-	m_device->setFramerate(value, bUpdateConfig);
+	if (value == m_device->getFrameWidth()) return;
+
+	// close buffer
+	if (m_shared_memory_accesor != nullptr)
+	{
+		delete m_shared_memory_accesor;
+		m_shared_memory_accesor = nullptr;
+	}
+
+	// change frame width
+	m_device->setFrameWidth(value, bUpdateConfig);
+
+	// reopen buffer
+	int width, height, stride;
+
+	// Make sure the shared memory block has been removed first
+	boost::interprocess::shared_memory_object::remove(m_shared_memory_name);
+
+	// Query the video frame first so that we know how big to make the buffer
+	if (m_device->getVideoFrameDimensions(&width, &height, &stride))
+	{
+		assert(m_shared_memory_accesor == nullptr);
+		m_shared_memory_accesor = new SharedVideoFrameReadWriteAccessor();
+
+		if (!m_shared_memory_accesor->initialize(m_shared_memory_name, width, height, stride))
+		{
+			delete m_shared_memory_accesor;
+			m_shared_memory_accesor = nullptr;
+
+			SERVER_LOG_ERROR("ServerTrackerView::open()") << "Failed to allocated shared memory: " << m_shared_memory_name;
+		}
+
+		// Allocate the OpenCV scratch buffers used for finding tracking blobs
+		m_opencv_buffer_state = new OpenCVBufferState(m_device);
+	}
+	else
+	{
+		SERVER_LOG_ERROR("ServerTrackerView::open()") << "Failed to video frame dimensions";
+	}
+}
+
+double ServerTrackerView::getFrameHeight() const
+{
+	return m_device->getFrameHeight();
+}
+
+void ServerTrackerView::setFrameHeight(double value, bool bUpdateConfig)
+{
+	if (value == m_device->getFrameHeight()) return;
+
+	// close buffer
+	if (m_shared_memory_accesor != nullptr)
+	{
+		delete m_shared_memory_accesor;
+		m_shared_memory_accesor = nullptr;
+	}
+
+	// change frame height
+	m_device->setFrameHeight(value, bUpdateConfig);
+
+	// reopen buffer
+	int width, height, stride;
+
+	// Make sure the shared memory block has been removed first
+	boost::interprocess::shared_memory_object::remove(m_shared_memory_name);
+
+	// Query the video frame first so that we know how big to make the buffer
+	if (m_device->getVideoFrameDimensions(&width, &height, &stride))
+	{
+		assert(m_shared_memory_accesor == nullptr);
+		m_shared_memory_accesor = new SharedVideoFrameReadWriteAccessor();
+
+		if (!m_shared_memory_accesor->initialize(m_shared_memory_name, width, height, stride))
+		{
+			delete m_shared_memory_accesor;
+			m_shared_memory_accesor = nullptr;
+
+			SERVER_LOG_ERROR("ServerTrackerView::open()") << "Failed to allocated shared memory: " << m_shared_memory_name;
+		}
+
+		// Allocate the OpenCV scratch buffers used for finding tracking blobs
+		m_opencv_buffer_state = new OpenCVBufferState(m_device);
+	}
+	else
+	{
+		SERVER_LOG_ERROR("ServerTrackerView::open()") << "Failed to video frame dimensions";
+	}
+}
+
+double ServerTrackerView::getFrameRate() const
+{
+	return m_device->getFrameRate();
+}
+
+void ServerTrackerView::setFrameRate(double value, bool bUpdateConfig)
+{
+	m_device->setFrameRate(value, bUpdateConfig);
 }
 
 double ServerTrackerView::getExposure() const
