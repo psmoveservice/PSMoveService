@@ -42,21 +42,6 @@ file(GLOB PSMOVECLIENT_LIBRARY_SRC
     "${CMAKE_CURRENT_LIST_DIR}/*.cpp"
 )
 
-add_library(PSMoveClient SHARED ${PSMOVECLIENT_LIBRARY_SRC})
-target_include_directories(PSMoveClient PUBLIC ${PSMOVE_CLIENT_INCL_DIRS})
-target_link_libraries(PSMoveClient PRIVATE ${PSMOVE_CLIENT_REQ_LIBS})
-target_compile_definitions(PSMoveClient PRIVATE PSMOVECLIENT_CPP_API)
-set_target_properties(PSMoveClient PROPERTIES CXX_VISIBILITY_PRESET hidden)
-
-# Install
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    install(TARGETS PSMoveClient
-        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
-        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
-        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
-ELSE() #Linux/Darwin
-ENDIF()
-
 # TODO: Build PSMoveClient as a STATIC or OBJECT w/ $<TARGET_OBJECTS:objlib>
 add_library(PSMoveClient_static STATIC ${PSMOVECLIENT_LIBRARY_SRC})
 target_include_directories(PSMoveClient_static PUBLIC ${PSMOVE_CLIENT_INCL_DIRS})
