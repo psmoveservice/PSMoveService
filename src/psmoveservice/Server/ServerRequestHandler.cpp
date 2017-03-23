@@ -261,7 +261,15 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__get_tracker_settings(context, response);
                 break;
-			case PSMoveProtocol::Request_RequestType_SET_TRACKER_FRAMERATE:
+			case PSMoveProtocol::Request_RequestType_SET_TRACKER_FRAME_WIDTH:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_tracker_frame_width(context, response);
+				break;
+			case PSMoveProtocol::Request_RequestType_SET_TRACKER_FRAME_HEIGHT:
+				response = new PSMoveProtocol::Response;
+				handle_request__set_tracker_frame_height(context, response);
+				break;
+			case PSMoveProtocol::Request_RequestType_SET_TRACKER_FRAME_RATE:
 				response = new PSMoveProtocol::Response;
 				handle_request__set_tracker_frame_rate(context, response);
 				break;
@@ -1724,7 +1732,9 @@ protected:
                     response->mutable_result_tracker_settings();
 				const int device_id = context.request->request_get_tracker_settings().device_id();
 
-				settings->set_frame_rate(static_cast<float>(tracker_view->getFramerate()));
+				settings->set_frame_width(static_cast<float>(tracker_view->getFrameWidth()));
+				settings->set_frame_height(static_cast<float>(tracker_view->getFrameHeight()));
+				settings->set_frame_rate(static_cast<float>(tracker_view->getFrameRate()));
                 settings->set_exposure(static_cast<float>(tracker_view->getExposure()));
                 settings->set_gain(static_cast<float>(tracker_view->getGain()));
                 tracker_view->gatherTrackerOptions(settings);
@@ -1758,25 +1768,25 @@ protected:
         }
     }
 
-	void handle_request__set_tracker_frame_rate(const RequestContext &context,
+	void handle_request__set_tracker_frame_width(const RequestContext &context,
 		PSMoveProtocol::Response *response)
 	{
-		const int tracker_id = context.request->request_set_tracker_frame_rate().tracker_id();
+		const int tracker_id = context.request->request_set_tracker_frame_width().tracker_id();
 
-		response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_FRAMERATE_UPDATED);
+		response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_FRAME_WIDTH_UPDATED);
 
 		if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
 		{
 			ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
 			if (tracker_view->getIsOpen())
 			{
-				const bool bSaveSetting = context.request->request_set_tracker_frame_rate().save_setting();
-				const float desired_framerate = context.request->request_set_tracker_frame_rate().value();
-				PSMoveProtocol::Response_ResultSetTrackerFramerate* result_frame_rate =
-					response->mutable_result_set_tracker_frame_rate();
+				const bool bSaveSetting = context.request->request_set_tracker_frame_width().save_setting();
+				const float desired_frame_width = context.request->request_set_tracker_frame_width().value();
+				PSMoveProtocol::Response_ResultSetTrackerFrameWidth* result_frame_width =
+					response->mutable_result_set_tracker_frame_width();
 
-				// Set the desired framerate on the tracker
-				tracker_view->setFramerate(desired_framerate, bSaveSetting);
+				// Set the desired frame width on the tracker
+				tracker_view->setFrameWidth(desired_frame_width, bSaveSetting);
 
 				// Only save the setting if requested
 				if (bSaveSetting)
@@ -1788,8 +1798,100 @@ protected:
 					context.connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override = true;
 				}
 
-				// Return back the actual framerate that got set
-				result_frame_rate->set_new_frame_rate(static_cast<float>(tracker_view->getFramerate()));
+				// Return back the actual frame width that got set
+				result_frame_width->set_new_frame_width(static_cast<float>(tracker_view->getFrameWidth()));
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
+	void handle_request__set_tracker_frame_height(const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int tracker_id = context.request->request_set_tracker_frame_height().tracker_id();
+
+		response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_FRAME_HEIGHT_UPDATED);
+
+		if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+		{
+			ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+			if (tracker_view->getIsOpen())
+			{
+				const bool bSaveSetting = context.request->request_set_tracker_frame_height().save_setting();
+				const float desired_frame_height = context.request->request_set_tracker_frame_height().value();
+				PSMoveProtocol::Response_ResultSetTrackerFrameHeight* result_frame_height =
+					response->mutable_result_set_tracker_frame_height();
+
+				// Set the desired frame height on the tracker
+				tracker_view->setFrameHeight(desired_frame_height, bSaveSetting);
+
+				// Only save the setting if requested
+				if (bSaveSetting)
+				{
+					tracker_view->saveSettings();
+				}
+				else
+				{
+					context.connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override = true;
+				}
+
+				// Return back the actual frame height that got set
+				result_frame_height->set_new_frame_height(static_cast<float>(tracker_view->getFrameHeight()));
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else
+			{
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+		}
+		else
+		{
+			response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+		}
+	}
+
+	void handle_request__set_tracker_frame_rate(const RequestContext &context,
+		PSMoveProtocol::Response *response)
+	{
+		const int tracker_id = context.request->request_set_tracker_frame_rate().tracker_id();
+
+		response->set_type(PSMoveProtocol::Response_ResponseType_TRACKER_FRAME_RATE_UPDATED);
+
+		if (ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+		{
+			ServerTrackerViewPtr tracker_view = m_device_manager.getTrackerViewPtr(tracker_id);
+			if (tracker_view->getIsOpen())
+			{
+				const bool bSaveSetting = context.request->request_set_tracker_frame_rate().save_setting();
+				const float desired_frame_rate = context.request->request_set_tracker_frame_rate().value();
+				PSMoveProtocol::Response_ResultSetTrackerFrameRate* result_frame_rate =
+					response->mutable_result_set_tracker_frame_rate();
+
+				// Set the desired frame rate on the tracker
+				tracker_view->setFrameRate(desired_frame_rate, bSaveSetting);
+
+				// Only save the setting if requested
+				if (bSaveSetting)
+				{
+					tracker_view->saveSettings();
+				}
+				else
+				{
+					context.connection_state->active_tracker_stream_info[tracker_id].has_temp_settings_override = true;
+				}
+
+				// Return back the actual frame rate that got set
+				result_frame_rate->set_new_frame_rate(static_cast<float>(tracker_view->getFrameRate()));
 
 				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 			}
@@ -2123,7 +2225,9 @@ protected:
                 TrackerProfile trackerProfile;
 
                 trackerProfile.clear();
-				trackerProfile.frame_rate = static_cast<float>(tracker_view->getFramerate());
+				trackerProfile.frame_width = static_cast<float>(tracker_view->getFrameWidth());
+				//trackerProfile.frame_height = static_cast<float>(tracker_view->getFrameHeight());
+				trackerProfile.frame_rate = static_cast<float>(tracker_view->getFrameRate());
                 trackerProfile.exposure= static_cast<float>(tracker_view->getExposure());
                 trackerProfile.gain = static_cast<float>(tracker_view->getGain());
 
@@ -2170,7 +2274,9 @@ protected:
                     m_device_manager.m_tracker_manager->getDefaultTrackerProfile();
     
                 // Apply the profile to the tracker
-				tracker_view->setFramerate(trackerProfile->frame_rate, true);
+				tracker_view->setFrameWidth(trackerProfile->frame_width, true);
+				//tracker_view->setFrameHeight(trackerProfile->frame_height, true);
+				tracker_view->setFrameRate(trackerProfile->frame_rate, true);
                 tracker_view->setExposure(trackerProfile->exposure, true);
                 tracker_view->setGain(trackerProfile->gain, true);
                 for (int preset_index = 0; preset_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++preset_index)
@@ -2186,7 +2292,9 @@ protected:
                     PSMoveProtocol::Response_ResultTrackerSettings* settings =
                         response->mutable_result_tracker_settings();
 
-					settings->set_frame_rate(static_cast<float>(tracker_view->getFramerate()));
+					settings->set_frame_width(static_cast<float>(tracker_view->getFrameWidth()));
+					settings->set_frame_height(static_cast<float>(tracker_view->getFrameHeight()));
+					settings->set_frame_rate(static_cast<float>(tracker_view->getFrameRate()));
                     settings->set_exposure(static_cast<float>(tracker_view->getExposure()));
                     settings->set_gain(static_cast<float>(tracker_view->getGain()));
                     tracker_view->gatherTrackerOptions(settings);

@@ -16,6 +16,8 @@ typedef std::shared_ptr<ServerTrackerView> ServerTrackerViewPtr;
 //-- definitions -----
 struct TrackerProfile
 {
+	float frame_width;
+	//float frame_height;
 	float frame_rate;
 	float exposure;
     float gain;
@@ -23,6 +25,8 @@ struct TrackerProfile
 
     inline void clear()
     {
+		frame_width = 0.f;
+		// frame_height = 0.f;
 		frame_rate = 0.f;
 		exposure = 0.f;
         gain = 0;

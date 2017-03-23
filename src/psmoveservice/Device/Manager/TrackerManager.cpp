@@ -24,6 +24,8 @@ TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
 	exclude_opposed_cameras = false;
 	min_valid_projection_area= 16;
 	disable_roi = false;
+	default_tracker_profile.frame_width = 640;
+	//default_tracker_profile.frame_height = 480;
 	default_tracker_profile.frame_rate = 40;
     default_tracker_profile.exposure = 32;
     default_tracker_profile.gain = 32;
@@ -54,6 +56,8 @@ TrackerManagerConfig::config2ptree()
 
 	pt.put("disable_roi", disable_roi);
 
+	pt.put("default_tracker_profile.frame_width", default_tracker_profile.frame_width);
+	//pt.put("default_tracker_profile.frame_height", default_tracker_profile.frame_height);
 	pt.put("default_tracker_profile.frame_rate", default_tracker_profile.frame_rate);
     pt.put("default_tracker_profile.exposure", default_tracker_profile.exposure);
     pt.put("default_tracker_profile.gain", default_tracker_profile.gain);
@@ -80,6 +84,8 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
 		exclude_opposed_cameras = pt.get<bool>("excluded_opposed_cameras", exclude_opposed_cameras);
 		min_valid_projection_area = pt.get<float>("min_valid_projection_area", min_valid_projection_area);	
 		disable_roi = pt.get<bool>("disable_roi", disable_roi);
+		default_tracker_profile.frame_width = pt.get<float>("default_tracker_profile.frame_width", 640);
+		//default_tracker_profile.frame_height = pt.get<float>("default_tracker_profile.frame_height", 480);
 		default_tracker_profile.frame_rate = pt.get<float>("default_tracker_profile.frame_rate", 40);
         default_tracker_profile.exposure = pt.get<float>("default_tracker_profile.exposure", 32);
         default_tracker_profile.gain = pt.get<float>("default_tracker_profile.gain", 32);
