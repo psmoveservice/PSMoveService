@@ -158,6 +158,7 @@ AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
 
 void AppStage_ColorCalibration::enter()
 {
+	m_app->getAppStage<AppStage_TrackerSettings>()->gotoColorCalib(false);
     const AppStage_TrackerSettings *trackerSettings =
         m_app->getAppStage<AppStage_TrackerSettings>();
     const PSMClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
@@ -1076,7 +1077,7 @@ void AppStage_ColorCalibration::request_tracker_set_frame_width(double value)
 	PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_frame_width_response, this);
 
 	// Exit and re-enter Color Calibration
-	m_app->getAppStage<AppStage_TrackerSettings>()->gotoColorCalib();
+	m_app->getAppStage<AppStage_TrackerSettings>()->gotoColorCalib(true);
 	request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
 }
 
@@ -1550,12 +1551,14 @@ void AppStage_ColorCalibration::request_change_controller(int step)
 			if (m_overrideControllerId + step < static_cast<int>(m_controllerViews.size()) && m_overrideControllerId + step >= 0) {
 				m_overrideControllerId = m_overrideControllerId + step;
 				m_masterControllerView = m_controllerViews[m_overrideControllerId];
+				m_masterTrackingColorType = m_controllerTrackingColorTypes[m_overrideControllerId];
 				request_set_controller_tracking_color(m_masterControllerView, m_masterTrackingColorType);
 				//setState(eMenuState::manualConfig);
 			}
 			else if (step > 0) {
 				m_overrideControllerId = 0;
 				m_masterControllerView = m_controllerViews[0];
+				m_masterTrackingColorType = m_controllerTrackingColorTypes[m_overrideControllerId];
 				request_set_controller_tracking_color(m_masterControllerView, m_masterTrackingColorType);
 				if (m_bAutoChangeTracker) setState(eMenuState::changeTracker);
 				//else setState(eMenuState::manualConfig);
@@ -1563,6 +1566,7 @@ void AppStage_ColorCalibration::request_change_controller(int step)
 			else {
 				m_overrideControllerId = static_cast<int>(m_controllerViews.size()) -1;
 				m_masterControllerView = m_controllerViews[m_overrideControllerId];
+				m_masterTrackingColorType = m_controllerTrackingColorTypes[m_overrideControllerId];
 				request_set_controller_tracking_color(m_masterControllerView, m_masterTrackingColorType);
 				//if (m_bAutoChangeTracker) setState(eMenuState::changeTracker);
 				//else 

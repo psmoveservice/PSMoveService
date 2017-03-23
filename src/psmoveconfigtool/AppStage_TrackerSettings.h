@@ -49,7 +49,7 @@ public:
 
     static const char *APP_STAGE_NAME;
 
-	void gotoColorCalib() { m_gotoColorCalib = true; }
+	void gotoColorCalib(bool value = false) { m_gotoColorCalib = (value) ? true : false; }
 
 protected:
     virtual bool onClientAPIEvent(
