@@ -409,8 +409,6 @@ void PSMoveClient::publish()
 						psmove_packet->set_led_b(psmove_state->LED_b);
 						psmove_packet->set_rumble_value(psmove_state->Rumble);
 
-						processPSMoveRecenterAction(Controller);
-
 						psmove_state->bHasUnpublishedState = false;
 					}
 					break;
@@ -431,8 +429,6 @@ void PSMoveClient::publish()
 						ds4_packet->set_big_rumble_value(ds4_state->BigRumble);
 						ds4_packet->set_small_rumble_value(ds4_state->SmallRumble);
 
-						processDualShock4RecenterAction(Controller);
-
 						ds4_state->bHasUnpublishedState= false;
 					}
 					break;
@@ -442,6 +438,33 @@ void PSMoveClient::publish()
 
 				// Send the controller data frame over the network
 				m_network_manager->send_device_data_frame(data_frame);
+			}
+		}
+	}
+
+    // Send any pending re-center controller actions
+	for (PSMControllerID controller_id= 0; controller_id < PSMOVESERVICE_MAX_CONTROLLER_COUNT; ++controller_id)    
+	{
+		PSMController *Controller= &m_controllers[controller_id];
+			
+		if (Controller->bValid)
+		{
+			switch (Controller->ControllerType)
+			{
+			case PSMController_Move:
+				{
+					processPSMoveRecenterAction(Controller);
+				}
+				break;
+			case PSMController_Navi:
+				break;
+			case PSMController_DualShock4:
+				{
+					processDualShock4RecenterAction(Controller);
+				}
+				break;
+			default:
+				assert(0 && "Unhandled controller type");
 			}
 		}
 	}
