@@ -77,6 +77,7 @@ public:
 		{
 			PSMCallbackTimeout timeout(timeout_ms);
 
+            assert(g_psm_client != nullptr);
 			g_psm_client->register_callback(m_request_id, PSMBlockingRequest::response_callback, this);
     
 			while (!m_bReceived && !timeout.HasElapsed())
@@ -134,32 +135,32 @@ bool PSM_GetIsInitialized()
 
 bool PSM_GetIsConnected()
 {
-    return g_psm_client->getIsConnected();
+    return g_psm_client != nullptr && g_psm_client->getIsConnected();
 }
 
 bool PSM_HasConnectionStatusChanged()
 {
-	return g_psm_client->pollHasConnectionStatusChanged();
+	return g_psm_client != nullptr && g_psm_client->pollHasConnectionStatusChanged();
 }
 
 bool PSM_HasControllerListChanged()
 {
-	return g_psm_client->pollHasControllerListChanged();
+	return g_psm_client != nullptr && g_psm_client->pollHasControllerListChanged();
 }
 
 bool PSM_HasTrackerListChanged()
 {
-	return g_psm_client->pollHasTrackerListChanged();
+	return g_psm_client != nullptr && g_psm_client->pollHasTrackerListChanged();
 }
 
 bool PSM_HasHMDListChanged()
 {
-	return g_psm_client->pollHasHMDListChanged();
+	return g_psm_client != nullptr && g_psm_client->pollHasHMDListChanged();
 }
 
 bool PSM_WasSystemButtonPressed()
 {
-	return g_psm_client->pollWasSystemButtonPressed();
+	return g_psm_client != nullptr && g_psm_client->pollWasSystemButtonPressed();
 }
 
 PSMResult PSM_Initialize(const char* host, const char* port, int timeout_ms)
@@ -225,15 +226,20 @@ PSMResult PSM_InitializeAsync(const char* host, const char* port)
 
 PSMResult PSM_GetServiceVersionString(char *out_version_string, size_t max_version_string, int timeout_ms)
 {
-	PSMBlockingRequest request(g_psm_client->get_service_version());
-    PSMResult result_code= request.send(timeout_ms);
+    PSMResult result_code= PSMResult_Error;
 
-    if (result_code == PSMResult_Success)
+    if (g_psm_client != nullptr)
     {
-        assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_ServiceVersion);
+	    PSMBlockingRequest request(g_psm_client->get_service_version());
+        result_code= request.send(timeout_ms);
+
+        if (result_code == PSMResult_Success)
+        {
+            assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_ServiceVersion);
         
-		const char* version_string= request.get_response_message().payload.service_version.version_string;
-		strncpy(out_version_string, version_string, max_version_string);
+		    const char* version_string= request.get_response_message().payload.service_version.version_string;
+		    strncpy(out_version_string, version_string, max_version_string);
+        }
     }
     
     return result_code;
@@ -243,14 +249,21 @@ PSMResult PSM_GetServiceVersionStringAsync(PSMRequestID *out_request_id)
 {
     PSMResult result= PSMResult_Error;
 
-    PSMRequestID req_id = g_psm_client->get_service_version();
-
-    if (out_request_id != nullptr)
+    if (g_psm_client != nullptr)
     {
-        *out_request_id= req_id;
-    }
+        PSMRequestID req_id = g_psm_client->get_service_version();
 
-    result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
+        if (out_request_id != nullptr)
+        {
+            *out_request_id= req_id;
+        }
+        else
+        {
+            PSM_EatResponse(req_id);
+        }
+
+        result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
+    }
 
     return result;
 }
@@ -292,7 +305,7 @@ PSMResult PSM_UpdateNoPollMessages()
 {
     PSMResult result= PSMResult_Error;
 
-    if (PSM_GetIsInitialized())
+    if (g_psm_client != nullptr)
     {
         g_psm_client->update();
 
@@ -304,21 +317,28 @@ PSMResult PSM_UpdateNoPollMessages()
 
 PSMController *PSM_GetController(PSMControllerID controller_id)
 {
-    return (IS_VALID_CONTROLLER_INDEX(controller_id)) ? g_psm_client->get_controller_view(controller_id) : nullptr;
+    return (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id)) ? g_psm_client->get_controller_view(controller_id) : nullptr;
 }
 
 PSMResult PSM_GetControllerListAsync(PSMRequestID *out_request_id)
 {
     PSMResult result= PSMResult_Error;
 
-    PSMRequestID req_id = g_psm_client->get_controller_list();
-
-    if (out_request_id != nullptr)
+    if (g_psm_client != nullptr)
     {
-        *out_request_id= req_id;
-    }
+        PSMRequestID req_id = g_psm_client->get_controller_list();
 
-    result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
+        if (out_request_id != nullptr)
+        {
+            *out_request_id= req_id;
+        }
+        else
+        {
+            PSM_EatResponse(req_id);
+        }
+
+        result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
+    }
 
     return result;
 }
@@ -328,7 +348,7 @@ PSMResult PSM_GetControllerList(PSMControllerList *out_controller_list, int time
 	PSMBlockingRequest request(g_psm_client->get_controller_list());
     PSMResult result_code= request.send(timeout_ms);
 
-    if (result_code == PSMResult_Success)
+    if (g_psm_client != nullptr && result_code == PSMResult_Success)
     {
         assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_ControllerList);
         
@@ -343,7 +363,7 @@ PSMResult PSM_AllocateControllerListener(PSMControllerID controller_id)
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         if (g_psm_client->allocate_controller_listener(controller_id))
         {
@@ -358,7 +378,7 @@ PSMResult PSM_FreeControllerListener(PSMControllerID controller_id)
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
 		g_psm_client->free_controller_listener(controller_id);
         result= PSMResult_Success;
@@ -371,13 +391,17 @@ PSMResult PSM_StartControllerDataStreamAsync(PSMControllerID controller_id, unsi
 {
     PSMResult result_code= PSMResult_Error;
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMRequestID req_id = g_psm_client->start_controller_data_stream(controller_id, data_stream_flags);
 
         if (out_request_id != nullptr)
         {
             *out_request_id= req_id;
+        }
+        else
+        {
+            PSM_EatResponse(req_id);
         }
 
         result_code= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -390,7 +414,7 @@ PSMResult PSM_StartControllerDataStream(PSMControllerID controller_id, unsigned 
 {
     PSMResult result_code= PSMResult_Error;
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
 		PSMBlockingRequest request(g_psm_client->start_controller_data_stream(controller_id, data_stream_flags));
 		result_code= request.send(timeout_ms);
@@ -403,13 +427,17 @@ PSMResult PSM_StopControllerDataStreamAsync(PSMControllerID controller_id, PSMRe
 {
     PSMResult result_code= PSMResult_Error;
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMRequestID req_id = g_psm_client->stop_controller_data_stream(controller_id);
 
         if (out_request_id != nullptr)
         {
             *out_request_id= req_id;
+        }
+        else
+        {
+            PSM_EatResponse(req_id);
         }
 
         result_code= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -422,7 +450,7 @@ PSMResult PSM_StopControllerDataStream(PSMControllerID controller_id, int timeou
 {
     PSMResult result_code= PSMResult_Error;
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
 		PSMBlockingRequest request(g_psm_client->stop_controller_data_stream(controller_id));
 
@@ -436,13 +464,17 @@ PSMResult PSM_SetControllerLEDColorAsync(PSMControllerID controller_id, PSMTrack
 {
     PSMResult result_code= PSMResult_Error;
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMRequestID req_id = g_psm_client->set_led_tracking_color(controller_id, tracking_color);
 
         if (out_request_id != nullptr)
         {
             *out_request_id= req_id;
+        }
+        else
+        {
+            PSM_EatResponse(req_id);
         }
 
         result_code= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -455,7 +487,7 @@ PSMResult PSM_SetControllerLEDTrackingColor(PSMControllerID controller_id, PSMTr
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
 		PSMBlockingRequest request(g_psm_client->set_led_tracking_color(controller_id, tracking_color));
 
@@ -469,7 +501,7 @@ PSMResult PSM_SetControllerLEDOverrideColor(PSMControllerID controller_id, unsig
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMController *controller= g_psm_client->get_controller_view(controller_id);
         
@@ -515,7 +547,7 @@ PSMResult PSM_GetControllerRumble(PSMControllerID controller_id, PSMControllerRu
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMController *controller= g_psm_client->get_controller_view(controller_id);
         unsigned char rumbleByte= 0;
@@ -552,7 +584,7 @@ PSMResult PSM_SetControllerRumble(PSMControllerID controller_id, PSMControllerRu
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {		
         PSMController *controller= g_psm_client->get_controller_view(controller_id);
         const unsigned char rumbleByte= static_cast<unsigned char>(clampf01(rumbleFraction)*255.f);
@@ -602,7 +634,7 @@ PSMResult PSM_GetControllerOrientation(PSMControllerID controller_id, PSMQuatf *
     PSMResult result= PSMResult_Error;
 	assert(out_orientation);
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMController *controller= g_psm_client->get_controller_view(controller_id);
         
@@ -635,7 +667,7 @@ PSMResult PSM_GetControllerPosition(PSMControllerID controller_id, PSMVector3f *
     PSMResult result= PSMResult_Error;
 	assert(out_position);
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMController *controller= g_psm_client->get_controller_view(controller_id);
         
@@ -668,7 +700,7 @@ PSMResult PSM_GetControllerPose(PSMControllerID controller_id, PSMPosef *out_pos
     PSMResult result= PSMResult_Error;
 	assert(out_pose);
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMController *controller= g_psm_client->get_controller_view(controller_id);
         
@@ -701,7 +733,7 @@ PSMResult PSM_GetIsControllerStable(PSMControllerID controller_id, bool *out_is_
     PSMResult result= PSMResult_Error;
 	assert(out_is_stable);
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMController *controller= g_psm_client->get_controller_view(controller_id);
         
@@ -747,7 +779,7 @@ PSMResult PSM_GetIsControllerTracking(PSMControllerID controller_id, bool *out_i
     PSMResult result= PSMResult_Error;
 	assert(out_is_tracking);
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMController *controller= g_psm_client->get_controller_view(controller_id);
         
@@ -775,7 +807,7 @@ PSMResult PSM_GetControllerPixelLocationOnTracker(PSMControllerID controller_id,
 {
 	assert(outLocation);
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMController *controller= g_psm_client->get_controller_view(controller_id);
 		PSMRawTrackerData *trackerData= nullptr;
@@ -810,7 +842,7 @@ PSMResult PSM_GetControllerPositionOnTracker(PSMControllerID controller_id, PSMT
 {
 	assert(outPosition);
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMController *controller= g_psm_client->get_controller_view(controller_id);
 		PSMRawTrackerData *trackerData= nullptr;
@@ -845,7 +877,7 @@ PSMResult PSM_GetControllerOrientationOnTracker(PSMControllerID controller_id, P
 {
 	assert(outOrientation);
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMController *controller= g_psm_client->get_controller_view(controller_id);
 		PSMRawTrackerData *trackerData= nullptr;
@@ -880,7 +912,7 @@ PSMResult PSM_GetControllerProjectionOnTracker(PSMControllerID controller_id, PS
 {
 	assert(outProjection);
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMController *controller= g_psm_client->get_controller_view(controller_id);
 		PSMRawTrackerData *trackerData= nullptr;
@@ -915,13 +947,17 @@ PSMResult PSM_ResetControllerOrientationAsync(PSMControllerID controller_id, con
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
         PSMRequestID req_id = g_psm_client->reset_orientation(controller_id, *q_pose);
 
         if (out_request_id != nullptr)
         {
             *out_request_id= req_id;
+        }
+        else
+        {
+            PSM_EatResponse(req_id);
         }
 
         result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -934,7 +970,7 @@ PSMResult PSM_ResetControllerOrientation(PSMControllerID controller_id, PSMQuatf
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_CONTROLLER_INDEX(controller_id))
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
 		PSMBlockingRequest request(g_psm_client->reset_orientation(controller_id, *q_pose));
 
@@ -947,19 +983,25 @@ PSMResult PSM_ResetControllerOrientation(PSMControllerID controller_id, PSMQuatf
 /// Tracker Pool
 PSMTracker *PSM_GetTracker(PSMTrackerID tracker_id)
 {
-	return g_psm_client->get_tracker_view(tracker_id);
+    if (g_psm_client != nullptr)
+        return g_psm_client->get_tracker_view(tracker_id);
+    else
+        return nullptr;
 }
 
 PSMResult PSM_AllocateTrackerListener(PSMTrackerID tracker_id, const PSMClientTrackerInfo *tracker_info)
 {
-	return g_psm_client->allocate_tracker_listener(*tracker_info) ? PSMResult_Success : PSMResult_Error;
+    if (g_psm_client != nullptr)
+	    return g_psm_client->allocate_tracker_listener(*tracker_info) ? PSMResult_Success : PSMResult_Error;
+    else
+        return PSMResult_Error;
 }
 
 PSMResult PSM_FreeTrackerListener(PSMTrackerID tracker_id)
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    if (g_psm_client != nullptr && IS_VALID_TRACKER_INDEX(tracker_id))
     {
 		g_psm_client->free_tracker_listener(tracker_id);
         result= PSMResult_Success;
@@ -973,7 +1015,7 @@ PSMResult PSM_GetTrackerIntrinsicMatrix(PSMTrackerID tracker_id, PSMMatrix3f *ou
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    if (g_psm_client != nullptr && IS_VALID_TRACKER_INDEX(tracker_id))
     {
 		PSMTracker *tracker= g_psm_client->get_tracker_view(tracker_id);
 		PSMClientTrackerInfo *tracker_info= &tracker->tracker_info;
@@ -992,15 +1034,20 @@ PSMResult PSM_GetTrackerIntrinsicMatrix(PSMTrackerID tracker_id, PSMMatrix3f *ou
 /// Blocking Tracker Methods
 PSMResult PSM_GetTrackerList(PSMTrackerList *out_tracker_list, int timeout_ms)
 {
-	PSMBlockingRequest request(g_psm_client->get_tracker_list());
-    PSMResult result_code= request.send(timeout_ms);
+    PSMResult result_code= PSMResult_Error;
 
-    if (result_code == PSMResult_Success)
+    if (g_psm_client != nullptr)
     {
-        assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_TrackerList);
+        PSMBlockingRequest request(g_psm_client->get_tracker_list());
+        PSMResult result_code= request.send(timeout_ms);
+
+        if (result_code == PSMResult_Success)
+        {
+            assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_TrackerList);
         
-        *out_tracker_list= request.get_response_message().payload.tracker_list;
-        result_code= PSMResult_Success;
+            *out_tracker_list= request.get_response_message().payload.tracker_list;
+            result_code= PSMResult_Success;
+        }
     }
     
     return result_code;
@@ -1010,7 +1057,7 @@ PSMResult PSM_StartTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    if (g_psm_client != nullptr && IS_VALID_TRACKER_INDEX(tracker_id))
     {
 		PSMBlockingRequest request(g_psm_client->start_tracker_data_stream(tracker_id));
 
@@ -1024,7 +1071,7 @@ PSMResult PSM_StopTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    if (g_psm_client != nullptr && IS_VALID_TRACKER_INDEX(tracker_id))
     {
 		PSMBlockingRequest request(g_psm_client->stop_tracker_data_stream(tracker_id));
 
@@ -1036,15 +1083,20 @@ PSMResult PSM_StopTrackerDataStream(PSMTrackerID tracker_id, int timeout_ms)
 
 PSMResult PSM_GetTrackingSpaceSettings(PSMTrackingSpace *out_tracking_space, int timeout_ms)
 {
-	PSMBlockingRequest request(g_psm_client->get_tracker_list());
-    PSMResult result_code= request.send(timeout_ms);
+    PSMResult result_code= PSMResult_Error;
 
-    if (result_code == PSMResult_Success)
+    if (g_psm_client != nullptr)
     {
-        assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_TrackingSpace);
+        PSMBlockingRequest request(g_psm_client->get_tracker_list());
+        PSMResult result_code= request.send(timeout_ms);
+
+        if (result_code == PSMResult_Success)
+        {
+            assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_TrackingSpace);
         
-        *out_tracking_space= request.get_response_message().payload.tracking_space;
-        result_code= PSMResult_Success;
+            *out_tracking_space= request.get_response_message().payload.tracking_space;
+            result_code= PSMResult_Success;
+        }
     }
     
     return result_code;
@@ -1054,7 +1106,7 @@ PSMResult PSM_OpenTrackerVideoStream(PSMTrackerID tracker_id)
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    if (g_psm_client != nullptr && IS_VALID_TRACKER_INDEX(tracker_id))
     {
         result= g_psm_client->open_video_stream(tracker_id) ? PSMResult_Success : PSMResult_Error;
     }
@@ -1066,7 +1118,7 @@ PSMResult PSM_PollTrackerVideoStream(PSMTrackerID tracker_id)
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    if (g_psm_client != nullptr && IS_VALID_TRACKER_INDEX(tracker_id))
     {
         result= g_psm_client->poll_video_stream(tracker_id) ? PSMResult_Success : PSMResult_NoData;
     }
@@ -1078,7 +1130,7 @@ PSMResult PSM_CloseTrackerVideoStream(PSMTrackerID tracker_id)
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    if (g_psm_client != nullptr && IS_VALID_TRACKER_INDEX(tracker_id))
     {
 		g_psm_client->close_video_stream(tracker_id);
 		result= PSMResult_Success;
@@ -1092,7 +1144,7 @@ PSMResult PSM_GetTrackerVideoFrameBuffer(PSMTrackerID tracker_id, const unsigned
     PSMResult result= PSMResult_Error;
 	assert(out_buffer != nullptr);
 
-    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    if (g_psm_client != nullptr && IS_VALID_TRACKER_INDEX(tracker_id))
     {
         const unsigned char *buffer= g_psm_client->get_video_frame_buffer(tracker_id);
 		if (buffer != nullptr)
@@ -1110,7 +1162,7 @@ PSMResult PSM_GetTrackerFrustum(PSMTrackerID tracker_id, PSMFrustum *out_frustum
     PSMResult result= PSMResult_Error;
 	assert(out_frustum != nullptr);
 
-    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    if (g_psm_client != nullptr && IS_VALID_TRACKER_INDEX(tracker_id))
     {
 		const PSMTracker *tracker= g_psm_client->get_tracker_view(tracker_id);
 		const PSMClientTrackerInfo *tracker_info= &tracker->tracker_info;
@@ -1133,14 +1185,21 @@ PSMResult PSM_GetTrackerListAsync(PSMRequestID *out_request_id)
 {
     PSMResult result= PSMResult_Error;
 
-    PSMRequestID req_id = g_psm_client->get_tracker_list();
-
-    if (out_request_id != nullptr)
+    if (g_psm_client != nullptr)
     {
-        *out_request_id= req_id;
-    }
+        PSMRequestID req_id = g_psm_client->get_tracker_list();
 
-    result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
+        if (out_request_id != nullptr)
+        {
+            *out_request_id= req_id;
+        }
+        else
+        {
+            PSM_EatResponse(req_id);
+        }
+
+        result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
+    }
 
     return result;
 }
@@ -1149,13 +1208,17 @@ PSMResult PSM_StartTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID 
 {
     PSMResult result_code= PSMResult_Error;
 
-    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    if (g_psm_client != nullptr && IS_VALID_TRACKER_INDEX(tracker_id))
     {
         PSMRequestID req_id = g_psm_client->start_tracker_data_stream(tracker_id);
 
         if (out_request_id != nullptr)
         {
             *out_request_id= req_id;
+        }
+        else
+        {
+            PSM_EatResponse(req_id);
         }
 
         result_code= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -1168,13 +1231,17 @@ PSMResult PSM_StopTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID *
 {
     PSMResult result_code= PSMResult_Error;
 
-    if (IS_VALID_TRACKER_INDEX(tracker_id))
+    if (g_psm_client != nullptr && IS_VALID_TRACKER_INDEX(tracker_id))
     {
         PSMRequestID req_id = g_psm_client->stop_tracker_data_stream(tracker_id);
 
         if (out_request_id != nullptr)
         {
             *out_request_id= req_id;
+        }
+        else
+        {
+            PSM_EatResponse(req_id);
         }
 
         result_code= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -1185,11 +1252,18 @@ PSMResult PSM_StopTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID *
 
 PSMResult PSM_GetTrackingSpaceSettingsAsync(PSMRequestID *out_request_id)
 {
+    if (g_psm_client == nullptr)
+        return PSMResult_Error;
+
     PSMRequestID req_id = g_psm_client->get_tracking_space_settings();
 
     if (out_request_id != nullptr)
     {
         *out_request_id= req_id;
+    }
+    else
+    {
+        PSM_EatResponse(req_id);
     }
 
     return (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -1198,19 +1272,25 @@ PSMResult PSM_GetTrackingSpaceSettingsAsync(PSMRequestID *out_request_id)
 /// HMD Pool
 PSMHeadMountedDisplay *PSM_GetHmd(PSMHmdID hmd_id)
 {
-	return g_psm_client->get_hmd_view(hmd_id);
+    if (g_psm_client != nullptr)
+	    return g_psm_client->get_hmd_view(hmd_id);
+    else
+        return nullptr;
 }
 
 PSMResult PSM_AllocateHmdListener(PSMHmdID hmd_id)
 {
-	return g_psm_client->allocate_hmd_listener(hmd_id) ? PSMResult_Success : PSMResult_Error;
+    if (g_psm_client != nullptr)
+	    return g_psm_client->allocate_hmd_listener(hmd_id) ? PSMResult_Success : PSMResult_Error;
+    else
+        return PSMResult_Error;
 }
 
 PSMResult PSM_FreeHmdListener(PSMHmdID hmd_id)
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
 		g_psm_client->free_hmd_listener(hmd_id);
 
@@ -1227,7 +1307,7 @@ PSMResult PSM_GetHmdOrientation(PSMHmdID hmd_id, PSMQuatf *out_orientation)
     PSMResult result= PSMResult_Error;
 	assert(out_orientation);
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {		
         PSMHeadMountedDisplay *hmd= g_psm_client->get_hmd_view(hmd_id);
         
@@ -1251,7 +1331,7 @@ PSMResult PSM_GetHmdPosition(PSMHmdID hmd_id, PSMVector3f *out_position)
     PSMResult result= PSMResult_Error;
 	assert(out_position);
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
         PSMHeadMountedDisplay *hmd= g_psm_client->get_hmd_view(hmd_id);
         
@@ -1275,7 +1355,7 @@ PSMResult PSM_GetHmdPose(PSMHmdID hmd_id, PSMPosef *out_pose)
     PSMResult result= PSMResult_Error;
 	assert(out_pose);
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
         PSMHeadMountedDisplay *hmd= g_psm_client->get_hmd_view(hmd_id);
         
@@ -1299,7 +1379,7 @@ PSMResult PSM_GetIsHmdStable(PSMHmdID hmd_id, bool *out_is_stable)
     PSMResult result= PSMResult_Error;
 	assert(out_is_stable);
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
         PSMHeadMountedDisplay *hmd= g_psm_client->get_hmd_view(hmd_id);
         
@@ -1332,7 +1412,7 @@ PSMResult PSM_GetIsHmdTracking(PSMHmdID hmd_id, bool *out_is_tracking)
     PSMResult result= PSMResult_Error;
 	assert(out_is_tracking);
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
         PSMHeadMountedDisplay *hmd= g_psm_client->get_hmd_view(hmd_id);
         
@@ -1353,7 +1433,7 @@ PSMResult PSM_GetHmdPixelLocationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker
 {
 	assert(outLocation);
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
         PSMHeadMountedDisplay *hmd= g_psm_client->get_hmd_view(hmd_id);
 		PSMRawTrackerData *trackerData= nullptr;
@@ -1386,7 +1466,7 @@ PSMResult PSM_GetHmdPositionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, 
 {
 	assert(outPosition);
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
         PSMHeadMountedDisplay *hmd= g_psm_client->get_hmd_view(hmd_id);
 		PSMRawTrackerData *trackerData= nullptr;
@@ -1419,7 +1499,7 @@ PSMResult PSM_GetHmdOrientationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_i
 {
 	assert(outOrientation);
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
         PSMHeadMountedDisplay *hmd= g_psm_client->get_hmd_view(hmd_id);
 		PSMRawTrackerData *trackerData= nullptr;
@@ -1452,7 +1532,7 @@ PSMResult PSM_GetHmdProjectionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id
 {
 	assert(outProjection);
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
         PSMHeadMountedDisplay *hmd= g_psm_client->get_hmd_view(hmd_id);
 		PSMRawTrackerData *trackerData= nullptr;
@@ -1484,15 +1564,20 @@ PSMResult PSM_GetHmdProjectionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id
 /// Blocking HMD Methods
 PSMResult PSM_GetHmdList(PSMHmdList *out_hmd_list, int timeout_ms)
 {
-	PSMBlockingRequest request(g_psm_client->get_hmd_list());
-    PSMResult result_code= request.send(timeout_ms);
+    PSMResult result_code= PSMResult_Error;
 
-    if (result_code == PSMResult_Success)
+    if (g_psm_client != nullptr)
     {
-        assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_HmdList);
+	    PSMBlockingRequest request(g_psm_client->get_hmd_list());
+        PSMResult result_code= request.send(timeout_ms);
+
+        if (result_code == PSMResult_Success)
+        {
+            assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_HmdList);
         
-        *out_hmd_list= request.get_response_message().payload.hmd_list;
-        result_code= PSMResult_Success;
+            *out_hmd_list= request.get_response_message().payload.hmd_list;
+            result_code= PSMResult_Success;
+        }
     }
     
     return result_code;
@@ -1502,7 +1587,7 @@ PSMResult PSM_StartHmdDataStream(PSMHmdID hmd_id, unsigned int data_stream_flags
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
 		PSMBlockingRequest request(g_psm_client->start_hmd_data_stream(hmd_id, data_stream_flags));
 
@@ -1516,7 +1601,7 @@ PSMResult PSM_StopHmdDataStream(PSMHmdID hmd_id, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
 		PSMBlockingRequest request(g_psm_client->stop_hmd_data_stream(hmd_id));
 
@@ -1531,14 +1616,21 @@ PSMResult PSM_GetHmdListAsync(PSMRequestID *out_request_id)
 {
     PSMResult result= PSMResult_Error;
 
-    PSMRequestID req_id = g_psm_client->get_hmd_list();
-
-    if (out_request_id != nullptr)
+    if (g_psm_client != nullptr)
     {
-        *out_request_id= req_id;
-    }
+        PSMRequestID req_id = g_psm_client->get_hmd_list();
 
-    result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
+        if (out_request_id != nullptr)
+        {
+            *out_request_id= req_id;
+        }
+        else
+        {
+            PSM_EatResponse(req_id);
+        }
+
+        result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
+    }
 
     return result;
 }
@@ -1547,13 +1639,17 @@ PSMResult PSM_StartHmdDataStreamAsync(PSMHmdID hmd_id, unsigned int data_stream_
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
         PSMRequestID req_id = g_psm_client->start_hmd_data_stream(hmd_id, data_stream_flags);
 
         if (out_request_id != nullptr)
         {
             *out_request_id= req_id;
+        }
+        else
+        {
+            PSM_EatResponse(req_id);
         }
 
         result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -1566,13 +1662,17 @@ PSMResult PSM_StopHmdDataStreamAsync(PSMHmdID hmd_id, PSMRequestID *out_request_
 {
     PSMResult result= PSMResult_Error;
 
-    if (IS_VALID_HMD_INDEX(hmd_id))
+    if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
         PSMRequestID req_id = g_psm_client->stop_hmd_data_stream(hmd_id);
 
         if (out_request_id != nullptr)
         {
             *out_request_id= req_id;
+        }
+        else
+        {
+            PSM_EatResponse(req_id);
         }
 
         result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -1584,26 +1684,33 @@ PSMResult PSM_StopHmdDataStreamAsync(PSMHmdID hmd_id, PSMRequestID *out_request_
 PSMResult PSM_PollNextMessage(PSMMessage *message, size_t message_size)
 {
     // Poll events queued up by the call to g_psm_client->update()
-    return g_psm_client->poll_next_message(message, message_size) ? PSMResult_Success : PSMResult_Error;
+    if (g_psm_client != nullptr)
+        return g_psm_client->poll_next_message(message, message_size) ? PSMResult_Success : PSMResult_Error;
+    else
+        return PSMResult_Error;
 }
 
 PSMResult PSM_SendOpaqueRequest(PSMRequestHandle request_handle, PSMRequestID *out_request_id)
 {
-    PSMRequestID request_id= g_psm_client->send_opaque_request(request_handle);
     PSMResult result= PSMResult_Error;
 
-    if (request_id != PSM_INVALID_REQUEST_ID)
+    if (g_psm_client != nullptr)
     {
-        if (out_request_id != nullptr)
-        {
-            *out_request_id= request_id;
-        }
-        else
-        {
-            PSM_EatResponse(request_id);
-        }
+        PSMRequestID request_id= g_psm_client->send_opaque_request(request_handle);
 
-        result= PSMResult_RequestSent;
+        if (request_id != PSM_INVALID_REQUEST_ID)
+        {
+            if (out_request_id != nullptr)
+            {
+                *out_request_id= request_id;
+            }
+            else
+            {
+                PSM_EatResponse(request_id);
+            }
+
+            result= PSMResult_RequestSent;
+        }
     }
 
     return result;
@@ -1611,12 +1718,18 @@ PSMResult PSM_SendOpaqueRequest(PSMRequestHandle request_handle, PSMRequestID *o
 
 PSMResult PSM_RegisterCallback(PSMRequestID request_id, PSMResponseCallback callback, void *callback_userdata)
 {
-    return g_psm_client->register_callback(request_id, callback, callback_userdata) ? PSMResult_Success : PSMResult_Error;
+    if (g_psm_client != nullptr)
+        return g_psm_client->register_callback(request_id, callback, callback_userdata) ? PSMResult_Success : PSMResult_Error;
+    else
+        return PSMResult_Error;
 }
 
 PSMResult PSM_CancelCallback(PSMRequestID request_id)
 {
-    return g_psm_client->cancel_callback(request_id) ? PSMResult_Success : PSMResult_Error;
+    if (g_psm_client != nullptr)
+        return g_psm_client->cancel_callback(request_id) ? PSMResult_Success : PSMResult_Error;
+    else
+        return PSMResult_Error;
 }
 
 static void null_response_callback(
@@ -1626,5 +1739,8 @@ static void null_response_callback(
 
 PSMResult PSM_EatResponse(PSMRequestID request_id)
 {
-	return g_psm_client->register_callback(request_id, null_response_callback, nullptr) ? PSMResult_Success : PSMResult_Error;
+    if (g_psm_client != nullptr)
+	    return g_psm_client->register_callback(request_id, null_response_callback, nullptr) ? PSMResult_Success : PSMResult_Error;
+    else
+        return PSMResult_Error;
 }
