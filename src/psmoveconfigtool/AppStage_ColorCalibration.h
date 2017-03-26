@@ -154,7 +154,6 @@ protected:
 
 	void request_change_controller(int step);
 	void request_change_tracker(int step);
-	void request_refresh_tracker();
 
     inline TrackerColorPreset getColorPreset()
     { return m_colorPresets[m_masterTrackingColorType]; }

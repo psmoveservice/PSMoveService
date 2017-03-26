@@ -38,6 +38,12 @@ public:
     static void enterStageAndCalibrate(class App *app, int reqeusted_controller_id);
     static void enterStageAndSkipCalibration(class App *app, int reqeusted_controller_id);
 
+
+	inline void set_tracker_id(int reqeusted_tracker_id)
+	{
+		m_ShowTrackerVideoId = reqeusted_tracker_id;
+	}
+
     virtual void enter() override;
     virtual void exit() override;
     virtual void update() override;
@@ -139,6 +145,7 @@ protected:
     friend class AppSubStage_StereoCalibrate;
 
     bool m_bSkipCalibration;
+    int m_ShowTrackerVideoId;
 	int m_overrideControllerId;
 };
 

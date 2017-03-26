@@ -30,6 +30,8 @@ public:
     const PSMClientTrackerInfo *getSelectedTrackerInfo() const;
 	void set_selectedTrackerIndex(int index);
 
+	void set_selectedControllerIndex(int index);
+
 	int get_tracker_count() const;
 	int get_tracker_Index() const;
 
@@ -50,6 +52,9 @@ public:
     static const char *APP_STAGE_NAME;
 
 	void gotoColorCalib(bool value = false) { m_gotoColorCalib = (value) ? true : false; }
+	void gotoTestTracking(bool value = false) { m_gotoTestTracking = (value) ? true : false; }
+	void gotoTrackingVideo(bool value = false) { m_gotoTrackingVideo = (value) ? true : false; }
+	void gotoTrackingVideoALL(bool value = false) { m_gotoTrackingVideoALL = (value) ? true : false; }
 
 protected:
     virtual bool onClientAPIEvent(
@@ -101,6 +106,9 @@ protected:
 	int m_selectedHmdIndex;
 
 	bool m_gotoColorCalib;
+	bool m_gotoTestTracking;
+	bool m_gotoTrackingVideo;
+	bool m_gotoTrackingVideoALL;
 };
 
 #endif // APP_STAGE_TRACKER_SETTINGS_H
