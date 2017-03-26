@@ -29,6 +29,8 @@ AppStage_TrackerSettings::AppStage_TrackerSettings(App *app)
 	, m_selectedControllerIndex(-1)
 	, m_selectedHmdIndex(-1)
 	, m_gotoColorCalib(false)
+	, m_gotoTestTracking(false)
+	, m_gotoTrackingVideo(false)
 { }
 
 void AppStage_TrackerSettings::enter()
@@ -98,6 +100,14 @@ void AppStage_TrackerSettings::set_selectedTrackerIndex(int index)
 		(index != -1 && index < m_trackerInfos.size())
 		? index
 		: m_selectedTrackerIndex;
+}
+	
+void AppStage_TrackerSettings::set_selectedControllerIndex(int index)
+{
+	m_selectedControllerIndex =
+		(index > -2 && index < m_controllerInfos.size())
+		? index
+		: m_selectedControllerIndex;
 }
 
 int AppStage_TrackerSettings::get_tracker_count() const
@@ -353,9 +363,23 @@ void AppStage_TrackerSettings::renderUI()
 					}
 
 
-					if (ImGui::Button("Test Tracking"))
+					if (ImGui::Button("Test Tracking") || m_gotoTestTracking)
 					{
+						if (m_gotoTestTracking) m_gotoTestTracking = false;
 						AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app, controllerID);
+					}
+					ImGui::SameLine();
+					if (ImGui::Button("Video Feed") || m_gotoTrackingVideo)
+					{
+						if (m_gotoTrackingVideo) m_gotoTrackingVideo = false;
+						m_app->getAppStage<AppStage_ComputeTrackerPoses>()->set_tracker_id(m_selectedTrackerIndex);
+						AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app, controllerID);
+					}
+					if (m_gotoTrackingVideoALL)
+					{
+						m_gotoTrackingVideoALL = false;
+						m_app->getAppStage<AppStage_ComputeTrackerPoses>()->set_tracker_id(m_selectedTrackerIndex);
+						AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app, -1);
 					}
 				}
 			}

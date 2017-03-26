@@ -44,6 +44,7 @@ AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
     , m_pCalibrateWithMat(new AppSubStage_CalibrateWithMat(this))
 	, m_pStereoCalibrate(new AppSubStage_StereoCalibrate(this))
     , m_bSkipCalibration(false)
+    , m_ShowTrackerVideoId(-1)
 	, m_overrideControllerId(-1)
 { 
     m_renderTrackerIter = m_trackerViews.end();
@@ -449,8 +450,9 @@ void AppStage_ComputeTrackerPoses::renderUI()
 				ImGui::PushID(trackerView->tracker_info.tracker_id);
 				if (m_app->getIsLocalServer())
 				{
-					if (ImGui::Button("Tracker Video"))
+					if (ImGui::Button("Tracker Video") || trackerView->tracker_info.tracker_id == m_ShowTrackerVideoId)
 					{
+						m_ShowTrackerVideoId = -1;
 						m_renderTrackerIter = iter;
 						setState(eMenuState::showTrackerVideo);
 					}
@@ -508,6 +510,17 @@ void AppStage_ComputeTrackerPoses::renderUI()
 			} 
 			else {
 				ImGui::Text("Tracker ID: 0");
+			}
+			
+			if (ImGui::Button("Color Calibration"))
+			{
+				m_app->getAppStage<AppStage_TrackerSettings>()->gotoColorCalib(true);
+				request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Exit"))
+			{
+				request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
 			}
 
 			if (ImGui::Button("Return"))
@@ -1136,7 +1149,9 @@ void AppStage_ComputeTrackerPoses::handle_all_devices_ready()
     }
     else
     {
-        setState(eMenuState::testTracking);
+		//if(!m_bShowTrackerVideo) 
+			setState(eMenuState::testTracking);
+		//else setState(eMenuState::showTrackerVideo);
     }
 }
 
