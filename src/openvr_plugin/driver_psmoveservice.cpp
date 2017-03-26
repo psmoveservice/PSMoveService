@@ -140,15 +140,15 @@ static const char *k_VRTouchpadDirectionNames[k_max_vr_touchpad_directions] = {
 //==================================================================================================
 
 CServerDriver_PSMoveService g_ServerTrackedDeviceProvider;
-CClientDriver_PSMoveService g_ClientTrackedDeviceProvider;
+CWatchdogDriver_PSMoveService g_WatchdogDriverPSMoveService;
 
 //==================================================================================================
 // Logging helpers
 //==================================================================================================
 
-static vr::IDriverLog * s_pLogFile = NULL;
+static vr::IVRDriverLog * s_pLogFile = NULL;
 
-static bool InitDriverLog( vr::IDriverLog *pDriverLog )
+static bool InitDriverLog( vr::IVRDriverLog *pDriverLog )
 {
     if ( s_pLogFile )
         return false;
@@ -174,7 +174,7 @@ static void DriverLogVarArgs( const char *pMsgFormat, va_list args )
         s_pLogFile->Log( buf );
 }
 
-/** Provides printf-style debug logging via the vr::IDriverLog interface provided by SteamVR
+/** Provides printf-style debug logging via the vr::IVRDriverLog interface provided by SteamVR
 * during initialization.  Client logging ends up in vrclient_appname.txt and server logging
 * ends up in vrserver.txt.
 */
@@ -285,6 +285,159 @@ static PSMPosef openvrMatrixExtractPSMPosef(const vr::HmdMatrix34_t &openVRTrans
 }
 
 //==================================================================================================
+// Watchdog Driver
+//==================================================================================================
+
+CWatchdogDriver_PSMoveService::CWatchdogDriver_PSMoveService()
+	: m_pLogger(nullptr)
+    , m_loggerMutex()
+	, m_bWasConnected(false)
+	, m_bExitSignaled({ false })
+	, m_pWatchdogThread(nullptr)
+{
+	m_strPSMoveServiceAddress= PSMOVESERVICE_DEFAULT_ADDRESS;
+	m_strServerPort= PSMOVESERVICE_DEFAULT_PORT;
+}
+
+vr::EVRInitError CWatchdogDriver_PSMoveService::Init( vr::IVRDriverContext *pDriverContext )
+{
+	VR_INIT_WATCHDOG_DRIVER_CONTEXT( pDriverContext );
+
+	m_pLogger= vr::VRDriverLog();
+
+	WatchdogLog("CWatchdogDriver_PSMoveService::Init - Called");
+
+	vr::IVRSettings *pSettings = vr::VRSettings();
+	if (pSettings != nullptr) 
+	{
+		char buf[256];
+		vr::EVRSettingsError fetchError;
+
+		pSettings->GetString("psmoveservice", "server_address", buf, sizeof(buf), &fetchError);
+		if (fetchError == vr::VRSettingsError_None)
+		{
+			m_strPSMoveServiceAddress= buf;
+			WatchdogLog("CWatchdogDriver_PSMoveService::Init - Overridden Server Address: %s.\n", m_strPSMoveServiceAddress.c_str());
+		}
+		else
+		{
+			WatchdogLog("CWatchdogDriver_PSMoveService::Init - Using Default Server Address: %s.\n", m_strPSMoveServiceAddress.c_str());
+		}
+
+		pSettings->GetString("psmoveservice", "server_port", buf, sizeof(buf), &fetchError);
+		if (fetchError == vr::VRSettingsError_None)
+		{
+			m_strServerPort= buf;
+			WatchdogLog("CWatchdogDriver_PSMoveService::Init - Overridden Server Port: %s.\n", m_strServerPort.c_str());
+		}
+		else
+		{
+			WatchdogLog("CWatchdogDriver_PSMoveService::Init - Using Default Server Port: %s.\n", m_strServerPort.c_str());
+		}
+	}
+	else
+	{
+		WatchdogLog("CWatchdogDriver_PSMoveService::Init - Settings missing!");
+	}
+
+	// Watchdog mode on Windows starts a thread that listens for the 'Y' key on the keyboard to 
+	// be pressed. A real driver should wait for a system button event or something else from the 
+	// the hardware that signals that the VR system should start up.
+	m_bExitSignaled = false;
+	m_pWatchdogThread = new std::thread( &CWatchdogDriver_PSMoveService::WorkerThreadFunction, this);
+	if ( !m_pWatchdogThread )
+	{
+		WatchdogLog("Unable to create watchdog thread\n");
+		return vr::VRInitError_Driver_Failed;
+	}
+
+	return vr::VRInitError_None;
+}
+
+void CWatchdogDriver_PSMoveService::Cleanup()
+{
+	WatchdogLog("CWatchdogDriver_PSMoveService::Cleanup - Called");
+
+	m_bExitSignaled = true;
+	if ( m_pWatchdogThread )
+	{
+		WatchdogLog("CWatchdogDriver_PSMoveService::Cleanup - Stopping worker thread...");
+		m_pWatchdogThread->join();
+		delete m_pWatchdogThread;
+		m_pWatchdogThread = nullptr;
+		WatchdogLog("CWatchdogDriver_PSMoveService::Cleanup - Worker thread stopped.");
+	}
+	else
+	{
+		WatchdogLog("CWatchdogDriver_PSMoveService::Cleanup - No worker thread active.");
+	}
+
+	WatchdogLog("CWatchdogDriver_PSMoveService::Cleanup - Watchdog clean up complete.");
+	m_pLogger= nullptr;
+
+	VR_CLEANUP_WATCHDOG_DRIVER_CONTEXT()
+}
+
+void CWatchdogDriver_PSMoveService::WorkerThreadFunction()
+{
+	WatchdogLog("CWatchdogDriver_PSMoveService::WatchdogThreadFunction - Entered\n");
+
+	while ( !m_bExitSignaled )
+	{
+		if (!PSM_GetIsInitialized())
+		{
+			if (PSM_Initialize(m_strPSMoveServiceAddress.c_str(), m_strServerPort.c_str(), PSM_DEFAULT_TIMEOUT) != PSMResult_Success)
+			{
+				// Try re-connecting in 1 second
+				std::this_thread::sleep_for( std::chrono::seconds( 1 ) );
+				continue;
+			}
+		}
+
+		PSM_Update();
+
+		if (PSM_WasSystemButtonPressed())
+		{
+			WatchdogLog("CWatchdogDriver_PSMoveService::WatchdogThreadFunction - System button pressed. Initiating wake up.\n");
+			vr::VRWatchdogHost()->WatchdogWakeUp();
+		}
+
+		std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
+	}
+
+	PSM_Shutdown();
+
+	vr::VRDriverLog()->Log("CWatchdogDriver_PSMoveService::WatchdogThreadFunction - Exited\n");
+}
+
+void CWatchdogDriver_PSMoveService::WatchdogLogVarArgs( const char *pMsgFormat, va_list args )
+{
+    char buf[1024];
+	#if defined( WIN32 )
+    vsprintf_s( buf, pMsgFormat, args );
+	#else
+    vsnprintf( buf, sizeof( buf ), pMsgFormat, args );
+	#endif
+
+	if (m_pLogger)
+	{
+        std::lock_guard<std::mutex> guard(m_loggerMutex);
+
+        m_pLogger->Log( buf );
+	}
+}
+
+void CWatchdogDriver_PSMoveService::WatchdogLog( const char *pMsgFormat, ... )
+{
+    va_list args;
+    va_start( args, pMsgFormat );
+
+    DriverLogVarArgs( pMsgFormat, args );
+
+    va_end( args );
+}
+
+//==================================================================================================
 // Server Provider
 //==================================================================================================
 
@@ -304,23 +457,19 @@ CServerDriver_PSMoveService::~CServerDriver_PSMoveService()
 }
 
 vr::EVRInitError CServerDriver_PSMoveService::Init(
-    vr::IDriverLog * pDriverLog, 
-    vr::IServerDriverHost * pDriverHost, 
-    const char * pchUserDriverConfigDir, 
-    const char * pchDriverInstallDir )
+    vr::IVRDriverContext *pDriverContext )
 {
+	VR_INIT_SERVER_DRIVER_CONTEXT( pDriverContext );
+
     vr::EVRInitError initError = vr::VRInitError_None;
 
-	InitDriverLog(pDriverLog);
-	m_pDriverHost = pDriverHost;
-	m_strDriverInstallDir = pchDriverInstallDir;
-
+	InitDriverLog(vr::VRDriverLog());
 	DriverLog("CServerDriver_PSMoveService::Init - called.\n");
 
 	if (!m_bInitialized)
 	{
-		vr::IVRSettings *pSettings = pDriverHost->GetSettings(vr::IVRSettings_Version);
-		if (pSettings != NULL) 
+		vr::IVRSettings *pSettings = vr::VRSettings();
+		if (pSettings != nullptr) 
 		{
 			char buf[256];
 			vr::EVRSettingsError fetchError;
@@ -429,22 +578,6 @@ const char * const *CServerDriver_PSMoveService::GetInterfaceVersions()
     return vr::k_InterfaceVersions;
 }
 
-uint32_t CServerDriver_PSMoveService::GetTrackedDeviceCount()
-{
-    return static_cast<uint32_t>(m_vecTrackedDevices.size());
-}
-
-vr::ITrackedDeviceServerDriver * CServerDriver_PSMoveService::GetTrackedDeviceDriver( 
-    uint32_t unWhich)
-{
-    if (unWhich < m_vecTrackedDevices.size())
-    {
-        return m_vecTrackedDevices[unWhich];
-    }
-
-    return nullptr;
-}
-
 vr::ITrackedDeviceServerDriver * CServerDriver_PSMoveService::FindTrackedDeviceDriver(
     const char * pchId)
 {
@@ -545,6 +678,9 @@ void CServerDriver_PSMoveService::HandleClientPSMoveEvent(
         HandleTrackerListChanged();
         break;
     case PSMEventMessage::PSMEvent_hmdListUpdated:
+        // don't care
+        break;
+	case PSMEventMessage::PSMEvent_systemButtonPressed:
         // don't care
         break;
     //###HipsterSloth $TODO - Need a notification for when a tracker pose changes
@@ -679,23 +815,23 @@ void CServerDriver_PSMoveService::HandleControllerListReponse(
 	bool bAnyNaviControllers= false;
     for (int list_index = 0; list_index < controller_list->count; ++list_index)
     {
-        int controller_id = controller_list->controller_id[list_index];
-        PSMControllerType controller_type = controller_list->controller_type[list_index];
-		std::string ControllerSerial(controller_list->controller_serial[list_index]);
+        PSMControllerID psmControllerId = controller_list->controller_id[list_index];
+        PSMControllerType psmControllerType = controller_list->controller_type[list_index];
+		std::string psmControllerSerial(controller_list->controller_serial[list_index]);
 
-        switch (controller_type)
+        switch (psmControllerType)
         {
         case PSMControllerType::PSMController_Move:
-			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSMove(%d)\n", controller_id);
-            AllocateUniquePSMoveController(controller_id, ControllerSerial);
+			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSMove(%d)\n", psmControllerId);
+            AllocateUniquePSMoveController(psmControllerId, psmControllerSerial);
             break;
         case PSMControllerType::PSMController_Navi:
 			// Take care of this is the second pass once all of the PSMove controllers have been setup
 			bAnyNaviControllers= true;
             break;
         case PSMControllerType::PSMController_DualShock4:
-			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSDualShock4(%d)\n", controller_id);
-            AllocateUniqueDualShock4Controller(controller_id, ControllerSerial);
+			DriverLog("CServerDriver_PSMoveService::HandleControllerListReponse - Allocate PSDualShock4(%d)\n", psmControllerId);
+            AllocateUniqueDualShock4Controller(psmControllerId, psmControllerSerial);
             break;
         default:
             break;
@@ -757,61 +893,67 @@ static void GenerateControllerSteamVRIdentifier( char *p, int psize, int control
     snprintf(p, psize, "psmove_controller%d", controller);
 }
 
-
-void CServerDriver_PSMoveService::AllocateUniquePSMoveController(int ControllerID, const std::string &ControllerSerial)
+void CServerDriver_PSMoveService::AllocateUniquePSMoveController(PSMControllerID psmControllerID, const std::string &psmControllerSerial)
 {
-    char buf[256];
-    GenerateControllerSteamVRIdentifier(buf, sizeof(buf), ControllerID);
+    char svrIdentifier[256];
+    GenerateControllerSteamVRIdentifier(svrIdentifier, sizeof(svrIdentifier), psmControllerID);
 
-    if ( !FindTrackedDeviceDriver(buf) )
+    if ( !FindTrackedDeviceDriver(svrIdentifier) )
     {	
-		std::string serialNo = ControllerSerial;
-		std::transform(serialNo.begin(), serialNo.end(), serialNo.begin(), ::toupper);
+		std::string psmSerialNo = psmControllerSerial;
+		std::transform(psmSerialNo.begin(), psmSerialNo.end(), psmSerialNo.begin(), ::toupper);
 
-		if (0 != m_strPSMoveHMDSerialNo.compare(serialNo)) 
+		if (0 != m_strPSMoveHMDSerialNo.compare(psmSerialNo)) 
 		{
-			DriverLog( "added new psmove controller id: %s, serial: %s\n", buf, serialNo.c_str());
-			m_vecTrackedDevices.push_back( new CPSMoveControllerLatest( m_pDriverHost, ControllerID, PSMControllerType::PSMController_Move, serialNo.c_str()) );
+			DriverLog( "added new psmove controller id: %d, serial: %s\n", psmControllerID, psmSerialNo.c_str());
 
-			if (m_pDriverHost)
+            CPSMoveControllerLatest *TrackedDevice= 
+                new CPSMoveControllerLatest( psmControllerID, PSMControllerType::PSMController_Move, psmSerialNo.c_str());
+			m_vecTrackedDevices.push_back(TrackedDevice);
+
+			if (vr::VRServerDriverHost())
 			{
-				m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSteamVRIdentifier());
+				vr::VRServerDriverHost()->TrackedDeviceAdded(TrackedDevice->GetSteamVRIdentifier(), vr::TrackedDeviceClass_Controller, TrackedDevice);
 			}
 		}
 		else
 		{
-			DriverLog("skipped new psmove controller as configured for HMD tracking, serial: %s\n", serialNo.c_str());
+			DriverLog("skipped new psmove controller as configured for HMD tracking, serial: %s\n", psmSerialNo.c_str());
 		}
     }
 }
 
 
-void CServerDriver_PSMoveService::AllocateUniqueDualShock4Controller(int ControllerID, const std::string &ControllerSerial)
+void CServerDriver_PSMoveService::AllocateUniqueDualShock4Controller(PSMControllerID psmControllerID, const std::string &psmControllerSerial)
 {
-    char buf[256];
-    GenerateControllerSteamVRIdentifier(buf, sizeof(buf), ControllerID);
+    char svrIdentifier[256];
+    GenerateControllerSteamVRIdentifier(svrIdentifier, sizeof(svrIdentifier), psmControllerID);
 
-    if (!FindTrackedDeviceDriver(buf))
+    if (!FindTrackedDeviceDriver(svrIdentifier))
     {
-		std::string serialNo = ControllerSerial;
-		std::transform(serialNo.begin(), serialNo.end(), serialNo.begin(), ::toupper);
+		std::string psmSerialNo = psmControllerSerial;
+		std::transform(psmSerialNo.begin(), psmSerialNo.end(), psmSerialNo.begin(), ::toupper);
 
-		DriverLog("added new ps dualshock4 controller %s\n", buf);
-		m_vecTrackedDevices.push_back(new CPSMoveControllerLatest(m_pDriverHost, ControllerID, PSMControllerType::PSMController_DualShock4, serialNo.c_str()));
+		DriverLog( "added new dualshock4 controller id: %d, serial: %s\n", psmControllerID, psmSerialNo.c_str());
 
-		if (m_pDriverHost)
+        CPSMoveControllerLatest *TrackedDevice= 
+            new CPSMoveControllerLatest(psmControllerID, PSMControllerType::PSMController_DualShock4, psmSerialNo.c_str());
+		m_vecTrackedDevices.push_back(TrackedDevice);
+
+		if (vr::VRServerDriverHost())
 		{
-			m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSteamVRIdentifier());
+			vr::VRServerDriverHost()->TrackedDeviceAdded(TrackedDevice->GetSteamVRIdentifier(), vr::TrackedDeviceClass_Controller, TrackedDevice);
 		}
     }
 }
 
-void CServerDriver_PSMoveService::AttachPSNaviToParentController(int NaviControllerID, const std::string &ControllerSerial, const std::string &ParentControllerSerial)
+void CServerDriver_PSMoveService::AttachPSNaviToParentController(PSMControllerID NaviControllerID, const std::string &NaviControllerSerial, const std::string &ParentControllerSerial)
 {
 	bool bFoundParent= false;
 
-	std::string naviSerialNo = ControllerSerial;
+	std::string naviSerialNo = NaviControllerSerial;
 	std::string parentSerialNo = ParentControllerSerial;
+    std::transform(naviSerialNo.begin(), naviSerialNo.end(), naviSerialNo.begin(), ::toupper);
 	std::transform(parentSerialNo.begin(), parentSerialNo.end(), parentSerialNo.begin(), ::toupper);
 
 	for (CPSMoveTrackedDeviceLatest *trackedDevice : m_vecTrackedDevices)
@@ -859,17 +1001,18 @@ static void GenerateTrackerSerialNumber(char *p, int psize, int tracker)
 
 void CServerDriver_PSMoveService::AllocateUniquePSMoveTracker(const PSMClientTrackerInfo *trackerInfo)
 {
-    char buf[256];
-    GenerateTrackerSerialNumber(buf, sizeof(buf), trackerInfo->tracker_id);
+    char svrIdentifier[256];
+    GenerateTrackerSerialNumber(svrIdentifier, sizeof(svrIdentifier), trackerInfo->tracker_id);
 
-    if (!FindTrackedDeviceDriver(buf))
+    if (!FindTrackedDeviceDriver(svrIdentifier))
     {
-        DriverLog("added new device %s\n", buf);
-        m_vecTrackedDevices.push_back(new CPSMoveTrackerLatest(m_pDriverHost, trackerInfo));
+        DriverLog("added new tracker device %s\n", svrIdentifier);
+        CPSMoveTrackerLatest *TrackerDevice= new CPSMoveTrackerLatest(trackerInfo);
+        m_vecTrackedDevices.push_back(TrackerDevice);
 
-        if (m_pDriverHost)
+        if (vr::VRServerDriverHost())
         {
-            m_pDriverHost->TrackedDeviceAdded(m_vecTrackedDevices.back()->GetSteamVRIdentifier());
+            vr::VRServerDriverHost()->TrackedDeviceAdded(TrackerDevice->GetSteamVRIdentifier(), vr::TrackedDeviceClass_TrackingReference, TrackerDevice);
         }
     }
 }
@@ -877,7 +1020,7 @@ void CServerDriver_PSMoveService::AllocateUniquePSMoveTracker(const PSMClientTra
 
 // The monitor_psmove is a companion program which can display overlay prompts for us
 // and tell us the pose of the HMD at the moment we want to calibrate.
-void CServerDriver_PSMoveService::LaunchPSMoveMonitor( const char * pchDriverInstallDir )
+void CServerDriver_PSMoveService::LaunchPSMoveMonitor_Internal( const char * pchDriverInstallDir )
 {
     if ( m_bLaunchedPSMoveMonitor )
 	{
@@ -954,87 +1097,38 @@ void CServerDriver_PSMoveService::LaunchPSMoveMonitor( const char * pchDriverIns
 }
 
 /** Launch monitor_psmove if needed (requested by devices as they activate) */
-void CServerDriver_PSMoveService::LaunchPSMoveMonitor()
+void CServerDriver_PSMoveService::LaunchPSMoveMonitor(vr::PropertyContainerHandle_t requestingDevicePropertyHandle)
 {
 	#if LOG_REALIGN_TO_HMD != 0
-		DriverLog("Entered CServerDriver_PSMoveService::LaunchPSMoveMonitor()\n");
+	DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() - Called\n");
 	#endif
 
-    LaunchPSMoveMonitor( m_strDriverInstallDir.c_str() );
-}
+	if (requestingDevicePropertyHandle != vr::k_ulInvalidPropertyContainer)
+	{	
+		vr::ETrackedPropertyError errorCode;
+		std::string driverInstallDir= vr::VRProperties()->GetStringProperty(requestingDevicePropertyHandle, vr::Prop_InstallPath_String, &errorCode);
 
-//==================================================================================================
-// Client Provider
-//==================================================================================================
-
-CClientDriver_PSMoveService::CClientDriver_PSMoveService()
-{
-}
-
-CClientDriver_PSMoveService::~CClientDriver_PSMoveService()
-{
-}
-
-vr::EVRInitError CClientDriver_PSMoveService::Init( 
-    vr::EClientDriverMode driverMode,
-    vr::IDriverLog * pDriverLog, 
-    vr::IClientDriverHost * pDriverHost, 
-    const char * pchUserDriverConfigDir, 
-    const char * pchDriverInstallDir )
-{
-    vr::EVRInitError result= vr::VRInitError_Driver_Failed;
-
-    switch(driverMode)
-    {
-    case vr::ClientDriverMode_Normal:
-        InitDriverLog( pDriverLog );
-        m_pDriverHost = pDriverHost;
-        result= vr::VRInitError_None;
-        break;
-    case vr::ClientDriverMode_Watchdog: // client should return VRInitError_Init_LowPowerWatchdogNotSupported if it can't support this mode
-        result= vr::VRInitError_Init_LowPowerWatchdogNotSupported;
-        break;
-    }
-
-    return result;
-}
-
-void CClientDriver_PSMoveService::Cleanup()
-{
-}
-
-bool CClientDriver_PSMoveService::BIsHmdPresent( const char * pchUserConfigDir )
-{
-    return false;
-}
-
-vr::EVRInitError CClientDriver_PSMoveService::SetDisplayId( const char * pchDisplayId )
-{
-    return vr::VRInitError_None;
-    //return vr::VRInitError_Driver_HmdUnknown;
-}
-
-vr::HiddenAreaMesh_t CClientDriver_PSMoveService::GetHiddenAreaMesh( vr::EVREye eEye, vr::EHiddenAreaMeshType type )
-{
-    vr::HiddenAreaMesh_t hiddenAreaMesh= vr::HiddenAreaMesh_t();
-
-    return hiddenAreaMesh;
-}
-
-uint32_t CClientDriver_PSMoveService::GetMCImage( uint32_t * pImgWidth, uint32_t * pImgHeight, uint32_t * pChannels, void * pDataBuffer, uint32_t unBufferLen )
-{
-    uint32_t image= uint32_t();
-
-    return image;
+		if (errorCode == vr::TrackedProp_Success)
+		{
+			LaunchPSMoveMonitor_Internal( driverInstallDir.c_str() );
+		}
+		else
+		{
+			DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() - Failed to get driver install path property (Error: %d)\n", errorCode);
+		}
+	}
+	else
+	{
+		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() - Requesting device has invalid property container handle\n");
+	}
 }
 
 //==================================================================================================
 // Tracked Device Driver
 //==================================================================================================
 
-CPSMoveTrackedDeviceLatest::CPSMoveTrackedDeviceLatest(vr::IServerDriverHost * pDriverHost)
-    : m_pDriverHost(pDriverHost)
-    , m_properties_dirty(false)
+CPSMoveTrackedDeviceLatest::CPSMoveTrackedDeviceLatest()
+    : m_ulPropertyContainer(vr::k_ulInvalidPropertyContainer)
     , m_unSteamVRTrackedDeviceId(vr::k_unTrackedDeviceIndexInvalid)
 {
     memset(&m_Pose, 0, sizeof(m_Pose));
@@ -1061,14 +1155,25 @@ CPSMoveTrackedDeviceLatest::CPSMoveTrackedDeviceLatest(vr::IServerDriverHost * p
 
 CPSMoveTrackedDeviceLatest::~CPSMoveTrackedDeviceLatest()
 {
-
 }
 
 // Shared Implementation of vr::ITrackedDeviceServerDriver
-vr::EVRInitError CPSMoveTrackedDeviceLatest::Activate(uint32_t unObjectId)
+vr::EVRInitError CPSMoveTrackedDeviceLatest::Activate(vr::TrackedDeviceIndex_t unObjectId)
 {
+	vr::CVRPropertyHelpers *properties= vr::VRProperties();
+
     DriverLog("CPSMoveTrackedDeviceLatest::Activate: %s is object id %d\n", GetSteamVRIdentifier(), unObjectId);
+	m_ulPropertyContainer = properties->TrackedDeviceToPropertyContainer( unObjectId );
     m_unSteamVRTrackedDeviceId = unObjectId;
+
+	properties->SetBoolProperty(m_ulPropertyContainer, vr::Prop_Firmware_UpdateAvailable_Bool, false);
+	properties->SetBoolProperty(m_ulPropertyContainer, vr::Prop_Firmware_ManualUpdate_Bool, false);
+	properties->SetBoolProperty(m_ulPropertyContainer, vr::Prop_ContainsProximitySensor_Bool, false);
+	properties->SetBoolProperty(m_ulPropertyContainer, vr::Prop_HasCamera_Bool, false);
+	properties->SetBoolProperty(m_ulPropertyContainer, vr::Prop_Firmware_ForceUpdateRequired_Bool, false);
+	properties->SetBoolProperty(m_ulPropertyContainer, vr::Prop_DeviceCanPowerOff_Bool, false);
+	properties->SetUint64Property(m_ulPropertyContainer, vr::Prop_HardwareRevision_Uint64, m_hardware_revision);
+	properties->SetUint64Property(m_ulPropertyContainer, vr::Prop_FirmwareVersion_Uint64, m_firmware_revision);
 
     return vr::VRInitError_None;
 }
@@ -1191,7 +1296,7 @@ void CPSMoveTrackedDeviceLatest::RequestLatestHMDPose(
 			m_hmdResultUserData = userdata;
 
 			// Ask monitor_psmove to tell us the latest HMD pose
-			m_pDriverHost->VendorSpecificEvent(
+			vr::VRServerDriverHost()->VendorSpecificEvent(
 				m_unSteamVRTrackedDeviceId,
 				(vr::EVREventType) (vr::VREvent_VendorSpecific_Reserved_Start + 0),
 				nodata,
@@ -1207,133 +1312,6 @@ vr::DriverPose_t CPSMoveTrackedDeviceLatest::GetPose()
     return m_Pose;
 }
 
-bool CPSMoveTrackedDeviceLatest::GetBoolTrackedDeviceProperty(
-    vr::ETrackedDeviceProperty prop, 
-    vr::ETrackedPropertyError * pError)
-{
-    bool bBoolResult = false;
-
-    switch (prop)
-    {
-    // Not sure about this property yet
-    //case vr::Prop_CanUnifyCoordinateSystemWithHmd_Bool:
-    //    bBoolResult = true;
-    //    *pError = vr::TrackedProp_Success;
-    //    break;
-    case vr::Prop_Firmware_UpdateAvailable_Bool:
-    case vr::Prop_Firmware_ManualUpdate_Bool:
-    case vr::Prop_ContainsProximitySensor_Bool:
-    case vr::Prop_HasCamera_Bool:
-    case vr::Prop_Firmware_ForceUpdateRequired_Bool:
-    case vr::Prop_DeviceCanPowerOff_Bool:
-        bBoolResult = false;
-        *pError = vr::TrackedProp_Success;
-        break;
-    default:
-        *pError = vr::TrackedProp_ValueNotProvidedByDevice;
-    }
-
-    return bBoolResult;
-}
-
-float CPSMoveTrackedDeviceLatest::GetFloatTrackedDeviceProperty(
-    vr::ETrackedDeviceProperty prop, 
-    vr::ETrackedPropertyError * pError)
-{
-    *pError = vr::TrackedProp_ValueNotProvidedByDevice;
-    return 0.0f;
-}
-
-int32_t CPSMoveTrackedDeviceLatest::GetInt32TrackedDeviceProperty(
-    vr::ETrackedDeviceProperty prop,
-    vr::ETrackedPropertyError * pError)
-{
-    *pError = vr::TrackedProp_ValueNotProvidedByDevice;
-    return 0;
-}
-
-uint64_t CPSMoveTrackedDeviceLatest::GetUint64TrackedDeviceProperty(
-    vr::ETrackedDeviceProperty prop,
-    vr::ETrackedPropertyError * pError)
-{
-    uint64_t ulRetVal = 0;
-
-    switch (prop)
-    {
-    case vr::Prop_HardwareRevision_Uint64:
-        ulRetVal = m_hardware_revision;
-        *pError = vr::TrackedProp_Success;
-        break;
-
-    case vr::Prop_FirmwareVersion_Uint64:
-        ulRetVal = m_firmware_revision;
-        *pError = vr::TrackedProp_Success;
-        break;
-    default:
-        *pError = vr::TrackedProp_ValueNotProvidedByDevice;
-    }
-
-    return ulRetVal;
-}
-
-vr::HmdMatrix34_t CPSMoveTrackedDeviceLatest::GetMatrix34TrackedDeviceProperty(
-    vr::ETrackedDeviceProperty prop,
-    vr::ETrackedPropertyError *pError)
-{
-    *pError = vr::TrackedProp_ValueNotProvidedByDevice;
-    return vr::HmdMatrix34_t();
-}
-
-uint32_t CPSMoveTrackedDeviceLatest::GetStringTrackedDeviceProperty(
-    vr::ETrackedDeviceProperty prop, 
-    char * pchValue,
-    uint32_t unBufferSize,
-    vr::ETrackedPropertyError * pError)
-{
-    std::ostringstream ssRetVal;
-
-    switch (prop)
-    {
-    case vr::Prop_SerialNumber_String:
-        ssRetVal << m_strSteamVRSerialNo;
-        break;
-
-    case vr::Prop_ManufacturerName_String:
-        ssRetVal << "Sony";
-        break;
-
-    case vr::Prop_ModelNumber_String:
-        ssRetVal << "PSMove";
-        break;
-
-    case vr::Prop_TrackingFirmwareVersion_String:
-        ssRetVal << "cd.firmware_revision=" << m_firmware_revision;
-        break;
-
-    case vr::Prop_HardwareRevision_String:
-        ssRetVal << "cd.hardware_revision=" << m_hardware_revision;
-        break;
-    }
-
-    std::string sRetVal = ssRetVal.str();
-    if (sRetVal.empty())
-    {
-        *pError = vr::TrackedProp_ValueNotProvidedByDevice;
-        return 0;
-    }
-    else if (sRetVal.size() + 1 > unBufferSize)
-    {
-        *pError = vr::TrackedProp_BufferTooSmall;
-        return static_cast<uint32_t>(sRetVal.size() + 1);  // caller needs to know how to size buffer
-    }
-    else
-    {
-        snprintf(pchValue, unBufferSize, sRetVal.c_str());
-        *pError = vr::TrackedProp_Success;
-        return static_cast<uint32_t>(sRetVal.size() + 1);
-    }
-}
-
 // CPSMoveTrackedDeviceLatest Interface
 vr::ETrackedDeviceClass CPSMoveTrackedDeviceLatest::GetTrackedDeviceClass() const
 {
@@ -1347,11 +1325,6 @@ bool CPSMoveTrackedDeviceLatest::IsActivated() const
 
 void CPSMoveTrackedDeviceLatest::Update()
 {
-    if (IsActivated() && m_properties_dirty)
-    {
-        m_pDriverHost->TrackedDevicePropertiesChanged(m_unSteamVRTrackedDeviceId);
-        m_properties_dirty= false;
-    }
 }
 
 void CPSMoveTrackedDeviceLatest::RefreshWorldFromDriverPose()
@@ -1365,7 +1338,6 @@ void CPSMoveTrackedDeviceLatest::RefreshWorldFromDriverPose()
 	#if LOG_REALIGN_TO_HMD != 0
 		DriverLog("worldFromDriverPose: %s \n", PSMPosefToString(worldFromDriverPose).c_str());
 	#endif
-	
 
     // Transform used to convert from PSMove Tracking space to OpenVR Tracking Space
     m_Pose.qWorldFromDriverRotation.w = worldFromDriverPose.Orientation.w;
@@ -1387,13 +1359,12 @@ const char *CPSMoveTrackedDeviceLatest::GetSteamVRIdentifier() const
 //==================================================================================================
 
 CPSMoveControllerLatest::CPSMoveControllerLatest( 
-	vr::IServerDriverHost * pDriverHost,
-	int controllerId, 
-	PSMControllerType controllerType,
-	const char *serialNo)
-    : CPSMoveTrackedDeviceLatest(pDriverHost)
-    , m_nPSMControllerId(controllerId)
-	, m_PSMControllerType(controllerType)
+	PSMControllerID psmControllerId, 
+	PSMControllerType psmControllerType,
+	const char *psmSerialNo)
+    : CPSMoveTrackedDeviceLatest()
+    , m_nPSMControllerId(psmControllerId)
+	, m_PSMControllerType(psmControllerType)
     , m_PSMControllerView(nullptr)
     , m_nPSMChildControllerId(-1)
 	, m_PSMChildControllerType(PSMControllerType::PSMController_None)
@@ -1425,25 +1396,25 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 	, m_thumbstickDeadzone(k_defaultThumbstickDeadZoneRadius)
 	, m_bThumbstickTouchAsPress(true)
 {
-    char buf[256];
-    GenerateControllerSteamVRIdentifier(buf, sizeof(buf), controllerId);
-    m_strSteamVRSerialNo = buf;
+    char svrIdentifier[256];
+    GenerateControllerSteamVRIdentifier(svrIdentifier, sizeof(svrIdentifier), psmControllerId);
+    m_strSteamVRSerialNo = svrIdentifier;
 
 	m_lastTouchpadPressTime = std::chrono::high_resolution_clock::now();
 
-	if (serialNo != NULL) {
-		m_strPSMControllerSerialNo = serialNo;
+	if (psmSerialNo != NULL) {
+		m_strPSMControllerSerialNo = psmSerialNo;
 	}
 
     // Tell PSM Client API that we are listening to this controller id
-	PSM_AllocateControllerListener(controllerId);
-    m_PSMControllerView = PSM_GetController(controllerId);
+	PSM_AllocateControllerListener(psmControllerId);
+    m_PSMControllerView = PSM_GetController(psmControllerId);
 
     memset(&m_ControllerState, 0, sizeof(vr::VRControllerState_t));
 	m_trackingStatus = vr::TrackingResult_Uninitialized;
 
     // Load config from steamvr.vrsettings
-    vr::IVRSettings *pSettings= m_pDriverHost->GetSettings(vr::IVRSettings_Version);
+    vr::IVRSettings *pSettings= vr::VRSettings();
 
     // Map every button to the system button initially
     memset(psButtonIDToVRButtonID, vr::k_EButton_SteamVR_Trigger, k_EPSControllerType_Count*k_EPSButtonID_Count*sizeof(vr::EVRButtonId));
@@ -1454,19 +1425,19 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 	if (pSettings != nullptr)
 	{
 		// Load PSMove button/touchpad remapping from the settings for all possible controller buttons
-		if (controllerType == PSMController_Move)
+		if (psmControllerType == PSMController_Move)
 		{
 			// Parent controller button mappings
 	
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_PS, vr::k_EButton_System, k_EVRTouchpadDirection_None, controllerId);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Move, vr::k_EButton_SteamVR_Touchpad, k_EVRTouchpadDirection_None, controllerId);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Trigger, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None, controllerId);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Triangle, (vr::EVRButtonId)8, k_EVRTouchpadDirection_None, controllerId);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Square, (vr::EVRButtonId)9, k_EVRTouchpadDirection_None, controllerId);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Circle, (vr::EVRButtonId)10, k_EVRTouchpadDirection_None, controllerId);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Cross, (vr::EVRButtonId)11, k_EVRTouchpadDirection_None, controllerId);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Select, vr::k_EButton_Grip, k_EVRTouchpadDirection_None, controllerId);
-			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Start, vr::k_EButton_ApplicationMenu, k_EVRTouchpadDirection_None, controllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_PS, vr::k_EButton_System, k_EVRTouchpadDirection_None, psmControllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Move, vr::k_EButton_SteamVR_Touchpad, k_EVRTouchpadDirection_None, psmControllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Trigger, vr::k_EButton_SteamVR_Trigger, k_EVRTouchpadDirection_None, psmControllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Triangle, (vr::EVRButtonId)8, k_EVRTouchpadDirection_None, psmControllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Square, (vr::EVRButtonId)9, k_EVRTouchpadDirection_None, psmControllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Circle, (vr::EVRButtonId)10, k_EVRTouchpadDirection_None, psmControllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Cross, (vr::EVRButtonId)11, k_EVRTouchpadDirection_None, psmControllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Select, vr::k_EButton_Grip, k_EVRTouchpadDirection_None, psmControllerId);
+			LoadButtonMapping(pSettings, k_EPSControllerType_Move, k_EPSButtonID_Start, vr::k_EButton_ApplicationMenu, k_EVRTouchpadDirection_None, psmControllerId);
 	
 			// Attached child controller button mappings
 			LoadButtonMapping(pSettings, k_EPSControllerType_Navi, k_EPSButtonID_PS, vr::k_EButton_System, k_EVRTouchpadDirection_None);
@@ -1537,7 +1508,7 @@ CPSMoveControllerLatest::CPSMoveControllerLatest(
 			DriverLog("m_fControllerMetersInFrontOfHmdAtCalibration(psmove): %f\n", m_fControllerMetersInFrontOfHmdAtCalibration);
 			#endif
 		}
-		else if (controllerType == PSMController_DualShock4)
+		else if (psmControllerType == PSMController_DualShock4)
 		{
 			LoadButtonMapping(pSettings, k_EPSControllerType_DS4, k_EPSButtonID_PS, vr::k_EButton_System, k_EVRTouchpadDirection_None);
 			LoadButtonMapping(pSettings, k_EPSControllerType_DS4, k_EPSButtonID_Left, vr::k_EButton_DPad_Left, k_EVRTouchpadDirection_Left);
@@ -1762,7 +1733,7 @@ float CPSMoveControllerLatest::LoadFloat(
 	return fResult;
 }
 
-vr::EVRInitError CPSMoveControllerLatest::Activate(uint32_t unObjectId)
+vr::EVRInitError CPSMoveControllerLatest::Activate(vr::TrackedDeviceIndex_t unObjectId)
 {
     vr::EVRInitError result = CPSMoveTrackedDeviceLatest::Activate(unObjectId);
 
@@ -1770,7 +1741,7 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(uint32_t unObjectId)
 	{
 		DriverLog("CPSMoveControllerLatest::Activate - Controller %d Activated\n", unObjectId);
 
-		g_ServerTrackedDeviceProvider.LaunchPSMoveMonitor();
+		g_ServerTrackedDeviceProvider.LaunchPSMoveMonitor(m_ulPropertyContainer);
 
 		PSMRequestID requestId;
 		if (PSM_StartControllerDataStreamAsync(
@@ -1779,6 +1750,58 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(uint32_t unObjectId)
 				&requestId) == PSMResult_Success)
 		{
 			PSM_RegisterCallback(requestId, CPSMoveControllerLatest::start_controller_response_callback, this);
+		}
+
+		// Setup controller properties
+		{
+			vr::CVRPropertyHelpers *properties= vr::VRProperties();
+
+			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_TrackingSystemName_String, "psmoveservice");
+			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_IconPathName_String, "../drivers/psmove/resources/icons");
+			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceOff_String, "{psmove}controller_status_off.png");
+			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceSearching_String, "{psmove}controller_status_ready.png");
+			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceSearchingAlert_String, "{psmove}controller_status_ready_alert.png");
+			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceReady_String, "{psmove}controller_status_ready.png");
+			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceReadyAlert_String, "{psmove}controller_status_ready_alert.png");
+			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceNotReady_String, "{psmove}controller_status_error.png");
+			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceStandby_String, "{psmove}controller_status_ready.png");
+			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceAlertLow_String, "{psmove}controller_status_ready_low.png");
+
+			properties->SetBoolProperty(m_ulPropertyContainer, vr::Prop_WillDriftInYaw_Bool, false);
+			properties->SetBoolProperty(m_ulPropertyContainer, vr::Prop_DeviceIsWireless_Bool, true);
+			properties->SetBoolProperty(m_ulPropertyContainer, vr::Prop_DeviceProvidesBatteryStatus_Bool, m_PSMControllerType == PSMController_Move);
+
+			properties->SetInt32Property(m_ulPropertyContainer, vr::Prop_DeviceClass_Int32, vr::TrackedDeviceClass_Controller);
+			// We are reporting a "trackpad" type axis for better compatibility with Vive games
+			properties->SetInt32Property(m_ulPropertyContainer, vr::Prop_Axis0Type_Int32, vr::k_eControllerAxis_TrackPad);
+			properties->SetInt32Property(m_ulPropertyContainer, vr::Prop_Axis1Type_Int32, vr::k_eControllerAxis_Trigger);
+
+			uint64_t ulRetVal= 0;
+			for (int buttonIndex = 0; buttonIndex < static_cast<int>(k_EPSButtonID_Count); ++buttonIndex)
+			{
+				ulRetVal |= vr::ButtonMaskFromId( psButtonIDToVRButtonID[m_PSMControllerType][buttonIndex] );
+
+				if( psButtonIDToVrTouchpadDirection[m_PSMControllerType][buttonIndex] != k_EVRTouchpadDirection_None )
+				{
+					ulRetVal |= vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
+				}
+			}
+			properties->SetUint64Property(m_ulPropertyContainer, vr::Prop_SupportedButtons_Uint64, ulRetVal);
+
+			// The {psmove} syntax lets us refer to rendermodels that are installed
+			// in the driver's own resources/rendermodels directory.  The driver can
+			// still refer to SteamVR models like "generic_hmd".
+			switch(m_PSMControllerType)
+			{
+			case PSMController_Move:
+				properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_RenderModelName_String, "{psmove}psmove_controller");
+				break;
+			case PSMController_DualShock4:
+				properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_RenderModelName_String, "{psmove}dualshock4_controller");
+				break;
+			default:
+				properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_RenderModelName_String, "generic_controller");
+			}
 		}
     }
 
@@ -1793,8 +1816,6 @@ void CPSMoveControllerLatest::start_controller_response_callback(
     if (response->result_code == PSMResult::PSMResult_Success)
     {
 		DriverLog("CPSMoveControllerLatest::start_controller_response_callback - Controller stream started\n");
-
-        controller->m_properties_dirty= true;
     }
 }
 
@@ -1812,214 +1833,6 @@ void *CPSMoveControllerLatest::GetComponent(const char *pchComponentNameAndVersi
     }
 
     return NULL;
-}
-
-bool CPSMoveControllerLatest::GetBoolTrackedDeviceProperty(
-    vr::ETrackedDeviceProperty prop, 
-    vr::ETrackedPropertyError * pError)
-{
-    bool bBoolResult = false;
-
-    switch (prop)
-    {
-    case vr::Prop_WillDriftInYaw_Bool:
-        bBoolResult = false;
-        *pError = vr::TrackedProp_Success;
-        break;
-    case vr::Prop_DeviceIsWireless_Bool:
-        bBoolResult = false;
-        *pError = vr::TrackedProp_Success;
-        break;
-    case vr::Prop_DeviceIsCharging_Bool:
-        bBoolResult = m_bIsBatteryCharging;
-        *pError = vr::TrackedProp_Success;
-        break;
-    case vr::Prop_DeviceProvidesBatteryStatus_Bool:
-        bBoolResult = (m_PSMControllerType == PSMController_Move);
-        *pError = vr::TrackedProp_Success;
-        break;
-    default:
-        *pError = vr::TrackedProp_ValueNotProvidedByDevice;
-    }
-
-    if (*pError == vr::TrackedProp_ValueNotProvidedByDevice)
-    {
-        bBoolResult= CPSMoveTrackedDeviceLatest::GetBoolTrackedDeviceProperty(prop, pError);
-    }
-
-    return bBoolResult;
-}
-
-float CPSMoveControllerLatest::GetFloatTrackedDeviceProperty(
-    vr::ETrackedDeviceProperty prop,
-    vr::ETrackedPropertyError * pError)
-{
-    float floatResult = 0.f;
-
-    switch (prop)
-    {
-    case vr::Prop_DeviceBatteryPercentage_Float: // 0 is empty, 1 is full
-        floatResult = m_fBatteryChargeFraction;
-        *pError = vr::TrackedProp_Success;
-        break;
-    default:
-        *pError = vr::TrackedProp_ValueNotProvidedByDevice;
-    }
-    
-    if (*pError == vr::TrackedProp_ValueNotProvidedByDevice)
-    {
-        floatResult = CPSMoveTrackedDeviceLatest::GetFloatTrackedDeviceProperty(prop, pError);
-    }
-
-    return floatResult;
-}
-
-int32_t CPSMoveControllerLatest::GetInt32TrackedDeviceProperty(
-    vr::ETrackedDeviceProperty prop,
-    vr::ETrackedPropertyError * pError)
-{
-    int32_t nRetVal = 0;
-
-    switch ( prop )
-    {
-    case vr::Prop_DeviceClass_Int32:
-        nRetVal = vr::TrackedDeviceClass_Controller;
-        *pError = vr::TrackedProp_Success;
-        break;
-
-    case vr::Prop_Axis0Type_Int32:
-		// We are reporting a "trackpad" type axis for better compatibility with Vive games
-		nRetVal = vr::k_eControllerAxis_TrackPad;
-		*pError = vr::TrackedProp_Success;
-        break;
-
-	case vr::Prop_Axis1Type_Int32:
-		nRetVal = vr::k_eControllerAxis_Trigger;
-		*pError = vr::TrackedProp_Success;
-		break;
-
-    default:
-        *pError = vr::TrackedProp_ValueNotProvidedByDevice;
-        break;
-    }
-
-    if (*pError == vr::TrackedProp_ValueNotProvidedByDevice)
-    {
-        nRetVal = CPSMoveTrackedDeviceLatest::GetInt32TrackedDeviceProperty(prop, pError);
-    }
-
-    return nRetVal;
-}
-
-uint64_t CPSMoveControllerLatest::GetUint64TrackedDeviceProperty( 
-    vr::ETrackedDeviceProperty prop,
-    vr::ETrackedPropertyError * pError)
-{
-    uint64_t ulRetVal = 0;
-
-    switch ( prop )
-    {
-    case vr::Prop_SupportedButtons_Uint64:
-		{
-			for (int buttonIndex = 0; buttonIndex < static_cast<int>(k_EPSButtonID_Count); ++buttonIndex)
-			{
-				ulRetVal |= vr::ButtonMaskFromId( psButtonIDToVRButtonID[m_PSMControllerType][buttonIndex] );
-
-				if( psButtonIDToVrTouchpadDirection[m_PSMControllerType][buttonIndex] != k_EVRTouchpadDirection_None )
-				{
-					ulRetVal |= vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad);
-				}
-			}
-			*pError = vr::TrackedProp_Success;
-			break;
-		}
-
-    default:
-        *pError = vr::TrackedProp_ValueNotProvidedByDevice;
-    }
-
-    if (*pError == vr::TrackedProp_ValueNotProvidedByDevice)
-    {
-        ulRetVal = CPSMoveTrackedDeviceLatest::GetUint64TrackedDeviceProperty(prop, pError);
-    }
-
-    return ulRetVal;
-}
-
-uint32_t CPSMoveControllerLatest::GetStringTrackedDeviceProperty(
-    vr::ETrackedDeviceProperty prop, 
-    char * pchValue, 
-    uint32_t unBufferSize, 
-    vr::ETrackedPropertyError * pError)
-{
-    std::ostringstream ssRetVal;
-
-    switch ( prop )
-    {
-    case vr::Prop_RenderModelName_String:
-        // The {psmove} syntax lets us refer to rendermodels that are installed
-        // in the driver's own resources/rendermodels directory.  The driver can
-        // still refer to SteamVR models like "generic_hmd".
-        switch(m_PSMControllerType)
-        {
-        case PSMController_Move:
-            ssRetVal << "{psmove}psmove_controller";
-            break;
-        case PSMController_DualShock4:
-            ssRetVal << "{psmove}dualshock4_controller";
-            break;
-        default:
-            ssRetVal << "generic_controller";
-        }
-        break;
-    case vr::Prop_TrackingSystemName_String:
-        ssRetVal << "psmoveservice";
-        break;
-	case vr::Prop_IconPathName_String:
-        ssRetVal << "../drivers/psmove/resources/icons";
-		break;
-	case vr::Prop_NamedIconPathDeviceOff_String:
-        ssRetVal << "{psmove}controller_status_off.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceSearching_String:
-        ssRetVal << "{psmove}controller_status_ready.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceSearchingAlert_String:
-        ssRetVal << "{psmove}controller_status_ready_alert.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceReady_String:
-        ssRetVal << "{psmove}controller_status_ready.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceReadyAlert_String:
-        ssRetVal << "{psmove}controller_status_ready_alert.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceNotReady_String:
-        ssRetVal << "{psmove}controller_status_error.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceStandby_String:
-        ssRetVal << "{psmove}controller_status_ready.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceAlertLow_String:
-        ssRetVal << "{psmove}controller_status_ready_low.png";
-        break;
-    }
-
-    std::string sRetVal = ssRetVal.str();
-    if ( sRetVal.empty() )
-    {        
-        return CPSMoveTrackedDeviceLatest::GetStringTrackedDeviceProperty(prop, pchValue, unBufferSize, pError);
-    }
-    else if ( sRetVal.size() + 1 > unBufferSize )
-    {
-        *pError = vr::TrackedProp_BufferTooSmall;
-        return static_cast<uint32_t>(sRetVal.size() + 1);  // caller needs to know how to size buffer
-    }
-    else
-    {
-        snprintf( pchValue, unBufferSize, sRetVal.c_str() );
-        *pError = vr::TrackedProp_Success;
-        return static_cast<uint32_t>(sRetVal.size() + 1);
-    }
 }
 
 vr::VRControllerState_t CPSMoveControllerLatest::GetControllerState()
@@ -2048,7 +1861,7 @@ void CPSMoveControllerLatest::SendButtonUpdates( ButtonUpdate ButtonEvent, uint6
 
         if ( bit & ulMask )
         {
-            ( m_pDriverHost->*ButtonEvent )( m_unSteamVRTrackedDeviceId, button, 0.0 );
+            ( vr::VRServerDriverHost()->*ButtonEvent )( m_unSteamVRTrackedDeviceId, button, 0.0 );
         }
     }
 }
@@ -2318,8 +2131,8 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				// Touchpad SteamVR Events
 				if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x || 
 					NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
-				{
-					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
+				{					
+					vr::VRServerDriverHost()->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
 				}
 
 				// PSMove Trigger handling
@@ -2347,45 +2160,11 @@ void CPSMoveControllerLatest::UpdateControllerState()
 						NewState.ulButtonPressed |= vr::ButtonMaskFromId(static_cast<vr::EVRButtonId>(vr::k_EButton_Axis0 + m_triggerAxisIndex));
 					}
 
-					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, m_triggerAxisIndex, NewState.rAxis[m_triggerAxisIndex]);
+					vr::VRServerDriverHost()->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, m_triggerAxisIndex, NewState.rAxis[m_triggerAxisIndex]);
 				}
 
 				// Update the battery charge state
-				switch (m_PSMControllerView->ControllerState.PSMoveState.BatteryValue)
-				{
-				case PSMBattery_0:
-					m_bIsBatteryCharging= false;
-					m_fBatteryChargeFraction= 0.f;
-					break;
-				case PSMBattery_20:
-					m_bIsBatteryCharging= false;
-					m_fBatteryChargeFraction= 0.2f;
-					break;
-				case PSMBattery_40:
-					m_bIsBatteryCharging= false;
-					m_fBatteryChargeFraction= 0.4f;
-					break;
-				case PSMBattery_60:
-					m_bIsBatteryCharging= false;
-					m_fBatteryChargeFraction= 0.6f;
-					break;
-				case PSMBattery_80:
-					m_bIsBatteryCharging= false;
-					m_fBatteryChargeFraction= 0.8f;
-					break;
-				case PSMBattery_100:
-					m_bIsBatteryCharging= false;
-					m_fBatteryChargeFraction= 1.f;
-					break;
-				case PSMBattery_Charging:
-					m_bIsBatteryCharging= true;
-					m_fBatteryChargeFraction= 0.99f; // Don't really know the charge amount in this case
-					break;
-				case PSMBattery_Charged:
-					m_bIsBatteryCharging= true;
-					m_fBatteryChargeFraction= 1.f;
-					break;
-				}
+				UpdateBatteryChargeState(m_PSMControllerView->ControllerState.PSMoveState.BatteryValue);
 			}
         } break;
     case PSMController_DualShock4:
@@ -2504,14 +2283,14 @@ void CPSMoveControllerLatest::UpdateControllerState()
 				NewState.rAxis[3].y = 0.f;
 
 				if (NewState.rAxis[0].x != m_ControllerState.rAxis[0].x || NewState.rAxis[0].y != m_ControllerState.rAxis[0].y)
-					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
+					vr::VRServerDriverHost()->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 0, NewState.rAxis[0]);
 				if (NewState.rAxis[1].x != m_ControllerState.rAxis[1].x)
-					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1]);
+					vr::VRServerDriverHost()->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 1, NewState.rAxis[1]);
 
 				if (NewState.rAxis[2].x != m_ControllerState.rAxis[2].x || NewState.rAxis[2].y != m_ControllerState.rAxis[2].y)
-					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 2, NewState.rAxis[2]);
+					vr::VRServerDriverHost()->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 2, NewState.rAxis[2]);
 				if (NewState.rAxis[3].x != m_ControllerState.rAxis[3].x)
-					m_pDriverHost->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 3, NewState.rAxis[3]);
+					vr::VRServerDriverHost()->TrackedDeviceAxisUpdated(m_unSteamVRTrackedDeviceId, 3, NewState.rAxis[3]);
 			}
         } break;
     }
@@ -2522,10 +2301,10 @@ void CPSMoveControllerLatest::UpdateControllerState()
     uint64_t ulChangedTouched = NewState.ulButtonTouched ^ m_ControllerState.ulButtonTouched;
     uint64_t ulChangedPressed = NewState.ulButtonPressed ^ m_ControllerState.ulButtonPressed;
 
-    SendButtonUpdates( &vr::IServerDriverHost::TrackedDeviceButtonTouched, ulChangedTouched & NewState.ulButtonTouched );
-    SendButtonUpdates( &vr::IServerDriverHost::TrackedDeviceButtonPressed, ulChangedPressed & NewState.ulButtonPressed );
-    SendButtonUpdates( &vr::IServerDriverHost::TrackedDeviceButtonUnpressed, ulChangedPressed & ~NewState.ulButtonPressed );
-    SendButtonUpdates( &vr::IServerDriverHost::TrackedDeviceButtonUntouched, ulChangedTouched & ~NewState.ulButtonTouched );
+    SendButtonUpdates( &vr::IVRServerDriverHost::TrackedDeviceButtonTouched, ulChangedTouched & NewState.ulButtonTouched );
+    SendButtonUpdates( &vr::IVRServerDriverHost::TrackedDeviceButtonPressed, ulChangedPressed & NewState.ulButtonPressed );
+    SendButtonUpdates( &vr::IVRServerDriverHost::TrackedDeviceButtonUnpressed, ulChangedPressed & ~NewState.ulButtonPressed );
+    SendButtonUpdates( &vr::IVRServerDriverHost::TrackedDeviceButtonUntouched, ulChangedTouched & ~NewState.ulButtonTouched );
 
     m_ControllerState = NewState;
 }
@@ -2600,7 +2379,6 @@ void CPSMoveControllerLatest::UpdateControllerStateFromPsMoveButtonState(
 		}
 	}
 }
-
 
 PSMQuatf ExtractHMDYawQuaternion(const PSMQuatf &q)
 {
@@ -2908,7 +2686,7 @@ void CPSMoveControllerLatest::UpdateTrackingState()
 
             // This call posts this pose to shared memory, where all clients will have access to it the next
             // moment they want to predict a pose.
-            m_pDriverHost->TrackedDevicePoseUpdated(m_unSteamVRTrackedDeviceId, m_Pose);
+			vr::VRServerDriverHost()->TrackedDevicePoseUpdated( m_unSteamVRTrackedDeviceId, m_Pose, sizeof( vr::DriverPose_t ) );
         } break;
     case PSMControllerType::PSMController_DualShock4:
         {
@@ -2973,7 +2751,7 @@ void CPSMoveControllerLatest::UpdateTrackingState()
 
             // This call posts this pose to shared memory, where all clients will have access to it the next
             // moment they want to predict a pose.
-            m_pDriverHost->TrackedDevicePoseUpdated(m_unSteamVRTrackedDeviceId, m_Pose);
+			vr::VRServerDriverHost()->TrackedDevicePoseUpdated( m_unSteamVRTrackedDeviceId, m_Pose, sizeof( vr::DriverPose_t ) );
         } break;
     }
 }
@@ -3036,6 +2814,61 @@ void CPSMoveControllerLatest::UpdateRumbleState()
 	{
 		// Reset the pending haptic pulse duration since rumble is suppressed.
 		m_pendingHapticPulseDuration = 0;
+	}
+}
+
+void CPSMoveControllerLatest::UpdateBatteryChargeState(
+    PSMBatteryState newBatteryEnum)
+{
+	bool bIsBatteryCharging= false;
+	float fBatteryChargeFraction= 0.f;
+
+	switch (newBatteryEnum)
+	{
+	case PSMBattery_0:
+		bIsBatteryCharging= false;
+		fBatteryChargeFraction= 0.f;
+		break;
+	case PSMBattery_20:
+		bIsBatteryCharging= false;
+		fBatteryChargeFraction= 0.2f;
+		break;
+	case PSMBattery_40:
+		bIsBatteryCharging= false;
+		fBatteryChargeFraction= 0.4f;
+		break;
+	case PSMBattery_60:
+		bIsBatteryCharging= false;
+		fBatteryChargeFraction= 0.6f;
+		break;
+	case PSMBattery_80:
+		bIsBatteryCharging= false;
+		fBatteryChargeFraction= 0.8f;
+		break;
+	case PSMBattery_100:
+		bIsBatteryCharging= false;
+		fBatteryChargeFraction= 1.f;
+		break;
+	case PSMBattery_Charging:
+		bIsBatteryCharging= true;
+		fBatteryChargeFraction= 0.99f; // Don't really know the charge amount in this case
+		break;
+	case PSMBattery_Charged:
+		bIsBatteryCharging= true;
+		fBatteryChargeFraction= 1.f;
+		break;
+	}
+
+	if (bIsBatteryCharging != m_bIsBatteryCharging)
+	{
+		m_bIsBatteryCharging= bIsBatteryCharging;
+		vr::VRProperties()->SetBoolProperty(m_ulPropertyContainer, vr::Prop_DeviceIsCharging_Bool, m_bIsBatteryCharging);
+	}
+
+	if (fBatteryChargeFraction != m_fBatteryChargeFraction)
+	{
+		m_fBatteryChargeFraction= fBatteryChargeFraction;
+		vr::VRProperties()->SetFloatProperty(m_ulPropertyContainer, vr::Prop_DeviceBatteryPercentage_Float, m_fBatteryChargeFraction);
 	}
 }
 
@@ -3104,8 +2937,8 @@ bool CPSMoveControllerLatest::AttachChildPSMController(
 // Tracker Driver
 //==================================================================================================
 
-CPSMoveTrackerLatest::CPSMoveTrackerLatest(vr::IServerDriverHost * pDriverHost, const PSMClientTrackerInfo *trackerInfo)
-    : CPSMoveTrackedDeviceLatest(pDriverHost)
+CPSMoveTrackerLatest::CPSMoveTrackerLatest(const PSMClientTrackerInfo *trackerInfo)
+    : CPSMoveTrackedDeviceLatest()
     , m_nTrackerId(trackerInfo->tracker_id)
 {
     char buf[256];
@@ -3113,10 +2946,6 @@ CPSMoveTrackerLatest::CPSMoveTrackerLatest(vr::IServerDriverHost * pDriverHost, 
     m_strSteamVRSerialNo = buf;
 
     SetClientTrackerInfo(trackerInfo);
-
-    // Load config from steamvr.vrsettings
-    //vr::IVRSettings *settings_;
-    //settings_ = m_pDriverHost->GetSettings(vr::IVRSettings_Version);
 }
 
 CPSMoveTrackerLatest::~CPSMoveTrackerLatest()
@@ -3129,6 +2958,36 @@ vr::EVRInitError CPSMoveTrackerLatest::Activate(uint32_t unObjectId)
 
     if (result == vr::VRInitError_None)
     {
+		vr::CVRPropertyHelpers *properties= vr::VRProperties();
+
+		properties->SetFloatProperty(m_ulPropertyContainer, vr::Prop_FieldOfViewLeftDegrees_Float, m_tracker_info.tracker_hfov / 2.f);
+		properties->SetFloatProperty(m_ulPropertyContainer, vr::Prop_FieldOfViewRightDegrees_Float, m_tracker_info.tracker_hfov / 2.f);
+		properties->SetFloatProperty(m_ulPropertyContainer, vr::Prop_FieldOfViewTopDegrees_Float, m_tracker_info.tracker_vfov / 2.f);
+		properties->SetFloatProperty(m_ulPropertyContainer, vr::Prop_FieldOfViewBottomDegrees_Float, m_tracker_info.tracker_vfov / 2.f);
+		properties->SetFloatProperty(m_ulPropertyContainer, vr::Prop_TrackingRangeMinimumMeters_Float, m_tracker_info.tracker_znear * k_fScalePSMoveAPIToMeters);
+		properties->SetFloatProperty(m_ulPropertyContainer, vr::Prop_TrackingRangeMaximumMeters_Float, m_tracker_info.tracker_zfar * k_fScalePSMoveAPIToMeters);
+
+		properties->SetInt32Property(m_ulPropertyContainer, vr::Prop_DeviceClass_Int32, vr::TrackedDeviceClass_TrackingReference);
+
+		// The {psmove} syntax lets us refer to rendermodels that are installed
+		// in the driver's own resources/rendermodels directory.  The driver can
+		// still refer to SteamVR models like "generic_hmd".
+		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_RenderModelName_String, "{psmove}ps3eye_tracker");
+
+		char model_label[8]= "";
+		snprintf(model_label, sizeof(model_label), "ps3eye_%d", m_tracker_info.tracker_id);
+		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_ModeLabel_String, model_label);
+
+		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_IconPathName_String, "../drivers/psmove/resources/icons");
+		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceOff_String, "{psmove}base_status_off.png");
+		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceSearching_String, "{psmove}base_status_ready.png");
+		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceSearchingAlert_String, "{psmove}base_status_ready_alert.png");
+		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceReady_String, "{psmove}base_status_ready_alert.png");
+		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceReadyAlert_String, "{psmove}base_status_ready_alert.png");
+		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceNotReady_String, "{psmove}base_status_error.png");
+		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceStandby_String, "{psmove}base_status_ready.png");
+		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceAlertLow_String, "{psmove}base_status_ready_low.png");
+
         // Poll the latest WorldFromDriverPose transform we got from the service
         // Transform used to convert from PSMove Tracking space to OpenVR Tracking Space
         RefreshWorldFromDriverPose();
@@ -3139,44 +2998,6 @@ vr::EVRInitError CPSMoveTrackerLatest::Activate(uint32_t unObjectId)
 
 void CPSMoveTrackerLatest::Deactivate()
 {
-}
-
-float CPSMoveTrackerLatest::GetFloatTrackedDeviceProperty(
-    vr::ETrackedDeviceProperty prop,
-    vr::ETrackedPropertyError * pError)
-{
-    float floatResult = 0.f;
-
-    switch (prop)
-    {
-    case vr::Prop_FieldOfViewLeftDegrees_Float:
-    case vr::Prop_FieldOfViewRightDegrees_Float:
-        floatResult = (m_tracker_info.tracker_hfov / 2.f);
-        *pError = vr::TrackedProp_Success;
-        break;
-    case vr::Prop_FieldOfViewTopDegrees_Float:
-    case vr::Prop_FieldOfViewBottomDegrees_Float:
-        floatResult = (m_tracker_info.tracker_vfov / 2.f);
-        *pError = vr::TrackedProp_Success;
-        break;
-    case vr::Prop_TrackingRangeMinimumMeters_Float:
-        floatResult = m_tracker_info.tracker_znear * k_fScalePSMoveAPIToMeters;
-        *pError = vr::TrackedProp_Success;
-        break;
-    case vr::Prop_TrackingRangeMaximumMeters_Float:
-        floatResult = m_tracker_info.tracker_zfar * k_fScalePSMoveAPIToMeters;
-        *pError = vr::TrackedProp_Success;
-        break;
-    default:
-        *pError = vr::TrackedProp_ValueNotProvidedByDevice;
-    }
-
-    if (*pError == vr::TrackedProp_ValueNotProvidedByDevice)
-    {
-        floatResult = CPSMoveTrackedDeviceLatest::GetFloatTrackedDeviceProperty(prop, pError);
-    }
-
-    return floatResult;
 }
 
 void CPSMoveTrackerLatest::SetClientTrackerInfo(
@@ -3238,102 +3059,7 @@ void CPSMoveTrackerLatest::Update()
 
     // This call posts this pose to shared memory, where all clients will have access to it the next
     // moment they want to predict a pose.
-    m_pDriverHost->TrackedDevicePoseUpdated(m_unSteamVRTrackedDeviceId, m_Pose);
-}
-
-int32_t CPSMoveTrackerLatest::GetInt32TrackedDeviceProperty(
-    vr::ETrackedDeviceProperty prop,
-    vr::ETrackedPropertyError * pError)
-{
-    int32_t nRetVal = 0;
-
-    switch (prop)
-    {
-    case vr::Prop_DeviceClass_Int32:
-        nRetVal = vr::TrackedDeviceClass_TrackingReference;
-        *pError = vr::TrackedProp_Success;
-        break;
-
-    default:
-        *pError = vr::TrackedProp_ValueNotProvidedByDevice;
-        break;
-    }
-
-    if (*pError == vr::TrackedProp_ValueNotProvidedByDevice)
-    {
-        nRetVal = CPSMoveTrackedDeviceLatest::GetInt32TrackedDeviceProperty(prop, pError);
-    }
-
-    return nRetVal;
-}
-
-uint32_t CPSMoveTrackerLatest::GetStringTrackedDeviceProperty(
-    vr::ETrackedDeviceProperty prop,
-    char * pchValue,
-    uint32_t unBufferSize,
-    vr::ETrackedPropertyError * pError)
-{
-    std::ostringstream ssRetVal;
-
-    switch (prop)
-    {
-    case vr::Prop_RenderModelName_String:
-        // The {psmove} syntax lets us refer to rendermodels that are installed
-        // in the driver's own resources/rendermodels directory.  The driver can
-        // still refer to SteamVR models like "generic_hmd".
-        ssRetVal << "{psmove}ps3eye_tracker";
-        //ssRetVal << "generic_tracker";
-        break;
-
-    case vr::Prop_ModeLabel_String:
-        ssRetVal << m_tracker_info.tracker_id;
-        break;
-
-	case vr::Prop_IconPathName_String:
-        ssRetVal << "../drivers/psmove/resources/icons";
-        break;
-	case vr::Prop_NamedIconPathDeviceOff_String:
-        ssRetVal << "{psmove}base_status_off.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceSearching_String:
-        ssRetVal << "{psmove}base_status_ready.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceSearchingAlert_String:
-        ssRetVal << "{psmove}base_status_ready_alert.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceReady_String:
-        ssRetVal << "{psmove}base_status_ready.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceReadyAlert_String:
-        ssRetVal << "{psmove}base_status_ready_alert.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceNotReady_String:
-        ssRetVal << "{psmove}base_status_error.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceStandby_String:
-        ssRetVal << "{psmove}base_status_ready.png";
-        break;
-	case vr::Prop_NamedIconPathDeviceAlertLow_String:
-        ssRetVal << "{psmove}base_status_ready_low.png";
-        break;
-    }
-
-    std::string sRetVal = ssRetVal.str();
-    if (sRetVal.empty())
-    {
-        return CPSMoveTrackedDeviceLatest::GetStringTrackedDeviceProperty(prop, pchValue, unBufferSize, pError);
-    }
-    else if (sRetVal.size() + 1 > unBufferSize)
-    {
-        *pError = vr::TrackedProp_BufferTooSmall;
-        return static_cast<uint32_t>(sRetVal.size() + 1);  // caller needs to know how to size buffer
-    }
-    else
-    {
-        snprintf(pchValue, unBufferSize, sRetVal.c_str());
-        *pError = vr::TrackedProp_Success;
-        return static_cast<uint32_t>(sRetVal.size() + 1);
-    }
+	vr::VRServerDriverHost()->TrackedDevicePoseUpdated( m_unSteamVRTrackedDeviceId, m_Pose, sizeof( vr::DriverPose_t ) );
 }
 
 bool CPSMoveTrackerLatest::HasTrackerId(int TrackerID)
@@ -3352,9 +3078,9 @@ void *HmdDriverFactory(const char *pInterfaceName, int *pReturnCode)
     {
         return &g_ServerTrackedDeviceProvider;
     }
-    if (0 == strcmp(vr::IClientTrackedDeviceProvider_Version, pInterfaceName))
+    if (0 == strcmp(vr::IVRWatchdogProvider_Version, pInterfaceName))
     {
-        return &g_ClientTrackedDeviceProvider;
+        return &g_WatchdogDriverPSMoveService;
     }
 
     if (pReturnCode)

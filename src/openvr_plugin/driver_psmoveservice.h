@@ -5,6 +5,9 @@
 #include <string>
 #include <vector>
 #include <chrono>
+#include <atomic>
+#include <thread>
+#include <mutex>
 
 #include "PSMoveClient_CAPI.h"
 
@@ -12,6 +15,34 @@
 class CPSMoveTrackedDeviceLatest;
 
 //-- definitions -----
+class CWatchdogDriver_PSMoveService : public vr::IVRWatchdogProvider
+{
+public:
+    CWatchdogDriver_PSMoveService();
+
+    // Inherited via IClientTrackedDeviceProvider
+    virtual vr::EVRInitError Init( vr::IVRDriverContext *pDriverContext );
+    virtual void Cleanup() override;
+
+protected:
+	void WorkerThreadFunction();
+	void WatchdogLogVarArgs( const char *pMsgFormat, va_list args );
+	void WatchdogLog( const char *pMsgFormat, ... );
+
+private:
+	class vr::IVRDriverLog * m_pLogger;
+    std::mutex m_loggerMutex;
+
+	bool m_bWasConnected;
+	std::atomic_bool m_bExitSignaled;
+    std::thread *m_pWatchdogThread;
+
+	std::string m_strPSMoveServiceAddress;
+	std::string m_strServerPort;
+
+	PSMControllerList controllerList;
+};
+
 class CServerDriver_PSMoveService : public vr::IServerTrackedDeviceProvider
 {
 public:
@@ -19,28 +50,24 @@ public:
     virtual ~CServerDriver_PSMoveService();
 
     // Inherited via IServerTrackedDeviceProvider
-    virtual vr::EVRInitError Init( vr::IDriverLog * pDriverLog, vr::IServerDriverHost * pDriverHost, const char * pchUserDriverConfigDir, const char * pchDriverInstallDir ) override;
+    virtual vr::EVRInitError Init( vr::IVRDriverContext *pDriverContext ) override;
     virtual void Cleanup() override;
     virtual const char * const *GetInterfaceVersions() override;
-    virtual uint32_t GetTrackedDeviceCount() override;
-    virtual vr::ITrackedDeviceServerDriver * GetTrackedDeviceDriver( uint32_t unWhich) override;
-    virtual vr::ITrackedDeviceServerDriver * FindTrackedDeviceDriver( const char * pchId) override;
-
     virtual void RunFrame() override;
-
     virtual bool ShouldBlockStandbyMode() override;
     virtual void EnterStandby() override;
     virtual void LeaveStandby() override;
 
-    void LaunchPSMoveMonitor();
+    void LaunchPSMoveMonitor(vr::PropertyContainerHandle_t requestingDevicePropertyHandle);
 
 	void SetHMDTrackingSpace(const PSMPosef &origin_pose);
     inline PSMPosef GetWorldFromDriverPose() const { return m_worldFromDriverPose; }
 
 private:
-    void AllocateUniquePSMoveController(int ControllerID, const std::string &ControllerSerial);
-    void AttachPSNaviToParentController(int ControllerID, const std::string &ControllerSerial, const std::string &ParentControllerSerial);
-    void AllocateUniqueDualShock4Controller(int ControllerID, const std::string &ControllerSerial);
+    vr::ITrackedDeviceServerDriver * FindTrackedDeviceDriver(const char * pchId);
+    void AllocateUniquePSMoveController(PSMControllerID ControllerID, const std::string &ControllerSerial);
+    void AttachPSNaviToParentController(PSMControllerID ControllerID, const std::string &ControllerSerial, const std::string &ParentControllerSerial);
+    void AllocateUniqueDualShock4Controller(PSMControllerID ControllerID, const std::string &ControllerSerial);
     void AllocateUniquePSMoveTracker(const PSMClientTrackerInfo *trackerInfo);
     bool ReconnectToPSMoveService();
 
@@ -58,10 +85,8 @@ private:
     void HandleControllerListReponse(const PSMControllerList *controller_list, const PSMResponseHandle response_handle);
     void HandleTrackerListReponse(const PSMTrackerList *tracker_list);
     
-    void LaunchPSMoveMonitor( const char * pchDriverInstallDir );
+    void LaunchPSMoveMonitor_Internal( const char * pchDriverInstallDir );
 
-    vr::IServerDriverHost* m_pDriverHost;
-    std::string m_strDriverInstallDir;
 	std::string m_strPSMoveHMDSerialNo;
 	std::string m_strPSMoveServiceAddress;
 	std::string m_strServerPort;
@@ -75,43 +100,19 @@ private:
     PSMPosef m_worldFromDriverPose;
 };
 
-class CClientDriver_PSMoveService : public vr::IClientTrackedDeviceProvider
-{
-public:
-    CClientDriver_PSMoveService();
-    virtual ~CClientDriver_PSMoveService();
-
-    // Inherited via IClientTrackedDeviceProvider
-    virtual vr::EVRInitError Init( vr::EClientDriverMode eDriverMode, vr::IDriverLog * pDriverLog, vr::IClientDriverHost * pDriverHost, const char * pchUserDriverConfigDir, const char * pchDriverInstallDir ) override;
-    virtual void Cleanup() override;
-    virtual bool BIsHmdPresent( const char * pchUserConfigDir ) override;
-    virtual vr::EVRInitError SetDisplayId( const char * pchDisplayId ) override;
-	virtual vr::HiddenAreaMesh_t GetHiddenAreaMesh( vr::EVREye eEye, vr::EHiddenAreaMeshType type ) override;
-    virtual uint32_t GetMCImage( uint32_t *pImgWidth, uint32_t *pImgHeight, uint32_t *pChannels, void *pDataBuffer, uint32_t unBufferLen ) override;
-
-private:
-    vr::IClientDriverHost* m_pDriverHost;
-};
-
 class CPSMoveTrackedDeviceLatest : public vr::ITrackedDeviceServerDriver
 {
 public:
-    CPSMoveTrackedDeviceLatest(vr::IServerDriverHost * pDriverHost);
+    CPSMoveTrackedDeviceLatest();
     virtual ~CPSMoveTrackedDeviceLatest();
 
     // Shared Implementation of vr::ITrackedDeviceServerDriver
-    virtual vr::EVRInitError Activate(uint32_t unObjectId) override;
+    virtual vr::EVRInitError Activate(vr::TrackedDeviceIndex_t unObjectId) override;
     virtual void Deactivate() override;
     virtual void EnterStandby() override;
     virtual void *GetComponent(const char *pchComponentNameAndVersion) override;
     virtual void DebugRequest(const char * pchRequest, char * pchResponseBuffer, uint32_t unResponseBufferSize) override;
     virtual vr::DriverPose_t GetPose() override;
-    virtual bool GetBoolTrackedDeviceProperty(vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError) override;
-    virtual float GetFloatTrackedDeviceProperty(vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError) override;
-    virtual int32_t GetInt32TrackedDeviceProperty(vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError) override;
-    virtual uint64_t GetUint64TrackedDeviceProperty(vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError) override;
-    virtual vr::HmdMatrix34_t GetMatrix34TrackedDeviceProperty(vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError *pError) override;
-    virtual uint32_t GetStringTrackedDeviceProperty(vr::ETrackedDeviceProperty prop, char * pchValue, uint32_t unBufferSize, vr::ETrackedPropertyError * pError) override;
 
     // CPSMoveTrackedDeviceLatest Interface
     virtual vr::ETrackedDeviceClass GetTrackedDeviceClass() const;
@@ -124,17 +125,13 @@ public:
 	void RequestLatestHMDPose(float maxPoseAgeMilliseconds = 0.f, t_hmd_request_callback callback = nullptr, void *userdata = nullptr);
 
 protected:
-    // Handle for calling back into vrserver with events and updates
-    vr::IServerDriverHost *m_pDriverHost;
-    
+	vr::PropertyContainerHandle_t m_ulPropertyContainer;
+
     // Tracked device identification
     std::string m_strSteamVRSerialNo;
 
     // Assigned by vrserver upon Activate().  The same ID visible to clients
-    uint32_t m_unSteamVRTrackedDeviceId;
-
-    // Flag to denote we should re-publish the controller properties
-    bool m_properties_dirty;
+    vr::TrackedDeviceIndex_t m_unSteamVRTrackedDeviceId;
 
     // Cached for answering version queries from vrserver
     vr::DriverPose_t m_Pose;
@@ -209,18 +206,13 @@ public:
 	};
 
 
-    CPSMoveControllerLatest( vr::IServerDriverHost * pDriverHost, int ControllerID, PSMControllerType controllerType, const char *serialNo );
+    CPSMoveControllerLatest(PSMControllerID psmControllerID, PSMControllerType psmControllerType, const char *psmSerialNo );
     virtual ~CPSMoveControllerLatest();
 
     // Overridden Implementation of vr::ITrackedDeviceServerDriver
-    virtual vr::EVRInitError Activate(uint32_t unObjectId) override;
+    virtual vr::EVRInitError Activate(vr::TrackedDeviceIndex_t unObjectId) override;
     virtual void Deactivate() override;
     virtual void *GetComponent(const char *pchComponentNameAndVersion) override;
-    virtual bool GetBoolTrackedDeviceProperty( vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError ) override;
-    virtual float GetFloatTrackedDeviceProperty( vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError ) override;
-    virtual int32_t GetInt32TrackedDeviceProperty( vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError ) override;
-    virtual uint64_t GetUint64TrackedDeviceProperty( vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError ) override;
-    virtual uint32_t GetStringTrackedDeviceProperty( vr::ETrackedDeviceProperty prop, char * pchValue, uint32_t unBufferSize, vr::ETrackedPropertyError * pError ) override;
 
     // Implementation of vr::IVRControllerComponent
     virtual vr::VRControllerState_t GetControllerState() override;
@@ -240,7 +232,7 @@ public:
 	inline PSMControllerType getPSMControllerType() const { return m_PSMControllerType; }
 
 private:
-    typedef void ( vr::IServerDriverHost::*ButtonUpdate )( uint32_t unWhichDevice, vr::EVRButtonId eButtonId, double eventTimeOffset );
+    typedef void ( vr::IVRServerDriverHost::*ButtonUpdate )( uint32_t unWhichDevice, vr::EVRButtonId eButtonId, double eventTimeOffset );
 
     void SendButtonUpdates( ButtonUpdate ButtonEvent, uint64_t ulMask );
 	void StartRealignHMDTrackingSpace();
@@ -249,7 +241,8 @@ private:
 	void UpdateControllerStateFromPsMoveButtonState(ePSControllerType controllerType, ePSButtonID buttonId, PSMButtonState buttonState, vr::VRControllerState_t* pControllerStateToUpdate);
 	void GetMetersPosInRotSpace(const PSMQuatf *rotation, PSMVector3f* outPosition);
     void UpdateTrackingState();
-    void UpdateRumbleState();	
+    void UpdateRumbleState();
+	void UpdateBatteryChargeState(PSMBatteryState newBatteryEnum);
 
     // Controller State
     int m_nPSMControllerId;
@@ -354,15 +347,12 @@ private:
 class CPSMoveTrackerLatest : public CPSMoveTrackedDeviceLatest
 {
 public:
-    CPSMoveTrackerLatest(vr::IServerDriverHost * pDriverHost, const PSMClientTrackerInfo *trackerInfo);
+    CPSMoveTrackerLatest(const PSMClientTrackerInfo *trackerInfo);
     virtual ~CPSMoveTrackerLatest();
 
     // Overridden Implementation of vr::ITrackedDeviceServerDriver
-    virtual vr::EVRInitError Activate(uint32_t unObjectId) override;
+    virtual vr::EVRInitError Activate(vr::TrackedDeviceIndex_t unObjectId) override;
     virtual void Deactivate() override;
-    virtual float GetFloatTrackedDeviceProperty(vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError) override;
-    virtual int32_t GetInt32TrackedDeviceProperty(vr::ETrackedDeviceProperty prop, vr::ETrackedPropertyError * pError) override;
-    virtual uint32_t GetStringTrackedDeviceProperty(vr::ETrackedDeviceProperty prop, char * pchValue, uint32_t unBufferSize, vr::ETrackedPropertyError * pError) override;
 
     // Overridden Implementation of CPSMoveTrackedDeviceLatest
     virtual vr::ETrackedDeviceClass GetTrackedDeviceClass() const override { return vr::TrackedDeviceClass_TrackingReference; }
