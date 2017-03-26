@@ -31,6 +31,7 @@ AppStage_TrackerSettings::AppStage_TrackerSettings(App *app)
 	, m_gotoColorCalib(false)
 	, m_gotoTestTracking(false)
 	, m_gotoTrackingVideo(false)
+    , m_gotoTrackingVideoALL(false)
 { }
 
 void AppStage_TrackerSettings::enter()
@@ -262,7 +263,7 @@ void AppStage_TrackerSettings::renderUI()
 
 			if (m_app->getIsLocalServer())
 			{
-				if (ImGui::Button("Test Tracker Video Feed"))
+				if (ImGui::Button("Test Video Feed"))
 				{
 					m_app->setAppStage(AppStage_TestTracker::APP_STAGE_NAME);
 				}
@@ -274,7 +275,7 @@ void AppStage_TrackerSettings::renderUI()
 			}
 			else
 			{
-				ImGui::TextDisabled("Test Tracker Video Feed");
+				ImGui::TextDisabled("Test Video Feed");
 				ImGui::TextDisabled("Calibrate Tracker Distortion");
 			}
         }
@@ -363,13 +364,13 @@ void AppStage_TrackerSettings::renderUI()
 					}
 
 
-					if (ImGui::Button("Test Tracking") || m_gotoTestTracking)
+					if (ImGui::Button("Test Tracking Pose") || m_gotoTestTracking)
 					{
 						if (m_gotoTestTracking) m_gotoTestTracking = false;
 						AppStage_ComputeTrackerPoses::enterStageAndSkipCalibration(m_app, controllerID);
 					}
-					ImGui::SameLine();
-					if (ImGui::Button("Video Feed") || m_gotoTrackingVideo)
+                    ImGui::SameLine();
+					if (ImGui::Button("Test Tracking Video") || m_gotoTrackingVideo)
 					{
 						if (m_gotoTrackingVideo) m_gotoTrackingVideo = false;
 						m_app->getAppStage<AppStage_ComputeTrackerPoses>()->set_tracker_id(m_selectedTrackerIndex);

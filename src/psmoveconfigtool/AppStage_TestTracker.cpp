@@ -97,7 +97,7 @@ void AppStage_TestTracker::render()
 void AppStage_TestTracker::renderUI()
 {
     const float k_panel_width = 300.f;
-    const char *k_window_title = "Tracker Test";
+    const char *k_window_title = "Video Feed Test";
     const ImGuiWindowFlags window_flags =
         ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize |
@@ -110,7 +110,7 @@ void AppStage_TestTracker::renderUI()
     case eTrackerMenuState::idle:
     {
         ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
-        ImGui::SetNextWindowSize(ImVec2(k_panel_width, 200));
+        ImGui::SetNextWindowSize(ImVec2(k_panel_width, 50));
         ImGui::Begin(k_window_title, nullptr, window_flags);
 
         if (ImGui::Button("Return to Tracker Settings"))

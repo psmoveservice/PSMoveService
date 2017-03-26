@@ -391,12 +391,12 @@ void AppStage_ColorCalibration::renderUI()
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 280));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-			if (ImGui::Button("Return to Main Menu"))
+			if (ImGui::Button("Main Menu"))
 			{
 				request_exit_to_app_stage(AppStage_MainMenu::APP_STAGE_NAME);
 			}
             
-            if (ImGui::Button("Return to Tracker Settings"))
+            if (ImGui::Button("Tracker Settings"))
             {
                 request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
@@ -611,7 +611,7 @@ void AppStage_ColorCalibration::renderUI()
         // Color Control Panel
 		if (m_bShowWindows)
         {
-            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - k_panel_width - 10, 20.f));
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - k_panel_width - 10, 10.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 300));
             ImGui::Begin("Controller Color", nullptr, window_flags);
 

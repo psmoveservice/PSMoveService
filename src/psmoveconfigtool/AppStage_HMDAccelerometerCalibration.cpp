@@ -306,7 +306,7 @@ void AppStage_HMDAccelerometerCalibration::render()
 void AppStage_HMDAccelerometerCalibration::renderUI()
 {
     const float k_panel_width = 500;
-    const char *k_window_title = "HMD Settings";
+    const char *k_window_title = "HMD Accelerometer Calibration";
     const ImGuiWindowFlags window_flags =
         ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize |
@@ -416,7 +416,7 @@ void AppStage_HMDAccelerometerCalibration::renderUI()
         {
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 80));
-            ImGui::Begin(k_window_title, nullptr, window_flags);
+            ImGui::Begin("Test Accelerometer", nullptr, window_flags);
 
             if (m_bBypassCalibration)
             {

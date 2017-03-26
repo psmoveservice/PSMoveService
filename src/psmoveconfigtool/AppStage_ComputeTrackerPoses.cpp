@@ -426,7 +426,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
         {
             ImGui::SetNextWindowPos(ImVec2(20.f, 20.f));
             ImGui::SetNextWindowSize(ImVec2(250.f, 260.f));
-            ImGui::Begin("Test Tracking", nullptr, window_flags);
+            ImGui::Begin("Test Tracking Pose", nullptr, window_flags);
 
 			// display per tracker UI
 			for (t_tracker_state_map_iterator iter = m_trackerViews.begin(); iter != m_trackerViews.end(); ++iter)
@@ -477,7 +477,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
 				}
 			}
 
-			if (ImGui::Button("Exit"))
+			if (ImGui::Button("Tracker Settings"))
 			{
 				m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
 			}
@@ -489,8 +489,8 @@ void AppStage_ComputeTrackerPoses::renderUI()
 	case eMenuState::showTrackerVideo:
 		{
 			ImGui::SetNextWindowPos(ImVec2(20.f, 20.f));
-			ImGui::SetNextWindowSize(ImVec2(200, 100));
-			ImGui::Begin("Tracker Video Feed", nullptr, window_flags);
+			ImGui::SetNextWindowSize(ImVec2(200, 130));
+			ImGui::Begin("Test Tracking Video", nullptr, window_flags);
 
 			//ImGui::Text("Tracker ID: #%d", m_renderTrackerIter->second.trackerView->tracker_info.tracker_id);
 
@@ -517,15 +517,15 @@ void AppStage_ComputeTrackerPoses::renderUI()
 				m_app->getAppStage<AppStage_TrackerSettings>()->gotoColorCalib(true);
 				request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
 			}
-			ImGui::SameLine();
-			if (ImGui::Button("Exit"))
-			{
-				request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
-			}
 
-			if (ImGui::Button("Return"))
+			if (ImGui::Button("Test Tracking Pose"))
 			{
 				setState(eMenuState::testTracking);
+			}
+
+			if (ImGui::Button("Tracker Settings"))
+			{
+				request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
 			}
 
 			ImGui::End();

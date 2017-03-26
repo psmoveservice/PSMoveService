@@ -57,7 +57,7 @@ void AppStage_PairController::update()
     
 void AppStage_PairController::renderUI()
 {
-    const char *k_window_title= "Controller Settings";
+    const char *k_window_title= "Controller Pairing";
     const ImGuiWindowFlags window_flags = 
         ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize | 

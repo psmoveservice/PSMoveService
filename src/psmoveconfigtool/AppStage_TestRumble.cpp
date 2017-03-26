@@ -120,7 +120,7 @@ void AppStage_TestRumble::render()
 void AppStage_TestRumble::renderUI()
 {
     const float k_panel_width = 500;
-    const char *k_window_title = "Controller Settings";
+    const char *k_window_title = "Test Rumble";
     const ImGuiWindowFlags window_flags =
         ImGuiWindowFlags_ShowBorders |
         ImGuiWindowFlags_NoResize |
@@ -164,18 +164,18 @@ void AppStage_TestRumble::renderUI()
         } break;
     case eMenuState::idle:
         {
-            ImGui::SetNextWindowPosCenter();
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 130));
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x / 2.f - k_panel_width / 2.f, 10.f));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 70));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Press trigger to test rumble");
 
-            if (ImGui::Button("Return to Controller Settings"))
+            if (ImGui::Button("Controller Settings"))
             {
                 request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
             }
-
-            if (ImGui::Button("Return to Main Menu"))
+            ImGui::SameLine();
+            if (ImGui::Button("Main Menu"))
             {
                 request_exit_to_app_stage(AppStage_MainMenu::APP_STAGE_NAME);
             }
