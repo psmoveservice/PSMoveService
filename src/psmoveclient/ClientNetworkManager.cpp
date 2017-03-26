@@ -716,8 +716,8 @@ private:
     }
 
 private:
-    const std::string &m_server_host;
-    const std::string &m_server_port;
+    std::string m_server_host;
+    std::string m_server_port;
 
     asio::io_service m_io_service;
     tcp::socket m_tcp_socket;
