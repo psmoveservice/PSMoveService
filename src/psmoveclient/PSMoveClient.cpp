@@ -270,6 +270,15 @@ bool PSMoveClient::pollHasHMDListChanged()
 	return bHasHMDListChanged; 
 }
 
+bool PSMoveClient::pollWasSystemButtonPressed()
+{
+	bool bWasSystemButtonPressed= m_bWasSystemButtonPressed;
+
+	m_bWasSystemButtonPressed= false;
+
+	return bWasSystemButtonPressed; 
+}
+
 // -- ClientPSMoveAPI System -----
 bool PSMoveClient::startup(e_log_severity_level log_level)
 {
@@ -283,6 +292,7 @@ bool PSMoveClient::startup(e_log_severity_level log_level)
 	m_bHasControllerListChanged= false;
 	m_bHasTrackerListChanged= false;
 	m_bHasHMDListChanged= false;
+	m_bWasSystemButtonPressed = false;
 
     // Attempt to connect to the server
     if (success)
@@ -325,6 +335,10 @@ bool PSMoveClient::startup(e_log_severity_level log_level)
 
 void PSMoveClient::update()
 {
+	// If this system button pressed flag wasn't checked last frame, 
+	// then drop it so we don't have a stale flag
+	m_bWasSystemButtonPressed = false;
+
     // Drop an unread messages from the previous call to update
     m_message_queue.clear();
 
@@ -1875,6 +1889,9 @@ void PSMoveClient::handle_notification(ResponsePtr notification)
     case PSMoveProtocol::Response_ResponseType_HMD_LIST_UPDATED:
         specificEventType = PSMEventMessage::PSMEvent_hmdListUpdated;
         break;
+	case PSMoveProtocol::Response_ResponseType_SYSTEM_BUTTON_PRESSED:
+		specificEventType = PSMEventMessage::PSMEvent_systemButtonPressed;
+		break;
     }
 
     enqueue_event_message(specificEventType, notification);
@@ -1966,6 +1983,9 @@ void PSMoveClient::process_event_message(
         break;
     case PSMEventMessage::PSMEvent_hmdListUpdated:
         m_bHasHMDListChanged= true;
+        break;
+    case PSMEventMessage::PSMEvent_systemButtonPressed:
+        m_bWasSystemButtonPressed= true;
         break;
     default:
         assert(0 && "unreachable");

@@ -157,6 +157,11 @@ bool PSM_HasHMDListChanged()
 	return g_psm_client->pollHasHMDListChanged();
 }
 
+bool PSM_WasSystemButtonPressed()
+{
+	return g_psm_client->pollWasSystemButtonPressed();
+}
+
 PSMResult PSM_Initialize(const char* host, const char* port, int timeout_ms)
 {
     PSMResult result = PSMResult_Error;
@@ -189,25 +194,26 @@ PSMResult PSM_InitializeAsync(const char* host, const char* port)
 {
 	PSMResult result= PSMResult_Error;
 
-	if (g_psm_client == nullptr)
+	if (g_psm_client == nullptr || !g_psm_client->getIsConnected())
 	{
-		std::string s_host(host);
-		std::string s_port(port);
-		e_log_severity_level log_level = _log_severity_level_info;
-
-		g_psm_client= new PSMoveClient(s_host, s_port);
-
-		if (g_psm_client->startup(log_level))
+		if (g_psm_client == nullptr)
 		{
-			result= PSMResult_Success;
+			std::string s_host(host);
+			std::string s_port(port);
+
+			g_psm_client= new PSMoveClient(s_host, s_port);
+		}
+
+		if (g_psm_client->startup(_log_severity_level_info))
+		{
+			result= PSMResult_RequestSent;
 		}
 		else
 		{
 			delete g_psm_client;
 			g_psm_client= nullptr;
+			result= PSMResult_Error;
 		}
-
-		result= PSMResult_RequestSent;
 	}
 	else
 	{
@@ -251,9 +257,19 @@ PSMResult PSM_GetServiceVersionStringAsync(PSMRequestID *out_request_id)
 
 PSMResult PSM_Shutdown()
 {
-	g_psm_client->shutdown();
+	PSMResult result= PSMResult_Error;
 
-    return PSMResult_Success;
+	if (g_psm_client != nullptr)
+	{
+		g_psm_client->shutdown();
+
+		delete g_psm_client;
+		g_psm_client= nullptr;
+
+		result= PSMResult_Success;
+	}
+
+    return result;
 }
 
 PSMResult PSM_Update()
@@ -1581,6 +1597,10 @@ PSMResult PSM_SendOpaqueRequest(PSMRequestHandle request_handle, PSMRequestID *o
         if (out_request_id != nullptr)
         {
             *out_request_id= request_id;
+        }
+        else
+        {
+            PSM_EatResponse(request_id);
         }
 
         result= PSMResult_RequestSent;

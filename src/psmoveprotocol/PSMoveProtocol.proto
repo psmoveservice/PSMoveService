@@ -492,6 +492,7 @@ message Response {
         TRACKER_FRAME_RATE_UPDATED= 19;
         TRACKER_FRAME_WIDTH_UPDATED= 20;
         TRACKER_FRAME_HEIGHT_UPDATED= 21;
+        SYSTEM_BUTTON_PRESSED= 22;
     }
 
     enum ResultCode {

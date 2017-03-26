@@ -105,6 +105,9 @@ public:
     // A lookBack of 0 corresponds to the most recent data.
     const CommonControllerState * getState(int lookBack = 0) const;
 
+    // Returns true if the system button was pressed this frame on this controller
+    bool getWasSystemButtonPressed() const;
+
     // Sets the bulb LED color to some new override color
     // If tracking was active this likely will affect controller tracking
     void setLEDOverride(unsigned char r, unsigned char g, unsigned char b);

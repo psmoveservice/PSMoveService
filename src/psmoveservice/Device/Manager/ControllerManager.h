@@ -28,6 +28,7 @@ public:
     void shutdown() override;
     
     void updateStateAndPredict(TrackerManager* tracker_manager);
+    void publish() override;
 
     static const int k_max_devices = 5;
     int getMaxDevices() const override

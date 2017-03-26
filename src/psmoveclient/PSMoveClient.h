@@ -32,6 +32,7 @@ public:
 	bool pollHasControllerListChanged();
 	bool pollHasTrackerListChanged();
 	bool pollHasHMDListChanged();
+	bool pollWasSystemButtonPressed();
 
     // -- ClientPSMoveAPI System -----
     bool startup(e_log_severity_level log_level);
@@ -125,6 +126,7 @@ private:
 	bool m_bHasControllerListChanged;
 	bool m_bHasTrackerListChanged;
 	bool m_bHasHMDListChanged;
+	bool m_bWasSystemButtonPressed;
 
     struct PendingRequest
     {

@@ -428,7 +428,8 @@ typedef struct _PSMEventMessage
         PSMEvent_opaqueServiceEvent, // Need to have protocol access to see what kind of event this is
         PSMEvent_controllerListUpdated,
         PSMEvent_trackerListUpdated,
-		PSMEvent_hmdListUpdated,
+        PSMEvent_hmdListUpdated,
+        PSMEvent_systemButtonPressed
     } event_type;
 
     // Opaque handle that can be converted to a <const PSMoveProtocol::Response *> pointer
@@ -556,6 +557,7 @@ PSM_PUBLIC_FUNCTION(bool) PSM_HasConnectionStatusChanged();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasControllerListChanged();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasTrackerListChanged();
 PSM_PUBLIC_FUNCTION(bool) PSM_HasHMDListChanged();
+PSM_PUBLIC_FUNCTION(bool) PSM_WasSystemButtonPressed();
 
 /// System Blocking Queries
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetServiceVersionString(char *out_version_string, size_t max_version_string, int timeout_ms);

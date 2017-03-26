@@ -1087,6 +1087,19 @@ float PSDualShock4Controller::getPredictionTime() const
 	return getConfig()->prediction_time;
 }
 
+bool PSDualShock4Controller::getWasSystemButtonPressed() const
+{
+    const PSDualShock4ControllerState *ds4_state= static_cast<const PSDualShock4ControllerState *>(getState());
+    bool bWasPressed= false;
+
+    if (ds4_state != nullptr)
+    {
+        bWasPressed= ds4_state->PS == CommonControllerState::Button_PRESSED;
+    }
+
+    return bWasPressed;
+}
+
 long PSDualShock4Controller::getMaxPollFailureCount() const
 {
     return cfg.max_poll_failure_count;

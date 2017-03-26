@@ -489,6 +489,9 @@ public:
 
 	// Get the state prediction time specified in the controller config
 	virtual float getPredictionTime() const = 0;
+
+    // See if the system button was pressed this frame
+    virtual bool getWasSystemButtonPressed() const = 0;
 };
 
 /// Abstract class for Tracker interface. Implemented Tracker classes

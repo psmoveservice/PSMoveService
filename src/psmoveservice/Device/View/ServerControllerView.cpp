@@ -791,6 +791,18 @@ const struct CommonControllerState * ServerControllerView::getState(
     return static_cast<const CommonControllerState *>(device_state);
 }
 
+bool ServerControllerView::getWasSystemButtonPressed() const
+{
+    bool bWasPressed= false;
+
+	if (m_device != nullptr)
+	{
+        bWasPressed= m_device->getWasSystemButtonPressed();
+    }
+
+    return bWasPressed;
+}
+
 void ServerControllerView::setLEDOverride(unsigned char r, unsigned char g, unsigned char b)
 {
     m_LED_override_color = std::make_tuple(r, g, b);

@@ -1266,6 +1266,19 @@ float PSMoveController::getPredictionTime() const
 	return getConfig()->prediction_time;
 }
 
+bool PSMoveController::getWasSystemButtonPressed() const
+{
+    const PSMoveControllerState *psmove_state= static_cast<const PSMoveControllerState *>(getState());
+    bool bWasPressed= false;
+
+    if (psmove_state != nullptr)
+    {
+        bWasPressed= psmove_state->PS == CommonControllerState::Button_PRESSED;
+    }
+
+    return bWasPressed;
+}
+
 float
 PSMoveController::getTempCelsius() const
 {

@@ -805,6 +805,19 @@ float PSNaviController::getPredictionTime() const
 {
 	return 0.f; // No state prediction on the psnavi
 }
+
+bool PSNaviController::getWasSystemButtonPressed() const
+{
+    const PSNaviControllerState *psnavi_state= static_cast<const PSNaviControllerState *>(getState());
+    bool bWasPressed= false;
+
+    if (psnavi_state != nullptr)
+    {
+        bWasPressed= psnavi_state->PS == CommonControllerState::Button_PRESSED;
+    }
+
+    return bWasPressed;
+}
     
 // -- private helper functions -----
 static std::string

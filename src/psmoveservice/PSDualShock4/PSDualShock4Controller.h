@@ -302,6 +302,7 @@ public:
 	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
 	virtual float getIdentityForwardDegrees() const override;
 	virtual float getPredictionTime() const override;
+    virtual bool getWasSystemButtonPressed() const override;
 
     // -- Getters
     inline const PSDualShock4ControllerConfig *getConfig() const

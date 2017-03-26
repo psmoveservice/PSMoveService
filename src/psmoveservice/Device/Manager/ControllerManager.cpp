@@ -92,6 +92,32 @@ ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
 	}
 }
 
+void ControllerManager::publish()
+{
+    DeviceTypeManager::publish();
+
+    bool bWasSystemButtonPressed= false;
+    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+	{
+		ServerControllerViewPtr controllerView = getControllerViewPtr(device_id);
+
+        if (controllerView->getIsOpen() && controllerView->getIsBluetooth())
+        {
+            bWasSystemButtonPressed= controllerView->getWasSystemButtonPressed();
+        }
+    }
+
+    if (bWasSystemButtonPressed)
+    {
+        ResponsePtr response(new PSMoveProtocol::Response);
+        response->set_type(PSMoveProtocol::Response_ResponseType_SYSTEM_BUTTON_PRESSED);
+        response->set_request_id(-1);
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+
+        ServerNetworkManager::get_instance()->send_notification_to_all_clients(response);
+    }
+}
+
 void
 ControllerManager::poll_devices()
 {
