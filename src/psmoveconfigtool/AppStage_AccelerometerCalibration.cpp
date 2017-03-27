@@ -230,7 +230,9 @@ void AppStage_AccelerometerCalibration::update()
 			if (m_controllerView->ControllerType == PSMController_DualShock4 &&
 				m_controllerView->ControllerState.PSDS4State.OptionsButton == PSMButtonState_PRESSED)
 			{
-				PSM_ResetControllerOrientationAsync(m_controllerView->ControllerID, k_psm_quaternion_identity, nullptr);
+                PSMRequestID request_id;
+				PSM_ResetControllerOrientationAsync(m_controllerView->ControllerID, k_psm_quaternion_identity, &request_id);
+                PSM_EatResponse(request_id);
 			}
         } break;
     default:
@@ -554,7 +556,10 @@ void AppStage_AccelerometerCalibration::handle_acquire_controller(
 
 void AppStage_AccelerometerCalibration::request_exit_to_app_stage(const char *app_stage_name)
 {
-	PSM_StopControllerDataStreamAsync(m_controllerView->ControllerID, nullptr);
+    PSMRequestID request_id;
+	PSM_StopControllerDataStreamAsync(m_controllerView->ControllerID, &request_id);
+    PSM_EatResponse(request_id);
+
     m_isControllerStreamActive= false;
     m_app->setAppStage(app_stage_name);
 }

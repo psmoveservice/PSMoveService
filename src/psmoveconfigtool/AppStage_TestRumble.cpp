@@ -207,7 +207,9 @@ void AppStage_TestRumble::handle_acquire_controller(
 
 void AppStage_TestRumble::request_exit_to_app_stage(const char *app_stage_name)
 {
-	PSM_StopControllerDataStreamAsync(m_controllerView->ControllerID, nullptr);
+    PSMRequestID request_id;
+	PSM_StopControllerDataStreamAsync(m_controllerView->ControllerID, &request_id);
+    PSM_EatResponse(request_id);
 
     m_app->setAppStage(app_stage_name);
 }

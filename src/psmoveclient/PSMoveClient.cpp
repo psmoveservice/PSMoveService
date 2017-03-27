@@ -511,7 +511,10 @@ static void processPSMoveRecenterAction(PSMController *controller)
 
 					if (pressDurationMilli >= k_hold_duration_milli)
 					{
-						PSM_ResetControllerOrientationAsync(controller->ControllerID, k_psm_quaternion_identity, nullptr);
+                        PSMRequestID request_id;
+						PSM_ResetControllerOrientationAsync(controller->ControllerID, k_psm_quaternion_identity, &request_id);
+                        PSM_EatResponse(request_id);
+
 						psmove->bResetPoseRequestSent = true;
 					}
 				}
@@ -551,7 +554,10 @@ static void processDualShock4RecenterAction(PSMController *controller)
 
 					if (pressDurationMilli >= k_hold_duration_milli)
 					{
-						PSM_ResetControllerOrientationAsync(controller->ControllerID, k_psm_quaternion_identity, nullptr);
+                        PSMRequestID request_id;
+						PSM_ResetControllerOrientationAsync(controller->ControllerID, k_psm_quaternion_identity, &request_id);
+                        PSM_EatResponse(request_id);
+
 						ds4->bResetPoseRequestSent = true;
 					}
 				}

@@ -766,7 +766,10 @@ void AppStage_ComputeTrackerPoses::release_devices()
 
 		if (controllerState.controllerView != nullptr)
 		{
-			PSM_StopControllerDataStreamAsync(controllerState.controllerView->ControllerID, nullptr);
+            PSMRequestID request_id;
+			PSM_StopControllerDataStreamAsync(controllerState.controllerView->ControllerID, &request_id);
+            PSM_EatResponse(request_id);
+
 			PSM_FreeControllerListener(controllerState.controllerView->ControllerID);
 		}
 	}
@@ -788,7 +791,11 @@ void AppStage_ComputeTrackerPoses::release_devices()
 			const int tracker_id= trackerState.trackerView->tracker_info.tracker_id;
 
 			PSM_CloseTrackerVideoStream(tracker_id);
-			PSM_StopTrackerDataStreamAsync(tracker_id, nullptr);
+
+            PSMRequestID request_id;
+			PSM_StopTrackerDataStreamAsync(tracker_id, &request_id);
+            PSM_EatResponse(request_id);
+
 			PSM_FreeTrackerListener(tracker_id);
         }
     }

@@ -582,7 +582,10 @@ void AppStage_HMDGyroscopeCalibration::handle_acquire_hmd(
 
 void AppStage_HMDGyroscopeCalibration::request_exit_to_app_stage(const char *app_stage_name)
 {
-    PSM_StopHmdDataStreamAsync(m_hmdView->HmdID, nullptr);
+    PSMRequestID request_id;
+    PSM_StopHmdDataStreamAsync(m_hmdView->HmdID, &request_id);
+    PSM_EatResponse(request_id);
+
     m_isHMDStreamActive= false;
     m_app->setAppStage(app_stage_name);
 }

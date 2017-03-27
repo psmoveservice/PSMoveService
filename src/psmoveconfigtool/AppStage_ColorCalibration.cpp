@@ -1495,7 +1495,9 @@ void AppStage_ColorCalibration::release_devices()
 
         if (m_areAllControllerStreamsActive)
         {
-			PSM_StopControllerDataStreamAsync(controllerView->ControllerID, nullptr);
+            PSMRequestID request_id;
+			PSM_StopControllerDataStreamAsync(controllerView->ControllerID, &request_id);
+            PSM_EatResponse(request_id);
         }
 
         PSM_FreeControllerListener(controllerView->ControllerID);
@@ -1511,7 +1513,9 @@ void AppStage_ColorCalibration::release_devices()
 	{
 		if (m_isHmdStreamActive)
 		{
-			PSM_StopHmdDataStreamAsync(m_hmdView->HmdID, nullptr);
+            PSMRequestID request_id;
+			PSM_StopHmdDataStreamAsync(m_hmdView->HmdID, &request_id);
+            PSM_EatResponse(request_id);
 		}
 
 		PSM_FreeHmdListener(m_hmdView->HmdID);
@@ -1523,7 +1527,11 @@ void AppStage_ColorCalibration::release_devices()
     if (m_trackerView != nullptr)
     {
 		PSM_CloseTrackerVideoStream(m_trackerView->tracker_info.tracker_id);
-        PSM_StopTrackerDataStreamAsync(m_trackerView->tracker_info.tracker_id, nullptr);
+
+        PSMRequestID request_id;
+        PSM_StopTrackerDataStreamAsync(m_trackerView->tracker_info.tracker_id, &request_id);
+        PSM_EatResponse(request_id);
+
 		PSM_FreeTrackerListener(m_trackerView->tracker_info.tracker_id);
         m_trackerView = nullptr;
     }

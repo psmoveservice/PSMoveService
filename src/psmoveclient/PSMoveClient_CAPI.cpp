@@ -257,10 +257,6 @@ PSMResult PSM_GetServiceVersionStringAsync(PSMRequestID *out_request_id)
         {
             *out_request_id= req_id;
         }
-        else
-        {
-            PSM_EatResponse(req_id);
-        }
 
         result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
     }
@@ -332,10 +328,6 @@ PSMResult PSM_GetControllerListAsync(PSMRequestID *out_request_id)
         {
             *out_request_id= req_id;
         }
-        else
-        {
-            PSM_EatResponse(req_id);
-        }
 
         result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
     }
@@ -399,10 +391,6 @@ PSMResult PSM_StartControllerDataStreamAsync(PSMControllerID controller_id, unsi
         {
             *out_request_id= req_id;
         }
-        else
-        {
-            PSM_EatResponse(req_id);
-        }
 
         result_code= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
     }
@@ -434,10 +422,6 @@ PSMResult PSM_StopControllerDataStreamAsync(PSMControllerID controller_id, PSMRe
         if (out_request_id != nullptr)
         {
             *out_request_id= req_id;
-        }
-        else
-        {
-            PSM_EatResponse(req_id);
         }
 
         result_code= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -471,10 +455,6 @@ PSMResult PSM_SetControllerLEDColorAsync(PSMControllerID controller_id, PSMTrack
         if (out_request_id != nullptr)
         {
             *out_request_id= req_id;
-        }
-        else
-        {
-            PSM_EatResponse(req_id);
         }
 
         result_code= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -955,10 +935,6 @@ PSMResult PSM_ResetControllerOrientationAsync(PSMControllerID controller_id, con
         {
             *out_request_id= req_id;
         }
-        else
-        {
-            PSM_EatResponse(req_id);
-        }
 
         result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
     }
@@ -1193,10 +1169,6 @@ PSMResult PSM_GetTrackerListAsync(PSMRequestID *out_request_id)
         {
             *out_request_id= req_id;
         }
-        else
-        {
-            PSM_EatResponse(req_id);
-        }
 
         result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
     }
@@ -1215,10 +1187,6 @@ PSMResult PSM_StartTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID 
         if (out_request_id != nullptr)
         {
             *out_request_id= req_id;
-        }
-        else
-        {
-            PSM_EatResponse(req_id);
         }
 
         result_code= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -1239,10 +1207,6 @@ PSMResult PSM_StopTrackerDataStreamAsync(PSMTrackerID tracker_id, PSMRequestID *
         {
             *out_request_id= req_id;
         }
-        else
-        {
-            PSM_EatResponse(req_id);
-        }
 
         result_code= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
     }
@@ -1260,10 +1224,6 @@ PSMResult PSM_GetTrackingSpaceSettingsAsync(PSMRequestID *out_request_id)
     if (out_request_id != nullptr)
     {
         *out_request_id= req_id;
-    }
-    else
-    {
-        PSM_EatResponse(req_id);
     }
 
     return (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -1624,10 +1584,6 @@ PSMResult PSM_GetHmdListAsync(PSMRequestID *out_request_id)
         {
             *out_request_id= req_id;
         }
-        else
-        {
-            PSM_EatResponse(req_id);
-        }
 
         result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
     }
@@ -1647,10 +1603,6 @@ PSMResult PSM_StartHmdDataStreamAsync(PSMHmdID hmd_id, unsigned int data_stream_
         {
             *out_request_id= req_id;
         }
-        else
-        {
-            PSM_EatResponse(req_id);
-        }
 
         result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
     }
@@ -1669,10 +1621,6 @@ PSMResult PSM_StopHmdDataStreamAsync(PSMHmdID hmd_id, PSMRequestID *out_request_
         if (out_request_id != nullptr)
         {
             *out_request_id= req_id;
-        }
-        else
-        {
-            PSM_EatResponse(req_id);
         }
 
         result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
@@ -1703,10 +1651,6 @@ PSMResult PSM_SendOpaqueRequest(PSMRequestHandle request_handle, PSMRequestID *o
             if (out_request_id != nullptr)
             {
                 *out_request_id= request_id;
-            }
-            else
-            {
-                PSM_EatResponse(request_id);
             }
 
             result= PSMResult_RequestSent;

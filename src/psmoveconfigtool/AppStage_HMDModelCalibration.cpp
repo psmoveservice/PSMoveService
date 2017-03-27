@@ -907,7 +907,10 @@ void AppStage_HMDModelCalibration::release_devices()
 
 	if (m_hmdView != nullptr)
 	{
-		PSM_StopHmdDataStreamAsync(m_hmdView->HmdID, nullptr);
+        PSMRequestID request_id;
+		PSM_StopHmdDataStreamAsync(m_hmdView->HmdID, &request_id);
+        PSM_EatResponse(request_id);
+
 		PSM_FreeHmdListener(m_hmdView->HmdID);
 		m_hmdView = nullptr;
 	}
@@ -924,7 +927,11 @@ void AppStage_HMDModelCalibration::release_devices()
 		if (trackerState.trackerView != nullptr)
 		{
 			PSM_CloseTrackerVideoStream(trackerState.trackerView->tracker_info.tracker_id);
-			PSM_StopTrackerDataStreamAsync(trackerState.trackerView->tracker_info.tracker_id, nullptr);
+
+            PSMRequestID request_id;
+			PSM_StopTrackerDataStreamAsync(trackerState.trackerView->tracker_info.tracker_id, &request_id);
+            PSM_EatResponse(request_id);
+
 			PSM_FreeTrackerListener(trackerState.trackerView->tracker_info.tracker_id);
 		}
 	}
