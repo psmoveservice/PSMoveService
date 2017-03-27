@@ -58,7 +58,7 @@ public:
     virtual void EnterStandby() override;
     virtual void LeaveStandby() override;
 
-    void LaunchPSMoveMonitor(vr::PropertyContainerHandle_t requestingDevicePropertyHandle);
+    void LaunchPSMoveMonitor();
 
 	void SetHMDTrackingSpace(const PSMPosef &origin_pose);
     inline PSMPosef GetWorldFromDriverPose() const { return m_worldFromDriverPose; }

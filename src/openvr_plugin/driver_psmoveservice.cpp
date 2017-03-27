@@ -19,9 +19,11 @@
 #include <math.h>
 
 #if defined( _WIN32 )
-#include <windows.h>
+    #include <windows.h>
+    #include <direct.h>
+    #define getcwd _getcwd // suppress "deprecation" warning
 #else
-#include <unistd.h>
+    #include <unistd.h>
 #endif
 
 //==================================================================================================
@@ -1022,26 +1024,21 @@ void CServerDriver_PSMoveService::AllocateUniquePSMoveTracker(const PSMClientTra
 // and tell us the pose of the HMD at the moment we want to calibrate.
 void CServerDriver_PSMoveService::LaunchPSMoveMonitor_Internal( const char * pchDriverInstallDir )
 {
-    if ( m_bLaunchedPSMoveMonitor )
-	{
-        return;
-	}
-
 #if LOG_REALIGN_TO_HMD != 0
-	DriverLog("Entered CServerDriver_PSMoveService::LaunchPSMoveMonitor(%s)\n", pchDriverInstallDir);
+	DriverLog("Entered CServerDriver_PSMoveService::LaunchPSMoveMonitor_Internal(%s)\n", pchDriverInstallDir);
 #endif
 
     m_bLaunchedPSMoveMonitor = true;
 
     std::ostringstream path_and_executable_string_builder;
 
-    path_and_executable_string_builder << pchDriverInstallDir << "\\bin\\";
+    path_and_executable_string_builder << pchDriverInstallDir;
 #if defined( _WIN64 )
-    path_and_executable_string_builder << "win64";
+    path_and_executable_string_builder << "\\bin\\win64";
 #elif defined( _WIN32 )
-    path_and_executable_string_builder << "win32";
+    path_and_executable_string_builder << "\\bin\\win32";
 #elif defined(__APPLE__) 
-    path_and_executable_string_builder << "osx";
+    path_and_executable_string_builder << "/bin/osx";
 #else 
     #error Do not know how to launch psmove_monitor
 #endif
@@ -1060,8 +1057,8 @@ void CServerDriver_PSMoveService::LaunchPSMoveMonitor_Internal( const char * pch
 	monitor_args_cstr[sizeof(monitor_args_cstr) - 1] = '\0';
 
 	#if LOG_REALIGN_TO_HMD != 0
-		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows full path: %s\n", monitor_path_and_exe.c_str());
-		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() monitor_psmove windows args: %s\n", monitor_args_cstr);
+		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor_Internal() monitor_psmove windows full path: %s\n", monitor_path_and_exe.c_str());
+		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor_Internal() monitor_psmove windows args: %s\n", monitor_args_cstr);
 	#endif
 
 	STARTUPINFOA sInfoProcess = { 0 };
@@ -1070,7 +1067,7 @@ void CServerDriver_PSMoveService::LaunchPSMoveMonitor_Internal( const char * pch
 	BOOL bSuccess = CreateProcessA(monitor_path_and_exe.c_str(), monitor_args_cstr, NULL, NULL, FALSE, 0, NULL, NULL, &sInfoProcess, &pInfoStartedProcess);
 	DWORD ErrorCode = (bSuccess == TRUE) ? 0 : GetLastError();
 
-	DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() Start monitor_psmove CreateProcessA() result: %d.\n", ErrorCode);
+	DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor_Internal() Start monitor_psmove CreateProcessA() result: %d.\n", ErrorCode);
 
 #elif defined(__APPLE__) 
     pid_t processId;
@@ -1097,30 +1094,42 @@ void CServerDriver_PSMoveService::LaunchPSMoveMonitor_Internal( const char * pch
 }
 
 /** Launch monitor_psmove if needed (requested by devices as they activate) */
-void CServerDriver_PSMoveService::LaunchPSMoveMonitor(vr::PropertyContainerHandle_t requestingDevicePropertyHandle)
+void CServerDriver_PSMoveService::LaunchPSMoveMonitor()
 {
+    if ( m_bLaunchedPSMoveMonitor )
+	{
+        return;
+	}
+
 	#if LOG_REALIGN_TO_HMD != 0
 	DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() - Called\n");
 	#endif
 
-	if (requestingDevicePropertyHandle != vr::k_ulInvalidPropertyContainer)
-	{	
-		vr::ETrackedPropertyError errorCode;
-		std::string driverInstallDir= vr::VRProperties()->GetStringProperty(requestingDevicePropertyHandle, vr::Prop_InstallPath_String, &errorCode);
+    //###HipsterSloth $TODO - Ideally we would get the install path as a property, but this property fetch doesn't seem to work...
+	//vr::ETrackedPropertyError errorCode;
+	//std::string driverInstallDir= vr::VRProperties()->GetStringProperty(requestingDevicePropertyHandle, vr::Prop_InstallPath_String, &errorCode);
 
-		if (errorCode == vr::TrackedProp_Success)
-		{
-			LaunchPSMoveMonitor_Internal( driverInstallDir.c_str() );
-		}
-		else
-		{
-			DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() - Failed to get driver install path property (Error: %d)\n", errorCode);
-		}
-	}
-	else
-	{
-		DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() - Requesting device has invalid property container handle\n");
-	}
+    //...so for now, just assume that we're running out of the steamvr folder
+    char szCurrentDirectory[MAX_PATH];
+    if (getcwd(szCurrentDirectory, MAX_PATH - 1) != 0)
+    {
+        DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() - vrserver working directory: %s\n", szCurrentDirectory);
+
+	    std::ostringstream driverInstallDirBuilder;
+        driverInstallDirBuilder << szCurrentDirectory;
+        #if defined( _WIN64 ) || defined( _WIN32 )
+            driverInstallDirBuilder << "\\drivers\\psmove";
+        #else
+            driverInstallDirBuilder << "/drivers/psmove";
+        #endif
+	    const std::string driverInstallDir = driverInstallDirBuilder.str();
+
+	    LaunchPSMoveMonitor_Internal( driverInstallDir.c_str() );
+    }
+    else
+    {
+        DriverLog("CServerDriver_PSMoveService::LaunchPSMoveMonitor() - Failed to fetch current directory\n");
+    }
 }
 
 //==================================================================================================
@@ -1741,7 +1750,7 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(vr::TrackedDeviceIndex_t unOb
 	{
 		DriverLog("CPSMoveControllerLatest::Activate - Controller %d Activated\n", unObjectId);
 
-		g_ServerTrackedDeviceProvider.LaunchPSMoveMonitor(m_ulPropertyContainer);
+		g_ServerTrackedDeviceProvider.LaunchPSMoveMonitor();
 
 		PSMRequestID requestId;
 		if (PSM_StartControllerDataStreamAsync(
@@ -1756,7 +1765,6 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(vr::TrackedDeviceIndex_t unOb
 		{
 			vr::CVRPropertyHelpers *properties= vr::VRProperties();
 
-			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_TrackingSystemName_String, "psmoveservice");
 			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_IconPathName_String, "../drivers/psmove/resources/icons");
 			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceOff_String, "{psmove}controller_status_off.png");
 			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceSearching_String, "{psmove}controller_status_ready.png");
@@ -1791,17 +1799,22 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(vr::TrackedDeviceIndex_t unOb
 			// The {psmove} syntax lets us refer to rendermodels that are installed
 			// in the driver's own resources/rendermodels directory.  The driver can
 			// still refer to SteamVR models like "generic_hmd".
-			switch(m_PSMControllerType)
+            char model_label[32]= "\0";
+            switch(m_PSMControllerType)
 			{
 			case PSMController_Move:
-				properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_RenderModelName_String, "{psmove}psmove_controller");
+                snprintf(model_label, sizeof(model_label), "psmove_%d", m_PSMControllerView->ControllerID);
+                properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_RenderModelName_String, "{psmove}psmove_controller");
 				break;
 			case PSMController_DualShock4:
+                snprintf(model_label, sizeof(model_label), "dualshock4_%d", m_PSMControllerView->ControllerID);
 				properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_RenderModelName_String, "{psmove}dualshock4_controller");
 				break;
 			default:
+                snprintf(model_label, sizeof(model_label), "unknown");
 				properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_RenderModelName_String, "generic_controller");
 			}
+            properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_ModeLabel_String, model_label);
 		}
     }
 
@@ -2974,7 +2987,7 @@ vr::EVRInitError CPSMoveTrackerLatest::Activate(uint32_t unObjectId)
 		// still refer to SteamVR models like "generic_hmd".
 		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_RenderModelName_String, "{psmove}ps3eye_tracker");
 
-		char model_label[8]= "";
+		char model_label[16]= "\0";
 		snprintf(model_label, sizeof(model_label), "ps3eye_%d", m_tracker_info.tracker_id);
 		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_ModeLabel_String, model_label);
 
