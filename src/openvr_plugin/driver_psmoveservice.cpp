@@ -1765,7 +1765,6 @@ vr::EVRInitError CPSMoveControllerLatest::Activate(vr::TrackedDeviceIndex_t unOb
 		{
 			vr::CVRPropertyHelpers *properties= vr::VRProperties();
 
-			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_IconPathName_String, "../drivers/psmove/resources/icons");
 			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceOff_String, "{psmove}controller_status_off.png");
 			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceSearching_String, "{psmove}controller_status_ready.png");
 			properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceSearchingAlert_String, "{psmove}controller_status_ready_alert.png");
@@ -2991,14 +2990,13 @@ vr::EVRInitError CPSMoveTrackerLatest::Activate(uint32_t unObjectId)
 		snprintf(model_label, sizeof(model_label), "ps3eye_%d", m_tracker_info.tracker_id);
 		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_ModeLabel_String, model_label);
 
-		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_IconPathName_String, "../drivers/psmove/resources/icons");
 		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceOff_String, "{psmove}base_status_off.png");
 		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceSearching_String, "{psmove}base_status_ready.png");
 		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceSearchingAlert_String, "{psmove}base_status_ready_alert.png");
-		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceReady_String, "{psmove}base_status_ready_alert.png");
+		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceReady_String, "{psmove}base_status_ready.png");
 		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceReadyAlert_String, "{psmove}base_status_ready_alert.png");
 		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceNotReady_String, "{psmove}base_status_error.png");
-		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceStandby_String, "{psmove}base_status_ready.png");
+		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceStandby_String, "{psmove}base_status_standby.png");
 		properties->SetStringProperty(m_ulPropertyContainer, vr::Prop_NamedIconPathDeviceAlertLow_String, "{psmove}base_status_ready_low.png");
 
         // Poll the latest WorldFromDriverPose transform we got from the service
