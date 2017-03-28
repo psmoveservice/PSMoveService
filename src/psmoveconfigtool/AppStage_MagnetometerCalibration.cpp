@@ -141,8 +141,16 @@ struct MagnetometerBoundsStatistics
 private:
 	void expandMagnetometerBounds(const PSMVector3i &sample)
 	{
-		minSampleExtent= PSM_Vector3iMin(&minSampleExtent, &sample);
-		maxSampleExtent= PSM_Vector3iMax(&maxSampleExtent, &sample);
+        if (sampleCount > 1)
+        {
+		    minSampleExtent= PSM_Vector3iMin(&minSampleExtent, &sample);
+		    maxSampleExtent= PSM_Vector3iMax(&maxSampleExtent, &sample);
+        }
+        else
+        {
+		    minSampleExtent= sample;
+		    maxSampleExtent= sample;
+        }
 	}
 
 	int computeMagnetometerCalibrationMinRange()
