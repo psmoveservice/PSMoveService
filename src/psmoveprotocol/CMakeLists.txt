@@ -26,3 +26,12 @@ target_include_directories(PSMoveProtocol PUBLIC ${PSMOVEPROTOCOL_INCLUDE_DIRS} 
 target_link_libraries(PSMoveProtocol PRIVATE ${PSMOVEPROTOCOL_REQUIRED_LIBS})
 set_target_properties(PSMoveProtocol PROPERTIES
     COMPILE_FLAGS "-DBUILDING_STATIC_LIBRARY -fPIC")
+    
+# Install
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    install(FILES ProtocolVersion.h 
+	DESTINATION ${ROOT_DIR}/${PSM_PROJECT_NAME}/${ARCH_LABEL}/include)
+ELSE() #Linux/Darwin
+    install(FILES ProtocolVersion.h
+	DESTINATION include)
+ENDIF()
