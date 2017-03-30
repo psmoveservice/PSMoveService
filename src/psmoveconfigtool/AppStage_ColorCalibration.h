@@ -200,6 +200,8 @@ private:
 
 	// Setting Windows visability
 	bool m_bShowWindows;
+	bool m_bShowAlignment;
+	bool m_bShowAlignmentColor;
 };
 
 #endif // APP_STAGE_COLOR_CALIBRATION_H

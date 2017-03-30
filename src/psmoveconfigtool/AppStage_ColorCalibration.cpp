@@ -151,6 +151,8 @@ AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
 	, m_bAutoChangeColor(false)
 	, m_bAutoChangeTracker(false)
 	, m_bShowWindows(true)
+	, m_bShowAlignment(false)
+	, m_bShowAlignmentColor(false)
     , m_masterTrackingColorType(PSMTrackingColorType_Magenta)
 { 
     memset(m_colorPresets, 0, sizeof(m_colorPresets));
@@ -588,6 +590,21 @@ void AppStage_ColorCalibration::renderUI()
 		{
 			// Hide setting windows: space bar
 			if (ImGui::IsKeyReleased(32)) m_bShowWindows = !m_bShowWindows;
+			// Hide alignment windows: x
+			if (ImGui::IsKeyReleased(120)) 
+			{
+				if (!m_bShowAlignment) {
+					m_bShowAlignment = true;
+					m_bShowAlignmentColor = false;
+				}
+				else if (!m_bShowAlignmentColor) {
+					m_bShowAlignmentColor = true;
+				}
+				else {
+					m_bShowAlignment = false;
+					m_bShowAlignmentColor = false;
+				}
+			}
 			// Change filter: F
 			if (ImGui::IsKeyReleased(102)) {
 				m_videoDisplayMode =
@@ -792,6 +809,76 @@ void AppStage_ColorCalibration::renderUI()
 			
             ImGui::End();
         }
+		
+		// Tracker Alignment Marker
+		if (m_bShowAlignment)
+		{
+			float prevAlpha = ImGui::GetStyle().WindowFillAlphaDefault;
+			ImGui::GetStyle().WindowFillAlphaDefault = 0.f;
+
+			float align_window_size = 30.f;
+			float x0 = (ImGui::GetIO().DisplaySize.x - align_window_size) / 2;
+			float y0 = (ImGui::GetIO().DisplaySize.y - align_window_size) / 2;
+
+			ImGui::SetNextWindowPos(ImVec2(x0, y0));
+			ImGui::SetNextWindowSize(ImVec2(align_window_size, align_window_size));
+			ImGui::Begin("Alignment Window", nullptr,
+				ImGuiWindowFlags_NoTitleBar |
+				ImGuiWindowFlags_ShowBorders |
+				ImGuiWindowFlags_NoResize |
+				ImGuiWindowFlags_NoMove |
+				ImGuiWindowFlags_NoScrollbar |
+				ImGuiWindowFlags_NoCollapse);
+
+			unsigned char r, g, b;
+			if (m_bShowAlignmentColor)
+			{
+				switch (m_masterTrackingColorType)
+				{
+				case PSMoveProtocol::Magenta:
+					r = 0xFF; g = 0x00; b = 0xFF;
+					break;
+				case PSMoveProtocol::Cyan:
+					r = 0x00; g = 0xFF; b = 0xFF;
+					break;
+				case PSMoveProtocol::Yellow:
+					r = 0xFF; g = 0xFF; b = 0x00;
+					break;
+				case PSMoveProtocol::Red:
+					r = 0xFF; g = 0x00; b = 0x00;
+					break;
+				case PSMoveProtocol::Green:
+					r = 0x00; g = 0xFF; b = 0x00;
+					break;
+				case PSMoveProtocol::Blue:
+					r = 0x00; g = 0x00; b = 0xFF;
+					break;
+				default:
+					r = 0x00; g = 0x00; b = 0x00;
+				}
+			}
+			else {
+				r = 0xFF; g = 0xFF; b = 0xFF;
+			}
+			ImU32 line_colour = ImColor(0xFF - r, 0xFF - g, 0xFF - b, 175);
+			float line_thickness = 1.f;
+
+			ImGui::GetWindowDrawList()->AddLine(ImVec2(x0, y0)
+				, ImVec2(x0 + align_window_size, y0 + align_window_size)
+				, line_colour
+				, line_thickness
+			);
+			ImGui::GetWindowDrawList()->AddLine(
+				ImVec2(x0 + align_window_size, y0)
+				, ImVec2(x0, y0 + align_window_size)
+				, line_colour
+				, line_thickness
+			);
+
+			ImGui::End();
+			ImGui::GetStyle().WindowFillAlphaDefault = prevAlpha;
+		}
+
     } break;
 
     case eMenuState::autoConfig:
