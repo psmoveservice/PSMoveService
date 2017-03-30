@@ -16,7 +16,7 @@ If you want to make modifications to the service or want to debug it, you can bu
 * General setup guides, troubleshooting and design docs can be found on the [wiki](https://github.com/cboulay/PSMoveService/wiki)
 * Documentation for the code is hosted on [codedocs](https://codedocs.xyz/HipsterSloth/PSMoveService/) (In Progress)
 
-#Getting Help
+# Getting Help
 Please start with the wiki. If you can't find help with your problem then please search through the issues (especially the closed ones) to see if your problem has been addressed already. If you still find no previous mention of your problem then you have one of two options:
 
 A) Join us in the the [PSMoveService Google Group](https://groups.google.com/forum/#!forum/psmoveservice) to ask your question. There are several people there who have experience debugging problems with the PSMoveService.
@@ -38,7 +38,7 @@ B) If your problem actually is a new bug and you have files to attach (logs, pic
  * Linux support
  * Integration with OSVR
 
-#Attribution and Thanks
+# Attribution and Thanks
 Special thanks to the following people who helped make this project possible:
 * Thomas Perl and his [psmoveapi](https://github.com/thp/psmoveapi) project which laid the groundwork for this project.
 * Alexander Nitsch and his work on [psmove-pair-win](https://github.com/nitsch/psmove-pair-win) that enabled psmove controller pairing over Bluetooth on Windows. Alex also did nearly all of the investigation into the PSMove communication protocol.
