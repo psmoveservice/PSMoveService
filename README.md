@@ -1,3 +1,5 @@
+[![Documentation](https://codedocs.xyz/HipsterSloth/PSMoveService.svg)](https://codedocs.xyz/HipsterSloth/PSMoveService/)
+
 # PSMoveService
 A background service that manages multiple PSMove Controllers and PS3 Eye Cameras. Clients connect to the service and stream PSMove Controller state (position, orientation and button presses). A visual client front-end is used for controller/tracker configuration. The [FAQ](https://github.com/cboulay/PSMoveService/wiki/Frequently-Asked-Questions) is a good starting point for any specific questions you may have about the project. 
 
@@ -9,6 +11,10 @@ You can download prebuilt releases (Windows only at the moment) from the [Releas
 
 # Building from source
 If you want to make modifications to the service or want to debug it, you can build the project from source by following the  [Building-from-source](https://github.com/cboulay/PSMoveService/wiki/Building-from-source) instructions. Currently supported build platforms are Win10 and OS X with Linux support hopefully coming in the near future.
+
+# Documentation
+* General setup guides, troubleshooting and design docs can be found on the [wiki](https://github.com/cboulay/PSMoveService/wiki)
+* Documentation for the code is hosted on [codedocs](https://codedocs.xyz/HipsterSloth/PSMoveService/) (In Progress)
 
 #Getting Help
 Please start with the wiki. If you can't find help with your problem then please search through the issues (especially the closed ones) to see if your problem has been addressed already. If you still find no previous mention of your problem then you have one of two options:
