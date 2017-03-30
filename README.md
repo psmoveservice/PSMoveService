@@ -1,10 +1,11 @@
 # PSMoveService
-A background service that manages multiple PSMove Controllers and PS3 Eye Cameras. Clients connect to the service and stream PSMove Controller state (position, orientation and button presses). Also included are a visual client front-end for controller/tracker configuration as well as a plugin for SteamVR. The [FAQ](https://github.com/cboulay/PSMoveService/wiki/Frequently-Asked-Questions) is a good starting point for any specific questions you may have about the project. 
+A background service that manages multiple PSMove Controllers and PS3 Eye Cameras. Clients connect to the service and stream PSMove Controller state (position, orientation and button presses). A visual client front-end is used for controller/tracker configuration. The [FAQ](https://github.com/cboulay/PSMoveService/wiki/Frequently-Asked-Questions) is a good starting point for any specific questions you may have about the project. 
 
-**NOTE** This is alpha software still heavily in development. If you are downloading this project to play games on SteamVR please be aware that this tool may not work for the game you want to play so buyer beware. That said, if you are feeling brave and want to test this we appriciate the feedback about what works and what doesn't.
+# PSMoveSteamVRBridge Client
+If you want to use PSMove controllers in SteamVR, please check out the [PSMoveSteamVRBridge](https://github.com/HipsterSloth/PSMoveSteamVRBridge) github page. The existing steamvr support moved into this project.
 
 # Prebuilt Releases
-You can download prebuilt releases (Windows only at the moment) from the [Releases](https://github.com/cboulay/PSMoveService/releases) page. Then follow the initial setup instructions found in the [wiki](https://github.com/cboulay/PSMoveService/wiki#initial-setup). If you run into problems take a look at the [Troubleshooting Page](https://github.com/cboulay/PSMoveService/wiki/Troubleshooting-%28Windows%29) first. If that doesn't help you fix your issue, look at the [issues](https://github.com/cboulay/PSMoveService/issues) page to see if anyone else has the same problem. If not, feel free to post a new issue.
+You can download prebuilt releases (Windows only at the moment) from the [Releases](https://github.com/cboulay/PSMoveService/releases) page. Then follow the initial setup instructions found in the [wiki](https://github.com/cboulay/PSMoveService/wiki#initial-setup). 
 
 # Building from source
 If you want to make modifications to the service or want to debug it, you can build the project from source by following the  [Building-from-source](https://github.com/cboulay/PSMoveService/wiki/Building-from-source) instructions. Currently supported build platforms are Win10 and OS X with Linux support hopefully coming in the near future.
@@ -16,12 +17,9 @@ A) Join us in the the [PSMoveService Google Group](https://groups.google.com/for
 
 B) If your problem actually is a new bug and you have files to attach (logs, pictures, etc) then go ahead and create a new issue. That said, it's probably best to start with the Google Group first anyway since we can help add context before posting an issue.
 
-The OpenVR driver is technically unsupported. For issues related to OpenVR, calibration, third party applications, specific games, etc., please post in the Google Group first.
-
 # Near Term Goals
+ * Improved Developer Documentation
  * Ongoing Stabilization of service
- * C99 client interface to make interfacing with other languages (Python, C#) easier
- * Moving SteamVR plugin into its own github project
  * Better position smoothing and prediction (via Unscented Kalman Filter)
  * Virtual controllers (tracking just a lit bulb)
  
