@@ -150,9 +150,11 @@ AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
 	, m_bAutoChangeController(false)
 	, m_bAutoChangeColor(false)
 	, m_bAutoChangeTracker(false)
+	, m_bAutoCalibrate(false)
 	, m_bShowWindows(true)
 	, m_bShowAlignment(false)
 	, m_bShowAlignmentColor(false)
+	, m_AlignmentOffset(0.f)
     , m_masterTrackingColorType(PSMTrackingColorType_Magenta)
 { 
     memset(m_colorPresets, 0, sizeof(m_colorPresets));
@@ -558,9 +560,12 @@ void AppStage_ColorCalibration::renderUI()
             ImGui::End();
         }
         
-        if (ImGui::IsMouseClicked(1) )
+        if (ImGui::IsMouseClicked(1) || m_bAutoCalibrate)
         {
-			ImVec2 mousePos = ImGui::GetMousePos();
+			m_bAutoCalibrate = false;
+			float x0 = ImGui::GetIO().DisplaySize.x / 2;
+			float y0 = ImGui::GetIO().DisplaySize.y / 2 + m_AlignmentOffset;
+			ImVec2 mousePos = (m_bShowAlignment) ? ImVec2(x0, y0) : ImGui::GetMousePos();
 			ImVec2 dispSize = ImGui::GetIO().DisplaySize;
 			int img_x = (static_cast<int>(mousePos.x) * m_video_buffer_state->hsvBuffer->cols) / static_cast<int>(dispSize.x);
 			int img_y = (static_cast<int>(mousePos.y) * m_video_buffer_state->hsvBuffer->rows) / static_cast<int>(dispSize.y);
@@ -578,7 +583,7 @@ void AppStage_ColorCalibration::renderUI()
 				m_masterTrackingColorType = PSMTrackingColorType_Magenta;
 				std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
 			}
-			else if (m_bAutoChangeController) {
+			else if (m_bAutoChangeController && !m_bShowAlignment) {
 				setState(eMenuState::changeController);
 			}
 			else if (m_bAutoChangeTracker) {
@@ -604,6 +609,25 @@ void AppStage_ColorCalibration::renderUI()
 					m_bShowAlignment = false;
 					m_bShowAlignmentColor = false;
 				}
+			}
+			// Move alignment window up: Up
+			if (m_bShowAlignment && ImGui::IsKeyPressed(119))
+			{
+				m_AlignmentOffset -= (ImGui::GetIO().DisplaySize.y / 2 > -m_AlignmentOffset) 
+					? 1.f 
+					: -ImGui::GetIO().DisplaySize.y;
+			}
+			// Move alignment window down: Down
+			if (m_bShowAlignment && ImGui::IsKeyPressed(115))
+			{
+				m_AlignmentOffset += (ImGui::GetIO().DisplaySize.y / 2 > m_AlignmentOffset) 
+					? 1.f 
+					: -ImGui::GetIO().DisplaySize.y;
+			}
+			// Move alignment window to center: Z
+			if (m_bShowAlignment && ImGui::IsKeyPressed(122))
+			{
+				m_AlignmentOffset = 0;
 			}
 			// Change filter: F
 			if (ImGui::IsKeyReleased(102)) {
@@ -818,7 +842,7 @@ void AppStage_ColorCalibration::renderUI()
 
 			float align_window_size = 30.f;
 			float x0 = (ImGui::GetIO().DisplaySize.x - align_window_size) / 2;
-			float y0 = (ImGui::GetIO().DisplaySize.y - align_window_size) / 2;
+			float y0 = (ImGui::GetIO().DisplaySize.y - align_window_size) / 2 + m_AlignmentOffset;
 
 			ImGui::SetNextWindowPos(ImVec2(x0, y0));
 			ImGui::SetNextWindowSize(ImVec2(align_window_size, align_window_size));
@@ -887,7 +911,9 @@ void AppStage_ColorCalibration::renderUI()
 			static_cast<PSMTrackingColorType>(
 			(m_masterTrackingColorType + 1) % PSMTrackingColorType_MaxColorTypes);
 
-		ImVec2 mousePos = ImGui::GetMousePos();
+		float x0 = ImGui::GetIO().DisplaySize.x / 2;
+		float y0 = ImGui::GetIO().DisplaySize.y / 2 + m_AlignmentOffset;
+		ImVec2 mousePos = (m_bShowAlignment) ? ImVec2(x0, y0) : ImGui::GetMousePos();
 		ImVec2 dispSize = ImGui::GetIO().DisplaySize;
 		int img_x = (static_cast<int>(mousePos.x) * m_video_buffer_state->hsvBuffer->cols) / static_cast<int>(dispSize.x);
 		int img_y = (static_cast<int>(mousePos.y) * m_video_buffer_state->hsvBuffer->rows) / static_cast<int>(dispSize.y);
@@ -902,7 +928,7 @@ void AppStage_ColorCalibration::renderUI()
 		request_set_controller_tracking_color(m_masterControllerView, new_color);
 
 		if (new_color == PSMTrackingColorType_Magenta) {
-			if (m_bAutoChangeController) setState(eMenuState::changeController);
+			if (m_bAutoChangeController && !m_bShowAlignment) setState(eMenuState::changeController);
 			else if (m_bAutoChangeTracker) setState(eMenuState::changeTracker);
 			else setState(eMenuState::manualConfig);
 		}
@@ -1692,6 +1718,7 @@ void AppStage_ColorCalibration::request_change_tracker(int step)
 
 	if (tracker_index + step < tracker_count && tracker_index + step >= 0)
 	{
+		if (m_bShowAlignment) m_bAutoCalibrate = true;
 		m_app->getAppStage<AppStage_TrackerSettings>()->set_selectedTrackerIndex(tracker_index + step);
 		request_exit_to_app_stage(AppStage_ColorCalibration::APP_STAGE_NAME);
 	}

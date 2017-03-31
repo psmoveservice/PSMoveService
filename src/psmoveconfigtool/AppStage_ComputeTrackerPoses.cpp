@@ -45,6 +45,8 @@ AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
 	, m_pStereoCalibrate(new AppSubStage_StereoCalibrate(this))
     , m_bSkipCalibration(false)
     , m_ShowTrackerVideoId(-1)
+	, m_bShowAlignment(false)
+	, m_AlignmentOffset(0.f)
 	, m_overrideControllerId(-1)
 { 
     m_renderTrackerIter = m_trackerViews.end();
@@ -387,6 +389,65 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
             ImGui::End();
         }
+
+		// Alignment marker: x
+		if (ImGui::IsKeyReleased(120)) m_bShowAlignment = !m_bShowAlignment;
+		// Move alignment window up: Up
+		if (m_bShowAlignment && ImGui::IsKeyPressed(119))
+		{
+			m_AlignmentOffset -= (ImGui::GetIO().DisplaySize.y / 2 > -m_AlignmentOffset) 
+				? 1.f 
+				: -ImGui::GetIO().DisplaySize.y;
+		}
+		// Move alignment window down: Down
+		if (m_bShowAlignment && ImGui::IsKeyPressed(115))
+		{
+			m_AlignmentOffset += (ImGui::GetIO().DisplaySize.y / 2 > m_AlignmentOffset) 
+				? 1.f 
+				: -ImGui::GetIO().DisplaySize.y;
+		}
+		// Move alignment window to center: Z
+		if (m_bShowAlignment && ImGui::IsKeyPressed(122)) m_AlignmentOffset = 0;
+
+		// Tracker Alignment Marker
+		if (m_bShowAlignment)
+		{
+			float prevAlpha = ImGui::GetStyle().WindowFillAlphaDefault;
+			ImGui::GetStyle().WindowFillAlphaDefault = 0.f;
+
+			float align_window_size = 30.f;
+			float x0 = (ImGui::GetIO().DisplaySize.x - align_window_size) / 2;
+			float y0 = (ImGui::GetIO().DisplaySize.y - align_window_size) / 2 + m_AlignmentOffset;
+
+			ImGui::SetNextWindowPos(ImVec2(x0, y0));
+			ImGui::SetNextWindowSize(ImVec2(align_window_size, align_window_size));
+			ImGui::Begin("Alignment Window", nullptr,
+				ImGuiWindowFlags_NoTitleBar |
+				ImGuiWindowFlags_ShowBorders |
+				ImGuiWindowFlags_NoResize |
+				ImGuiWindowFlags_NoMove |
+				ImGuiWindowFlags_NoScrollbar |
+				ImGuiWindowFlags_NoCollapse);
+
+			ImU32 line_colour = ImColor(0x00, 0x00, 0x00, 200);
+			float line_thickness = 2.f;
+
+			ImGui::GetWindowDrawList()->AddLine(ImVec2(x0, y0)
+				, ImVec2(x0 + align_window_size, y0 + align_window_size)
+				, line_colour
+				, line_thickness
+			);
+			ImGui::GetWindowDrawList()->AddLine(
+				ImVec2(x0 + align_window_size, y0)
+				, ImVec2(x0, y0 + align_window_size)
+				, line_colour
+				, line_thickness
+			);
+
+			ImGui::End();
+			ImGui::GetStyle().WindowFillAlphaDefault = prevAlpha;
+		}
+
 		break;
 
 	case eMenuState::selectCalibrationMethod:
