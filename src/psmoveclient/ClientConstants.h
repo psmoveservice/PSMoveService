@@ -1,6 +1,11 @@
 #ifndef CLIENT_CONSTANTS_H
 #define CLIENT_CONSTANTS_H
 
+/** 
+\addtogroup PSMoveClient_CAPI 
+@{ 
+*/
+
 //-- constants -----
 #define PSMOVESERVICE_DEFAULT_ADDRESS   "localhost"
 #define PSMOVESERVICE_DEFAULT_PORT      "9512"
@@ -42,5 +47,9 @@
     #define GET_PSMOVEPROTOCOL_EVENT(handle) \
     reinterpret_cast<const PSMoveProtocol::Response *>(handle) // events are a special case of responses
 #endif // defined(__cplusplus) && defined(HAS_PROTOCOL_ACCESS)
+
+/** 
+@} 
+*/ 
 
 #endif // CLIENT_CONSTANTS_H

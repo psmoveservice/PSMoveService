@@ -4,6 +4,13 @@
 #include <stdbool.h>
 //cut_before
 
+/** 
+\brief Geometrical data structures and functions used by the Client API  
+\defgroup Geometry_CAPI Client Geometry API
+\addtogroup Geometry_CAPI 
+@{ 
+*/
+
 //-- constants -----
 #define PSM_METERS_TO_CENTIMETERS  100.f
 #define PSM_CENTIMETERS_TO_METERS  0.01f
@@ -194,6 +201,10 @@ PSM_PUBLIC_CLASS extern const PSMVector3f *k_psm_position_origin;
 PSM_PUBLIC_CLASS extern const PSMQuatf *k_psm_quaternion_identity;
 PSM_PUBLIC_CLASS extern const PSMMatrix3f *k_psm_matrix_identity;
 PSM_PUBLIC_CLASS extern const PSMPosef *k_psm_pose_identity;
+
+/** 
+@} 
+*/ 
 
 //cut_after
 #endif
