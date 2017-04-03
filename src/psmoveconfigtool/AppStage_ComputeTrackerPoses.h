@@ -147,6 +147,10 @@ protected:
     bool m_bSkipCalibration;
     int m_ShowTrackerVideoId;
 	int m_overrideControllerId;
+
+	// Alignment Marker visability
+	bool m_bShowAlignment;
+	float m_AlignmentOffset;
 };
 
 #endif // APP_STAGE_COMPUTE_TRACKER_POSES_H
