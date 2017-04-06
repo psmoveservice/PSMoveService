@@ -88,11 +88,7 @@ ENDIF()
 add_custom_command(TARGET PSMoveConfigTool POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_LIST_DIR}/assets"
-        $<TARGET_FILE_DIR:PSMoveConfigTool>/assets)
-add_custom_command(TARGET PSMoveConfigTool POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${OPENVR_BINARIES_DIR}"
-        $<TARGET_FILE_DIR:PSMoveConfigTool>)        
+        $<TARGET_FILE_DIR:PSMoveConfigTool>/assets)        
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")   
