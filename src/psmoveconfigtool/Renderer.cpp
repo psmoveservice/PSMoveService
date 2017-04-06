@@ -614,38 +614,6 @@ void drawPointCloudProjection(
 	glPopMatrix();
 }
 
-void drawTransformedVolume(const glm::mat4 &transform, const PSMVolume *volume, const glm::vec3 &color)
-{
-    assert(Renderer::getIsRenderingStage());
-
-    glPushMatrix();
-        glMultMatrixf(glm::value_ptr(transform));
-        glColor3fv(glm::value_ptr(color));
-
-        glBegin(GL_LINES);
-
-        int previous_index= volume->vertex_count - 1;
-        for (int index = 0; index < volume->vertex_count; ++index)
-        {
-            const PSMVector3f &previous_vert = volume->vertices[previous_index];
-            const PSMVector3f &vert = volume->vertices[index];
-
-            glm::vec3 prev_lower(previous_vert.x, previous_vert.y, previous_vert.z);
-            glm::vec3 prev_upper(previous_vert.x, previous_vert.y + volume->up_height, previous_vert.z);
-            glm::vec3 lower(vert.x, vert.y, vert.z);
-            glm::vec3 upper(vert.x, vert.y + volume->up_height, vert.z);
-
-            glVertex3fv(glm::value_ptr(prev_lower)); glVertex3fv(glm::value_ptr(lower));
-            glVertex3fv(glm::value_ptr(prev_upper)); glVertex3fv(glm::value_ptr(upper));
-            glVertex3fv(glm::value_ptr(lower)); glVertex3fv(glm::value_ptr(upper));
-
-            previous_index= index;
-        }
-
-        glEnd();
-    glPopMatrix();
-}
-
 void drawTransformedAxes(const glm::mat4 &transform, float scale)
 {
     drawTransformedAxes(transform, scale, scale, scale);
