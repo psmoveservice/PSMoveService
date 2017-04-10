@@ -562,7 +562,9 @@ void AppStage_ComputeTrackerPoses::renderUI()
 					go_previous_tracker();
 				}
 				ImGui::SameLine();
-				ImGui::Text("Tracker ID: #%d", m_renderTrackerIter->second.trackerView->tracker_info.tracker_id);
+				int TrackerID = m_renderTrackerIter->second.trackerView->tracker_info.tracker_id;
+				ImGui::Text("Tracker ID: #%d", TrackerID);
+				m_app->getAppStage<AppStage_TrackerSettings>()->set_selectedTrackerIndex(TrackerID);
 				ImGui::SameLine();
 				if (ImGui::Button(">##Next Tracker"))
 				{
@@ -1236,15 +1238,21 @@ bool AppStage_ComputeTrackerPoses::does_tracker_see_any_controller(const PSMTrac
 		if (controllerView->ControllerType == PSMControllerType::PSMController_Move &&
 			controllerView->ControllerState.PSMoveState.bIsCurrentlyTracking)
 		{
-			screenSample= controllerView->ControllerState.PSMoveState.RawTrackerData.ScreenLocations[tracker_id];
-			bTrackerSeesAnyController = true;
+			for (int id = 0; id < controllerView->ControllerState.PSMoveState.RawTrackerData.ValidTrackerLocations; ++id)
+			{
+				if (controllerView->ControllerState.PSMoveState.RawTrackerData.TrackerIDs[id] == tracker_id)
+					bTrackerSeesAnyController = true;
+			}
 			break;
 		}
 		else if (controllerView->ControllerType == PSMControllerType::PSMController_DualShock4 &&
 				 controllerView->ControllerState.PSDS4State.bIsCurrentlyTracking)
 		{
-			screenSample= controllerView->ControllerState.PSDS4State.RawTrackerData.ScreenLocations[tracker_id];
-			bTrackerSeesAnyController = true;
+			for (int id = 0; id < controllerView->ControllerState.PSMoveState.RawTrackerData.ValidTrackerLocations; ++id)
+			{
+				if (controllerView->ControllerState.PSMoveState.RawTrackerData.TrackerIDs[id] == tracker_id)
+					bTrackerSeesAnyController = true;
+			}
 			break;
 		}
 	}

@@ -731,7 +731,9 @@ PSMResult PSM_GetIsControllerStable(PSMControllerID controller_id, bool *out_is_
 
 				*out_is_stable =
 					is_nearly_equal(1.f, acceleration_magnitude, 0.1f) &&
-					PSM_Vector3fDot(&k_identity_gravity_calibration_direction, &acceleration_direction) >= k_cosine_10_degrees;
+					(PSM_Vector3fDot(&k_identity_gravity_calibration_direction, &acceleration_direction)
+						/ (PSM_Vector3fLength(&k_identity_gravity_calibration_direction) 
+							* PSM_Vector3fLength(&acceleration_direction))) >= k_cosine_10_degrees;
 
 				result= PSMResult_Success;
             } break;
