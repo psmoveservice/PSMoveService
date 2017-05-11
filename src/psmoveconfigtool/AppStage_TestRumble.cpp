@@ -26,6 +26,7 @@ AppStage_TestRumble::AppStage_TestRumble(App *app)
     : AppStage(app)
     , m_menuState(AppStage_TestRumble::inactive)
     , m_controllerView(nullptr)
+	, m_bExitMain(false)
 {
 }
 
@@ -172,16 +173,28 @@ void AppStage_TestRumble::renderUI()
 
             if (ImGui::Button("Controller Settings"))
             {
-                request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
+				set_rumble_amounts(0.f, 0.f);
+				m_bExitMain = false;
+				m_menuState = eMenuState::stop;
+
             }
             ImGui::SameLine();
             if (ImGui::Button("Main Menu"))
             {
-                request_exit_to_app_stage(AppStage_MainMenu::APP_STAGE_NAME);
+				set_rumble_amounts(0.f, 0.f);
+				m_bExitMain = true;
+				m_menuState = eMenuState::stop;
             }
 
             ImGui::End();
         } break;
+	case eMenuState::stop:
+	{
+		if (m_bExitMain)
+			request_exit_to_app_stage(AppStage_MainMenu::APP_STAGE_NAME);
+		else
+			request_exit_to_app_stage(AppStage_ControllerSettings::APP_STAGE_NAME);
+	} break;
 
     default:
         assert(0 && "unreachable");

@@ -42,11 +42,14 @@ private:
         waitingForStreamStartResponse,
         failedStreamStart,
         idle,
+		stop,
     };
 
     eMenuState m_menuState;
 
     PSMController *m_controllerView;
+
+	bool m_bExitMain;
 };
 
 #endif // APP_STAGE_TEST_RUMBLE_H
