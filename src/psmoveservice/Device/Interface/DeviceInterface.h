@@ -206,7 +206,8 @@ struct CommonDeviceState
         SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x01,
         
         Morpheus = HeadMountedDisplay + 0x00,
-        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01,
+        VirtualHMD = HeadMountedDisplay + 0x01,
+        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x02,
 
 		INVALID_DEVICE_TYPE= 0xFF,
     };
@@ -245,7 +246,10 @@ struct CommonDeviceState
             break;
         case Morpheus:
             result = "Morpheus";
-            break;        
+            break;
+        case VirtualHMD:
+            result = "VirtualHMD";
+            break;
         default:
             result = "UNKNOWN";
         }

@@ -1,129 +1,209 @@
 // -- includes -----
 #include "HMDDeviceEnumerator.h"
-#include "ServerUtility.h"
-#include "USBDeviceInfo.h" // for MAX_USB_DEVICE_PORT_PATH, t_usb_device_handle
+#include "HidHMDDeviceEnumerator.h"
+#include "VirtualHMDDeviceEnumerator.h"
 #include "assert.h"
-#include "hidapi.h"
 #include "string.h"
-#include <sstream>
-#include <iomanip>
-
-// -- private definitions -----
-#ifdef _MSC_VER
-#pragma warning (disable: 4996) // 'This function or variable may be unsafe': snprintf
-#define snprintf _snprintf
-#endif
-
-// -- macros ----
-#define MAX_HMD_TYPE_INDEX                  GET_DEVICE_TYPE_INDEX(CommonDeviceState::SUPPORTED_HMD_TYPE_COUNT)
 
 // -- globals -----
-USBDeviceFilter g_supported_hmd_infos[MAX_HMD_TYPE_INDEX] = {
-    { 0x054c, 0x09af }, // Sony Morpheus
-};
 
 // -- HMDDeviceEnumerator -----
-HMDDeviceEnumerator::HMDDeviceEnumerator()
-    : DeviceEnumerator(CommonDeviceState::Morpheus)
+HMDDeviceEnumerator::HMDDeviceEnumerator(
+	eAPIType _apiType)
+	: DeviceEnumerator()
+	, api_type(_apiType)
+	, enumerators(nullptr)
+	, enumerator_count(0)
+	, enumerator_index(0)
 {
-	m_deviceType= CommonDeviceState::Morpheus;
-    assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_HMD_TYPE_INDEX);
-
-	build_interface_list();
-
-	if (!is_valid())
+	switch (_apiType)
 	{
-		next();
+	case eAPIType::CommunicationType_HID:
+		enumerators = new DeviceEnumerator *[1];
+		enumerators[0] = new HidHMDDeviceEnumerator;
+		enumerator_count = 1;
+		break;
+	case eAPIType::CommunicationType_VIRTUAL:
+		enumerators = new DeviceEnumerator *[1];
+		enumerators[0] = new VirtualHMDDeviceEnumerator;
+		enumerator_count = 1;
+		break;
+	case eAPIType::CommunicationType_ALL:
+		enumerators = new DeviceEnumerator *[2];
+		enumerators[0] = new HidHMDDeviceEnumerator;
+		enumerators[1] = new VirtualHMDDeviceEnumerator;
+		enumerator_count = 2;
+		break;
 	}
+
+	if (is_valid())
+	{
+		m_deviceType= enumerators[enumerator_index]->get_device_type();
+	}
+	else
+    {
+        next();
+    }
+}
+
+HMDDeviceEnumerator::~HMDDeviceEnumerator()
+{
+	for (int index = 0; index < enumerator_count; ++index)
+	{
+		delete enumerators[index];
+	}
+	delete[] enumerators;
 }
 
 const char *HMDDeviceEnumerator::get_path() const
 {
-	return current_device_identifier.c_str();
+    return (enumerator_index < enumerator_count) ? enumerators[enumerator_index]->get_path() : nullptr;
 }
 
 int HMDDeviceEnumerator::get_vendor_id() const
 {
-	return is_valid() ? g_supported_hmd_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)].vendor_id : -1;
+	return (enumerator_index < enumerator_count) ? enumerators[enumerator_index]->get_vendor_id() : -1;
 }
 
 int HMDDeviceEnumerator::get_product_id() const
 {
-	return is_valid() ? g_supported_hmd_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)].product_id : -1;
+	return (enumerator_index < enumerator_count) ? enumerators[enumerator_index]->get_product_id() : -1;
+}
+
+HMDDeviceEnumerator::eAPIType HMDDeviceEnumerator::get_api_type() const
+{
+	HMDDeviceEnumerator::eAPIType result= HMDDeviceEnumerator::CommunicationType_INVALID;
+
+	switch (api_type)
+	{
+	case eAPIType::CommunicationType_HID:
+		result = (enumerator_index < enumerator_count) ? HMDDeviceEnumerator::CommunicationType_HID : HMDDeviceEnumerator::CommunicationType_INVALID;
+		break;
+	case eAPIType::CommunicationType_VIRTUAL:
+		result = (enumerator_index < enumerator_count) ? HMDDeviceEnumerator::CommunicationType_VIRTUAL : HMDDeviceEnumerator::CommunicationType_INVALID;
+		break;
+	case eAPIType::CommunicationType_ALL:
+		if (enumerator_index < enumerator_count)
+		{
+			switch (enumerator_index)
+			{
+			case 0:
+				result = HMDDeviceEnumerator::CommunicationType_HID;
+				break;
+			case 1:
+				result = HMDDeviceEnumerator::CommunicationType_VIRTUAL;
+				break;
+			default:
+				result = HMDDeviceEnumerator::CommunicationType_INVALID;
+				break;
+			}
+		}
+		else
+		{
+			result = HMDDeviceEnumerator::CommunicationType_INVALID;
+		}
+		break;
+	}
+
+	return result;
+}
+
+const HidHMDDeviceEnumerator *HMDDeviceEnumerator::get_hid_hmd_enumerator() const
+{
+	HidHMDDeviceEnumerator *enumerator = nullptr;
+
+	switch (api_type)
+	{
+	case eAPIType::CommunicationType_HID:
+		enumerator = (enumerator_index < enumerator_count) ? static_cast<HidHMDDeviceEnumerator *>(enumerators[0]) : nullptr;
+		break;
+	case eAPIType::CommunicationType_VIRTUAL:
+		enumerator = nullptr;
+		break;
+	case eAPIType::CommunicationType_ALL:
+		if (enumerator_index < enumerator_count)
+		{
+			enumerator = (enumerator_index == 0) ? static_cast<HidHMDDeviceEnumerator *>(enumerators[0]) : nullptr;
+		}
+		else
+		{
+			enumerator = nullptr;
+		}
+		break;
+	}
+
+	return enumerator;
+}
+
+const VirtualHMDDeviceEnumerator *HMDDeviceEnumerator::get_virtual_hmd_enumerator() const
+{
+	VirtualHMDDeviceEnumerator *enumerator = nullptr;
+
+	switch (api_type)
+	{
+	case eAPIType::CommunicationType_HID:
+		enumerator = nullptr;
+		break;
+	case eAPIType::CommunicationType_VIRTUAL:
+		enumerator = (enumerator_index < enumerator_count) ? static_cast<VirtualHMDDeviceEnumerator *>(enumerators[0]) : nullptr;
+		break;
+	case eAPIType::CommunicationType_ALL:
+		if (enumerator_index < enumerator_count)
+		{
+			enumerator = (enumerator_index == 1) ? static_cast<VirtualHMDDeviceEnumerator *>(enumerators[1]) : nullptr;
+		}
+		else
+		{
+			enumerator = nullptr;
+		}
+		break;
+	}
+
+	return enumerator;
 }
 
 bool HMDDeviceEnumerator::is_valid() const
 {
-	return current_device_interfaces.size() > 0;
+    bool bIsValid = false;
+
+	if (enumerator_index < enumerator_count)
+	{
+		bIsValid = enumerators[enumerator_index]->is_valid();
+	}
+
+    return bIsValid;
 }
 
 bool HMDDeviceEnumerator::next()
 {
-	bool foundValid = false;
+    bool foundValid = false;
 
-	while (!foundValid && m_deviceType < CommonDeviceState::SUPPORTED_HMD_TYPE_COUNT)
-	{
-		m_deviceType = static_cast<CommonDeviceState::eDeviceType>(m_deviceType + 1);
-
-		if (GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_HMD_TYPE_INDEX)
+    while (!foundValid && enumerator_index < enumerator_count)
+    {
+		if (enumerators[enumerator_index]->is_valid())
 		{
-			build_interface_list();
-
-			foundValid = is_valid();
+			enumerators[enumerator_index]->next();
+			foundValid = enumerators[enumerator_index]->is_valid();
 		}
 		else
 		{
-			current_device_identifier = "";
-			current_device_interfaces.clear();
+			++enumerator_index;
+
+			if (enumerator_index < enumerator_count)
+			{
+				foundValid = enumerators[enumerator_index]->is_valid();
+			}
 		}
-	}
+    }
 
-	return foundValid;
-}
-
-std::string HMDDeviceEnumerator::get_interface_path(int interface_number) const
-{
-	std::string path = "";
-
-	for (int list_index = 0; list_index < current_device_interfaces.size(); ++list_index)
+	if (foundValid)
 	{
-		if (current_device_interfaces[list_index].interface_number == interface_number)
-		{
-			path = current_device_interfaces[list_index].device_path;
-			break;
-		}
+		m_deviceType = enumerators[enumerator_index]->get_device_type();
 	}
-
-	return path;
-}
-
-void HMDDeviceEnumerator::build_interface_list()
-{
-	USBDeviceFilter &dev_info = g_supported_hmd_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
-	hid_device_info * devs = hid_enumerate(dev_info.vendor_id, dev_info.product_id);
-
-	current_device_identifier = "";
-	current_device_interfaces.clear();
-
-	if (devs != nullptr)
+	else
 	{
-		std::stringstream device_id_builder;
-		device_id_builder << 
-			"USB\\VID_" << std::hex << std::setfill('0') << std::setw(4) << dev_info.vendor_id <<
-			"&PID_" << std::hex << std::setfill('0') << std::setw(4) << dev_info.product_id;
-
-		current_device_identifier = device_id_builder.str();
-
-		for (hid_device_info *cur_dev = devs; cur_dev != nullptr; cur_dev = cur_dev->next)
-		{
-			HMDDeviceInterface hmd_interface;
-
-			hmd_interface.device_path = cur_dev->path;
-			hmd_interface.interface_number = cur_dev->interface_number;
-
-			current_device_interfaces.push_back(hmd_interface);
-		}
-
-		hid_free_enumeration(devs);
+		m_deviceType = CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT; // invalid
 	}
+
+    return foundValid;
 }

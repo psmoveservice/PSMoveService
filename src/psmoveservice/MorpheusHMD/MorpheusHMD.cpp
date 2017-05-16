@@ -3,6 +3,7 @@
 #include "DeviceInterface.h"
 #include "DeviceManager.h"
 #include "HMDDeviceEnumerator.h"
+#include "HidHMDDeviceEnumerator.h"
 #include "MathUtility.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
@@ -386,7 +387,7 @@ MorpheusHMD::~MorpheusHMD()
 
 bool MorpheusHMD::open()
 {
-    HMDDeviceEnumerator enumerator;
+    HMDDeviceEnumerator enumerator(HMDDeviceEnumerator::CommunicationType_HID);
     bool success = false;
 
     if (enumerator.is_valid())
@@ -417,7 +418,7 @@ bool MorpheusHMD::open(
 		USBContext->device_identifier = cur_dev_path;
 
 		// Open the sensor interface using HIDAPI
-		USBContext->sensor_device_path = pEnum->get_interface_path(MORPHEUS_SENSOR_INTERFACE);
+		USBContext->sensor_device_path = pEnum->get_hid_hmd_enumerator()->get_interface_path(MORPHEUS_SENSOR_INTERFACE);
 		USBContext->sensor_device_handle = hid_open_path(USBContext->sensor_device_path.c_str());
 		if (USBContext->sensor_device_handle != nullptr)
 		{

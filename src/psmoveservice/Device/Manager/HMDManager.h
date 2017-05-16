@@ -3,8 +3,11 @@
 
 //-- includes -----
 #include <memory>
+#include <string>
+#include <vector>
 #include "DeviceTypeManager.h"
 #include "DeviceEnumerator.h"
+#include "PSMoveConfig.h"
 #include "PSMoveProtocol.pb.h"
 
 //-- typedefs -----
@@ -13,6 +16,19 @@ typedef std::shared_ptr<ServerHMDView> ServerHMDViewPtr;
 class TrackerManager;
 
 //-- definitions -----
+class HMDManagerConfig : public PSMoveConfig
+{
+public:
+    static const int CONFIG_VERSION;
+
+    HMDManagerConfig(const std::string &fnamebase = "HMDManagerConfig");
+
+    virtual const boost::property_tree::ptree config2ptree();
+    virtual void ptree2config(const boost::property_tree::ptree &pt);
+
+    int version;
+    std::vector<std::string> virtual_hmds;
+};
 
 class HMDManager : public DeviceTypeManager
 {
@@ -32,19 +48,20 @@ public:
 
     ServerHMDViewPtr getHMDViewPtr(int device_id);
 
+    inline const HMDManagerConfig& getConfig() const
+    {
+        return cfg;
+    }
+
 protected:
     bool can_update_connected_devices() override;
     class DeviceEnumerator *allocate_device_enumerator() override;
     void free_device_enumerator(class DeviceEnumerator *) override;
     ServerDeviceView *allocate_device_view(int device_id) override;
-
-    int getListUpdatedResponseType() override
-    {
-        return (int)HMDManager::k_list_udpated_response_type;
-    }
+    int getListUpdatedResponseType() override;
 
 private:
-    static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_HMD_LIST_UPDATED;
+    HMDManagerConfig cfg;
 };
 
 #endif // HMD_MANAGER_H
