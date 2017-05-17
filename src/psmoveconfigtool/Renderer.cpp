@@ -1209,6 +1209,35 @@ void drawMorpheusModel(const glm::mat4 &transform)
     glBindTexture(GL_TEXTURE_2D, 0); 
 }
 
+void drawVirtualHMDModel(const glm::mat4 &transform)
+{
+    //###HipsterSloth $TODO Draw virtual HMD model
+    assert(Renderer::getIsRenderingStage());
+
+    int textureID= AssetManager::getInstance()->getMorpheusTextureAsset()->texture_id;
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        
+        glColor3f(1.f, 1.f, 1.f);
+        glVertexPointer(3, GL_FLOAT, 0, morpheusVerts);
+        glTexCoordPointer(2, GL_FLOAT, 0, morpheusTexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, morpheusNumVerts);
+
+        glDisableClientState(GL_VERTEX_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+    glPopMatrix();
+
+    // rebind the default texture
+    glBindTexture(GL_TEXTURE_2D, 0); 
+}
+
 // -- IMGUI Callbacks -----
 static const char* ImGui_ImplSdl_GetClipboardText()
 {

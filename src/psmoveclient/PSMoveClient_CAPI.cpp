@@ -1282,6 +1282,10 @@ PSMResult PSM_GetHmdOrientation(PSMHmdID hmd_id, PSMQuatf *out_orientation)
 
 				result= State.bIsOrientationValid ? PSMResult_Success : PSMResult_Error;
             } break;
+        case PSMHmd_Virtual:
+            {
+				result= PSMResult_Error;
+            } break;
         }
     }
 
@@ -1302,6 +1306,13 @@ PSMResult PSM_GetHmdPosition(PSMHmdID hmd_id, PSMVector3f *out_position)
         case PSMHmd_Morpheus:
             {
 				PSMMorpheus State= hmd->HmdState.MorpheusState;
+				*out_position = State.Pose.Position;
+
+				result= State.bIsPositionValid ? PSMResult_Success : PSMResult_Error;
+            } break;
+        case PSMHmd_Virtual:
+            {
+				PSMVirtualHMD State= hmd->HmdState.VirtualHMDState;
 				*out_position = State.Pose.Position;
 
 				result= State.bIsPositionValid ? PSMResult_Success : PSMResult_Error;
@@ -1329,6 +1340,13 @@ PSMResult PSM_GetHmdPose(PSMHmdID hmd_id, PSMPosef *out_pose)
 				*out_pose = State.Pose;
 
 				result= (State.bIsOrientationValid && State.bIsPositionValid) ? PSMResult_Success : PSMResult_Error;
+            } break;
+        case PSMHmd_Virtual:
+            {
+				PSMVirtualHMD State= hmd->HmdState.VirtualHMDState;
+				*out_pose = State.Pose;
+
+				result= (State.bIsPositionValid) ? PSMResult_Success : PSMResult_Error;
             } break;
         }
     }
@@ -1363,6 +1381,12 @@ PSMResult PSM_GetIsHmdStable(PSMHmdID hmd_id, bool *out_is_stable)
 
 				result= PSMResult_Success;
             } break;
+        case PSMHmd_Virtual:
+            {
+				*out_is_stable = true;
+
+				result= PSMResult_Success;
+            } break;
         }
     }
 
@@ -1385,6 +1409,11 @@ PSMResult PSM_GetIsHmdTracking(PSMHmdID hmd_id, bool *out_is_tracking)
 				*out_is_tracking = hmd->HmdState.MorpheusState.bIsCurrentlyTracking;
 				result= PSMResult_Success;
             } break;
+        case PSMHmd_Virtual:
+            {
+				*out_is_tracking = hmd->HmdState.VirtualHMDState.bIsCurrentlyTracking;
+				result= PSMResult_Success;
+            } break;
         }
     }
 
@@ -1405,6 +1434,10 @@ PSMResult PSM_GetHmdPixelLocationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker
         case PSMHmd_Morpheus:
             {
 				trackerData= &hmd->HmdState.MorpheusState.RawTrackerData;
+            } break;
+        case PSMHmd_Virtual:
+            {
+				trackerData= &hmd->HmdState.VirtualHMDState.RawTrackerData;
             } break;
         }
 
@@ -1439,6 +1472,10 @@ PSMResult PSM_GetHmdPositionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, 
             {
 				trackerData= &hmd->HmdState.MorpheusState.RawTrackerData;
             } break;
+        case PSMHmd_Virtual:
+            {
+				trackerData= &hmd->HmdState.VirtualHMDState.RawTrackerData;
+            } break;
         }
 
 		if (trackerData != nullptr)
@@ -1472,6 +1509,10 @@ PSMResult PSM_GetHmdOrientationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_i
             {
 				trackerData= &hmd->HmdState.MorpheusState.RawTrackerData;
             } break;
+        case PSMHmd_Virtual:
+            {
+				trackerData= nullptr;
+            } break;
         }
 
 		if (trackerData != nullptr)
@@ -1504,6 +1545,10 @@ PSMResult PSM_GetHmdProjectionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id
         case PSMHmd_Morpheus:
             {
 				trackerData= &hmd->HmdState.MorpheusState.RawTrackerData;
+            } break;
+        case PSMHmd_Virtual:
+            {
+				trackerData= &hmd->HmdState.VirtualHMDState.RawTrackerData;
             } break;
         }
 

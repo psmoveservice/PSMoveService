@@ -363,6 +363,9 @@ public:
 			case PSMoveProtocol::Morpheus:
 				hmdType = PSMHmd_Morpheus;
 				break;
+			case PSMoveProtocol::VirtualHMD:
+				hmdType = PSMHmd_Virtual;
+				break;
 			default:
 				assert(0 && "unreachable");
 				hmdType = PSMHmd_None;

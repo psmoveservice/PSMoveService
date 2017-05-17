@@ -401,13 +401,12 @@ void AppStage_TrackerSettings::renderUI()
 				if (m_selectedHmdIndex != -1)
 				{
 					const AppStage_TrackerSettings::HMDInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
+                    const char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
 
 					if (hmdInfo.HmdType == PSMHmd_Morpheus)
 					{
 						if (0 <= hmdInfo.TrackingColorType && hmdInfo.TrackingColorType < PSMTrackingColorType_MaxColorTypes) 
 						{
-							const char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
-
 							ImGui::Text("HMD: %d (Morpheus) - %s",
 								m_selectedHmdIndex,
 								colors[hmdInfo.TrackingColorType]);
@@ -415,6 +414,19 @@ void AppStage_TrackerSettings::renderUI()
 						else
 						{
 							ImGui::Text("HMD: %d (Morpheus)", m_selectedHmdIndex);
+						}
+					}
+					else if (hmdInfo.HmdType == PSMHmd_Virtual)
+					{
+						if (0 <= hmdInfo.TrackingColorType && hmdInfo.TrackingColorType < PSMTrackingColorType_MaxColorTypes) 
+						{
+							ImGui::Text("HMD: %d (Virtual) - %s",
+								m_selectedHmdIndex,
+								colors[hmdInfo.TrackingColorType]);
+						}
+						else
+						{
+							ImGui::Text("HMD: %d (Virtual)", m_selectedHmdIndex);
 						}
 					}
 				}
@@ -717,6 +729,10 @@ void AppStage_TrackerSettings::handle_hmd_list_response(
 			{
 			case PSMoveProtocol::Morpheus:
 				HmdInfo.HmdType = PSMHmd_Morpheus;
+				thisPtr->m_hmdInfos.push_back(HmdInfo);
+				break;
+			case PSMoveProtocol::VirtualHMD:
+				HmdInfo.HmdType = PSMHmd_Virtual;
 				thisPtr->m_hmdInfos.push_back(HmdInfo);
 				break;
 			default:

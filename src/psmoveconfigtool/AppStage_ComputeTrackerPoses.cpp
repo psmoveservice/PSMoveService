@@ -1233,7 +1233,6 @@ bool AppStage_ComputeTrackerPoses::does_tracker_see_any_controller(const PSMTrac
 		const PSMController *controllerView = controller_iter->second.controllerView;
 		const int tracker_id= trackerView->tracker_info.tracker_id;
 
-		PSMVector2f screenSample;
 		glm::vec3 color;
 		if (controllerView->ControllerType == PSMControllerType::PSMController_Move &&
 			controllerView->ControllerState.PSMoveState.bIsCurrentlyTracking)

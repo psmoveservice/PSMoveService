@@ -191,6 +191,13 @@ void AppStage_HMDGyroscopeCalibration::update()
                 m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
             }
             break;
+        case PSMHmd_Virtual:
+            {
+                m_lastRawGyroscope = {0, 0, 0};
+                m_lastCalibratedGyroscope = {0, 0, 0};
+                m_lastCalibratedAccelerometer = {0, 0, 0};
+            }
+            break;
         }
 
         m_lastHMDSeqNum = m_hmdView->OutputSequenceNum;
@@ -320,6 +327,7 @@ void AppStage_HMDGyroscopeCalibration::render()
 	switch (m_hmdView->HmdType)
 	{
 	case PSMHmd_Morpheus:
+	case PSMHmd_Virtual:
 		hmdTransform = glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale));
 		break;
 	}
@@ -597,6 +605,9 @@ static void drawHMD(PSMHeadMountedDisplay *hmdView, const glm::mat4 &transform)
     {
     case PSMHmd_Morpheus:
         drawMorpheusModel(transform);
+        break;
+    case PSMHmd_Virtual:
+        drawVirtualHMDModel(transform);
         break;
     }
 }

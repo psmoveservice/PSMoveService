@@ -33,6 +33,7 @@ static void applyPSMButtonState(PSMButtonState &button, unsigned int button_bitm
 static void applyTrackerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_TrackerDataPacket& tracker_packet, PSMTracker *tracker);
 static void applyHmdDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_HMDDataPacket& hmd_packet, PSMHeadMountedDisplay *hmd);
 static void applyMorpheusDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_HMDDataPacket& hmd_packet, PSMMorpheus *morpheus);
+static void applyVirtualHMDDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_HMDDataPacket& hmd_packet, PSMVirtualHMD *virtualHMD);
 
 // -- private definitions -----
 class SharedVideoFrameReadOnlyAccessor
@@ -1745,7 +1746,9 @@ static void applyHmdDataFrame(
         case PSMHmd_Morpheus:
 			applyMorpheusDataFrame(hmd_packet, &hmd->HmdState.MorpheusState);
             break;
-            
+        case PSMHmd_Virtual:
+			applyVirtualHMDDataFrame(hmd_packet, &hmd->HmdState.VirtualHMDState);
+            break;            
         default:
             break;
     }
@@ -1873,6 +1876,93 @@ static void applyMorpheusDataFrame(
 	else
 	{
 		memset(&morpheus->PhysicsData, 0, sizeof(PSMPhysicsData));
+	}
+}
+
+static void applyVirtualHMDDataFrame(
+	const PSMoveProtocol::DeviceOutputDataFrame_HMDDataPacket& hmd_packet,
+	PSMVirtualHMD *virtualHMD)
+{
+    const auto &virtual_hmd_data_frame = hmd_packet.virtual_hmd_state();
+
+	virtualHMD->bIsTrackingEnabled = virtual_hmd_data_frame.istrackingenabled();
+	virtualHMD->bIsCurrentlyTracking = virtual_hmd_data_frame.iscurrentlytracking();
+	virtualHMD->bIsPositionValid = virtual_hmd_data_frame.ispositionvalid();
+
+	virtualHMD->Pose.Orientation.w = 1.f;
+	virtualHMD->Pose.Orientation.x = 0.f;
+	virtualHMD->Pose.Orientation.y = 0.f;
+	virtualHMD->Pose.Orientation.z = 0.f;
+
+	virtualHMD->Pose.Position.x = virtual_hmd_data_frame.position_cm().x();
+	virtualHMD->Pose.Position.y = virtual_hmd_data_frame.position_cm().y();
+	virtualHMD->Pose.Position.z = virtual_hmd_data_frame.position_cm().z();
+
+	if (virtual_hmd_data_frame.has_raw_tracker_data())
+	{
+		const auto &raw_tracker_data = virtual_hmd_data_frame.raw_tracker_data();
+
+		virtualHMD->RawTrackerData.ValidTrackerLocations =
+			std::min(raw_tracker_data.valid_tracker_count(), PSMOVESERVICE_MAX_TRACKER_COUNT);
+
+		for (int listIndex = 0; listIndex < virtualHMD->RawTrackerData.ValidTrackerLocations; ++listIndex)
+		{
+			const PSMoveProtocol::Pixel &locationOnTracker = raw_tracker_data.screen_locations(listIndex);
+			const PSMoveProtocol::Position &positionOnTrackerCm = raw_tracker_data.relative_positions_cm(listIndex);
+
+			virtualHMD->RawTrackerData.TrackerIDs[listIndex] = raw_tracker_data.tracker_ids(listIndex);
+			virtualHMD->RawTrackerData.ScreenLocations[listIndex] = {locationOnTracker.x(), locationOnTracker.y()};
+			virtualHMD->RawTrackerData.RelativePositionsCm[listIndex] = 
+				{positionOnTrackerCm.x(), positionOnTrackerCm.y(), positionOnTrackerCm.z()};
+
+			if (raw_tracker_data.projected_spheres_size() > 0)
+			{
+				const PSMoveProtocol::Ellipse &protocolEllipse = raw_tracker_data.projected_spheres(listIndex);
+				PSMTrackingProjection &projection = virtualHMD->RawTrackerData.TrackingProjections[listIndex];
+
+				projection.shape.ellipse.center.x = protocolEllipse.center().x();
+				projection.shape.ellipse.center.y = protocolEllipse.center().y();
+				projection.shape.ellipse.half_x_extent = protocolEllipse.half_x_extent();
+				projection.shape.ellipse.half_y_extent = protocolEllipse.half_y_extent();
+				projection.shape.ellipse.angle = protocolEllipse.angle();
+				projection.shape_type = PSMTrackingProjection::PSMShape_Ellipse;
+			}
+			else
+			{
+				PSMTrackingProjection &projection = virtualHMD->RawTrackerData.TrackingProjections[listIndex];
+
+				projection.shape_type = PSMTrackingProjection::PSMShape_INVALID_PROJECTION;
+			}
+		}
+	}
+	else
+	{
+		memset(&virtualHMD->RawTrackerData, 0, sizeof(PSMRawTrackerData));
+	}
+
+	if (virtual_hmd_data_frame.has_physics_data())
+	{
+		const auto &raw_physics_data = virtual_hmd_data_frame.physics_data();
+
+		virtualHMD->PhysicsData.LinearVelocityCmPerSec.x = raw_physics_data.velocity_cm_per_sec().i();
+		virtualHMD->PhysicsData.LinearVelocityCmPerSec.y = raw_physics_data.velocity_cm_per_sec().j();
+		virtualHMD->PhysicsData.LinearVelocityCmPerSec.z = raw_physics_data.velocity_cm_per_sec().k();
+
+		virtualHMD->PhysicsData.LinearAccelerationCmPerSecSqr.x = raw_physics_data.acceleration_cm_per_sec_sqr().i();
+		virtualHMD->PhysicsData.LinearAccelerationCmPerSecSqr.y = raw_physics_data.acceleration_cm_per_sec_sqr().j();
+		virtualHMD->PhysicsData.LinearAccelerationCmPerSecSqr.z = raw_physics_data.acceleration_cm_per_sec_sqr().k();
+
+		virtualHMD->PhysicsData.AngularVelocityRadPerSec.x = 0.f;
+		virtualHMD->PhysicsData.AngularVelocityRadPerSec.y = 0.f;
+		virtualHMD->PhysicsData.AngularVelocityRadPerSec.z = 0.f;
+
+		virtualHMD->PhysicsData.AngularAccelerationRadPerSecSqr.x = 0.f;
+		virtualHMD->PhysicsData.AngularAccelerationRadPerSecSqr.y = 0.f;
+		virtualHMD->PhysicsData.AngularAccelerationRadPerSecSqr.z = 0.f;
+	}
+	else
+	{
+		memset(&virtualHMD->PhysicsData, 0, sizeof(PSMPhysicsData));
 	}
 }
 

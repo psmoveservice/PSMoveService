@@ -104,6 +104,7 @@ void drawPSDualShock4Model(const glm::mat4 &transform, const glm::vec3 &color);
 void drawPS3EyeModel(const glm::mat4 &transform);
 void drawTrackerList(const PSMClientTrackerInfo *trackerList, const int trackerCount);
 void drawMorpheusModel(const glm::mat4 &transform);
+void drawVirtualHMDModel(const glm::mat4 &transform);
 
 //-- Utilities -----
 // r,g,b values are from 0 to 1
