@@ -9,6 +9,7 @@
 #include "MathEigen.h"
 #include "HMDManager.h"
 #include "MorpheusHMD.h"
+#include "VirtualHMD.h"
 #include "OrientationFilter.h"
 #include "PositionFilter.h"
 #include "ProtocolVersion.h"
@@ -2411,6 +2412,15 @@ protected:
 						hmd_info->set_prediction_time(config->prediction_time);
 					}
                     break;
+                case CommonHMDState::VirtualHMD:
+					{
+						const VirtualHMD *virtualHMD= hmd_view->castCheckedConst<VirtualHMD>();
+						const VirtualHMDConfig *config= virtualHMD->getConfig();
+
+						hmd_info->set_hmd_type(PSMoveProtocol::VirtualHMD);
+						hmd_info->set_prediction_time(config->prediction_time);
+					}
+                    break;
                 default:
                     assert(0 && "Unhandled tracker type");
                 }
@@ -2619,8 +2629,21 @@ protected:
 		{
 			if (HmdView->getHMDDeviceType() == CommonDeviceState::Morpheus)
 			{
-				MorpheusHMD *controller = HmdView->castChecked<MorpheusHMD>();
-				MorpheusHMDConfig *config = controller->getConfigMutable();
+				MorpheusHMD *hmd = HmdView->castChecked<MorpheusHMD>();
+				MorpheusHMDConfig *config = hmd->getConfigMutable();
+
+				if (config->prediction_time != request.prediction_time())
+				{
+					config->prediction_time = request.prediction_time();
+					config->save();
+				}
+
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+			}
+			else if (HmdView->getHMDDeviceType() == CommonDeviceState::VirtualHMD)
+			{
+				VirtualHMD *hmd = HmdView->castChecked<VirtualHMD>();
+				VirtualHMDConfig *config = hmd->getConfigMutable();
 
 				if (config->prediction_time != request.prediction_time())
 				{

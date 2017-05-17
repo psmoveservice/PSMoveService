@@ -99,6 +99,7 @@ message TrackingColorPreset {
 
 enum HMDType {
     Morpheus = 0;
+    VirtualHMD = 1;
 }
 
 // Reliable (TCP) requests that can issued to the PSMove Service
@@ -916,14 +917,14 @@ message DeviceOutputDataFrame
         // The id of hmd this data is for
         int32 hmd_id= 1;
 
-        // Specify the type of controller this data is from
+        // Specify the type of HMD this data is from
         HMDType hmd_type= 2;
 
         // Monotonically increasing number.
         // Used to throw out old data if it arrives out of order.
         int32 sequence_num= 3;
 
-        // Common Controller status flags
+        // Common HMD status flags
         bool IsConnected= 4;
 
         // Morpheus Specific HMD state
@@ -980,6 +981,38 @@ message DeviceOutputDataFrame
             PhysicsData physics_data = 10;
         }
         MorpheusState morpheus_state = 5;
+        
+        // Virtual HMD Specific state
+        message VirtualHMDState
+        {
+            // Virtual HMD Specific flags
+            bool IsTrackingEnabled= 1;
+            bool IsCurrentlyTracking= 2;
+            bool IsPositionValid= 3;
+
+            // Tracking position in the space of the HMD tracking camera
+            Position position_cm = 4;
+
+            // Only valid if include_raw_tracker_data=true in START_HMD_DATA_STREAM request
+            message RawTrackerData
+            {
+                repeated Pixel screen_locations= 1;
+                repeated Position relative_positions_cm= 2;
+                repeated int32 tracker_ids= 3;
+                repeated Ellipse projected_spheres= 4;
+                int32 valid_tracker_count= 5;
+            }
+            RawTrackerData raw_tracker_data = 5;
+
+            // Only valid if include_physics_data=true in START_HMD_DATA_STREAM request
+            message PhysicsData
+            {
+                FloatVector velocity_cm_per_sec= 1;
+                FloatVector acceleration_cm_per_sec_sqr= 2;
+            }
+            PhysicsData physics_data = 6;
+        }
+        VirtualHMDState virtual_hmd_state = 6;        
     }
     HMDDataPacket hmd_data_packet = 4;
 }

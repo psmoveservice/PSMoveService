@@ -1530,6 +1530,75 @@ bool ServerTrackerView::computePoseForHMD(
 
 		switch (tracking_shape.shape_type)
 		{
+        // For the sphere projection we can go ahead and compute the full pose estimation now
+        case eCommonTrackingShapeType::Sphere:
+            {
+				// Compute the convex hull of the contour
+				t_opencv_int_contour convex_contour;
+				cv::convexHull(biggest_contours[0], convex_contour);
+				m_opencv_buffer_state->draw_contour(convex_contour);
+
+				// Convert integer to float
+				t_opencv_float_contour convex_contour_f;
+				cv::Mat(convex_contour).convertTo(convex_contour_f, cv::Mat(convex_contour_f).type());
+
+                // Undistort points
+				t_opencv_float_contour undistort_contour;  //destination for undistorted contour
+                cv::undistortPoints(convex_contour_f, undistort_contour,
+                                    camera_matrix,
+                                    distortions);//,
+                                    //cv::noArray(),
+                                    //camera_matrix);
+                // Note: if we omit the last two arguments, then
+                // undistort_contour points are in 'normalized' space.
+                // i.e., they are relative to their F_PX,F_PY
+                
+                // Compute the sphere center AND the projected ellipse
+                Eigen::Vector3f sphere_center;
+                EigenFitEllipse ellipse_projection;
+
+                std::vector<Eigen::Vector2f> eigen_contour;
+                std::for_each(undistort_contour.begin(),
+                              undistort_contour.end(),
+                              [&eigen_contour](cv::Point2f& p) {
+                                  eigen_contour.push_back(Eigen::Vector2f(p.x, p.y));
+                              });
+                eigen_alignment_fit_focal_cone_to_sphere(eigen_contour.data(),
+														 static_cast<int>(eigen_contour.size()),
+                                                         tracking_shape.shape.sphere.radius_cm,
+                                                         1, //I was expecting this to be -1. Is it +1 because we're using -F_PY?
+                                                         &sphere_center,
+                                                         &ellipse_projection);
+                
+                //Save the optically-estimate 3D pose.
+                out_pose_estimate->position.set(sphere_center.x(), sphere_center.y(), sphere_center.z());
+                out_pose_estimate->bCurrentlyTracking = true;
+                // Not possible to get an orientation off of a sphere
+                out_pose_estimate->orientation.clear();
+                out_pose_estimate->bOrientationValid = false;
+
+                // Save off the projection of the sphere (an ellipse)
+                out_pose_estimate->projection.shape.ellipse.angle = ellipse_projection.angle;
+                out_pose_estimate->projection.screen_area= ellipse_projection.area;
+                //The ellipse projection is still in normalized space.
+                //i.e., it is a 2-dimensional ellipse floating somewhere.
+                //We must reproject it onto the camera.
+                //TODO: Use opencv's project points instead of manual way below
+                //because it will account for distortion, at least for the center point.
+                out_pose_estimate->projection.shape_type = eCommonTrackingProjectionType::ProjectionType_Ellipse;
+                out_pose_estimate->projection.shape.ellipse.center.set(
+                    ellipse_projection.center.x()*camera_matrix.val[0] + camera_matrix.val[2],
+                    ellipse_projection.center.y()*camera_matrix.val[4] + camera_matrix.val[5]);
+                out_pose_estimate->projection.shape.ellipse.half_x_extent = ellipse_projection.extents.x()*camera_matrix.val[0];
+                out_pose_estimate->projection.shape.ellipse.half_y_extent = ellipse_projection.extents.y()*camera_matrix.val[0];
+				out_pose_estimate->projection.screen_area=
+					k_real_pi*out_pose_estimate->projection.shape.ellipse.half_x_extent*out_pose_estimate->projection.shape.ellipse.half_y_extent;
+                
+                //Draw results onto m_opencv_buffer_state
+                m_opencv_buffer_state->draw_pose_projection(out_pose_estimate->projection);
+
+                bSuccess = true;
+            } break;
 		case eCommonTrackingShapeType::PointCloud:
 			{
 				bSuccess =

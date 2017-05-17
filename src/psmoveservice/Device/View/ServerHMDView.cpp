@@ -3,6 +3,7 @@
 #include "ServerHMDView.h"
 #include "MathAlignment.h"
 #include "MorpheusHMD.h"
+#include "VirtualHMD.h"
 #include "CompoundPoseFilter.h"
 #include "PoseFilterInterface.h"
 #include "PSMoveProtocol.pb.h"
@@ -18,6 +19,8 @@ static const float k_max_time_delta_seconds = 1 / 30.f;
 //-- private methods -----
 static void init_filters_for_morpheus_hmd(
 	const MorpheusHMD *morpheusHMD, PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter);
+static void init_filters_for_virtual_hmd(
+	const VirtualHMD *virtualHMD, PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter);
 static IPoseFilter *pose_filter_factory(
 	const CommonDeviceState::eDeviceType deviceType,
 	const std::string &position_filter_type, const std::string &orientation_filter_type,
@@ -26,7 +29,14 @@ static void update_filters_for_morpheus_hmd(
 	const MorpheusHMD *morpheusHMD, const MorpheusHMDState *morpheusHMDState,
 	const float delta_time,
 	const HMDOpticalPoseEstimation *poseEstimation, const PoseFilterSpace *poseFilterSpace, IPoseFilter *poseFilter);
+static void update_filters_for_virtual_hmd(
+	const VirtualHMD *virtualHMD, const VirtualHMDState *virtualHMDState,
+	const float delta_time,
+	const HMDOpticalPoseEstimation *poseEstimation, const PoseFilterSpace *poseFilterSpace, IPoseFilter *poseFilter);
 static void generate_morpheus_hmd_data_frame_for_stream(
+    const ServerHMDView *hmd_view, const HMDStreamInfo *stream_info,
+    DeviceOutputDataFramePtr &data_frame);
+static void generate_virtual_hmd_data_frame_for_stream(
     const ServerHMDView *hmd_view, const HMDStreamInfo *stream_info,
     DeviceOutputDataFramePtr &data_frame);
 
@@ -65,6 +75,20 @@ bool ServerHMDView::allocate_device_interface(const class DeviceEnumerator *enum
     case CommonDeviceState::Morpheus:
         {
             m_device = new MorpheusHMD();
+			m_pose_filter = nullptr; // no pose filter until the device is opened
+
+			m_tracker_pose_estimation = new HMDOpticalPoseEstimation[TrackerManager::k_max_devices];
+			for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
+			{
+				m_tracker_pose_estimation[tracker_index].clear();
+			}
+
+			m_multicam_pose_estimation = new HMDOpticalPoseEstimation();
+			m_multicam_pose_estimation->clear();
+        } break;
+    case CommonDeviceState::VirtualHMD:
+        {
+            m_device = new VirtualHMD();
 			m_pose_filter = nullptr; // no pose filter until the device is opened
 
 			m_tracker_pose_estimation = new HMDOpticalPoseEstimation[TrackerManager::k_max_devices];
@@ -129,6 +153,7 @@ bool ServerHMDView::open(const class DeviceEnumerator *enumerator)
 		switch (device->getDeviceType())
 		{
 		case CommonDeviceState::Morpheus:
+        case CommonDeviceState::VirtualHMD:
 			{
 				// Create a pose filter based on the HMD type
 				resetPoseFilter();
@@ -168,6 +193,12 @@ void ServerHMDView::resetPoseFilter()
 			const MorpheusHMD *morpheusHMD = this->castCheckedConst<MorpheusHMD>();
 
 			init_filters_for_morpheus_hmd(morpheusHMD, &m_pose_filter_space, &m_pose_filter);
+		} break;
+	case CommonDeviceState::VirtualHMD:
+		{
+			const VirtualHMD *virtualHMD = this->castCheckedConst<VirtualHMD>();
+
+			init_filters_for_virtual_hmd(virtualHMD, &m_pose_filter_space, &m_pose_filter);
 		} break;
 	default:
 		break;
@@ -457,18 +488,31 @@ void ServerHMDView::updateStateAndPredict()
 		switch (hmdState->DeviceType)
 		{
 		case CommonHMDState::Morpheus:
-		{
-			const MorpheusHMD *morpheusHMD = this->castCheckedConst<MorpheusHMD>();
-			const MorpheusHMDState *morpheusHMDState = static_cast<const MorpheusHMDState *>(hmdState);
+		    {
+			    const MorpheusHMD *morpheusHMD = this->castCheckedConst<MorpheusHMD>();
+			    const MorpheusHMDState *morpheusHMDState = static_cast<const MorpheusHMDState *>(hmdState);
 
-			// Only update the position filter when tracking is enabled
-			update_filters_for_morpheus_hmd(
-				morpheusHMD, morpheusHMDState,
-				per_state_time_delta_seconds,
-				m_multicam_pose_estimation,
-				m_pose_filter_space,
-				m_pose_filter);
-		} break;
+			    // Only update the position filter when tracking is enabled
+			    update_filters_for_morpheus_hmd(
+				    morpheusHMD, morpheusHMDState,
+				    per_state_time_delta_seconds,
+				    m_multicam_pose_estimation,
+				    m_pose_filter_space,
+				    m_pose_filter);
+		    } break;
+		case CommonHMDState::VirtualHMD:
+		    {
+			    const VirtualHMD *virtualHMD = this->castCheckedConst<VirtualHMD>();
+			    const VirtualHMDState *virtualHMDState = static_cast<const VirtualHMDState *>(hmdState);
+
+			    // Only update the position filter when tracking is enabled
+			    update_filters_for_virtual_hmd(
+				    virtualHMD, virtualHMDState,
+				    per_state_time_delta_seconds,
+				    m_multicam_pose_estimation,
+				    m_pose_filter_space,
+				    m_pose_filter);
+		    } break;
 		default:
 			assert(0 && "Unhandled HMD type");
 		}
@@ -554,6 +598,10 @@ ServerHMDView::getConfigIdentifier() const
 		{
 			identifier = "hmd_morpheus";
 		}
+		else if (m_device->getDeviceType() == CommonDeviceState::VirtualHMD)
+		{
+			identifier = "virtual_hmd";
+		}
 		else
 		{
 			identifier = "hmd_unknown";
@@ -611,6 +659,9 @@ void ServerHMDView::set_tracking_enabled_internal(bool bEnabled)
 		{
 		case CommonHMDState::Morpheus:
 			castChecked<MorpheusHMD>()->setTrackingEnabled(bEnabled);
+			break;
+		case CommonHMDState::VirtualHMD:
+			castChecked<VirtualHMD>()->setTrackingEnabled(bEnabled);
 			break;
 		default:
 			assert(0 && "unreachable");
@@ -670,6 +721,10 @@ void ServerHMDView::generate_hmd_data_frame_for_stream(
     case CommonHMDState::Morpheus:
         {
             generate_morpheus_hmd_data_frame_for_stream(hmd_view, stream_info, data_frame);
+        } break;
+    case CommonHMDState::VirtualHMD:
+        {
+            generate_virtual_hmd_data_frame_for_stream(hmd_view, stream_info, data_frame);
         } break;
     default:
         assert(0 && "Unhandled HMD type");
@@ -732,6 +787,53 @@ init_filters_for_morpheus_hmd(
 		constants);
 }
 
+static void init_filters_for_virtual_hmd(
+    const VirtualHMD *virtualHMD, PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter)
+{
+    const VirtualHMDConfig *hmd_config = virtualHMD->getConfig();
+
+	// Setup the space the pose filter operates in
+	PoseFilterSpace *pose_filter_space = new PoseFilterSpace();
+	pose_filter_space->setIdentityGravity(Eigen::Vector3f(0.f, 1.f, 0.f));
+	pose_filter_space->setIdentityMagnetometer(Eigen::Vector3f::Zero());
+	pose_filter_space->setCalibrationTransform(*k_eigen_identity_pose_upright);
+	pose_filter_space->setSensorTransform(*k_eigen_sensor_transform_identity);
+
+	// Copy the pose filter constants from the controller config
+	PoseFilterConstants constants;
+	constants.clear();
+
+	constants.orientation_constants.gravity_calibration_direction = Eigen::Vector3f::Zero();
+	constants.orientation_constants.accelerometer_variance = Eigen::Vector3f::Zero();
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
+	constants.orientation_constants.magnetometer_calibration_direction = Eigen::Vector3f::Zero();
+	constants.orientation_constants.gyro_drift = Eigen::Vector3f::Zero();
+	constants.orientation_constants.gyro_variance = Eigen::Vector3f::Zero();
+	constants.orientation_constants.mean_update_time_delta = 0.f;
+	constants.orientation_constants.orientation_variance_curve.A = 0.f;
+	constants.orientation_constants.orientation_variance_curve.B = 0.f;
+	constants.orientation_constants.orientation_variance_curve.MaxValue = 0.f;
+	constants.orientation_constants.magnetometer_variance = Eigen::Vector3f::Zero();
+	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero();
+
+	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
+	constants.position_constants.accelerometer_variance = Eigen::Vector3f::Zero();
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
+	constants.position_constants.accelerometer_noise_radius = 0.f; // TODO
+	constants.position_constants.max_velocity = hmd_config->max_velocity;
+	constants.position_constants.mean_update_time_delta = hmd_config->mean_update_time_delta;
+	constants.position_constants.position_variance_curve.A = hmd_config->position_variance_exp_fit_a;
+	constants.position_constants.position_variance_curve.B = hmd_config->position_variance_exp_fit_b;
+	constants.position_constants.position_variance_curve.MaxValue = 1.f;
+
+	*out_pose_filter_space = pose_filter_space;
+	*out_pose_filter = pose_filter_factory(
+		CommonDeviceState::eDeviceType::VirtualHMD,
+		hmd_config->position_filter_type,
+		"",
+		constants);
+}
+
 static IPoseFilter *
 pose_filter_factory(
 	const CommonDeviceState::eDeviceType deviceType,
@@ -776,6 +878,7 @@ pose_filter_factory(
 		switch (deviceType)
 		{
 		case CommonDeviceState::Morpheus:
+        case CommonDeviceState::VirtualHMD:
 			position_filter_enum = PositionFilterTypeLowPassIMU;
 			break;
 		default:
@@ -812,6 +915,9 @@ pose_filter_factory(
 		case CommonDeviceState::Morpheus:
 			orientation_filter_enum = OrientationFilterTypeComplementaryOpticalARG;
 			break;
+        case CommonDeviceState::VirtualHMD:
+            orientation_filter_enum = OrientationFilterTypeNone;
+            break;
 		default:
 			assert(0 && "unreachable");
 		}
@@ -902,6 +1008,56 @@ update_filters_for_morpheus_hmd(
 
 				poseFilter->update(delta_time / 2.f, filterPacket);
 			}
+		}
+	}
+}
+
+static void
+update_filters_for_virtual_hmd(
+    const VirtualHMD *virtualHMD,
+    const VirtualHMDState *virtualHMDState,
+	const float delta_time,
+	const HMDOpticalPoseEstimation *poseEstimation,
+	const PoseFilterSpace *poseFilterSpace,
+	IPoseFilter *poseFilter)
+{
+    const VirtualHMDConfig *config = virtualHMD->getConfig();
+
+	// Update the orientation filter
+	if (poseFilter != nullptr)
+	{
+		PoseSensorPacket sensorPacket;
+
+		sensorPacket.imu_magnetometer_unit = Eigen::Vector3f::Zero();
+		sensorPacket.optical_orientation = Eigen::Quaternionf::Identity();
+
+		if (poseEstimation->bCurrentlyTracking)
+		{
+			sensorPacket.optical_position_cm =
+				Eigen::Vector3f(
+					poseEstimation->position.x,
+					poseEstimation->position.y,
+					poseEstimation->position.z);
+			sensorPacket.tracking_projection_area_px_sqr = poseEstimation->projection.screen_area;
+		}
+		else
+		{
+			sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
+			sensorPacket.tracking_projection_area_px_sqr = 0.f;
+		}
+
+		sensorPacket.imu_accelerometer_g_units = Eigen::Vector3f::Zero();
+		sensorPacket.imu_gyroscope_rad_per_sec = Eigen::Vector3f::Zero();
+		sensorPacket.imu_magnetometer_unit = Eigen::Vector3f::Zero();
+
+		{
+			PoseFilterPacket filterPacket;
+
+			// Create a filter input packet from the sensor data 
+			// and the filter's previous orientation and position
+			poseFilterSpace->createFilterPacket(sensorPacket, poseFilter, filterPacket);
+
+			poseFilter->update(delta_time, filterPacket);
 		}
 	}
 }
@@ -1072,6 +1228,119 @@ static void generate_morpheus_hmd_data_frame_for_stream(
     }
 
     hmd_data_frame->set_hmd_type(PSMoveProtocol::Morpheus);
+}
+
+static void generate_virtual_hmd_data_frame_for_stream(
+    const ServerHMDView *hmd_view,
+    const HMDStreamInfo *stream_info,
+    DeviceOutputDataFramePtr &data_frame)
+{
+    const VirtualHMD *virtual_hmd = hmd_view->castCheckedConst<VirtualHMD>();
+    const VirtualHMDConfig *virtual_hmd_config = virtual_hmd->getConfig();
+	const IPoseFilter *pose_filter = hmd_view->getPoseFilter();
+    const CommonHMDState *hmd_state = hmd_view->getState();
+    const CommonDevicePose hmd_pose = hmd_view->getFilteredPose();
+
+    PSMoveProtocol::DeviceOutputDataFrame_HMDDataPacket *hmd_data_frame = data_frame->mutable_hmd_data_packet();
+
+    if (hmd_state != nullptr)
+    {
+        assert(hmd_state->DeviceType == CommonDeviceState::VirtualHMD);
+        const VirtualHMDState * virtual_hmd_state = static_cast<const VirtualHMDState *>(hmd_state);
+
+        auto * virtual_hmd_data_frame = hmd_data_frame->mutable_virtual_hmd_state();
+
+		virtual_hmd_data_frame->set_iscurrentlytracking(hmd_view->getIsCurrentlyTracking());
+		virtual_hmd_data_frame->set_istrackingenabled(hmd_view->getIsTrackingEnabled());
+		virtual_hmd_data_frame->set_ispositionvalid(pose_filter->getIsStateValid());
+
+		if (stream_info->include_position_data)
+		{
+			virtual_hmd_data_frame->mutable_position_cm()->set_x(hmd_pose.PositionCm.x);
+			virtual_hmd_data_frame->mutable_position_cm()->set_y(hmd_pose.PositionCm.y);
+			virtual_hmd_data_frame->mutable_position_cm()->set_z(hmd_pose.PositionCm.z);
+		}
+		else
+		{
+			virtual_hmd_data_frame->mutable_position_cm()->set_x(0);
+			virtual_hmd_data_frame->mutable_position_cm()->set_y(0);
+			virtual_hmd_data_frame->mutable_position_cm()->set_z(0);
+		}
+
+		// If requested, get the raw sensor data for the hmd
+		if (stream_info->include_physics_data)
+		{
+			const CommonDevicePhysics hmd_physics = hmd_view->getFilteredPhysics();
+			auto *physics_data = virtual_hmd_data_frame->mutable_physics_data();
+
+			physics_data->mutable_velocity_cm_per_sec()->set_i(hmd_physics.VelocityCmPerSec.i);
+			physics_data->mutable_velocity_cm_per_sec()->set_j(hmd_physics.VelocityCmPerSec.j);
+			physics_data->mutable_velocity_cm_per_sec()->set_k(hmd_physics.VelocityCmPerSec.k);
+
+			physics_data->mutable_acceleration_cm_per_sec_sqr()->set_i(hmd_physics.AccelerationCmPerSecSqr.i);
+			physics_data->mutable_acceleration_cm_per_sec_sqr()->set_j(hmd_physics.AccelerationCmPerSecSqr.j);
+			physics_data->mutable_acceleration_cm_per_sec_sqr()->set_k(hmd_physics.AccelerationCmPerSecSqr.k);
+		}
+
+		// If requested, get the raw tracker data for the controller
+		if (stream_info->include_raw_tracker_data)
+		{
+			auto *raw_tracker_data = virtual_hmd_data_frame->mutable_raw_tracker_data();
+			int valid_tracker_count = 0;
+
+			for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
+			{
+				const HMDOpticalPoseEstimation *positionEstimate = hmd_view->getTrackerPoseEstimate(trackerId);
+
+				if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
+				{
+					const CommonDevicePosition &trackerRelativePosition = positionEstimate->position;
+					const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
+
+					// Project the 3d camera position back onto the tracker screen
+					{
+						const CommonDeviceScreenLocation trackerScreenLocation =
+							tracker_view->projectTrackerRelativePosition(&trackerRelativePosition);
+						PSMoveProtocol::Pixel *pixel = raw_tracker_data->add_screen_locations();
+
+						pixel->set_x(trackerScreenLocation.x);
+						pixel->set_y(trackerScreenLocation.y);
+					}
+
+					// Add the tracker relative 3d position
+					{
+						PSMoveProtocol::Position *position = raw_tracker_data->add_relative_positions_cm();
+
+						position->set_x(trackerRelativePosition.x);
+						position->set_y(trackerRelativePosition.y);
+						position->set_z(trackerRelativePosition.z);
+					}
+
+					// Add the tracker relative projection shapes
+					{
+						const CommonDeviceTrackingProjection &trackerRelativeProjection =
+							positionEstimate->projection;
+
+						assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_Ellipse);
+						PSMoveProtocol::Ellipse *ellipse = raw_tracker_data->add_projected_spheres();
+
+                        ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
+                        ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
+                        ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
+                        ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
+                        ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
+					}
+
+					raw_tracker_data->add_tracker_ids(trackerId);
+					++valid_tracker_count;
+				}
+			}
+
+			raw_tracker_data->set_valid_tracker_count(valid_tracker_count);
+		}
+    }
+
+    hmd_data_frame->set_hmd_type(PSMoveProtocol::VirtualHMD);
 }
 
 static Eigen::Vector3f CommonDevicePosition_to_EigenVector3f(const CommonDevicePosition &p)
