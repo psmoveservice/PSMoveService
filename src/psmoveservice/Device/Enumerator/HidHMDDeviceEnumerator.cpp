@@ -67,7 +67,7 @@ bool HidHMDDeviceEnumerator::next()
 		m_deviceType = static_cast<CommonDeviceState::eDeviceType>(m_deviceType + 1);
 
 		if (GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_HMD_TYPE_INDEX && 
-            GET_DEVICE_TYPE_INDEX(m_deviceType) != CommonDeviceState::VirtualHMD)
+            m_deviceType != CommonDeviceState::VirtualHMD)
 		{
 			build_interface_list();
 

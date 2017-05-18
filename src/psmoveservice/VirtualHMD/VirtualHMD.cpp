@@ -3,6 +3,7 @@
 #include "DeviceInterface.h"
 #include "DeviceManager.h"
 #include "HMDDeviceEnumerator.h"
+#include "VirtualHMDDeviceEnumerator.h"
 #include "MathUtility.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
@@ -35,8 +36,6 @@ VirtualHMDConfig::config2ptree()
 
 	pt.put("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
-	pt.put("OrientationFilter.FilterType", orientation_filter_type);
-
 	pt.put("PositionFilter.FilterType", position_filter_type);
 	pt.put("PositionFilter.MaxVelocity", max_velocity);
 
@@ -64,8 +63,6 @@ VirtualHMDConfig::ptree2config(const boost::property_tree::ptree &pt)
 
 		mean_update_time_delta = pt.get<float>("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
-		orientation_filter_type = pt.get<std::string>("OrientationFilter.FilterType", orientation_filter_type);
-
 		position_filter_type = pt.get<std::string>("PositionFilter.FilterType", position_filter_type);
 		max_velocity = pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
 
@@ -85,6 +82,7 @@ VirtualHMDConfig::ptree2config(const boost::property_tree::ptree &pt)
 VirtualHMD::VirtualHMD()
     : cfg()
     , NextPollSequenceNumber(0)
+    , bIsOpen(false)
     , HMDStates()
 	, bIsTracking(false)
 {
@@ -132,7 +130,11 @@ bool VirtualHMD::open(
 		device_identifier = cur_dev_path;
         bIsOpen= true;
 
-		// Always save the config back out in case some defaults changed
+		// Load the config file
+		cfg = VirtualHMDConfig(pEnum->get_path());
+		cfg.load();
+
+		// Save it back out again in case any defaults changed
 		cfg.save();
 
         // Reset the polling sequence counter

@@ -27,7 +27,7 @@ public:
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
     int version;
-    std::vector<std::string> virtual_hmds;
+    int virtual_hmd_count;
 };
 
 class HMDManager : public DeviceTypeManager
@@ -40,7 +40,7 @@ public:
 
 	void updateStateAndPredict(TrackerManager* tracker_manager);
 
-    static const int k_max_devices = 1;
+    static const int k_max_devices = 4;
     int getMaxDevices() const override
     {
         return HMDManager::k_max_devices;

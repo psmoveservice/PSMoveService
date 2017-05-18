@@ -21,7 +21,6 @@ public:
 		, is_valid(false)
 		, version(CONFIG_VERSION)
 		, position_filter_type("LowPassOptical")
-		, orientation_filter_type("MadgwickARG")
         , max_velocity(1.f)
 		, mean_update_time_delta(0.008333f)
 		, position_variance_exp_fit_a(0.0994158462f)
@@ -40,9 +39,6 @@ public:
 
 	// The type of position filter to use
 	std::string position_filter_type;
-
-	// The type of orientation filter to use
-	std::string orientation_filter_type;
 
 	// Maximum velocity for the controller physics (meters/second)
 	float max_velocity;

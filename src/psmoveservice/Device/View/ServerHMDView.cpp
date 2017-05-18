@@ -888,7 +888,11 @@ pose_filter_factory(
 
 	// Convert the orientation filter type string into an enum
 	OrientationFilterType orientation_filter_enum = OrientationFilterTypeNone;
-	if (orientation_filter_type == "PassThru")
+	if (orientation_filter_type == "")
+	{
+		orientation_filter_enum = OrientationFilterTypeNone;
+	}
+	else if (orientation_filter_type == "PassThru")
 	{
 		orientation_filter_enum = OrientationFilterTypePassThru;
 	}

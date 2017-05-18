@@ -63,6 +63,11 @@ void AppStage_HMDSettings::render()
                     glm::mat4 scale3 = glm::scale(glm::mat4(1.f), glm::vec3(2.f, 2.f, 2.f));
                     drawMorpheusModel(scale3);
                 } break;
+            case PSMoveProtocol::VirtualHMD:
+                {
+                    glm::mat4 scale3 = glm::scale(glm::mat4(1.f), glm::vec3(2.f, 2.f, 2.f));
+                    drawVirtualHMDModel(scale3);
+                } break;
             default:
                 assert(0 && "Unreachable");
             }
@@ -107,9 +112,13 @@ void AppStage_HMDSettings::renderUI()
             switch (hmdInfo.HmdType)
             {
             case AppStage_HMDSettings::Morpheus:
-            {
-                ImGui::Text("  HMD Type: Morpheus");
-            } break;
+                {
+                    ImGui::Text("  HMD Type: Morpheus");
+                } break;
+            case AppStage_HMDSettings::VirtualHMD:
+                {
+                    ImGui::Text("  HMD Type: VirtualHMD");
+                } break;
             default:
                 assert(0 && "Unreachable");
             }
@@ -335,6 +344,9 @@ void AppStage_HMDSettings::handle_hmd_list_response(
                 {
                 case PSMoveProtocol::HMDType::Morpheus:
                     HmdInfo.HmdType = AppStage_HMDSettings::Morpheus;
+                    break;
+                case PSMoveProtocol::HMDType::VirtualHMD:
+                    HmdInfo.HmdType = AppStage_HMDSettings::VirtualHMD;
                     break;
                 default:
                     assert(0 && "unreachable");

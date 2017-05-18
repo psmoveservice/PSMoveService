@@ -13,6 +13,7 @@ const int HMDManagerConfig::CONFIG_VERSION = 1;
 
 HMDManagerConfig::HMDManagerConfig(const std::string &fnamebase)
     : PSMoveConfig(fnamebase)
+    , virtual_hmd_count(0)
 {
 
 };
@@ -23,9 +24,7 @@ HMDManagerConfig::config2ptree()
     boost::property_tree::ptree pt;
 
     pt.put("version", HMDManagerConfig::CONFIG_VERSION);
-
-    BOOST_FOREACH(const std::string &name, virtual_hmds)
-        pt.put("HMDManagerConfig.virtual_hmds.virtual_hmd", name);
+    pt.put("virtual_hmd_count", virtual_hmd_count);
 
     return pt;
 }
@@ -37,9 +36,7 @@ HMDManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
 
     if (version == HMDManagerConfig::CONFIG_VERSION)
     {
-        virtual_hmds.clear();
-        BOOST_FOREACH(const boost::property_tree::ptree::value_type &v, pt.get_child("HMDManagerConfig.virtual_hmds"))
-            virtual_hmds.push_back(v.second.data());
+        virtual_hmd_count = pt.get<int>("virtual_hmd_count", 0);
     }
     else
     {

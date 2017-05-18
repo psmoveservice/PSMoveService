@@ -18,7 +18,7 @@
 #define PSMOVESERVICE_MAX_TRACKER_COUNT  4
 
 // See HMDManager.h in PSMoveService
-#define PSMOVESERVICE_MAX_HMD_COUNT  1
+#define PSMOVESERVICE_MAX_HMD_COUNT  4
 
 // The length of a controller serial string: "xx:xx:xx:xx:xx:xx\0"
 #define PSMOVESERVICE_CONTROLLER_SERIAL_LEN  18

@@ -12,7 +12,8 @@ class AppStage_HMDSettings : public AppStage
 public:
     enum eHMDType
     {
-        Morpheus
+        Morpheus,
+        VirtualHMD
     };
 
     struct HMDInfo

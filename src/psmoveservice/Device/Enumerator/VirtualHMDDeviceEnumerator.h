@@ -18,6 +18,8 @@ public:
 	int get_product_id() const override;
     const char *get_path() const override;
 
+    inline int get_device_identifier() const { return m_device_index; }
+
 private:
 	std::string m_current_device_identifier;
     int m_device_index;
