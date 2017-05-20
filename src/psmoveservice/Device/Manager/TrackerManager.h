@@ -55,7 +55,7 @@ public:
 	int tracker_sleep_ms;
 	bool use_bgr_to_hsv_lookup_table;
 	bool exclude_opposed_cameras;
-	int min_valid_projection_area;
+	float min_valid_projection_area;
 	bool disable_roi;
     TrackerProfile default_tracker_profile;
 	float global_forward_degrees;
