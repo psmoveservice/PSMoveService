@@ -174,6 +174,7 @@ bool ServerHMDView::open(const class DeviceEnumerator *enumerator)
     if (bSuccess)
     {
         IDeviceInterface *device = getDevice();
+        bool bAllocateTrackingColor = false;
 
 		switch (device->getDeviceType())
 		{
@@ -183,16 +184,59 @@ bool ServerHMDView::open(const class DeviceEnumerator *enumerator)
 				// Create a pose filter based on the HMD type
 				resetPoseFilter();
 				m_multicam_pose_estimation->clear();
+                bAllocateTrackingColor= true;
 			} break;
 		default:
 			break;
 		}
+
+        // If needed for this kind of HMD, assign a tracking color id
+        if (bAllocateTrackingColor)
+        {
+            eCommonTrackingColorID tracking_color_id;
+            assert(m_device != nullptr);
+
+            // If this device already has a valid tracked color assigned, 
+            // claim it from the pool (or another controller/hmd that had it previously)
+            if (m_device->getTrackingColorID(tracking_color_id) && tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
+            {
+                DeviceManager::getInstance()->m_tracker_manager->claimTrackingColorID(this, tracking_color_id);
+            }
+            else
+            {
+                // Allocate a color from the list of remaining available color ids
+                eCommonTrackingColorID allocatedColorID= DeviceManager::getInstance()->m_tracker_manager->allocateTrackingColorID();
+
+                // Attempt to assign the tracking color id to the controller
+                if (!m_device->setTrackingColorID(allocatedColorID))
+                {
+                    // If the device can't be assigned a tracking color, release the color back to the pool
+                    DeviceManager::getInstance()->m_tracker_manager->freeTrackingColorID(allocatedColorID);
+                }
+            }
+        }
 
         // Reset the poll sequence number high water mark
         m_lastPollSeqNumProcessed = -1;
     }
 
     return bSuccess;
+}
+
+void ServerHMDView::close()
+{
+    set_tracking_enabled_internal(false);
+
+    eCommonTrackingColorID tracking_color_id= eCommonTrackingColorID::INVALID_COLOR;
+    if (m_device != nullptr && m_device->getTrackingColorID(tracking_color_id))
+    {
+        if (tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
+        {
+            DeviceManager::getInstance()->m_tracker_manager->freeTrackingColorID(tracking_color_id);
+        }
+    }
+
+    ServerDeviceView::close();
 }
 
 void ServerHMDView::resetPoseFilter()
@@ -649,6 +693,31 @@ eCommonTrackingColorID ServerHMDView::getTrackingColorID() const
 	}
 
 	return tracking_color_id;
+}
+
+bool ServerHMDView::setTrackingColorID(eCommonTrackingColorID colorID)
+{
+    bool bSuccess= true;
+
+    if (colorID != getTrackingColorID())
+    {
+        if (m_device != nullptr)
+        {
+            bSuccess= m_device->setTrackingColorID(colorID);
+
+            if (bSuccess && getIsTrackingEnabled())
+            {
+                set_tracking_enabled_internal(false);
+                set_tracking_enabled_internal(true);
+            }
+        }
+        else
+        {
+            bSuccess= false;
+        }
+    }
+
+    return bSuccess;
 }
 
 float ServerHMDView::getROIPredictionTime() const

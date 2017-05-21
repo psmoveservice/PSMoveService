@@ -46,6 +46,7 @@ public:
     ~ServerHMDView();
 
     bool open(const class DeviceEnumerator *enumerator) override;
+    void close() override;
 
 	// Recreate and initialize the pose filter for the HMD
 	void resetPoseFilter();
@@ -93,6 +94,9 @@ public:
 
 	// Get the currently assigned tracking color ID for the controller
 	eCommonTrackingColorID getTrackingColorID() const;
+
+    // Set the assigned tracking color ID for the controller
+    bool setTrackingColorID(eCommonTrackingColorID colorID);
 
 	// Get if the region-of-interest optimization is disabled for this HMD
 	inline bool getIsROIDisabled() const { return m_roi_disable_count > 0; }

@@ -629,6 +629,12 @@ MorpheusHMD::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const
 }
 
 bool 
+MorpheusHMD::setTrackingColorID(const eCommonTrackingColorID tracking_color_id)
+{
+    return false;
+}
+
+bool 
 MorpheusHMD::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const
 {
 	out_tracking_color_id = eCommonTrackingColorID::Blue;

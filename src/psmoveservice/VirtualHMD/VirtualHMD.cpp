@@ -28,21 +28,21 @@ VirtualHMDConfig::config2ptree()
 {
     boost::property_tree::ptree pt;
 
-	pt.put("is_valid", is_valid);
-	pt.put("version", VirtualHMDConfig::CONFIG_VERSION);
+    pt.put("is_valid", is_valid);
+    pt.put("version", VirtualHMDConfig::CONFIG_VERSION);
 
-	pt.put("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
-	pt.put("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
+    pt.put("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
+    pt.put("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
 
-	pt.put("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
+    pt.put("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
-	pt.put("PositionFilter.FilterType", position_filter_type);
-	pt.put("PositionFilter.MaxVelocity", max_velocity);
+    pt.put("PositionFilter.FilterType", position_filter_type);
+    pt.put("PositionFilter.MaxVelocity", max_velocity);
 
-	pt.put("prediction_time", prediction_time);
+    pt.put("prediction_time", prediction_time);
     pt.put("bulb_radius", bulb_radius);
 
-	writeTrackingColor(pt, tracking_color_id);
+    writeTrackingColor(pt, tracking_color_id);
 
     return pt;
 }
@@ -54,20 +54,20 @@ VirtualHMDConfig::ptree2config(const boost::property_tree::ptree &pt)
 
     if (version == VirtualHMDConfig::CONFIG_VERSION)
     {
-		is_valid = pt.get<bool>("is_valid", false);
+        is_valid = pt.get<bool>("is_valid", false);
 
-		prediction_time = pt.get<float>("prediction_time", 0.f);
+        prediction_time = pt.get<float>("prediction_time", 0.f);
 
-		position_variance_exp_fit_a = pt.get<float>("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
-		position_variance_exp_fit_b = pt.get<float>("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
+        position_variance_exp_fit_a = pt.get<float>("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
+        position_variance_exp_fit_b = pt.get<float>("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
 
-		mean_update_time_delta = pt.get<float>("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
+        mean_update_time_delta = pt.get<float>("Calibration.Time.MeanUpdateTime", mean_update_time_delta);
 
-		position_filter_type = pt.get<std::string>("PositionFilter.FilterType", position_filter_type);
-		max_velocity = pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
+        position_filter_type = pt.get<std::string>("PositionFilter.FilterType", position_filter_type);
+        max_velocity = pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
 
-		// Read the tracking color
-		tracking_color_id = static_cast<eCommonTrackingColorID>(readTrackingColor(pt));
+        // Read the tracking color
+        tracking_color_id = static_cast<eCommonTrackingColorID>(readTrackingColor(pt));
         bulb_radius = pt.get<float>("bulb_radius", bulb_radius);
     }
     else
@@ -84,7 +84,7 @@ VirtualHMD::VirtualHMD()
     , NextPollSequenceNumber(0)
     , bIsOpen(false)
     , HMDStates()
-	, bIsTracking(false)
+    , bIsTracking(false)
 {
     HMDStates.clear();
 }
@@ -125,22 +125,22 @@ bool VirtualHMD::open(
     }
     else
     {
-		SERVER_LOG_INFO("VirtualHMD::open") << "Opening VirtualHMD(" << cur_dev_path << ").";
+        SERVER_LOG_INFO("VirtualHMD::open") << "Opening VirtualHMD(" << cur_dev_path << ").";
 
-		device_identifier = cur_dev_path;
+        device_identifier = cur_dev_path;
         bIsOpen= true;
 
-		// Load the config file
-		cfg = VirtualHMDConfig(pEnum->get_path());
-		cfg.load();
+        // Load the config file
+        cfg = VirtualHMDConfig(pEnum->get_path());
+        cfg.load();
 
-		// Save it back out again in case any defaults changed
-		cfg.save();
+        // Save it back out again in case any defaults changed
+        cfg.save();
 
         // Reset the polling sequence counter
         NextPollSequenceNumber = 0;
 
-		success = true;
+        success = true;
     }
 
     return success;
@@ -204,49 +204,65 @@ VirtualHMD::getIsOpen() const
 IControllerInterface::ePollResult
 VirtualHMD::poll()
 {
-	IHMDInterface::ePollResult result = IHMDInterface::_PollResultFailure;
+    IHMDInterface::ePollResult result = IHMDInterface::_PollResultFailure;
 
-	if (getIsOpen())
-	{
+    if (getIsOpen())
+    {
         VirtualHMDState newState;
 
         // New data available. Keep iterating.
-		result = IHMDInterface::_PollResultSuccessNewData;
+        result = IHMDInterface::_PollResultSuccessNewData;
 
-		// Increment the sequence for every new polling packet
-		newState.PollSequenceNumber = NextPollSequenceNumber;
-		++NextPollSequenceNumber;
+        // Increment the sequence for every new polling packet
+        newState.PollSequenceNumber = NextPollSequenceNumber;
+        ++NextPollSequenceNumber;
 
-		// Make room for new entry if at the max queue size
-		if (HMDStates.size() >= VIRTUAL_HMD_STATE_BUFFER_MAX)
-		{
-			HMDStates.erase(HMDStates.begin(), HMDStates.begin() + HMDStates.size() - VIRTUAL_HMD_STATE_BUFFER_MAX);
-		}
+        // Make room for new entry if at the max queue size
+        if (HMDStates.size() >= VIRTUAL_HMD_STATE_BUFFER_MAX)
+        {
+            HMDStates.erase(HMDStates.begin(), HMDStates.begin() + HMDStates.size() - VIRTUAL_HMD_STATE_BUFFER_MAX);
+        }
 
-		HMDStates.push_back(newState);
-	}
+        HMDStates.push_back(newState);
+    }
 
-	return result;
+    return result;
 }
 
 void
 VirtualHMD::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const
 {
-	outTrackingShape.shape_type = eCommonTrackingShapeType::Sphere;
+    outTrackingShape.shape_type = eCommonTrackingShapeType::Sphere;
     outTrackingShape.shape.sphere.radius_cm= cfg.bulb_radius;
+}
+
+
+bool 
+VirtualHMD::setTrackingColorID(const eCommonTrackingColorID tracking_color_id)
+{
+    bool bSuccess = false;
+
+    if (getIsOpen())
+    {
+        cfg.tracking_color_id = tracking_color_id;
+        cfg.save();
+        bSuccess = true;
+    }
+
+    return bSuccess;
 }
 
 bool 
 VirtualHMD::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const
 {
-	out_tracking_color_id = eCommonTrackingColorID::Blue;
-	return true;
+    out_tracking_color_id = cfg.tracking_color_id;
+    return true;
 }
 
 float 
 VirtualHMD::getPredictionTime() const
 {
-	return getConfig()->prediction_time;
+    return getConfig()->prediction_time;
 }
 
 const CommonDeviceState *
@@ -267,12 +283,12 @@ long VirtualHMD::getMaxPollFailureCount() const
 
 void VirtualHMD::setTrackingEnabled(bool bEnable)
 {
-	if (!bIsTracking && bEnable)
-	{
-		bIsTracking = true;
-	}
-	else if (bIsTracking && !bEnable)
-	{
-		bIsTracking = false;
-	}
+    if (!bIsTracking && bEnable)
+    {
+        bIsTracking = true;
+    }
+    else if (bIsTracking && !bEnable)
+    {
+        bIsTracking = false;
+    }
 }

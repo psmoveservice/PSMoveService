@@ -30,18 +30,18 @@
 const char *AppStage_ControllerSettings::APP_STAGE_NAME= "ControllerSettings";
 
 //-- constants -----
-const int k_default_position_filter_index = 3; // LowPassExponential
+const int k_default_hmd_position_filter_index = 3; // LowPassExponential
 const int k_default_psmove_orientation_filter_index = 3; // ComplementaryMARG
 const int k_default_ds4_position_filter_index = 5; // PositionKalman
 const int k_default_ds4_orientation_filter_index = 3; // OrientationKalman
 const int k_default_ds4_gyro_gain_index = 4; // 2000deg/s
 
-const char* k_position_filter_names[] = { "PassThru", "LowPassOptical", "LowPassIMU", "LowPassExponential", "ComplimentaryOpticalIMU", "PositionKalman" };
+const char* k_controller_position_filter_names[] = { "PassThru", "LowPassOptical", "LowPassIMU", "LowPassExponential", "ComplimentaryOpticalIMU", "PositionKalman" };
 const char* k_psmove_orientation_filter_names[] = { "PassThru", "MadgwickARG", "MadgwickMARG", "ComplementaryMARG", "OrientationKalman" };
 const char* k_ds4_orientation_filter_names[] = { "PassThru", "MadgwickARG", "ComplementaryOpticalARG", "OrientationKalman" };
 const char* k_ds4_gyro_gain_setting_labels[] = { "125deg/s", "250deg/s", "500deg/s", "1000deg/s", "2000deg/s", "custom"};
 
-const float k_max_prediction_time = 0.15f; // About 150ms seems to be about the point where you start to get really bad over-prediction 
+const float k_max_hmd_prediction_time = 0.15f; // About 150ms seems to be about the point where you start to get really bad over-prediction 
 
 inline int find_string_entry(const char *string_entry, const char* string_list[], size_t list_size)
 {
@@ -319,9 +319,9 @@ void AppStage_ControllerSettings::renderUI()
 				if (controllerInfo.ControllerType == PSMController_Move)
 				{		
 					ImGui::PushItemWidth(195);
-					if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_position_filter_names, UI_ARRAYSIZE(k_position_filter_names)))
+					if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
 					{
-						controllerInfo.PositionFilterName = k_position_filter_names[controllerInfo.PositionFilterIndex];
+						controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
 						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
 					}
 					if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_psmove_orientation_filter_names, UI_ARRAYSIZE(k_psmove_orientation_filter_names)))
@@ -329,15 +329,15 @@ void AppStage_ControllerSettings::renderUI()
 						controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[controllerInfo.OrientationFilterIndex];
 						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
 					}
-					if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_prediction_time))
+					if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
 					{
 						request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
 					}
 					if (ImGui::Button("Reset Filter Defaults"))
 					{
-						controllerInfo.PositionFilterIndex = k_default_position_filter_index;
+						controllerInfo.PositionFilterIndex = k_default_hmd_position_filter_index;
 						controllerInfo.OrientationFilterIndex = k_default_psmove_orientation_filter_index;
-						controllerInfo.PositionFilterName = k_position_filter_names[k_default_position_filter_index];
+						controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_hmd_position_filter_index];
 						controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[k_default_psmove_orientation_filter_index];
 						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
 						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
@@ -347,9 +347,9 @@ void AppStage_ControllerSettings::renderUI()
 				else if (controllerInfo.ControllerType == PSMController_DualShock4)
 				{
 					ImGui::PushItemWidth(195);
-					if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_position_filter_names, UI_ARRAYSIZE(k_position_filter_names)))
+					if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
 					{
-						controllerInfo.PositionFilterName = k_position_filter_names[controllerInfo.PositionFilterIndex];
+						controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
 						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
 					}
 					if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_ds4_orientation_filter_names, UI_ARRAYSIZE(k_ds4_orientation_filter_names)))
@@ -362,7 +362,7 @@ void AppStage_ControllerSettings::renderUI()
 						controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[controllerInfo.GyroGainIndex];
 						request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
 					}
-					if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_prediction_time))
+					if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
 					{
 						request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
 					}
@@ -371,7 +371,7 @@ void AppStage_ControllerSettings::renderUI()
 						controllerInfo.PositionFilterIndex = k_default_ds4_position_filter_index;
 						controllerInfo.OrientationFilterIndex = k_default_ds4_orientation_filter_index;
 						controllerInfo.GyroGainIndex = k_default_ds4_gyro_gain_index;
-						controllerInfo.PositionFilterName = k_position_filter_names[k_default_ds4_position_filter_index];
+						controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_ds4_position_filter_index];
 						controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[k_default_ds4_orientation_filter_index];
 						controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[k_default_ds4_gyro_gain_index];
 						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
@@ -681,11 +681,11 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 					ControllerInfo.PositionFilterIndex =
 						find_string_entry(
 							ControllerInfo.PositionFilterName.c_str(),
-							k_position_filter_names,
-							UI_ARRAYSIZE(k_position_filter_names));
+							k_controller_position_filter_names,
+							UI_ARRAYSIZE(k_controller_position_filter_names));
 					if (ControllerInfo.PositionFilterIndex == -1)
 					{
-						ControllerInfo.PositionFilterName = k_position_filter_names[0];
+						ControllerInfo.PositionFilterName = k_controller_position_filter_names[0];
 						ControllerInfo.PositionFilterIndex = 0;
 					}
 				}

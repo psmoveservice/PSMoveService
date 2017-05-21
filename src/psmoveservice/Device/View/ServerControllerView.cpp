@@ -252,18 +252,18 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
         // claim it from the pool (or another controller that had it previously)
         if (m_device->getTrackingColorID(tracking_color_id) && tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
         {
-            DeviceManager::getInstance()->m_controller_manager->claimTrackingColorID(this, tracking_color_id);
-    }
+            DeviceManager::getInstance()->m_tracker_manager->claimTrackingColorID(this, tracking_color_id);
+        }
         else
         {
             // Allocate a color from the list of remaining available color ids
-            eCommonTrackingColorID allocatedColorID= DeviceManager::getInstance()->m_controller_manager->allocateTrackingColorID();
+            eCommonTrackingColorID allocatedColorID= DeviceManager::getInstance()->m_tracker_manager->allocateTrackingColorID();
 
             // Attempt to assign the tracking color id to the controller
             if (!m_device->setTrackingColorID(allocatedColorID))
             {
                 // If the device can't be assigned a tracking color, release the color back to the pool
-                DeviceManager::getInstance()->m_controller_manager->freeTrackingColorID(allocatedColorID);
+                DeviceManager::getInstance()->m_tracker_manager->freeTrackingColorID(allocatedColorID);
             }
         }
     }
@@ -284,8 +284,8 @@ void ServerControllerView::close()
     {
         if (tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
         {
-            DeviceManager::getInstance()->m_controller_manager->freeTrackingColorID(tracking_color_id);
-    }
+            DeviceManager::getInstance()->m_tracker_manager->freeTrackingColorID(tracking_color_id);
+        }
     }
 
     ServerDeviceView::close();
@@ -829,27 +829,29 @@ eCommonTrackingColorID ServerControllerView::getTrackingColorID() const
     return tracking_color_id;
 }
 
-void ServerControllerView::setTrackingColorID(eCommonTrackingColorID colorID)
+bool ServerControllerView::setTrackingColorID(eCommonTrackingColorID colorID)
 {
+    bool bSuccess= true;
+
     if (colorID != getTrackingColorID())
     {
-        bool bWasTracking = getIsTrackingEnabled();
-
-        if (bWasTracking)
-        {
-            set_tracking_enabled_internal(false);
-        }
-
         if (m_device != nullptr)
         {
-            m_device->setTrackingColorID(colorID);
-        }
+            bSuccess= m_device->setTrackingColorID(colorID);
 
-        if (bWasTracking)
+            if (bSuccess && getIsTrackingEnabled())
+            {
+                set_tracking_enabled_internal(false);
+                set_tracking_enabled_internal(true);
+            }
+        }
+        else
         {
-            set_tracking_enabled_internal(true);
+            bSuccess= false;
         }
     }
+
+    return bSuccess;
 }
 
 void ServerControllerView::startTracking()

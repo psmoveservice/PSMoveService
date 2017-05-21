@@ -605,6 +605,9 @@ public:
 	// Get the tracking shape use by the controller
 	virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const = 0;
 
+	// Sets the tracking color enum of the controller
+	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) = 0;
+
 	// Get the tracking color enum of the controller
 	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const = 0;
 

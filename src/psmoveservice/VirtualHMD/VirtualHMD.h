@@ -104,6 +104,7 @@ public:
     // -- IHMDInterface
     std::string getUSBDevicePath() const override;
 	void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
+	bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) override;
 	bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
 	float getPredictionTime() const override;
 
