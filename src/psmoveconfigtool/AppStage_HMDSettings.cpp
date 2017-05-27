@@ -4,7 +4,6 @@
 #include "AppStage_HMDGyroscopeCalibration.h"
 #include "AppStage_HMDModelCalibration.h"
 #include "AppStage_MainMenu.h"
-#include "AppStage_TestHMD.h"
 #include "App.h"
 #include "Camera.h"
 #include "Renderer.h"
@@ -156,24 +155,24 @@ void AppStage_HMDSettings::renderUI()
         {
             HMDInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
 
-            ImGui::Text("HMD: %d", m_selectedHmdIndex);
-            ImGui::Text("  HMD ID: %d", hmdInfo.HmdID);
-
-            switch (hmdInfo.HmdType)
+            if (m_selectedHmdIndex > 0)
             {
-            case AppStage_HMDSettings::Morpheus:
+                if (ImGui::Button("<##HMDIndex"))
                 {
-                    ImGui::Text("  HMD Type: Morpheus");
-                    ImGui::TextWrapped("  Device Path: %s", hmdInfo.DevicePath.c_str());
-                } break;
-            case AppStage_HMDSettings::VirtualHMD:
-                {
-                    ImGui::Text("  HMD Type: VirtualHMD");
-                } break;
-            default:
-                assert(0 && "Unreachable");
+                    --m_selectedHmdIndex;
+                }
+                ImGui::SameLine();
             }
-
+            ImGui::Text("HMD: %d", m_selectedHmdIndex);
+            if (m_selectedHmdIndex + 1 < static_cast<int>(m_hmdInfos.size()))
+            {
+                ImGui::SameLine();
+                if (ImGui::Button(">##HMDIndex"))
+                {
+                    ++m_selectedHmdIndex;
+                }
+            }
+            
             // Combo box selection for hmd tracking color
             if (hmdInfo.HmdType == AppStage_HMDSettings::VirtualHMD)
             {
@@ -190,6 +189,47 @@ void AppStage_HMDSettings::renderUI()
                     request_hmd_list();
                 }
                 ImGui::PopItemWidth();
+            }
+            else if (hmdInfo.HmdType == AppStage_HMDSettings::Morpheus)
+            {
+                switch (hmdInfo.TrackingColorType)
+                {
+                case PSMTrackingColorType_Magenta:
+                    ImGui::BulletText("Tracking Color: Magenta");
+                    break;
+                case PSMTrackingColorType_Cyan:
+                    ImGui::BulletText("Tracking Color: Cyan");
+                    break;
+                case PSMTrackingColorType_Yellow:
+                    ImGui::BulletText("Tracking Color: Yellow");
+                    break;
+                case PSMTrackingColorType_Red:
+                    ImGui::BulletText("Tracking Color: Red");
+                    break;
+                case PSMTrackingColorType_Green:
+                    ImGui::BulletText("Tracking Color: Green");
+                    break;
+                case PSMTrackingColorType_Blue:
+                    ImGui::BulletText("Tracking Color: Blue");
+                    break;
+                }
+            }
+
+            ImGui::BulletText("HMD ID: %d", hmdInfo.HmdID);
+
+            switch (hmdInfo.HmdType)
+            {
+            case AppStage_HMDSettings::Morpheus:
+                {
+                    ImGui::BulletText("HMD Type: Morpheus");
+                    ImGui::TextWrapped("Device Path: %s", hmdInfo.DevicePath.c_str());
+                } break;
+            case AppStage_HMDSettings::VirtualHMD:
+                {
+                    ImGui::BulletText("HMD Type: VirtualHMD");
+                } break;
+            default:
+                assert(0 && "Unreachable");
             }
 
             if (m_selectedHmdIndex > 0)
@@ -301,11 +341,6 @@ void AppStage_HMDSettings::renderUI()
                     request_set_orientation_filter(hmdInfo.HmdID, hmdInfo.OrientationFilterName);
                 }
                 ImGui::PopItemWidth();
-            }
-
-            if (ImGui::Button("Test HMD Tracking"))
-            {
-                m_app->setAppStage(AppStage_TestHMD::APP_STAGE_NAME);
             }
         }
         else

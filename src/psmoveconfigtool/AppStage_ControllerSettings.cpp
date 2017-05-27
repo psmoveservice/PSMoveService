@@ -45,17 +45,17 @@ const float k_max_hmd_prediction_time = 0.15f; // About 150ms seems to be about 
 
 inline int find_string_entry(const char *string_entry, const char* string_list[], size_t list_size)
 {
-	int found_index = -1;
-	for (size_t test_index = 0; test_index < list_size; ++test_index)
-	{
-		if (strncmp(string_entry, string_list[test_index], 32) == 0)
-		{
-			found_index = static_cast<int>(test_index);
-			break;
-		}
-	}
+    int found_index = -1;
+    for (size_t test_index = 0; test_index < list_size; ++test_index)
+    {
+        if (strncmp(string_entry, string_list[test_index], 32) == 0)
+        {
+            found_index = static_cast<int>(test_index);
+            break;
+        }
+    }
 
-	return found_index;
+    return found_index;
 }
 
 //-- public methods -----
@@ -210,21 +210,21 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
-				// Combo box selection for controller tracking color
-				if (controllerInfo.ControllerType != PSMController_Navi)
-				{
-					int newTrackingColorType = controllerInfo.TrackingColorType;
+                // Combo box selection for controller tracking color
+                if (controllerInfo.ControllerType != PSMController_Navi)
+                {
+                    int newTrackingColorType = controllerInfo.TrackingColorType;
 
-					if (ImGui::Combo("Tracking Color", &newTrackingColorType, "Magenta\0Cyan\0Yellow\0Red\0Green\0Blue\0\0"))
-					{
-						controllerInfo.TrackingColorType = static_cast<PSMTrackingColorType>(newTrackingColorType);
+                    if (ImGui::Combo("Tracking Color", &newTrackingColorType, "Magenta\0Cyan\0Yellow\0Red\0Green\0Blue\0\0"))
+                    {
+                        controllerInfo.TrackingColorType = static_cast<PSMTrackingColorType>(newTrackingColorType);
 
-						request_set_controller_tracking_color_id(controllerInfo.ControllerID, controllerInfo.TrackingColorType);
+                        request_set_controller_tracking_color_id(controllerInfo.ControllerID, controllerInfo.TrackingColorType);
 
-						// Re-request the controller list since the tracking colors could changed for other controllers
-						request_controller_list();
-					}
-				}
+                        // Re-request the controller list since the tracking colors could changed for other controllers
+                        request_controller_list();
+                    }
+                }
 
                 ImGui::BulletText("Controller ID: %d", controllerInfo.ControllerID);
 
@@ -232,9 +232,9 @@ void AppStage_ControllerSettings::renderUI()
                 {
                     case PSMController_Move:
                         {
-							//###HipsterSloth $TODO - The HID report for fetching the firmware revision doesn't appear to work
+                            //###HipsterSloth $TODO - The HID report for fetching the firmware revision doesn't appear to work
                             //ImGui::BulletText("Controller Type: PSMove (v%d.%d)", controllerInfo.FirmwareVersion, controllerInfo.FirmwareRevision);
-							ImGui::BulletText("Controller Type: PSMove");
+                            ImGui::BulletText("Controller Type: PSMove");
                         } break;
                     case PSMController_Navi:
                         {
@@ -253,18 +253,18 @@ void AppStage_ControllerSettings::renderUI()
 
                 if (controllerInfo.ControllerType == PSMController_Move)
                 {
-					if (controllerInfo.HasMagnetometer)
-					{
-						if (ImGui::Button("Calibrate Magnetometer"))
-						{
-							m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(false);
-							m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
-						}
-					}
-					else
-					{
-						ImGui::TextDisabled("Magnetometer Disabled");
-					}
+                    if (controllerInfo.HasMagnetometer)
+                    {
+                        if (ImGui::Button("Calibrate Magnetometer"))
+                        {
+                            m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(false);
+                            m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
+                        }
+                    }
+                    else
+                    {
+                        ImGui::TextDisabled("Magnetometer Disabled");
+                    }
 
                     if (ImGui::Button("Calibrate Gyroscope"))
                     {
@@ -272,11 +272,11 @@ void AppStage_ControllerSettings::renderUI()
                         m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
                     }
 
-					if (ImGui::Button("Calibrate Optical Noise"))
-					{
-						m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
-						m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
-					}
+                    if (ImGui::Button("Calibrate Optical Noise"))
+                    {
+                        m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
+                        m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
+                    }
 
                     if (ImGui::Button("Test Orientation"))
                     {
@@ -288,11 +288,11 @@ void AppStage_ControllerSettings::renderUI()
                 if (controllerInfo.ControllerType == PSMController_DualShock4)
                 {
 
-					if (ImGui::Button("Calibrate Optical Noise"))
-					{
-						m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
-						m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
-					}
+                    if (ImGui::Button("Calibrate Optical Noise"))
+                    {
+                        m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
+                        m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
+                    }
 
                     if (ImGui::Button("Test Orientation"))
                     {
@@ -316,90 +316,90 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
-				if (controllerInfo.ControllerType == PSMController_Move)
-				{		
-					ImGui::PushItemWidth(195);
-					if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
-					{
-						controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
-						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
-					}
-					if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_psmove_orientation_filter_names, UI_ARRAYSIZE(k_psmove_orientation_filter_names)))
-					{
-						controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[controllerInfo.OrientationFilterIndex];
-						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
-					}
-					if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
-					{
-						request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
-					}
-					if (ImGui::Button("Reset Filter Defaults"))
-					{
-						controllerInfo.PositionFilterIndex = k_default_hmd_position_filter_index;
-						controllerInfo.OrientationFilterIndex = k_default_psmove_orientation_filter_index;
-						controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_hmd_position_filter_index];
-						controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[k_default_psmove_orientation_filter_index];
-						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
-						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
-					}
-					ImGui::PopItemWidth();
-				}				
-				else if (controllerInfo.ControllerType == PSMController_DualShock4)
-				{
-					ImGui::PushItemWidth(195);
-					if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
-					{
-						controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
-						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
-					}
-					if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_ds4_orientation_filter_names, UI_ARRAYSIZE(k_ds4_orientation_filter_names)))
-					{
-						controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[controllerInfo.OrientationFilterIndex];
-						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
-					}
-					if (ImGui::Combo("Gyro Gain", &controllerInfo.GyroGainIndex, k_ds4_gyro_gain_setting_labels, UI_ARRAYSIZE(k_ds4_gyro_gain_setting_labels)))
-					{
-						controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[controllerInfo.GyroGainIndex];
-						request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
-					}
-					if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
-					{
-						request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
-					}
-					if (ImGui::Button("Reset Filter Defaults"))
-					{
-						controllerInfo.PositionFilterIndex = k_default_ds4_position_filter_index;
-						controllerInfo.OrientationFilterIndex = k_default_ds4_orientation_filter_index;
-						controllerInfo.GyroGainIndex = k_default_ds4_gyro_gain_index;
-						controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_ds4_position_filter_index];
-						controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[k_default_ds4_orientation_filter_index];
-						controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[k_default_ds4_gyro_gain_index];
-						request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
-						request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
-						request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
-					}
-					ImGui::PopItemWidth();
-				}
+                if (controllerInfo.ControllerType == PSMController_Move)
+                {		
+                    ImGui::PushItemWidth(195);
+                    if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
+                    {
+                        controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
+                        request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+                    }
+                    if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_psmove_orientation_filter_names, UI_ARRAYSIZE(k_psmove_orientation_filter_names)))
+                    {
+                        controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[controllerInfo.OrientationFilterIndex];
+                        request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+                    }
+                    if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
+                    {
+                        request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
+                    }
+                    if (ImGui::Button("Reset Filter Defaults"))
+                    {
+                        controllerInfo.PositionFilterIndex = k_default_hmd_position_filter_index;
+                        controllerInfo.OrientationFilterIndex = k_default_psmove_orientation_filter_index;
+                        controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_hmd_position_filter_index];
+                        controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[k_default_psmove_orientation_filter_index];
+                        request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+                        request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+                    }
+                    ImGui::PopItemWidth();
+                }				
+                else if (controllerInfo.ControllerType == PSMController_DualShock4)
+                {
+                    ImGui::PushItemWidth(195);
+                    if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
+                    {
+                        controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
+                        request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+                    }
+                    if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_ds4_orientation_filter_names, UI_ARRAYSIZE(k_ds4_orientation_filter_names)))
+                    {
+                        controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[controllerInfo.OrientationFilterIndex];
+                        request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+                    }
+                    if (ImGui::Combo("Gyro Gain", &controllerInfo.GyroGainIndex, k_ds4_gyro_gain_setting_labels, UI_ARRAYSIZE(k_ds4_gyro_gain_setting_labels)))
+                    {
+                        controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[controllerInfo.GyroGainIndex];
+                        request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
+                    }
+                    if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
+                    {
+                        request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
+                    }
+                    if (ImGui::Button("Reset Filter Defaults"))
+                    {
+                        controllerInfo.PositionFilterIndex = k_default_ds4_position_filter_index;
+                        controllerInfo.OrientationFilterIndex = k_default_ds4_orientation_filter_index;
+                        controllerInfo.GyroGainIndex = k_default_ds4_gyro_gain_index;
+                        controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_ds4_position_filter_index];
+                        controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[k_default_ds4_orientation_filter_index];
+                        controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[k_default_ds4_gyro_gain_index];
+                        request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+                        request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+                        request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
+                    }
+                    ImGui::PopItemWidth();
+                }
 
-				if (controllerInfo.ControllerType == PSMController_Navi && 
-					controllerInfo.PotentialParentControllerSerials.size() > 0)
-				{
-					ImGui::PushItemWidth(195);					
-					if (ImGui::Combo(
-							"Parent Controller", 
-							&controllerInfo.AssignedParentControllerIndex, 
-							ControllerInfo::ParentControllerComboItemGetter, 
-							&controllerInfo, 
-							static_cast<int>(controllerInfo.PotentialParentControllerSerials.size())))
-					{
-						std::string parentControllerSerial= controllerInfo.PotentialParentControllerSerials[controllerInfo.AssignedParentControllerIndex];
+                if (controllerInfo.ControllerType == PSMController_Navi && 
+                    controllerInfo.PotentialParentControllerSerials.size() > 0)
+                {
+                    ImGui::PushItemWidth(195);					
+                    if (ImGui::Combo(
+                            "Parent Controller", 
+                            &controllerInfo.AssignedParentControllerIndex, 
+                            ControllerInfo::ParentControllerComboItemGetter, 
+                            &controllerInfo, 
+                            static_cast<int>(controllerInfo.PotentialParentControllerSerials.size())))
+                    {
+                        std::string parentControllerSerial= controllerInfo.PotentialParentControllerSerials[controllerInfo.AssignedParentControllerIndex];
 
-						controllerInfo.AssignedParentControllerSerial = parentControllerSerial;
+                        controllerInfo.AssignedParentControllerSerial = parentControllerSerial;
 
-						request_set_parent_controller_id(controllerInfo.ControllerID, find_controller_id_by_serial(parentControllerSerial));
-					}
-					ImGui::PopItemWidth();
-				}
+                        request_set_parent_controller_id(controllerInfo.ControllerID, find_controller_id_by_serial(parentControllerSerial));
+                    }
+                    ImGui::PopItemWidth();
+                }
             }
             else
             {
@@ -514,70 +514,70 @@ void AppStage_ControllerSettings::request_controller_list()
         // Do get controllers connected bia USB in this menu since we need the info for pairing/unpairing
         request->mutable_request_get_controller_list()->set_include_usb_controllers(true);
 
-		PSMRequestID request_id;
-		PSM_SendOpaqueRequest(&request, &request_id);
-		PSM_RegisterCallback(request_id, AppStage_ControllerSettings::handle_controller_list_response, this);
+        PSMRequestID request_id;
+        PSM_SendOpaqueRequest(&request, &request_id);
+        PSM_RegisterCallback(request_id, AppStage_ControllerSettings::handle_controller_list_response, this);
     }
 }
 
 void AppStage_ControllerSettings::request_set_orientation_filter(
-	const int controller_id,
-	const std::string &filter_name)
+    const int controller_id,
+    const std::string &filter_name)
 {
-	RequestPtr request(new PSMoveProtocol::Request());
-	request->set_type(PSMoveProtocol::Request_RequestType_SET_ORIENTATION_FILTER);
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_ORIENTATION_FILTER);
 
-	request->mutable_request_set_orientation_filter()->set_controller_id(controller_id);
-	request->mutable_request_set_orientation_filter()->set_orientation_filter(filter_name);
+    request->mutable_request_set_orientation_filter()->set_controller_id(controller_id);
+    request->mutable_request_set_orientation_filter()->set_orientation_filter(filter_name);
 
-	PSM_SendOpaqueRequest(&request, nullptr);
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::request_set_position_filter(
-	const int controller_id,
-	const std::string &filter_name)
+    const int controller_id,
+    const std::string &filter_name)
 {
-	RequestPtr request(new PSMoveProtocol::Request());
-	request->set_type(PSMoveProtocol::Request_RequestType_SET_POSITION_FILTER);
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_POSITION_FILTER);
 
-	request->mutable_request_set_position_filter()->set_controller_id(controller_id);
-	request->mutable_request_set_position_filter()->set_position_filter(filter_name);
+    request->mutable_request_set_position_filter()->set_controller_id(controller_id);
+    request->mutable_request_set_position_filter()->set_position_filter(filter_name);
 
-	PSM_SendOpaqueRequest(&request, nullptr);
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::request_set_gyroscope_gain_setting(
-	const int controller_id,
-	const std::string& gain_setting)
+    const int controller_id,
+    const std::string& gain_setting)
 {
-	RequestPtr request(new PSMoveProtocol::Request());
-	request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_GYROSCOPE_CALIBRATION);
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_GYROSCOPE_CALIBRATION);
 
-	PSMoveProtocol::Request_RequestSetControllerGyroscopeCalibration *calibration =
-		request->mutable_set_controller_gyroscope_calibration_request();
+    PSMoveProtocol::Request_RequestSetControllerGyroscopeCalibration *calibration =
+        request->mutable_set_controller_gyroscope_calibration_request();
 
-	calibration->set_controller_id(controller_id);
-	calibration->set_drift(-1.f); // keep existing drift
-	calibration->set_variance(-1.f); // keep existing variance
-	calibration->set_gyro_gain_setting(gain_setting);
+    calibration->set_controller_id(controller_id);
+    calibration->set_drift(-1.f); // keep existing drift
+    calibration->set_variance(-1.f); // keep existing variance
+    calibration->set_gyro_gain_setting(gain_setting);
 
-	PSM_SendOpaqueRequest(&request, nullptr);
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::request_set_controller_prediction(
-	const int controller_id,
-	const float prediction_time)
+    const int controller_id,
+    const float prediction_time)
 {
-	RequestPtr request(new PSMoveProtocol::Request());
-	request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_PREDICTION_TIME);
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_PREDICTION_TIME);
 
-	PSMoveProtocol::Request_RequestSetControllerPredictionTime *calibration =
-		request->mutable_request_set_controller_prediction_time();
+    PSMoveProtocol::Request_RequestSetControllerPredictionTime *calibration =
+        request->mutable_request_set_controller_prediction_time();
 
-	calibration->set_controller_id(controller_id);
-	calibration->set_prediction_time(prediction_time); // keep existing drift
+    calibration->set_controller_id(controller_id);
+    calibration->set_prediction_time(prediction_time); // keep existing drift
 
-	PSM_SendOpaqueRequest(&request, nullptr);
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::handle_controller_list_response(
@@ -594,12 +594,12 @@ void AppStage_ControllerSettings::handle_controller_list_response(
         case PSMResult_Success:
         {
             const PSMoveProtocol::Response *response= GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-			int oldSelectedControllerIndex= thisPtr->m_selectedControllerIndex;
+            int oldSelectedControllerIndex= thisPtr->m_selectedControllerIndex;
 
             thisPtr->m_hostSerial = response->result_controller_list().host_serial();
-			thisPtr->m_selectedControllerIndex= -1;
-			thisPtr->m_usableControllerInfos.clear();
-			thisPtr->m_awaitingPairingControllerInfos.clear();
+            thisPtr->m_selectedControllerIndex= -1;
+            thisPtr->m_usableControllerInfos.clear();
+            thisPtr->m_awaitingPairingControllerInfos.clear();
 
             for (int controller_index= 0; controller_index < response->result_controller_list().controllers_size(); ++controller_index)
             {
@@ -629,145 +629,145 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 ControllerInfo.DevicePath= ControllerResponse.device_path();
                 ControllerInfo.DeviceSerial= ControllerResponse.device_serial();
                 ControllerInfo.AssignedHostSerial= ControllerResponse.assigned_host_serial();
-				ControllerInfo.AssignedParentControllerSerial= ControllerResponse.parent_controller_serial();
-				ControllerInfo.AssignedParentControllerIndex= -1;
-				ControllerInfo.PotentialParentControllerSerials.clear();
+                ControllerInfo.AssignedParentControllerSerial= ControllerResponse.parent_controller_serial();
+                ControllerInfo.AssignedParentControllerIndex= -1;
+                ControllerInfo.PotentialParentControllerSerials.clear();
                 ControllerInfo.PairedToHost=
                     ControllerResponse.assigned_host_serial().length() > 0 && 
                     ControllerResponse.assigned_host_serial() == thisPtr->m_hostSerial;
-				ControllerInfo.FirmwareVersion = ControllerResponse.firmware_version();
-				ControllerInfo.FirmwareRevision = ControllerResponse.firmware_revision();
-				ControllerInfo.HasMagnetometer = ControllerResponse.has_magnetometer();
-				ControllerInfo.OrientationFilterName= ControllerResponse.orientation_filter();
-				ControllerInfo.PositionFilterName = ControllerResponse.position_filter();
-				ControllerInfo.GyroGainSetting = ControllerResponse.gyro_gain_setting();
-				ControllerInfo.PredictionTime = ControllerResponse.prediction_time();
+                ControllerInfo.FirmwareVersion = ControllerResponse.firmware_version();
+                ControllerInfo.FirmwareRevision = ControllerResponse.firmware_revision();
+                ControllerInfo.HasMagnetometer = ControllerResponse.has_magnetometer();
+                ControllerInfo.OrientationFilterName= ControllerResponse.orientation_filter();
+                ControllerInfo.PositionFilterName = ControllerResponse.position_filter();
+                ControllerInfo.GyroGainSetting = ControllerResponse.gyro_gain_setting();
+                ControllerInfo.PredictionTime = ControllerResponse.prediction_time();
 
-				if (ControllerInfo.ControllerType == PSMController_Move)
-				{
-					ControllerInfo.OrientationFilterIndex =
-						find_string_entry(
-							ControllerInfo.OrientationFilterName.c_str(),
-							k_psmove_orientation_filter_names,
-							UI_ARRAYSIZE(k_psmove_orientation_filter_names));
-					if (ControllerInfo.OrientationFilterIndex == -1)
-					{
-						ControllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[0];
-						ControllerInfo.OrientationFilterIndex = 0;
-					}
-				}
-				else if (ControllerInfo.ControllerType == PSMController_DualShock4)
-				{
-					ControllerInfo.OrientationFilterIndex =
-						find_string_entry(
-							ControllerInfo.OrientationFilterName.c_str(),
-							k_ds4_orientation_filter_names,
-							UI_ARRAYSIZE(k_ds4_orientation_filter_names));
-					if (ControllerInfo.OrientationFilterIndex == -1)
-					{
-						ControllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[0];
-						ControllerInfo.OrientationFilterIndex = 0;
-					}
-				}
-				else
-				{
-					ControllerInfo.OrientationFilterName = "";
-					ControllerInfo.OrientationFilterIndex = -1;
-				}
+                if (ControllerInfo.ControllerType == PSMController_Move)
+                {
+                    ControllerInfo.OrientationFilterIndex =
+                        find_string_entry(
+                            ControllerInfo.OrientationFilterName.c_str(),
+                            k_psmove_orientation_filter_names,
+                            UI_ARRAYSIZE(k_psmove_orientation_filter_names));
+                    if (ControllerInfo.OrientationFilterIndex == -1)
+                    {
+                        ControllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[0];
+                        ControllerInfo.OrientationFilterIndex = 0;
+                    }
+                }
+                else if (ControllerInfo.ControllerType == PSMController_DualShock4)
+                {
+                    ControllerInfo.OrientationFilterIndex =
+                        find_string_entry(
+                            ControllerInfo.OrientationFilterName.c_str(),
+                            k_ds4_orientation_filter_names,
+                            UI_ARRAYSIZE(k_ds4_orientation_filter_names));
+                    if (ControllerInfo.OrientationFilterIndex == -1)
+                    {
+                        ControllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[0];
+                        ControllerInfo.OrientationFilterIndex = 0;
+                    }
+                }
+                else
+                {
+                    ControllerInfo.OrientationFilterName = "";
+                    ControllerInfo.OrientationFilterIndex = -1;
+                }
 
-				if (ControllerInfo.ControllerType == PSMController_Move ||
-					ControllerInfo.ControllerType == PSMController_DualShock4)
-				{
-					ControllerInfo.PositionFilterIndex =
-						find_string_entry(
-							ControllerInfo.PositionFilterName.c_str(),
-							k_controller_position_filter_names,
-							UI_ARRAYSIZE(k_controller_position_filter_names));
-					if (ControllerInfo.PositionFilterIndex == -1)
-					{
-						ControllerInfo.PositionFilterName = k_controller_position_filter_names[0];
-						ControllerInfo.PositionFilterIndex = 0;
-					}
-				}
-				else
-				{
-					ControllerInfo.PositionFilterName = "";
-					ControllerInfo.PositionFilterIndex = -1;
-				}
+                if (ControllerInfo.ControllerType == PSMController_Move ||
+                    ControllerInfo.ControllerType == PSMController_DualShock4)
+                {
+                    ControllerInfo.PositionFilterIndex =
+                        find_string_entry(
+                            ControllerInfo.PositionFilterName.c_str(),
+                            k_controller_position_filter_names,
+                            UI_ARRAYSIZE(k_controller_position_filter_names));
+                    if (ControllerInfo.PositionFilterIndex == -1)
+                    {
+                        ControllerInfo.PositionFilterName = k_controller_position_filter_names[0];
+                        ControllerInfo.PositionFilterIndex = 0;
+                    }
+                }
+                else
+                {
+                    ControllerInfo.PositionFilterName = "";
+                    ControllerInfo.PositionFilterIndex = -1;
+                }
 
-				if (ControllerInfo.ControllerType == PSMController_DualShock4)
-				{
-					ControllerInfo.GyroGainIndex =
-						find_string_entry(
-							ControllerInfo.GyroGainSetting.c_str(),
-							k_ds4_gyro_gain_setting_labels,
-							UI_ARRAYSIZE(k_ds4_gyro_gain_setting_labels));
-					if (ControllerInfo.GyroGainIndex == -1)
-					{
-						ControllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[0];
-						ControllerInfo.GyroGainIndex = 0;
-					}
-				}
-				else
-				{
-					ControllerInfo.GyroGainSetting = "";
-					ControllerInfo.GyroGainIndex = -1;
-				}
+                if (ControllerInfo.ControllerType == PSMController_DualShock4)
+                {
+                    ControllerInfo.GyroGainIndex =
+                        find_string_entry(
+                            ControllerInfo.GyroGainSetting.c_str(),
+                            k_ds4_gyro_gain_setting_labels,
+                            UI_ARRAYSIZE(k_ds4_gyro_gain_setting_labels));
+                    if (ControllerInfo.GyroGainIndex == -1)
+                    {
+                        ControllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[0];
+                        ControllerInfo.GyroGainIndex = 0;
+                    }
+                }
+                else
+                {
+                    ControllerInfo.GyroGainSetting = "";
+                    ControllerInfo.GyroGainIndex = -1;
+                }
 
                 // Add the controller to the appropriate connection list
-				
-				if (ControllerResponse.connection_type() == PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH ||
-					ControllerResponse.controller_type() == PSMoveProtocol::PSNAVI) // Don't currently attempt to pair navi controller
-				{
-					thisPtr->m_usableControllerInfos.push_back(ControllerInfo);
-				}
-				else
-				{
-					thisPtr->m_awaitingPairingControllerInfos.push_back(ControllerInfo);
-				}
+                
+                if (ControllerResponse.connection_type() == PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH ||
+                    ControllerResponse.controller_type() == PSMoveProtocol::PSNAVI) // Don't currently attempt to pair navi controller
+                {
+                    thisPtr->m_usableControllerInfos.push_back(ControllerInfo);
+                }
+                else
+                {
+                    thisPtr->m_awaitingPairingControllerInfos.push_back(ControllerInfo);
+                }
             }
 
-			// Build a list of potential parent controllers for each navi controller
-			// and assign the index current parent controller serial
-			for (ControllerInfo &navi_info : thisPtr->m_usableControllerInfos)
-			{
-				if (navi_info.ControllerType != PSMController_Navi)
-					continue;
+            // Build a list of potential parent controllers for each navi controller
+            // and assign the index current parent controller serial
+            for (ControllerInfo &navi_info : thisPtr->m_usableControllerInfos)
+            {
+                if (navi_info.ControllerType != PSMController_Navi)
+                    continue;
 
-				for (ControllerInfo &psmove_info : thisPtr->m_usableControllerInfos)
-				{
-					if (psmove_info.ControllerType != PSMController_Move)
-						continue;
+                for (ControllerInfo &psmove_info : thisPtr->m_usableControllerInfos)
+                {
+                    if (psmove_info.ControllerType != PSMController_Move)
+                        continue;
 
-					if (navi_info.AssignedParentControllerSerial.length() > 0 &&
-						navi_info.AssignedParentControllerSerial == psmove_info.DeviceSerial)
-					{
-						navi_info.AssignedParentControllerIndex= static_cast<int>(navi_info.PotentialParentControllerSerials.size());
-					}
+                    if (navi_info.AssignedParentControllerSerial.length() > 0 &&
+                        navi_info.AssignedParentControllerSerial == psmove_info.DeviceSerial)
+                    {
+                        navi_info.AssignedParentControllerIndex= static_cast<int>(navi_info.PotentialParentControllerSerials.size());
+                    }
 
-					navi_info.PotentialParentControllerSerials.push_back(psmove_info.DeviceSerial);
-				}
-			}
+                    navi_info.PotentialParentControllerSerials.push_back(psmove_info.DeviceSerial);
+                }
+            }
 
-			if (oldSelectedControllerIndex != -1)
-			{
-				// Maintain the same position in the list if possible
-				thisPtr->m_selectedControllerIndex= 
-					(oldSelectedControllerIndex < static_cast<int>(thisPtr->m_usableControllerInfos.size())) 
-					? oldSelectedControllerIndex
-					: 0;
-			}
-			else
-			{
-	            thisPtr->m_selectedControllerIndex= (thisPtr->m_usableControllerInfos.size() > 0) ? 0 : -1;
-			}
+            if (oldSelectedControllerIndex != -1)
+            {
+                // Maintain the same position in the list if possible
+                thisPtr->m_selectedControllerIndex= 
+                    (oldSelectedControllerIndex < static_cast<int>(thisPtr->m_usableControllerInfos.size())) 
+                    ? oldSelectedControllerIndex
+                    : 0;
+            }
+            else
+            {
+                thisPtr->m_selectedControllerIndex= (thisPtr->m_usableControllerInfos.size() > 0) ? 0 : -1;
+            }
 
             thisPtr->m_menuState= AppStage_ControllerSettings::idle;
         } break;
 
         case PSMResult_Error:
         case PSMResult_Canceled:
-		case PSMResult_Timeout:
+        case PSMResult_Timeout:
         { 
             thisPtr->m_menuState= AppStage_ControllerSettings::failedControllerListRequest;
         } break;
@@ -776,44 +776,44 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 
 int AppStage_ControllerSettings::find_controller_id_by_serial(std::string controller_serial) const
 {
-	int ControllerID= -1;
+    int ControllerID= -1;
 
-	for (const ControllerInfo &info : m_usableControllerInfos)
-	{
-		if (info.DeviceSerial == controller_serial)
-		{
-			ControllerID= info.ControllerID;
-			break;
-		}
-	}
+    for (const ControllerInfo &info : m_usableControllerInfos)
+    {
+        if (info.DeviceSerial == controller_serial)
+        {
+            ControllerID= info.ControllerID;
+            break;
+        }
+    }
 
-	return ControllerID;
+    return ControllerID;
 }
 
 void AppStage_ControllerSettings::request_set_controller_tracking_color_id(
-	int ControllerID,
-	PSMTrackingColorType tracking_color_type)
+    int ControllerID,
+    PSMTrackingColorType tracking_color_type)
 {
-	RequestPtr request(new PSMoveProtocol::Request());
-	request->set_type(PSMoveProtocol::Request_RequestType_SET_LED_TRACKING_COLOR);
-	request->mutable_set_led_tracking_color_request()->set_controller_id(ControllerID);
-	request->mutable_set_led_tracking_color_request()->set_color_type(
-		static_cast<PSMoveProtocol::TrackingColorType>(tracking_color_type));
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_LED_TRACKING_COLOR);
+    request->mutable_set_led_tracking_color_request()->set_controller_id(ControllerID);
+    request->mutable_set_led_tracking_color_request()->set_color_type(
+        static_cast<PSMoveProtocol::TrackingColorType>(tracking_color_type));
 
-	PSM_SendOpaqueRequest(&request, nullptr);
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ControllerSettings::request_set_parent_controller_id(
-	int ControllerID,
-	int ParentControllerID)
+    int ControllerID,
+    int ParentControllerID)
 {
-	if (ControllerID != -1 && ParentControllerID != -1)
-	{
-		RequestPtr request(new PSMoveProtocol::Request());
-		request->set_type(PSMoveProtocol::Request_RequestType_SET_ATTACHED_CONTROLLER);
-		request->mutable_request_set_attached_controller()->set_child_controller_id(ControllerID);
-		request->mutable_request_set_attached_controller()->set_parent_controller_id(ParentControllerID);
+    if (ControllerID != -1 && ParentControllerID != -1)
+    {
+        RequestPtr request(new PSMoveProtocol::Request());
+        request->set_type(PSMoveProtocol::Request_RequestType_SET_ATTACHED_CONTROLLER);
+        request->mutable_request_set_attached_controller()->set_child_controller_id(ControllerID);
+        request->mutable_request_set_attached_controller()->set_parent_controller_id(ParentControllerID);
 
-		PSM_SendOpaqueRequest(&request, nullptr);
-	}
+        PSM_SendOpaqueRequest(&request, nullptr);
+    }
 }

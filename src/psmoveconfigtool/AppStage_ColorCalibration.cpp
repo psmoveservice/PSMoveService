@@ -216,9 +216,10 @@ void AppStage_ColorCalibration::enter()
         m_pendingControllerStartCount= false;
 
         m_bAutoChangeController = (m_bAutoChangeController) ? m_bAutoChangeController : false;
-        m_bAutoChangeColor = (m_bAutoChangeColor) ? m_bAutoChangeColor : false;
-        m_bAutoChangeTracker = (m_bAutoChangeTracker) ? m_bAutoChangeTracker : false;
     }
+
+    m_bAutoChangeColor = (m_bAutoChangeColor) ? m_bAutoChangeColor : false;
+    m_bAutoChangeTracker = (m_bAutoChangeTracker) ? m_bAutoChangeTracker : false;
 
     // Request to start the tracker
     // Wait for the tracker response before requesting the controller
@@ -544,16 +545,16 @@ void AppStage_ColorCalibration::renderUI()
                     {
                         request_turn_on_all_tracking_bulbs(m_bTurnOnAllControllers);
                     }
+                }
 
-                    if (ImGui::Button("Save Default Profile"))
-                    {
-                        request_save_default_tracker_profile();
-                    }
+                if (ImGui::Button("Save Default Profile"))
+                {
+                    request_save_default_tracker_profile();
+                }
 
-                    if (ImGui::Button("Apply Default Profile"))
-                    {
-                        request_apply_default_tracker_profile();
-                    }
+                if (ImGui::Button("Apply Default Profile"))
+                {
+                    request_apply_default_tracker_profile();
                 }
             }
 
@@ -577,17 +578,26 @@ void AppStage_ColorCalibration::renderUI()
             preset.value_center = hsv_pixel[2];
             request_tracker_set_color_preset(m_masterTrackingColorType, preset);
 
-            if (m_bAutoChangeColor) {
-                setState(eMenuState::blank1);
-                request_set_controller_tracking_color(m_masterControllerView, PSMTrackingColorType_Magenta);
-                m_masterTrackingColorType = PSMTrackingColorType_Magenta;
-                std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
+            if (m_masterControllerView != nullptr)
+            {
+                if (m_bAutoChangeColor) {
+                    setState(eMenuState::blank1);
+                    request_set_controller_tracking_color(m_masterControllerView, PSMTrackingColorType_Magenta);
+                    m_masterTrackingColorType = PSMTrackingColorType_Magenta;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
+                }
+                else if ( m_bAutoChangeController && !m_bShowAlignment) {
+                    setState(eMenuState::changeController);
+                }
+                else if (m_bAutoChangeTracker) {
+                    setState(eMenuState::changeTracker);
+                }
             }
-            else if (m_bAutoChangeController && !m_bShowAlignment) {
-                setState(eMenuState::changeController);
-            }
-            else if (m_bAutoChangeTracker) {
-                setState(eMenuState::changeTracker);
+            else if (m_hmdView != nullptr)
+            {
+                if (m_bAutoChangeTracker) {
+                    setState(eMenuState::changeTracker);
+                }
             }
         }
 
@@ -636,16 +646,23 @@ void AppStage_ColorCalibration::renderUI()
                     (m_videoDisplayMode + 1) % eVideoDisplayMode::MAX_VIDEO_DISPLAY_MODES);
             }
             // Change tracker: T
-            if (ImGui::IsKeyReleased(116)) request_change_tracker(1);
-            // Change controller: M
-            if (ImGui::IsKeyReleased(109)) request_change_controller(1);
-            // Change color: C
-            if (ImGui::IsKeyReleased(99)) {
-                PSMTrackingColorType new_color =
-                    static_cast<PSMTrackingColorType>(
-                    (m_masterTrackingColorType + 1) % PSMTrackingColorType_MaxColorTypes);
-                request_set_controller_tracking_color(m_masterControllerView, new_color);
-                m_masterTrackingColorType = new_color;
+            if (ImGui::IsKeyReleased(116)) {
+                request_change_tracker(1);
+            }
+            if (m_masterControllerView != nullptr)
+            {
+                // Change controller: M
+                if (ImGui::IsKeyReleased(109)) {
+                    request_change_controller(1);
+                }
+                // Change color: C
+                if (ImGui::IsKeyReleased(99)) {
+                    PSMTrackingColorType new_color =
+                        static_cast<PSMTrackingColorType>(
+                        (m_masterTrackingColorType + 1) % PSMTrackingColorType_MaxColorTypes);
+                    request_set_controller_tracking_color(m_masterControllerView, new_color);
+                    m_masterTrackingColorType = new_color;
+                }
             }
         }
 
@@ -781,17 +798,17 @@ void AppStage_ColorCalibration::renderUI()
 
             // -- Auto Calibration --
             ImGui::Text("Auto Change Setings:");
-            ImGui::Checkbox("Color", &m_bAutoChangeColor);
-            if (m_hmdView != nullptr)
+            if (m_masterControllerView != nullptr)
             {
+                ImGui::Checkbox("Color", &m_bAutoChangeColor);
                 ImGui::SameLine();
                 ImGui::Checkbox("Controller", &m_bAutoChangeController);
+                ImGui::SameLine();
             }
-            ImGui::SameLine();
             ImGui::Checkbox("Tracker", &m_bAutoChangeTracker);
 
             // -- Change Controller --
-            if (m_hmdView != nullptr)
+            if (m_masterControllerView != nullptr)
             {
                 if (ImGui::Button("<##Controller"))
                 {
@@ -819,23 +836,46 @@ void AppStage_ColorCalibration::renderUI()
             ImGui::SameLine();
             ImGui::Text("[T]racker ID: %d", tracker_index);
 
-            if (ImGui::Button("Test Tracking"))
+            if (m_masterControllerView != nullptr)
             {
-                m_app->getAppStage<AppStage_TrackerSettings>()->gotoTestTracking(true);
-                request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("One"))
-            {
-                m_app->getAppStage<AppStage_TrackerSettings>()->gotoTrackingVideo(true);
-                request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
-            }
-            ImGui::SameLine();
+                if (ImGui::Button("Test Tracking"))
+                {
+                    m_app->getAppStage<AppStage_TrackerSettings>()->gotoTestControllerTracking(true);
+                    request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("One"))
+                {
+                    m_app->getAppStage<AppStage_TrackerSettings>()->gotoTrackingControllerVideo(true);
+                    request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                }
+                ImGui::SameLine();
                 if (ImGui::Button("ALL"))
                 {
                     m_app->getAppStage<AppStage_TrackerSettings>()->gotoTrackingVideoALL(true);
                     request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
                 }
+            }
+            else if (m_hmdView != nullptr)
+            {
+                if (ImGui::Button("Test Tracking"))
+                {
+                    m_app->getAppStage<AppStage_TrackerSettings>()->gotoTestHMDTracking(true);
+                    request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("One"))
+                {
+                    m_app->getAppStage<AppStage_TrackerSettings>()->gotoTrackingHMDVideo(true);
+                    request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("ALL"))
+                {
+                    m_app->getAppStage<AppStage_TrackerSettings>()->gotoTrackingVideoALL(true);
+                    request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                }
+            }
             
             ImGui::End();
         }

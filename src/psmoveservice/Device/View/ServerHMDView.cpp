@@ -604,7 +604,8 @@ ServerHMDView::getConfigIdentifier() const
 		}
 		else if (m_device->getDeviceType() == CommonDeviceState::VirtualHMD)
 		{
-			identifier = "virtual_hmd";
+            // THe "USB device path" for a Virtual HMD is actually just the Virtual HMD identifier, i.e. "VirtualHMD_0"
+			identifier = m_device->getUSBDevicePath();
 		}
 		else
 		{

@@ -51,10 +51,12 @@ public:
 
     static const char *APP_STAGE_NAME;
 
-	void gotoColorCalib(bool value = false) { m_gotoColorCalib = (value) ? true : false; }
-	void gotoTestTracking(bool value = false) { m_gotoTestTracking = (value) ? true : false; }
-	void gotoTrackingVideo(bool value = false) { m_gotoTrackingVideo = (value) ? true : false; }
-	void gotoTrackingVideoALL(bool value = false) { m_gotoTrackingVideoALL = (value) ? true : false; }
+	void gotoColorCalib(bool value = false) { m_gotoColorCalib = value; }
+	void gotoTestControllerTracking(bool value = false) { m_gotoTestControllerTracking = value; }
+	void gotoTrackingControllerVideo(bool value = false) { m_gotoTrackingControllerVideo = value; }
+	void gotoTestHMDTracking(bool value = false) { m_gotoTestHmdTracking = value; }
+    void gotoTrackingHMDVideo(bool value = false) { m_gotoTrackingHmdVideo = value; }
+	void gotoTrackingVideoALL(bool value = false) { m_gotoTrackingVideoALL = value; }
 
 protected:
     virtual bool onClientAPIEvent(
@@ -106,8 +108,10 @@ protected:
 	int m_selectedHmdIndex;
 
 	bool m_gotoColorCalib;
-	bool m_gotoTestTracking;
-	bool m_gotoTrackingVideo;
+	bool m_gotoTestControllerTracking;
+	bool m_gotoTrackingControllerVideo;
+	bool m_gotoTestHmdTracking;
+    bool m_gotoTrackingHmdVideo;
 	bool m_gotoTrackingVideoALL;
 };
 
