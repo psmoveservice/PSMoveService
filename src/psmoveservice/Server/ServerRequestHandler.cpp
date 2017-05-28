@@ -2741,8 +2741,8 @@ protected:
         const int hmd_id = context.request->request_set_hmd_position_filter().hmd_id();
 
         ServerHMDViewPtr HmdView = m_device_manager.getHMDViewPtr(hmd_id);
-        const PSMoveProtocol::Request_RequestSetPositionFilter &request =
-            context.request->request_set_position_filter();
+        const PSMoveProtocol::Request_RequestSetHMDPositionFilter &request =
+            context.request->request_set_hmd_position_filter();
 
         if (HmdView && HmdView->getIsOpen())
         {
