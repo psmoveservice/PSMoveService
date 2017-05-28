@@ -218,7 +218,7 @@ void AppStage_ComputeTrackerPoses::render()
                 PSM_GetTrackerFrustum(tracker_id, &frustum);
 
                 // use color depending on tracking status
-                glm::vec3 color= does_tracker_see_any_controller(trackerView) ? k_psmove_frustum_color : k_psmove_frustum_color_no_track;
+                glm::vec3 color= does_tracker_see_any_device(trackerView) ? k_psmove_frustum_color : k_psmove_frustum_color_no_track;
 
                 drawTextAtWorldPosition(glm::mat4(1.f), psm_vector3f_to_glm_vec3(trackerPose.Position), "#%d", tracker_id);
                 drawTransformedFrustum(glm::mat4(1.f), &frustum, color);
@@ -542,8 +542,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
                 const PSMTracker *trackerView = iter->second.trackerView;
 
                 ImGui::PushItemWidth(125.f);
-                if (does_tracker_see_any_controller(trackerView) ||
-                    does_tracker_see_any_hmd(trackerView))
+                if (does_tracker_see_any_device(trackerView))
                 {
                     ImGui::Text("Tracker #%d: OK", trackerView->tracker_info.tracker_id);
                 }
@@ -1451,6 +1450,11 @@ void AppStage_ComputeTrackerPoses::handle_all_devices_ready()
     {
         setState(eMenuState::testTracking);
     }
+}
+
+bool AppStage_ComputeTrackerPoses::does_tracker_see_any_device(const PSMTracker *trackerView)
+{
+    return does_tracker_see_any_controller(trackerView) || does_tracker_see_any_hmd(trackerView);
 }
 
 bool AppStage_ComputeTrackerPoses::does_tracker_see_any_controller(const PSMTracker *trackerView)

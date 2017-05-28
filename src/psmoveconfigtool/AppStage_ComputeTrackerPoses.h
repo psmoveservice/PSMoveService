@@ -143,6 +143,7 @@ protected:
         PSMTracker *TrackerView);
 
     void handle_all_devices_ready();
+    bool does_tracker_see_any_device(const PSMTracker *trackerView);
 	bool does_tracker_see_any_controller(const PSMTracker *trackerView);
     bool does_tracker_see_any_hmd(const PSMTracker *trackerView);
 

@@ -365,13 +365,13 @@ void AppStage_TrackerSettings::renderUI()
                         ImGui::TextDisabled("Compute Tracker Poses");
                     }
 
-                    if (ImGui::Button("Test Tracking Pose") || m_gotoTestControllerTracking)
+                    if (ImGui::Button("Test Tracking Pose##ControllerTrackingPose") || m_gotoTestControllerTracking)
                     {
                         if (m_gotoTestControllerTracking) m_gotoTestControllerTracking = false;
                         AppStage_ComputeTrackerPoses::enterStageAndTestTrackers(m_app, controllerID, -1);
                     }
                     ImGui::SameLine();
-                    if (ImGui::Button("Test Tracking Video") || m_gotoTrackingControllerVideo)
+                    if (ImGui::Button("Test Tracking Video##ControllerTrackingVideo") || m_gotoTrackingControllerVideo)
                     {
                         if (m_gotoTrackingControllerVideo) m_gotoTrackingControllerVideo = false;
                         m_app->getAppStage<AppStage_ComputeTrackerPoses>()->set_tracker_id(m_selectedTrackerIndex);
@@ -462,13 +462,13 @@ void AppStage_TrackerSettings::renderUI()
                     ImGui::TextDisabled("Calibrate HMD Tracking Colors");
                 }
 
-                if (ImGui::Button("Test Tracking Pose") || m_gotoTestHmdTracking)
+                if (ImGui::Button("Test Tracking Pose##HMDTrackingPose") || m_gotoTestHmdTracking)
                 {
                     if (m_gotoTestHmdTracking) m_gotoTestHmdTracking = false;
                     AppStage_ComputeTrackerPoses::enterStageAndTestTrackers(m_app, -1, hmdID);
                 }
                 ImGui::SameLine();
-                if (ImGui::Button("Test Tracking Video") || m_gotoTrackingHmdVideo)
+                if (ImGui::Button("Test Tracking Video##HMDTrackingVideo") || m_gotoTrackingHmdVideo)
                 {
                     if (m_gotoTrackingHmdVideo) m_gotoTrackingHmdVideo = false;
                     m_app->getAppStage<AppStage_ComputeTrackerPoses>()->set_tracker_id(m_selectedTrackerIndex);
