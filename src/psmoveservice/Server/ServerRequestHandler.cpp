@@ -67,8 +67,8 @@ struct RequestConnectionState
         
         for (int index = 0; index < HMDManager::k_max_devices; ++index)
         {
-            active_hmd_stream_info->Clear();
-    }
+            active_hmd_stream_info[index].Clear();
+        }
     }
 };
 typedef boost::shared_ptr<RequestConnectionState> RequestConnectionStatePtr;
