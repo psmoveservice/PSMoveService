@@ -28,7 +28,8 @@ AppStage_TrackerSettings::AppStage_TrackerSettings(App *app)
     , m_selectedTrackerIndex(-1)
     , m_selectedControllerIndex(-1)
     , m_selectedHmdIndex(-1)
-    , m_gotoColorCalib(false)
+    , m_gotoControllerColorCalib(false)
+    , m_gotoHMDColorCalib(false)
     , m_gotoTestControllerTracking(false)
     , m_gotoTrackingControllerVideo(false)
     , m_gotoTestHmdTracking(false)
@@ -343,7 +344,7 @@ void AppStage_TrackerSettings::renderUI()
 
                     if (m_app->getIsLocalServer())
                     {
-                        if (ImGui::Button("Calibrate Controller Tracking Colors") || m_gotoColorCalib)
+                        if (ImGui::Button("Calibrate Controller Tracking Colors") || m_gotoControllerColorCalib)
                         {
                             const ControllerInfo *controller = get_selected_controller();
                             if (controller != NULL) {
@@ -445,7 +446,7 @@ void AppStage_TrackerSettings::renderUI()
 
                 if (m_app->getIsLocalServer())
                 {
-                    if (ImGui::Button("Calibrate HMD Tracking Colors"))
+                    if (ImGui::Button("Calibrate HMD Tracking Colors") || m_gotoHMDColorCalib)
                     {
                         const HMDInfo *hmd = get_selected_hmd();
                         if (hmd != NULL) 
@@ -464,13 +465,13 @@ void AppStage_TrackerSettings::renderUI()
 
                 if (ImGui::Button("Test Tracking Pose##HMDTrackingPose") || m_gotoTestHmdTracking)
                 {
-                    if (m_gotoTestHmdTracking) m_gotoTestHmdTracking = false;
+                    m_gotoTestHmdTracking = false;
                     AppStage_ComputeTrackerPoses::enterStageAndTestTrackers(m_app, -1, hmdID);
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Test Tracking Video##HMDTrackingVideo") || m_gotoTrackingHmdVideo)
                 {
-                    if (m_gotoTrackingHmdVideo) m_gotoTrackingHmdVideo = false;
+                    m_gotoTrackingHmdVideo = false;
                     m_app->getAppStage<AppStage_ComputeTrackerPoses>()->set_tracker_id(m_selectedTrackerIndex);
                     AppStage_ComputeTrackerPoses::enterStageAndTestTrackers(m_app, -1, hmdID);
                 }

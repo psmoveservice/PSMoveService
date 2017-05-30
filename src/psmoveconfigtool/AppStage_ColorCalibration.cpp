@@ -162,7 +162,8 @@ AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
 
 void AppStage_ColorCalibration::enter()
 {
-    m_app->getAppStage<AppStage_TrackerSettings>()->gotoColorCalib(false);
+    m_app->getAppStage<AppStage_TrackerSettings>()->gotoControllerColorCalib(false);
+    m_app->getAppStage<AppStage_TrackerSettings>()->gotoHMDColorCalib(false);
     const AppStage_TrackerSettings *trackerSettings =
         m_app->getAppStage<AppStage_TrackerSettings>();
     const PSMClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
@@ -1254,7 +1255,8 @@ void AppStage_ColorCalibration::request_tracker_set_frame_width(double value)
     PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_frame_width_response, this);
 
     // Exit and re-enter Color Calibration
-    m_app->getAppStage<AppStage_TrackerSettings>()->gotoColorCalib(true);
+    m_app->getAppStage<AppStage_TrackerSettings>()->gotoControllerColorCalib(true);
+
     request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
 }
 

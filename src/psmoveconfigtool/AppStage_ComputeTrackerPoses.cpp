@@ -85,13 +85,30 @@ void AppStage_ComputeTrackerPoses::enterStageAndTestTrackers(App *app, PSMContro
 
 void AppStage_ComputeTrackerPoses::enter()
 {
-    // Kick off this async request chain with a controller list request
-    // -> controller start request
-    // -> hmd list request
-    // -> hmd start request
-    // -> tracker list request
-    // -> tracker start request
-    request_controller_list();
+    // Only get the controller list if
+    // A) No specific controller or HMD was requests
+    // B) A specific controller was requested
+    if ((m_overrideControllerId == -1 && m_overrideHmdId == -1) || 
+        m_overrideControllerId != -1)
+    {
+        // Kick off this async request chain:
+        // controller list request
+        // -> controller start request
+        // -> hmd list request (if no specific controller was requested)
+        // -> hmd start request (if no specific controller was requested)
+        // -> tracker list request
+        // -> tracker start request
+        request_controller_list();
+    }
+    else
+    {
+        // Kick off this async request chain 
+        // hmd list request
+        // -> hmd start request
+        // -> tracker list request
+        // -> tracker start request
+        request_hmd_list();
+    }
 
     m_app->setCameraType(_cameraFixed);
 }
@@ -624,7 +641,14 @@ void AppStage_ComputeTrackerPoses::renderUI()
             
             if (ImGui::Button("Color Calibration"))
             {
-                m_app->getAppStage<AppStage_TrackerSettings>()->gotoColorCalib(true);
+                if (m_overrideHmdId != -1)
+                {
+                    m_app->getAppStage<AppStage_TrackerSettings>()->gotoHMDColorCalib(true);
+                }
+                else
+                {
+                    m_app->getAppStage<AppStage_TrackerSettings>()->gotoControllerColorCalib(true);
+                }
                 request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
 
@@ -1102,8 +1126,17 @@ void AppStage_ComputeTrackerPoses::handle_start_controller_response(
             --thisPtr->m_pendingControllerStartCount;
             if (thisPtr->m_pendingControllerStartCount <= 0)
             {
-                // Move on to the HMDs
-                thisPtr->request_hmd_list();
+                if (thisPtr->m_overrideControllerId != -1)
+                {
+                    // If we requested a specific controller to test, 
+                    // that means we don't care about testing any HMDs
+                    thisPtr->request_tracker_list();
+                }
+                else
+                {
+                    // Move on to the HMDs
+                    thisPtr->request_hmd_list();
+                }
             }
         } break;
 
@@ -1219,7 +1252,7 @@ void AppStage_ComputeTrackerPoses::request_start_hmd_stream(
 {
     HMDState hmdState;
 
-    setState(eMenuState::pendingControllerStartRequest);
+    setState(eMenuState::pendingHmdStartRequest);
 
     // Allocate a new HMD view
     PSM_AllocateHmdListener(HmdID);
@@ -1235,7 +1268,8 @@ void AppStage_ComputeTrackerPoses::request_start_hmd_stream(
     ++m_pendingHmdStartCount;
 
     unsigned int flags =
-        PSMStreamFlags_includePositionData;
+        PSMStreamFlags_includePositionData |
+        PSMStreamFlags_includeRawTrackerData;
 
     // Start receiving data from the controller
     PSMRequestID request_id;
@@ -1513,9 +1547,9 @@ bool AppStage_ComputeTrackerPoses::does_tracker_see_any_hmd(const PSMTracker *tr
         else if (hmdView->HmdType == PSMHmd_Virtual &&
                  hmdView->HmdState.VirtualHMDState.bIsCurrentlyTracking)
         {
-            for (int id = 0; id < hmdView->HmdState.MorpheusState.RawTrackerData.ValidTrackerLocations; ++id)
+            for (int id = 0; id < hmdView->HmdState.VirtualHMDState.RawTrackerData.ValidTrackerLocations; ++id)
             {
-                if (hmdView->HmdState.MorpheusState.RawTrackerData.TrackerIDs[id] == tracker_id)
+                if (hmdView->HmdState.VirtualHMDState.RawTrackerData.TrackerIDs[id] == tracker_id)
                     bTrackerSeesAnyHmd = true;
             }
             break;
