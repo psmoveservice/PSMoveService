@@ -67,15 +67,15 @@ public:
         const class ServerControllerView* tracked_controller, 
 		const struct CommonDeviceTrackingShape *tracking_shape,
         struct ControllerOpticalPoseEstimation *out_pose_estimate);
-	bool computePoseForProjection(
+    bool computeProjectionForHMD(
+		const class ServerHMDView* tracked_hmd,
+		const struct CommonDeviceTrackingShape *tracking_shape,
+		struct HMDOpticalPoseEstimation *out_pose_estimate);
+    bool computePoseForProjection(
 		const struct CommonDeviceTrackingProjection *projection,
 		const struct CommonDeviceTrackingShape *tracking_shape,
 		const struct CommonDevicePose *pose_guess,
 		struct ControllerOpticalPoseEstimation *out_pose_estimate);
-	bool computePoseForHMD(
-		const class ServerHMDView* tracked_hmd,
-		const CommonDevicePose *tracker_pose_guess,
-		struct HMDOpticalPoseEstimation *out_pose_estimate);
     
     std::vector<CommonDeviceScreenLocation> projectTrackerRelativePositions(
                                 const std::vector<CommonDevicePosition> &objectPositions) const;

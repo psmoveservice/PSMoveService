@@ -32,12 +32,21 @@ public:
 	typedef std::map<int, ControllerState>::iterator t_controller_state_map_iterator;
 	typedef std::pair<int, ControllerState> t_id_controller_state_pair;
 
+	struct HMDState
+	{
+		int listIndex;
+		PSMTrackingColorType trackingColorType;
+		PSMHeadMountedDisplay *hmdView;
+	};
+	typedef std::map<int, HMDState> t_hmd_state_map;
+	typedef std::map<int, HMDState>::iterator t_hmd_state_map_iterator;
+	typedef std::pair<int, HMDState> t_id_hmd_state_pair;
+
     AppStage_ComputeTrackerPoses(class App *app);
     ~AppStage_ComputeTrackerPoses();
 
-    static void enterStageAndCalibrate(class App *app, int reqeusted_controller_id);
-    static void enterStageAndSkipCalibration(class App *app, int reqeusted_controller_id);
-
+    static void enterStageAndCalibrateTrackers(class App *app, PSMControllerID reqeusted_controller_id=-1);
+    static void enterStageAndTestTrackers(class App *app, PSMControllerID reqeusted_controller_id=-1, PSMHmdID requested_hmd_id=-1);
 
 	inline void set_tracker_id(int reqeusted_tracker_id)
 	{
@@ -63,6 +72,12 @@ protected:
 
         pendingControllerStartRequest,
         failedControllerStartRequest,
+
+        pendingHmdListRequest,
+        failedHmdListRequest,
+
+        pendingHmdStartRequest,
+        failedHmdStartRequest,
 
         pendingTrackerListRequest,
         failedTrackerListRequest,
@@ -103,6 +118,16 @@ protected:
         const PSMResponseMessage *response_message,
         void *userdata);
 
+    void request_hmd_list();
+    static void handle_hmd_list_response(
+        const PSMResponseMessage *response_message,
+        void *userdata);
+
+    void request_start_hmd_stream(int HmdID, int listIndex, PSMTrackingColorType trackingColorType);
+    static void handle_start_hmd_response(
+        const PSMResponseMessage *response_message,
+        void *userdata);
+
     void request_tracker_list();
     static void handle_tracker_list_response(
         const PSMResponseMessage *response_message,
@@ -118,7 +143,9 @@ protected:
         PSMTracker *TrackerView);
 
     void handle_all_devices_ready();
+    bool does_tracker_see_any_device(const PSMTracker *trackerView);
 	bool does_tracker_see_any_controller(const PSMTracker *trackerView);
+    bool does_tracker_see_any_hmd(const PSMTracker *trackerView);
 
     void release_devices();
     void request_exit_to_app_stage(const char *app_stage_name);
@@ -131,6 +158,9 @@ protected:
 
 	t_controller_state_map m_controllerViews;
 	int m_pendingControllerStartCount;
+
+	t_hmd_state_map m_hmdViews;
+	int m_pendingHmdStartCount;
 
     int m_renderTrackerIndex;
     t_tracker_state_map_iterator m_renderTrackerIter;
@@ -146,7 +176,8 @@ protected:
 
     bool m_bSkipCalibration;
     int m_ShowTrackerVideoId;
-	int m_overrideControllerId;
+	PSMControllerID m_overrideControllerId;
+    PSMHmdID m_overrideHmdId;
 
 	// Alignment Marker visability
 	bool m_bShowAlignment;

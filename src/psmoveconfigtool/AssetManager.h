@@ -67,6 +67,9 @@ public:
 
     const TextureAsset *getMorpheusTextureAsset()
     { return &m_morpheusTexture; }    
+
+    const TextureAsset *getDK2TextureAsset()
+    { return &m_dk2Texture; }    
     
     const FontAsset *getDefaultFont()
     { return &m_defaultFont; }
@@ -81,6 +84,7 @@ private:
     TextureAsset m_psnaviTexture;
     TextureAsset m_psdualshock4Texture;
     TextureAsset m_morpheusTexture;
+    TextureAsset m_dk2Texture;
 
     // Font Rendering
     FontAsset m_defaultFont;

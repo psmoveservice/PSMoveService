@@ -99,6 +99,7 @@ message TrackingColorPreset {
 
 enum HMDType {
     Morpheus = 0;
+    VirtualHMD = 1;
 }
 
 // Reliable (TCP) requests that can issued to the PSMove Service
@@ -146,15 +147,18 @@ message Request {
         GET_HMD_LIST = 33;
         START_HMD_DATA_STREAM = 34;
         STOP_HMD_DATA_STREAM = 35;
-        SET_HMD_ACCELEROMETER_CALIBRATION= 36;
-        SET_HMD_GYROSCOPE_CALIBRATION= 37;
-        SET_HMD_PREDICTION_TIME= 38;
+        SET_HMD_LED_TRACKING_COLOR= 36;
+        SET_HMD_ACCELEROMETER_CALIBRATION= 37;
+        SET_HMD_GYROSCOPE_CALIBRATION= 38;
+        SET_HMD_PREDICTION_TIME= 39;
+        SET_HMD_ORIENTATION_FILTER= 40;
+        SET_HMD_POSITION_FILTER= 41;        
 
-        GET_SERVICE_VERSION= 39;
+        GET_SERVICE_VERSION= 42;
 
-        SET_TRACKER_FRAME_RATE = 40;
-        SET_TRACKER_FRAME_WIDTH = 41;
-        SET_TRACKER_FRAME_HEIGHT = 42;
+        SET_TRACKER_FRAME_RATE = 43;
+        SET_TRACKER_FRAME_WIDTH = 44;
+        SET_TRACKER_FRAME_HEIGHT = 45;
     }
     RequestType type = 2;
 
@@ -377,7 +381,6 @@ message Request {
     }
     RequestReloadTrackerSettings request_reload_tracker_settings = 30;
 
-
     // Parameters for SAVE_TRACKER_PROFILE
     message RequestSaveTrackerProfile {
         int32 tracker_id = 1;
@@ -414,14 +417,20 @@ message Request {
     }
     RequestStopHmdDataStream request_stop_hmd_data_stream = 34;
 
+    // Parameters for SET_HMD_LED_TRACKING_COLOR
+    message RequestSetHmdLEDTrackingColor {
+        int32 hmd_id = 1;
+        TrackingColorType color_type = 2;
+    }
+    RequestSetHmdLEDTrackingColor set_hmd_led_tracking_color_request = 35;    
+    
     // Parameters for SET_HMD_ACCELEROMETER_CALIBRATION
     message RequestSetHMDAccelerometerCalibration {
         int32 hmd_id = 1;
         FloatVector raw_average_gravity= 2;
         float raw_variance= 3;
     }
-
-    RequestSetHMDAccelerometerCalibration set_hmd_accelerometer_calibration_request = 35;
+    RequestSetHMDAccelerometerCalibration set_hmd_accelerometer_calibration_request = 36;
 
     // Parameters for SET_HMD_GYROSCOPE_CALIBRATION
     message RequestSetHMDGyroscopeCalibration {
@@ -430,16 +439,30 @@ message Request {
         float raw_variance= 3;
         float raw_drift= 4;
     }
-    RequestSetHMDGyroscopeCalibration set_hmd_gyroscope_calibration_request = 36;
+    RequestSetHMDGyroscopeCalibration set_hmd_gyroscope_calibration_request = 37;
 
     // No parameters for GET_TRACKING_SPACE_SETTINGS
 
+    // Parameters for SET_HMD_ORIENTATION_FILTER
+    message RequestSetHMDOrientationFilter {
+        int32 hmd_id = 1;
+        string orientation_filter = 2;
+    }
+    RequestSetHMDOrientationFilter request_set_hmd_orientation_filter = 38;
+
+    // Parameters for SET_HMD_POSITION_FILTER
+    message RequestSetHMDPositionFilter {
+        int32 hmd_id = 1;
+        string position_filter = 2;
+    }
+    RequestSetHMDPositionFilter request_set_hmd_position_filter = 39;
+    
     // Parameters for SET_HMD_PREDICTION_TIME
     message RequestSetHMDPredictionTime {
         int32 hmd_id = 1;
         float prediction_time = 2;
     }
-    RequestSetHMDPredictionTime request_set_hmd_prediction_time = 37;
+    RequestSetHMDPredictionTime request_set_hmd_prediction_time = 40;
 
     // Parameters for SET_TRACKER_FRAME_RATE
     message RequestSetTrackerFrameRate {
@@ -447,7 +470,7 @@ message Request {
         float value = 2;
         bool save_setting= 3;
     }
-    RequestSetTrackerFrameRate request_set_tracker_frame_rate = 38;
+    RequestSetTrackerFrameRate request_set_tracker_frame_rate = 41;
 
     // Parameters for SET_TRACKER_FRAME_WIDTH
     message RequestSetTrackerFrameWidth {
@@ -455,7 +478,7 @@ message Request {
         float value = 2;
         bool save_setting= 3;
     }
-    RequestSetTrackerFrameWidth request_set_tracker_frame_width = 39;
+    RequestSetTrackerFrameWidth request_set_tracker_frame_width = 42;
 
     // Parameters for SET_TRACKER_FRAME_HEIGHT
     message RequestSetTrackerFrameHeight {
@@ -463,7 +486,7 @@ message Request {
         float value = 2;
         bool save_setting= 3;
     }
-    RequestSetTrackerFrameHeight request_set_tracker_frame_height = 40;
+    RequestSetTrackerFrameHeight request_set_tracker_frame_height = 43;
 }
 
 // Reliable (TCP) responses to requests
@@ -651,9 +674,11 @@ message Response {
         message HMDInfo {
             int32 hmd_id= 1;
             HMDType hmd_type = 2;
-            string device_path = 3;
-            TrackingColorType tracking_color_type = 4;
-            float prediction_time = 5;
+            TrackingColorType tracking_color_type = 3;
+            string device_path = 4;
+            string orientation_filter = 5;
+            string position_filter = 6;            
+            float prediction_time = 7;
         }
         repeated HMDInfo hmd_entries = 1;
     }
@@ -916,14 +941,14 @@ message DeviceOutputDataFrame
         // The id of hmd this data is for
         int32 hmd_id= 1;
 
-        // Specify the type of controller this data is from
+        // Specify the type of HMD this data is from
         HMDType hmd_type= 2;
 
         // Monotonically increasing number.
         // Used to throw out old data if it arrives out of order.
         int32 sequence_num= 3;
 
-        // Common Controller status flags
+        // Common HMD status flags
         bool IsConnected= 4;
 
         // Morpheus Specific HMD state
@@ -980,6 +1005,38 @@ message DeviceOutputDataFrame
             PhysicsData physics_data = 10;
         }
         MorpheusState morpheus_state = 5;
+        
+        // Virtual HMD Specific state
+        message VirtualHMDState
+        {
+            // Virtual HMD Specific flags
+            bool IsTrackingEnabled= 1;
+            bool IsCurrentlyTracking= 2;
+            bool IsPositionValid= 3;
+
+            // Tracking position in the space of the HMD tracking camera
+            Position position_cm = 4;
+
+            // Only valid if include_raw_tracker_data=true in START_HMD_DATA_STREAM request
+            message RawTrackerData
+            {
+                repeated Pixel screen_locations= 1;
+                repeated Position relative_positions_cm= 2;
+                repeated int32 tracker_ids= 3;
+                repeated Ellipse projected_spheres= 4;
+                int32 valid_tracker_count= 5;
+            }
+            RawTrackerData raw_tracker_data = 5;
+
+            // Only valid if include_physics_data=true in START_HMD_DATA_STREAM request
+            message PhysicsData
+            {
+                FloatVector velocity_cm_per_sec= 1;
+                FloatVector acceleration_cm_per_sec_sqr= 2;
+            }
+            PhysicsData physics_data = 6;
+        }
+        VirtualHMDState virtual_hmd_state = 6;        
     }
     HMDDataPacket hmd_data_packet = 4;
 }

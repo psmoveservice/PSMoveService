@@ -24,6 +24,7 @@
 #include "ds4body_3dmodel.h"
 #include "ds4lightbar_3dmodel.h"
 #include "morpheus_3dmodel.h"
+#include "dk2_3dmodel.h"
 
 #include <algorithm>
 
@@ -1199,6 +1200,56 @@ void drawMorpheusModel(const glm::mat4 &transform)
         glVertexPointer(3, GL_FLOAT, 0, morpheusVerts);
         glTexCoordPointer(2, GL_FLOAT, 0, morpheusTexCoords);
         glDrawArrays(GL_TRIANGLES, 0, morpheusNumVerts);
+
+        glDisableClientState(GL_VERTEX_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+    glPopMatrix();
+
+    // rebind the default texture
+    glBindTexture(GL_TEXTURE_2D, 0); 
+}
+
+void drawVirtualHMDModel(const glm::mat4 &transform, const glm::vec3 &color)
+{
+    //###HipsterSloth $TODO Draw virtual HMD model
+    assert(Renderer::getIsRenderingStage());
+
+    int dk2TextureID= AssetManager::getInstance()->getDK2TextureAsset()->texture_id;
+    int psMoveTextureID= AssetManager::getInstance()->getPSMoveTextureAsset()->texture_id;
+
+    glBindTexture(GL_TEXTURE_2D, dk2TextureID);
+
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        
+        glColor3f(1.f, 1.f, 1.f);
+        glVertexPointer(3, GL_FLOAT, 0, DK2Verts);
+        glTexCoordPointer(2, GL_FLOAT, 0, DK2TexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, DK2NumVerts);
+
+        glDisableClientState(GL_VERTEX_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+    glPopMatrix();
+
+    glBindTexture(GL_TEXTURE_2D, psMoveTextureID);
+
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        
+        glColor3fv(glm::value_ptr(color));
+        glTranslatef(0.f, -2.f, 0.f);
+        glRotatef(90.f, 1.f, 0.f, 0.f);
+        glVertexPointer(3, GL_FLOAT, 0, psmovebulbVerts);
+        glTexCoordPointer(2, GL_FLOAT, 0, psmovebulbTexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, psmovebulbNumVerts);
 
         glDisableClientState(GL_VERTEX_ARRAY);
         glDisableClientState(GL_TEXTURE_COORD_ARRAY);

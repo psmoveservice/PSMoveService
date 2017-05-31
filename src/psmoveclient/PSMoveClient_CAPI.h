@@ -141,7 +141,8 @@ typedef enum
 typedef enum
 {
     PSMHmd_None= -1,
-	PSMHmd_Morpheus= -1,
+	PSMHmd_Morpheus= 0,
+    PSMHmd_Virtual= 1,
 } PSMHmdType;
 
 /// The list of possible camera drivers used by PSMoveService
@@ -458,6 +459,18 @@ typedef struct
     PSMRawTrackerData            RawTrackerData;
 } PSMMorpheus;
 
+/// Virtual HMD State in HMD Pool Entry
+typedef struct
+{
+    bool                         bIsTrackingEnabled;
+    bool                         bIsCurrentlyTracking;
+    bool                         bIsPositionValid;
+    
+    PSMPosef                     Pose;
+    PSMPhysicsData               PhysicsData;
+    PSMRawTrackerData            RawTrackerData;
+} PSMVirtualHMD;
+
 /// HMD Pool Entry
 typedef struct
 {
@@ -466,6 +479,7 @@ typedef struct
     union
     {
         PSMMorpheus  MorpheusState;
+        PSMVirtualHMD VirtualHMDState;
     }               HmdState;
     bool            bValid;
     int             OutputSequenceNum;

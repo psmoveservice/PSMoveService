@@ -16,7 +16,6 @@
 #include "AppStage_PairController.h"
 #include "AppStage_ServiceSettings.h"
 #include "AppStage_TrackerSettings.h"
-#include "AppStage_TestHMD.h"
 #include "AppStage_TestTracker.h"
 #include "AppStage_TestRumble.h"
 
@@ -50,7 +49,6 @@ extern "C" int main(int argc, char *argv[])
 	app.registerAppStage<AppStage_OpticalCalibration>();
     app.registerAppStage<AppStage_PairController>();
     app.registerAppStage<AppStage_ServiceSettings>();
-    app.registerAppStage<AppStage_TestHMD>();
     app.registerAppStage<AppStage_TestRumble>();
     app.registerAppStage<AppStage_TestTracker>();
     app.registerAppStage<AppStage_TrackerSettings>();

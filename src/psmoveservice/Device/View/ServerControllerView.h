@@ -123,7 +123,7 @@ public:
 	eCommonTrackingColorID getTrackingColorID() const;
 
     // Set the assigned tracking color ID for the controller
-    void setTrackingColorID(eCommonTrackingColorID colorID);
+    bool setTrackingColorID(eCommonTrackingColorID colorID);
 
     // Get the tracking is enabled on this controller
     inline bool getIsTrackingEnabled() const { return m_tracking_enabled && m_multicam_pose_estimation != nullptr; }

@@ -206,7 +206,8 @@ struct CommonDeviceState
         SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x01,
         
         Morpheus = HeadMountedDisplay + 0x00,
-        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01,
+        VirtualHMD = HeadMountedDisplay + 0x01,
+        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x02,
 
 		INVALID_DEVICE_TYPE= 0xFF,
     };
@@ -245,7 +246,10 @@ struct CommonDeviceState
             break;
         case Morpheus:
             result = "Morpheus";
-            break;        
+            break;
+        case VirtualHMD:
+            result = "VirtualHMD";
+            break;
         default:
             result = "UNKNOWN";
         }
@@ -600,6 +604,9 @@ public:
 
 	// Get the tracking shape use by the controller
 	virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const = 0;
+
+	// Sets the tracking color enum of the controller
+	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) = 0;
 
 	// Get the tracking color enum of the controller
 	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const = 0;

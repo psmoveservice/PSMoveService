@@ -9,7 +9,6 @@
 #include "MathEigen.h"
 
 #include <memory>
-#include <deque>
 
 //-- typedefs -----
 class ServerControllerView;
@@ -45,10 +44,6 @@ public:
 
     void setControllerRumble(int controller_id, float rumble_amount, CommonControllerState::RumbleChannel channel);
 
-    eCommonTrackingColorID allocateTrackingColorID();
-    void claimTrackingColorID(const ServerControllerView *controller_view, eCommonTrackingColorID color_id);
-    void freeTrackingColorID(eCommonTrackingColorID color_id);
-
 protected:
 	// Fetch latest controller state
 	void poll_devices() override;
@@ -64,7 +59,6 @@ public:
 
 private:
     static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;
-    std::deque<eCommonTrackingColorID> m_available_controller_color_ids;
     std::string m_bluetooth_host_address;
 };
 

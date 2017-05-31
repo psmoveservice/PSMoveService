@@ -3,6 +3,7 @@
 #include "DeviceInterface.h"
 #include "DeviceManager.h"
 #include "HMDDeviceEnumerator.h"
+#include "HidHMDDeviceEnumerator.h"
 #include "MathUtility.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
@@ -386,7 +387,7 @@ MorpheusHMD::~MorpheusHMD()
 
 bool MorpheusHMD::open()
 {
-    HMDDeviceEnumerator enumerator;
+    HMDDeviceEnumerator enumerator(HMDDeviceEnumerator::CommunicationType_HID);
     bool success = false;
 
     if (enumerator.is_valid())
@@ -417,7 +418,7 @@ bool MorpheusHMD::open(
 		USBContext->device_identifier = cur_dev_path;
 
 		// Open the sensor interface using HIDAPI
-		USBContext->sensor_device_path = pEnum->get_interface_path(MORPHEUS_SENSOR_INTERFACE);
+		USBContext->sensor_device_path = pEnum->get_hid_hmd_enumerator()->get_interface_path(MORPHEUS_SENSOR_INTERFACE);
 		USBContext->sensor_device_handle = hid_open_path(USBContext->sensor_device_path.c_str());
 		if (USBContext->sensor_device_handle != nullptr)
 		{
@@ -625,6 +626,12 @@ MorpheusHMD::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const
 	outTrackingShape.shape.point_cloud.point[7].set(6.f, -1.f, -24.f); // 7
 	outTrackingShape.shape.point_cloud.point[8].set(-6.f, -1.f, -24.f); // 8
 	outTrackingShape.shape.point_cloud.point_count = 9;
+}
+
+bool 
+MorpheusHMD::setTrackingColorID(const eCommonTrackingColorID tracking_color_id)
+{
+    return false;
 }
 
 bool 

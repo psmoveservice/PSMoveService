@@ -280,6 +280,9 @@ private:
             case PSMHmd_Morpheus:
                 hmd_type= "Morpheus";
                 break;
+            case PSMHmd_Virtual:
+                hmd_type= "Virtual";
+                break;
             }
 
             std::cout << "  HMD ID: " << hmdList.hmd_id[hmd_ix] << " is a " << hmd_type << std::endl;

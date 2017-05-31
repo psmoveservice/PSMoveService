@@ -3,6 +3,7 @@
 
 //-- includes -----
 #include <memory>
+#include <deque>
 #include "DeviceTypeManager.h"
 #include "DeviceEnumerator.h"
 #include "DeviceInterface.h"
@@ -55,7 +56,7 @@ public:
 	int tracker_sleep_ms;
 	bool use_bgr_to_hsv_lookup_table;
 	bool exclude_opposed_cameras;
-	int min_valid_projection_area;
+	float min_valid_projection_area;
 	bool disable_roi;
     TrackerProfile default_tracker_profile;
 	float global_forward_degrees;
@@ -101,6 +102,11 @@ public:
         return cfg;
     }
 
+    eCommonTrackingColorID allocateTrackingColorID();
+    bool claimTrackingColorID(const class ServerControllerView *controller_view, eCommonTrackingColorID color_id);
+    bool claimTrackingColorID(const class ServerHMDView *hmd_view, eCommonTrackingColorID color_id);
+    void freeTrackingColorID(eCommonTrackingColorID color_id);
+
 protected:
     bool can_update_connected_devices() override;
     void mark_tracker_list_dirty();
@@ -111,6 +117,7 @@ protected:
 	int getListUpdatedResponseType() override;
 
 private:
+    std::deque<eCommonTrackingColorID> m_available_color_ids;
     TrackerManagerConfig cfg;
     bool m_tracker_list_dirty;
 };

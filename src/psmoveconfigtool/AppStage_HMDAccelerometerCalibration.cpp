@@ -171,6 +171,11 @@ void AppStage_HMDAccelerometerCalibration::update()
 				m_lastRawAccelerometer = rawSensorData.Accelerometer;
                 m_lastCalibratedAccelerometer = calibratedSensorData.Accelerometer;
             } break;
+        case PSMHmd_Virtual:
+            {
+                m_lastRawAccelerometer = {0, 0, 0};
+                m_lastCalibratedAccelerometer = {0, 0, 0};
+            } break;
         default:
             assert(0 && "unreachable");
         }
@@ -242,6 +247,7 @@ void AppStage_HMDAccelerometerCalibration::render()
     switch(m_hmdView->HmdType)
     {
     case PSMHmd_Morpheus:
+    case PSMHmd_Virtual:
         hmdTransform = glm::scale(glm::mat4(1.f), glm::vec3(modelScale, modelScale, modelScale));
         break;
     }
@@ -357,6 +363,7 @@ void AppStage_HMDAccelerometerCalibration::renderUI()
 			switch(m_hmdView->HmdType)
 			{
 			case PSMHmd_Morpheus:
+            case PSMHmd_Virtual:
 				ImGui::Text("Set the HMD on a flat, level surface");
 				break;
 			}
@@ -502,6 +509,9 @@ static void drawHMD(PSMHeadMountedDisplay *hmdView, const glm::mat4 &transform)
     {
     case PSMHmd_Morpheus:
         drawMorpheusModel(transform);
+        break;
+    case PSMHmd_Virtual:
+        drawVirtualHMDModel(transform, glm::vec3(1.f, 1.f, 1.f));
         break;
     }
 }

@@ -12,7 +12,8 @@ class AppStage_HMDSettings : public AppStage
 public:
     enum eHMDType
     {
-        Morpheus
+        Morpheus,
+        VirtualHMD
     };
 
     struct HMDInfo
@@ -20,6 +21,11 @@ public:
         int HmdID;
         eHMDType HmdType;
         std::string DevicePath;
+        PSMTrackingColorType TrackingColorType;
+		int PositionFilterIndex;
+		std::string PositionFilterName;
+		int OrientationFilterIndex;
+		std::string OrientationFilterName;
 		float PredictionTime;
     };
 
@@ -53,7 +59,13 @@ protected:
 		const PSMResponseMessage *response,
 		void *userdata);
 
+	void request_set_orientation_filter(const int hmd_id, const std::string &filter_name);
+	void request_set_position_filter(const int hmd_id, const std::string &filter_name);
 	void request_set_hmd_prediction(const int hmd_id, float prediction_time);
+	void request_set_hmd_tracking_color_id(
+		const int hmd_id,
+		PSMTrackingColorType tracking_color_type);
+
 
 private:
     enum eHmdMenuState
