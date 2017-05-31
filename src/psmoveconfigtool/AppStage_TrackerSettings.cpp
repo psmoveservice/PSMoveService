@@ -349,6 +349,7 @@ void AppStage_TrackerSettings::renderUI()
                             const ControllerInfo *controller = get_selected_controller();
                             if (controller != NULL) {
                                 m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_id(controller->ControllerID);
+                                m_app->getAppStage<AppStage_ColorCalibration>()->set_override_hmd_id(-1);
                                 m_app->getAppStage<AppStage_ColorCalibration>()->set_override_tracking_color(controller->TrackingColorType);
                             }
                             m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
@@ -451,6 +452,7 @@ void AppStage_TrackerSettings::renderUI()
                         const HMDInfo *hmd = get_selected_hmd();
                         if (hmd != NULL) 
                         {
+                            m_app->getAppStage<AppStage_ColorCalibration>()->set_override_controller_id(-1);
                             m_app->getAppStage<AppStage_ColorCalibration>()->set_override_hmd_id(hmd->HmdID);
                             m_app->getAppStage<AppStage_ColorCalibration>()->set_override_tracking_color(hmd->TrackingColorType);
                         }
