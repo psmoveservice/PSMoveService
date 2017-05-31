@@ -1151,7 +1151,7 @@ void AppStage_ColorCalibration::request_start_hmd_stream()
     setState(AppStage_ColorCalibration::pendingHmdStartRequest);
 
     PSMRequestID requestId;
-    PSM_StartHmdDataStreamAsync(m_hmdView->HmdID, PSMStreamFlags_includePositionData, &requestId); // turns on tracking lights
+    PSM_StartHmdDataStreamAsync(m_hmdView->HmdID, PSMStreamFlags_defaultStreamOptions, &requestId);
     PSM_RegisterCallback(requestId, AppStage_ColorCalibration::handle_start_hmd_response, this);
 }
 
