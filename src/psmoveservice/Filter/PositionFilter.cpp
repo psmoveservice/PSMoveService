@@ -447,7 +447,7 @@ void PositionFilterLowPassExponential::update(const float delta_time, const Pose
 
 				Eigen::Vector3f newvVelocity = (positionList.back() - positionList.front()) / totalTime;
 				prevVelocity = (newvVelocity * smooth) + (prevVelocity * (1.0f - smooth));
-				m_state->velocity_m_per_sec = prevVelocity;
+				m_state->velocity_m_per_sec = prevVelocity * 2;
 			}
 			else {
 				m_state->velocity_m_per_sec = Eigen::Vector3f::Zero();
