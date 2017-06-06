@@ -33,7 +33,7 @@ static const int k_default_hmd_poll_interval= 2; // ms
 class DeviceManagerConfig : public PSMoveConfig
 {
 public:
-    DeviceManagerConfig(const std::string &fnamebase = "ControllerManagerConfig")
+    DeviceManagerConfig(const std::string &fnamebase = "DeviceManagerConfig")
         : PSMoveConfig(fnamebase)
         , controller_reconnect_interval(k_default_controller_reconnect_interval)
         , controller_poll_interval(k_default_controller_poll_interval)

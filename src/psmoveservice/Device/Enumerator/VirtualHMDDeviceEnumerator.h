@@ -20,6 +20,9 @@ public:
 
     inline int get_device_identifier() const { return m_device_index; }
 
+    // Assigned by the hmd manager on startup
+    static int virtual_hmd_count;
+
 private:
 	std::string m_current_device_identifier;
     int m_device_index;

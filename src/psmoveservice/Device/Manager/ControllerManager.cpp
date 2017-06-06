@@ -10,11 +10,51 @@
 #include "ServerDeviceView.h"
 #include "ServerNetworkManager.h"
 #include "ServerUtility.h"
+#include "VirtualControllerEnumerator.h"
 
 #include "hidapi.h"
 #include "gamepad/Gamepad.h"
 
 //-- methods -----
+//-- Tracker Manager Config -----
+const int ControllerManagerConfig::CONFIG_VERSION = 1;
+
+ControllerManagerConfig::ControllerManagerConfig(const std::string &fnamebase)
+    : PSMoveConfig(fnamebase)
+    , virtual_controller_count(0)
+{
+
+};
+
+const boost::property_tree::ptree
+ControllerManagerConfig::config2ptree()
+{
+    boost::property_tree::ptree pt;
+
+    pt.put("version", ControllerManagerConfig::CONFIG_VERSION);
+    pt.put("virtual_controller_count", virtual_controller_count);
+
+    return pt;
+}
+
+void
+ControllerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
+{
+    version = pt.get<int>("version", 0);
+
+    if (version == ControllerManagerConfig::CONFIG_VERSION)
+    {
+        virtual_controller_count = pt.get<int>("virtual_controller_count", 0);
+    }
+    else
+    {
+        SERVER_LOG_WARNING("ControllerManagerConfig") <<
+            "Config version " << version << " does not match expected version " <<
+            ControllerManagerConfig::CONFIG_VERSION << ", Using defaults.";
+    }
+}
+
+//-- Controller Manager ----
 ControllerManager::ControllerManager()
     : DeviceTypeManager(1000, 2)
 {
@@ -32,6 +72,16 @@ ControllerManager::startup()
 
     if (success)
     {
+		// Load any config from disk
+		cfg.load();
+
+        // Save back out the config in case there were updated defaults
+        cfg.save();
+
+        // Copy the virtual controller count into the Virtual controller enumerator static variable.
+        // This breaks the dependency between the Controller Manager and the enumerator.
+        VirtualControllerEnumerator::virtual_controller_count= cfg.virtual_controller_count;
+
         // Initialize HIDAPI
         if (hid_init() == -1)
         {

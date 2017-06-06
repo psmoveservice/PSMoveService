@@ -53,6 +53,8 @@ file(GLOB PSMOVESERVICE_CONTROLLER_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveController/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.h"
+    "${CMAKE_CURRENT_LIST_DIR}/VirtualController/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/VirtualController/*.h"    
 )
 source_group("Controller" FILES ${PSMOVESERVICE_CONTROLLER_SRC})
 
@@ -145,6 +147,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/PSEye
     ${CMAKE_CURRENT_LIST_DIR}/Server
+    ${CMAKE_CURRENT_LIST_DIR}/VirtualController    
 )
 
 # Eigen math library

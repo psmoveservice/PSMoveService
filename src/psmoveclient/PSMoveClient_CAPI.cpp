@@ -515,6 +515,8 @@ PSMResult PSM_SetControllerLEDOverrideColor(PSMControllerID controller_id, unsig
                     ds4->bHasUnpublishedState = true;
                 }
             } break;
+        case PSMController_Virtual:
+            break;
         }
 
         result= PSMResult_Success;
@@ -551,6 +553,8 @@ PSMResult PSM_GetControllerRumble(PSMControllerID controller_id, PSMControllerRu
                     rumbleByte= controller->ControllerState.PSDS4State.SmallRumble;
                 }
             } break;
+        case PSMController_Virtual:
+            break;
         }
 
         *out_rumbleFraction= clampf01(static_cast<float>(rumbleByte / 255.f));
@@ -601,6 +605,8 @@ PSMResult PSM_SetControllerRumble(PSMControllerID controller_id, PSMControllerRu
                     ds4->bHasUnpublishedState = true;
                 }
             } break;
+        case PSMController_Virtual:
+            break;
         }
 
         result= PSMResult_Success;
@@ -636,6 +642,8 @@ PSMResult PSM_GetControllerOrientation(PSMControllerID controller_id, PSMQuatf *
 
 				result= State.bIsOrientationValid ? PSMResult_Success : PSMResult_Error;
             } break;
+        case PSMController_Virtual:
+            break;
         }
     }
 
@@ -658,7 +666,7 @@ PSMResult PSM_GetControllerPosition(PSMControllerID controller_id, PSMVector3f *
 				PSMPSMove State= controller->ControllerState.PSMoveState;
 				*out_position = State.Pose.Position;
 
-				result= State.bIsOrientationValid ? PSMResult_Success : PSMResult_Error;
+				result= State.bIsPositionValid ? PSMResult_Success : PSMResult_Error;
             } break;
         case PSMController_Navi:
             break;
@@ -667,7 +675,14 @@ PSMResult PSM_GetControllerPosition(PSMControllerID controller_id, PSMVector3f *
 				PSMDualShock4 State= controller->ControllerState.PSDS4State;
 				*out_position = State.Pose.Position;
 
-				result= State.bIsOrientationValid ? PSMResult_Success : PSMResult_Error;
+				result= State.bIsPositionValid ? PSMResult_Success : PSMResult_Error;
+            } break;
+        case PSMController_Virtual:
+            {
+				PSMVirtualController State= controller->ControllerState.VirtualController;
+				*out_position = State.Pose.Position;
+
+				result= State.bIsPositionValid ? PSMResult_Success : PSMResult_Error;
             } break;
         }
     }
@@ -701,6 +716,13 @@ PSMResult PSM_GetControllerPose(PSMControllerID controller_id, PSMPosef *out_pos
 				*out_pose = State.Pose;
 
 				result= (State.bIsOrientationValid && State.bIsPositionValid) ? PSMResult_Success : PSMResult_Error;
+            } break;
+        case PSMController_Virtual:
+            {
+				PSMVirtualController State= controller->ControllerState.VirtualController;
+				*out_pose = State.Pose;
+
+				result= (State.bIsPositionValid) ? PSMResult_Success : PSMResult_Error;
             } break;
         }
     }
@@ -750,6 +772,8 @@ PSMResult PSM_GetIsControllerStable(PSMControllerID controller_id, bool *out_is_
 
 				result= PSMResult_Success;
             } break;
+        case PSMController_Virtual:
+            break;
         }
     }
 
@@ -779,6 +803,11 @@ PSMResult PSM_GetIsControllerTracking(PSMControllerID controller_id, bool *out_i
 				*out_is_tracking = controller->ControllerState.PSDS4State.bIsCurrentlyTracking;
 				result= PSMResult_Success;
             } break;
+        case PSMController_Virtual:
+            {
+				*out_is_tracking = controller->ControllerState.VirtualController.bIsCurrentlyTracking;
+				result= PSMResult_Success;
+            } break;
         }
     }
 
@@ -801,6 +830,9 @@ PSMResult PSM_GetControllerPixelLocationOnTracker(PSMControllerID controller_id,
             break;
         case PSMController_DualShock4:
 			trackerData= &controller->ControllerState.PSDS4State.RawTrackerData;
+            break;
+        case PSMController_Virtual:
+			trackerData= &controller->ControllerState.VirtualController.RawTrackerData;
             break;
         }
 
@@ -836,6 +868,9 @@ PSMResult PSM_GetControllerPositionOnTracker(PSMControllerID controller_id, PSMT
             break;
         case PSMController_DualShock4:
 			trackerData= &controller->ControllerState.PSDS4State.RawTrackerData;
+            break;
+        case PSMController_Virtual:
+			trackerData= &controller->ControllerState.VirtualController.RawTrackerData;
             break;
         }
 
@@ -906,6 +941,9 @@ PSMResult PSM_GetControllerProjectionOnTracker(PSMControllerID controller_id, PS
             break;
         case PSMController_DualShock4:
 			trackerData= &controller->ControllerState.PSDS4State.RawTrackerData;
+            break;
+        case PSMController_Virtual:
+			trackerData= &controller->ControllerState.VirtualController.RawTrackerData;
             break;
         }
 

@@ -200,7 +200,8 @@ struct CommonDeviceState
         PSMove = Controller + 0x00,
         PSNavi = Controller + 0x01,
         PSDualShock4 = Controller + 0x02,
-        SUPPORTED_CONTROLLER_TYPE_COUNT = Controller + 0x03,
+        VirtualController = Controller + 0x03,
+        SUPPORTED_CONTROLLER_TYPE_COUNT = Controller + 0x04,
         
         PS3EYE = TrackingCamera + 0x00,
         SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x01,
