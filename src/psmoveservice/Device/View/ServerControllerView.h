@@ -80,6 +80,9 @@ public:
 	// Returns true if the device can stream controller data over it's current connection type (Bluetooth/USB)
 	bool getIsStreamable() const;
 
+    // Returns true if this device is a virtual controller
+    bool getIsVirtualController() const;
+
     // Returns the full usb device path for the controller
     std::string getUSBDevicePath() const;
 

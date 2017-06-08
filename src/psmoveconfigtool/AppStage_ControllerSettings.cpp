@@ -297,19 +297,19 @@ void AppStage_ControllerSettings::renderUI()
                 if (controllerInfo.ControllerType == PSMController_DualShock4 ||
                     controllerInfo.ControllerType == PSMController_Virtual)
                 {
-                    if (controllerInfo.ControllerType == PSMController_DualShock4)
+                    if (ImGui::Button("Calibrate Optical Noise"))
                     {
-                        if (ImGui::Button("Calibrate Optical Noise"))
-                        {
-                            m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
-                            m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
-                        }
+                        m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
+                        m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
                     }
 
-                    if (ImGui::Button("Test Orientation"))
+                    if (controllerInfo.ControllerType == PSMController_DualShock4)
                     {
-                        m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(true);
-                        m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+                        if (ImGui::Button("Test Orientation"))
+                        {
+                            m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(true);
+                            m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+                        }
                     }
                 }
 

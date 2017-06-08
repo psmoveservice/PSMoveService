@@ -620,9 +620,9 @@ protected:
         {
             ServerControllerViewPtr controller_view= m_device_manager.getControllerViewPtr(controller_id);
             const bool bIncludeUSB = request.include_usb_controllers();
-            const bool bIsBluetooth = controller_view->getIsBluetooth();
+            const bool bIsNonUSB = controller_view->getIsBluetooth() || controller_view->getIsVirtualController();
 
-            if (controller_view->getIsOpen() && (bIncludeUSB || bIsBluetooth))
+            if (controller_view->getIsOpen() && (bIncludeUSB || bIsNonUSB))
             {
                 PSMoveProtocol::Response_ResultControllerList_ControllerInfo *controller_info= list->add_controllers();
 
@@ -706,13 +706,24 @@ protected:
                     controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
                     }
                     break;
+                case CommonControllerState::VirtualController:
+                    {
+                        const VirtualController *controller = controller_view->castCheckedConst<VirtualController>();
+                        const VirtualControllerConfig *config = controller->getConfig();
+
+                        position_filter = config->position_filter_type;
+                        prediction_time = config->prediction_time;
+
+                        controller_info->set_controller_type(PSMoveProtocol::VIRTUALCONTROLLER);
+                    }
+                    break;
                 default:
                     assert(0 && "Unhandled controller type");
                 }
 
                 controller_info->set_controller_id(controller_id);
                 controller_info->set_connection_type(
-                    bIsBluetooth
+                    bIsNonUSB
                     ? PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH
                     : PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_USB);  
                 controller_info->set_tracking_color_type(
@@ -1033,7 +1044,8 @@ protected:
         if (ControllerView && 
             ControllerView->getIsStreamable() &&
             (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove ||
-             ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4))
+             ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4 ||
+             ControllerView->getControllerDeviceType() == CommonDeviceState::VirtualController))
         {
             const eCommonTrackingColorID oldColorID = ControllerView->getTrackingColorID();
 

@@ -164,7 +164,7 @@ VirtualController::setTrackingColorID(const eCommonTrackingColorID tracking_colo
 {
 	bool bSuccess = false;
 
-	if (getIsOpen() && getIsBluetooth())
+	if (getIsOpen())
 	{
 		cfg.tracking_color_id = tracking_color_id;
 		cfg.save();
@@ -181,18 +181,18 @@ VirtualController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) c
     // Down-cast the enumerator so we can use the correct get_path.
     const ControllerDeviceEnumerator *pEnum = static_cast<const ControllerDeviceEnumerator *>(enumerator);
     
-    bool matches= false;
+    bool matches = false;
 
-    if (pEnum->get_device_type() == CommonControllerState::PSMove)
+    if (pEnum->get_device_type() == getDeviceType())
     {
-        const char *enumerator_path= pEnum->get_path();
-        const char *dev_path= device_identifier.c_str();
+        const char *enumerator_path = pEnum->get_path();
+        const char *dev_path = device_identifier.c_str();
 
-    #ifdef _WIN32
-        matches= _stricmp(dev_path, enumerator_path) == 0;
-    #else
-        matches= strcmp(dev_path, enumerator_path) == 0;
-    #endif
+#ifdef _WIN32
+        matches = _stricmp(dev_path, enumerator_path) == 0;
+#else
+        matches = strcmp(dev_path, enumerator_path) == 0;
+#endif
     }
 
     return matches;

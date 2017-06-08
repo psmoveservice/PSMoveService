@@ -36,7 +36,7 @@ ControllerDeviceEnumerator::ControllerDeviceEnumerator(
 		enumerator_count = 1;
 		break;
 	case eAPIType::CommunicationType_ALL:
-		enumerators = new DeviceEnumerator *[3];
+		enumerators = new DeviceEnumerator *[4];
 		enumerators[0] = new ControllerHidDeviceEnumerator;
 		enumerators[1] = new ControllerUSBDeviceEnumerator;
 		enumerators[2] = new ControllerGamepadEnumerator;
@@ -87,7 +87,7 @@ ControllerDeviceEnumerator::ControllerDeviceEnumerator(
 		enumerator_count = 1;
 		break;
 	case eAPIType::CommunicationType_ALL:
-		enumerators = new DeviceEnumerator *[3];
+		enumerators = new DeviceEnumerator *[4];
 		enumerators[0] = new ControllerHidDeviceEnumerator(deviceTypeFilter);
 		enumerators[1] = new ControllerUSBDeviceEnumerator(deviceTypeFilter);
 		enumerators[2] = new ControllerGamepadEnumerator(deviceTypeFilter);

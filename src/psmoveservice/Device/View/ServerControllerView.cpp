@@ -163,6 +163,20 @@ bool ServerControllerView::allocate_device_interface(
             m_multicam_pose_estimation = new ControllerOpticalPoseEstimation();
             m_multicam_pose_estimation->clear();
         } break;
+    case CommonDeviceState::VirtualController:
+        {
+            m_device = new VirtualController();
+            m_tracker_pose_estimations = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
+            m_pose_filter = nullptr; // no pose filter until the device is opened
+
+            for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
+            {
+                m_tracker_pose_estimations[tracker_index].clear();
+            }
+
+            m_multicam_pose_estimation = new ControllerOpticalPoseEstimation();
+            m_multicam_pose_estimation->clear();
+        } break;
     default:
         break;
     }
@@ -246,6 +260,16 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
 
                     bAllocateTrackingColor = true;
                 }
+            } break;
+        case CommonDeviceState::VirtualController:
+            {
+                const VirtualController *virtualController = this->castCheckedConst<VirtualController>();
+
+                // Create a pose filter based on the controller type
+                resetPoseFilter();
+                m_multicam_pose_estimation->clear();
+
+                bAllocateTrackingColor = true;
             } break;
         default:
             break;
@@ -754,6 +778,12 @@ ServerControllerView::getIsStreamable() const
     }
 
     return bIsStreamableController;
+}
+
+bool 
+ServerControllerView::getIsVirtualController() const
+{
+    return getIsOpen() && getControllerDeviceType() == CommonDeviceState::VirtualController;
 }
 
 // Returns the full usb device path for the controller
@@ -1750,7 +1780,11 @@ pose_filter_factory(
     {
         // Convert the position filter type string into an enum
         PositionFilterType position_filter_enum= PositionFilterTypeNone;
-        if (position_filter_type == "PassThru")
+        if (position_filter_type == "")
+        {
+            position_filter_enum= PositionFilterTypeNone;
+        }
+        else if (position_filter_type == "PassThru")
         {
             position_filter_enum= PositionFilterTypePassThru;
         }
@@ -1796,7 +1830,11 @@ pose_filter_factory(
         
         // Convert the orientation filter type string into an enum
         OrientationFilterType orientation_filter_enum= OrientationFilterTypeNone;
-        if (orientation_filter_type == "PassThru")
+        if (orientation_filter_type == "")
+        {
+            orientation_filter_enum= OrientationFilterTypeNone;
+        }
+        else if (orientation_filter_type == "PassThru")
         {
             orientation_filter_enum= OrientationFilterTypePassThru;
         }
@@ -1833,6 +1871,9 @@ pose_filter_factory(
                 break;
             case CommonDeviceState::PSDualShock4:
                 orientation_filter_enum= OrientationFilterTypeComplementaryOpticalARG;
+                break;
+            case CommonDeviceState::VirtualController:
+                orientation_filter_enum= OrientationFilterTypeNone;
                 break;
             default:
                 assert(0 && "unreachable");

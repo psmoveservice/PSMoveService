@@ -232,6 +232,7 @@ public:
             case PSMoveProtocol::VIRTUALCONTROLLER:
                 bIsPublicFacingController= true;
                 controllerType= PSMController_Virtual;
+                break;
             default:
                 assert(0 && "unreachable");
                 controllerType = PSMController_None;
