@@ -116,6 +116,8 @@ public:
     { return &cfg; }
     inline VirtualControllerConfig *getConfigMutable()
     { return &cfg; }
+    static CommonDeviceState::eDeviceType getDeviceTypeStatic()
+    { return CommonDeviceState::VirtualController; }
     
 private:      
     // Constant while a controller is open
