@@ -1157,7 +1157,7 @@ void drawVirtualControllerModel(const glm::mat4 &transform, const glm::vec3 &col
 {
     assert(Renderer::getIsRenderingStage());
 
-    int textureID= AssetManager::getInstance()->getPSMoveTextureAsset()->texture_id;
+    int textureID= AssetManager::getInstance()->getVirtualControllerTextureAsset()->texture_id;
 
     glBindTexture(GL_TEXTURE_2D, textureID);
 
