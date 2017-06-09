@@ -128,7 +128,8 @@ ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
 	{
 		ServerControllerViewPtr controllerView = getControllerViewPtr(device_id);
 
-		if (controllerView->getIsOpen() && controllerView->getIsBluetooth())
+		if (controllerView->getIsOpen() && 
+            (controllerView->getIsBluetooth() || controllerView->getIsVirtualController()))
 		{
 			controllerView->updateOpticalPoseEstimation(tracker_manager);
 			controllerView->updateStateAndPredict();

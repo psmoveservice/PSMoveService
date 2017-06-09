@@ -1209,7 +1209,8 @@ void AppStage_ComputeTrackerPoses::handle_hmd_list_response(
 
                 if (!bStartedAnyHMDs)
                 {
-                    thisPtr->setState(AppStage_ComputeTrackerPoses::failedHmdListRequest);
+                    // Move on to the tracker list if there are no HMDs
+                    thisPtr->request_tracker_list();
                 }
             }
             else
@@ -1530,7 +1531,7 @@ bool AppStage_ComputeTrackerPoses::does_tracker_see_any_controller(const PSMTrac
         else if (controllerView->ControllerType == PSMControllerType::PSMController_Virtual &&
                  controllerView->ControllerState.VirtualController.bIsCurrentlyTracking)
         {
-            for (int id = 0; id < controllerView->ControllerState.PSDS4State.RawTrackerData.ValidTrackerLocations; ++id)
+            for (int id = 0; id < controllerView->ControllerState.VirtualController.RawTrackerData.ValidTrackerLocations; ++id)
             {
                 if (controllerView->ControllerState.VirtualController.RawTrackerData.TrackerIDs[id] == tracker_id)
                     bTrackerSeesAnyController = true;
