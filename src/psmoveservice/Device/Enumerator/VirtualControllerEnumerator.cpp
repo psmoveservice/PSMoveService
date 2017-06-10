@@ -47,7 +47,7 @@ bool VirtualControllerEnumerator::next()
     if (m_device_index < m_device_count)
     {
         char device_path[32];
-        ServerUtility::format_string(device_path, sizeof(device_path), "VirtualController_%s", m_device_index);
+        ServerUtility::format_string(device_path, sizeof(device_path), "VirtualController_%d", m_device_index);
 
         m_current_device_identifier= device_path;
     }
