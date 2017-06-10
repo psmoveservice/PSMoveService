@@ -1,11 +1,12 @@
 // -- includes -----
 #include "VirtualHMDDeviceEnumerator.h"
-#include "DeviceManager.h"
-#include "HMDManager.h"
 #include "ServerUtility.h"
 #include "assert.h"
 #include "hidapi.h"
 #include "string.h"
+
+//-- Statics
+int VirtualHMDDeviceEnumerator::virtual_hmd_count= 0;
 
 // -- VirtualHMDDeviceEnumerator -----
 VirtualHMDDeviceEnumerator::VirtualHMDDeviceEnumerator()
@@ -14,9 +15,8 @@ VirtualHMDDeviceEnumerator::VirtualHMDDeviceEnumerator()
 	m_deviceType= CommonDeviceState::VirtualHMD;
     m_device_index= 0;
 
-	const HMDManagerConfig &cfg= DeviceManager::getInstance()->m_hmd_manager->getConfig();
     m_current_device_identifier= "VirtualHMD__0";
-    m_device_count= static_cast<int>(cfg.virtual_hmd_count);
+    m_device_count= virtual_hmd_count;
 }
 
 const char *VirtualHMDDeviceEnumerator::get_path() const
@@ -46,10 +46,8 @@ bool VirtualHMDDeviceEnumerator::next()
 	++m_device_index;
     if (m_device_index < m_device_count)
     {
-        const HMDManagerConfig &cfg= DeviceManager::getInstance()->m_hmd_manager->getConfig();
-
         char device_path[32];
-        ServerUtility::format_string(device_path, sizeof(device_path), "VirtualHMD_%s", m_device_index);
+        ServerUtility::format_string(device_path, sizeof(device_path), "VirtualHMD__%s", m_device_index);
 
         m_current_device_identifier= device_path;
     }

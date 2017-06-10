@@ -13,6 +13,7 @@
 #include "PSDualShock4Controller.h"
 #include "PSMoveController.h"
 #include "PSNaviController.h"
+#include "VirtualController.h"
 #include "PSMoveProtocolInterface.h"
 #include "PSMoveProtocol.pb.h"
 #include "ServerUtility.h"
@@ -55,11 +56,23 @@ static void update_filters_for_psdualshock4(
     const PoseFilterSpace *poseFilterSpace,
     IPoseFilter *pose_filter);
 
+static void init_filters_for_virtual_controller(
+    const VirtualController *psmoveController, 
+    PoseFilterSpace **out_pose_filter_space,
+    IPoseFilter **out_pose_filter);
+static void update_filters_for_virtual_controller(
+    const VirtualController *psmoveController, const VirtualControllerState *psmoveState, const float delta_time,
+    const ControllerOpticalPoseEstimation *positionEstimation,
+    const PoseFilterSpace *poseFilterSpace,
+    IPoseFilter *pose_filter);
+
 static void generate_psmove_data_frame_for_stream(
     const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, PSMoveProtocol::DeviceOutputDataFrame *data_frame);
 static void generate_psnavi_data_frame_for_stream(
     const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, PSMoveProtocol::DeviceOutputDataFrame *data_frame);
 static void generate_psdualshock4_data_frame_for_stream(
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, PSMoveProtocol::DeviceOutputDataFrame *data_frame);
+static void generate_virtual_controller_data_frame_for_stream(
     const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, PSMoveProtocol::DeviceOutputDataFrame *data_frame);
 
 static void computeSpherePoseForControllerFromSingleTracker(
@@ -139,6 +152,20 @@ bool ServerControllerView::allocate_device_interface(
     case CommonDeviceState::PSDualShock4:
         {
             m_device = new PSDualShock4Controller();
+            m_tracker_pose_estimations = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
+            m_pose_filter = nullptr; // no pose filter until the device is opened
+
+            for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
+            {
+                m_tracker_pose_estimations[tracker_index].clear();
+            }
+
+            m_multicam_pose_estimation = new ControllerOpticalPoseEstimation();
+            m_multicam_pose_estimation->clear();
+        } break;
+    case CommonDeviceState::VirtualController:
+        {
+            m_device = new VirtualController();
             m_tracker_pose_estimations = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
             m_pose_filter = nullptr; // no pose filter until the device is opened
 
@@ -233,6 +260,16 @@ bool ServerControllerView::open(const class DeviceEnumerator *enumerator)
 
                     bAllocateTrackingColor = true;
                 }
+            } break;
+        case CommonDeviceState::VirtualController:
+            {
+                const VirtualController *virtualController = this->castCheckedConst<VirtualController>();
+
+                // Create a pose filter based on the controller type
+                resetPoseFilter();
+                m_multicam_pose_estimation->clear();
+
+                bAllocateTrackingColor = true;
             } break;
         default:
             break;
@@ -357,15 +394,21 @@ void ServerControllerView::resetPoseFilter()
     switch (m_device->getDeviceType())
     {
     case CommonDeviceState::PSMove:
-    {
-        init_filters_for_psmove(
-            static_cast<PSMoveController *>(m_device),
-            &m_pose_filter_space, &m_pose_filter);
-    } break;
+        {
+            init_filters_for_psmove(
+                static_cast<PSMoveController *>(m_device),
+                &m_pose_filter_space, &m_pose_filter);
+        } break;
     case CommonDeviceState::PSDualShock4:
         {
             init_filters_for_psdualshock4(
                 static_cast<PSDualShock4Controller *>(m_device),
+                &m_pose_filter_space, &m_pose_filter);
+        } break;
+    case CommonDeviceState::VirtualController:
+        {
+            init_filters_for_virtual_controller(
+                static_cast<VirtualController *>(m_device),
                 &m_pose_filter_space, &m_pose_filter);
         } break;
     }
@@ -620,6 +663,20 @@ void ServerControllerView::updateStateAndPredict()
                     m_pose_filter_space,
                     m_pose_filter);
             } break;
+        case CommonControllerState::VirtualController:
+            {
+                const VirtualController *virtualController = this->castCheckedConst<VirtualController>();
+                const VirtualControllerState *virtualControllerState = 
+                    static_cast<const VirtualControllerState *>(controllerState);
+
+                // Only update the position filter when tracking is enabled
+                update_filters_for_virtual_controller(
+                    virtualController, virtualControllerState,
+                    per_state_time_delta_seconds,
+                    m_multicam_pose_estimation,
+                    m_pose_filter_space,
+                    m_pose_filter);
+            } break;
         default:
             assert(0 && "Unhandled controller type");
         }
@@ -713,6 +770,7 @@ ServerControllerView::getIsStreamable() const
                 bIsStreamableController= getIsBluetooth();
             } break;
         case CommonDeviceState::PSNavi:
+        case CommonDeviceState::VirtualController:
             {
                 bIsStreamableController= true;
             } break;
@@ -720,6 +778,12 @@ ServerControllerView::getIsStreamable() const
     }
 
     return bIsStreamableController;
+}
+
+bool 
+ServerControllerView::getIsVirtualController() const
+{
+    return getIsOpen() && getControllerDeviceType() == CommonDeviceState::VirtualController;
 }
 
 // Returns the full usb device path for the controller
@@ -955,6 +1019,10 @@ void ServerControllerView::update_LED_color_internal()
         {
             this->castChecked<PSDualShock4Controller>()->setLED(r, g, b);
         } break;
+    case CommonDeviceState::VirtualController:
+        {
+            // Do nothing...
+        } break;
     default:
         assert(false && "Unhanded controller type!");
     }
@@ -1024,6 +1092,11 @@ bool ServerControllerView::setControllerRumble(
                 result = true;
             } break;
 
+        case CommonDeviceState::VirtualController:
+            {
+                result= false; // No rumble on the virtual controller
+            } break;
+
         default:
             assert(false && "Unhanded controller type!");
         }
@@ -1065,6 +1138,10 @@ void ServerControllerView::generate_controller_data_frame_for_stream(
     case CommonControllerState::PSDualShock4:
         {
             generate_psdualshock4_data_frame_for_stream(controller_view, stream_info, data_frame);
+        } break;
+    case CommonControllerState::VirtualController:
+        {
+            generate_virtual_controller_data_frame_for_stream(controller_view, stream_info, data_frame);
         } break;
     default:
         assert(0 && "Unhandled controller type");
@@ -1546,6 +1623,129 @@ static void generate_psdualshock4_data_frame_for_stream(
     controller_data_frame->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
 }
 
+static void generate_virtual_controller_data_frame_for_stream(
+    const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, PSMoveProtocol::DeviceOutputDataFrame *data_frame)
+{
+    const VirtualController *virtual_controller= controller_view->castCheckedConst<VirtualController>();
+    const IPoseFilter *pose_filter= controller_view->getPoseFilter();
+    const VirtualControllerConfig *controller_config= virtual_controller->getConfig();
+    const CommonControllerState *controller_state= controller_view->getState();
+    const CommonDevicePose controller_pose = controller_view->getFilteredPose(controller_config->prediction_time);
+
+    auto *controller_data_frame= data_frame->mutable_controller_data_packet();
+    auto *virtual_controller_data_frame = controller_data_frame->mutable_virtualcontroller_state();
+   
+    if (controller_state != nullptr)
+    {        
+        assert(controller_state->DeviceType == CommonDeviceState::VirtualController);
+        const PSMoveControllerState * psmove_state= static_cast<const PSMoveControllerState *>(controller_state);
+
+        virtual_controller_data_frame->set_iscurrentlytracking(controller_view->getIsCurrentlyTracking());
+        virtual_controller_data_frame->set_istrackingenabled(controller_view->getIsTrackingEnabled());
+        virtual_controller_data_frame->set_ispositionvalid(pose_filter->getIsPositionStateValid());
+
+        if (stream_info->include_position_data)
+        {
+            virtual_controller_data_frame->mutable_position_cm()->set_x(controller_pose.PositionCm.x);
+            virtual_controller_data_frame->mutable_position_cm()->set_y(controller_pose.PositionCm.y);
+            virtual_controller_data_frame->mutable_position_cm()->set_z(controller_pose.PositionCm.z);
+        }
+        else
+        {
+            virtual_controller_data_frame->mutable_position_cm()->set_x(0);
+            virtual_controller_data_frame->mutable_position_cm()->set_y(0);
+            virtual_controller_data_frame->mutable_position_cm()->set_z(0);
+        }
+
+        // If requested, get the raw tracker data for the controller
+        if (stream_info->include_raw_tracker_data)
+        {
+            auto *raw_tracker_data = virtual_controller_data_frame->mutable_raw_tracker_data();
+            int valid_tracker_count= 0;
+
+            for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
+            {
+                const ControllerOpticalPoseEstimation *positionEstimate= 
+                    controller_view->getTrackerPoseEstimate(trackerId);
+
+                if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
+                {
+                    const CommonDevicePosition &trackerRelativePosition = positionEstimate->position_cm;
+                    const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
+
+                    // Project the 3d camera position back onto the tracker screen
+                    {
+                        const CommonDeviceScreenLocation trackerScreenLocation =
+                            tracker_view->projectTrackerRelativePosition(&trackerRelativePosition);
+                        PSMoveProtocol::Pixel *pixel = raw_tracker_data->add_screen_locations();
+
+                        pixel->set_x(trackerScreenLocation.x);
+                        pixel->set_y(trackerScreenLocation.y);
+                    }
+
+                    // Add the tracker relative 3d position
+                    {
+                        PSMoveProtocol::Position *position_cm= raw_tracker_data->add_relative_positions_cm();
+                        
+                        position_cm->set_x(trackerRelativePosition.x);
+                        position_cm->set_y(trackerRelativePosition.y);
+                        position_cm->set_z(trackerRelativePosition.z);
+                    }
+
+                    // Add the tracker relative projection shapes
+                    {
+                        const CommonDeviceTrackingProjection &trackerRelativeProjection = 
+                            positionEstimate->projection;
+
+                        assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_Ellipse);
+                        PSMoveProtocol::Ellipse *ellipse= raw_tracker_data->add_projected_spheres();
+                                
+                        ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
+                        ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
+                        ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
+                        ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
+                        ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
+                    }
+
+                    raw_tracker_data->add_tracker_ids(trackerId);
+                    ++valid_tracker_count;
+                }
+            }
+
+            {
+                const ControllerOpticalPoseEstimation *poseEstimate = controller_view->getMulticamPoseEstimate();
+
+                if (poseEstimate->bCurrentlyTracking)
+                {
+                    PSMoveProtocol::Position *position_cm = raw_tracker_data->mutable_multicam_position_cm();
+                    position_cm->set_x(poseEstimate->position_cm.x);
+                    position_cm->set_y(poseEstimate->position_cm.y);
+                    position_cm->set_z(poseEstimate->position_cm.z);
+                }
+            }
+
+            raw_tracker_data->set_valid_tracker_count(valid_tracker_count);
+        }
+
+        // if requested, get the physics data for the controller
+        if (stream_info->include_physics_data)
+        {
+            const CommonDevicePhysics controller_physics = controller_view->getFilteredPhysics();
+            auto *physics_data = virtual_controller_data_frame->mutable_physics_data();
+
+            physics_data->mutable_velocity_cm_per_sec()->set_i(controller_physics.VelocityCmPerSec.i);
+            physics_data->mutable_velocity_cm_per_sec()->set_j(controller_physics.VelocityCmPerSec.j);
+            physics_data->mutable_velocity_cm_per_sec()->set_k(controller_physics.VelocityCmPerSec.k);
+
+            physics_data->mutable_acceleration_cm_per_sec_sqr()->set_i(controller_physics.AccelerationCmPerSecSqr.i);
+            physics_data->mutable_acceleration_cm_per_sec_sqr()->set_j(controller_physics.AccelerationCmPerSecSqr.j);
+            physics_data->mutable_acceleration_cm_per_sec_sqr()->set_k(controller_physics.AccelerationCmPerSecSqr.k);
+        }
+    }   
+
+    controller_data_frame->set_controller_type(PSMoveProtocol::VIRTUALCONTROLLER);
+}
+
 static IPoseFilter *
 pose_filter_factory(
     const CommonDeviceState::eDeviceType deviceType,
@@ -1560,6 +1760,7 @@ pose_filter_factory(
         switch (deviceType)
         {
         case CommonDeviceState::PSMove:
+        case CommonDeviceState::VirtualController:
             {
                 KalmanPoseFilterPSMove *kalmanFilter = new KalmanPoseFilterPSMove();
                 kalmanFilter->init(constants);
@@ -1579,7 +1780,11 @@ pose_filter_factory(
     {
         // Convert the position filter type string into an enum
         PositionFilterType position_filter_enum= PositionFilterTypeNone;
-        if (position_filter_type == "PassThru")
+        if (position_filter_type == "")
+        {
+            position_filter_enum= PositionFilterTypeNone;
+        }
+        else if (position_filter_type == "PassThru")
         {
             position_filter_enum= PositionFilterTypePassThru;
         }
@@ -1612,6 +1817,7 @@ pose_filter_factory(
             switch (deviceType)
             {
             case CommonDeviceState::PSMove:
+            case CommonDeviceState::VirtualController:
                 position_filter_enum= PositionFilterTypeLowPassExponential;
                 break;
             case CommonDeviceState::PSDualShock4:
@@ -1624,7 +1830,11 @@ pose_filter_factory(
         
         // Convert the orientation filter type string into an enum
         OrientationFilterType orientation_filter_enum= OrientationFilterTypeNone;
-        if (orientation_filter_type == "PassThru")
+        if (orientation_filter_type == "")
+        {
+            orientation_filter_enum= OrientationFilterTypeNone;
+        }
+        else if (orientation_filter_type == "PassThru")
         {
             orientation_filter_enum= OrientationFilterTypePassThru;
         }
@@ -1661,6 +1871,9 @@ pose_filter_factory(
                 break;
             case CommonDeviceState::PSDualShock4:
                 orientation_filter_enum= OrientationFilterTypeComplementaryOpticalARG;
+                break;
+            case CommonDeviceState::VirtualController:
+                orientation_filter_enum= OrientationFilterTypeNone;
                 break;
             default:
                 assert(0 && "unreachable");
@@ -1865,7 +2078,7 @@ init_filters_for_psdualshock4(
         ds4_config->position_filter_type,
         ds4_config->orientation_filter_type,
         constants);
-    }
+}
 
 static void
 update_filters_for_psdualshock4(
@@ -1938,8 +2151,104 @@ update_filters_for_psdualshock4(
                 filterPacket);
 
             poseFilter->update(delta_time, filterPacket);
+        }
     }
-    }
+}
+
+static void init_filters_for_virtual_controller(
+    const VirtualController *virtualController,
+    PoseFilterSpace **out_pose_filter_space,
+    IPoseFilter **out_pose_filter)
+{
+    const VirtualControllerConfig *controller_config = virtualController->getConfig();
+
+	// Setup the space the pose filter operates in
+	PoseFilterSpace *pose_filter_space = new PoseFilterSpace();
+	pose_filter_space->setIdentityGravity(Eigen::Vector3f(0.f, 1.f, 0.f));
+	pose_filter_space->setIdentityMagnetometer(Eigen::Vector3f::Zero());
+	pose_filter_space->setCalibrationTransform(*k_eigen_identity_pose_upright);
+	pose_filter_space->setSensorTransform(*k_eigen_sensor_transform_identity);
+
+	// Copy the pose filter constants from the controller config
+	PoseFilterConstants constants;
+	constants.clear();
+
+	constants.orientation_constants.gravity_calibration_direction = Eigen::Vector3f::Zero();
+	constants.orientation_constants.accelerometer_variance = Eigen::Vector3f::Zero();
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
+	constants.orientation_constants.magnetometer_calibration_direction = Eigen::Vector3f::Zero();
+	constants.orientation_constants.gyro_drift = Eigen::Vector3f::Zero();
+	constants.orientation_constants.gyro_variance = Eigen::Vector3f::Zero();
+	constants.orientation_constants.mean_update_time_delta = 0.f;
+	constants.orientation_constants.orientation_variance_curve.A = 0.f;
+	constants.orientation_constants.orientation_variance_curve.B = 0.f;
+	constants.orientation_constants.orientation_variance_curve.MaxValue = 0.f;
+	constants.orientation_constants.magnetometer_variance = Eigen::Vector3f::Zero();
+	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero();
+
+	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
+	constants.position_constants.accelerometer_variance = Eigen::Vector3f::Zero();
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
+	constants.position_constants.accelerometer_noise_radius = 0.f; // TODO
+	constants.position_constants.max_velocity = controller_config->max_velocity;
+	constants.position_constants.mean_update_time_delta = controller_config->mean_update_time_delta;
+	constants.position_constants.position_variance_curve.A = controller_config->position_variance_exp_fit_a;
+	constants.position_constants.position_variance_curve.B = controller_config->position_variance_exp_fit_b;
+	constants.position_constants.position_variance_curve.MaxValue = 1.f;
+
+	*out_pose_filter_space = pose_filter_space;
+	*out_pose_filter = pose_filter_factory(
+		CommonDeviceState::eDeviceType::VirtualController,
+		controller_config->position_filter_type,
+		"",
+		constants);
+}
+
+static void update_filters_for_virtual_controller(
+    const VirtualController *virtualController, const VirtualControllerState *controllerState, const float delta_time,
+    const ControllerOpticalPoseEstimation *poseEstimation,
+    const PoseFilterSpace *poseFilterSpace,
+    IPoseFilter *poseFilter)
+{
+    const VirtualControllerConfig *config = virtualController->getConfig();
+
+	// Update the orientation filter
+	if (poseFilter != nullptr)
+	{
+		PoseSensorPacket sensorPacket;
+
+		sensorPacket.imu_magnetometer_unit = Eigen::Vector3f::Zero();
+		sensorPacket.optical_orientation = Eigen::Quaternionf::Identity();
+
+		if (poseEstimation->bCurrentlyTracking)
+		{
+			sensorPacket.optical_position_cm =
+				Eigen::Vector3f(
+					poseEstimation->position_cm.x,
+					poseEstimation->position_cm.y,
+					poseEstimation->position_cm.z);
+			sensorPacket.tracking_projection_area_px_sqr = poseEstimation->projection.screen_area;
+		}
+		else
+		{
+			sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
+			sensorPacket.tracking_projection_area_px_sqr = 0.f;
+		}
+
+		sensorPacket.imu_accelerometer_g_units = Eigen::Vector3f::Zero();
+		sensorPacket.imu_gyroscope_rad_per_sec = Eigen::Vector3f::Zero();
+		sensorPacket.imu_magnetometer_unit = Eigen::Vector3f::Zero();
+
+		{
+			PoseFilterPacket filterPacket;
+
+			// Create a filter input packet from the sensor data 
+			// and the filter's previous orientation and position
+			poseFilterSpace->createFilterPacket(sensorPacket, poseFilter, filterPacket);
+
+			poseFilter->update(delta_time, filterPacket);
+		}
+	}
 }
 
 static void computeSpherePoseForControllerFromSingleTracker(

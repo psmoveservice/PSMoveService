@@ -251,6 +251,8 @@ list(APPEND TEST_PSMOVE_SRC
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.h    
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/VirtualControllerEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/VirtualControllerEnumerator.cpp    
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.h
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/USB/NullUSBApi.cpp
@@ -366,6 +368,8 @@ list(APPEND TEST_NAVI_SRC
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.h    
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/VirtualControllerEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/VirtualControllerEnumerator.cpp        
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.h
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/USB/NullUSBApi.cpp
@@ -490,6 +494,8 @@ list(APPEND TEST_DS4_CTRLR_SRC
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerHidDeviceEnumerator.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.h    
     ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/ControllerUSBDeviceEnumerator.cpp
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/VirtualControllerEnumerator.h    
+    ${ROOT_DIR}/src/psmoveservice/Device/Enumerator/VirtualControllerEnumerator.cpp        
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.h
     ${ROOT_DIR}/src/psmoveservice/Device/Manager/USBDeviceManager.cpp
     ${ROOT_DIR}/src/psmoveservice/Device/USB/NullUSBApi.cpp

@@ -30,7 +30,7 @@
 const char *AppStage_ControllerSettings::APP_STAGE_NAME= "ControllerSettings";
 
 //-- constants -----
-const int k_default_hmd_position_filter_index = 3; // LowPassExponential
+const int k_default_position_filter_index = 3; // LowPassExponential
 const int k_default_psmove_orientation_filter_index = 3; // ComplementaryMARG
 const int k_default_ds4_position_filter_index = 5; // PositionKalman
 const int k_default_ds4_orientation_filter_index = 3; // OrientationKalman
@@ -100,6 +100,7 @@ void AppStage_ControllerSettings::render()
                 {
                     case PSMController_Move:
                     case PSMController_DualShock4:
+                    case PSMController_Virtual:
                         {
                             const ControllerInfo &controllerInfo = m_usableControllerInfos[m_selectedControllerIndex];
 
@@ -134,9 +135,13 @@ void AppStage_ControllerSettings::render()
                             {
                                 drawPSMoveModel(scale2RotateX90, bulb_color);
                             }
-                            else
+                            else if (controllerInfo.ControllerType == PSMController_DualShock4)
                             {
                                 drawPSDualShock4Model(scale2RotateX90, bulb_color);
+                            }
+                            else if (controllerInfo.ControllerType == PSMController_Virtual)
+                            {
+                                drawVirtualControllerModel(scale2RotateX90, bulb_color);
                             }
                         } break;
                     case PSMController_Navi:
@@ -244,6 +249,10 @@ void AppStage_ControllerSettings::renderUI()
                         {
                             ImGui::BulletText("Controller Type: PSDualShock4");
                         } break;
+                    case PSMController_Virtual:
+                        {
+                            ImGui::BulletText("Controller Type: Virtual");
+                        } break;
                     default:
                         assert(0 && "Unreachable");
                 }
@@ -285,19 +294,22 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
-                if (controllerInfo.ControllerType == PSMController_DualShock4)
+                if (controllerInfo.ControllerType == PSMController_DualShock4 ||
+                    controllerInfo.ControllerType == PSMController_Virtual)
                 {
-
                     if (ImGui::Button("Calibrate Optical Noise"))
                     {
                         m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
                         m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
                     }
 
-                    if (ImGui::Button("Test Orientation"))
+                    if (controllerInfo.ControllerType == PSMController_DualShock4)
                     {
-                        m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(true);
-                        m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+                        if (ImGui::Button("Test Orientation"))
+                        {
+                            m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(true);
+                            m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+                        }
                     }
                 }
 
@@ -316,7 +328,8 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
-                if (controllerInfo.ControllerType == PSMController_Move)
+                if (controllerInfo.ControllerType == PSMController_Move || 
+                    controllerInfo.ControllerType == PSMController_Virtual)
                 {		
                     ImGui::PushItemWidth(195);
                     if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
@@ -324,10 +337,13 @@ void AppStage_ControllerSettings::renderUI()
                         controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
                         request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
                     }
-                    if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_psmove_orientation_filter_names, UI_ARRAYSIZE(k_psmove_orientation_filter_names)))
+                    if (controllerInfo.ControllerType == PSMController_Move)
                     {
-                        controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[controllerInfo.OrientationFilterIndex];
-                        request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+                        if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_psmove_orientation_filter_names, UI_ARRAYSIZE(k_psmove_orientation_filter_names)))
+                        {
+                            controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[controllerInfo.OrientationFilterIndex];
+                            request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+                        }
                     }
                     if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
                     {
@@ -335,12 +351,16 @@ void AppStage_ControllerSettings::renderUI()
                     }
                     if (ImGui::Button("Reset Filter Defaults"))
                     {
-                        controllerInfo.PositionFilterIndex = k_default_hmd_position_filter_index;
-                        controllerInfo.OrientationFilterIndex = k_default_psmove_orientation_filter_index;
-                        controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_hmd_position_filter_index];
-                        controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[k_default_psmove_orientation_filter_index];
+                        controllerInfo.PositionFilterIndex = k_default_position_filter_index;
+                        controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_position_filter_index];
                         request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
-                        request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+
+                        if (controllerInfo.ControllerType == PSMController_Move)
+                        {
+                            controllerInfo.OrientationFilterIndex = k_default_psmove_orientation_filter_index;
+                            controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[k_default_psmove_orientation_filter_index];
+                            request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+                        }
                     }
                     ImGui::PopItemWidth();
                 }				
@@ -620,6 +640,9 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 case PSMoveProtocol::PSDUALSHOCK4:
                     ControllerInfo.ControllerType = PSMController_DualShock4;
                     break;
+                case PSMoveProtocol::VIRTUALCONTROLLER:
+                    ControllerInfo.ControllerType = PSMController_Virtual;
+                    break;
                 default:
                     assert(0 && "unreachable");
                 }
@@ -676,7 +699,8 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 }
 
                 if (ControllerInfo.ControllerType == PSMController_Move ||
-                    ControllerInfo.ControllerType == PSMController_DualShock4)
+                    ControllerInfo.ControllerType == PSMController_DualShock4 ||
+                    ControllerInfo.ControllerType == PSMController_Virtual)
                 {
                     ControllerInfo.PositionFilterIndex =
                         find_string_entry(
@@ -717,7 +741,8 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 // Add the controller to the appropriate connection list
                 
                 if (ControllerResponse.connection_type() == PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH ||
-                    ControllerResponse.controller_type() == PSMoveProtocol::PSNAVI) // Don't currently attempt to pair navi controller
+                    ControllerResponse.controller_type() == PSMoveProtocol::PSNAVI || // Don't currently attempt to pair navi controller
+                    ControllerResponse.controller_type() == PSMoveProtocol::VIRTUALCONTROLLER) // Never attempt to pair a virtual controller
                 {
                     thisPtr->m_usableControllerInfos.push_back(ControllerInfo);
                 }
@@ -736,7 +761,8 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 
                 for (ControllerInfo &psmove_info : thisPtr->m_usableControllerInfos)
                 {
-                    if (psmove_info.ControllerType != PSMController_Move)
+                    if (psmove_info.ControllerType != PSMController_Move ||
+                        psmove_info.ControllerType != PSMController_Virtual)
                         continue;
 
                     if (navi_info.AssignedParentControllerSerial.length() > 0 &&

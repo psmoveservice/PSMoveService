@@ -236,6 +236,9 @@ private:
             case PSMController_DualShock4:
                 controller_type= "DualShock4";
                 break;
+            case PSMController_Virtual:
+                controller_type= "Virtual";
+                break;
             }
 
             std::cout << "  Controller ID: " << controllerList.controller_id[cntlr_ix] << " is a " << controller_type << std::endl;

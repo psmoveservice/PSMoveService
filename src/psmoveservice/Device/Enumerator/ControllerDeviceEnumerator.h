@@ -13,6 +13,7 @@ public:
 		CommunicationType_HID,
 		CommunicationType_USB,
 		CommunicationType_GAMEPAD,
+        CommunicationType_VIRTUAL,
 		CommunicationType_ALL
 	};
 
@@ -31,6 +32,7 @@ public:
 	const class ControllerHidDeviceEnumerator *get_hid_controller_enumerator() const;
 	const class ControllerUSBDeviceEnumerator *get_usb_controller_enumerator() const;
 	const class ControllerGamepadEnumerator *get_gamepad_controller_enumerator() const;
+    const class VirtualControllerEnumerator *get_virtual_controller_enumerator() const;
 
 private:
 	eAPIType api_type;

@@ -284,6 +284,15 @@ void AppStage_OpticalCalibration::update()
 				m_bLastMulticamOrientationValid = true;
             }
             break;
+        case PSMController_Virtual:
+            {
+				rawTrackerData = m_controllerView->ControllerState.VirtualController.RawTrackerData;
+
+				m_lastControllerPose = m_controllerView->ControllerState.VirtualController.Pose;
+				m_lastMulticamOrientation = *k_psm_quaternion_identity;
+				m_bLastMulticamOrientationValid = true;
+            }
+            break;
         }
 
 		if (rawTrackerData.bMulticamPositionValid)
@@ -477,7 +486,8 @@ void AppStage_OpticalCalibration::render()
 		{
 			PSMPosef psmove_space_pose = {m_lastMulticamPositionCm, m_lastMulticamOrientation};
 
-			if (m_controllerView->ControllerType == PSMController_Move)
+			if (m_controllerView->ControllerType == PSMController_Move ||
+                m_controllerView->ControllerType == PSMController_Virtual)
 			{
 				psmove_space_pose.Orientation = m_lastControllerPose.Orientation;
 			}
@@ -606,6 +616,9 @@ void AppStage_OpticalCalibration::renderUI()
 				case PSMController_DualShock4:
 					ImGui::Text("Release the X button.");
 					break;
+				case PSMController_Virtual:
+					ImGui::Text("Release the Space Bar.");
+					break;
 				}
 			}
 			else
@@ -618,6 +631,10 @@ void AppStage_OpticalCalibration::renderUI()
 					break;
 				case PSMController_DualShock4:
 					ImGui::TextWrapped("Hold the controller still and press the X button.");
+					ImGui::TextWrapped("Measurement will start once tracking light is visible to cameras.");
+					break;
+				case PSMController_Virtual:
+					ImGui::TextWrapped("Hold the controller still and press the Space Bar.");
 					ImGui::TextWrapped("Measurement will start once tracking light is visible to cameras.");
 					break;
 				}
@@ -968,6 +985,9 @@ static bool isPressingSamplingButton(const PSMController *controllerView)
 	case PSMController_DualShock4:
 		bIsPressingButton = controllerView->ControllerState.PSDS4State.CrossButton == PSMButtonState_DOWN;
 		break;
+    case PSMController_Virtual:
+        bIsPressingButton = ImGui::IsKeyPressed(32);
+        break;
 	}
 
 	return bIsPressingButton;
@@ -982,6 +1002,9 @@ static void drawController(PSMController *controllerView, const glm::mat4 &trans
         break;
     case PSMController_DualShock4:
         drawPSDualShock4Model(transform, glm::vec3(1.f, 1.f, 1.f));
+        break;
+    case PSMController_Virtual:
+        drawVirtualControllerModel(transform, glm::vec3(1.f, 1.f, 1.f));
         break;
     }
 }

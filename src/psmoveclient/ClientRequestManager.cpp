@@ -229,6 +229,10 @@ public:
 				bIsPublicFacingController= bIsBluetooth;
                 controllerType = PSMController_DualShock4;
                 break;
+            case PSMoveProtocol::VIRTUALCONTROLLER:
+                bIsPublicFacingController= true;
+                controllerType= PSMController_Virtual;
+                break;
             default:
                 assert(0 && "unreachable");
                 controllerType = PSMController_None;

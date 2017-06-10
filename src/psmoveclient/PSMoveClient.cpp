@@ -29,6 +29,7 @@ static void applyControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame
 static void applyPSMoveDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket& controller_packet, PSMPSMove *psmove);
 static void applyPSNaviDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket& controller_packet, PSMPSNavi *psnavi);
 static void applyDualShock4DataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket& controller_packet, PSMDualShock4 *ds4);
+static void applyVirtualControllerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket& controller_packet, PSMVirtualController *virtual_controller);
 static void applyPSMButtonState(PSMButtonState &button, unsigned int button_bitmask, unsigned int button_bit);
 static void applyTrackerDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_TrackerDataPacket& tracker_packet, PSMTracker *tracker);
 static void applyHmdDataFrame(const PSMoveProtocol::DeviceOutputDataFrame_HMDDataPacket& hmd_packet, PSMHeadMountedDisplay *hmd);
@@ -400,6 +401,9 @@ void PSMoveClient::publish()
 			case PSMController_DualShock4:
 				bHasUnpublishedState = Controller->ControllerState.PSDS4State.bHasUnpublishedState;
 				break;
+			case PSMController_Virtual:
+				bHasUnpublishedState = false;
+				break;
 			}
 
 			if (bHasUnpublishedState)
@@ -447,6 +451,11 @@ void PSMoveClient::publish()
 						ds4_state->bHasUnpublishedState= false;
 					}
 					break;
+				case PSMController_Virtual:
+					{
+						controller_data_packet->set_controller_type(PSMoveProtocol::VIRTUALCONTROLLER);
+					}
+					break;
 				default:
 					assert(0 && "Unhandled controller type");
 				}
@@ -477,6 +486,8 @@ void PSMoveClient::publish()
 				{
 					processDualShock4RecenterAction(Controller);
 				}
+				break;
+			case PSMController_Virtual:
 				break;
 			default:
 				assert(0 && "Unhandled controller type");
@@ -1251,7 +1262,10 @@ static void applyControllerDataFrame(
         case PSMController_DualShock4:
 			applyDualShock4DataFrame(controller_packet, &controller->ControllerState.PSDS4State);            
             break;
-            
+
+        case PSMController_Virtual:
+			applyVirtualControllerDataFrame(controller_packet, &controller->ControllerState.VirtualController);
+            break;
         default:
             break;
     }
@@ -1648,6 +1662,105 @@ static void applyDualShock4DataFrame(
     ds4->RightAnalogY = ds4_packet.right_thumbstick_y();
     ds4->LeftTriggerValue = ds4_packet.left_trigger_value();
     ds4->RightTriggerValue = ds4_packet.right_trigger_value();
+}
+
+static void applyVirtualControllerDataFrame(
+    const PSMoveProtocol::DeviceOutputDataFrame_ControllerDataPacket& controller_packet,
+    PSMVirtualController *virtual_controller)
+{
+	const auto &virtual_controller_packet= controller_packet.virtualcontroller_state();
+
+    virtual_controller->bIsTrackingEnabled = virtual_controller_packet.istrackingenabled();
+    virtual_controller->bIsCurrentlyTracking = virtual_controller_packet.iscurrentlytracking();
+	virtual_controller->bIsPositionValid = virtual_controller_packet.ispositionvalid();
+            
+    virtual_controller->Pose.Orientation.w= 1.f;
+    virtual_controller->Pose.Orientation.x= 0.f;
+    virtual_controller->Pose.Orientation.y= 0.f;
+    virtual_controller->Pose.Orientation.z= 0.f;
+
+    virtual_controller->Pose.Position.x= virtual_controller_packet.position_cm().x();
+    virtual_controller->Pose.Position.y= virtual_controller_packet.position_cm().y();
+    virtual_controller->Pose.Position.z= virtual_controller_packet.position_cm().z();
+            
+    if (virtual_controller_packet.has_physics_data())
+    {
+        const auto &raw_physics_data = virtual_controller_packet.physics_data();
+
+        virtual_controller->PhysicsData.LinearVelocityCmPerSec.x = raw_physics_data.velocity_cm_per_sec().i();
+        virtual_controller->PhysicsData.LinearVelocityCmPerSec.y = raw_physics_data.velocity_cm_per_sec().j();
+        virtual_controller->PhysicsData.LinearVelocityCmPerSec.z = raw_physics_data.velocity_cm_per_sec().k();
+
+        virtual_controller->PhysicsData.LinearAccelerationCmPerSecSqr.x = raw_physics_data.acceleration_cm_per_sec_sqr().i();
+        virtual_controller->PhysicsData.LinearAccelerationCmPerSecSqr.y = raw_physics_data.acceleration_cm_per_sec_sqr().j();
+        virtual_controller->PhysicsData.LinearAccelerationCmPerSecSqr.z = raw_physics_data.acceleration_cm_per_sec_sqr().k();
+
+        virtual_controller->PhysicsData.AngularVelocityRadPerSec.x = 0.f;
+        virtual_controller->PhysicsData.AngularVelocityRadPerSec.y = 0.f;
+        virtual_controller->PhysicsData.AngularVelocityRadPerSec.z = 0.f;
+
+        virtual_controller->PhysicsData.AngularAccelerationRadPerSecSqr.x = 0.f;
+        virtual_controller->PhysicsData.AngularAccelerationRadPerSecSqr.y = 0.f;
+        virtual_controller->PhysicsData.AngularAccelerationRadPerSecSqr.z = 0.f;
+
+		//###HipsterSloth $TODO - pass down the physics data timestamp
+		virtual_controller->PhysicsData.TimeInSeconds= -1.0;
+    }
+    else
+    {
+        memset(&virtual_controller->PhysicsData, 0, sizeof(PSMPhysicsData));
+    }
+
+	if (virtual_controller_packet.has_raw_tracker_data())
+	{
+		const auto &raw_tracker_data = virtual_controller_packet.raw_tracker_data();
+
+		virtual_controller->RawTrackerData.ValidTrackerLocations =
+			std::min(raw_tracker_data.valid_tracker_count(), PSMOVESERVICE_MAX_TRACKER_COUNT);
+
+		for (int listIndex = 0; listIndex < virtual_controller->RawTrackerData.ValidTrackerLocations; ++listIndex)
+		{
+			const PSMoveProtocol::Pixel &locationOnTracker = raw_tracker_data.screen_locations(listIndex);
+			const PSMoveProtocol::Position &positionOnTracker = raw_tracker_data.relative_positions_cm(listIndex);
+
+			virtual_controller->RawTrackerData.TrackerIDs[listIndex] = raw_tracker_data.tracker_ids(listIndex);
+			virtual_controller->RawTrackerData.ScreenLocations[listIndex] = { locationOnTracker.x(), locationOnTracker.y() };
+			virtual_controller->RawTrackerData.RelativePositionsCm[listIndex] = { positionOnTracker.x(), positionOnTracker.y(), positionOnTracker.z() };
+
+			if (raw_tracker_data.projected_spheres_size() > 0)
+			{
+				const PSMoveProtocol::Ellipse &protocolEllipse = raw_tracker_data.projected_spheres(listIndex);
+				PSMTrackingProjection &projection = virtual_controller->RawTrackerData.TrackingProjections[listIndex];
+
+				projection.shape.ellipse.center.x = protocolEllipse.center().x();
+				projection.shape.ellipse.center.y = protocolEllipse.center().y();
+				projection.shape.ellipse.half_x_extent = protocolEllipse.half_x_extent();
+				projection.shape.ellipse.half_y_extent = protocolEllipse.half_y_extent();
+				projection.shape.ellipse.angle = protocolEllipse.angle();
+				projection.shape_type = PSMTrackingProjection::PSMShape_Ellipse;
+			}
+			else
+			{
+				PSMTrackingProjection &projection = virtual_controller->RawTrackerData.TrackingProjections[listIndex];
+
+				projection.shape_type = PSMTrackingProjection::PSMShape_INVALID_PROJECTION;
+			}
+		}
+
+		if (raw_tracker_data.has_multicam_position_cm())
+		{
+			const PSMoveProtocol::Position &multicam_position = raw_tracker_data.multicam_position_cm();
+
+			virtual_controller->RawTrackerData.MulticamPositionCm.x = multicam_position.x();
+			virtual_controller->RawTrackerData.MulticamPositionCm.y = multicam_position.y();
+			virtual_controller->RawTrackerData.MulticamPositionCm.z = multicam_position.z();
+			virtual_controller->RawTrackerData.bMulticamPositionValid = true;
+		}
+	}
+	else
+	{
+		memset(&virtual_controller->RawTrackerData, 0, sizeof(PSMRawTrackerData));
+	}
 }
 
 static void applyPSMButtonState(

@@ -1153,6 +1153,39 @@ void drawPSDualShock4Model(const glm::mat4 &transform, const glm::vec3 &color)
     glBindTexture(GL_TEXTURE_2D, 0); 
 }
 
+void drawVirtualControllerModel(const glm::mat4 &transform, const glm::vec3 &color)
+{
+    assert(Renderer::getIsRenderingStage());
+
+    int textureID= AssetManager::getInstance()->getVirtualControllerTextureAsset()->texture_id;
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    glPushMatrix();
+        glMultMatrixf(glm::value_ptr(transform));
+
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        
+        glColor3f(1.f, 1.f, 1.f);
+        glVertexPointer(3, GL_FLOAT, 0, psmovebodyVerts);
+        glTexCoordPointer(2, GL_FLOAT, 0, psmovebodyTexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, psmovebodyNumVerts);
+
+        glColor3fv(glm::value_ptr(color));
+        glVertexPointer(3, GL_FLOAT, 0, psmovebulbVerts);
+        glTexCoordPointer(2, GL_FLOAT, 0, psmovebulbTexCoords);
+        glDrawArrays(GL_TRIANGLES, 0, psmovebulbNumVerts);
+
+        glDisableClientState(GL_VERTEX_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+    glPopMatrix();
+
+    // rebind the default texture
+    glBindTexture(GL_TEXTURE_2D, 0); 
+}
+
 void drawTrackerList(const PSMClientTrackerInfo *trackerList, const int trackerCount)
 {
 	glm::mat4 psmove_tracking_space_to_chaperone_space = glm::mat4(1.f);

@@ -10,6 +10,7 @@ enum ControllerType {
     PSMOVE= 0;
     PSNAVI= 1;
     PSDUALSHOCK4= 2;
+    VIRTUALCONTROLLER= 3;
 }
 
 message Pixel {
@@ -914,6 +915,39 @@ message DeviceOutputDataFrame
             PhysicsData physics_data = 17;
         }
         PSDualShock4State psdualshock4_state = 8;
+        
+        // VirtualController Specific Controller state
+        message VirtualControllerState
+        {
+            // Virtual Controller Specific flags
+            bool IsTrackingEnabled= 1;
+            bool IsCurrentlyTracking= 2;
+            bool IsPositionValid= 3;
+
+            // Tracking position in the space of the HMD tracking camera
+            Position position_cm = 4;
+
+            // Only valid if include_raw_tracker_data=true in START_CONTROLLER_DATA_STREAM request
+            message RawTrackerData
+            {
+                repeated Pixel screen_locations= 1;
+                repeated Position relative_positions_cm= 2;
+                repeated int32 tracker_ids= 3;
+                repeated Ellipse projected_spheres= 4;
+                int32 valid_tracker_count= 5;
+                Position multicam_position_cm= 6;
+            }
+            RawTrackerData raw_tracker_data = 5;
+
+            // Only valid if include_physics_data=true in START_CONTROLLER_DATA_STREAM request
+            message PhysicsData
+            {
+                FloatVector velocity_cm_per_sec= 1;
+                FloatVector acceleration_cm_per_sec_sqr= 2;
+            }
+            PhysicsData physics_data = 6;
+        }
+        VirtualControllerState virtualcontroller_state = 9;        
     }
     ControllerDataPacket controller_data_packet = 2;
 

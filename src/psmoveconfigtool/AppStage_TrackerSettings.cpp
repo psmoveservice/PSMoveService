@@ -307,17 +307,23 @@ void AppStage_TrackerSettings::renderUI()
                     const AppStage_TrackerSettings::ControllerInfo &controllerInfo = 
                         m_controllerInfos[m_selectedControllerIndex];
 
-                    if (controllerInfo.ControllerType == PSMController_Move)
+                    if (controllerInfo.ControllerType == PSMController_Move ||
+                        controllerInfo.ControllerType == PSMController_Virtual)
                     { 
-                        if (0 <= controllerInfo.TrackingColorType && controllerInfo.TrackingColorType < PSMTrackingColorType_MaxColorTypes) {
+                        const char * szControllerLabel= (controllerInfo.ControllerType == PSMController_Move) ? "PSMove" : "Virtual";
+
+                        if (0 <= controllerInfo.TrackingColorType && controllerInfo.TrackingColorType < PSMTrackingColorType_MaxColorTypes) 
+                        {
                             const char *colors[] = { "Magenta","Cyan","Yellow","Red","Green","Blue" };
 
-                            ImGui::Text("Controller: %d (PSMove) - %s", 
+                            ImGui::Text("Controller: %d (%s) - %s", 
                                 m_selectedControllerIndex,
+                                szControllerLabel,
                                 colors[controllerInfo.TrackingColorType]);
                         }
-                        else {
-                            ImGui::Text("Controller: %d (PSMove)", m_selectedControllerIndex);
+                        else 
+                        {
+                            ImGui::Text("Controller: %d (%s)", m_selectedControllerIndex, szControllerLabel);
                         }
                     }
                     else
@@ -674,6 +680,10 @@ void AppStage_TrackerSettings::handle_controller_list_response(
                     break;
                 case PSMoveProtocol::PSDUALSHOCK4:
                     ControllerInfo.ControllerType = PSMController_DualShock4;
+                    thisPtr->m_controllerInfos.push_back(ControllerInfo);
+                    break;
+                case PSMoveProtocol::VIRTUALCONTROLLER:
+                    ControllerInfo.ControllerType = PSMController_Virtual;
                     thisPtr->m_controllerInfos.push_back(ControllerInfo);
                     break;
                 default:

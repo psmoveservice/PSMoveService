@@ -261,6 +261,10 @@ void AppStage_ComputeTrackerPoses::render()
                     controllerPose = controllerView->ControllerState.PSDS4State.Pose;
                     physicsData= controllerView->ControllerState.PSDS4State.PhysicsData;
                     break;
+                case PSMControllerType::PSMController_Virtual:
+                    controllerPose = controllerView->ControllerState.VirtualController.Pose;
+                    physicsData= controllerView->ControllerState.VirtualController.PhysicsData;
+                    break;
                 }
                 glm::mat4 controllerMat4 = psm_posef_to_glm_mat4(controllerPose);
 
@@ -1009,11 +1013,14 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
             {
                 bool bStartedAnyControllers = false;
 
-                // Start all psmove and dual shock 4 controllers
+                // Start all psmove, dual shock 4, and virtual controllers
                 for (int list_index = 0; list_index < controller_list->count; ++list_index)
                 {
-                    if (controller_list->controller_type[list_index] == PSMController_Move ||
-                        controller_list->controller_type[list_index] == PSMController_DualShock4)
+                    PSMControllerType controllerType= controller_list->controller_type[list_index];
+
+                    if (controllerType == PSMController_Move ||
+                        controllerType == PSMController_DualShock4 ||
+                        controllerType == PSMController_Virtual)
                     {
                         int trackedControllerId = controller_list->controller_id[list_index];
                         const auto &protocolControllerResponse = response->result_controller_list().controllers(list_index);
@@ -1202,7 +1209,8 @@ void AppStage_ComputeTrackerPoses::handle_hmd_list_response(
 
                 if (!bStartedAnyHMDs)
                 {
-                    thisPtr->setState(AppStage_ComputeTrackerPoses::failedHmdListRequest);
+                    // Move on to the tracker list if there are no HMDs
+                    thisPtr->request_tracker_list();
                 }
             }
             else
@@ -1513,9 +1521,19 @@ bool AppStage_ComputeTrackerPoses::does_tracker_see_any_controller(const PSMTrac
         else if (controllerView->ControllerType == PSMControllerType::PSMController_DualShock4 &&
                  controllerView->ControllerState.PSDS4State.bIsCurrentlyTracking)
         {
-            for (int id = 0; id < controllerView->ControllerState.PSMoveState.RawTrackerData.ValidTrackerLocations; ++id)
+            for (int id = 0; id < controllerView->ControllerState.PSDS4State.RawTrackerData.ValidTrackerLocations; ++id)
             {
-                if (controllerView->ControllerState.PSMoveState.RawTrackerData.TrackerIDs[id] == tracker_id)
+                if (controllerView->ControllerState.PSDS4State.RawTrackerData.TrackerIDs[id] == tracker_id)
+                    bTrackerSeesAnyController = true;
+            }
+            break;
+        }
+        else if (controllerView->ControllerType == PSMControllerType::PSMController_Virtual &&
+                 controllerView->ControllerState.VirtualController.bIsCurrentlyTracking)
+        {
+            for (int id = 0; id < controllerView->ControllerState.VirtualController.RawTrackerData.ValidTrackerLocations; ++id)
+            {
+                if (controllerView->ControllerState.VirtualController.RawTrackerData.TrackerIDs[id] == tracker_id)
                     bTrackerSeesAnyController = true;
             }
             break;
@@ -1598,6 +1616,9 @@ static void drawController(
         break;
     case PSMController_DualShock4:
         drawPSDualShock4Model(transform, bulb_color);
+        break;
+    case PSMController_Virtual:
+        drawVirtualControllerModel(transform, bulb_color);
         break;
     }
 }

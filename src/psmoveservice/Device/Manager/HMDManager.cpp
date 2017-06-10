@@ -6,6 +6,7 @@
 #include "ServerDeviceView.h"
 #include "PSMoveProtocol.pb.h"
 #include <boost/foreach.hpp>
+#include "VirtualHMDDeviceEnumerator.h"
 
 //-- methods -----
 //-- Tracker Manager Config -----
@@ -64,6 +65,10 @@ HMDManager::startup()
 
         // Save back out the config in case there were updated defaults
         cfg.save();
+
+        // Copy the virtual controller count into the Virtual controller enumerator static variable.
+        // This breaks the dependency between the Controller Manager and the enumerator.
+        VirtualHMDDeviceEnumerator::virtual_hmd_count= cfg.virtual_hmd_count;
 
         success = true;
     }

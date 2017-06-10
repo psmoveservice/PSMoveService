@@ -155,7 +155,7 @@ void VirtualHMD::close()
     }
     else
     {
-        SERVER_LOG_INFO("MorpheusHMD::close") << "MorpheusHMD already closed. Ignoring request.";
+        SERVER_LOG_INFO("VirtualHMD::close") << "MorpheusHMD already closed. Ignoring request.";
     }
 }
 

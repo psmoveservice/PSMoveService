@@ -15,6 +15,20 @@ class ServerControllerView;
 typedef std::shared_ptr<ServerControllerView> ServerControllerViewPtr;
 
 //-- definitions -----
+class ControllerManagerConfig : public PSMoveConfig
+{
+public:
+    static const int CONFIG_VERSION;
+
+    ControllerManagerConfig(const std::string &fnamebase = "ControllerManagerConfig");
+
+    virtual const boost::property_tree::ptree config2ptree();
+    virtual void ptree2config(const boost::property_tree::ptree &pt);
+
+    int version;
+    int virtual_controller_count;
+};
+
 class ControllerManager : public DeviceTypeManager
 {
 public:
@@ -28,6 +42,11 @@ public:
     
     void updateStateAndPredict(TrackerManager* tracker_manager);
     void publish() override;
+
+    inline const ControllerManagerConfig& getConfig() const
+    {
+        return cfg;
+    }
 
     static const int k_max_devices = 5;
     int getMaxDevices() const override
@@ -60,6 +79,7 @@ public:
 private:
     static const PSMoveProtocol::Response_ResponseType k_list_udpated_response_type = PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;
     std::string m_bluetooth_host_address;
+    ControllerManagerConfig cfg;
 };
 
 #endif // CONTROLLER_MANAGER_H
