@@ -251,6 +251,9 @@ struct CommonDeviceState
         case VirtualHMD:
             result = "VirtualHMD";
             break;
+        case VirtualController:
+            result = "VirtualController";
+            break;
         default:
             result = "UNKNOWN";
         }
