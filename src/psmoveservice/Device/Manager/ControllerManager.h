@@ -54,6 +54,8 @@ public:
         return ControllerManager::k_max_devices;
     }
 
+    int getGamepadCount() const;
+
     inline std::string getCachedBluetoothHostAddress() const
     {
         return m_bluetooth_host_address;

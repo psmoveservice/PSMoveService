@@ -33,6 +33,8 @@ static const int k_default_hmd_poll_interval= 2; // ms
 class DeviceManagerConfig : public PSMoveConfig
 {
 public:
+    static const int CONFIG_VERSION= 1;
+
     DeviceManagerConfig(const std::string &fnamebase = "DeviceManagerConfig")
         : PSMoveConfig(fnamebase)
         , controller_reconnect_interval(k_default_controller_reconnect_interval)
@@ -41,7 +43,7 @@ public:
         , tracker_poll_interval(k_default_tracker_poll_interval)
         , hmd_reconnect_interval(k_default_hmd_reconnect_interval)
         , hmd_poll_interval(k_default_hmd_poll_interval)
-		, gamepad_api_enabled(false)
+		, gamepad_api_enabled(true)
 		, platform_api_enabled(true)
     {};
 
@@ -50,6 +52,7 @@ public:
     {
         boost::property_tree::ptree pt;
     
+        pt.put("version", DeviceManagerConfig::CONFIG_VERSION);
         pt.put("controller_reconnect_interval", controller_reconnect_interval);
         pt.put("controller_poll_interval", controller_poll_interval);
         pt.put("tracker_reconnect_interval", tracker_reconnect_interval);
@@ -65,16 +68,28 @@ public:
     void
     ptree2config(const boost::property_tree::ptree &pt)
     {
-        controller_reconnect_interval = pt.get<int>("controller_reconnect_interval", k_default_controller_reconnect_interval);
-        controller_poll_interval = pt.get<int>("controller_poll_interval", k_default_controller_poll_interval);
-        tracker_reconnect_interval = pt.get<int>("tracker_reconnect_interval", k_default_tracker_reconnect_interval);
-        tracker_poll_interval = pt.get<int>("tracker_poll_interval", k_default_tracker_poll_interval);
-        hmd_reconnect_interval = pt.get<int>("hmd_reconnect_interval", k_default_hmd_reconnect_interval);
-        hmd_poll_interval = pt.get<int>("hmd_poll_interval", k_default_hmd_poll_interval);
-		gamepad_api_enabled = pt.get<bool>("gamepad_api_enabled", gamepad_api_enabled);
-		platform_api_enabled = pt.get<bool>("platform_api_enabled", platform_api_enabled);
+        version = pt.get<int>("version", 0);
+
+        if (version == ControllerManagerConfig::CONFIG_VERSION)
+        {
+            controller_reconnect_interval = pt.get<int>("controller_reconnect_interval", k_default_controller_reconnect_interval);
+            controller_poll_interval = pt.get<int>("controller_poll_interval", k_default_controller_poll_interval);
+            tracker_reconnect_interval = pt.get<int>("tracker_reconnect_interval", k_default_tracker_reconnect_interval);
+            tracker_poll_interval = pt.get<int>("tracker_poll_interval", k_default_tracker_poll_interval);
+            hmd_reconnect_interval = pt.get<int>("hmd_reconnect_interval", k_default_hmd_reconnect_interval);
+            hmd_poll_interval = pt.get<int>("hmd_poll_interval", k_default_hmd_poll_interval);
+		    gamepad_api_enabled = pt.get<bool>("gamepad_api_enabled", gamepad_api_enabled);
+		    platform_api_enabled = pt.get<bool>("platform_api_enabled", platform_api_enabled);
+        }
+        else
+        {
+            SERVER_LOG_WARNING("DeviceManagerConfig") <<
+                "Config version " << version << " does not match expected version " <<
+                DeviceManagerConfig::CONFIG_VERSION << ", Using defaults.";
+        }
     }
 
+    int version;
     int controller_reconnect_interval;
     int controller_poll_interval;
     int tracker_reconnect_interval;

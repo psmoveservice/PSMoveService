@@ -128,38 +128,39 @@ message Request {
         SET_POSITION_FILTER= 15;
         SET_CONTROLLER_PREDICTION_TIME= 16;
         SET_ATTACHED_CONTROLLER= 17;
+        SET_GAMEPAD_INDEX= 18;
 
-        GET_TRACKER_LIST = 18;
-        START_TRACKER_DATA_STREAM = 19;
-        STOP_TRACKER_DATA_STREAM = 20;
-        GET_TRACKER_SETTINGS = 21;
-        SET_TRACKER_EXPOSURE = 22;
-        SET_TRACKER_GAIN = 23;
-        SET_TRACKER_OPTION = 24;
-        SET_TRACKER_COLOR_PRESET = 25;
-        SET_TRACKER_POSE = 26;
-        SET_TRACKER_INTRINSICS = 27;
-        RELOAD_TRACKER_SETTINGS = 28;
-        SAVE_TRACKER_PROFILE = 29;
-        APPLY_TRACKER_PROFILE = 30;
-        SEARCH_FOR_NEW_TRACKERS = 31;
-        GET_TRACKING_SPACE_SETTINGS = 32;
+        GET_TRACKER_LIST = 19;
+        START_TRACKER_DATA_STREAM = 20;
+        STOP_TRACKER_DATA_STREAM = 21;
+        GET_TRACKER_SETTINGS = 22;
+        SET_TRACKER_EXPOSURE = 23;
+        SET_TRACKER_GAIN = 24;
+        SET_TRACKER_OPTION = 25;
+        SET_TRACKER_COLOR_PRESET = 26;
+        SET_TRACKER_POSE = 27;
+        SET_TRACKER_INTRINSICS = 28;
+        RELOAD_TRACKER_SETTINGS = 29;
+        SAVE_TRACKER_PROFILE = 30;
+        APPLY_TRACKER_PROFILE = 31;
+        SEARCH_FOR_NEW_TRACKERS = 32;
+        GET_TRACKING_SPACE_SETTINGS = 33;
 
-        GET_HMD_LIST = 33;
-        START_HMD_DATA_STREAM = 34;
-        STOP_HMD_DATA_STREAM = 35;
-        SET_HMD_LED_TRACKING_COLOR= 36;
-        SET_HMD_ACCELEROMETER_CALIBRATION= 37;
-        SET_HMD_GYROSCOPE_CALIBRATION= 38;
-        SET_HMD_PREDICTION_TIME= 39;
-        SET_HMD_ORIENTATION_FILTER= 40;
-        SET_HMD_POSITION_FILTER= 41;        
+        GET_HMD_LIST = 34;
+        START_HMD_DATA_STREAM = 35;
+        STOP_HMD_DATA_STREAM = 36;
+        SET_HMD_LED_TRACKING_COLOR= 37;
+        SET_HMD_ACCELEROMETER_CALIBRATION= 38;
+        SET_HMD_GYROSCOPE_CALIBRATION= 39;
+        SET_HMD_PREDICTION_TIME= 40;
+        SET_HMD_ORIENTATION_FILTER= 41;
+        SET_HMD_POSITION_FILTER= 42;        
 
-        GET_SERVICE_VERSION= 42;
+        GET_SERVICE_VERSION= 43;
 
-        SET_TRACKER_FRAME_RATE = 43;
-        SET_TRACKER_FRAME_WIDTH = 44;
-        SET_TRACKER_FRAME_HEIGHT = 45;
+        SET_TRACKER_FRAME_RATE = 44;
+        SET_TRACKER_FRAME_WIDTH = 45;
+        SET_TRACKER_FRAME_HEIGHT = 46;
     }
     RequestType type = 2;
 
@@ -283,26 +284,33 @@ message Request {
     }
     RequestSetControllerPredictionTime request_set_controller_prediction_time = 19;
 
-    // Parameters SET_ATTACHED_CONTROLLER
+    // Parameters for SET_ATTACHED_CONTROLLER
     message RequestSetAttachedController {
         int32 child_controller_id = 1;
         int32 parent_controller_id = 2;
     }
     RequestSetAttachedController request_set_attached_controller = 20;
-
+    
+    // Parameters for SET_GAMEPAD_INDEX
+    message RequestSetGamepadIndex {
+        int32 controller_id = 1;
+        int32 gamepad_index = 2;
+    }
+    RequestSetGamepadIndex request_set_gamepad_index = 21;
+    
     // Parameters for START_TRACKER_DATA_STREAM
     // NOTE: DeviceDataFrame packets will start streaming to client upon receiving this request
     message RequestStartTrackerDataStream {
         int32 tracker_id = 1;
     }
-    RequestStartTrackerDataStream request_start_tracker_data_stream = 21;
+    RequestStartTrackerDataStream request_start_tracker_data_stream = 22;
 
     // Parameters for STOP_TRACKER_DATA_STREAM
     // NOTE: DeviceDataFrame packets will stop streaming to client upon receiving this request
     message RequestStopTrackerDataStream {
         int32 tracker_id = 1;
     }
-    RequestStopTrackerDataStream request_stop_tracker_data_stream = 22;
+    RequestStopTrackerDataStream request_stop_tracker_data_stream = 23;
 
     // Parameters for GET_TRACKER_SETTINGS
     message RequestGetTrackerSettings {
@@ -315,7 +323,7 @@ message Request {
         }
         DeviceCategory device_category= 3;
     }
-    RequestGetTrackerSettings request_get_tracker_settings = 23;
+    RequestGetTrackerSettings request_get_tracker_settings = 24;
 
     // Parameters for SET_TRACKER_EXPOSURE
     message RequestSetTrackerExposure {
@@ -323,7 +331,7 @@ message Request {
         float value = 2;
         bool save_setting= 3;
     }
-    RequestSetTrackerExposure request_set_tracker_exposure = 24;
+    RequestSetTrackerExposure request_set_tracker_exposure = 25;
 
     // Parameters for SET_TRACKER_GAIN
     message RequestSetTrackerGain {
@@ -331,7 +339,7 @@ message Request {
         float value = 2;
         bool save_setting= 3;
     }
-    RequestSetTrackerGain request_set_tracker_gain = 25;
+    RequestSetTrackerGain request_set_tracker_gain = 26;
 
     // Parameters for SET_TRACKER_OPTION
     message RequestSetTrackerOption {
@@ -339,7 +347,7 @@ message Request {
         string option_name = 2;
         int32 option_index = 3;
     }
-    RequestSetTrackerOption request_set_tracker_option = 26;
+    RequestSetTrackerOption request_set_tracker_option = 27;
 
     // Parameters for SET_TRACKER_COLOR_PRESET
     message RequestSetTrackerColorPreset {
@@ -354,7 +362,7 @@ message Request {
 
         TrackingColorPreset color_preset = 4;
     }
-    RequestSetTrackerColorPreset request_set_tracker_color_preset = 27;
+    RequestSetTrackerColorPreset request_set_tracker_color_preset = 28;
 
     // Parameters for SET_TRACKER_INTRINSICS
     message RequestSetTrackerIntrinsics {
@@ -367,34 +375,34 @@ message Request {
         float tracker_p1= 7;
         float tracker_p2= 8;
     }
-    RequestSetTrackerIntrinsics request_set_tracker_intrinsics = 28;
+    RequestSetTrackerIntrinsics request_set_tracker_intrinsics = 29;
 
     // Parameters for SET_TRACKER_POSE
     message RequestSetTrackerPose {
         int32 tracker_id = 1;
         Pose pose = 2;
     }
-    RequestSetTrackerPose request_set_tracker_pose = 29;
+    RequestSetTrackerPose request_set_tracker_pose = 30;
 
     // Parameters for RELOAD_TRACKER_SETTINGS
     message RequestReloadTrackerSettings {
       int32 tracker_id = 1;
     }
-    RequestReloadTrackerSettings request_reload_tracker_settings = 30;
+    RequestReloadTrackerSettings request_reload_tracker_settings = 31;
 
     // Parameters for SAVE_TRACKER_PROFILE
     message RequestSaveTrackerProfile {
         int32 tracker_id = 1;
         int32 controller_id = 2;
     }
-    RequestSaveTrackerProfile request_save_tracker_profile = 31;
+    RequestSaveTrackerProfile request_save_tracker_profile = 32;
 
     // Parameters for APPLY_TRACKER_PROFILE
     message RequestApplyTrackerProfile {
         int32 tracker_id = 1;
         int32 controller_id = 2;
     }
-    RequestApplyTrackerProfile request_apply_tracker_profile = 32;
+    RequestApplyTrackerProfile request_apply_tracker_profile = 33;
 
     // No Parameters for SEARCH_FOR_NEW_TRACKERS
 
@@ -409,21 +417,21 @@ message Request {
         bool include_raw_tracker_data= 6;
         bool disable_roi= 7;
     }
-    RequestStartHmdDataStream request_start_hmd_data_stream = 33;
+    RequestStartHmdDataStream request_start_hmd_data_stream = 34;
 
     // Parameters for STOP_HMD_DATA_STREAM
     // NOTE: DeviceDataFrame packets will stop streaming to client upon receiving this request
     message RequestStopHmdDataStream {
         int32 hmd_id = 1;
     }
-    RequestStopHmdDataStream request_stop_hmd_data_stream = 34;
+    RequestStopHmdDataStream request_stop_hmd_data_stream = 35;
 
     // Parameters for SET_HMD_LED_TRACKING_COLOR
     message RequestSetHmdLEDTrackingColor {
         int32 hmd_id = 1;
         TrackingColorType color_type = 2;
     }
-    RequestSetHmdLEDTrackingColor set_hmd_led_tracking_color_request = 35;    
+    RequestSetHmdLEDTrackingColor set_hmd_led_tracking_color_request = 36;    
     
     // Parameters for SET_HMD_ACCELEROMETER_CALIBRATION
     message RequestSetHMDAccelerometerCalibration {
@@ -431,7 +439,7 @@ message Request {
         FloatVector raw_average_gravity= 2;
         float raw_variance= 3;
     }
-    RequestSetHMDAccelerometerCalibration set_hmd_accelerometer_calibration_request = 36;
+    RequestSetHMDAccelerometerCalibration set_hmd_accelerometer_calibration_request = 37;
 
     // Parameters for SET_HMD_GYROSCOPE_CALIBRATION
     message RequestSetHMDGyroscopeCalibration {
@@ -440,7 +448,7 @@ message Request {
         float raw_variance= 3;
         float raw_drift= 4;
     }
-    RequestSetHMDGyroscopeCalibration set_hmd_gyroscope_calibration_request = 37;
+    RequestSetHMDGyroscopeCalibration set_hmd_gyroscope_calibration_request = 38;
 
     // No parameters for GET_TRACKING_SPACE_SETTINGS
 
@@ -449,21 +457,21 @@ message Request {
         int32 hmd_id = 1;
         string orientation_filter = 2;
     }
-    RequestSetHMDOrientationFilter request_set_hmd_orientation_filter = 38;
+    RequestSetHMDOrientationFilter request_set_hmd_orientation_filter = 39;
 
     // Parameters for SET_HMD_POSITION_FILTER
     message RequestSetHMDPositionFilter {
         int32 hmd_id = 1;
         string position_filter = 2;
     }
-    RequestSetHMDPositionFilter request_set_hmd_position_filter = 39;
+    RequestSetHMDPositionFilter request_set_hmd_position_filter = 40;
     
     // Parameters for SET_HMD_PREDICTION_TIME
     message RequestSetHMDPredictionTime {
         int32 hmd_id = 1;
         float prediction_time = 2;
     }
-    RequestSetHMDPredictionTime request_set_hmd_prediction_time = 40;
+    RequestSetHMDPredictionTime request_set_hmd_prediction_time = 41;
 
     // Parameters for SET_TRACKER_FRAME_RATE
     message RequestSetTrackerFrameRate {
@@ -471,7 +479,7 @@ message Request {
         float value = 2;
         bool save_setting= 3;
     }
-    RequestSetTrackerFrameRate request_set_tracker_frame_rate = 41;
+    RequestSetTrackerFrameRate request_set_tracker_frame_rate = 42;
 
     // Parameters for SET_TRACKER_FRAME_WIDTH
     message RequestSetTrackerFrameWidth {
@@ -479,7 +487,7 @@ message Request {
         float value = 2;
         bool save_setting= 3;
     }
-    RequestSetTrackerFrameWidth request_set_tracker_frame_width = 42;
+    RequestSetTrackerFrameWidth request_set_tracker_frame_width = 43;
 
     // Parameters for SET_TRACKER_FRAME_HEIGHT
     message RequestSetTrackerFrameHeight {
@@ -487,7 +495,7 @@ message Request {
         float value = 2;
         bool save_setting= 3;
     }
-    RequestSetTrackerFrameHeight request_set_tracker_frame_height = 43;
+    RequestSetTrackerFrameHeight request_set_tracker_frame_height = 44;
 }
 
 // Reliable (TCP) responses to requests
@@ -567,9 +575,11 @@ message Response {
             string position_filter = 13;
             string gyro_gain_setting = 14;
             float prediction_time = 15;
+            int32 gamepad_index = 16;
         }
         repeated ControllerInfo controllers = 1;
         string host_serial = 2;
+        int32 gamepad_count = 3;
     }
     ResultControllerList result_controller_list = 22;
 
@@ -926,6 +936,16 @@ message DeviceOutputDataFrame
 
             // Tracking position in the space of the HMD tracking camera
             Position position_cm = 4;
+            
+            // USB device VID/PID
+            int32 vendorID = 5;
+            int32 productID = 6;
+            
+            // Number of button elements belonging to the device
+            int32 numButtons = 7;
+                                    
+            // Array[numAxes] of values representing the current state of each axis, in the range [0,255]
+            repeated int32 axisStates = 8;
 
             // Only valid if include_raw_tracker_data=true in START_CONTROLLER_DATA_STREAM request
             message RawTrackerData
@@ -937,7 +957,7 @@ message DeviceOutputDataFrame
                 int32 valid_tracker_count= 5;
                 Position multicam_position_cm= 6;
             }
-            RawTrackerData raw_tracker_data = 5;
+            RawTrackerData raw_tracker_data = 9;
 
             // Only valid if include_physics_data=true in START_CONTROLLER_DATA_STREAM request
             message PhysicsData
@@ -945,7 +965,7 @@ message DeviceOutputDataFrame
                 FloatVector velocity_cm_per_sec= 1;
                 FloatVector acceleration_cm_per_sec_sqr= 2;
             }
-            PhysicsData physics_data = 6;
+            PhysicsData physics_data = 10;
         }
         VirtualControllerState virtualcontroller_state = 9;        
     }

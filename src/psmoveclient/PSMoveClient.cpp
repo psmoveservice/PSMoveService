@@ -1682,7 +1682,26 @@ static void applyVirtualControllerDataFrame(
     virtual_controller->Pose.Position.x= virtual_controller_packet.position_cm().x();
     virtual_controller->Pose.Position.y= virtual_controller_packet.position_cm().y();
     virtual_controller->Pose.Position.z= virtual_controller_packet.position_cm().z();
-            
+
+    virtual_controller->vendorID= virtual_controller_packet.vendorid();
+    virtual_controller->productID= virtual_controller_packet.productid();
+
+    virtual_controller->numAxes = virtual_controller_packet.axisstates_size();
+    virtual_controller->numButtons = virtual_controller_packet.numbuttons();
+
+    unsigned int button_bitmask = controller_packet.button_down_bitmask();
+    memset(virtual_controller->buttonStates, PSMButtonState_UP, sizeof(virtual_controller->buttonStates));
+    for (int button_index = 0; button_index < virtual_controller->numButtons; ++button_index)
+    {
+    	applyPSMButtonState(virtual_controller->buttonStates[button_index], button_bitmask, button_index);
+    }
+
+    memset(virtual_controller->axisStates, 0x7f, sizeof(virtual_controller->axisStates));
+    for (int axis_index = 0; axis_index < virtual_controller->numAxes; ++axis_index)
+    {
+        virtual_controller->axisStates[axis_index]= virtual_controller_packet.axisstates(axis_index);
+    }
+
     if (virtual_controller_packet.has_physics_data())
     {
         const auto &raw_physics_data = virtual_controller_packet.physics_data();

@@ -1638,7 +1638,7 @@ static void generate_virtual_controller_data_frame_for_stream(
     if (controller_state != nullptr)
     {        
         assert(controller_state->DeviceType == CommonDeviceState::VirtualController);
-        const PSMoveControllerState * psmove_state= static_cast<const PSMoveControllerState *>(controller_state);
+        const VirtualControllerState * virtual_controller_state= static_cast<const VirtualControllerState *>(controller_state);
 
         virtual_controller_data_frame->set_iscurrentlytracking(controller_view->getIsCurrentlyTracking());
         virtual_controller_data_frame->set_istrackingenabled(controller_view->getIsTrackingEnabled());
@@ -1655,6 +1655,18 @@ static void generate_virtual_controller_data_frame_for_stream(
             virtual_controller_data_frame->mutable_position_cm()->set_x(0);
             virtual_controller_data_frame->mutable_position_cm()->set_y(0);
             virtual_controller_data_frame->mutable_position_cm()->set_z(0);
+        }
+
+        // Always send the gamepad data
+        controller_data_frame->set_button_down_bitmask(controller_state->AllButtons);
+
+        virtual_controller_data_frame->set_numbuttons(virtual_controller_state->numButtons);
+        virtual_controller_data_frame->set_productid(virtual_controller_state->productID);
+        virtual_controller_data_frame->set_vendorid(virtual_controller_state->vendorID);
+
+        for (int axisIndex = 0; axisIndex < virtual_controller_state->numAxes; ++axisIndex)
+        {
+            virtual_controller_data_frame->add_axisstates(virtual_controller_state->axisStates[axisIndex]);
         }
 
         // If requested, get the raw tracker data for the controller
