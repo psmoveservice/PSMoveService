@@ -45,7 +45,8 @@ public:
     AppStage_ComputeTrackerPoses(class App *app);
     ~AppStage_ComputeTrackerPoses();
 
-    static void enterStageAndCalibrateTrackers(class App *app, PSMControllerID reqeusted_controller_id=-1);
+    static void enterStageAndCalibrateTrackersWithController(class App *app, PSMControllerID reqeusted_controller_id=-1);
+    static void enterStageAndCalibrateTrackersWithHMD(class App *app, PSMHmdID reqeusted_hmd_id=-1);
     static void enterStageAndTestTrackers(class App *app, PSMControllerID reqeusted_controller_id=-1, PSMHmdID requested_hmd_id=-1);
 
 	inline void set_tracker_id(int reqeusted_tracker_id)
@@ -107,6 +108,7 @@ protected:
     int get_render_tracker_index() const;
     PSMTracker *get_render_tracker_view() const;
 	PSMController *get_calibration_controller_view() const;
+    PSMHeadMountedDisplay *get_calibration_hmd_view() const;
 
     void request_controller_list();
     static void handle_controller_list_response(

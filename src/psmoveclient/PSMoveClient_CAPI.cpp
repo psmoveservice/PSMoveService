@@ -773,6 +773,9 @@ PSMResult PSM_GetIsControllerStable(PSMControllerID controller_id, bool *out_is_
 				result= PSMResult_Success;
             } break;
         case PSMController_Virtual:
+            // Virtual controller can never be stable
+            *out_is_stable = false;
+            result= PSMResult_Success;
             break;
         }
     }
@@ -1421,7 +1424,8 @@ PSMResult PSM_GetIsHmdStable(PSMHmdID hmd_id, bool *out_is_stable)
             } break;
         case PSMHmd_Virtual:
             {
-				*out_is_stable = true;
+                // Virtual HMD can never be stable
+				*out_is_stable = false;
 
 				result= PSMResult_Success;
             } break;

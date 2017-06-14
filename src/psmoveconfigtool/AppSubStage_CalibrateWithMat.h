@@ -16,8 +16,10 @@ public:
         invalid,
 
         initial,
-        calibrationStepPlacePSMove,
-        calibrationStepRecordPSMove,
+        calibrationStepPlaceController,
+        calibrationStepRecordController,
+        calibrationStepPlaceHMD,
+        calibrationStepRecordHMD,
         calibrationStepComputeTrackerPoses,
 
         calibrateStepSuccess,
@@ -50,9 +52,9 @@ private:
 
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;
-    bool m_bForceControllerStable;
+    bool m_bForceStable;
 
-	struct TrackerRelativePoseStatistics *m_psmoveTrackerPoseStats[PSMOVESERVICE_MAX_TRACKER_COUNT];
+	struct TrackerRelativePoseStatistics *m_deviceTrackerPoseStats[PSMOVESERVICE_MAX_TRACKER_COUNT];
 
     int m_sampleLocationIndex;
 };
