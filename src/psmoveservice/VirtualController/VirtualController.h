@@ -11,6 +11,8 @@
 #include <deque>
 #include <chrono>
 
+#define MAX_VIRTUAL_CONTROLLER_BUTTONS 32
+#define MAX_VIRTUAL_CONTROLLER_AXES 32
 
 class VirtualControllerConfig : public PSMoveConfig
 {
@@ -21,6 +23,7 @@ public:
         : PSMoveConfig(fnamebase)
 		, is_valid(false)
 		, version(CONFIG_VERSION)
+        , gamepad_index(-1)
 		, position_filter_type("LowPassOptical")
         , max_velocity(1.f)
 		, mean_update_time_delta(0.008333f)
@@ -37,6 +40,9 @@ public:
 
     bool is_valid;
     long version;
+
+    // The index of gamepad attached to the PC to poll buttons from
+    int gamepad_index;
 
 	// The type of position filter to use
 	std::string position_filter_type;
@@ -63,6 +69,24 @@ public:
 
 struct VirtualControllerState : public CommonControllerState
 {
+    // USB device VID
+	int vendorID;
+
+    // USB device PID
+	int productID;
+	
+    // Number of button elements belonging to the device
+	int numAxes;
+	
+	// Number of button elements belonging to the device
+	int numButtons;
+	
+	// Array[numAxes] of values representing the current state of each axis, in the range [0,255]
+	unsigned char axisStates[MAX_VIRTUAL_CONTROLLER_AXES];
+	
+	// Array[numButtons] of values representing the current state of each button
+	ButtonState buttonStates[MAX_VIRTUAL_CONTROLLER_BUTTONS];
+
     VirtualControllerState()
     {
         clear();
@@ -72,6 +96,22 @@ struct VirtualControllerState : public CommonControllerState
     {
         CommonControllerState::clear();
 		DeviceType = VirtualController;
+
+	    clear_gamepad_data();
+    }
+
+    void clear_gamepad_data()
+    {
+        CommonControllerState::AllButtons = 0;
+
+	    vendorID= 0;
+	    productID= 0;
+	
+	    numAxes= 0;
+	    numButtons= 0;
+	
+	    memset(axisStates, 0, sizeof(axisStates));
+	    memset(buttonStates, 0, sizeof(buttonStates));
     }
 };
 
@@ -119,6 +159,9 @@ public:
     static CommonDeviceState::eDeviceType getDeviceTypeStatic()
     { return CommonDeviceState::VirtualController; }
     
+protected:
+    void pollGamepad(VirtualControllerState &newState);
+
 private:      
     // Constant while a controller is open
     VirtualControllerConfig cfg;

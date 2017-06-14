@@ -272,8 +272,8 @@ typedef struct
     PSMButtonState               DPadDownButton;
     PSMButtonState               DPadLeftButton;
     unsigned char                TriggerValue;
-    float                        Stick_XAxis;
-    float                        Stick_YAxis;
+    unsigned char                Stick_XAxis;
+    unsigned char                Stick_YAxis;
 } PSMPSNavi;
 
 /// DualShock4 raw IMU sensor data
@@ -362,6 +362,15 @@ typedef struct
     bool                         bIsPositionValid;
     
     char                         DevicePath[256];
+
+    int                          vendorID;
+    int                          productID;
+    
+    int                          numAxes;
+    int                          numButtons;
+    
+    unsigned char                axisStates[PSM_MAX_VIRTUAL_CONTROLLER_AXES];
+    PSMButtonState               buttonStates[PSM_MAX_VIRTUAL_CONTROLLER_BUTTONS];
     
     PSMTrackingColorType         TrackingColorType;
     PSMPosef                     Pose;

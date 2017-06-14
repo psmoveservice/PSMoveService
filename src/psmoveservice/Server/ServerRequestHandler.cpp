@@ -245,6 +245,10 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__set_attached_controller(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SET_GAMEPAD_INDEX:
+                response = new PSMoveProtocol::Response;
+                handle_request__set_gamepad_index(context, response);
+                break;
 
             // Tracker Requests
             case PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST:
@@ -614,6 +618,7 @@ protected:
 
         // Get the address of the bluetooth adapter cached at startup
         list->set_host_serial(m_device_manager.m_controller_manager->getCachedBluetoothHostAddress());
+        list->set_gamepad_count(m_device_manager.m_controller_manager->getGamepadCount());
 
         // Add of the open controllers matching the filter constraints
         for (int controller_id= 0; controller_id < m_device_manager.getControllerViewMaxCount(); ++controller_id)
@@ -636,6 +641,8 @@ protected:
                 std::string gyro_gain_setting = "";
 
                 float prediction_time = 0.f;
+
+                int gamepad_index= -1;
 
                 switch(controller_view->getControllerDeviceType())
                 {
@@ -715,6 +722,7 @@ protected:
                         prediction_time = config->prediction_time;
 
                         controller_info->set_controller_type(PSMoveProtocol::VIRTUALCONTROLLER);
+                        gamepad_index= config->gamepad_index;
                     }
                     break;
                 default:
@@ -739,6 +747,7 @@ protected:
                 controller_info->set_position_filter(position_filter);
                 controller_info->set_gyro_gain_setting(gyro_gain_setting);
                 controller_info->set_prediction_time(prediction_time);
+                controller_info->set_gamepad_index(gamepad_index);
             }
         }
 
@@ -1570,8 +1579,7 @@ protected:
             ParentControllerView && ParentControllerView->getIsOpen() &&
             ChildControllerView != ParentControllerView)
         {
-            if ((ParentControllerView->getControllerDeviceType() == CommonDeviceState::PSMove || 
-                 ParentControllerView->getControllerDeviceType() == CommonDeviceState::VirtualController) && 
+            if (ParentControllerView->getControllerDeviceType() == CommonDeviceState::PSMove && 
                 ChildControllerView->getControllerDeviceType() == CommonDeviceState::PSNavi)
             {
                 const PSMoveController *psmove = ParentControllerView->castChecked<PSMoveController>();
@@ -1581,6 +1589,42 @@ protected:
 
                 psnavi_config.attached_to_controller = psmove->getSerial();
                 psnavi_config.save();
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_gamepad_index(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int controller_id = context.request->request_set_gamepad_index().controller_id();
+        const int gamepad_index = context.request->request_set_gamepad_index().gamepad_index();
+
+        ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && 
+            ControllerView->getIsOpen() &&
+            ControllerView->getControllerDeviceType() == CommonDeviceState::VirtualController)
+        {
+            const int gamepadCount= DeviceManager::getInstance()->m_controller_manager->getGamepadCount();
+
+            if (gamepad_index >= -1 && gamepad_index < gamepadCount)
+            {
+                VirtualController *virtual_controller = ControllerView->castChecked<VirtualController>();
+                VirtualControllerConfig *config = virtual_controller->getConfigMutable();
+
+                config->gamepad_index = gamepad_index;
+                config->save();
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }

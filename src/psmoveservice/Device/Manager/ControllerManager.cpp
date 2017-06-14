@@ -198,6 +198,12 @@ int ControllerManager::getListUpdatedResponseType()
 	return PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;
 }
 
+int
+ControllerManager::getGamepadCount() const
+{
+    return gamepad_api_enabled ? Gamepad_numDevices() : 0;
+}
+
 void
 ControllerManager::setControllerRumble(
     int controller_id, 

@@ -6,6 +6,7 @@
 #include "AppStage_MagnetometerCalibration.h"
 #include "AppStage_MainMenu.h"
 #include "AppStage_PairController.h"
+#include "AppStage_TestButtons.h"
 #include "AppStage_TestRumble.h"
 #include "App.h"
 #include "Camera.h"
@@ -28,6 +29,25 @@
 
 //-- statics ----
 const char *AppStage_ControllerSettings::APP_STAGE_NAME= "ControllerSettings";
+const char *AppStage_ControllerSettings::GAMEPAD_COMBO_LABELS[MAX_GAMEPAD_LABELS] = {
+    "<NONE>",
+    "gamepad0",
+    "gamepad1",
+    "gamepad2",
+    "gamepad3",
+    "gamepad4",
+    "gamepad5",
+    "gamepad6",
+    "gamepad7",
+    "gamepad8",
+    "gamepad9",
+    "gamepad10",
+    "gamepad11",
+    "gamepad12",
+    "gamepad13",
+    "gamepad14",
+    "gamepad15"
+};
 
 //-- constants -----
 const int k_default_position_filter_index = 3; // LowPassExponential
@@ -63,6 +83,7 @@ AppStage_ControllerSettings::AppStage_ControllerSettings(App *app)
     : AppStage(app)
     , m_menuState(AppStage_ControllerSettings::inactive)
     , m_selectedControllerIndex(-1)
+    , m_gamepadCount(0)
 { }
 
 void AppStage_ControllerSettings::enter()
@@ -260,6 +281,24 @@ void AppStage_ControllerSettings::renderUI()
                 ImGui::BulletText("Device Serial: %s", controllerInfo.DeviceSerial.c_str());
                 ImGui::BulletText("Assigned Host Serial: %s", controllerInfo.AssignedHostSerial.c_str());
 
+                if (controllerInfo.ControllerType == PSMController_Virtual)
+                {
+                    int comboIndex= (controllerInfo.GamepadIndex < m_gamepadCount) ? controllerInfo.GamepadIndex + 1 : 0;
+
+                    ImGui::PushItemWidth(195);
+                    if (ImGui::Combo(
+                            "Assigned Gamepad", 
+                            &comboIndex, 
+                            ControllerInfo::GamepadIndexComboItemGetter, 
+                            this, 
+                            m_gamepadCount+1))
+                    {
+                        controllerInfo.GamepadIndex= comboIndex - 1;
+                        request_set_controller_gamepad_index(controllerInfo.ControllerID, controllerInfo.GamepadIndex);
+                    }
+                    ImGui::PopItemWidth();
+                }
+
                 if (controllerInfo.ControllerType == PSMController_Move)
                 {
                     if (controllerInfo.HasMagnetometer)
@@ -326,6 +365,11 @@ void AppStage_ControllerSettings::renderUI()
                     {
                         m_app->setAppStage(AppStage_TestRumble::APP_STAGE_NAME);
                     }
+                }
+
+                if (ImGui::Button("Test Buttons"))
+                {
+                    m_app->setAppStage(AppStage_TestButtons::APP_STAGE_NAME);
                 }
 
                 if (controllerInfo.ControllerType == PSMController_Move || 
@@ -600,6 +644,22 @@ void AppStage_ControllerSettings::request_set_controller_prediction(
     PSM_SendOpaqueRequest(&request, nullptr);
 }
 
+void AppStage_ControllerSettings::request_set_controller_gamepad_index(
+    const int controller_id, 
+    const int gamepad_index)
+{
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_GAMEPAD_INDEX);
+
+    PSMoveProtocol::Request_RequestSetGamepadIndex *gamepad_request =
+        request->mutable_request_set_gamepad_index();
+
+    gamepad_request->set_controller_id(controller_id);
+    gamepad_request->set_gamepad_index(gamepad_index);
+
+    PSM_SendOpaqueRequest(&request, nullptr);
+}
+
 void AppStage_ControllerSettings::handle_controller_list_response(
     const PSMResponseMessage *response_message,
     void *userdata)
@@ -620,6 +680,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
             thisPtr->m_selectedControllerIndex= -1;
             thisPtr->m_usableControllerInfos.clear();
             thisPtr->m_awaitingPairingControllerInfos.clear();
+            thisPtr->m_gamepadCount= response->result_controller_list().gamepad_count();
 
             for (int controller_index= 0; controller_index < response->result_controller_list().controllers_size(); ++controller_index)
             {
@@ -665,6 +726,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 ControllerInfo.PositionFilterName = ControllerResponse.position_filter();
                 ControllerInfo.GyroGainSetting = ControllerResponse.gyro_gain_setting();
                 ControllerInfo.PredictionTime = ControllerResponse.prediction_time();
+                ControllerInfo.GamepadIndex = ControllerResponse.gamepad_index();
 
                 if (ControllerInfo.ControllerType == PSMController_Move)
                 {
@@ -761,8 +823,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 
                 for (ControllerInfo &psmove_info : thisPtr->m_usableControllerInfos)
                 {
-                    if (psmove_info.ControllerType != PSMController_Move ||
-                        psmove_info.ControllerType != PSMController_Virtual)
+                    if (psmove_info.ControllerType != PSMController_Move)
                         continue;
 
                     if (navi_info.AssignedParentControllerSerial.length() > 0 &&

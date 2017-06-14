@@ -5,6 +5,8 @@
 #include "ServerUtility.h"
 #include <vector>
 
+#include "gamepad/Gamepad.h"
+
 //-- constants -----
 #define VIRTUAL_CONTROLLER_STATE_BUFFER_MAX 16
 
@@ -22,6 +24,8 @@ VirtualControllerConfig::config2ptree()
 
     pt.put("is_valid", is_valid);
     pt.put("version", VirtualControllerConfig::CONFIG_VERSION);
+
+    pt.put("gamepad_index", gamepad_index);
 
     pt.put("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
     pt.put("Calibration.Position.VarianceExpFitB", position_variance_exp_fit_b);
@@ -48,6 +52,8 @@ VirtualControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
     {
         is_valid = pt.get<bool>("is_valid", false);
 
+        gamepad_index = pt.get<int>("gamepad_index", -1);
+
         prediction_time = pt.get<float>("prediction_time", 0.f);
 
         position_variance_exp_fit_a = pt.get<float>("Calibration.Position.VarianceExpFitA", position_variance_exp_fit_a);
@@ -68,6 +74,26 @@ VirtualControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
             "Config version " << version << " does not match expected version " << 
             VirtualControllerConfig::CONFIG_VERSION << ", Using defaults.";
     }
+}
+
+// -- button helper methods -----
+inline void 
+setButtonBit(unsigned int &buttons, unsigned int button_mask, bool is_pressed)
+{
+	if (is_pressed)
+	{
+		buttons|= button_mask;
+	}
+	else
+	{
+		buttons&= ~button_mask;
+	}
+}
+
+inline enum CommonControllerState::ButtonState
+getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask)
+{
+    return (enum CommonControllerState::ButtonState)((((lastButtons & buttonMask) > 0) << 1) + ((buttons & buttonMask)>0));
 }
 
 // -- PSMove Controller -----
@@ -263,7 +289,13 @@ VirtualController::poll()
 
         // Device still in valid state
         result= IControllerInterface::_PollResultSuccessNewData;
+
+        // Get the latest button data from the bound gamepad
+        pollGamepad(newState);
                 
+		// Can't report the true battery state
+		newState.Battery = CommonControllerState::Batt_MAX;
+
         // Increment the sequence for every new polling packet
         newState.PollSequenceNumber= NextPollSequenceNumber;
         ++NextPollSequenceNumber;
@@ -279,6 +311,49 @@ VirtualController::poll()
     }
 
     return result;
+}
+
+void
+VirtualController::pollGamepad(VirtualControllerState &newState)
+{
+	assert(getIsOpen());
+    bool bValidGamepad= false;
+
+    newState.clear_gamepad_data();
+
+    if (cfg.gamepad_index >= 0)
+    {
+	    const Gamepad_device * gamepad = Gamepad_deviceAtIndex(static_cast<unsigned int>(cfg.gamepad_index));
+
+	    if (gamepad != nullptr)
+	    {
+		    unsigned int lastButtons = ControllerStates.empty() ? 0 : ControllerStates.back().AllButtons;
+
+            newState.vendorID= gamepad->vendorID;
+            newState.productID= gamepad->productID;
+
+            // Button states
+            newState.numButtons= std::min(gamepad->numButtons, (unsigned int)MAX_VIRTUAL_CONTROLLER_BUTTONS);
+            for (int buttonIndex = 0; buttonIndex < newState.numButtons; ++buttonIndex)
+            {
+                unsigned int button_mask= 1 << buttonIndex;
+
+                // Set button bit
+                setButtonBit(newState.AllButtons, button_mask, gamepad->buttonStates[buttonIndex]);
+
+                // Button de-bounce
+                newState.buttonStates[buttonIndex]= getButtonState(newState.AllButtons, lastButtons, button_mask);
+            }
+		    
+
+		    // Analog axis states
+            newState.numAxes= std::min(gamepad->numAxes, (unsigned int)MAX_VIRTUAL_CONTROLLER_AXES);
+            for (int axisIndex = 0; axisIndex < newState.numAxes; ++axisIndex)
+            {
+                newState.axisStates[axisIndex] = static_cast<unsigned char>((gamepad->axisStates[axisIndex] + 1.f) * 127.f);
+            }
+	    }
+    }
 }
 
 const CommonDeviceState * 

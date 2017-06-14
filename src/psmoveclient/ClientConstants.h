@@ -26,6 +26,12 @@
 // The max length of the service version string
 #define PSMOVESERVICE_MAX_VERSION_STRING_LEN 32
 
+// The max number of axes allowed on a virtual controller
+#define PSM_MAX_VIRTUAL_CONTROLLER_AXES  32
+
+// The max number of buttons allowed on a virtual controller
+#define PSM_MAX_VIRTUAL_CONTROLLER_BUTTONS  32
+
 // Defines a standard _PAUSE function
 #if __cplusplus >= 199711L  // if C++11
     #include <thread>
