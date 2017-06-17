@@ -63,12 +63,22 @@ AppStage_ComputeTrackerPoses::~AppStage_ComputeTrackerPoses()
     delete m_pCalibrateWithMat;
 }
 
-void AppStage_ComputeTrackerPoses::enterStageAndCalibrateTrackers(App *app, PSMControllerID reqeusted_controller_id)
+void AppStage_ComputeTrackerPoses::enterStageAndCalibrateTrackersWithController(App *app, PSMControllerID reqeusted_controller_id)
 {
     AppStage_ComputeTrackerPoses *appStage= app->getAppStage<AppStage_ComputeTrackerPoses>();
     appStage->m_bSkipCalibration = false;
     appStage->m_overrideControllerId = reqeusted_controller_id;
     appStage->m_overrideHmdId = -1;
+
+    app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
+}
+
+void AppStage_ComputeTrackerPoses::enterStageAndCalibrateTrackersWithHMD(class App *app, PSMHmdID reqeusted_hmd_id)
+{
+    AppStage_ComputeTrackerPoses *appStage = app->getAppStage<AppStage_ComputeTrackerPoses>();
+    appStage->m_bSkipCalibration = false;
+    appStage->m_overrideControllerId = -1;
+    appStage->m_overrideHmdId = reqeusted_hmd_id;
 
     app->setAppStage(AppStage_ComputeTrackerPoses::APP_STAGE_NAME);
 }
@@ -904,6 +914,11 @@ PSMTracker *AppStage_ComputeTrackerPoses::get_render_tracker_view() const
 PSMController *AppStage_ComputeTrackerPoses::get_calibration_controller_view() const
 {
     return (m_controllerViews.size() > 0) ? m_controllerViews.begin()->second.controllerView : nullptr;
+}
+
+PSMHeadMountedDisplay *AppStage_ComputeTrackerPoses::get_calibration_hmd_view() const
+{
+    return (m_hmdViews.size() > 0) ? m_hmdViews.begin()->second.hmdView : nullptr;
 }
 
 void AppStage_ComputeTrackerPoses::release_devices()

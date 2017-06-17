@@ -168,7 +168,7 @@ void AppStage_TrackerSettings::renderUI()
     const char *k_window_title = "Tracker Settings";
     const ImGuiWindowFlags window_flags =
         ImGuiWindowFlags_ShowBorders |
-        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_AlwaysAutoResize |
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |
         ImGuiWindowFlags_NoCollapse;
@@ -178,7 +178,7 @@ void AppStage_TrackerSettings::renderUI()
     case eTrackerMenuState::idle:
     {
         ImGui::SetNextWindowPosCenter();
-        ImGui::SetNextWindowSize(ImVec2(300, 400));
+        //ImGui::SetNextWindowSize(ImVec2(300, 400));
         ImGui::Begin(k_window_title, nullptr, window_flags);
 
         //###HipsterSloth $TODO The tracker restart currently takes longer than it does
@@ -361,16 +361,16 @@ void AppStage_TrackerSettings::renderUI()
                             m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
                         }
 
-                        if (ImGui::Button("Compute Tracker Poses"))
+                        if (ImGui::Button("Compute Tracker Poses Using Controller"))
                         {
-                            AppStage_ComputeTrackerPoses::enterStageAndCalibrateTrackers(m_app, controllerID);
+                            AppStage_ComputeTrackerPoses::enterStageAndCalibrateTrackersWithController(m_app, controllerID);
                         }
 
                     }
                     else
                     {
                         ImGui::TextDisabled("Calibrate Controller Tracking Colors");
-                        ImGui::TextDisabled("Compute Tracker Poses");
+                        ImGui::TextDisabled("Compute Tracker Poses Using Controller");
                     }
 
                     if (ImGui::Button("Test Tracking Pose##ControllerTrackingPose") || m_gotoTestControllerTracking)
@@ -465,10 +465,24 @@ void AppStage_TrackerSettings::renderUI()
 
                         m_app->setAppStage(AppStage_ColorCalibration::APP_STAGE_NAME);
                     }
+
+                    if (m_selectedHmdIndex != -1)
+                    {
+                        const AppStage_TrackerSettings::HMDInfo &hmdInfo = m_hmdInfos[m_selectedHmdIndex];
+
+                        if (hmdInfo.HmdType == PSMHmd_Virtual)
+                        {
+                            if (ImGui::Button("Compute Tracker Poses Using HMD"))
+                            {
+                                AppStage_ComputeTrackerPoses::enterStageAndCalibrateTrackersWithHMD(m_app, hmdID);
+                            }
+                        }
+                    }
                 }
                 else
                 {
                     ImGui::TextDisabled("Calibrate HMD Tracking Colors");
+                    ImGui::TextDisabled("Compute Tracker Poses");
                 }
 
                 if (ImGui::Button("Test Tracking Pose##HMDTrackingPose") || m_gotoTestHmdTracking)
