@@ -284,7 +284,7 @@ void AppStage_TrackerSettings::renderUI()
         }
         else
         {
-            ImGui::Text("No trackers controllers");
+            ImGui::Text("No trackers");
         }
 
         ImGui::Separator();

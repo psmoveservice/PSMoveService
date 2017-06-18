@@ -19,6 +19,9 @@ public:
 	int get_product_id() const override;
 	inline int get_contoller_index() const { return m_controllerIndex; }
 
+    // Assigned by the controller manager on startup
+    static int virtual_controller_count;
+
 private:
 	char m_currentUSBPath[256];
 	int m_controllerIndex;

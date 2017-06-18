@@ -78,9 +78,10 @@ ControllerManager::startup()
         // Save back out the config in case there were updated defaults
         cfg.save();
 
-        // Copy the virtual controller count into the Virtual controller enumerator static variable.
+        // Copy the virtual controller count into the Virtual and Gamepad controller enumerator's static variable.
         // This breaks the dependency between the Controller Manager and the enumerator.
         VirtualControllerEnumerator::virtual_controller_count= cfg.virtual_controller_count;
+        ControllerGamepadEnumerator::virtual_controller_count= cfg.virtual_controller_count;
 
         // Initialize HIDAPI
         if (hid_init() == -1)
