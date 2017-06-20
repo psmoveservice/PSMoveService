@@ -3,7 +3,7 @@
 
 //-- includes -----
 #include "AppStage.h"
-#include "ClientPSMoveAPI.h"
+#include "PSMoveClient_CAPI.h"
 
 #include <vector>
 
@@ -27,12 +27,12 @@ public:
 
 protected:
     static void handle_tracker_start_stream_response(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
     void open_shared_memory_stream();
 
     static void handle_tracker_stop_stream_response(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
     void close_shared_memory_stream();
     
@@ -51,7 +51,7 @@ private:
 
     eTrackerMenuState m_menuState;
     bool m_bStreamIsActive;
-    class ClientTrackerView *m_tracker_view;
+    PSMTracker *m_tracker_view;
     class TextureAsset *m_video_texture;
 };
 

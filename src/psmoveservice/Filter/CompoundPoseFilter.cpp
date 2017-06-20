@@ -132,23 +132,26 @@ void CompoundPoseFilter::allocate_filters(
 // -- IStateFilter --
 bool CompoundPoseFilter::getIsStateValid() const
 {
-	return 
-		m_orientation_filter != nullptr && m_orientation_filter->getIsStateValid() &&
-		m_position_filter != nullptr && m_position_filter->getIsStateValid();
+	return getIsOrientationStateValid() || getIsPositionStateValid();
 }
 
 void CompoundPoseFilter::update(
 	const float delta_time,
 	const PoseFilterPacket &orientation_filter_packet)
 {
+    Eigen::Quaternionf filtered_orientation= Eigen::Quaternionf::Identity();
 	if (m_orientation_filter != nullptr && m_position_filter != nullptr)
 	{
 		// Update the orientation filter first
 		m_orientation_filter->update(delta_time, orientation_filter_packet);
+        filtered_orientation= m_orientation_filter->getOrientation();
+    }
 
+    if (m_position_filter != nullptr)
+    {
 		// Update the position filter using the latest orientation
 		PoseFilterPacket position_filter_packet= orientation_filter_packet;
-		position_filter_packet.current_orientation= m_orientation_filter->getOrientation();
+		position_filter_packet.current_orientation= filtered_orientation;
 
 		m_position_filter->update(delta_time, position_filter_packet);
 	}
@@ -169,6 +172,16 @@ void CompoundPoseFilter::recenterOrientation(const Eigen::Quaternionf& q_pose)
 	{
 		m_orientation_filter->recenterOrientation(q_pose);
 	}
+}
+
+bool CompoundPoseFilter::getIsPositionStateValid() const
+{
+	return m_position_filter != nullptr && m_position_filter->getIsStateValid();
+}
+
+bool CompoundPoseFilter::getIsOrientationStateValid() const
+{
+	return m_orientation_filter != nullptr && m_orientation_filter->getIsStateValid();
 }
 
 Eigen::Quaternionf CompoundPoseFilter::getOrientation(float time) const

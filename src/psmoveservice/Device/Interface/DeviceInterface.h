@@ -200,13 +200,15 @@ struct CommonDeviceState
         PSMove = Controller + 0x00,
         PSNavi = Controller + 0x01,
         PSDualShock4 = Controller + 0x02,
-        SUPPORTED_CONTROLLER_TYPE_COUNT = Controller + 0x03,
+        VirtualController = Controller + 0x03,
+        SUPPORTED_CONTROLLER_TYPE_COUNT = Controller + 0x04,
         
         PS3EYE = TrackingCamera + 0x00,
         SUPPORTED_CAMERA_TYPE_COUNT = TrackingCamera + 0x01,
         
         Morpheus = HeadMountedDisplay + 0x00,
-        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x01,
+        VirtualHMD = HeadMountedDisplay + 0x01,
+        SUPPORTED_HMD_TYPE_COUNT = HeadMountedDisplay + 0x02,
 
 		INVALID_DEVICE_TYPE= 0xFF,
     };
@@ -245,7 +247,13 @@ struct CommonDeviceState
             break;
         case Morpheus:
             result = "Morpheus";
-            break;        
+            break;
+        case VirtualHMD:
+            result = "VirtualHMD";
+            break;
+        case VirtualController:
+            result = "VirtualController";
+            break;
         default:
             result = "UNKNOWN";
         }
@@ -489,6 +497,9 @@ public:
 
 	// Get the state prediction time specified in the controller config
 	virtual float getPredictionTime() const = 0;
+
+    // See if the system button was pressed this frame
+    virtual bool getWasSystemButtonPressed() const = 0;
 };
 
 /// Abstract class for Tracker interface. Implemented Tracker classes
@@ -546,8 +557,14 @@ public:
     virtual void loadSettings() = 0;
     virtual void saveSettings() = 0;
 
-	virtual void setFramerate(double value, bool bUpdateConfig) = 0;
-	virtual double getFramerate() const = 0;
+	virtual void setFrameWidth(double value, bool bUpdateConfig) = 0;
+	virtual double getFrameWidth() const = 0;
+
+	virtual void setFrameHeight(double value, bool bUpdateConfig) = 0;
+	virtual double getFrameHeight() const = 0;
+
+	virtual void setFrameRate(double value, bool bUpdateConfig) = 0;
+	virtual double getFrameRate() const = 0;
 
     virtual void setExposure(double value, bool bUpdateConfig) = 0;
     virtual double getExposure() const = 0;
@@ -591,6 +608,9 @@ public:
 
 	// Get the tracking shape use by the controller
 	virtual void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const = 0;
+
+	// Sets the tracking color enum of the controller
+	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) = 0;
 
 	// Get the tracking color enum of the controller
 	virtual bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const = 0;

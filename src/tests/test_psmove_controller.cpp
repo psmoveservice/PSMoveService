@@ -48,6 +48,35 @@ int main()
 			b = (b + 53) % 255;
 			psmove.setLED(r, g, b);
 
+			const char *battery_status= "";
+			switch (psmstate->BatteryValue)
+			{
+			case 0:
+				battery_status= "0%";
+				break;
+			case 1:
+				battery_status= "20%";
+				break;
+			case 2:
+				battery_status= "40%";
+				break;
+			case 3:
+				battery_status= "60%";
+				break;
+			case 4:
+				battery_status= "80%";
+				break;
+			case 5:
+				battery_status= "100%";
+				break;
+			case 0xEE:
+				battery_status= "Charging";
+				break;
+			case 0xEF:
+				battery_status= "Charged";
+				break;
+			}
+
 			int myw = 4;
 			std::cout << '\r' <<
 				"# " << std::setw(myw) << std::left << psmstate->RawSequence <<
@@ -71,6 +100,7 @@ int main()
                 std::setw(myw) << std::right << psmstate->RawMag[0] << "," <<
                 std::setw(myw) << std::right << psmstate->RawMag[1] << "," <<
                 std::setw(myw) << std::right << psmstate->RawMag[2] <<
+				"; Batt: " << battery_status <<
 				std::flush;
 
 #ifdef _WIN32

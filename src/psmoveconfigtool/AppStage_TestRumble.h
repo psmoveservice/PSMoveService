@@ -23,10 +23,10 @@ public:
 protected:
     void request_exit_to_app_stage(const char *app_stage_name);
     static void handle_acquire_controller(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
     static void handle_release_controller(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
     float get_left_trigger() const;
 	float get_right_trigger() const;
@@ -42,11 +42,14 @@ private:
         waitingForStreamStartResponse,
         failedStreamStart,
         idle,
+		stop,
     };
 
     eMenuState m_menuState;
 
-    ClientControllerView *m_controllerView;
+    PSMController *m_controllerView;
+
+	bool m_bExitMain;
 };
 
 #endif // APP_STAGE_TEST_RUMBLE_H

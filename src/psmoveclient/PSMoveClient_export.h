@@ -1,6 +1,30 @@
 #ifndef PSMOVECLIENT_EXPORT_H
 #define PSMOVECLIENT_EXPORT_H
 
+/** \def PSM_CALL
+ * \ingroup psm_client_misc
+ * PSMoveService's Windows calling convention.
+ *
+ * Under Windows, the selection of available compilers and configurations
+ * means that, unlike other platforms, there is not <em>one true calling
+ * convention</em> (calling convention: the manner in which parameters are
+ * passed to functions in the generated assembly code).
+ *
+ * Matching the Windows API itself, PSMoveService's client API uses the 
+ * __cdecl convention and guarantees that the library is compiled in this way. 
+ * The public header file also includes appropriate annotations so that 
+ * your own software will use the right convention, even if another convention 
+ * is being used by default within your codebase.
+ *
+ * The one consideration that you must apply in your software is to mark
+ * all functions which you use as PSMResponseCallbacks with this PSM_CALL
+ * annotation, so that they too get compiled for the correct calling
+ * convention.
+ *
+ * On non-Windows operating systems, this macro is defined as nothing. This
+ * means that you can apply it to your code without worrying about
+ * cross-platform compatibility.
+ */
 #ifndef PSM_CALL
     #if defined _WIN32 || defined __CYGWIN__
         #define PSM_CALL __cdecl

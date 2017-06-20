@@ -18,6 +18,8 @@ public:
 	void recenterOrientation(const Eigen::Quaternionf& q_pose) override;
 
 	// -- IPoseFilter ---
+    bool getIsPositionStateValid() const override;
+    bool getIsOrientationStateValid() const override;
 	Eigen::Quaternionf getOrientation(float time = 0.f) const override;
 	Eigen::Vector3f getAngularVelocityRadPerSec() const override;
 	Eigen::Vector3f getAngularAccelerationRadPerSecSqr() const override;

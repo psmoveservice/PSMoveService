@@ -3,6 +3,7 @@
 #include "DeviceInterface.h"
 #include "DeviceManager.h"
 #include "HMDDeviceEnumerator.h"
+#include "HidHMDDeviceEnumerator.h"
 #include "MathUtility.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
@@ -386,7 +387,7 @@ MorpheusHMD::~MorpheusHMD()
 
 bool MorpheusHMD::open()
 {
-    HMDDeviceEnumerator enumerator;
+    HMDDeviceEnumerator enumerator(HMDDeviceEnumerator::CommunicationType_HID);
     bool success = false;
 
     if (enumerator.is_valid())
@@ -417,7 +418,7 @@ bool MorpheusHMD::open(
 		USBContext->device_identifier = cur_dev_path;
 
 		// Open the sensor interface using HIDAPI
-		USBContext->sensor_device_path = pEnum->get_interface_path(MORPHEUS_SENSOR_INTERFACE);
+		USBContext->sensor_device_path = pEnum->get_hid_hmd_enumerator()->get_interface_path(MORPHEUS_SENSOR_INTERFACE);
 		USBContext->sensor_device_handle = hid_open_path(USBContext->sensor_device_path.c_str());
 		if (USBContext->sensor_device_handle != nullptr)
 		{
@@ -628,6 +629,12 @@ MorpheusHMD::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const
 }
 
 bool 
+MorpheusHMD::setTrackingColorID(const eCommonTrackingColorID tracking_color_id)
+{
+    return false;
+}
+
+bool 
 MorpheusHMD::getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const
 {
 	out_tracking_color_id = eCommonTrackingColorID::Blue;
@@ -805,7 +812,7 @@ static void morpheus_close_usb_device(
 static bool morpheus_enable_tracking(
 	MorpheusUSBContext *morpheus_context)
 {
-	MorpheusCommand command = { 0 };
+	MorpheusCommand command = { {0} };
 	command.header.request_id = Morpheus_Req_EnableTracking;
 	command.header.magic = MORPHEUS_COMMAND_MAGIC;
 	command.header.length = 8;
@@ -819,7 +826,7 @@ static bool morpheus_set_headset_power(
 	MorpheusUSBContext *morpheus_context,
 	bool bIsOn)
 {
-	MorpheusCommand command = { 0 };
+	MorpheusCommand command = { {0} };
 	command.header.request_id = Morpheus_Req_SetHeadsetPower;
 	command.header.magic = MORPHEUS_COMMAND_MAGIC;
 	command.header.length = 4;
@@ -833,7 +840,7 @@ static bool morpheus_set_led_brightness(
 	unsigned short led_bitmask,
 	unsigned char intensity)
 {
-	MorpheusCommand command = { 0 };
+	MorpheusCommand command = { {0} };
 	command.header.request_id = Morpheus_Req_SetLEDBrightness;
 	command.header.magic = MORPHEUS_COMMAND_MAGIC;
 	command.header.length = 16;
@@ -852,7 +859,7 @@ static bool morpheus_set_led_brightness(
 static bool morpheus_turn_off_processor_unit(
 	MorpheusUSBContext *morpheus_context)
 {
-	MorpheusCommand command = { 0 };
+	MorpheusCommand command = { {0} };
 	command.header.request_id = Morpheus_Req_TurnOffProcessorUnit;
 	command.header.magic = MORPHEUS_COMMAND_MAGIC;
 	command.header.length = 4;
@@ -865,7 +872,7 @@ static bool morpheus_set_vr_mode(
 	MorpheusUSBContext *morpheus_context,
 	bool bIsOn)
 {
-	MorpheusCommand command = { 0 };
+	MorpheusCommand command = { {0} };
 	command.header.request_id = Morpheus_Req_SetVRMode;
 	command.header.magic = MORPHEUS_COMMAND_MAGIC;
 	command.header.length = 4;
@@ -882,7 +889,7 @@ static bool morpheus_set_cinematic_configuration(
 	unsigned char MicVolume, 
 	bool UnknownVRSetting)
 {
-	MorpheusCommand command = { 0 };
+	MorpheusCommand command = { {0} };
 	command.header.request_id = Morpheus_Req_SetCinematicConfiguration;
 	command.header.magic = MORPHEUS_COMMAND_MAGIC;
 	command.header.length = 16;

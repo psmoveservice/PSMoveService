@@ -3,8 +3,8 @@
 
 //-- includes -----
 #include "AppStage.h"
-#include "ClientGeometry.h"
-#include "ClientPSMoveAPI.h"
+#include "ClientGeometry_CAPI.h"
+#include "PSMoveClient_CAPI.h"
 
 #include <deque>
 #include <chrono>
@@ -32,11 +32,11 @@ public:
 
 protected:
     void request_set_gyroscope_calibration(
-		const PSMoveFloatVector3 &raw_bias,
+		const PSMVector3f &raw_bias,
 		const float raw_drift, 
 		const float raw_variance);
     static void handle_acquire_hmd(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
     void request_exit_to_app_stage(const char *app_stage_name);
 
@@ -55,16 +55,16 @@ private:
     eCalibrationMenuState m_menuState;
     bool m_bBypassCalibration;
 
-    class ClientHMDView *m_hmdView;
+    PSMHeadMountedDisplay *m_hmdView;
     bool m_isHMDStreamActive;
     int m_lastHMDSeqNum;
 
     std::chrono::time_point<std::chrono::high_resolution_clock> m_lastSampleTime;
     bool m_bLastSampleTimeValid;
 
-    PSMoveIntVector3 m_lastRawGyroscope;
-    PSMoveFloatVector3 m_lastCalibratedGyroscope;
-    PSMoveFloatVector3 m_lastCalibratedAccelerometer;
+    PSMVector3i m_lastRawGyroscope;
+    PSMVector3f m_lastCalibratedGyroscope;
+    PSMVector3f m_lastCalibratedAccelerometer;
 
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;

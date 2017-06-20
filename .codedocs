@@ -1,0 +1,84 @@
+#---------------------------------------------------------------------------
+# CodeDocs Configuration
+#---------------------------------------------------------------------------
+
+# Include the Doxygen configuration from another file.
+# The file must be a relative path with respect to the root of the repository.
+
+DOXYFILE =
+
+# Specify external repository to link documentation with.
+# This is similar to Doxygen's TAGFILES option, but will automatically link to
+# tags of other repositories already using CodeDocs. List each repository to
+# link with by giving its location in the form of owner/repository.
+# For example:
+#   TAGLINKS = doxygen/doxygen CodeDocs/osg
+# Note: these repositories must already be built on CodeDocs.
+
+TAGLINKS =
+
+#---------------------------------------------------------------------------
+# Doxygen Configuration
+#---------------------------------------------------------------------------
+
+# Doxygen configuration may also be placed in this file.
+# Currently, the following Doxygen configuration options are available. Refer
+# to http://doxygen.org/manual/config.html for detailed explanation of the
+# options. To request support for more options, contact support@codedocs.xyz.
+#
+# ABBREVIATE_BRIEF =
+ALIASES                = "func{1}=<b>\1</b>" \
+                         "fparam{1}=<em>\1</em>" \
+                         "file{1}=<tt>\1</tt>" \
+                         "comment{1}=/* \1 */" \
+                         "co{1}=/* \1 */" \
+                         "undoc=\xrefitem undoc \"Undocumented\" \"Undocumented\""
+ALPHABETICAL_INDEX = YES
+ALWAYS_DETAILED_SEC = NO
+CASE_SENSE_NAMES = NO
+CLASS_DIAGRAMS = YES
+DISABLE_INDEX = NO
+DISTRIBUTE_GROUP_DOC = NO
+# EXAMPLE_PATH =
+EXCLUDE                = src/tests \
+                         src/psmoveconfigtool \
+                         src/psmovemath \
+                         src/psmoveprotocol \
+                         src/psmoveservice
+# EXCLUDE_PATTERNS =
+# EXCLUDE_SYMBOLS =
+# EXTENSION_MAPPING =
+EXTRACT_LOCAL_CLASSES = YES
+FILE_PATTERNS          = *.cpp \
+                         *.h
+# GENERATE_TAGFILE =
+GENERATE_TREEVIEW = NO
+HIDE_COMPOUND_REFERENCE = NO
+HIDE_SCOPE_NAMES = NO
+# EXPAND_AS_DEFINED = 
+# PREDEFINED = Build64
+ENABLE_PREPROCESSING = YES
+HIDE_UNDOC_CLASSES =  NO
+HIDE_UNDOC_MEMBERS = NO
+HTML_TIMESTAMP = YES
+# RECURSIVE = 
+INPUT = src/
+INLINE_GROUPED_CLASSES = NO
+INPUT_ENCODING = UTF-8
+INTERNAL_DOCS = NO
+OPTIMIZE_OUTPUT_FOR_C = NO
+PROJECT_BRIEF = A background service that communicates with the psmove and stores pose and button data.
+PROJECT_NAME = PSMoveService
+# PROJECT_NUMBER =
+SHORT_NAMES = NO
+SHOW_FILES = YES
+SHOW_INCLUDE_FILES = YES
+SHOW_NAMESPACES = YES
+SORT_BRIEF_DOCS = NO
+SORT_BY_SCOPE_NAME = NO
+SORT_MEMBER_DOCS = YES
+STRICT_PROTO_MATCHING = NO
+TYPEDEF_HIDES_STRUCT = NO
+# USE_MDFILE_AS_MAINPAGE =
+VERBATIM_HEADERS = YES
+#

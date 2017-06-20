@@ -372,13 +372,13 @@ PSMoveControllerConfig::getMegnetometerEllipsoid(struct EigenFitEllipsoid *out_e
 
 // -- PSMove Controller -----
 PSMoveController::PSMoveController()
-    : LedR(0)
+    : SupportsMagnetometer(false)
+    , LedR(0)
     , LedG(0)
     , LedB(0)
     , Rumble(0)
     , bWriteStateDirty(false)
     , NextPollSequenceNumber(0)
-	, SupportsMagnetometer(false)
 {
 	HIDDetails.vendor_id = -1;
 	HIDDetails.product_id = -1;
@@ -1099,6 +1099,7 @@ PSMoveController::poll()
             newState.Move = getButtonState(newState.AllButtons, lastButtons, Btn_MOVE);
             newState.Trigger = getButtonState(newState.AllButtons, lastButtons, Btn_T);
             newState.TriggerValue = (InData->trigger + InData->trigger2) / 2; // TODO: store each frame separately
+            newState.BatteryValue = (InData->battery);
 
             // Update raw and calibrated accelerometer and gyroscope state
             {
@@ -1263,6 +1264,19 @@ float PSMoveController::getIdentityForwardDegrees() const
 float PSMoveController::getPredictionTime() const
 {
 	return getConfig()->prediction_time;
+}
+
+bool PSMoveController::getWasSystemButtonPressed() const
+{
+    const PSMoveControllerState *psmove_state= static_cast<const PSMoveControllerState *>(getState());
+    bool bWasPressed= false;
+
+    if (psmove_state != nullptr)
+    {
+        bWasPressed= psmove_state->PS == CommonControllerState::Button_PRESSED;
+    }
+
+    return bWasPressed;
 }
 
 float

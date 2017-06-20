@@ -27,16 +27,16 @@ public:
 		, disable_command_interface(true)
 		, position_filter_type("LowPassOptical")
 		, orientation_filter_type("MadgwickARG")
-		, max_velocity(1.f)
 		, raw_accelerometer_variance(0.f)
+        , max_velocity(1.f)
 		, raw_gyro_variance(0.f)
 		, raw_gyro_drift(0.f)
-		, max_poll_failure_count(100)
-		, prediction_time(0.f)
 		, mean_update_time_delta(0.008333f)
 		, position_variance_exp_fit_a(0.0994158462f)
 		, position_variance_exp_fit_b(-0.000567041978f)
 		, orientation_variance(0.005f)
+        , max_poll_failure_count(100)
+        , prediction_time(0.f)
 		, tracking_color_id(eCommonTrackingColorID::Blue)
     {
 		// The Morpheus uses the BMI055 IMU Chip: 
@@ -235,6 +235,7 @@ public:
     // -- IHMDInterface
     std::string getUSBDevicePath() const override;
 	void getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) const override;
+	bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) override;
 	bool getTrackingColorID(eCommonTrackingColorID &out_tracking_color_id) const override;
 	float getPredictionTime() const override;
 

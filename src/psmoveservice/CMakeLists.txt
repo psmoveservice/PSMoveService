@@ -53,6 +53,8 @@ file(GLOB PSMOVESERVICE_CONTROLLER_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveController/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.h"
+    "${CMAKE_CURRENT_LIST_DIR}/VirtualController/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/VirtualController/*.h"    
 )
 source_group("Controller" FILES ${PSMOVESERVICE_CONTROLLER_SRC})
 
@@ -89,6 +91,8 @@ source_group("Device\\View" FILES ${PSMOVESERVICE_DEVICE_VIEW_SRC})
 file(GLOB PSMOVESERVICE_HMD_SRC
     "${CMAKE_CURRENT_LIST_DIR}/MorpheusHMD/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/MorpheusHMD/*.h"
+    "${CMAKE_CURRENT_LIST_DIR}/VirtualHMD/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/VirtualHMD/*.h"    
 )
 source_group("HMD" FILES ${PSMOVESERVICE_HMD_SRC})
 
@@ -134,6 +138,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${CMAKE_CURRENT_LIST_DIR}/Device/View
     ${CMAKE_CURRENT_LIST_DIR}/Filter
     ${CMAKE_CURRENT_LIST_DIR}/MorpheusHMD
+    ${CMAKE_CURRENT_LIST_DIR}/VirtualHMD
     ${CMAKE_CURRENT_LIST_DIR}/Platform
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig
     ${CMAKE_CURRENT_LIST_DIR}/PSDualShock4
@@ -142,6 +147,7 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/PSEye
     ${CMAKE_CURRENT_LIST_DIR}/Server
+    ${CMAKE_CURRENT_LIST_DIR}/VirtualController    
 )
 
 # Eigen math library
@@ -288,12 +294,12 @@ ENDIF()
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     install(TARGETS PSMoveService
-        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
-        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
-        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+        RUNTIME DESTINATION ${ROOT_DIR}/${PSM_PROJECT_NAME}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${PSM_PROJECT_NAME}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${PSM_PROJECT_NAME}/${ARCH_LABEL}/lib)
     IF(${ISWIN32})
         install(DIRECTORY "${ROOT_DIR}/thirdparty/CLEYE/x86/bin/"
-            DESTINATION ${ROOT_DIR}/Win32/bin
+            DESTINATION ${ROOT_DIR}/${PSM_PROJECT_NAME}//Win32/bin
             FILES_MATCHING PATTERN "*.dll")    
     ENDIF()#ISWIN32
 ELSE() #Linux/Darwin

@@ -23,7 +23,7 @@ public:
     virtual void shutdown();
 
     void poll();
-    void publish();
+    virtual void publish();
 
     virtual int getMaxDevices() const = 0;
 

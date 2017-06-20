@@ -2,6 +2,15 @@ set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(PSMOVECONFIGTOOL_INCL_DIRS)
 set(PSMOVECONFIGTOOL_REQ_LIBS)
 
+# Boost
+find_package(Boost 1.61.0 REQUIRED QUIET COMPONENTS date_time)
+list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${Boost_INCLUDE_DIRS})
+list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${Boost_LIBRARIES})
+IF(MSVC) # Disable asio auto linking in date-time and regex
+add_definitions(-DBOOST_DATE_TIME_NO_LIB)
+add_definitions(-DBOOST_REGEX_NO_LIB)
+ENDIF()
+
 # platform independent include paths
 list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
     ${ROOT_DIR}/thirdparty/eigen/
@@ -16,15 +25,10 @@ list(APPEND PSMOVECONFIGTOOL_INCL_DIRS
 
 # platform independent libraries
 list(APPEND PSMOVECONFIGTOOL_REQ_LIBS 
-    PSMoveClient
+    PSMoveClient_CAPI
     PSMoveMath
     PSMoveProtocol
     ${PROTOBUF_LIBRARIES})
-
-IF(MSVC) # Disable asio auto linking in date-time and regex
-add_definitions(-DBOOST_DATE_TIME_NO_LIB)
-add_definitions(-DBOOST_REGEX_NO_LIB)
-ENDIF()
     
 # platform specific libraries/include paths (OpenGL/SDL)    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -44,11 +48,6 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         imm32.lib
         version.lib)
 ENDIF()
-
-#OpenVR
-FIND_PACKAGE(OpenVR REQUIRED)
-list(APPEND PSMOVECONFIGTOOL_INCL_DIRS ${OPENVR_INCLUDE_DIR})
-list(APPEND PSMOVECONFIGTOOL_REQ_LIBS ${OPENVR_LIBRARIES})
 
 # OpenCV
 set(OpenCV_STATIC ON)
@@ -71,13 +70,12 @@ target_include_directories(PSMoveConfigTool PUBLIC ${PSMOVECONFIGTOOL_INCL_DIRS}
 target_link_libraries(PSMoveConfigTool ${PSMOVECONFIGTOOL_REQ_LIBS})
 
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    add_dependencies(PSMoveService opencv)
+add_dependencies(PSMoveService opencv)
 ENDIF()
 
 # Allow access to the protocol buffers (extracting response parameters)
 target_compile_definitions(PSMoveConfigTool
-    PRIVATE HAS_PROTOCOL_ACCESS
-    PRIVATE PSMOVECLIENT_CPP_API)
+    PRIVATE HAS_PROTOCOL_ACCESS)
 
 #MacOS OpenCV must be self-built, this links against older std, which is hidden
 #Therefore the PSMoveConfigTool must be hidden
@@ -90,23 +88,19 @@ ENDIF()
 add_custom_command(TARGET PSMoveConfigTool POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_LIST_DIR}/assets"
-        $<TARGET_FILE_DIR:PSMoveConfigTool>/assets)
-add_custom_command(TARGET PSMoveConfigTool POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${OPENVR_BINARIES_DIR}"
-        $<TARGET_FILE_DIR:PSMoveConfigTool>)        
+        $<TARGET_FILE_DIR:PSMoveConfigTool>/assets)        
 
 # Install    
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")   
     install(TARGETS PSMoveConfigTool
-        RUNTIME DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
-        LIBRARY DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib
-        ARCHIVE DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/lib)
+        RUNTIME DESTINATION ${ROOT_DIR}/${PSM_PROJECT_NAME}/${ARCH_LABEL}/bin
+        LIBRARY DESTINATION ${ROOT_DIR}/${PSM_PROJECT_NAME}/${ARCH_LABEL}/lib
+        ARCHIVE DESTINATION ${ROOT_DIR}/${PSM_PROJECT_NAME}/${ARCH_LABEL}/lib)
     install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/assets/ 
-            DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin/assets
+            DESTINATION ${ROOT_DIR}/${PSM_PROJECT_NAME}/${ARCH_LABEL}/bin/assets
             FILES_MATCHING PATTERN "*.ttf"  PATTERN "*.jpg")
     install(DIRECTORY ${OPENVR_BINARIES_DIR}/ 
-            DESTINATION ${ROOT_DIR}/${ARCH_LABEL}/bin
+            DESTINATION ${ROOT_DIR}/${PSM_PROJECT_NAME}/${ARCH_LABEL}/bin
             FILES_MATCHING PATTERN "*.dll" PATTERN "*.pdb")        
 ELSE() #Linux/Darwin
 ENDIF()

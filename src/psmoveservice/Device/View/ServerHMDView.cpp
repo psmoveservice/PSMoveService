@@ -3,6 +3,7 @@
 #include "ServerHMDView.h"
 #include "MathAlignment.h"
 #include "MorpheusHMD.h"
+#include "VirtualHMD.h"
 #include "CompoundPoseFilter.h"
 #include "PoseFilterInterface.h"
 #include "PSMoveProtocol.pb.h"
@@ -18,6 +19,8 @@ static const float k_max_time_delta_seconds = 1 / 30.f;
 //-- private methods -----
 static void init_filters_for_morpheus_hmd(
 	const MorpheusHMD *morpheusHMD, PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter);
+static void init_filters_for_virtual_hmd(
+	const VirtualHMD *virtualHMD, PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter);
 static IPoseFilter *pose_filter_factory(
 	const CommonDeviceState::eDeviceType deviceType,
 	const std::string &position_filter_type, const std::string &orientation_filter_type,
@@ -26,7 +29,14 @@ static void update_filters_for_morpheus_hmd(
 	const MorpheusHMD *morpheusHMD, const MorpheusHMDState *morpheusHMDState,
 	const float delta_time,
 	const HMDOpticalPoseEstimation *poseEstimation, const PoseFilterSpace *poseFilterSpace, IPoseFilter *poseFilter);
+static void update_filters_for_virtual_hmd(
+	const VirtualHMD *virtualHMD, const VirtualHMDState *virtualHMDState,
+	const float delta_time,
+	const HMDOpticalPoseEstimation *poseEstimation, const PoseFilterSpace *poseFilterSpace, IPoseFilter *poseFilter);
 static void generate_morpheus_hmd_data_frame_for_stream(
+    const ServerHMDView *hmd_view, const HMDStreamInfo *stream_info,
+    DeviceOutputDataFramePtr &data_frame);
+static void generate_virtual_hmd_data_frame_for_stream(
     const ServerHMDView *hmd_view, const HMDStreamInfo *stream_info,
     DeviceOutputDataFramePtr &data_frame);
 
@@ -37,6 +47,31 @@ static Eigen::Quaternionf CommonDeviceQuaternion_to_EigenQuaternionf(const Commo
 static CommonDevicePosition EigenVector3f_to_CommonDevicePosition(const Eigen::Vector3f &p);
 static CommonDeviceQuaternion EigenQuaternionf_to_CommonDeviceQuaternion(const Eigen::Quaternionf &q);
 
+static void computeSpherePoseForHmdFromSingleTracker(
+    const ServerHMDView *hmdView,
+    const ServerTrackerViewPtr tracker,
+    HMDOpticalPoseEstimation *tracker_pose_estimation,
+    HMDOpticalPoseEstimation *multicam_pose_estimation);
+static void computePointCloudPoseForHmdFromSingleTracker(
+    const ServerHMDView *hmdView,
+    const ServerTrackerViewPtr tracker,
+    HMDOpticalPoseEstimation *tracker_pose_estimation,
+    HMDOpticalPoseEstimation *multicam_pose_estimation);
+static void computeSpherePoseForHmdFromMultipleTrackers(
+    const ServerHMDView *controllerView,
+    const TrackerManager* tracker_manager,
+    const int *valid_projection_tracker_ids,
+    const int projections_found,
+    HMDOpticalPoseEstimation *tracker_pose_estimations,
+    HMDOpticalPoseEstimation *multicam_pose_estimation);
+static void computePointCloudPoseForHmdFromMultipleTrackers(
+    const ServerHMDView *controllerView,
+    const TrackerManager* tracker_manager,
+    const int *valid_projection_tracker_ids,
+    const int projections_found,
+    HMDOpticalPoseEstimation *tracker_pose_estimations,
+    HMDOpticalPoseEstimation *multicam_pose_estimation);
+
 //-- public implementation -----
 ServerHMDView::ServerHMDView(const int device_id)
 	: ServerDeviceView(device_id)
@@ -44,7 +79,7 @@ ServerHMDView::ServerHMDView(const int device_id)
 	, m_tracking_enabled(false)
 	, m_roi_disable_count(0)
 	, m_device(nullptr)
-	, m_tracker_pose_estimation(nullptr)
+	, m_tracker_pose_estimations(nullptr)
 	, m_multicam_pose_estimation(nullptr)
 	, m_pose_filter(nullptr)
 	, m_pose_filter_space(nullptr)
@@ -67,10 +102,24 @@ bool ServerHMDView::allocate_device_interface(const class DeviceEnumerator *enum
             m_device = new MorpheusHMD();
 			m_pose_filter = nullptr; // no pose filter until the device is opened
 
-			m_tracker_pose_estimation = new HMDOpticalPoseEstimation[TrackerManager::k_max_devices];
+			m_tracker_pose_estimations = new HMDOpticalPoseEstimation[TrackerManager::k_max_devices];
 			for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
 			{
-				m_tracker_pose_estimation[tracker_index].clear();
+				m_tracker_pose_estimations[tracker_index].clear();
+			}
+
+			m_multicam_pose_estimation = new HMDOpticalPoseEstimation();
+			m_multicam_pose_estimation->clear();
+        } break;
+    case CommonDeviceState::VirtualHMD:
+        {
+            m_device = new VirtualHMD();
+			m_pose_filter = nullptr; // no pose filter until the device is opened
+
+			m_tracker_pose_estimations = new HMDOpticalPoseEstimation[TrackerManager::k_max_devices];
+			for (int tracker_index = 0; tracker_index < TrackerManager::k_max_devices; ++tracker_index)
+			{
+				m_tracker_pose_estimations[tracker_index].clear();
 			}
 
 			m_multicam_pose_estimation = new HMDOpticalPoseEstimation();
@@ -91,10 +140,10 @@ void ServerHMDView::free_device_interface()
 		m_multicam_pose_estimation = nullptr;
 	}
 
-	if (m_tracker_pose_estimation != nullptr)
+	if (m_tracker_pose_estimations != nullptr)
 	{
-		delete[] m_tracker_pose_estimation;
-		m_tracker_pose_estimation = nullptr;
+		delete[] m_tracker_pose_estimations;
+		m_tracker_pose_estimations = nullptr;
 	}
 
 	if (m_pose_filter_space != nullptr)
@@ -125,24 +174,69 @@ bool ServerHMDView::open(const class DeviceEnumerator *enumerator)
     if (bSuccess)
     {
         IDeviceInterface *device = getDevice();
+        bool bAllocateTrackingColor = false;
 
 		switch (device->getDeviceType())
 		{
 		case CommonDeviceState::Morpheus:
+        case CommonDeviceState::VirtualHMD:
 			{
 				// Create a pose filter based on the HMD type
 				resetPoseFilter();
 				m_multicam_pose_estimation->clear();
+                bAllocateTrackingColor= true;
 			} break;
 		default:
 			break;
 		}
+
+        // If needed for this kind of HMD, assign a tracking color id
+        if (bAllocateTrackingColor)
+        {
+            eCommonTrackingColorID tracking_color_id;
+            assert(m_device != nullptr);
+
+            // If this device already has a valid tracked color assigned, 
+            // claim it from the pool (or another controller/hmd that had it previously)
+            if (m_device->getTrackingColorID(tracking_color_id) && tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
+            {
+                DeviceManager::getInstance()->m_tracker_manager->claimTrackingColorID(this, tracking_color_id);
+            }
+            else
+            {
+                // Allocate a color from the list of remaining available color ids
+                eCommonTrackingColorID allocatedColorID= DeviceManager::getInstance()->m_tracker_manager->allocateTrackingColorID();
+
+                // Attempt to assign the tracking color id to the controller
+                if (!m_device->setTrackingColorID(allocatedColorID))
+                {
+                    // If the device can't be assigned a tracking color, release the color back to the pool
+                    DeviceManager::getInstance()->m_tracker_manager->freeTrackingColorID(allocatedColorID);
+                }
+            }
+        }
 
         // Reset the poll sequence number high water mark
         m_lastPollSeqNumProcessed = -1;
     }
 
     return bSuccess;
+}
+
+void ServerHMDView::close()
+{
+    set_tracking_enabled_internal(false);
+
+    eCommonTrackingColorID tracking_color_id= eCommonTrackingColorID::INVALID_COLOR;
+    if (m_device != nullptr && m_device->getTrackingColorID(tracking_color_id))
+    {
+        if (tracking_color_id != eCommonTrackingColorID::INVALID_COLOR)
+        {
+            DeviceManager::getInstance()->m_tracker_manager->freeTrackingColorID(tracking_color_id);
+        }
+    }
+
+    ServerDeviceView::close();
 }
 
 void ServerHMDView::resetPoseFilter()
@@ -169,6 +263,12 @@ void ServerHMDView::resetPoseFilter()
 
 			init_filters_for_morpheus_hmd(morpheusHMD, &m_pose_filter_space, &m_pose_filter);
 		} break;
+	case CommonDeviceState::VirtualHMD:
+		{
+			const VirtualHMD *virtualHMD = this->castCheckedConst<VirtualHMD>();
+
+			init_filters_for_virtual_hmd(virtualHMD, &m_pose_filter_space, &m_pose_filter);
+		} break;
 	default:
 		break;
 	}
@@ -176,235 +276,170 @@ void ServerHMDView::resetPoseFilter()
 
 void ServerHMDView::updateOpticalPoseEstimation(TrackerManager* tracker_manager)
 {
-	const std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+    const std::chrono::time_point<std::chrono::high_resolution_clock> now= std::chrono::high_resolution_clock::now();
 
-	// TODO: Probably need to first update IMU state to get velocity.
-	// If velocity is too high, don't bother getting a new position.
-	// Though it may be enough to just use the camera ROI as the limit.
+    // TODO: Probably need to first update IMU state to get velocity.
+    // If velocity is too high, don't bother getting a new position.
+    // Though it may be enough to just use the camera ROI as the limit.
+    
+    if (getIsTrackingEnabled())
+    {
+        int valid_projection_tracker_ids[TrackerManager::k_max_devices];
+        int projections_found = 0;
 
-	if (getIsTrackingEnabled())
-	{
-		Eigen::Quaternionf hmd_world_orientations[TrackerManager::k_max_devices];
-		float hmd_orientation_weights[TrackerManager::k_max_devices];
-		int orientations_found = 0;
+        CommonDeviceTrackingShape trackingShape;
+        m_device->getTrackingShape(trackingShape);
+        assert(trackingShape.shape_type != eCommonTrackingShapeType::INVALID_SHAPE);
 
-		int valid_position_tracker_ids[TrackerManager::k_max_devices];
-		int positions_found = 0;
+        // Find the projection of the controller from the perspective of each tracker.
+        // In the case of sphere projections, go ahead and compute the tracker relative position as well.
+        for (int tracker_id = 0; tracker_id < tracker_manager->getMaxDevices(); ++tracker_id)
+        {
+            ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+            HMDOpticalPoseEstimation &trackerPoseEstimateRef = m_tracker_pose_estimations[tracker_id];
 
-		float screen_area_sum = 0;
+            const bool bWasTracking= trackerPoseEstimateRef.bCurrentlyTracking;
 
-		// Compute an estimated 3d tracked position of the controller 
-		// from the perspective of each tracker
-		for (int tracker_id = 0; tracker_id < tracker_manager->getMaxDevices(); ++tracker_id)
-		{
-			ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-			HMDOpticalPoseEstimation &trackerPoseEstimateRef = m_tracker_pose_estimation[tracker_id];
+            // Assume we're going to lose tracking this frame
+            bool bCurrentlyTracking = false;
 
-			const bool bWasTracking = trackerPoseEstimateRef.bCurrentlyTracking;
+            if (tracker->getIsOpen())
+            {
+                // See how long it's been since we got a new video frame
+                const std::chrono::time_point<std::chrono::high_resolution_clock> now= 
+                    std::chrono::high_resolution_clock::now();
+                const std::chrono::duration<float, std::milli> timeSinceNewDataMillis= 
+                    now - tracker->getLastNewDataTimestamp();
+                const float timeoutMilli= 
+                    static_cast<float>(DeviceManager::getInstance()->m_tracker_manager->getConfig().optical_tracking_timeout);
 
-			// Assume we're going to lose tracking this frame
-			trackerPoseEstimateRef.bCurrentlyTracking = false;
+                // Can't compute tracking on video data that's too old
+                if (timeSinceNewDataMillis.count() < timeoutMilli)
+                {
+                    // Initially the newTrackerPoseEstimate is a copy of the existing pose
+                    bool bIsVisibleThisUpdate= false;
 
-			if (tracker->getIsOpen())
-			{
-				// See how long it's been since we got a new video frame
-				const std::chrono::time_point<std::chrono::high_resolution_clock> now =
-					std::chrono::high_resolution_clock::now();
-				const std::chrono::duration<float, std::milli> timeSinceNewDataMillis =
-					now - tracker->getLastNewDataTimestamp();
-				const float timeoutMilli =
-					static_cast<float>(DeviceManager::getInstance()->m_tracker_manager->getConfig().optical_tracking_timeout);
+                    // If a new video frame is available this tick, 
+                    // attempt to update the tracking location
+                    if (tracker->getHasUnpublishedState())
+                    {
+                        // Create a copy of the pose estimate state so that in event of a 
+                        // failure part way through computing the projection we don't
+                        // set partially valid state
+                        HMDOpticalPoseEstimation newTrackerPoseEstimate= trackerPoseEstimateRef;
 
-				// Can't compute tracking on video data that's too old
-				if (timeSinceNewDataMillis.count() < timeoutMilli)
-				{
-					// Initially the newTrackerPoseEstimate is a copy of the existing pose
-					bool bIsVisibleThisUpdate = false;
+                        if (tracker->computeProjectionForHMD(
+                                this, 
+                                &trackingShape,
+                                &newTrackerPoseEstimate))
+                        {
+                            bIsVisibleThisUpdate= true;
 
-					// If a new video frame is available this tick, 
-					// attempt to update the tracking location
-					if (tracker->getHasUnpublishedState())
-					{
-						HMDOpticalPoseEstimation newTrackerPoseEstimate = trackerPoseEstimateRef;
-						CommonDevicePose poseGuess = { trackerPoseEstimateRef.position, trackerPoseEstimateRef.orientation };
+                            // Actually apply the pose estimate state
+                            trackerPoseEstimateRef= newTrackerPoseEstimate;
+                            trackerPoseEstimateRef.last_visible_timestamp = now;
+                        }
+                    }
 
-						if (tracker->computePoseForHMD(
-							this,
-							trackerPoseEstimateRef.bOrientationValid ? &poseGuess : nullptr,
-							&newTrackerPoseEstimate))
-						{
-							bIsVisibleThisUpdate = true;
+                    // If the projection isn't too old (or updated this tick), 
+                    // say we have a valid tracked location
+                    if (bWasTracking || bIsVisibleThisUpdate)
+                    {
+                        const std::chrono::duration<float, std::milli> timeSinceLastVisibleMillis= 
+                            now - trackerPoseEstimateRef.last_visible_timestamp;
 
-							trackerPoseEstimateRef = newTrackerPoseEstimate;
-							trackerPoseEstimateRef.last_visible_timestamp = now;
-						}
-					}
+                        if (timeSinceLastVisibleMillis.count() < timeoutMilli)
+                        {
+                            // If this tracker has a valid projection for the controller
+                            // add it to the tracker id list
+                            valid_projection_tracker_ids[projections_found] = tracker_id;
+                            ++projections_found;
 
-					// If the position estimate isn't too old (or updated this tick), 
-					// say we have a valid tracked location
-					if (bWasTracking || bIsVisibleThisUpdate)
-					{
-						const std::chrono::duration<float, std::milli> timeSinceLastVisibleMillis =
-							now - trackerPoseEstimateRef.last_visible_timestamp;
+                            // Flag this pose estimate as invalid
+                            bCurrentlyTracking = true;
+                        }
+                    }
+                }
+            }
 
-						if (timeSinceLastVisibleMillis.count() < timeoutMilli)
-						{
-							const float tracker_screen_area = trackerPoseEstimateRef.projection.screen_area;
+            // Keep track of the last time the position estimate was updated
+            trackerPoseEstimateRef.last_update_timestamp = now;
+            trackerPoseEstimateRef.bValidTimestamps = true;
+            trackerPoseEstimateRef.bCurrentlyTracking = bCurrentlyTracking;
+        }
 
-							// Sum up the tracking screen area over all of the trackers that can see the controller
-							screen_area_sum += tracker_screen_area;
+        // How we compute the final world pose estimate varies based on
+        // * Number of trackers that currently have a valid projections of the controller
+        // * The kind of projection shape (psmove sphere or ds4 lightbar)
+        if (projections_found > 1)
+        {
+            // If multiple trackers can see the controller, 
+            // triangulate all pairs of projections and average the results
+            switch (trackingShape.shape_type)
+            {
+            case eCommonTrackingShapeType::Sphere:
+                computeSpherePoseForHmdFromMultipleTrackers(
+                    this,
+                    tracker_manager,
+                    valid_projection_tracker_ids,
+                    projections_found,
+                    m_tracker_pose_estimations,
+                    m_multicam_pose_estimation);
+                break;
+            case eCommonTrackingShapeType::PointCloud:
+                computePointCloudPoseForHmdFromMultipleTrackers(
+                    this,
+                    tracker_manager,
+                    valid_projection_tracker_ids,
+                    projections_found,
+                    m_tracker_pose_estimations,
+                    m_multicam_pose_estimation);
+                break;
+            default:
+                assert(false && "unreachable");
+            }
+        }
+        else if (projections_found == 1 && !DeviceManager::getInstance()->m_tracker_manager->getConfig().ignore_pose_from_one_tracker)
+        {
+            const int tracker_id = valid_projection_tracker_ids[0];
+            const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
 
-							// If this tracker has a valid position for the controller
-							// add it to the tracker id list
-							valid_position_tracker_ids[positions_found] = tracker_id;
-							++positions_found;
+            // If only one tracker can see the controller, 
+            // then use the tracker to derive a world space location
+            switch (trackingShape.shape_type)
+            {
+            case eCommonTrackingShapeType::Sphere:
+                computeSpherePoseForHmdFromSingleTracker(
+                    this,
+                    tracker,
+                    &m_tracker_pose_estimations[tracker_id],
+                    m_multicam_pose_estimation);
+                break;
+            case eCommonTrackingShapeType::PointCloud:
+                computePointCloudPoseForHmdFromSingleTracker(
+                    this,
+                    tracker,
+                    &m_tracker_pose_estimations[tracker_id],
+                    m_multicam_pose_estimation);
+                break;
+            default:
+                assert(false && "unreachable");
+            }
+        }
+        // If no trackers can see the controller, maintain the last known position and time it was seen
+        else
+        {
+            m_multicam_pose_estimation->bCurrentlyTracking= false;
+        }
 
-							// If the pose has a valid tracker relative orientation,
-							// convert the orientation to world space and add it
-							// to a weighted list of orientations
-							if (trackerPoseEstimateRef.bOrientationValid)
-							{
-								const CommonDeviceQuaternion &tracker_relative_quaternion = trackerPoseEstimateRef.orientation;
-								const CommonDeviceQuaternion &world_quaternion =
-									tracker->computeWorldOrientation(&tracker_relative_quaternion);
-								const Eigen::Quaternionf eigen_quaternion(
-									world_quaternion.w, world_quaternion.x, world_quaternion.y, world_quaternion.z);
-
-								hmd_world_orientations[orientations_found] = eigen_quaternion;
-								hmd_orientation_weights[orientations_found] = tracker_screen_area;
-								++orientations_found;
-							}
-
-							// Flag this pose estimate as invalid
-							trackerPoseEstimateRef.bCurrentlyTracking = true;
-						}
-					}
-				}
-			}
-
-			// Keep track of the last time the position estimate was updated
-			trackerPoseEstimateRef.last_update_timestamp = now;
-			trackerPoseEstimateRef.bValidTimestamps = true;
-		}
-
-		// If multiple trackers can see the controller, 
-		// triangulate all pairs of trackers and average the results
-		if (positions_found > 1)
-		{
-			// Project the tracker relative 3d tracking position back on to the tracker camera plane
-			CommonDeviceScreenLocation position2d_list[TrackerManager::k_max_devices];
-			for (int list_index = 0; list_index < positions_found; ++list_index)
-			{
-				const int tracker_id = valid_position_tracker_ids[list_index];
-				const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-				const HMDOpticalPoseEstimation &positionEstimate = m_tracker_pose_estimation[tracker_id];
-
-				position2d_list[list_index] = tracker->projectTrackerRelativePosition(&positionEstimate.position);
-			}
-
-			int pair_count = 0;
-			CommonDevicePosition average_world_position = { 0.f, 0.f, 0.f };
-			for (int list_index = 0; list_index < positions_found; ++list_index)
-			{
-				const int tracker_id = valid_position_tracker_ids[list_index];
-				const CommonDeviceScreenLocation &screen_location = position2d_list[list_index];
-				const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-
-				for (int other_list_index = list_index + 1; other_list_index < positions_found; ++other_list_index)
-				{
-					const int other_tracker_id = valid_position_tracker_ids[other_list_index];
-					const CommonDeviceScreenLocation &other_screen_location = position2d_list[other_list_index];
-					const ServerTrackerViewPtr other_tracker = tracker_manager->getTrackerViewPtr(other_tracker_id);
-
-					// Using the screen locations on two different trackers we can triangulate a world position
-					CommonDevicePosition world_position =
-						ServerTrackerView::triangulateWorldPosition(
-							tracker.get(), &screen_location,
-							other_tracker.get(), &other_screen_location);
-
-					average_world_position.x += world_position.x;
-					average_world_position.y += world_position.y;
-					average_world_position.z += world_position.z;
-
-					++pair_count;
-				}
-			}
-
-			if (pair_count > 1)
-			{
-				const float N = static_cast<float>(pair_count);
-
-				average_world_position.x /= N;
-				average_world_position.y /= N;
-				average_world_position.z /= N;
-			}
-
-			// Store the averaged tracking position
-			m_multicam_pose_estimation->position = average_world_position;
-			m_multicam_pose_estimation->bCurrentlyTracking = true;
-
-			// Compute the average projection area.
-			// This is proportional to our position tracking quality.
-			m_multicam_pose_estimation->projection.screen_area =
-				screen_area_sum / static_cast<float>(positions_found);
-		}
-		// If only one tracker can see the controller, then just use the position estimate from that
-		else if (positions_found == 1)
-		{
-			// Put the tracker relative position into world space
-			const int tracker_id = valid_position_tracker_ids[0];
-			const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
-			const CommonDevicePosition &tracker_relative_position = m_tracker_pose_estimation[tracker_id].position;
-
-			// Only one tracker can see the controller
-			m_multicam_pose_estimation->position = tracker->computeWorldPosition(&tracker_relative_position);
-			m_multicam_pose_estimation->bCurrentlyTracking = true;
-
-			// The average screen area is just the sum
-			m_multicam_pose_estimation->projection.screen_area = screen_area_sum;
-		}
-		// If no trackers can see the controller, maintain the last known position and time it was seen
-		else
-		{
-			m_multicam_pose_estimation->bCurrentlyTracking = false;
-		}
-
-		// Compute a weighted average of all of the orientations we found.
-		// Weighted by the projection area (higher projection area proportional to better quality orientation)        
-		if (orientations_found > 0)
-		{
-			Eigen::Quaternionf avg_world_orientation;
-
-			if (eigen_quaternion_compute_normalized_weighted_average(
-					hmd_world_orientations,
-					hmd_orientation_weights,
-					orientations_found,
-					&avg_world_orientation))
-			{
-				m_multicam_pose_estimation->orientation.w = avg_world_orientation.w();
-				m_multicam_pose_estimation->orientation.x = avg_world_orientation.x();
-				m_multicam_pose_estimation->orientation.y = avg_world_orientation.y();
-				m_multicam_pose_estimation->orientation.z = avg_world_orientation.z();
-				m_multicam_pose_estimation->bOrientationValid = true;
-			}
-			else
-			{
-				m_multicam_pose_estimation->bOrientationValid = false;
-			}
-		}
-		else
-		{
-			m_multicam_pose_estimation->bOrientationValid = false;
-		}
-
-		// Update the position estimation timestamps
-		if (positions_found > 0)
-		{
-			m_multicam_pose_estimation->last_visible_timestamp = now;
-		}
-		m_multicam_pose_estimation->last_update_timestamp = now;
-		m_multicam_pose_estimation->bValidTimestamps = true;
-	}
+        // Update the position estimation timestamps
+        if (m_multicam_pose_estimation->bCurrentlyTracking)
+        {
+            m_multicam_pose_estimation->last_visible_timestamp = now;
+        }
+        m_multicam_pose_estimation->last_update_timestamp = now;
+        m_multicam_pose_estimation->bValidTimestamps = true;
+    }
 }
 
 void ServerHMDView::updateStateAndPredict()
@@ -457,18 +492,31 @@ void ServerHMDView::updateStateAndPredict()
 		switch (hmdState->DeviceType)
 		{
 		case CommonHMDState::Morpheus:
-		{
-			const MorpheusHMD *morpheusHMD = this->castCheckedConst<MorpheusHMD>();
-			const MorpheusHMDState *morpheusHMDState = static_cast<const MorpheusHMDState *>(hmdState);
+		    {
+			    const MorpheusHMD *morpheusHMD = this->castCheckedConst<MorpheusHMD>();
+			    const MorpheusHMDState *morpheusHMDState = static_cast<const MorpheusHMDState *>(hmdState);
 
-			// Only update the position filter when tracking is enabled
-			update_filters_for_morpheus_hmd(
-				morpheusHMD, morpheusHMDState,
-				per_state_time_delta_seconds,
-				m_multicam_pose_estimation,
-				m_pose_filter_space,
-				m_pose_filter);
-		} break;
+			    // Only update the position filter when tracking is enabled
+			    update_filters_for_morpheus_hmd(
+				    morpheusHMD, morpheusHMDState,
+				    per_state_time_delta_seconds,
+				    m_multicam_pose_estimation,
+				    m_pose_filter_space,
+				    m_pose_filter);
+		    } break;
+		case CommonHMDState::VirtualHMD:
+		    {
+			    const VirtualHMD *virtualHMD = this->castCheckedConst<VirtualHMD>();
+			    const VirtualHMDState *virtualHMDState = static_cast<const VirtualHMDState *>(hmdState);
+
+			    // Only update the position filter when tracking is enabled
+			    update_filters_for_virtual_hmd(
+				    virtualHMD, virtualHMDState,
+				    per_state_time_delta_seconds,
+				    m_multicam_pose_estimation,
+				    m_pose_filter_space,
+				    m_pose_filter);
+		    } break;
 		default:
 			assert(0 && "Unhandled HMD type");
 		}
@@ -554,6 +602,11 @@ ServerHMDView::getConfigIdentifier() const
 		{
 			identifier = "hmd_morpheus";
 		}
+		else if (m_device->getDeviceType() == CommonDeviceState::VirtualHMD)
+		{
+            // THe "USB device path" for a Virtual HMD is actually just the Virtual HMD identifier, i.e. "VirtualHMD_0"
+			identifier = "hmd_"+m_device->getUSBDevicePath();
+		}
 		else
 		{
 			identifier = "hmd_unknown";
@@ -612,6 +665,9 @@ void ServerHMDView::set_tracking_enabled_internal(bool bEnabled)
 		case CommonHMDState::Morpheus:
 			castChecked<MorpheusHMD>()->setTrackingEnabled(bEnabled);
 			break;
+		case CommonHMDState::VirtualHMD:
+			castChecked<VirtualHMD>()->setTrackingEnabled(bEnabled);
+			break;
 		default:
 			assert(0 && "unreachable");
 		}
@@ -638,6 +694,31 @@ eCommonTrackingColorID ServerHMDView::getTrackingColorID() const
 	}
 
 	return tracking_color_id;
+}
+
+bool ServerHMDView::setTrackingColorID(eCommonTrackingColorID colorID)
+{
+    bool bSuccess= true;
+
+    if (colorID != getTrackingColorID())
+    {
+        if (m_device != nullptr)
+        {
+            bSuccess= m_device->setTrackingColorID(colorID);
+
+            if (bSuccess && getIsTrackingEnabled())
+            {
+                set_tracking_enabled_internal(false);
+                set_tracking_enabled_internal(true);
+            }
+        }
+        else
+        {
+            bSuccess= false;
+        }
+    }
+
+    return bSuccess;
 }
 
 float ServerHMDView::getROIPredictionTime() const
@@ -670,6 +751,10 @@ void ServerHMDView::generate_hmd_data_frame_for_stream(
     case CommonHMDState::Morpheus:
         {
             generate_morpheus_hmd_data_frame_for_stream(hmd_view, stream_info, data_frame);
+        } break;
+    case CommonHMDState::VirtualHMD:
+        {
+            generate_virtual_hmd_data_frame_for_stream(hmd_view, stream_info, data_frame);
         } break;
     default:
         assert(0 && "Unhandled HMD type");
@@ -732,6 +817,53 @@ init_filters_for_morpheus_hmd(
 		constants);
 }
 
+static void init_filters_for_virtual_hmd(
+    const VirtualHMD *virtualHMD, PoseFilterSpace **out_pose_filter_space, IPoseFilter **out_pose_filter)
+{
+    const VirtualHMDConfig *hmd_config = virtualHMD->getConfig();
+
+	// Setup the space the pose filter operates in
+	PoseFilterSpace *pose_filter_space = new PoseFilterSpace();
+	pose_filter_space->setIdentityGravity(Eigen::Vector3f(0.f, 1.f, 0.f));
+	pose_filter_space->setIdentityMagnetometer(Eigen::Vector3f::Zero());
+	pose_filter_space->setCalibrationTransform(*k_eigen_identity_pose_upright);
+	pose_filter_space->setSensorTransform(*k_eigen_sensor_transform_identity);
+
+	// Copy the pose filter constants from the controller config
+	PoseFilterConstants constants;
+	constants.clear();
+
+	constants.orientation_constants.gravity_calibration_direction = Eigen::Vector3f::Zero();
+	constants.orientation_constants.accelerometer_variance = Eigen::Vector3f::Zero();
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
+	constants.orientation_constants.magnetometer_calibration_direction = Eigen::Vector3f::Zero();
+	constants.orientation_constants.gyro_drift = Eigen::Vector3f::Zero();
+	constants.orientation_constants.gyro_variance = Eigen::Vector3f::Zero();
+	constants.orientation_constants.mean_update_time_delta = 0.f;
+	constants.orientation_constants.orientation_variance_curve.A = 0.f;
+	constants.orientation_constants.orientation_variance_curve.B = 0.f;
+	constants.orientation_constants.orientation_variance_curve.MaxValue = 0.f;
+	constants.orientation_constants.magnetometer_variance = Eigen::Vector3f::Zero();
+	constants.orientation_constants.magnetometer_drift = Eigen::Vector3f::Zero();
+
+	constants.position_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
+	constants.position_constants.accelerometer_variance = Eigen::Vector3f::Zero();
+	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
+	constants.position_constants.accelerometer_noise_radius = 0.f; // TODO
+	constants.position_constants.max_velocity = hmd_config->max_velocity;
+	constants.position_constants.mean_update_time_delta = hmd_config->mean_update_time_delta;
+	constants.position_constants.position_variance_curve.A = hmd_config->position_variance_exp_fit_a;
+	constants.position_constants.position_variance_curve.B = hmd_config->position_variance_exp_fit_b;
+	constants.position_constants.position_variance_curve.MaxValue = 1.f;
+
+	*out_pose_filter_space = pose_filter_space;
+	*out_pose_filter = pose_filter_factory(
+		CommonDeviceState::eDeviceType::VirtualHMD,
+		hmd_config->position_filter_type,
+		"",
+		constants);
+}
+
 static IPoseFilter *
 pose_filter_factory(
 	const CommonDeviceState::eDeviceType deviceType,
@@ -776,6 +908,7 @@ pose_filter_factory(
 		switch (deviceType)
 		{
 		case CommonDeviceState::Morpheus:
+        case CommonDeviceState::VirtualHMD:
 			position_filter_enum = PositionFilterTypeLowPassIMU;
 			break;
 		default:
@@ -785,7 +918,11 @@ pose_filter_factory(
 
 	// Convert the orientation filter type string into an enum
 	OrientationFilterType orientation_filter_enum = OrientationFilterTypeNone;
-	if (orientation_filter_type == "PassThru")
+	if (orientation_filter_type == "")
+	{
+		orientation_filter_enum = OrientationFilterTypeNone;
+	}
+	else if (orientation_filter_type == "PassThru")
 	{
 		orientation_filter_enum = OrientationFilterTypePassThru;
 	}
@@ -812,6 +949,9 @@ pose_filter_factory(
 		case CommonDeviceState::Morpheus:
 			orientation_filter_enum = OrientationFilterTypeComplementaryOpticalARG;
 			break;
+        case CommonDeviceState::VirtualHMD:
+            orientation_filter_enum = OrientationFilterTypeNone;
+            break;
 		default:
 			assert(0 && "unreachable");
 		}
@@ -862,9 +1002,9 @@ update_filters_for_morpheus_hmd(
 		{
 			sensorPacket.optical_position_cm =
 				Eigen::Vector3f(
-					poseEstimation->position.x,
-					poseEstimation->position.y,
-					poseEstimation->position.z);
+					poseEstimation->position_cm.x,
+					poseEstimation->position_cm.y,
+					poseEstimation->position_cm.z);
 			sensorPacket.tracking_projection_area_px_sqr = poseEstimation->projection.screen_area;
 		}
 		else
@@ -902,6 +1042,56 @@ update_filters_for_morpheus_hmd(
 
 				poseFilter->update(delta_time / 2.f, filterPacket);
 			}
+		}
+	}
+}
+
+static void
+update_filters_for_virtual_hmd(
+    const VirtualHMD *virtualHMD,
+    const VirtualHMDState *virtualHMDState,
+	const float delta_time,
+	const HMDOpticalPoseEstimation *poseEstimation,
+	const PoseFilterSpace *poseFilterSpace,
+	IPoseFilter *poseFilter)
+{
+    const VirtualHMDConfig *config = virtualHMD->getConfig();
+
+	// Update the orientation filter
+	if (poseFilter != nullptr)
+	{
+		PoseSensorPacket sensorPacket;
+
+		sensorPacket.imu_magnetometer_unit = Eigen::Vector3f::Zero();
+		sensorPacket.optical_orientation = Eigen::Quaternionf::Identity();
+
+		if (poseEstimation->bCurrentlyTracking)
+		{
+			sensorPacket.optical_position_cm =
+				Eigen::Vector3f(
+					poseEstimation->position_cm.x,
+					poseEstimation->position_cm.y,
+					poseEstimation->position_cm.z);
+			sensorPacket.tracking_projection_area_px_sqr = poseEstimation->projection.screen_area;
+		}
+		else
+		{
+			sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
+			sensorPacket.tracking_projection_area_px_sqr = 0.f;
+		}
+
+		sensorPacket.imu_accelerometer_g_units = Eigen::Vector3f::Zero();
+		sensorPacket.imu_gyroscope_rad_per_sec = Eigen::Vector3f::Zero();
+		sensorPacket.imu_magnetometer_unit = Eigen::Vector3f::Zero();
+
+		{
+			PoseFilterPacket filterPacket;
+
+			// Create a filter input packet from the sensor data 
+			// and the filter's previous orientation and position
+			poseFilterSpace->createFilterPacket(sensorPacket, poseFilter, filterPacket);
+
+			poseFilter->update(delta_time, filterPacket);
 		}
 	}
 }
@@ -1023,7 +1213,7 @@ static void generate_morpheus_hmd_data_frame_for_stream(
 
 				if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
 				{
-					const CommonDevicePosition &trackerRelativePosition = positionEstimate->position;
+					const CommonDevicePosition &trackerRelativePosition = positionEstimate->position_cm;
 					const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
 
 					// Project the 3d camera position back onto the tracker screen
@@ -1074,6 +1264,119 @@ static void generate_morpheus_hmd_data_frame_for_stream(
     hmd_data_frame->set_hmd_type(PSMoveProtocol::Morpheus);
 }
 
+static void generate_virtual_hmd_data_frame_for_stream(
+    const ServerHMDView *hmd_view,
+    const HMDStreamInfo *stream_info,
+    DeviceOutputDataFramePtr &data_frame)
+{
+    const VirtualHMD *virtual_hmd = hmd_view->castCheckedConst<VirtualHMD>();
+    const VirtualHMDConfig *virtual_hmd_config = virtual_hmd->getConfig();
+	const IPoseFilter *pose_filter = hmd_view->getPoseFilter();
+    const CommonHMDState *hmd_state = hmd_view->getState();
+    const CommonDevicePose hmd_pose = hmd_view->getFilteredPose();
+
+    PSMoveProtocol::DeviceOutputDataFrame_HMDDataPacket *hmd_data_frame = data_frame->mutable_hmd_data_packet();
+
+    if (hmd_state != nullptr)
+    {
+        assert(hmd_state->DeviceType == CommonDeviceState::VirtualHMD);
+        const VirtualHMDState * virtual_hmd_state = static_cast<const VirtualHMDState *>(hmd_state);
+
+        auto * virtual_hmd_data_frame = hmd_data_frame->mutable_virtual_hmd_state();
+
+		virtual_hmd_data_frame->set_iscurrentlytracking(hmd_view->getIsCurrentlyTracking());
+		virtual_hmd_data_frame->set_istrackingenabled(hmd_view->getIsTrackingEnabled());
+		virtual_hmd_data_frame->set_ispositionvalid(pose_filter->getIsStateValid());
+
+		if (stream_info->include_position_data)
+		{
+			virtual_hmd_data_frame->mutable_position_cm()->set_x(hmd_pose.PositionCm.x);
+			virtual_hmd_data_frame->mutable_position_cm()->set_y(hmd_pose.PositionCm.y);
+			virtual_hmd_data_frame->mutable_position_cm()->set_z(hmd_pose.PositionCm.z);
+		}
+		else
+		{
+			virtual_hmd_data_frame->mutable_position_cm()->set_x(0);
+			virtual_hmd_data_frame->mutable_position_cm()->set_y(0);
+			virtual_hmd_data_frame->mutable_position_cm()->set_z(0);
+		}
+
+		// If requested, get the raw sensor data for the hmd
+		if (stream_info->include_physics_data)
+		{
+			const CommonDevicePhysics hmd_physics = hmd_view->getFilteredPhysics();
+			auto *physics_data = virtual_hmd_data_frame->mutable_physics_data();
+
+			physics_data->mutable_velocity_cm_per_sec()->set_i(hmd_physics.VelocityCmPerSec.i);
+			physics_data->mutable_velocity_cm_per_sec()->set_j(hmd_physics.VelocityCmPerSec.j);
+			physics_data->mutable_velocity_cm_per_sec()->set_k(hmd_physics.VelocityCmPerSec.k);
+
+			physics_data->mutable_acceleration_cm_per_sec_sqr()->set_i(hmd_physics.AccelerationCmPerSecSqr.i);
+			physics_data->mutable_acceleration_cm_per_sec_sqr()->set_j(hmd_physics.AccelerationCmPerSecSqr.j);
+			physics_data->mutable_acceleration_cm_per_sec_sqr()->set_k(hmd_physics.AccelerationCmPerSecSqr.k);
+		}
+
+		// If requested, get the raw tracker data for the controller
+		if (stream_info->include_raw_tracker_data)
+		{
+			auto *raw_tracker_data = virtual_hmd_data_frame->mutable_raw_tracker_data();
+			int valid_tracker_count = 0;
+
+			for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
+			{
+				const HMDOpticalPoseEstimation *positionEstimate = hmd_view->getTrackerPoseEstimate(trackerId);
+
+				if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
+				{
+					const CommonDevicePosition &trackerRelativePosition = positionEstimate->position_cm;
+					const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
+
+					// Project the 3d camera position back onto the tracker screen
+					{
+						const CommonDeviceScreenLocation trackerScreenLocation =
+							tracker_view->projectTrackerRelativePosition(&trackerRelativePosition);
+						PSMoveProtocol::Pixel *pixel = raw_tracker_data->add_screen_locations();
+
+						pixel->set_x(trackerScreenLocation.x);
+						pixel->set_y(trackerScreenLocation.y);
+					}
+
+					// Add the tracker relative 3d position
+					{
+						PSMoveProtocol::Position *position = raw_tracker_data->add_relative_positions_cm();
+
+						position->set_x(trackerRelativePosition.x);
+						position->set_y(trackerRelativePosition.y);
+						position->set_z(trackerRelativePosition.z);
+					}
+
+					// Add the tracker relative projection shapes
+					{
+						const CommonDeviceTrackingProjection &trackerRelativeProjection =
+							positionEstimate->projection;
+
+						assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_Ellipse);
+						PSMoveProtocol::Ellipse *ellipse = raw_tracker_data->add_projected_spheres();
+
+                        ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
+                        ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
+                        ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
+                        ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
+                        ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
+					}
+
+					raw_tracker_data->add_tracker_ids(trackerId);
+					++valid_tracker_count;
+				}
+			}
+
+			raw_tracker_data->set_valid_tracker_count(valid_tracker_count);
+		}
+    }
+
+    hmd_data_frame->set_hmd_type(PSMoveProtocol::VirtualHMD);
+}
+
 static Eigen::Vector3f CommonDevicePosition_to_EigenVector3f(const CommonDevicePosition &p)
 {
     return Eigen::Vector3f(p.x, p.y, p.z);
@@ -1112,3 +1415,264 @@ static CommonDeviceQuaternion EigenQuaternionf_to_CommonDeviceQuaternion(const E
     return result;
 }
 
+static void computeSpherePoseForHmdFromSingleTracker(
+    const ServerHMDView *hmdView,
+    const ServerTrackerViewPtr tracker,
+    HMDOpticalPoseEstimation *tracker_pose_estimation,
+    HMDOpticalPoseEstimation *multicam_pose_estimation)
+{
+    // No orientation for the sphere projection
+    multicam_pose_estimation->orientation.clear();
+    multicam_pose_estimation->bOrientationValid = false;
+
+    // For the sphere projection, the tracker relative position has already been computed
+    // Put the tracker relative position into world space
+    multicam_pose_estimation->position_cm = tracker->computeWorldPosition(&tracker_pose_estimation->position_cm);
+    multicam_pose_estimation->bCurrentlyTracking = true;
+
+    // Copy over the screen projection area
+    multicam_pose_estimation->projection.screen_area = tracker_pose_estimation->projection.screen_area;
+}
+
+static void computePointCloudPoseForHmdFromSingleTracker(
+    const ServerHMDView *hmdView,
+    const ServerTrackerViewPtr tracker,
+    HMDOpticalPoseEstimation *tracker_pose_estimation,
+    HMDOpticalPoseEstimation *multicam_pose_estimation)
+{
+    // No orientation for the sphere projection
+    multicam_pose_estimation->orientation= tracker->computeWorldOrientation(&tracker_pose_estimation->orientation);
+    multicam_pose_estimation->bOrientationValid = tracker_pose_estimation->bOrientationValid;
+
+    // For the sphere projection, the tracker relative position has already been computed
+    // Put the tracker relative position into world space
+    multicam_pose_estimation->position_cm = tracker->computeWorldPosition(&tracker_pose_estimation->position_cm);
+    multicam_pose_estimation->bCurrentlyTracking = true;
+
+    // Copy over the screen projection area
+    multicam_pose_estimation->projection.screen_area = tracker_pose_estimation->projection.screen_area;
+}
+
+static void computeSpherePoseForHmdFromMultipleTrackers(
+    const ServerHMDView *hmdView,
+    const TrackerManager* tracker_manager,
+    const int *valid_projection_tracker_ids,
+    const int projections_found,
+    HMDOpticalPoseEstimation *tracker_pose_estimations,
+    HMDOpticalPoseEstimation *multicam_pose_estimation)
+{
+    const TrackerManagerConfig &cfg = tracker_manager->getConfig();
+    float screen_area_sum = 0;
+
+    // Project the tracker relative 3d tracking position back on to the tracker camera plane
+    // and sum up the total controller projection area across all trackers
+    CommonDeviceScreenLocation position2d_list[TrackerManager::k_max_devices];
+    for (int list_index = 0; list_index < projections_found; ++list_index)
+    {
+        const int tracker_id = valid_projection_tracker_ids[list_index];
+        const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+        const HMDOpticalPoseEstimation &poseEstimate = tracker_pose_estimations[tracker_id];
+
+        position2d_list[list_index] = tracker->projectTrackerRelativePosition(&poseEstimate.position_cm);
+        screen_area_sum += poseEstimate.projection.screen_area;
+    }
+
+    // Compute triangulations amongst all pairs of projections
+    int pair_count = 0;
+    int biggest_prjection_id = -1;
+    CommonDevicePosition average_world_position = { 0.f, 0.f, 0.f };
+    for (int list_index = 0; list_index < projections_found; ++list_index)
+    {
+        const int tracker_id = valid_projection_tracker_ids[list_index];
+        const CommonDeviceScreenLocation &screen_location = position2d_list[list_index];
+        const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+
+        for (int other_list_index = list_index + 1; other_list_index < projections_found; ++other_list_index)
+        {
+            const int other_tracker_id = valid_projection_tracker_ids[other_list_index];
+            const CommonDeviceScreenLocation &other_screen_location = position2d_list[other_list_index];
+            const ServerTrackerViewPtr other_tracker = tracker_manager->getTrackerViewPtr(other_tracker_id);
+            // if trackers are on opposite sides
+            if (cfg.exclude_opposed_cameras)
+            {
+                if ((tracker->getTrackerPose().PositionCm.x > 0) == (other_tracker->getTrackerPose().PositionCm.x < 0) &&
+                    (tracker->getTrackerPose().PositionCm.z > 0) == (other_tracker->getTrackerPose().PositionCm.z < 0))
+                {
+                    float screen_area = tracker_pose_estimations[tracker_id].projection.screen_area;
+                    float other_screen_area = tracker_pose_estimations[other_tracker_id].projection.screen_area;
+
+                    biggest_prjection_id = screen_area > other_screen_area ? tracker_id : other_tracker_id;
+
+                    continue;
+                }
+            }
+
+            // Using the screen locations on two different trackers we can triangulate a world position
+            CommonDevicePosition world_position =
+                ServerTrackerView::triangulateWorldPosition(
+                    tracker.get(), &screen_location,
+                    other_tracker.get(), &other_screen_location);
+
+            average_world_position.x += world_position.x;
+            average_world_position.y += world_position.y;
+            average_world_position.z += world_position.z;
+
+            ++pair_count;
+        }
+    }
+
+    if (pair_count == 0 && biggest_prjection_id >= 0 && !DeviceManager::getInstance()->m_tracker_manager->getConfig().ignore_pose_from_one_tracker)
+    {
+        // Position not triangulated from opposed camera, estimate from one tracker only.
+        computeSpherePoseForHmdFromSingleTracker(
+            hmdView,
+            tracker_manager->getTrackerViewPtr(biggest_prjection_id),
+            &tracker_pose_estimations[biggest_prjection_id],
+            multicam_pose_estimation);		
+    }
+    else if(pair_count > 0)
+    {
+        // Compute the average position
+        const float N = static_cast<float>(pair_count);
+
+        average_world_position.x /= N;
+        average_world_position.y /= N;
+        average_world_position.z /= N;
+
+        // Store the averaged tracking position
+        const float q = tracker_manager->getConfig().controller_position_smoothing;
+        if (q <= 0.01f)
+        {
+            multicam_pose_estimation->position_cm = average_world_position;
+        }
+        else
+        {
+            multicam_pose_estimation->position_cm.x = q * multicam_pose_estimation->position_cm.x + (1 - q) * average_world_position.x;
+            multicam_pose_estimation->position_cm.y = q * multicam_pose_estimation->position_cm.y + (1 - q) * average_world_position.y;
+            multicam_pose_estimation->position_cm.z = q * multicam_pose_estimation->position_cm.z + (1 - q) * average_world_position.z;
+        }
+
+        multicam_pose_estimation->bCurrentlyTracking = true;
+    }
+
+    // No orientation for the sphere projection
+    multicam_pose_estimation->orientation.clear();
+    multicam_pose_estimation->bOrientationValid = false;
+
+    // Compute the average projection area.
+    // This is proportional to our position tracking quality.
+    multicam_pose_estimation->projection.screen_area =
+        screen_area_sum / static_cast<float>(projections_found);
+}
+
+static void computePointCloudPoseForHmdFromMultipleTrackers(
+    const ServerHMDView *hmdView,
+    const TrackerManager* tracker_manager,
+    const int *valid_projection_tracker_ids,
+    const int projections_found,
+    HMDOpticalPoseEstimation *tracker_pose_estimations,
+    HMDOpticalPoseEstimation *multicam_pose_estimation)
+{
+    const TrackerManagerConfig &cfg = tracker_manager->getConfig();
+    float screen_area_sum = 0;
+
+    // Project the tracker relative 3d tracking position back on to the tracker camera plane
+    // and sum up the total controller projection area across all trackers
+    CommonDeviceScreenLocation position2d_list[TrackerManager::k_max_devices];
+    for (int list_index = 0; list_index < projections_found; ++list_index)
+    {
+        const int tracker_id = valid_projection_tracker_ids[list_index];
+        const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+        const HMDOpticalPoseEstimation &poseEstimate = tracker_pose_estimations[tracker_id];
+
+        position2d_list[list_index] = tracker->projectTrackerRelativePosition(&poseEstimate.position_cm);
+        screen_area_sum += poseEstimate.projection.screen_area;
+    }
+
+    // Compute triangulations amongst all pairs of projections
+    int pair_count = 0;
+    int biggest_prjection_id = -1;
+    CommonDevicePosition average_world_position = { 0.f, 0.f, 0.f };
+    for (int list_index = 0; list_index < projections_found; ++list_index)
+    {
+        const int tracker_id = valid_projection_tracker_ids[list_index];
+        const CommonDeviceScreenLocation &screen_location = position2d_list[list_index];
+        const ServerTrackerViewPtr tracker = tracker_manager->getTrackerViewPtr(tracker_id);
+
+        for (int other_list_index = list_index + 1; other_list_index < projections_found; ++other_list_index)
+        {
+            const int other_tracker_id = valid_projection_tracker_ids[other_list_index];
+            const CommonDeviceScreenLocation &other_screen_location = position2d_list[other_list_index];
+            const ServerTrackerViewPtr other_tracker = tracker_manager->getTrackerViewPtr(other_tracker_id);
+            // if trackers are on opposite sides
+            if (cfg.exclude_opposed_cameras)
+            {
+                if ((tracker->getTrackerPose().PositionCm.x > 0) == (other_tracker->getTrackerPose().PositionCm.x < 0) &&
+                    (tracker->getTrackerPose().PositionCm.z > 0) == (other_tracker->getTrackerPose().PositionCm.z < 0))
+                {
+                    float screen_area = tracker_pose_estimations[tracker_id].projection.screen_area;
+                    float other_screen_area = tracker_pose_estimations[other_tracker_id].projection.screen_area;
+
+                    biggest_prjection_id = screen_area > other_screen_area ? tracker_id : other_tracker_id;
+
+                    continue;
+                }
+            }
+
+            // Using the screen locations on two different trackers we can triangulate a world position
+            CommonDevicePosition world_position =
+                ServerTrackerView::triangulateWorldPosition(
+                    tracker.get(), &screen_location,
+                    other_tracker.get(), &other_screen_location);
+
+            average_world_position.x += world_position.x;
+            average_world_position.y += world_position.y;
+            average_world_position.z += world_position.z;
+
+            ++pair_count;
+        }
+    }
+
+    if (pair_count == 0 && biggest_prjection_id >= 0 && !DeviceManager::getInstance()->m_tracker_manager->getConfig().ignore_pose_from_one_tracker)
+    {
+        // Position not triangulated from opposed camera, estimate from one tracker only.
+        computePointCloudPoseForHmdFromSingleTracker(
+            hmdView,
+            tracker_manager->getTrackerViewPtr(biggest_prjection_id),
+            &tracker_pose_estimations[biggest_prjection_id],
+            multicam_pose_estimation);		
+    }
+    else if(pair_count > 0)
+    {
+        // Compute the average position
+        const float N = static_cast<float>(pair_count);
+
+        average_world_position.x /= N;
+        average_world_position.y /= N;
+        average_world_position.z /= N;
+
+        // Store the averaged tracking position
+        const float q = tracker_manager->getConfig().controller_position_smoothing;
+        if (q <= 0.01f)
+        {
+            multicam_pose_estimation->position_cm = average_world_position;
+        }
+        else
+        {
+            multicam_pose_estimation->position_cm.x = q * multicam_pose_estimation->position_cm.x + (1 - q) * average_world_position.x;
+            multicam_pose_estimation->position_cm.y = q * multicam_pose_estimation->position_cm.y + (1 - q) * average_world_position.y;
+            multicam_pose_estimation->position_cm.z = q * multicam_pose_estimation->position_cm.z + (1 - q) * average_world_position.z;
+        }
+
+        multicam_pose_estimation->bCurrentlyTracking = true;
+    }
+
+    // No orientation for the sphere projection
+    multicam_pose_estimation->orientation.clear();
+    multicam_pose_estimation->bOrientationValid = false;
+
+    // Compute the average projection area.
+    // This is proportional to our position tracking quality.
+    multicam_pose_estimation->projection.screen_area =
+        screen_area_sum / static_cast<float>(projections_found);
+}

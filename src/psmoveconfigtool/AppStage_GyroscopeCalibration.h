@@ -3,8 +3,8 @@
 
 //-- includes -----
 #include "AppStage.h"
-#include "ClientGeometry.h"
-#include "ClientPSMoveAPI.h"
+#include "ClientGeometry_CAPI.h"
+#include "PSMoveClient_CAPI.h"
 
 #include <deque>
 #include <chrono>
@@ -53,11 +53,11 @@ protected:
 
 	void request_tracking_space_settings();
 	static void handle_tracking_space_settings_response(
-		const ClientPSMoveAPI::ResponseMessage *response_message,
+		const PSMResponseMessage *response_message,
 		void *userdata);
     void request_set_gyroscope_calibration(const float raw_drift, const float raw_variance);
     static void handle_acquire_controller(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
     void request_exit_to_app_stage(const char *app_stage_name);
 
@@ -66,16 +66,16 @@ private:
     eCalibrationMenuState m_menuState;
     bool m_bBypassCalibration;
 
-    class ClientControllerView *m_controllerView;
+    PSMController *m_controllerView;
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;
 
     std::chrono::time_point<std::chrono::high_resolution_clock> m_lastSampleTime;
     bool m_bLastSampleTimeValid;
 
-    PSMoveIntVector3 m_lastRawGyroscope;
-    PSMoveFloatVector3 m_lastCalibratedGyroscope;
-    PSMoveFloatVector3 m_lastCalibratedAccelerometer;
+    PSMVector3i m_lastRawGyroscope;
+    PSMVector3f m_lastCalibratedGyroscope;
+    PSMVector3f m_lastCalibratedAccelerometer;
 
     std::chrono::time_point<std::chrono::high_resolution_clock> m_stableStartTime;
     bool m_bIsStable;

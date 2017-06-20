@@ -3,6 +3,7 @@
 #include "ControllerHidDeviceEnumerator.h"
 #include "ControllerUSBDeviceEnumerator.h"
 #include "ControllerGamepadEnumerator.h"
+#include "VirtualControllerEnumerator.h"
 #include "assert.h"
 #include "string.h"
 
@@ -35,11 +36,12 @@ ControllerDeviceEnumerator::ControllerDeviceEnumerator(
 		enumerator_count = 1;
 		break;
 	case eAPIType::CommunicationType_ALL:
-		enumerators = new DeviceEnumerator *[3];
+		enumerators = new DeviceEnumerator *[4];
 		enumerators[0] = new ControllerHidDeviceEnumerator;
 		enumerators[1] = new ControllerUSBDeviceEnumerator;
 		enumerators[2] = new ControllerGamepadEnumerator;
-		enumerator_count = 3;
+        enumerators[3] = new VirtualControllerEnumerator;
+		enumerator_count = 4;
 		break;
 	}
 
@@ -79,12 +81,18 @@ ControllerDeviceEnumerator::ControllerDeviceEnumerator(
 		enumerators[0] = new ControllerGamepadEnumerator(deviceTypeFilter);
 		enumerator_count = 1;
 		break;
+	case eAPIType::CommunicationType_VIRTUAL:
+		enumerators = new DeviceEnumerator *[1];
+		enumerators[0] = new VirtualControllerEnumerator;
+		enumerator_count = 1;
+		break;
 	case eAPIType::CommunicationType_ALL:
-		enumerators = new DeviceEnumerator *[3];
+		enumerators = new DeviceEnumerator *[4];
 		enumerators[0] = new ControllerHidDeviceEnumerator(deviceTypeFilter);
 		enumerators[1] = new ControllerUSBDeviceEnumerator(deviceTypeFilter);
 		enumerators[2] = new ControllerGamepadEnumerator(deviceTypeFilter);
-		enumerator_count = 3;
+        enumerators[3] = new VirtualControllerEnumerator;
+		enumerator_count = 4;
 		break;
 	}
 
@@ -152,6 +160,9 @@ ControllerDeviceEnumerator::eAPIType ControllerDeviceEnumerator::get_api_type() 
 	case eAPIType::CommunicationType_GAMEPAD:
 		result = (enumerator_index < enumerator_count) ? ControllerDeviceEnumerator::CommunicationType_GAMEPAD : ControllerDeviceEnumerator::CommunicationType_INVALID;
 		break;
+	case eAPIType::CommunicationType_VIRTUAL:
+		result = (enumerator_index < enumerator_count) ? ControllerDeviceEnumerator::CommunicationType_VIRTUAL : ControllerDeviceEnumerator::CommunicationType_INVALID;
+		break;
 	case eAPIType::CommunicationType_ALL:
 		if (enumerator_index < enumerator_count)
 		{
@@ -165,6 +176,9 @@ ControllerDeviceEnumerator::eAPIType ControllerDeviceEnumerator::get_api_type() 
 				break;
 			case 2:
 				result = ControllerDeviceEnumerator::CommunicationType_GAMEPAD;
+				break;
+			case 3:
+				result = ControllerDeviceEnumerator::CommunicationType_VIRTUAL;
 				break;
 			default:
 				result = ControllerDeviceEnumerator::CommunicationType_INVALID;
@@ -194,6 +208,9 @@ const ControllerHidDeviceEnumerator *ControllerDeviceEnumerator::get_hid_control
 		enumerator = nullptr;
 		break;
 	case eAPIType::CommunicationType_GAMEPAD:
+		enumerator = nullptr;
+		break;
+	case eAPIType::CommunicationType_VIRTUAL:
 		enumerator = nullptr;
 		break;
 	case eAPIType::CommunicationType_ALL:
@@ -226,6 +243,9 @@ const ControllerUSBDeviceEnumerator *ControllerDeviceEnumerator::get_usb_control
 	case eAPIType::CommunicationType_GAMEPAD:
 		enumerator = nullptr;
 		break;
+	case eAPIType::CommunicationType_VIRTUAL:
+		enumerator = nullptr;
+		break;
 	case eAPIType::CommunicationType_ALL:
 		if (enumerator_index < enumerator_count)
 		{
@@ -256,10 +276,46 @@ const ControllerGamepadEnumerator *ControllerDeviceEnumerator::get_gamepad_contr
 	case eAPIType::CommunicationType_GAMEPAD:
 		enumerator = (enumerator_index < enumerator_count) ? static_cast<ControllerGamepadEnumerator *>(enumerators[0]) : nullptr;
 		break;
+	case eAPIType::CommunicationType_VIRTUAL:
+		enumerator = nullptr;
+		break;
 	case eAPIType::CommunicationType_ALL:
 		if (enumerator_index < enumerator_count)
 		{
 			enumerator = (enumerator_index == 2) ? static_cast<ControllerGamepadEnumerator *>(enumerators[2]) : nullptr;
+		}
+		else
+		{
+			enumerator = nullptr;
+		}
+		break;
+	}
+
+	return enumerator;
+}
+
+const VirtualControllerEnumerator *ControllerDeviceEnumerator::get_virtual_controller_enumerator() const
+{
+	VirtualControllerEnumerator *enumerator = nullptr;
+
+	switch (api_type)
+	{
+	case eAPIType::CommunicationType_HID:
+		enumerator = nullptr;
+		break;
+	case eAPIType::CommunicationType_USB:
+		enumerator = nullptr;
+		break;
+	case eAPIType::CommunicationType_GAMEPAD:
+		enumerator = nullptr;
+		break;
+	case eAPIType::CommunicationType_VIRTUAL:
+		enumerator = (enumerator_index < enumerator_count) ? static_cast<VirtualControllerEnumerator *>(enumerators[0]) : nullptr;
+		break;
+	case eAPIType::CommunicationType_ALL:
+		if (enumerator_index < enumerator_count)
+		{
+			enumerator = (enumerator_index == 3) ? static_cast<VirtualControllerEnumerator *>(enumerators[3]) : nullptr;
 		}
 		else
 		{

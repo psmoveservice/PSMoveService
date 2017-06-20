@@ -17,6 +17,9 @@
 // -- macros ----
 #define MAX_CONTROLLER_TYPE_INDEX           GET_DEVICE_TYPE_INDEX(CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT)
 
+//-- Statics
+int ControllerGamepadEnumerator::virtual_controller_count= 0;
+
 // -- globals -----
 struct GamepadAPIDeviceFilter
 {
@@ -24,10 +27,10 @@ struct GamepadAPIDeviceFilter
 	bool bGamepadApiSupported;
 };
 
-GamepadAPIDeviceFilter g_supported_controller_infos[MAX_CONTROLLER_TYPE_INDEX] = {
-	{ 0x054c, 0x03d5, false}, // PSMove
-	{ 0x045e, 0x028e, true}, // PSNavi pretending to be an XBox 360 controller via ScpService
-	{ 0x054c, 0x05C4, false}, // PSDualShock4
+GamepadAPIDeviceFilter g_supported_gamepad_infos[MAX_CONTROLLER_TYPE_INDEX] = {
+	{ {0x054c, 0x03d5}, false}, // PSMove
+	{ {0x045e, 0x028e}, true}, // PSNavi pretending to be an XBox 360 controller via ScpService
+	{ {0x054c, 0x05C4}, false}, // PSDualShock4
 };
 
 static bool is_gamepad_supported(
@@ -114,7 +117,7 @@ static bool is_gamepad_supported(
 		// See if the next filtered device is a controller type that we care about
 		for (int gamepad_type_index = 0; gamepad_type_index < MAX_CONTROLLER_TYPE_INDEX; ++gamepad_type_index)
 		{
-			const GamepadAPIDeviceFilter &supported_type = g_supported_controller_infos[gamepad_type_index];
+			const GamepadAPIDeviceFilter &supported_type = g_supported_gamepad_infos[gamepad_type_index];
 
 			if (supported_type.bGamepadApiSupported &&
 				devInfo->productID == supported_type.filter.product_id &&
@@ -123,12 +126,18 @@ static bool is_gamepad_supported(
 				CommonDeviceState::eDeviceType device_type =
 					static_cast<CommonDeviceState::eDeviceType>(CommonDeviceState::Controller + gamepad_type_index);
 
-				if (device_type_filter == device_type || device_type_filter == CommonDeviceState::INVALID_DEVICE_TYPE)
-				{
-					out_device_type= device_type;
-					bIsValidDevice = true;
-					break;
-				}				
+                // Don't enumerate PSNavi controllers when using virtual controllers
+                // (since a PSNavi controller will be considered a kind of virtual controller)
+                if (device_type != CommonDeviceState::PSNavi &&
+                    (device_type == CommonDeviceState::PSNavi && ControllerGamepadEnumerator::virtual_controller_count == 0))
+                {
+				    if (device_type_filter == device_type || device_type_filter == CommonDeviceState::INVALID_DEVICE_TYPE)
+				    {
+					    out_device_type= device_type;
+					    bIsValidDevice = true;
+					    break;
+				    }
+                }
 			}
 		}
 	}

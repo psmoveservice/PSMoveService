@@ -48,8 +48,14 @@ public:
     void loadSettings();
     void saveSettings();
 
-	double getFramerate() const;
-	void setFramerate(double value, bool bUpdateConfig);
+	double getFrameWidth() const;
+	void setFrameWidth(double value, bool bUpdateConfig);
+
+	double getFrameHeight() const;
+	void setFrameHeight(double value, bool bUpdateConfig);
+
+	double getFrameRate() const;
+	void setFrameRate(double value, bool bUpdateConfig);
 
     double getExposure() const;
     void setExposure(double value, bool bUpdateConfig);
@@ -61,15 +67,15 @@ public:
         const class ServerControllerView* tracked_controller, 
 		const struct CommonDeviceTrackingShape *tracking_shape,
         struct ControllerOpticalPoseEstimation *out_pose_estimate);
-	bool computePoseForProjection(
+    bool computeProjectionForHMD(
+		const class ServerHMDView* tracked_hmd,
+		const struct CommonDeviceTrackingShape *tracking_shape,
+		struct HMDOpticalPoseEstimation *out_pose_estimate);
+    bool computePoseForProjection(
 		const struct CommonDeviceTrackingProjection *projection,
 		const struct CommonDeviceTrackingShape *tracking_shape,
 		const struct CommonDevicePose *pose_guess,
 		struct ControllerOpticalPoseEstimation *out_pose_estimate);
-	bool computePoseForHMD(
-		const class ServerHMDView* tracked_hmd,
-		const CommonDevicePose *tracker_pose_guess,
-		struct HMDOpticalPoseEstimation *out_pose_estimate);
     
     std::vector<CommonDeviceScreenLocation> projectTrackerRelativePositions(
                                 const std::vector<CommonDevicePosition> &objectPositions) const;

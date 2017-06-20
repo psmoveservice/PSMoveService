@@ -52,7 +52,7 @@ static const char *k_tracking_color_names[] = {
 class VideoBufferState
 {
 public:
-    VideoBufferState(class ClientTrackerView *trackerView)
+    VideoBufferState(PSMTracker *trackerView)
         : videoTexture(nullptr)
         , bgrBuffer(nullptr)
         , hsvBuffer(nullptr)
@@ -60,8 +60,8 @@ public:
         , gsUpperBuffer(nullptr)
         , maskedBuffer(nullptr)
     {
-        const int frameWidth = trackerView->getVideoFrameWidth();
-        const int frameHeight = trackerView->getVideoFrameHeight();
+        const int frameWidth = static_cast<int>(trackerView->tracker_info.tracker_screen_dimensions.x);
+        const int frameHeight = static_cast<int>(trackerView->tracker_info.tracker_screen_dimensions.y);
 
         // Create a texture to render the video frame to
         videoTexture = new TextureAsset();
@@ -129,87 +129,98 @@ public:
 //-- public methods -----
 AppStage_ColorCalibration::AppStage_ColorCalibration(App *app)
     : AppStage(app)
-	, m_overrideControllerId(-1)
+    , m_overrideControllerId(-1)
     , m_masterControllerView(nullptr)
-	, m_pendingControllerStartCount(0)
+    , m_pendingControllerStartCount(0)
     , m_areAllControllerStreamsActive(false)
     , m_lastMasterControllerSeqNum(-1)
-	, m_overrideHmdId(-1)
-	, m_hmdView(nullptr)
-	, m_isHmdStreamActive(false)
-	, m_lastHmdSeqNum(-1)
+    , m_overrideHmdId(-1)
+    , m_hmdView(nullptr)
+    , m_isHmdStreamActive(false)
+    , m_lastHmdSeqNum(-1)
     , m_trackerView(nullptr)
     , m_menuState(AppStage_ColorCalibration::inactive)
     , m_video_buffer_state(nullptr)
     , m_videoDisplayMode(AppStage_ColorCalibration::eVideoDisplayMode::mode_bgr)
-	, m_trackerFramerate(0)
+    , m_trackerFrameWidth(0)
+    , m_trackerFrameRate(0)
     , m_trackerExposure(0)
     , m_trackerGain(0)
-	, m_bTurnOnAllControllers(false)
-	, m_bAutoChangeController(false)
-	, m_bAutoChangeColor(false)
-	, m_bAutoChangeTracker(false)
-	, m_bShowWindows(true)
-    , m_masterTrackingColorType(PSMoveTrackingColorType::Magenta)
+    , m_bTurnOnAllControllers(false)
+    , m_bAutoChangeController(false)
+    , m_bAutoChangeColor(false)
+    , m_bAutoChangeTracker(false)
+    , m_bAutoCalibrate(false)
+    , m_bShowWindows(true)
+    , m_bShowAlignment(false)
+    , m_bShowAlignmentColor(false)
+    , m_AlignmentOffset(0.f)
+    , m_masterTrackingColorType(PSMTrackingColorType_Magenta)
 { 
     memset(m_colorPresets, 0, sizeof(m_colorPresets));
 }
 
 void AppStage_ColorCalibration::enter()
 {
+    m_app->getAppStage<AppStage_TrackerSettings>()->gotoControllerColorCalib(false);
+    m_app->getAppStage<AppStage_TrackerSettings>()->gotoHMDColorCalib(false);
     const AppStage_TrackerSettings *trackerSettings =
         m_app->getAppStage<AppStage_TrackerSettings>();
-    const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
+    const PSMClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
     assert(trackerInfo->tracker_id != -1);
 
     m_app->setCameraType(_cameraFixed);
 
-	tracker_count = trackerSettings->get_tracker_count();
-	tracker_index = trackerSettings->get_tracker_Index();
+    tracker_count = trackerSettings->get_tracker_count();
+    tracker_index = trackerSettings->get_tracker_Index();
 
     // Use the tracker selected from the tracker settings menu
     assert(m_trackerView == nullptr);
-    m_trackerView = ClientPSMoveAPI::allocate_tracker_view(*trackerInfo);
+    PSM_AllocateTrackerListener(trackerInfo->tracker_id, trackerInfo);
+    m_trackerView = PSM_GetTracker(trackerInfo->tracker_id);
 
-	if (m_overrideHmdId != -1)
-	{
-		assert(m_hmdView == nullptr);
-		m_hmdView = ClientPSMoveAPI::allocate_hmd_view(m_overrideHmdId);
-		m_isHmdStreamActive = false;
-		m_lastHmdSeqNum = -1;
-	}
-	else
-	{
-		// Assume that we can bind to controller 0 if no controller override is given
-		const int masterControllerID = (m_overrideControllerId != -1) ? m_overrideControllerId : 0;
+    if (m_overrideHmdId != -1)
+    {
+        assert(m_hmdView == nullptr);
+        PSM_AllocateHmdListener(m_overrideHmdId);
+        m_hmdView = PSM_GetHmd(m_overrideHmdId);
+        m_isHmdStreamActive = false;
+        m_lastHmdSeqNum = -1;
+    }
+    else
+    {
+        // Assume that we can bind to controller 0 if no controller override is given
+        const int masterControllerID = (m_overrideControllerId != -1) ? m_overrideControllerId : 0;
 
-		m_controllerViews.clear();
-		m_controllerTrackingColorTypes.clear();
+        m_controllerViews.clear();
+        m_controllerTrackingColorTypes.clear();
 
-		for (int list_index = 0; list_index < trackerSettings->get_controller_count(); ++list_index)
-		{
-			const AppStage_TrackerSettings::ControllerInfo *controller_info= trackerSettings->get_controller_info(list_index);
-			ClientControllerView *controllerView= ClientPSMoveAPI::allocate_controller_view(controller_info->ControllerID);
+        for (int list_index = 0; list_index < trackerSettings->get_controller_count(); ++list_index)
+        {
+            const AppStage_TrackerSettings::ControllerInfo *controller_info= trackerSettings->get_controller_info(list_index);
+            PSM_AllocateControllerListener(controller_info->ControllerID);
+            PSMController *controllerView= PSM_GetController(controller_info->ControllerID);
 
-			if (masterControllerID == controller_info->ControllerID)
-			{
-				assert(m_masterControllerView == nullptr);
-				m_masterControllerView= controllerView;
-			}
+            if (masterControllerID == controller_info->ControllerID)
+            {
+                assert(m_masterControllerView == nullptr);
+                m_masterControllerView= controllerView;
+            }
 
-			m_controllerViews.push_back(controllerView);
-			m_controllerTrackingColorTypes.push_back(controller_info->TrackingColorType);
-		}
-		
-		m_areAllControllerStreamsActive = false;
-		m_lastMasterControllerSeqNum = -1;
-		m_bTurnOnAllControllers= false;
-		m_pendingControllerStartCount= false;
+            m_controllerViews.push_back(controllerView);
+            m_controllerTrackingColorTypes.push_back(controller_info->TrackingColorType);
+        }
+        
+        m_areAllControllerStreamsActive = false;
+        m_lastMasterControllerSeqNum = -1;
+        m_bTurnOnAllControllers= false;
+        m_pendingControllerStartCount= false;
 
-		m_bAutoChangeController = (m_bAutoChangeController) ? m_bAutoChangeController : false;
-		m_bAutoChangeColor = (m_bAutoChangeColor) ? m_bAutoChangeColor : false;
-		m_bAutoChangeTracker = (m_bAutoChangeTracker) ? m_bAutoChangeTracker : false;
-	}
+        m_bAutoChangeController = (m_bAutoChangeController) ? m_bAutoChangeController : false;
+    }
+
+    m_bAutoChangeColor = (m_bAutoChangeColor) ? m_bAutoChangeColor : false;
+    m_bAutoChangeTracker = (m_bAutoChangeTracker) ? m_bAutoChangeTracker : false;
 
     // Request to start the tracker
     // Wait for the tracker response before requesting the controller
@@ -233,25 +244,26 @@ void AppStage_ColorCalibration::update()
 
     if (m_menuState == eMenuState::waitingForStreamStartResponse)
     {
-        if (m_areAllControllerStreamsActive && m_masterControllerView->GetOutputSequenceNum() != m_lastMasterControllerSeqNum)
+        if (m_areAllControllerStreamsActive && m_masterControllerView->OutputSequenceNum != m_lastMasterControllerSeqNum)
         {
             request_set_controller_tracking_color(m_masterControllerView, m_masterTrackingColorType);
             setState(eMenuState::manualConfig);
         }
-		else if (m_isHmdStreamActive && m_hmdView->GetSequenceNum() != m_lastHmdSeqNum)
-		{
-			setState(eMenuState::manualConfig);
-		}
+        else if (m_isHmdStreamActive && m_hmdView->OutputSequenceNum != m_lastHmdSeqNum)
+        {
+            setState(eMenuState::manualConfig);
+        }
     }
 
     // Try and read the next video frame from shared memory
     if (m_video_buffer_state != nullptr)
     {
-        if (m_trackerView->pollVideoStream())
+        const unsigned char *video_buffer= nullptr;
+        if (PSM_PollTrackerVideoStream(m_trackerView->tracker_info.tracker_id) == PSMResult_Success &&
+            PSM_GetTrackerVideoFrameBuffer(m_trackerView->tracker_info.tracker_id, &video_buffer) == PSMResult_Success)
         {
-            const int frameWidth = m_trackerView->getVideoFrameWidth();
-            const int frameHeight = m_trackerView->getVideoFrameHeight();
-            const unsigned char *video_buffer = m_trackerView->getVideoFrameBuffer();
+            const int frameWidth = static_cast<int>(m_trackerView->tracker_info.tracker_screen_dimensions.x);
+            const int frameHeight = static_cast<int>(m_trackerView->tracker_info.tracker_screen_dimensions.y);
             const unsigned char *display_buffer = video_buffer;
             const TrackerColorPreset &preset = getColorPreset();
 
@@ -372,25 +384,25 @@ void AppStage_ColorCalibration::renderUI()
         ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoScrollbar |
         ImGuiWindowFlags_NoCollapse;
-	int auto_calib_sleep = 150;
+    int auto_calib_sleep = 150;
 
     switch (m_menuState)
     {
     case eMenuState::manualConfig:
     {
         // Video Control Panel
-		if (m_bShowWindows)
+        if (m_bShowWindows)
         {
             ImGui::SetNextWindowPos(ImVec2(10.f, 10.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 260));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 280));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-			if (ImGui::Button("Return to Main Menu"))
-			{
-				request_exit_to_app_stage(AppStage_MainMenu::APP_STAGE_NAME);
-			}
+            if (ImGui::Button("Main Menu"))
+            {
+                request_exit_to_app_stage(AppStage_MainMenu::APP_STAGE_NAME);
+            }
             
-            if (ImGui::Button("Return to Tracker Settings"))
+            if (ImGui::Button("Tracker Settings"))
             {
                 request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
             }
@@ -413,36 +425,75 @@ void AppStage_ColorCalibration::renderUI()
                 }
                 ImGui::SameLine();
                 ImGui::Text("Video [F]ilter Mode: %s", k_video_display_mode_names[m_videoDisplayMode]);
-				
-				int frame_rate_positive_change = 10;
-				int frame_rate_negative_change = -10;
-				
-				double val = m_trackerFramerate;
 
-				if (val == 2) { frame_rate_positive_change = 1; frame_rate_negative_change = 0; }
-				else if (val == 3) { frame_rate_positive_change = 2; frame_rate_negative_change = -1; }
-				else if (val == 5) { frame_rate_positive_change = 3; frame_rate_negative_change = -0; }
-				else if (val == 8) { frame_rate_positive_change = 2; frame_rate_negative_change = -3; }
-				else if (val == 10) { frame_rate_positive_change = 5; frame_rate_negative_change = -2; }
-				else if (val == 15) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
-				else if (val == 20) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
-				else if (val == 25) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
-				else if (val == 30) { { frame_rate_negative_change = -5; } }
-				else if (val == 60) { { frame_rate_positive_change = 15; } }
-				else if (val == 75) { frame_rate_positive_change = 0; frame_rate_negative_change = -15; }
-				else if (val == 83) { frame_rate_positive_change = 0; frame_rate_negative_change = -8; }
+                if (ImGui::Button("-##FrameWidth"))
+                {
+                    if (m_trackerFrameWidth == 640) request_tracker_set_frame_width(m_trackerFrameWidth - 320);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("+##FrameWidth"))
+                {
+                    if (m_trackerFrameWidth == 320) request_tracker_set_frame_width(m_trackerFrameWidth + 320);
+                }
+                ImGui::SameLine();
+                ImGui::Text("Frame Width: %.0f", m_trackerFrameWidth);
+                
+                int frame_rate_positive_change = 10;
+                int frame_rate_negative_change = -10;
+                
+                double val = m_trackerFrameRate;
+                if (m_trackerFrameWidth == 320) 
+                {
+                    if (val == 2) { frame_rate_positive_change = 1; frame_rate_negative_change = 0; }
+                    else if (val == 3) { frame_rate_positive_change = 2; frame_rate_negative_change = -1; }
+                    else if (val == 5) { frame_rate_positive_change = 2; frame_rate_negative_change = -0; }
+                    else if (val == 7) { frame_rate_positive_change = 3; frame_rate_negative_change = -2; }
+                    else if (val == 10) { frame_rate_positive_change = 2; frame_rate_negative_change = -3; }
+                    else if (val == 12) { frame_rate_positive_change = 3; frame_rate_negative_change = -2; }
+                    else if (val == 15) { frame_rate_positive_change = 4; frame_rate_negative_change = -3; }
+                    else if (val == 17) { frame_rate_positive_change = 13; frame_rate_negative_change = -4; }
+                    else if (val == 30) { frame_rate_positive_change = 7; frame_rate_negative_change = -13; }
+                    else if (val == 37) { frame_rate_positive_change = 3; frame_rate_negative_change = -7; }
+                    else if (val == 40) { frame_rate_positive_change = 10; frame_rate_negative_change = -3; }
+                    else if (val == 50) { frame_rate_positive_change = 10; frame_rate_negative_change = -10; }
+                    else if (val == 60) { frame_rate_positive_change = 15; frame_rate_negative_change = -10; }
+                    else if (val == 75) { frame_rate_positive_change = 15; frame_rate_negative_change = -15; }
+                    else if (val == 90) { frame_rate_positive_change = 10; frame_rate_negative_change = -15; }
+                    else if (val == 100) { frame_rate_positive_change = 25; frame_rate_negative_change = -10; }
+                    else if (val == 125) { frame_rate_positive_change = 12; frame_rate_negative_change = -25; }
+                    else if (val == 137) { frame_rate_positive_change = 13; frame_rate_negative_change = -12; }
+                    else if (val == 150) { frame_rate_positive_change = 37; frame_rate_negative_change = -13; }
+                    else if (val == 187) { frame_rate_positive_change = 0; frame_rate_negative_change = -37; }
+                    else if (val == 205) { frame_rate_positive_change = 0; frame_rate_negative_change = -18; }
+                    else if (val == 290) { frame_rate_positive_change = 0; frame_rate_negative_change = -85; }
+                }
+                else 
+                {
+                    if (val == 2) { frame_rate_positive_change = 1; frame_rate_negative_change = 0; }
+                    else if (val == 3) { frame_rate_positive_change = 2; frame_rate_negative_change = -1; }
+                    else if (val == 5) { frame_rate_positive_change = 3; frame_rate_negative_change = -0; }
+                    else if (val == 8) { frame_rate_positive_change = 2; frame_rate_negative_change = -3; }
+                    else if (val == 10) { frame_rate_positive_change = 5; frame_rate_negative_change = -2; }
+                    else if (val == 15) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
+                    else if (val == 20) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
+                    else if (val == 25) { frame_rate_positive_change = 5; frame_rate_negative_change = -5; }
+                    else if (val == 30) { { frame_rate_negative_change = -5; } }
+                    else if (val == 60) { { frame_rate_positive_change = 15; } }
+                    else if (val == 75) { frame_rate_positive_change = 0; frame_rate_negative_change = -15; }
+                    else if (val == 83) { frame_rate_positive_change = 0; frame_rate_negative_change = -8; }
+                }
 
-				if (ImGui::Button("-##Framerate"))
-				{
-					request_tracker_set_frame_rate(m_trackerFramerate + frame_rate_negative_change);
-				}
-				ImGui::SameLine();
-				if (ImGui::Button("+##Framerate"))
-				{
-					request_tracker_set_frame_rate(m_trackerFramerate + frame_rate_positive_change);
-				}
-				ImGui::SameLine();
-				ImGui::Text("Framerate: %.0f", m_trackerFramerate);
+                if (ImGui::Button("-##FrameRate"))
+                {
+                    request_tracker_set_frame_rate(m_trackerFrameRate + frame_rate_negative_change);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("+##FrameRate"))
+                {
+                    request_tracker_set_frame_rate(m_trackerFrameRate + frame_rate_positive_change);
+                }
+                ImGui::SameLine();
+                ImGui::Text("Frame Rate: %.0f", m_trackerFrameRate);
 
                 if (ImGui::Button("-##Exposure"))
                 {
@@ -489,109 +540,162 @@ void AppStage_ColorCalibration::renderUI()
                     ImGui::PopID();
                 }
 
-				if (m_masterControllerView != nullptr)
-				{
-					if (ImGui::Checkbox("Turn on all bulbs", &m_bTurnOnAllControllers))
-					{
-						request_turn_on_all_tracking_bulbs(m_bTurnOnAllControllers);
-					}
+                if (m_masterControllerView != nullptr)
+                {
+                    if (ImGui::Checkbox("Turn on all bulbs", &m_bTurnOnAllControllers))
+                    {
+                        request_turn_on_all_tracking_bulbs(m_bTurnOnAllControllers);
+                    }
+                }
 
-					if (ImGui::Button("Save Default Profile"))
-					{
-						request_save_default_tracker_profile();
-					}
+                if (ImGui::Button("Save Default Profile"))
+                {
+                    request_save_default_tracker_profile();
+                }
 
-					if (ImGui::Button("Apply Default Profile"))
-					{
-						request_apply_default_tracker_profile();
-					}
-				}
+                if (ImGui::Button("Apply Default Profile"))
+                {
+                    request_apply_default_tracker_profile();
+                }
             }
 
             ImGui::End();
         }
         
-        if (ImGui::IsMouseClicked(1) )
+        if (ImGui::IsMouseClicked(1) || m_bAutoCalibrate)
         {
-			ImVec2 mousePos = ImGui::GetMousePos();
-			ImVec2 dispSize = ImGui::GetIO().DisplaySize;
-			int img_x = mousePos.x * m_video_buffer_state->hsvBuffer->cols / static_cast<int>(dispSize.x);
-			int img_y = mousePos.y * m_video_buffer_state->hsvBuffer->rows / static_cast<int>(dispSize.y);
-			cv::Vec< unsigned char, 3 > hsv_pixel = m_video_buffer_state->hsvBuffer->at<cv::Vec< unsigned char, 3 >>(cv::Point(img_x, img_y));
+            m_bAutoCalibrate = false;
+            float x0 = ImGui::GetIO().DisplaySize.x / 2;
+            float y0 = ImGui::GetIO().DisplaySize.y / 2 + m_AlignmentOffset;
+            ImVec2 mousePos = (m_bShowAlignment) ? ImVec2(x0, y0) : ImGui::GetMousePos();
+            ImVec2 dispSize = ImGui::GetIO().DisplaySize;
+            int img_x = (static_cast<int>(mousePos.x) * m_video_buffer_state->hsvBuffer->cols) / static_cast<int>(dispSize.x);
+            int img_y = (static_cast<int>(mousePos.y) * m_video_buffer_state->hsvBuffer->rows) / static_cast<int>(dispSize.y);
+            cv::Vec< unsigned char, 3 > hsv_pixel = m_video_buffer_state->hsvBuffer->at<cv::Vec< unsigned char, 3 >>(cv::Point(img_x, img_y));
 
-			TrackerColorPreset preset = getColorPreset();
-			preset.hue_center = hsv_pixel[0];
-			preset.saturation_center = hsv_pixel[1];
-			preset.value_center = hsv_pixel[2];
-			request_tracker_set_color_preset(m_masterTrackingColorType, preset);
+            TrackerColorPreset preset = getColorPreset();
+            preset.hue_center = hsv_pixel[0];
+            preset.saturation_center = hsv_pixel[1];
+            preset.value_center = hsv_pixel[2];
+            request_tracker_set_color_preset(m_masterTrackingColorType, preset);
 
-			if (m_bAutoChangeColor) {
-				setState(eMenuState::blank1);
-				request_set_controller_tracking_color(m_masterControllerView, PSMoveTrackingColorType::Magenta);
-				m_masterTrackingColorType = PSMoveTrackingColorType::Magenta;
-				std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
-			}
-			else if (m_bAutoChangeController) {
-				setState(eMenuState::changeController);
-			}
-			else if (m_bAutoChangeTracker) {
-				setState(eMenuState::changeTracker);
-			}
-		}
+            if (m_masterControllerView != nullptr)
+            {
+                if (m_bAutoChangeColor) {
+                    setState(eMenuState::blank1);
+                    request_set_controller_tracking_color(m_masterControllerView, PSMTrackingColorType_Magenta);
+                    m_masterTrackingColorType = PSMTrackingColorType_Magenta;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
+                }
+                else if ( m_bAutoChangeController && !m_bShowAlignment) {
+                    setState(eMenuState::changeController);
+                }
+                else if (m_bAutoChangeTracker) {
+                    setState(eMenuState::changeTracker);
+                }
+            }
+            else if (m_hmdView != nullptr)
+            {
+                if (m_bAutoChangeTracker) {
+                    setState(eMenuState::changeTracker);
+                }
+            }
+        }
 
-		// Keyboard shortcuts
-		{
-			// Hide setting windows: space bar
-			if (ImGui::IsKeyReleased(32)) m_bShowWindows = !m_bShowWindows;
-			// Change filter: F
-			if (ImGui::IsKeyReleased(102)) {
-				m_videoDisplayMode =
-					static_cast<eVideoDisplayMode>(
-					(m_videoDisplayMode + 1) % eVideoDisplayMode::MAX_VIDEO_DISPLAY_MODES);
-			}
-			// Change tracker: T
-			if (ImGui::IsKeyReleased(116)) request_change_tracker(1);
-			// Change controller: M
-			if (ImGui::IsKeyReleased(109)) request_change_controller(1);
-			// Change color: C
-			if (ImGui::IsKeyReleased(99)) {
-				PSMoveTrackingColorType new_color =
-					static_cast<PSMoveTrackingColorType>(
-					(m_masterTrackingColorType + 1) % PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES);
-				request_set_controller_tracking_color(m_masterControllerView, new_color);
-				m_masterTrackingColorType = new_color;
-			}
-		}
+        // Keyboard shortcuts
+        {
+            // Hide setting windows: space bar
+            if (ImGui::IsKeyReleased(32)) m_bShowWindows = !m_bShowWindows;
+            // Hide alignment windows: x
+            if (ImGui::IsKeyReleased(120)) 
+            {
+                if (!m_bShowAlignment) {
+                    m_bShowAlignment = true;
+                    m_bShowAlignmentColor = false;
+                }
+                else if (!m_bShowAlignmentColor) {
+                    m_bShowAlignmentColor = true;
+                }
+                else {
+                    m_bShowAlignment = false;
+                    m_bShowAlignmentColor = false;
+                }
+            }
+            // Move alignment window up: Up
+            if (m_bShowAlignment && ImGui::IsKeyPressed(119))
+            {
+                m_AlignmentOffset -= (ImGui::GetIO().DisplaySize.y / 2 > -m_AlignmentOffset) 
+                    ? 1.f 
+                    : -ImGui::GetIO().DisplaySize.y;
+            }
+            // Move alignment window down: Down
+            if (m_bShowAlignment && ImGui::IsKeyPressed(115))
+            {
+                m_AlignmentOffset += (ImGui::GetIO().DisplaySize.y / 2 > m_AlignmentOffset) 
+                    ? 1.f 
+                    : -ImGui::GetIO().DisplaySize.y;
+            }
+            // Move alignment window to center: Z
+            if (m_bShowAlignment && ImGui::IsKeyPressed(122))
+            {
+                m_AlignmentOffset = 0;
+            }
+            // Change filter: F
+            if (ImGui::IsKeyReleased(102)) {
+                m_videoDisplayMode =
+                    static_cast<eVideoDisplayMode>(
+                    (m_videoDisplayMode + 1) % eVideoDisplayMode::MAX_VIDEO_DISPLAY_MODES);
+            }
+            // Change tracker: T
+            if (ImGui::IsKeyReleased(116)) {
+                request_change_tracker(1);
+            }
+            if (m_masterControllerView != nullptr)
+            {
+                // Change controller: M
+                if (ImGui::IsKeyReleased(109)) {
+                    request_change_controller(1);
+                }
+                // Change color: C
+                if (ImGui::IsKeyReleased(99)) {
+                    PSMTrackingColorType new_color =
+                        static_cast<PSMTrackingColorType>(
+                        (m_masterTrackingColorType + 1) % PSMTrackingColorType_MaxColorTypes);
+                    request_set_controller_tracking_color(m_masterControllerView, new_color);
+                    m_masterTrackingColorType = new_color;
+                }
+            }
+        }
 
         // Color Control Panel
-		if (m_bShowWindows)
+        if (m_bShowWindows)
         {
-            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - k_panel_width - 10, 20.f));
-            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 280));
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - k_panel_width - 10, 10.f));
+            ImGui::SetNextWindowSize(ImVec2(k_panel_width, 300));
             ImGui::Begin("Controller Color", nullptr, window_flags);
 
-			if (m_masterControllerView != nullptr)
-			{
-				if (ImGui::Button("<##Color"))
-				{
-					PSMoveTrackingColorType new_color =
-						static_cast<PSMoveTrackingColorType>(
-							(m_masterTrackingColorType + PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES - 1)
-							% PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES);
-					request_set_controller_tracking_color(m_masterControllerView, new_color);
-				    m_masterTrackingColorType= new_color;
-				}
-				ImGui::SameLine();
-				if (ImGui::Button(">##Color"))
-				{
-					PSMoveTrackingColorType new_color =
-						static_cast<PSMoveTrackingColorType>(
-							(m_masterTrackingColorType + 1) % PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES);
-					request_set_controller_tracking_color(m_masterControllerView, new_color);
-				    m_masterTrackingColorType= new_color;
-				}
-				ImGui::SameLine();
-			}
+            if (m_masterControllerView != nullptr)
+            {
+                if (ImGui::Button("<##Color"))
+                {
+                    PSMTrackingColorType new_color =
+                        static_cast<PSMTrackingColorType>(
+                            (m_masterTrackingColorType + PSMTrackingColorType_MaxColorTypes - 1)
+                            % PSMTrackingColorType_MaxColorTypes);
+                    request_set_controller_tracking_color(m_masterControllerView, new_color);
+                    m_masterTrackingColorType= new_color;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button(">##Color"))
+                {
+                    PSMTrackingColorType new_color =
+                        static_cast<PSMTrackingColorType>(
+                            (m_masterTrackingColorType + 1) % PSMTrackingColorType_MaxColorTypes);
+                    request_set_controller_tracking_color(m_masterControllerView, new_color);
+                    m_masterTrackingColorType= new_color;
+                }
+                ImGui::SameLine();
+            }
             ImGui::Text("Tracking [C]olor: %s", k_tracking_color_names[m_masterTrackingColorType]);
 
             // -- Hue --
@@ -693,101 +797,216 @@ void AppStage_ColorCalibration::renderUI()
             ImGui::SameLine();
             ImGui::Text("Value Range: %f", getColorPreset().value_range);
 
-			// -- Auto Calibration --
-			ImGui::Text("Auto Change Setings:");
-			ImGui::Checkbox("Color", &m_bAutoChangeColor);
-			ImGui::SameLine();
-			ImGui::Checkbox("Controller", &m_bAutoChangeController);
-			ImGui::SameLine();
-			ImGui::Checkbox("Tracker", &m_bAutoChangeTracker);
+            // -- Auto Calibration --
+            ImGui::Text("Auto Change Setings:");
+            if (m_masterControllerView != nullptr)
+            {
+                ImGui::Checkbox("Color", &m_bAutoChangeColor);
+                ImGui::SameLine();
+                ImGui::Checkbox("Controller", &m_bAutoChangeController);
+                ImGui::SameLine();
+            }
+            ImGui::Checkbox("Tracker", &m_bAutoChangeTracker);
 
-			// -- Change Controller --
-			if (ImGui::Button("<##Controller"))
-			{
-				request_change_controller(-1);
-			}
-			ImGui::SameLine();
-			if (ImGui::Button(">##Controller"))
-			{
-				request_change_controller(1);
-			}
-			ImGui::SameLine();
-			ImGui::Text("PS[M]ove Controller ID: %d", m_overrideControllerId);
+            // -- Change Controller --
+            if (m_masterControllerView != nullptr)
+            {
+                if (ImGui::Button("<##Controller"))
+                {
+                    request_change_controller(-1);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button(">##Controller"))
+                {
+                    request_change_controller(1);
+                }
+                ImGui::SameLine();
+                ImGui::Text("PS[M]ove Controller ID: %d", m_overrideControllerId);
+            }
 
-			// -- Change Tracker --
-			if (ImGui::Button("<##Tracker"))
-			{
-				request_change_tracker(-1);
-			}
-			ImGui::SameLine();
-			if (ImGui::Button(">##Tracker"))
-			{
-				request_change_tracker(1);
-			}
-			ImGui::SameLine();
-			ImGui::Text("[T]racker ID: %d", tracker_index);
-			
+            // -- Change Tracker --
+            if (ImGui::Button("<##Tracker"))
+            {
+                request_change_tracker(-1);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(">##Tracker"))
+            {
+                request_change_tracker(1);
+            }
+            ImGui::SameLine();
+            ImGui::Text("[T]racker ID: %d", tracker_index);
+
+            if (m_masterControllerView != nullptr)
+            {
+                if (ImGui::Button("Test Tracking"))
+                {
+                    m_app->getAppStage<AppStage_TrackerSettings>()->gotoTestControllerTracking(true);
+                    request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("One"))
+                {
+                    m_app->getAppStage<AppStage_TrackerSettings>()->gotoTrackingControllerVideo(true);
+                    request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("ALL"))
+                {
+                    m_app->getAppStage<AppStage_TrackerSettings>()->gotoTrackingVideoALL(true);
+                    request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                }
+            }
+            else if (m_hmdView != nullptr)
+            {
+                if (ImGui::Button("Test Tracking"))
+                {
+                    m_app->getAppStage<AppStage_TrackerSettings>()->gotoTestHMDTracking(true);
+                    request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("One"))
+                {
+                    m_app->getAppStage<AppStage_TrackerSettings>()->gotoTrackingHMDVideo(true);
+                    request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("ALL"))
+                {
+                    m_app->getAppStage<AppStage_TrackerSettings>()->gotoTrackingVideoALL(true);
+                    request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+                }
+            }
+            
             ImGui::End();
         }
+        
+        // Tracker Alignment Marker
+        if (m_bShowAlignment)
+        {
+            float prevAlpha = ImGui::GetStyle().WindowFillAlphaDefault;
+            ImGui::GetStyle().WindowFillAlphaDefault = 0.f;
+
+            float align_window_size = 30.f;
+            float x0 = (ImGui::GetIO().DisplaySize.x - align_window_size) / 2;
+            float y0 = (ImGui::GetIO().DisplaySize.y - align_window_size) / 2 + m_AlignmentOffset;
+
+            ImGui::SetNextWindowPos(ImVec2(x0, y0));
+            ImGui::SetNextWindowSize(ImVec2(align_window_size, align_window_size));
+            ImGui::Begin("Alignment Window", nullptr,
+                ImGuiWindowFlags_NoTitleBar |
+                ImGuiWindowFlags_ShowBorders |
+                ImGuiWindowFlags_NoResize |
+                ImGuiWindowFlags_NoMove |
+                ImGuiWindowFlags_NoScrollbar |
+                ImGuiWindowFlags_NoCollapse);
+
+            unsigned char r, g, b;
+            if (m_bShowAlignmentColor)
+            {
+                switch (m_masterTrackingColorType)
+                {
+                case PSMoveProtocol::Magenta:
+                    r = 0xFF; g = 0x00; b = 0xFF;
+                    break;
+                case PSMoveProtocol::Cyan:
+                    r = 0x00; g = 0xFF; b = 0xFF;
+                    break;
+                case PSMoveProtocol::Yellow:
+                    r = 0xFF; g = 0xFF; b = 0x00;
+                    break;
+                case PSMoveProtocol::Red:
+                    r = 0xFF; g = 0x00; b = 0x00;
+                    break;
+                case PSMoveProtocol::Green:
+                    r = 0x00; g = 0xFF; b = 0x00;
+                    break;
+                case PSMoveProtocol::Blue:
+                    r = 0x00; g = 0x00; b = 0xFF;
+                    break;
+                default:
+                    r = 0x00; g = 0x00; b = 0x00;
+                }
+            }
+            else {
+                r = 0xFF; g = 0xFF; b = 0xFF;
+            }
+            ImU32 line_colour = ImColor(0xFF - r, 0xFF - g, 0xFF - b, 175);
+            float line_thickness = 1.f;
+
+            ImGui::GetWindowDrawList()->AddLine(ImVec2(x0, y0)
+                , ImVec2(x0 + align_window_size, y0 + align_window_size)
+                , line_colour
+                , line_thickness
+            );
+            ImGui::GetWindowDrawList()->AddLine(
+                ImVec2(x0 + align_window_size, y0)
+                , ImVec2(x0, y0 + align_window_size)
+                , line_colour
+                , line_thickness
+            );
+
+            ImGui::End();
+            ImGui::GetStyle().WindowFillAlphaDefault = prevAlpha;
+        }
+
     } break;
 
     case eMenuState::autoConfig:
-	{
-		PSMoveTrackingColorType new_color =
-			static_cast<PSMoveTrackingColorType>(
-			(m_masterTrackingColorType + 1) % PSMoveTrackingColorType::MAX_PSMOVE_COLOR_TYPES);
+    {
+        PSMTrackingColorType new_color =
+            static_cast<PSMTrackingColorType>(
+            (m_masterTrackingColorType + 1) % PSMTrackingColorType_MaxColorTypes);
 
-		ImVec2 mousePos = ImGui::GetMousePos();
-		ImVec2 dispSize = ImGui::GetIO().DisplaySize;
-		int img_x = mousePos.x * m_video_buffer_state->hsvBuffer->cols / static_cast<int>(dispSize.x);
-		int img_y = mousePos.y * m_video_buffer_state->hsvBuffer->rows / static_cast<int>(dispSize.y);
-		cv::Vec< unsigned char, 3 > hsv_pixel = m_video_buffer_state->hsvBuffer->at<cv::Vec< unsigned char, 3 >>(cv::Point(img_x, img_y));
+        float x0 = ImGui::GetIO().DisplaySize.x / 2;
+        float y0 = ImGui::GetIO().DisplaySize.y / 2 + m_AlignmentOffset;
+        ImVec2 mousePos = (m_bShowAlignment) ? ImVec2(x0, y0) : ImGui::GetMousePos();
+        ImVec2 dispSize = ImGui::GetIO().DisplaySize;
+        int img_x = (static_cast<int>(mousePos.x) * m_video_buffer_state->hsvBuffer->cols) / static_cast<int>(dispSize.x);
+        int img_y = (static_cast<int>(mousePos.y) * m_video_buffer_state->hsvBuffer->rows) / static_cast<int>(dispSize.y);
+        cv::Vec< unsigned char, 3 > hsv_pixel = m_video_buffer_state->hsvBuffer->at<cv::Vec< unsigned char, 3 >>(cv::Point(img_x, img_y));
 
-		TrackerColorPreset preset = getColorPreset();
-		preset.hue_center = hsv_pixel[0];
-		preset.saturation_center = hsv_pixel[1];
-		preset.value_center = hsv_pixel[2];
-		request_tracker_set_color_preset(m_masterTrackingColorType, preset);
+        TrackerColorPreset preset = getColorPreset();
+        preset.hue_center = hsv_pixel[0];
+        preset.saturation_center = hsv_pixel[1];
+        preset.value_center = hsv_pixel[2];
+        request_tracker_set_color_preset(m_masterTrackingColorType, preset);
 
-		request_set_controller_tracking_color(m_masterControllerView, new_color);
+        request_set_controller_tracking_color(m_masterControllerView, new_color);
 
-		if (new_color == PSMoveTrackingColorType::Magenta) {
-			if (m_bAutoChangeController) setState(eMenuState::changeController);
-			else if (m_bAutoChangeTracker) setState(eMenuState::changeTracker);
-			else setState(eMenuState::manualConfig);
-		}
-		else setState(eMenuState::blank1);
+        if (new_color == PSMTrackingColorType_Magenta) {
+            if (m_bAutoChangeController && !m_bShowAlignment) setState(eMenuState::changeController);
+            else if (m_bAutoChangeTracker) setState(eMenuState::changeTracker);
+            else setState(eMenuState::manualConfig);
+        }
+        else setState(eMenuState::blank1);
 
-		m_masterTrackingColorType = new_color;
+        m_masterTrackingColorType = new_color;
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
-	} break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
+    } break;
 
-	case eMenuState::blank1:
-		setState(eMenuState::blank3);
-		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
-		break;
-	case eMenuState::blank2:
-		setState(eMenuState::blank2);
-		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
-		break;
-	case eMenuState::blank3:
-		setState(eMenuState::autoConfig);
-		std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
-		break;
-	case eMenuState::changeController:
-	{
-		setState(eMenuState::manualConfig);
-		request_change_controller(1);
-	}
-		break;
-	case eMenuState::changeTracker:
-		setState(eMenuState::manualConfig);
-		request_change_tracker(1);
-		break;
+    case eMenuState::blank1:
+        setState(eMenuState::blank2);
+        std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
+        break;
+    case eMenuState::blank2:
+        setState(eMenuState::autoConfig);
+        std::this_thread::sleep_for(std::chrono::milliseconds(auto_calib_sleep));
+        break;
+    case eMenuState::changeController:
+    {
+        setState(eMenuState::manualConfig);
+        request_change_controller(1);
+    }
+        break;
+    case eMenuState::changeTracker:
+        setState(eMenuState::manualConfig);
+        request_change_tracker(1);
+        break;
     case eMenuState::pendingTrackerStartStreamRequest:
     case eMenuState::pendingControllerStartRequest:
-	case eMenuState::pendingHmdStartRequest:
+    case eMenuState::pendingHmdStartRequest:
     case eMenuState::waitingForStreamStartResponse:
     {
         ImGui::SetNextWindowPosCenter();
@@ -800,7 +1019,7 @@ void AppStage_ColorCalibration::renderUI()
     } break;
 
     case eMenuState::failedTrackerStartStreamRequest:
-	case eMenuState::failedHmdStartRequest:
+    case eMenuState::failedHmdStartRequest:
     case eMenuState::failedControllerStartRequest:
     {
         ImGui::SetNextWindowPosCenter();
@@ -811,10 +1030,10 @@ void AppStage_ColorCalibration::renderUI()
         {
             ImGui::Text("Failed to start tracker stream!");
         }
-		else if (m_menuState == eMenuState::failedHmdStartRequest)
-		{
-			ImGui::Text("Failed to start controller stream!");
-		}
+        else if (m_menuState == eMenuState::failedHmdStartRequest)
+        {
+            ImGui::Text("Failed to start controller stream!");
+        }
         else
         {
             ImGui::Text("Failed to start controller stream!");
@@ -849,44 +1068,44 @@ void AppStage_ColorCalibration::setState(
 
 void AppStage_ColorCalibration::request_start_controller_streams()
 {
-	for (ClientControllerView *controllerView : m_controllerViews)
-	{
-		++m_pendingControllerStartCount;
-		ClientPSMoveAPI::register_callback(
-			ClientPSMoveAPI::start_controller_data_stream(
-				controllerView,
-				ClientPSMoveAPI::defaultStreamOptions),
-			AppStage_ColorCalibration::handle_start_controller_response, this);
-	}
+    for (PSMController *controllerView : m_controllerViews)
+    {
+        ++m_pendingControllerStartCount;
+
+        PSMRequestID request_id;
+        PSM_StartControllerDataStreamAsync(controllerView->ControllerID, PSMStreamFlags_defaultStreamOptions, &request_id);
+        PSM_RegisterCallback(request_id, &AppStage_ColorCalibration::handle_start_controller_response, this);
+    }
 
     // Start receiving data from the controller
     setState(AppStage_ColorCalibration::pendingControllerStartRequest);
 }
 
 void AppStage_ColorCalibration::handle_start_controller_response(
-    const ClientPSMoveAPI::ResponseMessage *response_message,
+    const PSMResponseMessage *response_message,
     void *userdata)
 {
     AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
 
-    const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
+    const PSMResult ResultCode = response_message->result_code;
 //    const ClientPSMoveAPI::t_request_id request_id = response_message->request_id;
 
     switch (ResultCode)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
-			--thisPtr->m_pendingControllerStartCount;
+            --thisPtr->m_pendingControllerStartCount;
 
-			if (thisPtr->m_pendingControllerStartCount <= 0)
-			{
-				thisPtr->m_areAllControllerStreamsActive= true;
-				thisPtr->setState(AppStage_ColorCalibration::waitingForStreamStartResponse);
-			}
+            if (thisPtr->m_pendingControllerStartCount <= 0)
+            {
+                thisPtr->m_areAllControllerStreamsActive= true;
+                thisPtr->setState(AppStage_ColorCalibration::waitingForStreamStartResponse);
+            }
         } break;
 
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+    case PSMResult_Timeout:
         {
             thisPtr->setState(AppStage_ColorCalibration::failedControllerStartRequest);
         } break;
@@ -894,8 +1113,8 @@ void AppStage_ColorCalibration::handle_start_controller_response(
 }
 
 void AppStage_ColorCalibration::request_set_controller_tracking_color(
-	ClientControllerView *controllerView,
-    PSMoveTrackingColorType tracking_color)
+    PSMController *controllerView,
+    PSMTrackingColorType tracking_color)
 {
     unsigned char r, g, b;
 
@@ -923,41 +1142,41 @@ void AppStage_ColorCalibration::request_set_controller_tracking_color(
         assert(0 && "unreachable");
     }
 
-    controllerView->SetLEDOverride(r, g, b);
+    PSM_SetControllerLEDOverrideColor(controllerView->ControllerID, r, g, b);
 }
 
 void AppStage_ColorCalibration::request_start_hmd_stream()
 {
-	// Start receiving data from the controller
-	setState(AppStage_ColorCalibration::pendingHmdStartRequest);
-	ClientPSMoveAPI::register_callback(
-		ClientPSMoveAPI::start_hmd_data_stream(
-			m_hmdView,
-			ClientPSMoveAPI::includePositionData), // turns on tracking lights
-		AppStage_ColorCalibration::handle_start_hmd_response, this);
+    // Start receiving data from the controller
+    setState(AppStage_ColorCalibration::pendingHmdStartRequest);
+
+    PSMRequestID requestId;
+    PSM_StartHmdDataStreamAsync(m_hmdView->HmdID, PSMStreamFlags_defaultStreamOptions, &requestId);
+    PSM_RegisterCallback(requestId, AppStage_ColorCalibration::handle_start_hmd_response, this);
 }
 
 void AppStage_ColorCalibration::handle_start_hmd_response(
-	const ClientPSMoveAPI::ResponseMessage *response_message,
-	void *userdata)
+    const PSMResponseMessage *response_message,
+    void *userdata)
 {
-	AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
-	const ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response_message->result_code;
+    AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
+    const PSMResult ResultCode = response_message->result_code;
 
-	switch (ResultCode)
-	{
-	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
-		{
-			thisPtr->m_isHmdStreamActive = true;
-			thisPtr->setState(AppStage_ColorCalibration::waitingForStreamStartResponse);
-		} break;
+    switch (ResultCode)
+    {
+    case PSMResult_Success:
+        {
+            thisPtr->m_isHmdStreamActive = true;
+            thisPtr->setState(AppStage_ColorCalibration::waitingForStreamStartResponse);
+        } break;
 
-	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
-		{
-			thisPtr->setState(AppStage_ColorCalibration::failedControllerStartRequest);
-		} break;
-	}
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+    case PSMResult_Timeout:
+        {
+            thisPtr->setState(AppStage_ColorCalibration::failedControllerStartRequest);
+        } break;
+    }
 }
 
 void AppStage_ColorCalibration::request_tracker_start_stream()
@@ -967,43 +1186,44 @@ void AppStage_ColorCalibration::request_tracker_start_stream()
         setState(AppStage_ColorCalibration::pendingTrackerStartStreamRequest);
 
         // Tell the psmove service that we want to start streaming data from the tracker
-        ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::start_tracker_data_stream(m_trackerView),
-            AppStage_ColorCalibration::handle_tracker_start_stream_response, this);
+        PSMRequestID requestID;
+        PSM_StartTrackerDataStreamAsync(m_trackerView->tracker_info.tracker_id, &requestID);
+        PSM_RegisterCallback(requestID, AppStage_ColorCalibration::handle_tracker_start_stream_response, this);
     }
 }
 
 void AppStage_ColorCalibration::handle_tracker_start_stream_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
 
     switch (response->result_code)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
-            ClientTrackerView *trackerView = thisPtr->m_trackerView;
+            PSMTracker *trackerView = thisPtr->m_trackerView;
 
             // Open the shared memory that the video stream is being written to
-            if (trackerView->openVideoStream())
+            if (PSM_OpenTrackerVideoStream(trackerView->tracker_info.tracker_id) == PSMResult_Success)
             {
                 thisPtr->allocate_video_buffers();
             }
 
             // Now that the tracker stream is started, start the controller stream
-			if (thisPtr->m_hmdView != nullptr)
-			{
-				thisPtr->request_start_hmd_stream();
-			}
-			else
-			{
-				thisPtr->request_start_controller_streams();
-			}
+            if (thisPtr->m_hmdView != nullptr)
+            {
+                thisPtr->request_start_hmd_stream();
+            }
+            else
+            {
+                thisPtr->request_start_controller_streams();
+            }
         } break;
 
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+    case PSMResult_Timeout:
         {
             thisPtr->setState(AppStage_ColorCalibration::failedTrackerStartStreamRequest);
         } break;
@@ -1021,41 +1241,87 @@ void AppStage_ColorCalibration::release_video_buffers()
     m_video_buffer_state = nullptr;
 }
 
+void AppStage_ColorCalibration::request_tracker_set_frame_width(double value)
+{
+    // Tell the psmove service that we want to change frame width.
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_FRAME_WIDTH);
+    request->mutable_request_set_tracker_frame_width()->set_tracker_id(m_trackerView->tracker_info.tracker_id);
+    request->mutable_request_set_tracker_frame_width()->set_value(static_cast<float>(value));
+    request->mutable_request_set_tracker_frame_width()->set_save_setting(true);
+
+    PSMRequestID request_id;
+    PSM_SendOpaqueRequest(&request, &request_id);
+    PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_frame_width_response, this);
+
+    // Exit and re-enter Color Calibration
+    m_app->getAppStage<AppStage_TrackerSettings>()->gotoControllerColorCalib(true);
+
+    request_exit_to_app_stage(AppStage_TrackerSettings::APP_STAGE_NAME);
+}
+
+void AppStage_ColorCalibration::handle_tracker_set_frame_width_response(
+    const PSMResponseMessage *response,
+    void *userdata)
+{
+    PSMResult ResultCode = response->result_code;
+    PSMResponseHandle response_handle = response->opaque_response_handle;
+    AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
+
+    switch (ResultCode)
+    {
+    case PSMResult_Success:
+    {
+        const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+        thisPtr->m_trackerFrameWidth = response->result_set_tracker_frame_width().new_frame_width();
+    } break;
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+    case PSMResult_Timeout:
+    {
+        //###HipsterSloth $TODO - Replace with C_API style log
+        //CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker frame width!";
+    } break;
+    }
+}
+
 void AppStage_ColorCalibration::request_tracker_set_frame_rate(double value)
 {
-	// Tell the psmove service that we want to change frame rate.
-	RequestPtr request(new PSMoveProtocol::Request());
-	request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_FRAMERATE);
-	request->mutable_request_set_tracker_frame_rate()->set_tracker_id(m_trackerView->getTrackerId());
-	request->mutable_request_set_tracker_frame_rate()->set_value(static_cast<float>(value));
-	request->mutable_request_set_tracker_frame_rate()->set_save_setting(true);
+    // Tell the psmove service that we want to change frame rate.
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_FRAME_RATE);
+    request->mutable_request_set_tracker_frame_rate()->set_tracker_id(m_trackerView->tracker_info.tracker_id);
+    request->mutable_request_set_tracker_frame_rate()->set_value(static_cast<float>(value));
+    request->mutable_request_set_tracker_frame_rate()->set_save_setting(true);
 
-	ClientPSMoveAPI::register_callback(
-		ClientPSMoveAPI::send_opaque_request(&request),
-		AppStage_ColorCalibration::handle_tracker_set_frame_rate_response, this);
+    PSMRequestID request_id;
+    PSM_SendOpaqueRequest(&request, &request_id);
+    PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_frame_rate_response, this);
 }
 
 void AppStage_ColorCalibration::handle_tracker_set_frame_rate_response(
-	const ClientPSMoveAPI::ResponseMessage *response,
-	void *userdata)
+    const PSMResponseMessage *response,
+    void *userdata)
 {
-	ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response->result_code;
-	ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
-	AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
+    PSMResult ResultCode = response->result_code;
+    PSMResponseHandle response_handle = response->opaque_response_handle;
+    AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
 
-	switch (ResultCode)
-	{
-	case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
-	{
-		const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-		thisPtr->m_trackerFramerate = response->result_set_tracker_frame_rate().new_frame_rate();
-	} break;
-	case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-	case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
-	{
-		CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker frame rate!";
-	} break;
-	}
+    switch (ResultCode)
+    {
+    case PSMResult_Success:
+        {
+            const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
+            thisPtr->m_trackerFrameRate = response->result_set_tracker_frame_rate().new_frame_rate();
+        } break;
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+    case PSMResult_Timeout:
+        {
+            //###HipsterSloth $TODO - Replace with C_API style log
+            //CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker frame rate!";
+        } break;
+    }
 }
 
 void AppStage_ColorCalibration::request_tracker_set_exposure(double value)
@@ -1063,34 +1329,36 @@ void AppStage_ColorCalibration::request_tracker_set_exposure(double value)
     // Tell the psmove service that we want to change exposure.
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE);
-    request->mutable_request_set_tracker_exposure()->set_tracker_id(m_trackerView->getTrackerId());
+    request->mutable_request_set_tracker_exposure()->set_tracker_id(m_trackerView->tracker_info.tracker_id);
     request->mutable_request_set_tracker_exposure()->set_value(static_cast<float>(value));
     request->mutable_request_set_tracker_exposure()->set_save_setting(true);
 
-    ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::send_opaque_request(&request),
-        AppStage_ColorCalibration::handle_tracker_set_exposure_response, this);
+    PSMRequestID request_id;
+    PSM_SendOpaqueRequest(&request, &request_id);
+    PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_exposure_response, this);
 }
 
 void AppStage_ColorCalibration::handle_tracker_set_exposure_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response->result_code;
-    ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
+    PSMResult ResultCode = response->result_code;
+    PSMResponseHandle response_handle = response->opaque_response_handle;
     AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
 
     switch (ResultCode)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
             const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
             thisPtr->m_trackerExposure = response->result_set_tracker_exposure().new_exposure();
         } break;
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+    case PSMResult_Timeout:
         {
-            CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker exposure!";
+            //###HipsterSloth $TODO - Replace with C_API style log
+            //CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker exposure!";
         } break;
     }
 }
@@ -1100,34 +1368,36 @@ void AppStage_ColorCalibration::request_tracker_set_gain(double value)
     // Tell the psmove service that we want to change gain.
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_GAIN);
-    request->mutable_request_set_tracker_gain()->set_tracker_id(m_trackerView->getTrackerId());
+    request->mutable_request_set_tracker_gain()->set_tracker_id(m_trackerView->tracker_info.tracker_id);
     request->mutable_request_set_tracker_gain()->set_value(static_cast<float>(value));
     request->mutable_request_set_tracker_gain()->set_save_setting(true);
 
-    ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::send_opaque_request(&request),
-        AppStage_ColorCalibration::handle_tracker_set_gain_response, this);
+    PSMRequestID request_id;
+    PSM_SendOpaqueRequest(&request, &request_id);
+    PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_gain_response, this);
 }
 
 void AppStage_ColorCalibration::handle_tracker_set_gain_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response->result_code;
-    ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
+    PSMResult ResultCode = response->result_code;
+    PSMResponseHandle response_handle = response->opaque_response_handle;
     AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
 
     switch (ResultCode)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
             const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
             thisPtr->m_trackerGain = response->result_set_tracker_gain().new_gain();
         } break;
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+    case PSMResult_Timeout:
         {
-            CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker gain!";
+            //###HipsterSloth $TODO - Replace with C_API style log
+            //CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker gain!";
         } break;
     }
 }
@@ -1139,26 +1409,26 @@ void AppStage_ColorCalibration::request_tracker_set_option(
     // Tell the psmove service that we want to change gain.
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_OPTION);
-    request->mutable_request_set_tracker_option()->set_tracker_id(m_trackerView->getTrackerId());
+    request->mutable_request_set_tracker_option()->set_tracker_id(m_trackerView->tracker_info.tracker_id);
     request->mutable_request_set_tracker_option()->set_option_name(option.option_name);
     request->mutable_request_set_tracker_option()->set_option_index(new_option_index);
 
-    ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::send_opaque_request(&request),
-        AppStage_ColorCalibration::handle_tracker_set_option_response, this);
+    PSMRequestID request_id;
+    PSM_SendOpaqueRequest(&request, &request_id);
+    PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_option_response, this);
 }
 
 void AppStage_ColorCalibration::handle_tracker_set_option_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response->result_code;
-    ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
+    PSMResult ResultCode = response->result_code;
+    PSMResponseHandle response_handle = response->opaque_response_handle;
     AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
 
     switch (ResultCode)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
             const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
             int result_option_index = response->result_set_tracker_option().new_option_index();
@@ -1177,35 +1447,37 @@ void AppStage_ColorCalibration::handle_tracker_set_option_response(
                 it->option_index = result_option_index;
             }
         } break;
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+    case PSMResult_Timeout:
         {
-            CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker gain!";
+            //###HipsterSloth $TODO - Replace with C_API style log
+            //CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker gain!";
         } break;
     }
 }
 
 void AppStage_ColorCalibration::request_tracker_set_color_preset(
-    PSMoveTrackingColorType color_type,
+    PSMTrackingColorType color_type,
     TrackerColorPreset &color_preset)
 {
     // Tell the psmove service that we want to change gain.
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_COLOR_PRESET);
-    request->mutable_request_set_tracker_color_preset()->set_tracker_id(m_trackerView->getTrackerId());
+    request->mutable_request_set_tracker_color_preset()->set_tracker_id(m_trackerView->tracker_info.tracker_id);
 
-	if (m_hmdView != nullptr)
-	{
-		request->mutable_request_set_tracker_color_preset()->set_device_id(m_overrideHmdId);
-		request->mutable_request_set_tracker_color_preset()->set_device_category(
-			PSMoveProtocol::Request_RequestSetTrackerColorPreset_DeviceCategory_HMD);
-	}
-	else
-	{
-		request->mutable_request_set_tracker_color_preset()->set_device_id(m_overrideControllerId);
-		request->mutable_request_set_tracker_color_preset()->set_device_category(
-			PSMoveProtocol::Request_RequestSetTrackerColorPreset_DeviceCategory_CONTROLLER);
-	}
+    if (m_hmdView != nullptr)
+    {
+        request->mutable_request_set_tracker_color_preset()->set_device_id(m_overrideHmdId);
+        request->mutable_request_set_tracker_color_preset()->set_device_category(
+            PSMoveProtocol::Request_RequestSetTrackerColorPreset_DeviceCategory_HMD);
+    }
+    else
+    {
+        request->mutable_request_set_tracker_color_preset()->set_device_id(m_overrideControllerId);
+        request->mutable_request_set_tracker_color_preset()->set_device_category(
+            PSMoveProtocol::Request_RequestSetTrackerColorPreset_DeviceCategory_CONTROLLER);
+    }
 
     {
         PSMoveProtocol::TrackingColorPreset* tracking_color_preset =
@@ -1220,23 +1492,23 @@ void AppStage_ColorCalibration::request_tracker_set_color_preset(
         tracking_color_preset->set_value_range(color_preset.value_range);
     }
 
-    ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::send_opaque_request(&request),
-        AppStage_ColorCalibration::handle_tracker_set_color_preset_response, this);
+    PSMRequestID request_id;
+    PSM_SendOpaqueRequest(&request, &request_id);
+    PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_set_color_preset_response, this);
 }
 
 void AppStage_ColorCalibration::handle_tracker_set_color_preset_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     switch (response->result_code)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
-            const ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
+            const PSMResponseHandle response_handle = response->opaque_response_handle;
             const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
             const PSMoveProtocol::TrackingColorPreset &srcPreset= response->result_set_tracker_color_preset().new_color_preset();
-            const PSMoveTrackingColorType color_type = static_cast<PSMoveTrackingColorType>(srcPreset.color_type());
+            const PSMTrackingColorType color_type = static_cast<PSMTrackingColorType>(srcPreset.color_type());
 
             AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
             AppStage_ColorCalibration::TrackerColorPreset &targetPreset= thisPtr->m_colorPresets[color_type];
@@ -1248,10 +1520,12 @@ void AppStage_ColorCalibration::handle_tracker_set_color_preset_response(
             targetPreset.value_center= srcPreset.value_center();
             targetPreset.value_range= srcPreset.value_range();
         } break;
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+    case PSMResult_Timeout:
         {
-            CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker presets!";
+            //###HipsterSloth $TODO - Replace with C_API style log
+            //CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to set the tracker presets!";
         } break;
     }
 }
@@ -1261,38 +1535,39 @@ void AppStage_ColorCalibration::request_tracker_get_settings()
     // Tell the psmove service that we want to change exposure.
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_GET_TRACKER_SETTINGS);
-    request->mutable_request_get_tracker_settings()->set_tracker_id(m_trackerView->getTrackerId());
+    request->mutable_request_get_tracker_settings()->set_tracker_id(m_trackerView->tracker_info.tracker_id);
 
-	if (m_overrideHmdId != -1)
-	{
-		request->mutable_request_get_tracker_settings()->set_device_id(m_overrideHmdId);
-		request->mutable_request_get_tracker_settings()->set_device_category(PSMoveProtocol::Request_RequestGetTrackerSettings_DeviceCategory_HMD);
-	}
-	else
-	{
-		request->mutable_request_get_tracker_settings()->set_device_id(m_overrideControllerId);
-		request->mutable_request_get_tracker_settings()->set_device_category(PSMoveProtocol::Request_RequestGetTrackerSettings_DeviceCategory_CONTROLLER);
-	}
+    if (m_overrideHmdId != -1)
+    {
+        request->mutable_request_get_tracker_settings()->set_device_id(m_overrideHmdId);
+        request->mutable_request_get_tracker_settings()->set_device_category(PSMoveProtocol::Request_RequestGetTrackerSettings_DeviceCategory_HMD);
+    }
+    else
+    {
+        request->mutable_request_get_tracker_settings()->set_device_id(m_overrideControllerId);
+        request->mutable_request_get_tracker_settings()->set_device_category(PSMoveProtocol::Request_RequestGetTrackerSettings_DeviceCategory_CONTROLLER);
+    }
 
-    ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::send_opaque_request(&request),
-        AppStage_ColorCalibration::handle_tracker_get_settings_response, this);
+    PSMRequestID request_id;
+    PSM_SendOpaqueRequest(&request, &request_id);
+    PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_get_settings_response, this);
 }
 
 void AppStage_ColorCalibration::handle_tracker_get_settings_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
-    ClientPSMoveAPI::eClientPSMoveResultCode ResultCode = response->result_code;
-    ClientPSMoveAPI::t_response_handle response_handle = response->opaque_response_handle;
+    PSMResult ResultCode = response->result_code;
+    PSMResponseHandle response_handle = response->opaque_response_handle;
     AppStage_ColorCalibration *thisPtr = static_cast<AppStage_ColorCalibration *>(userdata);
 
     switch (ResultCode)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
             const PSMoveProtocol::Response *response = GET_PSMOVEPROTOCOL_RESPONSE(response_handle);
-			thisPtr->m_trackerFramerate = response->result_tracker_settings().frame_rate();
+            thisPtr->m_trackerFrameWidth = response->result_tracker_settings().frame_width();
+            thisPtr->m_trackerFrameRate = response->result_tracker_settings().frame_rate();
             thisPtr->m_trackerExposure = response->result_tracker_settings().exposure();
             thisPtr->m_trackerGain = response->result_tracker_settings().gain();
 
@@ -1323,8 +1598,8 @@ void AppStage_ColorCalibration::handle_tracker_get_settings_response(
                 ++it)
             {
                 const PSMoveProtocol::TrackingColorPreset &srcPreset = *it;
-                const PSMoveTrackingColorType client_color= 
-                    static_cast<PSMoveTrackingColorType>(srcPreset.color_type());
+                const PSMTrackingColorType client_color= 
+                    static_cast<PSMTrackingColorType>(srcPreset.color_type());
 
                 AppStage_ColorCalibration::TrackerColorPreset &destPreset = thisPtr->m_colorPresets[client_color];
                 destPreset.hue_center= srcPreset.hue_center();
@@ -1335,10 +1610,12 @@ void AppStage_ColorCalibration::handle_tracker_get_settings_response(
                 destPreset.value_range = srcPreset.value_range();
             }
         } break;
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+    case PSMResult_Timeout:
         {
-            CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to get the tracker settings!";
+            //###HipsterSloth $TODO - Replace with C_API style log
+            //CLIENT_LOG_INFO("AppStage_ColorCalibration") << "Failed to get the tracker settings!";
         } break;
     }
 }
@@ -1348,10 +1625,10 @@ void AppStage_ColorCalibration::request_save_default_tracker_profile()
     // Tell the psmove service that we want to save the current trackers profile.
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SAVE_TRACKER_PROFILE);
-    request->mutable_request_save_tracker_profile()->set_tracker_id(m_trackerView->getTrackerId());
-	request->mutable_request_save_tracker_profile()->set_controller_id(m_overrideControllerId);
+    request->mutable_request_save_tracker_profile()->set_tracker_id(m_trackerView->tracker_info.tracker_id);
+    request->mutable_request_save_tracker_profile()->set_controller_id(m_overrideControllerId);
 
-    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_ColorCalibration::request_apply_default_tracker_profile()
@@ -1359,12 +1636,12 @@ void AppStage_ColorCalibration::request_apply_default_tracker_profile()
     // Tell the psmove service that we want to apply the saved default profile to the current tracker.
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_APPLY_TRACKER_PROFILE);
-    request->mutable_request_save_tracker_profile()->set_tracker_id(m_trackerView->getTrackerId());
-	request->mutable_request_save_tracker_profile()->set_controller_id(m_overrideControllerId);
+    request->mutable_request_save_tracker_profile()->set_tracker_id(m_trackerView->tracker_info.tracker_id);
+    request->mutable_request_save_tracker_profile()->set_controller_id(m_overrideControllerId);
 
-    ClientPSMoveAPI::register_callback(
-        ClientPSMoveAPI::send_opaque_request(&request),
-        AppStage_ColorCalibration::handle_tracker_get_settings_response, this);
+    PSMRequestID request_id;
+    PSM_SendOpaqueRequest(&request, &request_id);
+    PSM_RegisterCallback(request_id, AppStage_ColorCalibration::handle_tracker_get_settings_response, this);
 }
 
 void AppStage_ColorCalibration::release_devices()
@@ -1373,42 +1650,50 @@ void AppStage_ColorCalibration::release_devices()
 
     release_video_buffers();
 
-    for (ClientControllerView *controllerView : m_controllerViews)
+    for (PSMController *controllerView : m_controllerViews)
     {
-        controllerView->SetLEDOverride(0, 0, 0);
+        PSM_SetControllerLEDOverrideColor(controllerView->ControllerID, 0, 0, 0);
 
         if (m_areAllControllerStreamsActive)
         {
-            ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_controller_data_stream(controllerView));
+            PSMRequestID request_id;
+            PSM_StopControllerDataStreamAsync(controllerView->ControllerID, &request_id);
+            PSM_EatResponse(request_id);
         }
 
-        ClientPSMoveAPI::free_controller_view(controllerView);
+        PSM_FreeControllerListener(controllerView->ControllerID);
     }
-	m_controllerViews.clear();
+    m_controllerViews.clear();
 
     m_masterControllerView = nullptr;
     m_areAllControllerStreamsActive= false;
     m_lastMasterControllerSeqNum= -1;
 
 
-	if (m_hmdView != nullptr)
-	{
-		if (m_isHmdStreamActive)
-		{
-			ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_hmd_data_stream(m_hmdView));
-		}
+    if (m_hmdView != nullptr)
+    {
+        if (m_isHmdStreamActive)
+        {
+            PSMRequestID request_id;
+            PSM_StopHmdDataStreamAsync(m_hmdView->HmdID, &request_id);
+            PSM_EatResponse(request_id);
+        }
 
-		ClientPSMoveAPI::free_hmd_view(m_hmdView);
-		m_hmdView = nullptr;
-		m_isHmdStreamActive = false;
-		m_lastHmdSeqNum = -1;
-	}
+        PSM_FreeHmdListener(m_hmdView->HmdID);
+        m_hmdView = nullptr;
+        m_isHmdStreamActive = false;
+        m_lastHmdSeqNum = -1;
+    }
 
     if (m_trackerView != nullptr)
     {
-        m_trackerView->closeVideoStream();
-        ClientPSMoveAPI::eat_response(ClientPSMoveAPI::stop_tracker_data_stream(m_trackerView));
-        ClientPSMoveAPI::free_tracker_view(m_trackerView);
+        PSM_CloseTrackerVideoStream(m_trackerView->tracker_info.tracker_id);
+
+        PSMRequestID request_id;
+        PSM_StopTrackerDataStreamAsync(m_trackerView->tracker_info.tracker_id, &request_id);
+        PSM_EatResponse(request_id);
+
+        PSM_FreeTrackerListener(m_trackerView->tracker_info.tracker_id);
         m_trackerView = nullptr;
     }
 }
@@ -1422,78 +1707,77 @@ void AppStage_ColorCalibration::request_exit_to_app_stage(const char *app_stage_
 
 void AppStage_ColorCalibration::request_turn_on_all_tracking_bulbs(bool bEnabled)
 {
-	assert(m_controllerViews.size() == m_controllerTrackingColorTypes.size());
-	for (int list_index= 0; list_index < m_controllerViews.size(); ++list_index)
-	{
-		ClientControllerView *controllerView= m_controllerViews[list_index];
+    assert(m_controllerViews.size() == m_controllerTrackingColorTypes.size());
+    for (int list_index= 0; list_index < m_controllerViews.size(); ++list_index)
+    {
+        PSMController *controllerView= m_controllerViews[list_index];
 
-		if (controllerView == m_masterControllerView)
-			continue;
+        if (controllerView == m_masterControllerView)
+            continue;
 
-		if (bEnabled)
-		{
-			request_set_controller_tracking_color(controllerView, m_controllerTrackingColorTypes[list_index]);
-		}
-		else
-		{
-			controllerView->SetLEDOverride(0, 0, 0);
-		}
-	}
+        if (bEnabled)
+        {
+            request_set_controller_tracking_color(controllerView, m_controllerTrackingColorTypes[list_index]);
+        }
+        else
+        {
+            PSM_SetControllerLEDOverrideColor(controllerView->ControllerID, 0, 0, 0);
+        }
+    }
 }
 
 void AppStage_ColorCalibration::request_change_controller(int step)
 {
-	assert(m_controllerViews.size() == m_controllerTrackingColorTypes.size());
-	//for (int list_index = 0; list_index < m_controllerViews.size(); ++list_index)
-	{
-		ClientControllerView *controllerView = m_controllerViews[m_overrideControllerId];
+    assert(m_controllerViews.size() == m_controllerTrackingColorTypes.size());
 
-		if (controllerView == m_masterControllerView) {
-			m_masterControllerView->SetLEDOverride(0, 0, 0);
-			if (m_overrideControllerId + step < m_controllerViews.size() && m_overrideControllerId + step >= 0) {
-				m_overrideControllerId = m_overrideControllerId + step;
-				m_masterControllerView = m_controllerViews[m_overrideControllerId];
-				request_set_controller_tracking_color(m_masterControllerView, m_masterTrackingColorType);
-				//setState(eMenuState::manualConfig);
-			}
-			else if (step > 0) {
-				m_overrideControllerId = 0;
-				m_masterControllerView = m_controllerViews[0];
-				request_set_controller_tracking_color(m_masterControllerView, m_masterTrackingColorType);
-				if (m_bAutoChangeTracker) setState(eMenuState::changeTracker);
-				//else setState(eMenuState::manualConfig);
-			}
-			else {
-				m_overrideControllerId = m_controllerViews.size() -1;
-				m_masterControllerView = m_controllerViews[m_overrideControllerId];
-				request_set_controller_tracking_color(m_masterControllerView, m_masterTrackingColorType);
-				//if (m_bAutoChangeTracker) setState(eMenuState::changeTracker);
-				//else 
-				//	setState(eMenuState::manualConfig);
-			}
-			//break;
-		}
-	}
+    {
+        PSMController *controllerView = m_controllerViews[m_overrideControllerId];
+
+        if (controllerView == m_masterControllerView) {
+            PSM_SetControllerLEDOverrideColor(m_masterControllerView->ControllerID, 0, 0, 0);
+            if (m_overrideControllerId + step < static_cast<int>(m_controllerViews.size()) && m_overrideControllerId + step >= 0) {
+                m_overrideControllerId = m_overrideControllerId + step;
+                m_masterControllerView = m_controllerViews[m_overrideControllerId];
+                m_masterTrackingColorType = m_controllerTrackingColorTypes[m_overrideControllerId];
+                request_set_controller_tracking_color(m_masterControllerView, m_masterTrackingColorType);
+            }
+            else if (step > 0) {
+                m_overrideControllerId = 0;
+                m_masterControllerView = m_controllerViews[0];
+                m_masterTrackingColorType = m_controllerTrackingColorTypes[m_overrideControllerId];
+                request_set_controller_tracking_color(m_masterControllerView, m_masterTrackingColorType);
+                if (m_bAutoChangeTracker) setState(eMenuState::changeTracker);
+            }
+            else {
+                m_overrideControllerId = static_cast<int>(m_controllerViews.size()) -1;
+                m_masterControllerView = m_controllerViews[m_overrideControllerId];
+                m_masterTrackingColorType = m_controllerTrackingColorTypes[m_overrideControllerId];
+                request_set_controller_tracking_color(m_masterControllerView, m_masterTrackingColorType);
+            }
+        }
+    }
+    m_app->getAppStage<AppStage_TrackerSettings>()->set_selectedControllerIndex(m_overrideControllerId);
 }
 
 void AppStage_ColorCalibration::request_change_tracker(int step)
 {
-	m_app->getAppStage<AppStage_ColorCalibration>()->
-	set_autoConfig(m_bAutoChangeColor, m_bAutoChangeController, m_bAutoChangeTracker);
-	//int TrackerId = m_trackerView->getTrackerId();
-	if (tracker_index + step < tracker_count && tracker_index + step >= 0)
-	{
-		m_app->getAppStage<AppStage_TrackerSettings>()->set_selectedTrackerIndex(tracker_index + step);
-		request_exit_to_app_stage(AppStage_ColorCalibration::APP_STAGE_NAME);
-	}
-	else if (step > 0)
-	{
-		m_app->getAppStage<AppStage_TrackerSettings>()->set_selectedTrackerIndex(0);
-		request_exit_to_app_stage(AppStage_ColorCalibration::APP_STAGE_NAME);
-	}
-	else
-	{
-		m_app->getAppStage<AppStage_TrackerSettings>()->set_selectedTrackerIndex(tracker_count -1);
-		request_exit_to_app_stage(AppStage_ColorCalibration::APP_STAGE_NAME);
-	}
+    m_app->getAppStage<AppStage_ColorCalibration>()->
+        set_autoConfig(m_bAutoChangeColor, m_bAutoChangeController, m_bAutoChangeTracker);
+
+    if (tracker_index + step < tracker_count && tracker_index + step >= 0)
+    {
+        if (m_bShowAlignment) m_bAutoCalibrate = true;
+        m_app->getAppStage<AppStage_TrackerSettings>()->set_selectedTrackerIndex(tracker_index + step);
+        request_exit_to_app_stage(AppStage_ColorCalibration::APP_STAGE_NAME);
+    }
+    else if (step > 0)
+    {
+        m_app->getAppStage<AppStage_TrackerSettings>()->set_selectedTrackerIndex(0);
+        request_exit_to_app_stage(AppStage_ColorCalibration::APP_STAGE_NAME);
+    }
+    else
+    {
+        m_app->getAppStage<AppStage_TrackerSettings>()->set_selectedTrackerIndex(tracker_count -1);
+        request_exit_to_app_stage(AppStage_ColorCalibration::APP_STAGE_NAME);
+    }
 }

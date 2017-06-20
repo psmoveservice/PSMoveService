@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.2)
 project(PSMoveService VERSION 0.0.1)
 include(ExternalProject)
 
@@ -42,6 +42,47 @@ else()
         set(ARCH_LABEL "Linux32")
     endif()
 endif()
+
+#------------------------
+# Project Version
+#------------------------
+
+# Retrieve version from header file
+set(PSM_VERSION_HEADER_FILE "${ROOT_DIR}/src/psmoveprotocol/ProtocolVersion.h")
+
+file(STRINGS ${PSM_VERSION_HEADER_FILE} PSM_VERSION_PARTS
+  REGEX "^#define[ \t]+PSM_VERSION_(PRODUCT|MAJOR|PHASE|MINOR|RELEASE|HOTFIX)[ \t]+[0-9a-z]+$")
+  
+# Verify version parts
+string(REGEX MATCH "PSM_VERSION_PRODUCT[ \t]+[0-9a-z]+" PSM_VERSION_PRODUCT  ${PSM_VERSION_PARTS})
+string(REGEX MATCH "PSM_VERSION_MAJOR[ \t]+[0-9a-z]+" PSM_VERSION_MAJOR  ${PSM_VERSION_PARTS})
+string(REGEX MATCH "PSM_VERSION_PHASE[ \t]+[0-9a-z]+" PSM_VERSION_PHASE  ${PSM_VERSION_PARTS})
+string(REGEX MATCH "PSM_VERSION_MINOR[ \t]+[0-9a-z]+" PSM_VERSION_MINOR  ${PSM_VERSION_PARTS})
+string(REGEX MATCH "PSM_VERSION_RELEASE[ \t]+[0-9a-z]+" PSM_VERSION_RELEASE  ${PSM_VERSION_PARTS})
+string(REGEX MATCH "PSM_VERSION_HOTFIX[ \t]+[0-9a-z]+" PSM_VERSION_HOTFIX  ${PSM_VERSION_PARTS})
+
+if(NOT PSM_VERSION_PRODUCT 
+    OR NOT PSM_VERSION_MAJOR 
+    OR NOT PSM_VERSION_PHASE 
+    OR NOT PSM_VERSION_MINOR 
+    OR NOT PSM_VERSION_RELEASE
+    OR NOT PSM_VERSION_HOTFIX)
+  message(FATAL_ERROR "Unable to retrieve project version from ${PSM_VERSION_HEADER_FILE}")
+endif()
+
+# Extract version numbers
+string(REGEX REPLACE "PSM_VERSION_PRODUCT[ \t]+([0-9a-z]+)" "\\1" PSM_VERSION_PRODUCT  ${PSM_VERSION_PRODUCT})
+string(REGEX REPLACE "PSM_VERSION_MAJOR[ \t]+([0-9a-z]+)" "\\1" PSM_VERSION_MAJOR  ${PSM_VERSION_MAJOR})
+string(REGEX REPLACE "PSM_VERSION_PHASE[ \t]+([0-9a-z]+)" "\\1" PSM_VERSION_PHASE  ${PSM_VERSION_PHASE})
+string(REGEX REPLACE "PSM_VERSION_MINOR[ \t]+([0-9a-z]+)" "\\1" PSM_VERSION_MINOR  ${PSM_VERSION_MINOR})
+string(REGEX REPLACE "PSM_VERSION_RELEASE[ \t]+([0-9a-z]+)" "\\1" PSM_VERSION_RELEASE  ${PSM_VERSION_RELEASE})
+string(REGEX REPLACE "PSM_VERSION_HOTFIX[ \t]+([0-9a-z]+)" "\\1" PSM_VERSION_HOTFIX  ${PSM_VERSION_HOTFIX})
+
+set(PSM_VERSION_STRING "${PSM_VERSION_PRODUCT}.${PSM_VERSION_MAJOR}_${PSM_VERSION_PHASE}${PSM_VERSION_MINOR}.${PSM_VERSION_RELEASE}.${PSM_VERSION_HOTFIX}")
+
+message(STATUS "Project version: ${PSM_VERSION_STRING}")
+
+set(PSM_PROJECT_NAME "PSMoveService_${PSM_VERSION_STRING}")
 
 # When not using MSVC, we recommend using system-wide libraries
 # (installed via homebrew on Mac or apt-get in Linux/Ubuntu)
@@ -168,6 +209,8 @@ IF(MSVC)
     foreach(CompilerFlag ${CompilerFlags})
       string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
     endforeach()
+ELSE()
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch")
 ENDIF(MSVC)
 
 # Boost Settings

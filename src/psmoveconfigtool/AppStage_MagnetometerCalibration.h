@@ -3,7 +3,7 @@
 
 //-- includes -----
 #include "AppStage.h"
-#include "ClientGeometry.h"
+#include "ClientGeometry_CAPI.h"
 
 #include <deque>
 #include <chrono>
@@ -29,14 +29,14 @@ public:
 
 protected:
     static void handle_acquire_controller(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
     void request_exit_to_app_stage(const char *app_stage_name);
     static void handle_release_controller(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
     static void handle_set_magnetometer_calibration(
-        const ClientPSMoveAPI::ResponseMessage *response,
+        const PSMResponseMessage *response,
         void *userdata);
 
 private:
@@ -59,12 +59,12 @@ private:
     eCalibrationMenuState m_menuState;
     const char *m_pendingAppStage;
 
-    ClientControllerView *m_controllerView;
+    PSMController *m_controllerView;
     bool m_isControllerStreamActive;
     int m_lastControllerSeqNum;
 
-    PSMoveIntVector3 m_lastRawMagnetometer;
-    PSMoveFloatVector3 m_lastCalibratedAccelerometer;
+    PSMVector3i m_lastRawMagnetometer;
+    PSMVector3f m_lastCalibratedAccelerometer;
 
     struct MagnetometerBoundsStatistics *m_boundsStatistics;
 	struct MagnetometerIdentityStatistics *m_identityStatistics;
@@ -77,7 +77,7 @@ private:
     bool m_bIsStable;
 	bool m_bForceControllerStable;
 
-    PSMoveIntVector3 m_identityPoseMVectorSum;
+    PSMVector3i m_identityPoseMVectorSum;
     int m_identityPoseSampleCount;   
 };
 

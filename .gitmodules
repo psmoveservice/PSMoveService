@@ -6,7 +6,8 @@
 	url = https://github.com/signal11/hidapi.git
 [submodule "thirdparty/PS3EYEDriver"]
 	path = thirdparty/PS3EYEDriver
-	url = https://github.com/inspirit/PS3EYEDriver.git
+	url = https://github.com/zelmon64/PS3EYEDriver.git
+	branch = set_resolution
 [submodule "thirdparty/type_index"]
 	path = thirdparty/type_index
 	url = https://github.com/boostorg/type_index.git
@@ -29,12 +30,9 @@
 [submodule "thirdparty/eigen"]
 	path = thirdparty/eigen
 	url = https://github.com/RLovelett/eigen.git
-[submodule "thirdparty/openvr"]
-	path = thirdparty/openvr
-	url = https://github.com/ValveSoftware/openvr.git
 [submodule "thirdparty/kalman"]
 	path = thirdparty/kalman
 	url = https://github.com/mherb/kalman.git
 [submodule "thirdparty/libstem_gamepad"]
 	path = thirdparty/libstem_gamepad
-	url = https://github.com/ThemsAllTook/libstem_gamepad.git
+	url = https://github.com/cboulay/libstem_gamepad.git

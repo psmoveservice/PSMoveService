@@ -80,6 +80,9 @@ public:
 	// Returns true if the device can stream controller data over it's current connection type (Bluetooth/USB)
 	bool getIsStreamable() const;
 
+    // Returns true if this device is a virtual controller
+    bool getIsVirtualController() const;
+
     // Returns the full usb device path for the controller
     std::string getUSBDevicePath() const;
 
@@ -89,7 +92,7 @@ public:
 	// Returns the product ID of the controller
 	int getProductID() const;
 
-	// Returns the serial number for the controller
+    // Returns the serial number for the controller
     std::string getSerial() const;
 
 	// Returns the "controller_" + serial number for the controller
@@ -104,6 +107,9 @@ public:
     // Fetch the controller state at the given sample index.
     // A lookBack of 0 corresponds to the most recent data.
     const CommonControllerState * getState(int lookBack = 0) const;
+
+    // Returns true if the system button was pressed this frame on this controller
+    bool getWasSystemButtonPressed() const;
 
     // Sets the bulb LED color to some new override color
     // If tracking was active this likely will affect controller tracking
@@ -120,7 +126,7 @@ public:
 	eCommonTrackingColorID getTrackingColorID() const;
 
     // Set the assigned tracking color ID for the controller
-    void setTrackingColorID(eCommonTrackingColorID colorID);
+    bool setTrackingColorID(eCommonTrackingColorID colorID);
 
     // Get the tracking is enabled on this controller
     inline bool getIsTrackingEnabled() const { return m_tracking_enabled && m_multicam_pose_estimation != nullptr; }
@@ -166,6 +172,7 @@ public:
     // Set the rumble value between 0.f-1.f on a channel
     bool setControllerRumble(float rumble_amount, CommonControllerState::RumbleChannel channel);
 
+    // Helper used to publish the current controller state to the given output data frame
     static void generate_controller_data_frame_for_stream(
         const ServerControllerView *controller_view,
         const struct ControllerStreamInfo *stream_info,
@@ -183,7 +190,7 @@ private:
     std::tuple<unsigned char, unsigned char, unsigned char> m_tracking_color;
     int m_tracking_listener_count;
     bool m_tracking_enabled;
-
+    
 	// Region-of-Interest state
 	int m_roi_disable_count;
     

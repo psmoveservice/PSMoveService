@@ -58,10 +58,10 @@ static const char *k_video_display_mode_names[] = {
 class OpenCVBufferState
 {
 public:
-    OpenCVBufferState(const ClientTrackerInfo &_trackerInfo)
+    OpenCVBufferState(const PSMClientTrackerInfo &_trackerInfo)
         : trackerInfo(_trackerInfo)
-        , frameWidth(static_cast<int>(_trackerInfo.tracker_screen_dimensions.i))
-        , frameHeight(static_cast<int>(_trackerInfo.tracker_screen_dimensions.j))
+        , frameWidth(static_cast<int>(_trackerInfo.tracker_screen_dimensions.x))
+        , frameHeight(static_cast<int>(_trackerInfo.tracker_screen_dimensions.y))
         , capturedBoardCount(0)
     {
         // Video Frame data
@@ -114,16 +114,16 @@ public:
         reprojectionError= 0.f;
 
         // Fill in the intrinsic matrix
-        intrinsic_matrix->at<double>(0, 0)= trackerInfo.tracker_focal_lengths.i;
+        intrinsic_matrix->at<double>(0, 0)= trackerInfo.tracker_focal_lengths.x;
         intrinsic_matrix->at<double>(1, 0)= 0.0;
         intrinsic_matrix->at<double>(2, 0)= 0.0;
 
         intrinsic_matrix->at<double>(0, 1)= 0.0;
-        intrinsic_matrix->at<double>(1, 1)= trackerInfo.tracker_focal_lengths.j;
+        intrinsic_matrix->at<double>(1, 1)= trackerInfo.tracker_focal_lengths.y;
         intrinsic_matrix->at<double>(2, 1)= 0.0;
 
-        intrinsic_matrix->at<double>(0, 2)= trackerInfo.tracker_principal_point.i;
-        intrinsic_matrix->at<double>(1, 2)= trackerInfo.tracker_principal_point.j;
+        intrinsic_matrix->at<double>(0, 2)= trackerInfo.tracker_principal_point.x;
+        intrinsic_matrix->at<double>(1, 2)= trackerInfo.tracker_principal_point.y;
         intrinsic_matrix->at<double>(2, 2)= 1.0;
 
         // Fill in the distortion coefficients
@@ -347,7 +347,7 @@ public:
         }
     }
 
-    const ClientTrackerInfo &trackerInfo;
+    const PSMClientTrackerInfo &trackerInfo;
     int frameWidth;
     int frameHeight;
 
@@ -393,13 +393,14 @@ void AppStage_DistortionCalibration::enter()
 {
     const AppStage_TrackerSettings *trackerSettings =
         m_app->getAppStage<AppStage_TrackerSettings>();
-    const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
+    const PSMClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
     assert(trackerInfo->tracker_id != -1);
 
     m_app->setCameraType(_cameraFixed);
 
     assert(m_tracker_view == nullptr);
-    m_tracker_view= ClientPSMoveAPI::allocate_tracker_view(*trackerInfo);
+	PSM_AllocateTrackerListener(trackerInfo->tracker_id, trackerInfo);
+	m_tracker_view = PSM_GetTracker(trackerInfo->tracker_id);
 
 	m_square_length_mm = DEFAULT_SQUARE_LEN_MM;
 
@@ -420,7 +421,7 @@ void AppStage_DistortionCalibration::exit()
     // Revert unsaved modifications to the tracker settings
     request_tracker_reload_settings();
 
-    ClientPSMoveAPI::free_tracker_view(m_tracker_view);
+    PSM_FreeTrackerListener(m_tracker_view->tracker_info.tracker_id);
     m_tracker_view = nullptr;
     m_bStreamIsActive= false;
 }
@@ -433,29 +434,31 @@ void AppStage_DistortionCalibration::update()
         assert(m_video_texture != nullptr);
 
         // Try and read the next video frame from shared memory
-        if (m_tracker_view->pollVideoStream())
+        if (PSM_PollTrackerVideoStream(m_tracker_view->tracker_info.tracker_id) == PSMResult_Success)
         {
-            const unsigned char *video_frame_buffer= m_tracker_view->getVideoFrameBuffer();
+            const unsigned char *video_frame_buffer= nullptr;
+			if (PSM_GetTrackerVideoFrameBuffer(m_tracker_view->tracker_info.tracker_id, &video_frame_buffer) == PSMResult_Success)
+			{
+				// Update the video frame buffers
+				m_opencv_state->applyVideoFrame(video_frame_buffer);
 
-            // Update the video frame buffers
-            m_opencv_state->applyVideoFrame(video_frame_buffer);
-
-            // Update the video frame display texture
-            switch (m_videoDisplayMode)
-            {
-            case AppStage_DistortionCalibration::mode_bgr:
-                m_video_texture->copyBufferIntoTexture(m_opencv_state->bgrSourceBuffer->data);
-                break;
-            case AppStage_DistortionCalibration::mode_grayscale:
-                m_video_texture->copyBufferIntoTexture(m_opencv_state->gsBGRBuffer->data);
-                break;
-            case AppStage_DistortionCalibration::mode_undistored:
-                m_video_texture->copyBufferIntoTexture(m_opencv_state->bgrUndistortBuffer->data);
-                break;
-            default:
-                assert(0 && "unreachable");
-                break;
-            }
+				// Update the video frame display texture
+				switch (m_videoDisplayMode)
+				{
+				case AppStage_DistortionCalibration::mode_bgr:
+					m_video_texture->copyBufferIntoTexture(m_opencv_state->bgrSourceBuffer->data);
+					break;
+				case AppStage_DistortionCalibration::mode_grayscale:
+					m_video_texture->copyBufferIntoTexture(m_opencv_state->gsBGRBuffer->data);
+					break;
+				case AppStage_DistortionCalibration::mode_undistored:
+					m_video_texture->copyBufferIntoTexture(m_opencv_state->bgrUndistortBuffer->data);
+					break;
+				default:
+					assert(0 && "unreachable");
+					break;
+				}
+			}
 
             if (m_menuState == AppStage_DistortionCalibration::capture)
             {
@@ -845,32 +848,34 @@ void AppStage_DistortionCalibration::request_tracker_start_stream()
         m_menuState = AppStage_DistortionCalibration::pendingTrackerStartStreamRequest;
 
         // Tell the psmove service that we want to start streaming data from the tracker
-        ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::start_tracker_data_stream(m_tracker_view),
-            AppStage_DistortionCalibration::handle_tracker_start_stream_response, this);
+		PSMRequestID requestID;
+		PSM_StartTrackerDataStreamAsync(
+			m_tracker_view->tracker_info.tracker_id, 
+			&requestID);
+		PSM_RegisterCallback(requestID, AppStage_DistortionCalibration::handle_tracker_start_stream_response, this);
     }
 }
 
 void AppStage_DistortionCalibration::handle_tracker_start_stream_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_DistortionCalibration *thisPtr = static_cast<AppStage_DistortionCalibration *>(userdata);
 
     switch (response->result_code)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
-            ClientTrackerView *trackerView= thisPtr->m_tracker_view;
+            PSMTracker *trackerView= thisPtr->m_tracker_view;
 
             thisPtr->m_bStreamIsActive = true;
 
             // Open the shared memory that the video stream is being written to
-            if (trackerView->openVideoStream())
+            if (PSM_OpenTrackerVideoStream(trackerView->tracker_info.tracker_id) == PSMResult_Success)
             {
-                const ClientTrackerInfo &trackerInfo= trackerView->getTrackerInfo();
-                const int width= static_cast<int>(trackerInfo.tracker_screen_dimensions.i);
-                const int height= static_cast<int>(trackerInfo.tracker_screen_dimensions.j);
+                const PSMClientTrackerInfo &trackerInfo= trackerView->tracker_info;
+                const int width= static_cast<int>(trackerInfo.tracker_screen_dimensions.x);
+                const int height= static_cast<int>(trackerInfo.tracker_screen_dimensions.y);
 
                 // Create a texture to render the video frame to
                 thisPtr->m_video_texture = new TextureAsset();
@@ -885,7 +890,7 @@ void AppStage_DistortionCalibration::handle_tracker_start_stream_response(
                 thisPtr->m_opencv_state = new OpenCVBufferState(trackerInfo);
 
 				// Warn the user if they are about to change the distortion calibration settings for the PS3EYE
-				if (trackerInfo.tracker_type == eTrackerType::PS3Eye)
+				if (trackerInfo.tracker_type == PSMTrackerType::PSMTracker_PS3Eye)
 				{
 					thisPtr->m_menuState = AppStage_DistortionCalibration::showWarning;
 				}
@@ -901,8 +906,9 @@ void AppStage_DistortionCalibration::handle_tracker_start_stream_response(
             }
         } break;
 
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->m_menuState = AppStage_DistortionCalibration::failedTrackerStartStreamRequest;
         } break;
@@ -915,15 +921,15 @@ void AppStage_DistortionCalibration::request_tracker_stop_stream()
     {
         m_menuState = AppStage_DistortionCalibration::pendingTrackerStopStreamRequest;
 
-        // Tell the psmove service that we want to stop streaming data from the tracker        
-        ClientPSMoveAPI::register_callback(
-            ClientPSMoveAPI::stop_tracker_data_stream(m_tracker_view), 
-            AppStage_DistortionCalibration::handle_tracker_stop_stream_response, this);
+        // Tell the psmove service that we want to stop streaming data from the tracker
+		PSMRequestID request_id;
+		PSM_StopTrackerDataStreamAsync(m_tracker_view->tracker_info.tracker_id, &request_id);
+		PSM_RegisterCallback(request_id, AppStage_DistortionCalibration::handle_tracker_stop_stream_response, this);
     }
 }
 
 void AppStage_DistortionCalibration::handle_tracker_stop_stream_response(
-    const ClientPSMoveAPI::ResponseMessage *response,
+    const PSMResponseMessage *response,
     void *userdata)
 {
     AppStage_DistortionCalibration *thisPtr = static_cast<AppStage_DistortionCalibration *>(userdata);
@@ -933,12 +939,12 @@ void AppStage_DistortionCalibration::handle_tracker_stop_stream_response(
 
     switch (response->result_code)
     {
-    case ClientPSMoveAPI::_clientPSMoveResultCode_ok:
+    case PSMResult_Success:
         {
             thisPtr->m_menuState = AppStage_DistortionCalibration::inactive;
 
             // Close the shared memory buffer
-            thisPtr->m_tracker_view->closeVideoStream();
+			PSM_CloseTrackerVideoStream(thisPtr->m_tracker_view->tracker_info.tracker_id);
 
             // Free the texture we were rendering to
             if (thisPtr->m_video_texture != nullptr)
@@ -951,8 +957,9 @@ void AppStage_DistortionCalibration::handle_tracker_stop_stream_response(
             thisPtr->m_app->setAppStage(AppStage_TrackerSettings::APP_STAGE_NAME);
         } break;
 
-    case ClientPSMoveAPI::_clientPSMoveResultCode_error:
-    case ClientPSMoveAPI::_clientPSMoveResultCode_canceled:
+    case PSMResult_Error:
+    case PSMResult_Canceled:
+	case PSMResult_Timeout:
         {
             thisPtr->m_menuState = AppStage_DistortionCalibration::failedTrackerStopStreamRequest;
         } break;
@@ -966,11 +973,11 @@ void AppStage_DistortionCalibration::request_tracker_set_temp_gain(float gain)
     // Tell the psmove service that we want to change gain, but not save the change
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_GAIN);
-    request->mutable_request_set_tracker_gain()->set_tracker_id(m_tracker_view->getTrackerId());
+    request->mutable_request_set_tracker_gain()->set_tracker_id(m_tracker_view->tracker_info.tracker_id);
     request->mutable_request_set_tracker_gain()->set_value(gain);
     request->mutable_request_set_tracker_gain()->set_save_setting(false);
 
-    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_DistortionCalibration::request_tracker_set_temp_exposure(float exposure)
@@ -980,11 +987,11 @@ void AppStage_DistortionCalibration::request_tracker_set_temp_exposure(float exp
     // Tell the psmove service that we want to change exposure, but not save the change.
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_EXPOSURE);
-    request->mutable_request_set_tracker_exposure()->set_tracker_id(m_tracker_view->getTrackerId());
+    request->mutable_request_set_tracker_exposure()->set_tracker_id(m_tracker_view->tracker_info.tracker_id);
     request->mutable_request_set_tracker_exposure()->set_value(exposure);
     request->mutable_request_set_tracker_exposure()->set_save_setting(false);
 
-    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_DistortionCalibration::request_tracker_set_intrinsic(
@@ -995,11 +1002,11 @@ void AppStage_DistortionCalibration::request_tracker_set_intrinsic(
 {
     // Update the intrinsic state on the tracker info
     // so that this becomes the new reset point.
-    ClientTrackerInfo trackerInfo= m_tracker_view->getTrackerInfoMutable();
-    trackerInfo.tracker_focal_lengths.i= focalLengthX;
-    trackerInfo.tracker_focal_lengths.j= focalLengthY;
-    trackerInfo.tracker_principal_point.i= principalX;
-    trackerInfo.tracker_principal_point.j= principalY;
+    PSMClientTrackerInfo trackerInfo= m_tracker_view->tracker_info;
+    trackerInfo.tracker_focal_lengths.x= focalLengthX;
+    trackerInfo.tracker_focal_lengths.y= focalLengthY;
+    trackerInfo.tracker_principal_point.x= principalX;
+    trackerInfo.tracker_principal_point.y= principalY;
     trackerInfo.tracker_k1= distortionK1;
     trackerInfo.tracker_k2= distortionK2;
     trackerInfo.tracker_k3= distortionK3;
@@ -1008,7 +1015,7 @@ void AppStage_DistortionCalibration::request_tracker_set_intrinsic(
 
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_SET_TRACKER_INTRINSICS);
-    request->mutable_request_set_tracker_intrinsics()->set_tracker_id(m_tracker_view->getTrackerId());
+    request->mutable_request_set_tracker_intrinsics()->set_tracker_id(m_tracker_view->tracker_info.tracker_id);
 
     PSMoveProtocol::Pixel *focal_lengths= request->mutable_request_set_tracker_intrinsics()->mutable_tracker_focal_lengths();
     focal_lengths->set_x(focalLengthX);
@@ -1024,16 +1031,16 @@ void AppStage_DistortionCalibration::request_tracker_set_intrinsic(
     request->mutable_request_set_tracker_intrinsics()->set_tracker_p1(distortionP1);
     request->mutable_request_set_tracker_intrinsics()->set_tracker_p2(distortionP2);    
 
-    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_DistortionCalibration::request_tracker_reload_settings()
 {
     RequestPtr request(new PSMoveProtocol::Request());
     request->set_type(PSMoveProtocol::Request_RequestType_RELOAD_TRACKER_SETTINGS);
-    request->mutable_request_reload_tracker_settings()->set_tracker_id(m_tracker_view->getTrackerId());
+    request->mutable_request_reload_tracker_settings()->set_tracker_id(m_tracker_view->tracker_info.tracker_id);
 
-    ClientPSMoveAPI::eat_response(ClientPSMoveAPI::send_opaque_request(&request));
+    PSM_SendOpaqueRequest(&request, nullptr);
 }
 
 void AppStage_DistortionCalibration::request_exit()
@@ -1042,7 +1049,7 @@ void AppStage_DistortionCalibration::request_exit()
     {
         const AppStage_TrackerSettings *trackerSettings =
             m_app->getAppStage<AppStage_TrackerSettings>();
-        const ClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
+        const PSMClientTrackerInfo *trackerInfo = trackerSettings->getSelectedTrackerInfo();
 
         request_tracker_stop_stream();
     }

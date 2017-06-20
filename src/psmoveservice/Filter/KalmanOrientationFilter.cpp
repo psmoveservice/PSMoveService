@@ -504,9 +504,9 @@ public:
 	KalmanOrientationFilterImpl()
 		: bIsValid(false)
 		, bSeenOrientationMeasurement(false)
-		, world_orientation(Eigen::Quaternionf::Identity())
 		, system_model()
 		, ukf(k_ukf_alpha, k_ukf_beta, k_ukf_kappa)
+        , world_orientation(Eigen::Quaternionf::Identity())
     {
     }
 

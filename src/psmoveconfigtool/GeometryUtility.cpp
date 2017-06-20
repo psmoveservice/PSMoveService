@@ -3,51 +3,46 @@
 
 //-- methods -----
 // PSMove types to PSMove Types
-PSMoveQuaternion psmove_matrix3x3_to_psmove_quaternion(const PSMoveMatrix3x3 &m)
+PSMQuatf psm_matrix3f_to_psm_quatf(const PSMMatrix3f &m)
 {
-    glm::mat3 glm_mat3 = psmove_matrix3x3_to_glm_mat3(m);
+    glm::mat3 glm_mat3 = psm_matrix3f_to_glm_mat3(m);
     glm::quat glm_quat = glm::quat_cast(glm_mat3);
-    PSMoveQuaternion result = glm_mat3_to_psmove_quaternion(glm_quat);
+    PSMQuatf result = glm_mat3_to_psm_quatf(glm_quat);
 
     return result;
 }
 
-PSMoveMatrix3x3 psmove_quaternion_to_psmove_matrix3x3(const PSMoveQuaternion &q)
+PSMMatrix3f psm_quatf_to_psm_matrix3f(const PSMQuatf &q)
 {
-    glm::quat glm_quat= psmove_quaternion_to_glm_quat(q);
+    glm::quat glm_quat= psm_quatf_to_glm_quat(q);
     glm::mat3 glm_mat3 = glm::mat3_cast(glm_quat);
-    PSMoveMatrix3x3 result = glm_mat3_to_psmove_matrix3x3(glm_mat3);
+    PSMMatrix3f result = glm_mat3_to_psm_matrix3f(glm_mat3);
 
     return result;
 }
 
 // PSMove types to GLM types
-glm::vec3 psmove_float_vector3_to_glm_vec3(const PSMoveFloatVector3 &v)
-{
-    return glm::vec3(v.i, v.j, v.k);
-}
-
-glm::vec3 psmove_position_to_glm_vec3(const PSMovePosition &v)
+glm::vec3 psm_vector3f_to_glm_vec3(const PSMVector3f &v)
 {
     return glm::vec3(v.x, v.y, v.z);
 }
 
-glm::quat psmove_quaternion_to_glm_quat(const PSMoveQuaternion &q)
+glm::quat psm_quatf_to_glm_quat(const PSMQuatf &q)
 {
     return glm::quat(q.w, q.x, q.y, q.z);
 }
 
-glm::mat3 psmove_matrix3x3_to_glm_mat3(const PSMoveMatrix3x3 &m)
+glm::mat3 psm_matrix3f_to_glm_mat3(const PSMMatrix3f &m)
 {
     // GLM column matrix constructor
     return glm::mat3x3(
-        psmove_float_vector3_to_glm_vec3(m.basis_x()),
-        psmove_float_vector3_to_glm_vec3(m.basis_y()),
-        psmove_float_vector3_to_glm_vec3(m.basis_z()));
+        psm_vector3f_to_glm_vec3(PSM_Matrix3fBasisX(&m)),
+        psm_vector3f_to_glm_vec3(PSM_Matrix3fBasisY(&m)),
+        psm_vector3f_to_glm_vec3(PSM_Matrix3fBasisZ(&m)));
 }
 
 glm::mat4
-psmove_pose_to_glm_mat4(const PSMoveQuaternion &quat, const PSMovePosition &pos)
+psm_posef_to_glm_mat4(const PSMQuatf &quat, const PSMVector3f &pos)
 {
     glm::quat orientation(quat.w, quat.x, quat.y, quat.z);
     glm::vec3 position(pos.x, pos.y, pos.z);
@@ -57,54 +52,49 @@ psmove_pose_to_glm_mat4(const PSMoveQuaternion &quat, const PSMovePosition &pos)
 }
 
 glm::mat4
-psmove_pose_to_glm_mat4(const PSMovePose &pose)
+psm_posef_to_glm_mat4(const PSMPosef &pose)
 {
-    return psmove_pose_to_glm_mat4(pose.Orientation, pose.Position);
+    return psm_posef_to_glm_mat4(pose.Orientation, pose.Position);
 }
 
 // GLM Types to PSMove types
-PSMoveFloatVector3 glm_vec3_to_psmove_float_vector3(const glm::vec3 &v)
+PSMVector3f glm_vec3_to_psm_vector3f(const glm::vec3 &v)
 {
-    return PSMoveFloatVector3::create(v.x, v.y, v.z);
+    return {v.x, v.y, v.z};
 }
 
-PSMovePosition glm_vec3_to_psmove_position(const glm::vec3 &v)
-{
-    return PSMovePosition::create(v.x, v.y, v.z);
-}
-
-PSMoveMatrix3x3 glm_mat3_to_psmove_matrix3x3(const glm::mat3 &m)
+PSMMatrix3f glm_mat3_to_psm_matrix3f(const glm::mat3 &m)
 {
     // Basis vectors are stored in columns in GLM
-    return
-        PSMoveMatrix3x3::create(
-            PSMoveFloatVector3::create(m[0].x, m[0].y, m[0].z),
-            PSMoveFloatVector3::create(m[1].x, m[1].y, m[1].z),
-            PSMoveFloatVector3::create(m[2].x, m[2].y, m[2].z));
+    PSMVector3f basis_x= {m[0].x, m[0].y, m[0].z};
+    PSMVector3f basis_y= {m[1].x, m[1].y, m[1].z};
+    PSMVector3f basis_z= {m[2].x, m[2].y, m[2].z};
+
+	return PSM_Matrix3fCreate(&basis_x, &basis_y, &basis_z);
 }
 
-PSMoveQuaternion glm_mat3_to_psmove_quaternion(const glm::quat &q)
+PSMQuatf glm_mat3_to_psm_quatf(const glm::quat &q)
 {
-    return PSMoveQuaternion::create(q.w, q.x, q.y, q.z);
+    return PSM_QuatfCreate(q.w, q.x, q.y, q.z);
 }
 
-PSMovePose glm_mat4_to_psmove_pose(const glm::mat4 &m)
+PSMPosef glm_mat4_to_psm_posef(const glm::mat4 &m)
 {
     const glm::quat q = glm::quat_cast(m);
     const glm::vec3 p = glm::vec3(m[3]);
-    PSMovePose result;
+    PSMPosef result;
 
-    result.Orientation = glm_mat3_to_psmove_quaternion(q);
-    result.Position = glm_vec3_to_psmove_position(p);
+    result.Orientation = glm_mat3_to_psm_quatf(q);
+    result.Position = glm_vec3_to_psm_vector3f(p);
 
     return result;
 }
 
 // PSMove types to OpenCV types
 cv::Matx33f
-psmove_matrix3x3_to_cv_mat33f(const PSMoveMatrix3x3 &in)
+psmove_matrix3x3_to_cv_mat33f(const PSMMatrix3f &in)
 {
-    // Both OpenCV and PSMoveMatrix3x3 matrices are stored row-major
+    // Both OpenCV and PSMMatrix3f matrices are stored row-major
     cv::Matx33f out;
     for (int i = 0; i < 3; ++i)
     {
@@ -139,33 +129,32 @@ Eigen::Matrix4f glm_mat4_to_eigen_matrix4f(const glm::mat4 &m)
 }
 
 // PSMoveTypes to Eigen types
-Eigen::Vector3f psmove_int_vector3_to_eigen_vector3(const PSMoveIntVector3 &v)
+Eigen::Vector3f psm_vector3i_to_eigen_vector3(const PSMVector3i &v)
 {
-    return Eigen::Vector3f(static_cast<float>(v.i), static_cast<float>(v.j), static_cast<float>(v.k));
+    return Eigen::Vector3f(static_cast<float>(v.x), static_cast<float>(v.y), static_cast<float>(v.z));
 }
 
-Eigen::Vector3f psmove_float_vector3_to_eigen_vector3(const PSMoveFloatVector3 &v)
+Eigen::Vector3f psm_vector3f_to_eigen_vector3(const PSMVector3f &v)
 {
-    return Eigen::Vector3f(v.i, v.j, v.k);
+    return Eigen::Vector3f(v.x, v.y, v.z);
 }
 
-Eigen::Vector3f psmove_position_to_eigen_vector3(const PSMovePosition &p)
-{
-	return Eigen::Vector3f(p.x, p.y, p.z);
-}
-
-Eigen::Quaternionf psmove_quaternion_to_eigen_quaternionf(const PSMoveQuaternion &q)
+Eigen::Quaternionf psm_quatf_to_eigen_quaternionf(const PSMQuatf &q)
 {
     return Eigen::Quaternionf(q.w, q.x, q.y, q.z);
 }
 
-Eigen::Matrix3f psmove_matrix3x3_to_eigen_matrix3(const PSMoveMatrix3x3 &m)
+Eigen::Matrix3f psm_matrix3f_to_eigen_matrix3(const PSMMatrix3f &m)
 {
 	Eigen::Matrix3f result;
 
-	result << m.basis_x().i, m.basis_x().j, m.basis_x().k,
-		m.basis_y().i, m.basis_y().j, m.basis_y().k,
-		m.basis_z().i, m.basis_z().j, m.basis_z().k;
+    PSMVector3f basis_x= PSM_Matrix3fBasisX(&m);
+    PSMVector3f basis_y= PSM_Matrix3fBasisY(&m);
+    PSMVector3f basis_z= PSM_Matrix3fBasisZ(&m);
+
+	result << basis_x.x, basis_x.y, basis_x.z,
+		basis_y.x, basis_y.y, basis_y.z,
+		basis_z.x, basis_z.y, basis_z.z;
 
 	return result;
 }
@@ -187,12 +176,7 @@ glm::vec3 eigen_vector3f_to_glm_vec3(const Eigen::Vector3f &v)
 }
 
 // Eigen types to PSMove types
-PSMovePosition eigen_vector3f_to_psmove_position(const Eigen::Vector3f &p)
+PSMVector3f eigen_vector3f_to_psm_vector3f(const Eigen::Vector3f &v)
 {
-	return PSMovePosition::create(p.x(), p.y(), p.z());
-}
-
-PSMoveFloatVector3 eigen_vector3f_to_psmove_float_vector3(const Eigen::Vector3f &v)
-{
-	return PSMoveFloatVector3::create(v.x(), v.y(), v.z());
+	return {v.x(), v.y(), v.z()};
 }

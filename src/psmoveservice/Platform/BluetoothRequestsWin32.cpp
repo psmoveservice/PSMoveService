@@ -1259,6 +1259,10 @@ is_matching_controller_type(
         {
             matches = is_device_dualshock4_controller(device_info);
         } break;
+    case CommonDeviceState::VirtualController:
+        {
+            matches = false;
+        } break;
     default:
         assert(0 && "unreachable");
     }

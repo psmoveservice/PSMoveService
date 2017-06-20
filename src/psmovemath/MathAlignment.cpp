@@ -332,28 +332,34 @@ eigen_alignment_compute_ellipsoid_fit_error(
 {
     float error = 0.f;
 
-    // Get the semi-axis lengths of the ellipse
-    const float a_squared = ellipsoid.extents.x()*ellipsoid.extents.x();
-    const float b_squared = ellipsoid.extents.y()*ellipsoid.extents.y();
-    const float c_squared = ellipsoid.extents.z()*ellipsoid.extents.z();
-
-    for (int point_index = 0; point_index < point_count; ++point_index)
+    if (point_count > 1)
     {
-        // Compute the point relative to the ellipsoid center
-        const Eigen::Vector3f &point = points[point_index];
-        const Eigen::Vector3f offset = point - ellipsoid.center;
+        // Get the semi-axis lengths of the ellipse
+        const float a_squared = ellipsoid.extents.x()*ellipsoid.extents.x();
+        const float b_squared = ellipsoid.extents.y()*ellipsoid.extents.y();
+        const float c_squared = ellipsoid.extents.z()*ellipsoid.extents.z();
 
-        // Project the offset onto basis
-        const float x = offset.dot(ellipsoid.basis.col(0));
-        const float y = offset.dot(ellipsoid.basis.col(1));
-        const float z = offset.dot(ellipsoid.basis.col(2));
+        for (int point_index = 0; point_index < point_count; ++point_index)
+        {
+            // Compute the point relative to the ellipsoid center
+            const Eigen::Vector3f &point = points[point_index];
+            const Eigen::Vector3f offset = point - ellipsoid.center;
 
-        // Compute the general ellipsoid equation: E(x, y, x)= (x^2/a^2) + (y^2/b^2) + (z^2/x^2) - 1
-        // E(x, y, x) = 0 means the point is on the surface
-        // E(x, y, x) > 0 means the point is above the surface
-        // E(x, y, x) < 0 means the point is below the surface
-        // |E(x, y, x)| gives us distance from the surface, which will treat as an error
-        error += fabsf((x*x / a_squared) + (y*y / b_squared) + (z*z / c_squared) - 1.f);
+            // Project the offset onto basis
+            const float x = offset.dot(ellipsoid.basis.col(0));
+            const float y = offset.dot(ellipsoid.basis.col(1));
+            const float z = offset.dot(ellipsoid.basis.col(2));
+
+            // Compute the general ellipsoid equation: E(x, y, x)= (x^2/a^2) + (y^2/b^2) + (z^2/x^2) - 1
+            // E(x, y, x) = 0 means the point is on the surface
+            // E(x, y, x) > 0 means the point is above the surface
+            // E(x, y, x) < 0 means the point is below the surface
+            // |E(x, y, x)| gives us distance from the surface, which will treat as an error
+            const float x_term= safe_divide_with_default(x*x, a_squared, 0.f);
+            const float y_term= safe_divide_with_default(y*y, b_squared, 0.f);
+            const float z_term= safe_divide_with_default(z*z, c_squared, 0.f);
+            error += fabsf(x_term + y_term + z_term - 1.f);
+        }
     }
 
     return error;

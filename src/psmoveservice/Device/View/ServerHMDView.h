@@ -15,7 +15,7 @@ struct HMDOpticalPoseEstimation
 	std::chrono::time_point<std::chrono::high_resolution_clock> last_visible_timestamp;
 	bool bValidTimestamps;
 
-	CommonDevicePosition position;
+	CommonDevicePosition position_cm;
 	CommonDeviceTrackingProjection projection;
 	bool bCurrentlyTracking;
 
@@ -28,7 +28,7 @@ struct HMDOpticalPoseEstimation
 		last_visible_timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>();
 		bValidTimestamps = false;
 
-		position.clear();
+		position_cm.clear();
 		bCurrentlyTracking = false;
 
 		orientation.clear();
@@ -46,6 +46,7 @@ public:
     ~ServerHMDView();
 
     bool open(const class DeviceEnumerator *enumerator) override;
+    void close() override;
 
 	// Recreate and initialize the pose filter for the HMD
 	void resetPoseFilter();
@@ -94,6 +95,9 @@ public:
 	// Get the currently assigned tracking color ID for the controller
 	eCommonTrackingColorID getTrackingColorID() const;
 
+    // Set the assigned tracking color ID for the controller
+    bool setTrackingColorID(eCommonTrackingColorID colorID);
+
 	// Get if the region-of-interest optimization is disabled for this HMD
 	inline bool getIsROIDisabled() const { return m_roi_disable_count > 0; }
 
@@ -108,7 +112,7 @@ public:
 
 	// Get the pose estimate relative to the given tracker id
 	inline const HMDOpticalPoseEstimation *getTrackerPoseEstimate(int trackerId) const {
-		return (m_tracker_pose_estimation != nullptr) ? &m_tracker_pose_estimation[trackerId] : nullptr;
+		return (m_tracker_pose_estimations != nullptr) ? &m_tracker_pose_estimations[trackerId] : nullptr;
 	}
 
 	// Get the pose estimate derived from multicam pose tracking
@@ -143,7 +147,7 @@ private:
     IHMDInterface *m_device;
 
 	// Filter state
-	HMDOpticalPoseEstimation *m_tracker_pose_estimation; // array of size TrackerManager::k_max_devices
+	HMDOpticalPoseEstimation *m_tracker_pose_estimations; // array of size TrackerManager::k_max_devices
 	HMDOpticalPoseEstimation *m_multicam_pose_estimation;
 	class IPoseFilter *m_pose_filter;
 	class PoseFilterSpace *m_pose_filter_space;

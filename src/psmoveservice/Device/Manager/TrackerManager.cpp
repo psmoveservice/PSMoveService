@@ -1,7 +1,12 @@
 //-- includes -----
 #include "TrackerManager.h"
 #include "TrackerDeviceEnumerator.h"
+#include "ControllerManager.h"
+#include "DeviceManager.h"
+#include "HMDManager.h"
 #include "ServerLog.h"
+#include "ServerControllerView.h"
+#include "ServerHMDView.h"
 #include "ServerTrackerView.h"
 #include "ServerDeviceView.h"
 #include "MathUtility.h"
@@ -24,6 +29,8 @@ TrackerManagerConfig::TrackerManagerConfig(const std::string &fnamebase)
 	exclude_opposed_cameras = false;
 	min_valid_projection_area= 16;
 	disable_roi = false;
+	default_tracker_profile.frame_width = 640;
+	//default_tracker_profile.frame_height = 480;
 	default_tracker_profile.frame_rate = 40;
     default_tracker_profile.exposure = 32;
     default_tracker_profile.gain = 32;
@@ -54,6 +61,8 @@ TrackerManagerConfig::config2ptree()
 
 	pt.put("disable_roi", disable_roi);
 
+	pt.put("default_tracker_profile.frame_width", default_tracker_profile.frame_width);
+	//pt.put("default_tracker_profile.frame_height", default_tracker_profile.frame_height);
 	pt.put("default_tracker_profile.frame_rate", default_tracker_profile.frame_rate);
     pt.put("default_tracker_profile.exposure", default_tracker_profile.exposure);
     pt.put("default_tracker_profile.gain", default_tracker_profile.gain);
@@ -80,6 +89,8 @@ TrackerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
 		exclude_opposed_cameras = pt.get<bool>("excluded_opposed_cameras", exclude_opposed_cameras);
 		min_valid_projection_area = pt.get<float>("min_valid_projection_area", min_valid_projection_area);	
 		disable_roi = pt.get<bool>("disable_roi", disable_roi);
+		default_tracker_profile.frame_width = pt.get<float>("default_tracker_profile.frame_width", 640);
+		//default_tracker_profile.frame_height = pt.get<float>("default_tracker_profile.frame_height", 480);
 		default_tracker_profile.frame_rate = pt.get<float>("default_tracker_profile.frame_rate", 40);
         default_tracker_profile.exposure = pt.get<float>("default_tracker_profile.exposure", 32);
         default_tracker_profile.gain = pt.get<float>("default_tracker_profile.gain", 32);
@@ -154,6 +165,12 @@ TrackerManager::startup()
 
         // Refresh the tracker list
         mark_tracker_list_dirty();
+
+        // Put all of the available tracking colors in the queue
+        for (int color_index = 0; color_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++color_index)
+        {
+            m_available_color_ids.push_back(static_cast<eCommonTrackingColorID>(color_index));
+        }
     }
 
     return bSuccess;
@@ -223,4 +240,156 @@ TrackerManager::getTrackerViewPtr(int device_id) const
 int TrackerManager::getListUpdatedResponseType()
 {
 	return PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED;
+}
+
+eCommonTrackingColorID 
+TrackerManager::allocateTrackingColorID()
+{
+    assert(m_available_color_ids.size() > 0);
+    eCommonTrackingColorID tracking_color = m_available_color_ids.front();
+
+    m_available_color_ids.pop_front();
+
+    return tracking_color;
+}
+
+bool 
+TrackerManager::claimTrackingColorID(const ServerControllerView *claiming_controller_view, eCommonTrackingColorID color_id)
+{
+    bool bColorWasInUse = false;
+    bool bSuccess= true;
+
+    // If any other controller has this tracking color, make them pick a new color (if possible)
+    HMDManager *hmdManager= DeviceManager::getInstance()->m_hmd_manager;
+    for (int device_id = 0; device_id < hmdManager->getMaxDevices(); ++device_id)
+    {
+        ServerHMDViewPtr hmd_view = hmdManager->getHMDViewPtr(device_id);
+
+        if (hmd_view->getIsOpen())
+        {
+            if (hmd_view->getTrackingColorID() == color_id)
+            {
+                eCommonTrackingColorID newTrackingColor= allocateTrackingColorID();
+
+                if (!hmd_view->setTrackingColorID(newTrackingColor))
+                {
+                    freeTrackingColorID(newTrackingColor);
+                    bSuccess= false;
+                }
+
+                bColorWasInUse = true;
+                break;
+            }
+        }
+    }
+
+    // If any other controller has this tracking color, make them pick a new color
+    if (!bColorWasInUse)
+    {
+        // If any other controller has this tracking color, make them pick a new color
+        ControllerManager *controllerManager= DeviceManager::getInstance()->m_controller_manager;
+        for (int device_id = 0; device_id < controllerManager->getMaxDevices(); ++device_id)
+        {
+            ServerControllerViewPtr controller_view = controllerManager->getControllerViewPtr(device_id);
+
+            if (controller_view->getIsOpen() && controller_view.get() != claiming_controller_view)
+            {
+                if (controller_view->getTrackingColorID() == color_id)
+                {
+                    controller_view->setTrackingColorID(allocateTrackingColorID());
+                    bColorWasInUse = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // If the color was not in use, remove it from the color queue
+    if (!bColorWasInUse)
+    {
+        for (auto iter = m_available_color_ids.begin(); iter != m_available_color_ids.end(); ++iter)
+        {
+            if (*iter == color_id)
+            {
+                m_available_color_ids.erase(iter);
+                break;
+            }
+        }
+    }
+
+    return bSuccess;
+}
+
+bool 
+TrackerManager::claimTrackingColorID(const ServerHMDView *claiming_hmd_view, eCommonTrackingColorID color_id)
+{
+    bool bColorWasInUse = false;
+    bool bSuccess= true;
+
+    // If any other controller has this tracking color, make them pick a new color (if possible)
+    HMDManager *hmdManager= DeviceManager::getInstance()->m_hmd_manager;
+    for (int device_id = 0; device_id < hmdManager->getMaxDevices(); ++device_id)
+    {
+        ServerHMDViewPtr hmd_view = hmdManager->getHMDViewPtr(device_id);
+
+        if (hmd_view->getIsOpen() && hmd_view.get() != claiming_hmd_view)
+        {
+            if (hmd_view->getTrackingColorID() == color_id)
+            {
+                eCommonTrackingColorID newTrackingColor= allocateTrackingColorID();
+
+                if (!hmd_view->setTrackingColorID(newTrackingColor))
+                {
+                    freeTrackingColorID(newTrackingColor);
+                    bSuccess= false;
+                }
+
+                bColorWasInUse = true;
+                break;
+            }
+        }
+    }
+
+    // If any other controller has this tracking color, make them pick a new color
+    if (!bColorWasInUse)
+    {
+        // If any other controller has this tracking color, make them pick a new color
+        ControllerManager *controllerManager= DeviceManager::getInstance()->m_controller_manager;
+        for (int device_id = 0; device_id < controllerManager->getMaxDevices(); ++device_id)
+        {
+            ServerControllerViewPtr controller_view = controllerManager->getControllerViewPtr(device_id);
+
+            if (controller_view->getIsOpen())
+            {
+                if (controller_view->getTrackingColorID() == color_id)
+                {
+                    controller_view->setTrackingColorID(allocateTrackingColorID());
+                    bColorWasInUse = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // If the color was not in use, remove it from the color queue
+    if (!bColorWasInUse)
+    {
+        for (auto iter = m_available_color_ids.begin(); iter != m_available_color_ids.end(); ++iter)
+        {
+            if (*iter == color_id)
+            {
+                m_available_color_ids.erase(iter);
+                break;
+            }
+        }
+    }
+
+    return bSuccess;
+}
+
+void 
+TrackerManager::freeTrackingColorID(eCommonTrackingColorID color_id)
+{
+    assert(std::find(m_available_color_ids.begin(), m_available_color_ids.end(), color_id) == m_available_color_ids.end());
+    m_available_color_ids.push_back(color_id);
 }

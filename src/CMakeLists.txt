@@ -1,10 +1,4 @@
 # Step into the subdirectories
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    MESSAGE(STATUS "Stepping into apptray")
-    add_subdirectory(apptray)    
-    MESSAGE(STATUS "Stepping into openvr_plugin")
-    add_subdirectory(openvr_plugin)
-ENDIF()
 MESSAGE(STATUS "Stepping into psmoveprotocol")
 add_subdirectory(psmoveprotocol)
 MESSAGE(STATUS "Stepping into psmoveservice")

@@ -10,11 +10,51 @@
 #include "ServerDeviceView.h"
 #include "ServerNetworkManager.h"
 #include "ServerUtility.h"
+#include "VirtualControllerEnumerator.h"
 
 #include "hidapi.h"
 #include "gamepad/Gamepad.h"
 
 //-- methods -----
+//-- Tracker Manager Config -----
+const int ControllerManagerConfig::CONFIG_VERSION = 1;
+
+ControllerManagerConfig::ControllerManagerConfig(const std::string &fnamebase)
+    : PSMoveConfig(fnamebase)
+    , virtual_controller_count(0)
+{
+
+};
+
+const boost::property_tree::ptree
+ControllerManagerConfig::config2ptree()
+{
+    boost::property_tree::ptree pt;
+
+    pt.put("version", ControllerManagerConfig::CONFIG_VERSION);
+    pt.put("virtual_controller_count", virtual_controller_count);
+
+    return pt;
+}
+
+void
+ControllerManagerConfig::ptree2config(const boost::property_tree::ptree &pt)
+{
+    version = pt.get<int>("version", 0);
+
+    if (version == ControllerManagerConfig::CONFIG_VERSION)
+    {
+        virtual_controller_count = pt.get<int>("virtual_controller_count", 0);
+    }
+    else
+    {
+        SERVER_LOG_WARNING("ControllerManagerConfig") <<
+            "Config version " << version << " does not match expected version " <<
+            ControllerManagerConfig::CONFIG_VERSION << ", Using defaults.";
+    }
+}
+
+//-- Controller Manager ----
 ControllerManager::ControllerManager()
     : DeviceTypeManager(1000, 2)
 {
@@ -32,17 +72,22 @@ ControllerManager::startup()
 
     if (success)
     {
+		// Load any config from disk
+		cfg.load();
+
+        // Save back out the config in case there were updated defaults
+        cfg.save();
+
+        // Copy the virtual controller count into the Virtual and Gamepad controller enumerator's static variable.
+        // This breaks the dependency between the Controller Manager and the enumerator.
+        VirtualControllerEnumerator::virtual_controller_count= cfg.virtual_controller_count;
+        ControllerGamepadEnumerator::virtual_controller_count= cfg.virtual_controller_count;
+
         // Initialize HIDAPI
         if (hid_init() == -1)
         {
             SERVER_LOG_ERROR("ControllerManager::startup") << "Failed to initialize HIDAPI";
             success = false;
-        }
-
-        // Put all of the available tracking colors in the queue
-        for (int color_index = 0; color_index < eCommonTrackingColorID::MAX_TRACKING_COLOR_TYPES; ++color_index)
-        {
-            m_available_controller_color_ids.push_back(static_cast<eCommonTrackingColorID>(color_index));
         }
     }
 
@@ -84,12 +129,39 @@ ControllerManager::updateStateAndPredict(TrackerManager* tracker_manager)
 	{
 		ServerControllerViewPtr controllerView = getControllerViewPtr(device_id);
 
-		if (controllerView->getIsOpen() && controllerView->getIsBluetooth())
+		if (controllerView->getIsOpen() && 
+            (controllerView->getIsBluetooth() || controllerView->getIsVirtualController()))
 		{
 			controllerView->updateOpticalPoseEstimation(tracker_manager);
 			controllerView->updateStateAndPredict();
 		}
 	}
+}
+
+void ControllerManager::publish()
+{
+    DeviceTypeManager::publish();
+
+    bool bWasSystemButtonPressed= false;
+    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
+	{
+		ServerControllerViewPtr controllerView = getControllerViewPtr(device_id);
+
+        if (controllerView->getIsOpen() && controllerView->getIsBluetooth())
+        {
+            bWasSystemButtonPressed= controllerView->getWasSystemButtonPressed();
+        }
+    }
+
+    if (bWasSystemButtonPressed)
+    {
+        ResponsePtr response(new PSMoveProtocol::Response);
+        response->set_type(PSMoveProtocol::Response_ResponseType_SYSTEM_BUTTON_PRESSED);
+        response->set_request_id(-1);
+        response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+
+        ServerNetworkManager::get_instance()->send_notification_to_all_clients(response);
+    }
 }
 
 void
@@ -127,6 +199,12 @@ int ControllerManager::getListUpdatedResponseType()
 	return PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED;
 }
 
+int
+ControllerManager::getGamepadCount() const
+{
+    return gamepad_api_enabled ? Gamepad_numDevices() : 0;
+}
+
 void
 ControllerManager::setControllerRumble(
     int controller_id, 
@@ -147,57 +225,4 @@ ControllerManager::getControllerViewPtr(int device_id)
     assert(m_deviceViews != nullptr);
 
     return std::static_pointer_cast<ServerControllerView>(m_deviceViews[device_id]);
-}
-
-eCommonTrackingColorID 
-ControllerManager::allocateTrackingColorID()
-{
-    assert(m_available_controller_color_ids.size() > 0);
-    eCommonTrackingColorID tracking_color = m_available_controller_color_ids.front();
-
-    m_available_controller_color_ids.pop_front();
-
-    return tracking_color;
-}
-
-void 
-ControllerManager::claimTrackingColorID(const ServerControllerView *claiming_controller_view, eCommonTrackingColorID color_id)
-{
-    bool bColorWasInUse = false;
-
-    // If any other controller has this tracking color, make them pick a new color
-    for (int device_id = 0; device_id < getMaxDevices(); ++device_id)
-    {
-        ServerControllerViewPtr controller_view = getControllerViewPtr(device_id);
-
-        if (controller_view->getIsOpen() && controller_view.get() != claiming_controller_view)
-        {
-            if (controller_view->getTrackingColorID() == color_id)
-            {
-                controller_view->setTrackingColorID(allocateTrackingColorID());
-                bColorWasInUse = true;
-                break;
-            }
-        }
-    }
-
-    // If the color was not in use, remove it from the color queue
-    if (!bColorWasInUse)
-    {
-        for (auto iter = m_available_controller_color_ids.begin(); iter != m_available_controller_color_ids.end(); ++iter)
-        {
-            if (*iter == color_id)
-            {
-                m_available_controller_color_ids.erase(iter);
-                break;
-            }
-        }
-    }
-}
-
-void 
-ControllerManager::freeTrackingColorID(eCommonTrackingColorID color_id)
-{
-    assert(std::find(m_available_controller_color_ids.begin(), m_available_controller_color_ids.end(), color_id) == m_available_controller_color_ids.end());
-    m_available_controller_color_ids.push_back(color_id);
 }
