@@ -550,14 +550,14 @@ protected:
 		}
 #endif
 
+        ++m_active_interrupt_transfers;
+
 		if (state != nullptr)
 		{
-			++m_active_interrupt_transfers;
-
 			result_code= m_usb_api->submit_interrupt_transfer(state, &requestState);
 			if (result_code != _USBResultCode_Started)
 			{
-				--m_active_interrupt_transfers;
+				bSuccess = false;
 			}
 		}
 		else
@@ -606,14 +606,14 @@ protected:
         }
 #endif
 
+        ++m_active_control_transfers;
+
 		if (state != nullptr)
 		{
-			++m_active_control_transfers;
-
 			result_code = m_usb_api->submit_control_transfer(state, &requestState);
 			if (result_code != _USBResultCode_Started)
 			{
-				--m_active_control_transfers;
+                bSuccess = false;
 			}
 		}
 		else
