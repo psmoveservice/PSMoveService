@@ -1,5 +1,5 @@
 //-- includes -----
-#include "LibUSBAPI.h"
+#include "LibUSBApi.h"
 #include "LibUSBBulkTransferBundle.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"

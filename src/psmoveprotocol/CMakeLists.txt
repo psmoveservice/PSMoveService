@@ -1,5 +1,3 @@
-set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
-
 set(PSMOVEPROTOCOL_LIBRARY_SRC)    # Container for source files
 set(PSMOVEPROTOCOL_INCLUDE_DIRS)   # Container for include directories
 set(PSMOVEPROTOCOL_REQUIRED_LIBS)  # Container for library dependencies

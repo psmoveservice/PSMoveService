@@ -9,6 +9,7 @@
 
 #include <assert.h>
 #include <memory>
+#include <cstring>
 
 //-- private methods -----
 static void LIBUSB_CALL transfer_callback_function(struct libusb_transfer *bulk_transfer);

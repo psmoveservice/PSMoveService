@@ -2,7 +2,7 @@
 #include "ServerNetworkManager.h"
 #include "ServerRequestHandler.h"
 #include "ServerLog.h"
-#include "packedmessage.h"
+#include "PackedMessage.h"
 #include "PSMoveProtocolInterface.h"
 #include "PSMoveProtocol.pb.h"
 #include <cassert>
