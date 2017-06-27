@@ -129,7 +129,6 @@ LIST(APPEND CMAKE_MODULE_PATH ${OpenCV_DIR})
 set(OpenCV_STATIC ON)
 IF(NOT(${CMAKE_SYSTEM_NAME} MATCHES "Windows"))
     FIND_PACKAGE(OpenCV REQUIRED)
-    message(STATUS ${OpenCV_INSTALL_PATH})
 ENDIF()
 
 
@@ -239,12 +238,20 @@ ENDIF()
 # hidapi
 set(HIDAPI_INCLUDE_DIRS ${ROOT_DIR}/thirdparty/hidapi/hidapi)
 set(HIDAPI_SRC)
+set(HIDAPI_LIBS)
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     list(APPEND HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/windows/hid.c)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     list(APPEND HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)
 ELSE()
     list(APPEND HIDAPI_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(UDEV REQUIRED libudev)
+    list(APPEND HIDAPI_INCLUDE_DIRS ${UDEV_INCLUDE_DIRS})
+    list(APPEND HIDAPI_LIBS ${UDEV_LIBRARIES})
+    pkg_check_modules(BLUEZ REQUIRED bluez)
+    list(APPEND HIDAPI_INCLUDE_DIRS ${BLUEZ_INCLUDE_DIRS})
+    list(APPEND HIDAPI_LIBS ${BLUEZ_LIBRARIES})
 ENDIF()
 
 

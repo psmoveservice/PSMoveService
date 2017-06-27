@@ -141,6 +141,7 @@ list(APPEND PSMOVE_SERVICE_REQ_LIBS ${Boost_LIBRARIES})
 # hidapi
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${HIDAPI_INCLUDE_DIRS})
 list(APPEND PSMOVESERVICE_SRC ${HIDAPI_SRC})
+list(APPEND PSMOVE_SERVICE_REQ_LIBS ${HIDAPI_LIBS})
 
 # bluetooth
 list(APPEND PSMOVESERVICE_SRC
@@ -155,6 +156,9 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsOSX.mm
         ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesOSX.mm)
 ELSE()
+    list(APPEND PSMOVESERVICE_SRC
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsLinux.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesLinux.cpp)
 ENDIF()
 
 # LibUSB for device management

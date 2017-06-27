@@ -3,6 +3,7 @@
 #include <iostream>
 #include <iomanip>
 #include <chrono>
+#include <cstring>
 
 #if defined(__linux) || defined (__APPLE__)
 #include <unistd.h>

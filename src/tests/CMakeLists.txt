@@ -105,6 +105,7 @@ SET(TEST_PSMOVE_REQ_LIBS)
 # hidapi
 list(APPEND TEST_PSMOVE_INCL_DIRS ${HIDAPI_INCLUDE_DIRS})
 list(APPEND TEST_PSMOVE_SRC ${HIDAPI_SRC})
+list(APPEND TEST_PSMOVE_REQ_LIBS ${HIDAPI_LIBS})
 
 # libusb
 find_package(USB1 REQUIRED)
@@ -113,9 +114,11 @@ list(APPEND TEST_PSMOVE_REQ_LIBS ${LIBUSB_LIBRARIES})
 
 #Bluetooth
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    # Why not Windows?
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     list(APPEND TEST_PSMOVE_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
 ELSE()
+    list(APPEND TEST_PSMOVE_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesLinux.cpp)
 ENDIF()
 
 # libstem_gamepad
@@ -208,6 +211,7 @@ SET(TEST_NAVI_REQ_LIBS)
 # hidapi
 list(APPEND TEST_NAVI_INCL_DIRS ${HIDAPI_INCLUDE_DIRS})
 list(APPEND TEST_NAVI_SRC ${HIDAPI_SRC})
+list(APPEND TEST_NAVI_REQ_LIBS ${HIDAPI_LIBS})
 
 # libusb
 find_package(USB1 REQUIRED)
@@ -219,6 +223,7 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     list(APPEND TEST_NAVI_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
 ELSE()
+    list(APPEND TEST_NAVI_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesLinux.cpp)
 ENDIF()
 
 # libstem_gamepad
@@ -319,6 +324,7 @@ ENDIF()
 # hidapi
 list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${HIDAPI_INCLUDE_DIRS})
 list(APPEND TEST_DS4_CTRLR_SRC ${HIDAPI_SRC})
+list(APPEND TEST_DS4_CTRLR_REQ_LIBS ${HIDAPI_LIBS})
 
 # libusb
 find_package(USB1 REQUIRED)
@@ -331,6 +337,7 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     list(APPEND TEST_DS4_CTRLR_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesOSX.mm)
 ELSE()
+    list(APPEND TEST_DS4_CTRLR_SRC ${ROOT_DIR}/src/psmoveservice/Platform/BluetoothQueriesLinux.cpp)
 ENDIF()
 
 # libstem_gamepad
