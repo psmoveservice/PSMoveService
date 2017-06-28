@@ -40,7 +40,7 @@ file(GLOB PSMOVECLIENT_LIBRARY_SRC
 # TODO: Build PSMoveClient as a STATIC or OBJECT w/ $<TARGET_OBJECTS:objlib>
 add_library(PSMoveClient_static STATIC ${PSMOVECLIENT_LIBRARY_SRC})
 target_include_directories(PSMoveClient_static PUBLIC ${PSMOVE_CLIENT_INCL_DIRS})
-target_link_libraries(PSMoveClient_static PUBLIC ${PSMOVE_CLIENT_REQ_LIBS})
+target_link_libraries(PSMoveClient_static PUBLIC ${PLATFORM_LIBS} ${PSMOVE_CLIENT_REQ_LIBS})
 target_compile_definitions(PSMoveClient_static PRIVATE PSMOVECLIENT_CPP_API)
 target_compile_definitions(PSMoveClient_static PRIVATE PSMoveClient_STATIC)
 

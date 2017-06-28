@@ -29,6 +29,7 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         #list(APPEND PLATFORM_LIBS stdc++)
     ENDIF(MINGW)
 ELSE() #Linux
+    list(APPEND PLATFORM_LIBS rt)
 ENDIF()
 
 
@@ -121,7 +122,6 @@ IF(NOT OpenCV_DIR)
         MESSAGE(STATUS "Using homebrew opencv3")
         set(OpenCV_DIR "/usr/local/opt/opencv3/share/OpenCV")
     ELSE()
-        message(STATUS “Using OpenCV in /usr/local/share/OpenCV”)
         set(OpenCV_DIR “/usr/local/share/OpenCV”)
     ENDIF()#Windows or Darwin
 ENDIF(NOT OpenCV_DIR)
@@ -184,7 +184,9 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     list(APPEND SDL_GL_LIBS
         ${SDL2_LIBRARY} ${OPENGL_FRAMEWORK} ${GLUT_FRAMEWORK})
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    list(APPEND SDL_GL_LIBS SDL GL)
+    find_package(SDL2)
+    list(APPEND SDL_GL_INCLUDE_DIRS ${SDL2_INCLUDE_DIR})
+    list(APPEND SDL_GL_LIBS ${SDL2_LIBRARY} GL)
 ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     SET(ENV{SDL2DIR} ${ROOT_DIR}/thirdparty/SDL2/)
     find_package(SDL2)

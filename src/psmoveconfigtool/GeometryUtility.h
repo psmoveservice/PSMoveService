@@ -2,12 +2,14 @@
 #define GEOMETRY_UTILITY_H
 
 //-- includes -----
+#undef Status
+#undef Success
+#include <opencv2/opencv.hpp>
+#include "MathEigen.h"
 #include "ClientGeometry_CAPI.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/quaternion.hpp>
-#include <opencv2/opencv.hpp>
-#include "MathEigen.h"
 
 //-- methods -----
 // PSMove types to PSMove Types
