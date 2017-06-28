@@ -12,7 +12,9 @@ list(APPEND TEST_CAMERA_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND TEST_CAMERA_REQ_LIBS ${Boost_LIBRARIES})
 
 # OpenCV
-#list(APPEND TEST_CAMERA_INCL_DIRS ${OpenCV_INCLUDE_DIRS}) - not necessary for OpenCV > 2.8
+IF(MSVC) # not necessary for OpenCV > 2.8 on other build systems
+    list(APPEND TEST_CAMERA_INCL_DIRS ${OpenCV_INCLUDE_DIRS}) 
+ENDIF()
 list(APPEND TEST_CAMERA_REQ_LIBS ${OpenCV_LIBS})
 
 # PS3EYE

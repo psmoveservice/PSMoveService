@@ -193,6 +193,9 @@ list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveMath)
 # Requires OpenCV, PS3EYEDriver (Mac/Win64), CLEye (Win32)
 
 # OpenCV - empty on Windows
+IF(MSVC) # not necessary for OpenCV > 2.8 on other build systems
+    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${OpenCV_INCLUDE_DIRS}) 
+ENDIF()
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${OpenCV_LIBS})
 
 # PS Eye - This brings in LIBUSB on Windows and Mac, but not Linux

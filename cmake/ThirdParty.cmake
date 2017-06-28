@@ -157,7 +157,7 @@ find_package(Boost REQUIRED)  # Future targets can specify components.
 
 # Protobuf
 IF(MSVC)
-    set(PROTOBUF_SRC_ROOT_FOLDER ${CMAKE_CURRENT_LIST_DIR}/thirdparty/protobuf)
+    set(PROTOBUF_SRC_ROOT_FOLDER ${ROOT_DIR}/thirdparty/protobuf)
     #PROTOBUF_IMPORT_DIRS ?
     # Default location of protobuf for Windows
     #SET(CMAKE_INCLUDE_PATH ${CMAKE_INCLUDE_PATH} "${ROOT_DIR}/thirdparty/protobuf")
