@@ -128,7 +128,7 @@ static bool is_gamepad_supported(
 
                 // Don't enumerate PSNavi controllers when using virtual controllers
                 // (since a PSNavi controller will be considered a kind of virtual controller)
-                if (device_type != CommonDeviceState::PSNavi &&
+                if (device_type != CommonDeviceState::PSNavi ||
                     (device_type == CommonDeviceState::PSNavi && ControllerGamepadEnumerator::virtual_controller_count == 0))
                 {
 				    if (device_type_filter == device_type || device_type_filter == CommonDeviceState::INVALID_DEVICE_TYPE)
