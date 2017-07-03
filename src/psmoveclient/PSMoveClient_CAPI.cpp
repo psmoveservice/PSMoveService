@@ -123,7 +123,7 @@ protected:
 // -- public interface -----
 const char* PSM_GetClientVersionString()
 {
-    const char *version_string= PSM_DETAILED_VERSION_STRING;
+    const char *version_string= PSM_PROTOCOL_VERSION_STRING;
 
     return version_string;
 }

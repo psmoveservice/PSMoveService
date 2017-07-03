@@ -570,7 +570,7 @@ int PSMoveService::exec(int argc, char *argv[])
     log_init(this->getProgramSettings()->log_level, "PSMoveService.log");
 
     // Start the service app
-    SERVER_LOG_INFO("main") << "Starting PSMoveService v" << PSM_DETAILED_VERSION_STRING;
+    SERVER_LOG_INFO("main") << "Starting PSMoveService v" << PSM_RELEASE_VERSION_STRING << " (protocol v" << PSM_PROTOCOL_VERSION_STRING << ")";
     try
     {
         PSMoveServiceImpl app;
