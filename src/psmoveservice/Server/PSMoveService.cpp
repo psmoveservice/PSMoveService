@@ -221,14 +221,16 @@ private:
         // Kill any pending request state
         m_request_handler.shutdown();
 
-        // Shutdown the usb async request thread
-        m_usb_device_manager.shutdown();
-
-        // Close all active network connections
+        // Close all active network connections 
+        // Must be before device manager since closing a connection can modify device state
         m_network_manager.shutdown();
 
         // Disconnect any actively connected controllers
         m_device_manager.shutdown();
+
+        // Shutdown the usb async request thread
+        // Must be after device manager since devices can have an active usb connection
+        m_usb_device_manager.shutdown();
     }
 
     void handle_termination_signal()
