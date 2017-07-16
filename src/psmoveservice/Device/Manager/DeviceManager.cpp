@@ -52,7 +52,7 @@ public:
     {
         boost::property_tree::ptree pt;
     
-        pt.put("version", DeviceManagerConfig::CONFIG_VERSION);
+        pt.put("version", DeviceManagerConfig::CONFIG_VERSION+0);
         pt.put("controller_reconnect_interval", controller_reconnect_interval);
         pt.put("controller_poll_interval", controller_poll_interval);
         pt.put("tracker_reconnect_interval", tracker_reconnect_interval);
@@ -70,7 +70,7 @@ public:
     {
         version = pt.get<int>("version", 0);
 
-        if (version == ControllerManagerConfig::CONFIG_VERSION)
+        if (version == (DeviceManagerConfig::CONFIG_VERSION+0))
         {
             controller_reconnect_interval = pt.get<int>("controller_reconnect_interval", k_default_controller_reconnect_interval);
             controller_poll_interval = pt.get<int>("controller_poll_interval", k_default_controller_poll_interval);
@@ -85,7 +85,7 @@ public:
         {
             SERVER_LOG_WARNING("DeviceManagerConfig") <<
                 "Config version " << version << " does not match expected version " <<
-                DeviceManagerConfig::CONFIG_VERSION << ", Using defaults.";
+                (DeviceManagerConfig::CONFIG_VERSION+0) << ", Using defaults.";
         }
     }
 

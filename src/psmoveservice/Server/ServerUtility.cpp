@@ -246,7 +246,10 @@ namespace ServerUtility
 #ifdef _MSC_VER
         Sleep(milliseconds);
 #else
-        nanosleep((const struct timespec[]){ {0, milliseconds*MILLISECONDS_TO_NANOSECONDS} }, NULL);
+        struct timespec req = {0};
+        req.tv_sec = 0;
+        req.tv_nsec = milliseconds * MILLISECONDS_TO_NANOSECONDS;
+        nanosleep(&req, (struct timespec *)NULL);
 #endif
     }	
 };

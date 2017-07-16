@@ -626,7 +626,7 @@ void AppSubStage_CalibrateWithMat::renderUI()
             ImGui::SetNextWindowSize(ImVec2(k_panel_width, 200));
             ImGui::Begin(k_window_title, nullptr, window_flags);
 
-            if (m_menuState == AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceController)
+            if (m_menuState == AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordController)
             {
                 ImGui::Text("Recording Controller samples at location #%d (%s)",
                     m_sampleLocationIndex + 1, k_sample_location_names[m_sampleLocationIndex]);
@@ -655,7 +655,7 @@ void AppSubStage_CalibrateWithMat::renderUI()
 
             if (!bAnyTrackersSampling)
             {
-                if (m_menuState == AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceController)
+                if (m_menuState == AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordController)
                 {
                     ImGui::Text("Location sampling complete. Please pick up the controller.");
                 }

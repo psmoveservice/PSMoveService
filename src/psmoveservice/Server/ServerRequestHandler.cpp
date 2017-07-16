@@ -2944,7 +2944,8 @@ protected:
 
         response->set_type(PSMoveProtocol::Response_ResponseType_SERVICE_VERSION);
 
-        version_info->set_version(PSM_DETAILED_VERSION_STRING);
+        // Return the protocol version
+        version_info->set_version(PSM_PROTOCOL_VERSION_STRING);
         response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
     }
 

@@ -1,5 +1,5 @@
 //-- includes -----
-#include "LibUSBAPI.h"
+#include "LibUSBApi.h"
 #include "LibUSBBulkTransferBundle.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
@@ -497,10 +497,10 @@ eUSBResultCode LibUSBApi::submit_control_transfer(
 	{
 		if (transfer != nullptr)
 		{
+            // This will free the buffer since LIBUSB_TRANSFER_FREE_BUFFER is set on the transfer
 			libusb_free_transfer(transfer);
 		}
-
-		if (buffer != nullptr)
+        else if (buffer != nullptr)
 		{
 			free(buffer);
 		}

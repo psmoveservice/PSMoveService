@@ -1,48 +1,15 @@
 cmake_minimum_required(VERSION 3.0)
 
-set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../..)
-
-# Fix Error C1128 - number of sections exceeded object file format limit: compile with /bigobj
-if(MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
-endif()
-
 # Dependencies
 set(PSMOVE_SERVICE_INCL_DIRS)
 set(PSMOVE_SERVICE_REQ_LIBS)
 
-# Platform specific libraries
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    find_library(IOKIT_FRAMEWORK IOKit)
-    find_library(COREFOUNDATION_FRAMEWORK CoreFoundation)
-    #find_library(QUARTZCORE QuartzCore)
-    find_library(APPKIT_FRAMEWORK AppKit)
-    #find_library(QTKIT QTKit)
-    find_library(AVFOUNDATION AVFoundation)
-    find_library(IOBLUETOOTH IOBluetooth)
-    #stdc++ ${QUARTZCORE} ${APPKIT_FRAMEWORK} ${QTKIT} ${AVFOUNDATION}
-    list(APPEND PSMOVE_SERVICE_REQ_LIBS
-        ${COREFOUNDATION_FRAMEWORK}
-        ${IOKIT_FRAMEWORK}
-        ${APPKIT_FRAMEWORK}
-        ${AVFOUNDATION}
-        ${IOBLUETOOTH})
-ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    #OpenCV extra dependencies: comctl32 gdi32 ole32 setupapi ws2_32 vfw32
-    #setupapi required by hidapi
-    #hid required for HidD_SetOutputReport() in DualShock4 controller
-    #dinput8 required by libstem_gamepad
-    list(APPEND PSMOVE_SERVICE_REQ_LIBS bthprops setupapi hid dinput8)
-    IF(MINGW)
-        #list(APPEND PSMOVE_SERVICE_REQ_LIBS stdc++)
-    ENDIF(MINGW)
-ELSE() #Linux
-ENDIF()
+list(APPEND PSMOVE_SERVICE_REQ_LIBS ${PLATFORM_LIBS})
 
 # Source files for PSMoveService
 file(GLOB PSMOVESERVICE_CONFIG_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig/*.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig/*.h"    
+    "${CMAKE_CURRENT_LIST_DIR}/PSMoveConfig/*.h"
 )
 source_group("Config" FILES ${PSMOVESERVICE_CONFIG_SRC})
 
@@ -54,37 +21,37 @@ file(GLOB PSMOVESERVICE_CONTROLLER_SRC
     "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/PSNaviController/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/VirtualController/*.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/VirtualController/*.h"    
+    "${CMAKE_CURRENT_LIST_DIR}/VirtualController/*.h"
 )
 source_group("Controller" FILES ${PSMOVESERVICE_CONTROLLER_SRC})
 
 file(GLOB PSMOVESERVICE_DEVICE_ENUM_SRC
     "${CMAKE_CURRENT_LIST_DIR}/Device/Enumerator/*.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/Device/Enumerator/*.h"    
+    "${CMAKE_CURRENT_LIST_DIR}/Device/Enumerator/*.h"
 )
 source_group("Device\\Enumerator" FILES ${PSMOVESERVICE_DEVICE_ENUM_SRC})
 
 file(GLOB PSMOVESERVICE_DEVICE_INT_SRC
     "${CMAKE_CURRENT_LIST_DIR}/Device/Interface/*.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/Device/Interface/*.h"    
+    "${CMAKE_CURRENT_LIST_DIR}/Device/Interface/*.h"
 )
 source_group("Device\\Interface" FILES ${PSMOVESERVICE_DEVICE_INT_SRC})
 
 file(GLOB PSMOVESERVICE_DEVICE_MGR_SRC
     "${CMAKE_CURRENT_LIST_DIR}/Device/Manager/*.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/Device/Manager/*.h"    
+    "${CMAKE_CURRENT_LIST_DIR}/Device/Manager/*.h"
 )
 source_group("Device\\Manager" FILES ${PSMOVESERVICE_DEVICE_MGR_SRC})
 
 file(GLOB PSMOVESERVICE_DEVICE_USB_SRC
     "${CMAKE_CURRENT_LIST_DIR}/Device/USB/*.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/Device/USB/*.h"    
+    "${CMAKE_CURRENT_LIST_DIR}/Device/USB/*.h"
 )
 source_group("Device\\USB" FILES ${PSMOVESERVICE_DEVICE_USB_SRC})
 
 file(GLOB PSMOVESERVICE_DEVICE_VIEW_SRC
     "${CMAKE_CURRENT_LIST_DIR}/Device/View/*.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/Device/View/*.h"    
+    "${CMAKE_CURRENT_LIST_DIR}/Device/View/*.h"
 )
 source_group("Device\\View" FILES ${PSMOVESERVICE_DEVICE_VIEW_SRC})
 
@@ -92,13 +59,13 @@ file(GLOB PSMOVESERVICE_HMD_SRC
     "${CMAKE_CURRENT_LIST_DIR}/MorpheusHMD/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/MorpheusHMD/*.h"
     "${CMAKE_CURRENT_LIST_DIR}/VirtualHMD/*.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/VirtualHMD/*.h"    
+    "${CMAKE_CURRENT_LIST_DIR}/VirtualHMD/*.h"
 )
 source_group("HMD" FILES ${PSMOVESERVICE_HMD_SRC})
 
 file(GLOB PSMOVESERVICE_FILTER_SRC
     "${CMAKE_CURRENT_LIST_DIR}/Filter/*.cpp"
-    "${CMAKE_CURRENT_LIST_DIR}/Filter/*.h"        
+    "${CMAKE_CURRENT_LIST_DIR}/Filter/*.h"
 )
 source_group("Filter" FILES ${PSMOVESERVICE_FILTER_SRC})
 
@@ -147,11 +114,11 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker
     ${CMAKE_CURRENT_LIST_DIR}/PSMoveTracker/PSEye
     ${CMAKE_CURRENT_LIST_DIR}/Server
-    ${CMAKE_CURRENT_LIST_DIR}/VirtualController    
+    ${CMAKE_CURRENT_LIST_DIR}/VirtualController
 )
 
 # Eigen math library
-list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/eigen/)
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${EIGEN3_INCLUDE_DIR})
 
 # mherb/Kalman library
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/kalman/include)
@@ -167,23 +134,14 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS ${PROTOBUF_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${PROTOBUF_LIBRARIES})
 
 # Boost. TODO: Trim this list.
-find_package(Boost 1.61.0 REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
+find_package(Boost REQUIRED QUIET COMPONENTS atomic chrono filesystem program_options system thread)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${Boost_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${Boost_LIBRARIES})
-IF(MSVC) # Disable asio auto linking in date-time and regex
-add_definitions(-DBOOST_DATE_TIME_NO_LIB)
-add_definitions(-DBOOST_REGEX_NO_LIB)
-ENDIF()
 
 # hidapi
-include_directories(${ROOT_DIR}/thirdparty/hidapi/hidapi)
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/hidapi/windows/hid.c)
-ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/hidapi/mac/hid.c)
-ELSE()
-    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/hidapi/linux/hid.c)
-ENDIF()
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${HIDAPI_INCLUDE_DIRS})
+list(APPEND PSMOVESERVICE_SRC ${HIDAPI_SRC})
+list(APPEND PSMOVE_SERVICE_REQ_LIBS ${HIDAPI_LIBS})
 
 # bluetooth
 list(APPEND PSMOVESERVICE_SRC
@@ -198,18 +156,19 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsOSX.mm
         ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesOSX.mm)
 ELSE()
+    list(APPEND PSMOVESERVICE_SRC
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsLinux.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesLinux.cpp)
 ENDIF()
 
+# LibUSB for device management
+find_package(USB1 REQUIRED)
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
+list(APPEND PSMOVE_SERVICE_REQ_LIBS ${LIBUSB_LIBRARIES})
+
 # libstem_gamepad
-include_directories(${ROOT_DIR}/thirdparty/libstem_gamepad/source)
-list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_private.c)
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_windows_dinput.c)
-ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_macosx.c)
-ELSE()
-    list(APPEND PSMOVESERVICE_SRC ${ROOT_DIR}/thirdparty/libstem_gamepad/source/gamepad/Gamepad_linux.c)
-ENDIF()
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBSTEM_GAMEPAD_INCLUDE_DIRS})
+list(APPEND PSMOVESERVICE_SRC ${LIBSTEM_GAMEPAD_SRC})
 
 # Platform Specific Device Management
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -233,65 +192,31 @@ list(APPEND PSMOVE_SERVICE_REQ_LIBS PSMoveMath)
 # Tracker
 # Requires OpenCV, PS3EYEDriver (Mac/Win64), CLEye (Win32)
 
-# OpenCV
-set(OpenCV_STATIC ON)
-
-IF(NOT(${CMAKE_SYSTEM_NAME} MATCHES "Windows"))
-FIND_PACKAGE(OpenCV REQUIRED)
+# OpenCV - empty on Windows
+IF(MSVC) # not necessary for OpenCV > 2.8 on other build systems
+    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${OpenCV_INCLUDE_DIRS}) 
 ENDIF()
-list(APPEND PSMOVE_SERVICE_INCL_DIRS ${OpenCV_INCLUDE_DIRS})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${OpenCV_LIBS})
 
-# PS3EYEDriver - only necessary on Mac and Win64, but can be used in Win32 (I think)
-IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"
-    OR (${CMAKE_SYSTEM_NAME} MATCHES "Windows"))
-    #PS3EYEDriver
-    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/PS3EYEDriver/src)
-    list(APPEND PSMOVESERVICE_SRC
-        ${ROOT_DIR}/thirdparty/PS3EYEDriver/src/ps3eye.h
-        ${ROOT_DIR}/thirdparty/PS3EYEDriver/src/ps3eye.cpp)
-    #Requires libusb
-    find_package(USB1 REQUIRED)
-    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
-    list(APPEND PSMOVE_SERVICE_REQ_LIBS ${LIBUSB_LIBRARIES})
-    add_definitions(-DHAVE_PS3EYE)
-    IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-braced-scalar-init")
-    ENDIF()
-ENDIF()
-
-# CL EYE - only on Win32
-SET(ISWIN32 FALSE)
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows"
-    AND NOT(${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8))
-    SET(ISWIN32 TRUE)
-    add_definitions(-DHAVE_CLEYE)
-    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/thirdparty/CLEYE)
-    list(APPEND PSMOVE_SERVICE_REQ_LIBS ${ROOT_DIR}/thirdparty/CLEYE/x86/lib/CLEyeMulticam.lib)
-    find_path(CL_EYE_SDK_PATH CLEyeMulticam.dll
-        HINTS C:/Windows/SysWOW64)
-    #The non-Multicam version does not require any libs/dlls/includes
-    #Uses OpenCV for video. Uses the registry for settings.
-    #But libusb is required for enumerating the devices and checking for the CL Eye Driver.
-    find_package(USB1 REQUIRED)
-    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
-    list(APPEND PSMOVE_SERVICE_REQ_LIBS ${LIBUSB_LIBRARIES})
-ENDIF()
+# PS Eye - This brings in LIBUSB on Windows and Mac, but not Linux
+list(APPEND PSMOVESERVICE_SRC ${PSEYE_SRC})
+list(APPEND PSMOVE_SERVICE_INCL_DIRS ${PSEYE_INCLUDE_DIRS})
+list(APPEND PSMOVE_SERVICE_REQ_LIBS ${PSEYE_LIBRARIES})
 
 add_executable(PSMoveService ${PSMOVESERVICE_SRC})
 target_include_directories(PSMoveService PUBLIC ${PSMOVE_SERVICE_INCL_DIRS})
 target_link_libraries(PSMoveService ${PSMOVE_SERVICE_REQ_LIBS})
 
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-add_dependencies(PSMoveService opencv)
+    add_dependencies(PSMoveService opencv)
 ENDIF()
 
 # Only set the admin privilege escalation on MSVC builds (for service operations)
 IF(MSVC)
-set_target_properties(PSMoveService PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
+    set_target_properties(PSMoveService PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
 ENDIF()
 
-# Install    
+# Install
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     install(TARGETS PSMoveService
         RUNTIME DESTINATION ${ROOT_DIR}/${PSM_PROJECT_NAME}/${ARCH_LABEL}/bin
@@ -300,22 +225,23 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     IF(${ISWIN32})
         install(DIRECTORY "${ROOT_DIR}/thirdparty/CLEYE/x86/bin/"
             DESTINATION ${ROOT_DIR}/${PSM_PROJECT_NAME}//Win32/bin
-            FILES_MATCHING PATTERN "*.dll")    
+            FILES_MATCHING PATTERN "*.dll")
     ENDIF()#ISWIN32
 ELSE() #Linux/Darwin
 ENDIF()
 
-IF(${ISWIN32})
-    IF(${CL_EYE_SDK_PATH} STREQUAL "CL_EYE_SDK_PATH-NOTFOUND")
-        #If the developer does not have CLEyeMulticam.dll on their system,
-        #copy it to the correct directory to prevent crashes.
-        #If we distribute binaries (e.g., a server to use alongside a UE4 plugin)
-        #then we will distribute it with this DLL with the server exe.
-        #It will be up to CLEYE SDK users to delete this version of the DLL
-        #to use their system version.
-        add_custom_command(TARGET PSMoveService POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${ROOT_DIR}/thirdparty/CLEYE/x86/bin/CLEyeMulticam.dll"
-                $<TARGET_FILE_DIR:PSMoveService>)
-    ENDIF()#CL_EYE not found
-ENDIF()#ISWIN32
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    IF(NOT(${CMAKE_C_SIZEOF_DATA_PTR} EQUAL 8))
+        IF(${CL_EYE_SDK_PATH} STREQUAL "CL_EYE_SDK_PATH-NOTFOUND")
+            #If the developer does not have CLEyeMulticam.dll on their system,
+            #copy it to the correct directory to prevent crashes.
+            #Windows service binaries should be distributed with this DLL.
+            #It will be up to CLEYE SDK users to delete this version of the DLL
+            #to use their system version.
+            add_custom_command(TARGET PSMoveService POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${ROOT_DIR}/thirdparty/CLEYE/x86/bin/CLEyeMulticam.dll"
+                    $<TARGET_FILE_DIR:PSMoveService>)
+        ENDIF()
+    ENDIF()
+ENDIF()#ISWIN32 and CL_EYE_SDK_PATH-NOTFOUND
