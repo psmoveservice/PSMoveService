@@ -499,11 +499,13 @@ void AppStage_HMDModelCalibration::render()
 					{
 						PSMVector2f screenSample;
 
+#if 0
 						if (bIsTracking && PSM_GetHmdPixelLocationOnTracker(m_hmdView->HmdID, trackerView->tracker_info.tracker_id, &screenSample) == PSMResult_Success)
 						{
 							color = k_psmove_frustum_color;
 						}
 						else
+#endif
 						{
 							color = k_psmove_frustum_color_no_track;
 						}
@@ -683,11 +685,13 @@ void AppStage_HMDModelCalibration::renderUI()
 			{
 				PSMVector2f screenSample;
 
+#if 0
 				if (bIsTracking && PSM_GetHmdPixelLocationOnTracker(m_hmdView->HmdID, tracker_id, &screenSample) == PSMResult_Success)
 				{
 					ImGui::Text("Tracking %d: OK", tracker_id + 1);
 				}
 				else
+#endif
 				{
 					ImGui::Text("Tracking %d: FAIL", tracker_id + 1);
 				}
@@ -747,11 +751,13 @@ void AppStage_HMDModelCalibration::renderUI()
 			{
 				PSMVector2f screenSample;
 
+#if 0
 				if (bIsTracking && PSM_GetHmdPixelLocationOnTracker(m_hmdView->HmdID, tracker_id, &screenSample) == PSMResult_Success)
 				{
 					ImGui::Text("Tracking %d: OK", tracker_id + 1);
 				}
 				else
+#endif
 				{
 					ImGui::Text("Tracking %d: FAIL", tracker_id + 1);
 				}
@@ -1386,6 +1392,8 @@ static bool triangulateHMDProjections(
 	bool bIsTracking= false;
 	if (PSM_GetIsHmdTracking(hmd_view->HmdID, &bIsTracking) == PSMResult_Success)
 	{
+        //###HipsterSloth - Disabled due to projection networking refactor
+#if 0
 		if (bIsTracking &&
 			PSM_GetHmdProjectionOnTracker(hmd_view->HmdID, TrackerViewA->tracker_info.tracker_id, &trackingProjectionA) &&
 			PSM_GetHmdProjectionOnTracker(hmd_view->HmdID, TrackerViewB->tracker_info.tracker_id, &trackingProjectionB))
@@ -1449,6 +1457,7 @@ static bool triangulateHMDProjections(
 				}
 			}
 		} 
+#endif
 	}
 
 	return out_triangulated_points.size() >= 3;

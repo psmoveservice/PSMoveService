@@ -22,6 +22,7 @@ struct ControllerStreamInfo
     bool led_override_active;
 	bool disable_roi;
     int last_data_input_sequence_number;
+    int selected_tracker_index;
 
     inline void Clear()
     {
@@ -33,6 +34,7 @@ struct ControllerStreamInfo
         led_override_active = false;
 		disable_roi = false;
 		last_data_input_sequence_number = -1;
+        selected_tracker_index = 0;
     }
 };
 
@@ -56,6 +58,7 @@ struct HMDStreamInfo
 	bool include_calibrated_sensor_data;
 	bool include_raw_tracker_data;
 	bool disable_roi;
+    int selected_tracker_index;
 
     inline void Clear()
     {
@@ -65,6 +68,7 @@ struct HMDStreamInfo
 		include_calibrated_sensor_data = false;
 		include_raw_tracker_data = false;
 		disable_roi = false;
+        selected_tracker_index = 0;
     }
 };
 

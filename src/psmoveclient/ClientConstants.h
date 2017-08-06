@@ -15,7 +15,7 @@
 #define PSMOVESERVICE_MAX_CONTROLLER_COUNT  5
 
 // See TrackerManager.h in PSMoveService
-#define PSMOVESERVICE_MAX_TRACKER_COUNT  4
+#define PSMOVESERVICE_MAX_TRACKER_COUNT  8
 
 // See HMDManager.h in PSMoveService
 #define PSMOVESERVICE_MAX_HMD_COUNT  4

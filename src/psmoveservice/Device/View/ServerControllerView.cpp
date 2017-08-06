@@ -1258,7 +1258,8 @@ static void generate_psmove_data_frame_for_stream(
         if (stream_info->include_raw_tracker_data)
         {
             auto *raw_tracker_data = psmove_data_frame->mutable_raw_tracker_data();
-            int valid_tracker_count= 0;
+            int selectedTrackerId= stream_info->selected_tracker_index;
+            unsigned int validTrackerBitmask= 0;
 
             for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
             {
@@ -1267,47 +1268,55 @@ static void generate_psmove_data_frame_for_stream(
 
                 if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
                 {
-                    const CommonDevicePosition &trackerRelativePosition = positionEstimate->position_cm;
-                    const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
+                    validTrackerBitmask&= (1 << trackerId);
 
-                    // Project the 3d camera position back onto the tracker screen
+                    if (trackerId == selectedTrackerId)
                     {
-                        const CommonDeviceScreenLocation trackerScreenLocation =
-                            tracker_view->projectTrackerRelativePosition(&trackerRelativePosition);
-                        PSMoveProtocol::Pixel *pixel = raw_tracker_data->add_screen_locations();
+                        if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
+                        {
+                            const CommonDevicePosition &trackerRelativePosition = positionEstimate->position_cm;
+                            const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(selectedTrackerId);
 
-                        pixel->set_x(trackerScreenLocation.x);
-                        pixel->set_y(trackerScreenLocation.y);
-                    }
+                            // Project the 3d camera position back onto the tracker screen
+                            {
+                                const CommonDeviceScreenLocation trackerScreenLocation =
+                                    tracker_view->projectTrackerRelativePosition(&trackerRelativePosition);
+                                PSMoveProtocol::Pixel *pixel = raw_tracker_data->mutable_screen_location();
 
-                    // Add the tracker relative 3d position
-                    {
-                        PSMoveProtocol::Position *position_cm= raw_tracker_data->add_relative_positions_cm();
+                                pixel->set_x(trackerScreenLocation.x);
+                                pixel->set_y(trackerScreenLocation.y);
+                            }
+
+                            // Add the tracker relative 3d position
+                            {
+                                PSMoveProtocol::Position *position_cm= raw_tracker_data->mutable_relative_position_cm();
                         
-                        position_cm->set_x(trackerRelativePosition.x);
-                        position_cm->set_y(trackerRelativePosition.y);
-                        position_cm->set_z(trackerRelativePosition.z);
-                    }
+                                position_cm->set_x(trackerRelativePosition.x);
+                                position_cm->set_y(trackerRelativePosition.y);
+                                position_cm->set_z(trackerRelativePosition.z);
+                            }
 
-                    // Add the tracker relative projection shapes
-                    {
-                        const CommonDeviceTrackingProjection &trackerRelativeProjection = 
-                            positionEstimate->projection;
+                            // Add the tracker relative projection shapes
+                            {
+                                const CommonDeviceTrackingProjection &trackerRelativeProjection = 
+                                    positionEstimate->projection;
 
-                        assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_Ellipse);
-                        PSMoveProtocol::Ellipse *ellipse= raw_tracker_data->add_projected_spheres();
+                                assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_Ellipse);
+                                PSMoveProtocol::Ellipse *ellipse= raw_tracker_data->mutable_projected_sphere();
                                 
-                        ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
-                        ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
-                        ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
-                        ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
-                        ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
-                    }
+                                ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
+                                ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
+                                ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
+                                ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
+                                ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
+                            }
 
-                    raw_tracker_data->add_tracker_ids(trackerId);
-                    ++valid_tracker_count;
+                            raw_tracker_data->set_tracker_id(selectedTrackerId);
+                        }
+                    }
                 }
             }
+            raw_tracker_data->set_valid_tracker_bitmask(validTrackerBitmask);
 
             {
                 const ControllerOpticalPoseEstimation *poseEstimate = controller_view->getMulticamPoseEstimate();
@@ -1320,8 +1329,6 @@ static void generate_psmove_data_frame_for_stream(
                     position_cm->set_z(poseEstimate->position_cm.z);
                 }
             }
-
-            raw_tracker_data->set_valid_tracker_count(valid_tracker_count);
         }
 
         // if requested, get the physics data for the controller
@@ -1497,80 +1504,92 @@ static void generate_psdualshock4_data_frame_for_stream(
         if (stream_info->include_raw_tracker_data)
         {
             auto *raw_tracker_data = psds4_data_frame->mutable_raw_tracker_data();
-            int valid_tracker_count = 0;
+            int selectedTrackerId= stream_info->selected_tracker_index;
+            unsigned int validTrackerBitmask= 0;
 
             for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
             {
-                const ControllerOpticalPoseEstimation *poseEstimate =
+                const ControllerOpticalPoseEstimation *positionEstimate= 
                     controller_view->getTrackerPoseEstimate(trackerId);
 
-                if (poseEstimate != nullptr && poseEstimate->bCurrentlyTracking)
+                if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
                 {
-                    const CommonDevicePosition &trackerRelativePosition = poseEstimate->position_cm;
-                    const CommonDeviceQuaternion &trackerRelativeOrientation = poseEstimate->orientation;
-                    const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
+                    validTrackerBitmask&= (1 << trackerId);
 
-                    // Add the tracker relative 3d pose
+                    if (trackerId == selectedTrackerId)
                     {
-                        PSMoveProtocol::Position *position = raw_tracker_data->add_relative_positions_cm();
-                        PSMoveProtocol::Orientation *orientation = raw_tracker_data->add_relative_orientations();
+                        const ControllerOpticalPoseEstimation *poseEstimate =
+                            controller_view->getTrackerPoseEstimate(selectedTrackerId);
 
-                        position->set_x(trackerRelativePosition.x);
-                        position->set_y(trackerRelativePosition.y);
-                        position->set_z(trackerRelativePosition.z);
-
-                        orientation->set_w(trackerRelativeOrientation.w);
-                        orientation->set_x(trackerRelativeOrientation.x);
-                        orientation->set_y(trackerRelativeOrientation.y);
-                        orientation->set_z(trackerRelativeOrientation.z);
-                    }
-
-                    // Add the tracker relative projection shapes
-                    {
-                        const CommonDeviceTrackingProjection &trackerRelativeProjection =
-                            poseEstimate->projection;
-
-                        assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_LightBar);
-                        PSMoveProtocol::Polygon *polygon = raw_tracker_data->add_projected_blobs();
-
-                        for (int vert_index = 0; vert_index < 3; ++vert_index)
+                        if (poseEstimate != nullptr && poseEstimate->bCurrentlyTracking)
                         {
-                            PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
+                            const CommonDevicePosition &trackerRelativePosition = poseEstimate->position_cm;
+                            const CommonDeviceQuaternion &trackerRelativeOrientation = poseEstimate->orientation;
+                            const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(selectedTrackerId);
 
-                            pixel->set_x(trackerRelativeProjection.shape.lightbar.triangle[vert_index].x);
-                            pixel->set_y(trackerRelativeProjection.shape.lightbar.triangle[vert_index].y);
+                            // Add the tracker relative 3d pose
+                            {
+                                PSMoveProtocol::Position *position = raw_tracker_data->mutable_relative_position_cm();
+                                PSMoveProtocol::Orientation *orientation = raw_tracker_data->mutable_relative_orientation();
+
+                                position->set_x(trackerRelativePosition.x);
+                                position->set_y(trackerRelativePosition.y);
+                                position->set_z(trackerRelativePosition.z);
+
+                                orientation->set_w(trackerRelativeOrientation.w);
+                                orientation->set_x(trackerRelativeOrientation.x);
+                                orientation->set_y(trackerRelativeOrientation.y);
+                                orientation->set_z(trackerRelativeOrientation.z);
+                            }
+
+                            // Add the tracker relative projection shapes
+                            {
+                                const CommonDeviceTrackingProjection &trackerRelativeProjection =
+                                    poseEstimate->projection;
+
+                                assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_LightBar);
+                                PSMoveProtocol::Polygon *polygon = raw_tracker_data->mutable_projected_blob();
+
+                                for (int vert_index = 0; vert_index < 3; ++vert_index)
+                                {
+                                    PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
+
+                                    pixel->set_x(trackerRelativeProjection.shape.lightbar.triangle[vert_index].x);
+                                    pixel->set_y(trackerRelativeProjection.shape.lightbar.triangle[vert_index].y);
+                                }
+
+                                CommonDeviceScreenLocation center_pixel;
+                                center_pixel.clear();
+
+                                for (int vert_index = 0; vert_index < 4; ++vert_index)
+                                {
+                                    const CommonDeviceScreenLocation &screenLocation= trackerRelativeProjection.shape.lightbar.quad[vert_index];
+                                    PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
+
+                                    pixel->set_x(screenLocation.x);
+                                    pixel->set_y(screenLocation.y);
+
+                                    center_pixel.x += screenLocation.x;
+                                    center_pixel.y += screenLocation.y;
+                                }
+
+                                center_pixel.x /= 4.f;
+                                center_pixel.y /= 4.f;
+
+                                {
+                                    PSMoveProtocol::Pixel *pixel = raw_tracker_data->mutable_screen_location();
+
+                                    pixel->set_x(center_pixel.x);
+                                    pixel->set_y(center_pixel.y);
+                                }
+                            }
+
+                            raw_tracker_data->set_tracker_id(selectedTrackerId);
                         }
-
-                        CommonDeviceScreenLocation center_pixel;
-                        center_pixel.clear();
-
-                        for (int vert_index = 0; vert_index < 4; ++vert_index)
-                        {
-                            const CommonDeviceScreenLocation &screenLocation= trackerRelativeProjection.shape.lightbar.quad[vert_index];
-                            PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
-
-                            pixel->set_x(screenLocation.x);
-                            pixel->set_y(screenLocation.y);
-
-                            center_pixel.x += screenLocation.x;
-                            center_pixel.y += screenLocation.y;
-                        }
-
-                        center_pixel.x /= 4.f;
-                        center_pixel.y /= 4.f;
-
-                        {
-                            PSMoveProtocol::Pixel *pixel = raw_tracker_data->add_screen_locations();
-
-                            pixel->set_x(center_pixel.x);
-                            pixel->set_y(center_pixel.y);
                     }
-                    }
-
-                    raw_tracker_data->add_tracker_ids(trackerId);
-                    ++valid_tracker_count;
-                }
+                }                
             }
+            raw_tracker_data->set_valid_tracker_bitmask(validTrackerBitmask);
 
             {
                 const ControllerOpticalPoseEstimation *poseEstimate = controller_view->getMulticamPoseEstimate();
@@ -1592,8 +1611,6 @@ static void generate_psdualshock4_data_frame_for_stream(
                     }
                 }
             }
-
-            raw_tracker_data->set_valid_tracker_count(valid_tracker_count);
         }
 
         // if requested, get the physics data for the controller
@@ -1673,7 +1690,8 @@ static void generate_virtual_controller_data_frame_for_stream(
         if (stream_info->include_raw_tracker_data)
         {
             auto *raw_tracker_data = virtual_controller_data_frame->mutable_raw_tracker_data();
-            int valid_tracker_count= 0;
+            int selectedTrackerId= stream_info->selected_tracker_index;
+            unsigned int validTrackerBitmask= 0;
 
             for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
             {
@@ -1682,47 +1700,52 @@ static void generate_virtual_controller_data_frame_for_stream(
 
                 if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
                 {
-                    const CommonDevicePosition &trackerRelativePosition = positionEstimate->position_cm;
-                    const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
+                    validTrackerBitmask&= (1 << trackerId);
 
-                    // Project the 3d camera position back onto the tracker screen
+                    if (trackerId == selectedTrackerId)
                     {
-                        const CommonDeviceScreenLocation trackerScreenLocation =
-                            tracker_view->projectTrackerRelativePosition(&trackerRelativePosition);
-                        PSMoveProtocol::Pixel *pixel = raw_tracker_data->add_screen_locations();
+                        const CommonDevicePosition &trackerRelativePosition = positionEstimate->position_cm;
+                        const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
 
-                        pixel->set_x(trackerScreenLocation.x);
-                        pixel->set_y(trackerScreenLocation.y);
-                    }
+                        // Project the 3d camera position back onto the tracker screen
+                        {
+                            const CommonDeviceScreenLocation trackerScreenLocation =
+                                tracker_view->projectTrackerRelativePosition(&trackerRelativePosition);
+                            PSMoveProtocol::Pixel *pixel = raw_tracker_data->mutable_screen_location();
 
-                    // Add the tracker relative 3d position
-                    {
-                        PSMoveProtocol::Position *position_cm= raw_tracker_data->add_relative_positions_cm();
+                            pixel->set_x(trackerScreenLocation.x);
+                            pixel->set_y(trackerScreenLocation.y);
+                        }
+
+                        // Add the tracker relative 3d position
+                        {
+                            PSMoveProtocol::Position *position_cm= raw_tracker_data->mutable_relative_position_cm();
                         
-                        position_cm->set_x(trackerRelativePosition.x);
-                        position_cm->set_y(trackerRelativePosition.y);
-                        position_cm->set_z(trackerRelativePosition.z);
-                    }
+                            position_cm->set_x(trackerRelativePosition.x);
+                            position_cm->set_y(trackerRelativePosition.y);
+                            position_cm->set_z(trackerRelativePosition.z);
+                        }
 
-                    // Add the tracker relative projection shapes
-                    {
-                        const CommonDeviceTrackingProjection &trackerRelativeProjection = 
-                            positionEstimate->projection;
+                        // Add the tracker relative projection shapes
+                        {
+                            const CommonDeviceTrackingProjection &trackerRelativeProjection = 
+                                positionEstimate->projection;
 
-                        assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_Ellipse);
-                        PSMoveProtocol::Ellipse *ellipse= raw_tracker_data->add_projected_spheres();
+                            assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_Ellipse);
+                            PSMoveProtocol::Ellipse *ellipse= raw_tracker_data->mutable_projected_sphere();
                                 
-                        ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
-                        ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
-                        ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
-                        ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
-                        ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
-                    }
+                            ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
+                            ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
+                            ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
+                            ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
+                            ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
+                        }
 
-                    raw_tracker_data->add_tracker_ids(trackerId);
-                    ++valid_tracker_count;
+                        raw_tracker_data->set_tracker_id(selectedTrackerId);
+                    }
                 }
             }
+            raw_tracker_data->set_valid_tracker_bitmask(validTrackerBitmask);
 
             {
                 const ControllerOpticalPoseEstimation *poseEstimate = controller_view->getMulticamPoseEstimate();
@@ -1735,8 +1758,6 @@ static void generate_virtual_controller_data_frame_for_stream(
                     position_cm->set_z(poseEstimate->position_cm.z);
                 }
             }
-
-            raw_tracker_data->set_valid_tracker_count(valid_tracker_count);
         }
 
         // if requested, get the physics data for the controller

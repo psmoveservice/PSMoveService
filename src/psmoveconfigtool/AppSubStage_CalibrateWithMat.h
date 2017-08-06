@@ -56,7 +56,9 @@ private:
 
 	struct TrackerRelativePoseStatistics *m_deviceTrackerPoseStats[PSMOVESERVICE_MAX_TRACKER_COUNT];
 
+    int m_sampleTrackerId;
     int m_sampleLocationIndex;
+    bool m_bNeedMoreSamplesAtLocation;
 };
 
 #endif // APP_STAGE_COREGISTER_WITH_MAT_H

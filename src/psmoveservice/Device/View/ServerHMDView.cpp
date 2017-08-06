@@ -1205,59 +1205,63 @@ static void generate_morpheus_hmd_data_frame_for_stream(
 		if (stream_info->include_raw_tracker_data)
 		{
 			auto *raw_tracker_data = morpheus_data_frame->mutable_raw_tracker_data();
-			int valid_tracker_count = 0;
+            int selectedTrackerId= stream_info->selected_tracker_index;
+            unsigned int validTrackerBitmask= 0;
 
-			for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
-			{
-				const HMDOpticalPoseEstimation *positionEstimate = hmd_view->getTrackerPoseEstimate(trackerId);
+            for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
+            {
+			    const HMDOpticalPoseEstimation *positionEstimate = hmd_view->getTrackerPoseEstimate(trackerId);
 
-				if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
-				{
-					const CommonDevicePosition &trackerRelativePosition = positionEstimate->position_cm;
-					const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
+                if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
+                {
+                    validTrackerBitmask&= (1 << trackerId);
 
-					// Project the 3d camera position back onto the tracker screen
-					{
-						const CommonDeviceScreenLocation trackerScreenLocation =
-							tracker_view->projectTrackerRelativePosition(&trackerRelativePosition);
-						PSMoveProtocol::Pixel *pixel = raw_tracker_data->add_screen_locations();
+                    if (trackerId == selectedTrackerId)
+                    {
+				        const CommonDevicePosition &trackerRelativePosition = positionEstimate->position_cm;
+				        const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
 
-						pixel->set_x(trackerScreenLocation.x);
-						pixel->set_y(trackerScreenLocation.y);
-					}
+				        // Project the 3d camera position back onto the tracker screen
+				        {
+					        const CommonDeviceScreenLocation trackerScreenLocation =
+						        tracker_view->projectTrackerRelativePosition(&trackerRelativePosition);
+					        PSMoveProtocol::Pixel *pixel = raw_tracker_data->mutable_screen_location();
 
-					// Add the tracker relative 3d position
-					{
-						PSMoveProtocol::Position *position = raw_tracker_data->add_relative_positions_cm();
+					        pixel->set_x(trackerScreenLocation.x);
+					        pixel->set_y(trackerScreenLocation.y);
+				        }
 
-						position->set_x(trackerRelativePosition.x);
-						position->set_y(trackerRelativePosition.y);
-						position->set_z(trackerRelativePosition.z);
-					}
+				        // Add the tracker relative 3d position
+				        {
+					        PSMoveProtocol::Position *position = raw_tracker_data->mutable_relative_position_cm();
 
-					// Add the tracker relative projection shapes
-					{
-						const CommonDeviceTrackingProjection &trackerRelativeProjection =
-							positionEstimate->projection;
+					        position->set_x(trackerRelativePosition.x);
+					        position->set_y(trackerRelativePosition.y);
+					        position->set_z(trackerRelativePosition.z);
+				        }
 
-						assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_Points);
-						PSMoveProtocol::Polygon *polygon = raw_tracker_data->add_projected_point_cloud();
+				        // Add the tracker relative projection shapes
+				        {
+					        const CommonDeviceTrackingProjection &trackerRelativeProjection =
+						        positionEstimate->projection;
 
-						for (int vert_index = 0; vert_index < trackerRelativeProjection.shape.points.point_count; ++vert_index)
-						{
-							PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
+					        assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_Points);
+					        PSMoveProtocol::Polygon *polygon = raw_tracker_data->mutable_projected_point_cloud();
 
-							pixel->set_x(trackerRelativeProjection.shape.points.point[vert_index].x);
-							pixel->set_y(trackerRelativeProjection.shape.points.point[vert_index].y);
-						}
-					}
+					        for (int vert_index = 0; vert_index < trackerRelativeProjection.shape.points.point_count; ++vert_index)
+					        {
+						        PSMoveProtocol::Pixel *pixel = polygon->add_vertices();
 
-					raw_tracker_data->add_tracker_ids(trackerId);
-					++valid_tracker_count;
-				}
-			}
+						        pixel->set_x(trackerRelativeProjection.shape.points.point[vert_index].x);
+						        pixel->set_y(trackerRelativeProjection.shape.points.point[vert_index].y);
+					        }
+				        }
 
-			raw_tracker_data->set_valid_tracker_count(valid_tracker_count);
+				        raw_tracker_data->set_tracker_id(trackerId);
+                    }
+                }
+            }
+            raw_tracker_data->set_valid_tracker_bitmask(validTrackerBitmask);
 		}
     }
 
@@ -1320,57 +1324,61 @@ static void generate_virtual_hmd_data_frame_for_stream(
 		if (stream_info->include_raw_tracker_data)
 		{
 			auto *raw_tracker_data = virtual_hmd_data_frame->mutable_raw_tracker_data();
-			int valid_tracker_count = 0;
+			int selectedTrackerId= stream_info->selected_tracker_index;
+            unsigned int validTrackerBitmask= 0;
 
-			for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
-			{
-				const HMDOpticalPoseEstimation *positionEstimate = hmd_view->getTrackerPoseEstimate(trackerId);
+            for (int trackerId = 0; trackerId < TrackerManager::k_max_devices; ++trackerId)
+            {
+			    const HMDOpticalPoseEstimation *positionEstimate = hmd_view->getTrackerPoseEstimate(trackerId);
 
-				if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
-				{
-					const CommonDevicePosition &trackerRelativePosition = positionEstimate->position_cm;
-					const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(trackerId);
+                if (positionEstimate != nullptr && positionEstimate->bCurrentlyTracking)
+                {
+                    validTrackerBitmask&= (1 << trackerId);
 
-					// Project the 3d camera position back onto the tracker screen
-					{
-						const CommonDeviceScreenLocation trackerScreenLocation =
-							tracker_view->projectTrackerRelativePosition(&trackerRelativePosition);
-						PSMoveProtocol::Pixel *pixel = raw_tracker_data->add_screen_locations();
+                    if (trackerId == selectedTrackerId)
+                    {
+				        const CommonDevicePosition &trackerRelativePosition = positionEstimate->position_cm;
+				        const ServerTrackerViewPtr tracker_view = DeviceManager::getInstance()->getTrackerViewPtr(selectedTrackerId);
 
-						pixel->set_x(trackerScreenLocation.x);
-						pixel->set_y(trackerScreenLocation.y);
-					}
+				        // Project the 3d camera position back onto the tracker screen
+				        {
+					        const CommonDeviceScreenLocation trackerScreenLocation =
+						        tracker_view->projectTrackerRelativePosition(&trackerRelativePosition);
+					        PSMoveProtocol::Pixel *pixel = raw_tracker_data->mutable_screen_location();
 
-					// Add the tracker relative 3d position
-					{
-						PSMoveProtocol::Position *position = raw_tracker_data->add_relative_positions_cm();
+					        pixel->set_x(trackerScreenLocation.x);
+					        pixel->set_y(trackerScreenLocation.y);
+				        }
 
-						position->set_x(trackerRelativePosition.x);
-						position->set_y(trackerRelativePosition.y);
-						position->set_z(trackerRelativePosition.z);
-					}
+				        // Add the tracker relative 3d position
+				        {
+					        PSMoveProtocol::Position *position = raw_tracker_data->mutable_relative_position_cm();
 
-					// Add the tracker relative projection shapes
-					{
-						const CommonDeviceTrackingProjection &trackerRelativeProjection =
-							positionEstimate->projection;
+					        position->set_x(trackerRelativePosition.x);
+					        position->set_y(trackerRelativePosition.y);
+					        position->set_z(trackerRelativePosition.z);
+				        }
 
-						assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_Ellipse);
-						PSMoveProtocol::Ellipse *ellipse = raw_tracker_data->add_projected_spheres();
+				        // Add the tracker relative projection shapes
+				        {
+					        const CommonDeviceTrackingProjection &trackerRelativeProjection =
+						        positionEstimate->projection;
 
-                        ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
-                        ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
-                        ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
-                        ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
-                        ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
-					}
+					        assert(trackerRelativeProjection.shape_type == eCommonTrackingProjectionType::ProjectionType_Ellipse);
+					        PSMoveProtocol::Ellipse *ellipse = raw_tracker_data->mutable_projected_sphere();
 
-					raw_tracker_data->add_tracker_ids(trackerId);
-					++valid_tracker_count;
-				}
-			}
+                            ellipse->mutable_center()->set_x(trackerRelativeProjection.shape.ellipse.center.x);
+                            ellipse->mutable_center()->set_y(trackerRelativeProjection.shape.ellipse.center.y);
+                            ellipse->set_half_x_extent(trackerRelativeProjection.shape.ellipse.half_x_extent);
+                            ellipse->set_half_y_extent(trackerRelativeProjection.shape.ellipse.half_y_extent);
+                            ellipse->set_angle(trackerRelativeProjection.shape.ellipse.angle);
+				        }
 
-			raw_tracker_data->set_valid_tracker_count(valid_tracker_count);
+				        raw_tracker_data->set_tracker_id(selectedTrackerId);
+                    }
+                }
+            }
+            raw_tracker_data->set_valid_tracker_bitmask(validTrackerBitmask);
 		}
     }
 

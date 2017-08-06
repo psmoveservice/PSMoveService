@@ -249,6 +249,10 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__set_gamepad_index(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SET_CONTROLLER_DATA_STREAM_TRACKER_INDEX:
+                response = new PSMoveProtocol::Response;
+                handle_request__set_controller_data_stream_tracker_index(context, response);
+                break;
 
             // Tracker Requests
             case PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST:
@@ -360,6 +364,10 @@ public:
             case PSMoveProtocol::Request_RequestType_SET_HMD_PREDICTION_TIME:
                 response = new PSMoveProtocol::Response;
                 handle_request__set_hmd_prediction_time(context, response);
+                break;
+            case PSMoveProtocol::Request_RequestType_SET_HMD_DATA_STREAM_TRACKER_INDEX:
+                response = new PSMoveProtocol::Response;
+                handle_request__set_hmd_data_stream_tracker_index(context, response);
                 break;
 
             // General Service Requests
@@ -1625,6 +1633,39 @@ protected:
 
                 config->gamepad_index = gamepad_index;
                 config->save();
+
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+            }
+            else
+            {
+                response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+            }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_controller_data_stream_tracker_index(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int controller_id = context.request->request_set_controller_data_stream_tracker_index().controller_id();
+        const int tracker_id = context.request->request_set_controller_data_stream_tracker_index().tracker_id();
+
+        if (ServerUtility::is_index_valid(controller_id, m_device_manager.getControllerViewMaxCount()) &&
+            ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerControllerViewPtr controller_view = m_device_manager.getControllerViewPtr(controller_id);
+            ControllerStreamInfo &streamInfo =
+                context.connection_state->active_controller_stream_info[controller_id];
+
+            if (controller_view->getIsStreamable())
+            {
+                SERVER_LOG_INFO("ServerRequestHandler") << "Set controller(" << controller_id << ") stream tracker id: " << tracker_id;
+
+                streamInfo.selected_tracker_index= tracker_id;
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -2929,6 +2970,32 @@ protected:
             {
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
             }
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+    }
+
+    void handle_request__set_hmd_data_stream_tracker_index(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+    {
+        const int hmd_id = context.request->request_set_hmd_data_stream_tracker_index().hmd_id();
+        const int tracker_id = context.request->request_set_hmd_data_stream_tracker_index().tracker_id();
+
+        if (ServerUtility::is_index_valid(hmd_id, m_device_manager.getHMDViewMaxCount()) &&
+            ServerUtility::is_index_valid(tracker_id, m_device_manager.getTrackerViewMaxCount()))
+        {
+            ServerHMDViewPtr hmd_view = m_device_manager.getHMDViewPtr(hmd_id);
+            HMDStreamInfo &streamInfo =
+                context.connection_state->active_hmd_stream_info[hmd_id];
+
+            SERVER_LOG_INFO("ServerRequestHandler") << "Set hmd(" << hmd_id << ") stream tracker id: " << tracker_id;
+
+            streamInfo.selected_tracker_index= tracker_id;
+
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
         }
         else
         {

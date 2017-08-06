@@ -3,7 +3,6 @@
 #include "AppStage_MainMenu.h"
 #include "AppStage_TrackerSettings.h"
 #include "AppSubStage_CalibrateWithMat.h"
-#include "AppSubStage_StereoCalibrate.h"
 #include "App.h"
 #include "AssetManager.h"
 #include "Camera.h"
@@ -22,10 +21,6 @@
 
 #include <imgui.h>
 #include <sstream>
-
-//###HipsterSloth $TODO
-// Stereo calibration isn't working reliably, so disable for now
-//#define ENABLE_STEREO_CALIBRATION
 
 //-- statics ----
 const char *AppStage_ComputeTrackerPoses::APP_STAGE_NAME = "ComputeTrackerPoses";
@@ -47,7 +42,6 @@ AppStage_ComputeTrackerPoses::AppStage_ComputeTrackerPoses(App *app)
     , m_pendingControllerStartCount(0)
     , m_renderTrackerIndex(0)
     , m_pCalibrateWithMat(new AppSubStage_CalibrateWithMat(this))
-    , m_pStereoCalibrate(new AppSubStage_StereoCalibrate(this))
     , m_bSkipCalibration(false)
     , m_ShowTrackerVideoId(-1)
     , m_bShowAlignment(false)
@@ -168,20 +162,6 @@ void AppStage_ComputeTrackerPoses::update()
             }
         }
         break;
-    case eMenuState::stereoCalibrate:
-        {
-            m_pStereoCalibrate->update();
-
-            if (m_pStereoCalibrate->getMenuState() == AppSubStage_StereoCalibrate::calibrateStepSuccess)
-            {
-                setState(AppStage_ComputeTrackerPoses::eMenuState::testTracking);
-            }
-            else if (m_pStereoCalibrate->getMenuState() == AppSubStage_StereoCalibrate::calibrateStepFailed)
-            {
-                setState(AppStage_ComputeTrackerPoses::eMenuState::calibrateStepFailed);
-            }
-        }
-        break;
     case eMenuState::testTracking:
         break;
     case eMenuState::showTrackerVideo:
@@ -222,9 +202,6 @@ void AppStage_ComputeTrackerPoses::render()
         break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->render();
-        break;
-    case eMenuState::stereoCalibrate:
-        m_pStereoCalibrate->render();
         break;
     case eMenuState::testTracking:
         {
@@ -447,17 +424,7 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
             if (ImGui::Button("Looks Good!"))
             {
-#ifdef ENABLE_STEREO_CALIBRATION
-                if (m_trackerViews.size() == 2)
-                {
-                    // only consider stereo camera calibration when there are two trackers
-                    setState(eMenuState::selectCalibrationMethod);
-                }
-                else
-#endif // ENABLE_STEREO_CALIBRATION
-                {
-                    setState(eMenuState::calibrateWithMat);
-                }
+                setState(eMenuState::calibrateWithMat);
             }
 
             if (ImGui::Button("Hmm... Something is wrong."))
@@ -536,16 +503,10 @@ void AppStage_ComputeTrackerPoses::renderUI()
 
             ImGui::Text("Select a calibration method");
             ImGui::Separator();
-            ImGui::TextWrapped("Use 'Stereo Camera' if you have two cameras rigidly aligned side by side a few centimeters apart, otherwise use 'Calibration Mat'.");
-            ImGui::Separator();
 
             if (ImGui::Button("Calibration Mat"))
             {
                 setState(eMenuState::calibrateWithMat);
-            }
-            if (ImGui::Button("Stereo Camera"))
-            {
-                setState(eMenuState::stereoCalibrate);
             }
 
             ImGui::End();
@@ -554,11 +515,6 @@ void AppStage_ComputeTrackerPoses::renderUI()
     case eMenuState::calibrateWithMat:
         {
             m_pCalibrateWithMat->renderUI();
-        } break;
-
-    case eMenuState::stereoCalibrate:
-        {
-            m_pStereoCalibrate->renderUI();
         } break;
 
     case eMenuState::testTracking:
@@ -745,9 +701,6 @@ void AppStage_ComputeTrackerPoses::onExitState(eMenuState newState)
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->exit();
         break;
-    case eMenuState::stereoCalibrate:
-        m_pStereoCalibrate->exit();
-        break;
     case eMenuState::testTracking:
         m_app->setCameraType(_cameraFixed);
         break;
@@ -798,9 +751,6 @@ void AppStage_ComputeTrackerPoses::onEnterState(eMenuState newState)
         break;
     case eMenuState::calibrateWithMat:
         m_pCalibrateWithMat->enter();
-        break;
-    case eMenuState::stereoCalibrate:
-        m_pStereoCalibrate->enter();
         break;
     case eMenuState::testTracking:
         {
@@ -1126,10 +1076,21 @@ void AppStage_ComputeTrackerPoses::request_start_controller_stream(
         flags|= PSMStreamFlags_disableROI;
     }
 
+    // Start off getting getting projection data from tracker 0
+    {
+        PSMRequestID requestId;
+
+        PSM_SetControllerDataStreamTrackerIndexAsync(controllerState.controllerView->ControllerID, 0, &requestId);
+        PSM_EatResponse(requestId);
+    }
+
     // Start receiving data from the controller
-    PSMRequestID request_id;
-    PSM_StartControllerDataStreamAsync(controllerState.controllerView->ControllerID, flags, &request_id);
-    PSM_RegisterCallback(request_id, &AppStage_ComputeTrackerPoses::handle_start_controller_response, this);
+    {
+        PSMRequestID request_id;
+
+        PSM_StartControllerDataStreamAsync(controllerState.controllerView->ControllerID, flags, &request_id);
+        PSM_RegisterCallback(request_id, &AppStage_ComputeTrackerPoses::handle_start_controller_response, this);
+    }
 }
 
 void AppStage_ComputeTrackerPoses::handle_start_controller_response(
@@ -1294,10 +1255,21 @@ void AppStage_ComputeTrackerPoses::request_start_hmd_stream(
         PSMStreamFlags_includePositionData |
         PSMStreamFlags_includeRawTrackerData;
 
+    // Start off getting getting projection data from tracker 0
+    {
+        PSMRequestID requestId;
+
+        PSM_SetHmdDataStreamTrackerIndexAsync(hmdState.hmdView->HmdID, 0, &requestId);
+        PSM_EatResponse(requestId);
+    }
+
     // Start receiving data from the controller
-    PSMRequestID request_id;
-    PSM_StartHmdDataStreamAsync(hmdState.hmdView->HmdID, flags, &request_id);
-    PSM_RegisterCallback(request_id, &AppStage_ComputeTrackerPoses::handle_start_hmd_response, this);
+    {
+        PSMRequestID request_id;
+
+        PSM_StartHmdDataStreamAsync(hmdState.hmdView->HmdID, flags, &request_id);
+        PSM_RegisterCallback(request_id, &AppStage_ComputeTrackerPoses::handle_start_hmd_response, this);
+    }
 }
 
 void AppStage_ComputeTrackerPoses::handle_start_hmd_response(
@@ -1526,31 +1498,25 @@ bool AppStage_ComputeTrackerPoses::does_tracker_see_any_controller(const PSMTrac
         if (controllerView->ControllerType == PSMControllerType::PSMController_Move &&
             controllerView->ControllerState.PSMoveState.bIsCurrentlyTracking)
         {
-            for (int id = 0; id < controllerView->ControllerState.PSMoveState.RawTrackerData.ValidTrackerLocations; ++id)
-            {
-                if (controllerView->ControllerState.PSMoveState.RawTrackerData.TrackerIDs[id] == tracker_id)
-                    bTrackerSeesAnyController = true;
-            }
+            bTrackerSeesAnyController= 
+                (controllerView->ControllerState.PSMoveState.RawTrackerData.ValidTrackerBitmask | 
+                 (1 << tracker_id)) > 0;
             break;
         }
         else if (controllerView->ControllerType == PSMControllerType::PSMController_DualShock4 &&
                  controllerView->ControllerState.PSDS4State.bIsCurrentlyTracking)
         {
-            for (int id = 0; id < controllerView->ControllerState.PSDS4State.RawTrackerData.ValidTrackerLocations; ++id)
-            {
-                if (controllerView->ControllerState.PSDS4State.RawTrackerData.TrackerIDs[id] == tracker_id)
-                    bTrackerSeesAnyController = true;
-            }
+            bTrackerSeesAnyController= 
+                (controllerView->ControllerState.PSDS4State.RawTrackerData.ValidTrackerBitmask | 
+                 (1 << tracker_id)) > 0;
             break;
         }
         else if (controllerView->ControllerType == PSMControllerType::PSMController_Virtual &&
                  controllerView->ControllerState.VirtualController.bIsCurrentlyTracking)
         {
-            for (int id = 0; id < controllerView->ControllerState.VirtualController.RawTrackerData.ValidTrackerLocations; ++id)
-            {
-                if (controllerView->ControllerState.VirtualController.RawTrackerData.TrackerIDs[id] == tracker_id)
-                    bTrackerSeesAnyController = true;
-            }
+            bTrackerSeesAnyController= 
+                (controllerView->ControllerState.VirtualController.RawTrackerData.ValidTrackerBitmask | 
+                 (1 << tracker_id)) > 0;
             break;
         }
     }
@@ -1570,21 +1536,17 @@ bool AppStage_ComputeTrackerPoses::does_tracker_see_any_hmd(const PSMTracker *tr
         if (hmdView->HmdType == PSMHmd_Morpheus &&
             hmdView->HmdState.MorpheusState.bIsCurrentlyTracking)
         {
-            for (int id = 0; id < hmdView->HmdState.MorpheusState.RawTrackerData.ValidTrackerLocations; ++id)
-            {
-                if (hmdView->HmdState.MorpheusState.RawTrackerData.TrackerIDs[id] == tracker_id)
-                    bTrackerSeesAnyHmd = true;
-            }
+            bTrackerSeesAnyHmd= 
+                (hmdView->HmdState.MorpheusState.RawTrackerData.ValidTrackerBitmask | 
+                 (1 << tracker_id)) > 0;
             break;
         }
         else if (hmdView->HmdType == PSMHmd_Virtual &&
                  hmdView->HmdState.VirtualHMDState.bIsCurrentlyTracking)
         {
-            for (int id = 0; id < hmdView->HmdState.VirtualHMDState.RawTrackerData.ValidTrackerLocations; ++id)
-            {
-                if (hmdView->HmdState.VirtualHMDState.RawTrackerData.TrackerIDs[id] == tracker_id)
-                    bTrackerSeesAnyHmd = true;
-            }
+            bTrackerSeesAnyHmd= 
+                (hmdView->HmdState.VirtualHMDState.RawTrackerData.ValidTrackerBitmask | 
+                 (1 << tracker_id)) > 0;
             break;
         }
     }

@@ -53,6 +53,7 @@ public:
     PSMRequestID stop_controller_data_stream(PSMControllerID controller_id);
     PSMRequestID set_led_tracking_color(PSMControllerID controller_id, PSMTrackingColorType tracking_color);
     PSMRequestID reset_orientation(PSMControllerID controller_id, const PSMQuatf& q_pose);
+    PSMRequestID set_controller_data_stream_tracker_index(PSMControllerID controller_id, PSMTrackerID tracker_id);
 
     bool allocate_tracker_listener(const PSMClientTrackerInfo &trackerInfo);
     void free_tracker_listener(PSMTrackerID tracker_id);
@@ -72,6 +73,7 @@ public:
     PSMRequestID get_hmd_list();    
     PSMRequestID start_hmd_data_stream(PSMHmdID hmd_id, unsigned int flags);
     PSMRequestID stop_hmd_data_stream(PSMHmdID hmd_id);
+    PSMRequestID set_hmd_data_stream_tracker_index(PSMHmdID hmd_id, PSMTrackerID tracker_id);
     
     PSMRequestID send_opaque_request(PSMRequestHandle request_handle);
 

@@ -305,23 +305,19 @@ void AppStage_OpticalCalibration::update()
 		// for each tracker that can see the controller
 		{
 			int projectionCount = 0;
+			int trackerId;
 
 			m_lastProjectionArea = 0.f;
-			for (int trackerIndex = 0; trackerIndex < m_trackerList.count; ++trackerIndex)
-			{
-				int trackerId = m_trackerList.trackers[trackerIndex].tracker_id;
 
-				PSMTrackingProjection projection;
-				if (PSM_GetControllerProjectionOnTracker(m_controllerView->ControllerID, trackerId, &projection) == PSMResult_Success)
-				{
-					m_lastProjectionArea+= PSM_TrackingProjectionGetArea(&projection);
-					++projectionCount;
-				}
+			PSMTrackingProjection projection;
+			if (PSM_GetControllerProjectionOnTracker(m_controllerView->ControllerID, &trackerId, &projection) == PSMResult_Success)
+			{
+				m_lastProjectionArea+= PSM_TrackingProjectionGetArea(&projection);
+				++projectionCount;
 			}
 
 			if (projectionCount > 0)
 			{
-				m_lastProjectionArea /= static_cast<float>(projectionCount);
 				m_bLastProjectionAreaValid = true;
 			}
 		}
@@ -903,15 +899,26 @@ void AppStage_OpticalCalibration::handle_tracker_list_response(
 	case PSMResult_Success:
 		{
 			assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_TrackerList);
+			assert(!thisPtr->m_isControllerStreamActive);
 
 			// Save the controller list state (used in rendering)
 			thisPtr->m_trackerList = response_message->payload.tracker_list;
 
+            // Start off getting getting projection data from tracker 0
+            {
+                PSMRequestID requestId;
+
+                PSM_SetControllerDataStreamTrackerIndexAsync(thisPtr->m_controllerView->ControllerID, 0, &requestId);
+                PSM_EatResponse(requestId);
+            }
+
 			// Start streaming in controller data
-			assert(!thisPtr->m_isControllerStreamActive);
-			PSMRequestID request_id;
-			PSM_StartControllerDataStreamAsync(thisPtr->m_controllerView->ControllerID, PSMStreamFlags_includePositionData | PSMStreamFlags_includeRawTrackerData, &request_id);
-			PSM_RegisterCallback(request_id, &AppStage_OpticalCalibration::handle_acquire_controller, thisPtr);
+            {
+			    PSMRequestID request_id;
+
+			    PSM_StartControllerDataStreamAsync(thisPtr->m_controllerView->ControllerID, PSMStreamFlags_includePositionData | PSMStreamFlags_includeRawTrackerData, &request_id);
+			    PSM_RegisterCallback(request_id, &AppStage_OpticalCalibration::handle_acquire_controller, thisPtr);
+            }
 
 			thisPtr->setState(eCalibrationMenuState::waitingForStreamStartResponse);
 		} break;
