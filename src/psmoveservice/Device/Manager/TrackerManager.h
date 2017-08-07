@@ -78,7 +78,7 @@ public:
 
     void closeAllTrackers();
 
-    static const int k_max_devices = 4;
+    static const int k_max_devices = PSMOVESERVICE_MAX_TRACKER_COUNT;
     int getMaxDevices() const override
     {
         return TrackerManager::k_max_devices;
