@@ -48,7 +48,7 @@ public:
         return cfg;
     }
 
-    static const int k_max_devices = 5;
+    static const int k_max_devices = PSMOVESERVICE_MAX_CONTROLLER_COUNT;
     int getMaxDevices() const override
     {
         return ControllerManager::k_max_devices;

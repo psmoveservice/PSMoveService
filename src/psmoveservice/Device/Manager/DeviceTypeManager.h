@@ -3,6 +3,7 @@
 
 //-- includes -----
 #include "DevicePlatformInterface.h"
+#include "PSMoveProtocolInterface.h"
 
 #include <memory>
 #include <chrono>
