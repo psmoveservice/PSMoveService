@@ -38,9 +38,11 @@ ENDIF()
 # We could include the PSMoveService project but we want our test as isolated as possible.
 list(APPEND TEST_CAMERA_INCL_DIRS 
     ${ROOT_DIR}/src/psmoveclient/
+    ${ROOT_DIR}/src/psmoveprotocol/
     ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye)
 list(APPEND TEST_CAMERA_SRC
     ${ROOT_DIR}/src/psmoveclient/ClientConstants.h
+    ${ROOT_DIR}/src/psmoveprotocol/SharedConstants.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye/PSEyeVideoCapture.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveTracker/PSEye/PSEyeVideoCapture.cpp)
 
@@ -423,7 +425,9 @@ ENDIF()
 # TEST_CONSOLE_CAPI
 #
 add_executable(test_console_CAPI test_console_CAPI.cpp)
-target_include_directories(test_console_CAPI PUBLIC ${ROOT_DIR}/src/psmoveclient/)
+target_include_directories(test_console_CAPI PUBLIC 
+    ${ROOT_DIR}/src/psmoveclient/
+    ${ROOT_DIR}/src/psmoveprotocol/)
 target_link_libraries(test_console_CAPI PSMoveClient_CAPI)
 SET_TARGET_PROPERTIES(test_console_CAPI PROPERTIES FOLDER Test)
 # Install

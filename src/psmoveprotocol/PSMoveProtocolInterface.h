@@ -3,6 +3,7 @@
 
 //-- includes -----
 #include <memory>
+#include "SharedConstants.h"
 
 //-- constants -----
 #define MAX_OUTPUT_DATA_FRAME_MESSAGE_SIZE 500
