@@ -817,8 +817,9 @@ PSMResult PSM_GetIsControllerTracking(PSMControllerID controller_id, bool *out_i
     return result;
 }
 
-PSMResult PSM_GetControllerPixelLocationOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMVector2f *outLocation)
+PSMResult PSM_GetControllerPixelLocationOnTracker(PSMControllerID controller_id, PSMTrackerID *outTrackerId, PSMVector2f *outLocation)
 {
+	assert(outTrackerId);
 	assert(outLocation);
 
     if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
@@ -841,22 +842,18 @@ PSMResult PSM_GetControllerPixelLocationOnTracker(PSMControllerID controller_id,
 
 		if (trackerData != nullptr)
 		{
-			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
-			{
-				if (trackerData->TrackerIDs[listIndex] == tracker_id)
-				{
-					*outLocation = trackerData->ScreenLocations[listIndex];
-					return PSMResult_Success;
-				}
-			}
+            *outTrackerId = trackerData->TrackerID;
+			*outLocation = trackerData->ScreenLocation;
+			return PSMResult_Success;
 		}
 	}
 
     return PSMResult_Error;
 }
 
-PSMResult PSM_GetControllerPositionOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMVector3f *outPosition)
+PSMResult PSM_GetControllerPositionOnTracker(PSMControllerID controller_id, PSMTrackerID *outTrackerId, PSMVector3f *outPosition)
 {
+    assert(outTrackerId);
 	assert(outPosition);
 
     if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
@@ -879,22 +876,18 @@ PSMResult PSM_GetControllerPositionOnTracker(PSMControllerID controller_id, PSMT
 
 		if (trackerData != nullptr)
 		{
-			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
-			{
-				if (trackerData->TrackerIDs[listIndex] == tracker_id)
-				{
-					*outPosition = trackerData->RelativePositionsCm[listIndex];
-					return PSMResult_Success;
-				}
-			}
+            *outTrackerId = trackerData->TrackerID;
+			*outPosition = trackerData->RelativePositionCm;
+			return PSMResult_Success;
         }
 	}
 
     return PSMResult_Error;
 }
 
-PSMResult PSM_GetControllerOrientationOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMQuatf *outOrientation)
+PSMResult PSM_GetControllerOrientationOnTracker(PSMControllerID controller_id, PSMTrackerID *outTrackerId, PSMQuatf *outOrientation)
 {
+    assert(outTrackerId);
 	assert(outOrientation);
 
     if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
@@ -914,22 +907,18 @@ PSMResult PSM_GetControllerOrientationOnTracker(PSMControllerID controller_id, P
 
 		if (trackerData != nullptr)
 		{
-			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
-			{
-				if (trackerData->TrackerIDs[listIndex] == tracker_id)
-				{
-					*outOrientation = trackerData->RelativeOrientations[listIndex];
-					return PSMResult_Success;
-				}
-			}
+            *outTrackerId = trackerData->TrackerID;
+			*outOrientation = trackerData->RelativeOrientation;
+			return PSMResult_Success;
         }
 	}
 
     return PSMResult_Error;
 }
 
-PSMResult PSM_GetControllerProjectionOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMTrackingProjection *outProjection)
+PSMResult PSM_GetControllerProjectionOnTracker(PSMControllerID controller_id, PSMTrackerID *outTrackerId, PSMTrackingProjection *outProjection)
 {
+    assert(outTrackerId);
 	assert(outProjection);
 
     if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
@@ -952,14 +941,9 @@ PSMResult PSM_GetControllerProjectionOnTracker(PSMControllerID controller_id, PS
 
 		if (trackerData != nullptr)
 		{
-			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
-			{
-				if (trackerData->TrackerIDs[listIndex] == tracker_id)
-				{
-					*outProjection = trackerData->TrackingProjections[listIndex];
-					return PSMResult_Success;
-				}
-			}
+            *outTrackerId = trackerData->TrackerID;
+			*outProjection = trackerData->TrackingProjection;
+			return PSMResult_Success;
         }
 	}
 
@@ -985,6 +969,25 @@ PSMResult PSM_ResetControllerOrientationAsync(PSMControllerID controller_id, con
     return result;
 }
 
+PSMResult PSM_SetControllerDataStreamTrackerIndexAsync(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMRequestID *out_request_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
+    {
+        PSMRequestID req_id = g_psm_client->set_controller_data_stream_tracker_index(controller_id, tracker_id);
+
+        if (out_request_id != nullptr)
+        {
+            *out_request_id= req_id;
+        }
+
+        result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
+    }
+
+    return result;
+}
+
 PSMResult PSM_ResetControllerOrientation(PSMControllerID controller_id, PSMQuatf *q_pose, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
@@ -992,6 +995,22 @@ PSMResult PSM_ResetControllerOrientation(PSMControllerID controller_id, PSMQuatf
     if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
     {
 		PSMBlockingRequest request(g_psm_client->reset_orientation(controller_id, *q_pose));
+
+		result= request.send(timeout_ms);
+    }
+
+    return result;
+}
+
+PSMResult PSM_SetControllerDataStreamTrackerIndex(PSMControllerID controller_id, PSMTrackerID tracker_id, int timeout_ms)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (g_psm_client != nullptr && 
+        IS_VALID_CONTROLLER_INDEX(controller_id) &&
+        IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+		PSMBlockingRequest request(g_psm_client->set_controller_data_stream_tracker_index(controller_id, tracker_id));
 
 		result= request.send(timeout_ms);
     }
@@ -1462,9 +1481,10 @@ PSMResult PSM_GetIsHmdTracking(PSMHmdID hmd_id, bool *out_is_tracking)
     return result;
 }
 
-PSMResult PSM_GetHmdPixelLocationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMVector2f *outLocation)
+PSMResult PSM_GetHmdPixelLocationOnTracker(PSMHmdID hmd_id, PSMTrackerID *outTrackerId, PSMVector2f *outLocation)
 {
 	assert(outLocation);
+    assert(outTrackerId);
 
     if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
@@ -1485,23 +1505,19 @@ PSMResult PSM_GetHmdPixelLocationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker
 
 		if (trackerData != nullptr)
 		{
-			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
-			{
-				if (trackerData->TrackerIDs[listIndex] == tracker_id)
-				{
-					*outLocation = trackerData->ScreenLocations[listIndex];
-					return PSMResult_Success;
-				}
-			}
+            *outTrackerId = trackerData->TrackerID;
+			*outLocation = trackerData->ScreenLocation;
+			return PSMResult_Success;
 		}
 	}
 
     return PSMResult_Error;
 }
 
-PSMResult PSM_GetHmdPositionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMVector3f *outPosition)
+PSMResult PSM_GetHmdPositionOnTracker(PSMHmdID hmd_id, PSMTrackerID *outTrackerId, PSMVector3f *outPosition)
 {
 	assert(outPosition);
+    assert(outTrackerId);
 
     if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
@@ -1522,23 +1538,19 @@ PSMResult PSM_GetHmdPositionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, 
 
 		if (trackerData != nullptr)
 		{
-			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
-			{
-				if (trackerData->TrackerIDs[listIndex] == tracker_id)
-				{
-					*outPosition = trackerData->RelativePositionsCm[listIndex];
-					return PSMResult_Success;
-				}
-			}
+            *outTrackerId = trackerData->TrackerID;
+			*outPosition = trackerData->RelativePositionCm;
+			return PSMResult_Success;
         }
 	}
 
     return PSMResult_Error;
 }
 
-PSMResult PSM_GetHmdOrientationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMQuatf *outOrientation)
+PSMResult PSM_GetHmdOrientationOnTracker(PSMHmdID hmd_id, PSMTrackerID *outTrackerId, PSMQuatf *outOrientation)
 {
 	assert(outOrientation);
+    assert(outTrackerId);
 
     if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
@@ -1559,23 +1571,19 @@ PSMResult PSM_GetHmdOrientationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_i
 
 		if (trackerData != nullptr)
 		{
-			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
-			{
-				if (trackerData->TrackerIDs[listIndex] == tracker_id)
-				{
-					*outOrientation = trackerData->RelativeOrientations[listIndex];
-					return PSMResult_Success;
-				}
-			}
+            *outTrackerId = trackerData->TrackerID;
+			*outOrientation = trackerData->RelativeOrientation;
+			return PSMResult_Success;
         }
 	}
 
     return PSMResult_Error;
 }
 
-PSMResult PSM_GetHmdProjectionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMTrackingProjection *outProjection)
+PSMResult PSM_GetHmdProjectionOnTracker(PSMHmdID hmd_id, PSMTrackerID *outTrackerId, PSMTrackingProjection *outProjection)
 {
 	assert(outProjection);
+    assert(outTrackerId);
 
     if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
@@ -1596,14 +1604,9 @@ PSMResult PSM_GetHmdProjectionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id
 
 		if (trackerData != nullptr)
 		{
-			for (int listIndex = 0; listIndex < trackerData->ValidTrackerLocations; ++listIndex)
-			{
-				if (trackerData->TrackerIDs[listIndex] == tracker_id)
-				{
-					*outProjection = trackerData->TrackingProjections[listIndex];
-					return PSMResult_Success;
-				}
-			}
+            *outTrackerId= trackerData->TrackerID;
+			*outProjection = trackerData->TrackingProjection;
+			return PSMResult_Success;
         }
 	}
 
@@ -1660,6 +1663,22 @@ PSMResult PSM_StopHmdDataStream(PSMHmdID hmd_id, int timeout_ms)
     return result;
 }
 
+PSMResult PSM_SetHmdDataStreamTrackerIndex(PSMHmdID hmd_id, PSMTrackerID tracker_id, int timeout_ms)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (g_psm_client != nullptr && 
+        IS_VALID_HMD_INDEX(hmd_id) &&
+        IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+		PSMBlockingRequest request(g_psm_client->set_hmd_data_stream_tracker_index(hmd_id, tracker_id));
+
+		result= request.send(timeout_ms);
+    }
+
+    return result;
+}
+
 /// Async HMD Methods
 PSMResult PSM_GetHmdListAsync(PSMRequestID *out_request_id)
 {
@@ -1706,6 +1725,27 @@ PSMResult PSM_StopHmdDataStreamAsync(PSMHmdID hmd_id, PSMRequestID *out_request_
     if (g_psm_client != nullptr && IS_VALID_HMD_INDEX(hmd_id))
     {
         PSMRequestID req_id = g_psm_client->stop_hmd_data_stream(hmd_id);
+
+        if (out_request_id != nullptr)
+        {
+            *out_request_id= req_id;
+        }
+
+        result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
+    }
+
+    return result;
+}
+
+PSMResult PSM_SetHmdDataStreamTrackerIndexAsync(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMRequestID *out_request_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (g_psm_client != nullptr &&
+        IS_VALID_HMD_INDEX(hmd_id) &&
+        IS_VALID_TRACKER_INDEX(tracker_id))
+    {
+        PSMRequestID req_id = g_psm_client->set_hmd_data_stream_tracker_index(hmd_id, tracker_id);
 
         if (out_request_id != nullptr)
         {

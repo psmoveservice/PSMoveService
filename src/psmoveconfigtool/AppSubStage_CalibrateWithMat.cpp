@@ -103,14 +103,16 @@ struct TrackerRelativePoseStatistics
 
 	void addControllerSample(const PSMTracker *trackerView, const PSMController *controllerView, const int sampleLocationIndex)
 	{
-		const int trackerID= trackerView->tracker_info.tracker_id;
+		const int sampleTrackerID= trackerView->tracker_info.tracker_id;
+        int streamTrackerID= -1;
 
 		PSMVector2f screenSample;
 		PSMVector3f trackerRelativePosition;
 		
 		if (!getIsComplete() &&
-			PSM_GetControllerPixelLocationOnTracker(controllerView->ControllerID, trackerID, &screenSample) == PSMResult_Success &&
-			PSM_GetControllerPositionOnTracker(controllerView->ControllerID, trackerID, &trackerRelativePosition) == PSMResult_Success)
+			PSM_GetControllerPixelLocationOnTracker(controllerView->ControllerID, &streamTrackerID, &screenSample) == PSMResult_Success &&
+			PSM_GetControllerPositionOnTracker(controllerView->ControllerID, &streamTrackerID, &trackerRelativePosition) == PSMResult_Success &&
+            streamTrackerID == sampleTrackerID)
 		{
 			screenSpacePoints[sampleCount] = screenSample;
 			trackerSpacePoints[sampleCount] = psm_vector3f_to_eigen_vector3(trackerRelativePosition);
@@ -142,14 +144,16 @@ struct TrackerRelativePoseStatistics
 
 	void addHmdSample(const PSMTracker *trackerView, const PSMHeadMountedDisplay *hmdView, const int sampleLocationIndex)
 	{
-		const int trackerID= trackerView->tracker_info.tracker_id;
+		const int sampleTrackerID= trackerView->tracker_info.tracker_id;
+        int streamTrackerID= -1;
 
 		PSMVector2f screenSample;
 		PSMVector3f trackerRelativePosition;
 		
 		if (!getIsComplete() &&
-			PSM_GetHmdPixelLocationOnTracker(hmdView->HmdID, trackerID, &screenSample) == PSMResult_Success &&
-			PSM_GetHmdPositionOnTracker(hmdView->HmdID, trackerID, &trackerRelativePosition) == PSMResult_Success)
+			PSM_GetHmdPixelLocationOnTracker(hmdView->HmdID, &streamTrackerID, &screenSample) == PSMResult_Success &&
+			PSM_GetHmdPositionOnTracker(hmdView->HmdID, &streamTrackerID, &trackerRelativePosition) == PSMResult_Success &&
+            streamTrackerID == sampleTrackerID)
 		{
 			screenSpacePoints[sampleCount] = screenSample;
 			trackerSpacePoints[sampleCount] = psm_vector3f_to_eigen_vector3(trackerRelativePosition);
@@ -192,8 +196,9 @@ AppSubStage_CalibrateWithMat::AppSubStage_CalibrateWithMat(
     , m_menuState(AppSubStage_CalibrateWithMat::eMenuState::invalid)
     , m_bIsStable(false)
 	, m_sampleLocationIndex(0)
+    , m_bNeedMoreSamplesAtLocation(false)
 {
-	for (int location_index = 0; location_index < k_mat_sample_location_count; ++location_index)
+	for (int location_index = 0; location_index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++location_index)
 	{
 		m_deviceTrackerPoseStats[location_index] = new TrackerRelativePoseStatistics;
 	}
@@ -201,7 +206,7 @@ AppSubStage_CalibrateWithMat::AppSubStage_CalibrateWithMat(
 
 AppSubStage_CalibrateWithMat::~AppSubStage_CalibrateWithMat()
 {
-	for (int location_index = 0; location_index < k_mat_sample_location_count; ++location_index)
+	for (int location_index = 0; location_index < PSMOVESERVICE_MAX_TRACKER_COUNT; ++location_index)
 	{
 		delete m_deviceTrackerPoseStats[location_index];
 	}
@@ -283,21 +288,36 @@ void AppSubStage_CalibrateWithMat::update()
 			bool bCanBeStable= PSM_GetIsControllerStable(ControllerView->ControllerID, &bIsStable) == PSMResult_Success;
 
             // See if any tracker needs more samples
-            bool bNeedMoreSamples = false;
-            for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
-                iter != m_parentStage->m_trackerViews.end(); 
-                ++iter)
+            if (m_bNeedMoreSamplesAtLocation)
             {
-                const int trackerIndex = iter->second.listIndex;
+                m_bNeedMoreSamplesAtLocation= false;
 
-                if (!m_deviceTrackerPoseStats[trackerIndex]->getIsComplete())
+                for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
+                    iter != m_parentStage->m_trackerViews.end(); 
+                    ++iter)
                 {
-                    bNeedMoreSamples = true;
-                    break;
+                    const int trackerIndex = iter->second.listIndex;
+                    const PSMTracker *trackerView = iter->second.trackerView;
+
+                    if (m_deviceTrackerPoseStats[trackerIndex]->getIsComplete())
+                    {
+                        if (trackerView->tracker_info.tracker_id == m_sampleTrackerId)
+                        {
+                            m_sampleTrackerId= (m_sampleTrackerId + 1) % m_parentStage->m_trackerViews.size();
+
+                            PSMRequestID requestId;
+                            PSM_SetControllerDataStreamTrackerIndexAsync(ControllerView->ControllerID, m_sampleTrackerId, &requestId);
+                            PSM_EatResponse(requestId);
+                        }
+                    }
+                    else
+                    {
+                        m_bNeedMoreSamplesAtLocation = true;
+                    }
                 }
             }
 
-            if (bNeedMoreSamples)
+            if (m_bNeedMoreSamplesAtLocation)
             {
                 // Only record samples when the controller is stable
                 if ((bCanBeStable && bIsStable) || m_bForceStable)
@@ -394,21 +414,36 @@ void AppSubStage_CalibrateWithMat::update()
 			bool bCanBeStable= PSM_GetIsHmdStable(HmdView->HmdID, &bIsStable) == PSMResult_Success;
 
             // See if any tracker needs more samples
-            bool bNeedMoreSamples = false;
-            for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
-                iter != m_parentStage->m_trackerViews.end(); 
-                ++iter)
+            if (m_bNeedMoreSamplesAtLocation)
             {
-                const int trackerIndex = iter->second.listIndex;
+                m_bNeedMoreSamplesAtLocation = false;
 
-                if (!m_deviceTrackerPoseStats[trackerIndex]->getIsComplete())
+                for (AppStage_ComputeTrackerPoses::t_tracker_state_map_iterator iter = m_parentStage->m_trackerViews.begin();
+                    iter != m_parentStage->m_trackerViews.end(); 
+                    ++iter)
                 {
-                    bNeedMoreSamples = true;
-                    break;
+                    const int trackerIndex = iter->second.listIndex;
+                    const PSMTracker *trackerView = iter->second.trackerView;
+
+                    if (m_deviceTrackerPoseStats[trackerIndex]->getIsComplete())
+                    {
+                        if (trackerView->tracker_info.tracker_id == m_sampleTrackerId)
+                        {
+                            m_sampleTrackerId= (m_sampleTrackerId + 1) % m_parentStage->m_trackerViews.size();
+
+                            PSMRequestID requestId;
+                            PSM_SetHmdDataStreamTrackerIndexAsync(HmdView->HmdID, m_sampleTrackerId, &requestId);
+                            PSM_EatResponse(requestId);
+                        }
+                    }
+                    else
+                    {
+                        m_bNeedMoreSamplesAtLocation = true;
+                    }
                 }
             }
 
-            if (bNeedMoreSamples)
+            if (m_bNeedMoreSamplesAtLocation)
             {
                 // Only record samples when the controller is stable
                 if ((bCanBeStable && bIsStable) || m_bForceStable)
@@ -749,6 +784,7 @@ void AppSubStage_CalibrateWithMat::onEnterState(
             m_sampleLocationIndex = 0;
             m_bIsStable = false;
             m_bForceStable = false;
+            m_sampleTrackerId= 0;
         }
         break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceController:
@@ -765,6 +801,26 @@ void AppSubStage_CalibrateWithMat::onEnterState(
 
             m_bIsStable = false;
             m_bForceStable= false;
+            m_bNeedMoreSamplesAtLocation= true;
+            m_sampleTrackerId= 0;
+
+            // Start off getting getting projection data from tracker 0
+            if (newState == AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceController)
+            {
+                const PSMController *ControllerView= m_parentStage->get_calibration_controller_view();
+                PSMRequestID requestId;
+
+                PSM_SetControllerDataStreamTrackerIndexAsync(ControllerView->ControllerID, 0, &requestId);
+                PSM_EatResponse(requestId);
+            }
+            else if (newState == AppSubStage_CalibrateWithMat::eMenuState::calibrationStepPlaceHMD)
+            {
+                const PSMHeadMountedDisplay *HmdView= m_parentStage->get_calibration_hmd_view();
+                PSMRequestID requestId;
+
+                PSM_SetHmdDataStreamTrackerIndexAsync(HmdView->HmdID, 0, &requestId);
+                PSM_EatResponse(requestId);
+            }
         } break;
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordController:
     case AppSubStage_CalibrateWithMat::eMenuState::calibrationStepRecordHMD:

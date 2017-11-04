@@ -189,19 +189,18 @@ typedef struct
 /// Device projection geometry as seen by each tracker
 typedef struct
 {
-    // Parallel arrays: ScreenLocations, Positions and the TrackerID associated with them
+	/// ID of the selected tracker
+    PSMTrackerID            TrackerID;
 	/// Pixel position of device projection centroid on each tracker
-    PSMVector2f             ScreenLocations[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMVector2f             ScreenLocation;
 	/// Tracker relative device 3d position on each tracker
-    PSMVector3f             RelativePositionsCm[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMVector3f             RelativePositionCm;
 	/// Tracker relative device 3d orientation on each tracker
-    PSMQuatf                RelativeOrientations[PSMOVESERVICE_MAX_TRACKER_COUNT];
+    PSMQuatf                RelativeOrientation;
 	/// Tracker relative device projection geometry on each tracker
-    PSMTrackingProjection   TrackingProjections[PSMOVESERVICE_MAX_TRACKER_COUNT];
-	/// ID of each tracker in the list
-    PSMTrackerID            TrackerIDs[PSMOVESERVICE_MAX_TRACKER_COUNT];
-	/// Total number of trackers in the list
-    int                     ValidTrackerLocations;
+    PSMTrackingProjection   TrackingProjection;
+	/// A bitmask of the trackers with valid projections
+    unsigned int            ValidTrackerBitmask;
 
     // Multicam triangulated position and orientation, pre-filtered
 	/// Optically derived world space position of device in cm
@@ -952,6 +951,18 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDTrackingColor(PSMControllerID
  */
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerOrientation(PSMControllerID controller_id, PSMQuatf *q_pose, int timeout_ms);
 
+/** \brief Requests setting the selected tracker index for a controller
+	This request is used to set the selected tracker index on a controller data stream
+    when the data stream has tracking projection data active. The projection data is
+    only provided for the selected tracker.
+	\remark Blocking - Returns after either the result is returned OR the timeout period is reached. 
+	\param controller_id The ID of the controller whose data stream we want to modify
+    \param tracker_id The ID of the tracker we want to assign as the active tracker
+	\param timeout_ms The request timeout period in milliseconds, usually PSM_DEFAULT_TIMEOUT
+	\return PSMResult_RequestSent on success or PSMResult_Error if there was no valid connection
+ */
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerDataStreamTrackerIndex(PSMControllerID controller_id, PSMTrackerID tracker_id, int timeout_ms);
+
 // Controller State Methods
 /** \brief Get the current orientation of a controller
 	\param controller_id The id of the controller
@@ -1003,30 +1014,31 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetIsControllerTracking(PSMControllerID contr
 	This method gets the pixel centroid of controller projection.
 	\param controller_id The controller id to get the tracking projection location
 	\param tracker_id The tracker id of the tracker that has the controller projection we care about.
+	\param[out] out_tracker_id The id of the tracker this projection is for
 	\param[out] out_location The center pixel location of the controller projection on the tracker.
 	\return PSMResult_Success if controller has a valid projection on the tracker.
  */
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPixelLocationOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMVector2f *out_location);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPixelLocationOnTracker(PSMControllerID controller_id, PSMTrackerID *out_tracker_id, PSMVector2f *out_location);
 
 /** \brief Helper function for getting the tracker relative 3d position of the controller.
 	Each tracking camera can compute a estimate of the controllers 3d position relative to the tracker.
 	This method gets the 3d centroid of the tracking light in tracker relative coordinates.
 	\param controller_id The controller id to get the tracking position for.
-	\param tracker_id The tracker id that the controller position is relative to.
+	\param[out] out_tracker_id The id of the tracker this projection is for
 	\param[out] out_position Tracker relative centroid position of controller in cm.
 	\return PSMResult_Success if controller has a valid position relative to the tracker.
  */
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPositionOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMVector3f *outPosition);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerPositionOnTracker(PSMControllerID controller_id, PSMTrackerID *out_tracker_id, PSMVector3f *outPosition);
 
 /** \brief Helper function for getting the tracker relative 3d orientation of the controller.
 	Each tracking camera can compute a estimate of the controllers 3d position relative to the tracker.
 	This method gets the 3d centroid of the tracking light in tracker relative coordinates.
 	\param controller_id The controller id to get the tracking position for
-	\param tracker_id The tracker id that the controller orientation is relative to.
+	\param[out] out_tracker_id The id of the tracker this projection is for
 	\param[out] out_orientation Tracker relative centroid orientation of controller.
 	\return PSMResult_Success if controller has a valid optical orientation relative to the tracker (PSMove can't, DS4 can).
  */
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerOrientationOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMQuatf *outOrientation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerOrientationOnTracker(PSMControllerID controller_id, PSMTrackerID *out_tracker_id, PSMQuatf *outOrientation);
 
 /** \brief Helper function for getting the tracker relative projection of a controller
 	Each tracking camera can have a projection of the controller.
@@ -1034,11 +1046,11 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerOrientationOnTracker(PSMControll
 	For a PSMoveController this is an ellipse.
 	For a DualShock4 this is a quad.
 	\param controller_id The controller id to get the tracking projection for.
-	\param tracker_id The tracker id that has the controller projection that we want.
+	\param[out] out_tracker_id The id of the tracker this projection is for
 	\param[out] out_projection The tracking projection shape of the controller.
 	\return PSMResult_Success if controller has a valid projection on the tracker.
  */
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerProjectionOnTracker(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMTrackingProjection *out_projection);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetControllerProjectionOnTracker(PSMControllerID controller_id, PSMTrackerID *out_tracker_id, PSMTrackingProjection *out_projection);
 
 /** \brief Sets a temporary RGB override for the controller's light
 	The light color override will be sent on the outbound controller UDP stream.
@@ -1127,7 +1139,7 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDColorAsync(PSMControllerID co
 	orientation. Resetting the controller orientation assumes that controller is currently being held in the "identity" orientation,
 	which is typically pointing down the -Z axis. 
 	This request is typically sent in reponse to a certain combonation of buttons being held (usually SELECT).
-	\remark Async - Starts a request for version string. Result obtained in one of two ways:
+	\remark Async - Starts a request for orientation reset. Result obtained in one of two ways:
 	  - Register callback for request id with \ref PSM_RegisterCallback and the poll with \ref PSM_Update()
 	  - Poll with \ref PSM_UpdateNoPollMessages() and then call \ref PSM_PollNextMessage() to see if 
 	  generic \ref PSMMessage result has been received.
@@ -1137,6 +1149,21 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerLEDColorAsync(PSMControllerID co
 	\return PSMResult_RequestSent on success or PSMResult_Error if there was no valid connection
  */
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerOrientationAsync(PSMControllerID controller_id, const PSMQuatf *q_pose, PSMRequestID *out_request_id);
+
+/** \brief Requests setting the selected tracker index for a controller
+	This request is used to set the selected tracker index on a controller data stream
+    when the data stream has tracking projection data active. The projection data is
+    only provided for the selected tracker.
+	\remark Async - Starts an async request. Result obtained in one of two ways:
+	  - Register callback for request id with \ref PSM_RegisterCallback and the poll with \ref PSM_Update()
+	  - Poll with \ref PSM_UpdateNoPollMessages() and then call \ref PSM_PollNextMessage() to see if 
+	  generic \ref PSMMessage result has been received.
+	\param controller_id The ID of the controller whose data stream we want to modify
+    \param tracker_id The ID of the tracker we want to assign as the active tracker
+	\param[out] out_request_id The id of the request sent to PSMoveService. Can be used to register callback with \ref PSM_RegisterCallback.
+	\return PSMResult_RequestSent on success or PSMResult_Error if there was no valid connection
+ */
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerDataStreamTrackerIndexAsync(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMRequestID *out_request_id);
 
 // Tracker Pool
 /** \brief Fetches the \ref PSMTracker data for the given tracker
@@ -1376,41 +1403,41 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetIsHmdTracking(PSMHmdID hmd_id, bool *out_i
 	Each tracking camera sees a projection of an HMD's tracking light(s). 
 	This method gets the pixel centroid of the HMD projection.
 	\param hmd_id The hmd id to get the tracking projection location
-	\param tracker_id The tracker id of the tracker that has the HMD projection we care about.
+	\param[out] out_tracker_id The id of the tracker this projection is for
 	\param[out] out_location The center pixel location of the HMD projection on the tracker.
 	\return PSMResult_Success if HMD has a valid projection on the tracker.
  */
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdPixelLocationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMVector2f *out_location);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdPixelLocationOnTracker(PSMHmdID hmd_id, PSMTrackerID *out_tracker_id, PSMVector2f *out_location);
 
 /** \brief Helper function for getting the tracker relative 3d position of the HMD.
 	Each tracking camera can compute a estimate of the HMD's 3d position relative to the tracker.
 	This method gets the 3d centroid of the tracking light(s) in tracker relative coordinates.
 	\param hmd_id The hmd id to get the tracking position for
-	\param tracker_id The tracker id that the HMD position is relative to.
+	\param[out] out_tracker_id The id of the tracker this projection is for
 	\param[out] out_position Tracker relative centroid position of the HMD in cm.
 	\return PSMResult_Success if the HMD has a valid position relative to the tracker.
  */
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdPositionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMVector3f *out_position);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdPositionOnTracker(PSMHmdID hmd_id, PSMTrackerID *out_tracker_id, PSMVector3f *out_position);
 
 /** \brief Helper function for getting the tracker relative 3d orientation of the HMD
 	Each tracking camera can compute a estimate of an HMDs 3d position relative to the tracker.
 	This method gets the 3d centroid of the tracking light in tracker relative coordinates.
 	\param hmd_id The HMD id to get the tracking position for
-	\param tracker_id The tracker id that the HMD orientation is relative to.
+	\param[out] out_tracker_id The id of the tracker this projection is for
 	\param[out] out_orientation Tracker relative centroid orientation of the HMD.
 	\return PSMResult_Success if HMD has a valid optical orientation relative to the tracker.
  */
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdOrientationOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMQuatf *out_orientation);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdOrientationOnTracker(PSMHmdID hmd_id, PSMTrackerID *out_tracker_id, PSMQuatf *out_orientation);
 
 /** \brief Helper function for getting the tracker relative projection of an HMD
 	Each tracking camera can have a projection of the HMD.
 	This method gets the pixel geometry of that projection.
 	\param hmd_id The hmd id to get the tracking projection for
-	\param tracker_id The tracker id that has the HMD projection that we want.
+	\param[out] out_tracker_id The id of the tracker this projection is for
 	\param[out] out_projection The tracking projection shape of the HMD.
 	\return PSMResult_Success if HMD has a valid projection on the tracker.
  */
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdProjectionOnTracker(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMTrackingProjection *out_projection);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetHmdProjectionOnTracker(PSMHmdID hmd_id, PSMTrackerID *out_tracker_id, PSMTrackingProjection *out_projection);
 
 // Blocking HMD Methods
 /** \brief Requests a list of the HMDs currently connected to PSMoveService.
@@ -1450,6 +1477,18 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartHmdDataStream(PSMHmdID hmd_id, unsigned 
 	\return PSMResult_Success upon receiving result, PSMResult_Timeoout, or PSMResult_Error on request error. 
  */
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopHmdDataStream(PSMHmdID hmd_id, int timeout_ms);
+
+/** \brief Requests setting the selected tracker index for an HMD
+	This request is used to set the selected tracker index on an HMD data stream
+    when the data stream has tracking projection data active. The projection data is
+    only provided for the selected tracker.
+	\remark Blocking - Returns after either the result is returned OR the timeout period is reached. 
+	\param hmd_id The ID of the HMD whose data stream we want to modify
+    \param tracker_id The ID of the tracker we want to assign as the active tracker
+	\param timeout_ms The request timeout period in milliseconds, usually PSM_DEFAULT_TIMEOUT
+	\return PSMResult_RequestSent on success or PSMResult_Error if there was no valid connection
+ */
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetHmdDataStreamTrackerIndex(PSMHmdID hmd_id, PSMTrackerID tracker_id, int timeout_ms);
 
 // Async HMD Methods
 /** \brief Requests a list of the HMDs currently connected to PSMoveService.
@@ -1497,6 +1536,21 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_StartHmdDataStreamAsync(PSMHmdID hmd_id, unsi
 	\return PSMResult_RequestSent if request successfully sent or PSMResult_Error if connection is invalid.
  */
  PSM_PUBLIC_FUNCTION(PSMResult) PSM_StopHmdDataStreamAsync(PSMHmdID hmd_id, PSMRequestID *out_request_id);
+
+ /** \brief Requests setting the selected tracker index for an HMD
+	This request is used to set the selected tracker index on an HMD data stream
+    when the data stream has tracking projection data active. The projection data is
+    only provided for the selected tracker.
+	\remark Async - Starts an async request. Result obtained in one of two ways:
+	  - Register callback for request id with \ref PSM_RegisterCallback and the poll with \ref PSM_Update()
+	  - Poll with \ref PSM_UpdateNoPollMessages() and then call \ref PSM_PollNextMessage() to see if 
+	  generic \ref PSMMessage result has been received.
+	\param hmd_id The ID of the hmd whose data stream we want to modify
+    \param tracker_id The ID of the tracker we want to assign as the active tracker
+	\param[out] out_request_id The id of the request sent to PSMoveService. Can be used to register callback with \ref PSM_RegisterCallback.
+	\return PSMResult_RequestSent on success or PSMResult_Error if there was no valid connection
+ */
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetHmdDataStreamTrackerIndexAsync(PSMHmdID hmd_id, PSMTrackerID tracker_id, PSMRequestID *out_request_id);
 
 /** 
 @} 

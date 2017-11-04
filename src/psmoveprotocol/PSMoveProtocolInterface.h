@@ -3,10 +3,20 @@
 
 //-- includes -----
 #include <memory>
+#include "SharedConstants.h"
 
 //-- constants -----
 #define MAX_OUTPUT_DATA_FRAME_MESSAGE_SIZE 500
 #define MAX_INPUT_DATA_FRAME_MESSAGE_SIZE 64
+
+// See ControllerManager.h in PSMoveService
+#define PSMOVESERVICE_MAX_CONTROLLER_COUNT  5
+
+// See TrackerManager.h in PSMoveService
+#define PSMOVESERVICE_MAX_TRACKER_COUNT  8
+
+// See HMDManager.h in PSMoveService
+#define PSMOVESERVICE_MAX_HMD_COUNT  4
  
 //-- pre-declarations -----
 namespace PSMoveProtocol

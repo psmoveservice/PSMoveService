@@ -27,9 +27,13 @@ set_target_properties(PSMoveProtocol PROPERTIES
     
 # Install
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    install(FILES ProtocolVersion.h 
-	DESTINATION ${ROOT_DIR}/${PSM_PROJECT_NAME}/${ARCH_LABEL}/include)
+    install(FILES ProtocolVersion.h SharedConstants.h
+        CONFIGURATIONS Debug
+        DESTINATION ${PSM_DEBUG_INSTALL_PATH}/include)
+    install(FILES ProtocolVersion.h SharedConstants.h
+        CONFIGURATIONS Release
+        DESTINATION ${PSM_RELEASE_INSTALL_PATH}/include)
 ELSE() #Linux/Darwin
-    install(FILES ProtocolVersion.h
+    install(FILES ProtocolVersion.h SharedConstants.h
 	DESTINATION include)
 ENDIF()

@@ -188,7 +188,7 @@ private:
 			std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Magnetometer.y;
 			std::cout << std::setw(12) << std::right << std::setprecision(6) << calibsens.Magnetometer.z;
         
-			PSMVector3f position = controller0->ControllerState.PSMoveState.RawTrackerData.RelativePositionsCm[0];
+			PSMVector3f position = controller0->ControllerState.PSMoveState.RawTrackerData.RelativePositionCm;
 			std::cout << std::setw(12) << std::right << std::setprecision(6) << position.x;
 			std::cout << std::setw(12) << std::right << std::setprecision(6) << position.y;
 			std::cout << std::setw(12) << std::right << std::setprecision(6) << position.z;

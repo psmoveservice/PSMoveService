@@ -89,7 +89,6 @@ protected:
         verifyTrackers,
 		selectCalibrationMethod,
         calibrateWithMat,
-		stereoCalibrate,
 
         testTracking,
 		showTrackerVideo,
@@ -172,9 +171,6 @@ protected:
 
     class AppSubStage_CalibrateWithMat *m_pCalibrateWithMat;
     friend class AppSubStage_CalibrateWithMat;
-
-    class AppSubStage_StereoCalibrate *m_pStereoCalibrate;
-    friend class AppSubStage_StereoCalibrate;
 
     bool m_bSkipCalibration;
     int m_ShowTrackerVideoId;

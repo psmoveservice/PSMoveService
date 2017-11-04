@@ -40,7 +40,7 @@ public:
 
 	void updateStateAndPredict(TrackerManager* tracker_manager);
 
-    static const int k_max_devices = 4;
+    static const int k_max_devices = PSMOVESERVICE_MAX_HMD_COUNT;
     int getMaxDevices() const override
     {
         return HMDManager::k_max_devices;
