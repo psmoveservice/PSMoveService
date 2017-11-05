@@ -120,16 +120,16 @@ IF %ERRORLEVEL% NEQ 0 (
 popd
 
 :: Find the distribution folder
-For /D %%D in ("PSMoveService_*") Do (
-    set "DISTRIBUTION_LABEL=%%~fD"
-)
-if NOT DEFINED DISTRIBUTION_LABEL (
+if exist "install/version.txt" (
+    set /p DISTRIBUTION_LABEL=<"install/version.txt"
+    echo "Found distribution folder for version: %DISTRIBUTION_LABEL%"
+) else (
     echo "Failed to find the distribution folder generated from the builds!"
     goto failure
 )
 
 :: Create the distribution zip from the Release|x64 folder
-set "DISTRIBUTION_FOLDER=%DISTRIBUTION_LABEL%\Win64\Release"
+set "DISTRIBUTION_FOLDER=install\Win64\Release"
 set "DISTRIBUTION_ZIP=%DISTRIBUTION_LABEL%.zip"
 echo "Creating distribution zip (%DISTRIBUTION_ZIP%) from: %DISTRIBUTION_FOLDER%"
 powershell -nologo -noprofile -command "& { Add-Type -A 'System.IO.Compression.FileSystem'; [IO.Compression.ZipFile]::CreateFromDirectory('%DISTRIBUTION_FOLDER%', '%DISTRIBUTION_ZIP%'); }"
