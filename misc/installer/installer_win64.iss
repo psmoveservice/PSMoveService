@@ -17,7 +17,7 @@ AppUpdatesURL=https://github.com/cboulay/PSMoveService
 DefaultDirName={pf}\PSMoveService
 DefaultGroupName=PSMoveService
 ;LicenseFile=installer_license.txt
-OutputDir="..\..\PSMoveServiceSetup"
+OutputDir="..\..\installer"
 OutputBaseFilename=PSMoveService-Setup64
 Compression=lzma
 SolidCompression=yes
@@ -28,7 +28,7 @@ PrivilegesRequired=admin
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "..\..\PSMoveService\Win64\Release\*"; DestDir: "{app}"; Flags: ignoreversion sign recursesubdirs
+Source: "..\..\install\Win64\Release\*"; DestDir: "{app}"; Flags: ignoreversion sign recursesubdirs
 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
