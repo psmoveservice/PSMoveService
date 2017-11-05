@@ -9,8 +9,10 @@ include(cmake/Environment.cmake)
 include(cmake/Version.cmake)
 
 set(PSM_PROJECT_NAME "PSMoveService_${PSM_VERSION_STRING}")
-set(PSM_DEBUG_INSTALL_PATH "${ROOT_DIR}/${PSM_PROJECT_NAME}/${ARCH_LABEL}/Debug")
-set(PSM_RELEASE_INSTALL_PATH "${ROOT_DIR}/${PSM_PROJECT_NAME}/${ARCH_LABEL}/Release")
+set(PSM_DEBUG_INSTALL_PATH "${ROOT_DIR}/install/${ARCH_LABEL}/Debug")
+set(PSM_RELEASE_INSTALL_PATH "${ROOT_DIR}/install/${ARCH_LABEL}/Release")
+file(MAKE_DIRECTORY "${ROOT_DIR}/install")
+file(WRITE "${ROOT_DIR}/install/version.txt" "${PSM_PROJECT_NAME}")
 
 include(cmake/ThirdParty.cmake)
 

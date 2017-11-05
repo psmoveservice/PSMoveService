@@ -21,13 +21,13 @@ set "psCommand="(new-object -COM 'Shell.Application')^
 for /f "usebackq delims=" %%I in (`powershell %psCommand%`) do set "BOOST_ROOT_PATH=%%I"
 if NOT DEFINED BOOST_ROOT_PATH (goto failure)
 
+:build_thirdparty
+
 :: Write out the paths to a config batch file
 del SetBuildVars_Win32.bat
 echo @echo off >> SetBuildVars_Win32.bat
 echo set BOOST_ROOT_PATH=%BOOST_ROOT_PATH% >> SetBuildVars_Win32.bat
 echo set BOOST_LIB_PATH=%BOOST_ROOT_PATH%/lib32-msvc-14.0 >> SetBuildVars_Win32.bat
-
-:build_thirdparty
 
 :: Add MSVC build tools to the path
 call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86
