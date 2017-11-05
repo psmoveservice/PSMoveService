@@ -39,8 +39,7 @@ Root: HKLM64; Subkey: "Software\PSMoveService\PSMoveService"; ValueType: string;
 Name: "{group}\PSMoveService"; Filename: "{app}\bin\PSMoveService.exe"
 Name: "{group}\PSMoveConfigTool"; Filename: "{app}\bin\PSMoveConfigTool.exe"
 Name: "{group}\PSMoveService Folder"; Filename: "{app}\bin\"
-Name: "{group}\Utilities\test camera"; Filename: "{app}\bin\test_camera.exe"
-Name: "{group}\Utilities\test psmove controller"; Filename: "{app}\bin\test_psmove_controller.exe"
+
 
 
 
