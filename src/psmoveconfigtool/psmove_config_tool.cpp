@@ -55,5 +55,5 @@ extern "C" int main(int argc, char *argv[])
     app.registerAppStage<AppStage_TestTracker>();
     app.registerAppStage<AppStage_TrackerSettings>();
 
-    return app.exec(argc, argv, AppStage_MainMenu::APP_STAGE_NAME);
+    return app.exec(argc, argv);
 }

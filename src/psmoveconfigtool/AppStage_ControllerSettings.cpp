@@ -374,78 +374,81 @@ void AppStage_ControllerSettings::renderUI()
                     m_app->setAppStage(AppStage_TestButtons::APP_STAGE_NAME);
                 }
 
-                if (controllerInfo.ControllerType == PSMController_Move || 
-                    controllerInfo.ControllerType == PSMController_Virtual)
-                {		
-                    ImGui::PushItemWidth(195);
-                    if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
-                    {
-                        controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
-                        request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
-                    }
-                    if (controllerInfo.ControllerType == PSMController_Move)
-                    {
-                        if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_psmove_orientation_filter_names, UI_ARRAYSIZE(k_psmove_orientation_filter_names)))
-                        {
-                            controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[controllerInfo.OrientationFilterIndex];
-                            request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
-                        }
-                    }
-                    if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
-                    {
-                        request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
-                    }
-                    if (ImGui::Button("Reset Filter Defaults"))
-                    {
-                        controllerInfo.PositionFilterIndex = k_default_position_filter_index;
-                        controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_position_filter_index];
-                        request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+				if (!m_app->excludePositionSettings) {
 
-                        if (controllerInfo.ControllerType == PSMController_Move)
-                        {
-                            controllerInfo.OrientationFilterIndex = k_default_psmove_orientation_filter_index;
-                            controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[k_default_psmove_orientation_filter_index];
-                            request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
-                        }
-                    }
-                    ImGui::PopItemWidth();
-                }				
-                else if (controllerInfo.ControllerType == PSMController_DualShock4)
-                {
-                    ImGui::PushItemWidth(195);
-                    if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
-                    {
-                        controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
-                        request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
-                    }
-                    if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_ds4_orientation_filter_names, UI_ARRAYSIZE(k_ds4_orientation_filter_names)))
-                    {
-                        controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[controllerInfo.OrientationFilterIndex];
-                        request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
-                    }
-                    if (ImGui::Combo("Gyro Gain", &controllerInfo.GyroGainIndex, k_ds4_gyro_gain_setting_labels, UI_ARRAYSIZE(k_ds4_gyro_gain_setting_labels)))
-                    {
-                        controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[controllerInfo.GyroGainIndex];
-                        request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
-                    }
-                    if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
-                    {
-                        request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
-                    }
-                    if (ImGui::Button("Reset Filter Defaults"))
-                    {
-                        controllerInfo.PositionFilterIndex = k_default_ds4_position_filter_index;
-                        controllerInfo.OrientationFilterIndex = k_default_ds4_orientation_filter_index;
-                        controllerInfo.GyroGainIndex = k_default_ds4_gyro_gain_index;
-                        controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_ds4_position_filter_index];
-                        controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[k_default_ds4_orientation_filter_index];
-                        controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[k_default_ds4_gyro_gain_index];
-                        request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
-                        request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
-                        request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
-                    }
-                    ImGui::PopItemWidth();
-                }
+					if (controllerInfo.ControllerType == PSMController_Move ||
+						controllerInfo.ControllerType == PSMController_Virtual)
+					{
+						ImGui::PushItemWidth(195);
+						if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
+						{
+							controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
+							request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+						}
+						if (controllerInfo.ControllerType == PSMController_Move)
+						{
+							if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_psmove_orientation_filter_names, UI_ARRAYSIZE(k_psmove_orientation_filter_names)))
+							{
+								controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[controllerInfo.OrientationFilterIndex];
+								request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+							}
+						}
+						if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
+						{
+							request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
+						}
+						if (ImGui::Button("Reset Filter Defaults"))
+						{
+							controllerInfo.PositionFilterIndex = k_default_position_filter_index;
+							controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_position_filter_index];
+							request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+
+							if (controllerInfo.ControllerType == PSMController_Move)
+							{
+								controllerInfo.OrientationFilterIndex = k_default_psmove_orientation_filter_index;
+								controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[k_default_psmove_orientation_filter_index];
+								request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+							}
+						}
+						ImGui::PopItemWidth();
+					}
+					else if (controllerInfo.ControllerType == PSMController_DualShock4)
+					{
+						ImGui::PushItemWidth(195);
+						if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
+						{
+							controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
+							request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+						}
+						if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_ds4_orientation_filter_names, UI_ARRAYSIZE(k_ds4_orientation_filter_names)))
+						{
+							controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[controllerInfo.OrientationFilterIndex];
+							request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+						}
+						if (ImGui::Combo("Gyro Gain", &controllerInfo.GyroGainIndex, k_ds4_gyro_gain_setting_labels, UI_ARRAYSIZE(k_ds4_gyro_gain_setting_labels)))
+						{
+							controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[controllerInfo.GyroGainIndex];
+							request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
+						}
+						if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
+						{
+							request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
+						}
+						if (ImGui::Button("Reset Filter Defaults"))
+						{
+							controllerInfo.PositionFilterIndex = k_default_ds4_position_filter_index;
+							controllerInfo.OrientationFilterIndex = k_default_ds4_orientation_filter_index;
+							controllerInfo.GyroGainIndex = k_default_ds4_gyro_gain_index;
+							controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_ds4_position_filter_index];
+							controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[k_default_ds4_orientation_filter_index];
+							controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[k_default_ds4_gyro_gain_index];
+							request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+							request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+							request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
+						}
+						ImGui::PopItemWidth();
+					}
+				}
 
                 if (controllerInfo.ControllerType == PSMController_Navi && 
                     controllerInfo.PotentialParentControllerSerials.size() > 0)
@@ -506,10 +509,18 @@ void AppStage_ControllerSettings::renderUI()
 
             ImGui::Separator();
 
-            if (ImGui::Button("Return to Main Menu"))
-            {
-                m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
-            }
+			if (m_app->excludePositionSettings) {
+				if (ImGui::Button("Exit"))
+				{
+					m_app->requestShutdown();
+				}
+			}
+			else {
+				if (ImGui::Button("Return to Main Menu"))
+				{
+					m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
+				}
+			}
 
             ImGui::End();
         } break;
