@@ -8,7 +8,7 @@
 ;SignTool=signtool
 AppId={{8ACC9EDD-76FA-43D4-A107-5EAB74CBED38}
 AppName=PSMoveService
-;AppVersion=2.1.0.0
+AppVersion=${APP_VERSION}
 AppVerName=PSMoveService
 AppPublisher=PSMoveService
 AppPublisherURL=https://github.com/cboulay/PSMoveService
@@ -17,7 +17,7 @@ AppUpdatesURL=https://github.com/cboulay/PSMoveService
 DefaultDirName={pf}\PSMoveService
 DefaultGroupName=PSMoveService
 ;LicenseFile=installer_license.txt
-OutputDir="..\..\installer"
+OutputDir="${APP_INSTALLER_DIR}"
 OutputBaseFilename=PSMoveService-Setup64
 Compression=lzma
 SolidCompression=yes
@@ -28,7 +28,7 @@ PrivilegesRequired=admin
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "..\..\install\Win64\Release\*"; DestDir: "{app}"; Flags: ignoreversion sign recursesubdirs
+Source: "${APP_INSTALLER_DIR}\*"; DestDir: "{app}"; Flags: ignoreversion sign recursesubdirs
 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 

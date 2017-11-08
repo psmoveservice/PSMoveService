@@ -9,12 +9,14 @@ include(cmake/Environment.cmake)
 include(cmake/Version.cmake)
 
 set(PSM_PROJECT_NAME "PSMoveService_${PSM_VERSION_STRING}")
-set(PSM_DEBUG_INSTALL_PATH "${ROOT_DIR}/install/${ARCH_LABEL}/Debug")
-set(PSM_RELEASE_INSTALL_PATH "${ROOT_DIR}/install/${ARCH_LABEL}/Release")
-file(MAKE_DIRECTORY "${ROOT_DIR}/install")
-file(WRITE "${ROOT_DIR}/install/version.txt" "${PSM_PROJECT_NAME}")
+set(PSM_ROOT_INSTALL_PATH "${ROOT_DIR}/dist")
+set(PSM_DEBUG_INSTALL_PATH "${PSM_ROOT_INSTALL_PATH}/${ARCH_LABEL}/Debug")
+set(PSM_RELEASE_INSTALL_PATH "${PSM_ROOT_INSTALL_PATH}/${ARCH_LABEL}/Release")
+file(MAKE_DIRECTORY "${PSM_ROOT_INSTALL_PATH}")
+file(WRITE "${PSM_ROOT_INSTALL_PATH}/version.txt" "${PSM_PROJECT_NAME}")
 
 include(cmake/ThirdParty.cmake)
+include(cmake/Installer.cmake)
 
 # Step into the subdirectories
 add_subdirectory(src)
