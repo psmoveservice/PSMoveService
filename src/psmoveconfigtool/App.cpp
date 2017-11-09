@@ -201,16 +201,19 @@ void App::setAppStage(const char *appStageName)
         m_appStage->exit();
     }    
 
-	if (m_nameToAppStageMap.find(appStageName) != m_nameToAppStageMap.end()) {
+    if (appStageName != nullptr)
+    {
+	    if (m_nameToAppStageMap.find(appStageName) != m_nameToAppStageMap.end()) {
 
-		m_appStageName = appStageName;
-		m_appStage = (appStageName != nullptr) ? m_nameToAppStageMap[appStageName] : nullptr;
+		    m_appStageName = appStageName;
+		    m_appStage = (appStageName != nullptr) ? m_nameToAppStageMap[appStageName] : nullptr;
 
-		if (m_appStage != nullptr)
-		{
-			m_appStage->enter();
-		}
-	}
+		    if (m_appStage != nullptr)
+		    {
+			    m_appStage->enter();
+		    }
+	    }
+    }
 }
 
 
