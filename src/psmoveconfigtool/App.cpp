@@ -5,7 +5,35 @@
 #include "Renderer.h"
 #include "Logger.h"
 
+#include "AppStage_MainMenu.h"
+
 #include "PSMoveProtocol.pb.h"
+
+class InputParser {
+public:
+	InputParser(int &argc, char **argv) {
+		for (int i = 1; i < argc; ++i)
+			this->tokens.push_back(std::string(argv[i]));
+	}
+	/// @author iain
+	const std::string& getCmdOption(const std::string &option) const {
+		std::vector<std::string>::const_iterator itr;
+		itr = std::find(this->tokens.begin(), this->tokens.end(), option);
+		if (itr != this->tokens.end() && ++itr != this->tokens.end()) {
+			return *itr;
+		}
+		static const std::string empty_string("");
+		return empty_string;
+	}
+	/// @author iain
+	bool cmdOptionExists(const std::string &option) const {
+		return std::find(this->tokens.begin(), this->tokens.end(), option)
+			!= this->tokens.end();
+	}
+private:
+	std::vector <std::string> tokens;
+};
+
 
 //-- public methods -----
 App::App()
@@ -15,13 +43,16 @@ App::App()
     , m_camera(NULL)
     , m_orbitCamera(m_renderer)
     , m_fixedCamera(m_renderer)
-    , m_appStageName(nullptr)
     , m_appStage(nullptr)
     , m_bShutdownRequested(false)
 {
 	strncpy(m_serverAddress, PSMOVESERVICE_DEFAULT_ADDRESS, sizeof(m_serverAddress));
 	strncpy(m_serverPort, PSMOVESERVICE_DEFAULT_PORT, sizeof(m_serverPort));
 	m_bIsServerLocal= true;
+
+	autoConnect = false;
+
+	excludePositionSettings = false;
 }
 
 App::~App()
@@ -35,15 +66,45 @@ App::~App()
     delete m_assetManager;
 }
 
-int App::exec(int argc, char** argv, const char *initial_state_name)
+void App::initCommandLine(int argc, char** argv) {
+	InputParser inputParser(argc, argv);
+
+	if (inputParser.cmdOptionExists("\\autoConnect")) {
+		autoConnect = true;
+	}
+
+	if (inputParser.cmdOptionExists("\\excludePositionSettings")) {
+		excludePositionSettings = true;
+	}
+
+	initialStage = inputParser.getCmdOption("\\initialStage");
+	
+}
+
+
+int App::exec(int argc, char** argv)
 {
     int result= 0;
+
+	initCommandLine(argc, argv);
 
     if (init(argc, argv))
     {
         SDL_Event e;
 
-        setAppStage(initial_state_name);
+		if (autoConnect) {
+			reconnectToServiceSync();
+		}
+
+		if (initialStage.length() > 0) {
+			setAppStage(initialStage.c_str());
+		}
+		
+		if(m_appStageName.length() == 0)
+		{
+			setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
+		}
+
 
         while (!m_bShutdownRequested) 
         {
@@ -91,6 +152,21 @@ bool App::reconnectToService()
     return success;
 }
 
+bool App::reconnectToServiceSync()
+{
+	if (PSM_GetIsInitialized())
+	{
+		PSM_Shutdown();
+	}
+
+	bool success =
+		PSM_Initialize(
+			m_serverAddress,
+			m_serverPort,2000) == PSMResult_Success;
+
+	return success;
+}
+
 void App::setCameraType(eCameraType cameraType)
 {
     switch (cameraType)
@@ -125,14 +201,21 @@ void App::setAppStage(const char *appStageName)
         m_appStage->exit();
     }    
 
-    m_appStageName= appStageName;
-    m_appStage = (appStageName != nullptr) ? m_nameToAppStageMap[appStageName] : nullptr;
-
-    if (m_appStage != nullptr)
+    if (appStageName != nullptr)
     {
-        m_appStage->enter();
+	    if (m_nameToAppStageMap.find(appStageName) != m_nameToAppStageMap.end()) {
+
+		    m_appStageName = appStageName;
+		    m_appStage = (appStageName != nullptr) ? m_nameToAppStageMap[appStageName] : nullptr;
+
+		    if (m_appStage != nullptr)
+		    {
+			    m_appStage->enter();
+		    }
+	    }
     }
 }
+
 
 //-- private methods -----
 bool App::init(int argc, char** argv)
@@ -157,7 +240,7 @@ bool App::init(int argc, char** argv)
         {
             if (!iter->second->init(argc, argv))
             {
-                Log_ERROR("App::init", "Failed to initialize app stage %s!", iter->first);
+                Log_ERROR("App::init", "Failed to initialize app stage %s!", iter->first.c_str());
                 success= false;
                 break;
             }

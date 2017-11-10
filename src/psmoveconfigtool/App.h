@@ -18,6 +18,10 @@ public:
     App();
     virtual ~App();
 
+	bool autoConnect;
+	std::string initialStage;
+	bool excludePositionSettings;
+
     inline class Renderer *getRenderer()
     { return m_renderer; }
 
@@ -32,9 +36,9 @@ public:
     inline class AppStage *getCurrentAppStage()
     { return m_appStage; }
     inline const char *getCurrentAppStageName()
-    { return m_appStageName; }
+    { return m_appStageName.c_str(); }
 
-    int exec(int argc, char** argv, const char *initial_state_name);
+    int exec(int argc, char** argv);
 
     inline void requestShutdown()
     { m_bShutdownRequested= true; }
@@ -42,8 +46,9 @@ public:
 	inline bool getIsLocalServer() const
 	{ return m_bIsServerLocal; }
 
-    bool reconnectToService();
-    void setCameraType(eCameraType cameraType);
+	bool reconnectToService();
+	bool reconnectToServiceSync();
+	void setCameraType(eCameraType cameraType);
     void setAppStage(const char *appStageName);
 
     template <class t_app_stage>
@@ -85,6 +90,9 @@ protected:
     void render();
 
 private:
+
+	void initCommandLine(int argc, char** argv);
+
     // Contexts
     class Renderer *m_renderer;
 
@@ -98,10 +106,10 @@ private:
     Camera m_fixedCamera;
 
     // App Stages
-    const char *m_appStageName;
+    std::string m_appStageName;
     class AppStage *m_appStage;
 
-    typedef std::map<const char *, class AppStage *> t_app_stage_map;
+    typedef std::map<std::string, class AppStage *> t_app_stage_map;
     typedef std::pair<const char *, class AppStage *> t_app_stage_map_entry;
 
     typedef std::map<PSMEventMessage::eEventType, class AppStage *> t_app_stage_event_map;
