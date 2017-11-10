@@ -356,7 +356,7 @@ void AppStage_ControllerSettings::renderUI()
 
 				    if (!m_app->excludePositionSettings)
                     {
-                        if (ImGui::TreeNode("Filters"))
+                        if (ImGui::CollapsingHeader("Filters", 0, true, false))
                         {
 					        if (controllerInfo.ControllerType == PSMController_Move ||
 						        controllerInfo.ControllerType == PSMController_Virtual)
@@ -430,13 +430,11 @@ void AppStage_ControllerSettings::renderUI()
 						        }
 						        ImGui::PopItemWidth();
 					        }
-
-                            ImGui::TreePop();
                         }
 				    }
                 }
 
-                if (ImGui::CollapsingHeader("Controller Calibration", 0, true, false))
+                if (ImGui::CollapsingHeader("Controller Calibration", 0, true, m_app->excludePositionSettings))
                 {
                     if (controllerInfo.ControllerType == PSMController_Move)
                     {
@@ -468,7 +466,7 @@ void AppStage_ControllerSettings::renderUI()
                     }
                 }
 
-                if (ImGui::CollapsingHeader("Controller Tests", 0, true, false))
+                if (ImGui::CollapsingHeader("Controller Tests", 0, true, m_app->excludePositionSettings))
                 {
                     if (controllerInfo.ControllerType == PSMController_Move)
                     {
