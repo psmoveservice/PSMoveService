@@ -35,8 +35,8 @@ static const int k_min_sample_distance_sq= k_min_sample_distance*k_min_sample_di
 
 enum eEllipseFitMethod
 {
+    _ellipse_fit_method_least_squares,
     _ellipse_fit_method_box,
-    _ellipse_fit_method_min_volume,
 };
 
 //-- private methods -----
@@ -60,7 +60,7 @@ struct MagnetometerBoundsStatistics
 		, samplePercentage(0)
 		, minSampleExtent()
 		, maxSampleExtent()
-		, ellipseFitMethod(_ellipse_fit_method_box)
+		, ellipseFitMethod(_ellipse_fit_method_least_squares)
 	{
 		clear();
 	}
@@ -114,13 +114,13 @@ struct MagnetometerBoundsStatistics
             // Compute a best fit ellipsoid for the sample points
             switch (ellipseFitMethod)
             {
+            case _ellipse_fit_method_least_squares:
+                eigen_alignment_fit_least_squares_axis_aligned_ellipsoid(
+                    magnetometerEigenSamples, sampleCount, sampleFitEllipsoid);
+                break;
             case _ellipse_fit_method_box:
                 eigen_alignment_fit_bounding_box_ellipsoid(
                     magnetometerEigenSamples, sampleCount, sampleFitEllipsoid);
-                break;
-            case _ellipse_fit_method_min_volume:
-                eigen_alignment_fit_min_volume_ellipsoid(
-                    magnetometerEigenSamples, sampleCount, 0.0001f, sampleFitEllipsoid);
                 break;
             }
 
@@ -770,22 +770,21 @@ void AppStage_MagnetometerCalibration::renderUI()
                 ImGui::SetNextWindowSize(ImVec2(170.f, 80.f));
                 ImGui::Begin("Ellipse Fitting Mode", nullptr, window_flags);
 
-                if (ImGui::RadioButton("Bounds Fitting", &m_boundsStatistics->ellipseFitMethod, _ellipse_fit_method_box))
+                if (ImGui::RadioButton("Least Squares Fit", &m_boundsStatistics->ellipseFitMethod, _ellipse_fit_method_least_squares))
                 {
-                    // Refit to a box
-                    eigen_alignment_fit_bounding_box_ellipsoid(
+                    // Re-fit using min bounds
+                    eigen_alignment_fit_least_squares_axis_aligned_ellipsoid(
                         m_boundsStatistics->magnetometerEigenSamples, 
 						m_boundsStatistics->sampleCount, 
 						m_boundsStatistics->sampleFitEllipsoid);
                 }
 
-                if (ImGui::RadioButton("Min Volume Fitting", &m_boundsStatistics->ellipseFitMethod, _ellipse_fit_method_min_volume))
+                if (ImGui::RadioButton("Bounds Fit", &m_boundsStatistics->ellipseFitMethod, _ellipse_fit_method_box))
                 {
-                    // Re-fit using min bounds
-                    eigen_alignment_fit_min_volume_ellipsoid(
+                    // Refit to a box
+                    eigen_alignment_fit_bounding_box_ellipsoid(
                         m_boundsStatistics->magnetometerEigenSamples, 
 						m_boundsStatistics->sampleCount, 
-						0.0001f, 
 						m_boundsStatistics->sampleFitEllipsoid);
                 }
 

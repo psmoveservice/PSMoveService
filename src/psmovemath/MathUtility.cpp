@@ -7,9 +7,19 @@ float safe_divide_with_default(float numerator, float denomenator, float default
     return is_nearly_zero(denomenator) ? default_result : (numerator / denomenator);
 }
 
+double safe_divide_with_default(double numerator, double denomenator, double default_result) 
+{
+    return is_double_nearly_zero(denomenator) ? default_result : (numerator / denomenator);
+}
+
 float safe_sqrt_with_default(float square, float default_result)
 {
-    return is_nearly_zero(square) ? default_result : sqrtf(square);
+    return (square > k_real_epsilon) ? sqrtf(square) : default_result;
+}
+
+double safe_sqrt_with_default(double square, double default_result)
+{
+    return (square > k_real64_epsilon) ? sqrt(square) : default_result;
 }
 
 float clampf(float x, float lo, float hi)
