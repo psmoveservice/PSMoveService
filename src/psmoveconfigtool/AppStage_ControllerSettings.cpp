@@ -113,7 +113,7 @@ void AppStage_ControllerSettings::render()
     {
     case eControllerMenuState::idle:
         {
-            if (m_selectedControllerIndex >= 0)
+            if (m_selectedControllerIndex >= 0 && m_selectedControllerIndex < m_usableControllerInfos.size())
             {
                 const ControllerInfo &controllerInfo= m_usableControllerInfos[m_selectedControllerIndex];
 
@@ -876,11 +876,18 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 
             if (oldSelectedControllerIndex != -1)
             {
+                int controllerCount= static_cast<int>(thisPtr->m_usableControllerInfos.size());
+
                 // Maintain the same position in the list if possible
-                thisPtr->m_selectedControllerIndex= 
-                    (oldSelectedControllerIndex < static_cast<int>(thisPtr->m_usableControllerInfos.size())) 
-                    ? oldSelectedControllerIndex
-                    : 0;
+                if (controllerCount > 0)
+                {
+                    thisPtr->m_selectedControllerIndex= 
+                        (oldSelectedControllerIndex < controllerCount) ? oldSelectedControllerIndex : controllerCount-1;
+                }
+                else
+                {
+                    thisPtr->m_selectedControllerIndex= -1;
+                }
             }
             else
             {
