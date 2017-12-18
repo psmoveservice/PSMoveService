@@ -2,7 +2,7 @@
 call SetBuildVars_Win32.bat
 
 IF NOT EXIST build mkdir build
-cd build
+pushd build
 
 echo "Rebuilding PSMoveService Project files..."
 cmake .. -G "Visual Studio 14 2015" -DBOOST_ROOT=%BOOST_ROOT_PATH% -DBOOST_LIBRARYDIR=%BOOST_LIB_PATH% -DPROTOBUF_SRC_ROOT_FOLDER=..\thirdparty\protobuf
@@ -11,6 +11,7 @@ IF %ERRORLEVEL% NEQ 0 (
   goto failure
 )
 
+popd
 EXIT /B 0
 
 :failure

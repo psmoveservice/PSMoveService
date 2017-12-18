@@ -306,6 +306,88 @@ eigen_alignment_fit_min_volume_ellipsoid(
     }
 }
 
+//https://gist.github.com/javidcf/25066cf85e71105d57b6
+template <class MatT>
+Eigen::Matrix<typename MatT::Scalar, MatT::ColsAtCompileTime, MatT::RowsAtCompileTime>
+pseudoinverse(const MatT &mat, typename MatT::Scalar tolerance = typename MatT::Scalar{1e-4}) // choose appropriately
+{
+    typedef typename MatT::Scalar Scalar;
+    auto svd = mat.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
+    const auto &singularValues = svd.singularValues();
+    Eigen::Matrix<Scalar, MatT::ColsAtCompileTime, MatT::RowsAtCompileTime> singularValuesInv(mat.cols(), mat.rows());
+    singularValuesInv.setZero();
+    for (unsigned int i = 0; i < singularValues.size(); ++i) {
+        if (singularValues(i) > tolerance)
+        {
+            singularValuesInv(i, i) = Scalar{1} / singularValues(i);
+        }
+        else
+        {
+            singularValuesInv(i, i) = Scalar{0};
+        }
+    }
+    return svd.matrixV() * singularValuesInv * svd.matrixU().adjoint();
+}
+
+// See https://engineering.purdue.edu/HSL/uploads/papers/UGV_F09_Magnetometer.docx
+void
+eigen_alignment_fit_least_squares_axis_aligned_ellipsoid(
+    const Eigen::Vector3f *points, const int point_count,
+    EigenFitEllipsoid &out_ellipsoid)
+{
+    if (point_count >= 6)
+    {
+        Eigen::MatrixXd D(point_count, 6); // N rows x 6 columns
+
+        for (int point_index = 0; point_index < point_count; ++point_index)
+        {
+            const Eigen::Vector3d &point = points[point_index].cast<double>();
+
+            const double X= point.x();
+            const double Y= point.y();
+            const double Z= point.z();
+            const double XX= X*X;
+            const double YY= Y*Y;
+            const double ZZ= Z*Z;
+
+            D.row(point_index) << XX, YY, ZZ, 2.0*X, 2.0*Y, 2.0*Z;
+        }
+
+        // v[6x1] = inv(DT D)[6x6] (DT 1)[6x1]
+        //Eigen::VectorXd v= (D.transpose()*D).inverse()*(D.transpose()*Eigen::VectorXd::Ones(point_count));
+        Eigen::VectorXd v= pseudoinverse(D)*Eigen::VectorXd::Ones(point_count);
+
+        const double v0= v(0);
+        const double v1= v(1);
+        const double v2= v(2);
+        const double v3= v(3);
+        const double v4= v(4);
+        const double v5= v(5);
+        const double Gamma= 
+            1.0
+            + safe_divide_with_default(v3*v3, v0, 0.0) 
+            + safe_divide_with_default(v4*v4, v1, 0.0) 
+            + safe_divide_with_default(v5*v5, v2, 0.0);
+
+        out_ellipsoid.center= 
+            Eigen::Vector3d(
+                safe_divide_with_default(-v3, v0, 0.0), 
+                safe_divide_with_default(-v4, v1, 0.0), 
+                safe_divide_with_default(-v5, v2, 0.0)).cast<float>();
+        out_ellipsoid.extents= 
+            Eigen::Vector3d(
+                safe_sqrt_with_default(Gamma/v0, 0.0), 
+                safe_sqrt_with_default(Gamma/v1, 0.0), 
+                safe_sqrt_with_default(Gamma/v2, 0.0)).cast<float>();
+        out_ellipsoid.basis = Eigen::Matrix3f::Identity();
+        out_ellipsoid.error = eigen_alignment_compute_ellipsoid_fit_error(points, point_count, out_ellipsoid);
+    }
+    else
+    {
+        eigen_alignment_fit_bounding_box_ellipsoid(points, point_count, out_ellipsoid);
+    }
+}
+
 Eigen::Vector3f
 eigen_alignment_project_point_on_ellipsoid_basis(
     const Eigen::Vector3f &point,

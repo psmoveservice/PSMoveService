@@ -27,8 +27,7 @@ B) If your problem actually is a new bug and you have files to attach (logs, pic
  * Improved Developer Documentation
  * Ongoing Stabilization of service
  * Better position smoothing and prediction (via Unscented Kalman Filter)
- * Virtual controllers (tracking just a lit bulb)
- 
+  
 # Long Term Goals
  * Support for other webcams (need camera calibration tool)
  * Better DualShock4 Controller Tracking

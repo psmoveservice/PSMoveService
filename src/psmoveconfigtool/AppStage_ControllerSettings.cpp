@@ -113,7 +113,7 @@ void AppStage_ControllerSettings::render()
     {
     case eControllerMenuState::idle:
         {
-            if (m_selectedControllerIndex >= 0)
+            if (m_selectedControllerIndex >= 0 && m_selectedControllerIndex < m_usableControllerInfos.size())
             {
                 const ControllerInfo &controllerInfo= m_usableControllerInfos[m_selectedControllerIndex];
 
@@ -201,321 +201,346 @@ void AppStage_ControllerSettings::renderUI()
         {
             ImGui::SetNextWindowPosCenter();
             ImGui::SetNextWindowSize(ImVec2(350, 490));
-            ImGui::Begin(k_window_title, nullptr, window_flags);
+            ImGui::Begin("Controller Settings", nullptr, window_flags | ImGuiWindowFlags_MenuBar);
 
-            if (m_hostSerial.length() > 1 && m_hostSerial != "00:00:00:00:00:00")
+            if (ImGui::CollapsingHeader("Host Info", 0, true, true))
             {
-                ImGui::Text("Host Serial: %s", m_hostSerial.c_str());
+                if (m_hostSerial.length() > 1 && m_hostSerial != "00:00:00:00:00:00")
+                {
+                    ImGui::Text("Host Serial: %s", m_hostSerial.c_str());
+                }
+                else
+                {
+                    ImGui::Text("No bluetooth adapter detected!");
+                }
             }
-            else
+
+            if (ImGui::CollapsingHeader("Controller Pairing", 0, true, true))
             {
-                ImGui::Text("No bluetooth adapter detected!");
+                // If there are any controllers waiting to be paired, 
+                // just present the first one as an option
+                if (m_awaitingPairingControllerInfos.size() > 0)
+                {
+                    // Only consider the first controller connected via usb
+                    ControllerInfo &controllerInfo = m_awaitingPairingControllerInfos[0];
+
+                    // We can only unpair controllers connected via usb
+                    if (controllerInfo.PairedToHost)
+                    {
+                        if (ImGui::Button("Unpair USB Controller"))
+                        {
+                            m_app->getAppStage<AppStage_PairController>()->request_controller_unpair(controllerInfo.ControllerID, controllerInfo.ControllerType);
+                            m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
+                        }
+                    }
+                    else
+                    {
+                        if (ImGui::Button("Pair USB Controller"))
+                        {
+                            m_app->getAppStage<AppStage_PairController>()->request_controller_pair(controllerInfo.ControllerID, controllerInfo.ControllerType);
+                            m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
+                        }
+                    }
+                }
+                else
+                {
+                    ImGui::Text("No controllers awaiting pairing");
+                }
             }
-            
-            ImGui::Separator();
 
             if (m_usableControllerInfos.size() > 0)
             {
                 ControllerInfo &controllerInfo= m_usableControllerInfos[m_selectedControllerIndex];
 
-                if (m_selectedControllerIndex > 0)
+                if (ImGui::CollapsingHeader("Controller Settings", 0, true, true))
                 {
-                    if (ImGui::Button("<##ControllerIndex"))
+                    if (m_selectedControllerIndex > 0)
                     {
-                        --m_selectedControllerIndex;
+                        if (ImGui::Button("<##ControllerIndex"))
+                        {
+                            --m_selectedControllerIndex;
+                        }
+                        ImGui::SameLine();
                     }
-                    ImGui::SameLine();
-                }
-                ImGui::Text("Controller: %d", m_selectedControllerIndex);
-                if (m_selectedControllerIndex + 1 < static_cast<int>(m_usableControllerInfos.size()))
-                {
-                    ImGui::SameLine();
-                    if (ImGui::Button(">##ControllerIndex"))
+                    ImGui::Text("Controller: %d", m_selectedControllerIndex);
+                    if (m_selectedControllerIndex + 1 < static_cast<int>(m_usableControllerInfos.size()))
                     {
-                        ++m_selectedControllerIndex;
-                    }
-                }
-
-                // Combo box selection for controller tracking color
-                if (controllerInfo.ControllerType != PSMController_Navi)
-                {
-                    int newTrackingColorType = controllerInfo.TrackingColorType;
-
-                    if (ImGui::Combo("Tracking Color", &newTrackingColorType, "Magenta\0Cyan\0Yellow\0Red\0Green\0Blue\0\0"))
-                    {
-                        controllerInfo.TrackingColorType = static_cast<PSMTrackingColorType>(newTrackingColorType);
-
-                        request_set_controller_tracking_color_id(controllerInfo.ControllerID, controllerInfo.TrackingColorType);
-
-                        // Re-request the controller list since the tracking colors could changed for other controllers
-                        request_controller_list();
-                    }
-                }
-
-                ImGui::BulletText("Controller ID: %d", controllerInfo.ControllerID);
-
-                switch(controllerInfo.ControllerType)
-                {
-                    case PSMController_Move:
+                        ImGui::SameLine();
+                        if (ImGui::Button(">##ControllerIndex"))
                         {
-                            //###HipsterSloth $TODO - The HID report for fetching the firmware revision doesn't appear to work
-                            //ImGui::BulletText("Controller Type: PSMove (v%d.%d)", controllerInfo.FirmwareVersion, controllerInfo.FirmwareRevision);
-                            ImGui::BulletText("Controller Type: PSMove");
-                        } break;
-                    case PSMController_Navi:
-                        {
-                            ImGui::BulletText("Controller Type: PSNavi");
-                        } break;
-                    case PSMController_DualShock4:
-                        {
-                            ImGui::BulletText("Controller Type: PSDualShock4");
-                        } break;
-                    case PSMController_Virtual:
-                        {
-                            ImGui::BulletText("Controller Type: Virtual");
-                        } break;
-                    default:
-                        assert(0 && "Unreachable");
-                }
-
-                ImGui::BulletText("Device Serial: %s", controllerInfo.DeviceSerial.c_str());
-                ImGui::BulletText("Assigned Host Serial: %s", controllerInfo.AssignedHostSerial.c_str());
-
-                if (controllerInfo.ControllerType == PSMController_Virtual)
-                {
-                    int comboIndex= (controllerInfo.GamepadIndex < m_gamepadCount) ? controllerInfo.GamepadIndex + 1 : 0;
-
-                    ImGui::PushItemWidth(195);
-                    if (ImGui::Combo(
-                            "Assigned Gamepad", 
-                            &comboIndex, 
-                            ControllerInfo::GamepadIndexComboItemGetter, 
-                            this, 
-                            m_gamepadCount+1))
-                    {
-                        controllerInfo.GamepadIndex= comboIndex - 1;
-                        request_set_controller_gamepad_index(controllerInfo.ControllerID, controllerInfo.GamepadIndex);
-                    }
-                    ImGui::PopItemWidth();
-                }
-
-                if (controllerInfo.ControllerType == PSMController_Move)
-                {
-                    if (controllerInfo.HasMagnetometer)
-                    {
-                        if (ImGui::Button("Calibrate Magnetometer"))
-                        {
-                            m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(false);
-                            m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
+                            ++m_selectedControllerIndex;
                         }
                     }
-                    else
+
+                    // Combo box selection for controller tracking color
+                    if (controllerInfo.ControllerType != PSMController_Navi)
                     {
-                        ImGui::TextDisabled("Magnetometer Disabled");
+                        int newTrackingColorType = controllerInfo.TrackingColorType;
+
+                        if (ImGui::Combo("Tracking Color", &newTrackingColorType, "Magenta\0Cyan\0Yellow\0Red\0Green\0Blue\0\0"))
+                        {
+                            controllerInfo.TrackingColorType = static_cast<PSMTrackingColorType>(newTrackingColorType);
+
+                            request_set_controller_tracking_color_id(controllerInfo.ControllerID, controllerInfo.TrackingColorType);
+
+                            // Re-request the controller list since the tracking colors could changed for other controllers
+                            request_controller_list();
+                        }
                     }
 
-                    if (ImGui::Button("Calibrate Gyroscope"))
+                    ImGui::BulletText("Controller ID: %d", controllerInfo.ControllerID);
+
+                    switch(controllerInfo.ControllerType)
                     {
-                        m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(false);
-                        m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+                        case PSMController_Move:
+                            {
+                                //###HipsterSloth $TODO - The HID report for fetching the firmware revision doesn't appear to work
+                                //ImGui::BulletText("Controller Type: PSMove (v%d.%d)", controllerInfo.FirmwareVersion, controllerInfo.FirmwareRevision);
+                                ImGui::BulletText("Controller Type: PSMove");
+                            } break;
+                        case PSMController_Navi:
+                            {
+                                ImGui::BulletText("Controller Type: PSNavi");
+                            } break;
+                        case PSMController_DualShock4:
+                            {
+                                ImGui::BulletText("Controller Type: PSDualShock4");
+                            } break;
+                        case PSMController_Virtual:
+                            {
+                                ImGui::BulletText("Controller Type: Virtual");
+                            } break;
+                        default:
+                            assert(0 && "Unreachable");
                     }
 
-                    //###HipsterSloth $TODO - Disable for now until we handle camera selection
-                    //if (ImGui::Button("Calibrate Optical Noise"))
-                    //{
-                    //    m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
-                    //    m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
-                    //}
+                    ImGui::BulletText("Device Serial: %s", controllerInfo.DeviceSerial.c_str());
+                    ImGui::BulletText("Assigned Host Serial: %s", controllerInfo.AssignedHostSerial.c_str());
 
-                    if (ImGui::Button("Test Orientation"))
+                    if (controllerInfo.ControllerType == PSMController_Virtual)
                     {
-                        m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(true);
-                        m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
+                        int comboIndex= (controllerInfo.GamepadIndex < m_gamepadCount) ? controllerInfo.GamepadIndex + 1 : 0;
+
+                        ImGui::PushItemWidth(195);
+                        if (ImGui::Combo(
+                                "Assigned Gamepad", 
+                                &comboIndex, 
+                                ControllerInfo::GamepadIndexComboItemGetter, 
+                                this, 
+                                m_gamepadCount+1))
+                        {
+                            controllerInfo.GamepadIndex= comboIndex - 1;
+                            request_set_controller_gamepad_index(controllerInfo.ControllerID, controllerInfo.GamepadIndex);
+                        }
+                        ImGui::PopItemWidth();
+                    }
+                    if (controllerInfo.ControllerType == PSMController_Navi && 
+                        controllerInfo.PotentialParentControllerSerials.size() > 0)
+                    {
+                        ImGui::PushItemWidth(195);					
+                        if (ImGui::Combo(
+                                "Parent Controller", 
+                                &controllerInfo.AssignedParentControllerIndex, 
+                                ControllerInfo::ParentControllerComboItemGetter, 
+                                &controllerInfo, 
+                                static_cast<int>(controllerInfo.PotentialParentControllerSerials.size())))
+                        {
+                            std::string parentControllerSerial= controllerInfo.PotentialParentControllerSerials[controllerInfo.AssignedParentControllerIndex];
+
+                            controllerInfo.AssignedParentControllerSerial = parentControllerSerial;
+
+                            request_set_parent_controller_id(controllerInfo.ControllerID, find_controller_id_by_serial(parentControllerSerial));
+                        }
+                        ImGui::PopItemWidth();
+                    }
+
+				    if (!m_app->excludePositionSettings)
+                    {
+                        if (ImGui::CollapsingHeader("Filters", 0, true, false))
+                        {
+					        if (controllerInfo.ControllerType == PSMController_Move ||
+						        controllerInfo.ControllerType == PSMController_Virtual)
+					        {
+						        ImGui::PushItemWidth(195);
+						        if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
+						        {
+							        controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
+							        request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+						        }
+						        if (controllerInfo.ControllerType == PSMController_Move)
+						        {
+							        if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_psmove_orientation_filter_names, UI_ARRAYSIZE(k_psmove_orientation_filter_names)))
+							        {
+								        controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[controllerInfo.OrientationFilterIndex];
+								        request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+							        }
+						        }
+						        if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
+						        {
+							        request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
+						        }
+						        if (ImGui::Button("Reset Filter Defaults"))
+						        {
+							        controllerInfo.PositionFilterIndex = k_default_position_filter_index;
+							        controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_position_filter_index];
+							        request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+
+							        if (controllerInfo.ControllerType == PSMController_Move)
+							        {
+								        controllerInfo.OrientationFilterIndex = k_default_psmove_orientation_filter_index;
+								        controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[k_default_psmove_orientation_filter_index];
+								        request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+							        }
+						        }
+						        ImGui::PopItemWidth();
+					        }
+					        else if (controllerInfo.ControllerType == PSMController_DualShock4)
+					        {
+						        ImGui::PushItemWidth(195);
+						        if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
+						        {
+							        controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
+							        request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+						        }
+						        if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_ds4_orientation_filter_names, UI_ARRAYSIZE(k_ds4_orientation_filter_names)))
+						        {
+							        controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[controllerInfo.OrientationFilterIndex];
+							        request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+						        }
+						        if (ImGui::Combo("Gyro Gain", &controllerInfo.GyroGainIndex, k_ds4_gyro_gain_setting_labels, UI_ARRAYSIZE(k_ds4_gyro_gain_setting_labels)))
+						        {
+							        controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[controllerInfo.GyroGainIndex];
+							        request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
+						        }
+						        if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
+						        {
+							        request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
+						        }
+						        if (ImGui::Button("Reset Filter Defaults"))
+						        {
+							        controllerInfo.PositionFilterIndex = k_default_ds4_position_filter_index;
+							        controllerInfo.OrientationFilterIndex = k_default_ds4_orientation_filter_index;
+							        controllerInfo.GyroGainIndex = k_default_ds4_gyro_gain_index;
+							        controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_ds4_position_filter_index];
+							        controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[k_default_ds4_orientation_filter_index];
+							        controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[k_default_ds4_gyro_gain_index];
+							        request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
+							        request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
+							        request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
+						        }
+						        ImGui::PopItemWidth();
+					        }
+                        }
+				    }
+                }
+
+                if (ImGui::CollapsingHeader("Controller Calibration", 0, true, m_app->excludePositionSettings))
+                {
+                    if (controllerInfo.ControllerType == PSMController_Move)
+                    {
+                        if (controllerInfo.HasMagnetometer)
+                        {
+                            if (ImGui::Button("Calibrate Magnetometer"))
+                            {
+                                m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(false);
+                                m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
+                            }
+                        }
+                        else
+                        {
+                            ImGui::TextDisabled("Magnetometer Disabled");
+                        }
+
+                        if (ImGui::Button("Calibrate Gyroscope"))
+                        {
+                            m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(false);
+                            m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+                        }
+
+                        //###HipsterSloth $TODO - Disable for now until we handle camera selection
+                        //if (ImGui::Button("Calibrate Optical Noise"))
+                        //{
+                        //    m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
+                        //    m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
+                        //}
                     }
                 }
 
-                if (controllerInfo.ControllerType == PSMController_DualShock4 ||
-                    controllerInfo.ControllerType == PSMController_Virtual)
+                if (ImGui::CollapsingHeader("Controller Tests", 0, true, m_app->excludePositionSettings))
                 {
-                    //###HipsterSloth $TODO - Disable for now until we handle camera selection
-                    //if (ImGui::Button("Calibrate Optical Noise"))
-                    //{
-                    //    m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
-                    //    m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
-                    //}
-
-                    if (controllerInfo.ControllerType == PSMController_DualShock4)
+                    if (controllerInfo.ControllerType == PSMController_Move)
                     {
                         if (ImGui::Button("Test Orientation"))
                         {
-                            m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(true);
-                            m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+                            m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(true);
+                            m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
                         }
                     }
-                }
 
-                if (controllerInfo.ControllerType == PSMController_Move || 
-                    controllerInfo.ControllerType == PSMController_DualShock4)
-                {
-                    if (ImGui::Button("Test Accelerometer"))
+                    if (controllerInfo.ControllerType == PSMController_DualShock4 ||
+                        controllerInfo.ControllerType == PSMController_Virtual)
                     {
-                        m_app->getAppStage<AppStage_AccelerometerCalibration>()->setBypassCalibrationFlag(true);
-                        m_app->setAppStage(AppStage_AccelerometerCalibration::APP_STAGE_NAME);
+                        //###HipsterSloth $TODO - Disable for now until we handle camera selection
+                        //if (ImGui::Button("Calibrate Optical Noise"))
+                        //{
+                        //    m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
+                        //    m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
+                        //}
+
+                        if (controllerInfo.ControllerType == PSMController_DualShock4)
+                        {
+                            if (ImGui::Button("Test Orientation"))
+                            {
+                                m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(true);
+                                m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+                            }
+                        }
                     }
 
-                    if (ImGui::Button("Test Rumble"))
+                    if (controllerInfo.ControllerType == PSMController_Move || 
+                        controllerInfo.ControllerType == PSMController_DualShock4)
                     {
-                        m_app->setAppStage(AppStage_TestRumble::APP_STAGE_NAME);
+                        if (ImGui::Button("Test Accelerometer"))
+                        {
+                            m_app->getAppStage<AppStage_AccelerometerCalibration>()->setBypassCalibrationFlag(true);
+                            m_app->setAppStage(AppStage_AccelerometerCalibration::APP_STAGE_NAME);
+                        }
+
+                        if (ImGui::Button("Test Rumble"))
+                        {
+                            m_app->setAppStage(AppStage_TestRumble::APP_STAGE_NAME);
+                        }
                     }
-                }
 
-                if (ImGui::Button("Test Buttons"))
-                {
-                    m_app->setAppStage(AppStage_TestButtons::APP_STAGE_NAME);
-                }
-
-				if (!m_app->excludePositionSettings) {
-
-					if (controllerInfo.ControllerType == PSMController_Move ||
-						controllerInfo.ControllerType == PSMController_Virtual)
-					{
-						ImGui::PushItemWidth(195);
-						if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
-						{
-							controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
-							request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
-						}
-						if (controllerInfo.ControllerType == PSMController_Move)
-						{
-							if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_psmove_orientation_filter_names, UI_ARRAYSIZE(k_psmove_orientation_filter_names)))
-							{
-								controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[controllerInfo.OrientationFilterIndex];
-								request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
-							}
-						}
-						if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
-						{
-							request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
-						}
-						if (ImGui::Button("Reset Filter Defaults"))
-						{
-							controllerInfo.PositionFilterIndex = k_default_position_filter_index;
-							controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_position_filter_index];
-							request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
-
-							if (controllerInfo.ControllerType == PSMController_Move)
-							{
-								controllerInfo.OrientationFilterIndex = k_default_psmove_orientation_filter_index;
-								controllerInfo.OrientationFilterName = k_psmove_orientation_filter_names[k_default_psmove_orientation_filter_index];
-								request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
-							}
-						}
-						ImGui::PopItemWidth();
-					}
-					else if (controllerInfo.ControllerType == PSMController_DualShock4)
-					{
-						ImGui::PushItemWidth(195);
-						if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
-						{
-							controllerInfo.PositionFilterName = k_controller_position_filter_names[controllerInfo.PositionFilterIndex];
-							request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
-						}
-						if (ImGui::Combo("Orientation Filter", &controllerInfo.OrientationFilterIndex, k_ds4_orientation_filter_names, UI_ARRAYSIZE(k_ds4_orientation_filter_names)))
-						{
-							controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[controllerInfo.OrientationFilterIndex];
-							request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
-						}
-						if (ImGui::Combo("Gyro Gain", &controllerInfo.GyroGainIndex, k_ds4_gyro_gain_setting_labels, UI_ARRAYSIZE(k_ds4_gyro_gain_setting_labels)))
-						{
-							controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[controllerInfo.GyroGainIndex];
-							request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
-						}
-						if (ImGui::SliderFloat("Prediction Time", &controllerInfo.PredictionTime, 0.f, k_max_hmd_prediction_time))
-						{
-							request_set_controller_prediction(controllerInfo.ControllerID, controllerInfo.PredictionTime);
-						}
-						if (ImGui::Button("Reset Filter Defaults"))
-						{
-							controllerInfo.PositionFilterIndex = k_default_ds4_position_filter_index;
-							controllerInfo.OrientationFilterIndex = k_default_ds4_orientation_filter_index;
-							controllerInfo.GyroGainIndex = k_default_ds4_gyro_gain_index;
-							controllerInfo.PositionFilterName = k_controller_position_filter_names[k_default_ds4_position_filter_index];
-							controllerInfo.OrientationFilterName = k_ds4_orientation_filter_names[k_default_ds4_orientation_filter_index];
-							controllerInfo.GyroGainSetting = k_ds4_gyro_gain_setting_labels[k_default_ds4_gyro_gain_index];
-							request_set_position_filter(controllerInfo.ControllerID, controllerInfo.PositionFilterName);
-							request_set_orientation_filter(controllerInfo.ControllerID, controllerInfo.OrientationFilterName);
-							request_set_gyroscope_gain_setting(controllerInfo.ControllerID, controllerInfo.GyroGainSetting);
-						}
-						ImGui::PopItemWidth();
-					}
-				}
-
-                if (controllerInfo.ControllerType == PSMController_Navi && 
-                    controllerInfo.PotentialParentControllerSerials.size() > 0)
-                {
-                    ImGui::PushItemWidth(195);					
-                    if (ImGui::Combo(
-                            "Parent Controller", 
-                            &controllerInfo.AssignedParentControllerIndex, 
-                            ControllerInfo::ParentControllerComboItemGetter, 
-                            &controllerInfo, 
-                            static_cast<int>(controllerInfo.PotentialParentControllerSerials.size())))
+                    if (ImGui::Button("Test Buttons"))
                     {
-                        std::string parentControllerSerial= controllerInfo.PotentialParentControllerSerials[controllerInfo.AssignedParentControllerIndex];
-
-                        controllerInfo.AssignedParentControllerSerial = parentControllerSerial;
-
-                        request_set_parent_controller_id(controllerInfo.ControllerID, find_controller_id_by_serial(parentControllerSerial));
-                    }
-                    ImGui::PopItemWidth();
-                }
-            }
-            else
-            {
-                ImGui::Text("No connected usable controllers");
-            }
-
-            ImGui::Separator();
-
-            // If there are any controllers waiting to be paired, 
-            // just present the first one as an option
-            if (m_awaitingPairingControllerInfos.size() > 0)
-            {
-                // Only consider the first controller connected via usb
-                ControllerInfo &controllerInfo = m_awaitingPairingControllerInfos[0];
-
-                // We can only unpair controllers connected via usb
-                if (controllerInfo.PairedToHost)
-                {
-                    if (ImGui::Button("Unpair USB Controller"))
-                    {
-                        m_app->getAppStage<AppStage_PairController>()->request_controller_unpair(controllerInfo.ControllerID, controllerInfo.ControllerType);
-                        m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
-                    }
-                }
-                else
-                {
-                    if (ImGui::Button("Pair USB Controller"))
-                    {
-                        m_app->getAppStage<AppStage_PairController>()->request_controller_pair(controllerInfo.ControllerID, controllerInfo.ControllerType);
-                        m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
+                        m_app->setAppStage(AppStage_TestButtons::APP_STAGE_NAME);
                     }
                 }
             }
             else
             {
-                ImGui::Text("No controllers awaiting pairing");
+                if (ImGui::CollapsingHeader("Controller Settings"))
+                {
+                    ImGui::Text("No connected usable controllers");
+                }
             }
 
+            ImGui::Spacing();
+            ImGui::Spacing();
             ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::Spacing();
 
-			if (m_app->excludePositionSettings) {
+			if (m_app->excludePositionSettings) 
+            {
 				if (ImGui::Button("Exit"))
 				{
 					m_app->requestShutdown();
 				}
 			}
-			else {
+			else 
+            {
 				if (ImGui::Button("Return to Main Menu"))
 				{
 					m_app->setAppStage(AppStage_MainMenu::APP_STAGE_NAME);
@@ -851,11 +876,18 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 
             if (oldSelectedControllerIndex != -1)
             {
+                int controllerCount= static_cast<int>(thisPtr->m_usableControllerInfos.size());
+
                 // Maintain the same position in the list if possible
-                thisPtr->m_selectedControllerIndex= 
-                    (oldSelectedControllerIndex < static_cast<int>(thisPtr->m_usableControllerInfos.size())) 
-                    ? oldSelectedControllerIndex
-                    : 0;
+                if (controllerCount > 0)
+                {
+                    thisPtr->m_selectedControllerIndex= 
+                        (oldSelectedControllerIndex < controllerCount) ? oldSelectedControllerIndex : controllerCount-1;
+                }
+                else
+                {
+                    thisPtr->m_selectedControllerIndex= -1;
+                }
             }
             else
             {

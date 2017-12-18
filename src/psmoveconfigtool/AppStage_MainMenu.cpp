@@ -7,6 +7,7 @@
 #include "AppStage_TestTracker.h"
 #include "App.h"
 #include "Camera.h"
+#include "ProtocolVersion.h"
 #include "Renderer.h"
 #include "UIConstants.h"
 
@@ -68,7 +69,11 @@ void AppStage_MainMenu::renderUI()
                 ImGuiWindowFlags_NoScrollbar |
                 ImGuiWindowFlags_NoCollapse;
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin("Main Menu", nullptr, ImVec2(300, 400), k_background_alpha, window_flags);
+
+            char szWindowTitle[255];
+            snprintf(szWindowTitle, sizeof(szWindowTitle), "PSMove Config Tool v%s", PSM_RELEASE_VERSION_STRING);
+
+            ImGui::Begin(szWindowTitle, nullptr, ImVec2(300, 400), k_background_alpha, window_flags);
       
             if (ImGui::Button("Controller Settings"))
             {
