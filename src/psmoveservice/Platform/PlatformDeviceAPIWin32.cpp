@@ -727,8 +727,8 @@ bool PlatformDeviceAPIWin32::startup(IDeviceHotplugListener *broadcaster)
 
 		BOOL admin = RegistryWriteAccess::IsElevated();
 		HKEY hKey;
-		LONG errAccess = RegOpenKeyEx(HKEY_LOCAL_MACHINE,
-			("SYSTEM\\CurrentControlSet\\Services\\HidBth\\Parameters\\Devices"),
+		LONG errAccess = RegOpenKeyEx(HKEY_LOCAL_MACHINE, 
+			("SYSTEM\\CurrentControlSet\\Services\\HidBth\\Parameters\\Devices"), 
 			0, KEY_READ | KEY_QUERY_VALUE | KEY_WOW64_64KEY | KEY_ALL_ACCESS, &hKey);
 
 		if (!admin && errAccess != ERROR_SUCCESS) {
@@ -751,7 +751,7 @@ bool PlatformDeviceAPIWin32::startup(IDeviceHotplugListener *broadcaster)
 			shExInfo.hwnd = 0;
 			shExInfo.lpVerb = ("runas");                // Operation to perform
 			shExInfo.lpFile = adminPath.c_str(),       // Application to start    
-				shExInfo.lpParameters = "";                  // Additional parameters
+			shExInfo.lpParameters = "";                  // Additional parameters
 			shExInfo.lpDirectory = 0;
 			shExInfo.nShow = SW_SHOW;
 			shExInfo.hInstApp = 0;
@@ -760,7 +760,7 @@ bool PlatformDeviceAPIWin32::startup(IDeviceHotplugListener *broadcaster)
 			{
 				CloseHandle(shExInfo.hProcess);
 			};
-
+			
 			bSuccess = false;
 		}
 		else if (admin && errAccess == ERROR_SUCCESS)
