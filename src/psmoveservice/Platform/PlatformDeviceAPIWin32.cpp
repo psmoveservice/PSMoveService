@@ -731,12 +731,12 @@ bool PlatformDeviceAPIWin32::startup(IDeviceHotplugListener *broadcaster)
 			("SYSTEM\\CurrentControlSet\\Services\\HidBth\\Parameters\\Devices"), 
 			0, KEY_READ | KEY_QUERY_VALUE | KEY_WOW64_64KEY | KEY_ALL_ACCESS, &hKey);
 
-		SERVER_LOG_INFO("DeviceHotplugAPIWin32::startup") << "Failed to access registry... starting in Admin mode.";
-
 		if (!admin && errAccess != ERROR_SUCCESS) {
 			char moduleFileName[MAXCHAR];
 			char moduleDrive[MAXCHAR];
 			char moduleDir[MAXCHAR];
+
+			SERVER_LOG_INFO("DeviceHotplugAPIWin32::startup") << "Failed to access registry... starting in Admin mode.";
 
 			GetModuleFileName(NULL, moduleFileName, sizeof(moduleFileName));
 			_splitpath_s(moduleFileName, moduleDrive, MAXCHAR, moduleDir, MAXCHAR, NULL, 0, NULL, 0);
@@ -758,16 +758,14 @@ bool PlatformDeviceAPIWin32::startup(IDeviceHotplugListener *broadcaster)
 
 			if (ShellExecuteEx(&shExInfo))
 			{
-				WaitForSingleObject(shExInfo.hProcess, INFINITE);
 				CloseHandle(shExInfo.hProcess);
 			};
 			
 			bSuccess = false;
 		}
-		else if (admin && errAccess == ERROR_SUCCESS) {
-
+		else if (admin && errAccess == ERROR_SUCCESS)
+		{
 			SERVER_LOG_INFO("DeviceHotplugAPIWin32::startup") << "Running in Admin mode... updating registry write access.";
-
 
 			RegistryWriteAccess::DoSetHiveRights(hKey);
 

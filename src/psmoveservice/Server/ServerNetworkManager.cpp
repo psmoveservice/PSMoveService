@@ -965,17 +965,14 @@ protected:
 //-- public interface -----
 ServerNetworkManager *ServerNetworkManager::m_instance = NULL;
 
-ServerNetworkManager::ServerNetworkManager(
-    boost::asio::io_service *io_service,
-    ServerRequestHandler *requestHandler)
+ServerNetworkManager::ServerNetworkManager()
 	: m_cfg()
+	, implementation_ptr(nullptr)
 {
 	m_cfg.load();
 
 	// Save the config back out in case it doesn't exist
-	m_cfg.save();
-
-	implementation_ptr= new ServerNetworkManagerImpl(*io_service, m_cfg, *requestHandler);
+	m_cfg.save();	
 }
 
 ServerNetworkManager::~ServerNetworkManager()
@@ -992,10 +989,13 @@ ServerNetworkManager::~ServerNetworkManager()
     }
 }
 
-bool ServerNetworkManager::startup()
+bool ServerNetworkManager::startup(
+	boost::asio::io_service *io_service,
+    ServerRequestHandler *requestHandler)
 {    
     m_instance= this;
     
+	implementation_ptr= new ServerNetworkManagerImpl(*io_service, m_cfg, *requestHandler);
     implementation_ptr->start_connection_accept();
 
     return true;
@@ -1003,28 +1003,42 @@ bool ServerNetworkManager::startup()
 
 void ServerNetworkManager::update()
 {
-    implementation_ptr->poll();
+	if (implementation_ptr != nullptr)
+	{
+	    implementation_ptr->poll();
+	}
 }
 
 void ServerNetworkManager::shutdown()
 {
+	if (implementation_ptr != nullptr)
+	{    
+	    implementation_ptr->close_all_connections();
+	}
     
-    implementation_ptr->close_all_connections();
-    
-    m_instance= NULL;
+    m_instance= nullptr;
 }
 
 void ServerNetworkManager::send_notification(int connection_id, ResponsePtr response)
 {
-    implementation_ptr->send_notification(connection_id, response);
+	if (implementation_ptr != nullptr)
+	{    
+	    implementation_ptr->send_notification(connection_id, response);
+	}
 }
 
 void ServerNetworkManager::send_notification_to_all_clients(ResponsePtr response)
 {
-    implementation_ptr->send_notification_to_all_clients(response);
+	if (implementation_ptr != nullptr)
+	{    
+		implementation_ptr->send_notification_to_all_clients(response);
+	}
 }
 
 void ServerNetworkManager::send_device_data_frame(int connection_id, DeviceOutputDataFramePtr data_frame)
 {
-    implementation_ptr->send_device_data_frame(connection_id, data_frame);
+	if (implementation_ptr != nullptr)
+	{    
+		implementation_ptr->send_device_data_frame(connection_id, data_frame);
+	}
 }

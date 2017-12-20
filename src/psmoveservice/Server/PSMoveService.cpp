@@ -42,7 +42,7 @@ public:
         , m_usb_device_manager()
         , m_device_manager()
         , m_request_handler(&m_device_manager)
-        , m_network_manager(&m_io_service, &m_request_handler)
+        , m_network_manager()
         , m_status()
     {
         // Register to handle the signals that indicate when the server should exit.
@@ -152,17 +152,7 @@ private:
 				success= false;
 			}
 		}
-		#endif // BOOST_INTERPROCESS_SHARED_DIR_PATH
-        
-        /** Start listening for client connections */
-        if (success)
-        {
-            if (!m_network_manager.startup())
-            {
-                SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the service network manager";
-                success= false;
-            }
-        }
+		#endif // BOOST_INTERPROCESS_SHARED_DIR_PATH       
 
         /** Setup the usb async transfer thread before we attempt to initialize the trackers */
         if (success)
@@ -180,6 +170,18 @@ private:
             if (!m_device_manager.startup())
             {
                 SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the controller manager";
+                success= false;
+            }
+        }
+
+        /** Start listening for client connections after we started the device manager
+			[WIN32] We might need to restart in admin mode to set some registry settings
+		*/
+        if (success)
+        {
+            if (!m_network_manager.startup(&m_io_service, &m_request_handler))
+            {
+                SERVER_LOG_FATAL("PSMoveService") << "Failed to initialize the service network manager";
                 success= false;
             }
         }
