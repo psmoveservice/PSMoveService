@@ -74,6 +74,11 @@ eigen_alignment_fit_min_volume_ellipsoid(
     const float tolerance,
     EigenFitEllipsoid &out_ellipsoid);
 
+void
+eigen_alignment_fit_least_squares_axis_aligned_ellipsoid(
+    const Eigen::Vector3f *points, const int point_count,
+    EigenFitEllipsoid &out_ellipsoid);
+
 Eigen::Vector3f
 eigen_alignment_project_point_on_ellipsoid_basis(
     const Eigen::Vector3f &point,

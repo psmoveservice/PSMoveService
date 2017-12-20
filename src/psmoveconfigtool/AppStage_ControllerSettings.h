@@ -27,7 +27,7 @@ public:
         std::string DevicePath;
         std::string DeviceSerial;
         std::string AssignedHostSerial;
-        bool PairedToHost;
+        bool IsBluetooth;
 		bool HasMagnetometer;
 		int PositionFilterIndex;
 		std::string PositionFilterName;
@@ -78,7 +78,7 @@ public:
     { 
         return 
             (m_selectedControllerIndex != -1) 
-            ? &m_usableControllerInfos[m_selectedControllerIndex] 
+            ? &m_controllerInfos[m_selectedControllerIndex] 
             : nullptr; 
     }
 
@@ -126,8 +126,7 @@ private:
     };
     eControllerMenuState m_menuState;
 
-    std::vector<ControllerInfo> m_usableControllerInfos;
-    std::vector<ControllerInfo> m_awaitingPairingControllerInfos;
+    std::vector<ControllerInfo> m_controllerInfos;
     std::string m_hostSerial;
     int m_gamepadCount;
 

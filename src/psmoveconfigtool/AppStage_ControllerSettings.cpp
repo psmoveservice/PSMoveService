@@ -113,9 +113,9 @@ void AppStage_ControllerSettings::render()
     {
     case eControllerMenuState::idle:
         {
-            if (m_selectedControllerIndex >= 0)
+            if (m_selectedControllerIndex >= 0 && m_selectedControllerIndex < m_controllerInfos.size())
             {
-                const ControllerInfo &controllerInfo= m_usableControllerInfos[m_selectedControllerIndex];
+                const ControllerInfo &controllerInfo= m_controllerInfos[m_selectedControllerIndex];
 
                 switch(controllerInfo.ControllerType)
                 {
@@ -123,7 +123,7 @@ void AppStage_ControllerSettings::render()
                     case PSMController_DualShock4:
                     case PSMController_Virtual:
                         {
-                            const ControllerInfo &controllerInfo = m_usableControllerInfos[m_selectedControllerIndex];
+                            const ControllerInfo &controllerInfo = m_controllerInfos[m_selectedControllerIndex];
 
                             // Display the tracking color being used for the controller
                             glm::vec3 bulb_color = glm::vec3(1.f, 1.f, 1.f);
@@ -215,42 +215,9 @@ void AppStage_ControllerSettings::renderUI()
                 }
             }
 
-            if (ImGui::CollapsingHeader("Controller Pairing", 0, true, true))
+            if (m_controllerInfos.size() > 0)
             {
-                // If there are any controllers waiting to be paired, 
-                // just present the first one as an option
-                if (m_awaitingPairingControllerInfos.size() > 0)
-                {
-                    // Only consider the first controller connected via usb
-                    ControllerInfo &controllerInfo = m_awaitingPairingControllerInfos[0];
-
-                    // We can only unpair controllers connected via usb
-                    if (controllerInfo.PairedToHost)
-                    {
-                        if (ImGui::Button("Unpair USB Controller"))
-                        {
-                            m_app->getAppStage<AppStage_PairController>()->request_controller_unpair(controllerInfo.ControllerID, controllerInfo.ControllerType);
-                            m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
-                        }
-                    }
-                    else
-                    {
-                        if (ImGui::Button("Pair USB Controller"))
-                        {
-                            m_app->getAppStage<AppStage_PairController>()->request_controller_pair(controllerInfo.ControllerID, controllerInfo.ControllerType);
-                            m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
-                        }
-                    }
-                }
-                else
-                {
-                    ImGui::Text("No controllers awaiting pairing");
-                }
-            }
-
-            if (m_usableControllerInfos.size() > 0)
-            {
-                ControllerInfo &controllerInfo= m_usableControllerInfos[m_selectedControllerIndex];
+                ControllerInfo &controllerInfo= m_controllerInfos[m_selectedControllerIndex];
 
                 if (ImGui::CollapsingHeader("Controller Settings", 0, true, true))
                 {
@@ -263,7 +230,7 @@ void AppStage_ControllerSettings::renderUI()
                         ImGui::SameLine();
                     }
                     ImGui::Text("Controller: %d", m_selectedControllerIndex);
-                    if (m_selectedControllerIndex + 1 < static_cast<int>(m_usableControllerInfos.size()))
+                    if (m_selectedControllerIndex + 1 < static_cast<int>(m_controllerInfos.size()))
                     {
                         ImGui::SameLine();
                         if (ImGui::Button(">##ControllerIndex"))
@@ -273,7 +240,8 @@ void AppStage_ControllerSettings::renderUI()
                     }
 
                     // Combo box selection for controller tracking color
-                    if (controllerInfo.ControllerType != PSMController_Navi)
+                    if (controllerInfo.ControllerType == PSMController_Virtual ||
+						(controllerInfo.ControllerType == PSMController_Move && controllerInfo.IsBluetooth))
                     {
                         int newTrackingColorType = controllerInfo.TrackingColorType;
 
@@ -354,11 +322,32 @@ void AppStage_ControllerSettings::renderUI()
                         ImGui::PopItemWidth();
                     }
 
-				    if (!m_app->excludePositionSettings)
+					if (controllerInfo.ControllerType == PSMController_Move)
+					{
+						if (controllerInfo.IsBluetooth)
+						{
+							if (ImGui::Button("Unpair Controller"))
+							{
+								m_app->getAppStage<AppStage_PairController>()->request_controller_unpair(controllerInfo.ControllerID, controllerInfo.ControllerType);
+								m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
+							}
+						}
+						else
+						{
+							if (ImGui::Button("Pair Controller"))
+							{
+								m_app->getAppStage<AppStage_PairController>()->request_controller_pair(controllerInfo.ControllerID, controllerInfo.ControllerType);
+								m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
+							}
+						}
+					}
+
+				    if (!m_app->excludePositionSettings &&
+						(controllerInfo.IsBluetooth || controllerInfo.ControllerType == PSMController_Virtual))
                     {
                         if (ImGui::CollapsingHeader("Filters", 0, true, false))
                         {
-					        if (controllerInfo.ControllerType == PSMController_Move ||
+					        if ((controllerInfo.ControllerType == PSMController_Move && controllerInfo.IsBluetooth) ||
 						        controllerInfo.ControllerType == PSMController_Virtual)
 					        {
 						        ImGui::PushItemWidth(195);
@@ -394,7 +383,7 @@ void AppStage_ControllerSettings::renderUI()
 						        }
 						        ImGui::PopItemWidth();
 					        }
-					        else if (controllerInfo.ControllerType == PSMController_DualShock4)
+					        else if (controllerInfo.ControllerType == PSMController_DualShock4 && controllerInfo.IsBluetooth)
 					        {
 						        ImGui::PushItemWidth(195);
 						        if (ImGui::Combo("Position Filter", &controllerInfo.PositionFilterIndex, k_controller_position_filter_names, UI_ARRAYSIZE(k_controller_position_filter_names)))
@@ -434,89 +423,92 @@ void AppStage_ControllerSettings::renderUI()
 				    }
                 }
 
-                if (ImGui::CollapsingHeader("Controller Calibration", 0, true, m_app->excludePositionSettings))
+				if (controllerInfo.ControllerType == PSMController_Move && controllerInfo.IsBluetooth)
                 {
-                    if (controllerInfo.ControllerType == PSMController_Move)
-                    {
-                        if (controllerInfo.HasMagnetometer)
-                        {
-                            if (ImGui::Button("Calibrate Magnetometer"))
-                            {
-                                m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(false);
-                                m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
-                            }
-                        }
-                        else
-                        {
-                            ImGui::TextDisabled("Magnetometer Disabled");
-                        }
+					if (ImGui::CollapsingHeader("Controller Calibration", 0, true, m_app->excludePositionSettings))
+					{
+						if (controllerInfo.HasMagnetometer)
+						{
+							if (ImGui::Button("Calibrate Magnetometer"))
+							{
+								m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(false);
+								m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
+							}
+						}
+						else
+						{
+							ImGui::TextDisabled("Magnetometer Disabled");
+						}
 
-                        if (ImGui::Button("Calibrate Gyroscope"))
-                        {
-                            m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(false);
-                            m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
-                        }
+						if (ImGui::Button("Calibrate Gyroscope"))
+						{
+							m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(false);
+							m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+						}
 
-                        //###HipsterSloth $TODO - Disable for now until we handle camera selection
-                        //if (ImGui::Button("Calibrate Optical Noise"))
-                        //{
-                        //    m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
-                        //    m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
-                        //}
-                    }
-                }
+						//###HipsterSloth $TODO - Disable for now until we handle camera selection
+						//if (ImGui::Button("Calibrate Optical Noise"))
+						//{
+						//    m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
+						//    m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
+						//}
+					}
+				}
 
-                if (ImGui::CollapsingHeader("Controller Tests", 0, true, m_app->excludePositionSettings))
-                {
-                    if (controllerInfo.ControllerType == PSMController_Move)
-                    {
-                        if (ImGui::Button("Test Orientation"))
-                        {
-                            m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(true);
-                            m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
-                        }
-                    }
+				if (controllerInfo.IsBluetooth || controllerInfo.ControllerType == PSMController_Virtual)
+				{
+					if (ImGui::CollapsingHeader("Controller Tests", 0, true, m_app->excludePositionSettings))
+					{
+						if (controllerInfo.ControllerType == PSMController_Move)
+						{
+							if (ImGui::Button("Test Orientation"))
+							{
+								m_app->getAppStage<AppStage_MagnetometerCalibration>()->setBypassCalibrationFlag(true);
+								m_app->setAppStage(AppStage_MagnetometerCalibration::APP_STAGE_NAME);
+							}
+						}
 
-                    if (controllerInfo.ControllerType == PSMController_DualShock4 ||
-                        controllerInfo.ControllerType == PSMController_Virtual)
-                    {
-                        //###HipsterSloth $TODO - Disable for now until we handle camera selection
-                        //if (ImGui::Button("Calibrate Optical Noise"))
-                        //{
-                        //    m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
-                        //    m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
-                        //}
+						if (controllerInfo.ControllerType == PSMController_DualShock4 ||
+							controllerInfo.ControllerType == PSMController_Virtual)
+						{
+							//###HipsterSloth $TODO - Disable for now until we handle camera selection
+							//if (ImGui::Button("Calibrate Optical Noise"))
+							//{
+							//    m_app->getAppStage<AppStage_OpticalCalibration>()->setBypassCalibrationFlag(false);
+							//    m_app->setAppStage(AppStage_OpticalCalibration::APP_STAGE_NAME);
+							//}
 
-                        if (controllerInfo.ControllerType == PSMController_DualShock4)
-                        {
-                            if (ImGui::Button("Test Orientation"))
-                            {
-                                m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(true);
-                                m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
-                            }
-                        }
-                    }
+							if (controllerInfo.ControllerType == PSMController_DualShock4)
+							{
+								if (ImGui::Button("Test Orientation"))
+								{
+									m_app->getAppStage<AppStage_GyroscopeCalibration>()->setBypassCalibrationFlag(true);
+									m_app->setAppStage(AppStage_GyroscopeCalibration::APP_STAGE_NAME);
+								}
+							}
+						}
 
-                    if (controllerInfo.ControllerType == PSMController_Move || 
-                        controllerInfo.ControllerType == PSMController_DualShock4)
-                    {
-                        if (ImGui::Button("Test Accelerometer"))
-                        {
-                            m_app->getAppStage<AppStage_AccelerometerCalibration>()->setBypassCalibrationFlag(true);
-                            m_app->setAppStage(AppStage_AccelerometerCalibration::APP_STAGE_NAME);
-                        }
+						if (controllerInfo.ControllerType == PSMController_Move || 
+							controllerInfo.ControllerType == PSMController_DualShock4)
+						{
+							if (ImGui::Button("Test Accelerometer"))
+							{
+								m_app->getAppStage<AppStage_AccelerometerCalibration>()->setBypassCalibrationFlag(true);
+								m_app->setAppStage(AppStage_AccelerometerCalibration::APP_STAGE_NAME);
+							}
 
-                        if (ImGui::Button("Test Rumble"))
-                        {
-                            m_app->setAppStage(AppStage_TestRumble::APP_STAGE_NAME);
-                        }
-                    }
+							if (ImGui::Button("Test Rumble"))
+							{
+								m_app->setAppStage(AppStage_TestRumble::APP_STAGE_NAME);
+							}
+						}
 
-                    if (ImGui::Button("Test Buttons"))
-                    {
-                        m_app->setAppStage(AppStage_TestButtons::APP_STAGE_NAME);
-                    }
-                }
+						if (ImGui::Button("Test Buttons"))
+						{
+							m_app->setAppStage(AppStage_TestButtons::APP_STAGE_NAME);
+						}
+					}
+				}
             }
             else
             {
@@ -716,8 +708,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
 
             thisPtr->m_hostSerial = response->result_controller_list().host_serial();
             thisPtr->m_selectedControllerIndex= -1;
-            thisPtr->m_usableControllerInfos.clear();
-            thisPtr->m_awaitingPairingControllerInfos.clear();
+            thisPtr->m_controllerInfos.clear();
             thisPtr->m_gamepadCount= response->result_controller_list().gamepad_count();
 
             for (int controller_index= 0; controller_index < response->result_controller_list().controllers_size(); ++controller_index)
@@ -754,9 +745,7 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 ControllerInfo.AssignedParentControllerSerial= ControllerResponse.parent_controller_serial();
                 ControllerInfo.AssignedParentControllerIndex= -1;
                 ControllerInfo.PotentialParentControllerSerials.clear();
-                ControllerInfo.PairedToHost=
-                    ControllerResponse.assigned_host_serial().length() > 0 && 
-                    ControllerResponse.assigned_host_serial() == thisPtr->m_hostSerial;
+                ControllerInfo.IsBluetooth= ControllerResponse.connection_type() == PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH;
                 ControllerInfo.FirmwareVersion = ControllerResponse.firmware_version();
                 ControllerInfo.FirmwareRevision = ControllerResponse.firmware_revision();
                 ControllerInfo.HasMagnetometer = ControllerResponse.has_magnetometer();
@@ -838,28 +827,22 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                     ControllerInfo.GyroGainIndex = -1;
                 }
 
-                // Add the controller to the appropriate connection list
-                
-                if (ControllerResponse.connection_type() == PSMoveProtocol::Response_ResultControllerList_ControllerInfo_ConnectionType_BLUETOOTH ||
-                    ControllerResponse.controller_type() == PSMoveProtocol::PSNAVI || // Don't currently attempt to pair navi controller
-                    ControllerResponse.controller_type() == PSMoveProtocol::VIRTUALCONTROLLER) // Never attempt to pair a virtual controller
+                if (ControllerResponse.controller_type() == PSMoveProtocol::PSMOVE ||
+                    ControllerResponse.controller_type() == PSMoveProtocol::PSNAVI ||
+                    ControllerResponse.controller_type() == PSMoveProtocol::VIRTUALCONTROLLER)
                 {
-                    thisPtr->m_usableControllerInfos.push_back(ControllerInfo);
-                }
-                else
-                {
-                    thisPtr->m_awaitingPairingControllerInfos.push_back(ControllerInfo);
+                    thisPtr->m_controllerInfos.push_back(ControllerInfo);
                 }
             }
 
             // Build a list of potential parent controllers for each navi controller
             // and assign the index current parent controller serial
-            for (ControllerInfo &navi_info : thisPtr->m_usableControllerInfos)
+            for (ControllerInfo &navi_info : thisPtr->m_controllerInfos)
             {
                 if (navi_info.ControllerType != PSMController_Navi)
                     continue;
 
-                for (ControllerInfo &psmove_info : thisPtr->m_usableControllerInfos)
+                for (ControllerInfo &psmove_info : thisPtr->m_controllerInfos)
                 {
                     if (psmove_info.ControllerType != PSMController_Move)
                         continue;
@@ -874,17 +857,55 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 }
             }
 
+			// Remove any USB controller entries that have a corresponding bluetooth controller entry
+			// This means the controller is already paired via bluetooth
+			auto iter = thisPtr->m_controllerInfos.begin();
+			while (iter != thisPtr->m_controllerInfos.end())
+			{
+				bool bRemoveUSBControllerEntry= false;
+
+				ControllerInfo &usb_psmove_info= *iter;
+				if (!usb_psmove_info.IsBluetooth)
+				{
+					for (const ControllerInfo &bluetooth_psmove_info : thisPtr->m_controllerInfos)
+					{
+						if (bluetooth_psmove_info.IsBluetooth &&
+							bluetooth_psmove_info.DeviceSerial == usb_psmove_info.DeviceSerial)
+						{
+							bRemoveUSBControllerEntry= true;
+							break;
+						}
+					}
+				}
+
+				if (bRemoveUSBControllerEntry)
+				{
+					iter= thisPtr->m_controllerInfos.erase(iter);
+				}
+				else
+				{
+					++iter;
+				}
+			}
+
             if (oldSelectedControllerIndex != -1)
             {
+                int controllerCount= static_cast<int>(thisPtr->m_controllerInfos.size());
+
                 // Maintain the same position in the list if possible
-                thisPtr->m_selectedControllerIndex= 
-                    (oldSelectedControllerIndex < static_cast<int>(thisPtr->m_usableControllerInfos.size())) 
-                    ? oldSelectedControllerIndex
-                    : 0;
+                if (controllerCount > 0)
+                {
+                    thisPtr->m_selectedControllerIndex= 
+                        (oldSelectedControllerIndex < controllerCount) ? oldSelectedControllerIndex : controllerCount-1;
+                }
+                else
+                {
+                    thisPtr->m_selectedControllerIndex= -1;
+                }
             }
             else
             {
-                thisPtr->m_selectedControllerIndex= (thisPtr->m_usableControllerInfos.size() > 0) ? 0 : -1;
+                thisPtr->m_selectedControllerIndex= (thisPtr->m_controllerInfos.size() > 0) ? 0 : -1;
             }
 
             thisPtr->m_menuState= AppStage_ControllerSettings::idle;
@@ -903,7 +924,7 @@ int AppStage_ControllerSettings::find_controller_id_by_serial(std::string contro
 {
     int ControllerID= -1;
 
-    for (const ControllerInfo &info : m_usableControllerInfos)
+    for (const ControllerInfo &info : m_controllerInfos)
     {
         if (info.DeviceSerial == controller_serial)
         {
