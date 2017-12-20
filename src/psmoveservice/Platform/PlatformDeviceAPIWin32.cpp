@@ -727,16 +727,16 @@ bool PlatformDeviceAPIWin32::startup(IDeviceHotplugListener *broadcaster)
 
 		BOOL admin = RegistryWriteAccess::IsElevated();
 		HKEY hKey;
-		LONG errAccess = RegOpenKeyEx(HKEY_LOCAL_MACHINE, 
-			("SYSTEM\\CurrentControlSet\\Services\\HidBth\\Parameters\\Devices"), 
+		LONG errAccess = RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+			("SYSTEM\\CurrentControlSet\\Services\\HidBth\\Parameters\\Devices"),
 			0, KEY_READ | KEY_QUERY_VALUE | KEY_WOW64_64KEY | KEY_ALL_ACCESS, &hKey);
-
-		SERVER_LOG_INFO("DeviceHotplugAPIWin32::startup") << "Failed to access registry... starting in Admin mode.";
 
 		if (!admin && errAccess != ERROR_SUCCESS) {
 			char moduleFileName[MAXCHAR];
 			char moduleDrive[MAXCHAR];
 			char moduleDir[MAXCHAR];
+
+			SERVER_LOG_INFO("DeviceHotplugAPIWin32::startup") << "Failed to access registry... starting in Admin mode.";
 
 			GetModuleFileName(NULL, moduleFileName, sizeof(moduleFileName));
 			_splitpath_s(moduleFileName, moduleDrive, MAXCHAR, moduleDir, MAXCHAR, NULL, 0, NULL, 0);
@@ -751,23 +751,21 @@ bool PlatformDeviceAPIWin32::startup(IDeviceHotplugListener *broadcaster)
 			shExInfo.hwnd = 0;
 			shExInfo.lpVerb = ("runas");                // Operation to perform
 			shExInfo.lpFile = adminPath.c_str(),       // Application to start    
-			shExInfo.lpParameters = "";                  // Additional parameters
+				shExInfo.lpParameters = "";                  // Additional parameters
 			shExInfo.lpDirectory = 0;
 			shExInfo.nShow = SW_SHOW;
 			shExInfo.hInstApp = 0;
 
 			if (ShellExecuteEx(&shExInfo))
 			{
-				WaitForSingleObject(shExInfo.hProcess, INFINITE);
 				CloseHandle(shExInfo.hProcess);
 			};
-			
+
 			bSuccess = false;
 		}
-		else if (admin && errAccess == ERROR_SUCCESS) {
-
+		else if (admin && errAccess == ERROR_SUCCESS)
+		{
 			SERVER_LOG_INFO("DeviceHotplugAPIWin32::startup") << "Running in Admin mode... updating registry write access.";
-
 
 			RegistryWriteAccess::DoSetHiveRights(hKey);
 
@@ -896,51 +894,51 @@ LRESULT message_handler(HWND__* hwnd, UINT msg_type, WPARAM wparam, LPARAM lpara
 		return true;
 		break;
 
-	case WM_CREATE: 
-		{
-			g_hImageDeviceNotify = register_device_class_notification(hwnd, GUID_DEVCLASS_HID);
-			g_hGenericUSBDeviceNotify = register_device_class_notification(hwnd, GUID_DEVCLASS_USB_RAW);
-			g_hHIDDeviceNotify = register_device_class_notification(hwnd, GUID_DEVCLASS_IMAGE);
-			break;
-		}
+	case WM_CREATE:
+	{
+		g_hImageDeviceNotify = register_device_class_notification(hwnd, GUID_DEVCLASS_HID);
+		g_hGenericUSBDeviceNotify = register_device_class_notification(hwnd, GUID_DEVCLASS_USB_RAW);
+		g_hHIDDeviceNotify = register_device_class_notification(hwnd, GUID_DEVCLASS_IMAGE);
+		break;
+	}
 
 	case WM_DEVICECHANGE:
+	{
+		PDEV_BROADCAST_HDR lpdb = (PDEV_BROADCAST_HDR)lparam;
+		PDEV_BROADCAST_DEVICEINTERFACE lpdbv = (PDEV_BROADCAST_DEVICEINTERFACE)lpdb;
+		std::string path;
+
+		if (lpdb->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE)
 		{
-			PDEV_BROADCAST_HDR lpdb = (PDEV_BROADCAST_HDR)lparam;
-			PDEV_BROADCAST_DEVICEINTERFACE lpdbv = (PDEV_BROADCAST_DEVICEINTERFACE)lpdb;
-			std::string path;
+			DeviceClass device_class = DeviceClass::DeviceClass_INVALID;
+			path = std::string(lpdbv->dbcc_name);
 
-			if (lpdb->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE)
+			if (IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_IMAGE))
 			{
-				DeviceClass device_class = DeviceClass::DeviceClass_INVALID;
-				path = std::string(lpdbv->dbcc_name);
+				device_class = DeviceClass::DeviceClass_Camera;
+			}
+			else if (IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_HID) ||
+				IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_USB_RAW))
+			{
+				device_class = DeviceClass::DeviceClass_HID;
+			}
 
-				if (IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_IMAGE))
+			if (device_class != DeviceClass_INVALID)
+			{
+				switch (wparam)
 				{
-					device_class = DeviceClass::DeviceClass_Camera;
-				}
-				else if (IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_HID) || 
-						IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_USB_RAW))
-				{
-					device_class = DeviceClass::DeviceClass_HID;
-				}
+				case DBT_DEVICEARRIVAL:
+					g_hotplug_broadcaster->handle_device_connected(device_class, path);
+					break;
 
-				if (device_class != DeviceClass_INVALID)
-				{
-					switch (wparam)
-					{
-					case DBT_DEVICEARRIVAL:
-						g_hotplug_broadcaster->handle_device_connected(device_class, path);
-						break;
-
-					case DBT_DEVICEREMOVECOMPLETE:
-						g_hotplug_broadcaster->handle_device_disconnected(device_class, path);
-						break;
-					}
+				case DBT_DEVICEREMOVECOMPLETE:
+					g_hotplug_broadcaster->handle_device_disconnected(device_class, path);
+					break;
 				}
 			}
-			break;
 		}
+		break;
+	}
 	}
 	return 0L;
 }
@@ -952,7 +950,7 @@ static HDEVNOTIFY register_device_class_notification(HWND__* hwnd, const GUID &g
 	NotificationFilter.dbcc_size = sizeof(DEV_BROADCAST_DEVICEINTERFACE);
 	NotificationFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE; // DEVICE_NOTIFY_ALL_INTERFACE_CLASSES;
 	NotificationFilter.dbcc_classguid = guid;
-	HDEVNOTIFY dev_notify = RegisterDeviceNotification(hwnd, &NotificationFilter, DEVICE_NOTIFY_WINDOW_HANDLE);	
+	HDEVNOTIFY dev_notify = RegisterDeviceNotification(hwnd, &NotificationFilter, DEVICE_NOTIFY_WINDOW_HANDLE);
 
 	if (dev_notify == nullptr)
 	{
