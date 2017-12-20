@@ -83,6 +83,9 @@ void AppStage_TestRumble::update()
         {
             set_rumble_amounts(get_left_trigger(), get_right_trigger());
         } break;
+	case eMenuState::stop:
+		{
+		} break;
     default:
         assert(0 && "unreachable");
     }
@@ -113,6 +116,9 @@ void AppStage_TestRumble::render()
 			const float red= fmaxf(bigRumbleAmount, smallRumbleAmount);
 			drawController(m_controllerView, scaleAndRotateModelX90, glm::vec3(red, 0.f, 0.f));
         } break;
+	case eMenuState::stop:
+		{
+		} break;
     default:
         assert(0 && "unreachable");
     }
