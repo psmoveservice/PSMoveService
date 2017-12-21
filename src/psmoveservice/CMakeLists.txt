@@ -207,6 +207,11 @@ add_executable(PSMoveService ${PSMOVESERVICE_SRC})
 target_include_directories(PSMoveService PUBLIC ${PSMOVE_SERVICE_INCL_DIRS})
 target_link_libraries(PSMoveService ${PSMOVE_SERVICE_REQ_LIBS})
 
+IF(MSVC)
+	# set the UAC level in the property sheet
+    set_target_properties(PSMoveService PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
+ENDIF()
+
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     add_dependencies(PSMoveService opencv)
 ENDIF()
@@ -234,39 +239,6 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
             FILES_MATCHING PATTERN "*.dll")            
     ENDIF()#ISWIN32
 ELSE() #Linux/Darwin
-ENDIF()
-
-# On Windows builds we want to create an additional admin version of PSMS.
-# This is used for when we want to pair new controllers.
-# Part of the pairing process in Windows requires manually poking entries in the
-# "SYSTEM\CurrentControlSet\Services\HidBth\Parameters\Devices" registry key folder,
-# which only an admin account can do.
-# Since you can't change the permissions of an exe after it's started
-# and since relaunching a process as admin is un-reliable, having a second
-# admin version of the PSMS exe is the simplest option
-# https://stackoverflow.com/questions/19617955/c-run-program-as-administrator
-# https://blogs.msdn.microsoft.com/winsdk/2013/03/22/how-to-launch-a-process-as-a-full-administrator-when-uac-is-enabled/
-IF(MSVC)
-	# Create the new PSMS admin exe (same code as PSMS)
-	add_executable(PSMoveServiceAdmin ${PSMOVESERVICE_SRC})
-	target_include_directories(PSMoveServiceAdmin PUBLIC ${PSMOVE_SERVICE_INCL_DIRS})
-	target_link_libraries(PSMoveServiceAdmin ${PSMOVE_SERVICE_REQ_LIBS})
-	
-	add_dependencies(PSMoveServiceAdmin opencv)
-	
-	# set the UAC level in the property sheet
-    set_target_properties(PSMoveServiceAdmin PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
-	
-    install(TARGETS PSMoveServiceAdmin
-        CONFIGURATIONS Debug
-        RUNTIME DESTINATION ${PSM_DEBUG_INSTALL_PATH}/bin
-        LIBRARY DESTINATION ${PSM_DEBUG_INSTALL_PATH}/lib
-        ARCHIVE DESTINATION ${PSM_DEBUG_INSTALL_PATH}/lib)
-    install(TARGETS PSMoveServiceAdmin
-        CONFIGURATIONS Release
-        RUNTIME DESTINATION ${PSM_RELEASE_INSTALL_PATH}/bin
-        LIBRARY DESTINATION ${PSM_RELEASE_INSTALL_PATH}/lib
-        ARCHIVE DESTINATION ${PSM_RELEASE_INSTALL_PATH}/lib)    	
 ENDIF()
 
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
