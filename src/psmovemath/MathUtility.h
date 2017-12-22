@@ -45,7 +45,7 @@
 #define is_nearly_zero(x) is_nearly_equal(x, 0.0f, k_real_epsilon)
 
 #define is_double_nearly_equal(a, b, epsilon) (fabs((a)-(b)) <= (epsilon))
-#define is_double_nearly_zero(x) is_double_nearly_equal(x, 0.0, DBL_EPSILON)
+#define is_double_nearly_zero(x) is_double_nearly_equal(x, 0.0, k_real64_epsilon)
 
 #ifndef sgn
 #define sgn(x) (((x) >= 0) ? 1 : -1)
@@ -59,7 +59,9 @@
 
 //-- float methods -----
 float safe_divide_with_default(float numerator, float denomenator, float default_result);
+double safe_divide_with_default(double numerator, double denomenator, double default_result);
 float safe_sqrt_with_default(float square, float default_result);
+double safe_sqrt_with_default(double square, double default_result);
 float clampf(float x, float lo, float hi);
 float clampf01(float x);
 float lerpf(float a, float b, float u);

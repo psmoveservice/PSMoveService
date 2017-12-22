@@ -207,13 +207,13 @@ add_executable(PSMoveService ${PSMOVESERVICE_SRC})
 target_include_directories(PSMoveService PUBLIC ${PSMOVE_SERVICE_INCL_DIRS})
 target_link_libraries(PSMoveService ${PSMOVE_SERVICE_REQ_LIBS})
 
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    add_dependencies(PSMoveService opencv)
+IF(MSVC)
+	# set the UAC level in the property sheet
+    set_target_properties(PSMoveService PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
 ENDIF()
 
-# Only set the admin privilege escalation on MSVC builds (for service operations)
-IF(MSVC)
-    set_target_properties(PSMoveService PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    add_dependencies(PSMoveService opencv)
 ENDIF()
 
 # Install

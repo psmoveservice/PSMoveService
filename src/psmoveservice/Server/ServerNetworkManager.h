@@ -40,7 +40,7 @@ public:
      \param io_service Uses default initializer of boost::asio::io_service
      \param request_handler Default ServerRequestHandler(ControllerManager)
      */
-    ServerNetworkManager(boost::asio::io_service *io_service, ServerRequestHandler *request_handler);
+    ServerNetworkManager();
     virtual ~ServerNetworkManager();
 
     static ServerNetworkManager *get_instance() { return m_instance; }
@@ -49,7 +49,7 @@ public:
     /**
      Calls ServerNetworkManagerImpl::start_connection_accept()
      */
-    bool startup();
+    bool startup(boost::asio::io_service *io_service, ServerRequestHandler *request_handler);
     
     /// Called last by PSMoveService::update()
     /**
@@ -69,10 +69,7 @@ public:
     
     void send_device_data_frame(int connection_id, DeviceOutputDataFramePtr data_frame);
 
-private:
-    /// Must use the overloaded constructor
-    ServerNetworkManager();
-    
+private:   
 	/// Configuration settings used by the network manager
 	NetworkManagerConfig m_cfg;
 

@@ -345,20 +345,11 @@ AsyncBluetoothUnpairDeviceRequest::start()
         success= false;
     }
 
-    if (success && (!m_controllerView->getIsOpen() || m_controllerView->getIsBluetooth()))
+    if (success && (!m_controllerView->getIsOpen() || !m_controllerView->getIsBluetooth()))
     {
         SERVER_LOG_ERROR("AsyncBluetoothUnpairDeviceRequest") 
             << "Controller " << controller_id 
-            << " isn't an open USB device";
-        success= false;
-    }
-
-    // Unregister the bluetooth host address with the controller
-    if (success && !m_controllerView->setHostBluetoothAddress(std::string("00:00:00:00:00:00")))
-    {
-        SERVER_LOG_ERROR("AsyncBluetoothUnpairDeviceRequest") 
-            << "Controller " << controller_id 
-            << " can't unregister host radios BT address ";
+            << " isn't an open Bluetooth device";
         success= false;
     }
 
@@ -565,44 +556,35 @@ AsyncBluetoothPairDeviceRequest::start()
         success= AsyncBluetoothPairDeviceRequest__findBluetoothRadio(state);
     }
 
-    // Make sure the controller isn't already paired with this host adapter
-    if (m_controllerView->getAssignedHostBluetoothAddress() != state->host_address_string)
+    // Assign this host address on the controller.
+    // NOTE: This needs to be done on the main thread since the controller view isn't thread safe.
+    if (success)
     {
-        // Assign this host address on the controller.
-        // NOTE: This needs to be done on the main thread since the controller view isn't thread safe.
-        if (success)
-        {
-            success= AsyncBluetoothPairDeviceRequest__registerHostAddress(m_controllerView, state);
-        }
+        success= AsyncBluetoothPairDeviceRequest__registerHostAddress(m_controllerView, state);
+    }
 
-        // Kick off the worker thread to do the rest of the work
-        if (success)
-        {
-            state->worker_thread_handle=
-                CreateThread( 
-                    NULL,                        // default security attributes
-                    0,                           // use default stack size  
-                    AsyncBluetoothPairDeviceThreadFunction,       // thread function pointer
-                    m_internal_state,            // argument to thread function 
-                    0,                           // use default creation flags 
-                    NULL);                       // returns the thread identifier
+    // Kick off the worker thread to do the rest of the work
+    if (success)
+    {
+        state->worker_thread_handle=
+            CreateThread( 
+                NULL,                        // default security attributes
+                0,                           // use default stack size  
+                AsyncBluetoothPairDeviceThreadFunction,       // thread function pointer
+                m_internal_state,            // argument to thread function 
+                0,                           // use default creation flags 
+                NULL);                       // returns the thread identifier
 
-            if (state->worker_thread_handle == NULL)
-            {
-                SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") << "Failed to start worker thread!";
-                success= false;
-            }
-        }
-
-        if (success)
+        if (state->worker_thread_handle == NULL)
         {
-            m_status = AsyncBluetoothRequest::running;
+            SERVER_LOG_ERROR("AsyncBluetoothPairDeviceRequest") << "Failed to start worker thread!";
+            success= false;
         }
     }
-    else
+
+    if (success)
     {
-        SERVER_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Controller already paired";
-        m_status= AsyncBluetoothRequest::succeeded;
+        m_status = AsyncBluetoothRequest::running;
     }
 
     if (!success)
@@ -631,33 +613,40 @@ AsyncBluetoothPairDeviceThreadFunction(LPVOID lpParam)
             state->getSubStatus_WorkerThread<BluetoothPairDeviceState::eStatus>();
         BluetoothPairDeviceState::eStatus nextSubStatus= subStatus;
 
-        switch(subStatus)
-        {
-        case BluetoothPairDeviceState::setupBluetoothRadio:
-            {
-                nextSubStatus= AsyncBluetoothPairDeviceRequest__setupBluetoothRadio(state);
-            } break;
+		if (!state->getIsCanceled_WorkerThread())
+		{
+			switch(subStatus)
+			{
+			case BluetoothPairDeviceState::setupBluetoothRadio:
+				{
+					nextSubStatus= AsyncBluetoothPairDeviceRequest__setupBluetoothRadio(state);
+				} break;
 
-        case BluetoothPairDeviceState::deviceScan:
-            {
-                nextSubStatus= AsyncBluetoothPairDeviceRequest__deviceScan(state);
-            } break;
+			case BluetoothPairDeviceState::deviceScan:
+				{
+					nextSubStatus= AsyncBluetoothPairDeviceRequest__deviceScan(state);
+				} break;
 
-        case BluetoothPairDeviceState::attemptConnection:
-            {
-                nextSubStatus= AsyncBluetoothPairDeviceRequest__attemptConnection(state);
-            } break;
+			case BluetoothPairDeviceState::attemptConnection:
+				{
+					nextSubStatus= AsyncBluetoothPairDeviceRequest__attemptConnection(state);
+				} break;
 
-        case BluetoothPairDeviceState::patchRegistry:
-            {
-                nextSubStatus= AsyncBluetoothPairDeviceRequest__patchRegistry(state);
-            } break;
+			case BluetoothPairDeviceState::patchRegistry:
+				{
+					nextSubStatus= AsyncBluetoothPairDeviceRequest__patchRegistry(state);
+				} break;
 
-        case BluetoothPairDeviceState::verifyConnection:
-            {
-                nextSubStatus= AsyncBluetoothPairDeviceRequest__verifyConnection(state);
-            } break;
-        }
+			case BluetoothPairDeviceState::verifyConnection:
+				{
+					nextSubStatus= AsyncBluetoothPairDeviceRequest__verifyConnection(state);
+				} break;
+			}
+		}
+		else
+		{
+			nextSubStatus= BluetoothPairDeviceState::failed;
+		}
 
         if (nextSubStatus != subStatus)
         {
