@@ -34,7 +34,6 @@ Source: "${APP_INSTALLER_DIR}\*"; DestDir: "{app}"; Flags: ignoreversion sign re
 
 [Registry]
 Root: HKLM64; Subkey: "Software\PSMoveService\PSMoveService"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey;
-Root: HKLM64; Subkey: "SYSTEM\CurrentControlSet\Services\HidBth\Parameters\Devices"; Permissions: users-modify
 
 [Icons]
 Name: "{group}\PSMoveService"; Filename: "{app}\bin\PSMoveService.exe"

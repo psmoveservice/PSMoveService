@@ -70,7 +70,8 @@ void AppStage_PairController::renderUI()
     case eControllerMenuState::pendingControllerUnpairRequest:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
+            ImGui::SetNextWindowSize(ImVec2(300, 150));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Waiting for controller to unpair...");
 
@@ -85,7 +86,8 @@ void AppStage_PairController::renderUI()
     case eControllerMenuState::failedControllerUnpairRequest:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
+            ImGui::SetNextWindowSize(ImVec2(300, 150));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Failed to unpair controller!");
 
@@ -103,8 +105,9 @@ void AppStage_PairController::renderUI()
         } break;
     case eControllerMenuState::pendingControllerPairRequest:
         {
-            ImGui::SetNextWindowPosCenter();
-            ImGui::Begin(k_window_title, nullptr, ImVec2(400, 300), k_background_alpha, window_flags);
+			ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowSize(ImVec2(400, 300));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
 
             // Show progress
             if (m_pair_steps_total > 0)
@@ -150,8 +153,9 @@ void AppStage_PairController::renderUI()
         } break;
     case eControllerMenuState::failedControllerPairRequest:
         {
-            ImGui::SetNextWindowPosCenter();
-            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
+			ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowSize(ImVec2(300, 150));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Failed to pair controller!");
 
@@ -170,8 +174,9 @@ void AppStage_PairController::renderUI()
 
     case eControllerMenuState::pendingCancelBluetoothRequest:
         {
-            ImGui::SetNextWindowPosCenter();
-            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
+			ImGui::SetNextWindowPosCenter();
+            ImGui::SetNextWindowSize(ImVec2(300, 150));
+			ImGui::Begin(k_window_title, nullptr, window_flags);
             ImGui::Text("Canceling bluetooth operation...");
             ImGui::End();
         } break;
@@ -179,7 +184,8 @@ void AppStage_PairController::renderUI()
     case eControllerMenuState::failedCancelBluetoothRequest:
         {
             ImGui::SetNextWindowPosCenter();
-            ImGui::Begin(k_window_title, nullptr, ImVec2(300, 150), k_background_alpha, window_flags);
+            ImGui::SetNextWindowSize(ImVec2(300, 150));
+            ImGui::Begin(k_window_title, nullptr, window_flags);
 
             ImGui::Text("Failed to cancel bluetooth operation (already completed?)");
 
