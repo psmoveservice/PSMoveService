@@ -300,101 +300,101 @@ LRESULT message_handler(HWND__* hwnd, UINT msg_type, WPARAM wparam, LPARAM lpara
 		return true;
 		break;
 
-	case WM_CREATE: 
-		{
-			g_hImageDeviceNotify = register_device_class_notification(hwnd, GUID_DEVCLASS_HID);
-			g_hGenericUSBDeviceNotify = register_device_class_notification(hwnd, GUID_DEVCLASS_USB_RAW);
-			g_hHIDDeviceNotify = register_device_class_notification(hwnd, GUID_DEVCLASS_IMAGE);
-			register_all_bluetooth_connection_notifications(hwnd);
-			break;
-		}
+	case WM_CREATE:
+	{
+		g_hImageDeviceNotify = register_device_class_notification(hwnd, GUID_DEVCLASS_HID);
+		g_hGenericUSBDeviceNotify = register_device_class_notification(hwnd, GUID_DEVCLASS_USB_RAW);
+		g_hHIDDeviceNotify = register_device_class_notification(hwnd, GUID_DEVCLASS_IMAGE);
+		register_all_bluetooth_connection_notifications(hwnd);
+		break;
+	}
 
 	case WM_DEVICECHANGE:
+	{
+		PDEV_BROADCAST_HDR lpdb = (PDEV_BROADCAST_HDR)lparam;
+
+		if (lpdb->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE)
 		{
-			PDEV_BROADCAST_HDR lpdb = (PDEV_BROADCAST_HDR)lparam;
+			PDEV_BROADCAST_DEVICEINTERFACE lpdbv = (PDEV_BROADCAST_DEVICEINTERFACE)lpdb;
+			DeviceClass device_class = DeviceClass::DeviceClass_INVALID;
+			std::string path = std::string(lpdbv->dbcc_name);
 
-			if (lpdb->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE)
+			if (IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_IMAGE))
 			{
-				PDEV_BROADCAST_DEVICEINTERFACE lpdbv = (PDEV_BROADCAST_DEVICEINTERFACE)lpdb;
-				DeviceClass device_class = DeviceClass::DeviceClass_INVALID;
-				std::string path = std::string(lpdbv->dbcc_name);
+				device_class = DeviceClass::DeviceClass_Camera;
+			}
+			else if (IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_HID) ||
+				IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_USB_RAW))
+			{
+				device_class = DeviceClass::DeviceClass_HID;
+			}
 
-				if (IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_IMAGE))
+			if (device_class != DeviceClass_INVALID)
+			{
+				switch (wparam)
 				{
-					device_class = DeviceClass::DeviceClass_Camera;
-				}
-				else if (IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_HID) || 
-						IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_USB_RAW))
-				{
-					device_class = DeviceClass::DeviceClass_HID;
-				}
+				case DBT_DEVICEARRIVAL:
+					g_hotplug_broadcaster->handle_device_connected(device_class, path);
+					break;
 
-				if (device_class != DeviceClass_INVALID)
-				{
-					switch (wparam)
-					{
-					case DBT_DEVICEARRIVAL:
-						g_hotplug_broadcaster->handle_device_connected(device_class, path);
-						break;
-
-					case DBT_DEVICEREMOVECOMPLETE:
-						g_hotplug_broadcaster->handle_device_disconnected(device_class, path);
-						break;
-					}
+				case DBT_DEVICEREMOVECOMPLETE:
+					g_hotplug_broadcaster->handle_device_disconnected(device_class, path);
+					break;
 				}
 			}
-			else if (lpdb->dbch_devicetype == DBT_DEVTYP_HANDLE)
+		}
+		else if (lpdb->dbch_devicetype == DBT_DEVTYP_HANDLE)
+		{
+			PDEV_BROADCAST_HANDLE lpdbv = (PDEV_BROADCAST_HANDLE)lpdb;
+
+			if (std::find(
+				g_BluetoothDeviceNotify.begin(),
+				g_BluetoothDeviceNotify.end(),
+				lpdbv->dbch_hdevnotify) != g_BluetoothDeviceNotify.end())
 			{
-				PDEV_BROADCAST_HANDLE lpdbv = (PDEV_BROADCAST_HANDLE)lpdb;
-
-				if (std::find(
-					g_BluetoothDeviceNotify.begin(),
-					g_BluetoothDeviceNotify.end(),
-					lpdbv->dbch_hdevnotify) != g_BluetoothDeviceNotify.end())
+				if (IsEqualGUID(lpdbv->dbch_eventguid, GUID_BLUETOOTH_HCI_EVENT))
 				{
-					if (IsEqualGUID(lpdbv->dbch_eventguid, GUID_BLUETOOTH_HCI_EVENT))
-					{
-						const BTH_HCI_EVENT_INFO *eventInfo= (BTH_HCI_EVENT_INFO *)lpdbv->dbch_data;
-						std::string address= bluetooth_address_to_string(&eventInfo->bthAddress);
+					const BTH_HCI_EVENT_INFO *eventInfo = (BTH_HCI_EVENT_INFO *)lpdbv->dbch_data;
+					std::string address = bluetooth_address_to_string(&eventInfo->bthAddress);
 
-						if (eventInfo->connectionType == HCI_CONNECTION_TYPE_ACL)
+					if (eventInfo->connectionType == HCI_CONNECTION_TYPE_ACL)
+					{
+						if (eventInfo->connected)
 						{
-							if (eventInfo->connected)
-							{
-								g_hotplug_broadcaster->handle_device_connected(DeviceClass::DeviceClass_HID, address);
-							}
-							else
-							{
-								g_hotplug_broadcaster->handle_device_disconnected(DeviceClass::DeviceClass_HID, address);
-							}
+							g_hotplug_broadcaster->handle_device_connected(DeviceClass::DeviceClass_HID, address);
+						}
+						else
+						{
+							g_hotplug_broadcaster->handle_device_disconnected(DeviceClass::DeviceClass_HID, address);
 						}
 					}
 				}
 			}
-			break;
 		}
+		break;
+	}
 	}
 	return 0L;
 }
 
 static void register_all_bluetooth_connection_notifications(HWND__* hwnd)
 {
-    BLUETOOTH_FIND_RADIO_PARAMS radio_params;
-    radio_params.dwSize = sizeof(BLUETOOTH_FIND_RADIO_PARAMS);
+	BLUETOOTH_FIND_RADIO_PARAMS radio_params;
+	radio_params.dwSize = sizeof(BLUETOOTH_FIND_RADIO_PARAMS);
 
 	HANDLE hRadio;
-    HBLUETOOTH_RADIO_FIND hFind = BluetoothFindFirstRadio(&radio_params, &hRadio);
-    if (hFind != INVALID_HANDLE_VALUE) 
-    {
-		do 
+	HBLUETOOTH_RADIO_FIND hFind = BluetoothFindFirstRadio(&radio_params, &hRadio);
+	if (hFind != INVALID_HANDLE_VALUE)
+	{
+		do
 		{
 			DEV_BROADCAST_HANDLE NotificationFilter;
 			ZeroMemory(&NotificationFilter, sizeof(NotificationFilter));
 			NotificationFilter.dbch_size = sizeof(DEV_BROADCAST_HANDLE);
 			NotificationFilter.dbch_devicetype = DBT_DEVTYP_HANDLE;
-			NotificationFilter.dbch_handle= hRadio;
+			NotificationFilter.dbch_handle = hRadio;
 			memcpy(&NotificationFilter.dbch_eventguid, &GUID_BLUETOOTH_HCI_EVENT, sizeof(NotificationFilter.dbch_eventguid));
-			HDEVNOTIFY dev_notify = RegisterDeviceNotification(hwnd, &NotificationFilter, DEVICE_NOTIFY_WINDOW_HANDLE);	
+			HDEVNOTIFY dev_notify = RegisterDeviceNotification(hwnd, &NotificationFilter, DEVICE_NOTIFY_WINDOW_HANDLE);
 
 			if (dev_notify != nullptr)
 			{
@@ -403,7 +403,7 @@ static void register_all_bluetooth_connection_notifications(HWND__* hwnd)
 		} while (BluetoothFindNextRadio(hFind, &hRadio));
 
 		BluetoothFindRadioClose(hFind);
-    }
+	}
 }
 
 static HDEVNOTIFY register_device_class_notification(HWND__* hwnd, const GUID &guid)
@@ -413,7 +413,7 @@ static HDEVNOTIFY register_device_class_notification(HWND__* hwnd, const GUID &g
 	NotificationFilter.dbcc_size = sizeof(DEV_BROADCAST_DEVICEINTERFACE);
 	NotificationFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE; // DEVICE_NOTIFY_ALL_INTERFACE_CLASSES;
 	NotificationFilter.dbcc_classguid = guid;
-	HDEVNOTIFY dev_notify = RegisterDeviceNotification(hwnd, &NotificationFilter, DEVICE_NOTIFY_WINDOW_HANDLE);	
+	HDEVNOTIFY dev_notify = RegisterDeviceNotification(hwnd, &NotificationFilter, DEVICE_NOTIFY_WINDOW_HANDLE);
 
 	if (dev_notify == nullptr)
 	{
@@ -490,18 +490,18 @@ static bool fetch_driver_registry_property(
 static std::string
 bluetooth_address_to_string(const BTH_ADDR* bt_address)
 {
-    std::ostringstream stream;
+	std::ostringstream stream;
 
-	BYTE  *raw_bytes= (BYTE *)(&bt_address);
-    for (int buff_ind = 5; buff_ind >= 0; buff_ind--)
-    {
-        stream << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(raw_bytes[buff_ind]);
+	BYTE  *raw_bytes = (BYTE *)(&bt_address);
+	for (int buff_ind = 5; buff_ind >= 0; buff_ind--)
+	{
+		stream << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(raw_bytes[buff_ind]);
 
-        if (buff_ind > 0)
-        {
-            stream << ":";
-        }
-    }
+		if (buff_ind > 0)
+		{
+			stream << ":";
+		}
+	}
 
-    return stream.str();
+	return stream.str();
 }
