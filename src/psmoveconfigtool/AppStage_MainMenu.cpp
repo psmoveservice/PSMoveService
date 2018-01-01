@@ -188,7 +188,7 @@ bool AppStage_MainMenu::onClientAPIEvent(
     case PSMEventMessage::PSMEvent_disconnectedFromService:
         {
             // Tell the user that we failed to connect
-            m_menuState= AppStage_MainMenu::failedConnectionToService;
+            m_menuState= AppStage_MainMenu::disconnectedFromService;
 
             // If we weren't running this stage, make sure we are now
             if (m_app->getCurrentAppStage() != this)
