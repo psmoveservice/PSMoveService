@@ -22,9 +22,144 @@
 #include <imgui.h>
 #include <sstream>
 
+#ifdef _WIN32
+#include <windows.h>  // Required for data types
+#include <winuser.h>
+#include <bthsdpdef.h>
+#include <bluetoothapis.h>
+#include <Dbt.h>
+#include <guiddef.h>
+#include <setupapi.h> // Device setup APIs
+#include <assert.h>
+#include <strsafe.h>
+#include <winreg.h>
+#include <Shellapi.h>
+#include <TlHelp32.h>
+#include <Psapi.h>
+#endif // _WIN32
+
 #ifdef _MSC_VER
 #pragma warning (disable: 4996) // 'This function or variable may be unsafe': snprintf
 #define snprintf _snprintf
+#endif
+
+#ifdef _WIN32
+class Win32AdminCheck {
+
+public:
+	BOOL psMoveServiceFound = FALSE;
+	BOOL psMoveServiceAdminFound = FALSE;
+	BOOL psMoveServiceElevated = FALSE;
+	BOOL psMoveServiceAdminElevated = FALSE;
+	DWORD psMoveServiceId = 0;
+	DWORD psMoveServiceAdminEId = 0;
+
+	BOOL IsElevated(HANDLE hProcess) {
+		BOOL fRet = FALSE;
+		HANDLE hToken = NULL;
+		if (OpenProcessToken(hProcess, TOKEN_QUERY, &hToken)) {
+			TOKEN_ELEVATION Elevation;
+			DWORD cbSize = sizeof(TOKEN_ELEVATION);
+			if (GetTokenInformation(hToken, TokenElevation, &Elevation, sizeof(Elevation), &cbSize)) {
+				fRet = Elevation.TokenIsElevated;
+			}
+		}
+		if (hToken) {
+			CloseHandle(hToken);
+		}
+		return fRet;
+	}
+
+	void CheckProcesses() {
+
+		psMoveServiceFound = FALSE;
+		psMoveServiceAdminFound = FALSE;
+		psMoveServiceElevated = FALSE;
+		psMoveServiceAdminElevated = FALSE;
+		psMoveServiceId = 0;
+		psMoveServiceAdminEId = 0;
+
+		
+		PROCESSENTRY32 entry;
+		entry.dwSize = sizeof(PROCESSENTRY32);
+
+		HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+
+		if (Process32First(snapshot, &entry) == TRUE)
+		{
+			while (Process32Next(snapshot, &entry) == TRUE)
+			{
+				if (stricmp(entry.szExeFile, "PSMoveService.exe") == 0)
+				{
+					psMoveServiceId = entry.th32ProcessID;
+					HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ProcessID);
+
+					psMoveServiceFound = TRUE;
+					psMoveServiceElevated = IsElevated(hProcess);
+
+					CloseHandle(hProcess);
+				}
+
+				if (stricmp(entry.szExeFile, "PSMoveServiceAdmin.exe") == 0)
+				{
+					psMoveServiceAdminEId = entry.th32ProcessID;
+					HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ProcessID);
+
+					psMoveServiceAdminFound = TRUE;
+					psMoveServiceAdminElevated = IsElevated(hProcess);
+
+					CloseHandle(hProcess);
+				}
+
+			}
+		}
+
+		CloseHandle(snapshot);
+	}
+
+	void RestartAdminMode() {
+		if (psMoveServiceId != 0 && !psMoveServiceElevated) 
+		{
+			char moduleFileName[MAXCHAR];
+			HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, psMoveServiceId);
+			if (hProcess != NULL) {
+
+				GetModuleFileNameEx(hProcess, NULL, moduleFileName, MAXCHAR);
+
+				TerminateProcess(hProcess, 0);
+				CloseHandle(hProcess);
+
+				char drive[5];
+				char dir[MAXCHAR];
+				_splitpath_s(moduleFileName, drive, sizeof(drive), dir, sizeof(dir), NULL, 0, NULL, 0);
+
+				std::string adminDir = drive;
+				adminDir = adminDir + dir;
+				std::string adminPath = adminDir + "PSMoveServiceAdmin.exe";
+
+				SHELLEXECUTEINFO ShExecInfo;
+				ShExecInfo.cbSize = sizeof(SHELLEXECUTEINFO);
+				ShExecInfo.fMask = NULL;
+				ShExecInfo.hwnd = NULL;
+				ShExecInfo.lpVerb = NULL;
+				ShExecInfo.lpFile = adminPath.c_str();
+				ShExecInfo.lpParameters = NULL;
+				ShExecInfo.lpDirectory = NULL;
+				ShExecInfo.nShow = SW_NORMAL;
+				ShExecInfo.hInstApp = NULL;
+
+				BOOL create = ShellExecuteEx(&ShExecInfo);
+			}
+		}
+	}
+
+	BOOL IsAnyElevated() {
+		return psMoveServiceElevated || psMoveServiceAdminElevated;
+	}
+
+};
+
+Win32AdminCheck adminCheck;
 #endif
 
 //-- statics ----
@@ -88,6 +223,10 @@ AppStage_ControllerSettings::AppStage_ControllerSettings(App *app)
 
 void AppStage_ControllerSettings::enter()
 {
+#ifdef _WIN32
+	adminCheck.CheckProcesses();
+#endif
+
     m_app->setCameraType(_cameraFixed);
 
     request_controller_list();
@@ -324,22 +463,36 @@ void AppStage_ControllerSettings::renderUI()
 
 					if (controllerInfo.ControllerType == PSMController_Move)
 					{
-						if (controllerInfo.IsBluetooth)
+#ifdef _WIN32
+						if (adminCheck.IsAnyElevated())
 						{
-							if (ImGui::Button("Unpair Controller"))
+#endif
+							if (controllerInfo.IsBluetooth)
 							{
-								m_app->getAppStage<AppStage_PairController>()->request_controller_unpair(controllerInfo.ControllerID, controllerInfo.ControllerType);
-								m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
+								if (ImGui::Button("Unpair Controller"))
+								{
+									m_app->getAppStage<AppStage_PairController>()->request_controller_unpair(controllerInfo.ControllerID, controllerInfo.ControllerType);
+									m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
+								}
+							}
+							else
+							{
+								if (ImGui::Button("Pair Controller"))
+								{
+									m_app->getAppStage<AppStage_PairController>()->request_controller_pair(controllerInfo.ControllerID, controllerInfo.ControllerType);
+									m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
+								}
+							}
+#ifdef _WIN32
+						}
+						else 
+						{
+							if (ImGui::Button("Restart Service in Admin mode\nto Pair or Unpair Controller"))
+							{
+								adminCheck.RestartAdminMode();
 							}
 						}
-						else
-						{
-							if (ImGui::Button("Pair Controller"))
-							{
-								m_app->getAppStage<AppStage_PairController>()->request_controller_pair(controllerInfo.ControllerID, controllerInfo.ControllerType);
-								m_app->setAppStage(AppStage_PairController::APP_STAGE_NAME);
-							}
-						}
+#endif
 					}
 
 				    if (!m_app->excludePositionSettings &&
