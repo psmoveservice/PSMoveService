@@ -131,6 +131,14 @@ typedef enum
     PSMController_Virtual
 } PSMControllerType;
 
+/// Describes which hand the given device is intended for
+typedef enum 
+{
+	PSMControllerHand_Any = 0,
+	PSMControllerHand_Left = 1,
+	PSMControllerHand_Right = 2,
+} PSMControllerHand;
+
 /// The list of possible camera types tracked by PSMoveService
 typedef enum
 {
@@ -383,6 +391,7 @@ typedef struct
 {
     PSMControllerID ControllerID;
     PSMControllerType ControllerType;
+	PSMControllerHand ControllerHand;
     union
     {
         PSMPSMove PSMoveState;
@@ -555,6 +564,7 @@ typedef struct
 {
     PSMControllerID controller_id[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
     PSMControllerType controller_type[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
+	PSMControllerHand controller_hand[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
 	char controller_serial[PSMOVESERVICE_MAX_CONTROLLER_COUNT][PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
 	char parent_controller_serial[PSMOVESERVICE_MAX_CONTROLLER_COUNT][PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
     int count;
@@ -963,6 +973,18 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerOrientation(PSMControllerID co
  */
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerDataStreamTrackerIndex(PSMControllerID controller_id, PSMTrackerID tracker_id, int timeout_ms);
 
+/** \brief Requests setting the hand assigned to a controller
+	This request is used to set the suggested hand for a controller.
+	Hand information is used by external APIs and not by PSMoveService.
+	No restrictions are made about which hands are assigned to a given controller.
+	\remark Blocking - Returns after either the result is returned OR the timeout period is reached. 
+	\param controller_id The ID of the controller whose data stream we want to modify
+    \param hand The hand to assign to a controller (Any, Left or Right)
+	\param timeout_ms The request timeout period in milliseconds, usually PSM_DEFAULT_TIMEOUT
+	\return PSMResult_RequestSent on success or PSMResult_Error if there was no valid connection
+ */
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerHand(PSMControllerID controller_id, PSMControllerHand hand, int timeout_ms);
+
 // Controller State Methods
 /** \brief Get the current orientation of a controller
 	\param controller_id The id of the controller
@@ -1164,6 +1186,21 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_ResetControllerOrientationAsync(PSMController
 	\return PSMResult_RequestSent on success or PSMResult_Error if there was no valid connection
  */
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerDataStreamTrackerIndexAsync(PSMControllerID controller_id, PSMTrackerID tracker_id, PSMRequestID *out_request_id);
+
+/** \brief Requests setting the assigned hand for a controller
+	This request is used to set the suggested hand for a controller.
+	Hand information is used by external APIs and not by PSMoveService.
+	No restrictions are made about which hands are assigned to a given controller.
+	\remark Async - Starts an async request. Result obtained in one of two ways:
+	  - Register callback for request id with \ref PSM_RegisterCallback and the poll with \ref PSM_Update()
+	  - Poll with \ref PSM_UpdateNoPollMessages() and then call \ref PSM_PollNextMessage() to see if 
+	  generic \ref PSMMessage result has been received.
+	\param controller_id The ID of the controller whose data stream we want to modify
+    \param hand The hand to assign to a controller (Any, Left or Right)
+	\param[out] out_request_id The id of the request sent to PSMoveService. Can be used to register callback with \ref PSM_RegisterCallback.
+	\return PSMResult_RequestSent on success or PSMResult_Error if there was no valid connection
+ */
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_SetControllerHandAsync(PSMControllerID controller_id, PSMControllerHand hand, PSMRequestID *out_request_id);
 
 // Tracker Pool
 /** \brief Fetches the \ref PSMTracker data for the given tracker

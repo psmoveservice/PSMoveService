@@ -62,6 +62,7 @@ public:
 		, orientation_variance_exp_fit_a(0.119878575f)
 		, orientation_variance_exp_fit_b(-0.00267515215f)
 		, tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
+		, hand("Any")
     {
         // The DS4 uses the BMI055 IMU Chip: 
         // https://www.bosch-sensortec.com/bst/products/all_products/bmi055
@@ -173,6 +174,9 @@ public:
 	}
 
 	eCommonTrackingColorID tracking_color_id;
+
+	// The assigned hand for this controller
+	std::string hand;
 };
 
 struct PSDualShock4ControllerState : public CommonControllerState
