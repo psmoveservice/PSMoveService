@@ -54,6 +54,7 @@ public:
     PSMRequestID set_led_tracking_color(PSMControllerID controller_id, PSMTrackingColorType tracking_color);
     PSMRequestID reset_orientation(PSMControllerID controller_id, const PSMQuatf& q_pose);
     PSMRequestID set_controller_data_stream_tracker_index(PSMControllerID controller_id, PSMTrackerID tracker_id);
+	PSMRequestID set_controller_hand(PSMControllerID controller_id, PSMControllerHand controller_hand);
 
     bool allocate_tracker_listener(const PSMClientTrackerInfo &trackerInfo);
     void free_tracker_listener(PSMTrackerID tracker_id);

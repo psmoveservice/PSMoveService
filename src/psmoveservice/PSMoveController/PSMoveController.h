@@ -56,6 +56,7 @@ public:
 		, position_variance_exp_fit_b(-0.000567041978f)
 		, orientation_variance(18.75f)
 		, tracking_color_id(eCommonTrackingColorID::INVALID_COLOR)
+		, hand("Any")
     {
         magnetometer_identity.clear();
         magnetometer_center.clear();
@@ -148,6 +149,9 @@ public:
 
 	// The assigned tracking color for this controller
 	eCommonTrackingColorID tracking_color_id;
+
+	// The assigned hand for this controller
+	std::string hand;
 };
 
 // https://code.google.com/p/moveonpc/wiki/InputReport

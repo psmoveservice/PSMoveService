@@ -264,6 +264,8 @@ PSMoveControllerConfig::config2ptree()
 	pt.put("PositionFilter.FilterType", position_filter_type);
     pt.put("PositionFilter.MaxVelocity", max_velocity);
 
+	pt.put("hand", hand);
+
 	writeTrackingColor(pt, tracking_color_id);
 
     return pt;
@@ -345,6 +347,8 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         max_velocity= pt.get<float>("PositionFilter.MaxVelocity", max_velocity);
 
 		tracking_color_id= static_cast<eCommonTrackingColorID>(readTrackingColor(pt));
+
+		hand= pt.get<std::string>("hand", hand);
     }
     else
     {

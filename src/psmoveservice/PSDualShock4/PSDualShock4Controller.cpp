@@ -300,6 +300,8 @@ PSDualShock4ControllerConfig::config2ptree()
     pt.put("prediction_time", prediction_time);
     pt.put("max_poll_failure_count", max_poll_failure_count);
 
+	pt.put("hand", hand);
+
 	writeTrackingColor(pt, tracking_color_id);
 
     return pt;
@@ -355,6 +357,9 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
 
 		// Read the tracking color
 		tracking_color_id = static_cast<eCommonTrackingColorID>(readTrackingColor(pt));
+
+		// Read the assigned hand
+		hand = pt.get<std::string>("hand", hand);
     }
     else
     {

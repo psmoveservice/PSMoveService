@@ -253,6 +253,10 @@ public:
                 response = new PSMoveProtocol::Response;
                 handle_request__set_controller_data_stream_tracker_index(context, response);
                 break;
+            case PSMoveProtocol::Request_RequestType_SET_CONTROLLER_HAND:
+                response = new PSMoveProtocol::Response;
+                handle_request__set_controller_hand(context, response);
+                break;
 
             // Tracker Requests
             case PSMoveProtocol::Request_RequestType_GET_TRACKER_LIST:
@@ -647,6 +651,7 @@ protected:
                 std::string orientation_filter = "";
                 std::string position_filter = "";
                 std::string gyro_gain_setting = "";
+				std::string controller_hand= "";
 
                 float prediction_time = 0.f;
 
@@ -664,6 +669,7 @@ protected:
                         firmware_version = config->firmware_version;
                         firmware_revision = config->firmware_revision;
                         prediction_time = config->prediction_time;
+						controller_hand= config->hand;
                         has_magnetometer = controller->getSupportsMagnetometer();
 
                         controller_info->set_controller_type(PSMoveProtocol::PSMOVE);
@@ -717,6 +723,7 @@ protected:
                         orientation_filter = config->orientation_filter_type;
                         position_filter = config->position_filter_type;
                         prediction_time = config->prediction_time;
+						controller_hand= config->hand;
 
                     controller_info->set_controller_type(PSMoveProtocol::PSDUALSHOCK4);
                     }
@@ -731,6 +738,7 @@ protected:
 
                         controller_info->set_controller_type(PSMoveProtocol::VIRTUALCONTROLLER);
                         gamepad_index= config->gamepad_index;
+						controller_hand= config->hand;
                     }
                     break;
                 default:
@@ -756,6 +764,13 @@ protected:
                 controller_info->set_gyro_gain_setting(gyro_gain_setting);
                 controller_info->set_prediction_time(prediction_time);
                 controller_info->set_gamepad_index(gamepad_index);
+
+				if (controller_hand == "Left")
+					controller_info->set_controller_hand(PSMoveProtocol::HAND_LEFT);
+				else if (controller_hand == "Right")
+					controller_info->set_controller_hand(PSMoveProtocol::HAND_RIGHT);
+				else
+					controller_info->set_controller_hand(PSMoveProtocol::HAND_ANY);
             }
         }
 
@@ -1679,6 +1694,77 @@ protected:
             response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
         }
     }
+
+	void handle_request__set_controller_hand(
+        const RequestContext &context,
+        PSMoveProtocol::Response *response)
+	{
+        const int controller_id = context.request->request_set_controller_hand().controller_id();
+        std::string hand;
+
+		switch (context.request->request_set_controller_hand().controller_hand())
+		{
+		case PSMoveProtocol::HAND_LEFT:
+			hand= "Left";
+			break;
+		case PSMoveProtocol::HAND_RIGHT:
+			hand= "Right";
+			break;
+		case PSMoveProtocol::HAND_ANY:
+		default:
+			hand= "Any";
+			break;
+		}
+		
+		ServerControllerViewPtr ControllerView = m_device_manager.getControllerViewPtr(controller_id);
+
+        if (ControllerView && 
+            ControllerView->getIsOpen())
+        {
+			switch (ControllerView->getControllerDeviceType())
+			{
+			case CommonDeviceState::PSMove:
+				{
+					PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
+					PSMoveControllerConfig *config = controller->getConfigMutable();
+
+					config->hand = hand;
+					config->save();
+
+					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+				}
+				break;
+			case CommonDeviceState::PSDualShock4:
+				{
+					PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
+					PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+
+					config->hand = hand;
+					config->save();
+
+					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+				}
+				break;
+			case CommonDeviceState::VirtualController:
+				{
+					VirtualController *controller = ControllerView->castChecked<VirtualController>();
+					VirtualControllerConfig *config = controller->getConfigMutable();
+
+					config->hand = hand;
+					config->save();
+
+					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
+				}
+				break;
+			default:
+				response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+			}
+        }
+        else
+        {
+            response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_ERROR);
+        }
+	}
 
     // -- tracker requests -----
     inline void common_device_pose_to_protocol_pose(
