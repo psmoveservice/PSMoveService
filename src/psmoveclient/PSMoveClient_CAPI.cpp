@@ -988,6 +988,25 @@ PSMResult PSM_SetControllerDataStreamTrackerIndexAsync(PSMControllerID controlle
     return result;
 }
 
+PSMResult PSM_SetControllerHandAsync(PSMControllerID controller_id, PSMControllerHand hand, PSMRequestID *out_request_id)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (g_psm_client != nullptr && IS_VALID_CONTROLLER_INDEX(controller_id))
+    {
+        PSMRequestID req_id = g_psm_client->set_controller_hand(controller_id, hand);
+
+        if (out_request_id != nullptr)
+        {
+            *out_request_id= req_id;
+        }
+
+        result= (req_id != PSM_INVALID_REQUEST_ID) ? PSMResult_RequestSent : PSMResult_Error;
+    }
+
+    return result;
+}
+
 PSMResult PSM_ResetControllerOrientation(PSMControllerID controller_id, PSMQuatf *q_pose, int timeout_ms)
 {
     PSMResult result= PSMResult_Error;
@@ -1011,6 +1030,21 @@ PSMResult PSM_SetControllerDataStreamTrackerIndex(PSMControllerID controller_id,
         IS_VALID_TRACKER_INDEX(tracker_id))
     {
 		PSMBlockingRequest request(g_psm_client->set_controller_data_stream_tracker_index(controller_id, tracker_id));
+
+		result= request.send(timeout_ms);
+    }
+
+    return result;
+}
+
+PSMResult PSM_SetControllerHand(PSMControllerID controller_id, PSMControllerHand hand, int timeout_ms)
+{
+    PSMResult result= PSMResult_Error;
+
+    if (g_psm_client != nullptr && 
+        IS_VALID_CONTROLLER_INDEX(controller_id))
+    {
+		PSMBlockingRequest request(g_psm_client->set_controller_data_stream_tracker_index(controller_id, hand));
 
 		result= request.send(timeout_ms);
     }

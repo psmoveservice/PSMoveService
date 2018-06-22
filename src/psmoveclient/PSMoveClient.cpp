@@ -851,6 +851,28 @@ PSMRequestID PSMoveClient::set_controller_data_stream_tracker_index(PSMControlle
 	return requestID;
 }
 
+PSMRequestID PSMoveClient::set_controller_hand(PSMControllerID controller_id, PSMControllerHand controller_hand)
+{
+	PSMRequestID requestID= PSM_INVALID_REQUEST_ID;
+
+    CLIENT_LOG_INFO("set_controller_hand") << "set hand id: " << controller_hand << " for ControllerID: " << controller_id << std::endl;
+
+	if (IS_VALID_CONTROLLER_INDEX(controller_id))
+	{
+		RequestPtr request(new PSMoveProtocol::Request());
+		request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_HAND);
+		request->mutable_request_set_controller_hand()->set_controller_id(controller_id);
+        request->mutable_request_set_controller_hand()->set_controller_hand(
+			static_cast<PSMoveProtocol::ControllerHand>(controller_hand));
+        
+		m_request_manager->send_request(request);
+
+		requestID= request->request_id();
+	}
+
+	return requestID;
+}
+
 bool PSMoveClient::allocate_tracker_listener(const PSMClientTrackerInfo &trackerInfo)
 {
     bool bSuccess= false;

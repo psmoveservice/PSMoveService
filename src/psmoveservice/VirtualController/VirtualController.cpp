@@ -38,6 +38,8 @@ VirtualControllerConfig::config2ptree()
     pt.put("prediction_time", prediction_time);
     pt.put("bulb_radius", bulb_radius);
 
+	pt.put("hand", hand);
+
     writeTrackingColor(pt, tracking_color_id);
 
     return pt;
@@ -67,6 +69,8 @@ VirtualControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
         // Read the tracking color
         tracking_color_id = static_cast<eCommonTrackingColorID>(readTrackingColor(pt));
         bulb_radius = pt.get<float>("bulb_radius", bulb_radius);
+
+		hand = pt.get<std::string>("hand", hand);
     }
     else
     {

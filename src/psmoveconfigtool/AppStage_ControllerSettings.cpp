@@ -395,6 +395,21 @@ void AppStage_ControllerSettings::renderUI()
                         }
                     }
 
+                    // Combo box selection for controller hand
+                    if (controllerInfo.ControllerType == PSMController_Virtual ||
+						(controllerInfo.ControllerType == PSMController_DualShock4 && controllerInfo.IsBluetooth) ||
+						(controllerInfo.ControllerType == PSMController_Move && controllerInfo.IsBluetooth))
+                    {
+                        int newHand = controllerInfo.ControllerHand;
+
+                        if (ImGui::Combo("Hand", &newHand, "Any\0Left\0Right\0\0"))
+                        {
+                            controllerInfo.ControllerHand = static_cast<PSMControllerHand>(newHand);
+
+                            request_set_controller_hand(controllerInfo.ControllerID, controllerInfo.ControllerHand);
+                        }
+                    }
+
                     ImGui::BulletText("Controller ID: %d", controllerInfo.ControllerID);
 
                     switch(controllerInfo.ControllerType)
@@ -843,6 +858,22 @@ void AppStage_ControllerSettings::request_set_controller_gamepad_index(
     PSM_SendOpaqueRequest(&request, nullptr);
 }
 
+void AppStage_ControllerSettings::request_set_controller_hand(
+	const int controller_id, 
+	const PSMControllerHand controller_hand)
+{
+    RequestPtr request(new PSMoveProtocol::Request());
+    request->set_type(PSMoveProtocol::Request_RequestType_SET_CONTROLLER_HAND);
+
+    PSMoveProtocol::Request_RequestSetControllerHand *hand_request =
+        request->mutable_request_set_controller_hand();
+
+    hand_request->set_controller_id(controller_id);
+    hand_request->set_controller_hand(static_cast<PSMoveProtocol::ControllerHand>(controller_hand));
+
+    PSM_SendOpaqueRequest(&request, nullptr);
+}
+
 void AppStage_ControllerSettings::handle_controller_list_response(
     const PSMResponseMessage *response_message,
     void *userdata)
@@ -907,6 +938,8 @@ void AppStage_ControllerSettings::handle_controller_list_response(
                 ControllerInfo.GyroGainSetting = ControllerResponse.gyro_gain_setting();
                 ControllerInfo.PredictionTime = ControllerResponse.prediction_time();
                 ControllerInfo.GamepadIndex = ControllerResponse.gamepad_index();
+				ControllerInfo.ControllerHand = 
+					static_cast<PSMControllerHand>(ControllerResponse.controller_hand());
 
                 if (ControllerInfo.ControllerType == PSMController_Move)
                 {

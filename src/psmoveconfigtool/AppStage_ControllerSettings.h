@@ -23,6 +23,7 @@ public:
 		std::string AssignedParentControllerSerial;		
 		std::vector<std::string> PotentialParentControllerSerials;
         PSMControllerType ControllerType;
+		PSMControllerHand ControllerHand;
         PSMTrackingColorType TrackingColorType;
         std::string DevicePath;
         std::string DeviceSerial;
@@ -105,6 +106,7 @@ protected:
 	void request_set_gyroscope_gain_setting(const int controller_id, const std::string& gain_setting);
 	void request_set_controller_prediction(const int controller_id, float prediction_time);
     void request_set_controller_gamepad_index(const int controller_id, const int gamepad_index);
+	void request_set_controller_hand(const int controller_id, const PSMControllerHand controller_hand);
 
 	int find_controller_id_by_serial(std::string parent_controller_serial) const;
 

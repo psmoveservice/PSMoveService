@@ -32,6 +32,7 @@ public:
         , prediction_time(0.f)
 		, tracking_color_id(eCommonTrackingColorID::Blue)
         , bulb_radius(2.25f) // The radius of the psmove tracking bulb in cm
+		, hand("Any")
     {
     };
 
@@ -65,6 +66,9 @@ public:
 
 	eCommonTrackingColorID tracking_color_id;
     float bulb_radius;
+
+	// The assigned hand for this controller
+	std::string hand;
 };
 
 struct VirtualControllerState : public CommonControllerState
