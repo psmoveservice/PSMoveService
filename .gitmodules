@@ -29,7 +29,7 @@
 	url = https://github.com/spurious/SDL-mirror.git
 [submodule "thirdparty/eigen"]
 	path = thirdparty/eigen
-	url = https://github.com/RLovelett/eigen.git
+	url = https://github.com/libigl/eigen.git
 [submodule "thirdparty/kalman"]
 	path = thirdparty/kalman
 	url = https://github.com/mherb/kalman.git
