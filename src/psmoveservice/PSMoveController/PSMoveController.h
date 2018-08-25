@@ -11,6 +11,12 @@
 #include <deque>
 #include <chrono>
 
+enum PSMoveControllerModelPID
+{
+	_psmove_controller_ZCM1= 0x03d5,
+	_psmove_controller_ZCM2= 0x0C5E 
+};
+
 struct PSMoveHIDDetails {
 	int vendor_id;
 	int product_id;
@@ -21,8 +27,6 @@ struct PSMoveHIDDetails {
     std::string Bt_addr;      // The bluetooth address of the controller
     std::string Host_bt_addr; // The bluetooth address of the adapter registered with the controller
 };
-
-struct PSMoveDataInput;  // See .cpp for full declaration
 
 class PSMoveControllerConfig : public PSMoveConfig
 {
@@ -235,6 +239,7 @@ public:
 
     // PSMoveController
     bool open(); // Opens the first HID device for the controller
+	bool open(PSMoveControllerModelPID model);
     
     // -- IDeviceInterface
     virtual bool matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const override;
@@ -275,6 +280,8 @@ public:
 	{ return SupportsMagnetometer; }        
     const unsigned long getLEDPWMFrequency() const
     { return LedPWMF; }
+	const bool getIsPS4Controller() const 
+	{ return HIDDetails.product_id == _psmove_controller_ZCM2; }
     
     // -- Setters
     bool setLED(unsigned char r, unsigned char g, unsigned char b); // 0x00..0xff. TODO: vec3
@@ -284,7 +291,8 @@ public:
 
 private:    
     bool getBTAddress(std::string& host, std::string& controller);
-    void loadCalibration();                         // Use USB or file if on BT
+    void loadCalibrationZCM1();                         // Use USB or file if on BT
+	void loadCalibrationZCM2();                         // Use USB or file if on BT
 	bool loadFirmwareInfo();
     
     bool writeDataOut();                            // Setters will call this
@@ -305,6 +313,6 @@ private:
     // Read Controller State
     int NextPollSequenceNumber;
     std::deque<PSMoveControllerState> ControllerStates;
-    PSMoveDataInput* InData;                        // Buffer to copy hidapi reports into
+    struct PSMoveDataInputCommon* InData;                        // Buffer to copy hidapi reports into
 };
 #endif // PSMOVE_CONTROLLER_H
