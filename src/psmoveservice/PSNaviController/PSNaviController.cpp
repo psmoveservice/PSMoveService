@@ -177,14 +177,7 @@ PSNaviController::PSNaviController()
 {   
 	APIContext = new PSNaviAPIContext();
 
-    // Make sure there is an initial empty state in the tracker queue
-    {     
-        PSNaviControllerState empty_state;
-
-        empty_state.clear();
-        ControllerStates.push_back(empty_state);
-    }
-
+	memset(&ControllerState, 0, sizeof(PSNaviControllerState));
     NextPollSequenceNumber= 0;
 }
 
@@ -377,6 +370,11 @@ bool
 PSNaviController::setTrackingColorID(const eCommonTrackingColorID tracking_color_id)
 {
 	return false;
+}
+
+void PSNaviController::setControllerListener(IControllerListener *listener)
+{
+	// Do nothing. PSNavi doesn't provide IMU data.
 }
 
 bool 
@@ -647,7 +645,7 @@ PSNaviController::pollGamepad()
 		setButtonBit(newState.AllButtons, Btn_PS, bIsPSPressed);
 
 		// Button de-bounce
-		unsigned int lastButtons = ControllerStates.empty() ? 0 : ControllerStates.back().AllButtons;
+		unsigned int lastButtons = ControllerState.AllButtons;
 		newState.DPad_Up = getButtonState(newState.AllButtons, lastButtons, Btn_UP);
 		newState.DPad_Down = getButtonState(newState.AllButtons, lastButtons, Btn_DOWN);
 		newState.DPad_Left = getButtonState(newState.AllButtons, lastButtons, Btn_LEFT);
@@ -667,14 +665,8 @@ PSNaviController::pollGamepad()
 		// Can't report the true battery state
 		newState.Battery = CommonControllerState::Batt_MAX;
 
-		// Make room for new entry if at the max queue size
-		if (ControllerStates.size() >= PSNAVI_STATE_BUFFER_MAX)
-		{
-			ControllerStates.erase(ControllerStates.begin(),
-				ControllerStates.begin() + ControllerStates.size() - PSNAVI_STATE_BUFFER_MAX);
-		}
-
-		ControllerStates.push_back(newState);
+		// Cache the newest controller state
+		ControllerState= newState;
 	}
 	else
 	{
@@ -728,7 +720,7 @@ PSNaviController::parseInputData()
 		(InData->buttons2 << 8) |          // |Cross|-|Circle|-|L1|-|-|L2|
 		((InData->buttons3 & 0x01) << 16); // |-|-|-|-|-|-|-|PS|
 
-	unsigned int lastButtons = ControllerStates.empty() ? 0 : ControllerStates.back().AllButtons;
+	unsigned int lastButtons = ControllerState.AllButtons;
 
 	newState.DPad_Up = getButtonState(newState.AllButtons, lastButtons, Btn_UP);
 	newState.DPad_Down = getButtonState(newState.AllButtons, lastButtons, Btn_DOWN);
@@ -747,25 +739,15 @@ PSNaviController::parseInputData()
 	// Other
 	newState.Battery = static_cast<CommonControllerState::BatteryLevel>(InData->battery);
 
-	// Make room for new entry if at the max queue size
-	if (ControllerStates.size() >= PSNAVI_STATE_BUFFER_MAX)
-	{
-		ControllerStates.erase(ControllerStates.begin(),
-			ControllerStates.begin() + ControllerStates.size() - PSNAVI_STATE_BUFFER_MAX);
-	}
-
-	ControllerStates.push_back(newState);
+	// Cache the new controller state
+	ControllerState= newState;
 }
 
 const CommonDeviceState *
 PSNaviController::getState(
-    int lookBack) const
+	int lookBack) const
 {
-    const int queueSize= static_cast<int>(ControllerStates.size());
-    const CommonDeviceState * result=
-        (lookBack < queueSize) ? &ControllerStates.at(queueSize - lookBack - 1) : nullptr;
-
-    return result;
+    return &ControllerState;
 }
 
 long 

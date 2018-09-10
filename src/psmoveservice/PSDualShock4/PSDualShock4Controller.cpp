@@ -1,9 +1,11 @@
 //-- includes -----
+#include "AtomicPrimitives.h"
 #include "PSDualShock4Controller.h"
 #include "ControllerDeviceEnumerator.h"
 #include "MathUtility.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
+#include "WorkerThread.h"
 #include "BluetoothQueries.h"
 #include <algorithm>
 #include <vector>
@@ -29,7 +31,6 @@
 #define PSDS4_BTADDR_GET_SIZE 16
 #define PSDS4_BTADDR_SET_SIZE 23
 #define PSDS4_BTADDR_SIZE 6
-#define PSDS4_STATE_BUFFER_MAX 16
 
 #define PSDS4_TRACKING_TRIANGLE_WIDTH  .9386f // The width of a triangle enclosed in the DS4 tracking bar in cm
 #define PSDS4_TRACKING_TRIANGLE_HEIGHT  .6548f // The height of a triangle enclosed in the DS4 tracking bar in cm
@@ -48,27 +49,27 @@
 /* Minimum time (in milliseconds) psmove write updates */
 #define PSDS4_WRITE_DATA_INTERVAL_MS 120
 
-enum ePSDualShock4_RequestType {
-    PSDualShock4_BTReport_Input = 0x00,
-    PSDualShock4_BTReport_Output = 0x11,
-    PSDualShock4_USBReport_GetBTAddr = 0x12,
-    PSDualShock4_USBReport_SetBTAddr = 0x13,
+enum eDualShock4_RequestType {
+    DualShock4_BTReport_Input = 0x00,
+    DualShock4_BTReport_Output = 0x11,
+    DualShock4_USBReport_GetBTAddr = 0x12,
+    DualShock4_USBReport_SetBTAddr = 0x13,
 };
 
-enum ePSDualShock4_DPad
+enum eDualShock4_DPad
 {
-    PSDualShock4DPad_N=         0,
-    PSDualShock4DPad_NE=        1,
-    PSDualShock4DPad_E=         2,
-    PSDualShock4DPad_SE=        3,
-    PSDualShock4DPad_S=         4,
-    PSDualShock4DPad_SW=        5,
-    PSDualShock4DPad_W=         6,
-    PSDualShock4DPad_NW=        7,
-    PSDualShock4DPad_Released=  8
+    DualShock4DPad_N=         0,
+    DualShock4DPad_NE=        1,
+    DualShock4DPad_E=         2,
+    DualShock4DPad_SE=        3,
+    DualShock4DPad_S=         4,
+    DualShock4DPad_SW=        5,
+    DualShock4DPad_W=         6,
+    DualShock4DPad_NW=        7,
+    DualShock4DPad_Released=  8
 };
 
-enum ePSDS4_Button {
+enum eDS4_Button {
     // buttons1
     Btn_DPAD_LEFT = 1 << 0,
     Btn_DPAD_RIGHT = 1 << 1,
@@ -115,10 +116,18 @@ static unsigned char k_ps4_bluetooth_link_key[16] = {
 };
 static size_t k_ps4_bluetooth_link_key_length = sizeof(k_ps4_bluetooth_link_key);
 
+// -- private prototypes -----
+inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
+inline unsigned int make_dualshock4_button_bitmask(const DualShock4DataInput *hid_packet);
+inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size);
+#ifdef _WIN32
+static int hid_set_output_report(hid_device *dev, const unsigned char *data, size_t length);
+#endif // _WIN32
+
 // -- private definitions -----
 
 // http://eleccelerator.com/wiki/index.php?title=DualShock_4
-struct PS4DualShock4TouchPacket
+struct DualShock4TouchPacket
 {
     unsigned char packet_counter;           // byte 0
 
@@ -134,7 +143,7 @@ struct PS4DualShock4TouchPacket
 };
 
 // http://eleccelerator.com/wiki/index.php?title=DualShock_4
-struct PSDualShock4DataInput
+struct DualShock4DataInput
 {
     //unsigned char hid_report_type : 2;      // byte 0, bit 0-1 (0x01=INPUT)
     //unsigned char hid_parameter : 2;        // byte 0, bit 2-3 (0x00)
@@ -215,14 +224,14 @@ struct PSDualShock4DataInput
     unsigned char _unknown2[2];         // byte 34-35, Unknown (seems to be always 0x00)
 
     unsigned char trackPadPktCount;     // byte 36, Number of trackpad packets (0x00 to 0x04)
-    PS4DualShock4TouchPacket trackPadPackets[4];    // byte 37-72, 4 tracker packets (4*9bytes)
+    DualShock4TouchPacket trackPadPackets[4];    // byte 37-72, 4 tracker packets (4*9bytes)
 
     unsigned char _unknown3[2];         // byte 73-74, Unknown 0x00 0x00 or 0x00 0x01
     unsigned char crc32[4];             // byte 75-78, CRC-32 of the first 75 bytes
 };
 
 // 78 bytes
-struct PSDualShock4DataOutput 
+struct DualShock4DataOutput 
 {
     unsigned char hid_protocol_code;        // byte 0 (0x11)
 
@@ -245,12 +254,199 @@ struct PSDualShock4DataOutput
     unsigned char crc32[4];                 // byte 74-77, CRC-32 of the first 75 bytes
 };
 
-// -- private prototypes -----
-inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
-inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size);
-#ifdef _WIN32
-static int hid_set_output_report(hid_device *dev, const unsigned char *data, size_t length);
-#endif // _WIN32
+// -- Dualshock4HidPacketProcessor --
+class DualShock4HidPacketProcessor : public WorkerThread
+{
+public:
+	DualShock4HidPacketProcessor(const PSDualShock4ControllerConfig &cfg) 
+		: WorkerThread("PSMoveSensorProcessor")
+		, m_cfg(cfg)
+		, m_hidDevice(nullptr)
+		, m_controllerListener(nullptr)
+		, m_bSupportsMagnetometer(false)
+		, m_nextPollSequenceNumber(0)
+	{
+		memset(&m_previousHIDInputPacket, 0, sizeof(DualShock4DataInput));
+		memset(&m_currentHIDInputPacket, 0, sizeof(DualShock4DataInput));
+		m_previousHIDInputPacket.hid_protocol_code = DualShock4_BTReport_Input;
+		m_currentHIDInputPacket.hid_protocol_code = DualShock4_BTReport_Input;
+
+		memset(&m_previousOutputState, 0, sizeof(DualShock4ControllerOutputState));
+	}
+
+	void fetchLatestInputData(DualShock4ControllerInputState &input_state)
+	{
+		m_currentInputState.fetchValue(input_state);
+	}
+
+	void postOutputState(const DualShock4ControllerOutputState &output_state)
+	{
+		m_currentOutputState.storeValue(output_state);
+	}
+
+    void start(hid_device *in_hid_device, IControllerListener *controller_listener)
+    {
+		if (!hasThreadStarted())
+		{
+			m_hidDevice= in_hid_device;
+			m_controllerListener= controller_listener;
+
+			// Fire up the worker thread
+			WorkerThread::startThread();
+		}
+    }
+
+	void stop()
+	{
+		WorkerThread::stopThread();
+	}
+
+protected:
+	virtual void onThreadStarted() override 
+	{
+		DualShock4DataOutput data_out;
+		memset(&data_out, 0, sizeof(DualShock4DataOutput));
+		data_out.hid_protocol_code= DualShock4_BTReport_Output;
+		data_out._unknown1[0]= 0x80; // Unknown why this this is needed, copied from DS4Windows
+		data_out._unknown1[1] = 0x00;
+		data_out.rumbleFlags = PSDS4_RUMBLE_ENABLED;
+
+		writeOutputHidPacket(data_out);
+	}
+
+	virtual bool doWork() override
+    {
+		// Attempt to read the next sensor update packet from the HMD
+		memcpy(&m_previousHIDInputPacket, &m_currentHIDInputPacket, sizeof(DualShock4DataInput));
+		int res = hid_read(m_hidDevice, (unsigned char*)&m_currentHIDInputPacket, sizeof(DualShock4DataInput));
+
+		if (res > 0)
+		{
+			// https://github.com/hrl7/node-psvr/blob/master/lib/psvr.js
+			DualShock4ControllerInputState newState;
+
+			// Increment the sequence for every new polling packet
+			newState.PollSequenceNumber = m_nextPollSequenceNumber;
+			++m_nextPollSequenceNumber;
+
+			// Processes the IMU data
+			newState.parseDataInput(&m_cfg, &m_previousHIDInputPacket, &m_currentHIDInputPacket);
+
+			// Store a copy of the parsed input date for functions
+			// that want to query input state off of the worker thread
+			m_currentInputState.storeValue(newState);
+
+			// Send the sensor data for processing by filter
+			if (m_controllerListener != nullptr)
+			{
+				m_controllerListener->notifySensorDataReceived(&newState);
+			}
+		}
+		else if (res < 0)
+		{
+			char hidapi_err_mbs[256];
+			bool valid_error_mesg = 
+				ServerUtility::convert_wcs_to_mbs(hid_error(m_hidDevice), hidapi_err_mbs, sizeof(hidapi_err_mbs));
+
+			// Device no longer in valid state.
+			if (valid_error_mesg)
+			{
+				SERVER_MT_LOG_ERROR("PSMoveSensorProcessor::doWork") << "HID ERROR: " << hidapi_err_mbs;
+			}
+
+			return true;
+		}
+
+        // Don't send output writes too frequently
+        {
+            std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+
+            // See if it's time to update the LED/rumble state
+            std::chrono::duration<double, std::milli> led_update_diff = now - m_lastHIDOutputTimestamp;
+            if (led_update_diff.count() >= PSDS4_WRITE_DATA_INTERVAL_MS)
+            {
+				DualShock4ControllerOutputState output_state;
+				m_currentOutputState.fetchValue(output_state);
+
+				if (output_state.r != m_previousOutputState.r ||
+					output_state.g != m_previousOutputState.g ||
+					output_state.b != m_previousOutputState.b ||
+					output_state.rumble_left != m_previousOutputState.rumble_left ||
+					output_state.rumble_right != m_previousOutputState.rumble_right)
+				{
+					DualShock4DataOutput data_out;
+					memset(&data_out, 0, sizeof(DualShock4DataOutput));
+					data_out.hid_protocol_code= DualShock4_BTReport_Output;
+					data_out._unknown1[0]= 0x80; // Unknown why this this is needed, copied from DS4Windows
+					data_out._unknown1[1] = 0x00;
+					data_out.rumbleFlags = PSDS4_RUMBLE_ENABLED;
+					data_out.led_r = output_state.r;
+					data_out.led_g = output_state.g;
+					data_out.led_b = output_state.b;
+					// a.k.a Soft Rumble Motor
+					data_out.rumble_right = output_state.rumble_right;
+					// a.k.a Hard Rumble Motor
+					data_out.rumble_left = output_state.rumble_left;
+					// Set off interval to 0% and the on interval to 100%. 
+					// There are no discos in PSMoveService.
+					data_out.led_flash_on = (output_state.r != 0 || output_state.g != 0 || output_state.b != 0) ? 0xff : 0x00;
+					data_out.led_flash_off = 0x00; 
+
+					int res= writeOutputHidPacket(data_out);
+					if (res > 0)
+					{
+						m_previousOutputState= output_state;
+						m_lastHIDOutputTimestamp = now;
+					}
+					else
+					{
+						char hidapi_err_mbs[256];
+						bool valid_error_mesg = 
+							ServerUtility::convert_wcs_to_mbs(hid_error(m_hidDevice), hidapi_err_mbs, sizeof(hidapi_err_mbs));
+
+						// Device no longer in valid state.
+						if (valid_error_mesg)
+						{
+							SERVER_MT_LOG_ERROR("PSMoveSensorProcessor::doWork") << "HID ERROR: " << hidapi_err_mbs;
+						}
+					}
+				}
+            }
+        }
+
+		return true;
+    }
+
+	int writeOutputHidPacket(const DualShock4DataOutput &data_out)
+	{
+		// Unfortunately in windows simply writing to the HID device, via WriteFile() internally, 
+		// doesn't appear to actually set the data on the controller (despite returning successfully).
+		// In the DS4 implementation they use the HidD_SetOutputReport() Win32 API call instead. 
+		// Unfortunately HIDAPI doesn't have any equivalent call, so we have to make our own.
+		#ifdef _WIN32
+		int res = hid_set_output_report(m_hidDevice, (unsigned char*)&data_out, sizeof(DualShock4DataOutput));
+		#else
+		int res = hid_write(m_hidDevice, (unsigned char*)&data_out, sizeof(DualShock4DataOutput));
+		#endif
+
+		return res;
+	}
+
+    // Multi-threaded state
+	const PSDualShock4ControllerConfig m_cfg;
+	hid_device *m_hidDevice;
+	IControllerListener *m_controllerListener;
+	bool m_bSupportsMagnetometer;
+	AtomicObject<DualShock4ControllerInputState> m_currentInputState;
+	AtomicObject<DualShock4ControllerOutputState> m_currentOutputState;
+
+    // Worker thread state
+    int m_nextPollSequenceNumber;
+	DualShock4DataInput m_previousHIDInputPacket;
+    DualShock4DataInput m_currentHIDInputPacket;
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_lastHIDOutputTimestamp;
+	DualShock4ControllerOutputState m_previousOutputState;
+};
 
 // -- public methods
 
@@ -369,37 +565,241 @@ PSDualShock4ControllerConfig::ptree2config(const boost::property_tree::ptree &pt
     }
 }
 
-// -- PSMove Controller -----
+// -- DualShock4ControllerInputState --
+DualShock4ControllerInputState::DualShock4ControllerInputState()
+{
+    clear();
+}
+
+void DualShock4ControllerInputState::clear()
+{
+    CommonControllerState::clear();
+
+    RawSequence = 0;
+    RawTimeStamp = 0;
+
+    DeviceType = PSDualShock4;
+
+    LeftAnalogX = 0.f;
+    LeftAnalogY = 0.f;
+    RightAnalogX = 0.f;
+    RightAnalogY = 0.f;
+    LeftTrigger= 0.f;
+    RightTrigger= 0.f;
+
+    DPad_Up = CommonControllerState::Button_UP;
+    DPad_Down = CommonControllerState::Button_UP;
+    DPad_Left = CommonControllerState::Button_UP;
+    DPad_Right = CommonControllerState::Button_UP;
+
+    Square = CommonControllerState::Button_UP;
+    Cross = CommonControllerState::Button_UP;
+    Circle = CommonControllerState::Button_UP;
+    Triangle = CommonControllerState::Button_UP;
+
+    L1 = CommonControllerState::Button_UP;
+    R1 = CommonControllerState::Button_UP;
+    L2 = CommonControllerState::Button_UP;
+    R2 = CommonControllerState::Button_UP;
+    L3 = CommonControllerState::Button_UP;
+    R3 = CommonControllerState::Button_UP;
+
+    Share = CommonControllerState::Button_UP;
+    Options = CommonControllerState::Button_UP;
+
+    PS = CommonControllerState::Button_UP;
+    TrackPadButton = CommonControllerState::Button_UP;
+
+    memset(RawAccelerometer, 0, sizeof(int) * 3);
+    memset(RawGyro, 0, sizeof(int) * 3);
+
+    CalibratedAccelerometer.clear();
+    CalibratedGyro.clear();
+}
+
+void DualShock4ControllerInputState::parseDataInput(
+	const PSDualShock4ControllerConfig *config,
+	const struct DualShock4DataInput *previous_hid_packet,
+	const struct DualShock4DataInput *current_hid_input)
+{
+    // Smush the button state into one unsigned 32-bit variable
+    AllButtons = make_dualshock4_button_bitmask(current_hid_input);
+
+    // Converts the dpad enum to independent bit flags
+    {
+        eDualShock4_DPad dpad_enum = static_cast<eDualShock4_DPad>(current_hid_input->buttons1.raw & 0xF);
+        unsigned int dpad_bits= 0;
+
+        switch (dpad_enum)
+        {
+        case eDualShock4_DPad::DualShock4DPad_N:
+            dpad_bits |= eDS4_Button::Btn_DPAD_UP;
+            break;
+        case eDualShock4_DPad::DualShock4DPad_NE:
+            dpad_bits |= eDS4_Button::Btn_DPAD_UP;
+            dpad_bits |= eDS4_Button::Btn_DPAD_RIGHT;
+            break;
+        case eDualShock4_DPad::DualShock4DPad_E:
+            dpad_bits |= eDS4_Button::Btn_DPAD_RIGHT;
+            break;
+        case eDualShock4_DPad::DualShock4DPad_SE:
+            dpad_bits |= eDS4_Button::Btn_DPAD_DOWN;
+            dpad_bits |= eDS4_Button::Btn_DPAD_RIGHT;
+            break;
+        case eDualShock4_DPad::DualShock4DPad_S:
+            dpad_bits |= eDS4_Button::Btn_DPAD_DOWN;
+            break;
+        case eDualShock4_DPad::DualShock4DPad_SW:
+            dpad_bits |= eDS4_Button::Btn_DPAD_DOWN;
+            dpad_bits |= eDS4_Button::Btn_DPAD_LEFT;
+            break;
+        case eDualShock4_DPad::DualShock4DPad_W:
+            dpad_bits |= eDS4_Button::Btn_DPAD_LEFT;
+            break;
+        case eDualShock4_DPad::DualShock4DPad_NW:
+            dpad_bits |= eDS4_Button::Btn_DPAD_UP;
+            dpad_bits |= eDS4_Button::Btn_DPAD_LEFT;
+            break;
+        }
+
+        // Append in the DPad bits
+        AllButtons |= (dpad_bits & 0xf);
+    }
+
+    // Update the button state enum
+    {
+		unsigned int prev_button_bitmask = previous_hid_packet != nullptr ? make_dualshock4_button_bitmask(previous_hid_packet) : 0;
+
+        DPad_Up = getButtonState(AllButtons, prev_button_bitmask, Btn_DPAD_UP);
+        DPad_Down = getButtonState(AllButtons, prev_button_bitmask, Btn_DPAD_DOWN);
+        DPad_Left = getButtonState(AllButtons, prev_button_bitmask, Btn_DPAD_LEFT);
+        DPad_Right = getButtonState(AllButtons, prev_button_bitmask, Btn_DPAD_RIGHT);
+        Square = getButtonState(AllButtons, prev_button_bitmask, Btn_SQUARE);
+        Cross = getButtonState(AllButtons, prev_button_bitmask, Btn_CROSS);
+        Circle = getButtonState(AllButtons, prev_button_bitmask, Btn_CIRCLE);
+        Triangle = getButtonState(AllButtons, prev_button_bitmask, Btn_TRIANGLE);
+
+        L1 = getButtonState(AllButtons, prev_button_bitmask, Btn_L1);
+        R1 = getButtonState(AllButtons, prev_button_bitmask, Btn_R1);
+        L2 = getButtonState(AllButtons, prev_button_bitmask, Btn_L2);
+        R2 = getButtonState(AllButtons, prev_button_bitmask, Btn_R2);
+        Share = getButtonState(AllButtons, prev_button_bitmask, Btn_SHARE);
+        Options = getButtonState(AllButtons, prev_button_bitmask, Btn_OPTION);
+        L3 = getButtonState(AllButtons, prev_button_bitmask, Btn_L3);
+        R3 = getButtonState(AllButtons, prev_button_bitmask, Btn_R3);
+
+        PS = getButtonState(AllButtons, prev_button_bitmask, Btn_PS);
+        TrackPadButton = getButtonState(AllButtons, prev_button_bitmask, Btn_TPAD);
+    }
+
+    // Remap the analog sticks from [0,255] -> [-1.f,1.f]
+    LeftAnalogX= ((static_cast<float>(current_hid_input->left_stick_x) / 255.f) - 0.5f) * 2.f;
+    LeftAnalogY = ((static_cast<float>(current_hid_input->left_stick_y) / 255.f) - 0.5f) * 2.f;
+    RightAnalogX = ((static_cast<float>(current_hid_input->right_stick_x) / 255.f) - 0.5f) * 2.f;
+    RightAnalogY = ((static_cast<float>(current_hid_input->right_stick_y) / 255.f) - 0.5f) * 2.f;
+
+    // Remap the analog triggers from [0,255] -> [0.f,1.f]
+    LeftTrigger = static_cast<float>(current_hid_input->left_trigger) / 255.f;
+    RightTrigger = static_cast<float>(current_hid_input->right_trigger) / 255.f;
+
+    // Processes the IMU data
+    {
+        // Piece together the 12-bit accelerometer data
+        short raw_accelX = static_cast<short>((current_hid_input->accel_x[1] << 8) | current_hid_input->accel_x[0]) >> 4;
+        short raw_accelY = static_cast<short>((current_hid_input->accel_y[1] << 8) | current_hid_input->accel_y[0]) >> 4;
+        short raw_accelZ = static_cast<short>((current_hid_input->accel_z[1] << 8) | current_hid_input->accel_z[0]) >> 4;
+
+        // Piece together the 16-bit gyroscope data
+        short raw_gyroX = static_cast<short>((current_hid_input->gyro_x[1] << 8) | current_hid_input->gyro_x[0]);
+        short raw_gyroY = static_cast<short>((current_hid_input->gyro_y[1] << 8) | current_hid_input->gyro_y[0]);
+        short raw_gyroZ = static_cast<short>((current_hid_input->gyro_z[1] << 8) | current_hid_input->gyro_z[0]);
+
+        // Save the raw accelerometer values
+        RawAccelerometer[0] = static_cast<int>(raw_accelX);
+        RawAccelerometer[1] = static_cast<int>(raw_accelY);
+        RawAccelerometer[2] = static_cast<int>(raw_accelZ);
+
+        // Save the raw gyro values
+        RawGyro[0] = static_cast<int>(raw_gyroX);
+        RawGyro[1] = static_cast<int>(raw_gyroY);
+        RawGyro[2] = static_cast<int>(raw_gyroZ);
+
+        // calibrated_acc= raw_acc*acc_gain + acc_bias
+        CalibratedAccelerometer.i = 
+            static_cast<float>(RawAccelerometer[0]) * config->accelerometer_gain.i 
+            + config->accelerometer_bias.i;
+        CalibratedAccelerometer.j =
+            static_cast<float>(RawAccelerometer[1]) * config->accelerometer_gain.j
+            + config->accelerometer_bias.j;
+        CalibratedAccelerometer.k =
+            static_cast<float>(RawAccelerometer[2]) * config->accelerometer_gain.k
+            + config->accelerometer_bias.k;
+
+        // calibrated_gyro= raw_gyro*gyro_gain + gyro_bias
+        CalibratedGyro.i = static_cast<float>(RawGyro[0]) * config->gyro_gain;
+        CalibratedGyro.j = static_cast<float>(RawGyro[1]) * config->gyro_gain;
+        CalibratedGyro.k = static_cast<float>(RawGyro[2]) * config->gyro_gain;
+    }
+
+    // Sequence and timestamp
+    RawSequence = current_hid_input->buttons3.state.counter;
+    RawTimeStamp = current_hid_input->timestamp;
+
+    // Convert the 0-10 battery level into the batter level
+    switch (current_hid_input->batteryLevel)
+    {
+    case 0:
+        Battery = CommonControllerState::Batt_CHARGING;
+        break;
+    case 1:
+        Battery = CommonControllerState::Batt_MIN;
+        break;
+    case 2:
+    case 3:
+        Battery = CommonControllerState::Batt_20Percent;
+        break;
+    case 4:
+    case 5:
+        Battery = CommonControllerState::Batt_40Percent;
+        break;
+    case 6:
+    case 7:
+        Battery = CommonControllerState::Batt_60Percent;
+        break;
+    case 8:
+    case 9:
+        Battery = CommonControllerState::Batt_80Percent;
+        break;
+    case 10:
+    default:
+        Battery = CommonControllerState::Batt_MAX;
+        break;
+    }
+}
+
+// -- DualShock4ControllerOutputState -----
+DualShock4ControllerOutputState::DualShock4ControllerOutputState()
+{
+	clear();
+}
+
+void DualShock4ControllerOutputState::clear()
+{
+	r= g= b= 0;
+	rumble_left= rumble_right= 0;
+}
+
+// -- DualShock4 Controller -----
 PSDualShock4Controller::PSDualShock4Controller()
-    : LedR(0)
-    , LedG(0)
-    , LedB(0)
-    , RumbleRight(0)
-    , RumbleLeft(0)
-    , bWriteStateDirty(false)
-    , NextPollSequenceNumber(0)
+    : m_HIDPacketProcessor(nullptr)
+	, m_controllerListener(nullptr)
+
 {
 	HIDDetails.vendor_id = -1;
 	HIDDetails.product_id = -1;
     HIDDetails.Handle = nullptr;
-
-    InData = new PSDualShock4DataInput;
-    memset(InData, 0, sizeof(PSDualShock4DataInput));
-
-    OutData = new PSDualShock4DataOutput;
-    memset(OutData, 0, sizeof(PSDualShock4DataOutput));
-    OutData->hid_protocol_code= 0x11;
-    OutData->_unknown1[0]= 0x80; // Unknown why this this is needed, copied from DS4Windows
-    OutData->_unknown1[1] = 0x00;
-    OutData->rumbleFlags = PSDS4_RUMBLE_ENABLED;
-
-    // Make sure there is an initial empty state in the tracker queue
-    {
-        PSDualShock4ControllerState empty_state;
-
-        empty_state.clear();
-        ControllerStates.push_back(empty_state);
-    }
+	memset(&m_cachedInputState, 0, sizeof(DualShock4ControllerInputState));
+	memset(&m_cachedOutputState, 0, sizeof(DualShock4ControllerOutputState));
 }
 
 PSDualShock4Controller::~PSDualShock4Controller()
@@ -409,7 +809,10 @@ PSDualShock4Controller::~PSDualShock4Controller()
         SERVER_LOG_ERROR("~PSDualShock4Controller") << "Controller deleted without calling close() first!";
     }
 
-    delete InData;
+	if (m_HIDPacketProcessor)
+	{
+		delete m_HIDPacketProcessor;
+	}
 }
 
 bool PSDualShock4Controller::open()
@@ -520,6 +923,10 @@ bool PSDualShock4Controller::open(
                 }
             }
 
+			// Create the sensor processor thread
+			m_HIDPacketProcessor= new DualShock4HidPacketProcessor(cfg);
+			m_HIDPacketProcessor->start(HIDDetails.Handle, m_controllerListener);
+
             if (success)
             {
                 // Build a unique name for the config file using bluetooth address of the controller
@@ -538,16 +945,6 @@ bool PSDualShock4Controller::open(
 				// Save it back out again in case any defaults changed
 				cfg.save();
             }
-
-            // Reset the polling sequence counter
-            NextPollSequenceNumber = 0;
-
-            // Write out the initial controller state
-            if (success && IsBluetooth)
-            {
-                bWriteStateDirty= true;
-                writeDataOut();
-            }
         }
         else
         {
@@ -565,13 +962,16 @@ void PSDualShock4Controller::close()
     {
         SERVER_LOG_INFO("PSDualShock4Controller::close") << "Closing PSDualShock4Controller(" << HIDDetails.Device_path << ")";
 
+		if (m_HIDPacketProcessor != nullptr)
+		{
+			// halt the HID packet processing thread
+			m_HIDPacketProcessor->stop();
+			delete m_HIDPacketProcessor;
+			m_HIDPacketProcessor= nullptr;
+		}
+
         if (HIDDetails.Handle != nullptr)
         {
-            if (IsBluetooth)
-            {
-                clearAndWriteDataOut();
-            }
-
             hid_close(HIDDetails.Handle);
             HIDDetails.Handle = nullptr;
         }
@@ -589,7 +989,7 @@ PSDualShock4Controller::setHostBluetoothAddress(const std::string &new_host_bt_a
     unsigned char bts[PSDS4_BTADDR_SET_SIZE];
 
     memset(bts, 0, sizeof(bts));
-    bts[0] = PSDualShock4_USBReport_SetBTAddr;
+    bts[0] = DualShock4_USBReport_SetBTAddr;
 
     unsigned char addr[6];
     if (ServerUtility::bluetooth_string_address_to_bytes(new_host_bt_addr, addr, sizeof(addr)))
@@ -684,6 +1084,36 @@ PSDualShock4Controller::getIsReadyToPoll() const
     return (getIsOpen() && getIsBluetooth());
 }
 
+long 
+PSDualShock4Controller::getMaxPollFailureCount() const
+{
+	return cfg.max_poll_failure_count;
+}
+
+IDeviceInterface::ePollResult 
+PSDualShock4Controller::poll()
+{
+	if (m_HIDPacketProcessor != nullptr)
+	{
+		int LastRawSequence= m_cachedInputState.RawSequence;
+
+		m_HIDPacketProcessor->fetchLatestInputData(m_cachedInputState);
+
+		if (m_cachedInputState.RawSequence != LastRawSequence)
+		{
+			return IDeviceInterface::_PollResultSuccessNewData;
+		}
+		else
+		{
+			return IDeviceInterface::_PollResultSuccessNoData;
+		}
+	}
+	else
+	{
+		return IDeviceInterface::_PollResultFailure;
+	}
+}
+
 std::string
 PSDualShock4Controller::getUSBDevicePath() const
 {
@@ -720,12 +1150,6 @@ PSDualShock4Controller::getIsOpen() const
     return (HIDDetails.Handle != nullptr);
 }
 
-CommonDeviceState::eDeviceType
-PSDualShock4Controller::getDeviceType() const
-{
-    return CommonDeviceState::PSDualShock4;
-}
-
 bool
 PSDualShock4Controller::getBTAddressesViaUSB(std::string& host, std::string& controller)
 {
@@ -737,7 +1161,7 @@ PSDualShock4Controller::getBTAddressesViaUSB(std::string& host, std::string& con
     unsigned char host_char_buff[PSDS4_BTADDR_SIZE];
 
     memset(btg, 0, sizeof(btg));
-    btg[0] = PSDualShock4_USBReport_GetBTAddr;
+    btg[0] = DualShock4_USBReport_GetBTAddr;
     res = hid_get_feature_report(HIDDetails.Handle, btg, sizeof(btg));
 
     if (res == sizeof(btg))
@@ -766,268 +1190,17 @@ PSDualShock4Controller::getBTAddressesViaUSB(std::string& host, std::string& con
     return success;
 }
 
-
-IControllerInterface::ePollResult
-PSDualShock4Controller::poll()
-{
-    IControllerInterface::ePollResult result = IControllerInterface::_PollResultFailure;
-
-    if (!getIsBluetooth())
-    {
-        // Don't bother polling when connected via usb
-        result = IControllerInterface::_PollResultSuccessNoData;
-    }
-    else if (getIsOpen())
-    {
-        static const int k_max_iterations = 32;
-
-        for (int iteration = 0; iteration < k_max_iterations; ++iteration)
-        {
-            // Attempt to read the next update packet from the controller
-            int res = hid_read(HIDDetails.Handle, (unsigned char*)InData, sizeof(PSDualShock4DataInput));
-
-            if (res == 0)
-            {
-                //SERVER_LOG_WARNING("PSDualShock4Controller::readDataIn") << "Read Bytes: " << res;
-
-                // Device still in valid state
-                result = (iteration == 0)
-                    ? IControllerInterface::_PollResultSuccessNoData
-                    : IControllerInterface::_PollResultSuccessNewData;
-
-                // No more data available. Stop iterating.
-                break;
-            }
-            else if (res < 0)
-            {
-                char hidapi_err_mbs[256];
-                bool valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
-
-                // Device no longer in valid state.
-                if (valid_error_mesg)
-                {
-                    SERVER_LOG_ERROR("PSDualShock4Controller::readDataIn") << "HID ERROR: " << hidapi_err_mbs;
-                }
-                result = IControllerInterface::_PollResultFailure;
-
-                // No more data available. Stop iterating.
-                break;
-            }
-            else
-            {
-                //SERVER_LOG_WARNING("PSDualShock4Controller::readDataIn") << "Read Bytes: " << res;
-
-                // New data available. Keep iterating.
-                result = IControllerInterface::_PollResultSuccessNewData;
-            }
-
-            // https://github.com/nitsch/moveonpc/wiki/Input-report
-            PSDualShock4ControllerState newState;
-
-            // Increment the sequence for every new polling packet
-            newState.PollSequenceNumber = NextPollSequenceNumber;
-            ++NextPollSequenceNumber;
-
-            // Smush the button state into one unsigned 32-bit variable
-            newState.AllButtons = 
-                (((unsigned int)InData->buttons3.raw & 0x3) << 16) | // Get the 1st two bits of buttons: [0|0|0|0|0|0|PS|TPad]
-                (unsigned int)(InData->buttons2.raw << 8) | // [R3|L3|Option|Share|R2|L2|R1|L1]
-                ((unsigned int)InData->buttons1.raw & 0xF0); // Mask out the dpad enum (1st four bits): [tri|cir|x|sq|0|0|0|0]
-
-            // Converts the dpad enum to independent bit flags
-            {
-                ePSDualShock4_DPad dpad_enum = static_cast<ePSDualShock4_DPad>(InData->buttons1.raw & 0xF);
-                unsigned int dpad_bits= 0;
-
-                switch (dpad_enum)
-                {
-                case ePSDualShock4_DPad::PSDualShock4DPad_N:
-                    dpad_bits |= ePSDS4_Button::Btn_DPAD_UP;
-                    break;
-                case ePSDualShock4_DPad::PSDualShock4DPad_NE:
-                    dpad_bits |= ePSDS4_Button::Btn_DPAD_UP;
-                    dpad_bits |= ePSDS4_Button::Btn_DPAD_RIGHT;
-                    break;
-                case ePSDualShock4_DPad::PSDualShock4DPad_E:
-                    dpad_bits |= ePSDS4_Button::Btn_DPAD_RIGHT;
-                    break;
-                case ePSDualShock4_DPad::PSDualShock4DPad_SE:
-                    dpad_bits |= ePSDS4_Button::Btn_DPAD_DOWN;
-                    dpad_bits |= ePSDS4_Button::Btn_DPAD_RIGHT;
-                    break;
-                case ePSDualShock4_DPad::PSDualShock4DPad_S:
-                    dpad_bits |= ePSDS4_Button::Btn_DPAD_DOWN;
-                    break;
-                case ePSDualShock4_DPad::PSDualShock4DPad_SW:
-                    dpad_bits |= ePSDS4_Button::Btn_DPAD_DOWN;
-                    dpad_bits |= ePSDS4_Button::Btn_DPAD_LEFT;
-                    break;
-                case ePSDualShock4_DPad::PSDualShock4DPad_W:
-                    dpad_bits |= ePSDS4_Button::Btn_DPAD_LEFT;
-                    break;
-                case ePSDualShock4_DPad::PSDualShock4DPad_NW:
-                    dpad_bits |= ePSDS4_Button::Btn_DPAD_UP;
-                    dpad_bits |= ePSDS4_Button::Btn_DPAD_LEFT;
-                    break;
-                }
-
-                // Append in the DPad bits
-                newState.AllButtons |= (dpad_bits & 0xf);
-            }
-
-            // Update the button state enum
-            {
-                unsigned int lastButtons = ControllerStates.empty() ? 0 : ControllerStates.back().AllButtons;
-
-                newState.DPad_Up = getButtonState(newState.AllButtons, lastButtons, Btn_DPAD_UP);
-                newState.DPad_Down = getButtonState(newState.AllButtons, lastButtons, Btn_DPAD_DOWN);
-                newState.DPad_Left = getButtonState(newState.AllButtons, lastButtons, Btn_DPAD_LEFT);
-                newState.DPad_Right = getButtonState(newState.AllButtons, lastButtons, Btn_DPAD_RIGHT);
-                newState.Square = getButtonState(newState.AllButtons, lastButtons, Btn_SQUARE);
-                newState.Cross = getButtonState(newState.AllButtons, lastButtons, Btn_CROSS);
-                newState.Circle = getButtonState(newState.AllButtons, lastButtons, Btn_CIRCLE);
-                newState.Triangle = getButtonState(newState.AllButtons, lastButtons, Btn_TRIANGLE);
-
-                newState.L1 = getButtonState(newState.AllButtons, lastButtons, Btn_L1);
-                newState.R1 = getButtonState(newState.AllButtons, lastButtons, Btn_R1);
-                newState.L2 = getButtonState(newState.AllButtons, lastButtons, Btn_L2);
-                newState.R2 = getButtonState(newState.AllButtons, lastButtons, Btn_R2);
-                newState.Share = getButtonState(newState.AllButtons, lastButtons, Btn_SHARE);
-                newState.Options = getButtonState(newState.AllButtons, lastButtons, Btn_OPTION);
-                newState.L3 = getButtonState(newState.AllButtons, lastButtons, Btn_L3);
-                newState.R3 = getButtonState(newState.AllButtons, lastButtons, Btn_R3);
-
-
-                newState.PS = getButtonState(newState.AllButtons, lastButtons, Btn_PS);
-                newState.TrackPadButton = getButtonState(newState.AllButtons, lastButtons, Btn_TPAD);
-            }
-
-            // Remap the analog sticks from [0,255] -> [-1.f,1.f]
-            newState.LeftAnalogX= ((static_cast<float>(InData->left_stick_x) / 255.f) - 0.5f) * 2.f;
-            newState.LeftAnalogY = ((static_cast<float>(InData->left_stick_y) / 255.f) - 0.5f) * 2.f;
-            newState.RightAnalogX = ((static_cast<float>(InData->right_stick_x) / 255.f) - 0.5f) * 2.f;
-            newState.RightAnalogY = ((static_cast<float>(InData->right_stick_y) / 255.f) - 0.5f) * 2.f;
-
-            // Remap the analog triggers from [0,255] -> [0.f,1.f]
-            newState.LeftTrigger = static_cast<float>(InData->left_trigger) / 255.f;
-            newState.RightTrigger = static_cast<float>(InData->right_trigger) / 255.f;
-
-            // Processes the IMU data
-            {
-                // Piece together the 12-bit accelerometer data
-                short raw_accelX = static_cast<short>((InData->accel_x[1] << 8) | InData->accel_x[0]) >> 4;
-                short raw_accelY = static_cast<short>((InData->accel_y[1] << 8) | InData->accel_y[0]) >> 4;
-                short raw_accelZ = static_cast<short>((InData->accel_z[1] << 8) | InData->accel_z[0]) >> 4;
-
-                // Piece together the 16-bit gyroscope data
-                short raw_gyroX = static_cast<short>((InData->gyro_x[1] << 8) | InData->gyro_x[0]);
-                short raw_gyroY = static_cast<short>((InData->gyro_y[1] << 8) | InData->gyro_y[0]);
-                short raw_gyroZ = static_cast<short>((InData->gyro_z[1] << 8) | InData->gyro_z[0]);
-
-                // Save the raw accelerometer values
-                newState.RawAccelerometer[0] = static_cast<int>(raw_accelX);
-                newState.RawAccelerometer[1] = static_cast<int>(raw_accelY);
-                newState.RawAccelerometer[2] = static_cast<int>(raw_accelZ);
-
-                // Save the raw gyro values
-                newState.RawGyro[0] = static_cast<int>(raw_gyroX);
-                newState.RawGyro[1] = static_cast<int>(raw_gyroY);
-                newState.RawGyro[2] = static_cast<int>(raw_gyroZ);
-
-                // calibrated_acc= raw_acc*acc_gain + acc_bias
-                newState.CalibratedAccelerometer.i = 
-                    static_cast<float>(newState.RawAccelerometer[0]) * cfg.accelerometer_gain.i 
-                    + cfg.accelerometer_bias.i;
-                newState.CalibratedAccelerometer.j =
-                    static_cast<float>(newState.RawAccelerometer[1]) * cfg.accelerometer_gain.j
-                    + cfg.accelerometer_bias.j;
-                newState.CalibratedAccelerometer.k =
-                    static_cast<float>(newState.RawAccelerometer[2]) * cfg.accelerometer_gain.k
-                    + cfg.accelerometer_bias.k;
-
-                // calibrated_gyro= raw_gyro*gyro_gain + gyro_bias
-                newState.CalibratedGyro.i = static_cast<float>(newState.RawGyro[0]) * cfg.gyro_gain;
-                newState.CalibratedGyro.j = static_cast<float>(newState.RawGyro[1]) * cfg.gyro_gain;
-                newState.CalibratedGyro.k = static_cast<float>(newState.RawGyro[2]) * cfg.gyro_gain;
-            }
-
-            // Sequence and timestamp
-            newState.RawSequence = InData->buttons3.state.counter;
-            newState.RawTimeStamp = InData->timestamp;
-
-            // Convert the 0-10 battery level into the batter level
-            switch (InData->batteryLevel)
-            {
-            case 0:
-                newState.Battery = CommonControllerState::BatteryLevel::Batt_CHARGING;
-                break;
-            case 1:
-                newState.Battery = CommonControllerState::BatteryLevel::Batt_MIN;
-                break;
-            case 2:
-            case 3:
-                newState.Battery = CommonControllerState::BatteryLevel::Batt_20Percent;
-                break;
-            case 4:
-            case 5:
-                newState.Battery = CommonControllerState::BatteryLevel::Batt_40Percent;
-                break;
-            case 6:
-            case 7:
-                newState.Battery = CommonControllerState::BatteryLevel::Batt_60Percent;
-                break;
-            case 8:
-            case 9:
-                newState.Battery = CommonControllerState::BatteryLevel::Batt_80Percent;
-                break;
-            case 10:
-            default:
-                newState.Battery = CommonControllerState::BatteryLevel::Batt_MAX;
-                break;
-            }            
-
-            // Make room for new entry if at the max queue size
-            if (ControllerStates.size() >= PSDS4_STATE_BUFFER_MAX)
-            {
-                ControllerStates.erase(ControllerStates.begin(),
-                    ControllerStates.begin() + ControllerStates.size() - PSDS4_STATE_BUFFER_MAX);
-            }
-
-            ControllerStates.push_back(newState);
-        }
-
-        // Update recurrent writes on a regular interval
-        {
-            std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-
-            // See if it's time to update the LED/rumble state
-            std::chrono::duration<double, std::milli> led_update_diff = now - lastWriteStateTime;
-            if (led_update_diff.count() >= PSDS4_WRITE_DATA_INTERVAL_MS)
-            {
-                writeDataOut();
-                lastWriteStateTime = now;
-            }
-        }
-    }
-
-    return result;
-}
-
-const CommonDeviceState *
+const CommonDeviceState * 
 PSDualShock4Controller::getState(
-int lookBack) const
+	int lookBack) const
 {
-    const int queueSize = static_cast<int>(ControllerStates.size());
-    const CommonDeviceState * result =
-        (lookBack < queueSize) ? &ControllerStates.at(queueSize - lookBack - 1) : nullptr;
-
-    return result;
+    return &m_cachedInputState;
 }
 
 const std::tuple<unsigned char, unsigned char, unsigned char>
 PSDualShock4Controller::getColour() const
 {
-    return std::make_tuple(LedR, LedG, LedB);
+    return std::make_tuple(m_cachedOutputState.r, m_cachedOutputState.g, m_cachedOutputState.b);
 }
 
 void
@@ -1094,7 +1267,7 @@ float PSDualShock4Controller::getPredictionTime() const
 
 bool PSDualShock4Controller::getWasSystemButtonPressed() const
 {
-    const PSDualShock4ControllerState *ds4_state= static_cast<const PSDualShock4ControllerState *>(getState());
+    const DualShock4ControllerInputState *ds4_state= static_cast<const DualShock4ControllerInputState *>(getState());
     bool bWasPressed= false;
 
     if (ds4_state != nullptr)
@@ -1105,86 +1278,22 @@ bool PSDualShock4Controller::getWasSystemButtonPressed() const
     return bWasPressed;
 }
 
-long PSDualShock4Controller::getMaxPollFailureCount() const
-{
-    return cfg.max_poll_failure_count;
-}
-
-// Setters
-void 
-PSDualShock4Controller::clearAndWriteDataOut()
-{
-    LedR = LedG = LedB = 0;
-    RumbleLeft = RumbleRight = 0;
-    bWriteStateDirty= true;
-    writeDataOut();
-}
-
-bool
-PSDualShock4Controller::writeDataOut()
-{
-    bool bSuccess= true;
-
-    if (bWriteStateDirty)
-    {
-        const bool bLedIsOn = LedR != 0 || LedG != 0 || LedB != 0;
-        const bool bIsRumbleOn = RumbleRight != 0 || RumbleLeft != 0;
-
-        // Light bar color
-        OutData->led_r = LedR;
-        OutData->led_g = LedG;
-        OutData->led_b = LedB;
-        
-        // Set off interval to 0% and the on interval to 100%. 
-        // There are no discos in PSMoveService.
-        OutData->led_flash_on = bLedIsOn ? 0xff : 0x00;
-        OutData->led_flash_off = 0x00; 
-
-        // a.k.a Soft Rumble Motor
-        OutData->rumble_right = RumbleRight;
-        // a.k.a Hard Rumble Motor
-        OutData->rumble_left = RumbleLeft;
-
-        // Keep writing state out until the desired LED and Rumble are 0 
-        bWriteStateDirty = bLedIsOn || bIsRumbleOn;
-
-        // Unfortunately in windows simply writing to the HID device, via WriteFile() internally, 
-        // doesn't appear to actually set the data on the controller (despite returning successfully).
-        // In the DS4 implementation they use the HidD_SetOutputReport() Win32 API call instead. 
-        // Unfortunately HIDAPI doesn't have any equivalent call, so we have to make our own.
-        #ifdef _WIN32
-        int res = hid_set_output_report(HIDDetails.Handle, (unsigned char*)OutData, sizeof(PSDualShock4DataOutput));
-        #else
-        int res = hid_write(HIDDetails.Handle, (unsigned char*)OutData, sizeof(PSDualShock4DataOutput));
-        #endif
-        bSuccess = res > 0;
-
-        if (!bSuccess)
-        {
-            char szErrorMessage[256];
-
-            if (hid_error_mbs(HIDDetails.Handle, szErrorMessage, sizeof(szErrorMessage)))
-            {
-                SERVER_LOG_ERROR("PSDualShock4Controller::writeDataOut") << "HID ERROR: " << szErrorMessage;
-            }
-        }
-    }
-
-    return bSuccess;
-}
-
 bool
 PSDualShock4Controller::setLED(unsigned char r, unsigned char g, unsigned char b)
 {
     bool success = true;
-    if ((LedR != r) || (LedG != g) || (LedB != b))
+
+    if (m_HIDPacketProcessor != nullptr &&
+		(m_cachedOutputState.r != r) || (m_cachedOutputState.g != g) || (m_cachedOutputState.b != b))
     {
-        LedR = r;
-        LedG = g;
-        LedB = b;
-        bWriteStateDirty = true;
-        success = writeDataOut();
+        m_cachedOutputState.r = r;
+        m_cachedOutputState.g = g;
+        m_cachedOutputState.b = b;
+		m_HIDPacketProcessor->postOutputState(m_cachedOutputState);
+        
+		success= true;
     }
+
     return success;
 }
 
@@ -1192,12 +1301,15 @@ bool
 PSDualShock4Controller::setLeftRumbleIntensity(unsigned char value)
 {
     bool success = true;
-    if (RumbleLeft != value)
+
+    if (m_cachedOutputState.rumble_left != value)
     {
-        RumbleLeft = value;
-        bWriteStateDirty = true;
-        success = writeDataOut();
+        m_cachedOutputState.rumble_left = value;
+		m_HIDPacketProcessor->postOutputState(m_cachedOutputState);
+
+        success = true;
     }
+
     return success;
 }
 
@@ -1205,13 +1317,21 @@ bool
 PSDualShock4Controller::setRightRumbleIntensity(unsigned char value)
 {
     bool success = true;
-    if (RumbleRight != value)
+
+    if (m_cachedOutputState.rumble_right != value)
     {
-        RumbleRight = value;
-        bWriteStateDirty = true;
-        success = writeDataOut();
+        m_cachedOutputState.rumble_right = value;
+		m_HIDPacketProcessor->postOutputState(m_cachedOutputState);
+
+        success = true;
     }
     return success;
+}
+
+void 
+PSDualShock4Controller::setControllerListener(IControllerListener *listener)
+{
+	m_controllerListener= listener;
 }
 
 // -- private helper functions -----
@@ -1219,6 +1339,15 @@ inline enum CommonControllerState::ButtonState
 getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask)
 {
     return (enum CommonControllerState::ButtonState)((((lastButtons & buttonMask) > 0) << 1) + ((buttons & buttonMask)>0));
+}
+
+inline unsigned int
+make_dualshock4_button_bitmask(const DualShock4DataInput *hid_packet)
+{
+	return 
+        (((unsigned int)hid_packet->buttons3.raw & 0x3) << 16) | // Get the 1st two bits of buttons: [0|0|0|0|0|0|PS|TPad]
+        (unsigned int)(hid_packet->buttons2.raw << 8) | // [R3|L3|Option|Share|R2|L2|R1|L1]
+        ((unsigned int)hid_packet->buttons1.raw & 0xF0); // Mask out the dpad enum (1st four bits): [tri|cir|x|sq|0|0|0|0]
 }
 
 inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size)

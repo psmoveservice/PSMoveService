@@ -8,7 +8,6 @@
 #include "hidapi.h"
 #include <string>
 #include <vector>
-#include <deque>
 #include <chrono>
 
 // The angle the accelerometer reading is pitched forward when the DS4 is on a flat surface
@@ -23,7 +22,7 @@
 // i.e. where what we consider the "identity" pose
 #define ACCELEROMETER_IDENTITY_PITCH_DEGREES 22.667f
 
-struct PSDualShock4HIDDetails {
+struct DualShock4HIDDetails {
 	int vendor_id;
 	int product_id;
     std::string Device_path;
@@ -32,8 +31,8 @@ struct PSDualShock4HIDDetails {
     std::string Host_bt_addr; // The bluetooth address of the adapter registered with the controller
 };
 
-struct PSDualShock4DataInput;   // See .cpp for declaration
-struct PSDualShock4DataOutput;  // See .cpp for declaration
+struct DualShock4DataInput;   // See .cpp for declaration
+struct DualShock4DataOutput;  // See .cpp for declaration
 
 class PSDualShock4ControllerConfig : public PSMoveConfig
 {
@@ -179,7 +178,7 @@ public:
 	std::string hand;
 };
 
-struct PSDualShock4ControllerState : public CommonControllerState
+struct DualShock4ControllerInputState : public CommonControllerState
 {
     int RawSequence;                               // 6-bit  (counts up by 1 per report)
 
@@ -221,56 +220,27 @@ struct PSDualShock4ControllerState : public CommonControllerState
     CommonDeviceVector CalibratedAccelerometer; // units of g (where 1g = 9.8m/s^2)
     CommonDeviceVector CalibratedGyro; // rad/s
 
-    PSDualShock4ControllerState()
-    {
-        clear();
-    }
+    DualShock4ControllerInputState();
 
-    void clear()
-    {
-        CommonControllerState::clear();
+    void clear();
+	void parseDataInput(
+		const PSDualShock4ControllerConfig *config, 
+		const struct DualShock4DataInput *previous_hid_packet,
+		const struct DualShock4DataInput *new_hid_packet);
+};
 
-        RawSequence = 0;
-        RawTimeStamp = 0;
+struct DualShock4ControllerOutputState 
+{
+    unsigned char r;        // red value, 0x00..0xff
+    unsigned char g;        // green value, 0x00..0xff
+    unsigned char b;        // blue value, 0x00..0xff
 
-        DeviceType = PSDualShock4;
+    unsigned char rumble_left;   // rumble value, 0x00..0xff
+	unsigned char rumble_right;  // rumble value, 0x00..0xff
 
-        LeftAnalogX = 0.f;
-        LeftAnalogY = 0.f;
-        RightAnalogX = 0.f;
-        RightAnalogY = 0.f;
-        LeftTrigger= 0.f;
-        RightTrigger= 0.f;
+	DualShock4ControllerOutputState();
 
-        DPad_Up = Button_UP;
-        DPad_Down = Button_UP;
-        DPad_Left = Button_UP;
-        DPad_Right = Button_UP;
-
-        Square = Button_UP;
-        Cross = Button_UP;
-        Circle = Button_UP;
-        Triangle = Button_UP;
-
-        L1 = Button_UP;
-        R1 = Button_UP;
-        L2 = Button_UP;
-        R2 = Button_UP;
-        L3 = Button_UP;
-        R3 = Button_UP;
-
-        Share = Button_UP;
-        Options = Button_UP;
-
-        PS = Button_UP;
-        TrackPadButton = Button_UP;
-
-        memset(RawAccelerometer, 0, sizeof(int) * 3);
-        memset(RawGyro, 0, sizeof(int) * 3);
-
-        CalibratedAccelerometer.clear();
-        CalibratedGyro.clear();
-    }
+	void clear();
 };
 
 class PSDualShock4Controller : public IControllerInterface {
@@ -288,9 +258,16 @@ public:
     virtual bool getIsReadyToPoll() const override;
     virtual IDeviceInterface::ePollResult poll() override;
     virtual void close() override;
-    virtual long getMaxPollFailureCount() const override;
-    virtual CommonDeviceState::eDeviceType getDeviceType() const override;
-    virtual const CommonDeviceState * getState(int lookBack = 0) const override;
+	virtual long getMaxPollFailureCount() const override;
+    CommonDeviceState::eDeviceType getDeviceType() const override
+    {
+        return CommonDeviceState::PSDualShock4;
+    }
+    static CommonDeviceState::eDeviceType getDeviceTypeStatic()
+    {
+        return CommonDeviceState::PSDualShock4;
+    }
+	virtual const CommonDeviceState * getState(int lookBack = 0) const override;
 
     // -- IControllerInterface
     virtual bool setHostBluetoothAddress(const std::string &address) override;
@@ -317,37 +294,28 @@ public:
     {
         return &cfg;
     }
-    static CommonDeviceState::eDeviceType getDeviceTypeStatic()
-    {
-        return CommonDeviceState::PSDualShock4;
-    }
 
     // -- Setters
     bool setLED(unsigned char r, unsigned char g, unsigned char b);
     bool setLeftRumbleIntensity(unsigned char value);
     bool setRightRumbleIntensity(unsigned char value);
+	void setControllerListener(IControllerListener *listener) override;
 
 private:
     bool getBTAddressesViaUSB(std::string& host, std::string& controller);
-    void clearAndWriteDataOut();
-    bool writeDataOut();                            // Setters will call this
 
     // Constant while a controller is open
     PSDualShock4ControllerConfig cfg;
-    PSDualShock4HIDDetails HIDDetails;
+    DualShock4HIDDetails HIDDetails;
     bool IsBluetooth;                               // true if valid serial number on device opening
 
-    // Cached Setter State
-    unsigned char LedR, LedG, LedB;
-    unsigned char RumbleRight; // Weak
-    unsigned char RumbleLeft; // Strong
-    bool bWriteStateDirty;
-    std::chrono::time_point<std::chrono::high_resolution_clock> lastWriteStateTime;
+    // Cached MainThread Controller State
+	DualShock4ControllerInputState m_cachedInputState;
+    DualShock4ControllerOutputState m_cachedOutputState;
 
-    // Read Controller State
-    int NextPollSequenceNumber;
-    std::deque<PSDualShock4ControllerState> ControllerStates;
-    PSDualShock4DataInput* InData;                        // Buffer to read hidapi reports into
-    PSDualShock4DataOutput* OutData;                      // Buffer to write hidapi reports out from
+    // HID Packet Processing
+	class DualShock4HidPacketProcessor* m_HIDPacketProcessor;
+	IControllerListener* m_controllerListener;
+
 };
 #endif // PSDUALSHOCK4_CONTROLLER_H

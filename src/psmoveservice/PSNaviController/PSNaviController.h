@@ -6,7 +6,6 @@
 #include "DeviceInterface.h"
 #include <string>
 #include <vector>
-#include <deque>
 
 class PSNaviControllerConfig : public PSMoveConfig
 {
@@ -92,6 +91,7 @@ public:
     virtual void close() override;
     virtual bool setHostBluetoothAddress(const std::string &address) override;
 	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) override;
+	virtual void setControllerListener(IControllerListener *listener) override;
 
     // -- Getters
     virtual bool getIsBluetooth() const override;
@@ -128,9 +128,9 @@ private:
 	class PSNaviAPIContext *APIContext;
     bool IsBluetooth;                               // true if valid serial number on device opening
 
-    // Read Controller State
+    // Cached Controller State
     int NextPollSequenceNumber;
-    std::deque<PSNaviControllerState> ControllerStates;
+    PSNaviControllerState ControllerState;
     unsigned char InBuffer[64];                        // Buffer to copy hidapi reports into
 };
 #endif // PSMOVE_CONTROLLER_H

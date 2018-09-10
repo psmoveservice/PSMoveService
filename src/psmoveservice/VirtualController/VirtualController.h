@@ -8,7 +8,6 @@
 #include "hidapi.h"
 #include <string>
 #include <array>
-#include <deque>
 #include <chrono>
 
 #define MAX_VIRTUAL_CONTROLLER_BUTTONS 32
@@ -142,6 +141,7 @@ public:
     // -- IControllerInterface
     virtual bool setHostBluetoothAddress(const std::string &address) override;
 	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) override;
+	virtual void setControllerListener(IControllerListener *listener) override;
     virtual bool getIsBluetooth() const override;
     virtual std::string getUSBDevicePath() const override;
 	virtual int getVendorID() const override;
@@ -172,9 +172,9 @@ private:
     std::string device_identifier;
     bool bIsOpen;
 
-    // Read HMD State
+    // Controller State
     int NextPollSequenceNumber;
-    std::deque<VirtualControllerState> ControllerStates;
+    VirtualControllerState ControllerState;
 
 	bool bIsTracking;
 };

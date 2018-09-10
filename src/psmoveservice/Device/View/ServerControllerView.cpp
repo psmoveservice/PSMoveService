@@ -1,6 +1,7 @@
 //-- includes -----
 #include "ServerControllerView.h"
 
+#include "AtomicPrimitives.h"
 #include "BluetoothRequests.h"
 #include "ControllerManager.h"
 #include "DeviceManager.h"
@@ -9,7 +10,6 @@
 #include "ServerRequestHandler.h"
 #include "CompoundPoseFilter.h"
 #include "KalmanPoseFilter.h"
-#include "PoseFilterInterface.h"
 #include "PSDualShock4Controller.h"
 #include "PSMoveController.h"
 #include "PSNaviController.h"
@@ -21,8 +21,12 @@
 
 #include <glm/glm.hpp>
 
+//-- typedefs ----
+using t_high_resolution_timepoint= std::chrono::time_point<std::chrono::high_resolution_clock>;
+using t_high_resolution_duration= t_high_resolution_timepoint::duration;
+
 //-- constants -----
-static const float k_min_time_delta_seconds = 1 / 120.f;
+static const float k_min_time_delta_seconds = 1 / 2500.f;
 static const float k_max_time_delta_seconds = 1 / 30.f;
 
 //-- macros -----
@@ -40,31 +44,44 @@ static void init_filters_for_psmove(
     const PSMoveController *psmoveController, 
     PoseFilterSpace **out_pose_filter_space,
     IPoseFilter **out_pose_filter);
-static void update_filters_for_psmove(
-    const PSMoveController *psmoveController, const PSMoveControllerState *psmoveState, const float delta_time,
-    const ControllerOpticalPoseEstimation *positionEstimation,
-    const PoseFilterSpace *poseFilterSpace,
-    IPoseFilter *pose_filter);
-
 static void init_filters_for_psdualshock4(
     const PSDualShock4Controller *psdualshock4Controller,
     PoseFilterSpace **out_pose_filter_space,
     IPoseFilter **out_pose_filter);
-static void update_filters_for_psdualshock4(
-    const PSDualShock4Controller *psdualshock4Controller, const PSDualShock4ControllerState *psmoveState, const float delta_time,
-    const ControllerOpticalPoseEstimation *positionEstimation,
-    const PoseFilterSpace *poseFilterSpace,
-    IPoseFilter *pose_filter);
-
 static void init_filters_for_virtual_controller(
     const VirtualController *psmoveController, 
     PoseFilterSpace **out_pose_filter_space,
     IPoseFilter **out_pose_filter);
-static void update_filters_for_virtual_controller(
-    const VirtualController *psmoveController, const VirtualControllerState *psmoveState, const float delta_time,
-    const ControllerOpticalPoseEstimation *positionEstimation,
-    const PoseFilterSpace *poseFilterSpace,
-    IPoseFilter *pose_filter);
+
+static void post_imu_filter_packets_for_psmove(
+    const PSMoveController *psmove,
+	const PSMoveControllerInputState *psmoveState,
+    const t_high_resolution_timepoint now, 
+	const t_high_resolution_duration secondsSinceLastUpdate,
+	t_controller_pose_sensor_queue *pose_filter_queue);
+static void post_optical_filter_packet_for_psmove(
+    const PSMoveController *psmove,
+    const t_high_resolution_timepoint now,
+    const ControllerOpticalPoseEstimation *poseEstimation,
+	t_controller_pose_optical_queue *pose_filter_queue);
+
+static void post_imu_filter_packets_for_ds4(
+    const PSDualShock4Controller *ds4, 
+	const DualShock4ControllerInputState *psmoveState,
+    const t_high_resolution_timepoint now, 
+	const t_high_resolution_duration secondsSinceLastUpdate,
+	t_controller_pose_sensor_queue *pose_filter_queue);
+static void post_optical_filter_packet_for_ds4(
+    const PSDualShock4Controller *ds4,
+    const t_high_resolution_timepoint now,
+    const ControllerOpticalPoseEstimation *poseEstimation,
+	t_controller_pose_optical_queue *pose_filter_queue);
+
+static void post_optical_filter_packet_for_virtual_controller(
+    const VirtualController *ds4,
+    const t_high_resolution_timepoint now,
+    const ControllerOpticalPoseEstimation *poseEstimation,
+	t_controller_pose_optical_queue *pose_filter_queue);
 
 static void generate_psmove_data_frame_for_stream(
     const ServerControllerView *controller_view, const ControllerStreamInfo *stream_info, PSMoveProtocol::DeviceOutputDataFrame *data_frame);
@@ -132,6 +149,8 @@ bool ServerControllerView::allocate_device_interface(
     case CommonDeviceState::PSMove:
         {
             m_device = new PSMoveController();
+			m_device->setControllerListener(this); // Listen for IMU packets
+
             m_tracker_pose_estimations = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
             m_pose_filter= nullptr; // no pose filter until the device is opened
 
@@ -152,6 +171,8 @@ bool ServerControllerView::allocate_device_interface(
     case CommonDeviceState::PSDualShock4:
         {
             m_device = new PSDualShock4Controller();
+			m_device->setControllerListener(this); // Listen for IMU packets
+
             m_tracker_pose_estimations = new ControllerOpticalPoseEstimation[TrackerManager::k_max_devices];
             m_pose_filter = nullptr; // no pose filter until the device is opened
 
@@ -411,6 +432,11 @@ void ServerControllerView::resetPoseFilter()
                 static_cast<VirtualController *>(m_device),
                 &m_pose_filter_space, &m_pose_filter);
         } break;
+	case CommonDeviceState::PSNavi:
+		// No pose filter
+		break;
+    default:
+        assert(false && "unreachable");
     }
 }
 
@@ -580,110 +606,186 @@ void ServerControllerView::updateOpticalPoseEstimation(TrackerManager* tracker_m
         m_multicam_pose_estimation->last_update_timestamp = now;
         m_multicam_pose_estimation->bValidTimestamps = true;
     }
+
+	// Update the filter if we have a valid optically tracked pose
+	// TODO: These packets will eventually get posted from the notifyTrackerDataReceived()
+	// callback function which will be called by camera processing threads as new video
+	// frames are received.
+	if (m_multicam_pose_estimation->bCurrentlyTracking)
+	{
+		switch (getControllerDeviceType())
+		{
+		case CommonDeviceState::PSMove:
+			{
+				const PSMoveController *psmove = this->castCheckedConst<PSMoveController>();
+
+				post_optical_filter_packet_for_psmove(
+					psmove,
+					now,
+					m_multicam_pose_estimation,
+					&m_PoseSensorOpticalPacketQueue);
+			} break;
+		case CommonDeviceState::PSDualShock4:
+			{
+				const PSDualShock4Controller *ds4 = this->castCheckedConst<PSDualShock4Controller>();
+
+				post_optical_filter_packet_for_ds4(
+					ds4,
+					now,
+					m_multicam_pose_estimation,
+					&m_PoseSensorOpticalPacketQueue);
+			} break;
+		case CommonDeviceState::VirtualController:
+			{
+				const VirtualController *virtual_controller = this->castCheckedConst<VirtualController>();
+
+				post_optical_filter_packet_for_virtual_controller(
+					virtual_controller,
+					now,
+					m_multicam_pose_estimation,
+					&m_PoseSensorOpticalPacketQueue);
+			} break;
+		default:
+			assert(0 && "Unhandled Controller Type");
+		}
+	}
+}
+
+void 
+ServerControllerView::notifySensorDataReceived(const CommonDeviceState *sensor_state)
+{
+    // Compute the time in seconds since the last update
+    const t_high_resolution_timepoint now = std::chrono::high_resolution_clock::now();
+	t_high_resolution_duration durationSinceLastUpdate= t_high_resolution_duration::zero();
+
+	if (m_bIsLastSensorDataTimestampValid)
+	{
+		durationSinceLastUpdate = now - m_lastSensorDataTimestamp;
+	}
+	m_lastSensorDataTimestamp= now;
+	m_bIsLastSensorDataTimestampValid= true;
+
+	// Apply device specific filtering
+    switch (sensor_state->DeviceType)
+    {
+    case CommonDeviceState::PSMove:
+        {
+            const PSMoveController *psmove = this->castCheckedConst<PSMoveController>();
+            const PSMoveControllerInputState *psmoveState = 
+				static_cast<const PSMoveControllerInputState *>(sensor_state);
+
+            // Only update the position filter when tracking is enabled
+            post_imu_filter_packets_for_psmove(
+                psmove, psmoveState,
+                now, durationSinceLastUpdate,
+				&m_PoseSensorIMUPacketQueue);
+        } break;
+    case CommonDeviceState::PSDualShock4:
+        {
+            const PSDualShock4Controller *ds4 = this->castCheckedConst<PSDualShock4Controller>();
+            const DualShock4ControllerInputState *ds4State = 
+				static_cast<const DualShock4ControllerInputState *>(sensor_state);
+
+            // Only update the position filter when tracking is enabled
+            post_imu_filter_packets_for_ds4(
+                ds4, ds4State,
+                now, durationSinceLastUpdate,
+				&m_PoseSensorIMUPacketQueue);
+        } break;
+    default:
+        assert(0 && "Unhandled Controller Type");
+    }
+
+    // Consider this HMD state sequence num processed
+    m_lastPollSeqNumProcessed = sensor_state->PollSequenceNumber;
 }
 
 void ServerControllerView::updateStateAndPredict()
 {
-    if (!getHasUnpublishedState())
+	std::vector<PoseSensorPacket> timeSortedPackets;
+
+	// Drain the packet queues filled by the threads
+	PoseSensorPacket packet;
+	while (m_PoseSensorIMUPacketQueue.try_dequeue(packet))
+	{
+		timeSortedPackets.push_back(packet);
+	}
+	//TODO: m_PoseSensorOpticalPacketQueue is currently getting filled on the main thread by
+	// updateOpticalPoseEstimation() when triangulating the optical pose estimates.
+	// Eventually this work will move to it's own camera processing thread 
+	// this line will read from a lock-less queue just like the IMU packet queue.
+	while (m_PoseSensorOpticalPacketQueue.size() > 0)
+	{		
+		timeSortedPackets.push_back(m_PoseSensorOpticalPacketQueue.front());
+		m_PoseSensorOpticalPacketQueue.pop_front();
+	}
+
+	// Sort the packets in order of ascending time
+	if (timeSortedPackets.size() > 1)
+	{
+		std::sort(
+			timeSortedPackets.begin(), timeSortedPackets.end(), 
+			[](const PoseSensorPacket & a, const PoseSensorPacket & b) -> bool
+			{
+				return a.timestamp < b.timestamp; 
+			});
+
+		t_high_resolution_duration duration= 
+			timeSortedPackets[timeSortedPackets.size()-1].timestamp - timeSortedPackets[0].timestamp;
+		std::chrono::duration<float, std::milli> milli_duration= duration;
+
+		const size_t k_max_process_count= 100;
+		if (timeSortedPackets.size() > k_max_process_count)
+		{
+			const size_t excess= timeSortedPackets.size() - k_max_process_count;
+
+			SERVER_LOG_WARNING("updatePoseFilter()") << "Incoming packet count: " << timeSortedPackets.size() << " (" << milli_duration.count() << "ms)" << ", trimming: " << excess;
+			timeSortedPackets.erase(timeSortedPackets.begin(), timeSortedPackets.begin()+excess);
+		}
+		else
+		{
+			//SERVER_LOG_DEBUG("updatePoseFilter()") << "Incoming packet count: " << timeSortedPackets.size() << " (" << milli_duration.count() << "ms)";
+		}
+	}
+
+	// Process the sensor packets from oldest to newest
+	for (const PoseSensorPacket &sensorPacket : timeSortedPackets)
     {
-        return;
-    }
+		// Compute the time since the last packet
+		float time_delta_seconds;
+		if (m_last_filter_update_timestamp_valid)
+		{
+			const std::chrono::duration<float, std::milli> time_delta = sensorPacket.timestamp - m_last_filter_update_timestamp;
+			const float time_delta_milli = time_delta.count();
 
-    // Look backward in time to find the first controller update state with a poll sequence number 
-    // newer than the last sequence number we've processed.
-    int firstLookBackIndex = -1;
-    int testLookBack = 0;
-    const CommonControllerState *state= getState(testLookBack);
-    while (state != nullptr && state->PollSequenceNumber > m_lastPollSeqNumProcessed)
-    {
-        firstLookBackIndex= testLookBack;
-        testLookBack++;
-        state= getState(testLookBack);
-    }
-    assert(firstLookBackIndex >= 0);
+			// convert delta to seconds clamp time delta between 2500hz and 30hz
+			time_delta_seconds = clampf(time_delta_milli / 1000.f, k_min_time_delta_seconds, k_max_time_delta_seconds);
+		}
+		else
+		{
+			time_delta_seconds = k_max_time_delta_seconds;
+		}
 
-    // Compute the time in seconds since the last update
-    const std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-    float time_delta_seconds;
-    if (m_last_filter_update_timestamp_valid)
-    {
-        const std::chrono::duration<float, std::milli> time_delta = now - m_last_filter_update_timestamp;
-        const float time_delta_milli = time_delta.count();
+		m_last_filter_update_timestamp = sensorPacket.timestamp;
+		m_last_filter_update_timestamp_valid = true;
 
-        // convert delta to seconds clamp time delta between 120hz and 30hz
-        time_delta_seconds = clampf(time_delta_milli / 1000.f, k_min_time_delta_seconds, k_max_time_delta_seconds);
-    }
-    else
-    {
-        time_delta_seconds = k_max_time_delta_seconds; 
-    }
-    m_last_filter_update_timestamp = now;
-    m_last_filter_update_timestamp_valid = true;
+		{
+			PoseFilterPacket filter_packet;
+			filter_packet.clear();
 
-    // Evenly apply the list of controller state updates over the time since last filter update
-    float per_state_time_delta_seconds = time_delta_seconds / static_cast<float>(firstLookBackIndex + 1);
+			// Create a filter input packet from the sensor data 
+			// and the filter's previous orientation and position
+			m_pose_filter_space->createFilterPacket(
+				sensorPacket,
+				m_pose_filter,
+				filter_packet);
+			// Process the filter packet
+			m_pose_filter->update(time_delta_seconds, filter_packet);
+		}
 
-    // Process the polled controller states forward in time
-    // computing the new orientation along the way.
-    for (int lookBackIndex= firstLookBackIndex; lookBackIndex >= 0; --lookBackIndex)
-    {
-        const CommonControllerState *controllerState= getState(lookBackIndex);
-
-        switch (controllerState->DeviceType)
-        {
-        case CommonControllerState::PSMove:
-            {
-                const PSMoveController *psmoveController= this->castCheckedConst<PSMoveController>();
-                const PSMoveControllerState *psmoveState= static_cast<const PSMoveControllerState *>(controllerState);
-
-                // Only update the position filter when tracking is enabled
-                update_filters_for_psmove(
-                    psmoveController, psmoveState, 
-                    per_state_time_delta_seconds,
-                    m_multicam_pose_estimation, 
-                    m_pose_filter_space,
-                    m_pose_filter);
-            } break;
-        case CommonControllerState::PSNavi:
-            {
-                // No orientation or position to update
-                assert(m_pose_filter == nullptr);
-            } break;
-        case CommonControllerState::PSDualShock4:
-            {
-                const PSDualShock4Controller *psdualshock4Controller = this->castCheckedConst<PSDualShock4Controller>();
-                const PSDualShock4ControllerState *psdualshock4State = 
-                    static_cast<const PSDualShock4ControllerState *>(controllerState);
-
-                // Only update the position filter when tracking is enabled
-                update_filters_for_psdualshock4(
-                    psdualshock4Controller, psdualshock4State,
-                    per_state_time_delta_seconds,
-                    m_multicam_pose_estimation,
-                    m_pose_filter_space,
-                    m_pose_filter);
-            } break;
-        case CommonControllerState::VirtualController:
-            {
-                const VirtualController *virtualController = this->castCheckedConst<VirtualController>();
-                const VirtualControllerState *virtualControllerState = 
-                    static_cast<const VirtualControllerState *>(controllerState);
-
-                // Only update the position filter when tracking is enabled
-                update_filters_for_virtual_controller(
-                    virtualController, virtualControllerState,
-                    per_state_time_delta_seconds,
-                    m_multicam_pose_estimation,
-                    m_pose_filter_space,
-                    m_pose_filter);
-            } break;
-        default:
-            assert(0 && "Unhandled controller type");
-        }
-
-        // Consider this controller state sequence num processed
-        m_lastPollSeqNumProcessed= controllerState->PollSequenceNumber;
-    }
+		// Flag the state as unpublished, which will trigger an update to the client
+		markStateAsUnpublished();
+	}
 }
 
 bool ServerControllerView::setHostBluetoothAddress(
@@ -842,12 +944,9 @@ ServerControllerView::getControllerDeviceType() const
     return m_device->getDeviceType();
 }
 
-// Fetch the controller state at the given sample index.
-// A lookBack of 0 corresponds to the most recent data.
-const struct CommonControllerState * ServerControllerView::getState(
-    int lookBack) const
+const struct CommonControllerState * ServerControllerView::getState() const
 {
-    const struct CommonDeviceState *device_state = m_device->getState(lookBack);
+    const struct CommonDeviceState *device_state = m_device->getState();
     assert(device_state == nullptr ||
         ((int)device_state->DeviceType >= (int)CommonDeviceState::Controller &&
         device_state->DeviceType < CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT));
@@ -1167,7 +1266,7 @@ static void generate_psmove_data_frame_for_stream(
     if (controller_state != nullptr)
     {        
         assert(controller_state->DeviceType == CommonDeviceState::PSMove);
-        const PSMoveControllerState * psmove_state= static_cast<const PSMoveControllerState *>(controller_state);
+        const PSMoveControllerInputState * psmove_state= static_cast<const PSMoveControllerInputState *>(controller_state);
 
         psmove_data_frame->set_validhardwarecalibration(psmove_config->is_valid);
         psmove_data_frame->set_iscurrentlytracking(controller_view->getIsCurrentlyTracking());
@@ -1412,7 +1511,7 @@ static void generate_psdualshock4_data_frame_for_stream(
     if (controller_state != nullptr)
     {
         assert(controller_state->DeviceType == CommonDeviceState::PSDualShock4);
-        const PSDualShock4ControllerState * psds4_state = static_cast<const PSDualShock4ControllerState *>(controller_state);
+        const DualShock4ControllerInputState * psds4_state = static_cast<const DualShock4ControllerInputState *>(controller_state);
 
         psds4_data_frame->set_validhardwarecalibration(psmove_config->is_valid);
         psds4_data_frame->set_iscurrentlytracking(controller_view->getIsCurrentlyTracking());
@@ -1982,77 +2081,6 @@ init_filters_for_psmove(
         constants);
     }
 
-static void                
-update_filters_for_psmove(
-    const PSMoveController *psmoveController, 
-    const PSMoveControllerState *psmoveState,
-    const float delta_time,
-    const ControllerOpticalPoseEstimation *poseEstimation,
-    const PoseFilterSpace *poseFilterSpace,
-    IPoseFilter *poseFilter)
-{
-    const PSMoveControllerConfig *config = psmoveController->getConfig();
-    Eigen::Quaternionf orientationFrames[2] = {Eigen::Quaternionf::Identity(), Eigen::Quaternionf::Identity()};
-
-    // Update the orientation filter
-    if (poseFilter != nullptr)
-    {
-        PoseSensorPacket sensorPacket;
-
-        // PSMove cant do optical orientation
-        sensorPacket.optical_orientation = Eigen::Quaternionf::Identity();
-
-        // PSMove does have an optical position
-        if (poseEstimation->bCurrentlyTracking)
-        {
-            sensorPacket.optical_position_cm =
-            Eigen::Vector3f(
-                    poseEstimation->position_cm.x,
-                    poseEstimation->position_cm.y,
-                    poseEstimation->position_cm.z);
-            sensorPacket.tracking_projection_area_px_sqr = poseEstimation->projection.screen_area;
-        }
-        else
-        {
-            sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
-            sensorPacket.tracking_projection_area_px_sqr= 0.f;
-        }
-
-        // One magnetometer update for every two accel/gryo readings
-        sensorPacket.imu_magnetometer_unit =
-            Eigen::Vector3f(
-                psmoveState->CalibratedMag[0],
-                psmoveState->CalibratedMag[1],
-                psmoveState->CalibratedMag[2]);
-
-        // Each state update contains two readings (one earlier and one later) of accelerometer and gyro data
-        for (int frame = 0; frame < 2; ++frame)
-        {
-            PoseFilterPacket filterPacket;
-
-            sensorPacket.imu_accelerometer_g_units =
-                Eigen::Vector3f(
-                    psmoveState->CalibratedAccel[frame][0], 
-                    psmoveState->CalibratedAccel[frame][1], 
-                    psmoveState->CalibratedAccel[frame][2]);
-            sensorPacket.imu_gyroscope_rad_per_sec =
-                Eigen::Vector3f(
-                    psmoveState->CalibratedGyro[frame][0], 
-                    psmoveState->CalibratedGyro[frame][1], 
-                    psmoveState->CalibratedGyro[frame][2]);
-
-            // Create a filter input packet from the sensor data 
-            // and the filter's previous orientation and position
-            poseFilterSpace->createFilterPacket(
-                sensorPacket, 
-                poseFilter,
-                filterPacket);
-
-            poseFilter->update(delta_time / 2.f, filterPacket);
-        }
-        }
-                }
-
 static void
 init_filters_for_psdualshock4(
     const PSDualShock4Controller *psmoveController,
@@ -2113,81 +2141,6 @@ init_filters_for_psdualshock4(
         constants);
 }
 
-static void
-update_filters_for_psdualshock4(
-    const PSDualShock4Controller *psmoveController,
-    const PSDualShock4ControllerState *psdualShock4State,
-    const float delta_time,
-    const ControllerOpticalPoseEstimation *poseEstimation,
-    const PoseFilterSpace *poseFilterSpace,
-    IPoseFilter *poseFilter)
-{
-    const PSDualShock4ControllerConfig *config = psmoveController->getConfig();
-
-    if (poseFilter != nullptr)
-    {
-        PoseSensorPacket sensorPacket;
-
-        if (poseEstimation->bOrientationValid)
-        {
-            sensorPacket.optical_orientation = 
-                Eigen::Quaternionf(
-                    poseEstimation->orientation.w, 
-                    poseEstimation->orientation.x,
-                    poseEstimation->orientation.y,
-                    poseEstimation->orientation.z);
-        }
-        else
-        {
-            sensorPacket.optical_orientation = Eigen::Quaternionf::Identity();
-        }
-
-        if (poseEstimation->bCurrentlyTracking)
-        {
-            const float screen_area =
-                (poseEstimation->projection.screen_area > config->min_screen_projection_area)
-                ? poseEstimation->projection.screen_area : 0.f;
-
-            sensorPacket.optical_position_cm =
-            Eigen::Vector3f(
-                    poseEstimation->position_cm.x,
-                    poseEstimation->position_cm.y,
-                    poseEstimation->position_cm.z);
-            sensorPacket.tracking_projection_area_px_sqr= screen_area;
-        }
-        else
-        {
-            sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
-            sensorPacket.tracking_projection_area_px_sqr = 0.f;
-        }
-
-        sensorPacket.imu_accelerometer_g_units =
-            Eigen::Vector3f(
-                psdualShock4State->CalibratedAccelerometer.i,
-                psdualShock4State->CalibratedAccelerometer.j,
-                psdualShock4State->CalibratedAccelerometer.k);
-        sensorPacket.imu_gyroscope_rad_per_sec =
-            Eigen::Vector3f(
-                psdualShock4State->CalibratedGyro.i, 
-                psdualShock4State->CalibratedGyro.j,
-                psdualShock4State->CalibratedGyro.k);
-        sensorPacket.imu_magnetometer_unit = Eigen::Vector3f::Zero();
-
-        {
-            PoseFilterPacket filterPacket;
-
-            // Create a filter input packet from the sensor data 
-            // and the filter's previous orientation and position
-            poseFilterSpace->createFilterPacket(
-                sensorPacket, 
-                poseFilter,
-                filterPacket);
-
-            poseFilter->update(delta_time, filterPacket);
-        }
-    }
-}
-
 static void init_filters_for_virtual_controller(
     const VirtualController *virtualController,
     PoseFilterSpace **out_pose_filter_space,
@@ -2237,51 +2190,240 @@ static void init_filters_for_virtual_controller(
 		constants);
 }
 
-static void update_filters_for_virtual_controller(
-    const VirtualController *virtualController, const VirtualControllerState *controllerState, const float delta_time,
-    const ControllerOpticalPoseEstimation *poseEstimation,
-    const PoseFilterSpace *poseFilterSpace,
-    IPoseFilter *poseFilter)
+static void post_imu_filter_packets_for_psmove(
+	const PSMoveController *psmove, 
+	const PSMoveControllerInputState *psmoveState,
+	const t_high_resolution_timepoint now,
+	const t_high_resolution_duration duration_since_last_update,
+	t_controller_pose_sensor_queue *pose_filter_queue)
 {
-    const VirtualControllerConfig *config = virtualController->getConfig();
+    const PSMoveControllerConfig *config = psmove->getConfig();
 
-	// Update the orientation filter
-	if (poseFilter != nullptr)
+    PoseSensorPacket sensor_packet;
+
+    sensor_packet.clear();
+
+	// One magnetometer update for every two accel/gryo readings
+	if (psmove->getSupportsMagnetometer())
 	{
-		PoseSensorPacket sensorPacket;
+		sensor_packet.raw_imu_magnetometer = 
+			{psmoveState->RawMag[0], psmoveState->RawMag[1], psmoveState->RawMag[2]};
+        sensor_packet.imu_magnetometer_unit =
+            Eigen::Vector3f(psmoveState->CalibratedMag[0], psmoveState->CalibratedMag[1], psmoveState->CalibratedMag[2]);
+		sensor_packet.has_magnetometer_measurement= true;
+	}
 
-		sensorPacket.imu_magnetometer_unit = Eigen::Vector3f::Zero();
-		sensorPacket.optical_orientation = Eigen::Quaternionf::Identity();
+	if (psmove->getIsPS4Controller())
+	{
+		const int frame= 0;
 
-		if (poseEstimation->bCurrentlyTracking)
+		sensor_packet.timestamp= now;
+
+		sensor_packet.raw_imu_accelerometer = {
+			psmoveState->RawAccel[frame][0], 
+			psmoveState->RawAccel[frame][1], 
+			psmoveState->RawAccel[frame][2]};
+		sensor_packet.imu_accelerometer_g_units =
+			Eigen::Vector3f(
+				psmoveState->CalibratedAccel[frame][0], 
+				psmoveState->CalibratedAccel[frame][1], 
+				psmoveState->CalibratedAccel[frame][2]);
+		sensor_packet.has_accelerometer_measurement= true;
+
+		sensor_packet.raw_imu_gyroscope = {
+			psmoveState->RawGyro[frame][0], 
+			psmoveState->RawGyro[frame][1], 
+			psmoveState->RawGyro[frame][2]};
+		sensor_packet.imu_gyroscope_rad_per_sec =
+			Eigen::Vector3f(
+				psmoveState->CalibratedGyro[frame][0], 
+				psmoveState->CalibratedGyro[frame][1], 
+				psmoveState->CalibratedGyro[frame][2]);
+		sensor_packet.has_gyroscope_measurement= true;
+
+		pose_filter_queue->enqueue(sensor_packet);
+	}
+	else
+	{
+		// Don't bother with the earlier frame if this is the very first IMU packet 
+		// (since we have no previous timestamp to use)
+		int start_frame_index= 0;
+		if (duration_since_last_update == t_high_resolution_duration::zero())
 		{
-			sensorPacket.optical_position_cm =
+			start_frame_index= 1;
+		}
+
+		const t_high_resolution_timepoint prev_timestamp= now - (duration_since_last_update / 2);
+		t_high_resolution_timepoint timestamps[2] = {prev_timestamp, now};
+
+		// Each state update contains two readings (one earlier and one later) of accelerometer and gyro data
+		for (int frame = start_frame_index; frame < 2; ++frame)
+		{
+			sensor_packet.timestamp= timestamps[frame];
+
+			sensor_packet.raw_imu_accelerometer = {
+				psmoveState->RawAccel[frame][0], 
+				psmoveState->RawAccel[frame][1], 
+				psmoveState->RawAccel[frame][2]};
+			sensor_packet.imu_accelerometer_g_units =
 				Eigen::Vector3f(
-					poseEstimation->position_cm.x,
-					poseEstimation->position_cm.y,
-					poseEstimation->position_cm.z);
-			sensorPacket.tracking_projection_area_px_sqr = poseEstimation->projection.screen_area;
-		}
-		else
-		{
-			sensorPacket.optical_position_cm = Eigen::Vector3f::Zero();
-			sensorPacket.tracking_projection_area_px_sqr = 0.f;
-		}
+					psmoveState->CalibratedAccel[frame][0], 
+					psmoveState->CalibratedAccel[frame][1], 
+					psmoveState->CalibratedAccel[frame][2]);
+			sensor_packet.has_accelerometer_measurement= true;
 
-		sensorPacket.imu_accelerometer_g_units = Eigen::Vector3f::Zero();
-		sensorPacket.imu_gyroscope_rad_per_sec = Eigen::Vector3f::Zero();
-		sensorPacket.imu_magnetometer_unit = Eigen::Vector3f::Zero();
+			sensor_packet.raw_imu_gyroscope = {
+				psmoveState->RawGyro[frame][0], 
+				psmoveState->RawGyro[frame][1], 
+				psmoveState->RawGyro[frame][2]};
+			sensor_packet.imu_gyroscope_rad_per_sec =
+				Eigen::Vector3f(
+					psmoveState->CalibratedGyro[frame][0], 
+					psmoveState->CalibratedGyro[frame][1], 
+					psmoveState->CalibratedGyro[frame][2]);
+			sensor_packet.has_gyroscope_measurement= true;
 
-		{
-			PoseFilterPacket filterPacket;
-
-			// Create a filter input packet from the sensor data 
-			// and the filter's previous orientation and position
-			poseFilterSpace->createFilterPacket(sensorPacket, poseFilter, filterPacket);
-
-			poseFilter->update(delta_time, filterPacket);
+			pose_filter_queue->enqueue(sensor_packet);
 		}
 	}
+}
+
+static void post_optical_filter_packet_for_psmove(
+    const PSMoveController *psmove,
+    const t_high_resolution_timepoint now,
+    const ControllerOpticalPoseEstimation *pose_estimation,
+	t_controller_pose_optical_queue *pose_filter_queue)
+{
+    const PSMoveControllerConfig *config = psmove->getConfig();
+    PoseSensorPacket sensor_packet;
+
+    sensor_packet.clear();
+	sensor_packet.timestamp= now;
+
+    // PSMove cant do optical orientation
+    sensor_packet.optical_orientation = Eigen::Quaternionf::Identity();
+
+	// PSMove does have an optical position
+    if (pose_estimation->bCurrentlyTracking)
+    {
+		sensor_packet.optical_position_cm =
+		Eigen::Vector3f(
+				pose_estimation->position_cm.x,
+				pose_estimation->position_cm.y,
+				pose_estimation->position_cm.z);
+		sensor_packet.tracking_projection_area_px_sqr= pose_estimation->projection.screen_area;
+    }
+
+	pose_filter_queue->push_back(sensor_packet);
+}
+
+static void post_imu_filter_packets_for_ds4(
+    const PSDualShock4Controller *ds4, 
+	const DualShock4ControllerInputState *ds4State,
+    const t_high_resolution_timepoint now, 
+	const t_high_resolution_duration duration_since_last_update,
+	t_controller_pose_sensor_queue *pose_filter_queue)
+{
+    const PSDualShock4ControllerConfig *config = ds4->getConfig();
+
+    PoseSensorPacket sensor_packet;
+
+    sensor_packet.clear();
+
+	sensor_packet.timestamp= now;
+
+	sensor_packet.raw_imu_accelerometer = {
+		ds4State->RawAccelerometer[0], 
+		ds4State->RawAccelerometer[1], 
+		ds4State->RawAccelerometer[2]};
+    sensor_packet.imu_accelerometer_g_units =
+        Eigen::Vector3f(
+            ds4State->CalibratedAccelerometer.i, 
+            ds4State->CalibratedAccelerometer.j, 
+            ds4State->CalibratedAccelerometer.k);
+	sensor_packet.has_accelerometer_measurement= true;
+
+	sensor_packet.raw_imu_gyroscope = {
+		ds4State->RawGyro[0], 
+		ds4State->RawGyro[1], 
+		ds4State->RawGyro[2]};
+    sensor_packet.imu_gyroscope_rad_per_sec =
+        Eigen::Vector3f(
+            ds4State->CalibratedGyro.i, 
+            ds4State->CalibratedGyro.j, 
+            ds4State->CalibratedGyro.k);
+	sensor_packet.has_gyroscope_measurement= true;
+
+    pose_filter_queue->enqueue(sensor_packet);
+}
+
+static void post_optical_filter_packet_for_ds4(
+    const PSDualShock4Controller *ds4,
+    const t_high_resolution_timepoint now,
+    const ControllerOpticalPoseEstimation *pose_estimation,
+	t_controller_pose_optical_queue *pose_filter_queue)
+{
+    const PSDualShock4ControllerConfig *config = ds4->getConfig();
+
+    PoseSensorPacket sensor_packet;
+
+    sensor_packet.clear();
+	sensor_packet.timestamp= now;
+
+    if (pose_estimation->bOrientationValid)
+    {
+        sensor_packet.optical_orientation = 
+            Eigen::Quaternionf(
+                pose_estimation->orientation.w, 
+                pose_estimation->orientation.x,
+                pose_estimation->orientation.y,
+                pose_estimation->orientation.z);
+    }
+
+    if (pose_estimation->bCurrentlyTracking)
+    {
+		const float screen_area =
+			(pose_estimation->projection.screen_area > config->min_screen_projection_area)
+			? pose_estimation->projection.screen_area : 0.f;
+
+		sensor_packet.optical_position_cm =
+		Eigen::Vector3f(
+				pose_estimation->position_cm.x,
+				pose_estimation->position_cm.y,
+				pose_estimation->position_cm.z);
+		sensor_packet.tracking_projection_area_px_sqr= screen_area;
+    }
+
+	pose_filter_queue->push_back(sensor_packet);
+}
+
+static void post_optical_filter_packet_for_virtual_controller(
+    const VirtualController *virtual_controller,
+    const t_high_resolution_timepoint now,
+    const ControllerOpticalPoseEstimation *pose_estimation,
+	t_controller_pose_optical_queue *pose_filter_queue)
+{
+    const VirtualControllerConfig *config = virtual_controller->getConfig();
+
+    PoseSensorPacket sensor_packet;
+
+    sensor_packet.clear();
+	sensor_packet.timestamp= now;
+
+	// Virtual controllers don't currently support an optical orientation
+	sensor_packet.optical_orientation = Eigen::Quaternionf::Identity();
+
+    if (pose_estimation->bCurrentlyTracking)
+    {
+		sensor_packet.optical_position_cm =
+		Eigen::Vector3f(
+				pose_estimation->position_cm.x,
+				pose_estimation->position_cm.y,
+				pose_estimation->position_cm.z);
+		sensor_packet.tracking_projection_area_px_sqr= pose_estimation->projection.screen_area;
+    }
+
+	pose_filter_queue->push_back(sensor_packet);
 }
 
 static void computeSpherePoseForControllerFromSingleTracker(

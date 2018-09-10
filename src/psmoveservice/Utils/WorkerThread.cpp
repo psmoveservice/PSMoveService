@@ -5,6 +5,7 @@
 WorkerThread::WorkerThread(const std::string thread_name) 
 	: m_threadName(thread_name)
 	, m_exitSignaled({ false })
+	, m_threadEnded({ false })
     , m_threadStarted(false)
 	, m_workerThread()
 {
@@ -14,6 +15,7 @@ void WorkerThread::startThread()
 {
     if (!m_threadStarted)
     {
+		m_threadEnded.store(false);
 		m_exitSignaled= false;
 
         SERVER_LOG_INFO("WorkerThread::start") << "Starting worker thread: " << m_threadName;
@@ -59,11 +61,14 @@ void WorkerThread::threadFunc()
     ServerUtility::set_current_thread_name(m_threadName.c_str());
 
     // Stay in the poll loop until asked to exit by the main thread
+	// Or the worker thread can no longer do work
     while (!m_exitSignaled)
     {
 		if (!doWork())
 		{
-			m_exitSignaled= true;
+			break;
 		}
     }
+
+	m_threadEnded.store(true);
 }
