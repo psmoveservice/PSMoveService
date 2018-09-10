@@ -163,7 +163,8 @@ list(APPEND TEST_PSMOVE_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/Device/USB
     ${ROOT_DIR}/src/psmoveservice/Platform
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
-    ${ROOT_DIR}/src/psmoveservice/PSMoveController)
+    ${ROOT_DIR}/src/psmoveservice/PSMoveController
+	${ROOT_DIR}/src/psmoveservice/Utils)
 list(APPEND TEST_PSMOVE_SRC
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
     ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
@@ -194,7 +195,10 @@ list(APPEND TEST_PSMOVE_SRC
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
     ${ROOT_DIR}/src/psmoveservice/PSMoveController/PSMoveController.h
-    ${ROOT_DIR}/src/psmoveservice/PSMoveController/PSMoveController.cpp)
+    ${ROOT_DIR}/src/psmoveservice/PSMoveController/PSMoveController.cpp
+    ${ROOT_DIR}/src/psmoveservice/Utils/AtomicPrimitives.h
+    ${ROOT_DIR}/src/psmoveservice/Utils/WorkerThread.h
+    ${ROOT_DIR}/src/psmoveservice/Utils/WorkerThread.cpp)
 
 # psmoveprotocol
 list(APPEND TEST_PSMOVE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
@@ -394,7 +398,8 @@ list(APPEND TEST_DS4_CTRLR_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/Device/USB
     ${ROOT_DIR}/src/psmoveservice/Platform
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
-    ${ROOT_DIR}/src/psmoveservice/PSDualShock4)
+    ${ROOT_DIR}/src/psmoveservice/PSDualShock4
+	${ROOT_DIR}/src/psmoveservice/Utils)
 list(APPEND TEST_DS4_CTRLR_SRC
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
     ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
@@ -425,7 +430,10 @@ list(APPEND TEST_DS4_CTRLR_SRC
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
     ${ROOT_DIR}/src/psmoveservice/PSDualShock4/PSDualShock4Controller.h
-    ${ROOT_DIR}/src/psmoveservice/PSDualShock4/PSDualShock4Controller.cpp)
+    ${ROOT_DIR}/src/psmoveservice/PSDualShock4/PSDualShock4Controller.cpp
+    ${ROOT_DIR}/src/psmoveservice/Utils/AtomicPrimitives.h
+    ${ROOT_DIR}/src/psmoveservice/Utils/WorkerThread.h
+    ${ROOT_DIR}/src/psmoveservice/Utils/WorkerThread.cpp)
 
 # psmoveprotocol
 list(APPEND TEST_DS4_CTRLR_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)
