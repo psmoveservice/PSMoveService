@@ -16,6 +16,7 @@ public:
 
 	// -- IStateFilter --
 	bool getIsStateValid() const override;
+    double getTimeInSeconds() const override;
 	void resetState() override;
 	void recenterOrientation(const Eigen::Quaternionf& q_pose) override;
 

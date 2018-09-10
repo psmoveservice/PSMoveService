@@ -16,6 +16,7 @@ public:
 
     //-- IStateFilter --
     bool getIsStateValid() const override;
+    double getTimeInSeconds() const override;
     void resetState() override;
     void recenterOrientation(const Eigen::Quaternionf& q_pose) override;
 
@@ -54,25 +55,14 @@ class PositionFilterLowPassExponential : public PositionFilter
 {
 public:
 	void update(const float delta_time, const PoseFilterPacket &packet) override;
-	std::list<float> timeList;
-	std::list<Eigen::Vector3f> positionList;
-	Eigen::Vector3f prevVelocity;
+	std::list<float> deltaTimeHistory;
+	std::list<Eigen::Vector3f> blendedPositionHistory;
 };
 
 class PositionFilterComplimentaryOpticalIMU : public PositionFilter
 {
 public:
-	PositionFilterComplimentaryOpticalIMU()
-		: PositionFilter()
-		, bLast_visible_position_timestamp_valid(false)
-	{}
-
-	void resetState() override;
     void update(const float delta_time, const PoseFilterPacket &packet) override;
-
-private:
-    std::chrono::time_point<std::chrono::high_resolution_clock> last_visible_position_timestamp;
-    bool bLast_visible_position_timestamp_valid;
 };
 
 #endif // POSITION_FILTER_H

@@ -2,7 +2,9 @@
 #define POSE_FILTER_INTERFACE_H
 
 //-- includes -----
+#include "DeviceInterface.h"
 #include "MathEigen.h"
+#include <chrono>
 
 //-- constants -----
 // Calibration Pose transform
@@ -45,19 +47,53 @@ struct ExponentialCurve
 /// Intended to only exist on the stack.
 struct PoseSensorPacket
 {
+	std::chrono::time_point<std::chrono::high_resolution_clock> timestamp;
+
     // Optical readings in the world reference frame
-    Eigen::Vector3f optical_position_cm; // cm
+    Eigen::Vector3f optical_position_cm;
     Eigen::Quaternionf optical_orientation;
-    float tracking_projection_area_px_sqr; // pixels^2
+	float tracking_projection_area_px_sqr; // pixels^2
 
     // Sensor readings in the controller's reference frame
+	CommonRawDeviceVector raw_imu_accelerometer;
+	CommonRawDeviceVector raw_imu_magnetometer;
+	CommonRawDeviceVector raw_imu_gyroscope;
     Eigen::Vector3f imu_accelerometer_g_units; // g-units
     Eigen::Vector3f imu_magnetometer_unit; // unit vector
     Eigen::Vector3f imu_gyroscope_rad_per_sec; // rad/s
+	bool has_accelerometer_measurement;
+	bool has_magnetometer_measurement;
+	bool has_gyroscope_measurement;
+
+	inline void clear()
+	{
+		timestamp= std::chrono::time_point<std::chrono::high_resolution_clock>();
+		optical_position_cm= Eigen::Vector3f::Zero();
+		optical_orientation= Eigen::Quaternionf::Identity();
+		raw_imu_accelerometer.clear();
+		raw_imu_magnetometer.clear();
+		raw_imu_gyroscope.clear();
+		imu_accelerometer_g_units= Eigen::Vector3f::Zero();
+		imu_magnetometer_unit= Eigen::Vector3f::Zero();
+		imu_gyroscope_rad_per_sec= Eigen::Vector3f::Zero();
+		has_accelerometer_measurement= false;
+		has_magnetometer_measurement= false;
+		has_gyroscope_measurement= false;
+	}
 
 	inline Eigen::Vector3f get_optical_position_in_meters() const
 	{
 		return optical_position_cm * k_centimeters_to_meters;
+	}
+
+	inline bool has_imu_measurements() const
+	{
+		return has_accelerometer_measurement || has_magnetometer_measurement || has_gyroscope_measurement;
+	}
+
+	inline bool has_optical_measurement() const
+	{
+		return tracking_projection_area_px_sqr > 0.f;
 	}
 };
 
@@ -79,6 +115,16 @@ struct PoseFilterPacket : PoseSensorPacket
 
     /// The accelerometer reading in the world reference frame
     Eigen::Vector3f world_accelerometer; // g-units
+
+	inline void clear()
+	{
+		PoseSensorPacket::clear();
+		current_orientation= Eigen::Quaternionf::Identity();
+		current_position_cm= Eigen::Vector3f::Zero();
+		current_linear_velocity_cm_s= Eigen::Vector3f::Zero();
+		current_linear_acceleration_cm_s2= Eigen::Vector3f::Zero();
+		world_accelerometer= Eigen::Vector3f::Zero();
+	}
 
 	inline Eigen::Vector3f get_current_position_in_meters() const
 	{
@@ -220,11 +266,13 @@ struct PositionFilterConstants
 /// Filter parameters that remain constant during the lifetime of the the filter
 struct PoseFilterConstants 
 {
+    CommonDeviceTrackingShape shape;
     OrientationFilterConstants orientation_constants;
     PositionFilterConstants position_constants;
 
 	void clear()
 	{
+        memset(&shape, 0, sizeof(CommonDeviceTrackingShape));
 		orientation_constants.clear();
 		position_constants.clear();
 	}
@@ -236,6 +284,9 @@ class IStateFilter
 public:
     /// Not true until the filter has updated at least once
     virtual bool getIsStateValid() const = 0;
+
+    /// Get the duration the filter has be running since last reset
+    virtual double getTimeInSeconds() const = 0;
 
     /// Update the state in the filter given the filter packet
     virtual void update(const float delta_time, const PoseFilterPacket &packet) = 0;

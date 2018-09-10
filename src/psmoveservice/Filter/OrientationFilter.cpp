@@ -6,7 +6,7 @@
 
 //-- constants -----
 // Maximum we blend against the optically derived orientation
-#define k_max_optical_orientation_weight 0.05f
+#define k_max_optical_orientation_weight 0.005f
 
 // Complementary MARG Filter constants
 #define k_base_earth_frame_align_weight 0.02f
@@ -26,9 +26,16 @@ struct OrientationFilterState
     Eigen::Quaternionf orientation;
     Eigen::Vector3f angular_velocity;
     Eigen::Vector3f angular_acceleration;
+    double time;
 
     /* Quaternion measured when controller points towards camera */
     Eigen::Quaternionf reset_orientation;
+
+	/// The amount of time since the optical filter was updated
+	double accumulated_optical_time_delta;
+
+	/// The amount of time since the imu filter was updated
+	double accumulated_imu_time_delta;
 
     void reset()
     {
@@ -37,12 +44,16 @@ struct OrientationFilterState
         angular_velocity = Eigen::Vector3f::Zero();
         angular_acceleration = Eigen::Vector3f::Zero();
         reset_orientation= Eigen::Quaternionf::Identity();
+        time= 0.0;
+		accumulated_optical_time_delta= 0.f;
+		accumulated_imu_time_delta= 0.f;
     }
 
-    void apply_state(
+    void apply_imu_state(
         const Eigen::Quaternionf &new_orientation,
         const Eigen::Vector3f &new_angular_velocity,
-        const Eigen::Vector3f &new_angular_acceleration)
+        const Eigen::Vector3f &new_angular_acceleration,
+		const float delta_time)
     {
         if (eigen_quaternion_is_valid(new_orientation))
         {
@@ -71,9 +82,70 @@ struct OrientationFilterState
             SERVER_LOG_WARNING("OrientationFilter") << "Angular Acceleration is NaN!";
         }
 
+		if (is_valid_float(delta_time))
+		{
+			time= accumulated_imu_time_delta + (double)delta_time;
+			accumulated_imu_time_delta= 0.0;
+		}
+		else
+		{
+			SERVER_LOG_WARNING("PositionFilter") << "time delta is NaN!";
+		}
+
         // state is valid now that we have had an update
         bIsValid= true;
     }
+
+    void apply_optical_state(
+        const Eigen::Quaternionf &new_orientation,
+		const float delta_time)
+    {
+        if (eigen_quaternion_is_valid(new_orientation))
+        {
+            orientation = new_orientation;
+        }
+        else
+        {
+            SERVER_LOG_WARNING("OrientationFilter") << "Orientation is NaN!";
+        }
+
+		if (is_valid_float(delta_time))
+		{
+			time= accumulated_imu_time_delta + (double)delta_time;
+			accumulated_imu_time_delta= 0.0;
+		}
+		else
+		{
+			SERVER_LOG_WARNING("PositionFilter") << "time delta is NaN!";
+		}
+
+        // state is valid now that we have had an update
+        bIsValid= true;
+    }
+
+	void accumulate_optical_delta_time(const float delta_time)
+	{
+		if (is_valid_float(delta_time))
+		{
+			accumulated_optical_time_delta+= (double)delta_time;
+		}
+		else
+		{
+			SERVER_LOG_WARNING("PositionFilter") << "optical time delta is NaN!";
+		}
+	}
+
+	void accumulate_imu_delta_time(const float delta_time)
+	{
+		if (is_valid_float(delta_time))
+		{
+			accumulated_imu_time_delta+= (double)delta_time;
+		}
+		else
+		{
+			SERVER_LOG_WARNING("PositionFilter") << "imu time delta is NaN!";
+		}
+	}
 };
 
 // -- public interface -----
@@ -93,6 +165,11 @@ OrientationFilter::~OrientationFilter()
 bool OrientationFilter::getIsStateValid() const
 {
     return m_state->bIsValid;
+}
+
+double OrientationFilter::getTimeInSeconds() const
+{
+    return m_state->time;
 }
 
 void OrientationFilter::resetState()
@@ -163,20 +240,16 @@ Eigen::Vector3f OrientationFilter::getAngularAccelerationRadPerSecSqr() const
 // -- OrientationFilterPassThru --
 void OrientationFilterPassThru::update(const float delta_time, const PoseFilterPacket &packet)
 {
-	// Use the current orientation if the optical orientation is unavailable
-    const Eigen::Quaternionf &new_orientation= 
-		(packet.tracking_projection_area_px_sqr > 0.f) 
-		? packet.optical_orientation
-		: packet.current_orientation;
+	if (packet.has_optical_measurement())
+	{
+		const Eigen::Quaternionf &new_orientation= packet.optical_orientation;
 
-    const Eigen::Quaternionf orientation_derivative= 
-        Eigen::Quaternionf((new_orientation.coeffs() - m_state->orientation.coeffs()) / delta_time);
-    const Eigen::Vector3f new_angular_velocity = 
-        Eigen::Vector3f::Zero(); //eigen_quaternion_derivative_to_angular_velocity(new_orientation, orientation_derivative);		
-    const Eigen::Vector3f new_angular_accelertion = 
-        Eigen::Vector3f::Zero(); //(new_angular_velocity - m_state->angular_velocity) / delta_time;
-
-    m_state->apply_state(new_orientation, new_angular_velocity, new_angular_accelertion);
+		m_state->apply_optical_state(new_orientation, delta_time);
+	}
+	else
+	{
+		m_state->accumulate_optical_delta_time(delta_time);
+	}
 }
 
 // -- OrientationFilterMadgwickARG --
@@ -185,70 +258,81 @@ void OrientationFilterPassThru::update(const float delta_time, const PoseFilterP
 // https://www.samba.org/tridge/UAV/madgwick_internal_report.pdf
 void OrientationFilterMadgwickARG::update(const float delta_time, const PoseFilterPacket &packet)
 {
-    const Eigen::Vector3f &current_omega= packet.imu_gyroscope_rad_per_sec;
+	if (packet.has_imu_measurements())
+	{
+		// Time delta used for filter update is time delta passed in
+		// plus the accumulated time since the packet hasn't has an IMU measurement
+		const float total_delta_time= (float)m_state->accumulated_imu_time_delta + delta_time;
 
-    Eigen::Vector3f current_g= packet.imu_accelerometer_g_units;
-    eigen_vector3f_normalize_with_default(current_g, Eigen::Vector3f::Zero());
+		const Eigen::Vector3f &current_omega= packet.imu_gyroscope_rad_per_sec;
 
-    // Current orientation from earth frame to sensor frame
-    const Eigen::Quaternionf SEq = m_state->orientation;
-    Eigen::Quaternionf SEq_new = SEq;
+		Eigen::Vector3f current_g= packet.imu_accelerometer_g_units;
+		eigen_vector3f_normalize_with_default(current_g, Eigen::Vector3f::Zero());
 
-    // Compute the quaternion derivative measured by gyroscopes
-    // Eqn 12) q_dot = 0.5*q*omega
-    Eigen::Quaternionf omega = Eigen::Quaternionf(0.f, current_omega.x(), current_omega.y(), current_omega.z());
-    Eigen::Quaternionf SEqDot_omega = Eigen::Quaternionf(SEq.coeffs() * 0.5f) *omega;
+		// Current orientation from earth frame to sensor frame
+		const Eigen::Quaternionf SEq = m_state->orientation;
+		Eigen::Quaternionf SEq_new = SEq;
 
-    if (!current_g.isApprox(Eigen::Vector3f::Zero(), k_normal_epsilon))
-    {
-        // Get the direction of the gravitational fields in the identity pose		
-        Eigen::Vector3f k_identity_g_direction = m_constants.gravity_calibration_direction;
+		// Compute the quaternion derivative measured by gyroscopes
+		// Eqn 12) q_dot = 0.5*q*omega
+		Eigen::Quaternionf omega = Eigen::Quaternionf(0.f, current_omega.x(), current_omega.y(), current_omega.z());
+		Eigen::Quaternionf SEqDot_omega = Eigen::Quaternionf(SEq.coeffs() * 0.5f) *omega;
 
-        // Eqn 15) Applied to the gravity vector
-        // Fill in the 3x1 objective function matrix f(SEq, Sa) =|f_g|
-        Eigen::Matrix<float, 3, 1> f_g;
-        eigen_alignment_compute_objective_vector(SEq, k_identity_g_direction, current_g, f_g, NULL);
+		if (!current_g.isApprox(Eigen::Vector3f::Zero(), k_normal_epsilon))
+		{
+			// Get the direction of the gravitational fields in the identity pose		
+			Eigen::Vector3f k_identity_g_direction = m_constants.gravity_calibration_direction;
 
-        // Eqn 21) Applied to the gravity vector
-        // Fill in the 4x3 objective function Jacobian matrix: J_gb(SEq)= [J_g]
-        Eigen::Matrix<float, 4, 3> J_g;
-        eigen_alignment_compute_objective_jacobian(SEq, k_identity_g_direction, J_g);
+			// Eqn 15) Applied to the gravity vector
+			// Fill in the 3x1 objective function matrix f(SEq, Sa) =|f_g|
+			Eigen::Matrix<float, 3, 1> f_g;
+			eigen_alignment_compute_objective_vector(SEq, k_identity_g_direction, current_g, f_g, NULL);
 
-        // Eqn 34) gradient_F= J_g(SEq)*f(SEq, Sa)
-        // Compute the gradient of the objective function
-        Eigen::Matrix<float, 4, 1> gradient_f = J_g * f_g;
-        Eigen::Quaternionf SEqHatDot =
-            Eigen::Quaternionf(gradient_f(0, 0), gradient_f(1, 0), gradient_f(2, 0), gradient_f(3, 0));
+			// Eqn 21) Applied to the gravity vector
+			// Fill in the 4x3 objective function Jacobian matrix: J_gb(SEq)= [J_g]
+			Eigen::Matrix<float, 4, 3> J_g;
+			eigen_alignment_compute_objective_jacobian(SEq, k_identity_g_direction, J_g);
 
-        // normalize the gradient
-        eigen_quaternion_normalize_with_default(SEqHatDot, *k_eigen_quaternion_zero);
+			// Eqn 34) gradient_F= J_g(SEq)*f(SEq, Sa)
+			// Compute the gradient of the objective function
+			Eigen::Matrix<float, 4, 1> gradient_f = J_g * f_g;
+			Eigen::Quaternionf SEqHatDot =
+				Eigen::Quaternionf(gradient_f(0, 0), gradient_f(1, 0), gradient_f(2, 0), gradient_f(3, 0));
 
-        // Compute the estimated quaternion rate of change
-        // Eqn 43) SEq_est = SEqDot_omega - beta*SEqHatDot
-        const float beta= sqrtf(3.0f / 4.0f) * fmaxf(fmaxf(m_constants.gyro_variance.x(), m_constants.gyro_variance.y()), m_constants.gyro_variance.z());
-        Eigen::Quaternionf SEqDot_est = Eigen::Quaternionf(SEqDot_omega.coeffs() - SEqHatDot.coeffs()*beta);
+			// normalize the gradient
+			eigen_quaternion_normalize_with_default(SEqHatDot, *k_eigen_quaternion_zero);
 
-        // Compute then integrate the estimated quaternion rate
-        // Eqn 42) SEq_new = SEq + SEqDot_est*delta_t
-        SEq_new = Eigen::Quaternionf(SEq.coeffs() + SEqDot_est.coeffs()*delta_time);
-    }
-    else
-    {
-        SEq_new = Eigen::Quaternionf(SEq.coeffs() + SEqDot_omega.coeffs()*delta_time);
-    }
+			// Compute the estimated quaternion rate of change
+			// Eqn 43) SEq_est = SEqDot_omega - beta*SEqHatDot
+			const float beta= sqrtf(3.0f / 4.0f) * fmaxf(fmaxf(m_constants.gyro_variance.x(), m_constants.gyro_variance.y()), m_constants.gyro_variance.z());
+			Eigen::Quaternionf SEqDot_est = Eigen::Quaternionf(SEqDot_omega.coeffs() - SEqHatDot.coeffs()*beta);
 
-    // Make sure the net quaternion is a pure rotation quaternion
-    SEq_new.normalize();
+			// Compute then integrate the estimated quaternion rate
+			// Eqn 42) SEq_new = SEq + SEqDot_est*total_delta_time
+			SEq_new = Eigen::Quaternionf(SEq.coeffs() + SEqDot_est.coeffs()*total_delta_time);
+		}
+		else
+		{
+			SEq_new = Eigen::Quaternionf(SEq.coeffs() + SEqDot_omega.coeffs()*total_delta_time);
+		}
 
-    // Save the new quaternion and first derivative back into the orientation state
-    // Derive the second derivative
-    {
-        const Eigen::Quaternionf &new_orientation = SEq_new;
-        const Eigen::Vector3f new_angular_velocity= Eigen::Vector3f::Zero(); // current_omega;
-        const Eigen::Vector3f new_angular_acceleration= Eigen::Vector3f::Zero(); // (current_omega - m_state->angular_velocity) / delta_time;
+		// Make sure the net quaternion is a pure rotation quaternion
+		SEq_new.normalize();
 
-        m_state->apply_state(new_orientation, new_angular_velocity, new_angular_acceleration);
-    }
+		// Save the new quaternion and first derivative back into the orientation state
+		// Derive the second derivative
+		{
+			const Eigen::Quaternionf &new_orientation = SEq_new;
+			const Eigen::Vector3f new_angular_velocity= Eigen::Vector3f::Zero(); // current_omega;
+			const Eigen::Vector3f new_angular_acceleration= Eigen::Vector3f::Zero(); // (current_omega - m_state->angular_velocity) / delta_time;
+
+			m_state->apply_imu_state(new_orientation, new_angular_velocity, new_angular_acceleration, delta_time);
+		}
+	}
+	else
+	{
+		m_state->accumulate_imu_delta_time(delta_time);
+	}
 }
 
 // -- OrientationFilterMadgwickMARG --
@@ -263,220 +347,190 @@ void OrientationFilterMadgwickMARG::resetState()
 
 void OrientationFilterMadgwickMARG::update(const float delta_time, const PoseFilterPacket &packet)
 {
-    const Eigen::Vector3f &current_omega= packet.imu_gyroscope_rad_per_sec;
+	if (packet.has_imu_measurements())
+	{
+		// Time delta used for filter update is time delta passed in
+		// plus the accumulated time since the packet hasn't has an IMU measurement
+		const float total_delta_time= (float)m_state->accumulated_imu_time_delta + delta_time;
 
-    Eigen::Vector3f current_g= packet.imu_accelerometer_g_units;
-    eigen_vector3f_normalize_with_default(current_g, Eigen::Vector3f::Zero());
+		const Eigen::Vector3f &current_omega= packet.imu_gyroscope_rad_per_sec;
 
-    Eigen::Vector3f current_m= packet.imu_magnetometer_unit;
-    eigen_vector3f_normalize_with_default(current_m, Eigen::Vector3f::Zero());
+		Eigen::Vector3f current_g= packet.imu_accelerometer_g_units;
+		eigen_vector3f_normalize_with_default(current_g, Eigen::Vector3f::Zero());
 
-    // If there isn't a valid magnetometer or accelerometer vector, fall back to the IMU style update
-    if (current_g.isZero(k_normal_epsilon) || current_m.isZero(k_normal_epsilon))
-    {
-        OrientationFilterMadgwickARG::update(delta_time, packet);
-        return;
-    }
+		Eigen::Vector3f current_m= packet.imu_magnetometer_unit;
+		eigen_vector3f_normalize_with_default(current_m, Eigen::Vector3f::Zero());
 
-    // Current orientation from earth frame to sensor frame
-    const Eigen::Quaternionf SEq = m_state->orientation;
+		// If there isn't a valid magnetometer or accelerometer vector, fall back to the IMU style update
+		if (current_g.isZero(k_normal_epsilon) || current_m.isZero(k_normal_epsilon))
+		{
+			OrientationFilterMadgwickARG::update(delta_time, packet);
+			return;
+		}
 
-    // Get the direction of the magnetic fields in the identity pose.	
-    // NOTE: In the original paper we converge on this vector over time automatically (See Eqn 45 & 46)
-    // but since we've already done the work in calibration to get this vector, let's just use it.
-    // This also removes the last assumption in this function about what 
-    // the orientation of the identity-pose is (handled by the sensor transform).
-    Eigen::Vector3f k_identity_m_direction = m_constants.magnetometer_calibration_direction;
+		// Current orientation from earth frame to sensor frame
+		const Eigen::Quaternionf SEq = m_state->orientation;
 
-    // Get the direction of the gravitational fields in the identity pose
-    Eigen::Vector3f k_identity_g_direction = m_constants.gravity_calibration_direction;
+		// Get the direction of the magnetic fields in the identity pose.	
+		// NOTE: In the original paper we converge on this vector over time automatically (See Eqn 45 & 46)
+		// but since we've already done the work in calibration to get this vector, let's just use it.
+		// This also removes the last assumption in this function about what 
+		// the orientation of the identity-pose is (handled by the sensor transform).
+		Eigen::Vector3f k_identity_m_direction = m_constants.magnetometer_calibration_direction;
 
-    // Eqn 15) Applied to the gravity and magnetometer vectors
-    // Fill in the 6x1 objective function matrix f(SEq, Sa, Eb, Sm) =|f_g|
-    //                                                               |f_b|
-    Eigen::Matrix<float, 3, 1> f_g;
-    eigen_alignment_compute_objective_vector(SEq, k_identity_g_direction, current_g, f_g, NULL);
+		// Get the direction of the gravitational fields in the identity pose
+		Eigen::Vector3f k_identity_g_direction = m_constants.gravity_calibration_direction;
 
-    Eigen::Matrix<float, 3, 1> f_m;
-    eigen_alignment_compute_objective_vector(SEq, k_identity_m_direction, current_m, f_m, NULL);
+		// Eqn 15) Applied to the gravity and magnetometer vectors
+		// Fill in the 6x1 objective function matrix f(SEq, Sa, Eb, Sm) =|f_g|
+		//                                                               |f_b|
+		Eigen::Matrix<float, 3, 1> f_g;
+		eigen_alignment_compute_objective_vector(SEq, k_identity_g_direction, current_g, f_g, NULL);
 
-    Eigen::Matrix<float, 6, 1> f_gb;
-    f_gb.block<3, 1>(0, 0) = f_g;
-    f_gb.block<3, 1>(3, 0) = f_m;
+		Eigen::Matrix<float, 3, 1> f_m;
+		eigen_alignment_compute_objective_vector(SEq, k_identity_m_direction, current_m, f_m, NULL);
 
-    // Eqn 21) Applied to the gravity and magnetometer vectors
-    // Fill in the 4x6 objective function Jacobian matrix: J_gb(SEq, Eb)= [J_g|J_b]
-    Eigen::Matrix<float, 4, 3> J_g;
-    eigen_alignment_compute_objective_jacobian(SEq, k_identity_g_direction, J_g);
+		Eigen::Matrix<float, 6, 1> f_gb;
+		f_gb.block<3, 1>(0, 0) = f_g;
+		f_gb.block<3, 1>(3, 0) = f_m;
 
-    Eigen::Matrix<float, 4, 3> J_m;
-    eigen_alignment_compute_objective_jacobian(SEq, k_identity_m_direction, J_m);
+		// Eqn 21) Applied to the gravity and magnetometer vectors
+		// Fill in the 4x6 objective function Jacobian matrix: J_gb(SEq, Eb)= [J_g|J_b]
+		Eigen::Matrix<float, 4, 3> J_g;
+		eigen_alignment_compute_objective_jacobian(SEq, k_identity_g_direction, J_g);
 
-    Eigen::Matrix<float, 4, 6> J_gb;
-    J_gb.block<4, 3>(0, 0) = J_g; J_gb.block<4, 3>(0, 3) = J_m;
+		Eigen::Matrix<float, 4, 3> J_m;
+		eigen_alignment_compute_objective_jacobian(SEq, k_identity_m_direction, J_m);
 
-    // Eqn 34) gradient_F= J_gb(SEq, Eb)*f(SEq, Sa, Eb, Sm)
-    // Compute the gradient of the objective function
-    Eigen::Matrix<float, 4, 1> gradient_f = J_gb*f_gb;
-    Eigen::Quaternionf SEqHatDot =
-        Eigen::Quaternionf(gradient_f(0, 0), gradient_f(1, 0), gradient_f(2, 0), gradient_f(3, 0));
+		Eigen::Matrix<float, 4, 6> J_gb;
+		J_gb.block<4, 3>(0, 0) = J_g; J_gb.block<4, 3>(0, 3) = J_m;
 
-    // normalize the gradient to estimate direction of the gyroscope error
-    eigen_quaternion_normalize_with_default(SEqHatDot, *k_eigen_quaternion_zero);
+		// Eqn 34) gradient_F= J_gb(SEq, Eb)*f(SEq, Sa, Eb, Sm)
+		// Compute the gradient of the objective function
+		Eigen::Matrix<float, 4, 1> gradient_f = J_gb*f_gb;
+		Eigen::Quaternionf SEqHatDot =
+			Eigen::Quaternionf(gradient_f(0, 0), gradient_f(1, 0), gradient_f(2, 0), gradient_f(3, 0));
 
-    // Eqn 47) omega_err= 2*SEq*SEqHatDot
-    // compute angular estimated direction of the gyroscope error
-    Eigen::Quaternionf omega_err = Eigen::Quaternionf(SEq.coeffs()*2.f) * SEqHatDot;
+		// normalize the gradient to estimate direction of the gyroscope error
+		eigen_quaternion_normalize_with_default(SEqHatDot, *k_eigen_quaternion_zero);
 
-    // Eqn 48) net_omega_bias+= zeta*omega_err
-    // Compute the net accumulated gyroscope bias
-    const float zeta= sqrtf(3.0f / 4.0f) * fmaxf(fmaxf(m_constants.gyro_variance.x(), m_constants.gyro_variance.y()), m_constants.gyro_variance.z());
-    Eigen::Quaternionf omega_bias(0.f, m_omega_bias_x, m_omega_bias_y, m_omega_bias_z);
-    omega_bias = Eigen::Quaternionf(omega_bias.coeffs() + omega_err.coeffs()*zeta*delta_time);
-    m_omega_bias_x= omega_bias.x();
-    m_omega_bias_y= omega_bias.y();
-    m_omega_bias_z= omega_bias.z();
+		// Eqn 47) omega_err= 2*SEq*SEqHatDot
+		// compute angular estimated direction of the gyroscope error
+		Eigen::Quaternionf omega_err = Eigen::Quaternionf(SEq.coeffs()*2.f) * SEqHatDot;
 
-    // Eqn 49) omega_corrected = omega - net_omega_bias
-    Eigen::Quaternionf omega = Eigen::Quaternionf(0.f, current_omega.x(), current_omega.y(), current_omega.z());
-    Eigen::Quaternionf corrected_omega = Eigen::Quaternionf(omega.coeffs() - omega_bias.coeffs());
+		// Eqn 48) net_omega_bias+= zeta*omega_err
+		// Compute the net accumulated gyroscope bias
+		const float zeta= sqrtf(3.0f / 4.0f) * fmaxf(fmaxf(m_constants.gyro_variance.x(), m_constants.gyro_variance.y()), m_constants.gyro_variance.z());
+		Eigen::Quaternionf omega_bias(0.f, m_omega_bias_x, m_omega_bias_y, m_omega_bias_z);
+		omega_bias = Eigen::Quaternionf(omega_bias.coeffs() + omega_err.coeffs()*zeta*total_delta_time);
+		m_omega_bias_x= omega_bias.x();
+		m_omega_bias_y= omega_bias.y();
+		m_omega_bias_z= omega_bias.z();
 
-    // Compute the rate of change of the orientation purely from the gyroscope
-    // Eqn 12) q_dot = 0.5*q*omega
-    Eigen::Quaternionf SEqDot_omega = Eigen::Quaternionf(SEq.coeffs() * 0.5f) * corrected_omega;
+		// Eqn 49) omega_corrected = omega - net_omega_bias
+		Eigen::Quaternionf omega = Eigen::Quaternionf(0.f, current_omega.x(), current_omega.y(), current_omega.z());
+		Eigen::Quaternionf corrected_omega = Eigen::Quaternionf(omega.coeffs() - omega_bias.coeffs());
 
-    // Compute the estimated quaternion rate of change
-    // Eqn 43) SEq_est = SEqDot_omega - beta*SEqHatDot
-    const float beta= sqrtf(3.0f / 4.0f) * fmaxf(fmaxf(m_constants.gyro_variance.x(), m_constants.gyro_variance.y()), m_constants.gyro_variance.z());
-    Eigen::Quaternionf SEqDot_est = Eigen::Quaternionf(SEqDot_omega.coeffs() - SEqHatDot.coeffs()*beta);
+		// Compute the rate of change of the orientation purely from the gyroscope
+		// Eqn 12) q_dot = 0.5*q*omega
+		Eigen::Quaternionf SEqDot_omega = Eigen::Quaternionf(SEq.coeffs() * 0.5f) * corrected_omega;
 
-    // Compute then integrate the estimated quaternion rate
-    // Eqn 42) SEq_new = SEq + SEqDot_est*delta_t
-    Eigen::Quaternionf SEq_new = Eigen::Quaternionf(SEq.coeffs() + SEqDot_est.coeffs()*delta_time);
+		// Compute the estimated quaternion rate of change
+		// Eqn 43) SEq_est = SEqDot_omega - beta*SEqHatDot
+		const float beta= sqrtf(3.0f / 4.0f) * fmaxf(fmaxf(m_constants.gyro_variance.x(), m_constants.gyro_variance.y()), m_constants.gyro_variance.z());
+		Eigen::Quaternionf SEqDot_est = Eigen::Quaternionf(SEqDot_omega.coeffs() - SEqHatDot.coeffs()*beta);
 
-    // Make sure the net quaternion is a pure rotation quaternion
-    SEq_new.normalize();
+		// Compute then integrate the estimated quaternion rate
+		// Eqn 42) SEq_new = SEq + SEqDot_est*delta_t
+		Eigen::Quaternionf SEq_new = Eigen::Quaternionf(SEq.coeffs() + SEqDot_est.coeffs()*total_delta_time);
 
-    // Save the new quaternion and first derivative back into the orientation state
-    // Derive the second derivative
-    {
-        const Eigen::Quaternionf &new_orientation = SEq_new;
-        const Eigen::Vector3f new_angular_velocity = Eigen::Vector3f::Zero(); //(corrected_omega.x(), corrected_omega.y(), corrected_omega.z());
-        const Eigen::Vector3f new_angular_acceleration = Eigen::Vector3f::Zero(); //(new_angular_velocity - m_state->angular_velocity) / delta_time;
+		// Make sure the net quaternion is a pure rotation quaternion
+		SEq_new.normalize();
 
-        m_state->apply_state(new_orientation, new_angular_velocity, new_angular_acceleration);
-    }
+		// Save the new quaternion and first derivative back into the orientation state
+		// Derive the second derivative
+		{
+			const Eigen::Quaternionf &new_orientation = SEq_new;
+			const Eigen::Vector3f new_angular_velocity = Eigen::Vector3f::Zero(); //(corrected_omega.x(), corrected_omega.y(), corrected_omega.z());
+			const Eigen::Vector3f new_angular_acceleration = Eigen::Vector3f::Zero(); //(new_angular_velocity - m_state->angular_velocity) / delta_time;
+
+			m_state->apply_imu_state(new_orientation, new_angular_velocity, new_angular_acceleration, delta_time);
+		}
+	}
+	else
+	{
+		m_state->accumulate_imu_delta_time(delta_time);
+	}
 }
 
 // -- OrientationFilterComplementaryOpticalARG --
+#define COMPLEMENTARY_FILTER_YAW_ONLY_BLEND 0
 void OrientationFilterComplementaryOpticalARG::update(const float delta_time, const PoseFilterPacket &packet)
 {
-    if (packet.tracking_projection_area_px_sqr <= k_real_epsilon)
-    {
-        OrientationFilterMadgwickARG::update(delta_time, packet);
-		return;
-    }
-
-    const Eigen::Vector3f &current_omega= packet.imu_gyroscope_rad_per_sec;
-
-    Eigen::Vector3f current_g= packet.imu_accelerometer_g_units;
-    eigen_vector3f_normalize_with_default(current_g, Eigen::Vector3f::Zero());
-
-    // Current orientation from earth frame to sensor frame
-    const Eigen::Quaternionf SEq = m_state->orientation;
-    Eigen::Quaternionf SEq_new = SEq;
-
-    // Compute the quaternion derivative measured by gyroscopes
-    // Eqn 12) q_dot = 0.5*q*omega
-    Eigen::Quaternionf omega = Eigen::Quaternionf(0.f, current_omega.x(), current_omega.y(), current_omega.z());
-    Eigen::Quaternionf SEqDot_omega = Eigen::Quaternionf(SEq.coeffs() * 0.5f) *omega;
-
-    if (!current_g.isApprox(Eigen::Vector3f::Zero(), k_normal_epsilon))
-    {
-        // Get the direction of the gravitational fields in the identity pose		
-        Eigen::Vector3f k_identity_g_direction = m_constants.gravity_calibration_direction;
-
-        // Eqn 15) Applied to the gravity vector
-        // Fill in the 3x1 objective function matrix f(SEq, Sa) =|f_g|
-        Eigen::Matrix<float, 3, 1> f_g;
-        eigen_alignment_compute_objective_vector(SEq, k_identity_g_direction, current_g, f_g, NULL);
-
-        // Eqn 21) Applied to the gravity vector
-        // Fill in the 4x3 objective function Jacobian matrix: J_gb(SEq)= [J_g]
-        Eigen::Matrix<float, 4, 3> J_g;
-        eigen_alignment_compute_objective_jacobian(SEq, k_identity_g_direction, J_g);
-
-        // Eqn 34) gradient_F= J_g(SEq)*f(SEq, Sa)
-        // Compute the gradient of the objective function
-        Eigen::Matrix<float, 4, 1> gradient_f = J_g * f_g;
-        Eigen::Quaternionf SEqHatDot =
-            Eigen::Quaternionf(gradient_f(0, 0), gradient_f(1, 0), gradient_f(2, 0), gradient_f(3, 0));
-
-        // normalize the gradient
-        eigen_quaternion_normalize_with_default(SEqHatDot, *k_eigen_quaternion_zero);
-
-        // Compute the estimated quaternion rate of change
-        // Eqn 43) SEq_est = SEqDot_omega - beta*SEqHatDot
-        const float beta= sqrtf(3.0f / 4.0f) * fmaxf(fmaxf(m_constants.gyro_variance.x(), m_constants.gyro_variance.y()), m_constants.gyro_variance.z());
-        Eigen::Quaternionf SEqDot_est = Eigen::Quaternionf(SEqDot_omega.coeffs() - SEqHatDot.coeffs()*beta);
-
-        // Compute then integrate the estimated quaternion rate
-        // Eqn 42) SEq_new = SEq + SEqDot_est*delta_t
-        SEq_new = Eigen::Quaternionf(SEq.coeffs() + SEqDot_est.coeffs()*delta_time);
-    }
-    else
-    {
-        SEq_new = Eigen::Quaternionf(SEq.coeffs() + SEqDot_omega.coeffs()*delta_time);
-    }
-
-    // Make sure the net quaternion is a pure rotation quaternion
-    SEq_new.normalize();
-
 	// Blend with optical yaw
-	Eigen::Quaternionf blended_orientation_new = SEq_new;
-	if (packet.tracking_projection_area_px_sqr > 0)
+	if (packet.has_optical_measurement())
     {
-        // The final rotation is a blend between the integrated orientation and absolute optical orientation
-		const float fraction_of_max_orientation_variance =
-			safe_divide_with_default(
-				m_constants.orientation_variance_curve.evaluate(packet.tracking_projection_area_px_sqr),
-				m_constants.orientation_variance_curve.MaxValue,
-				1.f);
-		const float optical_orientation_quality = clampf01(1.f - fraction_of_max_orientation_variance);
-        float optical_weight= 
-			lerp_clampf(0, k_max_optical_orientation_weight, optical_orientation_quality);
+		Eigen::Quaternionf new_orientation;
+
+		if (m_state->bIsValid)
+		{
+			// Blend between the state's orientation and incoming optical orientation
+			const float optical_variance= 
+				m_constants.orientation_variance_curve.evaluate(packet.tracking_projection_area_px_sqr);
+			const float fraction_of_max_orientation_variance =
+				safe_divide_with_default(
+					optical_variance,
+					m_constants.orientation_variance_curve.MaxValue,
+					1.f);
+			const float optical_orientation_quality = clampf01(1.f - fraction_of_max_orientation_variance);
+			float optical_weight= 
+				lerp_clampf(0, k_max_optical_orientation_weight, optical_orientation_quality);
         
-        static float g_weight_override= -1.f;
-        if (g_weight_override >= 0.f)
-        {
-            optical_weight= g_weight_override;
-        }
+			static float g_weight_override= -1.f;
+			if (g_weight_override >= 0.f)
+			{
+				optical_weight= g_weight_override;
+			}
 
-		blended_orientation_new= eigen_quaternion_normalized_lerp(SEq_new, packet.optical_orientation, optical_weight);
+			#if COMPLEMENTARY_FILTER_YAW_ONLY_BLEND
+			Eigen::Quaternionf optical_yaw, optical_twist;
+			eigen_quaternionf_to_swing_twist(
+				packet.optical_orientation, Eigen::Vector3f(0.f, 1.f, 0.f), 
+				optical_yaw, optical_twist);
+			Eigen::Quaternionf optical_test= optical_yaw * optical_twist;
 
-		//const Eigen::EulerAnglesf optical_euler_angles = eigen_quaternionf_to_euler_angles(packet.optical_orientation);
-		//const Eigen::EulerAnglesf SEeuler_new= eigen_quaternionf_to_euler_angles(SEq_new);
+			Eigen::Quaternionf SEq_new_yaw, SEq_new_twist;
+			eigen_quaternionf_to_swing_twist(
+				SEq_new, Eigen::Vector3f(0.f, 1.f, 0.f), 
+				SEq_new_yaw, SEq_new_twist);
+			Eigen::Quaternionf SEq_new_test= SEq_new_yaw * SEq_new_twist;
 
-		//// Blend in the yaw from the optical orientation
-		//const float blended_heading_radians= 
-		//	wrap_lerpf(
-		//		SEeuler_new.get_heading_radians(), 
-		//		optical_euler_angles.get_heading_radians(), 
-		//		optical_weight, 
-		//		-k_real_pi, k_real_pi);
-		//const Eigen::EulerAnglesf new_euler_angles(
-		//	SEeuler_new.get_bank_radians(), blended_heading_radians, SEeuler_new.get_attitude_radians());
+			Eigen::Quaternionf blended_swing = 
+				eigen_quaternion_normalized_lerp(SEq_new_yaw, optical_yaw, optical_weight);
 
-		//blended_orientation_new = eigen_euler_angles_to_quaternionf(new_euler_angles);
+			// Keep the twist from the filtered orientation
+			// but use the blended yaw orientation
+			new_orientation = blended_swing * SEq_new_twist;
+			#else
+			new_orientation= 
+				eigen_quaternion_normalized_lerp(
+					m_state->orientation, packet.optical_orientation, optical_weight);
+			#endif
+		}
+		else
+		{
+			// Just use the packets optical orientation if the state is uninitialized
+			new_orientation= packet.optical_orientation;
+		}
+
+		m_state->apply_optical_state(new_orientation, delta_time);
     }
-
+	else
 	{
-		// Compute the angular acceleration from the time derivative of the angular velocity
-		const Eigen::Vector3f new_angular_velocity = Eigen::Vector3f::Zero(); //current_omega;
-		const Eigen::Vector3f new_angular_acceleration = Eigen::Vector3f::Zero(); // (current_omega - m_state->angular_velocity) / delta_time;
-
-		m_state->apply_state(blended_orientation_new, new_angular_velocity, new_angular_acceleration);
+		m_state->accumulate_optical_delta_time(delta_time);
 	}
+
+    OrientationFilterMadgwickARG::update(delta_time, packet);
 }
 
 // -- OrientationFilterComplementaryMARG --
@@ -488,64 +542,75 @@ void OrientationFilterComplementaryMARG::resetState()
 
 void OrientationFilterComplementaryMARG::update(const float delta_time, const PoseFilterPacket &packet)
 {
-    const Eigen::Vector3f &current_omega= packet.imu_gyroscope_rad_per_sec;
+	if (packet.has_imu_measurements())
+	{
+		// Time delta used for filter update is time delta passed in
+		// plus the accumulated time since the packet hasn't has an IMU measurement
+		const float total_delta_time= (float)m_state->accumulated_imu_time_delta + delta_time;
 
-    Eigen::Vector3f current_g= packet.imu_accelerometer_g_units;
-    eigen_vector3f_normalize_with_default(current_g, Eigen::Vector3f::Zero());
+		const Eigen::Vector3f &current_omega= packet.imu_gyroscope_rad_per_sec;
 
-    Eigen::Vector3f current_m= packet.imu_magnetometer_unit;
-    eigen_vector3f_normalize_with_default(current_m, Eigen::Vector3f::Zero());
+		Eigen::Vector3f current_g= packet.imu_accelerometer_g_units;
+		eigen_vector3f_normalize_with_default(current_g, Eigen::Vector3f::Zero());
 
-    // Get the direction of the magnetic fields in the identity pose.	
-    Eigen::Vector3f k_identity_m_direction = m_constants.magnetometer_calibration_direction;
+		Eigen::Vector3f current_m= packet.imu_magnetometer_unit;
+		eigen_vector3f_normalize_with_default(current_m, Eigen::Vector3f::Zero());
 
-    // Get the direction of the gravitational fields in the identity pose
-    Eigen::Vector3f k_identity_g_direction = m_constants.gravity_calibration_direction;
+		// Get the direction of the magnetic fields in the identity pose.	
+		Eigen::Vector3f k_identity_m_direction = m_constants.magnetometer_calibration_direction;
 
-    // Angular Rotation (AR) Update
-    //-----------------------------
-    // Compute the rate of change of the orientation purely from the gyroscope
-    // q_dot = 0.5*q*omega
-    Eigen::Quaternionf q_current= m_state->orientation;
+		// Get the direction of the gravitational fields in the identity pose
+		Eigen::Vector3f k_identity_g_direction = m_constants.gravity_calibration_direction;
 
-    Eigen::Quaternionf q_omega = Eigen::Quaternionf(0.f, current_omega.x(), current_omega.y(), current_omega.z());
-    Eigen::Quaternionf q_derivative = Eigen::Quaternionf(q_current.coeffs()*0.5f) * q_omega;
+		// Angular Rotation (AR) Update
+		//-----------------------------
+		// Compute the rate of change of the orientation purely from the gyroscope
+		// q_dot = 0.5*q*omega
+		Eigen::Quaternionf q_current= m_state->orientation;
 
-    // Integrate the rate of change to get a new orientation
-    // q_new= q + q_dot*dT
-    Eigen::Quaternionf q_step = Eigen::Quaternionf(q_derivative.coeffs() * delta_time);
-    Eigen::Quaternionf ar_orientation = Eigen::Quaternionf(q_current.coeffs() + q_step.coeffs());
+		Eigen::Quaternionf q_omega = Eigen::Quaternionf(0.f, current_omega.x(), current_omega.y(), current_omega.z());
+		Eigen::Quaternionf q_derivative = Eigen::Quaternionf(q_current.coeffs()*0.5f) * q_omega;
 
-    // Make sure the resulting quaternion is normalized
-    ar_orientation.normalize();
+		// Integrate the rate of change to get a new orientation
+		// q_new= q + q_dot*dT
+		Eigen::Quaternionf q_step = Eigen::Quaternionf(q_derivative.coeffs() * total_delta_time);
+		Eigen::Quaternionf ar_orientation = Eigen::Quaternionf(q_current.coeffs() + q_step.coeffs());
 
-    // Magnetic/Gravity (MG) Update
-    //-----------------------------
-    const Eigen::Vector3f* mg_from[2] = { &k_identity_g_direction, &k_identity_m_direction };
-    const Eigen::Vector3f* mg_to[2] = { &current_g, &current_m };
-    Eigen::Quaternionf mg_orientation;
+		// Make sure the resulting quaternion is normalized
+		ar_orientation.normalize();
 
-    // Always attempt to align with the identity_mg, even if we don't get within the alignment tolerance.
-    // More often then not we'll be better off moving forward with what we have and trying to refine
-    // the alignment next frame.
-    eigen_alignment_quaternion_between_vector_frames(
-        mg_from, mg_to, 0.1f, q_current, mg_orientation);
+		// Magnetic/Gravity (MG) Update
+		//-----------------------------
+		const Eigen::Vector3f* mg_from[2] = { &k_identity_g_direction, &k_identity_m_direction };
+		const Eigen::Vector3f* mg_to[2] = { &current_g, &current_m };
+		Eigen::Quaternionf mg_orientation;
 
-    // Blending Update
-    //----------------
-    // Save the new quaternion and first derivative back into the orientation state
-    // Derive the second derivative
-    {
-        // The final rotation is a blend between the integrated orientation and absolute rotation from the earth-frame
-        const Eigen::Quaternionf new_orientation = 
-            eigen_quaternion_normalized_lerp(ar_orientation, mg_orientation, mg_weight);            
-        const Eigen::Vector3f new_angular_velocity= Eigen::Vector3f::Zero(); // current_omega;
-        const Eigen::Vector3f new_angular_acceleration = Eigen::Vector3f::Zero(); // (current_omega - m_state->angular_velocity) / delta_time;
+		// Always attempt to align with the identity_mg, even if we don't get within the alignment tolerance.
+		// More often then not we'll be better off moving forward with what we have and trying to refine
+		// the alignment next frame.
+		eigen_alignment_quaternion_between_vector_frames(
+			mg_from, mg_to, 0.1f, q_current, mg_orientation);
 
-        m_state->apply_state(new_orientation, new_angular_velocity, new_angular_acceleration);
-    }
+		// Blending Update
+		//----------------
+		// Save the new quaternion and first derivative back into the orientation state
+		// Derive the second derivative
+		{
+			// The final rotation is a blend between the integrated orientation and absolute rotation from the earth-frame
+			const Eigen::Quaternionf new_orientation = 
+				eigen_quaternion_normalized_lerp(ar_orientation, mg_orientation, mg_weight);            
+			const Eigen::Vector3f new_angular_velocity= Eigen::Vector3f::Zero(); // current_omega;
+			const Eigen::Vector3f new_angular_acceleration = Eigen::Vector3f::Zero(); // (current_omega - m_state->angular_velocity) / delta_time;
 
-    // Update the blend weight
-    // -- Exponential blend the MG weight from 1 down to k_base_earth_frame_align_weight
-    mg_weight = lerp_clampf(mg_weight, k_base_earth_frame_align_weight, 0.9f);
+			m_state->apply_imu_state(new_orientation, new_angular_velocity, new_angular_acceleration, delta_time);
+		}
+
+		// Update the blend weight
+		// -- Exponential blend the MG weight from 1 down to k_base_earth_frame_align_weight
+		mg_weight = lerp_clampf(mg_weight, k_base_earth_frame_align_weight, 0.9f);
+	}
+	else
+	{
+		m_state->accumulate_imu_delta_time(delta_time);
+	}
 }

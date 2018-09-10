@@ -52,6 +52,7 @@ public:
 
     // -- IStateFilter --
     bool getIsStateValid() const override;
+    double getTimeInSeconds() const override;
     void update(const float delta_time, const PoseFilterPacket &packet) override;
     void resetState() override;
 	void recenterOrientation(const Eigen::Quaternionf& q_pose) override;
@@ -76,6 +77,7 @@ protected:
 
     IPositionFilter *m_position_filter;
     IOrientationFilter *m_orientation_filter;
+    double m_time;
 };
 
 #endif // COMPOUND_POSE_FILTER_H

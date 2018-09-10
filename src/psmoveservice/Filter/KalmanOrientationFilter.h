@@ -15,6 +15,7 @@ public:
 
 	// -- IStateFilter --
 	bool getIsStateValid() const override;
+    double getTimeInSeconds() const override;
 	void resetState() override;
 	void recenterOrientation(const Eigen::Quaternionf& q_pose) override;
 
@@ -26,6 +27,15 @@ public:
 protected:
 	OrientationFilterConstants m_constants;
 	class KalmanOrientationFilterImpl *m_filter;
+};
+
+/// Kalman Orientation filter for Optical + Angular Rate(Gyroscope) + Gravity(Accelerometer)
+class KalmanOrientationFilterPSVR : public KalmanOrientationFilter
+{
+public:
+	bool init(const OrientationFilterConstants &constant) override;
+	bool init(const OrientationFilterConstants &constant, const Eigen::Quaternionf &orientation) override;
+	void update(const float delta_time, const PoseFilterPacket &packet) override;
 };
 
 /// Kalman Orientation filter for Optical Yaw + Angular Rate(Gyroscope) + Gravity(Accelerometer)

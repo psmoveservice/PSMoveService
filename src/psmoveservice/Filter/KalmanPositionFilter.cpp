@@ -241,9 +241,9 @@ public:
 };
 
 /**
-* @brief Measurement model for measuring PSMove controller
+* @brief Measurement model for measuring PSVR controller
 *
-* This is the measurement model for measuring the position and magnetometer of the PSMove controller.
+* This is the measurement model for measuring the position and magnetometer of the PSVR controller.
 * The measurement is given by the optical trackers.
 */
 class PositionMeasurementModel : public Kalman::MeasurementModel<PositionStateVectord, PositionMeasurementVectord, Kalman::SquareRootBase>
@@ -355,6 +355,9 @@ public:
     /// Unscented Kalman Filter instance
 	PositionSRUKF ukf;
 
+    /// The duration the filter has been running
+    double time;
+
     KalmanPositionFilterImpl() 
 		: ukf(k_ukf_alpha, k_ukf_beta, k_ukf_kappa)
     {
@@ -370,6 +373,7 @@ public:
 		measurement_model.init(constants);
         system_model.init(constants);
         ukf.init(PositionStateVectord::Zero());
+        time= 0.0;
     }
 
 	virtual void init(const PositionFilterConstants &constants, const Eigen::Vector3f &initial_position_meters)
@@ -385,6 +389,7 @@ public:
 		measurement_model.init(constants);
 		system_model.init(constants);
 		ukf.init(state_vector);
+        time= 0.0;
 	}
 };
 
@@ -448,7 +453,9 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
     if (m_filter->bIsValid)
     {
 		// Adjust the amount we trust the optical state based on the tracking projection area
-		m_filter->system_model.update_process_noise(m_constants, packet.tracking_projection_area_px_sqr);
+		m_filter->system_model.update_process_noise(
+			m_constants, 
+			packet.tracking_projection_area_px_sqr);
 
         // Predict state for current time-step using the filters
         m_filter->system_model.set_time_step(delta_time);
@@ -525,6 +532,7 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
 
         // Update UKF
         m_filter->ukf.update(measurement_model, measurement);
+        m_filter->time+= (double)delta_time;
     }
     else
     {
@@ -539,6 +547,7 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
 		}
 
 		m_filter->ukf.init(state_vector);
+        m_filter->time= 0.f;
         m_filter->bIsValid= true;
     }
 }
@@ -546,6 +555,11 @@ void KalmanPositionFilter::update(const float delta_time, const PoseFilterPacket
 bool KalmanPositionFilter::getIsStateValid() const
 {
     return m_filter->bIsValid;
+}
+
+double KalmanPositionFilter::getTimeInSeconds() const
+{
+    return m_filter->time;
 }
 
 void KalmanPositionFilter::resetState()
