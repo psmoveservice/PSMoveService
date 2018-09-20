@@ -353,6 +353,7 @@ struct CommonDeviceTrackingShape
 
     union{
         struct {
+			CommonDevicePosition center_cm;
             float radius_cm;
         } sphere;
 

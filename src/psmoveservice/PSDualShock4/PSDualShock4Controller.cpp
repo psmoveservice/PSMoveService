@@ -260,18 +260,23 @@ class DualShock4HidPacketProcessor : public WorkerThread
 public:
 	DualShock4HidPacketProcessor(const PSDualShock4ControllerConfig &cfg) 
 		: WorkerThread("PSMoveSensorProcessor")
-		, m_cfg(cfg)
 		, m_hidDevice(nullptr)
 		, m_controllerListener(nullptr)
 		, m_bSupportsMagnetometer(false)
 		, m_nextPollSequenceNumber(0)
 	{
+		setConfig(cfg);
 		memset(&m_previousHIDInputPacket, 0, sizeof(DualShock4DataInput));
 		memset(&m_currentHIDInputPacket, 0, sizeof(DualShock4DataInput));
 		m_previousHIDInputPacket.hid_protocol_code = DualShock4_BTReport_Input;
 		m_currentHIDInputPacket.hid_protocol_code = DualShock4_BTReport_Input;
 
 		memset(&m_previousOutputState, 0, sizeof(DualShock4ControllerOutputState));
+	}
+
+	void setConfig(const PSDualShock4ControllerConfig &cfg)
+	{
+		m_cfg.storeValue(cfg);
 	}
 
 	void fetchLatestInputData(DualShock4ControllerInputState &input_state)
@@ -322,6 +327,9 @@ protected:
 
 		if (res > 0)
 		{
+			PSDualShock4ControllerConfig cfg;
+			m_cfg.fetchValue(cfg);
+
 			// https://github.com/hrl7/node-psvr/blob/master/lib/psvr.js
 			DualShock4ControllerInputState newState;
 
@@ -330,7 +338,7 @@ protected:
 			++m_nextPollSequenceNumber;
 
 			// Processes the IMU data
-			newState.parseDataInput(&m_cfg, &m_previousHIDInputPacket, &m_currentHIDInputPacket);
+			newState.parseDataInput(&cfg, &m_previousHIDInputPacket, &m_currentHIDInputPacket);
 
 			// Store a copy of the parsed input date for functions
 			// that want to query input state off of the worker thread
@@ -433,12 +441,12 @@ protected:
 	}
 
     // Multi-threaded state
-	const PSDualShock4ControllerConfig m_cfg;
 	hid_device *m_hidDevice;
 	IControllerListener *m_controllerListener;
 	bool m_bSupportsMagnetometer;
 	AtomicObject<DualShock4ControllerInputState> m_currentInputState;
 	AtomicObject<DualShock4ControllerOutputState> m_currentOutputState;
+	AtomicObject<PSDualShock4ControllerConfig> m_cfg;
 
     // Worker thread state
     int m_nextPollSequenceNumber;
@@ -1276,6 +1284,19 @@ bool PSDualShock4Controller::getWasSystemButtonPressed() const
     }
 
     return bWasPressed;
+}
+
+void 
+PSDualShock4Controller::setConfig(const PSDualShock4ControllerConfig *config)
+{
+	cfg= *config;
+
+	if (m_HIDPacketProcessor != nullptr)
+	{
+		m_HIDPacketProcessor->setConfig(*config);
+	}
+
+	cfg.save();
 }
 
 bool

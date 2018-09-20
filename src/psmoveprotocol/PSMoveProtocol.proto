@@ -255,11 +255,13 @@ message Request {
     // Parameters for SET_CONTROLLER_GYROSCOPE_CALIBRATION
     message RequestSetControllerGyroscopeCalibration {
         int32 controller_id = 1;
-        float variance= 2;
-        float drift= 3;
-        string gyro_gain_setting= 4;
+		FloatVector raw_bias= 2;
+        float variance= 3;
+        float drift= 4;
+        string gyro_gain_setting= 5;
     }
     RequestSetControllerGyroscopeCalibration set_controller_gyroscope_calibration_request = 15;
+	
     // Parameters for SET_OPTICAL_NOISE_CALIBRATION
     message RequestSetOpticalNoiseCalibration {
         int32 controller_id = 1;

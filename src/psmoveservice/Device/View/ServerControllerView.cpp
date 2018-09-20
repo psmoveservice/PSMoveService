@@ -2044,6 +2044,7 @@ init_filters_for_psmove(
     PoseFilterConstants constants;
     constants.clear();
 
+	psmoveController->getTrackingShape(constants.orientation_constants.tracking_shape);
     constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
     constants.orientation_constants.accelerometer_variance =
         Eigen::Vector3f(psmove_config->accelerometer_variance, psmove_config->accelerometer_variance, psmove_config->accelerometer_variance);
@@ -2055,6 +2056,8 @@ init_filters_for_psmove(
     constants.orientation_constants.gyro_variance= 
         Eigen::Vector3f(psmove_config->gyro_variance, psmove_config->gyro_variance, psmove_config->gyro_variance);
     constants.orientation_constants.mean_update_time_delta= psmove_config->mean_update_time_delta;
+    constants.orientation_constants.position_variance_curve.A = psmove_config->position_variance_exp_fit_a;
+    constants.orientation_constants.position_variance_curve.B = psmove_config->position_variance_exp_fit_b;
     constants.orientation_constants.orientation_variance_curve.A = psmove_config->orientation_variance;
     constants.orientation_constants.orientation_variance_curve.B = 0.f;
     constants.orientation_constants.orientation_variance_curve.MaxValue = psmove_config->orientation_variance;
@@ -2083,11 +2086,11 @@ init_filters_for_psmove(
 
 static void
 init_filters_for_psdualshock4(
-    const PSDualShock4Controller *psmoveController,
+    const PSDualShock4Controller *ds4Controller,
     PoseFilterSpace **out_pose_filter_space,
     IPoseFilter **out_pose_filter)
 {
-    const PSDualShock4ControllerConfig *ds4_config = psmoveController->getConfig();
+    const PSDualShock4ControllerConfig *ds4_config = ds4Controller->getConfig();
 
         // Setup the space the orientation filter operates in
     PoseFilterSpace *pose_filter_space = new PoseFilterSpace();
@@ -2104,6 +2107,7 @@ init_filters_for_psdualshock4(
     PoseFilterConstants constants;
     constants.clear();
 
+	ds4Controller->getTrackingShape(constants.orientation_constants.tracking_shape);
     constants.orientation_constants.gravity_calibration_direction = pose_filter_space->getGravityCalibrationDirection();
     constants.orientation_constants.magnetometer_calibration_direction = pose_filter_space->getMagnetometerCalibrationDirection();
     constants.orientation_constants.mean_update_time_delta= ds4_config->mean_update_time_delta;
@@ -2116,6 +2120,8 @@ init_filters_for_psdualshock4(
         Eigen::Vector3f(ds4_config->gyro_drift, ds4_config->gyro_drift, ds4_config->gyro_drift);
     constants.orientation_constants.gyro_variance=
         Eigen::Vector3f(ds4_config->gyro_variance, ds4_config->gyro_variance, ds4_config->gyro_variance);
+    constants.orientation_constants.position_variance_curve.A = ds4_config->position_variance_exp_fit_a;
+    constants.orientation_constants.position_variance_curve.B = ds4_config->position_variance_exp_fit_b;
     constants.orientation_constants.orientation_variance_curve.A = ds4_config->orientation_variance_exp_fit_a;
     constants.orientation_constants.orientation_variance_curve.B = ds4_config->orientation_variance_exp_fit_b;
     constants.orientation_constants.orientation_variance_curve.MaxValue = 1.f;
@@ -2159,6 +2165,7 @@ static void init_filters_for_virtual_controller(
 	PoseFilterConstants constants;
 	constants.clear();
 
+	virtualController->getTrackingShape(constants.orientation_constants.tracking_shape);
 	constants.orientation_constants.gravity_calibration_direction = Eigen::Vector3f::Zero();
 	constants.orientation_constants.accelerometer_variance = Eigen::Vector3f::Zero();
 	constants.position_constants.accelerometer_drift = Eigen::Vector3f::Zero();
@@ -2166,6 +2173,8 @@ static void init_filters_for_virtual_controller(
 	constants.orientation_constants.gyro_drift = Eigen::Vector3f::Zero();
 	constants.orientation_constants.gyro_variance = Eigen::Vector3f::Zero();
 	constants.orientation_constants.mean_update_time_delta = 0.f;
+	constants.orientation_constants.position_variance_curve.A = controller_config->position_variance_exp_fit_a;
+	constants.orientation_constants.position_variance_curve.B = controller_config->position_variance_exp_fit_b;
 	constants.orientation_constants.orientation_variance_curve.A = 0.f;
 	constants.orientation_constants.orientation_variance_curve.B = 0.f;
 	constants.orientation_constants.orientation_variance_curve.MaxValue = 0.f;

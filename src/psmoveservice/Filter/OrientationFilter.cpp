@@ -474,17 +474,72 @@ void OrientationFilterComplementaryOpticalARG::update(const float delta_time, co
 
 		if (m_state->bIsValid)
 		{
-			// Blend between the state's orientation and incoming optical orientation
-			const float optical_variance= 
-				m_constants.orientation_variance_curve.evaluate(packet.tracking_projection_area_px_sqr);
-			const float fraction_of_max_orientation_variance =
-				safe_divide_with_default(
-					optical_variance,
-					m_constants.orientation_variance_curve.MaxValue,
-					1.f);
-			const float optical_orientation_quality = clampf01(1.f - fraction_of_max_orientation_variance);
-			float optical_weight= 
-				lerp_clampf(0, k_max_optical_orientation_weight, optical_orientation_quality);
+			Eigen::Quaternionf optical_orientation= Eigen::Quaternionf::Identity();
+			float optical_weight= 0.f;
+
+			if (m_constants.tracking_shape.shape_type == Sphere)
+			{
+				// Estimate the orientation of the controller 
+				// by leveraging the fact that the bulb is offset from the IMU location
+				CommonDevicePosition sphere_offset= m_constants.tracking_shape.shape.sphere.center_cm;
+				if (getIsStateValid() && 
+					(fabsf(sphere_offset.x) > 0 || fabsf(sphere_offset.y) > 0 || fabsf(sphere_offset.z) > 0))
+				{
+					// TODO: This assumes that the tracking sphere is 
+					// aligned along the +Z axis from the IMU
+
+					// Get the basis vectors for the last estimated IMU orientation
+					const Eigen::Matrix3f imu_estimated_basis= m_state->orientation.toRotationMatrix();
+					const Eigen::Vector3f imu_estimated_XAxis= imu_estimated_basis.col(0);
+					const Eigen::Vector3f imu_estimated_YAxis= imu_estimated_basis.col(1);
+					const Eigen::Vector3f imu_estimated_ZAxis= imu_estimated_basis.col(2);
+
+					// Compute where the IMU position should be
+					// using the last estimated bulb position
+					const Eigen::Vector3f imu_estimated_position_cm=
+						packet.current_position_cm // last estimated bulb position
+						//- imu_estimated_XAxis*sphere_offset.x
+						//- imu_estimated_YAxis*sphere_offset.y
+						- imu_estimated_ZAxis*sphere_offset.z;
+
+					// Compute an orientation aligned along the vector from the 
+					// last estimated IMU position to the current bulb position
+					const Eigen::Vector3f optical_ZAxis= packet.optical_position_cm - imu_estimated_position_cm;
+					const Eigen::Vector3f optical_YAxis= optical_ZAxis.cross(imu_estimated_XAxis);
+					optical_orientation= eigen_quaternion_from_ZY(optical_ZAxis, optical_YAxis);
+
+					// Use the positional variance as the quality measure
+					const float optical_variance= 
+						m_constants.position_variance_curve.evaluate(packet.tracking_projection_area_px_sqr);
+					const float fraction_of_max_orientation_variance =
+						safe_divide_with_default(
+							optical_variance,
+							m_constants.position_variance_curve.MaxValue,
+							1.f);
+					const float optical_orientation_quality = clampf01(1.f - fraction_of_max_orientation_variance);
+
+					optical_weight= 
+						lerp_clampf(0, k_max_optical_orientation_weight, optical_orientation_quality);
+				}
+			}
+			else
+			{
+				// Use the optical orientation fed into the filter packet
+				optical_orientation= packet.optical_orientation;
+
+				// Use the orientation variance as the quality measure
+				const float optical_variance= 
+					m_constants.orientation_variance_curve.evaluate(packet.tracking_projection_area_px_sqr);
+				const float fraction_of_max_orientation_variance =
+					safe_divide_with_default(
+						optical_variance,
+						m_constants.orientation_variance_curve.MaxValue,
+						1.f);
+				const float optical_orientation_quality = clampf01(1.f - fraction_of_max_orientation_variance);
+				
+				optical_weight= 
+					lerp_clampf(0, k_max_optical_orientation_weight, optical_orientation_quality);
+			}
         
 			static float g_weight_override= -1.f;
 			if (g_weight_override >= 0.f)
@@ -492,6 +547,7 @@ void OrientationFilterComplementaryOpticalARG::update(const float delta_time, co
 				optical_weight= g_weight_override;
 			}
 
+			// Blend between the state's orientation and incoming optical orientation
 			#if COMPLEMENTARY_FILTER_YAW_ONLY_BLEND
 			Eigen::Quaternionf optical_yaw, optical_twist;
 			eigen_quaternionf_to_swing_twist(

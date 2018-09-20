@@ -1137,15 +1137,15 @@ protected:
         if (ControllerView && ControllerView->getIsOpen() && ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
         {
             PSMoveController *controller= ControllerView->castChecked<PSMoveController>();
-            PSMoveControllerConfig *config= controller->getConfigMutable();
+            PSMoveControllerConfig config= *controller->getConfig();
 
             const auto &request= context.request->set_controller_magnetometer_calibration_request();
 
-            set_config_vector(request.ellipse_center(), config->magnetometer_center);
-            set_config_vector(request.ellipse_extents(), config->magnetometer_extents);
-            set_config_vector(request.magnetometer_identity(), config->magnetometer_identity);
-            config->magnetometer_fit_error = request.ellipse_fit_error();
-            config->magnetometer_variance= request.magnetometer_variance();
+            set_config_vector(request.ellipse_center(), config.magnetometer_center);
+            set_config_vector(request.ellipse_extents(), config.magnetometer_extents);
+            set_config_vector(request.magnetometer_identity(), config.magnetometer_identity);
+            config.magnetometer_fit_error = request.ellipse_fit_error();
+            config.magnetometer_variance= request.magnetometer_variance();
 
             {
                 CommonDeviceVector basis_x, basis_y, basis_z;
@@ -1154,12 +1154,12 @@ protected:
                 set_config_vector(request.ellipse_basis_y(), basis_y);
                 set_config_vector(request.ellipse_basis_z(), basis_z);
 
-                config->magnetometer_basis_x = basis_x;
-                config->magnetometer_basis_y = basis_y;
-                config->magnetometer_basis_z = basis_z;
+                config.magnetometer_basis_x = basis_x;
+                config.magnetometer_basis_y = basis_y;
+                config.magnetometer_basis_z = basis_z;
             }
 
-            config->save();
+            controller->setConfig(&config);
 
             // Reset the orientation filter state the calibration changed
             ControllerView->resetPoseFilter();
@@ -1185,32 +1185,34 @@ protected:
             if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
             {
                 PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-                PSMoveControllerConfig *config = controller->getConfigMutable();
+                PSMoveControllerConfig config = *controller->getConfig();
 
                 const auto &request = context.request->set_controller_accelerometer_calibration_request();
 
                 // Save the noise radius in controller config
-                config->accelerometer_noise_radius= request.noise_radius();
-                    config->accelerometer_variance = request.variance();
-                config->save();
+                config.accelerometer_noise_radius= request.noise_radius();
+                config.accelerometer_variance = request.variance();
+                
+				controller->setConfig(&config);
 
-                    ControllerView->resetPoseFilter();
+                ControllerView->resetPoseFilter();
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
             else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
             {
                 PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-                PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+                PSDualShock4ControllerConfig config = *controller->getConfig();
 
                 const auto &request = context.request->set_controller_accelerometer_calibration_request();
 
                 // Save the noise radius in controller config
-                config->accelerometer_noise_radius= request.noise_radius();
-                    config->accelerometer_variance = request.variance();
-                config->save();
+                config.accelerometer_noise_radius= request.noise_radius();
+                config.accelerometer_variance = request.variance();
+                
+				controller->setConfig(&config);
 
-                    ControllerView->resetPoseFilter();
+                ControllerView->resetPoseFilter();
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
             }
@@ -1238,7 +1240,7 @@ protected:
             if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
             {
                 PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-                PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+                PSDualShock4ControllerConfig config = *controller->getConfig();
 
                 const auto &request = context.request->set_controller_gyroscope_calibration_request();
 
@@ -1246,13 +1248,13 @@ protected:
 
                 if (request.drift() > 0.f)
                 {
-                    config->gyro_drift= request.drift();
+                    config.gyro_drift= request.drift();
                     bChanged = true;
                 }
 
                 if (request.variance() > 0.f)
                 {
-                    config->gyro_variance= request.variance();
+                    config.gyro_variance= request.variance();
                     bChanged = true;
                 }
 
@@ -1263,34 +1265,34 @@ protected:
                     // https://ae-bst.resource.bosch.com/media/_tech/media/datasheets/BST-BMI055-DS000-08.pdf
                     if (gyro_gain_setting == "125deg/s")
                     {
-                        config->gyro_gain = 1.f / (262.4f / k_degrees_to_radians);
+                        config.gyro_gain = 1.f / (262.4f / k_degrees_to_radians);
                         bChanged = true;
                     }
                     if (gyro_gain_setting == "250deg/s")
                     {
-                        config->gyro_gain = 1.f / (131.2f / k_degrees_to_radians);
+                        config.gyro_gain = 1.f / (131.2f / k_degrees_to_radians);
                         bChanged = true;
                     }
                     if (gyro_gain_setting == "500deg/s")
                     {
-                        config->gyro_gain = 1.f / (65.6f / k_degrees_to_radians);
+                        config.gyro_gain = 1.f / (65.6f / k_degrees_to_radians);
                         bChanged = true;
                     }
                     else if (gyro_gain_setting == "1000deg/s")
                     {
-                        config->gyro_gain = 1.f / (32.8f / k_degrees_to_radians);
+                        config.gyro_gain = 1.f / (32.8f / k_degrees_to_radians);
                         bChanged = true;
                     }
                     else if (gyro_gain_setting == "2000deg/s")
                     {
-                        config->gyro_gain = 1.f / (16.4f / k_degrees_to_radians);
+                        config.gyro_gain = 1.f / (16.4f / k_degrees_to_radians);
                         bChanged = true;
                     }
                 }
 
                 if (bChanged)
                 {
-                    config->save();
+					controller->setConfig(&config);
                 }
 
                 ControllerView->resetPoseFilter();
@@ -1300,28 +1302,33 @@ protected:
             else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
             {
                 PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-                PSMoveControllerConfig *config = controller->getConfigMutable();
+                PSMoveControllerConfig config = *controller->getConfig();
 
                 const PSMoveProtocol::Request_RequestSetControllerGyroscopeCalibration &request =
                     context.request->set_controller_gyroscope_calibration_request();
 
                 bool bChanged = false;
 
+				if (config.set_raw_gyro_bias(request.raw_bias().i(), request.raw_bias().j(), request.raw_bias().k()))
+				{
+					bChanged = true;
+				}
+
                 if (request.drift() > 0.f)
                 {
-                    config->gyro_drift= request.drift();
+                    config.gyro_drift= request.drift();
                     bChanged = true;
                 }
 
                 if (request.variance() > 0.f)
                 {
-                    config->gyro_variance= request.variance();
+                    config.gyro_variance= request.variance();
                     bChanged = true;
                 }
 
                 if (bChanged)
                 {
-                    config->save();
+					controller->setConfig(&config);
                 }
 
                 ControllerView->resetPoseFilter();
@@ -1354,13 +1361,14 @@ protected:
             if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
             {
                 PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-                PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+                PSDualShock4ControllerConfig config = *controller->getConfig();
 
-                config->position_variance_exp_fit_a = request.position_variance_exp_fit_a();
-                config->position_variance_exp_fit_b = request.position_variance_exp_fit_b();
-                config->orientation_variance_exp_fit_a = request.orientation_variance_exp_fit_a();
-                config->orientation_variance_exp_fit_b = request.orientation_variance_exp_fit_b();
-                config->save();
+                config.position_variance_exp_fit_a = request.position_variance_exp_fit_a();
+                config.position_variance_exp_fit_b = request.position_variance_exp_fit_b();
+                config.orientation_variance_exp_fit_a = request.orientation_variance_exp_fit_a();
+                config.orientation_variance_exp_fit_b = request.orientation_variance_exp_fit_b();
+
+				controller->setConfig(&config);
 
                 ControllerView->resetPoseFilter();
 
@@ -1369,12 +1377,12 @@ protected:
             else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
             {
                 PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-                PSMoveControllerConfig *config = controller->getConfigMutable();
+                PSMoveControllerConfig config = *controller->getConfig();
 
-                config->position_variance_exp_fit_a = request.position_variance_exp_fit_a();
-                config->position_variance_exp_fit_b = request.position_variance_exp_fit_b();
+                config.position_variance_exp_fit_a = request.position_variance_exp_fit_a();
+                config.position_variance_exp_fit_b = request.position_variance_exp_fit_b();
                 // No optical variance set for the psmove
-                config->save();
+                controller->setConfig(&config);
 
                 ControllerView->resetPoseFilter();
 
@@ -1420,12 +1428,13 @@ protected:
             if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
             {
                 PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-                PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+                PSDualShock4ControllerConfig config = *controller->getConfig();
 
-                if (config->orientation_filter_type != request.orientation_filter())
+                if (config.orientation_filter_type != request.orientation_filter())
                 {
-                    config->orientation_filter_type = request.orientation_filter();
-                    config->save();
+                    config.orientation_filter_type = request.orientation_filter();
+                    
+					controller->setConfig(&config);
 
                     ControllerView->resetPoseFilter();
                 }
@@ -1435,12 +1444,13 @@ protected:
             else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
             {
                 PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-                PSMoveControllerConfig *config = controller->getConfigMutable();
+                PSMoveControllerConfig config = *controller->getConfig();
 
-                if (config->orientation_filter_type != request.orientation_filter())
+                if (config.orientation_filter_type != request.orientation_filter())
                 {
-                    config->orientation_filter_type = request.orientation_filter();
-                    config->save();
+                    config.orientation_filter_type = request.orientation_filter();
+
+					controller->setConfig(&config);
 
                     ControllerView->resetPoseFilter();
                 }
@@ -1473,12 +1483,13 @@ protected:
             if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
             {
                 PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-                PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+                PSDualShock4ControllerConfig config = *controller->getConfig();
 
-                if (config->position_filter_type != request.position_filter())
+                if (config.position_filter_type != request.position_filter())
                 {
-                    config->position_filter_type = request.position_filter();
-                    config->save();
+                    config.position_filter_type = request.position_filter();
+
+					controller->setConfig(&config);
 
                     ControllerView->resetPoseFilter();
                 }
@@ -1488,12 +1499,13 @@ protected:
             else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
             {
                 PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-                PSMoveControllerConfig *config = controller->getConfigMutable();
+                PSMoveControllerConfig config = *controller->getConfig();
 
-                if (config->position_filter_type != request.position_filter())
+                if (config.position_filter_type != request.position_filter())
                 {
-                    config->position_filter_type = request.position_filter();
-                    config->save();
+                    config.position_filter_type = request.position_filter();
+
+					controller->setConfig(&config);
 
                     ControllerView->resetPoseFilter();
                 }
@@ -1541,12 +1553,13 @@ protected:
             if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSDualShock4)
             {
                 PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-                PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+                PSDualShock4ControllerConfig config = *controller->getConfig();
 
-                if (config->prediction_time != request.prediction_time())
+                if (config.prediction_time != request.prediction_time())
                 {
-                    config->prediction_time = request.prediction_time();
-                    config->save();
+                    config.prediction_time = request.prediction_time();
+
+					controller->setConfig(&config);
                 }
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
@@ -1554,12 +1567,13 @@ protected:
             else if (ControllerView->getControllerDeviceType() == CommonDeviceState::PSMove)
             {
                 PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-                PSMoveControllerConfig *config = controller->getConfigMutable();
+                PSMoveControllerConfig config = *controller->getConfig();
 
-                if (config->prediction_time != request.prediction_time())
+                if (config.prediction_time != request.prediction_time())
                 {
-                    config->prediction_time = request.prediction_time();
-                    config->save();
+                    config.prediction_time = request.prediction_time();
+
+					controller->setConfig(&config);
                 }
 
                 response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
@@ -1726,10 +1740,10 @@ protected:
 			case CommonDeviceState::PSMove:
 				{
 					PSMoveController *controller = ControllerView->castChecked<PSMoveController>();
-					PSMoveControllerConfig *config = controller->getConfigMutable();
+					PSMoveControllerConfig config = *controller->getConfig();
 
-					config->hand = hand;
-					config->save();
+					config.hand = hand;
+					controller->setConfig(&config);
 
 					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 				}
@@ -1737,10 +1751,10 @@ protected:
 			case CommonDeviceState::PSDualShock4:
 				{
 					PSDualShock4Controller *controller = ControllerView->castChecked<PSDualShock4Controller>();
-					PSDualShock4ControllerConfig *config = controller->getConfigMutable();
+					PSDualShock4ControllerConfig config = *controller->getConfig();
 
-					config->hand = hand;
-					config->save();
+					config.hand = hand;
+					controller->setConfig(&config);
 
 					response->set_result_code(PSMoveProtocol::Response_ResultCode_RESULT_OK);
 				}

@@ -71,6 +71,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #define PSMOVE_STATE_BUFFER_MAX 16
 
 #define PSMOVE_TRACKING_BULB_RADIUS  2.25f // The radius of the psmove tracking bulb in cm
+#define PSMOVE_TRACKING_BULB_OFFSET  9.f   // The offset of the psmove tracking bulb from center of the controller in cm
 
 /* Minimum time (in milliseconds) psmove write updates */
 #define PSMOVE_WRITE_DATA_INTERVAL_MS 120
@@ -203,7 +204,6 @@ class PSMoveHidPacketProcessor : public WorkerThread
 public:
 	PSMoveHidPacketProcessor(const PSMoveControllerConfig &cfg, PSMoveControllerModelPID model) 
 		: WorkerThread("PSMoveSensorProcessor")
-		, m_cfg(cfg)
 		, m_model(model)
 		, m_hidDevice(nullptr)
 		, m_controllerListener(nullptr)
@@ -212,6 +212,8 @@ public:
 		, m_previousHIDInputPacket(nullptr)
 		, m_currentHIDInputPacket(nullptr)
 	{
+		setConfig(cfg);
+
 		if (m_model == _psmove_controller_ZCM2)
 		{
 			m_previousHIDInputPacket = new PSMoveDataInputZCM2;
@@ -235,6 +237,11 @@ public:
 	~PSMoveHidPacketProcessor()
 	{
 		delete m_currentHIDInputPacket;
+	}
+
+	void setConfig(const PSMoveControllerConfig &cfg)
+	{
+		m_cfg.storeValue(cfg);
 	}
 
 	bool getSupportsMagnetometer() const
@@ -280,6 +287,9 @@ protected:
 			const int k_max_poll_attempts = 10;
 			int poll_count = 0;
 
+			PSMoveControllerConfig cfg;
+			m_cfg.fetchValue(cfg);
+
 			for (poll_count = 0; poll_count < k_max_poll_attempts; ++poll_count)
 			{
 				PSMoveDataInputZCM1 rawHIDPacket;
@@ -288,7 +298,7 @@ protected:
 				if (res > 0)
 				{
 					PSMoveControllerInputState newState;
-					newState.parseDataInput(&m_cfg, m_model, nullptr, &rawHIDPacket);
+					newState.parseDataInput(&cfg, m_model, nullptr, &rawHIDPacket);
 
 					// See if we are getting valid magnetometer data
 					m_bSupportsMagnetometer = 
@@ -312,17 +322,20 @@ protected:
 
 	virtual bool doWork() override
     {
+		PSMoveControllerConfig cfg;
+		m_cfg.fetchValue(cfg);
+
 		// Attempt to read the next sensor update packet from the HMD
         int res = -1;
 		if (m_model == _psmove_controller_ZCM2)
 		{
 			memcpy(m_previousHIDInputPacket, m_currentHIDInputPacket, sizeof(PSMoveDataInputZCM2));
-			res= hid_read_timeout(m_hidDevice, (unsigned char*)m_currentHIDInputPacket, sizeof(PSMoveDataInputZCM2), m_cfg.poll_timeout_ms);
+			res= hid_read_timeout(m_hidDevice, (unsigned char*)m_currentHIDInputPacket, sizeof(PSMoveDataInputZCM2), cfg.poll_timeout_ms);
 		}
 		else
 		{
 			memcpy(m_previousHIDInputPacket, m_currentHIDInputPacket, sizeof(PSMoveDataInputZCM1));
-			res= hid_read_timeout(m_hidDevice, (unsigned char*)m_currentHIDInputPacket, sizeof(PSMoveDataInputZCM1), m_cfg.poll_timeout_ms);
+			res= hid_read_timeout(m_hidDevice, (unsigned char*)m_currentHIDInputPacket, sizeof(PSMoveDataInputZCM1), cfg.poll_timeout_ms);
 		}
 
 		if (res > 0)
@@ -335,7 +348,7 @@ protected:
 			++m_nextPollSequenceNumber;
 
 			// Processes the IMU data
-			newState.parseDataInput(&m_cfg, m_model, m_previousHIDInputPacket, m_currentHIDInputPacket);
+			newState.parseDataInput(&cfg, m_model, m_previousHIDInputPacket, m_currentHIDInputPacket);
 
 			// Store a copy of the parsed input date for functions
 			// that want to query input state off of the worker thread
@@ -421,13 +434,13 @@ protected:
     }
 
     // Multi-threaded state
-	const PSMoveControllerConfig m_cfg;
 	PSMoveControllerModelPID m_model;
 	hid_device *m_hidDevice;
 	IControllerListener *m_controllerListener;
 	bool m_bSupportsMagnetometer;
 	AtomicObject<PSMoveControllerInputState> m_currentInputState;
 	AtomicObject<PSMoveControllerOutputState> m_currentOutputState;
+	AtomicObject<PSMoveControllerConfig> m_cfg;
 
     // Worker thread state
     int m_nextPollSequenceNumber;
@@ -1627,12 +1640,17 @@ PSMoveController::loadCalibrationZCM2()
 			const float m= (y_hi - y_low) / (x_hi - x_low);
             cfg.cal_ag_xyz_kbd[1][dim_ix][0] = m;
 
-            // Compute the bias value (the y-intercept of the gyro reading/angular speed line)
-			cfg.cal_ag_xyz_kbd[1][dim_ix][1] = y_hi - m*x_hi;
+            // Use zero bias value.
+			// Given the slightly asymmetrical min and max 90RPM readings you might think
+			// that there is a bias in the gyros that you should compute by finding
+			// the y-intercept value (the y-intercept of the gyro reading/angular speed line) 
+			// using the formula b= y_hi - m*x_hi, but this results in pretty bad
+			// controller drift. We get much better results ignoring the y-intercept
+			// and instead use the presumed "drift" values stored at 0x26
+			cfg.cal_ag_xyz_kbd[1][dim_ix][1] = 0.f;
 
-			//TODO:
 			// Store off the drift value
-			//cfg.cal_ag_xyz_kbd[1][dim_ix][2] = raw_gyro_drift;
+			cfg.cal_ag_xyz_kbd[1][dim_ix][2] = raw_gyro_drift;
 
 			// The final result:
 			// rad/s = (raw_gyro_value-drift)*gain + bias
@@ -1730,6 +1748,9 @@ PSMoveController::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) 
 {
     outTrackingShape.shape_type= eCommonTrackingShapeType::Sphere;
     outTrackingShape.shape.sphere.radius_cm = PSMOVE_TRACKING_BULB_RADIUS;
+	outTrackingShape.shape.sphere.center_cm.x= 0.f;
+	outTrackingShape.shape.sphere.center_cm.y= 0.f;
+	outTrackingShape.shape.sphere.center_cm.z= PSMOVE_TRACKING_BULB_OFFSET;
 }
 
 bool
@@ -1803,6 +1824,19 @@ PSMoveController::getTempCelsius() const
 }
 
 // Setters
+void 
+PSMoveController::setConfig(const PSMoveControllerConfig *config)
+{
+	cfg= *config;
+
+	if (m_HIDPacketProcessor != nullptr)
+	{
+		m_HIDPacketProcessor->setConfig(*config);
+	}
+
+	cfg.save();
+}
+
 bool
 PSMoveController::setLED(unsigned char r, unsigned char g, unsigned char b)
 {

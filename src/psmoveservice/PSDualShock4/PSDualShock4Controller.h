@@ -290,12 +290,9 @@ public:
     {
         return &cfg;
     }
-    inline PSDualShock4ControllerConfig *getConfigMutable()
-    {
-        return &cfg;
-    }
 
     // -- Setters
+	void setConfig(const PSDualShock4ControllerConfig *config);
     bool setLED(unsigned char r, unsigned char g, unsigned char b);
     bool setLeftRumbleIntensity(unsigned char value);
     bool setRightRumbleIntensity(unsigned char value);

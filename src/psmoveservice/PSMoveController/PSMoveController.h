@@ -149,6 +149,23 @@ public:
 	// The variance of the controller orientation (when sitting still) in rad^2
     float orientation_variance;
 
+	inline bool set_raw_gyro_bias(float raw_bias_x, float raw_bias_y, float raw_bias_z)
+	{
+		if (cal_ag_xyz_kbd[1][0][2] != raw_bias_x ||
+			cal_ag_xyz_kbd[1][1][2] != raw_bias_y ||
+			cal_ag_xyz_kbd[1][2][2] != raw_bias_z)
+		{
+			//         gyro=1 x/y/z drift=2
+			cal_ag_xyz_kbd[1][0][2] = raw_bias_x;
+			cal_ag_xyz_kbd[1][1][2] = raw_bias_y;
+			cal_ag_xyz_kbd[1][2][2] = raw_bias_z;
+
+			return true;
+		}
+
+		return false;
+	}
+
 	inline float get_position_variance(float projection_area) const {
 		return position_variance_exp_fit_a*exp(position_variance_exp_fit_b*projection_area);
 	}
@@ -261,9 +278,7 @@ public:
 
     // -- Getters
     inline const PSMoveControllerConfig *getConfig() const
-    { return &cfg; }
-    inline PSMoveControllerConfig *getConfigMutable()
-    { return &cfg; }
+    { return &cfg; }    
     float getTempCelsius() const;
 	bool getSupportsMagnetometer() const
 	{ return SupportsMagnetometer; }        
@@ -273,6 +288,7 @@ public:
 	{ return HIDDetails.product_id == _psmove_controller_ZCM2; }
     
     // -- Setters
+	void setConfig(const PSMoveControllerConfig *config);
     bool setLED(unsigned char r, unsigned char g, unsigned char b); // 0x00..0xff. TODO: vec3
     bool setLEDPWMFrequency(unsigned long freq);    // 733..24e6
     bool setRumbleIntensity(unsigned char value);
