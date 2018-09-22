@@ -69,6 +69,27 @@ file(GLOB PSMOVESERVICE_FILTER_SRC
 )
 source_group("Filter" FILES ${PSMOVESERVICE_FILTER_SRC})
 
+list(APPEND PSMOVESERVICE_PLATFORM_SRC
+    ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueries.h
+    ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequests.h
+    ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequests.cpp)
+IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    list(APPEND PSMOVESERVICE_PLATFORM_SRC
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsWin32.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesWin32.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/PlatformDeviceAPIWin32.h
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/PlatformDeviceAPIWin32.cpp)
+ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    list(APPEND PSMOVESERVICE_PLATFORM_SRC
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsOSX.mm
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesOSX.mm)
+ELSE()
+    list(APPEND PSMOVESERVICE_PLATFORM_SRC
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsLinux.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesLinux.cpp)
+ENDIF()
+source_group("Platform" FILES ${PSMOVESERVICE_PLATFORM_SRC})
+
 file(GLOB PSMOVESERVICE_SERVER_SRC
     "${CMAKE_CURRENT_LIST_DIR}/Server/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/Server/*.h"
@@ -99,6 +120,7 @@ set(PSMOVESERVICE_SRC
     ${PSMOVESERVICE_DEVICE_VIEW_SRC}
     ${PSMOVESERVICE_HMD_SRC}
     ${PSMOVESERVICE_FILTER_SRC}
+    ${PSMOVESERVICE_PLATFORM_SRC}
     ${PSMOVESERVICE_SERVER_SRC} 
     ${PSMOVESERVICE_TRACKER_SRC}
     ${PSMOVESERVICE_UTILS_SRC}
@@ -154,24 +176,6 @@ list(APPEND PSMOVE_SERVICE_INCL_DIRS ${HIDAPI_INCLUDE_DIRS})
 list(APPEND PSMOVESERVICE_SRC ${HIDAPI_SRC})
 list(APPEND PSMOVE_SERVICE_REQ_LIBS ${HIDAPI_LIBS})
 
-# bluetooth
-list(APPEND PSMOVESERVICE_SRC
-    ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequests.h
-    ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueries.h)
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    list(APPEND PSMOVESERVICE_SRC
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsWin32.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesWin32.cpp)
-ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    list(APPEND PSMOVESERVICE_SRC
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsOSX.mm
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesOSX.mm)
-ELSE()
-    list(APPEND PSMOVESERVICE_SRC
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothRequestsLinux.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/BluetoothQueriesLinux.cpp)
-ENDIF()
-
 # LibUSB for device management
 find_package(USB1 REQUIRED)
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBUSB_INCLUDE_DIR})
@@ -180,17 +184,6 @@ list(APPEND PSMOVE_SERVICE_REQ_LIBS ${LIBUSB_LIBRARIES})
 # libstem_gamepad
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${LIBSTEM_GAMEPAD_INCLUDE_DIRS})
 list(APPEND PSMOVESERVICE_SRC ${LIBSTEM_GAMEPAD_SRC})
-
-# Platform Specific Device Management
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    # Windows utilities for querying driver infomation (provider name)
-    list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveservice/Platform)
-    list(APPEND PSMOVESERVICE_SRC
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/PlatformDeviceAPIWin32.h
-        ${CMAKE_CURRENT_LIST_DIR}/Platform/PlatformDeviceAPIWin32.cpp)
-ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-ELSE()
-ENDIF()
 
 # PSMoveDataFrame
 list(APPEND PSMOVE_SERVICE_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol/)

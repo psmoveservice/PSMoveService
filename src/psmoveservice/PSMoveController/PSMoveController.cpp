@@ -290,6 +290,9 @@ protected:
 			PSMoveControllerConfig cfg;
 			m_cfg.fetchValue(cfg);
 
+			// Perform non-blocking reads during this phase
+			hid_set_nonblocking(m_hidDevice, 1);
+
 			for (poll_count = 0; poll_count < k_max_poll_attempts; ++poll_count)
 			{
 				PSMoveDataInputZCM1 rawHIDPacket;
@@ -324,6 +327,9 @@ protected:
     {
 		PSMoveControllerConfig cfg;
 		m_cfg.fetchValue(cfg);
+
+		// Perform blocking reads on the worker thread
+		hid_set_nonblocking(m_hidDevice, 0);
 
 		// Attempt to read the next sensor update packet from the HMD
         int res = -1;
@@ -372,7 +378,8 @@ protected:
 				SERVER_MT_LOG_ERROR("PSMoveSensorProcessor::doWork") << "HID ERROR: " << hidapi_err_mbs;
 			}
 
-			return true;
+			// halt the worker thread
+			return false;
 		}
 
         // Don't send output writes too frequently
@@ -984,8 +991,6 @@ bool PSMoveController::open(
         hid_set_nonblocking(HIDDetails.Handle_addr, 1);
     #endif
         HIDDetails.Handle = hid_open_path(HIDDetails.Device_path.c_str());
-		// Perform blocking reads in the IMU thread
-        hid_set_nonblocking(HIDDetails.Handle, 0);
          
         // On my Mac, using bluetooth,
         // cur_dev->path = Bluetooth_054c_03d5_779732e8
@@ -1228,7 +1233,7 @@ PSMoveController::getMaxPollFailureCount() const
 IDeviceInterface::ePollResult 
 PSMoveController::poll()
 {
-	if (m_HIDPacketProcessor != nullptr)
+	if (m_HIDPacketProcessor != nullptr && !m_HIDPacketProcessor->hasThreadEnded())
 	{
 		int LastRawSequence= m_cachedInputState.RawSequence;
 

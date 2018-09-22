@@ -362,7 +362,8 @@ protected:
 				SERVER_MT_LOG_ERROR("PSMoveSensorProcessor::doWork") << "HID ERROR: " << hidapi_err_mbs;
 			}
 
-			return true;
+			// Halt the worker threads
+			return false;
 		}
 
         // Don't send output writes too frequently
@@ -1101,7 +1102,7 @@ PSDualShock4Controller::getMaxPollFailureCount() const
 IDeviceInterface::ePollResult 
 PSDualShock4Controller::poll()
 {
-	if (m_HIDPacketProcessor != nullptr)
+	if (m_HIDPacketProcessor != nullptr && !m_HIDPacketProcessor->hasThreadEnded())
 	{
 		int LastRawSequence= m_cachedInputState.RawSequence;
 

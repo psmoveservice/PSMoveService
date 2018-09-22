@@ -237,8 +237,7 @@ public:
         start,
         setupBluetoothRadio,
         deviceScan,
-		pairDevice,
-		pendingAuthentication,
+		authenticateDevice,
         attemptConnection,
         patchRegistry,
         verifyConnection,
@@ -250,10 +249,12 @@ public:
 
     HANDLE hRadio;
     BLUETOOTH_RADIO_INFO radioInfo;
-    BLUETOOTH_DEVICE_INFO deviceInfo;
+    BLUETOOTH_DEVICE_INFO_STRUCT deviceInfo;
+	HANDLE hAuthenticationCompleteEvent;
     std::string controller_serial_string;
     std::string host_address_string;
     CommonDeviceState::eDeviceType controller_device_type;
+	bool bUsesAuthentication;
 
     // Attempt Counters
     int scanCount;
@@ -267,18 +268,31 @@ public:
         hRadio= INVALID_HANDLE_VALUE;
         memset(&radioInfo, 0, sizeof(BLUETOOTH_RADIO_INFO));
         radioInfo.dwSize = sizeof(BLUETOOTH_RADIO_INFO);
-        memset(&deviceInfo, 0, sizeof(BLUETOOTH_DEVICE_INFO));
-        deviceInfo.dwSize= sizeof(BLUETOOTH_DEVICE_INFO);
+        memset(&deviceInfo, 0, sizeof(BLUETOOTH_DEVICE_INFO_STRUCT));
+        deviceInfo.dwSize= sizeof(BLUETOOTH_DEVICE_INFO_STRUCT);
         controller_serial_string.clear();
         host_address_string.clear();
         controller_device_type= CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT;
         scanCount= 0;
         connectionAttemptCount= 0;
         verifyConnectionCount= 0;
+
+		// Used to wakeup thread when bluetooth authentication callback completes
+		hAuthenticationCompleteEvent = CreateEvent( 
+			NULL,               // default security attributes
+			TRUE,               // manual-reset event
+			FALSE,              // initial state is non-signaled
+			TEXT("AuthenticationCompleteEvent"));  // object name
     }
 
     void dispose()
     {
+		if (hAuthenticationCompleteEvent != INVALID_HANDLE_VALUE)
+		{
+			CloseHandle(hAuthenticationCompleteEvent);
+			hAuthenticationCompleteEvent= INVALID_HANDLE_VALUE;
+		}
+
         if (hRadio != INVALID_HANDLE_VALUE)
         {
             CloseHandle(hRadio);
@@ -295,7 +309,7 @@ static bool AsyncBluetoothPairDeviceRequest__findBluetoothRadio(BluetoothPairDev
 static bool AsyncBluetoothPairDeviceRequest__registerHostAddress(ServerControllerViewPtr &controllerView, BluetoothPairDeviceState *state);
 static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__setupBluetoothRadio(BluetoothPairDeviceState *state);
 static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__deviceScan(BluetoothPairDeviceState *state);
-static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__pairDevice(BluetoothPairDeviceState *state);
+static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__authenticateDevice(BluetoothPairDeviceState *state);
 static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__attemptConnection(BluetoothPairDeviceState *state);
 static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__patchRegistry(BluetoothPairDeviceState *state);
 static BluetoothPairDeviceState::eStatus AsyncBluetoothPairDeviceRequest__verifyConnection(BluetoothPairDeviceState *state);
@@ -541,6 +555,7 @@ AsyncBluetoothPairDeviceRequest::start()
     // Reset the pairing device state
     BluetoothPairDeviceState *state= reinterpret_cast<BluetoothPairDeviceState *>(m_internal_state);
     state->initialize(controller_id);
+	state->bUsesAuthentication= m_controllerView->getUsesBluetoothAuthentication();
     state->controller_serial_string= m_controllerView->getSerial();
     state->controller_device_type= m_controllerView->getControllerDeviceType();
 
@@ -630,14 +645,9 @@ AsyncBluetoothPairDeviceThreadFunction(LPVOID lpParam)
 					nextSubStatus= AsyncBluetoothPairDeviceRequest__deviceScan(state);
 				} break;
 
-			case BluetoothPairDeviceState::pairDevice:
+			case BluetoothPairDeviceState::authenticateDevice:
 				{
-					nextSubStatus= AsyncBluetoothPairDeviceRequest__pairDevice(state);
-				} break;
-
-			case BluetoothPairDeviceState::pendingAuthentication:
-				{
-					// Wait for authentication response
+					nextSubStatus= AsyncBluetoothPairDeviceRequest__authenticateDevice(state);
 				} break;
 
 			case BluetoothPairDeviceState::attemptConnection:
@@ -856,27 +866,28 @@ AsyncBluetoothPairDeviceRequest__setupBluetoothRadio(
 }
 
 // Authentication callback
-static BOOL WINAPI 
+static BOOL CALLBACK 
 BluetoothAuthCallback(
 	LPVOID pvParam, 
-	PBLUETOOTH_DEVICE_INFO pDevice)
+	PBLUETOOTH_AUTHENTICATION_CALLBACK_PARAMS pAuthCallbackParams)
 {
     BluetoothPairDeviceState *state= reinterpret_cast<BluetoothPairDeviceState *>(pvParam);
-    assert(state->isWorkerThread());
 
-    //BLUETOOTH_AUTHENTICATE_RESPONSE AuthRes;
-    //AuthRes.authMethod = BLUETOOTH_AUTHENTICATION_METHOD_PASSKEY;
-    //AuthRes.bthAddressRemote = pAuthCallbackParams->deviceInfo.Address;
-    //AuthRes.negativeResponse = 0;
-
-    //// Commented out code is used for pairing using the BLUETOOTH_AUTHENTICATION_METHOD_PASSKEY method
-    //memcpy_s(AuthRes.pinInfo.pin, sizeof(AuthRes.pinInfo.pin), "0000", 4);
-    //AuthRes.pinInfo.pinLength = 4;
+    BLUETOOTH_AUTHENTICATE_RESPONSE AuthRes;
+	::ZeroMemory(&AuthRes, sizeof(BLUETOOTH_AUTHENTICATE_RESPONSE));
+    AuthRes.authMethod = pAuthCallbackParams->authenticationMethod;
+    AuthRes.bthAddressRemote = pAuthCallbackParams->deviceInfo.Address;
+    AuthRes.negativeResponse = 0;
 
     // Send authentication response to authenticate device
-    //DWORD dwRet = BluetoothSendAuthenticationResponseEx(NULL, &AuthRes);
-	DWORD dwRet = BluetoothSendAuthenticationResponse(NULL, pDevice, L"0000");
-    if (dwRet != ERROR_SUCCESS)
+    DWORD dwRet = BluetoothSendAuthenticationResponseEx(state->hRadio, &AuthRes);
+    if (dwRet == ERROR_SUCCESS)
+    {
+		// Flag the device as authenticated
+		SERVER_MT_LOG_INFO("BluetoothAuthCallback") << "Bluetooth device authenticated!";
+		state->deviceInfo.fAuthenticated = TRUE;
+    }
+	else
     {
         if (dwRet == ERROR_CANCELLED)
         {
@@ -886,102 +897,113 @@ BluetoothAuthCallback(
         {
 			SERVER_MT_LOG_ERROR("BluetoothAuthCallback") << "Failure during authentication";
         }
+		else if (dwRet == ERROR_NOT_READY)
+		{
+			SERVER_MT_LOG_ERROR("BluetoothAuthCallback") << "Device not ready";
+		}
+		else if (dwRet == ERROR_INVALID_PARAMETER)
+		{
+			SERVER_MT_LOG_ERROR("BluetoothAuthCallback") << "Invalid parameter";
+		}		
         else if (dwRet == 1244)
         {
 			SERVER_MT_LOG_ERROR("BluetoothAuthCallback") << "Not authenticated";
         }
-
-		state->setSubStatus_WorkerThread(BluetoothPairDeviceState::deviceScan);
+		else
+		{
+			SERVER_MT_LOG_ERROR("BluetoothAuthCallback") << "BluetoothSendAuthenticationResponseEx failed: " << GetLastError();
+		}
     }
-    else
+
+	// Signal the thread that the authentication callback completed
+    if (!SetEvent(state->hAuthenticationCompleteEvent)) 
     {
-		SERVER_MT_LOG_ERROR("BluetoothAuthCallback") << "Bluetooth device authenticated!";
-		state->setSubStatus_WorkerThread(BluetoothPairDeviceState::attemptConnection);
+        SERVER_MT_LOG_ERROR("BluetoothAuthCallback") << "Failed to set event: " << GetLastError();
     }
 
     return TRUE;
 }
 
 static BluetoothPairDeviceState::eStatus 
-AsyncBluetoothPairDeviceRequest__pairDevice(
+AsyncBluetoothPairDeviceRequest__authenticateDevice(
 	BluetoothPairDeviceState *state)
 {
     assert(state->isWorkerThread());
+    BluetoothPairDeviceState::eStatus nextSubStatus= 
+        state->getSubStatus_WorkerThread<BluetoothPairDeviceState::eStatus>();
 
-	DWORD dwRet;
-	// register authentication callback.
-	HBLUETOOTH_AUTHENTICATION_REGISTRATION hRegHandle = 0;
-	dwRet = BluetoothRegisterForAuthentication(
-		&state->deviceInfo, &hRegHandle, &BluetoothAuthCallback, state);
-	if (dwRet == ERROR_SUCCESS)
+	if (state->deviceInfo.fAuthenticated == 0)
 	{
-		state->setSubStatus_WorkerThread(BluetoothPairDeviceState::pendingAuthentication);
-
-		// authenticate device (will call authentication callback)
-		//AUTHENTICATION_REQUIREMENTS authreqs = MITMProtectionNotDefined;
-		//BLUETOOTH_OOB_DATA_INFO oob_data_info = {0};
-		//auto const& radio_addr = state->radioInfo.address.rgBytes;
-		//memcpy(&oob_data_info.C[0], &radio_addr[0], sizeof(WCHAR) * 6);
-		//dwRet = BluetoothAuthenticateDeviceEx(NULL, state->hRadio, &state->deviceInfo, &oob_data_info, authreqs);
-		dwRet = BluetoothAuthenticateDevice(nullptr,state->hRadio, &state->deviceInfo, L"0000", 4);
+		// Register authentication callback before starting authentication request
+		HBLUETOOTH_AUTHENTICATION_REGISTRATION hRegHandle = 0;
+		DWORD dwRet = BluetoothRegisterForAuthenticationEx(
+			&state->deviceInfo, &hRegHandle, &BluetoothAuthCallback, state);
 
 		if (dwRet == ERROR_SUCCESS)
 		{
-			SERVER_MT_LOG_INFO("BluetoothAuthenticateDevice") << "Successfully paired.";
-			state->setSubStatus_WorkerThread(BluetoothPairDeviceState::attemptConnection);
-		}
-		else if (dwRet == ERROR_NO_MORE_ITEMS)
-		{
-			SERVER_MT_LOG_INFO("BluetoothAuthenticateDevice") << "Already paired.";
-			state->setSubStatus_WorkerThread(BluetoothPairDeviceState::attemptConnection);
-		}
-		else if (dwRet != ERROR_SUCCESS)
-		{
-			switch (dwRet)
+			if (!ResetEvent(state->hAuthenticationCompleteEvent))
 			{
-			case ERROR_DEVICE_NOT_CONNECTED:
-				SERVER_MT_LOG_ERROR("BluetoothAuthenticateDevice") << "BTH_ERROR_NO_CONNECTION";
-				break;
-			case WAIT_TIMEOUT:
-				SERVER_MT_LOG_ERROR("BluetoothAuthenticateDevice") << "BTH_ERROR_PAGE_TIMEOUT/BTH_ERROR_CONNECTION_TIMEOUT/BTH_ERROR_LMP_RESPONSE_TIMEOUT";
-				break;
-			case ERROR_GEN_FAILURE:
-				SERVER_MT_LOG_ERROR("BluetoothAuthenticateDevice") << "BTH_ERROR_HARDWARE_FAILURE";
-				break;
-			case ERROR_NOT_AUTHENTICATED:
-				SERVER_MT_LOG_ERROR("BluetoothAuthenticateDevice") << "BTH_ERROR_AUTHENTICATION_FAILURE";
-				break;
-			case ERROR_NOT_ENOUGH_MEMORY:
-				SERVER_MT_LOG_ERROR("BluetoothAuthenticateDevice") << "BTH_ERROR_MEMORY_FULL";
-				break;
-			case ERROR_REQ_NOT_ACCEP:
-				SERVER_MT_LOG_ERROR("BluetoothAuthenticateDevice") << "BTH_ERROR_MAX_NUMBER_OF_CONNECTIONS";
-				break;
-			case ERROR_ACCESS_DENIED:
-				SERVER_MT_LOG_ERROR("BluetoothAuthenticateDevice") << "BTH_ERROR_PAIRING_NOT_ALLOWED";
-				break;
-			case ERROR_NOT_READY:
-				SERVER_MT_LOG_ERROR("BluetoothAuthenticateDevice") << "BTH_ERROR_UNSPECIFIED_ERROR";
-				break;
-			case ERROR_VC_DISCONNECTED:
-				SERVER_MT_LOG_ERROR("BluetoothAuthenticateDevice") << "BTH_ERROR_UNSPECIFIED_ERROR";
-				break;
-			default:
-				SERVER_MT_LOG_ERROR("BluetoothAuthenticateDevice") << "Unknown error: " << dwRet;
-				break;
+				SERVER_MT_LOG_ERROR("BluetoothAuthCallback") << "Failed to reset event: " << GetLastError();
 			}
 
-			state->setSubStatus_WorkerThread(BluetoothPairDeviceState::deviceScan);
+			// Start the authentication request
+			dwRet = BluetoothAuthenticateDeviceEx(
+				nullptr, state->hRadio, &state->deviceInfo, nullptr, MITMProtectionNotRequiredBonding);
+
+			if (dwRet == ERROR_NO_MORE_ITEMS)
+			{
+				SERVER_MT_LOG_INFO("BluetoothAuthenticateDevice") << "Already paired.";
+				nextSubStatus= BluetoothPairDeviceState::attemptConnection;
+			}
+			else if (dwRet == ERROR_CANCELLED)
+			{
+				SERVER_MT_LOG_ERROR("BluetoothAuthenticateDevice") << "User canceled the authentication.";
+				nextSubStatus= BluetoothPairDeviceState::deviceScan;
+			}
+			else if (dwRet == ERROR_INVALID_PARAMETER)
+			{
+				SERVER_MT_LOG_ERROR("BluetoothAuthenticateDevice") << "Invalid parameter!";
+				nextSubStatus= BluetoothPairDeviceState::deviceScan;
+			}
+			else
+			{
+				// Block on authentication completing
+				WaitForSingleObject(state->hAuthenticationCompleteEvent, INFINITE);
+
+				if (state->deviceInfo.fAuthenticated)
+				{
+					SERVER_MT_LOG_INFO("BluetoothAuthenticateDevice") << "Successfully paired.";
+					nextSubStatus= BluetoothPairDeviceState::attemptConnection;
+				}
+				else
+				{
+					SERVER_MT_LOG_ERROR("BluetoothAuthenticateDevice") << "Failed to authenticate!";
+					nextSubStatus= BluetoothPairDeviceState::deviceScan;
+				}
+			}
+		}
+		else
+		{
+			SERVER_MT_LOG_ERROR("AsyncBluetoothPairDeviceRequest") 
+				<< "BluetoothRegisterForAuthentication failed given address: " << state->controller_serial_string;
+			nextSubStatus= BluetoothPairDeviceState::deviceScan;
+		}
+
+		if (hRegHandle != 0)
+		{
+			BluetoothUnregisterAuthentication(hRegHandle);
+			hRegHandle= 0;
 		}
 	}
 	else
 	{
-		SERVER_MT_LOG_ERROR("AsyncBluetoothPairDeviceRequest") 
-			<< "BluetoothRegisterForAuthentication failed given address: " << state->controller_serial_string;
-		state->setSubStatus_WorkerThread(BluetoothPairDeviceState::deviceScan);
+		SERVER_MT_LOG_INFO("AsyncBluetoothPairDeviceRequest") << "Already authenticated.";
+		nextSubStatus= BluetoothPairDeviceState::deviceScan;
 	}
 
-	return state->getSubStatus_WorkerThread<BluetoothPairDeviceState::eStatus>();
+	Sleep(SLEEP_BETWEEN_SCANS);
+
+	return nextSubStatus;
 }
 
 static BluetoothPairDeviceState::eStatus
@@ -1040,7 +1062,10 @@ AsyncBluetoothPairDeviceRequest__deviceScan(
         state->connectionAttemptCount= 0;
 
         // Move onto pairing the device
-        nextSubStatus= BluetoothPairDeviceState::pairDevice;
+        nextSubStatus= 
+			state->bUsesAuthentication
+			? BluetoothPairDeviceState::authenticateDevice
+			: BluetoothPairDeviceState::attemptConnection;
     }
     else
     {

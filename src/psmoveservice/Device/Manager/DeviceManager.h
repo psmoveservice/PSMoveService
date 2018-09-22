@@ -75,6 +75,8 @@ public:
 	void registerHotplugListener(const CommonDeviceState::eDeviceClass deviceClass, IDeviceHotplugListener *listener);
 	void handle_device_connected(enum DeviceClass device_class, const std::string &device_path) override;
 	void handle_device_disconnected(enum DeviceClass device_class, const std::string &device_path) override;
+	void handle_bluetooth_request_started();
+	void handle_bluetooth_request_finished();
     
 private:
 	/// Singleton instance of the class

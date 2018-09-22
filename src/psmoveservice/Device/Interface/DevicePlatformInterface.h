@@ -34,6 +34,10 @@ public:
 	virtual void poll() = 0;
 	virtual void shutdown() = 0;
 
+	// Events
+	virtual void handle_bluetooth_request_started() {};
+	virtual void handle_bluetooth_request_finished() {};
+
 	// Queries
 	virtual bool get_device_property(
 		const DeviceClass deviceClass,

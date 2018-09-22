@@ -28,12 +28,8 @@ public:
         connectionClosed
     };
 
-    inline AsyncBluetoothRequest(int connectionId)
-        : m_connectionId(connectionId)
-        , m_status(preflight)
-    { }
-    virtual ~AsyncBluetoothRequest()
-    { }
+    AsyncBluetoothRequest(int connectionId);
+    virtual ~AsyncBluetoothRequest();
 
     virtual bool start()= 0;
     virtual void update()= 0;

@@ -94,6 +94,9 @@ public:
     // Returns true if the device is connected via Bluetooth, false if by USB
     bool getIsBluetooth() const;
 
+	// Returns true if the device uses PIN authentication during device pairing
+	bool getUsesBluetoothAuthentication() const;
+
 	// Returns true if the device can stream controller data over it's current connection type (Bluetooth/USB)
 	bool getIsStreamable() const;
 

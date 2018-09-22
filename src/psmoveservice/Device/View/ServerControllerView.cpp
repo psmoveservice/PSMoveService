@@ -857,6 +857,22 @@ ServerControllerView::getIsBluetooth() const
     return (m_device != nullptr) ? m_device->getIsBluetooth() : false;
 }
 
+bool 
+ServerControllerView::getUsesBluetoothAuthentication() const
+{
+	bool bUsesAuthentication= false;
+
+	if (m_device != nullptr && m_device->getDeviceType() == CommonDeviceState::PSMove)
+	{
+        const PSMoveController *psmove = this->castCheckedConst<PSMoveController>();
+
+		bUsesAuthentication= psmove->getIsPS4Controller();
+	}
+
+	return bUsesAuthentication;
+}
+
+
 bool
 ServerControllerView::getIsStreamable() const
 {
