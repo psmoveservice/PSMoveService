@@ -215,9 +215,12 @@ struct PSMoveControllerInputState : public CommonControllerState
     void clear();
 	void parseDataInput(
 		const PSMoveControllerConfig *config, 
-		const PSMoveControllerModelPID model,
-		const struct PSMoveDataInputCommon *previous_hid_packet,
-		const struct PSMoveDataInputCommon *new_hid_packet);
+		const struct PSMoveDataInputZCM1 *previous_hid_packet,
+		const struct PSMoveDataInputZCM1 *new_hid_packet);
+	void parseDataInput(
+		const PSMoveControllerConfig *config, 
+		const struct PSMoveDataInputZCM2 *previous_hid_packet,
+		const struct PSMoveDataInputZCM2 *new_hid_packet);
 };
 
 struct PSMoveControllerOutputState 
@@ -280,8 +283,7 @@ public:
     inline const PSMoveControllerConfig *getConfig() const
     { return &cfg; }    
     float getTempCelsius() const;
-	bool getSupportsMagnetometer() const
-	{ return SupportsMagnetometer; }        
+	bool getSupportsMagnetometer() const;
     const unsigned long getLEDPWMFrequency() const
     { return LedPWMF; }
 	const bool getIsPS4Controller() const 

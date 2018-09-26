@@ -136,7 +136,7 @@ struct PSMoveDataOutput {
     unsigned char _padding[PSMOVE_BUFFER_SIZE-7]; /* must be zero */
 };
 
-struct PSMoveDataInputCommon
+struct PSMoveDataInputZCM1
 {
     unsigned char type; /* message type, must be PSMove_Req_GetInput */
     unsigned char buttons1;
@@ -175,10 +175,6 @@ struct PSMoveDataInputCommon
     unsigned char gYhigh2;
     unsigned char gZlow2;
     unsigned char gZhigh2;
-};
-
-struct PSMoveDataInputZCM1 : PSMoveDataInputCommon
-{
     unsigned char temphigh; /* temperature (bits 12-5) */
     unsigned char templow_mXhigh; /* temp (bits 4-1); magneto X (bits 12-9) */
     unsigned char mXlow; /* magnetometer X (bits 8-1) */
@@ -189,14 +185,60 @@ struct PSMoveDataInputZCM1 : PSMoveDataInputCommon
     unsigned char extdata[PSMOVE_EXT_DATA_BUF_SIZE]; /* external device data (EXT port) */
 };
 
-struct PSMoveDataInputZCM2  : PSMoveDataInputCommon
+struct PSMoveDataInputZCM2
 {
+    unsigned char type; /* message type, must be PSMove_Req_GetInput */
+    unsigned char buttons1;
+    unsigned char buttons2;
+    unsigned char buttons3;
+    unsigned char buttons4;
+    unsigned char trigger; /* trigger value; 0..255 */
+    unsigned char trigger2; /* trigger value, 2nd frame */
+    unsigned char _unused0;
+    unsigned char _unused1;
+    unsigned char _unused2;
+    unsigned char _unused3;
+    unsigned char timehigh; /* high byte of timestamp */
+    unsigned char battery; /* battery level; 0x05 = max, 0xEE = USB charging */
+    unsigned char aXlow; /* low byte of accelerometer X value */
+    unsigned char aXhigh; /* high byte of accelerometer X value */
+    unsigned char aYlow;
+    unsigned char aYhigh;
+    unsigned char aZlow;
+    unsigned char aZhigh;
+    unsigned char aXlow2; /* low byte of accelerometer X value, 2nd frame */
+    unsigned char aXhigh2; /* high byte of accelerometer X value, 2nd frame */
+    unsigned char aYlow2;
+    unsigned char aYhigh2;
+    unsigned char aZlow2;
+    unsigned char aZhigh2;
+    unsigned char gXlow; /* low byte of gyro X value */
+    unsigned char gXhigh; /* high byte of gyro X value */
+    unsigned char gYlow;
+    unsigned char gYhigh;
+    unsigned char gZlow;
+    unsigned char gZhigh;
+    unsigned char gXlow2; /* low byte of gyro X value, 2nd frame */
+    unsigned char gXhigh2; /* high byte of gyro X value, 2nd frame */
+    unsigned char gYlow2;
+    unsigned char gYhigh2;
+    unsigned char gZlow2;
+    unsigned char gZhigh2;
     unsigned char temphigh; /* temperature (bits 12-5) */
     unsigned char templow; /* temp (bits 4-1); */
-    unsigned char timelow; /* low byte of timestamp */
+	unsigned char timehigh2; /* same as timestamp at offsets 0x0B */
+	unsigned char timelow; /* same as timestamp at offsets 0x2B */
 	unsigned char _unused4; /* Always 0 */
 	unsigned char _unused5; /* Always 0 */
-    unsigned char _unused6; /* Always 0 */
+    unsigned char timelow2; 
+};
+
+struct PSMoveDataInput
+{
+	union {
+		PSMoveDataInputZCM1 zcm1;
+		PSMoveDataInputZCM2 zcm2;
+	} data;
 };
 
 class PSMoveHidPacketProcessor : public WorkerThread
@@ -209,34 +251,25 @@ public:
 		, m_controllerListener(nullptr)
 		, m_bSupportsMagnetometer(false)
 		, m_nextPollSequenceNumber(0)
-		, m_previousHIDInputPacket(nullptr)
-		, m_currentHIDInputPacket(nullptr)
 	{
 		setConfig(cfg);
 
+		memset(&m_previousHIDInputPacket, 0, sizeof(PSMoveDataInput));
+		memset(&m_currentHIDInputPacket, 0, sizeof(PSMoveDataInput));
+
 		if (m_model == _psmove_controller_ZCM2)
 		{
-			m_previousHIDInputPacket = new PSMoveDataInputZCM2;
-			m_currentHIDInputPacket = new PSMoveDataInputZCM2;
-			memset(m_previousHIDInputPacket, 0, sizeof(PSMoveDataInputZCM2));
-			memset(m_currentHIDInputPacket, 0, sizeof(PSMoveDataInputZCM2));
+			m_previousHIDInputPacket.data.zcm2.type = PSMove_Req_GetInput;
+			m_currentHIDInputPacket.data.zcm2.type = PSMove_Req_GetInput;
 		}
 		else
 		{
-			m_previousHIDInputPacket = new PSMoveDataInputZCM1;
-			m_currentHIDInputPacket = new PSMoveDataInputZCM1;
-			memset(m_previousHIDInputPacket, 0, sizeof(PSMoveDataInputZCM1));
-			memset(m_currentHIDInputPacket, 0, sizeof(PSMoveDataInputZCM1));
+			m_previousHIDInputPacket.data.zcm1.type = PSMove_Req_GetInput;
+			m_currentHIDInputPacket.data.zcm1.type = PSMove_Req_GetInput;
+
 		}
-		m_previousHIDInputPacket->type = PSMove_Req_GetInput;
-		m_currentHIDInputPacket->type = PSMove_Req_GetInput;
 
 		memset(&m_previousOutputState, 0, sizeof(PSMoveControllerOutputState));
-	}
-
-	~PSMoveHidPacketProcessor()
-	{
-		delete m_currentHIDInputPacket;
 	}
 
 	void setConfig(const PSMoveControllerConfig &cfg)
@@ -295,13 +328,13 @@ protected:
 
 			for (poll_count = 0; poll_count < k_max_poll_attempts; ++poll_count)
 			{
-				PSMoveDataInputZCM1 rawHIDPacket;
-				int res = hid_read(m_hidDevice, (unsigned char*)&rawHIDPacket, sizeof(PSMoveDataInputZCM1));
+				PSMoveDataInput rawHIDPacket;
+				int res = hid_read(m_hidDevice, (unsigned char*)&rawHIDPacket.data.zcm1, sizeof(PSMoveDataInputZCM1));
 
 				if (res > 0)
 				{
 					PSMoveControllerInputState newState;
-					newState.parseDataInput(&cfg, m_model, nullptr, &rawHIDPacket);
+					newState.parseDataInput(&cfg, nullptr, &rawHIDPacket.data.zcm1);
 
 					// See if we are getting valid magnetometer data
 					m_bSupportsMagnetometer = 
@@ -335,13 +368,13 @@ protected:
         int res = -1;
 		if (m_model == _psmove_controller_ZCM2)
 		{
-			memcpy(m_previousHIDInputPacket, m_currentHIDInputPacket, sizeof(PSMoveDataInputZCM2));
-			res= hid_read_timeout(m_hidDevice, (unsigned char*)m_currentHIDInputPacket, sizeof(PSMoveDataInputZCM2), cfg.poll_timeout_ms);
+			memcpy(&m_previousHIDInputPacket.data.zcm2, &m_currentHIDInputPacket.data.zcm2, sizeof(PSMoveDataInputZCM2));
+			res= hid_read_timeout(m_hidDevice, (unsigned char*)&m_currentHIDInputPacket.data.zcm2, sizeof(PSMoveDataInputZCM2), cfg.poll_timeout_ms);
 		}
 		else
 		{
-			memcpy(m_previousHIDInputPacket, m_currentHIDInputPacket, sizeof(PSMoveDataInputZCM1));
-			res= hid_read_timeout(m_hidDevice, (unsigned char*)m_currentHIDInputPacket, sizeof(PSMoveDataInputZCM1), cfg.poll_timeout_ms);
+			memcpy(&m_previousHIDInputPacket.data.zcm1, &m_currentHIDInputPacket.data.zcm1, sizeof(PSMoveDataInputZCM1));
+			res= hid_read_timeout(m_hidDevice, (unsigned char*)&m_currentHIDInputPacket.data.zcm1, sizeof(PSMoveDataInputZCM1), cfg.poll_timeout_ms);
 		}
 
 		if (res > 0)
@@ -354,7 +387,10 @@ protected:
 			++m_nextPollSequenceNumber;
 
 			// Processes the IMU data
-			newState.parseDataInput(&cfg, m_model, m_previousHIDInputPacket, m_currentHIDInputPacket);
+			if (m_model == _psmove_controller_ZCM2)
+				newState.parseDataInput(&cfg, &m_previousHIDInputPacket.data.zcm2, &m_currentHIDInputPacket.data.zcm2);
+			else
+				newState.parseDataInput(&cfg, &m_previousHIDInputPacket.data.zcm1, &m_currentHIDInputPacket.data.zcm1);
 
 			// Store a copy of the parsed input date for functions
 			// that want to query input state off of the worker thread
@@ -451,8 +487,8 @@ protected:
 
     // Worker thread state
     int m_nextPollSequenceNumber;
-	PSMoveDataInputCommon *m_previousHIDInputPacket;
-    PSMoveDataInputCommon *m_currentHIDInputPacket;
+	PSMoveDataInput m_previousHIDInputPacket;
+    PSMoveDataInput m_currentHIDInputPacket;
 	std::chrono::time_point<std::chrono::high_resolution_clock> m_lastHIDOutputTimestamp;
 	PSMoveControllerOutputState m_previousOutputState;
 };
@@ -464,7 +500,8 @@ static short decode16bitSigned(char *data, int offset);
 static int decode16bitUnsignedToSigned(char *data, int offset);
 static int decode16bitTwosCompliment(char *data, int offset);
 inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
-inline unsigned int make_psmove_button_bitmask(const PSMoveDataInputCommon *hid_packet);
+inline unsigned int make_psmove_button_bitmask(const PSMoveDataInputZCM1 *hid_packet);
+inline unsigned int make_psmove_button_bitmask(const PSMoveDataInputZCM2 *hid_packet);
 inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size);
 
 // -- public methods
@@ -709,9 +746,8 @@ void PSMoveControllerInputState::clear()
 
 void PSMoveControllerInputState::parseDataInput(
 	const PSMoveControllerConfig *config,
-	const PSMoveControllerModelPID model,
-	const PSMoveDataInputCommon *previous_hid_packet,
-	const PSMoveDataInputCommon *current_hid_input)
+	const PSMoveDataInputZCM1 *previous_hid_packet,
+	const PSMoveDataInputZCM1 *current_hid_input)
 {
     // https://github.com/nitsch/moveonpc/wiki/Input-report
         
@@ -728,10 +764,7 @@ void PSMoveControllerInputState::parseDataInput(
     Move = getButtonState(AllButtons, prev_button_bitmask, Btn_MOVE);
     Trigger = getButtonState(AllButtons, prev_button_bitmask, Btn_T);
 
-	if (model == _psmove_controller_ZCM2)
-		TriggerValue = current_hid_input->trigger;
-	else
-		TriggerValue = (current_hid_input->trigger + current_hid_input->trigger2) / 2; // TODO: store each frame separately
+	TriggerValue = (current_hid_input->trigger + current_hid_input->trigger2) / 2; // TODO: store each frame separately
     BatteryValue = (current_hid_input->battery);
 
     // Update raw and calibrated accelerometer and gyroscope state
@@ -750,21 +783,22 @@ void PSMoveControllerInputState::parseDataInput(
             {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }}
         }};
         std::array<int, 2> sensorOffsets = {{
-            offsetof(PSMoveDataInputCommon, aXlow),
-            offsetof(PSMoveDataInputCommon, gXlow)
+            offsetof(PSMoveDataInputZCM1, aXlow),
+            offsetof(PSMoveDataInputZCM1, gXlow)
         }};
 
-		if (model == _psmove_controller_ZCM2)
+	    std::array<int, 2> frameOffsets = {{ 0, 6 }};
+		for (std::array<int, 2>::size_type s_ix = 0; s_ix != sensorOffsets.size(); s_ix++) //accel, gyro
 		{
-			for (std::array<int, 2>::size_type s_ix = 0; s_ix != sensorOffsets.size(); s_ix++) //accel, gyro
+			for (std::array<int, 2>::size_type f_ix = 0; f_ix != frameOffsets.size(); f_ix++) //older, newer
 			{
 				for (int d_ix = 0; d_ix < 3; d_ix++)  //x, y, z
 				{
 					// Offset into PSMoveDataInput
-					const int totalOffset = sensorOffsets[s_ix] + 2 * d_ix;
+					const int totalOffset = sensorOffsets[s_ix] + frameOffsets[f_ix] + 2 * d_ix;
 
 					// Extract the raw signed 16-bit sensor value from the PSMoveDataInput packet
-					const int raw_val = decode16bitTwosCompliment(data, totalOffset);
+					const int raw_val = decode16bitUnsignedToSigned(data, totalOffset);
 
 					// Get the calibration parameters for this sensor value
 					const float k = config->cal_ag_xyz_kbd[s_ix][d_ix][0]; // calibration scale
@@ -773,45 +807,10 @@ void PSMoveControllerInputState::parseDataInput(
 					const float calibrated_val= (static_cast<float>(raw_val) - d)*k + b;
 
 					// Save the raw sensor value
-					// Frame 0 and Frame 1 are the same
-					ag_raw_xyz[s_ix][0][d_ix] = raw_val;
-					ag_raw_xyz[s_ix][1][d_ix] = raw_val;
+					ag_raw_xyz[s_ix][f_ix][d_ix] = raw_val;
 
 					// Compute the calibrated sensor value
-					// Frame 0 and Frame 1 are the same
-					ag_calibrated_xyz[s_ix][0][d_ix] = calibrated_val;
-					ag_calibrated_xyz[s_ix][1][d_ix] = calibrated_val;
-				}
-			}
-		}
-		else
-		{
-	        std::array<int, 2> frameOffsets = {{ 0, 6 }};
-
-			for (std::array<int, 2>::size_type s_ix = 0; s_ix != sensorOffsets.size(); s_ix++) //accel, gyro
-			{
-				for (std::array<int, 2>::size_type f_ix = 0; f_ix != frameOffsets.size(); f_ix++) //older, newer
-				{
-					for (int d_ix = 0; d_ix < 3; d_ix++)  //x, y, z
-					{
-						// Offset into PSMoveDataInput
-						const int totalOffset = sensorOffsets[s_ix] + frameOffsets[f_ix] + 2 * d_ix;
-
-						// Extract the raw signed 16-bit sensor value from the PSMoveDataInput packet
-						const int raw_val = decode16bitUnsignedToSigned(data, totalOffset);
-
-						// Get the calibration parameters for this sensor value
-						const float k = config->cal_ag_xyz_kbd[s_ix][d_ix][0]; // calibration scale
-						const float b = config->cal_ag_xyz_kbd[s_ix][d_ix][1]; // calibration offset
-						const float d = config->cal_ag_xyz_kbd[s_ix][d_ix][2]; // calibration drift
-						const float calibrated_val= (static_cast<float>(raw_val) - d)*k + b;
-
-						// Save the raw sensor value
-						ag_raw_xyz[s_ix][f_ix][d_ix] = raw_val;
-
-						// Compute the calibrated sensor value
-						ag_calibrated_xyz[s_ix][f_ix][d_ix] = calibrated_val;
-					}
+					ag_calibrated_xyz[s_ix][f_ix][d_ix] = calibrated_val;
 				}
 			}
 		}
@@ -823,34 +822,16 @@ void PSMoveControllerInputState::parseDataInput(
         CalibratedGyro = ag_calibrated_xyz[1];
     }
 
-	// Update the raw and calibrated magnetometer
-	if (model == _psmove_controller_ZCM2)
-	{
-		PSMoveDataInputZCM2 *InDataZCM2= (PSMoveDataInputZCM2 *)current_hid_input;
-
-		// ZCM2 - Doesn't have a magnetometer
-		RawMag[0] = RawMag[1] = RawMag[2]= 0;
-		CalibratedMag[0]= CalibratedMag[1] = CalibratedMag[2] = 0.f;
-
-		// Other
-		RawSequence = (InDataZCM2->buttons4 & 0x0F);
-		Battery = static_cast<CommonControllerState::BatteryLevel>(InDataZCM2->battery);
-		RawTimeStamp = InDataZCM2->timelow | (InDataZCM2->timehigh << 8);
-		TempRaw = (InDataZCM2->temphigh << 4) | ((InDataZCM2->templow & 0xF0) >> 4);
-	}
-	else // ZCM1 - Might have a magnetometer
     {
-		PSMoveDataInputZCM1 *InDataZCM1= (PSMoveDataInputZCM1 *)current_hid_input;
-
         Eigen::Vector3f raw_mag, calibrated_mag;
         EigenFitEllipsoid ellipsoid;
 
         // Save the Raw Magnetometer sensor value (signed 12-bit values)
-        RawMag[0] = TWELVE_BIT_SIGNED(((InDataZCM1->templow_mXhigh & 0x0F) << 8) | InDataZCM1->mXlow);
+        RawMag[0] = TWELVE_BIT_SIGNED(((current_hid_input->templow_mXhigh & 0x0F) << 8) | current_hid_input->mXlow);
         // The magnetometer y-axis is flipped compared to the accelerometer and gyro.
         // Flip it back around to get it into the same space.
-        RawMag[1] = -TWELVE_BIT_SIGNED((InDataZCM1->mYhigh << 4) | (InDataZCM1->mYlow_mZhigh & 0xF0) >> 4);
-        RawMag[2] = TWELVE_BIT_SIGNED(((InDataZCM1->mYlow_mZhigh & 0x0F) << 8) | InDataZCM1->mZlow);
+        RawMag[1] = -TWELVE_BIT_SIGNED((current_hid_input->mYhigh << 4) | (current_hid_input->mYlow_mZhigh & 0xF0) >> 4);
+        RawMag[2] = TWELVE_BIT_SIGNED(((current_hid_input->mYlow_mZhigh & 0x0F) << 8) | current_hid_input->mZlow);
 
         // Project the raw magnetometer sample into the space of the ellipsoid
         raw_mag = 
@@ -868,11 +849,101 @@ void PSMoveControllerInputState::parseDataInput(
         CalibratedMag[2] = calibrated_mag.z();
 
 		// Other
-		RawSequence = (InDataZCM1->buttons4 & 0x0F);
-		Battery = static_cast<CommonControllerState::BatteryLevel>(InDataZCM1->battery);
-		RawTimeStamp = InDataZCM1->timelow | (InDataZCM1->timehigh << 8);
-		TempRaw = (InDataZCM1->temphigh << 4) | ((InDataZCM1->templow_mXhigh & 0xF0) >> 4);
+		RawSequence = (current_hid_input->buttons4 & 0x0F);
+		Battery = static_cast<CommonControllerState::BatteryLevel>(current_hid_input->battery);
+		RawTimeStamp = current_hid_input->timelow | (current_hid_input->timehigh << 8);
+		TempRaw = (current_hid_input->temphigh << 4) | ((current_hid_input->templow_mXhigh & 0xF0) >> 4);
     }
+}
+
+void PSMoveControllerInputState::parseDataInput(
+	const PSMoveControllerConfig *config,
+	const PSMoveDataInputZCM2 *previous_hid_packet,
+	const PSMoveDataInputZCM2 *current_hid_input)
+{
+    // https://github.com/nitsch/moveonpc/wiki/Input-report
+        
+    // Buttons
+	unsigned int prev_button_bitmask = previous_hid_packet != nullptr ? make_psmove_button_bitmask(previous_hid_packet) : 0;
+    AllButtons = make_psmove_button_bitmask(current_hid_input);       
+    Triangle = getButtonState(AllButtons, prev_button_bitmask, Btn_TRIANGLE);
+    Circle = getButtonState(AllButtons, prev_button_bitmask, Btn_CIRCLE);
+    Cross = getButtonState(AllButtons, prev_button_bitmask, Btn_CROSS);
+    Square = getButtonState(AllButtons, prev_button_bitmask, Btn_SQUARE);
+    Select = getButtonState(AllButtons, prev_button_bitmask, Btn_SELECT);
+    Start = getButtonState(AllButtons, prev_button_bitmask, Btn_START);
+    PS = getButtonState(AllButtons, prev_button_bitmask, Btn_PS);
+    Move = getButtonState(AllButtons, prev_button_bitmask, Btn_MOVE);
+    Trigger = getButtonState(AllButtons, prev_button_bitmask, Btn_T);
+
+	TriggerValue = current_hid_input->trigger;
+    BatteryValue = (current_hid_input->battery);
+
+    // Update raw and calibrated accelerometer and gyroscope state
+    {
+        // Access raw Accel and Gyro state from the DataInput struct as a byte array
+        char* data = (char *)current_hid_input;
+
+        // Extract Accelerometer and Gyroscope readings into in a set of two update frames.
+        // Note: The double brackets are an oddity of C++11 static array initialization.
+        std::array<std::array<std::array<int, 3>, 2>, 2> ag_raw_xyz = {{
+            {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }},
+            {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }}
+        }};
+        std::array<std::array<std::array<float, 3>, 2>, 2> ag_calibrated_xyz = {{
+            {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }},
+            {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }}
+        }};
+        std::array<int, 2> sensorOffsets = {{
+            offsetof(PSMoveDataInputZCM2, aXlow),
+            offsetof(PSMoveDataInputZCM2, gXlow)
+        }};
+
+		for (std::array<int, 2>::size_type s_ix = 0; s_ix != sensorOffsets.size(); s_ix++) //accel, gyro
+		{
+			for (int d_ix = 0; d_ix < 3; d_ix++)  //x, y, z
+			{
+				// Offset into PSMoveDataInput
+				const int totalOffset = sensorOffsets[s_ix] + 2 * d_ix;
+
+				// Extract the raw signed 16-bit sensor value from the PSMoveDataInput packet
+				const int raw_val = decode16bitTwosCompliment(data, totalOffset);
+
+				// Get the calibration parameters for this sensor value
+				const float k = config->cal_ag_xyz_kbd[s_ix][d_ix][0]; // calibration scale
+				const float b = config->cal_ag_xyz_kbd[s_ix][d_ix][1]; // calibration offset
+				const float d = config->cal_ag_xyz_kbd[s_ix][d_ix][2]; // calibration drift
+				const float calibrated_val= (static_cast<float>(raw_val) - d)*k + b;
+
+				// Save the raw sensor value
+				// Frame 0 and Frame 1 are the same
+				ag_raw_xyz[s_ix][0][d_ix] = raw_val;
+				ag_raw_xyz[s_ix][1][d_ix] = raw_val;
+
+				// Compute the calibrated sensor value
+				// Frame 0 and Frame 1 are the same
+				ag_calibrated_xyz[s_ix][0][d_ix] = calibrated_val;
+				ag_calibrated_xyz[s_ix][1][d_ix] = calibrated_val;
+			}
+		}
+
+
+        RawAccel = ag_raw_xyz[0];
+        RawGyro = ag_raw_xyz[1];
+
+        CalibratedAccel = ag_calibrated_xyz[0];
+        CalibratedGyro = ag_calibrated_xyz[1];
+    }
+
+	// ZCM2 - Doesn't have a magnetometer
+	RawMag[0] = RawMag[1] = RawMag[2]= 0;
+	CalibratedMag[0]= CalibratedMag[1] = CalibratedMag[2] = 0.f;
+
+	// Other
+	RawSequence = (current_hid_input->buttons4 & 0x0F);
+	Battery = static_cast<CommonControllerState::BatteryLevel>(current_hid_input->battery);
+	RawTimeStamp = current_hid_input->timelow | (current_hid_input->timehigh << 8);
+	TempRaw = (current_hid_input->temphigh << 4) | ((current_hid_input->templow & 0xF0) >> 4);
 }
 
 // -- PSMoveControllerOutputState -----
@@ -889,8 +960,7 @@ void PSMoveControllerOutputState::clear()
 
 // -- PSMove Controller -----
 PSMoveController::PSMoveController()
-    : SupportsMagnetometer(false)
-	, m_HIDPacketProcessor(nullptr)
+    : m_HIDPacketProcessor(nullptr)
 	, m_controllerListener(nullptr)
 {
 	HIDDetails.vendor_id = -1;
@@ -1828,6 +1898,12 @@ PSMoveController::getTempCelsius() const
     return 70;
 }
 
+bool 
+PSMoveController::getSupportsMagnetometer() const
+{
+	return m_HIDPacketProcessor != nullptr && m_HIDPacketProcessor->getSupportsMagnetometer();
+}
+
 // Setters
 void 
 PSMoveController::setConfig(const PSMoveControllerConfig *config)
@@ -1982,7 +2058,15 @@ getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask)
 }
 
 inline unsigned int
-make_psmove_button_bitmask(const PSMoveDataInputCommon *hid_packet)
+make_psmove_button_bitmask(const PSMoveDataInputZCM1 *hid_packet)
+{
+	return
+		(hid_packet->buttons2) | (hid_packet->buttons1 << 8) |
+		((hid_packet->buttons3 & 0x01) << 16) | ((hid_packet->buttons4 & 0xF0) << 13);
+}
+
+inline unsigned int
+make_psmove_button_bitmask(const PSMoveDataInputZCM2 *hid_packet)
 {
 	return
 		(hid_packet->buttons2) | (hid_packet->buttons1 << 8) |
