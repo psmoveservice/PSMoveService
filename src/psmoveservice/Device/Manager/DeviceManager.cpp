@@ -362,3 +362,30 @@ DeviceManager::handle_device_disconnected(enum DeviceClass device_class, const s
 		}
 	}
 }
+
+void 
+DeviceManager::handle_bluetooth_request_started()
+{
+	if (m_platform_api != nullptr)
+	{
+		m_platform_api->handle_bluetooth_request_started();
+	}
+}
+
+void
+DeviceManager::handle_bluetooth_request_finished()
+{
+	if (m_platform_api != nullptr)
+	{
+		m_platform_api->handle_bluetooth_request_finished();
+	}
+
+	//TODO: This is a bit of a hack to force the controller list to refresh
+	for (auto it = m_listeners.begin(); it != m_listeners.end(); ++it)
+	{
+		if (it->device_class == DeviceClass::DeviceClass_HID)
+		{
+			it->listener->handle_device_connected(DeviceClass::DeviceClass_HID, "");
+		}
+	}
+}

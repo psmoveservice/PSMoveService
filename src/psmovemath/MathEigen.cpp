@@ -12,6 +12,26 @@ const Eigen::Quaternionf g_eigen_quaternion_zero = Eigen::Quaternionf( 0, 0, 0, 
 const Eigen::Quaternionf *k_eigen_quaternion_zero = &g_eigen_quaternion_zero;
 
 //-- public methods -----
+Eigen::Quaternionf
+eigen_quaternion_from_ZY(
+	const Eigen::Vector3f &in_Z,
+	const Eigen::Vector3f &in_Y)
+{
+	Eigen::Vector3f Z= in_Z;
+
+	eigen_vector3f_normalize_with_default(Z, Eigen::Vector3f::UnitZ());
+	Eigen::Vector3f X= Z.cross(in_Y);
+	eigen_vector3f_normalize_with_default(X, Eigen::Vector3f::UnitX());
+	Eigen::Vector3f Y= X.cross(Z);
+
+	Eigen::Matrix3f mat;
+	mat.col(0)= X;
+	mat.col(1)= Y;
+	mat.col(2)= Z;
+
+	return Eigen::Quaternionf(mat).normalized();
+}
+
 // Creates a quaternion that rotates clockwise about the axis for a positive angle
 // when appied with psmove_vector_clockwise_rotate()
 Eigen::Quaternionf

@@ -135,6 +135,11 @@ bool CompoundPoseFilter::getIsStateValid() const
 	return getIsOrientationStateValid() || getIsPositionStateValid();
 }
 
+double CompoundPoseFilter::getTimeInSeconds() const
+{
+    return m_time;
+}
+
 void CompoundPoseFilter::update(
 	const float delta_time,
 	const PoseFilterPacket &orientation_filter_packet)
@@ -155,6 +160,11 @@ void CompoundPoseFilter::update(
 
 		m_position_filter->update(delta_time, position_filter_packet);
 	}
+
+    if (m_orientation_filter != nullptr || m_position_filter != nullptr)
+    {
+        m_time+= static_cast<double>(delta_time);
+    }
 }
 
 void CompoundPoseFilter::resetState()
@@ -163,6 +173,7 @@ void CompoundPoseFilter::resetState()
 	{
 		m_orientation_filter->resetState();
 		m_position_filter->resetState();
+        m_time= 0.0;
 	}
 }
 

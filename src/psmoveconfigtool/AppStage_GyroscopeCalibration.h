@@ -55,7 +55,8 @@ protected:
 	static void handle_tracking_space_settings_response(
 		const PSMResponseMessage *response_message,
 		void *userdata);
-    void request_set_gyroscope_calibration(const float raw_drift, const float raw_variance);
+    void request_set_gyroscope_calibration(
+		const PSMVector3f &raw_bias, const float raw_drift, const float raw_variance);
     static void handle_acquire_controller(
         const PSMResponseMessage *response,
         void *userdata);

@@ -353,6 +353,7 @@ struct CommonDeviceTrackingShape
 
     union{
         struct {
+			CommonDevicePosition center_cm;
             float radius_cm;
         } sphere;
 
@@ -449,6 +450,14 @@ public:
     virtual const CommonDeviceState * getState(int lookBack = 0) const = 0;   
 };
 
+/// Interface class for HMD events. Implemented HMD Server View
+class IControllerListener
+{
+public:
+	// Called when new sensor state has been read from the controller
+	virtual void notifySensorDataReceived(const CommonDeviceState *sensor_state) = 0;
+};
+
 /// Abstract class for controller interface. Implemented in PSMoveController.cpp
 class IControllerInterface : public IDeviceInterface
 {
@@ -458,6 +467,9 @@ public:
 
 	// Sets the tracking color enum of the controller
 	virtual bool setTrackingColorID(const eCommonTrackingColorID tracking_color_id) = 0;
+
+	// Assign an HMD listener to send HMD events to
+	virtual void setControllerListener(IControllerListener *listener) = 0;
 
     // -- Getters
     // Returns true if the device is connected via Bluetooth, false if by USB

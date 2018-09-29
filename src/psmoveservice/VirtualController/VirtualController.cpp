@@ -7,9 +7,6 @@
 
 #include "gamepad/Gamepad.h"
 
-//-- constants -----
-#define VIRTUAL_CONTROLLER_STATE_BUFFER_MAX 16
-
 // -- public methods
 
 // -- Virtual Controller Config
@@ -105,10 +102,9 @@ VirtualController::VirtualController()
     : cfg()
     , NextPollSequenceNumber(0)
     , bIsOpen(false)
-    , ControllerStates()
     , bIsTracking(false)
 {
-    ControllerStates.clear();
+	memset(&ControllerState, 0, sizeof(VirtualControllerState));
 }
 
 VirtualController::~VirtualController()
@@ -202,6 +198,11 @@ VirtualController::setTrackingColorID(const eCommonTrackingColorID tracking_colo
 	}
 
 	return bSuccess;
+}
+
+void VirtualController::setControllerListener(IControllerListener *listener)
+{
+	// Do nothing. VirtualController doesn't provide IMU data.
 }
 
 // Getters
@@ -304,14 +305,8 @@ VirtualController::poll()
         newState.PollSequenceNumber= NextPollSequenceNumber;
         ++NextPollSequenceNumber;
 
-        // Make room for new entry if at the max queue size
-        if (ControllerStates.size() >= VIRTUAL_CONTROLLER_STATE_BUFFER_MAX)
-        {
-            ControllerStates.erase(ControllerStates.begin(),
-                ControllerStates.begin() + ControllerStates.size() - VIRTUAL_CONTROLLER_STATE_BUFFER_MAX);
-        }
-
-        ControllerStates.push_back(newState);
+        // Cache the new controller state
+        ControllerState= newState;
     }
 
     return result;
@@ -331,7 +326,7 @@ VirtualController::pollGamepad(VirtualControllerState &newState)
 
 	    if (gamepad != nullptr)
 	    {
-		    unsigned int lastButtons = ControllerStates.empty() ? 0 : ControllerStates.back().AllButtons;
+		    unsigned int lastButtons = ControllerState.AllButtons;
 
             newState.vendorID= gamepad->vendorID;
             newState.productID= gamepad->productID;
@@ -362,13 +357,9 @@ VirtualController::pollGamepad(VirtualControllerState &newState)
 
 const CommonDeviceState * 
 VirtualController::getState(
-    int lookBack) const
+	int lookBack) const
 {
-    const int queueSize= static_cast<int>(ControllerStates.size());
-    const CommonDeviceState * result=
-        (lookBack < queueSize) ? &ControllerStates.at(queueSize - lookBack - 1) : nullptr;
-
-    return result;
+    return &ControllerState;
 }
 
 const std::tuple<unsigned char, unsigned char, unsigned char> 

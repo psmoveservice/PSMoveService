@@ -34,12 +34,15 @@ POSSIBILITY OF SUCH DAMAGE.
 */
 
 //-- includes -----
+#include "AtomicPrimitives.h"
 #include "PSMoveController.h"
 #include "ControllerDeviceEnumerator.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
 #include "BluetoothQueries.h"
 #include "MathAlignment.h"
+#include "WorkerThread.h"
+
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -56,15 +59,19 @@ POSSIBILITY OF SUCH DAMAGE.
 //-- constants -----
 #define PSMOVE_BUFFER_SIZE 49 /* Buffer size for writing LEDs and reading sensor data */
 #define PSMOVE_EXT_DATA_BUF_SIZE 5
-#define PSMOVE_BTADDR_GET_SIZE 16
+#define PSMOVE_BTADDR_GET_ZCM1_SIZE 16 
+#define PSMOVE_BTADDR_GET_ZCM2_SIZE 21
+#define PSMOVE_BTADDR_GET_MAX_SIZE PSMOVE_BTADDR_GET_ZCM2_SIZE
 #define PSMOVE_BTADDR_SET_SIZE 23
 #define PSMOVE_BTADDR_SIZE 6
 #define PSMOVE_FW_GET_SIZE 13
 #define PSMOVE_CALIBRATION_SIZE 49 /* Buffer size for calibration data */
-#define PSMOVE_CALIBRATION_BLOB_SIZE (PSMOVE_CALIBRATION_SIZE*3 - 2*2) /* Three blocks, minus header (2 bytes) for blocks 2,3 */
+#define PSMOVE_ZCM1_CALIBRATION_BLOB_SIZE (PSMOVE_CALIBRATION_SIZE*3 - 2*2) /* Three blocks, minus header (2 bytes) for blocks 2,3 */
+#define PSMOVE_ZCM2_CALIBRATION_BLOB_SIZE (PSMOVE_CALIBRATION_SIZE*2 - 2*1) /* Three blocks, minus header (2 bytes) for block 2 */
 #define PSMOVE_STATE_BUFFER_MAX 16
 
 #define PSMOVE_TRACKING_BULB_RADIUS  2.25f // The radius of the psmove tracking bulb in cm
+#define PSMOVE_TRACKING_BULB_OFFSET  9.f   // The offset of the psmove tracking bulb from center of the controller in cm
 
 /* Minimum time (in milliseconds) psmove write updates */
 #define PSMOVE_WRITE_DATA_INTERVAL_MS 120
@@ -74,7 +81,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 enum PSNaviRequestType {
     PSMove_Req_GetInput = 0x01,
-    PSMove_Req_SetLEDs = 0x02,
+    PSMove_Req_SetLEDs = 0x06,
     PSMove_Req_SetLEDPWMFrequency = 0x03,
     PSMove_Req_GetBTAddr = 0x04,
     PSMove_Req_SetBTAddr = 0x05,
@@ -129,7 +136,8 @@ struct PSMoveDataOutput {
     unsigned char _padding[PSMOVE_BUFFER_SIZE-7]; /* must be zero */
 };
 
-struct PSMoveDataInput {
+struct PSMoveDataInputZCM1
+{
     unsigned char type; /* message type, must be PSMove_Req_GetInput */
     unsigned char buttons1;
     unsigned char buttons2;
@@ -137,10 +145,10 @@ struct PSMoveDataInput {
     unsigned char buttons4;
     unsigned char trigger; /* trigger value; 0..255 */
     unsigned char trigger2; /* trigger value, 2nd frame */
-    unsigned char _unk7;
-    unsigned char _unk8;
-    unsigned char _unk9;
-    unsigned char _unk10;
+    unsigned char _unused0;
+    unsigned char _unused1;
+    unsigned char _unused2;
+    unsigned char _unused3;
     unsigned char timehigh; /* high byte of timestamp */
     unsigned char battery; /* battery level; 0x05 = max, 0xEE = USB charging */
     unsigned char aXlow; /* low byte of accelerometer X value */
@@ -177,12 +185,323 @@ struct PSMoveDataInput {
     unsigned char extdata[PSMOVE_EXT_DATA_BUF_SIZE]; /* external device data (EXT port) */
 };
 
+struct PSMoveDataInputZCM2
+{
+    unsigned char type; /* message type, must be PSMove_Req_GetInput */
+    unsigned char buttons1;
+    unsigned char buttons2;
+    unsigned char buttons3;
+    unsigned char buttons4;
+    unsigned char trigger; /* trigger value; 0..255 */
+    unsigned char trigger2; /* trigger value, 2nd frame */
+    unsigned char _unused0;
+    unsigned char _unused1;
+    unsigned char _unused2;
+    unsigned char _unused3;
+    unsigned char timehigh; /* high byte of timestamp */
+    unsigned char battery; /* battery level; 0x05 = max, 0xEE = USB charging */
+    unsigned char aXlow; /* low byte of accelerometer X value */
+    unsigned char aXhigh; /* high byte of accelerometer X value */
+    unsigned char aYlow;
+    unsigned char aYhigh;
+    unsigned char aZlow;
+    unsigned char aZhigh;
+    unsigned char aXlow2; /* low byte of accelerometer X value, 2nd frame */
+    unsigned char aXhigh2; /* high byte of accelerometer X value, 2nd frame */
+    unsigned char aYlow2;
+    unsigned char aYhigh2;
+    unsigned char aZlow2;
+    unsigned char aZhigh2;
+    unsigned char gXlow; /* low byte of gyro X value */
+    unsigned char gXhigh; /* high byte of gyro X value */
+    unsigned char gYlow;
+    unsigned char gYhigh;
+    unsigned char gZlow;
+    unsigned char gZhigh;
+    unsigned char gXlow2; /* low byte of gyro X value, 2nd frame */
+    unsigned char gXhigh2; /* high byte of gyro X value, 2nd frame */
+    unsigned char gYlow2;
+    unsigned char gYhigh2;
+    unsigned char gZlow2;
+    unsigned char gZhigh2;
+    unsigned char temphigh; /* temperature (bits 12-5) */
+    unsigned char templow; /* temp (bits 4-1); */
+	unsigned char timehigh2; /* same as timestamp at offsets 0x0B */
+	unsigned char timelow; /* same as timestamp at offsets 0x2B */
+	unsigned char _unused4; /* Always 0 */
+	unsigned char _unused5; /* Always 0 */
+    unsigned char timelow2; 
+};
+
+struct PSMoveDataInput
+{
+	union {
+		PSMoveDataInputZCM1 zcm1;
+		PSMoveDataInputZCM2 zcm2;
+	} data;
+};
+
+class PSMoveHidPacketProcessor : public WorkerThread
+{
+public:
+	PSMoveHidPacketProcessor(const PSMoveControllerConfig &cfg, PSMoveControllerModelPID model) 
+		: WorkerThread("PSMoveSensorProcessor")
+		, m_model(model)
+		, m_hidDevice(nullptr)
+		, m_controllerListener(nullptr)
+		, m_bSupportsMagnetometer(false)
+		, m_nextPollSequenceNumber(0)
+	{
+		setConfig(cfg);
+
+		memset(&m_previousHIDInputPacket, 0, sizeof(PSMoveDataInput));
+		memset(&m_currentHIDInputPacket, 0, sizeof(PSMoveDataInput));
+
+		if (m_model == _psmove_controller_ZCM2)
+		{
+			m_previousHIDInputPacket.data.zcm2.type = PSMove_Req_GetInput;
+			m_currentHIDInputPacket.data.zcm2.type = PSMove_Req_GetInput;
+		}
+		else
+		{
+			m_previousHIDInputPacket.data.zcm1.type = PSMove_Req_GetInput;
+			m_currentHIDInputPacket.data.zcm1.type = PSMove_Req_GetInput;
+
+		}
+
+		memset(&m_previousOutputState, 0, sizeof(PSMoveControllerOutputState));
+	}
+
+	void setConfig(const PSMoveControllerConfig &cfg)
+	{
+		m_cfg.storeValue(cfg);
+	}
+
+	bool getSupportsMagnetometer() const
+	{
+		return m_bSupportsMagnetometer;
+	}
+
+	void fetchLatestInputData(PSMoveControllerInputState &input_state)
+	{
+		m_currentInputState.fetchValue(input_state);
+	}
+
+	void postOutputState(const PSMoveControllerOutputState &output_state)
+	{
+		m_currentOutputState.storeValue(output_state);
+	}
+
+    void start(hid_device *in_hid_device, IControllerListener *controller_listener)
+    {
+		if (!hasThreadStarted())
+		{
+			m_hidDevice= in_hid_device;
+			m_controllerListener= controller_listener;
+
+			// See if this controller has a functional magnetometer
+			testMagnetometer();
+
+			// Fire up the worker thread
+			WorkerThread::startThread();
+		}
+    }
+
+	void stop()
+	{
+		WorkerThread::stopThread();
+	}
+
+protected:
+	void testMagnetometer()
+	{
+		if (m_model == _psmove_controller_ZCM1)
+		{
+			const int k_max_poll_attempts = 10;
+			int poll_count = 0;
+
+			PSMoveControllerConfig cfg;
+			m_cfg.fetchValue(cfg);
+
+			// Perform non-blocking reads during this phase
+			hid_set_nonblocking(m_hidDevice, 1);
+
+			for (poll_count = 0; poll_count < k_max_poll_attempts; ++poll_count)
+			{
+				PSMoveDataInput rawHIDPacket;
+				int res = hid_read(m_hidDevice, (unsigned char*)&rawHIDPacket.data.zcm1, sizeof(PSMoveDataInputZCM1));
+
+				if (res > 0)
+				{
+					PSMoveControllerInputState newState;
+					newState.parseDataInput(&cfg, nullptr, &rawHIDPacket.data.zcm1);
+
+					// See if we are getting valid magnetometer data
+					m_bSupportsMagnetometer = 
+						newState.RawMag[0] != 0 || newState.RawMag[1] != 0 || newState.RawMag[2] != 0;
+					break;
+				}
+				else
+				{
+					const std::chrono::milliseconds k_WaitForDataMilliseconds(5);
+
+					std::this_thread::sleep_for(k_WaitForDataMilliseconds);
+				}
+			}
+
+			if (poll_count >= k_max_poll_attempts)
+			{
+				SERVER_LOG_ERROR("testMagnetometer") << "Failed to open read initial controller state after " << k_max_poll_attempts << " attempts.";
+			}
+		}
+	}
+
+	virtual bool doWork() override
+    {
+		PSMoveControllerConfig cfg;
+		m_cfg.fetchValue(cfg);
+
+		// Perform blocking reads on the worker thread
+		hid_set_nonblocking(m_hidDevice, 0);
+
+		// Attempt to read the next sensor update packet from the HMD
+        int res = -1;
+		if (m_model == _psmove_controller_ZCM2)
+		{
+			memcpy(&m_previousHIDInputPacket.data.zcm2, &m_currentHIDInputPacket.data.zcm2, sizeof(PSMoveDataInputZCM2));
+			res= hid_read_timeout(m_hidDevice, (unsigned char*)&m_currentHIDInputPacket.data.zcm2, sizeof(PSMoveDataInputZCM2), cfg.poll_timeout_ms);
+		}
+		else
+		{
+			memcpy(&m_previousHIDInputPacket.data.zcm1, &m_currentHIDInputPacket.data.zcm1, sizeof(PSMoveDataInputZCM1));
+			res= hid_read_timeout(m_hidDevice, (unsigned char*)&m_currentHIDInputPacket.data.zcm1, sizeof(PSMoveDataInputZCM1), cfg.poll_timeout_ms);
+		}
+
+		if (res > 0)
+		{
+			// https://github.com/hrl7/node-psvr/blob/master/lib/psvr.js
+			PSMoveControllerInputState newState;
+
+			// Increment the sequence for every new polling packet
+			newState.PollSequenceNumber = m_nextPollSequenceNumber;
+			++m_nextPollSequenceNumber;
+
+			// Processes the IMU data
+			if (m_model == _psmove_controller_ZCM2)
+				newState.parseDataInput(&cfg, &m_previousHIDInputPacket.data.zcm2, &m_currentHIDInputPacket.data.zcm2);
+			else
+				newState.parseDataInput(&cfg, &m_previousHIDInputPacket.data.zcm1, &m_currentHIDInputPacket.data.zcm1);
+
+			// Store a copy of the parsed input date for functions
+			// that want to query input state off of the worker thread
+			m_currentInputState.storeValue(newState);
+
+			// Send the sensor data for processing by filter
+			if (m_controllerListener != nullptr)
+			{
+				m_controllerListener->notifySensorDataReceived(&newState);
+			}
+		}
+		else if (res < 0)
+		{
+			char hidapi_err_mbs[256];
+			bool valid_error_mesg = 
+				ServerUtility::convert_wcs_to_mbs(hid_error(m_hidDevice), hidapi_err_mbs, sizeof(hidapi_err_mbs));
+
+			// Device no longer in valid state.
+			if (valid_error_mesg)
+			{
+				SERVER_MT_LOG_ERROR("PSMoveSensorProcessor::doWork") << "HID ERROR: " << hidapi_err_mbs;
+			}
+
+			// halt the worker thread
+			return false;
+		}
+
+        // Don't send output writes too frequently
+        {
+            std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
+
+            // See if it's time to update the LED/rumble state
+            std::chrono::duration<double, std::milli> led_update_diff = now - m_lastHIDOutputTimestamp;
+            if (led_update_diff.count() >= PSMOVE_WRITE_DATA_INTERVAL_MS)
+            {
+				PSMoveControllerOutputState output_state;
+				m_currentOutputState.fetchValue(output_state);
+
+				const bool bWriteStateChanged=
+					output_state.r != m_previousOutputState.r ||
+					output_state.g != m_previousOutputState.g ||
+					output_state.b != m_previousOutputState.b ||
+					output_state.rumble != m_previousOutputState.rumble;
+				const bool bWriteStateNonZero=
+					output_state.r != 0 ||
+					output_state.g != 0 ||
+					output_state.b != 0 ||
+					output_state.rumble != 0;
+
+				if (bWriteStateChanged || bWriteStateNonZero)
+				{
+					PSMoveDataOutput data_out;
+					memset(&data_out, 0, sizeof(PSMoveDataOutput));
+					data_out.type = PSMove_Req_SetLEDs;
+					data_out.r = output_state.r;
+					data_out.g = output_state.g;
+					data_out.b = output_state.b;
+					data_out.rumble = output_state.rumble;
+					data_out.rumble2 = 0x00;
+
+					res = hid_write(m_hidDevice, (unsigned char*)(&data_out), sizeof(data_out));
+					if (res > 0)
+					{
+						m_previousOutputState= output_state;
+						m_lastHIDOutputTimestamp = now;
+					}
+					else
+					{
+						char hidapi_err_mbs[256];
+						bool valid_error_mesg = 
+							ServerUtility::convert_wcs_to_mbs(hid_error(m_hidDevice), hidapi_err_mbs, sizeof(hidapi_err_mbs));
+
+						// Device no longer in valid state.
+						if (valid_error_mesg)
+						{
+							SERVER_MT_LOG_ERROR("PSMoveSensorProcessor::doWork") << "HID ERROR: " << hidapi_err_mbs;
+						}
+					}
+				}
+            }
+        }
+
+		return true;
+    }
+
+    // Multi-threaded state
+	PSMoveControllerModelPID m_model;
+	hid_device *m_hidDevice;
+	IControllerListener *m_controllerListener;
+	bool m_bSupportsMagnetometer;
+	AtomicObject<PSMoveControllerInputState> m_currentInputState;
+	AtomicObject<PSMoveControllerOutputState> m_currentOutputState;
+	AtomicObject<PSMoveControllerConfig> m_cfg;
+
+    // Worker thread state
+    int m_nextPollSequenceNumber;
+	PSMoveDataInput m_previousHIDInputPacket;
+    PSMoveDataInput m_currentHIDInputPacket;
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_lastHIDOutputTimestamp;
+	PSMoveControllerOutputState m_previousOutputState;
+};
+
 // -- private prototypes -----
 static std::string PSMoveBTAddrUcharToString(const unsigned char* addr_buff);
 static bool stringToPSMoveBTAddrUchar(const std::string &addr, unsigned char *addr_buff, const int addr_buf_size);
-static int decodeCalibration(char *data, int offset);
-static int psmove_decode_16bit(char *data, int offset);
+static short decode16bitSigned(char *data, int offset);
+static int decode16bitUnsignedToSigned(char *data, int offset);
+static int decode16bitTwosCompliment(char *data, int offset);
 inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
+inline unsigned int make_psmove_button_bitmask(const PSMoveDataInputZCM1 *hid_packet);
+inline unsigned int make_psmove_button_bitmask(const PSMoveDataInputZCM2 *hid_packet);
 inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size);
 
 // -- public methods
@@ -205,24 +524,28 @@ PSMoveControllerConfig::config2ptree()
 	pt.put("firmware_revision", firmware_revision);
 
     pt.put("prediction_time", prediction_time);
-    pt.put("max_poll_failure_count", max_poll_failure_count);
+	pt.put("max_poll_failure_count", max_poll_failure_count);
+    pt.put("poll_timeout_ms", poll_timeout_ms);
     
-    pt.put("Calibration.Accel.X.k", cal_ag_xyz_kb[0][0][0]);
-    pt.put("Calibration.Accel.X.b", cal_ag_xyz_kb[0][0][1]);
-    pt.put("Calibration.Accel.Y.k", cal_ag_xyz_kb[0][1][0]);
-    pt.put("Calibration.Accel.Y.b", cal_ag_xyz_kb[0][1][1]);
-    pt.put("Calibration.Accel.Z.k", cal_ag_xyz_kb[0][2][0]);
-    pt.put("Calibration.Accel.Z.b", cal_ag_xyz_kb[0][2][1]);
+    pt.put("Calibration.Accel.X.k", cal_ag_xyz_kbd[0][0][0]);
+    pt.put("Calibration.Accel.X.b", cal_ag_xyz_kbd[0][0][1]);
+    pt.put("Calibration.Accel.Y.k", cal_ag_xyz_kbd[0][1][0]);
+    pt.put("Calibration.Accel.Y.b", cal_ag_xyz_kbd[0][1][1]);
+    pt.put("Calibration.Accel.Z.k", cal_ag_xyz_kbd[0][2][0]);
+    pt.put("Calibration.Accel.Z.b", cal_ag_xyz_kbd[0][2][1]);
 
 	pt.put("Calibration.Accel.Variance", accelerometer_variance);
     pt.put("Calibration.Accel.NoiseRadius", accelerometer_noise_radius);
 
-    pt.put("Calibration.Gyro.X.k", cal_ag_xyz_kb[1][0][0]);
-    pt.put("Calibration.Gyro.X.b", cal_ag_xyz_kb[1][0][1]);
-    pt.put("Calibration.Gyro.Y.k", cal_ag_xyz_kb[1][1][0]);
-    pt.put("Calibration.Gyro.Y.b", cal_ag_xyz_kb[1][1][1]);
-    pt.put("Calibration.Gyro.Z.k", cal_ag_xyz_kb[1][2][0]);
-    pt.put("Calibration.Gyro.Z.b", cal_ag_xyz_kb[1][2][1]);
+    pt.put("Calibration.Gyro.X.k", cal_ag_xyz_kbd[1][0][0]);
+    pt.put("Calibration.Gyro.X.b", cal_ag_xyz_kbd[1][0][1]);
+	pt.put("Calibration.Gyro.X.d", cal_ag_xyz_kbd[1][0][2]);
+    pt.put("Calibration.Gyro.Y.k", cal_ag_xyz_kbd[1][1][0]);
+    pt.put("Calibration.Gyro.Y.b", cal_ag_xyz_kbd[1][1][1]);
+	pt.put("Calibration.Gyro.Y.d", cal_ag_xyz_kbd[1][1][2]);
+    pt.put("Calibration.Gyro.Z.k", cal_ag_xyz_kbd[1][2][0]);
+    pt.put("Calibration.Gyro.Z.b", cal_ag_xyz_kbd[1][2][1]);
+	pt.put("Calibration.Gyro.Z.d", cal_ag_xyz_kbd[1][2][2]);
 
     pt.put("Calibration.Gyro.Variance", gyro_variance);
     pt.put("Calibration.Gyro.Drift", gyro_drift);
@@ -285,24 +608,31 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 		firmware_revision = pt.get<unsigned short>("firmware_revision", 0);
 
         prediction_time = pt.get<float>("prediction_time", 0.f);
-        max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
+		max_poll_failure_count = pt.get<long>("max_poll_failure_count", 100);
+        poll_timeout_ms = pt.get<long>("poll_timeout_ms", 1000);
 
-        cal_ag_xyz_kb[0][0][0] = pt.get<float>("Calibration.Accel.X.k", 1.0f);
-        cal_ag_xyz_kb[0][0][1] = pt.get<float>("Calibration.Accel.X.b", 0.0f);
-        cal_ag_xyz_kb[0][1][0] = pt.get<float>("Calibration.Accel.Y.k", 1.0f);
-        cal_ag_xyz_kb[0][1][1] = pt.get<float>("Calibration.Accel.Y.b", 0.0f);
-        cal_ag_xyz_kb[0][2][0] = pt.get<float>("Calibration.Accel.Z.k", 1.0f);
-        cal_ag_xyz_kb[0][2][1] = pt.get<float>("Calibration.Accel.Z.b", 0.0f);
+        cal_ag_xyz_kbd[0][0][0] = pt.get<float>("Calibration.Accel.X.k", 1.0f);
+        cal_ag_xyz_kbd[0][0][1] = pt.get<float>("Calibration.Accel.X.b", 0.0f);
+		cal_ag_xyz_kbd[0][0][2] = 0.f; // No drift
+        cal_ag_xyz_kbd[0][1][0] = pt.get<float>("Calibration.Accel.Y.k", 1.0f);
+        cal_ag_xyz_kbd[0][1][1] = pt.get<float>("Calibration.Accel.Y.b", 0.0f);
+		cal_ag_xyz_kbd[0][1][2] = 0.f; // No drift
+        cal_ag_xyz_kbd[0][2][0] = pt.get<float>("Calibration.Accel.Z.k", 1.0f);
+        cal_ag_xyz_kbd[0][2][1] = pt.get<float>("Calibration.Accel.Z.b", 0.0f);
+		cal_ag_xyz_kbd[0][2][2] = 0.f; // No drift
 
 		accelerometer_variance = pt.get<float>("Calibration.Accel.Variance", accelerometer_variance);
         accelerometer_noise_radius = pt.get<float>("Calibration.Accel.NoiseRadius", 0.0f);
 
-        cal_ag_xyz_kb[1][0][0] = pt.get<float>("Calibration.Gyro.X.k", 1.0f);
-        cal_ag_xyz_kb[1][0][1] = pt.get<float>("Calibration.Gyro.X.b", 0.0f);
-        cal_ag_xyz_kb[1][1][0] = pt.get<float>("Calibration.Gyro.Y.k", 1.0f);
-        cal_ag_xyz_kb[1][1][1] = pt.get<float>("Calibration.Gyro.Y.b", 0.0f);
-        cal_ag_xyz_kb[1][2][0] = pt.get<float>("Calibration.Gyro.Z.k", 1.0f);
-        cal_ag_xyz_kb[1][2][1] = pt.get<float>("Calibration.Gyro.Z.b", 0.0f);
+        cal_ag_xyz_kbd[1][0][0] = pt.get<float>("Calibration.Gyro.X.k", 1.0f);
+        cal_ag_xyz_kbd[1][0][1] = pt.get<float>("Calibration.Gyro.X.b", 0.0f);
+		cal_ag_xyz_kbd[1][0][2] = pt.get<float>("Calibration.Gyro.X.d", 0.0f);
+        cal_ag_xyz_kbd[1][1][0] = pt.get<float>("Calibration.Gyro.Y.k", 1.0f);
+        cal_ag_xyz_kbd[1][1][1] = pt.get<float>("Calibration.Gyro.Y.b", 0.0f);
+		cal_ag_xyz_kbd[1][1][2] = pt.get<float>("Calibration.Gyro.Y.d", 0.0f);
+        cal_ag_xyz_kbd[1][2][0] = pt.get<float>("Calibration.Gyro.Z.k", 1.0f);
+        cal_ag_xyz_kbd[1][2][1] = pt.get<float>("Calibration.Gyro.Z.b", 0.0f);
+		cal_ag_xyz_kbd[1][2][2] = pt.get<float>("Calibration.Gyro.Z.d", 0.0f);
 
         gyro_variance= pt.get<float>("Calibration.Gyro.Variance", gyro_variance);
         gyro_drift= pt.get<float>("Calibration.Gyro.Drift", gyro_drift);
@@ -359,7 +689,7 @@ PSMoveControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 }
 
 void
-PSMoveControllerConfig::getMegnetometerEllipsoid(struct EigenFitEllipsoid *out_ellipsoid)
+PSMoveControllerConfig::getMagnetometerEllipsoid(struct EigenFitEllipsoid *out_ellipsoid) const
 {
     out_ellipsoid->center =
         Eigen::Vector3f(magnetometer_center.i, magnetometer_center.j, magnetometer_center.k);
@@ -374,31 +704,271 @@ PSMoveControllerConfig::getMegnetometerEllipsoid(struct EigenFitEllipsoid *out_e
     out_ellipsoid->error= magnetometer_fit_error;
 }
 
+// -- PSMoveControllerInputState -----
+PSMoveControllerInputState::PSMoveControllerInputState()
+{
+    clear();
+}
+
+void PSMoveControllerInputState::clear()
+{
+    CommonControllerState::clear();
+
+    RawSequence = 0;
+    RawTimeStamp = 0;
+
+    DeviceType = PSMove;
+
+    Triangle = CommonControllerState::Button_UP;
+    Circle = CommonControllerState::Button_UP;
+    Cross = CommonControllerState::Button_UP;
+    Square = CommonControllerState::Button_UP;
+    Select = CommonControllerState::Button_UP;
+    Start = CommonControllerState::Button_UP;
+    PS = CommonControllerState::Button_UP;
+    Move = CommonControllerState::Button_UP;
+    Trigger = CommonControllerState::Button_UP;
+
+    TriggerValue= 0;
+
+    CalibratedAccel = {{
+        {{0, 0, 0}}, 
+        {{0, 0, 0}} 
+    }};
+    CalibratedGyro = {{
+        {{0, 0, 0}}, 
+        {{0, 0, 0}}
+    }};
+    CalibratedMag = {{0, 0, 0}};
+
+    TempRaw= 0;
+}
+
+void PSMoveControllerInputState::parseDataInput(
+	const PSMoveControllerConfig *config,
+	const PSMoveDataInputZCM1 *previous_hid_packet,
+	const PSMoveDataInputZCM1 *current_hid_input)
+{
+    // https://github.com/nitsch/moveonpc/wiki/Input-report
+        
+    // Buttons
+	unsigned int prev_button_bitmask = previous_hid_packet != nullptr ? make_psmove_button_bitmask(previous_hid_packet) : 0;
+    AllButtons = make_psmove_button_bitmask(current_hid_input);       
+    Triangle = getButtonState(AllButtons, prev_button_bitmask, Btn_TRIANGLE);
+    Circle = getButtonState(AllButtons, prev_button_bitmask, Btn_CIRCLE);
+    Cross = getButtonState(AllButtons, prev_button_bitmask, Btn_CROSS);
+    Square = getButtonState(AllButtons, prev_button_bitmask, Btn_SQUARE);
+    Select = getButtonState(AllButtons, prev_button_bitmask, Btn_SELECT);
+    Start = getButtonState(AllButtons, prev_button_bitmask, Btn_START);
+    PS = getButtonState(AllButtons, prev_button_bitmask, Btn_PS);
+    Move = getButtonState(AllButtons, prev_button_bitmask, Btn_MOVE);
+    Trigger = getButtonState(AllButtons, prev_button_bitmask, Btn_T);
+
+	TriggerValue = (current_hid_input->trigger + current_hid_input->trigger2) / 2; // TODO: store each frame separately
+    BatteryValue = (current_hid_input->battery);
+
+    // Update raw and calibrated accelerometer and gyroscope state
+    {
+        // Access raw Accel and Gyro state from the DataInput struct as a byte array
+        char* data = (char *)current_hid_input;
+
+        // Extract Accelerometer and Gyroscope readings into in a set of two update frames.
+        // Note: The double brackets are an oddity of C++11 static array initialization.
+        std::array<std::array<std::array<int, 3>, 2>, 2> ag_raw_xyz = {{
+            {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }},
+            {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }}
+        }};
+        std::array<std::array<std::array<float, 3>, 2>, 2> ag_calibrated_xyz = {{
+            {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }},
+            {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }}
+        }};
+        std::array<int, 2> sensorOffsets = {{
+            offsetof(PSMoveDataInputZCM1, aXlow),
+            offsetof(PSMoveDataInputZCM1, gXlow)
+        }};
+
+	    std::array<int, 2> frameOffsets = {{ 0, 6 }};
+		for (std::array<int, 2>::size_type s_ix = 0; s_ix != sensorOffsets.size(); s_ix++) //accel, gyro
+		{
+			for (std::array<int, 2>::size_type f_ix = 0; f_ix != frameOffsets.size(); f_ix++) //older, newer
+			{
+				for (int d_ix = 0; d_ix < 3; d_ix++)  //x, y, z
+				{
+					// Offset into PSMoveDataInput
+					const int totalOffset = sensorOffsets[s_ix] + frameOffsets[f_ix] + 2 * d_ix;
+
+					// Extract the raw signed 16-bit sensor value from the PSMoveDataInput packet
+					const int raw_val = decode16bitUnsignedToSigned(data, totalOffset);
+
+					// Get the calibration parameters for this sensor value
+					const float k = config->cal_ag_xyz_kbd[s_ix][d_ix][0]; // calibration scale
+					const float b = config->cal_ag_xyz_kbd[s_ix][d_ix][1]; // calibration offset
+					const float d = config->cal_ag_xyz_kbd[s_ix][d_ix][2]; // calibration drift
+					const float calibrated_val= (static_cast<float>(raw_val) - d)*k + b;
+
+					// Save the raw sensor value
+					ag_raw_xyz[s_ix][f_ix][d_ix] = raw_val;
+
+					// Compute the calibrated sensor value
+					ag_calibrated_xyz[s_ix][f_ix][d_ix] = calibrated_val;
+				}
+			}
+		}
+
+        RawAccel = ag_raw_xyz[0];
+        RawGyro = ag_raw_xyz[1];
+
+        CalibratedAccel = ag_calibrated_xyz[0];
+        CalibratedGyro = ag_calibrated_xyz[1];
+    }
+
+    {
+        Eigen::Vector3f raw_mag, calibrated_mag;
+        EigenFitEllipsoid ellipsoid;
+
+        // Save the Raw Magnetometer sensor value (signed 12-bit values)
+        RawMag[0] = TWELVE_BIT_SIGNED(((current_hid_input->templow_mXhigh & 0x0F) << 8) | current_hid_input->mXlow);
+        // The magnetometer y-axis is flipped compared to the accelerometer and gyro.
+        // Flip it back around to get it into the same space.
+        RawMag[1] = -TWELVE_BIT_SIGNED((current_hid_input->mYhigh << 4) | (current_hid_input->mYlow_mZhigh & 0xF0) >> 4);
+        RawMag[2] = TWELVE_BIT_SIGNED(((current_hid_input->mYlow_mZhigh & 0x0F) << 8) | current_hid_input->mZlow);
+
+        // Project the raw magnetometer sample into the space of the ellipsoid
+        raw_mag = 
+            Eigen::Vector3f(
+                static_cast<float>(RawMag[0]), static_cast<float>(RawMag[1]), static_cast<float>(RawMag[2]));
+        config->getMagnetometerEllipsoid(&ellipsoid);
+        calibrated_mag= eigen_alignment_project_point_on_ellipsoid_basis(raw_mag, ellipsoid);
+
+        // Normalize the projected measurement (any deviation from unit length is error)
+		eigen_vector3f_normalize_with_default(calibrated_mag, Eigen::Vector3f(0.f, 1.f, 0.f));
+
+        // Save the calibrated magnetometer vector
+        CalibratedMag[0] = calibrated_mag.x();
+        CalibratedMag[1] = calibrated_mag.y();
+        CalibratedMag[2] = calibrated_mag.z();
+
+		// Other
+		RawSequence = (current_hid_input->buttons4 & 0x0F);
+		Battery = static_cast<CommonControllerState::BatteryLevel>(current_hid_input->battery);
+		RawTimeStamp = current_hid_input->timelow | (current_hid_input->timehigh << 8);
+		TempRaw = (current_hid_input->temphigh << 4) | ((current_hid_input->templow_mXhigh & 0xF0) >> 4);
+    }
+}
+
+void PSMoveControllerInputState::parseDataInput(
+	const PSMoveControllerConfig *config,
+	const PSMoveDataInputZCM2 *previous_hid_packet,
+	const PSMoveDataInputZCM2 *current_hid_input)
+{
+    // https://github.com/nitsch/moveonpc/wiki/Input-report
+        
+    // Buttons
+	unsigned int prev_button_bitmask = previous_hid_packet != nullptr ? make_psmove_button_bitmask(previous_hid_packet) : 0;
+    AllButtons = make_psmove_button_bitmask(current_hid_input);       
+    Triangle = getButtonState(AllButtons, prev_button_bitmask, Btn_TRIANGLE);
+    Circle = getButtonState(AllButtons, prev_button_bitmask, Btn_CIRCLE);
+    Cross = getButtonState(AllButtons, prev_button_bitmask, Btn_CROSS);
+    Square = getButtonState(AllButtons, prev_button_bitmask, Btn_SQUARE);
+    Select = getButtonState(AllButtons, prev_button_bitmask, Btn_SELECT);
+    Start = getButtonState(AllButtons, prev_button_bitmask, Btn_START);
+    PS = getButtonState(AllButtons, prev_button_bitmask, Btn_PS);
+    Move = getButtonState(AllButtons, prev_button_bitmask, Btn_MOVE);
+    Trigger = getButtonState(AllButtons, prev_button_bitmask, Btn_T);
+
+	TriggerValue = current_hid_input->trigger;
+    BatteryValue = (current_hid_input->battery);
+
+    // Update raw and calibrated accelerometer and gyroscope state
+    {
+        // Access raw Accel and Gyro state from the DataInput struct as a byte array
+        char* data = (char *)current_hid_input;
+
+        // Extract Accelerometer and Gyroscope readings into in a set of two update frames.
+        // Note: The double brackets are an oddity of C++11 static array initialization.
+        std::array<std::array<std::array<int, 3>, 2>, 2> ag_raw_xyz = {{
+            {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }},
+            {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }}
+        }};
+        std::array<std::array<std::array<float, 3>, 2>, 2> ag_calibrated_xyz = {{
+            {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }},
+            {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }}
+        }};
+        std::array<int, 2> sensorOffsets = {{
+            offsetof(PSMoveDataInputZCM2, aXlow),
+            offsetof(PSMoveDataInputZCM2, gXlow)
+        }};
+
+		for (std::array<int, 2>::size_type s_ix = 0; s_ix != sensorOffsets.size(); s_ix++) //accel, gyro
+		{
+			for (int d_ix = 0; d_ix < 3; d_ix++)  //x, y, z
+			{
+				// Offset into PSMoveDataInput
+				const int totalOffset = sensorOffsets[s_ix] + 2 * d_ix;
+
+				// Extract the raw signed 16-bit sensor value from the PSMoveDataInput packet
+				const int raw_val = decode16bitTwosCompliment(data, totalOffset);
+
+				// Get the calibration parameters for this sensor value
+				const float k = config->cal_ag_xyz_kbd[s_ix][d_ix][0]; // calibration scale
+				const float b = config->cal_ag_xyz_kbd[s_ix][d_ix][1]; // calibration offset
+				const float d = config->cal_ag_xyz_kbd[s_ix][d_ix][2]; // calibration drift
+				const float calibrated_val= (static_cast<float>(raw_val) - d)*k + b;
+
+				// Save the raw sensor value
+				// Frame 0 and Frame 1 are the same
+				ag_raw_xyz[s_ix][0][d_ix] = raw_val;
+				ag_raw_xyz[s_ix][1][d_ix] = raw_val;
+
+				// Compute the calibrated sensor value
+				// Frame 0 and Frame 1 are the same
+				ag_calibrated_xyz[s_ix][0][d_ix] = calibrated_val;
+				ag_calibrated_xyz[s_ix][1][d_ix] = calibrated_val;
+			}
+		}
+
+
+        RawAccel = ag_raw_xyz[0];
+        RawGyro = ag_raw_xyz[1];
+
+        CalibratedAccel = ag_calibrated_xyz[0];
+        CalibratedGyro = ag_calibrated_xyz[1];
+    }
+
+	// ZCM2 - Doesn't have a magnetometer
+	RawMag[0] = RawMag[1] = RawMag[2]= 0;
+	CalibratedMag[0]= CalibratedMag[1] = CalibratedMag[2] = 0.f;
+
+	// Other
+	RawSequence = (current_hid_input->buttons4 & 0x0F);
+	Battery = static_cast<CommonControllerState::BatteryLevel>(current_hid_input->battery);
+	RawTimeStamp = current_hid_input->timelow | (current_hid_input->timehigh << 8);
+	TempRaw = (current_hid_input->temphigh << 4) | ((current_hid_input->templow & 0xF0) >> 4);
+}
+
+// -- PSMoveControllerOutputState -----
+PSMoveControllerOutputState::PSMoveControllerOutputState()
+{
+	clear();
+}
+
+void PSMoveControllerOutputState::clear()
+{
+	r = g = b= 0;
+	rumble= 0;
+}
+
 // -- PSMove Controller -----
 PSMoveController::PSMoveController()
-    : SupportsMagnetometer(false)
-    , LedR(0)
-    , LedG(0)
-    , LedB(0)
-    , Rumble(0)
-    , bWriteStateDirty(false)
-    , NextPollSequenceNumber(0)
+    : m_HIDPacketProcessor(nullptr)
+	, m_controllerListener(nullptr)
 {
 	HIDDetails.vendor_id = -1;
 	HIDDetails.product_id = -1;
     HIDDetails.Handle = nullptr;
     HIDDetails.Handle_addr = nullptr;
-    
-    InData = new PSMoveDataInput;
-    InData->type = PSMove_Req_GetInput;
-
-    // Make sure there is an initial empty state in the tracker queue
-    {     
-        PSMoveControllerState empty_state;
-
-        empty_state.clear();
-        ControllerStates.push_back(empty_state);
-    }
+	memset(&m_cachedInputState, 0, sizeof(PSMoveControllerInputState));
+	memset(&m_cachedOutputState, 0, sizeof(PSMoveControllerOutputState));
 }
 
 PSMoveController::~PSMoveController()
@@ -408,28 +978,54 @@ PSMoveController::~PSMoveController()
         SERVER_LOG_ERROR("~PSMoveController") << "Controller deleted without calling close() first!";
     }
 
-    delete InData;
+	if (m_HIDPacketProcessor)
+	{
+		delete m_HIDPacketProcessor;
+	}
 }
 
 bool PSMoveController::open()
 {
-    ControllerDeviceEnumerator enumerator(ControllerDeviceEnumerator::CommunicationType_HID, CommonControllerState::PSMove);
-    bool success= false;
-
-    if (enumerator.is_valid())
+	ControllerDeviceEnumerator enumerator(ControllerDeviceEnumerator::CommunicationType_HID, CommonControllerState::PSMove);
+	while (enumerator.is_valid())
     {
-        success= open(&enumerator);
+		if (open(&enumerator))
+		{
+			return true;
+		}
+
+		enumerator.next();
     }
 
-    return success;
+    return false;
+
+}
+
+bool PSMoveController::open(PSMoveControllerModelPID model)
+{
+	ControllerDeviceEnumerator enumerator(ControllerDeviceEnumerator::CommunicationType_HID, CommonControllerState::PSMove);
+	while (enumerator.is_valid())
+    {
+		if (enumerator.get_product_id() == (int)model)
+		{
+			if (open(&enumerator))
+			{
+				return true;
+			}
+		}
+
+		enumerator.next();
+    }
+
+    return false;
 }
 
 bool PSMoveController::open(
-    const DeviceEnumerator *enumerator)
+	const DeviceEnumerator *enumerator)
 {
-    const ControllerDeviceEnumerator *pEnum = static_cast<const ControllerDeviceEnumerator *>(enumerator);
-    
-    const char *cur_dev_path= pEnum->get_path();
+	const ControllerDeviceEnumerator *pEnum = static_cast<const ControllerDeviceEnumerator *>(enumerator);
+	const char *cur_dev_path= pEnum->get_path();
+
     bool success= false;
 
     if (getIsOpen())
@@ -459,13 +1055,13 @@ bool PSMoveController::open(
     #ifdef _WIN32
         HIDDetails.Device_path_addr = HIDDetails.Device_path;
         HIDDetails.Device_path_addr.replace(HIDDetails.Device_path_addr.find("&col01#"), 7, "&col02#");
+		//HIDDetails.Device_path_addr.replace(HIDDetails.Device_path_addr.find("&Col01#"), 7, "&Col02#");
         HIDDetails.Device_path_addr.replace(HIDDetails.Device_path_addr.find("&0000#"), 6, "&0001#");
         HIDDetails.Handle_addr = hid_open_path(HIDDetails.Device_path_addr.c_str());
         hid_set_nonblocking(HIDDetails.Handle_addr, 1);
     #endif
         HIDDetails.Handle = hid_open_path(HIDDetails.Device_path.c_str());
-        hid_set_nonblocking(HIDDetails.Handle, 1);
-                
+         
         // On my Mac, using bluetooth,
         // cur_dev->path = Bluetooth_054c_03d5_779732e8
         // cur_dev->serial_number = 00-06-f7-97-32-e8
@@ -518,7 +1114,10 @@ bool PSMoveController::open(
                     }
 
                     // Load calibration from controller internal memory.
-                    loadCalibration();
+					if (getIsPS4Controller())
+						loadCalibrationZCM2();
+					else
+						loadCalibrationZCM1();
                 }
 
 				// Always save the config back out in case some defaults changed
@@ -534,47 +1133,14 @@ bool PSMoveController::open(
                 success= false;
             }
 
-			// Poll the controller to see if it emits valid magnetometer data
-			// (Newer firmware doesn't support the magnetometer anymore)
-			if (success && IsBluetooth)
-			{		
-				const int k_max_poll_attempts = 10;
-				int poll_count = 0;
-				bool bReadData = false;
-
-				for (poll_count = 0; poll_count < k_max_poll_attempts && !bReadData; ++poll_count)
-				{
-					if (poll() == IDeviceInterface::ePollResult::_PollResultSuccessNewData)
-					{
-						const PSMoveControllerState *ControllerState = static_cast<const PSMoveControllerState *>(getState());
-
-						SupportsMagnetometer =
-							ControllerState->RawMag[0] != 0 ||
-							ControllerState->RawMag[1] != 0 ||
-							ControllerState->RawMag[2] != 0;
-						bReadData= true;
-					}
-					else
-					{
-						const std::chrono::milliseconds k_WaitForDataMilliseconds(5);
-
-						std::this_thread::sleep_for(k_WaitForDataMilliseconds);
-					}
-				}
-
-				if (poll_count >= k_max_poll_attempts)
-				{
-					SERVER_LOG_ERROR("PSMoveController::open") << "Failed to open read initial controller state after " << k_max_poll_attempts << " attempts.";
-				}
-			}
+			// Create the sensor processor thread
+			m_HIDPacketProcessor= new PSMoveHidPacketProcessor(cfg, (PSMoveControllerModelPID)HIDDetails.product_id);
+			m_HIDPacketProcessor->start(HIDDetails.Handle, m_controllerListener);
 
 			if (bSaveConfig)
 			{
 				cfg.save();
 			}
-
-            // Reset the polling sequence counter
-            NextPollSequenceNumber= 0;
         }
         else
         {
@@ -591,6 +1157,14 @@ void PSMoveController::close()
     if (getIsOpen())
     {
         SERVER_LOG_INFO("PSMoveController::close") << "Closing PSMoveController(" << HIDDetails.Device_path << ")";
+
+		if (m_HIDPacketProcessor != nullptr)
+		{
+			// halt the HID packet processing thread
+			m_HIDPacketProcessor->stop();
+			delete m_HIDPacketProcessor;
+			m_HIDPacketProcessor= nullptr;
+		}
 
         if (HIDDetails.Handle != nullptr)
         {
@@ -720,6 +1294,36 @@ PSMoveController::getIsReadyToPoll() const
     return (getIsOpen() && getIsBluetooth());
 }
 
+long 
+PSMoveController::getMaxPollFailureCount() const
+{
+	return cfg.max_poll_failure_count;
+}
+
+IDeviceInterface::ePollResult 
+PSMoveController::poll()
+{
+	if (m_HIDPacketProcessor != nullptr && !m_HIDPacketProcessor->hasThreadEnded())
+	{
+		int LastRawSequence= m_cachedInputState.RawSequence;
+
+		m_HIDPacketProcessor->fetchLatestInputData(m_cachedInputState);
+
+		if (m_cachedInputState.RawSequence != LastRawSequence)
+		{
+			return IDeviceInterface::_PollResultSuccessNewData;
+		}
+		else
+		{
+			return IDeviceInterface::_PollResultSuccessNoData;
+		}
+	}
+	else
+	{
+		return IDeviceInterface::_PollResultFailure;
+	}
+}
+
 std::string 
 PSMoveController::getUSBDevicePath() const
 {
@@ -756,12 +1360,6 @@ PSMoveController::getIsOpen() const
     return (HIDDetails.Handle != nullptr);
 }
 
-CommonDeviceState::eDeviceType
-PSMoveController::getDeviceType() const
-{
-    return CommonDeviceState::PSMove;
-}
-
 bool
 PSMoveController::getBTAddress(std::string& host, std::string& controller)
 {
@@ -786,12 +1384,12 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
     }
     else
     {
-        unsigned char btg[PSMOVE_BTADDR_GET_SIZE+1];
+        unsigned char btg[PSMOVE_BTADDR_GET_MAX_SIZE+1];
         unsigned char ctrl_char_buff[PSMOVE_BTADDR_SIZE];
         unsigned char host_char_buff[PSMOVE_BTADDR_SIZE];
         
         int res;
-        int expected_res = sizeof(btg) - 1;
+        int expected_res = getIsPS4Controller() ? PSMOVE_BTADDR_GET_ZCM2_SIZE : PSMOVE_BTADDR_GET_ZCM1_SIZE;
         unsigned char *p = btg;
         
         memset(btg, 0, sizeof(btg));
@@ -807,15 +1405,13 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
         
         /* _WIN32 only has move->handle_addr for getting bluetooth address. */
         if (HIDDetails.Handle_addr) {
-            res = hid_get_feature_report(HIDDetails.Handle_addr, btg, sizeof(btg));
+            res = hid_get_feature_report(HIDDetails.Handle_addr, btg, expected_res+1);
         }
         else {
-            res = hid_get_feature_report(HIDDetails.Handle, btg, sizeof(btg));
+            res = hid_get_feature_report(HIDDetails.Handle, btg, expected_res+1);
         }
         
-
-
-        if (res == expected_res)
+        if (res > 0)
 		{
             memcpy(ctrl_char_buff, p, PSMOVE_BTADDR_SIZE);
             controller = PSMoveBTAddrUcharToString(ctrl_char_buff);
@@ -850,7 +1446,7 @@ PSMoveController::getBTAddress(std::string& host, std::string& controller)
 }
 
 void
-PSMoveController::loadCalibration()
+PSMoveController::loadCalibrationZCM1()
 {
     bool is_valid= true;
 
@@ -859,16 +1455,16 @@ PSMoveController::loadCalibration()
     // https://github.com/nitsch/moveonpc/wiki/Calibration-data
 
     // calibration data storage - loaded from file (if bluetooth) or usb
-    char usb_calibration[PSMOVE_CALIBRATION_BLOB_SIZE];
+    char usb_calibration[PSMOVE_ZCM1_CALIBRATION_BLOB_SIZE];
 
     // Default values are pass-through (raw*1 + 0)
-    cfg.cal_ag_xyz_kb = {{ 
-            {{ {{ 1, 0 }}, {{ 1, 0 }}, {{ 1, 0 }} }}, 
-            {{ {{ 1, 0 }}, {{ 1, 0 }}, {{ 1, 0 }} }} 
+    cfg.cal_ag_xyz_kbd = {{ 
+            {{ {{ 1, 0, 0 }}, {{ 1, 0, 0 }}, {{ 1, 0, 0 }} }}, 
+            {{ {{ 1, 0, 0 }}, {{ 1, 0, 0 }}, {{ 1, 0, 0 }} }} 
         }};
 
     // Load the calibration from the controller itself.
-    unsigned char hid_cal[PSMOVE_CALIBRATION_BLOB_SIZE];
+    unsigned char hid_cal[PSMOVE_ZCM1_CALIBRATION_BLOB_SIZE];
 
     for (int block_index=0; is_valid && block_index<3; block_index++) 
     {
@@ -935,7 +1531,7 @@ PSMoveController::loadCalibration()
 
     if (is_valid)
     {
-        memcpy(usb_calibration, hid_cal, PSMOVE_CALIBRATION_BLOB_SIZE);
+        memcpy(usb_calibration, hid_cal, PSMOVE_ZCM1_CALIBRATION_BLOB_SIZE);
         
         // Convert the calibration blob into constant & offset for each accel dim.
         std::vector< std::vector<int> > dim_lohi = { {1, 3}, {5, 4}, {2, 0} };
@@ -946,19 +1542,193 @@ PSMoveController::loadCalibration()
         {
             for (lohi_ix = 0; lohi_ix < 2; lohi_ix++)
             {
-                res_lohi[lohi_ix] = decodeCalibration(usb_calibration, 0x04 + 6*dim_lohi[dim_ix][lohi_ix] + 2*dim_ix);
+                res_lohi[lohi_ix] = decode16bitUnsignedToSigned(usb_calibration, 0x04 + 6*dim_lohi[dim_ix][lohi_ix] + 2*dim_ix);
             }
-            cfg.cal_ag_xyz_kb[0][dim_ix][0] = 2.f / (float)(res_lohi[1] - res_lohi[0]);
-            cfg.cal_ag_xyz_kb[0][dim_ix][1] = -(cfg.cal_ag_xyz_kb[0][dim_ix][0] * (float)res_lohi[0]) - 1.f;
+            cfg.cal_ag_xyz_kbd[0][dim_ix][0] = 2.f / (float)(res_lohi[1] - res_lohi[0]);
+            cfg.cal_ag_xyz_kbd[0][dim_ix][1] = -(cfg.cal_ag_xyz_kbd[0][dim_ix][0] * (float)res_lohi[0]) - 1.f;
+			// No drift for accelerometer
         }
         
         // Convert the calibration blob into constant for each gyro dim.
         float factor = (float)(2.0 * M_PI * 80.0) / 60.0f;
         for (dim_ix = 0; dim_ix < 3; dim_ix++)
         {
-            cfg.cal_ag_xyz_kb[1][dim_ix][0] = factor / (float)(decodeCalibration(usb_calibration, 0x46 + 10 * dim_ix)
-                                                    - decodeCalibration(usb_calibration, 0x2a + 2*dim_ix));
+            cfg.cal_ag_xyz_kbd[1][dim_ix][0] = factor / (float)(decode16bitUnsignedToSigned(usb_calibration, 0x46 + 10 * dim_ix)
+                                                    - decode16bitUnsignedToSigned(usb_calibration, 0x2a + 2*dim_ix));
             // No offset for gyroscope
+			// No drift for gyroscope
+        }
+    }
+
+    cfg.is_valid= is_valid;
+}
+
+void
+PSMoveController::loadCalibrationZCM2()
+{
+    bool is_valid= true;
+
+    // The calibration provides a scale factor (k) and offset (b) to convert
+    // raw accelerometer and gyroscope readings into something more useful.
+    // https://github.com/nitsch/moveonpc/wiki/Calibration-data
+
+    // calibration data storage - loaded from file (if bluetooth) or usb
+    char usb_calibration[PSMOVE_ZCM2_CALIBRATION_BLOB_SIZE];
+
+    // Default values are pass-through ((raw-0)*1 + 0)
+    cfg.cal_ag_xyz_kbd = {{ 
+            {{ {{ 1, 0, 0 }}, {{ 1, 0, 0 }}, {{ 1, 0, 0 }} }}, 
+            {{ {{ 1, 0, 0 }}, {{ 1, 0, 0 }}, {{ 1, 0, 0 }} }} 
+        }};
+
+    // Load the calibration from the controller itself.
+    unsigned char hid_cal[PSMOVE_ZCM2_CALIBRATION_BLOB_SIZE];
+
+    for (int block_index=0; is_valid && block_index<2; block_index++) 
+    {
+        unsigned char cal[PSMOVE_CALIBRATION_SIZE+1]; // +1 for report id at start
+        int dest_offset;
+        int src_offset;
+        int expected_res = PSMOVE_CALIBRATION_SIZE;
+#if defined(_WIN32)
+        expected_res++;
+#endif
+
+        memset(cal, 0, sizeof(cal));
+        cal[0] = PSMove_Req_GetCalibration;
+
+        int res = hid_get_feature_report(HIDDetails.Handle, cal, sizeof(cal));
+
+        if (res == expected_res)
+        {
+            if (cal[1] == 0x00) 
+            {
+                /* First block */
+                dest_offset = 0;
+                src_offset = 0;
+            }
+            else if (cal[1] == 0x81) 
+            {
+                /* Second block */
+                dest_offset = PSMOVE_CALIBRATION_SIZE;
+                src_offset = 2;
+            }
+            else
+            {
+                SERVER_LOG_ERROR("PSMoveController::loadCalibration") 
+                    << "Unexpected calibration block id(0x" << std::hex << std::setfill('0') << std::setw(2) << cal[1] 
+                    << " on block #" << block_index;
+                is_valid= false;
+            }
+        }
+        else
+        {
+            char hidapi_err_mbs[256];
+            bool valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
+
+            // Device no longer in valid state.
+            if (valid_error_mesg)
+            {
+                SERVER_LOG_ERROR("PSMoveController::loadCalibration") << "HID ERROR: " << hidapi_err_mbs;
+            }
+
+            is_valid= false;
+        }
+
+        if (is_valid)
+        {
+            memcpy(hid_cal+dest_offset, cal+src_offset, sizeof(cal)-src_offset-1);
+        }
+    }
+
+    if (is_valid)
+    {
+        memcpy(usb_calibration, hid_cal, PSMOVE_ZCM2_CALIBRATION_BLOB_SIZE);
+        
+        // Convert the calibration blob into gain and bias values for each axis.
+		// The calibration stores 6 accelerometer recorded when the controller is
+		// aligned on each axis:
+		// Example values
+		// 4137,   -19,    85
+		//-4059,    13,    -6
+		//   65,  4093,    25
+		//   16, -4103,    53
+		//   -3,     5,  4152
+		//   82,   -28, -4086
+        std::vector< std::vector<int> > accel_dim_lohi = { {1, 0}, {3, 2}, {5, 4} };
+        for (int dim_ix = 0; dim_ix < 3; dim_ix++)
+        {
+			// Read the low and high values for each axis
+	        std::vector<short> res_lohi(2, 0);
+            for (int lohi_ix = 0; lohi_ix < 2; lohi_ix++)
+            {
+                res_lohi[lohi_ix] = decode16bitSigned(usb_calibration, 0x02 + 6*accel_dim_lohi[dim_ix][lohi_ix] + 2*dim_ix);
+            }
+
+			// Compute the gain value as 1/((max-min)/2)
+            cfg.cal_ag_xyz_kbd[0][dim_ix][0] = 2.f / (float)(res_lohi[1] - res_lohi[0]);
+
+			// Compute the bias as the amount the min reading differs from -1.0g
+            cfg.cal_ag_xyz_kbd[0][dim_ix][1] = -(cfg.cal_ag_xyz_kbd[0][dim_ix][0] * (float)res_lohi[0]) - 1.f;
+
+			// No Drift
+			cfg.cal_ag_xyz_kbd[0][dim_ix][2] = 0.f;
+        }
+        
+        // Convert the calibration blob into constant for each gyro axis.
+		// The calibration stores 6 gyroscope readings when the controller is spun at 90RPM
+		// on the +X, +Y, +Z, -X, -Y, and -Z axis.
+		
+		// Example values:
+		// 6706,   -18,    58
+		//  -50,  6820,    52
+		// -114,    28,  6830
+		//-6826,    46,   -34
+		//   42, -6792,   -28
+		//  129,     0, -6808
+
+		// There is also one vector containing drift compensation values.
+		// When the controller is sitting still each axis will report a small constant non-zero value.
+		// Subtracting these drift values per-frame will give more accurate gyro readings.
+
+		// Example drift values:
+		// -3	13	11
+
+        const float k_rpm_to_rad_per_sec = (2.0f * k_real_pi) / 60.0f;
+		const float k_calibration_rpm= 90.f;
+		const float y_hi= k_calibration_rpm * k_rpm_to_rad_per_sec;
+		const float y_low= -k_calibration_rpm * k_rpm_to_rad_per_sec;
+		std::vector< std::vector<int> > gyro_dim_lohi = { {3, 0}, {4, 1}, {5, 2} };
+        for (int dim_ix = 0; dim_ix < 3; dim_ix++)
+        {
+			// Read the low and high values for each axis
+			std::vector<short> res_lohi(2, 0);
+            for (int lohi_ix = 0; lohi_ix < 2; lohi_ix++)
+            {
+                res_lohi[lohi_ix] = decode16bitSigned(usb_calibration, 0x30 + 6*gyro_dim_lohi[dim_ix][lohi_ix] + 2*dim_ix);
+            }
+			short raw_gyro_drift= decode16bitSigned(usb_calibration, 0x26 + 2*dim_ix);
+
+			// Compute the gain value (the slope of the gyro reading/angular speed line)
+			const float x_low= res_lohi[0];
+			const float x_hi= res_lohi[1];
+			const float m= (y_hi - y_low) / (x_hi - x_low);
+            cfg.cal_ag_xyz_kbd[1][dim_ix][0] = m;
+
+            // Use zero bias value.
+			// Given the slightly asymmetrical min and max 90RPM readings you might think
+			// that there is a bias in the gyros that you should compute by finding
+			// the y-intercept value (the y-intercept of the gyro reading/angular speed line) 
+			// using the formula b= y_hi - m*x_hi, but this results in pretty bad
+			// controller drift. We get much better results ignoring the y-intercept
+			// and instead use the presumed "drift" values stored at 0x26
+			cfg.cal_ag_xyz_kbd[1][dim_ix][1] = 0.f;
+
+			// Store off the drift value
+			cfg.cal_ag_xyz_kbd[1][dim_ix][2] = raw_gyro_drift;
+
+			// The final result:
+			// rad/s = (raw_gyro_value-drift)*gain + bias
         }
     }
 
@@ -1030,212 +1800,22 @@ PSMoveController::enableDFUMode()
 	return (res == sizeof(buf));
 }
 
-IControllerInterface::ePollResult
-PSMoveController::poll()
+void PSMoveController::setControllerListener(IControllerListener *listener)
 {
-    IControllerInterface::ePollResult result= IControllerInterface::_PollResultFailure;
-      
-    if (!getIsBluetooth())
-    {
-        // Don't bother polling when connected via usb
-        result = IControllerInterface::_PollResultSuccessNoData;
-    }
-    else if (getIsOpen())
-    {
-        static const int k_max_iterations= 32;        
-
-        for (int iteration= 0; iteration < k_max_iterations; ++iteration)
-        {
-            // Attempt to read the next update packet from the controller
-            int res = hid_read(HIDDetails.Handle, (unsigned char*)InData, sizeof(PSMoveDataInput));
-
-            if (res == 0)
-            {
-                // Device still in valid state
-                result= (iteration == 0) 
-                    ? IControllerInterface::_PollResultSuccessNoData 
-                    : IControllerInterface::_PollResultSuccessNewData;
-                
-                // No more data available. Stop iterating.
-                break;
-            }
-            else if (res < 0)
-            {
-                char hidapi_err_mbs[256];
-                bool valid_error_mesg = hid_error_mbs(HIDDetails.Handle, hidapi_err_mbs, sizeof(hidapi_err_mbs));
-
-                // Device no longer in valid state.
-                if (valid_error_mesg)
-                {
-                    SERVER_LOG_ERROR("PSMoveController::readDataIn") << "HID ERROR: " << hidapi_err_mbs;
-                }
-                result= IControllerInterface::_PollResultFailure;
-
-                // No more data available. Stop iterating.
-                break;
-            }
-            else
-            {
-                // New data available. Keep iterating.
-                result = IControllerInterface::_PollResultSuccessNewData;
-            }
-        
-            // https://github.com/nitsch/moveonpc/wiki/Input-report
-            PSMoveControllerState newState;
-        
-            // Increment the sequence for every new polling packet
-            newState.PollSequenceNumber= NextPollSequenceNumber;
-            ++NextPollSequenceNumber;
-
-            // Buttons
-            newState.AllButtons = (InData->buttons2) | (InData->buttons1 << 8) |
-                ((InData->buttons3 & 0x01) << 16) | ((InData->buttons4 & 0xF0) << 13);
-        
-            unsigned int lastButtons = ControllerStates.empty() ? 0 : ControllerStates.back().AllButtons;
-
-            newState.Triangle = getButtonState(newState.AllButtons, lastButtons, Btn_TRIANGLE);
-            newState.Circle = getButtonState(newState.AllButtons, lastButtons, Btn_CIRCLE);
-            newState.Cross = getButtonState(newState.AllButtons, lastButtons, Btn_CROSS);
-            newState.Square = getButtonState(newState.AllButtons, lastButtons, Btn_SQUARE);
-            newState.Select = getButtonState(newState.AllButtons, lastButtons, Btn_SELECT);
-            newState.Start = getButtonState(newState.AllButtons, lastButtons, Btn_START);
-            newState.PS = getButtonState(newState.AllButtons, lastButtons, Btn_PS);
-            newState.Move = getButtonState(newState.AllButtons, lastButtons, Btn_MOVE);
-            newState.Trigger = getButtonState(newState.AllButtons, lastButtons, Btn_T);
-            newState.TriggerValue = (InData->trigger + InData->trigger2) / 2; // TODO: store each frame separately
-            newState.BatteryValue = (InData->battery);
-
-            // Update raw and calibrated accelerometer and gyroscope state
-            {
-                // Access raw Accel and Gyro state from the DataInput struct as a byte array
-                char* data = (char *)InData;
-
-                // Extract Accelerometer and Gyroscope readings into in a set of two update frames.
-                // Note: The double brackets are an oddity of C++11 static array initialization.
-                std::array<std::array<std::array<int, 3>, 2>, 2> ag_raw_xyz = {{
-                    {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }},
-                    {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }}
-                }};
-                std::array<std::array<std::array<float, 3>, 2>, 2> ag_calibrated_xyz = {{
-                    {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }},
-                    {{ {{ 0, 0, 0 }}, {{ 0, 0, 0 }} }}
-                }};
-                std::array<int, 2> sensorOffsets = {{
-                    offsetof(PSMoveDataInput, aXlow),
-                    offsetof(PSMoveDataInput, gXlow)
-                }};
-                std::array<int, 2> frameOffsets = {{ 0, 6 }};
-
-                for (std::array<int, 2>::size_type s_ix = 0; s_ix != sensorOffsets.size(); s_ix++) //accel, gyro
-                {
-                    for (std::array<int, 2>::size_type f_ix = 0; f_ix != frameOffsets.size(); f_ix++) //older, newer
-                    {
-                        for (int d_ix = 0; d_ix < 3; d_ix++)  //x, y, z
-                        {
-                            // Offset into PSMoveDataInput
-                            const int totalOffset = sensorOffsets[s_ix] + frameOffsets[f_ix] + 2 * d_ix;
-
-                            // Extract the raw signed 16-bit sensor value from the PSMoveDataInput packet
-                            const int raw_val = ((data[totalOffset] & 0xFF) | (((data[totalOffset + 1]) & 0xFF) << 8)) - 0x8000;
-
-                            // Get the calibration parameters for this sensor value
-                            const float k = cfg.cal_ag_xyz_kb[s_ix][d_ix][0]; // calibration scale
-                            const float b = cfg.cal_ag_xyz_kb[s_ix][d_ix][1]; // calibration offset
-
-                            // Save the raw sensor value
-                            ag_raw_xyz[s_ix][f_ix][d_ix] = raw_val;
-
-                            // Compute the calibrated sensor value
-                            ag_calibrated_xyz[s_ix][f_ix][d_ix] = static_cast<float>(raw_val)*k + b;
-                        }
-                    }
-                }
-
-                newState.RawAccel = ag_raw_xyz[0];
-                newState.RawGyro = ag_raw_xyz[1];
-
-                newState.CalibratedAccel = ag_calibrated_xyz[0];
-                newState.CalibratedGyro = ag_calibrated_xyz[1];
-            }
-
-            // Update the raw and calibrated magnetometer
-            {
-                Eigen::Vector3f raw_mag, calibrated_mag;
-                EigenFitEllipsoid ellipsoid;
-
-                // Save the Raw Magnetometer sensor value (signed 12-bit values)
-                newState.RawMag[0] = TWELVE_BIT_SIGNED(((InData->templow_mXhigh & 0x0F) << 8) | InData->mXlow);
-                // The magnetometer y-axis is flipped compared to the accelerometer and gyro.
-                // Flip it back around to get it into the same space.
-                newState.RawMag[1] = -TWELVE_BIT_SIGNED((InData->mYhigh << 4) | (InData->mYlow_mZhigh & 0xF0) >> 4);
-                newState.RawMag[2] = TWELVE_BIT_SIGNED(((InData->mYlow_mZhigh & 0x0F) << 8) | InData->mZlow);
-
-                // Project the raw magnetometer sample into the space of the ellipsoid
-                raw_mag = 
-                    Eigen::Vector3f(
-                        static_cast<float>(newState.RawMag[0]), 
-                        static_cast<float>(newState.RawMag[1]),
-                        static_cast<float>(newState.RawMag[2]));
-                cfg.getMegnetometerEllipsoid(&ellipsoid);
-                calibrated_mag= eigen_alignment_project_point_on_ellipsoid_basis(raw_mag, ellipsoid);
-
-                // Normalize the projected measurement (any deviation from unit length is error)
-				eigen_vector3f_normalize_with_default(calibrated_mag, Eigen::Vector3f(0.f, 1.f, 0.f));
-
-                // Save the calibrated magnetometer vector
-                newState.CalibratedMag[0] = calibrated_mag.x();
-                newState.CalibratedMag[1] = calibrated_mag.y();
-                newState.CalibratedMag[2] = calibrated_mag.z();
-            }
-        
-            // Other
-            newState.RawSequence = (InData->buttons4 & 0x0F);
-            newState.Battery = static_cast<CommonControllerState::BatteryLevel>(InData->battery);
-            newState.RawTimeStamp = InData->timelow | (InData->timehigh << 8);
-            newState.TempRaw = (InData->temphigh << 4) | ((InData->templow_mXhigh & 0xF0) >> 4);
-
-            // Make room for new entry if at the max queue size
-            if (ControllerStates.size() >= PSMOVE_STATE_BUFFER_MAX)
-            {
-                ControllerStates.erase(ControllerStates.begin(),
-                    ControllerStates.begin() + ControllerStates.size() - PSMOVE_STATE_BUFFER_MAX);
-            }
-
-            ControllerStates.push_back(newState);
-        }
-
-        // Update recurrent writes on a regular interval
-        {
-            std::chrono::time_point<std::chrono::high_resolution_clock> now = std::chrono::high_resolution_clock::now();
-
-            // See if it's time to update the LED/rumble state
-            std::chrono::duration<double, std::milli> led_update_diff = now - lastWriteStateTime;
-            if (led_update_diff.count() >= PSMOVE_WRITE_DATA_INTERVAL_MS)
-            {
-                writeDataOut();
-                lastWriteStateTime = now;
-            }
-        }
-    }
-
-    return result;
+	m_controllerListener= listener;
 }
 
 const CommonDeviceState * 
 PSMoveController::getState(
-    int lookBack) const
+	int lookBack) const
 {
-    const int queueSize= static_cast<int>(ControllerStates.size());
-    const CommonDeviceState * result=
-        (lookBack < queueSize) ? &ControllerStates.at(queueSize - lookBack - 1) : nullptr;
-
-    return result;
+    return &m_cachedInputState;
 }
 
 const std::tuple<unsigned char, unsigned char, unsigned char>
 PSMoveController::getColour() const
-{
-    return std::make_tuple(LedR, LedG, LedB);
+{	
+    return std::make_tuple(m_cachedOutputState.r, m_cachedOutputState.g, m_cachedOutputState.b);
 }
 
 void 
@@ -1243,6 +1823,9 @@ PSMoveController::getTrackingShape(CommonDeviceTrackingShape &outTrackingShape) 
 {
     outTrackingShape.shape_type= eCommonTrackingShapeType::Sphere;
     outTrackingShape.shape.sphere.radius_cm = PSMOVE_TRACKING_BULB_RADIUS;
+	outTrackingShape.shape.sphere.center_cm.x= 0.f;
+	outTrackingShape.shape.sphere.center_cm.y= 0.f;
+	outTrackingShape.shape.sphere.center_cm.z= PSMOVE_TRACKING_BULB_OFFSET;
 }
 
 bool
@@ -1272,7 +1855,7 @@ float PSMoveController::getPredictionTime() const
 
 bool PSMoveController::getWasSystemButtonPressed() const
 {
-    const PSMoveControllerState *psmove_state= static_cast<const PSMoveControllerState *>(getState());
+    const PSMoveControllerInputState *psmove_state= static_cast<const PSMoveControllerInputState *>(getState());
     bool bWasPressed= false;
 
     if (psmove_state != nullptr)
@@ -1286,85 +1869,71 @@ bool PSMoveController::getWasSystemButtonPressed() const
 float
 PSMoveController::getTempCelsius() const
 {
-    const PSMoveControllerState *lastState= static_cast<const PSMoveControllerState *>(getState());
-
-    if (lastState != nullptr)
-    {
-        /**
-         * The Move uses this table in Debug mode. Even though the resulting values
-         * are not labeled "degree Celsius" in the Debug output, measurements
-         * indicate that it is close enough.
-         **/
-        static int const temperature_lookup[80] = {
-            0x1F6, 0x211, 0x22C, 0x249, 0x266, 0x284, 0x2A4, 0x2C4,
-            0x2E5, 0x308, 0x32B, 0x34F, 0x374, 0x399, 0x3C0, 0x3E8,
-            0x410, 0x439, 0x463, 0x48D, 0x4B8, 0x4E4, 0x510, 0x53D,
-            0x56A, 0x598, 0x5C6, 0x5F4, 0x623, 0x651, 0x680, 0x6AF,
-            0x6DE, 0x70D, 0x73C, 0x76B, 0x79A, 0x7C9, 0x7F7, 0x825,
-            0x853, 0x880, 0x8AD, 0x8D9, 0x905, 0x930, 0x95B, 0x985,
-            0x9AF, 0x9D8, 0xA00, 0xA28, 0xA4F, 0xA75, 0xA9B, 0xAC0,
-            0xAE4, 0xB07, 0xB2A, 0xB4B, 0xB6D, 0xB8D, 0xBAD, 0xBCB,
-            0xBEA, 0xC07, 0xC24, 0xC40, 0xC5B, 0xC75, 0xC8F, 0xCA8,
-            0xCC1, 0xCD8, 0xCF0, 0xD06, 0xD1C, 0xD31, 0xD46, 0xD5A,
-        };
+    /**
+        * The Move uses this table in Debug mode. Even though the resulting values
+        * are not labeled "degree Celsius" in the Debug output, measurements
+        * indicate that it is close enough.
+        **/
+    static int const temperature_lookup[80] = {
+        0x1F6, 0x211, 0x22C, 0x249, 0x266, 0x284, 0x2A4, 0x2C4,
+        0x2E5, 0x308, 0x32B, 0x34F, 0x374, 0x399, 0x3C0, 0x3E8,
+        0x410, 0x439, 0x463, 0x48D, 0x4B8, 0x4E4, 0x510, 0x53D,
+        0x56A, 0x598, 0x5C6, 0x5F4, 0x623, 0x651, 0x680, 0x6AF,
+        0x6DE, 0x70D, 0x73C, 0x76B, 0x79A, 0x7C9, 0x7F7, 0x825,
+        0x853, 0x880, 0x8AD, 0x8D9, 0x905, 0x930, 0x95B, 0x985,
+        0x9AF, 0x9D8, 0xA00, 0xA28, 0xA4F, 0xA75, 0xA9B, 0xAC0,
+        0xAE4, 0xB07, 0xB2A, 0xB4B, 0xB6D, 0xB8D, 0xBAD, 0xBCB,
+        0xBEA, 0xC07, 0xC24, 0xC40, 0xC5B, 0xC75, 0xC8F, 0xCA8,
+        0xCC1, 0xCD8, 0xCF0, 0xD06, 0xD1C, 0xD31, 0xD46, 0xD5A,
+    };
     
-        int i;
+    int i;
     
-        for (i = 0; i < 80; i++) {
-            if (temperature_lookup[i] > lastState->TempRaw) {
-                return (float)(i - 10);
-            }
+    for (i = 0; i < 80; i++) {
+        if (temperature_lookup[i] > m_cachedInputState.TempRaw) {
+            return (float)(i - 10);
         }
     }
     
     return 70;
 }
 
-long PSMoveController::getMaxPollFailureCount() const
+bool 
+PSMoveController::getSupportsMagnetometer() const
 {
-    return cfg.max_poll_failure_count;
+	return m_HIDPacketProcessor != nullptr && m_HIDPacketProcessor->getSupportsMagnetometer();
 }
 
 // Setters
-
-bool
-PSMoveController::writeDataOut()
+void 
+PSMoveController::setConfig(const PSMoveControllerConfig *config)
 {
-    bool bSuccess= true;
+	cfg= *config;
 
-    if (bWriteStateDirty)
-    {
-        PSMoveDataOutput data_out = PSMoveDataOutput();  // 0-initialized
-        data_out.type = PSMove_Req_SetLEDs;
-        data_out.rumble2 = 0x00;
-        data_out.r = LedR;
-        data_out.g = LedG;
-        data_out.b = LedB;
-        data_out.rumble = Rumble;
+	if (m_HIDPacketProcessor != nullptr)
+	{
+		m_HIDPacketProcessor->setConfig(*config);
+	}
 
-        // Keep writing state out until the desired LED and Rumble are 0 
-        bWriteStateDirty = LedR != 0 || LedG != 0 || LedB != 0 || Rumble != 0;
-
-        int res = hid_write(HIDDetails.Handle, (unsigned char*)(&data_out),
-            sizeof(data_out));
-        bSuccess= (res == sizeof(data_out));
-    }
-
-    return bSuccess;
+	cfg.save();
 }
 
 bool
 PSMoveController::setLED(unsigned char r, unsigned char g, unsigned char b)
 {
     bool success = true;
-    if ((LedR != r) || (LedG != g) || (LedB != b))
+
+    if (m_HIDPacketProcessor != nullptr &&
+		(m_cachedOutputState.r != r) || (m_cachedOutputState.g != g) || (m_cachedOutputState.b != b))
     {
-        LedR = r;
-        LedG = g;
-        LedB = b;
-        bWriteStateDirty = true;
-        success = writeDataOut();
+        m_cachedOutputState.r = r;
+        m_cachedOutputState.g = g;
+        m_cachedOutputState.b = b;
+		m_HIDPacketProcessor->postOutputState(m_cachedOutputState);
+        
+		success= true;
     }
+
     return success;
 }
 
@@ -1372,11 +1941,12 @@ bool
 PSMoveController::setRumbleIntensity(unsigned char value)
 {
     bool success = true;
-    if (Rumble != value)
+    if (m_cachedOutputState.rumble != value)
     {
-        Rumble = value;
-        bWriteStateDirty = true;
-        success = writeDataOut();
+        m_cachedOutputState.rumble = value;
+		m_HIDPacketProcessor->postOutputState(m_cachedOutputState);
+
+        success = true;
     }
     return success;
 }
@@ -1455,27 +2025,52 @@ stringToPSMoveBTAddrUchar(const std::string &addr, unsigned char *addr_buff, con
     return success;
 }
 
+static short
+decode16bitSigned(char *data, int offset)
+{
+    unsigned short low = data[offset] & 0xFF;
+    unsigned short high = (data[offset+1]) & 0xFF;
+    return (short)(low | (high << 8));
+}
+
 static int
-decodeCalibration(char *data, int offset)
+decode16bitUnsignedToSigned(char *data, int offset)
 {
     unsigned char low = data[offset] & 0xFF;
     unsigned char high = (data[offset+1]) & 0xFF;
     return (low | (high << 8)) - 0x8000;
 }
 
-/* Decode 16-bit signed value from data pointer and offset */
 static int
-psmove_decode_16bit(char *data, int offset)
+decode16bitTwosCompliment(char *data, int offset)
 {
     unsigned char low = data[offset] & 0xFF;
-    unsigned char high = (data[offset + 1]) & 0xFF;
-    return (low | (high << 8)) - 0x8000;
+    unsigned char high = (data[offset+1]) & 0xFF;
+    int value= (low | (high << 8));
+
+	return (value & 0x8000) ? (-(~value & 0xFFFF) + 1) : value;
 }
 
 inline enum CommonControllerState::ButtonState
 getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask)
 {
     return (enum CommonControllerState::ButtonState)((((lastButtons & buttonMask) > 0) << 1) + ((buttons & buttonMask)>0));
+}
+
+inline unsigned int
+make_psmove_button_bitmask(const PSMoveDataInputZCM1 *hid_packet)
+{
+	return
+		(hid_packet->buttons2) | (hid_packet->buttons1 << 8) |
+		((hid_packet->buttons3 & 0x01) << 16) | ((hid_packet->buttons4 & 0xF0) << 13);
+}
+
+inline unsigned int
+make_psmove_button_bitmask(const PSMoveDataInputZCM2 *hid_packet)
+{
+	return
+		(hid_packet->buttons2) | (hid_packet->buttons1 << 8) |
+		((hid_packet->buttons3 & 0x01) << 16) | ((hid_packet->buttons4 & 0xF0) << 13);
 }
 
 inline bool hid_error_mbs(hid_device *dev, char *out_mb_error, size_t mb_buffer_size)

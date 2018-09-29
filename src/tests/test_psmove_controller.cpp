@@ -25,28 +25,28 @@ int main()
 	std::cout << "Opening PSMoveController..." << std::endl;
 	if (psmove.open())
 	{
-        const PSMoveControllerState *psmstate= nullptr;
+        const PSMoveControllerInputState *psmstate= nullptr;
 
         psmove.poll();
-        psmstate= static_cast<const PSMoveControllerState *>(psmove.getState());
+        psmstate= static_cast<const PSMoveControllerInputState *>(psmove.getState());
 
 		unsigned char r = 255;
 		unsigned char g = 0;
 		unsigned char b = 0;
         
-        psmove.setRumbleIntensity(255);
+        //psmove.setRumbleIntensity(255);
 
 		while (psmove.getIsBluetooth() && psmstate->Move != CommonControllerState::Button_DOWN)
 		{
             psmove.poll();
-            psmstate= static_cast<const PSMoveControllerState *>(psmove.getState());
+            psmstate= static_cast<const PSMoveControllerInputState *>(psmove.getState());
 
-			psmove.setRumbleIntensity(psmstate->TriggerValue);
+			//psmove.setRumbleIntensity(psmstate->TriggerValue);
 
-			r = (r + 23) % 255;
-			g = (g + 47) % 255;
-			b = (b + 53) % 255;
-			psmove.setLED(r, g, b);
+			//r = (r + 23) % 255;
+			//g = (g + 47) % 255;
+			//b = (b + 53) % 255;
+			//psmove.setLED(r, g, b);
 
 			const char *battery_status= "";
 			switch (psmstate->BatteryValue)
@@ -78,30 +78,42 @@ int main()
 			}
 
 			int myw = 4;
-			std::cout << '\r' <<
-				"# " << std::setw(myw) << std::left << psmstate->RawSequence <<
-				" A(1): " <<
-				std::setw(myw) << std::right << psmstate->RawAccel[0][0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawAccel[0][1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawAccel[0][2] <<
-				"; A(2): " <<
-                std::setw(myw) << std::right << psmstate->RawAccel[1][0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawAccel[1][1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawAccel[1][2] <<
-				"; G(1): " <<
-                std::setw(myw) << std::right << psmstate->RawGyro[0][0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawGyro[0][1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawGyro[0][2] <<
-				"; G(2): " <<
-                std::setw(myw) << std::right << psmstate->RawGyro[1][0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawGyro[1][1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawGyro[1][2] <<
-				"; M: " <<
-                std::setw(myw) << std::right << psmstate->RawMag[0] << "," <<
-                std::setw(myw) << std::right << psmstate->RawMag[1] << "," <<
-                std::setw(myw) << std::right << psmstate->RawMag[2] <<
-				"; Batt: " << battery_status <<
-				std::flush;
+			//if (psmove.getSupportsMagnetometer())
+			//{
+			//	std::cout << '\r' <<
+			//		"# " << std::setw(myw) << std::left << psmstate->RawSequence <<
+			//		" A(1): " <<
+			//		std::setw(myw) << std::right << psmstate->RawAccel[0][0] << "," <<
+			//		std::setw(myw) << std::right << psmstate->RawAccel[0][1] << "," <<
+			//		std::setw(myw) << std::right << psmstate->RawAccel[0][2] <<
+			//		"; G(1): " <<
+			//		std::setw(myw) << std::right << psmstate->RawGyro[0][0] << "," <<
+			//		std::setw(myw) << std::right << psmstate->RawGyro[0][1] << "," <<
+			//		std::setw(myw) << std::right << psmstate->RawGyro[0][2] <<
+			//		"; M: " <<
+			//		std::setw(myw) << std::right << psmstate->RawMag[0] << "," <<
+			//		std::setw(myw) << std::right << psmstate->RawMag[1] << "," <<
+			//		std::setw(myw) << std::right << psmstate->RawMag[2] <<
+			//		"; Batt: " << battery_status <<
+			//		std::flush;
+			//}
+			//else
+			//{
+			//	std::cout << '\r' <<
+			//		"# " << std::setw(8) << std::left << psmstate->RawTimeStamp <<
+			//		" A(1): " <<
+			//		std::setw(myw) << std::right << psmstate->RawAccel[0][0] << "," <<
+			//		std::setw(myw) << std::right << psmstate->RawAccel[0][1] << "," <<
+			//		std::setw(myw) << std::right << psmstate->RawAccel[0][2] <<
+			//		"; G(1): " <<
+			//		std::setw(myw) << std::right << psmstate->RawGyro[0][0] << "," <<
+			//		std::setw(myw) << std::right << psmstate->RawGyro[0][1] << "," <<
+			//		std::setw(myw) << std::right << psmstate->RawGyro[0][2] <<
+			//		"; Batt: " << battery_status <<
+			//		std::flush;
+			//}
+
+			std::cout << psmstate->RawTimeStamp << std::endl;
 
 #ifdef _WIN32
 			_sleep(5); // 5 msec

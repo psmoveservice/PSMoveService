@@ -36,3 +36,6 @@
 [submodule "thirdparty/libstem_gamepad"]
 	path = thirdparty/libstem_gamepad
 	url = https://github.com/cboulay/libstem_gamepad.git
+[submodule "thirdparty/lockfreequeue"]
+	path = thirdparty/lockfreequeue
+	url = https://github.com/cameron314/readerwriterqueue.git

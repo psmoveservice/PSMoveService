@@ -57,7 +57,7 @@ void PoseFilterSpace::createFilterPacket(
 	const IPoseFilter *poseFilter,
     PoseFilterPacket &outFilterPacket) const
 {
-	poseFilter->getOrientation(), poseFilter->getPositionCm(),
+	outFilterPacket.timestamp= sensorPacket.timestamp;
 
 	outFilterPacket.current_orientation= poseFilter->getOrientation();
 	outFilterPacket.current_position_cm= poseFilter->getPositionCm();
@@ -65,14 +65,26 @@ void PoseFilterSpace::createFilterPacket(
 	outFilterPacket.current_linear_acceleration_cm_s2 = poseFilter->getAccelerationCmPerSecSqr();
 
     outFilterPacket.optical_orientation = sensorPacket.optical_orientation;
-
-	// Positional filtering is done is meters to improve numerical stability
     outFilterPacket.optical_position_cm = sensorPacket.optical_position_cm;
-    outFilterPacket.tracking_projection_area_px_sqr= sensorPacket.tracking_projection_area_px_sqr;
+	outFilterPacket.tracking_projection_area_px_sqr= sensorPacket.tracking_projection_area_px_sqr;
 
-    outFilterPacket.imu_gyroscope_rad_per_sec= m_SensorTransform * sensorPacket.imu_gyroscope_rad_per_sec;
-    outFilterPacket.imu_accelerometer_g_units= m_SensorTransform * sensorPacket.imu_accelerometer_g_units;
-    outFilterPacket.imu_magnetometer_unit= m_SensorTransform * sensorPacket.imu_magnetometer_unit;
+	if (sensorPacket.has_gyroscope_measurement)
+	{
+	    outFilterPacket.imu_gyroscope_rad_per_sec= m_SensorTransform * sensorPacket.imu_gyroscope_rad_per_sec;
+		outFilterPacket.has_gyroscope_measurement= true;
+	}
+
+	if (sensorPacket.has_accelerometer_measurement)
+	{
+	    outFilterPacket.imu_accelerometer_g_units= m_SensorTransform * sensorPacket.imu_accelerometer_g_units;
+		outFilterPacket.has_accelerometer_measurement= true;
+	}
+
+	if (sensorPacket.has_magnetometer_measurement)
+	{
+	    outFilterPacket.imu_magnetometer_unit= m_SensorTransform * sensorPacket.imu_magnetometer_unit;
+		outFilterPacket.has_magnetometer_measurement= true;
+	}
         
 	outFilterPacket.world_accelerometer=
 		eigen_vector3f_clockwise_rotate(outFilterPacket.current_orientation, outFilterPacket.imu_accelerometer_g_units);

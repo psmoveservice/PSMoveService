@@ -33,20 +33,23 @@ const int k_desired_scale_sample_count = 1000;
 //-- definitions -----
 struct GyroscopeNoiseSamples
 {
-    PSMVector3f omega_samples[k_desired_noise_sample_count];
+	PSMVector3i raw_gyro_samples[k_desired_noise_sample_count];
+    PSMVector3f calibrated_omega_samples[k_desired_noise_sample_count];
     PSMVector3f drift_rotation;
     std::chrono::time_point<std::chrono::high_resolution_clock> sampleStartTime;
     int sample_count;
 
-    float variance; // Max sensor variance (raw_sensor_units/s/s for DS4, rad/s/s for PSMove)
-    float drift; // Max drift rate (raw_sensor_units/s for DS4, rad/s for PSMove)
+	PSMVector3f raw_bias; // The average bias in the raw gyro measurement per frame
+    float angular_drift_variance; // Max sensor variance (raw_sensor_units/s/s for DS4, rad/s/s for PSMove)
+    float angular_drift_rate; // Max drift rate (raw_sensor_units/s for DS4, rad/s for PSMove)
 
     void clear()
     {
         drift_rotation= *k_psm_float_vector3_zero;
         sample_count= 0;
-        variance= 0.f;
-        drift= 0.f;
+		raw_bias= *k_psm_float_vector3_zero;
+        angular_drift_variance= 0.f;
+        angular_drift_rate= 0.f;
     }
 
     void computeStatistics(std::chrono::duration<float, std::milli> sampleDurationMilli)
@@ -54,13 +57,25 @@ struct GyroscopeNoiseSamples
         const float sampleDurationSeconds= sampleDurationMilli.count() / 1000.f;
         const float N = static_cast<float>(sample_count);
 
+        // Compute the mean of the raw gyro measurements
+        // If this is a non-zero value then the gyro has some per frame
+		// bias we need to subtract off.
+        raw_bias= *k_psm_float_vector3_zero;
+        for (int sample_index = 0; sample_index < sample_count; sample_index++)
+        {
+            PSMVector3f raw_sample= PSM_Vector3iCastToFloat(&raw_gyro_samples[sample_index]);
+
+            raw_bias= PSM_Vector3fAdd(&raw_bias, &raw_sample);
+        }
+        raw_bias= PSM_Vector3fUnsafeScalarDivide(&raw_bias, N);
+
         // Compute the mean of the error samples, where "error" = abs(omega_sample)
-        // If we took the mean of the signed omega samples we'd get a value very 
-        // close to zero since the the gyro at rest over a short period has mean-zero noise
+        // If the gyro has little to no bias then the  mean of the signed omega samples 
+		// would be very close to zero since the the gyro at rest over a short period has mean-zero noise
         PSMVector3f mean_omega_error= *k_psm_float_vector3_zero;
         for (int sample_index = 0; sample_index < sample_count; sample_index++)
         {
-            PSMVector3f error_sample= PSM_Vector3fAbs(&omega_samples[sample_index]);
+            PSMVector3f error_sample= PSM_Vector3fAbs(&calibrated_omega_samples[sample_index]);
 
             mean_omega_error= PSM_Vector3fAdd(&mean_omega_error, &error_sample);
         }
@@ -70,7 +85,7 @@ struct GyroscopeNoiseSamples
         PSMVector3f var_omega= *k_psm_float_vector3_zero;
         for (int sample_index = 0; sample_index < sample_count; sample_index++)
         {
-            PSMVector3f error_sample= PSM_Vector3fAbs(&omega_samples[sample_index]);
+            PSMVector3f error_sample= PSM_Vector3fAbs(&calibrated_omega_samples[sample_index]);
             PSMVector3f diff_from_mean= PSM_Vector3fSubtract(&error_sample, &mean_omega_error);
             PSMVector3f diff_from_mean_sqrd= PSM_Vector3fSquare(&diff_from_mean);
 
@@ -79,12 +94,12 @@ struct GyroscopeNoiseSamples
         var_omega= PSM_Vector3fUnsafeScalarDivide(&var_omega, N - 1);
 
         // Use the max variance of all three axes (should be close)
-        variance= PSM_Vector3fMaxValue(&var_omega);
+        angular_drift_variance= PSM_Vector3fMaxValue(&var_omega);
 
         // Compute the max drift rate we got across a three axis
         PSMVector3f drift_rate= PSM_Vector3fUnsafeScalarDivide(&drift_rotation, sampleDurationSeconds);
         PSMVector3f drift_rate_abs= PSM_Vector3fAbs(&drift_rate);
-        drift= PSM_Vector3fMaxValue(&drift_rate_abs);
+        angular_drift_rate= PSM_Vector3fMaxValue(&drift_rate_abs);
     }
 };
 
@@ -274,7 +289,8 @@ void AppStage_GyroscopeCalibration::update()
                 // Record the next noise sample
                 if (m_gyroNoiseSamples->sample_count < k_desired_noise_sample_count)
                 {
-                    m_gyroNoiseSamples->omega_samples[m_gyroNoiseSamples->sample_count]= m_lastCalibratedGyroscope;
+					m_gyroNoiseSamples->raw_gyro_samples[m_gyroNoiseSamples->sample_count]= m_lastRawGyroscope;
+                    m_gyroNoiseSamples->calibrated_omega_samples[m_gyroNoiseSamples->sample_count]= m_lastCalibratedGyroscope;
                     ++m_gyroNoiseSamples->sample_count;
                 }
 
@@ -286,8 +302,9 @@ void AppStage_GyroscopeCalibration::update()
 
                     // Update the gyro config on the service
                     request_set_gyroscope_calibration(
-                        m_gyroNoiseSamples->drift, 
-                        m_gyroNoiseSamples->variance);
+						m_gyroNoiseSamples->raw_bias,
+                        m_gyroNoiseSamples->angular_drift_rate, 
+                        m_gyroNoiseSamples->angular_drift_variance);
 
                     setState(eCalibrationMenuState::measureComplete);
                 }
@@ -714,6 +731,7 @@ void AppStage_GyroscopeCalibration::handle_tracking_space_settings_response(
 }
 
 void AppStage_GyroscopeCalibration::request_set_gyroscope_calibration(
+	const PSMVector3f &raw_bias,
     const float drift, 
     const float variance)
 {
@@ -725,6 +743,9 @@ void AppStage_GyroscopeCalibration::request_set_gyroscope_calibration(
 
     calibration->set_controller_id(m_controllerView->ControllerID);
 
+	calibration->mutable_raw_bias()->set_i(raw_bias.x);
+	calibration->mutable_raw_bias()->set_j(raw_bias.y);
+	calibration->mutable_raw_bias()->set_k(raw_bias.z);
     calibration->set_drift(drift);
     calibration->set_variance(variance);
 	calibration->set_gyro_gain_setting(""); // keep existing gain

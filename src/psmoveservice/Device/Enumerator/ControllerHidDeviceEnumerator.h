@@ -19,7 +19,8 @@ public:
 	bool get_serial_number(char *out_mb_serial, const size_t mb_buffer_size) const;
 
 private:
-	struct hid_device_info *devs, *cur_dev;
+	struct hid_device_info *m_HIDdevices, *m_currentHIDDevice;
+	int m_enumeratorIndex;
 };
 
 #endif // CONTROLLER_HID_DEVICE_ENUMERATOR_H

@@ -4,10 +4,27 @@
 //-- includes -----
 #include "DeviceInterface.h"
 #include "ServerDeviceView.h"
+#include "PoseFilterInterface.h"
 #include "PSMoveProtocolInterface.h"
 #include "TrackerManager.h"
+
+#include <atomic>
 #include <chrono>
+#include <deque>
 #include <vector>
+
+#include "readerwriterqueue.h" // lockfree queue
+
+// -- pre-declarations -----
+class TrackerManager;
+
+using t_controller_pose_sensor_queue= moodycamel::ReaderWriterQueue<PoseSensorPacket, 1024>;
+using t_controller_pose_optical_queue= std::deque<PoseSensorPacket>;
+
+template<typename t_object_type>
+class AtomicObject;
+
+struct ShapeTimestampedPose;
 
 // -- declarations -----
 struct ControllerOpticalPoseEstimation
@@ -40,7 +57,7 @@ struct ControllerOpticalPoseEstimation
     }
 };
 
-class ServerControllerView : public ServerDeviceView
+class ServerControllerView : public ServerDeviceView, public IControllerListener
 {
 public:
     ServerControllerView(const int device_id);
@@ -77,6 +94,9 @@ public:
     // Returns true if the device is connected via Bluetooth, false if by USB
     bool getIsBluetooth() const;
 
+	// Returns true if the device uses PIN authentication during device pairing
+	bool getUsesBluetoothAuthentication() const;
+
 	// Returns true if the device can stream controller data over it's current connection type (Bluetooth/USB)
 	bool getIsStreamable() const;
 
@@ -106,7 +126,7 @@ public:
 
     // Fetch the controller state at the given sample index.
     // A lookBack of 0 corresponds to the most recent data.
-    const CommonControllerState * getState(int lookBack = 0) const;
+    const CommonControllerState * getState() const;
 
     // Returns true if the system button was pressed this frame on this controller
     bool getWasSystemButtonPressed() const;
@@ -178,6 +198,9 @@ public:
         const struct ControllerStreamInfo *stream_info,
         PSMoveProtocol::DeviceOutputDataFrame *data_frame);
 
+	// Incoming device data callbacks
+	void notifySensorDataReceived(const CommonDeviceState *sensor_state) override;
+
 protected:
     void set_tracking_enabled_internal(bool bEnabled);
     void update_LED_color_internal();
@@ -200,6 +223,14 @@ private:
 
     // Device state
     IControllerInterface *m_device;
+
+	// Filter State (IMU Thread)
+	std::chrono::time_point<std::chrono::high_resolution_clock> m_lastSensorDataTimestamp;
+	bool m_bIsLastSensorDataTimestampValid;
+
+	// Filter State (Shared)
+	t_controller_pose_sensor_queue m_PoseSensorIMUPacketQueue;
+	t_controller_pose_optical_queue m_PoseSensorOpticalPacketQueue; // TODO: Currently on main thread
     
     // Filter state
     ControllerOpticalPoseEstimation *m_tracker_pose_estimations; // array of size TrackerManager::k_max_devices

@@ -12,92 +12,72 @@
 #define snprintf _snprintf
 #endif
 
-// -- macros ----
-#define MAX_CONTROLLER_TYPE_INDEX           GET_DEVICE_TYPE_INDEX(CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT)
-
 // -- globals -----
 struct HIDApiDeviceFilter
 {
 	USBDeviceFilter filter;
+	CommonDeviceState::eDeviceType deviceType;
 	bool bHIDApiSupported;
 };
 
-
-HIDApiDeviceFilter g_supported_hid_controller_infos[MAX_CONTROLLER_TYPE_INDEX] = {
-	{ {0x054c, 0x03d5}, true}, // PSMove
-	{ {0x054c, 0x0268}, false}, // PSNavi/DualShock3 (sadly these controllers don't properly support HID
-	{ {0x054c, 0x05C4}, true}, // PSDualShock4
+const int MAX_HID_CONTROLLER_TYPE_COUNT= 4;
+HIDApiDeviceFilter g_supported_hid_controller_infos[MAX_HID_CONTROLLER_TYPE_COUNT] = {
+	{ {0x054c, 0x03d5}, CommonDeviceState::PSMove, true}, // PSMove
+	{ {0x054c, 0x0C5E}, CommonDeviceState::PSMove, true}, // PSMove (newer model "CECH-ZCM2U")
+	{ {0x054c, 0x0268}, CommonDeviceState::PSNavi, false}, // PSNavi/DualShock3 (sadly these controllers don't properly support HID
+	{ {0x054c, 0x05C4}, CommonDeviceState::PSDualShock4, true} // PSDualShock4
 };
 
 // -- ControllerHidDeviceEnumerator -----
 ControllerHidDeviceEnumerator::ControllerHidDeviceEnumerator()
 	: DeviceEnumerator()
-	, devs(nullptr)
-	, cur_dev(nullptr)
+	, m_HIDdevices(nullptr)
+	, m_currentHIDDevice(nullptr)
+	, m_enumeratorIndex(-1)
 {
-	m_deviceType= CommonDeviceState::PSMove;
-	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
-
-	HIDApiDeviceFilter &dev_info = g_supported_hid_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
-	devs = hid_enumerate(dev_info.filter.vendor_id, dev_info.filter.product_id);
-	cur_dev = devs;
-
-	if (!is_valid())
-	{
-		next();
-	}
+	next();
 }
 
 ControllerHidDeviceEnumerator::ControllerHidDeviceEnumerator(
 	CommonDeviceState::eDeviceType deviceTypeFilter)
 	: DeviceEnumerator(deviceTypeFilter)
-	, devs(nullptr)
-	, cur_dev(nullptr)
+	, m_HIDdevices(nullptr)
+	, m_currentHIDDevice(nullptr)
+	, m_enumeratorIndex(-1)
 {
-	m_deviceType= deviceTypeFilter;
-	m_deviceTypeFilter= deviceTypeFilter;
-	assert(m_deviceType >= 0 && GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX);
-
-	HIDApiDeviceFilter &dev_info = g_supported_hid_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
-	devs = hid_enumerate(dev_info.filter.vendor_id, dev_info.filter.product_id);
-	cur_dev = devs;
-
-	if (!is_valid())
-	{
-		next();
-	}
+	next();
 }
 
 ControllerHidDeviceEnumerator::~ControllerHidDeviceEnumerator()
 {
-	if (devs != nullptr)
+	if (m_HIDdevices != nullptr)
 	{
-		hid_free_enumeration(devs);
+		hid_free_enumeration(m_HIDdevices);
 	}
 }
 
 int ControllerHidDeviceEnumerator::get_vendor_id() const
 {
-	return (cur_dev != nullptr) ? cur_dev->vendor_id : -1;
+	return (m_currentHIDDevice != nullptr) ? m_currentHIDDevice->vendor_id : -1;
 }
 
 int ControllerHidDeviceEnumerator::get_product_id() const
 {
-	return (cur_dev != nullptr) ? cur_dev->product_id : -1;
+	return (m_currentHIDDevice != nullptr) ? m_currentHIDDevice->product_id : -1;
 }
 
 const char *ControllerHidDeviceEnumerator::get_path() const
 {
-	return (cur_dev != nullptr) ? cur_dev->path : nullptr;
+	return (m_currentHIDDevice != nullptr) ? m_currentHIDDevice->path : nullptr;
 }
 
 bool ControllerHidDeviceEnumerator::get_serial_number(char *out_mb_serial, const size_t mb_buffer_size) const
 {
 	bool success = false;
 
-	if (cur_dev != nullptr && cur_dev->serial_number != nullptr)
+	if (m_currentHIDDevice != nullptr && m_currentHIDDevice->serial_number != nullptr)
 	{
-		success = ServerUtility::convert_wcs_to_mbs(cur_dev->serial_number, out_mb_serial, mb_buffer_size);
+		success = ServerUtility::convert_wcs_to_mbs(m_currentHIDDevice->serial_number, out_mb_serial, mb_buffer_size);
 	}
 
 	return success;
@@ -105,7 +85,7 @@ bool ControllerHidDeviceEnumerator::get_serial_number(char *out_mb_serial, const
 
 bool ControllerHidDeviceEnumerator::is_valid() const
 {
-	bool bIsValid = cur_dev != nullptr;
+	bool bIsValid = m_currentHIDDevice != nullptr;
 
 #ifdef _WIN32
 	/**
@@ -113,7 +93,7 @@ bool ControllerHidDeviceEnumerator::is_valid() const
 	* The one with "&col01#" in the path is the one we will get most of our data from. Only count this one.
 	* The one with "&col02#" in the path is the one we will get the bluetooth address from.
 	**/
-	if (bIsValid && m_deviceType == CommonDeviceState::PSMove && strstr(cur_dev->path, "&col01#") == nullptr)
+	if (bIsValid && m_deviceType == CommonDeviceState::PSMove && strstr(m_currentHIDDevice->path, "&col01#") == nullptr)
 	{
 		bIsValid = false;
 	}
@@ -126,38 +106,39 @@ bool ControllerHidDeviceEnumerator::next()
 {
 	bool foundValid = false;
 
-	while (!foundValid && m_deviceType < CommonDeviceState::SUPPORTED_CONTROLLER_TYPE_COUNT)
+	while (!foundValid && m_enumeratorIndex < MAX_HID_CONTROLLER_TYPE_COUNT)
 	{
-		if (cur_dev != nullptr)
+		if (m_currentHIDDevice != nullptr)
 		{
-			cur_dev = cur_dev->next;
+			m_currentHIDDevice = m_currentHIDDevice->next;
 			foundValid = is_valid();
 		}
 
 		// If there are more device types to scan
 		// move on to the next vid/pid device enumeration
-		if (!foundValid && cur_dev == nullptr)
+		if (!foundValid && m_currentHIDDevice == nullptr)
 		{
-			m_deviceType = static_cast<CommonDeviceState::eDeviceType>(m_deviceType + 1);
+			++m_enumeratorIndex;
 
 			// Free any previous enumeration
-			if (devs != nullptr)
+			if (m_HIDdevices != nullptr)
 			{
-				hid_free_enumeration(devs);
-				cur_dev = nullptr;
-				devs = nullptr;
+				hid_free_enumeration(m_HIDdevices);
+				m_currentHIDDevice = nullptr;
+				m_HIDdevices = nullptr;
 			}
 
-			if (GET_DEVICE_TYPE_INDEX(m_deviceType) < MAX_CONTROLLER_TYPE_INDEX && 
-				(m_deviceType == m_deviceTypeFilter || m_deviceTypeFilter == CommonDeviceState::INVALID_DEVICE_TYPE))
+			if (m_enumeratorIndex < MAX_HID_CONTROLLER_TYPE_COUNT)
 			{
-				HIDApiDeviceFilter &dev_info = g_supported_hid_controller_infos[GET_DEVICE_TYPE_INDEX(m_deviceType)];
+				HIDApiDeviceFilter &dev_info = g_supported_hid_controller_infos[m_enumeratorIndex];
+				m_deviceType = dev_info.deviceType;
 
-				if (dev_info.bHIDApiSupported)
+				if (dev_info.bHIDApiSupported &&
+					(m_deviceType == m_deviceTypeFilter || m_deviceTypeFilter == CommonDeviceState::INVALID_DEVICE_TYPE))
 				{
 					// Create a new HID enumeration
-					devs = hid_enumerate(dev_info.filter.vendor_id, dev_info.filter.product_id);
-					cur_dev = devs;
+					m_HIDdevices = hid_enumerate(dev_info.filter.vendor_id, dev_info.filter.product_id);
+					m_currentHIDDevice = m_HIDdevices;
 					foundValid = is_valid();
 				}
 			}

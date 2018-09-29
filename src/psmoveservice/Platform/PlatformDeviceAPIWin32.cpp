@@ -130,8 +130,6 @@ PlatformDeviceAPIWin32::~PlatformDeviceAPIWin32()
 
 }
 
-
-
 // System
 bool PlatformDeviceAPIWin32::startup(IDeviceHotplugListener *broadcaster)
 {
@@ -216,6 +214,46 @@ void PlatformDeviceAPIWin32::shutdown()
 	{
 		DestroyWindow(g_hWnd);
 		g_hWnd = nullptr;
+	}
+}
+
+// Events
+void PlatformDeviceAPIWin32::handle_bluetooth_request_started()
+{
+	for (HDEVNOTIFY hNotify : g_BluetoothDeviceNotify)
+	{
+		UnregisterDeviceNotification(hNotify);
+	}
+	g_BluetoothDeviceNotify.clear();
+
+	if (g_hHIDDeviceNotify != nullptr)
+	{
+		UnregisterDeviceNotification(g_hHIDDeviceNotify);
+		g_hHIDDeviceNotify = nullptr;
+	}
+
+	if (g_hGenericUSBDeviceNotify != nullptr)
+	{
+		UnregisterDeviceNotification(g_hGenericUSBDeviceNotify);
+		g_hGenericUSBDeviceNotify = nullptr;
+	}
+}
+
+void PlatformDeviceAPIWin32::handle_bluetooth_request_finished()
+{
+	if (g_BluetoothDeviceNotify.empty())
+	{
+		register_all_bluetooth_connection_notifications(g_hWnd);
+	}
+
+	if (g_hGenericUSBDeviceNotify == nullptr)
+	{
+		g_hGenericUSBDeviceNotify = register_device_class_notification(g_hWnd, GUID_DEVCLASS_USB_RAW);
+	}
+
+	if (g_hHIDDeviceNotify == nullptr)
+	{
+		g_hHIDDeviceNotify = register_device_class_notification(g_hWnd, GUID_DEVCLASS_IMAGE);
 	}
 }
 
@@ -326,7 +364,12 @@ LRESULT message_handler(HWND__* hwnd, UINT msg_type, WPARAM wparam, LPARAM lpara
 				else if (IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_HID) || 
 						IsEqualCLSID(lpdbv->dbcc_classguid, GUID_DEVCLASS_USB_RAW))
 				{
-					device_class = DeviceClass::DeviceClass_HID;
+					// Only consider this event if we want to listen for the event
+					if (g_hGenericUSBDeviceNotify != nullptr ||
+						g_hHIDDeviceNotify != nullptr)
+					{
+						device_class = DeviceClass::DeviceClass_HID;
+					}
 				}
 
 				if (device_class != DeviceClass_INVALID)

@@ -28,19 +28,19 @@ int main()
 	{
 		printf("Successfully opened DS4 Controller!\n");
 
-		const PSDualShock4ControllerState *ds4_state = nullptr;
+		const DualShock4ControllerInputState *ds4_state = nullptr;
 
 		if (ds4.getIsBluetooth())
 		{
 			printf("Connected via Bluetooth\n");
 
 			ds4.poll();
-			ds4_state = static_cast<const PSDualShock4ControllerState *>(ds4.getState());
+			ds4_state = static_cast<const DualShock4ControllerInputState *>(ds4.getState());
 
 			while (ds4_state->PS != CommonControllerState::Button_DOWN)
 			{
 				ds4.poll();
-				ds4_state = static_cast<const PSDualShock4ControllerState *>(ds4.getState());
+				ds4_state = static_cast<const DualShock4ControllerInputState *>(ds4.getState());
 
 				char *lastButtonName= "        ";
 				if (ds4_state->L1 == CommonControllerState::Button_DOWN) 

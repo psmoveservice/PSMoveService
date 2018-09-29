@@ -11,6 +11,12 @@
 #include <deque>
 #include <chrono>
 
+enum PSMoveControllerModelPID
+{
+	_psmove_controller_ZCM1= 0x03d5,
+	_psmove_controller_ZCM2= 0x0C5E 
+};
+
 struct PSMoveHIDDetails {
 	int vendor_id;
 	int product_id;
@@ -21,8 +27,6 @@ struct PSMoveHIDDetails {
     std::string Bt_addr;      // The bluetooth address of the controller
     std::string Host_bt_addr; // The bluetooth address of the adapter registered with the controller
 };
-
-struct PSMoveDataInput;  // See .cpp for full declaration
 
 class PSMoveControllerConfig : public PSMoveConfig
 {
@@ -36,13 +40,14 @@ public:
 		, firmware_version(0)
 		, bt_firmware_version(0)
 		, firmware_revision(0)
-        , max_poll_failure_count(100) 
+		, max_poll_failure_count(100)
+        , poll_timeout_ms(1000) 
         , prediction_time(0.f)
 		, position_filter_type("LowPassExponential")
 		, orientation_filter_type("ComplementaryMARG")
-        , cal_ag_xyz_kb({{ 
-            {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }},
-            {{ {{0, 0}}, {{0, 0}}, {{0, 0}} }} 
+        , cal_ag_xyz_kbd({{ 
+            {{ {{0, 0, 0}}, {{0, 0, 0}}, {{0, 0, 0}} }},
+            {{ {{0, 0, 0}}, {{0, 0, 0}}, {{0, 0, 0}} }} 
         }})
         , magnetometer_fit_error(0.f)
 		, magnetometer_variance(0.00059f) // rounded value from config tool measurement
@@ -70,7 +75,7 @@ public:
     virtual const boost::property_tree::ptree config2ptree();
     virtual void ptree2config(const boost::property_tree::ptree &pt);
 
-    void getMegnetometerEllipsoid(struct EigenFitEllipsoid *out_ellipsoid);
+    void getMagnetometerEllipsoid(struct EigenFitEllipsoid *out_ellipsoid) const;
 
     bool is_valid;
     long version;
@@ -84,9 +89,10 @@ public:
 	// Move's firmware revision number
 	unsigned short firmware_revision;
 
-
 	// The max number of polling failures before we consider the controller disconnected
     long max_poll_failure_count;
+
+	long poll_timeout_ms;
 
 	// The amount of prediction to apply to the controller pose after filtering
     float prediction_time;
@@ -97,8 +103,8 @@ public:
 	// The type of orientation filter to use
 	std::string orientation_filter_type;
 
-	// The accelerometer and gyroscope scale and bias values read from the USB calibration packet
-    std::array<std::array<std::array<float, 2>, 3>, 2> cal_ag_xyz_kb;
+	// The accelerometer and gyroscope scale/bias/drift values read from the USB calibration packet
+    std::array<std::array<std::array<float, 3>, 3>, 2> cal_ag_xyz_kbd;
 
 	// The direction of the magnetometer when in the identity pose
     CommonDeviceVector magnetometer_identity;
@@ -143,6 +149,23 @@ public:
 	// The variance of the controller orientation (when sitting still) in rad^2
     float orientation_variance;
 
+	inline bool set_raw_gyro_bias(float raw_bias_x, float raw_bias_y, float raw_bias_z)
+	{
+		if (cal_ag_xyz_kbd[1][0][2] != raw_bias_x ||
+			cal_ag_xyz_kbd[1][1][2] != raw_bias_y ||
+			cal_ag_xyz_kbd[1][2][2] != raw_bias_z)
+		{
+			//         gyro=1 x/y/z drift=2
+			cal_ag_xyz_kbd[1][0][2] = raw_bias_x;
+			cal_ag_xyz_kbd[1][1][2] = raw_bias_y;
+			cal_ag_xyz_kbd[1][2][2] = raw_bias_z;
+
+			return true;
+		}
+
+		return false;
+	}
+
 	inline float get_position_variance(float projection_area) const {
 		return position_variance_exp_fit_a*exp(position_variance_exp_fit_b*projection_area);
 	}
@@ -154,13 +177,12 @@ public:
 	std::string hand;
 };
 
-// https://code.google.com/p/moveonpc/wiki/InputReport
-struct PSMoveControllerState : public CommonControllerState
+struct PSMoveControllerInputState : public CommonControllerState
 {
-    int RawSequence;                               // 4-bit (1..16).
+    int RawSequence;                            // 4-bit (1..16).
                                                 // Sometimes frames are dropped.
     
-    unsigned int RawTimeStamp;                     // 16-bit (time since ?, units?)
+    unsigned int RawTimeStamp;                  // 16-bit (time since ?, units?)
                                                 // About 1150 between in-order frames.
 
     ButtonState Triangle;
@@ -188,44 +210,30 @@ struct PSMoveControllerState : public CommonControllerState
 
     //TODO: high-precision timestamp. Need to do in hidapi?
     
-    PSMoveControllerState()
-    {
-        clear();
-    }
+    PSMoveControllerInputState();
 
-    void clear()
-    {
-        CommonControllerState::clear();
+    void clear();
+	void parseDataInput(
+		const PSMoveControllerConfig *config, 
+		const struct PSMoveDataInputZCM1 *previous_hid_packet,
+		const struct PSMoveDataInputZCM1 *new_hid_packet);
+	void parseDataInput(
+		const PSMoveControllerConfig *config, 
+		const struct PSMoveDataInputZCM2 *previous_hid_packet,
+		const struct PSMoveDataInputZCM2 *new_hid_packet);
+};
 
-        RawSequence = 0;
-        RawTimeStamp = 0;
+struct PSMoveControllerOutputState 
+{
+    unsigned char r;        // red value, 0x00..0xff
+    unsigned char g;        // green value, 0x00..0xff
+    unsigned char b;        // blue value, 0x00..0xff
 
-        DeviceType = PSMove;
+    unsigned char rumble;   // rumble value, 0x00..0xff
 
-        Triangle = Button_UP;
-        Circle = Button_UP;
-        Cross = Button_UP;
-        Square = Button_UP;
-        Select = Button_UP;
-        Start = Button_UP;
-        PS = Button_UP;
-        Move = Button_UP;
-        Trigger = Button_UP;
+	PSMoveControllerOutputState();
 
-        TriggerValue= 0;
-
-        CalibratedAccel = {{
-            {{0, 0, 0}}, 
-            {{0, 0, 0}} 
-        }};
-        CalibratedGyro = {{
-            {{0, 0, 0}}, 
-            {{0, 0, 0}}
-        }};
-        CalibratedMag = {{0, 0, 0}};
-
-        TempRaw= 0;
-    }
+	void clear();
 };
 
 class PSMoveController : public IControllerInterface {
@@ -235,6 +243,7 @@ public:
 
     // PSMoveController
     bool open(); // Opens the first HID device for the controller
+	bool open(PSMoveControllerModelPID model);
     
     // -- IDeviceInterface
     virtual bool matchesDeviceEnumerator(const DeviceEnumerator *enumerator) const override;
@@ -243,9 +252,16 @@ public:
     virtual bool getIsReadyToPoll() const override;
     virtual IDeviceInterface::ePollResult poll() override;
     virtual void close() override;
-    virtual long getMaxPollFailureCount() const override;
-    virtual CommonDeviceState::eDeviceType getDeviceType() const override;
-    virtual const CommonDeviceState * getState(int lookBack = 0) const override;
+	virtual long getMaxPollFailureCount() const override;
+    CommonDeviceState::eDeviceType getDeviceType() const override
+    {
+        return CommonDeviceState::PSMove;
+    }
+    static CommonDeviceState::eDeviceType getDeviceTypeStatic()
+    {
+        return CommonDeviceState::PSMove;
+    }
+	virtual const CommonDeviceState * getState(int lookBack = 0) const override;
     
     // -- IControllerInterface
     virtual bool setHostBluetoothAddress(const std::string &address) override;
@@ -265,29 +281,27 @@ public:
 
     // -- Getters
     inline const PSMoveControllerConfig *getConfig() const
-    { return &cfg; }
-    inline PSMoveControllerConfig *getConfigMutable()
-    { return &cfg; }
+    { return &cfg; }    
     float getTempCelsius() const;
-    static CommonDeviceState::eDeviceType getDeviceTypeStatic()
-    { return CommonDeviceState::PSMove; }
-	bool getSupportsMagnetometer() const
-	{ return SupportsMagnetometer; }        
+	bool getSupportsMagnetometer() const;
     const unsigned long getLEDPWMFrequency() const
     { return LedPWMF; }
+	const bool getIsPS4Controller() const 
+	{ return HIDDetails.product_id == _psmove_controller_ZCM2; }
     
     // -- Setters
+	void setConfig(const PSMoveControllerConfig *config);
     bool setLED(unsigned char r, unsigned char g, unsigned char b); // 0x00..0xff. TODO: vec3
     bool setLEDPWMFrequency(unsigned long freq);    // 733..24e6
     bool setRumbleIntensity(unsigned char value);
 	bool enableDFUMode(); // Device Firmware Update mode
+	void setControllerListener(IControllerListener *listener) override;
 
 private:    
     bool getBTAddress(std::string& host, std::string& controller);
-    void loadCalibration();                         // Use USB or file if on BT
+    void loadCalibrationZCM1();                         // Use USB or file if on BT
+	void loadCalibrationZCM2();                         // Use USB or file if on BT
 	bool loadFirmwareInfo();
-    
-    bool writeDataOut();                            // Setters will call this
     
     // Constant while a controller is open
     PSMoveControllerConfig cfg;
@@ -295,16 +309,14 @@ private:
     bool IsBluetooth;                               // true if valid serial number on device opening
 	bool SupportsMagnetometer;                      // true if controller emits valid magnetometer data
 
-    // Cached Setter State
-    unsigned char LedR, LedG, LedB;
-    unsigned char Rumble;
+    // Cached MainThread Controller State
     unsigned long LedPWMF;
-    bool bWriteStateDirty;
-    std::chrono::time_point<std::chrono::high_resolution_clock> lastWriteStateTime;
+	PSMoveControllerInputState m_cachedInputState;
+	PSMoveControllerOutputState m_cachedOutputState;
 
-    // Read Controller State
-    int NextPollSequenceNumber;
-    std::deque<PSMoveControllerState> ControllerStates;
-    PSMoveDataInput* InData;                        // Buffer to copy hidapi reports into
+    // HID Packet Processing
+	class PSMoveHidPacketProcessor* m_HIDPacketProcessor;
+	IControllerListener* m_controllerListener;
+
 };
 #endif // PSMOVE_CONTROLLER_H
