@@ -14,7 +14,7 @@
 #define PSM_RELEASE_VERSION_PHASE   alpha
 #define PSM_RELEASE_VERSION_MINOR   9
 #define PSM_RELEASE_VERSION_RELEASE 0
-#define PSM_RELEASE_VERSION_HOTFIX  0
+#define PSM_RELEASE_VERSION_HOTFIX  1
 
 /// "Product.Major-Phase Minor.Release.Hotfix"
 #if !defined(PSM_RELEASE_VERSION_STRING)
