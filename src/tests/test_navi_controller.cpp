@@ -41,7 +41,7 @@ int main()
 	{
 		printf("Successfully opened Navi Controller!\n");
 
-		const PSNaviControllerState *navi_state = nullptr;
+		const PSNaviControllerInputState *navi_state = nullptr;
 
 		if (navi.getIsBluetooth())
 		{
@@ -56,14 +56,14 @@ int main()
 		}		
 
 		navi.poll();
-		navi_state = static_cast<const PSNaviControllerState *>(navi.getState());
+		navi_state = static_cast<const PSNaviControllerInputState *>(navi.getState());
 
 		while (navi_state->PS != CommonControllerState::Button_DOWN)
 		{
 			Gamepad_processEvents();
 
 			navi.poll();
-			navi_state = static_cast<const PSNaviControllerState *>(navi.getState());
+			navi_state = static_cast<const PSNaviControllerInputState *>(navi.getState());
 
 			printf("\rButtons: L1=%d,L2=%d,L3=%d,O=%d,X=%d,Up=%d,Dn=%d,Lt=%d,Rt=%d,Trg=%3d,SX=%3d,SY=%3d", 
 				navi_state->L1 == CommonControllerState::Button_DOWN ? 1 : 0,

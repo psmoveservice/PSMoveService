@@ -296,6 +296,9 @@ public:
 			m_hidDevice= in_hid_device;
 			m_controllerListener= controller_listener;
 
+			// Perform blocking reads on the worker thread
+			hid_set_nonblocking(m_hidDevice, 0);
+
 			// Fire up the worker thread
 			WorkerThread::startThread();
 		}
@@ -874,9 +877,6 @@ bool PSDualShock4Controller::open(
 
         if (HIDDetails.Handle != nullptr)  // Controller was opened and has an index
         {             
-            // Don't block on hid report requests
-            hid_set_nonblocking(HIDDetails.Handle, 1);
-
             /* -USB or Bluetooth Device-
 
                 On my Mac, using bluetooth,

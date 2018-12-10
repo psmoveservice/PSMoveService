@@ -164,7 +164,7 @@ list(APPEND TEST_PSMOVE_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/Platform
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
     ${ROOT_DIR}/src/psmoveservice/PSMoveController
-	${ROOT_DIR}/src/psmoveservice/Utils)
+    ${ROOT_DIR}/src/psmoveservice/Utils)
 list(APPEND TEST_PSMOVE_SRC
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
     ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
@@ -278,7 +278,8 @@ list(APPEND TEST_NAVI_INCL_DIRS
     ${ROOT_DIR}/src/psmoveservice/Device/USB
     ${ROOT_DIR}/src/psmoveservice/Platform
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig
-    ${ROOT_DIR}/src/psmoveservice/PSNaviController)
+    ${ROOT_DIR}/src/psmoveservice/PSNaviController
+    ${ROOT_DIR}/src/psmoveservice/Utils)
 list(APPEND TEST_NAVI_SRC
     ${ROOT_DIR}/src/psmovemath/MathAlignment.h
     ${ROOT_DIR}/src/psmovemath/MathAlignment.cpp
@@ -309,7 +310,10 @@ list(APPEND TEST_NAVI_SRC
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.h
     ${ROOT_DIR}/src/psmoveservice/PSMoveConfig/PSMoveConfig.cpp
     ${ROOT_DIR}/src/psmoveservice/PSNaviController/PSNaviController.h
-    ${ROOT_DIR}/src/psmoveservice/PSNaviController/PSNaviController.cpp)
+    ${ROOT_DIR}/src/psmoveservice/PSNaviController/PSNaviController.cpp
+    ${ROOT_DIR}/src/psmoveservice/Utils/AtomicPrimitives.h
+    ${ROOT_DIR}/src/psmoveservice/Utils/WorkerThread.h
+    ${ROOT_DIR}/src/psmoveservice/Utils/WorkerThread.cpp)
 
 # psmoveprotocol
 list(APPEND TEST_NAVI_INCL_DIRS ${ROOT_DIR}/src/psmoveprotocol)

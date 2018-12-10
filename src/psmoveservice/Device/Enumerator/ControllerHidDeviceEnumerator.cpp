@@ -17,15 +17,14 @@ struct HIDApiDeviceFilter
 {
 	USBDeviceFilter filter;
 	CommonDeviceState::eDeviceType deviceType;
-	bool bHIDApiSupported;
 };
 
 const int MAX_HID_CONTROLLER_TYPE_COUNT= 4;
 HIDApiDeviceFilter g_supported_hid_controller_infos[MAX_HID_CONTROLLER_TYPE_COUNT] = {
-	{ {0x054c, 0x03d5}, CommonDeviceState::PSMove, true}, // PSMove
-	{ {0x054c, 0x0C5E}, CommonDeviceState::PSMove, true}, // PSMove (newer model "CECH-ZCM2U")
-	{ {0x054c, 0x0268}, CommonDeviceState::PSNavi, false}, // PSNavi/DualShock3 (sadly these controllers don't properly support HID
-	{ {0x054c, 0x05C4}, CommonDeviceState::PSDualShock4, true} // PSDualShock4
+	{ {0x054c, 0x03d5}, CommonDeviceState::PSMove}, // PSMove
+	{ {0x054c, 0x0C5E}, CommonDeviceState::PSMove}, // PSMove (newer model "CECH-ZCM2U")
+	{ {0x1D6B, 0x0104}, CommonDeviceState::PSNavi}, // PSNavi/DualShock3 (via RaspberryPi Multifunction Composite Device)
+	{ {0x054c, 0x05C4}, CommonDeviceState::PSDualShock4} // PSDualShock4
 };
 
 // -- ControllerHidDeviceEnumerator -----
@@ -64,6 +63,11 @@ int ControllerHidDeviceEnumerator::get_vendor_id() const
 int ControllerHidDeviceEnumerator::get_product_id() const
 {
 	return (m_currentHIDDevice != nullptr) ? m_currentHIDDevice->product_id : -1;
+}
+
+int ControllerHidDeviceEnumerator::get_interface_number() const
+{
+	return (m_currentHIDDevice != nullptr) ? m_currentHIDDevice->interface_number : -1;
 }
 
 const char *ControllerHidDeviceEnumerator::get_path() const
@@ -133,8 +137,7 @@ bool ControllerHidDeviceEnumerator::next()
 				HIDApiDeviceFilter &dev_info = g_supported_hid_controller_infos[m_enumeratorIndex];
 				m_deviceType = dev_info.deviceType;
 
-				if (dev_info.bHIDApiSupported &&
-					(m_deviceType == m_deviceTypeFilter || m_deviceTypeFilter == CommonDeviceState::INVALID_DEVICE_TYPE))
+				if (m_deviceType == m_deviceTypeFilter || m_deviceTypeFilter == CommonDeviceState::INVALID_DEVICE_TYPE)
 				{
 					// Create a new HID enumeration
 					m_HIDdevices = hid_enumerate(dev_info.filter.vendor_id, dev_info.filter.product_id);

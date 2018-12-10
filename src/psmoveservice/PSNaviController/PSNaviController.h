@@ -24,7 +24,7 @@ public:
 };
 
 // https://code.google.com/p/moveonpc/wiki/NavigationInputReport
-struct PSNaviControllerState : public CommonControllerState
+struct PSNaviControllerInputState : public CommonControllerState
 {
     ButtonState L1;
     ButtonState L2;
@@ -41,7 +41,7 @@ struct PSNaviControllerState : public CommonControllerState
     unsigned char Stick_XAxis;  // 0-255. Subtract 0x80 to obtain signed values
     unsigned char Stick_YAxis;  // 0-255.  Subtract 0x80 to obtain signed values
 
-    PSNaviControllerState()
+    PSNaviControllerInputState()
     {
         clear();
     }
@@ -120,8 +120,8 @@ private:
 	bool getControllerBTAddressOverUSB(std::string& out_controller);
 
 	IControllerInterface::ePollResult pollUSB();
+	IControllerInterface::ePollResult pollHid();
 	IControllerInterface::ePollResult pollGamepad();
-	void parseInputData();
     
     // Constant while a controller is open
     PSNaviControllerConfig cfg;
@@ -130,7 +130,9 @@ private:
 
     // Cached Controller State
     int NextPollSequenceNumber;
-    PSNaviControllerState ControllerState;
-    unsigned char InBuffer[64];                        // Buffer to copy hidapi reports into
+    PSNaviControllerInputState m_cachedInputState;
+
+    // HID Packet Processing
+	class PSNaviHidPacketProcessor* m_HIDPacketProcessor;
 };
 #endif // PSMOVE_CONTROLLER_H

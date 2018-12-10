@@ -299,8 +299,14 @@ public:
 			m_hidDevice= in_hid_device;
 			m_controllerListener= controller_listener;
 
+			// Perform non-blocking reads during this phase
+			hid_set_nonblocking(m_hidDevice, 1);
+
 			// See if this controller has a functional magnetometer
 			testMagnetometer();
+
+			// Perform blocking reads on the worker thread
+			hid_set_nonblocking(m_hidDevice, 0);
 
 			// Fire up the worker thread
 			WorkerThread::startThread();
@@ -322,9 +328,6 @@ protected:
 
 			PSMoveControllerConfig cfg;
 			m_cfg.fetchValue(cfg);
-
-			// Perform non-blocking reads during this phase
-			hid_set_nonblocking(m_hidDevice, 1);
 
 			for (poll_count = 0; poll_count < k_max_poll_attempts; ++poll_count)
 			{
@@ -360,9 +363,6 @@ protected:
     {
 		PSMoveControllerConfig cfg;
 		m_cfg.fetchValue(cfg);
-
-		// Perform blocking reads on the worker thread
-		hid_set_nonblocking(m_hidDevice, 0);
 
 		// Attempt to read the next sensor update packet from the HMD
         int res = -1;

@@ -1486,7 +1486,7 @@ static void generate_psnavi_data_frame_for_stream(
     if (controller_state != nullptr)
     {
         assert(controller_state->DeviceType == CommonDeviceState::PSNavi);
-        const PSNaviControllerState *psnavi_state= static_cast<const PSNaviControllerState *>(controller_state);
+        const PSNaviControllerInputState *psnavi_state= static_cast<const PSNaviControllerInputState *>(controller_state);
 
         psnavi_data_frame->set_trigger_value(psnavi_state->Trigger);
         psnavi_data_frame->set_stick_xaxis(psnavi_state->Stick_XAxis);

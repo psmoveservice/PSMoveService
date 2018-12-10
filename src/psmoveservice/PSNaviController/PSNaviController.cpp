@@ -1,11 +1,16 @@
 //-- includes -----
+#include "AtomicPrimitives.h"
 #include "PSNaviController.h"
 #include "ControllerDeviceEnumerator.h"
 #include "ControllerUSBDeviceEnumerator.h"
+#include "ControllerHidDeviceEnumerator.h"
 #include "ControllerGamepadEnumerator.h"
 #include "ServerLog.h"
 #include "ServerUtility.h"
 #include "USBDeviceManager.h"
+#include "WorkerThread.h"
+
+#include "hidapi.h"
 
 #include "gamepad/Gamepad.h"
 
@@ -32,18 +37,7 @@
 //-- constants -----
 #define CONTROL_TRANSFER_TIMEOUT	  500 /* timeout in ms */
 #define INTERRUPT_TRANSFER_TIMEOUT	  500 /* timeout in ms */
-
-#define PSNAVI_VENDOR_ID 0x054c
-#define PSNAVI_PRODUCT_ID 0x042F
-
-#define PSNAVI_CONFIGURATION_VALUE  1
-#define PSNAVI_ENDPOINT_IN 0x80
-
-#define PSNAVI_HID_INTERFACE 0
-
-#define PSNAVI_USB_INTERFACES_MASK_TO_CLAIM ( \
-	(1 << PSNAVI_HID_INTERFACE) \
-)
+#define HID_READ_TIMEOUT			  100 /* timeout in ms */
 
 #define PSNAVI_CNTLR_BTADDR_BUF_SIZE 17
 #define PSNAVI_HOST_BTADDR_BUF_SIZE 9
@@ -98,6 +92,12 @@ public:
 	std::string gamepad_device_path;
 	int gamepad_index;
 
+	// HIDApi state
+    std::string hid_device_path;
+	std::string hid_serial_number;
+	int hid_interface_number;
+    hid_device *hid_device_handle;
+
 	PSNaviAPIContext()
 	{
 		Reset();
@@ -114,31 +114,60 @@ public:
 		usb_device_handle = k_invalid_usb_device_handle;
 		gamepad_device_path = "";
 		gamepad_index = -1;
+		hid_device_path = "";
+		hid_serial_number = "";
+		hid_interface_number = -1;
+		hid_device_handle = nullptr;
 	}
 };
 
-struct PSNaviDataInput {
-    unsigned char type; /* message type, must be PSNavi_Req_GetInput */
-	unsigned char _unk0[1];
-    unsigned char buttons1; // (L3, D-pad)
-    unsigned char buttons2; // (X, Circle, L1, L2)
-    unsigned char buttons3; // (PS Button)
-	unsigned char _unk1[1];
-    unsigned char stick_xaxis; // stick value; 0..255 (subtract 0x80 to get signed values)
-    unsigned char stick_yaxis; // stick value; 0..255 (subtract 0x80 to get signed values)
-	unsigned char _unk2[6];
-    unsigned char analog_dpad_up; // 0x00 (not pressed) to 0xff (fully pressed)
-    unsigned char analog_dpad_right; // 0x00 (not pressed) to 0xff (fully pressed)
-    unsigned char analog_dpad_down; // 0x00 (not pressed) to 0xff (fully pressed)
-    unsigned char analog_dpad_left; // 0x00 (not pressed) to 0xff (fully pressed)
-    unsigned char analog_l2; // 0x00 (not pressed) to 0xff (fully pressed)
-	unsigned char _unk3[1];
-    unsigned char analog_l1; // 0x00 (not pressed) to 0xff (fully pressed)
-	unsigned char _unk4[2];
-    unsigned char analog_circle; // 0x00 (not pressed) to 0xff (fully pressed)
-    unsigned char analog_cross; // 0x00 (not pressed) to 0xff (fully pressed)
-	unsigned char _unk[5];
-    unsigned char battery; // 0x05 = fully charged, 0xEE = charging or 0xEF = fully charged
+struct PSNaviDataInputRawUSB {
+    uint8_t type; /* message type, must be PSNavi_Req_GetInput */
+	uint8_t _unk0[1];
+    uint8_t buttons1; // (L3, D-pad)
+    uint8_t buttons2; // (X, Circle, L1, L2)
+    uint8_t buttons3; // (PS Button)
+	uint8_t _unk1[1];
+    uint8_t stick_xaxis; // stick value; 0..255 (subtract 0x80 to get signed values)
+    uint8_t stick_yaxis; // stick value; 0..255 (subtract 0x80 to get signed values)
+	uint8_t _unk2[6];
+    uint8_t analog_dpad_up; // 0x00 (not pressed) to 0xff (fully pressed)
+    uint8_t analog_dpad_right; // 0x00 (not pressed) to 0xff (fully pressed)
+    uint8_t analog_dpad_down; // 0x00 (not pressed) to 0xff (fully pressed)
+    uint8_t analog_dpad_left; // 0x00 (not pressed) to 0xff (fully pressed)
+    uint8_t analog_l2; // 0x00 (not pressed) to 0xff (fully pressed)
+	uint8_t _unk3[1];
+    uint8_t analog_l1; // 0x00 (not pressed) to 0xff (fully pressed)
+	uint8_t _unk4[2];
+    uint8_t analog_circle; // 0x00 (not pressed) to 0xff (fully pressed)
+    uint8_t analog_cross; // 0x00 (not pressed) to 0xff (fully pressed)
+	uint8_t _unk[5];
+    uint8_t battery; // 0x05 = fully charged, 0xEE = charging or 0xEF = fully charged
+};
+
+struct PSNaviDataInputHID {
+	uint8_t X : 1;
+	uint8_t O : 1;
+	uint8_t L1 : 1;
+	uint8_t L2 : 1;
+	uint8_t L3 : 1;
+	uint8_t PS : 1;
+	uint8_t DPAD : 4;
+	int16_t JX;
+	int16_t JY;
+	int16_t Trigger;
+};
+ 
+enum PSNaviHidDPAD {
+	CENTER = 0x08,
+	UP = 0x00,
+	UP_RIGHT = 0x01,
+	RIGHT = 0x02,
+	DOWN_RIGHT = 0x03,
+	DOWN = 0x04,
+	DOWN_LEFT = 0x05,
+	LEFT = 0x06,
+	UP_LEFT = 0x07
 };
 
 // -- private prototypes -----
@@ -147,9 +176,85 @@ static bool stringToNaviBTAddrUchar(const std::string &addr, unsigned char *addr
 inline void setButtonBit(unsigned int &buttons, unsigned int button_mask, bool is_pressed);
 inline enum CommonControllerState::ButtonState getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask);
 
+inline uint8_t signedInt16ToUInt8(const int16_t int16_value);
+
 static int psnavi_get_usb_feature_report(t_usb_device_handle device_handle, unsigned char *report_bytes, size_t report_size);
 static int psnavi_send_usb_feature_report(t_usb_device_handle device_handle, unsigned char *report_bytes, size_t report_size);
 static int psnavi_read_usb_interrupt_pipe(t_usb_device_handle device_handle, unsigned char *buffer, size_t max_buffer_size);
+
+// -- PSNaviHidPacketProcessor --
+class PSNaviHidPacketProcessor : public WorkerThread
+{
+public:
+	PSNaviHidPacketProcessor() 
+		: WorkerThread("PSNaviHIDProcessor")
+		, m_hidDevice(nullptr)
+	{
+		PSNaviDataInputHID rawHIDPacket;
+		memset(&rawHIDPacket, 0, sizeof(PSNaviDataInputHID));
+		m_publishedHIDPacket.storeValue(rawHIDPacket);
+	}
+
+	void fetchLatestHIDPacket(PSNaviDataInputHID &input_state)
+	{
+		m_publishedHIDPacket.fetchValue(input_state);
+	}
+
+    void start(hid_device *in_hid_device)
+    {
+		if (!hasThreadStarted())
+		{
+			m_hidDevice= in_hid_device;
+
+			// Perform blocking reads on the worker thread
+			hid_set_nonblocking(m_hidDevice, 0);
+
+			// Fire up the worker thread
+			WorkerThread::startThread();
+		}
+    }
+
+	void stop()
+	{
+		WorkerThread::stopThread();
+	}
+
+protected:
+	virtual bool doWork() override
+    {
+		// Attempt to read the next sensor update packet from 
+		PSNaviDataInputHID rawHIDPacket;
+		memset(&rawHIDPacket, 0, sizeof(PSNaviDataInputHID));
+		int res = hid_read_timeout(m_hidDevice, (unsigned char*)&rawHIDPacket, sizeof(PSNaviDataInputHID), HID_READ_TIMEOUT);
+
+		if (res > 0)
+		{
+			// Publish the new state to the main thread
+			m_publishedHIDPacket.storeValue(rawHIDPacket);
+		}
+		else if (res < 0)
+		{
+			char hidapi_err_mbs[256];
+			bool valid_error_mesg = 
+				ServerUtility::convert_wcs_to_mbs(hid_error(m_hidDevice), hidapi_err_mbs, sizeof(hidapi_err_mbs));
+
+			// Device no longer in valid state.
+			if (valid_error_mesg)
+			{
+				SERVER_MT_LOG_ERROR("PSMoveSensorProcessor::doWork") << "HID ERROR: " << hidapi_err_mbs;
+			}
+
+			// Halt the worker threads
+			return false;
+		}
+
+		return true;
+    }
+
+    // Multi-threaded state
+	hid_device *m_hidDevice;
+	AtomicObject<PSNaviDataInputHID> m_publishedHIDPacket;
+};
 
 // -- public methods
 
@@ -176,9 +281,10 @@ PSNaviControllerConfig::ptree2config(const boost::property_tree::ptree &pt)
 PSNaviController::PSNaviController()
 {   
 	APIContext = new PSNaviAPIContext();
+	m_HIDPacketProcessor= nullptr;
 
-	memset(&ControllerState, 0, sizeof(PSNaviControllerState));
-    NextPollSequenceNumber= 0;
+	m_cachedInputState.clear();
+	NextPollSequenceNumber= 0;
 }
 
 PSNaviController::~PSNaviController()
@@ -187,6 +293,11 @@ PSNaviController::~PSNaviController()
     {
         SERVER_LOG_ERROR("~PSNaviController") << "Controller deleted without calling close() first!";
     }
+
+	if (m_HIDPacketProcessor)
+	{
+		delete m_HIDPacketProcessor;
+	}
 
 	delete APIContext;
 }
@@ -239,6 +350,40 @@ bool PSNaviController::open(
 			else
 			{
 				SERVER_LOG_ERROR("PSNaviController::open") << "  Failed to open USB handle " << usb_device_handle;
+			}
+		}
+		else if (pEnum->get_api_type() == ControllerDeviceEnumerator::CommunicationType_HID)
+		{
+			const ControllerHidDeviceEnumerator *hidEnum = pEnum->get_hid_controller_enumerator();
+			assert(hidEnum != nullptr);
+
+			APIContext->vendor_id = pEnum->get_vendor_id();
+			APIContext->product_id = pEnum->get_product_id();
+			APIContext->hid_device_path= pEnum->get_path();
+			APIContext->hid_interface_number= hidEnum->get_interface_number();
+			APIContext->hid_device_handle = hid_open_path(APIContext->hid_device_path.c_str());
+
+			char szSerialNo[64];
+			if (hidEnum->get_serial_number(szSerialNo, sizeof(szSerialNo)))
+			{
+				APIContext->hid_serial_number= szSerialNo;
+			}
+			else
+			{
+				APIContext->hid_serial_number= "";
+			}
+
+			if (APIContext->hid_device_handle != nullptr)
+			{
+				SERVER_LOG_INFO("PSNaviController::open") << "  Successfully opened HID path: " << pEnum->get_path();
+
+				// Sadly this info available to us through the HID api
+				APIContext->host_bluetooth_address= "00:00:00:00:00:00";
+				APIContext->controller_bluetooth_address= "00:00:00:00:00:00";
+			}
+			else
+			{
+				SERVER_LOG_ERROR("PSNaviController::open") << "  Failed to open HID controller";
 			}
 		}
 		else if (pEnum->get_api_type() == ControllerDeviceEnumerator::CommunicationType_GAMEPAD)
@@ -312,6 +457,24 @@ bool PSNaviController::open(
 					success = false;
 				}
 			}
+			else if (pEnum->get_api_type() == ControllerDeviceEnumerator::CommunicationType_HID)
+			{
+				char config_name[255];
+				ServerUtility::format_string(config_name, sizeof(config_name), "psnavi_%s_%d", APIContext->hid_serial_number.c_str(), APIContext->hid_interface_number);
+
+				// Load the config file
+				cfg = PSNaviControllerConfig(std::string(config_name));
+				cfg.load();
+
+				// Create the sensor processor thread
+				m_HIDPacketProcessor= new PSNaviHidPacketProcessor();
+				m_HIDPacketProcessor->start(APIContext->hid_device_handle);
+
+				// Save it back out again in case any defaults changed
+				cfg.save();
+
+				success = true;
+			}
 			else if (pEnum->get_api_type() == ControllerDeviceEnumerator::CommunicationType_GAMEPAD)
 			{
 				char config_name[255];
@@ -351,6 +514,21 @@ void PSNaviController::close()
 			SERVER_LOG_INFO("PSNaviController::close") << "Closing PSNaviController(" << APIContext->usb_device_path << ")";
 			usb_device_close(APIContext->usb_device_handle);
 			APIContext->usb_device_handle = k_invalid_usb_device_handle;
+		}
+		else if (APIContext->hid_device_handle != nullptr)
+		{
+			SERVER_LOG_INFO("PSNaviController::close") << "Closing PSNaviController(" << APIContext->hid_device_path << ")";
+
+			if (m_HIDPacketProcessor != nullptr)
+			{
+				// halt the HID packet processing thread
+				m_HIDPacketProcessor->stop();
+				delete m_HIDPacketProcessor;
+				m_HIDPacketProcessor= nullptr;
+			}
+
+			hid_close(APIContext->hid_device_handle);
+			APIContext->hid_device_handle = nullptr;
 		}
 		else if (APIContext->gamepad_index != -1)
 		{
@@ -434,6 +612,10 @@ PSNaviController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) co
 		{
 			dev_path = APIContext->usb_device_path.c_str();
 		}
+		else if (APIContext->hid_device_handle != nullptr)
+		{
+			dev_path = APIContext->hid_device_path.c_str();
+		}
 		else if (APIContext->gamepad_index != -1)
 		{
 			dev_path = APIContext->gamepad_device_path.c_str();
@@ -456,8 +638,8 @@ PSNaviController::matchesDeviceEnumerator(const DeviceEnumerator *enumerator) co
 bool 
 PSNaviController::getIsBluetooth() const
 { 
-	// Assumed bluetooth connection if the controller is connected through the gamepad interface
-    return APIContext->gamepad_index != -1;
+	// Assumed bluetooth connection if the controller is connected through the gamepad or HID interfaces
+    return APIContext->hid_device_handle != nullptr || APIContext->gamepad_index != -1;
 }
 
 bool
@@ -499,7 +681,7 @@ PSNaviController::getAssignedHostBluetoothAddress() const
 bool
 PSNaviController::getIsOpen() const
 {
-    return (APIContext->usb_device_handle != k_invalid_usb_device_handle || APIContext->gamepad_index != -1);
+    return (APIContext->usb_device_handle != k_invalid_usb_device_handle || APIContext->hid_device_handle != nullptr || APIContext->gamepad_index != -1);
 }
 
 CommonDeviceState::eDeviceType
@@ -594,6 +776,11 @@ PSNaviController::poll()
 		{
 			result = pollUSB();			
 		}
+		else if (APIContext->hid_device_handle != nullptr)
+		{
+			// For the gamepad case, just consider the current state is new data
+			result = pollHid();
+		}
 		else if (APIContext->gamepad_index != -1)
 		{
 			// For the gamepad case, just consider the current state is new data
@@ -602,6 +789,91 @@ PSNaviController::poll()
     }
 
     return result;
+}
+
+IControllerInterface::ePollResult
+PSNaviController::pollHid()
+{
+	assert(getIsOpen());
+
+	if (m_HIDPacketProcessor != nullptr && !m_HIDPacketProcessor->hasThreadEnded())
+	{
+		PSNaviDataInputHID rawHIDPacket;
+		m_HIDPacketProcessor->fetchLatestHIDPacket(rawHIDPacket);
+
+		// Copy the current input state off to the previous state for comparison
+		PSNaviControllerInputState previousInputState= m_cachedInputState;
+		m_cachedInputState.clear();
+
+		// Increment the sequence for every new polling packet
+		m_cachedInputState.PollSequenceNumber = NextPollSequenceNumber;
+		++NextPollSequenceNumber;
+
+		// New Button State
+		bool bIsDPadUpPressed= 
+			rawHIDPacket.DPAD == PSNaviHidDPAD::UP || 
+			rawHIDPacket.DPAD == PSNaviHidDPAD::UP_LEFT ||
+			rawHIDPacket.DPAD == PSNaviHidDPAD::UP_RIGHT;
+		bool bIsDPadDownPressed=
+			rawHIDPacket.DPAD == PSNaviHidDPAD::DOWN || 
+			rawHIDPacket.DPAD == PSNaviHidDPAD::DOWN_LEFT ||
+			rawHIDPacket.DPAD == PSNaviHidDPAD::DOWN_RIGHT;
+		bool bIsDPadLeftPressed= 
+			rawHIDPacket.DPAD == PSNaviHidDPAD::UP_LEFT ||
+			rawHIDPacket.DPAD == PSNaviHidDPAD::LEFT || 
+			rawHIDPacket.DPAD == PSNaviHidDPAD::DOWN_LEFT;
+		bool bIsDPadRightPressed=
+			rawHIDPacket.DPAD == PSNaviHidDPAD::UP_RIGHT ||
+			rawHIDPacket.DPAD == PSNaviHidDPAD::RIGHT || 
+			rawHIDPacket.DPAD == PSNaviHidDPAD::DOWN_RIGHT;
+		bool bIsL1Pressed= rawHIDPacket.L1 != 0;
+		bool bIsL2Pressed= rawHIDPacket.L2 != 0;
+		bool bIsL3Pressed= rawHIDPacket.L3 != 0;
+		bool bIsCrossPressed= rawHIDPacket.X != 0;
+		bool bIsCirclePressed= rawHIDPacket.O != 0;
+		bool bIsPSPressed = rawHIDPacket.PS != 0;
+
+		// Create a new state bitmask
+		m_cachedInputState.AllButtons = 0;
+		setButtonBit(m_cachedInputState.AllButtons, Btn_UP, bIsDPadUpPressed);
+		setButtonBit(m_cachedInputState.AllButtons, Btn_DOWN, bIsDPadDownPressed);
+		setButtonBit(m_cachedInputState.AllButtons, Btn_LEFT, bIsDPadLeftPressed);
+		setButtonBit(m_cachedInputState.AllButtons, Btn_RIGHT, bIsDPadRightPressed);
+		setButtonBit(m_cachedInputState.AllButtons, Btn_CROSS, bIsCrossPressed);
+		setButtonBit(m_cachedInputState.AllButtons, Btn_CIRCLE, bIsCirclePressed);
+		setButtonBit(m_cachedInputState.AllButtons, Btn_L1, bIsL1Pressed);
+		setButtonBit(m_cachedInputState.AllButtons, Btn_L2, bIsL2Pressed);
+		setButtonBit(m_cachedInputState.AllButtons, Btn_L3, bIsL3Pressed);
+		setButtonBit(m_cachedInputState.AllButtons, Btn_PS, bIsPSPressed);
+
+		// Compare the new button state against the old button state
+		unsigned int lastButtons = previousInputState.AllButtons;
+		m_cachedInputState.DPad_Up = getButtonState(m_cachedInputState.AllButtons, lastButtons, Btn_UP);
+		m_cachedInputState.DPad_Down = getButtonState(m_cachedInputState.AllButtons, lastButtons, Btn_DOWN);
+		m_cachedInputState.DPad_Left = getButtonState(m_cachedInputState.AllButtons, lastButtons, Btn_LEFT);
+		m_cachedInputState.DPad_Right = getButtonState(m_cachedInputState.AllButtons, lastButtons, Btn_RIGHT);
+		m_cachedInputState.Circle = getButtonState(m_cachedInputState.AllButtons, lastButtons, Btn_CIRCLE);
+		m_cachedInputState.Cross = getButtonState(m_cachedInputState.AllButtons, lastButtons, Btn_CROSS);
+		m_cachedInputState.PS = getButtonState(m_cachedInputState.AllButtons, lastButtons, Btn_PS);
+		m_cachedInputState.L1 = getButtonState(m_cachedInputState.AllButtons, lastButtons, Btn_L1);
+		m_cachedInputState.L2 = getButtonState(m_cachedInputState.AllButtons, lastButtons, Btn_L2);
+		m_cachedInputState.L3 = getButtonState(m_cachedInputState.AllButtons, lastButtons, Btn_L3);
+
+		// Analog triggers
+		//###HipsterSloth $TODO Long term these should be floats of unit size
+		m_cachedInputState.Stick_XAxis = signedInt16ToUInt8(rawHIDPacket.JX);
+		m_cachedInputState.Stick_YAxis = signedInt16ToUInt8(rawHIDPacket.JY);
+		m_cachedInputState.Trigger = signedInt16ToUInt8(rawHIDPacket.Trigger);
+
+		// Can't report the true battery state
+		m_cachedInputState.Battery = CommonControllerState::Batt_MAX;
+
+		return IDeviceInterface::_PollResultSuccessNewData;
+	}
+	else
+	{
+		return IDeviceInterface::_PollResultFailure;
+	}
 }
 
 IControllerInterface::ePollResult
@@ -614,7 +886,7 @@ PSNaviController::pollGamepad()
 
 	if (gamepad != nullptr)
 	{
-		PSNaviControllerState newState;
+		PSNaviControllerInputState newState;
 
 		// Increment the sequence for every new polling packet
 		newState.PollSequenceNumber = NextPollSequenceNumber;
@@ -645,7 +917,7 @@ PSNaviController::pollGamepad()
 		setButtonBit(newState.AllButtons, Btn_PS, bIsPSPressed);
 
 		// Button de-bounce
-		unsigned int lastButtons = ControllerState.AllButtons;
+		unsigned int lastButtons = m_cachedInputState.AllButtons;
 		newState.DPad_Up = getButtonState(newState.AllButtons, lastButtons, Btn_UP);
 		newState.DPad_Down = getButtonState(newState.AllButtons, lastButtons, Btn_DOWN);
 		newState.DPad_Left = getButtonState(newState.AllButtons, lastButtons, Btn_LEFT);
@@ -666,7 +938,7 @@ PSNaviController::pollGamepad()
 		newState.Battery = CommonControllerState::Batt_MAX;
 
 		// Cache the newest controller state
-		ControllerState= newState;
+		m_cachedInputState= newState;
 	}
 	else
 	{
@@ -683,7 +955,9 @@ PSNaviController::pollUSB()
 	assert(!getIsBluetooth());
 
 	IControllerInterface::ePollResult poll_result;
-	int res = psnavi_read_usb_interrupt_pipe(APIContext->usb_device_handle, InBuffer, sizeof(InBuffer));
+    
+	PSNaviDataInputRawUSB InData;
+	int res = psnavi_read_usb_interrupt_pipe(APIContext->usb_device_handle, (unsigned char *)&InData, sizeof(PSNaviDataInputRawUSB));
 
 	if (res < 0)
 	{
@@ -695,59 +969,52 @@ PSNaviController::pollUSB()
 	}
 	else
 	{
-		parseInputData();
+		// https://github.com/nitsch/moveonpc/wiki/Input-report
+		PSNaviControllerInputState newState;
+		newState.clear();
+
+		// Increment the sequence for every new polling packet
+		newState.PollSequenceNumber = NextPollSequenceNumber;
+		++NextPollSequenceNumber;
+
+		// Buttons
+		newState.AllButtons =
+			(InData.buttons1) |               // |Left|Down|Right|Up|-|-|L3|-
+			(InData.buttons2 << 8) |          // |Cross|-|Circle|-|L1|-|-|L2|
+			((InData.buttons3 & 0x01) << 16); // |-|-|-|-|-|-|-|PS|
+
+		unsigned int lastButtons = m_cachedInputState.AllButtons;
+
+		newState.DPad_Up = getButtonState(newState.AllButtons, lastButtons, Btn_UP);
+		newState.DPad_Down = getButtonState(newState.AllButtons, lastButtons, Btn_DOWN);
+		newState.DPad_Left = getButtonState(newState.AllButtons, lastButtons, Btn_LEFT);
+		newState.DPad_Right = getButtonState(newState.AllButtons, lastButtons, Btn_RIGHT);
+		newState.Circle = getButtonState(newState.AllButtons, lastButtons, Btn_CIRCLE);
+		newState.Cross = getButtonState(newState.AllButtons, lastButtons, Btn_CROSS);
+		newState.PS = getButtonState(newState.AllButtons, lastButtons, Btn_PS);
+		newState.L1 = getButtonState(newState.AllButtons, lastButtons, Btn_L1);
+		newState.L2 = getButtonState(newState.AllButtons, lastButtons, Btn_L2);
+		newState.L3 = getButtonState(newState.AllButtons, lastButtons, Btn_L3);
+		newState.Trigger = InData.analog_l2;
+		newState.Stick_XAxis = InData.stick_xaxis;
+		newState.Stick_YAxis = InData.stick_yaxis;
+
+		// Other
+		newState.Battery = static_cast<CommonControllerState::BatteryLevel>(InData.battery);
+
+		// Cache the new controller state
+		m_cachedInputState= newState;
 		poll_result = IControllerInterface::_PollResultSuccessNewData;
 	}
 
 	return poll_result;
 }
 
-void 
-PSNaviController::parseInputData()
-{
-	PSNaviDataInput* InData = reinterpret_cast<PSNaviDataInput *>(InBuffer);
-
-	// https://github.com/nitsch/moveonpc/wiki/Input-report
-	PSNaviControllerState newState;
-
-	// Increment the sequence for every new polling packet
-	newState.PollSequenceNumber = NextPollSequenceNumber;
-	++NextPollSequenceNumber;
-
-	// Buttons
-	newState.AllButtons =
-		(InData->buttons1) |               // |Left|Down|Right|Up|-|-|L3|-
-		(InData->buttons2 << 8) |          // |Cross|-|Circle|-|L1|-|-|L2|
-		((InData->buttons3 & 0x01) << 16); // |-|-|-|-|-|-|-|PS|
-
-	unsigned int lastButtons = ControllerState.AllButtons;
-
-	newState.DPad_Up = getButtonState(newState.AllButtons, lastButtons, Btn_UP);
-	newState.DPad_Down = getButtonState(newState.AllButtons, lastButtons, Btn_DOWN);
-	newState.DPad_Left = getButtonState(newState.AllButtons, lastButtons, Btn_LEFT);
-	newState.DPad_Right = getButtonState(newState.AllButtons, lastButtons, Btn_RIGHT);
-	newState.Circle = getButtonState(newState.AllButtons, lastButtons, Btn_CIRCLE);
-	newState.Cross = getButtonState(newState.AllButtons, lastButtons, Btn_CROSS);
-	newState.PS = getButtonState(newState.AllButtons, lastButtons, Btn_PS);
-	newState.L1 = getButtonState(newState.AllButtons, lastButtons, Btn_L1);
-	newState.L2 = getButtonState(newState.AllButtons, lastButtons, Btn_L2);
-	newState.L3 = getButtonState(newState.AllButtons, lastButtons, Btn_L3);
-	newState.Trigger = InData->analog_l2;
-	newState.Stick_XAxis = InData->stick_xaxis;
-	newState.Stick_YAxis = InData->stick_yaxis;
-
-	// Other
-	newState.Battery = static_cast<CommonControllerState::BatteryLevel>(InData->battery);
-
-	// Cache the new controller state
-	ControllerState= newState;
-}
-
 const CommonDeviceState *
 PSNaviController::getState(
 	int lookBack) const
 {
-    return &ControllerState;
+    return &m_cachedInputState;
 }
 
 long 
@@ -790,7 +1057,7 @@ float PSNaviController::getPredictionTime() const
 
 bool PSNaviController::getWasSystemButtonPressed() const
 {
-    const PSNaviControllerState *psnavi_state= static_cast<const PSNaviControllerState *>(getState());
+    const PSNaviControllerInputState *psnavi_state= static_cast<const PSNaviControllerInputState *>(getState());
     bool bWasPressed= false;
 
     if (psnavi_state != nullptr)
@@ -872,6 +1139,15 @@ inline enum CommonControllerState::ButtonState
 getButtonState(unsigned int buttons, unsigned int lastButtons, int buttonMask)
 {
     return (enum CommonControllerState::ButtonState)((((lastButtons & buttonMask) > 0) << 1) + ((buttons & buttonMask)>0));
+}
+
+inline uint8_t signedInt16ToUInt8(const int16_t int16_value)
+{
+	const int32_t int32_value= (int32_t)int16_value;
+	const float unit_value= (float)(int32_value + 32767) / 65535.f;
+	const uint8_t uint8_value= (uint8_t)(unit_value * 255.f);
+
+	return uint8_value;
 }
 
 static int 
