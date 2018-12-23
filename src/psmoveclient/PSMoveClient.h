@@ -104,7 +104,7 @@ protected:
     // Message Helpers
     //-----------------
 	void process_event_message(const PSMEventMessage *event_message);
-    void enqueue_event_message(PSMEventMessage::eEventType event_type, ResponsePtr event);
+    void enqueue_event_message(PSMEventMessageType event_type, ResponsePtr event);
     bool execute_callback(const PSMResponseMessage *response_message);
     void enqueue_response_message(const PSMResponseMessage *response_message);
 

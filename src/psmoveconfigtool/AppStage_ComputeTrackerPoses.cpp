@@ -971,7 +971,7 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
     {
     case PSMResult_Success:
         {
-            assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_ControllerList);
+            assert(response_message->payload_type == PSMResponsePayloadType::_responsePayloadType_ControllerList);
             const PSMControllerList *controller_list = &response_message->payload.controller_list;
 
             if (thisPtr->m_overrideControllerId == -1)
@@ -1160,7 +1160,7 @@ void AppStage_ComputeTrackerPoses::handle_hmd_list_response(
     {
     case PSMResult_Success:
         {
-            assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_HmdList);
+            assert(response_message->payload_type == PSMResponsePayloadType::_responsePayloadType_HmdList);
             const PSMHmdList *hmd_list = &response_message->payload.hmd_list;
 
             if (thisPtr->m_overrideHmdId == -1)
@@ -1325,7 +1325,7 @@ void AppStage_ComputeTrackerPoses::handle_tracker_list_response(
     {
     case PSMResult_Success:
         {
-            assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_TrackerList);
+            assert(response_message->payload_type == PSMResponsePayloadType::_responsePayloadType_TrackerList);
             const PSMTrackerList &tracker_list = response_message->payload.tracker_list;
 
             for (int tracker_index = 0; tracker_index < tracker_list.count; ++tracker_index)

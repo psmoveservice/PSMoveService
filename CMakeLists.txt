@@ -5,6 +5,7 @@ include(ExternalProject)
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+include(cmake/CMakeUtils.cmake)
 include(cmake/Environment.cmake)
 include(cmake/Version.cmake)
 
@@ -20,6 +21,7 @@ include(cmake/Installer.cmake)
 
 # Step into the subdirectories
 add_subdirectory(src)
+add_subdirectory(bindings)
 
 # TODO: Move tests to root-level
 # TODO: CMakeLists for misc (matlab, python)

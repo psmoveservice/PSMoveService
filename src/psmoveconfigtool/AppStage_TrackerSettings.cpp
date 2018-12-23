@@ -557,14 +557,14 @@ void AppStage_TrackerSettings::renderUI()
 }
 
 bool AppStage_TrackerSettings::onClientAPIEvent(
-    PSMEventMessage::eEventType event, 
+    PSMEventMessageType event, 
     PSMEventDataHandle opaque_event_handle)
 {
     bool bHandled = false;
 
     switch (event)
     {
-    case  PSMEventMessage::PSMEvent_controllerListUpdated:
+    case  PSMEventMessageType::PSMEvent_controllerListUpdated:
         {
             bHandled = true;
             request_tracker_list();
@@ -597,7 +597,7 @@ void AppStage_TrackerSettings::handle_tracker_list_response(
     {
     case PSMResult_Success:
         {
-            assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_TrackerList);
+            assert(response_message->payload_type == PSMResponsePayloadType::_responsePayloadType_TrackerList);
             const PSMTrackerList &tracker_list= response_message->payload.tracker_list;
             int oldSelectedTrackerIndex= thisPtr->m_selectedTrackerIndex;
 

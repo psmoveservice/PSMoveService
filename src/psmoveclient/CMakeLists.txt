@@ -43,6 +43,7 @@ target_include_directories(PSMoveClient_static PUBLIC ${PSMOVE_CLIENT_INCL_DIRS}
 target_link_libraries(PSMoveClient_static PUBLIC ${PLATFORM_LIBS} ${PSMOVE_CLIENT_REQ_LIBS})
 target_compile_definitions(PSMoveClient_static PRIVATE PSMOVECLIENT_CPP_API)
 target_compile_definitions(PSMoveClient_static PRIVATE PSMoveClient_STATIC)
+set_target_properties(PSMoveClient_static PROPERTIES FOLDER Client)
 
 #
 # PSMoveClient_CAPI Shared library
@@ -67,6 +68,7 @@ target_link_libraries(PSMoveClient_CAPI PRIVATE ${PSMOVE_CLIENT_CAPI_REQ_LIBS})
 set_target_properties(PSMoveClient_CAPI PROPERTIES PUBLIC_HEADER "ClientConstants.h;ClientGeometry_CAPI.h;PSMoveClient_CAPI.h;PSMoveClient_export.h")
 set_target_properties(PSMoveClient_CAPI PROPERTIES CXX_VISIBILITY_PRESET hidden)
 set_target_properties(PSMoveClient_CAPI PROPERTIES C_VISIBILITY_PRESET hidden)
+set_target_properties(PSMoveClient_CAPI PROPERTIES FOLDER Client)
 
 # Install
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")

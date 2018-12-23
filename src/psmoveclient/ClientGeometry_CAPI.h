@@ -74,16 +74,19 @@ typedef struct
 	float zFar; 			///< far place distance of frustum, in cm
 } PSMFrustum;
 
+/// The types of tracking shapes supported in the \ref PSMTrackingProjection
+typedef enum
+{
+    PSMShape_INVALID_PROJECTION = -1,
+    PSMShape_Ellipse,					///< The 2D projection of a sphere (think conic sectioc)
+    PSMShape_LightBar,					///< The 2D projection of a 3D quad (bounding shape of DS4 lightbar) 
+	PSMShape_PointCloud					///< The 2D projection of a 3D point cloud (morpheus tracking lights)
+} PSMTrackingShapeType;
+
 /// The projection of a tracking shape onto the image plane of a tracker video feed
 typedef struct
 {
-    enum eShapeType
-    {
-        PSMShape_INVALID_PROJECTION = -1,
-        PSMShape_Ellipse,					///< The 2D projection of a sphere (think conic sectioc)
-        PSMShape_LightBar,					///< The 2D projection of a 3D quad (bounding shape of DS4 lightbar) 
-		PSMShape_PointCloud					///< The 2D projection of a 3D point cloud (morpheus tracking lights)
-    }                               shape_type;
+    PSMTrackingShapeType            shape_type;
     union{
         struct {
             PSMVector2f center;
@@ -107,7 +110,6 @@ typedef struct
 //----------
 
 // PSMVector2f Methods
-
 /// Adds two 2D vectors together
 PSM_PUBLIC_FUNCTION(PSMVector2f) PSM_Vector2fAdd(const PSMVector2f *a, const PSMVector2f *b);
 /// Subtracts one 2D vector from another 2D vector
@@ -276,27 +278,27 @@ PSM_PUBLIC_FUNCTION(float) PSM_TrackingProjectionGetArea(const PSMTrackingProjec
 
 //-- constants -----
 /// A 3D integer vector whose components are all 0
-PSM_PUBLIC_CLASS extern const PSMVector3i *k_psm_int_vector3_zero;
+PSM_PUBLIC_VARIABLE_DECL(const PSMVector3i *) k_psm_int_vector3_zero;
 /// A 3D float vector whose components are all 0.0f
-PSM_PUBLIC_CLASS extern const PSMVector3f *k_psm_float_vector3_zero;
+PSM_PUBLIC_VARIABLE_DECL(const PSMVector3f *) k_psm_float_vector3_zero;
 /// A 3D integer vector whose components are all 1
-PSM_PUBLIC_CLASS extern const PSMVector3i *k_psm_int_vector3_one;
+PSM_PUBLIC_VARIABLE_DECL(const PSMVector3i *) k_psm_int_vector3_one;
 /// A 3D float vector whose components are all 1.0f
-PSM_PUBLIC_CLASS extern const PSMVector3f *k_psm_float_vector3_one;
+PSM_PUBLIC_VARIABLE_DECL(const PSMVector3f *) k_psm_float_vector3_one;
 /// The 3D float vector <1.0f, 0.0f, 0.0f>
-PSM_PUBLIC_CLASS extern const PSMVector3f *k_psm_float_vector3_i;
+PSM_PUBLIC_VARIABLE_DECL(const PSMVector3f *) k_psm_float_vector3_i;
 /// The 3D float vector <0.0f, 1.0f, 0.0f>
-PSM_PUBLIC_CLASS extern const PSMVector3f *k_psm_float_vector3_j;
+PSM_PUBLIC_VARIABLE_DECL(const PSMVector3f *) k_psm_float_vector3_j;
 /// The 3D float vector <0.0f, 0.0f, 1.0f>
-PSM_PUBLIC_CLASS extern const PSMVector3f *k_psm_float_vector3_k;
+PSM_PUBLIC_VARIABLE_DECL(const PSMVector3f *) k_psm_float_vector3_k;
 /// A 3D float vector that represents the world origin <0.f, 0.f, 0.f>
-PSM_PUBLIC_CLASS extern const PSMVector3f *k_psm_position_origin;
+PSM_PUBLIC_VARIABLE_DECL(const PSMVector3f *) k_psm_position_origin;
 /// The quaterion <1.f, 0.f, 0.f, 0.f> that represents no rotation
-PSM_PUBLIC_CLASS extern const PSMQuatf *k_psm_quaternion_identity;
+PSM_PUBLIC_VARIABLE_DECL(const PSMQuatf *) k_psm_quaternion_identity;
 /// The 3x3 matrix that represent no transform (diagonal values 1.f, off diagonal values 0.f)
-PSM_PUBLIC_CLASS extern const PSMMatrix3f *k_psm_matrix_identity;
+PSM_PUBLIC_VARIABLE_DECL(const PSMMatrix3f *) k_psm_matrix_identity;
 /// The pose that represents no transformation (identity quaternion, zero vector)
-PSM_PUBLIC_CLASS extern const PSMPosef *k_psm_pose_identity;
+PSM_PUBLIC_VARIABLE_DECL(const PSMPosef *) k_psm_pose_identity;
 
 /** 
 @} 

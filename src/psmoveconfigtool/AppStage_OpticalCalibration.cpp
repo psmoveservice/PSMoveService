@@ -898,7 +898,7 @@ void AppStage_OpticalCalibration::handle_tracker_list_response(
 	{
 	case PSMResult_Success:
 		{
-			assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_TrackerList);
+			assert(response_message->payload_type == PSMResponsePayloadType::_responsePayloadType_TrackerList);
 			assert(!thisPtr->m_isControllerStreamActive);
 
 			// Save the controller list state (used in rendering)

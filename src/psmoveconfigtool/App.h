@@ -66,7 +66,7 @@ public:
     }
 
     template <class t_app_stage>
-    inline void registerEventFallbackAppStage(PSMEventMessage::eEventType event_type)
+    inline void registerEventFallbackAppStage(PSMEventMessageType event_type)
     {
         t_app_stage *app_stage= getAppStage<t_app_stage>();
         m_eventToFallbackAppStageMap.insert(t_app_stage_event_map_entry(event_type, app_stage));
@@ -112,8 +112,8 @@ private:
     typedef std::map<std::string, class AppStage *> t_app_stage_map;
     typedef std::pair<const char *, class AppStage *> t_app_stage_map_entry;
 
-    typedef std::map<PSMEventMessage::eEventType, class AppStage *> t_app_stage_event_map;
-    typedef std::pair<PSMEventMessage::eEventType, class AppStage *> t_app_stage_event_map_entry;
+    typedef std::map<PSMEventMessageType, class AppStage *> t_app_stage_event_map;
+    typedef std::pair<PSMEventMessageType, class AppStage *> t_app_stage_event_map_entry;
 
     t_app_stage_map m_nameToAppStageMap;
 

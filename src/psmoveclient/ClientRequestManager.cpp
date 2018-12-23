@@ -160,26 +160,26 @@ public:
                 } break;
 			case PSMoveProtocol::Response_ResponseType_SERVICE_VERSION:
                 build_service_version_response_message(response, &out_response_message->payload.service_version);
-                out_response_message->payload_type = PSMResponseMessage::_responsePayloadType_ServiceVersion;
+                out_response_message->payload_type = PSMResponsePayloadType::_responsePayloadType_ServiceVersion;
                 break;
             case PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST:
                 build_controller_list_response_message(response, &out_response_message->payload.controller_list);
-                out_response_message->payload_type = PSMResponseMessage::_responsePayloadType_ControllerList;
+                out_response_message->payload_type = PSMResponsePayloadType::_responsePayloadType_ControllerList;
                 break;
             case PSMoveProtocol::Response_ResponseType_TRACKER_LIST:
                 build_tracker_list_response_message(response, &out_response_message->payload.tracker_list);
-                out_response_message->payload_type = PSMResponseMessage::_responsePayloadType_TrackerList;
+                out_response_message->payload_type = PSMResponsePayloadType::_responsePayloadType_TrackerList;
                 break;
 			case PSMoveProtocol::Response_ResponseType_HMD_LIST:
 				build_hmd_list_response_message(response, &out_response_message->payload.hmd_list);
-				out_response_message->payload_type = PSMResponseMessage::_responsePayloadType_HmdList;
+				out_response_message->payload_type = PSMResponsePayloadType::_responsePayloadType_HmdList;
 				break;
 			case PSMoveProtocol::Response_ResponseType_TRACKING_SPACE_SETTINGS:
 				build_tracking_space_response_message(response, &out_response_message->payload.tracking_space);
-				out_response_message->payload_type = PSMResponseMessage::_responsePayloadType_TrackingSpace;
+				out_response_message->payload_type = PSMResponsePayloadType::_responsePayloadType_TrackingSpace;
 				break;
             default:
-                out_response_message->payload_type = PSMResponseMessage::_responsePayloadType_Empty;
+                out_response_message->payload_type = PSMResponsePayloadType::_responsePayloadType_Empty;
                 break;
             }
         }

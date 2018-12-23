@@ -208,14 +208,14 @@ void AppStage_PairController::renderUI()
 }
 
 bool AppStage_PairController::onClientAPIEvent(
-    PSMEventMessage::eEventType event, 
+    PSMEventMessageType event, 
     PSMEventDataHandle opaque_event_handle)
 {
     bool bHandled= false;
 
     switch(event)
     {
-    case PSMEventMessage::PSMEvent_opaqueServiceEvent:
+    case PSMEventMessageType::PSMEvent_opaqueServiceEvent:
         {
             const PSMoveProtocol::Response *event= GET_PSMOVEPROTOCOL_EVENT(opaque_event_handle);
 

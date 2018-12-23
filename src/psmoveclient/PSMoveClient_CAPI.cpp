@@ -64,7 +64,7 @@ public:
 		return m_response;
 	}
 
-	PSMResponseMessage::eResponsePayloadType get_response_payload_type() const
+	PSMResponsePayloadType get_response_payload_type() const
 	{
 		return m_response.payload_type;
 	}
@@ -235,7 +235,7 @@ PSMResult PSM_GetServiceVersionString(char *out_version_string, size_t max_versi
 
         if (result_code == PSMResult_Success)
         {
-            assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_ServiceVersion);
+            assert(request.get_response_payload_type() == PSMResponsePayloadType::_responsePayloadType_ServiceVersion);
         
 		    const char* version_string= request.get_response_message().payload.service_version.version_string;
 		    strncpy(out_version_string, version_string, max_version_string);
@@ -342,7 +342,7 @@ PSMResult PSM_GetControllerList(PSMControllerList *out_controller_list, int time
 
     if (g_psm_client != nullptr && result_code == PSMResult_Success)
     {
-        assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_ControllerList);
+        assert(request.get_response_payload_type() == PSMResponsePayloadType::_responsePayloadType_ControllerList);
         
         *out_controller_list= request.get_response_message().payload.controller_list;
         result_code= PSMResult_Success;
@@ -1115,7 +1115,7 @@ PSMResult PSM_GetTrackerList(PSMTrackerList *out_tracker_list, int timeout_ms)
 
         if (result_code == PSMResult_Success)
         {
-            assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_TrackerList);
+            assert(request.get_response_payload_type() == PSMResponsePayloadType::_responsePayloadType_TrackerList);
         
             *out_tracker_list= request.get_response_message().payload.tracker_list;
             result_code= PSMResult_Success;
@@ -1164,7 +1164,7 @@ PSMResult PSM_GetTrackingSpaceSettings(PSMTrackingSpace *out_tracking_space, int
 
         if (result_code == PSMResult_Success)
         {
-            assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_TrackingSpace);
+            assert(request.get_response_payload_type() == PSMResponsePayloadType::_responsePayloadType_TrackingSpace);
         
             *out_tracking_space= request.get_response_message().payload.tracking_space;
             result_code= PSMResult_Success;
@@ -1659,7 +1659,7 @@ PSMResult PSM_GetHmdList(PSMHmdList *out_hmd_list, int timeout_ms)
 
         if (result_code == PSMResult_Success)
         {
-            assert(request.get_response_payload_type() == PSMResponseMessage::_responsePayloadType_HmdList);
+            assert(request.get_response_payload_type() == PSMResponsePayloadType::_responsePayloadType_HmdList);
         
             *out_hmd_list= request.get_response_message().payload.hmd_list;
             result_code= PSMResult_Success;

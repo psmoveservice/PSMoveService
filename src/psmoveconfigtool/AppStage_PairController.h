@@ -28,7 +28,7 @@ public:
 
 protected:
     virtual bool onClientAPIEvent(
-        PSMEventMessage::eEventType event, 
+        PSMEventMessageType event, 
         PSMEventDataHandle opaque_event_handle) override;
 
     static void handle_controller_unpair_start_response(

@@ -94,7 +94,7 @@ public:
 
 protected:
     virtual bool onClientAPIEvent(
-        PSMEventMessage::eEventType event, 
+        PSMEventMessageType event, 
         PSMEventDataHandle opaque_event_handle) override;
 
     void request_controller_list();

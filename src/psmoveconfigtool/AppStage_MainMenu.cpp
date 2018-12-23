@@ -27,7 +27,7 @@ AppStage_MainMenu::AppStage_MainMenu(App *app)
 bool AppStage_MainMenu::init(int argc, char** argv)
 {
     // Always fallback to the main menu on disconnection
-    m_app->registerEventFallbackAppStage<AppStage_MainMenu>(PSMEventMessage::PSMEvent_disconnectedFromService);
+    m_app->registerEventFallbackAppStage<AppStage_MainMenu>(PSMEventMessageType::PSMEvent_disconnectedFromService);
 
     return true;
 }
@@ -164,28 +164,28 @@ void AppStage_MainMenu::renderUI()
 }
 
 bool AppStage_MainMenu::onClientAPIEvent(
-    PSMEventMessage::eEventType event, 
+    PSMEventMessageType event, 
     PSMEventDataHandle opaque_event_handle)
 {
     bool bHandeled= false;
 
     switch(event)
     {
-    case PSMEventMessage::PSMEvent_connectedToService:
+    case PSMEventMessageType::PSMEvent_connectedToService:
         {
             // Allow the user to access the menu now
             m_menuState= AppStage_MainMenu::connectedToService;
             bHandeled= true;
         } break;
 
-    case PSMEventMessage::PSMEvent_failedToConnectToService:
+    case PSMEventMessageType::PSMEvent_failedToConnectToService:
         {
             // Tell the user that the connection attempt failed
             m_menuState= AppStage_MainMenu::failedConnectionToService;
             bHandeled= true;
         } break;
 
-    case PSMEventMessage::PSMEvent_disconnectedFromService:
+    case PSMEventMessageType::PSMEvent_disconnectedFromService:
         {
             // Tell the user that we failed to connect
             m_menuState= AppStage_MainMenu::disconnectedFromService;

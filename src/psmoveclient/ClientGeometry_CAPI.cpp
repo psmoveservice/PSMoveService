@@ -6,37 +6,37 @@
 
 //-- constants -----
 const PSMVector3f g_psm_float_vector3_zero= {0.f, 0.f, 0.f};
-const PSMVector3f *k_psm_float_vector3_zero= &g_psm_float_vector3_zero;
+PSM_PUBLIC_VARIABLE_DEF(const PSMVector3f *) k_psm_float_vector3_zero= &g_psm_float_vector3_zero;
 
 const PSMVector3f g_psm_float_vector3_one= {1.f, 1.f, 1.f};
-const PSMVector3f *k_psm_float_vector3_one= &g_psm_float_vector3_one;
+PSM_PUBLIC_VARIABLE_DEF(const PSMVector3f *) k_psm_float_vector3_one= &g_psm_float_vector3_one;
 
 const PSMVector3f g_psm_float_vector3_i = { 1.f, 0.f, 0.f };
-const PSMVector3f *k_psm_float_vector3_i = &g_psm_float_vector3_i;
+PSM_PUBLIC_VARIABLE_DEF(const PSMVector3f *) k_psm_float_vector3_i = &g_psm_float_vector3_i;
 
 const PSMVector3f g_psm_float_vector3_j = { 0.f, 1.f, 0.f };
-const PSMVector3f *k_psm_float_vector3_j = &g_psm_float_vector3_j;
+PSM_PUBLIC_VARIABLE_DEF(const PSMVector3f *) k_psm_float_vector3_j = &g_psm_float_vector3_j;
 
 const PSMVector3f g_psm_float_vector3_k = { 0.f, 0.f, 1.f };
-const PSMVector3f *k_psm_float_vector3_k = &g_psm_float_vector3_k;
+PSM_PUBLIC_VARIABLE_DEF(const PSMVector3f *) k_psm_float_vector3_k = &g_psm_float_vector3_k;
 
 const PSMVector3i g_psm_int_vector3_zero= {0, 0, 0};
-const PSMVector3i *k_psm_int_vector3_zero= &g_psm_int_vector3_zero;
+PSM_PUBLIC_VARIABLE_DEF(const PSMVector3i *) k_psm_int_vector3_zero= &g_psm_int_vector3_zero;
 
 const PSMVector3i g_psm_int_vector3_one= {1, 1, 1};
-const PSMVector3i *k_psm_int_vector3_one= &g_psm_int_vector3_one;
+PSM_PUBLIC_VARIABLE_DEF(const PSMVector3i *) k_psm_int_vector3_one= &g_psm_int_vector3_one;
 
 const PSMVector3f g_psm_position_origin= {0.f, 0.f, 0.f};
-const PSMVector3f *k_psm_position_origin= &g_psm_position_origin;
+PSM_PUBLIC_VARIABLE_DEF(const PSMVector3f *) k_psm_position_origin= &g_psm_position_origin;
 
 const PSMQuatf g_psm_quaternion_identity= {1.f, 0.f, 0.f, 0.f};
-const PSMQuatf *k_psm_quaternion_identity= &g_psm_quaternion_identity;
+PSM_PUBLIC_VARIABLE_DEF(const PSMQuatf *) k_psm_quaternion_identity= &g_psm_quaternion_identity;
 
 const PSMMatrix3f g_psm_matrix_identity = { {{1.f, 0.f, 0.f} , {0.f, 1.f, 0.f}, {0.f, 0.f, 1.f}} };
-const PSMMatrix3f *k_psm_matrix_identity = &g_psm_matrix_identity;
+PSM_PUBLIC_VARIABLE_DEF(const PSMMatrix3f *) k_psm_matrix_identity = &g_psm_matrix_identity;
 
 const PSMPosef g_psm_pose_identity = { g_psm_position_origin, g_psm_quaternion_identity };
-const PSMPosef *k_psm_pose_identity = &g_psm_pose_identity;
+PSM_PUBLIC_VARIABLE_DEF(const PSMPosef *) k_psm_pose_identity = &g_psm_pose_identity;
 
 //-- methods -----
 // PSMVector2f Methods
@@ -501,11 +501,11 @@ float PSM_TrackingProjectionGetArea(const PSMTrackingProjection *proj)
 
 	switch (proj->shape_type)
 	{
-	case PSMTrackingProjection::PSMShape_Ellipse:
+	case PSMTrackingShapeType::PSMShape_Ellipse:
 		{
 			area = k_real_pi*proj->shape.ellipse.half_x_extent*proj->shape.ellipse.half_y_extent;
 		} break;
-	case PSMTrackingProjection::PSMShape_LightBar:
+	case PSMTrackingShapeType::PSMShape_LightBar:
 		{
 			PSMVector2f edge1 = PSM_Vector2fSubtract(&proj->shape.lightbar.quad[0], &proj->shape.lightbar.quad[1]);
 			PSMVector2f edge2 = PSM_Vector2fSubtract(&proj->shape.lightbar.quad[0], &proj->shape.lightbar.quad[3]);

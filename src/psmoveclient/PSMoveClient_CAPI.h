@@ -527,23 +527,26 @@ typedef struct
 // Service Events
 //------------------
 
+/// The list of possible client event message types
+typedef enum
+{
+	// Client Events
+	PSMEvent_connectedToService,
+	PSMEvent_failedToConnectToService,
+	PSMEvent_disconnectedFromService,
+
+	// Service Events
+	PSMEvent_opaqueServiceEvent, // Need to have protocol access to see what kind of event this is
+	PSMEvent_controllerListUpdated,
+	PSMEvent_trackerListUpdated,
+	PSMEvent_hmdListUpdated,
+	PSMEvent_systemButtonPressed
+} PSMEventMessageType;
+
 /// A container for all PSMoveService events
 typedef struct
 {
-    enum eEventType
-    {
-        // Client Events
-        PSMEvent_connectedToService,
-        PSMEvent_failedToConnectToService,
-        PSMEvent_disconnectedFromService,
-
-        // Service Events
-        PSMEvent_opaqueServiceEvent, // Need to have protocol access to see what kind of event this is
-        PSMEvent_controllerListUpdated,
-        PSMEvent_trackerListUpdated,
-        PSMEvent_hmdListUpdated,
-        PSMEvent_systemButtonPressed
-    } event_type;
+    PSMEventMessageType event_type;
 
     /// Opaque handle that can be converted to a <const PSMoveProtocol::Response *> pointer
     /// using GET_PSMOVEPROTOCOL_EVENT(handle) if you linked against the PSMoveProtocol lib.
@@ -592,6 +595,19 @@ typedef struct
     float global_forward_degrees;
 } PSMTrackingSpace;
 
+/// Type of responses sent for requests to PSMoveService
+typedef enum 
+{
+    _responsePayloadType_Empty,
+	_responsePayloadType_ServiceVersion,
+    _responsePayloadType_ControllerList,
+    _responsePayloadType_TrackerList,
+    _responsePayloadType_TrackingSpace,
+	_responsePayloadType_HmdList,
+
+    _responsePayloadType_Count
+} PSMResponsePayloadType;
+
 /// A contrainer for all possible responses to requests sent from PSMoveService
 typedef struct
 {
@@ -620,17 +636,7 @@ typedef struct
     } payload;
 
 	/// Type of response sent from PSMoveService
-    enum eResponsePayloadType
-    {
-        _responsePayloadType_Empty,
-		_responsePayloadType_ServiceVersion,
-        _responsePayloadType_ControllerList,
-        _responsePayloadType_TrackerList,
-        _responsePayloadType_TrackingSpace,
-		_responsePayloadType_HmdList,
-
-        _responsePayloadType_Count
-    } payload_type;
+    PSMResponsePayloadType payload_type;
 } PSMResponseMessage;
 
 /// Registered response callback function for a PSMoveService request
@@ -638,6 +644,15 @@ typedef void(*PSMResponseCallback)(const PSMResponseMessage *response, void *use
 
 // Message Container
 //------------------
+
+/// The types of messages sent from PSMoveService
+typedef enum 
+{
+    _messagePayloadType_Event,
+    _messagePayloadType_Response,
+
+    _messagePayloadType_Count
+} PSMMessageType;
 
 /// Message container for responses and events sent from PSMoveService
 typedef struct
@@ -647,13 +662,7 @@ typedef struct
         PSMResponseMessage response_data;	///< Response sent from PSMoveService` in reply to a request 
     };
 
-    enum eMessagePayloadType
-    {
-        _messagePayloadType_Event,
-        _messagePayloadType_Response,
-
-        _messagePayloadType_Count
-    } payload_type;
+    PSMMessageType payload_type;
 } PSMMessage;
 
 // Interface

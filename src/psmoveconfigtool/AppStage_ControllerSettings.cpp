@@ -746,14 +746,14 @@ void AppStage_ControllerSettings::renderUI()
 }
 
 bool AppStage_ControllerSettings::onClientAPIEvent(
-    PSMEventMessage::eEventType event, 
+    PSMEventMessageType event, 
     PSMEventDataHandle opaque_event_handle)
 {
     bool bHandled= false;
 
     switch(event)
     {
-    case PSMEventMessage::PSMEvent_controllerListUpdated:
+    case PSMEventMessageType::PSMEvent_controllerListUpdated:
         {
             bHandled= true;
             request_controller_list();

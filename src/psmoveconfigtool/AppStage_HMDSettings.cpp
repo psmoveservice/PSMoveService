@@ -392,14 +392,14 @@ void AppStage_HMDSettings::renderUI()
 }
 
 bool AppStage_HMDSettings::onClientAPIEvent(
-    PSMEventMessage::eEventType event, 
+    PSMEventMessageType event, 
     PSMEventDataHandle opaque_event_handle)
 {
     bool bHandled = false;
 
     switch (event)
     {
-    case PSMEventMessage::PSMEvent_hmdListUpdated:
+    case PSMEventMessageType::PSMEvent_hmdListUpdated:
         {
             bHandled = true;
             request_hmd_list();

@@ -17,7 +17,7 @@ public:
     virtual void renderUI() override;
 
     virtual bool onClientAPIEvent(
-        PSMEventMessage::eEventType event, 
+        PSMEventMessageType event, 
         PSMEventDataHandle opaque_event_handle) override;
 
     static const char *APP_STAGE_NAME;

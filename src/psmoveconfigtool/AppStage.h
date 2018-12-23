@@ -21,7 +21,7 @@ public:
 
     virtual void onKeyDown(int keyCode) {}
     virtual bool onClientAPIEvent(
-        PSMEventMessage::eEventType event, 
+        PSMEventMessageType event, 
         PSMEventDataHandle opaque_event_handle) 
     { return false; }
     virtual void onServiceResponse(PSMResult ResultCode) {}

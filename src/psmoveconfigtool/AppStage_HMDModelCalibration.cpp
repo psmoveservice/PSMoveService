@@ -981,7 +981,7 @@ void AppStage_HMDModelCalibration::handle_hmd_list_response(
 	{
 	case PSMResult_Success:
 	{
-		assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_HmdList);
+		assert(response_message->payload_type == PSMResponsePayloadType::_responsePayloadType_HmdList);
 		const PSMHmdList *hmd_list = &response_message->payload.hmd_list;
 
 		int trackedHmdId = thisPtr->m_overrideHmdId;
@@ -1095,7 +1095,7 @@ void AppStage_HMDModelCalibration::handle_tracker_list_response(
 	{
 	case PSMResult_Success:
 	{
-		assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_TrackerList);
+		assert(response_message->payload_type == PSMResponsePayloadType::_responsePayloadType_TrackerList);
 		const PSMTrackerList &tracker_list = response_message->payload.tracker_list;
 		
 		if (thisPtr->setup_tracker_pair(tracker_list))
@@ -1398,8 +1398,8 @@ static bool triangulateHMDProjections(
 			PSM_GetHmdProjectionOnTracker(hmd_view->HmdID, TrackerViewA->tracker_info.tracker_id, &trackingProjectionA) &&
 			PSM_GetHmdProjectionOnTracker(hmd_view->HmdID, TrackerViewB->tracker_info.tracker_id, &trackingProjectionB))
 		{
-			assert(trackingProjectionA.shape_type == PSMTrackingProjection::PSMShape_PointCloud);
-			assert(trackingProjectionB.shape_type == PSMTrackingProjection::PSMShape_PointCloud);
+			assert(trackingProjectionA.shape_type == PSMTrackingShapeType::PSMShape_PointCloud);
+			assert(trackingProjectionB.shape_type == PSMTrackingShapeType::PSMShape_PointCloud);
 
 			const PSMVector2f *pointsA = trackingProjectionA.shape.pointcloud.points;
 			const PSMVector2f *pointsB = trackingProjectionB.shape.pointcloud.points;

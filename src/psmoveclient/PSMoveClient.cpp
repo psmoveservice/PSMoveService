@@ -369,11 +369,11 @@ void PSMoveClient::process_messages()
     {
         switch(message.payload_type)
         {
-            case PSMMessage::_messagePayloadType_Event:
+            case PSMMessageType::_messagePayloadType_Event:
                 // Only handle events
                 process_event_message(&message.event_data);
                 break;
-            case PSMMessage::_messagePayloadType_Response:
+            case PSMMessageType::_messagePayloadType_Response:
                 // Any response that didn't get a callback executed get dropped on the floor
                 CLIENT_LOG_INFO("process_messages") << "Dropping response to request id: " << message.response_data.request_id;
                 break;
@@ -1453,13 +1453,13 @@ static void applyPSMoveDataFrame(
 			projection.shape.ellipse.half_x_extent = protocolEllipse.half_x_extent();
 			projection.shape.ellipse.half_y_extent = protocolEllipse.half_y_extent();
 			projection.shape.ellipse.angle = protocolEllipse.angle();
-			projection.shape_type = PSMTrackingProjection::PSMShape_Ellipse;
+			projection.shape_type = PSMTrackingShapeType::PSMShape_Ellipse;
 		}
         else
 		{
 			PSMTrackingProjection &projection = psmove->RawTrackerData.TrackingProjection;
 
-			projection.shape_type = PSMTrackingProjection::PSMShape_INVALID_PROJECTION;
+			projection.shape_type = PSMTrackingShapeType::PSMShape_INVALID_PROJECTION;
 		}
 
 
@@ -1634,7 +1634,7 @@ static void applyDualShock4DataFrame(
             PSMTrackingProjection &projection = ds4->RawTrackerData.TrackingProjection;
 
             assert (protocolPolygon.vertices_size() == 7);
-            projection.shape_type = PSMTrackingProjection::PSMShape_LightBar;
+            projection.shape_type = PSMTrackingShapeType::PSMShape_LightBar;
 
             for (int vert_index = 0; vert_index < 3; ++vert_index)
             {
@@ -1655,7 +1655,7 @@ static void applyDualShock4DataFrame(
 		{
 			PSMTrackingProjection &projection = ds4->RawTrackerData.TrackingProjection;
 
-			projection.shape_type = PSMTrackingProjection::PSMShape_INVALID_PROJECTION;
+			projection.shape_type = PSMTrackingShapeType::PSMShape_INVALID_PROJECTION;
 		}
 
 		if (raw_tracker_data.has_multicam_position_cm())
@@ -1805,13 +1805,13 @@ static void applyVirtualControllerDataFrame(
 			projection.shape.ellipse.half_x_extent = protocolEllipse.half_x_extent();
 			projection.shape.ellipse.half_y_extent = protocolEllipse.half_y_extent();
 			projection.shape.ellipse.angle = protocolEllipse.angle();
-			projection.shape_type = PSMTrackingProjection::PSMShape_Ellipse;
+			projection.shape_type = PSMTrackingShapeType::PSMShape_Ellipse;
 		}
 		else
 		{
 			PSMTrackingProjection &projection = virtual_controller->RawTrackerData.TrackingProjection;
 
-			projection.shape_type = PSMTrackingProjection::PSMShape_INVALID_PROJECTION;
+			projection.shape_type = PSMTrackingShapeType::PSMShape_INVALID_PROJECTION;
 		}
 
 		if (raw_tracker_data.has_multicam_position_cm())
@@ -2014,13 +2014,13 @@ static void applyMorpheusDataFrame(
 				projection.shape.pointcloud.points[point_index].x = point.x();
 				projection.shape.pointcloud.points[point_index].y = point.y();
 			}					
-			projection.shape_type = PSMTrackingProjection::PSMShape_PointCloud;
+			projection.shape_type = PSMTrackingShapeType::PSMShape_PointCloud;
 		}
 		else
 		{
 			PSMTrackingProjection &projection = morpheus->RawTrackerData.TrackingProjection;
 
-			projection.shape_type = PSMTrackingProjection::PSMShape_INVALID_PROJECTION;
+			projection.shape_type = PSMTrackingShapeType::PSMShape_INVALID_PROJECTION;
 		}
 	}
 	else
@@ -2096,13 +2096,13 @@ static void applyVirtualHMDDataFrame(
 			projection.shape.ellipse.half_x_extent = protocolEllipse.half_x_extent();
 			projection.shape.ellipse.half_y_extent = protocolEllipse.half_y_extent();
 			projection.shape.ellipse.angle = protocolEllipse.angle();
-			projection.shape_type = PSMTrackingProjection::PSMShape_Ellipse;
+			projection.shape_type = PSMTrackingShapeType::PSMShape_Ellipse;
 		}
 		else
 		{
 			PSMTrackingProjection &projection = virtualHMD->RawTrackerData.TrackingProjection;
 
-			projection.shape_type = PSMTrackingProjection::PSMShape_INVALID_PROJECTION;
+			projection.shape_type = PSMTrackingShapeType::PSMShape_INVALID_PROJECTION;
 		}
 	}
 	else
@@ -2141,22 +2141,22 @@ void PSMoveClient::handle_notification(ResponsePtr notification)
 {
     assert(notification->request_id() == -1);
 
-    PSMEventMessage::eEventType specificEventType= PSMEventMessage::PSMEvent_opaqueServiceEvent;
+    PSMEventMessageType specificEventType= PSMEventMessageType::PSMEvent_opaqueServiceEvent;
 
     // See if we can translate this to an event type a client without protocol access can see
     switch(notification->type())
     {
     case PSMoveProtocol::Response_ResponseType_CONTROLLER_LIST_UPDATED:
-        specificEventType= PSMEventMessage::PSMEvent_controllerListUpdated;
+        specificEventType= PSMEventMessageType::PSMEvent_controllerListUpdated;
         break;
     case PSMoveProtocol::Response_ResponseType_TRACKER_LIST_UPDATED:
-        specificEventType = PSMEventMessage::PSMEvent_trackerListUpdated;
+        specificEventType = PSMEventMessageType::PSMEvent_trackerListUpdated;
         break;
     case PSMoveProtocol::Response_ResponseType_HMD_LIST_UPDATED:
-        specificEventType = PSMEventMessage::PSMEvent_hmdListUpdated;
+        specificEventType = PSMEventMessageType::PSMEvent_hmdListUpdated;
         break;
 	case PSMoveProtocol::Response_ResponseType_SYSTEM_BUTTON_PRESSED:
-		specificEventType = PSMEventMessage::PSMEvent_systemButtonPressed;
+		specificEventType = PSMEventMessageType::PSMEvent_systemButtonPressed;
 		break;
     }
 
@@ -2168,21 +2168,21 @@ void PSMoveClient::handle_server_connection_opened()
 {
     CLIENT_LOG_INFO("handle_server_connection_opened") << "Connected to service" << std::endl;
 
-    enqueue_event_message(PSMEventMessage::PSMEvent_connectedToService, ResponsePtr());
+    enqueue_event_message(PSMEventMessageType::PSMEvent_connectedToService, ResponsePtr());
 }
 
 void PSMoveClient::handle_server_connection_open_failed(const boost::system::error_code& ec)
 {
     CLIENT_LOG_ERROR("handle_server_connection_open_failed") << "Failed to connect to service: " << ec.message() << std::endl;
 
-    enqueue_event_message(PSMEventMessage::PSMEvent_failedToConnectToService, ResponsePtr());
+    enqueue_event_message(PSMEventMessageType::PSMEvent_failedToConnectToService, ResponsePtr());
 }
 
 void PSMoveClient::handle_server_connection_closed()
 {
     CLIENT_LOG_INFO("handle_server_connection_closed") << "Disconnected from service" << std::endl;
 
-    enqueue_event_message(PSMEventMessage::PSMEvent_disconnectedFromService, ResponsePtr());
+    enqueue_event_message(PSMEventMessageType::PSMEvent_disconnectedFromService, ResponsePtr());
 }
 
 void PSMoveClient::handle_server_connection_close_failed(const boost::system::error_code& ec)
@@ -2223,34 +2223,34 @@ void PSMoveClient::process_event_message(
     switch (event_message->event_type)
     {
     // Client Events
-    case PSMEventMessage::PSMEvent_connectedToService:
+    case PSMEventMessageType::PSMEvent_connectedToService:
         m_bIsConnected= true;
         m_bHasConnectionStatusChanged= true;
         break;
-    case PSMEventMessage::PSMEvent_failedToConnectToService:
+    case PSMEventMessageType::PSMEvent_failedToConnectToService:
         m_bIsConnected= false;
         m_bHasConnectionStatusChanged= true;
         break;
-    case PSMEventMessage::PSMEvent_disconnectedFromService:
+    case PSMEventMessageType::PSMEvent_disconnectedFromService:
         m_bIsConnected= false;
         m_bHasConnectionStatusChanged= true;
         break;
 
     // Service Events
-    case PSMEventMessage::PSMEvent_opaqueServiceEvent:
+    case PSMEventMessageType::PSMEvent_opaqueServiceEvent:
         // Need to have protocol access to see what kind of event this is
         CLIENT_LOG_INFO("PSM_Update") << "Dropping opaque service event";
         break;
-    case PSMEventMessage::PSMEvent_controllerListUpdated:
+    case PSMEventMessageType::PSMEvent_controllerListUpdated:
         m_bHasControllerListChanged= true;
         break;
-    case PSMEventMessage::PSMEvent_trackerListUpdated:
+    case PSMEventMessageType::PSMEvent_trackerListUpdated:
         m_bHasTrackerListChanged= true;
         break;
-    case PSMEventMessage::PSMEvent_hmdListUpdated:
+    case PSMEventMessageType::PSMEvent_hmdListUpdated:
         m_bHasHMDListChanged= true;
         break;
-    case PSMEventMessage::PSMEvent_systemButtonPressed:
+    case PSMEventMessageType::PSMEvent_systemButtonPressed:
         m_bWasSystemButtonPressed= true;
         break;
     default:
@@ -2260,13 +2260,13 @@ void PSMoveClient::process_event_message(
 }
 
 void PSMoveClient::enqueue_event_message(
-    PSMEventMessage::eEventType event_type,
+    PSMEventMessageType event_type,
     ResponsePtr event)
 {
     PSMMessage message;
 
     memset(&message, 0, sizeof(PSMMessage));
-    message.payload_type = PSMMessage::_messagePayloadType_Event;
+    message.payload_type = PSMMessageType::_messagePayloadType_Event;
     message.event_data.event_type= event_type;
 
     // Maintain a reference to the event until the next update
@@ -2352,7 +2352,7 @@ void PSMoveClient::enqueue_response_message(
     PSMMessage message;
 
     memset(&message, 0, sizeof(PSMMessage));
-    message.payload_type = PSMMessage::_messagePayloadType_Response;
+    message.payload_type = PSMMessageType::_messagePayloadType_Response;
     message.response_data= *response_message;
 
     // Add the message to the message queue
@@ -2378,7 +2378,7 @@ bool PSMoveClient::cancel_callback(PSMRequestID request_id)
                 memset(&response, 0, sizeof(PSMResponseMessage));
                 response.result_code= PSMResult_Canceled;
                 response.request_id= request_id;
-                response.payload_type= PSMResponseMessage::_responsePayloadType_HmdList;
+                response.payload_type= PSMResponsePayloadType::_responsePayloadType_HmdList;
                 pendingRequest.response_callback(&response, pendingRequest.response_userdata);
             }
             m_pending_request_map.erase(iter);

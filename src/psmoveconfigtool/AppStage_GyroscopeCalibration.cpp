@@ -697,7 +697,7 @@ void AppStage_GyroscopeCalibration::handle_tracking_space_settings_response(
 			const AppStage_ControllerSettings::ControllerInfo *controllerInfo =
 				controllerSettings->getSelectedControllerInfo();
 
-			assert(response_message->payload_type == PSMResponseMessage::_responsePayloadType_TrackingSpace);
+			assert(response_message->payload_type == PSMResponsePayloadType::_responsePayloadType_TrackingSpace);
 
 			// Save the tracking space settings (used in rendering)
 			thisPtr->m_global_forward_degrees = response_message->payload.tracking_space.global_forward_degrees;

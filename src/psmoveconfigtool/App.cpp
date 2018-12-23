@@ -306,7 +306,7 @@ void App::onSDLEvent(const SDL_Event &e)
 void App::onClientPSMoveEvent(
     const PSMEventMessage *event)
 {
-    PSMEventMessage::eEventType event_type = event->event_type;
+    PSMEventMessageType event_type = event->event_type;
     PSMEventDataHandle opaque_event_handle = event->event_data_handle;
 
     // Try giving the event to the current AppStage first
@@ -350,10 +350,10 @@ void App::update()
 		{
 			switch (message.payload_type)
 			{
-			case PSMMessage::_messagePayloadType_Response:
+			case PSMMessageType::_messagePayloadType_Response:
 				onClientPSMoveResponse(&message.response_data);
 				break;
-			case PSMMessage::_messagePayloadType_Event:
+			case PSMMessageType::_messagePayloadType_Event:
 				onClientPSMoveEvent(&message.event_data);
 				break;
 			}

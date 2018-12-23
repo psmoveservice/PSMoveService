@@ -50,6 +50,19 @@ ELSE()
     find_package(Eigen3 REQUIRED)
 ENDIF()
 
+# SWIG
+set(SWIG_VERSION "3.0.12")
+IF(NOT SWIG_FOUND)
+    IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+        # Download and install pre-compiled SWIG for Windows into deps folder
+        set(SWIG_DOWNLOAD_URL "http://downloads.sourceforge.net/project/swig/swigwin/swigwin-${SWIG_VERSION}/swigwin-${SWIG_VERSION}.zip")
+        build_external_project(swig ${ROOT_DIR}/deps ${SWIG_DOWNLOAD_URL})
+        LIST(APPEND CMAKE_PROGRAM_PATH  "${ROOT_DIR}/deps/swig/src/swig/")
+        find_package(SWIG REQUIRED)        
+    ELSE()
+        find_package(SWIG QUIET)
+    ENDIF()
+ENDIF(NOT SWIG_FOUND)
 
 # OpenCV
 # Override by adding "-DOpenCV_DIR=C:\path\to\opencv\build" to your cmake command
