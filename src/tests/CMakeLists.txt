@@ -601,3 +601,43 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     #target_link_libraries(test_hidapi_sierra /usr/local/opt/hidapi/lib/libhidapi.dylib)
     SET_TARGET_PROPERTIES(test_hidapi_sierra PROPERTIES FOLDER Test)
 ENDIF()
+
+#
+# Test C# language bindings in Windows
+#
+
+add_executable(test_console_csharp
+  ${ROOT_DIR}/src/tests/test_console_csharp/App.config
+  ${ROOT_DIR}/src/tests/test_console_csharp/Program.cs   
+  ${ROOT_DIR}/src/tests/test_console_csharp/Properties/AssemblyInfo.cs)
+target_link_libraries(test_console_csharp PSMoveClient_csharp)
+  
+set_property(TARGET test_console_csharp PROPERTY FOLDER Test)    
+set_property(TARGET test_console_csharp PROPERTY VS_DOTNET_TARGET_FRAMEWORK_VERSION "v4.6.1")
+set_property(TARGET test_console_csharp PROPERTY WIN32_EXECUTABLE FALSE)
+set_property(TARGET test_console_csharp PROPERTY LINK_FLAGS_DEBUG "/SUBSYSTEM:CONSOLE")
+set_property(TARGET test_console_csharp PROPERTY COMPILE_DEFINITIONS_DEBUG "_CONSOLE")
+set_property(TARGET test_console_csharp PROPERTY LINK_FLAGS_RELWITHDEBINFO "/SUBSYSTEM:CONSOLE")
+set_property(TARGET test_console_csharp PROPERTY COMPILE_DEFINITIONS_RELWITHDEBINFO "_CONSOLE")
+set_property(TARGET test_console_csharp PROPERTY LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDOWS")
+set_property(TARGET test_console_csharp PROPERTY LINK_FLAGS_MINSIZEREL "/SUBSYSTEM:WINDOWS")
+set_property(TARGET test_console_csharp PROPERTY VS_DOTNET_REFERENCES
+  "System"
+  "System.Core"
+  "System.Xml.Linq"
+  "System.Data.DataSetExtensions"
+  "Microsoft.CSharp"
+  "System.Data"
+  "System.Net.Http"
+  "System.Xml")
+
+install(TARGETS test_console_csharp
+    CONFIGURATIONS Debug
+    RUNTIME DESTINATION ${PSM_DEBUG_INSTALL_PATH}/bin
+    LIBRARY DESTINATION ${PSM_DEBUG_INSTALL_PATH}/lib
+    ARCHIVE DESTINATION ${PSM_DEBUG_INSTALL_PATH}/lib)
+install(TARGETS test_console_csharp
+    CONFIGURATIONS Debug
+    RUNTIME DESTINATION ${PSM_RELEASE_INSTALL_PATH}/bin
+    LIBRARY DESTINATION ${PSM_RELEASE_INSTALL_PATH}/lib
+    ARCHIVE DESTINATION ${PSM_RELEASE_INSTALL_PATH}/lib)

@@ -96,10 +96,10 @@ private:
 					PSMControllerDataStreamFlags::PSMStreamFlags_includeRawTrackerData;
                 
 				if (controllerList.count > 0) {
-					if (PSM_AllocateControllerListener(controllerList.controller_id[0]) != PSMResult_Success) {
+					if (PSM_AllocateControllerListener(controllerList.controllers[0].controller_id) != PSMResult_Success) {
 						success= false;
 					}
-					if (PSM_StartControllerDataStream(controllerList.controller_id[0], data_stream_flags, PSM_DEFAULT_TIMEOUT) != PSMResult_Success) {
+					if (PSM_StartControllerDataStream(controllerList.controllers[0].controller_id, data_stream_flags, PSM_DEFAULT_TIMEOUT) != PSMResult_Success) {
 						success= false;
 					}
 				} else {
@@ -140,14 +140,14 @@ private:
 				PSMControllerDataStreamFlags::PSMStreamFlags_includeRawTrackerData;
 
 			// Stop all controller streams
-            PSM_StopControllerDataStream(controllerList.controller_id[0], PSM_DEFAULT_TIMEOUT);
+            PSM_StopControllerDataStream(controllerList.controllers[0].controller_id, PSM_DEFAULT_TIMEOUT);
 
 			// Get the current controller list
 			rebuildControllerList();
 
 			// Restart the controller streams
 			if (controllerList.count > 0) {
-				if (PSM_StartControllerDataStream(controllerList.controller_id[0], data_stream_flags, PSM_DEFAULT_TIMEOUT) != PSMResult_Success) {
+				if (PSM_StartControllerDataStream(controllerList.controllers[0].controller_id, data_stream_flags, PSM_DEFAULT_TIMEOUT) != PSMResult_Success) {
 					m_keepRunning= false;
 				}
 			} else {
@@ -171,7 +171,7 @@ private:
 		// Get the controller data for the first controller
 		if (m_keepRunning)
 		{
-			PSMController *controller0= PSM_GetController(controllerList.controller_id[0]);
+			PSMController *controller0= PSM_GetController(controllerList.controllers[0].controller_id);
 			PSMPSMoveCalibratedSensorData calibsens = controller0->ControllerState.PSMoveState.CalibratedSensorData;
         
 			std::cout << "Controller 0 (AGMXYZ):  ";
@@ -206,8 +206,8 @@ private:
     {
         if (controllerList.count > 0)
         {
-            PSM_StopControllerDataStream(controllerList.controller_id[0], PSM_DEFAULT_TIMEOUT);
-            PSM_FreeControllerListener(controllerList.controller_id[0]);
+            PSM_StopControllerDataStream(controllerList.controllers[0].controller_id, PSM_DEFAULT_TIMEOUT);
+            PSM_FreeControllerListener(controllerList.controllers[0].controller_id);
         }
 		// No tracker data streams started
 		// No HMD data streams started
@@ -226,7 +226,7 @@ private:
         {
             const char *controller_type= "NONE";
 
-            switch (controllerList.controller_type[cntlr_ix])
+            switch (controllerList.controllers[cntlr_ix].controller_type)
             {
             case PSMController_Move:
                 controller_type= "PSMove";
@@ -242,7 +242,7 @@ private:
                 break;
             }
 
-            std::cout << "  Controller ID: " << controllerList.controller_id[cntlr_ix] << " is a " << controller_type << std::endl;
+            std::cout << "  Controller ID: " << controllerList.controllers[cntlr_ix].controller_id << " is a " << controller_type << std::endl;
         }
 	}
 
@@ -279,7 +279,7 @@ private:
         {
             const char *hmd_type= "NONE";
 
-            switch (hmdList.hmd_type[hmd_ix])
+            switch (hmdList.hmds[hmd_ix].hmd_type)
             {
             case PSMHmd_Morpheus:
                 hmd_type= "Morpheus";
@@ -289,7 +289,7 @@ private:
                 break;
             }
 
-            std::cout << "  HMD ID: " << hmdList.hmd_id[hmd_ix] << " is a " << hmd_type << std::endl;
+            std::cout << "  HMD ID: " << hmdList.hmds[hmd_ix].hmd_id << " is a " << hmd_type << std::endl;
         }
 	}
 
