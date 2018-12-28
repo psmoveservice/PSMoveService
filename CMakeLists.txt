@@ -1,5 +1,8 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.8)
+
 project(PSMoveService VERSION 0.0.1)
+enable_language(CSharp)
+
 include(ExternalProject)
 
 set(ROOT_DIR ${CMAKE_CURRENT_LIST_DIR})
