@@ -32,7 +32,7 @@ PSM_PUBLIC_VARIABLE_DEF(const PSMVector3f *) k_psm_position_origin= &g_psm_posit
 const PSMQuatf g_psm_quaternion_identity= {1.f, 0.f, 0.f, 0.f};
 PSM_PUBLIC_VARIABLE_DEF(const PSMQuatf *) k_psm_quaternion_identity= &g_psm_quaternion_identity;
 
-const PSMMatrix3f g_psm_matrix_identity = { {{1.f, 0.f, 0.f} , {0.f, 1.f, 0.f}, {0.f, 0.f, 1.f}} };
+const PSMMatrix3f g_psm_matrix_identity = { 1.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 1.f };
 PSM_PUBLIC_VARIABLE_DEF(const PSMMatrix3f *) k_psm_matrix_identity = &g_psm_matrix_identity;
 
 const PSMPosef g_psm_pose_identity = { g_psm_position_origin, g_psm_quaternion_identity };
@@ -389,9 +389,9 @@ PSMMatrix3f PSM_Matrix3fCreate(const PSMVector3f *basis_x, const PSMVector3f *ba
 {
     PSMMatrix3f mat;
 
-    mat.m[0][0] = basis_x->x; mat.m[0][1] = basis_x->y; mat.m[0][2] = basis_x->z;
-    mat.m[1][0] = basis_y->x; mat.m[1][1] = basis_y->y; mat.m[1][2] = basis_y->z;
-    mat.m[2][0] = basis_z->x; mat.m[2][1] = basis_z->y; mat.m[2][2] = basis_z->z;
+    mat.m00 = basis_x->x; mat.m01 = basis_x->y; mat.m02 = basis_x->z;
+    mat.m10 = basis_y->x; mat.m11 = basis_y->y; mat.m12 = basis_y->z;
+    mat.m20 = basis_z->x; mat.m21 = basis_z->y; mat.m22 = basis_z->z;
 
     return mat;
 }
@@ -409,26 +409,26 @@ PSMMatrix3f PSM_Matrix3fCreateFromQuatf(const PSMQuatf *q)
 	const float qy2 = qy*qy;
 	const float qz2 = qz*qz;
 
-	mat.m[0][0] = 1.f - 2.f*qy2 - 2.f*qz2; mat.m[0][1] = 2.f*qx*qy - 2.f*qz*qw;   mat.m[0][2] = 2.f*qx*qz + 2.f*qy*qw;
-	mat.m[1][0] = 2.f*qx*qy + 2.f*qz*qw;   mat.m[1][1] = 1.f - 2.f*qx2 - 2.f*qz2; mat.m[1][2] = 2.f*qy*qz - 2.f*qx*qw;
-	mat.m[2][0] = 2.f*qx*qz - 2.f*qy*qw;   mat.m[2][1] = 2.f * qy*qz + 2.f*qx*qw; mat.m[2][2] = 1.f - 2.f*qx2 - 2.f*qy2;
+	mat.m00 = 1.f - 2.f*qy2 - 2.f*qz2; mat.m01 = 2.f*qx*qy - 2.f*qz*qw;   mat.m02 = 2.f*qx*qz + 2.f*qy*qw;
+	mat.m10 = 2.f*qx*qy + 2.f*qz*qw;   mat.m11 = 1.f - 2.f*qx2 - 2.f*qz2; mat.m12 = 2.f*qy*qz - 2.f*qx*qw;
+	mat.m20 = 2.f*qx*qz - 2.f*qy*qw;   mat.m21 = 2.f * qy*qz + 2.f*qx*qw; mat.m22 = 1.f - 2.f*qx2 - 2.f*qy2;
 
 	return mat;
 }
 
 PSMVector3f PSM_Matrix3fBasisX(const PSMMatrix3f *mat)
 {
-	return {mat->m[0][0], mat->m[0][1], mat->m[0][2]};
+	return {mat->m00, mat->m01, mat->m02};
 }
 
 PSMVector3f PSM_Matrix3fBasisY(const PSMMatrix3f *mat)
 {
-	return {mat->m[1][0], mat->m[1][1], mat->m[1][2]};
+	return {mat->m10, mat->m11, mat->m12};
 }
 
 PSMVector3f PSM_Matrix3fBasisZ(const PSMMatrix3f *mat)
 {
-	return {mat->m[2][0], mat->m[2][1], mat->m[2][2]};
+	return {mat->m20, mat->m21, mat->m22};
 }
 
 // PSMPosef

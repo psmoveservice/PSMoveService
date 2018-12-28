@@ -41,11 +41,13 @@ typedef struct
 } PSMVector3i;
 
 /** A 3x3 matrix with float components
-	storage is row major order: [x0,x1,x2,y0,y1,y1,z0,z1,z2]
+	storage is row major order: [x0,x1,x2,y0,y1,y2,z0,z1,z2]
  */
 typedef struct
 {
-    float m[3][3]; 
+    float m00,m01,m02; // x0,x1,x2
+	float m10,m11,m12; // y0,y1,y2
+	float m20,m21,m22; // z0,z1,z2
 } PSMMatrix3f;
 
 /// A quaternion rotation.
@@ -66,21 +68,21 @@ typedef struct
 {
     PSMVector3f origin; 	///< frustum tip world location, in cm
     PSMVector3f forward; 	///< forward axis of the frustum
-	PSMVector3f left; 		///< left axis of the frustum
-	PSMVector3f up; 		///< up axis of the frustum
+    PSMVector3f left; 		///< left axis of the frustum
+    PSMVector3f up; 		///< up axis of the frustum
     float HFOV; 			///< horizontal field of view, in radians
-	float VFOV; 			///< vertical field of fiew, in radians
+    float VFOV; 			///< vertical field of view, in radians
     float zNear; 			///< near plane distance of frustum, in cm
-	float zFar; 			///< far place distance of frustum, in cm
+    float zFar; 			///< far place distance of frustum, in cm
 } PSMFrustum;
 
 /// The types of tracking shapes supported in the \ref PSMTrackingProjection
 typedef enum
 {
     PSMShape_INVALID_PROJECTION = -1,
-    PSMShape_Ellipse,					///< The 2D projection of a sphere (think conic sectioc)
+    PSMShape_Ellipse,					///< The 2D projection of a sphere (think conic section)
     PSMShape_LightBar,					///< The 2D projection of a 3D quad (bounding shape of DS4 lightbar) 
-	PSMShape_PointCloud					///< The 2D projection of a 3D point cloud (morpheus tracking lights)
+    PSMShape_PointCloud					///< The 2D projection of a 3D point cloud (Morpheus tracking lights)
 } PSMTrackingShapeType;
 
 /// The projection of a tracking shape onto the image plane of a tracker video feed
@@ -96,12 +98,12 @@ typedef struct
         } ellipse;
         struct {
             PSMVector2f triangle[3];
-			PSMVector2f quad[4];
+            PSMVector2f quad[4];
         } lightbar;
-		struct {
-			PSMVector2f points[7];
-			int point_count;
-		} pointcloud;
+        struct {
+            PSMVector2f points[7];
+            int point_count;
+        } pointcloud;
     }                               shape;
     
 } PSMTrackingProjection;
@@ -120,7 +122,7 @@ PSM_PUBLIC_FUNCTION(PSMVector2f) PSM_Vector2fScale(const PSMVector2f *v, const f
 PSM_PUBLIC_FUNCTION(PSMVector2f) PSM_Vector2fScaleAndAdd(const PSMVector2f *v, const float s, const PSMVector2f *b);
 /// Divides each component of a 2D vector by a scalar without checking for divide-by-zero
 PSM_PUBLIC_FUNCTION(PSMVector2f) PSM_Vector2fUnsafeScalarDivide(const PSMVector2f *numerator, const float divisor);
-/// Divides each component of a 2D vector by the corresponding componenet of another vector without checking for a divide-by-zero
+/// Divides each component of a 2D vector by the corresponding component of another vector without checking for a divide-by-zero
 PSM_PUBLIC_FUNCTION(PSMVector2f) PSM_Vector2fUnsafeVectorDivide(const PSMVector2f *numerator, const PSMVector2f *divisor);
 /// Divides each component of a 2D vector by a scalar, returning a default vector in the case of divide by zero
 PSM_PUBLIC_FUNCTION(PSMVector2f) PSM_Vector2fSafeScalarDivide(const PSMVector2f *numerator, const float divisor, const PSMVector2f *default_result);
@@ -157,7 +159,7 @@ PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_Vector3fScale(const PSMVector3f *v, const f
 PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_Vector3fScaleAndAdd(const PSMVector3f *v, const float s, const PSMVector3f *b);
 /// Divides each component of a 3D vector by a scalar without checking for divide-by-zero
 PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_Vector3fUnsafeScalarDivide(const PSMVector3f *numerator, const float divisor);
-/// Divides each component of a 3D vector by the corresponding componenet of another vector without checking for a divide-by-zero
+/// Divides each component of a 3D vector by the corresponding component of another vector without checking for a divide-by-zero
 PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_Vector3fUnsafeVectorDivide(const PSMVector3f *numerator, const PSMVector3f *divisor);
 /// Divides each component of a 3D vector by a scalar, returning a default vector in the case of divide by zero
 PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_Vector3fSafeScalarDivide(const PSMVector3f *numerator, const float divisor, const PSMVector3f *default_result);
@@ -194,7 +196,7 @@ PSM_PUBLIC_FUNCTION(PSMVector3i) PSM_Vector3iAdd(const PSMVector3i *a, const PSM
 PSM_PUBLIC_FUNCTION(PSMVector3i) PSM_Vector3iSubtract(const PSMVector3i *a, const PSMVector3i *b);
 /// Divides each component of a 3D vector by a scalar without checking for divide-by-zero
 PSM_PUBLIC_FUNCTION(PSMVector3i) PSM_Vector3iUnsafeScalarDivide(const PSMVector3i *numerator, const int divisor);
-/// Divides each component of a 3D vector by the corresponding componenet of another vector without checking for a divide-by-zero
+/// Divides each component of a 3D vector by the corresponding component of another vector without checking for a divide-by-zero
 PSM_PUBLIC_FUNCTION(PSMVector3i) PSM_Vector3iUnsafeVectorDivide(const PSMVector3i *numerator, const PSMVector3i *divisor);
 /// Divides each component of a 3D vector by a scalar, returning a default vector in the case of divide by zero
 PSM_PUBLIC_FUNCTION(PSMVector3i) PSM_Vector3iSafeScalarDivide(const PSMVector3i *numerator, const int divisor, const PSMVector3i *default_result);
@@ -214,7 +216,7 @@ PSM_PUBLIC_FUNCTION(int) PSM_Vector3iMaxValue(const PSMVector3i *v);
 PSM_PUBLIC_FUNCTION(PSMVector3i) PSM_Vector3iMin(const PSMVector3i *a, const PSMVector3i *b);
 /// Computes the max value of two vectors along each component
 PSM_PUBLIC_FUNCTION(PSMVector3i) PSM_Vector3iMax(const PSMVector3i *a, const PSMVector3i *b);
-/// Convertes a 3D int vector to a 3D float vector
+/// Converts a 3D int vector to a 3D float vector
 PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_Vector3iCastToFloat(const PSMVector3i *v);
 
 // PSMQuatf Methods
@@ -227,15 +229,15 @@ PSM_PUBLIC_FUNCTION(PSMQuatf) PSM_QuatfCreateFromAngles(const PSMVector3f *euler
 PSM_PUBLIC_FUNCTION(PSMQuatf) PSM_QuatfAdd(const PSMQuatf *a, const PSMQuatf *b);
 /// Scale all components of a quaternion by a scalar (used by numerical integration)
 PSM_PUBLIC_FUNCTION(PSMQuatf) PSM_QuatfScale(const PSMQuatf *q, const float s);
-/// Compute the multiplication of two quaterions
+/// Compute the multiplication of two quaternions
 PSM_PUBLIC_FUNCTION(PSMQuatf) PSM_QuatfMultiply(const PSMQuatf *a, const PSMQuatf *b);
 /// Divide all components of a quaternion by a scalar without checking for divide by zero
 PSM_PUBLIC_FUNCTION(PSMQuatf) PSM_QuatfUnsafeScalarDivide(const PSMQuatf *q, const float s);
 /// Divide all components of a quaternion by a scalar, returning a default quaternion in case of a degenerate quaternion
 PSM_PUBLIC_FUNCTION(PSMQuatf) PSM_QuatfSafeScalarDivide(const PSMQuatf *q, const float s, const PSMQuatf *default_result);
-/// Compute the complex conjegate of a quaternion (negate imaginary components)
+/// Compute the complex conjugate of a quaternion (negate imaginary components)
 PSM_PUBLIC_FUNCTION(PSMQuatf) PSM_QuatfConjugate(const PSMQuatf *q);
-/// Concatenate a second quaternion's rotation on to the end of a first quaternion's quaterion (just a quaternion multiplication)
+/// Concatenate a second quaternion's rotation on to the end of a first quaternion's quaternion (just a quaternion multiplication)
 PSM_PUBLIC_FUNCTION(PSMQuatf) PSM_QuatfConcat(const PSMQuatf *first, const PSMQuatf *second);
 /// Rotate a vector by a given quaternion
 PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_QuatfRotateVector(const PSMQuatf *q, const PSMVector3f *v);
@@ -269,7 +271,7 @@ PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_PosefTransformPoint(const PSMPosef *pose, c
 PSM_PUBLIC_FUNCTION(PSMVector3f) PSM_PosefInverseTransformPoint(const PSMPosef *pose, const PSMVector3f *p);
 
 // PSMFrustumf
-/// Update the basis (position and orientation) of a fustum to match that of a given pose
+/// Update the basis (position and orientation) of a frustum to match that of a given pose
 PSM_PUBLIC_FUNCTION(void) PSM_FrustumSetPose(PSMFrustum *frustum, const PSMPosef *pose);
 
 // PSMTrackingProjection
@@ -293,7 +295,7 @@ PSM_PUBLIC_VARIABLE_DECL(const PSMVector3f *) k_psm_float_vector3_j;
 PSM_PUBLIC_VARIABLE_DECL(const PSMVector3f *) k_psm_float_vector3_k;
 /// A 3D float vector that represents the world origin <0.f, 0.f, 0.f>
 PSM_PUBLIC_VARIABLE_DECL(const PSMVector3f *) k_psm_position_origin;
-/// The quaterion <1.f, 0.f, 0.f, 0.f> that represents no rotation
+/// The quaternion <1.f, 0.f, 0.f, 0.f> that represents no rotation
 PSM_PUBLIC_VARIABLE_DECL(const PSMQuatf *) k_psm_quaternion_identity;
 /// The 3x3 matrix that represent no transform (diagonal values 1.f, off diagonal values 0.f)
 PSM_PUBLIC_VARIABLE_DECL(const PSMMatrix3f *) k_psm_matrix_identity;

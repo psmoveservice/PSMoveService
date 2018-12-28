@@ -66,7 +66,7 @@ public:
 	bool open_video_stream(PSMTrackerID tracker_id);
 	bool poll_video_stream(PSMTrackerID tracker_id);
 	void close_video_stream(PSMTrackerID tracker_id);
-	const unsigned char *get_video_frame_buffer(PSMTrackerID tracker_id) const;
+	bool get_video_frame_buffer(PSMTrackerID tracker_id, PSMVideoFrameBuffer &out_buffer) const;
 
     bool allocate_hmd_listener(PSMHmdID HmdID);
     void free_hmd_listener(PSMHmdID HmdID);   
@@ -79,7 +79,8 @@ public:
     PSMRequestID send_opaque_request(PSMRequestHandle request_handle);
 
     // -- Callback API --
-    bool register_callback(PSMRequestID request_id, PSMResponseCallback callback, void *callback_userdata);
+    bool register_cdecl_callback(PSMRequestID request_id, PSMResponseCallback_CDECL callback, void *callback_userdata);
+	bool register_stdcall_callback(PSMRequestID request_id, PSMResponseCallback_STDCALL callback, void *callback_userdata);
     bool cancel_callback(PSMRequestID request_id);
     
 protected:
@@ -99,7 +100,7 @@ protected:
     virtual void handle_server_connection_socket_error(const boost::system::error_code& ec) override;
 
     // Request Manager Callback
-    static void handle_response_message(const PSMResponseMessage *response_message, void *userdata);
+    static void PSM_CDECL handle_response_message(const PSMResponseMessage *response_message, void *userdata);
 
     // Message Helpers
     //-----------------
@@ -134,7 +135,16 @@ private:
     struct PendingRequest
     {
         PSMRequestID request_id;
-        PSMResponseCallback response_callback;
+		union
+		{
+			PSMResponseCallback_CDECL cdecl_callback;
+			PSMResponseCallback_STDCALL stdcall_callback;
+		} response_callback;
+		enum {
+			_callback_type_INVALID= 0,
+			_callback_type_cdecl,
+			_callback_type_stdcall,
+		} response_callback_type;
         void *response_userdata;
     };
     typedef std::map<PSMRequestID, PendingRequest> t_pending_request_map;

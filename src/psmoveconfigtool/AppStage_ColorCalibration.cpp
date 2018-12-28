@@ -258,18 +258,18 @@ void AppStage_ColorCalibration::update()
     // Try and read the next video frame from shared memory
     if (m_video_buffer_state != nullptr)
     {
-        const unsigned char *video_buffer= nullptr;
+		PSMVideoFrameBuffer frame_buffer;
         if (PSM_PollTrackerVideoStream(m_trackerView->tracker_info.tracker_id) == PSMResult_Success &&
-            PSM_GetTrackerVideoFrameBuffer(m_trackerView->tracker_info.tracker_id, &video_buffer) == PSMResult_Success)
+            PSM_GetTrackerVideoFrameBuffer(m_trackerView->tracker_info.tracker_id, &frame_buffer) == PSMResult_Success)
         {
             const int frameWidth = static_cast<int>(m_trackerView->tracker_info.tracker_screen_dimensions.x);
             const int frameHeight = static_cast<int>(m_trackerView->tracker_info.tracker_screen_dimensions.y);
-            const unsigned char *display_buffer = video_buffer;
+            const unsigned char *display_buffer = frame_buffer.rgb_buffer;
             const TrackerColorPreset &preset = getColorPreset();
 
             // Copy the video frame buffer into the bgr opencv buffer
             {
-                const cv::Mat videoBufferMat(frameHeight, frameWidth, CV_8UC3, const_cast<unsigned char *>(video_buffer));
+                const cv::Mat videoBufferMat(frameHeight, frameWidth, CV_8UC3, const_cast<unsigned char *>(frame_buffer.rgb_buffer));
 
                 videoBufferMat.copyTo(*m_video_buffer_state->bgrBuffer);
             }

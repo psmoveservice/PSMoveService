@@ -96,13 +96,9 @@ psmove_matrix3x3_to_cv_mat33f(const PSMMatrix3f &in)
 {
     // Both OpenCV and PSMMatrix3f matrices are stored row-major
     cv::Matx33f out;
-    for (int i = 0; i < 3; ++i)
-    {
-        for (int j = 0; j < 3; ++j)
-        {
-            out(i, j) = in.m[i][j];
-        }
-    }
+	out(0, 0) = in.m00; out(0, 1) = in.m01; out(0, 2) = in.m02;
+	out(1, 0) = in.m10; out(1, 1) = in.m11; out(1, 2) = in.m12;
+	out(2, 0) = in.m20; out(2, 1) = in.m21; out(2, 2) = in.m22;
 
     return out;
 }

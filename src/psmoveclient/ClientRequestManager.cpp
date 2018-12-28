@@ -7,6 +7,11 @@
 #include <map>
 #include <utility>
 
+#ifdef _MSC_VER
+    #pragma warning (disable: 4996) // 'This function or variable may be unsafe': strncpy
+#endif
+
+
 //-- definitions -----
 struct RequestContext
 {
@@ -23,7 +28,7 @@ class ClientRequestManagerImpl
 public:
     ClientRequestManagerImpl(
         IDataFrameListener *dataFrameListener,
-        PSMResponseCallback callback,
+        PSMResponseCallback_CDECL callback,
         void *userdata)
         : m_dataFrameListener(dataFrameListener)
         , m_callback(callback)
@@ -202,7 +207,8 @@ public:
         int dest_controller_count= 0;
 
         // Copy the controller entries into the response payload
-        while (src_controller_count < response->result_controller_list().controllers_size()
+		const auto &response_controller_list= response->result_controller_list();
+        while (src_controller_count < response_controller_list.controllers_size()
                 && src_controller_count < PSMOVESERVICE_MAX_CONTROLLER_COUNT)
         {
             const auto &ControllerResponse = response->result_controller_list().controllers(src_controller_count);
@@ -240,17 +246,33 @@ public:
 
 			if (bIsPublicFacingController)
 			{
+				PSMClientControllerInfo &controller_info= controller_list->controllers[dest_controller_count];
+				memset(&controller_info, 0, sizeof(PSMClientControllerInfo));
+
                 // Add an entry to the controller list
-                controller_list->controller_type[dest_controller_count] = controllerType;
-                controller_list->controller_id[dest_controller_count] = ControllerResponse.controller_id();
-				controller_list->controller_hand[dest_controller_count] = (PSMControllerHand)ControllerResponse.controller_hand();
-				strncpy(controller_list->controller_serial[dest_controller_count], ControllerResponse.device_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
-				strncpy(controller_list->parent_controller_serial[dest_controller_count], ControllerResponse.parent_controller_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
+                controller_info.controller_id = ControllerResponse.controller_id();
+                controller_info.controller_type = controllerType;
+				controller_info.controller_hand = (PSMControllerHand)ControllerResponse.controller_hand();
+				controller_info.tracking_color_type= (PSMTrackingColorType)ControllerResponse.tracking_color_type();
+				controller_info.is_bluetooth= bIsBluetooth;
+				controller_info.has_magnetometer= ControllerResponse.has_magnetometer();
+				controller_info.prediction_time= ControllerResponse.prediction_time();
+				controller_info.gamepad_index= ControllerResponse.gamepad_index();
+				strncpy(controller_info.controller_serial, ControllerResponse.device_path().c_str(), sizeof(controller_info.device_path));
+				strncpy(controller_info.orientation_filter, ControllerResponse.orientation_filter().c_str(), sizeof(controller_info.orientation_filter));
+				strncpy(controller_info.position_filter, ControllerResponse.position_filter().c_str(), sizeof(controller_info.position_filter));
+				strncpy(controller_info.gyro_gain_setting, ControllerResponse.gyro_gain_setting().c_str(), sizeof(controller_info.gyro_gain_setting));
+				strncpy(controller_info.assigned_host_serial, ControllerResponse.assigned_host_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
+				strncpy(controller_info.parent_controller_serial, ControllerResponse.parent_controller_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
+
                 ++dest_controller_count;
             }
 
             ++src_controller_count;
         }
+
+		// Cache off the bluetooth host MAC address
+		strncpy(controller_list->host_serial, response_controller_list.host_serial().c_str(), PSMOVESERVICE_CONTROLLER_SERIAL_LEN);
 
         // Record how many controllers we copied into the payload
         controller_list->count = dest_controller_count;
@@ -377,8 +399,10 @@ public:
 			}
 
 			// Add an entry to the hmd list
-			hmd_list->hmd_type[dest_hmd_count] = hmdType;
-			hmd_list->hmd_id[dest_hmd_count] = HMDResponse.hmd_id();
+			PSMClientHMDInfo &hmd_info=  hmd_list->hmds[dest_hmd_count];
+			memset(&hmd_info, 0, sizeof(PSMClientHMDInfo));
+			hmd_info.hmd_type = hmdType;
+			hmd_info.hmd_id= HMDResponse.hmd_id();
 			++dest_hmd_count;
 			++src_hmd_count;
 		}
@@ -396,7 +420,7 @@ public:
 
 private:
     IDataFrameListener *m_dataFrameListener;
-    PSMResponseCallback m_callback;
+    PSMResponseCallback_CDECL m_callback;
     void *m_callback_userdata;
     t_request_context_map m_pending_requests;
     int m_next_request_id;
@@ -411,7 +435,7 @@ private:
 //-- public methods -----
 ClientRequestManager::ClientRequestManager(
     IDataFrameListener *dataFrameListener,
-    PSMResponseCallback callback,
+    PSMResponseCallback_CDECL callback,
     void *userdata)
 {
     m_implementation_ptr = new ClientRequestManagerImpl(dataFrameListener, callback, userdata);

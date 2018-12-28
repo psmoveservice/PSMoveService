@@ -790,10 +790,10 @@ void AppStage_ComputeTrackerPoses::update_tracker_video()
         // Render the latest from the currently active tracker
         if (PSM_PollTrackerVideoStream(tracker_id) == PSMResult_Success)
         {
-            const unsigned char *buffer= nullptr;
-            if (PSM_GetTrackerVideoFrameBuffer(tracker_id, &buffer) == PSMResult_Success)
+            PSMVideoFrameBuffer frame_buffer;
+            if (PSM_GetTrackerVideoFrameBuffer(tracker_id, &frame_buffer) == PSMResult_Success)
             {
-                m_renderTrackerIter->second.textureAsset->copyBufferIntoTexture(buffer);
+                m_renderTrackerIter->second.textureAsset->copyBufferIntoTexture(frame_buffer.rgb_buffer);
             }
         }
     }
@@ -981,13 +981,13 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
                 // Start all psmove, dual shock 4, and virtual controllers
                 for (int list_index = 0; list_index < controller_list->count; ++list_index)
                 {
-                    PSMControllerType controllerType= controller_list->controller_type[list_index];
+                    PSMControllerType controllerType= controller_list->controllers[list_index].controller_type;
 
                     if (controllerType == PSMController_Move ||
                         controllerType == PSMController_DualShock4 ||
                         controllerType == PSMController_Virtual)
                     {
-                        int trackedControllerId = controller_list->controller_id[list_index];
+                        int trackedControllerId = controller_list->controllers[list_index].controller_id;
                         const auto &protocolControllerResponse = response->result_controller_list().controllers(list_index);
                         const PSMTrackingColorType trackingColorType=
                             static_cast<PSMTrackingColorType>(protocolControllerResponse.tracking_color_type());
@@ -1011,12 +1011,12 @@ void AppStage_ComputeTrackerPoses::handle_controller_list_response(
                 // Start only the selected controller
                 for (int list_index = 0; list_index < controller_list->count; ++list_index)
                 {
-                    if (controller_list->controller_id[list_index] == thisPtr->m_overrideControllerId)
+                    if (controller_list->controllers[list_index].controller_id == thisPtr->m_overrideControllerId)
                     {
                         const auto &protocolControllerResponse = response->result_controller_list().controllers(list_index);
 
                         trackingColorType = static_cast<PSMTrackingColorType>(protocolControllerResponse.tracking_color_type());
-                        trackedControllerId = controller_list->controller_id[list_index];
+                        trackedControllerId = controller_list->controllers[list_index].controller_id;
                         trackedControllerListIndex = list_index;
                         break;
                     }
@@ -1170,10 +1170,10 @@ void AppStage_ComputeTrackerPoses::handle_hmd_list_response(
                 // Start all head mounted displays
                 for (int list_index = 0; list_index < hmd_list->count; ++list_index)
                 {
-                    if (hmd_list->hmd_type[list_index] == PSMHmd_Morpheus ||
-                        hmd_list->hmd_type[list_index] == PSMHmd_Virtual)
+                    if (hmd_list->hmds[list_index].hmd_type == PSMHmd_Morpheus ||
+                        hmd_list->hmds[list_index].hmd_type == PSMHmd_Virtual)
                     {
-                        int trackedHmdId = hmd_list->hmd_id[list_index];
+                        int trackedHmdId = hmd_list->hmds[list_index].hmd_id;
                         const auto &protocolHmdResponse = response->result_hmd_list().hmd_entries(list_index);
                         const PSMTrackingColorType trackingColorType=
                             static_cast<PSMTrackingColorType>(protocolHmdResponse.tracking_color_type());
@@ -1198,12 +1198,12 @@ void AppStage_ComputeTrackerPoses::handle_hmd_list_response(
                 // Start only the selected HMD
                 for (int list_index = 0; list_index < hmd_list->count; ++list_index)
                 {
-                    if (hmd_list->hmd_id[list_index] == thisPtr->m_overrideHmdId)
+                    if (hmd_list->hmds[list_index].hmd_id == thisPtr->m_overrideHmdId)
                     {
                         const auto &protocolHmdResponse = response->result_hmd_list().hmd_entries(list_index);
 
                         trackingColorType = static_cast<PSMTrackingColorType>(protocolHmdResponse.tracking_color_type());
-                        trackedHmdId = hmd_list->hmd_id[list_index];
+                        trackedHmdId = hmd_list->hmds[list_index].hmd_id;
                         trackedHmdListIndex = list_index;
                         break;
                     }

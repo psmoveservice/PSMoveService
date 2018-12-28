@@ -857,11 +857,11 @@ void AppStage_HMDModelCalibration::update_tracker_video()
 	if (trackerState.trackerView != nullptr &&
 		PSM_PollTrackerVideoStream(trackerState.trackerView->tracker_info.tracker_id))
 	{
-		const unsigned char *buffer= nullptr;
+		PSMVideoFrameBuffer frame_buffer;
 
-		if (PSM_GetTrackerVideoFrameBuffer(trackerState.trackerView->tracker_info.tracker_id, &buffer) == PSMResult_Success)
+		if (PSM_GetTrackerVideoFrameBuffer(trackerState.trackerView->tracker_info.tracker_id, &frame_buffer) == PSMResult_Success)
 		{
-			trackerState.textureAsset->copyBufferIntoTexture(buffer);
+			trackerState.textureAsset->copyBufferIntoTexture(frame_buffer.rgb_buffer);
 		}
 	}
 }
@@ -991,9 +991,9 @@ void AppStage_HMDModelCalibration::handle_hmd_list_response(
 		{
 			for (int list_index = 0; list_index < hmd_list->count; ++list_index)
 			{
-				if (hmd_list->hmd_type[list_index] == PSMHmd_Morpheus)
+				if (hmd_list->hmds[list_index].hmd_type == PSMHmd_Morpheus)
 				{
-					trackedHmdId = hmd_list->hmd_id[list_index];
+					trackedHmdId = hmd_list->hmds[list_index].hmd_id;
 					break;
 				}
 			}

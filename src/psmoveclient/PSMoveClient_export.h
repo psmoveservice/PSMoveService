@@ -30,10 +30,15 @@
  *  - "PSM_PUBLIC_VARIABLE_DEF(variable_type) variable_name" in the cpp/c file
  * https://stackoverflow.com/questions/3097548/exporting-global-variables-from-dll
  */
+
 #ifndef PSM_CALL
     #if (defined _WIN32 || defined __CYGWIN__)
-        #define PSM_CALL __cdecl
+        #define PSM_CDECL       __cdecl
+        #define PSM_STDCALL     __stdcall
+        #define PSM_CALL        PSM_CDECL
     #else
+        #define PSM_CDECL
+        #define PSM_STDCALL
         #define PSM_CALL
     #endif
 #endif

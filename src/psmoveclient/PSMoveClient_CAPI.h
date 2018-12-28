@@ -84,8 +84,8 @@ typedef enum
     PSMTrackingColorType_Red,        //</ R:0xFF, G:0x00, B:0x00
     PSMTrackingColorType_Green,      ///< R:0x00, G:0xFF, B:0x00
     PSMTrackingColorType_Blue,       ///< R:0x00, G:0x00, B:0xFF
-	
-	PSMTrackingColorType_MaxColorTypes
+
+    PSMTrackingColorType_MaxColorTypes
 } PSMTrackingColorType;
 
 /// Battery charge state levels
@@ -108,17 +108,17 @@ typedef enum
     PSMStreamFlags_includePositionData = 0x01,			///< Add position data (turns on tracking)
     PSMStreamFlags_includePhysicsData = 0x02,			///< Add IMU physics state
     PSMStreamFlags_includeRawSensorData = 0x04,			///< Add raw IMU sensor data
-	PSMStreamFlags_includeCalibratedSensorData = 0x08,	///< Add calibrated IMU sensor state
+    PSMStreamFlags_includeCalibratedSensorData = 0x08,	///< Add calibrated IMU sensor state
     PSMStreamFlags_includeRawTrackerData = 0x10,		///< Add raw optical tracking projection info
-	PSMStreamFlags_disableROI = 0x20,					///< Disable Region-of-Interest tracking optimization
+    PSMStreamFlags_disableROI = 0x20,					///< Disable Region-of-Interest tracking optimization
 } PSMControllerDataStreamFlags;
 
-/// The possible rumble channels available to the comtrollers
+/// The possible rumble channels available to the controllers
 typedef enum
 {
     PSMControllerRumbleChannel_All,		///< Rumble across all channels
     PSMControllerRumbleChannel_Left,	///< Rumble on the left channel
-    PSMControllerRumbleChannel_Right	///< Runble on the right channel
+    PSMControllerRumbleChannel_Right	///< Rumble on the right channel
 } PSMControllerRumbleChannel;
 
 /// The list of possible controller types tracked by PSMoveService
@@ -127,16 +127,16 @@ typedef enum
     PSMController_None= -1,
     PSMController_Move,
     PSMController_Navi,
-	PSMController_DualShock4,
+    PSMController_DualShock4,
     PSMController_Virtual
 } PSMControllerType;
 
 /// Describes which hand the given device is intended for
 typedef enum 
 {
-	PSMControllerHand_Any = 0,
-	PSMControllerHand_Left = 1,
-	PSMControllerHand_Right = 2,
+    PSMControllerHand_Any = 0,
+    PSMControllerHand_Left = 1,
+    PSMControllerHand_Right = 2,
 } PSMControllerHand;
 
 /// The list of possible camera types tracked by PSMoveService
@@ -150,7 +150,7 @@ typedef enum
 typedef enum
 {
     PSMHmd_None= -1,
-	PSMHmd_Morpheus= 0,
+    PSMHmd_Morpheus= 0,
     PSMHmd_Virtual= 1,
 } PSMHmdType;
 
@@ -165,6 +165,26 @@ typedef enum
 
 // Controller State
 //------------------
+
+/// Static properties about a Controller
+typedef struct
+{
+    PSMControllerID controller_id;
+    PSMControllerType controller_type;
+    PSMControllerHand controller_hand;
+    PSMTrackingColorType tracking_color_type;
+    bool is_bluetooth;
+    bool has_magnetometer;
+    float prediction_time;
+	int  gamepad_index;
+    char device_path[128];
+    char orientation_filter[64];
+    char position_filter[64];
+    char gyro_gain_setting[64];
+    char controller_serial[PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
+    char assigned_host_serial[PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
+	char parent_controller_serial[PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
+} PSMClientControllerInfo;
 
 /// Tracked object physics data state
 typedef struct
@@ -197,27 +217,27 @@ typedef struct
 /// Device projection geometry as seen by each tracker
 typedef struct
 {
-	/// ID of the selected tracker
+    /// ID of the selected tracker
     PSMTrackerID            TrackerID;
-	/// Pixel position of device projection centroid on each tracker
+    /// Pixel position of device projection centroid on each tracker
     PSMVector2f             ScreenLocation;
-	/// Tracker relative device 3d position on each tracker
+    /// Tracker relative device 3d position on each tracker
     PSMVector3f             RelativePositionCm;
-	/// Tracker relative device 3d orientation on each tracker
+    /// Tracker relative device 3d orientation on each tracker
     PSMQuatf                RelativeOrientation;
-	/// Tracker relative device projection geometry on each tracker
+    /// Tracker relative device projection geometry on each tracker
     PSMTrackingProjection   TrackingProjection;
-	/// A bitmask of the trackers with valid projections
+    /// A bitmask of the trackers with valid projections
     unsigned int            ValidTrackerBitmask;
 
     // Multicam triangulated position and orientation, pre-filtered
-	/// Optically derived world space position of device in cm
+    /// Optically derived world space position of device in cm
     PSMVector3f             MulticamPositionCm;
-	/// Optically derived world space orientation of device in cm
+    /// Optically derived world space orientation of device in cm
     PSMQuatf                MulticamOrientation;
-	/// Flag if the world space optical position is valid
+    /// Flag if the world space optical position is valid
     bool                    bMulticamPositionValid;
-	/// Flag if the world space optical orientation is valid
+    /// Flag if the world space optical orientation is valid
     bool                    bMulticamOrientationValid;
 } PSMRawTrackerData;
 
@@ -391,12 +411,12 @@ typedef struct
 {
     PSMControllerID ControllerID;
     PSMControllerType ControllerType;
-	PSMControllerHand ControllerHand;
+    PSMControllerHand ControllerHand;
     union
     {
         PSMPSMove PSMoveState;
         PSMPSNavi PSNaviState;
-		PSMDualShock4 PSDS4State;
+        PSMDualShock4 PSDS4State;
         PSMVirtualController VirtualController;
     }               ControllerState;
     bool            bValid;
@@ -410,6 +430,17 @@ typedef struct
 
 // Tracker State
 //--------------
+
+/// Information describing a video frame buffer from a single tracker
+typedef struct
+{
+	const unsigned char *rgb_buffer;
+	unsigned int buffer_size_bytes;
+	unsigned int width;
+	unsigned int height;
+	unsigned int stride;
+	unsigned int frame_index;
+} PSMVideoFrameBuffer;
 
 /// Static properties about a tracker
 typedef struct
@@ -462,6 +493,18 @@ typedef struct
 
 // HMD State
 //----------
+
+/// Static properties about an HMD
+typedef struct
+{
+    PSMHmdID hmd_id;
+    PSMHmdType hmd_type;
+    PSMTrackingColorType tracking_color_type;
+    char device_path[128];
+    char orientation_filter[64];
+    char position_filter[64];
+    float prediction_time;
+} PSMClientHMDInfo;
 
 /// Morpheus Raw IMU sensor data
 typedef struct
@@ -565,11 +608,8 @@ typedef struct
 /// List of controllers attached to PSMoveService
 typedef struct
 {
-    PSMControllerID controller_id[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
-    PSMControllerType controller_type[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
-	PSMControllerHand controller_hand[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
-	char controller_serial[PSMOVESERVICE_MAX_CONTROLLER_COUNT][PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
-	char parent_controller_serial[PSMOVESERVICE_MAX_CONTROLLER_COUNT][PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
+    char host_serial[PSMOVESERVICE_CONTROLLER_SERIAL_LEN];
+    PSMClientControllerInfo controllers[PSMOVESERVICE_MAX_CONTROLLER_COUNT];
     int count;
 } PSMControllerList;
 
@@ -584,8 +624,7 @@ typedef struct
 /// List of HMDs connected to PSMoveSerivce
 typedef struct
 {
-    PSMHmdID hmd_id[PSMOVESERVICE_MAX_HMD_COUNT];
-    PSMHmdType hmd_type[PSMOVESERVICE_MAX_HMD_COUNT];
+    PSMClientHMDInfo hmds[PSMOVESERVICE_MAX_HMD_COUNT];
     int count;
 } PSMHmdList;
 
@@ -599,11 +638,11 @@ typedef struct
 typedef enum 
 {
     _responsePayloadType_Empty,
-	_responsePayloadType_ServiceVersion,
+    _responsePayloadType_ServiceVersion,
     _responsePayloadType_ControllerList,
     _responsePayloadType_TrackerList,
     _responsePayloadType_TrackingSpace,
-	_responsePayloadType_HmdList,
+    _responsePayloadType_HmdList,
 
     _responsePayloadType_Count
 } PSMResponsePayloadType;
@@ -628,10 +667,10 @@ typedef struct
     /// Payload data specific to a subset of the responses
     union
     {
-		PSMServiceVersion service_version;	///< Response to service version request
+        PSMServiceVersion service_version;	///< Response to service version request
         PSMControllerList controller_list;	///< Response to controller list request
         PSMTrackerList tracker_list;		///< Response to tracker list request
-		PSMHmdList hmd_list;				///< Response to hmd list request
+        PSMHmdList hmd_list;				///< Response to hmd list request
         PSMTrackingSpace tracking_space;	///< Response to tracking space request
     } payload;
 
@@ -640,7 +679,10 @@ typedef struct
 } PSMResponseMessage;
 
 /// Registered response callback function for a PSMoveService request
-typedef void(*PSMResponseCallback)(const PSMResponseMessage *response, void *userdata);
+typedef void(PSM_CDECL *PSMResponseCallback_CDECL)(const PSMResponseMessage *response, void *userdata);
+
+/// Registered response callback function for a PSMoveService request
+typedef void(PSM_STDCALL *PSMResponseCallback_STDCALL)(const PSMResponseMessage *response, void *userdata);
 
 // Message Container
 //------------------
@@ -848,17 +890,29 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_PollNextMessage(PSMMessage *out_message, size
  */
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_SendOpaqueRequest(PSMRequestHandle request_handle, PSMRequestID *out_request_id);
 
-/** \brief Registers an async request callback
+/** \brief Registers an async request callback that uses the CDECL calling convention (default)
 	A \ref PSMRequestID is issued for every request sent. 
 	This request_id can be assigned a \ref PSMResponseCallback.
-	The callback will get called when a responsed is fetched by a call to \ref PSMUpdate or \ref PSMUpdateNoPollMessages.
-	PSMoveConfigToolback can be cancelled with a call to \ref PSM_CancelCallback.
+	The callback will get called when a response is fetched by a call to \ref PSMUpdate or \ref PSMUpdateNoPollMessages.
+	PSMoveConfigToolback can be canceled with a call to \ref PSM_CancelCallback.
 	\param request_id The id of a pending async request
 	\param callback A callback function pointer
 	\param callback_userdata Userdata for a callback function (often a "this" pointer to a class that issued the request).
 	\return PSMResult_Success if the request_id is valid and the connection is active
  */
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_RegisterCallback(PSMRequestID request_id, PSMResponseCallback callback, void *callback_userdata);
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_RegisterCallback(PSMRequestID request_id, PSMResponseCallback_CDECL callback, void *callback_userdata);
+
+/** \brief Registers an async request callback  that uses the STDCALL calling convention (used by managed code)
+	A \ref PSMRequestID is issued for every request sent. 
+	This request_id can be assigned a \ref PSMResponseCallback.
+	The callback will get called when a response is fetched by a call to \ref PSMUpdate or \ref PSMUpdateNoPollMessages.
+	PSMoveConfigToolback can be canceled with a call to \ref PSM_CancelCallback.
+	\param request_id The id of a pending async request
+	\param callback A callback function pointer
+	\param callback_userdata Userdata for a callback function (often a "this" pointer to a class that issued the request).
+	\return PSMResult_Success if the request_id is valid and the connection is active
+ */
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_RegisterSTDCALLCallback(PSMRequestID request_id, PSMResponseCallback_STDCALL callback, void *callback_userdata);
 
 /** \brief Cancels a pending async request callback.
 	This can be used to unregister a callback for a pending async request.
@@ -868,12 +922,12 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_RegisterCallback(PSMRequestID request_id, PSM
  */
 PSM_PUBLIC_FUNCTION(PSMResult) PSM_CancelCallback(PSMRequestID request_id);
 
-/** \brief Marks a request's response to be ignored.
+/** \brief Marks a requests response to be ignored.
 	If \ref PSM_UpdateNoPollMessages is called, responses that don't have a callback registered will get added to the 
 	message queue which can then be fetched by \ref PSM_PollNextMessage.
 	If instead \ref PSM_Update is called then it expects all requests to have a registered callback.
 	If no callback is found then a warning is issued and the message is dropped on the floor.
-	Calling PSM_EatResponse explicly signals that we don't care about the response and will prevent the response from
+	Calling PSM_EatResponse explicitly signals that we don't care about the response and will prevent the response from
 	getting added to the message queue in the first place.
 	\param request_id The id of a pending request whose response we want to ignore
 	\return PSMResult_Success if the request_id is valid and the connection is active
@@ -886,7 +940,7 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_EatResponse(PSMRequestID request_id);
 	We can fetch a given controller by \ref PSMControllerID.
 	DO NOT DELETE the controller pointer returned by this function.
 	It is safe to copy this pointer on to other structures so long as the pointer is cleared once the client API is shutdown.
-	\param controller_id The id of the controler structure to fetch
+	\param controller_id The id of the controller structure to fetch
 	\return A pointer to a \ref PSMController
  */
 PSM_PUBLIC_FUNCTION(PSMController *) PSM_GetController(PSMControllerID controller_id);
@@ -1317,10 +1371,10 @@ PSM_PUBLIC_FUNCTION(PSMResult) PSM_CloseTrackerVideoStream(PSMTrackerID tracker_
 /** \brief Fetch the next video frame buffer from an opened tracker video stream
 	\remark Make sure the video buffer is large enough to hold tracker dimension x 3 bytes.
 	\param tracker_id The tracker to poll the next video frame from
-	\param[out] out_buffer A pointer to the buffer to copy the video frame into
+	\param[out] out_buffer A pointer to the buffer info structure
 	\return PSMResult_Success if there was frame data available to read
  */
-PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerVideoFrameBuffer(PSMTrackerID tracker_id, const unsigned char **out_buffer); 
+PSM_PUBLIC_FUNCTION(PSMResult) PSM_GetTrackerVideoFrameBuffer(PSMTrackerID tracker_id, PSMVideoFrameBuffer *out_buffer); 
 
 /** \brief Helper function to fetch tracking frustum properties from a tracker
 	\param The id of the tracker we wish to get the tracking frustum properties for

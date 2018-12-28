@@ -436,11 +436,11 @@ void AppStage_DistortionCalibration::update()
         // Try and read the next video frame from shared memory
         if (PSM_PollTrackerVideoStream(m_tracker_view->tracker_info.tracker_id) == PSMResult_Success)
         {
-            const unsigned char *video_frame_buffer= nullptr;
-			if (PSM_GetTrackerVideoFrameBuffer(m_tracker_view->tracker_info.tracker_id, &video_frame_buffer) == PSMResult_Success)
+            PSMVideoFrameBuffer frame_buffer;
+			if (PSM_GetTrackerVideoFrameBuffer(m_tracker_view->tracker_info.tracker_id, &frame_buffer) == PSMResult_Success)
 			{
 				// Update the video frame buffers
-				m_opencv_state->applyVideoFrame(video_frame_buffer);
+				m_opencv_state->applyVideoFrame(frame_buffer.rgb_buffer);
 
 				// Update the video frame display texture
 				switch (m_videoDisplayMode)

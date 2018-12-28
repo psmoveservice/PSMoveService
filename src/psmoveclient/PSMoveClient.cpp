@@ -168,7 +168,7 @@ public:
 
     void allocateVideoBuffer()
     {
-        size_t buffer_size = SharedVideoFrameHeader::computeVideoBufferSize(m_frame_stride, m_frame_height);
+        size_t buffer_size = getAllocatedSize();
 
         if (buffer_size > 0)
         {
@@ -192,6 +192,7 @@ public:
     inline int getVideoFrameHeight() const { return m_frame_height; }
     inline int getVideoFrameStride() const { return m_frame_stride; }
     inline int getLastVideoFrameIndex() const { return m_last_frame_index; }
+	inline size_t getAllocatedSize() const { return SharedVideoFrameHeader::computeVideoBufferSize(m_frame_stride, m_frame_height); }
 
 protected:
     SharedVideoFrameHeader *getFrameHeader()
@@ -1054,9 +1055,9 @@ void PSMoveClient::close_video_stream(PSMTrackerID tracker_id)
 	}
 }
 
-const unsigned char *PSMoveClient::get_video_frame_buffer(PSMTrackerID tracker_id) const
+bool PSMoveClient::get_video_frame_buffer(PSMTrackerID tracker_id, PSMVideoFrameBuffer &out_buffer) const
 {
-	const unsigned char *buffer= nullptr;
+	bool bHasValidFrame= false;
 
 	if (IS_VALID_TRACKER_INDEX(tracker_id))
 	{
@@ -1067,11 +1068,17 @@ const unsigned char *PSMoveClient::get_video_frame_buffer(PSMTrackerID tracker_i
 			SharedVideoFrameReadOnlyAccessor *shared_memory_accesor = 
 				reinterpret_cast<SharedVideoFrameReadOnlyAccessor *>(tracker->opaque_shared_memory_accesor);
 
-			buffer= shared_memory_accesor->getVideoFrameBuffer();
+			out_buffer.rgb_buffer= shared_memory_accesor->getVideoFrameBuffer();
+			out_buffer.buffer_size_bytes= (unsigned int)shared_memory_accesor->getAllocatedSize();
+			out_buffer.height= shared_memory_accesor->getVideoFrameHeight();
+			out_buffer.width= shared_memory_accesor->getVideoFrameWidth();
+			out_buffer.stride= shared_memory_accesor->getVideoFrameStride();
+			out_buffer.frame_index= shared_memory_accesor->getLastVideoFrameIndex();
+			bHasValidFrame= true;
 		}
 	}
 
-	return buffer;
+	return bHasValidFrame;
 }
     
 bool PSMoveClient::allocate_hmd_listener(PSMHmdID hmd_id)
@@ -2292,9 +2299,9 @@ void PSMoveClient::enqueue_event_message(
     m_message_queue.push_back(message);
 }
 
-bool PSMoveClient::register_callback(
+bool PSMoveClient::register_cdecl_callback(
     PSMRequestID request_id,
-    PSMResponseCallback callback,
+    PSMResponseCallback_CDECL callback,
     void *callback_userdata)
 {
     bool bSuccess = false;
@@ -2306,7 +2313,33 @@ bool PSMoveClient::register_callback(
         assert(m_pending_request_map.find(request_id) == m_pending_request_map.end());
         memset(&pendingRequest, 0, sizeof(PendingRequest));
         pendingRequest.request_id = request_id;
-        pendingRequest.response_callback = callback;
+        pendingRequest.response_callback.cdecl_callback = callback;
+		pendingRequest.response_callback_type= PendingRequest::_callback_type_cdecl;
+        pendingRequest.response_userdata = callback_userdata;
+
+        m_pending_request_map.insert(t_pending_request_map_entry(request_id, pendingRequest));
+        bSuccess = true;
+    }
+
+    return bSuccess;
+}
+
+bool PSMoveClient::register_stdcall_callback(
+	PSMRequestID request_id,
+	PSMResponseCallback_STDCALL callback,
+	void *callback_userdata)
+{
+    bool bSuccess = false;
+
+    if (request_id != PSM_INVALID_REQUEST_ID)
+    {
+        PendingRequest pendingRequest;
+
+        assert(m_pending_request_map.find(request_id) == m_pending_request_map.end());
+        memset(&pendingRequest, 0, sizeof(PendingRequest));
+        pendingRequest.request_id = request_id;
+        pendingRequest.response_callback.stdcall_callback = callback;
+		pendingRequest.response_callback_type= PendingRequest::_callback_type_stdcall;
         pendingRequest.response_userdata = callback_userdata;
 
         m_pending_request_map.insert(t_pending_request_map_entry(request_id, pendingRequest));
@@ -2330,11 +2363,23 @@ bool PSMoveClient::execute_callback(
         {
             const PendingRequest &pendingRequest = iter->second;
 
-            if (pendingRequest.response_callback != nullptr)
+            if (pendingRequest.response_callback_type != PendingRequest::_callback_type_INVALID)
             {
-                pendingRequest.response_callback(
-                    response_message,
-                    pendingRequest.response_userdata);
+				switch (pendingRequest.response_callback_type)
+				{
+				case PendingRequest::_callback_type_cdecl:
+					pendingRequest.response_callback.cdecl_callback(
+						response_message,
+						pendingRequest.response_userdata);
+					break;
+				case PendingRequest::_callback_type_stdcall:
+					pendingRequest.response_callback.stdcall_callback(
+						response_message,
+						pendingRequest.response_userdata);
+					break;
+				default:
+					break;
+				}
 
                 bExecutedCallback = true;
             }
@@ -2372,14 +2417,29 @@ bool PSMoveClient::cancel_callback(PSMRequestID request_id)
             const PendingRequest &pendingRequest = iter->second;
                 
             // Notify the response callback that the request was canceled
-            if (pendingRequest.response_callback != nullptr)
+            if (pendingRequest.response_callback_type != PendingRequest::_callback_type_INVALID)
             {
                 PSMResponseMessage response;
                 memset(&response, 0, sizeof(PSMResponseMessage));
                 response.result_code= PSMResult_Canceled;
                 response.request_id= request_id;
                 response.payload_type= PSMResponsePayloadType::_responsePayloadType_HmdList;
-                pendingRequest.response_callback(&response, pendingRequest.response_userdata);
+                
+				switch (pendingRequest.response_callback_type)
+				{
+				case PendingRequest::_callback_type_cdecl:
+					pendingRequest.response_callback.cdecl_callback(
+						&response,
+						pendingRequest.response_userdata);
+					break;
+				case PendingRequest::_callback_type_stdcall:
+					pendingRequest.response_callback.stdcall_callback(
+						&response,
+						pendingRequest.response_userdata);
+					break;
+				default:
+					break;
+				}
             }
             m_pending_request_map.erase(iter);
             bSuccess = true;

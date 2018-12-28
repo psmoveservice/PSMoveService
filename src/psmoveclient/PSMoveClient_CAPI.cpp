@@ -78,7 +78,7 @@ public:
 			PSMCallbackTimeout timeout(timeout_ms);
 
             assert(g_psm_client != nullptr);
-			g_psm_client->register_callback(m_request_id, PSMBlockingRequest::response_callback, this);
+			g_psm_client->register_cdecl_callback(m_request_id, PSMBlockingRequest::response_callback, this);
     
 			while (!m_bReceived && !timeout.HasElapsed())
 			{
@@ -1211,17 +1211,15 @@ PSMResult PSM_CloseTrackerVideoStream(PSMTrackerID tracker_id)
     return result;
 }
 
-PSMResult PSM_GetTrackerVideoFrameBuffer(PSMTrackerID tracker_id, const unsigned char **out_buffer)
+PSMResult PSM_GetTrackerVideoFrameBuffer(PSMTrackerID tracker_id, PSMVideoFrameBuffer *out_buffer)
 {
     PSMResult result= PSMResult_Error;
 	assert(out_buffer != nullptr);
 
     if (g_psm_client != nullptr && IS_VALID_TRACKER_INDEX(tracker_id))
     {
-        const unsigned char *buffer= g_psm_client->get_video_frame_buffer(tracker_id);
-		if (buffer != nullptr)
+		if (g_psm_client->get_video_frame_buffer(tracker_id, *out_buffer))
 		{
-			*out_buffer= buffer;
 			result= PSMResult_Success;
 		}
     }
@@ -1823,10 +1821,18 @@ PSMResult PSM_SendOpaqueRequest(PSMRequestHandle request_handle, PSMRequestID *o
     return result;
 }
 
-PSMResult PSM_RegisterCallback(PSMRequestID request_id, PSMResponseCallback callback, void *callback_userdata)
+PSMResult PSM_RegisterCallback(PSMRequestID request_id, PSMResponseCallback_CDECL callback, void *callback_userdata)
 {
     if (g_psm_client != nullptr)
-        return g_psm_client->register_callback(request_id, callback, callback_userdata) ? PSMResult_Success : PSMResult_Error;
+        return g_psm_client->register_cdecl_callback(request_id, callback, callback_userdata) ? PSMResult_Success : PSMResult_Error;
+    else
+        return PSMResult_Error;
+}
+
+PSMResult PSM_RegisterSTDCALLCallback(PSMRequestID request_id, PSMResponseCallback_STDCALL callback, void *callback_userdata)
+{
+    if (g_psm_client != nullptr)
+        return g_psm_client->register_stdcall_callback(request_id, callback, callback_userdata) ? PSMResult_Success : PSMResult_Error;
     else
         return PSMResult_Error;
 }
@@ -1839,7 +1845,7 @@ PSMResult PSM_CancelCallback(PSMRequestID request_id)
         return PSMResult_Error;
 }
 
-static void null_response_callback(
+static void PSM_CDECL null_response_callback(
     const PSMResponseMessage *response,
     void *userdata)
 { }
@@ -1847,7 +1853,7 @@ static void null_response_callback(
 PSMResult PSM_EatResponse(PSMRequestID request_id)
 {
     if (g_psm_client != nullptr)
-	    return g_psm_client->register_callback(request_id, null_response_callback, nullptr) ? PSMResult_Success : PSMResult_Error;
+	    return g_psm_client->register_cdecl_callback(request_id, null_response_callback, nullptr) ? PSMResult_Success : PSMResult_Error;
     else
         return PSMResult_Error;
 }

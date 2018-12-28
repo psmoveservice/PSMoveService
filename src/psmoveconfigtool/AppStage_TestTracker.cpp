@@ -71,10 +71,11 @@ void AppStage_TestTracker::update()
     {
         if (PSM_PollTrackerVideoStream(m_tracker_view->tracker_info.tracker_id) == PSMResult_Success)
         {
-			const unsigned char *buffer= nullptr;
-			if (PSM_GetTrackerVideoFrameBuffer(m_tracker_view->tracker_info.tracker_id, &buffer) == PSMResult_Success)
+			PSMVideoFrameBuffer frame_buffer;
+
+			if (PSM_GetTrackerVideoFrameBuffer(m_tracker_view->tracker_info.tracker_id, &frame_buffer) == PSMResult_Success)
 			{
-				m_video_texture->copyBufferIntoTexture(buffer);
+				m_video_texture->copyBufferIntoTexture(frame_buffer.rgb_buffer);
 			}
         }
     }

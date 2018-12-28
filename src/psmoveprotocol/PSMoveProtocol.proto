@@ -594,8 +594,8 @@ message Response {
                 BLUETOOTH = 1;
             }
             ConnectionType connection_type = 2;
-			ControllerType controller_type = 3;
-			ControllerHand controller_hand = 4;
+            ControllerType controller_type = 3;
+            ControllerHand controller_hand = 4;
             TrackingColorType tracking_color_type = 5;
             string device_path = 6;
             string device_serial = 7;
